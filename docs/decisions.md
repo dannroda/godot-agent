@@ -22,6 +22,7 @@ addons/
       export_presets_patcher.gd    # lee/parchea exclude_filter en export_presets.cfg
     playtest/
       playtest_autoload.gd         # alta/baja/limpieza del autoload (lado editor)
+      playtest_debugger.gd         # M4: EditorDebuggerPlugin del canal godot_agent: (D20)
       runtime/
         playtest_probe.gd          # el autoload que corre en el juego. Aislado (sin preload)
     transport/                     # M1: agent_process.gd
@@ -29,6 +30,8 @@ addons/
     session/                       # M1: session_model.gd · M2: permission_policy.gd
     mcp/                           # M3: mcp_server.gd, http_request_parser.gd, tool_registry.gd,
                                    #     mcp_stdio_shim.gd, tools/<grupo>_tools.gd
+                                   # M4: tools/scene_edit_tools.gd, run_tools.gd, value_coercion.gd
+    editor/                        # M2: editor_sync.gd · M4: editor_undo.gd (D19)
     oneshot/                       # M6: checkpoints.gd, budgets.gd
     completion/                    # M8: controller, providers/, project_context, ranker…
     config/                        # Resources por proyecto (D5) y prompts editables
@@ -216,3 +219,27 @@ Claude Code (`claude-agent-acp` 0.94) anuncia HTTP, así que en la práctica usa
   - **4.4**: el texto del panel Output, por líneas nuevas. Ahí el formato es `ERROR: archivo:línea - mensaje` y los mensajes llegan diferidos.
   - **Todas las versiones**: el árbol de errores del Debugger (errores del juego). Se lo reconoce por tener 2 columnas, raíz oculta y la hora en la primera columna.
 - **`validate_scripts`**: corre un subproceso `godot --headless --path <proyecto> --script script_checker.gd -- <rutas>`, que carga cada script con `CACHE_MODE_IGNORE` y deja marcas `@@BEGIN`/`@@END` en stderr, el mismo flujo que los errores del motor. El parseo asocia cada `SCRIPT ERROR` a su `at: (res://…:línea)`. No toca el estado del editor ni las clases globales; usa AgentProcess, así que respeta D11 en 4.4. El loader devuelve el script aunque tenga errores de parseo: la fuente de verdad es la lista de errores.
+
+## D19 · Tools de edición: undo por tool call y "↶ undo" con el menú del editor (M4)
+
+- Cada tool de edición hace **una** acción de `EditorUndoRedoManager` llamada `Agente: …`, con `custom_context` en la raíz de la escena, para que caiga en la historia de esa escena. El resultado termina en `Paso de undo: «…»`.
+- Los valores JSON se convierten al tipo de la propiedad con `mcp/tools/value_coercion.gd`. Acepta vectores como lista u objeto, colores `#rrggbb` o por nombre, enums por nombre, recursos `res://` (con chequeo de tipo) y la sintaxis de Godot (`"Vector2(1, 2)"`). Si una propiedad no existe, el error sugiere las 5 más parecidas.
+- **Undo desde el dock**: `EditorUndoRedoManager` no expone `undo()` a GDScript, y llamar al `UndoRedo` de una historia directo desincroniza el manager. `editor/editor_undo.gd` dispara la opción Undo del menú principal: un `PopupMenu` hijo de un `MenuBar` con un ítem cuyo atajo es Ctrl+Z. Solo lo hace si la versión de la historia de la escena y la de la global no cambiaron desde la acción del agente; si no, avisa y no deshace.
+- **Unión con el tool call**: el server MCP no conoce el `toolCallId` de ACP. La acción se une al tool call `mcp__godot__<tool>` que tiene los mismos argumentos (`rawInput`). Las acciones que llegan antes que su tool call esperan hasta 60 s.
+
+## D20 · Autoload de playtest: baja cuando el juego ya leyó project.godot (M4)
+
+- **Alta** en `EditorPlugin._build()`, solo si `run_scene` pidió el run (`RunTools.harness_requested`) o si `playtest_on_manual_runs` está activo. `play_custom_scene` llama a `_build()` de forma sincrónica, así que el flag se pone y se saca alrededor de esa llamada.
+- `add_autoload_singleton` y `remove_autoload_singleton` **no guardan** `project.godot`: `autoload_add` sin undo solo cambia ProjectSettings en memoria. El juego es otro proceso que lee el archivo del disco, así que `PlaytestAutoload.register` y `unregister` llaman a `ProjectSettings.save()`.
+- **Baja** en `EditorDebuggerSession.started`, que el editor emite cuando el juego manda su PID, o sea cuando ya cargó la configuración. También en `stopped`, en `stop_scene`, si el juego no llegó a arrancar, al deshabilitar el plugin, en `_export_begin` y al arrancar el plugin (huérfano). La ventana en la que el autoload está en disco dura lo que tarda en arrancar el juego. `tests/crash_check.sh` mata el editor justo después del alta y también con un run en curso: al reabrir, el autoload no está y `export_check` pasa.
+- **Canal** `godot_agent:` entre `playtest/playtest_debugger.gd` (EditorDebuggerPlugin) y `playtest/runtime/playtest_probe.gd`:
+  - juego → editor: `ready`, `frame` (PNG reescalado en el juego), `inputs_done`, `problem`;
+  - editor → juego: `capture`, `inputs`.
+- **Probe sin variables miembro**: en 4.7.2, con una `var` en el probe, el juego reportaba dos errores "get_node() with absolute paths from outside the active scene tree" con backtrace en `@implicit_new` del probe. Con el probe mínimo no pasaba, y sin la variable tampoco. No hay repro mínimo todavía; candidato para m7-01.
+- **Pausa del debugger**: con un error de script el juego queda detenido (no termina). `run_scene` lo detecta con `EditorDebuggerSession.breaked` y lee el motivo y la ubicación del panel Stack Trace, porque la sesión no los expone.
+
+## D21 · Pruebas que lanzan el juego: en Xvfb (M4)
+
+En el escritorio, la ventana del editor de prueba le robó el foco al usuario: el debugger abrió `run_broken.gd` en la línea del error, quedó "bil" tipeado ahí y el guardado previo al siguiente run lo persistió. Las pruebas de editor corren con `tests/run_in_xvfb.sh`: Xvfb sin GPU, editor y juego con `--rendering-driver opengl3` (llvmpipe). El juego recibe sus argumentos por `editor/run/main_run_args`, que `run_check.gd` pone solo en memoria cuando existe `GODOT_AGENT_TEST_RUN_ARGS`. Bajo Xvfb el editor suma errores `BadWindow` de X11 y el juego un warning de V-Sync, así que la prueba exige que no haya errores **del juego**, en vez de exigir cero entradas.
+
+`tests/crash_check.sh` se corre con `setsid -w`: matar el editor con `OS.kill` llegó a terminar la shell que lo había lanzado.

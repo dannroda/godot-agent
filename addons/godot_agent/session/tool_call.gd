@@ -22,6 +22,9 @@ var raw_input: Variant = null
 var raw_output: Variant = null
 var started_msec: int = 0
 var finished_msec: int = 0
+## Paso de undo de una tool godot.* de edición (EditorUndo.record), o {}.
+var undo_info: Dictionary = {}
+var undo_done: bool = false
 
 
 func is_finished() -> bool:
@@ -72,6 +75,18 @@ func display_name() -> String:
 	if title.is_empty():
 		return kind
 	return title
+
+
+## Nombre de la tool godot.* sin prefijo ("add_node"), o "" si no es del addon.
+func godot_tool_name() -> String:
+	for prefix: String in ["mcp__godot__", "godot."]:
+		if title.begins_with(prefix):
+			return title.trim_prefix(prefix)
+	return ""
+
+
+func can_undo() -> bool:
+	return not undo_info.is_empty() and not undo_done and status == STATUS_COMPLETED
 
 
 func is_godot_tool() -> bool:

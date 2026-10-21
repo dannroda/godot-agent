@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:14.166Z",
   "description": "Canal del debugger con prefijo godot_agent:. El probe captura frames y reproduce inputs {t, action, pressed}. Ciclo de vida: alta en _build() solo si el run lo pidió el harness (u opción en Settings), baja al terminar la sesión de debug o tras stop, limpieza al arrancar (spec §6).",
   "milestone": "m04",
-  "notes": "",
+  "notes": "- Alta en EditorPlugin._build() si run_tools.harness_requested (o playtest_on_manual_runs). play_custom_scene llama a _build() de forma sincrónica.\n- add/remove_autoload_singleton no guardan project.godot y el juego lo lee del disco, así que PlaytestAutoload.register/unregister llaman a ProjectSettings.save().\n- Baja en cuanto arranca la sesión de debug (EditorDebuggerSession.started se emite después de que el juego manda su PID, cuando ya leyó project.godot), y otra vez en stopped, en stop_scene y si el juego no llegó a arrancar. Esto achica la ventana de riesgo a lo que tarda en arrancar el juego.\n- Canal godot_agent: playtest/playtest_debugger.gd (EditorDebuggerPlugin) ↔ runtime/playtest_probe.gd. El motivo de una pausa del debugger se lee del panel Stack Trace (la sesión no lo expone).\n- 4.7.2: con una variable miembro, el juego reportaba dos \"get_node() with absolute paths\" en @implicit_new del probe. Sin la variable no pasa, así que el probe queda sin variables miembro (D20).\n- Las pruebas que lanzan el juego corren en Xvfb (D21): en el escritorio, la ventana del editor robó el foco y quedó \"bil\" tipeado en un fixture.",
   "order": 3,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "`tests/run_in_xvfb.sh $G --godot-agent-run-test` (addons/godot_agent_dev/run_check.gd), con el editor en Xvfb y OpenGL. Después de run_scene, de un juego que terminó solo y de un run manual, el autoload no está en ProjectSettings ni en project.godot del disco. Un run manual no lo registra y capture_game_frame responde \"sin probe\". El probe reproduce los inputs (Output con \"ui_accept recibido/soltado\") y devuelve un frame rojo. Pasa en 4.4.1, 4.7.2 y 4.8-beta1.",
   "title": "Autoload de playtest y EditorDebuggerPlugin",
-  "updated_at": "2026-10-21T04:33:14.166Z"
+  "updated_at": "2026-10-21T06:46:59.578Z"
 }

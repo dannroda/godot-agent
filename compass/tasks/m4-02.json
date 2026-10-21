@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:13.441Z",
   "description": "create_scene crea y guarda el .tscn con root_type/root_name; attach_script crea el script si no existe y lo adjunta con undo.",
   "milestone": "m04",
-  "notes": "",
+  "notes": "Grupo edit_files: en el modo Revisar piden permiso aunque edit_scene esté permitido. create_scene no abre la escena; el agente usa open_scene.",
   "order": 2,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "edit_check.gd: create_scene crea el .tscn y no pisa uno existente (error); attach_script crea el script (\"(creado)\") y lo adjunta con undo; rechaza un script con una base incompatible; save_scene persiste la instancia y el script. Pasa en 4.4.1, 4.7.2 y 4.8.",
   "title": "Tools edit_files: create_scene y attach_script",
-  "updated_at": "2026-10-21T04:33:13.441Z"
+  "updated_at": "2026-10-21T06:10:32.036Z"
 }

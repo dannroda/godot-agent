@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[node name="Main" type="Node2D"]
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="ScoreLabel" type="Label" parent="HUD"]
+text = "0"
+
+[node name="WaveTimer" type="Timer" parent="."]
+wait_time = 5.0

@@ -71,13 +71,13 @@ Habilitar/deshabilitar el plugin 5 veces sin errores, correr el test de export e
 
 **Notas:** docs/progress.md tiene qué quedó, cómo probar a mano y pendientes. Revisión con godot-code-review: sin hallazgos altos; se arreglaron parámetros sin usar en el export plugin y el banner que no se refrescaba con el dock ya visible. Pendiente: link al artifact de diseño (spec §9) para M1.
 
-## M1 — Transporte y ACP mínimo  (11/11, 10 en revisión)
+## M1 — Transporte y ACP mínimo  (11/14, 10 en revisión)
 
-AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/new → session/prompt con streaming al dock, y session/cancel. Agent Log con canales.
+AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/new → session/prompt con streaming al dock, y session/cancel. Agent Log con canales. QuotaMonitor en modo observación (canal quota).
 
 **Hecho cuando:**
 - Contra el agente falso: un prompt, una respuesta en streaming y una cancelación limpia.
-- Contra Claude Code real: "hola" recibe respuesta.
+- Contra Claude Code real: "hola" recibe respuesta y la verificación de cuota (qué reporta el adapter y cómo se ve un error de límite) está documentada en docs/decisions.md.
 
 ### Conseguir el mockup de UI (artifact de diseño, 4 pantallas) · Hecho
 
@@ -239,6 +239,36 @@ Prueba de integración headless: prompt, respuesta en streaming y cancelación l
 **Prueba:** Contra el agente falso: acp_session_check.gd y el ui-test. Contra Claude Code real: tests/claude_smoke_check.gd mandó "hola", recibió "¡Hola! Estoy dentro del editor de Godot…" con end_turn y no quedó ningún proceso vivo.
 
 **Notas:** docs/progress.md (sección M1) y decisions.md D11–D14.
+
+**Relacionadas:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
+
+### 1.12 QuotaMonitor en modo observación (canal quota) · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
+
+Spec §10.1 y M1 (actualizado): QuotaMonitor nuevo en la arquitectura. En M1 solo observa: loguea crudo en un canal nuevo `quota` del Agent Log cada `usage_update` de ACP y cualquier aviso o error de límite (error JSON-RPC en session/prompt, notice o mensaje del agente). Guarda el último payload crudo para mapear los campos después. No estima cuota a partir de tokens, no consulta endpoints no documentados y no lee archivos internos ni credenciales del agente.
+
+**Bloquea a:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
+
+### 1.13 Verificar qué cuota reporta el adapter de Claude Code · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
+
+Spec M1 (actualizado): con el adapter real (@agentclientprotocol/claude-agent-acp), documentar en docs/decisions.md qué reporta realmente: cuota del plan con hora de reinicio, solo tokens de la sesión, o nada; y cómo se ve un error de límite. Fuentes: el canal quota de una sesión real y el código del adapter. El diseño de §10.1 (nombres de campo y patrones de límite) se ajusta a eso. Criterio de M1: "hola" recibe respuesta y la verificación de cuota está documentada.
+
+**Bloquea a:** 1.14 Agente falso: cuota simulada y errores de límite; 6.6 QuotaMonitor: fuentes, estados y umbrales
+
+**Bloqueada por:** 1.12 QuotaMonitor en modo observación (canal quota)
+
+**Relacionadas:** 1.11 Verificar M1 contra el agente falso y Claude Code real
+
+### 1.14 Agente falso: cuota simulada y errores de límite · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
+
+Spec §13 (actualizado): el agente falso emite también `usage_update` con cuota simulada y errores de límite con hora de reinicio, según el guion JSON. Usa la forma que salga de m1-13. Es la base de los tests del QuotaMonitor y de la verificación de M6 (cuota al 90 % y después límite).
+
+**Bloqueada por:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
 
 ## M2 — Tool calls, diffs y permisos  (8/8, 8 en revisión)
 
@@ -556,7 +586,7 @@ La prueba de ciclo se volvió robusta: espera el escaneo del FS, toma la línea 
 Bug encontrado y corregido: el set_process(false) en _ready del server lo apagaba después de start().
 Docs: D16, D17, D18 y la sección M3 de progress.md.
 
-## M4 — Tools de edición y ejecución  (0/6)
+## M4 — Tools de edición y ejecución  (6/6, 6 en revisión)
 
 Grupos edit_scene, edit_files y run con undo; run_scene con captura de errores, autoload de playtest con su ciclo de vida, capture_game_frame e inputs simulados.
 
@@ -564,41 +594,87 @@ Grupos edit_scene, edit_files y run con undo; run_scene con captura de errores, 
 - "Agregá un Label WaveLabel al HUD y conectá la señal X": aparece en el árbol, Ctrl+Z lo deshace en pasos y `run_scene` devuelve errores reales con un script roto.
 - Tras un `run_scene`, un run manual y matar el editor a mitad de un playtest, el autoload no queda en `project.godot` y el test de export sigue pasando.
 
-### 4.1 Tools edit_scene con undo · Pendiente
+### 4.1 Tools edit_scene con undo · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
 add_node, set_properties, remove_node, reparent_node, rename_node, connect_signal (persistente), instantiate_scene, open_scene, save_scene. Toda mutación por EditorUndoRedoManager, una acción por tool call; devuelven el nombre del paso de undo.
 
-### 4.2 Tools edit_files: create_scene y attach_script · Pendiente
+**Prueba:** `godot --path . -e -- --godot-agent-edit-test` (addons/godot_agent_dev/edit_check.gd) llama por HTTP real a cada tool sobre una copia de main_fixture.tscn y verifica el árbol, los owners, los valores anteriores y nuevos, la señal persistente, los errores con sugerencia, que Ctrl+Z (la opción Undo del menú) deshace en pasos y que el undo de remove_node restaura los hijos con owner. Pasa en 4.4.1, 4.7.2 y 4.8-beta1.
+
+**Notas:** - Valores JSON → propiedad: mcp/tools/value_coercion.gd (vectores, colores, enums por nombre, recursos res://, sintaxis de Godot), con test unitario.
+- Una acción "Agente: …" por tool call, con custom_context en la raíz; el texto del resultado termina en "Paso de undo: «…»".
+- EditorUndoRedoManager no expone undo(): editor/editor_undo.gd dispara la opción Undo del menú principal (PopupMenu hijo de MenuBar con atajo Ctrl+Z).
+- La prueba recarga la escena si el editor restauró su pestaña de una corrida anterior; si no, open_scene ve la versión vieja.
+
+### 4.2 Tools edit_files: create_scene y attach_script · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 create_scene crea y guarda el .tscn con root_type/root_name; attach_script crea el script si no existe y lo adjunta con undo.
 
-### 4.3 Autoload de playtest y EditorDebuggerPlugin · Pendiente
+**Prueba:** edit_check.gd: create_scene crea el .tscn y no pisa uno existente (error); attach_script crea el script ("(creado)") y lo adjunta con undo; rechaza un script con una base incompatible; save_scene persiste la instancia y el script. Pasa en 4.4.1, 4.7.2 y 4.8.
+
+**Notas:** Grupo edit_files: en el modo Revisar piden permiso aunque edit_scene esté permitido. create_scene no abre la escena; el agente usa open_scene.
+
+### 4.3 Autoload de playtest y EditorDebuggerPlugin · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
 Canal del debugger con prefijo godot_agent:. El probe captura frames y reproduce inputs {t, action, pressed}. Ciclo de vida: alta en _build() solo si el run lo pidió el harness (u opción en Settings), baja al terminar la sesión de debug o tras stop, limpieza al arrancar (spec §6).
 
-### 4.4 run_scene, stop_scene y capture_game_frame · Pendiente
+**Prueba:** `tests/run_in_xvfb.sh $G --godot-agent-run-test` (addons/godot_agent_dev/run_check.gd), con el editor en Xvfb y OpenGL. Después de run_scene, de un juego que terminó solo y de un run manual, el autoload no está en ProjectSettings ni en project.godot del disco. Un run manual no lo registra y capture_game_frame responde "sin probe". El probe reproduce los inputs (Output con "ui_accept recibido/soltado") y devuelve un frame rojo. Pasa en 4.4.1, 4.7.2 y 4.8-beta1.
+
+**Notas:** - Alta en EditorPlugin._build() si run_tools.harness_requested (o playtest_on_manual_runs). play_custom_scene llama a _build() de forma sincrónica.
+- add/remove_autoload_singleton no guardan project.godot y el juego lo lee del disco, así que PlaytestAutoload.register/unregister llaman a ProjectSettings.save().
+- Baja en cuanto arranca la sesión de debug (EditorDebuggerSession.started se emite después de que el juego manda su PID, cuando ya leyó project.godot), y otra vez en stopped, en stop_scene y si el juego no llegó a arrancar. Esto achica la ventana de riesgo a lo que tarda en arrancar el juego.
+- Canal godot_agent: playtest/playtest_debugger.gd (EditorDebuggerPlugin) ↔ runtime/playtest_probe.gd. El motivo de una pausa del debugger se lee del panel Stack Trace (la sesión no lo expone).
+- 4.7.2: con una variable miembro, el juego reportaba dos "get_node() with absolute paths" en @implicit_new del probe. Sin la variable no pasa, así que el probe queda sin variables miembro (D20).
+- Las pruebas que lanzan el juego corren en Xvfb (D21): en el escritorio, la ventana del editor robó el foco y quedó "bil" tipeado en un fixture.
+
+### 4.4 run_scene, stop_scene y capture_game_frame · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 run_scene corre la escena (play_custom_scene/play_current_scene), espera N segundos o la salida y devuelve errores y Output capturados; capture_game_frame pide un frame al probe; stop_scene detiene.
 
-### 4.5 Botón "↶ undo" en los tool calls del dock · Pendiente
+**Prueba:** run_check.gd por HTTP real:
+- run_scene con inputs → "sigue corriendo", "Inputs: 2 de 2", Output del juego y ningún error del juego;
+- capture_game_frame → PNG con el centro rojo (ColorRect del fixture);
+- stop_scene;
+- script roto → "se detuvo en el debugger" con "queue_free" y run_broken.gd;
+- juego que termina solo → "terminó solo" con su Output;
+- acción inexistente y capture sin juego → isError.
+Pasa en 4.4.1, 4.7.2 y 4.8-beta1.
+
+**Notas:** mcp/tools/run_tools.gd.
+- run_scene no cierra el juego: el agente sigue con capture_game_frame o stop_scene. Si ya había un juego corriendo, lo reinicia.
+- `seconds` se cuenta desde que el probe dice ready (arranque: hasta 20 s).
+- Output = lo nuevo del panel Output, o todo si el editor lo limpió al correr (últimas 150 líneas). Errores = ErrorCollector.entries_since(marca); devuelve la marca para get_errors.
+- Con un error de script el juego queda pausado en el debugger y el reporte trae el motivo y la ubicación.
+
+### 4.5 Botón "↶ undo" en los tool calls del dock · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
 
 Los tool calls MCP de edición registran su paso de undo; el dock muestra "↶ undo" y lo deshace si sigue siendo el último paso de esa escena (si no, avisa).
 
-### 4.6 Verificar M4 · Pendiente
+**Prueba:** edit_check.gd simula un tool call ACP `mcp__godot__add_node` con rawInput igual a los args; la acción se une a ese tool call (can_undo), y `_undo_tool_call` lo deshace y marca undo_done. Con un cambio posterior en la escena no deshace y avisa con "Hubo cambios posteriores…". Además: permisos (Preguntar deniega con isError; Construir muestra la tarjeta y ejecuta al aceptar).
+
+**Notas:** La unión es por nombre de tool y argumentos (el server MCP no conoce el toolCallId de ACP); las acciones pendientes vencen a los 60 s. Solo deshace si la versión de la historia de la escena y la de la global no cambiaron.
+
+### 4.6 Verificar M4 · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 "Agregá un Label WaveLabel al HUD y conectá la señal X": aparece en el árbol, Ctrl+Z lo deshace en pasos; run_scene devuelve errores reales con un script roto. Tras run_scene, run manual y editor matado a mitad de un playtest, el autoload no queda en project.godot y export_check sigue pasando.
+
+**Prueba:** - Claude Code real (`tests/run_in_xvfb.sh $G --godot-agent-claude-scene-test`, 4.8 y 4.4.1): agregó WaveLabel bajo HUD con add_node y conectó WaveTimer.timeout con connect_signal; el primer Ctrl+Z deshizo la conexión y el siguiente el Label; el .tscn en disco no cambió.
+- run_scene con un script roto: run_check.gd ("se detuvo en el debugger … queue_free … run_broken.gd").
+- Autoload: run_check.gd (después de run_scene, de un juego que terminó solo y de un run manual) y `setsid -w tests/crash_check.sh $G` (editor matado con el autoload recién registrado y con un run en curso; al reabrir no está en project.godot y export_check pasa).
+- Suite completa (unit 58/353, acp, export, cycle, sync, ui, mcp, edit, run) en 4.4.1, 4.7.2 y 4.8-beta1.
+
+**Notas:** docs/progress.md (sección M4) y decisions.md D19–D21. El prompt de sistema suma reglas para edición en pasos chicos y para run_scene/capture/stop. Los editores 4.4/4.7 reescriben tests/fixtures/main_fixture.tscn al correr la suite (sin unique_id): se restaura con git checkout, igual que project.godot.
 
 ## M5 — Revisar y Script Editor  (0/4)
 
@@ -631,18 +707,19 @@ Modo Revisar: aviso de solo lectura, contadores por severidad, lista con archivo
 
 Revisar una carpeta con 3 bugs sembrados: aparecen anotados en las líneas correctas (agente falso con guion de findings y Claude Code real). Actualizar progress.
 
-## M6 — One-shot  (0/5)
+## M6 — One-shot  (0/8)
 
-Pantalla principal completa, checkpoints git, presupuestos, checks y "Guiar al agente".
+Pantalla principal completa, checkpoints git, presupuestos, checks, "Guiar al agente" y reglas de cuota del plan (§10.1).
 
 **Hecho cuando:**
 - En un proyecto vacío: "Pong de 2 jugadores con puntaje" completa al menos un playtest con captura, crea checkpoints y "Volver acá" restaura correctamente.
+- Con el agente falso simulando la cuota al 90 % y después un error de límite con hora de reinicio: el One-shot pausa al terminar la tarea, crea cpN-quota, muestra la cuenta regresiva y retoma solo (o con confirmación) desde la tarea correcta.
 
 ### 6.1 Pantalla principal One-shot · Pendiente
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
-Barra superior (objetivo, estado/fase, presupuestos con barras, Pausar/Detener), columnas Plan (editable), Actividad (con "Guiar al agente") y Playtest/Verificaciones/Checkpoints, barra inferior con resumen de cambios, "Revisar cambios" y "Aceptar todo" (docs/design pantalla 2).
+Barra superior: objetivo, estado/fase, presupuestos con barras (cuota de la ventana, tiempo, tokens, playtests), la regla de cuota activa en una línea ("se pausa al 90 % en el próximo checkpoint"), cuenta regresiva hasta el reinicio en "Limitado", y Pausar/Detener (spec §9.2 actualizado). Columnas Plan (editable), Actividad (con "Guiar al agente") y Playtest/Verificaciones/Checkpoints. Barra inferior con resumen de cambios, "Revisar cambios" y "Aceptar todo" (docs/design pantalla 2).
 
 ### 6.2 Checkpoints git · Pendiente
 
@@ -666,7 +743,43 @@ tests/sandbox_project/ separado (con .gdignore para el anfitrión) para correr o
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
-En el sandbox: "Pong de 2 jugadores con puntaje" completa al menos un playtest con captura, crea checkpoints y "Volver acá" restaura correctamente. Actualizar progress.
+En el sandbox: "Pong de 2 jugadores con puntaje" completa al menos un playtest con captura, crea checkpoints y "Volver acá" restaura correctamente. Cuota (spec M6 actualizado): con el agente falso simulando la cuota al 90 % y después un error de límite con hora de reinicio, el One-shot pausa al terminar la tarea, crea cpN-quota, muestra la cuenta regresiva y retoma solo (o con confirmación) desde la tarea correcta. Actualizar progress.
+
+**Bloqueada por:** 6.8 Reglas de cuota en One-shot: pausa, Limitado y reanudación
+
+### 6.6 QuotaMonitor: fuentes, estados y umbrales · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude · **Etiquetas:** `quota`
+
+Spec §10.1. Fuentes, en orden: (1) campos de cuota del `usage_update` (los de m1-13); (2) avisos y errores de límite, con parseo tolerante y patrones en un archivo editable del addon; (3) sin datos: solo tokens de sesión y "desconocido". Estados normal / aviso / pausa_programada / limitado / desconocido, expuestos al SessionModel. Umbrales por usuario en EditorSettings godot_agent/: aviso (75 %), pausa del One-shot (90 % o nunca), y al reiniciar la ventana retomar solo o esperar confirmación. Hora de reinicio conocida → timer; sin hora → backoff 5, 10, 20 y luego cada 60 min. Tests unitarios con payloads del agente falso.
+
+**Bloquea a:** 6.7 Medidor de cuota en el dock y bloqueo en Limitado; 6.8 Reglas de cuota en One-shot: pausa, Limitado y reanudación
+
+**Bloqueada por:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
+
+### 6.7 Medidor de cuota en el dock y bloqueo en Limitado · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
+
+Spec §9.1 y §10.1 (fuera de One-shot): barras de la ventana actual y semanal, con porcentaje y tiempo hasta el reinicio. Si el agente no informa cuota, se ocultan y queda el medidor de contexto del composer, con un tooltip que dice que el agente no la informa. En el dock solo hay avisos; en "Limitado", el botón enviar se deshabilita y muestra la cuenta regresiva.
+
+**Bloqueada por:** 6.6 QuotaMonitor: fuentes, estados y umbrales
+
+### 6.8 Reglas de cuota en One-shot: pausa, Limitado y reanudación · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude · **Etiquetas:** `quota`
+
+Spec §10.1.
+- Aviso: banner en la pantalla Agent y entrada en el canal quota.
+- Umbral de pausa: no corta el turno; al terminar la tarea actual y crear su checkpoint, no manda la siguiente y pasa a "Pausado por cuota".
+- Límite a mitad de turno: los tool calls pendientes pasan a cancelled, se crea el checkpoint cpN-quota y se pasa a "Limitado".
+- Reanudar (solo o con confirmación): session/prompt "continuá con el plan desde la tarea X; el estado está en el checkpoint cpN". Si la sesión se perdió, session/load o una sesión nueva con el resumen del plan, los checks y los checkpoints.
+- El tiempo en Limitado no cuenta contra el presupuesto de tiempo.
+- Barra superior: cuota de la ventana, regla activa en una línea ("se pausa al 90 % en el próximo checkpoint") y cuenta regresiva en Limitado.
+
+**Bloquea a:** 6.5 Verificar M6
+
+**Bloqueada por:** 6.6 QuotaMonitor: fuentes, estados y umbrales
 
 ## M7 — Pulido  (0/7)
 
@@ -677,17 +790,62 @@ Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimient
 - Sesión de más de 500 entradas sin degradación visible.
 - README de uso escrito.
 
-### Reportar a Godot los problemas de docks de 4.8-beta1 · Pendiente
+### Reportar a Godot el EditorDock huérfano de _has_main_screen (4.8) · Pendiente
 
 **Prioridad:** baja · **Tamaño:** S
 
-El addon esquiva dos problemas de 4.8-beta1 que conviene reportar upstream con un repro mínimo: (1) un plugin con _has_main_screen() == true deja un EditorDock huérfano en cada deshabilitado; (2) quitar con remove_dock una main screen activa al cerrar el editor da "Condition !is_inside_tree()" en grab_focus, y cambiar antes a "Script" en headless crashea por desborde de la cola de mensajes. Ver docs/decisions.md D9. Si se arreglan, simplificar ui/editor_surfaces.gd.
+Reportar upstream un leak de 4.8: un plugin con `_has_main_screen() == true` deja un `EditorDock` huérfano cada vez que se deshabilita. No hay issue ni PR abierto (búsqueda del 2026-10-21: "EditorDock", "main screen", "has_main_screen", "remove_main_plugin", "LegacyMainScreenContainer", "orphan"). Si se arregla, el path de main screen con la API vieja vuelve a ser utilizable en 4.8 (hoy `ui/editor_surfaces.gd` usa `add_dock` en 4.8+, D9).
+
+**Causa (editor/editor_main_screen.cpp, igual en 4.8-beta1 y en master al 2026-10-21):** desde #113051 (main screen plugins → docks, @KoBeWi), cuando un plugin legacy agrega su control al main screen, `LegacyMainScreenContainer::add_child_notify` crea por dentro un `EditorDock` con `memnew`, lo registra con `add_dock` y lo guarda en el meta `_dock` del plugin. Al deshabilitar, `EditorMainScreen::remove_main_plugin` llama a `EditorDockManager::remove_dock(dock)`, que lo saca del árbol (`_move_dock(p_dock, nullptr)`), pero nadie lo libera: no hay `queue_free`/`memdelete` y el meta `_dock` queda. Cada ciclo deja un `EditorDock` fuera del árbol, con su `visibility_changed` conectado.
+
+**Repro mínimo:** proyecto vacío con un plugin:
+
+```gdscript
+@tool
+extends EditorPlugin
+var panel: Control
+func _enter_tree() -> void:
+	panel = Label.new()
+	EditorInterface.get_editor_main_screen().add_child(panel)
+func _exit_tree() -> void:
+	panel.queue_free()
+func _has_main_screen() -> bool:
+	return true
+func _get_plugin_name() -> String:
+	return "LegacyMS"
+```
+
+Alternarlo 5 veces con `EditorInterface.set_plugin_enabled()` desde otro plugin y contar los `EditorDock` en `Node.get_orphan_node_ids()`. Medido en 4.8-beta1 (4d10419ca) y master e7cfa294a, headless: base 2, después 3, 4, 5, 6, 7 (uno más por ciclo). Con `add_dock` + `remove_dock` + `queue_free` desde el plugin no crece.
+
+**Arreglo probable:** en `remove_main_plugin`, después de `remove_dock`, liberar el dock (`dock->queue_free()`) y `remove_meta("_dock")`. Ojo: el control del plugin está reparentado dentro del dock, así que liberarlo también libera el control si el plugin no lo hizo en `_exit_tree`.
+
+**Aparte, menor:** sin `_get_plugin_icon()`, el mismo path da `WARNING: Trying to access a non-existing editor theme icon "LegacyMS"` en cada habilitado, porque `add_child_notify` hace `set_icon_name(get_plugin_name())`. Se puede mencionar en el mismo issue.
+
+**Descartado:** el segundo problema que listaba D9 (`Condition "!is_inside_tree()"` en `grab_focus` al cerrar el editor con la main screen activa; crash por "Message queue out of memory" al cambiar antes a "Script" en headless) no se reproduce en 4.8-beta1 ni en 4.8-dev7. Se probó con un repro mínimo (`add_dock` en main screen, con la pantalla anterior en 2D y en Script; con y sin cambiar a "Script" en `_exit_tree`) y con el addon real sin el cambio a "2D" de `remove_all()` (prueba de captura, xvfb y headless). No se reporta.
+
+- [ ] Armar el proyecto de repro y zipearlo
+  Plugin legacy de arriba + plugin driver que alterna 5 veces y cuenta EditorDock huérfanos. Sin .godot/.
+- [ ] Probar en el último 4.8 publicado antes de abrir el issue
+  Si ya está arreglado, cerrar la tarea y anotar la versión.
+- [ ] Abrir el issue con la plantilla de bug
+  Tested versions: 4.8-beta1, master e7cfa294a; regresión de #113051. Incluir la causa y el arreglo probable.
+- [ ] Decidir si se saca el cambio a 2D de remove_all()
+  El error de grab_focus ya no se reproduce; el cambio a 2D es inofensivo pero su comentario describe un bug que no aparece. Actualizar D9.
+
+**Prueba:** Issue abierto en godotengine/godot con el repro adjunto y su link en notes. Si se arregla upstream, `tests/plugin_cycle_check.gd` pasa en esa versión con la main screen por `_has_main_screen()`.
 
 ### 7.2 Diálogo de Settings completo · Pendiente
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
-Navegación según docs/design pantalla 4: Agentes (CRUD de perfiles), Herramientas/Permisos (matriz), puerto MCP y regenerar token, presupuestos default de One-shot, checkpoints on/off, ubicación del dock, color de acento, aviso y botón de filtro de presets. Diálogo propio (no Project Settings: escribiría en project.godot).
+Navegación según docs/design pantalla 4. Secciones:
+- Agentes (CRUD de perfiles).
+- Herramientas/Permisos (matriz).
+- Puerto MCP y regenerar token.
+- Presupuestos default de One-shot.
+- Cuota y límites (spec §9.5 y §11 actualizados): umbral de aviso, umbral de pausa del One-shot (o nunca) y al reiniciarse la ventana retomar solo o esperar confirmación. Se guardan por usuario en EditorSettings godot_agent/, porque la cuota es del plan, no del proyecto.
+- Checkpoints on/off, ubicación del dock, color de acento, aviso y botón de filtro de presets.
+Diálogo propio (no Project Settings: escribiría en project.godot).
 
 ### 7.3 Historial de sesiones · Pendiente
 

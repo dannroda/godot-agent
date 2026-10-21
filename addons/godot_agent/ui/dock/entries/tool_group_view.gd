@@ -110,6 +110,11 @@ func _refresh_row(call: ToolCall) -> void:
 	name_label.add_theme_color_override(&"font_color", AgentTheme.GODOT_TOOL if call.is_godot_tool() else AgentTheme.font_color())
 	var summary_label: Label = parts.summary
 	summary_label.text = _summary(call)
+	var undo_button: Button = parts.undo
+	undo_button.visible = call.can_undo()
+	undo_button.tooltip_text = "Deshacer «%s» en el editor" % call.undo_info.get("action", "") if call.can_undo() else ""
+	if call.undo_done:
+		summary_label.text = "deshecho · " + summary_label.text
 	_refresh_extra(call, parts.extra)
 
 

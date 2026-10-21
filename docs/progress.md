@@ -225,4 +225,46 @@ Con Claude Code real (`--godot-agent-claude-mcp-test`, 4.8): el adapter anunció
 
 ### Pendiente
 
-- Tools de edición de escena (con undo) y checkpoints: M4.
+- Tools de edición de escena (con undo): M4. Checkpoints: M6.
+
+## M4 · Tools de edición y ejecución
+
+### Qué hay
+
+- **Edición de escenas** (`mcp/tools/scene_edit_tools.gd`, D19):
+  - `add_node`, `set_properties`, `remove_node`, `reparent_node`, `rename_node`, `connect_signal` (persistente), `instantiate_scene`, `open_scene`, `save_scene` (grupo edit_scene);
+  - `create_scene` y `attach_script` (grupo edit_files);
+  - una acción de undo `Agente: …` por tool call; los valores JSON se convierten con `value_coercion.gd`.
+- **"↶ undo" en el dock**: los tool calls `godot.*` de edición muestran el botón. Deshace con la opción Undo del editor si la acción sigue siendo la última; si no, avisa por qué no.
+- **Ejecución** (`mcp/tools/run_tools.gd`, grupo run):
+  - `run_scene` corre la escena, reproduce `inputs` y espera `seconds` o a que el juego termine. Devuelve los errores (con la marca de `get_errors`) y el Output del juego. Si el juego se pausa en el debugger por un error, trae el motivo y la ubicación.
+  - `capture_game_frame` devuelve el frame del juego.
+  - `stop_scene` cierra el juego.
+- **Autoload de playtest** con el ciclo de vida de D20: existe solo mientras arranca un juego lanzado por `run_scene`.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd                 # 58 tests, 353 checks (+ coerción de valores, run_tools)
+$G -e --path . -- --godot-agent-edit-test                        # cada tool de edición, Ctrl+Z en pasos, permisos por modo, "↶ undo"
+tests/run_in_xvfb.sh $G --godot-agent-run-test                   # run_scene/inputs/captura/stop, script roto, autoload fuera de project.godot
+setsid -w tests/crash_check.sh $G                                # editor matado con el autoload registrado y con un run en curso + export_check
+XRUN_TIMEOUT=480 tests/run_in_xvfb.sh $G --godot-agent-claude-scene-test   # Claude Code real (gasta tokens)
+```
+
+Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1, junto con las suites anteriores (`acp_session_check`, `export_check`, cycle, sync, ui y mcp), ahora corridas en Xvfb (D21).
+
+Con Claude Code real (4.8 y 4.4.1), a "agregá un Label llamado WaveLabel como hijo de HUD… y conectá la señal timeout de WaveTimer al método _on_wave_timer_timeout de WaveLabel" usó `editor_state`, `scene_tree`, `add_node`, `connect_signal`, `get_node` y `get_errors`. El primer Ctrl+Z deshizo solo la conexión y el siguiente sacó el Label; el `.tscn` en disco no se tocó.
+
+### Prueba manual
+
+1. Abrir una escena con un nodo HUD, iniciar sesión en Construir y pedir "agregá un Label WaveLabel al HUD y conectá la señal timeout del Timer". Aparece una tarjeta de permiso por cada tool `godot.add_node` / `godot.connect_signal`; al aceptar, el nodo aparece en el árbol.
+2. Ctrl+Z en el editor deshace primero la conexión y después el nodo. Con el botón "↶ undo" del tool call pasa lo mismo, siempre que no haya cambios posteriores.
+3. Romper un script de la escena (por ejemplo, llamar a un método sobre `null` en `_ready`) y pedir "corré la escena 3 segundos". `godot.run_scene` devuelve el error con archivo y línea, y el juego queda pausado en el debugger.
+4. Pedir "capturá el juego" con una escena sana corriendo: `godot.capture_game_frame` muestra la imagen en el dock.
+5. Después de cada run, `project.godot` no tiene `GodotAgentPlaytest` (`git diff project.godot`).
+
+### Pendiente
+
+- Repro mínimo del error de 4.7.2 con variables en el probe (D20), para m7-01.
+- Cuota del plan (spec §10.1, agregada al spec): tareas m1-12 a m1-14 y m6-06 a m6-08 en el tablero.

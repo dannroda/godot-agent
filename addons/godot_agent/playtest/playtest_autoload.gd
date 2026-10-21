@@ -15,6 +15,14 @@ static func is_registered() -> bool:
 	return ProjectSettings.has_setting(SETTING)
 
 
+## Alta, justo antes de correr (EditorPlugin._build). El juego es otro proceso que lee
+## project.godot del disco, y add_autoload_singleton no guarda: se guarda acá.
+static func register(plugin: EditorPlugin) -> void:
+	if not is_registered():
+		plugin.add_autoload_singleton(NAME, SCRIPT_PATH)
+	ProjectSettings.save()
+
+
 ## Quita el autoload si está registrado. Devuelve true si había algo que quitar.
 static func unregister(plugin: EditorPlugin) -> bool:
 	if not is_registered():
@@ -24,7 +32,7 @@ static func unregister(plugin: EditorPlugin) -> bool:
 	# no borra la entrada en el momento: se borra a mano para que no llegue a project.binary.
 	if is_registered():
 		ProjectSettings.set_setting(SETTING, null)
-		ProjectSettings.save()
+	ProjectSettings.save()  # remove_autoload_singleton tampoco guarda
 	return true
 
 

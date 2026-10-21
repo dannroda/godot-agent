@@ -78,6 +78,25 @@ func tool_call(id: String) -> ToolCall:
 	return _tool_calls.get(id)
 
 
+## El tool call godot.* más reciente con ese nombre y esos argumentos que todavía no tiene paso de
+## undo asociado (para unir la acción del server MCP con el tool call que ve el agente).
+func find_godot_tool_call(tool_name: String, args: Dictionary) -> ToolCall:
+	var found: ToolCall = null
+	for id: String in _tool_calls:
+		var call: ToolCall = _tool_calls[id]
+		if call.godot_tool_name() == tool_name and call.undo_info.is_empty() and call.raw_input is Dictionary and call.raw_input == args:
+			found = call
+	return found
+
+
+## Avisa a la UI que cambió algo local de un tool call (p. ej. su paso de undo).
+func touch_tool_call(call: ToolCall) -> void:
+	var group: ChatEntry = _group_of_call.get(call.id)
+	tool_call_changed.emit(call, group)
+	if group:
+		entry_updated.emit(group)
+
+
 func is_busy() -> bool:
 	return state in [State.PROMPTING, State.CANCELLING]
 

@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:14.669Z",
   "description": "run_scene corre la escena (play_custom_scene/play_current_scene), espera N segundos o la salida y devuelve errores y Output capturados; capture_game_frame pide un frame al probe; stop_scene detiene.",
   "milestone": "m04",
-  "notes": "",
+  "notes": "mcp/tools/run_tools.gd.\n- run_scene no cierra el juego: el agente sigue con capture_game_frame o stop_scene. Si ya había un juego corriendo, lo reinicia.\n- `seconds` se cuenta desde que el probe dice ready (arranque: hasta 20 s).\n- Output = lo nuevo del panel Output, o todo si el editor lo limpió al correr (últimas 150 líneas). Errores = ErrorCollector.entries_since(marca); devuelve la marca para get_errors.\n- Con un error de script el juego queda pausado en el debugger y el reporte trae el motivo y la ubicación.",
   "order": 4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "run_check.gd por HTTP real:\n- run_scene con inputs → \"sigue corriendo\", \"Inputs: 2 de 2\", Output del juego y ningún error del juego;\n- capture_game_frame → PNG con el centro rojo (ColorRect del fixture);\n- stop_scene;\n- script roto → \"se detuvo en el debugger\" con \"queue_free\" y run_broken.gd;\n- juego que termina solo → \"terminó solo\" con su Output;\n- acción inexistente y capture sin juego → isError.\nPasa en 4.4.1, 4.7.2 y 4.8-beta1.",
   "title": "run_scene, stop_scene y capture_game_frame",
-  "updated_at": "2026-10-21T04:33:14.669Z"
+  "updated_at": "2026-10-21T06:28:10.066Z"
 }

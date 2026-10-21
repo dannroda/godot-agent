@@ -24,6 +24,10 @@ const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
 const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
+const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
+const RunTools := preload("mcp/tools/run_tools.gd")
+const PlaytestDebugger := preload("playtest/playtest_debugger.gd")
+const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
 const ErrorCollector := preload("core/error_collector.gd")
 
@@ -31,6 +35,9 @@ const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
 const ACTION_CONFLICT_KEEP_MINE := "conflict_keep_mine"
 const ACTION_RELOAD_SCENE := "reload_scene"
+const ACTION_UNDO_TOOL_CALL := "undo_tool_call"
+## Acciones de edición del server MCP que todavía no se unieron a su tool call (llegan antes).
+const PENDING_UNDO_TTL_MS := 60000
 ## Kinds de tool call que escriben archivos: al completarse se sincroniza el editor.
 const WRITING_KINDS: PackedStringArray = ["edit", "delete", "move"]
 
@@ -50,6 +57,9 @@ var _sync: EditorSync
 var _diff_dialog: DiffDialog
 var _mcp_server: McpServer
 var _errors: ErrorCollector
+var _playtest_debugger: PlaytestDebugger
+var _run_tools: RunTools
+var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 
 
 func _enter_tree() -> void:
@@ -82,6 +92,11 @@ func _enter_tree() -> void:
 	_model.tool_call_changed.connect(_on_tool_call_changed)
 	_diff_dialog = DiffDialog.new()
 	EditorInterface.get_base_control().add_child(_diff_dialog)
+	_playtest_debugger = PlaytestDebugger.new()
+	# El juego ya leyó project.godot cuando su sesión de debug arranca: el autoload se quita ahí.
+	_playtest_debugger.session_started.connect(_remove_playtest_autoload)
+	_playtest_debugger.session_stopped.connect(_remove_playtest_autoload)
+	add_debugger_plugin(_playtest_debugger)
 	_start_mcp_server()
 
 	var dock := AgentDockScene.instantiate()
@@ -117,6 +132,10 @@ func _exit_tree() -> void:
 	if _diff_dialog:
 		_diff_dialog.queue_free()
 		_diff_dialog = null
+	if _playtest_debugger:
+		remove_debugger_plugin(_playtest_debugger)
+		_playtest_debugger = null
+	_run_tools = null
 	PlaytestAutoload.unregister(self)
 
 	if _export_plugin:
@@ -126,6 +145,15 @@ func _exit_tree() -> void:
 	if _surfaces:
 		_surfaces.remove_all()
 		_surfaces = null
+
+
+## Justo antes de correr el juego: alta del autoload de playtest si el run lo pidió el harness
+## (run_scene) o si Settings lo activa también para los runs manuales (spec §6).
+func _build() -> bool:
+	var requested := _run_tools != null and _run_tools.harness_requested
+	if requested or (_project_config and _project_config.playtest_on_manual_runs):
+		PlaytestAutoload.register(self)
+	return true
 
 
 ## Solo con la API vieja (4.4–4.7). En 4.8+ la main screen es un EditorDock (ver EditorSurfaces).
@@ -153,6 +181,8 @@ func _show_log() -> void:
 
 ## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).
 func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
+	if not _pending_undo.is_empty() and call.undo_info.is_empty() and not call.godot_tool_name().is_empty():
+		_match_pending_undo()
 	if call.status != ToolCall.STATUS_COMPLETED or not call.kind in WRITING_KINDS:
 		return
 	var paths: Dictionary = {}
@@ -199,6 +229,39 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_sync.resolve_keep_buffer(path)
 		ACTION_RELOAD_SCENE:
 			_sync.reload_scene(path)
+		ACTION_UNDO_TOOL_CALL:
+			_undo_tool_call(str(payload))
+
+
+## Una tool de edición commiteó un paso de undo: se une a su tool call para el botón "↶ undo".
+func _on_mcp_edit_action(tool_name: String, args: Dictionary, info: Dictionary) -> void:
+	_pending_undo.append({"tool": tool_name, "args": args, "info": info, "time": Time.get_ticks_msec()})
+	_match_pending_undo()
+
+
+func _match_pending_undo() -> void:
+	var now := Time.get_ticks_msec()
+	for pending: Dictionary in _pending_undo.duplicate():
+		var call := _model.find_godot_tool_call(pending.tool, pending.args)
+		if call:
+			call.undo_info = pending.info
+			_model.touch_tool_call(call)
+			_pending_undo.erase(pending)
+		elif now - int(pending.time) > PENDING_UNDO_TTL_MS:
+			_pending_undo.erase(pending)
+
+
+func _undo_tool_call(call_id: String) -> void:
+	var call := _model.tool_call(call_id)
+	if call == null or not call.can_undo():
+		return
+	var reason := EditorUndo.undo(call.undo_info)
+	if reason.is_empty():
+		call.undo_done = true
+		_model.touch_tool_call(call)
+		_log.add(AgentLog.CH_MCP, "deshecho: %s" % call.undo_info.get("action", ""))
+	else:
+		_model.add_notice("No se pudo deshacer «%s»: %s" % [call.undo_info.get("action", ""), reason], ChatEntry.Level.WARNING)
 
 
 ## Server MCP con las tools godot.* (spec §5). La política de permisos se aplica del lado del server
@@ -216,6 +279,14 @@ func _start_mcp_server() -> void:
 	var diagnostics := DiagnosticTools.new()
 	diagnostics.setup(_errors, EditorContext.project_path())
 	registry.register_provider(diagnostics)
+	var edit_tools := SceneEditTools.new()
+	edit_tools.on_action = _on_mcp_edit_action
+	registry.register_provider(edit_tools)
+	_run_tools = RunTools.new()
+	_run_tools.setup(_errors, _playtest_debugger)
+	_run_tools.max_image_side = _project_config.max_image_side
+	_run_tools.cleanup = _remove_playtest_autoload
+	registry.register_provider(_run_tools)
 	_mcp_server = McpServer.new()
 	_mcp_server.registry = registry
 	_mcp_server.agent_log = _log

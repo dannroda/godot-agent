@@ -17,6 +17,14 @@ extends EditorPlugin
 ##   (ver mcp_check.gd).
 ## - `-- --godot-agent-claude-mcp-test`: con Claude Code real (gasta tokens), pregunta cuántos nodos
 ##   tiene la escena de prueba: tiene que contestar 5 usando godot.scene_tree.
+## - `-- --godot-agent-edit-test`: tools de edición, undo por pasos, permisos por modo y el botón
+##   "↶ undo" (ver edit_check.gd).
+## - `-- --godot-agent-run-test`: run_scene con inputs, capture_game_frame, stop_scene, script roto y
+##   ciclo de vida del autoload de playtest (ver run_check.gd). Necesita ventana.
+## - `-- --godot-agent-claude-scene-test`: verificación de M4 con Claude Code real (gasta tokens).
+##   Pide agregar WaveLabel al HUD y conectar WaveTimer.timeout; Ctrl+Z tiene que deshacerlo en pasos.
+## - `-- --godot-agent-crash-test=before|during`: mata el editor con el autoload de playtest recién
+##   registrado (before) o con un run_scene en curso (during). Al reabrir, no tiene que quedar.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -35,6 +43,18 @@ const CLAUDE_TIMEOUT_S := 420.0
 const MCP_ARG := "--godot-agent-mcp-test"
 const CLAUDE_MCP_ARG := "--godot-agent-claude-mcp-test"
 const McpCheck := preload("mcp_check.gd")
+const EDIT_ARG := "--godot-agent-edit-test"
+const EditCheck := preload("edit_check.gd")
+const RUN_ARG := "--godot-agent-run-test"
+const RunCheck := preload("run_check.gd")
+const CLAUDE_SCENE_ARG := "--godot-agent-claude-scene-test"
+const CLAUDE_HUD_FIXTURE := "res://tests/fixtures/hud_fixture.tscn"
+const CLAUDE_HUD_SCENE := "res://tests/tmp/claude_hud.tscn"
+const CRASH_ARG := "--godot-agent-crash-test="
+const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
+const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
+const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
 const MAIN_SCREEN_NAME := "Agent"
 const TARGET_PLUGIN := "godot_agent"
 const CYCLES := 5
@@ -56,9 +76,17 @@ func _enter_tree() -> void:
 		_run_mcp_test.call_deferred()
 	if CLAUDE_MCP_ARG in args:
 		_run_claude_mcp_test.call_deferred()
+	if EDIT_ARG in args:
+		_run_edit_test.call_deferred()
+	if RUN_ARG in args:
+		_run_run_test.call_deferred()
+	if CLAUDE_SCENE_ARG in args:
+		_run_claude_scene_test.call_deferred()
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
+		if arg.begins_with(CRASH_ARG):
+			_run_crash_test.call_deferred(arg.trim_prefix(CRASH_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
 
@@ -214,6 +242,101 @@ func _run_mcp_test() -> void:
 	for failure: String in failures:
 		print("[mcp-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "mcp-test: %d fallas" % failures.size())
+
+
+func _run_edit_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures: PackedStringArray = await EditCheck.new().run_edit(get_tree())
+	for failure: String in failures:
+		print("[edit-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "edit-test: %d fallas" % failures.size())
+
+
+func _run_run_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures: PackedStringArray = await RunCheck.new().run_run(get_tree())
+	for failure: String in failures:
+		print("[run-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "run-test: %d fallas" % failures.size())
+
+
+func _run_claude_scene_test() -> void:
+	get_tree().create_timer(CLAUDE_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	_write(CLAUDE_HUD_SCENE, FileAccess.get_file_as_string(CLAUDE_HUD_FIXTURE))
+	EditorInterface.get_resource_filesystem().update_file(CLAUDE_HUD_SCENE)
+	await get_tree().create_timer(0.5).timeout
+	if CLAUDE_HUD_SCENE in EditorInterface.get_open_scenes():
+		EditorInterface.reload_scene_from_path(CLAUDE_HUD_SCENE)
+	EditorInterface.open_scene_from_path(CLAUDE_HUD_SCENE)
+	await get_tree().create_timer(0.5).timeout
+	var controller: Object = dock.get(&"_controller")
+	var model: Object = dock.get(&"_model")
+	if not await controller.call(&"start", AgentProfile.from_dict(AgentProfile.defaults()[0])):
+		_finish(1, "no arrancó Claude: %s" % model.get(&"failure_message"))
+		return
+	model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
+	var stop: String = await controller.call(&"send_prompt",
+		"En la escena abierta (%s) agregá un Label llamado WaveLabel como hijo de HUD, con el texto \"Oleada 1\", y conectá la señal timeout de WaveTimer al método _on_wave_timer_timeout de WaveLabel. Usá las tools godot.* del server MCP godot; no edites el .tscn en disco, no crees scripts y no guardes la escena." % CLAUDE_HUD_SCENE)
+	var tools: PackedStringArray = []
+	for entry: Object in model.call(&"entries"):
+		if int(entry.get(&"kind")) == ChatEntry.Kind.TOOL_GROUP:
+			for id: String in entry.get(&"tool_call_ids"):
+				tools.append(str(model.call(&"tool_call", id).call(&"display_name")))
+	print("[claude-scene] stopReason=%s tools: %s" % [stop, ", ".join(tools)])
+	controller.call(&"stop")
+	var failures: PackedStringArray = []
+	var root := EditorInterface.get_edited_scene_root()
+	var label := root.get_node_or_null("HUD/WaveLabel") as Label if root else null
+	var timer := root.get_node_or_null("WaveTimer") if root else null
+	var connected := func() -> bool:
+		return is_instance_valid(label) and timer and timer.is_connected("timeout", Callable(label, "_on_wave_timer_timeout"))
+	if label == null or label.owner != root or label.text != "Oleada 1":
+		failures.append("WaveLabel no está bajo HUD con owner y texto")
+	if not connected.call():
+		failures.append("WaveTimer.timeout no está conectado a WaveLabel")
+	if failures.is_empty():
+		EditorUndo._trigger_editor_undo()
+		if connected.call() or root.get_node_or_null("HUD/WaveLabel") == null:
+			failures.append("el primer Ctrl+Z no deshizo solo la conexión")
+		for i in 5:
+			if root.get_node_or_null("HUD/WaveLabel") == null:
+				break
+			EditorUndo._trigger_editor_undo()
+		if root.get_node_or_null("HUD/WaveLabel") != null:
+			failures.append("Ctrl+Z no sacó WaveLabel")
+	if FileAccess.get_file_as_string(CLAUDE_HUD_SCENE).contains("WaveLabel"):
+		failures.append("Claude guardó o editó el .tscn en disco")
+	for failure: String in failures:
+		print("[claude-scene] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "claude-scene: %d fallas" % failures.size())
+
+
+## Mata el editor en la ventana de riesgo del autoload de playtest; el script de shell reabre y verifica.
+func _run_crash_test(when: String) -> void:
+	await get_tree().create_timer(2.0).timeout
+	var main_plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	if main_plugin == null:
+		_finish(1, "no se encontró el plugin godot_agent")
+		return
+	if when == "during":
+		var run_tools: Object = main_plugin.get(&"_run_tools")
+		run_tools.call(&"_run_scene", {"scene": RUN_FIXTURE, "seconds": 60})
+		var deadline := Time.get_ticks_msec() + 20000
+		while Time.get_ticks_msec() < deadline and not (EditorInterface.is_playing_scene() and not PlaytestAutoload.is_registered()):
+			await get_tree().process_frame
+		await get_tree().create_timer(1.0).timeout
+	else:
+		PlaytestAutoload.register(main_plugin)
+	var on_disk := FileAccess.get_file_as_string("res://project.godot").contains(PlaytestAutoload.NAME)
+	print("[crash-test] %s: autoload en project.godot al matar: %s" % [when, on_disk])
+	OS.kill(OS.get_process_id())
 
 
 func _run_claude_mcp_test() -> void:

@@ -145,6 +145,12 @@ func _collect_output() -> void:
 	_output_lines_seen = lines.size()
 
 
+## Texto actual del panel Output (incluye lo que imprime el juego corriendo).
+func output_text() -> String:
+	var label := _output_label()
+	return label.get_parsed_text() if label else ""
+
+
 func _output_label() -> RichTextLabel:
 	var base := EditorInterface.get_base_control()
 	for log_node: Node in base.find_children("*", "EditorLog", true, false):

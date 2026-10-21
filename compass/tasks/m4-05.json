@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:14.754Z",
   "description": "Los tool calls MCP de edición registran su paso de undo; el dock muestra \"↶ undo\" y lo deshace si sigue siendo el último paso de esa escena (si no, avisa).",
   "milestone": "m04",
-  "notes": "",
+  "notes": "La unión es por nombre de tool y argumentos (el server MCP no conoce el toolCallId de ACP); las acciones pendientes vencen a los 60 s. Solo deshace si la versión de la historia de la escena y la de la global no cambiaron.",
   "order": 5,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "edit_check.gd simula un tool call ACP `mcp__godot__add_node` con rawInput igual a los args; la acción se une a ese tool call (can_undo), y `_undo_tool_call` lo deshace y marca undo_done. Con un cambio posterior en la escena no deshace y avisa con \"Hubo cambios posteriores…\". Además: permisos (Preguntar deniega con isError; Construir muestra la tarjeta y ejecuta al aceptar).",
   "title": "Botón \"↶ undo\" en los tool calls del dock",
-  "updated_at": "2026-10-21T04:33:14.754Z"
+  "updated_at": "2026-10-21T06:10:32.349Z"
 }
