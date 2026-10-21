@@ -1,0 +1,97 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/enemies/beetle.gd" id="1_beetle"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/beetle.png" id="2_tex"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hurtbox.gd" id="4_hurtbox"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hitbox.gd" id="5_hitbox"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_beetle"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"walk",
+"speed": 6.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"charge",
+"speed": 14.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"death",
+"speed": 8.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(18, 10)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_box"]
+size = Vector2(20, 12)
+
+[node name="Beetle" type="CharacterBody2D" groups=["actors"]]
+collision_layer = 4
+script = ExtResource("1_beetle")
+speed = 35.0
+contact_damage = 2
+score_value = 20
+coin_drop = 3
+detection_range = 200.0
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -6)
+sprite_frames = SubResource("SpriteFrames_beetle")
+animation = &"walk"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -5)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+max_health = 4
+
+[node name="Hurtbox" type="Area2D" parent="." node_paths=PackedStringArray("health")]
+collision_layer = 0
+collision_mask = 8
+script = ExtResource("4_hurtbox")
+health = NodePath("../HealthComponent")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+position = Vector2(0, -6)
+shape = SubResource("RectangleShape2D_box")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("5_hitbox")
+knockback_force = 320.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+position = Vector2(0, -6)
+shape = SubResource("RectangleShape2D_box")
+
+[node name="Sensors" type="Node2D" parent="."]
+scale = Vector2(-1, 1)
+
+[node name="FloorRay" type="RayCast2D" parent="Sensors"]
+position = Vector2(10, -2)
+target_position = Vector2(0, 8)
+
+[node name="WallRay" type="RayCast2D" parent="Sensors"]
+position = Vector2(0, -5)
+target_position = Vector2(12, 0)
+
+[node name="ChargeCooldown" type="Timer" parent="."]
+wait_time = 2.0
+one_shot = true

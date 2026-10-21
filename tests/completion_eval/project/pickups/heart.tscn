@@ -1,0 +1,20 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/pickups/heart.gd" id="1_heart"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/heart.png" id="2_tex"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_heart"]
+radius = 6.0
+
+[node name="Heart" type="Area2D"]
+collision_layer = 32
+collision_mask = 2
+script = ExtResource("1_heart")
+bob_height = 3.0
+pickup_sound = &"heart"
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_heart")

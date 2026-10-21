@@ -1,5 +1,6 @@
 extends "test_case.gd"
-## Completado (M8a): LineIndex, LineRetrieval, historial, Ranker, post-procesado y proveedor local.
+## Completado (M8a, M8b): LineIndex, LineRetrieval (línea siguiente, bloques, adaptación), historial,
+## Ranker, post-procesado, caché y proveedor local.
 
 const ProjectContext := preload("res://addons/godot_agent/completion/project_context.gd")
 const LineIndex := preload("res://addons/godot_agent/completion/local/line_index.gd")
@@ -7,10 +8,15 @@ const TypedHistory := preload("res://addons/godot_agent/completion/local/typed_h
 const Ranker := preload("res://addons/godot_agent/completion/local/ranker.gd")
 const LocalProvider := preload("res://addons/godot_agent/completion/local/local_provider.gd")
 const PostProcessor := preload("res://addons/godot_agent/completion/post_processor.gd")
+const CompletionRequest := preload("res://addons/godot_agent/completion/completion_request.gd")
+const CompletionResult := preload("res://addons/godot_agent/completion/completion_result.gd")
+const SuggestionCache := preload("res://addons/godot_agent/completion/suggestion_cache.gd")
 const RulesTest := preload("test_completion_rules.gd")
 
 const FIXTURE := "res://tests/completion_fixture"
 const NOW := 1_800_000_000.0
+## El mismo bloque en varios scripts (línea siguiente, bloques y adaptación).
+const READY_BLOCK := "extends Control\n\nfunc _ready() -> void:\n\thealth.changed.connect(_on_health_changed)\n\tvisible = false\n\tif debug:\n\t\tprint(\"ready\")\n\nfunc _on_health_changed(value: int) -> void:\n\t$Bar.value = value\n\t$Label.text = str(value)\n"
 
 
 func _provider() -> LocalProvider:
@@ -29,11 +35,13 @@ func _complete(provider: LocalProvider, path: String, line: String) -> String:
 func test_line_index() -> void:
 	assert_eq(LineIndex.normalize("\t\tvar  x\t:=   1"), "var x := 1", "sin indentación y con espacios colapsados")
 	assert_eq(LineIndex.normalize("\tprint(\"a  b\",   'c  \\' d')"), "print(\"a  b\", 'c  \\' d')", "adentro de los strings no colapsa")
-	assert_eq(LineIndex.lines_of("var a := 1\n\tpass\nx\n\tvar b := 2", 3), PackedStringArray(["var a := 1", "pass"]), "salta cortas y la del caret")
+	var sequence := LineIndex.lines_of("var a := 1\n\tpass\n\t# nota\n\n\tvar b := 2", 4)
+	assert_eq(sequence.lines, PackedStringArray(["var a := 1", "pass", "", ""]), "sin comentarios; la vacía y la del caret cortan")
+	assert_eq(sequence.indents, PackedInt32Array([0, 1, -1, -1]), "sangría por línea")
 	var index: LineIndex = LineIndex.build({
-		"res://a/one.gd": PackedStringArray(["health.changed.connect(_on_health_changed)", "health.changed.emit(value)", "var speed := 10"]),
-		"res://a/two.gd": PackedStringArray(["health.changed.connect(_on_health_changed)"]),
-		"res://b/three.gd": PackedStringArray(["health.changed.connect(_on_health_changed)", "var speed := 12"]),
+		"res://a/one.gd": _seq(["health.changed.connect(_on_health_changed)", "health.changed.emit(value)", "var speed := 10"]),
+		"res://a/two.gd": _seq(["health.changed.connect(_on_health_changed)"]),
+		"res://b/three.gd": _seq(["health.changed.connect(_on_health_changed)", "var speed := 12"]),
 	}, {"res://a/one.gd": NOW, "res://a/two.gd": NOW, "res://b/three.gd": NOW - 70 * 86400.0}, NOW)
 	assert_eq(index.size(), 4, "líneas únicas")
 	var found := index.query("health.changed.c", "res://a/one.gd", 100)
@@ -46,6 +54,149 @@ func test_line_index() -> void:
 	assert_true(index.query("var speed := 10", "res://a/one.gd", 100).is_empty(), "la línea completa no se sugiere a sí misma")
 
 
+static func _seq(lines: Array) -> Dictionary:
+	var indents := PackedInt32Array()
+	indents.resize(lines.size())
+	return {"lines": PackedStringArray(lines), "indents": indents}
+
+
+
+func _block_index() -> LineIndex:
+	var files := {}
+	for path: String in ["res://ui/a.gd", "res://ui/b.gd", "res://other/c.gd"]:
+		files[path] = LineIndex.lines_of(READY_BLOCK)
+	files["res://other/d.gd"] = LineIndex.lines_of("func _ready() -> void:\n\thealth.changed.connect(_on_health_changed)\n\tset_process(false)\n")
+	return LineIndex.build(files, {}, NOW)
+
+
+func test_next_line_and_blocks() -> void:
+	var index := _block_index()
+	var next := index.next_lines("func _ready() -> void:", "res://ui/x.gd", 100)
+	assert_eq(next.size(), 1, "una sola continuación")
+	assert_eq(next[0].text, "health.changed.connect(_on_health_changed)", "la línea que sigue en el corpus")
+	assert_eq(next[0].delta, 1, "con un nivel más de sangría")
+	var block := index.extend(next[0].positions, 7, 2)
+	assert_eq(block.size(), 0, "las apariciones no coinciden en la siguiente: no extiende")
+	var handler := index.next_lines("func _on_health_changed(value: int) -> void:", "res://ui/x.gd", 100)
+	block = index.extend(handler[0].positions, 7, 2)
+	assert_eq(block.size(), 1, "extiende mientras todas coinciden, hasta la línea vacía")
+	assert_eq(block[0].text, "$Label.text = str(value)", "la siguiente del bloque")
+	assert_eq(block[0].delta, 0, "misma sangría")
+	assert_eq(index.extend(handler[0].positions, 7, 4).size(), 0, "sin apoyo suficiente no extiende")
+	var visible_line := index.query("visible = f", "res://ui/x.gd", 100)
+	var after_visible := index.extend(visible_line[0].positions, 7, 2)
+	assert_eq(after_visible.size(), 2, "sigue con un bloque más adentro")
+	assert_eq(after_visible[1].delta, 1, "sangría relativa a la primera")
+	assert_eq(index.extend(visible_line[0].positions, 1, 2).size(), 1, "respeta el máximo")
+
+
+func test_identifier_adaptation() -> void:
+	assert_eq(LineIndex.substitute("health.changed.connect(_on_health_changed) # HealthBar MAX_HEALTH healthy", "health", "mana"),
+		"mana.changed.connect(_on_mana_changed) # ManaBar MAX_MANA healthy", "snake_case, PascalCase y MAYÚSCULAS; no adentro de otra palabra")
+	var index := _block_index()
+	var adapted := index.adapt("mana.chan", "res://ui/x.gd", 100)
+	assert_eq(adapted.size(), 1, "una línea difiere en un identificador")
+	assert_eq(adapted[0].rest, "ged.connect(_on_mana_changed)", "la misma sustitución en el resto")
+	assert_true(index.adapt("health.chan", "res://ui/x.gd", 100).is_empty(), "el mismo identificador no es adaptación")
+	assert_true(index.adapt("mana", "res://ui/x.gd", 100).is_empty(), "el identificador a medio escribir no cuenta")
+	assert_true(index.adapt("var x", "res://ui/x.gd", 100).is_empty(), "sin texto después del identificador: nada")
+
+
+## Proyecto chico con el mismo bloque en tres scripts y el buffer actual en otro.
+func _block_provider(indent: String = "\t") -> LocalProvider:
+	var root := temp_dir("completion_blocks" if indent == "\t" else "completion_blocks_%d" % indent.length())
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root.path_join("ui")))
+	for name: String in ["a", "b", "c"]:
+		var file := FileAccess.open(root.path_join("ui/%s.gd" % name), FileAccess.WRITE)
+		file.store_string(READY_BLOCK.replace("\t", indent))
+		file.close()
+	var context := ProjectContext.new()
+	context.root = root
+	context.build_now()
+	return LocalProvider.new(context)
+
+
+## Pedido sobre `ui/new.gd` con `text` (el caret en `|`).
+func _request(provider: LocalProvider, text: String) -> CompletionRequest:
+	var lines := text.split("\n")
+	var line := 0
+	while not lines[line].contains("|"):
+		line += 1
+	return CompletionRequest.make(provider.context.root.path_join("ui/new.gd"), text.replace("|", ""), line, lines[line].find("|"))
+
+
+func test_provider_next_line_blocks_and_adaptation() -> void:
+	var provider := _block_provider()
+	var result := provider.complete(_request(provider, "extends Control\n\nfunc _on_health_changed(value: int) -> void:\n\t|"))
+	assert_eq(result.text if result else "<nada>", "$Bar.value = value\n\t$Label.text = str(value)", "línea siguiente extendida a un bloque")
+	provider.max_lines = 1
+	result = provider.complete(_request(provider, "extends Control\n\nfunc _on_health_changed(value: int) -> void:\n\t|"))
+	assert_eq(result.text if result else "<nada>", "$Bar.value = value", "multilínea apagado: una línea")
+	provider.max_lines = 8
+	var spaces := _request(provider, "extends Control\n\nfunc _on_health_changed(value: int) -> void:\n    |")
+	spaces.indent_spaces = true
+	result = provider.complete(spaces)
+	assert_eq(result.text if result else "<nada>", "$Bar.value = value\n    $Label.text = str(value)", "con la indentación del editor")
+	result = provider.complete(_request(provider, "extends Control\n\nfunc _ready() -> void:\n|"))
+	assert_eq(result.text if result else "<nada>", "\thealth.changed.connect(_on_health_changed)\n\tvisible = false\n\tif debug:\n\t\tprint(\"ready\")", "agrega la sangría que falta y sigue con el bloque")
+	result = provider.complete(_request(provider, "extends Control\n\nfunc _ready() -> void:\n\tmana.chan|"))
+	assert_eq(result.text if result else "<nada>", "ged.connect(_on_mana_changed)", "adapta un identificador")
+	result = provider.complete(_request(provider, "extends Control\n\nfunc _ready() -> void:\n\thealth.changed.connect(_on_health_changed)\n\t|\n\tvisible = false"))
+	assert_eq(result, null, "no sugiere la línea que ya está debajo")
+	# Proyecto con dos espacios por nivel (y el editor igual): bloques y sangrías en esa unidad.
+	var two := _block_provider("  ")
+	var request := _request(two, "extends Control\n\nfunc _ready() -> void:\n  |")
+	request.indent_spaces = true
+	request.indent_size = 2
+	result = two.complete(request)
+	assert_eq(result.text if result else "<nada>", "health.changed.connect(_on_health_changed)\n  visible = false\n  if debug:\n    print(\"ready\")", "dos espacios por nivel")
+	request = _request(two, "extends Control\n\nfunc _ready() -> void:\n|")
+	request.indent_spaces = true
+	request.indent_size = 2
+	result = two.complete(request)
+	assert_eq((result.text if result else "<nada>").get_slice("\n", 0), "  health.changed.connect(_on_health_changed)", "agrega un nivel de dos espacios")
+
+
+## Adaptar es para cuando nada empieza así: una línea ya completa o un prefijo ambiguo no se
+## reemplazan con la de un pariente (revisión de M8b).
+func test_adaptation_only_without_prefix() -> void:
+	var root := temp_dir("completion_adapt")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root.path_join("ui")))
+	var sources := {"a": "func f(damage: int) -> void:\n\thealth -= damage\n", "b": "func g(damage: int) -> void:\n\tarmor -= damage * 0.5\n"}
+	for name: String in sources:
+		var file := FileAccess.open(root.path_join("ui/%s.gd" % name), FileAccess.WRITE)
+		file.store_string(sources[name])
+		file.close()
+	var context := ProjectContext.new()
+	context.root = root
+	context.build_now()
+	var provider := LocalProvider.new(context)
+	var result := provider.complete(_request(provider, "func h(damage: int) -> void:\n\thealth -= damage|"))
+	assert_eq(result.text if result else "<nada>", "<nada>", "la línea ya está completa: no adapta la del pariente")
+	result = provider.complete(_request(provider, "func h(damage: int) -> void:\n\tshield -= dam|"))
+	assert_eq(result.text if result else "<nada>", "<nada>", "dos parientes distintos: ambiguo")
+	assert_true(context.lines().has_prefix("health -= d") and not context.lines().has_prefix("mana -="), "has_prefix")
+
+
+## Una línea larguísima (un literal de datos) no se normaliza ni se tokeniza entera en cada tecla
+## (revisión de M8b: 20 000 caracteres costaban ~18 ms).
+func test_long_lines_stay_cheap() -> void:
+	var provider := _provider()
+	var data := "const LEVEL := [" + ", ".join(PackedStringArray(range(4000).map(func(i: int) -> String: return str(i)))) + "]"
+	var long_prefix := "\tvar level := " + data.substr(16)
+	var text := "extends Node\n%s\n%s\n%s\n\tvar x := 1" % [data, data, data]
+	var requests: Array[CompletionRequest] = [
+		CompletionRequest.make("res://long.gd", text + "\n" + long_prefix, 5, long_prefix.length()),
+		CompletionRequest.make("res://long.gd", text + "\n\tvel", 5, 4),
+	]
+	requests[1].previous_lines = PackedStringArray([data, data, data])
+	for request: CompletionRequest in requests:
+		var started := Time.get_ticks_usec()
+		provider.complete(request)
+		var ms := (Time.get_ticks_usec() - started) / 1000.0
+		assert_true(ms < 5.0, "%.1f ms con líneas de %d caracteres" % [ms, data.length()])
+
+
 func test_retrieval_suggests_repeated_line() -> void:
 	var provider := _provider()
 	var turret := FIXTURE + "/actors/turret.gd"
@@ -53,8 +204,8 @@ func test_retrieval_suggests_repeated_line() -> void:
 	var player := FIXTURE + "/actors/player.gd"
 	assert_eq(_complete(provider, turret, "\thealth.ch|"), "anged.connect(_on_health_changed)", "línea repetida en el proyecto")
 	assert_eq(_complete(provider, hud, "\tvar direction := Input.ge|"), "t_axis(\"move_left\", \"move_right\")", "dos apariciones en otra carpeta alcanzan")
-	assert_eq(_complete(provider, hud, "\tvelocity = velocity.mo|"), "<nada>", "una sola aparición lejana no alcanza")
-	assert_eq(_complete(provider, player, "\tvelocity = velocity.mo|"), "ve_toward(Vector2.ZERO, FRICTION * delta)", "en el mismo archivo sí")
+	assert_eq(_complete(provider, hud, "\tvelocity = velocity.mo|"), "ve_toward(Vector2.ZERO, FRICTION * delta)", "una sola aparición en otra carpeta alcanza (D27)")
+	assert_eq(_complete(provider, player, "\tvelocity = velocity.mo|"), "ve_toward(Vector2.ZERO, FRICTION * delta)", "en el mismo archivo también")
 	assert_eq(_complete(provider, hud, "\tva|"), "<nada>", "menos de 3 caracteres: nada")
 	var with_suffix := RulesTest.request_at(hud, "\tvar direction := Input.get_axis(|")
 	with_suffix.line_suffix = ")"
@@ -105,29 +256,72 @@ func test_ranker() -> void:
 	assert_eq(merged[0].source, "history", "la fuente del duplicado es la de mayor puntaje")
 
 
+## Post-procesado de una sugerencia para `prefix|suffix`, con `following` debajo.
+static func _pp(text: String, prefix: String, suffix: String = "", following: Array = [], max_lines: int = 1, spaces: bool = false, stops: PackedStringArray = []) -> String:
+	var request: CompletionRequest = CompletionRequest.from_lines("res://x.gd", "", 0, prefix.length(), prefix + suffix, PackedStringArray(), PackedStringArray(following))
+	request.indent_spaces = spaces
+	request.indent_size = 4
+	return PostProcessor.process(text, request, max_lines, stops)
+
+
 func test_post_processor() -> void:
 	assert_eq(PostProcessor.strip_suffix_overlap("jump\")", "\")"), "jump", "quita el cierre del autocierre")
 	assert_eq(PostProcessor.strip_suffix_overlap("bar)", ")  "), "bar", "ignora espacios del suffix")
 	assert_eq(PostProcessor.strip_suffix_overlap("x", ")"), "x", "sin solapamiento")
-	assert_eq(PostProcessor.process("bar()", "foo(", ")"), "bar()", "no quita un ) que hace falta para balancear")
-	assert_eq(PostProcessor.process("ok\nsegunda", "", ""), "ok", "una sola línea")
-	assert_eq(PostProcessor.process("   ", "x", ""), "", "solo espacios: descarta")
-	assert_eq(PostProcessor.process("a))", "f(", ""), "", "cierres de más: descarta")
-	assert_eq(PostProcessor.process("\"sin cerrar", "print(", ")"), "", "string sin cerrar: descarta")
-	assert_eq(PostProcessor.process("ar := {", "var b", ""), "ar := {", "abrir un bloque está bien")
-	assert_eq(PostProcessor.process(".x", ")", ""), ".x", "los cierres del prefix (de líneas de arriba) se toleran")
+	assert_eq(_pp("bar()", "foo(", ")"), "bar()", "no quita un ) que hace falta para balancear")
+	assert_eq(_pp("ok\nsegunda", "", ""), "ok", "una sola línea con max_lines 1")
+	assert_eq(_pp("   ", "x", ""), "", "solo espacios: descarta")
+	assert_eq(_pp("a))", "f(", ""), "", "cierres de más: descarta")
+	assert_eq(_pp("\"sin cerrar", "print(", ")"), "", "string sin cerrar: descarta")
+	assert_eq(_pp("ar := {", "var b", ""), "ar := {", "abrir un bloque está bien")
+	assert_eq(_pp(".x", ")", ""), ".x", "los cierres del prefix (de líneas de arriba) se toleran")
 	assert_true(PostProcessor.balanced("f(\"(\", [1, {2: 3}])  # )"), "ignora strings y comentarios")
 	assert_false(PostProcessor.balanced("f(]"), "cierres cruzados")
 
 
-func test_rules_win_over_retrieval() -> void:
+## Salidas defectuosas reales de modelos FIM y de la recuperación (spec §16.6, §16.9).
+func test_post_processor_defective_outputs() -> void:
+	assert_eq(_pp("health -= amount<|fim_suffix|>\n\nfunc heal", "\t", "", [], 8), "health -= amount", "token FIM residual (Qwen)")
+	assert_eq(_pp("queue_free()<|endoftext|>", "\t", "", [], 8), "queue_free()", "fin de texto")
+	assert_eq(_pp("emit_signal(\"died\")<EOT>garbage", "\t", "", [], 8), "emit_signal(\"died\")", "EOT de CodeLlama")
+	assert_eq(_pp("x = 1\n\ty = 2\n\nfunc other():", "\t", "", [], 8, false, ["\nfunc "]), "x = 1\n\ty = 2", "stop del perfil")
+	assert_eq(_pp("velocity = Vector2.ZERO\n\tmove_and_slide()\nfunc other() -> void:", "\t", "", [], 8), "velocity = Vector2.ZERO\n\tmove_and_slide()", "corta cuando el bloque termina (menos sangría)")
+	assert_eq(_pp("a()\n\n\tb()", "\t", "", [], 8), "a()", "una línea vacía termina el bloque")
+	assert_eq(_pp("a()\n\tb()\n\tc()\n\td()", "\t", "", [], 3), "a()\n\tb()\n\tc()", "máximo de líneas")
+	assert_eq(_pp("\n    if hurt:\n        play_hit()", "func take_damage(amount: int) -> void:", "", [], 8), "\n\tif hurt:\n\t\tplay_hit()", "espacios del modelo a tabs del editor")
+	assert_eq(_pp("\n\tif hurt:\n\t\tplay_hit()", "func take_damage(amount: int) -> void:", "", [], 8, true), "\n    if hurt:\n        play_hit()", "tabs a espacios del editor")
+	assert_eq(_pp("x = 1\n\treturn value", "\t", "", ["\treturn value"], 8), "x = 1", "corta donde empieza lo que ya está escrito abajo")
+	assert_eq(_pp("jump\")\n\tfoo()", "\tif Input.is_action_pressed(\"", "\")", [], 8), "jump", "con cierres a la derecha: una línea, sin repetirlos")
+	assert_eq(_pp("foo(\n\tbar))", "\t", "", [], 8), "", "un bloque con cierres de más se descarta")
+	assert_eq(_pp("spawn(\n\t\tenemy,\n\t\tposition", "\t", "", [], 8), "spawn(\n\t\tenemy,\n\t\tposition", "un bloque que deja abierta una llamada está bien")
+	assert_eq(_pp("pass", "\t", "", ["\tpass"], 8), "", "repite la línea siguiente: descarta")
+
+
+func test_suggestion_cache() -> void:
+	var cache := SuggestionCache.new()
+	cache.capacity = 2
+	var request: CompletionRequest = CompletionRequest.make("res://x.gd", "var a\nvar b", 1, 5)
+	var key := SuggestionCache.key_for(request)
+	assert_false(cache.lookup(key).found, "vacía: miss")
+	cache.store(key, CompletionResult.make("x", 0.9, "retrieval"))
+	var hit := cache.lookup(key)
+	assert_true(hit.found and (hit.result as CompletionResult).text == "x", "hit")
+	cache.store("nada", null)
+	assert_true(cache.lookup("nada").found and cache.lookup("nada").result == null, "guarda que no hubo sugerencia")
+	cache.store("otra", null)
+	assert_false(cache.lookup(key).found, "LRU: la menos usada sale")
+	assert_eq(cache.size(), 2, "acotada")
+	assert_eq(cache.hits, 3, "cuenta hits")
+	assert_eq(cache.misses, 2, "cuenta misses")
+	var changed: CompletionRequest = CompletionRequest.make("res://x.gd", "var a\nvar bb", 1, 5)
+	assert_true(SuggestionCache.key_for(changed) != key, "otro texto, otra clave")
+	# Lo que cambia fuera del texto (input map, escena abierta, historial) cambia la generación del
+	# proveedor, que entra en la clave (revisión de M8b).
 	var provider := _provider()
-	var player := FIXTURE + "/actors/player.gd"
-	assert_eq(_complete(provider, player, "func _|"), "process(delta: float) -> void:", "func _ -> virtual")
-	var request := RulesTest.request_at(player, "\tif Input.is_action_pressed(\"j|")
-	request.line_suffix = "\")"
-	var result := provider.complete(request)
-	assert_eq(result.text if result else "", "ump", "la regla deja lo que falta antes del autocierre")
-	assert_eq(result.source if result else "", "rule", "fuente rule")
-	provider.sources[LocalProvider.SOURCE_RULES] = false
-	assert_eq(_complete(provider, player, "func _|"), "<nada>", "fuente de reglas apagada")
+	var before := provider.cache_generation()
+	provider.context.settings_changed()
+	assert_true(provider.cache_generation() != before, "ProjectSettings cambia la generación")
+	before = provider.cache_generation()
+	provider.history.record("\tvar mana := 10")
+	assert_true(provider.cache_generation() != before, "el historial también")
+	assert_true(SuggestionCache.key_for(request, 1) != SuggestionCache.key_for(request, 2), "la generación entra en la clave")

@@ -1,0 +1,146 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/ui/hud.gd" id="1_hud"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/heart.png" id="2_heart_full"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/heart_empty.png" id="3_heart_empty"]
+
+[sub_resource type="Animation" id="Animation_coin_bump"]
+resource_name = "coin_bump"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Margin/TopBar/CoinBox/CoinLabel:scale")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.1, 0.2),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [Vector2(1, 1), Vector2(1.3, 1.3), Vector2(1, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_level_complete"]
+resource_name = "level_complete"
+length = 1.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Banner:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.3, 1.2, 1.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0), Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 0)]
+}
+
+[sub_resource type="Animation" id="Animation_RESET"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Banner:modulate")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(1, 1, 1, 0)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_hud"]
+_data = {
+&"RESET": SubResource("Animation_RESET"),
+&"coin_bump": SubResource("Animation_coin_bump"),
+&"level_complete": SubResource("Animation_level_complete")
+}
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+heart_full = ExtResource("2_heart_full")
+heart_empty = ExtResource("3_heart_empty")
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 48.0
+grow_horizontal = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+
+[node name="TopBar" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Vitals" type="VBoxContainer" parent="Margin/TopBar"]
+layout_mode = 2
+
+[node name="Hearts" type="HBoxContainer" parent="Margin/TopBar/Vitals"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="EnergyBar" type="ProgressBar" parent="Margin/TopBar/Vitals"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 6)
+layout_mode = 2
+show_percentage = false
+
+[node name="CoinBox" type="HBoxContainer" parent="Margin/TopBar"]
+layout_mode = 2
+
+[node name="CoinLabel" type="Label" parent="Margin/TopBar/CoinBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0"
+
+[node name="LivesLabel" type="Label" parent="Margin/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "x3"
+
+[node name="ScoreLabel" type="Label" parent="Margin/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "000000"
+horizontal_alignment = 1
+
+[node name="LevelInfo" type="VBoxContainer" parent="Margin/TopBar"]
+layout_mode = 2
+
+[node name="TimeLabel" type="Label" parent="Margin/TopBar/LevelInfo"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "00:00.00"
+horizontal_alignment = 2
+
+[node name="LevelLabel" type="Label" parent="Margin/TopBar/LevelInfo"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Level 1"
+horizontal_alignment = 2
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_hud")
+}
+
+[node name="Banner" type="Label" parent="."]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -120.0
+offset_top = -16.0
+offset_right = 120.0
+offset_bottom = 16.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Level Complete!"
+horizontal_alignment = 1

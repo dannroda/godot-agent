@@ -26,6 +26,13 @@ const KEY_COMPLETION_ENABLED := "completion/enabled"
 const KEY_COMPLETION_DEBOUNCE := "completion/local_debounce_ms"
 const KEY_COMPLETION_THRESHOLD := "completion/threshold"
 const KEY_COMPLETION_MARGIN := "completion/margin"
+## Sugerencias de varias líneas y su máximo; fuentes locales activas; carpetas de corpus extra
+## (otros proyectos propios) para el n-gram.
+const KEY_COMPLETION_MULTILINE := "completion/multiline"
+const KEY_COMPLETION_MAX_LINES := "completion/max_lines"
+const KEY_COMPLETION_SOURCE_PREFIX := "completion/sources/"
+const COMPLETION_SOURCES: PackedStringArray = ["rule", "retrieval", "ngram", "history"]
+const KEY_COMPLETION_EXTRA_CORPUS := "completion/extra_corpus"
 ## Nombres de las constantes de slot (iguales en EditorPlugin y EditorDock), en el orden del setting.
 const DOCK_SLOTS: PackedStringArray = ["DOCK_SLOT_RIGHT_UL", "DOCK_SLOT_RIGHT_BL", "DOCK_SLOT_LEFT_UL", "DOCK_SLOT_LEFT_BL"]
 
@@ -51,6 +58,11 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_COMPLETION_DEBOUNCE, 30, TYPE_INT, PROPERTY_HINT_RANGE, "0,200,1,suffix:ms")
 		_declare(KEY_COMPLETION_THRESHOLD, 0.5, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0.05,1,0.01")
 		_declare(KEY_COMPLETION_MARGIN, 0.12, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0,0.5,0.01")
+		_declare(KEY_COMPLETION_MULTILINE, true, TYPE_BOOL)
+		_declare(KEY_COMPLETION_MAX_LINES, 8, TYPE_INT, PROPERTY_HINT_RANGE, "1,16,1")
+		for source: String in COMPLETION_SOURCES:
+			_declare(KEY_COMPLETION_SOURCE_PREFIX + source, true, TYPE_BOOL)
+		_declare(KEY_COMPLETION_EXTRA_CORPUS, PackedStringArray(), TYPE_PACKED_STRING_ARRAY, PROPERTY_HINT_TYPE_STRING, "%d/%d:" % [TYPE_STRING, PROPERTY_HINT_GLOBAL_DIR])
 
 
 func get_value(key: String, default_value: Variant = null) -> Variant:
@@ -157,6 +169,26 @@ func completion_threshold() -> float:
 
 func completion_margin() -> float:
 	return clampf(float(get_value(KEY_COMPLETION_MARGIN, 0.12)), 0.0, 0.5)
+
+
+## Máximo de líneas por sugerencia (1 si el multilínea está apagado).
+func completion_max_lines() -> int:
+	if not bool(get_value(KEY_COMPLETION_MULTILINE, true)):
+		return 1
+	return clampi(int(get_value(KEY_COMPLETION_MAX_LINES, 8)), 1, 16)
+
+
+## Fuentes locales activas: {rule, retrieval, ngram, history: bool}.
+func completion_sources() -> Dictionary:
+	var out := {}
+	for source: String in COMPLETION_SOURCES:
+		out[source] = bool(get_value(KEY_COMPLETION_SOURCE_PREFIX + source, true))
+	return out
+
+
+func completion_extra_corpus() -> PackedStringArray:
+	var value: Variant = get_value(KEY_COMPLETION_EXTRA_CORPUS, PackedStringArray())
+	return PackedStringArray(value) if value is PackedStringArray or value is Array else PackedStringArray()
 
 
 func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE, hint_string: String = "") -> void:

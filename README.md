@@ -12,7 +12,7 @@ Tiene cuatro modos: Preguntar, Revisar, Construir y One-shot.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
 - El harness nunca hace merge ni push, y no guarda claves.
 
-> Estado: hitos M0–M7 de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md). El completado inline en el Script Editor (M8) todavía no está. El avance y cómo se verificó cada parte están en [`docs/progress.md`](docs/progress.md); las decisiones de diseño, en [`docs/decisions.md`](docs/decisions.md).
+> Estado: hitos M0–M8b de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md). Falta M8c: el completado con un LLM opcional. El avance y cómo se verificó cada parte están en [`docs/progress.md`](docs/progress.md); las decisiones de diseño, en [`docs/decisions.md`](docs/decisions.md).
 
 ## Requisitos
 
@@ -138,11 +138,14 @@ Sugerencias en gris mientras escribís en el Script Editor. Por ahora son solo l
     - `func _` propone los virtuales de la clase base, con su firma;
     - `$`/`%` propone rutas de nodos;
     - también hay reglas para acciones del input map, grupos, `.connect(`, `func _on_`, `preload("` y `extends `;
-  - **líneas del proyecto**: si una línea se repite en otros scripts, se sugiere al escribir su comienzo;
+  - **líneas del proyecto**: si una línea se repite en otros scripts, se sugiere al escribir su comienzo. Si se repite con otro nombre (`enemy_` en lugar de `player_`), se adapta. En una línea vacía se sugiere lo que suele seguir a la de arriba, y un bloque corto si el proyecto siempre lo escribe igual;
+  - **n-gram**: un modelo de los tokens del proyecto completa la línea mientras está seguro;
   - **historial**: lo que escribiste en esta sesión.
+- Las sugerencias de varias líneas muestran la primera en el lugar y el resto en una caja debajo. **Ctrl+→** acepta palabra por palabra.
 - Si hay dudas entre dos opciones, no se muestra nada.
 - El índice del proyecto se arma en segundo plano y no incluye `addons/` en las líneas sugeridas. Se configura en `project_config.tres`, sección Completado.
 - Se apaga con `godot_agent/completion/enabled` en Configuración del editor, o por proyecto con `completion_enabled`.
+- En la misma sección: `multiline` y `max_lines` (8 por defecto), cada fuente por separado (`sources/rule`, `retrieval`, `ngram`, `history`) y `extra_corpus`, carpetas de otros proyectos tuyos que solo entrenan el n-gram.
 
 ## Perfiles de agentes
 
@@ -158,7 +161,7 @@ Sugerencias en gris mientras escribís en el Script Editor. Por ahora son solo l
 
 | Qué | Dónde | Alcance |
 |---|---|---|
-| Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, debounce, umbral) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
+| Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, debounce, umbral, multilínea, fuentes, corpus extra) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
 | Permisos, presupuestos, checkpoints, límites de las tools, carpetas extra, completado del proyecto | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
 | Historial de sesiones | `user://godot_agent/sessions/` | tu usuario, este proyecto |
 

@@ -5,6 +5,8 @@ extends RefCounted
 ## primer candidato tiene prioridad sobre las demás fuentes (lo decide el Ranker).
 ## Las reglas que cierran comillas o paréntesis los incluyen: el post-procesado quita lo que ya
 ## está a la derecha del caret (autocierre del editor).
+## Una regla que reconoce su contexto pero no puede elegir (varias opciones y nada escrito) devuelve
+## un veto: las demás fuentes tampoco adivinan ahí.
 
 const ProjectContext := preload("../project_context.gd")
 const CompletionRequest := preload("../completion_request.gd")
@@ -57,6 +59,7 @@ func _init() -> void:
 		"group": "(?:add_to_group|is_in_group|get_nodes_in_group|call_group|get_first_node_in_group|remove_from_group)\\(\\s*(?:[\\w.|]+\\s*,\\s*)?\"(\\w*)$",
 		"load": "(?:^|[^\\w.])(preload|load|ResourceLoader\\.load)\\(\\s*\"([^\"]*)$",
 		"load_type": ":\\s*(\\w+)\\s*=\\s*(?:preload|load|ResourceLoader\\.load)\\(",
+		"load_name": "(?:var|const)\\s+(\\w+)",
 		"extends": "^extends\\s+(\\w*)$",
 		"code_connect": "(?:([$%]\"[^\"]+\"|[$%][\\w/]+|[\\w.]+)\\.)?(\\w+)\\.connect\\(\\s*(\\w+)\\s*[,)]",
 		"declared_var": "(?m)^\\s*(?:@\\w+(?:\\([^)]*\\))?\\s+)*var\\s+(\\w+)",
@@ -99,9 +102,19 @@ func candidates(request: CompletionRequest, context: ProjectContext) -> Array[Di
 
 
 ## Sin nada escrito y con varias opciones no se adivina (una sugerencia equivocada molesta más que
-## ninguna). `@onready var ` y `func _` sí proponen la primera: su orden es el de la spec.
-static func _no_guess(typed: String, texts: PackedStringArray) -> PackedStringArray:
-	return PackedStringArray() if typed.is_empty() and texts.size() > 1 else texts
+## ninguna): veto. `@onready var ` y `func _` sí proponen la primera: su orden es el de la spec.
+static func _choose(typed: String, texts: PackedStringArray, rule: String) -> Array[Dictionary]:
+	if typed.is_empty() and texts.size() > 1:
+		return [veto(rule)]
+	return _ranked(texts, rule)
+
+
+static func veto(rule: String) -> Dictionary:
+	return {"text": "", "score": 0.0, "source": "rule", "rule": rule, "veto": true}
+
+
+static func is_veto(candidates: Array[Dictionary]) -> bool:
+	return candidates.size() == 1 and candidates[0].get("veto", false)
 
 
 static func _ranked(texts: PackedStringArray, rule: String) -> Array[Dictionary]:
@@ -123,13 +136,24 @@ func _onready(prefix: String, request: CompletionRequest, context: ProjectContex
 	var declared_paths: Dictionary = {}
 	for match_path: RegExMatch in (_re.declared_path as RegEx).search_all(request.text):
 		declared_paths[match_path.get_string(1).replace("\"", "")] = true
+	# Lo que ya declara la clase base (un enemigo que hereda de Enemy ya tiene su sprite).
+	var inherited := context.inherited_declarations(request.text)
+	declared_vars.merge(inherited.vars)
+	declared_paths.merge(inherited.references)
 	var texts := PackedStringArray()
 	var used := declared_vars.duplicate()
-	for node: Dictionary in context.child_nodes(request.path):
+	# Hijos directos y nodos únicos primero (lo que un script suele referenciar), después el resto,
+	# cada grupo en el orden del árbol.
+	var nodes := context.child_nodes(request.path)
+	var near: Array[Dictionary] = nodes.filter(func(n: Dictionary) -> bool: return n.unique or not str(n.path).contains("/"))
+	near.append_array(nodes.filter(func(n: Dictionary) -> bool: return not (n.unique or not str(n.path).contains("/"))))
+	for node: Dictionary in near:
 		var reference := _node_reference(node)
 		if reference.is_empty() or declared_paths.has(reference.replace("\"", "")) or declared_paths.has("$" + str(node.path)):
 			continue
-		var name := _var_name(str(node.name))
+		var name := context.conventional_var_name(str(node.name), reference.replace("\"", ""))
+		if name.is_empty() or used.has(name):
+			name = _var_name(str(node.name))
 		# Mismo nombre en otra rama (dos CollisionShape2D): se antepone el del padre.
 		if used.has(name) and str(node.path).contains("/"):
 			var parts := str(node.path).split("/")
@@ -200,7 +224,8 @@ func _node_paths(prefix: String, request: CompletionRequest, context: ProjectCon
 			if not quoted and not _plain_path(target):
 				continue
 			texts.append(target.substr(typed.length()) + ("\"" if quoted else ""))
-	return _ranked(_no_guess(typed, texts), "node_path")
+	# Lo que cuenta es el tramo que se está escribiendo: `$Props/` todavía no eligió nada.
+	return _choose(typed.get_slice("/", typed.get_slice_count("/") - 1), texts, "node_path")
 
 
 ## Dentro de `Input.is_action_*("`, `Input.get_axis("` o `InputMap.*("` -> acciones del input map.
@@ -215,7 +240,7 @@ func _actions(prefix: String, context: ProjectContext) -> Array[Dictionary]:
 	for action: String in context.input_actions():
 		if action.begins_with(typed) and action != typed:
 			texts.append(action.substr(typed.length()) + closing)
-	return _ranked(_no_guess(typed, texts), "action")
+	return _choose(typed, texts, "action")
 
 
 ## `func _` -> virtuales de la clase base con firma, salvo los ya definidos.
@@ -310,7 +335,7 @@ func _groups(prefix: String, context: ProjectContext) -> Array[Dictionary]:
 	for group: String in context.groups():
 		if group.begins_with(typed) and group != typed:
 			texts.append(group.substr(typed.length()) + "\"")
-	return _ranked(_no_guess(typed, texts), "group")
+	return _choose(typed, texts, "group")
 
 
 ## `preload("` / `load("` -> rutas `res://` filtradas por el tipo del lado izquierdo; las de la
@@ -339,18 +364,49 @@ func _load_paths(prefix: String, request: CompletionRequest, context: ProjectCon
 			others.append(path)
 	same_dir.append_array(others)
 	if same_dir.size() > 1 and typed.trim_prefix("res://").is_empty():
-		return []
+		# Sin ruta escrita, el nombre de la variable puede elegir (`ARROW_SCENE` -> arrow.tscn).
+		var named := _by_variable_name(prefix, same_dir)
+		if named.is_empty():
+			return [veto("load")]
+		same_dir = PackedStringArray([named])
 	var texts := PackedStringArray()
 	for path: String in same_dir:
 		texts.append(path.substr(typed.length()) + "\")")
 	return _ranked(texts, "load")
 
 
+## El recurso cuyo nombre de archivo coincide con más palabras del nombre de la variable de la
+## izquierda (`const ARROW_SCENE := preload("` -> `arrow.tscn`), si es uno solo; "" si no.
+func _by_variable_name(prefix: String, paths: PackedStringArray) -> String:
+	var found := (_re.load_name as RegEx).search(prefix)
+	if found == null:
+		return ""
+	var words := found.get_string(1).to_lower().split("_", false)
+	var best := ""
+	var best_score := 0
+	var tied := false
+	for path: String in paths:
+		var file_words := path.get_file().get_basename().to_snake_case().split("_", false)
+		var score := 0
+		for word: String in words:
+			if word in file_words:
+				score += 1
+		if score > best_score:
+			best = path
+			best_score = score
+			tied = false
+		elif score == best_score and score > 0:
+			tied = true
+	return best if not tied else ""
+
+
 ## `extends ` -> clases del proyecto (`class_name`) y del motor; hace falta al menos una letra.
 func _extends(prefix: String, context: ProjectContext) -> Array[Dictionary]:
 	var found := (_re.extends as RegEx).search(prefix)
-	if found == null or found.get_string(1).is_empty():
+	if found == null:
 		return []
+	if found.get_string(1).is_empty():
+		return [veto("extends")]
 	var typed := found.get_string(1)
 	var texts := PackedStringArray()
 	var project: Array = context.global_classes().keys()

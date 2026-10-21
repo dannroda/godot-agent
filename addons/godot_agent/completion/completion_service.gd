@@ -81,6 +81,13 @@ func apply_settings() -> void:
 	var enabled := is_enabled()
 	provider.threshold = _settings.completion_threshold() if _settings else provider.threshold
 	provider.margin = _settings.completion_margin() if _settings else provider.margin
+	if _settings:
+		provider.max_lines = _settings.completion_max_lines()
+		provider.sources = _settings.completion_sources()
+		var extra := _settings.completion_extra_corpus()
+		if extra != context.extra_corpus:
+			context.extra_corpus = extra
+			context.request_refresh()
 	if _config and context.exclude != _config.completion_exclude:
 		context.exclude = _config.completion_exclude
 		context.request_refresh()
@@ -93,6 +100,7 @@ func apply_settings() -> void:
 		controller.enabled = enabled
 		controller.debounce_ms = _settings.completion_debounce_ms() if _settings else controller.debounce_ms
 		controller.renderer.color = Color(color, color.a * CompletionController.GhostTextRenderer.DEFAULT_ALPHA)
+		controller.cache.clear()  # otra configuración, otras sugerencias
 		if not enabled:
 			controller.dismiss("off")
 
@@ -132,6 +140,7 @@ func _attach_current() -> void:
 		controller.history = provider.history
 		controller.shown.connect(_on_shown)
 		controller.finished.connect(_on_finished)
+		controller.accepted_partial.connect(_on_accepted_partial)
 		controller.buffer_idle.connect(_on_buffer_idle)
 		controller.attach(code_edit, script.resource_path)
 		_controllers[code_edit] = controller
@@ -156,15 +165,23 @@ func _on_buffer_idle(path: String, text: String, caret_line: int) -> void:
 
 
 func _on_indexed(build_usec: int) -> void:
+	for controller: CompletionController in _controllers.values():
+		controller.cache.clear()
 	if _log:
-		_log.add(AgentLog.CH_CMP, "índice: %d scripts, %d escenas, %d líneas únicas en %.0f ms" % [
-			context.index.scripts.size(), context.index.scenes.size(), context.lines().size(), build_usec / 1000.0])
+		_log.add(AgentLog.CH_CMP, "índice: %d scripts, %d escenas, %d líneas únicas, %d tokens en %.0f ms" % [
+			context.index.scripts.size(), context.index.scenes.size(), context.lines().size(), context.ngram().token_count, build_usec / 1000.0])
 
 
 ## Métricas sin contenido de código (spec §16.8).
 func _on_shown(result: CompletionResult) -> void:
 	if _log:
-		_log.add(AgentLog.CH_CMP, "shown %s %.2f ms score %.2f out %d" % [result.source, result.latency_usec / 1000.0, result.score, result.text.length()])
+		_log.add(AgentLog.CH_CMP, "shown %s %.2f ms score %.2f out %d líneas %d caché %s" % [
+			result.source, result.latency_usec / 1000.0, result.score, result.text.length(), result.text.count("\n") + 1, "hit" if result.cached else "miss"])
+
+
+func _on_accepted_partial(result: CompletionResult) -> void:
+	if _log and result:
+		_log.add(AgentLog.CH_CMP, "accepted_partial %s" % result.source)
 
 
 func _on_finished(result: CompletionResult, outcome: String) -> void:

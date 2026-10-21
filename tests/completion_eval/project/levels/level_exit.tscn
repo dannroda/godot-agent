@@ -1,0 +1,47 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/levels/level_exit.gd" id="1_exit"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/door.png" id="2_tex"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_door"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"locked",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"open",
+"speed": 5.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_exit"]
+size = Vector2(20, 32)
+
+[node name="LevelExit" type="Area2D"]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_exit")
+
+[node name="DoorSprite" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -16)
+sprite_frames = SubResource("SpriteFrames_door")
+animation = &"open"
+
+[node name="Label" type="Label" parent="."]
+offset_left = -60.0
+offset_top = -52.0
+offset_right = 60.0
+offset_bottom = -36.0
+horizontal_alignment = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -16)
+shape = SubResource("RectangleShape2D_exit")

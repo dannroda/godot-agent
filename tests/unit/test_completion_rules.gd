@@ -37,7 +37,7 @@ static func request_at(path: String, line: String) -> CompletionRequest:
 
 func _first(path: String, line: String) -> String:
 	var found := _rules.candidates(request_at(path, line), _ctx())
-	return str(found[0].text) if not found.is_empty() else "<nada>"
+	return str(found[0].text) if not found.is_empty() and not ContextRules.is_veto(found) else "<nada>"
 
 
 func _all(path: String, line: String) -> PackedStringArray:
@@ -91,7 +91,9 @@ func test_onready_rule() -> void:
 	assert_eq(_first(HUD, "@onready var |"), "player: FixturePlayer = $Player", "instancia: tipo del class_name")
 	assert_eq(_first(HUD, "@onready var sp|"), "rite_2d: Sprite2D = $Player/Sprite2D", "hijo editable de una instancia: tipo de la escena instanciada")
 	var boss := _all(BOSS, "@onready var |")
-	assert_true("sprite_2d: Sprite2D = $Sprite2D" in boss, "escena heredada: nodo redefinido sin type toma el de la base")
+	assert_false("sprite_2d: Sprite2D = $Sprite2D" in boss, "lo que declara el script base (FixturePlayer) no se repite")
+	var redefined := _ctx().child_nodes(BOSS).filter(func(n: Dictionary) -> bool: return n.path == "Sprite2D")
+	assert_eq(redefined[0].type if not redefined.is_empty() else "", "Sprite2D", "escena heredada: nodo redefinido sin type toma el de la base")
 	assert_true("cooldown_timer: Timer = $CooldownTimer" in boss, "escena heredada: nodos de la base")
 	assert_false(boss.has("crown: Sprite2D = $Crown"), "lo declarado no se repite")
 

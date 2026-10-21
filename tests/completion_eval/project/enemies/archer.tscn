@@ -1,0 +1,86 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/enemies/archer.gd" id="1_archer"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/archer.png" id="2_tex"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hurtbox.gd" id="4_hurtbox"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hitbox.gd" id="5_hitbox"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_archer"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 4.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"shoot",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"death",
+"speed": 8.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(12, 22)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_box"]
+size = Vector2(14, 24)
+
+[node name="Archer" type="CharacterBody2D" groups=["actors"]]
+collision_layer = 4
+script = ExtResource("1_archer")
+speed = 0.0
+score_value = 25
+coin_drop = 2
+detection_range = 260.0
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -12)
+sprite_frames = SubResource("SpriteFrames_archer")
+animation = &"idle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -11)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+max_health = 3
+
+[node name="Hurtbox" type="Area2D" parent="." node_paths=PackedStringArray("health")]
+collision_layer = 0
+collision_mask = 8
+script = ExtResource("4_hurtbox")
+health = NodePath("../HealthComponent")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+position = Vector2(0, -12)
+shape = SubResource("RectangleShape2D_box")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("5_hitbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+position = Vector2(0, -12)
+shape = SubResource("RectangleShape2D_box")
+
+[node name="ShootTimer" type="Timer" parent="."]
+wait_time = 1.5
+
+[node name="Muzzle" type="Marker2D" parent="."]
+position = Vector2(-10, -16)

@@ -1256,48 +1256,72 @@ tests/completion_fixture/ (escenas, %únicos, input map, autoloads, señales); t
 
 **Notas:** Revisión de código aplicada (selección/multi-caret, % operador, binds y señales multilínea, cachés, Script Editor flotante, tipos desconocidos, costo por tecla, guarda de dibujo, fondo con cierres, indexado apagado, exclude, Alt+\, whitelist de recursos, no adivinar, cancelación). Riesgo conocido documentado en D26: recarga @tool con build en curso. El cycle test crece 29 objetos también sin el servicio de completado (previo a M8a).
 
-## M8b — Completado predictivo: calidad local  (0/6)
+## M8b — Completado predictivo: calidad local  (6/6, 6 en revisión)
 
 Línea siguiente y bloques cortos, ghost text multilínea, aceptación por palabra, n-gram, adaptación de identificadores, post-procesado completo, caché y set de evaluación.
 
 **Hecho cuando:**
 - El set de evaluación reporta resultados por fuente y el n-gram mejora la línea base de reglas + recuperación.
 
-### 8b.1 Línea siguiente, bloques cortos y adaptación de identificadores · Pendiente
+### 8b.1 Línea siguiente, bloques cortos y adaptación de identificadores · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Recuperación de bloques de hasta N líneas mientras el corpus coincida y la indentación se mantenga; adaptación de un identificador (mana/health) aplicada al resto de la línea (spec §16.2b).
 
-### 8b.2 Ghost text multilínea y aceptación por palabra · Pendiente
+**Prueba:** run_all -- completion: test_next_line_and_blocks, test_identifier_adaptation, test_provider_next_line_blocks_and_adaptation. Editor (--godot-agent-completion-test, 4.4.1/4.7.2/4.8): después de `func reset() -> void:` + Enter se sugiere el cuerpo de 3 líneas de otros dos scripts. Eval: 7 casos de línea siguiente/parientes ganados por recuperación.
+
+**Notas:** LineIndex guarda la secuencia de líneas por archivo (texto + sangría) y, para cada clave ordenada, las posiciones [archivo, línea]. Línea siguiente: en línea vacía tras una con código; sangría relativa, nunca menor que la escrita. Bloques: extend() exige que todas las apariciones (>= 2) sigan iguales; corta en línea en blanco, sangría menor, max_lines o la línea de abajo. Adaptación: rotaciones de identificadores (MAX_ROTATIONS 4), sustitución snake/Pascal/UPPER, peso 0,9, sin bloque. SUPPORT_SCALE bajado a 1 por el eval (D27).
+
+### 8b.2 Ghost text multilínea y aceptación por palabra · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Primera línea inline y el resto en una caja translúcida bajo la línea actual (o +N si queda mal, documentado). Ctrl+→ acepta la siguiente palabra (accepted_partial).
 
-### 8b.3 Lexer GDScript y modelo n-gram · Pendiente
+**Prueba:** Editor real en 4.4.1, 4.7.2 y 4.8 (completion_check paso 7): bloque de 3 líneas visible, renderer.box de >= 2 filas, Ctrl+→ inserta `combo_multiplier` y deja ` = 1…`, Tab inserta el resto. Capturas ampliadas: caja legible, `")` del autocierre tapado, caret visible. Unit: next_word en test del controller.
+
+**Notas:** Overlay: canvas item propio hijo del CodeEdit (RenderingServer), limpiado en cada draw y liberado en detach/PREDELETE. Lo dibujado desde la señal draw quedaba bajo el texto en 4.8, así que el tapado de cierres de M8a no funcionaba; quedó corregido acá. Caja casi opaca (0,96, sin el alpha del theme: en 4.4 el fondo es translúcido), fondo del stylebox normal (background_color es transparente en el Script Editor). Si abajo no entra y arriba hay más lugar, la caja va arriba (pasa en 4.4 con el caret en la última fila). Ctrl+→ = command_or_control; signal accepted_partial y log en cmp.
+
+### 8b.3 Lexer GDScript y modelo n-gram · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
 Lexer simple (identificadores, keywords, operadores, strings, números, newline/indent/dedent); 4-gramas con stupid backoff, generación greedy hasta fin de línea o confianza baja; entrenamiento en WorkerThreadPool, actualización por archivo; corpus extra configurable.
 
-### 8b.4 PostProcessor y SuggestionCache · Pendiente
+**Prueba:** run_all -- completion: test_completion_ngram (lexer, generation, incremental_update = reentrenar, provider_uses_ngram). Eval: el n-gram solo da 5/5 correctas sin FP y suma 1 correcta sobre reglas+recuperación sin sumar FP. Bench: build 785–817 ms con 200 scripts (< 1 s), p95 < 2,3 ms.
+
+**Notas:** Tokens con su espacio adelante; claves int (20 bits por id); clase <num> en contextos; COW por archivo si cambió <= 30 %, mismo objeto si nada cambió. Generación: paso > 0,5, acumulada > 0,3, soporte >= 2, para en empates. Cachés de stats y rangos ordenados (bsearch) en el hilo principal: p95 3,7 -> 0,7 ms. Regex compiladas al cargar (static var): lazy era una carrera worker/main. Corpus extra (godot_agent/completion/extra_corpus) solo entrena el n-gram.
+
+### 8b.4 PostProcessor y SuggestionCache · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Pasos de §16.6 en orden (tokens FIM, recorte al bloque, solapamiento con suffix, indentación del editor, descartes, chequeo de balanceo) y caché LRU por hash de prefix. Tests con salidas defectuosas reales.
 
-### 8b.5 Set de evaluación del completado · Pendiente
+**Prueba:** run_all -- completion: test_post_processor_defective_outputs (FIM, stops, recorte, solapamiento, sangría tabs/espacios, paréntesis multilínea), test_suggestion_cache (LRU, hits/misses). El servicio vacía la caché al publicar índice y al cambiar Settings.
+
+**Notas:** PostProcessor.process(text, request, max_lines, stops). Con suffix no vacío fuerza una línea. Sangría con request.indent_unit() (indent_use_spaces/indent_size del CodeEdit). SuggestionCache: 64 entradas, clave ruta:hash del texto:línea:largo del prefijo:manual:generación del proveedor (índice, ProjectSettings, escena abierta, historial; agregada por la revisión: sin ella devolvía sugerencias viejas). Los resultados en caché se marcan cached y se loguean como hit.
+
+### 8b.5 Set de evaluación del completado · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 tests/completion_eval/ con 30–50 recortes reales y script headless que corre cualquier combinación de fuentes: exact match de primera línea, similitud por tokens, cobertura, falsos positivos y latencia, por fuente.
 
-### 8b.6 Verificar M8b · Pendiente
+**Prueba:** godot --headless --path . --script tests/run_completion_eval.gd [-- combos] [--cases]: 48 casos, tabla por combinación y por fuente ganadora (exactas, correctas, FP, similitud, cobertura, p50/p95). test_completion_eval valida los casos y corre la regresión.
+
+**Notas:** tests/completion_eval/project: juego propio "Mossy Caverns" (33 scripts, 20 escenas, .gdignore). cases.txt: file | line | cut, ⏎ marca espacio final, 4 grupos. El runner corta el archivo en el caret y lo pasa como buffer sin guardar. El historial arranca vacío por caso (se prueba en unit).
+
+### 8b.6 Verificar M8b · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 El set de evaluación reporta resultados por fuente y el n-gram mejora la línea base de reglas + recuperación. Ajustar umbrales priorizando precisión. Actualizar progress.
+
+**Prueba:** Eval en 4.4.1/4.7.2/4.8 (iguales): reglas+recuperación 19 mostradas/17 correctas/2 FP; +n-gram 20/18/2 FP (antes de M8b: 17/11/6 FP). test_completion_eval exige más correctas con n-gram, FP sin subir, precisión >= 0,85, p95 < 10 ms. Todas las suites pasan en las 3 versiones (run_all 122 tests/877 checks sin los de M8c, acp 90, oneshot 34, cycle, completion en el editor).
+
+**Notas:** Ajustes por precisión: veto de reglas cuando no pueden elegir, convención de nombres de @onready aprendida del proyecto, hijos directos primero, herencia, load(" por nombre de variable, clase número en el n-gram, salida del n-gram con al menos un nombre. Probados y descartados: min_support 1 (más FP); umbral del n-gram sin el factor de backoff (sin cambios en el set). Quedan 2 FP ambiguos de verdad. Revisión de código: 9 hallazgos corregidos (race del vocabulario del n-gram, adaptación con prefijo existente, caché con generación, Tab en el mismo frame, líneas largas, build cancelado, 2 espacios, sangría en el contexto del n-gram, recorte del overlay); detalle en progress.md. progress.md, D27 y README actualizados.
 
 ## M8c — Completado predictivo: LLM opcional  (0/4)
 

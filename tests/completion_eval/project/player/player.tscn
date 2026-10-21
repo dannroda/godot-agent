@@ -1,0 +1,177 @@
+[gd_scene load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/player/player.gd" id="1_player"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/player.png" id="2_tex"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/energy_component.gd" id="4_energy"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hurtbox.gd" id="5_hurtbox"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hitbox.gd" id="6_hitbox"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/player/player_camera.gd" id="7_camera"]
+[ext_resource type="AudioStream" path="res://tests/completion_eval/project/sounds/jump.wav" id="8_jump"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_player"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"run",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"jump",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"fall",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"dash",
+"speed": 12.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"attack",
+"speed": 12.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"death",
+"speed": 8.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(12, 22)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hurt"]
+size = Vector2(10, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
+size = Vector2(20, 14)
+
+[sub_resource type="Animation" id="Animation_attack"]
+resource_name = "attack"
+length = 0.3
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimatedSprite2D:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [&"attack"]
+}
+
+[sub_resource type="Animation" id="Animation_RESET"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AnimatedSprite2D:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [&"idle"]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_player"]
+_data = {
+&"RESET": SubResource("Animation_RESET"),
+&"attack": SubResource("Animation_attack")
+}
+
+[node name="Player" type="CharacterBody2D" groups=["actors"]]
+collision_layer = 2
+script = ExtResource("1_player")
+knockback_resistance = 0.6
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -12)
+sprite_frames = SubResource("SpriteFrames_player")
+animation = &"idle"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -11)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_player")
+}
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+max_health = 5
+invulnerability_time = 0.8
+
+[node name="EnergyComponent" type="Node" parent="."]
+script = ExtResource("4_energy")
+
+[node name="Hurtbox" type="Area2D" parent="." node_paths=PackedStringArray("health") groups=["hurtboxes"]]
+collision_layer = 64
+collision_mask = 16
+script = ExtResource("5_hurtbox")
+health = NodePath("../HealthComponent")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+position = Vector2(0, -11)
+shape = SubResource("RectangleShape2D_hurt")
+
+[node name="AttackHitbox" type="Area2D" parent="."]
+unique_name_in_owner = true
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+script = ExtResource("6_hitbox")
+knockback_force = 300.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackHitbox"]
+position = Vector2(16, -12)
+shape = SubResource("RectangleShape2D_attack")
+
+[node name="AttackCooldown" type="Timer" parent="."]
+wait_time = 0.35
+one_shot = true
+
+[node name="PlayerCamera" type="Camera2D" parent="."]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+script = ExtResource("7_camera")
+
+[node name="JumpSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("8_jump")
+bus = &"SFX"

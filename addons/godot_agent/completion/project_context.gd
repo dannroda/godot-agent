@@ -8,6 +8,7 @@ signal indexed(build_usec: int)
 
 const ProjectIndex := preload("project_index.gd")
 const LineIndex := preload("local/line_index.gd")
+const NGramModel := preload("local/ngram_model.gd")
 
 ## Espera tras un cambio de archivos o del buffer antes de reindexar (se juntan los cambios).
 const REFRESH_DELAY_MS := 400
@@ -29,6 +30,8 @@ const COMMON_CLASSES: PackedStringArray = [
 var root: String = "res://"
 ## Prefijos (relativos a `root`) fuera del corpus de líneas, p. ej. "addons/".
 var exclude: PackedStringArray = []
+## Carpetas absolutas de corpus extra para el n-gram (otros proyectos propios).
+var extra_corpus: PackedStringArray = []
 ## Devuelve la raíz de la escena abierta en el editor, o null (en tests no hay editor).
 var live_scene_provider: Callable
 ## Archivo con formato project.godot de donde leer input map y autoloads en lugar de
@@ -36,6 +39,9 @@ var live_scene_provider: Callable
 var settings_file: String = ""
 
 var index: ProjectIndex = ProjectIndex.new()
+## Sube cuando cambia algo de lo que salen las sugerencias sin que cambie el texto del script:
+## índice nuevo, ProjectSettings o los nodos de la escena abierta (clave de SuggestionCache).
+var generation: int = 0
 var _task_id: int = -1
 var _task_result: Array = []
 ## Índices reemplazados: se sueltan dentro del próximo build, en el worker (liberar decenas de miles
@@ -52,6 +58,8 @@ var _signal_cache: Dictionary = {}
 var _engine_classes: PackedStringArray = []
 var _settings_cache: Dictionary = {}
 var _live_cache: Dictionary = {}  # script -> {time, nodes}
+## Convenciones de nombres de `@onready` (derivadas del índice; se recalculan al publicar otro).
+var _naming: Dictionary = {}
 var _extends_re: RegEx
 
 
@@ -82,6 +90,7 @@ func drop_buffer(path: String) -> void:
 ## Invalida lo que se lee de ProjectSettings (input map, autoloads, clases globales).
 func settings_changed() -> void:
 	_settings_cache.clear()
+	generation += 1
 
 
 func is_building() -> bool:
@@ -110,7 +119,7 @@ func start_build() -> void:
 	_dirty = false
 	_cancel = [false]
 	var options := {
-		"root": root, "exclude": exclude, "buffers": _buffers.duplicate(true), "previous": index,
+		"root": root, "exclude": exclude, "buffers": _buffers.duplicate(true), "previous": index, "extra_corpus": extra_corpus,
 		"now": Time.get_unix_time_from_system(), "cancel": _cancel, "retired": _retired,
 	}
 	_retired = []
@@ -123,7 +132,7 @@ func start_build() -> void:
 ## Build sincrónico (tests y benchmark).
 func build_now() -> void:
 	wait()
-	_publish(ProjectIndex.build({"root": root, "exclude": exclude, "buffers": _buffers.duplicate(true), "previous": index, "now": Time.get_unix_time_from_system()}))
+	_publish(ProjectIndex.build({"root": root, "exclude": exclude, "buffers": _buffers.duplicate(true), "previous": index, "extra_corpus": extra_corpus, "now": Time.get_unix_time_from_system()}))
 	_dirty = false
 
 
@@ -147,11 +156,17 @@ func _publish(new_index: ProjectIndex) -> void:
 	_live_cache.clear()
 	_signal_cache.clear()
 	_settings_cache.erase("classes")
+	_naming.clear()
+	generation += 1
 	indexed.emit(index.build_usec)
 
 
 func lines() -> LineIndex:
 	return index.lines
+
+
+func ngram() -> NGramModel:
+	return index.ngram
 
 
 # --- Escenas y nodos ------------------------------------------------------------------------------
@@ -253,6 +268,8 @@ func _live_child_nodes(script_path: String) -> Array[Dictionary]:
 				"path": str(holder.get_path_to(node)) if is_child else "", "name": str(node.name),
 				"type": _live_type(node), "unique": unique,
 			})
+	if out != (cached.get("nodes", []) as Array):
+		generation += 1  # la escena abierta cambió (sin guardar): otras sugerencias
 	_live_cache[script_path] = {"time": Time.get_ticks_msec(), "root": scene_root.get_instance_id(), "nodes": out}
 	return out
 
@@ -469,6 +486,81 @@ func groups() -> PackedStringArray:
 ## "emitter" (`_on_timer_timeout`) o "signal" (`_on_timeout`) según lo que más se usa en el proyecto.
 func handler_style() -> String:
 	return "signal" if int(index.handler_style.signal) > int(index.handler_style.emitter) else "emitter"
+
+
+## Scripts del proyecto de los que hereda `text` (por `extends "res://..."` o por class_name), del
+## más cercano al más lejano.
+func base_scripts(text: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	var found := _extends_re.search(text)
+	var base := found.get_string(1).trim_prefix("\"").trim_suffix("\"").trim_prefix("'").trim_suffix("'") if found else ""
+	var classes := global_classes()
+	while not base.is_empty() and out.size() < 8:
+		var path := base if base.begins_with("res://") else str((classes.get(base, {}) as Dictionary).get("path", ""))
+		if path.is_empty() or not index.scripts.has(path) or path in out:
+			break
+		out.append(path)
+		base = str(index.scripts[path].extends)
+	return out
+
+
+## Variables y referencias de nodos (`$Ruta`, `%Unico`) ya declaradas en los scripts base.
+func inherited_declarations(text: String) -> Dictionary:
+	var vars: Dictionary = {}
+	var references: Dictionary = {}
+	for path: String in base_scripts(text):
+		var info: Dictionary = index.scripts[path]
+		for name: String in info.get("vars", PackedStringArray()):
+			vars[name] = true
+		for pair: Array in info.get("onready", []):
+			references[pair[1]] = true
+	return {"vars": vars, "references": references}
+
+
+## Nombre de variable para un nodo según cómo lo nombra el proyecto: el que ya se usa para la misma
+## referencia en otro script, o el nombre del nodo sin el sufijo que el proyecto suele quitar
+## (`HealthComponent` -> `health`). "" si no hay convención.
+func conventional_var_name(node_name: String, reference: String) -> String:
+	if _naming.is_empty():
+		_naming = _learn_naming()
+	var names: Dictionary = _naming.by_reference.get(reference, {})
+	var best := ""
+	for name: String in names:
+		if best.is_empty() or int(names[name]) > int(names[best]):
+			best = name
+	if not best.is_empty():
+		return best
+	var snake := node_name.to_snake_case()
+	for suffix: String in _naming.suffixes:
+		if snake.ends_with("_" + suffix) and snake.length() > suffix.length() + 1:
+			return snake.left(snake.length() - suffix.length() - 1)
+	return ""
+
+
+## Por referencia, los nombres usados; y los sufijos que el proyecto quita (siempre que el nodo los
+## tiene y nunca los deja).
+func _learn_naming() -> Dictionary:
+	var by_reference: Dictionary = {}
+	var dropped: Dictionary = {}
+	var kept: Dictionary = {}
+	for path: String in index.scripts:
+		for pair: Array in index.scripts[path].get("onready", []):
+			var name: String = pair[0]
+			var reference: String = pair[1]
+			var per_name: Dictionary = by_reference.get_or_add(reference, {})
+			per_name[name] = int(per_name.get(name, 0)) + 1
+			var node_snake := reference.get_file().trim_prefix("$").trim_prefix("%").to_snake_case()
+			var parts := node_snake.split("_")
+			if node_snake.begins_with(name + "_"):
+				var suffix := node_snake.substr(name.length() + 1)
+				dropped[suffix] = int(dropped.get(suffix, 0)) + 1
+			elif name == node_snake and parts.size() > 1:
+				kept[parts[parts.size() - 1]] = true
+	var suffixes := PackedStringArray()
+	for suffix: String in dropped:
+		if not kept.has(suffix):
+			suffixes.append(suffix)
+	return {"by_reference": by_reference, "suffixes": suffixes}
 
 
 ## Nombres `<sección>/<clave>` de ProjectSettings (o de `settings_file`).

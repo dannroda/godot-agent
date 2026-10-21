@@ -16,6 +16,12 @@ func cancel() -> void:
 	pass
 
 
+## Cambia cuando el mismo pedido puede dar otra respuesta (índice, settings, historial): entra en
+## la clave de SuggestionCache.
+func cache_generation() -> int:
+	return 0
+
+
 ## {name, remote: bool, ai: bool}
 func describe() -> Dictionary:
 	return {"name": "", "remote": false, "ai": false}

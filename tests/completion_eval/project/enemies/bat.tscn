@@ -1,0 +1,85 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/enemies/bat.gd" id="1_bat"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/bat.png" id="2_tex"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/health_component.gd" id="3_health"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hurtbox.gd" id="4_hurtbox"]
+[ext_resource type="Script" path="res://tests/completion_eval/project/components/hitbox.gd" id="5_hitbox"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_bat"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"sleep",
+"speed": 2.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"fly",
+"speed": 12.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"death",
+"speed": 8.0
+}]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 6.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_box"]
+radius = 8.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_wake"]
+radius = 120.0
+
+[node name="Bat" type="CharacterBody2D" groups=["actors", "flying"]]
+collision_layer = 4
+motion_mode = 1
+script = ExtResource("1_bat")
+score_value = 15
+detection_range = 220.0
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_bat")
+animation = &"sleep"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3_health")
+max_health = 1
+
+[node name="Hurtbox" type="Area2D" parent="." node_paths=PackedStringArray("health")]
+collision_layer = 0
+collision_mask = 8
+script = ExtResource("4_hurtbox")
+health = NodePath("../HealthComponent")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("CircleShape2D_box")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("5_hitbox")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("CircleShape2D_box")
+
+[node name="WakeArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WakeArea"]
+shape = SubResource("CircleShape2D_wake")

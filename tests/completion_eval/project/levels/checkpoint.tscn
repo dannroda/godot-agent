@@ -1,0 +1,55 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/levels/checkpoint.gd" id="1_checkpoint"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/flag.png" id="2_tex"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_flag"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"down",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": false,
+"name": &"raise",
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_tex")
+}],
+"loop": true,
+"name": &"up",
+"speed": 6.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_checkpoint"]
+size = Vector2(16, 32)
+
+[node name="Checkpoint" type="Area2D"]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_checkpoint")
+
+[node name="Flag" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -16)
+sprite_frames = SubResource("SpriteFrames_flag")
+animation = &"down"
+
+[node name="Particles" type="GPUParticles2D" parent="."]
+position = Vector2(0, -24)
+emitting = false
+amount = 16
+one_shot = true
+explosiveness = 0.8
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -16)
+shape = SubResource("RectangleShape2D_checkpoint")

@@ -34,7 +34,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-long-test`: sesión de más de 600 entradas con el agente falso; mide los frames
 ##   y comprueba el tope de vistas vivas y "Mostrar anteriores".
 ## - `-- --godot-agent-completion-test [--godot-agent-ui-shot=<prefijo>]`: completado en el Script
-##   Editor real (M8a): tipea con eventos de teclado y verifica ghost text, Tab, Esc y undo.
+##   Editor real (M8a y M8b): tipea con eventos de teclado y verifica ghost text, Tab, Esc, undo, un
+##   bloque de varias líneas y Ctrl+→.
 ## - `-- --godot-agent-claude-review-test`: lo mismo con Claude Code real (gasta tokens): los tres
 ##   bugs sembrados tienen que quedar anotados en su línea.
 

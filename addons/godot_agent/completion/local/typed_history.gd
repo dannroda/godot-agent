@@ -10,10 +10,14 @@ const CAPACITY := 400
 ## Puntaje de la coincidencia más reciente y de las siguientes.
 const SCORES: PackedFloat32Array = [0.8, 0.6, 0.5]
 
+## Sube con cada cambio (entra en la clave de SuggestionCache).
+var revision: int = 0
 var _lines: PackedStringArray = []
 
 
 func record(line: String) -> void:
+	if line.length() > LineIndex.MAX_LINE * 2:
+		return
 	var normalized := LineIndex.normalize(line).strip_edges(false, true)
 	if normalized.length() < LineIndex.MIN_LINE or normalized.length() > LineIndex.MAX_LINE:
 		return
@@ -21,6 +25,7 @@ func record(line: String) -> void:
 	if existing >= 0:
 		_lines.remove_at(existing)
 	_lines.append(normalized)
+	revision += 1
 	if _lines.size() > CAPACITY:
 		_lines = _lines.slice(_lines.size() - CAPACITY)
 
@@ -31,6 +36,7 @@ func size() -> int:
 
 func clear() -> void:
 	_lines.clear()
+	revision += 1
 
 
 ## [{text, score, source}] para `prefix` ya normalizado, la más reciente primero.

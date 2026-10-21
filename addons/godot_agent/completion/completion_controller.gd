@@ -8,6 +8,8 @@ extends RefCounted
 signal shown(result: CompletionResult)
 ## outcome: accepted, typed_through, discarded:<motivo>
 signal finished(result: CompletionResult, outcome: String)
+## Ctrl+→ aceptó una palabra; la sugerencia sigue con el resto.
+signal accepted_partial(result: CompletionResult)
 ## El buffer cambió y quedó quieto un rato: hay que reindexarlo (ProjectContext.update_buffer).
 signal buffer_idle(path: String, text: String, caret_line: int)
 
@@ -16,6 +18,7 @@ const CompletionRequest := preload("completion_request.gd")
 const CompletionResult := preload("completion_result.gd")
 const GhostTextRenderer := preload("ghost_text_renderer.gd")
 const TypedHistory := preload("local/typed_history.gd")
+const SuggestionCache := preload("suggestion_cache.gd")
 
 const CLOSERS := ")]}\"'"
 const DEFAULT_DEBOUNCE_MS := 30
@@ -26,6 +29,7 @@ var path: String = ""
 var provider: CompletionProvider
 var history: TypedHistory
 var renderer: GhostTextRenderer = GhostTextRenderer.new()
+var cache: SuggestionCache = SuggestionCache.new()
 var debounce_ms: int = DEFAULT_DEBOUNCE_MS
 var enabled: bool = true
 ## Reloj en ms (los tests lo reemplazan).
@@ -70,6 +74,8 @@ func detach() -> void:
 				sig.disconnect(connection[1])
 		if not suggestion.is_empty():
 			code_edit.queue_redraw()
+	if renderer:
+		renderer.release()
 	if provider:
 		provider.cancel()
 	suggestion = ""
@@ -105,16 +111,39 @@ func request(manual: bool) -> void:
 	var line := code_edit.get_caret_line()
 	var column := code_edit.get_caret_column()
 	var version := code_edit.get_version()
-	var request_data := CompletionRequest.from_lines(path, code_edit.text, line, column, code_edit.get_line(line), code_edit.get_line(line + 1) if line + 1 < code_edit.get_line_count() else "")
+	var request_data := build_request(line, column)
 	request_data.manual = manual
 	request_data.seq = seq
-	var result: CompletionResult = await provider.complete(request_data)
-	# Respuesta vieja: llegó otra tecla, se movió el caret o se pidió otra cosa.
+	var key := SuggestionCache.key_for(request_data, provider.cache_generation())
+	var cached := cache.lookup(key)
+	var result: CompletionResult
+	if cached.found:
+		result = (cached.result as CompletionResult).cached_copy() if cached.result else null
+	else:
+		result = await provider.complete(request_data)
+		# Respuesta vieja: llegó otra tecla, se movió el caret o se pidió otra cosa.
+		if seq != _seq or code_edit == null:
+			return
+		cache.store(key, result)
 	if result == null or seq != _seq or code_edit == null:
 		return
 	if code_edit.get_version() != version or code_edit.get_caret_line() != line or code_edit.get_caret_column() != column:
 		return
 	show(result)
+
+
+## El pedido con las líneas de contexto leídas del CodeEdit (sin partir el buffer).
+func build_request(line: int, column: int) -> CompletionRequest:
+	var above := PackedStringArray()
+	for i in range(maxi(0, line - CompletionRequest.CONTEXT_ABOVE), line):
+		above.append(code_edit.get_line(i))
+	var below := PackedStringArray()
+	for i in range(line + 1, mini(code_edit.get_line_count(), line + 1 + CompletionRequest.CONTEXT_BELOW)):
+		below.append(code_edit.get_line(i))
+	var request_data: CompletionRequest = CompletionRequest.from_lines(path, code_edit.text, line, column, code_edit.get_line(line), above, below)
+	request_data.indent_spaces = code_edit.indent_use_spaces
+	request_data.indent_size = code_edit.indent_size
+	return request_data
 
 
 ## Condiciones de disparo (spec §16.5).
@@ -163,6 +192,48 @@ func accept() -> bool:
 		history.record(code_edit.get_line(code_edit.get_caret_line()))
 	finished.emit(result, "accepted")
 	return true
+
+
+## Ctrl+→: inserta la siguiente palabra de la sugerencia (con los espacios o el salto de línea que
+## la preceden) y deja el resto a la vista.
+func accept_word() -> bool:
+	if suggestion.is_empty() or code_edit == null:
+		return false
+	var word := next_word(suggestion)
+	if word.length() >= suggestion.length():
+		return accept()
+	code_edit.begin_complex_operation()
+	code_edit.insert_text_at_caret(word, 0)
+	code_edit.end_complex_operation()
+	suggestion = suggestion.substr(word.length())
+	# El ancla pasa al caret nuevo (puede ser otra línea si la palabra traía un salto).
+	_anchor_line = code_edit.get_caret_line()
+	_anchor_column = code_edit.get_caret_column()
+	var line := code_edit.get_line(_anchor_line)
+	_anchor_prefix = line.left(_anchor_column)
+	_anchor_suffix = line.substr(_anchor_column)
+	_anchor_version = code_edit.get_version()
+	code_edit.queue_redraw()
+	accepted_partial.emit(_result)
+	return true
+
+
+## La siguiente palabra: espacios (o saltos de línea) y después un identificador o una tira de
+## signos.
+static func next_word(text: String) -> String:
+	var i := 0
+	while i < text.length() and (text[i] == " " or text[i] == "\t" or text[i] == "\n"):
+		i += 1
+	if i >= text.length():
+		return text
+	var word := _is_word_char(text.unicode_at(i))
+	while i < text.length() and text[i] != " " and text[i] != "\t" and text[i] != "\n" and _is_word_char(text.unicode_at(i)) == word:
+		i += 1
+	return text.left(i)
+
+
+static func _is_word_char(c: int) -> bool:
+	return c == 95 or (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c > 127
 
 
 func dismiss(reason: String) -> void:
@@ -252,12 +323,15 @@ func _on_focus_exited() -> void:
 
 
 ## Teclas (spec §16.7): solo se interceptan con sugerencia visible y el popup nativo cerrado; si no,
-## Tab y Esc siguen su camino normal. La señal gui_input llega antes que el manejo propio del
+## Tab, Ctrl+→ y Esc siguen su camino normal. La señal gui_input llega antes que el manejo propio del
 ## CodeEdit, así que `accept_event()` alcanza para que Tab no indente.
 func _on_gui_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed:
 		return
+	# Una tecla anterior del mismo frame ya cambió el texto, pero sus señales diferidas no llegaron:
+	# sin esto, Tab aceptaría la sugerencia vieja después de lo tipeado.
+	_sync()
 	if is_manual_shortcut(key):
 		# Solo se consume si de verdad se puede pedir (si no, la tecla es del usuario).
 		if can_trigger(true):
@@ -274,6 +348,9 @@ func _on_gui_input(event: InputEvent) -> void:
 	if key.keycode == KEY_TAB and not (key.shift_pressed or key.ctrl_pressed or key.alt_pressed or key.meta_pressed):
 		code_edit.accept_event()
 		accept()
+	elif key.keycode == KEY_RIGHT and key.is_command_or_control_pressed() and not (key.shift_pressed or key.alt_pressed):
+		code_edit.accept_event()
+		accept_word()
 	elif key.keycode == KEY_ESCAPE:
 		code_edit.accept_event()
 		dismiss("esc")
@@ -288,7 +365,9 @@ static func is_manual_shortcut(key: InputEventKey) -> bool:
 ## diferidas de la última tecla, y ese frame el ghost text quedaría corrido.
 func _on_draw() -> void:
 	if suggestion.is_empty() or native_popup_open() or code_edit.has_selection() or code_edit.get_caret_count() > 1:
+		renderer.clear()
 		return
 	if code_edit.get_caret_line() != _anchor_line or code_edit.get_caret_column() != _anchor_column or code_edit.get_version() != _anchor_version:
+		renderer.clear()
 		return
 	renderer.draw(code_edit, suggestion, _anchor_line, _anchor_column, _anchor_suffix)

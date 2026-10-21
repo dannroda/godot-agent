@@ -11,7 +11,7 @@ const DEFAULT_THRESHOLD := 0.5
 const DEFAULT_MARGIN := 0.12
 
 
-## `candidates`: [{text, score, source, rule?}]. Devuelve el elegido ({text, score, source}) o {}.
+## `candidates`: [{text, score, source, rule?, positions?, level?}]. Devuelve el elegido o {}.
 static func pick(candidates: Array[Dictionary], threshold: float = DEFAULT_THRESHOLD, margin: float = DEFAULT_MARGIN) -> Dictionary:
 	var best_rule: Dictionary = {}
 	for candidate: Dictionary in candidates:
@@ -55,8 +55,16 @@ static func merge(candidates: Array[Dictionary]) -> Array[Dictionary]:
 				existing.source = candidate.source
 				existing.best = score
 			existing.score = 1.0 - (1.0 - float(existing.score)) * (1.0 - score)
+			if candidate.has("positions") and not existing.has("positions"):
+				existing.positions = candidate.positions
+				existing.level = candidate.level
 		else:
-			by_text[text] = {"text": text, "score": float(candidate.score), "source": candidate.source, "best": float(candidate.score)}
+			var entry := {"text": text, "score": float(candidate.score), "source": candidate.source, "best": float(candidate.score)}
+			# De dónde salió una línea recuperada, para extenderla a un bloque si gana.
+			if candidate.has("positions"):
+				entry.positions = candidate.positions
+				entry.level = candidate.level
+			by_text[text] = entry
 	var out: Array[Dictionary] = []
 	for text: String in by_text:
 		var entry: Dictionary = by_text[text]

@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/enemies/arrow.gd" id="1_arrow"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/arrow.png" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_arrow"]
+size = Vector2(10, 2)
+
+[node name="Arrow" type="Area2D" groups=["projectiles"]]
+collision_layer = 16
+collision_mask = 65
+script = ExtResource("1_arrow")
+knockback_force = 180.0
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_arrow")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="."]
+
+[connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="queue_free"]

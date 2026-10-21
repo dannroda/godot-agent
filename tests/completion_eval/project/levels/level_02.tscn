@@ -1,0 +1,90 @@
+[gd_scene load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/levels/level.gd" id="1_level"]
+[ext_resource type="Texture2D" path="res://tests/completion_eval/project/art/tiles.png" id="2_tiles"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/player/player.tscn" id="3_player"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/enemies/bat.tscn" id="5_bat"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/enemies/archer.tscn" id="6_archer"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/enemies/beetle.tscn" id="7_beetle"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/pickups/coin.tscn" id="8_coin"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/pickups/heart.tscn" id="9_heart"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/levels/level_exit.tscn" id="10_exit"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/levels/checkpoint.tscn" id="11_checkpoint"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/levels/moving_platform.tscn" id="12_platform"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/ui/hud.tscn" id="14_hud"]
+[ext_resource type="PackedScene" path="res://tests/completion_eval/project/ui/pause_menu.tscn" id="15_pause"]
+[ext_resource type="AudioStream" path="res://tests/completion_eval/project/music/ruins.ogg" id="16_music"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_tiles"]
+texture = ExtResource("2_tiles")
+texture_region_size = Vector2i(16, 16)
+0:0/0 = 0
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-8, -8, 8, -8, 8, 8, -8, 8)
+1:0/0 = 0
+1:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-8, -8, 8, -8, 8, 8, -8, 8)
+
+[sub_resource type="TileSet" id="TileSet_level"]
+physics_layer_0/collision_layer = 1
+sources/0 = SubResource("TileSetAtlasSource_tiles")
+
+[node name="Level" type="Node2D"]
+script = ExtResource("1_level")
+level_id = "level_02"
+music = ExtResource("16_music")
+
+[node name="TileMapLayer" type="TileMapLayer" parent="."]
+tile_set = SubResource("TileSet_level")
+
+[node name="Player" parent="." instance=ExtResource("3_player")]
+position = Vector2(48, 160)
+
+[node name="Enemies" type="Node2D" parent="."]
+
+[node name="Beetle" parent="Enemies" instance=ExtResource("7_beetle")]
+position = Vector2(400, 160)
+
+[node name="Bat" parent="Enemies" instance=ExtResource("5_bat")]
+position = Vector2(620, 48)
+
+[node name="Bat2" parent="Enemies" instance=ExtResource("5_bat")]
+position = Vector2(700, 40)
+
+[node name="Archer" parent="Enemies" instance=ExtResource("6_archer")]
+position = Vector2(980, 96)
+
+[node name="Beetle2" parent="Enemies" instance=ExtResource("7_beetle")]
+position = Vector2(1260, 160)
+
+[node name="Pickups" type="Node2D" parent="."]
+
+[node name="Coin" parent="Pickups" instance=ExtResource("8_coin")]
+position = Vector2(300, 120)
+
+[node name="Coin2" parent="Pickups" instance=ExtResource("8_coin")]
+position = Vector2(540, 80)
+
+[node name="Heart" parent="Pickups" instance=ExtResource("9_heart")]
+position = Vector2(840, 100)
+
+[node name="LevelExit" parent="." instance=ExtResource("10_exit")]
+position = Vector2(1520, 160)
+requires_all_enemies = true
+open_shop = false
+
+[node name="Props" type="Node2D" parent="."]
+
+[node name="Checkpoint" parent="Props" instance=ExtResource("11_checkpoint")]
+position = Vector2(760, 160)
+
+[node name="MovingPlatform" parent="Props" instance=ExtResource("12_platform")]
+position = Vector2(520, 140)
+travel = Vector2(0, -80)
+duration = 1.5
+
+[node name="MovingPlatform2" parent="Props" instance=ExtResource("12_platform")]
+position = Vector2(1120, 120)
+travel = Vector2(128, 0)
+
+[node name="HUD" parent="." instance=ExtResource("14_hud")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("15_pause")]

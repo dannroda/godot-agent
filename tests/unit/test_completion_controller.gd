@@ -53,11 +53,12 @@ func _type(text: String) -> void:
 		await _tree().process_frame
 
 
-func _key(keycode: Key, alt: bool = false) -> void:
+func _key(keycode: Key, alt: bool = false, control: bool = false) -> void:
 	var event := InputEventKey.new()
 	event.keycode = keycode
 	event.physical_keycode = keycode
 	event.alt_pressed = alt
+	event.command_or_control_autoremap = control
 	event.pressed = true
 	_tree().root.push_input(event)
 	var release := event.duplicate() as InputEventKey
@@ -89,6 +90,35 @@ func test_debounce_and_accept() -> void:
 	_teardown()
 
 
+func test_accept_word() -> void:
+	assert_eq(CompletionController.next_word("velocity.x = 1"), "velocity", "identificador")
+	assert_eq(CompletionController.next_word(".x = 1"), ".", "signos hasta el siguiente nombre")
+	assert_eq(CompletionController.next_word(" = 1"), " =", "con los espacios de adelante")
+	assert_eq(CompletionController.next_word("\n\tpass"), "\n\tpass", "con el salto de línea y la sangría")
+	await _setup("func f() -> void:\n\t", 1, 1)
+	var partial: Array[RefCounted] = []
+	_controller.accepted_partial.connect(func(result: RefCounted) -> void: partial.append(result))
+	_provider.responses = {"vel": "ocity = Vector2.ZERO\n\tmove_and_slide()"}
+	await _type("vel")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	await _key(KEY_RIGHT, false, true)
+	assert_eq(_code_edit.get_line(1), "\tvelocity", "Ctrl+→ inserta la palabra")
+	assert_eq(_controller.suggestion, " = Vector2.ZERO\n\tmove_and_slide()", "el resto sigue a la vista")
+	assert_eq(partial.size(), 1, "accepted_partial")
+	await _tree().process_frame
+	await _key(KEY_RIGHT, false, true)
+	await _key(KEY_RIGHT, false, true)
+	assert_eq(_code_edit.get_line(1), "\tvelocity = Vector2", "palabra por palabra (%s)" % _code_edit.get_line(1))
+	_code_edit.undo()
+	assert_eq(_code_edit.get_line(1), "\tvelocity =", "cada palabra es su propio paso de undo")
+	_code_edit.redo()
+	await _tree().process_frame
+	await _key(KEY_TAB)
+	assert_eq(_code_edit.text, "func f() -> void:\n\tvelocity = Vector2.ZERO\n\tmove_and_slide()", "Tab acepta el resto")
+	assert_eq(_provider.calls.size(), 1, "aceptar por palabra no pide otra sugerencia")
+	_teardown()
+
+
 func test_tab_without_suggestion_indents() -> void:
 	await _setup("func f() -> void:\n\tpass", 1, 5)
 	await _key(KEY_TAB)
@@ -116,6 +146,21 @@ func test_type_through_and_invalidation() -> void:
 	assert_false(_controller.is_visible(), "mover el caret a otra línea invalida")
 	assert_true(_outcomes.has("discarded:typed") and _outcomes.has("discarded:line"), "motivos: %s" % ", ".join(_outcomes))
 	assert_eq(_controller.history.query("var spe").size(), 1, "la línea editada que se dejó entra al historial")
+	_teardown()
+
+
+## Una tecla y Tab en el mismo frame: las señales diferidas de la primera todavía no llegaron, y Tab
+## no tiene que aceptar la sugerencia vieja (revisión de M8b).
+func test_tab_after_key_in_same_frame() -> void:
+	await _setup("func f() -> void:\n\t", 1, 1)
+	_provider.responses = {"pri": "nt()"}
+	await _type("pri")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	assert_eq(_controller.suggestion, "nt()", "sugerencia visible")
+	_code_edit.insert_text_at_caret("x")  # sin esperar el frame
+	await _key(KEY_TAB)
+	assert_false(_code_edit.get_line(1).contains("nt()"), "Tab no inserta la sugerencia vieja (%s)" % _code_edit.get_line(1).c_escape())
+	assert_false(_controller.is_visible(), "la sugerencia se descartó")
 	_teardown()
 
 

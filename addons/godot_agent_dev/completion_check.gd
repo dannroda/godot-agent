@@ -3,7 +3,8 @@ extends RefCounted
 ## Completado en el Script Editor real (M8a): abre un script adjunto a una escena, tipea con
 ## eventos de teclado como el usuario y comprueba el ghost text de `@onready var `, `func _` y una
 ## línea repetida del proyecto, Tab para aceptar (una acción de undo), Esc, Tab sin sugerencia que
-## indenta y el popup nativo. Deja capturas si se pasa un prefijo.
+## indenta, el popup nativo y (M8b) un bloque de varias líneas con Ctrl+→. Deja capturas si se pasa
+## un prefijo.
 
 const SERVICE_SCRIPT := "res://addons/godot_agent/completion/completion_service.gd"
 const DIR := "res://tests/tmp/cc"
@@ -12,6 +13,7 @@ const SCENE := DIR + "/target.tscn"
 const INDEX_TIMEOUT_S := 20.0
 const SUGGESTION_TIMEOUT_S := 3.0
 const REPEATED := "\tscore_board.add_points(points_for_hit * combo_multiplier)"
+const RESET_BODY := "\tcombo_multiplier = 1\n\tpoints_for_hit = 0\n\tset_process(false)"
 
 var failures: PackedStringArray = []
 var report: PackedStringArray = []
@@ -132,6 +134,28 @@ func run(tree: SceneTree, shot_prefix: String) -> PackedStringArray:
 		var line := _code_edit.get_line(_code_edit.get_caret_line())
 		_check(not line.contains("add_points(points_for_hit") and line.contains("score_board_native"), "con el popup abierto Tab es del popup, no del ghost text (%s)" % line)
 
+	# 7. Línea vacía después de un func que el proyecto ya tiene: el bloque entero (M8b), dibujado
+	# en la caja de abajo; Ctrl+→ acepta una palabra y deja el resto, Tab el resto.
+	if panel:
+		panel.visible = false
+	_goto_new_line(_code_edit.get_line_count())
+	_code_edit.insert_text_at_caret("func reset() -> void:")
+	await _key(KEY_ENTER)
+	if await _expect(controller, RESET_BODY.substr(1), "bloque en línea vacía"):
+		await _shot(shot_prefix, "multiline")
+		var box: Rect2 = (controller.get(&"renderer") as Object).get(&"box")
+		_check(box.size.y >= 2 * _code_edit.get_line_height() - 1, "la caja muestra las dos líneas siguientes (%s)" % box)
+		await _key(KEY_RIGHT, true)
+		_check(_code_edit.get_line(_code_edit.get_caret_line()) == "\tcombo_multiplier", "Ctrl+→ inserta una palabra (%s)" % _code_edit.get_line(_code_edit.get_caret_line()).c_escape())
+		_check(str(controller.get(&"suggestion")) == RESET_BODY.substr(1 + "combo_multiplier".length()), "Ctrl+→ deja el resto a la vista (%s)" % str(controller.get(&"suggestion")).c_escape())
+		await _shot(shot_prefix, "partial")
+		await _key(KEY_TAB)
+		var last := _code_edit.get_caret_line()
+		var block := "\n".join(PackedStringArray([_code_edit.get_line(last - 2), _code_edit.get_line(last - 1), _code_edit.get_line(last)]))
+		_check(block == RESET_BODY, "Tab inserta el resto del bloque (%s)" % block.c_escape())
+	if panel:
+		panel.visible = true
+
 	# Texto original y marcado como guardado: al salir el editor no intenta guardar en DIR, que se borra.
 	_code_edit.text = FileAccess.get_file_as_string(TARGET)
 	_code_edit.tag_saved_version()
@@ -149,7 +173,7 @@ func _write_fixture() -> void:
 	_write(TARGET, "extends Node2D\n\nvar score_board\nvar points_for_hit := 10\nvar combo_multiplier := 2\n\n\nfunc _ready() -> void:\n\tpass\n")
 	_write(SCENE, "[gd_scene format=3]\n\n[ext_resource type=\"Script\" path=\"%s\" id=\"1\"]\n\n[node name=\"Target\" type=\"Node2D\"]\nscript = ExtResource(\"1\")\n\n[node name=\"Cooldown\" type=\"Timer\" parent=\".\"]\n\n[node name=\"Sprite\" type=\"Sprite2D\" parent=\".\"]\n\n[node name=\"UI\" type=\"CanvasLayer\" parent=\".\"]\n\n[node name=\"Bar\" type=\"ProgressBar\" parent=\"UI\"]\nunique_name_in_owner = true\n" % TARGET)
 	for i in 2:
-		_write(DIR + "/scorer_%d.gd" % i, "extends Node\n\nvar score_board\nvar points_for_hit := 5\nvar combo_multiplier := 1\n\n\nfunc hit() -> void:\n%s\n" % REPEATED)
+		_write(DIR + "/scorer_%d.gd" % i, "extends Node\n\nvar score_board\nvar points_for_hit := 5\nvar combo_multiplier := 1\n\n\nfunc hit() -> void:\n%s\n\n\nfunc reset() -> void:\n%s\n" % [REPEATED, RESET_BODY])
 
 
 func _write(path: String, text: String) -> void:
@@ -191,10 +215,11 @@ func _type(text: String) -> void:
 		await _tree.process_frame
 
 
-func _key(keycode: Key) -> void:
+func _key(keycode: Key, control: bool = false) -> void:
 	var event := InputEventKey.new()
 	event.keycode = keycode
 	event.physical_keycode = keycode
+	event.command_or_control_autoremap = control
 	event.pressed = true
 	_code_edit.get_viewport().push_input(event)
 	var release := event.duplicate() as InputEventKey

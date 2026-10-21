@@ -580,8 +580,82 @@ Queda documentado y sin resolver: si el addon se recarga como `@tool` con un bui
 4. En una línea sin sugerencia, Tab indenta. Con el autocompletado de Godot abierto, Tab elige la opción de la lista.
 5. En el Agent Log, canal `cmp`: el tiempo del índice y, por cada sugerencia, la fuente, la latencia y qué pasó (aceptada o descartada, con el motivo). El código no aparece.
 
-### Pendiente (M8b)
+Lo que era M8b (línea siguiente, bloques, multilínea, Ctrl+→, adaptación, n-gram, caché y set de evaluación) está en la sección siguiente.
 
-- Predicción de la línea siguiente, bloques cortos y ghost text multilínea.
-- Aceptar por palabra (Ctrl+→) y adaptación de identificadores.
-- n-gram, post-procesado completo con caché y set de evaluación.
+## M8b · Completado local: calidad
+
+Spec §16.2–§16.9, §12 (M8b). Decisiones en D27.
+
+### Hecho
+
+- **Recuperación ampliada** (m9-01):
+  - predicción de la línea siguiente en una línea vacía, con la sangría relativa;
+  - extensión a bloque mientras todas las apariciones (al menos 2) sigan iguales;
+  - adaptación de un identificador (`enemy_` ↔ `player_`) en snake_case, PascalCase y MAYÚSCULAS.
+- **Multilínea y Ctrl+→** (m9-02):
+  - la primera línea va inline y el resto en una caja debajo (o arriba, si no entra);
+  - todo se dibuja en un overlay hijo del CodeEdit. Esto arregla además el tapado de los cierres de M8a, que en 4.8 quedaba debajo del texto;
+  - Ctrl+→ inserta la siguiente palabra en su propio paso de undo.
+- **n-gram** (m9-03): lexer GDScript, orden 4 con stupid backoff, clase número, actualización por archivo copy-on-write y generación hasta la primera duda.
+- **Post-procesado completo y caché** (m9-04): stops, recorte de bloques, solapamiento con el suffix, sangría del editor, chequeo de paréntesis multilínea y LRU de sugerencias.
+- **Reglas** (m9-06, al ajustar por precisión): veto cuando la regla reconoce el contexto pero no puede elegir, convenciones de nombres de `@onready`, hijos directos primero, herencia y `load("` por nombre de variable.
+- **Set de evaluación** (m9-05, m9-06): `tests/completion_eval/` (proyecto propio, 48 casos), `tests/run_completion_eval.gd` con la tabla por combinación de fuentes y `test_completion_eval` como regresión. Los umbrales por defecto salen de ahí.
+- **Settings**, en `godot_agent/completion/`: `multiline`, `max_lines` (8), `sources/{rule,retrieval,ngram,history}` y `extra_corpus` (carpetas que solo entrenan el n-gram).
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd                 # 122 tests, 877 checks
+$G --headless --path . --script tests/run_completion_eval.gd     # tabla por fuentes; -- --cases para el detalle
+tests/run_in_xvfb.sh $G --godot-agent-completion-test [--godot-agent-ui-shot=/tmp/c]
+```
+
+- **Set de evaluación** (48 casos; mismos números en 4.4.1, 4.7.2 y 4.8-beta1):
+
+  | Fuentes | Mostradas | Exactas | Correctas | FP | p95 |
+  |---|---|---|---|---|---|
+  | reglas | 9 | 9 | 9 | 0 | 0,6 ms |
+  | recuperación | 16 | 11 | 11 | 5 | 1,2 ms |
+  | n-gram | 5 | 2 | 5 | 0 | 0,2 ms |
+  | reglas + recuperación | 19 | 17 | 17 | 2 | 0,3 ms |
+  | reglas + recuperación + n-gram | 20 | 17 | 18 | 2 | 0,3 ms |
+
+  Antes de M8b, reglas + recuperación daba 17 mostradas, 11 correctas y 6 FP.
+- **Benchmark** (`test_completion_bench`, 200 scripts, 60 escenas, 1500 consultas): ahora el build incluye el lexer y el n-gram.
+
+  | Versión | Build | p50 | p95 | Máx. | Rebuild |
+  |---|---|---|---|---|---|
+  | 4.8-beta1 | 756 ms | 0,17 ms | 1,86 ms | 5,9 ms | 520 ms |
+  | 4.7.2 | 810 ms | 0,17 ms | 1,92 ms | 4,7 ms | 519 ms |
+  | 4.4.1 | 815 ms | 0,18 ms | 2,07 ms | 5,1 ms | 550 ms |
+
+  El rebuild del test relee todo (archivos recién escritos, D26). En el editor, un archivo cambiado re-lexea solo ese archivo y actualiza el n-gram por diferencia.
+- **En el Script Editor real** (`--godot-agent-completion-test`, en 4.4.1, 4.7.2 y 4.8-beta1), además de lo de M8a:
+  - después de `func reset() -> void:` + Enter, se sugiere el cuerpo de tres líneas que tienen otros dos scripts;
+  - la caja muestra las dos líneas siguientes. En 4.4.1 el caret queda en la última fila visible y la caja va arriba;
+  - Ctrl+→ inserta `combo_multiplier` y deja ` = 1…` a la vista; Tab inserta el resto del bloque.
+- Las capturas ampliadas muestran que el `")` del autocierre queda tapado y que el caret se ve.
+- Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1: `run_all`, `acp_session_check`, `oneshot_check`, el cycle test y el test de completado.
+- En 4.7.2 y 4.4.1 el editor imprime "3 resources still in use at exit" al salir. Pasa igual en el cycle test sin completado y en el commit de M8a, así que no viene de M8b.
+
+### Revisión de código
+
+Corregido después de la revisión de M8b (con tests, salvo el build cancelado y el recorte del overlay; los de la adaptación y de Tab en el mismo frame se comprobaron fallando sin el arreglo):
+- El build incremental del n-gram agregaba tokens al vocabulario del modelo publicado, que el hilo principal estaba leyendo (los `Packed*Array` asignados se comparten). Ahora se copian.
+- La adaptación de identificadores corría también con una línea ya completa o un prefijo ambiguo: `health -= damage` completo sugería ` * 0.5` de `armor -= damage * 0.5`.
+- La caché devolvía sugerencias viejas después de cambiar el input map, los nodos de la escena abierta o el historial: la generación del proveedor entra en la clave.
+- Tab (o Ctrl+→) en el mismo frame que otra tecla aceptaba la sugerencia vieja.
+- Una línea de 20 000 caracteres costaba ~18 ms por tecla; ahora menos de 5 ms (`test_long_lines_stay_cheap`).
+- Un build cancelado seguía armando las líneas y el n-gram mientras el hilo principal esperaba.
+- Con 2 espacios por nivel no había bloques ni `<indent>` en el n-gram.
+- El contexto del n-gram no tenía los cambios de sangría entre las líneas de arriba.
+- El overlay se recorta al área de texto (scroll horizontal, barra horizontal).
+
+Queda documentado: con los umbrales actuales el backoff del n-gram no genera (D27).
+
+### Prueba manual
+
+1. En un script nuevo, escribí la línea de un `func` que ya existe en otros scripts con el mismo cuerpo y Enter: aparece el cuerpo, la primera línea inline y el resto en una caja. Ctrl+→ acepta palabra por palabra; Tab, todo.
+2. Escribí el comienzo de una línea que existe con otro nombre (`enemy_health -= ` donde el proyecto tiene `player_health -= damage`): se sugiere con el nombre cambiado.
+3. Con `Input.is_action_pressed("` y varias acciones, no aparece nada (veto); con una letra, la acción que empieza así.
+4. En Configuración del editor, `godot_agent/completion/sources/ngram` apagado: desaparecen las sugerencias que solo venían del n-gram. `multiline` apagado: solo la primera línea.

@@ -1,0 +1,60 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://tests/completion_eval/project/ui/upgrade_shop.gd" id="1_shop"]
+[ext_resource type="Resource" path="res://tests/completion_eval/project/data/upgrades/max_health.tres" id="2_max_health"]
+[ext_resource type="Resource" path="res://tests/completion_eval/project/data/upgrades/double_jump.tres" id="3_double_jump"]
+[ext_resource type="Resource" path="res://tests/completion_eval/project/data/upgrades/dash.tres" id="4_dash"]
+[ext_resource type="Resource" path="res://tests/completion_eval/project/data/upgrades/attack_damage.tres" id="5_attack_damage"]
+[ext_resource type="Resource" path="res://tests/completion_eval/project/data/upgrades/magnet.tres" id="6_magnet"]
+
+[node name="UpgradeShop" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_shop")
+upgrades = Array[Resource]([ExtResource("2_max_health"), ExtResource("3_double_jump"), ExtResource("4_dash"), ExtResource("5_attack_damage"), ExtResource("6_magnet")])
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.12, 0.09, 0.14, 1)
+
+[node name="Layout" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="Header" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+alignment = 1
+
+[node name="Title" type="Label" parent="Layout/Header"]
+layout_mode = 2
+text = "Merchant"
+
+[node name="CoinLabel" type="Label" parent="Layout/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0"
+
+[node name="CardContainer" type="HBoxContainer" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+
+[node name="ContinueButton" type="Button" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Next level"

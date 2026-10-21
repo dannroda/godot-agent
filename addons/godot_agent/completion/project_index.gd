@@ -6,6 +6,8 @@ extends RefCounted
 ## agrega ProjectContext. Una vez publicado no se modifica; el próximo build reutiliza lo que no cambió.
 
 const LineIndex := preload("local/line_index.gd")
+const GdLexer := preload("local/gd_lexer.gd")
+const NGramModel := preload("local/ngram_model.gd")
 
 const SCRIPT_EXT := "gd"
 const SCENE_EXT := "tscn"
@@ -16,7 +18,9 @@ const FRESH_SECONDS := 2
 const ROOT := "."
 
 ## ruta -> {mtime, extends, class_name, funcs: PackedStringArray, signals: {nombre: args},
-##          groups: PackedStringArray, connects: Array[{emitter, signal, method}], lines: PackedStringArray, corpus: bool}
+##          groups: PackedStringArray, connects: Array[{emitter, signal, method}], lines: {lines, indents},
+##          tokens: PackedStringArray, vars: PackedStringArray, onready: Array[[nombre, referencia]],
+##          corpus: bool}
 var scripts: Dictionary = {}
 ## ruta -> {mtime, nodes: Array[{name, path, type, parent, unique, script, instance, groups}],
 ##          connections: Array[{signal, from, to, method}]}
@@ -30,6 +34,10 @@ var resources: PackedStringArray = []
 ## Estilo de los handlers conectados en código: `_on_<señal>` o `_on_<emisor>_<señal>`.
 var handler_style: Dictionary = {"signal": 0, "emitter": 0}
 var lines: LineIndex = LineIndex.new()
+var ngram: NGramModel = NGramModel.new()
+## Scripts de las carpetas de corpus extra (fuera del proyecto): ruta -> {mtime, tokens}. Solo
+## entrenan el n-gram.
+var extra: Dictionary = {}
 var build_usec: int = 0
 var file_count: int = 0
 
@@ -37,7 +45,8 @@ var _re: Dictionary = {}
 
 
 ## Arma el índice. `options`: {root, exclude: PackedStringArray (prefijos relativos, solo para el
-## corpus de líneas), buffers: {ruta: {text, skip_line}}, previous: este script o null, now: unix}.
+## corpus de líneas), buffers: {ruta: {text, skip_line}}, previous: este script o null, now: unix,
+## extra_corpus: PackedStringArray de carpetas absolutas, cancel: [bool]}.
 static func build(options: Dictionary) -> RefCounted:
 	var started := Time.get_ticks_usec()
 	var index := new()
@@ -74,6 +83,10 @@ static func build(options: Dictionary) -> RefCounted:
 			else:
 				index.scenes[path] = index._parse_scene(FileAccess.get_file_as_string(path), mtime)
 	index.file_count = files.size()
+	# Cancelado (`wait()` al deshabilitar el plugin): el resultado se descarta, y el hilo principal
+	# espera, así que no se arman las líneas ni el n-gram.
+	if cancel[0]:
+		return index
 	index._link(root, exclude)
 	var file_lines: Dictionary = {}
 	var mtimes: Dictionary = {}
@@ -83,6 +96,14 @@ static func build(options: Dictionary) -> RefCounted:
 			file_lines[path] = info.lines
 			mtimes[path] = info.mtime if int(info.mtime) >= 0 else options.get("now", Time.get_unix_time_from_system())
 	index.lines = LineIndex.build(file_lines, mtimes, float(options.get("now", Time.get_unix_time_from_system())))
+	index._index_extra(options.get("extra_corpus", PackedStringArray()), previous, fresh_after, cancel)
+	var token_files: Dictionary = {}
+	for path: String in index.scripts:
+		if index.scripts[path].corpus:
+			token_files[path] = index.scripts[path].tokens
+	for path: String in index.extra:
+		token_files[path] = index.extra[path].tokens
+	index.ngram = NGramModel.build(token_files, previous.ngram if previous else null)
 	index._re.clear()
 	index.build_usec = Time.get_ticks_usec() - started
 	return index
@@ -104,6 +125,24 @@ static func _walk(dir_path: String, out: PackedStringArray, is_root: bool = fals
 			_walk(dir_path.path_join(sub), out, false, cancel)
 
 
+## Carpetas de corpus extra (otros proyectos propios, spec §16.2c): solo sus `.gd`, reutilizados
+## por mtime como los del proyecto.
+func _index_extra(folders: PackedStringArray, previous: RefCounted, fresh_after: int, cancel: Array) -> void:
+	for folder: String in folders:
+		var files: PackedStringArray = []
+		_walk(folder, files, true, cancel)
+		for path: String in files:
+			if cancel[0] or extra.size() >= MAX_FILES:
+				return
+			if path.get_extension().to_lower() != SCRIPT_EXT or extra.has(path):
+				continue
+			var mtime := FileAccess.get_modified_time(path)
+			if previous and mtime < fresh_after and previous.extra.has(path) and int(previous.extra[path].mtime) == mtime:
+				extra[path] = previous.extra[path]
+			else:
+				extra[path] = {"mtime": mtime, "tokens": GdLexer.tokenize(FileAccess.get_file_as_string(path))}
+
+
 static func _excluded(path: String, root: String, exclude: PackedStringArray) -> bool:
 	var relative := path.trim_prefix(root).trim_prefix("/")
 	for prefix: String in exclude:
@@ -118,6 +157,8 @@ func _compile() -> void:
 		"class_name": "^class_name\\s+(\\w+)(?:\\s+extends\\s+(\"[^\"]+\"|[\\w.]+))?",
 		"func": "^(?:static\\s+)?func\\s+(\\w+)\\s*\\(",
 		"signal": "^signal\\s+(\\w+)\\s*(\\(([^)]*)\\))?",
+		"var": "^(?:@\\w+(?:\\([^)]*\\))?\\s+)*var\\s+(\\w+)",
+		"onready": "^@onready\\s+var\\s+(\\w+)[^=]*=\\s*([$%](?:\"[^\"]+\"|[\\w/%.]+))\\s*$",
 		"group": "(?:add_to_group|is_in_group|get_nodes_in_group|call_group|get_first_node_in_group|remove_from_group)\\(\\s*(?:[\\w.|]+\\s*,\\s*)?[\"'](\\w+)[\"']",
 		"connect": "(?:([$%]\"[^\"]+\"|[$%][\\w/]+|[\\w.]+)\\.)?(\\w+)\\.connect\\(\\s*(\\w+)\\s*[,)]",
 		"section": "^\\[(\\w+)\\s*(.*)\\]\\s*$",
@@ -134,11 +175,12 @@ func _compile() -> void:
 func _parse_script(text: String, mtime: int, skip_line: int, corpus: bool) -> Dictionary:
 	var info := {
 		"mtime": mtime, "extends": "", "class_name": "", "signals": {}, "connects": [],
-		"lines": PackedStringArray(), "corpus": corpus,
+		"lines": {}, "tokens": PackedStringArray(), "onready": [], "corpus": corpus,
 	}
 	# Los Packed*Array son valores: se arman aparte y se guardan al final.
 	var funcs := PackedStringArray()
 	var groups_found := PackedStringArray()
+	var vars := PackedStringArray()
 	for line: String in text.split("\n"):
 		if line.is_empty() or line.begins_with("\t") or line.begins_with(" ") or line.begins_with("#"):
 			continue
@@ -147,6 +189,13 @@ func _parse_script(text: String, mtime: int, skip_line: int, corpus: bool) -> Di
 			found = (_re.func as RegEx).search(line)
 			if found:
 				funcs.append(found.get_string(1))
+		elif line.begins_with("@") or line.begins_with("var"):
+			found = (_re.var as RegEx).search(line)
+			if found:
+				vars.append(found.get_string(1))
+				var onready := (_re.onready as RegEx).search(line)
+				if onready:
+					(info.onready as Array).append([onready.get_string(1), onready.get_string(2).replace("\"", "")])
 		elif line.begins_with("signal"):
 			found = (_re.signal as RegEx).search(line)
 			if found:
@@ -166,12 +215,14 @@ func _parse_script(text: String, mtime: int, skip_line: int, corpus: bool) -> Di
 					info.extends = found.get_string(2).trim_prefix("\"").trim_suffix("\"")
 	if corpus:
 		info.lines = LineIndex.lines_of(text, skip_line)
+		info.tokens = GdLexer.tokenize(text, skip_line)
 		for found: RegExMatch in (_re.group as RegEx).search_all(text):
 			groups_found.append(found.get_string(1))
 		for found: RegExMatch in (_re.connect as RegEx).search_all(text):
 			(info.connects as Array).append({"emitter": found.get_string(1), "signal": found.get_string(2), "method": found.get_string(3)})
 	info.funcs = funcs
 	info.groups = groups_found
+	info.vars = vars
 	return info
 
 

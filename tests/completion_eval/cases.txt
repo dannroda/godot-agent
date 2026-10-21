@@ -1,0 +1,60 @@
+# Completion eval cases.
+# file | line | cut
+# file: relative to project/. line: 1-based. cut: start of the line without indentation, up to the cursor.
+# Empty cut = next-line prediction. A cut ending in a space is terminated with the marker ⏎.
+
+# --- Godot/project context: scene children, virtuals, input actions, handlers, extends, preload, groups, node paths (13)
+player/player.gd | 36 | @onready var ⏎
+enemies/slime.gd | 8 | @onready var ⏎
+levels/level.gd | 13 | @onready var ⏎
+ui/settings_menu.gd | 8 | @onready var sfx_slider: HSlider = ⏎
+player/player_camera.gd | 11 | func _
+enemies/enemy.gd | 34 | func _ph
+player/player.gd | 102 | if Input.is_action_pressed("
+levels/sign_post.gd | 21 | if _player_inside and event.is_action_pressed("
+enemies/archer.gd | 15 | shoot_timer.timeout.connect(
+enemies/bat.gd | 1 | extends ⏎
+enemies/archer.gd | 3 | const ARROW_SCENE: PackedScene = preload("res://
+enemies/enemy.gd | 26 | add_to_group("
+levels/level.gd | 60 | $Props/
+
+# --- Mid-line, close relatives elsewhere in the project (incl. one-identifier variations) (15)
+ui/hud.gd | 42 | _player.energy.chan
+ui/hud.gd | 44 | _on_energy_changed(_player.energy.
+core/user_settings.gd | 34 | config.set_value("audio", "sfx
+core/user_settings.gd | 48 | sfx_volume = config.get_value(
+ui/settings_menu.gd | 33 | sfx_slider.set_value_no_signal(
+ui/settings_menu.gd | 18 | sfx_slider.value_changed.connect(
+core/game_state.gd | 87 | score = int(data.get(
+core/save_service.gd | 34 | push_error("Could not read save file: %s" % ⏎
+enemies/archer.gd | 22 | flip_towards(1 if ⏎
+enemies/slime.gd | 39 | floor_ray.position.x = ⏎
+enemies/bat.gd | 38 | if not body.is_in_group(
+levels/checkpoint.gd | 42 | var health: HealthComponent = body.get_node(
+ui/pause_menu.gd | 16 | quit_button.pressed.connect(
+ui/hud.gd | 73 | lives_label.text = ⏎
+levels/level_exit.gd | 49 | SceneRouter.start_level(
+
+# --- Empty cut: next-line prediction (first line of a body or line after a common statement) (10)
+player/player.gd | 119 |
+enemies/enemy.gd | 38 |
+enemies/bat.gd | 16 |
+ui/hud.gd | 68 |
+core/save_service.gd | 33 |
+core/user_settings.gd | 43 |
+ui/main_menu.gd | 39 |
+components/energy_component.gd | 45 |
+ui/pause_menu.gd | 23 |
+pickups/pickup.gd | 56 |
+
+# --- Mid-line, general Godot API seen in similar (not identical) form (10)
+enemies/slime.gd | 21 | velocity.x = move_toward(velocity.x, 0.0, ⏎
+player/player.gd | 197 | await get_tree().create_timer(0.3).
+ui/hud.gd | 80 | tween.tween_property(score_label, "scale", ⏎
+levels/moving_platform.gd | 16 | tween.tween_property(self, "position", _start_position, duration).set_trans(
+enemies/arrow.gd | 13 | get_tree().create_timer(lifetime).
+enemies/enemy.gd | 96 | get_parent().add_child
+pickups/coin.gd | 21 | global_position = global_position.move_toward(
+core/scene_router.gd | 22 | _fade_rect.set_anchors_preset(
+player/player_camera.gd | 38 | limit_bottom = int(rect.
+core/audio_service.gd | 30 | _next_player = (_next_player + 1) % ⏎
