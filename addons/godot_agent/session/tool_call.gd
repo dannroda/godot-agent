@@ -8,6 +8,10 @@ const STATUS_COMPLETED := "completed"
 const STATUS_FAILED := "failed"
 ## Local: el turno se canceló con el tool call sin terminar.
 const STATUS_CANCELLED := "cancelled"
+## Tools de Claude Code que lanzan un subagente.
+const SUBAGENT_TOOLS: PackedStringArray = ["Agent", "Task"]
+## Texto del subagente que se conserva (el final).
+const SUBAGENT_TEXT_MAX := 2000
 
 var id: String = ""
 var title: String = ""
@@ -25,6 +29,14 @@ var finished_msec: int = 0
 ## Paso de undo de una tool godot.* de edición (EditorUndo.record), o {}.
 var undo_info: Dictionary = {}
 var undo_done: bool = false
+## Nombre de la tool del lado del agente (`_meta.claudeCode.toolName`: Agent, Bash…), si lo manda.
+var tool_name: String = ""
+## Tool call del subagente que hizo este (`_meta.claudeCode.parentToolUseId`), o "".
+var parent_id: String = ""
+## Tool calls que hizo el subagente de este tool call, en orden.
+var child_ids: PackedStringArray = []
+## Lo que fue escribiendo el subagente (los últimos SUBAGENT_TEXT_MAX caracteres).
+var subagent_text: String = ""
 
 
 func is_finished() -> bool:
@@ -47,6 +59,19 @@ func apply(data: Dictionary) -> void:
 		raw_input = data.rawInput
 	if data.has("rawOutput"):
 		raw_output = data.rawOutput
+	var meta: Variant = data.get("_meta")
+	if meta is Dictionary and meta.get("claudeCode") is Dictionary and meta.claudeCode.get("toolName") is String:
+		tool_name = meta.claudeCode.toolName
+
+
+func is_subagent() -> bool:
+	return tool_name in SUBAGENT_TOOLS or not child_ids.is_empty()
+
+
+func append_subagent_text(text: String) -> void:
+	subagent_text += text
+	if subagent_text.length() > SUBAGENT_TEXT_MAX:
+		subagent_text = "…" + subagent_text.right(SUBAGENT_TEXT_MAX - 1)
 
 
 func set_status(value: String) -> void:

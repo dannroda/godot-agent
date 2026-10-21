@@ -4,6 +4,7 @@ extends "test_case.gd"
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const ToolCall := preload("res://addons/godot_agent/session/tool_call.gd")
+const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
 
 
 func _chunk(kind: String, text: String, message_id: Variant = null) -> Dictionary:
@@ -56,6 +57,78 @@ func test_tool_calls_group_and_update() -> void:
 	model.apply_update(_chunk("agent_message_chunk", "listo", "m9"))
 	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "c", "title": "Bash", "status": "in_progress"})
 	assert_eq(model.entries().size(), 4, "un update de id nuevo abre otro grupo")
+
+
+## Claude Code marca lo que hace un subagente con `_meta.claudeCode.parentToolUseId`: sus tool calls y su
+## texto quedan dentro del tool call de Agent, no en la conversación principal.
+func test_subagent_updates_nest_under_agent_call() -> void:
+	var model := SessionModel.new()
+	var sub := func(update: Dictionary, parent: String) -> Dictionary:
+		update["_meta"] = {"claudeCode": {"parentToolUseId": parent}}
+		return update
+	model.apply_update(_chunk("agent_message_chunk", "Delego", "m1"))
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "agent", "title": "Buscar usos", "kind": "think", "status": "in_progress",
+		"rawInput": {"description": "Buscar usos", "subagent_type": "Explore", "prompt": "..."}, "_meta": {"claudeCode": {"toolName": "Agent"}}})
+	model.apply_update(sub.call({"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read", "kind": "read", "status": "pending"}, "agent"))
+	model.apply_update(sub.call(_chunk("agent_message_chunk", "Encontré dos.", "s1"), "agent"))
+	model.apply_update(sub.call(_chunk("agent_thought_chunk", "pienso", "s1"), "agent"))
+	model.apply_update(sub.call({"sessionUpdate": "plan", "entries": [{"content": "del subagente", "status": "pending"}]}, "agent"))
+	model.apply_update(sub.call({"sessionUpdate": "tool_call_update", "toolCallId": "r1", "status": "completed"}, "agent"))
+	assert_eq(model.entries().size(), 2, "mensaje + un grupo: nada del subagente suelto")
+	assert_eq(model.entries()[0].text, "Delego", "el texto del subagente no entra al mensaje principal")
+	assert_eq(model.plan.size(), 0, "el plan del subagente no reemplaza el principal")
+	var group: ChatEntry = model.entries()[1]
+	assert_eq(group.tool_call_ids, PackedStringArray(["agent"]), "el grupo tiene solo el Agent")
+	var agent := model.tool_call("agent")
+	assert_true(agent.is_subagent(), "Agent es subagente")
+	assert_eq(agent.child_ids, PackedStringArray(["r1"]), "Read dentro del subagente")
+	assert_eq(agent.subagent_text, "Encontré dos.", "texto del subagente (sin el thought)")
+	assert_eq(model.tool_call("r1").parent_id, "agent", "padre del Read")
+	assert_eq(model.tool_call("r1").status, ToolCall.STATUS_COMPLETED, "el update del hijo se aplica")
+	# El cambio de un hijo avisa al grupo del subagente.
+	var touched: Array[ChatEntry] = []
+	model.tool_call_changed.connect(func(_call: ToolCall, owner: ChatEntry) -> void: touched.append(owner))
+	model.apply_update(sub.call({"sessionUpdate": "tool_call_update", "toolCallId": "r1", "title": "Read x.gd"}, "agent"))
+	assert_true(touched.size() == 1 and touched[0] == group, "el hijo avisa con el grupo del Agent")
+	# Un pedido de permiso puede crear el tool call antes de saber de qué subagente es.
+	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "e1", "title": "Edit", "status": "pending"})
+	assert_eq(group.tool_call_ids, PackedStringArray(["agent", "e1"]), "el Edit aparece primero suelto")
+	model.apply_update(sub.call({"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Edit", "status": "in_progress"}, "agent"))
+	assert_eq(group.tool_call_ids, PackedStringArray(["agent"]), "y pasa al subagente")
+	assert_eq(agent.child_ids, PackedStringArray(["r1", "e1"]), "en orden")
+	# Un padre que no se vio crea su tool call; un ciclo no se arma.
+	model.apply_update(sub.call({"sessionUpdate": "tool_call", "toolCallId": "x1", "status": "pending"}, "ghost"))
+	assert_eq(model.tool_call("ghost").child_ids, PackedStringArray(["x1"]), "padre desconocido")
+	model.apply_update(sub.call({"sessionUpdate": "tool_call_update", "toolCallId": "agent"}, "r1"))
+	assert_eq(agent.parent_id, "", "un hijo no puede ser padre de su subagente")
+	# Al cancelar también se marcan los hijos.
+	model.apply_update(sub.call({"sessionUpdate": "tool_call", "toolCallId": "r2", "status": "in_progress"}, "agent"))
+	model.finish_turn("cancelled")
+	assert_eq(model.tool_call("r2").status, ToolCall.STATUS_CANCELLED, "hijo cancelado")
+
+
+## El historial guarda la marca del subagente y el replay vuelve a armar lo mismo.
+func test_subagent_history_round_trip() -> void:
+	var history := SessionHistory.new()
+	history.begin("s", "p", "Agente", "/tmp")
+	var updates: Array[Dictionary] = [
+		{"sessionUpdate": "tool_call", "toolCallId": "agent", "title": "Buscar", "status": "in_progress", "_meta": {"claudeCode": {"toolName": "Agent", "extra": 1}}},
+		{"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Uno "}, "_meta": {"claudeCode": {"parentToolUseId": "agent"}}},
+		{"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "dos"}, "_meta": {"claudeCode": {"parentToolUseId": "agent"}}},
+		{"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Listo"}},
+		{"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read", "status": "completed", "_meta": {"claudeCode": {"parentToolUseId": "agent"}}},
+	]
+	for update: Dictionary in updates:
+		history.record_update(update)
+	var events: Array = history.get(&"_pending")
+	assert_eq(events.size(), 4, "los chunks del subagente se unen entre sí y no con los del principal")
+	assert_eq(events[0].update._meta, {"claudeCode": {"toolName": "Agent"}}, "del _meta queda solo lo necesario")
+	var model := SessionModel.new()
+	SessionHistory.replay({"events": events}, model)
+	assert_eq(model.entries().size(), 2, "grupo + mensaje principal")
+	assert_true(model.tool_call("agent").is_subagent(), "Agent sigue siendo subagente")
+	assert_eq(model.tool_call("agent").subagent_text, "Uno dos", "texto del subagente")
+	assert_eq(model.tool_call("agent").child_ids, PackedStringArray(["r1"]), "hijo")
 
 
 func test_cancel_marks_unfinished_tool_calls() -> void:

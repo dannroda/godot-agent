@@ -444,3 +444,17 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Historial de prompts** (pedido del usuario): ↑ en la primera línea trae el prompt anterior y ↓ en la última el siguiente; después del más nuevo vuelve el borrador. Dentro de un texto de varias líneas las flechas mueven el caret como siempre, y con la lista de `/` o `@` abierta son de la lista. Los últimos 100, sin repetir el último, en `user://godot_agent/prompt_history.json` (datos del usuario por proyecto, fuera del repo).
 - El cycle test ahora revisa el layout (D29): con el dock oculto y el banner de export, el slot no puede pedir más alto que la ventana, y ningún label con autowrap del dock ni de las secciones de Settings puede quedar de menos de 40 px. Sin el tope de MinSizeGuard falla.
 - `test_composer` tipea con eventos de teclado y cubre las teclas y las dos listas.
+
+## D31 · Subagentes de Claude Code (después de M8c)
+
+- **Cómo llegan**: el adaptador de Claude Code (`claude-agent-acp`) abre sesiones aparte para los subagentes solo si el cliente declara la capacidad `subagents`. El addon no la declara, así que todo llega por la misma sesión. Lo que hace un subagente (tool calls, texto, thoughts, plan) trae `_meta.claudeCode.parentToolUseId` con el id del tool call de `Agent`/`Task` que lo lanzó. La llamada `Agent` en sí trae `_meta.claudeCode.toolName`, el prompt como content y, al terminar, el informe.
+- **Problema**: el addon ignoraba el `_meta`. Las herramientas del subagente salían sueltas, mezcladas con las del agente principal, y su texto se pegaba en la burbuja de la respuesta principal.
+- **Modelo**: con `parentToolUseId`, el tool call queda como hijo del de Agent (`parent_id`, `child_ids`) y avisa al grupo de su padre. El texto va a `subagent_text` del padre, con los últimos 2000 caracteres. Se descartan el thought, el `user_message_chunk` y el plan del subagente (el plan reemplazaría el del agente principal). Cubre estos casos:
+  - Un tool call creado antes por un pedido de permiso, que recién después dice de qué subagente es, se mueve al subagente. Si el grupo queda vacío, se borra.
+  - Un padre que no se vio se crea.
+  - No se arman ciclos.
+- **Vista**: la fila de Agent muestra la descripción y «subagente · <tipo>». Debajo tiene «▸ N herramientas del subagente · <la última>» (plegado) con las filas de los hijos sangradas y un «💬» con el último texto. El content se ve como «prompt» mientras corre y como «informe» al terminar.
+- **Permisos**: no cambian (la política es la misma). La tarjeta dice «· subagente «<descripción>»» para saber quién pide.
+- **Historial**: del `_meta` se guardan solo `toolName` y `parentToolUseId`, y los chunks de un subagente no se unen con los del principal. El replay arma lo mismo.
+- **Sin sesiones aparte**: declarar `subagents` haría que el adaptador mandara cada subagente como otra sesión con su propio ciclo de vida. Eso es más trabajo y no muestra nada más de lo que ya llega por esta vía.
+

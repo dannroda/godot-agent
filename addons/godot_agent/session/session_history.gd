@@ -91,13 +91,17 @@ func record_update(update: Dictionary) -> void:
 		if text.is_empty():
 			return
 		var message_id := str(update.get("messageId", "")) if update.get("messageId") != null else ""
+		var parent := SessionModel.parent_tool_call_id(update)
 		var last: Dictionary = _pending.back() if not _pending.is_empty() else {}
-		if last.get("type") == "update" and last.update.get("sessionUpdate") == kind and str(last.update.get("messageId", "")) == message_id:
+		if last.get("type") == "update" and last.update.get("sessionUpdate") == kind and str(last.update.get("messageId", "")) == message_id \
+				and SessionModel.parent_tool_call_id(last.update) == parent:
 			last.update.content.text += text
 			return
 		var chunk := {"sessionUpdate": kind, "content": {"type": "text", "text": text}}
 		if not message_id.is_empty():
 			chunk.messageId = message_id
+		if not parent.is_empty():
+			chunk._meta = {"claudeCode": {"parentToolUseId": parent}}
 		_append({"type": "update", "update": chunk})
 		return
 	_append({"type": "update", "update": normalize_update(update)})
@@ -214,11 +218,20 @@ static func title_from(text: String) -> String:
 	return line if line.length() <= TITLE_CHARS else line.left(TITLE_CHARS - 1) + "…"
 
 
-## tool_call / tool_call_update / plan, sin capturas, sin rawOutput y con los textos recortados.
+## tool_call / tool_call_update / plan, sin capturas, sin rawOutput y con los textos recortados. Del
+## `_meta` quedan solo el nombre de la tool y el subagente que la hizo.
 static func normalize_update(update: Dictionary) -> Dictionary:
 	var result := update.duplicate(true)
 	result.erase("rawOutput")
 	result.erase("_meta")
+	var meta: Variant = update.get("_meta")
+	if meta is Dictionary and meta.get("claudeCode") is Dictionary:
+		var kept := {}
+		for key: String in ["toolName", "parentToolUseId"]:
+			if meta.claudeCode.get(key) is String:
+				kept[key] = meta.claudeCode[key]
+		if not kept.is_empty():
+			result._meta = {"claudeCode": kept}
 	if result.get("content") is Array:
 		var content: Array = []
 		for item: Variant in result.content:

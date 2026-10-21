@@ -94,10 +94,7 @@ func find_godot_tool_call(tool_name: String, args: Dictionary) -> ToolCall:
 
 ## Avisa a la UI que cambió algo local de un tool call (p. ej. su paso de undo).
 func touch_tool_call(call: ToolCall) -> void:
-	var group: ChatEntry = _group_of_call.get(call.id)
-	tool_call_changed.emit(call, group)
-	if group:
-		entry_updated.emit(group)
+	_emit_tool_call_changed(call)
 
 
 func is_busy() -> bool:
@@ -244,8 +241,25 @@ func notify_entry_changed(entry: ChatEntry) -> void:
 # --- session/update ------------------------------------------------------------------------------
 
 ## Aplica un `update` de session/update. Devuelve false si la variante es desconocida.
+## Lo que hace un subagente (Claude Code lo marca con `_meta.claudeCode.parentToolUseId`) no va a la
+## conversación principal: sus tool calls y su texto quedan en el tool call que lo lanzó.
 func apply_update(update: Dictionary) -> bool:
-	match str(update.get("sessionUpdate", "")):
+	var kind := str(update.get("sessionUpdate", ""))
+	var parent := parent_tool_call_id(update)
+	if not parent.is_empty():
+		match kind:
+			"agent_message_chunk":
+				_append_subagent_text(parent, update)
+				return true
+			"agent_thought_chunk", "user_message_chunk", "plan":
+				return true
+			"tool_call":
+				_apply_tool_call(update, true, parent)
+				return true
+			"tool_call_update":
+				_apply_tool_call(update, false, parent)
+				return true
+	match kind:
 		"agent_message_chunk":
 			_append_chunk(ChatEntry.Kind.AGENT, update)
 		"agent_thought_chunk":
@@ -305,10 +319,7 @@ func cancel_unfinished_tool_calls() -> void:
 		var call: ToolCall = _tool_calls[id]
 		if not call.is_finished():
 			call.set_status(ToolCall.STATUS_CANCELLED)
-			var group: ChatEntry = _group_of_call.get(id)
-			tool_call_changed.emit(call, group)
-			if group:
-				entry_updated.emit(group)
+			_emit_tool_call_changed(call)
 
 
 func _append_chunk(kind: ChatEntry.Kind, update: Dictionary) -> void:
@@ -329,26 +340,103 @@ func _append_chunk(kind: ChatEntry.Kind, update: Dictionary) -> void:
 	_push(entry)
 
 
-func _apply_tool_call(data: Dictionary, is_new: bool) -> void:
+func _apply_tool_call(data: Dictionary, is_new: bool, parent: String = "") -> void:
 	var id := str(data.get("toolCallId", ""))
 	if id.is_empty():
 		return
 	var call: ToolCall = _tool_calls.get(id)
 	if call == null:
 		# Un update de un id desconocido también crea el tool call (ACP lo permite).
-		call = ToolCall.new()
-		call.id = id
-		call.started_msec = Time.get_ticks_msec()
-		_tool_calls[id] = call
-		var group: ChatEntry = _entries.back() if not _entries.is_empty() else null
-		if group == null or group.kind != ChatEntry.Kind.TOOL_GROUP:
-			group = _push(_new_entry(ChatEntry.Kind.TOOL_GROUP))
-		group.tool_call_ids.append(id)
-		_group_of_call[id] = group
-	elif is_new:
-		call.content = []
+		call = _new_tool_call(id, parent)
+	else:
+		if is_new:
+			call.content = []
+		if not parent.is_empty() and call.parent_id.is_empty():
+			# Un pedido de permiso puede llegar antes que el update que dice de qué subagente es.
+			_reparent(call, parent)
 	call.apply(data)
-	var owner_group: ChatEntry = _group_of_call.get(id)
+	_emit_tool_call_changed(call)
+
+
+## Un tool call nuevo: dentro del subagente `parent` o, sin padre, en el grupo del final de la
+## conversación (o en uno nuevo).
+func _new_tool_call(id: String, parent: String) -> ToolCall:
+	var call := ToolCall.new()
+	call.id = id
+	call.started_msec = Time.get_ticks_msec()
+	_tool_calls[id] = call
+	_attach(call, parent)
+	return call
+
+
+func _attach(call: ToolCall, parent: String) -> void:
+	if not parent.is_empty() and parent != call.id and not _is_descendant(parent, call.id):
+		var owner: ToolCall = _tool_calls.get(parent)
+		if owner == null:
+			owner = _new_tool_call(parent, "")
+		call.parent_id = parent
+		owner.child_ids.append(call.id)
+		_set_group(call, _group_of_call.get(parent))
+		return
+	var group: ChatEntry = _entries.back() if not _entries.is_empty() else null
+	if group == null or group.kind != ChatEntry.Kind.TOOL_GROUP:
+		group = _push(_new_entry(ChatEntry.Kind.TOOL_GROUP))
+	group.tool_call_ids.append(call.id)
+	_set_group(call, group)
+
+
+## Pasa un tool call de la conversación principal al subagente `parent`.
+func _reparent(call: ToolCall, parent: String) -> void:
+	if parent == call.id or _is_descendant(parent, call.id):
+		return
+	var group: ChatEntry = _group_of_call.get(call.id)
+	if group and group.tool_call_ids.has(call.id):
+		group.tool_call_ids.remove_at(group.tool_call_ids.find(call.id))
+		if group.tool_call_ids.is_empty():
+			_entries.erase(group)
+			entry_removed.emit(group)
+		else:
+			entry_updated.emit(group)
+	_attach(call, parent)
+
+
+## true si `id` es `ancestor` o está dentro de sus subagentes.
+func _is_descendant(id: String, ancestor: String) -> bool:
+	var current: ToolCall = _tool_calls.get(id)
+	var steps := 0
+	while current and steps < 64:
+		if current.id == ancestor:
+			return true
+		current = _tool_calls.get(current.parent_id)
+		steps += 1
+	return false
+
+
+## La vista de un subagente vive en el grupo de su tool call: sus hijos avisan a ese grupo.
+func _set_group(call: ToolCall, group: ChatEntry) -> void:
+	if group:
+		_group_of_call[call.id] = group
+	else:
+		_group_of_call.erase(call.id)
+	for child_id: String in call.child_ids:
+		var child: ToolCall = _tool_calls.get(child_id)
+		if child:
+			_set_group(child, group)
+
+
+func _append_subagent_text(parent: String, update: Dictionary) -> void:
+	var text := content_to_text(update.get("content"))
+	if text.is_empty():
+		return
+	var call: ToolCall = _tool_calls.get(parent)
+	if call == null:
+		call = _new_tool_call(parent, "")
+	call.append_subagent_text(text)
+	_emit_tool_call_changed(call)
+
+
+func _emit_tool_call_changed(call: ToolCall) -> void:
+	var owner_group: ChatEntry = _group_of_call.get(call.id)
 	tool_call_changed.emit(call, owner_group)
 	if owner_group:
 		entry_updated.emit(owner_group)
@@ -389,6 +477,16 @@ func _push(entry: ChatEntry) -> ChatEntry:
 	_entries.append(entry)
 	entry_added.emit(entry)
 	return entry
+
+
+## Id del tool call de Agent/Task cuyo subagente mandó este update (`_meta.claudeCode.parentToolUseId`
+## del adaptador de Claude Code), o "".
+static func parent_tool_call_id(update: Dictionary) -> String:
+	var meta: Variant = update.get("_meta")
+	if not meta is Dictionary or not meta.get("claudeCode") is Dictionary:
+		return ""
+	var parent: Variant = meta.claudeCode.get("parentToolUseId")
+	return parent if parent is String else ""
 
 
 ## Texto de un ContentBlock de ACP. Los bloques no textuales se resumen.

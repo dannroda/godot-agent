@@ -42,6 +42,7 @@ El addon no escribe nada en `project.godot`. La única excepción es un autoload
 - **Header**: perfil de agente, título de la sesión, **Historial**, **Nueva sesión** y **Settings**.
 - **Modos**: Preguntar · Revisar · Construir · One-shot.
 - **Conversación**: Markdown, tool calls agrupados, diffs, tarjetas de permiso y el plan del agente.
+- **Subagentes** (Claude Code): lo que hace un subagente queda dentro de la tarjeta de su llamada `Agent`. Sus herramientas y su último texto van plegados, con el prompt mientras trabaja y el informe al terminar. Su texto no se mezcla con la respuesta principal.
 - **Composer**:
   - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
   - **↑** en la primera línea y **↓** en la última recorren los prompts que enviaste en este proyecto, como en una terminal (se guardan los últimos 100 en `user://godot_agent/prompt_history.json`);

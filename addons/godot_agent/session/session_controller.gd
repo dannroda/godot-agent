@@ -13,6 +13,7 @@ const AgentProcess := preload("../transport/agent_process.gd")
 const AcpClient := preload("../acp/acp_client.gd")
 const SessionModel := preload("session_model.gd")
 const ChatEntry := preload("chat_entry.gd")
+const ToolCall := preload("tool_call.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
@@ -358,6 +359,9 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	request.group = PermissionPolicy.group_for_tool_call(tool_call)
 	var call := model.tool_call(request.tool_call_id)
 	request.title = call.display_name() if call else str(tool_call.get("title", "Herramienta del agente"))
+	var subagent: ToolCall = model.tool_call(call.parent_id) if call and not call.parent_id.is_empty() else null
+	if subagent:
+		request.title += " · subagente «%s»" % subagent.display_name()
 	request.description = _describe_tool_call(tool_call, call)
 	request.diff = _first_diff(tool_call, call)
 

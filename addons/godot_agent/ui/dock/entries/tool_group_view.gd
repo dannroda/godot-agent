@@ -1,7 +1,8 @@
 @tool
 extends "entry_view.gd"
 ## Grupo colapsable de tool calls consecutivos: "4 herramientas · 1,2 s", cada fila con estado,
-## nombre (las tools `godot.*` en violeta), resumen y ubicaciones. Los diffs van en tarjetas.
+## nombre (las tools `godot.*` en violeta), resumen y ubicaciones. Los diffs van en tarjetas. Un
+## subagente (Agent/Task) lleva adentro, plegadas, las herramientas que usó y lo que fue escribiendo.
 
 const ToolCall := preload("../../../session/tool_call.gd")
 const DiffCard := preload("diff_card.gd")
@@ -18,13 +19,17 @@ const SUMMARY_MAX := 80
 const OUTPUT_PREVIEW_LINES := 40
 const OUTPUT_PREVIEW_CHARS := 4000
 const IMAGE_MAX_HEIGHT := 160
+## Sangría (sin escalar) de las herramientas de un subagente.
+const SUBAGENT_INDENT := 14
+## Lo que se muestra del último texto de un subagente.
+const SUBAGENT_NOTE_CHARS := 400
 
 ## Callable(id: String) -> ToolCall, inyectado por la ConversationView.
 var tool_call_lookup: Callable
 
 var _header: Button
 var _body: VBoxContainer
-var _rows: Dictionary = {}  # toolCallId -> {row, status, name, summary, extra}
+var _rows: Dictionary = {}  # toolCallId -> {row, status, name, summary, extra, undo, nested, toggle, children, note}
 var _spinner_timer: Timer
 var _spinner_frame: int = 0
 
@@ -62,7 +67,7 @@ func refresh() -> void:
 	var total_msec := 0
 	var failed := 0
 	for call: ToolCall in calls:
-		_refresh_row(call)
+		_refresh_row(call, _body)
 		running = running or not call.is_finished()
 		total_msec += call.duration_msec()
 		if call.status == ToolCall.STATUS_FAILED:
@@ -79,20 +84,24 @@ func refresh() -> void:
 
 
 func _calls() -> Array[ToolCall]:
+	return _lookup(entry.tool_call_ids)
+
+
+func _lookup(ids: PackedStringArray) -> Array[ToolCall]:
 	var result: Array[ToolCall] = []
 	if not tool_call_lookup.is_valid():
 		return result
-	for id: String in entry.tool_call_ids:
+	for id: String in ids:
 		var call: ToolCall = tool_call_lookup.call(id)
 		if call:
 			result.append(call)
 	return result
 
 
-func _refresh_row(call: ToolCall) -> void:
+func _refresh_row(call: ToolCall, container: VBoxContainer) -> void:
 	var parts: Dictionary = _rows.get(call.id, {})
 	if parts.is_empty():
-		parts = _make_row(call)
+		parts = _make_row(call, container)
 		_rows[call.id] = parts
 	var status_label: Label = parts.status
 	status_label.text = SPINNER[_spinner_frame % SPINNER.size()] if call.status == ToolCall.STATUS_IN_PROGRESS else STATUS_ICONS.get(call.status, "·")
@@ -116,11 +125,12 @@ func _refresh_row(call: ToolCall) -> void:
 	if call.undo_done:
 		summary_label.text = "deshecho · " + summary_label.text
 	_refresh_extra(call, parts.extra)
+	_refresh_subagent(call, parts)
 
 
-func _make_row(call: ToolCall) -> Dictionary:
+func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 	var block := VBoxContainer.new()
-	_body.add_child(block)
+	container.add_child(block)
 	var row := HBoxContainer.new()
 	block.add_child(row)
 	var status := Label.new()
@@ -147,7 +157,58 @@ func _make_row(call: ToolCall) -> Dictionary:
 	row.add_child(undo)
 	var extra := VBoxContainer.new()
 	block.add_child(extra)
-	return {"row": row, "status": status, "name": name_label, "summary": summary, "extra": extra, "undo": undo}
+	# Subagente: "▸ 5 herramientas · Read" y, al abrirlo, sus herramientas y su último texto.
+	var nested := VBoxContainer.new()
+	nested.visible = false
+	block.add_child(nested)
+	var toggle := Button.new()
+	toggle.flat = true
+	toggle.toggle_mode = true
+	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	toggle.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	toggle.clip_text = true
+	toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	nested.add_child(toggle)
+	var indent := MarginContainer.new()
+	indent.visible = false
+	indent.add_theme_constant_override(&"margin_left", AgentTheme.px(SUBAGENT_INDENT))
+	nested.add_child(indent)
+	var inner := VBoxContainer.new()
+	indent.add_child(inner)
+	var children := VBoxContainer.new()
+	inner.add_child(children)
+	var note := _muted_label("")
+	note.visible = false
+	inner.add_child(note)
+	toggle.toggled.connect(func(open: bool) -> void:
+		indent.visible = open
+		refresh()
+	)
+	return {"row": row, "status": status, "name": name_label, "summary": summary, "extra": extra, "undo": undo,
+		"nested": nested, "toggle": toggle, "indent": indent, "children": children, "note": note}
+
+
+func _refresh_subagent(call: ToolCall, parts: Dictionary) -> void:
+	var nested: VBoxContainer = parts.nested
+	nested.visible = call.is_subagent()
+	if not nested.visible:
+		return
+	var children := _lookup(call.child_ids)
+	var toggle: Button = parts.toggle
+	var noun := "herramienta" if children.size() == 1 else "herramientas"
+	var text := "%s %d %s del subagente" % ["▾" if toggle.button_pressed else "▸", children.size(), noun]
+	if not call.is_finished() and not children.is_empty():
+		var latest: ToolCall = children.back()
+		text += " · " + _short_name(latest)
+	toggle.text = text
+	if not toggle.button_pressed:
+		return
+	for child: ToolCall in children:
+		_refresh_row(child, parts.children)
+	var note: Label = parts.note
+	var last_text := call.subagent_text.strip_edges()
+	note.visible = not last_text.is_empty()
+	note.text = "💬 " + (last_text if last_text.length() <= SUBAGENT_NOTE_CHARS else "…" + last_text.right(SUBAGENT_NOTE_CHARS))
 
 
 ## Contenido del tool call: diffs como tarjetas, texto breve, terminal "no soportado", ubicaciones.
@@ -179,7 +240,7 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 						if call.status == ToolCall.STATUS_FAILED:
 							extra.add_child(_muted_label(text.left(400), AgentTheme.ERROR))
 						elif not text.strip_edges().is_empty():
-							extra.add_child(_output_toggle(text))
+							extra.add_child(_output_toggle(text, _output_noun(call)))
 					"image":
 						extra.add_child(_image_preview(inner))
 					"resource_link":
@@ -204,15 +265,22 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 		links.free()
 
 
+## Un subagente muestra su prompt mientras trabaja y su informe al terminar.
+static func _output_noun(call: ToolCall) -> String:
+	if not call.is_subagent():
+		return "salida"
+	return "informe" if call.status == ToolCall.STATUS_COMPLETED else "prompt"
+
+
 ## Salida de texto plegada: "salida · N líneas" y, al abrirla, las primeras líneas en monoespaciada.
-func _output_toggle(text: String) -> Control:
+func _output_toggle(text: String, noun: String = "salida") -> Control:
 	var column := VBoxContainer.new()
 	var lines := text.split("\n")
 	var toggle := Button.new()
 	toggle.flat = true
 	toggle.toggle_mode = true
 	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	toggle.text = "▸ salida · %d %s" % [lines.size(), "línea" if lines.size() == 1 else "líneas"]
+	toggle.text = "▸ %s · %d %s" % [noun, lines.size(), "línea" if lines.size() == 1 else "líneas"]
 	toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	column.add_child(toggle)
 	var output := Label.new()
@@ -278,8 +346,8 @@ func _muted_label(text: String, color: Color = AgentTheme.MUTED) -> Label:
 
 func _on_spinner() -> void:
 	_spinner_frame += 1
-	for call: ToolCall in _calls():
-		if call.status == ToolCall.STATUS_IN_PROGRESS and _rows.has(call.id):
+	for call: ToolCall in _lookup(PackedStringArray(_rows.keys())):
+		if call.status == ToolCall.STATUS_IN_PROGRESS:
 			(_rows[call.id].status as Label).text = SPINNER[_spinner_frame % SPINNER.size()]
 
 
@@ -291,6 +359,12 @@ static func _short_name(call: ToolCall) -> String:
 
 
 static func _summary(call: ToolCall) -> String:
+	if call.is_subagent():
+		var agent_type := ""
+		if call.raw_input is Dictionary:
+			var subagent_input: Dictionary = call.raw_input
+			agent_type = str(subagent_input.get("subagent_type", ""))
+		return "subagente · " + agent_type if not agent_type.is_empty() else "subagente"
 	if call.raw_input is Dictionary:
 		var input: Dictionary = call.raw_input
 		for key: String in ["file_path", "path", "command", "pattern", "query", "url", "node_path", "scene"]:
