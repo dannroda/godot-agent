@@ -20,6 +20,12 @@ const ProjectConfig := preload("config/project_config.gd")
 const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
+const McpServer := preload("mcp/mcp_server.gd")
+const ToolRegistry := preload("mcp/tool_registry.gd")
+const ReadTools := preload("mcp/tools/read_tools.gd")
+const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
+const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
+const ErrorCollector := preload("core/error_collector.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -42,6 +48,8 @@ var _controller: SessionController
 var _project_config: ProjectConfig
 var _sync: EditorSync
 var _diff_dialog: DiffDialog
+var _mcp_server: McpServer
+var _errors: ErrorCollector
 
 
 func _enter_tree() -> void:
@@ -74,6 +82,7 @@ func _enter_tree() -> void:
 	_model.tool_call_changed.connect(_on_tool_call_changed)
 	_diff_dialog = DiffDialog.new()
 	EditorInterface.get_base_control().add_child(_diff_dialog)
+	_start_mcp_server()
 
 	var dock := AgentDockScene.instantiate()
 	dock.setup(_model, _controller, _settings)
@@ -94,6 +103,14 @@ func _exit_tree() -> void:
 	if _controller:
 		_controller.stop()
 		_controller = null
+	if _mcp_server:
+		_log.remove_secret(_mcp_server.token)
+		_mcp_server.stop()
+		_mcp_server.queue_free()
+		_mcp_server = null
+	if _errors:
+		_errors.stop()
+		_errors = null
 	if _sync:
 		_sync.queue_free()
 		_sync = null
@@ -182,6 +199,43 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_sync.resolve_keep_buffer(path)
 		ACTION_RELOAD_SCENE:
 			_sync.reload_scene(path)
+
+
+## Server MCP con las tools godot.* (spec §5). La política de permisos se aplica del lado del server
+## con el modo actual del harness; "ask" muestra una tarjeta y vence a los permission_timeout_s.
+func _start_mcp_server() -> void:
+	_errors = ErrorCollector.new()
+	_errors.start()
+	var registry := ToolRegistry.new()
+	registry.agent_log = _log
+	registry.max_output_chars = _project_config.max_output_chars
+	registry.max_image_side = _project_config.max_image_side
+	registry.authorizer = func(group: String, title: String, description: String) -> bool:
+		return await _controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
+	registry.register_provider(ReadTools.new())
+	var diagnostics := DiagnosticTools.new()
+	diagnostics.setup(_errors, EditorContext.project_path())
+	registry.register_provider(diagnostics)
+	_mcp_server = McpServer.new()
+	_mcp_server.registry = registry
+	_mcp_server.agent_log = _log
+	add_child(_mcp_server)
+	if _mcp_server.start(_settings.mcp_port()) == OK:
+		_log.add_secret(_mcp_server.token)
+	_controller.mcp_servers_provider = _mcp_servers
+
+
+## Entradas `mcpServers` para session/new: HTTP si el agente lo soporta; si no, el shim stdio.
+func _mcp_servers() -> Array:
+	if _mcp_server == null or not _mcp_server.is_listening():
+		return []
+	if _model.supports_http_mcp():
+		return [_mcp_server.http_server_entry()]
+	var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, _mcp_server.url(), _mcp_server.token)
+	if entry.is_empty():
+		_log.add(AgentLog.CH_MCP, "no se pudo preparar el shim stdio en user://: el agente no tendrá las tools godot.*")
+		return []
+	return [entry]
 
 
 func _prompt_variables() -> Dictionary:

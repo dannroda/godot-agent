@@ -183,3 +183,46 @@ Con Claude Code real (`--godot-agent-claude-edit-test`, en 4.8 y 4.4.1):
 
 - La política ya está lista para las tools `godot.*` (M3) con `SessionController.authorize`.
 - El undo de tool calls (botón oculto) llega con M4.
+
+## M3 · Server MCP y tools de lectura
+
+### Qué hay
+
+- **Server MCP** (`mcp/mcp_server.gd`, D16):
+  - HTTP/1.1 en 127.0.0.1 con token Bearer y `POST /mcp` (Streamable HTTP sin SSE), sesiones con `Mcp-Session-Id`;
+  - 401, 403, 404, 405 y 202 según la spec;
+  - el puerto se configura en EditorSettings `godot_agent/mcp/port` (0 = aleatorio) y la URL queda en el canal `mcp` del Agent Log.
+- **Registro de tools** (`mcp/tool_registry.gd`):
+  - valida argumentos y aplica la política de permisos del modo actual (ask con `permission_timeout_s`);
+  - recorta la salida a `max_output_chars` y las imágenes a `max_image_side`;
+  - loguea nombre, argumentos, duración y resumen.
+- **Tools** (8):
+  - `project_info`, `list_files`, `scene_tree`, `get_node`, `editor_state` (read);
+  - `get_errors`, `validate_scripts`, `capture_editor_viewport` (diagnostics, D18).
+- **session/new** pasa el server como entrada http si el agente lo soporta y, si no, el shim stdio (D17).
+- El prompt de sistema pide verificar con `validate_scripts` y `get_errors` después de editar scripts.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd     # 52 tests, 317 checks (parser HTTP, server por HTTP real, registro, diagnóstico)
+$G -e --path . -- --godot-agent-mcp-test             # cada tool por HTTP contra tests/fixtures/main_fixture.tscn + shim stdio
+$G -e --path . -- --godot-agent-claude-mcp-test      # Claude Code real (gasta tokens)
+```
+
+Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1, junto con las suites anteriores: `acp_session_check`, `export_check`, cycle, sync y ui.
+
+La prueba de ciclo ahora espera a que termine el escaneo del editor y toma la línea base después del primer ciclo: el editor crea nodos sueltos propios al restaurar pestañas. También falla si queda huérfano un nodo con un script del addon (4.5+).
+
+Con Claude Code real (`--godot-agent-claude-mcp-test`, 4.8): el adapter anunció MCP por HTTP y Claude Code 2.1.303 hizo initialize con MCP 2025-06-18. A "¿Cuántos nodos tiene la escena res://tests/fixtures/main_fixture.tscn?" respondió con `mcp__godot__scene_tree`: "tiene **5 nodos**: Main (Node2D), Player (CharacterBody2D)… Sprite… Enemies… Timer…".
+
+### Prueba manual
+
+1. Abrir el editor e iniciar sesión. En **Agent Log**, canal `mcp`, aparece "server MCP escuchando en http://127.0.0.1:<puerto>/mcp" y, al conectarse Claude, "initialize de claude-code …".
+2. Abrir una escena y preguntar "¿qué nodos tiene la escena abierta?". El agente usa `godot.scene_tree` (en violeta en el dock) y responde con el árbol.
+3. Seleccionar un nodo y preguntar "¿qué tengo seleccionado?" (`godot.editor_state`).
+4. Romper un script y pedir "validá los scripts". `godot.validate_scripts` devuelve el archivo y la línea.
+
+### Pendiente
+
+- Tools de edición de escena (con undo) y checkpoints: M4.

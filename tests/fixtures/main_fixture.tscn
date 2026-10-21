@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://c6m8o5aen5cfj"]
+
+[ext_resource type="Script" uid="uid://dp87lqqu84td0" path="res://tests/fixtures/fixture_player.gd" id="1_player"]
+
+[node name="Main" type="Node2D" unique_id=1171939296]
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=322570542 groups=["player"]]
+position = Vector2(100, 50)
+script = ExtResource("1_player")
+speed = 300.0
+
+[node name="Sprite" type="Sprite2D" parent="Player" unique_id=1010920167]
+
+[node name="Enemies" type="Node2D" parent="." unique_id=573697181]
+
+[node name="Timer" type="Timer" parent="." unique_id=433873069]
+wait_time = 2.0
+autostart = true
+
+[connection signal="timeout" from="Timer" to="Player" method="_on_timer_timeout"]

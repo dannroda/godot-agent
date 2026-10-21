@@ -13,6 +13,10 @@ extends EditorPlugin
 ## - `-- --godot-agent-claude-edit-test`: verificación de M2 con Claude Code real (gasta tokens).
 ##   En Construir pide editar un script abierto: tiene que haber permiso con diff y el buffer se
 ##   actualiza sin diálogos. En Preguntar, la misma edición se deniega y el archivo no cambia.
+## - `-- --godot-agent-mcp-test`: llama a cada tool godot.* por HTTP real y prueba el shim stdio
+##   (ver mcp_check.gd).
+## - `-- --godot-agent-claude-mcp-test`: con Claude Code real (gasta tokens), pregunta cuántos nodos
+##   tiene la escena de prueba: tiene que contestar 5 usando godot.scene_tree.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -28,6 +32,9 @@ const SYNC_TARGET := "res://tests/tmp/sync_target.gd"
 const CLAUDE_EDIT_ARG := "--godot-agent-claude-edit-test"
 const CLAUDE_EDIT_TARGET := "res://tests/tmp/claude_target.gd"
 const CLAUDE_TIMEOUT_S := 420.0
+const MCP_ARG := "--godot-agent-mcp-test"
+const CLAUDE_MCP_ARG := "--godot-agent-claude-mcp-test"
+const McpCheck := preload("mcp_check.gd")
 const MAIN_SCREEN_NAME := "Agent"
 const TARGET_PLUGIN := "godot_agent"
 const CYCLES := 5
@@ -45,6 +52,10 @@ func _enter_tree() -> void:
 		_run_sync_test.call_deferred()
 	if CLAUDE_EDIT_ARG in args:
 		_run_claude_edit_test.call_deferred()
+	if MCP_ARG in args:
+		_run_mcp_test.call_deferred()
+	if CLAUDE_MCP_ARG in args:
+		_run_claude_mcp_test.call_deferred()
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
@@ -196,6 +207,58 @@ func _run_claude_edit_test() -> void:
 	_finish(0 if failures.is_empty() else 1, "claude-edit: %d fallas" % failures.size())
 
 
+func _run_mcp_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures: PackedStringArray = await McpCheck.new().run(get_tree())
+	for failure: String in failures:
+		print("[mcp-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "mcp-test: %d fallas" % failures.size())
+
+
+func _run_claude_mcp_test() -> void:
+	get_tree().create_timer(CLAUDE_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var controller: Object = dock.get(&"_controller")
+	var model: Object = dock.get(&"_model")
+	var log_sink: Object = controller.get(&"agent_log")
+	log_sink.connect(&"entry_added", func(entry: Dictionary) -> void:
+		if entry.channel == &"mcp":
+			print("[claude-mcp] mcp: ", str(entry.message).left(200))
+	)
+	if not await controller.call(&"start", AgentProfile.from_dict(AgentProfile.defaults()[0])):
+		_finish(1, "no arrancó Claude: %s" % model.get(&"failure_message"))
+		return
+	print("[claude-mcp] http MCP: ", model.call(&"supports_http_mcp"))
+	model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
+	var stop: String = await controller.call(&"send_prompt",
+		"¿Cuántos nodos tiene la escena res://tests/fixtures/main_fixture.tscn? Usá la tool scene_tree del server MCP godot y respondé con el número y la lista de nombres.")
+	var used_scene_tree := false
+	var reply := ""
+	for entry: Object in model.call(&"entries"):
+		if int(entry.get(&"kind")) == ChatEntry.Kind.AGENT:
+			reply += str(entry.get(&"text"))
+		elif int(entry.get(&"kind")) == ChatEntry.Kind.TOOL_GROUP:
+			for id: String in entry.get(&"tool_call_ids"):
+				var call: Object = model.call(&"tool_call", id)
+				print("[claude-mcp] tool call: %s · %s" % [call.call(&"display_name"), call.get(&"status")])
+				used_scene_tree = used_scene_tree or str(call.call(&"display_name")).contains("scene_tree")
+	print("[claude-mcp] stopReason=%s respuesta: %s" % [stop, reply.replace("\n", " ").left(400)])
+	controller.call(&"stop")
+	var failures: PackedStringArray = []
+	if not used_scene_tree:
+		failures.append("no usó godot.scene_tree")
+	if not reply.contains("5"):
+		failures.append("la respuesta no dice 5")
+	for failure: String in failures:
+		print("[claude-mcp] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "claude-mcp: %d fallas" % failures.size())
+
+
 func _write(path: String, text: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(text)
@@ -297,12 +360,21 @@ func _take_screenshot(path: String) -> void:
 func _run_cycle_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await _settle()
+	# Si el editor está escaneando (p. ej. después de abrir el proyecto con otra versión), los
+	# objetos crecen solos: se espera a que termine.
+	var fs := EditorInterface.get_resource_filesystem()
+	while fs.is_scanning():
+		await get_tree().process_frame
+	await get_tree().create_timer(1.0).timeout
 	if not EditorInterface.is_plugin_enabled(TARGET_PLUGIN):
 		EditorInterface.set_plugin_enabled(TARGET_PLUGIN, true)
 		await _settle()
 
-	var orphans_before: int = _orphans()
-	var orphan_ids_before: Array = _orphan_ids()
+	# La línea base se toma después del primer ciclo: el editor termina de restaurar su estado
+	# (pestañas de scripts, escenas abiertas) recién en los primeros frames y crea nodos sueltos
+	# propios que no son del addon.
+	var orphans_before: int = -1
+	var orphan_ids_before: Array = []
 	var objects_after_first: int = -1
 	for i: int in CYCLES:
 		EditorInterface.set_plugin_enabled(TARGET_PLUGIN, false)
@@ -318,11 +390,16 @@ func _run_cycle_test() -> void:
 		var objects: int = _objects()
 		if i == 0:
 			objects_after_first = objects
+			orphans_before = _orphans()
+			orphan_ids_before = _orphan_ids()
 		print("[cycle-test] cycle %d ok · objects=%d orphan_nodes=%d" % [i + 1, objects, _orphans()])
 
 	var orphans_after: int = _orphans()
 	var growth: int = _objects() - objects_after_first
-	if orphans_after > orphans_before:
+	var addon_orphans := _addon_orphans()
+	if not addon_orphans.is_empty():
+		_finish(1, "nodos huérfanos del addon: %s" % ", ".join(addon_orphans))
+	elif orphans_after > orphans_before:
 		_print_new_orphans(orphan_ids_before)
 		_finish(1, "quedaron %d nodos huérfanos nuevos" % (orphans_after - orphans_before))
 	elif growth > OBJECT_GROWTH_TOLERANCE:
@@ -349,6 +426,17 @@ func _orphan_ids() -> Array:
 	if not ClassDB.class_has_method(&"Node", &"get_orphan_node_ids"):
 		return []
 	return ClassDB.call(&"class_call_static", &"Node", &"get_orphan_node_ids")
+
+
+## Huérfanos con un script del addon (solo 4.5+, donde existe get_orphan_node_ids).
+func _addon_orphans() -> PackedStringArray:
+	var result: PackedStringArray = []
+	for id: int in _orphan_ids():
+		var node := instance_from_id(id) as Node
+		var script := node.get_script() as Script if node else null
+		if script and script.resource_path.begins_with("res://addons/godot_agent/"):
+			result.append("%s (%s)" % [node.name, script.resource_path.get_file()])
+	return result
 
 
 func _print_new_orphans(before: Array) -> void:

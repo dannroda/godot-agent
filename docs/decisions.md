@@ -188,3 +188,31 @@ Cuando el agente escribe un script que está abierto en el Script Editor:
   - un watcher de mtime de los scripts abiertos cada 0,5 s, para escrituras que el agente hace por su cuenta.
 - **Escenas abiertas**: no se recargan solas. Hay un aviso con "Recargar escena" (`EditorInterface.reload_scene_from_path`).
 - **Alternativa descartada**: `ScriptEditor.reload_open_files()`. Existe solo en 4.8, pasa por el mismo `set_text` (pierde el undo fino y el cursor) y con cambios sin guardar abre el diálogo.
+
+## D16 · Server MCP: polling en `_process`, sin thread de red (M3)
+
+La spec §5 propone un thread de red que encola y un `_process` que despacha. Se implementó todo en el hilo principal: `TCPServer` y `StreamPeerTCP` se atienden con polling no bloqueante en `_process`. Razones:
+- Las tools tienen que correr en el hilo principal igual (acceden al editor). Un thread solo movería bytes y obligaría a sincronizar colas.
+- Con pocas conexiones locales, `poll()` + `get_available_bytes()` no bloquea y la latencia es de un frame. Con el editor sin foco son ~100 ms, aceptable para tools.
+- Cada conexión procesa sus requests en orden (keep-alive y pipelining). Una tool en "ask" puede esperar el permiso con `await` sin frenar las otras conexiones.
+
+Otros detalles:
+- **Token**: 24 bytes aleatorios por cada arranque del plugin. Se compara en tiempo constante y se redacta en el Agent Log (`AgentLog.add_secret`).
+- **Origin**: se rechaza cualquier origen que no sea local (protección contra DNS rebinding). Los clientes que no son navegador no lo mandan.
+- **Sin SSE**: `GET /mcp` y `DELETE /mcp` → 405 (permitido por Streamable HTTP).
+- **Puerto**: `godot_agent/mcp/port` en EditorSettings (0 = aleatorio). Es por usuario y no por proyecto, porque dos proyectos abiertos a la vez no pueden compartir puerto.
+- **Bug encontrado**: el server se agrega en el `_enter_tree` del plugin y su `_ready` corre recién con el ready del plugin, después de `start()`. Por eso `set_process(false)` va en `_init` y no en `_ready`.
+
+## D17 · Shim stdio en un proyecto vacío propio (M3)
+
+Si el agente no anuncia `mcpCapabilities.http`, `session/new` recibe una entrada stdio con `OS.get_executable_path()` y `--headless --script mcp_stdio_shim.gd`. El shim no corre con `--path` al proyecto del usuario: cargaría sus autoloads y, como el cwd del agente es el proyecto, Godot lo encontraría solo. `StdioShimInstaller` copia el shim y un `project.godot` mínimo (con `flush_stdout_on_print`) a `user://godot_agent_mcp_shim/`, y el shim corre con `--path` a esa carpeta. URL y token van por `env`.
+
+Claude Code (`claude-agent-acp` 0.94) anuncia HTTP, así que en la práctica usa la entrada http. El shim se prueba en `--godot-agent-mcp-test`.
+
+## D18 · `get_errors` y `validate_scripts` (M3)
+
+- **`get_errors`** junta tres fuentes en un solo stream numerado; la marca es el último número:
+  - **4.5+**: un `Logger` propio (`OS.add_logger`). La clase no existe en 4.4, así que el script del logger se compila en runtime desde un string (`ErrorCollector.LOGGER_SOURCE`) y el addon parsea en todas las versiones.
+  - **4.4**: el texto del panel Output, por líneas nuevas. Ahí el formato es `ERROR: archivo:línea - mensaje` y los mensajes llegan diferidos.
+  - **Todas las versiones**: el árbol de errores del Debugger (errores del juego). Se lo reconoce por tener 2 columnas, raíz oculta y la hora en la primera columna.
+- **`validate_scripts`**: corre un subproceso `godot --headless --path <proyecto> --script script_checker.gd -- <rutas>`, que carga cada script con `CACHE_MODE_IGNORE` y deja marcas `@@BEGIN`/`@@END` en stderr, el mismo flujo que los errores del motor. El parseo asocia cada `SCRIPT ERROR` a su `at: (res://…:línea)`. No toca el estado del editor ni las clases globales; usa AgentProcess, así que respeta D11 en 4.4. El loader devuelve el script aunque tenga errores de parseo: la fuente de verdad es la lista de errores.

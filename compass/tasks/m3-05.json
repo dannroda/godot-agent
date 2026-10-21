@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:37.907Z",
   "description": "get_errors (errores y warnings desde una marca), validate_scripts (parse de scripts con errores por línea; fallback godot --headless --check-only), capture_editor_viewport 2d/3d como PNG base64.",
   "milestone": "m03",
-  "notes": "",
+  "notes": "D18.\n- core/error_collector.gd: stream numerado con marcas. Fuentes: Logger compilado en runtime en 4.5+, panel Output en 4.4 (formato inline \"ERROR: archivo:línea - msg\") y árbol de errores del Debugger.\n- validate_scripts: subproceso con mcp/tools/script_checker.gd (marcas @@BEGIN/@@END en stderr), vía AgentProcess, con timeout de 60 s y tope de 400 scripts.\n- capture_editor_viewport usa EditorContext.capture_viewport; el registro reescala a max_image_side.",
   "order": 5,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "- Unit: tests/unit/test_diagnostic_tools.gd (parseo con ANSI, error de dependencia, ubicación, marcas).\n- mcp-test en 4.4.1, 4.7.2 y 4.8:\n  - get_errors ve un push_error nuevo desde la marca y no lo repite con la marca siguiente;\n  - validate_scripts reporta \"línea 4: … undefined_thing\" del script roto y nada del sano;\n  - capture 2d devuelve una imagen; un enum inválido da isError.",
   "title": "Tools de diagnóstico",
-  "updated_at": "2026-10-21T04:32:37.907Z"
+  "updated_at": "2026-10-21T06:00:09.615Z"
 }

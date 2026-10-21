@@ -17,14 +17,31 @@ const CHANNELS: Array[StringName] = [CH_ACP, CH_MCP, CH_FS, CH_PERM, CH_PROC, CH
 const DEFAULT_CAPACITY := 2000
 ## Tope de caracteres del JSON crudo guardado por entrada.
 const RAW_LIMIT := 20000
+const REDACTED := "«secreto»"
 
 var capacity: int = DEFAULT_CAPACITY
 var _entries: Array[Dictionary] = []
 var _next_seq: int = 1
+var _secrets: PackedStringArray = []
 
 
 ## Agrega una entrada. `raw` es el mensaje JSON-RPC completo (se muestra en modo raw).
+## Textos que nunca se muestran en el log (p. ej. el token del server MCP).
+func add_secret(secret: String) -> void:
+	if secret.length() >= 8 and not secret in _secrets:
+		_secrets.append(secret)
+
+
+func remove_secret(secret: String) -> void:
+	var index := _secrets.find(secret)
+	if index >= 0:
+		_secrets.remove_at(index)
+
+
 func add(channel: StringName, message: String, raw: String = "") -> Dictionary:
+	for secret: String in _secrets:
+		message = message.replace(secret, REDACTED)
+		raw = raw.replace(secret, REDACTED)
 	var entry := {
 		"seq": _next_seq,
 		"time": Time.get_time_string_from_system(),

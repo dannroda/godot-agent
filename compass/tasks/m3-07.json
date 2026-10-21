@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:40.035Z",
   "description": "Tests de integración del server (HTTP real contra el editor headless). Claude Code lista las tools godot.* y responde \"¿cuántos nodos tiene Main.tscn?\" usando scene_tree. Actualizar progress.",
   "milestone": "m03",
-  "notes": "",
+  "notes": "`--godot-agent-claude-mcp-test` con Claude Code real en 4.8:\n- el adapter anunció http y Claude Code 2.1.303 inicializó con MCP 2025-06-18;\n- llamó a mcp__godot__scene_tree y respondió \"tiene **5 nodos**: Main, Player, Sprite, Enemies, Timer\".\n\nLa prueba de ciclo se volvió robusta: espera el escaneo del FS, toma la línea base después del primer ciclo y falla si queda huérfano un nodo con script del addon.\n\nBug encontrado y corregido: el set_process(false) en _ready del server lo apagaba después de start().\nDocs: D16, D17, D18 y la sección M3 de progress.md.",
   "order": 7,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "Pasan en 4.4.1, 4.7.2 y 4.8-beta1:\n- run_all: 52 tests, 317 checks;\n- acp_session_check: 53 checks;\n- export_check;\n- cycle;\n- sync;\n- ui;\n- mcp-test.\n\nclaude-mcp-test con Claude real: PASS en 4.8.",
   "title": "Verificar M3",
-  "updated_at": "2026-10-21T04:32:40.035Z"
+  "updated_at": "2026-10-21T06:00:13.241Z"
 }

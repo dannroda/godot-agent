@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:37.187Z",
   "description": "Puerto configurable (0 = aleatorio), token Bearer por sesión, POST /mcp, Mcp-Session-Id, 202 para notificaciones, 401/404/405, Connection. Red no bloqueante (polling en _process); cada request se ejecuta en el hilo principal. initialize, notifications/initialized, tools/list, tools/call, ping.",
   "milestone": "m03",
-  "notes": "",
+  "notes": "mcp/mcp_server.gd (Node, hijo del plugin):\n- TCPServer en 127.0.0.1 con polling no bloqueante en _process (D16), hasta 16 conexiones y keep-alive;\n- cada conexión atiende sus requests en orden y puede esperar un permiso;\n- token de 24 bytes aleatorios por arranque, comparado en tiempo constante;\n- Origin no local → 403 (DNS rebinding); 401 con WWW-Authenticate; 404 de ruta o de Mcp-Session-Id desconocido; 405 para GET y DELETE (sin SSE); 400 por JSON inválido; 202 para notificaciones;\n- métodos initialize (negocia la versión y devuelve Mcp-Session-Id e instructions), ping, tools/list y tools/call; -32601 y -32602.\n\nEl puerto sale de EditorSettings godot_agent/mcp/port (0 = aleatorio) y la URL queda en el log mcp.",
   "order": 2,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/unit/test_mcp_server.gd, con HTTP real contra el nodo:\n- 401 (sin token y con token malo), 404, 405, 403 por Origin, 400 y 404 de sesión;\n- initialize con versión y session id, notificación 202, tools/list, tools/call, -32602, -32601 y versión desconocida;\n- dos requests pipelined en la misma conexión, respondidos en orden.\n\nPasa en 4.8 y 4.4.1.",
   "title": "McpServer: TCPServer en 127.0.0.1 con token",
-  "updated_at": "2026-10-21T04:32:37.187Z"
+  "updated_at": "2026-10-21T05:43:05.247Z"
 }

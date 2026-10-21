@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:37.545Z",
   "description": "project_info, list_files, scene_tree (compacto, propiedades no default, depth), get_node, editor_state (spec §6).",
   "milestone": "m03",
-  "notes": "",
+  "notes": "mcp/tools/read_tools.gd y mcp/tools/scene_access.gd. Todas devuelven texto compacto.\n- project_info: versión, nombre, escena principal, renderer, features, autoloads, input map con eventos y plugins.\n- list_files: lista de EditorFileSystem con tipo, pattern glob y recursive; hasta 2000 entradas.\n- scene_tree:\n  - con la escena abierta usa la del editor (con sus cambios sin guardar); si no, instancia del disco y libera;\n  - una línea por nodo con tipo, instancia, script, grupos y propiedades no default (contra el default del script o de ClassDB);\n  - depth y tope de 600 nodos.\n- get_node: propiedades completas, conexiones persistentes, hijos. Si no lo encuentra, el error sugiere los hijos de la raíz.\n- editor_state: escena actual y abiertas, selección, script abierto con línea, scripts abiertos y juego corriendo.",
   "order": 4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "`--godot-agent-mcp-test` (mcp_check.gd) en 4.4.1, 4.7.2 y 4.8 contra tests/fixtures/main_fixture.tscn:\n- scene_tree: 5 nodos, position, speed=300, grupo y sin defaults; depth 0;\n- get_node Timer: conexión timeout → Player::_on_timer_timeout y wait_time; nodo inexistente → isError;\n- editor_state, list_files con pattern y project_info.",
   "title": "Tools de lectura",
-  "updated_at": "2026-10-21T04:32:37.545Z"
+  "updated_at": "2026-10-21T06:00:08.721Z"
 }

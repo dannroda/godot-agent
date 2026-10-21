@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:38.841Z",
   "description": "Entrada http con header Authorization si mcpCapabilities.http; si no, shim stdio→HTTP en GDScript (godot --headless --script mcp_stdio_shim.gd con puerto y token por env).",
   "milestone": "m03",
-  "notes": "",
+  "notes": "plugin._mcp_servers():\n- si el agente anuncia mcpCapabilities.http, va una entrada http con el header Authorization;\n- si no, StdioShimInstaller.server_entry, con OS.get_executable_path() y el shim copiado a user://godot_agent_mcp_shim con su propio project.godot (D17); URL y token por env.\n\nmcp/mcp_stdio_shim.gd: un thread hace stdin → POST → stdout en orden y no escribe nada para las notificaciones (202). Mantiene el Mcp-Session-Id y reconecta. Si el server devuelve un error HTTP en un request, responde un error JSON-RPC.",
   "order": 6,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "- mcp-test: el shim, lanzado con AgentProcess, responde initialize y tools/call editor_state, y no responde a notifications/initialized. Pasa en 4.4.1, 4.7.2 y 4.8.\n- Con Claude real se usó la entrada http (el adapter anuncia http: true).",
   "title": "Conectar el MCP en session/new y shim stdio",
-  "updated_at": "2026-10-21T04:32:38.841Z"
+  "updated_at": "2026-10-21T06:00:11.216Z"
 }

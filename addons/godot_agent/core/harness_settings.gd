@@ -11,6 +11,8 @@ const PREFIX := "godot_agent/"
 const KEY_PROFILES := "agents/profiles"
 const KEY_ACCENT := "ui/accent_color"
 const KEY_LAST_PROFILE := "agents/last_profile"
+## Puerto del server MCP (0 = aleatorio en cada arranque).
+const KEY_MCP_PORT := "mcp/port"
 
 const DEFAULT_ACCENT := Color("#f0a85a")
 
@@ -24,6 +26,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_ACCENT, DEFAULT_ACCENT, TYPE_COLOR)
 		_declare(KEY_PROFILES, JSON.stringify(AgentProfile.defaults()), TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_LAST_PROFILE, "", TYPE_STRING)
+		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
 
 
 func get_value(key: String, default_value: Variant = null) -> Variant:
@@ -91,9 +94,13 @@ func set_active_profile(id: String) -> void:
 	set_value(KEY_LAST_PROFILE, id)
 
 
-func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE) -> void:
+func mcp_port() -> int:
+	return clampi(int(get_value(KEY_MCP_PORT, 0)), 0, 65535)
+
+
+func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE, hint_string: String = "") -> void:
 	var full := PREFIX + key
 	if not _editor_settings.has_setting(full):
 		_editor_settings.set_setting(full, default_value)
 	_editor_settings.set_initial_value(full, default_value, false)
-	_editor_settings.add_property_info({"name": full, "type": type, "hint": hint})
+	_editor_settings.add_property_info({"name": full, "type": type, "hint": hint, "hint_string": hint_string})

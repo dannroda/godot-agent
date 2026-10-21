@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:36.990Z",
   "description": "Parser incremental: request line, headers, Content-Length, requests partidos y concatenados, Content-Length incorrecto, sin chunked (411/400). Tests unitarios.",
   "milestone": "m03",
-  "notes": "",
+  "notes": "mcp/http_parser.gd (RefCounted): feed(bytes) devuelve los requests completos.\n- Headers en minúscula; body por Content-Length; keep_alive() según la versión y Connection.\n- Errores 400, 411 (Transfer-Encoding), 413 (body de más de 8 MB), 431 (headers de más de 16 KB) y 505. Después de un error no parsea más: la conexión se cierra.\n- HttpParser.response(status, body, headers) serializa la respuesta.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/unit/test_http_parser.gd (5 tests, 25 checks):\n- un request;\n- byte a byte y dos requests concatenados, con body UTF-8;\n- body incompleto;\n- chunked, Content-Length inválido o negativo, request line rota, HTTP/2, headers enormes y body enorme;\n- serialización de la respuesta.",
   "title": "Parser HTTP/1.1 mínimo",
-  "updated_at": "2026-10-21T04:32:36.990Z"
+  "updated_at": "2026-10-21T05:35:27.569Z"
 }

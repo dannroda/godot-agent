@@ -402,7 +402,7 @@ Ruido conocido: la prueba de ciclo puede crecer más de 50 objetos si corre just
 
 Docs: progress.md (sección M2) y decisions.md (D15).
 
-## M3 — Servidor MCP y tools de lectura  (0/7)
+## M3 — Servidor MCP y tools de lectura  (7/7, 7 en revisión)
 
 McpServer con token, initialize, tools/list y tools/call; tools read y diagnostics; fallback del shim stdio.
 
@@ -410,47 +410,151 @@ McpServer con token, initialize, tools/list y tools/call; tools read y diagnosti
 - Claude Code lista las tools `godot.*` y responde "¿cuántos nodos tiene Main.tscn?" usando `scene_tree`.
 - Tests del parser HTTP con requests partidos y concatenados.
 
-### 3.1 Parser HTTP/1.1 mínimo · Pendiente
+### 3.1 Parser HTTP/1.1 mínimo · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Parser incremental: request line, headers, Content-Length, requests partidos y concatenados, Content-Length incorrecto, sin chunked (411/400). Tests unitarios.
 
-### 3.2 McpServer: TCPServer en 127.0.0.1 con token · Pendiente
+**Prueba:** tests/unit/test_http_parser.gd (5 tests, 25 checks):
+- un request;
+- byte a byte y dos requests concatenados, con body UTF-8;
+- body incompleto;
+- chunked, Content-Length inválido o negativo, request line rota, HTTP/2, headers enormes y body enorme;
+- serialización de la respuesta.
+
+**Notas:** mcp/http_parser.gd (RefCounted): feed(bytes) devuelve los requests completos.
+- Headers en minúscula; body por Content-Length; keep_alive() según la versión y Connection.
+- Errores 400, 411 (Transfer-Encoding), 413 (body de más de 8 MB), 431 (headers de más de 16 KB) y 505. Después de un error no parsea más: la conexión se cierra.
+- HttpParser.response(status, body, headers) serializa la respuesta.
+
+### 3.2 McpServer: TCPServer en 127.0.0.1 con token · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Puerto configurable (0 = aleatorio), token Bearer por sesión, POST /mcp, Mcp-Session-Id, 202 para notificaciones, 401/404/405, Connection. Red no bloqueante (polling en _process); cada request se ejecuta en el hilo principal. initialize, notifications/initialized, tools/list, tools/call, ping.
 
-### 3.3 ToolRegistry y base de tools · Pendiente
+**Prueba:** tests/unit/test_mcp_server.gd, con HTTP real contra el nodo:
+- 401 (sin token y con token malo), 404, 405, 403 por Origin, 400 y 404 de sesión;
+- initialize con versión y session id, notificación 202, tools/list, tools/call, -32602, -32601 y versión desconocida;
+- dos requests pipelined en la misma conexión, respondidos en orden.
+
+Pasa en 4.8 y 4.4.1.
+
+**Notas:** mcp/mcp_server.gd (Node, hijo del plugin):
+- TCPServer en 127.0.0.1 con polling no bloqueante en _process (D16), hasta 16 conexiones y keep-alive;
+- cada conexión atiende sus requests en orden y puede esperar un permiso;
+- token de 24 bytes aleatorios por arranque, comparado en tiempo constante;
+- Origin no local → 403 (DNS rebinding); 401 con WWW-Authenticate; 404 de ruta o de Mcp-Session-Id desconocido; 405 para GET y DELETE (sin SSE); 400 por JSON inválido; 202 para notificaciones;
+- métodos initialize (negocia la versión y devuelve Mcp-Session-Id e instructions), ping, tools/list y tools/call; -32601 y -32602.
+
+El puerto sale de EditorSettings godot_agent/mcp/port (0 = aleatorio) y la URL queda en el log mcp.
+
+### 3.3 ToolRegistry y base de tools · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Cada tool declara name, description, inputSchema, group y execute(args). Resultado {content, isError}; truncado de texto configurable con aviso; imágenes reescaladas a 1280 px; errores accionables; log con nombre, duración y resumen. Política del lado del server (ask con timeout).
 
-### 3.4 Tools de lectura · Pendiente
+**Prueba:** tests/unit/test_tool_registry.gd:
+- list y orden;
+- validación (required, tipo, desconocido, enum, float entero);
+- tool desconocida y handler null;
+- authorizer async que deniega;
+- truncado y reescalado de imágenes;
+- log;
+- redacción del secreto.
+
+**Notas:** mcp/mcp_tool.gd: `create(name, group, description, properties, required, handler)`.
+- validate() revisa required, tipos básicos, enum y argumentos desconocidos, con mensajes accionables.
+- Helpers text, error, image, int_arg y str_arg.
+
+mcp/tool_registry.gd: call_tool siempre devuelve {content, isError}.
+- Pasos: validación → authorizer (await; en plugin.gd es SessionController.authorize con permission_timeout_s de ProjectConfig) → handler.
+- Si el handler devuelve null (error de script), responde un error.
+- Trunca el texto a max_output_chars con un aviso y reescala imágenes PNG a max_image_side.
+- Log en el canal mcp con nombre, args, duración y resumen. El raw va en JSON, sin el base64.
+
+AgentLog.add_secret: el token MCP queda redactado en todo el log.
+
+### 3.4 Tools de lectura · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 project_info, list_files, scene_tree (compacto, propiedades no default, depth), get_node, editor_state (spec §6).
 
-### 3.5 Tools de diagnóstico · Pendiente
+**Prueba:** `--godot-agent-mcp-test` (mcp_check.gd) en 4.4.1, 4.7.2 y 4.8 contra tests/fixtures/main_fixture.tscn:
+- scene_tree: 5 nodos, position, speed=300, grupo y sin defaults; depth 0;
+- get_node Timer: conexión timeout → Player::_on_timer_timeout y wait_time; nodo inexistente → isError;
+- editor_state, list_files con pattern y project_info.
+
+**Notas:** mcp/tools/read_tools.gd y mcp/tools/scene_access.gd. Todas devuelven texto compacto.
+- project_info: versión, nombre, escena principal, renderer, features, autoloads, input map con eventos y plugins.
+- list_files: lista de EditorFileSystem con tipo, pattern glob y recursive; hasta 2000 entradas.
+- scene_tree:
+  - con la escena abierta usa la del editor (con sus cambios sin guardar); si no, instancia del disco y libera;
+  - una línea por nodo con tipo, instancia, script, grupos y propiedades no default (contra el default del script o de ClassDB);
+  - depth y tope de 600 nodos.
+- get_node: propiedades completas, conexiones persistentes, hijos. Si no lo encuentra, el error sugiere los hijos de la raíz.
+- editor_state: escena actual y abiertas, selección, script abierto con línea, scripts abiertos y juego corriendo.
+
+### 3.5 Tools de diagnóstico · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 get_errors (errores y warnings desde una marca), validate_scripts (parse de scripts con errores por línea; fallback godot --headless --check-only), capture_editor_viewport 2d/3d como PNG base64.
 
-### 3.6 Conectar el MCP en session/new y shim stdio · Pendiente
+**Prueba:** - Unit: tests/unit/test_diagnostic_tools.gd (parseo con ANSI, error de dependencia, ubicación, marcas).
+- mcp-test en 4.4.1, 4.7.2 y 4.8:
+  - get_errors ve un push_error nuevo desde la marca y no lo repite con la marca siguiente;
+  - validate_scripts reporta "línea 4: … undefined_thing" del script roto y nada del sano;
+  - capture 2d devuelve una imagen; un enum inválido da isError.
+
+**Notas:** D18.
+- core/error_collector.gd: stream numerado con marcas. Fuentes: Logger compilado en runtime en 4.5+, panel Output en 4.4 (formato inline "ERROR: archivo:línea - msg") y árbol de errores del Debugger.
+- validate_scripts: subproceso con mcp/tools/script_checker.gd (marcas @@BEGIN/@@END en stderr), vía AgentProcess, con timeout de 60 s y tope de 400 scripts.
+- capture_editor_viewport usa EditorContext.capture_viewport; el registro reescala a max_image_side.
+
+### 3.6 Conectar el MCP en session/new y shim stdio · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Entrada http con header Authorization si mcpCapabilities.http; si no, shim stdio→HTTP en GDScript (godot --headless --script mcp_stdio_shim.gd con puerto y token por env).
 
-### 3.7 Verificar M3 · Pendiente
+**Prueba:** - mcp-test: el shim, lanzado con AgentProcess, responde initialize y tools/call editor_state, y no responde a notifications/initialized. Pasa en 4.4.1, 4.7.2 y 4.8.
+- Con Claude real se usó la entrada http (el adapter anuncia http: true).
+
+**Notas:** plugin._mcp_servers():
+- si el agente anuncia mcpCapabilities.http, va una entrada http con el header Authorization;
+- si no, StdioShimInstaller.server_entry, con OS.get_executable_path() y el shim copiado a user://godot_agent_mcp_shim con su propio project.godot (D17); URL y token por env.
+
+mcp/mcp_stdio_shim.gd: un thread hace stdin → POST → stdout en orden y no escribe nada para las notificaciones (202). Mantiene el Mcp-Session-Id y reconecta. Si el server devuelve un error HTTP en un request, responde un error JSON-RPC.
+
+### 3.7 Verificar M3 · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Tests de integración del server (HTTP real contra el editor headless). Claude Code lista las tools godot.* y responde "¿cuántos nodos tiene Main.tscn?" usando scene_tree. Actualizar progress.
+
+**Prueba:** Pasan en 4.4.1, 4.7.2 y 4.8-beta1:
+- run_all: 52 tests, 317 checks;
+- acp_session_check: 53 checks;
+- export_check;
+- cycle;
+- sync;
+- ui;
+- mcp-test.
+
+claude-mcp-test con Claude real: PASS en 4.8.
+
+**Notas:** `--godot-agent-claude-mcp-test` con Claude Code real en 4.8:
+- el adapter anunció http y Claude Code 2.1.303 inicializó con MCP 2025-06-18;
+- llamó a mcp__godot__scene_tree y respondió "tiene **5 nodos**: Main, Player, Sprite, Enemies, Timer".
+
+La prueba de ciclo se volvió robusta: espera el escaneo del FS, toma la línea base después del primer ciclo y falla si queda huérfano un nodo con script del addon.
+
+Bug encontrado y corregido: el set_process(false) en _ready del server lo apagaba después de start().
+Docs: D16, D17, D18 y la sección M3 de progress.md.
 
 ## M4 — Tools de edición y ejecución  (0/6)
 
