@@ -724,3 +724,9 @@ Sin Ollama ni llama.cpp en esta máquina, no se probó contra un modelo real. Pa
 4. Seguí tipeando mientras el indicador está ámbar: la request se cancela (`llm cancelled` en el log) y lo local sigue apareciendo al instante.
 5. Con un perfil Codestral, sin `MISTRAL_API_KEY` en el entorno: el indicador se pone rojo con el error. Con la variable y reabriendo el editor, funciona; la tarjeta del perfil avisa que el código se envía a api.mistral.ai.
 6. Settings → Completado → «Esta sesión, por fuente» muestra p50/p95 y aceptación de `llm` y de las fuentes locales.
+
+## Después de M8c · Prueba en un proyecto real
+
+- **UI del editor rota al activar el plugin** (Asteroids, 4.8-beta1): toda la UI quedaba en una franja angosta. Labels con autowrap del dock oculto pedían miles de píxeles de alto, y los slots de docks cuentan las pestañas ocultas (D29). Arreglado con `ui/min_size_guard.gd` alrededor de cada superficie.
+- Verificado con una copia del proyecto en Xvfb: con el dock oculto y con el dock como pestaña elegida (como lo tenía el usuario), el editor se acomoda normal. `test_min_size_guard` lo reproduce.
+- En 4.4.1, 4.7.2 y 4.8-beta1: `run_all` (132 tests, 1003 checks), `acp_session_check`, `oneshot_check`, cycle, completion, edit, review, oneshot, sync y long test.

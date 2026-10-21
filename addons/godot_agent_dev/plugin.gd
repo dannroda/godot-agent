@@ -514,11 +514,12 @@ func _arg_value(prefix: String) -> String:
 func _find_dock() -> Control:
 	for node: Node in EditorInterface.get_base_control().find_children("*", "VBoxContainer", true, false):
 		if node.get_script() and (node.get_script() as Script).resource_path == DOCK_SCRIPT:
-			var holder := node.get_parent()
+			var guard := node.get_parent()  # MinSizeGuard
+			var holder := guard.get_parent()
 			if holder.has_method(&"make_visible"):
 				holder.call(&"make_visible")
 			elif holder is TabContainer:
-				(holder as TabContainer).current_tab = node.get_index()
+				(holder as TabContainer).current_tab = guard.get_index()
 			return node
 	return null
 

@@ -3,16 +3,20 @@ extends RefCounted
 ## Agrega y quita las superficies del addon en el editor: dock lateral, panel inferior y main screen.
 ## Usa EditorDock + add_dock donde existe y la API vieja en las versiones anteriores
 ## (docs/decisions.md, D9). Todo lo de EditorDock va por reflexión para que parsee en 4.4.
+## Cada superficie se monta dentro de un MinSizeGuard: su tamaño mínimo no puede agrandar el editor.
 
 enum Surface { SIDE, BOTTOM, MAIN_SCREEN }
 
+const MinSizeGuard := preload("min_size_guard.gd")
+const AgentTheme := preload("agent_theme.gd")
 const _DOCK_CLASS := &"EditorDock"
 
 ## Slot inicial del dock lateral: nombre de la constante (igual en EditorPlugin y EditorDock).
 ## Con EditorDock solo cuenta la primera vez: después el editor recuerda dónde lo dejó el usuario.
 var side_slot: StringName = &"DOCK_SLOT_RIGHT_UL"
 var _plugin: EditorPlugin
-## { surface: Surface, control: Control, wrapper: Control (EditorDock o null) }
+## { surface: Surface, control: Control, mounted: MinSizeGuard (lo que se agrega al editor),
+##   wrapper: Control (EditorDock o null), title: String }
 var _entries: Array[Dictionary] = []
 
 
@@ -34,27 +38,28 @@ static func uses_dock_api(surface: Surface) -> bool:
 
 func add(surface: Surface, control: Control, title: String, layout_key: String, icon: Texture2D = null) -> void:
 	var wrapper: Control = null
+	var mounted := MinSizeGuard.new(control, AgentTheme.editor_scale())
 	if uses_dock_api(surface):
-		wrapper = _make_dock(surface, control, title, layout_key, icon)
+		wrapper = _make_dock(surface, mounted, title, layout_key, icon)
 		_plugin.call(&"add_dock", wrapper)
 	else:
 		match surface:
 			Surface.SIDE:
-				_plugin.add_control_to_dock(ClassDB.class_get_integer_constant(&"EditorPlugin", side_slot) as EditorPlugin.DockSlot, control)
+				_plugin.add_control_to_dock(ClassDB.class_get_integer_constant(&"EditorPlugin", side_slot) as EditorPlugin.DockSlot, mounted)
 			Surface.BOTTOM:
-				_plugin.add_control_to_bottom_panel(control, title)
+				_plugin.add_control_to_bottom_panel(mounted, title)
 			Surface.MAIN_SCREEN:
 				# El plugin responde _has_main_screen() == true y maneja la visibilidad en _make_visible().
-				control.visible = false
-				EditorInterface.get_editor_main_screen().add_child(control)
-	_entries.append({ "surface": surface, "control": control, "wrapper": wrapper, "title": title })
+				mounted.visible = false
+				EditorInterface.get_editor_main_screen().add_child(mounted)
+	_entries.append({ "surface": surface, "control": control, "mounted": mounted, "wrapper": wrapper, "title": title })
 
 
 ## Visibilidad de la main screen con la API vieja (llamado desde EditorPlugin._make_visible).
 func set_legacy_main_screen_visible(visible: bool) -> void:
 	for entry: Dictionary in _entries:
-		if entry.surface == Surface.MAIN_SCREEN and entry.wrapper == null and is_instance_valid(entry.control):
-			(entry.control as Control).visible = visible
+		if entry.surface == Surface.MAIN_SCREEN and entry.wrapper == null and is_instance_valid(entry.mounted):
+			(entry.mounted as Control).visible = visible
 
 
 ## Muestra la superficie (p. ej. "Ver log" abre el panel inferior). La main screen se muestra con
@@ -67,16 +72,16 @@ func make_visible(surface: Surface) -> void:
 		if is_instance_valid(wrapper):
 			wrapper.call(&"make_visible")
 			return
-		var control: Control = entry.control
-		if not is_instance_valid(control):
+		var mounted: Control = entry.mounted
+		if not is_instance_valid(mounted):
 			return
 		match surface:
 			Surface.BOTTOM:
-				_plugin.make_bottom_panel_item_visible(control)
+				_plugin.make_bottom_panel_item_visible(mounted)
 			Surface.SIDE:
-				var tabs := control.get_parent() as TabContainer
+				var tabs := mounted.get_parent() as TabContainer
 				if tabs:
-					tabs.current_tab = control.get_index()
+					tabs.current_tab = mounted.get_index()
 			Surface.MAIN_SCREEN:
 				EditorInterface.set_main_screen_editor(entry.title)
 		return
@@ -84,7 +89,7 @@ func make_visible(surface: Surface) -> void:
 
 func remove_all() -> void:
 	for entry: Dictionary in _entries:
-		var control: Control = entry.control
+		var mounted: Control = entry.mounted
 		var wrapper: Control = entry.wrapper
 		if is_instance_valid(wrapper):
 			# 4.8-beta1: quitar la main screen activa al cerrar el editor da
@@ -95,14 +100,14 @@ func remove_all() -> void:
 			_plugin.call(&"remove_dock", wrapper)
 			wrapper.queue_free()
 			continue
-		if not is_instance_valid(control):
+		if not is_instance_valid(mounted):
 			continue
 		match entry.surface:
 			Surface.SIDE:
-				_plugin.remove_control_from_docks(control)
+				_plugin.remove_control_from_docks(mounted)
 			Surface.BOTTOM:
-				_plugin.remove_control_from_bottom_panel(control)
-		control.queue_free()
+				_plugin.remove_control_from_bottom_panel(mounted)
+		mounted.queue_free()
 	_entries.clear()
 
 
@@ -121,8 +126,6 @@ func _make_dock(surface: Surface, control: Control, title: String, layout_key: S
 		Surface.MAIN_SCREEN:
 			dock.set(&"default_slot", _dock_const(&"DOCK_SLOT_MAIN_SCREEN"))
 			dock.set(&"available_layouts", _dock_const(&"DOCK_LAYOUT_MAIN_SCREEN"))
-	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	control.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	dock.add_child(control)
 	return dock
 
