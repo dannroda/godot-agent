@@ -121,6 +121,13 @@ func _handle_line(line: String) -> void:
 			_reply(id, result)
 			if _scenario.get("on_new_session") is Array:
 				_steps = (_scenario.on_new_session as Array).duplicate(true)
+		"session/load":
+			# Como claude-agent-acp: vuelve a mandar la conversación como session/update y después responde.
+			_session_id = str(message.get("params", {}).get("sessionId", ""))
+			printerr("fake_agent: session/load %s" % _session_id)
+			_update({"sessionUpdate": "user_message_chunk", "content": {"type": "text", "text": "(replay del agente)"}})
+			_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "(replay del agente)"}})
+			_reply(id, _scenario.get("session", {}))
 		"session/prompt":
 			printerr("fake_agent: prompt %s" % JSON.stringify(message.get("params", {}).get("prompt", [])))
 			_start_turn(id)

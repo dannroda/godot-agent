@@ -31,6 +31,8 @@ extends EditorPlugin
 ##   One-shot con el agente falso sobre un repo temporal (cuota, checkpoints, Volver acá, Aceptar).
 ## - `-- --godot-agent-claude-oneshot-test [--godot-agent-ui-shot=<ruta.png>]`: One-shot de Pong
 ##   con Claude Code real (gasta tokens), dentro del sandbox de `tests/make_sandbox.sh <dir> --dev`.
+## - `-- --godot-agent-long-test`: sesión de más de 600 entradas con el agente falso; mide los frames
+##   y comprueba el tope de vistas vivas y "Mostrar anteriores".
 ## - `-- --godot-agent-claude-review-test`: lo mismo con Claude Code real (gasta tokens): los tres
 ##   bugs sembrados tienen que quedar anotados en su línea.
 
@@ -63,6 +65,10 @@ const REVIEW_ARG := "--godot-agent-review-test"
 const CLAUDE_REVIEW_ARG := "--godot-agent-claude-review-test"
 const ONESHOT_ARG := "--godot-agent-oneshot-test"
 const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
+const LONG_ARG := "--godot-agent-long-test"
+const SETTINGS_ARG := "--godot-agent-settings-shots="
+const HISTORY_ARG := "--godot-agent-history-test="
+const LongSessionCheck := preload("long_session_check.gd")
 const CLAUDE_ONESHOT_TIMEOUT_S := 2700.0
 const OneShotUiCheck := preload("oneshot_ui_check.gd")
 const ReviewCheck := preload("review_check.gd")
@@ -105,11 +111,17 @@ func _enter_tree() -> void:
 		_run_oneshot_test.call_deferred()
 	if CLAUDE_ONESHOT_ARG in args:
 		_run_claude_oneshot_test.call_deferred()
+	if LONG_ARG in args:
+		_run_long_test.call_deferred()
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
 		if arg.begins_with(CRASH_ARG):
 			_run_crash_test.call_deferred(arg.trim_prefix(CRASH_ARG))
+		if arg.begins_with(HISTORY_ARG):
+			_run_history_test.call_deferred(arg.trim_prefix(HISTORY_ARG))
+		if arg.begins_with(SETTINGS_ARG):
+			_run_settings_shots.call_deferred(arg.trim_prefix(SETTINGS_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
 
@@ -314,6 +326,17 @@ func _run_claude_oneshot_test() -> void:
 	for failure: String in failures:
 		print("[claude-oneshot] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "claude-oneshot-test: %d fallas" % failures.size())
+
+
+func _run_long_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var check := LongSessionCheck.new()
+	var failures: PackedStringArray = await check.run_long(get_tree())
+	print("[long-check] ", check.report)
+	for failure: String in failures:
+		print("[long-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "long-test: %d fallas" % failures.size())
 
 
 func _run_claude_scene_test() -> void:
@@ -527,6 +550,99 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		image.save_png(shot_path)
 	controller.call(&"stop")
 	_finish(0, "ui-test %s" % scenario)
+
+
+## M7: dos turnos con el agente falso, cerrar, y reabrir la sesión desde el menú de historial del dock.
+func _run_history_test(shot_path: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var controller: Object = dock.get(&"_controller")
+	var model: Object = dock.get(&"_model")
+	if controller.get(&"history") == null:
+		_finish(1, "el plugin no le dio historial al controller")
+		return
+	var profile := AgentProfile.from_dict({
+		"id": "fake", "display_name": "Agente falso", "command": OS.get_executable_path(),
+		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
+			"--script", "res://tests/fake_agent.gd", "--", "--scenario=res://tests/scripts/history.json"],
+	})
+	if not await controller.call(&"start", profile):
+		_finish(1, "no arrancó la sesión: %s" % model.get(&"failure_message"))
+		return
+	var session_id: String = model.get(&"session_id")
+	await controller.call(&"send_prompt", "arreglá la pelota")
+	await controller.call(&"send_prompt", "seguí")
+	controller.call(&"stop")
+	(dock.get(&"_history_button") as Button).pressed.emit()
+	await get_tree().create_timer(0.3).timeout
+	var menu: PopupMenu = dock.get(&"_history_menu")
+	var items: Array = dock.get(&"_history_items")
+	if not menu.visible or items.is_empty() or items[0].get("id") != session_id or not menu.get_item_text(0).contains("Arreglar la pelota"):
+		_finish(1, "el menú de historial no muestra la sesión (%s, %s)" % [menu.visible, items])
+		return
+	menu.hide()
+	# El perfil "fake" no está en Settings: se reabre con el activo, que acá se cambia por el falso.
+	var settings: Object = dock.get(&"_settings")
+	var saved_profiles: Array = settings.call(&"profiles")
+	var with_fake: Array[AgentProfile] = [profile]
+	settings.call(&"save_profiles", with_fake)
+	var resumed: bool = await dock.call(&"open_history_session", session_id)
+	settings.call(&"save_profiles", saved_profiles)
+	await get_tree().create_timer(0.5).timeout
+	if not resumed or model.get(&"session_id") != session_id or int(model.get(&"state")) != 2:
+		_finish(1, "no se reanudó la sesión (%s, %s)" % [resumed, model.get(&"failure_message")])
+		return
+	if not shot_path.is_empty():
+		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
+	controller.call(&"stop")
+	_finish(0, "historial: la sesión se reabrió desde el dock")
+
+
+## M7: abre Settings desde el botón del dock y guarda una captura por sección en `<prefijo>_<n>.png`.
+func _run_settings_shots(prefix: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	(dock.get(&"_settings_button") as Button).pressed.emit()
+	await get_tree().create_timer(0.5).timeout
+	var dialog: Window = null
+	for node: Node in EditorInterface.get_base_control().get_children():
+		if node is ConfirmationDialog and node.has_method(&"matrix_overrides"):
+			dialog = node
+	if dialog == null or not dialog.visible:
+		_finish(1, "el botón de Settings no abrió el diálogo")
+		return
+	if not (dialog.call(&"validate") as Dictionary).is_empty():
+		_finish(1, "los settings actuales no validan: %s" % dialog.call(&"validate"))
+		return
+	var nav: ItemList = dialog.get(&"_nav")
+	for i in nav.item_count:
+		nav.select(i)
+		nav.item_selected.emit(i)
+		await get_tree().create_timer(0.4).timeout
+		dialog.get_texture().get_image().save_png("%s_%d.png" % [prefix, i])
+	# Guardar aplica la matriz en caliente y escribe project_config.tres (se borra al final).
+	var config_path := "res://addons/godot_agent/config/project_config.tres"
+	var had_config := FileAccess.file_exists(config_path)
+	var option: OptionButton = (dialog.get(&"_matrix") as Dictionary)["read"][0]  # Lectura · Preguntar
+	option.select(2)  # no
+	dialog.call(&"_on_save")
+	var policy: Object = (dock.get(&"_controller") as Object).get(&"policy")
+	var saved_ok: bool = not dialog.visible and policy.call(&"matrix_value", "read", 0) == "deny" and FileAccess.file_exists(config_path)
+	if not had_config:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(config_path))
+	policy.set(&"overrides", {})
+	if not saved_ok:
+		_finish(1, "settings: guardar no aplicó la matriz (visible=%s, read/ask=%s)" % [dialog.visible, policy.call(&"matrix_value", "read", 0)])
+		return
+	_finish(0, "settings: %d secciones, guardar aplica la matriz" % nav.item_count)
 
 
 func _take_screenshot(path: String) -> void:

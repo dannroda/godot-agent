@@ -1,7 +1,8 @@
 @tool
 extends ScrollContainer
 ## Lista de mensajes del dock. Lee las entradas del SessionModel al conectarse (pull) y después
-## escucha sus señales (push). Mantiene un máximo de vistas para sesiones largas.
+## escucha sus señales (push). Para sesiones largas mantiene un máximo de vistas vivas (las viejas
+## se cargan bajo demanda con "Mostrar anteriores") y refresca cada vista a lo sumo una vez por frame.
 
 ## Acción de una entrada (ver EntryView.action_requested).
 signal action_requested(action: String, payload: Variant)
@@ -21,6 +22,10 @@ const PermissionView := preload("entries/permission_view.gd")
 
 ## Vistas vivas como máximo; las más viejas se descartan (siguen en el modelo).
 const MAX_VIEWS := 250
+## Entradas que agrega cada "Mostrar anteriores".
+const SHOW_OLDER_STEP := 50
+## Tiempo de un frame para armar vistas nuevas; el resto queda para el siguiente.
+const BUILD_BUDGET_USEC := 8000
 ## Distancia al fondo (px) dentro de la cual se sigue el streaming automáticamente.
 const STICK_THRESHOLD := 48.0
 
@@ -31,10 +36,15 @@ var _model: SessionModel
 var _accent: Color
 var _markdown := MarkdownBBCode.new()
 var _list: VBoxContainer
-var _hidden_label: Label
+var _show_older: Button
 var _views: Dictionary = {}  # entry id -> EntryView
 var _order: Array[int] = []
 var _hidden_count: int = 0
+## Máximo actual: MAX_VIEWS más lo que el usuario pidió ver con "Mostrar anteriores".
+var _limit: int = MAX_VIEWS
+var _pending_refresh: Dictionary = {}  # entry id -> ChatEntry
+## Entradas nuevas que todavía no tienen vista (se arman por tandas en _build_pending).
+var _pending_add: Array[ChatEntry] = []
 var _stick_to_bottom: bool = true
 var _scroll_pending: bool = false
 
@@ -63,11 +73,12 @@ func _ready() -> void:
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list.add_theme_constant_override(&"separation", AgentTheme.px(10))
 	margin.add_child(_list)
-	_hidden_label = Label.new()
-	_hidden_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hidden_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	_hidden_label.visible = false
-	_list.add_child(_hidden_label)
+	_show_older = Button.new()
+	_show_older.flat = true
+	_show_older.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_show_older.visible = false
+	_show_older.pressed.connect(show_older)
+	_list.add_child(_show_older)
 	get_v_scroll_bar().value_changed.connect(_on_scrolled)
 	get_v_scroll_bar().changed.connect(_on_scroll_range_changed)
 	if _model:
@@ -84,16 +95,84 @@ func entry_count() -> int:
 	return _views.size()
 
 
+## Hay entradas esperando su vista (ráfaga en curso).
+func is_building() -> bool:
+	return not _pending_add.is_empty()
+
+
+func hidden_count() -> int:
+	return _hidden_count
+
+
+## Las vistas se arman por tandas con un presupuesto por frame. Si en una ráfaga llegan más
+## entradas que el tope, las que quedarían ocultas ni se arman.
 func _add_view(entry: ChatEntry) -> void:
-	var view := _make_view(entry)
-	if view == null:
+	if _pending_add.is_empty():
+		_build_pending.call_deferred()
+	_pending_add.append(entry)
+
+
+func _build_pending() -> void:
+	if not is_inside_tree():
+		if not tree_entered.is_connected(_build_pending):
+			tree_entered.connect(_build_pending, CONNECT_ONE_SHOT)
 		return
-	view.action_requested.connect(func(action: String, payload: Variant) -> void: action_requested.emit(action, payload))
-	_views[entry.id] = view
-	_order.append(entry.id)
-	_list.add_child(view)
+	var overflow := _pending_add.size() - _limit
+	if overflow > 0:
+		_hidden_count += overflow
+		_pending_add = _pending_add.slice(overflow)
+		# Las vistas que había ya quedan más viejas que todo lo pendiente.
+		while not _order.is_empty():
+			_drop_oldest()
+	var started := Time.get_ticks_usec()
+	while not _pending_add.is_empty():
+		var entry: ChatEntry = _pending_add.pop_front()
+		var view := _make_view(entry)
+		if view:
+			_track(entry, view)
+			_order.append(entry.id)
+			_list.add_child(view)
+		if Time.get_ticks_usec() - started > BUILD_BUDGET_USEC:
+			break
 	_trim()
 	_request_scroll()
+	if not _pending_add.is_empty() and not get_tree().process_frame.is_connected(_build_pending):
+		get_tree().process_frame.connect(_build_pending, CONNECT_ONE_SHOT)
+
+
+func _track(entry: ChatEntry, view: EntryView) -> void:
+	view.action_requested.connect(func(action: String, payload: Variant) -> void: action_requested.emit(action, payload))
+	_views[entry.id] = view
+
+
+## "Mostrar anteriores": vuelve a armar las SHOW_OLDER_STEP entradas previas a la primera visible.
+func show_older() -> void:
+	if _hidden_count <= 0 or _order.is_empty():
+		return
+	var entries := _model.entries()
+	var first := -1
+	for i in entries.size():
+		if entries[i].id == _order[0]:
+			first = i
+			break
+	if first <= 0:
+		return
+	var start := maxi(0, first - SHOW_OLDER_STEP)
+	var position := 1  # después del botón
+	var added := 0
+	for i in range(start, first):
+		var view := _make_view(entries[i])
+		if view == null:
+			continue
+		_track(entries[i], view)
+		_order.insert(added, entries[i].id)
+		_list.add_child(view)
+		_list.move_child(view, position + added)
+		added += 1
+	_hidden_count = maxi(0, _hidden_count - (first - start))
+	_limit += first - start
+	_stick_to_bottom = false
+	_update_show_older()
 
 
 func _make_view(entry: ChatEntry) -> EntryView:
@@ -121,11 +200,23 @@ func _make_view(entry: ChatEntry) -> EntryView:
 	return view
 
 
+## Los updates llegan en ráfagas (muchos por frame): cada vista se refresca una sola vez por frame.
 func _refresh_view(entry: ChatEntry) -> void:
-	var view: EntryView = _views.get(entry.id)
-	if view and view.is_node_ready():
-		view.refresh()
-		_request_scroll()
+	if not _views.has(entry.id):
+		return
+	if _pending_refresh.is_empty():
+		_flush_refreshes.call_deferred()
+	_pending_refresh[entry.id] = entry
+
+
+func _flush_refreshes() -> void:
+	var pending := _pending_refresh
+	_pending_refresh = {}  # lo que se encole mientras tanto va a la próxima tanda
+	for id: int in pending:
+		var view: EntryView = _views.get(id)
+		if is_instance_valid(view) and view.is_node_ready():
+			view.refresh()
+	_request_scroll()
 
 
 func _on_tool_call_changed(_call: ToolCall, group: ChatEntry) -> void:
@@ -134,7 +225,9 @@ func _on_tool_call_changed(_call: ToolCall, group: ChatEntry) -> void:
 
 
 func _remove_view(entry: ChatEntry) -> void:
+	_pending_add.erase(entry)
 	var view: EntryView = _views.get(entry.id)
+	_pending_refresh.erase(entry.id)
 	if view:
 		_views.erase(entry.id)
 		_order.erase(entry.id)
@@ -146,21 +239,33 @@ func _clear() -> void:
 		(_views[id] as Node).queue_free()
 	_views.clear()
 	_order.clear()
+	_pending_refresh.clear()
+	_pending_add.clear()
 	_hidden_count = 0
-	_hidden_label.visible = false
+	_limit = MAX_VIEWS
+	_update_show_older()
 	_stick_to_bottom = true
 
 
 func _trim() -> void:
-	while _order.size() > MAX_VIEWS:
-		var id: int = _order.pop_front()
-		var view: EntryView = _views.get(id)
-		_views.erase(id)
-		if view:
-			view.queue_free()
-		_hidden_count += 1
-	_hidden_label.visible = _hidden_count > 0
-	_hidden_label.text = "%d entradas anteriores ocultas" % _hidden_count
+	while _order.size() > _limit:
+		_drop_oldest()
+	_update_show_older()
+
+
+func _drop_oldest() -> void:
+	var id: int = _order.pop_front()
+	var view: EntryView = _views.get(id)
+	_views.erase(id)
+	_pending_refresh.erase(id)
+	if view:
+		view.queue_free()
+	_hidden_count += 1
+
+
+func _update_show_older() -> void:
+	_show_older.visible = _hidden_count > 0
+	_show_older.text = "Mostrar %d anteriores (%d ocultas)" % [mini(SHOW_OLDER_STEP, _hidden_count), _hidden_count]
 
 
 func _on_scrolled(value: float) -> void:

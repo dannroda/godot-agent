@@ -61,7 +61,7 @@ func _make(scenario: String) -> OneShotRun:
 	controller.setup(model, AgentLog.new(), ProjectSettings.globalize_path("res://").trim_suffix("/"))
 	var run := OneShotRun.new()
 	run.setup(controller, _repo(scenario))
-	run.restart_session = func() -> bool: return await controller.start(_profile(scenario))
+	run.restart_session = func(_lost_id: String) -> bool: return await controller.start(_profile(scenario))
 	root.add_child(run)
 	return run
 

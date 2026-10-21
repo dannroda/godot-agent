@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:43.435Z",
   "description": "Párrafos, títulos, negrita, itálica, code inline, bloques de código, listas (anidadas), links, escapado de corchetes BBCode. Tests unitarios con casos borde.",
   "milestone": "m07",
-  "notes": "",
+  "notes": "ui/markdown/markdown_bbcode.gd:\n- Antes de cualquier formato, `\\X` pasa a caracteres de uso privado (U+E000+X) y los code spans a U+E100+n. Así, ni el énfasis ni los links ven lo que hay adentro, y un span dentro del texto de un link se renderiza bien.\n- Code spans de N backticks con el relleno de un espacio.\n- Links con un nivel de paréntesis en la URL.\n- Fences ``` y ~~~: cierra uno del mismo carácter y por lo menos igual de largo.\n- Las líneas indentadas después de un ítem siguen el ítem.\n- Salto forzado con dos espacios o `\\` al final.\n- Citas con profundidad (▎ por nivel) y con bloque adentro.\n- _balance() cierra y reabre b/i/s cruzados.",
   "order": 4,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "run_all -- markdown: test_markdown_bbcode (6 tests, 57 checks) en 4.4.1, 4.7.2 y 4.8. Casos borde:\n- en línea: ***negrita e itálica***, énfasis anidado, escapes con \\, code spans con `` ` `` adentro y relleno, dos spans por línea, link dentro de code (no se convierte), code y énfasis dentro del texto de un link, paréntesis en la URL, guiones bajos en URL sueltas, marcas sin cerrar literales, BBCode del agente escapado y \\ dentro de code;\n- bloques: listas anidadas (•/◦), continuación de un ítem, ~~~, fence largo que contiene uno corto, bloque dentro de una lista, saltos forzados (dos espacios y \\), citas anidadas y con lista, \"#sin espacio\" que no es título, code en un título y regla ***;\n- tags siempre balanceados, aun con marcas cruzadas (**a *b** c*).",
   "title": "Markdown→BBCode robusto",
-  "updated_at": "2026-10-21T04:33:43.435Z"
+  "updated_at": "2026-10-21T08:00:43.995Z"
 }

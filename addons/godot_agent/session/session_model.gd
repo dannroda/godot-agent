@@ -60,6 +60,9 @@ var usage_size: int = 0
 var last_stop_reason: String = ""
 ## Mensaje del último error de conexión (estado FAILED).
 var failure_message: String = ""
+## true mientras se vuelve a armar una conversación del historial: las señales no son eventos nuevos
+## (nada de sincronizar archivos, checkpoints ni playtests).
+var replaying: bool = false
 
 var pending_permissions: Array[PermissionRequest] = []
 

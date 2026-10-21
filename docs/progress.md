@@ -416,6 +416,76 @@ Lo que salió de las corridas:
 
 ### Pendiente
 
-- `session/load` para retomar una sesión perdida (hoy es una sesión nueva con resumen, D24).
 - Marcas A/M en el FileSystem para los archivos tocados (mockup); el dock del FileSystem es interno del editor.
-- Los defaults de presupuestos se editan en `project_config.tres` hasta el diálogo de Settings (M7).
+- Resuelto en M7: `session/load` para retomar una sesión perdida, y los presupuestos default en Settings.
+
+---
+
+## M7 · Settings, historial, Markdown, rendimiento y README
+
+### Qué hay
+
+- **Settings** (`ui/settings/settings_dialog.gd`): un diálogo propio, porque una sección en Project Settings escribiría en `project.godot`. Se abre con el botón de ajustes del dock y reemplaza al editor de perfiles en JSON de M1. Secciones:
+  - **Agentes**: CRUD de perfiles y predeterminado. En `env` las claves van como `$VAR`: un valor literal en una variable con nombre de secreto no se guarda.
+  - **Permisos**: la matriz grupo × modo, "Volver a los valores de la spec" y la espera de las preguntas.
+  - **Servidor MCP**: URL actual, puerto, **Regenerar token** (reinicia el server en el mismo puerto), límites de las tools, playtest en runs manuales y carpetas extra para `fs/*`.
+  - **One-shot y cuota**: presupuestos default, checkpoints, umbrales de aviso y de pausa, y qué hacer al reiniciarse la ventana.
+  - **Interfaz**: color de acento y ubicación inicial del dock (nuevo `godot_agent/ui/dock_slot`).
+  - **Export**: presets sin el filtro y el botón para agregarlo, previa confirmación.
+
+  Guardar valida primero: ids únicos, un solo predeterminado, pausa por encima del aviso, rutas absolutas. Lo del usuario va a `EditorSettings` y lo del proyecto a `project_config.tres`; la matriz guarda solo lo que difiere de la spec. Permisos, carpetas, límites de las tools y presupuestos se aplican en caliente; puerto, color y dock, al reabrir el editor.
+- **Historial** (`session/session_history.gd`, spec §11): `user://godot_agent/sessions/<id>.jsonl` más un `index.json`.
+  - Guarda prompts, chunks unidos por mensaje, tool calls sin capturas ni `rawOutput` (los textos se recortan a 4000 caracteres), plan, título y fin de turno.
+  - Escribe una vez por turno y solo agrega las líneas nuevas, en un worker. Reescribir el JSON entero costaba 49 ms con 3,5 MB. Agregar las líneas cuesta 0,2 ms (p50), pero con el disco ocupado abrir el archivo llegó a 600 ms: por eso la escritura no va en el hilo principal.
+  - Las lecturas (menú, reanudar) y el cierre del plugin esperan al worker.
+  - Mientras se rearma una conversación del historial, `SessionModel.replaying` evita que las señales del replay se tomen como eventos nuevos (sincronizar archivos, checkpoints, playtests).
+  - El botón **Historial** del dock lista las sesiones del proyecto.
+  - Abrir una sesión arma la conversación desde el archivo y llama a `session/load`. El replay que manda el agente se descarta, porque trae el prompt de sistema como mensaje del usuario. Sin `loadSession`, la sesión queda de solo lectura.
+  - El One-shot, si perdió la sesión, la reabre con `session/load` (`SessionController.reopen`) y sigue con el mismo prompt de reanudación (D24).
+- **Markdown → BBCode robusto** (m7-04):
+  - escapes y code spans protegidos antes de aplicar formato;
+  - spans de N backticks;
+  - links con paréntesis;
+  - fences ``` y ~~~;
+  - continuación de listas, saltos forzados y citas anidadas;
+  - tags siempre balanceados, aun con marcas cruzadas.
+- **Rendimiento con sesiones largas** (m7-05):
+  - el transporte entrega las líneas de stdout con 6 ms por frame;
+  - la conversación arma las vistas por tandas de 8 ms y no arma las que quedarían ocultas;
+  - agrupa los refrescos;
+  - "Mostrar 50 anteriores" reemplaza al aviso de entradas ocultas.
+- **README** (`README.md`): instalación, modos, permisos, tools, One-shot, cuota, historial, perfiles, dónde se guarda cada setting, export, cómo actualizar sin perder la config y limitaciones por versión.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd                 # 84 tests, 570 checks (+ Settings, Markdown)
+$G --headless --path . --script tests/acp_session_check.gd       # 88 checks (+ historial, session/load, reopen)
+$G --headless --path . --script tests/oneshot_check.gd           # 34 checks
+tests/run_in_xvfb.sh $G --godot-agent-settings-shots=/tmp/s      # Settings desde el dock: 6 secciones; Guardar aplica la matriz
+tests/run_in_xvfb.sh $G --godot-agent-history-test=/tmp/h.png    # dos turnos, menú de historial y reanudación desde el dock
+tests/run_in_xvfb.sh $G --godot-agent-long-test                  # 641 entradas: frames, tope de vistas, "Mostrar anteriores"
+```
+
+Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1, junto con el cycle test, `--godot-agent-oneshot-test` y `--godot-agent-ui-test=ui_quota`.
+- Sesión larga en 4.8 (OpenGL por software en Xvfb): peor frame entre 83 y 133 ms, y p95 entre 49 y 95 ms. Antes de m7-05, un frame llegó a 3951 ms.
+- Con el historial escribiendo en el hilo principal y la máquina cargada (load 5–6, el indexador de archivos activo), hubo frames de 400 ms a 2 s justo al fin del turno. Con el historial apagado no pasaba, y el guardado medido adentro del editor dio 9 ms en una corrida y 607 ms en otra. Pasar la escritura a un worker lo resolvió.
+- La revisión de código (checklist godot-code-review) encontró un problema alto: el replay del historial disparaba checkpoints y avisos de "escena modificada". También encontró tres medios: `reopen` relanzaba después de una cancelación; quitar un perfil corría el formulario de edición; reanudar sin índice rompía. Los cuatro están arreglados y tienen test. De los bajos se arreglaron 5 de 6: la config queda como estaba si falla el guardado, una línea cortada no se pega a la siguiente, no se conecta dos veces `process_frame`, no se pierden refrescos, el menú de historial revisa el estado al elegir, y los diffs largos no van al historial. Queda uno: la carga de una sesión del historial es sincrónica.
+
+### Prueba manual
+
+1. **Settings** (ícono de herramientas del dock):
+   - en Permisos, poné "Editar escenas" en **no** para Construir y guardá;
+   - en Construir, pedile al agente que agregue un nodo: se deniega sin preguntar.
+2. En **Agentes**, agregá una variable `ANTHROPIC_API_KEY=sk-…`: no se guarda y pide `$VAR`.
+3. **Historial**:
+   - hacé dos preguntas y tocá **Nueva sesión**;
+   - en **Historial** elegí la anterior: se ve la conversación y, con Claude Code, el aviso "Sesión reanudada";
+   - preguntale algo de lo anterior: lo recuerda.
+4. **Sesión larga**: con el agente falso (`--godot-agent-long-test`) o una sesión real larga, el editor no se congela. "Mostrar 50 anteriores" trae las entradas viejas.
+
+### Pendiente
+
+- m7-01: reportar a Godot los problemas de la main screen en 4.8-beta1. Es otra tarea, fuera de esta sesión.
+- La ubicación del dock solo cuenta la primera vez con `EditorDock` (4.8): después el editor recuerda la que eligió el usuario.
+

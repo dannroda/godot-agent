@@ -20,6 +20,9 @@ const KEY_QUOTA_PAUSE_ENABLED := "quota/pause_enabled"
 const KEY_QUOTA_RESUME := "quota/resume_mode"
 const RESUME_AUTO := 0
 const RESUME_CONFIRM := 1
+const KEY_DOCK_SLOT := "ui/dock_slot"
+## Nombres de las constantes de slot (iguales en EditorPlugin y EditorDock), en el orden del setting.
+const DOCK_SLOTS: PackedStringArray = ["DOCK_SLOT_RIGHT_UL", "DOCK_SLOT_RIGHT_BL", "DOCK_SLOT_LEFT_UL", "DOCK_SLOT_LEFT_BL"]
 
 const DEFAULT_ACCENT := Color("#f0a85a")
 
@@ -38,6 +41,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
 		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Retomar solo,Esperar confirmación")
+		_declare(KEY_DOCK_SLOT, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Derecha arriba,Derecha abajo,Izquierda arriba,Izquierda abajo")
 
 
 func get_value(key: String, default_value: Variant = null) -> Variant:
@@ -123,6 +127,11 @@ func quota_pause_enabled() -> bool:
 
 func quota_resume_auto() -> bool:
 	return int(get_value(KEY_QUOTA_RESUME, RESUME_AUTO)) == RESUME_AUTO
+
+
+## Índice en DOCK_SLOTS.
+func dock_slot() -> int:
+	return clampi(int(get_value(KEY_DOCK_SLOT, 0)), 0, DOCK_SLOTS.size() - 1)
 
 
 func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE, hint_string: String = "") -> void:

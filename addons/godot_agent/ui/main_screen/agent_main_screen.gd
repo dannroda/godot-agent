@@ -92,6 +92,15 @@ func setup(run: OneShotRun, accent: Color, defaults: Dictionary) -> void:
 	_defaults = defaults
 
 
+## Defaults nuevos desde Settings: se ven en el formulario de inicio (no cambian un run en curso).
+func set_defaults(defaults: Dictionary) -> void:
+	_defaults = defaults
+	for key: String in _budget_spins:
+		(_budget_spins[key] as SpinBox).value = float(_defaults.get(key, 0))
+	if _checkpoints_check:
+		_checkpoints_check.button_pressed = bool(_defaults.get("checkpoints", true))
+
+
 func _ready() -> void:
 	if _run == null:
 		return

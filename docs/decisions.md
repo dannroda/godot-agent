@@ -303,6 +303,27 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Tiempo** = tiempo activo (En curso y Cerrando). Pausado, Pausado por cuota, Limitado y "Listo para retomar" no cuentan.
 - **Al 100 % de un presupuesto**: `session/cancel` del turno en curso y un turno de cierre que pide el reporte final y los checks. Al 80 %, un aviso en el chat y en la actividad.
 - **Pausa por cuota**: el turno no se corta a mitad de una tarea. Cuando el plan pasa la siguiente tarea a `in_progress` con la cuota en "pausa programada", se crea su checkpoint y se cancela el turno. Así el estado guardado es el del final de la tarea anterior y la reanudación empieza esa tarea de nuevo.
-- **Reanudar**: "Continuá con el plan desde la tarea «X»; el estado está en el checkpoint cpN (…)". Si la sesión se perdió, se abre una sesión nueva con un resumen (objetivo, plan con estados, checks y checkpoints). No se usa `session/load`: no todos los agentes lo anuncian, y el resumen alcanza.
+- **Reanudar**: "Continuá con el plan desde la tarea «X»; el estado está en el checkpoint cpN (…)". Si la sesión se perdió y está en el historial (M7), se reabre con `session/load` y sigue con el mismo prompt de reanudación. Si el agente no lo soporta, se abre una sesión nueva con un resumen (objetivo, plan con estados, checks y checkpoints).
 - **Auto-continuación**: si el turno termina con tareas pendientes, se manda "Seguí con el plan…". Después de 3 turnos seguidos sin completar ninguna tarea, el One-shot se da por terminado ("el agente dejó de avanzar").
 - **Plan mode no se usa en One-shot**: Claude Code en `plan` escribe su propio archivo de plan sin pedir permiso y no edita el proyecto (D23). One-shot usa el modo `default`, y la política de permisos de One-shot decide (spec §7).
+
+## D25 · Settings e historial (M7, spec §9.5 y §11)
+
+- **Settings en un diálogo propio**, no en Project Settings: una sección ahí escribiría en `project.godot` (D5). Se edita una copia y todo se guarda junto al aceptar, después de validar.
+  - La matriz de permisos guarda solo lo que difiere de la spec, así un cambio de defaults en el addon llega a los proyectos.
+  - Se aplica en caliente lo que el plugin ya tiene vivo (política, carpetas de `fs/*`, límites de las tools, defaults del One-shot). Puerto, color y ubicación del dock se aplican al reabrir el editor.
+  - Regenerar el token reinicia el server en el mismo puerto. Las sesiones abiertas se quedan con el token viejo y pierden las tools `godot.*` hasta abrir una nueva.
+  - Un agente sin comando es válido: queda listado, pero no arranca (el default de Codex viene así).
+- **Historial en JSON Lines y escrito en un worker**: un archivo por sesión, más un índice. Reescribir el registro entero en cada turno costaba 49 ms con 3,5 MB; agregar solo las líneas nuevas cuesta 0,2 ms (p50).
+  - Aun así, con el disco ocupado abrir el archivo llegó a 600 ms. Por eso las escrituras van a una cola que procesa una sola tarea del `WorkerThreadPool`, en orden. Leer (menú, reanudar) y cerrar el plugin esperan a la cola.
+  - El worker usa un `Callable` sobre el script, no sobre el objeto, así no depende de que el historial siga vivo.
+  - Una línea cortada por un cierre a mitad de escritura se saltea al leer, y la próxima escritura empieza en una línea nueva.
+- **Replay sin efectos**: mientras se rearma una conversación, `SessionModel.replaying` es true. Los listeners con efectos (sincronización de archivos del plugin, checkpoints y playtests del One-shot) lo ignoran.
+- **Qué se guarda**: lo necesario para volver a armar la conversación. No se guardan:
+  - capturas (cientos de KB en base64);
+  - `rawOutput`;
+  - estado de la sesión (uso, comandos, modos);
+  - el prompt de sistema ni los adjuntos de los prompts.
+
+  Los textos de las tools se recortan. Los ids vienen del agente, así que se valida que no traigan rutas.
+- **Reanudar**: la conversación sale del archivo, no del replay de `session/load`, porque el adapter de Claude reenvía el prompt de sistema como mensaje del usuario. Las notificaciones del replay llegan antes de la respuesta y se descartan solas: `model.session_id` recién se asigna con la respuesta.

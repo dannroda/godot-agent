@@ -51,7 +51,8 @@ var quota: QuotaMonitor
 var git: GitCheckpoints
 ## (rutas relativas al proyecto) -> void: recarga del editor después de "Volver acá".
 var after_restore: Callable
-## () -> bool (await): abre una sesión nueva si la anterior se perdió.
+## (id de la sesión perdida, o "") -> bool (await): reabre esa sesión con session/load si se puede;
+## si no, abre una nueva.
 var restart_session: Callable
 ## Retomar solo al reiniciarse la cuota (Settings) o esperar confirmación.
 var resume_auto: bool = true
@@ -176,7 +177,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool) 
 				_add_activity("aviso", git.last_error)
 		else:
 			_add_activity("aviso", git.last_error)
-	if not controller.is_connected_to_agent() and not await _restart_session():
+	if not controller.is_connected_to_agent() and not await _restart_session(""):
 		_finish("No se pudo abrir una sesión con el agente.")
 		return false
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
@@ -226,12 +227,17 @@ func resume() -> void:
 	if was_limited:
 		quota.note_retry()
 	if not controller.is_connected_to_agent():
-		_add_activity("sesión", "La sesión se perdió: se abre una nueva con el resumen del plan")
-		if not await _restart_session():
+		var lost_id := model.session_id
+		if not await _restart_session(lost_id):
 			_finish("No se pudo reabrir la sesión con el agente.")
 			return
 		model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
-		_run_turn(_summary_prompt())
+		if not lost_id.is_empty() and model.session_id == lost_id:
+			_add_activity("sesión", "La sesión se perdió: se reabrió con session/load")
+			_run_turn(_resume_prompt())
+		else:
+			_add_activity("sesión", "La sesión se perdió: se abrió una nueva con el resumen del plan")
+			_run_turn(_summary_prompt())
 		return
 	_run_turn(_resume_prompt())
 
@@ -409,10 +415,10 @@ func _finish(reason: String) -> void:
 	_add_activity("estado", reason)
 
 
-func _restart_session() -> bool:
+func _restart_session(lost_id: String) -> bool:
 	if not restart_session.is_valid():
 		return false
-	return await restart_session.call()
+	return await restart_session.call(lost_id)
 
 
 func _resume_prompt() -> String:
@@ -443,7 +449,7 @@ func _summary_prompt() -> String:
 # --- plan, tool calls y checks --------------------------------------------------------------------
 
 func _on_plan_changed(plan: Array) -> void:
-	if not is_active():
+	if not is_active() or model.replaying:
 		return
 	var in_progress := -1
 	for i in plan.size():
@@ -463,7 +469,7 @@ func _on_plan_changed(plan: Array) -> void:
 
 
 func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
-	if not is_active() or not call.is_finished():
+	if not is_active() or model.replaying or not call.is_finished():
 		return
 	var name := call.godot_tool_name()
 	if name == "run_scene" and call.status == ToolCall.STATUS_COMPLETED and not _counted_playtests.has(call.id):

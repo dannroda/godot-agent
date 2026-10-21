@@ -7,8 +7,10 @@ extends RefCounted
 enum Surface { SIDE, BOTTOM, MAIN_SCREEN }
 
 const _DOCK_CLASS := &"EditorDock"
-const _LEGACY_SIDE_SLOT := EditorPlugin.DOCK_SLOT_RIGHT_UL
 
+## Slot inicial del dock lateral: nombre de la constante (igual en EditorPlugin y EditorDock).
+## Con EditorDock solo cuenta la primera vez: después el editor recuerda dónde lo dejó el usuario.
+var side_slot: StringName = &"DOCK_SLOT_RIGHT_UL"
 var _plugin: EditorPlugin
 ## { surface: Surface, control: Control, wrapper: Control (EditorDock o null) }
 var _entries: Array[Dictionary] = []
@@ -38,7 +40,7 @@ func add(surface: Surface, control: Control, title: String, layout_key: String, 
 	else:
 		match surface:
 			Surface.SIDE:
-				_plugin.add_control_to_dock(_LEGACY_SIDE_SLOT, control)
+				_plugin.add_control_to_dock(ClassDB.class_get_integer_constant(&"EditorPlugin", side_slot) as EditorPlugin.DockSlot, control)
 			Surface.BOTTOM:
 				_plugin.add_control_to_bottom_panel(control, title)
 			Surface.MAIN_SCREEN:
@@ -112,7 +114,7 @@ func _make_dock(surface: Surface, control: Control, title: String, layout_key: S
 		dock.set(&"dock_icon", icon)
 	match surface:
 		Surface.SIDE:
-			dock.set(&"default_slot", _dock_const(&"DOCK_SLOT_RIGHT_UL"))
+			dock.set(&"default_slot", _dock_const(side_slot))
 		Surface.BOTTOM:
 			dock.set(&"default_slot", _dock_const(&"DOCK_SLOT_BOTTOM"))
 			dock.set(&"available_layouts", _dock_const(&"DOCK_LAYOUT_HORIZONTAL") | _dock_const(&"DOCK_LAYOUT_FLOATING"))

@@ -1,7 +1,7 @@
 extends SceneTree
 ## Integración M1 contra el agente falso: proceso real, stdio, ACP y SessionModel, sin editor.
 ## Uso: godot --headless --path <repo> --script tests/acp_session_check.gd
-## Escenarios: prompt con streaming, cancelación limpia, caída del agente, permisos y cuota.
+## Escenarios: prompt con streaming, cancelación limpia, caída del agente, permisos, cuota e historial.
 
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
@@ -11,6 +11,7 @@ const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const FsHandler := preload("res://addons/godot_agent/acp/fs_handler.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
 const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
+const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
 const TMP_DIR := "res://tests/tmp"
 
 const TIMEOUT_S := 20.0
@@ -33,6 +34,7 @@ func _initialize() -> void:
 	await _scenario_permissions_build()
 	await _scenario_permissions_ask()
 	await _scenario_quota()
+	await _scenario_history()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("acp_session_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -267,6 +269,86 @@ func _scenario_quota() -> void:
 	_check(_log_has(log, "estado de la cuota: pausa programada → limitado"), "quota: transición en el canal")
 	_check(_log_has(log, "aviso de límite en el texto del agente: You've hit your limit") and _log_has(log, "error de session/prompt (límite)"), "quota: texto y error de límite en el canal")
 	_check(model.state == SessionModel.State.READY, "quota: la sesión sigue usable")
+	controller.stop()
+
+
+## M7: el historial se graba por turno, sin capturas, y session/load reanuda en el mismo archivo.
+func _scenario_history() -> void:
+	print("— history")
+	var history := SessionHistory.new()
+	history.dir = "user://acp_check_history"
+	for file: String in DirAccess.get_files_at(history.dir) if DirAccess.dir_exists_absolute(history.dir) else PackedStringArray():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(history.dir.path_join(file)))
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
+	controller.setup(model, AgentLog.new(), root)
+	controller.history = history
+	_check(await controller.start(_fake_profile("history")), "history: arranca")
+	var session_id := model.session_id
+	_check(await controller.send_prompt("arreglá la pelota") == "end_turn", "history: turno 1")
+	_check(await controller.send_prompt("seguí") == "end_turn", "history: turno 2")
+	controller.stop()
+	var listed := history.list(root)
+	_check(listed.size() == 1 and listed[0].id == session_id and listed[0].title == "Arreglar la pelota" and int(listed[0].turns) == 2, "history: índice %s" % [listed])
+	var raw := FileAccess.get_file_as_string(history.dir.path_join(session_id + SessionHistory.EXTENSION))
+	_check(not raw.is_empty() and not raw.contains("iVBORw0KGgo") and not raw.contains("rawOutput") and not raw.contains("usage_update"), "history: sin capturas, rawOutput ni uso")
+	_check(raw.contains(SessionHistory.IMAGE_PLACEHOLDER) and raw.contains("recortado en el historial") and raw.length() < 20000, "history: marcas de captura y recorte (%d bytes)" % raw.length())
+	var record := history.load_record(session_id)
+	var first_agent: Array = record.events.filter(func(event: Dictionary) -> bool: return event.type == "update" and event.update.sessionUpdate == "agent_message_chunk")
+	_check(not first_agent.is_empty() and first_agent[0].update.content.text == "Reviso la escena.", "history: chunks unidos")
+	_check(history.load_record("../../etc/passwd").is_empty(), "history: ids con rutas se rechazan")
+	var replay_model := SessionModel.new()
+	var during: Array[bool] = []
+	var on_call := func(_c: Variant, _g: Variant) -> void: during.append(replay_model.replaying)
+	replay_model.tool_call_changed.connect(on_call)
+	SessionHistory.replay(record, replay_model)
+	replay_model.tool_call_changed.disconnect(on_call)  # la lambda captura el modelo: sin esto, ciclo
+	_check(not during.is_empty() and during.all(func(value: bool) -> bool: return value) and not replay_model.replaying, "history: replaying durante el replay y no después")
+	# Sin el índice, reanudar igual graba (el registro trae solo la cabecera).
+	var bare := record.duplicate()
+	for key: String in ["title", "turns", "truncated"]:
+		bare.erase(key)
+	var other := SessionHistory.new()
+	other.dir = "user://acp_check_history_bare"
+	other.begin(session_id, "p", "a", root, bare)
+	other.record_prompt("hola")
+	_check(other.is_recording(), "history: begin sin índice no rompe record_prompt")
+	other.end()
+	other.flush()
+
+	# Reanudar con session/load: la conversación sale del archivo, no del replay del agente.
+	model = SessionModel.new()
+	controller = SessionController.new()
+	controller.setup(model, AgentLog.new(), root)
+	controller.history = history
+	_check(await controller.start(_fake_profile("history"), record), "history: session/load reanuda")
+	for i in 20:  # deja llegar cualquier update tardío
+		await process_frame
+	var texts: PackedStringArray = []
+	for entry: ChatEntry in model.entries():
+		texts.append(entry.text)
+	var joined := "\n".join(texts)
+	_check(model.session_id == session_id and model.state == SessionModel.State.READY, "history: misma sesión, READY")
+	_check(joined.contains("arreglá la pelota") and joined.contains("Segundo turno.") and not joined.contains("replay del agente"), "history: conversación del archivo, sin el replay")
+	_check(joined.contains("Sesión reanudada") and model.title == "Arreglar la pelota", "history: aviso y título")
+	_check(await controller.send_prompt("tercero") == "end_turn", "history: turno después de reanudar")
+	controller.stop()
+	listed = history.list()
+	_check(listed.size() == 1 and int(listed[0].turns) == 3, "history: sigue en el mismo archivo (%s)" % [listed])
+
+	# reopen (One-shot con la sesión perdida): session/load si se puede, si no una sesión nueva.
+	_check(await controller.reopen(_fake_profile("history"), session_id) and model.session_id == session_id, "history: reopen usa session/load")
+	controller.stop()
+	_check(await controller.reopen(_fake_profile("basic"), session_id) and model.session_id != session_id and model.state == SessionModel.State.READY, "history: reopen sin loadSession abre una nueva")
+	controller.stop()
+
+	# Sin session/load: solo lectura.
+	model = SessionModel.new()
+	controller = SessionController.new()
+	controller.setup(model, AgentLog.new(), root)
+	_check(not await controller.start(_fake_profile("basic"), history.load_record(session_id)), "history: sin loadSession no reanuda")
+	_check(model.state == SessionModel.State.DISCONNECTED and model.entries().size() > 3 and model.entries().back().text.contains("solo lectura"), "history: queda de solo lectura")
 	controller.stop()
 
 

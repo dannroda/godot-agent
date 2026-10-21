@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:44.137Z",
   "description": "Suite completa en 4.4.1/4.7.2/4.8-beta1, settings persistidos, sesión de 500+ entradas, revisión godot-code-review sin hallazgos altos. Actualizar progress.",
   "milestone": "m07",
-  "notes": "",
+  "notes": "Hallazgo alto: SessionHistory.replay disparaba tool_call_changed y plan_changed. Al reanudar, el plugin sincronizaba archivos (avisos falsos de \"escena modificada\" con un \"Recargar\" que pierde cambios) y el One-shot creaba checkpoints de tareas viejas. Arreglo: SessionModel.replaying, que esos listeners ignoran.\n\nMedios:\n- reopen() relanzaba el agente después de una cancelación. Ahora solo vuelve a abrir si el load falló por el agente (_load_failed).\n- Quitar un perfil de más arriba corría el índice que se estaba editando.\n- begin() sin entrada en el índice rompía record_prompt.\n\nBajos arreglados:\n- Si guardar falla, la config vuelve a como estaba.\n- Una línea cortada no se pega a la siguiente.\n- process_frame no se conecta dos veces.\n- No se pierden refrescos.\n- El menú de historial revisa el estado al elegir, y no abre otra sesión con un One-shot en curso.\n- Los diffs de más de 40k caracteres no van al historial.\n\nBajo pendiente: load_record y replay son sincrónicos. Corren solo al elegir una sesión.\n\nDurante la verificación, la sesión larga en 4.8 dio frames de 0,4–2 s, siempre al fin del turno. Midiendo: el guardado del historial tardaba 9 ms o 607 ms según la carga del disco. Las escrituras pasaron a un worker (cola en orden en WorkerThreadPool) y la misma secuencia quedó en 83–133 ms.",
   "order": 7,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "En 4.4.1, 4.7.2 y 4.8-beta1:\n- Headless: run_all 84 tests / 571 checks, acp_session_check 90, oneshot_check 34.\n- En el editor (4.8 y 4.4.1):\n  - --godot-agent-settings-shots: Settings persistidos, project_config.tres escrito y matriz aplicada en caliente;\n  - --godot-agent-history-test;\n  - --godot-agent-long-test: 641 entradas, peor frame 83–133 ms, p95 49–95 ms;\n  - cycle test, --godot-agent-oneshot-test y ui_quota.\n\nRevisión godot-code-review hecha por un subagente: 1 alto, 3 medios y 6 bajos. Quedan arreglados el alto y los tres medios, con tests de regresión, y 5 de los 6 bajos. No quedan hallazgos altos abiertos.",
   "title": "Verificar M7",
-  "updated_at": "2026-10-21T04:33:44.137Z"
+  "updated_at": "2026-10-21T09:14:14.401Z"
 }

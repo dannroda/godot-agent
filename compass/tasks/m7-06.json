@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:44.096Z",
   "description": "Instalación, perfiles, modos, permisos, MCP, One-shot, completado, exclusión del export (filtro de presets), actualizar sin perder la config, limitaciones conocidas por versión de Godot.",
   "milestone": "m07",
-  "notes": "",
+  "notes": "README.md en la raíz, en español.\n- Uso: requisitos, instalación, dock, modos, matriz de permisos, tools MCP por grupo, One-shot paso a paso, cuota del plan, historial.\n- Configuración: perfiles con $VAR para las claves, tabla de dónde se guarda cada setting.\n- Export: qué hace el export plugin y el filtro como red de seguridad.\n- Actualizar sin perder project_config.tres (vive dentro de la carpeta del addon, D5).\n- Limitaciones por versión (4.4 pipes y Logger; 4.4–4.7 docks; 4.8-beta1 main screen) y cómo correr los tests.\n- El completado inline figura como \"llega en M8\".\n- Gemini CLI: el perfil por defecto no trae argumentos. El README sugiere el flag de ACP de su versión (`--experimental-acp`), sin afirmar cuál es.",
   "order": 6,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "Leer README.md y contrastarlo con el código. Tools: la lista sale de McpTool.create en mcp/tools. Matriz de permisos: PermissionPolicy.DEFAULTS, la misma que muestra Settings. Settings y dónde se guarda cada cosa: HarnessSettings y ProjectConfig. Límites por versión: D4, D9 y D11.",
   "title": "README de uso",
-  "updated_at": "2026-10-21T04:33:44.096Z"
+  "updated_at": "2026-10-21T08:36:17.842Z"
 }

@@ -984,7 +984,7 @@ El banner de la pantalla Agent: aviso (≥ umbral), pausa programada (texto de r
 
 **Bloqueada por:** 6.6 QuotaMonitor: fuentes, estados y umbrales
 
-## M7 — Pulido  (3/7, 3 en revisión)
+## M7 — Pulido  (6/7, 6 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -1061,11 +1061,32 @@ Diálogo propio (no Project Settings: escribiría en project.godot).
 - Export: lista los presets sin filtro y lo agrega, previa confirmación.
 - Un agente sin comando es válido (el default de Codex viene así) y su tarjeta dice "sin comando".
 
-### 7.3 Historial de sesiones · Pendiente
+### 7.3 Historial de sesiones · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Responsable:** Claude
 
 user://godot_agent/sessions/<id>.json con eventos ACP normalizados; lista en el dock para reabrir y mostrar; session/load para reanudar si el agente lo soporta.
+
+**Prueba:** `$G --headless --path . --script tests/acp_session_check.gd`: escenario history (16 checks) en 4.4.1, 4.7.2 y 4.8-beta1.
+- Graba por turno.
+- Índice con título y turnos.
+- Sin capturas, rawOutput ni usage_update, y con los textos largos recortados.
+- Chunks unidos.
+- Rechaza ids con rutas.
+- session/load reanuda la misma sesión con la conversación del archivo (descarta el replay del agente) y sigue grabando en el mismo archivo.
+- Sin loadSession queda de solo lectura.
+
+En el editor, `tests/run_in_xvfb.sh $G --godot-agent-history-test=<png>`: dos turnos con el agente falso, el menú de historial del dock muestra la sesión, y se reanuda desde el dock.
+
+**Notas:** session/session_history.gd guarda en user://godot_agent/sessions/<id>.jsonl (JSON Lines: una cabecera y un evento por línea), más un index.json con título, fechas y turnos. Conserva hasta 100 sesiones.
+- Escritura: al fin de cada turno se agregan solo los eventos nuevos, en un worker (una cola en orden en WorkerThreadPool). Las lecturas y el cierre del plugin esperan con flush(). Con el disco ocupado, abrir el archivo llegó a 600 ms en el hilo principal.
+- Qué guarda: prompts del usuario (sin el system prompt ni los adjuntos), chunks unidos por mensaje, tool calls sin rawOutput ni _meta, plan, título y fin de turno. Las capturas se reemplazan por un marcador, los textos se recortan a 4000 caracteres y los diffs de más de 40k no se guardan.
+- Qué no guarda: usage, comandos, modos ni opciones.
+- El controller graba si tiene `history`; el plugin se lo da, los tests no.
+- start(profile, record): initialize, replay del archivo (con model.replaying, para que el plugin y el One-shot no lo tomen como eventos nuevos) y session/load. Las notificaciones que el agente manda durante el load se descartan solas, porque model.session_id recién se asigna con la respuesta.
+- reopen(profile, lost_id) es para el One-shot: usa session/load y, si el agente no lo soporta, abre una sesión nueva. Si se canceló, no relanza.
+- Sin loadSession, o si el load falla: solo lectura con un aviso.
+- Dock: el botón Historial lista las sesiones de este proyecto. No abre otra sesión mientras el agente trabaja ni con un One-shot en curso.
 
 ### 7.4 Markdown→BBCode robusto · Revisión
 
@@ -1104,17 +1125,57 @@ Más de 500 entradas sin degradación: límite de nodos vivos en la lista (las v
   - "N entradas anteriores ocultas" pasó a ser el botón "Mostrar 50 anteriores (N ocultas)", que arma las previas arriba y sube el tope hasta la próxima sesión.
 - agent_message_view ya convertía el Markdown una vez por frame.
 
-### 7.6 README de uso · Pendiente
+### 7.6 README de uso · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
 
 Instalación, perfiles, modos, permisos, MCP, One-shot, completado, exclusión del export (filtro de presets), actualizar sin perder la config, limitaciones conocidas por versión de Godot.
 
-### 7.7 Verificar M7 · Pendiente
+**Prueba:** Leer README.md y contrastarlo con el código. Tools: la lista sale de McpTool.create en mcp/tools. Matriz de permisos: PermissionPolicy.DEFAULTS, la misma que muestra Settings. Settings y dónde se guarda cada cosa: HarnessSettings y ProjectConfig. Límites por versión: D4, D9 y D11.
+
+**Notas:** README.md en la raíz, en español.
+- Uso: requisitos, instalación, dock, modos, matriz de permisos, tools MCP por grupo, One-shot paso a paso, cuota del plan, historial.
+- Configuración: perfiles con $VAR para las claves, tabla de dónde se guarda cada setting.
+- Export: qué hace el export plugin y el filtro como red de seguridad.
+- Actualizar sin perder project_config.tres (vive dentro de la carpeta del addon, D5).
+- Limitaciones por versión (4.4 pipes y Logger; 4.4–4.7 docks; 4.8-beta1 main screen) y cómo correr los tests.
+- El completado inline figura como "llega en M8".
+- Gemini CLI: el perfil por defecto no trae argumentos. El README sugiere el flag de ACP de su versión (`--experimental-acp`), sin afirmar cuál es.
+
+### 7.7 Verificar M7 · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Suite completa en 4.4.1/4.7.2/4.8-beta1, settings persistidos, sesión de 500+ entradas, revisión godot-code-review sin hallazgos altos. Actualizar progress.
+
+**Prueba:** En 4.4.1, 4.7.2 y 4.8-beta1:
+- Headless: run_all 84 tests / 571 checks, acp_session_check 90, oneshot_check 34.
+- En el editor (4.8 y 4.4.1):
+  - --godot-agent-settings-shots: Settings persistidos, project_config.tres escrito y matriz aplicada en caliente;
+  - --godot-agent-history-test;
+  - --godot-agent-long-test: 641 entradas, peor frame 83–133 ms, p95 49–95 ms;
+  - cycle test, --godot-agent-oneshot-test y ui_quota.
+
+Revisión godot-code-review hecha por un subagente: 1 alto, 3 medios y 6 bajos. Quedan arreglados el alto y los tres medios, con tests de regresión, y 5 de los 6 bajos. No quedan hallazgos altos abiertos.
+
+**Notas:** Hallazgo alto: SessionHistory.replay disparaba tool_call_changed y plan_changed. Al reanudar, el plugin sincronizaba archivos (avisos falsos de "escena modificada" con un "Recargar" que pierde cambios) y el One-shot creaba checkpoints de tareas viejas. Arreglo: SessionModel.replaying, que esos listeners ignoran.
+
+Medios:
+- reopen() relanzaba el agente después de una cancelación. Ahora solo vuelve a abrir si el load falló por el agente (_load_failed).
+- Quitar un perfil de más arriba corría el índice que se estaba editando.
+- begin() sin entrada en el índice rompía record_prompt.
+
+Bajos arreglados:
+- Si guardar falla, la config vuelve a como estaba.
+- Una línea cortada no se pega a la siguiente.
+- process_frame no se conecta dos veces.
+- No se pierden refrescos.
+- El menú de historial revisa el estado al elegir, y no abre otra sesión con un One-shot en curso.
+- Los diffs de más de 40k caracteres no van al historial.
+
+Bajo pendiente: load_record y replay son sincrónicos. Corren solo al elegir una sesión.
+
+Durante la verificación, la sesión larga en 4.8 dio frames de 0,4–2 s, siempre al fin del turno. Midiendo: el guardado del historial tardaba 9 ms o 607 ms según la carga del disco. Las escrituras pasaron a un worker (cola en orden en WorkerThreadPool) y la misma secuencia quedó en 83–133 ms.
 
 ## M8a — Completado predictivo: núcleo sin IA  (0/7)
 

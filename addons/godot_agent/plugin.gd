@@ -10,6 +10,8 @@ const AgentMainScreenScene := preload("ui/main_screen/agent_main_screen.tscn")
 const AgentLogPanelScene := preload("ui/log_panel/agent_log_panel.tscn")
 const AgentLog := preload("core/agent_log.gd")
 const HarnessSettings := preload("core/harness_settings.gd")
+const SettingsDialog := preload("ui/settings/settings_dialog.gd")
+const SessionHistory := preload("session/session_history.gd")
 const SessionModel := preload("session/session_model.gd")
 const SessionController := preload("session/session_controller.gd")
 const EditorContext := preload("ui/editor_context.gd")
@@ -66,6 +68,10 @@ var _run_tools: RunTools
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 var _review_annotations: ReviewAnnotations
 var _oneshot: OneShotRun
+var _settings_dialog: SettingsDialog
+var _main_screen: Control
+var _fs: FsHandler
+var _registry: ToolRegistry
 
 
 func _enter_tree() -> void:
@@ -81,6 +87,7 @@ func _enter_tree() -> void:
 	_controller = SessionController.new()
 	_controller.setup(_model, _log, EditorContext.project_path())
 	_controller.prompt_variables_provider = _prompt_variables
+	_controller.history = SessionHistory.new()
 	_project_config = ProjectConfig.load_or_default()
 	_controller.policy = PermissionPolicy.new(_project_config.permissions)
 	_apply_quota_settings()
@@ -91,12 +98,12 @@ func _enter_tree() -> void:
 	_sync.conflict_detected.connect(_on_conflict_detected)
 	_sync.open_scene_modified.connect(_on_open_scene_modified)
 	add_child(_sync)
-	var fs := FsHandler.new()
-	fs.setup(EditorContext.project_path(), _log)
-	fs.extra_roots = _project_config.extra_fs_roots
-	fs.buffer_reader = _sync.buffer_text
-	fs.after_write = _sync.after_agent_write
-	_controller.set_fs_handler(fs)
+	_fs = FsHandler.new()
+	_fs.setup(EditorContext.project_path(), _log)
+	_fs.extra_roots = _project_config.extra_fs_roots
+	_fs.buffer_reader = _sync.buffer_text
+	_fs.after_write = _sync.after_agent_write
+	_controller.set_fs_handler(_fs)
 	_model.tool_call_changed.connect(_on_tool_call_changed)
 	_diff_dialog = DiffDialog.new()
 	EditorInterface.get_base_control().add_child(_diff_dialog)
@@ -115,9 +122,9 @@ func _enter_tree() -> void:
 	_oneshot = OneShotRun.new()
 	_oneshot.setup(_controller, EditorContext.project_path())
 	_oneshot.after_restore = _after_oneshot_restore
-	_oneshot.restart_session = func() -> bool:
+	_oneshot.restart_session = func(lost_id: String) -> bool:
 		var profile := _settings.active_profile()
-		return profile != null and await _controller.start(profile)
+		return profile != null and await _controller.reopen(profile, lost_id)
 	_oneshot.resume_auto = _settings.quota_resume_auto()
 	add_child(_oneshot)
 	_model.harness_mode_changed.connect(_on_harness_mode_changed)
@@ -125,23 +132,29 @@ func _enter_tree() -> void:
 	var dock := AgentDockScene.instantiate()
 	dock.setup(_model, _controller, _settings)
 	dock.show_log_requested.connect(_show_log)
+	dock.settings_requested.connect(_open_settings)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.submit_interceptor = _intercept_dock_prompt
+	dock.can_switch_session = func() -> bool: return not _oneshot.is_active()
 	var log_panel := AgentLogPanelScene.instantiate()
 	log_panel.setup(_log)
 
 	_surfaces = EditorSurfaces.new(self)
+	_surfaces.side_slot = HarnessSettings.DOCK_SLOTS[_settings.dock_slot()]
 	_surfaces.add(EditorSurfaces.Surface.SIDE, dock, DOCK_TITLE, "godot_agent_dock")
 	_surfaces.add(EditorSurfaces.Surface.BOTTOM, log_panel, LOG_PANEL_TITLE, "godot_agent_log")
-	var main_screen := AgentMainScreenScene.instantiate()
-	main_screen.setup(_oneshot, _settings.accent_color(), {
-		OneShotRun.BUDGET_TIME: _project_config.budget_minutes,
-		OneShotRun.BUDGET_TOKENS: _project_config.budget_tokens,
-		OneShotRun.BUDGET_PLAYTESTS: _project_config.budget_playtests,
-		"checkpoints": _project_config.checkpoints_enabled,
-	})
-	main_screen.diff_requested.connect(_diff_dialog.show_diff)
-	_surfaces.add(EditorSurfaces.Surface.MAIN_SCREEN, main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
+	_main_screen = AgentMainScreenScene.instantiate()
+	_main_screen.setup(_oneshot, _settings.accent_color(), _oneshot_defaults())
+	_main_screen.diff_requested.connect(_diff_dialog.show_diff)
+	_surfaces.add(EditorSurfaces.Surface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
+
+	_settings_dialog = SettingsDialog.new()
+	_settings_dialog.setup(_settings, _project_config)
+	_settings_dialog.mcp_url_provider = func() -> String:
+		return _mcp_server.url() if _mcp_server and _mcp_server.is_listening() else ""
+	_settings_dialog.regenerate_token = _regenerate_mcp_token
+	_settings_dialog.saved.connect(_on_settings_saved)
+	EditorInterface.get_base_control().add_child(_settings_dialog)
 
 
 func _exit_tree() -> void:
@@ -154,6 +167,8 @@ func _exit_tree() -> void:
 		_oneshot = null
 	if _controller:
 		_controller.stop()
+		if _controller.history:
+			_controller.history.flush()  # la última escritura del historial va en un worker
 		_controller = null
 	if _mcp_server:
 		_log.remove_secret(_mcp_server.token)
@@ -173,6 +188,12 @@ func _exit_tree() -> void:
 	if _diff_dialog:
 		_diff_dialog.queue_free()
 		_diff_dialog = null
+	if _settings_dialog:
+		_settings_dialog.queue_free()
+		_settings_dialog = null
+	_main_screen = null
+	_fs = null
+	_registry = null
 	if _playtest_debugger:
 		remove_debugger_plugin(_playtest_debugger)
 		_playtest_debugger = null
@@ -222,6 +243,8 @@ func _show_log() -> void:
 
 ## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).
 func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
+	if _model.replaying:
+		return
 	if not _pending_undo.is_empty() and call.undo_info.is_empty() and not call.godot_tool_name().is_empty():
 		_match_pending_undo()
 	if call.status != ToolCall.STATUS_COMPLETED or not call.kind in WRITING_KINDS:
@@ -346,6 +369,7 @@ func _start_mcp_server() -> void:
 	_errors = ErrorCollector.new()
 	_errors.start()
 	var registry := ToolRegistry.new()
+	_registry = registry
 	registry.agent_log = _log
 	registry.max_output_chars = _project_config.max_output_chars
 	registry.max_image_side = _project_config.max_image_side
@@ -391,6 +415,39 @@ func _prompt_variables() -> Dictionary:
 		"project_path": EditorContext.project_path(),
 		"godot_version": Engine.get_version_info().string,
 	}
+
+
+func _oneshot_defaults() -> Dictionary:
+	return {
+		OneShotRun.BUDGET_TIME: _project_config.budget_minutes,
+		OneShotRun.BUDGET_TOKENS: _project_config.budget_tokens,
+		OneShotRun.BUDGET_PLAYTESTS: _project_config.budget_playtests,
+		"checkpoints": _project_config.checkpoints_enabled,
+	}
+
+
+func _open_settings() -> void:
+	_settings_dialog.open()
+
+
+## La config del proyecto se aplica en caliente; los settings de usuario llegan por settings_changed.
+func _on_settings_saved() -> void:
+	_controller.policy.overrides = _project_config.permissions
+	_fs.extra_roots = _project_config.extra_fs_roots
+	_registry.max_output_chars = _project_config.max_output_chars
+	_registry.max_image_side = _project_config.max_image_side
+	_run_tools.max_image_side = _project_config.max_image_side
+	_main_screen.call(&"set_defaults", _oneshot_defaults())
+	_log.add(AgentLog.CH_ACP, "settings guardados")
+
+
+## Mismo puerto (para no cambiar la URL), token nuevo. Las sesiones abiertas quedan con el viejo.
+func _regenerate_mcp_token() -> void:
+	var port := _mcp_server.port() if _mcp_server.is_listening() else _settings.mcp_port()
+	_log.remove_secret(_mcp_server.token)
+	if _mcp_server.start(port) == OK:
+		_log.add_secret(_mcp_server.token)
+		_model.add_notice("Token MCP regenerado: las tools godot.* llegan a las sesiones nuevas.", ChatEntry.Level.INFO)
 
 
 ## Umbrales de cuota del usuario (spec §10.1, EditorSettings godot_agent/quota/*).

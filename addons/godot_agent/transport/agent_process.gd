@@ -1,7 +1,8 @@
 @tool
 extends RefCounted
 ## Proceso del agente: lo lanza con OS.execute_with_pipe y lee stdout (por líneas) y stderr en
-## threads. Las señales se emiten siempre en el hilo principal (call_deferred).
+## threads. Las señales se emiten siempre en el hilo principal. Las líneas de stdout se encolan y
+## se entregan con un presupuesto de tiempo por frame: una ráfaga de updates no congela el editor.
 ## No parsea JSON: eso es del AcpClient.
 
 signal line_received(line: String)
@@ -16,6 +17,8 @@ const WATCH_INTERVAL_MS := 200
 const EOF_GRACE_MS := 2000
 ## Cada cuántas vueltas del watcher se refresca la lista de descendientes.
 const CHILDREN_REFRESH_TICKS := 10
+## Tiempo de un frame que se puede usar para entregar líneas de stdout (el resto, al siguiente).
+const LINE_BUDGET_USEC := 6000
 
 var _stdio: FileAccess
 var _stderr: FileAccess
@@ -32,6 +35,11 @@ var _last_error: String = ""
 ## huérfanos (pgrep -P ya no los encuentra) y pueden mantener los pipes abiertos.
 var _known_children: PackedInt32Array = []
 var _children_mutex := Mutex.new()
+var _lines: PackedStringArray = []
+var _lines_mutex := Mutex.new()
+var _drain_scheduled: bool = false
+## Código de salida que espera a que se entreguen las líneas encoladas (-1: ninguno).
+var _pending_exit_code: int = -1
 
 ## Godot 4.4.x: cerrar o liberar el FileAccess de un pipe de execute_with_pipe cierra fds
 ## equivocados (incluso el 0 del editor) y rompe el siguiente proceso (D11). Ahí los pipes viejos
@@ -142,16 +150,28 @@ func _join_threads() -> void:
 # --- threads -------------------------------------------------------------------------------------
 
 func _read_stdout() -> void:
-	_read_lines(_stdio, _emit_line)
+	_read_lines(_stdio, _queue_line)
 	_stdout_done = true
 
 
+## Desde el thread lector: encola y, si no hay una entrega pendiente, la agenda.
+func _queue_line(line: String) -> void:
+	_lines_mutex.lock()
+	_lines.append(line)
+	var schedule := not _drain_scheduled
+	_drain_scheduled = true
+	_lines_mutex.unlock()
+	if schedule:
+		_drain_lines.call_deferred()
+
+
 func _read_stderr() -> void:
-	_read_lines(_stderr, _emit_stderr)
+	_read_lines(_stderr, func(line: String) -> void: _emit_stderr.call_deferred(line))
 
 
 ## Lee hasta EOF. get_line bloquea; termina cuando el proceso cierra el pipe (o lo matamos).
-func _read_lines(file: FileAccess, emit: Callable) -> void:
+## `on_line` corre en el thread lector.
+func _read_lines(file: FileAccess, on_line: Callable) -> void:
 	if file == null:
 		return
 	while not _stopping:
@@ -160,7 +180,7 @@ func _read_lines(file: FileAccess, emit: Callable) -> void:
 		if error != OK and line.is_empty():
 			break
 		if not line.is_empty():
-			emit.call_deferred(line)
+			on_line.call(line)
 
 
 func _watch_exit() -> void:
@@ -186,8 +206,40 @@ func _watch_exit() -> void:
 	_emit_exited.call_deferred(code)
 
 
-func _emit_line(line: String) -> void:
-	line_received.emit(line)
+## En el hilo principal: entrega líneas hasta agotar el presupuesto del frame. Si quedan, sigue en
+## el próximo frame (no con call_deferred: correría en la misma vuelta de la cola de mensajes).
+func _drain_lines() -> void:
+	if _stopping:
+		return
+	var started := Time.get_ticks_usec()
+	while true:
+		_lines_mutex.lock()
+		var batch := _lines
+		_lines = PackedStringArray()
+		if batch.is_empty():
+			_drain_scheduled = false
+			_lines_mutex.unlock()
+			break
+		_lines_mutex.unlock()
+		for i in batch.size():
+			line_received.emit(batch[i])
+			if _stopping:
+				return
+			var tree := Engine.get_main_loop() as SceneTree
+			if tree and Time.get_ticks_usec() - started > LINE_BUDGET_USEC:
+				_lines_mutex.lock()
+				_lines = batch.slice(i + 1) + _lines
+				var more := not _lines.is_empty()
+				_drain_scheduled = more
+				_lines_mutex.unlock()
+				if more:
+					tree.process_frame.connect(_drain_lines, CONNECT_ONE_SHOT)
+					return
+				break
+	if _pending_exit_code >= 0:
+		var code := _pending_exit_code
+		_pending_exit_code = -1
+		_emit_exited(code)
 
 
 func _emit_stderr(line: String) -> void:
@@ -196,6 +248,12 @@ func _emit_stderr(line: String) -> void:
 
 func _emit_exited(code: int) -> void:
 	if _exit_emitted or _stopping:
+		return
+	_lines_mutex.lock()
+	var draining := _drain_scheduled
+	_lines_mutex.unlock()
+	if draining:
+		_pending_exit_code = code  # después de la última línea encolada
 		return
 	_exit_emitted = true
 	exited.emit(code)

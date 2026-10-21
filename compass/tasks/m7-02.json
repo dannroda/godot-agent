@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:42.504Z",
   "description": "Navegación según docs/design pantalla 4. Secciones:\n- Agentes (CRUD de perfiles).\n- Herramientas/Permisos (matriz).\n- Puerto MCP y regenerar token.\n- Presupuestos default de One-shot.\n- Cuota y límites (spec §9.5 y §11 actualizados): umbral de aviso, umbral de pausa del One-shot (o nunca) y al reiniciarse la ventana retomar solo o esperar confirmación. Se guardan por usuario en EditorSettings godot_agent/, porque la cuota es del plan, no del proyecto.\n- Checkpoints on/off, ubicación del dock, color de acento, aviso y botón de filtro de presets.\nDiálogo propio (no Project Settings: escribiría en project.godot).",
   "milestone": "m07",
-  "notes": "",
+  "notes": "ui/settings/settings_dialog.gd reemplaza a profiles_dialog.gd (JSON de M1, borrado). El dock emite settings_requested y el plugin abre el diálogo, porque necesita la config del proyecto y el server MCP.\n- Por usuario (EditorSettings godot_agent/): perfiles, puerto MCP, cuota (aviso, pausa on/off y umbral, retomar solo o esperar), color y ubicación del dock (nuevo ui/dock_slot, que se aplica a EditorSurfaces.side_slot).\n- Por proyecto (project_config.tres): matriz de permisos (solo overrides respecto de la spec), timeout de preguntas, max_output_chars, max_image_side, playtest en runs manuales, carpetas extra para fs/*, presupuestos y checkpoints.\n- Guardar valida antes y aplica en caliente: policy.overrides, fs.extra_roots, límites del registry y run_tools, defaults de la pantalla One-shot. La cuota llega por settings_changed.\n- El puerto, el color y la ubicación del dock se aplican al reabrir el editor; con EditorDock (4.8) la ubicación es solo la inicial.\n- \"Regenerar token\" reinicia el server en el mismo puerto; las sesiones abiertas quedan con el token viejo.\n- Export: lista los presets sin filtro y lo agrega, previa confirmación.\n- Un agente sin comando es válido (el default de Codex viene así) y su tarjeta dice \"sin comando\".",
   "order": 2,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "`$G --headless --path . --script tests/run_all.gd -- test_settings` (3 tests, 21 checks: defaults validan, secreto literal en env rechazado y $VAR aceptado, ids repetidos, un solo predeterminado, pausa > aviso, carpetas absolutas, overrides de la matriz solo con lo que difiere, formulario de perfil). En el editor: `tests/run_in_xvfb.sh $G --godot-agent-settings-shots=<prefijo>` abre Settings desde el botón del dock, guarda una captura por sección y comprueba que Guardar aplica la matriz en caliente y escribe project_config.tres. Pasa en 4.4.1, 4.7.2 y 4.8-beta1; suite completa 84 tests / 569 checks en las tres.",
   "title": "Diálogo de Settings completo",
-  "updated_at": "2026-10-21T06:17:01.789Z"
+  "updated_at": "2026-10-21T08:20:54.909Z"
 }

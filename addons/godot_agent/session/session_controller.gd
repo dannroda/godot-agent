@@ -21,6 +21,7 @@ const FsHandler := preload("../acp/fs_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
 const ReviewStore := preload("../review/review_store.gd")
+const SessionHistory := preload("session_history.gd")
 
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
@@ -58,6 +59,8 @@ var agent_log: AgentLog
 var quota: QuotaMonitor
 ## Hallazgos de la última revisión (modo Revisar, spec §9.4).
 var review: ReviewStore = ReviewStore.new()
+## Historial en disco (M7). null = no se graba (tests).
+var history: SessionHistory
 ## `usage` del último session/prompt (tokens del turno: inputTokens, outputTokens, cachedReadTokens…).
 var last_turn_usage: Dictionary = {}
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
@@ -73,6 +76,8 @@ var _system_prompt_sent: bool = false
 var _connect_generation: int = 0
 var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
 var _mode_syncs_running: int = 0
+## El último _load_session falló por el agente (sin loadSession o error), no por una cancelación.
+var _load_failed: bool = false
 
 
 func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String) -> void:
@@ -103,7 +108,8 @@ func is_connected_to_agent() -> bool:
 
 
 ## Lanza el agente del perfil y abre una sesión. Devuelve true si quedó lista.
-func start(agent_profile: AgentProfile) -> bool:
+## Con `resume` (un registro de SessionHistory) muestra esa conversación y la reanuda con session/load.
+func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	stop()
 	_connect_generation += 1
 	var generation := _connect_generation
@@ -137,7 +143,22 @@ func start(agent_profile: AgentProfile) -> bool:
 	var protocol := int(init.result.get("protocolVersion", PROTOCOL_VERSION))
 	if protocol != PROTOCOL_VERSION:
 		agent_log.add(AgentLog.CH_ACP, "El agente usa la versión de protocolo %d (el cliente pidió %d)" % [protocol, PROTOCOL_VERSION])
+	if not resume.is_empty():
+		return await _load_session(resume, generation)
 	return await open_session(generation)
+
+
+## Reabre una sesión perdida: con session/load si está en el historial y el agente lo soporta;
+## si no, abre una nueva.
+func reopen(agent_profile: AgentProfile, lost_id: String) -> bool:
+	var record: Dictionary = history.load_record(lost_id) if history and not lost_id.is_empty() else {}
+	if not record.is_empty():
+		_load_failed = false
+		if await start(agent_profile, record):
+			return true
+		if not _load_failed:  # se canceló (stop, nueva sesión, plugin deshabilitado): no relanzar
+			return false
+	return await start(agent_profile)
 
 
 ## session/new sobre el proceso ya inicializado (también sirve para "Nueva sesión").
@@ -161,6 +182,8 @@ func open_session(generation: int = _connect_generation) -> bool:
 	_system_prompt_sent = false
 	policy.clear_session()
 	_preauthorized_writes.clear()
+	if history:
+		history.begin(model.session_id, _profile.id, _profile.display_name, cwd)
 	model.set_state(SessionModel.State.READY)
 	_sync_agent_mode()
 	connected.emit()
@@ -185,6 +208,8 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		if block is Dictionary:
 			attachments.append(block)
 	model.add_user_message(text, attachments)
+	if history:
+		history.record_prompt(text)
 	model.set_state(SessionModel.State.PROMPTING)
 	var first_new_entry := model.entries().size()
 	# Si se acaba de cambiar de modo, el turno espera a que el agente esté en el modo que corresponde.
@@ -194,6 +219,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		_system_prompt_sent = _system_prompt_sent and not includes_system_prompt
 		if model.state == SessionModel.State.CANCELLING:
 			model.finish_turn("cancelled")
+		_record_turn_end("cancelled")
 		return "cancelled"
 
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
@@ -206,6 +232,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		if model.state in [SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
 			model.add_notice("El turno terminó con error: %s" % result.error_message(), ChatEntry.Level.ERROR, _error_actions())
 			model.finish_turn("error")
+		_record_turn_end("error")
 		return "error"
 	var stop_reason := "end_turn"
 	if result.result is Dictionary:
@@ -214,6 +241,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if stop_reason == "end_turn" and quota.matching_line(turn_text).is_empty():
 		quota.observe_turn_ok()
 	model.finish_turn(stop_reason)
+	_record_turn_end(stop_reason)
 	return stop_reason
 
 
@@ -267,6 +295,8 @@ func stop() -> void:
 		agent_log.add(AgentLog.CH_PROC, "Proceso detenido")
 	client.fail_all_pending("Sesión detenida.")
 	model.cancel_pending_permissions()
+	if history:
+		history.end()
 	if model.state != SessionModel.State.DISCONNECTED and model.state != SessionModel.State.FAILED:
 		model.set_state(SessionModel.State.DISCONNECTED)
 		disconnected.emit()
@@ -453,6 +483,8 @@ func _send_line(line: String) -> bool:
 	return _process != null and _process.send_line(line)
 
 
+## Durante session/load el agente vuelve a mandar toda la conversación; acá se descarta, porque
+## model.session_id recién se asigna con la respuesta y el dock ya la armó desde el historial.
 func _on_session_update(params: Dictionary) -> void:
 	if params.get("sessionId") != model.session_id or not params.get("update") is Dictionary:
 		return
@@ -460,6 +492,45 @@ func _on_session_update(params: Dictionary) -> void:
 		quota.observe_update(params.update)
 	if not model.apply_update(params.update):
 		agent_log.add(AgentLog.CH_ACP, "Variante de session/update desconocida, ignorada: %s" % str(params.update.get("sessionUpdate", "?")))
+	elif history:
+		history.record_update(params.update)
+
+
+func _record_turn_end(stop_reason: String) -> void:
+	if history:
+		history.record_turn_end(stop_reason)
+
+
+## Reanuda una sesión del historial: la conversación sale del archivo y session/load le devuelve
+## al agente su contexto. Sin soporte de session/load el historial queda de solo lectura.
+func _load_session(record: Dictionary, generation: int) -> bool:
+	var session_id := str(record.get("id", ""))
+	SessionHistory.replay(record, model)
+	if not model.supports_load_session():
+		_load_failed = true
+		stop()
+		model.add_notice("%s no puede reanudar sesiones (no anuncia session/load): el historial queda de solo lectura. Escribí para empezar una sesión nueva." % _profile.display_name)
+		return false
+	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
+	var result := await client.request("session/load", {"sessionId": session_id, "cwd": cwd, "mcpServers": mcp_servers})
+	if generation != _connect_generation:
+		return false
+	if not result.ok:
+		_load_failed = true
+		stop()
+		model.add_notice("No se pudo reanudar la sesión: %s. El historial queda de solo lectura." % result.error_message(), ChatEntry.Level.WARNING)
+		return false
+	model.apply_session(session_id, result.result if result.result is Dictionary else {})
+	_system_prompt_sent = true  # ya está en el contexto que el agente recuperó
+	policy.clear_session()
+	_preauthorized_writes.clear()
+	if history:
+		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
+	model.set_state(SessionModel.State.READY)
+	model.add_notice("Sesión reanudada: el agente recuperó su contexto con session/load.")
+	_sync_agent_mode()
+	connected.emit()
+	return true
 
 
 func _on_stderr(line: String) -> void:

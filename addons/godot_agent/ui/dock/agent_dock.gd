@@ -4,6 +4,8 @@ extends VBoxContainer
 ## modo; conversación; composer. Solo habla con SessionModel (estado) y SessionController (comandos).
 
 signal show_log_requested
+## Abrir el diálogo de Settings (lo maneja el plugin: necesita la config del proyecto y el server MCP).
+signal settings_requested
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
 signal action_forwarded(action: String, payload: Variant)
 
@@ -11,6 +13,7 @@ const SessionModel := preload("../../session/session_model.gd")
 const SessionController := preload("../../session/session_controller.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
+const HISTORY_MENU_SIZE := 30
 const AgentProfile := preload("../../core/agent_profile.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
@@ -19,7 +22,6 @@ const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
 const Composer := preload("composer.gd")
 const ReviewPanel := preload("review_panel.gd")
-const ProfilesDialog := preload("../settings/profiles_dialog.gd")
 const QuotaMeter := preload("quota_meter.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const ReviewStore := preload("../../review/review_store.gd")
@@ -39,6 +41,8 @@ const ACTION_REVIEW_FIX_ALL := "review_fix_all"
 
 ## (texto) -> bool: si devuelve true, el texto del composer ya se manejó (p. ej. guía del One-shot).
 var submit_interceptor: Callable
+## () -> bool: si se puede cambiar de sesión (no con un One-shot en curso). Sin asignar: siempre.
+var can_switch_session: Callable
 
 var _model: SessionModel
 var _controller: SessionController
@@ -59,12 +63,13 @@ var _extra_files: PackedStringArray = []
 var _add_context_menu: PopupMenu
 var _file_dialog: EditorFileDialog
 var _review_panel: ReviewPanel
-var _profiles_dialog: ProfilesDialog
 var _quota_meter: QuotaMeter
 var _quota_timer: Timer
 var _quota_state: int = QuotaMonitor.State.UNKNOWN
 var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
+var _history_menu: PopupMenu
+var _history_items: Array[Dictionary] = []
 
 @onready var _profile_button: OptionButton = %ProfileButton
 @onready var _title_label: Label = %TitleLabel
@@ -113,10 +118,9 @@ func _ready() -> void:
 	_composer_slot.add_child(_composer)
 	_build_review_panel()
 	_build_quota_meter()
-	_profiles_dialog = ProfilesDialog.new()
-	_profiles_dialog.setup(_settings)
-	_profiles_dialog.confirmed.connect(_reload_profiles)
-	add_child(_profiles_dialog)
+	_settings.changed.connect(func(key: String) -> void:
+		if key == HarnessSettings.KEY_PROFILES:
+			_reload_profiles())
 
 	_start_button.pressed.connect(_start_session)
 	_start_button.add_theme_color_override(&"font_color", _accent)
@@ -150,12 +154,15 @@ func _ready() -> void:
 
 func _build_header() -> void:
 	_history_button.icon = AgentTheme.icon(&"History")
-	_history_button.disabled = true
-	_history_button.tooltip_text = "Historial de sesiones (llega en M7)"
+	_history_button.tooltip_text = "Historial de sesiones"
+	_history_menu = PopupMenu.new()
+	_history_menu.id_pressed.connect(_on_history_selected)
+	add_child(_history_menu)
+	_history_button.pressed.connect(_show_history_menu)
 	_new_session_button.icon = AgentTheme.icon(&"Add")
 	_new_session_button.pressed.connect(_on_new_session_pressed)
 	_settings_button.icon = AgentTheme.icon(&"Tools")
-	_settings_button.pressed.connect(func() -> void: _profiles_dialog.popup_centered())
+	_settings_button.pressed.connect(func() -> void: settings_requested.emit())
 	_profile_button.item_selected.connect(_on_profile_selected)
 	_title_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 
@@ -351,7 +358,7 @@ func _refresh_empty_state() -> void:
 func _start_session() -> void:
 	var profile := _settings.active_profile()
 	if profile == null:
-		_profiles_dialog.popup_centered()
+		settings_requested.emit()
 		return
 	var started: bool = await _controller.start(profile)
 	if started:
@@ -369,6 +376,60 @@ func _warn_api_key(profile: AgentProfile) -> void:
 			"Hay una ANTHROPIC_API_KEY en el entorno: Claude Code puede facturar por API en lugar de usar tu suscripción.",
 			ChatEntry.Level.WARNING
 		)
+
+
+## Sesiones de este proyecto, la más reciente primero (spec §11).
+func _show_history_menu() -> void:
+	_history_menu.clear()
+	_history_items = []
+	if _controller.history:
+		_history_items = _controller.history.list(_controller.cwd).slice(0, HISTORY_MENU_SIZE)
+	if _history_items.is_empty():
+		_history_menu.add_item("No hay sesiones guardadas de este proyecto")
+		_history_menu.set_item_disabled(0, true)
+	for i in _history_items.size():
+		var item := _history_items[i]
+		var title := str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else "(sin título)"
+		var when := Time.get_datetime_string_from_unix_time(int(item.get("updated", 0)) + _timezone_bias_s(), true).substr(5, 11).replace("-", "/")
+		_history_menu.add_item("%s · %s · %s" % [when, title, item.get("agent", "")], i)
+		_history_menu.set_item_tooltip(_history_menu.item_count - 1, "%d turnos · %s" % [int(item.get("turns", 0)), item.get("id", "")])
+		if item.get("id") == _model.session_id:
+			_history_menu.set_item_disabled(_history_menu.item_count - 1, true)
+	var busy := _model.state in [SessionModel.State.STARTING, SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]
+	for i in _history_menu.item_count:
+		_history_menu.set_item_disabled(i, _history_menu.is_item_disabled(i) or busy)
+	var below: Vector2 = _history_button.get_screen_position() + Vector2(0, _history_button.size.y)
+	_history_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO))
+
+
+## Muestra la sesión y la reanuda con session/load si el agente lo soporta (si no, solo lectura).
+func open_history_session(id: String) -> bool:
+	var record: Dictionary = _controller.history.load_record(id) if _controller.history else {}
+	if record.is_empty():
+		_model.add_notice("No se pudo leer la sesión %s del historial." % id, ChatEntry.Level.WARNING)
+		return false
+	var profile := _settings.profile(str(record.get("profile_id", "")))
+	if profile == null:
+		profile = _settings.active_profile()
+	if profile == null:
+		return false
+	return await _controller.start(profile, record)
+
+
+func _on_history_selected(index: int) -> void:
+	if index < 0 or index >= _history_items.size():
+		return
+	# El estado pudo cambiar con el menú abierto.
+	if _model.state in [SessionModel.State.STARTING, SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
+		return
+	if can_switch_session.is_valid() and not can_switch_session.call():
+		_model.add_notice("Hay un One-shot en curso: detenelo antes de abrir otra sesión.", ChatEntry.Level.WARNING)
+		return
+	open_history_session(str(_history_items[index].get("id", "")))
+
+
+static func _timezone_bias_s() -> int:
+	return int(Time.get_time_zone_from_system().get("bias", 0)) * 60
 
 
 func _on_new_session_pressed() -> void:
