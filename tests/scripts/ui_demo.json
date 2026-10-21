@@ -23,7 +23,7 @@
 			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t2", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "/tmp/project/Spawner.gd"}, "locations": [{"path": "/tmp/project/Spawner.gd", "line": 12}],
 				"content": [{"type": "content", "content": {"type": "text", "text": "extends Node\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tpass\n"}}]}},
 			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t3", "title": "Edit", "kind": "edit", "status": "in_progress", "rawInput": {"file_path": "/tmp/project/Spawner.gd"},
-				"content": [{"type": "diff", "path": "/tmp/project/Spawner.gd", "oldText": "extends Node\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tpass\n", "newText": "extends Node\n\nsignal wave_started(index: int)\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tstart_wave()\n\nfunc start_wave() -> void:\n\twave += 1\n\twave_started.emit(wave)\n"}]}},
+				"content": [{"type": "diff", "path": "/tmp/project/Spawner.gd", "oldText": "extends Node\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tpass\n", "newText": "extends Node\n\nsignal wave_started(index: int)\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tstart_wave()\n\nfunc start_wave() -> void:\n\twave += 1\n\twave_started.emit(wave)\n\t# Comentario muy largo para comprobar que una línea larga del diff no ensancha el dock: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"}]}},
 			{"delay": 0.3},
 			{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "t3", "status": "completed"}},
 			{"chunk": "\n\nListo:\n\n- `wave_started(index)` se emite al empezar cada oleada\n- `start_wave()` incrementa el contador\n\n```gdscript\nfunc start_wave() -> void:\n\twave += 1\n```"},

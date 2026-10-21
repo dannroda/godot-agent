@@ -1,0 +1,23 @@
+{
+	"session": {
+		"modes": {"currentModeId": "default", "availableModes": [{"id": "default", "name": "Default"}, {"id": "plan", "name": "Plan"}]}
+	},
+	"turns": [
+		{"steps": [
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "tests/fixtures/review/review_player.gd"}}},
+			{"chunk": "Revisé los tres scripts de `tests/fixtures/review/`. Encontré tres problemas:\n\n"},
+			{"delay": 0.1},
+			{"chunk": "```json\n{\"findings\": [\n  {\"path\": \"tests/fixtures/review/review_player.gd\", \"line\": 13, \"severity\": \"bug\", \"title\": \"El movimiento depende del framerate\", \"body\": \"position se suma sin multiplicar por delta: a más FPS, más rápido.\", \"suggestion\": \"position += direction * speed * delta\"},\n"},
+			{"chunk": "  {\"path\": \"res://tests/fixtures/review/review_spawner.gd\", \"line\": 10, \"severity\": \"orden\", \"title\": \"El setter de interval usa _timer antes de _ready\", \"body\": \"Al instanciar la escena, el valor exportado se asigna antes que los @onready: _timer es null.\", \"suggestion\": \"if is_node_ready(): _timer.wait_time = value\"},\n  {\"file\": \"tests/fixtures/review/review_hud.gd:12\", \"severity\": \"performance\", \"title\": \"get_node en cada frame\", \"description\": \"Busca el Label en cada _process.\", \"fix\": \"@onready var _score_label: Label = %ScoreLabel\"},\n]}\n```\n\nNo modifiqué nada."},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Porque `delta` es el tiempo del frame. Por ejemplo:\n```json\n{\"findings\": [{\"path\": \"tests/fixtures/review/review_player.gd\", \"line\": 13, \"severity\": \"bug\", \"title\": \"Solo este\"}]}\n```"},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Listo, lo arreglé."},
+			{"stop": "end_turn"}
+		]}
+	]
+}

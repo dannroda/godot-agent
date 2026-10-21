@@ -61,9 +61,15 @@ func _ready() -> void:
 	preview.selection_enabled = true
 	preview.autowrap_mode = TextServer.AUTOWRAP_OFF
 	preview.clip_contents = true
+	preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	preview.add_theme_font_override(&"normal_font", AgentTheme.mono_font())
 	preview.add_theme_font_size_override(&"normal_font_size", AgentTheme.mono_font_size())
-	column.add_child(preview)
+	# Sin autowrap, fit_content pide el ancho de la línea más larga: el scroll horizontal evita que
+	# una línea larga ensanche todo el dock.
+	var preview_scroll := ScrollContainer.new()
+	preview_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	preview_scroll.add_child(preview)
+	column.add_child(preview_scroll)
 	var lines: PackedStringArray = []
 	var shown := 0
 	var changed_total: int = counts.added + counts.removed

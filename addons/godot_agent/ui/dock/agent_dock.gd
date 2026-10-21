@@ -19,6 +19,8 @@ const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
 const Composer := preload("composer.gd")
 const ProfilesDialog := preload("../settings/profiles_dialog.gd")
+const ReviewPanel := preload("review_panel.gd")
+const ReviewStore := preload("../../review/review_store.gd")
 
 ## export_presets.cfg no pasa por EditorFileSystem: se mira su fecha de modificación cada tanto.
 const PRESETS_POLL_INTERVAL_S := 2.0
@@ -29,6 +31,9 @@ const CHIP_FILE_PREFIX := "file:"
 const ADD_CONTEXT_SCRIPT := 0
 const ADD_CONTEXT_FILE := 1
 const ADD_CONTEXT_SCREENSHOT := 2
+## Acciones de la revisión que resuelve el plugin (junto con las de las tarjetas del Script Editor).
+const ACTION_REVIEW_FOCUS := "review_focus"
+const ACTION_REVIEW_FIX_ALL := "review_fix_all"
 
 var _model: SessionModel
 var _controller: SessionController
@@ -49,6 +54,9 @@ var _screenshot_block: Dictionary = {}
 var _extra_files: PackedStringArray = []
 var _add_context_menu: PopupMenu
 var _file_dialog: EditorFileDialog
+var _review_panel: ReviewPanel
+var _export_dialog: ConfirmationDialog
+var _export_preview: TextEdit
 
 @onready var _profile_button: OptionButton = %ProfileButton
 @onready var _title_label: Label = %TitleLabel
@@ -95,6 +103,7 @@ func _ready() -> void:
 	_composer.screenshot_requested.connect(_on_screenshot_requested)
 	_composer.context_chip_removed.connect(_on_chip_removed)
 	_composer_slot.add_child(_composer)
+	_build_review_panel()
 	_profiles_dialog = ProfilesDialog.new()
 	_profiles_dialog.setup(_settings)
 	_profiles_dialog.confirmed.connect(_reload_profiles)
@@ -166,6 +175,47 @@ func _build_mode_bar() -> void:
 func _refresh_modes() -> void:
 	for mode: SessionModel.HarnessMode in _mode_buttons:
 		(_mode_buttons[mode] as Button).set_pressed_no_signal(mode == _model.harness_mode)
+	if _review_panel:
+		_review_panel.visible = _model.harness_mode == SessionModel.HarnessMode.REVIEW
+
+
+# --- revisión ------------------------------------------------------------------------------------
+
+func _build_review_panel() -> void:
+	_review_panel = ReviewPanel.new()
+	_review_panel.setup(_controller.review, _accent)
+	_review_panel.finding_selected.connect(func(id: int) -> void: action_forwarded.emit(ACTION_REVIEW_FOCUS, id))
+	_review_panel.fix_all_requested.connect(func() -> void: action_forwarded.emit(ACTION_REVIEW_FIX_ALL, null))
+	_review_panel.export_requested.connect(_on_review_export_requested)
+	add_child(_review_panel)
+	move_child(_review_panel, _body.get_index())
+	_export_dialog = ConfirmationDialog.new()
+	_export_dialog.title = "Exportar a CLAUDE.md"
+	_export_dialog.ok_button_text = "Agregar a CLAUDE.md"
+	_export_dialog.min_size = Vector2i(AgentTheme.px(560), AgentTheme.px(360))
+	_export_preview = TextEdit.new()
+	_export_preview.editable = true  # vista previa editable antes de agregar
+	_export_preview.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_export_dialog.add_child(_export_preview)
+	_export_dialog.confirmed.connect(_on_review_export_confirmed)
+	add_child(_export_dialog)
+
+
+func _on_review_export_requested() -> void:
+	var review := _controller.review
+	_export_preview.text = ReviewStore.claude_md_section(review.findings, Time.get_date_string_from_system())
+	var exists := FileAccess.file_exists(ReviewStore.CLAUDE_MD_PATH)
+	_export_dialog.title = "Agregar al final de CLAUDE.md" if exists else "Crear CLAUDE.md"
+	_export_dialog.popup_centered()
+
+
+func _on_review_export_confirmed() -> void:
+	var error := ReviewStore.append_to_claude_md(_export_preview.text)
+	if not error.is_empty():
+		_model.add_notice("No se pudo escribir CLAUDE.md: %s" % error, ChatEntry.Level.ERROR)
+		return
+	EditorInterface.get_resource_filesystem().update_file(ReviewStore.CLAUDE_MD_PATH)
+	_model.add_notice("Convenciones de la revisión agregadas a CLAUDE.md.")
 
 
 func _reload_profiles() -> void:

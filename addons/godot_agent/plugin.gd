@@ -30,6 +30,9 @@ const PlaytestDebugger := preload("playtest/playtest_debugger.gd")
 const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
 const ErrorCollector := preload("core/error_collector.gd")
+const ReviewAnnotations := preload("review/review_annotations.gd")
+const ReviewStore := preload("review/review_store.gd")
+const AgentDock := preload("ui/dock/agent_dock.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -60,6 +63,7 @@ var _errors: ErrorCollector
 var _playtest_debugger: PlaytestDebugger
 var _run_tools: RunTools
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
+var _review_annotations: ReviewAnnotations
 
 
 func _enter_tree() -> void:
@@ -99,6 +103,11 @@ func _enter_tree() -> void:
 	add_debugger_plugin(_playtest_debugger)
 	_start_mcp_server()
 
+	_review_annotations = ReviewAnnotations.new()
+	_review_annotations.setup(_controller.review, _model, _settings.accent_color())
+	_review_annotations.action_requested.connect(_on_review_action)
+	add_child(_review_annotations)
+
 	var dock := AgentDockScene.instantiate()
 	dock.setup(_model, _controller, _settings)
 	dock.show_log_requested.connect(_show_log)
@@ -129,6 +138,10 @@ func _exit_tree() -> void:
 	if _sync:
 		_sync.queue_free()
 		_sync = null
+	if _review_annotations:
+		remove_child(_review_annotations)
+		_review_annotations.queue_free()
+		_review_annotations = null
 	if _diff_dialog:
 		_diff_dialog.queue_free()
 		_diff_dialog = null
@@ -231,6 +244,41 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_sync.reload_scene(path)
 		ACTION_UNDO_TOOL_CALL:
 			_undo_tool_call(str(payload))
+		AgentDock.ACTION_REVIEW_FOCUS:
+			if not _review_annotations.focus_finding(int(payload)):
+				_model.add_notice("No se pudo abrir el hallazgo.", ChatEntry.Level.WARNING)
+		AgentDock.ACTION_REVIEW_FIX_ALL:
+			_fix_review_findings(_controller.review.findings.duplicate())
+
+
+## Botones de la tarjeta de un hallazgo en el Script Editor (spec §9.4).
+func _on_review_action(action: String, finding: Dictionary) -> void:
+	match action:
+		ReviewAnnotations.ACTION_DISMISS:
+			_controller.review.dismiss(int(finding.id))
+		ReviewAnnotations.ACTION_ASK:
+			if _can_send():
+				_controller.send_prompt(ReviewStore.question_prompt(finding), [], false)
+		ReviewAnnotations.ACTION_APPLY:
+			var list: Array[Dictionary] = [finding]
+			_fix_review_findings(list)
+
+
+## Pasa a Construir y pide los arreglos; si el turno termina bien, esos hallazgos salen de la revisión.
+func _fix_review_findings(list: Array[Dictionary]) -> void:
+	if list.is_empty() or not _can_send():
+		return
+	var stop_reason := await _controller.send_in_mode(SessionModel.HarnessMode.BUILD, ReviewStore.fix_prompt(list))
+	if stop_reason == "end_turn" and _controller:
+		for finding: Dictionary in list:
+			_controller.review.dismiss(int(finding.id))
+
+
+func _can_send() -> bool:
+	if _model.state == SessionModel.State.READY:
+		return true
+	_model.add_notice("Para eso hace falta una sesión lista y sin un turno en curso.", ChatEntry.Level.WARNING)
+	return false
 
 
 ## Una tool de edición commiteó un paso de undo: se une a su tool call para el botón "↶ undo".

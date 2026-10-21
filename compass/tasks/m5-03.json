@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:14.997Z",
   "description": "Modo Revisar: aviso de solo lectura, contadores por severidad, lista con archivo:línea clickeable. \"Aplicar arreglo\" cambia a Construir y pide ese arreglo; \"Exportar a CLAUDE.md\" agrega convenciones previa confirmación; \"Arreglar en modo Construir\".",
   "milestone": "m05",
-  "notes": "",
+  "notes": "ui/dock/review_panel.gd, visible en modo Revisar:\n- título con el alcance (carpeta común) y la cantidad de archivos;\n- aviso de solo lectura;\n- contadores bug/orden/rend/estilo con los colores del mockup;\n- lista \"archivo:línea · título\" con ● por severidad, que abre el script con la tarjeta.\nBotones en un HFlowContainer (dock angosto):\n- Exportar a CLAUDE.md: ConfirmationDialog con vista previa editable; agrega al final de res://CLAUDE.md o lo crea, y hace update_file;\n- Arreglar en modo Construir.\nSessionController:\n- send_in_mode(mode, text);\n- send_prompt(…, collect_findings) espera a que termine session/set_mode con el estado ya en PROMPTING (antes la UI veía READY y el check fallaba de forma intermitente);\n- se cuentan las sincronizaciones solapadas;\n- si se cancela durante la espera, el turno termina como cancelled y el system prompt se reenvía en el próximo.\nAdemás: el diff del chat va en un scroll horizontal, porque una línea larga ensanchaba el dock (se vio con Claude real).",
   "order": 3,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "review_check.gd (agente falso), en 4.4.1, 4.7.2 y 4.8-beta1:\n- el panel se ve en Revisar y se oculta fuera de él;\n- título \"Revisión de tests/fixtures/review/ · …\";\n- Preguntar no reemplaza la revisión ni cambia el modo;\n- la vista previa de Exportar a CLAUDE.md trae la sección;\n- Aplicar arreglo pasa a Construir, el agente pasa a default, el prompt lleva ruta:línea y sugerencia, y el hallazgo sale al terminar;\n- Arreglar en modo Construir vacía la revisión.\ntest_review_store cubre los prompts y append_to_claude_md.",
   "title": "Lista de hallazgos en el dock y acciones",
-  "updated_at": "2026-10-21T04:33:14.997Z"
+  "updated_at": "2026-10-21T07:20:12.770Z"
 }

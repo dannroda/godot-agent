@@ -270,3 +270,19 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 
   `QuotaMonitor` mira las tres cosas. Los prefijos están en `config/quota_patterns.txt` (editable), anclados al principio de línea. Un patrón suelto como "rate limit" dispararía con la prosa del agente.
 - **Prohibido y respetado**: no se consulta el endpoint de uso del adapter (`/usage`, `usage-markdown.js`) ni se leen credenciales o archivos de `~/.claude`.
+
+## D23 · Revisión: de dónde salen los hallazgos y cómo se muestran (M5, spec §9.4)
+
+- **Fuente**: el texto del agente en cada turno del modo Revisar. Las reglas del modo piden un bloque ```json `{"findings": […]}` con `path` relativo al proyecto y `line` desde 1. `review/findings_parser.gd` es tolerante:
+  - JSON con o sin fence, con prosa alrededor, comas finales y nombres de campo alternativos;
+  - `ruta.gd:12` en `path`;
+  - severidades en castellano o inglés.
+
+  Lo que no se puede normalizar se descarta, sin cortar el resto.
+- **Una revisión vigente**: cada turno de Revisar con un bloque `findings` reemplaza la revisión anterior, y un bloque vacío la limpia. Las reglas del modo le piden al agente que repita todos los hallazgos vigentes. "Preguntar" sobre un hallazgo manda el turno sin recolectar hallazgos, así que la respuesta no pisa la revisión.
+- **Líneas fijas**: las marcas usan las líneas del texto revisado. Si el archivo cambia después, se vuelve a revisar; no hay seguimiento de ediciones.
+- **Marcas en el Script Editor**: el fondo de la línea se dibuja desde un gutter propio (al final, junto al código) y no con `set_line_background_color`, porque `ScriptTextEditor` borra esos colores cada vez que valida el script. Se anotan los editores que fueron el actual. No se puede emparejar `get_open_script_editors()` con `get_open_scripts()`: cuando hay archivos de texto abiertos, los índices no coinciden.
+- **Tarjeta**: es un overlay hijo del `CodeEdit`, debajo de la línea. No empuja el código, porque `TextEdit` no tiene widgets en línea. Se abre al hacer clic en la marca o al elegir el hallazgo en el dock.
+- **Banda**: "Revisión del agente · solo lectura" va en la barra de estado del `CodeTextEditor`, y como overlay si no se la encuentra. Los conteos por archivo en la lista de scripts quedaron afuera: esa `ItemList` es interna del editor.
+- **Plan mode de Claude Code**: Revisar pone al agente en `plan`. En ese modo Claude Code ejecuta comandos de solo lectura y escribe su propio archivo de plan, fuera del proyecto, sin mandarle `session/request_permission` al cliente. Los cambios al proyecto siguen pasando por la política: en Revisar, `edit_*`, `shell` y `project` se deniegan.
+- **Arreglos**: "Aplicar arreglo" y "Arreglar en modo Construir" pasan a Construir (`send_in_mode`). Si el turno termina con `end_turn`, esos hallazgos salen de la revisión. Un turno espera a que termine `session/set_mode` antes de mandarse, pero el estado pasa a PROMPTING enseguida, así que la UI no lo da por terminado.

@@ -702,36 +702,88 @@ Los tool calls MCP de edición registran su paso de undo; el dock muestra "↶ u
 
 **Notas:** docs/progress.md (sección M4) y decisions.md D19–D21. El prompt de sistema suma reglas para edición en pasos chicos y para run_scene/capture/stop. Los editores 4.4/4.7 reescriben tests/fixtures/main_fixture.tscn al correr la suite (sin unique_id): se restaura con git checkout, igual que project.godot.
 
-## M5 — Revisar y Script Editor  (0/4)
+## M5 — Revisar y Script Editor  (4/4, 4 en revisión)
 
 Modo Revisar, parseo de findings, anotaciones en el CodeEdit, tarjetas y lista de hallazgos; "Aplicar arreglo" y "Exportar a CLAUDE.md".
 
 **Hecho cuando:**
 - Revisar una carpeta con 3 bugs sembrados: aparecen anotados en las líneas correctas.
 
-### 5.1 Parser tolerante de findings y checks · Pendiente
+### 5.1 Parser tolerante de findings y checks · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Extrae bloques {"findings":[…]} y {"checks":[…]} del texto del agente aunque vengan en fences, con texto alrededor o con campos faltantes; normaliza severidades bug|order|perf|style. Tests unitarios.
 
-### 5.2 Anotaciones en el CodeEdit y tarjetas de hallazgo · Pendiente
+**Prueba:** godot --headless --path . --script tests/run_all.gd -- findings (test_findings_parser: 6 tests/28 checks) y -- review_store (3 tests/24 checks); 4.8 y 4.4.1.
+
+**Notas:** review/findings_parser.gd: parse(text, project_root) → {findings, checks}. Acepta fences ```json o sin lenguaje, JSON suelto con prosa alrededor (busca llaves balanceadas respetando strings), varios bloques (sin duplicados), comas finales, campos alternativos (file/description/fix/kind…), "ruta.gd:12" en path, rutas relativas o absolutas → res://, severidades en castellano/inglés → bug|order|perf|style (desconocida → style). Checks: {title, ok, detail} con ok bool/string/número. review/review_store.gd: revisión vigente; cada turno en modo Revisar con bloque findings la reemplaza (D23); dismiss, counts, scope_label, fix_prompt, question_prompt, claude_md_section y append_to_claude_md.
+
+### 5.2 Anotaciones en el CodeEdit y tarjetas de hallazgo · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
 Marcar la línea (fondo y gutter por severidad) en el Script Editor; tarjeta con título, explicación, sugerencia y botones Aplicar arreglo / Preguntar / Descartar. Banda "Revisión del agente · solo lectura" (docs/design pantalla 3).
 
-### 5.3 Lista de hallazgos en el dock y acciones · Pendiente
+**Prueba:** tests/run_in_xvfb.sh $G --godot-agent-review-test (review_check.gd): marca en la línea, gutter propio, cursor, tarjeta con título y los 3 botones, banda en la barra de estado; Descartar saca la marca y cierra la tarjeta. Pasa en 4.4.1, 4.7.2 y 4.8-beta1. Captura revisada a ojo (4.8, agente falso y Claude real).
+
+**Notas:** review/review_annotations.gd (Node hijo del plugin):
+- gutter custom "godot_agent_review" al final, que dibuja ● y el fondo de la línea por severidad (ScriptTextEditor borra set_line_background_color al validar, D23);
+- tarjeta overlay en el CodeEdit bajo la línea (get_rect_at_line_column, sigue el scroll), que se abre con clic en la marca o desde la lista del dock (focus_finding);
+- banda "Revisión del agente · solo lectura · N hallazgos" en la barra de estado del CodeTextEditor, o como overlay si no la encuentra.
+Anota los editores que fueron el actual (editor_script_changed). Colores en AgentTheme.SEVERITY_COLORS/BG. Los botones de la tarjeta los resuelve plugin.gd:
+- Descartar: store.dismiss;
+- Preguntar: send_prompt sin recolectar hallazgos;
+- Aplicar arreglo: send_in_mode(BUILD) y saca el hallazgo si termina en end_turn.
+Afuera (D23): conteos por archivo en la lista de scripts y seguimiento de ediciones.
+
+### 5.3 Lista de hallazgos en el dock y acciones · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Modo Revisar: aviso de solo lectura, contadores por severidad, lista con archivo:línea clickeable. "Aplicar arreglo" cambia a Construir y pide ese arreglo; "Exportar a CLAUDE.md" agrega convenciones previa confirmación; "Arreglar en modo Construir".
 
-### 5.4 Verificar M5 · Pendiente
+**Prueba:** review_check.gd (agente falso), en 4.4.1, 4.7.2 y 4.8-beta1:
+- el panel se ve en Revisar y se oculta fuera de él;
+- título "Revisión de tests/fixtures/review/ · …";
+- Preguntar no reemplaza la revisión ni cambia el modo;
+- la vista previa de Exportar a CLAUDE.md trae la sección;
+- Aplicar arreglo pasa a Construir, el agente pasa a default, el prompt lleva ruta:línea y sugerencia, y el hallazgo sale al terminar;
+- Arreglar en modo Construir vacía la revisión.
+test_review_store cubre los prompts y append_to_claude_md.
+
+**Notas:** ui/dock/review_panel.gd, visible en modo Revisar:
+- título con el alcance (carpeta común) y la cantidad de archivos;
+- aviso de solo lectura;
+- contadores bug/orden/rend/estilo con los colores del mockup;
+- lista "archivo:línea · título" con ● por severidad, que abre el script con la tarjeta.
+Botones en un HFlowContainer (dock angosto):
+- Exportar a CLAUDE.md: ConfirmationDialog con vista previa editable; agrega al final de res://CLAUDE.md o lo crea, y hace update_file;
+- Arreglar en modo Construir.
+SessionController:
+- send_in_mode(mode, text);
+- send_prompt(…, collect_findings) espera a que termine session/set_mode con el estado ya en PROMPTING (antes la UI veía READY y el check fallaba de forma intermitente);
+- se cuentan las sincronizaciones solapadas;
+- si se cancela durante la espera, el turno termina como cancelled y el system prompt se reenvía en el próximo.
+Además: el diff del chat va en un scroll horizontal, porque una línea larga ensanchaba el dock (se vio con Claude real).
+
+### 5.4 Verificar M5 · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Revisar una carpeta con 3 bugs sembrados: aparecen anotados en las líneas correctas (agente falso con guion de findings y Claude Code real). Actualizar progress.
+
+**Prueba:** Agente falso: tests/run_in_xvfb.sh $G --godot-agent-review-test (tests/scripts/review.json) PASS en 4.4.1, 4.7.2 y 4.8-beta1, dos corridas seguidas en cada una.
+Claude Code real: XRUN_TIMEOUT=500 tests/run_in_xvfb.sh $G --godot-agent-claude-review-test, PASS en 4.8 (4 hallazgos: los 3 sembrados + uno válido sobre enemy_scene sin chequear) y en 4.4.1 (exactamente los 3).
+Suite completa: run_all 71/427, acp 65, cycle, ui, edit y export_check.
+
+**Notas:** tests/fixtures/review/ tiene 3 bugs sin pistas en el código:
+- review_player.gd:13, movimiento sin delta (bug);
+- review_spawner.gd:10, setter exportado que usa un @onready antes de _ready (orden);
+- review_hud.gd:12, get_node en _process (rendimiento).
+review_check.gd ubica la línea esperada buscando el código, y con Claude real acepta ±1 línea (marcó el HUD en la línea del _process) y severidades razonables.
+Observado (D23): en plan mode Claude Code ejecuta comandos de solo lectura y escribe su archivo de plan fuera del proyecto sin pedirle permiso al cliente. El log perm quedó vacío en Revisar.
+progress.md tiene la sección M5.
 
 ## M6 — One-shot  (0/8)
 

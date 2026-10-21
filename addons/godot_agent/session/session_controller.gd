@@ -6,6 +6,8 @@ extends RefCounted
 
 signal connected
 signal disconnected
+## Terminó la sincronización del modo del agente con el del harness (session/set_mode).
+signal agent_mode_synced
 
 const AgentProcess := preload("../transport/agent_process.gd")
 const AcpClient := preload("../acp/acp_client.gd")
@@ -18,6 +20,7 @@ const PermissionRequest := preload("permission_request.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
+const ReviewStore := preload("../review/review_store.gd")
 
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
@@ -34,7 +37,7 @@ const PREAUTHORIZED_WRITE_MS := 120000
 
 const MODE_RULES: Dictionary = {
 	SessionModel.HarnessMode.ASK: "Solo respondé preguntas: no modifiques archivos, escenas ni settings, y no ejecutes comandos.",
-	SessionModel.HarnessMode.REVIEW: "Revisión de solo lectura: no modifiques nada. Reportá los hallazgos en un bloque ```json con {\"findings\":[{\"path\",\"line\",\"severity\":\"bug|order|perf|style\",\"title\",\"body\",\"suggestion\"}]}.",
+	SessionModel.HarnessMode.REVIEW: "Revisión de solo lectura: no modifiques nada. Reportá los hallazgos en un bloque ```json con {\"findings\":[{\"path\",\"line\",\"severity\":\"bug|order|perf|style\",\"title\",\"body\",\"suggestion\"}]} (path relativo al proyecto, line desde 1). Cada bloque reemplaza la revisión anterior: incluí todos los hallazgos vigentes.",
 	SessionModel.HarnessMode.BUILD: "Podés editar escenas y scripts; el usuario aprueba los cambios.",
 	SessionModel.HarnessMode.ONESHOT: "Trabajá de forma autónoma hasta cumplir el objetivo; verificá con run_scene, capture_game_frame y get_errors después de cada tarea.",
 }
@@ -53,6 +56,8 @@ var fs: FsHandler
 var agent_log: AgentLog
 ## Cuota del plan (spec §10.1): por ahora solo observa y loguea en el canal quota.
 var quota: QuotaMonitor
+## Hallazgos de la última revisión (modo Revisar, spec §9.4).
+var review: ReviewStore = ReviewStore.new()
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
 var cwd: String = ""
 ## Callable() -> Array: entradas `mcpServers` para session/new (el server del addon, M3).
@@ -65,6 +70,7 @@ var _profile: AgentProfile
 var _system_prompt_sent: bool = false
 var _connect_generation: int = 0
 var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
+var _mode_syncs_running: int = 0
 
 
 func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String) -> void:
@@ -160,11 +166,14 @@ func open_session(generation: int = _connect_generation) -> bool:
 
 
 ## Manda un turno. `extra_blocks` son ContentBlocks de contexto (escena, selección, imagen…).
-func send_prompt(text: String, extra_blocks: Array = []) -> String:
+## En modo Revisar, un bloque `findings` en la respuesta reemplaza la revisión, salvo que
+## `collect_findings` sea false (preguntas sobre un hallazgo).
+func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool = true) -> String:
 	if model.state != SessionModel.State.READY:
 		return ""
 	var blocks: Array = []
-	if not _system_prompt_sent:
+	var includes_system_prompt := not _system_prompt_sent
+	if includes_system_prompt:
 		blocks.append({"type": "text", "text": system_prompt()})
 		_system_prompt_sent = true
 	blocks.append_array(extra_blocks)
@@ -176,9 +185,20 @@ func send_prompt(text: String, extra_blocks: Array = []) -> String:
 	model.add_user_message(text, attachments)
 	model.set_state(SessionModel.State.PROMPTING)
 	var first_new_entry := model.entries().size()
+	# Si se acaba de cambiar de modo, el turno espera a que el agente esté en el modo que corresponde.
+	while _mode_syncs_running > 0:
+		await agent_mode_synced
+	if model.state != SessionModel.State.PROMPTING:  # cancelado mientras esperaba
+		_system_prompt_sent = _system_prompt_sent and not includes_system_prompt
+		if model.state == SessionModel.State.CANCELLING:
+			model.finish_turn("cancelled")
+		return "cancelled"
 
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
-	_observe_quota_in_turn(first_new_entry)
+	var turn_text := _agent_text_since(first_new_entry)
+	quota.observe_agent_text(turn_text)
+	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
+		review.ingest_turn_text(turn_text, cwd)
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
@@ -192,12 +212,21 @@ func send_prompt(text: String, extra_blocks: Array = []) -> String:
 	return stop_reason
 
 
-## Texto del agente en el turno: los avisos de límite llegan como mensaje (D22).
-func _observe_quota_in_turn(first_entry: int) -> void:
+## Texto del agente en el turno: ahí llegan los avisos de límite (D22) y los bloques de hallazgos.
+func _agent_text_since(first_entry: int) -> String:
+	var parts: PackedStringArray = []
 	var entries := model.entries()
 	for i in range(first_entry, entries.size()):
 		if entries[i].kind == ChatEntry.Kind.AGENT:
-			quota.observe_agent_text(entries[i].text)
+			parts.append(entries[i].text)
+	return "\n".join(parts)
+
+
+## Cambia el modo del harness y manda el turno cuando el agente ya está en el modo que corresponde.
+func send_in_mode(mode: SessionModel.HarnessMode, text: String) -> String:
+	if model.harness_mode != mode:
+		model.set_harness_mode(mode)
+	return await send_prompt(text)
 
 
 func cancel() -> void:
@@ -457,7 +486,10 @@ func _sync_agent_mode() -> void:
 			available.append(str(mode.get("id", "")))
 	for candidate: String in AGENT_MODE_FOR[model.harness_mode]:
 		if candidate in available and candidate != model.current_agent_mode:
+			_mode_syncs_running += 1
 			var result := await client.request("session/set_mode", {"sessionId": model.session_id, "modeId": candidate})
+			_mode_syncs_running -= 1
+			agent_mode_synced.emit()
 			if result.ok:
 				model.apply_update({"sessionUpdate": "current_mode_update", "currentModeId": candidate})
 			return

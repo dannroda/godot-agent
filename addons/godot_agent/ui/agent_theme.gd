@@ -21,6 +21,9 @@ const REMOVED_BG := Color(0.7, 0.2, 0.2, 0.22)
 const MUTED := Color(1, 1, 1, 0.55)
 const ERROR := Color("#ff7a7a")
 const WARNING := Color("#f5c26b")
+## Severidades de la revisión (spec §9.4, mockup Review): texto/marca y fondo de etiqueta.
+const SEVERITY_COLORS: Dictionary = {"bug": Color("#f0a640"), "order": Color("#c9a2ff"), "perf": Color("#6cb4ff"), "style": Color("#a8a8a8")}
+const SEVERITY_BG: Dictionary = {"bug": Color("#3a2e1c"), "order": Color("#2f2438"), "perf": Color("#1d2a36"), "style": Color("#2c2c2e")}
 
 
 static func has_editor() -> bool:

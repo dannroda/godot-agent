@@ -275,3 +275,58 @@ Con Claude Code real (4.8 y 4.4.1), a "agregá un Label llamado WaveLabel como h
 
 - Repro mínimo del error de 4.7.2 con variables en el probe (D20), para m7-01.
 - Cuota del plan (spec §10.1): observación en M1 (D22); estados y reglas en m6-06 a m6-08.
+
+## M5 · Modo Revisar
+
+### Qué hay
+
+- **Parser tolerante** (`review/findings_parser.gd`): bloques `findings` y `checks` del texto del agente (D23).
+- **Revisión vigente** (`review/review_store.gd`), que se llena al terminar cada turno de Revisar. Tiene contadores, alcance, descartar y los prompts de arreglo y pregunta.
+- **Script Editor** (`review/review_annotations.gd`):
+  - marca ● por severidad (bug ámbar, orden violeta, rendimiento azul, estilo gris) y fondo de la línea;
+  - tarjeta bajo la línea con título, explicación, sugerencia y los botones Aplicar arreglo / Preguntar / Descartar;
+  - banda "Revisión del agente · solo lectura" en la barra de estado.
+- **Panel del dock** en modo Revisar (`ui/dock/review_panel.gd`):
+  - "Revisión de <carpeta>/ · N archivos", aviso de solo lectura, contadores por severidad y lista `archivo:línea · título`, que abre la tarjeta;
+  - **Exportar a CLAUDE.md** muestra una vista previa editable y agrega la sección al final de `res://CLAUDE.md`;
+  - **Arreglar en modo Construir**.
+- La tarjeta de diff del chat ya no ensancha el dock cuando el diff trae líneas largas: se desplaza en horizontal.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd                 # 71 tests, 427 checks (+ parser, revisión)
+tests/run_in_xvfb.sh $G --godot-agent-review-test                # agente falso: 3 bugs sembrados, marcas, tarjeta, banda, acciones
+XRUN_TIMEOUT=500 tests/run_in_xvfb.sh $G --godot-agent-claude-review-test   # Claude Code real (gasta tokens)
+```
+
+`tests/fixtures/review/` tiene tres bugs sembrados sin pistas en el código:
+- movimiento sin `delta` (bug);
+- setter exportado que usa un `@onready` antes de `_ready` (orden);
+- `get_node` en `_process` (rendimiento).
+
+Con el agente falso (`tests/scripts/review.json`), la prueba recorre todo:
+- los 3 hallazgos en su línea, con marca, cursor, tarjeta y banda;
+- Descartar;
+- Preguntar, que no reemplaza la revisión;
+- la vista previa de CLAUDE.md;
+- Aplicar arreglo, que pasa a Construir y saca el hallazgo;
+- Arreglar en modo Construir, que vacía la revisión.
+
+Pasa en 4.4.1, 4.7.2 y 4.8-beta1, junto con `acp_session_check`, cycle y ui.
+
+Con Claude Code real (4.8 y 4.4.1), los tres bugs quedaron anotados en su línea con la severidad esperada; en 4.8 agregó un cuarto hallazgo válido.
+
+### Prueba manual
+
+1. Iniciar sesión, pasar a **Revisar** y pedir "revisá tests/fixtures/review/". Al terminar el turno, el panel del dock muestra "Revisión de tests/fixtures/review/ · 3 archivos" con los contadores.
+2. Clic en un hallazgo de la lista: se abre el script en esa línea, con la marca ● y la tarjeta abajo. La barra de estado del editor dice "Revisión del agente · solo lectura".
+3. En la tarjeta, **Descartar** saca la marca; **Preguntar** manda la pregunta y la revisión sigue igual.
+4. **Aplicar arreglo** cambia el modo a Construir y pide ese arreglo. Al aceptarlo y terminar el turno, el hallazgo desaparece.
+5. **Exportar a CLAUDE.md**: aparece la vista previa; al aceptar, la sección queda al final de `CLAUDE.md`.
+
+### Pendiente
+
+- Conteos por archivo en la lista de scripts del Script Editor (D23).
+- Seguir las ediciones para mover las marcas: hoy hay que volver a revisar.
+

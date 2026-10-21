@@ -25,6 +25,10 @@ extends EditorPlugin
 ##   Pide agregar WaveLabel al HUD y conectar WaveTimer.timeout; Ctrl+Z tiene que deshacerlo en pasos.
 ## - `-- --godot-agent-crash-test=before|during`: mata el editor con el autoload de playtest recién
 ##   registrado (before) o con un run_scene en curso (during). Al reabrir, no tiene que quedar.
+## - `-- --godot-agent-review-test [--godot-agent-ui-shot=<ruta.png>]`: modo Revisar con el agente
+##   falso sobre tests/fixtures/review/ (ver review_check.gd). Necesita ventana.
+## - `-- --godot-agent-claude-review-test`: lo mismo con Claude Code real (gasta tokens): los tres
+##   bugs sembrados tienen que quedar anotados en su línea.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -51,6 +55,9 @@ const CLAUDE_SCENE_ARG := "--godot-agent-claude-scene-test"
 const CLAUDE_HUD_FIXTURE := "res://tests/fixtures/hud_fixture.tscn"
 const CLAUDE_HUD_SCENE := "res://tests/tmp/claude_hud.tscn"
 const CRASH_ARG := "--godot-agent-crash-test="
+const REVIEW_ARG := "--godot-agent-review-test"
+const CLAUDE_REVIEW_ARG := "--godot-agent-claude-review-test"
+const ReviewCheck := preload("review_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
 const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
@@ -82,6 +89,10 @@ func _enter_tree() -> void:
 		_run_run_test.call_deferred()
 	if CLAUDE_SCENE_ARG in args:
 		_run_claude_scene_test.call_deferred()
+	if REVIEW_ARG in args:
+		_run_review_test.call_deferred(false)
+	if CLAUDE_REVIEW_ARG in args:
+		_run_review_test.call_deferred(true)
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
@@ -260,6 +271,19 @@ func _run_run_test() -> void:
 	for failure: String in failures:
 		print("[run-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "run-test: %d fallas" % failures.size())
+
+
+func _run_review_test(real_claude: bool) -> void:
+	get_tree().create_timer(CLAUDE_TIMEOUT_S if real_claude else SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	if _find_dock() == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.defaults()[0]) if real_claude else null
+	var failures: PackedStringArray = await ReviewCheck.new().run_review(get_tree(), profile, _arg_value(UI_SHOT_ARG))
+	for failure: String in failures:
+		print("[review-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "review-test%s: %d fallas" % [" (Claude)" if real_claude else "", failures.size()])
 
 
 func _run_claude_scene_test() -> void:
