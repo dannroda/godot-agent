@@ -43,7 +43,8 @@ El addon no escribe nada en `project.godot`. La única excepción es un autoload
 - **Modos**: Preguntar · Revisar · Construir · One-shot.
 - **Conversación**: Markdown, tool calls agrupados, diffs, tarjetas de permiso y el plan del agente.
 - **Composer**:
-  - `@` menciona archivos del proyecto y `/` lista los comandos del agente;
+  - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
+  - `@` menciona archivos del proyecto y `/` lista los comandos del agente (con la lista abierta, Enter elige);
   - **+ contexto** adjunta la escena abierta, la selección o una captura del viewport;
   - también hay selector de modelo y medidor de contexto.
 - **Cuota del plan**: si el agente la informa, aparece debajo del estado (ver [Cuota](#cuota-del-plan)).

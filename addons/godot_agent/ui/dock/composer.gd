@@ -2,7 +2,7 @@
 extends VBoxContainer
 ## Composer del dock: chips de contexto, texto con autocompletado (`/` comandos del agente,
 ## `@` archivos y nodos), medidor de contexto, selector de modelo y enviar/detener.
-## Ctrl+Enter envía y Esc cancela el turno.
+## Enter envía, Ctrl+Enter o Shift+Enter bajan de línea y Esc cancela el turno.
 
 signal submitted(text: String)
 signal cancel_requested
@@ -59,6 +59,7 @@ func _ready() -> void:
 	_input.code_completion_requested.connect(_on_completion_requested)
 	_input.gui_input.connect(_on_input_gui_input)
 	_input.text_changed.connect(_update_send_button)
+	_input.text_changed.connect(_on_text_changed)
 	add_child(_input)
 
 	var row := HBoxContainer.new()
@@ -233,23 +234,49 @@ func _on_input_gui_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	if key.keycode in [KEY_ENTER, KEY_KP_ENTER] and key.is_command_or_control_pressed():
+	if key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		# Con el popup de / o @ abierto, Enter elige la opción (lo maneja el CodeEdit).
+		if _input.get_code_completion_selected_index() >= 0:
+			return
 		_input.accept_event()
-		_submit()
+		if key.is_command_or_control_pressed() or key.shift_pressed:
+			_input.insert_text_at_caret("\n")
+		else:
+			_submit()
 	elif key.keycode == KEY_ESCAPE and _busy and _input.get_code_completion_selected_index() < 0:
 		_input.accept_event()
 		cancel_requested.emit()
 
 
-func _on_completion_requested() -> void:
+## El CodeEdit no abre la lista solo al tipear un prefijo (en el Script Editor lo hace un timer del
+## editor): se pide al escribir `/` al comienzo o `@`. Después, el CodeEdit la filtra mientras se
+## escribe; elegir una opción no la vuelve a abrir.
+func _on_text_changed() -> void:
+	if _input.get_code_completion_selected_index() >= 0:
+		return
+	var word := _word_before_caret()
+	if (word.text == "/" and word.start == 0) or word.text == "@":
+		_input.request_code_completion(true)
+
+
+## {text, start}: la palabra entre el último espacio y el caret.
+func _word_before_caret() -> Dictionary:
 	var line := _input.get_line(_input.get_caret_line()).left(_input.get_caret_column())
-	var word_start := maxi(line.rfind(" "), line.rfind("\t")) + 1
-	var word := line.substr(word_start)
+	var start := maxi(line.rfind(" "), line.rfind("\t")) + 1
+	return {"text": line.substr(start), "start": start}
+
+
+func _on_completion_requested() -> void:
+	var before := _word_before_caret()
+	var word: String = before.text
+	var word_start: int = before.start
 	if word.begins_with("/") and word_start == 0:
 		for command: Variant in _commands:
 			if command is Dictionary:
 				var name := str(command.get("name", ""))
-				_input.add_code_completion_option(CodeEdit.KIND_PLAIN_TEXT, "/%s — %s" % [name, command.get("description", "")], name)
+				# El CodeEdit reemplaza la `/` junto con la palabra (la `@` no): la opción la vuelve a poner.
+				# Igual en 4.4.1, 4.7.2 y 4.8-beta1.
+				_input.add_code_completion_option(CodeEdit.KIND_PLAIN_TEXT, "/%s — %s" % [name, command.get("description", "")], "/" + name)
 	elif word.begins_with("@") and mention_provider.is_valid():
 		var options: Array = mention_provider.call()
 		for option: Variant in options.slice(0, MENTION_LIMIT):
@@ -271,7 +298,7 @@ func _update_send_button() -> void:
 		_send_button.disabled = true
 	else:
 		_send_button.text = "Enviar ➤"
-		_send_button.tooltip_text = "Enviar (Ctrl+Enter)"
+		_send_button.tooltip_text = "Enviar (Enter; Ctrl+Enter baja de línea)"
 		_send_button.disabled = not _input.editable or _input.text.strip_edges().is_empty()
 
 

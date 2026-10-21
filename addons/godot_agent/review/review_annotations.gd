@@ -127,6 +127,9 @@ func _attach(code_edit: CodeEdit) -> void:
 	code_edit.gutter_clicked.connect(_on_gutter_clicked.bind(code_edit))
 	code_edit.get_v_scroll_bar().value_changed.connect(_on_scrolled.bind(code_edit))
 	code_edit.resized.connect(_layout.bind(code_edit))
+	# Una tarjeta armada antes de que el CodeEdit acomode el texto ve la línea fuera de pantalla; si
+	# después el scroll no cambia, ni `resized` ni `value_changed` la vuelven a ubicar. `draw` sí.
+	code_edit.draw.connect(_layout.bind(code_edit))
 
 	var band := Label.new()
 	band.name = "GodotAgentReviewBand"
@@ -144,7 +147,7 @@ func _attach(code_edit: CodeEdit) -> void:
 	card.name = "GodotAgentReviewCard"
 	card.visible = false
 	code_edit.add_child(card)
-	_editors[code_edit] = {"path": "", "lines": {}, "band": band, "card": card, "card_line": -1}
+	_editors[code_edit] = {"path": "", "lines": {}, "band": band, "card": card, "card_line": -1, "card_layout": []}
 
 
 ## Barra de estado de CodeTextEditor: el HBoxContainer hermano que sigue al CodeEdit (4.4–4.8).
@@ -162,7 +165,7 @@ func _detach(code_edit: CodeEdit) -> void:
 	for i in range(code_edit.get_gutter_count() - 1, -1, -1):
 		if code_edit.get_gutter_name(i) == GUTTER_NAME:
 			code_edit.remove_gutter(i)
-	for connection: Dictionary in code_edit.gutter_clicked.get_connections() + code_edit.resized.get_connections() + code_edit.get_v_scroll_bar().value_changed.get_connections():
+	for connection: Dictionary in code_edit.gutter_clicked.get_connections() + code_edit.resized.get_connections() + code_edit.draw.get_connections() + code_edit.get_v_scroll_bar().value_changed.get_connections():
 		var callable: Callable = connection.callable
 		if callable.get_object() == self:
 			(connection.signal as Signal).disconnect(callable)
@@ -234,12 +237,14 @@ func _show_card_when_open(path: String, line: int) -> void:
 func _hide_card(code_edit: CodeEdit) -> void:
 	var state: Dictionary = _editors[code_edit]
 	state.card_line = -1
+	state.card_layout = []
 	(state.card as Control).visible = false
 
 
 func _build_card(code_edit: CodeEdit, line: int) -> void:
 	var state: Dictionary = _editors[code_edit]
 	var card: PanelContainer = state.card
+	state.card_layout = []
 	for child: Node in card.get_children():
 		card.remove_child(child)
 		child.queue_free()
@@ -332,6 +337,11 @@ func _layout(code_edit: CodeEdit) -> void:
 		return
 	var rect := code_edit.get_rect_at_line_column(state.card_line, 0)
 	var on_screen := rect.position.y >= 0 and rect.end.y < code_edit.size.y
+	# Desde `draw` se llama en cada redibujo: sin cambios, no se toca nada.
+	var layout_key: Array = [state.card_line, rect, code_edit.size, scroll_width, card.get_child_count()]
+	if card.visible == on_screen and state.card_layout == layout_key:
+		return
+	state.card_layout = layout_key
 	card.visible = on_screen
 	if on_screen:
 		var left := float(rect.position.x)
