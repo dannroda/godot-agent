@@ -38,6 +38,8 @@ const ADD_CONTEXT_SCREENSHOT := 2
 ## Acciones de la revisión que resuelve el plugin (junto con las de las tarjetas del Script Editor).
 const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
+## Prompts enviados en este proyecto (flechas en el composer). Datos del usuario, fuera del repo.
+const PROMPT_HISTORY_PATH := "user://godot_agent/prompt_history.json"
 
 ## (texto) -> bool: si devuelve true, el texto del composer ya se manejó (p. ej. guía del One-shot).
 var submit_interceptor: Callable
@@ -109,6 +111,7 @@ func _ready() -> void:
 	_body.add_child(_conversation)
 	_composer = Composer.new()
 	_composer.setup(_accent)
+	_composer.history_path = PROMPT_HISTORY_PATH
 	_composer.mention_provider = EditorContext.mention_options
 	_composer.submitted.connect(_on_submitted)
 	_composer.cancel_requested.connect(_on_cancel_requested)

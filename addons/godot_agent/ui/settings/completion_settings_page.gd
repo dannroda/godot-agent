@@ -233,12 +233,18 @@ func refresh_metrics() -> void:
 		child.queue_free()
 	var rows: Array = metrics_provider.call() if metrics_provider.is_valid() else []
 	if rows.is_empty():
+		# En una grilla, un label con autowrap queda del ancho de una letra si su columna no se expande.
 		_metrics_grid.columns = 1
-		_metrics_grid.add_child(_hint("Todavía no hubo sugerencias en esta sesión."))
+		var empty := _hint("Todavía no hubo sugerencias en esta sesión.")
+		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_metrics_grid.add_child(empty)
 		return
 	_metrics_grid.columns = 6
 	for header: String in ["Fuente", "p50", "p95", "Mostradas", "Aceptadas", "Errores"]:
-		_metrics_grid.add_child(_hint(header))
+		var label := Label.new()
+		label.text = header
+		label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+		_metrics_grid.add_child(label)
 	for row: Dictionary in rows:
 		for text: String in [str(row.source), "%.1f ms" % row.p50, "%.1f ms" % row.p95, str(row.shown),
 				"%d (%.0f %%)" % [row.accepted, float(row.acceptance) * 100.0], str(row.errors)]:

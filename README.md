@@ -44,7 +44,8 @@ El addon no escribe nada en `project.godot`. La única excepción es un autoload
 - **Conversación**: Markdown, tool calls agrupados, diffs, tarjetas de permiso y el plan del agente.
 - **Composer**:
   - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
-  - `@` menciona archivos del proyecto y `/` lista los comandos del agente (con la lista abierta, Enter elige);
+  - **↑** en la primera línea y **↓** en la última recorren los prompts que enviaste en este proyecto, como en una terminal (se guardan los últimos 100 en `user://godot_agent/prompt_history.json`);
+  - `/` al comienzo lista los comandos del agente y `@` los nodos de la escena y los archivos del proyecto. La lista aparece arriba del texto y filtra mientras escribís; las flechas mueven, Enter o Tab eligen y Esc la cierra;
   - **+ contexto** adjunta la escena abierta, la selección o una captura del viewport;
   - también hay selector de modelo y medidor de contexto.
 - **Cuota del plan**: si el agente la informa, aparece debajo del estado (ver [Cuota](#cuota-del-plan)).

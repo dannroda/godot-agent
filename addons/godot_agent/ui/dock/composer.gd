@@ -2,7 +2,8 @@
 extends VBoxContainer
 ## Composer del dock: chips de contexto, texto con autocompletado (`/` comandos del agente,
 ## `@` archivos y nodos), medidor de contexto, selector de modelo y enviar/detener.
-## Enter envía, Ctrl+Enter o Shift+Enter bajan de línea y Esc cancela el turno.
+## Enter envía, Ctrl+Enter o Shift+Enter bajan de línea y Esc cancela el turno. Flecha arriba en la
+## primera línea y abajo en la última recorren los prompts enviados, como en una terminal.
 
 signal submitted(text: String)
 signal cancel_requested
@@ -11,15 +12,32 @@ signal screenshot_requested
 signal context_chip_removed(chip_id: String)
 
 const AgentTheme := preload("../agent_theme.gd")
+const SuggestionList := preload("suggestion_list.gd")
 
 const PLACEHOLDER := "Pedile algo… @ para nodos y archivos, / para comandos"
-const MENTION_LIMIT := 400
+## Prompts que se recuerdan (los más viejos se descartan).
+const HISTORY_LIMIT := 100
+## Filas que se cargan en la lista (se ven hasta SuggestionList.MAX_ROWS, el resto con scroll).
+const LIST_LIMIT := 200
 
 ## Callable() -> Array[Dictionary] `{label, insert}` para `@`.
 var mention_provider: Callable
+## Archivo JSON con los prompts enviados ("" = solo en memoria). Lo fija el dock antes de agregarlo.
+var history_path: String = ""
 
 var _accent: Color
 var _chips: HFlowContainer
+var _suggestions: SuggestionList
+## Opciones de `@` mientras la lista está abierta (se piden una vez al abrirla).
+var _mention_cache: Array = []
+## Columna de la palabra donde se cerró la lista con Esc: no se vuelve a abrir mientras siga.
+var _dismissed_at: int = -1
+## Prompts enviados, del más viejo al más nuevo.
+var _history: PackedStringArray = []
+## Posición al recorrer el historial (-1 = editando el borrador) y el borrador guardado.
+var _history_index: int = -1
+var _draft: String = ""
+var _recalling: bool = false
 var _input: CodeEdit
 var _meter: Label
 var _model_button: OptionButton
@@ -39,7 +57,11 @@ func setup(accent: Color) -> void:
 
 
 func _ready() -> void:
+	_load_history()
 	add_theme_constant_override(&"separation", AgentTheme.px(4))
+	_suggestions = SuggestionList.new()
+	_suggestions.picked.connect(_on_suggestion_picked)
+	add_child(_suggestions)
 	_chips = HFlowContainer.new()
 	_chips.visible = false
 	add_child(_chips)
@@ -52,14 +74,19 @@ func _ready() -> void:
 	_input.gutters_draw_line_numbers = false
 	_input.auto_brace_completion_enabled = false
 	_input.indent_automatic = false
-	_input.code_completion_enabled = true
-	_input.code_completion_prefixes = PackedStringArray(["/", "@"])
+	# La lista de `/` y `@` es propia (SuggestionList): la del CodeEdit se dibuja dentro del texto,
+	# que tiene 72 px de alto, y mostraba una sola fila.
+	_input.code_completion_enabled = false
 	_input.highlight_current_line = false
 	_input.caret_blink = true
-	_input.code_completion_requested.connect(_on_completion_requested)
 	_input.gui_input.connect(_on_input_gui_input)
 	_input.text_changed.connect(_update_send_button)
-	_input.text_changed.connect(_on_text_changed)
+	_input.text_changed.connect(_refresh_suggestions)
+	_input.text_changed.connect(func() -> void:
+		if not _recalling:
+			_history_index = -1)
+	_input.caret_changed.connect(_refresh_suggestions)
+	_input.focus_exited.connect(func() -> void: _close_suggestions())
 	add_child(_input)
 
 	var row := HBoxContainer.new()
@@ -213,7 +240,6 @@ func _icon_button(text: String, tooltip: String, callback: Callable) -> Button:
 func _insert_prefix(prefix: String) -> void:
 	_input.grab_focus()
 	_input.insert_text_at_caret(prefix)
-	_input.request_code_completion(true)
 
 
 func _on_send_pressed() -> void:
@@ -227,6 +253,7 @@ func _submit() -> void:
 	var value := _input.text.strip_edges()
 	if value.is_empty() or _busy or not _lock_text.is_empty():
 		return
+	_remember(value)
 	submitted.emit(value)
 
 
@@ -234,29 +261,178 @@ func _on_input_gui_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
+	if _suggestions.is_open() and _handle_list_key(key):
+		_input.accept_event()
+		return
+	var plain := not (key.is_command_or_control_pressed() or key.shift_pressed or key.alt_pressed)
+	if plain and key.keycode == KEY_UP and _input.get_caret_line() == 0 and _recall(-1):
+		_input.accept_event()
+		return
+	if plain and key.keycode == KEY_DOWN and _input.get_caret_line() == _input.get_line_count() - 1 and _recall(1):
+		_input.accept_event()
+		return
 	if key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
-		# Con el popup de / o @ abierto, Enter elige la opción (lo maneja el CodeEdit).
-		if _input.get_code_completion_selected_index() >= 0:
-			return
 		_input.accept_event()
 		if key.is_command_or_control_pressed() or key.shift_pressed:
 			_input.insert_text_at_caret("\n")
 		else:
 			_submit()
-	elif key.keycode == KEY_ESCAPE and _busy and _input.get_code_completion_selected_index() < 0:
+	elif key.keycode == KEY_ESCAPE and _busy:
 		_input.accept_event()
 		cancel_requested.emit()
 
 
-## El CodeEdit no abre la lista solo al tipear un prefijo (en el Script Editor lo hace un timer del
-## editor): se pide al escribir `/` al comienzo o `@`. Después, el CodeEdit la filtra mientras se
-## escribe; elegir una opción no la vuelve a abrir.
-func _on_text_changed() -> void:
-	if _input.get_code_completion_selected_index() >= 0:
+## Teclas de la lista abierta: flechas y páginas mueven, Enter o Tab eligen, Esc la cierra.
+func _handle_list_key(key: InputEventKey) -> bool:
+	var plain := not (key.is_command_or_control_pressed() or key.shift_pressed or key.alt_pressed)
+	match key.keycode:
+		KEY_UP:
+			_suggestions.move(-1)
+		KEY_DOWN:
+			_suggestions.move(1)
+		KEY_PAGEUP:
+			_suggestions.move(-SuggestionList.MAX_ROWS)
+		KEY_PAGEDOWN:
+			_suggestions.move(SuggestionList.MAX_ROWS)
+		KEY_ENTER, KEY_KP_ENTER, KEY_TAB:
+			if not plain or not _suggestions.pick_selected():
+				return false
+		KEY_ESCAPE:
+			_dismissed_at = int(_word_before_caret().start)
+			_close_suggestions()
+		_:
+			return false
+	return true
+
+
+# --- historial de prompts ------------------------------------------------------------------------
+
+## `direction` -1: uno más viejo; 1: uno más nuevo (después del más nuevo, el borrador). false si no
+## hay a dónde ir (la flecha mueve el caret como siempre).
+func _recall(direction: int) -> bool:
+	if _history.is_empty():
+		return false
+	var index := _history_index
+	if direction < 0:
+		if index == 0:
+			return false
+		if index == -1:
+			_draft = _input.text
+			index = _history.size()
+		index -= 1
+	else:
+		if index == -1:
+			return false
+		index += 1
+		if index >= _history.size():
+			index = -1
+	_history_index = index
+	_recalling = true
+	_input.text = _history[index] if index >= 0 else _draft
+	_recalling = false
+	_input.set_caret_line(_input.get_line_count() - 1)
+	_input.set_caret_column(_input.get_line(_input.get_line_count() - 1).length())
+	_update_send_button()
+	return true
+
+
+func _remember(value: String) -> void:
+	_history_index = -1
+	_draft = ""
+	if not _history.is_empty() and _history[_history.size() - 1] == value:
 		return
+	_history.append(value)
+	if _history.size() > HISTORY_LIMIT:
+		_history = _history.slice(_history.size() - HISTORY_LIMIT)
+	_save_history()
+
+
+func _load_history() -> void:
+	if history_path.is_empty() or not FileAccess.file_exists(history_path):
+		return
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(history_path))
+	if data is Array:
+		for item: Variant in data:
+			if item is String and not (item as String).is_empty():
+				_history.append(item)
+		if _history.size() > HISTORY_LIMIT:
+			_history = _history.slice(_history.size() - HISTORY_LIMIT)
+
+
+func _save_history() -> void:
+	if history_path.is_empty():
+		return
+	DirAccess.make_dir_recursive_absolute(history_path.get_base_dir())
+	var file := FileAccess.open(history_path, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(Array(_history)))
+		file.close()
+
+
+## Abre, filtra o cierra la lista según la palabra que se está escribiendo: `/` al comienzo del
+## mensaje (comandos del agente) o `@` (nodos de la escena y archivos).
+func _refresh_suggestions() -> void:
 	var word := _word_before_caret()
-	if (word.text == "/" and word.start == 0) or word.text == "@":
-		_input.request_code_completion(true)
+	var text: String = word.text
+	var is_command: bool = text.begins_with("/") and word.start == 0 and _input.get_caret_line() == 0
+	var is_mention := text.begins_with("@")
+	if not (is_command or is_mention) or not _input.has_focus():
+		_dismissed_at = -1
+		_close_suggestions()
+		return
+	if int(word.start) == _dismissed_at:
+		return
+	var query := text.substr(1).to_lower()
+	if is_command:
+		var items: Array[Dictionary] = []
+		for command: Variant in _commands:
+			if command is Dictionary:
+				var name := str(command.get("name", ""))
+				items.append({"label": "/" + name, "detail": str(command.get("description", "")), "insert": "/" + name, "key": name.to_lower()})
+		_suggestions.show_items("Comandos", _filter(items, query),
+			"" if not _commands.is_empty() else "Los comandos los publica el agente al iniciar la sesión.")
+	else:
+		if not _suggestions.is_open() or _mention_cache.is_empty():
+			_mention_cache = mention_provider.call() if mention_provider.is_valid() else []
+		var items: Array[Dictionary] = []
+		for option: Variant in _mention_cache:
+			if option is Dictionary:
+				items.append({"label": str(option.label), "insert": "@" + str(option.insert), "key": str(option.label).to_lower()})
+		_suggestions.show_items("Nodos y archivos", _filter(items, query))
+
+
+## Los que empiezan con `query` primero, después los que la contienen.
+static func _filter(items: Array[Dictionary], query: String) -> Array[Dictionary]:
+	if query.is_empty():
+		return items.slice(0, LIST_LIMIT)
+	var starts: Array[Dictionary] = []
+	var contains: Array[Dictionary] = []
+	for item: Dictionary in items:
+		var key: String = item.key
+		if key.begins_with(query) or key.get_file().begins_with(query):
+			starts.append(item)
+		elif key.contains(query):
+			contains.append(item)
+	return (starts + contains).slice(0, LIST_LIMIT)
+
+
+## Reemplaza la palabra (`/co`, `@pla`) por la opción y un espacio, en un solo paso de deshacer.
+func _on_suggestion_picked(item: Dictionary) -> void:
+	var word := _word_before_caret()
+	var line := _input.get_caret_line()
+	var column := _input.get_caret_column()
+	_input.begin_complex_operation()
+	_input.remove_text(line, int(word.start), line, column)
+	_input.set_caret_column(int(word.start))
+	_input.insert_text_at_caret(str(item.insert) + " ")
+	_input.end_complex_operation()
+	_close_suggestions()
+
+
+func _close_suggestions() -> void:
+	_mention_cache = []
+	if _suggestions and _suggestions.is_open():
+		_suggestions.close()
 
 
 ## {text, start}: la palabra entre el último espacio y el caret.
@@ -264,25 +440,6 @@ func _word_before_caret() -> Dictionary:
 	var line := _input.get_line(_input.get_caret_line()).left(_input.get_caret_column())
 	var start := maxi(line.rfind(" "), line.rfind("\t")) + 1
 	return {"text": line.substr(start), "start": start}
-
-
-func _on_completion_requested() -> void:
-	var before := _word_before_caret()
-	var word: String = before.text
-	var word_start: int = before.start
-	if word.begins_with("/") and word_start == 0:
-		for command: Variant in _commands:
-			if command is Dictionary:
-				var name := str(command.get("name", ""))
-				# El CodeEdit reemplaza la `/` junto con la palabra (la `@` no): la opción la vuelve a poner.
-				# Igual en 4.4.1, 4.7.2 y 4.8-beta1.
-				_input.add_code_completion_option(CodeEdit.KIND_PLAIN_TEXT, "/%s — %s" % [name, command.get("description", "")], "/" + name)
-	elif word.begins_with("@") and mention_provider.is_valid():
-		var options: Array = mention_provider.call()
-		for option: Variant in options.slice(0, MENTION_LIMIT):
-			if option is Dictionary:
-				_input.add_code_completion_option(CodeEdit.KIND_FILE_PATH, str(option.label), str(option.insert))
-	_input.update_code_completion_options(true)
 
 
 func _update_send_button() -> void:

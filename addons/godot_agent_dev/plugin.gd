@@ -718,7 +718,10 @@ func _run_cycle_test() -> void:
 	var orphans_after: int = _orphans()
 	var growth: int = _objects() - objects_after_first
 	var addon_orphans := _addon_orphans()
-	if not addon_orphans.is_empty():
+	var layout_problems: PackedStringArray = await _layout_problems()
+	if not layout_problems.is_empty():
+		_finish(1, "layout: %s" % "; ".join(layout_problems))
+	elif not addon_orphans.is_empty():
 		_finish(1, "nodos huérfanos del addon: %s" % ", ".join(addon_orphans))
 	elif orphans_after > orphans_before:
 		_print_new_orphans(orphan_ids_before)
@@ -727,6 +730,61 @@ func _run_cycle_test() -> void:
 		_finish(1, "los objetos crecieron %d entre el ciclo 1 y el %d" % [growth, CYCLES])
 	else:
 		_finish(0, "%d ciclos sin huérfanos (crecimiento de objetos: %d)" % [CYCLES, growth])
+
+
+## Labels con autowrap que quedaron del ancho de una letra (piden miles de píxeles de alto) y un
+## editor estirado por el mínimo de una superficie oculta (D29): el dock oculto con el banner de
+## export, el dock visible y cada sección de Settings.
+func _layout_problems() -> PackedStringArray:
+	var problems: PackedStringArray = []
+	var dock := _find_dock()
+	if dock == null:
+		return PackedStringArray(["no se encontró el dock"])
+	var guard := dock.get_parent() as Control
+	var tabs := guard.get_parent()
+	var holder := tabs.get_parent() if tabs and tabs.get_class() == "EditorDock" else tabs
+	var banner: Control = dock.get(&"_export_banner")
+	var banner_label: Label = dock.get(&"_export_banner_label")
+	var banner_state := [banner.visible, banner_label.text]
+	banner_label.text = "Los presets de export Android, Android (bench) no excluyen 'addons/godot_agent/*'. Si exportás con el plugin deshabilitado, el addon llega al juego."
+	banner.visible = true
+	# Oculto: otra pestaña del slot al frente.
+	var slot := holder as TabContainer if holder is TabContainer else null
+	if slot == null and holder:
+		slot = holder.get_parent() as TabContainer
+	var window_height := float(EditorInterface.get_base_control().get_window().size.y)
+	if slot and slot.get_tab_count() > 1:
+		var previous := slot.current_tab
+		slot.current_tab = 0 if slot.get_tab_control(0) != holder and slot.get_tab_control(0) != guard else 1
+		await _settle()
+		if slot.get_combined_minimum_size().y > window_height:
+			problems.append("con el dock oculto, su slot pide %d px de alto (ventana: %d)" % [slot.get_combined_minimum_size().y, window_height])
+		slot.current_tab = previous
+	await _settle()
+	problems.append_array(_narrow_labels(guard))
+	banner.visible = banner_state[0]
+	banner_label.text = banner_state[1]
+	(dock.get(&"_settings_button") as Button).pressed.emit()
+	await _settle()
+	for node: Node in EditorInterface.get_base_control().get_children():
+		if node is ConfirmationDialog and node.has_method(&"matrix_overrides"):
+			var nav: ItemList = node.get(&"_nav")
+			for i in nav.item_count:
+				nav.select(i)
+				nav.item_selected.emit(i)
+				await _settle()
+				problems.append_array(_narrow_labels(node))
+			(node as Window).hide()
+	return problems
+
+
+func _narrow_labels(root: Node) -> PackedStringArray:
+	var result: PackedStringArray = []
+	for node: Node in root.find_children("*", "Label", true, false):
+		var label := node as Label
+		if label.is_visible_in_tree() and label.autowrap_mode != TextServer.AUTOWRAP_OFF and label.text.length() > 8 and label.size.x < 40.0:
+			result.append("label de %d px de ancho: «%s»" % [label.size.x, label.text.left(40)])
+	return result
 
 
 func _settle() -> void:
