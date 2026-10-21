@@ -4,8 +4,12 @@ extends RefCounted
 ## eventos de teclado como el usuario y comprueba el ghost text de `@onready var `, `func _` y una
 ## línea repetida del proyecto, Tab para aceptar (una acción de undo), Esc, Tab sin sugerencia que
 ## indenta, el popup nativo y (M8b) un bloque de varias líneas con Ctrl+→. Deja capturas si se pasa
-## un prefijo.
+## un prefijo. M8c: el indicador en la barra del Script Editor y los modos híbrido y local contra un
+## LLM falso (tests/fake_llm_server.gd), cambiando de modo sin reiniciar.
 
+const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings.gd")
+const CompletionIndicator := preload("res://addons/godot_agent/completion/completion_indicator.gd")
+const FakeLlmServer := preload("res://tests/fake_llm_server.gd")
 const SERVICE_SCRIPT := "res://addons/godot_agent/completion/completion_service.gd"
 const DIR := "res://tests/tmp/cc"
 const TARGET := DIR + "/target.gd"
@@ -14,6 +18,9 @@ const INDEX_TIMEOUT_S := 20.0
 const SUGGESTION_TIMEOUT_S := 3.0
 const REPEATED := "\tscore_board.add_points(points_for_hit * combo_multiplier)"
 const RESET_BODY := "\tcombo_multiplier = 1\n\tpoints_for_hit = 0\n\tset_process(false)"
+## Settings que toca el paso del LLM (son los EditorSettings reales: se restauran al final).
+const LLM_KEYS: PackedStringArray = [HarnessSettings.KEY_COMPLETION_MODE, HarnessSettings.KEY_COMPLETION_LLM_PROFILES,
+	HarnessSettings.KEY_COMPLETION_LLM_ACTIVE, HarnessSettings.KEY_COMPLETION_LLM_DEBOUNCE, HarnessSettings.KEY_COMPLETION_ENABLED]
 
 var failures: PackedStringArray = []
 var report: PackedStringArray = []
@@ -156,6 +163,22 @@ func run(tree: SceneTree, shot_prefix: String) -> PackedStringArray:
 	if panel:
 		panel.visible = true
 
+	# 8. Indicador e híbrido contra un LLM falso; después solo local, sin reiniciar.
+	var settings: HarnessSettings = _service.get(&"_settings")
+	var saved: Dictionary = {}
+	for key: String in LLM_KEYS:
+		saved[key] = settings.get_value(key)
+	var server := FakeLlmServer.new()
+	_tree.root.add_child(server)
+	if server.start() != OK:
+		failures.append("no se pudo levantar el LLM falso")
+	else:
+		await _llm_step(controller, settings, server, shot_prefix)
+	for key: String in LLM_KEYS:
+		settings.set_value(key, saved[key])
+	_service.call(&"apply_settings")
+	server.queue_free()
+
 	# Texto original y marcado como guardado: al salir el editor no intenta guardar en DIR, que se borra.
 	_code_edit.text = FileAccess.get_file_as_string(TARGET)
 	_code_edit.tag_saved_version()
@@ -260,3 +283,81 @@ func _scripts_panel() -> Control:
 		return null
 	return (splits[0] as Node).get_child(0) as Control
 
+
+func _llm_step(controller: Object, settings: HarnessSettings, server: Node, shot_prefix: String) -> void:
+	var indicator: CompletionIndicator = _service.get(&"indicator")
+	var bar := CompletionIndicator.menu_bar(EditorInterface.get_script_editor())
+	_check(indicator != null and bar != null and indicator.get_parent() == bar and indicator.is_visible_in_tree(), "el indicador está en la barra del Script Editor")
+	if indicator == null:
+		return
+	_check(indicator.mode_label == "local" and indicator.state == CompletionIndicator.State.ACTIVE, "indicador: local y activo (%s, %d)" % [indicator.mode_label, indicator.state])
+	server.set(&"routes", {"/api/generate": {"status": 200, "body": {"response": "ave(3)\n", "done": true}, "delay_ms": 150}})
+	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_PROFILES, JSON.stringify([{"id": "fake", "kind": "ollama", "display_name": "Falso", "url": server.call(&"url"), "model": "fake-coder"}]))
+	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_ACTIVE, "fake")
+	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_DEBOUNCE, 100)
+	settings.set_value(HarnessSettings.KEY_COMPLETION_MODE, HarnessSettings.COMPLETION_MODES.find("hybrid"))
+	_service.call(&"apply_settings")
+	_check(str(controller.get(&"mode")) == "hybrid", "el controller pasa a híbrido sin reiniciar (%s)" % controller.get(&"mode"))
+	_check(indicator.mode_label == "híbrido · fake-coder", "indicador: modo y modelo (%s)" % indicator.mode_label)
+
+	# Nada local para `spawn_w`: el LLM completa después del debounce y la sugerencia lleva la marca.
+	_goto_new_line(_code_edit.get_line_count())
+	await _type("\tspawn_w")
+	var thinking := false
+	var waited := 0.0
+	while waited < SUGGESTION_TIMEOUT_S and str(controller.get(&"suggestion")).is_empty():
+		thinking = thinking or indicator.state == CompletionIndicator.State.THINKING
+		await _tree.create_timer(0.02).timeout
+		waited += 0.02
+	_check(thinking, "el indicador muestra «pensando» mientras espera al LLM")
+	if await _expect(controller, "ave(3)", "híbrido: sugerencia del LLM"):
+		_check(bool((controller.get(&"renderer") as Object).get(&"marked")), "la sugerencia del LLM va marcada")
+		_check(indicator.state == CompletionIndicator.State.ACTIVE, "el indicador vuelve a activo")
+		await _shot(shot_prefix, "llm")
+		await _key(KEY_TAB)
+		_check(_code_edit.get_line(_code_edit.get_caret_line()) == "\tspawn_wave(3)", "Tab acepta la del LLM (%s)" % _code_edit.get_line(_code_edit.get_caret_line()).c_escape())
+	var requests: Array = server.get(&"requests")
+	_check(requests.size() == 1, "un solo pedido al LLM (hubo %d)" % requests.size())
+	if not requests.is_empty():
+		var body: Variant = (requests[0] as Dictionary).body
+		_check(body is Dictionary and (body as Dictionary).get("model") == "fake-coder" and str((body as Dictionary).get("prompt", "")).contains("spawn_w"), "el pedido lleva modelo y prefix")
+
+	# Error del endpoint: el indicador lo muestra y el editor sigue andando.
+	server.set(&"routes", {"/api/generate": {"status": 500, "body": {"error": "boom"}, "delay_ms": 0}})
+	_goto_new_line(_code_edit.get_line_count())
+	await _type("\tspawn_x")
+	waited = 0.0
+	while waited < SUGGESTION_TIMEOUT_S and indicator.state != CompletionIndicator.State.ERROR:
+		await _tree.create_timer(0.05).timeout
+		waited += 0.05
+	_check(indicator.state == CompletionIndicator.State.ERROR, "un error del LLM se ve en el indicador")
+
+	# Solo local, sin reiniciar: ya no hay pedidos.
+	settings.set_value(HarnessSettings.KEY_COMPLETION_MODE, HarnessSettings.COMPLETION_MODES.find("local"))
+	_service.call(&"apply_settings")
+	var before := (server.get(&"requests") as Array).size()
+	_goto_new_line(_code_edit.get_line_count())
+	await _type("\tspawn_y")
+	await _tree.create_timer(0.6).timeout
+	_check((server.get(&"requests") as Array).size() == before and str(controller.get(&"suggestion")).is_empty(), "en modo local no se llama al LLM")
+	_check(indicator.mode_label == "local" and indicator.state == CompletionIndicator.State.ACTIVE, "indicador: local otra vez (%s, %d)" % [indicator.mode_label, indicator.state])
+
+	# Alt+Shift+\ apaga y prende.
+	await _key_alt_shift_backslash()
+	_check(indicator.state == CompletionIndicator.State.OFF, "Alt+Shift+\\ apaga")
+	await _key_alt_shift_backslash()
+	_check(indicator.state == CompletionIndicator.State.ACTIVE, "Alt+Shift+\\ prende")
+
+
+func _key_alt_shift_backslash() -> void:
+	var event := InputEventKey.new()
+	event.keycode = KEY_BACKSLASH
+	event.alt_pressed = true
+	event.shift_pressed = true
+	event.pressed = true
+	Input.parse_input_event(event)
+	var release := event.duplicate() as InputEventKey
+	release.pressed = false
+	Input.parse_input_event(release)
+	await _tree.process_frame
+	await _tree.process_frame

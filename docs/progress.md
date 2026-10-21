@@ -659,3 +659,68 @@ Queda documentado: con los umbrales actuales el backoff del n-gram no genera (D2
 2. Escribí el comienzo de una línea que existe con otro nombre (`enemy_health -= ` donde el proyecto tiene `player_health -= damage`): se sugiere con el nombre cambiado.
 3. Con `Input.is_action_pressed("` y varias acciones, no aparece nada (veto); con una letra, la acción que empieza así.
 4. En Configuración del editor, `godot_agent/completion/sources/ngram` apagado: desaparecen las sugerencias que solo venían del n-gram. `multiline` apagado: solo la primera línea.
+
+## M8c · Completado con LLM opcional
+
+Spec §16.1, §16.7–§16.10, §12 (M8c). Decisiones en D28.
+
+### Hecho
+
+- **Proveedores y modo híbrido** (m10-01):
+  - `LlmProvider` implementa la misma interfaz que el local (`complete`/`cancel`), con un HTTPRequest sin hilos por editor y cancelación por generación;
+  - modos solo local, híbrido y solo LLM en el controller: en híbrido lo local nunca espera al LLM, el LLM se pide solo sin nada local y con su debounce, una request por vez, y tipear la cancela;
+  - Alt+\ en híbrido va al LLM.
+- **Cinco tipos de endpoint** (m10-02): Ollama, llama.cpp `/infill`, Codestral FIM, OpenAI-compatible y Gemini (experimental). Están verificados contra la documentación y el código de cada servidor (D28), con plantillas FIM, stops y keys por nombre de variable de entorno. El contexto del proyecto va como comentarios, con presupuesto y prioridad.
+- **Métricas, indicador y settings** (m10-03):
+  - contadores por fuente (p50/p95, mostradas, aceptadas, errores) en Settings y en el log;
+  - indicador en la barra del Script Editor con estado y modo; clic y Alt+Shift+\ prenden y apagan;
+  - **Settings → Completado**: on/off de usuario y de proyecto, modo, fuentes, umbrales, corpus extra, exclusiones, ABM de perfiles LLM con aviso de envío a un host remoto, debounce y tamaños del LLM, marcador y log raw. Todo se aplica sin reiniciar.
+- **Marcador**: un punto chico después de las sugerencias del LLM.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd                 # 131 tests, 995 checks
+tests/run_in_xvfb.sh $G --godot-agent-completion-test [--godot-agent-ui-shot=/tmp/c]
+```
+
+- `test_completion_llm`: los cinco formatos de pedido (URL, headers, body) y de respuesta (incluidos errores, cercos de Gemini y respuesta bloqueada), plantillas y stops, recorte de prefix/suffix, contexto con presupuesto. También el proveedor contra `tests/fake_llm_server.gd`: respuesta, demora con cancelación, HTTP 500 y conexión rechazada.
+- `test_completion_controller`:
+  - en híbrido, lo local en el mismo frame aunque el LLM esté en vuelo (proveedor falso de 300 ms);
+  - sin pedido al LLM si hubo algo local; el debounce del LLM;
+  - tipear cancela y la respuesta cancelada no se muestra;
+  - Alt+\ fuerza el LLM;
+  - en solo LLM, el debounce propio y sin consultar lo local.
+- `test_settings_dialog`: la sección Completado valida (key pegada, ids repetidos, híbrido sin perfiles, rutas), los stops con escapes, el ABM de perfiles y el aviso de host remoto, y guarda cada valor en EditorSettings o en la config del proyecto.
+- **En el Script Editor real** (`--godot-agent-completion-test`), además de M8a y M8b:
+  - el indicador está en la barra y dice «local»;
+  - se cambia a híbrido desde los settings sin reiniciar, con un perfil Ollama que apunta al servidor falso: el indicador pasa a «híbrido · fake-coder»;
+  - `spawn_w` no tiene nada local: el indicador pasa a «pensando» y aparece `ave(3)` del LLM, con el punto. Tab la acepta. Hubo un solo pedido, con el modelo y el prefix;
+  - un HTTP 500 pone el indicador en error;
+  - de vuelta a local, no hay más pedidos;
+  - Alt+Shift+\ apaga y prende.
+
+  Los settings que toca son los EditorSettings reales y se restauran al terminar.
+- Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1: `run_all` (131 tests, 995 checks), `acp_session_check` (90), `oneshot_check` (34), el cycle test y el test de completado con el paso del LLM.
+
+### Revisión de código
+
+La revisión de M8c no encontró problemas en la concurrencia: token y secuencia del controller, generación del proveedor, cancelación y reutilización del HTTPRequest. Se corrigió (con tests):
+- Un error HTTP sin campo de mensaje conocido iba al log con los primeros 200 caracteres del body; un 422 de FastAPI repite el prompt. Ahora solo van los campos de mensaje.
+- Un `null` o un array en `temperature`/`max_tokens` del JSON de perfiles (editable a mano) rompía `llm_profiles()` y con eso `apply_settings()`.
+- HTTPRequest seguía redirecciones y reenviaba el código y la key al host nuevo. Ahora `max_redirects = 0` y el body se limita a 1 MB.
+- Codestral y Gemini sin variable de entorno mandaban el código sin key. Ahora Settings no valida y el proveedor no manda nada.
+- Con el caret al final de la línea, el suffix recortado terminaba con media línea.
+- Un controller reemplazado por otro CodeEdit en la misma dirección no liberaba su HTTPRequest.
+
+Además, de la propia verificación: `is_remote` tomaba `[::1]:1234` como remoto, y una key sin guiones (`AIzaSy…`) pasaba como nombre de variable.
+
+### Prueba manual
+
+Sin Ollama ni llama.cpp en esta máquina, no se probó contra un modelo real. Para hacerlo:
+1. `ollama pull qwen2.5-coder:1.5b-base` y `ollama serve`.
+2. Settings → Completado → modo Híbrido; el perfil Ollama ya viene. Guardar: el indicador dice «híbrido · qwen2.5-coder:1.5b-base».
+3. En un script, escribí algo que el proyecto no tenga (`var gravity_scale := `): después de una pausa aparece una sugerencia con un punto al final. El Agent Log muestra `llm sugerencia N ms in X out Y`.
+4. Seguí tipeando mientras el indicador está ámbar: la request se cancela (`llm cancelled` en el log) y lo local sigue apareciendo al instante.
+5. Con un perfil Codestral, sin `MISTRAL_API_KEY` en el entorno: el indicador se pone rojo con el error. Con la variable y reabriendo el editor, funciona; la tarjeta del perfil avisa que el código se envía a api.mistral.ai.
+6. Settings → Completado → «Esta sesión, por fuente» muestra p50/p95 y aceptación de `llm` y de las fuentes locales.

@@ -6,6 +6,7 @@ extends RefCounted
 signal changed(key: String)
 
 const AgentProfile := preload("agent_profile.gd")
+const LlmProfile := preload("../completion/llm/llm_profile.gd")
 
 const PREFIX := "godot_agent/"
 const KEY_PROFILES := "agents/profiles"
@@ -33,6 +34,19 @@ const KEY_COMPLETION_MAX_LINES := "completion/max_lines"
 const KEY_COMPLETION_SOURCE_PREFIX := "completion/sources/"
 const COMPLETION_SOURCES: PackedStringArray = ["rule", "retrieval", "ngram", "history"]
 const KEY_COMPLETION_EXTRA_CORPUS := "completion/extra_corpus"
+## Modo (spec §16.1): solo local, híbrido o solo LLM. Perfiles LLM (JSON, sin keys), el activo y
+## los parámetros del pedido (§16.10). `llm_marker`: matiz para distinguir las sugerencias del LLM.
+## `log_raw`: el log incluye el código (apagado: nunca se loguea código).
+const KEY_COMPLETION_MODE := "completion/mode"
+const COMPLETION_MODES: PackedStringArray = ["local", "hybrid", "llm"]
+const KEY_COMPLETION_LLM_PROFILES := "completion/llm/profiles"
+const KEY_COMPLETION_LLM_ACTIVE := "completion/llm/active"
+const KEY_COMPLETION_LLM_DEBOUNCE := "completion/llm/debounce_ms"
+const KEY_COMPLETION_LLM_PREFIX := "completion/llm/prefix_chars"
+const KEY_COMPLETION_LLM_SUFFIX := "completion/llm/suffix_chars"
+const KEY_COMPLETION_LLM_CONTEXT := "completion/llm/context_tokens"
+const KEY_COMPLETION_LLM_MARKER := "completion/llm/marker"
+const KEY_COMPLETION_LOG_RAW := "completion/log_raw"
 ## Nombres de las constantes de slot (iguales en EditorPlugin y EditorDock), en el orden del setting.
 const DOCK_SLOTS: PackedStringArray = ["DOCK_SLOT_RIGHT_UL", "DOCK_SLOT_RIGHT_BL", "DOCK_SLOT_LEFT_UL", "DOCK_SLOT_LEFT_BL"]
 
@@ -63,6 +77,15 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		for source: String in COMPLETION_SOURCES:
 			_declare(KEY_COMPLETION_SOURCE_PREFIX + source, true, TYPE_BOOL)
 		_declare(KEY_COMPLETION_EXTRA_CORPUS, PackedStringArray(), TYPE_PACKED_STRING_ARRAY, PROPERTY_HINT_TYPE_STRING, "%d/%d:" % [TYPE_STRING, PROPERTY_HINT_GLOBAL_DIR])
+		_declare(KEY_COMPLETION_MODE, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Solo local,Híbrido,Solo LLM")
+		_declare(KEY_COMPLETION_LLM_PROFILES, JSON.stringify(LlmProfile.defaults()), TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
+		_declare(KEY_COMPLETION_LLM_ACTIVE, "", TYPE_STRING)
+		_declare(KEY_COMPLETION_LLM_DEBOUNCE, 200, TYPE_INT, PROPERTY_HINT_RANGE, "75,1000,1,suffix:ms")
+		_declare(KEY_COMPLETION_LLM_PREFIX, 4000, TYPE_INT, PROPERTY_HINT_RANGE, "200,32000,100")
+		_declare(KEY_COMPLETION_LLM_SUFFIX, 1000, TYPE_INT, PROPERTY_HINT_RANGE, "0,16000,100")
+		_declare(KEY_COMPLETION_LLM_CONTEXT, 2000, TYPE_INT, PROPERTY_HINT_RANGE, "0,16000,50")
+		_declare(KEY_COMPLETION_LLM_MARKER, true, TYPE_BOOL)
+		_declare(KEY_COMPLETION_LOG_RAW, false, TYPE_BOOL)
 
 
 func get_value(key: String, default_value: Variant = null) -> Variant:
@@ -189,6 +212,66 @@ func completion_sources() -> Dictionary:
 func completion_extra_corpus() -> PackedStringArray:
 	var value: Variant = get_value(KEY_COMPLETION_EXTRA_CORPUS, PackedStringArray())
 	return PackedStringArray(value) if value is PackedStringArray or value is Array else PackedStringArray()
+
+
+## "local", "hybrid" o "llm".
+func completion_mode() -> String:
+	return COMPLETION_MODES[clampi(int(get_value(KEY_COMPLETION_MODE, 0)), 0, COMPLETION_MODES.size() - 1)]
+
+
+func llm_profiles() -> Array[LlmProfile]:
+	var result: Array[LlmProfile] = []
+	var raw: Variant = get_value(KEY_COMPLETION_LLM_PROFILES, "")
+	var data: Variant = JSON.parse_string(raw) if raw is String and not raw.is_empty() else null
+	if not data is Array:
+		data = LlmProfile.defaults()
+	for item: Variant in data:
+		if item is Dictionary:
+			var profile: LlmProfile = LlmProfile.from_dict(item)
+			if profile and not profile.id.is_empty():
+				result.append(profile)
+	return result
+
+
+func save_llm_profiles(list: Array[LlmProfile]) -> void:
+	var data: Array = []
+	for profile: LlmProfile in list:
+		data.append(profile.to_dict())
+	set_value(KEY_COMPLETION_LLM_PROFILES, JSON.stringify(data, "\t"))
+
+
+## El perfil LLM activo (el elegido, o el primero), o null si no hay ninguno.
+func active_llm_profile() -> LlmProfile:
+	var list := llm_profiles()
+	var active := str(get_value(KEY_COMPLETION_LLM_ACTIVE, ""))
+	for profile: LlmProfile in list:
+		if profile.id == active:
+			return profile
+	return list[0] if not list.is_empty() else null
+
+
+func llm_debounce_ms() -> int:
+	return clampi(int(get_value(KEY_COMPLETION_LLM_DEBOUNCE, 200)), 75, 1000)
+
+
+func llm_prefix_chars() -> int:
+	return clampi(int(get_value(KEY_COMPLETION_LLM_PREFIX, 4000)), 200, 32000)
+
+
+func llm_suffix_chars() -> int:
+	return clampi(int(get_value(KEY_COMPLETION_LLM_SUFFIX, 1000)), 0, 16000)
+
+
+func llm_context_tokens() -> int:
+	return clampi(int(get_value(KEY_COMPLETION_LLM_CONTEXT, 2000)), 0, 16000)
+
+
+func llm_marker() -> bool:
+	return bool(get_value(KEY_COMPLETION_LLM_MARKER, true))
+
+
+func completion_log_raw() -> bool:
+	return bool(get_value(KEY_COMPLETION_LOG_RAW, false))
 
 
 func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE, hint_string: String = "") -> void:

@@ -12,7 +12,7 @@ Tiene cuatro modos: Preguntar, Revisar, Construir y One-shot.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
 - El harness nunca hace merge ni push, y no guarda claves.
 
-> Estado: hitos M0–M8b de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md). Falta M8c: el completado con un LLM opcional. El avance y cómo se verificó cada parte están en [`docs/progress.md`](docs/progress.md); las decisiones de diseño, en [`docs/decisions.md`](docs/decisions.md).
+> Estado: hitos M0–M8c de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md), todos implementados. El avance y cómo se verificó cada parte están en [`docs/progress.md`](docs/progress.md); las decisiones de diseño, en [`docs/decisions.md`](docs/decisions.md).
 
 ## Requisitos
 
@@ -128,9 +128,9 @@ Cada sesión se guarda en `user://godot_agent/sessions/` (la carpeta de datos de
 
 ### Completado inline
 
-Sugerencias en gris mientras escribís en el Script Editor. Por ahora son solo locales: no usan IA ni el agente y no salen del editor.
+Sugerencias en gris mientras escribís en el Script Editor. Por defecto son solo locales: no usan IA ni el agente y no salen del editor. Un LLM es opcional (ver abajo).
 
-- **Tab** acepta la sugerencia en un solo paso de deshacer. **Esc** la descarta. **Alt+\\** pide una a mano.
+- **Tab** acepta la sugerencia en un solo paso de deshacer. **Esc** la descarta. **Alt+\\** pide una a mano. **Alt+Shift+\\** prende o apaga el completado.
 - Si no hay sugerencia, o si el popup de autocompletado de Godot está abierto, Tab funciona como siempre.
 - De dónde salen las sugerencias:
   - **reglas de Godot**:
@@ -146,6 +146,30 @@ Sugerencias en gris mientras escribís en el Script Editor. Por ahora son solo l
 - El índice del proyecto se arma en segundo plano y no incluye `addons/` en las líneas sugeridas. Se configura en `project_config.tres`, sección Completado.
 - Se apaga con `godot_agent/completion/enabled` en Configuración del editor, o por proyecto con `completion_enabled`.
 - En la misma sección: `multiline` y `max_lines` (8 por defecto), cada fuente por separado (`sources/rule`, `retrieval`, `ngram`, `history`) y `extra_corpus`, carpetas de otros proyectos tuyos que solo entrenan el n-gram.
+- Todo eso se edita también en **Settings → Completado**, que muestra además la latencia (p50/p95) y la tasa de aceptación de cada fuente en la sesión. Los cambios se aplican sin reiniciar.
+- En la barra del Script Editor, **● Completado** muestra el estado (verde activo, ámbar esperando al LLM, rojo error, gris apagado) y el modo. Un clic lo prende o lo apaga.
+
+#### Con un LLM (opcional)
+
+En **Settings → Completado**, elegí el modo:
+- **Solo local** (default): sin red.
+- **Híbrido**: lo local sale como siempre; si no hay nada local, después de 200 ms sin tipear se le pide al LLM. Alt+\\ va directo al LLM.
+- **Solo LLM**.
+
+Perfiles incluidos (se agregan, editan y eligen en la misma sección):
+
+| Tipo | URL por defecto | Notas |
+|---|---|---|
+| Ollama | `http://127.0.0.1:11434` | `ollama pull qwen2.5-coder:1.5b-base` (los modelos `-base` traen FIM) |
+| llama.cpp (`llama-server`) | `http://127.0.0.1:9931` | endpoint `/infill`; cargá un modelo con FIM |
+| Codestral | `https://api.mistral.ai` | key en la variable `MISTRAL_API_KEY` |
+| OpenAI-compatible (LM Studio, vLLM…) | `http://127.0.0.1:1234` | `/v1/completions` con la plantilla FIM del modelo |
+| Gemini (experimental) | Google | key en `GEMINI_API_KEY`; sin FIM, más lento |
+
+- Las keys no se guardan: el perfil tiene el **nombre** de la variable de entorno y el valor se lee del entorno del editor al pedir. Settings no acepta una key pegada en ese campo.
+- Un perfil remoto avisa que el código alrededor del cursor (y un resumen del proyecto: nodos, autoloads, acciones) se envía a ese servidor.
+- Las sugerencias del LLM llevan un punto al final (se puede apagar).
+- El Agent Log (canal `cmp`) registra latencias y tamaños, no código, salvo que prendas «Log raw».
 
 ## Perfiles de agentes
 
@@ -161,7 +185,7 @@ Sugerencias en gris mientras escribís en el Script Editor. Por ahora son solo l
 
 | Qué | Dónde | Alcance |
 |---|---|---|
-| Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, debounce, umbral, multilínea, fuentes, corpus extra) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
+| Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, modo, debounce, umbral, multilínea, fuentes, corpus extra, perfiles LLM sin keys) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
 | Permisos, presupuestos, checkpoints, límites de las tools, carpetas extra, completado del proyecto | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
 | Historial de sesiones | `user://godot_agent/sessions/` | tu usuario, este proyecto |
 

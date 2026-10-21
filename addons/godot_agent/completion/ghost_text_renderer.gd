@@ -17,6 +17,8 @@ const BOX_ALPHA := 0.96
 ## Color del texto (el de comentarios del theme del editor, atenuado). Lo fija CompletionService.
 var color: Color = Color(0.6, 0.6, 0.6, DEFAULT_ALPHA)
 ## Lo ya armado (se rearma solo si cambian texto, fuente o ancho; el CodeEdit redibuja seguido).
+## La sugerencia vino del LLM: un punto chico al final de la primera línea (spec §16.7).
+var marked: bool = false
 ## Dónde quedó la caja de las líneas siguientes en el último dibujo (vacío si no hubo; para tests).
 var box: Rect2 = Rect2()
 var _line: TextLine
@@ -82,6 +84,10 @@ func draw(code_edit: CodeEdit, text: String, line: int, column: int, suffix: Str
 	_line.draw(canvas, Vector2(anchor.x, y), color)
 	if _tail:
 		_tail.draw(canvas, Vector2(anchor.x + _line.get_size().x, y), code_edit.get_theme_color(&"font_color"))
+	if marked:
+		var end_x := anchor.x + _line.get_size().x + (_tail.get_size().x if _tail else 0.0)
+		var radius := maxf(2.0, line_height * 0.12)
+		RenderingServer.canvas_item_add_circle(canvas, Vector2(end_x + radius * 3.0, anchor.y + line_height / 2.0), radius, Color(color, minf(1.0, color.a + 0.2)))
 	if not _rest.is_empty():
 		_draw_box(canvas, Rect2(left, 0.0, right - left, bottom), anchor.y, column_zero, line_height, background_color(code_edit))
 

@@ -155,6 +155,11 @@ func _enter_tree() -> void:
 	_settings_dialog.mcp_url_provider = func() -> String:
 		return _mcp_server.url() if _mcp_server and _mcp_server.is_listening() else ""
 	_settings_dialog.regenerate_token = _regenerate_mcp_token
+	_settings_dialog.completion_metrics_provider = func() -> Array[Dictionary]:
+		return _completion.metrics.summary() if _completion else ([] as Array[Dictionary])
+	_settings_dialog.completion_metrics_reset = func() -> void:
+		if _completion:
+			_completion.metrics.clear()
 	_settings_dialog.saved.connect(_on_settings_saved)
 	EditorInterface.get_base_control().add_child(_settings_dialog)
 

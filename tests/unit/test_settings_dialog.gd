@@ -96,3 +96,88 @@ func test_profile_form_round_trip() -> void:
 	dialog.call(&"_apply_profile_form")
 	assert_eq(target.display_name, "Renombrado", "editar sobrevive a quitar uno de arriba")
 	dialog.free()
+
+
+func test_completion_section() -> void:
+	var dialog := _dialog()
+	var page: Node = dialog.get(&"_completion_page")
+	var profiles: Array = page.call(&"profiles")
+	assert_eq(profiles.size(), 1, "carga el perfil LLM default (Ollama)")
+	assert_true(dialog.validate().is_empty(), "los defaults del completado validan")
+
+	# Una key pegada en el campo de la variable no se acepta: el harness no guarda claves.
+	page.call(&"_edit_profile", 0)
+	var fields: Dictionary = page.get(&"_form_fields")
+	(fields.api_key_env as LineEdit).text = "sk-abc123-pegada"
+	var error := dialog.validate()
+	assert_eq(error.get("section"), SettingsDialog.Section.COMPLETION, "valida la sección Completado")
+	assert_true(str(error.get("message")).contains("variable de entorno"), "explica qué va en el campo")
+	page.call(&"_edit_profile", 0)
+	(fields.api_key_env as LineEdit).text = "AIzaSyD4x9Qw2LmB7kTr0pZ3vN8cYh1Ue6sJfGo"
+	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.COMPLETION, "una key sin guiones tampoco")
+	page.call(&"_edit_profile", 0)
+	(fields.api_key_env as LineEdit).text = "$MISTRAL_API_KEY"
+	(fields.stops as TextEdit).text = "\\n\\n\nfunc "
+	(fields.url as LineEdit).text = "https://api.mistral.ai"
+	page.call(&"apply_form")
+	var profile: RefCounted = profiles[0]
+	assert_eq(profile.get(&"api_key_env"), "MISTRAL_API_KEY", "acepta el nombre con o sin $")
+	assert_eq(profile.get(&"stops"), PackedStringArray(["\n\n", "func "]), "stops con escapes, uno por línea")
+	assert_true(dialog.validate().is_empty(), "un nombre de variable valida")
+	var codestral: RefCounted = preload("res://addons/godot_agent/completion/llm/llm_profile.gd").make("codestral")
+	codestral.set(&"api_key_env", "")
+	profiles.append(codestral)
+	assert_true(str(dialog.validate().get("message")).contains("necesita el nombre"), "codestral sin variable no valida")
+	profiles.pop_back()
+	assert_true(_has_text(page.get(&"_profile_list") as Node, "api.mistral.ai"), "avisa que un perfil remoto envía código")
+
+	# CRUD: agregar otro del mismo tipo le da un id libre; quitar el activo pasa al siguiente.
+	(page.get(&"_kind_option") as OptionButton).select(0)
+	for button: Node in page.find_children("*", "Button", true, false):
+		if (button as Button).text == "+ Agregar perfil":
+			(button as Button).pressed.emit()
+	page.call(&"apply_form")
+	assert_eq(profiles.size(), 2, "agrega un perfil")
+	assert_eq(profiles[1].get(&"id"), "ollama-2", "id libre")
+	page.call(&"_make_active", 1)
+	page.call(&"_remove_profile", 1)
+	assert_eq(page.get(&"_active_id"), profiles[0].get(&"id"), "quitar el activo activa otro")
+	page.call(&"_remove_profile", 0)
+	(page.get(&"_mode_option") as OptionButton).select(1)
+	assert_true(str(dialog.validate().get("message")).contains("necesitan un perfil"), "híbrido sin perfiles no valida")
+	(page.get(&"_mode_option") as OptionButton).select(0)
+	(page.get(&"_corpus_edit") as TextEdit).text = "relativa/no"
+	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.COMPLETION, "corpus extra: rutas absolutas")
+	dialog.free()
+
+
+func test_completion_save() -> void:
+	var settings := HarnessSettings.new()
+	var config := ProjectConfig.new()
+	var page: Node = preload("res://addons/godot_agent/ui/settings/completion_settings_page.gd").new()
+	page.set(&"metrics_provider", func() -> Array[Dictionary]:
+		return [{"source": "llm", "p50": 210.0, "p95": 480.0, "shown": 4, "accepted": 1, "acceptance": 0.25, "errors": 2}] as Array[Dictionary])
+	page.call(&"load_from", settings, config)
+	assert_true(_has_text(page.get(&"_metrics_grid") as Node, "1 (25 %)"), "tabla de contadores por fuente")
+	(page.get(&"_mode_option") as OptionButton).select(1)
+	(page.get(&"_project_check") as CheckBox).button_pressed = false
+	(page.get(&"_exclude_edit") as TextEdit).text = "addons/\n  vendor/  \n"
+	(page.get(&"_llm_debounce_spin") as SpinBox).value = 350
+	(page.get(&"_raw_check") as CheckBox).button_pressed = true
+	(page.get(&"_source_checks") as Dictionary)["ngram"].button_pressed = false
+	page.call(&"save_to", settings, config)
+	assert_eq(settings.completion_mode(), "hybrid", "modo híbrido")
+	assert_eq(settings.llm_debounce_ms(), 350, "debounce del LLM")
+	assert_true(settings.completion_log_raw(), "log raw")
+	assert_false(bool(settings.completion_sources().ngram), "fuente apagada")
+	assert_eq(settings.active_llm_profile().id, "ollama", "perfil activo")
+	assert_false(config.completion_enabled, "on/off del proyecto va a la config")
+	assert_eq(config.completion_exclude, PackedStringArray(["addons/", "vendor/"]), "exclusiones del proyecto")
+	page.free()
+
+
+func _has_text(root: Node, needle: String) -> bool:
+	for label: Node in root.find_children("*", "Label", true, false):
+		if (label as Label).text.contains(needle):
+			return true
+	return false

@@ -4,12 +4,20 @@ extends RefCounted
 ## caret, dispara con debounce, invalida, hace type-through y acepta con Tab (una sola acción de
 ## undo). El reloj y el disparo (`tick`) los maneja CompletionService, así los tests usan un reloj
 ## simulado.
+## Modos (M8c): solo local; híbrido (el local responde al instante y, si no tiene nada, se pide al
+## LLM con su debounce, contado desde la última tecla; lo del LLM se muestra solo si no se tipeó nada
+## desde el pedido y nunca reemplaza una sugerencia visible; Alt+\ fuerza el LLM); solo LLM. Una
+## request LLM en vuelo como máximo: cualquier cambio la cancela.
 
 signal shown(result: CompletionResult)
 ## outcome: accepted, typed_through, discarded:<motivo>
 signal finished(result: CompletionResult, outcome: String)
 ## Ctrl+→ aceptó una palabra; la sugerencia sigue con el resto.
 signal accepted_partial(result: CompletionResult)
+## Un pedido al LLM: state = thinking, done (con o sin sugerencia), error o cancelled. `result` es la
+## respuesta (o null) y `error`, el motivo; para el log y el indicador.
+signal llm_finished(state: String, result: CompletionResult, error: String, latency_ms: float)
+signal llm_started
 ## El buffer cambió y quedó quieto un rato: hay que reindexarlo (ProjectContext.update_buffer).
 signal buffer_idle(path: String, text: String, caret_line: int)
 
@@ -22,11 +30,21 @@ const SuggestionCache := preload("suggestion_cache.gd")
 
 const CLOSERS := ")]}\"'"
 const DEFAULT_DEBOUNCE_MS := 30
+const DEFAULT_LLM_DEBOUNCE_MS := 200
+const MODE_LOCAL := "local"
+const MODE_HYBRID := "hybrid"
+const MODE_LLM := "llm"
 const BUFFER_IDLE_MS := 800
 
 var code_edit: CodeEdit
 var path: String = ""
 var provider: CompletionProvider
+## Proveedor LLM (null = no hay): se usa en los modos híbrido y solo LLM.
+var llm_provider: CompletionProvider
+var mode: String = MODE_LOCAL
+var llm_debounce_ms: int = DEFAULT_LLM_DEBOUNCE_MS
+## Distingue en el dibujo lo que vino del LLM (spec §16.7).
+var llm_marker: bool = true
 var history: TypedHistory
 var renderer: GhostTextRenderer = GhostTextRenderer.new()
 var cache: SuggestionCache = SuggestionCache.new()
@@ -44,6 +62,12 @@ var _anchor_prefix: String = ""
 var _anchor_suffix: String = ""
 var _anchor_version: int = -1
 var _due: int = -1
+var _llm_due: int = -1
+var _llm_busy: bool = false
+## Sube con cada pedido y cada cancelación: la respuesta de un pedido cancelado se ignora aunque el
+## número de secuencia no haya cambiado todavía (`dismiss` cancela antes de que `_sync` lo suba).
+var _llm_token: int = 0
+var _last_change: int = 0
 var _seq: int = 0
 var _seen_line: int = -1
 var _seen_column: int = -1
@@ -78,6 +102,7 @@ func detach() -> void:
 		renderer.release()
 	if provider:
 		provider.cancel()
+	_cancel_llm()
 	suggestion = ""
 	code_edit = null
 
@@ -97,6 +122,10 @@ func tick(now: int) -> void:
 	if _due >= 0 and now >= _due:
 		_due = -1
 		request(false)
+	if _llm_due >= 0 and now >= _llm_due:
+		_llm_due = -1
+		if suggestion.is_empty() and can_trigger(false):
+			request_llm(false)
 	if _buffer_dirty_since >= 0 and now - _buffer_dirty_since >= BUFFER_IDLE_MS:
 		_buffer_dirty_since = -1
 		buffer_idle.emit(path, code_edit.text, code_edit.get_caret_line())
@@ -105,6 +134,10 @@ func tick(now: int) -> void:
 ## Pide una sugerencia ya. `manual` (Alt+\) ignora la condición de fin de línea.
 func request(manual: bool) -> void:
 	if not can_trigger(manual):
+		return
+	if _uses_llm() and (mode == MODE_LLM or manual):
+		_seq += 1
+		request_llm(manual)
 		return
 	_seq += 1
 	var seq := _seq
@@ -125,11 +158,73 @@ func request(manual: bool) -> void:
 		if seq != _seq or code_edit == null:
 			return
 		cache.store(key, result)
-	if result == null or seq != _seq or code_edit == null:
+	if seq != _seq or code_edit == null:
+		return
+	if code_edit.get_version() != version or code_edit.get_caret_line() != line or code_edit.get_caret_column() != column:
+		return
+	if result:
+		show(result)
+	elif _uses_llm() and mode == MODE_HYBRID:
+		# Nada local: el LLM, con su debounce desde la última tecla (lo local ya se mostró o no hay).
+		_llm_due = maxi(int(clock.call()), _last_change + llm_debounce_ms)
+
+
+## Pide al LLM. Usa el número de secuencia actual: cualquier cambio desde acá lo invalida (y
+## `_sync` cancela la request). La respuesta no reemplaza una sugerencia visible.
+func request_llm(manual: bool) -> void:
+	if llm_provider == null or code_edit == null:
+		return
+	_cancel_llm()
+	_llm_token += 1
+	var token := _llm_token
+	var seq := _seq
+	var line := code_edit.get_caret_line()
+	var column := code_edit.get_caret_column()
+	var version := code_edit.get_version()
+	var request_data := build_request(line, column)
+	request_data.manual = manual
+	request_data.seq = seq
+	var key := "llm|" + SuggestionCache.key_for(request_data, llm_provider.cache_generation())
+	var cached := cache.lookup(key)
+	var result: CompletionResult
+	if cached.found:
+		result = (cached.result as CompletionResult).cached_copy() if cached.result else null
+	else:
+		_llm_busy = true
+		llm_started.emit()
+		var started := Time.get_ticks_usec()
+		result = await llm_provider.complete(request_data)
+		var latency_ms := (Time.get_ticks_usec() - started) / 1000.0
+		if token != _llm_token or seq != _seq or code_edit == null:
+			return  # cancelada (`_cancel_llm` ya avisó) o vieja
+		_llm_busy = false
+		var error := str(llm_provider.get(&"last_error")) if &"last_error" in llm_provider else ""
+		llm_finished.emit("error" if not error.is_empty() else "done", result, error, latency_ms)
+		if error.is_empty():
+			cache.store(key, result)
+	if result == null or seq != _seq or code_edit == null or not suggestion.is_empty():
 		return
 	if code_edit.get_version() != version or code_edit.get_caret_line() != line or code_edit.get_caret_column() != column:
 		return
 	show(result)
+
+
+func is_llm_busy() -> bool:
+	return _llm_busy
+
+
+func _uses_llm() -> bool:
+	return llm_provider != null and mode != MODE_LOCAL
+
+
+## Corta la request LLM en vuelo (y la programada).
+func _cancel_llm() -> void:
+	_llm_due = -1
+	if _llm_busy:
+		_llm_busy = false
+		_llm_token += 1
+		llm_provider.cancel()
+		llm_finished.emit("cancelled", null, "", 0.0)
 
 
 ## El pedido con las líneas de contexto leídas del CodeEdit (sin partir el buffer).
@@ -168,6 +263,7 @@ func native_popup_open() -> bool:
 func show(result: CompletionResult) -> void:
 	_result = result
 	suggestion = result.text
+	renderer.marked = llm_marker and result.source == CompletionResult.SOURCE_LLM
 	_anchor_line = code_edit.get_caret_line()
 	_anchor_column = code_edit.get_caret_column()
 	var line := code_edit.get_line(_anchor_line)
@@ -238,6 +334,7 @@ static func _is_word_char(c: int) -> bool:
 
 func dismiss(reason: String) -> void:
 	_due = -1
+	_cancel_llm()
 	if suggestion.is_empty():
 		return
 	var result := _result
@@ -278,6 +375,7 @@ func _sync() -> void:
 		_line_edited = false
 	if text_changed:
 		_buffer_dirty_since = clock.call()
+		_last_change = int(clock.call())
 		if not line_changed:
 			_line_edited = true
 	_seen_line = line
@@ -291,8 +389,9 @@ func _sync() -> void:
 		dismiss("line" if line_changed else ("typed" if text_changed else "moved"))
 	_due = -1
 	_seq += 1  # invalida una respuesta en vuelo
+	_cancel_llm()
 	if text_changed and enabled:
-		_due = int(clock.call()) + debounce_ms
+		_due = int(clock.call()) + (llm_debounce_ms if _uses_llm() and mode == MODE_LLM else debounce_ms)
 
 
 ## Si lo nuevo es exactamente el comienzo de la sugerencia, lo consume sin pedir otra (spec §16.5).

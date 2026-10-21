@@ -15,19 +15,23 @@ const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const AgentTheme := preload("../agent_theme.gd")
+const CompletionSettingsPage := preload("completion_settings_page.gd")
 
-enum Section { AGENTS, PERMISSIONS, MCP, ONESHOT, INTERFACE, EXPORT }
-const SECTION_LABELS: PackedStringArray = ["Agentes", "Permisos", "Servidor MCP", "One-shot y cuota", "Interfaz", "Export"]
+enum Section { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
+const SECTION_LABELS: PackedStringArray = ["Agentes", "Permisos", "Servidor MCP", "One-shot y cuota", "Completado", "Interfaz", "Export"]
 const DECISIONS: PackedStringArray = [PermissionPolicy.ALLOW, PermissionPolicy.ASK, PermissionPolicy.DENY]
 const DECISION_LABELS: Dictionary = {PermissionPolicy.ALLOW: "sí", PermissionPolicy.ASK: "preguntar", PermissionPolicy.DENY: "no"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = ["Derecha, arriba", "Derecha, abajo", "Izquierda, arriba", "Izquierda, abajo"]
 
 ## () -> String: URL actual del server MCP ("" si no escucha).
 var mcp_url_provider: Callable
 ## () -> void: reinicia el server MCP con un token nuevo.
 var regenerate_token: Callable
+## () -> Array[Dictionary] y () -> void: contadores del completado (sección Completado).
+var completion_metrics_provider: Callable
+var completion_metrics_reset: Callable
 
 var _settings: HarnessSettings
 var _config: ProjectConfig
@@ -59,6 +63,8 @@ var _warn_spin: SpinBox
 var _pause_spin: SpinBox
 var _pause_check: CheckBox
 var _resume_option: OptionButton
+# Completado
+var _completion_page: CompletionSettingsPage
 # Interfaz y export
 var _accent_picker: ColorPickerButton
 var _dock_option: OptionButton
@@ -101,7 +107,7 @@ func _build() -> void:
 	var pages := MarginContainer.new()
 	pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.add_child(pages)
-	for builder: Callable in [_build_agents, _build_permissions, _build_mcp, _build_oneshot, _build_interface, _build_export]:
+	for builder: Callable in [_build_agents, _build_permissions, _build_mcp, _build_oneshot, _build_completion, _build_interface, _build_export]:
 		var scroll := ScrollContainer.new()
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		var page := VBoxContainer.new()
@@ -174,6 +180,11 @@ func _build_agents(page: VBoxContainer) -> void:
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
 	apply.pressed.connect(_apply_profile_form)
 	_profile_form.add_child(apply)
+
+
+func _build_completion(page: VBoxContainer) -> void:
+	_completion_page = CompletionSettingsPage.new()
+	page.add_child(_completion_page)
 
 
 func _build_permissions(page: VBoxContainer) -> void:
@@ -343,6 +354,9 @@ func _load() -> void:
 	_resume_option.select(_resume_option.get_item_index(HarnessSettings.RESUME_AUTO if _settings.quota_resume_auto() else HarnessSettings.RESUME_CONFIRM))
 	_accent_picker.color = _settings.accent_color()
 	_dock_option.select(clampi(_settings.dock_slot(), 0, DOCK_SLOT_LABELS.size() - 1))
+	_completion_page.metrics_provider = completion_metrics_provider
+	_completion_page.metrics_reset = completion_metrics_reset
+	_completion_page.load_from(_settings, _config)
 
 
 func _load_matrix(overrides: Dictionary) -> void:
@@ -360,6 +374,9 @@ func _on_save() -> void:
 	if not error.is_empty():
 		_show_section(error.section)
 		return
+	var before: Dictionary = {}
+	for property: String in CONFIG_PROPERTIES:
+		before[property] = _config.get(property)
 	_settings.save_profiles(_profiles)
 	_settings.set_value(HarnessSettings.KEY_MCP_PORT, int(_port_spin.value))
 	_settings.set_value(HarnessSettings.KEY_QUOTA_WARN, int(_warn_spin.value))
@@ -368,10 +385,8 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_QUOTA_RESUME, _resume_option.get_selected_id())
 	_settings.set_value(HarnessSettings.KEY_ACCENT, _accent_picker.color)
 	_settings.set_value(HarnessSettings.KEY_DOCK_SLOT, _dock_option.selected)
+	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
-	var before: Dictionary = {}
-	for property: String in CONFIG_PROPERTIES:
-		before[property] = _config.get(property)
 	_config.permissions = matrix_overrides()
 	_config.permission_timeout_s = int(_timeout_spin.value)
 	_config.max_output_chars = int(_max_output_spin.value)
@@ -417,6 +432,9 @@ func validate() -> Dictionary:
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
 			return {"section": Section.MCP, "message": "«%s» no es una ruta absoluta." % root}
+	var completion_error := _completion_page.validate()
+	if not completion_error.is_empty():
+		return {"section": Section.COMPLETION, "message": completion_error}
 	return {}
 
 

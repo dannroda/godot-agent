@@ -5,6 +5,7 @@ extends "test_case.gd"
 const CompletionController := preload("res://addons/godot_agent/completion/completion_controller.gd")
 const TypedHistory := preload("res://addons/godot_agent/completion/local/typed_history.gd")
 const FakeProvider := preload("res://tests/fake_completion_provider.gd")
+const CompletionResult := preload("res://addons/godot_agent/completion/completion_result.gd")
 
 var _now: int = 1000
 var _code_edit: CodeEdit
@@ -252,5 +253,96 @@ func test_manual_shortcut_not_swallowed_when_off() -> void:
 	_controller.call(&"_on_gui_input", event)
 	assert_false(_controller.can_trigger(true), "apagado no se puede pedir: la tecla sigue su camino")
 	assert_eq(_provider.calls.size(), 0, "no pide")
+	_teardown()
+
+
+## Modo híbrido (M8c): lo local sale al instante y el LLM solo cuando no hay nada local, con su
+## debounce desde la última tecla; tipear cancela la request en vuelo y su respuesta no se muestra.
+func test_hybrid_mode() -> void:
+	await _setup("func f() -> void:\n\t", 1, 1)
+	var llm: FakeProvider = FakeProvider.new()
+	llm.source = CompletionResult.SOURCE_LLM
+	llm.latency_ms = 300
+	_controller.llm_provider = llm
+	_controller.mode = CompletionController.MODE_HYBRID
+	var states: PackedStringArray = []
+	_controller.llm_finished.connect(func(state: String, _r: RefCounted, _e: String, _ms: float) -> void: states.append(state))
+	_provider.responses = {"pri": "nt()"}
+	llm.responses = {"pri": "nt(\"llm\")", "foo": "_bar()"}
+	await _type("pri")
+	var started := Time.get_ticks_msec()
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	assert_eq(_controller.suggestion, "nt()", "lo local se muestra sin esperar al LLM")
+	assert_true(Time.get_ticks_msec() - started < 100, "en el mismo frame")
+	_advance(1000)
+	assert_eq(llm.calls.size(), 0, "con sugerencia local no se pide al LLM")
+
+	_controller.dismiss("test")
+	await _type("\n\tfoo")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	assert_eq(_controller.suggestion, "", "nada local")
+	assert_eq(llm.calls.size(), 0, "el LLM espera su debounce")
+	_advance(CompletionController.DEFAULT_LLM_DEBOUNCE_MS)
+	assert_eq(llm.calls.size(), 1, "vencido el debounce del LLM, un pedido")
+	assert_true(_controller.is_llm_busy(), "en vuelo")
+	await _tree().create_timer(0.45).timeout
+	assert_eq(_controller.suggestion, "_bar()", "la respuesta del LLM se muestra")
+	assert_eq(_controller.renderer.marked, true, "con el marcador del LLM")
+	assert_eq(states, PackedStringArray(["done"]), "terminó")
+
+	# Tipear con una request en vuelo la cancela y su respuesta no aparece.
+	_controller.dismiss("test")
+	await _type("\n\tfoo")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + CompletionController.DEFAULT_LLM_DEBOUNCE_MS + 1)
+	assert_eq(llm.calls.size(), 2, "otro pedido")
+	var cancelled_before := llm.cancelled
+	await _type("x")
+	assert_true(llm.cancelled > cancelled_before and not _controller.is_llm_busy(), "tipear cancela")
+	await _tree().create_timer(0.45).timeout
+	assert_eq(_controller.suggestion, "", "la respuesta cancelada no se muestra")
+	assert_eq(states[states.size() - 1], "cancelled", "avisado como cancelado")
+
+	# Con el LLM lento en vuelo, lo local que aparece al seguir tipeando no lo espera.
+	_controller.dismiss("test")
+	await _type("\n\tfoo")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + CompletionController.DEFAULT_LLM_DEBOUNCE_MS + 1)
+	assert_true(_controller.is_llm_busy(), "LLM en vuelo")
+	await _type("\n\tpri")
+	started = Time.get_ticks_msec()
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	assert_eq(_controller.suggestion, "nt()", "lo local no espera al LLM en vuelo")
+	assert_true(Time.get_ticks_msec() - started < 100 and not _controller.is_llm_busy(), "en el mismo frame, y el pedido viejo cancelado")
+
+	# Alt+\ en híbrido fuerza el LLM aunque haya algo local.
+	_controller.dismiss("test")
+	await _type("\n\tpri")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	assert_eq(_controller.suggestion, "nt()", "local")
+	await _key(KEY_BACKSLASH, true)
+	assert_eq(llm.calls.size(), 4, "Alt+\\ pide al LLM")
+	await _tree().create_timer(0.45).timeout
+	assert_eq(_controller.suggestion, "nt(\"llm\")", "y muestra lo del LLM")
+	_teardown()
+
+
+## Solo LLM: el debounce es el del LLM y el proveedor local no se consulta.
+func test_llm_only_mode() -> void:
+	await _setup("func f() -> void:\n\t", 1, 1)
+	var llm: FakeProvider = FakeProvider.new()
+	_controller.llm_provider = llm
+	_controller.mode = CompletionController.MODE_LLM
+	llm.responses = {"pri": "nt(1)"}
+	_provider.responses = {"pri": "nt()"}
+	await _type("pri")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	assert_eq(llm.calls.size(), 0, "el debounce local no alcanza")
+	_advance(CompletionController.DEFAULT_LLM_DEBOUNCE_MS)
+	assert_eq([llm.calls.size(), _provider.calls.size()], [1, 0], "pide solo al LLM")
+	assert_eq(_controller.suggestion, "nt(1)", "muestra lo del LLM")
+	_controller.mode = CompletionController.MODE_LOCAL
+	_controller.dismiss("test")
+	await _type("n")
+	_advance(CompletionController.DEFAULT_DEBOUNCE_MS + 1)
+	assert_eq(_provider.calls.size(), 1, "de vuelta en local, sin reiniciar nada")
 	_teardown()
 
