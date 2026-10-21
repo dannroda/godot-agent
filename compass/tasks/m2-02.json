@@ -10,8 +10,8 @@
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "doing",
-  "test": "",
+  "status": "review",
+  "test": "- tests/unit/test_line_diff.gd: igualdad, alta, baja, reemplazo, conteos y first_changed_line.\n- test_session_model: el plan reemplaza y se re-ubica (entry_removed).\n- Captura de la UI con ui_demo.json: tarjeta de diff y plan visibles.",
   "title": "Tarjeta de diff y plan colapsable",
-  "updated_at": "2026-10-21T05:06:28.179Z"
+  "updated_at": "2026-10-21T05:23:02.636Z"
 }

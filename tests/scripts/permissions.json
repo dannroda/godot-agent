@@ -1,0 +1,34 @@
+{
+	"turns": [
+		{"steps": [
+			{"chunk": "Voy a editar el archivo."},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Edit perm_target.gd", "kind": "edit", "status": "pending",
+				"rawInput": {"file_path": "{project}/tests/tmp/perm_target.gd"},
+				"content": [{"type": "diff", "path": "{project}/tests/tmp/perm_target.gd", "oldText": "var a := 1\n", "newText": "var a := 2\n"}]}},
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "e1", "title": "Edit perm_target.gd", "kind": "edit", "rawInput": {"file_path": "{project}/tests/tmp/perm_target.gd"}},
+				"options": [
+					{"optionId": "allow_always", "name": "Always Allow", "kind": "allow_always"},
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"request": {"method": "fs/write_text_file", "params": {"path": "{project}/tests/tmp/perm_target.gd", "content": "extends Node\nvar a := 2\n"}}},
+			{"request": {"method": "fs/read_text_file", "params": {"path": "{project}/tests/tmp/perm_target.gd", "line": 2, "limit": 1}}},
+			{"request": {"method": "fs/read_text_file", "params": {"path": "/etc/passwd"}}},
+			{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "e1", "status": "completed"}},
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "e2", "title": "Edit otro.gd", "kind": "edit", "rawInput": {"file_path": "{project}/tests/tmp/otro.gd"}},
+				"options": [
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "x1", "title": "Bash", "kind": "execute", "rawInput": {"command": "ls"}},
+				"options": [
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"stop": "end_turn"}
+		]}
+	]
+}

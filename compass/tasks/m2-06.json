@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:36.528Z",
   "description": "Tras cada escritura (fs/write, tool call edit con diff, watcher de mtime): update_file o scan, recargar scripts abiertos sin perder el cursor ni mostrar el diálogo; si el usuario tenía cambios, marcar conflicto (ver diff / usar la del agente / mantener la mía). Aviso para .tscn abiertos y para .uid/.import (spec §8).",
   "milestone": "m02",
-  "notes": "",
+  "notes": "editor/editor_sync.gd (Node hijo del plugin). Cuatro entradas:\n- fs/write (after_agent_write);\n- un tool call de edición, borrado o movida completado (plugin._on_tool_call_changed);\n- un watcher de mtime cada 0,5 s para los scripts abiertos;\n- buffer limpio: replace_buffer cambia solo el tramo que difiere, en una operación deshacible, y conserva cursor y scroll. Después _adopt_resource guarda el Script con ResourceSaver para alinear las fechas.\n\nHallazgo: el Script Editor guarda la fecha de cada pestaña (edited_file_data.last_modified_time) y solo la actualiza con la señal resource_saved de EditorNode. ResourceSaver no la emite. Sin esa señal, al volver el foco recarga el archivo con set_text y agrega un paso de undo. _notify_saved la emite a mano. Funciona igual en 4.4, 4.7 y 4.8.\n\nSi el buffer tiene cambios sin guardar, emite conflict_detected y el dock muestra un aviso con tres acciones: ver diff (DiffDialog), usar la del agente y mantener la mía.\nSi es una escena abierta, avisa con la acción \"recargar escena\".",
   "order": 6,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "`godot -e --path . -- --godot-agent-sync-test` pasa en 4.4.1, 4.7.2 y 4.8-beta1. Prueba tres casos:\n- A: el watcher toma una escritura externa, el cursor sigue a su línea, el buffer no queda modificado, no hay diálogos tras el focus-in y un solo Ctrl+Z la deshace.\n- B: con cambios sin guardar, el buffer no se pisa, hay conflicto y resolve_use_disk funciona.\n- C: after_agent_write actualiza en el acto.\n\nUnit: tests/unit/test_editor_sync.gd (replace_buffer).",
   "title": "Sincronización editor ↔ disco",
-  "updated_at": "2026-10-21T04:32:36.528Z"
+  "updated_at": "2026-10-21T05:22:56.341Z"
 }

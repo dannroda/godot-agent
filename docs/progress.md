@@ -126,5 +126,60 @@ Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1. Contra Claude Code real, "hola" recibió:
 
 ### Pendiente
 
-- Permisos, `fs/*` y la sincronización con el editor llegan en M2. Mientras tanto, cuando Claude pide permiso para editar, el harness responde -32601 y el agente lo toma como rechazo.
+- ~~Permisos, `fs/*` y la sincronización con el editor~~: hechos en M2.
 - Historial de sesiones y Settings completos: M7.
+
+## M2 · Permisos, fs/* y sincronización con el editor
+
+### Qué hay
+
+- **Permisos** (`session/permission_policy.gd`):
+  - matriz modo × grupo (read, edit_files, shell, godot_read, godot_write, playtest, other) con los defaults de la spec §7;
+  - overrides por proyecto en `config/project_config.gd` (Resource, D5).
+- **Pedidos de permiso**:
+  - `session/request_permission` consulta la política. allow y deny se responden solos (deny deja un aviso en el chat); ask muestra una tarjeta con las opciones del agente y el diff;
+  - "Siempre en esta sesión" queda en memoria y al agente se le responde allow_once;
+  - un permiso de edición concedido preautoriza el `fs/write_text_file` que le sigue al mismo archivo, así no hay doble tarjeta;
+  - todo queda en el canal `perm` del log.
+- **fs/\*** (`acp/fs_handler.gd`):
+  - leer devuelve el buffer del Script Editor si tiene cambios sin guardar, con soporte de line y limit;
+  - escribir pasa por la política;
+  - se rechazan rutas fuera del proyecto (salvo `extra_fs_roots`) y escrituras en `.godot/` o `.git/`.
+- **Sincronización con el editor** (`editor/editor_sync.gd`, D15):
+  - scripts abiertos: se recargan sin diálogo, con un paso de undo y sin mover el cursor;
+  - conflicto si el usuario tenía cambios: ver diff, usar la del agente o mantener la mía;
+  - aviso con "Recargar escena" para escenas abiertas;
+  - aviso para `.uid` e `.import`.
+- **Dock**:
+  - tool calls con salida de texto plegada, miniaturas de imagen y recursos;
+  - tarjetas de permiso;
+  - "+ contexto" para agregar el script actual, archivos del proyecto o una captura.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd            # 35 tests, 229 checks
+$G --headless --path . --script tests/acp_session_check.gd  # 53 checks (incluye permisos en Construir y Preguntar)
+$G -e --path . -- --godot-agent-sync-test                   # editor: watcher, conflicto, fs/write, undo, sin diálogos
+$G -e --path . -- --godot-agent-ui-test=ui_demo             # dock + "+ contexto"
+$G -e --path . -- --godot-agent-claude-edit-test            # Claude Code real (gasta tokens)
+```
+
+Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1. La prueba de ciclo del plugin puede dar un falso positivo de crecimiento de objetos si corre con el editor todavía escaneando (por ejemplo, justo después de `export_check`); repetida, crece entre 3 y 5 objetos.
+
+Con Claude Code real (`--godot-agent-claude-edit-test`, en 4.8 y 4.4.1):
+- **Construir**: pidió permiso para `Edit tests/tmp/claude_target.gd`, con diff. Se aceptó, el archivo y el buffer abierto pasaron a `var speed := 2`, el buffer quedó sin cambios pendientes y no apareció ningún diálogo al volver el foco.
+- **Preguntar**: Claude no intentó editar ("la sesión está en modo Preguntar (y en modo plan)…") y el archivo no cambió. El auto-deny de un pedido real en Preguntar lo cubre `acp_session_check` con el agente falso.
+
+### Prueba manual
+
+1. Abrir un script en el Script Editor e iniciar sesión en modo **Construir**.
+2. Pedir "cambiá X por Y en <script>". Aparece una tarjeta de permiso con el diff. Al tocar **Permitir una vez**, el script abierto se actualiza en el lugar, el cursor no salta y un Ctrl+Z deshace el cambio.
+3. Escribir algo en el script sin guardar y pedir otra edición. Aparece un aviso de conflicto con **Ver diff**, **Usar la del agente** y **Mantener la mía**.
+4. Pasar a **Preguntar** y pedir una edición. No hay tarjeta: el pedido se deniega solo (con aviso) o el agente directamente no lo intenta.
+5. **+ contexto** → Archivo del proyecto… → elegir un archivo. Aparece como chip y viaja como link en el próximo mensaje.
+
+### Pendiente
+
+- La política ya está lista para las tools `godot.*` (M3) con `SessionController.authorize`.
+- El undo de tool calls (botón oculto) llega con M4.

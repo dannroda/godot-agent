@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:36.713Z",
   "description": "Archivo editable del addon con el prompt de sistema (tools godot.*, reglas de §8, modo actual, respetar CLAUDE.md) que va en el primer session/prompt. Chips de contexto (escena actual, selección, + contexto) como resource links o recursos embebidos.",
   "milestone": "m02",
-  "notes": "Adelantado en M1 (D14):\n- config/system_prompt.md va en el primer prompt y en cada cambio de modo;\n- chips de escena, selección y captura, como resource_link, texto e image.\n\nFalta \"+ contexto\" (agregar un archivo o un nodo a mano) y probarlo con Claude real.",
+  "notes": "config/system_prompt.md va en el primer prompt y en cada cambio de modo (D14).\n\nChips de contexto:\n- escena actual: resource_link;\n- selección: texto;\n- captura: image;\n- \"+ contexto\": un menú con \"Script actual\", \"Archivo del proyecto…\" (EditorFileDialog, varios archivos) y \"Captura del viewport\".\n\nLos archivos agregados a mano van como resource_link solo en el próximo prompt; después se limpian, igual que la captura. Escena y selección quedan mientras no se descarten.\nAPI: agent_dock.add_context_files(paths).",
   "order": 7,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "doing",
-  "test": "",
+  "status": "review",
+  "test": "La UI test (`--godot-agent-ui-test=ui_demo`) agrega res://project.godot con add_context_files y verifica dos cosas: que aparece el chip y que desaparece al enviar. La captura muestra el link en el mensaje del usuario.\n\nEl prompt de sistema con Claude real se prueba en m2-08.",
   "title": "Prompt de sistema y contexto del prompt",
-  "updated_at": "2026-10-21T05:06:32.421Z"
+  "updated_at": "2026-10-21T05:24:58.058Z"
 }

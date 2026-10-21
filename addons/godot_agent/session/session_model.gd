@@ -18,9 +18,11 @@ signal commands_changed(commands: Array)
 signal title_changed(title: String)
 signal harness_mode_changed(mode: HarnessMode)
 signal turn_finished(stop_reason: String)
+signal permission_requested(request: PermissionRequest)
 
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
+const PermissionRequest := preload("permission_request.gd")
 
 enum State {
 	DISCONNECTED,  ## sin proceso
@@ -58,6 +60,8 @@ var usage_size: int = 0
 var last_stop_reason: String = ""
 ## Mensaje del último error de conexión (estado FAILED).
 var failure_message: String = ""
+
+var pending_permissions: Array[PermissionRequest] = []
 
 var _entries: Array[ChatEntry] = []
 var _tool_calls: Dictionary = {}  # toolCallId -> ToolCall
@@ -105,6 +109,7 @@ func reset() -> void:
 	_tool_calls.clear()
 	_group_of_call.clear()
 	_plan_entry = null
+	cancel_pending_permissions()
 	entries_cleared.emit()
 	title_changed.emit(title)
 	plan_changed.emit(plan)
@@ -187,6 +192,27 @@ func add_entry(entry: ChatEntry) -> ChatEntry:
 	if entry.created_unix == 0.0:
 		entry.created_unix = Time.get_unix_time_from_system()
 	return _push(entry)
+
+
+## Agrega una tarjeta de permiso. Se actualiza sola cuando el pedido se resuelve.
+func add_permission(request: PermissionRequest) -> ChatEntry:
+	var entry := _new_entry(ChatEntry.Kind.PERMISSION)
+	entry.permission = request
+	entry.text = request.title
+	pending_permissions.append(request)
+	request.resolved.connect(func(_outcome: Dictionary) -> void:
+		pending_permissions.erase(request)
+		entry_updated.emit(entry)
+	, CONNECT_ONE_SHOT)
+	_push(entry)
+	permission_requested.emit(request)
+	return entry
+
+
+## Al cancelar el turno, los permisos pendientes se responden como cancelados (spec §4.1).
+func cancel_pending_permissions() -> void:
+	for request: PermissionRequest in pending_permissions.duplicate():
+		request.cancel()
 
 
 func notify_entry_changed(entry: ChatEntry) -> void:

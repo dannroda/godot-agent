@@ -15,6 +15,9 @@ const STATUS_ICONS: Dictionary = {
 }
 const SPINNER := ["◐", "◓", "◑", "◒"]
 const SUMMARY_MAX := 80
+const OUTPUT_PREVIEW_LINES := 40
+const OUTPUT_PREVIEW_CHARS := 4000
+const IMAGE_MAX_HEIGHT := 160
 
 ## Callable(id: String) -> ToolCall, inyectado por la ConversationView.
 var tool_call_lookup: Callable
@@ -144,7 +147,7 @@ func _make_row(call: ToolCall) -> Dictionary:
 
 ## Contenido del tool call: diffs como tarjetas, texto breve, terminal "no soportado", ubicaciones.
 func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
-	var signature := "%s|%d|%d" % [call.status, call.content.size(), call.locations.size()]
+	var signature := "%s|%d|%d" % [call.status, str(call.content).hash(), call.locations.size()]
 	if extra.get_meta(&"signature", "") == signature:
 		return
 	extra.set_meta(&"signature", signature)
@@ -163,10 +166,22 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 				extra.add_child(_muted_label("Terminal: no soportado en v1."))
 			"content":
 				var inner: Variant = block.get("content")
-				if inner is Dictionary and inner.get("type") == "text" and call.status == ToolCall.STATUS_FAILED:
-					extra.add_child(_muted_label(str(inner.text).left(400), AgentTheme.ERROR))
-				elif inner is Dictionary and inner.get("type") == "image":
-					extra.add_child(_muted_label("[imagen]"))
+				if not inner is Dictionary:
+					continue
+				match str(inner.get("type", "")):
+					"text":
+						var text := str(inner.get("text", ""))
+						if call.status == ToolCall.STATUS_FAILED:
+							extra.add_child(_muted_label(text.left(400), AgentTheme.ERROR))
+						elif not text.strip_edges().is_empty():
+							extra.add_child(_output_toggle(text))
+					"image":
+						extra.add_child(_image_preview(inner))
+					"resource_link":
+						extra.add_child(_muted_label("📎 " + str(inner.get("uri", ""))))
+					"resource":
+						var resource: Variant = inner.get("resource")
+						extra.add_child(_muted_label("📎 " + (str(resource.get("uri", "")) if resource is Dictionary else "recurso")))
 	var links := HFlowContainer.new()
 	for location: Variant in call.locations:
 		if location is Dictionary and location.get("path") is String:
@@ -182,6 +197,70 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 		extra.add_child(links)
 	else:
 		links.free()
+
+
+## Salida de texto plegada: "salida · N líneas" y, al abrirla, las primeras líneas en monoespaciada.
+func _output_toggle(text: String) -> Control:
+	var column := VBoxContainer.new()
+	var lines := text.split("\n")
+	var toggle := Button.new()
+	toggle.flat = true
+	toggle.toggle_mode = true
+	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	toggle.text = "▸ salida · %d %s" % [lines.size(), "línea" if lines.size() == 1 else "líneas"]
+	toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	column.add_child(toggle)
+	var output := Label.new()
+	output.visible = false
+	output.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	output.add_theme_font_override(&"font", AgentTheme.mono_font())
+	output.add_theme_font_size_override(&"font_size", AgentTheme.mono_font_size())
+	output.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	var shown := "\n".join(lines.slice(0, OUTPUT_PREVIEW_LINES)).left(OUTPUT_PREVIEW_CHARS)
+	if shown.length() < text.length():
+		shown += "\n…"
+	output.text = shown
+	column.add_child(output)
+	toggle.toggled.connect(func(open: bool) -> void:
+		output.visible = open
+		toggle.text = ("▾" if open else "▸") + toggle.text.substr(1)
+	)
+	return column
+
+
+static func _image_preview(block: Dictionary) -> Control:
+	var image := decode_image(str(block.get("data", "")), str(block.get("mimeType", "")))
+	if image == null:
+		var label := Label.new()
+		label.text = "[imagen]"
+		label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+		return label
+	var rect := TextureRect.new()
+	rect.texture = ImageTexture.create_from_image(image)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	var height := mini(image.get_height(), AgentTheme.px(IMAGE_MAX_HEIGHT))
+	rect.custom_minimum_size = Vector2(0, height)
+	return rect
+
+
+## Imagen de un bloque ACP (base64 + mimeType), o null si no se puede decodificar.
+static func decode_image(data: String, mime_type: String) -> Image:
+	if data.is_empty():
+		return null
+	var bytes := Marshalls.base64_to_raw(data)
+	if bytes.is_empty():
+		return null
+	var image := Image.new()
+	var error := ERR_FILE_UNRECOGNIZED
+	match mime_type:
+		"image/png":
+			error = image.load_png_from_buffer(bytes)
+		"image/jpeg", "image/jpg":
+			error = image.load_jpg_from_buffer(bytes)
+		"image/webp":
+			error = image.load_webp_from_buffer(bytes)
+	return image if error == OK and not image.is_empty() else null
 
 
 func _muted_label(text: String, color: Color = AgentTheme.MUTED) -> Label:

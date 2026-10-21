@@ -13,6 +13,20 @@ const HarnessSettings := preload("core/harness_settings.gd")
 const SessionModel := preload("session/session_model.gd")
 const SessionController := preload("session/session_controller.gd")
 const EditorContext := preload("ui/editor_context.gd")
+const EditorSync := preload("editor/editor_sync.gd")
+const FsHandler := preload("acp/fs_handler.gd")
+const PermissionPolicy := preload("session/permission_policy.gd")
+const ProjectConfig := preload("config/project_config.gd")
+const ChatEntry := preload("session/chat_entry.gd")
+const ToolCall := preload("session/tool_call.gd")
+const DiffDialog := preload("ui/diff_dialog.gd")
+
+const ACTION_CONFLICT_DIFF := "conflict_diff"
+const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
+const ACTION_CONFLICT_KEEP_MINE := "conflict_keep_mine"
+const ACTION_RELOAD_SCENE := "reload_scene"
+## Kinds de tool call que escriben archivos: al completarse se sincroniza el editor.
+const WRITING_KINDS: PackedStringArray = ["edit", "delete", "move"]
 
 const PLUGIN_NAME := "Agent"
 const DOCK_TITLE := "Agent"
@@ -25,6 +39,9 @@ var _settings: HarnessSettings
 var _log: AgentLog
 var _model: SessionModel
 var _controller: SessionController
+var _project_config: ProjectConfig
+var _sync: EditorSync
+var _diff_dialog: DiffDialog
 
 
 func _enter_tree() -> void:
@@ -40,10 +57,28 @@ func _enter_tree() -> void:
 	_controller = SessionController.new()
 	_controller.setup(_model, _log, EditorContext.project_path())
 	_controller.prompt_variables_provider = _prompt_variables
+	_project_config = ProjectConfig.load_or_default()
+	_controller.policy = PermissionPolicy.new(_project_config.permissions)
+
+	_sync = EditorSync.new()
+	_sync.setup(_log)
+	_sync.conflict_detected.connect(_on_conflict_detected)
+	_sync.open_scene_modified.connect(_on_open_scene_modified)
+	add_child(_sync)
+	var fs := FsHandler.new()
+	fs.setup(EditorContext.project_path(), _log)
+	fs.extra_roots = _project_config.extra_fs_roots
+	fs.buffer_reader = _sync.buffer_text
+	fs.after_write = _sync.after_agent_write
+	_controller.set_fs_handler(fs)
+	_model.tool_call_changed.connect(_on_tool_call_changed)
+	_diff_dialog = DiffDialog.new()
+	EditorInterface.get_base_control().add_child(_diff_dialog)
 
 	var dock := AgentDockScene.instantiate()
 	dock.setup(_model, _controller, _settings)
 	dock.show_log_requested.connect(_show_log)
+	dock.action_forwarded.connect(_on_dock_action)
 	var log_panel := AgentLogPanelScene.instantiate()
 	log_panel.setup(_log)
 
@@ -59,6 +94,12 @@ func _exit_tree() -> void:
 	if _controller:
 		_controller.stop()
 		_controller = null
+	if _sync:
+		_sync.queue_free()
+		_sync = null
+	if _diff_dialog:
+		_diff_dialog.queue_free()
+		_diff_dialog = null
 	PlaytestAutoload.unregister(self)
 
 	if _export_plugin:
@@ -91,6 +132,56 @@ func _get_plugin_icon() -> Texture2D:
 func _show_log() -> void:
 	if _surfaces:
 		_surfaces.make_visible(EditorSurfaces.Surface.BOTTOM)
+
+
+## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).
+func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
+	if call.status != ToolCall.STATUS_COMPLETED or not call.kind in WRITING_KINDS:
+		return
+	var paths: Dictionary = {}
+	for diff: Dictionary in call.diffs():
+		paths[str(diff.get("path", ""))] = true
+	for location: Variant in call.locations:
+		if location is Dictionary and location.get("path") is String:
+			paths[location.path] = true
+	for path: String in paths:
+		if not path.is_empty():
+			_sync.after_agent_write(path)
+
+
+func _on_conflict_detected(res_path: String) -> void:
+	var data := {"path": res_path}
+	_model.add_notice(
+		"%s tiene cambios sin guardar y el agente lo modificó en disco. No se pisó nada." % res_path,
+		ChatEntry.Level.WARNING,
+		[
+			{"id": ACTION_CONFLICT_DIFF, "label": "Ver diff", "data": data},
+			{"id": ACTION_CONFLICT_USE_AGENT, "label": "Usar la del agente", "data": data},
+			{"id": ACTION_CONFLICT_KEEP_MINE, "label": "Mantener la mía", "data": data},
+		]
+	)
+
+
+func _on_open_scene_modified(res_path: String) -> void:
+	_model.add_notice(
+		"El agente modificó en disco la escena abierta %s. Para escenas abiertas debería usar las tools godot.*." % res_path,
+		ChatEntry.Level.WARNING,
+		[{"id": ACTION_RELOAD_SCENE, "label": "Recargar escena", "data": {"path": res_path}}]
+	)
+
+
+func _on_dock_action(action: String, payload: Variant) -> void:
+	var path := str(payload.get("path", "")) if payload is Dictionary else ""
+	match action:
+		ACTION_CONFLICT_DIFF:
+			var buffer: Variant = _sync.buffer_text(ProjectSettings.globalize_path(path))
+			_diff_dialog.show_diff("Conflicto: " + path.get_file(), "tu versión", str(buffer) if buffer != null else "", "versión del agente", _sync.conflict_disk_text(path))
+		ACTION_CONFLICT_USE_AGENT:
+			_sync.resolve_use_disk(path)
+		ACTION_CONFLICT_KEEP_MINE:
+			_sync.resolve_keep_buffer(path)
+		ACTION_RELOAD_SCENE:
+			_sync.reload_scene(path)
 
 
 func _prompt_variables() -> Dictionary:

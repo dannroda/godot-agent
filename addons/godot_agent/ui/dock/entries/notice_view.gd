@@ -4,7 +4,7 @@ extends "entry_view.gd"
 
 var _panel: PanelContainer
 var _label: Label
-var _actions: HBoxContainer
+var _actions: HFlowContainer
 
 
 func _build() -> void:
@@ -15,8 +15,8 @@ func _build() -> void:
 	_label = Label.new()
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_label)
-	_actions = HBoxContainer.new()
-	_actions.alignment = BoxContainer.ALIGNMENT_END
+	_actions = HFlowContainer.new()
+	_actions.alignment = FlowContainer.ALIGNMENT_END
 	column.add_child(_actions)
 
 
@@ -37,6 +37,6 @@ func refresh() -> void:
 	for action: Dictionary in entry.actions:
 		var button := Button.new()
 		button.text = str(action.get("label", action.get("id", "")))
-		button.pressed.connect(func() -> void: action_requested.emit(str(action.id), entry))
+		button.pressed.connect(func() -> void: action_requested.emit(str(action.id), action.get("data", entry)))
 		_actions.add_child(button)
 	_actions.visible = not entry.actions.is_empty()

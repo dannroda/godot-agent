@@ -179,6 +179,10 @@ func set_chips(chips: Array[Dictionary], add_callback: Callable = Callable()) ->
 	_chips.visible = _chips.get_child_count() > 0
 
 
+func has_chips() -> bool:
+	return _chips.get_child_count() > 0
+
+
 func _icon_button(text: String, tooltip: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.flat = true

@@ -170,3 +170,21 @@ Respuestas reales capturadas que difieren o amplían la spec (gana el agente rea
 
 - El prompt de sistema vive en `config/system_prompt.md` (editable, con `{mode}`, `{mode_rules}`, `{project_name}`…). Va como primer bloque de texto, envuelto en `<harness_context>`, del primer `session/prompt` de cada sesión y después de cada cambio de modo.
 - Chips de contexto: escena abierta (`resource_link` con `file://`), selección (bloque de texto con rutas y tipos) y captura del viewport (bloque `image`, ≤ 1280 px). Se agregan solos y se pueden quitar. Un chip quitado no vuelve mientras no cambie la escena o la selección.
+
+## D15 · Sincronización editor ↔ disco sin el diálogo de "modificado afuera" (M2)
+
+Cuando el agente escribe un script que está abierto en el Script Editor:
+- **Buffer limpio**: el harness reemplaza solo el tramo de líneas que cambió (`EditorSync.replace_buffer`), en una operación compleja del CodeEdit. Así se deshace con un Ctrl+Z y conserva cursor y scroll. Después hace `tag_saved_version` y "adopta" el recurso:
+  - `source_code` = texto del disco;
+  - `ResourceSaver.save` (alinea la fecha del recurso);
+  - `reload(true)`;
+  - `EditorFileSystem.update_file`;
+  - por último emite a mano `EditorNode.resource_saved(script)`.
+- **Por qué emitir `resource_saved`**: el Script Editor guarda la fecha de cada pestaña (`edited_file_data.last_modified_time`) y solo la actualiza al escuchar esa señal. `ResourceSaver.save` no la emite. Sin ella, al volver el foco al editor (`_test_script_times_on_disk`) recarga con `set_text` y agrega un paso de undo, o muestra el diálogo si el buffer tiene cambios. El comportamiento es el mismo en 4.4, 4.7 y 4.8.
+- **Buffer con cambios sin guardar**: no se pisa. Queda un conflicto con tres acciones: ver diff, usar la del agente (deshacible) o mantener la mía (guarda el buffer a disco).
+- **Detección**: hay tres vías:
+  - `fs/write_text_file`;
+  - tool calls de edición completados (usan `locations` o `rawInput.file_path`);
+  - un watcher de mtime de los scripts abiertos cada 0,5 s, para escrituras que el agente hace por su cuenta.
+- **Escenas abiertas**: no se recargan solas. Hay un aviso con "Recargar escena" (`EditorInterface.reload_scene_from_path`).
+- **Alternativa descartada**: `ScriptEditor.reload_open_files()`. Existe solo en 4.8, pasa por el mismo `set_text` (pierde el undo fino y el cursor) y con cambios sin guardar abre el diálogo.

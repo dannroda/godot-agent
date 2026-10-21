@@ -7,13 +7,27 @@ extends EditorPlugin
 ##   del editor y sale (necesita ventana, no headless).
 ## - `-- --godot-agent-ui-test=<guion> --godot-agent-ui-shot=<ruta.png>`: conecta el dock al agente
 ##   falso con tests/scripts/<guion>.json, manda "hola", espera el fin del turno, captura y sale.
+## - `-- --godot-agent-sync-test`: abre un script, lo modifica en disco como lo haría el agente y
+##   verifica que el editor se actualiza sin el diálogo de "modificado afuera" (buffer limpio) y
+##   que no pisa cambios sin guardar (conflicto). Necesita ventana.
+## - `-- --godot-agent-claude-edit-test`: verificación de M2 con Claude Code real (gasta tokens).
+##   En Construir pide editar un script abierto: tiene que haber permiso con diff y el buffer se
+##   actualiza sin diálogos. En Preguntar, la misma edición se deniega y el archivo no cambia.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
 const UI_TEST_ARG := "--godot-agent-ui-test="
 const UI_SHOT_ARG := "--godot-agent-ui-shot="
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
+const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
+const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
+const SYNC_ARG := "--godot-agent-sync-test"
+const SYNC_SCRIPT := "res://addons/godot_agent/editor/editor_sync.gd"
+const SYNC_TARGET := "res://tests/tmp/sync_target.gd"
+const CLAUDE_EDIT_ARG := "--godot-agent-claude-edit-test"
+const CLAUDE_EDIT_TARGET := "res://tests/tmp/claude_target.gd"
+const CLAUDE_TIMEOUT_S := 420.0
 const MAIN_SCREEN_NAME := "Agent"
 const TARGET_PLUGIN := "godot_agent"
 const CYCLES := 5
@@ -27,11 +41,184 @@ func _enter_tree() -> void:
 	var args := OS.get_cmdline_user_args()
 	if CYCLE_ARG in args:
 		_run_cycle_test.call_deferred()
+	if SYNC_ARG in args:
+		_run_sync_test.call_deferred()
+	if CLAUDE_EDIT_ARG in args:
+		_run_claude_edit_test.call_deferred()
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
+
+
+func _run_sync_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	var failures: PackedStringArray = []
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/tmp"))
+	_write(SYNC_TARGET, "extends Node\n\nvar a := 1\n\nfunc _ready() -> void:\n\tpass\n")
+	EditorInterface.get_resource_filesystem().update_file(SYNC_TARGET)
+	await get_tree().create_timer(1.5).timeout
+	var sync: Node = _find_by_script(SYNC_SCRIPT)
+	if sync == null:
+		_finish(1, "no se encontró EditorSync")
+		return
+	EditorInterface.edit_script(load(SYNC_TARGET), 5)
+	await get_tree().create_timer(1.0).timeout
+	var code_edit := EditorInterface.get_script_editor().get_current_editor().get_base_editor() as CodeEdit
+	code_edit.set_caret_line(5)
+	code_edit.set_caret_column(1)
+
+	# A · buffer limpio, el agente escribe a disco por su cuenta (sin fs/write): lo toma el watcher.
+	var agent_text := "extends Node\n\nsignal hit\n\nvar a := 2\n\nfunc _ready() -> void:\n\tpass\n"
+	await get_tree().create_timer(1.1).timeout  # mtime con resolución de 1 s
+	_write(SYNC_TARGET, agent_text)
+	await get_tree().create_timer(1.5).timeout
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await get_tree().create_timer(1.0).timeout
+	if code_edit.text != agent_text:
+		failures.append("A: el buffer no se actualizó")
+	if code_edit.get_caret_line() != 7:
+		failures.append("A: el cursor no siguió a su línea (%d)" % code_edit.get_caret_line())
+	if code_edit.get_version() != code_edit.get_saved_version():
+		failures.append("A: el buffer quedó marcado como modificado")
+	failures.append_array(_visible_dialogs("A"))
+	code_edit.undo()
+	if code_edit.text.contains("signal hit"):
+		failures.append("A: un solo Ctrl+Z no deshace la recarga")
+	code_edit.redo()
+	code_edit.tag_saved_version()
+
+	# B · el usuario tiene cambios sin guardar: no se pisa, queda un conflicto.
+	code_edit.set_caret_line(0)
+	code_edit.set_caret_column(0)
+	code_edit.insert_text_at_caret("# cambio del usuario\n")
+	await get_tree().create_timer(1.1).timeout
+	_write(SYNC_TARGET, agent_text.replace("var a := 2", "var a := 3"))
+	await get_tree().create_timer(1.5).timeout
+	if not code_edit.text.begins_with("# cambio del usuario"):
+		failures.append("B: se pisó el buffer del usuario")
+	if not SYNC_TARGET in sync.call(&"conflicts"):
+		failures.append("B: no se detectó el conflicto")
+	sync.call(&"resolve_use_disk", SYNC_TARGET)
+	await get_tree().process_frame
+	if not code_edit.text.contains("var a := 3") or code_edit.text.contains("# cambio del usuario"):
+		failures.append("B: 'usar la del agente' no cargó la versión del disco")
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await get_tree().create_timer(1.0).timeout
+	failures.append_array(_visible_dialogs("B"))
+
+	# C · fs/write: after_agent_write inmediato.
+	await get_tree().create_timer(1.1).timeout
+	_write(SYNC_TARGET, agent_text.replace("var a := 2", "var a := 4"))
+	sync.call(&"after_agent_write", ProjectSettings.globalize_path(SYNC_TARGET))
+	if not code_edit.text.contains("var a := 4"):
+		failures.append("C: after_agent_write no actualizó el buffer")
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await get_tree().create_timer(1.0).timeout
+	failures.append_array(_visible_dialogs("C"))
+
+	for failure: String in failures:
+		print("[sync-test] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "sync-test: %d fallas" % failures.size())
+
+
+func _run_claude_edit_test() -> void:
+	get_tree().create_timer(CLAUDE_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	var failures: PackedStringArray = []
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/tmp"))
+	var original := "extends Node\n\nvar speed := 1\n\n\nfunc _ready() -> void:\n\tprint(speed)\n"
+	_write(CLAUDE_EDIT_TARGET, original)
+	EditorInterface.get_resource_filesystem().update_file(CLAUDE_EDIT_TARGET)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	EditorInterface.edit_script(load(CLAUDE_EDIT_TARGET), 6)
+	await get_tree().create_timer(1.0).timeout
+	var code_edit := EditorInterface.get_script_editor().get_current_editor().get_base_editor() as CodeEdit
+	code_edit.set_caret_line(6)
+	var controller: Object = dock.get(&"_controller")
+	var model: Object = dock.get(&"_model")
+	var requests: Array = []
+	model.connect(&"permission_requested", func(request: Object) -> void:
+		requests.append(request)
+		print("[claude-edit] permiso: %s · grupo %s · diff %s" % [request.get(&"title"), request.get(&"group"), not (request.get(&"diff") as Dictionary).is_empty()])
+		var option: String = request.call(&"option_id_for", PackedStringArray(["allow_once"]))
+		request.call(&"select", option)
+	)
+	var profile := AgentProfile.from_dict(AgentProfile.defaults()[0])
+	if not await controller.call(&"start", profile):
+		_finish(1, "no arrancó Claude: %s" % model.get(&"failure_message"))
+		return
+	var abs_path := ProjectSettings.globalize_path(CLAUDE_EDIT_TARGET)
+
+	# Construir: edición con permiso y diff.
+	model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
+	var stop: String = await controller.call(&"send_prompt",
+		"En %s cambiá `var speed := 1` por `var speed := 2` con tu herramienta de edición. No leas ni toques otros archivos, no corras comandos." % abs_path)
+	print("[claude-edit] construir: stopReason=%s" % stop)
+	await get_tree().create_timer(1.5).timeout
+	if requests.is_empty():
+		failures.append("Construir: no se pidió permiso")
+	elif (requests[0].get(&"diff") as Dictionary).is_empty():
+		failures.append("Construir: el permiso no trajo diff")
+	if not FileAccess.get_file_as_string(CLAUDE_EDIT_TARGET).contains("var speed := 2"):
+		failures.append("Construir: el archivo no cambió")
+	if not code_edit.text.contains("var speed := 2"):
+		failures.append("Construir: el buffer no se actualizó")
+	if code_edit.get_version() != code_edit.get_saved_version():
+		failures.append("Construir: el buffer quedó modificado")
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await get_tree().create_timer(1.0).timeout
+	failures.append_array(_visible_dialogs("Construir"))
+
+	# Preguntar: la misma clase de edición se deniega sin tarjeta.
+	var asked := requests.size()
+	model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
+	stop = await controller.call(&"send_prompt",
+		"Intentá ahora cambiar `var speed := 2` por `var speed := 3` en %s con tu herramienta de edición, una sola vez. Si no se puede, decilo y terminá." % abs_path)
+	print("[claude-edit] preguntar: stopReason=%s" % stop)
+	await get_tree().create_timer(1.0).timeout
+	if requests.size() != asked:
+		failures.append("Preguntar: apareció una tarjeta de permiso")
+	if FileAccess.get_file_as_string(CLAUDE_EDIT_TARGET).contains("var speed := 3") or code_edit.text.contains("var speed := 3"):
+		failures.append("Preguntar: el archivo cambió")
+	for entry: Object in model.call(&"entries"):
+		if int(entry.get(&"kind")) == ChatEntry.Kind.NOTICE:
+			print("[claude-edit] aviso: ", entry.get(&"text"))
+		elif int(entry.get(&"kind")) == ChatEntry.Kind.AGENT:
+			print("[claude-edit] agente: ", str(entry.get(&"text")).left(300).replace("\n", " "))
+	controller.call(&"stop")
+	for failure: String in failures:
+		print("[claude-edit] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "claude-edit: %d fallas" % failures.size())
+
+
+func _write(path: String, text: String) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(text)
+	file.close()
+
+
+func _find_by_script(path: String) -> Node:
+	for node: Node in get_tree().root.find_children("*", "Node", true, false):
+		var script := node.get_script() as Script
+		if script and script.resource_path == path:
+			return node
+	return null
+
+
+## Diálogos visibles del editor (p. ej. "Los siguientes archivos son más nuevos en disco").
+func _visible_dialogs(label: String) -> PackedStringArray:
+	var found: PackedStringArray = []
+	for window: Node in EditorInterface.get_base_control().find_children("*", "AcceptDialog", true, false):
+		var dialog := window as AcceptDialog
+		if dialog.visible:
+			found.append("%s: diálogo visible '%s': %s" % [label, dialog.title, dialog.dialog_text.left(120)])
+			dialog.hide()
+	return found
 
 
 func _arg_value(prefix: String) -> String:
@@ -41,21 +228,25 @@ func _arg_value(prefix: String) -> String:
 	return ""
 
 
+func _find_dock() -> Control:
+	for node: Node in EditorInterface.get_base_control().find_children("*", "VBoxContainer", true, false):
+		if node.get_script() and (node.get_script() as Script).resource_path == DOCK_SCRIPT:
+			var holder := node.get_parent()
+			if holder.has_method(&"make_visible"):
+				holder.call(&"make_visible")
+			elif holder is TabContainer:
+				(holder as TabContainer).current_tab = node.get_index()
+			return node
+	return null
+
+
 func _run_ui_test(scenario: String, shot_path: String) -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
-	var dock: Control = null
-	for node: Node in EditorInterface.get_base_control().find_children("*", "VBoxContainer", true, false):
-		if node.get_script() and (node.get_script() as Script).resource_path == DOCK_SCRIPT:
-			dock = node
+	var dock := _find_dock()
 	if dock == null:
 		_finish(1, "no se encontró el dock")
 		return
-	var holder := dock.get_parent()
-	if holder.has_method(&"make_visible"):
-		holder.call(&"make_visible")
-	elif holder is TabContainer:
-		(holder as TabContainer).current_tab = dock.get_index()
 	var controller: Object = dock.get(&"_controller")
 	var model: Object = dock.get(&"_model")
 	var profile := AgentProfile.from_dict({
@@ -67,7 +258,16 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	if not ok:
 		_finish(1, "no arrancó la sesión: %s" % model.get(&"failure_message"))
 		return
+	dock.call(&"add_context_files", PackedStringArray(["res://project.godot"]))
+	var chips: Dictionary = dock.get(&"_chips")
+	if not chips.has("file:res://project.godot"):
+		_finish(1, "+ contexto no agregó el chip del archivo")
+		return
 	dock.call(&"_on_submitted", "hola, ¿qué hay que hacer con las oleadas?")
+	chips = dock.get(&"_chips")
+	if chips.has("file:res://project.godot"):
+		_finish(1, "el chip del archivo siguió después de enviar")
+		return
 	while int(model.get(&"state")) != 2:  # READY
 		await get_tree().process_frame
 	await get_tree().create_timer(0.5).timeout

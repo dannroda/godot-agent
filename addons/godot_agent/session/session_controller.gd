@@ -13,6 +13,10 @@ const SessionModel := preload("session_model.gd")
 const ChatEntry := preload("chat_entry.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
+const PermissionPolicy := preload("permission_policy.gd")
+const PermissionRequest := preload("permission_request.gd")
+const FsHandler := preload("../acp/fs_handler.gd")
+const LineDiff := preload("../core/line_diff.gd")
 
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
@@ -23,6 +27,9 @@ const SYSTEM_PROMPT_PATH := "res://addons/godot_agent/config/system_prompt.md"
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"
 const ACTION_SHOW_LOG := "show_log"
+## Ventana en la que un permiso de edición ya concedido cubre el fs/write_text_file que le sigue
+## (el adapter de Claude pide permiso para Edit y después escribe por fs/*).
+const PREAUTHORIZED_WRITE_MS := 120000
 
 const MODE_RULES: Dictionary = {
 	SessionModel.HarnessMode.ASK: "Solo respondé preguntas: no modifiques archivos, escenas ni settings, y no ejecutes comandos.",
@@ -40,6 +47,8 @@ const AGENT_MODE_FOR: Dictionary = {
 
 var model: SessionModel
 var client: AcpClient
+var policy: PermissionPolicy = PermissionPolicy.new()
+var fs: FsHandler
 var agent_log: AgentLog
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
 var cwd: String = ""
@@ -52,6 +61,7 @@ var _process: AgentProcess
 var _profile: AgentProfile
 var _system_prompt_sent: bool = false
 var _connect_generation: int = 0
+var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
 
 
 func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String) -> void:
@@ -61,8 +71,15 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	client = AcpClient.new()
 	client.setup(_send_line, agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
+	client.set_request_handler("session/request_permission", _on_request_permission)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
 
+
+## fs/read_text_file y fs/write_text_file. Las escrituras pasan por la política (edit_files).
+func set_fs_handler(handler: FsHandler) -> void:
+	fs = handler
+	fs.write_authorizer = _authorize_fs_write
+	fs.register(client)
 
 func profile() -> AgentProfile:
 	return _profile
@@ -129,6 +146,8 @@ func open_session(generation: int = _connect_generation) -> bool:
 		return false
 	model.apply_session(result.result.sessionId, result.result)
 	_system_prompt_sent = false
+	policy.clear_session()
+	_preauthorized_writes.clear()
 	model.set_state(SessionModel.State.READY)
 	_sync_agent_mode()
 	connected.emit()
@@ -170,6 +189,7 @@ func cancel() -> void:
 		return
 	model.set_state(SessionModel.State.CANCELLING)
 	client.notify("session/cancel", {"sessionId": model.session_id})
+	model.cancel_pending_permissions()
 
 
 func set_config_option(id: String, value: String) -> bool:
@@ -196,6 +216,7 @@ func stop() -> void:
 		process.stop()
 		agent_log.add(AgentLog.CH_PROC, "Proceso detenido")
 	client.fail_all_pending("Sesión detenida.")
+	model.cancel_pending_permissions()
 	if model.state != SessionModel.State.DISCONNECTED and model.state != SessionModel.State.FAILED:
 		model.set_state(SessionModel.State.DISCONNECTED)
 		disconnected.emit()
@@ -222,7 +243,161 @@ func system_prompt() -> String:
 	return "<harness_context>\n%s\n</harness_context>" % template.format(variables)
 
 
+## Pide permiso según la política del modo actual. `ask` muestra una tarjeta y espera.
+## Devuelve true si se permitió. `timeout_s` > 0 deniega si nadie responde a tiempo.
+func authorize(group: String, title: String, description: String, diff: Dictionary = {}, timeout_s: int = 0) -> bool:
+	var decision := policy.decide(group, model.harness_mode)
+	if decision == PermissionPolicy.ALLOW:
+		_log_perm("permitido por el modo %s: %s" % [_mode_label(), title])
+		return true
+	if decision == PermissionPolicy.DENY:
+		_notify_denied(group, title)
+		return false
+	var request := PermissionRequest.new()
+	request.title = title
+	request.description = description
+	request.group = group
+	request.diff = diff
+	request.options = PermissionRequest.default_options()
+	var outcome := await _ask_user(request, timeout_s)
+	return outcome.get("outcome") == "selected" and request.was_allowed()
+
+
 # --- internos ------------------------------------------------------------------------------------
+
+func _on_request_permission(params: Dictionary) -> Variant:
+	var tool_call: Dictionary = params.get("toolCall", {}) if params.get("toolCall") is Dictionary else {}
+	var options: Array = params.get("options", []) if params.get("options") is Array else []
+	if tool_call.get("toolCallId") is String:
+		var update := tool_call.duplicate()
+		update["sessionUpdate"] = "tool_call_update"
+		model.apply_update(update)
+	var request := PermissionRequest.new()
+	request.tool_call_id = str(tool_call.get("toolCallId", ""))
+	request.options = options
+	request.group = PermissionPolicy.group_for_tool_call(tool_call)
+	var call := model.tool_call(request.tool_call_id)
+	request.title = call.display_name() if call else str(tool_call.get("title", "Herramienta del agente"))
+	request.description = _describe_tool_call(tool_call, call)
+	request.diff = _first_diff(tool_call, call)
+
+	var decision := policy.decide(request.group, model.harness_mode)
+	if PermissionPolicy.is_godot_mcp_tool(tool_call):
+		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
+	match decision:
+		PermissionPolicy.ALLOW:
+			_log_perm("permitido por el modo %s: %s" % [_mode_label(), request.title])
+			_preauthorize(request, call)
+			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
+		PermissionPolicy.DENY:
+			_notify_denied(request.group, request.title)
+			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+	var outcome := await _ask_user(request, 0)
+	if outcome.get("outcome") != "selected":
+		return {"outcome": {"outcome": "cancelled"}}
+	if request.was_allowed():
+		_preauthorize(request, call)
+		# "Siempre" queda en la memoria de la sesión del harness; al agente se le responde
+		# "una vez" para que no lo guarde en sus settings en disco (spec §4.2).
+		var once := request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE])
+		return _selected_or_cancelled(once if not once.is_empty() else str(outcome.optionId))
+	var reject_once := request.option_id_for([PermissionRequest.KIND_REJECT_ONCE])
+	return _selected_or_cancelled(reject_once if not reject_once.is_empty() else str(outcome.optionId))
+
+
+func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
+	_log_perm("pregunta al usuario: %s" % request.title)
+	model.add_permission(request)
+	if timeout_s > 0:
+		var tree := Engine.get_main_loop() as SceneTree
+		tree.create_timer(timeout_s).timeout.connect(func() -> void:
+			if request.is_pending():
+				_log_perm("sin respuesta en %d s, se deniega: %s" % [timeout_s, request.title])
+				request.cancel()
+		)
+	var outcome: Dictionary = request.outcome if not request.is_pending() else await request.resolved
+	if request.chosen_kind == PermissionRequest.KIND_ALLOW_ALWAYS:
+		policy.grant_for_session(request.group)
+	_log_perm("%s: %s" % [_outcome_label(request), request.title])
+	return outcome
+
+
+func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bool:
+	var expiry: int = _preauthorized_writes.get(path, 0)
+	if expiry > Time.get_ticks_msec():
+		_preauthorized_writes.erase(path)
+		return true
+	var counts := LineDiff.count(LineDiff.diff(old_text, new_text))
+	var description := "%s · +%d −%d" % [path.trim_prefix(cwd + "/"), counts.added, counts.removed]
+	return await authorize(
+		PermissionPolicy.GROUP_EDIT_FILES, "Escribir %s" % path.get_file(), description,
+		{"path": path, "oldText": old_text, "newText": new_text}
+	)
+
+
+## Un permiso de edición concedido cubre la escritura por fs/* que le sigue al mismo archivo.
+func _preauthorize(request: PermissionRequest, call: Variant) -> void:
+	if request.group != PermissionPolicy.GROUP_EDIT_FILES:
+		return
+	var paths: PackedStringArray = []
+	if not request.diff.is_empty():
+		paths.append(str(request.diff.get("path", "")))
+	if call and call.raw_input is Dictionary:
+		for key: String in ["file_path", "path", "notebook_path"]:
+			if call.raw_input.get(key) is String:
+				paths.append(call.raw_input[key])
+	if call:
+		for location: Variant in call.locations:
+			if location is Dictionary and location.get("path") is String:
+				paths.append(location.path)
+	for path: String in paths:
+		if not path.is_empty():
+			_preauthorized_writes[path.simplify_path()] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
+
+
+func _notify_denied(group: String, title: String) -> void:
+	var message := "Denegado en modo %s (%s): %s" % [_mode_label(), PermissionPolicy.GROUP_LABELS.get(group, group), title]
+	_log_perm(message)
+	model.add_notice(message, ChatEntry.Level.WARNING)
+
+
+static func _selected_or_cancelled(option_id: String) -> Dictionary:
+	if option_id.is_empty():
+		return {"outcome": {"outcome": "cancelled"}}
+	return {"outcome": {"outcome": "selected", "optionId": option_id}}
+
+
+static func _describe_tool_call(tool_call: Dictionary, call: Variant) -> String:
+	var input: Variant = tool_call.get("rawInput", call.raw_input if call else null)
+	if input is Dictionary:
+		for key: String in ["command", "file_path", "path", "url", "pattern", "description"]:
+			if input.get(key) is String and not str(input[key]).is_empty():
+				return str(input[key])
+	return str(tool_call.get("kind", call.kind if call else ""))
+
+
+static func _first_diff(tool_call: Dictionary, call: Variant) -> Dictionary:
+	var content: Variant = tool_call.get("content", call.content if call else [])
+	if content is Array:
+		for block: Variant in content:
+			if block is Dictionary and block.get("type") == "diff":
+				return block
+	return {}
+
+
+func _mode_label() -> String:
+	return SessionModel.HARNESS_MODE_LABELS[model.harness_mode]
+
+
+static func _outcome_label(request: PermissionRequest) -> String:
+	if request.outcome.get("outcome") != "selected":
+		return "cancelado"
+	return "permitido" if request.was_allowed() else "denegado"
+
+
+func _log_perm(message: String) -> void:
+	agent_log.add(AgentLog.CH_PERM, message)
+
 
 func _send_line(line: String) -> bool:
 	return _process != null and _process.send_line(line)

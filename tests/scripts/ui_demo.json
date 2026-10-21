@@ -20,7 +20,8 @@
 				{"content": "Mostrar la oleada en el HUD", "priority": "medium", "status": "pending"}
 			]}},
 			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "mcp__godot__scene_tree", "kind": "read", "status": "completed", "rawInput": {"scene": "res://Main.tscn"}}},
-			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t2", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "/tmp/project/Spawner.gd"}, "locations": [{"path": "/tmp/project/Spawner.gd", "line": 12}]}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t2", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "/tmp/project/Spawner.gd"}, "locations": [{"path": "/tmp/project/Spawner.gd", "line": 12}],
+				"content": [{"type": "content", "content": {"type": "text", "text": "extends Node\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tpass\n"}}]}},
 			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t3", "title": "Edit", "kind": "edit", "status": "in_progress", "rawInput": {"file_path": "/tmp/project/Spawner.gd"},
 				"content": [{"type": "diff", "path": "/tmp/project/Spawner.gd", "oldText": "extends Node\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tpass\n", "newText": "extends Node\n\nsignal wave_started(index: int)\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tstart_wave()\n\nfunc start_wave() -> void:\n\twave += 1\n\twave_started.emit(wave)\n"}]}},
 			{"delay": 0.3},

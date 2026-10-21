@@ -8,6 +8,9 @@ const SessionModel := preload("res://addons/godot_agent/session/session_model.gd
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
+const FsHandler := preload("res://addons/godot_agent/acp/fs_handler.gd")
+const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
+const TMP_DIR := "res://tests/tmp"
 
 const TIMEOUT_S := 20.0
 ## Un await colgado no debe colgar el test: pasado este tiempo, falla y sale.
@@ -26,6 +29,8 @@ func _initialize() -> void:
 	await _scenario_basic()
 	await _scenario_cancel()
 	await _scenario_crash()
+	await _scenario_permissions_build()
+	await _scenario_permissions_ask()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("acp_session_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -44,11 +49,16 @@ func _fake_profile(scenario: String) -> AgentProfile:
 	})
 
 
-func _make(scenario: String) -> Array:
+func _make(scenario: String, mode: SessionModel.HarnessMode = SessionModel.HarnessMode.BUILD) -> Array:
 	var model := SessionModel.new()
+	model.harness_mode = mode
 	var log := AgentLog.new()
 	var controller := SessionController.new()
-	controller.setup(model, log, ProjectSettings.globalize_path("res://"))
+	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
+	controller.setup(model, log, root)
+	var fs := FsHandler.new()
+	fs.setup(root, log)
+	controller.set_fs_handler(fs)
 	var ok: bool = await controller.start(_fake_profile(scenario))
 	_check(ok, "%s: la sesión arranca (%s)" % [scenario, model.failure_message])
 	return [controller, model, log]
@@ -142,6 +152,89 @@ func _scenario_crash() -> void:
 	# Reintentar reabre una sesión limpia.
 	var ok: bool = await controller.start(controller.profile())
 	_check(ok and model.state == SessionModel.State.READY, "crash: reintentar")
+	controller.stop()
+
+
+func _target_path() -> String:
+	return ProjectSettings.globalize_path(TMP_DIR + "/perm_target.gd")
+
+
+func _reset_target() -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(TMP_DIR))
+	var file := FileAccess.open(_target_path(), FileAccess.WRITE)
+	file.store_string("extends Node\nvar a := 1\n")
+	file.close()
+
+
+## Respuestas que el agente falso recibió a sus requests (las reporta por stderr).
+func _agent_responses(log: AgentLog) -> PackedStringArray:
+	var result: PackedStringArray = []
+	for entry: Dictionary in log.entries():
+		var message := str(entry.message)
+		if message.begins_with("fake_agent: respuesta "):
+			result.append(message.trim_prefix("fake_agent: respuesta "))
+	return result
+
+
+func _scenario_permissions_build() -> void:
+	print("— permisos (Construir)")
+	_reset_target()
+	var made := await _make("permissions", SessionModel.HarnessMode.BUILD)
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	var log: AgentLog = made[2]
+	var cards: Array[String] = []
+	# El "usuario": siempre en esta sesión para la edición, denegar el comando.
+	model.permission_requested.connect(func(request: PermissionRequest) -> void:
+		cards.append(request.title)
+		if request.group == "edit_files":
+			request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS]))
+		else:
+			request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE]))
+	)
+	var stop_reason: String = await controller.send_prompt("editá")
+	_check(stop_reason == "end_turn", "permisos/build: end_turn (%s)" % stop_reason)
+	var responses := _agent_responses(log)
+	_check(responses.size() == 6, "permisos/build: 6 respuestas (%d)" % responses.size())
+	if responses.size() == 6:
+		_check(responses[0].contains("\"optionId\":\"allow\""), "permisos/build: 'siempre' se responde como 'una vez' (%s)" % responses[0])
+		_check(responses[1] == "{}", "permisos/build: fs/write preautorizado (%s)" % responses[1])
+		_check(responses[2].contains("var a := 2") and not responses[2].contains("extends"), "permisos/build: fs/read con line/limit (%s)" % responses[2])
+		_check(responses[3].contains("outside the project"), "permisos/build: fs/read fuera del proyecto rechazado (%s)" % responses[3])
+		_check(responses[4].contains("\"optionId\":\"allow\""), "permisos/build: segunda edición permitida por la sesión (%s)" % responses[4])
+		_check(responses[5].contains("\"optionId\":\"reject\""), "permisos/build: comando denegado por el usuario (%s)" % responses[5])
+	_check(cards.size() == 2, "permisos/build: 2 tarjetas (edición y comando): %s" % str(cards))
+	_check(FileAccess.get_file_as_string(_target_path()) == "extends Node\nvar a := 2\n", "permisos/build: archivo escrito")
+	_check(model.pending_permissions.is_empty(), "permisos/build: sin permisos pendientes")
+	controller.stop()
+
+
+func _scenario_permissions_ask() -> void:
+	print("— permisos (Preguntar)")
+	_reset_target()
+	var made := await _make("permissions", SessionModel.HarnessMode.ASK)
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	var log: AgentLog = made[2]
+	var cards: Array[int] = [0]
+	model.permission_requested.connect(func(_request: PermissionRequest) -> void: cards[0] += 1)
+	var stop_reason: String = await controller.send_prompt("editá")
+	_check(stop_reason == "end_turn", "permisos/ask: end_turn (%s)" % stop_reason)
+	var responses := _agent_responses(log)
+	_check(cards[0] == 0, "permisos/ask: ninguna tarjeta (%d)" % cards[0])
+	if responses.size() == 6:
+		_check(responses[0].contains("\"optionId\":\"reject\""), "permisos/ask: edición auto-denegada (%s)" % responses[0])
+		_check(responses[1].contains("Permission denied"), "permisos/ask: fs/write denegado (%s)" % responses[1])
+		_check(responses[2].contains("var a := 1"), "permisos/ask: fs/read sigue andando (%s)" % responses[2])
+		_check(responses[5].contains("\"optionId\":\"reject\""), "permisos/ask: comando auto-denegado (%s)" % responses[5])
+	else:
+		_check(false, "permisos/ask: 6 respuestas (%d)" % responses.size())
+	_check(FileAccess.get_file_as_string(_target_path()) == "extends Node\nvar a := 1\n", "permisos/ask: archivo intacto")
+	var denied := 0
+	for entry: ChatEntry in model.entries():
+		if entry.kind == ChatEntry.Kind.NOTICE and entry.text.begins_with("Denegado en modo Preguntar"):
+			denied += 1
+	_check(denied >= 3, "permisos/ask: avisos de denegado (%d)" % denied)
 	controller.stop()
 
 

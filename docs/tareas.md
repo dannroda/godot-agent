@@ -240,30 +240,41 @@ Prueba de integración headless: prompt, respuesta en streaming y cancelación l
 
 **Notas:** docs/progress.md (sección M1) y decisions.md D11–D14.
 
-## M2 — Tool calls, diffs y permisos  (0/8)
+## M2 — Tool calls, diffs y permisos  (7/8, 7 en revisión)
 
 Render de tool_call/tool_call_update, tarjeta de diff y plan; session/request_permission con PermissionPolicy; fs/read_text_file y fs/write_text_file con sincronización editor ↔ disco.
 
 **Hecho cuando:**
 - Pedirle a Claude Code que edite un script abierto: el diff se muestra, el permiso se pide en Construir y se auto-deniega en Preguntar, y el editor muestra el cambio sin diálogos ni pérdida de buffer.
 
-### 2.1 Render de tool calls en el dock · En curso
+### 2.1 Render de tool calls en el dock · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Grupo colapsable de tool calls (tool_call / tool_call_update por toolCallId): estado ✓/✗/spinner, título, kind, resumen, content de tipo content (texto/imagen), diff y terminal ("no soportado"), locations clickeables que abren archivo y línea.
 
-**Notas:** Adelantado en M1:
-- entries/tool_group_view.gd con estado, spinner, nombre (godot.* en violeta), resumen, locations clickeables, diff como tarjeta, terminal "no soportado" y texto de error;
-- botón undo oculto hasta M4.
+**Prueba:** - tests/unit/test_tool_group_view.gd: decode_image con png válido, mime no soportado, datos vacíos y basura.
+- run_all: 35 tests y 229 checks en 4.8.
+- Captura de la UI con ui_demo.json.
 
-Falta: mostrar el content de texto e imagen con más detalle, y probarlo con guiones.
+**Notas:** entries/tool_group_view.gd:
+- estado, spinner, nombre (godot.* en violeta), resumen y ubicaciones clickeables;
+- diffs como tarjetas; terminal "no soportado";
+- texto de error en rojo; salida de texto plegada ("▸ salida · N líneas", hasta 40 líneas o 4000 caracteres, monoespaciada);
+- imágenes base64 png, jpeg o webp como miniatura de hasta 160 px; resource_link y resource como 📎 uri.
 
-### 2.2 Tarjeta de diff y plan colapsable · En curso
+La firma de refresco usa un hash del content para redibujar cuando cambia en un update.
+El botón undo sigue oculto hasta M4.
+
+### 2.2 Tarjeta de diff y plan colapsable · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Tarjeta de diff: ruta, +N/−M, primeras líneas coloreadas y "Abrir en Script". Plan: reemplazo completo en cada update, estados por entrada, colapsable.
+
+**Prueba:** - tests/unit/test_line_diff.gd: igualdad, alta, baja, reemplazo, conteos y first_changed_line.
+- test_session_model: el plan reemplaza y se re-ubica (entry_removed).
+- Captura de la UI con ui_demo.json: tarjeta de diff y plan visibles.
 
 **Notas:** Adelantado en M1:
 - entries/diff_card.gd con core/line_diff.gd (LCS);
@@ -271,43 +282,102 @@ Tarjeta de diff: ruta, +N/−M, primeras líneas coloreadas y "Abrir en Script".
 
 Falta el test de line_diff.
 
-### 2.3 PermissionPolicy con matriz configurable · Pendiente
+### 2.3 PermissionPolicy con matriz configurable · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Matriz modo × grupo → allow/ask/deny con los defaults de la spec §7, guardada en un Resource por proyecto (D5). Mapeo de kind de ACP a grupos. "Siempre en esta sesión" solo en memoria. Tests unitarios de la matriz.
 
-### 2.4 session/request_permission con tarjeta de permiso · Pendiente
+**Prueba:** tests/unit/test_permission_policy.gd cubre:
+- la matriz por defecto completa;
+- que "siempre en esta sesión" solo levanta un ask;
+- overrides válidos e inválidos;
+- el mapeo de kind a grupo.
+
+También acp_session_check, en los escenarios permisos/build y permisos/ask.
+
+**Notas:** session/permission_policy.gd.
+- Los overrides vienen de config/project_config.gd (Resource por proyecto, D5). Lo carga plugin.gd con load_or_default; el .tres se crea recién cuando se guarda desde Settings (M7).
+- Las tools mcp__godot__* se permiten a nivel ACP porque las decide el server MCP (M3).
+
+### 2.4 session/request_permission con tarjeta de permiso · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Consultar PermissionPolicy: allow/deny se responden solos eligiendo la opción adecuada; ask crea un pedido en SessionModel y la tarjeta muestra las opciones del agente como botones. Respuesta selected/cancelled. Canal perm en el log.
 
-### 2.5 fs/read_text_file y fs/write_text_file · Pendiente
+**Prueba:** acp_session_check, con el guion tests/scripts/permissions.json:
+- En Construir aparecen dos tarjetas (edición y comando).
+- "Siempre en esta sesión" se responde al agente como allow_once y la segunda edición se permite sola.
+- En Preguntar, todo se auto-deniega sin tarjeta y con aviso.
+
+**Notas:** El handler está en session_controller._on_request_permission y la tarjeta en ui/dock/entries/permission_view.gd.
+- Un permiso de edición concedido preautoriza, durante 2 minutos, el fs/write_text_file que le sigue al mismo archivo. Así no hay doble tarjeta: el adapter pide permiso y después escribe por fs/*.
+- SessionController.authorize(group, title, desc, diff, timeout) queda listo para las tools MCP de M3.
+- Al cancelar el turno, los permisos pendientes se responden como cancelled.
+
+### 2.5 fs/read_text_file y fs/write_text_file · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Leer devuelve el buffer del Script Editor si el archivo está abierto con cambios sin guardar (soporta line/limit). Escribir pasa por la política (edit_files) y la sincronización de §8. Rechazar rutas fuera del proyecto salvo directorios extra.
 
-### 2.6 Sincronización editor ↔ disco · Pendiente
+**Prueba:** Lo cubren:
+- tests/unit/test_fs_handler.gd: rutas fuera del proyecto, .., relativas y .godot/; line/limit; prefiere el buffer; escritura denegada;
+- acp_session_check: write y read reales a través del agente falso.
+
+**Notas:** acp/fs_handler.gd no depende del editor.
+- buffer_reader = EditorSync.buffer_text (el buffer solo se usa si tiene cambios sin guardar).
+- after_write = EditorSync.after_agent_write.
+- Las rutas extra salen de ProjectConfig.extra_fs_roots.
+- Escribir .uid o .import se permite, pero queda un aviso en el log.
+
+### 2.6 Sincronización editor ↔ disco · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
 Tras cada escritura (fs/write, tool call edit con diff, watcher de mtime): update_file o scan, recargar scripts abiertos sin perder el cursor ni mostrar el diálogo; si el usuario tenía cambios, marcar conflicto (ver diff / usar la del agente / mantener la mía). Aviso para .tscn abiertos y para .uid/.import (spec §8).
 
-### 2.7 Prompt de sistema y contexto del prompt · En curso
+**Prueba:** `godot -e --path . -- --godot-agent-sync-test` pasa en 4.4.1, 4.7.2 y 4.8-beta1. Prueba tres casos:
+- A: el watcher toma una escritura externa, el cursor sigue a su línea, el buffer no queda modificado, no hay diálogos tras el focus-in y un solo Ctrl+Z la deshace.
+- B: con cambios sin guardar, el buffer no se pisa, hay conflicto y resolve_use_disk funciona.
+- C: after_agent_write actualiza en el acto.
+
+Unit: tests/unit/test_editor_sync.gd (replace_buffer).
+
+**Notas:** editor/editor_sync.gd (Node hijo del plugin). Cuatro entradas:
+- fs/write (after_agent_write);
+- un tool call de edición, borrado o movida completado (plugin._on_tool_call_changed);
+- un watcher de mtime cada 0,5 s para los scripts abiertos;
+- buffer limpio: replace_buffer cambia solo el tramo que difiere, en una operación deshacible, y conserva cursor y scroll. Después _adopt_resource guarda el Script con ResourceSaver para alinear las fechas.
+
+Hallazgo: el Script Editor guarda la fecha de cada pestaña (edited_file_data.last_modified_time) y solo la actualiza con la señal resource_saved de EditorNode. ResourceSaver no la emite. Sin esa señal, al volver el foco recarga el archivo con set_text y agrega un paso de undo. _notify_saved la emite a mano. Funciona igual en 4.4, 4.7 y 4.8.
+
+Si el buffer tiene cambios sin guardar, emite conflict_detected y el dock muestra un aviso con tres acciones: ver diff (DiffDialog), usar la del agente y mantener la mía.
+Si es una escena abierta, avisa con la acción "recargar escena".
+
+### 2.7 Prompt de sistema y contexto del prompt · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
 
 Archivo editable del addon con el prompt de sistema (tools godot.*, reglas de §8, modo actual, respetar CLAUDE.md) que va en el primer session/prompt. Chips de contexto (escena actual, selección, + contexto) como resource links o recursos embebidos.
 
-**Notas:** Adelantado en M1 (D14):
-- config/system_prompt.md va en el primer prompt y en cada cambio de modo;
-- chips de escena, selección y captura, como resource_link, texto e image.
+**Prueba:** La UI test (`--godot-agent-ui-test=ui_demo`) agrega res://project.godot con add_context_files y verifica dos cosas: que aparece el chip y que desaparece al enviar. La captura muestra el link en el mensaje del usuario.
 
-Falta "+ contexto" (agregar un archivo o un nodo a mano) y probarlo con Claude real.
+El prompt de sistema con Claude real se prueba en m2-08.
 
-### 2.8 Verificar M2 · Pendiente
+**Notas:** config/system_prompt.md va en el primer prompt y en cada cambio de modo (D14).
+
+Chips de contexto:
+- escena actual: resource_link;
+- selección: texto;
+- captura: image;
+- "+ contexto": un menú con "Script actual", "Archivo del proyecto…" (EditorFileDialog, varios archivos) y "Captura del viewport".
+
+Los archivos agregados a mano van como resource_link solo en el próximo prompt; después se limpian, igual que la captura. Escena y selección quedan mientras no se descarten.
+API: agent_dock.add_context_files(paths).
+
+### 2.8 Verificar M2 · En curso
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 

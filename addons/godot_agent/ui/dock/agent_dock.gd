@@ -4,6 +4,8 @@ extends VBoxContainer
 ## modo; conversación; composer. Solo habla con SessionModel (estado) y SessionController (comandos).
 
 signal show_log_requested
+## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
+signal action_forwarded(action: String, payload: Variant)
 
 const SessionModel := preload("../../session/session_model.gd")
 const SessionController := preload("../../session/session_controller.gd")
@@ -23,6 +25,10 @@ const PRESETS_POLL_INTERVAL_S := 2.0
 const CHIP_SCENE := "scene"
 const CHIP_SELECTION := "selection"
 const CHIP_SCREENSHOT := "screenshot"
+const CHIP_FILE_PREFIX := "file:"
+const ADD_CONTEXT_SCRIPT := 0
+const ADD_CONTEXT_FILE := 1
+const ADD_CONTEXT_SCREENSHOT := 2
 
 var _model: SessionModel
 var _controller: SessionController
@@ -39,6 +45,10 @@ var _mode_buttons: Dictionary = {}  # HarnessMode -> Button
 var _chips: Dictionary = {}
 var _dismissed_chips: Dictionary = {}  # "id|valor" -> true
 var _screenshot_block: Dictionary = {}
+## Archivos agregados con "+ contexto" para el próximo prompt (res_path, en orden).
+var _extra_files: PackedStringArray = []
+var _add_context_menu: PopupMenu
+var _file_dialog: EditorFileDialog
 
 @onready var _profile_button: OptionButton = %ProfileButton
 @onready var _title_label: Label = %TitleLabel
@@ -280,6 +290,7 @@ func _on_submitted(text: String) -> void:
 func _send(text: String) -> void:
 	var blocks := _context_blocks()
 	_screenshot_block = {}
+	_extra_files.clear()
 	_refresh_chips()
 	_controller.send_prompt(text, blocks)
 
@@ -304,6 +315,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			var location: Dictionary = payload
 			if not EditorContext.open_location(str(location.path), int(location.get("line", 0))):
 				_model.add_notice("No se pudo abrir %s." % location.path, ChatEntry.Level.WARNING)
+		_:
+			action_forwarded.emit(action, payload)
 
 
 # --- contexto del prompt -------------------------------------------------------------------------
@@ -328,13 +341,19 @@ func _refresh_chips() -> void:
 		}
 	if not _screenshot_block.is_empty():
 		chips[CHIP_SCREENSHOT] = {"label": "▣ captura", "tooltip": "Captura del viewport (tocá para quitarla)", "block": _screenshot_block}
-	if _same_chips(chips):
+	for res_path: String in _extra_files:
+		chips[CHIP_FILE_PREFIX + res_path] = {
+			"label": "📄 " + res_path.get_file(),
+			"tooltip": "%s (tocá para quitarlo)" % res_path,
+			"block": {"type": "resource_link", "uri": EditorContext.file_uri(res_path), "name": res_path.get_file(), "mimeType": "text/plain"},
+		}
+	if _same_chips(chips) and _composer.has_chips():
 		return
 	_chips = chips
 	var list: Array[Dictionary] = []
 	for id: String in chips:
 		list.append({"id": id, "label": chips[id].label, "tooltip": chips[id].tooltip})
-	_composer.set_chips(list)
+	_composer.set_chips(list, _on_add_context_pressed)
 
 
 func _same_chips(chips: Dictionary) -> bool:
@@ -354,6 +373,54 @@ func _on_chip_removed(chip_id: String) -> void:
 			_dismissed_chips[CHIP_SELECTION + "|" + EditorContext.selection_description()] = true
 		CHIP_SCREENSHOT:
 			_screenshot_block = {}
+		_:
+			var index := _extra_files.find(chip_id.trim_prefix(CHIP_FILE_PREFIX))
+			if index >= 0:
+				_extra_files.remove_at(index)
+	_refresh_chips()
+
+
+## "+ contexto": script actual, un archivo del proyecto o una captura del viewport.
+func _on_add_context_pressed() -> void:
+	if _add_context_menu == null:
+		_add_context_menu = PopupMenu.new()
+		_add_context_menu.id_pressed.connect(_on_add_context_selected)
+		add_child(_add_context_menu)
+	_add_context_menu.clear()
+	var script := EditorInterface.get_script_editor().get_current_script()
+	if script and not script.resource_path.is_empty():
+		_add_context_menu.add_item("Script actual: " + script.resource_path.get_file(), ADD_CONTEXT_SCRIPT)
+	_add_context_menu.add_item("Archivo del proyecto…", ADD_CONTEXT_FILE)
+	_add_context_menu.add_item("Captura del viewport", ADD_CONTEXT_SCREENSHOT)
+	_add_context_menu.reset_size()
+	_add_context_menu.popup(Rect2i(Vector2i(get_screen_position() + get_local_mouse_position()), Vector2i.ZERO))
+
+
+func _on_add_context_selected(id: int) -> void:
+	match id:
+		ADD_CONTEXT_SCRIPT:
+			var script := EditorInterface.get_script_editor().get_current_script()
+			if script:
+				add_context_files([script.resource_path])
+		ADD_CONTEXT_FILE:
+			if _file_dialog == null:
+				_file_dialog = EditorFileDialog.new()
+				_file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILES
+				_file_dialog.access = EditorFileDialog.ACCESS_RESOURCES
+				_file_dialog.title = "Agregar al contexto"
+				_file_dialog.files_selected.connect(add_context_files)
+				add_child(_file_dialog)
+			_file_dialog.popup_centered_ratio(0.6)
+		ADD_CONTEXT_SCREENSHOT:
+			_on_screenshot_requested()
+
+
+## Agrega archivos del proyecto (res://) como resource_link para el próximo prompt.
+func add_context_files(paths: PackedStringArray) -> void:
+	for path: String in paths:
+		var res_path := path if path.begins_with("res://") else EditorContext.to_res_path(path)
+		if not res_path.is_empty() and not res_path in _extra_files:
+			_extra_files.append(res_path)
 	_refresh_chips()
 
 

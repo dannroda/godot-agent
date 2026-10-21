@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:32:35.824Z",
   "description": "Consultar PermissionPolicy: allow/deny se responden solos eligiendo la opción adecuada; ask crea un pedido en SessionModel y la tarjeta muestra las opciones del agente como botones. Respuesta selected/cancelled. Canal perm en el log.",
   "milestone": "m02",
-  "notes": "",
+  "notes": "El handler está en session_controller._on_request_permission y la tarjeta en ui/dock/entries/permission_view.gd.\n- Un permiso de edición concedido preautoriza, durante 2 minutos, el fs/write_text_file que le sigue al mismo archivo. Así no hay doble tarjeta: el adapter pide permiso y después escribe por fs/*.\n- SessionController.authorize(group, title, desc, diff, timeout) queda listo para las tools MCP de M3.\n- Al cancelar el turno, los permisos pendientes se responden como cancelled.",
   "order": 4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "acp_session_check, con el guion tests/scripts/permissions.json:\n- En Construir aparecen dos tarjetas (edición y comando).\n- \"Siempre en esta sesión\" se responde al agente como allow_once y la segunda edición se permite sola.\n- En Preguntar, todo se auto-deniega sin tarjeta y con aviso.",
   "title": "session/request_permission con tarjeta de permiso",
-  "updated_at": "2026-10-21T04:32:35.824Z"
+  "updated_at": "2026-10-21T05:13:48.268Z"
 }

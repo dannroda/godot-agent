@@ -5,3 +5,4 @@
 # Exports locales
 *.zip
 *.pck
+tests/tmp/

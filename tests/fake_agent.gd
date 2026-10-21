@@ -159,13 +159,13 @@ func _advance_turn() -> void:
 		elif step.has("thought"):
 			_update({"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": step.thought}})
 		elif step.has("update"):
-			_update(step.update)
+			_update(_expand(step.update))
 		elif step.has("delay"):
 			_wait_until_msec = Time.get_ticks_msec() + int(float(step.delay) * 1000.0)
 		elif step.has("request"):
 			_waiting_request_id = _next_request_id
 			_next_request_id += 1
-			var params: Dictionary = step.request.get("params", {})
+			var params: Dictionary = _expand(step.request.get("params", {}))
 			params["sessionId"] = _session_id
 			_send({"jsonrpc": "2.0", "id": _waiting_request_id, "method": step.request.method, "params": params})
 		elif step.has("garbage"):
@@ -183,6 +183,20 @@ func _advance_turn() -> void:
 			return
 	if _prompt_id != null and _waiting_request_id == -1 and Time.get_ticks_msec() >= _wait_until_msec:
 		_finish_prompt("end_turn")
+
+
+## Reemplaza "{project}" por la ruta absoluta del proyecto en todos los strings.
+func _expand(value: Variant) -> Variant:
+	if value is String:
+		return value.replace("{project}", ProjectSettings.globalize_path("res://").trim_suffix("/"))
+	if value is Array:
+		return value.map(_expand)
+	if value is Dictionary:
+		var result: Dictionary = {}
+		for key: Variant in value:
+			result[key] = _expand(value[key])
+		return result
+	return value
 
 
 func _finish_prompt(stop_reason: String) -> void:
