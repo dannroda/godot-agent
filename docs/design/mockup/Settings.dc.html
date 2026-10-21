@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Agentes, herramientas y permisos</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#6cb4ff}a:hover{color:#9ccbff}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 12px;border-radius:4px;border:1px solid #444447;background:#303032;color:#e4e4e4;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#a8a8a8}
+.nav{padding:7px 12px;border-radius:4px;color:#c8c8c8}
+.ag{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;background:#1e1e1f;border:1px solid #38383b}
+.cell{display:flex;align-items:center;justify-content:center;height:30px;border-top:1px solid #333335}
+.on{display:inline-block;padding:2px 8px;border-radius:9px;font-size:11px;background:#1d3322;color:#b8f0c2}
+.ask{display:inline-block;padding:2px 8px;border-radius:9px;font-size:11px;background:#3a2e1c;color:#ffe3bd}
+.off{display:inline-block;padding:2px 8px;border-radius:9px;font-size:11px;background:#2d2d2f;color:#9a9a9a}
+</style>
+</helmet>
+<div style="width: 1100px; height: 760px; box-sizing: border-box; display: flex; flex-direction: column; background: #252526; color: #dcdcdc; font-family: 'Noto Sans', system-ui, sans-serif; font-size: 12px; border: 1px solid #3a3a3d; border-radius: 6px; overflow: hidden">
+  <div style="height: 34px; display: flex; align-items: center; justify-content: center; background: #1b1b1b; color: #d0d0d0">Project Settings › Agent Harness</div>
+  <div style="flex: 1; min-height: 0; display: flex">
+    <div style="width: 190px; flex: none; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid #333335; background: #222223">
+      <div class="nav" style="background: #33405a; color: #ffffff">Agentes</div>
+      <div class="nav">Herramientas</div>
+      <div class="nav">Permisos</div>
+      <div class="nav">Contexto y CLAUDE.md</div>
+      <div class="nav">Checkpoints</div>
+      <div class="nav">Registro</div>
+    </div>
+    <div style="flex: 1; min-width: 0; padding: 18px 22px; display: flex; flex-direction: column; gap: 18px; overflow: hidden">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div class="h">Agentes · protocolo ACP sobre stdio</div>
+        <div class="ag" style="border-color: #6b5326">
+          <span style="width: 8px; height: 8px; border-radius: 50%; background: #7fd98b"></span>
+          <div style="display: flex; flex-direction: column; gap: 2px; flex: 1">
+            <span style="font-weight: 600; color: #ececec">Claude Code <span style="font-weight: 400; color: #f3c891; font-size: 11px">· predeterminado</span></span>
+            <span class="mono" style="color: #a8a8a8; font-size: 11px">npx @agentclientprotocol/claude-agent-acp</span>
+          </div>
+          <span style="color: #a8a8a8">conectado · v1</span>
+          <button class="btn" type="button">Editar</button>
+        </div>
+        <div class="ag">
+          <span style="width: 8px; height: 8px; border-radius: 50%; background: #6f6f6f"></span>
+          <div style="display: flex; flex-direction: column; gap: 2px; flex: 1">
+            <span style="font-weight: 600; color: #ececec">Gemini CLI</span>
+            <span class="mono" style="color: #a8a8a8; font-size: 11px">gemini --experimental-acp</span>
+          </div>
+          <span style="color: #a8a8a8">sin iniciar</span>
+          <button class="btn" type="button">Editar</button>
+        </div>
+        <div class="ag">
+          <span style="width: 8px; height: 8px; border-radius: 50%; background: #6f6f6f"></span>
+          <div style="display: flex; flex-direction: column; gap: 2px; flex: 1">
+            <span style="font-weight: 600; color: #ececec">Agente propio (Agent SDK)</span>
+            <span class="mono" style="color: #a8a8a8; font-size: 11px">res://addons/godot_agent/sidecar/run.sh</span>
+          </div>
+          <span style="color: #a8a8a8">sin iniciar</span>
+          <button class="btn" type="button">Editar</button>
+        </div>
+        <div><button class="btn" type="button">+ Agregar agente</button></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: baseline; gap: 10px"><div class="h">Herramientas del editor (servidor MCP del addon)</div><span class="mono" style="color: #8f8f8f; font-size: 11px">http://127.0.0.1:6510/mcp</span></div>
+        <div style="display: grid; grid-template-columns: 2.4fr repeat(4, minmax(0, 1fr)); background: #1e1e1f; border: 1px solid #38383b; border-radius: 6px; overflow: hidden">
+          <div style="padding: 8px 12px; color: #a8a8a8">Grupo</div>
+          <div style="padding: 8px 0; text-align: center; color: #a8a8a8">Preguntar</div>
+          <div style="padding: 8px 0; text-align: center; color: #a8a8a8">Revisar</div>
+          <div style="padding: 8px 0; text-align: center; color: #a8a8a8">Construir</div>
+          <div style="padding: 8px 0; text-align: center; color: #a8a8a8">One-shot</div>
+
+          <div class="cell" style="justify-content: flex-start; padding: 0 12px">Leer escenas, nodos y recursos</div>
+          <div class="cell"><span class="on">sí</span></div><div class="cell"><span class="on">sí</span></div><div class="cell"><span class="on">sí</span></div><div class="cell"><span class="on">sí</span></div>
+
+          <div class="cell" style="justify-content: flex-start; padding: 0 12px">Errores, Output y Debugger</div>
+          <div class="cell"><span class="on">sí</span></div><div class="cell"><span class="on">sí</span></div><div class="cell"><span class="on">sí</span></div><div class="cell"><span class="on">sí</span></div>
+
+          <div class="cell" style="justify-content: flex-start; padding: 0 12px">Editar nodos y escenas (con undo)</div>
+          <div class="cell"><span class="off">no</span></div><div class="cell"><span class="off">no</span></div><div class="cell"><span class="ask">preguntar</span></div><div class="cell"><span class="on">sí</span></div>
+
+          <div class="cell" style="justify-content: flex-start; padding: 0 12px">Escribir archivos del proyecto</div>
+          <div class="cell"><span class="off">no</span></div><div class="cell"><span class="off">no</span></div><div class="cell"><span class="ask">preguntar</span></div><div class="cell"><span class="on">sí</span></div>
+
+          <div class="cell" style="justify-content: flex-start; padding: 0 12px">Ejecutar escena y capturar viewport</div>
+          <div class="cell"><span class="off">no</span></div><div class="cell"><span class="ask">preguntar</span></div><div class="cell"><span class="ask">preguntar</span></div><div class="cell"><span class="on">sí</span></div>
+
+          <div class="cell" style="justify-content: flex-start; padding: 0 12px">Shell (terminal del agente)</div>
+          <div class="cell"><span class="off">no</span></div><div class="cell"><span class="off">no</span></div><div class="cell"><span class="ask">preguntar</span></div><div class="cell"><span class="ask">preguntar</span></div>
+
+          <div class="cell" style="justify-content: flex-start; padding: 0 12px">Project Settings, export y addons</div>
+          <div class="cell"><span class="off">no</span></div><div class="cell"><span class="off">no</span></div><div class="cell"><span class="ask">preguntar</span></div><div class="cell"><span class="ask">preguntar</span></div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: auto">
+        <input id="cp" type="checkbox" checked style="width: 16px; height: 16px; accent-color: {{accent}}">
+        <label for="cp">Crear un checkpoint git antes de cada tarea de One-shot</label>
+        <button class="btn" type="button" style="margin-left: auto">Cancelar</button>
+        <button class="btn" type="button" style="background: {{accent}}; border-color: {{accent}}; color: #1a1408; font-weight: 600">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#f0a85a","options":["#f0a85a","#d97757","#6cb4ff","#7fd98b"]},"$preview":{"width":1100,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#f0a85a' };
+  }
+}
+</script>
+</body>
+</html>

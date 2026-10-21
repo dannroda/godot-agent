@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Revisión de código en el Script Editor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#6cb4ff}a:hover{color:#9ccbff}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.tab{padding:7px 10px;color:#a0a0a0;white-space:nowrap}
+.tab-on{padding:7px 10px;color:#ececec;background:#2b2b2c;border-radius:4px 4px 0 0;box-shadow:inset 0 2px 0 #6cb4ff;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:26px;padding:0 10px;border-radius:4px;border:1px solid #444447;background:#303032;color:#e4e4e4;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.cl{display:flex;line-height:22px;white-space:pre}
+.g{width:46px;flex:none;text-align:right;padding-right:14px;color:#6f6f6f}
+.k{color:#ff7ab2}.f{color:#67b7ff}.s{color:#f3c891}.n{color:#a6e3a1}.c{color:#8f8f8f}.t{color:#7fd9d0}
+.h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#a8a8a8}
+.fd{display:flex;flex-direction:column;gap:5px;padding:10px;border-radius:6px;background:#1e1e1f;border:1px solid #38383b}
+</style>
+</helmet>
+<div style="width: 1600px; height: 960px; box-sizing: border-box; display: flex; flex-direction: column; background: #161616; color: #dcdcdc; font-family: 'Noto Sans', system-ui, sans-serif; font-size: 12px; overflow: hidden">
+
+  <div style="height: 28px; display: flex; align-items: center; justify-content: center; background: #121212; color: #c8c8c8">Asteroids - Godot Engine</div>
+  <div style="height: 36px; display: flex; align-items: center; padding: 0 10px; gap: 16px; background: #1b1b1b">
+    <div style="display: flex; gap: 14px; color: #d0d0d0; width: 360px"><span>Scene</span><span>Project</span><span>Debug</span><span>Editor</span><span>Help</span></div>
+    <div style="flex: 1; display: flex; justify-content: center; gap: 18px; color: #b0b0b0; font-weight: 600">
+      <span>2D</span><span>3D</span><span style="color: #6cb4ff">Script</span><span>Game</span><span>Asset Store</span><span>Dialogue</span><span style="color: {{accent}}">Agent</span>
+    </div>
+    <div style="width: 360px; display: flex; justify-content: flex-end; color: #8f8f8f">4.8.beta1</div>
+  </div>
+
+  <div style="flex: 1; min-height: 0; display: flex; gap: 4px; padding: 0 4px 4px">
+
+    <div style="width: 200px; flex: none; background: #252526; border-radius: 4px; padding: 8px 6px; display: flex; flex-direction: column; gap: 2px">
+      <div style="padding: 4px 8px; color: #a8a8a8">Scripts abiertos</div>
+      <div style="padding: 4px 8px; border-radius: 3px; background: #33405a; display: flex">asteroid.gd<span style="margin-left: auto; color: {{accent}}">3</span></div>
+      <div style="padding: 4px 8px; display: flex">spawner.gd<span style="margin-left: auto; color: {{accent}}">1</span></div>
+      <div style="padding: 4px 8px">player.gd</div>
+      <div style="padding: 4px 8px">flight_movement.gd</div>
+      <div style="padding: 4px 8px">bullet.gd</div>
+    </div>
+
+    <div style="flex: 1; min-width: 0; background: #1e1e1f; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden">
+      <div style="display: flex; align-items: center; gap: 2px; padding: 0 6px; background: #252526"><span class="tab-on">asteroid.gd</span><span class="tab">spawner.gd</span>
+        <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: #f3c891; padding-right: 8px"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{accent}}"></span>Revisión del agente · solo lectura</span>
+      </div>
+      <div class="mono" style="flex: 1; padding: 10px 0; font-size: 12.5px; overflow: hidden">
+        <div class="cl"><span class="g">1</span><span class="k">extends</span> <span class="t">Area2D</span></div>
+        <div class="cl"><span class="g">2</span></div>
+        <div class="cl"><span class="g">3</span><span class="k">signal</span> <span class="f">destroyed</span>(size: <span class="t">int</span>, pos: <span class="t">Vector2</span>)</div>
+        <div class="cl"><span class="g">4</span></div>
+        <div class="cl"><span class="g">5</span><span class="k">@export var</span> size := <span class="n">3</span></div>
+        <div class="cl"><span class="g">6</span><span class="k">var</span> velocity := <span class="t">Vector2</span>.ZERO</div>
+        <div class="cl"><span class="g">7</span></div>
+        <div class="cl" style="background: #2a2418"><span class="g" style="color: {{accent}}">● 8</span><span class="k">func</span> <span class="f">_process</span>(delta):</div>
+        <div class="cl" style="background: #2a2418"><span class="g">9</span>    position += velocity</div>
+        <div style="margin: 4px 16px 8px 60px; padding: 10px 12px; border-radius: 6px; background: #2a2418; border: 1px solid #6b5326; font-family: 'Noto Sans', system-ui, sans-serif; font-size: 12px; display: flex; flex-direction: column; gap: 8px; max-width: 720px">
+          <div style="display: flex; align-items: center; gap: 8px"><span style="padding: 1px 6px; border-radius: 3px; background: #6b5326; color: #ffe3bd; font-size: 10.5px; font-weight: 700">BUG</span><span style="color: #f3e2c8; font-weight: 600">El movimiento depende del framerate</span></div>
+          <div style="color: #d8d0c2; line-height: 1.5">La velocidad se suma sin multiplicar por <span class="mono">delta</span>: a 144 Hz los asteroides van 2,4× más rápido que a 60 Hz.</div>
+          <div class="mono" style="background: #1d3322; color: #b8f0c2; padding: 4px 8px; border-radius: 4px; white-space: pre">    position += velocity * delta</div>
+          <div style="display: flex; gap: 6px"><button class="btn" type="button" style="background: {{accent}}; border-color: {{accent}}; color: #1a1408; font-weight: 600">Aplicar arreglo</button><button class="btn" type="button">Preguntar</button><button class="btn" type="button">Descartar</button></div>
+        </div>
+        <div class="cl"><span class="g">10</span>    <span class="f">wrap_screen</span>()</div>
+        <div class="cl"><span class="g">11</span></div>
+        <div class="cl"><span class="g">12</span><span class="k">func</span> <span class="f">hit</span>():</div>
+        <div class="cl" style="background: #2b2030"><span class="g" style="color: #c9a2ff">● 13</span>    <span class="f">queue_free</span>()</div>
+        <div class="cl" style="background: #2b2030"><span class="g">14</span>    destroyed.<span class="f">emit</span>(size, global_position)</div>
+        <div class="cl"><span class="g">15</span></div>
+        <div class="cl"><span class="g">16</span><span class="k">func</span> <span class="f">wrap_screen</span>():</div>
+        <div class="cl" style="background: #1d2a36"><span class="g" style="color: #6cb4ff">● 17</span>    <span class="k">var</span> r := <span class="f">get_node</span>(<span class="s">"/root/Main"</span>).<span class="f">get_viewport_rect</span>()</div>
+        <div class="cl"><span class="g">18</span>    position.x = <span class="f">wrapf</span>(position.x, <span class="n">0</span>, r.size.x)</div>
+        <div class="cl"><span class="g">19</span>    position.y = <span class="f">wrapf</span>(position.y, <span class="n">0</span>, r.size.y)</div>
+      </div>
+    </div>
+
+    <div style="width: 420px; flex: none; background: #252526; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden">
+      <div style="display: flex; gap: 2px; padding: 0 6px"><span class="tab">Inspector</span><span class="tab">History</span><span class="tab-on" style="box-shadow: inset 0 2px 0 {{accent}}">Agent</span></div>
+      <div style="padding: 10px; display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0">
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: #1c1c1d; border-radius: 5px; padding: 2px">
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: transparent; color: #a8a8a8; font: inherit; font-size: 11.5px">Preguntar</button>
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: #3a3a3d; color: #ffffff; font: inherit; font-size: 11.5px; font-weight: 600">Revisar</button>
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: transparent; color: #a8a8a8; font: inherit; font-size: 11.5px">Construir</button>
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: transparent; color: #a8a8a8; font: inherit; font-size: 11.5px">One-shot</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="font-size: 14px; font-weight: 600; color: #ececec">Revisión de src/ · 7 scripts</div>
+          <div style="color: #a8a8a8; line-height: 1.45">Herramientas de escritura deshabilitadas. Cada hallazgo se ancla a una línea; los arreglos pasan por el undo del editor.</div>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap">
+          <span style="padding: 3px 8px; border-radius: 10px; background: #3a2e1c; color: #ffe3bd; font-size: 11px">2 bugs</span>
+          <span style="padding: 3px 8px; border-radius: 10px; background: #2f2438; color: #e2c9ff; font-size: 11px">1 orden de ejecución</span>
+          <span style="padding: 3px 8px; border-radius: 10px; background: #1d2a36; color: #bcdcff; font-size: 11px">1 rendimiento</span>
+        </div>
+        <div class="fd" style="border-color: #6b5326">
+          <div style="display: flex; gap: 8px"><span class="mono" style="color: #8f8f8f">asteroid.gd:8</span><span style="margin-left: auto; color: #ffe3bd; font-size: 11px">bug</span></div>
+          <div>Movimiento sin <span class="mono">delta</span></div>
+        </div>
+        <div class="fd">
+          <div style="display: flex; gap: 8px"><span class="mono" style="color: #8f8f8f">asteroid.gd:13</span><span style="margin-left: auto; color: #e2c9ff; font-size: 11px">orden</span></div>
+          <div>Emitir <span class="mono">destroyed</span> antes de <span class="mono">queue_free()</span>, así el spawner lee la posición sin depender del fin de frame.</div>
+        </div>
+        <div class="fd">
+          <div style="display: flex; gap: 8px"><span class="mono" style="color: #8f8f8f">asteroid.gd:17</span><span style="margin-left: auto; color: #bcdcff; font-size: 11px">rendimiento</span></div>
+          <div>Ruta absoluta y lookup por frame: usar <span class="mono">get_viewport_rect()</span> directo.</div>
+        </div>
+        <div class="fd">
+          <div style="display: flex; gap: 8px"><span class="mono" style="color: #8f8f8f">spawner.gd:31</span><span style="margin-left: auto; color: #ffe3bd; font-size: 11px">bug</span></div>
+          <div>La señal se conecta después de <span class="mono">add_child</span>; el primer impacto puede perderse.</div>
+        </div>
+        <div style="margin-top: auto; display: flex; gap: 6px">
+          <button class="btn" type="button" style="flex: 1">Exportar a CLAUDE.md</button>
+          <button class="btn" type="button" style="flex: 1; background: {{accent}}; border-color: {{accent}}; color: #1a1408; font-weight: 600">Arreglar en modo Construir</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#f0a85a","options":["#f0a85a","#d97757","#6cb4ff","#7fd98b"]},"$preview":{"width":1600,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#f0a85a' };
+  }
+}
+</script>
+</body>
+</html>

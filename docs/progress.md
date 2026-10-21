@@ -60,7 +60,8 @@ Captura de referencia (4.8-beta1, main screen Agent activa): se genera con
 
 ### Pendiente / a decidir
 
-- **Mockup de UI**: falta el link al artifact con el diseño de las 4 pantallas (spec §9) para arrancar la UI de M1.
+- **Mockup de UI**: copiado en `docs/design/mockup/` y resumido por pantalla en `docs/design/README.md`, con las diferencias con la spec.
+- **Todavía no se puede iniciar una sesión**: M0 es solo el esqueleto. Lanzar el agente y conversar llega en M1.
 - Reportar a Godot los dos problemas de 4.8-beta1 que el addon esquiva (tarea en M7).
 - `project.godot` del anfitrión quedó con `config/features=("4.4")` porque lo abrió el 4.4.1. Sirve para marcar el mínimo; el 4.8 lo actualiza si se guarda desde ahí.
 - Repo git inicializado (rama `main`, sin commits todavía). `.gitignore` excluye `.godot/`; los `.uid` se versionan.

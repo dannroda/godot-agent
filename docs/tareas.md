@@ -71,7 +71,7 @@ Habilitar/deshabilitar el plugin 5 veces sin errores, correr el test de export e
 
 **Notas:** docs/progress.md tiene qué quedó, cómo probar a mano y pendientes. Revisión con godot-code-review: sin hallazgos altos; se arreglaron parámetros sin usar en el export plugin y el banner que no se refrescaba con el dock ya visible. Pendiente: link al artifact de diseño (spec §9) para M1.
 
-## M1 — Transporte y ACP mínimo  (0/1)
+## M1 — Transporte y ACP mínimo  (1/1)
 
 AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/new → session/prompt con streaming al dock, y session/cancel. Agent Log con canales.
 
@@ -79,11 +79,15 @@ AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/n
 - Contra el agente falso: un prompt, una respuesta en streaming y una cancelación limpia.
 - Contra Claude Code real: "hola" recibe respuesta.
 
-### Conseguir el mockup de UI (artifact de diseño, 4 pantallas) · Pendiente
+### Conseguir el mockup de UI (artifact de diseño, 4 pantallas) · Hecho
 
-**Prioridad:** alta · **Tamaño:** S
+**Terminada:** 2026-10-21 · **Prioridad:** alta · **Tamaño:** S
 
 La spec §9 pide respetar la estructura de un mockup de 4 pantallas (dock, main screen One-shot, Agent Log, revisión en Script Editor). Hay un artifact con el diseño, pero no aparece entre los artifacts listables desde esta cuenta: pedir el link al usuario y leerlo antes de construir la UI del dock en M1.
+
+**Prueba:** docs/design/mockup/ tiene los 4 .dc.html + canvas.json; docs/design/README.md resume cada pantalla.
+
+**Notas:** Link del usuario: https://claude.ai/chat/f88dea66-401f-4ccc-92af-c85b98fcf7d1?artifact=c94c1e9f-2037-475f-830c-e0671d0ef62d (Design artifact; el contenido está en project/*.dc.html, no en la página). Diferencias con la spec anotadas en el README: paquete del adapter (npx @agentclientprotocol/claude-agent-acp, a verificar con npm view en M1), sidecar .sh de ejemplo, severidades y Settings en Project Settings.
 
 ## M2 — Tool calls, diffs y permisos
 

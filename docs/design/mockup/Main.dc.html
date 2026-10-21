@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dock del agente en Godot</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#6cb4ff}a:hover{color:#9ccbff}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.tab{padding:7px 10px;color:#a0a0a0;white-space:nowrap}
+.tab-on{padding:7px 10px;color:#ececec;background:#2b2b2c;border-radius:4px 4px 0 0;box-shadow:inset 0 2px 0 #6cb4ff;white-space:nowrap}
+.ti{display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;border-radius:3px;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:2px;flex:none}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:11px;background:#333335;color:#dcdcdc;font-size:11px;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:26px;padding:0 10px;border-radius:4px;border:1px solid #444447;background:#303032;color:#e4e4e4;font:inherit;font-size:12px;cursor:pointer}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:4px;border:0;background:transparent;color:#b8b8b8;cursor:pointer;padding:0}
+.ln{display:flex;gap:10px;padding:0 10px;line-height:18px;white-space:pre}
+</style>
+</helmet>
+<div style="width: 1600px; height: 960px; box-sizing: border-box; display: flex; flex-direction: column; background: #161616; color: #dcdcdc; font-family: 'Noto Sans', system-ui, sans-serif; font-size: 12px; overflow: hidden">
+
+  <div style="height: 28px; display: flex; align-items: center; justify-content: center; background: #121212; color: #c8c8c8; font-size: 12px">Asteroids - Godot Engine</div>
+
+  <div style="height: 36px; display: flex; align-items: center; padding: 0 10px; gap: 16px; background: #1b1b1b">
+    <div style="display: flex; gap: 14px; color: #d0d0d0; width: 360px">
+      <span>Scene</span><span>Project</span><span>Debug</span><span>Editor</span><span>Help</span>
+    </div>
+    <div style="flex: 1; display: flex; justify-content: center; gap: 18px; color: #b0b0b0; font-weight: 600">
+      <span>2D</span><span>3D</span><span>Script</span><span>Game</span><span>Asset Store</span><span>Dialogue</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px; color: {{accent}}">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5l1.8 4.7 4.7 1.8-4.7 1.8L8 14.5l-1.8-4.7L1.5 8l4.7-1.8z"/></svg>Agent
+      </span>
+    </div>
+    <div style="width: 360px; display: flex; justify-content: flex-end; align-items: center; gap: 10px">
+      <span class="chip" style="background: #2a2418; color: #f3c891">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: {{accent}}"></span>Claude Code · trabajando
+      </span>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="#c8c8c8" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="#8f8f8f" aria-hidden="true"><rect x="4" y="3" width="3" height="10"/><rect x="9" y="3" width="3" height="10"/></svg>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="#8f8f8f" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9"/></svg>
+    </div>
+  </div>
+
+  <div style="flex: 1; min-height: 0; display: flex; gap: 4px; padding: 0 4px 4px">
+
+    <div style="width: 250px; display: flex; flex-direction: column; gap: 4px; flex: none">
+      <div style="flex: 1; background: #252526; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: flex"><span class="tab-on">Scene</span><span class="tab">Import</span></div>
+        <div style="padding: 6px; display: flex; flex-direction: column; gap: 1px">
+          <div class="ti"><span class="dot" style="background: #8fb4ff"></span>Main</div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #8fb4ff"></span>Player</div>
+          <div class="ti" style="padding-left: 22px; background: #33405a"><span class="dot" style="background: #8fb4ff"></span>Spawner<span style="margin-left: auto; font-size: 10px; color: {{accent}}">editado</span></div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #8fb4ff"></span>Asteroids</div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #7fd98b"></span>HUD</div>
+          <div class="ti" style="padding-left: 38px"><span class="dot" style="background: #7fd98b"></span>ScoreLabel</div>
+          <div class="ti" style="padding-left: 38px; background: #1f3324"><span class="dot" style="background: #7fd98b"></span>WaveLabel<span style="margin-left: auto; font-size: 10px; color: #7fd98b">+ agente</span></div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #8fb4ff"></span>Camera2D</div>
+        </div>
+      </div>
+      <div style="flex: 1; background: #252526; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: flex"><span class="tab-on">FileSystem</span></div>
+        <div style="padding: 6px; display: flex; flex-direction: column; gap: 1px">
+          <div class="ti"><span class="dot" style="background: #6cb4ff"></span>res://</div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #6cb4ff"></span>addons</div>
+          <div class="ti" style="padding-left: 38px"><span class="dot" style="background: {{accent}}"></span>godot_agent</div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #6cb4ff"></span>src</div>
+          <div class="ti" style="padding-left: 38px"><span class="dot" style="background: #9a9a9a"></span>spawner.gd<span style="margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: {{accent}}"></span></div>
+          <div class="ti" style="padding-left: 38px"><span class="dot" style="background: #9a9a9a"></span>hud.gd<span style="margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: {{accent}}"></span></div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #9a9a9a"></span>CLAUDE.md</div>
+          <div class="ti" style="padding-left: 22px"><span class="dot" style="background: #9a9a9a"></span>Main.tscn</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+      <div style="flex: 1; min-height: 0; background: #252526; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 2px; padding: 0 6px"><span class="tab-on">Main.tscn</span><span class="tab">HUD.tscn</span></div>
+        <div style="height: 32px; display: flex; align-items: center; gap: 12px; padding: 0 10px; color: #a0a0a0; border-bottom: 1px solid #333335">
+          <span>Select</span><span>Move</span><span>Rotate</span><span>Scale</span><span style="margin-left: 12px">View</span>
+        </div>
+        <div style="flex: 1; position: relative; background-color: #1d2230; background-image: linear-gradient(#262c3b 1px, transparent 1px), linear-gradient(90deg, #262c3b 1px, transparent 1px); background-size: 40px 40px">
+          <div style="position: absolute; left: 120px; top: 90px; width: 640px; height: 360px; border: 1px solid #7a6cff"></div>
+          <svg style="position: absolute; left: 420px; top: 340px" width="40" height="44" viewBox="0 0 40 44" aria-hidden="true"><path d="M20 2L37 41 20 32 3 41z" fill="none" stroke="#e8e8e8" stroke-width="2"/></svg>
+          <svg style="position: absolute; left: 230px; top: 150px" width="70" height="70" viewBox="0 0 70 70" aria-hidden="true"><path d="M20 5L52 8 66 33 54 62 22 66 4 40z" fill="none" stroke="#b9b9b9" stroke-width="2"/></svg>
+          <svg style="position: absolute; left: 600px; top: 200px" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true"><path d="M12 3L35 6 42 26 30 41 8 38 2 18z" fill="none" stroke="#b9b9b9" stroke-width="2"/></svg>
+          <div style="position: absolute; left: 140px; top: 104px; padding: 2px 6px; border: 1px dashed #7fd98b; color: #7fd98b; font-size: 12px">WAVE 3</div>
+          <div style="position: absolute; left: 584px; top: 110px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; background: #2a2418; color: #f3c891; font-size: 11px">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: {{accent}}"></span>El agente agregó HUD/WaveLabel · Ctrl+Z para deshacer
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 196px; flex: none; background: #252526; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="flex: 1; min-height: 0; padding: 8px 0; background: #1e1e1f; font-size: 11.5px; color: #c4c4c4; overflow: hidden" class="mono">
+          <div class="ln"><span style="color: #8f8f8f">00:17:02</span><span style="color: #6cb4ff">acp</span>  session/new → sess_7f2a · cwd res:// · mcp: godot-editor</div>
+          <div class="ln"><span style="color: #8f8f8f">00:17:04</span><span style="color: #b493ff">mcp</span>  godot.scene_tree(Main.tscn) → 38 nodos · 11 ms</div>
+          <div class="ln"><span style="color: #8f8f8f">00:17:05</span><span style="color: #b493ff">mcp</span>  godot.get_errors() → 0 errores, 2 warnings</div>
+          <div class="ln"><span style="color: #8f8f8f">00:17:09</span><span style="color: #b493ff">mcp</span>  godot.add_node(HUD, Label, "WaveLabel") → undo #41</div>
+          <div class="ln"><span style="color: #8f8f8f">00:17:12</span><span style="color: #e0e0e0">fs</span>   edit src/spawner.gd (+14 −3) · rescan OK · script recargado</div>
+          <div class="ln"><span style="color: #8f8f8f">00:17:13</span><span style="color: {{accent}}">perm</span> esperando: godot.run_scene(Main.tscn, 20s)</div>
+        </div>
+        <div style="height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 6px; border-top: 1px solid #333335">
+          <span class="tab">Output</span><span class="tab">Debugger</span><span class="tab">Audio</span><span class="tab">Animation</span><span class="tab">Shader Editor</span>
+          <span class="tab-on" style="display: inline-flex; align-items: center; gap: 6px">Agent Log<span style="width: 6px; height: 6px; border-radius: 50%; background: {{accent}}"></span></span>
+          <span style="margin-left: auto; color: #8f8f8f">4.8.beta1</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="width: 430px; flex: none; background: #252526; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden">
+      <div style="display: flex; gap: 2px; padding: 0 6px">
+        <span class="tab">Inspector</span><span class="tab">History</span><span class="tab">Signals</span>
+        <span class="tab-on" style="display: inline-flex; align-items: center; gap: 6px; box-shadow: inset 0 2px 0 {{accent}}">Agent<span style="width: 6px; height: 6px; border-radius: 50%; background: {{accent}}"></span></span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #333335">
+        <button class="btn" type="button" style="font-weight: 600">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="{{accent}}" stroke-width="1.8" aria-hidden="true"><path d="M8 1.5l1.8 4.7 4.7 1.8-4.7 1.8L8 14.5l-1.8-4.7L1.5 8l4.7-1.8z"/></svg>
+          Claude Code
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <span style="color: #a8a8a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1">Oleadas de asteroides</span>
+        <button class="ib" type="button" aria-label="Historial de sesiones"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg></button>
+        <button class="ib" type="button" aria-label="Nueva sesión"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+        <button class="ib" type="button" aria-label="Ajustes del agente"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg></button>
+      </div>
+
+      <div style="display: flex; gap: 4px; padding: 8px 10px 0">
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: #1c1c1d; border-radius: 5px; padding: 2px">
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: transparent; color: #a8a8a8; font: inherit; font-size: 11.5px">Preguntar</button>
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: transparent; color: #a8a8a8; font: inherit; font-size: 11.5px">Revisar</button>
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: #3a3a3d; color: #ffffff; font: inherit; font-size: 11.5px; font-weight: 600">Construir</button>
+          <button type="button" style="height: 24px; border: 0; border-radius: 4px; background: transparent; color: #a8a8a8; font: inherit; font-size: 11.5px">One-shot</button>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; padding: 12px 10px">
+        <div style="align-self: flex-end; max-width: 330px; background: #33405a; color: #eef3ff; padding: 8px 10px; border-radius: 8px 8px 2px 8px; line-height: 1.45">Hacé que los asteroides aparezcan en oleadas que escalen cada 30 s, y que el HUD muestre la oleada actual.</div>
+
+        <div style="line-height: 1.5; color: #dcdcdc">Leo la escena y el spawner actual, después edito <span class="mono" style="color: #f3c891">spawner.gd</span> y agrego un Label al HUD.</div>
+
+        <div style="background: #1e1e1f; border: 1px solid #38383b; border-radius: 6px; overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: #a8a8a8; border-bottom: 1px solid #333335; font-size: 11px">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>4 herramientas · 1,2 s
+          </div>
+          <div class="mono" style="display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; font-size: 11px">
+            <div style="display: flex; gap: 8px"><span style="color: #7fd98b">✓</span><span style="color: #b493ff">scene_tree</span><span style="color: #a8a8a8">Main.tscn · 38 nodos</span></div>
+            <div style="display: flex; gap: 8px"><span style="color: #7fd98b">✓</span><span style="color: #e0e0e0">Read</span><span style="color: #a8a8a8">src/spawner.gd</span></div>
+            <div style="display: flex; gap: 8px"><span style="color: #7fd98b">✓</span><span style="color: #b493ff">get_errors</span><span style="color: #a8a8a8">0 errores</span></div>
+            <div style="display: flex; gap: 8px"><span style="color: #7fd98b">✓</span><span style="color: #b493ff">add_node</span><span style="color: #a8a8a8">HUD/WaveLabel</span><span style="margin-left: auto; color: #8f8f8f">↶ undo</span></div>
+          </div>
+        </div>
+
+        <div style="background: #1e1e1f; border: 1px solid #38383b; border-radius: 6px; overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #333335">
+            <span class="mono" style="font-size: 11.5px">src/spawner.gd</span>
+            <span class="mono" style="font-size: 11px; color: #7fd98b">+14</span><span class="mono" style="font-size: 11px; color: #ff8a8a">−3</span>
+            <button class="btn" type="button" style="margin-left: auto; height: 22px; font-size: 11px">Abrir en Script</button>
+          </div>
+          <div class="mono" style="font-size: 11px; padding: 4px 0">
+            <div class="ln" style="color: #8f8f8f"><span>12</span> var spawn_rate := 1.5</div>
+            <div class="ln" style="background: #3a2224; color: #ffb3b3"><span>13</span>-func _on_timer_timeout():</div>
+            <div class="ln" style="background: #1d3322; color: #b8f0c2"><span>13</span>+@export var wave_time := 30.0</div>
+            <div class="ln" style="background: #1d3322; color: #b8f0c2"><span>14</span>+var wave := 1</div>
+            <div class="ln" style="background: #1d3322; color: #b8f0c2"><span>15</span>+signal wave_changed(n: int)</div>
+            <div class="ln" style="color: #8f8f8f"><span>  </span> ⋯ 11 líneas más</div>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #6b5326; background: #241f17; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: center; gap: 8px; color: #f3c891; font-weight: 600">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5l6 2.5v4c0 3.5-2.6 5.8-6 6.5-3.4-.7-6-3-6-6.5V4z"/></svg>
+            Permiso: ejecutar la escena
+          </div>
+          <div style="color: #d8d0c2; line-height: 1.45">Quiere correr <span class="mono">Main.tscn</span> 20 s, capturar el viewport y leer los errores para verificar las oleadas.</div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <button class="btn" type="button" style="background: {{accent}}; border-color: {{accent}}; color: #1a1408; font-weight: 600">Permitir una vez</button>
+            <button class="btn" type="button">Siempre en esta sesión</button>
+            <button class="btn" type="button" style="color: #ffb3b3">Denegar</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 10px; border-top: 1px solid #333335; display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap">
+          <span class="chip"><span class="dot" style="width: 8px; height: 8px; background: #8fb4ff"></span>Main.tscn</span>
+          <span class="chip"><span class="dot" style="width: 8px; height: 8px; background: #8fb4ff"></span>Selección: Spawner</span>
+          <span class="chip" style="color: #a8a8a8">+ contexto</span>
+        </div>
+        <div style="background: #1c1c1d; border: 1px solid #444447; border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px">
+          <label for="agent-prompt" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Mensaje para el agente</label>
+          <textarea id="agent-prompt" rows="2" placeholder="Pedile algo… @ para nodos y archivos, / para comandos" style="resize: none; border: 0; outline: 0; background: transparent; color: #e4e4e4; font: inherit; font-size: 12px"></textarea>
+          <div style="display: flex; align-items: center; gap: 2px">
+            <button class="ib" type="button" aria-label="Mencionar nodo o archivo"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><path d="M10.5 8v1.2a1.8 1.8 0 003.5 0V8A6 6 0 108 14"/></svg></button>
+            <button class="ib" type="button" aria-label="Adjuntar captura del viewport"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="4" width="12" height="9" rx="1.5"/><circle cx="8" cy="8.5" r="2.3"/><path d="M6 4l1-1.5h2L10 4"/></svg></button>
+            <button class="ib" type="button" aria-label="Comandos"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10.5 2.5l-5 11"/></svg></button>
+            <span style="margin-left: auto; font-size: 11px; color: #8f8f8f">41k / 200k</span>
+            <button class="btn" type="button" style="height: 24px; font-size: 11px; margin-left: 6px">Opus</button>
+            <button type="button" aria-label="Enviar" style="margin-left: 6px; width: 28px; height: 28px; border-radius: 6px; border: 0; background: {{accent}}; color: #1a1408; display: inline-flex; align-items: center; justify-content: center; cursor: pointer"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#f0a85a","options":["#f0a85a","#d97757","#6cb4ff","#7fd98b"]},"$preview":{"width":1600,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#f0a85a' };
+  }
+}
+</script>
+</body>
+</html>
