@@ -1,0 +1,16 @@
+{
+  "turns": [
+    {"steps": [
+      {"quota": {"five_hour": 0.63, "seven_day": 0.47}},
+      {"chunk": "Primera tarea lista."}
+    ]},
+    {"steps": [
+      {"quota": {"five_hour": 0.91, "seven_day": 0.5, "status": "allowed_warning"}},
+      {"chunk": "Segunda tarea lista."}
+    ]},
+    {"steps": [
+      {"chunk": "Empiezo la tercera…"},
+      {"limit": {"resets_in": 120}}
+    ]}
+  ]
+}

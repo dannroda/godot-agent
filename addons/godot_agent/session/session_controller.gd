@@ -17,6 +17,7 @@ const PermissionPolicy := preload("permission_policy.gd")
 const PermissionRequest := preload("permission_request.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
+const QuotaMonitor := preload("../core/quota_monitor.gd")
 
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
@@ -50,6 +51,8 @@ var client: AcpClient
 var policy: PermissionPolicy = PermissionPolicy.new()
 var fs: FsHandler
 var agent_log: AgentLog
+## Cuota del plan (spec §10.1): por ahora solo observa y loguea en el canal quota.
+var quota: QuotaMonitor
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
 var cwd: String = ""
 ## Callable() -> Array: entradas `mcpServers` para session/new (el server del addon, M3).
@@ -70,6 +73,8 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	cwd = working_dir
 	client = AcpClient.new()
 	client.setup(_send_line, agent_log)
+	quota = QuotaMonitor.new()
+	quota.setup(agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
 	client.set_request_handler("session/request_permission", _on_request_permission)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
@@ -170,9 +175,12 @@ func send_prompt(text: String, extra_blocks: Array = []) -> String:
 			attachments.append(block)
 	model.add_user_message(text, attachments)
 	model.set_state(SessionModel.State.PROMPTING)
+	var first_new_entry := model.entries().size()
 
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
+	_observe_quota_in_turn(first_new_entry)
 	if not result.ok:
+		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
 			model.add_notice("El turno terminó con error: %s" % result.error_message(), ChatEntry.Level.ERROR, _error_actions())
 			model.finish_turn("error")
@@ -182,6 +190,14 @@ func send_prompt(text: String, extra_blocks: Array = []) -> String:
 		stop_reason = str(result.result.get("stopReason", stop_reason))
 	model.finish_turn(stop_reason)
 	return stop_reason
+
+
+## Texto del agente en el turno: los avisos de límite llegan como mensaje (D22).
+func _observe_quota_in_turn(first_entry: int) -> void:
+	var entries := model.entries()
+	for i in range(first_entry, entries.size()):
+		if entries[i].kind == ChatEntry.Kind.AGENT:
+			quota.observe_agent_text(entries[i].text)
 
 
 func cancel() -> void:
@@ -406,6 +422,8 @@ func _send_line(line: String) -> bool:
 func _on_session_update(params: Dictionary) -> void:
 	if params.get("sessionId") != model.session_id or not params.get("update") is Dictionary:
 		return
+	if params.update.get("sessionUpdate") == "usage_update":
+		quota.observe_update(params.update)
 	if not model.apply_update(params.update):
 		agent_log.add(AgentLog.CH_ACP, "Variante de session/update desconocida, ignorada: %s" % str(params.update.get("sessionUpdate", "?")))
 

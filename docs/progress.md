@@ -129,6 +129,13 @@ Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1. Contra Claude Code real, "hola" recibió:
 - ~~Permisos, `fs/*` y la sincronización con el editor~~: hechos en M2.
 - Historial de sesiones y Settings completos: M7.
 
+### Cuota del plan (agregado al spec después de M1)
+
+- `core/quota_monitor.gd` observa la cuota: loguea en el canal nuevo `quota` del Agent Log cada `usage_update`, el texto del agente que coincide con `config/quota_patterns.txt` y cada error de `session/prompt`.
+- Qué reporta Claude Code: D22. Hay ventana de 5 horas y semanal, con utilización y hora de reinicio, en `_meta["_claude/rateLimit"]`.
+- Prueba: `tests/unit/test_quota_monitor.gd`. Contra Claude Code real, `$G --headless --path . --script tests/claude_smoke_check.gd` imprime las líneas `[quota]`.
+- Estados, medidor, pausa y reanudación: M6 (m6-06 a m6-08).
+
 ## M2 · Permisos, fs/* y sincronización con el editor
 
 ### Qué hay
@@ -267,4 +274,4 @@ Con Claude Code real (4.8 y 4.4.1), a "agregá un Label llamado WaveLabel como h
 ### Pendiente
 
 - Repro mínimo del error de 4.7.2 con variables en el probe (D20), para m7-01.
-- Cuota del plan (spec §10.1, agregada al spec): tareas m1-12 a m1-14 y m6-06 a m6-08 en el tablero.
+- Cuota del plan (spec §10.1): observación en M1 (D22); estados y reglas en m6-06 a m6-08.

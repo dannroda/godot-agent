@@ -17,7 +17,11 @@ extends SceneTree
 ##   {"request": {"method", "params"}} request al cliente; espera la respuesta y la reporta por stderr
 ##   {"garbage": "texto"}              una línea que no es JSON
 ##   {"stop": "end_turn"}              responde el prompt (si no está, al terminar los pasos)
-##   {"error": "mensaje"}              responde el prompt con un error JSON-RPC
+##   {"error": "mensaje", "data": {}} responde el prompt con un error JSON-RPC (-32603)
+##   {"quota": {"five_hour": 0.9, "seven_day": 0.4, "status": "allowed_warning", "resets_in": 3600}}
+##                                     usage_update con la cuota del plan, en la forma de Claude Code (D22)
+##   {"limit": {"resets_in": 120}}     límite alcanzado como lo manda Claude Code: cuota "rejected",
+##                                     mensaje "You've hit your limit · resets HH:MM" y error del prompt
 ##   {"exit": true}                    el proceso se mata a sí mismo (simula una caída)
 ## Un session/cancel corta el turno en curso y responde stopReason "cancelled".
 
@@ -173,9 +177,16 @@ func _advance_turn() -> void:
 		elif step.has("stop"):
 			_finish_prompt(str(step.stop))
 		elif step.has("error"):
-			if _prompt_id != null:
-				_send({"jsonrpc": "2.0", "id": _prompt_id, "error": {"code": -32603, "message": str(step.error)}})
-				_prompt_id = null
+			_fail_prompt(str(step.error), step.get("data"))
+		elif step.has("quota"):
+			_update(_quota_update(step.quota))
+		elif step.has("limit"):
+			var resets_in := int(step.limit.get("resets_in", 3600))
+			_update(_quota_update({"status": "rejected", "five_hour": 1.0, "seven_day": step.limit.get("seven_day", 0.5), "resets_in": resets_in}))
+			var reset_time := Time.get_time_string_from_unix_time(int(Time.get_unix_time_from_system()) + resets_in + _utc_offset_s()).left(5)
+			var text := "You've hit your limit · resets %s" % reset_time
+			_update({"sessionUpdate": "agent_message_chunk", "messageId": "msg-limit-%d" % _message_counter, "content": {"type": "text", "text": text}})
+			_fail_prompt("Internal error: " + text, {"errorKind": "rate_limit"})
 		elif step.has("exit"):
 			# quit() no termina el proceso mientras el thread lector está bloqueado en stdin:
 			# se simula la caída matando el propio proceso.
@@ -197,6 +208,39 @@ func _expand(value: Variant) -> Variant:
 			result[key] = _expand(value[key])
 		return result
 	return value
+
+
+func _fail_prompt(message: String, data: Variant = null) -> void:
+	if _prompt_id == null:
+		return
+	var error := {"code": -32603, "message": message}
+	if data != null:
+		error["data"] = data
+	_send({"jsonrpc": "2.0", "id": _prompt_id, "error": error})
+	_prompt_id = null
+
+
+## usage_update con `_meta["_claude/rateLimit"]` como lo manda claude-agent-acp 0.94 (D22).
+func _quota_update(quota: Dictionary) -> Dictionary:
+	var now := int(Time.get_unix_time_from_system())
+	var resets_at := float(now + int(quota.get("resets_in", 3600)))
+	var info := {
+		"status": str(quota.get("status", "allowed")),
+		"rateLimitType": "five_hour",
+		"resetsAt": resets_at,
+		"isUsingOverage": false,
+		"unifiedWindows": {
+			"five_hour": {"utilization": float(quota.get("five_hour", 0.5)), "resetsAt": resets_at},
+			"seven_day": {"utilization": float(quota.get("seven_day", 0.3)), "resetsAt": float(now + 5 * 86400)},
+		},
+	}
+	if info.status != "allowed":
+		info["utilization"] = info.unifiedWindows.five_hour.utilization
+	return {"sessionUpdate": "usage_update", "used": 1000, "size": 200000, "_meta": {"_claude/rateLimit": info}}
+
+
+static func _utc_offset_s() -> int:
+	return int(Time.get_time_zone_from_system().get("bias", 0)) * 60
 
 
 func _finish_prompt(stop_reason: String) -> void:

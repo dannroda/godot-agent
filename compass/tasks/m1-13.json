@@ -15,16 +15,16 @@
     }
   ],
   "milestone": "m01",
-  "notes": "",
+  "notes": "- Cuota: `usage_update._meta[\"_claude/rateLimit\"]` (SDKRateLimitInfo) con status allowed/allowed_warning/rejected, resetsAt en unix segundos y `unifiedWindows.five_hour/seven_day` con utilization 0–1. `unifiedWindows` no está en el .d.ts pero llega.\n- Límite (del código; no se puede provocar): mensaje sintético con prefijo \"You've hit your…\" y error -32603 de session/prompt con data.errorKind.\n- La extensión sessionFailure es de JetBrains AIR y no se anuncia.\n- El diseño de §10.1 no cambia: ventana actual = five_hour, semanal = seven_day.",
   "order": 13,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "quota"
   ],
-  "test": "",
+  "test": "`$G --headless --path . --script tests/claude_smoke_check.gd -- \"hola\"` con Claude Code real (4.8-beta1): respondió y el canal quota mostró \"cuota del plan: allowed · five_hour · reinicio 2026-10-21 05:40:00 · five_hour 63 % hasta … · seven_day 47 % hasta …\", con el JSON crudo. Documentado en docs/decisions.md D22.",
   "title": "Verificar qué cuota reporta el adapter de Claude Code",
-  "updated_at": "2026-10-21T06:17:05.474Z"
+  "updated_at": "2026-10-21T06:57:59.952Z"
 }

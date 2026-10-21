@@ -9,6 +9,7 @@ const CHANNEL_COLORS: Dictionary = {
 	&"fs": Color("#e8e8e8"),
 	&"perm": Color("#f0a85a"),
 	&"proc": Color("#9aa0a6"),
+	&"quota": Color("#f2d16b"),
 	&"cmp": Color("#7fd98b"),
 }
 const USER_BUBBLE := Color("#33405a")

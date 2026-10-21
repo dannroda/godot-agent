@@ -71,7 +71,7 @@ Habilitar/deshabilitar el plugin 5 veces sin errores, correr el test de export e
 
 **Notas:** docs/progress.md tiene qué quedó, cómo probar a mano y pendientes. Revisión con godot-code-review: sin hallazgos altos; se arreglaron parámetros sin usar en el export plugin y el banner que no se refrescaba con el dock ya visible. Pendiente: link al artifact de diseño (spec §9) para M1.
 
-## M1 — Transporte y ACP mínimo  (11/14, 10 en revisión)
+## M1 — Transporte y ACP mínimo  (14/14, 13 en revisión)
 
 AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/new → session/prompt con streaming al dock, y session/cancel. Agent Log con canales. QuotaMonitor en modo observación (canal quota).
 
@@ -242,19 +242,34 @@ Prueba de integración headless: prompt, respuesta en streaming y cancelación l
 
 **Relacionadas:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
 
-### 1.12 QuotaMonitor en modo observación (canal quota) · Pendiente
+### 1.12 QuotaMonitor en modo observación (canal quota) · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
 
 Spec §10.1 y M1 (actualizado): QuotaMonitor nuevo en la arquitectura. En M1 solo observa: loguea crudo en un canal nuevo `quota` del Agent Log cada `usage_update` de ACP y cualquier aviso o error de límite (error JSON-RPC en session/prompt, notice o mensaje del agente). Guarda el último payload crudo para mapear los campos después. No estima cuota a partir de tokens, no consulta endpoints no documentados y no lee archivos internos ni credenciales del agente.
 
+**Prueba:** tests/unit/test_quota_monitor.gd (4 tests), en 4.8-beta1 y 4.4.1:
+- usage_update sin `_meta` → "sin datos de cuota";
+- con `_meta["_claude/rateLimit"]` → guarda el SDKRateLimitInfo crudo y loguea "allowed_warning · five_hour · 82 % · umbral 75 % · reinicio …";
+- texto "You've hit your limit · resets 3pm" → evento de límite; la prosa con "rate limiting" no;
+- error de prompt con errorKind rate_limit → límite, y todos los errores de prompt quedan en el canal.
+
+**Notas:** core/quota_monitor.gd, con patrones editables en config/quota_patterns.txt: los prefijos USAGE_LIMIT_ERROR_PREFIXES del SDK de Claude, anclados al principio de línea y sin patrones sueltos. Canal `quota` nuevo en AgentLog (color amarillo). SessionController le pasa cada usage_update, el texto del agente de cada turno y los errores de session/prompt. Todavía no expone estados al SessionModel: eso es m6-06.
+
 **Bloquea a:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
 
-### 1.13 Verificar qué cuota reporta el adapter de Claude Code · Pendiente
+### 1.13 Verificar qué cuota reporta el adapter de Claude Code · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
 
 Spec M1 (actualizado): con el adapter real (@agentclientprotocol/claude-agent-acp), documentar en docs/decisions.md qué reporta realmente: cuota del plan con hora de reinicio, solo tokens de la sesión, o nada; y cómo se ve un error de límite. Fuentes: el canal quota de una sesión real y el código del adapter. El diseño de §10.1 (nombres de campo y patrones de límite) se ajusta a eso. Criterio de M1: "hola" recibe respuesta y la verificación de cuota está documentada.
+
+**Prueba:** `$G --headless --path . --script tests/claude_smoke_check.gd -- "hola"` con Claude Code real (4.8-beta1): respondió y el canal quota mostró "cuota del plan: allowed · five_hour · reinicio 2026-10-21 05:40:00 · five_hour 63 % hasta … · seven_day 47 % hasta …", con el JSON crudo. Documentado en docs/decisions.md D22.
+
+**Notas:** - Cuota: `usage_update._meta["_claude/rateLimit"]` (SDKRateLimitInfo) con status allowed/allowed_warning/rejected, resetsAt en unix segundos y `unifiedWindows.five_hour/seven_day` con utilization 0–1. `unifiedWindows` no está en el .d.ts pero llega.
+- Límite (del código; no se puede provocar): mensaje sintético con prefijo "You've hit your…" y error -32603 de session/prompt con data.errorKind.
+- La extensión sessionFailure es de JetBrains AIR y no se anuncia.
+- El diseño de §10.1 no cambia: ventana actual = five_hour, semanal = seven_day.
 
 **Bloquea a:** 1.14 Agente falso: cuota simulada y errores de límite; 6.6 QuotaMonitor: fuentes, estados y umbrales
 
@@ -262,11 +277,22 @@ Spec M1 (actualizado): con el adapter real (@agentclientprotocol/claude-agent-ac
 
 **Relacionadas:** 1.11 Verificar M1 contra el agente falso y Claude Code real
 
-### 1.14 Agente falso: cuota simulada y errores de límite · Pendiente
+### 1.14 Agente falso: cuota simulada y errores de límite · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
 
 Spec §13 (actualizado): el agente falso emite también `usage_update` con cuota simulada y errores de límite con hora de reinicio, según el guion JSON. Usa la forma que salga de m1-13. Es la base de los tests del QuotaMonitor y de la verificación de M6 (cuota al 90 % y después límite).
+
+**Prueba:** tests/acp_session_check.gd, escenario quota (tests/scripts/quota.json), con 12 checks; pasa en 4.8-beta1 y 4.4.1:
+- turno 1: five_hour al 63 %;
+- turno 2: allowed_warning al 91 %, todavía sin límite;
+- turno 3: status rejected, mensaje "You've hit your limit · resets HH:MM" y error -32603 con errorKind rate_limit, los dos en el canal quota; el turno termina en "error" y la sesión sigue usable.
+
+**Notas:** Pasos nuevos del guion de tests/fake_agent.gd:
+- `quota`: usage_update con `_meta["_claude/rateLimit"]` en la forma real de D22;
+- `limit`: simula el límite;
+- `error` ahora acepta `data`.
+Es la base de la verificación de M6 (m6-05).
 
 **Bloqueada por:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
 
@@ -823,8 +849,8 @@ Alternarlo 5 veces con `EditorInterface.set_plugin_enabled()` desde otro plugin 
 
 **Descartado:** el segundo problema que listaba D9 (`Condition "!is_inside_tree()"` en `grab_focus` al cerrar el editor con la main screen activa; crash por "Message queue out of memory" al cambiar antes a "Script" en headless) no se reproduce en 4.8-beta1 ni en 4.8-dev7. Se probó con un repro mínimo (`add_dock` en main screen, con la pantalla anterior en 2D y en Script; con y sin cambiar a "Script" en `_exit_tree`) y con el addon real sin el cambio a "2D" de `remove_all()` (prueba de captura, xvfb y headless). No se reporta.
 
-- [ ] Armar el proyecto de repro y zipearlo
-  Plugin legacy de arriba + plugin driver que alterna 5 veces y cuenta EditorDock huérfanos. Sin .godot/.
+- [ ] Zipear tests/upstream/main_screen_orphan
+  Proyecto mínimo: legacy_ms (_has_main_screen) + driver que lo alterna 5 veces y cuenta EditorDock huérfanos. Correr: godot --headless --editor --path . -- --cycle. Zipear sin .godot/ ni .uid.
 - [ ] Probar en el último 4.8 publicado antes de abrir el issue
   Si ya está arreglado, cerrar la tarea y anotar la versión.
 - [ ] Abrir el issue con la plantilla de bug

@@ -1,0 +1,16 @@
+# Patrones de "límite de uso alcanzado" en el texto del agente o en errores de session/prompt (spec §10.1).
+# Uno por línea, como expresión regular de Godot (RegEx), sin distinguir mayúsculas.
+# Las líneas que empiezan con # se ignoran. Se pueden agregar los de otros agentes.
+
+# Claude Code (claude-agent-sdk, USAGE_LIMIT_ERROR_PREFIXES), al principio del mensaje.
+^You've hit your
+^You've reached your
+^You're out of usage credits
+^You're out of extra usage
+^Your org is out of usage
+^Your seat type doesn't include (extra )?usage
+^Your usage allocation has been disabled
+^Your group's usage limit is set to \$0
+# Formato viejo de Claude Code: "Claude AI usage limit reached|<unix>".
+^Claude AI usage limit reached
+# Sin patrones sueltos ("rate limit"): la prosa del agente los dispararía.

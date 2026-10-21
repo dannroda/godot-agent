@@ -243,3 +243,30 @@ Claude Code (`claude-agent-acp` 0.94) anuncia HTTP, así que en la práctica usa
 En el escritorio, la ventana del editor de prueba le robó el foco al usuario: el debugger abrió `run_broken.gd` en la línea del error, quedó "bil" tipeado ahí y el guardado previo al siguiente run lo persistió. Las pruebas de editor corren con `tests/run_in_xvfb.sh`: Xvfb sin GPU, editor y juego con `--rendering-driver opengl3` (llvmpipe). El juego recibe sus argumentos por `editor/run/main_run_args`, que `run_check.gd` pone solo en memoria cuando existe `GODOT_AGENT_TEST_RUN_ARGS`. Bajo Xvfb el editor suma errores `BadWindow` de X11 y el juego un warning de V-Sync, así que la prueba exige que no haya errores **del juego**, en vez de exigir cero entradas.
 
 `tests/crash_check.sh` se corre con `setsid -w`: matar el editor con `OS.kill` llegó a terminar la shell que lo había lanzado.
+
+## D22 · Qué cuota reporta Claude Code por ACP (M1, spec §10.1)
+
+Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`tests/claude_smoke_check.gd`, que imprime el canal `quota`), y leyendo el código del adapter.
+
+- **Cuota del plan: sí, con hora de reinicio.** Cuando el SDK emite un `rate_limit_event` (al cambiar la info de límites, en la práctica en el primer turno de la sesión), el adapter manda un `usage_update` extra con `_meta["_claude/rateLimit"]` = `SDKRateLimitInfo`. Ejemplo real:
+
+  ```json
+  {"status": "allowed", "rateLimitType": "five_hour", "resetsAt": 1792572000,
+   "isUsingOverage": false, "overageStatus": "rejected", "overageDisabledReason": "org_level_disabled",
+   "unifiedWindows": {"five_hour": {"utilization": 0.63, "resetsAt": 1792572000},
+                      "seven_day": {"utilization": 0.47, "resetsAt": 1793062800}}}
+  ```
+
+  - `status`: `allowed` | `allowed_warning` | `rejected`.
+  - `resetsAt`: unix en segundos.
+  - `utilization`: fracción 0–1.
+  - `unifiedWindows` trae la ventana actual (`five_hour`) y la semanal (`seven_day`); no está en el `.d.ts` del SDK, pero es lo que llega. `utilization` y `surpassedThreshold` sueltos sí están tipados, pero en el estado `allowed` no vinieron.
+  - El mapeo de §10.1: ventana actual = `unifiedWindows.five_hour`, semanal = `unifiedWindows.seven_day`, y el estado sale de `status`.
+- **Tokens de la sesión**: cada `usage_update` trae `used`/`size` (contexto). El último del turno trae además `cost: {amount, currency}`. No son cuota y no se usan para estimarla.
+- **Límite alcanzado** (sacado del código: no se puede provocar a propósito). Un cliente sin la extensión `sessionFailure` de JetBrains AIR (`_meta.jetbrains.air`, que el harness no anuncia porque no es ese cliente) recibe:
+  1. el texto sintético del SDK como mensaje del agente, con uno de los `USAGE_LIMIT_ERROR_PREFIXES` ("You've hit your…", "You've reached your…", "You're out of usage credits"…);
+  2. el `session/prompt` termina con un error JSON-RPC `-32603` (`RequestError.internalError`), con `data.errorKind` cuando el SDK lo clasificó (`rate_limit`, `billing_error`…) y el texto del resultado en el mensaje;
+  3. antes, normalmente, un `usage_update` con `status: "rejected"`.
+
+  `QuotaMonitor` mira las tres cosas. Los prefijos están en `config/quota_patterns.txt` (editable), anclados al principio de línea. Un patrón suelto como "rate limit" dispararía con la prosa del agente.
+- **Prohibido y respetado**: no se consulta el endpoint de uso del adapter (`/usage`, `usage-markdown.js`) ni se leen credenciales o archivos de `~/.claude`.

@@ -11,8 +11,9 @@ const CH_MCP := &"mcp"
 const CH_FS := &"fs"
 const CH_PERM := &"perm"
 const CH_PROC := &"proc"
+const CH_QUOTA := &"quota"
 const CH_CMP := &"cmp"
-const CHANNELS: Array[StringName] = [CH_ACP, CH_MCP, CH_FS, CH_PERM, CH_PROC, CH_CMP]
+const CHANNELS: Array[StringName] = [CH_ACP, CH_MCP, CH_FS, CH_PERM, CH_PROC, CH_QUOTA, CH_CMP]
 
 const DEFAULT_CAPACITY := 2000
 ## Tope de caracteres del JSON crudo guardado por entrada.

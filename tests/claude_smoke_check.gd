@@ -25,6 +25,8 @@ func _initialize() -> void:
 	log.entry_added.connect(func(entry: Dictionary) -> void:
 		if entry.channel == AgentLog.CH_PROC:
 			print("  [proc] ", str(entry.message).left(200))
+		elif entry.channel == AgentLog.CH_QUOTA:
+			print("  [quota] ", entry.message, "\n          ", str(entry.raw).left(600))
 	)
 	var controller := SessionController.new()
 	controller.setup(model, log, ProjectSettings.globalize_path("res://").trim_suffix("/"))

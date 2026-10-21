@@ -31,6 +31,7 @@ func _initialize() -> void:
 	await _scenario_crash()
 	await _scenario_permissions_build()
 	await _scenario_permissions_ask()
+	await _scenario_quota()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("acp_session_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -239,6 +240,28 @@ func _scenario_permissions_ask() -> void:
 
 
 # --- helpers -------------------------------------------------------------------------------------
+
+## Cuota simulada en la forma de Claude Code (D22): 63 %, 91 % con aviso y después el límite.
+func _scenario_quota() -> void:
+	print("— quota")
+	var made := await _make("quota")
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	var log: AgentLog = made[2]
+	_check(await controller.send_prompt("tarea 1") == "end_turn", "quota: turno 1")
+	var windows: Dictionary = controller.quota.last_rate_limit.get("unifiedWindows", {})
+	_check(is_equal_approx(float(windows.get("five_hour", {}).get("utilization", 0.0)), 0.63), "quota: ventana de 5 h al 63 %")
+	_check(_log_has(log, "five_hour 63 %"), "quota: resumen en el canal quota")
+	_check(await controller.send_prompt("tarea 2") == "end_turn", "quota: turno 2")
+	_check(controller.quota.last_rate_limit.get("status") == "allowed_warning", "quota: aviso al 91 %")
+	_check(controller.quota.last_limit_event.is_empty(), "quota: todavía sin límite")
+	_check(await controller.send_prompt("tarea 3") == "error", "quota: el turno del límite termina con error")
+	_check(controller.quota.last_rate_limit.get("status") == "rejected", "quota: cuota rejected")
+	_check(not controller.quota.last_limit_event.is_empty(), "quota: evento de límite registrado")
+	_check(_log_has(log, "aviso de límite en el texto del agente: You've hit your limit") and _log_has(log, "error de session/prompt (límite)"), "quota: texto y error de límite en el canal")
+	_check(model.state == SessionModel.State.READY, "quota: la sesión sigue usable")
+	controller.stop()
+
 
 func _check(condition: bool, label: String) -> void:
 	_checks += 1

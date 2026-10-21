@@ -11,16 +11,16 @@
     }
   ],
   "milestone": "m01",
-  "notes": "",
+  "notes": "core/quota_monitor.gd, con patrones editables en config/quota_patterns.txt: los prefijos USAGE_LIMIT_ERROR_PREFIXES del SDK de Claude, anclados al principio de línea y sin patrones sueltos. Canal `quota` nuevo en AgentLog (color amarillo). SessionController le pasa cada usage_update, el texto del agente de cada turno y los errores de session/prompt. Todavía no expone estados al SessionModel: eso es m6-06.",
   "order": 12,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "quota"
   ],
-  "test": "",
+  "test": "tests/unit/test_quota_monitor.gd (4 tests), en 4.8-beta1 y 4.4.1:\n- usage_update sin `_meta` → \"sin datos de cuota\";\n- con `_meta[\"_claude/rateLimit\"]` → guarda el SDKRateLimitInfo crudo y loguea \"allowed_warning · five_hour · 82 % · umbral 75 % · reinicio …\";\n- texto \"You've hit your limit · resets 3pm\" → evento de límite; la prosa con \"rate limiting\" no;\n- error de prompt con errorKind rate_limit → límite, y todos los errores de prompt quedan en el canal.",
   "title": "QuotaMonitor en modo observación (canal quota)",
-  "updated_at": "2026-10-21T06:17:03.696Z"
+  "updated_at": "2026-10-21T06:57:01.397Z"
 }
