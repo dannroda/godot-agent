@@ -54,10 +54,12 @@ var client: AcpClient
 var policy: PermissionPolicy = PermissionPolicy.new()
 var fs: FsHandler
 var agent_log: AgentLog
-## Cuota del plan (spec §10.1): por ahora solo observa y loguea en el canal quota.
+## Cuota del plan (spec §10.1): estado, ventanas y límite; la UI y el One-shot la leen de acá.
 var quota: QuotaMonitor
 ## Hallazgos de la última revisión (modo Revisar, spec §9.4).
 var review: ReviewStore = ReviewStore.new()
+## `usage` del último session/prompt (tokens del turno: inputTokens, outputTokens, cachedReadTokens…).
+var last_turn_usage: Dictionary = {}
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
 var cwd: String = ""
 ## Callable() -> Array: entradas `mcpServers` para session/new (el server del addon, M3).
@@ -195,7 +197,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		return "cancelled"
 
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
-	var turn_text := _agent_text_since(first_new_entry)
+	var turn_text := agent_text_since(first_new_entry)
 	quota.observe_agent_text(turn_text)
 	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
 		review.ingest_turn_text(turn_text, cwd)
@@ -208,12 +210,15 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var stop_reason := "end_turn"
 	if result.result is Dictionary:
 		stop_reason = str(result.result.get("stopReason", stop_reason))
+		last_turn_usage = result.result.get("usage", {}) if result.result.get("usage") is Dictionary else {}
+	if stop_reason == "end_turn" and quota.matching_line(turn_text).is_empty():
+		quota.observe_turn_ok()
 	model.finish_turn(stop_reason)
 	return stop_reason
 
 
 ## Texto del agente en el turno: ahí llegan los avisos de límite (D22) y los bloques de hallazgos.
-func _agent_text_since(first_entry: int) -> String:
+func agent_text_since(first_entry: int) -> String:
 	var parts: PackedStringArray = []
 	var entries := model.entries()
 	for i in range(first_entry, entries.size()):

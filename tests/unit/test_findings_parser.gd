@@ -52,9 +52,10 @@ func test_several_blocks_and_duplicates() -> void:
 
 
 func test_checks() -> void:
-	var text := "```json\n{\"checks\": [{\"title\": \"La escena corre\", \"ok\": true}, {\"name\": \"Sin errores\", \"status\": \"fail\", \"detail\": \"2 errores\"}, \"Captura revisada\", {\"ok\": true}]}\n```"
+	var text := "```json\n{\"checks\": [{\"label\": \"La escena corre\", \"status\": \"pass\"}, {\"name\": \"Sin errores\", \"status\": \"fail\", \"detail\": \"2 errores\"}, \"Captura revisada\", {\"title\": \"Puntaje\", \"ok\": true}, {\"ok\": true}]}\n```"
 	var checks: Array = FindingsParser.parse(text).checks
-	assert_eq(checks.size(), 3, "el que no tiene título se descarta")
-	assert_eq(checks[0], {"title": "La escena corre", "ok": true, "detail": ""}, "ok bool")
-	assert_eq(checks[1], {"title": "Sin errores", "ok": false, "detail": "2 errores"}, "status string")
-	assert_eq(checks[2].title, "Captura revisada", "string suelto")
+	assert_eq(checks.size(), 4, "el que no tiene etiqueta se descarta")
+	assert_eq(checks[0], {"label": "La escena corre", "status": "pass", "detail": ""}, "formato del spec")
+	assert_eq(checks[1], {"label": "Sin errores", "status": "fail", "detail": "2 errores"}, "fail con detalle")
+	assert_eq(checks[2].status, "pending", "string suelto: pendiente")
+	assert_eq(checks[3].status, "pass", "ok bool")

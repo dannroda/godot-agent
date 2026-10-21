@@ -1,0 +1,18 @@
+; Proyecto sandbox para correr One-shots (M6). No se abre acá: tests/make_sandbox.sh lo copia
+; fuera del repo junto con el addon, hace git init y el primer commit.
+
+config_version=5
+
+[application]
+
+config/name="Sandbox One-shot"
+config/features=PackedStringArray("4.4")
+
+[display]
+
+window/size/viewport_width=1152
+window/size/viewport_height=648
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_agent/plugin.cfg")

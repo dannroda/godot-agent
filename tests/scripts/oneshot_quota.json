@@ -1,0 +1,229 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Paletas y pelota",
+        "priority": "high",
+        "status": "in_progress"
+       },
+       {
+        "content": "Puntaje y saque",
+        "priority": "high",
+        "status": "pending"
+       },
+       {
+        "content": "Playtest final",
+        "priority": "high",
+        "status": "pending"
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run1",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run1",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       },
+       {
+        "type": "content",
+        "content": {
+         "type": "image",
+         "mimeType": "image/png",
+         "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAE0lEQVR4nGOQk7MhCTGMahgUGgAX/0OBMe64CQAAAABJRU5ErkJggg=="
+        }
+       }
+      ]
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.91,
+      "seven_day": 0.4,
+      "status": "allowed_warning",
+      "resets_in": 6
+     }
+    },
+    {
+     "chunk": "Verificaciones:\n```json\n{\"checks\": [{\"label\": \"La escena carga sin errores\", \"status\": \"pass\"}, {\"label\": \"Se anota el puntaje\", \"status\": \"pending\"}]}\n```"
+    },
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Paletas y pelota",
+        "priority": "high",
+        "status": "completed"
+       },
+       {
+        "content": "Puntaje y saque",
+        "priority": "high",
+        "status": "in_progress"
+       },
+       {
+        "content": "Playtest final",
+        "priority": "high",
+        "status": "pending"
+       }
+      ]
+     }
+    },
+    {
+     "delay": 3
+    },
+    {
+     "chunk": "Esto no debería llegar: el harness cancela antes."
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "chunk": "Retomo «Puntaje y saque»."
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "limit": {
+      "resets_in": 6
+     }
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "quota": {
+      "five_hour": 0.05,
+      "seven_day": 0.41,
+      "status": "allowed",
+      "resets_in": 18000
+     }
+    },
+    {
+     "chunk": "Retomo de nuevo."
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run2",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run2",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       },
+       {
+        "type": "content",
+        "content": {
+         "type": "image",
+         "mimeType": "image/png",
+         "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAE0lEQVR4nGOQk7MhCTGMahgUGgAX/0OBMe64CQAAAABJRU5ErkJggg=="
+        }
+       }
+      ]
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Paletas y pelota",
+        "priority": "high",
+        "status": "completed"
+       },
+       {
+        "content": "Puntaje y saque",
+        "priority": "high",
+        "status": "completed"
+       },
+       {
+        "content": "Playtest final",
+        "priority": "high",
+        "status": "in_progress"
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Paletas y pelota",
+        "priority": "high",
+        "status": "completed"
+       },
+       {
+        "content": "Puntaje y saque",
+        "priority": "high",
+        "status": "completed"
+       },
+       {
+        "content": "Playtest final",
+        "priority": "high",
+        "status": "completed"
+       }
+      ]
+     }
+    },
+    {
+     "chunk": "Verificaciones:\n```json\n{\"checks\": [{\"label\": \"La escena carga sin errores\", \"status\": \"pass\"}, {\"label\": \"Se anota el puntaje\", \"status\": \"pass\"}]}\n```"
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,253 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Paletas y pelota",
+        "priority": "high",
+        "status": "in_progress"
+       },
+       {
+        "content": "Puntaje y saque",
+        "priority": "high",
+        "status": "pending"
+       },
+       {
+        "content": "Playtest final",
+        "priority": "high",
+        "status": "pending"
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run1",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run1",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       },
+       {
+        "type": "content",
+        "content": {
+         "type": "image",
+         "mimeType": "image/png",
+         "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAE0lEQVR4nGOQk7MhCTGMahgUGgAX/0OBMe64CQAAAABJRU5ErkJggg=="
+        }
+       }
+      ]
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run2",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run2",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       },
+       {
+        "type": "content",
+        "content": {
+         "type": "image",
+         "mimeType": "image/png",
+         "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAE0lEQVR4nGOQk7MhCTGMahgUGgAX/0OBMe64CQAAAABJRU5ErkJggg=="
+        }
+       }
+      ]
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run3",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run3",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       },
+       {
+        "type": "content",
+        "content": {
+         "type": "image",
+         "mimeType": "image/png",
+         "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAE0lEQVR4nGOQk7MhCTGMahgUGgAX/0OBMe64CQAAAABJRU5ErkJggg=="
+        }
+       }
+      ]
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run4",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run4",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       },
+       {
+        "type": "content",
+        "content": {
+         "type": "image",
+         "mimeType": "image/png",
+         "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAE0lEQVR4nGOQk7MhCTGMahgUGgAX/0OBMe64CQAAAABJRU5ErkJggg=="
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.5
+    },
+    {
+     "chunk": "Primera tarea en curso."
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "chunk": "Uso esos colores."
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run5",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run5",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       },
+       {
+        "type": "content",
+        "content": {
+         "type": "image",
+         "mimeType": "image/png",
+         "data": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAE0lEQVR4nGOQk7MhCTGMahgUGgAX/0OBMe64CQAAAABJRU5ErkJggg=="
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 3
+    },
+    {
+     "chunk": "No debería llegar."
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "chunk": "Reporte final: paletas listas, falta el puntaje."
+    },
+    {
+     "chunk": "Verificaciones:\n```json\n{\"checks\": [{\"label\": \"La escena carga sin errores\", \"status\": \"pass\"}, {\"label\": \"Se anota el puntaje\", \"status\": \"fail\"}]}\n```"
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

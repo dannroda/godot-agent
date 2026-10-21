@@ -785,7 +785,7 @@ review_check.gd ubica la línea esperada buscando el código, y con Claude real 
 Observado (D23): en plan mode Claude Code ejecuta comandos de solo lectura y escribe su archivo de plan fuera del proyecto sin pedirle permiso al cliente. El log perm quedó vacío en Revisar.
 progress.md tiene la sección M5.
 
-## M6 — One-shot  (0/8)
+## M6 — One-shot  (8/8, 8 en revisión)
 
 Pantalla principal completa, checkpoints git, presupuestos, checks, "Guiar al agente" y reglas de cuota del plan (§10.1).
 
@@ -793,57 +793,166 @@ Pantalla principal completa, checkpoints git, presupuestos, checks, "Guiar al ag
 - En un proyecto vacío: "Pong de 2 jugadores con puntaje" completa al menos un playtest con captura, crea checkpoints y "Volver acá" restaura correctamente.
 - Con el agente falso simulando la cuota al 90 % y después un error de límite con hora de reinicio: el One-shot pausa al terminar la tarea, crea cpN-quota, muestra la cuenta regresiva y retoma solo (o con confirmación) desde la tarea correcta.
 
-### 6.1 Pantalla principal One-shot · Pendiente
+### 6.1 Pantalla principal One-shot · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
 Barra superior: objetivo, estado/fase, presupuestos con barras (cuota de la ventana, tiempo, tokens, playtests), la regla de cuota activa en una línea ("se pausa al 90 % en el próximo checkpoint"), cuenta regresiva hasta el reinicio en "Limitado", y Pausar/Detener (spec §9.2 actualizado). Columnas Plan (editable), Actividad (con "Guiar al agente") y Playtest/Verificaciones/Checkpoints. Barra inferior con resumen de cambios, "Revisar cambios" y "Aceptar todo" (docs/design pantalla 2).
 
-### 6.2 Checkpoints git · Pendiente
+**Prueba:** tests/run_in_xvfb.sh $G --godot-agent-oneshot-test [--godot-agent-ui-shot=…] (addons/godot_agent_dev/oneshot_ui_check.gd, agente falso con tests/scripts/oneshot_ui.json sobre un repo git temporal en user://). PASS en 4.4.1, 4.7.2 y 4.8-beta1. Recorre:
+- el formulario: no deja iniciar sin objetivo;
+- en "Pausado por cuota": fase "fase 2 de 3", objetivo, banner, cuenta regresiva, regla, barras de cuota y playtests, Retomar, 3 tareas, 2 verificaciones, 3 checkpoints, captura y actividad;
+- en "Limitado": ⏳, banner de límite y cp4-quota;
+- espera la confirmación y Retomar;
+- al terminar: resumen "1 archivo cambiado · 0 escenas · 1 script", "Nuevo One-shot" y banner de fin;
+- Revisar cambios: lista y diff contra la base;
+- Volver acá a cp2 borra pong.gd y recarga;
+- Aceptar todo deja las dos ramas.
+Cycle test de 5 ciclos sin huérfanos en las tres versiones. Capturas revisadas a ojo.
+
+**Notas:** ui/main_screen/agent_main_screen.gd:
+- formulario con objetivo, presupuestos (defaults de project_config) y checkpoints; preflight, y diálogo de WIP si hay cambios sin commitear;
+- barra superior: OBJETIVO · ONE-SHOT, fase y "fase n de m", Pausar/Retomar, Detener (o Nuevo One-shot), el objetivo, y la grilla Cuota/Tiempo/Tokens/Playtests (4 columnas, 2 si es angosta), con la regla de cuota y la cuenta regresiva;
+- banner de cuota o de fin;
+- columnas:
+  - Plan: ✓ ● ○, con "Editar" que manda el texto como guía;
+  - Actividad: RichTextLabel con hora y tipo, más "Guiar al agente";
+  - Último playtest, Verificaciones y Checkpoints con "Volver acá" (con confirmación);
+- barra inferior: archivos, escenas y scripts, +/−, Revisar cambios (lista; doble clic emite diff_requested hacia el DiffDialog) y Aceptar todo (con confirmación).
+El resumen se recalcula con debounce de 2 s después de la actividad.
+Plugin:
+- crea OneShotRun (after_restore recarga las escenas abiertas y pasa los scripts por EditorSync; restart_session usa el perfil activo; resume_auto sale de Settings);
+- elegir One-shot en el dock abre la pantalla Agent;
+- con un One-shot en curso, el composer del dock manda "Guiar al agente";
+- EditorSurfaces.make_visible(MAIN_SCREEN) con la API vieja usa set_main_screen_editor.
+git_checkpoints.changes_summary ahora corre solo en la rama del agente.
+
+### 6.2 Checkpoints git · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 git con OS.execute y args en array: repo limpio o commit WIP con confirmación, rama agent/<timestamp>, commit cpN antes de cada tarea del plan, "Volver acá" con reset --hard solo en la rama del agente + scan + recarga de escenas. Nunca merge ni push. Sin git: se desactiva con aviso.
 
-### 6.3 Loop One-shot y presupuestos · Pendiente
+**Prueba:** run_all -- git_checkpoints (2 tests, 33 checks) en 4.4.1, 4.7.2 y 4.8 sobre un repo temporal con el proyecto en una subcarpeta:
+- sin git o sin repo se desactiva con el motivo;
+- con cambios del usuario, el WIP va a la rama agent/<ts> y main no se toca;
+- cp1 "Estado inicial" y cpN;
+- changes_summary sin .godot;
+- restore deja player.gd como en cp2, borra los archivos nuevos (también los sin commitear), no toca .godot/ ni los cambios sin commitear fuera del proyecto, y descarta los checkpoints posteriores;
+- fuera de la rama del agente no commitea ni restaura;
+- accept deja las dos ramas, sin merge.
+oneshot_check también verifica la cadena de commits cp1…cp5.
+
+**Notas:** oneshot/git_checkpoints.gd:
+- OS.execute("git", ["-C", root, …]) en un Thread, esperando frames;
+- pathspec "-- . :(exclude).godot" en add/status/diff/checkout/clean;
+- start(): checkout -b agent/<ts>, WIP si había cambios (en la rama del agente; la confirmación la pide la UI) y cp1;
+- checkpoint(label, suffix) hace commit --allow-empty --no-verify "cpN[-quota]: label";
+- restore() equivale a un reset --hard limitado a la carpeta del proyecto: reset --mixed sha + checkout -- . + clean -fd. Devuelve las rutas cambiadas para recargar el editor y solo corre en la rama del agente;
+- changes_summary() = add -A + diff --cached --numstat contra la base;
+- base_text() para los diffs;
+- accept() hace el commit final. Nunca merge ni push.
+Sin user.email configurado usa -c user.name/user.email de fallback.
+
+### 6.3 Loop One-shot y presupuestos · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Prompt inicial (objetivo, modo, plan, bloque checks, run_scene/capture/get_errors tras cada tarea). Presupuestos de tiempo, tokens y playtests: aviso al 80%, al 100% session/cancel + prompt de cierre con reporte final. "Guiar al agente" encola un prompt para el fin del turno.
 
-### 6.4 Proyecto sandbox para one-shots · Pendiente
+**Prueba:** tests/oneshot_check.gd (headless, agente falso, 30 checks) en 4.4.1, 4.7.2 y 4.8:
+- escenario oneshot_quota: prompt inicial con objetivo y bloque checks; checkpoints por tarea; playtest contado; captura; checks; pausa por cuota; límite; reanudación sola y con confirmación; fin del plan;
+- escenario oneshot_budget: aviso al 80 % de playtests; la guía va al terminar el turno; al 100 %, session/cancel y prompt de cierre con reporte final; motivo de fin; checks del reporte.
+
+**Notas:** oneshot/oneshot_run.gd (Node), fases IDLE/PREPARING/RUNNING/PAUSED/PAUSED_QUOTA/LIMITED/WAITING_CONFIRM/CLOSING/FINISHED.
+- preflight(use_checkpoints) → {needs_wip_confirm, warning}; start(goal, budgets, checkpoints).
+- Turnos con controller.send_in_mode(ONESHOT). Checks del texto de cada turno (FindingsParser, formato del spec {label, status}).
+- Checkpoint al pasar una entrada del plan a in_progress.
+- Auto-continuación si quedan tareas pendientes (máx. 3 turnos seguidos sin avance).
+- Guía encolada para el fin del turno. edit_plan → guía.
+- Presupuestos:
+  - tiempo activo, sin pausas ni limitado;
+  - tokens = input + output + cache writes del usage de session/prompt, sin las lecturas de caché (D24);
+  - playtests = run_scene completados.
+  Aviso al 80 % (notice + actividad); al 100 %, cancel y prompt de cierre.
+- Actividad con hh:mm:ss desde el inicio. Última captura = imagen en el contenido de un tool call.
+- pause/resume/stop/restore/accept_all/changes_summary. Sesión perdida: sesión nueva con un prompt resumen (plan, checks, checkpoints).
+- Operaciones git serializadas (_git).
+
+### 6.4 Proyecto sandbox para one-shots · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
 
 tests/sandbox_project/ separado (con .gdignore para el anfitrión) para correr one-shots; nunca sobre el proyecto del addon.
 
-### 6.5 Verificar M6 · Pendiente
+**Prueba:** tests/make_sandbox.sh <dir fuera del repo> --dev crea el proyecto, copia el addon (y el de dev), hace git init y el commit "Sandbox inicial". Se niega a usar un destino dentro del repo y a pisar una carpeta que no sea un sandbox (marca .sandbox_one_shot). Import headless de 4.8 sin errores. XRUN_PROJECT=<sandbox> tests/run_in_xvfb.sh … abre el editor sobre el sandbox; ahí corre --godot-agent-claude-oneshot-test (m6-05).
+
+**Notas:** tests/sandbox_project/ (.gdignore para que el proyecto del addon no lo importe) contiene:
+- project.godot (features 4.4, solo el plugin godot_agent);
+- CLAUDE.md con las convenciones del sandbox (scenes/, scripts/, no tocar addons/, verificar con godot.*, sin commits);
+- .gitignore con .godot/.
+tests/make_sandbox.sh lo copia fuera del repo con el addon y --dev habilita godot_agent_dev. Nunca se corre un One-shot sobre el proyecto del addon: los checkpoints crean ramas y "Volver acá" resetea la carpeta.
+run_in_xvfb.sh acepta XRUN_PROJECT para abrir otro proyecto.
+
+### 6.5 Verificar M6 · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 En el sandbox: "Pong de 2 jugadores con puntaje" completa al menos un playtest con captura, crea checkpoints y "Volver acá" restaura correctamente. Cuota (spec M6 actualizado): con el agente falso simulando la cuota al 90 % y después un error de límite con hora de reinicio, el One-shot pausa al terminar la tarea, crea cpN-quota, muestra la cuenta regresiva y retoma solo (o con confirmación) desde la tarea correcta. Actualizar progress.
 
+**Prueba:** Suites (4.4.1, 4.7.2 y 4.8-beta1): run_all 78 tests / 509 checks, acp_session_check 70, oneshot_check 34 (cuota al 91 % → pausa al terminar la tarea con su checkpoint, reinicio y retoma solo; límite a mitad de turno → cp4-quota, cuenta regresiva y espera de confirmación; presupuestos; guía; sin plan). En el editor: --godot-agent-oneshot-test (pantalla Agent, barras, banner, diff, Volver acá, Aceptar todo), --godot-agent-ui-test=ui_quota, cycle test. Claude Code real en el sandbox (tests/make_sandbox.sh <dir> --dev; XRUN_PROJECT=<dir> tests/run_in_xvfb.sh $G --godot-agent-claude-oneshot-test), tercera corrida: Pong con todos los checks en pass, 4 playtests con captura, 5 checkpoints, 114k tokens, 6,6 min, y Volver acá a cp4 sin diff ni archivos sin seguimiento. El árbol del commit de M6 (sin lo de M7) se probó aparte con las mismas suites.
+
+**Notas:** Tres corridas reales, detalladas en docs/progress.md (M6 · One-shot con Claude Code real).
+1. Checkpoints apagados después de cp1: con .godot/ en el .gitignore, `git add` rechaza el pathspec :(exclude).godot. Ahora, si .godot/ está ignorado, el pathspec es `-- .`, y si start() falla vuelve a la rama del usuario. Además Claude no usó herramienta de plan.
+2. Con un checkpoint por playtest anduvo, pero el fin de turno se tomaba como final aunque quedaran checks en fail o pending.
+3. Sin plan, el harness sigue mientras queden checks sin pasar (hasta MAX_IDLE_CONTINUES turnos sin un playtest nuevo). Terminó sola con todo en pass.
+La actividad recorta los comandos de shell a una línea. Con plan vacío y el run terminado, la columna Plan explica que el avance sale de los checks. La corrida 3 no guardó capturas: faltó --godot-agent-ui-shot. Las de la corrida 2 están en el scratchpad de la sesión.
+
 **Bloqueada por:** 6.8 Reglas de cuota en One-shot: pausa, Limitado y reanudación
 
-### 6.6 QuotaMonitor: fuentes, estados y umbrales · Pendiente
+### 6.6 QuotaMonitor: fuentes, estados y umbrales · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude · **Etiquetas:** `quota`
 
 Spec §10.1. Fuentes, en orden: (1) campos de cuota del `usage_update` (los de m1-13); (2) avisos y errores de límite, con parseo tolerante y patrones en un archivo editable del addon; (3) sin datos: solo tokens de sesión y "desconocido". Estados normal / aviso / pausa_programada / limitado / desconocido, expuestos al SessionModel. Umbrales por usuario en EditorSettings godot_agent/: aviso (75 %), pausa del One-shot (90 % o nunca), y al reiniciar la ventana retomar solo o esperar confirmación. Hora de reinicio conocida → timer; sin hora → backoff 5, 10, 20 y luego cada 60 min. Tests unitarios con payloads del agente falso.
 
+**Prueba:** run_all -- quota: test_quota_monitor (7 tests, 49 checks): estados con payloads del agente falso, umbrales configurables, pausa desactivable, resetsAt exacto vs texto, backoff 5/10/20/60/60 y reinicio del backoff, parse_reset_time (HH:MM, am/pm, "reinicia a las", unix viejo), format_duration. acp_session_check (70 checks): con el agente falso normal → pausa programada (91 %) → limitado, ~120 s hasta el reinicio y la transición logueada en el canal quota.
+
+**Notas:** core/quota_monitor.gd:
+- estados UNKNOWN/NORMAL/WARNING/PAUSE_SCHEDULED/LIMITED;
+- ventanas five_hour/seven_day {utilization, resets_at} leídas de unifiedWindows;
+- "limitado" entra por status rejected, por texto o por error de límite, y sale con status allowed* o con un turno end_turn sin texto de límite;
+- hora de reinicio: el resetsAt exacto de la cuota rejected, si no la del texto (parse tolerante), si no backoff;
+- retry_due / seconds_until_retry / note_retry, rule_text(), describe_window(), format_duration();
+- cada transición se loguea en el canal quota.
+Umbrales en EditorSettings godot_agent/quota/: warn_percent 75, pause_percent 90, pause_enabled, resume_mode (Retomar solo / Esperar confirmación). El plugin los aplica al arrancar y con settings_changed.
+El estado queda en SessionController.quota, que la UI lee por el controller; SessionController.last_turn_usage guarda el usage del session/prompt para el presupuesto de tokens.
+
 **Bloquea a:** 6.7 Medidor de cuota en el dock y bloqueo en Limitado; 6.8 Reglas de cuota en One-shot: pausa, Limitado y reanudación
 
 **Bloqueada por:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
 
-### 6.7 Medidor de cuota en el dock y bloqueo en Limitado · Pendiente
+### 6.7 Medidor de cuota en el dock y bloqueo en Limitado · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `quota`
 
 Spec §9.1 y §10.1 (fuera de One-shot): barras de la ventana actual y semanal, con porcentaje y tiempo hasta el reinicio. Si el agente no informa cuota, se ocultan y queda el medidor de contexto del composer, con un tooltip que dice que el agente no la informa. En el dock solo hay avisos; en "Limitado", el botón enviar se deshabilita y muestra la cuenta regresiva.
 
+**Prueba:** tests/run_in_xvfb.sh $G --godot-agent-ui-test=ui_quota (tests/scripts/ui_quota.json: cuota 82 % y después límite con reinicio en 90 min). Verifica que el botón enviar queda deshabilitado con "⏳ …" y que el medidor se ve. PASS en 4.4.1, 4.7.2 y 4.8-beta1. Captura revisada a ojo: barras de ventana y semana, aviso "Cuota del plan al 82 %", aviso de límite con "se reinicia en 1 h 30 min" y botón "⏳ 1 h 30 min".
+
+**Notas:** ui/dock/quota_meter.gd, debajo del estado:
+- filas "Ventana N % · reinicia en …" y "Semana N % · …" con ProgressBar fina, color por umbral (acento, aviso, pausa, límite);
+- en "limitado", la cuenta regresiva;
+- oculto sin datos del agente; el tooltip del medidor de contexto del composer dice entonces "El agente no informa la cuota del plan".
+Dock:
+- un aviso en el chat al pasar a aviso o pausa programada, y otro al pasar a limitado;
+- Composer.set_locked deshabilita el envío (incluido Ctrl+Enter) con "⏳ <tiempo>" hasta el próximo intento permitido (reinicio o backoff);
+- un timer de 1 s refresca la cuenta.
+tests/run_in_xvfb.sh ahora usa una pantalla de 1920×1200: con 900 de alto, el editor 4.8 no entraba y el composer quedaba fuera de la captura.
+
 **Bloqueada por:** 6.6 QuotaMonitor: fuentes, estados y umbrales
 
-### 6.8 Reglas de cuota en One-shot: pausa, Limitado y reanudación · Pendiente
+### 6.8 Reglas de cuota en One-shot: pausa, Limitado y reanudación · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude · **Etiquetas:** `quota`
 
@@ -855,11 +964,27 @@ Spec §10.1.
 - El tiempo en Limitado no cuenta contra el presupuesto de tiempo.
 - Barra superior: cuota de la ventana, regla activa en una línea ("se pausa al 90 % en el próximo checkpoint") y cuenta regresiva en Limitado.
 
+**Prueba:** tests/oneshot_check.gd, escenario de cuota (headless, 4.4.1, 4.7.2 y 4.8):
+- al 91 % la tarea en curso termina; al empezar la siguiente se crea cp3 y se corta el turno: no llega el texto posterior;
+- "Pausado por cuota" retoma solo al reiniciarse la ventana, con el prompt "Continuá con el plan desde la tarea «Puntaje y saque»; el estado está en el checkpoint cp3";
+- con el límite a mitad de turno: cp4-quota, "Limitado" y cuenta regresiva;
+- con resume_auto=false espera confirmación, y el tiempo en Limitado no cuenta;
+- Retomar sigue desde cp4-quota;
+- la cadena de commits es cp1…cp5.
+En la UI (--godot-agent-oneshot-test): banner de cuota y de límite, la regla de cuota y la cuenta regresiva en la barra superior, y Retomar en "Listo para retomar".
+
+**Notas:** En oneshot_run.gd:
+- _pause_for_quota: el checkpoint de la siguiente tarea y session/cancel;
+- _enter_limited: tool calls pendientes pasan a cancelled, cpN-quota una sola vez por episodio y fase LIMITED;
+- _tick: retry_due o resets_at llama a _on_quota_back, que retoma o pasa a WAITING_CONFIRM según Settings (quota/resume_mode).
+Si la sesión se perdió, resume() abre una sesión nueva con _summary_prompt (objetivo, plan, checks y checkpoints). Se eligió sesión nueva y no session/load: Claude Code no anuncia loadSession de forma confiable, y el resumen alcanza para retomar.
+El banner de la pantalla Agent: aviso (≥ umbral), pausa programada (texto de rule_text) y límite con la cuenta. El canal quota del Agent Log ya registra cada transición (m6-06).
+
 **Bloquea a:** 6.5 Verificar M6
 
 **Bloqueada por:** 6.6 QuotaMonitor: fuentes, estados y umbrales
 
-## M7 — Pulido  (0/7)
+## M7 — Pulido  (3/7, 3 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -912,7 +1037,7 @@ Alternarlo 5 veces con `EditorInterface.set_plugin_enabled()` desde otro plugin 
 
 **Prueba:** Issue abierto en godotengine/godot con el repro adjunto y su link en notes. Si se arregla upstream, `tests/plugin_cycle_check.gd` pasa en esa versión con la main screen por `_has_main_screen()`.
 
-### 7.2 Diálogo de Settings completo · Pendiente
+### 7.2 Diálogo de Settings completo · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
@@ -925,23 +1050,59 @@ Navegación según docs/design pantalla 4. Secciones:
 - Checkpoints on/off, ubicación del dock, color de acento, aviso y botón de filtro de presets.
 Diálogo propio (no Project Settings: escribiría en project.godot).
 
+**Prueba:** `$G --headless --path . --script tests/run_all.gd -- test_settings` (3 tests, 21 checks: defaults validan, secreto literal en env rechazado y $VAR aceptado, ids repetidos, un solo predeterminado, pausa > aviso, carpetas absolutas, overrides de la matriz solo con lo que difiere, formulario de perfil). En el editor: `tests/run_in_xvfb.sh $G --godot-agent-settings-shots=<prefijo>` abre Settings desde el botón del dock, guarda una captura por sección y comprueba que Guardar aplica la matriz en caliente y escribe project_config.tres. Pasa en 4.4.1, 4.7.2 y 4.8-beta1; suite completa 84 tests / 569 checks en las tres.
+
+**Notas:** ui/settings/settings_dialog.gd reemplaza a profiles_dialog.gd (JSON de M1, borrado). El dock emite settings_requested y el plugin abre el diálogo, porque necesita la config del proyecto y el server MCP.
+- Por usuario (EditorSettings godot_agent/): perfiles, puerto MCP, cuota (aviso, pausa on/off y umbral, retomar solo o esperar), color y ubicación del dock (nuevo ui/dock_slot, que se aplica a EditorSurfaces.side_slot).
+- Por proyecto (project_config.tres): matriz de permisos (solo overrides respecto de la spec), timeout de preguntas, max_output_chars, max_image_side, playtest en runs manuales, carpetas extra para fs/*, presupuestos y checkpoints.
+- Guardar valida antes y aplica en caliente: policy.overrides, fs.extra_roots, límites del registry y run_tools, defaults de la pantalla One-shot. La cuota llega por settings_changed.
+- El puerto, el color y la ubicación del dock se aplican al reabrir el editor; con EditorDock (4.8) la ubicación es solo la inicial.
+- "Regenerar token" reinicia el server en el mismo puerto; las sesiones abiertas quedan con el token viejo.
+- Export: lista los presets sin filtro y lo agrega, previa confirmación.
+- Un agente sin comando es válido (el default de Codex viene así) y su tarjeta dice "sin comando".
+
 ### 7.3 Historial de sesiones · Pendiente
 
 **Prioridad:** media · **Tamaño:** M · **Responsable:** Claude
 
 user://godot_agent/sessions/<id>.json con eventos ACP normalizados; lista en el dock para reabrir y mostrar; session/load para reanudar si el agente lo soporta.
 
-### 7.4 Markdown→BBCode robusto · Pendiente
+### 7.4 Markdown→BBCode robusto · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
 
 Párrafos, títulos, negrita, itálica, code inline, bloques de código, listas (anidadas), links, escapado de corchetes BBCode. Tests unitarios con casos borde.
 
-### 7.5 Rendimiento con sesiones largas · Pendiente
+**Prueba:** run_all -- markdown: test_markdown_bbcode (6 tests, 57 checks) en 4.4.1, 4.7.2 y 4.8. Casos borde:
+- en línea: ***negrita e itálica***, énfasis anidado, escapes con \, code spans con `` ` `` adentro y relleno, dos spans por línea, link dentro de code (no se convierte), code y énfasis dentro del texto de un link, paréntesis en la URL, guiones bajos en URL sueltas, marcas sin cerrar literales, BBCode del agente escapado y \ dentro de code;
+- bloques: listas anidadas (•/◦), continuación de un ítem, ~~~, fence largo que contiene uno corto, bloque dentro de una lista, saltos forzados (dos espacios y \), citas anidadas y con lista, "#sin espacio" que no es título, code en un título y regla ***;
+- tags siempre balanceados, aun con marcas cruzadas (**a *b** c*).
+
+**Notas:** ui/markdown/markdown_bbcode.gd:
+- Antes de cualquier formato, `\X` pasa a caracteres de uso privado (U+E000+X) y los code spans a U+E100+n. Así, ni el énfasis ni los links ven lo que hay adentro, y un span dentro del texto de un link se renderiza bien.
+- Code spans de N backticks con el relleno de un espacio.
+- Links con un nivel de paréntesis en la URL.
+- Fences ``` y ~~~: cierra uno del mismo carácter y por lo menos igual de largo.
+- Las líneas indentadas después de un ítem siguen el ítem.
+- Salto forzado con dos espacios o `\` al final.
+- Citas con profundidad (▎ por nivel) y con bloque adentro.
+- _balance() cierra y reabre b/i/s cruzados.
+
+### 7.5 Rendimiento con sesiones largas · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Responsable:** Claude
 
 Más de 500 entradas sin degradación: límite de nodos vivos en la lista (las viejas se colapsan o se cargan bajo demanda), batch de chunks por frame. Medido con un guion largo del agente falso.
+
+**Prueba:** tests/run_in_xvfb.sh $G --godot-agent-long-test (addons/godot_agent_dev/long_session_check.gd): el agente falso manda un turno de 641 entradas, 320 mensajes en Markdown de 12 chunks cada uno, alternados con tool calls. Antes del cambio, un frame tardó 3951 ms: toda la ráfaga en un solo frame, con 391 vistas armadas y tiradas. Ahora, en 4.8 con OpenGL por software en Xvfb: p95 45–97 ms y peor frame 105–129 ms (umbrales del check: 120 y 400). Quedan 250 vistas vivas y 391 ocultas, el último mensaje está completo y "Mostrar anteriores" agrega 50. run_all, acp_session_check y oneshot_check siguen pasando.
+
+**Notas:** - transport/agent_process.gd: el thread lector encola las líneas de stdout y el hilo principal las entrega con un presupuesto de 6 ms por frame. Lo que sobra sigue en process_frame: con call_deferred correría en la misma vuelta de la cola de mensajes. El exit espera a la última línea encolada. stderr sigue con call_deferred.
+- ui/dock/conversation_view.gd:
+  - las vistas nuevas se arman por tandas con 8 ms por frame;
+  - si una ráfaga trae más entradas que el tope, las que quedarían ocultas no se arman;
+  - los refrescos (tool groups, plan, permisos) se agrupan a uno por vista y por frame;
+  - "N entradas anteriores ocultas" pasó a ser el botón "Mostrar 50 anteriores (N ocultas)", que arma las previas arriba y sube el tope hasta la próxima sesión.
+- agent_message_view ya convertía el Markdown una vez por frame.
 
 ### 7.6 README de uso · Pendiente
 

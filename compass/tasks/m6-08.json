@@ -11,16 +11,16 @@
     }
   ],
   "milestone": "m06",
-  "notes": "",
+  "notes": "En oneshot_run.gd:\n- _pause_for_quota: el checkpoint de la siguiente tarea y session/cancel;\n- _enter_limited: tool calls pendientes pasan a cancelled, cpN-quota una sola vez por episodio y fase LIMITED;\n- _tick: retry_due o resets_at llama a _on_quota_back, que retoma o pasa a WAITING_CONFIRM según Settings (quota/resume_mode).\nSi la sesión se perdió, resume() abre una sesión nueva con _summary_prompt (objetivo, plan, checks y checkpoints). Se eligió sesión nueva y no session/load: Claude Code no anuncia loadSession de forma confiable, y el resumen alcanza para retomar.\nEl banner de la pantalla Agent: aviso (≥ umbral), pausa programada (texto de rule_text) y límite con la cuenta. El canal quota del Agent Log ya registra cada transición (m6-06).",
   "order": 8,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "quota"
   ],
-  "test": "",
+  "test": "tests/oneshot_check.gd, escenario de cuota (headless, 4.4.1, 4.7.2 y 4.8):\n- al 91 % la tarea en curso termina; al empezar la siguiente se crea cp3 y se corta el turno: no llega el texto posterior;\n- \"Pausado por cuota\" retoma solo al reiniciarse la ventana, con el prompt \"Continuá con el plan desde la tarea «Puntaje y saque»; el estado está en el checkpoint cp3\";\n- con el límite a mitad de turno: cp4-quota, \"Limitado\" y cuenta regresiva;\n- con resume_auto=false espera confirmación, y el tiempo en Limitado no cuenta;\n- Retomar sigue desde cp4-quota;\n- la cadena de commits es cp1…cp5.\nEn la UI (--godot-agent-oneshot-test): banner de cuota y de límite, la regla de cuota y la cuenta regresiva en la barra superior, y Retomar en \"Listo para retomar\".",
   "title": "Reglas de cuota en One-shot: pausa, Limitado y reanudación",
-  "updated_at": "2026-10-21T06:17:06.408Z"
+  "updated_at": "2026-10-21T07:50:09.025Z"
 }

@@ -26,6 +26,10 @@ var _model_button: OptionButton
 var _send_button: Button
 var _screenshot_button: Button
 var _busy: bool = false
+## Motivo del bloqueo del envío (límite del plan, con la cuenta regresiva); "" = sin bloqueo.
+var _lock_text: String = ""
+var _lock_tooltip: String = ""
+var _usage_hint: String = ""
 var _commands: Array = []
 var _model_values: PackedStringArray = []
 
@@ -118,6 +122,19 @@ func set_enabled(enabled: bool) -> void:
 	_update_send_button()
 
 
+## Bloquea el envío mientras dure el límite del plan (spec §10.1). `text` va en el botón.
+func set_locked(text: String, tooltip: String = "") -> void:
+	_lock_text = text
+	_lock_tooltip = tooltip
+	_update_send_button()
+
+
+## Texto extra del tooltip del medidor de contexto (por ejemplo, que el agente no informa la cuota).
+func set_usage_hint(hint: String) -> void:
+	_usage_hint = hint
+	_meter.tooltip_text = _meter.tooltip_text.get_slice("\n", 0) + ("\n" + hint if not hint.is_empty() else "")
+
+
 func set_commands(commands: Array) -> void:
 	_commands = commands
 
@@ -133,7 +150,7 @@ func set_usage(used: int, total: int) -> void:
 		return
 	_meter.text = "%s / %s" % [_short_number(used), _short_number(total)]
 	var ratio := float(used) / float(total)
-	_meter.tooltip_text = "Contexto usado: %d%%" % int(ratio * 100.0)
+	_meter.tooltip_text = "Contexto usado: %d%%" % int(ratio * 100.0) + ("\n" + _usage_hint if not _usage_hint.is_empty() else "")
 	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= 0.8 else AgentTheme.MUTED)
 
 
@@ -207,7 +224,7 @@ func _on_send_pressed() -> void:
 
 func _submit() -> void:
 	var value := _input.text.strip_edges()
-	if value.is_empty() or _busy:
+	if value.is_empty() or _busy or not _lock_text.is_empty():
 		return
 	submitted.emit(value)
 
@@ -248,6 +265,10 @@ func _update_send_button() -> void:
 		_send_button.text = "■ Detener"
 		_send_button.tooltip_text = "Detener el turno (Esc)"
 		_send_button.disabled = false
+	elif not _lock_text.is_empty():
+		_send_button.text = _lock_text
+		_send_button.tooltip_text = _lock_tooltip
+		_send_button.disabled = true
 	else:
 		_send_button.text = "Enviar ➤"
 		_send_button.tooltip_text = "Enviar (Ctrl+Enter)"

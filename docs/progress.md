@@ -330,3 +330,92 @@ Con Claude Code real (4.8 y 4.4.1), los tres bugs quedaron anotados en su línea
 - Conteos por archivo en la lista de scripts del Script Editor (D23).
 - Seguir las ediciones para mover las marcas: hoy hay que volver a revisar.
 
+
+## M6 · One-shot y cuota del plan
+
+### Qué hay
+
+- **Cuota del plan** (`core/quota_monitor.gd`, spec §10.1, D22):
+  - estados normal / aviso / pausa programada / limitado / desconocido;
+  - ventanas actual y semanal, leídas del `usage_update` del agente; el texto y el error de límite pasan a "limitado";
+  - hora de reinicio exacta o, si no se conoce, backoff de 5, 10, 20 y cada 60 min;
+  - umbrales en EditorSettings `godot_agent/quota/*`: aviso 75 %, pausa 90 % (o nunca), y al reiniciarse la ventana retomar solo o esperar confirmación.
+- **Dock**: medidor de la ventana y la semana debajo del estado (oculto si el agente no informa la cuota), avisos en el chat y, en "limitado", el botón enviar bloqueado con la cuenta regresiva.
+- **Checkpoints git** (`oneshot/git_checkpoints.gd`, D24):
+  - rama `agent/<fecha>`, con WIP previo confirmado si había cambios;
+  - `cpN: tarea` antes de cada tarea;
+  - "Volver acá" limitado a la carpeta del proyecto y solo en la rama del agente;
+  - resumen y diffs contra la base;
+  - "Aceptar todo" sin merge ni push.
+- **Loop One-shot** (`oneshot/oneshot_run.gd`):
+  - prompt inicial con el objetivo, el plan, la verificación con `run_scene`/`capture_game_frame`/`get_errors` y el bloque `checks`;
+  - auto-continuación mientras queden tareas;
+  - "Guiar al agente" encolado para el fin del turno;
+  - presupuestos de tiempo, tokens y playtests: aviso al 80 %, cierre con reporte al 100 %;
+  - pausa por cuota en el próximo checkpoint, "Limitado" con `cpN-quota` y reanudación desde la tarea correcta.
+- **Pantalla Agent** (`ui/main_screen/agent_main_screen.gd`, mockup pantalla 2):
+  - formulario de inicio;
+  - barra superior con fase, objetivo, barras de Cuota/Tiempo/Tokens/Playtests, la regla de cuota, la cuenta regresiva y Pausar/Retomar/Detener;
+  - banner de cuota;
+  - columnas Plan (editable), Actividad (con "Guiar al agente") y Último playtest / Verificaciones / Checkpoints ("Volver acá");
+  - barra inferior con el resumen de cambios, "Revisar cambios" y "Aceptar todo".
+
+  Elegir One-shot en el dock abre esta pantalla. Con un One-shot en curso, el composer del dock guía al agente.
+- **Sandbox** (`tests/sandbox_project/`, `tests/make_sandbox.sh <dir> [--dev]`): proyecto aparte, fuera del repo, para correr One-shots. Nunca se corre uno sobre el proyecto del addon.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd                 # 78 tests, 509 checks (+ cuota, checkpoints git)
+$G --headless --path . --script tests/acp_session_check.gd       # 70 checks (+ estados de cuota con el agente falso)
+$G --headless --path . --script tests/oneshot_check.gd           # 34 checks: loop, pausa por cuota, límite, presupuestos, guía, sin plan
+tests/run_in_xvfb.sh $G --godot-agent-ui-test=ui_quota           # dock: medidor y envío bloqueado en "limitado"
+tests/run_in_xvfb.sh $G --godot-agent-oneshot-test               # pantalla Agent con el agente falso sobre un repo temporal
+tests/make_sandbox.sh /tmp/sandbox --dev
+XRUN_PROJECT=/tmp/sandbox XRUN_TIMEOUT=2900 tests/run_in_xvfb.sh $G --godot-agent-claude-oneshot-test   # Claude Code real (gasta tokens)
+```
+
+`oneshot_check` y `--godot-agent-oneshot-test` usan guiones del agente falso:
+- cuota al 91 % a mitad de la tarea 1: la tarea termina, se crea el checkpoint de la tarea 2 y se pausa;
+- la ventana se reinicia y retoma solo, con el prompt "Continuá con el plan desde la tarea «Puntaje y saque»; el estado está en el checkpoint cp3";
+- el límite llega a mitad de turno: `cp4-quota`, "Limitado" con cuenta regresiva y, esta vez, espera confirmación;
+- Retomar sigue desde `cp4-quota` y termina el plan.
+
+La prueba de UI además revisa las barras, el banner, el resumen de cambios, el diff, "Volver acá" y "Aceptar todo".
+
+Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1, junto con el cycle test (5 ciclos sin huérfanos).
+
+### One-shot con Claude Code real
+
+`--godot-agent-claude-oneshot-test` en el sandbox, con 4.8-beta1 y el objetivo "Pong de 2 jugadores con puntaje: paletas con W/S y flechas arriba/abajo, pelota que rebota, puntaje arriba y saque desde el centro después de cada punto". Presupuestos: 25 min, 3M tokens, 5 playtests. La prueba pide un playtest con captura, al menos 3 checkpoints, escenas nuevas y que "Volver acá" al anteúltimo checkpoint deje el proyecto idéntico (sin diff ni archivos sin seguimiento).
+
+| Corrida | Resultado | Playtests | Tokens | Tiempo | Checkpoints |
+|---|---|---|---|---|---|
+| 1 | falla: pocos checkpoints | 5 | 121k | 7,2 min | 1 |
+| 2 | pasa, pero termina a mitad de camino | 2 | 104k | 6,7 min | 3 |
+| 3 | pasa: todos los checks en `pass` | 4 | 114k | 6,6 min | 5 |
+
+Lo que salió de las corridas:
+- **Corrida 1**: el juego quedó bien (11 checks en `pass`, "8 archivos cambiados +310 −5"), pero hubo dos problemas.
+  - Con `.godot/` en el `.gitignore`, `git add -- . :(exclude).godot` sale con error: git rechaza un pathspec que nombra una ruta ignorada, aunque sea para excluirla. Los checkpoints quedaron apagados después de `cp1`. Arreglo: si `.godot/` está ignorado, el pathspec es `-- .`. Si `start()` falla a mitad de camino, vuelve a la rama del usuario y borra la rama del agente.
+  - Claude Code no usó ninguna herramienta de plan, y el harness insistió con "la próxima tarea pendiente es «la tarea pendiente»". Arreglo: un checkpoint por playtest y avance por checks cuando no hay plan (D24).
+- **Corrida 2**: checkpoints por playtest y "Volver acá" exacto. Pero el agente cerró el turno con "pruebo si `add_node` acepta un shape inline", con un check en `fail` y otro en `pending`, y el harness lo tomó como final. Arreglo: sin plan, el harness sigue mientras queden checks sin pasar (D24).
+- **Corrida 3**: terminó sola con "todos los checks pasan" (paletas, rebote, puntaje, saque, sin errores), con un checkpoint por playtest. "Volver acá" a `cp4` dejó el proyecto exacto.
+- En las tres, la captura del playtest mostró el juego corriendo (marcador incluido) y la cuota real del plan se vio en la barra: 77–82 % de la ventana de 5 h, con el banner "se pausa al 90 % en el próximo checkpoint".
+- La actividad mostraba comandos de shell enteros (heredocs de 40 líneas). Ahora va solo la primera línea, recortada a 140 caracteres.
+
+### Prueba manual
+
+1. `tests/make_sandbox.sh ~/sandbox-oneshot` y abrir ese proyecto en el editor.
+2. En el dock, iniciar sesión y elegir **One-shot**: se abre la pantalla **Agent**.
+3. Escribir "Pong de 2 jugadores con puntaje", dejar los presupuestos y los checkpoints, e **Iniciar One-shot**.
+4. Mirar el plan, la actividad, las capturas de cada playtest y los checkpoints `cpN`. **Guiar al agente** manda un mensaje al terminar el turno.
+5. **Volver acá** en un checkpoint: el proyecto queda como en ese momento y el One-shot se pausa. **Retomar** sigue desde esa tarea.
+6. **Revisar cambios** lista los archivos (doble clic: diff contra el inicio). **Aceptar todo** deja la rama `agent/<fecha>` lista para mergear a mano.
+7. Cuota: con el umbral de pausa en Settings (`godot_agent/quota/pause_percent`) por debajo del uso actual, el One-shot se pausa al empezar la próxima tarea y el banner lo explica.
+
+### Pendiente
+
+- `session/load` para retomar una sesión perdida (hoy es una sesión nueva con resumen, D24).
+- Marcas A/M en el FileSystem para los archivos tocados (mockup); el dock del FileSystem es interno del editor.
+- Los defaults de presupuestos se editan en `project_config.tres` hasta el diálogo de Settings (M7).

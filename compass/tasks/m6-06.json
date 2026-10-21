@@ -15,16 +15,16 @@
     }
   ],
   "milestone": "m06",
-  "notes": "",
+  "notes": "core/quota_monitor.gd:\n- estados UNKNOWN/NORMAL/WARNING/PAUSE_SCHEDULED/LIMITED;\n- ventanas five_hour/seven_day {utilization, resets_at} leídas de unifiedWindows;\n- \"limitado\" entra por status rejected, por texto o por error de límite, y sale con status allowed* o con un turno end_turn sin texto de límite;\n- hora de reinicio: el resetsAt exacto de la cuota rejected, si no la del texto (parse tolerante), si no backoff;\n- retry_due / seconds_until_retry / note_retry, rule_text(), describe_window(), format_duration();\n- cada transición se loguea en el canal quota.\nUmbrales en EditorSettings godot_agent/quota/: warn_percent 75, pause_percent 90, pause_enabled, resume_mode (Retomar solo / Esperar confirmación). El plugin los aplica al arrancar y con settings_changed.\nEl estado queda en SessionController.quota, que la UI lee por el controller; SessionController.last_turn_usage guarda el usage del session/prompt para el presupuesto de tokens.",
   "order": 6,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "quota"
   ],
-  "test": "",
+  "test": "run_all -- quota: test_quota_monitor (7 tests, 49 checks): estados con payloads del agente falso, umbrales configurables, pausa desactivable, resetsAt exacto vs texto, backoff 5/10/20/60/60 y reinicio del backoff, parse_reset_time (HH:MM, am/pm, \"reinicia a las\", unix viejo), format_duration. acp_session_check (70 checks): con el agente falso normal → pausa programada (91 %) → limitado, ~120 s hasta el reinicio y la transición logueada en el canal quota.",
   "title": "QuotaMonitor: fuentes, estados y umbrales",
-  "updated_at": "2026-10-21T06:17:06.144Z"
+  "updated_at": "2026-10-21T07:28:08.192Z"
 }

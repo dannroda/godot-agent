@@ -33,6 +33,7 @@ const ErrorCollector := preload("core/error_collector.gd")
 const ReviewAnnotations := preload("review/review_annotations.gd")
 const ReviewStore := preload("review/review_store.gd")
 const AgentDock := preload("ui/dock/agent_dock.gd")
+const OneShotRun := preload("oneshot/oneshot_run.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -64,6 +65,7 @@ var _playtest_debugger: PlaytestDebugger
 var _run_tools: RunTools
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 var _review_annotations: ReviewAnnotations
+var _oneshot: OneShotRun
 
 
 func _enter_tree() -> void:
@@ -81,6 +83,8 @@ func _enter_tree() -> void:
 	_controller.prompt_variables_provider = _prompt_variables
 	_project_config = ProjectConfig.load_or_default()
 	_controller.policy = PermissionPolicy.new(_project_config.permissions)
+	_apply_quota_settings()
+	EditorInterface.get_editor_settings().settings_changed.connect(_on_editor_settings_changed)
 
 	_sync = EditorSync.new()
 	_sync.setup(_log)
@@ -108,22 +112,46 @@ func _enter_tree() -> void:
 	_review_annotations.action_requested.connect(_on_review_action)
 	add_child(_review_annotations)
 
+	_oneshot = OneShotRun.new()
+	_oneshot.setup(_controller, EditorContext.project_path())
+	_oneshot.after_restore = _after_oneshot_restore
+	_oneshot.restart_session = func() -> bool:
+		var profile := _settings.active_profile()
+		return profile != null and await _controller.start(profile)
+	_oneshot.resume_auto = _settings.quota_resume_auto()
+	add_child(_oneshot)
+	_model.harness_mode_changed.connect(_on_harness_mode_changed)
+
 	var dock := AgentDockScene.instantiate()
 	dock.setup(_model, _controller, _settings)
 	dock.show_log_requested.connect(_show_log)
 	dock.action_forwarded.connect(_on_dock_action)
+	dock.submit_interceptor = _intercept_dock_prompt
 	var log_panel := AgentLogPanelScene.instantiate()
 	log_panel.setup(_log)
 
 	_surfaces = EditorSurfaces.new(self)
 	_surfaces.add(EditorSurfaces.Surface.SIDE, dock, DOCK_TITLE, "godot_agent_dock")
 	_surfaces.add(EditorSurfaces.Surface.BOTTOM, log_panel, LOG_PANEL_TITLE, "godot_agent_log")
-	_surfaces.add(
-		EditorSurfaces.Surface.MAIN_SCREEN, AgentMainScreenScene.instantiate(), PLUGIN_NAME, "godot_agent_main", _get_plugin_icon()
-	)
+	var main_screen := AgentMainScreenScene.instantiate()
+	main_screen.setup(_oneshot, _settings.accent_color(), {
+		OneShotRun.BUDGET_TIME: _project_config.budget_minutes,
+		OneShotRun.BUDGET_TOKENS: _project_config.budget_tokens,
+		OneShotRun.BUDGET_PLAYTESTS: _project_config.budget_playtests,
+		"checkpoints": _project_config.checkpoints_enabled,
+	})
+	main_screen.diff_requested.connect(_diff_dialog.show_diff)
+	_surfaces.add(EditorSurfaces.Surface.MAIN_SCREEN, main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
 
 
 func _exit_tree() -> void:
+	if EditorInterface.get_editor_settings().settings_changed.is_connected(_on_editor_settings_changed):
+		EditorInterface.get_editor_settings().settings_changed.disconnect(_on_editor_settings_changed)
+	if _oneshot:
+		_oneshot.stop()
+		remove_child(_oneshot)
+		_oneshot.queue_free()
+		_oneshot = null
 	if _controller:
 		_controller.stop()
 		_controller = null
@@ -363,6 +391,49 @@ func _prompt_variables() -> Dictionary:
 		"project_path": EditorContext.project_path(),
 		"godot_version": Engine.get_version_info().string,
 	}
+
+
+## Umbrales de cuota del usuario (spec §10.1, EditorSettings godot_agent/quota/*).
+func _apply_quota_settings() -> void:
+	_controller.quota.configure(_settings.quota_warn(), _settings.quota_pause(), _settings.quota_pause_enabled())
+
+
+func _on_editor_settings_changed() -> void:
+	if _controller and EditorInterface.get_editor_settings().check_changed_settings_in_group(HarnessSettings.PREFIX + "quota"):
+		_apply_quota_settings()
+		if _oneshot:
+			_oneshot.resume_auto = _settings.quota_resume_auto()
+
+
+# --- One-shot ------------------------------------------------------------------------------------
+
+## Elegir One-shot en el dock abre la pantalla Agent (ahí se escribe el objetivo).
+func _on_harness_mode_changed(mode: SessionModel.HarnessMode) -> void:
+	if mode == SessionModel.HarnessMode.ONESHOT and _oneshot and not _oneshot.is_active() and _surfaces:
+		_surfaces.make_visible(EditorSurfaces.Surface.MAIN_SCREEN)
+
+
+## Con un One-shot en curso, lo que se escribe en el dock es "Guiar al agente".
+func _intercept_dock_prompt(text: String) -> bool:
+	if _oneshot == null or not _oneshot.is_active():
+		return false
+	_oneshot.guide(text)
+	return true
+
+
+## Después de "Volver acá": el editor relee lo que cambió en disco. Las escenas abiertas se recargan
+## directamente (el usuario pidió volver); los scripts abiertos pasan por EditorSync (si tenían
+## cambios sin guardar, conflicto en lugar de pisarlos).
+func _after_oneshot_restore(paths: PackedStringArray) -> void:
+	var open_scenes := EditorInterface.get_open_scenes()
+	for path: String in paths:
+		var res_path := "res://" + path
+		if res_path in open_scenes:
+			if FileAccess.file_exists(res_path):
+				_sync.reload_scene(res_path)
+		elif FileAccess.file_exists(res_path):
+			_sync.sync_path(res_path)
+	EditorInterface.get_resource_filesystem().scan()
 
 
 func _remove_playtest_autoload() -> void:

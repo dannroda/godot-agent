@@ -45,7 +45,7 @@ func add(surface: Surface, control: Control, title: String, layout_key: String, 
 				# El plugin responde _has_main_screen() == true y maneja la visibilidad en _make_visible().
 				control.visible = false
 				EditorInterface.get_editor_main_screen().add_child(control)
-	_entries.append({ "surface": surface, "control": control, "wrapper": wrapper })
+	_entries.append({ "surface": surface, "control": control, "wrapper": wrapper, "title": title })
 
 
 ## Visibilidad de la main screen con la API vieja (llamado desde EditorPlugin._make_visible).
@@ -75,6 +75,8 @@ func make_visible(surface: Surface) -> void:
 				var tabs := control.get_parent() as TabContainer
 				if tabs:
 					tabs.current_tab = control.get_index()
+			Surface.MAIN_SCREEN:
+				EditorInterface.set_main_screen_editor(entry.title)
 		return
 
 

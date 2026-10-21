@@ -27,6 +27,10 @@ extends EditorPlugin
 ##   registrado (before) o con un run_scene en curso (during). Al reabrir, no tiene que quedar.
 ## - `-- --godot-agent-review-test [--godot-agent-ui-shot=<ruta.png>]`: modo Revisar con el agente
 ##   falso sobre tests/fixtures/review/ (ver review_check.gd). Necesita ventana.
+## - `-- --godot-agent-oneshot-test [--godot-agent-ui-shot=<ruta.png>]`: la pantalla Agent maneja un
+##   One-shot con el agente falso sobre un repo temporal (cuota, checkpoints, Volver acá, Aceptar).
+## - `-- --godot-agent-claude-oneshot-test [--godot-agent-ui-shot=<ruta.png>]`: One-shot de Pong
+##   con Claude Code real (gasta tokens), dentro del sandbox de `tests/make_sandbox.sh <dir> --dev`.
 ## - `-- --godot-agent-claude-review-test`: lo mismo con Claude Code real (gasta tokens): los tres
 ##   bugs sembrados tienen que quedar anotados en su línea.
 
@@ -57,6 +61,10 @@ const CLAUDE_HUD_SCENE := "res://tests/tmp/claude_hud.tscn"
 const CRASH_ARG := "--godot-agent-crash-test="
 const REVIEW_ARG := "--godot-agent-review-test"
 const CLAUDE_REVIEW_ARG := "--godot-agent-claude-review-test"
+const ONESHOT_ARG := "--godot-agent-oneshot-test"
+const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
+const CLAUDE_ONESHOT_TIMEOUT_S := 2700.0
+const OneShotUiCheck := preload("oneshot_ui_check.gd")
 const ReviewCheck := preload("review_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
@@ -93,6 +101,10 @@ func _enter_tree() -> void:
 		_run_review_test.call_deferred(false)
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
+	if ONESHOT_ARG in args:
+		_run_oneshot_test.call_deferred()
+	if CLAUDE_ONESHOT_ARG in args:
+		_run_claude_oneshot_test.call_deferred()
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
@@ -284,6 +296,24 @@ func _run_review_test(real_claude: bool) -> void:
 	for failure: String in failures:
 		print("[review-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "review-test%s: %d fallas" % [" (Claude)" if real_claude else "", failures.size()])
+
+
+func _run_oneshot_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures: PackedStringArray = await OneShotUiCheck.new().run_oneshot(get_tree(), _arg_value(UI_SHOT_ARG))
+	for failure: String in failures:
+		print("[oneshot-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "oneshot-test: %d fallas" % failures.size())
+
+
+func _run_claude_oneshot_test() -> void:
+	get_tree().create_timer(CLAUDE_ONESHOT_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures: PackedStringArray = await OneShotUiCheck.new().run_claude_oneshot(get_tree(), _arg_value(UI_SHOT_ARG))
+	for failure: String in failures:
+		print("[claude-oneshot] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "claude-oneshot-test: %d fallas" % failures.size())
 
 
 func _run_claude_scene_test() -> void:
@@ -485,6 +515,13 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	await get_tree().create_timer(0.5).timeout
 	var entries: Array = model.call(&"entries")
 	print("[ui-test] %d entradas, título '%s'" % [entries.size(), model.get(&"title")])
+	if scenario == "ui_quota":
+		var composer: Control = dock.get(&"_composer")
+		var send: Button = composer.get(&"_send_button")
+		var meter: Control = dock.get(&"_quota_meter")
+		if not (send.disabled and send.text.begins_with("⏳") and meter.visible):
+			_finish(1, "cuota: el envío no quedó bloqueado (%s, disabled=%s) o no se ve el medidor" % [send.text, send.disabled])
+			return
 	if not shot_path.is_empty():
 		var image := EditorInterface.get_base_control().get_viewport().get_texture().get_image()
 		image.save_png(shot_path)

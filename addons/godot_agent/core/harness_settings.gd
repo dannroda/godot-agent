@@ -13,6 +13,13 @@ const KEY_ACCENT := "ui/accent_color"
 const KEY_LAST_PROFILE := "agents/last_profile"
 ## Puerto del server MCP (0 = aleatorio en cada arranque).
 const KEY_MCP_PORT := "mcp/port"
+## Cuota del plan (spec §10.1, §9.5): umbrales en %, pausa del One-shot y qué hacer al reiniciarse.
+const KEY_QUOTA_WARN := "quota/warn_percent"
+const KEY_QUOTA_PAUSE := "quota/pause_percent"
+const KEY_QUOTA_PAUSE_ENABLED := "quota/pause_enabled"
+const KEY_QUOTA_RESUME := "quota/resume_mode"
+const RESUME_AUTO := 0
+const RESUME_CONFIRM := 1
 
 const DEFAULT_ACCENT := Color("#f0a85a")
 
@@ -27,6 +34,10 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_PROFILES, JSON.stringify(AgentProfile.defaults()), TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_LAST_PROFILE, "", TYPE_STRING)
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
+		_declare(KEY_QUOTA_WARN, 75, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
+		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
+		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
+		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Retomar solo,Esperar confirmación")
 
 
 func get_value(key: String, default_value: Variant = null) -> Variant:
@@ -96,6 +107,22 @@ func set_active_profile(id: String) -> void:
 
 func mcp_port() -> int:
 	return clampi(int(get_value(KEY_MCP_PORT, 0)), 0, 65535)
+
+
+func quota_warn() -> float:
+	return clampi(int(get_value(KEY_QUOTA_WARN, 75)), 1, 100) / 100.0
+
+
+func quota_pause() -> float:
+	return clampi(int(get_value(KEY_QUOTA_PAUSE, 90)), 1, 100) / 100.0
+
+
+func quota_pause_enabled() -> bool:
+	return bool(get_value(KEY_QUOTA_PAUSE_ENABLED, true))
+
+
+func quota_resume_auto() -> bool:
+	return int(get_value(KEY_QUOTA_RESUME, RESUME_AUTO)) == RESUME_AUTO
 
 
 func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE, hint_string: String = "") -> void:

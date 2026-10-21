@@ -1,0 +1,85 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Armo Pong sin herramienta de plan.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run1",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run1",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run2",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run2",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "chunk": "Agrego el puntaje; pruebo si add_node acepta un shape inline.\n```json\n{\"checks\": [{\"label\": \"Pong jugable\", \"status\": \"pass\"}, {\"label\": \"Puntaje\", \"status\": \"pending\"}]}\n```"
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "chunk": "Puntaje listo.\n```json\n{\"checks\": [{\"label\": \"Puntaje\", \"status\": \"pass\"}]}\n```"
+    }
+   ]
+  }
+ ]
+}

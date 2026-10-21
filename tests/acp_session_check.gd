@@ -1,7 +1,7 @@
 extends SceneTree
 ## Integración M1 contra el agente falso: proceso real, stdio, ACP y SessionModel, sin editor.
 ## Uso: godot --headless --path <repo> --script tests/acp_session_check.gd
-## Escenarios: prompt con streaming, cancelación limpia y caída del agente.
+## Escenarios: prompt con streaming, cancelación limpia, caída del agente, permisos y cuota.
 
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
@@ -10,6 +10,7 @@ const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const FsHandler := preload("res://addons/godot_agent/acp/fs_handler.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
+const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
 const TMP_DIR := "res://tests/tmp"
 
 const TIMEOUT_S := 20.0
@@ -252,12 +253,18 @@ func _scenario_quota() -> void:
 	var windows: Dictionary = controller.quota.last_rate_limit.get("unifiedWindows", {})
 	_check(is_equal_approx(float(windows.get("five_hour", {}).get("utilization", 0.0)), 0.63), "quota: ventana de 5 h al 63 %")
 	_check(_log_has(log, "five_hour 63 %"), "quota: resumen en el canal quota")
+	_check(controller.quota.state == QuotaMonitor.State.NORMAL, "quota: estado normal")
 	_check(await controller.send_prompt("tarea 2") == "end_turn", "quota: turno 2")
 	_check(controller.quota.last_rate_limit.get("status") == "allowed_warning", "quota: aviso al 91 %")
 	_check(controller.quota.last_limit_event.is_empty(), "quota: todavía sin límite")
+	_check(controller.quota.state == QuotaMonitor.State.PAUSE_SCHEDULED, "quota: 91 % → pausa programada")
 	_check(await controller.send_prompt("tarea 3") == "error", "quota: el turno del límite termina con error")
 	_check(controller.quota.last_rate_limit.get("status") == "rejected", "quota: cuota rejected")
 	_check(not controller.quota.last_limit_event.is_empty(), "quota: evento de límite registrado")
+	_check(controller.quota.state == QuotaMonitor.State.LIMITED, "quota: limitado")
+	var wait := controller.quota.seconds_until_retry()
+	_check(wait > 100 and wait <= 120, "quota: reinicio en ~120 s (%d)" % wait)
+	_check(_log_has(log, "estado de la cuota: pausa programada → limitado"), "quota: transición en el canal")
 	_check(_log_has(log, "aviso de límite en el texto del agente: You've hit your limit") and _log_has(log, "error de session/prompt (límite)"), "quota: texto y error de límite en el canal")
 	_check(model.state == SessionModel.State.READY, "quota: la sesión sigue usable")
 	controller.stop()

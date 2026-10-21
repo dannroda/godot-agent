@@ -18,8 +18,10 @@ const EditorContext := preload("../editor_context.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
 const Composer := preload("composer.gd")
-const ProfilesDialog := preload("../settings/profiles_dialog.gd")
 const ReviewPanel := preload("review_panel.gd")
+const ProfilesDialog := preload("../settings/profiles_dialog.gd")
+const QuotaMeter := preload("quota_meter.gd")
+const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const ReviewStore := preload("../../review/review_store.gd")
 
 ## export_presets.cfg no pasa por EditorFileSystem: se mira su fecha de modificación cada tanto.
@@ -35,6 +37,9 @@ const ADD_CONTEXT_SCREENSHOT := 2
 const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
 
+## (texto) -> bool: si devuelve true, el texto del composer ya se manejó (p. ej. guía del One-shot).
+var submit_interceptor: Callable
+
 var _model: SessionModel
 var _controller: SessionController
 var _settings: HarnessSettings
@@ -44,7 +49,6 @@ var _presets_mtime: int = -1
 var _pending_prompt: String = ""
 var _conversation: ConversationView
 var _composer: Composer
-var _profiles_dialog: ProfilesDialog
 var _mode_buttons: Dictionary = {}  # HarnessMode -> Button
 ## Chips de contexto actuales: id -> {label, tooltip, block}
 var _chips: Dictionary = {}
@@ -55,6 +59,10 @@ var _extra_files: PackedStringArray = []
 var _add_context_menu: PopupMenu
 var _file_dialog: EditorFileDialog
 var _review_panel: ReviewPanel
+var _profiles_dialog: ProfilesDialog
+var _quota_meter: QuotaMeter
+var _quota_timer: Timer
+var _quota_state: int = QuotaMonitor.State.UNKNOWN
 var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
 
@@ -104,6 +112,7 @@ func _ready() -> void:
 	_composer.context_chip_removed.connect(_on_chip_removed)
 	_composer_slot.add_child(_composer)
 	_build_review_panel()
+	_build_quota_meter()
 	_profiles_dialog = ProfilesDialog.new()
 	_profiles_dialog.setup(_settings)
 	_profiles_dialog.confirmed.connect(_reload_profiles)
@@ -177,6 +186,52 @@ func _refresh_modes() -> void:
 		(_mode_buttons[mode] as Button).set_pressed_no_signal(mode == _model.harness_mode)
 	if _review_panel:
 		_review_panel.visible = _model.harness_mode == SessionModel.HarnessMode.REVIEW
+
+
+# --- cuota del plan -------------------------------------------------------------------------------
+
+func _build_quota_meter() -> void:
+	_quota_meter = QuotaMeter.new()
+	_quota_meter.setup(_controller.quota, _accent)
+	add_child(_quota_meter)
+	move_child(_quota_meter, _status_label.get_index() + 1)
+	_quota_timer = Timer.new()
+	_quota_timer.wait_time = 1.0
+	_quota_timer.timeout.connect(_on_quota_tick)
+	add_child(_quota_timer)
+	_controller.quota.changed.connect(_on_quota_changed)
+	_quota_state = _controller.quota.state
+	_on_quota_changed()
+
+
+## Fuera de One-shot solo hay avisos (spec §10.1); en "limitado" se bloquea el envío.
+func _on_quota_changed() -> void:
+	var quota := _controller.quota
+	if quota.state != _quota_state:
+		match quota.state:
+			QuotaMonitor.State.WARNING, QuotaMonitor.State.PAUSE_SCHEDULED:
+				if _quota_state in [QuotaMonitor.State.UNKNOWN, QuotaMonitor.State.NORMAL]:
+					_model.add_notice("Cuota del plan al %d %%." % roundi(quota.max_utilization() * 100.0), ChatEntry.Level.WARNING)
+			QuotaMonitor.State.LIMITED:
+				_model.add_notice("Se alcanzó el límite del plan. %s" % (
+					"Se reinicia en %s." % QuotaMonitor.format_duration(quota.limited_until - int(Time.get_unix_time_from_system())) if quota.limited_until > 0
+					else "El agente no informó cuándo se reinicia."), ChatEntry.Level.ERROR)
+		_quota_state = quota.state
+	_composer.set_usage_hint("" if quota.has_data() else "El agente no informa la cuota del plan.")
+	_on_quota_tick()
+	if quota.is_limited() or quota.has_data():
+		_quota_timer.start()
+	else:
+		_quota_timer.stop()
+
+
+func _on_quota_tick() -> void:
+	var quota := _controller.quota
+	_quota_meter.refresh()
+	if quota.is_limited() and quota.seconds_until_retry() > 0:
+		_composer.set_locked("⏳ %s" % QuotaMonitor.format_duration(quota.seconds_until_retry()), "Límite del plan alcanzado: se puede volver a enviar cuando se reinicie la ventana")
+	else:
+		_composer.set_locked("")
 
 
 # --- revisión ------------------------------------------------------------------------------------
@@ -327,6 +382,8 @@ func _on_new_session_pressed() -> void:
 
 func _on_submitted(text: String) -> void:
 	_composer.clear()
+	if submit_interceptor.is_valid() and submit_interceptor.call(text):
+		return
 	match _model.state:
 		SessionModel.State.READY:
 			_send(text)

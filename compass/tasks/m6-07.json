@@ -5,16 +5,16 @@
   "created_at": "2026-10-21T06:16:35.069Z",
   "description": "Spec §9.1 y §10.1 (fuera de One-shot): barras de la ventana actual y semanal, con porcentaje y tiempo hasta el reinicio. Si el agente no informa cuota, se ocultan y queda el medidor de contexto del composer, con un tooltip que dice que el agente no la informa. En el dock solo hay avisos; en \"Limitado\", el botón enviar se deshabilita y muestra la cuenta regresiva.",
   "milestone": "m06",
-  "notes": "",
+  "notes": "ui/dock/quota_meter.gd, debajo del estado:\n- filas \"Ventana N % · reinicia en …\" y \"Semana N % · …\" con ProgressBar fina, color por umbral (acento, aviso, pausa, límite);\n- en \"limitado\", la cuenta regresiva;\n- oculto sin datos del agente; el tooltip del medidor de contexto del composer dice entonces \"El agente no informa la cuota del plan\".\nDock:\n- un aviso en el chat al pasar a aviso o pausa programada, y otro al pasar a limitado;\n- Composer.set_locked deshabilita el envío (incluido Ctrl+Enter) con \"⏳ <tiempo>\" hasta el próximo intento permitido (reinicio o backoff);\n- un timer de 1 s refresca la cuenta.\ntests/run_in_xvfb.sh ahora usa una pantalla de 1920×1200: con 900 de alto, el editor 4.8 no entraba y el composer quedaba fuera de la captura.",
   "order": 7,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "quota"
   ],
-  "test": "",
+  "test": "tests/run_in_xvfb.sh $G --godot-agent-ui-test=ui_quota (tests/scripts/ui_quota.json: cuota 82 % y después límite con reinicio en 90 min). Verifica que el botón enviar queda deshabilitado con \"⏳ …\" y que el medidor se ve. PASS en 4.4.1, 4.7.2 y 4.8-beta1. Captura revisada a ojo: barras de ventana y semana, aviso \"Cuota del plan al 82 %\", aviso de límite con \"se reinicia en 1 h 30 min\" y botón \"⏳ 1 h 30 min\".",
   "title": "Medidor de cuota en el dock y bloqueo en Limitado",
-  "updated_at": "2026-10-21T06:16:35.069Z"
+  "updated_at": "2026-10-21T07:28:56.920Z"
 }

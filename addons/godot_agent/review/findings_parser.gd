@@ -19,7 +19,7 @@ const MAX_TEXT := 4000
 
 ## `{findings: Array[Dictionary], checks: Array[Dictionary]}`.
 ## Finding: {path (res:// si se pudo), line (≥1, 0 = sin línea), severity, title, body, suggestion}.
-## Check: {title, ok, detail}.
+## Check: {label, status: pass|fail|pending, detail}.
 static func parse(text: String, project_root: String = "") -> Dictionary:
 	var findings: Array[Dictionary] = []
 	var checks: Array[Dictionary] = []
@@ -74,23 +74,28 @@ static func normalize_finding(item: Variant, project_root: String = "") -> Dicti
 	}
 
 
+## Check del One-shot (spec §10): {label, status: pass|fail|pending, detail}.
 static func normalize_check(item: Variant) -> Dictionary:
 	if item is String:
-		return {"title": item, "ok": false, "detail": ""}
+		return {"label": item, "status": "pending", "detail": ""} if not (item as String).strip_edges().is_empty() else {}
 	if not item is Dictionary:
 		return {}
-	var title := _first_string(item, ["title", "name", "text", "check", "description"])
-	if title.is_empty():
+	var label := _first_string(item, ["label", "title", "name", "text", "check", "description"])
+	if label.is_empty():
 		return {}
-	var ok_value: Variant = _first_value(item, ["ok", "passed", "pass", "done", "status", "result"])
-	var ok := false
-	if ok_value is bool:
-		ok = ok_value
-	elif ok_value is String:
-		ok = ok_value.to_lower() in ["ok", "pass", "passed", "done", "true", "yes", "sí", "si", "✓"]
-	elif ok_value is float or ok_value is int:
-		ok = ok_value != 0
-	return {"title": title.left(MAX_TEXT), "ok": ok, "detail": _first_string(item, ["detail", "details", "body", "note", "evidence"]).left(MAX_TEXT)}
+	var value: Variant = _first_value(item, ["status", "ok", "passed", "pass", "result", "done"])
+	var status := "pending"
+	if value is bool:
+		status = "pass" if value else "fail"
+	elif value is float or value is int:
+		status = "pass" if value != 0 else "fail"
+	elif value is String:
+		var text := (value as String).strip_edges().to_lower()
+		if text in ["pass", "passed", "ok", "true", "yes", "sí", "si", "done", "✓", "success"]:
+			status = "pass"
+		elif text in ["fail", "failed", "false", "no", "error", "✗", "ko"]:
+			status = "fail"
+	return {"label": label.left(MAX_TEXT), "status": status, "detail": _first_string(item, ["detail", "details", "body", "note", "evidence"]).left(MAX_TEXT)}
 
 
 static func normalize_severity(value: String) -> String:

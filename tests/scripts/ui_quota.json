@@ -1,0 +1,9 @@
+{
+  "turns": [
+    {"steps": [
+      {"quota": {"five_hour": 0.82, "seven_day": 0.47, "status": "allowed_warning", "resets_in": 7800}},
+      {"chunk": "Arranco con la tarea…"},
+      {"limit": {"resets_in": 5400}}
+    ]}
+  ]
+}
