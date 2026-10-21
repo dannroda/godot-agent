@@ -240,7 +240,7 @@ Prueba de integración headless: prompt, respuesta en streaming y cancelación l
 
 **Notas:** docs/progress.md (sección M1) y decisions.md D11–D14.
 
-## M2 — Tool calls, diffs y permisos  (7/8, 7 en revisión)
+## M2 — Tool calls, diffs y permisos  (8/8, 8 en revisión)
 
 Render de tool_call/tool_call_update, tarjeta de diff y plan; session/request_permission con PermissionPolicy; fs/read_text_file y fs/write_text_file con sincronización editor ↔ disco.
 
@@ -377,11 +377,30 @@ Chips de contexto:
 Los archivos agregados a mano van como resource_link solo en el próximo prompt; después se limpian, igual que la captura. Escena y selección quedan mientras no se descarten.
 API: agent_dock.add_context_files(paths).
 
-### 2.8 Verificar M2 · En curso
+### 2.8 Verificar M2 · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 Guiones del agente falso con tool calls, diff, permisos y fs/*. Con Claude Code: editar un script abierto muestra el diff, pide permiso en Construir, se auto-deniega en Preguntar y el editor muestra el cambio sin diálogos ni pérdida de buffer. Actualizar progress.
+
+**Prueba:** Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1:
+- run_all: 35 tests, 229 checks;
+- acp_session_check: 53 checks;
+- export_check;
+- sync-test;
+- ui-test ui_demo;
+- cycle-test.
+
+claude-edit-test con Claude Code real: PASS en 4.8-beta1 y en 4.4.1.
+
+**Notas:** Nueva prueba con Claude real en el plugin de desarrollo: `--godot-agent-claude-edit-test`.
+- **Construir**: llegó el permiso "Edit tests/tmp/claude_target.gd" (grupo edit_files) con diff; archivo y buffer quedaron con `speed := 2`, sin cambios pendientes ni diálogos.
+- **Preguntar**: Claude no intentó editar ("la sesión está en modo Preguntar (y en modo plan)") y el archivo no cambió. El auto-deny de un pedido real lo cubre acp_session_check.
+- No quedan procesos del adapter.
+
+Ruido conocido: la prueba de ciclo puede crecer más de 50 objetos si corre justo después de export_check (el editor sigue escaneando). Repetida, pasa. Está anotado en progress.md.
+
+Docs: progress.md (sección M2) y decisions.md (D15).
 
 ## M3 — Servidor MCP y tools de lectura  (0/7)
 

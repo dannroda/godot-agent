@@ -134,7 +134,7 @@ Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1. Contra Claude Code real, "hola" recibió:
 ### Qué hay
 
 - **Permisos** (`session/permission_policy.gd`):
-  - matriz modo × grupo (read, edit_files, shell, godot_read, godot_write, playtest, other) con los defaults de la spec §7;
+  - matriz modo × grupo (read, diagnostics, edit_scene, edit_files, run, shell, project; los kinds desconocidos van a "other", que siempre pregunta) con los defaults de la spec §7;
   - overrides por proyecto en `config/project_config.gd` (Resource, D5).
 - **Pedidos de permiso**:
   - `session/request_permission` consulta la política. allow y deny se responden solos (deny deja un aviso en el chat); ask muestra una tarjeta con las opciones del agente y el diff;
