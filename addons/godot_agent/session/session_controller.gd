@@ -23,6 +23,7 @@ const LineDiff := preload("../core/line_diff.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
 const ReviewStore := preload("../review/review_store.gd")
 const SessionHistory := preload("session_history.gd")
+const AgentLogin := preload("agent_login.gd")
 
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
@@ -33,6 +34,15 @@ const SYSTEM_PROMPT_PATH := "res://addons/godot_agent/config/system_prompt.md"
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"
 const ACTION_SHOW_LOG := "show_log"
+## Login con un método de auth del agente (payload: id del método), pegar el código que da la
+## página de login y cancelarlo.
+const ACTION_LOGIN := "login"
+const ACTION_LOGIN_CODE := "login_code"
+const ACTION_LOGIN_CANCEL := "login_cancel"
+## Error de ACP cuando el agente necesita que el usuario inicie sesión (`authRequired`). El mismo
+## código es el de transporte del AcpClient: se distingue por el mensaje del SDK de ACP.
+const AUTH_REQUIRED_CODE := -32000
+const AUTH_REQUIRED_MESSAGE := "authentication required"
 ## Ventana en la que un permiso de edición ya concedido cubre el fs/write_text_file que le sigue
 ## (el adapter de Claude pide permiso para Edit y después escribe por fs/*).
 const PREAUTHORIZED_WRITE_MS := 120000
@@ -79,6 +89,9 @@ var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec
 var _mode_syncs_running: int = 0
 ## El último _load_session falló por el agente (sin loadSession o error), no por una cancelación.
 var _load_failed: bool = false
+var _login: AgentLogin
+## Aviso del login en curso (se actualiza con el enlace y el resultado).
+var _login_entry: ChatEntry
 
 
 func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String) -> void:
@@ -175,9 +188,11 @@ func open_session(generation: int = _connect_generation) -> bool:
 		return false
 	if not result.ok or not result.result is Dictionary or not result.result.get("sessionId") is String:
 		var detail := result.error_message() if not result.ok else "respuesta sin sessionId"
-		if not model.auth_methods.is_empty():
-			detail += ". El agente pide autenticarse: %s" % _auth_hint()
-		_fail("No se pudo abrir la sesión: %s" % detail)
+		var login_actions: Array[Dictionary] = []
+		if not result.ok and is_auth_required(result.error):
+			login_actions = _login_actions()
+			detail += ". Iniciá sesión para seguir." if not login_actions.is_empty() else ". El agente pide autenticarse: %s" % _auth_hint()
+		_fail("No se pudo abrir la sesión: %s" % detail, login_actions)
 		return false
 	model.apply_session(result.result.sessionId, result.result)
 	_system_prompt_sent = false
@@ -231,7 +246,11 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
-			model.add_notice("El turno terminó con error: %s" % result.error_message(), ChatEntry.Level.ERROR, _error_actions())
+			var actions: Array[Dictionary] = []
+			if is_auth_required(result.error):
+				actions = _login_actions()
+			actions.append_array(_error_actions())
+			model.add_notice("El turno terminó con error: %s" % result.error_message(), ChatEntry.Level.ERROR, actions)
 			model.finish_turn("error")
 		_record_turn_end("error")
 		return "error"
@@ -289,6 +308,7 @@ func set_config_option(id: String, value: String) -> bool:
 ## Mata el proceso y cierra los requests pendientes. Seguro de llamar varias veces.
 func stop() -> void:
 	_connect_generation += 1
+	cancel_login()
 	if _process:
 		var process := _process
 		_process = null
@@ -310,7 +330,109 @@ func client_capabilities() -> Dictionary:
 			"writeTextFile": client.has_request_handler("fs/write_text_file"),
 		},
 		"terminal": false,
+		# Login con el comando del agente (claude-agent-acp ofrece entonces «Claude Subscription» y
+		# «Anthropic Console»). El agente guarda sus credenciales; el addon no las ve.
+		"auth": {"terminal": true},
 	}
+
+
+static func is_auth_required(error: Dictionary) -> bool:
+	return int(error.get("code", 0)) == AUTH_REQUIRED_CODE and str(error.get("message", "")).to_lower().begins_with(AUTH_REQUIRED_MESSAGE)
+
+
+# --- login (ACP auth) ----------------------------------------------------------------------------
+
+func is_logging_in() -> bool:
+	return _login != null and _login.is_running()
+
+
+## Inicia sesión con el método `method_id` de `authMethods`. Los `terminal` corren el login del
+## agente (navegador); los demás se le piden al agente con `authenticate`. Al terminar bien vuelve
+## a lanzar el agente para abrir la sesión con las credenciales nuevas.
+func login(method_id: String) -> void:
+	var method := {}
+	for item: Dictionary in AgentLogin.usable_methods(model.auth_methods):
+		if item.id == method_id:
+			method = item
+	if method.is_empty() or _profile == null:
+		model.add_notice("El agente no ofrece ese método de inicio de sesión.", ChatEntry.Level.WARNING)
+		return
+	cancel_login()
+	var label := AgentLogin.label_of(method)
+	agent_log.add(AgentLog.CH_PROC, "Inicio de sesión: %s" % label)
+	if not AgentLogin.is_terminal(method):
+		_login_entry = model.add_notice("Iniciando sesión con %s…" % label)
+		var result := await client.request("authenticate", {"methodId": method_id})
+		_on_login_finished(result.ok, result.error_message() if not result.ok else "")
+		return
+	_login = AgentLogin.new()
+	_login.url_found.connect(_on_login_url)
+	_login.finished.connect(_on_login_finished)
+	_login_entry = model.add_notice("Iniciando sesión con %s: completalo en el navegador que se abrió." % label,
+		ChatEntry.Level.INFO, [{"id": ACTION_LOGIN_CANCEL, "label": "Cancelar"}])
+	var command := AgentLogin.command_for(method, _profile)
+	agent_log.add(AgentLog.CH_PROC, "Login: %s %s" % [command.command, " ".join(command.args)])
+	_login.start(method, _profile)
+
+
+## El código que muestra la página de login si el navegador no volvió solo.
+func send_login_code(code: String) -> bool:
+	if not is_logging_in():
+		return false
+	agent_log.add(AgentLog.CH_PROC, "Login: código enviado")  # nunca el código
+	return _login.send_code(code)
+
+
+func cancel_login() -> void:
+	if _login == null:
+		return
+	var login_run := _login
+	_login = null
+	if login_run.is_running():
+		login_run.cancel()
+		if _login_entry:
+			_set_login_notice("Inicio de sesión cancelado.", ChatEntry.Level.INFO, [])
+	_login_entry = null
+
+
+func _on_login_url(url: String) -> void:
+	_set_login_notice("Iniciando sesión con %s: completalo en el navegador. Si no se abrió, abrí el enlace; si la página te da un código, pegalo acá." % AgentLogin.label_of(_login.method),
+		ChatEntry.Level.INFO, [
+			{"id": "open_link", "label": "Abrir enlace", "data": url},
+			{"id": ACTION_LOGIN_CODE, "label": "Pegar código…"},
+			{"id": ACTION_LOGIN_CANCEL, "label": "Cancelar"},
+		])
+
+
+func _on_login_finished(ok: bool, message: String) -> void:
+	_login = null
+	if not ok:
+		agent_log.add(AgentLog.CH_PROC, "Login falló: %s" % message)
+		_set_login_notice("No se pudo iniciar sesión: %s" % message, ChatEntry.Level.ERROR, _login_actions())
+		_login_entry = null
+		return
+	agent_log.add(AgentLog.CH_PROC, "Login completo")
+	_login_entry = null
+	if _profile and await start(_profile):
+		model.add_notice("Sesión iniciada.")
+
+
+func _set_login_notice(text: String, level: ChatEntry.Level, actions: Array[Dictionary]) -> void:
+	if _login_entry == null:
+		_login_entry = model.add_notice(text, level, actions)
+		return
+	_login_entry.text = text
+	_login_entry.level = level
+	_login_entry.actions = actions
+	model.notify_entry_changed(_login_entry)
+
+
+## Un botón por método que el addon sabe usar.
+func _login_actions() -> Array[Dictionary]:
+	var actions: Array[Dictionary] = []
+	for method: Dictionary in AgentLogin.usable_methods(model.auth_methods):
+		actions.append({"id": ACTION_LOGIN, "label": "Iniciar sesión · %s" % AgentLogin.label_of(method), "data": str(method.id)})
+	return actions
 
 
 func system_prompt() -> String:
@@ -575,10 +697,12 @@ func _sync_agent_mode() -> void:
 			return
 
 
-func _fail(message: String) -> void:
+func _fail(message: String, extra_actions: Array[Dictionary] = []) -> void:
 	model.failure_message = message
 	agent_log.add(AgentLog.CH_PROC, message)
-	model.add_notice(message, ChatEntry.Level.ERROR, _error_actions())
+	var actions := extra_actions.duplicate()
+	actions.append_array(_error_actions())
+	model.add_notice(message, ChatEntry.Level.ERROR, actions)
 	model.set_state(SessionModel.State.FAILED)
 
 

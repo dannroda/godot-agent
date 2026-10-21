@@ -19,7 +19,7 @@ Tiene cuatro modos: Preguntar, Revisar, Construir y One-shot.
 - **Godot 4.4 o más nuevo.** Se prueba en 4.4.1, 4.7.2 y 4.8-beta1.
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`; el perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
-  - una sesión de Claude Code ya iniciada (`claude` en una terminal), o una API key en una variable de entorno (ver [Perfiles](#perfiles-de-agentes)).
+  - una sesión de Claude Code: la que ya tenga `claude` en la máquina, la que se inicia desde el dock (ver [Iniciar sesión en el agente](#iniciar-sesión-en-el-agente)), o una API key en una variable de entorno (ver [Perfiles](#perfiles-de-agentes)).
 - **git**, solo para los checkpoints del modo One-shot.
 - Linux, macOS o Windows. El desarrollo es en Linux; no hay comandos atados a un shell.
 
@@ -97,6 +97,15 @@ El addon levanta un servidor MCP en `127.0.0.1` (nunca en otra interfaz), con un
   - **Regenerar token**;
   - límite de caracteres por resultado y lado máximo de las capturas;
   - carpetas fuera del proyecto que el agente puede leer y escribir.
+
+### Iniciar sesión en el agente
+
+Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un botón por cada forma de login que ofrezca. Con Claude Code son **Iniciar sesión · Claude Subscription** y **Iniciar sesión · Anthropic Console**, como en Zed o JetBrains (el "terminal auth" de ACP).
+
+- El botón corre el login del propio agente (`npx -y @agentclientprotocol/claude-agent-acp --cli auth login --claudeai`) sin bloquear el editor, y se abre el navegador.
+- Si el navegador no se abre, **Abrir enlace** abre la página de login. Si la página te da un código, **Pegar código…** se lo pasa al login. **Cancelar** lo corta.
+- Al terminar, el agente se vuelve a lanzar y la sesión abre. Lo mismo vale si la cuenta se cierra a mitad de una sesión y un turno falla por eso.
+- Las credenciales las guarda el agente, igual que con `claude` en una terminal. El addon no las lee ni las guarda, y el código pegado no va al log.
 
 ### One-shot
 

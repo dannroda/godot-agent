@@ -38,6 +38,9 @@ extends EditorPlugin
 ##   bloque de varias líneas y Ctrl+→.
 ## - `-- --godot-agent-claude-review-test`: lo mismo con Claude Code real (gasta tokens): los tres
 ##   bugs sembrados tienen que quedar anotados en su línea.
+## - `-- --godot-agent-login-test [--godot-agent-ui-shot=<ruta.png>]`: el agente falso pide login
+##   (tests/scripts/auth.json); desde los botones del dock corre el login, pega el código en el
+##   diálogo y la sesión abre.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -71,6 +74,7 @@ const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
 const LONG_ARG := "--godot-agent-long-test"
 const SETTINGS_ARG := "--godot-agent-settings-shots="
 const HISTORY_ARG := "--godot-agent-history-test="
+const LOGIN_ARG := "--godot-agent-login-test"
 const COMPLETION_ARG := "--godot-agent-completion-test"
 const CompletionCheck := preload("completion_check.gd")
 const LongSessionCheck := preload("long_session_check.gd")
@@ -120,6 +124,8 @@ func _enter_tree() -> void:
 		_run_long_test.call_deferred()
 	if COMPLETION_ARG in args:
 		_run_completion_test.call_deferred()
+	if LOGIN_ARG in args:
+		_run_login_test.call_deferred(_arg_value(UI_SHOT_ARG))
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
@@ -621,6 +627,73 @@ func _run_history_test(shot_path: String) -> void:
 		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
 	controller.call(&"stop")
 	_finish(0, "historial: la sesión se reabrió desde el dock")
+
+
+func _run_login_test(shot_path: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var controller: Object = dock.get(&"_controller")
+	var model: Object = dock.get(&"_model")
+	var marker := ProjectSettings.globalize_path("user://fake_login_ok")
+	DirAccess.remove_absolute(marker)
+	var profile := AgentProfile.from_dict({
+		"id": "fake", "display_name": "Agente falso", "command": OS.get_executable_path(),
+		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
+			"--script", "res://tests/fake_agent.gd", "--", "--scenario=res://tests/scripts/auth.json"],
+	})
+	if await controller.call(&"start", profile):
+		_finish(1, "la sesión abrió sin login")
+		return
+	var login_button := await _wait_button(dock, "Iniciar sesión · Cuenta falsa")
+	if login_button == null:
+		_finish(1, "el aviso no ofrece iniciar sesión")
+		return
+	login_button.pressed.emit()
+	var code_button := await _wait_button(dock, "Pegar código…")
+	if code_button == null or _find_button(dock, "Abrir enlace") == null:
+		_finish(1, "no apareció el enlace del login")
+		return
+	await get_tree().create_timer(0.3).timeout
+	if not shot_path.is_empty():
+		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
+	code_button.pressed.emit()
+	await get_tree().process_frame
+	var dialog: ConfirmationDialog = dock.get(&"_login_code_dialog")
+	if dialog == null or not dialog.visible:
+		_finish(1, "no se abrió el diálogo del código")
+		return
+	(dock.get(&"_login_code_input") as LineEdit).text = "CODE123"
+	dialog.get_ok_button().pressed.emit()
+	var deadline := Time.get_ticks_msec() + 20000
+	while int(model.get(&"state")) != 2 and Time.get_ticks_msec() < deadline:  # READY
+		await get_tree().process_frame
+	DirAccess.remove_absolute(marker)
+	if int(model.get(&"state")) != 2:
+		_finish(1, "la sesión no abrió después del login (%s)" % model.get(&"failure_message"))
+		return
+	controller.call(&"stop")
+	_finish(0, "login: desde el dock, con el código pegado, la sesión abrió")
+
+
+func _wait_button(root: Node, text: String) -> Button:
+	var deadline := Time.get_ticks_msec() + 20000
+	while Time.get_ticks_msec() < deadline:
+		var button := _find_button(root, text)
+		if button:
+			return button
+		await get_tree().process_frame
+	return null
+
+
+func _find_button(root: Node, text: String) -> Button:
+	for node: Node in root.find_children("*", "Button", true, false):
+		if (node as Button).text == text and node.is_visible_in_tree():
+			return node
+	return null
 
 
 ## M7: abre Settings desde el botón del dock y guarda una captura por sección en `<prefijo>_<n>.png`.

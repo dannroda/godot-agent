@@ -1,7 +1,8 @@
 extends SceneTree
 ## Integración M1 contra el agente falso: proceso real, stdio, ACP y SessionModel, sin editor.
 ## Uso: godot --headless --path <repo> --script tests/acp_session_check.gd
-## Escenarios: prompt con streaming, cancelación limpia, caída del agente, permisos, cuota e historial.
+## Escenarios: prompt con streaming, cancelación limpia, caída del agente, permisos, cuota, historial
+## y login (ACP auth de tipo terminal).
 
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
@@ -35,6 +36,7 @@ func _initialize() -> void:
 	await _scenario_permissions_ask()
 	await _scenario_quota()
 	await _scenario_history()
+	await _scenario_login()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("acp_session_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -350,6 +352,56 @@ func _scenario_history() -> void:
 	_check(not await controller.start(_fake_profile("basic"), history.load_record(session_id)), "history: sin loadSession no reanuda")
 	_check(model.state == SessionModel.State.DISCONNECTED and model.entries().size() > 3 and model.entries().back().text.contains("solo lectura"), "history: queda de solo lectura")
 	controller.stop()
+
+
+## Login: sin credenciales session/new pide autenticarse; el botón corre el login del agente (el
+## mismo agente falso con --login), muestra el enlace, manda el código y vuelve a abrir la sesión.
+func _scenario_login() -> void:
+	print("— login")
+	const MARKER := "user://fake_login_ok"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MARKER))
+	var model := SessionModel.new()
+	var log := AgentLog.new()
+	var controller := SessionController.new()
+	controller.setup(model, log, ProjectSettings.globalize_path("res://").trim_suffix("/"))
+	var ok: bool = await controller.start(_fake_profile("auth"))
+	_check(not ok and model.state == SessionModel.State.FAILED, "login: sin login la sesión no abre")
+	_check(_log_has(log, "\"auth\":{\"terminal\":true}"), "login: initialize declara auth.terminal")
+	var failure: ChatEntry = model.entries().back()
+	var login_actions := failure.actions.filter(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN)
+	_check(login_actions.size() == 1 and login_actions[0].data == "fake-login" and login_actions[0].label == "Iniciar sesión · Cuenta falsa", "login: un botón por método usable (%s)" % [failure.actions])
+	_check(failure.text.contains("Iniciá sesión"), "login: el aviso lo dice (%s)" % failure.text)
+	var link_shown := func() -> bool:
+		return model.entries().any(func(entry: ChatEntry) -> bool:
+			return entry.actions.any(func(action: Dictionary) -> bool: return action.id == "open_link"))
+	# Código equivocado: el login sale con error y se puede reintentar.
+	controller.login("fake-login")
+	await _wait_until(link_shown)
+	_check(link_shown.call(), "login: aparece el enlace")
+	_check(controller.send_login_code("nope"), "login: manda el código")
+	await _wait_until(func() -> bool: return not controller.is_logging_in() and model.entries().back().level == ChatEntry.Level.ERROR)
+	var error_notice: ChatEntry = model.entries().back()
+	_check(error_notice.text.begins_with("No se pudo iniciar sesión") and not error_notice.text.contains("example.invalid"), "login: error sin el enlace (%s)" % error_notice.text)
+	_check(error_notice.actions.any(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN), "login: el error ofrece reintentar")
+	_check(not _log_has(log, "nope"), "login: el código no va al log")
+	# Código correcto: la sesión se abre sola.
+	controller.login("fake-login")
+	await _wait_until(link_shown)
+	_check(controller.send_login_code("CODE123"), "login: manda el código bueno")
+	await _wait_until(func() -> bool: return model.state == SessionModel.State.READY)
+	_check(model.state == SessionModel.State.READY and model.entries().back().text == "Sesión iniciada.", "login: la sesión abre después del login")
+	# Cancelar mata el proceso del login.
+	controller.login("fake-login")
+	await _wait_until(link_shown)
+	var login_run: Object = controller.get(&"_login")
+	var login_process: Object = login_run.get(&"_process") if login_run else null
+	var login_pid: int = login_process.call(&"pid") if login_process else 0
+	controller.cancel_login()
+	_check(not controller.is_logging_in() and model.entries().back().text == "Inicio de sesión cancelado.", "login: cancelar")
+	await _wait_until(func() -> bool: return login_pid > 0 and not _pid_alive(login_pid))
+	_check(login_pid > 0 and not _pid_alive(login_pid), "login: el proceso del login terminó")
+	controller.stop()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MARKER))
 
 
 func _check(condition: bool, label: String) -> void:

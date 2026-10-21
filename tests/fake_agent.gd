@@ -8,6 +8,11 @@ extends SceneTree
 ##     "session": {...}         campos extra del resultado de session/new (modes, configOptions)
 ##     "on_new_session": [pasos] pasos que corren después de responder session/new
 ##     "turns": [ {"steps": [paso, ...]}, ... ]   un turno por prompt; el último se repite
+##     "auth": {"marker": "user://…", "code": "…"}   session/new responde authRequired (-32000)
+##                              mientras no exista `marker`. Con `--login` en los args (el método
+##                              `terminal` del guion) el proceso hace de login: imprime el enlace
+##                              como Claude Code, espera el código por stdin y, si es `code`, crea
+##                              `marker` y sale con 0 (si no, con 1).
 ##   }
 ## Pasos:
 ##   {"chunk": "texto"}                agent_message_chunk
@@ -52,6 +57,9 @@ func _initialize() -> void:
 			_scenario = data
 		else:
 			printerr("fake_agent: guion inválido: %s" % path)
+	if "--login" in OS.get_cmdline_user_args():
+		_run_login()
+		return
 	_reader = Thread.new()
 	_reader.start(_read_stdin)
 
@@ -114,6 +122,11 @@ func _handle_line(line: String) -> void:
 			printerr("fake_agent: initialize %s" % JSON.stringify(message.get("params", {})))
 			_reply(id, result)
 		"session/new":
+			var auth: Dictionary = _scenario.get("auth", {})
+			if not auth.is_empty() and not FileAccess.file_exists(str(auth.get("marker", ""))):
+				printerr("fake_agent: session/new sin login")
+				_send({"jsonrpc": "2.0", "id": id, "error": {"code": -32000, "message": "Authentication required"}})
+				return
 			_session_id = "fake-session-%d" % (Time.get_ticks_usec() % 100000)
 			var result := {"sessionId": _session_id}
 			result.merge(_scenario.get("session", {}), true)
@@ -267,3 +280,23 @@ func _reply(id: Variant, result: Variant) -> void:
 
 func _send(message: Dictionary) -> void:
 	print(JSON.stringify(message))
+
+
+## Modo login: lee el código en el hilo principal (con un hilo lector bloqueado en stdin el proceso
+## no terminaría mientras el cliente tenga el pipe abierto). El correcto crea el marcador del guion.
+func _run_login() -> void:
+	print("Opening browser to sign in…")
+	print("If the browser didn't open, visit: https://example.invalid/oauth/authorize?code=true&state=fake")
+	printraw("Paste code here if prompted > ")
+	var code := OS.read_string_from_stdin(1024).strip_edges()
+	var auth: Dictionary = _scenario.get("auth", {})
+	var ok := code == str(auth.get("code", ""))
+	if ok:
+		var marker := FileAccess.open(str(auth.get("marker", "")), FileAccess.WRITE)
+		marker.store_string("ok")
+		marker.close()
+		print("Login successful.")
+	else:
+		printerr("Invalid code")
+	quit(0 if ok else 1)
+

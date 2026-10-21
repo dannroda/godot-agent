@@ -458,3 +458,22 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Historial**: del `_meta` se guardan solo `toolName` y `parentToolUseId`, y los chunks de un subagente no se unen con los del principal. El replay arma lo mismo.
 - **Sin sesiones aparte**: declarar `subagents` haría que el adaptador mandara cada subagente como otra sesión con su propio ciclo de vida. Eso es más trabajo y no muestra nada más de lo que ya llega por esta vía.
 
+## D32 · Login del agente desde el dock (después de M8c)
+
+- **Pedido del usuario**: un login como el de otros clientes de ACP. Antes, el addon dependía de que `claude` ya tuviera una sesión iniciada en la máquina. Si no la tenía, solo mostraba los nombres de los métodos de auth en el error.
+- **Cómo lo hacen los demás**: el cliente declara `clientCapabilities.auth.terminal`. Con eso, `claude-agent-acp` ofrece dos `authMethods` de tipo `terminal`, «Claude Subscription» y «Anthropic Console». Sus `args` (`--cli auth login --claudeai|--console`) van después del comando del agente y terminan en `claude auth login`. Verificado con el adaptador real: `initialize` devuelve esos dos métodos, y `npx … --cli auth login --help` llega a `claude auth login`.
+- **Sin TTY funciona**: `claude auth login` corrido como lo corre el editor (stdin en un pipe, con un HOME temporal para no tocar las credenciales reales y el navegador anulado) imprime «Opening browser…», una línea con el enlace y deja «Paste code here if prompted >» sin salto de línea. Si el navegador vuelve al callback local, termina solo; si no, espera el código por stdin.
+- **Flujo** (`session/agent_login.gd` + SessionController):
+  - Si `session/new` o un turno fallan con `authRequired` (código -32000 y el mensaje «Authentication required» del SDK de ACP, porque el AcpClient usa el mismo código para errores de transporte), el aviso agrega «Iniciar sesión · <método>».
+  - Solo se ofrecen los métodos `terminal` y los del agente (los sin `type`: el cliente llama `authenticate`). `env_var` necesita configurar el perfil, así que no lleva botón.
+  - El login corre con AgentProcess, sin bloquear el editor. El aviso muestra «Abrir enlace» (la primera URL de la salida), «Pegar código…» (un diálogo con LineEdit secreto que escribe en stdin) y «Cancelar» (mata el proceso y sus hijos).
+  - Si sale con 0, vuelve a lanzar el agente y abre la sesión. Con otro código, muestra las últimas líneas de la salida sin el enlace y deja reintentar.
+  - Si el agente manda `_meta.terminal-auth` con un comando exacto, se usa ese.
+- **Credenciales**: las guarda el agente, como en una terminal. El addon nunca las lee ni las guarda (spec §10.1). El código pegado no se registra: el log dice «código enviado».
+- **Pruebas**:
+  - El agente falso tiene un modo `--login` (imprime como Claude Code, espera el código y crea un marcador), y `tests/scripts/auth.json` exige ese marcador para abrir la sesión.
+  - `acp_session_check` prueba un código malo, uno bueno y la cancelación (el proceso termina).
+  - `--godot-agent-login-test` hace lo mismo desde los botones del dock y el diálogo.
+  - `test_agent_login` cubre la elección de métodos, el comando y el reconocimiento del error.
+- **Pendiente**: no hay un botón para iniciar sesión cuando la sesión ya abre (por ejemplo, para cambiar de cuenta). Para eso sigue estando `claude auth login` en una terminal.
+

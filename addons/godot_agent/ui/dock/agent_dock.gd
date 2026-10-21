@@ -70,6 +70,9 @@ var _quota_timer: Timer
 var _quota_state: int = QuotaMonitor.State.UNKNOWN
 var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
+## Para pegar el código de la página de login (se arma la primera vez).
+var _login_code_dialog: ConfirmationDialog
+var _login_code_input: LineEdit
 var _history_menu: PopupMenu
 var _history_items: Array[Dictionary] = []
 
@@ -476,6 +479,12 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			_start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit()
+		SessionController.ACTION_LOGIN:
+			_controller.login(str(payload))
+		SessionController.ACTION_LOGIN_CODE:
+			_ask_login_code()
+		SessionController.ACTION_LOGIN_CANCEL:
+			_controller.cancel_login()
 		"open_link":
 			var url := str(payload)
 			if url.begins_with("http://") or url.begins_with("https://"):
@@ -488,6 +497,32 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 				_model.add_notice("No se pudo abrir %s." % location.path, ChatEntry.Level.WARNING)
 		_:
 			action_forwarded.emit(action, payload)
+
+
+func _ask_login_code() -> void:
+	if _login_code_dialog == null:
+		_login_code_dialog = ConfirmationDialog.new()
+		_login_code_dialog.title = "Código de inicio de sesión"
+		_login_code_dialog.ok_button_text = "Enviar"
+		var column := VBoxContainer.new()
+		var hint := Label.new()
+		hint.text = "Pegá el código que muestra la página de login."
+		column.add_child(hint)
+		_login_code_input = LineEdit.new()
+		_login_code_input.secret = true
+		_login_code_input.custom_minimum_size.x = AgentTheme.px(360)
+		column.add_child(_login_code_input)
+		_login_code_dialog.add_child(column)
+		_login_code_dialog.register_text_enter(_login_code_input)
+		_login_code_dialog.confirmed.connect(func() -> void:
+			if not _controller.send_login_code(_login_code_input.text):
+				_model.add_notice("No hay un inicio de sesión esperando un código.", ChatEntry.Level.WARNING)
+			_login_code_input.clear()
+		)
+		add_child(_login_code_dialog)
+	_login_code_input.clear()
+	_login_code_dialog.popup_centered()
+	_login_code_input.grab_focus()
 
 
 # --- contexto del prompt -------------------------------------------------------------------------
