@@ -1,0 +1,20 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "1.14",
+  "created_at": "2026-10-21T06:16:32.925Z",
+  "description": "Spec §13 (actualizado): el agente falso emite también `usage_update` con cuota simulada y errores de límite con hora de reinicio, según el guion JSON. Usa la forma que salga de m1-13. Es la base de los tests del QuotaMonitor y de la verificación de M6 (cuota al 90 % y después límite).",
+  "milestone": "m01",
+  "notes": "",
+  "order": 14,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "quota"
+  ],
+  "test": "",
+  "title": "Agente falso: cuota simulada y errores de límite",
+  "updated_at": "2026-10-21T06:16:32.925Z"
+}

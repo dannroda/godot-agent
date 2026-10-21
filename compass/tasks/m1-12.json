@@ -1,0 +1,26 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "1.12",
+  "created_at": "2026-10-21T06:16:25.721Z",
+  "description": "Spec §10.1 y M1 (actualizado): QuotaMonitor nuevo en la arquitectura. En M1 solo observa: loguea crudo en un canal nuevo `quota` del Agent Log cada `usage_update` de ACP y cualquier aviso o error de límite (error JSON-RPC en session/prompt, notice o mensaje del agente). Guarda el último payload crudo para mapear los campos después. No estima cuota a partir de tokens, no consulta endpoints no documentados y no lee archivos internos ni credenciales del agente.",
+  "links": [
+    {
+      "task": "m1-13",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m01",
+  "notes": "",
+  "order": 12,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "quota"
+  ],
+  "test": "",
+  "title": "QuotaMonitor en modo observación (canal quota)",
+  "updated_at": "2026-10-21T06:17:03.696Z"
+}

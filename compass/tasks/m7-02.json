@@ -3,7 +3,7 @@
   "checklist": [],
   "code": "7.2",
   "created_at": "2026-10-21T04:33:42.504Z",
-  "description": "Navegación según docs/design pantalla 4: Agentes (CRUD de perfiles), Herramientas/Permisos (matriz), puerto MCP y regenerar token, presupuestos default de One-shot, checkpoints on/off, ubicación del dock, color de acento, aviso y botón de filtro de presets. Diálogo propio (no Project Settings: escribiría en project.godot).",
+  "description": "Navegación según docs/design pantalla 4. Secciones:\n- Agentes (CRUD de perfiles).\n- Herramientas/Permisos (matriz).\n- Puerto MCP y regenerar token.\n- Presupuestos default de One-shot.\n- Cuota y límites (spec §9.5 y §11 actualizados): umbral de aviso, umbral de pausa del One-shot (o nunca) y al reiniciarse la ventana retomar solo o esperar confirmación. Se guardan por usuario en EditorSettings godot_agent/, porque la cuota es del plan, no del proyecto.\n- Checkpoints on/off, ubicación del dock, color de acento, aviso y botón de filtro de presets.\nDiálogo propio (no Project Settings: escribiría en project.godot).",
   "milestone": "m07",
   "notes": "",
   "order": 2,
@@ -13,5 +13,5 @@
   "status": "todo",
   "test": "",
   "title": "Diálogo de Settings completo",
-  "updated_at": "2026-10-21T04:33:42.504Z"
+  "updated_at": "2026-10-21T06:17:01.789Z"
 }

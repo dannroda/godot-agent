@@ -1,0 +1,30 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "1.13",
+  "created_at": "2026-10-21T06:16:30.130Z",
+  "description": "Spec M1 (actualizado): con el adapter real (@agentclientprotocol/claude-agent-acp), documentar en docs/decisions.md qué reporta realmente: cuota del plan con hora de reinicio, solo tokens de la sesión, o nada; y cómo se ve un error de límite. Fuentes: el canal quota de una sesión real y el código del adapter. El diseño de §10.1 (nombres de campo y patrones de límite) se ajusta a eso. Criterio de M1: \"hola\" recibe respuesta y la verificación de cuota está documentada.",
+  "links": [
+    {
+      "task": "m1-14",
+      "type": "blocks"
+    },
+    {
+      "task": "m6-06",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m01",
+  "notes": "",
+  "order": 13,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "quota"
+  ],
+  "test": "",
+  "title": "Verificar qué cuota reporta el adapter de Claude Code",
+  "updated_at": "2026-10-21T06:17:05.474Z"
+}

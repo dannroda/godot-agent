@@ -2,9 +2,9 @@
   "code": "M1",
   "done_when": [
     "Contra el agente falso: un prompt, una respuesta en streaming y una cancelación limpia.",
-    "Contra Claude Code real: \"hola\" recibe respuesta."
+    "Contra Claude Code real: \"hola\" recibe respuesta y la verificación de cuota (qué reporta el adapter y cómo se ve un error de límite) está documentada en docs/decisions.md."
   ],
-  "goal": "AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/new → session/prompt con streaming al dock, y session/cancel. Agent Log con canales.",
+  "goal": "AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/new → session/prompt con streaming al dock, y session/cancel. Agent Log con canales. QuotaMonitor en modo observación (canal quota).",
   "order": 1,
   "title": "Transporte y ACP mínimo"
 }

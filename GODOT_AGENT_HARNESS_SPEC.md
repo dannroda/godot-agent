@@ -71,6 +71,7 @@ Godot editor (hilo principal)
    │      └─ ToolRegistry ── tools godot.* (lectura, edición, ejecución)
    ├─ PermissionPolicy ─ matriz modo × grupo de herramienta → allow / ask / deny
    ├─ Checkpoints ────── git (rama/commit temporal) antes de tareas de One-shot
+   ├─ QuotaMonitor ───── cuota del plan informada por el agente → avisos, pausa y reanudación
    └─ HarnessSettings ── perfiles de agentes, puerto, presupuestos (EditorSettings / ProjectSettings)
 ```
 
@@ -263,6 +264,7 @@ Existe un mockup de referencia con 4 pantallas. Respetá la estructura; los esti
 
 - **Header**: selector de perfil de agente, título de sesión, botones de historial, nueva sesión y ajustes (`aria`/tooltip en los botones de icono).
 - **Selector de modo**: Preguntar, Revisar, Construir, One-shot.
+- **Medidor de cuota del plan** (sección 10.1): barras de ventana actual y semanal, con porcentaje y tiempo hasta el reinicio. Si el agente no informa cuota, se oculta y queda solo el medidor de contexto del composer.
 - **Lista de mensajes** (virtualizada o con un límite razonable de nodos):
   - Burbuja del usuario.
   - Texto del agente en `RichTextLabel`, con un conversor Markdown→BBCode propio y mínimo: párrafos, **negrita**, *itálica*, `code`, bloques de código, listas y links.
@@ -279,7 +281,7 @@ Existe un mockup de referencia con 4 pantallas. Respetá la estructura; los esti
 
 ### 9.2 Pantalla principal "Agent" (`_has_main_screen`) para One-shot
 
-- **Barra superior**: objetivo, estado y fase, presupuestos (tiempo, tokens, playtests) con barras, y botones Pausar y Detener.
+- **Barra superior**: objetivo, estado y fase, presupuestos (cuota de la ventana, tiempo, tokens, playtests) con barras, la regla de cuota activa en una línea ("se pausa al 90 % en el próximo checkpoint") y botones Pausar y Detener. En estado "Limitado" muestra la cuenta regresiva hasta el reinicio.
 - **Tres columnas**:
   - Plan con estados; el usuario puede editarlo y el texto editado se manda como mensaje.
   - Actividad con timestamps y un input "Guiar al agente" que manda un `session/prompt` adicional al terminar el turno actual.
@@ -288,7 +290,7 @@ Existe un mockup de referencia con 4 pantallas. Respetá la estructura; los esti
 
 ### 9.3 Panel inferior "Agent Log" (`add_control_to_bottom_panel`)
 
-Log en monoespaciado con columnas `hora · canal (acp | mcp | fs | perm | proc) · mensaje`, filtros por canal y botón para copiar. Los mensajes JSON-RPC completos se ven con un modo "raw" activable.
+Log en monoespaciado con columnas `hora · canal (acp | mcp | fs | perm | proc | quota | cmp) · mensaje`, filtros por canal y botón para copiar. Los mensajes JSON-RPC completos se ven con un modo "raw" activable.
 
 ### 9.4 Revisión en el Script Editor
 
@@ -306,6 +308,7 @@ Dentro de un diálogo propio o una sección en Project Settings:
 - Matriz de permisos.
 - Puerto MCP y regeneración del token.
 - Presupuestos default de One-shot.
+- **Cuota y límites**: umbral de aviso, umbral de pausa del One-shot (o nunca) y comportamiento al reiniciarse la ventana (retomar solo o esperar confirmación).
 - Checkpoints on/off.
 - Ubicación del dock.
 - Color de acento.
@@ -330,11 +333,36 @@ Dentro de un diálogo propio o una sección en Project Settings:
 
 Todos los comandos git se ejecutan con `OS.execute` y argumentos en array (sin shell). Si git no está disponible, los checkpoints se desactivan con un aviso.
 
+### 10.1 Cuota del plan
+
+Un componente `QuotaMonitor` sigue el consumo del plan del usuario (por ejemplo una suscripción de Claude) y lo expone al `SessionModel`. Funciona en todos los modos, pero solo el One-shot pausa y retoma solo.
+
+**Fuentes de datos, en orden:**
+1. **`usage_update` de ACP**: guardar el payload crudo de cada actualización y mapear los campos de cuota (uso de la ventana, uso semanal, hora de reinicio) si existen. Los nombres de campo reales salen de la verificación del M1, no de suposiciones.
+2. **Avisos y errores de límite**: un error JSON-RPC en `session/prompt`, un `notice` o un mensaje del agente que indique que se alcanzó el límite, con la hora de reinicio si la informa. El parseo es tolerante, con patrones en un archivo editable del addon.
+3. **Sin datos de cuota**: mostrar solo los tokens de la sesión y ocultar las barras de cuota, con un tooltip que diga que el agente no la informa.
+
+**Prohibido**: estimar porcentajes de cuota a partir de tokens, consultar endpoints no documentados o leer archivos internos o credenciales del agente. Si no hay dato, la UI dice "desconocido".
+
+**Estados**: `normal`, `aviso` (pasó el umbral de aviso), `pausa_programada` (pasó el umbral de pausa, termina la tarea actual), `limitado` (límite alcanzado, esperando reinicio) y `desconocido`.
+
+**Reglas en One-shot:**
+- **Umbral de aviso** (default 75 %): banner en la pantalla Agent y entrada en el canal `quota`.
+- **Umbral de pausa** (default 90 %): no corta el turno en curso. Cuando la tarea actual termina y se crea su checkpoint, el harness no manda la siguiente y pasa a "Pausado por cuota".
+- **Límite alcanzado a mitad de turno**: marcar los tool calls pendientes como `cancelled`, crear un checkpoint del estado actual (`cpN-quota`) y pasar a "Limitado".
+- **Reinicio**:
+  - Con hora de reinicio conocida: un timer hasta esa hora.
+  - Sin hora: reintentos con backoff (5, 10, 20 y luego cada 60 min), cada uno con un prompt mínimo de reanudación.
+- **Reanudar**: según Settings, automáticamente o con confirmación. Se manda un `session/prompt` del tipo "continuá con el plan desde la tarea X; el estado está en el checkpoint cpN". Si la sesión se perdió, usar `session/load` si existe; si no, abrir una sesión nueva con un resumen del plan, los checks y los checkpoints.
+- Los presupuestos propios del One-shot (tiempo, tokens, playtests) siguen aplicando aparte. El tiempo en "Limitado" no cuenta contra el presupuesto de tiempo.
+
+**Fuera de One-shot** (dock): solo avisos. En "Limitado", el botón enviar se deshabilita y muestra la cuenta regresiva.
+
 ---
 
 ## 11. Settings y persistencia
 
-- **Por usuario** (perfiles de agentes, ubicación del dock, color): `EditorSettings`, con el prefijo `godot_agent/`.
+- **Por usuario** (perfiles de agentes, ubicación del dock, color, umbrales de cuota): `EditorSettings`, con el prefijo `godot_agent/`. La cuota es del plan del usuario, no del proyecto.
 - **Por proyecto** (matriz de permisos y presupuestos): un `Resource` en `res://addons/godot_agent/` o en `ProjectSettings` con el prefijo `godot_agent/`. Que lo decida la skill de data-driven.
 - **Historial de sesiones**: `user://godot_agent/sessions/<id>.json` con los eventos ACP normalizados, para reabrir y mostrar. Si el agente soporta `session/load`, usarlo para reanudar de verdad.
 - **Secretos**: no se guardan. El token MCP se regenera en cada arranque del editor.
@@ -356,7 +384,9 @@ Cada milestone termina con verificaciones automáticas (sección 13), instruccio
 - `AgentProcess` + `AcpClient` + `SessionModel`, más el agente falso (sección 13).
 - `initialize` → `session/new` → `session/prompt` con streaming de `agent_message_chunk` al dock, y `session/cancel`.
 - Agent Log con canales.
-- ✅ Contra el agente falso: un prompt, una respuesta en streaming y una cancelación limpia. Contra Claude Code real: "hola" recibe respuesta.
+- `QuotaMonitor` en modo observación: loguear crudo en el canal `quota` cada `usage_update` y cualquier aviso o error de límite.
+- **Verificación con el adapter real de Claude Code**: documentar en `docs/decisions.md` qué reporta realmente (cuota del plan con hora de reinicio, solo tokens de la sesión, o nada) y cómo se ve un error de límite. El diseño de la sección 10.1 se ajusta a eso.
+- ✅ Contra el agente falso: un prompt, una respuesta en streaming y una cancelación limpia. Contra Claude Code real: "hola" recibe respuesta y la verificación de cuota está documentada.
 
 **M2: tool calls, diffs y permisos**
 - Render de `tool_call`/`tool_call_update` (los tres tipos de content), tarjeta de diff y `plan`.
@@ -382,6 +412,8 @@ Cada milestone termina con verificaciones automáticas (sección 13), instruccio
 
 **M6: One-shot**
 - Pantalla principal completa, checkpoints git, presupuestos, checks y "Guiar al agente".
+- Reglas de cuota de la sección 10.1 completas, con los umbrales de Settings.
+- ✅ Con el agente falso simulando la cuota al 90 % y después un error de límite con hora de reinicio: el One-shot pausa al terminar la tarea, crea `cpN-quota`, muestra la cuenta regresiva y retoma solo (o con confirmación) desde la tarea correcta.
 - ✅ Con un proyecto vacío de prueba: "Pong de 2 jugadores con puntaje". El loop completa al menos un playtest con captura, crea checkpoints y "Volver acá" restaura correctamente.
 
 **M7: pulido**
@@ -413,7 +445,7 @@ Es independiente de ACP. Se puede adelantar y desarrollar en paralelo desde M0, 
 
 - **Agente falso en GDScript**: `tests/fake_agent.gd`, que corre con `godot --headless --script`.
   - Lee líneas de stdin con `OS.read_string_from_stdin()` y responde ACP según un guion en JSON (`tests/scripts/*.json`).
-  - Emite chunks, tool calls con diff, pedidos de permiso, plan y errores.
+  - Emite chunks, tool calls con diff, pedidos de permiso, plan, errores, `usage_update` con cuota simulada y errores de límite con hora de reinicio.
   - Es la base de los tests de M1, M2 y M5, y permite trabajar sin gastar tokens.
 - **Tests unitarios**: scripts `@tool` o un runner propio mínimo con `godot --headless --script tests/run_all.gd`, que sale con código 1 si algo falla. Cubren:
   - framing de líneas JSON,

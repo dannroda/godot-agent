@@ -3,7 +3,7 @@
   "checklist": [],
   "code": "6.1",
   "created_at": "2026-10-21T04:33:15.123Z",
-  "description": "Barra superior (objetivo, estado/fase, presupuestos con barras, Pausar/Detener), columnas Plan (editable), Actividad (con \"Guiar al agente\") y Playtest/Verificaciones/Checkpoints, barra inferior con resumen de cambios, \"Revisar cambios\" y \"Aceptar todo\" (docs/design pantalla 2).",
+  "description": "Barra superior: objetivo, estado/fase, presupuestos con barras (cuota de la ventana, tiempo, tokens, playtests), la regla de cuota activa en una línea (\"se pausa al 90 % en el próximo checkpoint\"), cuenta regresiva hasta el reinicio en \"Limitado\", y Pausar/Detener (spec §9.2 actualizado). Columnas Plan (editable), Actividad (con \"Guiar al agente\") y Playtest/Verificaciones/Checkpoints. Barra inferior con resumen de cambios, \"Revisar cambios\" y \"Aceptar todo\" (docs/design pantalla 2).",
   "milestone": "m06",
   "notes": "",
   "order": 1,
@@ -13,5 +13,5 @@
   "status": "todo",
   "test": "",
   "title": "Pantalla principal One-shot",
-  "updated_at": "2026-10-21T04:33:15.123Z"
+  "updated_at": "2026-10-21T06:16:54.198Z"
 }

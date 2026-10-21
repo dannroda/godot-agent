@@ -1,9 +1,10 @@
 {
   "code": "M6",
   "done_when": [
-    "En un proyecto vacío: \"Pong de 2 jugadores con puntaje\" completa al menos un playtest con captura, crea checkpoints y \"Volver acá\" restaura correctamente."
+    "En un proyecto vacío: \"Pong de 2 jugadores con puntaje\" completa al menos un playtest con captura, crea checkpoints y \"Volver acá\" restaura correctamente.",
+    "Con el agente falso simulando la cuota al 90 % y después un error de límite con hora de reinicio: el One-shot pausa al terminar la tarea, crea cpN-quota, muestra la cuenta regresiva y retoma solo (o con confirmación) desde la tarea correcta."
   ],
-  "goal": "Pantalla principal completa, checkpoints git, presupuestos, checks y \"Guiar al agente\".",
+  "goal": "Pantalla principal completa, checkpoints git, presupuestos, checks, \"Guiar al agente\" y reglas de cuota del plan (§10.1).",
   "order": 6,
   "title": "One-shot"
 }

@@ -1,0 +1,26 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "6.8",
+  "created_at": "2026-10-21T06:16:35.619Z",
+  "description": "Spec §10.1.\n- Aviso: banner en la pantalla Agent y entrada en el canal quota.\n- Umbral de pausa: no corta el turno; al terminar la tarea actual y crear su checkpoint, no manda la siguiente y pasa a \"Pausado por cuota\".\n- Límite a mitad de turno: los tool calls pendientes pasan a cancelled, se crea el checkpoint cpN-quota y se pasa a \"Limitado\".\n- Reanudar (solo o con confirmación): session/prompt \"continuá con el plan desde la tarea X; el estado está en el checkpoint cpN\". Si la sesión se perdió, session/load o una sesión nueva con el resumen del plan, los checks y los checkpoints.\n- El tiempo en Limitado no cuenta contra el presupuesto de tiempo.\n- Barra superior: cuota de la ventana, regla activa en una línea (\"se pausa al 90 % en el próximo checkpoint\") y cuenta regresiva en Limitado.",
+  "links": [
+    {
+      "task": "m6-05",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m06",
+  "notes": "",
+  "order": 8,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "quota"
+  ],
+  "test": "",
+  "title": "Reglas de cuota en One-shot: pausa, Limitado y reanudación",
+  "updated_at": "2026-10-21T06:17:06.408Z"
+}
