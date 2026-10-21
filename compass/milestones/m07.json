@@ -1,0 +1,11 @@
+{
+  "code": "M7",
+  "done_when": [
+    "Settings completos y persistidos.",
+    "Sesión de más de 500 entradas sin degradación visible.",
+    "README de uso escrito."
+  ],
+  "goal": "Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.",
+  "order": 7,
+  "title": "Pulido"
+}

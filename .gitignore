@@ -1,0 +1,7 @@
+# Godot 4+
+.godot/
+/android/
+
+# Exports locales
+*.zip
+*.pck

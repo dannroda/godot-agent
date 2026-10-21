@@ -1,0 +1,65 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/godot_agent/ui/dock/agent_dock.gd" id="1_dock"]
+
+[node name="Agent" type="VBoxContainer"]
+custom_minimum_size = Vector2(240, 0)
+script = ExtResource("1_dock")
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Agent"
+
+[node name="ExportBanner" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="ExportBanner"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="Content" type="VBoxContainer" parent="ExportBanner/Margin"]
+layout_mode = 2
+
+[node name="ExportBannerLabel" type="Label" parent="ExportBanner/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="AddFilterButton" type="Button" parent="ExportBanner/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+text = "Agregar a los presets"
+
+[node name="EmptyState" type="Label" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Sin sesión."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PresetsPollTimer" type="Timer" parent="."]
+unique_name_in_owner = true
+autostart = true
+
+[node name="ConfirmPatchDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "Agregar filtro a los presets"
+ok_button_text = "Agregar"
+dialog_autowrap = true
+size = Vector2i(460, 200)
+
+[node name="PatchResultDialog" type="AcceptDialog" parent="."]
+unique_name_in_owner = true
+title = "Godot Agent"
+dialog_autowrap = true
+size = Vector2i(420, 160)

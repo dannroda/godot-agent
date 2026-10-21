@@ -1,0 +1,11 @@
+{
+  "docs": [
+    {
+      "alias": "spec",
+      "path": "GODOT_AGENT_HARNESS_SPEC.md"
+    }
+  ],
+  "export_md": "docs/tareas.md",
+  "port": 4711,
+  "project": "agent-harness"
+}

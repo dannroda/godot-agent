@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dannroda/scope-compass/schema/task.schema.json",
+  "title": "Task",
+  "description": "Una tarea del tablero. El nombre del archivo (sin .json) es su id.",
+  "type": "object",
+  "required": [
+    "milestone",
+    "title",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "milestone": {
+      "type": "string",
+      "description": "Id del hito, p. ej. m00"
+    },
+    "code": {
+      "type": "string",
+      "description": "Código visible, p. ej. 0.3. Puede estar vacío."
+    },
+    "order": {
+      "type": "number",
+      "description": "Orden dentro de la columna"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "description": "Qué hay que hacer y por qué: el enunciado de la tarea. Lo que va saliendo al trabajarla va en notes."
+    },
+    "status": {
+      "enum": [
+        "todo",
+        "paused",
+        "doing",
+        "review",
+        "done"
+      ]
+    },
+    "checklist": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "done"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Texto corto del paso (una línea)"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Detalle opcional del paso: el cómo, el porqué, archivos o código. Se muestra plegado debajo del texto."
+          }
+        }
+      }
+    },
+    "due": {
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])(T([01]\\d|2[0-3]):[0-5]\\d)?$",
+      "description": "Fecha límite opcional: YYYY-MM-DD, o YYYY-MM-DDTHH:MM en hora local"
+    },
+    "priority": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "Prioridad opcional. Sin el campo, la tarea no tiene prioridad."
+    },
+    "size": {
+      "enum": [
+        "s",
+        "m",
+        "l"
+      ],
+      "description": "Estimación opcional: s (chica), m (mediana) o l (grande). Sin el campo, la tarea no está estimada."
+    },
+    "assignee": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Responsable opcional: quién la tiene (una persona o un agente), texto libre"
+    },
+    "tags": {
+      "type": "array",
+      "description": "Etiquetas opcionales para filtrar (arte, audio, bug…): texto corto, sin comas ni espacios en los bordes, sin repetir",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40,
+        "pattern": "^[^,\\s]([^,]*[^,\\s])?$"
+      }
+    },
+    "test": {
+      "type": "string",
+      "description": "Cómo probarlo"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Lo que va saliendo al trabajarla: decisiones, hallazgos y lo que el siguiente necesita saber"
+    },
+    "refs": {
+      "type": "array",
+      "description": "Referencias a documentos: doc = ruta, section = id del comentario <!-- id: ... -->; sin section, el documento entero",
+      "items": {
+        "type": "object",
+        "required": [
+          "doc"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "doc": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "description": "Archivos del repo vinculados a la tarea (scripts, escenas, recursos): rutas desde la raíz del proyecto, la carpeta que tiene compass/",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$"
+      }
+    },
+    "playtest": {
+      "type": "object",
+      "description": "Cómo salió la última prueba de la tarea en un playtest (D40): result pass (anda) o fail (falla), y note, lo que se vio. Lo comparten todas las sesiones de compass/playtests/ que tienen la tarea.",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "result": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "images": {
+      "type": "array",
+      "description": "Capturas de la tarea: rutas desde la raíz del proyecto a imágenes PNG, JPEG, GIF o WebP. Las que se pegan en la web van a compass/images/",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "allOf": [
+          {
+            "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$"
+          },
+          {
+            "pattern": "\\.([pP][nN][gG]|[jJ][pP][eE]?[gG]|[gG][iI][fF]|[wW][eE][bB][pP])$"
+          }
+        ]
+      }
+    },
+    "links": {
+      "type": "array",
+      "description": "Vínculos con otras tareas: type = blocks (esta tarea bloquea a task) o related; task = id de la otra tarea. El inverso (bloqueada por) no se guarda.",
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "task"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "enum": [
+              "blocks",
+              "related"
+            ]
+          },
+          "task": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "done_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Cuándo pasó a Hecho. Lo pone la app al pasarla a done y lo quita si sale de done."
+    }
+  }
+}

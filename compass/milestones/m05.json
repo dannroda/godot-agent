@@ -1,0 +1,9 @@
+{
+  "code": "M5",
+  "done_when": [
+    "Revisar una carpeta con 3 bugs sembrados: aparecen anotados en las líneas correctas."
+  ],
+  "goal": "Modo Revisar, parseo de findings, anotaciones en el CodeEdit, tarjetas y lista de hallazgos; \"Aplicar arreglo\" y \"Exportar a CLAUDE.md\".",
+  "order": 5,
+  "title": "Revisar y Script Editor"
+}

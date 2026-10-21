@@ -1,0 +1,10 @@
+{
+  "code": "M4",
+  "done_when": [
+    "\"Agregá un Label WaveLabel al HUD y conectá la señal X\": aparece en el árbol, Ctrl+Z lo deshace en pasos y `run_scene` devuelve errores reales con un script roto.",
+    "Tras un `run_scene`, un run manual y matar el editor a mitad de un playtest, el autoload no queda en `project.godot` y el test de export sigue pasando."
+  ],
+  "goal": "Grupos edit_scene, edit_files y run con undo; run_scene con captura de errores, autoload de playtest con su ciclo de vida, capture_game_frame e inputs simulados.",
+  "order": 4,
+  "title": "Tools de edición y ejecución"
+}

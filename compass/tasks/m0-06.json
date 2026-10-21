@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "0.6",
+  "created_at": "2026-10-21T03:47:19.169Z",
+  "description": "Habilitar/deshabilitar el plugin 5 veces sin errores, correr el test de export en ambos escenarios, pasar godot-code-review sin hallazgos altos, y dejar en docs/progress.md qué quedó, cómo probarlo a mano y qué falta.",
+  "milestone": "m00",
+  "notes": "docs/progress.md tiene qué quedó, cómo probar a mano y pendientes. Revisión con godot-code-review: sin hallazgos altos; se arreglaron parámetros sin usar en el export plugin y el banner que no se refrescaba con el dock ya visible. Pendiente: link al artifact de diseño (spec §9) para M1.",
+  "order": 6,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "run_all, plugin_cycle_check y export_check PASS en 4.8-beta1, 4.7.2 y 4.4.1. Capturas con ventana en 4.8 y 4.4: main screen Agent, Agent Log y dock presentes.",
+  "title": "Verificar M0 y escribir docs/progress.md",
+  "updated_at": "2026-10-21T04:23:26.219Z"
+}

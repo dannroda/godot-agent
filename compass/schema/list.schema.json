@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dannroda/scope-compass/schema/list.schema.json",
+  "title": "List",
+  "description": "Una lista (pendientes, compras, ideas…). El nombre del archivo (sin .json) es su id, p. ej. compras.",
+  "type": "object",
+  "required": [
+    "title",
+    "order",
+    "items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "order": {
+      "type": "number",
+      "description": "Orden en la barra lateral"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "done"
+        ],
+        "dependentRequired": {
+          "repeat": [
+            "due"
+          ]
+        },
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "El ítem en una línea"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "due": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])(T([01]\\d|2[0-3]):[0-5]\\d)?$",
+            "description": "Fecha límite: YYYY-MM-DD, o YYYY-MM-DDTHH:MM en hora local"
+          },
+          "repeat": {
+            "type": "object",
+            "description": "Se repite: al tildarlo, due avanza un período desde la fecha límite y el ítem sigue sin tildar. Requiere due.",
+            "required": [
+              "every"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "every": {
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ]
+              }
+            }
+          },
+          "task": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Id de la tarea creada desde este ítem (Pasar a tarea)"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

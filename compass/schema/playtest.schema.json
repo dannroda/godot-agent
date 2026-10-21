@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dannroda/scope-compass/schema/playtest.schema.json",
+  "title": "Playtest",
+  "description": "Una sesión de playtest: tareas ya creadas, en el orden en que se prueban. El nombre del archivo (sin .json) es su id, p. ej. build-0-3.",
+  "type": "object",
+  "required": [
+    "title",
+    "order",
+    "items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "order": {
+      "type": "number",
+      "description": "Orden en la barra lateral"
+    },
+    "items": {
+      "type": "array",
+      "description": "Las tareas a probar, en el orden de la prueba",
+      "items": {
+        "type": "object",
+        "required": [
+          "task"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "task": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Id de la tarea (compass/tasks/<id>.json). Cómo salió la prueba vive en la tarea (playtest), así se ve igual en todas las sesiones (D40)."
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -1,0 +1,134 @@
+# Decisiones
+
+Registro de decisiones de diseño, choques entre skills y spec, y verificaciones de API.
+Formato: fecha · decisión · por qué.
+
+---
+
+## D1 · Estructura de carpetas (M0)
+
+Skills: `godot-architecture` (por feature), `godot-communication`, `godot-patterns`, `godot-data-driven`, `godot-code-review`.
+
+El repo es un proyecto Godot "anfitrión" para desarrollar el addon. Solo `addons/godot_agent/` se distribuye.
+
+```
+project.godot                      # proyecto anfitrión de desarrollo (no se distribuye)
+addons/
+  godot_agent/                     # EL addon. Todo @tool, todo excluido del export
+    plugin.cfg
+    plugin.gd                      # raíz de composición: crea los servicios y los inyecta en la UI
+    export/
+      agent_export_plugin.gd       # skip() de addons/godot_agent/ + guard de autoload huérfano
+      export_presets_patcher.gd    # lee/parchea exclude_filter en export_presets.cfg
+    playtest/
+      playtest_autoload.gd         # alta/baja/limpieza del autoload (lado editor)
+      runtime/
+        playtest_probe.gd          # el autoload que corre en el juego. Aislado (sin preload)
+    transport/                     # M1: agent_process.gd
+    acp/                           # M1: acp_client.gd, fs_handler.gd (M2)
+    session/                       # M1: session_model.gd · M2: permission_policy.gd
+    mcp/                           # M3: mcp_server.gd, http_request_parser.gd, tool_registry.gd,
+                                   #     mcp_stdio_shim.gd, tools/<grupo>_tools.gd
+    oneshot/                       # M6: checkpoints.gd, budgets.gd
+    completion/                    # M8: controller, providers/, project_context, ranker…
+    config/                        # Resources por proyecto (D5) y prompts editables
+    ui/
+      dock/                        # agent_dock.tscn/.gd (+ mensajes, composer en M1/M2)
+      main_screen/                 # agent_main_screen.tscn/.gd (One-shot, M6)
+      log_panel/                   # agent_log_panel.tscn/.gd
+      review/  settings/  markdown/
+  godot_agent_dev/                 # SOLO desarrollo: herramientas de test que necesitan el editor
+docs/                              # decisions.md, progress.md
+tests/                             # export_check.gd, plugin_cycle_check.gd, run_all.gd, fake_agent.gd…
+compass/                           # tablero de tareas (scompass)
+```
+
+- Dentro del addon se agrupa por **feature/capa** (transport, acp, session, mcp, ui…) en vez de por tipo de archivo, como pide `godot-architecture` §4.
+- `snake_case` para archivos y carpetas; nodos raíz de escenas en PascalCase.
+
+## D2 · Sin `class_name` global en el addon: constantes `preload` (choque skill ↔ spec)
+
+La skill pide `class_name` que coincida con el archivo. En el addon **no** se usa `class_name`; cada script que necesita otro lo trae con `const AcpClient := preload("../acp/acp_client.gd")` y lo usa como tipo (`var client: AcpClient`).
+
+Por qué:
+1. **Export en 4.4**: verificado con 4.4.1: aunque la carpeta del addon se excluya, el `.godot/global_script_class_cache.cfg` exportado sigue listando las clases del addon con su ruta. En 4.8-beta1 ya se filtra, pero el mínimo es 4.4. Sin `class_name` no hay entradas.
+2. **Espacio global del usuario**: nombres como `SessionModel`, `ToolRegistry` o `McpServer` chocarían con clases del proyecto del usuario.
+
+Se mantiene el resto de la convención: un script por clase y el nombre de la constante en PascalCase igual al archivo.
+
+Los scripts de `tests/` y `addons/godot_agent_dev/` tampoco usan `class_name`, por la misma razón (no ensucian el proyecto anfitrión).
+
+## D3 · Comunicación: raíz de composición + inyección, sin autoloads de editor
+
+- `plugin.gd` es el "contexto" (`godot-architecture` §6): construye `AgentProcess`, `AcpClient`, `SessionModel`, `McpServer`, `PermissionPolicy`, etc., y los inyecta en la UI con `setup(...)` **antes** de `add_child`/agregar el dock.
+- Modelos y transporte son `RefCounted` (testeables sin escena). La UI son escenas.
+- Regla de la spec respetada: UI → SessionModel → AcpClient → AgentProcess. La UI solo escucha señales del `SessionModel` (push) y lee su estado actual al conectarse (pull), como pide `godot-communication` §6.
+- **No hay EventBus ni autoloads del addon en el editor**: la spec prohíbe entradas en `project.godot`, y con una raíz de composición alcanza. El único autoload es el de playtest (spec §6), temporal.
+
+## D4 · Compatibilidad de API verificada (4.4.1, 4.7.2, 4.8-beta1)
+
+Verificado con `ClassDB.class_get_method_list` en los tres binarios:
+
+| API | Firma | Notas |
+|---|---|---|
+| `OS.execute_with_pipe` | `(path: String, arguments: PackedStringArray, blocking: bool = true) -> Dictionary` | Igual en 4.4, 4.7 y 4.8. Devuelve `stdio`, `stderr` (FileAccess) y `pid`. Con `blocking=true` las lecturas bloquean: van en `Thread`. |
+| `OS.read_string_from_stdin` | `(buffer_size: int)` | **En 4.4 el argumento no tiene default**: pasarlo siempre (fake agent, shim). |
+| `OS.kill`, `is_process_running`, `get_process_exit_code` | — | Presentes en 4.4. |
+| `EditorPlugin._build() -> bool` | — | Presente en 4.4 (alta del autoload de playtest, M4). |
+| `EditorPlugin.add_control_to_dock / add_control_to_bottom_panel` | — | Presentes en 4.4–4.8. `EditorDock` + `add_dock` existen solo desde 4.7: **se usa la API vieja** para soportar 4.4. |
+| `EditorExportPlugin.skip()`, `_export_file`, `_export_begin` | — | Iguales en 4.4–4.8. |
+| `EngineDebugger.register_message_capture/send_message`, `EditorDebuggerPlugin._capture/_setup_session` | — | Presentes en 4.4. |
+| `CodeEdit.get_code_completion_selected_index`, `TextEdit.get_rect_at_line_column` | — | Presentes en 4.4 (M8). |
+| Feature tag `editor_runtime` | — | Existe en 4.4 y 4.8: `true` al correr el proyecto con el binario de editor, `false` en el editor (`editor_hint`) y en exports. El guard de `playtest_probe.gd` usa `editor_runtime` + `EngineDebugger.is_active()`. |
+
+Binario de desarrollo: `/opt/godot/versions/4.8-beta1/godot`. El de PATH (`godot`) es 4.7.2. Para verificar el mínimo se usó el 4.4.1 oficial.
+
+## D5 · Settings por proyecto: Resource, no ProjectSettings
+
+`godot-data-driven` pide Resources para lo tuneable, y la spec (§2) prohíbe entradas del addon en `project.godot` (terminarían en `project.binary`). La matriz de permisos y los presupuestos van en un `Resource` en `res://addons/godot_agent/config/project_config.tres` (excluido del export junto con el resto del addon). Riesgo: actualizar el addon pisando la carpeta borraría la config; se avisa en el README (M7). Settings por usuario: `EditorSettings` con prefijo `godot_agent/`.
+
+## D6 · "Agregar a los presets": edición del archivo + aviso de reinicio
+
+No hay API de script para modificar `EditorExportPreset` (solo getters). El botón edita `export_presets.cfg` con `ConfigFile` (el mismo formato que usa el editor) previa confirmación. El editor tiene los presets en memoria: si después se guarda desde el diálogo de Exportar sin reiniciar, puede pisar el cambio. Por eso la UI pide reiniciar el editor, y el export plugin vuelve a avisar en cada export si algún preset no tiene el filtro.
+
+En M0 el aviso vive en el dock (Settings llega en M7).
+
+## D7 · Test de ciclo del plugin vía plugin de desarrollo
+
+Habilitar/deshabilitar un plugin necesita `EditorInterface`, que no existe en `--script`. `addons/godot_agent_dev/` es un plugin que solo actúa si el editor se lanza con `-- --godot-agent-cycle-test`: alterna `godot_agent` 5 veces, mide nodos huérfanos y objetos, y sale con código ≠ 0 si algo queda colgado. `tests/plugin_cycle_check.gd` lanza el editor headless y además falla si la salida tiene errores.
+
+## D8 · Rastros que quedan en el export (aceptados)
+
+`tests/export_check.gd` los reporta como **aviso**, no como fallo:
+
+- `uid_cache.bin` conserva las rutas de los scripts del addon (solo strings, no archivos). Pasa en 4.4, 4.7 y 4.8 cuando el addon se saca con `skip()` y en 4.4 también con el filtro. No hay hook para filtrarlo desde un `EditorExportPlugin`.
+- `project.binary` conserva `editor_plugins/enabled` con `res://addons/godot_agent/plugin.cfg` si el plugin estaba habilitado. Es la configuración del proyecto del usuario (pasa con cualquier plugin habilitado) y el runtime la ignora.
+
+Lo que **sí** falla el test: cualquier archivo bajo `addons/godot_agent/` (incluidos `.gdc` y `.remap`), el autoload de playtest en `project.binary` y clases del addon en `global_script_class_cache.cfg`.
+
+## D9 · Docks y main screen: EditorDock en 4.7+/4.8+, API vieja en 4.4–4.6
+
+En 4.8 `_has_main_screen`, `add_control_to_dock`, `add_control_to_bottom_panel` y `_get_plugin_icon` están deprecados en favor de `add_dock(EditorDock)` (main screen = `default_slot = DOCK_SLOT_MAIN_SCREEN` + layout `DOCK_LAYOUT_MAIN_SCREEN`; panel inferior = `DOCK_SLOT_BOTTOM`).
+
+Medido con `tests/plugin_cycle_check.gd`: en **4.8-beta1** un plugin con `_has_main_screen() == true` deja un `EditorDock` huérfano (el que el editor crea por dentro) en cada deshabilitado. Con `add_dock` + `remove_dock` + `queue_free` no queda nada.
+
+`ui/editor_surfaces.gd` decide por superficie, mirando `ClassDB` (no el número de versión):
+
+| Superficie | EditorDock si… | Si no |
+|---|---|---|
+| Dock lateral | existe `EditorDock` (4.7+) | `add_control_to_dock(DOCK_SLOT_RIGHT_UL)` |
+| Panel inferior | existe `EditorDock.DOCK_SLOT_BOTTOM` (4.7+) | `add_control_to_bottom_panel` |
+| Main screen | existe `EditorDock.DOCK_SLOT_MAIN_SCREEN` (4.8+) | `_has_main_screen()` + `_make_visible()` |
+
+- Todo lo de `EditorDock` se llama por reflexión (`ClassDB.instantiate`, `set`, `call(&"add_dock")`) para que el addon parsee en 4.4.
+- Los valores de `EditorDock.DockSlot` no son los de `EditorPlugin.DockSlot`: se leen con `ClassDB.class_get_integer_constant(&"EditorDock", …)`.
+- **Main screen activa al cerrar (4.8-beta1)**: si el editor se cierra con la main screen "Agent" activa, el `remove_dock` da `Condition "!is_inside_tree()"` en `grab_focus`. `EditorSurfaces` cambia antes a la pantalla "2D". No a "Script": en headless eso mete al editor en un bucle de llamadas diferidas ("Message queue out of memory") y crashea. Las dos cosas se reprodujeron y se verificó que el cambio las arregla (tarea m7-01: reportarlas upstream).
+
+## D10 · Export plugin: orden por nombre y baja del autoload a mano
+
+Hallado con `tests/export_check.gd` en 4.8-beta1 (confirmado leyendo `editor/export/editor_export_platform.cpp`):
+
+1. **`skip()` no alcanzaba a los `.gd`.** El editor ordena los export plugins por `get_name()` (`SortByName`) y, por archivo, corta la cadena en el primer plugin que hace `skip()` o un remap. El plugin interno de GDScript remapea `.gd` → `.gdc` antes que el nuestro, así que los scripts se exportaban igual (como `.gdc` + `.remap`). Las escenas sí se salteaban. **Solución**: `_get_name()` devuelve `"!GodotAgentExcludeAddon"`; `!` ordena antes que cualquier letra, así nuestro `skip()` corre primero.
+2. **Baja del autoload en `_export_begin`.** `project.binary` se genera al final del export (después de `_export_begin`), así que quitar el autoload ahí **sí** afecta al export en curso. Pero `remove_autoload_singleton` no borraba la entrada en ese momento (tampoco al cerrar el editor: "Trying to remove non-existent autoload", porque el editor nunca lo cargó). `PlaytestAutoload.unregister()` llama a `remove_autoload_singleton` y, si la entrada sigue, la borra con `ProjectSettings.set_setting(…, null)` + `save()`.
+
+Resultado: `export_check.gd` pasa los 4 escenarios en 4.4.1, 4.7.2 y 4.8-beta1. Con el plugin habilitado, el addon queda fuera aunque el preset no tenga filtro. El filtro sigue siendo la red de seguridad para exportar con el plugin deshabilitado.

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dannroda/scope-compass/schema/config.schema.json",
+  "title": "Config",
+  "description": "Configuración del proyecto: compass/config.json.",
+  "type": "object",
+  "required": [
+    "project"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "auto_export_md": {
+      "type": "boolean",
+      "default": true,
+      "description": "Regenerar export_md después de cada escritura (hub y CLI). Por defecto true."
+    },
+    "board_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Tablero en artifact que todavía es la fuente de verdad. Mientras esté, el export markdown lo cita como origen; se quita al migrar a compass/."
+    },
+    "docs": {
+      "type": "array",
+      "description": "Documentos referenciables desde las tareas (§10)",
+      "items": {
+        "type": "object",
+        "required": [
+          "alias",
+          "path"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "alias": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Nombre corto usado en [[alias#seccion]]"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Ruta a un .md dentro del proyecto, relativa a la raíz, o un patrón como docs/**/*.md (sin .., llaves ni rutas absolutas)",
+            "pattern": "^(?![/\\\\])(?![a-zA-Z]:)(?!(.*/)?\\.\\.(/|$))[^\\\\{}]+\\.md$"
+          }
+        }
+      }
+    },
+    "export_md": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Ruta del export markdown (.md), relativa a la raíz del proyecto y dentro de él",
+      "pattern": "^(?![/\\\\])(?![a-zA-Z]:)(?!(.*/)?\\.\\.(/|$))[^\\\\{}]+\\.md$"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Puerto del hub en 127.0.0.1"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Nombre del proyecto, para títulos y el export markdown"
+    },
+    "views": {
+      "type": "array",
+      "description": "Pestañas del proyecto en la web, en orden; la primera es la que abre. Sin views: board, lists, playtest, docs, files.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "board",
+          "lists",
+          "playtest",
+          "docs",
+          "files"
+        ]
+      }
+    },
+    "description_templates": {
+      "type": "object",
+      "description": "Plantillas de descripción por etiqueta: al ponerle esa etiqueta a una tarea sin descripción, la descripción arranca con este texto (p. ej. bug: pasos para reproducirlo, qué se esperaba y qué pasó).",
+      "propertyNames": {
+        "minLength": 1,
+        "maxLength": 40,
+        "pattern": "^[^,\\s]([^,]*[^,\\s])?$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "code": "M6",
+  "done_when": [
+    "En un proyecto vacío: \"Pong de 2 jugadores con puntaje\" completa al menos un playtest con captura, crea checkpoints y \"Volver acá\" restaura correctamente."
+  ],
+  "goal": "Pantalla principal completa, checkpoints git, presupuestos, checks y \"Guiar al agente\".",
+  "order": 6,
+  "title": "One-shot"
+}

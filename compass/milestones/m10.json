@@ -1,0 +1,11 @@
+{
+  "code": "M8c",
+  "done_when": [
+    "Cambiar de proveedor y de modo desde Settings sin reiniciar el editor.",
+    "En híbrido, la sugerencia local nunca se demora por el LLM.",
+    "Latencias p50 por fuente visibles en el log."
+  ],
+  "goal": "Proveedor Ollama y modo híbrido; después llama.cpp, Codestral, OpenAI-compatible y Gemini (experimental). Métricas e indicador en el Script Editor.",
+  "order": 10,
+  "title": "Completado predictivo: LLM opcional"
+}

@@ -1,0 +1,10 @@
+{
+  "code": "M0",
+  "done_when": [
+    "Habilitar y deshabilitar el plugin 5 veces seguidas sin errores en Output.",
+    "`tests/export_check.gd` pasa con el plugin habilitado y también deshabilitado (con el filtro del preset)."
+  ],
+  "goal": "Estructura de carpetas y clases decidida con las skills; plugin que agrega y quita dock, panel inferior y main screen; el addon nunca llega a un export.",
+  "order": 0,
+  "title": "Esqueleto y decisiones"
+}

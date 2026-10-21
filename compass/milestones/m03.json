@@ -1,0 +1,10 @@
+{
+  "code": "M3",
+  "done_when": [
+    "Claude Code lista las tools `godot.*` y responde \"¿cuántos nodos tiene Main.tscn?\" usando `scene_tree`.",
+    "Tests del parser HTTP con requests partidos y concatenados."
+  ],
+  "goal": "McpServer con token, initialize, tools/list y tools/call; tools read y diagnostics; fallback del shim stdio.",
+  "order": 3,
+  "title": "Servidor MCP y tools de lectura"
+}

@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/godot_agent/ui/main_screen/agent_main_screen.gd" id="1_main"]
+
+[node name="AgentMainScreen" type="VBoxContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_vertical = 3
+script = ExtResource("1_main")
+
+[node name="EmptyState" type="Label" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+text = "One-shot: todavía no hay una tarea en curso."
+horizontal_alignment = 1
+vertical_alignment = 1

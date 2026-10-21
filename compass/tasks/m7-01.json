@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-21T04:23:26.740Z",
+  "description": "El addon esquiva dos problemas de 4.8-beta1 que conviene reportar upstream con un repro mínimo: (1) un plugin con _has_main_screen() == true deja un EditorDock huérfano en cada deshabilitado; (2) quitar con remove_dock una main screen activa al cerrar el editor da \"Condition !is_inside_tree()\" en grab_focus, y cambiar antes a \"Script\" en headless crashea por desborde de la cola de mensajes. Ver docs/decisions.md D9. Si se arreglan, simplificar ui/editor_surfaces.gd.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 1,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Reportar a Godot los problemas de docks de 4.8-beta1",
+  "updated_at": "2026-10-21T04:23:26.740Z"
+}

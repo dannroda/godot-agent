@@ -1,0 +1,10 @@
+# Scope Compass: los archivos de compass/ siempre con LF, también en Windows con core.autocrlf, para que el mismo
+# proyecto en Linux y en Windows no muestre cambios por fin de línea (D30). `scompass update` lo pone al día.
+* text eol=lf
+# Las capturas de las tareas (images/, 18.4) son binarias: sin esto, eol=lf les cambiaría los bytes.
+images/** binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary

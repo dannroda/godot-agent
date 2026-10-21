@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/godot_agent/ui/log_panel/agent_log_panel.gd" id="1_log"]
+
+[node name="AgentLogPanel" type="VBoxContainer"]
+custom_minimum_size = Vector2(0, 160)
+script = ExtResource("1_log")
+
+[node name="EmptyState" type="Label" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Sin actividad."
+horizontal_alignment = 1
+vertical_alignment = 1

@@ -1,0 +1,10 @@
+{
+  "code": "M1",
+  "done_when": [
+    "Contra el agente falso: un prompt, una respuesta en streaming y una cancelación limpia.",
+    "Contra Claude Code real: \"hola\" recibe respuesta."
+  ],
+  "goal": "AgentProcess + AcpClient + SessionModel y agente falso: initialize → session/new → session/prompt con streaming al dock, y session/cancel. Agent Log con canales.",
+  "order": 1,
+  "title": "Transporte y ACP mínimo"
+}

@@ -1,0 +1,9 @@
+{
+  "code": "M2",
+  "done_when": [
+    "Pedirle a Claude Code que edite un script abierto: el diff se muestra, el permiso se pide en Construir y se auto-deniega en Preguntar, y el editor muestra el cambio sin diálogos ni pérdida de buffer."
+  ],
+  "goal": "Render de tool_call/tool_call_update, tarjeta de diff y plan; session/request_permission con PermissionPolicy; fs/read_text_file y fs/write_text_file con sincronización editor ↔ disco.",
+  "order": 2,
+  "title": "Tool calls, diffs y permisos"
+}

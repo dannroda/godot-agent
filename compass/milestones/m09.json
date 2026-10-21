@@ -1,0 +1,9 @@
+{
+  "code": "M8b",
+  "done_when": [
+    "El set de evaluación reporta resultados por fuente y el n-gram mejora la línea base de reglas + recuperación."
+  ],
+  "goal": "Línea siguiente y bloques cortos, ghost text multilínea, aceptación por palabra, n-gram, adaptación de identificadores, post-procesado completo, caché y set de evaluación.",
+  "order": 9,
+  "title": "Completado predictivo: calidad local"
+}

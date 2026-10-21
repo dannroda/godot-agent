@@ -1,0 +1,11 @@
+{
+  "code": "M8a",
+  "done_when": [
+    "`@onready var ` sugiere nodos hijos reales con tipo y ruta; `func _` sugiere virtuales con firma; una línea repetida se sugiere al tipear su comienzo.",
+    "Tab sin sugerencia sigue indentando y el popup nativo no se rompe.",
+    "p95 < 10 ms por consulta en un proyecto de 200 scripts (medido y logueado)."
+  ],
+  "goal": "CompletionController, GhostTextRenderer de una línea, Tab/Esc, ProjectContext en segundo plano y proveedor local (reglas, recuperación, historial + ranker).",
+  "order": 8,
+  "title": "Completado predictivo: núcleo sin IA"
+}
