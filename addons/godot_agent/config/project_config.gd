@@ -21,6 +21,11 @@ const PATH := "res://addons/godot_agent/config/project_config.tres"
 @export_range(256, 4096, 16, "suffix:px") var max_image_side: int = 1280
 ## Correr el autoload de playtest también en los runs manuales del usuario.
 @export var playtest_on_manual_runs: bool = false
+@export_group("Completado")
+## Completado predictivo en este proyecto (además del on/off global del usuario, spec §16.10).
+@export var completion_enabled: bool = true
+## Prefijos (relativos a res://) que no entran al corpus de líneas del completado.
+@export var completion_exclude: PackedStringArray = ["addons/"]
 
 
 ## Carga el recurso del proyecto o devuelve uno nuevo con los defaults (sin guardarlo).

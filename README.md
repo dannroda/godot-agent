@@ -128,7 +128,21 @@ Cada sesión se guarda en `user://godot_agent/sessions/` (la carpeta de datos de
 
 ### Completado inline
 
-Todavía no está: llega en el hito M8 de la spec.
+Sugerencias en gris mientras escribís en el Script Editor. Por ahora son solo locales: no usan IA ni el agente y no salen del editor.
+
+- **Tab** acepta la sugerencia en un solo paso de deshacer. **Esc** la descarta. **Alt+\\** pide una a mano.
+- Si no hay sugerencia, o si el popup de autocompletado de Godot está abierto, Tab funciona como siempre.
+- De dónde salen las sugerencias:
+  - **reglas de Godot**:
+    - `@onready var ` propone los nodos hijos de la escena, con tipo y ruta;
+    - `func _` propone los virtuales de la clase base, con su firma;
+    - `$`/`%` propone rutas de nodos;
+    - también hay reglas para acciones del input map, grupos, `.connect(`, `func _on_`, `preload("` y `extends `;
+  - **líneas del proyecto**: si una línea se repite en otros scripts, se sugiere al escribir su comienzo;
+  - **historial**: lo que escribiste en esta sesión.
+- Si hay dudas entre dos opciones, no se muestra nada.
+- El índice del proyecto se arma en segundo plano y no incluye `addons/` en las líneas sugeridas. Se configura en `project_config.tres`, sección Completado.
+- Se apaga con `godot_agent/completion/enabled` en Configuración del editor, o por proyecto con `completion_enabled`.
 
 ## Perfiles de agentes
 
@@ -144,8 +158,8 @@ Todavía no está: llega en el hito M8 de la spec.
 
 | Qué | Dónde | Alcance |
 |---|---|---|
-| Perfiles, puerto MCP, cuota, color de acento, ubicación del dock | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
-| Permisos, presupuestos, checkpoints, límites de las tools, carpetas extra | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
+| Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, debounce, umbral) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
+| Permisos, presupuestos, checkpoints, límites de las tools, carpetas extra, completado del proyecto | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
 | Historial de sesiones | `user://godot_agent/sessions/` | tu usuario, este proyecto |
 
 El puerto, el color y la ubicación del dock se aplican al reabrir el editor. Desde 4.8 el editor recuerda dónde dejaste el dock, así que la ubicación de Settings es solo la inicial.

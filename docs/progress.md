@@ -489,3 +489,99 @@ Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1, junto con el cycle test, `--godot-agent-o
 - m7-01: reportar a Godot los problemas de la main screen en 4.8-beta1. Es otra tarea, fuera de esta sesión.
 - La ubicación del dock solo cuenta la primera vez con `EditorDock` (4.8): después el editor recuerda la que eligió el usuario.
 
+
+## M8a · Completado local: núcleo sin IA
+
+Spec §16, §12 (M8a). Decisiones en D26.
+
+### Hecho
+
+- **CompletionController** (m8-01), uno por CodeEdit de script:
+  - se engancha con `editor_script_changed` y se suelta cuando el CodeEdit se libera (pestaña cerrada). Si el Script Editor se hace flotante, el CodeEdit solo cambia de padre y el controller sigue;
+  - dispara con un debounce de 30 ms si el caret está al final de la línea (o solo hay cierres a la derecha), sin selección, sin el popup nativo abierto y en un `.gd`;
+  - invalida al cambiar de línea, al tipear algo distinto a la sugerencia, con Esc y al perder el foco;
+  - type-through: tipear el comienzo de la sugerencia lo consume sin pedir otra;
+  - Alt+\ pide una a mano, y solo se consume si en ese lugar se puede pedir;
+  - con selección o varios carets no se sugiere, y Tab no acepta;
+  - descarta las respuestas viejas por número de secuencia.
+- **GhostTextRenderer y aceptación** (m8-02):
+  - dibuja desde la señal `draw` del CodeEdit, en la posición del caret, con la fuente y el tamaño del editor, recortado al área de texto;
+  - Tab inserta la sugerencia en una sola acción de undo y la suma al historial;
+  - con cierres a la derecha del caret (`")` del autocierre), el ghost text va en el medio y los cierres se redibujan después;
+  - las teclas se interceptan con `gui_input` y `accept_event()`, sin hacer falta el fallback por `_input` (D26).
+- **ProjectContext** (m8-03), indexado en `WorkerThreadPool` y publicado entero:
+  - `extends` y `class_name`;
+  - funciones y señales de cada script;
+  - nodos de cada `.tscn` (tipo, únicos, instancias, script), grupos y conexiones;
+  - qué nodos usan cada script;
+  - recursos del proyecto.
+  En el hilo principal, con caché: virtuales y señales de ClassDB, clases globales, input map, autoloads y la escena abierta. Se reindexa con `filesystem_changed`, `resources_reimported` y el buffer sin guardar.
+- **ContextRules** (m8-04): las 9 reglas de la tabla §16.2a.
+- **LineRetrieval, historial de la sesión y Ranker** (m8-05).
+- **Fixture, tests y benchmark** (m8-06):
+  - `tests/completion_fixture/`: escenas con hijos, `%` únicos, una instancia, conexiones, input map, autoloads y una herencia por `class_name`;
+  - tests de cada regla, del índice, la recuperación, el historial, el ranker y el post-procesado;
+  - tests del controller sobre un CodeEdit real con reloj simulado, y un proveedor falso (`tests/fake_completion_provider.gd`);
+  - benchmark con 200 scripts generados.
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd                 # 109 tests, 752 checks (25 del completado)
+$G --headless --path . --script tests/run_all.gd -- completion_bench
+tests/run_in_xvfb.sh $G --godot-agent-completion-test [--godot-agent-ui-shot=/tmp/c]
+```
+
+- **Benchmark** (`test_completion_bench`): 200 scripts, 60 escenas y 13 529 líneas únicas, con 1500 consultas mezcladas (reglas y recuperación). El build del índice va en el worker y no frena el editor.
+
+  | Versión | Build | p50 | p95 | Máx. |
+  |---|---|---|---|---|
+  | 4.8-beta1 | 209 ms | 0,05 ms | 1,29 ms | 3,1 ms |
+  | 4.7.2 | 208 ms | 0,05 ms | 1,43 ms | 3,3 ms |
+  | 4.4.1 | 223 ms | 0,05 ms | 1,62 ms | 3,8 ms |
+
+  El criterio es p95 < 10 ms. El test lo verifica y deja la medición en la salida. El rebuild del test relee todo porque los archivos se acaban de escribir (lo modificado hace menos de 2 s nunca se reutiliza, D26).
+- **En el Script Editor real** (`--godot-agent-completion-test`, con eventos de teclado como los de una persona), en 4.4.1, 4.7.2 y 4.8-beta1:
+  - `@onready var ` sugiere `cooldown: Timer = $Cooldown`, el primer hijo de la escena;
+  - con `ba` sugiere `r: ProgressBar = %Bar`, un nodo único;
+  - Tab inserta y un undo lo deshace;
+  - Esc descarta;
+  - `func _` sugiere `process(delta: float) -> void:` (`_ready` ya estaba);
+  - una línea repetida en otros dos scripts se sugiere al tipear su comienzo;
+  - Tab sin sugerencia indenta;
+  - con `")` del autocierre a la derecha, `preload("res://…/sco` sugiere el resto de la ruta y Tab respeta el cierre;
+  - con el popup nativo abierto no se pide sugerencia, y Tab elige la opción del popup.
+- Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1: `run_all`, `acp_session_check`, `oneshot_check` y el cycle test.
+- El cycle test crece 29 objetos en 5 ciclos, y lo mismo sin el servicio de completado, así que no viene de M8a. Está por debajo de la tolerancia de 50.
+
+### Revisión de código
+
+Corregido después de la revisión de M8a:
+- Selección y varios carets: Tab no acepta y no se sugiere.
+- `%` como operador (`x % 2`) ya no dispara la regla de nodos únicos.
+- Conexiones con `binds`/`unbinds` y señales de varias líneas: no se proponen firmas que no se pueden saber.
+- Las cachés de nodos y señales se vacían al publicar un índice nuevo.
+- Script Editor flotante: el controller no se pierde.
+- Tipos desconocidos (nodos de escenas instanciadas o heredadas): `@onready` sale sin tipo antes que con uno inventado.
+- Costo por tecla: el set de funciones definidas se arma una vez, la petición no vuelve a partir el texto y el índice viejo se libera en el worker.
+- El ghost text no se dibuja si el caret no está en su ancla.
+- Apagado no indexa, y cambiar `completion_exclude` reindexa.
+- `load`/`preload` solo sugieren recursos con extensiones conocidas; sin nada escrito y con varias opciones no se adivina (rutas, acciones, grupos).
+- La normalización no colapsa espacios dentro de strings.
+- `wait()` cancela el build en curso.
+
+Queda documentado y sin resolver: si el addon se recarga como `@tool` con un build en curso, el worker sigue con los scripts viejos hasta terminar (D26).
+
+### Prueba manual
+
+1. Abrí un script adjunto a una escena con hijos y escribí `@onready var ` en una línea nueva: aparece en gris el primer hijo no declarado, con tipo y ruta. Tab lo inserta y Ctrl+Z lo deshace de una vez.
+2. Escribí `func _`: aparece el primer virtual de la clase base que falta, con su firma.
+3. Copiá una línea a otro script y escribí su comienzo en un tercero: se sugiere el resto.
+4. En una línea sin sugerencia, Tab indenta. Con el autocompletado de Godot abierto, Tab elige la opción de la lista.
+5. En el Agent Log, canal `cmp`: el tiempo del índice y, por cada sugerencia, la fuente, la latencia y qué pasó (aceptada o descartada, con el motivo). El código no aparece.
+
+### Pendiente (M8b)
+
+- Predicción de la línea siguiente, bloques cortos y ghost text multilínea.
+- Aceptar por palabra (Ctrl+→) y adaptación de identificadores.
+- n-gram, post-procesado completo con caché y set de evaluación.

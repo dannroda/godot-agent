@@ -1177,7 +1177,7 @@ Bajo pendiente: load_record y replay son sincrónicos. Corren solo al elegir una
 
 Durante la verificación, la sesión larga en 4.8 dio frames de 0,4–2 s, siempre al fin del turno. Midiendo: el guardado del historial tardaba 9 ms o 607 ms según la carga del disco. Las escrituras pasaron a un worker (cola en orden en WorkerThreadPool) y la misma secuencia quedó en 83–133 ms.
 
-## M8a — Completado predictivo: núcleo sin IA  (0/7)
+## M8a — Completado predictivo: núcleo sin IA  (7/7, 7 en revisión)
 
 CompletionController, GhostTextRenderer de una línea, Tab/Esc, ProjectContext en segundo plano y proveedor local (reglas, recuperación, historial + ranker).
 
@@ -1186,47 +1186,75 @@ CompletionController, GhostTextRenderer de una línea, Tab/Esc, ProjectContext e
 - Tab sin sugerencia sigue indentando y el popup nativo no se rompe.
 - p95 < 10 ms por consulta en un proyecto de 200 scripts (medido y logueado).
 
-### 8.1 CompletionController: disparo, debounce e invalidación · Pendiente
+### 8.1 CompletionController: disparo, debounce e invalidación · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Uno por CodeEdit (enganche con editor_script_changed). Dispara con caret al final o solo cierres a la derecha, sin selección, popup nativo cerrado, archivo .gd. Invalida al mover de línea, tipear distinto, Esc o perder foco. Type-through. Atajo manual Alt+\ (spec §16.5).
 
-### 8.2 GhostTextRenderer y aceptación · Pendiente
+**Prueba:** tests/unit/test_completion_controller.gd (CodeEdit real, reloj simulado: debounce, condiciones de disparo, type-through, invalidación, respuesta vieja, Alt+\); --godot-agent-completion-test en 4.4.1/4.7.2/4.8.
+
+**Notas:** completion/completion_controller.gd + completion_service.gd. text_changed/caret_changed llegan diferidos: se compara contra el último estado (línea, columna, get_version). Debounce vía tick(now) desde el servicio. Detalles en D26.
+
+### 8.2 GhostTextRenderer y aceptación · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Texto atenuado con draw_string sobre el CodeEdit respetando fuente, scroll, wrap y zoom. Tab acepta (una acción de undo), Esc descarta; interceptar solo con sugerencia visible y popup cerrado. Documentar si gui_input alcanza o hace falta _input.
 
-### 8.3 ProjectContext indexado en segundo plano · Pendiente
+**Prueba:** test_completion_controller (Tab acepta en una acción de undo, Tab sin sugerencia indenta, Esc, popup nativo); --godot-agent-completion-test con capturas (posición en el caret, recorte al área de texto).
+
+**Notas:** gui_input + accept_event alcanza (no hizo falta _input). x del ghost = get_caret_draw_pos: get_rect_at_line_column al final de la línea devuelve el carácter anterior (4.4 y 4.8). TextLine recortado sin minimapa ni scrollbar.
+
+### 8.3 ProjectContext indexado en segundo plano · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Responsable:** Claude
 
 extends/class_name y API de la clase base (ClassDB), firmas de clases del proyecto, nodos hijos por escena que usa el script ($ y %), autoloads, input map, grupos, señales conectadas. Invalidación por archivo con filesystem_changed.
 
-### 8.4 ContextRules · Pendiente
+**Prueba:** test_completion_rules.test_context_index (fixture); test_completion_bench (build 200 scripts ≈180 ms, rebuild incremental).
+
+**Notas:** project_index.gd (worker, inmutable al publicarse, reutiliza por mtime salvo archivos de <2 s) + project_context.gd (ClassDB, ProjectSettings, escena abierta con caché). Sin persistencia: <1 s.
+
+### 8.4 ContextRules · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Reglas de la tabla §16.2a: @onready var, $/%, acciones de input, func _ virtuales con firma, .connect(, func _on_, grupos, preload/load, extends.
 
-### 8.5 LineRetrieval, SessionHistory y Ranker · Pendiente
+**Prueba:** tests/unit/test_completion_rules.gd: un test por regla sobre tests/completion_fixture.
+
+**Notas:** local/context_rules.gd: @onready var (nombres repetidos con el padre), $/%, acciones, func _ virtuales, .connect(, func _on_ (solo con firma conocida), grupos, preload/load por tipo, extends.
+
+### 8.5 LineRetrieval, SessionHistory y Ranker · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 Índice de líneas normalizadas con puntaje frecuencia × cercanía × recencia; predicción de línea siguiente; historial de sesión estilo fish; ranker con umbral, margen y desempate por longitud; presupuesto <5 ms en el hilo principal.
 
-### 8.6 Fixture, tests y benchmark del completado · Pendiente
+**Prueba:** tests/unit/test_completion_local.gd (índice, cercanía × recencia, ambigüedad, historial, ranker, post-procesado, reglas primero); bench p95 1,5–1,7 ms.
+
+**Notas:** line_index.gd (bsearch sobre líneas únicas ordenadas), typed_history.gd, ranker.gd, local_provider.gd, post_processor.gd (M8a: una línea, solapamiento con suffix, descartes, balanceo). La predicción de línea siguiente quedó para M8b (m9-01).
+
+### 8.6 Fixture, tests y benchmark del completado · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Claude
 
 tests/completion_fixture/ (escenas, %únicos, input map, autoloads, señales); tests de cada regla, retrieval y ranker; benchmark con 200 scripts generados: p95 < 10 ms por consulta, logueado.
 
-### 8.7 Verificar M8a · Pendiente
+**Prueba:** tests/unit/test_completion_bench.gd: 200 scripts + 60 escenas generados, 1500 consultas: p95 1,52 ms (4.8), 1,61 (4.7.2), 1,73 (4.4.1); imprime la medición y falla si p95 ≥ 10 ms.
+
+**Notas:** tests/completion_fixture/ (con .gdignore; input map y autoloads en project_settings.cfg), tests/fake_completion_provider.gd, test_completion_{rules,local,controller,bench}.gd (23 tests), addons/godot_agent_dev/completion_check.gd (Script Editor real).
+
+### 8.7 Verificar M8a · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude
 
 @onready var sugiere nodos hijos reales con tipo y ruta; func _ sugiere virtuales con firma; una línea repetida se sugiere; Tab sin sugerencia indenta y el popup nativo no se rompe; p95 < 10 ms. Actualizar progress.
+
+**Prueba:** run_all (109 tests, 752 checks), acp_session_check (90) y oneshot_check (34) en 4.4.1, 4.7.2 y 4.8-beta1; --godot-agent-completion-test (onready, nodo único, Tab+undo, Esc, ancla en el caret, func _, línea repetida, Tab indenta, autocierre, popup nativo) y cycle test en las tres; bench p95 1,29/1,43/1,62 ms.
+
+**Notas:** Revisión de código aplicada (selección/multi-caret, % operador, binds y señales multilínea, cachés, Script Editor flotante, tipos desconocidos, costo por tecla, guarda de dibujo, fondo con cierres, indexado apagado, exclude, Alt+\, whitelist de recursos, no adivinar, cancelación). Riesgo conocido documentado en D26: recarga @tool con build en curso. El cycle test crece 29 objetos también sin el servicio de completado (previo a M8a).
 
 ## M8b — Completado predictivo: calidad local  (0/6)
 

@@ -33,6 +33,8 @@ extends EditorPlugin
 ##   con Claude Code real (gasta tokens), dentro del sandbox de `tests/make_sandbox.sh <dir> --dev`.
 ## - `-- --godot-agent-long-test`: sesión de más de 600 entradas con el agente falso; mide los frames
 ##   y comprueba el tope de vistas vivas y "Mostrar anteriores".
+## - `-- --godot-agent-completion-test [--godot-agent-ui-shot=<prefijo>]`: completado en el Script
+##   Editor real (M8a): tipea con eventos de teclado y verifica ghost text, Tab, Esc y undo.
 ## - `-- --godot-agent-claude-review-test`: lo mismo con Claude Code real (gasta tokens): los tres
 ##   bugs sembrados tienen que quedar anotados en su línea.
 
@@ -68,6 +70,8 @@ const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
 const LONG_ARG := "--godot-agent-long-test"
 const SETTINGS_ARG := "--godot-agent-settings-shots="
 const HISTORY_ARG := "--godot-agent-history-test="
+const COMPLETION_ARG := "--godot-agent-completion-test"
+const CompletionCheck := preload("completion_check.gd")
 const LongSessionCheck := preload("long_session_check.gd")
 const CLAUDE_ONESHOT_TIMEOUT_S := 2700.0
 const OneShotUiCheck := preload("oneshot_ui_check.gd")
@@ -113,6 +117,8 @@ func _enter_tree() -> void:
 		_run_claude_oneshot_test.call_deferred()
 	if LONG_ARG in args:
 		_run_long_test.call_deferred()
+	if COMPLETION_ARG in args:
+		_run_completion_test.call_deferred()
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
@@ -337,6 +343,19 @@ func _run_long_test() -> void:
 	for failure: String in failures:
 		print("[long-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "long-test: %d fallas" % failures.size())
+
+
+func _run_completion_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var check := CompletionCheck.new()
+	var failures: PackedStringArray = await check.run(get_tree(), _arg_value(UI_SHOT_ARG))
+	check.cleanup()
+	for line: String in check.report:
+		print("[completion-check] ", line)
+	for failure: String in failures:
+		print("[completion-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "completion-test: %d fallas" % failures.size())
 
 
 func _run_claude_scene_test() -> void:

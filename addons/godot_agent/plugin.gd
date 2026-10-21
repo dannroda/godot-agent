@@ -36,6 +36,7 @@ const ReviewAnnotations := preload("review/review_annotations.gd")
 const ReviewStore := preload("review/review_store.gd")
 const AgentDock := preload("ui/dock/agent_dock.gd")
 const OneShotRun := preload("oneshot/oneshot_run.gd")
+const CompletionService := preload("completion/completion_service.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -72,6 +73,7 @@ var _settings_dialog: SettingsDialog
 var _main_screen: Control
 var _fs: FsHandler
 var _registry: ToolRegistry
+var _completion: CompletionService
 
 
 func _enter_tree() -> void:
@@ -156,10 +158,18 @@ func _enter_tree() -> void:
 	_settings_dialog.saved.connect(_on_settings_saved)
 	EditorInterface.get_base_control().add_child(_settings_dialog)
 
+	_completion = CompletionService.new()
+	_completion.setup(_settings, _project_config, _log)
+	add_child(_completion)
+
 
 func _exit_tree() -> void:
 	if EditorInterface.get_editor_settings().settings_changed.is_connected(_on_editor_settings_changed):
 		EditorInterface.get_editor_settings().settings_changed.disconnect(_on_editor_settings_changed)
+	if _completion:
+		remove_child(_completion)
+		_completion.queue_free()
+		_completion = null
 	if _oneshot:
 		_oneshot.stop()
 		remove_child(_oneshot)
@@ -438,6 +448,7 @@ func _on_settings_saved() -> void:
 	_registry.max_image_side = _project_config.max_image_side
 	_run_tools.max_image_side = _project_config.max_image_side
 	_main_screen.call(&"set_defaults", _oneshot_defaults())
+	_completion.apply_settings()
 	_log.add(AgentLog.CH_ACP, "settings guardados")
 
 
@@ -456,6 +467,8 @@ func _apply_quota_settings() -> void:
 
 
 func _on_editor_settings_changed() -> void:
+	if _completion and EditorInterface.get_editor_settings().check_changed_settings_in_group(HarnessSettings.PREFIX + "completion"):
+		_completion.apply_settings()
 	if _controller and EditorInterface.get_editor_settings().check_changed_settings_in_group(HarnessSettings.PREFIX + "quota"):
 		_apply_quota_settings()
 		if _oneshot:

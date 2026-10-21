@@ -327,3 +327,39 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 
   Los textos de las tools se recortan. Los ids vienen del agente, así que se valida que no traigan rutas.
 - **Reanudar**: la conversación sale del archivo, no del replay de `session/load`, porque el adapter de Claude reenvía el prompt de sistema como mensaje del usuario. Las notificaciones del replay llegan antes de la respuesta y se descartan solas: `model.session_id` recién se asigna con la respuesta.
+
+## D26 · Completado local: índice, puntajes y enganche al CodeEdit (M8a, spec §16)
+
+- **Módulo aparte** (`addons/godot_agent/completion/`): no usa ACP ni el agente. Comparte Settings (`godot_agent/completion/*` y `ProjectConfig.completion_*`) y el Agent Log (canal `cmp`, sin código).
+- **Índice en un worker, publicado entero**:
+  - `ProjectIndex.build` lee `.gd` y `.tscn` línea por línea en `WorkerThreadPool` y arma un objeto nuevo. El hilo principal lo reemplaza cuando el worker termina; nunca lo modifica.
+  - El build siguiente reutiliza lo que no cambió (mismo mtime). El mtime tiene resolución de 1 s, así que lo modificado hace menos de 2 s se vuelve a leer siempre.
+  - ClassDB, ProjectSettings y la escena abierta se leen en el hilo principal, con caché.
+  - **Sin persistencia**: con 200 scripts y 60 escenas el build tarda unos 180 ms en el worker, por debajo del 1 s que pide la spec.
+- **Buffer sin guardar**: cuando el buffer queda quieto 800 ms, el controller lo manda al índice sin la línea del caret, que está a medio escribir. Si entrara, una línea cortada se sugeriría a sí misma.
+- **Corpus**: por defecto excluye `addons/` (`ProjectConfig.completion_exclude`). La estructura (escenas, nodos, señales) se indexa siempre, también en `addons/`.
+- **Recuperación**: las líneas normalizadas (sin indentación y con los espacios colapsados) se ordenan. Las que empiezan con lo escrito forman un rango, que se encuentra con `bsearch`.
+  - Si el rango tiene más de 400 líneas, el prefijo es ambiguo y no se sugiere nada.
+  - Puntaje: `raw` = Σ ocurrencias × cercanía (mismo archivo 3, misma carpeta 2, resto 1) × recencia del archivo (0,5 a 1, con semivida de 7 días).
+  - El puntaje final es `raw/Σraw × (1 − e^(−raw/1,5))`. El segundo factor exige evidencia: una línea que aparece una sola vez en otro archivo no llega al umbral (0,49 < 0,5), aunque sea la única opción. Dos apariciones, o una en el mismo archivo, sí.
+- **Ranker**:
+  - Una regla que aplica gana sin pasar por el margen. Sus candidatos ya vienen ordenados (por ejemplo, el primer hijo no declarado).
+  - Para el resto: umbral 0,5 y margen 0,12 sobre el primer rival.
+  - Dos candidatos donde uno es prefijo del otro no compiten. Si están empatados, gana el más largo.
+  - Los duplicados entre fuentes se combinan con `1 − Π(1 − s)`.
+- **Historial de la sesión**:
+  - Una línea entra al historial cuando el caret la deja después de editarla, o cuando se acepta una sugerencia.
+  - La coincidencia más reciente vale 0,8, y las dos siguientes 0,6 y 0,5.
+- **Teclas**: alcanza con la señal `gui_input` del CodeEdit más `accept_event()`. La señal se emite antes del manejo propio del CodeEdit, y el Script Editor no tiene atajos sobre Tab ni Esc. No hizo falta el fallback por `_input`.
+  - Verificado con eventos de teclado reales en el Script Editor de 4.4.1, 4.7.2 y 4.8-beta1: Tab acepta, Esc descarta, y Tab sin sugerencia indenta.
+  - Con el popup nativo abierto (`get_code_completion_selected_index() != -1`), Tab es del popup.
+- **Posición del ghost text**: la x sale de `get_caret_draw_pos()`. La y es la de la fila, de `get_rect_at_line_column`.
+  - Al final de la línea, `get_rect_at_line_column(línea, col)` devuelve el carácter anterior al caret (medido en 4.4 y 4.8). Con el último espacio, eso dejaba el ghost text un carácter antes.
+  - El ghost text solo se dibuja con el caret en su ancla, porque mover el caret lo invalida. Por eso la x del caret siempre es la correcta.
+  - Se dibuja con un `TextLine` recortado al área de texto (sin el minimapa ni la barra de scroll), con la fuente y el tamaño del editor (incluye zoom). El color es el de comentarios del tema, con alpha 0,75.
+- **Disparo**: `text_changed` y `caret_changed` llegan diferidos y en cualquier orden. El controller compara contra el último estado visto (línea, columna y `get_version()`), así procesa cada cambio una sola vez.
+  - Cada cambio invalida la respuesta en vuelo, porque sube el número de secuencia.
+  - El debounce lo vence `tick(now)`, llamado por el servicio cada frame. Los tests usan un reloj simulado.
+- **Fixture**: `tests/completion_fixture/` tiene `.gdignore` para que el editor del repo no lo importe ni registre sus `class_name`. Su input map y sus autoloads están en `project_settings.cfg`, que tiene el formato de `project.godot`.
+- **Lo que no se adivina**: sin nada escrito y con varias opciones posibles (rutas, acciones, grupos, recursos), no se sugiere. `@onready` y los virtuales sí proponen la primera, porque el orden (el primer hijo no declarado, los virtuales comunes primero) ya es una buena apuesta. Un tipo de nodo que no se puede saber se omite: `name = $Path` antes que un tipo equivocado.
+- **Cancelación y recarga**: `wait()` levanta un flag que el walker del build revisa, y el índice reemplazado se libera en el worker para no pagar su destrucción en el hilo principal. Riesgo conocido: si el plugin se recarga (`@tool`) con un build en curso, el worker termina con los scripts viejos. Godot no permite matar una tarea del pool, así que solo se acorta con el flag.

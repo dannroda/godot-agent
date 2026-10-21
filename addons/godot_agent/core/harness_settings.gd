@@ -21,6 +21,11 @@ const KEY_QUOTA_RESUME := "quota/resume_mode"
 const RESUME_AUTO := 0
 const RESUME_CONFIRM := 1
 const KEY_DOCK_SLOT := "ui/dock_slot"
+## Completado predictivo (spec §16.10): on/off global, debounce local y umbral/margen del ranker.
+const KEY_COMPLETION_ENABLED := "completion/enabled"
+const KEY_COMPLETION_DEBOUNCE := "completion/local_debounce_ms"
+const KEY_COMPLETION_THRESHOLD := "completion/threshold"
+const KEY_COMPLETION_MARGIN := "completion/margin"
 ## Nombres de las constantes de slot (iguales en EditorPlugin y EditorDock), en el orden del setting.
 const DOCK_SLOTS: PackedStringArray = ["DOCK_SLOT_RIGHT_UL", "DOCK_SLOT_RIGHT_BL", "DOCK_SLOT_LEFT_UL", "DOCK_SLOT_LEFT_BL"]
 
@@ -42,6 +47,10 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
 		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Retomar solo,Esperar confirmación")
 		_declare(KEY_DOCK_SLOT, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Derecha arriba,Derecha abajo,Izquierda arriba,Izquierda abajo")
+		_declare(KEY_COMPLETION_ENABLED, true, TYPE_BOOL)
+		_declare(KEY_COMPLETION_DEBOUNCE, 30, TYPE_INT, PROPERTY_HINT_RANGE, "0,200,1,suffix:ms")
+		_declare(KEY_COMPLETION_THRESHOLD, 0.5, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0.05,1,0.01")
+		_declare(KEY_COMPLETION_MARGIN, 0.12, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0,0.5,0.01")
 
 
 func get_value(key: String, default_value: Variant = null) -> Variant:
@@ -134,9 +143,26 @@ func dock_slot() -> int:
 	return clampi(int(get_value(KEY_DOCK_SLOT, 0)), 0, DOCK_SLOTS.size() - 1)
 
 
+func completion_enabled() -> bool:
+	return bool(get_value(KEY_COMPLETION_ENABLED, true))
+
+
+func completion_debounce_ms() -> int:
+	return clampi(int(get_value(KEY_COMPLETION_DEBOUNCE, 30)), 0, 200)
+
+
+func completion_threshold() -> float:
+	return clampf(float(get_value(KEY_COMPLETION_THRESHOLD, 0.5)), 0.05, 1.0)
+
+
+func completion_margin() -> float:
+	return clampf(float(get_value(KEY_COMPLETION_MARGIN, 0.12)), 0.0, 0.5)
+
+
 func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE, hint_string: String = "") -> void:
 	var full := PREFIX + key
 	if not _editor_settings.has_setting(full):
 		_editor_settings.set_setting(full, default_value)
 	_editor_settings.set_initial_value(full, default_value, false)
 	_editor_settings.add_property_info({"name": full, "type": type, "hint": hint, "hint_string": hint_string})
+
