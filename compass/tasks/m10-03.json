@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8c.3",
+  "created_at": "2026-10-21T04:34:10.980Z",
+  "description": "Canal cmp con fuente, latencia, tamaños, resultado y caché (sin código salvo raw). Contadores p50/p95 y aceptación por fuente en Settings. Indicador en el Script Editor (estado y modo, clic on/off, atajo global). Settings de §16.10 aplicables sin reiniciar.",
+  "milestone": "m10",
+  "notes": "",
+  "order": 3,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Métricas, indicador y settings del completado",
+  "updated_at": "2026-10-21T04:34:10.980Z"
+}

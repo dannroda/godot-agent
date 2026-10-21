@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "4.2",
+  "created_at": "2026-10-21T04:33:13.441Z",
+  "description": "create_scene crea y guarda el .tscn con root_type/root_name; attach_script crea el script si no existe y lo adjunta con undo.",
+  "milestone": "m04",
+  "notes": "",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Tools edit_files: create_scene y attach_script",
+  "updated_at": "2026-10-21T04:33:13.441Z"
+}

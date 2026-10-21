@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8.1",
+  "created_at": "2026-10-21T04:33:44.179Z",
+  "description": "Uno por CodeEdit (enganche con editor_script_changed). Dispara con caret al final o solo cierres a la derecha, sin selección, popup nativo cerrado, archivo .gd. Invalida al mover de línea, tipear distinto, Esc o perder foco. Type-through. Atajo manual Alt+\\ (spec §16.5).",
+  "milestone": "m08",
+  "notes": "",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "CompletionController: disparo, debounce e invalidación",
+  "updated_at": "2026-10-21T04:33:44.179Z"
+}

@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8.4",
+  "created_at": "2026-10-21T04:33:44.325Z",
+  "description": "Reglas de la tabla §16.2a: @onready var, $/%, acciones de input, func _ virtuales con firma, .connect(, func _on_, grupos, preload/load, extends.",
+  "milestone": "m08",
+  "notes": "",
+  "order": 4,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "ContextRules",
+  "updated_at": "2026-10-21T04:33:44.325Z"
+}

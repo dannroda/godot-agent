@@ -5,9 +5,15 @@ extends EditorPlugin
 ##   Código de salida: 0 bien, 1 si quedan nodos huérfanos u objetos que crecen ciclo a ciclo.
 ## - `-- --godot-agent-screenshot=<ruta.png>`: abre la main screen "Agent", guarda una captura
 ##   del editor y sale (necesita ventana, no headless).
+## - `-- --godot-agent-ui-test=<guion> --godot-agent-ui-shot=<ruta.png>`: conecta el dock al agente
+##   falso con tests/scripts/<guion>.json, manda "hola", espera el fin del turno, captura y sale.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
+const UI_TEST_ARG := "--godot-agent-ui-test="
+const UI_SHOT_ARG := "--godot-agent-ui-shot="
+const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
+const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const MAIN_SCREEN_NAME := "Agent"
 const TARGET_PLUGIN := "godot_agent"
 const CYCLES := 5
@@ -24,6 +30,56 @@ func _enter_tree() -> void:
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
+		if arg.begins_with(UI_TEST_ARG):
+			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
+
+
+func _arg_value(prefix: String) -> String:
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with(prefix):
+			return arg.trim_prefix(prefix)
+	return ""
+
+
+func _run_ui_test(scenario: String, shot_path: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock: Control = null
+	for node: Node in EditorInterface.get_base_control().find_children("*", "VBoxContainer", true, false):
+		if node.get_script() and (node.get_script() as Script).resource_path == DOCK_SCRIPT:
+			dock = node
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var holder := dock.get_parent()
+	if holder.has_method(&"make_visible"):
+		holder.call(&"make_visible")
+	elif holder is TabContainer:
+		(holder as TabContainer).current_tab = dock.get_index()
+	var controller: Object = dock.get(&"_controller")
+	var model: Object = dock.get(&"_model")
+	var profile := AgentProfile.from_dict({
+		"id": "fake", "display_name": "Agente falso", "command": OS.get_executable_path(),
+		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
+			"--script", "res://tests/fake_agent.gd", "--", "--scenario=res://tests/scripts/%s.json" % scenario],
+	})
+	var ok: bool = await controller.call(&"start", profile)
+	if not ok:
+		_finish(1, "no arrancó la sesión: %s" % model.get(&"failure_message"))
+		return
+	dock.call(&"_on_submitted", "hola, ¿qué hay que hacer con las oleadas?")
+	while int(model.get(&"state")) != 2:  # READY
+		await get_tree().process_frame
+	await get_tree().create_timer(0.5).timeout
+	dock.emit_signal(&"show_log_requested")
+	await get_tree().create_timer(0.5).timeout
+	var entries: Array = model.call(&"entries")
+	print("[ui-test] %d entradas, título '%s'" % [entries.size(), model.get(&"title")])
+	if not shot_path.is_empty():
+		var image := EditorInterface.get_base_control().get_viewport().get_texture().get_image()
+		image.save_png(shot_path)
+	controller.call(&"stop")
+	_finish(0, "ui-test %s" % scenario)
 
 
 func _take_screenshot(path: String) -> void:

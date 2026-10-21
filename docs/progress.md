@@ -61,7 +61,70 @@ Captura de referencia (4.8-beta1, main screen Agent activa): se genera con
 ### Pendiente / a decidir
 
 - **Mockup de UI**: copiado en `docs/design/mockup/` y resumido por pantalla en `docs/design/README.md`, con las diferencias con la spec.
-- **Todavía no se puede iniciar una sesión**: M0 es solo el esqueleto. Lanzar el agente y conversar llega en M1.
+- ~~Todavía no se puede iniciar una sesión~~: resuelto en M1.
 - Reportar a Godot los dos problemas de 4.8-beta1 que el addon esquiva (tarea en M7).
 - `project.godot` del anfitrión quedó con `config/features=("4.4")` porque lo abrió el 4.4.1. Sirve para marcar el mínimo; el 4.8 lo actualiza si se guarda desde ahí.
-- Repo git inicializado (rama `main`, sin commits todavía). `.gitignore` excluye `.godot/`; los `.uid` se versionan.
+
+---
+
+## M1 · Transporte y ACP mínimo — listo para revisión (2026-10-21)
+
+### Qué quedó
+
+- **Transporte** (`transport/`):
+  - `agent_process.gd`: `execute_with_pipe` + threads para stdout, stderr y salida;
+  - `process_tree.gd`: mata el árbol de procesos (npx → node);
+  - `command_resolver.gd`: encuentra `npx` aunque el editor se haya abierto desde el escritorio (fnm, nvm, volta…).
+  - En 4.4 los pipes viejos no se cierran por un bug del motor (D11).
+- **ACP** (`acp/acp_client.gd`):
+  - JSON-RPC 2.0 por líneas, con `request()` usable con `await`;
+  - handlers para requests y notificaciones entrantes;
+  - `-32601` para lo desconocido;
+  - las líneas que no son JSON se loguean y se ignoran.
+- **Sesión** (`session/`):
+  - `session_model.gd` (estado y señales): merge de chunks por `messageId`, thoughts, tool calls agrupados, plan, uso, modos, opciones y comandos;
+  - `session_controller.gd` (comandos, D12): `initialize` → `session/new` → `session/prompt` → `session/cancel`, `set_config_option` y `set_mode`. Si el agente se cae, muestra un aviso con **Reintentar** y **Ver log**.
+- **Perfiles** (`core/agent_profile.gd`, `core/harness_settings.gd`):
+  - se guardan en EditorSettings `godot_agent/`;
+  - perfil por defecto: Claude Code con `npx -y @agentclientprotocol/claude-agent-acp` (D13);
+  - si hay `ANTHROPIC_API_KEY` en el entorno, se muestra un aviso;
+  - mientras no llega el diálogo de Settings (M7), los perfiles se editan como JSON desde el botón de ajustes del dock.
+- **Dock Agent**, según el mockup:
+  - header con perfil, título de sesión, historial (deshabilitado hasta M7), nueva sesión y ajustes;
+  - selector de 4 modos y línea de estado;
+  - conversación: burbuja del usuario, Markdown del agente, pensamiento colapsado, grupos de tool calls con tarjeta de diff, plan y avisos con acciones;
+  - composer:
+    - chips de escena, selección y captura;
+    - `/` autocompleta los comandos del agente y `@` los nodos y archivos;
+    - medidor de contexto y selector de modelo;
+    - Enviar/Detener, con **Ctrl+Enter** para enviar y **Esc** para cancelar.
+- **Agent Log**: `hora · canal · mensaje` en mono, filtros por canal, modo raw con el JSON-RPC completo, Copiar y Limpiar. Guarda las últimas 2000 entradas.
+- **Prompt de sistema** editable en `config/system_prompt.md` (D14).
+
+### Verificación automática
+
+```sh
+$G --headless --path . --script tests/run_all.gd            # 23 tests, 134 checks
+$G --headless --path . --script tests/acp_session_check.gd  # agente falso: streaming, cancel, caída (32 checks)
+$G --headless --path . --script tests/plugin_cycle_check.gd
+$G --headless --path . --script tests/export_check.gd
+$G -e --path . -- --godot-agent-ui-test=ui_demo --godot-agent-ui-shot=/ruta/ui.png   # dock contra el agente falso, con captura
+$G --headless --path . --script tests/claude_smoke_check.gd  # Claude Code real (gasta tokens)
+```
+
+Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1. Contra Claude Code real, "hola" recibió: "¡Hola! Estoy dentro del editor de Godot, en el proyecto **agent-harness**, en modo Construir. ¿Qué querés hacer?" (`stopReason: end_turn`). No queda ningún proceso del adapter vivo después de `stop()`.
+
+### Prueba manual
+
+1. Abrir el editor: `$G -e --path .`. En el dock **Agent** (pestaña junto a Inspector) aparece "Sin sesión", con el comando del perfil y el botón **Iniciar sesión**.
+2. Tocar **Iniciar sesión**. La línea de estado pasa a "conectando…" y después a "● Claude Code · listo". La primera vez, npx puede tardar en bajar el adapter.
+3. Escribir "hola" y mandar con Ctrl+Enter. La respuesta llega en streaming y el medidor muestra el contexto usado.
+4. Pedir algo largo ("explicame este proyecto en detalle") y tocar **Detener** o Esc. Aparece "Turno cancelado." y se puede seguir conversando.
+5. En **Agent Log**, probar los filtros de canal, el modo raw y Copiar.
+6. Probar `/` (comandos del agente) y `@` (nodos y archivos) en el composer, y el selector de modelo.
+7. Matar el proceso del adapter desde una terminal (`pkill -f claude-agent-acp`). Aparece un aviso de error con **Reintentar** y **Ver log**.
+
+### Pendiente
+
+- Permisos, `fs/*` y la sincronización con el editor llegan en M2. Mientras tanto, cuando Claude pide permiso para editar, el harness responde -32601 y el agente lo toma como rechazo.
+- Historial de sesiones y Settings completos: M7.

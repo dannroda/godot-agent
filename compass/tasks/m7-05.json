@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "7.5",
+  "created_at": "2026-10-21T04:33:43.855Z",
+  "description": "Más de 500 entradas sin degradación: límite de nodos vivos en la lista (las viejas se colapsan o se cargan bajo demanda), batch de chunks por frame. Medido con un guion largo del agente falso.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 5,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Rendimiento con sesiones largas",
+  "updated_at": "2026-10-21T04:33:43.855Z"
+}

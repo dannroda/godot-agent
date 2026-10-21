@@ -1,30 +1,379 @@
 @tool
 extends VBoxContainer
-## Dock "Agent". M0: esqueleto con el aviso de presets de export sin filtro.
+## Dock "Agent" (spec §9.1, mockup pantalla 1): header con perfil, título y acciones; selector de
+## modo; conversación; composer. Solo habla con SessionModel (estado) y SessionController (comandos).
 
+signal show_log_requested
+
+const SessionModel := preload("../../session/session_model.gd")
+const SessionController := preload("../../session/session_controller.gd")
+const ChatEntry := preload("../../session/chat_entry.gd")
+const HarnessSettings := preload("../../core/harness_settings.gd")
+const AgentProfile := preload("../../core/agent_profile.gd")
+const AgentLog := preload("../../core/agent_log.gd")
+const AgentTheme := preload("../agent_theme.gd")
+const EditorContext := preload("../editor_context.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
+const ConversationView := preload("conversation_view.gd")
+const Composer := preload("composer.gd")
+const ProfilesDialog := preload("../settings/profiles_dialog.gd")
 
 ## export_presets.cfg no pasa por EditorFileSystem: se mira su fecha de modificación cada tanto.
 const PRESETS_POLL_INTERVAL_S := 2.0
+const CHIP_SCENE := "scene"
+const CHIP_SELECTION := "selection"
+const CHIP_SCREENSHOT := "screenshot"
 
+var _model: SessionModel
+var _controller: SessionController
+var _settings: HarnessSettings
+var _profiles: Array[AgentProfile] = []
+var _accent: Color = HarnessSettings.DEFAULT_ACCENT
 var _presets_mtime: int = -1
+var _pending_prompt: String = ""
+var _conversation: ConversationView
+var _composer: Composer
+var _profiles_dialog: ProfilesDialog
+var _mode_buttons: Dictionary = {}  # HarnessMode -> Button
+## Chips de contexto actuales: id -> {label, tooltip, block}
+var _chips: Dictionary = {}
+var _dismissed_chips: Dictionary = {}  # "id|valor" -> true
+var _screenshot_block: Dictionary = {}
 
+@onready var _profile_button: OptionButton = %ProfileButton
+@onready var _title_label: Label = %TitleLabel
+@onready var _history_button: Button = %HistoryButton
+@onready var _new_session_button: Button = %NewSessionButton
+@onready var _settings_button: Button = %SettingsButton
+@onready var _mode_bar: HBoxContainer = %ModeBar
+@onready var _status_label: Label = %StatusLabel
+@onready var _body: VBoxContainer = %Body
+@onready var _empty_state: VBoxContainer = %EmptyState
+@onready var _empty_command: Label = %EmptyCommand
+@onready var _start_button: Button = %StartButton
+@onready var _composer_slot: MarginContainer = %ComposerSlot
 @onready var _export_banner: PanelContainer = %ExportBanner
 @onready var _export_banner_label: Label = %ExportBannerLabel
 @onready var _add_filter_button: Button = %AddFilterButton
 @onready var _confirm_dialog: ConfirmationDialog = %ConfirmPatchDialog
 @onready var _result_dialog: AcceptDialog = %PatchResultDialog
 @onready var _presets_poll_timer: Timer = %PresetsPollTimer
+@onready var _context_poll_timer: Timer = %ContextPollTimer
+
+
+## Inyección desde plugin.gd, antes de agregar el dock al editor.
+func setup(model: SessionModel, controller: SessionController, settings: HarnessSettings) -> void:
+	_model = model
+	_controller = controller
+	_settings = settings
+	_accent = settings.accent_color()
 
 
 func _ready() -> void:
+	_build_header()
+	_build_mode_bar()
+	_conversation = ConversationView.new()
+	_conversation.setup(_model, _accent)
+	_conversation.action_requested.connect(_on_action_requested)
+	_body.add_child(_conversation)
+	_composer = Composer.new()
+	_composer.setup(_accent)
+	_composer.mention_provider = EditorContext.mention_options
+	_composer.submitted.connect(_on_submitted)
+	_composer.cancel_requested.connect(_on_cancel_requested)
+	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
+	_composer.screenshot_requested.connect(_on_screenshot_requested)
+	_composer.context_chip_removed.connect(_on_chip_removed)
+	_composer_slot.add_child(_composer)
+	_profiles_dialog = ProfilesDialog.new()
+	_profiles_dialog.setup(_settings)
+	_profiles_dialog.confirmed.connect(_reload_profiles)
+	add_child(_profiles_dialog)
+
+	_start_button.pressed.connect(_start_session)
+	_start_button.add_theme_color_override(&"font_color", _accent)
 	_add_filter_button.pressed.connect(_on_add_filter_pressed)
 	_confirm_dialog.confirmed.connect(_on_patch_confirmed)
 	visibility_changed.connect(refresh_export_banner)
 	_presets_poll_timer.wait_time = PRESETS_POLL_INTERVAL_S
 	_presets_poll_timer.timeout.connect(_on_presets_poll)
+	_context_poll_timer.timeout.connect(_refresh_chips)
+
+	# Pull del estado actual y después push por señales.
+	_model.state_changed.connect(func(_state: SessionModel.State) -> void: _refresh_state())
+	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
+	_model.usage_changed.connect(_composer.set_usage)
+	_model.commands_changed.connect(_composer.set_commands)
+	_model.config_options_changed.connect(func(_options: Array) -> void: _composer.set_model_option(_model.config_option("model")))
+	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_modes())
+	_model.entries_cleared.connect(_refresh_state)
+	_model.entry_added.connect(func(_entry: ChatEntry) -> void: _refresh_empty_state())
+	_reload_profiles()
+	_refresh_modes()
+	_refresh_state()
+	_refresh_title()
+	_composer.set_usage(_model.usage_used, _model.usage_size)
+	_composer.set_model_option(_model.config_option("model"))
+	_refresh_chips()
 	refresh_export_banner()
 
+
+# --- header y modos ------------------------------------------------------------------------------
+
+func _build_header() -> void:
+	_history_button.icon = AgentTheme.icon(&"History")
+	_history_button.disabled = true
+	_history_button.tooltip_text = "Historial de sesiones (llega en M7)"
+	_new_session_button.icon = AgentTheme.icon(&"Add")
+	_new_session_button.pressed.connect(_on_new_session_pressed)
+	_settings_button.icon = AgentTheme.icon(&"Tools")
+	_settings_button.pressed.connect(func() -> void: _profiles_dialog.popup_centered())
+	_profile_button.item_selected.connect(_on_profile_selected)
+	_title_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+
+
+func _build_mode_bar() -> void:
+	var group := ButtonGroup.new()
+	_mode_bar.add_theme_constant_override(&"separation", 0)
+	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
+		var button := Button.new()
+		button.text = SessionModel.HARNESS_MODE_LABELS[mode]
+		button.toggle_mode = true
+		button.button_group = group
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.clip_text = true
+		button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
+		button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(_accent, 0.2), _accent, 3, 3))
+		button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.08), 3, 3))
+		button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.08), Color(1, 1, 1, 0.12), 3, 3))
+		button.add_theme_color_override(&"font_pressed_color", _accent)
+		button.tooltip_text = SessionController.MODE_RULES[mode]
+		button.pressed.connect(func() -> void: _model.set_harness_mode(mode))
+		_mode_bar.add_child(button)
+		_mode_buttons[mode] = button
+
+
+func _refresh_modes() -> void:
+	for mode: SessionModel.HarnessMode in _mode_buttons:
+		(_mode_buttons[mode] as Button).set_pressed_no_signal(mode == _model.harness_mode)
+
+
+func _reload_profiles() -> void:
+	_profiles = _settings.profiles()
+	_profile_button.clear()
+	var active := _settings.active_profile()
+	for profile: AgentProfile in _profiles:
+		_profile_button.add_item("✦ " + profile.display_name)
+		_profile_button.set_item_tooltip(_profile_button.item_count - 1, profile.command_line())
+		if active and profile.id == active.id:
+			_profile_button.select(_profile_button.item_count - 1)
+	_refresh_empty_state()
+
+
+func _on_profile_selected(index: int) -> void:
+	if index < 0 or index >= _profiles.size():
+		return
+	_settings.set_active_profile(_profiles[index].id)
+	_refresh_empty_state()
+	var current := _controller.profile()
+	if current and current.id != _profiles[index].id and _controller.is_connected_to_agent():
+		_model.add_notice("El perfil %s se usa al tocar \"Nueva sesión\"." % _profiles[index].display_name)
+
+
+func _refresh_title() -> void:
+	_title_label.text = _model.title if not _model.title.is_empty() else ("Nueva sesión" if not _model.session_id.is_empty() else "")
+	_title_label.tooltip_text = _title_label.text
+
+
+func _refresh_state() -> void:
+	var profile := _controller.profile() if _controller.profile() else _settings.active_profile()
+	var name := profile.display_name if profile else "Agente"
+	var text := ""
+	var color := AgentTheme.MUTED
+	match _model.state:
+		SessionModel.State.DISCONNECTED:
+			text = "○ %s · sin iniciar" % name
+		SessionModel.State.STARTING:
+			text = "◌ %s · conectando…" % name
+			color = _accent
+		SessionModel.State.READY:
+			text = "● %s · listo" % name
+			color = AgentTheme.ADDED
+		SessionModel.State.PROMPTING:
+			text = "● %s · trabajando…" % name
+			color = _accent
+		SessionModel.State.CANCELLING:
+			text = "● %s · cancelando…" % name
+			color = AgentTheme.WARNING
+		SessionModel.State.FAILED:
+			text = "✗ %s · error" % name
+			color = AgentTheme.ERROR
+	_status_label.text = text
+	_status_label.tooltip_text = _model.failure_message
+	_status_label.add_theme_color_override(&"font_color", color)
+	_composer.set_busy(_model.is_busy())
+	_composer.set_enabled(_model.state != SessionModel.State.STARTING)
+	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
+	_new_session_button.disabled = _model.state == SessionModel.State.STARTING or _model.is_busy()
+	_refresh_title()
+	_refresh_empty_state()
+
+
+func _refresh_empty_state() -> void:
+	if _empty_state == null or _conversation == null:
+		return
+	var empty := _model.entries().is_empty() and _model.state in [SessionModel.State.DISCONNECTED, SessionModel.State.FAILED]
+	_empty_state.visible = empty
+	_conversation.visible = not empty
+	var profile := _settings.active_profile()
+	_empty_command.text = profile.command_line() if profile else "No hay perfiles: configuralos en ajustes."
+	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_start_button.disabled = profile == null or _model.state == SessionModel.State.STARTING
+
+
+# --- sesión --------------------------------------------------------------------------------------
+
+func _start_session() -> void:
+	var profile := _settings.active_profile()
+	if profile == null:
+		_profiles_dialog.popup_centered()
+		return
+	var started: bool = await _controller.start(profile)
+	if started:
+		_warn_api_key(profile)
+		_composer.focus()
+		if not _pending_prompt.is_empty():
+			var text := _pending_prompt
+			_pending_prompt = ""
+			_send(text)
+
+
+func _warn_api_key(profile: AgentProfile) -> void:
+	if profile.command_line().contains("claude") and (OS.has_environment("ANTHROPIC_API_KEY") or profile.env.has("ANTHROPIC_API_KEY")):
+		_model.add_notice(
+			"Hay una ANTHROPIC_API_KEY en el entorno: Claude Code puede facturar por API en lugar de usar tu suscripción.",
+			ChatEntry.Level.WARNING
+		)
+
+
+func _on_new_session_pressed() -> void:
+	var active := _settings.active_profile()
+	var current := _controller.profile()
+	if _controller.is_connected_to_agent() and current and active and current.id == active.id:
+		_controller.open_session()
+	else:
+		_start_session()
+
+
+func _on_submitted(text: String) -> void:
+	_composer.clear()
+	match _model.state:
+		SessionModel.State.READY:
+			_send(text)
+		SessionModel.State.STARTING:
+			_pending_prompt = text
+		SessionModel.State.DISCONNECTED, SessionModel.State.FAILED:
+			_pending_prompt = text
+			_start_session()
+
+
+func _send(text: String) -> void:
+	var blocks := _context_blocks()
+	_screenshot_block = {}
+	_refresh_chips()
+	_controller.send_prompt(text, blocks)
+
+
+func _on_cancel_requested() -> void:
+	_controller.cancel()
+
+
+func _on_action_requested(action: String, payload: Variant) -> void:
+	match action:
+		SessionController.ACTION_RETRY:
+			_start_session()
+		SessionController.ACTION_SHOW_LOG:
+			show_log_requested.emit()
+		"open_link":
+			var url := str(payload)
+			if url.begins_with("http://") or url.begins_with("https://"):
+				OS.shell_open(url)
+			else:
+				EditorContext.open_location(url.trim_prefix("file://"))
+		"open_location":
+			var location: Dictionary = payload
+			if not EditorContext.open_location(str(location.path), int(location.get("line", 0))):
+				_model.add_notice("No se pudo abrir %s." % location.path, ChatEntry.Level.WARNING)
+
+
+# --- contexto del prompt -------------------------------------------------------------------------
+
+func _refresh_chips() -> void:
+	if not is_visible_in_tree() and not _chips.is_empty():
+		return
+	var chips: Dictionary = {}
+	var scene_path := EditorContext.current_scene_path()
+	if not scene_path.is_empty() and not _dismissed_chips.has(CHIP_SCENE + "|" + scene_path):
+		chips[CHIP_SCENE] = {
+			"label": "🎬 " + scene_path.get_file(),
+			"tooltip": "Escena abierta: %s (tocá para quitarla)" % scene_path,
+			"block": {"type": "resource_link", "uri": EditorContext.file_uri(scene_path), "name": scene_path.get_file(), "mimeType": "text/plain"},
+		}
+	var selection := EditorContext.selection_description()
+	if not selection.is_empty() and not _dismissed_chips.has(CHIP_SELECTION + "|" + selection):
+		chips[CHIP_SELECTION] = {
+			"label": "Selección: " + ", ".join(EditorContext.selected_node_paths()).left(40),
+			"tooltip": selection,
+			"block": {"type": "text", "text": "Selección en el editor (escena %s): %s" % [scene_path, selection]},
+		}
+	if not _screenshot_block.is_empty():
+		chips[CHIP_SCREENSHOT] = {"label": "▣ captura", "tooltip": "Captura del viewport (tocá para quitarla)", "block": _screenshot_block}
+	if _same_chips(chips):
+		return
+	_chips = chips
+	var list: Array[Dictionary] = []
+	for id: String in chips:
+		list.append({"id": id, "label": chips[id].label, "tooltip": chips[id].tooltip})
+	_composer.set_chips(list)
+
+
+func _same_chips(chips: Dictionary) -> bool:
+	if chips.size() != _chips.size():
+		return false
+	for id: String in chips:
+		if not _chips.has(id) or _chips[id].tooltip != chips[id].tooltip:
+			return false
+	return true
+
+
+func _on_chip_removed(chip_id: String) -> void:
+	match chip_id:
+		CHIP_SCENE:
+			_dismissed_chips[CHIP_SCENE + "|" + EditorContext.current_scene_path()] = true
+		CHIP_SELECTION:
+			_dismissed_chips[CHIP_SELECTION + "|" + EditorContext.selection_description()] = true
+		CHIP_SCREENSHOT:
+			_screenshot_block = {}
+	_refresh_chips()
+
+
+func _context_blocks() -> Array:
+	var blocks: Array = []
+	for id: String in _chips:
+		blocks.append(_chips[id].block)
+	return blocks
+
+
+func _on_screenshot_requested() -> void:
+	var block := EditorContext.capture_viewport_block()
+	if block.is_empty():
+		_model.add_notice("No se pudo capturar el viewport.", ChatEntry.Level.WARNING)
+		return
+	_screenshot_block = block
+	_refresh_chips()
+
+
+# --- presets de export (M0) ----------------------------------------------------------------------
 
 func refresh_export_banner() -> void:
 	if not is_node_ready():

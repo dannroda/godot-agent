@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "4.4",
+  "created_at": "2026-10-21T04:33:14.669Z",
+  "description": "run_scene corre la escena (play_custom_scene/play_current_scene), espera N segundos o la salida y devuelve errores y Output capturados; capture_game_frame pide un frame al probe; stop_scene detiene.",
+  "milestone": "m04",
+  "notes": "",
+  "order": 4,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "run_scene, stop_scene y capture_game_frame",
+  "updated_at": "2026-10-21T04:33:14.669Z"
+}

@@ -14,7 +14,7 @@ Las tareas y los hitos de este proyecto viven en `compass/`, en el formato de Sc
 
 ## MCP
 
-Si en tus herramientas aparece el servidor `scompass` (`list_tasks`, `show_task`, `add_task`, `move_task`, `check_step`…), usalo en lugar de correr `scompass` por Bash: son los mismos comandos con `--json`, con los parámetros tipados, y no piden permiso por cada llamada. Lo que sigue vale igual (modelo, etags, pasos desde 1); los nombres de las herramientas siguen a los comandos (`set` es `update_task`, `step add` es `add_step`, `playtest pass` es `set_playtest_result`). Listas, sesiones de playtest (crear, ordenar), capturas e `init`/`serve` siguen por la CLI.
+Si en tus herramientas aparece el servidor `scompass` (`list_tasks`, `show_task`, `add_task`, `move_task`, `check_step`…), usalo en lugar de correr `scompass` por Bash: son los mismos comandos con `--json`, con los parámetros tipados, y no piden permiso por cada llamada. Lo que sigue vale igual (modelo, etags, pasos desde 1); los nombres de las herramientas siguen a los comandos (`set` es `update_task`, `step add` es `add_step`, `decide` es `add_decision`, `decision ok` es `review_decision`, `playtest pass` es `set_playtest_result`). Listas, sesiones de playtest (crear, ordenar), capturas e `init`/`serve` siguen por la CLI.
 
 Para tenerlo en Claude Code en todos los proyectos (toma el de la carpeta de la sesión; `dir` en cada herramienta apunta a otro):
 
@@ -44,6 +44,7 @@ Los hitos (`compass://milestone/<id>`), las tareas (`compass://task/<id>`) y los
   - `images`: capturas de la tarea (PNG, JPEG, GIF o WebP), con la ruta desde la raíz; las pegadas en la web quedan en `compass/images/`;
   - `links`: vínculos con otras tareas (ver "Vínculos entre tareas");
   - `playtest`: cómo salió al probarla, `{ result?, note? }` (ver "Playtest"); lo escriben `playtest pass`, `fail` y `reset`;
+  - `decisions`: las decisiones tomadas al trabajarla, en orden, `{ text, why?, alternatives?, asked?, reply?, review?, promoted?, at }`. Sin `asked`, se decidió sin consultar y queda sin revisar hasta que el usuario pone `review` (`ok`, `revert`; `reverted` cuando ya se revirtió); con `asked`, es una pregunta abierta hasta que tiene `reply`;
   - `created_at`, `updated_at` y `done_at` (cuándo pasó a Hecho): los pone la CLI; no hace falta escribirlos.
 - En los textos, `` `así` `` se muestra como código.
 
@@ -103,6 +104,24 @@ scompass link list                         # todos; sale con 1 si hay vínculos 
 - Entre dos tareas hay un solo vínculo: agregar otro reemplaza al anterior. Un `blocks` que cerraría un ciclo se rechaza.
 - `scompass list` marca `[bloqueada por <ids>]` en las tareas que tienen delante una tarea sin terminar; `scompass show` lista los vínculos.
 - Antes de empezar una tarea, mirá si está bloqueada. Si descubrís que una depende de otra, vinculalas en lugar de anotarlo en `notes`.
+
+## Decisiones
+
+El usuario quiere ver qué decidiste sin preguntarle. **Cada vez que elijas entre alternativas razonables que el usuario podría haber querido distinto, registralo en la tarea:** un formato o un nombre visible, dejar algo afuera, sumar una dependencia, un comportamiento por defecto, una simplificación de lo que pedía. No hace falta para lo que tiene una sola respuesta razonable (seguir el estilo del código, arreglar un typo). Ante la duda, registralo: revisar una de más le cuesta un clic.
+
+```sh
+scompass decide m5-02 "Guardar en JSON" --why "se lee en el diff" --alternatives "binario"   # tomada sin consultar
+scompass decide m5-02 "¿JSON o binario?" --ask      # le preguntaste al usuario (queda abierta hasta que responda)
+scompass decision reply m5-02 2 "JSON"               # la respuesta, si te la dio en el chat
+scompass decision reverted m5-02 1                   # ya deshiciste la que el usuario marcó a revertir
+scompass list --decisions open,pending,revert        # tareas con preguntas abiertas, sin revisar o a revertir
+scompass decisions --revert                          # las de todo el proyecto (--open, --pending, --revert)
+```
+
+- Las decisiones se numeran desde 1, como los pasos, y `show` las lista con su estado: `?` pregunta abierta, `!` sin revisar, `↺` a revertir, `✓` resuelta.
+- Las preguntas también se registran (`--ask`), con la respuesta cuando llega: así queda por qué la tarea quedó como quedó.
+- Revisar (`decision ok`, `revert`) es del usuario. Antes de seguir con una tarea, mirá si tiene alguna a revertir: deshacela siguiendo `reply`, marcala `reverted` y, si en su lugar decidiste otra cosa, registrala como decisión nueva.
+- Las de diseño grandes del proyecto (las que cambian la spec) van además al documento de decisiones: `scompass decision promote m5-02 1` agrega una resuelta como entrada `D<n>` al final del documento `decisiones` (o el de `config.json › decisions_doc`) y la marca en la tarea. Hacelo cuando te lo pidan o cuando la decisión cambie la spec; no commitea.
 
 ## Uso habitual
 
@@ -187,6 +206,6 @@ scompass home               # levanta el Inicio (uno por usuario): GET /api/toda
 
 - `scompass --help`: todos los comandos. Un proyecto nuevo se crea con `scompass init --template juego|personal|vacio`.
 - `compass/README.md`: formato de los archivos y manejo a mano con git.
-- `compass/schema/`: JSON Schema de tareas, hitos, listas, sesiones de playtest y `config.json` (`views` elige las pestañas de la web: `board`, `lists`, `playtest`, `docs`, `files`).
+- `compass/schema/`: JSON Schema de tareas, hitos, listas, sesiones de playtest y `config.json` (`views` elige las pestañas de la web: `board`, `lists`, `playtest`, `decisions`, `docs`, `files`).
 - Ajustes de la web (el engranaje del tablero y del Inicio): preferencias de quien mira, guardadas en su navegador y no en `compass/`. Por ahora, los bordes de fantasía: marcos de pixel art en botones, tarjetas y paneles, siempre con el tema oscuro.
 - `scompass update`: pone al día `compass/schema/`, esta guía y `compass/.gitattributes` (LF también en Windows) cuando Scope Compass se actualizó (`--check` solo avisa). El dock de Godot lo ofrece con el botón "Actualizar", y la bandeja del hub con "Actualizar compass/".

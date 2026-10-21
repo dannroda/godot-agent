@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "5.1",
+  "created_at": "2026-10-21T04:33:14.863Z",
+  "description": "Extrae bloques {\"findings\":[…]} y {\"checks\":[…]} del texto del agente aunque vengan en fences, con texto alrededor o con campos faltantes; normaliza severidades bug|order|perf|style. Tests unitarios.",
+  "milestone": "m05",
+  "notes": "",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Parser tolerante de findings y checks",
+  "updated_at": "2026-10-21T04:33:14.863Z"
+}

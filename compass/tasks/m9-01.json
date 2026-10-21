@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8b.1",
+  "created_at": "2026-10-21T04:34:05.927Z",
+  "description": "Recuperación de bloques de hasta N líneas mientras el corpus coincida y la indentación se mantenga; adaptación de un identificador (mana/health) aplicada al resto de la línea (spec §16.2b).",
+  "milestone": "m09",
+  "notes": "",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Línea siguiente, bloques cortos y adaptación de identificadores",
+  "updated_at": "2026-10-21T04:34:05.927Z"
+}

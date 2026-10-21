@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "2.1",
+  "created_at": "2026-10-21T04:32:33.575Z",
+  "description": "Grupo colapsable de tool calls (tool_call / tool_call_update por toolCallId): estado ✓/✗/spinner, título, kind, resumen, content de tipo content (texto/imagen), diff y terminal (\"no soportado\"), locations clickeables que abren archivo y línea.",
+  "milestone": "m02",
+  "notes": "Adelantado en M1:\n- entries/tool_group_view.gd con estado, spinner, nombre (godot.* en violeta), resumen, locations clickeables, diff como tarjeta, terminal \"no soportado\" y texto de error;\n- botón undo oculto hasta M4.\n\nFalta: mostrar el content de texto e imagen con más detalle, y probarlo con guiones.",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "doing",
+  "test": "",
+  "title": "Render de tool calls en el dock",
+  "updated_at": "2026-10-21T05:06:28.133Z"
+}

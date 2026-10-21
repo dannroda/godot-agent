@@ -3,16 +3,54 @@
 [ext_resource type="Script" path="res://addons/godot_agent/ui/dock/agent_dock.gd" id="1_dock"]
 
 [node name="Agent" type="VBoxContainer"]
-custom_minimum_size = Vector2(240, 0)
+custom_minimum_size = Vector2(260, 0)
 script = ExtResource("1_dock")
 
 [node name="Header" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 2
 
+[node name="ProfileButton" type="OptionButton" parent="Header"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Perfil de agente"
+flat = true
+fit_to_longest_item = false
+
 [node name="TitleLabel" type="Label" parent="Header"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Agent"
+text_overrun_behavior = 3
+clip_text = true
+
+[node name="HistoryButton" type="Button" parent="Header"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Historial de sesiones"
+flat = true
+
+[node name="NewSessionButton" type="Button" parent="Header"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Nueva sesión"
+flat = true
+
+[node name="SettingsButton" type="Button" parent="Header"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Ajustes del harness"
+flat = true
+
+[node name="ModeBar" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+text_overrun_behavior = 3
+clip_text = true
 
 [node name="ExportBanner" type="PanelContainer" parent="."]
 unique_name_in_owner = true
@@ -40,15 +78,48 @@ layout_mode = 2
 size_flags_horizontal = 8
 text = "Agregar a los presets"
 
-[node name="EmptyState" type="Label" parent="."]
+[node name="Body" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-text = "Sin sesión."
+
+[node name="EmptyState" type="VBoxContainer" parent="Body"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+alignment = 1
+
+[node name="EmptyTitle" type="Label" parent="Body/EmptyState"]
+layout_mode = 2
+text = "Sin sesión"
 horizontal_alignment = 1
-vertical_alignment = 1
+
+[node name="EmptyCommand" type="Label" parent="Body/EmptyState"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="StartButton" type="Button" parent="Body/EmptyState"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Iniciar sesión"
+
+[node name="ComposerSlot" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
 
 [node name="PresetsPollTimer" type="Timer" parent="."]
 unique_name_in_owner = true
+autostart = true
+
+[node name="ContextPollTimer" type="Timer" parent="."]
+unique_name_in_owner = true
+wait_time = 0.75
 autostart = true
 
 [node name="ConfirmPatchDialog" type="ConfirmationDialog" parent="."]

@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "1.9",
+  "created_at": "2026-10-21T04:32:01.335Z",
+  "description": "SessionController que orquesta el ciclo: initialize con clientCapabilities, authenticate informativo, session/new con cwd, session/prompt con streaming, session/cancel (tool calls a cancelled, permisos a cancelled). Errores de transporte en la UI con acción concreta (Reintentar, Ver log).",
+  "milestone": "m01",
+  "notes": "session/session_controller.gd (D12).\n- authenticate es informativo: si session/new falla con authMethods, se listan en el error.\n- Los permisos pendientes que se cancelan llegan en M2.",
+  "order": 9,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "tests/acp_session_check.gd pasa sus 32 checks en 4.4.1, 4.7.2 y 4.8-beta1. Cubre:\n- streaming;\n- set_mode;\n- set_config_option;\n- cancel con tool call → cancelled;\n- caída → FAILED con acciones;\n- reintentar.",
+  "title": "Flujo de sesión: initialize → session/new → prompt → cancel",
+  "updated_at": "2026-10-21T05:06:27.777Z"
+}

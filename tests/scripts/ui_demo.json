@@ -1,0 +1,33 @@
+{
+	"session": {
+		"modes": {"currentModeId": "default", "availableModes": [{"id": "default", "name": "Default"}, {"id": "plan", "name": "Plan"}]},
+		"configOptions": [
+			{"id": "model", "name": "Model", "type": "select", "currentValue": "opus",
+			 "options": [{"value": "opus", "name": "Opus"}, {"value": "sonnet", "name": "Sonnet"}]}
+		]
+	},
+	"on_new_session": [
+		{"update": {"sessionUpdate": "available_commands_update", "availableCommands": [{"name": "review", "description": "Revisar cambios"}]}}
+	],
+	"turns": [
+		{"steps": [
+			{"update": {"sessionUpdate": "usage_update", "used": 41000, "size": 200000}},
+			{"thought": "El spawner necesita un timer por oleada."},
+			{"chunk": "Voy a revisar `Spawner.gd` y agregar el **contador de oleadas**:"},
+			{"update": {"sessionUpdate": "plan", "entries": [
+				{"content": "Leer Spawner.gd", "priority": "high", "status": "completed"},
+				{"content": "Agregar wave_started", "priority": "high", "status": "in_progress"},
+				{"content": "Mostrar la oleada en el HUD", "priority": "medium", "status": "pending"}
+			]}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "mcp__godot__scene_tree", "kind": "read", "status": "completed", "rawInput": {"scene": "res://Main.tscn"}}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t2", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "/tmp/project/Spawner.gd"}, "locations": [{"path": "/tmp/project/Spawner.gd", "line": 12}]}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t3", "title": "Edit", "kind": "edit", "status": "in_progress", "rawInput": {"file_path": "/tmp/project/Spawner.gd"},
+				"content": [{"type": "diff", "path": "/tmp/project/Spawner.gd", "oldText": "extends Node\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tpass\n", "newText": "extends Node\n\nsignal wave_started(index: int)\n\nvar wave := 0\n\nfunc _ready() -> void:\n\tstart_wave()\n\nfunc start_wave() -> void:\n\twave += 1\n\twave_started.emit(wave)\n"}]}},
+			{"delay": 0.3},
+			{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "t3", "status": "completed"}},
+			{"chunk": "\n\nListo:\n\n- `wave_started(index)` se emite al empezar cada oleada\n- `start_wave()` incrementa el contador\n\n```gdscript\nfunc start_wave() -> void:\n\twave += 1\n```"},
+			{"update": {"sessionUpdate": "session_info_update", "title": "Oleadas de asteroides"}},
+			{"stop": "end_turn"}
+		]}
+	]
+}

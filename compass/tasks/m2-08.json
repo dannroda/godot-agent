@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "2.8",
+  "created_at": "2026-10-21T04:32:36.832Z",
+  "description": "Guiones del agente falso con tool calls, diff, permisos y fs/*. Con Claude Code: editar un script abierto muestra el diff, pide permiso en Construir, se auto-deniega en Preguntar y el editor muestra el cambio sin diálogos ni pérdida de buffer. Actualizar progress.",
+  "milestone": "m02",
+  "notes": "",
+  "order": 8,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Verificar M2",
+  "updated_at": "2026-10-21T05:06:32.369Z"
+}

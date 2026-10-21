@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "7.7",
+  "created_at": "2026-10-21T04:33:44.137Z",
+  "description": "Suite completa en 4.4.1/4.7.2/4.8-beta1, settings persistidos, sesión de 500+ entradas, revisión godot-code-review sin hallazgos altos. Actualizar progress.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 7,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Verificar M7",
+  "updated_at": "2026-10-21T04:33:44.137Z"
+}

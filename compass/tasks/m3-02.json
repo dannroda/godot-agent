@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "3.2",
+  "created_at": "2026-10-21T04:32:37.187Z",
+  "description": "Puerto configurable (0 = aleatorio), token Bearer por sesión, POST /mcp, Mcp-Session-Id, 202 para notificaciones, 401/404/405, Connection. Red no bloqueante (polling en _process); cada request se ejecuta en el hilo principal. initialize, notifications/initialized, tools/list, tools/call, ping.",
+  "milestone": "m03",
+  "notes": "",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "McpServer: TCPServer en 127.0.0.1 con token",
+  "updated_at": "2026-10-21T04:32:37.187Z"
+}

@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8.2",
+  "created_at": "2026-10-21T04:33:44.237Z",
+  "description": "Texto atenuado con draw_string sobre el CodeEdit respetando fuente, scroll, wrap y zoom. Tab acepta (una acción de undo), Esc descarta; interceptar solo con sugerencia visible y popup cerrado. Documentar si gui_input alcanza o hace falta _input.",
+  "milestone": "m08",
+  "notes": "",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "GhostTextRenderer y aceptación",
+  "updated_at": "2026-10-21T04:33:44.237Z"
+}

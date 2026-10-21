@@ -1,0 +1,18 @@
+{
+	"turns": [
+		{"steps": [
+			{"chunk": "Empiezo una respuesta larga"},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "Leer main.gd", "kind": "read", "status": "in_progress"}},
+			{"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."},
+			{"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."},
+			{"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."},
+			{"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."}, {"delay": 0.2}, {"chunk": "."},
+			{"chunk": " no tendría que llegar acá."},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Segundo turno después del cancel."},
+			{"stop": "end_turn"}
+		]}
+	]
+}

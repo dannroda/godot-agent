@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8.7",
+  "created_at": "2026-10-21T04:33:44.459Z",
+  "description": "@onready var sugiere nodos hijos reales con tipo y ruta; func _ sugiere virtuales con firma; una línea repetida se sugiere; Tab sin sugerencia indenta y el popup nativo no se rompe; p95 < 10 ms. Actualizar progress.",
+  "milestone": "m08",
+  "notes": "",
+  "order": 7,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Verificar M8a",
+  "updated_at": "2026-10-21T04:33:44.459Z"
+}

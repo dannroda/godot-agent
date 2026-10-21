@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "3.3",
+  "created_at": "2026-10-21T04:32:37.465Z",
+  "description": "Cada tool declara name, description, inputSchema, group y execute(args). Resultado {content, isError}; truncado de texto configurable con aviso; imágenes reescaladas a 1280 px; errores accionables; log con nombre, duración y resumen. Política del lado del server (ask con timeout).",
+  "milestone": "m03",
+  "notes": "",
+  "order": 3,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "ToolRegistry y base de tools",
+  "updated_at": "2026-10-21T04:32:37.465Z"
+}

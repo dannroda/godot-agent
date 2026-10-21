@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "3.4",
+  "created_at": "2026-10-21T04:32:37.545Z",
+  "description": "project_info, list_files, scene_tree (compacto, propiedades no default, depth), get_node, editor_state (spec §6).",
+  "milestone": "m03",
+  "notes": "",
+  "order": 4,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Tools de lectura",
+  "updated_at": "2026-10-21T04:32:37.545Z"
+}

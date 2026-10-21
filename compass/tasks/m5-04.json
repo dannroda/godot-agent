@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "5.4",
+  "created_at": "2026-10-21T04:33:15.047Z",
+  "description": "Revisar una carpeta con 3 bugs sembrados: aparecen anotados en las líneas correctas (agente falso con guion de findings y Claude Code real). Actualizar progress.",
+  "milestone": "m05",
+  "notes": "",
+  "order": 4,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Verificar M5",
+  "updated_at": "2026-10-21T04:33:15.047Z"
+}

@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "2.3",
+  "created_at": "2026-10-21T04:32:35.064Z",
+  "description": "Matriz modo × grupo → allow/ask/deny con los defaults de la spec §7, guardada en un Resource por proyecto (D5). Mapeo de kind de ACP a grupos. \"Siempre en esta sesión\" solo en memoria. Tests unitarios de la matriz.",
+  "milestone": "m02",
+  "notes": "",
+  "order": 3,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "PermissionPolicy con matriz configurable",
+  "updated_at": "2026-10-21T04:32:35.064Z"
+}

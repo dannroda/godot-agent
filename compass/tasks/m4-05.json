@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "4.5",
+  "created_at": "2026-10-21T04:33:14.754Z",
+  "description": "Los tool calls MCP de edición registran su paso de undo; el dock muestra \"↶ undo\" y lo deshace si sigue siendo el último paso de esa escena (si no, avisa).",
+  "milestone": "m04",
+  "notes": "",
+  "order": 5,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Botón \"↶ undo\" en los tool calls del dock",
+  "updated_at": "2026-10-21T04:33:14.754Z"
+}

@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8b.6",
+  "created_at": "2026-10-21T04:34:10.833Z",
+  "description": "El set de evaluación reporta resultados por fuente y el n-gram mejora la línea base de reglas + recuperación. Ajustar umbrales priorizando precisión. Actualizar progress.",
+  "milestone": "m09",
+  "notes": "",
+  "order": 6,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Verificar M8b",
+  "updated_at": "2026-10-21T04:34:10.833Z"
+}

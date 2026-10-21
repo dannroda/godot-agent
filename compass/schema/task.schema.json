@@ -156,6 +156,62 @@
         }
       }
     },
+    "decisions": {
+      "type": "array",
+      "description": "Decisiones tomadas al trabajar la tarea, en el orden en que se tomaron (§31, D42). Sin asked, el agente decidió solo y queda sin revisar hasta que el usuario pone review; con asked, es una pregunta abierta hasta que tiene reply.",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Qué se decidió, en una línea; con asked, la pregunta"
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Por qué"
+          },
+          "alternatives": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Qué se descartó"
+          },
+          "asked": {
+            "const": true,
+            "description": "Se le preguntó al usuario en lugar de decidir solo"
+          },
+          "reply": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Lo que dijo el usuario: la respuesta a la pregunta, o qué hacer en lugar de lo que revierte"
+          },
+          "review": {
+            "enum": [
+              "ok",
+              "revert",
+              "reverted"
+            ],
+            "description": "La revisión: de acuerdo, a revertir, o ya revertida"
+          },
+          "promoted": {
+            "type": "string",
+            "pattern": "^D[0-9]+$",
+            "description": "La entrada del documento de decisiones a la que se promovió"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Cuándo se registró; lo pone el store"
+          }
+        }
+      }
+    },
     "images": {
       "type": "array",
       "description": "Capturas de la tarea: rutas desde la raíz del proyecto a imágenes PNG, JPEG, GIF o WebP. Las que se pegan en la web van a compass/images/",

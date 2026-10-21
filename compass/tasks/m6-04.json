@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "6.4",
+  "created_at": "2026-10-21T04:33:15.307Z",
+  "description": "tests/sandbox_project/ separado (con .gdignore para el anfitrión) para correr one-shots; nunca sobre el proyecto del addon.",
+  "milestone": "m06",
+  "notes": "",
+  "order": 4,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Proyecto sandbox para one-shots",
+  "updated_at": "2026-10-21T04:33:15.307Z"
+}

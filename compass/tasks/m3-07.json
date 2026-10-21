@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "3.7",
+  "created_at": "2026-10-21T04:32:40.035Z",
+  "description": "Tests de integración del server (HTTP real contra el editor headless). Claude Code lista las tools godot.* y responde \"¿cuántos nodos tiene Main.tscn?\" usando scene_tree. Actualizar progress.",
+  "milestone": "m03",
+  "notes": "",
+  "order": 7,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Verificar M3",
+  "updated_at": "2026-10-21T04:32:40.035Z"
+}

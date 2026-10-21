@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "3.6",
+  "created_at": "2026-10-21T04:32:38.841Z",
+  "description": "Entrada http con header Authorization si mcpCapabilities.http; si no, shim stdio→HTTP en GDScript (godot --headless --script mcp_stdio_shim.gd con puerto y token por env).",
+  "milestone": "m03",
+  "notes": "",
+  "order": 6,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Conectar el MCP en session/new y shim stdio",
+  "updated_at": "2026-10-21T04:32:38.841Z"
+}

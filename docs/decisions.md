@@ -132,3 +132,41 @@ Hallado con `tests/export_check.gd` en 4.8-beta1 (confirmado leyendo `editor/exp
 2. **Baja del autoload en `_export_begin`.** `project.binary` se genera al final del export (después de `_export_begin`), así que quitar el autoload ahí **sí** afecta al export en curso. Pero `remove_autoload_singleton` no borraba la entrada en ese momento (tampoco al cerrar el editor: "Trying to remove non-existent autoload", porque el editor nunca lo cargó). `PlaytestAutoload.unregister()` llama a `remove_autoload_singleton` y, si la entrada sigue, la borra con `ProjectSettings.set_setting(…, null)` + `save()`.
 
 Resultado: `export_check.gd` pasa los 4 escenarios en 4.4.1, 4.7.2 y 4.8-beta1. Con el plugin habilitado, el addon queda fuera aunque el preset no tenga filtro. El filtro sigue siendo la red de seguridad para exportar con el plugin deshabilitado.
+
+## D11 · Pipes de `execute_with_pipe` en 4.4.x: no se cierran (M1)
+
+Hallado con `tests/acp_session_check.gd` en 4.4.1: el segundo agente lanzado en la misma sesión del editor no recibía nada y el editor moría con SIGPIPE (código 141). Reproducido con `cat` como hijo. En 4.4.x, cerrar o liberar el `FileAccess` de un pipe cierra descriptores equivocados, **incluido el fd 0 del editor**. El siguiente `pipe()` reutiliza esos números y queda todo cruzado. En 4.5.1, 4.6, 4.7.2 y 4.8-beta1 no pasa.
+
+**Solución** (`transport/agent_process.gd`):
+- Con versión < 4.5 (`pipe_close_is_broken()`), los pipes de un agente terminado no se cierran: se guardan en un array estático hasta que se cierra el editor.
+- Costo: unos pocos fds por sesión de agente, solo en 4.4.
+
+Otros hallazgos del transporte:
+- `OS.is_process_running(pid)` da error con un pid que no es hijo directo del editor o que ya fue cosechado. Para los nietos (node bajo npx), `ProcessTree` solo usa `OS.kill`.
+- `npx` deja a `node` como hijo. `OS.kill` sobre el pid de npx no lo mata y sus pipes no llegan a EOF. `ProcessTree.kill_tree` mata el árbol (`pgrep -P` recursivo; `taskkill /T /F` en Windows). Además, `AgentProcess` guarda la lista de descendientes: si el proceso principal muere solo, los huérfanos ya no aparecen en `pgrep -P`.
+- Un proceso Godot headless (agente falso, y el shim stdio de M3) **no termina con `quit()`** mientras un thread está bloqueado leyendo stdin. El agente falso sale en EOF y, para simular una caída, se mata a sí mismo.
+
+## D12 · Capa de comandos: SessionController (M1)
+
+La spec pide UI → SessionModel → AcpClient → AgentProcess, con un SessionModel que "no hace IO". Para respetar las dos cosas, la sesión se parte en dos:
+- `session/session_model.gd`: estado y señales, sin IO.
+- `session/session_controller.gd`: comandos (start, open_session, send_prompt, cancel, set_config_option, stop). Es el único dueño de `AcpClient` y `AgentProcess`. Aplica al modelo lo que llega por ACP.
+
+La UI lee el modelo y llama comandos del controller; nunca toca el cliente ni el proceso. El controller no depende del editor: recibe por inyección `cwd`, `mcp_servers_provider` y `prompt_variables_provider` (y en M2 los handlers de fs y permisos). Por eso se prueba headless contra el agente falso.
+
+Modos del harness ↔ modos del agente: si el agente publica `modes`, Preguntar y Revisar piden `plan`, y Construir y One-shot piden `default` (`session/set_mode`). Al cambiar de modo, el próximo prompt vuelve a llevar el prompt de sistema con el modo nuevo.
+
+## D13 · Adapter de Claude Code: `@agentclientprotocol/claude-agent-acp` (M1)
+
+`npm view` (2026-10-21): `@zed-industries/claude-agent-acp` y `@zed-industries/claude-code-acp` están deprecados. El paquete vigente es `@agentclientprotocol/claude-agent-acp` (v0.94.0, binario `claude-agent-acp`). Perfil por defecto: `npx -y @agentclientprotocol/claude-agent-acp`.
+
+Respuestas reales capturadas que difieren o amplían la spec (gana el agente real):
+- `session/new` devuelve `modes` (default, acceptEdits, plan, auto, bypassPermissions) y `configOptions` (`mode` y `model`, tipo select). El modelo se cambia con `session/set_config_option {sessionId, configId, value}`.
+- Notificación no estándar `_auth/status_update`: se loguea y se ignora.
+- `usage_update` trae `used`, `size` y `cost`. El resultado de `session/prompt` trae `usage` con tokens.
+- `authMethods` llega vacío si el usuario ya está logueado en Claude Code.
+
+## D14 · Prompt de sistema y contexto del prompt (M1)
+
+- El prompt de sistema vive en `config/system_prompt.md` (editable, con `{mode}`, `{mode_rules}`, `{project_name}`…). Va como primer bloque de texto, envuelto en `<harness_context>`, del primer `session/prompt` de cada sesión y después de cada cambio de modo.
+- Chips de contexto: escena abierta (`resource_link` con `file://`), selección (bloque de texto con rutas y tipos) y captura del viewport (bloque `image`, ≤ 1280 px). Se agregan solos y se pueden quitar. Un chip quitado no vuelve mientras no cambie la escena o la selección.

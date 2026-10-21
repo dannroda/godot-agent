@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "5.2",
+  "created_at": "2026-10-21T04:33:14.950Z",
+  "description": "Marcar la línea (fondo y gutter por severidad) en el Script Editor; tarjeta con título, explicación, sugerencia y botones Aplicar arreglo / Preguntar / Descartar. Banda \"Revisión del agente · solo lectura\" (docs/design pantalla 3).",
+  "milestone": "m05",
+  "notes": "",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "test": "",
+  "title": "Anotaciones en el CodeEdit y tarjetas de hallazgo",
+  "updated_at": "2026-10-21T04:33:14.950Z"
+}

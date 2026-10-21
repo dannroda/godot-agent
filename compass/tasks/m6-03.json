@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "6.3",
+  "created_at": "2026-10-21T04:33:15.215Z",
+  "description": "Prompt inicial (objetivo, modo, plan, bloque checks, run_scene/capture/get_errors tras cada tarea). Presupuestos de tiempo, tokens y playtests: aviso al 80%, al 100% session/cancel + prompt de cierre con reporte final. \"Guiar al agente\" encola un prompt para el fin del turno.",
+  "milestone": "m06",
+  "notes": "",
+  "order": 3,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Loop One-shot y presupuestos",
+  "updated_at": "2026-10-21T04:33:15.215Z"
+}

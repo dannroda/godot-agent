@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8c.2",
+  "created_at": "2026-10-21T04:34:10.928Z",
+  "description": "Endpoints verificados contra la documentación y anotados en decisions.md. Plantillas FIM por perfil, stop tokens, keys por nombre de variable de entorno, aviso de envío de código en perfiles remotos, Gemini marcado experimental. Contexto de ProjectContext con presupuesto y prioridad.",
+  "milestone": "m10",
+  "notes": "",
+  "order": 2,
+  "priority": "medium",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "test": "",
+  "title": "Proveedores Ollama, llama.cpp, Codestral, OpenAI-compatible y Gemini",
+  "updated_at": "2026-10-21T04:34:10.928Z"
+}

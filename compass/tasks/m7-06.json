@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "7.6",
+  "created_at": "2026-10-21T04:33:44.096Z",
+  "description": "Instalación, perfiles, modos, permisos, MCP, One-shot, completado, exclusión del export (filtro de presets), actualizar sin perder la config, limitaciones conocidas por versión de Godot.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 6,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "README de uso",
+  "updated_at": "2026-10-21T04:33:44.096Z"
+}

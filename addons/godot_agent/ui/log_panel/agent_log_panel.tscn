@@ -6,9 +6,49 @@
 custom_minimum_size = Vector2(0, 160)
 script = ExtResource("1_log")
 
-[node name="EmptyState" type="Label" parent="."]
+[node name="Toolbar" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ChannelFilters" type="HBoxContainer" parent="Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Spacer" type="Control" parent="Toolbar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CountLabel" type="Label" parent="Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderSmall"
+
+[node name="RawToggle" type="CheckButton" parent="Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Mostrar los mensajes JSON-RPC completos"
+text = "raw"
+
+[node name="CopyButton" type="Button" parent="Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Copiar las líneas visibles"
+text = "Copiar"
+flat = true
+
+[node name="ClearButton" type="Button" parent="Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Vaciar el log"
+text = "Limpiar"
+flat = true
+
+[node name="Output" type="RichTextLabel" parent="."]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-text = "Sin actividad."
-horizontal_alignment = 1
-vertical_alignment = 1
+focus_mode = 2
+bbcode_enabled = true
+scroll_following = true
+selection_enabled = true
+context_menu_enabled = true

@@ -1,0 +1,9 @@
+{
+	"turns": [
+		{"steps": [
+			{"chunk": "Me voy a caer"},
+			{"delay": 0.1},
+			{"exit": true}
+		]}
+	]
+}

@@ -55,6 +55,29 @@ func set_legacy_main_screen_visible(visible: bool) -> void:
 			(entry.control as Control).visible = visible
 
 
+## Muestra la superficie (p. ej. "Ver log" abre el panel inferior). La main screen se muestra con
+## EditorInterface.set_main_screen_editor().
+func make_visible(surface: Surface) -> void:
+	for entry: Dictionary in _entries:
+		if entry.surface != surface:
+			continue
+		var wrapper: Control = entry.wrapper
+		if is_instance_valid(wrapper):
+			wrapper.call(&"make_visible")
+			return
+		var control: Control = entry.control
+		if not is_instance_valid(control):
+			return
+		match surface:
+			Surface.BOTTOM:
+				_plugin.make_bottom_panel_item_visible(control)
+			Surface.SIDE:
+				var tabs := control.get_parent() as TabContainer
+				if tabs:
+					tabs.current_tab = control.get_index()
+		return
+
+
 func remove_all() -> void:
 	for entry: Dictionary in _entries:
 		var control: Control = entry.control

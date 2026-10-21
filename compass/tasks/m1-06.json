@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "1.6",
+  "created_at": "2026-10-21T04:32:01.184Z",
+  "description": "Corre con godot --headless --script, lee stdin con OS.read_string_from_stdin y responde ACP según un guion JSON en tests/scripts/*.json: chunks, tool calls con diff, pedidos de permiso, plan, errores, cancelación (spec §13).",
+  "milestone": "m01",
+  "notes": "Guiones en tests/scripts/: basic.json, cancel.json y crash.json.\n- Pasos: chunk, thought, update, delay, request, garbage, stop, error y exit.\n- quit() no termina el proceso mientras un thread está bloqueado en stdin. Por eso \"exit\" se mata a sí mismo (OS.kill) y un EOF en stdin termina el proceso.\n- Ojo con el shim stdio de M3: le pasa lo mismo.",
+  "order": 6,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "Manual: el comando `godot --headless --no-header --path . --script res://tests/fake_agent.gd -- --scenario=res://tests/scripts/basic.json` responde initialize, session/new y prompt. Lo usa tests/acp_session_check.gd.",
+  "title": "Agente falso en GDScript (tests/fake_agent.gd)",
+  "updated_at": "2026-10-21T04:54:12.430Z"
+}

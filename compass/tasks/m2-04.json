@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "2.4",
+  "created_at": "2026-10-21T04:32:35.824Z",
+  "description": "Consultar PermissionPolicy: allow/deny se responden solos eligiendo la opción adecuada; ask crea un pedido en SessionModel y la tarjeta muestra las opciones del agente como botones. Respuesta selected/cancelled. Canal perm en el log.",
+  "milestone": "m02",
+  "notes": "",
+  "order": 4,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "session/request_permission con tarjeta de permiso",
+  "updated_at": "2026-10-21T04:32:35.824Z"
+}

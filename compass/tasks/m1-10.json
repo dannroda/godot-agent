@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "1.10",
+  "created_at": "2026-10-21T04:32:01.392Z",
+  "description": "Framing de líneas JSON (partidas, varias por lectura), correlación de ids, requests entrantes y -32601, merge de chunks y variantes desconocidas en SessionModel (spec §13).",
+  "milestone": "m01",
+  "notes": "",
+  "order": 10,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "run_all: 19 tests, 79 checks, 0 fallos en 4.4.1, 4.7.2 y 4.8-beta1.",
+  "title": "Tests unitarios de transporte y sesión",
+  "updated_at": "2026-10-21T04:54:12.467Z"
+}

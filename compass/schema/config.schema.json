@@ -50,6 +50,11 @@
       "description": "Ruta del export markdown (.md), relativa a la raíz del proyecto y dentro de él",
       "pattern": "^(?![/\\\\])(?![a-zA-Z]:)(?!(.*/)?\\.\\.(/|$))[^\\\\{}]+\\.md$"
     },
+    "decisions_doc": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_/-]*$",
+      "description": "Alias del documento (de docs) donde Promover agrega las decisiones como D-n (§31). Sin él, decisiones"
+    },
     "port": {
       "type": "integer",
       "minimum": 1,
@@ -63,7 +68,7 @@
     },
     "views": {
       "type": "array",
-      "description": "Pestañas del proyecto en la web, en orden; la primera es la que abre. Sin views: board, lists, playtest, docs, files.",
+      "description": "Pestañas del proyecto en la web, en orden; la primera es la que abre. Sin views: board, lists, playtest, decisions, docs, files.",
       "minItems": 1,
       "uniqueItems": true,
       "items": {
@@ -71,6 +76,7 @@
           "board",
           "lists",
           "playtest",
+          "decisions",
           "docs",
           "files"
         ]

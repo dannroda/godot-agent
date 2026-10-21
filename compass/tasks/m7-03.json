@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "7.3",
+  "created_at": "2026-10-21T04:33:43.128Z",
+  "description": "user://godot_agent/sessions/<id>.json con eventos ACP normalizados; lista en el dock para reabrir y mostrar; session/load para reanudar si el agente lo soporta.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 3,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Historial de sesiones",
+  "updated_at": "2026-10-21T04:33:43.128Z"
+}

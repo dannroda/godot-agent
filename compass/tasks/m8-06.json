@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "8.6",
+  "created_at": "2026-10-21T04:33:44.413Z",
+  "description": "tests/completion_fixture/ (escenas, %únicos, input map, autoloads, señales); tests de cada regla, retrieval y ranker; benchmark con 200 scripts generados: p95 < 10 ms por consulta, logueado.",
+  "milestone": "m08",
+  "notes": "",
+  "order": 6,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Fixture, tests y benchmark del completado",
+  "updated_at": "2026-10-21T04:33:44.413Z"
+}

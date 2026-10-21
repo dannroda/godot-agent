@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "2.7",
+  "created_at": "2026-10-21T04:32:36.713Z",
+  "description": "Archivo editable del addon con el prompt de sistema (tools godot.*, reglas de §8, modo actual, respetar CLAUDE.md) que va en el primer session/prompt. Chips de contexto (escena actual, selección, + contexto) como resource links o recursos embebidos.",
+  "milestone": "m02",
+  "notes": "Adelantado en M1 (D14):\n- config/system_prompt.md va en el primer prompt y en cada cambio de modo;\n- chips de escena, selección y captura, como resource_link, texto e image.\n\nFalta \"+ contexto\" (agregar un archivo o un nodo a mano) y probarlo con Claude real.",
+  "order": 7,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "doing",
+  "test": "",
+  "title": "Prompt de sistema y contexto del prompt",
+  "updated_at": "2026-10-21T05:06:32.421Z"
+}

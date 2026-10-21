@@ -1,0 +1,36 @@
+{
+	"session": {
+		"modes": {
+			"currentModeId": "default",
+			"availableModes": [
+				{"id": "default", "name": "Default"},
+				{"id": "plan", "name": "Plan"}
+			]
+		},
+		"configOptions": [
+			{"id": "model", "name": "Model", "type": "select", "currentValue": "fake-large",
+			 "options": [{"value": "fake-large", "name": "Grande"}, {"value": "fake-small", "name": "Chico"}]}
+		]
+	},
+	"on_new_session": [
+		{"update": {"sessionUpdate": "available_commands_update", "availableCommands": [
+			{"name": "review", "description": "Revisar cambios"},
+			{"name": "compact", "description": "Compactar la conversación"}
+		]}}
+	],
+	"turns": [
+		{"steps": [
+			{"garbage": "esto no es JSON"},
+			{"update": {"sessionUpdate": "usage_update", "used": 1200, "size": 200000}},
+			{"thought": "Pensando en el saludo…"},
+			{"chunk": "¡Hola! "},
+			{"delay": 0.05},
+			{"chunk": "Soy el **agente falso**. "},
+			{"delay": 0.05},
+			{"chunk": "Respondo con `streaming`."},
+			{"update": {"sessionUpdate": "session_info_update", "title": "Saludo de prueba"}},
+			{"update": {"sessionUpdate": "variante_inventada", "x": 1}},
+			{"stop": "end_turn"}
+		]}
+	]
+}

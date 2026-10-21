@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "3.5",
+  "created_at": "2026-10-21T04:32:37.907Z",
+  "description": "get_errors (errores y warnings desde una marca), validate_scripts (parse de scripts con errores por línea; fallback godot --headless --check-only), capture_editor_viewport 2d/3d como PNG base64.",
+  "milestone": "m03",
+  "notes": "",
+  "order": 5,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Tools de diagnóstico",
+  "updated_at": "2026-10-21T04:32:37.907Z"
+}

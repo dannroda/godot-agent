@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "1.11",
+  "created_at": "2026-10-21T04:32:01.433Z",
+  "description": "Prueba de integración headless: prompt, respuesta en streaming y cancelación limpia contra fake_agent. Contra Claude Code real: \"hola\" recibe respuesta. Actualizar docs/progress.md.",
+  "milestone": "m01",
+  "notes": "docs/progress.md (sección M1) y decisions.md D11–D14.",
+  "order": 11,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Contra el agente falso: acp_session_check.gd y el ui-test. Contra Claude Code real: tests/claude_smoke_check.gd mandó \"hola\", recibió \"¡Hola! Estoy dentro del editor de Godot…\" con end_turn y no quedó ningún proceso vivo.",
+  "title": "Verificar M1 contra el agente falso y Claude Code real",
+  "updated_at": "2026-10-21T05:06:27.975Z"
+}

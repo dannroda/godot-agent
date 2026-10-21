@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "5.3",
+  "created_at": "2026-10-21T04:33:14.997Z",
+  "description": "Modo Revisar: aviso de solo lectura, contadores por severidad, lista con archivo:línea clickeable. \"Aplicar arreglo\" cambia a Construir y pide ese arreglo; \"Exportar a CLAUDE.md\" agrega convenciones previa confirmación; \"Arreglar en modo Construir\".",
+  "milestone": "m05",
+  "notes": "",
+  "order": 3,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Lista de hallazgos en el dock y acciones",
+  "updated_at": "2026-10-21T04:33:14.997Z"
+}
