@@ -743,3 +743,14 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Fuera por ahora**: configurar terrenos (peering bits por tile). Se hace en el editor de TileSet; las tools pintan con los que haya, y el error lo explica.
 - **Pruebas**: `--godot-agent-edit-test` (TileSet inline con add_node, atlas de una textura con un tile transparente, colisión, rect y celdas sueltas, tile inexistente, mapa y leyenda, Ctrl+Z, erase, clear y su undo, terreno por nombre), en 4.8-beta1 y 4.6.3.
 
+## D53 · Tools de animación
+
+- **Problema**: `set_properties` no llega a pistas ni keyframes, así que el agente animaba con tweens en código o escribía la biblioteca a mano.
+- **Tools** (`mcp/tools/animation_tools.gd`): `animation_get` (read) y `animation_create`, `animation_set_track`, `animation_remove`, `sprite_frames_set` (edit_scene).
+  - `animation_set_track` agrega una pista o reemplaza las keys de la que tiene el mismo path. Pistas de valor (`"Nodo:propiedad"` relativo al `root_node` del player, también subpropiedades como `position:y`) con el valor convertido al tipo de la propiedad, y pistas de método. Update mode: continuous para tipos que interpolan (float, vectores, colores, transforms) y discrete para el resto, salvo que se pida otro.
+  - `animation_create` usa `"biblioteca/anim"` o la biblioteca por defecto (la crea en la misma acción) y puede marcar autoplay.
+  - `sprite_frames_set` arma los cuadros desde imágenes o desde una hoja (AtlasTexture por celda); si el nodo no tenía SpriteFrames, crea uno sin la animación `default` vacía.
+- **Deshacer**: cada cambio de una animación se hace sobre una copia (`duplicate(true)`) y la acción cambia una por otra en su AnimationLibrary (`add_animation` reemplaza). SpriteFrames se restaura cuadro por cuadro (clear + add_frame con las duraciones). Si la biblioteca o los SpriteFrames son un `.tres` propio, se guardan al hacer y al deshacer.
+- **Fuera por ahora**: AnimationTree (state machines, blend spaces), pistas bezier, de audio y 3D.
+- **Pruebas**: `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3 (crear con loop y autoplay, pistas de posición, color y método, key fuera del largo, propiedad inexistente, animation_get con keys, Ctrl+Z por pasos, borrar pista y animación con autoplay, SpriteFrames desde hoja y reemplazo con undo).
+

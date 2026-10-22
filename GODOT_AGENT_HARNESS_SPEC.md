@@ -209,6 +209,9 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `tilemap_get` | read | node_path, rect? | TileSet (fuentes, física, terrenos) y mapa ASCII con leyenda (m4-11) |
 | `tileset_add_atlas` / `tileset_add_scenes` | edit_scene | node_path, texture/scenes, tile_size?, collision? | Fuentes del TileSet con undo |
 | `tilemap_set_cells` / `tilemap_paint_terrain` / `tilemap_clear` | edit_scene | node_path, cells?, rect?, source_id?, atlas?, terrain? | Un paso de undo por llamada (tile_map_data antes/después) |
+| `animation_get` | read | node_path, animation? | Animaciones y pistas con keys; o los SpriteFrames (m4-12) |
+| `animation_create` / `animation_set_track` / `animation_remove` | edit_scene | node_path, name/animation, track, keys | Undo cambiando la animación por una copia editada |
+| `sprite_frames_set` | edit_scene | node_path, animation, frames? \| sheet?, fps?, loop? | SpriteFrames desde imágenes o una hoja |
 | `get_resource` | read | path | Tipo, script, uid y propiedades no default con sub-recursos |
 | `create_resource` / `set_resource_properties` | edit_files | path, type, properties | `.tres` por el editor, con undo al cambiar (m4-13) |
 | `move_file` / `copy_file` / `delete_file` | edit_files | from, to / path | Con referencias al día y uid; borrar se niega si algo lo usa (m4-10) |
