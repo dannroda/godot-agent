@@ -26,6 +26,7 @@ const ACTIVITY_COLORS: Dictionary = {
 	"loop": Color("#ff9f5a"),
 	"spec": Color("#8fd3c7"),
 	"guía": Color("#ffd479"),
+	"turno": Color("#9aa7b8"),
 }
 const SUMMARY_INTERVAL_S := 2.0
 const ACCOUNT_ALREADY_SWITCHED := 1000
@@ -110,6 +111,8 @@ var _changes_list: ItemList
 var _error_dialog: AcceptDialog
 
 var _plan_signature: String = ""
+## Tarea del plan -> Label con su duración; se actualiza en cada refresco sin rearmar la lista (m6-16).
+var _plan_times: Dictionary = {}
 var _checks_signature: String = ""
 var _checkpoints_signature: String = ""
 var _capture_shown: Image
@@ -798,8 +801,10 @@ func _refresh_plan() -> void:
 	var plan: Array = _run.current_plan()
 	var signature := JSON.stringify(plan) + ("|fin" if plan.is_empty() and _run.phase == OneShotRun.Phase.FINISHED else "")
 	if signature == _plan_signature:
+		_refresh_plan_times()
 		return
 	_plan_signature = signature
+	_plan_times.clear()
 	_plan_edit_button.disabled = plan.is_empty()
 	for child: Node in _plan_list.get_children():
 		child.queue_free()
@@ -832,10 +837,24 @@ func _refresh_plan() -> void:
 				icon.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		row.add_child(icon)
 		row.add_child(text)
+		var time := Label.new()
+		time.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+		time.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+		time.tooltip_text = "Cuánto lleva la tarea (o cuánto tardó, si ya terminó)."
+		row.add_child(time)
+		_plan_times[str(entry.get("content", ""))] = time
 		var holder := PanelContainer.new()
 		holder.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(_accent, 0.1) if status == "in_progress" else Color.TRANSPARENT, Color.TRANSPARENT, 5, 6))
 		holder.add_child(row)
 		_plan_list.add_child(holder)
+	_refresh_plan_times()
+
+
+func _refresh_plan_times() -> void:
+	var now := _run.elapsed_ms()
+	for content: String in _plan_times:
+		var ms := _run.report.task_ms(content, now)
+		(_plan_times[content] as Label).text = RunReport.format_duration(roundi(ms / 1000.0)) if ms >= 0 else ""
 
 
 func _refresh_side() -> void:

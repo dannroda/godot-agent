@@ -15,14 +15,18 @@ func _sample() -> RunReport:
 	var report := RunReport.new()
 	report.observe_plan(_plan(["in_progress", "pending"]), 1000)
 	report.observe_plan(_plan(["completed", "in_progress"]), 61000)
-	report.observe_tool("godot.run_scene", false)
-	report.observe_tool("godot.run_scene", true)
+	report.observe_tool("godot.run_scene", false, 4000)
+	report.observe_tool("godot.run_scene", true, 1500)
 	report.observe_tool("Edit", false)
 	report.observe_checks([{"label": "Salto", "status": "fail"}, {"label": "Puntaje", "status": "pass"}])
 	report.observe_checks([{"label": "Salto", "status": "fail"}])
 	report.count("turns", 4)
 	report.count("permissions_asked")
 	report.count("loops")
+	report.observe_turn(0, 90000, "end_turn", 3)
+	report.observe_turn(95000, 30000, "cancelled", 1)
+	report.add_wait("quota", 600000)
+	report.add_wait("paused", 65000)
 	return report
 
 
@@ -35,7 +39,8 @@ func test_build() -> void:
 	})
 	assert_eq(built.duration_s, 125, "duración")
 	assert_eq(built.tasks, [{"task": "Tarea 1", "status": "completed", "duration_s": 60}, {"task": "Tarea 2", "status": "in_progress", "duration_s": 64}], "tareas: la abierta dura hasta el final")
-	assert_eq(built.tools[0], {"tool": "godot.run_scene", "count": 2, "failed": 1}, "tools ordenadas por uso")
+	assert_eq(built.tools[0], {"tool": "godot.run_scene", "count": 2, "failed": 1, "seconds": 6}, "tools ordenadas por uso, con su tiempo")
+	assert_eq(built.timing, {"working_s": 120, "turns": 2, "turn_avg_s": 60, "turn_max_s": 90, "waiting_quota_s": 600, "paused_s": 65, "spec_review_s": 0}, "tiempos")
 	assert_eq(built.checks, [{"label": "Salto", "status": "fail", "failures": 2}, {"label": "Puntaje", "status": "pass", "failures": 0}], "checks con fallas")
 	assert_eq(built.events.turns, 4, "eventos")
 
@@ -43,7 +48,7 @@ func test_build() -> void:
 func test_markdown() -> void:
 	var built := _sample().build({"goal": "Pong", "finish_reason": "Terminado.", "duration_ms": 3725000, "used": {"time": 3725.0}, "budgets": {"time": 0}, "checks": [{"label": "Salto", "status": "fail"}], "changes": {"files": [{"path": "main.gd", "added": 10, "removed": 2}], "added": 10, "removed": 2}})
 	var text := RunReport.to_markdown(built)
-	for expected: String in ["**Objetivo**: Pong", "1 h 02 min", "Tiempo: 1 h 02 min (sin límite)", "- [x] Tarea 1 · 1 min 00 s", "| `godot.run_scene` | 2 | 1 |", "| Salto |", "Loops detectados: 1", "### Archivos (1 · +10 −2)", "`main.gd` +10 −2"]:
+	for expected: String in ["**Objetivo**: Pong", "1 h 02 min", "Tiempo: 1 h 02 min (sin límite)", "- [x] Tarea 1 · 1 min 00 s", "| `godot.run_scene` | 2 | 1 | 6 s |", "Trabajando: 2 min 00 s en 2 turnos (promedio 1 min 00 s, el más largo 1 min 30 s)", "Sin trabajar: esperando la cuota 10 min 00 s, en pausa 1 min 05 s", "| Salto |", "Loops detectados: 1", "### Archivos (1 · +10 −2)", "`main.gd` +10 −2"]:
 		assert_true(text.contains(expected), "markdown: %s" % expected)
 
 
@@ -53,6 +58,13 @@ func test_persist_and_labels() -> void:
 	var built := copy.build({"duration_ms": 61000})
 	assert_eq(built.tasks.size(), 2, "tareas tras guardar y cargar")
 	assert_eq(built.tools.size(), 2, "tools tras guardar y cargar")
+	assert_eq(built.timing.turns, 2, "turnos tras guardar y cargar")
+	assert_eq(built.timing.waiting_quota_s, 600, "esperas tras guardar y cargar")
+	assert_eq(copy.task_ms("Tarea 1", 200000), 60000, "duración de una tarea terminada")
+	assert_eq(copy.task_ms("Tarea 2", 71000), 10000, "la tarea en curso cuenta hasta ahora")
+	assert_eq(copy.task_ms("Otra", 71000), -1, "tarea que no empezó")
+	assert_eq(RunReport.format_ms(850), "850 ms", "ms")
+	assert_eq(RunReport.format_ms(5500), "5,5 s", "segundos con decimal")
 	assert_eq(RunReport.tool_label("mcp__godot__run_scene", "run_scene", "", "other"), "godot.run_scene", "tool del addon")
 	assert_eq(RunReport.tool_label("Edit player.gd", "", "Edit", "edit"), "Edit", "toolName de Claude Code")
 	assert_eq(RunReport.tool_label("mcp__other__thing", "", "", "other"), "other.thing", "otra tool MCP")

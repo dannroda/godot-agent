@@ -140,7 +140,7 @@ func _scenario_quota() -> void:
 	# Turno 1: cp2 antes de la tarea 1; al 91 % la tarea 2 crea su checkpoint y se pausa.
 	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED_QUOTA and not run.is_git_busy(), 10.0)
 	_check(run.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuota: pausado por cuota (%s)" % run.phase_label())
-	_check(_cp_labels(run) == ["cp1 Estado inicial", "cp2 Paletas y pelota", "cp3 Puntaje y saque"], "cuota: checkpoints %s" % [_cp_labels(run)])
+	_check(_cp_labels(run) == ["cp1 Estado inicial", "cp2 Paletas y pelota", "cp3 Puntaje y saque"], "cuota: checkpoints %s %s" % [_cp_labels(run), run.activity.map(func(e: Dictionary) -> String: return e.kind + ":" + e.text)])
 	_check(int(run.used.playtests) == 1, "cuota: un playtest contado")
 	_check(run.last_capture != null and run.last_capture.get_width() == 16, "cuota: captura del playtest")
 	_check(run.checks.size() == 2 and run.checks[0].status == "pass", "cuota: checks del turno")
@@ -245,6 +245,8 @@ func _scenario_account() -> void:
 	_check(again.phase == OneShotRun.Phase.FINISHED, "cuenta: retoma con la cuenta nueva y termina (%s · %s)" % [again.phase_label(), again.finish_reason])
 	_check(again.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("Cambio de cuenta: se abrió una sesión nueva")), "cuenta: la actividad lo dice")
 	_check(int(again.report.events.get("account_switches", 0)) == 1, "cuenta: el informe lo cuenta")
+	_check(again.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("Turno ") and str(entry.text).contains(" · ")), "tiempos: la actividad registra cada turno")
+	_check(int(again.last_report.get("timing", {}).get("waiting_quota_s", -1)) >= 1, "tiempos: el informe cuenta la espera por cuota (%s)" % [again.last_report.get("timing", {})])
 	again.controller.stop()
 	again.queue_free()
 

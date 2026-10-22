@@ -752,3 +752,10 @@ Sin Ollama ni llama.cpp en esta máquina, no se probó contra un modelo real. Pa
 - **Cola de guía visible en el One-shot** (m6-14, pedido del usuario): lo que se escribe en el chat mientras el agente trabaja queda en la actividad como «guía · en cola: …», con un aviso en el chat. Cuando sale de verdad aparece «enviado: …». `oneshot_check` (presupuestos y loop).
 - **La pausa por cuota no llegaba** (D44, run real en great-boy-one): ahora pausa al cambiar de tarea o al terminar el turno, y si nada de eso pasa en 10 min (o la cuota llega al 98 %) corta el turno con un checkpoint `-quota`. `oneshot_check` (cuota al terminar el turno, tope de espera).
 - **Cambiar de cuenta en el límite** (D45, pedido del usuario): botón «Cambiar de cuenta» en la pantalla Agent, con login desde el editor o «ya cambié en una terminal». Relanza el agente y retoma la misma sesión. «Reintentar» del dock retoma el run en vez de abrir una sesión en blanco, y un run esperando la cuota sigue esperándola después de reabrir el editor. `oneshot_check` (cambio de cuenta) y `--godot-agent-oneshot-test`.
+- **Tiempos del One-shot** (m6-16, pedido del usuario):
+  - cada tarea del plan muestra su duración, y la que está en curso cuenta en vivo;
+  - la actividad registra cada turno («Turno 3 · 4 min 12 s · 9 tools»);
+  - las tools muestran cuánto tardaron;
+  - el informe suma «Tiempos» (trabajando, turnos promedio y el más largo, esperas por cuota, pausa y revisión del spec) y el tiempo por tool.
+  Pruebas: `test_run_report`, `oneshot_check` y `--godot-agent-oneshot-test`.
+- **Cola de git del run**: `is_git_busy()` daba false durante un frame entre una operación y la que esperaba; ahora cuenta las que están en cola. Lo mostró un fallo intermitente del escenario de cuota.

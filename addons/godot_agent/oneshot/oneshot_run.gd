@@ -60,6 +60,13 @@ const PAUSE_RETRY_S := 3600
 ## pasa en este tiempo, o la cuota llega a QUOTA_PAUSE_HARD, corta el turno y pausa igual.
 const QUOTA_PAUSE_GRACE_S := 600
 const QUOTA_PAUSE_HARD := 0.98
+## Fases sin trabajo y cómo cuentan en los tiempos del informe.
+const WAIT_KINDS: Dictionary = {
+	Phase.PAUSED_QUOTA: "quota", Phase.LIMITED: "quota", Phase.WAITING_CONFIRM: "quota",
+	Phase.PAUSED: "paused", Phase.SPEC_REVIEW: "spec_review",
+}
+## Cómo terminó el turno, para la actividad ("" = normal).
+const TURN_END_NOTES: Dictionary = {"end_turn": "", "cancelled": " · cortado", "error": " · con error", "max_tokens": " · sin tokens de salida", "refusal": " · el agente se negó"}
 const TICK_S := 0.5
 ## Cada cuánto se guarda el run como mucho (además de en cada cambio de fase).
 const SAVE_INTERVAL_MS := 2000
@@ -129,6 +136,8 @@ var _captured_calls: Dictionary = {}
 var _loop_calls: Dictionary = {}
 var _git_queue: Array[Callable] = []
 var _git_busy: bool = false
+## Operaciones git en curso o en cola: entre una y la siguiente hay un frame sin _git_busy.
+var _git_pending: int = 0
 var _close_reason: String = ""
 ## Ya se creó el cpN-quota de este límite (los reintentos fallidos no crean otro).
 var _quota_checkpoint_done: bool = false
@@ -140,6 +149,10 @@ var _recovered_session_id: String = ""
 ## Por qué se reabre la sesión en el próximo resume() (para la actividad): el editor se cerró, se
 ## cambió de cuenta…
 var _reopen_reason: String = ""
+## Tool calls terminadas en el turno en curso, y desde cuándo está el run en su fase (para medir
+## las esperas del informe, m6-16).
+var _turn_tools: int = 0
+var _phase_since_ms: int = 0
 var _dirty: bool = false
 var _capture_dirty: bool = false
 var _last_save_msec: int = 0
@@ -176,7 +189,7 @@ func is_active() -> bool:
 
 ## Hay una operación git en curso (un checkpoint se crea en segundo plano).
 func is_git_busy() -> bool:
-	return _git_busy
+	return _git_pending > 0
 
 
 func phase_label() -> String:
@@ -523,6 +536,8 @@ func _run_turn(text: String) -> void:
 		return
 	_turn_running = true
 	report.count("turns")
+	var turn_started := _elapsed_ms()
+	_turn_tools = 0
 	var first_entry := model.entries().size()
 	var progress_before := _progress()
 	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text)
@@ -530,6 +545,10 @@ func _run_turn(text: String) -> void:
 	if not is_instance_valid(self) or not is_inside_tree():
 		return
 	_account_tokens(controller.last_turn_usage)
+	var turn_ms := _elapsed_ms() - turn_started
+	report.observe_turn(turn_started, turn_ms, reason, _turn_tools)
+	_add_activity("turno", "Turno %d · %s · %d %s%s" % [report.turns.size(), RunReport.format_ms(turn_ms), _turn_tools,
+		"tool" if _turn_tools == 1 else "tools", TURN_END_NOTES.get(reason, " · " + reason if not reason.is_empty() else " · no se pudo mandar")])
 	if reason == "error" or reason.is_empty():
 		report.count("turn_errors")
 	var turn_text := controller.agent_text_since(first_entry)
@@ -738,11 +757,12 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 			_checkpoint("Playtest #%d" % used[BUDGET_PLAYTESTS])
 		_check_budgets()
 	elif not name.is_empty() or call.status == ToolCall.STATUS_FAILED:
-		_add_activity("tool", _one_line("%s · %s" % [call.display_name(), _call_summary(call)]))
+		_add_activity("tool", _one_line("%s · %s · %s" % [call.display_name(), RunReport.format_ms(call.duration_msec()), _call_summary(call)]))
 	if call.status != ToolCall.STATUS_CANCELLED and not _loop_calls.has(call.id):
 		_loop_calls[call.id] = true
 		var failed := call.status == ToolCall.STATUS_FAILED
-		report.observe_tool(RunReport.tool_label(call.title, name, call.tool_name, call.kind), failed)
+		report.observe_tool(RunReport.tool_label(call.title, name, call.tool_name, call.kind), failed, call.duration_msec())
+		_turn_tools += 1
 		if phase == Phase.RUNNING:
 			_on_loop(loops.observe_call(call.title, call.kind, name, call.raw_input, failed), true)
 	if not _captured_calls.has(call.id):
@@ -999,6 +1019,7 @@ func _apply(data: Dictionary) -> void:
 	last_report = {}
 	_recovered_session_id = str(data.get("session_id", ""))
 	_started_msec = Time.get_ticks_msec() - int(data.get("elapsed_ms", 0))
+	_phase_since_ms = Time.get_ticks_msec()
 	last_capture = store.load_capture(run_id)
 	last_capture_caption = str(data.get("capture_caption", ""))
 	finish_reason = ""
@@ -1050,17 +1071,23 @@ func _checkpoint(label: String, suffix: String = "") -> void:
 
 ## Las operaciones git van de a una, en orden.
 func _git(operation: Callable) -> Variant:
+	_git_pending += 1
 	while _git_busy:
 		await get_tree().process_frame
 	_git_busy = true
 	var result: Variant = await operation.call()
 	_git_busy = false
+	_git_pending -= 1
 	return result
 
 
 func _set_phase(value: Phase) -> void:
 	if phase == value:
 		return
+	var wait_kind: String = WAIT_KINDS.get(phase, "")
+	if not wait_kind.is_empty() and _phase_since_ms > 0:
+		report.add_wait(wait_kind, Time.get_ticks_msec() - _phase_since_ms)
+	_phase_since_ms = Time.get_ticks_msec()
 	phase = value
 	changed.emit()
 	_save()
@@ -1072,6 +1099,11 @@ func _add_activity(kind: String, text: String) -> void:
 	if activity.size() > ACTIVITY_LIMIT:
 		activity.remove_at(0)
 	activity_added.emit(entry)
+
+
+## Milisegundos desde que empezó el run (para el contador de la tarea en curso).
+func elapsed_ms() -> int:
+	return _elapsed_ms()
 
 
 func _elapsed_ms() -> int:
