@@ -32,4 +32,13 @@ Defaults:
 | Shell / commands | Deny | Deny | Ask | Ask |
 | Project settings, export and addons | Deny | Deny | Ask | Ask |
 
+## Writes that skip the editor
+
+Whatever the mode, the harness rejects on its own, without a card:
+
+- shell commands that write project files: redirections (`>`), `tee`, `sed -i`, `dd of=`, and Python, Node, Ruby or Perl scripts that open files for writing;
+- writing a `.tscn`, `.uid` or `.import` by hand, with the agent's file tools or through the editor's file access.
+
+The chat shows a "Rejected: …" notice. The agent is told to write scripts with its own file tools (the harness passes them through the editor) and scenes with the `godot.*` tools. Commands that write outside the project, such as to `/tmp`, follow the matrix below as usual.
+
 Change the matrix in **Settings → Permissions**. Only what differs from the defaults is saved, in the project's config (`project_config.tres`), so it can be committed and shared with your team.

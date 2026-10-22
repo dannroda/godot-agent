@@ -54,8 +54,10 @@ func tools() -> Array:
 			{"path": {"type": "string"}}, ["path"], _open_scene),
 		McpTool.create("save_scene", scene, "Saves the current scene (or the given one, which must be open).",
 			{"path": {"type": "string"}}, [], _save_scene),
-		McpTool.create("create_scene", files, "Creates and saves a new .tscn with a root node. Does not open it: use open_scene.",
-			{"path": {"type": "string"}, "root_type": {"type": "string"}, "root_name": {"type": "string"}},
+		McpTool.create("create_scene", files,
+			"Creates and saves a new .tscn with a root node, optionally with its script (created with `extends <root_type>` if it does not exist) and root properties, including the script's exported variables. Never write a .tscn by hand. Does not open it: use open_scene to add children.",
+			{"path": {"type": "string"}, "root_type": {"type": "string"}, "root_name": {"type": "string"},
+				"script_path": {"type": "string"}, "properties": {"type": "object"}},
 			["path", "root_type", "root_name"], _create_scene),
 		McpTool.create("attach_script", files,
 			"Attaches a script to a node (with undo). If the file does not exist, creates it with `extends <node type>`.",
@@ -335,6 +337,22 @@ func _create_scene(args: Dictionary) -> Dictionary:
 	if root.name.is_empty():
 		root.free()
 		return McpTool.error("`root_name` cannot be empty.")
+	var script_path := McpTool.str_arg(args, "script_path")
+	var created_script := false
+	if not script_path.is_empty():
+		created_script = not FileAccess.file_exists(script_path)
+		var loaded: Variant = _load_or_create_script(script_path, root)
+		if loaded is String:
+			root.free()
+			return McpTool.error(loaded)
+		root.set_script(loaded)
+	var properties: Dictionary = args.get("properties") if args.get("properties") is Dictionary else {}
+	for property: String in properties:
+		var result := ValueCoercion.coerce(root, property, properties[property])
+		if not result.ok:
+			root.free()
+			return McpTool.error(result.error)
+		root.set(property, result.value)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var packed := PackedScene.new()
 	var error := packed.pack(root)
@@ -344,7 +362,12 @@ func _create_scene(args: Dictionary) -> Dictionary:
 	if error != OK:
 		return McpTool.error("Could not save %s: %s." % [path, error_string(error)])
 	EditorInterface.get_resource_filesystem().update_file(path)
-	return McpTool.text("Created %s with root %s (%s). Open it with open_scene to edit it." % [path, args.root_name, args.root_type])
+	var extras := ""
+	if not script_path.is_empty():
+		extras += ", script %s%s" % [script_path, " (created)" if created_script else ""]
+	if not properties.is_empty():
+		extras += ", properties %s" % ", ".join(PackedStringArray(properties.keys()))
+	return McpTool.text("Created %s with root %s (%s)%s. Open it with open_scene to edit it." % [path, args.root_name, args.root_type, extras])
 
 
 func _attach_script(args: Dictionary) -> Dictionary:
@@ -355,24 +378,11 @@ func _attach_script(args: Dictionary) -> Dictionary:
 	if node == null:
 		return _missing(root, str(args.node_path))
 	var script_path := str(args.script_path)
-	if not script_path.begins_with("res://") or script_path.get_extension() != "gd":
-		return McpTool.error("`script_path` must be res://…gd.")
-	var created_file := false
-	if not FileAccess.file_exists(script_path):
-		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(script_path.get_base_dir()))
-		var file := FileAccess.open(script_path, FileAccess.WRITE)
-		if file == null:
-			return McpTool.error("Could not create %s: %s." % [script_path, error_string(FileAccess.get_open_error())])
-		file.store_string("extends %s\n\n\nfunc _ready() -> void:\n\tpass\n" % node.get_class())
-		file.close()
-		EditorInterface.get_resource_filesystem().update_file(script_path)
-		created_file = true
-	var script := ResourceLoader.load(script_path, "", ResourceLoader.CACHE_MODE_REPLACE) as Script
-	if script == null:
-		return McpTool.error("Could not load %s (does it have errors? try validate_scripts)." % script_path)
-	var base := script.get_instance_base_type()
-	if not String(base).is_empty() and not node.is_class(base):
-		return McpTool.error("%s extends %s and %s is %s: cannot attach it." % [script_path, base, node.name, node.get_class()])
+	var created_file := not FileAccess.file_exists(script_path)
+	var loaded: Variant = _load_or_create_script(script_path, node)
+	if loaded is String:
+		return McpTool.error(loaded)
+	var script: Script = loaded
 	var action := ACTION_PREFIX + "attach %s to %s" % [script_path.get_file(), node.name]
 	var undo_redo := EditorInterface.get_editor_undo_redo()
 	undo_redo.create_action(action, UndoRedo.MERGE_DISABLE, root)
@@ -384,6 +394,28 @@ func _attach_script(args: Dictionary) -> Dictionary:
 
 
 # --- internos ------------------------------------------------------------------------------------
+
+## El script de `script_path` para `node` (lo crea con `extends <clase del nodo>` si no existe), o
+## el motivo del error.
+func _load_or_create_script(script_path: String, node: Node) -> Variant:
+	if not script_path.begins_with("res://") or script_path.get_extension() != "gd":
+		return "`script_path` must be res://…gd."
+	if not FileAccess.file_exists(script_path):
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(script_path.get_base_dir()))
+		var file := FileAccess.open(script_path, FileAccess.WRITE)
+		if file == null:
+			return "Could not create %s: %s." % [script_path, error_string(FileAccess.get_open_error())]
+		file.store_string("extends %s\n\n\nfunc _ready() -> void:\n\tpass\n" % node.get_class())
+		file.close()
+		EditorInterface.get_resource_filesystem().update_file(script_path)
+	var script := ResourceLoader.load(script_path, "", ResourceLoader.CACHE_MODE_REPLACE) as Script
+	if script == null:
+		return "Could not load %s (does it have errors? try validate_scripts)." % script_path
+	var base := script.get_instance_base_type()
+	if not String(base).is_empty() and not node.is_class(base):
+		return "%s extends %s and %s is %s: cannot attach it." % [script_path, base, node.name, node.get_class()]
+	return script
+
 
 ## La escena sobre la que se edita: la indicada en `scene` (se abre si hace falta) o la actual.
 func _scene_root(args: Dictionary) -> Node:

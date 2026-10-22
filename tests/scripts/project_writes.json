@@ -1,0 +1,159 @@
+{
+	"turns": [
+		{
+			"steps": [
+				{
+					"chunk": "Voy a escribir archivos."
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "w1",
+								"title": "python3 - <<'EOF'",
+								"kind": "execute",
+								"rawInput": {
+									"command": "python3 - <<'EOF'\np=\"ui/balloon.gd\"; s=open(p).read()\nopen(p,\"w\").write(s)\nEOF"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "w2",
+								"title": "mkdir -p tests && cat > tests/boss_planta.tscn",
+								"kind": "execute",
+								"rawInput": {
+									"command": "mkdir -p tests && cat > tests/boss_planta.tscn <<'EOF'\n[gd_scene format=3]\nEOF"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "w3",
+								"title": "Write boss.tscn",
+								"kind": "edit",
+								"rawInput": {
+									"file_path": "{project}/tests/tmp/boss.tscn",
+									"content": "[gd_scene format=3]\n"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "fs/write_text_file",
+						"params": {
+							"path": "{project}/tests/tmp/boss.tscn",
+							"content": "[gd_scene format=3]\n"
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "w4",
+								"title": "godot --headless > /tmp/godot_agent_out.log",
+								"kind": "execute",
+								"rawInput": {
+									"command": "\"$GODOT\" --headless --version > /tmp/godot_agent_out.log 2>&1"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "w5",
+								"title": "Write perm_target.gd",
+								"kind": "edit",
+								"rawInput": {
+									"file_path": "{project}/tests/tmp/perm_target.gd"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

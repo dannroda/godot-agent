@@ -35,6 +35,7 @@ func _initialize() -> void:
 	await _scenario_crash()
 	await _scenario_permissions_build()
 	await _scenario_permissions_ask()
+	await _scenario_project_writes()
 	await _scenario_quota()
 	await _scenario_history()
 	await _scenario_login()
@@ -246,6 +247,38 @@ func _scenario_permissions_ask() -> void:
 		if entry.kind == ChatEntry.EntryKind.NOTICE and entry.text.begins_with("Denied in Ask mode"):
 			denied += 1
 	_check(denied >= 3, "permisos/ask: avisos de denegado (%d)" % denied)
+	controller.stop()
+
+
+## Escribir el proyecto por fuera del editor (D48): shell que escribe y escenas a mano se rechazan
+## sin tarjeta; un comando que escribe en /tmp y un script siguen la política (One-shot).
+func _scenario_project_writes() -> void:
+	print("— escrituras por fuera del editor (One-shot)")
+	var made := await _make("project_writes", SessionModel.HarnessMode.ONESHOT)
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	var log: AgentLog = made[2]
+	var cards: Array[String] = []
+	model.permission_requested.connect(func(request: PermissionRequest) -> void:
+		cards.append(request.title)
+		request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]))
+	)
+	var stop_reason: String = await controller.send_prompt("escribí")
+	_check(stop_reason == "end_turn", "escrituras: end_turn (%s)" % stop_reason)
+	var responses := _agent_responses(log)
+	if responses.size() == 6:
+		_check(responses[0].contains("\"optionId\":\"reject\""), "escrituras: python con heredoc rechazado (%s)" % responses[0])
+		_check(responses[1].contains("\"optionId\":\"reject\""), "escrituras: cat > .tscn rechazado (%s)" % responses[1])
+		_check(responses[2].contains("\"optionId\":\"reject\""), "escrituras: Write de una escena rechazado (%s)" % responses[2])
+		_check(responses[3].contains("not written by hand"), "escrituras: fs/write de una escena rechazado (%s)" % responses[3])
+		_check(responses[4].contains("\"optionId\":\"allow\""), "escrituras: comando que escribe en /tmp sigue la política (%s)" % responses[4])
+		_check(responses[5].contains("\"optionId\":\"allow\""), "escrituras: Write de un script permitido en One-shot (%s)" % responses[5])
+	else:
+		_check(false, "escrituras: 6 respuestas (%d)" % responses.size())
+	_check(cards == ["godot --headless > /tmp/godot_agent_out.log"], "escrituras: solo el comando de /tmp pide permiso (%s)" % str(cards))
+	var rejected := model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.NOTICE and entry.text.begins_with("Rejected:"))
+	_check(rejected.size() == 3, "escrituras: 3 avisos de rechazo (%d)" % rejected.size())
+	_check(not FileAccess.file_exists("res://tests/tmp/boss.tscn"), "escrituras: la escena no se escribió")
 	controller.stop()
 
 

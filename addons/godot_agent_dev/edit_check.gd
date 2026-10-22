@@ -13,6 +13,8 @@ const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const EDIT_SCENE := "res://tests/tmp/edit_fixture.tscn"
 const NEW_SCENE := "res://tests/tmp/edit_new_scene.tscn"
 const NEW_SCRIPT := "res://tests/tmp/edit_enemies.gd"
+const BOSS_SCRIPT := "res://tests/tmp/edit_boss.gd"
+const BOSS_SCENE := "res://tests/tmp/edit_boss.tscn"
 
 var _model: Object
 var _plugin: Node
@@ -34,7 +36,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	if _server == null or _plugin == null or _model == null:
 		failures.append("no se encontró el server, el plugin o el modelo")
 		return failures
-	for path: String in [EDIT_SCENE, NEW_SCENE, NEW_SCRIPT]:
+	for path: String in [EDIT_SCENE, NEW_SCENE, NEW_SCRIPT, BOSS_SCRIPT, BOSS_SCENE]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	# Copia sin el uid de la cabecera: dos .tscn con el mismo uid confunden al editor.
 	var header_uid := RegEx.create_from_string(" uid=\"uid://[a-z0-9]+\"")
@@ -103,6 +105,19 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(FileAccess.file_exists(NEW_SCENE) and created.contains("Created"), "create_scene")
 	var again: Dictionary = await _call("create_scene", {"path": NEW_SCENE, "root_type": "Node2D", "root_name": "Level"})
 	_expect(again.get("isError", false), "create_scene no pisa")
+	# Lo que el agente de great-boy-one escribió a mano con `cat > boss_torre.tscn` (D48): raíz con
+	# script y exports, en una sola llamada.
+	var boss := FileAccess.open(BOSS_SCRIPT, FileAccess.WRITE)
+	boss.store_string("extends Node\n\n@export var mission := \"planta\"\n@export var at := Vector2(2200, 192)\n")
+	boss.close()
+	EditorInterface.get_resource_filesystem().update_file(BOSS_SCRIPT)
+	var boss_text := await _call_text("create_scene", {"path": BOSS_SCENE, "root_type": "Node", "root_name": "BossTorre",
+		"script_path": BOSS_SCRIPT, "properties": {"mission": "torre", "at": [360, 160]}})
+	var boss_root: Node = (load(BOSS_SCENE) as PackedScene).instantiate() if FileAccess.file_exists(BOSS_SCENE) else null
+	_expect(boss_root != null and boss_root.get_script() != null and str(boss_root.get(&"mission")) == "torre" and boss_root.get(&"at") == Vector2(360, 160) and boss_text.contains("script"),
+		"create_scene con script y exports (%s)" % boss_text)
+	if boss_root:
+		boss_root.free()
 	var saved := await _call_text("save_scene", {})
 	var saved_text := FileAccess.get_file_as_string(EDIT_SCENE)
 	_expect(saved.contains("Saved") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios")

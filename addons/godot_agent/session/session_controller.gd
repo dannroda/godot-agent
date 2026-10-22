@@ -18,6 +18,7 @@ const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionRequest := preload("permission_request.gd")
+const ProjectWriteGuard := preload("project_write_guard.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
@@ -511,6 +512,14 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	request.description = _describe_tool_call(tool_call, call)
 	request.diff = _first_diff(tool_call, call)
 
+	# Escribir el proyecto por fuera del editor (shell, escenas a mano) se rechaza en todo modo (D48).
+	var checked := tool_call.duplicate()
+	if not checked.get("rawInput") is Dictionary and call and call.raw_input is Dictionary:
+		checked["rawInput"] = call.raw_input
+	var blocked := ProjectWriteGuard.blocked_target(checked, request.group, cwd)
+	if not blocked.is_empty() and not PermissionPolicy.is_godot_mcp_tool(tool_call):
+		_notify_blocked_write(request.title, blocked)
+		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	var decision := policy.decide(request.group, model.harness_mode)
 	if PermissionPolicy.is_godot_mcp_tool(tool_call):
 		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
@@ -590,6 +599,11 @@ func _notify_denied(group: String, title: String) -> void:
 	_log_perm("denied in %s mode (%s): %s" % [_mode_label(), group_label, title])
 	var shown_group := I18n.t(group_label) if PermissionPolicy.GROUP_LABELS.has(group) else group
 	model.add_notice(I18n.t("Denied in %s mode (%s): %s") % [I18n.t(_mode_label()), shown_group, title], ChatEntry.NoticeLevel.WARNING)
+
+
+func _notify_blocked_write(title: String, target: String) -> void:
+	_log_perm("rejected, writes %s outside the editor: %s" % [target, title])
+	model.add_notice(I18n.t("Rejected: «%s» writes %s without going through the editor. Scripts go through the agent's file tools and scenes through the godot.* tools.") % [title.left(80), target], ChatEntry.NoticeLevel.WARNING)
 
 
 static func _selected_or_cancelled(option_id: String) -> Dictionary:
