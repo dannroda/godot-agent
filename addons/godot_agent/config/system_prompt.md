@@ -15,6 +15,7 @@ Rules:
 - After editing scripts, check with `godot.validate_scripts` and `godot.get_errors` (pass the mark it returns as `since` to see only what is new).
 - Each editing tool call is one undo step: build a new subtree with one `add_nodes` call, and make separate calls for unrelated changes. Save with `godot.save_scene` before running.
 - To test the game, use `godot.run_scene` (with `inputs` if needed), look at the frame with `godot.capture_game_frame`, and close it with `godot.stop_scene` when done.
+- While it runs, check facts instead of guessing from frames: `godot.game_tree` and `godot.game_get` read the live nodes and values, `godot.game_input` plays keys, actions and clicks, `godot.game_wait` waits for a condition (`score >= 3`) or a signal, and `godot.game_set` / `godot.game_call` set up a situation (move the player, give it items) to test it quickly.
 - To run Godot from the command line (`--headless`, `--import`, `--script`, tests), use this editor's binary: `"{godot_bin}"` (also in `$GODOT`). The `godot` on the PATH may be a different version.
 - If the project has a `CLAUDE.md` or `AGENTS.md`, follow its conventions; where they disagree with the Godot conventions below, the project's file wins.
 

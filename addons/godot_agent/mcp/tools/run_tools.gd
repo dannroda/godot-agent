@@ -1,14 +1,16 @@
 @tool
 extends RefCounted
-## Tools de ejecución (spec §6): run_scene, stop_scene y capture_game_frame.
-## El juego es otro proceso: el probe de playtest (autoload temporal) captura frames y reproduce
-## inputs por el canal del debugger. El autoload se da de alta en EditorPlugin._build() solo si el
+## Tools de ejecución (spec §6): run_scene, stop_scene, capture_game_frame y, con el juego
+## corriendo, game_tree, game_get, game_set, game_call, game_wait y game_input (m4-07, D54).
+## El juego es otro proceso: el probe de playtest (autoload temporal) captura frames, reproduce
+## inputs y contesta pedidos (`request` → `reply` con id) por el canal del debugger. El autoload se da de alta en EditorPlugin._build() solo si el
 ## run lo pidió el harness (`harness_requested`) y de baja cuando el juego ya leyó project.godot.
 
 const McpTool := preload("../mcp_tool.gd")
 const ErrorCollector := preload("../../core/error_collector.gd")
 const PlaytestDebugger := preload("../../playtest/playtest_debugger.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
+const ProjectTools := preload("project_tools.gd")
 
 const MAX_SECONDS := 120.0
 const STARTUP_TIMEOUT_S := 20.0
@@ -18,6 +20,16 @@ const STOP_TIMEOUT_S := 5.0
 const SETTLE_S := 0.5
 const OUTPUT_LINE_LIMIT := 150
 const ERROR_LIMIT := 100
+## Margen para que el juego conteste un pedido, además de lo que dure (game_wait, game_input).
+const REQUEST_TIMEOUT_S := 5.0
+const WAIT_MAX_S := 60.0
+const INPUT_MAX_STEPS := 200
+## Pulsación por defecto de un paso sin `pressed` (tecla, acción, click): apretar y soltar.
+const TAP_HOLD_S := 0.1
+## Pausa por defecto entre pasos sin `t`.
+const STEP_GAP_S := 0.05
+const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP server)."
+const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"} or {move: [x, y]} (window pixels), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1)."
 
 var errors: ErrorCollector
 var debugger: PlaytestDebugger
@@ -29,6 +41,8 @@ var cleanup: Callable
 
 var _busy: bool = false
 var _state: Dictionary = {}
+var _replies: Dictionary = {}
+var _next_request: int = 1
 
 
 func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> void:
@@ -41,22 +55,47 @@ func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> vo
 	debugger.inputs_done.connect(func(count: int) -> void: _state["inputs_done"] = count)
 	debugger.problem_reported.connect(func(text: String) -> void: (_state.get_or_add("problems", []) as Array).append(text))
 	debugger.frame_received.connect(func(png: PackedByteArray, _w: int, _h: int) -> void: _state["frame"] = png)
+	debugger.reply_received.connect(func(id: int, result: Dictionary) -> void: _replies[id] = result)
 
 
 func tools() -> Array:
 	var run := PermissionPolicy.GROUP_RUN
+	var read := PermissionPolicy.GROUP_READ
+	var steps_schema := {"type": "array", "description": STEPS_HELP, "items": {"type": "object", "properties": {
+		"t": {"type": "number"}, "action": {"type": "string"}, "key": {"type": "string"}, "event": {"type": "string"},
+		"click": {"type": "array", "items": {"type": "number"}}, "move": {"type": "array", "items": {"type": "number"}},
+		"button": {"type": "string"}, "pressed": {"type": "boolean"}, "hold": {"type": "number"}}}}
+	var path_schema := {"type": "string", "description": "Node path in the running game: relative to the current scene (\"Player\", \"HUD/Score\"), \"\" for the scene itself, or absolute (\"/root/GameState\" for an autoload)"}
 	return [
 		McpTool.create("run_scene", run,
 			"Runs a scene (default: the open one), waits `seconds` or until it ends, and returns the game's errors and Output. The game keeps running afterwards: capture_game_frame to see it, stop_scene to close it. Saves the scenes before running.",
 			{
 				"scene": {"type": "string", "description": "res://…tscn path (default: the open scene)"},
 				"seconds": {"type": "number", "description": "Seconds to wait after the game starts (max. 120)"},
-				"inputs": {"type": "array", "description": "Steps {t: seconds since the game started, action: InputMap action, pressed: bool}",
-					"items": {"type": "object", "properties": {"t": {"type": "number"}, "action": {"type": "string"}, "pressed": {"type": "boolean"}}, "required": ["t", "action"]}},
+				"inputs": steps_schema,
 			},
 			["seconds"], _run_scene),
 		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
 		McpTool.create("capture_game_frame", run, "Captures the current frame of the running game (launched with run_scene) as a PNG.", {}, [], _capture_game_frame),
+		McpTool.create("game_tree", read,
+			"The live node tree of the running game (nodes spawned at runtime included), with types, scripts, positions and texts.",
+			{"path": path_schema, "depth": {"type": "integer", "description": "Levels below `path` (default 4)"}}, [], _game_tree),
+		McpTool.create("game_get", read,
+			"Reads properties of a node in the running game (\"health\", \"position:x\"). Without `properties`: its script variables and the usual ones (position, velocity, visible, text…).",
+			{"path": path_schema, "properties": {"type": "array", "items": {"type": "string"}}}, ["path"], _game_get),
+		McpTool.create("game_set", run,
+			"Changes properties of a node in the running game, live (the scene file is not changed). Vectors as [x, y], colors as \"#rrggbb\", resources as res:// paths.",
+			{"path": path_schema, "properties": {"type": "object"}}, ["path", "properties"], _game_set),
+		McpTool.create("game_call", run,
+			"Calls a method on a node in the running game and returns its result (\"take_damage\" with args [10]).",
+			{"path": path_schema, "method": {"type": "string"}, "args": {"type": "array"}}, ["path", "method"], _game_call),
+		McpTool.create("game_wait", run,
+			"Waits in the running game until `condition` is true (a Godot Expression evaluated on the node every frame: \"health <= 0\", \"get_node('Boss') == null\", \"score >= 3\"), until the node emits `signal`, or just `timeout` seconds. Returns how long it took or that it timed out.",
+			{"path": path_schema, "condition": {"type": "string"}, "signal": {"type": "string"}, "timeout": {"type": "number", "description": "Seconds (default 5, max. 60)"}},
+			[], _game_wait),
+		McpTool.create("game_input", run,
+			"Sends live input to the running game and waits until it has been played: keys, InputMap actions, mouse clicks and moves, joypad. " + STEPS_HELP,
+			{"steps": steps_schema}, ["steps"], _game_input),
 	]
 
 
@@ -75,7 +114,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 		return McpTool.error("The scene %s does not exist." % scene)
 	var seconds := clampf(float(args.get("seconds", 5.0)), 0.1, MAX_SECONDS)
 	var inputs: Array = []
-	var invalid := _validate_inputs(args.get("inputs", []), inputs)
+	var invalid := normalize_steps(args.get("inputs", []), inputs)
 	if not invalid.is_empty():
 		return McpTool.error(invalid)
 
@@ -144,20 +183,89 @@ func capture_frame() -> Variant:
 	return image
 
 
-## Llena `out` con los pasos normalizados; devuelve "" o el error.
-static func _validate_inputs(value: Variant, out: Array) -> String:
+## Llena `out` con los eventos para el probe ({t, kind, pressed, …}); devuelve "" o el error.
+## Un paso sin `pressed` es apretar y soltar; sin `t`, va justo después del paso anterior.
+static func normalize_steps(value: Variant, out: Array) -> String:
 	if value == null:
 		return ""
 	if not value is Array:
-		return "`inputs` must be a list of {t, action, pressed}."
+		return "`inputs`/`steps` must be a list. " + STEPS_HELP
+	if (value as Array).size() > INPUT_MAX_STEPS:
+		return "At most %d steps per call." % INPUT_MAX_STEPS
+	var next_t := 0.0
 	for step: Variant in value:
-		if not step is Dictionary or not step.get("action") is String or not (step.get("t") is float or step.get("t") is int):
-			return "Each `inputs` step needs `t` (number) and `action` (text): %s" % JSON.stringify(step).left(120)
-		var action: String = step.action
-		if not ProjectSettings.has_setting("input/" + action) and not InputMap.has_action(action):
-			return "The action '%s' does not exist in the project's InputMap." % action
-		out.append({"t": maxf(float(step.t), 0.0), "action": action, "pressed": step.get("pressed", true) == true})
+		if not step is Dictionary:
+			return "Each step must be an object. " + STEPS_HELP
+		var shown := JSON.stringify(step).left(120)
+		if step.has("t") and not (step.t is float or step.t is int):
+			return "`t` must be a number: %s" % shown
+		var t := maxf(float(step.get("t", next_t)), 0.0)
+		var hold := clampf(float(step.get("hold", TAP_HOLD_S)), 0.0, WAIT_MAX_S)
+		var events: Array = []
+		if step.get("action") is String:
+			var action: String = step.action
+			if not ProjectSettings.has_setting("input/" + action) and not InputMap.has_action(action):
+				return "The action '%s' does not exist in the project's InputMap." % action
+			events.append({"kind": "action", "action": action})
+		elif step.get("key") is String or step.get("event") is String:
+			var spec: String = step.get("key") if step.get("key") is String else step.get("event")
+			if step.get("key") is String and not ":" in spec:
+				spec = "key:" + spec
+			var parsed: Variant = ProjectTools.parse_event(spec)
+			if parsed is String:
+				return "%s (%s)" % [parsed, shown]
+			var converted := _event_step(parsed, step)
+			if converted.is_empty():
+				return "Unsupported event in %s." % shown
+			events.append(converted)
+		elif step.get("click") is Array or step.get("move") is Array:
+			var point: Variant = step.get("click", step.get("move"))
+			if (point as Array).size() != 2 or not (point[0] is float or point[0] is int) or not (point[1] is float or point[1] is int):
+				return "`click`/`move` must be [x, y] in window pixels: %s" % shown
+			events.append({"kind": "mouse_motion", "x": float(point[0]), "y": float(point[1]), "motion": true})
+			if step.has("click"):
+				var button := str(step.get("button", "left")).to_lower()
+				if not ProjectTools.MOUSE_BUTTONS.has(button):
+					return "Unknown mouse button '%s' (left, right, middle, wheel_up, wheel_down)." % button
+				events.append({"kind": "mouse_button", "button": ProjectTools.MOUSE_BUTTONS[button], "x": float(point[0]), "y": float(point[1])})
+		else:
+			return "Step without action, key, event, click or move: %s. %s" % [shown, STEPS_HELP]
+		for event: Dictionary in events:
+			event["t"] = t
+			if event.get("kind") == "mouse_motion":
+				event.erase("motion")
+				out.append(event)
+			elif step.has("pressed"):
+				event["pressed"] = step.pressed == true
+				out.append(event)
+			else:
+				event["pressed"] = true
+				out.append(event)
+				var release := event.duplicate()
+				release["pressed"] = false
+				release["t"] = t + hold
+				out.append(release)
+		next_t = t + (hold if not step.has("pressed") and not step.has("move") else 0.0) + STEP_GAP_S
 	return ""
+
+
+## El paso para el probe de un InputEvent de ProjectTools.parse_event, o {} si no se puede mandar.
+static func _event_step(event: InputEvent, step: Dictionary) -> Dictionary:
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		var command := key.command_or_control_autoremap
+		var mac := OS.has_feature("macos")
+		return {"kind": "key", "keycode": int(key.physical_keycode), "ctrl": key.ctrl_pressed or (command and not mac),
+			"shift": key.shift_pressed, "alt": key.alt_pressed, "meta": key.meta_pressed or (command and mac)}
+	if event is InputEventMouseButton:
+		var at: Array = step.get("at") if step.get("at") is Array and (step.get("at") as Array).size() == 2 else [0, 0]
+		return {"kind": "mouse_button", "button": int((event as InputEventMouseButton).button_index), "x": float(at[0]), "y": float(at[1])}
+	if event is InputEventJoypadButton:
+		return {"kind": "joy_button", "button": int((event as InputEventJoypadButton).button_index)}
+	if event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		return {"kind": "joy_axis", "axis": int(motion.axis), "value": motion.axis_value}
+	return {}
 
 
 func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringArray, since: int, output_before: String) -> String:
@@ -171,9 +279,9 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 		lines.append("%s: ran for %.1f s and is still running (capture_game_frame to see it, stop_scene to close it)." % [scene, seconds])
 	if not inputs.is_empty():
 		if _state.has("inputs_done"):
-			lines.append("Inputs: %d of %d played." % [_state.inputs_done, inputs.size()])
+			lines.append("Inputs: %d of %d events played." % [_state.inputs_done, inputs.size()])
 		elif _state.has("ready"):
-			lines.append("Inputs: %d sent; they did not finish in time." % inputs.size())
+			lines.append("Inputs: %d events sent; they did not finish in time." % inputs.size())
 	for note: String in notes:
 		lines.append(note)
 	for problem: Variant in _state.get("problems", []):
@@ -206,6 +314,89 @@ static func _output_delta(before: String, after: String) -> String:
 		kept = kept.slice(skipped)
 		kept.insert(0, "(… %d earlier lines)" % skipped)
 	return "\n".join(kept)
+
+
+# --- juego en ejecución (m4-07) ------------------------------------------------------------------
+
+func _game_tree(args: Dictionary) -> Dictionary:
+	return await _game_request("tree", {"path": McpTool.str_arg(args, "path"), "depth": int(args.get("depth", 4))})
+
+
+func _game_get(args: Dictionary) -> Dictionary:
+	var properties: Variant = args.get("properties", [])
+	if not properties is Array:
+		return McpTool.error("`properties` must be a list of property names.")
+	return await _game_request("get", {"path": McpTool.str_arg(args, "path"), "properties": properties})
+
+
+func _game_set(args: Dictionary) -> Dictionary:
+	if not args.get("properties") is Dictionary or (args.properties as Dictionary).is_empty():
+		return McpTool.error("`properties` must be an object {name: value}.")
+	return await _game_request("set", {"path": McpTool.str_arg(args, "path"), "properties": args.properties})
+
+
+func _game_call(args: Dictionary) -> Dictionary:
+	var call_args: Variant = args.get("args", [])
+	if not call_args is Array:
+		return McpTool.error("`args` must be a list.")
+	return await _game_request("call", {"path": McpTool.str_arg(args, "path"), "method": McpTool.str_arg(args, "method"), "args": call_args})
+
+
+func _game_wait(args: Dictionary) -> Dictionary:
+	var timeout := clampf(float(args.get("timeout", 5.0)), 0.0, WAIT_MAX_S)
+	var params := {"path": McpTool.str_arg(args, "path"), "condition": McpTool.str_arg(args, "condition"), "signal": McpTool.str_arg(args, "signal"), "timeout": timeout}
+	return await _game_request("wait", params, timeout)
+
+
+func _game_input(args: Dictionary) -> Dictionary:
+	var steps: Array = []
+	var invalid := normalize_steps(args.get("steps"), steps)
+	if not invalid.is_empty():
+		return McpTool.error(invalid)
+	if steps.is_empty():
+		return McpTool.error("`steps` is empty. " + STEPS_HELP)
+	var duration := 0.0
+	for step: Dictionary in steps:
+		duration = maxf(duration, float(step.t))
+	return await _game_request("input", {"steps": steps}, duration)
+
+
+## Manda un pedido al probe y arma el resultado con su respuesta y los errores nuevos del juego.
+func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> Dictionary:
+	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
+		return McpTool.error(NO_PROBE)
+	if debugger.is_breaked():
+		return McpTool.error("The game is stopped in the debugger (%s): fix the error and run it again, or continue it from the Debugger." % PlaytestDebugger.break_reason())
+	var since := errors.mark()
+	var reply := await request(op, params, duration_s + REQUEST_TIMEOUT_S)
+	var lines: PackedStringArray = [str(reply.get("text", ""))] if not reply.has("error") else []
+	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return entry.source == "game")
+	if not entries.is_empty():
+		lines.append("Game errors and warnings (%d):" % entries.size())
+		for entry: Dictionary in entries.slice(maxi(entries.size() - ERROR_LIMIT, 0)):
+			lines.append("  " + ErrorCollector.format_entry(entry))
+	if reply.has("error"):
+		lines.insert(0, str(reply.error))
+		return McpTool.error("\n".join(lines))
+	return McpTool.text("\n".join(lines))
+
+
+## Pedido al probe: {text} o {error}.
+func request(op: String, params: Dictionary, timeout_s: float = REQUEST_TIMEOUT_S) -> Dictionary:
+	var id := _next_request
+	_next_request += 1
+	if not debugger.send("request", [id, op, params]):
+		return {"error": NO_PROBE}
+	await _until(func() -> bool: return _replies.has(id) or not debugger.has_probe() or debugger.is_breaked(), timeout_s)
+	if _replies.has(id):
+		var reply: Dictionary = _replies[id]
+		_replies.erase(id)
+		return reply
+	if debugger.is_breaked():
+		return {"error": "The game stopped in the debugger before answering: %s" % PlaytestDebugger.break_reason()}
+	if not debugger.has_probe():
+		return {"error": "The game closed before answering."}
+	return {"error": "The game did not answer within %d s." % ceili(timeout_s)}
 
 
 func _until(condition: Callable, timeout_s: float) -> void:

@@ -5,7 +5,8 @@ extends "mcp_check.gd"
 ## - un script roto devuelve el error real del debugger;
 ## - el autoload de playtest no queda en project.godot (ni en memoria) después de cada run,
 ##   y un run manual no lo lleva;
-## - «+ contexto → Captura del juego» del dock adjunta el frame, o avisa por qué no puede.
+## - «+ contexto → Captura del juego» del dock adjunta el frame, o avisa por qué no puede;
+## - game_tree, game_get, game_set, game_call, game_wait y game_input con el juego vivo (m4-07).
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
@@ -47,6 +48,8 @@ func _check_runs(model: Object) -> void:
 
 	var not_running: Dictionary = await _call("capture_game_frame", {})
 	_expect(not_running.get("isError", false), "capture_game_frame sin juego → error")
+	var no_game: Dictionary = await _call("game_tree", {})
+	_expect(no_game.get("isError", false) and _text(no_game).contains("run_scene"), "game_tree sin juego → error")
 	var bad_action: Dictionary = await _call("run_scene", {"scene": RUN_SCENE, "seconds": 1, "inputs": [{"t": 0, "action": "no_existe"}]})
 	_expect(bad_action.get("isError", false) and _text(bad_action).contains("no_existe"), "acción inexistente → error")
 
@@ -57,7 +60,7 @@ func _check_runs(model: Object) -> void:
 	_expect(ran.contains("Inputs: 2 of 2"), "run_scene: inputs reproducidos")
 	_expect(ran.contains("run_fixture listo") and ran.contains("ui_accept recibido") and ran.contains("ui_accept soltado"), "run_scene: Output del juego con los inputs")
 	# Sin errores del juego ni de scripts (bajo Xvfb el editor suma ruido de X11 y de V-Sync).
-	_expect(not ran.contains("[game/error]") and not ran.contains("/script]"), "run_scene: sin errores del juego · " + ran)
+	_expect(not _game_errors(ran), "run_scene: sin errores del juego · " + ran)
 	_check_autoload_gone("después de run_scene")
 	var frame: Dictionary = await _call("capture_game_frame", {})
 	_expect(not frame.get("isError", false) and _frame_is_red(frame), "capture_game_frame: frame rojo del juego")
@@ -65,6 +68,7 @@ func _check_runs(model: Object) -> void:
 	var images: Dictionary = _dock.get(&"_images")
 	_expect(images.size() == 1 and _frame_is_red({"content": [images.values()[0].block]}), "dock: Captura del juego adjunta el frame rojo")
 	images.clear()
+	await _check_live_game()
 	var stopped := await _call_text("stop_scene", {})
 	_expect(stopped.contains("stopped") and not EditorInterface.is_playing_scene(), "stop_scene")
 
@@ -96,6 +100,62 @@ func _check_runs(model: Object) -> void:
 	EditorInterface.stop_playing_scene()
 	await _tree.create_timer(1.0).timeout
 	_check_autoload_gone("después del run manual")
+
+
+## Con run_fixture corriendo: leer, cambiar, llamar, esperar y mandar inputs en vivo.
+func _check_live_game() -> void:
+	var tree := await _call_text("game_tree", {})
+	_expect(tree.contains("RunFixture (Node2D) [run_fixture.gd]") and tree.contains("Background (ColorRect)") and tree.contains("run_fixture.tscn"), "game_tree: árbol vivo · " + tree.left(300))
+	_expect(not tree.contains("GodotAgentPlaytest"), "game_tree: el probe no aparece")
+	var got := await _call_text("game_get", {"path": ""})
+	_expect(got.contains("score = 0") and got.contains("speed = 1.5") and got.contains("target = (3.0, 4.0)") and got.contains("position = (0.0, 0.0)"), "game_get: variables del script y comunes · " + got)
+	var picked := await _call_text("game_get", {"path": "Background", "properties": ["color", "size:x", "nada"]})
+	_expect(picked.contains("color = (1.0, 0.0, 0.0, 1.0)") and picked.contains("size:x = 4000") and picked.contains("nada: (no such property)"), "game_get: propiedades pedidas · " + picked)
+	var missing: Dictionary = await _call("game_get", {"path": "NoExiste"})
+	_expect(missing.get("isError", false) and _text(missing).contains("NoExiste"), "game_get: nodo inexistente → error")
+	var set_text := await _call_text("game_set", {"path": "", "properties": {"speed": 3, "target": [5, 6], "position": [10, 20]}})
+	_expect(set_text.contains("speed: 1.5 → 3.0") and set_text.contains("target: (3.0, 4.0) → (5.0, 6.0)") and set_text.contains("live only"), "game_set: cambia en vivo · " + set_text)
+	var bad_set: Dictionary = await _call("game_set", {"path": "", "properties": {"target": "verde"}})
+	_expect(bad_set.get("isError", false) and _text(bad_set).contains("target"), "game_set: valor inválido → error · " + _text(bad_set))
+	var called := await _call_text("game_call", {"path": "", "method": "add_score", "args": [5]})
+	_expect(called.contains("add_score(5) → 5"), "game_call: devuelve el resultado · " + called)
+	var bad_call: Dictionary = await _call("game_call", {"path": "", "method": "volar"})
+	_expect(bad_call.get("isError", false) and _text(bad_call).contains("volar"), "game_call: método inexistente → error")
+	var reached := await _call_text("game_wait", {"condition": "score >= 5 and speed == 3.0", "timeout": 2})
+	_expect(reached.contains("became true"), "game_wait: condición cumplida · " + reached)
+	var timed_out := await _call_text("game_wait", {"condition": "score > 100", "timeout": 0.3})
+	_expect(timed_out.contains("Timed out") and timed_out.contains("false"), "game_wait: se vence · " + timed_out)
+	var bad_condition: Dictionary = await _call("game_wait", {"condition": "nada_de_nada +", "timeout": 1})
+	_expect(bad_condition.get("isError", false), "game_wait: condición rota → error · " + _text(bad_condition))
+	# La señal llega mientras se espera: un game_call en paralelo la dispara.
+	var box: Dictionary = {}
+	_call_into(box, "game_wait", {"signal": "scored", "timeout": 3})
+	await _tree.create_timer(0.3).timeout
+	await _call_text("game_call", {"path": "", "method": "add_score", "args": [2]})
+	var deadline := Time.get_ticks_msec() + 5000
+	while not box.has("text") and Time.get_ticks_msec() < deadline:
+		await _tree.process_frame
+	var emitted: String = box.get("text", "")
+	_expect(emitted.contains("'scored' was emitted") and emitted.contains("(7)"), "game_wait: señal con argumentos · " + emitted)
+	var played := await _call_text("game_input", {"steps": [{"action": "ui_accept"}, {"key": "Ctrl+S"}, {"click": [40, 30]}]})
+	_expect(played.contains("Inputs: 7 of 7"), "game_input: todos los eventos · " + played)
+	await _tree.create_timer(0.5).timeout
+	_expect(_output_has("ctrl+s recibido") and _output_has("click 1 en (40.0, 30.0)") and _output_has("ui_accept soltado"), "game_input: el juego recibió tecla, click y acción")
+
+
+## Llamada sin esperar: deja el texto en `box.text` cuando termina.
+func _call_into(box: Dictionary, tool_name: String, arguments: Dictionary) -> void:
+	box["text"] = await _call_text(tool_name, arguments)
+
+
+## Si el reporte trae errores del juego o de scripts. En 4.6 y 4.7 el debugger atiende mensajes del
+## editor en medio de la inicialización de las variables de un script y eso deja un error de get_node
+## con ruta absoluta (del motor, también sin el harness; en 4.8 ya no pasa): no cuenta.
+static func _game_errors(report: String) -> bool:
+	for line: String in report.split("\n"):
+		if (line.contains("[game/error]") or line.contains("/script]")) and not (line.contains("@implicit_new()") and line.contains("absolute paths from outside the active scene tree")):
+			return true
+	return false
 
 
 func _check_autoload_gone(label: String) -> void:

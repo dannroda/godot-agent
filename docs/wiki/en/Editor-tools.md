@@ -29,6 +29,7 @@ The agent sees these tools as `godot.<name>` (Claude Code shows them as `mcp__go
 | Run | `run_scene` | Runs a scene (with simulated `inputs` if you want) and returns the real errors. |
 | | `capture_game_frame` | A frame of the running game. |
 | | `stop_scene` | Stops it. |
+| Live game | `game_tree`, `game_get` (read), `game_set`, `game_call`, `game_wait`, `game_input` | With the game running (launched by `run_scene`, or a manual run with «Use the playtest autoload also when running the game manually»): the live node tree, read and change properties, call methods, wait until an expression is true or a signal is emitted, and send keys, actions, clicks and joypad input. Changes are live only; the scene files stay as they were. Game errors raised meanwhile come back with the result. |
 
 ## Details
 

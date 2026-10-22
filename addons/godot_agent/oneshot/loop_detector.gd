@@ -24,7 +24,7 @@ const CHECK_TEXT := "the check “%s” failed %d times in a row"  # i18n
 const CHECK_DETAIL_TEXT := "the check “%s” failed %d times in a row with “%s”"  # i18n
 const FAILED_TEXT := "“%s” failed %d times with the same arguments"  # i18n
 const SAME_TEXT := "“%s” was repeated %d times, unchanged"  # i18n
-const REPEATABLE_GODOT_TOOLS: PackedStringArray = ["run_scene", "stop_scene", "capture_game_frame", "capture_editor_viewport", "get_errors", "validate_scripts", "editor_state", "scene_tree", "get_node", "list_files", "project_info", "open_scene", "save_scene"]
+const REPEATABLE_GODOT_TOOLS: PackedStringArray = ["run_scene", "stop_scene", "capture_game_frame", "game_tree", "game_get", "game_wait", "game_input", "capture_editor_viewport", "get_errors", "validate_scripts", "editor_state", "scene_tree", "get_node", "list_files", "project_info", "open_scene", "save_scene"]
 
 var repeats: int = 3
 

@@ -754,3 +754,17 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Fuera por ahora**: AnimationTree (state machines, blend spaces), pistas bezier, de audio y 3D.
 - **Pruebas**: `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3 (crear con loop y autoplay, pistas de posición, color y método, key fuera del largo, propiedad inexistente, animation_get con keys, Ctrl+Z por pasos, borrar pista y animación con autoplay, SpriteFrames desde hoja y reemplazo con undo).
 
+
+## D54 · Inspeccionar y controlar el juego en ejecución
+
+- **Problema**: con el juego corriendo, el agente solo tenía capturas, errores e inputs fijos al lanzar; verificar "el jefe murió" o "subió el puntaje" era adivinar por la imagen (m4-07, como runtime.* e input.* de swallowtail).
+- **Canal**: el mismo del probe de playtest (debugger, prefijo `godot_agent:`), con pedidos `request` [id, op, params] y respuestas `reply` [id, {text} | {error}]. No hace falta otro socket ni token: el debugger del editor ya escucha solo en 127.0.0.1 y habla con el juego que lanzó; el probe sigue sin llegar al export.
+- **Tools** (`run_tools.gd`): `game_tree` y `game_get` en el grupo read (solo leen); `game_set`, `game_call`, `game_wait` (la Expression puede llamar métodos) y `game_input` en run.
+  - Rutas relativas a la escena actual del juego, o absolutas (`/root/Autoload`).
+  - `game_set` y los argumentos de `game_call` se convierten al tipo de la propiedad o del parámetro: vectores como [x, y], colores "#rrggbb", constructores como "Vector2(1, 2)", recursos por `res://`. Los cambios son solo en vivo.
+  - `game_wait`: `condition` es una Expression con el nodo de base evaluada cada frame; `signal` espera una señal del nodo; sin ninguna, espera `timeout` (máx. 60 s).
+  - `game_input` y los `inputs` de `run_scene` usan los mismos pasos: action, key ("Ctrl+S"), event ("joy_button:a"), click [x, y] (con movimiento antes) o move. Sin `pressed` es apretar y soltar (hold 0.1 s); sin `t`, va después del paso anterior. Cambia el default de `run_scene` (antes un paso sin `pressed` solo apretaba).
+  - Cada resultado trae los errores del juego aparecidos durante el pedido. Si el juego está parado en el debugger, se dice en lugar de esperar.
+- **Runs manuales**: tienen el probe solo con «Usar el autoload de playtest también al correr el juego a mano» (default apagado, como antes); el error de las tools lo explica.
+- **Ruido de 4.6 y 4.7**: con el debugger, el motor deja un error "get_node() with absolute paths from outside the active scene tree" en `@implicit_new()` del primer script con variables inicializadas (también sin el harness; en 4.8 no pasa). El check de run lo ignora.
+- **Pruebas**: `test_run_tools` (pasos: taps, teclas con modificadores, click, ejes, errores) y `--godot-agent-run-test` en 4.8-beta1, 4.7.2 y 4.6.3 (árbol vivo sin el probe, leer, cambiar con conversión y error, llamar, esperar condición, timeout y señal con argumentos, inputs de tecla, click y acción recibidos por el juego).

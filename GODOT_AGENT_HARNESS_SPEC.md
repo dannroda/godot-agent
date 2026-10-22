@@ -221,6 +221,10 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `run_scene` | run | `scene?`, `seconds`, `inputs?` | Corre la escena, espera N segundos o la salida y devuelve errores y Output capturados. Ver nota |
 | `capture_game_frame` | run | — | Frame del juego corriendo, como imagen |
 | `stop_scene` | run | — | — |
+| `game_tree` / `game_get` | read | path, depth / properties | Árbol vivo y propiedades del juego corriendo (m4-07, D54) |
+| `game_set` / `game_call` | run | path, properties / method, args | Cambia propiedades o llama métodos en vivo |
+| `game_wait` | run | path, condition \| signal, timeout | Espera una Expression sobre el nodo, una señal o N segundos |
+| `game_input` | run | steps | Teclas, acciones, clicks, movimiento y joystick en vivo |
 
 **Notas de implementación:**
 

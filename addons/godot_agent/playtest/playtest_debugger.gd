@@ -10,6 +10,7 @@ signal probe_ready
 signal frame_received(png: PackedByteArray, width: int, height: int)
 signal inputs_done(count: int)
 signal problem_reported(text: String)
+signal reply_received(id: int, result: Dictionary)
 
 const PREFIX := "godot_agent"
 
@@ -32,6 +33,9 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 			inputs_done.emit(int(data[0]) if not data.is_empty() else 0)
 		"problem":
 			problem_reported.emit(str(data[0]) if not data.is_empty() else "")
+		"reply":
+			if data.size() >= 2 and data[1] is Dictionary:
+				reply_received.emit(int(data[0]), data[1])
 		_:
 			return false
 	return true
@@ -50,6 +54,11 @@ func has_probe() -> bool:
 		return false
 	var session := get_session(_probe_session)
 	return session != null and session.is_active()
+
+
+## Si el juego del probe está parado en el debugger (por un error o un breakpoint).
+func is_breaked() -> bool:
+	return has_probe() and get_session(_probe_session).is_breaked()
 
 
 func send(message: String, data: Array = []) -> bool:
