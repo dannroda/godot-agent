@@ -720,3 +720,14 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Hallazgo al probarlo**: la primera versión reescribió el propio `edit_check.gd`, que tenía la ruta del fixture como literal, y el editor recargó el script en medio de la prueba ("Canceling suspended execution… due to a script reload"). Reescribir referencias en scripts es lo que se busca, pero hay que saber que recarga esos scripts.
 - **Pruebas**: `test_project_write_guard` (mv, rm -rf, cp hacia y desde el proyecto, git mv, sudo, strings) y `--godot-agent-edit-test` (escena, carpeta y script movidos con referencias y uid; la escena que lo instancia sigue cargando; borrar se niega con la lista; copia con uid nuevo; no mueve una escena abierta ni pisa).
 
+## D51 · Recursos `.tres` por el editor
+
+- **Problema**: el diseño data-driven (valores ajustables en Resources, D40 y m7-19) llevaba al agente a escribir `.tres` a mano, con los mismos riesgos que una escena escrita a mano (ids, `ExtResource`, tipos de arrays).
+- **Tools** (`mcp/tools/resource_tools.gd`): `get_resource` (read), `create_resource` y `set_resource_properties` (edit_files). Para asignar un recurso a un nodo alcanza `set_properties` con la ruta.
+  - `set_resource_properties` es una acción de deshacer (historial del recurso) que guarda con `ResourceSaver` al hacer y al deshacer. Cambia la instancia cacheada, así que las escenas abiertas que lo usan lo ven.
+  - `get_resource` muestra las propiedades guardadas que difieren del default, con los sub-recursos y los elementos de arrays anidados hasta 4 niveles.
+- **ValueCoercion** (también para `set_properties` y `add_nodes`): un recurso nuevo inline como `{"type": "StyleBoxFlat", "bg_color": "#222"}` (propiedades sueltas o en `properties`), controlado contra el hint de la propiedad; arrays tipados (`Array[ItemData]`) se convierten elemento por elemento y siguen tipados.
+- **class_name sin @tool**: en el editor `script.new()` falla para un script sin `@tool`. Se instancia la clase nativa base y se le pone el script, como el Inspector. Arregla también `add_node`/`add_nodes` con tipos `class_name`, que fallaban igual.
+- **Guard**: `.tres` entra en los archivos que no se escriben a mano (Write/Edit y `fs/write_text_file`); el rechazo nombra las tools.
+- **Pruebas**: `test_resource_values` (inline con hint, class_name con array tipado, describe sin defaults), `test_project_write_guard` y `--godot-agent-edit-test` (crear con array tipado y sub-recurso, leer, cambiar y Ctrl+Z que vuelve a guardar, asignar por ruta e inline, nodo class_name sin @tool, no pisa).
+

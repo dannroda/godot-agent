@@ -636,10 +636,9 @@ static func _instantiate_type(type_name: String) -> Variant:
 		return ClassDB.instantiate(type_name)
 	for info: Dictionary in ProjectSettings.get_global_class_list():
 		if info.get("class") == type_name:
-			var script := load(str(info.path)) as Script
-			if script == null or not script.can_instantiate():
-				return "Could not instantiate the class_name %s (%s)." % [type_name, info.path]
-			var instance: Variant = script.new()
+			var instance: Variant = ValueCoercion.instantiate_script_class(str(info.path))
+			if instance is String:
+				return instance
 			if not instance is Node:
 				return "%s does not extend Node." % type_name
 			return instance

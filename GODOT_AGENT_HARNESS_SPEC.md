@@ -206,6 +206,8 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `set_project_setting` | project | name, value | Con undo global; guarda project.godot (m4-09) |
 | `set_input_action` / `remove_input_action` | project | action, events[], deadzone?, append? | Eventos como "Space", "Ctrl+S", "mouse:left", "joy_button:a", "joy_axis:left_x:-" |
 | `set_autoload` / `remove_autoload` | project | name, path, enabled? | Con undo global |
+| `get_resource` | read | path | Tipo, script, uid y propiedades no default con sub-recursos |
+| `create_resource` / `set_resource_properties` | edit_files | path, type, properties | `.tres` por el editor, con undo al cambiar (m4-13) |
 | `move_file` / `copy_file` / `delete_file` | edit_files | from, to / path | Con referencias al día y uid; borrar se niega si algo lo usa (m4-10) |
 | `create_scene` | edit_files | `path`, `root_type`, `root_name` | Crea y guarda el `.tscn` |
 | `open_scene` / `save_scene` | edit_scene | `path` | — |

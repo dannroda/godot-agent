@@ -251,6 +251,37 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var overwrite: Dictionary = await _call("move_file", {"from": FILES_DIR + "/level.tscn", "to": FILES_DIR + "/spawner.gd"})
 	_expect(overwrite.get("isError", false), "move_file no pisa")
 
+	# Recursos .tres (m4-13): crear con class_name y array tipado, leer, cambiar con undo y asignar.
+	var res_dir := FILES_DIR + "/data"
+	var loot_text := await _call_text("create_resource", {"path": res_dir + "/loot.tres", "type": "FixtureLoot", "properties": {
+		"items": [{"type": "FixtureItem", "title": "Sword", "damage": 7, "style": {"type": "StyleBoxFlat", "bg_color": "#ff0000"}}, {"type": "FixtureItem", "title": "Bow"}],
+		"weights": [0.7, 0.3]}})
+	var loot := ResourceLoader.load(res_dir + "/loot.tres", "", ResourceLoader.CACHE_MODE_IGNORE)
+	_expect(loot != null and (loot.get("items") as Array).size() == 2 and (loot.get("items") as Array)[0].get("style") is StyleBoxFlat, "create_resource con class_name, array tipado y sub-recurso (%s)" % loot_text)
+	var read_loot := await _call_text("get_resource", {"path": res_dir + "/loot.tres"})
+	_expect(read_loot.contains("FixtureLoot (script") and read_loot.contains("[0] <FixtureItem, inline>") and read_loot.contains("title = \"Sword\"") and read_loot.contains("bg_color") and read_loot.contains("weights = PackedFloat32Array(0.7, 0.3)") and not read_loot.contains("tint"), "get_resource (%s)" % read_loot)
+	await _call_text("create_resource", {"path": res_dir + "/panel.tres", "type": "StyleBoxFlat", "properties": {"bg_color": "#102030"}})
+	var changed_res := await _call_text("set_resource_properties", {"path": res_dir + "/panel.tres", "properties": {"bg_color": "#ffffff", "corner_radius_top_left": 8}})
+	var panel_style := ResourceLoader.load(res_dir + "/panel.tres", "", ResourceLoader.CACHE_MODE_IGNORE) as StyleBoxFlat
+	_expect(panel_style != null and panel_style.bg_color == Color.WHITE and panel_style.corner_radius_top_left == 8 and changed_res.contains("saved"), "set_resource_properties guarda (%s)" % changed_res)
+	EditorUndo._trigger_editor_undo()
+	panel_style = ResourceLoader.load(res_dir + "/panel.tres", "", ResourceLoader.CACHE_MODE_IGNORE) as StyleBoxFlat
+	_expect(panel_style != null and panel_style.bg_color == Color.html("#102030") and panel_style.corner_radius_top_left == 0, "Ctrl+Z revierte y guarda el recurso")
+	await _call_text("add_node", {"parent": ".", "type": "Panel", "name": "StyledPanel", "properties": {"theme_override_styles/panel": res_dir + "/panel.tres"}})
+	var styled := root.get_node_or_null("StyledPanel") as Panel
+	_expect(styled != null and styled.get("theme_override_styles/panel") is StyleBoxFlat and (styled.get("theme_override_styles/panel") as Resource).resource_path == res_dir + "/panel.tres", "el recurso se asigna por ruta")
+	await _call_text("set_properties", {"node_path": "StyledPanel", "properties": {"theme_override_styles/panel": {"type": "StyleBoxFlat", "bg_color": "#00ff00"}}})
+	_expect(styled != null and (styled.get("theme_override_styles/panel") as StyleBoxFlat).bg_color == Color(0, 1, 0), "set_properties con un recurso inline")
+	EditorUndo._trigger_editor_undo()
+	EditorUndo._trigger_editor_undo()
+	_expect(not root.has_node("StyledPanel"), "undo del panel")
+	await _call_text("add_nodes", {"parent": ".", "nodes": [{"name": "Grunt", "type": "FixtureEnemy", "properties": {"hp": 5}}]})
+	var grunt := root.get_node_or_null("Grunt")
+	_expect(grunt != null and grunt.get_script() != null and int(grunt.get(&"hp")) == 5, "add_nodes con un class_name sin @tool")
+	EditorUndo._trigger_editor_undo()
+	var exists_again: Dictionary = await _call("create_resource", {"path": res_dir + "/panel.tres", "type": "StyleBoxFlat"})
+	_expect(exists_again.get("isError", false), "create_resource no pisa")
+
 	# Permisos: Preguntar deniega; Construir pregunta (se acepta solo).
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
 	var denied: Dictionary = await _call("add_node", {"parent": ".", "type": "Node", "name": "Denied"})

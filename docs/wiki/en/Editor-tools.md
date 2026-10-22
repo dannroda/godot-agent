@@ -22,6 +22,7 @@ The agent sees these tools as `godot.<name>` (Claude Code shows them as `mcp__go
 | | `add_node`, `set_properties`, `remove_node`, `reparent_node`, `rename_node`, `connect_signal`, `instantiate_scene`, `open_scene`, `save_scene` | Edits on open scenes, each one an undo step in the editor. |
 | Edit files | `create_scene`, `attach_script` | New scenes and scripts on disk. `create_scene` also takes the root's script and properties (exported variables included), so a scene is never written by hand. |
 | Project | `set_project_setting`, `set_input_action`, `remove_input_action`, `set_autoload`, `remove_autoload` | Project settings, input actions (keys, mouse, joypad) and autoloads through the editor: each change is an undo step and saves `project.godot`. Editing `project.godot` by hand is rejected. |
+| Resources | `create_resource`, `set_resource_properties` (+ `get_resource` to read) | `.tres` files of a Godot class or a project `class_name`, with sub-resources inline (`{"type": "StyleBoxFlat", …}`) and typed arrays. Changes are an undo step and are saved. Writing a `.tres` by hand is rejected. |
 | Files | `move_file`, `copy_file`, `delete_file` | Move or rename keeping the uid and rewriting every `res://` reference; copy as a new resource (also from outside the project); delete only if nothing references it (to the trash). `mv`, `cp` and `rm` on project files are rejected. |
 | Run | `run_scene` | Runs a scene (with simulated `inputs` if you want) and returns the real errors. |
 | | `capture_game_frame` | A frame of the running game. |

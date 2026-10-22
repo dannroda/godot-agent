@@ -29,6 +29,7 @@ const ReadTools := preload("mcp/tools/read_tools.gd")
 const ApiTools := preload("mcp/tools/api_tools.gd")
 const ProjectTools := preload("mcp/tools/project_tools.gd")
 const FileTools := preload("mcp/tools/file_tools.gd")
+const ResourceTools := preload("mcp/tools/resource_tools.gd")
 const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
@@ -451,6 +452,7 @@ func _start_mcp_server() -> void:
 	file_tools.on_file_written = _sync.after_agent_write
 	file_tools.unsaved_buffer = _sync.buffer_text
 	registry.register_provider(file_tools)
+	registry.register_provider(ResourceTools.new())
 	_run_tools = RunTools.new()
 	_run_tools.setup(_errors, _playtest_debugger)
 	_run_tools.max_image_side = _project_config.max_image_side

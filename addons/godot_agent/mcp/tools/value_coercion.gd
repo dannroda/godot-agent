@@ -4,7 +4,9 @@ extends RefCounted
 ## Acepta, según el tipo:
 ## - vectores como [x, y], {"x":…, "y":…} o "Vector2(1, 2)";
 ## - colores como "#rrggbb", nombres ("red") o [r, g, b, a];
-## - recursos como ruta res://;
+## - recursos como ruta res://, o nuevos inline: {"type": "StyleBoxFlat", "bg_color": "#222"} (con
+##   las propiedades al lado de type o en "properties");
+## - arrays tipados (Array[ItemData]) elemento por elemento;
 ## - enums por número o por nombre.
 
 ## Resultado: `{ok: bool, value: Variant, error: String}`.
@@ -14,6 +16,9 @@ static func coerce(target: Object, property: String, value: Variant) -> Dictiona
 		return _fail("The property '%s' does not exist on %s.%s" % [property, target.get_class(), _suggestion(target, property)])
 	var type: int = info.type
 	var converted: Variant = convert_value(value, type, info)
+	var current: Variant = target.get(property)
+	if type == TYPE_ARRAY and value is Array and current is Array and (current as Array).is_typed():
+		converted = _typed_array(current, value)
 	if converted is Dictionary and converted.has("__error"):
 		return _fail("'%s' (%s): %s" % [property, type_string(type), converted.__error])
 	return {"ok": true, "value": converted, "error": ""}
@@ -103,19 +108,17 @@ static func convert_value(value: Variant, type: int, info: Dictionary = {}) -> V
 				return Color(components[0], components[1], components[2], components[3])
 			return _error("expected a color as \"#rrggbb\", a name or [r, g, b, a]")
 		TYPE_OBJECT:
+			if value is Dictionary and value.get("type") is String:
+				var made: Variant = inline_resource(value)
+				if made is String:
+					return _error(made)
+				return _check_resource_hint(made, info, str(value.type))
 			if value is String and (value.begins_with("res://") or value.begins_with("uid://")):
 				if not ResourceLoader.exists(value):
 					return _error("the resource %s does not exist" % value)
 				var resource := load(value)
-				var hint_class: String = info.get("hint_string", "")
-				if resource and not hint_class.is_empty() and info.get("hint", 0) == PROPERTY_HINT_RESOURCE_TYPE:
-					var ok := false
-					for allowed: String in hint_class.split(","):
-						ok = ok or resource.is_class(allowed.strip_edges()) or (resource.get_script() and allowed.strip_edges() == resource.get_script().get_global_name())
-					if not ok:
-						return _error("%s is %s; expected %s" % [value, resource.get_class(), hint_class])
-				return resource
-			return _error("expected a res:// path to a resource, or null")
+				return _check_resource_hint(resource, info, value) if resource else _error("could not load %s" % value)
+			return _error("expected a res:// path to a resource, {\"type\": \"ClassName\", …properties} for a new one, or null")
 		TYPE_ARRAY:
 			if value is Array:
 				return value
@@ -141,6 +144,104 @@ static func convert_value(value: Variant, type: int, info: Dictionary = {}) -> V
 					points.append(converted)
 				return points
 	return _error("cannot convert %s" % JSON.stringify(value).left(80))
+
+
+## Recurso nuevo de {"type", "properties"? o propiedades sueltas}. Devuelve el Resource o el error.
+static func inline_resource(data: Dictionary) -> Variant:
+	var made: Variant = new_resource(str(data.type))
+	if made is String:
+		return made
+	var resource: Resource = made
+	var properties: Dictionary = data.get("properties") if data.get("properties") is Dictionary else {}
+	for key: Variant in data:
+		if not str(key) in ["type", "properties"]:
+			properties[key] = data[key]
+	for property: String in properties:
+		var result := coerce(resource, property, properties[property])
+		if not result.ok:
+			return "%s: %s" % [data.type, result.error]
+		resource.set(property, result.value)
+	return resource
+
+
+## Instancia una clase Resource de Godot o un class_name del proyecto que extiende Resource.
+static func new_resource(type_name: String) -> Variant:
+	if ClassDB.class_exists(type_name):
+		if not ClassDB.is_parent_class(type_name, &"Resource"):
+			return "%s is not a Resource." % type_name
+		if not ClassDB.can_instantiate(type_name):
+			return "%s is abstract: choose a subclass." % type_name
+		return ClassDB.instantiate(type_name)
+	for global: Dictionary in ProjectSettings.get_global_class_list():
+		if global.get("class") == type_name:
+			var instance: Variant = instantiate_script_class(str(global.path))
+			if instance is String:
+				return instance
+			if not instance is Resource:
+				if instance is Node:
+					(instance as Node).free()
+				return "%s does not extend Resource." % type_name
+			return instance
+	return "There is no Resource class '%s' (neither a Godot class nor a project class_name)." % type_name
+
+
+## Instancia un script con class_name como lo hace el Inspector: la clase nativa base con el script
+## puesto. En el editor, `script.new()` falla para scripts sin @tool. Devuelve el objeto o el error.
+static func instantiate_script_class(path: String) -> Variant:
+	var script := load(path) as Script
+	if script == null:
+		return "Could not load %s." % path
+	var base := script.get_instance_base_type()
+	if not ClassDB.can_instantiate(base):
+		return "%s extends %s, which is abstract." % [path, base]
+	var instance := ClassDB.instantiate(base) as Object
+	instance.set_script(script)
+	if instance.get_script() != script:
+		if instance is Node:
+			(instance as Node).free()
+		return "Could not attach %s (does it have errors? try validate_scripts)." % path
+	return instance
+
+
+## Un recurso contra el hint de la propiedad ("Texture2D,Material" o un class_name).
+static func _check_resource_hint(resource: Resource, info: Dictionary, label: String) -> Variant:
+	var hint_class: String = info.get("hint_string", "")
+	if hint_class.is_empty() or info.get("hint", 0) != PROPERTY_HINT_RESOURCE_TYPE:
+		return resource
+	for allowed: String in hint_class.split(","):
+		var name := allowed.strip_edges()
+		if resource.is_class(name) or (resource.get_script() and _script_is(resource.get_script(), name)):
+			return resource
+	return _error("%s is %s; expected %s" % [label, resource.get_class(), hint_class])
+
+
+static func _script_is(script: Script, global_name: String) -> bool:
+	var current := script
+	while current:
+		if current.get_global_name() == global_name:
+			return true
+		current = current.get_base_script()
+	return false
+
+
+## Array tipado como el valor actual de la propiedad, con cada elemento convertido.
+static func _typed_array(current: Array, values: Array) -> Variant:
+	var element_type := current.get_typed_builtin()
+	var element_info := {}
+	if element_type == TYPE_OBJECT:
+		var class_hint := String(current.get_typed_class_name())
+		var script := current.get_typed_script() as Script
+		if script and not script.get_global_name().is_empty():
+			class_hint = script.get_global_name()
+		element_info = {"hint": PROPERTY_HINT_RESOURCE_TYPE, "hint_string": class_hint}
+	var typed := current.duplicate()
+	typed.clear()
+	for i: int in values.size():
+		var converted: Variant = convert_value(values[i], element_type, element_info)
+		if converted is Dictionary and converted.has("__error"):
+			return _error("element %d: %s" % [i, converted.__error])
+		typed.append(converted)
+	return typed
 
 
 ## Un enum por nombre: "Center" o "CENTER" según el hint_string "Left,Center:1,Right".
