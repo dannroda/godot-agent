@@ -63,6 +63,8 @@ const KIND_GROUPS: Dictionary = {
 ## Overrides por proyecto: grupo -> { mode_key -> decisión }.
 var overrides: Dictionary = {}
 var _session_grants: Dictionary = {}  # grupo -> true
+## Decisiones que pisan la matriz mientras dura un rol (el evaluador del One-shot, D55): grupo -> decisión.
+var restrictions: Dictionary = {}
 
 
 func _init(project_overrides: Dictionary = {}) -> void:
@@ -83,6 +85,8 @@ func matrix_value(group: String, mode: SessionModel.HarnessMode) -> String:
 ## Decisión efectiva: un "ask" que el usuario concedió para toda la sesión pasa a "allow".
 ## Un "deny" de la matriz nunca se levanta con un permiso de sesión.
 func decide(group: String, mode: SessionModel.HarnessMode) -> String:
+	if restrictions.get(group) in [ALLOW, ASK, DENY]:
+		return restrictions[group]
 	var value := matrix_value(group, mode)
 	if value == ASK and _session_grants.has(group):
 		return ALLOW

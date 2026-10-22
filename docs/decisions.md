@@ -601,7 +601,7 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Veredicto**: el juego pasa si cada criterio con peso llega a su mínimo; un criterio sin puntaje no pasa. El peso arma el promedio ponderado y le dice al agente qué priorizar. Peso 0 apaga un criterio.
 - **Dónde se usan**:
   - el prompt inicial del One-shot los lista con mínimo y peso;
-  - la rúbrica del evaluador (D42) suma tres ejemplos de puntaje por criterio (3, 6 y 9) como referencia fija, para que no se vuelva indulgente vuelta a vuelta, y aclara que no puede oír: el audio se verifica solo por código.
+  - la rúbrica del evaluador (D55) suma tres ejemplos de puntaje por criterio (3, 6 y 9) como referencia fija, para que no se vuelva indulgente vuelta a vuelta, y aclara que no puede oír: el audio se verifica solo por código.
 - **Formato**: el evaluador responde con un bloque `{"scores": [{criterion, score, reason}]}`, que `FindingsParser` lee junto a `checks` y `findings`. El criterio se reconoce por id o por nombre, sin importar mayúsculas ni tildes.
 - **Config**: `criteria` en `project_config.tres` (id → peso y mínimo; solo se guarda lo que difiere del default), editable en Settings → One-shot.
 - **Fuera por ahora**: los contratos por sprint del artículo (el generator y el evaluator acuerdan cómo se verifica cada tarea). Ellos mismos los sacaron por costo; se pueden reconsiderar si el informe (D39) muestra checks mal definidos.
@@ -614,7 +614,7 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Archivos** (`OneShotFiles`), en `<proyecto>/.godot_agent/oneshot/<id>/`:
   - `spec.md`: lo escribe el agente como paso 0: mecánicas, loop de juego, dirección visual y qué es "terminado", sin nodos ni APIs;
   - `progress.md`: lo actualiza al cerrar cada tarea (hecho, falta, decisiones, problemas conocidos);
-  - `qa-<n>.md`: el informe del evaluador en cada vuelta (D42).
+  - `qa-<n>.md`: el informe del evaluador en cada vuelta (D55).
 - **Traspaso**: si hay que abrir una sesión nueva (el editor se cayó, se perdió la sesión), el prompt de resumen manda leer spec y progress antes de seguir. El estado del harness sigue en `user://` (D37); el del trabajo, en el proyecto.
 - **Revisión opcional** («Revisar el spec antes de construir», default en Settings → One-shot): el agente escribe el spec y termina el turno; el run pasa a «Spec para revisar».
   - «Revisar spec» abre el archivo en un diálogo editable; «Aprobar spec» guarda lo editado y sigue construyendo.
@@ -768,3 +768,18 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Runs manuales**: tienen el probe solo con «Usar el autoload de playtest también al correr el juego a mano» (default apagado, como antes); el error de las tools lo explica.
 - **Ruido de 4.6 y 4.7**: con el debugger, el motor deja un error "get_node() with absolute paths from outside the active scene tree" en `@implicit_new()` del primer script con variables inicializadas (también sin el harness; en 4.8 no pasa). El check de run lo ignora.
 - **Pruebas**: `test_run_tools` (pasos: taps, teclas con modificadores, click, ejes, errores) y `--godot-agent-run-test` en 4.8-beta1, 4.7.2 y 4.6.3 (árbol vivo sin el probe, leer, cambiar con conversión y error, llamar, esperar condición, timeout y señal con argumentos, inputs de tecla, click y acción recibidos por el juego).
+
+## D55 · Evaluador separado del One-shot y vuelta de corrección
+
+- **Problema**: el agente que construye calificaba sus propios checks y el harness los aceptaba. Según "Harness design for long-running application development" (Anthropic, 2026-03), es indulgente con su trabajo, y un evaluador aparte, escéptico y que usa la app, encuentra bugs que el generator dio por buenos (m6-09). La rúbrica ya existía (D40).
+- **Cuándo**: cuando el run iba a terminar porque el agente dio el plan por hecho, todos sus checks pasan o dejó de avanzar (`_done`). No después de Detener, Aceptar todo ni de agotar un presupuesto.
+- **Sesión**: `session/new` en el mismo proceso del agente, sin el contexto del generator. Al terminar, el run vuelve a la sesión del generator con `restart_session` (session/load si se puede; si no, sesión nueva con el resumen), el mismo camino que la recuperación (D37).
+  - Descartado: un segundo controller y proceso. Las tools `godot.*` se autorizan con el controller del dock, así que el evaluador habría heredado los permisos de One-shot; hacía falta un token por rol en el server MCP.
+- **Permisos**: `PermissionPolicy.restrictions` pisa la matriz mientras evalúa: read, diagnostics y run permitidos; edit_scene, edit_files, project y shell denegados. Cubre las tools del addon y las de Claude Code (Edit, Write, Bash). Las reglas del modo en el prompt de sistema se reemplazan (`mode_rules_override`).
+- **Prompt** (`qa_prompt`): objetivo; spec y progreso como afirmaciones a verificar; el informe de QA anterior desde la segunda vuelta; los checks del generator; la rúbrica con ejemplos (D40); las tools para comprobar hechos en el juego vivo (m4-07); y "si encontraste un problema, falla". Responde con `checks`, `scores` y `findings` en un bloque, que lee `FindingsParser`.
+- **Veredicto**: pasa si todos sus checks pasan y `GameCriteria.verdict` pasa. Sin checks ni puntajes no hay veredicto: termina con el motivo de antes y una nota. Sus checks quedan `verified`; lo que reporta el generator después queda en `claimed` (progreso) y no cambia el estado hasta la próxima vuelta.
+- **Vueltas**: `qa_rounds` en project_config (default 2, 0 apaga). Entre una evaluación que falla y la siguiente, un turno de corrección con los checks que fallan, los criterios por debajo del mínimo y los hallazgos. La última evaluación decide el final. Los turnos y playtests del evaluador cuentan para los presupuestos; sin presupuesto no hay otra vuelta. La detección de loops no mira los turnos del evaluador: el tope de vueltas cumple ese papel.
+- **Pausa y cuota**: Pausar, el límite del plan o un turno con error dejan la evaluación para «Retomar», que la vuelve a empezar en la misma vuelta. Un run guardado a mitad de una evaluación recuerda la sesión del generator.
+- **UI**: fase «Evaluando · vuelta de QA n» (se puede pausar), entradas `qa` en la actividad con el veredicto y hasta 6 hallazgos por vuelta, `qa-<n>.md` en el visor de Spec y progreso, y una tabla de vueltas en el informe.
+- **Pruebas**: `oneshot_check` (el agente falso con dos roles: el generator reporta todo en pass, el evaluador encuentra que el puntaje no sube, el generator corrige y la segunda vuelta aprueba; permisos, prompt, actividad, archivos, checks e informe) y `--godot-agent-oneshot-test` (fase, Pausar, banner final, actividad e informe en la pantalla Agent), en 4.8-beta1 y 4.6.3.
+- **Pendiente**: afinar el prompt leyendo trazas reales del evaluador (el artículo cuenta que al principio encontraba problemas y se convencía solo de aprobarlos).

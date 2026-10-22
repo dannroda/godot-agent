@@ -10,7 +10,7 @@
 | **Completado** | [Completado inline](Completado-inline.md). |
 | **Permisos** | La [matriz de permisos](Modos-y-permisos.md#permisos) por modo, y el tiempo para contestar. |
 | **Servidor MCP** | Puerto, **Regenerar token**, límites de los resultados, carpetas extra. |
-| **One-shot y cuota** | Presupuestos por defecto, checkpoints, revisión del spec, repeticiones para los loops, criterios del juego (peso y mínimo), umbrales de aviso y pausa de la cuota, qué hacer cuando se reinicia la cuota. |
+| **One-shot y cuota** | Presupuestos por defecto, checkpoints, revisión del spec, repeticiones para los loops, vueltas de QA, criterios del juego (peso y mínimo), umbrales de aviso y pausa de la cuota, qué hacer cuando se reinicia la cuota. |
 | **Interfaz** | Color de acento, ubicación del dock, idioma. |
 | **Export** | Revisa que cada preset de export excluya el addon. |
 

@@ -1,7 +1,7 @@
 extends SceneTree
 ## Loop del One-shot (M6) contra el agente falso, sin editor: checkpoints en un repo temporal,
-## pausa por cuota, límite con cpN-quota y reanudación sola o con confirmación, presupuestos y
-## "Guiar al agente".
+## pausa por cuota, límite con cpN-quota y reanudación sola o con confirmación, presupuestos,
+## "Guiar al agente" y el evaluador con su vuelta de corrección (D55).
 ## Uso: godot --headless --path <repo> --script tests/oneshot_check.gd
 
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
@@ -11,6 +11,7 @@ const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
+const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
 
 const WATCHDOG_S := 120.0
 
@@ -34,6 +35,7 @@ func _initialize() -> void:
 	await _scenario_recover()
 	await _scenario_loop()
 	await _scenario_spec()
+	await _scenario_qa()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -70,6 +72,7 @@ func _make(scenario: String, repo: String = "") -> OneShotRun:
 	var run := OneShotRun.new()
 	run.setup(controller, repo if not repo.is_empty() else _repo(scenario))
 	run.restart_session = func(_lost_id: String) -> bool: return await controller.start(_profile(scenario))
+	run.qa_max_rounds = 0  # los guiones de antes del evaluador terminan con lo que reporta el agente
 	root.add_child(run)
 	return run
 
@@ -384,6 +387,52 @@ func _scenario_spec() -> void:
 	_check(str(tracked[0]).contains("spec.md"), "spec: el spec entra en los checkpoints (%s)" % tracked)
 	_check(str(run.last_report.get("files_dir", "")) == run.files.relative_dir(), "spec: el informe apunta a los archivos")
 	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text) == "Spec approved with the user's changes"), "spec: actividad de la aprobación")
+	run.controller.stop()
+	run.queue_free()
+
+
+## Evaluador (D55): el agente dice que todo pasa; el evaluador, en una sesión aparte y sin
+## permisos de edición, encuentra que el puntaje no sube. Sus hallazgos vuelven al que construye,
+## que corrige, y la segunda vuelta de QA aprueba.
+func _scenario_qa() -> void:
+	print("— evaluador")
+	var run := _make("oneshot_qa")
+	run.qa_max_rounds = 2
+	# La primera sesión es la del guion; las siguientes (volver al que construye) son otro proceso.
+	var starts: Array[int] = [0]
+	run.restart_session = func(_lost_id: String) -> bool:
+		starts[0] += 1
+		return await run.controller.start(_profile("oneshot_qa" if starts[0] == 1 else "oneshot_qa_fix"))
+	var sent: Array[String] = []  # los prompts de todas las sesiones (cada sesión nueva limpia el modelo)
+	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER:
+			sent.append(entry.text))
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, false)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.EVALUATING and sent.size() == 2, 10.0)
+	var policy := run.controller.policy
+	_check(run.phase == OneShotRun.RunPhase.EVALUATING and run.phase_label().contains("QA round 1"), "qa: evalúa cuando el agente dice que terminó (%s)" % run.phase_label())
+	_check(policy.decide(PermissionPolicy.GROUP_EDIT_FILES, SessionModel.HarnessMode.ONESHOT) == PermissionPolicy.DENY and policy.decide(PermissionPolicy.GROUP_EDIT_SCENE, SessionModel.HarnessMode.ONESHOT) == PermissionPolicy.DENY and policy.decide(PermissionPolicy.GROUP_SHELL, SessionModel.HarnessMode.ONESHOT) == PermissionPolicy.DENY, "qa: el evaluador no edita")
+	_check(policy.decide(PermissionPolicy.GROUP_RUN, SessionModel.HarnessMode.ONESHOT) == PermissionPolicy.ALLOW, "qa: el evaluador corre el juego")
+	_check(run.controller.system_prompt().contains("QA evaluator"), "qa: reglas del evaluador en el prompt de sistema")
+	_check(sent.size() == 2 and sent[1].begins_with(OneShotRun.QA_MARKER) and sent[1].contains("Puntaje (builder says: pass)") and sent[1].contains("`playability`") and not sent[1].contains("Goal (One-shot mode)"), "qa: prompt del evaluador, sin el contexto del que construye")
+	_check(_user_messages(run.model).size() == 1, "qa: sesión nueva para el evaluador")
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.last_report.is_empty(), 20.0)
+	_check(run.finish_reason == "QA round 2: the game passes.", "qa: termina con la segunda vuelta (%s)" % run.finish_reason)
+	_check(sent.size() == 4, "qa: inicial, QA 1, corrección y QA 2 (%d)" % sent.size())
+	if sent.size() == 4:
+		_check(sent[2].contains("QA round 1: an independent evaluator") and sent[2].contains("Puntaje: el puntaje no sube") and sent[2].contains("[bug] El puntaje no sube (res://score.gd:12)") and sent[2].contains("5 of 7. el puntaje no sube"), "qa: los hallazgos vuelven al que construye · " + sent[2].right(600))
+		_check(sent[2].begins_with("We're resuming a One-shot"), "qa: sin session/load, la corrección va con el resumen")
+		_check(sent[3].contains("round 2 of at most 2") and sent[3].contains("qa-1.md"), "qa: la segunda vuelta mira el informe anterior")
+	_check(run.qa_results.size() == 2 and not run.qa_results[0].passed and run.qa_results[0].failing_checks == ["Puntaje"] and run.qa_results[1].passed, "qa: resultados %s" % [run.qa_results])
+	_check(run.qa_results.size() > 0 and Array(run.qa_results[0].failing_criteria).any(func(text: String) -> bool: return text.contains("6/7")), "qa: criterios por debajo del mínimo %s" % [run.qa_results])
+	_check(run.files.read(run.files.qa_path(1)).contains("El puntaje no sube") and FileAccess.file_exists(run.files.qa_path(2)), "qa: qa-1.md y qa-2.md")
+	var puntaje: Array = run.checks.filter(func(check: Dictionary) -> bool: return check.label == "Puntaje")
+	_check(puntaje.size() == 1 and puntaje[0].status == "pass" and puntaje[0].get("verified", false), "qa: el check lo decide el evaluador %s" % [run.checks])
+	_check(policy.restrictions.is_empty() and run.controller.mode_rules_override.is_empty(), "qa: el que construye vuelve con sus permisos")
+	var qa_activity: Array = run.activity.filter(func(entry: Dictionary) -> bool: return entry.kind == "qa").map(func(entry: Dictionary) -> String: return entry.text)
+	_check(qa_activity.has("QA round 1: doesn't pass · Puntaje, Playability 6/7, Functionality 5/7") and qa_activity.has("bug · El puntaje no sube (score.gd:12)") and qa_activity.any(func(text: String) -> bool: return text.begins_with("QA round 2: passes")), "qa: actividad %s" % [qa_activity])
+	_check(int(run.used.playtests) == 4, "qa: los playtests del evaluador cuentan (%d)" % int(run.used.playtests))
+	_check(run.last_report.get("qa", []).size() == 2 and int(run.last_report.get("events", {}).get("qa_turns", 0)) == 2, "qa: informe")
 	run.controller.stop()
 	run.queue_free()
 

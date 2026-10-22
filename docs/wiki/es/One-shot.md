@@ -29,7 +29,8 @@ Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para proba
 4. **Checkpoints**: cada tarea (o cada playtest, si el agente no informa un plan) es un commit `cpN` en la rama `agent/<fecha>`.
    - **Volver acá** deja el proyecto exactamente como en ese checkpoint y pausa el run;
    - **Retomar** sigue desde ahí.
-5. **Fin**: cuando el plan está hecho y las verificaciones pasan, o se agota un presupuesto, el agente escribe un reporte final y el run termina.
+5. **QA**: cuando el agente dice que el juego está terminado, un evaluador aparte lo revisa (ver abajo). Si no pasa, sus hallazgos vuelven al agente para otra vuelta.
+6. **Fin**: cuando QA aprueba, se acaban las vueltas de QA o se agota un presupuesto, el run termina (con un presupuesto, antes el agente escribe un reporte final).
    - **Revisar cambios** lista los archivos; con doble clic se ve el diff contra el inicio;
    - **Aceptar todo** hace un commit final en `agent/<fecha>`. El merge lo hacés vos;
    - **Informe** muestra lo que midió el harness (ver abajo).
@@ -49,6 +50,18 @@ Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para proba
   - tu guía.
 - **Costado**: la última captura de playtest, las verificaciones y la lista de checkpoints.
 - **Barra de abajo**: resumen de archivos cambiados, **Revisar cambios**, **Aceptar todo**.
+
+## Evaluador de QA
+
+El agente que construye tiende a ser indulgente con su propio trabajo, así que el harness no toma sus verificaciones al pie de la letra.
+
+- Cuando el agente dice que terminó, se abre una **sesión nueva** para un evaluador. No ve la conversación del que construye: solo el objetivo, el spec, las notas del que construye (como afirmaciones a verificar), las verificaciones que reportó y los criterios del juego con sus ejemplos de puntaje.
+- El evaluador **juega el juego**: `run_scene` con inputs, input en vivo, `game_get`/`game_wait` para comprobar hechos, frames y errores, y lee el código. **No puede editar**: mientras evalúa, editar archivos, escenas o settings del proyecto y la shell están denegados.
+- Responde con verificaciones, un puntaje por criterio y hallazgos concretos (qué falla, cómo reproducirlo, dónde). Su informe queda en `qa-<n>.md`.
+- Su veredicto decide las verificaciones. El juego pasa cuando todas pasan y cada criterio llega a su mínimo.
+- Si no pasa, el run vuelve a la sesión del que construye con las verificaciones que fallan, los criterios por debajo del mínimo y los hallazgos como próximo turno. Cuando vuelve a decir que terminó, empieza otra vuelta de QA.
+- **Vueltas de QA** (Settings → One-shot, 2 por defecto) es cuántas evaluaciones tiene un run; 0 apaga el evaluador. Los turnos de QA cuentan para los presupuestos, y un run sin presupuesto termina sin otra vuelta.
+- Mientras evalúa, la fase dice **Evaluando · vuelta de QA n**, la actividad muestra el veredicto y los hallazgos de cada vuelta, y **Pausar** funciona como siempre (Retomar vuelve a evaluar). El informe tiene una tabla con las vueltas.
 
 ## Guiar al agente
 

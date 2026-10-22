@@ -10,7 +10,7 @@ Open **Settings** from the dock header.
 | **Completion** | [Inline completion](Inline-completion.md). |
 | **Permissions** | The [permission matrix](Modes-and-permissions.md#permissions) per mode, and the timeout to answer. |
 | **MCP server** | Port, **Regenerate token**, result limits, extra folders. |
-| **One-shot and quota** | Default budgets, checkpoints, spec review, loop repeats, game criteria (weight and minimum), quota warning and pause thresholds, what to do when the quota resets. |
+| **One-shot and quota** | Default budgets, checkpoints, spec review, loop repeats, QA rounds, game criteria (weight and minimum), quota warning and pause thresholds, what to do when the quota resets. |
 | **Interface** | Accent color, dock position, language. |
 | **Export** | Checks that every export preset excludes the addon. |
 

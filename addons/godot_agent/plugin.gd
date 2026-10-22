@@ -145,6 +145,7 @@ func _enter_tree() -> void:
 	_oneshot.resume_auto = _settings.quota_resume_auto()
 	_oneshot.store.dir = ONESHOT_STORE_DIR
 	_oneshot.loops.repeats = _project_config.loop_repeats
+	_oneshot.qa_max_rounds = _project_config.qa_rounds
 	_oneshot.criteria = GameCriteria.resolve(_project_config.criteria)
 	add_child(_oneshot)
 	_model.harness_mode_changed.connect(_on_harness_mode_changed)
@@ -519,6 +520,7 @@ func _on_settings_saved() -> void:
 	_run_tools.max_image_side = _project_config.max_image_side
 	_main_screen.call(&"set_defaults", _oneshot_defaults())
 	_oneshot.loops.repeats = _project_config.loop_repeats
+	_oneshot.qa_max_rounds = _project_config.qa_rounds
 	_oneshot.criteria = GameCriteria.resolve(_project_config.criteria)
 	_completion.apply_settings()
 	_log.add(AgentLog.CH_ACP, "settings saved")

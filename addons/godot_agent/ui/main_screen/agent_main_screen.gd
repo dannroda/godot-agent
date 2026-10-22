@@ -28,6 +28,7 @@ const ACTIVITY_COLORS: Dictionary = {
 	"spec": Color("#8fd3c7"),
 	"guide": Color("#ffd479"),
 	"turn": Color("#9aa7b8"),
+	"qa": Color("#c49bff"),
 }
 ## Tipo de entrada de la actividad (`kind`) -> cómo se muestra (traducido).
 const ACTIVITY_KIND_LABELS: Dictionary = {
@@ -41,6 +42,7 @@ const ACTIVITY_KIND_LABELS: Dictionary = {
 	"spec": "spec",  # i18n
 	"guide": "guide",  # i18n
 	"turn": "turn",  # i18n
+	"qa": "QA",  # i18n
 	"session": "session",  # i18n
 	"status": "status",  # i18n
 	"agent": "agent",  # i18n
@@ -803,7 +805,7 @@ func _refresh_top_bar() -> void:
 	var can_resume := _run.can_resume()
 	_account_button.visible = _run.is_active() and can_resume
 	_pause_button.text = I18n.t("Resume") if can_resume else I18n.t("Pause")
-	_pause_button.disabled = not (can_resume or _run.phase == OneShotRun.RunPhase.RUNNING)
+	_pause_button.disabled = not (can_resume or _run.phase in [OneShotRun.RunPhase.RUNNING, OneShotRun.RunPhase.EVALUATING])
 	_pause_button.tooltip_text = I18n.t("Retries now, without waiting for the window to reset.") if _run.phase == OneShotRun.RunPhase.LIMITED else ""
 	_stop_button.disabled = not _run.is_active()
 	_spec_button.visible = _run.files.has_spec() or _run.phase == OneShotRun.RunPhase.SPEC_REVIEW
@@ -1065,7 +1067,7 @@ func _on_account_menu(id: int) -> void:
 
 
 func _on_pause_pressed() -> void:
-	if _run.phase == OneShotRun.RunPhase.RUNNING:
+	if _run.phase in [OneShotRun.RunPhase.RUNNING, OneShotRun.RunPhase.EVALUATING]:
 		_run.pause()
 	else:
 		_run.resume()

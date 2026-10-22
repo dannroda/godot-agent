@@ -7,7 +7,10 @@ extends Node
 ## - lo que el usuario escribe en el chat (guide) se encola para el fin del turno;
 ## - cuota del plan: pausa al terminar la tarea o el turno (con un tope de espera), "limitado" con cpN-quota y reanudación;
 ## - el estado se guarda en disco mientras corre (D37): si el editor se cierra o se cae, al volver
-##   el run queda en pausa y «Retomar» reabre la sesión del agente.
+##   el run queda en pausa y «Retomar» reabre la sesión del agente;
+## - cuando el agente da el objetivo por cumplido, un evaluador aparte (sesión nueva, sin el
+##   contexto del que construye y sin permisos de edición) juega el juego y decide los checks; si no
+##   pasa, sus hallazgos vuelven como el próximo turno (D55).
 ## La UI (pantalla Agent) solo lee el estado y llama a los métodos públicos.
 
 signal changed
@@ -29,9 +32,10 @@ const LoopDetector := preload("loop_detector.gd")
 const RunReport := preload("run_report.gd")
 const GameCriteria := preload("game_criteria.gd")
 const OneShotFiles := preload("oneshot_files.gd")
+const PermissionPolicy := preload("../session/permission_policy.gd")
 const I18n := preload("../core/i18n.gd")
 
-enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW }
+enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW, EVALUATING }
 
 const PHASE_LABELS: Dictionary = {
 	RunPhase.IDLE: "Not started",  # i18n
@@ -44,6 +48,7 @@ const PHASE_LABELS: Dictionary = {
 	RunPhase.CLOSING: "Closing",  # i18n
 	RunPhase.FINISHED: "Finished",  # i18n
 	RunPhase.SPEC_REVIEW: "Spec to review",  # i18n
+	RunPhase.EVALUATING: "Evaluating",  # i18n
 }
 const BUDGET_TIME := "time"
 const BUDGET_TOKENS := "tokens"
@@ -91,6 +96,24 @@ const REOPEN_NEW: Dictionary = {
 	"account": "Account switch: opened a new session with the plan summary",  # i18n
 }
 const TICK_S := 0.5
+## Vueltas de QA por defecto (D55): evaluaciones como mucho, con una vuelta de corrección entre
+## una y otra. 0 apaga el evaluador.
+const QA_ROUNDS := 2
+## Encabezado del prompt del evaluador (el agente falso de los tests lo reconoce por esto).
+const QA_MARKER := "QA evaluation (One-shot)"
+const QA_MODE_RULES := "You are the QA evaluator of a game another agent built: play it and read it, but do not change anything. Editing files, scenes or project settings and running shell commands are denied."
+## Permisos del evaluador: lee, diagnostica y corre el juego; no edita.
+const QA_RESTRICTIONS: Dictionary = {
+	PermissionPolicy.GROUP_READ: PermissionPolicy.ALLOW,
+	PermissionPolicy.GROUP_DIAGNOSTICS: PermissionPolicy.ALLOW,
+	PermissionPolicy.GROUP_RUN: PermissionPolicy.ALLOW,
+	PermissionPolicy.GROUP_EDIT_SCENE: PermissionPolicy.DENY,
+	PermissionPolicy.GROUP_EDIT_FILES: PermissionPolicy.DENY,
+	PermissionPolicy.GROUP_PROJECT: PermissionPolicy.DENY,
+	PermissionPolicy.GROUP_SHELL: PermissionPolicy.DENY,
+}
+## Hallazgos que van a la actividad por vuelta (el resto está en qa-<n>.md).
+const QA_ACTIVITY_FINDINGS := 6
 ## Cada cuánto se guarda el run como mucho (además de en cada cambio de fase).
 const SAVE_INTERVAL_MS := 2000
 
@@ -119,6 +142,12 @@ var files := OneShotFiles.new()
 var spec_review: bool = false
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
+## Vueltas de QA (D55); 0 = sin evaluador: valen los checks que reporta el agente.
+var qa_max_rounds: int = QA_ROUNDS
+## Vuelta de QA en curso o la última (0 = todavía no se evaluó).
+var qa_round: int = 0
+## Resultado de cada vuelta: {round, passed, weighted, failing_checks, failing_criteria, findings, file}.
+var qa_results: Array[Dictionary] = []
 
 var phase: RunPhase = RunPhase.IDLE
 var goal: String = ""
@@ -185,6 +214,12 @@ var _suspended: bool = false
 var _awaiting_spec: bool = false
 ## Se subió el presupuesto mientras se cortaba el turno por agotarlo: al cortarse, sigue.
 var _continue_after_cancel: bool = false
+## Sesión del agente que construye mientras evalúa el evaluador: se vuelve a ella después.
+var _generator_session_id: String = ""
+## La evaluación se cortó (pausa, cuota, error): «Retomar» la vuelve a empezar, en la misma vuelta.
+var _resume_qa: bool = false
+## Por qué terminaba el agente cuando se pidió la evaluación (si el evaluador no llega a decidir).
+var _done_reason: String = ""
 
 
 func setup(session_controller: SessionController, project_root: String) -> void:
@@ -216,6 +251,8 @@ func is_git_busy() -> bool:
 
 
 func phase_label() -> String:
+	if phase == RunPhase.EVALUATING:
+		return I18n.t("Evaluating · QA round %d") % qa_round
 	return I18n.t(PHASE_LABELS[phase])
 
 
@@ -284,6 +321,11 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	_close_reason = ""
 	_continue_after_cancel = false
 	_quota_checkpoint_done = false
+	qa_round = 0
+	qa_results.clear()
+	_generator_session_id = ""
+	_resume_qa = false
+	_done_reason = ""
 	finish_reason = ""
 	resume_task = ""
 	last_capture = null
@@ -341,8 +383,10 @@ func initial_prompt() -> String:
 # --- controles -----------------------------------------------------------------------------------
 
 func pause() -> void:
-	if phase != RunPhase.RUNNING:
+	if phase != RunPhase.RUNNING and phase != RunPhase.EVALUATING:
 		return
+	if phase == RunPhase.EVALUATING:
+		_resume_qa = true
 	resume_task = _task_name(_current_task)
 	_set_phase(RunPhase.PAUSED)
 	_add_activity("status", I18n.t("Paused by the user"))
@@ -363,6 +407,9 @@ func resume() -> void:
 	_set_phase(RunPhase.RUNNING)
 	if was_limited:
 		quota.note_retry()
+	if _resume_qa:
+		_evaluate()
+		return
 	# Un run cargado de disco retoma su propia sesión, aunque el dock tenga otra abierta.
 	var from_disk := not _recovered_session_id.is_empty()
 	var lost_id := _recovered_session_id if from_disk else model.session_id
@@ -656,7 +703,7 @@ func _after_turn(reason: String) -> void:
 		_idle_continues += 1
 		_run_turn("Keep going with the plan: the next pending task is “%s”. Verify with run_scene, capture_game_frame and get_errors, and report the checks block." % _task_name(_next_pending()))
 		return
-	_finish(I18n.t("The agent finished the plan.") if not _plan_pending() else I18n.t("The agent stopped making progress on the plan."))
+	_done(I18n.t("The agent finished the plan.") if not _plan_pending() else I18n.t("The agent stopped making progress on the plan."))
 
 
 ## Sin plan, lo que falta sale de los checks: el agente a veces cierra el turno a mitad de camino
@@ -664,13 +711,15 @@ func _after_turn(reason: String) -> void:
 func _after_turn_without_plan() -> void:
 	var open: PackedStringArray = []
 	for check: Dictionary in checks:
-		if check.status != "pass":
-			open.append("“%s” (%s)" % [check.label, check.status])
+		# Un check que rechazó el evaluador está abierto hasta que el agente reporta que lo arregló.
+		var status: String = check.get("claimed", check.status)
+		if status != "pass":
+			open.append("“%s” (%s)" % [check.label, status])
 	if not checks.is_empty() and open.is_empty():
-		_finish(I18n.t("The agent finished: all checks pass."))
+		_done(I18n.t("The agent finished: all checks pass."))
 		return
 	if _idle_continues >= MAX_IDLE_CONTINUES:
-		_finish(I18n.t("The agent stopped making progress (no plan; some checks still don't pass).") if not open.is_empty() else I18n.t("The agent finished without reporting checks."))
+		_done(I18n.t("The agent stopped making progress (no plan; some checks still don't pass).") if not open.is_empty() else I18n.t("The agent finished without reporting checks."))
 		return
 	_idle_continues += 1
 	if open.is_empty():
@@ -695,6 +744,7 @@ func _close() -> void:
 
 
 func _finish(reason: String) -> void:
+	_end_qa_role()
 	finish_reason = reason
 	_timer.stop()
 	_recovered_session_id = ""
@@ -709,7 +759,7 @@ func _write_report() -> void:
 	var data := {
 		"id": run_id, "goal": goal, "finish_reason": finish_reason, "duration_ms": _elapsed_ms(),
 		"budgets": budgets.duplicate(), "used": used.duplicate(), "checks": checks.duplicate(true),
-		"files_dir": files.relative_dir(),
+		"files_dir": files.relative_dir(), "qa": qa_results.duplicate(true),
 	}
 	# changes_summary espera la cola de git: después, los checkpoints en curso ya están en la lista.
 	data["changes"] = await changes_summary() if checkpoints_enabled else {}
@@ -768,7 +818,7 @@ func _summary_prompt() -> String:
 # --- plan, tool calls y checks --------------------------------------------------------------------
 
 func _on_plan_changed(plan: Array) -> void:
-	if not is_active() or model.replaying:
+	if not is_active() or model.replaying or phase == RunPhase.EVALUATING:  # el plan del evaluador no es el del run
 		return
 	if not plan.is_empty():
 		_plan_snapshot = plan.duplicate(true)
@@ -799,7 +849,7 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 		used[BUDGET_PLAYTESTS] = int(used[BUDGET_PLAYTESTS]) + 1
 		_add_activity("playtest", "Playtest #%d · %s" % [used[BUDGET_PLAYTESTS], _call_summary(call)])
 		# Sin plan no hay tareas que marquen los checkpoints: se crea uno por playtest (D24).
-		if current_plan().is_empty() and checkpoints_enabled:
+		if current_plan().is_empty() and checkpoints_enabled and phase != RunPhase.EVALUATING:
 			_checkpoint("Playtest #%d" % used[BUDGET_PLAYTESTS])
 		_check_budgets()
 	elif not name.is_empty() or call.status == ToolCall.STATUS_FAILED:
@@ -847,13 +897,18 @@ func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
 	changed.emit()
 
 
+## Checks que reporta el agente que construye. Con evaluador, el estado de un check que ya evaluó
+## (`verified`) lo decide el evaluador: el autorreporte queda como progreso (`claimed`).
 func _merge_checks(new_checks: Array) -> void:
 	report.observe_checks(new_checks)
 	for check: Dictionary in new_checks:
 		var found := false
 		for existing: Dictionary in checks:
 			if existing.label == check.label:
-				existing.merge(check, true)
+				if existing.get("verified", false):
+					existing["claimed"] = check.status
+				else:
+					existing.merge(check, true)
 				found = true
 		if not found:
 			checks.append(check)
@@ -875,7 +930,7 @@ func _account_tokens(usage: Dictionary) -> void:
 func _tick() -> void:
 	if _dirty and Time.get_ticks_msec() - _last_save_msec >= SAVE_INTERVAL_MS:
 		_save()
-	if phase in [RunPhase.RUNNING, RunPhase.CLOSING]:
+	if phase in [RunPhase.RUNNING, RunPhase.CLOSING, RunPhase.EVALUATING]:
 		used[BUDGET_TIME] = float(used[BUDGET_TIME]) + TICK_S
 		_check_budgets()
 	_check_quota_pause()
@@ -985,6 +1040,242 @@ func _on_quota_back(text: String) -> void:
 		_set_phase(RunPhase.WAITING_CONFIRM)
 
 
+# --- evaluador (D55) -------------------------------------------------------------------------------
+
+## El agente da el objetivo por cumplido (o dejó de avanzar). Si quedan vueltas de QA y
+## presupuesto, evalúa un agente aparte; si no, termina.
+func _done(reason: String) -> void:
+	if qa_max_rounds > 0 and qa_round < qa_max_rounds and _budget_left():
+		_done_reason = reason
+		await _evaluate()
+		return
+	_finish(reason)
+
+
+## Una vuelta de QA: sesión nueva del agente (sin el contexto del que construye), con permisos de
+## solo lectura más correr el juego, y el prompt escéptico con la rúbrica.
+func _evaluate() -> void:
+	if not _resume_qa:
+		qa_round += 1
+	_resume_qa = false
+	_idle_continues = 0
+	pause_note = ""
+	_set_phase(RunPhase.EVALUATING)
+	_add_activity("qa", I18n.t("QA round %d: an independent evaluator plays and checks the game") % qa_round)
+	if not controller.is_connected_to_agent() and not await _restart_session(_saved_session_id()):
+		_finish(I18n.t("Couldn't open a session with the agent."))
+		return
+	_recovered_session_id = ""
+	if _generator_session_id.is_empty():
+		_generator_session_id = model.session_id
+	controller.policy.restrictions = QA_RESTRICTIONS.duplicate()
+	controller.mode_rules_override = QA_MODE_RULES
+	var opened: bool = await controller.open_session()
+	if not is_inside_tree() or phase != RunPhase.EVALUATING:
+		_end_qa_role()
+		return
+	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+	if not opened:
+		_end_qa_role()
+		_add_activity("warning", I18n.t("Couldn't open the evaluator's session"))
+		await _back_to_generator()
+		_finish(_done_reason)
+		return
+	var turn := await _run_qa_turn(qa_prompt())
+	if not is_inside_tree():
+		return
+	await _after_qa(str(turn.reason), str(turn.text))
+
+
+func qa_prompt() -> String:
+	var lines: PackedStringArray = [
+		"%s · round %d of at most %d" % [QA_MARKER, qa_round, qa_max_rounds],
+		"",
+		"Another agent built this game and says it is done. You are the QA evaluator: you did not build it, and builders are lenient with their own work. Be skeptical: find what does not work before anyone else does.",
+		"Goal: %s" % goal,
+	]
+	if files.has_spec():
+		lines.append("The spec is in %s and the builder's notes in %s: treat the notes as claims to verify, not facts." % [files.spec_path(), files.progress_path()])
+	if qa_round > 1 and FileAccess.file_exists(files.qa_path(qa_round - 1)):
+		lines.append("The previous QA report is %s: check that each of its problems is really fixed, then look for new ones." % files.qa_path(qa_round - 1))
+	lines.append_array([
+		"",
+		"How to evaluate:",
+		"- Play it like a user: godot.run_scene with inputs, godot.game_input for live keys, actions and clicks, godot.capture_game_frame to look at it, and godot.game_tree, godot.game_get and godot.game_wait to verify facts (the score went up, the enemy died, the level changed) instead of guessing from a frame.",
+		"- Read the code and the scenes, and check godot.get_errors.",
+		"- Do not change anything: edits, project settings and shell commands are denied. Report problems; the builder fixes them.",
+		"- If you found a problem, it fails. Do not talk yourself into approving it.",
+	])
+	if not checks.is_empty():
+		lines.append_array(["", "Checks the builder reported (decide each one yourself, keeping the same label):"])
+		for check: Dictionary in checks:
+			lines.append("- %s (builder says: %s)" % [check.label, check.get("claimed", check.status)])
+	lines.append_array([
+		"",
+		GameCriteria.evaluator_rubric(criteria),
+		"",
+		"Answer with your report and one ```json block: {\"checks\":[{\"label\",\"status\":\"pass|fail\",\"detail\"}], \"scores\":[{\"criterion\",\"score\",\"reason\"}], \"findings\":[{\"title\",\"body\":\"what fails and how to reproduce it\",\"path\":\"res://… where (if you know)\",\"line\",\"severity\":\"bug|order|perf|style\"}]}. Add a check for each problem you find that no check covers.",
+	])
+	return "\n".join(lines)
+
+
+func _run_qa_turn(text: String) -> Dictionary:
+	_turn_running = true
+	report.count("turns")
+	report.count("qa_turns")
+	var turn_started := _elapsed_ms()
+	_turn_tools = 0
+	var first_entry := model.entries().size()
+	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text)
+	_turn_running = false
+	if not is_instance_valid(self) or not is_inside_tree():
+		return {"reason": "", "text": ""}
+	_account_tokens(controller.last_turn_usage)
+	var turn_ms := _elapsed_ms() - turn_started
+	report.observe_turn(turn_started, turn_ms, reason, _turn_tools)
+	var turn_format := I18n.t("QA turn · %s · %d tool") if _turn_tools == 1 else I18n.t("QA turn · %s · %d tools")
+	_add_activity("turn", turn_format % [RunReport.format_ms(turn_ms), _turn_tools])
+	return {"reason": reason, "text": controller.agent_text_since(first_entry)}
+
+
+func _after_qa(reason: String, text: String) -> void:
+	if phase != RunPhase.EVALUATING:  # se pausó o se detuvo durante la evaluación
+		_end_qa_role()
+		return
+	if reason != "end_turn":
+		_end_qa_role()
+		_resume_qa = true
+		if quota.is_limited():
+			await _enter_limited()
+			return
+		resume_task = ""
+		_set_phase(RunPhase.PAUSED)
+		_add_activity("session", I18n.t("The evaluator's turn didn't finish: “Resume” evaluates again"))
+		return
+	var parsed := FindingsParser.parse(text, controller.cwd)
+	var verdict := GameCriteria.verdict(parsed.scores, criteria)
+	var failing_checks: Array = parsed.checks.filter(func(check: Dictionary) -> bool: return check.status != "pass")
+	var conclusive: bool = not parsed.checks.is_empty() or not parsed.scores.is_empty()
+	var passed: bool = conclusive and failing_checks.is_empty() and bool(verdict.passed)
+	var qa_file := files.qa_path(qa_round)
+	files.write(qa_file, "# QA %d\n\n%s\n" % [qa_round, text.strip_edges()])
+	_apply_qa_checks(parsed.checks)
+	var failing_criteria: Array = verdict.failing.map(func(item: Dictionary) -> String: return "%s %s/%d" % [item.name, _score_text(item.score), item.threshold])
+	failing_criteria.append_array(Array(verdict.missing).map(func(id: String) -> String: return "%s (%s)" % [id, I18n.t("no score")]))
+	qa_results.append({
+		"round": qa_round, "passed": passed, "weighted": verdict.weighted,
+		"failing_checks": failing_checks.map(func(check: Dictionary) -> String: return str(check.label)),
+		"failing_criteria": failing_criteria, "findings": parsed.findings.size(),
+		"file": qa_file.trim_prefix(files.project_root).trim_prefix("/"),
+	})
+	report.observe_checks(parsed.checks)
+	_end_qa_role()
+	if not conclusive:
+		_add_activity("warning", I18n.t("QA round %d: the evaluator didn't report checks or scores") % qa_round)
+	elif passed:
+		_add_activity("qa", I18n.t("QA round %d: passes (weighted score %s)") % [qa_round, _score_text(verdict.weighted)])
+	else:
+		var problems: PackedStringArray = []
+		problems.append_array(PackedStringArray(qa_results.back().failing_checks))
+		problems.append_array(PackedStringArray(failing_criteria))
+		_add_activity("qa", I18n.t("QA round %d: doesn't pass · %s") % [qa_round, ", ".join(problems)])
+		for finding: Dictionary in parsed.findings.slice(0, QA_ACTIVITY_FINDINGS):
+			_add_activity("qa", "%s · %s%s" % [finding.severity, finding.title, " (%s:%d)" % [finding.path.get_file(), finding.line] if int(finding.line) > 0 else " (%s)" % finding.path.get_file()])
+	changed.emit()
+	var back := await _back_to_generator()
+	if not is_inside_tree() or phase != RunPhase.EVALUATING:
+		return
+	if not conclusive:
+		_finish(I18n.t("%s The evaluator couldn't reach a verdict (see %s).") % [_done_reason, qa_results.back().file])
+	elif passed:
+		_finish(I18n.t("QA round %d: the game passes.") % qa_round)
+	elif qa_round >= qa_max_rounds or not _budget_left() or back == "failed":
+		_finish(I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file])
+	else:
+		_set_phase(RunPhase.RUNNING)
+		var fix := _fix_prompt(failing_checks, verdict, parsed)
+		_run_turn(_summary_prompt() + "\n\n" + fix if back == "new" else fix)
+
+
+## Los checks del evaluador mandan: pasan a `verified` y el autorreporte queda en `claimed`.
+func _apply_qa_checks(qa_checks: Array) -> void:
+	for check: Dictionary in qa_checks:
+		var found := false
+		for existing: Dictionary in checks:
+			if existing.label == check.label:
+				existing.erase("claimed")
+				existing.merge(check, true)
+				existing["verified"] = true
+				found = true
+		if not found:
+			var added := check.duplicate()
+			added["verified"] = true
+			checks.append(added)
+
+
+## El turno de corrección para el agente que construye.
+func _fix_prompt(failing_checks: Array, verdict: Dictionary, parsed: Dictionary) -> String:
+	var lines: PackedStringArray = [
+		"QA round %d: an independent evaluator played the game and it doesn't pass yet. Fix these problems, verify each fix (run_scene, and game_get or game_wait to check facts), update %s and report the checks block. The full report is in %s." % [qa_round, files.progress_path(), files.qa_path(qa_round)],
+	]
+	if not failing_checks.is_empty():
+		lines.append_array(["", "Checks that fail:"])
+		for check: Dictionary in failing_checks:
+			lines.append("- %s%s" % [check.label, ": " + str(check.detail) if not str(check.get("detail", "")).is_empty() else ""])
+	var reasons := {}
+	for score: Dictionary in parsed.scores:
+		reasons[GameCriteria.match_id(str(score.criterion), criteria)] = str(score.get("reason", ""))
+	if not verdict.failing.is_empty() or not verdict.missing.is_empty():
+		lines.append_array(["", "Criteria below the minimum:"])
+		for item: Dictionary in verdict.failing:
+			lines.append("- %s: %s of %d. %s" % [item.name, _score_text(item.score), item.threshold, reasons.get(item.id, "")])
+	if not parsed.findings.is_empty():
+		lines.append_array(["", "Findings:"])
+		for finding: Dictionary in parsed.findings:
+			var where: String = finding.path + (":%d" % finding.line if int(finding.line) > 0 else "")
+			lines.append("- [%s] %s (%s): %s" % [finding.severity, finding.title, where, finding.body])
+	return "\n".join(lines)
+
+
+## Vuelve a la sesión del agente que construye: "loaded" (session/load), "new" (sesión nueva, va
+## con el resumen) o "failed".
+func _back_to_generator() -> String:
+	var session_id := _generator_session_id
+	_generator_session_id = ""
+	if session_id.is_empty():
+		return "loaded"
+	if not await _restart_session(session_id):
+		_add_activity("warning", I18n.t("Couldn't go back to the builder's session"))
+		return "failed"
+	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+	if model.session_id == session_id:
+		_add_activity("session", I18n.t("Back to the builder's session"))
+		return "loaded"
+	_add_activity("session", I18n.t("Back to the builder: opened a new session with the plan summary"))
+	return "new"
+
+
+func _end_qa_role() -> void:
+	controller.policy.restrictions = {}
+	controller.mode_rules_override = ""
+
+
+## La sesión que se guarda para retomar: la del agente que construye, también mientras evalúa.
+func _saved_session_id() -> String:
+	if not _recovered_session_id.is_empty():
+		return _recovered_session_id
+	return _generator_session_id if not _generator_session_id.is_empty() else model.session_id
+
+
+func _budget_left() -> bool:
+	return [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS].all(func(budget: String) -> bool: return budget_ratio(budget) < 1.0)
+
+
+static func _score_text(value: Variant) -> String:
+	var number := float(value)
+	return str(int(number)) if is_equal_approx(number, roundf(number)) else "%.1f" % number
+
+
 # --- persistencia (D37) ---------------------------------------------------------------------------
 
 ## El editor se cierra o se deshabilita el plugin con el run en curso: queda guardado como estaba,
@@ -1033,8 +1324,11 @@ func to_dict() -> Dictionary:
 		"pause_note": pause_note,
 		"spec_review": spec_review,
 		"awaiting_spec": _awaiting_spec,
+		"qa_round": qa_round,
+		"qa_results": qa_results,
+		"resume_qa": _resume_qa or phase == RunPhase.EVALUATING,
 		"report": report.to_dict(),
-		"session_id": _recovered_session_id if not _recovered_session_id.is_empty() else model.session_id,
+		"session_id": _saved_session_id(),
 		"elapsed_ms": _elapsed_ms(),
 		"capture_caption": last_capture_caption,
 	}
@@ -1065,6 +1359,10 @@ func _apply(data: Dictionary) -> void:
 	files.run_id = run_id
 	spec_review = bool(data.get("spec_review", false))
 	_awaiting_spec = bool(data.get("awaiting_spec", false))
+	qa_round = int(data.get("qa_round", 0))
+	qa_results.assign(data.get("qa_results", []))
+	_resume_qa = bool(data.get("resume_qa", false))
+	_generator_session_id = ""
 	report.apply(data.get("report", {}) if data.get("report") is Dictionary else {})
 	last_report = {}
 	_recovered_session_id = str(data.get("session_id", ""))

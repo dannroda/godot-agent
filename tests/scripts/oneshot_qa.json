@@ -1,0 +1,132 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Armo Pong.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run1",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run1",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.2
+    },
+    {
+     "chunk": "Listo.\n```json\n{\"checks\": [{\"label\": \"Pong jugable\", \"status\": \"pass\"}, {\"label\": \"Puntaje\", \"status\": \"pass\"}]}\n```"
+    }
+   ]
+  }
+ ],
+ "evaluator_turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Evalúo el juego.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "qa_run1",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "qa_run1",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.8
+    },
+    {
+     "chunk": "El puntaje no anda.\n```json\n{\"checks\": [{\"label\": \"Pong jugable\", \"status\": \"pass\"}, {\"label\": \"Puntaje\", \"status\": \"fail\", \"detail\": \"el puntaje no sube al hacer un gol\"}], \"scores\": [{\"criterion\": \"playability\", \"score\": 6, \"reason\": \"no hay forma de ganar\"}, {\"criterion\": \"functionality\", \"score\": 5, \"reason\": \"el puntaje no sube\"}, {\"criterion\": \"visual\", \"score\": 7, \"reason\": \"ok\"}, {\"criterion\": \"code\", \"score\": 7, \"reason\": \"ok\"}], \"findings\": [{\"title\": \"El puntaje no sube\", \"body\": \"Con game_wait score >= 1 después de un gol, se vence: score queda en 0.\", \"path\": \"res://score.gd\", \"line\": 12, \"severity\": \"bug\"}]}\n```"
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "chunk": "Reviso la corrección.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "qa_run2",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "qa_run2",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "chunk": "Ahora pasa.\n```json\n{\"checks\": [{\"label\": \"Pong jugable\", \"status\": \"pass\"}, {\"label\": \"Puntaje\", \"status\": \"pass\", \"detail\": \"sube con cada gol\"}], \"scores\": [{\"criterion\": \"playability\", \"score\": 8, \"reason\": \"loop completo\"}, {\"criterion\": \"functionality\", \"score\": 8, \"reason\": \"todo anda\"}, {\"criterion\": \"visual\", \"score\": 7, \"reason\": \"legible\"}, {\"criterion\": \"code\", \"score\": 7, \"reason\": \"tipado\"}], \"findings\": []}\n```"
+    }
+   ]
+  }
+ ]
+}

@@ -29,7 +29,8 @@ Never run One-shot on a repository where you don't want new branches. To try it,
 4. **Checkpoints**: each task (or each playtest, if the agent doesn't report a plan) is a `cpN` commit on the `agent/<date>` branch.
    - **Restore here** puts the project back exactly as it was at that checkpoint and pauses the run;
    - **Resume** continues from there.
-5. **End**: when the plan is done and the checks pass, or a budget runs out, the agent writes a final report and the run finishes.
+5. **QA**: when the agent says the game is done, a separate evaluator checks it (see below). If it doesn't pass, its findings go back to the agent for another round.
+6. **End**: when QA passes, the QA rounds run out, or a budget runs out, the run finishes (with a budget, the agent writes a final report first).
    - **Review changes** lists the files; double-click shows the diff against the start;
    - **Accept all** makes a final commit on `agent/<date>`. You do the merge;
    - **Report** shows what the harness measured (see below).
@@ -49,6 +50,18 @@ Never run One-shot on a repository where you don't want new branches. To try it,
   - your guidance.
 - **Side**: the last playtest capture, the checks and the checkpoint list.
 - **Bottom bar**: summary of changed files, **Review changes**, **Accept all**.
+
+## QA evaluator
+
+The agent that builds tends to be lenient with its own work, so the harness doesn't take its checks at face value.
+
+- When the agent says it's done, a **new session** opens for an evaluator. It doesn't see the builder's conversation: only the goal, the spec, the builder's notes (as claims to verify), the checks it reported and the game criteria with their scoring examples.
+- The evaluator **plays the game**: `run_scene` with inputs, live input, `game_get`/`game_wait` to check facts, frames and errors, and it reads the code. It **can't edit**: editing files, scenes or project settings and the shell are denied while it evaluates.
+- It answers with checks, a score per criterion and concrete findings (what fails, how to reproduce it, where). Its report goes to `qa-<n>.md`.
+- Its verdict decides the checks. The game passes when every check passes and every criterion reaches its minimum.
+- If it doesn't pass, the run goes back to the builder's session with the failing checks, the criteria below the minimum and the findings as the next turn. When the builder says it's done again, a new QA round starts.
+- **QA rounds** (Settings → One-shot, 2 by default) is how many evaluations a run gets; 0 turns the evaluator off. QA turns count toward the budgets, and a run with no budget left ends without another round.
+- During an evaluation the phase reads **Evaluating · QA round n**, the activity shows each round's verdict and findings, and **Pause** works as usual (Resume evaluates again). The report has a table with the rounds.
 
 ## Guiding the agent
 

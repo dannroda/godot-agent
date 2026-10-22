@@ -1,0 +1,90 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Arreglo el puntaje.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run2",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run2",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.2
+    },
+    {
+     "chunk": "Corregido.\n```json\n{\"checks\": [{\"label\": \"Puntaje\", \"status\": \"pass\"}]}\n```"
+    }
+   ]
+  }
+ ],
+ "evaluator_turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Reviso la corrección.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "qa_run2",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "qa_run2",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "chunk": "Ahora pasa.\n```json\n{\"checks\": [{\"label\": \"Pong jugable\", \"status\": \"pass\"}, {\"label\": \"Puntaje\", \"status\": \"pass\", \"detail\": \"sube con cada gol\"}], \"scores\": [{\"criterion\": \"playability\", \"score\": 8, \"reason\": \"loop completo\"}, {\"criterion\": \"functionality\", \"score\": 8, \"reason\": \"todo anda\"}, {\"criterion\": \"visual\", \"score\": 7, \"reason\": \"legible\"}, {\"criterion\": \"code\", \"score\": 7, \"reason\": \"tipado\"}], \"findings\": []}\n```"
+    }
+   ]
+  }
+ ]
+}

@@ -8,6 +8,9 @@ extends SceneTree
 ##     "session": {...}         campos extra del resultado de session/new (modes, configOptions)
 ##     "on_new_session": [pasos] pasos que corren después de responder session/new
 ##     "turns": [ {"steps": [paso, ...]}, ... ]   un turno por prompt; el último se repite
+##     "evaluator_turns": [ … ]  turnos de las sesiones del evaluador del One-shot (D55): una sesión
+##                              cuyo prompt trae "QA evaluation (One-shot)" usa esta lista, con su
+##                              propio índice; las demás siguen con `turns`
 ##     "auth": {"marker": "user://…", "code": "…"}   session/new responde authRequired (-32000)
 ##                              mientras no exista `marker`. Con `--login` en los args (el método
 ##                              `terminal` del guion) el proceso hace de login: imprime el enlace
@@ -38,6 +41,8 @@ var _inbox_mutex := Mutex.new()
 var _reader: Thread
 var _session_id: String = ""
 var _turn_index: int = 0
+var _qa_turn_index: int = 0
+var _qa_sessions: Dictionary = {}
 var _prompt_id: Variant = null
 var _steps: Array = []
 var _wait_until_msec: int = 0
@@ -143,8 +148,12 @@ func _handle_line(line: String) -> void:
 			_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "(replay del agente)"}})
 			_reply(id, _scenario.get("session", {}))
 		"session/prompt":
-			printerr("fake_agent: prompt %s" % JSON.stringify(message.get("params", {}).get("prompt", [])))
-			_start_turn(id)
+			var prompt_text := JSON.stringify(message.get("params", {}).get("prompt", []))
+			printerr("fake_agent: prompt %s" % prompt_text)
+			var prompt_session := str(message.get("params", {}).get("sessionId", ""))
+			if prompt_text.contains("QA evaluation (One-shot)") and _scenario.has("evaluator_turns"):
+				_qa_sessions[prompt_session] = true
+			_start_turn(id, _qa_sessions.has(prompt_session))
 		"session/cancel":
 			printerr("fake_agent: cancel")
 			if _prompt_id != null:
@@ -162,15 +171,19 @@ func _handle_line(line: String) -> void:
 				_send({"jsonrpc": "2.0", "id": id, "error": {"code": -32601, "message": "Method not found"}})
 
 
-func _start_turn(id: Variant) -> void:
+func _start_turn(id: Variant, evaluator: bool = false) -> void:
 	_prompt_id = id
-	var turns: Array = _scenario.get("turns", [])
+	var turns: Array = _scenario.get("evaluator_turns" if evaluator else "turns", [])
+	var index := _qa_turn_index if evaluator else _turn_index
 	if turns.is_empty():
 		_steps = [{"chunk": "Hola, soy el agente falso."}, {"stop": "end_turn"}]
 	else:
-		var turn: Dictionary = turns[mini(_turn_index, turns.size() - 1)]
+		var turn: Dictionary = turns[mini(index, turns.size() - 1)]
 		_steps = (turn.get("steps", []) as Array).duplicate(true)
-	_turn_index += 1
+	if evaluator:
+		_qa_turn_index += 1
+	else:
+		_turn_index += 1
 	_message_counter += 1
 
 

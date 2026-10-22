@@ -84,6 +84,9 @@ var cwd: String = ""
 var mcp_servers_provider: Callable
 ## Callable() -> Dictionary: variables para el prompt de sistema ({project_name}, …).
 var prompt_variables_provider: Callable
+## Reglas del modo para el prompt de sistema en lugar de las de MODE_RULES ("" = las del modo).
+## Las usa el evaluador del One-shot (D55), que corre en modo One-shot pero solo prueba.
+var mode_rules_override: String = ""
 ## Después de un login exitoso: si devuelve true, ya se ocupó de la sesión (el One-shot retoma la
 ## suya con la cuenta nueva) y no se abre una sesión nueva.
 var after_login: Callable
@@ -463,7 +466,7 @@ func system_prompt() -> String:
 	var template := FileAccess.get_file_as_string(SYSTEM_PROMPT_PATH)
 	var variables: Dictionary = prompt_variables_provider.call() if prompt_variables_provider.is_valid() else {}
 	variables["mode"] = SessionModel.HARNESS_MODE_LABELS[model.harness_mode]
-	variables["mode_rules"] = MODE_RULES[model.harness_mode]
+	variables["mode_rules"] = mode_rules_override if not mode_rules_override.is_empty() else MODE_RULES[model.harness_mode]
 	variables["project_path"] = variables.get("project_path", cwd)
 	variables["project_name"] = variables.get("project_name", cwd.get_file())
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)

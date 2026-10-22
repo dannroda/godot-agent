@@ -36,7 +36,7 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -78,6 +78,7 @@ var _manual_runs_check: CheckBox
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
 var _loop_spin: SpinBox
+var _qa_spin: SpinBox
 var _spec_review_check: CheckBox
 ## id -> {weight: SpinBox, threshold: SpinBox}
 var _criteria_spins: Dictionary = {}
@@ -281,6 +282,8 @@ func _build_oneshot(page: VBoxContainer) -> void:
 	page.add_child(_spec_review_check)
 	_loop_spin = _spin_row(page, I18n.t("Loop: identical repetitions"), 2, 20, 1, "")
 	_loop_spin.tooltip_text = I18n.t("A check that fails the same way, a tool call that fails with the same arguments, or the same change repeated.\nThe first time, the agent is asked for another approach; if it happens again, the One-shot pauses.")
+	_qa_spin = _spin_row(page, I18n.t("QA rounds"), 0, 5, 1, "")
+	_qa_spin.tooltip_text = I18n.t("When the agent says the game is done, a separate agent evaluates it (without the builder's context and without editing) and decides the checks. If it doesn't pass, its findings go back to the builder for another round.\n0 = no evaluator: the checks the agent reports count.")
 	page.add_child(_title(I18n.t("Game evaluation criteria (per project)")))
 	page.add_child(_hint(I18n.t("They go into the agent's prompt and the evaluator's rubric. Scores go from 0 to 10: the game passes if every criterion reaches its minimum. Weight 0 = not used.")))
 	var grid := GridContainer.new()
@@ -412,6 +415,7 @@ func _load() -> void:
 	_budget_spins.playtests.value = _config.budget_playtests
 	_checkpoints_check.button_pressed = _config.checkpoints_enabled
 	_loop_spin.value = _config.loop_repeats
+	_qa_spin.value = _config.qa_rounds
 	_spec_review_check.button_pressed = _config.spec_review
 	for criterion: Dictionary in GameCriteria.resolve(_config.criteria):
 		_criteria_spins[criterion.id].weight.value = criterion.weight
@@ -470,6 +474,7 @@ func _on_save() -> void:
 	_config.budget_playtests = int(_budget_spins.playtests.value)
 	_config.checkpoints_enabled = _checkpoints_check.button_pressed
 	_config.loop_repeats = int(_loop_spin.value)
+	_config.qa_rounds = int(_qa_spin.value)
 	_config.spec_review = _spec_review_check.button_pressed
 	var criteria := {}
 	for criterion: Dictionary in GameCriteria.DEFAULTS:

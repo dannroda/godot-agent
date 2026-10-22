@@ -182,6 +182,7 @@ func build(run: Dictionary) -> Dictionary:
 		"events": events.duplicate(),
 		"changes": run.get("changes", {}),
 		"files_dir": str(run.get("files_dir", "")),
+		"qa": run.get("qa", []),
 	}
 
 
@@ -236,6 +237,12 @@ static func to_markdown(report: Dictionary) -> String:
 		lines.append_array(["", "### %s" % I18n.t("Checks"), I18n.t("| Check | Status | Times failed |"), "|---|---|---|"])
 		for row: Dictionary in checks:
 			lines.append("| %s | %s | %d |" % [str(row.label).replace("|", "/"), row.status, row.failures])
+	var qa: Array = report.get("qa", [])
+	if not qa.is_empty():
+		lines.append_array(["", "### %s" % I18n.t("QA rounds"), I18n.t("| Round | Verdict | Weighted score | Fails | Findings |"), "|---|---|---|---|---|"])
+		for row: Dictionary in qa:
+			var fails: Array = Array(row.get("failing_checks", [])) + Array(row.get("failing_criteria", []))
+			lines.append("| %d | %s | %s | %s | %d |" % [int(row.get("round", 0)), I18n.t("passes") if row.get("passed", false) else I18n.t("doesn't pass"), str(row.get("weighted", "—")), ", ".join(PackedStringArray(fails)).replace("|", "/") if not fails.is_empty() else "—", int(row.get("findings", 0))])
 	lines.append_array(["", "### %s" % I18n.t("Events")])
 	lines.append(I18n.t("- Permissions asked: %d · denied: %d") % [int(events.get("permissions_asked", 0)), int(events.get("permissions_denied", 0))])
 	lines.append(I18n.t("- Turns with errors: %d · quota pauses: %d · plan limits: %d") % [int(events.get("turn_errors", 0)), int(events.get("quota_pauses", 0)), int(events.get("limited", 0))])

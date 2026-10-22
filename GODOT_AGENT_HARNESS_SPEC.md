@@ -349,8 +349,9 @@ Dentro de un diálogo propio o una sección en Project Settings:
 5. **Presupuestos**:
    - Al 80% de cualquier presupuesto, avisar en la UI.
    - Al 100%, mandar `session/cancel` y luego un prompt de cierre que pida un reporte final.
-6. **"Volver acá"**: confirmar, luego `git reset --hard cpN` dentro de la rama del agente (nunca en la rama del usuario), `scan()` del filesystem y recarga de las escenas abiertas.
-7. "Aceptar todo" deja la rama lista para que el usuario haga merge. **El harness nunca hace merge ni push solo.**
+6. **Evaluador (QA)**: cuando el agente da el objetivo por cumplido, un agente aparte (sesión nueva, sin el contexto del que construye, sin permisos de edición) juega el juego y califica checks y criterios. Su veredicto decide los checks; si no pasa, sus hallazgos vuelven al que construye como el próximo turno, hasta `qa_rounds` evaluaciones (default 2). Ver D55.
+7. **"Volver acá"**: confirmar, luego `git reset --hard cpN` dentro de la rama del agente (nunca en la rama del usuario), `scan()` del filesystem y recarga de las escenas abiertas.
+8. "Aceptar todo" deja la rama lista para que el usuario haga merge. **El harness nunca hace merge ni push solo.**
 
 Todos los comandos git se ejecutan con `OS.execute` y argumentos en array (sin shell). Si git no está disponible, los checkpoints se desactivan con un aviso.
 

@@ -12,6 +12,7 @@ extends RefCounted
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
+const RunReport := preload("res://addons/godot_agent/oneshot/run_report.gd")
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
@@ -50,6 +51,8 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_run.after_restore = func(paths: PackedStringArray) -> void: _restored = paths
 	_run.restart_session = func(_lost_id: String) -> bool: return await controller.call(&"start", _profile())
 	_run.resume_auto = true
+	var qa_rounds: int = _run.qa_max_rounds
+	_run.qa_max_rounds = 0  # los guiones de antes del evaluador (D55) terminan con lo que reporta el agente
 	var store_dir := ProjectSettings.globalize_path(REPO_DIR + "_store")
 	OS.execute("rm", ["-rf", store_dir])
 	_run.store.dir = store_dir  # no el del proyecto: un run a medias aparecería en otra prueba
@@ -199,7 +202,8 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(notices.size() == 1 and (notices[0].get(&"actions") as Array).map(func(action: Dictionary) -> String: return str(action.label)) == ["Resume One-shot", "Open Agent screen"], "run a medias: aviso con «Resume One-shot» y «Open Agent screen»")
 	var restored_dock := _find_by_script(DOCK_SCRIPT)
 	var dock_start: Button = restored_dock.get(&"_start_button")
-	_check(dock_start.is_visible_in_tree() and dock_start.text == "Resume One-shot", "run a medias: el dock ofrece «Resume One-shot» (%s, %s)" % [dock_start.is_visible_in_tree(), dock_start.text])
+	# Dentro del dock: según el layout del editor, la pestaña del dock puede no ser la elegida en su slot.
+	_check(_visible_within(dock_start, restored_dock) and dock_start.text == "Resume One-shot", "run a medias: el dock ofrece «Resume One-shot» (%s, %s)" % [_visible_within(dock_start, restored_dock), dock_start.text])
 	_check((_screen.get(&"_run_view") as Control).is_visible_in_tree(), "run a medias: se ve el run")
 	_check(_text(&"_phase_label").begins_with("Paused"), "run a medias: fase " + _text(&"_phase_label"))
 	_check(_text(&"_banner_label").begins_with("The One-shot was left unfinished"), "run a medias: banner " + _text(&"_banner_label"))
@@ -266,6 +270,34 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	await _frames(2)
 	_check(files_dialog.visible and tabs.current_tab == 1 and (tabs.get_child(1) as TextEdit).text.contains("paletas"), "spec: el link a progress.md abre su pestaña")
 	files_dialog.hide()
+
+	# Evaluador (D55): la fase «Evaluando» con su vuelta, Pausar disponible, y el final con el veredicto.
+	var qa_repo := _make_repo()
+	_run.git.root = qa_repo
+	_run.files.project_root = qa_repo
+	_run.qa_max_rounds = 2
+	var starts: Array[int] = [0]
+	_run.restart_session = func(_lost_id: String) -> bool:
+		starts[0] += 1
+		return await controller.call(&"start", _profile("oneshot_qa" if starts[0] == 1 else "oneshot_qa_fix"))
+	controller.call(&"stop")
+	(_screen.get(&"_new_button") as Button).pressed.emit()
+	await _frames(2)
+	(_screen.get(&"_spec_check") as CheckBox).button_pressed = false
+	start.pressed.emit()
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.EVALUATING)
+	await _frames(3)
+	_check(_text(&"_phase_label").begins_with("Evaluating · QA round 1"), "qa: fase " + _text(&"_phase_label"))
+	var pause: Button = _screen.get(&"_pause_button")
+	_check(pause.text == "Pause" and not pause.disabled, "qa: se puede pausar mientras evalúa")
+	_shot(shot_path, "_qa")
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.FINISHED and not _run.last_report.is_empty())
+	await _frames(3)
+	_check(_text(&"_banner_label") == "QA round 2: the game passes.", "qa: banner de fin " + _text(&"_banner_label"))
+	var qa_activity := (_screen.get(&"_activity_text") as RichTextLabel).get_parsed_text()
+	_check(qa_activity.contains("QA round 1: doesn't pass · Puntaje") and qa_activity.contains("El puntaje no sube (score.gd:12)"), "qa: la actividad muestra los hallazgos de la vuelta")
+	_check(RunReport.to_markdown(_run.last_report).contains("| 1 | doesn't pass |"), "qa: el informe tiene las vueltas")
+	_run.qa_max_rounds = qa_rounds
 	controller.call(&"stop")
 	return failures
 
@@ -346,6 +378,15 @@ func run_claude_oneshot(tree: SceneTree, shot_path: String = "") -> PackedString
 		_shot(shot_path, "_restored")
 	_run.controller.call(&"stop")
 	return failures
+
+
+## Si `node` se ve dentro de `root` (sin contar si se ve `root`).
+static func _visible_within(node: Node, root: Node) -> bool:
+	while node and node != root:
+		if node is CanvasItem and not (node as CanvasItem).visible:
+			return false
+		node = node.get_parent()
+	return node == root
 
 
 func _find_by_script(path: String) -> Node:

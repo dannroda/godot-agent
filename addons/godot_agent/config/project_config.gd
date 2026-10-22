@@ -19,6 +19,9 @@ const PATH := "res://addons/godot_agent/config/project_config.tres"
 ## Repeticiones iguales (check que falla, tool call que falla o cambio repetido) que el One-shot
 ## toma como loop (D38): la primera vez pide otro enfoque, la segunda pausa.
 @export_range(2, 20) var loop_repeats: int = 3
+## Vueltas de QA del One-shot (D55): cuántas veces evalúa un agente aparte, con una vuelta de
+## corrección entre una y otra. 0 = sin evaluador (valen los checks que reporta el agente).
+@export_range(0, 5) var qa_rounds: int = 2
 ## Criterios de evaluación del juego (D40): id -> {weight, threshold}. Vacío = defaults de
 ## oneshot/game_criteria.gd.
 @export var criteria: Dictionary = {}

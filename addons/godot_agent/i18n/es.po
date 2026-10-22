@@ -1897,3 +1897,72 @@ msgstr "No se pudo capturar el frame del juego."
 
 msgid "screenshot"
 msgstr "captura"
+
+msgid "Evaluating"
+msgstr "Evaluando"
+
+msgid "Evaluating · QA round %d"
+msgstr "Evaluando · vuelta de QA %d"
+
+msgid "QA round %d: an independent evaluator plays and checks the game"
+msgstr "Vuelta de QA %d: un evaluador aparte juega y revisa el juego"
+
+msgid "Couldn't open the evaluator's session"
+msgstr "No se pudo abrir la sesión del evaluador"
+
+msgid "QA turn · %s · %d tool"
+msgstr "Turno de QA · %s · %d tool"
+
+msgid "QA turn · %s · %d tools"
+msgstr "Turno de QA · %s · %d tools"
+
+msgid "The evaluator's turn didn't finish: “Resume” evaluates again"
+msgstr "El turno del evaluador no terminó: «Retomar» vuelve a evaluar"
+
+msgid "no score"
+msgstr "sin puntaje"
+
+msgid "QA round %d: the evaluator didn't report checks or scores"
+msgstr "Vuelta de QA %d: el evaluador no reportó checks ni puntajes"
+
+msgid "QA round %d: passes (weighted score %s)"
+msgstr "Vuelta de QA %d: pasa (puntaje ponderado %s)"
+
+msgid "QA round %d: doesn't pass · %s"
+msgstr "Vuelta de QA %d: no pasa · %s"
+
+msgid "%s The evaluator couldn't reach a verdict (see %s)."
+msgstr "%s El evaluador no llegó a un veredicto (ver %s)."
+
+msgid "QA round %d: the game passes."
+msgstr "Vuelta de QA %d: el juego pasa."
+
+msgid "QA round %d: the game doesn't pass yet (see %s)."
+msgstr "Vuelta de QA %d: el juego todavía no pasa (ver %s)."
+
+msgid "Couldn't go back to the builder's session"
+msgstr "No se pudo volver a la sesión del agente que construye"
+
+msgid "Back to the builder's session"
+msgstr "De vuelta en la sesión del agente que construye"
+
+msgid "Back to the builder: opened a new session with the plan summary"
+msgstr "De vuelta al agente que construye: se abrió una sesión nueva con el resumen del plan"
+
+msgid "QA rounds"
+msgstr "Vueltas de QA"
+
+msgid "When the agent says the game is done, a separate agent evaluates it (without the builder's context and without editing) and decides the checks. If it doesn't pass, its findings go back to the builder for another round.\n0 = no evaluator: the checks the agent reports count."
+msgstr "Cuando el agente dice que el juego está terminado, otro agente lo evalúa (sin el contexto del que construye y sin editar) y decide los checks. Si no pasa, sus hallazgos vuelven al que construye para otra vuelta.\n0 = sin evaluador: valen los checks que reporta el agente."
+
+msgid "QA"
+msgstr "QA"
+
+msgid "| Round | Verdict | Weighted score | Fails | Findings |"
+msgstr "| Vuelta | Veredicto | Puntaje ponderado | Falla | Hallazgos |"
+
+msgid "passes"
+msgstr "pasa"
+
+msgid "doesn't pass"
+msgstr "no pasa"
