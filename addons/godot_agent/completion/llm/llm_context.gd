@@ -24,8 +24,8 @@ static func sections(context: ProjectContext, path: String, text: String) -> Arr
 			break
 		var reference := "%" + str(node.name) if node.unique else "$" + str(node.path)
 		nodes.append("%s: %s" % [reference, node.type] if not str(node.type).is_empty() else reference)
-	out.append(["Nodos de la escena de este script", nodes])
-	out.append(["Clase base", PackedStringArray([context.native_base(text)])])
+	out.append(["Nodes in this script's scene", nodes])
+	out.append(["Base class", PackedStringArray([context.native_base(text)])])
 	var classes := PackedStringArray()
 	var global := context.global_classes()
 	var seen: Dictionary = {}
@@ -44,7 +44,7 @@ static func sections(context: ProjectContext, path: String, text: String) -> Arr
 		if not signals.is_empty():
 			line += "; signals: " + ", ".join(PackedStringArray(signals.keys().slice(0, 8)))
 		classes.append(line)
-	out.append(["Clases del proyecto que usa este archivo", classes])
+	out.append(["Project classes this file uses", classes])
 	var autoloads := PackedStringArray()
 	var loads := context.autoloads()
 	for name: String in loads:
@@ -54,8 +54,8 @@ static func sections(context: ProjectContext, path: String, text: String) -> Arr
 	for action: String in context.input_actions():
 		if not action.begins_with("ui_"):
 			actions.append(action)
-	out.append(["Acciones del input map", actions.slice(0, MAX_ITEMS)])
-	out.append(["Grupos", context.groups().slice(0, MAX_ITEMS)])
+	out.append(["Input map actions", actions.slice(0, MAX_ITEMS)])
+	out.append(["Groups", context.groups().slice(0, MAX_ITEMS)])
 	return out
 
 

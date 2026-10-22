@@ -7,6 +7,7 @@ signal open_requested(path: String, line: int)
 const AgentTheme := preload("../../agent_theme.gd")
 const LineDiff := preload("../../../core/line_diff.gd")
 const MarkdownBBCode := preload("../../markdown/markdown_bbcode.gd")
+const I18n := preload("../../../core/i18n.gd")
 
 const PREVIEW_LINES := 8
 
@@ -48,7 +49,7 @@ func _ready() -> void:
 	removed.add_theme_color_override(&"font_color", AgentTheme.REMOVED)
 	header.add_child(removed)
 	var open := Button.new()
-	open.text = "Abrir en Script"
+	open.text = I18n.t("Open in Script")
 	open.flat = true
 	open.add_theme_color_override(&"font_color", _accent)
 	open.pressed.connect(func() -> void: open_requested.emit(_path, LineDiff.first_changed_line(ops)))
@@ -85,5 +86,5 @@ func _ready() -> void:
 		])
 		shown += 1
 	if changed_total > shown:
-		lines.append("[color=#8a8f98]⋯ %d líneas más[/color]" % (changed_total - shown))
+		lines.append("[color=#8a8f98]⋯ %s[/color]" % (I18n.t("%d more lines") % (changed_total - shown)))
 	preview.text = "\n".join(lines)

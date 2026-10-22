@@ -298,7 +298,7 @@ func _llm_step(controller: Object, settings: HarnessSettings, server: Node, shot
 	settings.set_value(HarnessSettings.KEY_COMPLETION_MODE, HarnessSettings.COMPLETION_MODES.find("hybrid"))
 	_service.call(&"apply_settings")
 	_check(str(controller.get(&"mode")) == "hybrid", "el controller pasa a híbrido sin reiniciar (%s)" % controller.get(&"mode"))
-	_check(indicator.mode_label == "híbrido · fake-coder", "indicador: modo y modelo (%s)" % indicator.mode_label)
+	_check(indicator.mode_label == "hybrid · fake-coder", "indicador: modo y modelo (%s)" % indicator.mode_label)
 
 	# Nada local para `spawn_w`: el LLM completa después del debounce y la sugerencia lleva la marca.
 	_goto_new_line(_code_edit.get_line_count())

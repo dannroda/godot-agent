@@ -72,10 +72,10 @@ func refresh() -> void:
 		total_msec += call.duration_msec()
 		if call.status == ToolCall.STATUS_FAILED:
 			failed += 1
-	var noun := "herramienta" if calls.size() == 1 else "herramientas"
-	var text := "%s %d %s · %s" % ["▾" if _header.button_pressed else "▸", calls.size(), noun, _format_duration(total_msec)]
+	var count := (I18n.t("%d tool") if calls.size() == 1 else I18n.t("%d tools")) % calls.size()
+	var text := "%s %s · %s" % ["▾" if _header.button_pressed else "▸", count, _format_duration(total_msec)]
 	if failed > 0:
-		text += " · %d con error" % failed
+		text += " · " + I18n.t("%d with errors") % failed
 	_header.text = text
 	if running and _spinner_timer.is_inside_tree() and _spinner_timer.is_stopped():
 		_spinner_timer.start()
@@ -121,9 +121,9 @@ func _refresh_row(call: ToolCall, container: VBoxContainer) -> void:
 	summary_label.text = _summary(call)
 	var undo_button: Button = parts.undo
 	undo_button.visible = call.can_undo()
-	undo_button.tooltip_text = "Deshacer «%s» en el editor" % call.undo_info.get("action", "") if call.can_undo() else ""
+	undo_button.tooltip_text = I18n.t("Undo «%s» in the editor") % call.undo_info.get("action", "") if call.can_undo() else ""
 	if call.undo_done:
-		summary_label.text = "deshecho · " + summary_label.text
+		summary_label.text = I18n.t("undone · %s") % summary_label.text
 	_refresh_extra(call, parts.extra)
 	_refresh_subagent(call, parts)
 
@@ -150,9 +150,9 @@ func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 	row.add_child(summary)
 	var undo := Button.new()
 	undo.flat = true
-	undo.text = "↶ undo"
+	undo.text = "↶ " + I18n.t("undo")
 	undo.visible = false
-	undo.tooltip_text = "Deshacer en el editor (Ctrl+Z)"
+	undo.tooltip_text = I18n.t("Undo in the editor (Ctrl+Z)")
 	undo.pressed.connect(func() -> void: action_requested.emit("undo_tool_call", call.id))
 	row.add_child(undo)
 	var extra := VBoxContainer.new()
@@ -195,8 +195,8 @@ func _refresh_subagent(call: ToolCall, parts: Dictionary) -> void:
 		return
 	var children := _lookup(call.child_ids)
 	var toggle: Button = parts.toggle
-	var noun := "herramienta" if children.size() == 1 else "herramientas"
-	var text := "%s %d %s del subagente" % ["▾" if toggle.button_pressed else "▸", children.size(), noun]
+	var count := (I18n.t("%d subagent tool") if children.size() == 1 else I18n.t("%d subagent tools")) % children.size()
+	var text := "%s %s" % ["▾" if toggle.button_pressed else "▸", count]
 	if not call.is_finished() and not children.is_empty():
 		var latest: ToolCall = children.back()
 		text += " · " + _short_name(latest)
@@ -229,7 +229,7 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 				card.open_requested.connect(func(path: String, line: int) -> void: action_requested.emit("open_location", {"path": path, "line": line}))
 				extra.add_child(card)
 			"terminal":
-				extra.add_child(_muted_label("Terminal: no soportado en v1."))
+				extra.add_child(_muted_label(I18n.t("Terminal: not supported in v1.")))
 			"content":
 				var inner: Variant = block.get("content")
 				if not inner is Dictionary:
@@ -247,7 +247,7 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 						extra.add_child(_muted_label("📎 " + str(inner.get("uri", ""))))
 					"resource":
 						var resource: Variant = inner.get("resource")
-						extra.add_child(_muted_label("📎 " + (str(resource.get("uri", "")) if resource is Dictionary else "recurso")))
+						extra.add_child(_muted_label("📎 " + (str(resource.get("uri", "")) if resource is Dictionary else I18n.t("resource"))))
 	var links := HFlowContainer.new()
 	for location: Variant in call.locations:
 		if location is Dictionary and location.get("path") is String:
@@ -268,19 +268,21 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 ## Un subagente muestra su prompt mientras trabaja y su informe al terminar.
 static func _output_noun(call: ToolCall) -> String:
 	if not call.is_subagent():
-		return "salida"
-	return "informe" if call.status == ToolCall.STATUS_COMPLETED else "prompt"
+		return I18n.t("output")
+	return I18n.t("report") if call.status == ToolCall.STATUS_COMPLETED else I18n.t("prompt")
 
 
 ## Salida de texto plegada: "salida · N líneas" y, al abrirla, las primeras líneas en monoespaciada.
-func _output_toggle(text: String, noun: String = "salida") -> Control:
+func _output_toggle(text: String, noun: String = "") -> Control:
 	var column := VBoxContainer.new()
 	var lines := text.split("\n")
 	var toggle := Button.new()
 	toggle.flat = true
 	toggle.toggle_mode = true
 	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	toggle.text = "▸ %s · %d %s" % [noun, lines.size(), "línea" if lines.size() == 1 else "líneas"]
+	if noun.is_empty():
+		noun = I18n.t("output")
+	toggle.text = "▸ " + (I18n.t("%s · %d line") if lines.size() == 1 else I18n.t("%s · %d lines")) % [noun, lines.size()]
 	toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	column.add_child(toggle)
 	var output := Label.new()
@@ -305,7 +307,7 @@ static func _image_preview(block: Dictionary) -> Control:
 	var image := decode_image(str(block.get("data", "")), str(block.get("mimeType", "")))
 	if image == null:
 		var label := Label.new()
-		label.text = "[imagen]"
+		label.text = I18n.t("[image]")
 		label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		return label
 	var rect := TextureRect.new()
@@ -364,7 +366,7 @@ static func _summary(call: ToolCall) -> String:
 		if call.raw_input is Dictionary:
 			var subagent_input: Dictionary = call.raw_input
 			agent_type = str(subagent_input.get("subagent_type", ""))
-		return "subagente · " + agent_type if not agent_type.is_empty() else "subagente"
+		return I18n.t("subagent · %s") % agent_type if not agent_type.is_empty() else I18n.t("subagent")
 	if call.raw_input is Dictionary:
 		var input: Dictionary = call.raw_input
 		for key: String in ["file_path", "path", "command", "pattern", "query", "url", "node_path", "scene"]:
@@ -378,4 +380,5 @@ static func _summary(call: ToolCall) -> String:
 static func _format_duration(msec: int) -> String:
 	if msec < 1000:
 		return "%d ms" % msec
-	return ("%.1f s" % (msec / 1000.0)).replace(".", ",")
+	var seconds := "%.1f s" % (msec / 1000.0)
+	return seconds.replace(".", ",") if I18n.locale() == "es" else seconds

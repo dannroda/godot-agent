@@ -28,16 +28,16 @@ func tools() -> Array:
 	var diagnostics := PermissionPolicy.GROUP_DIAGNOSTICS
 	return [
 		McpTool.create("get_errors", diagnostics,
-			"Errores y warnings del editor (scripts, Output) y del juego (Debugger) desde una marca. Devuelve la marca actual: pasala como `since` la próxima vez para ver solo lo nuevo.",
-			{"since": {"type": "integer", "description": "Marca devuelta por una llamada anterior (default 0: todo lo guardado)"}},
+			"Errors and warnings from the editor (scripts, Output) and from the game (Debugger) since a mark. Returns the current mark: pass it as `since` next time to see only what is new.",
+			{"since": {"type": "integer", "description": "Mark returned by a previous call (default 0: everything stored)"}},
 			[], _get_errors),
 		McpTool.create("validate_scripts", diagnostics,
-			"Parsea scripts GDScript en un proceso aparte y devuelve los errores por archivo y línea. Sin `paths`, todos los .gd del proyecto.",
-			{"paths": {"type": "array", "items": {"type": "string"}, "description": "Rutas res://…gd"}},
+			"Parses GDScript scripts in a separate process and returns the errors by file and line. Without `paths`, all the project's .gd files.",
+			{"paths": {"type": "array", "items": {"type": "string"}, "description": "res://…gd paths"}},
 			[], _validate_scripts),
 		McpTool.create("capture_editor_viewport", diagnostics,
-			"Captura el viewport 2D o 3D del editor como PNG.",
-			{"which": {"type": "string", "enum": ["2d", "3d"], "description": "Viewport a capturar"}},
+			"Captures the editor's 2D or 3D viewport as a PNG.",
+			{"which": {"type": "string", "enum": ["2d", "3d"], "description": "Viewport to capture"}},
 			["which"], _capture_editor_viewport),
 	]
 
@@ -49,11 +49,11 @@ func _get_errors(args: Dictionary) -> String:
 	var shown := entries.slice(maxi(entries.size() - ERROR_LIMIT, 0))
 	for entry: Dictionary in shown:
 		lines.append(ErrorCollector.format_entry(entry))
-	var header := "marca: %d · %d nuevos desde %d" % [errors.mark(), entries.size(), since]
+	var header := "mark: %d · %d new since %d" % [errors.mark(), entries.size(), since]
 	if shown.size() < entries.size():
-		header += " (se muestran los últimos %d)" % shown.size()
+		header += " (showing the last %d)" % shown.size()
 	if entries.is_empty():
-		return header + "\nSin errores ni warnings nuevos."
+		return header + "\nNo new errors or warnings."
 	return header + "\n" + "\n".join(lines)
 
 
@@ -64,14 +64,14 @@ func _validate_scripts(args: Dictionary) -> Dictionary:
 		for path: Variant in requested:
 			var text := str(path)
 			if not text.begins_with("res://") or not text.ends_with(".gd"):
-				return McpTool.error("'%s' no es una ruta res://…gd." % text)
+				return McpTool.error("'%s' is not a res://…gd path." % text)
 			if not FileAccess.file_exists(text):
-				return McpTool.error("No existe %s." % text)
+				return McpTool.error("%s does not exist." % text)
 			paths.append(text)
 	else:
 		_collect_scripts(EditorInterface.get_resource_filesystem().get_filesystem(), paths)
 	if paths.is_empty():
-		return McpTool.text("No hay scripts .gd para validar.")
+		return McpTool.text("There are no .gd scripts to validate.")
 	var truncated := paths.size() > MAX_SCRIPTS
 	if truncated:
 		paths = paths.slice(0, MAX_SCRIPTS)
@@ -89,12 +89,12 @@ func _validate_scripts(args: Dictionary) -> Dictionary:
 		for error: String in result.errors:
 			lines.append("  " + error)
 		if result.errors.is_empty():
-			lines.append("  no se pudo cargar (sin detalle)")
-	var header := "%d scripts validados · %d con errores" % [paths.size(), failed]
+			lines.append("  could not be loaded (no details)")
+	var header := "%d scripts validated · %d with errors" % [paths.size(), failed]
 	if truncated:
-		header += " (se validaron los primeros %d; pasá `paths` para el resto)" % MAX_SCRIPTS
+		header += " (validated the first %d; pass `paths` for the rest)" % MAX_SCRIPTS
 	if failed == 0:
-		return McpTool.text(header + "\nTodo parsea bien.")
+		return McpTool.text(header + "\nEverything parses fine.")
 	return McpTool.text(header + "\n" + "\n".join(lines))
 
 
@@ -109,7 +109,7 @@ func check_scripts(paths: PackedStringArray) -> Dictionary:
 	var args: PackedStringArray = ["--headless", "--no-header", "--path", project_path, "--script", CHECKER_SCRIPT, "--"]
 	args.append_array(paths)
 	if not process.start(OS.get_executable_path(), args):
-		return {"error": "No se pudo lanzar el validador: %s" % process.last_error(), "results": {}}
+		return {"error": "Could not launch the validator: %s" % process.last_error(), "results": {}}
 	var tree := Engine.get_main_loop() as SceneTree
 	var deadline := Time.get_ticks_msec() + int(CHECK_TIMEOUT_S * 1000.0)
 	while not state.exited and Time.get_ticks_msec() < deadline:
@@ -119,7 +119,7 @@ func check_scripts(paths: PackedStringArray) -> Dictionary:
 		await tree.create_timer(STDERR_GRACE_S).timeout
 	process.stop()
 	if timed_out:
-		return {"error": "El validador no terminó en %d s." % int(CHECK_TIMEOUT_S), "results": {}}
+		return {"error": "The validator did not finish within %d s." % int(CHECK_TIMEOUT_S), "results": {}}
 	return {"error": "", "results": parse_checker_output(stderr_lines)}
 
 
@@ -152,7 +152,7 @@ static func parse_checker_output(lines: PackedStringArray) -> Dictionary:
 			if file.begins_with("res://") and not pending_message.begins_with("Failed to load script"):
 				if not results.has(file):
 					results[file] = {"ok": false, "errors": []}
-				var entry := "línea %d: %s" % [location[1], pending_message] if int(location[1]) > 0 else pending_message
+				var entry := "line %d: %s" % [location[1], pending_message] if int(location[1]) > 0 else pending_message
 				if not entry in results[file].errors:
 					results[file].errors.append(entry)
 			pending_message = ""
@@ -174,5 +174,5 @@ func _capture_editor_viewport(args: Dictionary) -> Dictionary:
 	var which := McpTool.str_arg(args, "which", "2d")
 	var image := EditorContext.capture_viewport(which == "3d")
 	if image == null:
-		return McpTool.error("No se pudo capturar el viewport %s (¿el editor está minimizado o la pestaña nunca se abrió?)." % which.to_upper())
-	return McpTool.image(image, "Viewport %s del editor (%dx%d)" % [which.to_upper(), image.get_width(), image.get_height()])
+		return McpTool.error("Could not capture the %s viewport (is the editor minimized, or was the tab never opened?)." % which.to_upper())
+	return McpTool.image(image, "Editor %s viewport (%dx%d)" % [which.to_upper(), image.get_width(), image.get_height()])

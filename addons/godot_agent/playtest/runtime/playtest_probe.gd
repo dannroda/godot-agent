@@ -38,7 +38,7 @@ func _send_frame(max_side: int) -> void:
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
 	if image == null or image.is_empty():
-		EngineDebugger.send_message(PREFIX + ":problem", ["No se pudo leer el frame del viewport."])
+		EngineDebugger.send_message(PREFIX + ":problem", ["Could not read the viewport frame."])
 		return
 	var longest := maxi(image.get_width(), image.get_height())
 	if max_side > 0 and longest > max_side:
@@ -60,7 +60,7 @@ func _play_inputs(steps: Array) -> void:
 			elapsed += wait
 		var action := StringName(step.action)
 		if not InputMap.has_action(action):
-			EngineDebugger.send_message(PREFIX + ":problem", ["La acción '%s' no existe en el InputMap del juego." % action])
+			EngineDebugger.send_message(PREFIX + ":problem", ["The action '%s' does not exist in the game's InputMap." % action])
 			continue
 		var event := InputEventAction.new()
 		event.action = action

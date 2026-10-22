@@ -10,6 +10,7 @@ signal action_requested(action: String, payload: Variant)
 const SessionModel := preload("../../session/session_model.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const ToolCall := preload("../../session/tool_call.gd")
+const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
 const EntryView := preload("entries/entry_view.gd")
@@ -265,7 +266,7 @@ func _drop_oldest() -> void:
 
 func _update_show_older() -> void:
 	_show_older.visible = _hidden_count > 0
-	_show_older.text = "Mostrar %d anteriores (%d ocultas)" % [mini(SHOW_OLDER_STEP, _hidden_count), _hidden_count]
+	_show_older.text = I18n.t("Show %d earlier (%d hidden)") % [mini(SHOW_OLDER_STEP, _hidden_count), _hidden_count]
 
 
 func _on_scrolled(value: float) -> void:

@@ -71,10 +71,10 @@ func _parse_head() -> bool:
 	var end := _find_header_end()
 	if end < 0:
 		if _buffer.size() > MAX_HEADER_BYTES:
-			return _fail(431, "headers demasiado largos")
+			return _fail(431, "headers too long")
 		return false
 	if end > MAX_HEADER_BYTES:
-		return _fail(431, "headers demasiado largos")
+		return _fail(431, "headers too long")
 	var head := _buffer.slice(0, end).get_string_from_ascii()
 	_buffer = _buffer.slice(end + CRLFCRLF.length())
 	var lines := head.split("\r\n")
@@ -82,12 +82,12 @@ func _parse_head() -> bool:
 	while not lines.is_empty() and lines[0].is_empty():
 		lines.remove_at(0)
 	if lines.is_empty():
-		return _fail(400, "request vacío")
+		return _fail(400, "empty request")
 	var parts := lines[0].split(" ", false)
 	if parts.size() != 3:
-		return _fail(400, "request line inválida")
+		return _fail(400, "invalid request line")
 	if not parts[2].begins_with("HTTP/1."):
-		return _fail(505, "versión HTTP no soportada")
+		return _fail(505, "unsupported HTTP version")
 	var request := Request.new()
 	request.method = parts[0]
 	request.path = parts[1]
@@ -96,16 +96,16 @@ func _parse_head() -> bool:
 		var line: String = lines[i]
 		var colon := line.find(":")
 		if colon <= 0:
-			return _fail(400, "header inválido")
+			return _fail(400, "invalid header")
 		request.headers[line.left(colon).strip_edges().to_lower()] = line.substr(colon + 1).strip_edges()
 	if request.header("transfer-encoding") != "":
-		return _fail(411, "Transfer-Encoding no soportado: mandá Content-Length")
+		return _fail(411, "Transfer-Encoding not supported: send Content-Length")
 	var length_text := request.header("content-length", "0")
 	if not length_text.is_valid_int() or int(length_text) < 0:
-		return _fail(400, "Content-Length inválido")
+		return _fail(400, "invalid Content-Length")
 	var length := int(length_text)
 	if length > MAX_BODY_BYTES:
-		return _fail(413, "body demasiado grande")
+		return _fail(413, "body too large")
 	_pending = request
 	_pending_length = length
 	return true

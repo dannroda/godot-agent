@@ -57,15 +57,15 @@ func is_busy() -> bool:
 
 func complete(request: CompletionRequest) -> CompletionResult:
 	if profile == null or _parent == null or not is_instance_valid(_parent):
-		last_error = "sin perfil"
+		last_error = "no profile"
 		return null
 	cancel()
 	# Sin la key no se manda nada (y menos el código a un host remoto que lo va a rechazar).
 	if (profile.needs_key() or not profile.api_key_env.is_empty()) and profile.api_key().is_empty():
 		if profile.api_key_env.is_empty():
-			last_error = "el perfil necesita una key (variable de entorno)"
+			last_error = "the profile needs a key (environment variable)"
 		else:
-			last_error = "falta la variable de entorno %s en el entorno del editor" % profile.api_key_env
+			last_error = "the environment variable %s is missing from the editor's environment" % profile.api_key_env
 		return null
 	var started := Time.get_ticks_usec()
 	var parts := split(request, prefix_chars, suffix_chars)
@@ -78,7 +78,7 @@ func complete(request: CompletionRequest) -> CompletionResult:
 	var generation := _generation
 	var error := http.request(built.url, built.headers, HTTPClient.METHOD_POST, built.body)
 	if error != OK:
-		last_error = "no se pudo enviar (%s)" % error_string(error)
+		last_error = "could not send (%s)" % error_string(error)
 		return null
 	_busy = true
 	var response: Array = await http.request_completed
@@ -164,15 +164,15 @@ func _request_node() -> HTTPRequest:
 static func _result_name(status: int) -> String:
 	match status:
 		HTTPRequest.RESULT_CANT_CONNECT, HTTPRequest.RESULT_CANT_RESOLVE, HTTPRequest.RESULT_CONNECTION_ERROR:
-			return "no se pudo conectar"
+			return "could not connect"
 		HTTPRequest.RESULT_TIMEOUT:
-			return "tiempo agotado"
+			return "timed out"
 		HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR:
-			return "error de TLS"
+			return "TLS error"
 		HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED:
-			return "el server redirige (no se sigue: la URL del perfil tiene que ser la final)"
+			return "the server redirects (not followed: the profile URL must be the final one)"
 		HTTPRequest.RESULT_BODY_SIZE_LIMIT_EXCEEDED:
-			return "respuesta demasiado grande"
+			return "response too large"
 		RESULT_CANCELLED:
-			return "cancelado"
-	return "error de red (%d)" % status
+			return "cancelled"
+	return "network error (%d)" % status

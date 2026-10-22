@@ -100,13 +100,13 @@ func _scenario_basic() -> void:
 	_check(model.title == "Saludo de prueba", "basic: título")
 	_check(model.usage_used == 1200 and model.usage_size == 200000, "basic: usage")
 	_check(model.state == SessionModel.State.READY, "basic: vuelve a READY")
-	_check(_log_has(log, "línea ignorada"), "basic: la línea no JSON se loguea")
-	_check(_log_has(log, "desconocida, ignorada"), "basic: la variante desconocida se loguea")
+	_check(_log_has(log, "line ignored"), "basic: la línea no JSON se loguea")
+	_check(_log_has(log, "variant, ignored"), "basic: la variante desconocida se loguea")
 	_check(_log_has(log, "fake_agent: prompt") and _log_has(log, "harness_context"), "basic: el primer prompt lleva el contexto del harness")
 	var godot_bin := OS.get_executable_path()
 	_check(_log_has(log, "fake_agent: GODOT=%s" % godot_bin), "basic: el agente recibe el binario del editor en $GODOT")
 	_check(_log_has(log, "PATH=%s" % EditorBinary.shim_dir()), "basic: el shim godot va al frente del PATH del agente")
-	_check(_log_has(log, "binario de este editor") and _log_has(log, godot_bin.json_escape()), "basic: el system prompt nombra el binario del editor")
+	_check(_log_has(log, "this editor's binary") and _log_has(log, godot_bin.json_escape()), "basic: el system prompt nombra el binario del editor")
 
 	# El cambio de modo del harness se refleja en el modo del agente.
 	model.set_harness_mode(SessionModel.HarnessMode.ASK)
@@ -243,7 +243,7 @@ func _scenario_permissions_ask() -> void:
 	_check(FileAccess.get_file_as_string(_target_path()) == "extends Node\nvar a := 1\n", "permisos/ask: archivo intacto")
 	var denied := 0
 	for entry: ChatEntry in model.entries():
-		if entry.kind == ChatEntry.Kind.NOTICE and entry.text.begins_with("Denegado en modo Preguntar"):
+		if entry.kind == ChatEntry.Kind.NOTICE and entry.text.begins_with("Denied in Ask mode"):
 			denied += 1
 	_check(denied >= 3, "permisos/ask: avisos de denegado (%d)" % denied)
 	controller.stop()
@@ -273,8 +273,8 @@ func _scenario_quota() -> void:
 	_check(controller.quota.state == QuotaMonitor.State.LIMITED, "quota: limitado")
 	var wait := controller.quota.seconds_until_retry()
 	_check(wait > 100 and wait <= 120, "quota: reinicio en ~120 s (%d)" % wait)
-	_check(_log_has(log, "estado de la cuota: pausa programada → limitado"), "quota: transición en el canal")
-	_check(_log_has(log, "aviso de límite en el texto del agente: You've hit your limit") and _log_has(log, "error de session/prompt (límite)"), "quota: texto y error de límite en el canal")
+	_check(_log_has(log, "quota state: pause scheduled → limited"), "quota: transición en el canal")
+	_check(_log_has(log, "limit notice in the agent text: You've hit your limit") and _log_has(log, "session/prompt error (limit)"), "quota: texto y error de límite en el canal")
 	_check(model.state == SessionModel.State.READY, "quota: la sesión sigue usable")
 	controller.stop()
 
@@ -300,7 +300,7 @@ func _scenario_history() -> void:
 	_check(listed.size() == 1 and listed[0].id == session_id and listed[0].title == "Arreglar la pelota" and int(listed[0].turns) == 2, "history: índice %s" % [listed])
 	var raw := FileAccess.get_file_as_string(history.dir.path_join(session_id + SessionHistory.EXTENSION))
 	_check(not raw.is_empty() and not raw.contains("iVBORw0KGgo") and not raw.contains("rawOutput") and not raw.contains("usage_update"), "history: sin capturas, rawOutput ni uso")
-	_check(raw.contains(SessionHistory.IMAGE_PLACEHOLDER) and raw.contains("recortado en el historial") and raw.length() < 20000, "history: marcas de captura y recorte (%d bytes)" % raw.length())
+	_check(raw.contains(SessionHistory.IMAGE_PLACEHOLDER) and raw.contains("trimmed in the history") and raw.length() < 20000, "history: marcas de captura y recorte (%d bytes)" % raw.length())
 	var record := history.load_record(session_id)
 	var first_agent: Array = record.events.filter(func(event: Dictionary) -> bool: return event.type == "update" and event.update.sessionUpdate == "agent_message_chunk")
 	_check(not first_agent.is_empty() and first_agent[0].update.content.text == "Reviso la escena.", "history: chunks unidos")
@@ -338,7 +338,7 @@ func _scenario_history() -> void:
 	var joined := "\n".join(texts)
 	_check(model.session_id == session_id and model.state == SessionModel.State.READY, "history: misma sesión, READY")
 	_check(joined.contains("arreglá la pelota") and joined.contains("Segundo turno.") and not joined.contains("replay del agente"), "history: conversación del archivo, sin el replay")
-	_check(joined.contains("Sesión reanudada") and model.title == "Arreglar la pelota", "history: aviso y título")
+	_check(joined.contains("Session resumed") and model.title == "Arreglar la pelota", "history: aviso y título")
 	_check(await controller.send_prompt("tercero") == "end_turn", "history: turno después de reanudar")
 	controller.stop()
 	listed = history.list()
@@ -355,7 +355,7 @@ func _scenario_history() -> void:
 	controller = SessionController.new()
 	controller.setup(model, AgentLog.new(), root)
 	_check(not await controller.start(_fake_profile("basic"), history.load_record(session_id)), "history: sin loadSession no reanuda")
-	_check(model.state == SessionModel.State.DISCONNECTED and model.entries().size() > 3 and model.entries().back().text.contains("solo lectura"), "history: queda de solo lectura")
+	_check(model.state == SessionModel.State.DISCONNECTED and model.entries().size() > 3 and model.entries().back().text.contains("read-only"), "history: queda de solo lectura")
 	controller.stop()
 
 
@@ -374,8 +374,8 @@ func _scenario_login() -> void:
 	_check(_log_has(log, "\"auth\":{\"terminal\":true}"), "login: initialize declara auth.terminal")
 	var failure: ChatEntry = model.entries().back()
 	var login_actions := failure.actions.filter(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN)
-	_check(login_actions.size() == 1 and login_actions[0].data == "fake-login" and login_actions[0].label == "Iniciar sesión · Cuenta falsa", "login: un botón por método usable (%s)" % [failure.actions])
-	_check(failure.text.contains("Iniciá sesión"), "login: el aviso lo dice (%s)" % failure.text)
+	_check(login_actions.size() == 1 and login_actions[0].data == "fake-login" and login_actions[0].label == "Sign in · Cuenta falsa", "login: un botón por método usable (%s)" % [failure.actions])
+	_check(failure.text.contains("Sign in to continue"), "login: el aviso lo dice (%s)" % failure.text)
 	var link_shown := func() -> bool:
 		return model.entries().any(func(entry: ChatEntry) -> bool:
 			return entry.actions.any(func(action: Dictionary) -> bool: return action.id == "open_link"))
@@ -386,7 +386,7 @@ func _scenario_login() -> void:
 	_check(controller.send_login_code("nope"), "login: manda el código")
 	await _wait_until(func() -> bool: return not controller.is_logging_in() and model.entries().back().level == ChatEntry.Level.ERROR)
 	var error_notice: ChatEntry = model.entries().back()
-	_check(error_notice.text.begins_with("No se pudo iniciar sesión") and not error_notice.text.contains("example.invalid"), "login: error sin el enlace (%s)" % error_notice.text)
+	_check(error_notice.text.begins_with("Could not sign in") and not error_notice.text.contains("example.invalid"), "login: error sin el enlace (%s)" % error_notice.text)
 	_check(error_notice.actions.any(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN), "login: el error ofrece reintentar")
 	_check(not _log_has(log, "nope"), "login: el código no va al log")
 	# Código correcto: la sesión se abre sola.
@@ -394,7 +394,7 @@ func _scenario_login() -> void:
 	await _wait_until(link_shown)
 	_check(controller.send_login_code("CODE123"), "login: manda el código bueno")
 	await _wait_until(func() -> bool: return model.state == SessionModel.State.READY)
-	_check(model.state == SessionModel.State.READY and model.entries().back().text == "Sesión iniciada.", "login: la sesión abre después del login")
+	_check(model.state == SessionModel.State.READY and model.entries().back().text == "Signed in.", "login: la sesión abre después del login")
 	# Cancelar mata el proceso del login.
 	controller.login("fake-login")
 	await _wait_until(link_shown)
@@ -402,7 +402,7 @@ func _scenario_login() -> void:
 	var login_process: Object = login_run.get(&"_process") if login_run else null
 	var login_pid: int = login_process.call(&"pid") if login_process else 0
 	controller.cancel_login()
-	_check(not controller.is_logging_in() and model.entries().back().text == "Inicio de sesión cancelado.", "login: cancelar")
+	_check(not controller.is_logging_in() and model.entries().back().text == "Sign-in cancelled.", "login: cancelar")
 	await _wait_until(func() -> bool: return login_pid > 0 and not _pid_alive(login_pid))
 	_check(login_pid > 0 and not _pid_alive(login_pid), "login: el proceso del login terminó")
 	controller.stop()

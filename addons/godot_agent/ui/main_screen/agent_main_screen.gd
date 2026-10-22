@@ -14,19 +14,37 @@ const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
 const RunReport := preload("../../oneshot/run_report.gd")
+const I18n := preload("../../core/i18n.gd")
 
 const BUDGET_KEYS: PackedStringArray = [OneShotRun.BUDGET_TIME, OneShotRun.BUDGET_TOKENS, OneShotRun.BUDGET_PLAYTESTS]
 const ACTIVITY_COLORS: Dictionary = {
 	"tool": Color("#b493ff"),
 	"playtest": Color("#7fd98b"),
 	"checkpoint": Color("#6cb4ff"),
-	"cuota": Color("#f2d16b"),
-	"presupuesto": Color("#f5c26b"),
-	"aviso": Color("#ff7a7a"),
+	"quota": Color("#f2d16b"),
+	"budget": Color("#f5c26b"),
+	"warning": Color("#ff7a7a"),
 	"loop": Color("#ff9f5a"),
 	"spec": Color("#8fd3c7"),
-	"guía": Color("#ffd479"),
-	"turno": Color("#9aa7b8"),
+	"guide": Color("#ffd479"),
+	"turn": Color("#9aa7b8"),
+}
+## Tipo de entrada de la actividad (`kind`) -> cómo se muestra (traducido).
+const ACTIVITY_KIND_LABELS: Dictionary = {
+	"tool": "tool",  # i18n
+	"playtest": "playtest",  # i18n
+	"checkpoint": "checkpoint",  # i18n
+	"quota": "quota",  # i18n
+	"budget": "budget",  # i18n
+	"warning": "warning",  # i18n
+	"loop": "loop",  # i18n
+	"spec": "spec",  # i18n
+	"guide": "guide",  # i18n
+	"turn": "turn",  # i18n
+	"session": "session",  # i18n
+	"status": "status",  # i18n
+	"agent": "agent",  # i18n
+	"plan": "plan",  # i18n
 }
 const SUMMARY_INTERVAL_S := 2.0
 const ACCOUNT_ALREADY_SWITCHED := 1000
@@ -141,6 +159,9 @@ func set_defaults(defaults: Dictionary) -> void:
 
 func _ready() -> void:
 	if _run == null:
+		var empty := get_node_or_null(^"EmptyState") as Label
+		if empty:
+			empty.text = I18n.t("One-shot: no task running yet.")
 		return
 	for child: Node in get_children():
 		child.queue_free()
@@ -194,31 +215,31 @@ func _build_form() -> void:
 	title.add_theme_font_size_override(&"font_size", AgentTheme.px(20))
 	box.add_child(title)
 	var intro := Label.new()
-	intro.text = "El agente arma un plan y lo ejecuta solo: después de cada tarea corre la escena, captura un frame y revisa los errores. Podés pausarlo, guiarlo o volver a un checkpoint en cualquier momento."
+	intro.text = I18n.t("The agent makes a plan and carries it out on its own: after each task it runs the scene, captures a frame and checks the errors. You can pause it, guide it or go back to a checkpoint at any time.")
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	box.add_child(intro)
-	box.add_child(_heading("Objetivo"))
+	box.add_child(_heading(I18n.t("Goal")))
 	_goal_edit = TextEdit.new()
-	_goal_edit.placeholder_text = "Ej.: Pong de 2 jugadores con puntaje, saque y reinicio. Usar los assets de res://assets y respetar CLAUDE.md."
+	_goal_edit.placeholder_text = I18n.t("E.g.: 2-player Pong with score, serve and restart. Use the assets in res://assets and follow CLAUDE.md.")
 	_goal_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	_goal_edit.custom_minimum_size.y = AgentTheme.px(GOAL_MIN_HEIGHT)
 	_goal_edit.text_changed.connect(_refresh_form)
 	box.add_child(_goal_edit)
-	box.add_child(_heading("Presupuestos (0 = sin límite)"))
+	box.add_child(_heading(I18n.t("Budgets (0 = unlimited)")))
 	var budgets := HBoxContainer.new()
 	budgets.add_theme_constant_override(&"separation", AgentTheme.px(12))
 	box.add_child(budgets)
 	var specs: Array[Dictionary] = [
-		{"key": OneShotRun.BUDGET_TIME, "label": "Tiempo", "suffix": "min", "max": 600, "step": 1},
-		{"key": OneShotRun.BUDGET_TOKENS, "label": "Tokens", "suffix": "", "max": 20000000, "step": 10000},
-		{"key": OneShotRun.BUDGET_PLAYTESTS, "label": "Playtests", "suffix": "", "max": 100, "step": 1},
+		{"key": OneShotRun.BUDGET_TIME, "suffix": "min", "max": 600, "step": 1},
+		{"key": OneShotRun.BUDGET_TOKENS, "suffix": "", "max": 20000000, "step": 10000},
+		{"key": OneShotRun.BUDGET_PLAYTESTS, "suffix": "", "max": 100, "step": 1},
 	]
 	for spec: Dictionary in specs:
 		var column := VBoxContainer.new()
 		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var label := Label.new()
-		label.text = spec.label
+		label.text = I18n.t(OneShotRun.BUDGET_LABELS[spec.key])
 		label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		column.add_child(label)
 		var spin := SpinBox.new()
@@ -231,11 +252,11 @@ func _build_form() -> void:
 		budgets.add_child(column)
 		_budget_spins[spec.key] = spin
 	_checkpoints_check = CheckBox.new()
-	_checkpoints_check.text = "Crear un checkpoint git antes de cada tarea (rama agent/<fecha>; nunca hace merge ni push)"
+	_checkpoints_check.text = I18n.t("Create a git checkpoint before each task (branch agent/<date>; never merges or pushes)")
 	_checkpoints_check.button_pressed = bool(_defaults.get("checkpoints", true))
 	box.add_child(_checkpoints_check)
 	_spec_check = CheckBox.new()
-	_spec_check.text = "Revisar el spec antes de construir (el agente lo escribe y espera «Aprobar spec»)"
+	_spec_check.text = I18n.t("Review the spec before building (the agent writes it and waits for “Approve spec”)")
 	_spec_check.button_pressed = bool(_defaults.get("spec_review", false))
 	box.add_child(_spec_check)
 	_form_rule = Label.new()
@@ -245,7 +266,7 @@ func _build_form() -> void:
 	var actions := HBoxContainer.new()
 	actions.alignment = BoxContainer.ALIGNMENT_END
 	box.add_child(actions)
-	_start_button = _accent_button("Iniciar One-shot")
+	_start_button = _accent_button(I18n.t("Start One-shot"))
 	_start_button.pressed.connect(_on_start_pressed)
 	actions.add_child(_start_button)
 
@@ -278,38 +299,38 @@ func _build_top_bar() -> Control:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override(&"separation", AgentTheme.px(12))
 	box.add_child(header)
-	header.add_child(_heading("Objetivo · one-shot"))
+	header.add_child(_heading(I18n.t("Goal · one-shot")))
 	_phase_label = Label.new()
 	_phase_label.add_theme_color_override(&"font_color", _accent)
 	_phase_label.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 	_phase_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_phase_label)
 	_budgets_button = Button.new()
-	_budgets_button.text = "Presupuestos"
-	_budgets_button.tooltip_text = "Cambiar los presupuestos con el run en curso (0 = sin límite)."
+	_budgets_button.text = I18n.t("Budgets")
+	_budgets_button.tooltip_text = I18n.t("Change the budgets while the run is going (0 = unlimited).")
 	_budgets_button.pressed.connect(_show_budgets)
 	header.add_child(_budgets_button)
 	_account_button = MenuButton.new()
-	_account_button.text = "Cambiar de cuenta"
+	_account_button.text = I18n.t("Switch account")
 	_account_button.flat = false
-	_account_button.tooltip_text = "Seguir con otra cuenta del agente sin esperar a que se reinicie la cuota: se reinicia el agente y retoma la misma sesión."
+	_account_button.tooltip_text = I18n.t("Continue with another agent account without waiting for the quota to reset: the agent restarts and resumes the same session.")
 	_account_button.about_to_popup.connect(_fill_account_menu)
 	_account_button.get_popup().id_pressed.connect(_on_account_menu)
 	header.add_child(_account_button)
 	_spec_button = Button.new()
-	_spec_button.text = "Spec"
-	_spec_button.tooltip_text = "El spec que escribió el agente (.godot_agent/oneshot/<id>/spec.md): se puede leer y editar."
+	_spec_button.text = I18n.t("Spec")
+	_spec_button.tooltip_text = I18n.t("The spec the agent wrote (.godot_agent/oneshot/<id>/spec.md): you can read and edit it.")
 	_spec_button.pressed.connect(func() -> void: _show_files())
 	header.add_child(_spec_button)
 	_pause_button = Button.new()
 	_pause_button.pressed.connect(_on_pause_pressed)
 	header.add_child(_pause_button)
 	_stop_button = Button.new()
-	_stop_button.text = "Detener"
+	_stop_button.text = I18n.t("Stop")
 	_stop_button.add_theme_color_override(&"font_color", AgentTheme.ERROR)
 	_stop_button.pressed.connect(func() -> void: _run.stop())
 	header.add_child(_stop_button)
-	_new_button = _accent_button("Nuevo One-shot")
+	_new_button = _accent_button(I18n.t("New One-shot"))
 	_new_button.pressed.connect(func() -> void:
 		_show_form = true
 		_goal_edit.text = _run.goal
@@ -329,9 +350,9 @@ func _build_top_bar() -> Control:
 	bars.add_theme_constant_override(&"v_separation", AgentTheme.px(6))
 	bars.resized.connect(func() -> void: bars.columns = 4 if bars.size.x >= AgentTheme.px(560) else 2)
 	box.add_child(bars)
-	_quota_row = _budget_bar(bars, "Cuota")
+	_quota_row = _budget_bar(bars, I18n.t("Quota"))
 	for key: String in BUDGET_KEYS:
-		_budget_rows[key] = _budget_bar(bars, OneShotRun.BUDGET_LABELS[key])
+		_budget_rows[key] = _budget_bar(bars, I18n.t(OneShotRun.BUDGET_LABELS[key]))
 	var rule_row := HBoxContainer.new()
 	rule_row.add_theme_constant_override(&"separation", AgentTheme.px(16))
 	box.add_child(rule_row)
@@ -353,14 +374,14 @@ func _build_plan_column() -> Control:
 	var column := _column(1.0)
 	var header := HBoxContainer.new()
 	column.add_child(header)
-	var title := _heading("Plan")
+	var title := _heading(I18n.t("Plan"))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	_plan_title = title
 	_plan_edit_button = Button.new()
-	_plan_edit_button.text = "Editar"
+	_plan_edit_button.text = I18n.t("Edit")
 	_plan_edit_button.flat = true
-	_plan_edit_button.tooltip_text = "Editá el plan: el texto se manda al agente al terminar el turno actual."
+	_plan_edit_button.tooltip_text = I18n.t("Edit the plan: the text is sent to the agent when the current turn ends.")
 	_plan_edit_button.pressed.connect(_on_plan_edit_pressed)
 	header.add_child(_plan_edit_button)
 	var scroll := ScrollContainer.new()
@@ -383,10 +404,10 @@ func _build_plan_column() -> Control:
 	_spec_bar.visible = false
 	column.add_child(_spec_bar)
 	var edit_spec := Button.new()
-	edit_spec.text = "Editar"
+	edit_spec.text = I18n.t("Edit")
 	edit_spec.pressed.connect(func() -> void: _show_files(_run.files.spec_path()))
 	_spec_bar.add_child(edit_spec)
-	var approve := _accent_button("Aprobar spec")
+	var approve := _accent_button(I18n.t("Approve spec"))
 	approve.pressed.connect(func() -> void: _run.approve_spec())
 	_spec_bar.add_child(approve)
 	_plan_edit = TextEdit.new()
@@ -398,16 +419,16 @@ func _build_plan_column() -> Control:
 	_plan_edit_bar.visible = false
 	column.add_child(_plan_edit_bar)
 	var cancel := Button.new()
-	cancel.text = "Cancelar"
+	cancel.text = I18n.t("Cancel")
 	cancel.pressed.connect(func() -> void: _set_plan_editing(false))
 	_plan_edit_bar.add_child(cancel)
-	var send := _accent_button("Mandar al agente")
+	var send := _accent_button(I18n.t("Send to the agent"))
 	send.pressed.connect(func() -> void:
 		_run.edit_plan(_plan_edit.text.split("\n"))
 		_set_plan_editing(false))
 	_plan_edit_bar.add_child(send)
 	_plan_note = Label.new()
-	_plan_note.text = "Podés editar el plan mientras corre: el agente lo relee al terminar el turno."
+	_plan_note.text = I18n.t("You can edit the plan while it runs: the agent rereads it when the turn ends.")
 	_plan_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_plan_note.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_plan_note.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
@@ -417,7 +438,7 @@ func _build_plan_column() -> Control:
 
 func _build_activity_column() -> Control:
 	var column := _column(1.4)
-	column.add_child(_heading("Actividad"))
+	column.add_child(_heading(I18n.t("Activity")))
 	_activity_text = RichTextLabel.new()
 	_activity_text.bbcode_enabled = true
 	_activity_text.scroll_following = true
@@ -426,7 +447,7 @@ func _build_activity_column() -> Control:
 	_activity_text.add_theme_font_override(&"mono_font", AgentTheme.mono_font())
 	column.add_child(_activity_text)
 	var hint := Label.new()
-	hint.text = "Para guiar al agente, escribile en el chat del dock: con el One-shot en curso, el mensaje le llega al terminar el turno."
+	hint.text = I18n.t("To guide the agent, write to it in the dock chat: while the One-shot is running, the message reaches it when the turn ends.")
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	hint.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
@@ -444,7 +465,7 @@ func _build_side_column() -> Control:
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override(&"separation", AgentTheme.px(8))
 	scroll.add_child(box)
-	box.add_child(_heading("Último playtest"))
+	box.add_child(_heading(I18n.t("Last playtest")))
 	_capture_rect = TextureRect.new()
 	_capture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_capture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -454,10 +475,10 @@ func _build_side_column() -> Control:
 	_capture_caption.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_capture_caption.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
 	box.add_child(_capture_caption)
-	box.add_child(_heading("Verificaciones"))
+	box.add_child(_heading(I18n.t("Checks")))
 	_checks_list = VBoxContainer.new()
 	box.add_child(_checks_list)
-	box.add_child(_heading("Checkpoints"))
+	box.add_child(_heading(I18n.t("Checkpoints")))
 	_checkpoints_list = VBoxContainer.new()
 	box.add_child(_checkpoints_list)
 	return column.get_parent()
@@ -479,17 +500,17 @@ func _build_bottom_bar() -> Control:
 	_diffstat_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(_diffstat_label)
 	_review_button = Button.new()
-	_review_button.text = "Revisar cambios"
+	_review_button.text = I18n.t("Review changes")
 	_review_button.pressed.connect(_on_review_pressed)
 	row.add_child(_review_button)
 	_report_button = Button.new()
-	_report_button.text = "Informe"
-	_report_button.tooltip_text = "Métricas del run: duración por tarea, tools, checks, permisos y eventos (D39)."
+	_report_button.text = I18n.t("Report")
+	_report_button.tooltip_text = I18n.t("Run metrics: duration per task, tools, checks, permissions and events.")
 	_report_button.pressed.connect(_show_report)
 	row.add_child(_report_button)
-	_accept_button = _accent_button("Aceptar todo")
+	_accept_button = _accent_button(I18n.t("Accept all"))
 	_accept_button.pressed.connect(func() -> void:
-		_accept_dialog.dialog_text = "Se hace un commit final en %s con todo lo que hizo el agente.\nEl harness nunca hace merge ni push: la rama queda lista para que la mergees vos." % _run.git.agent_branch
+		_accept_dialog.dialog_text = I18n.t("A final commit is made in %s with everything the agent did.\nThe harness never merges or pushes: the branch is left ready for you to merge.") % _run.git.agent_branch
 		_accept_dialog.popup_centered())
 	row.add_child(_accept_button)
 	return panel
@@ -497,37 +518,41 @@ func _build_bottom_bar() -> Control:
 
 func _build_dialogs() -> void:
 	_wip_dialog = ConfirmationDialog.new()
-	_wip_dialog.title = "Cambios sin commitear"
-	_wip_dialog.dialog_text = "Hay cambios sin commitear en el proyecto.\nSe guardan en un commit «WIP antes del one-shot» en la rama nueva del agente; tu rama actual no se toca."
-	_wip_dialog.ok_button_text = "Commitear como WIP y empezar"
+	_wip_dialog.cancel_button_text = I18n.t("Cancel")
+	_wip_dialog.title = I18n.t("Uncommitted changes")
+	_wip_dialog.dialog_text = I18n.t("There are uncommitted changes in the project.\nThey are saved in a “WIP before the one-shot” commit on the agent's new branch; your current branch is not touched.")
+	_wip_dialog.ok_button_text = I18n.t("Commit as WIP and start")
 	_wip_dialog.confirmed.connect(_start_run)
 	add_child(_wip_dialog)
 	_no_git_dialog = ConfirmationDialog.new()
-	_no_git_dialog.title = "Sin checkpoints"
-	_no_git_dialog.ok_button_text = "Seguir sin checkpoints"
+	_no_git_dialog.cancel_button_text = I18n.t("Cancel")
+	_no_git_dialog.title = I18n.t("No checkpoints")
+	_no_git_dialog.ok_button_text = I18n.t("Continue without checkpoints")
 	_no_git_dialog.confirmed.connect(func() -> void:
 		_checkpoints_check.button_pressed = false
 		_start_run())
 	add_child(_no_git_dialog)
 	_restore_dialog = ConfirmationDialog.new()
-	_restore_dialog.title = "Volver a un checkpoint"
-	_restore_dialog.ok_button_text = "Volver acá"
+	_restore_dialog.cancel_button_text = I18n.t("Cancel")
+	_restore_dialog.title = I18n.t("Go back to a checkpoint")
+	_restore_dialog.ok_button_text = I18n.t("Restore here")
 	_restore_dialog.confirmed.connect(_on_restore_confirmed)
 	add_child(_restore_dialog)
 	_accept_dialog = ConfirmationDialog.new()
-	_accept_dialog.title = "Aceptar todo"
-	_accept_dialog.ok_button_text = "Aceptar todo"
+	_accept_dialog.cancel_button_text = I18n.t("Cancel")
+	_accept_dialog.title = I18n.t("Accept all")
+	_accept_dialog.ok_button_text = I18n.t("Accept all")
 	_accept_dialog.confirmed.connect(_on_accept_confirmed)
 	add_child(_accept_dialog)
 	_changes_dialog = AcceptDialog.new()
-	_changes_dialog.title = "Cambios del One-shot"
-	_changes_dialog.ok_button_text = "Cerrar"
+	_changes_dialog.title = I18n.t("One-shot changes")
+	_changes_dialog.ok_button_text = I18n.t("Close")
 	_changes_dialog.min_size = Vector2i(AgentTheme.px(560), AgentTheme.px(380))
 	_changes_dialog.exclusive = false  # el diff se abre encima
 	var box := VBoxContainer.new()
 	_changes_dialog.add_child(box)
 	var hint := Label.new()
-	hint.text = "Doble clic en un archivo para ver el diff contra el estado de antes del One-shot."
+	hint.text = I18n.t("Double-click a file to see the diff against the state before the One-shot.")
 	hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	box.add_child(hint)
 	_changes_list = ItemList.new()
@@ -539,9 +564,10 @@ func _build_dialogs() -> void:
 	_error_dialog.title = "One-shot"
 	add_child(_error_dialog)
 	_budgets_dialog = ConfirmationDialog.new()
-	_budgets_dialog.title = "Presupuestos del One-shot"
-	_budgets_dialog.ok_button_text = "Aplicar"
-	_budgets_dialog.add_button("Ilimitado", false, "unlimited")
+	_budgets_dialog.cancel_button_text = I18n.t("Cancel")
+	_budgets_dialog.title = I18n.t("One-shot budgets")
+	_budgets_dialog.ok_button_text = I18n.t("Apply")
+	_budgets_dialog.add_button(I18n.t("Unlimited"), false, "unlimited")
 	_budgets_dialog.custom_action.connect(func(action: StringName) -> void:
 		if action == &"unlimited":
 			for key: String in _budgets_edit:
@@ -552,7 +578,7 @@ func _build_dialogs() -> void:
 	var budgets_box := VBoxContainer.new()
 	_budgets_dialog.add_child(budgets_box)
 	var budgets_hint := Label.new()
-	budgets_hint.text = "0 = sin límite. Si el run iba a cerrar por presupuesto y ahora alcanza, sigue."
+	budgets_hint.text = I18n.t("0 = unlimited. If the run was about to close because of a budget and now there is enough, it continues.")
 	budgets_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	budgets_box.add_child(budgets_hint)
 	var budgets_grid := GridContainer.new()
@@ -560,7 +586,7 @@ func _build_dialogs() -> void:
 	budgets_box.add_child(budgets_grid)
 	for spec: Array in [[OneShotRun.BUDGET_TIME, "min", 600, 1], [OneShotRun.BUDGET_TOKENS, "", 20000000, 10000], [OneShotRun.BUDGET_PLAYTESTS, "", 100, 1]]:
 		var label := Label.new()
-		label.text = OneShotRun.BUDGET_LABELS[spec[0]]
+		label.text = I18n.t(OneShotRun.BUDGET_LABELS[spec[0]])
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		budgets_grid.add_child(label)
 		var spin := SpinBox.new()
@@ -573,11 +599,11 @@ func _build_dialogs() -> void:
 		_budgets_edit[spec[0]] = spin
 	add_child(_budgets_dialog)
 	_files_dialog = ConfirmationDialog.new()
-	_files_dialog.title = "Spec y progreso del One-shot"
+	_files_dialog.title = I18n.t("One-shot spec and progress")
 	_files_dialog.min_size = Vector2i(AgentTheme.px(760), AgentTheme.px(560))
-	_files_dialog.cancel_button_text = "Cerrar"
-	_files_dialog.add_button("Mostrar en carpeta", false, "folder")
-	_files_dialog.add_button("Abrir con editor externo", false, "external")
+	_files_dialog.cancel_button_text = I18n.t("Close")
+	_files_dialog.add_button(I18n.t("Show in folder"), false, "folder")
+	_files_dialog.add_button(I18n.t("Open in external editor"), false, "external")
 	_files_dialog.custom_action.connect(_on_files_action)
 	_files_dialog.confirmed.connect(_on_files_confirmed)
 	var files_box := VBoxContainer.new()
@@ -596,10 +622,10 @@ func _build_dialogs() -> void:
 	_files_tabs.add_child(_spec_edit)
 	add_child(_files_dialog)
 	_report_dialog = AcceptDialog.new()
-	_report_dialog.title = "Informe del One-shot"
-	_report_dialog.ok_button_text = "Cerrar"
+	_report_dialog.title = I18n.t("One-shot report")
+	_report_dialog.ok_button_text = I18n.t("Close")
 	_report_dialog.min_size = Vector2i(AgentTheme.px(620), AgentTheme.px(480))
-	_report_dialog.add_button("Copiar Markdown", false, "copy")
+	_report_dialog.add_button(I18n.t("Copy Markdown"), false, "copy")
 	_report_dialog.custom_action.connect(func(action: StringName) -> void:
 		if action == &"copy":
 			DisplayServer.clipboard_set(RunReport.to_markdown(_run.last_report)))
@@ -690,7 +716,7 @@ func _refresh() -> void:
 
 
 func _refresh_form() -> void:
-	_form_rule.text = "Cuota del plan: " + _run.quota.rule_text().to_lower() if _run.quota.has_data() else "El agente todavía no informó la cuota del plan: el One-shot se pausa por cuota solo si la informa."
+	_form_rule.text = I18n.t("Plan quota: %s") % _run.quota.rule_text().to_lower() if _run.quota.has_data() else I18n.t("The agent hasn't reported the plan quota yet: the One-shot pauses for quota only if it does.")
 	_start_button.disabled = _goal_edit.text.strip_edges().is_empty() or _run.is_active()
 
 
@@ -700,7 +726,7 @@ func _refresh_banner() -> void:
 	var color := AgentTheme.WARNING
 	match quota.state:
 		QuotaMonitor.State.WARNING:
-			text = "Cuota del plan al %d %% · %s" % [roundi(quota.max_utilization() * 100.0), quota.rule_text().to_lower()]
+			text = I18n.t("Plan quota at %d %% · %s") % [roundi(quota.max_utilization() * 100.0), quota.rule_text().to_lower()]
 		QuotaMonitor.State.PAUSE_SCHEDULED:
 			text = _run.quota_pause_text()
 			if text.is_empty():
@@ -708,13 +734,13 @@ func _refresh_banner() -> void:
 		QuotaMonitor.State.LIMITED:
 			color = AgentTheme.ERROR
 			var wait := quota.seconds_until_retry()
-			text = "Límite del plan alcanzado · " + ("se puede volver a intentar en %s" % QuotaMonitor.format_duration(wait) if wait > 0 else "ya se puede reintentar")
+			text = I18n.t("Plan limit reached · you can try again in %s") % QuotaMonitor.format_duration(wait) if wait > 0 else I18n.t("Plan limit reached · you can retry now")
 	if text.is_empty() and _run.phase == OneShotRun.Phase.SPEC_REVIEW:
-		text = "El agente escribió el spec: está en la columna de la izquierda. Aprobalo para que empiece a construir, o escribile en el chat qué cambiar (lo revisa y vuelve a esperar)." if _run.files.has_spec() else "El agente no escribió el spec. Escribile en el chat que lo escriba, o aprobá para seguir sin spec."
+		text = I18n.t("The agent wrote the spec: it's in the left column. Approve it so the agent starts building, or tell it in the chat what to change (it revises it and waits again).") if _run.files.has_spec() else I18n.t("The agent didn't write the spec. Ask it in the chat to write it, or approve to continue without a spec.")
 	if text.is_empty() and _run.phase == OneShotRun.Phase.PAUSED and not _run.pause_note.is_empty():
 		text = _run.pause_note
 	if text.is_empty() and _run.recovered and _run.phase == OneShotRun.Phase.PAUSED:
-		text = "El One-shot quedó a medias porque el editor se cerró. «Retomar» reabre la sesión del agente y sigue; «Detener» lo da por terminado."
+		text = I18n.t("The One-shot was left unfinished because the editor closed. “Resume” reopens the agent's session and continues; “Stop” ends it.")
 	if text.is_empty() and _run.phase == OneShotRun.Phase.FINISHED and not _show_form:
 		text = _run.finish_reason
 		color = _accent
@@ -744,7 +770,7 @@ func _refresh_top_bar() -> void:
 		(_quota_row.label as Label).tooltip_text = quota.describe_window(QuotaMonitor.WINDOW_CURRENT)
 	else:
 		_set_bar(_quota_row, "—", 0.0, _accent)
-		(_quota_row.label as Label).tooltip_text = "El agente no informa la cuota del plan."
+		(_quota_row.label as Label).tooltip_text = I18n.t("The agent doesn't report the plan quota.")
 	for key: String in BUDGET_KEYS:
 		var ratio := _run.budget_ratio(key)
 		var color := AgentTheme.ERROR if ratio >= 1.0 else (AgentTheme.WARNING if ratio >= OneShotRun.WARN_RATIO else _accent)
@@ -756,16 +782,17 @@ func _refresh_top_bar() -> void:
 	match _run.phase:
 		OneShotRun.Phase.LIMITED:
 			var wait := quota.seconds_until_retry()
-			countdown = ("⏳ Se reinicia en %s" % QuotaMonitor.format_duration(wait)) if wait > 0 else "⏳ Reintentando…"
+			countdown = ("⏳ " + I18n.t("Resets in %s") % QuotaMonitor.format_duration(wait)) if wait > 0 else "⏳ " + I18n.t("Retrying…")
 		OneShotRun.Phase.PAUSED_QUOTA:
-			countdown = "⏸ Pausado por cuota antes de «%s»" % _run.resume_task
 			if _run.quota_resume_at > now:
-				countdown += " · retoma en %s" % QuotaMonitor.format_duration(_run.quota_resume_at - now)
+				countdown = "⏸ " + I18n.t("Paused for quota before “%s” · resumes in %s") % [_run.resume_task, QuotaMonitor.format_duration(_run.quota_resume_at - now)]
+			else:
+				countdown = "⏸ " + I18n.t("Paused for quota before “%s”") % _run.resume_task
 		OneShotRun.Phase.WAITING_CONFIRM:
-			countdown = "La cuota se liberó: tocá Retomar para seguir desde «%s»" % _run.resume_task
+			countdown = I18n.t("The quota is free again: press Resume to continue from “%s”") % _run.resume_task
 		OneShotRun.Phase.PAUSED:
 			if not _run.resume_task.is_empty():
-				countdown = "Retoma desde «%s»" % _run.resume_task
+				countdown = I18n.t("Resumes from “%s”") % _run.resume_task
 	_countdown_label.text = countdown
 	_countdown_label.visible = not countdown.is_empty()
 
@@ -775,18 +802,18 @@ func _refresh_top_bar() -> void:
 	_new_button.visible = finished
 	var can_resume := _run.can_resume()
 	_account_button.visible = _run.is_active() and can_resume
-	_pause_button.text = "Retomar" if can_resume else "Pausar"
+	_pause_button.text = I18n.t("Resume") if can_resume else I18n.t("Pause")
 	_pause_button.disabled = not (can_resume or _run.phase == OneShotRun.Phase.RUNNING)
-	_pause_button.tooltip_text = "Reintenta ya, sin esperar el reinicio de la ventana." if _run.phase == OneShotRun.Phase.LIMITED else ""
+	_pause_button.tooltip_text = I18n.t("Retries now, without waiting for the window to reset.") if _run.phase == OneShotRun.Phase.LIMITED else ""
 	_stop_button.disabled = not _run.is_active()
 	_spec_button.visible = _run.files.has_spec() or _run.phase == OneShotRun.Phase.SPEC_REVIEW
 	_budgets_button.visible = _run.is_active()
-	_spec_button.text = "Revisar spec" if _run.phase == OneShotRun.Phase.SPEC_REVIEW else "Spec y progreso"
+	_spec_button.text = I18n.t("Review spec") if _run.phase == OneShotRun.Phase.SPEC_REVIEW else I18n.t("Spec and progress")
 
 
 func _refresh_plan() -> void:
 	var reviewing := _run.phase == OneShotRun.Phase.SPEC_REVIEW
-	_plan_title.text = "SPEC" if reviewing else "PLAN"
+	_plan_title.text = I18n.t("Spec").to_upper() if reviewing else I18n.t("Plan").to_upper()
 	(_plan_list.get_parent() as Control).visible = not reviewing and not _plan_edit.visible
 	_plan_edit_button.visible = not reviewing and not _plan_edit.visible
 	_plan_note.visible = not reviewing
@@ -796,7 +823,7 @@ func _refresh_plan() -> void:
 		var spec := _run.files.read(_run.files.spec_path())
 		if spec != _spec_shown or _spec_view.text.is_empty():
 			_spec_shown = spec
-			_spec_view.text = MarkdownBBCode.new().convert(spec) if not spec.is_empty() else "[color=#9aa0a6]El agente no escribió el spec. Escribile en el chat que lo escriba, o aprobá para seguir sin spec.[/color]"
+			_spec_view.text = MarkdownBBCode.new().convert(spec) if not spec.is_empty() else "[color=#9aa0a6]%s[/color]" % I18n.t("The agent didn't write the spec. Ask it in the chat to write it, or approve to continue without a spec.")
 		return
 	var plan: Array = _run.current_plan()
 	var signature := JSON.stringify(plan) + ("|fin" if plan.is_empty() and _run.phase == OneShotRun.Phase.FINISHED else "")
@@ -809,7 +836,7 @@ func _refresh_plan() -> void:
 	for child: Node in _plan_list.get_children():
 		child.queue_free()
 	if plan.is_empty():
-		_plan_list.add_child(_muted_label("El agente no informó un plan: el avance sale de los playtests y las verificaciones." if _run.phase == OneShotRun.Phase.FINISHED else "El agente todavía no armó el plan."))
+		_plan_list.add_child(_muted_label(I18n.t("The agent didn't report a plan: progress comes from the playtests and the checks.") if _run.phase == OneShotRun.Phase.FINISHED else I18n.t("The agent hasn't made the plan yet.")))
 		return
 	for entry: Variant in plan:
 		if not entry is Dictionary:
@@ -840,7 +867,7 @@ func _refresh_plan() -> void:
 		var time := Label.new()
 		time.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		time.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
-		time.tooltip_text = "Cuánto lleva la tarea (o cuánto tardó, si ya terminó)."
+		time.tooltip_text = I18n.t("How long the task has been running (or how long it took, if it's done).")
 		row.add_child(time)
 		_plan_times[str(entry.get("content", ""))] = time
 		var holder := PanelContainer.new()
@@ -861,7 +888,7 @@ func _refresh_side() -> void:
 	if _run.last_capture != _capture_shown:
 		_capture_shown = _run.last_capture
 		_capture_rect.texture = ImageTexture.create_from_image(_capture_shown) if _capture_shown else null
-	_capture_caption.text = _run.last_capture_caption if _capture_shown else "Todavía no hay capturas."
+	_capture_caption.text = _run.last_capture_caption if _capture_shown else I18n.t("No captures yet.")
 
 	var signature := JSON.stringify(_run.checks)
 	if signature != _checks_signature:
@@ -869,7 +896,7 @@ func _refresh_side() -> void:
 		for child: Node in _checks_list.get_children():
 			child.queue_free()
 		if _run.checks.is_empty():
-			_checks_list.add_child(_muted_label("El agente reporta las verificaciones al terminar cada tarea."))
+			_checks_list.add_child(_muted_label(I18n.t("The agent reports the checks when it finishes each task.")))
 		for check: Dictionary in _run.checks:
 			var label := Label.new()
 			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -886,7 +913,7 @@ func _refresh_side() -> void:
 		for child: Node in _checkpoints_list.get_children():
 			child.queue_free()
 		if not _run.checkpoints_enabled:
-			_checkpoints_list.add_child(_muted_label("Checkpoints desactivados."))
+			_checkpoints_list.add_child(_muted_label(I18n.t("Checkpoints turned off.")))
 		for i in range(checkpoints.size() - 1, -1, -1):
 			var cp: Dictionary = checkpoints[i]
 			var row := HBoxContainer.new()
@@ -903,7 +930,7 @@ func _refresh_side() -> void:
 			label.tooltip_text = "%s · %s" % [cp.label, str(cp.sha).left(10)]
 			row.add_child(label)
 			var back := Button.new()
-			back.text = "Volver acá"
+			back.text = I18n.t("Restore here")
 			back.flat = true
 			back.add_theme_color_override(&"font_color", Color("#6cb4ff"))
 			back.pressed.connect(_on_restore_pressed.bind(cp))
@@ -917,13 +944,18 @@ func _refresh_bottom_bar() -> void:
 	_review_button.disabled = not enabled or _summary.get("files", []).is_empty()
 	_accept_button.disabled = not enabled or _run.phase == OneShotRun.Phase.PREPARING
 	if not enabled:
-		_summary_label.text = "Sin checkpoints: no hay resumen de cambios ni rama del agente."
+		_summary_label.text = I18n.t("No checkpoints: no change summary and no agent branch.")
 		_diffstat_label.text = ""
 		return
 	var files: Array = _summary.get("files", [])
 	var scenes := files.filter(func(file: Dictionary) -> bool: return str(file.path).get_extension() in SCENE_EXTENSIONS).size()
 	var scripts := files.filter(func(file: Dictionary) -> bool: return str(file.path).get_extension() in SCRIPT_EXTENSIONS).size()
-	_summary_label.text = "%d %s · %d %s · %d %s" % [files.size(), "archivo cambiado" if files.size() == 1 else "archivos cambiados", scenes, "escena" if scenes == 1 else "escenas", scripts, "script" if scripts == 1 else "scripts"]
+	var parts: PackedStringArray = [
+		(I18n.t("%d file changed") if files.size() == 1 else I18n.t("%d files changed")) % files.size(),
+		(I18n.t("%d scene") if scenes == 1 else I18n.t("%d scenes")) % scenes,
+		(I18n.t("%d script") if scripts == 1 else I18n.t("%d scripts")) % scripts,
+	]
+	_summary_label.text = " · ".join(parts)
 	_diffstat_label.text = "[color=%s]+%d[/color]  [color=%s]−%d[/color]" % [AgentTheme.color_hex(AgentTheme.ADDED), int(_summary.get("added", 0)), AgentTheme.color_hex(AgentTheme.REMOVED), int(_summary.get("removed", 0))]
 
 
@@ -983,7 +1015,7 @@ func _on_start_pressed() -> void:
 	_start_button.disabled = false
 	if not str(check.warning).is_empty():
 		# Sin git o sin commits no hay checkpoints: «Volver acá» no va a existir (D37).
-		_no_git_dialog.dialog_text = "%s\n\nSin checkpoints no se puede volver atrás ni revisar los cambios del One-shot." % check.warning
+		_no_git_dialog.dialog_text = I18n.t("%s\n\nWithout checkpoints you can't go back or review the One-shot's changes.") % check.warning
 		_no_git_dialog.popup_centered()
 		return
 	if check.needs_wip_confirm:
@@ -1017,10 +1049,10 @@ func _fill_account_menu() -> void:
 	popup.clear()
 	var methods := _run.controller.login_methods()
 	for i in methods.size():
-		popup.add_item("Iniciar sesión con otra cuenta · %s" % methods[i].label, i)
+		popup.add_item(I18n.t("Sign in with another account · %s") % methods[i].label, i)
 	if not methods.is_empty():
 		popup.add_separator()
-	popup.add_item("Ya inicié sesión con otra cuenta (en una terminal): reiniciar el agente", ACCOUNT_ALREADY_SWITCHED)
+	popup.add_item(I18n.t("I already signed in with another account (in a terminal): restart the agent"), ACCOUNT_ALREADY_SWITCHED)
 
 
 func _on_account_menu(id: int) -> void:
@@ -1072,15 +1104,16 @@ func _on_restored() -> void:
 func _on_activity_added(entry: Dictionary) -> void:
 	var color: Color = ACTIVITY_COLORS.get(entry.kind, AgentTheme.font_color())
 	var text := str(entry.text).replace("[", "[lb]")
+	var kind := I18n.t(ACTIVITY_KIND_LABELS[entry.kind]) if ACTIVITY_KIND_LABELS.has(entry.kind) else str(entry.kind)
 	_activity_text.append_text("[color=%s][code]%s[/code][/color]  [color=%s]%s[/color]  %s\n" % [
-		AgentTheme.color_hex(AgentTheme.MUTED), entry.time, AgentTheme.color_hex(color), entry.kind, text])
-	if entry.kind in ["checkpoint", "tool", "playtest", "estado", "agente"]:
+		AgentTheme.color_hex(AgentTheme.MUTED), entry.time, AgentTheme.color_hex(color), kind, text])
+	if entry.kind in ["checkpoint", "tool", "playtest", "status", "agent"]:
 		_summary_dirty = true
 
 
 func _on_restore_pressed(cp: Dictionary) -> void:
 	_pending_restore = cp
-	_restore_dialog.dialog_text = "¿Volver a %s (%s)?\nLa carpeta del proyecto queda como en ese checkpoint (se descartan los cambios posteriores) y el One-shot queda pausado." % [cp.name, cp.label]
+	_restore_dialog.dialog_text = I18n.t("Go back to %s (%s)?\nThe project folder is left as it was at that checkpoint (later changes are discarded) and the One-shot is paused.") % [cp.name, cp.label]
 	_restore_dialog.popup_centered()
 
 
@@ -1091,14 +1124,14 @@ func _on_restore_confirmed() -> void:
 	_pending_restore = {}
 	_summary_dirty = true
 	if not error.is_empty():
-		_show_error("No se pudo volver al checkpoint: " + error)
+		_show_error(I18n.t("Couldn't go back to the checkpoint: %s") % error)
 
 
 func _on_accept_confirmed() -> void:
 	var error: String = await _run.accept_all()
 	_summary_dirty = true
 	if not error.is_empty():
-		_show_error("No se pudo aceptar: " + error)
+		_show_error(I18n.t("Couldn't accept: %s") % error)
 
 
 func _on_review_pressed() -> void:
@@ -1114,7 +1147,7 @@ func _on_change_activated(index: int) -> void:
 	var old_text: String = await _run.git.base_text(path)
 	var full := _run.git.root.path_join(path)
 	var new_text := FileAccess.get_file_as_string(full) if FileAccess.file_exists(full) else ""
-	diff_requested.emit("One-shot: " + path, "antes del One-shot", old_text, "ahora", new_text)
+	diff_requested.emit("One-shot: " + path, I18n.t("before the One-shot"), old_text, I18n.t("now"), new_text)
 
 
 func _on_summary_timer() -> void:
@@ -1171,7 +1204,7 @@ func _show_files(focus: String = "") -> void:
 			child.queue_free()
 	_spec_edit.text = _run.files.read(_run.files.spec_path())
 	_files_paths = [_run.files.spec_path()]
-	var others: Array[Array] = [["Progreso", _run.files.progress_path()]]
+	var others: Array[Array] = [[I18n.t("Progress"), _run.files.progress_path()]]
 	for path: String in _run.files.qa_files():
 		others.append(["QA " + path.get_file().get_basename().trim_prefix("qa-"), path])
 	for other: Array in others:
@@ -1180,13 +1213,13 @@ func _show_files(focus: String = "") -> void:
 		view.editable = false
 		view.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 		var text := _run.files.read(other[1])
-		view.text = text if not text.is_empty() else "(todavía no existe)"
+		view.text = text if not text.is_empty() else I18n.t("(doesn't exist yet)")
 		_files_tabs.add_child(view)
 		_files_paths.append(other[1])
 	var index := _files_paths.find(focus)
 	_files_tabs.current_tab = maxi(index, 0)
 	var reviewing := _run.phase == OneShotRun.Phase.SPEC_REVIEW
-	_files_dialog.ok_button_text = "Aprobar spec" if reviewing else "Guardar spec"
+	_files_dialog.ok_button_text = I18n.t("Approve spec") if reviewing else I18n.t("Save spec")
 	_refresh_files_path()
 	_files_dialog.popup_centered()
 

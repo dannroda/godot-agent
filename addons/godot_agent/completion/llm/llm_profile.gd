@@ -11,11 +11,11 @@ const KIND_OPENAI := "openai"
 const KIND_GEMINI := "gemini"
 const KINDS: PackedStringArray = [KIND_OLLAMA, KIND_LLAMACPP, KIND_CODESTRAL, KIND_OPENAI, KIND_GEMINI]
 const KIND_LABELS: Dictionary = {
-	KIND_OLLAMA: "Ollama (local, FIM)",
-	KIND_LLAMACPP: "llama.cpp server (local, FIM)",
-	KIND_CODESTRAL: "Codestral · Mistral (remoto, FIM)",
-	KIND_OPENAI: "OpenAI-compatible (/v1/completions)",
-	KIND_GEMINI: "Gemini (remoto, experimental)",
+	KIND_OLLAMA: "Ollama (local, FIM)",  # i18n
+	KIND_LLAMACPP: "llama.cpp server (local, FIM)",  # i18n
+	KIND_CODESTRAL: "Codestral · Mistral (remote, FIM)",  # i18n
+	KIND_OPENAI: "OpenAI-compatible (/v1/completions)",  # i18n
+	KIND_GEMINI: "Gemini (remote, experimental)",  # i18n
 }
 ## Plantilla FIM en crudo de Qwen2.5-Coder (para servers sin `suffix`, spec §16.3).
 const QWEN_FIM := "<|fim_prefix|>{prefix}<|fim_suffix|>{suffix}<|fim_middle|>"

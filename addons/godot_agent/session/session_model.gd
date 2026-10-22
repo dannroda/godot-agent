@@ -23,6 +23,7 @@ signal permission_requested(request: PermissionRequest)
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
 const PermissionRequest := preload("permission_request.gd")
+const I18n := preload("../core/i18n.gd")
 
 enum State {
 	DISCONNECTED,  ## sin proceso
@@ -37,10 +38,10 @@ enum State {
 enum HarnessMode { ASK, REVIEW, BUILD, ONESHOT }
 
 const HARNESS_MODE_LABELS: Dictionary = {
-	HarnessMode.ASK: "Preguntar",
-	HarnessMode.REVIEW: "Revisar",
-	HarnessMode.BUILD: "Construir",
-	HarnessMode.ONESHOT: "One-shot",
+	HarnessMode.ASK: "Ask",  # i18n
+	HarnessMode.REVIEW: "Review",  # i18n
+	HarnessMode.BUILD: "Build",  # i18n
+	HarnessMode.ONESHOT: "One-shot",  # i18n
 }
 
 var state: State = State.DISCONNECTED
@@ -301,13 +302,13 @@ func finish_turn(stop_reason: String) -> void:
 		cancel_unfinished_tool_calls()
 	match stop_reason:
 		"max_tokens":
-			add_notice("El agente cortó la respuesta: llegó al máximo de tokens.", ChatEntry.Level.WARNING)
+			add_notice(I18n.t("The agent cut the response short: it hit the token limit."), ChatEntry.Level.WARNING)
 		"max_turn_requests":
-			add_notice("El agente llegó al máximo de pedidos por turno.", ChatEntry.Level.WARNING)
+			add_notice(I18n.t("The agent hit the maximum number of requests per turn."), ChatEntry.Level.WARNING)
 		"refusal":
-			add_notice("El agente se negó a seguir con este pedido.", ChatEntry.Level.WARNING)
+			add_notice(I18n.t("The agent refused to continue with this request."), ChatEntry.Level.WARNING)
 		"cancelled":
-			add_notice("Turno cancelado.")
+			add_notice(I18n.t("Turn cancelled."))
 	if state in [State.PROMPTING, State.CANCELLING]:
 		set_state(State.READY)
 	turn_finished.emit(stop_reason)
@@ -497,7 +498,7 @@ static func content_to_text(block: Variant) -> String:
 		"text":
 			return str(block.get("text", ""))
 		"image":
-			return "[imagen]"
+			return I18n.t("[image]")
 		"audio":
 			return "[audio]"
 		"resource_link":
@@ -506,5 +507,5 @@ static func content_to_text(block: Variant) -> String:
 			var resource: Variant = block.get("resource")
 			if resource is Dictionary and resource.get("text") is String:
 				return str(resource.text)
-			return "[recurso]"
+			return I18n.t("[resource]")
 	return ""

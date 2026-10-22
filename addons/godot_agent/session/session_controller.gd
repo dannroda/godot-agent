@@ -26,6 +26,7 @@ const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
 const EditorBinary := preload("../transport/editor_binary.gd")
 const CommandResolver := preload("../transport/command_resolver.gd")
+const I18n := preload("../core/i18n.gd")
 
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
@@ -50,10 +51,10 @@ const AUTH_REQUIRED_MESSAGE := "authentication required"
 const PREAUTHORIZED_WRITE_MS := 120000
 
 const MODE_RULES: Dictionary = {
-	SessionModel.HarnessMode.ASK: "Solo respondé preguntas: no modifiques archivos, escenas ni settings, y no ejecutes comandos.",
-	SessionModel.HarnessMode.REVIEW: "Revisión de solo lectura: no modifiques nada. Reportá los hallazgos en un bloque ```json con {\"findings\":[{\"path\",\"line\",\"severity\":\"bug|order|perf|style\",\"title\",\"body\",\"suggestion\"}]} (path relativo al proyecto, line desde 1). Cada bloque reemplaza la revisión anterior: incluí todos los hallazgos vigentes.",
-	SessionModel.HarnessMode.BUILD: "Podés editar escenas y scripts; el usuario aprueba los cambios.",
-	SessionModel.HarnessMode.ONESHOT: "Trabajá de forma autónoma hasta cumplir el objetivo; verificá con run_scene, capture_game_frame y get_errors después de cada tarea.",
+	SessionModel.HarnessMode.ASK: "Only answer questions: do not modify files, scenes or settings, and do not run commands.",
+	SessionModel.HarnessMode.REVIEW: "Read-only review: do not modify anything. Report the findings in a ```json block with {\"findings\":[{\"path\",\"line\",\"severity\":\"bug|order|perf|style\",\"title\",\"body\",\"suggestion\"}]} (path relative to the project, line starting at 1). Each block replaces the previous review: include every finding that still applies.",
+	SessionModel.HarnessMode.BUILD: "You can edit scenes and scripts; the user approves the changes.",
+	SessionModel.HarnessMode.ONESHOT: "Work autonomously until the goal is met; verify with run_scene, capture_game_frame and get_errors after each task.",
 }
 ## Modo del agente (si los publica) que corresponde a cada modo del harness.
 const AGENT_MODE_FOR: Dictionary = {
@@ -136,7 +137,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	model.reset()
 	model.failure_message = ""
 	model.set_state(SessionModel.State.STARTING)
-	agent_log.add(AgentLog.CH_PROC, "Lanzando %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
+	agent_log.add(AgentLog.CH_PROC, "Launching %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
 
 	_process = AgentProcess.new()
 	_process.line_received.connect(client.receive_line)
@@ -145,10 +146,10 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	var base_path := CommandResolver.child_path_for(CommandResolver.resolve(agent_profile.command))
 	var env := EditorBinary.child_env(agent_profile.resolved_env(), base_path)
 	if not _process.start(agent_profile.command, agent_profile.args, env):
-		_fail("No se pudo lanzar el agente: %s" % _process.last_error())
+		_fail(I18n.t("Could not start the agent: %s") % _process.last_error())
 		_process = null
 		return false
-	agent_log.add(AgentLog.CH_PROC, "Proceso iniciado (pid %d)" % _process.pid())
+	agent_log.add(AgentLog.CH_PROC, "Process started (pid %d)" % _process.pid())
 
 	var init := await client.request("initialize", {
 		"protocolVersion": PROTOCOL_VERSION,
@@ -158,12 +159,12 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	if generation != _connect_generation:
 		return false
 	if not init.ok or not init.result is Dictionary:
-		_fail("El agente no respondió a initialize: %s" % init.error_message())
+		_fail(I18n.t("The agent did not respond to initialize: %s") % init.error_message())
 		return false
 	model.apply_initialize(init.result)
 	var protocol := int(init.result.get("protocolVersion", PROTOCOL_VERSION))
 	if protocol != PROTOCOL_VERSION:
-		agent_log.add(AgentLog.CH_ACP, "El agente usa la versión de protocolo %d (el cliente pidió %d)" % [protocol, PROTOCOL_VERSION])
+		agent_log.add(AgentLog.CH_ACP, "The agent uses protocol version %d (the client asked for %d)" % [protocol, PROTOCOL_VERSION])
 	if not resume.is_empty():
 		return await _load_session(resume, generation)
 	return await open_session(generation)
@@ -194,12 +195,16 @@ func open_session(generation: int = _connect_generation) -> bool:
 	if generation != _connect_generation:
 		return false
 	if not result.ok or not result.result is Dictionary or not result.result.get("sessionId") is String:
-		var detail := result.error_message() if not result.ok else "respuesta sin sessionId"
+		var detail := result.error_message() if not result.ok else "response without sessionId"
 		var login_actions: Array[Dictionary] = []
+		var message := I18n.t("Could not open the session: %s") % detail
 		if not result.ok and is_auth_required(result.error):
 			login_actions = _login_actions()
-			detail += ". Iniciá sesión para seguir." if not login_actions.is_empty() else ". El agente pide autenticarse: %s" % _auth_hint()
-		_fail("No se pudo abrir la sesión: %s" % detail, login_actions)
+			if not login_actions.is_empty():
+				message = I18n.t("Could not open the session: %s. Sign in to continue.") % detail
+			else:
+				message = I18n.t("Could not open the session: %s. The agent asks for authentication: %s") % [detail, _auth_hint()]
+		_fail(message, login_actions)
 		return false
 	model.apply_session(result.result.sessionId, result.result)
 	_system_prompt_sent = false
@@ -257,7 +262,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 			if is_auth_required(result.error):
 				actions = _login_actions()
 			actions.append_array(_error_actions())
-			model.add_notice("El turno terminó con error: %s" % result.error_message(), ChatEntry.Level.ERROR, actions)
+			model.add_notice(I18n.t("The turn ended with an error: %s") % result.error_message(), ChatEntry.Level.ERROR, actions)
 			model.finish_turn("error")
 		_record_turn_end("error")
 		return "error"
@@ -302,7 +307,7 @@ func set_config_option(id: String, value: String) -> bool:
 		return false
 	var result := await client.request("session/set_config_option", {"sessionId": model.session_id, "configId": id, "value": value})
 	if not result.ok:
-		model.add_notice("No se pudo cambiar '%s': %s" % [id, result.error_message()], ChatEntry.Level.WARNING)
+		model.add_notice(I18n.t("Could not change '%s': %s") % [id, result.error_message()], ChatEntry.Level.WARNING)
 		return false
 	if result.result is Dictionary and result.result.get("configOptions") is Array:
 		model.config_options = result.result.configOptions
@@ -320,8 +325,8 @@ func stop() -> void:
 		var process := _process
 		_process = null
 		process.stop()
-		agent_log.add(AgentLog.CH_PROC, "Proceso detenido")
-	client.fail_all_pending("Sesión detenida.")
+		agent_log.add(AgentLog.CH_PROC, "Process stopped")
+	client.fail_all_pending("Session stopped.")
 	model.cancel_pending_permissions()
 	if history:
 		history.end()
@@ -362,21 +367,21 @@ func login(method_id: String) -> void:
 		if item.id == method_id:
 			method = item
 	if method.is_empty() or _profile == null:
-		model.add_notice("El agente no ofrece ese método de inicio de sesión.", ChatEntry.Level.WARNING)
+		model.add_notice(I18n.t("The agent does not offer that sign-in method."), ChatEntry.Level.WARNING)
 		return
 	cancel_login()
 	var label := AgentLogin.label_of(method)
-	agent_log.add(AgentLog.CH_PROC, "Inicio de sesión: %s" % label)
+	agent_log.add(AgentLog.CH_PROC, "Sign-in: %s" % label)
 	if not AgentLogin.is_terminal(method):
-		_login_entry = model.add_notice("Iniciando sesión con %s…" % label)
+		_login_entry = model.add_notice(I18n.t("Signing in with %s…") % label)
 		var result := await client.request("authenticate", {"methodId": method_id})
 		_on_login_finished(result.ok, result.error_message() if not result.ok else "")
 		return
 	_login = AgentLogin.new()
 	_login.url_found.connect(_on_login_url)
 	_login.finished.connect(_on_login_finished)
-	_login_entry = model.add_notice("Iniciando sesión con %s: completalo en el navegador que se abrió." % label,
-		ChatEntry.Level.INFO, [{"id": ACTION_LOGIN_CANCEL, "label": "Cancelar"}])
+	_login_entry = model.add_notice(I18n.t("Signing in with %s: finish in the browser that just opened.") % label,
+		ChatEntry.Level.INFO, [{"id": ACTION_LOGIN_CANCEL, "label": I18n.t("Cancel")}])
 	var command := AgentLogin.command_for(method, _profile)
 	agent_log.add(AgentLog.CH_PROC, "Login: %s %s" % [command.command, " ".join(command.args)])
 	_login.start(method, _profile)
@@ -386,7 +391,7 @@ func login(method_id: String) -> void:
 func send_login_code(code: String) -> bool:
 	if not is_logging_in():
 		return false
-	agent_log.add(AgentLog.CH_PROC, "Login: código enviado")  # nunca el código
+	agent_log.add(AgentLog.CH_PROC, "Login: code sent")  # nunca el código
 	return _login.send_code(code)
 
 
@@ -398,33 +403,33 @@ func cancel_login() -> void:
 	if login_run.is_running():
 		login_run.cancel()
 		if _login_entry:
-			_set_login_notice("Inicio de sesión cancelado.", ChatEntry.Level.INFO, [])
+			_set_login_notice(I18n.t("Sign-in cancelled."), ChatEntry.Level.INFO, [])
 	_login_entry = null
 
 
 func _on_login_url(url: String) -> void:
-	_set_login_notice("Iniciando sesión con %s: completalo en el navegador. Si no se abrió, abrí el enlace; si la página te da un código, pegalo acá." % AgentLogin.label_of(_login.method),
+	_set_login_notice(I18n.t("Signing in with %s: finish in the browser. If it did not open, open the link; if the page gives you a code, paste it here.") % AgentLogin.label_of(_login.method),
 		ChatEntry.Level.INFO, [
-			{"id": "open_link", "label": "Abrir enlace", "data": url},
-			{"id": ACTION_LOGIN_CODE, "label": "Pegar código…"},
-			{"id": ACTION_LOGIN_CANCEL, "label": "Cancelar"},
+			{"id": "open_link", "label": I18n.t("Open link"), "data": url},
+			{"id": ACTION_LOGIN_CODE, "label": I18n.t("Paste code…")},
+			{"id": ACTION_LOGIN_CANCEL, "label": I18n.t("Cancel")},
 		])
 
 
 func _on_login_finished(ok: bool, message: String) -> void:
 	_login = null
 	if not ok:
-		agent_log.add(AgentLog.CH_PROC, "Login falló: %s" % message)
-		_set_login_notice("No se pudo iniciar sesión: %s" % message, ChatEntry.Level.ERROR, _login_actions())
+		agent_log.add(AgentLog.CH_PROC, "Login failed: %s" % message)
+		_set_login_notice(I18n.t("Could not sign in: %s") % message, ChatEntry.Level.ERROR, _login_actions())
 		_login_entry = null
 		return
-	agent_log.add(AgentLog.CH_PROC, "Login completo")
+	agent_log.add(AgentLog.CH_PROC, "Login complete")
 	_login_entry = null
 	if after_login.is_valid() and await after_login.call():
-		model.add_notice("Sesión iniciada.")
+		model.add_notice(I18n.t("Signed in."))
 		return
 	if _profile and await start(_profile):
-		model.add_notice("Sesión iniciada.")
+		model.add_notice(I18n.t("Signed in."))
 
 
 func _set_login_notice(text: String, level: ChatEntry.Level, actions: Array[Dictionary]) -> void:
@@ -449,7 +454,7 @@ func login_methods() -> Array[Dictionary]:
 func _login_actions() -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
 	for method: Dictionary in AgentLogin.usable_methods(model.auth_methods):
-		actions.append({"id": ACTION_LOGIN, "label": "Iniciar sesión · %s" % AgentLogin.label_of(method), "data": str(method.id)})
+		actions.append({"id": ACTION_LOGIN, "label": I18n.t("Sign in · %s") % AgentLogin.label_of(method), "data": str(method.id)})
 	return actions
 
 
@@ -470,7 +475,7 @@ func system_prompt() -> String:
 func authorize(group: String, title: String, description: String, diff: Dictionary = {}, timeout_s: int = 0) -> bool:
 	var decision := policy.decide(group, model.harness_mode)
 	if decision == PermissionPolicy.ALLOW:
-		_log_perm("permitido por el modo %s: %s" % [_mode_label(), title])
+		_log_perm("allowed by %s mode: %s" % [_mode_label(), title])
 		return true
 	if decision == PermissionPolicy.DENY:
 		_notify_denied(group, title)
@@ -499,10 +504,10 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	request.options = options
 	request.group = PermissionPolicy.group_for_tool_call(tool_call)
 	var call := model.tool_call(request.tool_call_id)
-	request.title = call.display_name() if call else str(tool_call.get("title", "Herramienta del agente"))
+	request.title = call.display_name() if call else str(tool_call.get("title", I18n.t("Agent tool")))
 	var subagent: ToolCall = model.tool_call(call.parent_id) if call and not call.parent_id.is_empty() else null
 	if subagent:
-		request.title += " · subagente «%s»" % subagent.display_name()
+		request.title = I18n.t("%s · subagent «%s»") % [request.title, subagent.display_name()]
 	request.description = _describe_tool_call(tool_call, call)
 	request.diff = _first_diff(tool_call, call)
 
@@ -511,7 +516,7 @@ func _on_request_permission(params: Dictionary) -> Variant:
 		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
 	match decision:
 		PermissionPolicy.ALLOW:
-			_log_perm("permitido por el modo %s: %s" % [_mode_label(), request.title])
+			_log_perm("allowed by %s mode: %s" % [_mode_label(), request.title])
 			_preauthorize(request, call)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
 		PermissionPolicy.DENY:
@@ -531,13 +536,13 @@ func _on_request_permission(params: Dictionary) -> Variant:
 
 
 func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
-	_log_perm("pregunta al usuario: %s" % request.title)
+	_log_perm("asking the user: %s" % request.title)
 	model.add_permission(request)
 	if timeout_s > 0:
 		var tree := Engine.get_main_loop() as SceneTree
 		tree.create_timer(timeout_s).timeout.connect(func() -> void:
 			if request.is_pending():
-				_log_perm("sin respuesta en %d s, se deniega: %s" % [timeout_s, request.title])
+				_log_perm("no answer in %d s, denied: %s" % [timeout_s, request.title])
 				request.cancel()
 		)
 	var outcome: Dictionary = request.outcome if not request.is_pending() else await request.resolved
@@ -555,7 +560,7 @@ func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bo
 	var counts := LineDiff.count(LineDiff.diff(old_text, new_text))
 	var description := "%s · +%d −%d" % [path.trim_prefix(cwd + "/"), counts.added, counts.removed]
 	return await authorize(
-		PermissionPolicy.GROUP_EDIT_FILES, "Escribir %s" % path.get_file(), description,
+		PermissionPolicy.GROUP_EDIT_FILES, I18n.t("Write %s") % path.get_file(), description,
 		{"path": path, "oldText": old_text, "newText": new_text}
 	)
 
@@ -581,9 +586,10 @@ func _preauthorize(request: PermissionRequest, call: Variant) -> void:
 
 
 func _notify_denied(group: String, title: String) -> void:
-	var message := "Denegado en modo %s (%s): %s" % [_mode_label(), PermissionPolicy.GROUP_LABELS.get(group, group), title]
-	_log_perm(message)
-	model.add_notice(message, ChatEntry.Level.WARNING)
+	var group_label: String = PermissionPolicy.GROUP_LABELS.get(group, group)
+	_log_perm("denied in %s mode (%s): %s" % [_mode_label(), group_label, title])
+	var shown_group := I18n.t(group_label) if PermissionPolicy.GROUP_LABELS.has(group) else group
+	model.add_notice(I18n.t("Denied in %s mode (%s): %s") % [I18n.t(_mode_label()), shown_group, title], ChatEntry.Level.WARNING)
 
 
 static func _selected_or_cancelled(option_id: String) -> Dictionary:
@@ -616,8 +622,8 @@ func _mode_label() -> String:
 
 static func _outcome_label(request: PermissionRequest) -> String:
 	if request.outcome.get("outcome") != "selected":
-		return "cancelado"
-	return "permitido" if request.was_allowed() else "denegado"
+		return "cancelled"
+	return "allowed" if request.was_allowed() else "denied"
 
 
 func _log_perm(message: String) -> void:
@@ -636,7 +642,7 @@ func _on_session_update(params: Dictionary) -> void:
 	if params.update.get("sessionUpdate") == "usage_update":
 		quota.observe_update(params.update)
 	if not model.apply_update(params.update):
-		agent_log.add(AgentLog.CH_ACP, "Variante de session/update desconocida, ignorada: %s" % str(params.update.get("sessionUpdate", "?")))
+		agent_log.add(AgentLog.CH_ACP, "Unknown session/update variant, ignored: %s" % str(params.update.get("sessionUpdate", "?")))
 	elif history:
 		history.record_update(params.update)
 
@@ -654,7 +660,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	if not model.supports_load_session():
 		_load_failed = true
 		stop()
-		model.add_notice("%s no puede reanudar sesiones (no anuncia session/load): el historial queda de solo lectura. Escribí para empezar una sesión nueva." % _profile.display_name)
+		model.add_notice(I18n.t("%s cannot resume sessions (it does not announce session/load): the history stays read-only. Type to start a new session.") % _profile.display_name)
 		return false
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
 	var result := await client.request("session/load", {"sessionId": session_id, "cwd": cwd, "mcpServers": mcp_servers})
@@ -663,7 +669,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	if not result.ok:
 		_load_failed = true
 		stop()
-		model.add_notice("No se pudo reanudar la sesión: %s. El historial queda de solo lectura." % result.error_message(), ChatEntry.Level.WARNING)
+		model.add_notice(I18n.t("Could not resume the session: %s. The history stays read-only.") % result.error_message(), ChatEntry.Level.WARNING)
 		return false
 	model.apply_session(session_id, result.result if result.result is Dictionary else {})
 	_system_prompt_sent = true  # ya está en el contexto que el agente recuperó
@@ -672,7 +678,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	if history:
 		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
 	model.set_state(SessionModel.State.READY)
-	model.add_notice("Sesión reanudada: el agente recuperó su contexto con session/load.")
+	model.add_notice(I18n.t("Session resumed: the agent recovered its context with session/load."))
 	_sync_agent_mode()
 	connected.emit()
 	return true
@@ -687,8 +693,8 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 		return
 	_process = null
 	process.stop()
-	client.fail_all_pending("El agente se cerró (código %d)." % code)
-	_fail("El agente se cerró inesperadamente (código %d)." % code)
+	client.fail_all_pending("The agent exited (code %d)." % code)
+	_fail(I18n.t("The agent exited unexpectedly (code %d).") % code)
 	disconnected.emit()
 
 
@@ -726,7 +732,7 @@ func _fail(message: String, extra_actions: Array[Dictionary] = []) -> void:
 
 
 func _error_actions() -> Array[Dictionary]:
-	return [{"id": ACTION_RETRY, "label": "Reintentar"}, {"id": ACTION_SHOW_LOG, "label": "Ver log"}]
+	return [{"id": ACTION_RETRY, "label": I18n.t("Retry")}, {"id": ACTION_SHOW_LOG, "label": I18n.t("Show log")}]
 
 
 func _auth_hint() -> String:

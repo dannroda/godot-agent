@@ -28,7 +28,7 @@ func _initialize() -> void:
 	_port = int(host_port.get_slice(":", 1))
 	_path = "/" + without_scheme.get_slice("/", 1) if without_scheme.contains("/") else "/mcp"
 	if _host.is_empty() or _port <= 0 or _token.is_empty():
-		printerr("mcp_stdio_shim: faltan GODOT_AGENT_MCP_URL o GODOT_AGENT_MCP_TOKEN")
+		printerr("mcp_stdio_shim: GODOT_AGENT_MCP_URL or GODOT_AGENT_MCP_TOKEN is missing")
 		quit(2)
 		return
 	_thread = Thread.new()
@@ -57,7 +57,7 @@ func _pump() -> void:
 		if status == 200 and not body.is_empty():
 			print(body)
 		elif status != 202 and message is Dictionary and message.has("id"):
-			var error := {"code": -32603, "message": "Server MCP del editor: HTTP %d %s" % [status, body.left(200)]}
+			var error := {"code": -32603, "message": "Editor MCP server: HTTP %d %s" % [status, body.left(200)]}
 			print(JSON.stringify({"jsonrpc": "2.0", "id": message.id, "error": error}))
 
 
@@ -99,7 +99,7 @@ func _post(body: String) -> Array:
 		if status == 404:
 			_session_id = ""  # el editor reinició el server: el cliente tiene que reinicializar
 		return [status, data.get_string_from_utf8()]
-	return [0, "no se pudo conectar con el editor"]
+	return [0, "could not connect to the editor"]
 
 
 func _ensure_connected() -> bool:

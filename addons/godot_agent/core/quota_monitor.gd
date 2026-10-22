@@ -12,15 +12,16 @@ extends RefCounted
 signal changed
 
 const AgentLog := preload("agent_log.gd")
+const I18n := preload("i18n.gd")
 
 enum State { UNKNOWN, NORMAL, WARNING, PAUSE_SCHEDULED, LIMITED }
 
 const STATE_LABELS: Dictionary = {
-	State.UNKNOWN: "desconocido",
-	State.NORMAL: "normal",
-	State.WARNING: "aviso",
-	State.PAUSE_SCHEDULED: "pausa programada",
-	State.LIMITED: "limitado",
+	State.UNKNOWN: "unknown",  # i18n
+	State.NORMAL: "normal",  # i18n
+	State.WARNING: "warning",  # i18n
+	State.PAUSE_SCHEDULED: "pause scheduled",  # i18n
+	State.LIMITED: "limited",  # i18n
 }
 const PATTERNS_PATH := "res://addons/godot_agent/config/quota_patterns.txt"
 ## Clave de `_meta` donde claude-agent-acp manda el SDKRateLimitInfo en los usage_update (D22).
@@ -28,7 +29,10 @@ const CLAUDE_RATE_LIMIT_KEY := "_claude/rateLimit"
 ## Ventanas que se muestran, en orden: la actual y la semanal (D22).
 const WINDOW_CURRENT := "five_hour"
 const WINDOW_WEEKLY := "seven_day"
-const WINDOW_LABELS: Dictionary = {WINDOW_CURRENT: "Ventana", WINDOW_WEEKLY: "Semana"}
+const WINDOW_LABELS: Dictionary = {
+	WINDOW_CURRENT: "Window",  # i18n
+	WINDOW_WEEKLY: "Week",  # i18n
+}
 ## Reintentos sin hora de reinicio (minutos): 5, 10, 20 y después cada 60.
 const BACKOFF_MINUTES: Array[int] = [5, 10, 20, 60]
 const DEFAULT_WARN := 0.75
@@ -93,15 +97,15 @@ func observe_update(update: Dictionary) -> void:
 	var raw := JSON.stringify(update)
 	var info := rate_limit_info(update)
 	if info.is_empty():
-		_log("usage_update: %s/%s tokens de contexto, sin datos de cuota" % [update.get("used", "?"), update.get("size", "?")], raw)
+		_log("usage_update: %s/%s context tokens, no quota data" % [update.get("used", "?"), update.get("size", "?")], raw)
 		return
 	last_rate_limit = info
-	_log("cuota del plan: %s" % describe_rate_limit(info), raw)
+	_log("plan quota: %s" % describe_rate_limit(info), raw)
 	_read_windows(info)
 	if str(info.get("status", "")) == "rejected":
 		_enter_limited("cuota", "status rejected", _number(info.get("resetsAt")))
 	elif _limited and str(info.get("status", "")).begins_with("allowed"):
-		_leave_limited("el agente vuelve a informar cuota disponible")
+		_leave_limited("the agent reports available quota again")
 	_recompute()
 
 
@@ -110,7 +114,7 @@ func observe_agent_text(text: String) -> bool:
 	var match_text := matching_line(text)
 	if match_text.is_empty():
 		return false
-	_log("aviso de límite en el texto del agente: %s" % match_text, JSON.stringify({"text": text.left(2000)}))
+	_log("limit notice in the agent text: %s" % match_text, JSON.stringify({"text": text.left(2000)}))
 	_enter_limited("texto", match_text, parse_reset_time(match_text, _now()))
 	_recompute()
 	return true
@@ -123,7 +127,7 @@ func observe_prompt_error(error: Dictionary) -> bool:
 	var text := "%s %s" % [error.get("message", ""), JSON.stringify(data) if data != null else ""]
 	var line := matching_line(str(error.get("message", "")))
 	var is_limit := kind in ["rate_limit", "billing_error"] or not matching_line(text).is_empty()
-	_log("error de session/prompt%s: %s" % [" (límite)" if is_limit else "", str(error.get("message", "")).left(300)], JSON.stringify(error))
+	_log("session/prompt error%s: %s" % [" (limit)" if is_limit else "", str(error.get("message", "")).left(300)], JSON.stringify(error))
 	if is_limit:
 		_enter_limited("error", str(error.get("message", "")), parse_reset_time(line if not line.is_empty() else text, _now()))
 		_recompute()
@@ -133,7 +137,7 @@ func observe_prompt_error(error: Dictionary) -> bool:
 ## Un turno terminó bien: si estaba "limitado", la cuota volvió.
 func observe_turn_ok() -> void:
 	if _limited:
-		_leave_limited("un turno terminó bien")
+		_leave_limited("a turn finished fine")
 		_recompute()
 
 
@@ -143,7 +147,7 @@ func forget_account() -> void:
 	last_rate_limit = {}
 	last_usage_update = {}
 	if _limited:
-		_leave_limited("cambio de cuenta")
+		_leave_limited("account switched")
 	_recompute()
 
 
@@ -194,26 +198,29 @@ func retry_due() -> bool:
 ## Se mandó un intento de reanudación: si vuelve a fallar, el próximo espera más.
 func note_retry() -> void:
 	_retries += 1
-	_log("intento de reanudación %d" % _retries, "")
+	_log("resume attempt %d" % _retries, "")
 
 
 ## "se pausa al 90 %, al terminar la tarea o el turno", para la barra del One-shot.
 func rule_text() -> String:
 	if state == State.LIMITED:
-		return "Limitado: se retoma %s" % ("al reiniciarse la ventana" if limited_until > 0 else "con reintentos (5, 10, 20 y cada 60 min)")
+		if limited_until > 0:
+			return I18n.t("Limited: resumes when the window resets")
+		return I18n.t("Limited: resumes with retries (5, 10, 20 and then every 60 min)")
 	if not pause_enabled:
-		return "Sin pausa por cuota · aviso al %d %%" % roundi(warn_threshold * 100.0)
+		return I18n.t("No quota pause · warning at %d %%") % roundi(warn_threshold * 100.0)
 	if state == State.PAUSE_SCHEDULED:
-		return "Cuota al %d %%: se pausa al terminar la tarea o el turno en curso" % roundi(max_utilization() * 100.0)
-	return "Se pausa al %d %%, al terminar la tarea o el turno en curso" % roundi(pause_threshold * 100.0)
+		return I18n.t("Quota at %d %%: pauses when the current task or turn finishes") % roundi(max_utilization() * 100.0)
+	return I18n.t("Pauses at %d %%, when the current task or turn finishes") % roundi(pause_threshold * 100.0)
 
 
-## "Ventana 63 % · reinicia en 2 h 10 min".
+## "Window 63 % · resets in 2 h 10 min".
 func describe_window(window: String) -> String:
-	var parts: PackedStringArray = ["%s %d %%" % [WINDOW_LABELS.get(window, window), roundi(utilization(window) * 100.0)]]
+	var label := I18n.t(WINDOW_LABELS[window]) if WINDOW_LABELS.has(window) else window
+	var percent := roundi(utilization(window) * 100.0)
 	if resets_at(window) > 0:
-		parts.append("reinicia en " + format_duration(resets_at(window) - _now()))
-	return " · ".join(parts)
+		return I18n.t("%s %d %% · resets in %s") % [label, percent, format_duration(resets_at(window) - _now())]
+	return "%s %d %%" % [label, percent]
 
 
 func matching_line(text: String) -> String:
@@ -270,10 +277,10 @@ static func format_duration(seconds: int) -> String:
 		return "%d min" % minutes
 	if minutes < 48 * 60:
 		return "%d h %d min" % [minutes / 60, minutes % 60] if minutes % 60 else "%d h" % (minutes / 60)
-	return "%d días" % (minutes / 1440)
+	return I18n.t("%d days") % (minutes / 1440)
 
 
-## "allowed · five_hour · reinicio 2026-10-21 05:40:00 · five_hour 63 % hasta … · seven_day 47 % hasta …".
+## "allowed · five_hour · resets 2026-10-21 05:40:00 · five_hour 63 % until … · seven_day 47 % until …".
 static func describe_rate_limit(info: Dictionary) -> String:
 	var parts: PackedStringArray = [str(info.get("status", "?"))]
 	if info.has("rateLimitType"):
@@ -281,11 +288,11 @@ static func describe_rate_limit(info: Dictionary) -> String:
 	if info.get("utilization") is float or info.get("utilization") is int:
 		parts.append(_percent(info.utilization))
 	if info.get("surpassedThreshold") is float or info.get("surpassedThreshold") is int:
-		parts.append("umbral " + _percent(info.surpassedThreshold))
+		parts.append("threshold " + _percent(info.surpassedThreshold))
 	if info.get("resetsAt") is float or info.get("resetsAt") is int:
-		parts.append("reinicio " + Time.get_datetime_string_from_unix_time(int(info.resetsAt) + _utc_offset_s(), true))
+		parts.append("resets " + Time.get_datetime_string_from_unix_time(int(info.resetsAt) + _utc_offset_s(), true))
 	if info.get("isUsingOverage") == true:
-		parts.append("usando créditos extra")
+		parts.append("using extra credits")
 	var unified: Variant = info.get("unifiedWindows")
 	if unified is Dictionary:
 		for window_name: String in unified:
@@ -293,7 +300,7 @@ static func describe_rate_limit(info: Dictionary) -> String:
 			if window is Dictionary and (window.get("utilization") is float or window.get("utilization") is int):
 				var reset := ""
 				if window.get("resetsAt") is float or window.get("resetsAt") is int:
-					reset = " hasta " + Time.get_datetime_string_from_unix_time(int(window.resetsAt) + _utc_offset_s(), true)
+					reset = " until " + Time.get_datetime_string_from_unix_time(int(window.resetsAt) + _utc_offset_s(), true)
 				parts.append("%s %s%s" % [window_name, _percent(window.utilization), reset])
 	return " · ".join(parts)
 
@@ -326,7 +333,7 @@ func _enter_limited(source: String, text: String, reset_at: int) -> void:
 
 
 func _leave_limited(reason: String) -> void:
-	_log("fin de \"limitado\": %s" % reason, "")
+	_log("end of \"limited\": %s" % reason, "")
 	_limited = false
 	limited_until = 0
 	next_retry_at = 0
@@ -350,10 +357,10 @@ func _recompute() -> void:
 	if state != previous:
 		var detail := ""
 		if state == State.LIMITED:
-			detail = " hasta " + Time.get_datetime_string_from_unix_time(limited_until + _utc_offset_s(), true) if limited_until > 0 else " sin hora de reinicio: próximo intento en %s" % format_duration(next_retry_at - _now())
+			detail = " until " + Time.get_datetime_string_from_unix_time(limited_until + _utc_offset_s(), true) if limited_until > 0 else " no reset time: next attempt in %s" % format_duration(next_retry_at - _now())
 		elif max_utilization() >= 0.0:
 			detail = " (%d %%)" % roundi(max_utilization() * 100.0)
-		_log("estado de la cuota: %s → %s%s" % [STATE_LABELS[previous], STATE_LABELS[state], detail], "")
+		_log("quota state: %s → %s%s" % [STATE_LABELS[previous], STATE_LABELS[state], detail], "")
 	changed.emit()
 
 

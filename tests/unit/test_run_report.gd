@@ -48,7 +48,7 @@ func test_build() -> void:
 func test_markdown() -> void:
 	var built := _sample().build({"goal": "Pong", "finish_reason": "Terminado.", "duration_ms": 3725000, "used": {"time": 3725.0}, "budgets": {"time": 0}, "checks": [{"label": "Salto", "status": "fail"}], "changes": {"files": [{"path": "main.gd", "added": 10, "removed": 2}], "added": 10, "removed": 2}})
 	var text := RunReport.to_markdown(built)
-	for expected: String in ["**Objetivo**: Pong", "1 h 02 min", "Tiempo: 1 h 02 min (sin límite)", "- [x] Tarea 1 · 1 min 00 s", "| `godot.run_scene` | 2 | 1 | 6 s |", "Trabajando: 2 min 00 s en 2 turnos (promedio 1 min 00 s, el más largo 1 min 30 s)", "Sin trabajar: esperando la cuota 10 min 00 s, en pausa 1 min 05 s", "| Salto |", "Loops detectados: 1", "### Archivos (1 · +10 −2)", "`main.gd` +10 −2"]:
+	for expected: String in ["**Goal**: Pong", "1 h 02 min", "Time: 1 h 02 min (unlimited)", "- [x] Tarea 1 · 1 min 00 s", "| `godot.run_scene` | 2 | 1 | 6 s |", "Working: 2 min 00 s in 2 turns (average 1 min 00 s, longest 1 min 30 s)", "Not working: waiting for quota 10 min 00 s, paused 1 min 05 s", "| Salto |", "Loops detected: 1", "### Files (1 · +10 −2)", "`main.gd` +10 −2"]:
 		assert_true(text.contains(expected), "markdown: %s" % expected)
 
 

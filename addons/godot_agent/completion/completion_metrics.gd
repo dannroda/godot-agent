@@ -48,7 +48,7 @@ func summary() -> Array[Dictionary]:
 func format_line() -> String:
 	var parts := PackedStringArray()
 	for row: Dictionary in summary():
-		parts.append("%s p50 %.1f ms p95 %.1f ms, %d/%d aceptadas" % [row.source, row.p50, row.p95, row.accepted, row.shown])
+		parts.append("%s p50 %.1f ms p95 %.1f ms, %d/%d accepted" % [row.source, row.p50, row.p95, row.accepted, row.shown])
 	return "; ".join(parts)
 
 

@@ -46,7 +46,7 @@ func _flush() -> void:
 
 func _update_toggle_text() -> void:
 	var first_line := entry.text.strip_edges().get_slice("\n", 0).left(60)
-	_toggle.text = ("▾ " if _toggle.button_pressed else "▸ ") + "Pensamiento" + ("" if _toggle.button_pressed else ": " + first_line)
+	_toggle.text = ("▾ " if _toggle.button_pressed else "▸ ") + I18n.t("Thinking") + ("" if _toggle.button_pressed else ": " + first_line)
 
 
 func _on_meta_clicked(meta: Variant) -> void:

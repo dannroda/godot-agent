@@ -27,7 +27,7 @@ func _get_name() -> String:
 func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String, _flags: int) -> void:
 	if PlaytestAutoload.is_registered():
 		push_error(
-			"Godot Agent: el autoload de playtest '%s' seguía registrado al exportar (¿un playtest quedó abierto?). Se quitó antes de generar el export."
+			"Godot Agent: the playtest autoload '%s' was still registered at export time (was a playtest left open?). It was removed before generating the export."
 			% PlaytestAutoload.NAME
 		)
 		if _remove_playtest_autoload.is_valid():
@@ -35,7 +35,7 @@ func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String,
 	var missing := ExportPresetsPatcher.presets_missing_filter()
 	if not missing.is_empty():
 		push_warning(
-			"Godot Agent: los presets %s no excluyen '%s'. Si exportás con el plugin deshabilitado, el addon se incluiría. Usá \"Agregar a los presets\" en el dock Agent."
+			"Godot Agent: the presets %s do not exclude '%s'. If you export with the plugin disabled, the addon would be included. Use \"Add to the presets\" in the Agent dock."
 			% [", ".join(missing), ExportPresetsPatcher.FILTER]
 		)
 

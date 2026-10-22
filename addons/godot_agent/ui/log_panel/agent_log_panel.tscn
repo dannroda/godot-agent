@@ -26,21 +26,21 @@ theme_type_variation = &"HeaderSmall"
 [node name="RawToggle" type="CheckButton" parent="Toolbar"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Mostrar los mensajes JSON-RPC completos"
+tooltip_text = "Show the full JSON-RPC messages"
 text = "raw"
 
 [node name="CopyButton" type="Button" parent="Toolbar"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Copiar las líneas visibles"
-text = "Copiar"
+tooltip_text = "Copy the visible lines"
+text = "Copy"
 flat = true
 
 [node name="ClearButton" type="Button" parent="Toolbar"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Vaciar el log"
-text = "Limpiar"
+tooltip_text = "Clear the log"
+text = "Clear"
 flat = true
 
 [node name="Output" type="RichTextLabel" parent="."]

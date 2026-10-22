@@ -53,7 +53,7 @@ func test_authorizer() -> void:
 		await (Engine.get_main_loop() as SceneTree).process_frame
 		return group != "read"
 	var denied: Dictionary = await registry.call_tool("echo", {"text": "x"})
-	assert_true(denied.isError and str(denied.content[0].text).contains("denegado"), "denegado")
+	assert_true(denied.isError and str(denied.content[0].text).contains("denied"), "denegado")
 	assert_eq(asked[0], ["read", "godot.echo"], "pregunta con grupo y nombre")
 	var allowed: Dictionary = await registry.call_tool("picture", {})
 	assert_false(allowed.isError, "permitido")
@@ -64,7 +64,7 @@ func test_limits() -> void:
 	registry.max_output_chars = 50
 	var long: Dictionary = await registry.call_tool("echo", {"text": "x", "times": 500})
 	var text := str(long.content[0].text)
-	assert_true(text.begins_with("x".repeat(50)) and text.contains("truncada"), "texto truncado con aviso")
+	assert_true(text.begins_with("x".repeat(50)) and text.contains("truncated"), "texto truncado con aviso")
 	registry.max_image_side = 300
 	var picture: Dictionary = await registry.call_tool("picture", {})
 	var image := Image.new()

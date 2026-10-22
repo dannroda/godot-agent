@@ -173,6 +173,6 @@ func test_misc_updates_and_unknown_variant() -> void:
 
 func test_content_to_text() -> void:
 	assert_eq(SessionModel.content_to_text({"type": "text", "text": "a"}), "a", "text")
-	assert_eq(SessionModel.content_to_text({"type": "image", "data": ""}), "[imagen]", "image")
+	assert_eq(SessionModel.content_to_text({"type": "image", "data": ""}), "[image]", "image")
 	assert_eq(SessionModel.content_to_text({"type": "resource_link", "uri": "file:///x", "name": "x"}), "[x](file:///x)", "link")
 	assert_eq(SessionModel.content_to_text("raro"), "", "no dict")

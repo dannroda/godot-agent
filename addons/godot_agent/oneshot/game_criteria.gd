@@ -8,43 +8,47 @@ extends RefCounted
 
 const DEFAULTS: Array[Dictionary] = [
 	{
-		"id": "playability", "name": "Jugabilidad", "weight": 3, "threshold": 7,
-		"description": "La mecánica principal responde a los inputs, hay un loop completo (empezar → jugar → ganar o perder → reiniciar) y no hay estados trabados.",
+		"id": "playability", "weight": 3, "threshold": 7,
+		"name": "Playability",  # i18n
+		"description": "The core mechanic responds to input, there is a complete loop (start → play → win or lose → restart) and no state gets stuck.",
 		"anchors": [
-			"3: las entidades aparecen pero no responden al input, o el juego no se puede empezar",
-			"6: se juega, pero falta el fin de partida o el reinicio, o hay un estado donde se traba",
-			"9: loop completo, los controles responden en el mismo frame y nada se traba",
+			"3: entities appear but don't respond to input, or the game can't be started",
+			"6: it's playable, but the game over or the restart is missing, or there is a state where it gets stuck",
+			"9: complete loop, controls respond on the same frame and nothing gets stuck",
 		],
 	},
 	{
-		"id": "functionality", "name": "Funcionalidad", "weight": 3, "threshold": 7,
-		"description": "Cada feature del objetivo (y del spec, si hay) funciona en un playtest con inputs simulados, sin errores en get_errors.",
+		"id": "functionality", "weight": 3, "threshold": 7,
+		"name": "Functionality",  # i18n
+		"description": "Every feature in the goal (and in the spec, if there is one) works in a playtest with simulated input, with no errors in get_errors.",
 		"anchors": [
-			"3: la mitad de las features no están o fallan, o hay errores en get_errors",
-			"6: están casi todas, pero una falla en el playtest o hay warnings que importan",
-			"9: todas funcionan en el playtest, sin errores ni warnings",
+			"3: half of the features are missing or fail, or there are errors in get_errors",
+			"6: almost all of them are there, but one fails in the playtest or there are warnings that matter",
+			"9: all of them work in the playtest, with no errors or warnings",
 		],
 	},
 	{
-		"id": "visual", "name": "Visual y feel", "weight": 2, "threshold": 5,
-		"description": "Se lee qué pasa en pantalla, cada acción tiene feedback y el estilo es coherente (se mira con capture_game_frame).",
+		"id": "visual", "weight": 2, "threshold": 5,
+		"name": "Visuals and feel",  # i18n
+		"description": "What happens on screen is readable, every action has feedback and the style is consistent (checked with capture_game_frame).",
 		"anchors": [
-			"3: formas por defecto sin intención, no se entiende qué es cada cosa ni qué pasó",
-			"6: se lee bien y el estilo es coherente, pero las acciones casi no tienen feedback",
-			"9: legible de un vistazo, feedback claro en cada acción, estilo consistente",
+			"3: default shapes with no intent; you can't tell what each thing is or what happened",
+			"6: it reads well and the style is consistent, but actions have almost no feedback",
+			"9: readable at a glance, clear feedback on every action, consistent style",
 		],
 	},
 	{
-		"id": "code", "name": "Código", "weight": 1, "threshold": 5,
-		"description": "GDScript con tipado estático, escenas bien armadas y sin warnings del parser.",
+		"id": "code", "weight": 1, "threshold": 5,
+		"name": "Code",  # i18n
+		"description": "Statically typed GDScript, well-built scenes and no parser warnings.",
 		"anchors": [
-			"3: sin tipos, lógica amontonada en un script, warnings o rutas de nodos frágiles",
-			"6: tipado en general, estructura razonable, algún warning",
-			"9: tipado completo, escenas y scripts con una responsabilidad cada uno, sin warnings",
+			"3: no types, logic piled into one script, warnings or fragile node paths",
+			"6: mostly typed, reasonable structure, a warning or two",
+			"9: fully typed, scenes and scripts with one responsibility each, no warnings",
 		],
 	},
 ]
-const AUDIO_NOTE := "El evaluador no puede oír: el audio se verifica solo por código (que los nodos AudioStreamPlayer existan, tengan stream y se disparen en el momento correcto), nunca por cómo suena."
+const AUDIO_NOTE := "The evaluator cannot hear: audio is verified only through the code (that the AudioStreamPlayer nodes exist, have a stream and are triggered at the right moment), never by how it sounds."
 
 
 ## Criterios con los pesos y umbrales del proyecto. `overrides`: id -> {weight, threshold}.
@@ -68,22 +72,22 @@ static func active(criteria: Array[Dictionary]) -> Array[Dictionary]:
 
 ## Para el prompt del agente que construye: qué se va a evaluar y con qué umbral.
 static func generator_text(criteria: Array[Dictionary]) -> String:
-	var lines: PackedStringArray = ["Así se va a evaluar el juego (puntaje de 0 a 10; tiene que llegar al mínimo en cada criterio, y el peso dice qué priorizar):"]
+	var lines: PackedStringArray = ["How the game will be evaluated (score from 0 to 10; it has to reach the minimum on every criterion, and the weight says what to prioritize):"]
 	for criterion: Dictionary in active(criteria):
-		lines.append("- %s (mínimo %d, peso %d): %s" % [criterion.name, criterion.threshold, criterion.weight, criterion.description])
+		lines.append("- %s (minimum %d, weight %d): %s" % [criterion.name, criterion.threshold, criterion.weight, criterion.description])
 	return "\n".join(lines)
 
 
 ## Para el evaluador: la rúbrica con ejemplos de puntaje y el formato del bloque de puntajes.
 static func evaluator_rubric(criteria: Array[Dictionary]) -> String:
-	var lines: PackedStringArray = ["Criterios (puntaje de 0 a 10; el juego pasa solo si cada uno llega a su mínimo):"]
+	var lines: PackedStringArray = ["Criteria (score from 0 to 10; the game passes only if each one reaches its minimum):"]
 	for criterion: Dictionary in active(criteria):
-		lines.append("- %s · id `%s` · mínimo %d · peso %d: %s" % [criterion.name, criterion.id, criterion.threshold, criterion.weight, criterion.description])
+		lines.append("- %s · id `%s` · minimum %d · weight %d: %s" % [criterion.name, criterion.id, criterion.threshold, criterion.weight, criterion.description])
 		for anchor: String in criterion.anchors:
 			lines.append("    - %s" % anchor)
-	lines.append("Usá los ejemplos como referencia fija: un 7 tiene que valer lo mismo en la primera vuelta que en la última. Ante la duda, el puntaje más bajo.")
+	lines.append("Use the examples as a fixed reference: a 7 has to be worth the same in the first round as in the last. When in doubt, give the lower score.")
 	lines.append(AUDIO_NOTE)
-	lines.append("Reportá los puntajes en un bloque ```json {\"scores\":[{\"criterion\":\"<id>\",\"score\":0-10,\"reason\":\"qué viste\"}]}.")
+	lines.append("Report the scores in a ```json {\"scores\":[{\"criterion\":\"<id>\",\"score\":0-10,\"reason\":\"what you saw\"}]} block.")
 	return "\n".join(lines)
 
 

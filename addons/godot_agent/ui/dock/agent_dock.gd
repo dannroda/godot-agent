@@ -27,6 +27,7 @@ const ReviewPanel := preload("review_panel.gd")
 const QuotaMeter := preload("quota_meter.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const ReviewStore := preload("../../review/review_store.gd")
+const I18n := preload("../../core/i18n.gd")
 
 ## export_presets.cfg no pasa por EditorFileSystem: se mira su fecha de modificación cada tanto.
 const PRESETS_POLL_INTERVAL_S := 2.0
@@ -42,6 +43,13 @@ const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
 ## Un link a .godot_agent/oneshot/… (spec, progreso, QA): lo muestra la pantalla Agent.
 const ACTION_OPEN_RUN_FILE := "open_run_file"
+## Tooltips de los botones de modo (las reglas que lee el agente están en SessionController.MODE_RULES).
+const MODE_TOOLTIPS: Dictionary = {
+	SessionModel.HarnessMode.ASK: "Only answers questions: does not modify files, scenes or settings, and does not run commands.",  # i18n
+	SessionModel.HarnessMode.REVIEW: "Read-only review: the agent reports findings without modifying anything.",  # i18n
+	SessionModel.HarnessMode.BUILD: "The agent can edit scenes and scripts; you approve the changes.",  # i18n
+	SessionModel.HarnessMode.ONESHOT: "The agent works autonomously until the goal is met, verifying after each task.",  # i18n
+}
 ## Prompts enviados en este proyecto (flechas en el composer). Datos del usuario, fuera del repo.
 const PROMPT_HISTORY_PATH := "user://godot_agent/prompt_history.json"
 
@@ -145,6 +153,7 @@ func _ready() -> void:
 		if key == HarnessSettings.KEY_PROFILES:
 			_reload_profiles())
 
+	_translate_scene_texts()
 	_start_button.pressed.connect(_start_session)
 	_start_button.add_theme_color_override(&"font_color", _accent)
 	_add_filter_button.pressed.connect(_on_add_filter_pressed)
@@ -159,7 +168,7 @@ func _ready() -> void:
 		_refresh_state()
 		_queue_view.set_send_available(state == SessionModel.State.READY)
 		if state in [SessionModel.State.DISCONNECTED, SessionModel.State.FAILED]:
-			_queue.pause("la sesión se cerró"))
+			_queue.pause(I18n.t("the session closed")))
 	_model.turn_finished.connect(_on_turn_finished)
 	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
 	_model.usage_changed.connect(_composer.set_usage)
@@ -167,7 +176,7 @@ func _ready() -> void:
 	_model.config_options_changed.connect(func(_options: Array) -> void: _composer.set_model_option(_model.config_option("model")))
 	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_modes())
 	_model.entries_cleared.connect(_refresh_state)
-	_model.entries_cleared.connect(func() -> void: _queue.pause("empezó otra sesión"))
+	_model.entries_cleared.connect(func() -> void: _queue.pause(I18n.t("another session started")))
 	_model.entry_added.connect(func(_entry: ChatEntry) -> void: _refresh_empty_state())
 	_reload_profiles()
 	_refresh_modes()
@@ -182,9 +191,22 @@ func _ready() -> void:
 
 # --- header y modos ------------------------------------------------------------------------------
 
+## Los textos del .tscn están en inglés: el dock no usa la traducción automática del editor.
+func _translate_scene_texts() -> void:
+	_profile_button.tooltip_text = I18n.t("Agent profile")
+	_new_session_button.tooltip_text = I18n.t("New session")
+	_settings_button.tooltip_text = I18n.t("Harness settings")
+	_add_filter_button.text = I18n.t("Add to the presets")
+	(_empty_state.get_node("EmptyTitle") as Label).text = I18n.t("No session")
+	_start_button.text = I18n.t("Start session")
+	_confirm_dialog.title = I18n.t("Add filter to the presets")
+	_confirm_dialog.cancel_button_text = I18n.t("Cancel")
+	_confirm_dialog.ok_button_text = I18n.t("Add")
+
+
 func _build_header() -> void:
 	_history_button.icon = AgentTheme.icon(&"History")
-	_history_button.tooltip_text = "Historial de sesiones"
+	_history_button.tooltip_text = I18n.t("Session history")
 	_history_menu = PopupMenu.new()
 	_history_menu.id_pressed.connect(_on_history_selected)
 	add_child(_history_menu)
@@ -202,7 +224,7 @@ func _build_mode_bar() -> void:
 	_mode_bar.add_theme_constant_override(&"separation", 0)
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
 		var button := Button.new()
-		button.text = SessionModel.HARNESS_MODE_LABELS[mode]
+		button.text = I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])
 		button.toggle_mode = true
 		button.button_group = group
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -212,7 +234,7 @@ func _build_mode_bar() -> void:
 		button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.08), 3, 3))
 		button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.08), Color(1, 1, 1, 0.12), 3, 3))
 		button.add_theme_color_override(&"font_pressed_color", _accent)
-		button.tooltip_text = SessionController.MODE_RULES[mode]
+		button.tooltip_text = I18n.t(MODE_TOOLTIPS[mode])
 		button.pressed.connect(func() -> void: _model.set_harness_mode(mode))
 		_mode_bar.add_child(button)
 		_mode_buttons[mode] = button
@@ -248,13 +270,15 @@ func _on_quota_changed() -> void:
 		match quota.state:
 			QuotaMonitor.State.WARNING, QuotaMonitor.State.PAUSE_SCHEDULED:
 				if _quota_state in [QuotaMonitor.State.UNKNOWN, QuotaMonitor.State.NORMAL]:
-					_model.add_notice("Cuota del plan al %d %%." % roundi(quota.max_utilization() * 100.0), ChatEntry.Level.WARNING)
+					_model.add_notice(I18n.t("Plan quota at %d %%.") % roundi(quota.max_utilization() * 100.0), ChatEntry.Level.WARNING)
 			QuotaMonitor.State.LIMITED:
-				_model.add_notice("Se alcanzó el límite del plan. %s" % (
-					"Se reinicia en %s." % QuotaMonitor.format_duration(quota.limited_until - int(Time.get_unix_time_from_system())) if quota.limited_until > 0
-					else "El agente no informó cuándo se reinicia."), ChatEntry.Level.ERROR)
+				if quota.limited_until > 0:
+					var wait := QuotaMonitor.format_duration(quota.limited_until - int(Time.get_unix_time_from_system()))
+					_model.add_notice(I18n.t("Plan limit reached. It resets in %s.") % wait, ChatEntry.Level.ERROR)
+				else:
+					_model.add_notice(I18n.t("Plan limit reached. The agent did not say when it resets."), ChatEntry.Level.ERROR)
 		_quota_state = quota.state
-	_composer.set_usage_hint("" if quota.has_data() else "El agente no informa la cuota del plan.")
+	_composer.set_usage_hint("" if quota.has_data() else I18n.t("The agent does not report the plan quota."))
 	_on_quota_tick()
 	if quota.is_limited() or quota.has_data():
 		_quota_timer.start()
@@ -266,7 +290,7 @@ func _on_quota_tick() -> void:
 	var quota := _controller.quota
 	_quota_meter.refresh()
 	if quota.is_limited() and quota.seconds_until_retry() > 0:
-		_composer.set_locked("⏳ %s" % QuotaMonitor.format_duration(quota.seconds_until_retry()), "Límite del plan alcanzado: se puede volver a enviar cuando se reinicie la ventana")
+		_composer.set_locked("⏳ %s" % QuotaMonitor.format_duration(quota.seconds_until_retry()), I18n.t("Plan limit reached: you can send again when the window resets"))
 	else:
 		_composer.set_locked("")
 
@@ -282,8 +306,9 @@ func _build_review_panel() -> void:
 	add_child(_review_panel)
 	move_child(_review_panel, _body.get_index())
 	_export_dialog = ConfirmationDialog.new()
-	_export_dialog.title = "Exportar a CLAUDE.md"
-	_export_dialog.ok_button_text = "Agregar a CLAUDE.md"
+	_export_dialog.cancel_button_text = I18n.t("Cancel")
+	_export_dialog.title = I18n.t("Export to CLAUDE.md")
+	_export_dialog.ok_button_text = I18n.t("Add to CLAUDE.md")
 	_export_dialog.min_size = Vector2i(AgentTheme.px(560), AgentTheme.px(360))
 	_export_preview = TextEdit.new()
 	_export_preview.editable = true  # vista previa editable antes de agregar
@@ -297,17 +322,17 @@ func _on_review_export_requested() -> void:
 	var review := _controller.review
 	_export_preview.text = ReviewStore.claude_md_section(review.findings, Time.get_date_string_from_system())
 	var exists := FileAccess.file_exists(ReviewStore.CLAUDE_MD_PATH)
-	_export_dialog.title = "Agregar al final de CLAUDE.md" if exists else "Crear CLAUDE.md"
+	_export_dialog.title = I18n.t("Append to CLAUDE.md") if exists else I18n.t("Create CLAUDE.md")
 	_export_dialog.popup_centered()
 
 
 func _on_review_export_confirmed() -> void:
 	var error := ReviewStore.append_to_claude_md(_export_preview.text)
 	if not error.is_empty():
-		_model.add_notice("No se pudo escribir CLAUDE.md: %s" % error, ChatEntry.Level.ERROR)
+		_model.add_notice(I18n.t("Could not write CLAUDE.md: %s") % error, ChatEntry.Level.ERROR)
 		return
 	EditorInterface.get_resource_filesystem().update_file(ReviewStore.CLAUDE_MD_PATH)
-	_model.add_notice("Convenciones de la revisión agregadas a CLAUDE.md.")
+	_model.add_notice(I18n.t("Review conventions added to CLAUDE.md."))
 
 
 func _reload_profiles() -> void:
@@ -329,36 +354,36 @@ func _on_profile_selected(index: int) -> void:
 	_refresh_empty_state()
 	var current := _controller.profile()
 	if current and current.id != _profiles[index].id and _controller.is_connected_to_agent():
-		_model.add_notice("El perfil %s se usa al tocar \"Nueva sesión\"." % _profiles[index].display_name)
+		_model.add_notice(I18n.t("The %s profile is used when you press \"New session\".") % _profiles[index].display_name)
 
 
 func _refresh_title() -> void:
-	_title_label.text = _model.title if not _model.title.is_empty() else ("Nueva sesión" if not _model.session_id.is_empty() else "")
+	_title_label.text = _model.title if not _model.title.is_empty() else (I18n.t("New session") if not _model.session_id.is_empty() else "")
 	_title_label.tooltip_text = _title_label.text
 
 
 func _refresh_state() -> void:
 	var profile := _controller.profile() if _controller.profile() else _settings.active_profile()
-	var name := profile.display_name if profile else "Agente"
+	var name := profile.display_name if profile else I18n.t("Agent")
 	var text := ""
 	var color := AgentTheme.MUTED
 	match _model.state:
 		SessionModel.State.DISCONNECTED:
-			text = "○ %s · sin iniciar" % name
+			text = I18n.t("○ %s · not started") % name
 		SessionModel.State.STARTING:
-			text = "◌ %s · conectando…" % name
+			text = I18n.t("◌ %s · connecting…") % name
 			color = _accent
 		SessionModel.State.READY:
-			text = "● %s · listo" % name
+			text = I18n.t("● %s · ready") % name
 			color = AgentTheme.ADDED
 		SessionModel.State.PROMPTING:
-			text = "● %s · trabajando…" % name
+			text = I18n.t("● %s · working…") % name
 			color = _accent
 		SessionModel.State.CANCELLING:
-			text = "● %s · cancelando…" % name
+			text = I18n.t("● %s · cancelling…") % name
 			color = AgentTheme.WARNING
 		SessionModel.State.FAILED:
-			text = "✗ %s · error" % name
+			text = I18n.t("✗ %s · error") % name
 			color = AgentTheme.ERROR
 	_status_label.text = text
 	_status_label.tooltip_text = _model.failure_message
@@ -378,7 +403,7 @@ func _refresh_empty_state() -> void:
 	_empty_state.visible = empty
 	_conversation.visible = not empty
 	var profile := _settings.active_profile()
-	_empty_command.text = profile.command_line() if profile else "No hay perfiles: configuralos en ajustes."
+	_empty_command.text = profile.command_line() if profile else I18n.t("No profiles: set them up in the settings.")
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_start_button.disabled = profile == null or _model.state == SessionModel.State.STARTING
 
@@ -403,7 +428,7 @@ func _start_session() -> void:
 func _warn_api_key(profile: AgentProfile) -> void:
 	if profile.command_line().contains("claude") and (OS.has_environment("ANTHROPIC_API_KEY") or profile.env.has("ANTHROPIC_API_KEY")):
 		_model.add_notice(
-			"Hay una ANTHROPIC_API_KEY en el entorno: Claude Code puede facturar por API en lugar de usar tu suscripción.",
+			I18n.t("There is an ANTHROPIC_API_KEY in the environment: Claude Code may bill through the API instead of using your subscription."),
 			ChatEntry.Level.WARNING
 		)
 
@@ -415,14 +440,14 @@ func _show_history_menu() -> void:
 	if _controller.history:
 		_history_items = _controller.history.list(_controller.cwd).slice(0, HISTORY_MENU_SIZE)
 	if _history_items.is_empty():
-		_history_menu.add_item("No hay sesiones guardadas de este proyecto")
+		_history_menu.add_item(I18n.t("No saved sessions for this project"))
 		_history_menu.set_item_disabled(0, true)
 	for i in _history_items.size():
 		var item := _history_items[i]
-		var title := str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else "(sin título)"
+		var title := str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else I18n.t("(untitled)")
 		var when := Time.get_datetime_string_from_unix_time(int(item.get("updated", 0)) + _timezone_bias_s(), true).substr(5, 11).replace("-", "/")
 		_history_menu.add_item("%s · %s · %s" % [when, title, item.get("agent", "")], i)
-		_history_menu.set_item_tooltip(_history_menu.item_count - 1, "%d turnos · %s" % [int(item.get("turns", 0)), item.get("id", "")])
+		_history_menu.set_item_tooltip(_history_menu.item_count - 1, I18n.t("%d turns · %s") % [int(item.get("turns", 0)), item.get("id", "")])
 		if item.get("id") == _model.session_id:
 			_history_menu.set_item_disabled(_history_menu.item_count - 1, true)
 	var busy := _model.state in [SessionModel.State.STARTING, SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]
@@ -436,7 +461,7 @@ func _show_history_menu() -> void:
 func open_history_session(id: String) -> bool:
 	var record: Dictionary = _controller.history.load_record(id) if _controller.history else {}
 	if record.is_empty():
-		_model.add_notice("No se pudo leer la sesión %s del historial." % id, ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("Could not read session %s from the history.") % id, ChatEntry.Level.WARNING)
 		return false
 	var profile := _settings.profile(str(record.get("profile_id", "")))
 	if profile == null:
@@ -453,7 +478,7 @@ func _on_history_selected(index: int) -> void:
 	if _model.state in [SessionModel.State.STARTING, SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
 		return
 	if can_switch_session.is_valid() and not can_switch_session.call():
-		_model.add_notice("Hay un One-shot en curso: detenelo antes de abrir otra sesión.", ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("A One-shot is running: stop it before opening another session."), ChatEntry.Level.WARNING)
 		return
 	open_history_session(str(_history_items[index].get("id", "")))
 
@@ -517,13 +542,13 @@ func _on_turn_finished(stop_reason: String) -> void:
 static func _pause_reason(stop_reason: String) -> String:
 	match stop_reason:
 		"cancelled":
-			return "el turno se canceló"
+			return I18n.t("the turn was cancelled")
 		"error":
-			return "el turno terminó con error"
+			return I18n.t("the turn ended with an error")
 		"refusal":
-			return "el agente se negó a seguir"
+			return I18n.t("the agent refused to continue")
 		_:
-			return "el turno terminó con «%s»" % stop_reason
+			return I18n.t("the turn ended with «%s»") % stop_reason
 
 
 ## `resume`: el usuario pidió «Enviar ahora» (si no, solo sale si la cola no está en pausa).
@@ -535,11 +560,11 @@ func _send_next_queued(resume: bool = false) -> void:
 	if _queue.paused:
 		return
 	if can_switch_session.is_valid() and not can_switch_session.call():
-		_queue.pause("hay un One-shot en curso")
+		_queue.pause(I18n.t("a One-shot is running"))
 		return
 	var quota := _controller.quota
 	if quota.is_limited() and quota.seconds_until_retry() > 0:
-		_queue.pause("límite del plan")
+		_queue.pause(I18n.t("plan limit"))
 		return
 	var item := _queue.take_next()
 	if not item.is_empty():
@@ -599,17 +624,18 @@ func _open_path(path: String, line: int) -> void:
 	if FileAccess.file_exists(absolute):
 		OS.shell_open(absolute)
 		return
-	_model.add_notice("No se pudo abrir %s." % path, ChatEntry.Level.WARNING)
+	_model.add_notice(I18n.t("Could not open %s.") % path, ChatEntry.Level.WARNING)
 
 
 func _ask_login_code() -> void:
 	if _login_code_dialog == null:
 		_login_code_dialog = ConfirmationDialog.new()
-		_login_code_dialog.title = "Código de inicio de sesión"
-		_login_code_dialog.ok_button_text = "Enviar"
+		_login_code_dialog.cancel_button_text = I18n.t("Cancel")
+		_login_code_dialog.title = I18n.t("Sign-in code")
+		_login_code_dialog.ok_button_text = I18n.t("Send")
 		var column := VBoxContainer.new()
 		var hint := Label.new()
-		hint.text = "Pegá el código que muestra la página de login."
+		hint.text = I18n.t("Paste the code shown by the login page.")
 		column.add_child(hint)
 		_login_code_input = LineEdit.new()
 		_login_code_input.secret = true
@@ -619,7 +645,7 @@ func _ask_login_code() -> void:
 		_login_code_dialog.register_text_enter(_login_code_input)
 		_login_code_dialog.confirmed.connect(func() -> void:
 			if not _controller.send_login_code(_login_code_input.text):
-				_model.add_notice("No hay un inicio de sesión esperando un código.", ChatEntry.Level.WARNING)
+				_model.add_notice(I18n.t("No sign-in is waiting for a code."), ChatEntry.Level.WARNING)
 			_login_code_input.clear()
 		)
 		add_child(_login_code_dialog)
@@ -638,22 +664,22 @@ func _refresh_chips() -> void:
 	if not scene_path.is_empty() and not _dismissed_chips.has(CHIP_SCENE + "|" + scene_path):
 		chips[CHIP_SCENE] = {
 			"label": "🎬 " + scene_path.get_file(),
-			"tooltip": "Escena abierta: %s (tocá para quitarla)" % scene_path,
+			"tooltip": I18n.t("Open scene: %s (click to remove it)") % scene_path,
 			"block": {"type": "resource_link", "uri": EditorContext.file_uri(scene_path), "name": scene_path.get_file(), "mimeType": "text/plain"},
 		}
 	var selection := EditorContext.selection_description()
 	if not selection.is_empty() and not _dismissed_chips.has(CHIP_SELECTION + "|" + selection):
 		chips[CHIP_SELECTION] = {
-			"label": "Selección: " + ", ".join(EditorContext.selected_node_paths()).left(40),
+			"label": I18n.t("Selection: %s") % ", ".join(EditorContext.selected_node_paths()).left(40),
 			"tooltip": selection,
-			"block": {"type": "text", "text": "Selección en el editor (escena %s): %s" % [scene_path, selection]},
+			"block": {"type": "text", "text": "Selection in the editor (scene %s): %s" % [scene_path, selection]},
 		}
 	if not _screenshot_block.is_empty():
-		chips[CHIP_SCREENSHOT] = {"label": "▣ captura", "tooltip": "Captura del viewport (tocá para quitarla)", "block": _screenshot_block}
+		chips[CHIP_SCREENSHOT] = {"label": "▣ " + I18n.t("screenshot"), "tooltip": I18n.t("Viewport screenshot (click to remove it)"), "block": _screenshot_block}
 	for res_path: String in _extra_files:
 		chips[CHIP_FILE_PREFIX + res_path] = {
 			"label": "📄 " + res_path.get_file(),
-			"tooltip": "%s (tocá para quitarlo)" % res_path,
+			"tooltip": I18n.t("%s (click to remove it)") % res_path,
 			"block": {"type": "resource_link", "uri": EditorContext.file_uri(res_path), "name": res_path.get_file(), "mimeType": "text/plain"},
 		}
 	if _same_chips(chips) and _composer.has_chips():
@@ -698,9 +724,9 @@ func _on_add_context_pressed() -> void:
 	_add_context_menu.clear()
 	var script := EditorInterface.get_script_editor().get_current_script()
 	if script and not script.resource_path.is_empty():
-		_add_context_menu.add_item("Script actual: " + script.resource_path.get_file(), ADD_CONTEXT_SCRIPT)
-	_add_context_menu.add_item("Archivo del proyecto…", ADD_CONTEXT_FILE)
-	_add_context_menu.add_item("Captura del viewport", ADD_CONTEXT_SCREENSHOT)
+		_add_context_menu.add_item(I18n.t("Current script: %s") % script.resource_path.get_file(), ADD_CONTEXT_SCRIPT)
+	_add_context_menu.add_item(I18n.t("Project file…"), ADD_CONTEXT_FILE)
+	_add_context_menu.add_item(I18n.t("Viewport screenshot"), ADD_CONTEXT_SCREENSHOT)
 	_add_context_menu.reset_size()
 	_add_context_menu.popup(Rect2i(Vector2i(get_screen_position() + get_local_mouse_position()), Vector2i.ZERO))
 
@@ -716,7 +742,7 @@ func _on_add_context_selected(id: int) -> void:
 				_file_dialog = EditorFileDialog.new()
 				_file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILES
 				_file_dialog.access = EditorFileDialog.ACCESS_RESOURCES
-				_file_dialog.title = "Agregar al contexto"
+				_file_dialog.title = I18n.t("Add to the context")
 				_file_dialog.files_selected.connect(add_context_files)
 				add_child(_file_dialog)
 			_file_dialog.popup_centered_ratio(0.6)
@@ -743,7 +769,7 @@ func _context_blocks() -> Array:
 func _on_screenshot_requested() -> void:
 	var block := EditorContext.capture_viewport_block()
 	if block.is_empty():
-		_model.add_notice("No se pudo capturar el viewport.", ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("Could not capture the viewport."), ChatEntry.Level.WARNING)
 		return
 	_screenshot_block = block
 	_refresh_chips()
@@ -758,7 +784,7 @@ func refresh_export_banner() -> void:
 	_export_banner.visible = not missing.is_empty()
 	if _export_banner.visible:
 		_export_banner_label.text = (
-			"Los presets de export %s no excluyen '%s'. Si exportás con el plugin deshabilitado, el addon llega al juego."
+			I18n.t("The export presets %s do not exclude '%s'. If you export with the plugin disabled, the addon ends up in the game.")
 			% [", ".join(missing), ExportPresetsPatcher.FILTER]
 		)
 
@@ -777,7 +803,7 @@ func _on_presets_poll() -> void:
 func _on_add_filter_pressed() -> void:
 	var missing := ExportPresetsPatcher.presets_missing_filter()
 	_confirm_dialog.dialog_text = (
-		"Se va a agregar '%s' al filtro de exclusión de estos presets:\n\n• %s\n\nSe modifica %s."
+		I18n.t("'%s' will be added to the exclude filter of these presets:\n\n• %s\n\nThis modifies %s.")
 		% [ExportPresetsPatcher.FILTER, "\n• ".join(missing), ExportPresetsPatcher.PRESETS_PATH]
 	)
 	_confirm_dialog.popup_centered()
@@ -787,10 +813,10 @@ func _on_patch_confirmed() -> void:
 	var patched := ExportPresetsPatcher.patch_presets()
 	refresh_export_banner()
 	if patched.is_empty():
-		_result_dialog.dialog_text = "No se modificó ningún preset. Revisá el panel Output."
+		_result_dialog.dialog_text = I18n.t("No preset was modified. Check the Output panel.")
 	else:
 		_result_dialog.dialog_text = (
-			"Filtro agregado a: %s.\n\nReiniciá el editor antes de abrir el diálogo de Exportar: si no, puede pisar el cambio al guardar los presets."
+			I18n.t("Filter added to: %s.\n\nRestart the editor before opening the Export dialog: otherwise it may overwrite the change when it saves the presets.")
 			% ", ".join(patched)
 		)
 	_result_dialog.popup_centered()

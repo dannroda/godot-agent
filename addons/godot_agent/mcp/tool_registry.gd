@@ -62,19 +62,19 @@ func call_tool(tool_name: String, args: Variant) -> Dictionary:
 	var tool: McpTool = _tools.get(tool_name)
 	var result: Dictionary
 	if tool == null:
-		result = McpTool.error("No existe la tool '%s'. Disponibles: %s." % [tool_name, ", ".join(_order)])
+		result = McpTool.error("There is no tool '%s'. Available: %s." % [tool_name, ", ".join(_order)])
 	elif not (args is Dictionary or args == null):
-		result = McpTool.error("Los argumentos tienen que ser un objeto JSON.")
+		result = McpTool.error("The arguments must be a JSON object.")
 	else:
 		var arguments: Dictionary = args if args is Dictionary else {}
 		var invalid := tool.validate(arguments)
 		if not invalid.is_empty():
 			result = McpTool.error(invalid)
 		elif not tool.handler.is_valid():
-			result = McpTool.error("La tool godot.%s no está disponible (el addon se recargó). Reintentá en un momento." % tool.name)
+			result = McpTool.error("The tool godot.%s is not available (the addon was reloaded). Retry in a moment." % tool.name)
 		elif not await _authorize(tool, arguments):
 			result = McpTool.error(
-				"Permiso denegado para godot.%s (grupo %s) por el modo actual o por el usuario. No reintentes: explicá qué querías hacer y pedí al usuario que cambie de modo si hace falta." % [tool.name, tool.group]
+				"Permission denied for godot.%s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [tool.name, tool.group]
 			)
 		else:
 			result = _normalize(await tool.handler.call(arguments))
@@ -101,7 +101,7 @@ func _normalize(value: Variant) -> Dictionary:
 		return McpTool.text(value)
 	if value is Image:
 		return McpTool.image(value)
-	return McpTool.error("La tool falló sin resultado (error interno del harness). Revisá el panel Output del editor.")
+	return McpTool.error("The tool failed without a result (internal harness error). Check the editor's Output panel.")
 
 
 ## Recorta el texto total a `max_output_chars` y reescala imágenes a `max_image_side`.
@@ -117,7 +117,7 @@ func _limit(result: Dictionary) -> Dictionary:
 				var text := str(item.get("text", ""))
 				if text.length() > remaining:
 					var cut := maxi(remaining, 0)
-					text = text.left(cut) + "\n…[salida truncada: %d de %d caracteres. Pedí menos (depth, path, pattern) para ver el resto]" % [cut, text.length()]
+					text = text.left(cut) + "\n…[output truncated: %d of %d characters. Request less (depth, path, pattern) to see the rest]" % [cut, text.length()]
 				remaining -= text.length()
 				content.append({"type": "text", "text": text})
 			"image":
@@ -148,7 +148,7 @@ func _log_call(tool_name: String, args: Variant, result: Dictionary, msec: int) 
 		if block.get("type") == "image":
 			raw_content.append({"type": "image", "mimeType": block.get("mimeType"), "bytes": str(block.get("data", "")).length() * 3 / 4})
 			if summary.is_empty():
-				summary = "[imagen]"
+				summary = "[image]"
 			continue
 		raw_content.append(block)
 		if block.get("type") == "text" and summary.is_empty():

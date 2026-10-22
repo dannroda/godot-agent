@@ -82,7 +82,7 @@ func run_review(tree: SceneTree, profile: AgentProfile, shot_path: String = "") 
 		_expect(store.findings.size() == 3, "exactamente 3 hallazgos (%d)" % store.findings.size())
 		_expect(store.scope_label() == "tests/fixtures/review/", "alcance: %s" % store.scope_label())
 	var title: Label = panel.get(&"_title")
-	_expect(title.text.begins_with("Revisión de tests/fixtures/review/"), "título del panel: %s" % title.text)
+	_expect(title.text.begins_with("Review of tests/fixtures/review/"), "título del panel: %s" % title.text)
 	if not shot_path.is_empty() and not seeded_ids.is_empty():
 		_annotations.focus_finding(seeded_ids[0])
 		await _frames(10)
@@ -111,14 +111,14 @@ func _check_annotation(finding: Dictionary) -> void:
 		_expect(code_edit.get_caret_line() == int(finding.line) - 1, "cursor en la línea de %s" % ReviewStore.location(finding))
 	_expect(has_gutter, "gutter de la revisión en %s" % finding.path.get_file())
 	var band := _annotations.band_for(finding.path)
-	_expect(band != null and band.is_visible_in_tree() and band.text.contains("Revisión del agente · solo lectura"), "banda de revisión en %s" % finding.path.get_file())
+	_expect(band != null and band.is_visible_in_tree() and band.text.contains("Agent review · read-only"), "banda de revisión en %s" % finding.path.get_file())
 	_expect(band != null and band.get_parent() is HBoxContainer, "la banda va en la barra de estado")
 	var card := _annotations.card_for(finding.path)
 	_expect(card != null and card.visible, "tarjeta visible para %s" % ReviewStore.location(finding))
 	if card:
 		var texts := _texts(card)
 		_expect(finding.title in texts, "la tarjeta muestra el título de %s" % ReviewStore.location(finding))
-		for label: String in ["Aplicar arreglo", "Preguntar", "Descartar"]:
+		for label: String in ["Apply fix", "Ask", "Dismiss"]:
 			_expect(label in texts, "botón %s en la tarjeta" % label)
 
 
@@ -127,7 +127,7 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_annotations.focus_finding(ids[2])
 	await _frames(6)
 	var hud_path: String = store.get_finding(ids[2]).path
-	_press(_annotations.card_for(hud_path), "Descartar")
+	_press(_annotations.card_for(hud_path), "Dismiss")
 	await _frames(3)
 	_expect(store.get_finding(ids[2]).is_empty() and store.findings.size() == 2, "Descartar saca el hallazgo")
 	_expect(_annotations.annotated_lines(hud_path).is_empty(), "sin marcas en el archivo descartado")
@@ -137,7 +137,7 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_annotations.focus_finding(ids[0])
 	await _frames(6)
 	var player_path: String = store.get_finding(ids[0]).path
-	_press(_annotations.card_for(player_path), "Preguntar")
+	_press(_annotations.card_for(player_path), "Ask")
 	await _wait_turn()
 	_expect(store.findings.size() == 2, "Preguntar no reemplaza la revisión (%d)" % store.findings.size())
 	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.REVIEW, "Preguntar no cambia el modo")
@@ -146,11 +146,11 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_dock.call(&"_on_review_export_requested")
 	await _frames(2)
 	var preview: TextEdit = _dock.get(&"_export_preview")
-	_expect(preview.text.contains("## Convenciones de la revisión del agente") and preview.text.contains("El movimiento depende del framerate"), "vista previa de CLAUDE.md")
+	_expect(preview.text.contains("## Conventions from the agent review") and preview.text.contains("El movimiento depende del framerate"), "vista previa de CLAUDE.md")
 	(_dock.get(&"_export_dialog") as ConfirmationDialog).hide()
 
 	# Aplicar arreglo: pasa a Construir y, al terminar bien el turno, el hallazgo sale.
-	_press(_annotations.card_for(player_path), "Aplicar arreglo")
+	_press(_annotations.card_for(player_path), "Apply fix")
 	await _frames(2)
 	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "Aplicar arreglo pasa a Construir")
 	await _wait_turn()
@@ -161,13 +161,13 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	for entry: Object in _model.call(&"entries"):
 		if int(entry.get(&"kind")) == 0:  # USER
 			last_user = str(entry.get(&"text"))
-	_expect(last_user.contains("review_player.gd:13") and last_user.contains("Sugerencia: position += direction * speed * delta"), "prompt del arreglo: %s" % last_user.left(200))
+	_expect(last_user.contains("review_player.gd:13") and last_user.contains("Suggestion: position += direction * speed * delta"), "prompt del arreglo: %s" % last_user.left(200))
 
 	# Arreglar en modo Construir desde el panel del dock.
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.REVIEW)
 	await _frames(2)
 	var panel: Control = _dock.get(&"_review_panel")
-	_press(panel, "Arreglar en modo Construir")
+	_press(panel, "Fix in Build mode")
 	await _frames(2)
 	await _wait_turn()
 	await _frames(2)

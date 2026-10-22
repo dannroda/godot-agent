@@ -109,12 +109,12 @@ func test_split_and_context() -> void:
 	var text := FileAccess.get_file_as_string(PLAYER) + "\nvar e: FixtureEnemy\n"
 	var full := LlmContext.render(context, PLAYER, text, 2000)
 	assert_true(full.contains("#   $Sprite2D: Sprite2D") or full.contains("#   $Sprite2D"), "nodos del script")
-	assert_true(full.contains("# Clase base:\n#   CharacterBody2D"), "clase base")
+	assert_true(full.contains("# Base class:\n#   CharacterBody2D"), "clase base")
 	assert_true(full.contains("FixtureEnemy extends"), "clases del proyecto que nombra")
 	assert_true(full.contains("Events (res://tests/completion_fixture/events.gd)"), "autoloads")
 	assert_true(full.contains("#   jump") and not full.contains("ui_cancel"), "acciones propias, sin las ui_*")
 	var small := LlmContext.render(context, PLAYER, text, 10)
-	assert_true(small.length() <= 40 and small.begins_with("# Nodos"), "presupuesto chico: solo lo primero (%d)" % small.length())
+	assert_true(small.length() <= 40 and small.begins_with("# Nodes"), "presupuesto chico: solo lo primero (%d)" % small.length())
 	assert_eq(LlmContext.render(context, PLAYER, text, 0), "", "presupuesto 0: nada")
 
 
@@ -162,7 +162,7 @@ func test_provider_with_fake_server() -> void:
 	assert_eq(provider.last_error, "HTTP 404: model 'x' not found", "error del server")
 	provider.profile = _profile("ollama", "http://127.0.0.1:1")
 	assert_eq(await provider.complete(request), null, "sin server: sin sugerencia")
-	assert_eq(provider.last_error, "no se pudo conectar", "error de conexión")
+	assert_eq(provider.last_error, "could not connect", "error de conexión")
 	var keyed := _profile("codestral", server.url())
 	keyed.api_key_env = "GODOT_AGENT_TEST_UNSET_KEY_VAR"
 	provider.profile = keyed

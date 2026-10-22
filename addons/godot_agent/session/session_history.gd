@@ -25,7 +25,7 @@ const MAX_EVENTS := 20000
 const MAX_TOOL_TEXT := 4000
 const MAX_DIFF_TEXT := 40000
 const TITLE_CHARS := 70
-const IMAGE_PLACEHOLDER := "[captura: no se guarda en el historial]"
+const IMAGE_PLACEHOLDER := "[screenshot: not stored in the history]"
 const SKIPPED_UPDATES: PackedStringArray = ["usage_update", "available_commands_update", "current_mode_update", "config_option_update", "config_options_update"]
 const CHUNK_UPDATES: PackedStringArray = ["agent_message_chunk", "agent_thought_chunk", "user_message_chunk"]
 
@@ -241,9 +241,9 @@ static func normalize_update(update: Dictionary) -> Dictionary:
 			if block is Dictionary and block.get("type") == "image":
 				content.append({"type": "content", "content": {"type": "text", "text": IMAGE_PLACEHOLDER}})
 			elif item.get("type") == "diff" and str(item.get("oldText", "")).length() + str(item.get("newText", "")).length() > MAX_DIFF_TEXT:
-				content.append({"type": "content", "content": {"type": "text", "text": "[diff de %s: muy largo para el historial]" % str(item.get("path", "")).get_file()}})
+				content.append({"type": "content", "content": {"type": "text", "text": "[diff of %s: too long for the history]" % str(item.get("path", "")).get_file()}})
 			elif block is Dictionary and block.get("type") == "text" and str(block.get("text", "")).length() > MAX_TOOL_TEXT:
-				content.append({"type": "content", "content": {"type": "text", "text": str(block.text).left(MAX_TOOL_TEXT) + "\n… (recortado en el historial)"}})
+				content.append({"type": "content", "content": {"type": "text", "text": str(block.text).left(MAX_TOOL_TEXT) + "\n… (trimmed in the history)"}})
 			else:
 				content.append(item)
 		result.content = content
@@ -302,7 +302,7 @@ func _enqueue(job: Dictionary) -> void:
 	if previous >= 0:
 		WorkerThreadPool.wait_for_task_completion(previous)  # ya terminó o está por terminar
 	# Callable sobre el script (no sobre self): el worker no depende de que este objeto siga vivo.
-	var task := WorkerThreadPool.add_task(Callable(get_script(), &"_drain").bind(_writer), false, "godot_agent historial")
+	var task := WorkerThreadPool.add_task(Callable(get_script(), &"_drain").bind(_writer), false, "godot_agent history")
 	_writer.mutex.lock()
 	_writer.task = task
 	_writer.mutex.unlock()

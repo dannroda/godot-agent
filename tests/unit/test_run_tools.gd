@@ -9,7 +9,7 @@ func test_validate_inputs() -> void:
 	assert_eq(RunTools._validate_inputs([{"t": 0.5, "action": "ui_accept"}, {"t": -1, "action": "ui_cancel", "pressed": false}], steps), "", "pasos válidos")
 	assert_eq(steps, [{"t": 0.5, "action": "ui_accept", "pressed": true}, {"t": 0.0, "action": "ui_cancel", "pressed": false}], "normaliza pressed y t negativo")
 	assert_eq(RunTools._validate_inputs(null, []), "", "sin inputs")
-	assert_true(RunTools._validate_inputs("ui_accept", []).contains("lista"), "no es lista")
+	assert_true(RunTools._validate_inputs("ui_accept", []).contains("list"), "no es lista")
 	assert_true(RunTools._validate_inputs([{"action": "ui_accept"}], []).contains("`t`"), "falta t")
 	assert_true(RunTools._validate_inputs([{"t": 0, "action": "no_existe"}], []).contains("no_existe"), "acción inexistente")
 
@@ -21,5 +21,5 @@ func test_output_delta() -> void:
 	for i in RunTools.OUTPUT_LINE_LIMIT + 5:
 		many.append("l%d" % i)
 	var delta := RunTools._output_delta("", "\n".join(many))
-	assert_true(delta.begins_with("(… 5 líneas anteriores)"), "recorta y avisa")
+	assert_true(delta.begins_with("(… 5 earlier lines)"), "recorta y avisa")
 	assert_true(delta.ends_with("l%d" % (RunTools.OUTPUT_LINE_LIMIT + 4)), "conserva las últimas")

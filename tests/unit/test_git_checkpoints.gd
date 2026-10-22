@@ -32,10 +32,10 @@ func test_unavailable() -> void:
 	OS.execute("rm", ["-rf", dir + "/.git"])
 	var git := GitCheckpoints.new(dir)
 	assert_false(await git.check_available(), "sin repo")
-	assert_true(git.last_error.contains("no está en un repo git"), "motivo: " + git.last_error)
+	assert_true(git.last_error.contains("not in a git repo"), "motivo: " + git.last_error)
 	git.git_path = "git-que-no-existe"
 	assert_false(await git.check_available(), "sin git")
-	assert_true(git.last_error.contains("git no está disponible"), "motivo: " + git.last_error)
+	assert_true(git.last_error.contains("git is not available"), "motivo: " + git.last_error)
 
 
 func test_branch_checkpoints_restore() -> void:
@@ -57,7 +57,7 @@ func test_branch_checkpoints_restore() -> void:
 	var main_log := await git.run(["log", "--format=%s", "main"])
 	assert_eq(main_log.output, "inicio", "main no se tocó")
 	var agent_log := await git.run(["log", "--format=%s", "-3"])
-	assert_eq(agent_log.output, "cp1: Estado inicial\nWIP antes del one-shot\ninicio", "WIP y cp1 en la rama del agente")
+	assert_eq(agent_log.output, "cp1: Initial state\nWIP before the one-shot\ninicio", "WIP y cp1 en la rama del agente")
 
 	# Tarea 1 del agente.
 	var cp2 := await git.checkpoint("Player con inercia")
@@ -92,7 +92,7 @@ func test_branch_checkpoints_restore() -> void:
 	# En otra rama no toca nada.
 	await git.run(["checkout", "-q", "main"])
 	assert_true((await git.checkpoint("x")).is_empty(), "fuera de la rama del agente no commitea")
-	assert_true(git.last_error.contains("no es la del agente"), "motivo: " + git.last_error)
+	assert_true(git.last_error.contains("is not the agent's branch"), "motivo: " + git.last_error)
 	assert_eq(await git.restore(cp2), null, "ni restaura")
 	await git.run(["checkout", "-q", git.agent_branch])
 	assert_true(await git.accept("Asteroids"), "aceptar")

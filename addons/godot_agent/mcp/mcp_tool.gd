@@ -44,18 +44,18 @@ func validate(args: Dictionary) -> String:
 	var properties: Dictionary = input_schema.get("properties", {})
 	for key: String in input_schema.get("required", []):
 		if not args.has(key) or args[key] == null:
-			return "Falta el argumento obligatorio '%s'." % key
+			return "Missing required argument '%s'." % key
 	for key: Variant in args:
 		if not properties.has(key):
-			return "Argumento desconocido '%s'. Válidos: %s." % [key, ", ".join(PackedStringArray(properties.keys()))]
+			return "Unknown argument '%s'. Valid: %s." % [key, ", ".join(PackedStringArray(properties.keys()))]
 		var expected: String = str(properties[key].get("type", ""))
 		if args[key] == null or expected.is_empty():
 			continue
 		if not _matches_type(args[key], expected):
-			return "El argumento '%s' tiene que ser %s." % [key, expected]
+			return "The argument '%s' must be %s." % [key, expected]
 		var allowed: Variant = properties[key].get("enum")
 		if allowed is Array and not args[key] in allowed:
-			return "El argumento '%s' tiene que ser uno de: %s." % [key, ", ".join(PackedStringArray(allowed))]
+			return "The argument '%s' must be one of: %s." % [key, ", ".join(PackedStringArray(allowed))]
 	return ""
 
 

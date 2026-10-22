@@ -8,8 +8,18 @@ signal changed
 
 const FindingsParser := preload("findings_parser.gd")
 
-const SEVERITY_LABELS: Dictionary = {"bug": "bug", "order": "orden de ejecución", "perf": "rendimiento", "style": "estilo"}
-const SEVERITY_SHORT: Dictionary = {"bug": "BUG", "order": "ORDEN", "perf": "REND", "style": "ESTILO"}
+const SEVERITY_LABELS: Dictionary = {
+	"bug": "bug",  # i18n
+	"order": "execution order",  # i18n
+	"perf": "performance",  # i18n
+	"style": "style",  # i18n
+}
+const SEVERITY_SHORT: Dictionary = {
+	"bug": "BUG",  # i18n
+	"order": "ORDER",  # i18n
+	"perf": "PERF",  # i18n
+	"style": "STYLE",  # i18n
+}
 const CLAUDE_MD_PATH := "res://CLAUDE.md"
 
 ## Cada hallazgo es el Dictionary del parser más `id` (int, estable mientras dure la revisión).
@@ -108,24 +118,24 @@ static func location(finding: Dictionary) -> String:
 
 ## Prompt para Construir: arreglar los hallazgos indicados.
 static func fix_prompt(list: Array[Dictionary]) -> String:
-	var lines: PackedStringArray = ["Arreglá estos hallazgos de la revisión, uno por uno, con cambios mínimos:"]
+	var lines: PackedStringArray = ["Fix these review findings, one by one, with minimal changes:"]
 	for finding: Dictionary in list:
 		var line := "- %s [%s] %s" % [location(finding), finding.severity, finding.title]
 		if not str(finding.body).is_empty():
 			line += " — " + str(finding.body).replace("\n", " ")
 		if not str(finding.suggestion).is_empty():
-			line += "\n  Sugerencia: " + str(finding.suggestion).replace("\n", "\n  ")
+			line += "\n  Suggestion: " + str(finding.suggestion).replace("\n", "\n  ")
 		lines.append(line)
 	return "\n".join(lines)
 
 
 static func question_prompt(finding: Dictionary) -> String:
-	return "Sobre el hallazgo en %s («%s»): explicame por qué es un problema y qué alternativas hay. No modifiques nada." % [location(finding), finding.title]
+	return "About the finding at %s («%s»): explain why it is a problem and what the alternatives are. Do not modify anything." % [location(finding), finding.title]
 
 
 ## Sección para CLAUDE.md con las convenciones que salen de la revisión.
 static func claude_md_section(list: Array[Dictionary], date: String) -> String:
-	var lines: PackedStringArray = ["## Convenciones de la revisión del agente (%s)" % date, ""]
+	var lines: PackedStringArray = ["## Conventions from the agent review (%s)" % date, ""]
 	for severity: String in SEVERITY_LABELS:
 		var group := list.filter(func(f: Dictionary) -> bool: return f.severity == severity)
 		if group.is_empty():
@@ -133,7 +143,7 @@ static func claude_md_section(list: Array[Dictionary], date: String) -> String:
 		var label := str(SEVERITY_LABELS[severity])
 		lines.append("### " + label.left(1).to_upper() + label.substr(1))
 		for finding: Dictionary in group:
-			var line := "- %s (ej.: `%s`)" % [finding.title, location(finding)]
+			var line := "- %s (e.g. `%s`)" % [finding.title, location(finding)]
 			if not str(finding.suggestion).is_empty() and not str(finding.suggestion).contains("\n"):
 				line += ": `%s`" % finding.suggestion
 			lines.append(line)

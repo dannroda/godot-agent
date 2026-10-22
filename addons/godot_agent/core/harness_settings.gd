@@ -22,6 +22,8 @@ const KEY_QUOTA_RESUME := "quota/resume_mode"
 const RESUME_AUTO := 0
 const RESUME_CONFIRM := 1
 const KEY_DOCK_SLOT := "ui/dock_slot"
+## Idioma de la interfaz (D46): "auto" (el del editor), "en", "es".
+const KEY_LANGUAGE := "ui/language"
 ## Completado predictivo (spec §16.10): on/off global, debounce local y umbral/margen del ranker.
 const KEY_COMPLETION_ENABLED := "completion/enabled"
 const KEY_COMPLETION_DEBOUNCE := "completion/local_debounce_ms"
@@ -66,8 +68,9 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_QUOTA_WARN, 75, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
-		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Retomar solo,Esperar confirmación")
-		_declare(KEY_DOCK_SLOT, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Derecha arriba,Derecha abajo,Izquierda arriba,Izquierda abajo")
+		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Resume automatically,Wait for confirmation")
+		_declare(KEY_LANGUAGE, "auto", TYPE_STRING, PROPERTY_HINT_ENUM, "auto,en,es")
+		_declare(KEY_DOCK_SLOT, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Right top,Right bottom,Left top,Left bottom")
 		_declare(KEY_COMPLETION_ENABLED, true, TYPE_BOOL)
 		_declare(KEY_COMPLETION_DEBOUNCE, 30, TYPE_INT, PROPERTY_HINT_RANGE, "0,200,1,suffix:ms")
 		_declare(KEY_COMPLETION_THRESHOLD, 0.5, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0.05,1,0.01")
@@ -77,7 +80,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		for source: String in COMPLETION_SOURCES:
 			_declare(KEY_COMPLETION_SOURCE_PREFIX + source, true, TYPE_BOOL)
 		_declare(KEY_COMPLETION_EXTRA_CORPUS, PackedStringArray(), TYPE_PACKED_STRING_ARRAY, PROPERTY_HINT_TYPE_STRING, "%d/%d:" % [TYPE_STRING, PROPERTY_HINT_GLOBAL_DIR])
-		_declare(KEY_COMPLETION_MODE, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Solo local,Híbrido,Solo LLM")
+		_declare(KEY_COMPLETION_MODE, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Local only,Hybrid,LLM only")
 		_declare(KEY_COMPLETION_LLM_PROFILES, JSON.stringify(LlmProfile.defaults()), TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_COMPLETION_LLM_ACTIVE, "", TYPE_STRING)
 		_declare(KEY_COMPLETION_LLM_DEBOUNCE, 200, TYPE_INT, PROPERTY_HINT_RANGE, "75,1000,1,suffix:ms")
@@ -174,6 +177,10 @@ func quota_resume_auto() -> bool:
 
 
 ## Índice en DOCK_SLOTS.
+func language() -> String:
+	return str(get_value(KEY_LANGUAGE, "auto"))
+
+
 func dock_slot() -> int:
 	return clampi(int(get_value(KEY_DOCK_SLOT, 0)), 0, DOCK_SLOTS.size() - 1)
 

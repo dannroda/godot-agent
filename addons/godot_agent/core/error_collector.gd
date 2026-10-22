@@ -129,7 +129,7 @@ func _collect_debugger() -> void:
 				if not details.is_empty():
 					message += " (%s)" % "; ".join(details)
 				var kind := "warning" if item.get_icon(0) == _warning_icon() else "error"
-				add(kind, message, file, line, "juego")
+				add(kind, message, file, line, "game")
 
 
 static func _warning_icon() -> Texture2D:

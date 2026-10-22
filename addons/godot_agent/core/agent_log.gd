@@ -18,7 +18,7 @@ const CHANNELS: Array[StringName] = [CH_ACP, CH_MCP, CH_FS, CH_PERM, CH_PROC, CH
 const DEFAULT_CAPACITY := 2000
 ## Tope de caracteres del JSON crudo guardado por entrada.
 const RAW_LIMIT := 20000
-const REDACTED := "«secreto»"
+const REDACTED := "«secret»"
 
 var capacity: int = DEFAULT_CAPACITY
 var _entries: Array[Dictionary] = []

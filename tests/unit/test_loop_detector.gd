@@ -64,7 +64,7 @@ func test_same_change_repeated() -> void:
 		loops.observe_call("godot.run_scene", "other", "run_scene", {}, false)
 	var finding := loops.observe_call("godot.set_properties", "edit", "set_properties", input, false)
 	assert_false(finding.is_empty(), "4 cambios iguales")
-	assert_true(str(finding.text).contains("4 veces"), finding.text)
+	assert_true(str(finding.text).contains("4 times"), finding.text)
 
 
 func test_reads_and_verifications_repeat_freely() -> void:

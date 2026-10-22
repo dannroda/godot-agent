@@ -5,6 +5,8 @@ extends RefCounted
 ## corre; al terminar, `build` arma el informe que se muestra y se guarda en `<id>.report.json`
 ## para comparar corridas.
 
+const I18n := preload("../core/i18n.gd")
+
 const VERSION := 1
 const MAX_TURNS := 2000
 
@@ -188,58 +190,65 @@ static func to_markdown(report: Dictionary) -> String:
 	var used: Dictionary = report.get("used", {})
 	var budgets: Dictionary = report.get("budgets", {})
 	var events: Dictionary = report.get("events", {})
+	var time_used := format_duration(roundi(float(used.get("time", 0))))
+	var time_limit := int(budgets.get("time", 0))
+	var token_limit := int(budgets.get("tokens", 0))
+	var playtest_limit := int(budgets.get("playtests", 0))
 	var lines: PackedStringArray = [
-		"## Informe del One-shot",
+		"## %s" % I18n.t("One-shot report"),
 		"",
-		"**Objetivo**: %s" % str(report.get("goal", "")),
-		"**Cierre**: %s" % str(report.get("finish_reason", "")),
-		"**Duración**: %s · **turnos**: %d" % [format_duration(int(report.get("duration_s", 0))), int(events.get("turns", 0))],
+		I18n.t("**Goal**: %s") % str(report.get("goal", "")),
+		I18n.t("**End reason**: %s") % str(report.get("finish_reason", "")),
+		I18n.t("**Duration**: %s · **turns**: %d") % [format_duration(int(report.get("duration_s", 0))), int(events.get("turns", 0))],
 		"",
-		"### Presupuestos",
-		"- Tiempo: %s%s" % [format_duration(roundi(float(used.get("time", 0)))), _limit(budgets.get("time", 0), " min")],
-		"- Tokens: %d%s" % [int(used.get("tokens", 0)), _limit(budgets.get("tokens", 0), "")],
-		"- Playtests: %d%s" % [int(used.get("playtests", 0)), _limit(budgets.get("playtests", 0), "")],
+		"### %s" % I18n.t("Budgets"),
+		I18n.t("- Time: %s of %d min") % [time_used, time_limit] if time_limit > 0 else I18n.t("- Time: %s (unlimited)") % time_used,
+		I18n.t("- Tokens: %d of %d") % [int(used.get("tokens", 0)), token_limit] if token_limit > 0 else I18n.t("- Tokens: %d (unlimited)") % int(used.get("tokens", 0)),
+		I18n.t("- Playtests: %d of %d") % [int(used.get("playtests", 0)), playtest_limit] if playtest_limit > 0 else I18n.t("- Playtests: %d (unlimited)") % int(used.get("playtests", 0)),
 	]
 	var tasks: Array = report.get("tasks", [])
 	if not tasks.is_empty():
-		lines.append_array(["", "### Plan"])
+		lines.append_array(["", "### %s" % I18n.t("Plan")])
 		for task: Dictionary in tasks:
 			var seconds := int(task.duration_s)
 			lines.append("- [%s] %s%s" % ["x" if task.status == "completed" else " ", task.task, (" · %s" % format_duration(seconds)) if seconds >= 0 else ""])
 	var timing: Dictionary = report.get("timing", {})
 	if not timing.is_empty():
-		lines.append_array(["", "### Tiempos"])
-		lines.append("- Trabajando: %s en %d turnos (promedio %s, el más largo %s)" % [format_duration(int(timing.get("working_s", 0))), int(timing.get("turns", 0)),
+		lines.append_array(["", "### %s" % I18n.t("Timing")])
+		lines.append(I18n.t("- Working: %s in %d turns (average %s, longest %s)") % [format_duration(int(timing.get("working_s", 0))), int(timing.get("turns", 0)),
 			format_duration(int(timing.get("turn_avg_s", 0))), format_duration(int(timing.get("turn_max_s", 0)))])
 		var waits: PackedStringArray = []
-		for pair: Array in [["waiting_quota_s", "esperando la cuota"], ["paused_s", "en pausa"], ["spec_review_s", "revisando el spec"]]:
-			if int(timing.get(pair[0], 0)) > 0:
-				waits.append("%s %s" % [pair[1], format_duration(int(timing[pair[0]]))])
+		if int(timing.get("waiting_quota_s", 0)) > 0:
+			waits.append(I18n.t("waiting for quota %s") % format_duration(int(timing.waiting_quota_s)))
+		if int(timing.get("paused_s", 0)) > 0:
+			waits.append(I18n.t("paused %s") % format_duration(int(timing.paused_s)))
+		if int(timing.get("spec_review_s", 0)) > 0:
+			waits.append(I18n.t("reviewing the spec %s") % format_duration(int(timing.spec_review_s)))
 		if not waits.is_empty():
-			lines.append("- Sin trabajar: " + ", ".join(waits))
+			lines.append(I18n.t("- Not working: %s") % ", ".join(waits))
 	var tools: Array = report.get("tools", [])
 	if not tools.is_empty():
-		lines.append_array(["", "### Tools", "| Tool | Usos | Fallas | Tiempo |", "|---|---|---|---|"])
+		lines.append_array(["", "### %s" % I18n.t("Tools"), I18n.t("| Tool | Uses | Failures | Time |"), "|---|---|---|---|"])
 		for row: Dictionary in tools:
 			lines.append("| `%s` | %d | %d | %s |" % [row.tool, row.count, row.failed, format_duration(int(row.get("seconds", 0)))])
 	var checks: Array = report.get("checks", [])
 	if not checks.is_empty():
-		lines.append_array(["", "### Checks", "| Check | Estado | Veces que falló |", "|---|---|---|"])
+		lines.append_array(["", "### %s" % I18n.t("Checks"), I18n.t("| Check | Status | Times failed |"), "|---|---|---|"])
 		for row: Dictionary in checks:
 			lines.append("| %s | %s | %d |" % [str(row.label).replace("|", "/"), row.status, row.failures])
-	lines.append_array(["", "### Eventos"])
-	lines.append("- Permisos pedidos: %d · denegados: %d" % [int(events.get("permissions_asked", 0)), int(events.get("permissions_denied", 0))])
-	lines.append("- Turnos con error: %d · pausas por cuota: %d · límites del plan: %d" % [int(events.get("turn_errors", 0)), int(events.get("quota_pauses", 0)), int(events.get("limited", 0))])
-	lines.append("- Loops detectados: %d · guías del usuario: %d · cambios de presupuesto: %d" % [int(events.get("loops", 0)), int(events.get("guidance", 0)), int(events.get("budget_changes", 0))])
+	lines.append_array(["", "### %s" % I18n.t("Events")])
+	lines.append(I18n.t("- Permissions asked: %d · denied: %d") % [int(events.get("permissions_asked", 0)), int(events.get("permissions_denied", 0))])
+	lines.append(I18n.t("- Turns with errors: %d · quota pauses: %d · plan limits: %d") % [int(events.get("turn_errors", 0)), int(events.get("quota_pauses", 0)), int(events.get("limited", 0))])
+	lines.append(I18n.t("- Loops detected: %d · user guidance: %d · budget changes: %d") % [int(events.get("loops", 0)), int(events.get("guidance", 0)), int(events.get("budget_changes", 0))])
 	if not str(report.get("files_dir", "")).is_empty():
-		lines.append("- Spec, progreso y QA: `%s/`" % report.files_dir)
+		lines.append(I18n.t("- Spec, progress and QA: `%s/`") % report.files_dir)
 	var checkpoints: Array = report.get("checkpoints", [])
 	if not checkpoints.is_empty():
-		lines.append("- Checkpoints: " + ", ".join(checkpoints.map(func(cp: Variant) -> String: return "%s %s" % [cp.get("name", ""), cp.get("label", "")] if cp is Dictionary else str(cp))))
+		lines.append(I18n.t("- Checkpoints: %s") % ", ".join(checkpoints.map(func(cp: Variant) -> String: return "%s %s" % [cp.get("name", ""), cp.get("label", "")] if cp is Dictionary else str(cp))))
 	var changes: Dictionary = report.get("changes", {})
 	if not changes.is_empty():
 		var files: Array = changes.get("files", [])
-		lines.append_array(["", "### Archivos (%d · +%d −%d)" % [files.size(), int(changes.get("added", 0)), int(changes.get("removed", 0))]])
+		lines.append_array(["", I18n.t("### Files (%d · +%d −%d)") % [files.size(), int(changes.get("added", 0)), int(changes.get("removed", 0))]])
 		for file: Variant in files:
 			if file is Dictionary:
 				lines.append("- `%s` +%d −%d" % [file.get("path", ""), int(file.get("added", 0)), int(file.get("removed", 0))])
@@ -262,6 +271,3 @@ static func format_duration(seconds: int) -> String:
 		return "%d min %02d s" % [seconds / 60, seconds % 60]
 	return "%d h %02d min" % [seconds / 3600, (seconds % 3600) / 60]
 
-
-static func _limit(value: Variant, suffix: String) -> String:
-	return " de %d%s" % [int(value), suffix] if int(value) > 0 else " (sin límite)"

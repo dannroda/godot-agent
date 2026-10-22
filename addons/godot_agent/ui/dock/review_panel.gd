@@ -9,9 +9,15 @@ signal fix_all_requested
 
 const ReviewStore := preload("../../review/review_store.gd")
 const AgentTheme := preload("../agent_theme.gd")
+const I18n := preload("../../core/i18n.gd")
 
 const LIST_MAX_HEIGHT := 180
-const COUNTER_LABELS: Dictionary = {"bug": "bug", "order": "orden", "perf": "rend", "style": "estilo"}
+const COUNTER_LABELS: Dictionary = {
+	"bug": "bug",  # i18n
+	"order": "order",  # i18n
+	"perf": "perf",  # i18n
+	"style": "style",  # i18n
+}
 
 var _store: ReviewStore
 var _accent: Color
@@ -40,7 +46,7 @@ func _ready() -> void:
 	_title.clip_text = true
 	column.add_child(_title)
 	var notice := Label.new()
-	notice.text = "Solo lectura: en este modo el agente no modifica nada."
+	notice.text = I18n.t("Read-only: in this mode the agent does not modify anything.")
 	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	notice.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	notice.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
@@ -51,7 +57,7 @@ func _ready() -> void:
 	column.add_child(_counters)
 
 	_empty = Label.new()
-	_empty.text = "Pedile al agente que revise un script o una carpeta: los hallazgos aparecen acá y en el Script Editor."
+	_empty.text = I18n.t("Ask the agent to review a script or a folder: the findings show up here and in the Script Editor.")
 	_empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_empty.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	column.add_child(_empty)
@@ -65,15 +71,15 @@ func _ready() -> void:
 
 	var actions := HFlowContainer.new()  # en un dock angosto los botones bajan de línea
 	_export_button = Button.new()
-	_export_button.text = "Exportar a CLAUDE.md"
+	_export_button.text = I18n.t("Export to CLAUDE.md")
 	_export_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_export_button.tooltip_text = "Agrega las convenciones de esta revisión a CLAUDE.md (con vista previa)"
+	_export_button.tooltip_text = I18n.t("Adds the conventions from this review to CLAUDE.md (with a preview)")
 	_export_button.pressed.connect(export_requested.emit)
 	actions.add_child(_export_button)
 	_fix_button = Button.new()
-	_fix_button.text = "Arreglar en modo Construir"
+	_fix_button.text = I18n.t("Fix in Build mode")
 	_fix_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_fix_button.tooltip_text = "Pasa a modo Construir y le pide al agente que arregle todos los hallazgos"
+	_fix_button.tooltip_text = I18n.t("Switches to Build mode and asks the agent to fix all the findings")
 	_fix_button.add_theme_stylebox_override(&"normal", AgentTheme.panel(_accent, _accent, 3, 4))
 	_fix_button.add_theme_stylebox_override(&"hover", AgentTheme.panel(_accent.lightened(0.1), _accent, 3, 4))
 	_fix_button.add_theme_color_override(&"font_color", Color("#1a1408"))
@@ -90,16 +96,16 @@ func refresh() -> void:
 	var findings := _store.findings
 	var files := _store.paths().size()
 	if _store.reviewed_at == 0:
-		_title.text = "Revisión"
+		_title.text = I18n.t("Code review")
 	else:
-		_title.text = "Revisión de %s · %d archivo%s" % [_store.scope_label(), files, "" if files == 1 else "s"]
+		_title.text = (I18n.t("Review of %s · %d file") if files == 1 else I18n.t("Review of %s · %d files")) % [_store.scope_label(), files]
 	for child: Node in _counters.get_children():
 		child.queue_free()
 	var counts := _store.counts()
 	for severity: String in COUNTER_LABELS:
 		var chip := Label.new()
-		chip.text = "%d %s" % [counts[severity], COUNTER_LABELS[severity]]
-		chip.tooltip_text = ReviewStore.SEVERITY_LABELS[severity]
+		chip.text = "%d %s" % [counts[severity], I18n.t(COUNTER_LABELS[severity])]
+		chip.tooltip_text = I18n.t(ReviewStore.SEVERITY_LABELS[severity])
 		chip.mouse_filter = Control.MOUSE_FILTER_PASS
 		chip.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
 		chip.add_theme_color_override(&"font_color", AgentTheme.SEVERITY_COLORS[severity].lightened(0.35))
@@ -113,7 +119,7 @@ func refresh() -> void:
 		_list.add_child(_row(finding))
 	_empty.visible = findings.is_empty()
 	if _store.reviewed_at != 0 and findings.is_empty():
-		_empty.text = "Sin hallazgos pendientes."
+		_empty.text = I18n.t("No pending findings.")
 	_scroll.visible = not findings.is_empty()
 	_scroll.custom_minimum_size.y = mini(AgentTheme.px(LIST_MAX_HEIGHT), findings.size() * AgentTheme.px(26))
 	_export_button.disabled = findings.is_empty()
@@ -127,7 +133,7 @@ func _row(finding: Dictionary) -> Button:
 	row.clip_text = true
 	row.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.text = "%s  ·  %s" % [ReviewStore.location(finding), finding.title]
-	row.tooltip_text = "%s\n[%s] %s\n%s" % [ReviewStore.location(finding), ReviewStore.SEVERITY_LABELS[finding.severity], finding.title, finding.body]
+	row.tooltip_text = "%s\n[%s] %s\n%s" % [ReviewStore.location(finding), I18n.t(ReviewStore.SEVERITY_LABELS[finding.severity]), finding.title, finding.body]
 	row.icon = _dot(AgentTheme.SEVERITY_COLORS[finding.severity])
 	row.pressed.connect(finding_selected.emit.bind(int(finding.id)))
 	return row

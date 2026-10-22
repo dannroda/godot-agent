@@ -759,3 +759,5 @@ Sin Ollama ni llama.cpp en esta máquina, no se probó contra un modelo real. Pa
   - el informe suma «Tiempos» (trabajando, turnos promedio y el más largo, esperas por cuota, pausa y revisión del spec) y el tiempo por tool.
   Pruebas: `test_run_report`, `oneshot_check` y `--godot-agent-oneshot-test`.
 - **Cola de git del run**: `is_git_busy()` daba false durante un frame entre una operación y la que esperaba; ahora cuenta las que están en cola. Lo mostró un fallo intermitente del escenario de cuota.
+- **Interfaz en inglés con traducción al español** (D46, pedido del usuario): el texto fuente pasó a inglés y el español vive en `i18n/es.po` (~620 textos). El idioma sigue al del editor, con override en Settings → Interfaz → Idioma. Lo que lee el agente quedó solo en inglés. `test_i18n` y `--godot-agent-i18n-test`.
+- **README en inglés y en español, y wiki** (m7-14, m7-15): `README.md` y `README.es.md`, y `docs/wiki/en/` y `docs/wiki/es/` con inicio, primeros pasos, cómo funciona, modos y permisos, herramientas del editor, One-shot, revisión, completado, settings y problemas frecuentes.

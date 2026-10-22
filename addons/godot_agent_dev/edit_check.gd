@@ -52,19 +52,19 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
 
 	var opened := await _call_text("open_scene", {"path": EDIT_SCENE})
-	_expect(opened.contains("Abierta"), "open_scene")
+	_expect(opened.contains("Opened"), "open_scene")
 	var root := EditorInterface.get_edited_scene_root()
 
 	# add_node + set_properties + connect_signal, y después Ctrl+Z en pasos.
 	var added := await _call_text("add_node", {"parent": ".", "type": "Label", "name": "WaveLabel", "properties": {"text": "Oleada 1", "position": [10, 20]}})
-	_expect(added.contains("Paso de undo: «Agente: agregar WaveLabel»"), "add_node devuelve el paso de undo")
+	_expect(added.contains("Undo step: «Agent: add WaveLabel»"), "add_node devuelve el paso de undo")
 	var label := root.get_node_or_null("WaveLabel") as Label
 	_expect(label != null and label.owner == root and label.text == "Oleada 1" and label.position == Vector2(10, 20), "add_node: nodo con owner y propiedades")
 	var changed := await _call_text("set_properties", {"node_path": "WaveLabel", "properties": {"modulate": "#ff0000", "horizontal_alignment": "Center"}})
 	_expect(label != null and label.modulate == Color(1, 0, 0) and changed.contains("modulate: Color(1, 1, 1, 1) → Color(1, 0, 0, 1)"), "set_properties con valores anteriores y nuevos")
 	var connected := await _call_text("connect_signal", {"from": "Timer", "signal": "timeout", "to": "WaveLabel", "method": "_on_wave"})
 	var timer := root.get_node("Timer")
-	_expect(timer.is_connected("timeout", Callable(label, "_on_wave")) and connected.contains("Ojo"), "connect_signal persistente con aviso de método faltante")
+	_expect(timer.is_connected("timeout", Callable(label, "_on_wave")) and connected.contains("Note:"), "connect_signal persistente con aviso de método faltante")
 	var bad_prop: Dictionary = await _call("set_properties", {"node_path": "WaveLabel", "properties": {"txt": "x"}})
 	_expect(bad_prop.get("isError", false) and _text(bad_prop).contains("text"), "propiedad inexistente → error con sugerencia")
 	var bad_type: Dictionary = await _call("add_node", {"parent": ".", "type": "Nodo", "name": "X"})
@@ -94,23 +94,23 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	# instantiate_scene, attach_script, create_scene, save_scene.
 	var instanced := await _call_text("instantiate_scene", {"parent": "Enemies", "scene_path": FIXTURE_SCENE, "name": "Copy"})
 	var copy := root.get_node_or_null("Enemies/Copy")
-	_expect(copy != null and copy.scene_file_path == FIXTURE_SCENE and copy.owner == root and instanced.contains("Instanciado"), "instantiate_scene")
+	_expect(copy != null and copy.scene_file_path == FIXTURE_SCENE and copy.owner == root and instanced.contains("Instanced"), "instantiate_scene")
 	var attached := await _call_text("attach_script", {"node_path": "Enemies", "script_path": NEW_SCRIPT})
-	_expect(FileAccess.file_exists(NEW_SCRIPT) and root.get_node("Enemies").get_script() != null and attached.contains("(creado)"), "attach_script crea y adjunta")
+	_expect(FileAccess.file_exists(NEW_SCRIPT) and root.get_node("Enemies").get_script() != null and attached.contains("(created)"), "attach_script crea y adjunta")
 	var wrong_base: Dictionary = await _call("attach_script", {"node_path": "Timer", "script_path": GOOD_SCRIPT})
 	_expect(wrong_base.get("isError", false), "attach_script con base incompatible → error")
 	var created := await _call_text("create_scene", {"path": NEW_SCENE, "root_type": "Node2D", "root_name": "Level"})
-	_expect(FileAccess.file_exists(NEW_SCENE) and created.contains("Creada"), "create_scene")
+	_expect(FileAccess.file_exists(NEW_SCENE) and created.contains("Created"), "create_scene")
 	var again: Dictionary = await _call("create_scene", {"path": NEW_SCENE, "root_type": "Node2D", "root_name": "Level"})
 	_expect(again.get("isError", false), "create_scene no pisa")
 	var saved := await _call_text("save_scene", {})
 	var saved_text := FileAccess.get_file_as_string(EDIT_SCENE)
-	_expect(saved.contains("Guardada") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios")
+	_expect(saved.contains("Saved") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios")
 
 	# Permisos: Preguntar deniega; Construir pregunta (se acepta solo).
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
 	var denied: Dictionary = await _call("add_node", {"parent": ".", "type": "Node", "name": "Denied"})
-	_expect(denied.get("isError", false) and _text(denied).contains("denegado") and not root.has_node("Denied"), "Preguntar deniega edit_scene")
+	_expect(denied.get("isError", false) and _text(denied).contains("denied") and not root.has_node("Denied"), "Preguntar deniega edit_scene")
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
 	var asked: Array = []
 	var on_permission := func(request: Object) -> void:
@@ -119,7 +119,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_model.connect(&"permission_requested", on_permission)
 	var allowed := await _call_text("add_node", {"parent": ".", "type": "Node", "name": "Allowed"})
 	_model.disconnect(&"permission_requested", on_permission)
-	_expect(asked == ["godot.add_node"] and root.has_node("Allowed") and allowed.contains("Creado"), "Construir pide permiso y ejecuta")
+	_expect(asked == ["godot.add_node"] and root.has_node("Allowed") and allowed.contains("Created"), "Construir pide permiso y ejecuta")
 
 	# Botón "↶ undo": el tool call ACP se une a la acción por nombre y argumentos.
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
@@ -140,7 +140,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var stale_call: Object = _model.call(&"tool_call", "edit-check-2")
 	_expect(root.has_node("Stale") and not stale_call.get(&"undo_done"), "↶ undo no deshace si hubo cambios posteriores")
 	var last_entry: Object = (_model.call(&"entries") as Array).back()
-	_expect(str(last_entry.get(&"text")).contains("cambios posteriores"), "avisa por qué no deshizo")
+	_expect(str(last_entry.get(&"text")).contains("changed afterwards"), "avisa por qué no deshizo")
 
 	EditorInterface.save_scene()
 	return failures

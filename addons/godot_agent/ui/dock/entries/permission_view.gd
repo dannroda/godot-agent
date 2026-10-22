@@ -57,9 +57,9 @@ func refresh() -> void:
 	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(
 		Color(accent, 0.10 if pending else 0.03), Color(accent, 0.8 if pending else 0.25), 6, 8
 	))
-	var group_label: String = PermissionPolicy.GROUP_LABELS.get(request.group, request.group)
-	_title.text = "Permiso: %s" % request.title
-	_title.tooltip_text = "Grupo: %s" % group_label
+	var group_label: String = I18n.t(PermissionPolicy.GROUP_LABELS[request.group]) if PermissionPolicy.GROUP_LABELS.has(request.group) else request.group
+	_title.text = I18n.t("Permission: %s") % request.title
+	_title.tooltip_text = I18n.t("Group: %s") % group_label
 	_description.text = request.description
 	_description.visible = not request.description.is_empty() and request.description != request.title
 	for child: Node in _buttons.get_children():
@@ -95,20 +95,20 @@ func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
 static func _option_label(option: Dictionary) -> String:
 	match str(option.get("kind", "")):
 		PermissionRequest.KIND_ALLOW_ONCE:
-			return "Permitir una vez"
+			return I18n.t("Allow once")
 		PermissionRequest.KIND_ALLOW_ALWAYS:
-			return "Siempre en esta sesión"
+			return I18n.t("Always allow in this session")
 		PermissionRequest.KIND_REJECT_ONCE:
-			return "Denegar"
+			return I18n.t("Deny")
 	return str(option.get("name", option.get("optionId", "?")))
 
 
 static func _result_text(request: PermissionRequest) -> String:
 	if request.outcome.get("outcome") != "selected":
-		return "⊘ Permiso cancelado"
+		return "⊘ " + I18n.t("Permission cancelled")
 	match request.chosen_kind:
 		PermissionRequest.KIND_ALLOW_ONCE:
-			return "✓ Permitido una vez"
+			return "✓ " + I18n.t("Allowed once")
 		PermissionRequest.KIND_ALLOW_ALWAYS:
-			return "✓ Permitido en esta sesión"
-	return "✗ Denegado"
+			return "✓ " + I18n.t("Allowed in this session")
+	return "✗ " + I18n.t("Denied")

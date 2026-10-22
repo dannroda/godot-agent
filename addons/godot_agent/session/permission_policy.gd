@@ -23,14 +23,14 @@ const GROUPS: PackedStringArray = [
 	GROUP_READ, GROUP_DIAGNOSTICS, GROUP_EDIT_SCENE, GROUP_EDIT_FILES, GROUP_RUN, GROUP_SHELL, GROUP_PROJECT,
 ]
 const GROUP_LABELS: Dictionary = {
-	GROUP_READ: "Lectura",
-	GROUP_DIAGNOSTICS: "Diagnóstico",
-	GROUP_EDIT_SCENE: "Editar escenas",
-	GROUP_EDIT_FILES: "Editar archivos",
-	GROUP_RUN: "Ejecutar el juego",
-	GROUP_SHELL: "Shell / comandos",
-	GROUP_PROJECT: "Project settings, export y addons",
-	GROUP_OTHER: "Otras",
+	GROUP_READ: "Read",  # i18n
+	GROUP_DIAGNOSTICS: "Diagnostics",  # i18n
+	GROUP_EDIT_SCENE: "Edit scenes",  # i18n
+	GROUP_EDIT_FILES: "Edit files",  # i18n
+	GROUP_RUN: "Run the game",  # i18n
+	GROUP_SHELL: "Shell / commands",  # i18n
+	GROUP_PROJECT: "Project settings, export and addons",  # i18n
+	GROUP_OTHER: "Other",  # i18n
 }
 const MODE_KEYS: Dictionary = {
 	SessionModel.HarnessMode.ASK: "ask",

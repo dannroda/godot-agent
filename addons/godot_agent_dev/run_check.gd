@@ -49,27 +49,27 @@ func _check_runs(model: Object) -> void:
 	# Juego que sigue corriendo: inputs, Output y captura.
 	var inputs := [{"t": 0.2, "action": "ui_accept", "pressed": true}, {"t": 0.4, "action": "ui_accept", "pressed": false}]
 	var ran := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1.5, "inputs": inputs})
-	_expect(ran.contains("sigue corriendo"), "run_scene: el juego sigue corriendo · " + ran.left(300))
-	_expect(ran.contains("Inputs: 2 de 2"), "run_scene: inputs reproducidos")
+	_expect(ran.contains("still running"), "run_scene: el juego sigue corriendo · " + ran.left(300))
+	_expect(ran.contains("Inputs: 2 of 2"), "run_scene: inputs reproducidos")
 	_expect(ran.contains("run_fixture listo") and ran.contains("ui_accept recibido") and ran.contains("ui_accept soltado"), "run_scene: Output del juego con los inputs")
 	# Sin errores del juego ni de scripts (bajo Xvfb el editor suma ruido de X11 y de V-Sync).
-	_expect(not ran.contains("[juego/error]") and not ran.contains("/script]"), "run_scene: sin errores del juego · " + ran)
+	_expect(not ran.contains("[game/error]") and not ran.contains("/script]"), "run_scene: sin errores del juego · " + ran)
 	_check_autoload_gone("después de run_scene")
 	var frame: Dictionary = await _call("capture_game_frame", {})
 	_expect(not frame.get("isError", false) and _frame_is_red(frame), "capture_game_frame: frame rojo del juego")
 	var stopped := await _call_text("stop_scene", {})
-	_expect(stopped.contains("detenido") and not EditorInterface.is_playing_scene(), "stop_scene")
+	_expect(stopped.contains("stopped") and not EditorInterface.is_playing_scene(), "stop_scene")
 
 	# Script roto: el debugger pausa el juego y run_scene devuelve el error real.
 	var broken := await _call_text("run_scene", {"scene": BROKEN_SCENE, "seconds": 5})
-	_expect(broken.contains("se detuvo en el debugger") and broken.contains("queue_free"), "run_scene: error real del script roto · " + broken.left(400))
+	_expect(broken.contains("stopped in the debugger") and broken.contains("queue_free"), "run_scene: error real del script roto · " + broken.left(400))
 	_expect(broken.contains("run_broken.gd"), "run_scene: ubicación del error")
 	await _call_text("stop_scene", {})
 
 	# Juego que termina solo; run_scene reinicia uno que ya corría.
 	await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 0.5})
 	var quits := await _call_text("run_scene", {"scene": QUITS_SCENE, "seconds": 10})
-	_expect(quits.contains("terminó solo") and quits.contains("run_quits adiós"), "run_scene: juego que termina solo · " + quits.left(300))
+	_expect(quits.contains("ended by itself") and quits.contains("run_quits adiós"), "run_scene: juego que termina solo · " + quits.left(300))
 	_check_autoload_gone("después de un juego que terminó solo")
 
 	# Run manual: sin el autoload (playtest_on_manual_runs = false).

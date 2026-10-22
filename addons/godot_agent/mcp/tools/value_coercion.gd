@@ -11,7 +11,7 @@ extends RefCounted
 static func coerce(target: Object, property: String, value: Variant) -> Dictionary:
 	var info := property_info(target, property)
 	if info.is_empty():
-		return _fail("La propiedad '%s' no existe en %s.%s" % [property, target.get_class(), _suggestion(target, property)])
+		return _fail("The property '%s' does not exist on %s.%s" % [property, target.get_class(), _suggestion(target, property)])
 	var type: int = info.type
 	var converted: Variant = convert_value(value, type, info)
 	if converted is Dictionary and converted.has("__error"):
@@ -30,7 +30,7 @@ static func convert_value(value: Variant, type: int, info: Dictionary = {}) -> V
 	if value == null:
 		if type == TYPE_OBJECT or type == TYPE_NIL:
 			return null
-		return _error("no puede ser null")
+		return _error("cannot be null")
 	if type == TYPE_NIL:
 		return value  # propiedad Variant: se usa tal cual
 	if typeof(value) == type:
@@ -81,7 +81,7 @@ static func convert_value(value: Variant, type: int, info: Dictionary = {}) -> V
 					TYPE_VECTOR3I: return Vector3i(int(components[0]), int(components[1]), int(components[2]))
 					TYPE_VECTOR4: return Vector4(components[0], components[1], components[2], components[3])
 					TYPE_VECTOR4I: return Vector4i(int(components[0]), int(components[1]), int(components[2]), int(components[3]))
-			return _error("se esperaba %s como [%s]" % [type_string(type), ", ".join(PackedStringArray(["x", "y", "z", "w"].slice(0, size)))])
+			return _error("expected %s as [%s]" % [type_string(type), ", ".join(PackedStringArray(["x", "y", "z", "w"].slice(0, size)))])
 		TYPE_RECT2, TYPE_RECT2I:
 			var components := _components(value, ["x", "y", "w", "h"])
 			if components.size() == 4:
@@ -101,11 +101,11 @@ static func convert_value(value: Variant, type: int, info: Dictionary = {}) -> V
 				return Color(components[0], components[1], components[2])
 			if components.size() == 4:
 				return Color(components[0], components[1], components[2], components[3])
-			return _error("se esperaba un color \"#rrggbb\", un nombre o [r, g, b, a]")
+			return _error("expected a color as \"#rrggbb\", a name or [r, g, b, a]")
 		TYPE_OBJECT:
 			if value is String and (value.begins_with("res://") or value.begins_with("uid://")):
 				if not ResourceLoader.exists(value):
-					return _error("no existe el recurso %s" % value)
+					return _error("the resource %s does not exist" % value)
 				var resource := load(value)
 				var hint_class: String = info.get("hint_string", "")
 				if resource and not hint_class.is_empty() and info.get("hint", 0) == PROPERTY_HINT_RESOURCE_TYPE:
@@ -113,9 +113,9 @@ static func convert_value(value: Variant, type: int, info: Dictionary = {}) -> V
 					for allowed: String in hint_class.split(","):
 						ok = ok or resource.is_class(allowed.strip_edges()) or (resource.get_script() and allowed.strip_edges() == resource.get_script().get_global_name())
 					if not ok:
-						return _error("%s es %s; se esperaba %s" % [value, resource.get_class(), hint_class])
+						return _error("%s is %s; expected %s" % [value, resource.get_class(), hint_class])
 				return resource
-			return _error("se esperaba una ruta res:// a un recurso, o null")
+			return _error("expected a res:// path to a resource, or null")
 		TYPE_ARRAY:
 			if value is Array:
 				return value
@@ -140,7 +140,7 @@ static func convert_value(value: Variant, type: int, info: Dictionary = {}) -> V
 						return converted
 					points.append(converted)
 				return points
-	return _error("no se puede convertir %s" % JSON.stringify(value).left(80))
+	return _error("cannot convert %s" % JSON.stringify(value).left(80))
 
 
 ## Un enum por nombre: "Center" o "CENTER" según el hint_string "Left,Center:1,Right".
@@ -191,7 +191,7 @@ static func _suggestion(target: Object, property: String) -> String:
 	var best: PackedStringArray = []
 	for item: Array in scored.slice(0, 5):
 		best.append(item[1])
-	return " ¿Quisiste decir: %s?" % ", ".join(best) if not best.is_empty() else ""
+	return " Did you mean: %s?" % ", ".join(best) if not best.is_empty() else ""
 
 
 static func _error(message: String) -> Dictionary:

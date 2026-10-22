@@ -40,7 +40,7 @@ func test_view() -> void:
 	await tree.process_frame
 	assert_true(view.visible, "visible con prompts")
 	var title: Label = view.get(&"_title")
-	assert_eq(title.text, "En cola (2)", "cuenta")
+	assert_eq(title.text, "Queued (2)", "cuenta")
 	var send_now: Button = view.get(&"_send_now")
 	assert_false(send_now.visible, "sin pausa no hay «Enviar ahora»")
 	queue.pause("el turno se canceló")

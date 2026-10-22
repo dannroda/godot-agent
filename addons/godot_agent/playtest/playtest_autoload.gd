@@ -41,4 +41,4 @@ static func remove_orphan(plugin: EditorPlugin) -> void:
 	if OS.get_environment(KEEP_ORPHAN_ENV) == "1":
 		return
 	if unregister(plugin):
-		push_warning("Godot Agent: se quitó el autoload de playtest '%s' que había quedado registrado." % NAME)
+		push_warning("Godot Agent: removed the leftover playtest autoload '%s'." % NAME)

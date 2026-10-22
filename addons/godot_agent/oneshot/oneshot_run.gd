@@ -29,27 +29,34 @@ const LoopDetector := preload("loop_detector.gd")
 const RunReport := preload("run_report.gd")
 const GameCriteria := preload("game_criteria.gd")
 const OneShotFiles := preload("oneshot_files.gd")
+const I18n := preload("../core/i18n.gd")
 
 enum Phase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW }
 
 const PHASE_LABELS: Dictionary = {
-	Phase.IDLE: "Sin iniciar",
-	Phase.PREPARING: "Preparando",
-	Phase.RUNNING: "En curso",
-	Phase.PAUSED: "Pausado",
-	Phase.PAUSED_QUOTA: "Pausado por cuota",
-	Phase.LIMITED: "Limitado",
-	Phase.WAITING_CONFIRM: "Listo para retomar",
-	Phase.CLOSING: "Cerrando",
-	Phase.FINISHED: "Terminado",
-	Phase.SPEC_REVIEW: "Spec para revisar",
+	Phase.IDLE: "Not started",  # i18n
+	Phase.PREPARING: "Preparing",  # i18n
+	Phase.RUNNING: "Running",  # i18n
+	Phase.PAUSED: "Paused",  # i18n
+	Phase.PAUSED_QUOTA: "Paused for quota",  # i18n
+	Phase.LIMITED: "Limited",  # i18n
+	Phase.WAITING_CONFIRM: "Ready to resume",  # i18n
+	Phase.CLOSING: "Closing",  # i18n
+	Phase.FINISHED: "Finished",  # i18n
+	Phase.SPEC_REVIEW: "Spec to review",  # i18n
 }
 const BUDGET_TIME := "time"
 const BUDGET_TOKENS := "tokens"
 const BUDGET_PLAYTESTS := "playtests"
-const BUDGET_LABELS: Dictionary = {BUDGET_TIME: "Tiempo", BUDGET_TOKENS: "Tokens", BUDGET_PLAYTESTS: "Playtests"}
+const BUDGET_LABELS: Dictionary = {
+	BUDGET_TIME: "Time",  # i18n
+	BUDGET_TOKENS: "Tokens",  # i18n
+	BUDGET_PLAYTESTS: "Playtests",  # i18n
+}
 const WARN_RATIO := 0.8
-const BUDGET_CLOSE_PREFIX := "Se agotó el presupuesto de "
+## Motivo de cierre por presupuesto: en inglés con el id del presupuesto para el agente; traducido
+## con la etiqueta para la UI (_close_reason_text).
+const BUDGET_CLOSE_REASON := "The %s budget ran out."  # i18n
 ## Turnos seguidos que terminan sin avance en el plan antes de dar el One-shot por terminado.
 const MAX_IDLE_CONTINUES := 3
 const ACTIVITY_LINE_CHARS := 140
@@ -65,8 +72,24 @@ const WAIT_KINDS: Dictionary = {
 	Phase.PAUSED_QUOTA: "quota", Phase.LIMITED: "quota", Phase.WAITING_CONFIRM: "quota",
 	Phase.PAUSED: "paused", Phase.SPEC_REVIEW: "spec_review",
 }
-## Cómo terminó el turno, para la actividad ("" = normal).
-const TURN_END_NOTES: Dictionary = {"end_turn": "", "cancelled": " · cortado", "error": " · con error", "max_tokens": " · sin tokens de salida", "refusal": " · el agente se negó"}
+## Cómo terminó el turno, para la actividad (end_turn = normal, sin nota).
+const TURN_END_NOTES: Dictionary = {
+	"cancelled": "cut short",  # i18n
+	"error": "with an error",  # i18n
+	"max_tokens": "out of output tokens",  # i18n
+	"refusal": "the agent refused",  # i18n
+}
+## Sesión reabierta (por qué, en _reopen_reason) para la actividad: con session/load o una nueva.
+const REOPEN_LOADED: Dictionary = {
+	"editor": "The editor had closed: reopened the session with session/load",  # i18n
+	"lost": "The session was lost: reopened the session with session/load",  # i18n
+	"account": "Account switch: reopened the session with session/load",  # i18n
+}
+const REOPEN_NEW: Dictionary = {
+	"editor": "The editor had closed: opened a new session with the plan summary",  # i18n
+	"lost": "The session was lost: opened a new session with the plan summary",  # i18n
+	"account": "Account switch: opened a new session with the plan summary",  # i18n
+}
 const TICK_S := 0.5
 ## Cada cuánto se guarda el run como mucho (además de en cada cambio de fase).
 const SAVE_INTERVAL_MS := 2000
@@ -146,8 +169,8 @@ var _timer: Timer
 var _plan_snapshot: Array = []
 ## Sesión del agente de un run cargado de disco: «Retomar» la reabre con session/load.
 var _recovered_session_id: String = ""
-## Por qué se reabre la sesión en el próximo resume() (para la actividad): el editor se cerró, se
-## cambió de cuenta…
+## Por qué se reabre la sesión en el próximo resume() (para la actividad): "account" (cambio de
+## cuenta) o "" (el editor se cerró o la sesión se perdió).
 var _reopen_reason: String = ""
 ## Tool calls terminadas en el turno en curso, y desde cuándo está el run en su fase (para medir
 ## las esperas del informe, m6-16).
@@ -193,7 +216,7 @@ func is_git_busy() -> bool:
 
 
 func phase_label() -> String:
-	return PHASE_LABELS[phase]
+	return I18n.t(PHASE_LABELS[phase])
 
 
 ## Fase "n de m" según el plan, o "".
@@ -202,7 +225,7 @@ func plan_position() -> String:
 	if plan.is_empty():
 		return ""
 	var index := _current_task if _current_task >= 0 else _completed_count()
-	return "fase %d de %d" % [mini(index + 1, plan.size()), plan.size()]
+	return I18n.t("task %d of %d") % [mini(index + 1, plan.size()), plan.size()]
 
 
 ## El plan del agente. Mientras un run cargado de disco no reabre su sesión (o si la sesión nueva
@@ -271,16 +294,16 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 		if await git.check_available():
 			checkpoints_enabled = await git.start()
 			if checkpoints_enabled:
-				_add_activity("checkpoint", "Rama %s · %s %s" % [git.agent_branch, git.checkpoints[0].name, git.checkpoints[0].label])
+				_add_activity("checkpoint", I18n.t("Branch %s · %s %s") % [git.agent_branch, git.checkpoints[0].name, git.checkpoints[0].label])
 			else:
-				_add_activity("aviso", git.last_error)
+				_add_activity("warning", git.last_error)
 		else:
-			_add_activity("aviso", git.last_error)
+			_add_activity("warning", git.last_error)
 	# Después de git.start: los archivos nacen en la rama del agente.
 	if not files.prepare():
-		_add_activity("aviso", "No se pudo crear %s: el agente no va a tener dónde escribir el spec" % files.relative_dir())
+		_add_activity("warning", I18n.t("Couldn't create %s: the agent won't have anywhere to write the spec") % files.relative_dir())
 	if not controller.is_connected_to_agent() and not await _restart_session(""):
-		_finish("No se pudo abrir una sesión con el agente.")
+		_finish(I18n.t("Couldn't open a session with the agent."))
 		return false
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
 	_set_phase(Phase.RUNNING)
@@ -297,19 +320,19 @@ func initial_prompt() -> String:
 		limits.append("%d tokens" % budgets[BUDGET_TOKENS])
 	if int(budgets[BUDGET_PLAYTESTS]) > 0:
 		limits.append("%d playtests" % budgets[BUDGET_PLAYTESTS])
-	var spec_step := "0. Antes que nada, escribí el spec del juego en %s: mecánicas, loop de juego (empezar → jugar → ganar o perder → reiniciar), dirección visual y qué significa \"terminado\". Ambicioso en alcance pero de alto nivel: sin detalle técnico (nada de nodos, scripts ni APIs)." % files.spec_path()
+	var spec_step := "0. Before anything else, write the game spec in %s: mechanics, game loop (start → play → win or lose → restart), visual direction and what \"done\" means. Ambitious in scope but high level: no technical detail (no nodes, scripts or APIs)." % files.spec_path()
 	if spec_review:
-		spec_step += " Después terminá el turno sin construir nada: el usuario lo revisa y lo aprueba."
+		spec_step += " Then end the turn without building anything: the user reviews and approves it."
 	return "\n".join([
-		"Objetivo (modo One-shot): %s" % goal,
+		"Goal (One-shot mode): %s" % goal,
 		"",
-		"Trabajá de forma autónoma hasta cumplir el objetivo:",
+		"Work autonomously until the goal is met:",
 		spec_step,
-		"1. Armá un plan a partir del spec con tu herramienta de plan o de tareas (por ejemplo TodoWrite o TaskCreate/TaskUpdate), una entrada por tarea. Marcá cada tarea in_progress al empezarla y completed al terminarla: el harness ve el plan y crea un checkpoint git antes de cada tarea.",
-		"2. Después de cada tarea, verificá con godot.run_scene (con inputs si hace falta), godot.capture_game_frame y godot.get_errors.",
-		"3. Al terminar cada tarea, actualizá %s (qué está hecho, qué falta, decisiones y problemas conocidos: es lo que lee quien retome) y reportá las verificaciones vigentes en un bloque ```json {\"checks\":[{\"label\":\"…\",\"status\":\"pass|fail|pending\"}]}." % files.progress_path(),
-		"4. Presupuestos: %s. Si te acercás al límite, priorizá dejar algo jugable." % (", ".join(limits) if not limits.is_empty() else "sin límite"),
-		"No hagas commits ni cambies de rama: los checkpoints git los maneja el harness.",
+		"1. Make a plan from the spec with your plan or task tool (for example TodoWrite or TaskCreate/TaskUpdate), one entry per task. Mark each task in_progress when you start it and completed when you finish it: the harness sees the plan and creates a git checkpoint before each task.",
+		"2. After each task, verify with godot.run_scene (with inputs if needed), godot.capture_game_frame and godot.get_errors.",
+		"3. When you finish each task, update %s (what is done, what is missing, decisions and known problems: it is what whoever resumes will read) and report the current checks in a ```json {\"checks\":[{\"label\":\"…\",\"status\":\"pass|fail|pending\"}]} block." % files.progress_path(),
+		"4. Budgets: %s. If you get close to a limit, prioritize leaving something playable." % (", ".join(limits) if not limits.is_empty() else "unlimited"),
+		"Don't make commits or switch branches: the harness handles the git checkpoints.",
 		"",
 		GameCriteria.generator_text(criteria),
 	])
@@ -322,7 +345,7 @@ func pause() -> void:
 		return
 	resume_task = _task_name(_current_task)
 	_set_phase(Phase.PAUSED)
-	_add_activity("estado", "Pausado por el usuario")
+	_add_activity("status", I18n.t("Paused by the user"))
 	if _turn_running:
 		controller.cancel()
 
@@ -346,17 +369,17 @@ func resume() -> void:
 	if not controller.is_connected_to_agent() or (from_disk and model.session_id != lost_id):
 		if not await _restart_session(lost_id):
 			_recovered_session_id = ""
-			_finish("No se pudo reabrir la sesión con el agente.")
+			_finish(I18n.t("Couldn't reopen the session with the agent."))
 			return
 		_recovered_session_id = ""
 		model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
-		var what := _reopen_reason if not _reopen_reason.is_empty() else ("El editor se había cerrado" if from_disk else "La sesión se perdió")
+		var why := _reopen_reason if not _reopen_reason.is_empty() else ("editor" if from_disk else "lost")
 		_reopen_reason = ""
 		if not lost_id.is_empty() and model.session_id == lost_id:
-			_add_activity("sesión", "%s: se reabrió la sesión con session/load" % what)
+			_add_activity("session", I18n.t(REOPEN_LOADED[why]))
 			_run_turn(_resume_prompt())
 		else:
-			_add_activity("sesión", "%s: se abrió una sesión nueva con el resumen del plan" % what)
+			_add_activity("session", I18n.t(REOPEN_NEW[why]))
 			_run_turn(_summary_prompt())
 		return
 	_recovered_session_id = ""
@@ -372,10 +395,10 @@ func switch_account() -> void:
 	quota.forget_account()
 	quota_resume_at = 0
 	report.count("account_switches")
-	_add_activity("sesión", "Cambio de cuenta: se reinicia el agente y se retoma la misma sesión")
+	_add_activity("session", I18n.t("Account switch: restarting the agent and resuming the same session"))
 	controller.stop()
 	_recovered_session_id = session_id
-	_reopen_reason = "Cambio de cuenta"
+	_reopen_reason = "account"
 	resume()
 
 
@@ -384,7 +407,7 @@ func stop() -> void:
 		return
 	if _turn_running:
 		controller.cancel()
-	_finish("Detenido por el usuario.")
+	_finish(I18n.t("Stopped by the user."))
 
 
 ## Lo que el usuario escribe en el chat del dock: se manda al terminar el turno actual (o ya, si no hay turno en curso).
@@ -404,7 +427,7 @@ func guide(text: String) -> void:
 	if phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM, Phase.SPEC_REVIEW]:
 		pause_note = ""
 		_set_phase(Phase.RUNNING)
-	_add_activity("guía", "enviado: " + text)
+	_add_activity("guide", I18n.t("sent: %s") % text)
 	_run_turn(text)
 
 
@@ -413,8 +436,8 @@ func guide(text: String) -> void:
 func _queue_guidance(text: String) -> void:
 	_guidance.append(text)
 	_user_guidance.append(text)
-	_add_activity("guía", "en cola: " + text)
-	model.add_notice("One-shot · en cola: «%s». Le llega al agente al terminar el turno." % text.left(120), ChatEntry.Level.INFO)
+	_add_activity("guide", I18n.t("queued: %s") % text)
+	model.add_notice(I18n.t("One-shot · queued: “%s”. The agent gets it when the current turn ends.") % text.left(120), ChatEntry.Level.INFO)
 
 
 func _pop_guidance() -> String:
@@ -422,7 +445,7 @@ func _pop_guidance() -> String:
 	var index := _user_guidance.find(text)
 	if index >= 0:
 		_user_guidance.remove_at(index)
-		_add_activity("guía", "enviado: " + text)
+		_add_activity("guide", I18n.t("sent: %s") % text)
 	return text
 
 
@@ -438,11 +461,11 @@ func set_budgets(values: Dictionary) -> void:
 		if budget_ratio(budget) < WARN_RATIO:
 			_warned.erase(budget)
 	report.count("budget_changes")
-	_add_activity("presupuesto", "Presupuestos: " + budgets_text())
+	_add_activity("budget", I18n.t("Budgets: %s") % budgets_text())
 	var exhausted := [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS].any(func(budget: String) -> bool: return budget_ratio(budget) >= 1.0)
-	if _close_reason.begins_with(BUDGET_CLOSE_PREFIX) and not exhausted:
+	if not _closed_budget().is_empty() and not exhausted:
 		_close_reason = ""
-		_add_activity("presupuesto", "Con el presupuesto nuevo, el run sigue")
+		_add_activity("budget", I18n.t("With the new budget, the run continues"))
 		if phase == Phase.CLOSING:
 			_set_phase(Phase.RUNNING)
 		elif phase == Phase.RUNNING:
@@ -458,8 +481,24 @@ func budgets_text() -> String:
 	var parts: PackedStringArray = []
 	for budget: String in [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS]:
 		var limit := int(budgets.get(budget, 0))
-		parts.append("%s %s" % [str(BUDGET_LABELS[budget]).to_lower(), ("%d min" % limit if budget == BUDGET_TIME else str(limit)) if limit > 0 else "sin límite"])
+		parts.append("%s %s" % [I18n.t(BUDGET_LABELS[budget]).to_lower(), ("%d min" % limit if budget == BUDGET_TIME else str(limit)) if limit > 0 else I18n.t("unlimited")])
 	return ", ".join(parts)
+
+
+## Presupuesto que agotó el run según `_close_reason`, o "".
+func _closed_budget() -> String:
+	for budget: String in [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS]:
+		if _close_reason == BUDGET_CLOSE_REASON % budget:
+			return budget
+	return ""
+
+
+## `_close_reason` (en inglés, para el agente) para la UI.
+func _close_reason_text() -> String:
+	var budget := _closed_budget()
+	if budget.is_empty():
+		return _close_reason
+	return I18n.t(BUDGET_CLOSE_REASON) % I18n.t(BUDGET_LABELS[budget]).to_lower()
 
 
 ## «Aprobar spec» (D41): con `text` distinto del archivo, primero se guarda lo que editó el usuario.
@@ -470,9 +509,9 @@ func approve_spec(text: String = "") -> void:
 	if edited:
 		files.write(files.spec_path(), text)
 	_awaiting_spec = false
-	_add_activity("spec", "Spec aprobado" + (" con cambios del usuario" if edited else ""))
+	_add_activity("spec", I18n.t("Spec approved with the user's changes") if edited else I18n.t("Spec approved"))
 	_set_phase(Phase.RUNNING)
-	_run_turn("El spec está aprobado%s. Seguí con el resto: armá el plan a partir del spec y construí." % (" con cambios: releelo antes de armar el plan" if edited else ""))
+	_run_turn("The spec is approved%s. Continue with the rest: make the plan from the spec and build." % (" with changes: reread it before making the plan" if edited else ""))
 
 
 ## El usuario editó el plan: se manda como guía.
@@ -482,13 +521,13 @@ func edit_plan(lines: PackedStringArray) -> void:
 		if not lines[i].strip_edges().is_empty():
 			items.append("%d. %s" % [items.size() + 1, lines[i].strip_edges()])
 	if not items.is_empty():
-		guide("Actualicé el plan; seguí con este (releelo y actualizá tu herramienta de plan):\n" + "\n".join(items))
+		guide("I updated the plan; continue with this one (reread it and update your plan tool):\n" + "\n".join(items))
 
 
 ## "Volver acá": pausa, restaura el checkpoint y recarga el editor. Devuelve "" o el error.
 func restore(checkpoint_entry: Dictionary) -> String:
 	if not checkpoints_enabled:
-		return "Los checkpoints están desactivados."
+		return I18n.t("Checkpoints are turned off.")
 	if _turn_running:
 		resume_task = str(checkpoint_entry.get("label", ""))
 		_set_phase(Phase.PAUSED)
@@ -501,7 +540,7 @@ func restore(checkpoint_entry: Dictionary) -> String:
 	if after_restore.is_valid():
 		after_restore.call(changed_paths)
 	resume_task = str(checkpoint_entry.get("label", ""))
-	_add_activity("checkpoint", "Volvió a %s (%s) · %d archivos" % [checkpoint_entry.name, checkpoint_entry.label, (changed_paths as PackedStringArray).size()])
+	_add_activity("checkpoint", I18n.t("Went back to %s (%s) · %d files") % [checkpoint_entry.name, checkpoint_entry.label, (changed_paths as PackedStringArray).size()])
 	if is_active():
 		_set_phase(Phase.PAUSED)
 	changed.emit()
@@ -511,14 +550,14 @@ func restore(checkpoint_entry: Dictionary) -> String:
 ## "Aceptar todo": commit final en la rama del agente; el merge lo hace el usuario.
 func accept_all() -> String:
 	if not checkpoints_enabled:
-		return "Los checkpoints están desactivados: no hay rama del agente."
+		return I18n.t("Checkpoints are turned off: there is no agent branch.")
 	if _turn_running:
 		controller.cancel()
 	var ok: bool = await _git(func() -> Variant: return await git.accept(goal))
 	if not ok:
 		return git.last_error
-	_add_activity("checkpoint", "La rama %s quedó lista para merge (el harness no hace merge ni push)" % git.agent_branch)
-	_finish("Cambios aceptados en %s." % git.agent_branch)
+	_add_activity("checkpoint", I18n.t("The branch %s is ready to merge (the harness doesn't merge or push)") % git.agent_branch)
+	_finish(I18n.t("Changes accepted in %s.") % git.agent_branch)
 	return ""
 
 
@@ -547,8 +586,15 @@ func _run_turn(text: String) -> void:
 	_account_tokens(controller.last_turn_usage)
 	var turn_ms := _elapsed_ms() - turn_started
 	report.observe_turn(turn_started, turn_ms, reason, _turn_tools)
-	_add_activity("turno", "Turno %d · %s · %d %s%s" % [report.turns.size(), RunReport.format_ms(turn_ms), _turn_tools,
-		"tool" if _turn_tools == 1 else "tools", TURN_END_NOTES.get(reason, " · " + reason if not reason.is_empty() else " · no se pudo mandar")])
+	var note := ""
+	if TURN_END_NOTES.has(reason):
+		note = " · " + I18n.t(TURN_END_NOTES[reason])
+	elif reason.is_empty():
+		note = " · " + I18n.t("couldn't send")
+	elif reason != "end_turn":
+		note = " · " + reason
+	var turn_format := I18n.t("Turn %d · %s · %d tool") if _turn_tools == 1 else I18n.t("Turn %d · %s · %d tools")
+	_add_activity("turn", turn_format % [report.turns.size(), RunReport.format_ms(turn_ms), _turn_tools] + note)
 	if reason == "error" or reason.is_empty():
 		report.count("turn_errors")
 	var turn_text := controller.agent_text_since(first_entry)
@@ -558,7 +604,7 @@ func _run_turn(text: String) -> void:
 		_on_loop(loops.observe_checks(new_checks), false)
 	var summary := _summary_of(turn_text)
 	if not summary.is_empty():
-		_add_activity("agente", summary)
+		_add_activity("agent", summary)
 	if _progress() > progress_before:
 		_idle_continues = 0
 	if reason == "end_turn":
@@ -569,7 +615,7 @@ func _run_turn(text: String) -> void:
 func _after_turn(reason: String) -> void:
 	match phase:
 		Phase.CLOSING:
-			_finish(_close_reason if not _close_reason.is_empty() else "Terminado.")
+			_finish(_close_reason_text() if not _close_reason.is_empty() else I18n.t("Finished."))
 			return
 		Phase.FINISHED, Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM, Phase.IDLE:
 			return
@@ -579,12 +625,12 @@ func _after_turn(reason: String) -> void:
 	if reason.is_empty():  # no se pudo mandar: la sesión no estaba lista
 		resume_task = _task_name(_current_task)
 		_set_phase(Phase.PAUSED)
-		_add_activity("sesión", "El agente no estaba listo para otro turno: retomá cuando quieras")
+		_add_activity("session", I18n.t("The agent wasn't ready for another turn: resume whenever you want"))
 		return
 	if reason == "error" and not controller.is_connected_to_agent():
 		resume_task = _task_name(_current_task)
 		_set_phase(Phase.PAUSED)
-		_add_activity("sesión", "El agente se cerró: retomá cuando quieras (se abre una sesión nueva con el resumen)")
+		_add_activity("session", I18n.t("The agent closed: resume whenever you want (a new session opens with the summary)"))
 		return
 	if not _close_reason.is_empty():
 		_close()
@@ -608,9 +654,9 @@ func _after_turn(reason: String) -> void:
 		return
 	if _plan_pending() and _idle_continues < MAX_IDLE_CONTINUES:
 		_idle_continues += 1
-		_run_turn("Seguí con el plan: la próxima tarea pendiente es «%s». Verificá con run_scene, capture_game_frame y get_errors, y reportá el bloque de checks." % _task_name(_next_pending()))
+		_run_turn("Keep going with the plan: the next pending task is “%s”. Verify with run_scene, capture_game_frame and get_errors, and report the checks block." % _task_name(_next_pending()))
 		return
-	_finish("El agente terminó el plan." if not _plan_pending() else "El agente dejó de avanzar con el plan.")
+	_finish(I18n.t("The agent finished the plan.") if not _plan_pending() else I18n.t("The agent stopped making progress on the plan."))
 
 
 ## Sin plan, lo que falta sale de los checks: el agente a veces cierra el turno a mitad de camino
@@ -619,40 +665,40 @@ func _after_turn_without_plan() -> void:
 	var open: PackedStringArray = []
 	for check: Dictionary in checks:
 		if check.status != "pass":
-			open.append("«%s» (%s)" % [check.label, check.status])
+			open.append("“%s” (%s)" % [check.label, check.status])
 	if not checks.is_empty() and open.is_empty():
-		_finish("El agente terminó: todos los checks pasan.")
+		_finish(I18n.t("The agent finished: all checks pass."))
 		return
 	if _idle_continues >= MAX_IDLE_CONTINUES:
-		_finish("El agente dejó de avanzar (sin plan; quedan checks sin pasar)." if not open.is_empty() else "El agente terminó sin reportar checks.")
+		_finish(I18n.t("The agent stopped making progress (no plan; some checks still don't pass).") if not open.is_empty() else I18n.t("The agent finished without reporting checks."))
 		return
 	_idle_continues += 1
 	if open.is_empty():
-		_run_turn("Si falta algo del objetivo, seguí. Si está terminado, verificalo con run_scene y capture_game_frame y reportá el bloque de checks.")
+		_run_turn("If anything in the goal is missing, keep going. If it's done, verify it with run_scene and capture_game_frame and report the checks block.")
 	else:
-		_run_turn("Seguí con el objetivo: quedan checks sin pasar: %s. Verificá con run_scene, capture_game_frame y get_errors, y reportá el bloque de checks." % ", ".join(open))
+		_run_turn("Keep going with the goal: some checks still don't pass: %s. Verify with run_scene, capture_game_frame and get_errors, and report the checks block." % ", ".join(open))
 
 
 func _enter_spec_review() -> void:
 	_set_phase(Phase.SPEC_REVIEW)
 	if files.has_spec():
-		_add_activity("spec", "%s/%s listo: revisalo y aprobalo para que empiece a construir" % [files.relative_dir(), OneShotFiles.SPEC])
+		_add_activity("spec", I18n.t("%s/%s is ready: review and approve it so the agent starts building") % [files.relative_dir(), OneShotFiles.SPEC])
 	else:
-		_add_activity("aviso", "El agente no escribió %s/%s. Escribile en el chat que lo escriba, o aprobá para seguir sin spec." % [files.relative_dir(), OneShotFiles.SPEC])
-	model.add_notice("One-shot · el spec está listo para revisar en la pantalla Agent.", ChatEntry.Level.INFO)
+		_add_activity("warning", I18n.t("The agent didn't write %s/%s. Ask it in the chat to write it, or approve to continue without a spec.") % [files.relative_dir(), OneShotFiles.SPEC])
+	model.add_notice(I18n.t("One-shot · the spec is ready for review in the Agent screen."), ChatEntry.Level.INFO)
 
 
 func _close() -> void:
 	_set_phase(Phase.CLOSING)
-	_add_activity("presupuesto", _close_reason)
-	_run_turn("%s No sigas con el plan: escribí el reporte final (qué quedó hecho, qué falta y cómo probarlo) y el bloque de checks." % _close_reason)
+	_add_activity("budget", _close_reason_text())
+	_run_turn("%s Don't continue with the plan: write the final report (what got done, what's missing and how to test it) and the checks block." % _close_reason)
 
 
 func _finish(reason: String) -> void:
 	finish_reason = reason
 	_timer.stop()
 	_recovered_session_id = ""
-	_add_activity("estado", reason)
+	_add_activity("status", reason)
 	_set_phase(Phase.FINISHED)
 	store.prune()
 	_write_report()
@@ -693,18 +739,18 @@ func _restart_session(lost_id: String) -> bool:
 func _resume_prompt() -> String:
 	var task := resume_task if not resume_task.is_empty() else _task_name(_next_pending())
 	var last := git.checkpoints.back() if checkpoints_enabled and not git.checkpoints.is_empty() else {}
-	var where := "" if last.is_empty() else "; el estado está en el checkpoint %s (%s)" % [last.name, last.label]
-	var handoff := " Si te falta contexto, releé spec.md y progress.md en %s." % files.dir() if files.has_spec() else ""
+	var where := "" if last.is_empty() else "; the state is in checkpoint %s (%s)" % [last.name, last.label]
+	var handoff := " If you're missing context, reread spec.md and progress.md in %s." % files.dir() if files.has_spec() else ""
 	if task.is_empty():
-		return "Continuá con el objetivo desde donde quedaste%s.%s" % [where, handoff]
-	return "Continuá con el plan desde la tarea «%s»%s.%s" % [task, where, handoff]
+		return "Continue with the goal from where you left off%s.%s" % [where, handoff]
+	return "Continue with the plan from the task “%s”%s.%s" % [task, where, handoff]
 
 
 func _summary_prompt() -> String:
-	var lines: PackedStringArray = ["Retomamos un One-shot que se interrumpió.", "", initial_prompt(), ""]
+	var lines: PackedStringArray = ["We're resuming a One-shot that was interrupted.", "", initial_prompt(), ""]
 	if files.has_spec():
-		lines.append_array(["El traspaso está en %s: leé spec.md y progress.md (y los qa-*.md si hay) antes de seguir; el spec ya está escrito." % files.dir(), ""])
-	lines.append("Plan hasta ahora:")
+		lines.append_array(["The handoff is in %s: read spec.md and progress.md (and the qa-*.md files, if any) before continuing; the spec is already written." % files.dir(), ""])
+	lines.append("Plan so far:")
 	for entry: Variant in current_plan():
 		if entry is Dictionary:
 			lines.append("- [%s] %s" % [entry.get("status", "pending"), entry.get("content", "")])
@@ -736,7 +782,7 @@ func _on_plan_changed(plan: Array) -> void:
 		var previous := _current_task
 		_current_task = in_progress
 		var task := _task_name(in_progress)
-		_add_activity("plan", "Tarea %d: %s" % [in_progress + 1, task])
+		_add_activity("plan", I18n.t("Task %d: %s") % [in_progress + 1, task])
 		if phase == Phase.RUNNING and quota.state == QuotaMonitor.State.PAUSE_SCHEDULED and previous >= 0:
 			_pause_for_quota(task)
 		elif checkpoints_enabled:
@@ -785,17 +831,17 @@ func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
 		return
 	report.count("loops")
 	if bool(finding.repeated):
-		pause_note = "One-shot en pausa: el agente sigue en un loop (%s) aunque se le pidió otro enfoque. Escribile en el chat cómo seguir, o retomá cuando quieras." % finding.text
+		pause_note = I18n.t("One-shot paused: the agent is still in a loop (%s) even after being asked for another approach. Tell it in the chat how to continue, or resume whenever you want.") % finding.label
 		resume_task = _task_name(_current_task)
 		_set_phase(Phase.PAUSED)
-		_add_activity("loop", "Pausa: %s otra vez" % finding.text)
+		_add_activity("loop", I18n.t("Paused: %s again") % finding.label)
 		model.add_notice(pause_note, ChatEntry.Level.WARNING)
 		if _turn_running:
 			controller.cancel()
 		return
-	_add_activity("loop", "Posible loop: %s" % finding.text)
-	model.add_notice("One-shot · posible loop: %s. Se le pide otro enfoque." % finding.text, ChatEntry.Level.WARNING)
-	_guidance.append("Parece que estás en un loop: %s. No lo repitas igual: pensá por qué no funciona y probá otro enfoque (otra solución, otro archivo, o simplificá la tarea). Si algo no se puede resolver, anotalo en el bloque de checks y seguí con lo demás." % finding.text)
+	_add_activity("loop", I18n.t("Possible loop: %s") % finding.label)
+	model.add_notice(I18n.t("One-shot · possible loop: %s. Asking the agent for another approach.") % finding.label, ChatEntry.Level.WARNING)
+	_guidance.append("It looks like you're in a loop: %s. Don't repeat it the same way: think about why it doesn't work and try another approach (another solution, another file, or simplify the task). If something can't be solved, note it in the checks block and continue with the rest." % finding.text)
 	if mid_turn and _turn_running:
 		controller.cancel()  # la guía se manda al cortar el turno (_after_turn)
 	changed.emit()
@@ -836,11 +882,11 @@ func _tick() -> void:
 	match phase:
 		Phase.LIMITED:
 			if quota.retry_due():
-				_on_quota_back("se reinició la ventana" if quota.limited_until > 0 else "toca un reintento")
+				_on_quota_back(I18n.t("Quota: the window reset") if quota.limited_until > 0 else I18n.t("Quota: time for a retry"))
 		Phase.PAUSED_QUOTA:
 			var now := int(Time.get_unix_time_from_system())
 			if quota.state in [QuotaMonitor.State.NORMAL, QuotaMonitor.State.WARNING] or (quota_resume_at > 0 and now >= quota_resume_at):
-				_on_quota_back("la cuota volvió a estar disponible")
+				_on_quota_back(I18n.t("Quota: available again"))
 	changed.emit()
 
 
@@ -850,8 +896,8 @@ func _check_budgets() -> void:
 	for budget: String in [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS]:
 		var ratio := budget_ratio(budget)
 		if ratio >= 1.0 and _close_reason.is_empty():
-			_close_reason = BUDGET_CLOSE_PREFIX + "%s." % str(BUDGET_LABELS[budget]).to_lower()
-			_add_activity("presupuesto", _close_reason)
+			_close_reason = BUDGET_CLOSE_REASON % budget
+			_add_activity("budget", _close_reason_text())
 			if _turn_running:
 				controller.cancel()
 			else:
@@ -859,9 +905,9 @@ func _check_budgets() -> void:
 			return
 		if ratio >= WARN_RATIO and not _warned.has(budget):
 			_warned[budget] = true
-			var text := "%s: %d %% del presupuesto." % [BUDGET_LABELS[budget], roundi(ratio * 100.0)]
-			_add_activity("presupuesto", text)
-			model.add_notice("One-shot · " + text, ChatEntry.Level.WARNING)
+			var text := I18n.t("%s: %d %% of the budget.") % [I18n.t(BUDGET_LABELS[budget]), roundi(ratio * 100.0)]
+			_add_activity("budget", text)
+			model.add_notice(I18n.t("One-shot · %s") % text, ChatEntry.Level.WARNING)
 
 
 ## Umbral de pausa (spec §10.1): no corta la tarea en curso. Pausa al empezar la siguiente (con su
@@ -877,13 +923,13 @@ func _pause_for_quota(next_task: String, mid_task: bool = false) -> void:
 	report.count("quota_pauses")
 	var percent := roundi(quota.max_utilization() * 100.0)
 	if mid_task:
-		_add_activity("cuota", "Cuota al %d %%: la tarea no terminaba, se corta el turno y se pausa" % percent)
+		_add_activity("quota", I18n.t("Quota at %d %%: the task wasn't finishing, cutting the turn and pausing") % percent)
 	elif next_task.is_empty():
-		_add_activity("cuota", "Cuota al %d %%: pausa al terminar el turno" % percent)
+		_add_activity("quota", I18n.t("Quota at %d %%: pausing when the turn ends") % percent)
 	else:
-		_add_activity("cuota", "Cuota al %d %%: pausa antes de «%s»" % [percent, next_task])
+		_add_activity("quota", I18n.t("Quota at %d %%: pausing before “%s”") % [percent, next_task])
 	if checkpoints_enabled:
-		_checkpoint(next_task if not next_task.is_empty() else "Pausa por cuota", "-quota" if mid_task else "")
+		_checkpoint(next_task if not next_task.is_empty() else "Quota pause", "-quota" if mid_task else "")
 	if _turn_running:
 		controller.cancel()
 
@@ -909,7 +955,7 @@ func quota_pause_text() -> String:
 	var left := quota_pause_grace_s
 	if _quota_scheduled_msec > 0:
 		left = maxi(quota_pause_grace_s - int((Time.get_ticks_msec() - _quota_scheduled_msec) / 1000.0), 0)
-	return "Cuota al %d %%: el One-shot se pausa al terminar la tarea o el turno en curso (si no, en %s se corta y se pausa igual)" % [
+	return I18n.t("Quota at %d %%: the One-shot pauses when the current task or turn ends (if they don't end within %s, it cuts the turn and pauses anyway)") % [
 		roundi(quota.max_utilization() * 100.0), QuotaMonitor.format_duration(left)]
 
 
@@ -920,15 +966,19 @@ func _enter_limited() -> void:
 	_set_phase(Phase.LIMITED)
 	report.count("limited")
 	quota_resume_at = quota.limited_until
-	var until := "hasta las %s" % Time.get_time_string_from_unix_time(quota.limited_until + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5) if quota.limited_until > 0 else "sin hora de reinicio (reintentos 5, 10, 20 y cada 60 min)"
-	_add_activity("cuota", "Límite del plan alcanzado %s" % until)
+	if quota.limited_until > 0:
+		var until := Time.get_time_string_from_unix_time(quota.limited_until + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5)
+		_add_activity("quota", I18n.t("Plan limit reached until %s") % until)
+	else:
+		_add_activity("quota", I18n.t("Plan limit reached, with no reset time (retries at 5, 10, 20 and every 60 min)"))
 	if checkpoints_enabled and not _quota_checkpoint_done:
 		_quota_checkpoint_done = true
 		await _checkpoint(resume_task, "-quota")
 
 
-func _on_quota_back(reason: String) -> void:
-	_add_activity("cuota", "Cuota: %s" % reason)
+## `text`: por qué se retoma, para la actividad.
+func _on_quota_back(text: String) -> void:
+	_add_activity("quota", text)
 	if resume_auto:
 		resume()
 	else:
@@ -1027,17 +1077,22 @@ func _apply(data: Dictionary) -> void:
 	_suspended = false
 	recovered = true
 	phase = Phase.PAUSED
-	var where := " y sigue desde «%s»" % resume_task if not resume_task.is_empty() else ""
 	# Un run que esperaba la cuota sigue esperándola: retoma solo cuando se reinicia la ventana.
 	quota_resume_at = int(data.get("quota_resume_at", 0))
 	var waiting_quota := str(data.get("phase_id", "")) in ["LIMITED", "PAUSED_QUOTA"]
 	if waiting_quota and quota_resume_at > int(Time.get_unix_time_from_system()):
 		phase = Phase.PAUSED_QUOTA
 		var at := Time.get_time_string_from_unix_time(quota_resume_at + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5)
-		_add_activity("sesión", "El editor se cerró con el One-shot esperando la cuota: retoma solo a las %s%s («Retomar» o «Cambiar de cuenta» para no esperar)." % [at, where])
+		if resume_task.is_empty():
+			_add_activity("session", I18n.t("The editor closed while the One-shot was waiting for quota: it resumes on its own at %s (“Resume” or “Switch account” to skip the wait).") % at)
+		else:
+			_add_activity("session", I18n.t("The editor closed while the One-shot was waiting for quota: it resumes on its own at %s and continues from “%s” (“Resume” or “Switch account” to skip the wait).") % [at, resume_task])
 	else:
 		quota_resume_at = 0
-		_add_activity("sesión", "El editor se cerró con el One-shot en curso. «Retomar» reabre la sesión del agente%s." % where)
+		if resume_task.is_empty():
+			_add_activity("session", I18n.t("The editor closed while the One-shot was running. “Resume” reopens the agent's session."))
+		else:
+			_add_activity("session", I18n.t("The editor closed while the One-shot was running. “Resume” reopens the agent's session and continues from “%s”.") % resume_task)
 	_timer.start()
 	restored.emit()
 	changed.emit()
@@ -1063,7 +1118,7 @@ func _exit_tree() -> void:
 func _checkpoint(label: String, suffix: String = "") -> void:
 	var entry: Dictionary = await _git(func() -> Variant: return await git.checkpoint(label, suffix))
 	if entry.is_empty():
-		_add_activity("aviso", "No se pudo crear el checkpoint: " + git.last_error)
+		_add_activity("warning", I18n.t("Couldn't create the checkpoint: %s") % git.last_error)
 	else:
 		_add_activity("checkpoint", "%s: %s" % [entry.name, entry.label])
 	changed.emit()
@@ -1118,7 +1173,7 @@ func _elapsed_text() -> String:
 func _task_name(index: int) -> String:
 	var plan := current_plan()
 	if index >= 0 and index < plan.size() and plan[index] is Dictionary:
-		return str(plan[index].get("content", "tarea %d" % (index + 1)))
+		return str(plan[index].get("content", "task %d" % (index + 1)))
 	return ""
 
 

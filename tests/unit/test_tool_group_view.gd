@@ -36,11 +36,11 @@ func test_subagent_rows() -> void:
 	await tree.process_frame
 	var rows: Dictionary = view.get(&"_rows")
 	assert_eq(rows.keys(), ["agent"], "cerrado, solo la fila del subagente")
-	assert_eq((rows.agent.summary as Label).text, "subagente · Explore", "resumen con el tipo")
+	assert_eq((rows.agent.summary as Label).text, "subagent · Explore", "resumen con el tipo")
 	var toggle: Button = rows.agent.toggle
 	assert_true((rows.agent.nested as Control).visible, "el subagente tiene su desplegable")
-	assert_eq(toggle.text, "▸ 2 herramientas del subagente · Grep", "cantidad y lo que está haciendo")
-	assert_true(_has_button_text(rows.agent.extra, "▸ prompt · 2 líneas"), "mientras trabaja muestra el prompt")
+	assert_eq(toggle.text, "▸ 2 subagent tools · Grep", "cantidad y lo que está haciendo")
+	assert_true(_has_button_text(rows.agent.extra, "▸ prompt · 2 lines"), "mientras trabaja muestra el prompt")
 	toggle.button_pressed = true
 	assert_eq(rows.size(), 3, "abierto, las filas de los hijos")
 	assert_true((rows.r1.row as Control).get_parent().get_parent() == rows.agent.children, "los hijos van dentro del subagente")
@@ -48,8 +48,8 @@ func test_subagent_rows() -> void:
 	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "agent", "status": "completed",
 		"content": [{"type": "content", "content": {"type": "text", "text": "Hay dos usos."}}]})
 	view.call(&"refresh")
-	assert_eq(toggle.text, "▾ 2 herramientas del subagente", "terminado, sin actividad")
-	assert_true(_has_button_text(rows.agent.extra, "▸ informe · 1 línea"), "terminado muestra el informe")
+	assert_eq(toggle.text, "▾ 2 subagent tools", "terminado, sin actividad")
+	assert_true(_has_button_text(rows.agent.extra, "▸ report · 1 line"), "terminado muestra el informe")
 	view.queue_free()
 
 

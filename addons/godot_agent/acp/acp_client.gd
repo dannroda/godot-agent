@@ -90,7 +90,7 @@ func request(method: String, params: Dictionary = {}) -> Response:
 	_pending[id] = pending
 	if not _write(message, "→ %s #%d" % [method, id]):
 		_pending.erase(id)
-		return Response.failure(ERR_TRANSPORT, "No se pudo enviar '%s' al agente." % method)
+		return Response.failure(ERR_TRANSPORT, "Could not send '%s' to the agent." % method)
 	var response: Response = await pending.completed
 	return response
 
@@ -114,8 +114,8 @@ func receive_line(line: String) -> void:
 		return
 	var json := JSON.new()
 	if json.parse(text) != OK or typeof(json.data) != TYPE_DICTIONARY:
-		_log_line(AgentLog.CH_ACP, "← línea ignorada (no es JSON-RPC): %s" % text.left(200), text)
-		invalid_line.emit(text, "no es un objeto JSON")
+		_log_line(AgentLog.CH_ACP, "← line ignored (not JSON-RPC): %s" % text.left(200), text)
+		invalid_line.emit(text, "not a JSON object")
 		return
 	var message: Dictionary = json.data
 	var has_method := message.get("method") is String
@@ -128,14 +128,14 @@ func receive_line(line: String) -> void:
 	elif id != null and (message.has("result") or message.has("error")):
 		_handle_response(id, message, text)
 	else:
-		_log_line(AgentLog.CH_ACP, "← mensaje JSON-RPC inválido", text)
-		invalid_line.emit(text, "mensaje JSON-RPC inválido")
+		_log_line(AgentLog.CH_ACP, "← invalid JSON-RPC message", text)
+		invalid_line.emit(text, "invalid JSON-RPC message")
 
 
 func _handle_response(id: Variant, message: Dictionary, raw: String) -> void:
 	var pending: PendingRequest = _pending.get(id)
 	if pending == null:
-		_log_line(AgentLog.CH_ACP, "← respuesta a un id desconocido: %s" % str(id), raw)
+		_log_line(AgentLog.CH_ACP, "← response to an unknown id: %s" % str(id), raw)
 		return
 	_pending.erase(id)
 	var response: Response
@@ -161,7 +161,7 @@ func _handle_request(id: Variant, method: String, params: Dictionary, raw: Strin
 	_log_line(AgentLog.CH_ACP, "← %s #%s" % [method, str(id)], raw)
 	var handler: Callable = _request_handlers.get(method, Callable())
 	if not handler.is_valid():
-		_respond_error(id, ERR_METHOD_NOT_FOUND, "Método no soportado: %s" % method)
+		_respond_error(id, ERR_METHOD_NOT_FOUND, "Method not supported: %s" % method)
 		return
 	var value: Variant = await handler.call(params)
 	if value is Response:
@@ -175,7 +175,7 @@ func _handle_request(id: Variant, method: String, params: Dictionary, raw: Strin
 
 
 func _respond(id: Variant, result: Variant) -> void:
-	_write({"jsonrpc": "2.0", "id": id, "result": result}, "→ respuesta #%s" % str(id))
+	_write({"jsonrpc": "2.0", "id": id, "result": result}, "→ response #%s" % str(id))
 
 
 func _respond_error(id: Variant, code: int, message: String) -> void:

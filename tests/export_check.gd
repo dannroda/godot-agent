@@ -18,7 +18,7 @@ const AUTOLOAD_SCRIPT := "res://addons/godot_agent/playtest/runtime/playtest_pro
 const PLUGIN_CFG := "res://addons/godot_agent/plugin.cfg"
 const FILTER := "addons/godot_agent/*"
 const KEEP_ORPHAN_ENV := "GODOT_AGENT_TEST_KEEP_ORPHAN_AUTOLOAD"
-const ORPHAN_ERROR_MARK := "seguía registrado al exportar"
+const ORPHAN_ERROR_MARK := "was still registered at export time"
 
 ## Cada escenario: plugin habilitado, filtro en el preset, autoload huérfano y si se espera que pase.
 const SCENARIOS: Array[Dictionary] = [

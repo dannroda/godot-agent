@@ -41,20 +41,20 @@ func test_usage_update_and_states() -> void:
 	assert_eq(monitor.state, QuotaMonitor.State.NORMAL, "63 %: normal")
 	assert_eq(monitor.utilization("five_hour"), 0.63, "ventana actual")
 	assert_eq(monitor.resets_at("seven_day"), NOW + 5 * 86400, "reinicio semanal")
-	assert_eq(monitor.describe_window("five_hour"), "Ventana 63 % · reinicia en 1 h", "texto de la ventana")
+	assert_eq(monitor.describe_window("five_hour"), "Window 63 % · resets in 1 h", "texto de la ventana")
 	var summary := str(_quota_entries(monitor)[1].message)
-	assert_true(summary.contains("five_hour 63 % hasta") and summary.contains("seven_day 47 % hasta"), "log con las ventanas: " + summary)
+	assert_true(summary.contains("five_hour 63 % until") and summary.contains("seven_day 47 % until"), "log con las ventanas: " + summary)
 	monitor.observe_update(_update(0.5, 0.8))
 	assert_eq(monitor.state, QuotaMonitor.State.WARNING, "la semanal al 80 % avisa")
 	monitor.observe_update(_update(0.91, 0.8, "allowed_warning"))
 	assert_eq(monitor.state, QuotaMonitor.State.PAUSE_SCHEDULED, "91 %: pausa programada")
 	assert_eq(monitor.pause_resets_at(), NOW + 3600, "la pausa espera el reinicio de la ventana más llena")
-	assert_true(monitor.rule_text().contains("se pausa al terminar la tarea o el turno en curso"), "regla activa: " + monitor.rule_text())
+	assert_true(monitor.rule_text().contains("pauses when the current task or turn finishes"), "regla activa: " + monitor.rule_text())
 	monitor.configure(0.75, 0.9, false)
 	assert_eq(monitor.state, QuotaMonitor.State.WARNING, "pausa desactivada: solo aviso")
 	monitor.configure(0.95, 0.99, true)
 	assert_eq(monitor.state, QuotaMonitor.State.NORMAL, "umbrales configurables")
-	var transitions := _quota_entries(monitor).filter(func(entry: Dictionary) -> bool: return str(entry.message).begins_with("estado de la cuota"))
+	var transitions := _quota_entries(monitor).filter(func(entry: Dictionary) -> bool: return str(entry.message).begins_with("quota state"))
 	assert_true(transitions.size() >= 4, "cada cambio de estado se loguea (%d)" % transitions.size())
 
 
@@ -93,7 +93,7 @@ func test_limit_without_reset_backoff() -> void:
 	monitor.observe_prompt_error({"code": -32603, "message": "Internal error", "data": {"errorKind": "rate_limit"}})
 	assert_eq(monitor.seconds_until_retry(), 5 * 60, "el backoff vuelve a empezar")
 	assert_false(monitor.observe_prompt_error({"code": -32603, "message": "Internal error: boom"}), "otro error no es límite")
-	assert_true(str(_quota_entries(monitor)[0].message).contains("(límite)"), "marca el de límite")
+	assert_true(str(_quota_entries(monitor)[0].message).contains("(limit)"), "marca el de límite")
 
 
 func test_limit_text() -> void:
@@ -125,4 +125,4 @@ func test_format_duration() -> void:
 	assert_eq(QuotaMonitor.format_duration(35), "35 s", "segundos")
 	assert_eq(QuotaMonitor.format_duration(4 * 60 + 10), "4 min", "minutos")
 	assert_eq(QuotaMonitor.format_duration(2 * 3600 + 10 * 60), "2 h 10 min", "horas")
-	assert_eq(QuotaMonitor.format_duration(3 * 86400), "3 días", "días")
+	assert_eq(QuotaMonitor.format_duration(3 * 86400), "3 days", "días")

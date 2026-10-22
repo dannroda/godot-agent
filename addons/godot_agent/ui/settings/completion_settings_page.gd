@@ -5,12 +5,22 @@ extends VBoxContainer
 ## contadores por fuente de la sesión. Se edita una copia y se guarda con el resto del diálogo.
 
 const HarnessSettings := preload("../../core/harness_settings.gd")
+const I18n := preload("../../core/i18n.gd")
 const ProjectConfig := preload("../../config/project_config.gd")
 const LlmProfile := preload("../../completion/llm/llm_profile.gd")
 const AgentTheme := preload("../agent_theme.gd")
 
-const MODE_LABELS: PackedStringArray = ["Solo local (sin IA)", "Híbrido: local primero, LLM si no hay nada", "Solo LLM"]
-const SOURCE_LABELS: Dictionary = {"rule": "Reglas de Godot", "retrieval": "Líneas del proyecto", "ngram": "Modelo n-gram", "history": "Historial de la sesión"}
+const MODE_LABELS: PackedStringArray = [
+	"Local only (no AI)",  # i18n
+	"Hybrid: local first, LLM if there's nothing",  # i18n
+	"LLM only",  # i18n
+]
+const SOURCE_LABELS: Dictionary = {
+	"rule": "Godot rules",  # i18n
+	"retrieval": "Project lines",  # i18n
+	"ngram": "N-gram model",  # i18n
+	"history": "Typed this session",  # i18n
+}
 const ENV_NAME := "^[A-Za-z_][A-Za-z0-9_]*$"
 
 ## () -> Array[Dictionary]: CompletionMetrics.summary() de la sesión.
@@ -57,36 +67,36 @@ func _init() -> void:
 
 
 func _build() -> void:
-	add_child(_title("Completado inline"))
-	_enabled_check = _check("Activado (para vos, en todos los proyectos)")
-	_project_check = _check("Activado en este proyecto")
-	_mode_option = _option_row("Modo", MODE_LABELS)
-	add_child(_hint("Atajos: Tab acepta, Ctrl+→ acepta una palabra, Esc descarta, Alt+\\ pide una sugerencia (en híbrido, al LLM), Alt+Shift+\\ prende o apaga."))
+	add_child(_title(I18n.t("Inline completion")))
+	_enabled_check = _check(I18n.t("Enabled (for you, in every project)"))
+	_project_check = _check(I18n.t("Enabled in this project"))
+	_mode_option = _option_row(I18n.t("Mode"), MODE_LABELS)
+	add_child(_hint(I18n.t("Shortcuts: Tab accepts, Ctrl+→ accepts one word, Esc dismisses, Alt+\\ asks for a suggestion (in hybrid mode, from the LLM), Alt+Shift+\\ turns it on or off.")))
 
-	add_child(_title("Local"))
+	add_child(_title(I18n.t("Local")))
 	for source: String in HarnessSettings.COMPLETION_SOURCES:
-		_source_checks[source] = _check(SOURCE_LABELS.get(source, source))
-	_threshold_spin = _spin_row("Umbral del ranker", 0.05, 1.0, 0.01, "")
-	_margin_spin = _spin_row("Margen sobre el segundo", 0.0, 0.5, 0.01, "")
-	_debounce_spin = _spin_row("Debounce local", 0, 200, 1, "ms")
-	_multiline_check = _check("Sugerencias de varias líneas")
-	_max_lines_spin = _spin_row("Máximo de líneas por bloque", 1, 16, 1, "")
-	add_child(_hint("Corpus extra: carpetas de otros proyectos tuyos que solo entrenan el n-gram (rutas absolutas, una por línea)."))
+		_source_checks[source] = _check(I18n.t(SOURCE_LABELS[source]) if SOURCE_LABELS.has(source) else source)
+	_threshold_spin = _spin_row(I18n.t("Ranker threshold"), 0.05, 1.0, 0.01, "")
+	_margin_spin = _spin_row(I18n.t("Margin over the runner-up"), 0.0, 0.5, 0.01, "")
+	_debounce_spin = _spin_row(I18n.t("Local debounce"), 0, 200, 1, "ms")
+	_multiline_check = _check(I18n.t("Multi-line suggestions"))
+	_max_lines_spin = _spin_row(I18n.t("Max lines per block"), 1, 16, 1, "")
+	add_child(_hint(I18n.t("Extra corpus: folders from your other projects that only train the n-gram (absolute paths, one per line).")))
 	_corpus_edit = _text_edit()
-	add_child(_hint("Excluidas del corpus en este proyecto (rutas relativas a res://, una por línea):"))
+	add_child(_hint(I18n.t("Excluded from the corpus in this project (paths relative to res://, one per line):")))
 	_exclude_edit = _text_edit()
 
-	add_child(_title("LLM (opcional)"))
-	add_child(_hint("Las keys no se guardan: cada perfil tiene el nombre de la variable de entorno del editor que la contiene."))
+	add_child(_title(I18n.t("LLM (optional)")))
+	add_child(_hint(I18n.t("Keys are not saved: each profile has the name of the editor environment variable that holds it.")))
 	_profile_list = VBoxContainer.new()
 	add_child(_profile_list)
 	var add_row := HBoxContainer.new()
 	_kind_option = OptionButton.new()
 	for kind: String in LlmProfile.KINDS:
-		_kind_option.add_item(LlmProfile.KIND_LABELS[kind])
+		_kind_option.add_item(I18n.t(LlmProfile.KIND_LABELS[kind]))
 	add_row.add_child(_kind_option)
 	var add := Button.new()
-	add.text = "+ Agregar perfil"
+	add.text = I18n.t("+ Add profile")
 	add.pressed.connect(func() -> void:
 		var profile: LlmProfile = LlmProfile.make(LlmProfile.KINDS[_kind_option.selected], _free_id(LlmProfile.KINDS[_kind_option.selected]))
 		_profiles.append(profile)
@@ -97,7 +107,9 @@ func _build() -> void:
 	_form.columns = 2
 	_form.visible = false
 	add_child(_form)
-	for field: Array in [["id", "Id"], ["display_name", "Nombre"], ["url", "URL"], ["model", "Modelo"], ["api_key_env", "Variable con la key"], ["fim_template", "Plantilla FIM ({prefix}, {suffix}; vacía = FIM del endpoint)"], ["stops", "Stops (uno por línea, \\n = salto)"], ["temperature", "Temperatura"], ["max_tokens", "Máximo de tokens"]]:
+	for field: Array in [["id", I18n.t("ID")], ["display_name", I18n.t("Name")], ["url", "URL"], ["model", I18n.t("Model")], ["api_key_env", I18n.t("Key variable")],
+			["fim_template", I18n.t("FIM template ({prefix}, {suffix}; empty = the endpoint's FIM)")], ["stops", I18n.t("Stops (one per line, \\n = newline)")],
+			["temperature", I18n.t("Temperature")], ["max_tokens", I18n.t("Max tokens")]]:
 		var label := Label.new()
 		label.text = field[1]
 		_form.add_child(label)
@@ -119,24 +131,24 @@ func _build() -> void:
 	_form.add_child(_form_warning)
 	_form.add_child(Control.new())
 	var apply := Button.new()
-	apply.text = "Listo"
+	apply.text = I18n.t("Done")
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
 	apply.pressed.connect(apply_form)
 	_form.add_child(apply)
-	_llm_debounce_spin = _spin_row("Debounce del LLM", 75, 1000, 1, "ms")
-	_prefix_spin = _spin_row("Prefix (caracteres antes del caret)", 200, 32000, 100, "")
-	_suffix_spin = _spin_row("Suffix (caracteres después)", 0, 16000, 100, "")
-	_context_spin = _spin_row("Contexto del proyecto (tokens estimados)", 0, 16000, 50, "")
-	_marker_check = _check("Marcar las sugerencias del LLM (un punto al final)")
-	_raw_check = _check("Log \"raw\": incluir el código de las sugerencias en el Agent Log")
+	_llm_debounce_spin = _spin_row(I18n.t("LLM debounce"), 75, 1000, 1, "ms")
+	_prefix_spin = _spin_row(I18n.t("Prefix (characters before the caret)"), 200, 32000, 100, "")
+	_suffix_spin = _spin_row(I18n.t("Suffix (characters after)"), 0, 16000, 100, "")
+	_context_spin = _spin_row(I18n.t("Project context (estimated tokens)"), 0, 16000, 50, "")
+	_marker_check = _check(I18n.t("Mark LLM suggestions (a dot at the end)"))
+	_raw_check = _check(I18n.t("\"Raw\" log: include the suggestions' code in the Agent Log"))
 
-	add_child(_title("Esta sesión, por fuente"))
+	add_child(_title(I18n.t("This session, by source")))
 	_metrics_grid = GridContainer.new()
 	_metrics_grid.columns = 6
 	_metrics_grid.add_theme_constant_override(&"h_separation", AgentTheme.px(14))
 	add_child(_metrics_grid)
 	var reset := Button.new()
-	reset.text = "Reiniciar contadores"
+	reset.text = I18n.t("Reset counters")
 	reset.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	reset.pressed.connect(func() -> void:
 		if metrics_reset.is_valid():
@@ -185,21 +197,21 @@ func validate() -> String:
 	var ids: Dictionary = {}
 	for profile: LlmProfile in _profiles:
 		if profile.id.is_empty():
-			return "Cada perfil LLM necesita un id (%s)." % profile.display_name
+			return I18n.t("Each LLM profile needs an ID (%s).") % profile.display_name
 		if ids.has(profile.id):
-			return "Hay dos perfiles LLM con el id «%s»." % profile.id
+			return I18n.t("Two LLM profiles have the ID \"%s\".") % profile.id
 		ids[profile.id] = true
 		if profile.needs_key() and profile.api_key_env.is_empty():
-			return "%s: necesita el nombre de la variable de entorno con la key." % profile.display_name
+			return I18n.t("%s: needs the name of the environment variable that holds the key.") % profile.display_name
 		if not profile.api_key_env.is_empty() and (_env_name.search(profile.api_key_env) == null or _looks_like_key(profile.api_key_env)):
-			return "%s: en «Variable con la key» va el nombre de una variable de entorno (por ejemplo MISTRAL_API_KEY), no la key." % profile.display_name
+			return I18n.t("%s: \"Key variable\" takes the name of an environment variable (for example MISTRAL_API_KEY), not the key.") % profile.display_name
 		if not (profile.url.begins_with("http://") or profile.url.begins_with("https://")):
-			return "%s: la URL tiene que empezar con http:// o https://." % profile.display_name
+			return I18n.t("%s: the URL must start with http:// or https://.") % profile.display_name
 	if _mode_option.selected > 0 and _profiles.is_empty():
-		return "Los modos híbrido y solo LLM necesitan un perfil LLM."
+		return I18n.t("The hybrid and LLM-only modes need an LLM profile.")
 	for root: String in _lines(_corpus_edit.text):
 		if not root.is_absolute_path():
-			return "Corpus extra: «%s» no es una ruta absoluta." % root
+			return I18n.t("Extra corpus: \"%s\" is not an absolute path.") % root
 	return ""
 
 
@@ -235,12 +247,12 @@ func refresh_metrics() -> void:
 	if rows.is_empty():
 		# En una grilla, un label con autowrap queda del ancho de una letra si su columna no se expande.
 		_metrics_grid.columns = 1
-		var empty := _hint("Todavía no hubo sugerencias en esta sesión.")
+		var empty := _hint(I18n.t("No suggestions in this session yet."))
 		empty.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_metrics_grid.add_child(empty)
 		return
 	_metrics_grid.columns = 6
-	for header: String in ["Fuente", "p50", "p95", "Mostradas", "Aceptadas", "Errores"]:
+	for header: String in [I18n.t("Source"), "p50", "p95", I18n.t("Shown"), I18n.t("Accepted"), I18n.t("Errors")]:
 		var label := Label.new()
 		label.text = header
 		label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -263,7 +275,7 @@ func _rebuild_profiles() -> void:
 	for child: Node in _profile_list.get_children():
 		child.queue_free()
 	if _profiles.is_empty():
-		_profile_list.add_child(_hint("Sin perfiles: el completado es solo local."))
+		_profile_list.add_child(_hint(I18n.t("No profiles: completion is local only.")))
 	for i in _profiles.size():
 		var profile := _profiles[i]
 		var card := PanelContainer.new()
@@ -274,22 +286,26 @@ func _rebuild_profiles() -> void:
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(info)
 		var name_label := Label.new()
-		name_label.text = "%s · %s%s%s" % [profile.display_name, profile.model if not profile.model.is_empty() else "(sin modelo)",
-			" · activo" if profile.id == _active_id else "", " · experimental" if profile.is_experimental() else ""]
+		var tags := PackedStringArray([profile.display_name, profile.model if not profile.model.is_empty() else I18n.t("(no model)")])
+		if profile.id == _active_id:
+			tags.append(I18n.t("active"))
+		if profile.is_experimental():
+			tags.append(I18n.t("experimental"))
+		name_label.text = " · ".join(tags)
 		info.add_child(name_label)
 		var url := Label.new()
-		url.text = profile.url + (" · key en $%s" % profile.api_key_env if not profile.api_key_env.is_empty() else "")
+		url.text = I18n.t("%s · key in $%s") % [profile.url, profile.api_key_env] if not profile.api_key_env.is_empty() else profile.url
 		url.clip_text = true
 		url.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		url.add_theme_font_override(&"font", AgentTheme.mono_font())
 		url.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		info.add_child(url)
 		if profile.is_remote():
-			var warning := _hint("Remoto: el código del proyecto alrededor del cursor se envía a %s." % profile.url.trim_prefix("https://").trim_prefix("http://").get_slice("/", 0))
+			var warning := _hint(I18n.t("Remote: the project code around the cursor is sent to %s.") % profile.url.trim_prefix("https://").trim_prefix("http://").get_slice("/", 0))
 			warning.add_theme_color_override(&"font_color", AgentTheme.WARNING)
 			info.add_child(warning)
-		for action: Array in [["Activo", _make_active], ["Editar", _edit_profile], ["Quitar", _remove_profile]]:
-			if action[0] == "Activo" and profile.id == _active_id:
+		for action: Array in [[I18n.t("Set active"), _make_active], [I18n.t("Edit"), _edit_profile], [I18n.t("Remove"), _remove_profile]]:
+			if action[1] == _make_active and profile.id == _active_id:
 				continue
 			var button := Button.new()
 			button.text = action[0]
@@ -312,7 +328,7 @@ func _edit_profile(index: int) -> void:
 	(_form_fields.stops as TextEdit).text = "\n".join(stops)
 	(_form_fields.temperature as SpinBox).value = profile.temperature
 	(_form_fields.max_tokens as SpinBox).value = profile.max_tokens
-	_form_warning.text = "Experimental: Gemini no tiene FIM y se le pide el código con una instrucción; es más lento y menos preciso." if profile.is_experimental() else ""
+	_form_warning.text = I18n.t("Experimental: Gemini has no FIM, so the code is requested with an instruction; it's slower and less accurate.") if profile.is_experimental() else ""
 	_form.visible = true
 	_rebuild_profiles()
 
@@ -408,8 +424,8 @@ func _option_row(text: String, items: PackedStringArray) -> OptionButton:
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
 	var option := OptionButton.new()
-	for item: String in items:
-		option.add_item(item)
+	for item: String in items:  # etiquetas de constantes, en inglés
+		option.add_item(I18n.t(item))
 	row.add_child(option)
 	add_child(row)
 	return option

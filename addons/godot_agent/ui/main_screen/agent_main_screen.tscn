@@ -14,6 +14,6 @@ script = ExtResource("1_main")
 [node name="EmptyState" type="Label" parent="."]
 layout_mode = 2
 size_flags_vertical = 3
-text = "One-shot: todavía no hay una tarea en curso."
+text = "One-shot: no task running yet."
 horizontal_alignment = 1
 vertical_alignment = 1

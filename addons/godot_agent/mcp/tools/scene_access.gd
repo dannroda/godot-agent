@@ -30,29 +30,29 @@ static func resolve(scene: String) -> Resolved:
 	var edited := EditorInterface.get_edited_scene_root()
 	if scene.is_empty():
 		if edited == null:
-			resolved.error = "No hay ninguna escena abierta en el editor. Pasá `scene` con una ruta res://…tscn."
+			resolved.error = "There is no scene open in the editor. Pass `scene` with a res://…tscn path."
 			return resolved
 		resolved.root = edited
 		resolved.path = edited.scene_file_path
 		return resolved
 	if not scene.begins_with("res://"):
-		resolved.error = "`scene` tiene que ser una ruta res:// (recibí '%s')." % scene
+		resolved.error = "`scene` must be a res:// path (got '%s')." % scene
 		return resolved
 	resolved.path = scene
 	if edited and edited.scene_file_path == scene:
 		resolved.root = edited
 		return resolved
 	if not ResourceLoader.exists(scene, "PackedScene"):
-		resolved.error = "No existe la escena %s." % scene
+		resolved.error = "The scene %s does not exist." % scene
 		return resolved
 	var packed := ResourceLoader.load(scene, "PackedScene") as PackedScene
 	if packed == null:
-		resolved.error = "No se pudo cargar %s (¿está rota? probá get_errors)." % scene
+		resolved.error = "Could not load %s (is it broken? try get_errors)." % scene
 		return resolved
 	resolved.root = packed.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
 	resolved.temporary = true
 	if resolved.root == null:
-		resolved.error = "No se pudo instanciar %s." % scene
+		resolved.error = "Could not instantiate %s." % scene
 	return resolved
 
 
@@ -128,7 +128,7 @@ static func format_value(value: Variant, max_chars: int = VALUE_MAX_CHARS) -> St
 		else:
 			text = resource.resource_path
 	elif value is Object:
-		text = "<%s>" % (value as Object).get_class() if is_instance_valid(value) else "<liberado>"
+		text = "<%s>" % (value as Object).get_class() if is_instance_valid(value) else "<freed>"
 	elif value is String or value is StringName:
 		text = JSON.stringify(str(value))
 	elif value is float:

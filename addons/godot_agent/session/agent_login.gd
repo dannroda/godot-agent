@@ -119,5 +119,5 @@ func _on_exited(code: int, process: AgentProcess) -> void:
 	if code == 0:
 		finished.emit(true, "")
 	else:
-		var detail := "\n".join(_tail).replace(url, "<enlace>") if not url.is_empty() else "\n".join(_tail)
-		finished.emit(false, "el login terminó con código %d%s" % [code, (": " + detail) if not detail.is_empty() else ""])
+		var detail := "\n".join(_tail).replace(url, "<link>") if not url.is_empty() else "\n".join(_tail)
+		finished.emit(false, "login exited with code %d%s" % [code, (": " + detail) if not detail.is_empty() else ""])

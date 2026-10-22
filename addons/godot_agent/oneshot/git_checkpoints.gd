@@ -8,7 +8,12 @@ extends RefCounted
 ## un Thread para no trabar el editor. Todo se limita a la carpeta del proyecto (pathspec `.`) y
 ## excluye `.godot/`, aunque el repo no lo ignore (D24).
 
+const I18n := preload("../core/i18n.gd")
+
 const BRANCH_PREFIX := "agent/"
+## Mensajes de commit (en inglés, como todo lo que queda en el repo).
+const WIP_MESSAGE := "WIP before the one-shot"
+const INITIAL_LABEL := "Initial state"
 ## Identidad para los commits si el repo no tiene una configurada.
 const FALLBACK_NAME := "Godot Agent Harness"
 const FALLBACK_EMAIL := "godot-agent@localhost"
@@ -58,15 +63,15 @@ func _execute(args: PackedStringArray) -> Dictionary:
 func check_available() -> bool:
 	var version := await run(["--version"])
 	if version.code != 0:
-		last_error = "git no está disponible: los checkpoints quedan desactivados."
+		last_error = I18n.t("git is not available: checkpoints are turned off.")
 		return false
 	var inside := await run(["rev-parse", "--is-inside-work-tree"])
 	if inside.code != 0 or inside.output != "true":
-		last_error = "El proyecto no está en un repo git: los checkpoints quedan desactivados."
+		last_error = I18n.t("The project is not in a git repo: checkpoints are turned off.")
 		return false
 	var head := await run(["rev-parse", "--verify", "HEAD"])
 	if head.code != 0:
-		last_error = "El repo git no tiene commits todavía: hacé un primer commit para usar checkpoints."
+		last_error = I18n.t("The git repo has no commits yet: make a first commit to use checkpoints.")
 		return false
 	return true
 
@@ -83,7 +88,7 @@ func current_branch() -> String:
 
 
 ## Crea la rama del agente. Si había cambios, se commitean como WIP en esa rama (la del usuario no
-## se toca) — quien llama ya pidió confirmación. Después crea cp1 "Estado inicial".
+## se toca) — quien llama ya pidió confirmación. Después crea cp1 "Initial state".
 func start(timestamp: String = "") -> bool:
 	last_error = ""
 	await _ensure_identity()
@@ -95,14 +100,14 @@ func start(timestamp: String = "") -> bool:
 	agent_branch = BRANCH_PREFIX + timestamp
 	var created := await run(["checkout", "-b", agent_branch])
 	if created.code != 0:
-		last_error = "No se pudo crear la rama %s: %s" % [agent_branch, created.output]
+		last_error = I18n.t("Couldn't create the branch %s: %s") % [agent_branch, created.output]
 		return false
 	checkpoints.clear()
 	var ok := true
 	if not await is_clean():
-		ok = not (await _commit("WIP antes del one-shot")).is_empty()
+		ok = not (await _commit(WIP_MESSAGE)).is_empty()
 	if ok:
-		ok = not (await checkpoint("Estado inicial")).is_empty()
+		ok = not (await checkpoint(INITIAL_LABEL)).is_empty()
 	if not ok:
 		await _abandon_branch()
 	return ok
@@ -139,11 +144,11 @@ func restore(checkpoint_entry: Dictionary) -> Variant:
 	# repo más grande, lo de afuera no se toca.
 	var reset := await run(["reset", "-q", "--mixed", sha])
 	if reset.code != 0:
-		last_error = "git reset falló: " + reset.output
+		last_error = I18n.t("git reset failed: %s") % reset.output
 		return null
 	var checkout := await run(PackedStringArray(["checkout"]) + PATHSPEC)
 	if checkout.code != 0:
-		last_error = "git checkout falló: " + checkout.output
+		last_error = I18n.t("git checkout failed: %s") % checkout.output
 		return null
 	await run(PackedStringArray(["clean", "-fdq"]) + PATHSPEC)
 	var index := checkpoints.find(checkpoint_entry)
@@ -202,11 +207,11 @@ func _abandon_branch() -> void:
 func _commit(message: String) -> String:
 	var staged := await run(PackedStringArray(["add", "-A"]) + await _add_pathspec())
 	if staged.code != 0:
-		last_error = "git add falló: " + staged.output
+		last_error = I18n.t("git add failed: %s") % staged.output
 		return ""
 	var commit := await run(["commit", "--allow-empty", "--no-verify", "-q", "-m", message])
 	if commit.code != 0:
-		last_error = "git commit falló: " + commit.output
+		last_error = I18n.t("git commit failed: %s") % commit.output
 		return ""
 	var sha := await run(["rev-parse", "HEAD"])
 	return sha.output
@@ -224,7 +229,7 @@ func _add_pathspec() -> PackedStringArray:
 func _on_agent_branch() -> bool:
 	var branch := await current_branch()
 	if agent_branch.is_empty() or branch != agent_branch:
-		last_error = "La rama actual (%s) no es la del agente (%s): no se toca." % [branch, agent_branch]
+		last_error = I18n.t("The current branch (%s) is not the agent's branch (%s): leaving it alone.") % [branch, agent_branch]
 		return false
 	return true
 

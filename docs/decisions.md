@@ -664,3 +664,15 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Cerrar el editor esperando la cuota**: el estado guarda la fase (`phase_id`) y `quota_resume_at`. Al reabrir, un run que estaba Limitado o Pausado por cuota vuelve a «Pausado por cuota» y retoma solo a la hora del reinicio. Antes quedaba en pausa normal.
 - **Prompt de reanudación**: si hay spec, recuerda releer spec.md y progress.md.
 - **Pruebas**: `oneshot_check` (cambio de cuenta: límite, restauración esperando la cuota, cambio y fin) y `--godot-agent-oneshot-test` (menú en Limitado, «Reintentar» del dock en la misma sesión).
+
+## D46 · Interfaz en inglés con traducción al español
+
+- **Pedido**: el plugin primero en inglés, con traducción al español; README y wiki en los dos idiomas.
+- **Texto fuente en inglés**, y el español en `addons/godot_agent/i18n/es.po`. `I18n.t("Budgets")` devuelve la traducción o el mismo texto. El `.po` se carga con `load()` como Translation, sin importar nada ni tocar el TranslationServer del editor.
+- **Qué se traduce**: solo lo que lee el usuario en el dock, la pantalla Agent, el Agent Log, Settings, los avisos y las tarjetas de revisión.
+  - Lo que lee el agente va siempre en inglés: system prompt, reglas de modo, prompts del One-shot, descripciones y resultados de tools. Lo mismo los logs, los nombres de deshacer (también los lee el agente en el resultado) y los commits de checkpoint. El agente responde en el idioma del usuario.
+  - Una constante con etiquetas lleva `# i18n` al final de cada línea con texto; el último literal de la línea es el msgid y se traduce al mostrarlo. Si el texto también va al agente, el código usa la constante cruda para el agente y `I18n.t` para la interfaz (p. ej. `LoopDetector`: `text` y `label`).
+- **Idioma**: la variable `GODOT_AGENT_LANGUAGE` (pruebas), Settings → Interfaz → Idioma, o el idioma del editor. Se elige al habilitar el plugin; cambiarlo se aplica al reabrir el editor.
+- **El editor no traduce lo nuestro**: los nodos raíz del addon tienen `auto_translate_mode` desactivado. Si no, el editor en español traduciría con su propio catálogo textos que coinciden por casualidad («Cancel», «Review»), y los botones de diálogos de Godot quedarían en inglés con el plugin en inglés. Por eso cada diálogo pone `cancel_button_text = I18n.t("Cancel")`.
+- **Runs viejos**: los tipos de actividad y el motivo de cierre guardados en español antes de D46 se muestran tal cual.
+- **Pruebas**: `test_i18n` (cada msgid usado está en el catálogo con los mismos placeholders, y el catálogo no tiene entradas sin usar) y `--godot-agent-i18n-test` (con `GODOT_AGENT_LANGUAGE=es`, ningún texto visible del dock, la pantalla Agent, el Agent Log ni Settings queda en inglés). `run_in_xvfb.sh` corre en inglés salvo que se pida otro idioma.

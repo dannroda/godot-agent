@@ -93,7 +93,7 @@ static func parse(kind: String, code: int, body: String) -> Dictionary:
 		var message := _error_message(data)
 		return {"error": "HTTP %d: %s" % [code, message] if not message.is_empty() else "HTTP %d" % code}
 	if not data is Dictionary:
-		return {"error": "respuesta que no es JSON"}
+		return {"error": "response is not JSON"}
 	var text: Variant = null
 	match kind:
 		LlmProfile.KIND_OLLAMA:
@@ -115,7 +115,7 @@ static func parse(kind: String, code: int, body: String) -> Dictionary:
 			elif data.has("candidates") or data.has("promptFeedback"):
 				text = ""  # bloqueado o vacío: sin sugerencia, no es un error del perfil
 	if not text is String:
-		return {"error": "respuesta sin texto"}
+		return {"error": "response has no text"}
 	return {"text": text}
 
 

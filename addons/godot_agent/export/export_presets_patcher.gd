@@ -50,7 +50,7 @@ static func patch_presets(path: String = PRESETS_PATH) -> PackedStringArray:
 	var cfg := ConfigFile.new()
 	var err := cfg.load(path)
 	if err != OK:
-		push_error("Godot Agent: no se pudo leer %s (%s)." % [path, error_string(err)])
+		push_error("Godot Agent: could not read %s (%s)." % [path, error_string(err)])
 		return patched
 	for section: String in _preset_sections(cfg):
 		var filter: String = str(cfg.get_value(section, "exclude_filter", ""))
@@ -62,7 +62,7 @@ static func patch_presets(path: String = PRESETS_PATH) -> PackedStringArray:
 		return patched
 	err = cfg.save(path)
 	if err != OK:
-		push_error("Godot Agent: no se pudo guardar %s (%s)." % [path, error_string(err)])
+		push_error("Godot Agent: could not save %s (%s)." % [path, error_string(err)])
 		return PackedStringArray()
 	return patched
 

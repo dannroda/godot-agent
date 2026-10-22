@@ -14,10 +14,11 @@ signal context_chip_removed(chip_id: String)
 
 const AgentTheme := preload("../agent_theme.gd")
 const SuggestionList := preload("suggestion_list.gd")
+const I18n := preload("../../core/i18n.gd")
 
-const PLACEHOLDER := "Pedile algo… @ para nodos y archivos, / para comandos"
-const PLACEHOLDER_BUSY := "El agente está trabajando: Enter deja el mensaje en cola"
-const PLACEHOLDER_ONESHOT := "One-shot en curso: escribile al agente; le llega al terminar el turno"
+const PLACEHOLDER := "Ask for something… @ for nodes and files, / for commands"  # i18n
+const PLACEHOLDER_BUSY := "The agent is working: Enter queues the message"  # i18n
+const PLACEHOLDER_ONESHOT := "One-shot running: write to the agent; it gets it when the turn ends"  # i18n
 ## Prompts que se recuerdan (los más viejos se descartan).
 const HISTORY_LIMIT := 100
 ## Filas que se cargan en la lista (se ven hasta SuggestionList.MAX_ROWS, el resto con scroll).
@@ -71,7 +72,7 @@ func _ready() -> void:
 	add_child(_chips)
 
 	_input = CodeEdit.new()
-	_input.placeholder_text = PLACEHOLDER
+	_input.placeholder_text = I18n.t(PLACEHOLDER)
 	_input.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	_input.custom_minimum_size.y = AgentTheme.px(72)
 	_input.scroll_fit_content_height = false
@@ -95,24 +96,24 @@ func _ready() -> void:
 
 	var row := HBoxContainer.new()
 	add_child(row)
-	row.add_child(_icon_button("@", "Mencionar un nodo o archivo", _insert_prefix.bind("@")))
-	_screenshot_button = _icon_button("", "Adjuntar una captura del viewport", func() -> void: screenshot_requested.emit())
+	row.add_child(_icon_button("@", I18n.t("Mention a node or file"), _insert_prefix.bind("@")))
+	_screenshot_button = _icon_button("", I18n.t("Attach a viewport screenshot"), func() -> void: screenshot_requested.emit())
 	_screenshot_button.icon = AgentTheme.icon(&"Image")
 	if _screenshot_button.icon == null:
 		_screenshot_button.text = "▣"
 	row.add_child(_screenshot_button)
-	row.add_child(_icon_button("/", "Comandos del agente", _insert_prefix.bind("/")))
+	row.add_child(_icon_button("/", I18n.t("Agent commands"), _insert_prefix.bind("/")))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
 	_meter = Label.new()
 	_meter.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	_meter.tooltip_text = "Contexto usado"
+	_meter.tooltip_text = I18n.t("Context used")
 	row.add_child(_meter)
 	_model_button = OptionButton.new()
 	_model_button.flat = true
 	_model_button.fit_to_longest_item = false
-	_model_button.tooltip_text = "Modelo"
+	_model_button.tooltip_text = I18n.t("Model")
 	_model_button.visible = false
 	_model_button.item_selected.connect(func(index: int) -> void: model_selected.emit(_model_values[index]))
 	row.add_child(_model_button)
@@ -168,7 +169,7 @@ func set_oneshot_active(active: bool) -> void:
 
 
 func _update_placeholder() -> void:
-	_input.placeholder_text = PLACEHOLDER_ONESHOT if _oneshot_active else (PLACEHOLDER_BUSY if _busy else PLACEHOLDER)
+	_input.placeholder_text = I18n.t(PLACEHOLDER_ONESHOT) if _oneshot_active else (I18n.t(PLACEHOLDER_BUSY) if _busy else I18n.t(PLACEHOLDER))
 
 
 func set_enabled(enabled: bool) -> void:
@@ -195,7 +196,7 @@ func set_commands(commands: Array) -> void:
 
 func set_screenshot_available(available: bool) -> void:
 	_screenshot_button.disabled = not available
-	_screenshot_button.tooltip_text = "Adjuntar una captura del viewport" if available else "El agente no acepta imágenes"
+	_screenshot_button.tooltip_text = I18n.t("Attach a viewport screenshot") if available else I18n.t("The agent does not accept images")
 
 
 func set_usage(used: int, total: int) -> void:
@@ -204,7 +205,7 @@ func set_usage(used: int, total: int) -> void:
 		return
 	_meter.text = "%s / %s" % [_short_number(used), _short_number(total)]
 	var ratio := float(used) / float(total)
-	_meter.tooltip_text = "Contexto usado: %d%%" % int(ratio * 100.0) + ("\n" + _usage_hint if not _usage_hint.is_empty() else "")
+	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0) + ("\n" + _usage_hint if not _usage_hint.is_empty() else "")
 	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= 0.8 else AgentTheme.MUTED)
 
 
@@ -235,14 +236,14 @@ func set_chips(chips: Array[Dictionary], add_callback: Callable = Callable()) ->
 	for chip: Dictionary in chips:
 		var button := Button.new()
 		button.text = "%s  ✕" % chip.label
-		button.tooltip_text = str(chip.get("tooltip", "Quitar del contexto"))
+		button.tooltip_text = str(chip.get("tooltip", I18n.t("Remove from the context")))
 		button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(1, 1, 1, 0.06), Color(1, 1, 1, 0.12), 10, 3))
 		button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 		button.pressed.connect(func() -> void: context_chip_removed.emit(str(chip.id)))
 		_chips.add_child(button)
 	if add_callback.is_valid():
 		var add := Button.new()
-		add.text = "+ contexto"
+		add.text = I18n.t("+ context")
 		add.flat = true
 		add.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 		add.pressed.connect(add_callback)
@@ -415,8 +416,8 @@ func _refresh_suggestions() -> void:
 			if command is Dictionary:
 				var name := str(command.get("name", ""))
 				items.append({"label": "/" + name, "detail": str(command.get("description", "")), "insert": "/" + name, "key": name.to_lower()})
-		_suggestions.show_items("Comandos", _filter(items, query),
-			"" if not _commands.is_empty() else "Los comandos los publica el agente al iniciar la sesión.")
+		_suggestions.show_items(I18n.t("Commands"), _filter(items, query),
+			"" if not _commands.is_empty() else I18n.t("The agent publishes its commands when the session starts."))
 	else:
 		if not _suggestions.is_open() or _mention_cache.is_empty():
 			_mention_cache = mention_provider.call() if mention_provider.is_valid() else []
@@ -424,7 +425,7 @@ func _refresh_suggestions() -> void:
 		for option: Variant in _mention_cache:
 			if option is Dictionary:
 				items.append({"label": str(option.label), "insert": "@" + str(option.insert), "key": str(option.label).to_lower()})
-		_suggestions.show_items("Nodos y archivos", _filter(items, query))
+		_suggestions.show_items(I18n.t("Nodes and files"), _filter(items, query))
 
 
 ## Los que empiezan con `query` primero, después los que la contienen.
@@ -472,22 +473,23 @@ func _update_send_button() -> void:
 	if _send_button == null:
 		return
 	if _busy:
-		_send_button.text = "■ Detener"
-		_send_button.tooltip_text = "Detener el turno (Esc). Enter deja lo escrito en cola."
+		_send_button.text = "■ " + I18n.t("Stop")
+		_send_button.tooltip_text = I18n.t("Stop the turn (Esc). Enter queues what you typed.")
 		_send_button.disabled = false
 	elif not _lock_text.is_empty():
 		_send_button.text = _lock_text
 		_send_button.tooltip_text = _lock_tooltip
 		_send_button.disabled = true
 	else:
-		_send_button.text = "Enviar ➤"
-		_send_button.tooltip_text = "Enviar (Enter; Ctrl+Enter baja de línea)"
+		_send_button.text = I18n.t("Send") + " ➤"
+		_send_button.tooltip_text = I18n.t("Send (Enter; Ctrl+Enter adds a new line)")
 		_send_button.disabled = not _input.editable or _input.text.strip_edges().is_empty()
 
 
 static func _short_number(value: int) -> String:
 	if value >= 1000000:
-		return ("%.1fM" % (value / 1000000.0)).replace(".0M", "M").replace(".", ",")
+		var millions := ("%.1fM" % (value / 1000000.0)).replace(".0M", "M")
+		return millions.replace(".", ",") if I18n.locale() == "es" else millions
 	if value >= 1000:
 		return "%dk" % int(round(value / 1000.0))
 	return str(value)

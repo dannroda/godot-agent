@@ -5,6 +5,7 @@ extends VBoxContainer
 
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const AgentTheme := preload("../agent_theme.gd")
+const I18n := preload("../../core/i18n.gd")
 
 const WINDOWS: PackedStringArray = [QuotaMonitor.WINDOW_CURRENT, QuotaMonitor.WINDOW_WEEKLY]
 
@@ -57,11 +58,11 @@ func refresh() -> void:
 		(row.label as Label).add_theme_color_override(&"font_color", color if used >= _quota.warn_threshold else AgentTheme.MUTED)
 		(row.bar as ProgressBar).value = used
 		(row.bar as ProgressBar).add_theme_stylebox_override(&"fill", AgentTheme.panel(color, Color.TRANSPARENT, 2, 0))
-		(row.bar as ProgressBar).tooltip_text = "Cuota del plan informada por el agente: %d %%" % roundi(used * 100.0)
+		(row.bar as ProgressBar).tooltip_text = I18n.t("Plan quota reported by the agent: %d %%") % roundi(used * 100.0)
 	_limited_label.visible = _quota.is_limited()
 	if _quota.is_limited():
 		var wait := _quota.seconds_until_retry()
-		_limited_label.text = ("Límite del plan alcanzado · se puede volver a enviar en %s" % QuotaMonitor.format_duration(wait)) if wait > 0 else "Límite del plan alcanzado · ya se puede reintentar"
+		_limited_label.text = (I18n.t("Plan limit reached · you can send again in %s") % QuotaMonitor.format_duration(wait)) if wait > 0 else I18n.t("Plan limit reached · you can retry now")
 
 
 func _color_for(used: float) -> Color:

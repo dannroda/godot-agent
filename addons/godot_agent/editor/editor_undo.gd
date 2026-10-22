@@ -5,6 +5,8 @@ extends RefCounted
 ## desincroniza la pila del manager. Por eso se usa la opción Undo del menú del editor (la misma
 ## que Ctrl+Z), y solo si la acción del agente sigue siendo la última de su escena y de la global.
 
+const I18n := preload("../core/i18n.gd")
+
 const GLOBAL_HISTORY := 0
 
 
@@ -26,13 +28,13 @@ static func check(info: Dictionary) -> String:
 	var root := EditorInterface.get_edited_scene_root()
 	var scene := str(info.get("scene", ""))
 	if not scene in EditorInterface.get_open_scenes() and not (root and root.scene_file_path == scene):
-		return "La escena %s ya no está abierta." % scene
+		return I18n.t("The scene %s is no longer open.") % scene
 	var undo_redo := EditorInterface.get_editor_undo_redo()
 	var history := undo_redo.get_history_undo_redo(int(info.history_id))
 	if history == null or history.get_version() != int(info.version):
-		return "Hubo cambios posteriores en %s: deshacé con Ctrl+Z en el editor." % scene.get_file()
+		return I18n.t("%s changed afterwards: undo with Ctrl+Z in the editor.") % scene.get_file()
 	if undo_redo.get_history_undo_redo(GLOBAL_HISTORY).get_version() != int(info.global_version):
-		return "Hubo cambios posteriores en el editor: deshacé con Ctrl+Z."
+		return I18n.t("The editor changed afterwards: undo with Ctrl+Z.")
 	return ""
 
 
@@ -48,9 +50,9 @@ static func undo(info: Dictionary) -> String:
 	var undo_redo := EditorInterface.get_editor_undo_redo()
 	var history := undo_redo.get_history_undo_redo(int(info.history_id))
 	if not _trigger_editor_undo():
-		return "No se encontró la opción Undo del menú del editor: usá Ctrl+Z."
+		return I18n.t("The editor's Undo menu option was not found: use Ctrl+Z.")
 	if history.get_version() == int(info.version):
-		return "El editor no deshizo el paso (¿hay un botón del mouse apretado?)."
+		return I18n.t("The editor did not undo the step (is a mouse button held down?).")
 	return ""
 
 

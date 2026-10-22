@@ -10,6 +10,7 @@ signal send_now_requested
 
 const AgentTheme := preload("../agent_theme.gd")
 const PromptQueue := preload("../../session/prompt_queue.gd")
+const I18n := preload("../../core/i18n.gd")
 
 ## Caracteres de cada fila (el texto completo va en el tooltip).
 const ROW_CHARS := 120
@@ -40,10 +41,10 @@ func _ready() -> void:
 	_reason = _row_label(AgentTheme.WARNING)
 	_reason.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 	header.add_child(_reason)
-	_send_now = _small_button("Enviar ahora", "Retomar la cola: manda el próximo prompt")
+	_send_now = _small_button(I18n.t("Send now"), I18n.t("Resume the queue: sends the next prompt"))
 	_send_now.pressed.connect(func() -> void: send_now_requested.emit())
 	header.add_child(_send_now)
-	var discard := _small_button("Descartar", "Vaciar la cola")
+	var discard := _small_button(I18n.t("Discard"), I18n.t("Empty the queue"))
 	discard.pressed.connect(func() -> void: _queue.clear())
 	header.add_child(discard)
 	_rows = VBoxContainer.new()
@@ -56,13 +57,13 @@ func _ready() -> void:
 ## «Enviar ahora» solo con una sesión lista (si la sesión se cerró, primero hay que abrir otra).
 func set_send_available(available: bool) -> void:
 	_send_now.disabled = not available
-	_send_now.tooltip_text = "Retomar la cola: manda el próximo prompt" if available else "Hace falta una sesión lista: abrí una nueva o reintentá"
+	_send_now.tooltip_text = I18n.t("Resume the queue: sends the next prompt") if available else I18n.t("A ready session is needed: open a new one or retry")
 
 
 func _refresh() -> void:
 	visible = not _queue.is_empty()
-	_title.text = "En cola (%d)" % _queue.size()
-	_reason.text = "· en pausa: %s" % _queue.pause_reason if _queue.paused else ""
+	_title.text = I18n.t("Queued (%d)") % _queue.size()
+	_reason.text = I18n.t("· paused: %s") % _queue.pause_reason if _queue.paused else ""
 	_reason.tooltip_text = _queue.pause_reason
 	_send_now.visible = _queue.paused
 	for child: Node in _rows.get_children():
@@ -76,10 +77,10 @@ func _refresh() -> void:
 		label.tooltip_text = text
 		label.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(label)
-		var edit := _small_button("✎", "Editar: vuelve al composer")
+		var edit := _small_button("✎", I18n.t("Edit: moves it back to the composer"))
 		edit.pressed.connect(_on_edit.bind(i))
 		row.add_child(edit)
-		var remove := _small_button("✕", "Quitar de la cola")
+		var remove := _small_button("✕", I18n.t("Remove from the queue"))
 		remove.pressed.connect(func() -> void: _queue.remove_at(i))
 		row.add_child(remove)
 

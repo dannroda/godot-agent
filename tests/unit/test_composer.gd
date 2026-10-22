@@ -174,7 +174,7 @@ func test_enter_while_busy_and_insert_text() -> void:
 	composer.connect(&"submitted", func(text: String) -> void: sent.append(text))
 	var input: CodeEdit = composer.get(&"_input")
 	composer.call(&"set_busy", true)
-	assert_true(input.placeholder_text.contains("cola"), "el placeholder avisa que encola")
+	assert_true(input.placeholder_text.contains("queue"), "el placeholder avisa que encola")
 	input.grab_focus()
 	input.text = "después"
 	input.set_caret_column(7)
@@ -185,7 +185,7 @@ func test_enter_while_busy_and_insert_text() -> void:
 	assert_eq(sent.size(), 1, "con el límite del plan no se entrega")
 	composer.call(&"set_locked", "")
 	composer.call(&"set_busy", false)
-	assert_false(input.placeholder_text.contains("cola"), "placeholder normal")
+	assert_false(input.placeholder_text.contains("queue"), "placeholder normal")
 	input.text = ""
 	composer.call(&"insert_text", "editar esto")
 	assert_eq(input.text, "editar esto", "insert_text en vacío")

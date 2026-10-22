@@ -9,6 +9,9 @@ extends RefCounted
 ##   argumentos, `repeats + 1` veces entre las últimas WINDOW.
 ## Cada vez que una huella llega al umbral devuelve un hallazgo y su cuenta vuelve a 0: la primera
 ## vez el run le pide otro enfoque al agente; si la misma huella vuelve a llegar, pausa.
+## El hallazgo trae `text` en inglés (va en el prompt del agente) y `label` traducido (la UI).
+
+const I18n := preload("../core/i18n.gd")
 
 ## Tool calls recientes que se miran para las repeticiones.
 const WINDOW := 40
@@ -16,6 +19,11 @@ const WINDOW := 40
 ## cada cambio, releer un archivo).
 const REPEATABLE_KINDS: PackedStringArray = ["read", "search", "think", "fetch"]
 ## open_scene y save_scene entran acá: abrir o guardar la misma escena después de cada cambio es normal.
+## Textos de los hallazgos: en inglés para el agente, traducidos para la UI.
+const CHECK_TEXT := "the check “%s” failed %d times in a row"  # i18n
+const CHECK_DETAIL_TEXT := "the check “%s” failed %d times in a row with “%s”"  # i18n
+const FAILED_TEXT := "“%s” failed %d times with the same arguments"  # i18n
+const SAME_TEXT := "“%s” was repeated %d times, unchanged"  # i18n
 const REPEATABLE_GODOT_TOOLS: PackedStringArray = ["run_scene", "stop_scene", "capture_game_frame", "capture_editor_viewport", "get_errors", "validate_scripts", "editor_state", "scene_tree", "get_node", "list_files", "project_info", "open_scene", "save_scene"]
 
 var repeats: int = 3
@@ -55,8 +63,10 @@ func observe_checks(checks: Array) -> Dictionary:
 		_check_streaks[label] = streak
 		if streak.count >= repeats:
 			_check_streaks.erase(label)
-			var text := "el check «%s» falló %d veces seguidas%s" % [label, repeats, (" con «%s»" % detail.left(80)) if not detail.is_empty() else ""]
-			return _finding("check:%s|%s" % [label, detail], text)
+			var key := "check:%s|%s" % [label, detail]
+			if detail.is_empty():
+				return _finding(key, CHECK_TEXT, [label, repeats])
+			return _finding(key, CHECK_DETAIL_TEXT, [label, repeats, detail.left(80)])
 	return {}
 
 
@@ -70,7 +80,7 @@ func observe_call(title: String, kind: String, godot_tool: String, input: Varian
 		_failed[key] = entry
 		if entry.count >= repeats:
 			_failed.erase(key)
-			return _finding("failed:" + key, "«%s» falló %d veces con los mismos argumentos" % [title.left(60), repeats])
+			return _finding("failed:" + key, FAILED_TEXT, [title.left(60), repeats])
 		return {}
 	_failed.erase(key)
 	if repeatable:
@@ -85,7 +95,7 @@ func observe_call(title: String, kind: String, godot_tool: String, input: Varian
 		for i in range(_recent.size() - 1, -1, -1):
 			if _recent[i] == key:
 				_recent.remove_at(i)
-		return _finding("same:" + key, "«%s» se repitió %d veces igual" % [title.left(60), repeats + 1])
+		return _finding("same:" + key, SAME_TEXT, [title.left(60), repeats + 1])
 	return {}
 
 
@@ -94,8 +104,9 @@ static func fingerprint(title: String, input: Variant) -> String:
 	return "%s %s" % [title, JSON.stringify(input, "", true)]
 
 
-## {key, text, repeated}: `repeated` = ya se había avisado de esta huella.
-func _finding(key: String, text: String) -> Dictionary:
+## {key, text, label, repeated}: `text` en inglés, `label` traducido; `repeated` = ya se había
+## avisado de esta huella.
+func _finding(key: String, format: String, values: Array) -> Dictionary:
 	var times := int(_reported.get(key, 0))
 	_reported[key] = times + 1
-	return {"key": key, "text": text, "repeated": times > 0}
+	return {"key": key, "text": format % values, "label": I18n.t(format) % values, "repeated": times > 0}

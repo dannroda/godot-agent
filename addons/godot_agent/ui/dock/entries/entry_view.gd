@@ -9,6 +9,7 @@ signal action_requested(action: String, payload: Variant)
 const ChatEntry := preload("../../../session/chat_entry.gd")
 const AgentTheme := preload("../../agent_theme.gd")
 const MarkdownBBCode := preload("../../markdown/markdown_bbcode.gd")
+const I18n := preload("../../../core/i18n.gd")
 
 var entry: ChatEntry
 var accent: Color = AgentTheme.CHANNEL_COLORS[&"perm"]

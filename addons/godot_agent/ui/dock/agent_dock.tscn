@@ -13,7 +13,7 @@ layout_mode = 2
 [node name="ProfileButton" type="OptionButton" parent="Header"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Perfil de agente"
+tooltip_text = "Agent profile"
 flat = true
 fit_to_longest_item = false
 
@@ -27,19 +27,19 @@ clip_text = true
 [node name="HistoryButton" type="Button" parent="Header"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Historial de sesiones"
+tooltip_text = "Session history"
 flat = true
 
 [node name="NewSessionButton" type="Button" parent="Header"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Nueva sesión"
+tooltip_text = "New session"
 flat = true
 
 [node name="SettingsButton" type="Button" parent="Header"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Ajustes del harness"
+tooltip_text = "Harness settings"
 flat = true
 
 [node name="ModeBar" type="HBoxContainer" parent="."]
@@ -76,7 +76,7 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 8
-text = "Agregar a los presets"
+text = "Add to the presets"
 
 [node name="Body" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
@@ -91,7 +91,7 @@ alignment = 1
 
 [node name="EmptyTitle" type="Label" parent="Body/EmptyState"]
 layout_mode = 2
-text = "Sin sesión"
+text = "No session"
 horizontal_alignment = 1
 
 [node name="EmptyCommand" type="Label" parent="Body/EmptyState"]
@@ -104,7 +104,7 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
-text = "Iniciar sesión"
+text = "Start session"
 
 [node name="ComposerSlot" type="MarginContainer" parent="."]
 unique_name_in_owner = true
@@ -124,8 +124,8 @@ autostart = true
 
 [node name="ConfirmPatchDialog" type="ConfirmationDialog" parent="."]
 unique_name_in_owner = true
-title = "Agregar filtro a los presets"
-ok_button_text = "Agregar"
+title = "Add filter to the presets"
+ok_button_text = "Add"
 dialog_autowrap = true
 size = Vector2i(460, 200)
 

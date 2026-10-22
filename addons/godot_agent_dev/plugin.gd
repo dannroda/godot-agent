@@ -47,6 +47,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-queue-test [--godot-agent-ui-shot=<ruta.png>]`: con un turno largo
 ##   (tests/scripts/cancel.json) se escriben dos prompts en el composer: quedan en cola, el cancel
 ##   la pausa, «Enviar ahora» la retoma y salen los dos en orden.
+## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla Agent,
+##   el Agent Log y cada página de Settings: ningún texto visible que tenga traducción queda en inglés.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -85,6 +87,12 @@ const HISTORY_ARG := "--godot-agent-history-test="
 const LOGIN_ARG := "--godot-agent-login-test"
 const QUEUE_ARG := "--godot-agent-queue-test"
 const COMPLETION_ARG := "--godot-agent-completion-test"
+const I18N_ARG := "--godot-agent-i18n-test"
+const I18N_CATALOG := "res://addons/godot_agent/i18n/es.po"
+const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
+const LOG_PANEL_SCRIPT := "res://addons/godot_agent/ui/log_panel/agent_log_panel.gd"
+## Ids que se muestran tal cual aunque coincidan con un msgid (canales del Agent Log).
+const I18N_IDS: Array[String] = ["quota"]
 const CompletionCheck := preload("completion_check.gd")
 const LongSessionCheck := preload("long_session_check.gd")
 const CLAUDE_ONESHOT_TIMEOUT_S := 2700.0
@@ -139,6 +147,8 @@ func _enter_tree() -> void:
 		_run_login_test.call_deferred(_arg_value(UI_SHOT_ARG))
 	if QUEUE_ARG in args:
 		_run_queue_test.call_deferred(_arg_value(UI_SHOT_ARG))
+	if I18N_ARG in args:
+		_run_i18n_test.call_deferred()
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
@@ -770,13 +780,13 @@ func _run_login_test(shot_path: String) -> void:
 	if await controller.call(&"start", profile):
 		_finish(1, "la sesión abrió sin login")
 		return
-	var login_button := await _wait_button(dock, "Iniciar sesión · Cuenta falsa")
+	var login_button := await _wait_button(dock, "Sign in · Cuenta falsa")
 	if login_button == null:
 		_finish(1, "el aviso no ofrece iniciar sesión")
 		return
 	login_button.pressed.emit()
-	var code_button := await _wait_button(dock, "Pegar código…")
-	if code_button == null or _find_button(dock, "Abrir enlace") == null:
+	var code_button := await _wait_button(dock, "Paste code…")
+	if code_button == null or _find_button(dock, "Open link") == null:
 		_finish(1, "no apareció el enlace del login")
 		return
 	await get_tree().create_timer(0.3).timeout
@@ -849,7 +859,7 @@ func _run_queue_test(shot_path: String) -> void:
 	await get_tree().create_timer(1.0).timeout
 	if not bool(queue.get(&"paused")) or user_messages.call().size() != 1:
 		failures.append("el cancel no pausó la cola: pausada %s, mensajes %s" % [queue.get(&"paused"), user_messages.call()])
-	var send_now := await _wait_button(dock, "Enviar ahora")
+	var send_now := await _wait_button(dock, "Send now")
 	if send_now == null or send_now.disabled:
 		failures.append("no se ofrece «Enviar ahora»")
 	else:
@@ -885,6 +895,79 @@ func _find_button(root: Node, text: String) -> Button:
 
 
 ## M7: abre Settings desde el botón del dock y guarda una captura por sección en `<prefijo>_<n>.png`.
+func _run_i18n_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var catalog := load(I18N_CATALOG) as Translation
+	var dock := _find_dock()
+	var main_screen := _find_by_script(MAIN_SCREEN_SCRIPT)
+	var log_panel := _find_by_script(LOG_PANEL_SCRIPT)
+	if catalog == null or dock == null or main_screen == null or log_panel == null:
+		_finish(1, "falta el catálogo, el dock, la pantalla Agent o el Agent Log")
+		return
+	var failures: PackedStringArray = []
+	var seen := {}
+	_untranslated(dock, catalog, "dock", failures, seen)
+	EditorInterface.set_main_screen_editor(MAIN_SCREEN_NAME)
+	await get_tree().create_timer(0.5).timeout
+	_untranslated(main_screen, catalog, "pantalla Agent", failures, seen)
+	_untranslated(log_panel, catalog, "Agent Log", failures, seen)
+	(dock.get(&"_settings_button") as Button).pressed.emit()
+	await get_tree().create_timer(0.5).timeout
+	var dialog: Window = null
+	for node: Node in EditorInterface.get_base_control().get_children():
+		if node is ConfirmationDialog and node.has_method(&"matrix_overrides"):
+			dialog = node
+	if dialog == null:
+		failures.append("el botón de Settings no abrió el diálogo")
+	else:
+		var nav: ItemList = dialog.get(&"_nav")
+		for i in nav.item_count:
+			nav.select(i)
+			nav.item_selected.emit(i)
+			await get_tree().create_timer(0.3).timeout
+			_untranslated(dialog, catalog, "Settings", failures, seen)
+		dialog.hide()
+	EditorInterface.set_main_screen_editor("2D")
+	# Los textos a la vista que sí están en español: si son pocos, el idioma no se aplicó.
+	var spanish := seen.keys().filter(func(text: String) -> bool: return text in ["Iniciar sesión", "Construir", "Presupuestos", "Permisos"])
+	if spanish.size() < 4:
+		failures.append("faltan textos en español esperados (vistos: %s)" % [spanish])
+	if failures.is_empty():
+		_finish(0, "i18n-test: %d textos revisados en español" % seen.size())
+	else:
+		_finish(1, "i18n-test: %s" % "; ".join(failures))
+
+
+## Textos visibles bajo `root` que el catálogo traduce pero se muestran sin traducir.
+func _untranslated(root: Node, catalog: Translation, label: String, failures: PackedStringArray, seen: Dictionary) -> void:
+	for node: Node in [root] + root.find_children("*", "", true, false):
+		var texts: PackedStringArray = []
+		for property: StringName in [&"text", &"tooltip_text", &"placeholder_text", &"title"]:
+			if property in node and typeof(node.get(property)) == TYPE_STRING:
+				texts.append(str(node.get(property)))
+		if node is ItemList:
+			for i in (node as ItemList).item_count:
+				texts.append((node as ItemList).get_item_text(i))
+		if node is OptionButton:
+			for i in (node as OptionButton).item_count:
+				texts.append((node as OptionButton).get_item_text(i))
+		if node is TabBar:
+			for i in (node as TabBar).tab_count:
+				texts.append((node as TabBar).get_tab_title(i))
+		for text: String in texts:
+			if text.strip_edges().is_empty():
+				continue
+			seen[text] = true
+			if text in I18N_IDS:
+				continue
+			var translated := String(catalog.get_message(text))
+			if not translated.is_empty() and translated != text:
+				var problem := "%s: «%s» sin traducir (%s)" % [label, text.left(60), node.name]
+				if problem not in failures:
+					failures.append(problem)
+
+
 func _run_settings_shots(prefix: String) -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
@@ -1007,7 +1090,7 @@ func _layout_problems() -> PackedStringArray:
 	var banner: Control = dock.get(&"_export_banner")
 	var banner_label: Label = dock.get(&"_export_banner_label")
 	var banner_state := [banner.visible, banner_label.text]
-	banner_label.text = "Los presets de export Android, Android (bench) no excluyen 'addons/godot_agent/*'. Si exportás con el plugin deshabilitado, el addon llega al juego."
+	banner_label.text = "The export presets Android, Android (bench) do not exclude 'addons/godot_agent/*'. If you export with the plugin disabled, the addon ends up in the game."
 	banner.visible = true
 	# Oculto: otra pestaña del slot al frente.
 	var slot := holder as TabContainer if holder is TabContainer else null

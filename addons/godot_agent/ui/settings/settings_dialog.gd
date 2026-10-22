@@ -9,6 +9,7 @@ extends ConfirmationDialog
 signal saved
 
 const HarnessSettings := preload("../../core/harness_settings.gd")
+const I18n := preload("../../core/i18n.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
 const ProjectConfig := preload("../../config/project_config.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -19,12 +20,29 @@ const CompletionSettingsPage := preload("completion_settings_page.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 
 enum Section { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
-const SECTION_LABELS: PackedStringArray = ["Agentes", "Permisos", "Servidor MCP", "One-shot y cuota", "Completado", "Interfaz", "Export"]
+const SECTION_LABELS: PackedStringArray = [
+	"Agents",  # i18n
+	"Permissions",  # i18n
+	"MCP server",  # i18n
+	"One-shot and quota",  # i18n
+	"Completion",  # i18n
+	"Interface",  # i18n
+	"Export",  # i18n
+]
 const DECISIONS: PackedStringArray = [PermissionPolicy.ALLOW, PermissionPolicy.ASK, PermissionPolicy.DENY]
-const DECISION_LABELS: Dictionary = {PermissionPolicy.ALLOW: "sí", PermissionPolicy.ASK: "preguntar", PermissionPolicy.DENY: "no"}
+const DECISION_LABELS: Dictionary = {
+	PermissionPolicy.ALLOW: "Allow",  # i18n
+	PermissionPolicy.ASK: "Ask",  # i18n
+	PermissionPolicy.DENY: "Deny",  # i18n
+}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
 const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "criteria", "completion_enabled", "completion_exclude"]
-const DOCK_SLOT_LABELS: PackedStringArray = ["Derecha, arriba", "Derecha, abajo", "Izquierda, arriba", "Izquierda, abajo"]
+const DOCK_SLOT_LABELS: PackedStringArray = [
+	"Top right",  # i18n
+	"Bottom right",  # i18n
+	"Top left",  # i18n
+	"Bottom left",  # i18n
+]
 
 ## () -> String: URL actual del server MCP ("" si no escucha).
 var mcp_url_provider: Callable
@@ -73,6 +91,7 @@ var _completion_page: CompletionSettingsPage
 # Interfaz y export
 var _accent_picker: ColorPickerButton
 var _dock_option: OptionButton
+var _language_option: OptionButton
 var _export_label: Label
 var _export_button: Button
 var _export_confirm: ConfirmationDialog
@@ -92,8 +111,8 @@ func _build() -> void:
 	if _nav:
 		return
 	title = "Agent Harness · Settings"
-	ok_button_text = "Guardar"
-	cancel_button_text = "Cancelar"
+	ok_button_text = I18n.t("Save")
+	cancel_button_text = I18n.t("Cancel")
 	dialog_hide_on_ok = false
 	min_size = Vector2i(AgentTheme.px(820), AgentTheme.px(560))
 	confirmed.connect(_on_save)
@@ -106,7 +125,7 @@ func _build() -> void:
 	_nav = ItemList.new()
 	_nav.custom_minimum_size.x = AgentTheme.px(170)
 	for label: String in SECTION_LABELS:
-		_nav.add_item(label)
+		_nav.add_item(I18n.t(label))
 	_nav.item_selected.connect(_show_section)
 	split.add_child(_nav)
 	var pages := MarginContainer.new()
@@ -147,16 +166,16 @@ func _show_section(index: int) -> void:
 # --- secciones -----------------------------------------------------------------------------------
 
 func _build_agents(page: VBoxContainer) -> void:
-	page.add_child(_title("Agentes · protocolo ACP sobre stdio"))
-	page.add_child(_hint("En env, \"$VAR\" toma el valor de VAR del entorno del editor al lanzar el agente: las claves no se guardan."))
+	page.add_child(_title(I18n.t("Agents · ACP protocol over stdio")))
+	page.add_child(_hint(I18n.t("In env, \"$VAR\" takes the value of VAR from the editor's environment when the agent is launched: keys are not saved.")))
 	_profile_list = VBoxContainer.new()
 	page.add_child(_profile_list)
 	var add := Button.new()
-	add.text = "+ Agregar agente"
+	add.text = I18n.t("+ Add agent")
 	add.pressed.connect(func() -> void:
 		var profile: AgentProfile = AgentProfile.new()
 		profile.id = "agente-%d" % (_profiles.size() + 1)
-		profile.display_name = "Agente nuevo"
+		profile.display_name = I18n.t("New agent")
 		_profiles.append(profile)
 		_edit_profile(_profiles.size() - 1))
 	page.add_child(add)
@@ -164,7 +183,7 @@ func _build_agents(page: VBoxContainer) -> void:
 	_profile_form.columns = 2
 	_profile_form.visible = false
 	page.add_child(_profile_form)
-	for field: Array in [["id", "Id"], ["display_name", "Nombre"], ["command", "Comando"], ["args", "Argumentos (uno por línea)"], ["env", "Entorno (CLAVE=valor o CLAVE=$VAR)"]]:
+	for field: Array in [["id", I18n.t("ID")], ["display_name", I18n.t("Name")], ["command", I18n.t("Command")], ["args", I18n.t("Arguments (one per line)")], ["env", I18n.t("Environment (KEY=value or KEY=$VAR)")]]:
 		var label := Label.new()
 		label.text = field[1]
 		_profile_form.add_child(label)
@@ -181,7 +200,7 @@ func _build_agents(page: VBoxContainer) -> void:
 		_form_fields[field[0]] = control
 	_profile_form.add_child(Control.new())
 	var apply := Button.new()
-	apply.text = "Listo"
+	apply.text = I18n.t("Done")
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
 	apply.pressed.connect(_apply_profile_form)
 	_profile_form.add_child(apply)
@@ -193,86 +212,86 @@ func _build_completion(page: VBoxContainer) -> void:
 
 
 func _build_permissions(page: VBoxContainer) -> void:
-	page.add_child(_title("Permisos por modo"))
-	page.add_child(_hint("Las tools godot.* se autorizan en el server MCP; las del agente (shell, edición de archivos) cuando el agente pide permiso. \"Preguntar\" muestra una tarjeta en el chat."))
+	page.add_child(_title(I18n.t("Permissions by mode")))
+	page.add_child(_hint(I18n.t("godot.* tools are authorized in the MCP server; the agent's own tools (shell, file editing) when the agent asks for permission. \"Ask\" shows a card in the chat.")))
 	var grid := GridContainer.new()
 	grid.columns = 5
 	grid.add_theme_constant_override(&"h_separation", AgentTheme.px(10))
 	page.add_child(grid)
-	grid.add_child(_hint("Grupo"))
+	grid.add_child(_hint(I18n.t("Group")))
 	for mode: SessionModel.HarnessMode in MODES:
-		grid.add_child(_hint(SessionModel.HARNESS_MODE_LABELS[mode]))
+		grid.add_child(_hint(I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])))
 	for group: String in PermissionPolicy.GROUPS:
 		var label := Label.new()
-		label.text = PermissionPolicy.GROUP_LABELS[group]
+		label.text = I18n.t(PermissionPolicy.GROUP_LABELS[group])
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		grid.add_child(label)
 		_matrix[group] = {}
 		for mode: SessionModel.HarnessMode in MODES:
 			var option := OptionButton.new()
 			for decision: String in DECISIONS:
-				option.add_item(DECISION_LABELS[decision])
+				option.add_item(I18n.t(DECISION_LABELS[decision]))
 			grid.add_child(option)
 			_matrix[group][mode] = option
 	var defaults := Button.new()
-	defaults.text = "Volver a los valores de la spec"
+	defaults.text = I18n.t("Reset to the spec defaults")
 	defaults.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	defaults.pressed.connect(func() -> void: _load_matrix({}))
 	page.add_child(defaults)
-	_timeout_spin = _spin_row(page, "Espera de una pregunta antes de denegar", 10, 3600, 1, "s")
+	_timeout_spin = _spin_row(page, I18n.t("Wait for an answer before denying"), 10, 3600, 1, "s")
 
 
 func _build_mcp(page: VBoxContainer) -> void:
-	page.add_child(_title("Herramientas del editor (servidor MCP del addon)"))
+	page.add_child(_title(I18n.t("Editor tools (the addon's MCP server)")))
 	_url_label = Label.new()
 	_url_label.add_theme_font_override(&"font", AgentTheme.mono_font())
 	page.add_child(_url_label)
-	_port_spin = _spin_row(page, "Puerto (0 = uno libre al azar; se aplica al reabrir el editor)", 0, 65535, 1, "")
+	_port_spin = _spin_row(page, I18n.t("Port (0 = a random free one; applies when the editor is reopened)"), 0, 65535, 1, "")
 	var token := Button.new()
-	token.text = "Regenerar token"
-	token.tooltip_text = "Reinicia el server con un token nuevo. Las sesiones abiertas dejan de ver las tools godot.* hasta abrir una nueva."
+	token.text = I18n.t("Regenerate token")
+	token.tooltip_text = I18n.t("Restarts the server with a new token. Open sessions stop seeing the godot.* tools until a new one is opened.")
 	token.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	token.pressed.connect(func() -> void:
 		if regenerate_token.is_valid():
 			regenerate_token.call()
 		_refresh_url())
 	page.add_child(token)
-	_max_output_spin = _spin_row(page, "Máximo de caracteres por resultado", 1000, 200000, 1000, "")
-	_max_image_spin = _spin_row(page, "Lado máximo de las capturas", 256, 4096, 16, "px")
+	_max_output_spin = _spin_row(page, I18n.t("Max characters per result"), 1000, 200000, 1000, "")
+	_max_image_spin = _spin_row(page, I18n.t("Max screenshot side"), 256, 4096, 16, "px")
 	_manual_runs_check = CheckBox.new()
-	_manual_runs_check.text = "Usar el autoload de playtest también al correr el juego a mano"
+	_manual_runs_check.text = I18n.t("Use the playtest autoload also when running the game manually")
 	page.add_child(_manual_runs_check)
-	page.add_child(_title("Carpetas fuera del proyecto"))
-	page.add_child(_hint("fs/* del agente puede leer y escribir en estas carpetas además del proyecto (rutas absolutas, una por línea)."))
+	page.add_child(_title(I18n.t("Folders outside the project")))
+	page.add_child(_hint(I18n.t("The agent's fs/* can read and write in these folders besides the project (absolute paths, one per line).")))
 	_roots_edit = TextEdit.new()
 	_roots_edit.custom_minimum_size.y = AgentTheme.px(70)
 	page.add_child(_roots_edit)
 
 
 func _build_oneshot(page: VBoxContainer) -> void:
-	page.add_child(_title("Presupuestos default (por proyecto)"))
-	_budget_spins["minutes"] = _spin_row(page, "Tiempo", 1, 600, 1, "min")
-	_budget_spins["tokens"] = _spin_row(page, "Tokens", 10000, 20000000, 10000, "")
-	_budget_spins["playtests"] = _spin_row(page, "Playtests", 1, 100, 1, "")
+	page.add_child(_title(I18n.t("Default budgets (per project)")))
+	_budget_spins["minutes"] = _spin_row(page, I18n.t("Time"), 1, 600, 1, "min")
+	_budget_spins["tokens"] = _spin_row(page, I18n.t("Tokens"), 10000, 20000000, 10000, "")
+	_budget_spins["playtests"] = _spin_row(page, I18n.t("Playtests"), 1, 100, 1, "")
 	_checkpoints_check = CheckBox.new()
-	_checkpoints_check.text = "Crear un checkpoint git antes de cada tarea de One-shot"
+	_checkpoints_check.text = I18n.t("Create a git checkpoint before each One-shot task")
 	page.add_child(_checkpoints_check)
 	_spec_review_check = CheckBox.new()
-	_spec_review_check.text = "Revisar el spec antes de construir (el agente lo escribe y espera «Aprobar spec»)"
+	_spec_review_check.text = I18n.t("Review the spec before building (the agent writes it and waits for “Approve spec”)")
 	page.add_child(_spec_review_check)
-	_loop_spin = _spin_row(page, "Loop: repeticiones iguales", 2, 20, 1, "")
-	_loop_spin.tooltip_text = "Un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio repetido.\nLa primera vez se le pide otro enfoque al agente; si vuelve a pasar, el One-shot se pausa."
-	page.add_child(_title("Criterios de evaluación del juego (por proyecto)"))
-	page.add_child(_hint("Van en el prompt del agente y en la rúbrica del evaluador. Puntaje de 0 a 10: el juego pasa si cada criterio llega a su mínimo. Peso 0 = no se usa."))
+	_loop_spin = _spin_row(page, I18n.t("Loop: identical repetitions"), 2, 20, 1, "")
+	_loop_spin.tooltip_text = I18n.t("A check that fails the same way, a tool call that fails with the same arguments, or the same change repeated.\nThe first time, the agent is asked for another approach; if it happens again, the One-shot pauses.")
+	page.add_child(_title(I18n.t("Game evaluation criteria (per project)")))
+	page.add_child(_hint(I18n.t("They go into the agent's prompt and the evaluator's rubric. Scores go from 0 to 10: the game passes if every criterion reaches its minimum. Weight 0 = not used.")))
 	var grid := GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override(&"h_separation", AgentTheme.px(10))
 	page.add_child(grid)
-	for header: String in ["Criterio", "Peso", "Mínimo"]:
+	for header: String in [I18n.t("Criterion"), I18n.t("Weight"), I18n.t("Minimum")]:
 		grid.add_child(_hint(header))
 	for criterion: Dictionary in GameCriteria.DEFAULTS:
 		var label := Label.new()
-		label.text = criterion.name
+		label.text = I18n.t(str(criterion.name))
 		label.tooltip_text = criterion.description
 		label.mouse_filter = Control.MOUSE_FILTER_PASS
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -286,30 +305,30 @@ func _build_oneshot(page: VBoxContainer) -> void:
 			grid.add_child(spin)
 			spins[key] = spin
 		_criteria_spins[criterion.id] = spins
-	page.add_child(_title("Cuota y límites (por usuario: la cuota es del plan, no del proyecto)"))
-	_warn_spin = _spin_row(page, "Avisar al llegar a", 1, 100, 1, "%")
+	page.add_child(_title(I18n.t("Quota and limits (per user: the quota belongs to the plan, not the project)")))
+	_warn_spin = _spin_row(page, I18n.t("Warn at"), 1, 100, 1, "%")
 	_pause_check = CheckBox.new()
-	_pause_check.text = "Pausar el One-shot al llegar al umbral (al terminar la tarea o el turno en curso)"
+	_pause_check.text = I18n.t("Pause the One-shot at the threshold (when the current task or turn ends)")
 	_pause_check.toggled.connect(func(on: bool) -> void: _pause_spin.editable = on)
 	page.add_child(_pause_check)
-	_pause_spin = _spin_row(page, "Umbral de pausa", 1, 100, 1, "%")
+	_pause_spin = _spin_row(page, I18n.t("Pause threshold"), 1, 100, 1, "%")
 	var row := HBoxContainer.new()
 	var label := Label.new()
-	label.text = "Al reiniciarse la ventana"
+	label.text = I18n.t("When the window resets")
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
 	_resume_option = OptionButton.new()
-	_resume_option.add_item("Retomar solo", HarnessSettings.RESUME_AUTO)
-	_resume_option.add_item("Esperar confirmación", HarnessSettings.RESUME_CONFIRM)
+	_resume_option.add_item(I18n.t("Resume automatically"), HarnessSettings.RESUME_AUTO)
+	_resume_option.add_item(I18n.t("Wait for confirmation"), HarnessSettings.RESUME_CONFIRM)
 	row.add_child(_resume_option)
 	page.add_child(row)
 
 
 func _build_interface(page: VBoxContainer) -> void:
-	page.add_child(_title("Interfaz"))
+	page.add_child(_title(I18n.t("Interface")))
 	var row := HBoxContainer.new()
 	var label := Label.new()
-	label.text = "Color de acento"
+	label.text = I18n.t("Accent color")
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
 	_accent_picker = ColorPickerButton.new()
@@ -329,32 +348,43 @@ func _build_interface(page: VBoxContainer) -> void:
 	page.add_child(presets)
 	row = HBoxContainer.new()
 	label = Label.new()
-	label.text = "Ubicación del dock"
+	label.text = I18n.t("Dock position")
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
 	_dock_option = OptionButton.new()
 	for slot: String in DOCK_SLOT_LABELS:
-		_dock_option.add_item(slot)
+		_dock_option.add_item(I18n.t(slot))
 	row.add_child(_dock_option)
 	page.add_child(row)
-	page.add_child(_hint("Se aplican al reabrir el editor. La ubicación es la inicial: si después movés el dock, el editor recuerda dónde lo dejaste."))
+	row = HBoxContainer.new()
+	label = Label.new()
+	label.text = I18n.t("Language")
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(label)
+	_language_option = OptionButton.new()
+	for language: Dictionary in I18n.LANGUAGES:
+		_language_option.add_item(I18n.t(language.name))
+	row.add_child(_language_option)
+	page.add_child(row)
+	page.add_child(_hint(I18n.t("These apply when the editor is reopened. The position is the initial one: if you move the dock later, the editor remembers where you left it.")))
 
 
 func _build_export(page: VBoxContainer) -> void:
-	page.add_child(_title("Export"))
-	page.add_child(_hint("El addon nunca llega a un juego exportado: un export plugin lo saltea. Además, cada preset debería excluir addons/godot_agent/* en su filtro, por si el addon se deshabilita antes de exportar."))
+	page.add_child(_title(I18n.t("Export")))
+	page.add_child(_hint(I18n.t("The addon never ends up in an exported game: an export plugin skips it. Also, each preset should exclude addons/godot_agent/* in its filter, in case the addon is disabled before exporting.")))
 	_export_label = Label.new()
 	_export_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	page.add_child(_export_label)
 	_export_button = Button.new()
-	_export_button.text = "Agregar el filtro a los presets"
+	_export_button.text = I18n.t("Add the filter to the presets")
 	_export_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_export_confirm = ConfirmationDialog.new()
-	_export_confirm.dialog_text = "Se agrega addons/godot_agent/* al filtro de exclusión de los presets que no lo tienen, en export_presets.cfg. ¿Seguir?"
+	_export_confirm.cancel_button_text = I18n.t("Cancel")
+	_export_confirm.dialog_text = I18n.t("addons/godot_agent/* will be added to the exclusion filter of the presets that don't have it, in export_presets.cfg. Continue?")
 	_export_confirm.confirmed.connect(func() -> void:
 		var patched := ExportPresetsPatcher.patch_presets()
 		_refresh_export()
-		_export_label.text = "Filtro agregado a: " + ", ".join(patched) if not patched.is_empty() else "No hubo que cambiar nada.")
+		_export_label.text = I18n.t("Filter added to: %s") % ", ".join(patched) if not patched.is_empty() else I18n.t("Nothing needed to change."))
 	add_child(_export_confirm)
 	_export_button.pressed.connect(func() -> void: _export_confirm.popup_centered())
 	page.add_child(_export_button)
@@ -393,6 +423,8 @@ func _load() -> void:
 	_resume_option.select(_resume_option.get_item_index(HarnessSettings.RESUME_AUTO if _settings.quota_resume_auto() else HarnessSettings.RESUME_CONFIRM))
 	_accent_picker.color = _settings.accent_color()
 	_dock_option.select(clampi(_settings.dock_slot(), 0, DOCK_SLOT_LABELS.size() - 1))
+	var language_codes: Array = I18n.LANGUAGES.map(func(language: Dictionary) -> String: return language.code)
+	_language_option.select(maxi(language_codes.find(_settings.language()), 0))
 	_completion_page.metrics_provider = completion_metrics_provider
 	_completion_page.metrics_reset = completion_metrics_reset
 	_completion_page.load_from(_settings, _config)
@@ -424,6 +456,7 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_QUOTA_RESUME, _resume_option.get_selected_id())
 	_settings.set_value(HarnessSettings.KEY_ACCENT, _accent_picker.color)
 	_settings.set_value(HarnessSettings.KEY_DOCK_SLOT, _dock_option.selected)
+	_settings.set_value(HarnessSettings.KEY_LANGUAGE, I18n.LANGUAGES[_language_option.selected].code)
 	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
 	_config.permissions = matrix_overrides()
@@ -448,7 +481,7 @@ func _on_save() -> void:
 	if result != OK:
 		for property: String in before:
 			_config.set(property, before[property])
-		_error_label.text = "No se pudo guardar %s: %s" % [ProjectConfig.PATH, error_string(result)]
+		_error_label.text = I18n.t("Could not save %s: %s") % [ProjectConfig.PATH, error_string(result)]
 		return
 	hide()
 	saved.emit()
@@ -461,24 +494,24 @@ func validate() -> Dictionary:
 	for profile: AgentProfile in _profiles:
 		# Sin comando vale: queda listado pero no arranca (el default de Codex viene así).
 		if profile.id.strip_edges().is_empty():
-			return {"section": Section.AGENTS, "message": "Cada agente necesita un id (%s)." % profile.display_name}
+			return {"section": Section.AGENTS, "message": I18n.t("Each agent needs an ID (%s).") % profile.display_name}
 		if ids.has(profile.id):
-			return {"section": Section.AGENTS, "message": "Hay dos agentes con el id «%s»." % profile.id}
+			return {"section": Section.AGENTS, "message": I18n.t("Two agents have the ID \"%s\".") % profile.id}
 		ids[profile.id] = true
 		defaults += 1 if profile.is_default else 0
 		for key: String in profile.env:
 			var value: String = profile.env[key]
 			if _secret_name.search(key) and not value.is_empty() and not value.begins_with("$"):
-				return {"section": Section.AGENTS, "message": "%s: %s parece un secreto. Usá $VARIABLE del entorno: el harness no guarda claves." % [profile.display_name, key]}
+				return {"section": Section.AGENTS, "message": I18n.t("%s: %s looks like a secret. Use $VARIABLE from the environment: the harness doesn't store keys.") % [profile.display_name, key]}
 	if _profiles.is_empty():
-		return {"section": Section.AGENTS, "message": "Tiene que haber al menos un agente."}
+		return {"section": Section.AGENTS, "message": I18n.t("There must be at least one agent.")}
 	if defaults > 1:
-		return {"section": Section.AGENTS, "message": "Solo un agente puede ser el predeterminado."}
+		return {"section": Section.AGENTS, "message": I18n.t("Only one agent can be the default.")}
 	if _pause_check.button_pressed and _pause_spin.value <= _warn_spin.value:
-		return {"section": Section.ONESHOT, "message": "El umbral de pausa tiene que ser mayor que el de aviso."}
+		return {"section": Section.ONESHOT, "message": I18n.t("The pause threshold must be higher than the warning threshold.")}
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
-			return {"section": Section.MCP, "message": "«%s» no es una ruta absoluta." % root}
+			return {"section": Section.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
 	var completion_error := _completion_page.validate()
 	if not completion_error.is_empty():
 		return {"section": Section.COMPLETION, "message": completion_error}
@@ -514,17 +547,17 @@ func _rebuild_profiles() -> void:
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(info)
 		var name_label := Label.new()
-		name_label.text = profile.display_name + (" · predeterminado" if profile.is_default else "")
+		name_label.text = I18n.t("%s · default") % profile.display_name if profile.is_default else profile.display_name
 		info.add_child(name_label)
 		var command := Label.new()
-		command.text = profile.command_line() if not profile.command.is_empty() else "sin comando: configuralo con Editar"
+		command.text = profile.command_line() if not profile.command.is_empty() else I18n.t("no command: set it up with Edit")
 		command.clip_text = true
 		command.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		command.add_theme_font_override(&"font", AgentTheme.mono_font())
 		command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		info.add_child(command)
-		for action: Array in [["Predeterminado", _make_default], ["Editar", _edit_profile], ["Quitar", _remove_profile]]:
-			if action[0] == "Predeterminado" and profile.is_default:
+		for action: Array in [[I18n.t("Set as default"), _make_default], [I18n.t("Edit"), _edit_profile], [I18n.t("Remove"), _remove_profile]]:
+			if action[1] == _make_default and profile.is_default:
 				continue
 			var button := Button.new()
 			button.text = action[0]
@@ -590,20 +623,20 @@ func _remove_profile(index: int) -> void:
 
 func _refresh_url() -> void:
 	var url: String = mcp_url_provider.call() if mcp_url_provider.is_valid() else ""
-	_url_label.text = url if not url.is_empty() else "El server MCP no está escuchando."
+	_url_label.text = url if not url.is_empty() else I18n.t("The MCP server is not listening.")
 
 
 func _refresh_export() -> void:
 	if not ExportPresetsPatcher.presets_file_exists():
-		_export_label.text = "El proyecto no tiene presets de export todavía."
+		_export_label.text = I18n.t("The project has no export presets yet.")
 		_export_button.disabled = true
 		return
 	var missing := ExportPresetsPatcher.presets_missing_filter()
 	_export_button.disabled = missing.is_empty()
 	if missing.is_empty():
-		_export_label.text = "Todos los presets excluyen el addon."
+		_export_label.text = I18n.t("All presets exclude the addon.")
 	else:
-		_export_label.text = "Presets sin el filtro: " + ", ".join(missing)
+		_export_label.text = I18n.t("Presets without the filter: %s") % ", ".join(missing)
 
 
 func _title(text: String) -> Label:

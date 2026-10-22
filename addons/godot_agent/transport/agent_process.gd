@@ -53,12 +53,12 @@ var _known_children: PackedInt32Array = []
 ## execute_with_pipe no recibe cwd: el agente trabaja en el `cwd` que le pasa session/new.
 func start(command: String, args: PackedStringArray, env: Dictionary = {}) -> bool:
 	if is_running():
-		_last_error = "El proceso ya está corriendo."
+		_last_error = "The process is already running."
 		return false
 	_last_error = ""
 	var executable := CommandResolver.resolve(command)
 	if executable.is_empty():
-		_last_error = "No se encontró el comando '%s' en el PATH ni en las carpetas habituales." % command
+		_last_error = "Command '%s' not found in PATH or the usual folders." % command
 		return false
 
 	var child_env := env.duplicate()
@@ -69,7 +69,7 @@ func start(command: String, args: PackedStringArray, env: Dictionary = {}) -> bo
 	_restore_env(saved_env)
 
 	if info.is_empty():
-		_last_error = "No se pudo lanzar '%s'." % executable
+		_last_error = "Could not launch '%s'." % executable
 		return false
 	_generation += 1
 	_stdio = info.stdio

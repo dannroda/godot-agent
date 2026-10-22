@@ -13,6 +13,7 @@ const ReviewStore := preload("review_store.gd")
 const SessionModel := preload("../session/session_model.gd")
 const AgentTheme := preload("../ui/agent_theme.gd")
 const EditorContext := preload("../ui/editor_context.gd")
+const I18n := preload("../core/i18n.gd")
 
 const ACTION_APPLY := "review_apply"
 const ACTION_ASK := "review_ask"
@@ -133,6 +134,7 @@ func _attach(code_edit: CodeEdit) -> void:
 
 	var band := Label.new()
 	band.name = "GodotAgentReviewBand"
+	band.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	band.add_theme_color_override(&"font_color", _accent.lightened(0.35))
 	band.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
@@ -145,6 +147,7 @@ func _attach(code_edit: CodeEdit) -> void:
 		code_edit.add_child(band)
 	var card := PanelContainer.new()
 	card.name = "GodotAgentReviewCard"
+	card.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	card.visible = false
 	code_edit.add_child(card)
 	_editors[code_edit] = {"path": "", "lines": {}, "band": band, "card": card, "card_line": -1, "card_layout": []}
@@ -189,9 +192,12 @@ func _apply(code_edit: CodeEdit) -> void:
 	state.lines = lines
 	var band: Label = state.band
 	band.visible = not findings.is_empty()
-	band.text = "●  Revisión del agente%s · %d hallazgo%s" % [
-		" · solo lectura" if _model.harness_mode == SessionModel.HarnessMode.REVIEW else "",
-		findings.size(), "" if findings.size() == 1 else "s"]
+	var summary: String
+	if _model.harness_mode == SessionModel.HarnessMode.REVIEW:
+		summary = I18n.t("Agent review · read-only · %d finding") if findings.size() == 1 else I18n.t("Agent review · read-only · %d findings")
+	else:
+		summary = I18n.t("Agent review · %d finding") if findings.size() == 1 else I18n.t("Agent review · %d findings")
+	band.text = "●  " + summary % findings.size()
 	if int(state.card_line) >= 0:
 		if lines.has(state.card_line):
 			_build_card(code_edit, state.card_line)
@@ -268,7 +274,7 @@ func _finding_view(finding: Dictionary, code_edit: CodeEdit) -> Control:
 	box.add_theme_constant_override(&"separation", AgentTheme.px(4))
 	var header := HBoxContainer.new()
 	var tag := Label.new()
-	tag.text = ReviewStore.SEVERITY_SHORT.get(finding.severity, "?")
+	tag.text = I18n.t(ReviewStore.SEVERITY_SHORT[finding.severity]) if ReviewStore.SEVERITY_SHORT.has(finding.severity) else "?"
 	tag.add_theme_font_size_override(&"font_size", AgentTheme.px(10))
 	tag.add_theme_color_override(&"font_color", AgentTheme.SEVERITY_COLORS[finding.severity].lightened(0.4))
 	tag.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(AgentTheme.SEVERITY_COLORS[finding.severity], 0.3), Color.TRANSPARENT, 3, 2))
@@ -282,7 +288,7 @@ func _finding_view(finding: Dictionary, code_edit: CodeEdit) -> Control:
 	close.flat = true
 	close.icon = AgentTheme.icon(&"Close")
 	close.text = "" if close.icon else "✕"
-	close.tooltip_text = "Cerrar"
+	close.tooltip_text = I18n.t("Close")
 	close.pressed.connect(_hide_card.bind(code_edit))
 	header.add_child(close)
 	box.add_child(header)
@@ -302,12 +308,12 @@ func _finding_view(finding: Dictionary, code_edit: CodeEdit) -> Control:
 		suggestion.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(0, 0, 0, 0.3), Color.TRANSPARENT, 4, 6))
 		box.add_child(suggestion)
 	var actions := HBoxContainer.new()
-	var apply := _action_button("Aplicar arreglo", ACTION_APPLY, finding)
+	var apply := _action_button(I18n.t("Apply fix"), ACTION_APPLY, finding)
 	apply.add_theme_color_override(&"font_color", _accent)
-	apply.tooltip_text = "Pasa a modo Construir y le pide al agente este arreglo"
+	apply.tooltip_text = I18n.t("Switches to Build mode and asks the agent for this fix")
 	actions.add_child(apply)
-	actions.add_child(_action_button("Preguntar", ACTION_ASK, finding))
-	actions.add_child(_action_button("Descartar", ACTION_DISMISS, finding))
+	actions.add_child(_action_button(I18n.t("Ask"), ACTION_ASK, finding))
+	actions.add_child(_action_button(I18n.t("Dismiss"), ACTION_DISMISS, finding))
 	box.add_child(actions)
 	return box
 

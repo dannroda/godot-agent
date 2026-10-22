@@ -20,25 +20,25 @@ func test_resolve() -> void:
 func test_prompts() -> void:
 	var criteria := GameCriteria.resolve({"code": {"weight": 0}})
 	var generator := GameCriteria.generator_text(criteria)
-	assert_true(generator.contains("Jugabilidad (mínimo 7, peso 3)") and not generator.contains("Código"), generator)
+	assert_true(generator.contains("Playability (minimum 7, weight 3)") and not generator.contains("Code ("), generator)
 	var rubric := GameCriteria.evaluator_rubric(criteria)
-	for expected: String in ["id `playability`", "3: las entidades aparecen pero no responden al input", "no puede oír", "\"scores\""]:
+	for expected: String in ["id `playability`", "3: entities appear but don't respond to input", "cannot hear", "\"scores\""]:
 		assert_true(rubric.contains(expected), "rúbrica: " + expected)
 	var run := OneShotRun.new()
 	run.goal = "Pong"
-	assert_true(run.initial_prompt().contains("Así se va a evaluar el juego"), "el prompt del One-shot lleva los criterios")
+	assert_true(run.initial_prompt().contains("How the game will be evaluated"), "el prompt del One-shot lleva los criterios")
 	run.free()
 
 
 func test_verdict() -> void:
 	var criteria := GameCriteria.resolve()
 	var all_pass := GameCriteria.verdict([
-		{"criterion": "playability", "score": 8}, {"criterion": "Funcionalidad", "score": 7},
-		{"criterion": "Visual y feel", "score": 5}, {"criterion": "código", "score": 9},
+		{"criterion": "playability", "score": 8}, {"criterion": "Functionality", "score": 7},
+		{"criterion": "Visuals and feel", "score": 5}, {"criterion": "CODE", "score": 9},
 	], criteria)
 	assert_true(all_pass.passed, "todos llegan al mínimo")
 	assert_true(is_equal_approx(all_pass.weighted, 7.1), "promedio ponderado (24+21+10+9)/9")
-	var low := GameCriteria.verdict([{"criterion": "jugabilidad", "score": 4}, {"criterion": "functionality", "score": 9}, {"criterion": "visual", "score": 9}], criteria)
+	var low := GameCriteria.verdict([{"criterion": "Playability", "score": 4}, {"criterion": "functionality", "score": 9}, {"criterion": "visual", "score": 9}], criteria)
 	assert_false(low.passed, "uno abajo del mínimo")
 	assert_eq(low.failing.size(), 1, "falla jugabilidad")
 	assert_eq(low.failing[0].id, "playability", "id del que falla")

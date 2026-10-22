@@ -33,11 +33,11 @@ func test_loads_and_validates() -> void:
 
 	var copy: AgentProfile = AgentProfile.from_dict((profiles[0] as AgentProfile).to_dict())
 	profiles.append(copy)
-	assert_true(str(dialog.validate().get("message")).contains("dos agentes"), "ids repetidos")
+	assert_true(str(dialog.validate().get("message")).contains("Two agents"), "ids repetidos")
 	copy.id = "otro"
 	copy.is_default = true
 	(profiles[0] as AgentProfile).is_default = true
-	assert_true(str(dialog.validate().get("message")).contains("predeterminado"), "un solo predeterminado")
+	assert_true(str(dialog.validate().get("message")).contains("default"), "un solo predeterminado")
 	dialog.call(&"_make_default", 1)
 	assert_true(dialog.validate().is_empty(), "_make_default deja uno solo")
 
@@ -111,7 +111,7 @@ func test_completion_section() -> void:
 	(fields.api_key_env as LineEdit).text = "sk-abc123-pegada"
 	var error := dialog.validate()
 	assert_eq(error.get("section"), SettingsDialog.Section.COMPLETION, "valida la sección Completado")
-	assert_true(str(error.get("message")).contains("variable de entorno"), "explica qué va en el campo")
+	assert_true(str(error.get("message")).contains("environment variable"), "explica qué va en el campo")
 	page.call(&"_edit_profile", 0)
 	(fields.api_key_env as LineEdit).text = "AIzaSyD4x9Qw2LmB7kTr0pZ3vN8cYh1Ue6sJfGo"
 	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.COMPLETION, "una key sin guiones tampoco")
@@ -127,14 +127,14 @@ func test_completion_section() -> void:
 	var codestral: RefCounted = preload("res://addons/godot_agent/completion/llm/llm_profile.gd").make("codestral")
 	codestral.set(&"api_key_env", "")
 	profiles.append(codestral)
-	assert_true(str(dialog.validate().get("message")).contains("necesita el nombre"), "codestral sin variable no valida")
+	assert_true(str(dialog.validate().get("message")).contains("needs the name"), "codestral sin variable no valida")
 	profiles.pop_back()
 	assert_true(_has_text(page.get(&"_profile_list") as Node, "api.mistral.ai"), "avisa que un perfil remoto envía código")
 
 	# CRUD: agregar otro del mismo tipo le da un id libre; quitar el activo pasa al siguiente.
 	(page.get(&"_kind_option") as OptionButton).select(0)
 	for button: Node in page.find_children("*", "Button", true, false):
-		if (button as Button).text == "+ Agregar perfil":
+		if (button as Button).text == "+ Add profile":
 			(button as Button).pressed.emit()
 	page.call(&"apply_form")
 	assert_eq(profiles.size(), 2, "agrega un perfil")
@@ -144,7 +144,7 @@ func test_completion_section() -> void:
 	assert_eq(page.get(&"_active_id"), profiles[0].get(&"id"), "quitar el activo activa otro")
 	page.call(&"_remove_profile", 0)
 	(page.get(&"_mode_option") as OptionButton).select(1)
-	assert_true(str(dialog.validate().get("message")).contains("necesitan un perfil"), "híbrido sin perfiles no valida")
+	assert_true(str(dialog.validate().get("message")).contains("need an LLM profile"), "híbrido sin perfiles no valida")
 	(page.get(&"_mode_option") as OptionButton).select(0)
 	(page.get(&"_corpus_edit") as TextEdit).text = "relativa/no"
 	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.COMPLETION, "corpus extra: rutas absolutas")

@@ -57,10 +57,10 @@ func _fit_width() -> void:
 static func _attachment_name(block: Dictionary) -> String:
 	match str(block.get("type", "")):
 		"image":
-			return "captura"
+			return I18n.t("screenshot")
 		"resource_link":
 			return str(block.get("name", block.get("uri", "")))
 		"resource":
 			var resource: Variant = block.get("resource")
-			return str(resource.get("uri", "recurso")).get_file() if resource is Dictionary else "recurso"
+			return str(resource.get("uri", I18n.t("resource"))).get_file() if resource is Dictionary else I18n.t("resource")
 	return str(block.get("type", "?"))

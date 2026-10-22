@@ -16,29 +16,29 @@ func tools() -> Array:
 	var read := PermissionPolicy.GROUP_READ
 	return [
 		McpTool.create("project_info", read,
-			"Datos del proyecto: versión de Godot, nombre, escena principal, autoloads, acciones del input map, plugins activos y renderer.",
+			"Project data: Godot version, name, main scene, autoloads, input map actions, enabled plugins and renderer.",
 			{}, [], _project_info),
 		McpTool.create("list_files", read,
-			"Lista archivos del proyecto con su tipo de recurso. `pattern` es un glob sobre el nombre (p. ej. \"*.tscn\").",
+			"Lists project files with their resource type. `pattern` is a glob on the file name (e.g. \"*.tscn\").",
 			{
-				"path": {"type": "string", "description": "Carpeta res:// (default res://)"},
-				"pattern": {"type": "string", "description": "Glob sobre el nombre del archivo"},
-				"recursive": {"type": "boolean", "description": "Incluir subcarpetas (default true)"},
+				"path": {"type": "string", "description": "res:// folder (default res://)"},
+				"pattern": {"type": "string", "description": "Glob on the file name"},
+				"recursive": {"type": "boolean", "description": "Include subfolders (default true)"},
 			}, [], _list_files),
 		McpTool.create("scene_tree", read,
-			"Árbol de una escena: nombre, tipo, script, escena instanciada, grupos y propiedades que difieren del default. Sin `scene`, la escena abierta (con sus cambios sin guardar).",
+			"Tree of a scene: name, type, script, instanced scene, groups and properties that differ from the default. Without `scene`, the open scene (with its unsaved changes).",
 			{
-				"scene": {"type": "string", "description": "Ruta res://…tscn (default: la abierta)"},
-				"depth": {"type": "integer", "description": "Profundidad máxima (default %d)" % DEFAULT_DEPTH},
+				"scene": {"type": "string", "description": "res://…tscn path (default: the open one)"},
+				"depth": {"type": "integer", "description": "Maximum depth (default %d)" % DEFAULT_DEPTH},
 			}, [], _scene_tree),
 		McpTool.create("get_node", read,
-			"Detalle de un nodo: todas sus propiedades no default, script, grupos, conexiones de señales guardadas e hijos.",
+			"Details of a node: all its non-default properties, script, groups, saved signal connections and children.",
 			{
-				"scene": {"type": "string", "description": "Ruta res://…tscn (default: la abierta)"},
-				"node_path": {"type": "string", "description": "NodePath relativo a la raíz (\".\" = raíz)"},
+				"scene": {"type": "string", "description": "res://…tscn path (default: the open one)"},
+				"node_path": {"type": "string", "description": "NodePath relative to the root (\".\" = root)"},
 			}, ["node_path"], _get_node),
 		McpTool.create("editor_state", read,
-			"Estado del editor: escena actual, escenas abiertas, selección, script abierto con la línea del cursor y si hay un juego corriendo.",
+			"Editor state: current scene, open scenes, selection, open script with the caret line, and whether a game is running.",
 			{}, [], _editor_state),
 	]
 
@@ -46,10 +46,10 @@ func tools() -> Array:
 func _project_info(_args: Dictionary) -> String:
 	var lines: PackedStringArray = []
 	lines.append("Godot %s" % Engine.get_version_info().string)
-	lines.append("Binario del editor (usalo para correr Godot por línea de comandos): %s" % OS.get_executable_path())
-	lines.append("Proyecto: %s" % ProjectSettings.get_setting("application/config/name", ""))
-	lines.append("Ruta: %s" % ProjectSettings.globalize_path("res://").trim_suffix("/"))
-	lines.append("Escena principal: %s" % ProjectSettings.get_setting("application/run/main_scene", "(ninguna)"))
+	lines.append("Editor binary (use it to run Godot from the command line): %s" % OS.get_executable_path())
+	lines.append("Project: %s" % ProjectSettings.get_setting("application/config/name", ""))
+	lines.append("Path: %s" % ProjectSettings.globalize_path("res://").trim_suffix("/"))
+	lines.append("Main scene: %s" % ProjectSettings.get_setting("application/run/main_scene", "(none)"))
 	lines.append("Renderer: %s" % ProjectSettings.get_setting("rendering/renderer/rendering_method", "?"))
 	var features: PackedStringArray = ProjectSettings.get_setting("application/config/features", PackedStringArray())
 	lines.append("Features: %s" % ", ".join(features))
@@ -65,35 +65,35 @@ func _project_info(_args: Dictionary) -> String:
 			for event: Variant in action.get("events", []):
 				if event is InputEvent:
 					events.append((event as InputEvent).as_text())
-			actions.append("%s: %s" % [key.trim_prefix("input/"), ", ".join(events) if not events.is_empty() else "(sin eventos)"])
-	lines.append("Autoloads:" + (" (ninguno)" if autoloads.is_empty() else ""))
+			actions.append("%s: %s" % [key.trim_prefix("input/"), ", ".join(events) if not events.is_empty() else "(no events)"])
+	lines.append("Autoloads:" + (" (none)" if autoloads.is_empty() else ""))
 	for autoload: String in autoloads:
 		lines.append("  " + autoload)
-	lines.append("Input map (acciones del proyecto):" + (" (ninguna)" if actions.is_empty() else ""))
+	lines.append("Input map (project actions):" + (" (none)" if actions.is_empty() else ""))
 	for action: String in actions:
 		lines.append("  " + action)
 	var plugins: PackedStringArray = ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray())
-	lines.append("Plugins activos: %s" % (", ".join(plugins) if not plugins.is_empty() else "(ninguno)"))
+	lines.append("Enabled plugins: %s" % (", ".join(plugins) if not plugins.is_empty() else "(none)"))
 	return "\n".join(lines)
 
 
 func _list_files(args: Dictionary) -> Dictionary:
 	var path := McpTool.str_arg(args, "path", "res://")
 	if not path.begins_with("res://"):
-		return McpTool.error("`path` tiene que empezar con res:// (recibí '%s')." % path)
+		return McpTool.error("`path` must start with res:// (got '%s')." % path)
 	var fs := EditorInterface.get_resource_filesystem()
 	var dir := fs.get_filesystem_path(path.trim_suffix("/") if path != "res://" else path)
 	if dir == null:
-		return McpTool.error("No existe la carpeta %s (o el editor todavía no la escaneó)." % path)
+		return McpTool.error("The folder %s does not exist (or the editor has not scanned it yet)." % path)
 	var pattern := McpTool.str_arg(args, "pattern")
 	var recursive: bool = args.get("recursive", true) != false
 	var lines: PackedStringArray = []
 	var total := _collect_files(dir, pattern, recursive, lines)
 	if total == 0:
-		return McpTool.text("Sin archivos en %s%s." % [path, " que coincidan con " + pattern if not pattern.is_empty() else ""])
-	var header := "%d archivos en %s" % [total, path]
+		return McpTool.text("No files in %s%s." % [path, " matching " + pattern if not pattern.is_empty() else ""])
+	var header := "%d files in %s" % [total, path]
 	if total > lines.size():
-		header += " (se muestran %d; filtrá con path o pattern)" % lines.size()
+		header += " (showing %d; filter with path or pattern)" % lines.size()
 	return McpTool.text(header + "\n" + "\n".join(lines))
 
 
@@ -121,9 +121,9 @@ func _scene_tree(args: Dictionary) -> Dictionary:
 	var counter := {"nodes": 0, "shown": 0}
 	_describe_tree(resolved.root, resolved.root, 0, depth, lines, counter)
 	resolved.release()
-	var header := "%s · %d nodos" % [resolved.path if not resolved.path.is_empty() else "(escena sin guardar)", counter.nodes]
+	var header := "%s · %d nodes" % [resolved.path if not resolved.path.is_empty() else "(unsaved scene)", counter.nodes]
 	if counter.shown < counter.nodes:
-		header += " (se muestran %d; usá depth o get_node para ver más)" % counter.shown
+		header += " (showing %d; use depth or get_node to see more)" % counter.shown
 	return McpTool.text(header + "\n" + "\n".join(lines))
 
 
@@ -139,13 +139,13 @@ func _describe_tree(root: Node, node: Node, level: int, max_depth: int, lines: P
 func _node_line(root: Node, node: Node) -> String:
 	var parts: PackedStringArray = ["%s (%s)" % [node.name, node.get_class()]]
 	if node != root and not node.scene_file_path.is_empty():
-		parts.append("[instancia de %s]" % node.scene_file_path)
+		parts.append("[instance of %s]" % node.scene_file_path)
 	var script := node.get_script() as Script
 	if script:
 		parts.append("script=%s" % (script.resource_path if not script.resource_path.contains("::") else "<built-in>"))
 	var groups := _groups(node)
 	if not groups.is_empty():
-		parts.append("grupos=[%s]" % ", ".join(groups))
+		parts.append("groups=[%s]" % ", ".join(groups))
 	var props := SceneAccess.changed_properties(node, 60)
 	for key: String in props:
 		parts.append("%s=%s" % [key, props[key]])
@@ -163,28 +163,28 @@ func _get_node(args: Dictionary) -> Dictionary:
 		for child: Node in SceneAccess.scene_children(resolved.root, resolved.root):
 			children.append(String(child.name))
 		resolved.release()
-		return McpTool.error("No existe el nodo '%s'. Los paths son relativos a la raíz; hijos de la raíz: %s. Usá scene_tree para ver el árbol." % [node_path, ", ".join(children)])
+		return McpTool.error("There is no node '%s'. Paths are relative to the root; children of the root: %s. Use scene_tree to see the tree." % [node_path, ", ".join(children)])
 	var root := resolved.root
 	var lines: PackedStringArray = []
 	lines.append("%s (%s) · path %s" % [node.name, node.get_class(), SceneAccess.relative_path(root, node)])
 	if node != root and not node.scene_file_path.is_empty():
-		lines.append("Instancia de: %s" % node.scene_file_path)
+		lines.append("Instance of: %s" % node.scene_file_path)
 	var script := node.get_script() as Script
-	lines.append("Script: %s" % (script.resource_path if script else "(ninguno)"))
+	lines.append("Script: %s" % (script.resource_path if script else "(none)"))
 	var groups := _groups(node)
-	lines.append("Grupos: %s" % (", ".join(groups) if not groups.is_empty() else "(ninguno)"))
+	lines.append("Groups: %s" % (", ".join(groups) if not groups.is_empty() else "(none)"))
 	var props := SceneAccess.changed_properties(node, 400)
-	lines.append("Propiedades no default:" + (" (ninguna)" if props.is_empty() else ""))
+	lines.append("Non-default properties:" + (" (none)" if props.is_empty() else ""))
 	for key: String in props:
 		lines.append("  %s = %s" % [key, props[key]])
 	var connections := SceneAccess.persistent_connections(root, node)
-	lines.append("Señales conectadas:" + (" (ninguna)" if connections.is_empty() else ""))
+	lines.append("Connected signals:" + (" (none)" if connections.is_empty() else ""))
 	for connection: String in connections:
 		lines.append("  " + connection)
 	var children: PackedStringArray = []
 	for child: Node in SceneAccess.scene_children(root, node):
 		children.append("%s (%s)" % [child.name, child.get_class()])
-	lines.append("Hijos: %s" % (", ".join(children) if not children.is_empty() else "(ninguno)"))
+	lines.append("Children: %s" % (", ".join(children) if not children.is_empty() else "(none)"))
 	resolved.release()
 	return McpTool.text("\n".join(lines))
 
@@ -192,14 +192,14 @@ func _get_node(args: Dictionary) -> Dictionary:
 func _editor_state(_args: Dictionary) -> String:
 	var lines: PackedStringArray = []
 	var edited := EditorInterface.get_edited_scene_root()
-	lines.append("Escena actual: %s" % (edited.scene_file_path if edited and not edited.scene_file_path.is_empty() else ("(sin guardar)" if edited else "(ninguna)")))
-	lines.append("Escenas abiertas: %s" % ", ".join(EditorInterface.get_open_scenes()))
+	lines.append("Current scene: %s" % (edited.scene_file_path if edited and not edited.scene_file_path.is_empty() else ("(unsaved)" if edited else "(none)")))
+	lines.append("Open scenes: %s" % ", ".join(EditorInterface.get_open_scenes()))
 	var selected: PackedStringArray = []
 	if edited:
 		for node: Node in EditorInterface.get_selection().get_selected_nodes():
 			if node == edited or edited.is_ancestor_of(node):
 				selected.append("%s (%s)" % [SceneAccess.relative_path(edited, node), node.get_class()])
-	lines.append("Selección: %s" % (", ".join(selected) if not selected.is_empty() else "(nada)"))
+	lines.append("Selection: %s" % (", ".join(selected) if not selected.is_empty() else "(nothing)"))
 	var script_editor := EditorInterface.get_script_editor()
 	var script := script_editor.get_current_script() if script_editor else null
 	if script:
@@ -207,15 +207,15 @@ func _editor_state(_args: Dictionary) -> String:
 		var current := script_editor.get_current_editor()
 		if current and current.get_base_editor() is CodeEdit:
 			line = (current.get_base_editor() as CodeEdit).get_caret_line() + 1
-		lines.append("Script abierto: %s (línea %d)" % [script.resource_path, line])
+		lines.append("Open script: %s (line %d)" % [script.resource_path, line])
 	else:
-		lines.append("Script abierto: (ninguno)")
+		lines.append("Open script: (none)")
 	var open_scripts: PackedStringArray = []
 	if script_editor:
 		for open: Script in script_editor.get_open_scripts():
 			open_scripts.append(open.resource_path)
-	lines.append("Scripts abiertos: %s" % (", ".join(open_scripts) if not open_scripts.is_empty() else "(ninguno)"))
-	lines.append("Juego corriendo: %s" % (EditorInterface.get_playing_scene() if EditorInterface.is_playing_scene() else "no"))
+	lines.append("Open scripts: %s" % (", ".join(open_scripts) if not open_scripts.is_empty() else "(none)"))
+	lines.append("Game running: %s" % (EditorInterface.get_playing_scene() if EditorInterface.is_playing_scene() else "no"))
 	return "\n".join(lines)
 
 

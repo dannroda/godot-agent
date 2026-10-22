@@ -42,5 +42,5 @@ func test_command_for() -> void:
 func test_auth_required_error() -> void:
 	assert_true(SessionController.is_auth_required({"code": -32000, "message": "Authentication required"}), "el de ACP")
 	assert_true(SessionController.is_auth_required({"code": -32000, "message": "Authentication required: Sign in with an API key"}), "con detalle")
-	assert_false(SessionController.is_auth_required({"code": -32000, "message": "No se pudo enviar 'session/new' al agente."}), "el de transporte tiene el mismo código")
+	assert_false(SessionController.is_auth_required({"code": -32000, "message": "Could not send 'session/new' to the agent."}), "el de transporte tiene el mismo código")
 	assert_false(SessionController.is_auth_required({"code": -32603, "message": "Authentication required"}), "otro código")

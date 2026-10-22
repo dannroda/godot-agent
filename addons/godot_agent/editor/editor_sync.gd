@@ -88,7 +88,7 @@ func after_agent_write(abs_path: String, _old_text: String = "", _new_text: Stri
 
 func sync_path(res_path: String) -> void:
 	if res_path.get_extension() in EDITOR_MANAGED_EXTENSIONS:
-		_log("aviso: el agente modificó %s (lo maneja el editor)" % res_path)
+		_log("warning: the agent modified %s (managed by the editor)" % res_path)
 	if res_path == PROJECT_FILE:
 		apply_project_file()
 		return
@@ -139,13 +139,13 @@ func _sync_open_script(res_path: String, open: Dictionary) -> void:
 		return
 	if _is_dirty(code_edit):
 		_conflicts[res_path] = disk_text
-		_log("conflicto: %s tiene cambios sin guardar y el agente lo modificó" % res_path)
+		_log("conflict: %s has unsaved changes and the agent modified it" % res_path)
 		conflict_detected.emit(res_path)
 		return
 	replace_buffer(code_edit, disk_text)
 	code_edit.tag_saved_version()
 	_adopt_resource(script, disk_text)
-	_log("recargado en el Script Editor: %s" % res_path)
+	_log("reloaded in the Script Editor: %s" % res_path)
 
 
 ## Watcher de escenas abiertas. Los guardados del editor no cuentan: los avisa `note_scene_saved`.
@@ -187,7 +187,7 @@ func apply_project_file() -> PackedStringArray:
 	var error := file.load(PROJECT_FILE)
 	if error != OK:
 		_project_mtime = FileAccess.get_modified_time(PROJECT_FILE)
-		_log("project.godot cambió en disco pero no se puede leer (%s): no se aplicó" % error_string(error))
+		_log("project.godot changed on disk but cannot be read (%s): not applied" % error_string(error))
 		return changed
 	for section: String in file.get_sections():
 		if section.is_empty():
@@ -210,8 +210,8 @@ func apply_project_file() -> PackedStringArray:
 	if not changed.is_empty():
 		var save_error := ProjectSettings.save()
 		if save_error != OK:
-			_log("no se pudo guardar project.godot: %s" % error_string(save_error))
-		_log("project.godot: el editor tomó %d %s del disco (%s)" % [changed.size(), "cambio" if changed.size() == 1 else "cambios", ", ".join(changed.slice(0, 6))])
+			_log("could not save project.godot: %s" % error_string(save_error))
+		_log("project.godot: the editor took %d %s from disk (%s)" % [changed.size(), "change" if changed.size() == 1 else "changes", ", ".join(changed.slice(0, 6))])
 		project_settings_applied.emit(changed)
 	_project_snapshot = file
 	_project_mtime = FileAccess.get_modified_time(PROJECT_FILE)
@@ -235,7 +235,7 @@ func _sync_open_scene(res_path: String) -> void:
 	_update_filesystem(res_path)
 	var unsaved: PackedStringArray = EditorInterface.call(&"get_unsaved_scenes") if EditorInterface.has_method(&"get_unsaved_scenes") else PackedStringArray([res_path])
 	if res_path in unsaved:
-		_log("escena abierta con cambios sin guardar modificada en disco: %s" % res_path)
+		_log("open scene with unsaved changes modified on disk: %s" % res_path)
 		open_scene_modified.emit(res_path)
 		return
 	reload_scene(res_path)
@@ -253,7 +253,7 @@ func resolve_use_disk(res_path: String) -> void:
 	replace_buffer(code_edit, disk_text)
 	code_edit.tag_saved_version()
 	_adopt_resource(open.script, disk_text)
-	_log("conflicto resuelto con la versión del agente: %s" % res_path)
+	_log("conflict resolved with the agent's version: %s" % res_path)
 	conflict_resolved.emit(res_path)
 
 
@@ -267,7 +267,7 @@ func resolve_keep_buffer(res_path: String) -> void:
 		code_edit.tag_saved_version()
 		_known_mtimes[res_path] = FileAccess.get_modified_time(res_path)
 		_update_filesystem(res_path)
-	_log("conflicto resuelto con la versión del usuario: %s" % res_path)
+	_log("conflict resolved with the user's version: %s" % res_path)
 	conflict_resolved.emit(res_path)
 
 
@@ -275,7 +275,7 @@ func reload_scene(res_path: String) -> void:
 	EditorInterface.reload_scene_from_path(res_path)
 	if FileAccess.file_exists(res_path):
 		_scene_mtimes[res_path] = FileAccess.get_modified_time(res_path)
-	_log("escena recargada: %s" % res_path)
+	_log("scene reloaded: %s" % res_path)
 
 
 ## Reemplaza solo el tramo de líneas que cambió, en una operación deshacible, y conserva el
@@ -345,7 +345,7 @@ func _adopt_resource(script: Script, text: String) -> void:
 	script.source_code = text
 	var error := ResourceSaver.save(script, script.resource_path)
 	if error != OK:
-		_log("no se pudo alinear %s: %s" % [script.resource_path, error_string(error)])
+		_log("could not align %s: %s" % [script.resource_path, error_string(error)])
 		return
 	_known_mtimes[script.resource_path] = FileAccess.get_modified_time(script.resource_path)
 	script.reload(true)

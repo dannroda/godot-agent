@@ -61,7 +61,7 @@ func option_id_for(kinds: PackedStringArray) -> String:
 ## Opciones estándar para pedidos propios del harness (fs/write, tools MCP).
 static func default_options() -> Array:
 	return [
-		{"optionId": "allow_once", "name": "Permitir una vez", "kind": KIND_ALLOW_ONCE},
-		{"optionId": "allow_always", "name": "Siempre en esta sesión", "kind": KIND_ALLOW_ALWAYS},
-		{"optionId": "reject_once", "name": "Denegar", "kind": KIND_REJECT_ONCE},
+		{"optionId": "allow_once", "name": "Allow once", "kind": KIND_ALLOW_ONCE},
+		{"optionId": "allow_always", "name": "Always allow in this session", "kind": KIND_ALLOW_ALWAYS},
+		{"optionId": "reject_once", "name": "Deny", "kind": KIND_REJECT_ONCE},
 	]

@@ -8,6 +8,7 @@ set -e
 G="$1"; shift
 ROOT="${XRUN_PROJECT:-$(cd "$(dirname "$0")/.." && pwd)}"
 exec timeout "${XRUN_TIMEOUT:-300}" env -u WAYLAND_DISPLAY \
+	GODOT_AGENT_LANGUAGE="${GODOT_AGENT_LANGUAGE:-en}" \
 	GODOT_AGENT_TEST_RUN_ARGS="--rendering-driver opengl3 --display-driver x11" \
 	xvfb-run -a -s "-screen 0 1920x1200x24" \
 	"$G" --display-driver x11 --rendering-driver opengl3 --path "$ROOT" -e -- "$@"

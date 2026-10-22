@@ -11,6 +11,7 @@ const AgentLogPanelScene := preload("ui/log_panel/agent_log_panel.tscn")
 const AgentLog := preload("core/agent_log.gd")
 const HarnessSettings := preload("core/harness_settings.gd")
 const SettingsDialog := preload("ui/settings/settings_dialog.gd")
+const I18n := preload("core/i18n.gd")
 const SessionHistory := preload("session/session_history.gd")
 const SessionModel := preload("session/session_model.gd")
 const SessionController := preload("session/session_controller.gd")
@@ -87,6 +88,7 @@ func _enter_tree() -> void:
 	add_export_plugin(_export_plugin)
 
 	_settings = HarnessSettings.new(EditorInterface.get_editor_settings())
+	I18n.setup(_settings.language())
 	_log = AgentLog.new()
 	_model = SessionModel.new()
 	_controller = SessionController.new()
@@ -112,6 +114,7 @@ func _enter_tree() -> void:
 	_controller.set_fs_handler(_fs)
 	_model.tool_call_changed.connect(_on_tool_call_changed)
 	_diff_dialog = DiffDialog.new()
+	_diff_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	EditorInterface.get_base_control().add_child(_diff_dialog)
 	_playtest_debugger = PlaytestDebugger.new()
 	# El juego ya leyó project.godot cuando su sesión de debug arranca: el autoload se quita ahí.
@@ -152,18 +155,23 @@ func _enter_tree() -> void:
 			dock.set_oneshot_active(_oneshot.is_active()))
 	var log_panel := AgentLogPanelScene.instantiate()
 	log_panel.setup(_log)
+	# Los textos ya vienen traducidos por I18n: que el editor no los vuelva a traducir con los suyos.
+	for surface: Node in [dock, log_panel]:
+		surface.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 
 	_surfaces = EditorSurfaces.new(self)
 	_surfaces.side_slot = HarnessSettings.DOCK_SLOTS[_settings.dock_slot()]
 	_surfaces.add(EditorSurfaces.Surface.SIDE, dock, DOCK_TITLE, "godot_agent_dock")
 	_surfaces.add(EditorSurfaces.Surface.BOTTOM, log_panel, LOG_PANEL_TITLE, "godot_agent_log")
 	_main_screen = AgentMainScreenScene.instantiate()
+	_main_screen.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_main_screen.setup(_oneshot, _settings.accent_color(), _oneshot_defaults())
 	_main_screen.diff_requested.connect(_diff_dialog.show_diff)
 	_surfaces.add(EditorSurfaces.Surface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
 	_restore_oneshot.call_deferred()
 
 	_settings_dialog = SettingsDialog.new()
+	_settings_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_settings_dialog.setup(_settings, _project_config)
 	_settings_dialog.mcp_url_provider = func() -> String:
 		return _mcp_server.url() if _mcp_server and _mcp_server.is_listening() else ""
@@ -291,21 +299,21 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 func _on_conflict_detected(res_path: String) -> void:
 	var data := {"path": res_path}
 	_model.add_notice(
-		"%s tiene cambios sin guardar y el agente lo modificó en disco. No se pisó nada." % res_path,
+		I18n.t("%s has unsaved changes and the agent modified it on disk. Nothing was overwritten.") % res_path,
 		ChatEntry.Level.WARNING,
 		[
-			{"id": ACTION_CONFLICT_DIFF, "label": "Ver diff", "data": data},
-			{"id": ACTION_CONFLICT_USE_AGENT, "label": "Usar la del agente", "data": data},
-			{"id": ACTION_CONFLICT_KEEP_MINE, "label": "Mantener la mía", "data": data},
+			{"id": ACTION_CONFLICT_DIFF, "label": I18n.t("View diff"), "data": data},
+			{"id": ACTION_CONFLICT_USE_AGENT, "label": I18n.t("Use the agent's"), "data": data},
+			{"id": ACTION_CONFLICT_KEEP_MINE, "label": I18n.t("Keep mine"), "data": data},
 		]
 	)
 
 
 func _on_open_scene_modified(res_path: String) -> void:
 	_model.add_notice(
-		"El agente modificó en disco la escena abierta %s, que tiene cambios sin guardar: no se recargó. Recargarla descarta tus cambios." % res_path,
+		I18n.t("The agent modified the open scene %s on disk, and it has unsaved changes: it was not reloaded. Reloading it discards your changes.") % res_path,
 		ChatEntry.Level.WARNING,
-		[{"id": ACTION_RELOAD_SCENE, "label": "Recargar escena", "data": {"path": res_path}}]
+		[{"id": ACTION_RELOAD_SCENE, "label": I18n.t("Reload scene"), "data": {"path": res_path}}]
 	)
 
 
@@ -314,7 +322,7 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 	match action:
 		ACTION_CONFLICT_DIFF:
 			var buffer: Variant = _sync.buffer_text(ProjectSettings.globalize_path(path))
-			_diff_dialog.show_diff("Conflicto: " + path.get_file(), "tu versión", str(buffer) if buffer != null else "", "versión del agente", _sync.conflict_disk_text(path))
+			_diff_dialog.show_diff(I18n.t("Conflict: %s") % path.get_file(), I18n.t("your version"), str(buffer) if buffer != null else "", I18n.t("agent's version"), _sync.conflict_disk_text(path))
 		ACTION_CONFLICT_USE_AGENT:
 			_sync.resolve_use_disk(path)
 		ACTION_CONFLICT_KEEP_MINE:
@@ -325,7 +333,7 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_undo_tool_call(str(payload))
 		AgentDock.ACTION_REVIEW_FOCUS:
 			if not _review_annotations.focus_finding(int(payload)):
-				_model.add_notice("No se pudo abrir el hallazgo.", ChatEntry.Level.WARNING)
+				_model.add_notice(I18n.t("Could not open the finding."), ChatEntry.Level.WARNING)
 		AgentDock.ACTION_REVIEW_FIX_ALL:
 			_fix_review_findings(_controller.review.findings.duplicate())
 		AgentDock.ACTION_OPEN_RUN_FILE:
@@ -360,7 +368,7 @@ func _fix_review_findings(list: Array[Dictionary]) -> void:
 func _can_send() -> bool:
 	if _model.state == SessionModel.State.READY:
 		return true
-	_model.add_notice("Para eso hace falta una sesión lista y sin un turno en curso.", ChatEntry.Level.WARNING)
+	_model.add_notice(I18n.t("That needs a ready session with no turn in progress."), ChatEntry.Level.WARNING)
 	return false
 
 
@@ -390,9 +398,9 @@ func _undo_tool_call(call_id: String) -> void:
 	if reason.is_empty():
 		call.undo_done = true
 		_model.touch_tool_call(call)
-		_log.add(AgentLog.CH_MCP, "deshecho: %s" % call.undo_info.get("action", ""))
+		_log.add(AgentLog.CH_MCP, "undone: %s" % call.undo_info.get("action", ""))
 	else:
-		_model.add_notice("No se pudo deshacer «%s»: %s" % [call.undo_info.get("action", ""), reason], ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("Could not undo «%s»: %s") % [call.undo_info.get("action", ""), reason], ChatEntry.Level.WARNING)
 
 
 ## Server MCP con las tools godot.* (spec §5). La política de permisos se aplica del lado del server
@@ -436,7 +444,7 @@ func _mcp_servers() -> Array:
 		return [_mcp_server.http_server_entry()]
 	var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, _mcp_server.url(), _mcp_server.token)
 	if entry.is_empty():
-		_log.add(AgentLog.CH_MCP, "no se pudo preparar el shim stdio en user://: el agente no tendrá las tools godot.*")
+		_log.add(AgentLog.CH_MCP, "could not prepare the stdio shim in user://: the agent will not have the godot.* tools")
 		return []
 	return [entry]
 
@@ -474,7 +482,7 @@ func _on_settings_saved() -> void:
 	_oneshot.loops.repeats = _project_config.loop_repeats
 	_oneshot.criteria = GameCriteria.resolve(_project_config.criteria)
 	_completion.apply_settings()
-	_log.add(AgentLog.CH_ACP, "settings guardados")
+	_log.add(AgentLog.CH_ACP, "settings saved")
 
 
 ## Mismo puerto (para no cambiar la URL), token nuevo. Las sesiones abiertas quedan con el viejo.
@@ -483,7 +491,7 @@ func _regenerate_mcp_token() -> void:
 	_log.remove_secret(_mcp_server.token)
 	if _mcp_server.start(port) == OK:
 		_log.add_secret(_mcp_server.token)
-		_model.add_notice("Token MCP regenerado: las tools godot.* llegan a las sesiones nuevas.", ChatEntry.Level.INFO)
+		_model.add_notice(I18n.t("MCP token regenerated: the godot.* tools reach new sessions."), ChatEntry.Level.INFO)
 
 
 ## Umbrales de cuota del usuario (spec §10.1, EditorSettings godot_agent/quota/*).
@@ -512,7 +520,7 @@ func _on_harness_mode_changed(mode: SessionModel.HarnessMode) -> void:
 func _restore_oneshot() -> void:
 	if _oneshot == null or not _oneshot.restore_interrupted():
 		return
-	_model.add_notice("Hay un One-shot a medias: «%s». Está en pausa en la pantalla Agent; «Retomar» reabre la sesión del agente." % _oneshot.goal.left(80), ChatEntry.Level.WARNING)
+	_model.add_notice(I18n.t("There is an unfinished One-shot: «%s». It is paused in the Agent screen; «Resume» reopens the agent session.") % _oneshot.goal.left(80), ChatEntry.Level.WARNING)
 
 
 ## Con un One-shot en curso, lo que se escribe en el dock guía al agente del run (oneshot.guide).
@@ -530,7 +538,7 @@ func _intercept_dock_retry() -> bool:
 	if _oneshot.can_resume():
 		_oneshot.resume()
 	else:
-		_model.add_notice("El One-shot sigue en curso: pausalo o detenelo desde la pantalla Agent.", ChatEntry.Level.INFO)
+		_model.add_notice(I18n.t("The One-shot is still running: pause or stop it from the Agent screen."), ChatEntry.Level.INFO)
 	return true
 
 

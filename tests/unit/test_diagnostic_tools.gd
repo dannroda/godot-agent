@@ -22,7 +22,7 @@ func test_parse_checker_output() -> void:
 		"@@END ok res://good.gd",
 	]
 	var results := DiagnosticTools.parse_checker_output(lines)
-	assert_eq(results["res://bad.gd"].errors, ["línea 4: Parse Error: Identifier \"x\" not declared in the current scope."], "error con línea, sin el genérico ni ANSI")
+	assert_eq(results["res://bad.gd"].errors, ["line 4: Parse Error: Identifier \"x\" not declared in the current scope."], "error con línea, sin el genérico ni ANSI")
 	assert_eq(results["res://uses_bad.gd"].errors.size(), 1, "error de dependencia")
 	assert_true(results["res://good.gd"].ok and results["res://good.gd"].errors.is_empty(), "script sano")
 

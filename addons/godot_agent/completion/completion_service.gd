@@ -7,6 +7,7 @@ extends Node
 
 const AgentLog := preload("../core/agent_log.gd")
 const HarnessSettings := preload("../core/harness_settings.gd")
+const I18n := preload("../core/i18n.gd")
 const ProjectConfig := preload("../config/project_config.gd")
 const ProjectContext := preload("project_context.gd")
 const LocalProvider := preload("local/local_provider.gd")
@@ -114,7 +115,7 @@ func toggle_enabled() -> void:
 		_settings.set_value(HarnessSettings.KEY_COMPLETION_ENABLED, not _settings.completion_enabled())
 	apply_settings()
 	if _log:
-		_log.add(AgentLog.CH_CMP, "completado %s" % ("prendido" if is_enabled() else "apagado"))
+		_log.add(AgentLog.CH_CMP, "completion %s" % ("on" if is_enabled() else "off"))
 
 
 func _release(controller: CompletionController) -> void:
@@ -187,9 +188,10 @@ func _refresh_indicator() -> void:
 		return
 	var mode := _settings.completion_mode() if _settings else CompletionController.MODE_LOCAL
 	var profile: LlmProfile = _settings.active_llm_profile() if _settings else null
-	var label := "local"
+	var label := I18n.t("local")
 	if mode != CompletionController.MODE_LOCAL and profile:
-		label = "%s · %s" % ["híbrido" if mode == CompletionController.MODE_HYBRID else "LLM", profile.model if not profile.model.is_empty() else profile.kind]
+		var model := profile.model if not profile.model.is_empty() else profile.kind
+		label = I18n.t("hybrid · %s") % model if mode == CompletionController.MODE_HYBRID else I18n.t("LLM · %s") % model
 	var state := CompletionIndicator.State.ACTIVE
 	if not is_enabled():
 		state = CompletionIndicator.State.OFF
@@ -266,7 +268,7 @@ func _on_indexed(build_usec: int) -> void:
 	for controller: CompletionController in _controllers.values():
 		controller.cache.clear()
 	if _log:
-		_log.add(AgentLog.CH_CMP, "índice: %d scripts, %d escenas, %d líneas únicas, %d tokens en %.0f ms" % [
+		_log.add(AgentLog.CH_CMP, "index: %d scripts, %d scenes, %d unique lines, %d tokens in %.0f ms" % [
 			context.index.scripts.size(), context.index.scenes.size(), context.lines().size(), context.ngram().token_count, build_usec / 1000.0])
 
 
@@ -277,11 +279,11 @@ func _on_shown(result: CompletionResult) -> void:
 		metrics.record_latency(result.source, result.latency_usec / 1000.0)  # la del LLM, al terminar
 	_shown_count += 1
 	if _log:
-		_log.add(AgentLog.CH_CMP, "shown %s %.2f ms score %.2f out %d líneas %d caché %s%s" % [
+		_log.add(AgentLog.CH_CMP, "shown %s %.2f ms score %.2f out %d lines %d cache %s%s" % [
 			result.source, result.latency_usec / 1000.0, result.score, result.text.length(), result.text.count("\n") + 1,
 			"hit" if result.cached else "miss", _raw(result)])
 		if _shown_count % METRICS_LOG_EVERY == 0:
-			_log.add(AgentLog.CH_CMP, "latencias: " + metrics.format_line())
+			_log.add(AgentLog.CH_CMP, "latencies: " + metrics.format_line())
 
 
 func _on_accepted_partial(result: CompletionResult) -> void:
@@ -322,7 +324,7 @@ func _on_llm_finished(state: String, result: CompletionResult, error: String, la
 			"error":
 				_log.add(AgentLog.CH_CMP, "llm error %.0f ms: %s" % [latency_ms, error])
 			_:
-				_log.add(AgentLog.CH_CMP, "llm %s %.0f ms%s" % ["sugerencia" if result else "sin sugerencia", latency_ms, sizes])
+				_log.add(AgentLog.CH_CMP, "llm %s %.0f ms%s" % ["suggestion" if result else "no suggestion", latency_ms, sizes])
 	_refresh_indicator()
 
 
