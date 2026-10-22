@@ -40,6 +40,8 @@ const ADD_CONTEXT_SCREENSHOT := 2
 ## Acciones de la revisión que resuelve el plugin (junto con las de las tarjetas del Script Editor).
 const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
+## Un link a .godot_agent/oneshot/… (spec, progreso, QA): lo muestra la pantalla Agent.
+const ACTION_OPEN_RUN_FILE := "open_run_file"
 ## Prompts enviados en este proyecto (flechas en el composer). Datos del usuario, fuera del repo.
 const PROMPT_HISTORY_PATH := "user://godot_agent/prompt_history.json"
 
@@ -563,13 +565,37 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			if url.begins_with("http://") or url.begins_with("https://"):
 				OS.shell_open(url)
 			else:
-				EditorContext.open_location(url.trim_prefix("file://"))
+				_open_path(url.trim_prefix("file://"), 0)
 		"open_location":
 			var location: Dictionary = payload
-			if not EditorContext.open_location(str(location.path), int(location.get("line", 0))):
-				_model.add_notice("No se pudo abrir %s." % location.path, ChatEntry.Level.WARNING)
+			_open_path(str(location.path), int(location.get("line", 0)))
 		_:
 			action_forwarded.emit(action, payload)
+
+
+## Un archivo del chat: escenas y scripts en el editor; spec y progreso del One-shot en la pantalla
+## Agent; el resto de los archivos de texto (.md, .txt…), que Godot no carga, con el programa del
+## sistema.
+func set_oneshot_active(active: bool) -> void:
+	_composer.set_oneshot_active(active)
+
+
+func _open_path(path: String, line: int) -> void:
+	var absolute := path
+	if path.begins_with("res://"):
+		absolute = ProjectSettings.globalize_path(path)
+	elif not path.is_absolute_path():
+		absolute = ProjectSettings.globalize_path("res://").path_join(path.trim_prefix("./"))
+	absolute = absolute.simplify_path()
+	if absolute.contains("/.godot_agent/oneshot/"):
+		action_forwarded.emit(ACTION_OPEN_RUN_FILE, {"path": absolute})
+		return
+	if EditorContext.open_location(absolute, line):
+		return
+	if FileAccess.file_exists(absolute):
+		OS.shell_open(absolute)
+		return
+	_model.add_notice("No se pudo abrir %s." % path, ChatEntry.Level.WARNING)
 
 
 func _ask_login_code() -> void:

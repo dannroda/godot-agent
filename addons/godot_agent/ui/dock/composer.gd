@@ -17,6 +17,7 @@ const SuggestionList := preload("suggestion_list.gd")
 
 const PLACEHOLDER := "Pedile algo… @ para nodos y archivos, / para comandos"
 const PLACEHOLDER_BUSY := "El agente está trabajando: Enter deja el mensaje en cola"
+const PLACEHOLDER_ONESHOT := "One-shot en curso: escribile al agente; le llega al terminar el turno"
 ## Prompts que se recuerdan (los más viejos se descartan).
 const HISTORY_LIMIT := 100
 ## Filas que se cargan en la lista (se ven hasta SuggestionList.MAX_ROWS, el resto con scroll).
@@ -46,6 +47,7 @@ var _model_button: OptionButton
 var _send_button: Button
 var _screenshot_button: Button
 var _busy: bool = false
+var _oneshot_active: bool = false
 ## Motivo del bloqueo del envío (límite del plan, con la cuenta regresiva); "" = sin bloqueo.
 var _lock_text: String = ""
 var _lock_tooltip: String = ""
@@ -153,8 +155,20 @@ func focus() -> void:
 ## `busy`: hay un turno en curso (el botón pasa a Detener).
 func set_busy(busy: bool) -> void:
 	_busy = busy
-	_input.placeholder_text = PLACEHOLDER_BUSY if busy else PLACEHOLDER
+	_update_placeholder()
 	_update_send_button()
+
+
+## Con un One-shot en curso, lo que se escribe guía al agente del run.
+func set_oneshot_active(active: bool) -> void:
+	if active == _oneshot_active:
+		return
+	_oneshot_active = active
+	_update_placeholder()
+
+
+func _update_placeholder() -> void:
+	_input.placeholder_text = PLACEHOLDER_ONESHOT if _oneshot_active else (PLACEHOLDER_BUSY if _busy else PLACEHOLDER)
 
 
 func set_enabled(enabled: bool) -> void:

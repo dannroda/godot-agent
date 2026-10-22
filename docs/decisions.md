@@ -624,4 +624,9 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - `.godot_agent/.gdignore` deja la carpeta fuera del FileSystem del editor, de la importación y del export; el export plugin además saltea `res://.godot_agent/` por las dudas.
   - La carpeta entra en los checkpoints: así, «Volver acá» deja spec y progreso sincronizados con el código. Va en la rama del agente; si el usuario no la quiere en su rama, la borra antes del merge.
   - «Revisar cambios» y el resumen de cambios no la cuentan: no son cambios del juego.
-- **Pruebas**: `test_oneshot_files`; `oneshot_check` (spec): esperar, guiar, aprobar con cambios, terminar y el spec en git; `--godot-agent-oneshot-test` con «Revisar spec» y «Aprobar spec».
+- **Dónde se ven** (después de probarlo en un proyecto real: la carpeta oculta no aparece en el FileSystem y la columna Plan quedaba vacía durante la revisión):
+  - en «Spec para revisar», la columna Plan muestra el spec renderizado con «Editar» y «Aprobar spec»;
+  - «Spec y progreso» abre un visor con pestañas Spec (editable), Progreso y QA n, con «Mostrar en carpeta» y «Abrir con editor externo»;
+  - un link del chat a `.godot_agent/oneshot/…` abre ese visor en su pestaña. Los demás archivos de texto que Godot no carga (`.md`, `.txt`…) se abren con el programa del sistema, en vez de «No se pudo abrir».
+- **Guiar = el chat**: con un One-shot en curso, lo que se escribe en el chat del dock ya iba a `guide()`. El campo «Guiar al agente» de la pantalla duplicaba eso y confundía, así que se sacó. El placeholder del composer lo dice.
+- **Pruebas**: `test_oneshot_files`; `oneshot_check` (spec): esperar, guiar, aprobar con cambios, terminar y el spec en git; `--godot-agent-oneshot-test` con la columna del spec, el visor y un link a progress.md.

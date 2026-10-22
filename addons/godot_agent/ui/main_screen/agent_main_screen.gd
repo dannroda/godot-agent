@@ -27,6 +27,12 @@ const ACTIVITY_COLORS: Dictionary = {
 	"spec": Color("#8fd3c7"),
 }
 const SUMMARY_INTERVAL_S := 2.0
+## El formulario crece con la pantalla (m6-13): ancho y alto del objetivo, en px sin escalar.
+const FORM_MIN_WIDTH := 640
+const FORM_MAX_WIDTH := 1400
+const FORM_WIDTH_RATIO := 0.62
+const GOAL_MIN_HEIGHT := 110
+const GOAL_HEIGHT_RATIO := 0.4
 const SCENE_EXTENSIONS: PackedStringArray = ["tscn", "scn"]
 const SCRIPT_EXTENSIONS: PackedStringArray = ["gd", "cs", "gdshader"]
 
@@ -46,8 +52,21 @@ var _budget_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
 var _spec_check: CheckBox
 var _spec_button: Button
-var _spec_dialog: ConfirmationDialog
+## Spec, progreso y QA del run (D41): el spec se edita, el resto se lee.
+var _files_dialog: ConfirmationDialog
+var _files_tabs: TabContainer
+var _files_path_label: Label
 var _spec_edit: TextEdit
+var _files_paths: PackedStringArray = []
+var _plan_title: Label
+var _budgets_button: Button
+var _budgets_dialog: ConfirmationDialog
+## clave de presupuesto -> SpinBox del diálogo
+var _budgets_edit: Dictionary = {}
+var _plan_note: Label
+var _spec_view: RichTextLabel
+var _spec_bar: HBoxContainer
+var _spec_shown: String = ""
 var _form_rule: Label
 var _start_button: Button
 # Vista del One-shot
@@ -66,7 +85,6 @@ var _plan_edit: TextEdit
 var _plan_edit_bar: HBoxContainer
 var _plan_edit_button: Button
 var _activity_text: RichTextLabel
-var _guide_edit: LineEdit
 var _capture_rect: TextureRect
 var _capture_caption: Label
 var _checks_list: VBoxContainer
@@ -157,9 +175,10 @@ func _build_form() -> void:
 	add_child(center)
 	_form = center
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = AgentTheme.px(640)
+	panel.custom_minimum_size.x = AgentTheme.px(FORM_MIN_WIDTH)
 	panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(AgentTheme.dark_color(), Color(1, 1, 1, 0.08), 8, 20))
 	center.add_child(panel)
+	center.resized.connect(_fit_form.bind(center, panel))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override(&"separation", AgentTheme.px(10))
 	panel.add_child(box)
@@ -176,7 +195,7 @@ func _build_form() -> void:
 	_goal_edit = TextEdit.new()
 	_goal_edit.placeholder_text = "Ej.: Pong de 2 jugadores con puntaje, saque y reinicio. Usar los assets de res://assets y respetar CLAUDE.md."
 	_goal_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_goal_edit.custom_minimum_size.y = AgentTheme.px(110)
+	_goal_edit.custom_minimum_size.y = AgentTheme.px(GOAL_MIN_HEIGHT)
 	_goal_edit.text_changed.connect(_refresh_form)
 	box.add_child(_goal_edit)
 	box.add_child(_heading("Presupuestos (0 = sin límite)"))
@@ -258,10 +277,15 @@ func _build_top_bar() -> Control:
 	_phase_label.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 	_phase_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_phase_label)
+	_budgets_button = Button.new()
+	_budgets_button.text = "Presupuestos"
+	_budgets_button.tooltip_text = "Cambiar los presupuestos con el run en curso (0 = sin límite)."
+	_budgets_button.pressed.connect(_show_budgets)
+	header.add_child(_budgets_button)
 	_spec_button = Button.new()
 	_spec_button.text = "Spec"
 	_spec_button.tooltip_text = "El spec que escribió el agente (.godot_agent/oneshot/<id>/spec.md): se puede leer y editar."
-	_spec_button.pressed.connect(_show_spec)
+	_spec_button.pressed.connect(func() -> void: _show_files())
 	header.add_child(_spec_button)
 	_pause_button = Button.new()
 	_pause_button.pressed.connect(_on_pause_pressed)
@@ -318,6 +342,7 @@ func _build_plan_column() -> Control:
 	var title := _heading("Plan")
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
+	_plan_title = title
 	_plan_edit_button = Button.new()
 	_plan_edit_button.text = "Editar"
 	_plan_edit_button.flat = true
@@ -332,6 +357,24 @@ func _build_plan_column() -> Control:
 	_plan_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_plan_list.add_theme_constant_override(&"separation", AgentTheme.px(2))
 	scroll.add_child(_plan_list)
+	# Mientras se revisa el spec, la columna lo muestra en lugar del plan (que todavía no existe).
+	_spec_view = RichTextLabel.new()
+	_spec_view.bbcode_enabled = true
+	_spec_view.selection_enabled = true
+	_spec_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_spec_view.visible = false
+	column.add_child(_spec_view)
+	_spec_bar = HBoxContainer.new()
+	_spec_bar.alignment = BoxContainer.ALIGNMENT_END
+	_spec_bar.visible = false
+	column.add_child(_spec_bar)
+	var edit_spec := Button.new()
+	edit_spec.text = "Editar"
+	edit_spec.pressed.connect(func() -> void: _show_files(_run.files.spec_path()))
+	_spec_bar.add_child(edit_spec)
+	var approve := _accent_button("Aprobar spec")
+	approve.pressed.connect(func() -> void: _run.approve_spec())
+	_spec_bar.add_child(approve)
 	_plan_edit = TextEdit.new()
 	_plan_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_plan_edit.visible = false
@@ -349,12 +392,12 @@ func _build_plan_column() -> Control:
 		_run.edit_plan(_plan_edit.text.split("\n"))
 		_set_plan_editing(false))
 	_plan_edit_bar.add_child(send)
-	var note := Label.new()
-	note.text = "Podés editar el plan mientras corre: el agente lo relee al terminar el turno."
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	note.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
-	column.add_child(note)
+	_plan_note = Label.new()
+	_plan_note.text = "Podés editar el plan mientras corre: el agente lo relee al terminar el turno."
+	_plan_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_plan_note.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_plan_note.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+	column.add_child(_plan_note)
 	return column.get_parent()
 
 
@@ -368,18 +411,12 @@ func _build_activity_column() -> Control:
 	_activity_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_activity_text.add_theme_font_override(&"mono_font", AgentTheme.mono_font())
 	column.add_child(_activity_text)
-	var guide := HBoxContainer.new()
-	column.add_child(guide)
-	_guide_edit = LineEdit.new()
-	_guide_edit.placeholder_text = "Guiar al agente…"
-	_guide_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_guide_edit.tooltip_text = "Se manda como un mensaje más al terminar el turno actual."
-	_guide_edit.text_submitted.connect(func(_text: String) -> void: _on_guide_pressed())
-	guide.add_child(_guide_edit)
-	var send := Button.new()
-	send.text = "Enviar"
-	send.pressed.connect(_on_guide_pressed)
-	guide.add_child(send)
+	var hint := Label.new()
+	hint.text = "Para guiar al agente, escribile en el chat del dock: con el One-shot en curso, el mensaje le llega al terminar el turno."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	hint.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+	column.add_child(hint)
 	return column.get_parent()
 
 
@@ -487,15 +524,63 @@ func _build_dialogs() -> void:
 	_error_dialog = AcceptDialog.new()
 	_error_dialog.title = "One-shot"
 	add_child(_error_dialog)
-	_spec_dialog = ConfirmationDialog.new()
-	_spec_dialog.title = "Spec del One-shot"
-	_spec_dialog.min_size = Vector2i(AgentTheme.px(640), AgentTheme.px(480))
-	_spec_dialog.confirmed.connect(_on_spec_confirmed)
+	_budgets_dialog = ConfirmationDialog.new()
+	_budgets_dialog.title = "Presupuestos del One-shot"
+	_budgets_dialog.ok_button_text = "Aplicar"
+	_budgets_dialog.add_button("Ilimitado", false, "unlimited")
+	_budgets_dialog.custom_action.connect(func(action: StringName) -> void:
+		if action == &"unlimited":
+			for key: String in _budgets_edit:
+				(_budgets_edit[key] as SpinBox).value = 0
+			_apply_budgets()
+			_budgets_dialog.hide())
+	_budgets_dialog.confirmed.connect(_apply_budgets)
+	var budgets_box := VBoxContainer.new()
+	_budgets_dialog.add_child(budgets_box)
+	var budgets_hint := Label.new()
+	budgets_hint.text = "0 = sin límite. Si el run iba a cerrar por presupuesto y ahora alcanza, sigue."
+	budgets_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	budgets_box.add_child(budgets_hint)
+	var budgets_grid := GridContainer.new()
+	budgets_grid.columns = 2
+	budgets_box.add_child(budgets_grid)
+	for spec: Array in [[OneShotRun.BUDGET_TIME, "min", 600, 1], [OneShotRun.BUDGET_TOKENS, "", 20000000, 10000], [OneShotRun.BUDGET_PLAYTESTS, "", 100, 1]]:
+		var label := Label.new()
+		label.text = OneShotRun.BUDGET_LABELS[spec[0]]
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		budgets_grid.add_child(label)
+		var spin := SpinBox.new()
+		spin.max_value = spec[2]
+		spin.step = spec[3]
+		spin.suffix = spec[1]
+		spin.select_all_on_focus = true
+		spin.custom_minimum_size.x = AgentTheme.px(160)
+		budgets_grid.add_child(spin)
+		_budgets_edit[spec[0]] = spin
+	add_child(_budgets_dialog)
+	_files_dialog = ConfirmationDialog.new()
+	_files_dialog.title = "Spec y progreso del One-shot"
+	_files_dialog.min_size = Vector2i(AgentTheme.px(760), AgentTheme.px(560))
+	_files_dialog.cancel_button_text = "Cerrar"
+	_files_dialog.add_button("Mostrar en carpeta", false, "folder")
+	_files_dialog.add_button("Abrir con editor externo", false, "external")
+	_files_dialog.custom_action.connect(_on_files_action)
+	_files_dialog.confirmed.connect(_on_files_confirmed)
+	var files_box := VBoxContainer.new()
+	_files_dialog.add_child(files_box)
+	_files_path_label = Label.new()
+	_files_path_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_files_path_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	files_box.add_child(_files_path_label)
+	_files_tabs = TabContainer.new()
+	_files_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_files_tabs.tab_changed.connect(func(_tab: int) -> void: _refresh_files_path())
+	files_box.add_child(_files_tabs)
 	_spec_edit = TextEdit.new()
+	_spec_edit.name = "Spec"
 	_spec_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_spec_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_spec_dialog.add_child(_spec_edit)
-	add_child(_spec_dialog)
+	_files_tabs.add_child(_spec_edit)
+	add_child(_files_dialog)
 	_report_dialog = AcceptDialog.new()
 	_report_dialog.title = "Informe del One-shot"
 	_report_dialog.ok_button_text = "Cerrar"
@@ -522,6 +607,14 @@ func _column(ratio: float) -> VBoxContainer:
 	column.add_theme_constant_override(&"separation", AgentTheme.px(6))
 	margin.add_child(column)
 	return column
+
+
+## Ancho del formulario y alto del objetivo según el espacio disponible. El resto del formulario
+## mide unos 330 px; el objetivo se queda con hasta el 40 % del alto.
+func _fit_form(center: Control, panel: Control) -> void:
+	var width := clampf(center.size.x * FORM_WIDTH_RATIO, AgentTheme.px(FORM_MIN_WIDTH), maxf(AgentTheme.px(FORM_MAX_WIDTH), AgentTheme.px(FORM_MIN_WIDTH)))
+	panel.custom_minimum_size.x = minf(width, maxf(center.size.x - AgentTheme.px(32), AgentTheme.px(FORM_MIN_WIDTH)))
+	_goal_edit.custom_minimum_size.y = maxf(AgentTheme.px(GOAL_MIN_HEIGHT), center.size.y * GOAL_HEIGHT_RATIO)
 
 
 func _heading(text: String) -> Label:
@@ -601,7 +694,7 @@ func _refresh_banner() -> void:
 			var wait := quota.seconds_until_retry()
 			text = "Límite del plan alcanzado · " + ("se puede volver a intentar en %s" % QuotaMonitor.format_duration(wait) if wait > 0 else "ya se puede reintentar")
 	if text.is_empty() and _run.phase == OneShotRun.Phase.SPEC_REVIEW:
-		text = "El agente escribió el spec. Revisalo con «Revisar spec» (lo podés editar) y aprobalo para que empiece a construir; «Guiar al agente» le pide cambios." if _run.files.has_spec() else "El agente no escribió el spec. Guialo para que lo escriba, o aprobá para seguir sin spec."
+		text = "El agente escribió el spec: está en la columna de la izquierda. Aprobalo para que empiece a construir, o escribile en el chat qué cambiar (lo revisa y vuelve a esperar)." if _run.files.has_spec() else "El agente no escribió el spec. Escribile en el chat que lo escriba, o aprobá para seguir sin spec."
 	if text.is_empty() and _run.phase == OneShotRun.Phase.PAUSED and not _run.pause_note.is_empty():
 		text = _run.pause_note
 	if text.is_empty() and _run.recovered and _run.phase == OneShotRun.Phase.PAUSED:
@@ -670,10 +763,24 @@ func _refresh_top_bar() -> void:
 	_pause_button.tooltip_text = "Reintenta ya, sin esperar el reinicio de la ventana." if _run.phase == OneShotRun.Phase.LIMITED else ""
 	_stop_button.disabled = not _run.is_active()
 	_spec_button.visible = _run.files.has_spec() or _run.phase == OneShotRun.Phase.SPEC_REVIEW
-	_spec_button.text = "Revisar spec" if _run.phase == OneShotRun.Phase.SPEC_REVIEW else "Spec"
+	_budgets_button.visible = _run.is_active()
+	_spec_button.text = "Revisar spec" if _run.phase == OneShotRun.Phase.SPEC_REVIEW else "Spec y progreso"
 
 
 func _refresh_plan() -> void:
+	var reviewing := _run.phase == OneShotRun.Phase.SPEC_REVIEW
+	_plan_title.text = "SPEC" if reviewing else "PLAN"
+	(_plan_list.get_parent() as Control).visible = not reviewing and not _plan_edit.visible
+	_plan_edit_button.visible = not reviewing and not _plan_edit.visible
+	_plan_note.visible = not reviewing
+	_spec_view.visible = reviewing
+	_spec_bar.visible = reviewing
+	if reviewing:
+		var spec := _run.files.read(_run.files.spec_path())
+		if spec != _spec_shown or _spec_view.text.is_empty():
+			_spec_shown = spec
+			_spec_view.text = MarkdownBBCode.new().convert(spec) if not spec.is_empty() else "[color=#9aa0a6]El agente no escribió el spec. Escribile en el chat que lo escriba, o aprobá para seguir sin spec.[/color]"
+		return
 	var plan: Array = _run.current_plan()
 	var signature := JSON.stringify(plan) + ("|fin" if plan.is_empty() and _run.phase == OneShotRun.Phase.FINISHED else "")
 	if signature == _plan_signature:
@@ -799,7 +906,7 @@ func _budget_text(key: String) -> String:
 	match key:
 		OneShotRun.BUDGET_TIME:
 			var minutes := int(float(_run.used[key]) / 60.0)
-			return "%d / %s" % [minutes, "%d min" % limit if limit > 0 else "∞"]
+			return "%d / %d min" % [minutes, limit] if limit > 0 else "%d min / ∞" % minutes
 		OneShotRun.BUDGET_TOKENS:
 			return "%s / %s" % [format_tokens(int(_run.used[key])), format_tokens(limit) if limit > 0 else "∞"]
 	return "%d / %s" % [int(_run.used[key]), str(limit) if limit > 0 else "∞"]
@@ -875,14 +982,6 @@ func _on_pause_pressed() -> void:
 		_run.pause()
 	else:
 		_run.resume()
-
-
-func _on_guide_pressed() -> void:
-	var text := _guide_edit.text.strip_edges()
-	if text.is_empty():
-		return
-	_guide_edit.text = ""
-	_run.guide(text)
 
 
 func _on_plan_edit_pressed() -> void:
@@ -988,15 +1087,72 @@ func _show_report() -> void:
 	_report_dialog.popup_centered()
 
 
-func _show_spec() -> void:
+func _show_budgets() -> void:
+	for key: String in _budgets_edit:
+		(_budgets_edit[key] as SpinBox).value = float(_run.budgets.get(key, 0))
+	_budgets_dialog.popup_centered()
+
+
+func _apply_budgets() -> void:
+	var values := {}
+	for key: String in _budgets_edit:
+		values[key] = int((_budgets_edit[key] as SpinBox).value)
+	_run.set_budgets(values)
+
+
+## Un archivo de .godot_agent/oneshot/ (un link del chat): el del run se ve acá; otro, afuera.
+func show_run_file(path: String) -> void:
+	if _run and not _run.run_id.is_empty() and path.simplify_path().begins_with(_run.files.dir()):
+		_show_files(path.simplify_path())
+	elif FileAccess.file_exists(path):
+		OS.shell_open(path)
+
+
+## Spec (editable), progreso y los QA del run, en pestañas; `focus` elige la pestaña.
+func _show_files(focus: String = "") -> void:
+	for child: Node in _files_tabs.get_children():
+		if child != _spec_edit:
+			_files_tabs.remove_child(child)
+			child.queue_free()
 	_spec_edit.text = _run.files.read(_run.files.spec_path())
+	_files_paths = [_run.files.spec_path()]
+	var others: Array[Array] = [["Progreso", _run.files.progress_path()]]
+	for path: String in _run.files.qa_files():
+		others.append(["QA " + path.get_file().get_basename().trim_prefix("qa-"), path])
+	for other: Array in others:
+		var view := TextEdit.new()
+		view.name = other[0]
+		view.editable = false
+		view.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+		var text := _run.files.read(other[1])
+		view.text = text if not text.is_empty() else "(todavía no existe)"
+		_files_tabs.add_child(view)
+		_files_paths.append(other[1])
+	var index := _files_paths.find(focus)
+	_files_tabs.current_tab = maxi(index, 0)
 	var reviewing := _run.phase == OneShotRun.Phase.SPEC_REVIEW
-	_spec_dialog.ok_button_text = "Aprobar spec" if reviewing else "Guardar"
-	_spec_dialog.dialog_text = ""
-	_spec_dialog.popup_centered()
+	_files_dialog.ok_button_text = "Aprobar spec" if reviewing else "Guardar spec"
+	_refresh_files_path()
+	_files_dialog.popup_centered()
 
 
-func _on_spec_confirmed() -> void:
+func _refresh_files_path() -> void:
+	var tab := _files_tabs.current_tab
+	_files_path_label.text = _files_paths[tab] if tab >= 0 and tab < _files_paths.size() else ""
+
+
+func _on_files_action(action: StringName) -> void:
+	match action:
+		&"folder":
+			_run.files.prepare()
+			OS.shell_show_in_file_manager(_run.files.dir())
+		&"external":
+			var path := _files_path_label.text
+			if FileAccess.file_exists(path):
+				OS.shell_open(path)
+
+
+func _on_files_confirmed() -> void:
 	if _run.phase == OneShotRun.Phase.SPEC_REVIEW:
 		_run.approve_spec(_spec_edit.text)
 	elif _spec_edit.text != _run.files.read(_run.files.spec_path()):

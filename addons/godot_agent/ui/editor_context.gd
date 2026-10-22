@@ -120,6 +120,8 @@ static func open_location(path: String, line: int = 0) -> bool:
 	if res_path.get_extension() in ["tscn", "scn"]:
 		EditorInterface.open_scene_from_path(res_path)
 		return true
+	if not ResourceLoader.exists(res_path):  # .md, .txt…: load() escribiría un error en Output
+		return false
 	var resource := load(res_path)
 	if resource is Script:
 		EditorInterface.edit_script(resource, maxi(line, 1) if line > 0 else -1)

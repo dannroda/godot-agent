@@ -50,6 +50,21 @@ func prepare() -> bool:
 	return true
 
 
+## qa-<n>.md del run, en orden de vuelta.
+func qa_files() -> PackedStringArray:
+	var result: PackedStringArray = []
+	if run_id.is_empty() or not DirAccess.dir_exists_absolute(dir()):
+		return result
+	var rounds: Array[int] = []
+	for file: String in DirAccess.get_files_at(dir()):
+		if file.begins_with("qa-") and file.ends_with(".md") and file.trim_prefix("qa-").trim_suffix(".md").is_valid_int():
+			rounds.append(int(file.trim_prefix("qa-").trim_suffix(".md")))
+	rounds.sort()
+	for round_number: int in rounds:
+		result.append(qa_path(round_number))
+	return result
+
+
 func has_spec() -> bool:
 	return not run_id.is_empty() and FileAccess.file_exists(spec_path())
 

@@ -145,6 +145,9 @@ func _enter_tree() -> void:
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.submit_interceptor = _intercept_dock_prompt
 	dock.can_switch_session = func() -> bool: return not _oneshot.is_active()
+	_oneshot.changed.connect(func() -> void:
+		if is_instance_valid(dock):
+			dock.set_oneshot_active(_oneshot.is_active()))
 	var log_panel := AgentLogPanelScene.instantiate()
 	log_panel.setup(_log)
 
@@ -323,6 +326,10 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 				_model.add_notice("No se pudo abrir el hallazgo.", ChatEntry.Level.WARNING)
 		AgentDock.ACTION_REVIEW_FIX_ALL:
 			_fix_review_findings(_controller.review.findings.duplicate())
+		AgentDock.ACTION_OPEN_RUN_FILE:
+			if _surfaces:
+				_surfaces.make_visible(EditorSurfaces.Surface.MAIN_SCREEN)
+			_main_screen.call(&"show_run_file", path)
 
 
 ## Botones de la tarjeta de un hallazgo en el Script Editor (spec §9.4).
@@ -506,7 +513,7 @@ func _restore_oneshot() -> void:
 	_model.add_notice("Hay un One-shot a medias: «%s». Está en pausa en la pantalla Agent; «Retomar» reabre la sesión del agente." % _oneshot.goal.left(80), ChatEntry.Level.WARNING)
 
 
-## Con un One-shot en curso, lo que se escribe en el dock es "Guiar al agente".
+## Con un One-shot en curso, lo que se escribe en el dock guía al agente del run (oneshot.guide).
 func _intercept_dock_prompt(text: String) -> bool:
 	if _oneshot == null or not _oneshot.is_active():
 		return false

@@ -4,7 +4,7 @@ extends Node
 ## - prompt inicial con el objetivo, el plan, los checks y la verificación con run_scene;
 ## - checkpoint git antes de cada tarea del plan (cuando una entrada pasa a in_progress);
 ## - presupuestos de tiempo, tokens y playtests: aviso al 80 %, cierre con reporte al 100 %;
-## - "Guiar al agente" se encola para el fin del turno;
+## - lo que el usuario escribe en el chat (guide) se encola para el fin del turno;
 ## - cuota del plan: pausa en el próximo checkpoint, "limitado" con cpN-quota y reanudación;
 ## - el estado se guarda en disco mientras corre (D37): si el editor se cierra o se cae, al volver
 ##   el run queda en pausa y «Retomar» reabre la sesión del agente.
@@ -49,6 +49,7 @@ const BUDGET_TOKENS := "tokens"
 const BUDGET_PLAYTESTS := "playtests"
 const BUDGET_LABELS: Dictionary = {BUDGET_TIME: "Tiempo", BUDGET_TOKENS: "Tokens", BUDGET_PLAYTESTS: "Playtests"}
 const WARN_RATIO := 0.8
+const BUDGET_CLOSE_PREFIX := "Se agotó el presupuesto de "
 ## Turnos seguidos que terminan sin avance en el plan antes de dar el One-shot por terminado.
 const MAX_IDLE_CONTINUES := 3
 const ACTIVITY_LINE_CHARS := 140
@@ -133,6 +134,8 @@ var _last_save_msec: int = 0
 var _suspended: bool = false
 ## Falta que el usuario apruebe el spec: el próximo fin de turno pasa a SPEC_REVIEW.
 var _awaiting_spec: bool = false
+## Se subió el presupuesto mientras se cortaba el turno por agotarlo: al cortarse, sigue.
+var _continue_after_cancel: bool = false
 
 
 func setup(session_controller: SessionController, project_root: String) -> void:
@@ -229,6 +232,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	_current_task = -1
 	_idle_continues = 0
 	_close_reason = ""
+	_continue_after_cancel = false
 	_quota_checkpoint_done = false
 	finish_reason = ""
 	resume_task = ""
@@ -334,7 +338,7 @@ func stop() -> void:
 	_finish("Detenido por el usuario.")
 
 
-## "Guiar al agente": se manda al terminar el turno actual (o ya, si no hay turno en curso).
+## Lo que el usuario escribe en el chat del dock: se manda al terminar el turno actual (o ya, si no hay turno en curso).
 func guide(text: String) -> void:
 	text = text.strip_edges()
 	if text.is_empty() or not is_active():
@@ -353,6 +357,42 @@ func guide(text: String) -> void:
 		pause_note = ""
 		_set_phase(Phase.RUNNING)
 	_run_turn(text)
+
+
+## Presupuestos nuevos con el run en curso (m6-12); 0 = sin límite. Los avisos del 80 % se rearman
+## y, si el run iba a cerrar por presupuesto y ahora alcanza, sigue: si ya se pidió el reporte
+## final, ese turno queda como uno más.
+func set_budgets(values: Dictionary) -> void:
+	if not is_active():
+		return
+	for budget: String in [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS]:
+		if values.has(budget):
+			budgets[budget] = maxi(int(values[budget]), 0)
+		if budget_ratio(budget) < WARN_RATIO:
+			_warned.erase(budget)
+	report.count("budget_changes")
+	_add_activity("presupuesto", "Presupuestos: " + budgets_text())
+	var exhausted := [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS].any(func(budget: String) -> bool: return budget_ratio(budget) >= 1.0)
+	if _close_reason.begins_with(BUDGET_CLOSE_PREFIX) and not exhausted:
+		_close_reason = ""
+		_add_activity("presupuesto", "Con el presupuesto nuevo, el run sigue")
+		if phase == Phase.CLOSING:
+			_set_phase(Phase.RUNNING)
+		elif phase == Phase.RUNNING:
+			if _turn_running:
+				_continue_after_cancel = true
+			else:
+				_run_turn(_resume_prompt())
+	_check_budgets()
+	changed.emit()
+
+
+func budgets_text() -> String:
+	var parts: PackedStringArray = []
+	for budget: String in [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS]:
+		var limit := int(budgets.get(budget, 0))
+		parts.append("%s %s" % [str(BUDGET_LABELS[budget]).to_lower(), ("%d min" % limit if budget == BUDGET_TIME else str(limit)) if limit > 0 else "sin límite"])
+	return ", ".join(parts)
 
 
 ## «Aprobar spec» (D41): con `text` distinto del archivo, primero se guarda lo que editó el usuario.
@@ -480,6 +520,9 @@ func _after_turn(reason: String) -> void:
 		_run_turn(_guidance.pop_front())
 		return
 	if reason == "cancelled":
+		if _continue_after_cancel:
+			_continue_after_cancel = false
+			_run_turn(_resume_prompt())
 		return
 	if _awaiting_spec:
 		_enter_spec_review()
@@ -519,7 +562,7 @@ func _enter_spec_review() -> void:
 	if files.has_spec():
 		_add_activity("spec", "%s/%s listo: revisalo y aprobalo para que empiece a construir" % [files.relative_dir(), OneShotFiles.SPEC])
 	else:
-		_add_activity("aviso", "El agente no escribió %s/%s. Guialo para que lo escriba, o aprobá para seguir sin spec." % [files.relative_dir(), OneShotFiles.SPEC])
+		_add_activity("aviso", "El agente no escribió %s/%s. Escribile en el chat que lo escriba, o aprobá para seguir sin spec." % [files.relative_dir(), OneShotFiles.SPEC])
 	model.add_notice("One-shot · el spec está listo para revisar en la pantalla Agent.", ChatEntry.Level.INFO)
 
 
@@ -663,7 +706,7 @@ func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
 		return
 	report.count("loops")
 	if bool(finding.repeated):
-		pause_note = "One-shot en pausa: el agente sigue en un loop (%s) aunque se le pidió otro enfoque. Guialo o retomá cuando quieras." % finding.text
+		pause_note = "One-shot en pausa: el agente sigue en un loop (%s) aunque se le pidió otro enfoque. Escribile en el chat cómo seguir, o retomá cuando quieras." % finding.text
 		resume_task = _task_name(_current_task)
 		_set_phase(Phase.PAUSED)
 		_add_activity("loop", "Pausa: %s otra vez" % finding.text)
@@ -727,7 +770,7 @@ func _check_budgets() -> void:
 	for budget: String in [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS]:
 		var ratio := budget_ratio(budget)
 		if ratio >= 1.0 and _close_reason.is_empty():
-			_close_reason = "Se agotó el presupuesto de %s." % str(BUDGET_LABELS[budget]).to_lower()
+			_close_reason = BUDGET_CLOSE_PREFIX + "%s." % str(BUDGET_LABELS[budget]).to_lower()
 			_add_activity("presupuesto", _close_reason)
 			if _turn_running:
 				controller.cancel()

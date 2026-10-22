@@ -174,7 +174,7 @@ static func to_markdown(report: Dictionary) -> String:
 	lines.append_array(["", "### Eventos"])
 	lines.append("- Permisos pedidos: %d · denegados: %d" % [int(events.get("permissions_asked", 0)), int(events.get("permissions_denied", 0))])
 	lines.append("- Turnos con error: %d · pausas por cuota: %d · límites del plan: %d" % [int(events.get("turn_errors", 0)), int(events.get("quota_pauses", 0)), int(events.get("limited", 0))])
-	lines.append("- Loops detectados: %d · guías del usuario: %d" % [int(events.get("loops", 0)), int(events.get("guidance", 0))])
+	lines.append("- Loops detectados: %d · guías del usuario: %d · cambios de presupuesto: %d" % [int(events.get("loops", 0)), int(events.get("guidance", 0)), int(events.get("budget_changes", 0))])
 	if not str(report.get("files_dir", "")).is_empty():
 		lines.append("- Spec, progreso y QA: `%s/`" % report.files_dir)
 	var checkpoints: Array = report.get("checkpoints", [])

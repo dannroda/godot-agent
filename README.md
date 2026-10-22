@@ -123,9 +123,10 @@ Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un
    - la actividad, con "Guiar al agente";
    - la última captura, las verificaciones y los checkpoints.
 4. **Checkpoints**: cada tarea del plan (o cada playtest, si el agente no informa un plan) es un commit `cpN` en la rama `agent/<fecha>`. **Volver acá** deja el proyecto exactamente como en ese checkpoint y pausa el run; **Retomar** sigue desde ahí.
-5. **Presupuestos** de tiempo, tokens y playtests: avisa al 80 % y, al 100 %, pide el reporte final y termina.
+5. **Presupuestos** de tiempo, tokens y playtests: avisa al 80 % y, al 100 %, pide el reporte final y termina. Con el run en curso se cambian con **Presupuestos** (0 = sin límite; **Ilimitado** los saca a todos). Si el run iba a cerrar por presupuesto y el nuevo alcanza, sigue.
+   **Guiar al agente**: con el One-shot en curso, lo que escribís en el chat del dock le llega al agente al terminar el turno.
    **Loops**: si el agente repite lo mismo sin avanzar (un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio una y otra vez), el run le pide otro enfoque; si vuelve a pasar, se pausa y espera que lo guíes. Las repeticiones se ajustan en Settings → One-shot.
-   **Spec y progreso en archivos**: el agente escribe `spec.md` al empezar y actualiza `progress.md` al cerrar cada tarea, en `.godot_agent/oneshot/<id>/` dentro del proyecto. Si hay que retomar en una sesión nueva, se lee de ahí. La carpeta tiene `.gdignore` (no entra al FileSystem ni al export) y viaja en los checkpoints de la rama del agente; si no la querés en tu rama, borrala antes del merge.
+   **Spec y progreso en archivos**: el agente escribe `spec.md` al empezar y actualiza `progress.md` al cerrar cada tarea, en `.godot_agent/oneshot/<id>/` dentro del proyecto. Se ven con **Spec y progreso** (o tocando la ruta en el chat). Si hay que retomar en una sesión nueva, se lee de ahí. La carpeta tiene `.gdignore` (no entra al FileSystem ni al export) y viaja en los checkpoints de la rama del agente; si no la querés en tu rama, borrala antes del merge.
    **Criterios del juego**: el agente sabe de entrada cómo se evalúa lo que hace: jugabilidad, funcionalidad, visual y feel, y código, cada uno con peso y mínimo de 0 a 10 (Settings → One-shot).
 6. Al final:
    - **Revisar cambios** lista los archivos; con doble clic se ve el diff contra el inicio.

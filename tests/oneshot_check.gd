@@ -26,6 +26,7 @@ func _initialize() -> void:
 	)
 	await _scenario_quota()
 	await _scenario_budget()
+	await _scenario_budget_raise()
 	await _scenario_no_plan()
 	await _scenario_recover()
 	await _scenario_loop()
@@ -196,6 +197,31 @@ func _scenario_budget() -> void:
 	_check(run.finish_reason == "Se agotó el presupuesto de playtests.", "presupuestos: motivo (%s)" % run.finish_reason)
 	_check(run.checks.size() == 2 and run.checks[1].status == "fail", "presupuestos: checks del reporte")
 	controller.stop()
+	run.queue_free()
+
+
+## Presupuesto agotado y el usuario lo saca con el run cerrando (m6-12): el pedido de reporte
+## queda como un turno más y el run sigue con el plan.
+func _scenario_budget_raise() -> void:
+	print("— presupuesto con el run en curso")
+	var run := _make("oneshot_budget")
+	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 5}, false)
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.CLOSING, 15.0)
+	_check(run.phase == OneShotRun.Phase.CLOSING, "presupuesto: cerrando por playtests (%s)" % run.phase_label())
+	run.set_budgets({"playtests": 0})
+	_check(run.phase == OneShotRun.Phase.RUNNING and int(run.budgets.playtests) == 0, "presupuesto: ilimitado sigue (%s)" % run.phase_label())
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return entry.text == "Con el presupuesto nuevo, el run sigue"), "presupuesto: la actividad lo dice")
+	var closing_at := _user_messages(run.model).size()  # el último es el pedido de reporte
+	await _wait(func() -> bool: return _user_messages(run.model).size() > closing_at, 10.0)
+	var messages := _user_messages(run.model)
+	_check(str(messages[closing_at - 1]).begins_with("Se agotó") and messages.size() > closing_at and str(messages[closing_at]).begins_with("Seguí con el plan"), "presupuesto: después del reporte sigue con el plan %s" % [messages.map(func(m: String) -> String: return m.left(40))])
+	_check(run.is_active(), "presupuesto: el run no terminó (%s)" % run.phase_label())
+	run.set_budgets({"playtests": int(run.used.playtests) + 100, "time": 30})
+	_check(run.budgets_text() == "tiempo 30 min, tokens sin límite, playtests %d" % (int(run.used.playtests) + 100), "presupuesto: texto (%s)" % run.budgets_text())
+	run.stop()
+	await _wait(func() -> bool: return not run.last_report.is_empty(), 5.0)
+	_check(int(run.last_report.get("events", {}).get("budget_changes", 0)) == 2, "presupuesto: el informe cuenta los cambios")
+	run.controller.stop()
 	run.queue_free()
 
 
