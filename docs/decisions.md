@@ -698,11 +698,12 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 ## D49 · Project settings por el editor
 
 - **Problema**: el agente editaba `project.godot` como texto (input map, autoloads, ventana) y D33 lo sincronizaba con el editor. Una línea mal escrita (un `InputEventKey` serializado a mano) rompe la acción callada.
-- **Tools** (`mcp/tools/project_tools.gd`): `project_settings` (read) y `set_project_setting`, `set_input_action`, `remove_input_action`, `set_autoload`, `remove_autoload` (grupo project: pregunta en Construir y en One-shot, se deniega en Preguntar y Revisar).
+- **Tools** (`mcp/tools/project_tools.gd`): `project_settings` (read) y `set_project_setting`, `set_input_action`, `remove_input_action`, `set_autoload`, `remove_autoload` (grupo project: se deniega en Preguntar y Revisar, pregunta en Construir y se permite en One-shot).
   - Cada cambio es una acción del historial global de deshacer (Ctrl+Z en el editor) que hace `ProjectSettings.save()`; el deshacer también guarda. El botón «↶ undo» del chat sigue siendo solo para escenas.
   - Eventos de input como texto corto: `Space`, `Ctrl+S`, `CmdOrCtrl+Z`, `mouse:left`, `joy_button:a`, `joy_axis:left_x:-`. Las teclas van como physical keycode, igual que las agrega el editor.
   - `set_project_setting` convierte el valor al tipo del setting (ValueCoercion), `null` vuelve al default, y no toca `input/`, `autoload/` ni `editor_plugins/`.
 - **Guard**: `ProjectWriteGuard` rechaza también `project.godot` escrito a mano (Write/Edit y `fs/write_text_file`); el mensaje al agente nombra las tools. La shell ya estaba cubierta por D48.
+- **One-shot**: el default del grupo project pasó de ask a allow. Solo lo usan estas tools, y antes el agente hacía lo mismo escribiendo `project.godot` con edit_files, que en One-shot se permite: con ask, un run desatendido se quedaba esperando para agregar una acción de input.
 - **Efecto lateral**: `ProjectSettings.save()` reescribe `config/features` con la versión del editor, igual que cuando el usuario cambia un setting.
 - **Pruebas**: `test_project_tools` (eventos), `test_project_write_guard` y `--godot-agent-edit-test` (acción con append y Ctrl+Z, setting con prefijo y tipo inválido, autoload que no pisa un singleton, permisos por modo, `project.godot` igual al final).
 

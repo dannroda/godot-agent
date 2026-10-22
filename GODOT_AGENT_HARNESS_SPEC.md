@@ -241,7 +241,7 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | edit_files (incluye `fs/write_text_file` y Edit/Write del agente) | deny | deny | ask | allow |
 | run | deny | ask | ask | allow |
 | shell / execute del agente | deny | deny | ask | ask |
-| project settings / export / addons | deny | deny | ask | ask |
+| project settings / export / addons | deny | deny | ask | allow (D49) |
 
 - Los permisos del agente (`session/request_permission`) se mapean a grupos según el `kind` del tool call: `read`/`search` → read; `edit`/`delete`/`move` → edit_files; `execute` → shell; el resto → ask.
 - Las tools MCP del addon aplican la misma política del lado del server. En "ask", la tool espera la respuesta de la UI con un timeout configurable; si vence, devuelve deny con mensaje.

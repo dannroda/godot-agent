@@ -16,7 +16,7 @@ func test_default_matrix() -> void:
 		"edit_files": ["deny", "deny", "ask", "allow"],
 		"run": ["deny", "ask", "ask", "allow"],
 		"shell": ["deny", "deny", "ask", "ask"],
-		"project": ["deny", "deny", "ask", "ask"],
+		"project": ["deny", "deny", "ask", "allow"],
 	}
 	for group: String in expected:
 		for mode: int in [M.ASK, M.REVIEW, M.BUILD, M.ONESHOT]:

@@ -30,7 +30,7 @@ Valores por defecto:
 | Editar archivos | Denegar | Denegar | Preguntar | Permitir |
 | Ejecutar el juego | Denegar | Preguntar | Preguntar | Permitir |
 | Shell / comandos | Denegar | Denegar | Preguntar | Preguntar |
-| Project settings, export y addons | Denegar | Denegar | Preguntar | Preguntar |
+| Project settings, export y addons | Denegar | Denegar | Preguntar | Permitir |
 
 ## Escrituras que se saltean el editor
 

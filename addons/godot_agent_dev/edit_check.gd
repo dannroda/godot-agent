@@ -158,7 +158,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(saved.contains("Saved") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios")
 
 	# Project settings por el editor (m4-09): cada cambio guarda project.godot y Ctrl+Z lo revierte.
-	# El grupo project pregunta también en One-shot: se acepta solo y se cuenta.
+	# El grupo project se permite en One-shot (D49) y pregunta en Construir.
 	var project_asks: Array = []
 	var allow_project := func(request: Object) -> void:
 		project_asks.append(request.get(&"title"))
@@ -198,8 +198,12 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var denied_setting: Dictionary = await _call("set_project_setting", {"name": "display/window/size/viewport_width", "value": 800})
 	_expect(denied_setting.get("isError", false) and int(ProjectSettings.get_setting("display/window/size/viewport_width")) == 1152, "Preguntar deniega el grupo project")
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
+	await _call_text("set_input_action", {"action": "agent_build", "events": ["B"]})
+	EditorUndo._trigger_editor_undo()
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
 	_model.disconnect(&"permission_requested", allow_project)
-	_expect(project_asks.size() == 8 and "godot.set_input_action" in project_asks, "el grupo project pregunta en One-shot (%d)" % project_asks.size())
+	_expect(project_asks == ["godot.set_input_action"], "project: One-shot no pregunta, Construir sí (%s)" % [project_asks])
 	_expect(_without_features(FileAccess.get_file_as_string("res://project.godot")) == project_before, "project.godot queda como estaba")
 
 	# Permisos: Preguntar deniega; Construir pregunta (se acepta solo).

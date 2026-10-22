@@ -46,7 +46,9 @@ const DEFAULTS: Dictionary = {
 	GROUP_EDIT_FILES: [DENY, DENY, ASK, ALLOW],
 	GROUP_RUN: [DENY, ASK, ASK, ALLOW],
 	GROUP_SHELL: [DENY, DENY, ASK, ASK],
-	GROUP_PROJECT: [DENY, DENY, ASK, ASK],
+	# One-shot: allow desde D49. Input map, autoloads y settings son parte de armar un juego, y antes
+	# el agente los escribía en project.godot con edit_files (allow en One-shot).
+	GROUP_PROJECT: [DENY, DENY, ASK, ALLOW],
 }
 ## kind de un tool call de ACP → grupo.
 const KIND_GROUPS: Dictionary = {

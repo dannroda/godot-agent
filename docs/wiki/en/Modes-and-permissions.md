@@ -30,7 +30,7 @@ Defaults:
 | Edit files | Deny | Deny | Ask | Allow |
 | Run the game | Deny | Ask | Ask | Allow |
 | Shell / commands | Deny | Deny | Ask | Ask |
-| Project settings, export and addons | Deny | Deny | Ask | Ask |
+| Project settings, export and addons | Deny | Deny | Ask | Allow |
 
 ## Writes that skip the editor
 
