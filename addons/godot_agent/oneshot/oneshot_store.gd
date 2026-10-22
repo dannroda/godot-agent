@@ -46,6 +46,24 @@ func load_run(id: String) -> Dictionary:
 	return parsed
 
 
+## Informe de métricas del run (D39), al lado de su estado.
+func save_report(id: String, report: Dictionary) -> bool:
+	if not is_enabled() or id.is_empty():
+		return false
+	DirAccess.make_dir_recursive_absolute(dir)
+	return _write_atomic(dir.path_join("%s.report.json" % id), JSON.stringify(report, "\t"))
+
+
+func load_report(id: String) -> Dictionary:
+	var path := dir.path_join("%s.report.json" % id)
+	if not FileAccess.file_exists(path):
+		return {}
+	var json := JSON.new()
+	if json.parse(FileAccess.get_file_as_string(path)) != OK or not json.data is Dictionary:
+		return {}
+	return json.data
+
+
 func load_capture(id: String) -> Image:
 	var path := dir.path_join("%s.png" % id)
 	if not FileAccess.file_exists(path):

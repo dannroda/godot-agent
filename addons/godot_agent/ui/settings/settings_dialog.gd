@@ -22,7 +22,7 @@ const SECTION_LABELS: PackedStringArray = ["Agentes", "Permisos", "Servidor MCP"
 const DECISIONS: PackedStringArray = [PermissionPolicy.ALLOW, PermissionPolicy.ASK, PermissionPolicy.DENY]
 const DECISION_LABELS: Dictionary = {PermissionPolicy.ALLOW: "sí", PermissionPolicy.ASK: "preguntar", PermissionPolicy.DENY: "no"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "loop_repeats", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = ["Derecha, arriba", "Derecha, abajo", "Izquierda, arriba", "Izquierda, abajo"]
 
 ## () -> String: URL actual del server MCP ("" si no escucha).
@@ -58,6 +58,7 @@ var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
+var _loop_spin: SpinBox
 var _checkpoints_check: CheckBox
 var _warn_spin: SpinBox
 var _pause_spin: SpinBox
@@ -252,6 +253,8 @@ func _build_oneshot(page: VBoxContainer) -> void:
 	_checkpoints_check = CheckBox.new()
 	_checkpoints_check.text = "Crear un checkpoint git antes de cada tarea de One-shot"
 	page.add_child(_checkpoints_check)
+	_loop_spin = _spin_row(page, "Loop: repeticiones iguales", 2, 20, 1, "")
+	_loop_spin.tooltip_text = "Un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio repetido.\nLa primera vez se le pide otro enfoque al agente; si vuelve a pasar, el One-shot se pausa."
 	page.add_child(_title("Cuota y límites (por usuario: la cuota es del plan, no del proyecto)"))
 	_warn_spin = _spin_row(page, "Avisar al llegar a", 1, 100, 1, "%")
 	_pause_check = CheckBox.new()
@@ -347,6 +350,7 @@ func _load() -> void:
 	_budget_spins.tokens.value = _config.budget_tokens
 	_budget_spins.playtests.value = _config.budget_playtests
 	_checkpoints_check.button_pressed = _config.checkpoints_enabled
+	_loop_spin.value = _config.loop_repeats
 	_warn_spin.value = roundi(_settings.quota_warn() * 100.0)
 	_pause_spin.value = roundi(_settings.quota_pause() * 100.0)
 	_pause_check.button_pressed = _settings.quota_pause_enabled()
@@ -397,6 +401,7 @@ func _on_save() -> void:
 	_config.budget_tokens = int(_budget_spins.tokens.value)
 	_config.budget_playtests = int(_budget_spins.playtests.value)
 	_config.checkpoints_enabled = _checkpoints_check.button_pressed
+	_config.loop_repeats = int(_loop_spin.value)
 	var result := _config.save_to_project()
 	if result != OK:
 		for property: String in before:

@@ -28,6 +28,7 @@ func _initialize() -> void:
 	await _scenario_budget()
 	await _scenario_no_plan()
 	await _scenario_recover()
+	await _scenario_loop()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -106,6 +107,16 @@ func _scenario_recover() -> void:
 	_check(again.finish_reason == "El agente terminó el plan.", "recuperación: terminó (%s)" % again.finish_reason)
 	_check(_cp_labels(again).back() == "cp3 Puntaje", "recuperación: sigue creando checkpoints (%s)" % [_cp_labels(again)])
 	_check(again.store.load_interrupted().is_empty(), "recuperación: terminado, ya no se ofrece retomar")
+	# Informe (D39): suma lo medido antes y después de la caída, y queda en <id>.report.json.
+	await _wait(func() -> bool: return not again.last_report.is_empty(), 10.0)
+	var report := again.store.load_report(again.run_id)
+	_check(not report.is_empty() and report.id == again.run_id and report.goal == "Pong con puntaje", "informe: guardado en el store")
+	var tools: Array = report.get("tools", [])
+	_check(tools.any(func(row: Dictionary) -> bool: return row.tool == "godot.run_scene" and int(row.count) == 1), "informe: el playtest de antes de la caída %s" % [tools])
+	var tasks: Array = report.get("tasks", [])
+	_check(tasks.size() == 2 and tasks.all(func(task: Dictionary) -> bool: return task.status == "completed" and int(task.duration_s) >= 0), "informe: tareas con duración %s" % [tasks])
+	_check(report.get("checkpoints", []).size() == 3 and report.get("changes", {}).has("files"), "informe: checkpoints y cambios")
+	_check(int(report.get("events", {}).get("turns", 0)) >= 2, "informe: turnos %s" % [report.get("events")])
 	again.controller.stop()
 	again.queue_free()
 
@@ -198,6 +209,38 @@ func _scenario_no_plan() -> void:
 	_check(messages.size() == 2 and str(messages[1]).contains("«Puntaje» (pending)") and not str(messages[1]).contains("plan"), "sin plan: sigue por el check pendiente, sin hablar de plan %s" % [messages])
 	_check(_cp_labels(run) == ["cp1 Estado inicial", "cp2 Playtest #1", "cp3 Playtest #2"], "sin plan: checkpoint por playtest %s" % [_cp_labels(run)])
 	_check(run.checks.size() == 2 and run.checks.all(func(check: Dictionary) -> bool: return check.status == "pass"), "sin plan: checks")
+	run.controller.stop()
+	run.queue_free()
+
+
+## Loops (D38) con umbral 2: dos Edit iguales que fallan cortan el turno y piden otro enfoque;
+## el mismo check que falla igual pide otro enfoque y, si vuelve a pasar, pausa el run.
+func _scenario_loop() -> void:
+	print("— loop")
+	var run := _make("oneshot_loop")
+	run.loops.repeats = 2
+	await run.start("Salto", {"time": 0, "tokens": 0, "playtests": 0}, false)
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED, 20.0)
+	var messages := _user_messages(run.model)
+	_check(run.phase == OneShotRun.Phase.PAUSED, "loop: pausa (%s)" % run.phase_label())
+	_check(messages.size() == 5, "loop: turnos %s" % [messages])
+	_check(messages.size() > 1 and str(messages[1]).contains("loop") and str(messages[1]).contains("«Edit player.gd» falló 2 veces"), "loop: el Edit que falla corta el turno y pide otro enfoque %s" % [messages])
+	_check(not _agent_text(run.model).contains("no tendría que llegar"), "loop: el turno se cortó")
+	_check(messages.size() > 3 and str(messages[3]).contains("«Salto» falló 2 veces"), "loop: el check que falla igual pide otro enfoque %s" % [messages])
+	var loop_entries := run.activity.filter(func(entry: Dictionary) -> bool: return entry.kind == "loop")
+	_check(loop_entries.size() == 3, "loop: actividad %s" % [loop_entries])
+	_check(run.pause_note.contains("Salto"), "loop: motivo de la pausa (%s)" % run.pause_note)
+	run.guide("Saltá con la tecla espacio")
+	_check(run.phase == OneShotRun.Phase.RUNNING and run.pause_note.is_empty(), "loop: guiar retoma")
+	await _wait(func() -> bool: return _user_messages(run.model).size() == 6, 10.0)
+	run.stop()
+	await _wait(func() -> bool: return not run.last_report.is_empty(), 5.0)
+	var events: Dictionary = run.last_report.get("events", {})
+	_check(int(events.get("loops", 0)) == 3 and int(events.get("guidance", 0)) == 1, "loop: informe %s" % [events])
+	var edit: Array = run.last_report.get("tools", []).filter(func(row: Dictionary) -> bool: return row.tool == "Edit")
+	_check(edit.size() == 1 and int(edit[0].failed) == 2, "loop: informe cuenta los Edit fallidos %s" % [edit])
+	var salto: Array = run.last_report.get("checks", []).filter(func(row: Dictionary) -> bool: return row.label == "Salto")
+	_check(salto.size() == 1 and int(salto[0].failures) >= 4, "loop: informe cuenta las fallas del check %s" % [salto])
 	run.controller.stop()
 	run.queue_free()
 

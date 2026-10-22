@@ -124,9 +124,11 @@ Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un
    - la última captura, las verificaciones y los checkpoints.
 4. **Checkpoints**: cada tarea del plan (o cada playtest, si el agente no informa un plan) es un commit `cpN` en la rama `agent/<fecha>`. **Volver acá** deja el proyecto exactamente como en ese checkpoint y pausa el run; **Retomar** sigue desde ahí.
 5. **Presupuestos** de tiempo, tokens y playtests: avisa al 80 % y, al 100 %, pide el reporte final y termina.
+   **Loops**: si el agente repite lo mismo sin avanzar (un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio una y otra vez), el run le pide otro enfoque; si vuelve a pasar, se pausa y espera que lo guíes. Las repeticiones se ajustan en Settings → One-shot.
 6. Al final:
    - **Revisar cambios** lista los archivos; con doble clic se ve el diff contra el inicio.
    - **Aceptar todo** hace un commit final en `agent/<fecha>`. El merge lo hacés vos.
+   - **Informe**: lo que midió el harness (duración por tarea, tokens, playtests, tools usadas y fallidas, cuántas veces falló cada check, permisos, errores, pausas, loops y archivos cambiados). Se guarda en `user://godot_agent/oneshot/<id>.report.json` para comparar corridas, y se puede copiar como Markdown.
 7. **Si el editor se cierra o se cae** con un One-shot en curso, el run queda guardado. Al volver aparece en pausa en la pantalla Agent, con su actividad. **Retomar** reabre la sesión del agente; si no puede, abre una nueva con el resumen del plan. **Detener** lo da por terminado.
 
 Sin git, o con un repo sin commits, no hay checkpoints. El harness lo avisa antes de empezar.
@@ -208,7 +210,7 @@ Perfiles incluidos (se agregan, editan y eligen en la misma sección):
 | Qué | Dónde | Alcance |
 |---|---|---|
 | Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, modo, debounce, umbral, multilínea, fuentes, corpus extra, perfiles LLM sin keys) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
-| Permisos, presupuestos, checkpoints, límites de las tools, carpetas extra, completado del proyecto | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
+| Permisos, presupuestos, checkpoints, umbral de loops, límites de las tools, carpetas extra, completado del proyecto | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
 | Historial de sesiones | `user://godot_agent/sessions/` | tu usuario, este proyecto |
 | Runs del One-shot (estado, última captura; los últimos 20) | `user://godot_agent/oneshot/` | tu usuario, este proyecto |
 

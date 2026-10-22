@@ -1,0 +1,96 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Cambio la velocidad.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "e1",
+      "title": "Edit player.gd",
+      "kind": "edit",
+      "status": "in_progress",
+      "rawInput": {
+       "file_path": "res://player.gd",
+       "old_string": "speed = 100",
+       "new_string": "speed = 200"
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "e1",
+      "status": "failed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "old_string not found"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.1
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "e2",
+      "title": "Edit player.gd",
+      "kind": "edit",
+      "status": "in_progress",
+      "rawInput": {
+       "file_path": "res://player.gd",
+       "old_string": "speed = 100",
+       "new_string": "speed = 200"
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "e2",
+      "status": "failed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "old_string not found"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.1
+    },
+    {
+     "delay": 3
+    },
+    {
+     "chunk": "no tendría que llegar acá."
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "chunk": "Probé el salto.\n```json\n{\"checks\": [{\"label\": \"Salto\", \"status\": \"fail\", \"detail\": \"no salta\"}]}\n```\n"
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

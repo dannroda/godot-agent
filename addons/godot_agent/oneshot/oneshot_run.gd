@@ -14,6 +14,8 @@ signal changed
 signal activity_added(entry: Dictionary)
 ## Se cargó un run guardado (la UI rearma la actividad).
 signal restored
+## El informe del run terminado está listo (`last_report`).
+signal report_ready
 
 const SessionController := preload("../session/session_controller.gd")
 const SessionModel := preload("../session/session_model.gd")
@@ -23,6 +25,8 @@ const QuotaMonitor := preload("../core/quota_monitor.gd")
 const GitCheckpoints := preload("git_checkpoints.gd")
 const FindingsParser := preload("../review/findings_parser.gd")
 const OneShotStore := preload("oneshot_store.gd")
+const LoopDetector := preload("loop_detector.gd")
+const RunReport := preload("run_report.gd")
 
 enum Phase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED }
 
@@ -65,6 +69,12 @@ var restart_session: Callable
 var resume_auto: bool = true
 ## Dónde se guardan los runs (sin carpeta, no se guardan).
 var store := OneShotStore.new()
+## Loops del agente (D38); `repeats` sale de la config del proyecto.
+var loops := LoopDetector.new()
+## Métricas para el informe final (D39).
+var report := RunReport.new()
+## Informe del último run terminado, o {} mientras corre.
+var last_report: Dictionary = {}
 
 var phase: Phase = Phase.IDLE
 var goal: String = ""
@@ -77,6 +87,8 @@ var activity: Array[Dictionary] = []
 var last_capture: Image
 var last_capture_caption: String = ""
 var finish_reason: String = ""
+## Por qué se pausó solo (un loop): se muestra en la pantalla hasta que se retoma.
+var pause_note: String = ""
 ## Tarea en la que hay que retomar (pausa, límite o "Volver acá").
 var resume_task: String = ""
 ## Fin de la pausa por cuota (unix; 0 = sin hora).
@@ -94,6 +106,7 @@ var _plan_progress: int = 0
 var _idle_continues: int = 0
 var _counted_playtests: Dictionary = {}
 var _captured_calls: Dictionary = {}
+var _loop_calls: Dictionary = {}
 var _git_queue: Array[Callable] = []
 var _git_busy: bool = false
 var _close_reason: String = ""
@@ -125,6 +138,7 @@ func _ready() -> void:
 	add_child(_timer)
 	model.plan_changed.connect(_on_plan_changed)
 	model.tool_call_changed.connect(_on_tool_call_changed)
+	model.permission_requested.connect(_on_permission_requested)
 	changed.connect(func() -> void: _dirty = true)
 
 
@@ -192,6 +206,11 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool) 
 	_warned.clear()
 	_counted_playtests.clear()
 	_captured_calls.clear()
+	_loop_calls.clear()
+	loops.reset()
+	report.reset()
+	last_report = {}
+	pause_note = ""
 	_current_task = -1
 	_idle_continues = 0
 	_close_reason = ""
@@ -257,6 +276,7 @@ func resume() -> void:
 	if not phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.LIMITED, Phase.WAITING_CONFIRM]:
 		return
 	var was_limited := phase == Phase.LIMITED or quota.is_limited()
+	pause_note = ""
 	_set_phase(Phase.RUNNING)
 	if was_limited:
 		quota.note_retry()
@@ -296,6 +316,7 @@ func guide(text: String) -> void:
 	if text.is_empty() or not is_active():
 		return
 	_add_activity("guía", text)
+	report.count("guidance")
 	if not _recovered_session_id.is_empty():  # primero se reabre la sesión del run
 		_guidance.append(text)
 		resume()
@@ -305,6 +326,7 @@ func guide(text: String) -> void:
 		changed.emit()
 		return
 	if phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM]:
+		pause_note = ""
 		_set_phase(Phase.RUNNING)
 	_run_turn(text)
 
@@ -369,19 +391,25 @@ func _run_turn(text: String) -> void:
 		_guidance.append(text)
 		return
 	_turn_running = true
+	report.count("turns")
 	var first_entry := model.entries().size()
-	var progress_before := _completed_count() + int(used[BUDGET_PLAYTESTS])
+	var progress_before := _progress()
 	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text)
 	_turn_running = false
 	if not is_instance_valid(self) or not is_inside_tree():
 		return
 	_account_tokens(controller.last_turn_usage)
+	if reason == "error" or reason.is_empty():
+		report.count("turn_errors")
 	var turn_text := controller.agent_text_since(first_entry)
-	_merge_checks(FindingsParser.parse(turn_text).checks)
+	var new_checks: Array = FindingsParser.parse(turn_text).checks
+	_merge_checks(new_checks)
+	if phase == Phase.RUNNING:
+		_on_loop(loops.observe_checks(new_checks), false)
 	var summary := _summary_of(turn_text)
 	if not summary.is_empty():
 		_add_activity("agente", summary)
-	if _completed_count() + int(used[BUDGET_PLAYTESTS]) > progress_before:
+	if _progress() > progress_before:
 		_idle_continues = 0
 	if reason == "end_turn":
 		_quota_checkpoint_done = false
@@ -459,6 +487,31 @@ func _finish(reason: String) -> void:
 	_add_activity("estado", reason)
 	_set_phase(Phase.FINISHED)
 	store.prune()
+	_write_report()
+
+
+## Informe con lo medido (D39): se muestra en la pantalla y queda en `<id>.report.json`.
+func _write_report() -> void:
+	var data := {
+		"id": run_id, "goal": goal, "finish_reason": finish_reason, "duration_ms": _elapsed_ms(),
+		"budgets": budgets.duplicate(), "used": used.duplicate(), "checks": checks.duplicate(true),
+		"checkpoints": git.checkpoints.map(func(cp: Dictionary) -> Dictionary: return {"name": cp.name, "label": cp.label}) if checkpoints_enabled else [],
+	}
+	data["changes"] = await changes_summary() if checkpoints_enabled else {}
+	last_report = report.build(data)
+	store.save_report(run_id, last_report)
+	report_ready.emit()
+	changed.emit()
+
+
+func _on_permission_requested(request: SessionModel.PermissionRequest) -> void:
+	if not is_active():
+		return
+	report.count("permissions_asked")
+	request.resolved.connect(func(_outcome: Dictionary) -> void:
+		if not request.was_allowed():
+			report.count("permissions_denied")
+	, CONNECT_ONE_SHOT)
 
 
 func _restart_session(lost_id: String) -> bool:
@@ -499,6 +552,7 @@ func _on_plan_changed(plan: Array) -> void:
 		return
 	if not plan.is_empty():
 		_plan_snapshot = plan.duplicate(true)
+		report.observe_plan(plan, _elapsed_ms())
 	var in_progress := -1
 	for i in plan.size():
 		if plan[i] is Dictionary and str(plan[i].get("status", "")) == "in_progress":
@@ -530,6 +584,12 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 		_check_budgets()
 	elif not name.is_empty() or call.status == ToolCall.STATUS_FAILED:
 		_add_activity("tool", _one_line("%s · %s" % [call.display_name(), _call_summary(call)]))
+	if call.status != ToolCall.STATUS_CANCELLED and not _loop_calls.has(call.id):
+		_loop_calls[call.id] = true
+		var failed := call.status == ToolCall.STATUS_FAILED
+		report.observe_tool(RunReport.tool_label(call.title, name, call.tool_name, call.kind), failed)
+		if phase == Phase.RUNNING:
+			_on_loop(loops.observe_call(call.title, call.kind, name, call.raw_input, failed), true)
 	if not _captured_calls.has(call.id):
 		for block: Variant in call.content:
 			var inner: Variant = block.get("content") if block is Dictionary else null
@@ -543,7 +603,31 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 					changed.emit()
 
 
+## Un loop (D38). La primera vez se corta el turno (si viene de tool calls) y se le pide otro
+## enfoque; si la misma huella vuelve a aparecer, el run se pausa y espera al usuario.
+func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
+	if finding.is_empty():
+		return
+	report.count("loops")
+	if bool(finding.repeated):
+		pause_note = "One-shot en pausa: el agente sigue en un loop (%s) aunque se le pidió otro enfoque. Guialo o retomá cuando quieras." % finding.text
+		resume_task = _task_name(_current_task)
+		_set_phase(Phase.PAUSED)
+		_add_activity("loop", "Pausa: %s otra vez" % finding.text)
+		model.add_notice(pause_note, ChatEntry.Level.WARNING)
+		if _turn_running:
+			controller.cancel()
+		return
+	_add_activity("loop", "Posible loop: %s" % finding.text)
+	model.add_notice("One-shot · posible loop: %s. Se le pide otro enfoque." % finding.text, ChatEntry.Level.WARNING)
+	_guidance.append("Parece que estás en un loop: %s. No lo repitas igual: pensá por qué no funciona y probá otro enfoque (otra solución, otro archivo, o simplificá la tarea). Si algo no se puede resolver, anotalo en el bloque de checks y seguí con lo demás." % finding.text)
+	if mid_turn and _turn_running:
+		controller.cancel()  # la guía se manda al cortar el turno (_after_turn)
+	changed.emit()
+
+
 func _merge_checks(new_checks: Array) -> void:
+	report.observe_checks(new_checks)
 	for check: Dictionary in new_checks:
 		var found := false
 		for existing: Dictionary in checks:
@@ -612,6 +696,7 @@ func _pause_for_quota(next_task: String) -> void:
 	if quota_resume_at <= 0:
 		quota_resume_at = int(Time.get_unix_time_from_system()) + PAUSE_RETRY_S
 	_set_phase(Phase.PAUSED_QUOTA)
+	report.count("quota_pauses")
 	_add_activity("cuota", "Cuota al %d %%: pausa antes de «%s»" % [roundi(quota.max_utilization() * 100.0), next_task])
 	if checkpoints_enabled:
 		_checkpoint(next_task)
@@ -624,6 +709,7 @@ func _enter_limited() -> void:
 	model.cancel_unfinished_tool_calls()
 	resume_task = _task_name(_current_task) if _current_task >= 0 else _task_name(_next_pending())
 	_set_phase(Phase.LIMITED)
+	report.count("limited")
 	var until := "hasta las %s" % Time.get_time_string_from_unix_time(quota.limited_until + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5) if quota.limited_until > 0 else "sin hora de reinicio (reintentos 5, 10, 20 y cada 60 min)"
 	_add_activity("cuota", "Límite del plan alcanzado %s" % until)
 	if checkpoints_enabled and not _quota_checkpoint_done:
@@ -681,8 +767,10 @@ func to_dict() -> Dictionary:
 		"close_reason": _close_reason,
 		"finish_reason": finish_reason,
 		"warned": _warned,
+		"pause_note": pause_note,
+		"report": report.to_dict(),
 		"session_id": _recovered_session_id if not _recovered_session_id.is_empty() else model.session_id,
-		"elapsed_ms": Time.get_ticks_msec() - _started_msec if _started_msec > 0 else 0,
+		"elapsed_ms": _elapsed_ms(),
 		"capture_caption": last_capture_caption,
 	}
 
@@ -707,6 +795,9 @@ func _apply(data: Dictionary) -> void:
 	_guidance.assign(data.get("guidance", []))
 	_close_reason = str(data.get("close_reason", ""))
 	_warned = data.get("warned", {}) if data.get("warned") is Dictionary else {}
+	pause_note = str(data.get("pause_note", ""))
+	report.apply(data.get("report", {}) if data.get("report") is Dictionary else {})
+	last_report = {}
 	_recovered_session_id = str(data.get("session_id", ""))
 	_started_msec = Time.get_ticks_msec() - int(data.get("elapsed_ms", 0))
 	last_capture = store.load_capture(run_id)
@@ -775,8 +866,12 @@ func _add_activity(kind: String, text: String) -> void:
 	activity_added.emit(entry)
 
 
+func _elapsed_ms() -> int:
+	return Time.get_ticks_msec() - _started_msec if _started_msec > 0 else 0
+
+
 func _elapsed_text() -> String:
-	var seconds := (Time.get_ticks_msec() - _started_msec) / 1000 if _started_msec > 0 else 0
+	var seconds := _elapsed_ms() / 1000
 	return "%02d:%02d:%02d" % [seconds / 3600, (seconds / 60) % 60, seconds % 60]
 
 
@@ -785,6 +880,11 @@ func _task_name(index: int) -> String:
 	if index >= 0 and index < plan.size() and plan[index] is Dictionary:
 		return str(plan[index].get("content", "tarea %d" % (index + 1)))
 	return ""
+
+
+## Avance real (D38): tareas completadas y checks que pasan. Un playtest o un resumen no cuentan.
+func _progress() -> int:
+	return _completed_count() + checks.filter(func(check: Dictionary) -> bool: return check.status == "pass").size()
 
 
 func _completed_count() -> int:

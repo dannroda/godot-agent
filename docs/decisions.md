@@ -561,3 +561,31 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - `oneshot_check` (recuperación): el editor "se cae" a mitad del segundo turno; otra instancia carga el run en pausa, con plan, checks y checkpoints, retoma en una sesión nueva con el resumen y termina creando cp3 en la misma rama;
   - `--godot-agent-oneshot-test` verifica la pantalla con un run cargado.
 
+## D38 · El One-shot detecta loops del agente
+
+- **Problema**: un agente autónomo puede quedarse repitiendo lo mismo ("loop forever, retry bad actions"): reintentar un Edit que falla, reportar el mismo check roto turno tras turno, aplicar el mismo cambio una y otra vez. El tope de "seguí con el plan" (`MAX_IDLE_CONTINUES`) no lo frena: los avances de plan o los playtests lo reinician.
+- **Decisión**: `LoopDetector` mira tres huellas (nombre + argumentos con las claves ordenadas):
+  - un check que falla con el mismo detalle en `repeats` reportes seguidos (pasar o cambiar de detalle corta la racha);
+  - una tool call que falla con los mismos argumentos `repeats` veces. Si es una lectura o una verificación (run_scene, get_errors, capturas…), cualquier cambio en el medio reinicia la cuenta: editar y volver a probar no es un loop;
+  - una tool call que cambia algo, idéntica, `repeats + 1` veces entre las últimas 40. Las lecturas, las verificaciones, open_scene y save_scene se repiten libremente.
+- **Qué hace el run**:
+  - la primera vez: actividad «loop», aviso en el dock y una guía que pide otro enfoque. Si el loop es de tool calls, corta el turno para que la guía llegue ya;
+  - si la misma huella vuelve a llegar al umbral: pausa con un banner que lo explica. Guiar o «Retomar» lo sigue.
+- **Umbral**: `loop_repeats` en la config del proyecto (Settings → One-shot), 3 por default.
+- **Avance real**: el tope de turnos sin avance (`MAX_IDLE_CONTINUES`) ahora cuenta tareas completadas y checks que pasan. Antes también contaba playtests, y un agente que probaba sin arreglar nada nunca llegaba al tope.
+- **Pruebas**: `test_loop_detector`; `oneshot_check` (loop) con umbral 2: dos Edit que fallan cortan el turno, el mismo check roto pide otro enfoque y después pausa, y guiar retoma.
+
+## D39 · Informe del One-shot con datos medidos
+
+- **Problema**: al cerrar, el agente escribe su propio reporte ("qué quedó hecho, qué falta"), pero eso no sirve para comparar corridas ni para decidir si conviene cambiar de modelo, de prompt o sumar una tool. Hace falta lo que midió el harness.
+- **Decisión**: `RunReport` junta métricas mientras el run corre y `OneShotRun._write_report` arma el informe al terminar, por cualquier motivo:
+  - objetivo, motivo de cierre, duración y turnos;
+  - presupuestos y uso;
+  - tareas del plan con su duración: desde que pasa a `in_progress` hasta que pasa a `completed` (la que quedó abierta cuenta hasta el final);
+  - tools: usos y fallas por tool (`godot.<tool>`, el `toolName` de Claude Code o el título); las canceladas no cuentan;
+  - checks: estado final y cuántas veces se reportaron en `fail`;
+  - checkpoints, permisos pedidos y denegados, turnos con error, pausas por cuota, límites del plan, loops (D38) y guías del usuario;
+  - archivos cambiados (`changes_summary`, si hay checkpoints).
+- **Dónde**: se guarda en `user://godot_agent/oneshot/<id>.report.json` (`OneShotStore.save_report`), al lado del estado (D37), y se poda con él. Las métricas parciales van dentro del estado guardado, así un run retomado después de una caída no las pierde.
+- **UI**: botón «Informe» en la barra de abajo cuando el run terminó. Abre el informe en Markdown (con el conversor del dock) y «Copiar Markdown» lo deja en el portapapeles.
+- **Pruebas**: `test_run_report`; `oneshot_check` (recuperación: el informe suma lo de antes de la caída y queda en disco; loop: loops, guías y fallas); `--godot-agent-oneshot-test` abre el informe.

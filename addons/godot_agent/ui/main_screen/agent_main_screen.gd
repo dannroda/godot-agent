@@ -12,6 +12,8 @@ signal diff_requested(title: String, old_label: String, old_text: String, new_la
 const OneShotRun := preload("../../oneshot/oneshot_run.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const AgentTheme := preload("../agent_theme.gd")
+const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
+const RunReport := preload("../../oneshot/run_report.gd")
 
 const BUDGET_KEYS: PackedStringArray = [OneShotRun.BUDGET_TIME, OneShotRun.BUDGET_TOKENS, OneShotRun.BUDGET_PLAYTESTS]
 const ACTIVITY_COLORS: Dictionary = {
@@ -21,6 +23,7 @@ const ACTIVITY_COLORS: Dictionary = {
 	"cuota": Color("#f2d16b"),
 	"presupuesto": Color("#f5c26b"),
 	"aviso": Color("#ff7a7a"),
+	"loop": Color("#ff9f5a"),
 }
 const SUMMARY_INTERVAL_S := 2.0
 const SCENE_EXTENSIONS: PackedStringArray = ["tscn", "scn"]
@@ -67,6 +70,9 @@ var _summary_label: Label
 var _diffstat_label: RichTextLabel
 var _review_button: Button
 var _accept_button: Button
+var _report_button: Button
+var _report_dialog: AcceptDialog
+var _report_text: RichTextLabel
 # Diálogos
 var _wip_dialog: ConfirmationDialog
 var _no_git_dialog: ConfirmationDialog
@@ -410,6 +416,11 @@ func _build_bottom_bar() -> Control:
 	_review_button.text = "Revisar cambios"
 	_review_button.pressed.connect(_on_review_pressed)
 	row.add_child(_review_button)
+	_report_button = Button.new()
+	_report_button.text = "Informe"
+	_report_button.tooltip_text = "Métricas del run: duración por tarea, tools, checks, permisos y eventos (D39)."
+	_report_button.pressed.connect(_show_report)
+	row.add_child(_report_button)
 	_accept_button = _accent_button("Aceptar todo")
 	_accept_button.pressed.connect(func() -> void:
 		_accept_dialog.dialog_text = "Se hace un commit final en %s con todo lo que hizo el agente.\nEl harness nunca hace merge ni push: la rama queda lista para que la mergees vos." % _run.git.agent_branch
@@ -461,6 +472,20 @@ func _build_dialogs() -> void:
 	_error_dialog = AcceptDialog.new()
 	_error_dialog.title = "One-shot"
 	add_child(_error_dialog)
+	_report_dialog = AcceptDialog.new()
+	_report_dialog.title = "Informe del One-shot"
+	_report_dialog.ok_button_text = "Cerrar"
+	_report_dialog.min_size = Vector2i(AgentTheme.px(620), AgentTheme.px(480))
+	_report_dialog.add_button("Copiar Markdown", false, "copy")
+	_report_dialog.custom_action.connect(func(action: StringName) -> void:
+		if action == &"copy":
+			DisplayServer.clipboard_set(RunReport.to_markdown(_run.last_report)))
+	_report_text = RichTextLabel.new()
+	_report_text.bbcode_enabled = true
+	_report_text.selection_enabled = true
+	_report_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_report_dialog.add_child(_report_text)
+	add_child(_report_dialog)
 
 
 func _column(ratio: float) -> VBoxContainer:
@@ -551,6 +576,8 @@ func _refresh_banner() -> void:
 			color = AgentTheme.ERROR
 			var wait := quota.seconds_until_retry()
 			text = "Límite del plan alcanzado · " + ("se puede volver a intentar en %s" % QuotaMonitor.format_duration(wait) if wait > 0 else "ya se puede reintentar")
+	if text.is_empty() and _run.phase == OneShotRun.Phase.PAUSED and not _run.pause_note.is_empty():
+		text = _run.pause_note
 	if text.is_empty() and _run.recovered and _run.phase == OneShotRun.Phase.PAUSED:
 		text = "El One-shot quedó a medias porque el editor se cerró. «Retomar» reabre la sesión del agente y sigue; «Detener» lo da por terminado."
 	if text.is_empty() and _run.phase == OneShotRun.Phase.FINISHED and not _show_form:
@@ -717,6 +744,7 @@ func _refresh_side() -> void:
 
 
 func _refresh_bottom_bar() -> void:
+	_report_button.visible = not _run.last_report.is_empty() and _run.phase == OneShotRun.Phase.FINISHED and not _show_form
 	var enabled := _run.checkpoints_enabled
 	_review_button.disabled = not enabled or _summary.get("files", []).is_empty()
 	_accept_button.disabled = not enabled or _run.phase == OneShotRun.Phase.PREPARING
@@ -923,3 +951,10 @@ func _on_summary_timer() -> void:
 func _show_error(text: String) -> void:
 	_error_dialog.dialog_text = text
 	_error_dialog.popup_centered()
+
+
+func _show_report() -> void:
+	if _run.last_report.is_empty():
+		return
+	_report_text.text = MarkdownBBCode.new().convert(RunReport.to_markdown(_run.last_report))
+	_report_dialog.popup_centered()

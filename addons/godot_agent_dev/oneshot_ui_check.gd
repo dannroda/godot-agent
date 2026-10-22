@@ -112,6 +112,18 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check((_screen.get(&"_new_button") as Button).visible and not (_screen.get(&"_pause_button") as Button).visible, "Nuevo One-shot en lugar de Pausar")
 	_check(_text(&"_banner_label") == "El agente terminó el plan.", "banner de fin: " + _text(&"_banner_label"))
 
+	# Informe (D39).
+	await _wait(func() -> bool: return not _run.last_report.is_empty())
+	await _frames(2)
+	var report_button: Button = _screen.get(&"_report_button")
+	_check(report_button.visible, "botón Informe al terminar")
+	report_button.pressed.emit()
+	await _frames(2)
+	var report_text := (_screen.get(&"_report_text") as RichTextLabel).get_parsed_text()
+	_check((_screen.get(&"_report_dialog") as Window).visible and report_text.contains("Informe del One-shot") and report_text.contains("godot.run_scene") and report_text.contains("pong.gd"), "informe: " + report_text.left(200))
+	_shot(shot_path, "_report")
+	(_screen.get(&"_report_dialog") as Window).hide()
+
 	# Revisar cambios: lista y diff contra el estado inicial.
 	var diffs: Array = []
 	_screen.connect(&"diff_requested", func(title: String, _a: String, old_text: String, _b: String, new_text: String) -> void: diffs.append([title, old_text, new_text]), CONNECT_ONE_SHOT)
