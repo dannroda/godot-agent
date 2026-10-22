@@ -2,13 +2,13 @@
 extends RefCounted
 ## Una entrada de la conversación tal como la muestra el dock.
 
-enum Kind { USER, AGENT, THOUGHT, TOOL_GROUP, PLAN, PERMISSION, NOTICE }
+enum EntryKind { USER, AGENT, THOUGHT, TOOL_GROUP, PLAN, PERMISSION, NOTICE }
 
 ## Severidad de los NOTICE.
-enum Level { INFO, WARNING, ERROR }
+enum NoticeLevel { INFO, WARNING, ERROR }
 
 var id: int = 0
-var kind: Kind = Kind.AGENT
+var kind: EntryKind = EntryKind.AGENT
 ## USER / AGENT / THOUGHT / NOTICE: texto (Markdown en AGENT y THOUGHT).
 var text: String = ""
 ## messageId de ACP para unir chunks del mismo mensaje.
@@ -20,7 +20,7 @@ var plan: Array = []
 ## PERMISSION: el PermissionRequest (M2).
 var permission: RefCounted
 ## NOTICE
-var level: Level = Level.INFO
+var level: NoticeLevel = NoticeLevel.INFO
 ## NOTICE: acciones sugeridas (`[{id, label}]`), p. ej. "Reintentar" o "Ver log".
 var actions: Array[Dictionary] = []
 var created_unix: float = 0.0

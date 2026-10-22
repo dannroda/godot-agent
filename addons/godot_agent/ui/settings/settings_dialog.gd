@@ -19,7 +19,7 @@ const AgentTheme := preload("../agent_theme.gd")
 const CompletionSettingsPage := preload("completion_settings_page.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 
-enum Section { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
+enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
 const SECTION_LABELS: PackedStringArray = [
 	"Agents",  # i18n
 	"Permissions",  # i18n
@@ -145,11 +145,11 @@ func _build() -> void:
 	_error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_error_label.add_theme_color_override(&"font_color", AgentTheme.ERROR)
 	root.add_child(_error_label)
-	_show_section(Section.AGENTS)
+	_show_section(SettingsSection.AGENTS)
 
 
 ## Carga los valores actuales y abre el diálogo.
-func open(section: Section = Section.AGENTS) -> void:
+func open(section: SettingsSection = SettingsSection.AGENTS) -> void:
 	_load()
 	_show_section(section)
 	popup_centered_clamped(Vector2i(AgentTheme.px(880), AgentTheme.px(620)), 0.9)
@@ -159,7 +159,7 @@ func _show_section(index: int) -> void:
 	_nav.select(index)
 	for i in _pages.size():
 		_pages[i].visible = i == index
-	if index == Section.EXPORT:
+	if index == SettingsSection.EXPORT:
 		_refresh_export()
 
 
@@ -494,27 +494,27 @@ func validate() -> Dictionary:
 	for profile: AgentProfile in _profiles:
 		# Sin comando vale: queda listado pero no arranca (el default de Codex viene así).
 		if profile.id.strip_edges().is_empty():
-			return {"section": Section.AGENTS, "message": I18n.t("Each agent needs an ID (%s).") % profile.display_name}
+			return {"section": SettingsSection.AGENTS, "message": I18n.t("Each agent needs an ID (%s).") % profile.display_name}
 		if ids.has(profile.id):
-			return {"section": Section.AGENTS, "message": I18n.t("Two agents have the ID \"%s\".") % profile.id}
+			return {"section": SettingsSection.AGENTS, "message": I18n.t("Two agents have the ID \"%s\".") % profile.id}
 		ids[profile.id] = true
 		defaults += 1 if profile.is_default else 0
 		for key: String in profile.env:
 			var value: String = profile.env[key]
 			if _secret_name.search(key) and not value.is_empty() and not value.begins_with("$"):
-				return {"section": Section.AGENTS, "message": I18n.t("%s: %s looks like a secret. Use $VARIABLE from the environment: the harness doesn't store keys.") % [profile.display_name, key]}
+				return {"section": SettingsSection.AGENTS, "message": I18n.t("%s: %s looks like a secret. Use $VARIABLE from the environment: the harness doesn't store keys.") % [profile.display_name, key]}
 	if _profiles.is_empty():
-		return {"section": Section.AGENTS, "message": I18n.t("There must be at least one agent.")}
+		return {"section": SettingsSection.AGENTS, "message": I18n.t("There must be at least one agent.")}
 	if defaults > 1:
-		return {"section": Section.AGENTS, "message": I18n.t("Only one agent can be the default.")}
+		return {"section": SettingsSection.AGENTS, "message": I18n.t("Only one agent can be the default.")}
 	if _pause_check.button_pressed and _pause_spin.value <= _warn_spin.value:
-		return {"section": Section.ONESHOT, "message": I18n.t("The pause threshold must be higher than the warning threshold.")}
+		return {"section": SettingsSection.ONESHOT, "message": I18n.t("The pause threshold must be higher than the warning threshold.")}
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
-			return {"section": Section.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
+			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
 	var completion_error := _completion_page.validate()
 	if not completion_error.is_empty():
-		return {"section": Section.COMPLETION, "message": completion_error}
+		return {"section": SettingsSection.COMPLETION, "message": completion_error}
 	return {}
 
 

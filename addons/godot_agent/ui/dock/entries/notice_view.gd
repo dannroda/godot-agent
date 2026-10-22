@@ -23,15 +23,15 @@ func _build() -> void:
 func refresh() -> void:
 	var color := AgentTheme.MUTED
 	match entry.level:
-		ChatEntry.Level.WARNING:
+		ChatEntry.NoticeLevel.WARNING:
 			color = AgentTheme.WARNING
-		ChatEntry.Level.ERROR:
+		ChatEntry.NoticeLevel.ERROR:
 			color = AgentTheme.ERROR
-	var bg := Color(color, 0.08) if entry.level != ChatEntry.Level.INFO else Color.TRANSPARENT
+	var bg := Color(color, 0.08) if entry.level != ChatEntry.NoticeLevel.INFO else Color.TRANSPARENT
 	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(bg, Color(color, 0.5) if bg.a > 0.0 else Color.TRANSPARENT, 6, 6))
 	_label.text = entry.text
-	_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.Level.INFO else AgentTheme.MUTED)
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.Level.INFO else HORIZONTAL_ALIGNMENT_LEFT
+	_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.NoticeLevel.INFO else AgentTheme.MUTED)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO else HORIZONTAL_ALIGNMENT_LEFT
 	for child: Node in _actions.get_children():
 		child.queue_free()
 	for action: Dictionary in entry.actions:

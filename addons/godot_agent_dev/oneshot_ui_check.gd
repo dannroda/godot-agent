@@ -72,8 +72,8 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	start.pressed.emit()
 
 	# Pausa por cuota: el agente falso pasa al 91 % y empieza la tarea 2.
-	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.PAUSED_QUOTA and not _run.is_git_busy())
-	_check(_run.phase == OneShotRun.Phase.PAUSED_QUOTA, "pausado por cuota (%s)" % _run.phase_label())
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.PAUSED_QUOTA and not _run.is_git_busy())
+	_check(_run.phase == OneShotRun.RunPhase.PAUSED_QUOTA, "pausado por cuota (%s)" % _run.phase_label())
 	await _frames(3)
 	_check((_screen.get(&"_run_view") as Control).is_visible_in_tree(), "se ve la vista del One-shot")
 	_check(_text(&"_phase_label").begins_with("Paused for quota · task 2 of 3"), "fase: " + _text(&"_phase_label"))
@@ -94,10 +94,10 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_shot(shot_path, "_paused")
 
 	_run.changed.connect(func() -> void:
-		if _run.phase == OneShotRun.Phase.LIMITED:
+		if _run.phase == OneShotRun.RunPhase.LIMITED:
 			_run.resume_auto = false)
-	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.LIMITED and not _run.is_git_busy())
-	_check(_run.phase == OneShotRun.Phase.LIMITED, "limitado (%s)" % _run.phase_label())
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.LIMITED and not _run.is_git_busy())
+	_check(_run.phase == OneShotRun.RunPhase.LIMITED, "limitado (%s)" % _run.phase_label())
 	await _frames(3)
 	_check(_text(&"_countdown_label").begins_with("⏳"), "cuenta regresiva en Limitado: " + _text(&"_countdown_label"))
 	_check(_text(&"_banner_label").begins_with("Plan limit reached"), "banner de límite")
@@ -110,18 +110,18 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(account.is_visible_in_tree(), "«Cambiar de cuenta» en Limitado")
 	account.about_to_popup.emit()
 	var popup := account.get_popup()
-	_check(popup.item_count >= 1 and popup.get_item_text(popup.item_count - 1).begins_with("I already logged in with another account"), "menú de cambio de cuenta")
+	_check(popup.item_count >= 1 and popup.get_item_text(popup.item_count - 1).begins_with("I already signed in with another account"), "menú de cambio de cuenta")
 
-	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.WAITING_CONFIRM)
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.WAITING_CONFIRM)
 	await _frames(2)
 	_check(_text(&"_countdown_label").begins_with("The quota is free again"), "espera confirmación: " + _text(&"_countdown_label"))
 	# «Reintentar» del dock retoma el run en su sesión (m6-15), no abre una en blanco.
 	var dock := _find_by_script(DOCK_SCRIPT)
 	var session_id: String = _run.model.session_id
 	_check(dock != null and (dock.get(&"retry_interceptor") as Callable).call(), "«Reintentar» del dock lo toma el One-shot")
-	_check(_run.phase == OneShotRun.Phase.RUNNING and _run.model.session_id == session_id, "retoma en la misma sesión")
-	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.FINISHED and not _run.is_git_busy())
-	_check(_run.phase == OneShotRun.Phase.FINISHED, "terminó (%s)" % _run.phase_label())
+	_check(_run.phase == OneShotRun.RunPhase.RUNNING and _run.model.session_id == session_id, "retoma en la misma sesión")
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.FINISHED and not _run.is_git_busy())
+	_check(_run.phase == OneShotRun.RunPhase.FINISHED, "terminó (%s)" % _run.phase_label())
 	_screen.set(&"_summary_dirty", true)
 	await _wait(func() -> bool: return not (_screen.get(&"_summary") as Dictionary).get("files", []).is_empty())
 	await _frames(2)
@@ -199,7 +199,7 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_shot(shot_path, "_recovered")
 	(_screen.get(&"_stop_button") as Button).pressed.emit()
 	await _frames(2)
-	_check(_run.phase == OneShotRun.Phase.FINISHED and _run.store.load_interrupted().is_empty(), "run a medias: Detener lo cierra")
+	_check(_run.phase == OneShotRun.RunPhase.FINISHED and _run.store.load_interrupted().is_empty(), "run a medias: Detener lo cierra")
 
 	# Spec (D41): el agente escribe el spec y espera; «Revisar spec» lo muestra y «Aprobar spec» sigue.
 	var spec_repo := _make_repo()
@@ -211,9 +211,9 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	await _frames(2)
 	(_screen.get(&"_spec_check") as CheckBox).button_pressed = true
 	start.pressed.emit()
-	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.RUNNING)
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.RUNNING)
 	_run.files.write(_run.files.spec_path(), "# Pong\nDos paletas.\n")  # lo que haría el agente
-	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.SPEC_REVIEW)
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.SPEC_REVIEW)
 	await _frames(3)
 	var spec_button: Button = _screen.get(&"_spec_button")
 	_check(spec_button.visible and spec_button.text == "Review spec", "spec: botón Revisar spec")
@@ -245,8 +245,8 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	spec_edit.text = "# Pong\nDos paletas y power-ups.\n"
 	_shot(shot_path, "_spec")
 	files_dialog.get_ok_button().pressed.emit()
-	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.FINISHED and not _run.is_git_busy())
-	_check(_run.phase == OneShotRun.Phase.FINISHED and _run.files.read(_run.files.spec_path()).contains("power-ups"), "spec: aprobado con cambios y terminado (%s)" % _run.phase_label())
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.FINISHED and not _run.is_git_busy())
+	_check(_run.phase == OneShotRun.RunPhase.FINISHED and _run.files.read(_run.files.spec_path()).contains("power-ups"), "spec: aprobado con cambios y terminado (%s)" % _run.phase_label())
 	_check(spec_button.text == "Spec and progress" and spec_button.visible, "spec: queda el botón Spec y progreso")
 	_check(not spec_view.is_visible_in_tree() and (_screen.get(&"_plan_list").get_parent() as Control).is_visible_in_tree(), "spec: después de aprobar vuelve el plan")
 	# Un link del chat a progress.md abre el visor en esa pestaña (D41).
@@ -299,7 +299,7 @@ func run_claude_oneshot(tree: SceneTree, shot_path: String = "") -> PackedString
 		wip.confirmed.emit()
 	var shots := 0
 	var deadline := Time.get_ticks_msec() + (int(CLAUDE_BUDGETS.time) + 10) * 60000
-	while _run.phase != OneShotRun.Phase.FINISHED and Time.get_ticks_msec() < deadline:
+	while _run.phase != OneShotRun.RunPhase.FINISHED and Time.get_ticks_msec() < deadline:
 		if _run.last_capture != null and shots == 0:
 			shots += 1
 			await _frames(5)
@@ -308,7 +308,7 @@ func run_claude_oneshot(tree: SceneTree, shot_path: String = "") -> PackedString
 	print("[claude-oneshot] fin: %s · playtests %d · tokens %d · %.1f min · checkpoints %s" % [_run.finish_reason, _run.used.playtests, _run.used.tokens, float(_run.used.time) / 60.0, _run.git.checkpoints.map(func(cp: Dictionary) -> String: return cp.name + " " + cp.label)])
 	for check: Dictionary in _run.checks:
 		print("[claude-oneshot] check %s: %s" % [check.status, check.label])
-	_check(_run.phase == OneShotRun.Phase.FINISHED, "el One-shot no terminó a tiempo (%s)" % _run.phase_label())
+	_check(_run.phase == OneShotRun.RunPhase.FINISHED, "el One-shot no terminó a tiempo (%s)" % _run.phase_label())
 	_check(int(_run.used.playtests) >= 1, "sin playtests")
 	_check(_run.last_capture != null, "sin captura de playtest")
 	_check(_run.git.checkpoints.size() >= 3, "pocos checkpoints (%d)" % _run.git.checkpoints.size())

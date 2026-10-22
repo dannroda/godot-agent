@@ -15,15 +15,15 @@ func test_paths() -> void:
 	var root := ProjectSettings.globalize_path(temp_dir("fs_paths"))
 	var fs := _handler(root)
 	var outside: Variant = fs.read_text_file({"path": "/etc/hostname"})
-	assert_true(outside is AcpClient.Response and not outside.ok, "fuera del proyecto")
+	assert_true(outside is AcpClient.AcpResponse and not outside.ok, "fuera del proyecto")
 	var escape: Variant = fs.read_text_file({"path": root + "/../x.txt"})
-	assert_true(escape is AcpClient.Response and not escape.ok, "con .. no escapa")
+	assert_true(escape is AcpClient.AcpResponse and not escape.ok, "con .. no escapa")
 	var relative: Variant = fs.read_text_file({"path": "x.txt"})
-	assert_true(relative is AcpClient.Response and not relative.ok, "relativa rechazada")
+	assert_true(relative is AcpClient.AcpResponse and not relative.ok, "relativa rechazada")
 	var missing: Variant = fs.read_text_file({"path": root + "/no.txt"})
-	assert_true(missing is AcpClient.Response and not missing.ok, "no existe")
+	assert_true(missing is AcpClient.AcpResponse and not missing.ok, "no existe")
 	var godot_dir: Variant = await fs.write_text_file({"path": root + "/.godot/x.cfg", "content": "x"})
-	assert_true(godot_dir is AcpClient.Response and not godot_dir.ok, "no escribe en .godot/")
+	assert_true(godot_dir is AcpClient.AcpResponse and not godot_dir.ok, "no escribe en .godot/")
 
 
 func test_write_read_and_buffer() -> void:
@@ -46,5 +46,5 @@ func test_write_denied() -> void:
 	var fs := _handler(root)
 	fs.write_authorizer = func(_p: String, _o: String, _n: String) -> bool: return false
 	var result: Variant = await fs.write_text_file({"path": root + "/b.gd", "content": "x"})
-	assert_true(result is AcpClient.Response and not result.ok, "denegado")
+	assert_true(result is AcpClient.AcpResponse and not result.ok, "denegado")
 	assert_false(FileAccess.file_exists(root + "/b.gd"), "no se escribió")

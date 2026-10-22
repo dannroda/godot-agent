@@ -192,13 +192,13 @@ func _refresh_indicator() -> void:
 	if mode != CompletionController.MODE_LOCAL and profile:
 		var model := profile.model if not profile.model.is_empty() else profile.kind
 		label = I18n.t("hybrid · %s") % model if mode == CompletionController.MODE_HYBRID else I18n.t("LLM · %s") % model
-	var state := CompletionIndicator.State.ACTIVE
+	var state := CompletionIndicator.IndicatorState.ACTIVE
 	if not is_enabled():
-		state = CompletionIndicator.State.OFF
+		state = CompletionIndicator.IndicatorState.OFF
 	elif _llm_busy_count > 0:
-		state = CompletionIndicator.State.THINKING
+		state = CompletionIndicator.IndicatorState.THINKING
 	elif not _llm_error.is_empty():
-		state = CompletionIndicator.State.ERROR
+		state = CompletionIndicator.IndicatorState.ERROR
 	indicator.set_state(state, label, _llm_error)
 
 

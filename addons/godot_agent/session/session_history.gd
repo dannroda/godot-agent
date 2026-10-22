@@ -38,7 +38,7 @@ var _meta: Dictionary = {}
 ## Eventos todavía no escritos (el turno en curso).
 var _pending: Array[Dictionary] = []
 var _dirty: bool = false
-var _writer := Writer.new()
+var _writer := HistoryWriter.new()
 
 
 func is_recording() -> bool:
@@ -281,7 +281,7 @@ static func _valid_id(id: String) -> bool:
 # --- escritor (worker) ----------------------------------------------------------------------------
 
 ## Cola de escrituras en orden, procesada por una sola tarea del WorkerThreadPool a la vez.
-class Writer extends RefCounted:
+class HistoryWriter extends RefCounted:
 	var mutex := Mutex.new()
 	var jobs: Array[Dictionary] = []
 	var task: int = -1
@@ -309,7 +309,7 @@ func _enqueue(job: Dictionary) -> void:
 
 
 ## Corre en el worker. Solo usa lo que trae cada trabajo: nada del objeto que lo encoló.
-static func _drain(writer: Writer) -> void:
+static func _drain(writer: HistoryWriter) -> void:
 	while true:
 		writer.mutex.lock()
 		if writer.jobs.is_empty():

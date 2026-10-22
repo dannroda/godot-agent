@@ -35,25 +35,25 @@ func test_patterns_file() -> void:
 func test_usage_update_and_states() -> void:
 	var monitor := _monitor()
 	monitor.observe_update({"sessionUpdate": "usage_update", "used": 1200, "size": 200000})
-	assert_eq(monitor.state, QuotaMonitor.State.UNKNOWN, "sin _meta: desconocido")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.UNKNOWN, "sin _meta: desconocido")
 	assert_false(monitor.has_data(), "sin datos de cuota")
 	monitor.observe_update(_update(0.63, 0.47))
-	assert_eq(monitor.state, QuotaMonitor.State.NORMAL, "63 %: normal")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.NORMAL, "63 %: normal")
 	assert_eq(monitor.utilization("five_hour"), 0.63, "ventana actual")
 	assert_eq(monitor.resets_at("seven_day"), NOW + 5 * 86400, "reinicio semanal")
 	assert_eq(monitor.describe_window("five_hour"), "Window 63 % · resets in 1 h", "texto de la ventana")
 	var summary := str(_quota_entries(monitor)[1].message)
 	assert_true(summary.contains("five_hour 63 % until") and summary.contains("seven_day 47 % until"), "log con las ventanas: " + summary)
 	monitor.observe_update(_update(0.5, 0.8))
-	assert_eq(monitor.state, QuotaMonitor.State.WARNING, "la semanal al 80 % avisa")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.WARNING, "la semanal al 80 % avisa")
 	monitor.observe_update(_update(0.91, 0.8, "allowed_warning"))
-	assert_eq(monitor.state, QuotaMonitor.State.PAUSE_SCHEDULED, "91 %: pausa programada")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.PAUSE_SCHEDULED, "91 %: pausa programada")
 	assert_eq(monitor.pause_resets_at(), NOW + 3600, "la pausa espera el reinicio de la ventana más llena")
 	assert_true(monitor.rule_text().contains("pauses when the current task or turn finishes"), "regla activa: " + monitor.rule_text())
 	monitor.configure(0.75, 0.9, false)
-	assert_eq(monitor.state, QuotaMonitor.State.WARNING, "pausa desactivada: solo aviso")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.WARNING, "pausa desactivada: solo aviso")
 	monitor.configure(0.95, 0.99, true)
-	assert_eq(monitor.state, QuotaMonitor.State.NORMAL, "umbrales configurables")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.NORMAL, "umbrales configurables")
 	var transitions := _quota_entries(monitor).filter(func(entry: Dictionary) -> bool: return str(entry.message).begins_with("quota state"))
 	assert_true(transitions.size() >= 4, "cada cambio de estado se loguea (%d)" % transitions.size())
 
@@ -63,7 +63,7 @@ func test_limit_with_reset() -> void:
 	monitor.observe_update(_update(0.9, 0.4))
 	# El agente falso manda primero la cuota "rejected" y después el texto y el error.
 	monitor.observe_update(_update(1.0, 0.5, "rejected", 120))
-	assert_eq(monitor.state, QuotaMonitor.State.LIMITED, "status rejected: limitado")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.LIMITED, "status rejected: limitado")
 	assert_eq(monitor.limited_until, NOW + 120, "hasta el resetsAt de la cuota")
 	assert_true(monitor.observe_agent_text("You've hit your limit · resets 3pm (America/Argentina/Buenos_Aires)"), "prefijo del SDK")
 	assert_eq(monitor.limited_until, NOW + 120, "el resetsAt exacto le gana a la hora redondeada del texto")
@@ -73,14 +73,14 @@ func test_limit_with_reset() -> void:
 	_clock[0] = NOW + 121
 	assert_true(monitor.retry_due(), "llegó la hora")
 	monitor.observe_turn_ok()
-	assert_eq(monitor.state, QuotaMonitor.State.PAUSE_SCHEDULED, "al volver, recalcula con lo último informado")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.PAUSE_SCHEDULED, "al volver, recalcula con lo último informado")
 	_clock[0] = NOW
 
 
 func test_limit_without_reset_backoff() -> void:
 	var monitor := _monitor()
 	assert_true(monitor.observe_prompt_error({"code": -32603, "message": "Internal error", "data": {"errorKind": "rate_limit"}}), "errorKind rate_limit")
-	assert_eq(monitor.state, QuotaMonitor.State.LIMITED, "limitado")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.LIMITED, "limitado")
 	assert_eq(monitor.limited_until, 0, "sin hora de reinicio")
 	assert_eq(monitor.seconds_until_retry(), 5 * 60, "primer intento a los 5 min")
 	var expected: Array[int] = [10, 20, 60, 60]
@@ -89,7 +89,7 @@ func test_limit_without_reset_backoff() -> void:
 		monitor.observe_prompt_error({"code": -32603, "message": "Internal error", "data": {"errorKind": "rate_limit"}})
 		assert_eq(monitor.seconds_until_retry(), minutes * 60, "backoff de %d min" % minutes)
 	monitor.observe_turn_ok()
-	assert_eq(monitor.state, QuotaMonitor.State.UNKNOWN, "sin datos de ventanas: desconocido")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.UNKNOWN, "sin datos de ventanas: desconocido")
 	monitor.observe_prompt_error({"code": -32603, "message": "Internal error", "data": {"errorKind": "rate_limit"}})
 	assert_eq(monitor.seconds_until_retry(), 5 * 60, "el backoff vuelve a empezar")
 	assert_false(monitor.observe_prompt_error({"code": -32603, "message": "Internal error: boom"}), "otro error no es límite")

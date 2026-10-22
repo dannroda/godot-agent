@@ -23,7 +23,7 @@ func test_request_ids_correlate_out_of_order() -> void:
 	var client := _make_client()
 	var results: Dictionary = {}
 	var run := func(method: String) -> void:
-		var response: AcpClient.Response = await client.request(method, {})
+		var response: AcpClient.AcpResponse = await client.request(method, {})
 		results[method] = response
 	run.call("a")
 	run.call("b")
@@ -70,7 +70,7 @@ func test_request_handler_result_and_async() -> void:
 	)
 	client.set_request_handler("slow", func(_params: Dictionary) -> Variant:
 		await Engine.get_main_loop().process_frame
-		return AcpClient.Response.failure(-32002, "no existe")
+		return AcpClient.AcpResponse.failure(-32002, "no existe")
 	)
 	client.receive_line('{"jsonrpc":"2.0","id":"abc","method":"fs/read_text_file","params":{"path":"x.gd"}}')
 	assert_eq(_sent[0].id, "abc", "id string conservado")
@@ -97,7 +97,7 @@ func test_fail_all_pending() -> void:
 	var client := _make_client()
 	var results: Array = []
 	var run := func() -> void:
-		var response: AcpClient.Response = await client.request("session/prompt", {})
+		var response: AcpClient.AcpResponse = await client.request("session/prompt", {})
 		results.append(response)
 	run.call()
 	client.fail_all_pending("se cayó")
@@ -109,6 +109,6 @@ func test_fail_all_pending() -> void:
 func test_send_failure_returns_error() -> void:
 	var client := AcpClient.new()
 	client.setup(func(_line: String) -> bool: return false)
-	var response: AcpClient.Response = await client.request("initialize", {})
+	var response: AcpClient.AcpResponse = await client.request("initialize", {})
 	assert_false(response.ok, "falla sin transporte")
 	assert_eq(client.pending_count(), 0, "no queda pendiente")

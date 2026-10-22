@@ -725,23 +725,23 @@ func _refresh_banner() -> void:
 	var text := ""
 	var color := AgentTheme.WARNING
 	match quota.state:
-		QuotaMonitor.State.WARNING:
+		QuotaMonitor.QuotaState.WARNING:
 			text = I18n.t("Plan quota at %d %% · %s") % [roundi(quota.max_utilization() * 100.0), quota.rule_text().to_lower()]
-		QuotaMonitor.State.PAUSE_SCHEDULED:
+		QuotaMonitor.QuotaState.PAUSE_SCHEDULED:
 			text = _run.quota_pause_text()
 			if text.is_empty():
 				text = quota.rule_text()
-		QuotaMonitor.State.LIMITED:
+		QuotaMonitor.QuotaState.LIMITED:
 			color = AgentTheme.ERROR
 			var wait := quota.seconds_until_retry()
 			text = I18n.t("Plan limit reached · you can try again in %s") % QuotaMonitor.format_duration(wait) if wait > 0 else I18n.t("Plan limit reached · you can retry now")
-	if text.is_empty() and _run.phase == OneShotRun.Phase.SPEC_REVIEW:
+	if text.is_empty() and _run.phase == OneShotRun.RunPhase.SPEC_REVIEW:
 		text = I18n.t("The agent wrote the spec: it's in the left column. Approve it so the agent starts building, or tell it in the chat what to change (it revises it and waits again).") if _run.files.has_spec() else I18n.t("The agent didn't write the spec. Ask it in the chat to write it, or approve to continue without a spec.")
-	if text.is_empty() and _run.phase == OneShotRun.Phase.PAUSED and not _run.pause_note.is_empty():
+	if text.is_empty() and _run.phase == OneShotRun.RunPhase.PAUSED and not _run.pause_note.is_empty():
 		text = _run.pause_note
-	if text.is_empty() and _run.recovered and _run.phase == OneShotRun.Phase.PAUSED:
+	if text.is_empty() and _run.recovered and _run.phase == OneShotRun.RunPhase.PAUSED:
 		text = I18n.t("The One-shot was left unfinished because the editor closed. “Resume” reopens the agent's session and continues; “Stop” ends it.")
-	if text.is_empty() and _run.phase == OneShotRun.Phase.FINISHED and not _show_form:
+	if text.is_empty() and _run.phase == OneShotRun.RunPhase.FINISHED and not _show_form:
 		text = _run.finish_reason
 		color = _accent
 	_banner.visible = not text.is_empty()
@@ -752,12 +752,12 @@ func _refresh_banner() -> void:
 
 func _refresh_top_bar() -> void:
 	var position := _run.plan_position()
-	_phase_label.text = _run.phase_label() + (" · " + position if not position.is_empty() and _run.phase != OneShotRun.Phase.FINISHED else "")
+	_phase_label.text = _run.phase_label() + (" · " + position if not position.is_empty() and _run.phase != OneShotRun.RunPhase.FINISHED else "")
 	var phase_color := _accent
 	match _run.phase:
-		OneShotRun.Phase.LIMITED:
+		OneShotRun.RunPhase.LIMITED:
 			phase_color = AgentTheme.ERROR
-		OneShotRun.Phase.PAUSED, OneShotRun.Phase.PAUSED_QUOTA, OneShotRun.Phase.WAITING_CONFIRM, OneShotRun.Phase.SPEC_REVIEW:
+		OneShotRun.RunPhase.PAUSED, OneShotRun.RunPhase.PAUSED_QUOTA, OneShotRun.RunPhase.WAITING_CONFIRM, OneShotRun.RunPhase.SPEC_REVIEW:
 			phase_color = AgentTheme.WARNING
 	_phase_label.add_theme_color_override(&"font_color", phase_color)
 	_goal_label.text = _run.goal
@@ -780,39 +780,39 @@ func _refresh_top_bar() -> void:
 	var countdown := ""
 	var now := int(Time.get_unix_time_from_system())
 	match _run.phase:
-		OneShotRun.Phase.LIMITED:
+		OneShotRun.RunPhase.LIMITED:
 			var wait := quota.seconds_until_retry()
 			countdown = ("⏳ " + I18n.t("Resets in %s") % QuotaMonitor.format_duration(wait)) if wait > 0 else "⏳ " + I18n.t("Retrying…")
-		OneShotRun.Phase.PAUSED_QUOTA:
+		OneShotRun.RunPhase.PAUSED_QUOTA:
 			if _run.quota_resume_at > now:
 				countdown = "⏸ " + I18n.t("Paused for quota before “%s” · resumes in %s") % [_run.resume_task, QuotaMonitor.format_duration(_run.quota_resume_at - now)]
 			else:
 				countdown = "⏸ " + I18n.t("Paused for quota before “%s”") % _run.resume_task
-		OneShotRun.Phase.WAITING_CONFIRM:
+		OneShotRun.RunPhase.WAITING_CONFIRM:
 			countdown = I18n.t("The quota is free again: press Resume to continue from “%s”") % _run.resume_task
-		OneShotRun.Phase.PAUSED:
+		OneShotRun.RunPhase.PAUSED:
 			if not _run.resume_task.is_empty():
 				countdown = I18n.t("Resumes from “%s”") % _run.resume_task
 	_countdown_label.text = countdown
 	_countdown_label.visible = not countdown.is_empty()
 
-	var finished := _run.phase == OneShotRun.Phase.FINISHED
+	var finished := _run.phase == OneShotRun.RunPhase.FINISHED
 	_pause_button.visible = not finished
 	_stop_button.visible = not finished
 	_new_button.visible = finished
 	var can_resume := _run.can_resume()
 	_account_button.visible = _run.is_active() and can_resume
 	_pause_button.text = I18n.t("Resume") if can_resume else I18n.t("Pause")
-	_pause_button.disabled = not (can_resume or _run.phase == OneShotRun.Phase.RUNNING)
-	_pause_button.tooltip_text = I18n.t("Retries now, without waiting for the window to reset.") if _run.phase == OneShotRun.Phase.LIMITED else ""
+	_pause_button.disabled = not (can_resume or _run.phase == OneShotRun.RunPhase.RUNNING)
+	_pause_button.tooltip_text = I18n.t("Retries now, without waiting for the window to reset.") if _run.phase == OneShotRun.RunPhase.LIMITED else ""
 	_stop_button.disabled = not _run.is_active()
-	_spec_button.visible = _run.files.has_spec() or _run.phase == OneShotRun.Phase.SPEC_REVIEW
+	_spec_button.visible = _run.files.has_spec() or _run.phase == OneShotRun.RunPhase.SPEC_REVIEW
 	_budgets_button.visible = _run.is_active()
-	_spec_button.text = I18n.t("Review spec") if _run.phase == OneShotRun.Phase.SPEC_REVIEW else I18n.t("Spec and progress")
+	_spec_button.text = I18n.t("Review spec") if _run.phase == OneShotRun.RunPhase.SPEC_REVIEW else I18n.t("Spec and progress")
 
 
 func _refresh_plan() -> void:
-	var reviewing := _run.phase == OneShotRun.Phase.SPEC_REVIEW
+	var reviewing := _run.phase == OneShotRun.RunPhase.SPEC_REVIEW
 	_plan_title.text = I18n.t("Spec").to_upper() if reviewing else I18n.t("Plan").to_upper()
 	(_plan_list.get_parent() as Control).visible = not reviewing and not _plan_edit.visible
 	_plan_edit_button.visible = not reviewing and not _plan_edit.visible
@@ -826,7 +826,7 @@ func _refresh_plan() -> void:
 			_spec_view.text = MarkdownBBCode.new().convert(spec) if not spec.is_empty() else "[color=#9aa0a6]%s[/color]" % I18n.t("The agent didn't write the spec. Ask it in the chat to write it, or approve to continue without a spec.")
 		return
 	var plan: Array = _run.current_plan()
-	var signature := JSON.stringify(plan) + ("|fin" if plan.is_empty() and _run.phase == OneShotRun.Phase.FINISHED else "")
+	var signature := JSON.stringify(plan) + ("|fin" if plan.is_empty() and _run.phase == OneShotRun.RunPhase.FINISHED else "")
 	if signature == _plan_signature:
 		_refresh_plan_times()
 		return
@@ -836,7 +836,7 @@ func _refresh_plan() -> void:
 	for child: Node in _plan_list.get_children():
 		child.queue_free()
 	if plan.is_empty():
-		_plan_list.add_child(_muted_label(I18n.t("The agent didn't report a plan: progress comes from the playtests and the checks.") if _run.phase == OneShotRun.Phase.FINISHED else I18n.t("The agent hasn't made the plan yet.")))
+		_plan_list.add_child(_muted_label(I18n.t("The agent didn't report a plan: progress comes from the playtests and the checks.") if _run.phase == OneShotRun.RunPhase.FINISHED else I18n.t("The agent hasn't made the plan yet.")))
 		return
 	for entry: Variant in plan:
 		if not entry is Dictionary:
@@ -939,10 +939,10 @@ func _refresh_side() -> void:
 
 
 func _refresh_bottom_bar() -> void:
-	_report_button.visible = not _run.last_report.is_empty() and _run.phase == OneShotRun.Phase.FINISHED and not _show_form
+	_report_button.visible = not _run.last_report.is_empty() and _run.phase == OneShotRun.RunPhase.FINISHED and not _show_form
 	var enabled := _run.checkpoints_enabled
 	_review_button.disabled = not enabled or _summary.get("files", []).is_empty()
-	_accept_button.disabled = not enabled or _run.phase == OneShotRun.Phase.PREPARING
+	_accept_button.disabled = not enabled or _run.phase == OneShotRun.RunPhase.PREPARING
 	if not enabled:
 		_summary_label.text = I18n.t("No checkpoints: no change summary and no agent branch.")
 		_diffstat_label.text = ""
@@ -1065,7 +1065,7 @@ func _on_account_menu(id: int) -> void:
 
 
 func _on_pause_pressed() -> void:
-	if _run.phase == OneShotRun.Phase.RUNNING:
+	if _run.phase == OneShotRun.RunPhase.RUNNING:
 		_run.pause()
 	else:
 		_run.resume()
@@ -1218,7 +1218,7 @@ func _show_files(focus: String = "") -> void:
 		_files_paths.append(other[1])
 	var index := _files_paths.find(focus)
 	_files_tabs.current_tab = maxi(index, 0)
-	var reviewing := _run.phase == OneShotRun.Phase.SPEC_REVIEW
+	var reviewing := _run.phase == OneShotRun.RunPhase.SPEC_REVIEW
 	_files_dialog.ok_button_text = I18n.t("Approve spec") if reviewing else I18n.t("Save spec")
 	_refresh_files_path()
 	_files_dialog.popup_centered()
@@ -1241,7 +1241,7 @@ func _on_files_action(action: StringName) -> void:
 
 
 func _on_files_confirmed() -> void:
-	if _run.phase == OneShotRun.Phase.SPEC_REVIEW:
+	if _run.phase == OneShotRun.RunPhase.SPEC_REVIEW:
 		_run.approve_spec(_spec_edit.text)
 	elif _spec_edit.text != _run.files.read(_run.files.spec_path()):
 		_run.files.write(_run.files.spec_path(), _spec_edit.text)

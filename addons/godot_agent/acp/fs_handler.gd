@@ -37,17 +37,17 @@ func read_text_file(params: Dictionary) -> Variant:
 	var path := str(params.get("path", ""))
 	var check := _check_path(path, false)
 	if not check.is_empty():
-		return AcpClient.Response.failure(AcpClient.ERR_INVALID_PARAMS, check)
+		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, check)
 	var text: Variant = buffer_reader.call(path) if buffer_reader.is_valid() else null
 	var source := "editor buffer"
 	if text == null:
 		if not FileAccess.file_exists(path):
 			_log("read %s: does not exist" % path)
-			return AcpClient.Response.failure(AcpClient.ERR_INTERNAL, "File not found: %s" % path)
+			return AcpClient.AcpResponse.failure(AcpClient.ERR_INTERNAL, "File not found: %s" % path)
 		text = FileAccess.get_file_as_string(path)
 		source = "disk"
 		if FileAccess.get_open_error() != OK:
-			return AcpClient.Response.failure(AcpClient.ERR_INTERNAL, "Cannot read %s: %s" % [path, error_string(FileAccess.get_open_error())])
+			return AcpClient.AcpResponse.failure(AcpClient.ERR_INTERNAL, "Cannot read %s: %s" % [path, error_string(FileAccess.get_open_error())])
 	var content := slice_lines(str(text), params.get("line"), params.get("limit"))
 	_log("read %s (%s, %d characters)" % [_short(path), source, content.length()])
 	return {"content": content}
@@ -58,9 +58,9 @@ func write_text_file(params: Dictionary) -> Variant:
 	var check := _check_path(path, true)
 	if not check.is_empty():
 		_log("write rejected: %s" % check)
-		return AcpClient.Response.failure(AcpClient.ERR_INVALID_PARAMS, check)
+		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, check)
 	if not params.get("content") is String:
-		return AcpClient.Response.failure(AcpClient.ERR_INVALID_PARAMS, "Missing 'content'.")
+		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, "Missing 'content'.")
 	var new_text: String = params.content
 	var old_text := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else ""
 	if path.get_extension() in EDITOR_MANAGED_EXTENSIONS:
@@ -69,11 +69,11 @@ func write_text_file(params: Dictionary) -> Variant:
 		var allowed: bool = await write_authorizer.call(path, old_text, new_text)
 		if not allowed:
 			_log("write denied: %s" % _short(path))
-			return AcpClient.Response.failure(AcpClient.ERR_INTERNAL, "Permission denied by the user or the current mode: %s" % path)
+			return AcpClient.AcpResponse.failure(AcpClient.ERR_INTERNAL, "Permission denied by the user or the current mode: %s" % path)
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		return AcpClient.Response.failure(AcpClient.ERR_INTERNAL, "Cannot write %s: %s" % [path, error_string(FileAccess.get_open_error())])
+		return AcpClient.AcpResponse.failure(AcpClient.ERR_INTERNAL, "Cannot write %s: %s" % [path, error_string(FileAccess.get_open_error())])
 	file.store_string(new_text)
 	file.close()
 	_log("write %s (%d characters)" % [_short(path), new_text.length()])

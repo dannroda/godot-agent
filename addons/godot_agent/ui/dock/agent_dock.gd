@@ -84,7 +84,7 @@ var _file_dialog: EditorFileDialog
 var _review_panel: ReviewPanel
 var _quota_meter: QuotaMeter
 var _quota_timer: Timer
-var _quota_state: int = QuotaMonitor.State.UNKNOWN
+var _quota_state: int = QuotaMonitor.QuotaState.UNKNOWN
 var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
 ## Para pegar el código de la página de login (se arma la primera vez).
@@ -164,10 +164,10 @@ func _ready() -> void:
 	_context_poll_timer.timeout.connect(_refresh_chips)
 
 	# Pull del estado actual y después push por señales.
-	_model.state_changed.connect(func(state: SessionModel.State) -> void:
+	_model.state_changed.connect(func(state: SessionModel.SessionState) -> void:
 		_refresh_state()
-		_queue_view.set_send_available(state == SessionModel.State.READY)
-		if state in [SessionModel.State.DISCONNECTED, SessionModel.State.FAILED]:
+		_queue_view.set_send_available(state == SessionModel.SessionState.READY)
+		if state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]:
 			_queue.pause(I18n.t("the session closed")))
 	_model.turn_finished.connect(_on_turn_finished)
 	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
@@ -181,7 +181,7 @@ func _ready() -> void:
 	_reload_profiles()
 	_refresh_modes()
 	_refresh_state()
-	_queue_view.set_send_available(_model.state == SessionModel.State.READY)
+	_queue_view.set_send_available(_model.state == SessionModel.SessionState.READY)
 	_refresh_title()
 	_composer.set_usage(_model.usage_used, _model.usage_size)
 	_composer.set_model_option(_model.config_option("model"))
@@ -268,15 +268,15 @@ func _on_quota_changed() -> void:
 	var quota := _controller.quota
 	if quota.state != _quota_state:
 		match quota.state:
-			QuotaMonitor.State.WARNING, QuotaMonitor.State.PAUSE_SCHEDULED:
-				if _quota_state in [QuotaMonitor.State.UNKNOWN, QuotaMonitor.State.NORMAL]:
-					_model.add_notice(I18n.t("Plan quota at %d %%.") % roundi(quota.max_utilization() * 100.0), ChatEntry.Level.WARNING)
-			QuotaMonitor.State.LIMITED:
+			QuotaMonitor.QuotaState.WARNING, QuotaMonitor.QuotaState.PAUSE_SCHEDULED:
+				if _quota_state in [QuotaMonitor.QuotaState.UNKNOWN, QuotaMonitor.QuotaState.NORMAL]:
+					_model.add_notice(I18n.t("Plan quota at %d %%.") % roundi(quota.max_utilization() * 100.0), ChatEntry.NoticeLevel.WARNING)
+			QuotaMonitor.QuotaState.LIMITED:
 				if quota.limited_until > 0:
 					var wait := QuotaMonitor.format_duration(quota.limited_until - int(Time.get_unix_time_from_system()))
-					_model.add_notice(I18n.t("Plan limit reached. It resets in %s.") % wait, ChatEntry.Level.ERROR)
+					_model.add_notice(I18n.t("Plan limit reached. It resets in %s.") % wait, ChatEntry.NoticeLevel.ERROR)
 				else:
-					_model.add_notice(I18n.t("Plan limit reached. The agent did not say when it resets."), ChatEntry.Level.ERROR)
+					_model.add_notice(I18n.t("Plan limit reached. The agent did not say when it resets."), ChatEntry.NoticeLevel.ERROR)
 		_quota_state = quota.state
 	_composer.set_usage_hint("" if quota.has_data() else I18n.t("The agent does not report the plan quota."))
 	_on_quota_tick()
@@ -329,7 +329,7 @@ func _on_review_export_requested() -> void:
 func _on_review_export_confirmed() -> void:
 	var error := ReviewStore.append_to_claude_md(_export_preview.text)
 	if not error.is_empty():
-		_model.add_notice(I18n.t("Could not write CLAUDE.md: %s") % error, ChatEntry.Level.ERROR)
+		_model.add_notice(I18n.t("Could not write CLAUDE.md: %s") % error, ChatEntry.NoticeLevel.ERROR)
 		return
 	EditorInterface.get_resource_filesystem().update_file(ReviewStore.CLAUDE_MD_PATH)
 	_model.add_notice(I18n.t("Review conventions added to CLAUDE.md."))
@@ -368,30 +368,30 @@ func _refresh_state() -> void:
 	var text := ""
 	var color := AgentTheme.MUTED
 	match _model.state:
-		SessionModel.State.DISCONNECTED:
+		SessionModel.SessionState.DISCONNECTED:
 			text = I18n.t("○ %s · not started") % name
-		SessionModel.State.STARTING:
+		SessionModel.SessionState.STARTING:
 			text = I18n.t("◌ %s · connecting…") % name
 			color = _accent
-		SessionModel.State.READY:
+		SessionModel.SessionState.READY:
 			text = I18n.t("● %s · ready") % name
 			color = AgentTheme.ADDED
-		SessionModel.State.PROMPTING:
+		SessionModel.SessionState.PROMPTING:
 			text = I18n.t("● %s · working…") % name
 			color = _accent
-		SessionModel.State.CANCELLING:
+		SessionModel.SessionState.CANCELLING:
 			text = I18n.t("● %s · cancelling…") % name
 			color = AgentTheme.WARNING
-		SessionModel.State.FAILED:
+		SessionModel.SessionState.FAILED:
 			text = I18n.t("✗ %s · error") % name
 			color = AgentTheme.ERROR
 	_status_label.text = text
 	_status_label.tooltip_text = _model.failure_message
 	_status_label.add_theme_color_override(&"font_color", color)
 	_composer.set_busy(_model.is_busy())
-	_composer.set_enabled(_model.state != SessionModel.State.STARTING)
+	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
-	_new_session_button.disabled = _model.state == SessionModel.State.STARTING or _model.is_busy()
+	_new_session_button.disabled = _model.state == SessionModel.SessionState.STARTING or _model.is_busy()
 	_refresh_title()
 	_refresh_empty_state()
 
@@ -399,13 +399,13 @@ func _refresh_state() -> void:
 func _refresh_empty_state() -> void:
 	if _empty_state == null or _conversation == null:
 		return
-	var empty := _model.entries().is_empty() and _model.state in [SessionModel.State.DISCONNECTED, SessionModel.State.FAILED]
+	var empty := _model.entries().is_empty() and _model.state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]
 	_empty_state.visible = empty
 	_conversation.visible = not empty
 	var profile := _settings.active_profile()
 	_empty_command.text = profile.command_line() if profile else I18n.t("No profiles: set them up in the settings.")
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	_start_button.disabled = profile == null or _model.state == SessionModel.State.STARTING
+	_start_button.disabled = profile == null or _model.state == SessionModel.SessionState.STARTING
 
 
 # --- sesión --------------------------------------------------------------------------------------
@@ -429,7 +429,7 @@ func _warn_api_key(profile: AgentProfile) -> void:
 	if profile.command_line().contains("claude") and (OS.has_environment("ANTHROPIC_API_KEY") or profile.env.has("ANTHROPIC_API_KEY")):
 		_model.add_notice(
 			I18n.t("There is an ANTHROPIC_API_KEY in the environment: Claude Code may bill through the API instead of using your subscription."),
-			ChatEntry.Level.WARNING
+			ChatEntry.NoticeLevel.WARNING
 		)
 
 
@@ -450,7 +450,7 @@ func _show_history_menu() -> void:
 		_history_menu.set_item_tooltip(_history_menu.item_count - 1, I18n.t("%d turns · %s") % [int(item.get("turns", 0)), item.get("id", "")])
 		if item.get("id") == _model.session_id:
 			_history_menu.set_item_disabled(_history_menu.item_count - 1, true)
-	var busy := _model.state in [SessionModel.State.STARTING, SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]
+	var busy := _model.state in [SessionModel.SessionState.STARTING, SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]
 	for i in _history_menu.item_count:
 		_history_menu.set_item_disabled(i, _history_menu.is_item_disabled(i) or busy)
 	var below: Vector2 = _history_button.get_screen_position() + Vector2(0, _history_button.size.y)
@@ -461,7 +461,7 @@ func _show_history_menu() -> void:
 func open_history_session(id: String) -> bool:
 	var record: Dictionary = _controller.history.load_record(id) if _controller.history else {}
 	if record.is_empty():
-		_model.add_notice(I18n.t("Could not read session %s from the history.") % id, ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("Could not read session %s from the history.") % id, ChatEntry.NoticeLevel.WARNING)
 		return false
 	var profile := _settings.profile(str(record.get("profile_id", "")))
 	if profile == null:
@@ -475,10 +475,10 @@ func _on_history_selected(index: int) -> void:
 	if index < 0 or index >= _history_items.size():
 		return
 	# El estado pudo cambiar con el menú abierto.
-	if _model.state in [SessionModel.State.STARTING, SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
+	if _model.state in [SessionModel.SessionState.STARTING, SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
 		return
 	if can_switch_session.is_valid() and not can_switch_session.call():
-		_model.add_notice(I18n.t("A One-shot is running: stop it before opening another session."), ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("A One-shot is running: stop it before opening another session."), ChatEntry.NoticeLevel.WARNING)
 		return
 	open_history_session(str(_history_items[index].get("id", "")))
 
@@ -500,15 +500,15 @@ func _on_submitted(text: String) -> void:
 	_composer.clear()
 	if submit_interceptor.is_valid() and submit_interceptor.call(text):
 		return
-	if _model.is_busy() or (_model.state == SessionModel.State.STARTING and not _pending_prompt.is_empty()):
+	if _model.is_busy() or (_model.state == SessionModel.SessionState.STARTING and not _pending_prompt.is_empty()):
 		_queue.add(text, _take_context_blocks())
 		return
 	match _model.state:
-		SessionModel.State.READY:
+		SessionModel.SessionState.READY:
 			_send(text)
-		SessionModel.State.STARTING:
+		SessionModel.SessionState.STARTING:
 			_pending_prompt = text
-		SessionModel.State.DISCONNECTED, SessionModel.State.FAILED:
+		SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED:
 			_pending_prompt = text
 			_start_session()
 
@@ -553,7 +553,7 @@ static func _pause_reason(stop_reason: String) -> String:
 
 ## `resume`: el usuario pidió «Enviar ahora» (si no, solo sale si la cola no está en pausa).
 func _send_next_queued(resume: bool = false) -> void:
-	if _model.state != SessionModel.State.READY or _queue.is_empty():
+	if _model.state != SessionModel.SessionState.READY or _queue.is_empty():
 		return
 	if resume:
 		_queue.resume()
@@ -624,7 +624,7 @@ func _open_path(path: String, line: int) -> void:
 	if FileAccess.file_exists(absolute):
 		OS.shell_open(absolute)
 		return
-	_model.add_notice(I18n.t("Could not open %s.") % path, ChatEntry.Level.WARNING)
+	_model.add_notice(I18n.t("Could not open %s.") % path, ChatEntry.NoticeLevel.WARNING)
 
 
 func _ask_login_code() -> void:
@@ -645,7 +645,7 @@ func _ask_login_code() -> void:
 		_login_code_dialog.register_text_enter(_login_code_input)
 		_login_code_dialog.confirmed.connect(func() -> void:
 			if not _controller.send_login_code(_login_code_input.text):
-				_model.add_notice(I18n.t("No sign-in is waiting for a code."), ChatEntry.Level.WARNING)
+				_model.add_notice(I18n.t("No sign-in is waiting for a code."), ChatEntry.NoticeLevel.WARNING)
 			_login_code_input.clear()
 		)
 		add_child(_login_code_dialog)
@@ -769,7 +769,7 @@ func _context_blocks() -> Array:
 func _on_screenshot_requested() -> void:
 	var block := EditorContext.capture_viewport_block()
 	if block.is_empty():
-		_model.add_notice(I18n.t("Could not capture the viewport."), ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("Could not capture the viewport."), ChatEntry.NoticeLevel.WARNING)
 		return
 	_screenshot_block = block
 	_refresh_chips()

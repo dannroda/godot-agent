@@ -405,9 +405,9 @@ func _run_claude_edit_test() -> void:
 	if FileAccess.get_file_as_string(CLAUDE_EDIT_TARGET).contains("var speed := 3") or code_edit.text.contains("var speed := 3"):
 		failures.append("Preguntar: el archivo cambió")
 	for entry: Object in model.call(&"entries"):
-		if int(entry.get(&"kind")) == ChatEntry.Kind.NOTICE:
+		if int(entry.get(&"kind")) == ChatEntry.EntryKind.NOTICE:
 			print("[claude-edit] aviso: ", entry.get(&"text"))
-		elif int(entry.get(&"kind")) == ChatEntry.Kind.AGENT:
+		elif int(entry.get(&"kind")) == ChatEntry.EntryKind.AGENT:
 			print("[claude-edit] agente: ", str(entry.get(&"text")).left(300).replace("\n", " "))
 	controller.call(&"stop")
 	for failure: String in failures:
@@ -521,7 +521,7 @@ func _run_claude_scene_test() -> void:
 		"En la escena abierta (%s) agregá un Label llamado WaveLabel como hijo de HUD, con el texto \"Oleada 1\", y conectá la señal timeout de WaveTimer al método _on_wave_timer_timeout de WaveLabel. Usá las tools godot.* del server MCP godot; no edites el .tscn en disco, no crees scripts y no guardes la escena." % CLAUDE_HUD_SCENE)
 	var tools: PackedStringArray = []
 	for entry: Object in model.call(&"entries"):
-		if int(entry.get(&"kind")) == ChatEntry.Kind.TOOL_GROUP:
+		if int(entry.get(&"kind")) == ChatEntry.EntryKind.TOOL_GROUP:
 			for id: String in entry.get(&"tool_call_ids"):
 				tools.append(str(model.call(&"tool_call", id).call(&"display_name")))
 	print("[claude-scene] stopReason=%s tools: %s" % [stop, ", ".join(tools)])
@@ -598,9 +598,9 @@ func _run_claude_mcp_test() -> void:
 	var used_scene_tree := false
 	var reply := ""
 	for entry: Object in model.call(&"entries"):
-		if int(entry.get(&"kind")) == ChatEntry.Kind.AGENT:
+		if int(entry.get(&"kind")) == ChatEntry.EntryKind.AGENT:
 			reply += str(entry.get(&"text"))
-		elif int(entry.get(&"kind")) == ChatEntry.Kind.TOOL_GROUP:
+		elif int(entry.get(&"kind")) == ChatEntry.EntryKind.TOOL_GROUP:
 			for id: String in entry.get(&"tool_call_ids"):
 				var call: Object = model.call(&"tool_call", id)
 				print("[claude-mcp] tool call: %s · %s" % [call.call(&"display_name"), call.get(&"status")])

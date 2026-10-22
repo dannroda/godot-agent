@@ -31,19 +31,19 @@ const GameCriteria := preload("game_criteria.gd")
 const OneShotFiles := preload("oneshot_files.gd")
 const I18n := preload("../core/i18n.gd")
 
-enum Phase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW }
+enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW }
 
 const PHASE_LABELS: Dictionary = {
-	Phase.IDLE: "Not started",  # i18n
-	Phase.PREPARING: "Preparing",  # i18n
-	Phase.RUNNING: "Running",  # i18n
-	Phase.PAUSED: "Paused",  # i18n
-	Phase.PAUSED_QUOTA: "Paused for quota",  # i18n
-	Phase.LIMITED: "Limited",  # i18n
-	Phase.WAITING_CONFIRM: "Ready to resume",  # i18n
-	Phase.CLOSING: "Closing",  # i18n
-	Phase.FINISHED: "Finished",  # i18n
-	Phase.SPEC_REVIEW: "Spec to review",  # i18n
+	RunPhase.IDLE: "Not started",  # i18n
+	RunPhase.PREPARING: "Preparing",  # i18n
+	RunPhase.RUNNING: "Running",  # i18n
+	RunPhase.PAUSED: "Paused",  # i18n
+	RunPhase.PAUSED_QUOTA: "Paused for quota",  # i18n
+	RunPhase.LIMITED: "Limited",  # i18n
+	RunPhase.WAITING_CONFIRM: "Ready to resume",  # i18n
+	RunPhase.CLOSING: "Closing",  # i18n
+	RunPhase.FINISHED: "Finished",  # i18n
+	RunPhase.SPEC_REVIEW: "Spec to review",  # i18n
 }
 const BUDGET_TIME := "time"
 const BUDGET_TOKENS := "tokens"
@@ -69,8 +69,8 @@ const QUOTA_PAUSE_GRACE_S := 600
 const QUOTA_PAUSE_HARD := 0.98
 ## Fases sin trabajo y cómo cuentan en los tiempos del informe.
 const WAIT_KINDS: Dictionary = {
-	Phase.PAUSED_QUOTA: "quota", Phase.LIMITED: "quota", Phase.WAITING_CONFIRM: "quota",
-	Phase.PAUSED: "paused", Phase.SPEC_REVIEW: "spec_review",
+	RunPhase.PAUSED_QUOTA: "quota", RunPhase.LIMITED: "quota", RunPhase.WAITING_CONFIRM: "quota",
+	RunPhase.PAUSED: "paused", RunPhase.SPEC_REVIEW: "spec_review",
 }
 ## Cómo terminó el turno, para la actividad (end_turn = normal, sin nota).
 const TURN_END_NOTES: Dictionary = {
@@ -120,7 +120,7 @@ var spec_review: bool = false
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
 
-var phase: Phase = Phase.IDLE
+var phase: RunPhase = RunPhase.IDLE
 var goal: String = ""
 ## {time: minutos, tokens, playtests}; 0 = sin límite.
 var budgets: Dictionary = {BUDGET_TIME: 45, BUDGET_TOKENS: 1500000, BUDGET_PLAYTESTS: 8}
@@ -207,7 +207,7 @@ func _ready() -> void:
 
 
 func is_active() -> bool:
-	return not phase in [Phase.IDLE, Phase.FINISHED]
+	return not phase in [RunPhase.IDLE, RunPhase.FINISHED]
 
 
 ## Hay una operación git en curso (un checkpoint se crea en segundo plano).
@@ -288,7 +288,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	resume_task = ""
 	last_capture = null
 	_started_msec = Time.get_ticks_msec()
-	_set_phase(Phase.PREPARING)
+	_set_phase(RunPhase.PREPARING)
 	checkpoints_enabled = false
 	if use_checkpoints:
 		if await git.check_available():
@@ -306,7 +306,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 		_finish(I18n.t("Couldn't open a session with the agent."))
 		return false
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
-	_set_phase(Phase.RUNNING)
+	_set_phase(RunPhase.RUNNING)
 	_timer.start()
 	_run_turn(initial_prompt())
 	return true
@@ -341,10 +341,10 @@ func initial_prompt() -> String:
 # --- controles -----------------------------------------------------------------------------------
 
 func pause() -> void:
-	if phase != Phase.RUNNING:
+	if phase != RunPhase.RUNNING:
 		return
 	resume_task = _task_name(_current_task)
-	_set_phase(Phase.PAUSED)
+	_set_phase(RunPhase.PAUSED)
 	_add_activity("status", I18n.t("Paused by the user"))
 	if _turn_running:
 		controller.cancel()
@@ -352,15 +352,15 @@ func pause() -> void:
 
 ## Fases desde las que se puede retomar (Retomar, Reintentar, Cambiar de cuenta).
 func can_resume() -> bool:
-	return phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.LIMITED, Phase.WAITING_CONFIRM]
+	return phase in [RunPhase.PAUSED, RunPhase.PAUSED_QUOTA, RunPhase.LIMITED, RunPhase.WAITING_CONFIRM]
 
 
 func resume() -> void:
 	if not can_resume():
 		return
-	var was_limited := phase == Phase.LIMITED or quota.is_limited()
+	var was_limited := phase == RunPhase.LIMITED or quota.is_limited()
 	pause_note = ""
-	_set_phase(Phase.RUNNING)
+	_set_phase(RunPhase.RUNNING)
 	if was_limited:
 		quota.note_retry()
 	# Un run cargado de disco retoma su propia sesión, aunque el dock tenga otra abierta.
@@ -420,13 +420,13 @@ func guide(text: String) -> void:
 		_queue_guidance(text)
 		resume()
 		return
-	if _turn_running or phase in [Phase.PREPARING, Phase.CLOSING, Phase.LIMITED]:
+	if _turn_running or phase in [RunPhase.PREPARING, RunPhase.CLOSING, RunPhase.LIMITED]:
 		_queue_guidance(text)
 		changed.emit()
 		return
-	if phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM, Phase.SPEC_REVIEW]:
+	if phase in [RunPhase.PAUSED, RunPhase.PAUSED_QUOTA, RunPhase.WAITING_CONFIRM, RunPhase.SPEC_REVIEW]:
 		pause_note = ""
-		_set_phase(Phase.RUNNING)
+		_set_phase(RunPhase.RUNNING)
 	_add_activity("guide", I18n.t("sent: %s") % text)
 	_run_turn(text)
 
@@ -437,7 +437,7 @@ func _queue_guidance(text: String) -> void:
 	_guidance.append(text)
 	_user_guidance.append(text)
 	_add_activity("guide", I18n.t("queued: %s") % text)
-	model.add_notice(I18n.t("One-shot · queued: “%s”. The agent gets it when the current turn ends.") % text.left(120), ChatEntry.Level.INFO)
+	model.add_notice(I18n.t("One-shot · queued: “%s”. The agent gets it when the current turn ends.") % text.left(120), ChatEntry.NoticeLevel.INFO)
 
 
 func _pop_guidance() -> String:
@@ -466,9 +466,9 @@ func set_budgets(values: Dictionary) -> void:
 	if not _closed_budget().is_empty() and not exhausted:
 		_close_reason = ""
 		_add_activity("budget", I18n.t("With the new budget, the run continues"))
-		if phase == Phase.CLOSING:
-			_set_phase(Phase.RUNNING)
-		elif phase == Phase.RUNNING:
+		if phase == RunPhase.CLOSING:
+			_set_phase(RunPhase.RUNNING)
+		elif phase == RunPhase.RUNNING:
 			if _turn_running:
 				_continue_after_cancel = true
 			else:
@@ -503,14 +503,14 @@ func _close_reason_text() -> String:
 
 ## «Aprobar spec» (D41): con `text` distinto del archivo, primero se guarda lo que editó el usuario.
 func approve_spec(text: String = "") -> void:
-	if phase != Phase.SPEC_REVIEW:
+	if phase != RunPhase.SPEC_REVIEW:
 		return
 	var edited := not text.strip_edges().is_empty() and text != files.read(files.spec_path())
 	if edited:
 		files.write(files.spec_path(), text)
 	_awaiting_spec = false
 	_add_activity("spec", I18n.t("Spec approved with the user's changes") if edited else I18n.t("Spec approved"))
-	_set_phase(Phase.RUNNING)
+	_set_phase(RunPhase.RUNNING)
 	_run_turn("The spec is approved%s. Continue with the rest: make the plan from the spec and build." % (" with changes: reread it before making the plan" if edited else ""))
 
 
@@ -530,7 +530,7 @@ func restore(checkpoint_entry: Dictionary) -> String:
 		return I18n.t("Checkpoints are turned off.")
 	if _turn_running:
 		resume_task = str(checkpoint_entry.get("label", ""))
-		_set_phase(Phase.PAUSED)
+		_set_phase(RunPhase.PAUSED)
 		controller.cancel()
 		while _turn_running:
 			await get_tree().process_frame
@@ -542,7 +542,7 @@ func restore(checkpoint_entry: Dictionary) -> String:
 	resume_task = str(checkpoint_entry.get("label", ""))
 	_add_activity("checkpoint", I18n.t("Went back to %s (%s) · %d files") % [checkpoint_entry.name, checkpoint_entry.label, (changed_paths as PackedStringArray).size()])
 	if is_active():
-		_set_phase(Phase.PAUSED)
+		_set_phase(RunPhase.PAUSED)
 	changed.emit()
 	return ""
 
@@ -600,7 +600,7 @@ func _run_turn(text: String) -> void:
 	var turn_text := controller.agent_text_since(first_entry)
 	var new_checks: Array = FindingsParser.parse(turn_text).checks
 	_merge_checks(new_checks)
-	if phase == Phase.RUNNING:
+	if phase == RunPhase.RUNNING:
 		_on_loop(loops.observe_checks(new_checks), false)
 	var summary := _summary_of(turn_text)
 	if not summary.is_empty():
@@ -614,28 +614,28 @@ func _run_turn(text: String) -> void:
 
 func _after_turn(reason: String) -> void:
 	match phase:
-		Phase.CLOSING:
+		RunPhase.CLOSING:
 			_finish(_close_reason_text() if not _close_reason.is_empty() else I18n.t("Finished."))
 			return
-		Phase.FINISHED, Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM, Phase.IDLE:
+		RunPhase.FINISHED, RunPhase.PAUSED, RunPhase.PAUSED_QUOTA, RunPhase.WAITING_CONFIRM, RunPhase.IDLE:
 			return
 	if quota.is_limited():
 		await _enter_limited()
 		return
 	if reason.is_empty():  # no se pudo mandar: la sesión no estaba lista
 		resume_task = _task_name(_current_task)
-		_set_phase(Phase.PAUSED)
+		_set_phase(RunPhase.PAUSED)
 		_add_activity("session", I18n.t("The agent wasn't ready for another turn: resume whenever you want"))
 		return
 	if reason == "error" and not controller.is_connected_to_agent():
 		resume_task = _task_name(_current_task)
-		_set_phase(Phase.PAUSED)
+		_set_phase(RunPhase.PAUSED)
 		_add_activity("session", I18n.t("The agent closed: resume whenever you want (a new session opens with the summary)"))
 		return
 	if not _close_reason.is_empty():
 		_close()
 		return
-	if phase == Phase.RUNNING and quota.state == QuotaMonitor.State.PAUSE_SCHEDULED and reason != "cancelled":
+	if phase == RunPhase.RUNNING and quota.state == QuotaMonitor.QuotaState.PAUSE_SCHEDULED and reason != "cancelled":
 		_pause_for_quota(_task_name(_next_pending()))
 		return
 	if not _guidance.is_empty():
@@ -680,16 +680,16 @@ func _after_turn_without_plan() -> void:
 
 
 func _enter_spec_review() -> void:
-	_set_phase(Phase.SPEC_REVIEW)
+	_set_phase(RunPhase.SPEC_REVIEW)
 	if files.has_spec():
 		_add_activity("spec", I18n.t("%s/%s is ready: review and approve it so the agent starts building") % [files.relative_dir(), OneShotFiles.SPEC])
 	else:
 		_add_activity("warning", I18n.t("The agent didn't write %s/%s. Ask it in the chat to write it, or approve to continue without a spec.") % [files.relative_dir(), OneShotFiles.SPEC])
-	model.add_notice(I18n.t("One-shot · the spec is ready for review in the Agent screen."), ChatEntry.Level.INFO)
+	model.add_notice(I18n.t("One-shot · the spec is ready for review in the Agent screen."), ChatEntry.NoticeLevel.INFO)
 
 
 func _close() -> void:
-	_set_phase(Phase.CLOSING)
+	_set_phase(RunPhase.CLOSING)
 	_add_activity("budget", _close_reason_text())
 	_run_turn("%s Don't continue with the plan: write the final report (what got done, what's missing and how to test it) and the checks block." % _close_reason)
 
@@ -699,7 +699,7 @@ func _finish(reason: String) -> void:
 	_timer.stop()
 	_recovered_session_id = ""
 	_add_activity("status", reason)
-	_set_phase(Phase.FINISHED)
+	_set_phase(RunPhase.FINISHED)
 	store.prune()
 	_write_report()
 
@@ -783,7 +783,7 @@ func _on_plan_changed(plan: Array) -> void:
 		_current_task = in_progress
 		var task := _task_name(in_progress)
 		_add_activity("plan", I18n.t("Task %d: %s") % [in_progress + 1, task])
-		if phase == Phase.RUNNING and quota.state == QuotaMonitor.State.PAUSE_SCHEDULED and previous >= 0:
+		if phase == RunPhase.RUNNING and quota.state == QuotaMonitor.QuotaState.PAUSE_SCHEDULED and previous >= 0:
 			_pause_for_quota(task)
 		elif checkpoints_enabled:
 			_checkpoint(task)
@@ -809,7 +809,7 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 		var failed := call.status == ToolCall.STATUS_FAILED
 		report.observe_tool(RunReport.tool_label(call.title, name, call.tool_name, call.kind), failed, call.duration_msec())
 		_turn_tools += 1
-		if phase == Phase.RUNNING:
+		if phase == RunPhase.RUNNING:
 			_on_loop(loops.observe_call(call.title, call.kind, name, call.raw_input, failed), true)
 	if not _captured_calls.has(call.id):
 		for block: Variant in call.content:
@@ -833,14 +833,14 @@ func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
 	if bool(finding.repeated):
 		pause_note = I18n.t("One-shot paused: the agent is still in a loop (%s) even after being asked for another approach. Tell it in the chat how to continue, or resume whenever you want.") % finding.label
 		resume_task = _task_name(_current_task)
-		_set_phase(Phase.PAUSED)
+		_set_phase(RunPhase.PAUSED)
 		_add_activity("loop", I18n.t("Paused: %s again") % finding.label)
-		model.add_notice(pause_note, ChatEntry.Level.WARNING)
+		model.add_notice(pause_note, ChatEntry.NoticeLevel.WARNING)
 		if _turn_running:
 			controller.cancel()
 		return
 	_add_activity("loop", I18n.t("Possible loop: %s") % finding.label)
-	model.add_notice(I18n.t("One-shot · possible loop: %s. Asking the agent for another approach.") % finding.label, ChatEntry.Level.WARNING)
+	model.add_notice(I18n.t("One-shot · possible loop: %s. Asking the agent for another approach.") % finding.label, ChatEntry.NoticeLevel.WARNING)
 	_guidance.append("It looks like you're in a loop: %s. Don't repeat it the same way: think about why it doesn't work and try another approach (another solution, another file, or simplify the task). If something can't be solved, note it in the checks block and continue with the rest." % finding.text)
 	if mid_turn and _turn_running:
 		controller.cancel()  # la guía se manda al cortar el turno (_after_turn)
@@ -875,23 +875,23 @@ func _account_tokens(usage: Dictionary) -> void:
 func _tick() -> void:
 	if _dirty and Time.get_ticks_msec() - _last_save_msec >= SAVE_INTERVAL_MS:
 		_save()
-	if phase in [Phase.RUNNING, Phase.CLOSING]:
+	if phase in [RunPhase.RUNNING, RunPhase.CLOSING]:
 		used[BUDGET_TIME] = float(used[BUDGET_TIME]) + TICK_S
 		_check_budgets()
 	_check_quota_pause()
 	match phase:
-		Phase.LIMITED:
+		RunPhase.LIMITED:
 			if quota.retry_due():
 				_on_quota_back(I18n.t("Quota: the window reset") if quota.limited_until > 0 else I18n.t("Quota: time for a retry"))
-		Phase.PAUSED_QUOTA:
+		RunPhase.PAUSED_QUOTA:
 			var now := int(Time.get_unix_time_from_system())
-			if quota.state in [QuotaMonitor.State.NORMAL, QuotaMonitor.State.WARNING] or (quota_resume_at > 0 and now >= quota_resume_at):
+			if quota.state in [QuotaMonitor.QuotaState.NORMAL, QuotaMonitor.QuotaState.WARNING] or (quota_resume_at > 0 and now >= quota_resume_at):
 				_on_quota_back(I18n.t("Quota: available again"))
 	changed.emit()
 
 
 func _check_budgets() -> void:
-	if phase != Phase.RUNNING:
+	if phase != RunPhase.RUNNING:
 		return
 	for budget: String in [BUDGET_TIME, BUDGET_TOKENS, BUDGET_PLAYTESTS]:
 		var ratio := budget_ratio(budget)
@@ -907,7 +907,7 @@ func _check_budgets() -> void:
 			_warned[budget] = true
 			var text := I18n.t("%s: %d %% of the budget.") % [I18n.t(BUDGET_LABELS[budget]), roundi(ratio * 100.0)]
 			_add_activity("budget", text)
-			model.add_notice(I18n.t("One-shot · %s") % text, ChatEntry.Level.WARNING)
+			model.add_notice(I18n.t("One-shot · %s") % text, ChatEntry.NoticeLevel.WARNING)
 
 
 ## Umbral de pausa (spec §10.1): no corta la tarea en curso. Pausa al empezar la siguiente (con su
@@ -919,7 +919,7 @@ func _pause_for_quota(next_task: String, mid_task: bool = false) -> void:
 	if quota_resume_at <= 0:
 		quota_resume_at = int(Time.get_unix_time_from_system()) + PAUSE_RETRY_S
 	_quota_scheduled_msec = 0
-	_set_phase(Phase.PAUSED_QUOTA)
+	_set_phase(RunPhase.PAUSED_QUOTA)
 	report.count("quota_pauses")
 	var percent := roundi(quota.max_utilization() * 100.0)
 	if mid_task:
@@ -937,7 +937,7 @@ func _pause_for_quota(next_task: String, mid_task: bool = false) -> void:
 ## Red de la pausa por cuota: si la tarea o el turno no terminan en quota_pause_grace_s, o la
 ## cuota llega a QUOTA_PAUSE_HARD, se corta el turno y se pausa a mitad de la tarea.
 func _check_quota_pause() -> void:
-	if phase != Phase.RUNNING or quota.state != QuotaMonitor.State.PAUSE_SCHEDULED:
+	if phase != RunPhase.RUNNING or quota.state != QuotaMonitor.QuotaState.PAUSE_SCHEDULED:
 		_quota_scheduled_msec = 0
 		return
 	if _quota_scheduled_msec == 0:
@@ -950,7 +950,7 @@ func _check_quota_pause() -> void:
 ## Cuándo se pausa por cuota, para el banner: al terminar la tarea o el turno, como mucho en
 ## los minutos que quedan de la espera. "" si no hay pausa programada.
 func quota_pause_text() -> String:
-	if quota.state != QuotaMonitor.State.PAUSE_SCHEDULED or phase != Phase.RUNNING:
+	if quota.state != QuotaMonitor.QuotaState.PAUSE_SCHEDULED or phase != RunPhase.RUNNING:
 		return ""
 	var left := quota_pause_grace_s
 	if _quota_scheduled_msec > 0:
@@ -963,7 +963,7 @@ func quota_pause_text() -> String:
 func _enter_limited() -> void:
 	model.cancel_unfinished_tool_calls()
 	resume_task = _task_name(_current_task) if _current_task >= 0 else _task_name(_next_pending())
-	_set_phase(Phase.LIMITED)
+	_set_phase(RunPhase.LIMITED)
 	report.count("limited")
 	quota_resume_at = quota.limited_until
 	if quota.limited_until > 0:
@@ -982,7 +982,7 @@ func _on_quota_back(text: String) -> void:
 	if resume_auto:
 		resume()
 	else:
-		_set_phase(Phase.WAITING_CONFIRM)
+		_set_phase(RunPhase.WAITING_CONFIRM)
 
 
 # --- persistencia (D37) ---------------------------------------------------------------------------
@@ -1013,7 +1013,7 @@ func to_dict() -> Dictionary:
 		"id": run_id,
 		"active": is_active(),
 		"phase": PHASE_LABELS[phase],
-		"phase_id": Phase.keys()[phase],
+		"phase_id": RunPhase.keys()[phase],
 		"quota_resume_at": quota_resume_at,
 		"goal": goal,
 		"budgets": budgets,
@@ -1076,12 +1076,12 @@ func _apply(data: Dictionary) -> void:
 	_idle_continues = 0
 	_suspended = false
 	recovered = true
-	phase = Phase.PAUSED
+	phase = RunPhase.PAUSED
 	# Un run que esperaba la cuota sigue esperándola: retoma solo cuando se reinicia la ventana.
 	quota_resume_at = int(data.get("quota_resume_at", 0))
 	var waiting_quota := str(data.get("phase_id", "")) in ["LIMITED", "PAUSED_QUOTA"]
 	if waiting_quota and quota_resume_at > int(Time.get_unix_time_from_system()):
-		phase = Phase.PAUSED_QUOTA
+		phase = RunPhase.PAUSED_QUOTA
 		var at := Time.get_time_string_from_unix_time(quota_resume_at + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5)
 		if resume_task.is_empty():
 			_add_activity("session", I18n.t("The editor closed while the One-shot was waiting for quota: it resumes on its own at %s (“Resume” or “Switch account” to skip the wait).") % at)
@@ -1136,7 +1136,7 @@ func _git(operation: Callable) -> Variant:
 	return result
 
 
-func _set_phase(value: Phase) -> void:
+func _set_phase(value: RunPhase) -> void:
 	if phase == value:
 		return
 	var wait_kind: String = WAIT_KINDS.get(phase, "")

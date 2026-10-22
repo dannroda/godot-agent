@@ -40,7 +40,7 @@ func _initialize() -> void:
 	var stop_reason: String = await controller.send_prompt(prompt)
 	var reply := ""
 	for entry: ChatEntry in model.entries():
-		if entry.kind == ChatEntry.Kind.AGENT:
+		if entry.kind == ChatEntry.EntryKind.AGENT:
 			reply += entry.text
 	print("stopReason: %s · uso: %d/%d" % [stop_reason, model.usage_used, model.usage_size])
 	print("respuesta: ", reply)

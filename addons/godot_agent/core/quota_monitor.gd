@@ -14,14 +14,14 @@ signal changed
 const AgentLog := preload("agent_log.gd")
 const I18n := preload("i18n.gd")
 
-enum State { UNKNOWN, NORMAL, WARNING, PAUSE_SCHEDULED, LIMITED }
+enum QuotaState { UNKNOWN, NORMAL, WARNING, PAUSE_SCHEDULED, LIMITED }
 
 const STATE_LABELS: Dictionary = {
-	State.UNKNOWN: "unknown",  # i18n
-	State.NORMAL: "normal",  # i18n
-	State.WARNING: "warning",  # i18n
-	State.PAUSE_SCHEDULED: "pause scheduled",  # i18n
-	State.LIMITED: "limited",  # i18n
+	QuotaState.UNKNOWN: "unknown",  # i18n
+	QuotaState.NORMAL: "normal",  # i18n
+	QuotaState.WARNING: "warning",  # i18n
+	QuotaState.PAUSE_SCHEDULED: "pause scheduled",  # i18n
+	QuotaState.LIMITED: "limited",  # i18n
 }
 const PATTERNS_PATH := "res://addons/godot_agent/config/quota_patterns.txt"
 ## Clave de `_meta` donde claude-agent-acp manda el SDKRateLimitInfo en los usage_update (D22).
@@ -46,7 +46,7 @@ var pause_enabled: bool = true
 ## () -> int, unix en segundos. Reemplazable en los tests.
 var now_provider: Callable = func() -> int: return int(Time.get_unix_time_from_system())
 
-var state: State = State.UNKNOWN
+var state: QuotaState = QuotaState.UNKNOWN
 ## {nombre: {utilization: 0–1, resets_at: unix (0 = desconocida)}}
 var windows: Dictionary = {}
 var last_usage_update: Dictionary = {}
@@ -183,16 +183,16 @@ func pause_resets_at() -> int:
 
 
 func is_limited() -> bool:
-	return state == State.LIMITED
+	return state == QuotaState.LIMITED
 
 
 ## Segundos hasta el próximo intento en "limitado" (0 si ya toca).
 func seconds_until_retry() -> int:
-	return maxi(next_retry_at - _now(), 0) if state == State.LIMITED else 0
+	return maxi(next_retry_at - _now(), 0) if state == QuotaState.LIMITED else 0
 
 
 func retry_due() -> bool:
-	return state == State.LIMITED and _now() >= next_retry_at
+	return state == QuotaState.LIMITED and _now() >= next_retry_at
 
 
 ## Se mandó un intento de reanudación: si vuelve a fallar, el próximo espera más.
@@ -203,13 +203,13 @@ func note_retry() -> void:
 
 ## "se pausa al 90 %, al terminar la tarea o el turno", para la barra del One-shot.
 func rule_text() -> String:
-	if state == State.LIMITED:
+	if state == QuotaState.LIMITED:
 		if limited_until > 0:
 			return I18n.t("Limited: resumes when the window resets")
 		return I18n.t("Limited: resumes with retries (5, 10, 20 and then every 60 min)")
 	if not pause_enabled:
 		return I18n.t("No quota pause · warning at %d %%") % roundi(warn_threshold * 100.0)
-	if state == State.PAUSE_SCHEDULED:
+	if state == QuotaState.PAUSE_SCHEDULED:
 		return I18n.t("Quota at %d %%: pauses when the current task or turn finishes") % roundi(max_utilization() * 100.0)
 	return I18n.t("Pauses at %d %%, when the current task or turn finishes") % roundi(pause_threshold * 100.0)
 
@@ -343,20 +343,20 @@ func _leave_limited(reason: String) -> void:
 func _recompute() -> void:
 	var previous := state
 	if _limited:
-		state = State.LIMITED
+		state = QuotaState.LIMITED
 	else:
 		var used := max_utilization()
 		if used < 0.0:
-			state = State.UNKNOWN
+			state = QuotaState.UNKNOWN
 		elif pause_enabled and used >= pause_threshold:
-			state = State.PAUSE_SCHEDULED
+			state = QuotaState.PAUSE_SCHEDULED
 		elif used >= warn_threshold:
-			state = State.WARNING
+			state = QuotaState.WARNING
 		else:
-			state = State.NORMAL
+			state = QuotaState.NORMAL
 	if state != previous:
 		var detail := ""
-		if state == State.LIMITED:
+		if state == QuotaState.LIMITED:
 			detail = " until " + Time.get_datetime_string_from_unix_time(limited_until + _utc_offset_s(), true) if limited_until > 0 else " no reset time: next attempt in %s" % format_duration(next_retry_at - _now())
 		elif max_utilization() >= 0.0:
 			detail = " (%d %%)" % roundi(max_utilization() * 100.0)

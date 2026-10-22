@@ -34,7 +34,7 @@ func test_thought_and_message_alternate() -> void:
 	model.apply_update(_chunk("agent_thought_chunk", " más"))
 	model.apply_update(_chunk("agent_message_chunk", "respuesta"))
 	assert_eq(model.entries().size(), 2, "thought + mensaje")
-	assert_eq(model.entries()[0].kind, ChatEntry.Kind.THOUGHT, "primero el thought")
+	assert_eq(model.entries()[0].kind, ChatEntry.EntryKind.THOUGHT, "primero el thought")
 	assert_eq(model.entries()[0].text, "pienso más", "thought unido")
 
 
@@ -48,7 +48,7 @@ func test_tool_calls_group_and_update() -> void:
 		"content": [{"type": "diff", "path": "/p/x.gd", "oldText": "a", "newText": "b"}]})
 	assert_eq(model.entries().size(), 2, "mensaje + un grupo")
 	var group: ChatEntry = model.entries()[1]
-	assert_eq(group.kind, ChatEntry.Kind.TOOL_GROUP, "grupo de tools")
+	assert_eq(group.kind, ChatEntry.EntryKind.TOOL_GROUP, "grupo de tools")
 	assert_eq(group.tool_call_ids, PackedStringArray(["a", "b"]), "ids en orden")
 	assert_eq(model.tool_call("a").status, "completed", "a completado")
 	assert_eq(model.tool_call("b").diffs().size(), 1, "b tiene un diff")
@@ -133,14 +133,14 @@ func test_subagent_history_round_trip() -> void:
 
 func test_cancel_marks_unfinished_tool_calls() -> void:
 	var model := SessionModel.new()
-	model.set_state(SessionModel.State.PROMPTING)
+	model.set_state(SessionModel.SessionState.PROMPTING)
 	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "a", "status": "completed"})
 	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "b", "status": "in_progress"})
 	model.finish_turn("cancelled")
 	assert_eq(model.tool_call("a").status, ToolCall.STATUS_COMPLETED, "a sigue completado")
 	assert_eq(model.tool_call("b").status, ToolCall.STATUS_CANCELLED, "b cancelado")
-	assert_eq(model.state, SessionModel.State.READY, "vuelve a READY")
-	assert_eq(model.entries().back().kind, ChatEntry.Kind.NOTICE, "aviso de cancelación")
+	assert_eq(model.state, SessionModel.SessionState.READY, "vuelve a READY")
+	assert_eq(model.entries().back().kind, ChatEntry.EntryKind.NOTICE, "aviso de cancelación")
 
 
 func test_plan_replaces_and_moves() -> void:
@@ -154,7 +154,7 @@ func test_plan_replaces_and_moves() -> void:
 	model.apply_update(_chunk("agent_message_chunk", "texto"))
 	model.apply_update({"sessionUpdate": "plan", "entries": [{"content": "tres", "status": "in_progress"}]})
 	assert_eq(model.entries().size(), 2, "el plan se mueve al final")
-	assert_eq(model.entries().back().kind, ChatEntry.Kind.PLAN, "plan al final")
+	assert_eq(model.entries().back().kind, ChatEntry.EntryKind.PLAN, "plan al final")
 	assert_eq(removed.size(), 1, "se avisó que salió de su lugar viejo")
 
 

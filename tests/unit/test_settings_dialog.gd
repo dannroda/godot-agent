@@ -26,7 +26,7 @@ func test_loads_and_validates() -> void:
 
 	(profiles[0] as AgentProfile).env = {"ANTHROPIC_API_KEY": "sk-ant-123"}
 	var error := dialog.validate()
-	assert_eq(error.get("section"), SettingsDialog.Section.AGENTS, "un secreto literal en env no valida")
+	assert_eq(error.get("section"), SettingsDialog.SettingsSection.AGENTS, "un secreto literal en env no valida")
 	assert_true(str(error.get("message")).contains("ANTHROPIC_API_KEY"), "el mensaje nombra la variable")
 	(profiles[0] as AgentProfile).env = {"ANTHROPIC_API_KEY": "$ANTHROPIC_API_KEY", "DEBUG": "1"}
 	assert_true(dialog.validate().is_empty(), "$VAR sí valida")
@@ -43,12 +43,12 @@ func test_loads_and_validates() -> void:
 
 	(dialog.get(&"_pause_spin") as SpinBox).value = 50
 	(dialog.get(&"_warn_spin") as SpinBox).value = 80
-	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.ONESHOT, "pausa por debajo del aviso")
+	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.ONESHOT, "pausa por debajo del aviso")
 	(dialog.get(&"_pause_check") as CheckBox).button_pressed = false
 	assert_true(dialog.validate().is_empty(), "sin pausa no importa el umbral")
 
 	(dialog.get(&"_roots_edit") as TextEdit).text = "/tmp/assets\nrelativa/no"
-	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.MCP, "carpetas extra: solo rutas absolutas")
+	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.MCP, "carpetas extra: solo rutas absolutas")
 	dialog.free()
 
 
@@ -110,11 +110,11 @@ func test_completion_section() -> void:
 	var fields: Dictionary = page.get(&"_form_fields")
 	(fields.api_key_env as LineEdit).text = "sk-abc123-pegada"
 	var error := dialog.validate()
-	assert_eq(error.get("section"), SettingsDialog.Section.COMPLETION, "valida la sección Completado")
+	assert_eq(error.get("section"), SettingsDialog.SettingsSection.COMPLETION, "valida la sección Completado")
 	assert_true(str(error.get("message")).contains("environment variable"), "explica qué va en el campo")
 	page.call(&"_edit_profile", 0)
 	(fields.api_key_env as LineEdit).text = "AIzaSyD4x9Qw2LmB7kTr0pZ3vN8cYh1Ue6sJfGo"
-	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.COMPLETION, "una key sin guiones tampoco")
+	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.COMPLETION, "una key sin guiones tampoco")
 	page.call(&"_edit_profile", 0)
 	(fields.api_key_env as LineEdit).text = "$MISTRAL_API_KEY"
 	(fields.stops as TextEdit).text = "\\n\\n\nfunc "
@@ -147,7 +147,7 @@ func test_completion_section() -> void:
 	assert_true(str(dialog.validate().get("message")).contains("need an LLM profile"), "híbrido sin perfiles no valida")
 	(page.get(&"_mode_option") as OptionButton).select(0)
 	(page.get(&"_corpus_edit") as TextEdit).text = "relativa/no"
-	assert_eq(dialog.validate().get("section"), SettingsDialog.Section.COMPLETION, "corpus extra: rutas absolutas")
+	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.COMPLETION, "corpus extra: rutas absolutas")
 	dialog.free()
 
 

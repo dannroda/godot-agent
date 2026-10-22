@@ -178,9 +178,9 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 func _wait_turn() -> void:
 	var deadline := Time.get_ticks_msec() + int(TURN_TIMEOUT_S * 1000)
 	await _frames(2)
-	while int(_model.get(&"state")) != SessionModel.State.READY and Time.get_ticks_msec() < deadline:
+	while int(_model.get(&"state")) != SessionModel.SessionState.READY and Time.get_ticks_msec() < deadline:
 		await _tree.process_frame
-	if int(_model.get(&"state")) != SessionModel.State.READY:
+	if int(_model.get(&"state")) != SessionModel.SessionState.READY:
 		failures.append("el turno no terminó (estado %d)" % int(_model.get(&"state")))
 
 

@@ -25,7 +25,7 @@ const IDLE_TIMEOUT_S := 300.0
 const INSTRUCTIONS := "Tools of the open Godot editor. Use res:// paths and NodePaths relative to the scene root (\".\" is the root). To change open scenes use these tools; do not edit the .tscn by hand."
 
 
-class Connection:
+class McpConnection:
 	extends RefCounted
 	var peer: StreamPeerTCP
 	var parser := HttpParser.new()
@@ -42,7 +42,7 @@ var token: String = ""
 
 var _server: TCPServer
 var _port: int = 0
-var _connections: Array[Connection] = []
+var _connections: Array[McpConnection] = []
 var _sessions: Dictionary = {}  # Mcp-Session-Id -> {client, protocolVersion}
 
 
@@ -70,7 +70,7 @@ func start(port: int = 0) -> Error:
 
 
 func stop() -> void:
-	for connection: Connection in _connections:
+	for connection: McpConnection in _connections:
 		connection.peer.disconnect_from_host()
 	_connections.clear()
 	_sessions.clear()
@@ -117,15 +117,15 @@ func _process(_delta: float) -> void:
 		if _connections.size() >= MAX_CONNECTIONS:
 			peer.disconnect_from_host()
 			continue
-		var connection := Connection.new()
+		var connection := McpConnection.new()
 		connection.peer = peer
 		connection.last_activity_msec = Time.get_ticks_msec()
 		_connections.append(connection)
-	for connection: Connection in _connections.duplicate():
+	for connection: McpConnection in _connections.duplicate():
 		_poll(connection)
 
 
-func _poll(connection: Connection) -> void:
+func _poll(connection: McpConnection) -> void:
 	var peer := connection.peer
 	peer.poll()
 	var status := peer.get_status()
@@ -151,10 +151,10 @@ func _poll(connection: Connection) -> void:
 
 
 ## Atiende los requests en cola de una conexión, uno por vez (pueden esperar un permiso).
-func _serve(connection: Connection) -> void:
+func _serve(connection: McpConnection) -> void:
 	connection.busy = true
 	while not connection.queue.is_empty() and _connections.has(connection):
-		var request: HttpParser.Request = connection.queue.pop_front()
+		var request: HttpParser.ParsedRequest = connection.queue.pop_front()
 		var reply: Dictionary = await _handle(request)
 		if not _connections.has(connection):
 			break
@@ -165,13 +165,13 @@ func _serve(connection: Connection) -> void:
 	connection.busy = false
 
 
-func _send(connection: Connection, status: int, body: PackedByteArray, headers: Dictionary) -> void:
+func _send(connection: McpConnection, status: int, body: PackedByteArray, headers: Dictionary) -> void:
 	if not body.is_empty() and not headers.has("Content-Type"):
 		headers["Content-Type"] = "application/json"
 	connection.peer.put_data(HttpParser.response(status, body, headers))
 
 
-func _close(connection: Connection) -> void:
+func _close(connection: McpConnection) -> void:
 	connection.peer.disconnect_from_host()
 	_connections.erase(connection)
 
@@ -179,7 +179,7 @@ func _close(connection: Connection) -> void:
 # --- HTTP → JSON-RPC -----------------------------------------------------------------------------
 
 ## Devuelve `{status, body?, headers?, close?}`.
-func _handle(request: HttpParser.Request) -> Dictionary:
+func _handle(request: HttpParser.ParsedRequest) -> Dictionary:
 	var path := request.path.split("?")[0]
 	if not _origin_allowed(request.header("origin")):
 		return {"status": 403, "body": _error_body(-32600, "Origin not allowed"), "close": true}

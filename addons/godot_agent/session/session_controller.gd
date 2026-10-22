@@ -136,7 +136,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_profile = agent_profile
 	model.reset()
 	model.failure_message = ""
-	model.set_state(SessionModel.State.STARTING)
+	model.set_state(SessionModel.SessionState.STARTING)
 	agent_log.add(AgentLog.CH_PROC, "Launching %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
 
 	_process = AgentProcess.new()
@@ -187,9 +187,9 @@ func reopen(agent_profile: AgentProfile, lost_id: String) -> bool:
 func open_session(generation: int = _connect_generation) -> bool:
 	if _process == null or not _process.is_running():
 		return await start(_profile) if _profile else false
-	if model.state != SessionModel.State.STARTING:
+	if model.state != SessionModel.SessionState.STARTING:
 		model.reset()
-		model.set_state(SessionModel.State.STARTING)
+		model.set_state(SessionModel.SessionState.STARTING)
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
 	var result := await client.request("session/new", {"cwd": cwd, "mcpServers": mcp_servers})
 	if generation != _connect_generation:
@@ -212,7 +212,7 @@ func open_session(generation: int = _connect_generation) -> bool:
 	_preauthorized_writes.clear()
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.display_name, cwd)
-	model.set_state(SessionModel.State.READY)
+	model.set_state(SessionModel.SessionState.READY)
 	_sync_agent_mode()
 	connected.emit()
 	return true
@@ -222,7 +222,7 @@ func open_session(generation: int = _connect_generation) -> bool:
 ## En modo Revisar, un bloque `findings` en la respuesta reemplaza la revisión, salvo que
 ## `collect_findings` sea false (preguntas sobre un hallazgo).
 func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool = true) -> String:
-	if model.state != SessionModel.State.READY:
+	if model.state != SessionModel.SessionState.READY:
 		return ""
 	var blocks: Array = []
 	var includes_system_prompt := not _system_prompt_sent
@@ -238,14 +238,14 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	model.add_user_message(text, attachments)
 	if history:
 		history.record_prompt(text)
-	model.set_state(SessionModel.State.PROMPTING)
+	model.set_state(SessionModel.SessionState.PROMPTING)
 	var first_new_entry := model.entries().size()
 	# Si se acaba de cambiar de modo, el turno espera a que el agente esté en el modo que corresponde.
 	while _mode_syncs_running > 0:
 		await agent_mode_synced
-	if model.state != SessionModel.State.PROMPTING:  # cancelado mientras esperaba
+	if model.state != SessionModel.SessionState.PROMPTING:  # cancelado mientras esperaba
 		_system_prompt_sent = _system_prompt_sent and not includes_system_prompt
-		if model.state == SessionModel.State.CANCELLING:
+		if model.state == SessionModel.SessionState.CANCELLING:
 			model.finish_turn("cancelled")
 		_record_turn_end("cancelled")
 		return "cancelled"
@@ -257,12 +257,12 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		review.ingest_turn_text(turn_text, cwd)
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
-		if model.state in [SessionModel.State.PROMPTING, SessionModel.State.CANCELLING]:
+		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
 			var actions: Array[Dictionary] = []
 			if is_auth_required(result.error):
 				actions = _login_actions()
 			actions.append_array(_error_actions())
-			model.add_notice(I18n.t("The turn ended with an error: %s") % result.error_message(), ChatEntry.Level.ERROR, actions)
+			model.add_notice(I18n.t("The turn ended with an error: %s") % result.error_message(), ChatEntry.NoticeLevel.ERROR, actions)
 			model.finish_turn("error")
 		_record_turn_end("error")
 		return "error"
@@ -282,7 +282,7 @@ func agent_text_since(first_entry: int) -> String:
 	var parts: PackedStringArray = []
 	var entries := model.entries()
 	for i in range(first_entry, entries.size()):
-		if entries[i].kind == ChatEntry.Kind.AGENT:
+		if entries[i].kind == ChatEntry.EntryKind.AGENT:
 			parts.append(entries[i].text)
 	return "\n".join(parts)
 
@@ -295,9 +295,9 @@ func send_in_mode(mode: SessionModel.HarnessMode, text: String) -> String:
 
 
 func cancel() -> void:
-	if model.state != SessionModel.State.PROMPTING:
+	if model.state != SessionModel.SessionState.PROMPTING:
 		return
-	model.set_state(SessionModel.State.CANCELLING)
+	model.set_state(SessionModel.SessionState.CANCELLING)
 	client.notify("session/cancel", {"sessionId": model.session_id})
 	model.cancel_pending_permissions()
 
@@ -307,7 +307,7 @@ func set_config_option(id: String, value: String) -> bool:
 		return false
 	var result := await client.request("session/set_config_option", {"sessionId": model.session_id, "configId": id, "value": value})
 	if not result.ok:
-		model.add_notice(I18n.t("Could not change '%s': %s") % [id, result.error_message()], ChatEntry.Level.WARNING)
+		model.add_notice(I18n.t("Could not change '%s': %s") % [id, result.error_message()], ChatEntry.NoticeLevel.WARNING)
 		return false
 	if result.result is Dictionary and result.result.get("configOptions") is Array:
 		model.config_options = result.result.configOptions
@@ -330,8 +330,8 @@ func stop() -> void:
 	model.cancel_pending_permissions()
 	if history:
 		history.end()
-	if model.state != SessionModel.State.DISCONNECTED and model.state != SessionModel.State.FAILED:
-		model.set_state(SessionModel.State.DISCONNECTED)
+	if model.state != SessionModel.SessionState.DISCONNECTED and model.state != SessionModel.SessionState.FAILED:
+		model.set_state(SessionModel.SessionState.DISCONNECTED)
 		disconnected.emit()
 
 
@@ -367,7 +367,7 @@ func login(method_id: String) -> void:
 		if item.id == method_id:
 			method = item
 	if method.is_empty() or _profile == null:
-		model.add_notice(I18n.t("The agent does not offer that sign-in method."), ChatEntry.Level.WARNING)
+		model.add_notice(I18n.t("The agent does not offer that sign-in method."), ChatEntry.NoticeLevel.WARNING)
 		return
 	cancel_login()
 	var label := AgentLogin.label_of(method)
@@ -381,7 +381,7 @@ func login(method_id: String) -> void:
 	_login.url_found.connect(_on_login_url)
 	_login.finished.connect(_on_login_finished)
 	_login_entry = model.add_notice(I18n.t("Signing in with %s: finish in the browser that just opened.") % label,
-		ChatEntry.Level.INFO, [{"id": ACTION_LOGIN_CANCEL, "label": I18n.t("Cancel")}])
+		ChatEntry.NoticeLevel.INFO, [{"id": ACTION_LOGIN_CANCEL, "label": I18n.t("Cancel")}])
 	var command := AgentLogin.command_for(method, _profile)
 	agent_log.add(AgentLog.CH_PROC, "Login: %s %s" % [command.command, " ".join(command.args)])
 	_login.start(method, _profile)
@@ -403,13 +403,13 @@ func cancel_login() -> void:
 	if login_run.is_running():
 		login_run.cancel()
 		if _login_entry:
-			_set_login_notice(I18n.t("Sign-in cancelled."), ChatEntry.Level.INFO, [])
+			_set_login_notice(I18n.t("Sign-in cancelled."), ChatEntry.NoticeLevel.INFO, [])
 	_login_entry = null
 
 
 func _on_login_url(url: String) -> void:
 	_set_login_notice(I18n.t("Signing in with %s: finish in the browser. If it did not open, open the link; if the page gives you a code, paste it here.") % AgentLogin.label_of(_login.method),
-		ChatEntry.Level.INFO, [
+		ChatEntry.NoticeLevel.INFO, [
 			{"id": "open_link", "label": I18n.t("Open link"), "data": url},
 			{"id": ACTION_LOGIN_CODE, "label": I18n.t("Paste code…")},
 			{"id": ACTION_LOGIN_CANCEL, "label": I18n.t("Cancel")},
@@ -420,7 +420,7 @@ func _on_login_finished(ok: bool, message: String) -> void:
 	_login = null
 	if not ok:
 		agent_log.add(AgentLog.CH_PROC, "Login failed: %s" % message)
-		_set_login_notice(I18n.t("Could not sign in: %s") % message, ChatEntry.Level.ERROR, _login_actions())
+		_set_login_notice(I18n.t("Could not sign in: %s") % message, ChatEntry.NoticeLevel.ERROR, _login_actions())
 		_login_entry = null
 		return
 	agent_log.add(AgentLog.CH_PROC, "Login complete")
@@ -432,7 +432,7 @@ func _on_login_finished(ok: bool, message: String) -> void:
 		model.add_notice(I18n.t("Signed in."))
 
 
-func _set_login_notice(text: String, level: ChatEntry.Level, actions: Array[Dictionary]) -> void:
+func _set_login_notice(text: String, level: ChatEntry.NoticeLevel, actions: Array[Dictionary]) -> void:
 	if _login_entry == null:
 		_login_entry = model.add_notice(text, level, actions)
 		return
@@ -589,7 +589,7 @@ func _notify_denied(group: String, title: String) -> void:
 	var group_label: String = PermissionPolicy.GROUP_LABELS.get(group, group)
 	_log_perm("denied in %s mode (%s): %s" % [_mode_label(), group_label, title])
 	var shown_group := I18n.t(group_label) if PermissionPolicy.GROUP_LABELS.has(group) else group
-	model.add_notice(I18n.t("Denied in %s mode (%s): %s") % [I18n.t(_mode_label()), shown_group, title], ChatEntry.Level.WARNING)
+	model.add_notice(I18n.t("Denied in %s mode (%s): %s") % [I18n.t(_mode_label()), shown_group, title], ChatEntry.NoticeLevel.WARNING)
 
 
 static func _selected_or_cancelled(option_id: String) -> Dictionary:
@@ -669,7 +669,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	if not result.ok:
 		_load_failed = true
 		stop()
-		model.add_notice(I18n.t("Could not resume the session: %s. The history stays read-only.") % result.error_message(), ChatEntry.Level.WARNING)
+		model.add_notice(I18n.t("Could not resume the session: %s. The history stays read-only.") % result.error_message(), ChatEntry.NoticeLevel.WARNING)
 		return false
 	model.apply_session(session_id, result.result if result.result is Dictionary else {})
 	_system_prompt_sent = true  # ya está en el contexto que el agente recuperó
@@ -677,7 +677,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	_preauthorized_writes.clear()
 	if history:
 		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
-	model.set_state(SessionModel.State.READY)
+	model.set_state(SessionModel.SessionState.READY)
 	model.add_notice(I18n.t("Session resumed: the agent recovered its context with session/load."))
 	_sync_agent_mode()
 	connected.emit()
@@ -727,8 +727,8 @@ func _fail(message: String, extra_actions: Array[Dictionary] = []) -> void:
 	agent_log.add(AgentLog.CH_PROC, message)
 	var actions := extra_actions.duplicate()
 	actions.append_array(_error_actions())
-	model.add_notice(message, ChatEntry.Level.ERROR, actions)
-	model.set_state(SessionModel.State.FAILED)
+	model.add_notice(message, ChatEntry.NoticeLevel.ERROR, actions)
+	model.set_state(SessionModel.SessionState.FAILED)
 
 
 func _error_actions() -> Array[Dictionary]:

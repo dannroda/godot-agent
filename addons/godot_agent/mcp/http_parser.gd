@@ -10,7 +10,7 @@ const CRLFCRLF := "\r\n\r\n"
 
 
 ## Request completo.
-class Request:
+class ParsedRequest:
 	extends RefCounted
 	var method: String = ""
 	var path: String = ""
@@ -35,7 +35,7 @@ class Request:
 
 var _buffer: PackedByteArray = PackedByteArray()
 ## Request con headers leídos, esperando el body.
-var _pending: Request
+var _pending: ParsedRequest
 var _pending_length: int = 0
 ## Código HTTP del error que cortó el stream (0 = sin error).
 var error_status: int = 0
@@ -44,8 +44,8 @@ var error_message: String = ""
 
 ## Agrega bytes y devuelve los requests que quedaron completos. Si hay un error de formato,
 ## deja `error_status` (400, 411, 413, 431, 505) y no devuelve nada más: la conexión se cierra.
-func feed(data: PackedByteArray) -> Array[Request]:
-	var result: Array[Request] = []
+func feed(data: PackedByteArray) -> Array[ParsedRequest]:
+	var result: Array[ParsedRequest] = []
 	if error_status != 0:
 		return result
 	_buffer.append_array(data)
@@ -88,7 +88,7 @@ func _parse_head() -> bool:
 		return _fail(400, "invalid request line")
 	if not parts[2].begins_with("HTTP/1."):
 		return _fail(505, "unsupported HTTP version")
-	var request := Request.new()
+	var request := ParsedRequest.new()
 	request.method = parts[0]
 	request.path = parts[1]
 	request.version = parts[2]

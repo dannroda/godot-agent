@@ -290,7 +290,7 @@ func _llm_step(controller: Object, settings: HarnessSettings, server: Node, shot
 	_check(indicator != null and bar != null and indicator.get_parent() == bar and indicator.is_visible_in_tree(), "el indicador está en la barra del Script Editor")
 	if indicator == null:
 		return
-	_check(indicator.mode_label == "local" and indicator.state == CompletionIndicator.State.ACTIVE, "indicador: local y activo (%s, %d)" % [indicator.mode_label, indicator.state])
+	_check(indicator.mode_label == "local" and indicator.state == CompletionIndicator.IndicatorState.ACTIVE, "indicador: local y activo (%s, %d)" % [indicator.mode_label, indicator.state])
 	server.set(&"routes", {"/api/generate": {"status": 200, "body": {"response": "ave(3)\n", "done": true}, "delay_ms": 150}})
 	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_PROFILES, JSON.stringify([{"id": "fake", "kind": "ollama", "display_name": "Falso", "url": server.call(&"url"), "model": "fake-coder"}]))
 	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_ACTIVE, "fake")
@@ -306,13 +306,13 @@ func _llm_step(controller: Object, settings: HarnessSettings, server: Node, shot
 	var thinking := false
 	var waited := 0.0
 	while waited < SUGGESTION_TIMEOUT_S and str(controller.get(&"suggestion")).is_empty():
-		thinking = thinking or indicator.state == CompletionIndicator.State.THINKING
+		thinking = thinking or indicator.state == CompletionIndicator.IndicatorState.THINKING
 		await _tree.create_timer(0.02).timeout
 		waited += 0.02
 	_check(thinking, "el indicador muestra «pensando» mientras espera al LLM")
 	if await _expect(controller, "ave(3)", "híbrido: sugerencia del LLM"):
 		_check(bool((controller.get(&"renderer") as Object).get(&"marked")), "la sugerencia del LLM va marcada")
-		_check(indicator.state == CompletionIndicator.State.ACTIVE, "el indicador vuelve a activo")
+		_check(indicator.state == CompletionIndicator.IndicatorState.ACTIVE, "el indicador vuelve a activo")
 		await _shot(shot_prefix, "llm")
 		await _key(KEY_TAB)
 		_check(_code_edit.get_line(_code_edit.get_caret_line()) == "\tspawn_wave(3)", "Tab acepta la del LLM (%s)" % _code_edit.get_line(_code_edit.get_caret_line()).c_escape())
@@ -327,10 +327,10 @@ func _llm_step(controller: Object, settings: HarnessSettings, server: Node, shot
 	_goto_new_line(_code_edit.get_line_count())
 	await _type("\tspawn_x")
 	waited = 0.0
-	while waited < SUGGESTION_TIMEOUT_S and indicator.state != CompletionIndicator.State.ERROR:
+	while waited < SUGGESTION_TIMEOUT_S and indicator.state != CompletionIndicator.IndicatorState.ERROR:
 		await _tree.create_timer(0.05).timeout
 		waited += 0.05
-	_check(indicator.state == CompletionIndicator.State.ERROR, "un error del LLM se ve en el indicador")
+	_check(indicator.state == CompletionIndicator.IndicatorState.ERROR, "un error del LLM se ve en el indicador")
 
 	# Solo local, sin reiniciar: ya no hay pedidos.
 	settings.set_value(HarnessSettings.KEY_COMPLETION_MODE, HarnessSettings.COMPLETION_MODES.find("local"))
@@ -340,13 +340,13 @@ func _llm_step(controller: Object, settings: HarnessSettings, server: Node, shot
 	await _type("\tspawn_y")
 	await _tree.create_timer(0.6).timeout
 	_check((server.get(&"requests") as Array).size() == before and str(controller.get(&"suggestion")).is_empty(), "en modo local no se llama al LLM")
-	_check(indicator.mode_label == "local" and indicator.state == CompletionIndicator.State.ACTIVE, "indicador: local otra vez (%s, %d)" % [indicator.mode_label, indicator.state])
+	_check(indicator.mode_label == "local" and indicator.state == CompletionIndicator.IndicatorState.ACTIVE, "indicador: local otra vez (%s, %d)" % [indicator.mode_label, indicator.state])
 
 	# Alt+Shift+\ apaga y prende.
 	await _key_alt_shift_backslash()
-	_check(indicator.state == CompletionIndicator.State.OFF, "Alt+Shift+\\ apaga")
+	_check(indicator.state == CompletionIndicator.IndicatorState.OFF, "Alt+Shift+\\ apaga")
 	await _key_alt_shift_backslash()
-	_check(indicator.state == CompletionIndicator.State.ACTIVE, "Alt+Shift+\\ prende")
+	_check(indicator.state == CompletionIndicator.IndicatorState.ACTIVE, "Alt+Shift+\\ prende")
 
 
 func _key_alt_shift_backslash() -> void:

@@ -4,7 +4,7 @@ extends RefCounted
 ## opciones de configuración, comandos, uso de tokens y estado. Emite señales granulares.
 ## No hace IO: el SessionController le aplica lo que llega por ACP.
 
-signal state_changed(state: State)
+signal state_changed(state: SessionState)
 signal entry_added(entry: ChatEntry)
 signal entry_updated(entry: ChatEntry)
 signal entry_removed(entry: ChatEntry)
@@ -25,7 +25,7 @@ const ToolCall := preload("tool_call.gd")
 const PermissionRequest := preload("permission_request.gd")
 const I18n := preload("../core/i18n.gd")
 
-enum State {
+enum SessionState {
 	DISCONNECTED,  ## sin proceso
 	STARTING,  ## proceso lanzado, initialize / session/new en curso
 	READY,  ## sesión abierta, esperando un prompt
@@ -44,7 +44,7 @@ const HARNESS_MODE_LABELS: Dictionary = {
 	HarnessMode.ONESHOT: "One-shot",  # i18n
 }
 
-var state: State = State.DISCONNECTED
+var state: SessionState = SessionState.DISCONNECTED
 var session_id: String = ""
 var title: String = ""
 var harness_mode: HarnessMode = HarnessMode.BUILD
@@ -99,10 +99,10 @@ func touch_tool_call(call: ToolCall) -> void:
 
 
 func is_busy() -> bool:
-	return state in [State.PROMPTING, State.CANCELLING]
+	return state in [SessionState.PROMPTING, SessionState.CANCELLING]
 
 
-func set_state(value: State) -> void:
+func set_state(value: SessionState) -> void:
 	if state == value:
 		return
 	state = value
@@ -191,14 +191,14 @@ func set_config_value(id: String, value: String) -> void:
 # --- entradas ------------------------------------------------------------------------------------
 
 func add_user_message(text: String, attachments: Array[Dictionary] = []) -> ChatEntry:
-	var entry := _new_entry(ChatEntry.Kind.USER)
+	var entry := _new_entry(ChatEntry.EntryKind.USER)
 	entry.text = text
 	entry.attachments = attachments
 	return _push(entry)
 
 
-func add_notice(text: String, level: ChatEntry.Level = ChatEntry.Level.INFO, actions: Array[Dictionary] = []) -> ChatEntry:
-	var entry := _new_entry(ChatEntry.Kind.NOTICE)
+func add_notice(text: String, level: ChatEntry.NoticeLevel = ChatEntry.NoticeLevel.INFO, actions: Array[Dictionary] = []) -> ChatEntry:
+	var entry := _new_entry(ChatEntry.EntryKind.NOTICE)
 	entry.text = text
 	entry.level = level
 	entry.actions = actions
@@ -216,7 +216,7 @@ func add_entry(entry: ChatEntry) -> ChatEntry:
 
 ## Agrega una tarjeta de permiso. Se actualiza sola cuando el pedido se resuelve.
 func add_permission(request: PermissionRequest) -> ChatEntry:
-	var entry := _new_entry(ChatEntry.Kind.PERMISSION)
+	var entry := _new_entry(ChatEntry.EntryKind.PERMISSION)
 	entry.permission = request
 	entry.text = request.title
 	pending_permissions.append(request)
@@ -262,11 +262,11 @@ func apply_update(update: Dictionary) -> bool:
 				return true
 	match kind:
 		"agent_message_chunk":
-			_append_chunk(ChatEntry.Kind.AGENT, update)
+			_append_chunk(ChatEntry.EntryKind.AGENT, update)
 		"agent_thought_chunk":
-			_append_chunk(ChatEntry.Kind.THOUGHT, update)
+			_append_chunk(ChatEntry.EntryKind.THOUGHT, update)
 		"user_message_chunk":
-			_append_chunk(ChatEntry.Kind.USER, update)
+			_append_chunk(ChatEntry.EntryKind.USER, update)
 		"tool_call":
 			_apply_tool_call(update, true)
 		"tool_call_update":
@@ -302,15 +302,15 @@ func finish_turn(stop_reason: String) -> void:
 		cancel_unfinished_tool_calls()
 	match stop_reason:
 		"max_tokens":
-			add_notice(I18n.t("The agent cut the response short: it hit the token limit."), ChatEntry.Level.WARNING)
+			add_notice(I18n.t("The agent cut the response short: it hit the token limit."), ChatEntry.NoticeLevel.WARNING)
 		"max_turn_requests":
-			add_notice(I18n.t("The agent hit the maximum number of requests per turn."), ChatEntry.Level.WARNING)
+			add_notice(I18n.t("The agent hit the maximum number of requests per turn."), ChatEntry.NoticeLevel.WARNING)
 		"refusal":
-			add_notice(I18n.t("The agent refused to continue with this request."), ChatEntry.Level.WARNING)
+			add_notice(I18n.t("The agent refused to continue with this request."), ChatEntry.NoticeLevel.WARNING)
 		"cancelled":
 			add_notice(I18n.t("Turn cancelled."))
-	if state in [State.PROMPTING, State.CANCELLING]:
-		set_state(State.READY)
+	if state in [SessionState.PROMPTING, SessionState.CANCELLING]:
+		set_state(SessionState.READY)
 	turn_finished.emit(stop_reason)
 
 
@@ -323,7 +323,7 @@ func cancel_unfinished_tool_calls() -> void:
 			_emit_tool_call_changed(call)
 
 
-func _append_chunk(kind: ChatEntry.Kind, update: Dictionary) -> void:
+func _append_chunk(kind: ChatEntry.EntryKind, update: Dictionary) -> void:
 	var text := content_to_text(update.get("content"))
 	if text.is_empty():
 		return
@@ -380,8 +380,8 @@ func _attach(call: ToolCall, parent: String) -> void:
 		_set_group(call, _group_of_call.get(parent))
 		return
 	var group: ChatEntry = _entries.back() if not _entries.is_empty() else null
-	if group == null or group.kind != ChatEntry.Kind.TOOL_GROUP:
-		group = _push(_new_entry(ChatEntry.Kind.TOOL_GROUP))
+	if group == null or group.kind != ChatEntry.EntryKind.TOOL_GROUP:
+		group = _push(_new_entry(ChatEntry.EntryKind.TOOL_GROUP))
 	group.tool_call_ids.append(call.id)
 	_set_group(call, group)
 
@@ -450,7 +450,7 @@ func _apply_plan(entries_data: Array) -> void:
 		if _plan_entry:
 			_entries.erase(_plan_entry)
 			entry_removed.emit(_plan_entry)
-		_plan_entry = _new_entry(ChatEntry.Kind.PLAN)
+		_plan_entry = _new_entry(ChatEntry.EntryKind.PLAN)
 		_plan_entry.plan = plan
 		_push(_plan_entry)
 	else:
@@ -465,7 +465,7 @@ func _apply_modes(current_id: String, modes: Variant) -> void:
 	agent_modes_changed.emit(current_agent_mode, agent_modes)
 
 
-func _new_entry(kind: ChatEntry.Kind) -> ChatEntry:
+func _new_entry(kind: ChatEntry.EntryKind) -> ChatEntry:
 	var entry := ChatEntry.new()
 	entry.id = _next_entry_id
 	_next_entry_id += 1

@@ -98,14 +98,14 @@ func _scenario_recover() -> void:
 	var again := _make("oneshot_recover_resume", repo)
 	again.store.dir = store_dir
 	_check(again.restore_interrupted(), "recuperación: carga el run a medias")
-	_check(again.recovered and again.phase == OneShotRun.Phase.PAUSED, "recuperación: queda en pausa (%s)" % again.phase_label())
+	_check(again.recovered and again.phase == OneShotRun.RunPhase.PAUSED, "recuperación: queda en pausa (%s)" % again.phase_label())
 	_check(again.goal == "Pong con puntaje" and int(again.used.playtests) == 1 and again.checks.size() == 2, "recuperación: objetivo, playtests y checks")
 	_check(_cp_labels(again) == checkpoints and again.checkpoints_enabled, "recuperación: checkpoints %s" % [_cp_labels(again)])
 	_check(again.current_plan().size() == 2 and again.resume_task == "Paletas y pelota", "recuperación: plan guardado y tarea (%s)" % again.resume_task)
 	_check(str(again.activity.back().text).contains("“Resume”"), "recuperación: la actividad lo explica")
 	_check(again.to_dict().session_id == session_id, "recuperación: recuerda la sesión del agente")
 	again.resume()
-	await _wait(func() -> bool: return again.phase == OneShotRun.Phase.FINISHED and not again.is_git_busy(), 15.0)
+	await _wait(func() -> bool: return again.phase == OneShotRun.RunPhase.FINISHED and not again.is_git_busy(), 15.0)
 	var messages := _user_messages(again.model)
 	_check(not messages.is_empty() and str(messages[0]).begins_with("We're resuming a One-shot") and str(messages[0]).contains("[in_progress] Paletas y pelota") and str(messages[0]).contains("[pass] Paletas"), "recuperación: sesión nueva con el resumen %s" % [messages.map(func(m: String) -> String: return m.left(60))])
 	_check(again.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("The editor had closed: opened a new session")), "recuperación: actividad de la sesión nueva")
@@ -138,8 +138,8 @@ func _scenario_quota() -> void:
 	_check(str(_user_messages(model)[0]).contains("Goal (One-shot mode): Pong") and str(_user_messages(model)[0]).contains("\"checks\""), "cuota: prompt inicial")
 
 	# Turno 1: cp2 antes de la tarea 1; al 91 % la tarea 2 crea su checkpoint y se pausa.
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED_QUOTA and not run.is_git_busy(), 10.0)
-	_check(run.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuota: pausado por cuota (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.PAUSED_QUOTA and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.RunPhase.PAUSED_QUOTA, "cuota: pausado por cuota (%s)" % run.phase_label())
 	_check(_cp_labels(run) == ["cp1 Initial state", "cp2 Paletas y pelota", "cp3 Puntaje y saque"], "cuota: checkpoints %s %s" % [_cp_labels(run), run.activity.map(func(e: Dictionary) -> String: return e.kind + ":" + e.text)])
 	_check(int(run.used.playtests) == 1, "cuota: un playtest contado")
 	_check(run.last_capture != null and run.last_capture.get_width() == 16, "cuota: captura del playtest")
@@ -150,24 +150,24 @@ func _scenario_quota() -> void:
 	# A los 3 s se reinicia la ventana y retoma solo; el turno 2 choca con el límite. Desde ahí espera
 	# confirmación (se cambia al entrar en "limitado": la ventana se reinicia en 3 s).
 	run.changed.connect(func() -> void:
-		if run.phase == OneShotRun.Phase.LIMITED:
+		if run.phase == OneShotRun.RunPhase.LIMITED:
 			run.resume_auto = false)
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.LIMITED and not run.is_git_busy(), 10.0)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.LIMITED and not run.is_git_busy(), 10.0)
 	_check(_user_messages(model).size() >= 2 and str(_user_messages(model)[1]).contains("Continue with the plan from the task “Puntaje y saque”; the state is in checkpoint cp3"), "cuota: prompt de reanudación (%s)" % str(_user_messages(model).back()).left(120))
-	_check(run.phase == OneShotRun.Phase.LIMITED, "cuota: limitado (%s)" % run.phase_label())
+	_check(run.phase == OneShotRun.RunPhase.LIMITED, "cuota: limitado (%s)" % run.phase_label())
 	_check(_cp_labels(run).back() == "cp4-quota Puntaje y saque", "cuota: cpN-quota (%s)" % [_cp_labels(run)])
 	_check(controller.quota.seconds_until_retry() > 0, "cuota: cuenta regresiva")
 	var time_before := float(run.used.time)
 
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.WAITING_CONFIRM, 10.0)
-	_check(run.phase == OneShotRun.Phase.WAITING_CONFIRM, "cuota: espera confirmación (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.WAITING_CONFIRM, 10.0)
+	_check(run.phase == OneShotRun.RunPhase.WAITING_CONFIRM, "cuota: espera confirmación (%s)" % run.phase_label())
 	_check(float(run.used.time) == time_before, "cuota: el tiempo en limitado no cuenta")
 	run.resume()
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.FINISHED and not run.is_git_busy(), 10.0)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy(), 10.0)
 	_check(str(_user_messages(model).back()).contains("from the task “Puntaje y saque”; the state is in checkpoint cp4-quota"), "cuota: retoma desde cp4-quota")
-	_check(run.phase == OneShotRun.Phase.FINISHED and run.finish_reason == "The agent finished the plan.", "cuota: terminó (%s)" % run.finish_reason)
+	_check(run.phase == OneShotRun.RunPhase.FINISHED and run.finish_reason == "The agent finished the plan.", "cuota: terminó (%s)" % run.finish_reason)
 	_check(_cp_labels(run).back() == "cp5 Playtest final", "cuota: checkpoint de la última tarea (%s)" % [_cp_labels(run)])
-	_check(controller.quota.state == QuotaMonitor.State.NORMAL, "cuota: normal después del reinicio")
+	_check(controller.quota.state == QuotaMonitor.QuotaState.NORMAL, "cuota: normal después del reinicio")
 	_check(run.checks.size() == 2 and run.checks[1].status == "pass", "cuota: checks actualizados")
 	var log := await run.git.run(["log", "--format=%s", "-6"])
 	_check(log.output.begins_with("cp5: Playtest final\ncp4-quota: Puntaje y saque\ncp3: Puntaje y saque\ncp2: Paletas y pelota\ncp1: Initial state"), "cuota: commits en la rama del agente:\n" + log.output)
@@ -182,13 +182,13 @@ func _scenario_quota_turn_end() -> void:
 	var run := _make("oneshot_quota_turn")
 	run.resume_auto = true
 	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED_QUOTA and not run.is_git_busy(), 10.0)
-	_check(run.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuota-turno: pausa al terminar el turno (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.PAUSED_QUOTA and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.RunPhase.PAUSED_QUOTA, "cuota-turno: pausa al terminar el turno (%s)" % run.phase_label())
 	_check(_user_messages(run.model).size() == 1, "cuota-turno: no manda otro turno (%d)" % _user_messages(run.model).size())
 	_check(run.resume_task == "Nivel 1", "cuota-turno: retoma en la tarea en curso (%s)" % run.resume_task)
 	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).contains("pausing before “Nivel 1”")), "cuota-turno: la actividad lo dice")
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.FINISHED and not run.is_git_busy(), 15.0)
-	_check(run.phase == OneShotRun.Phase.FINISHED, "cuota-turno: retoma solo y termina (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy(), 15.0)
+	_check(run.phase == OneShotRun.RunPhase.FINISHED, "cuota-turno: retoma solo y termina (%s)" % run.phase_label())
 	_check(str(_user_messages(run.model)[1]).contains("from the task “Nivel 1”"), "cuota-turno: prompt de reanudación")
 	run.controller.stop()
 	run.queue_free()
@@ -201,10 +201,10 @@ func _scenario_quota_grace() -> void:
 	var run := _make("oneshot_quota_grace")
 	run.quota_pause_grace_s = 1
 	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED_QUOTA and not run.is_git_busy(), 8.0)
-	_check(run.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuota-tope: pausa sin esperar a la tarea (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.PAUSED_QUOTA and not run.is_git_busy(), 8.0)
+	_check(run.phase == OneShotRun.RunPhase.PAUSED_QUOTA, "cuota-tope: pausa sin esperar a la tarea (%s)" % run.phase_label())
 	_check(run.quota_pause_text().is_empty(), "cuota-tope: el banner ya no dice que va a pausar")
-	await _wait(func() -> bool: return run.model.state == SessionModel.State.READY, 5.0)
+	await _wait(func() -> bool: return run.model.state == SessionModel.SessionState.READY, 5.0)
 	_check(not _agent_text(run.model).contains("no debería llegar"), "cuota-tope: el turno se cortó")
 	_check(_cp_labels(run).back() == "cp3-quota Nivel 1", "cuota-tope: checkpoint -quota (%s)" % [_cp_labels(run)])
 	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).contains("the task wasn't finishing")), "cuota-tope: la actividad lo explica")
@@ -222,8 +222,8 @@ func _scenario_account() -> void:
 	var run := _make("oneshot_account")
 	run.store.dir = store_dir
 	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.LIMITED and not run.is_git_busy(), 10.0)
-	_check(run.phase == OneShotRun.Phase.LIMITED, "cuenta: limitado (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.LIMITED and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.RunPhase.LIMITED, "cuenta: limitado (%s)" % run.phase_label())
 	var now := int(Time.get_unix_time_from_system())
 	_check(run.quota_resume_at > now + 3000, "cuenta: guarda cuándo se reinicia la ventana (%d)" % (run.quota_resume_at - now))
 	run.suspend()
@@ -234,15 +234,15 @@ func _scenario_account() -> void:
 	again.store.dir = store_dir
 	again.resume_auto = true
 	_check(again.restore_interrupted(), "cuenta: se restaura al reabrir")
-	_check(again.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuenta: sigue esperando la cuota (%s)" % again.phase_label())
+	_check(again.phase == OneShotRun.RunPhase.PAUSED_QUOTA, "cuenta: sigue esperando la cuota (%s)" % again.phase_label())
 	_check(again.quota_resume_at > now + 3000, "cuenta: con la hora de reinicio")
 	_check(str(again.activity.back().text).contains("resumes on its own at"), "cuenta: la actividad dice cuándo retoma (%s)" % again.activity.back().text)
 	await create_timer(1.5).timeout
-	_check(again.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuenta: no retoma antes de hora")
+	_check(again.phase == OneShotRun.RunPhase.PAUSED_QUOTA, "cuenta: no retoma antes de hora")
 	again.restart_session = func(_lost_id: String) -> bool: return await again.controller.start(_profile("oneshot_account_after"))
 	again.switch_account()
-	await _wait(func() -> bool: return again.phase == OneShotRun.Phase.FINISHED and not again.is_git_busy(), 15.0)
-	_check(again.phase == OneShotRun.Phase.FINISHED, "cuenta: retoma con la cuenta nueva y termina (%s · %s)" % [again.phase_label(), again.finish_reason])
+	await _wait(func() -> bool: return again.phase == OneShotRun.RunPhase.FINISHED and not again.is_git_busy(), 15.0)
+	_check(again.phase == OneShotRun.RunPhase.FINISHED, "cuenta: retoma con la cuenta nueva y termina (%s · %s)" % [again.phase_label(), again.finish_reason])
 	_check(again.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("Account switch: opened a new session")), "cuenta: la actividad lo dice")
 	_check(int(again.report.events.get("account_switches", 0)) == 1, "cuenta: el informe lo cuenta")
 	_check(again.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("Turn ") and str(entry.text).contains(" · ")), "tiempos: la actividad registra cada turno")
@@ -258,7 +258,7 @@ func _scenario_budget() -> void:
 	var model := run.model
 	var notices: Array[String] = []
 	model.entry_added.connect(func(entry: ChatEntry) -> void:
-		if entry.kind == ChatEntry.Kind.NOTICE:
+		if entry.kind == ChatEntry.EntryKind.NOTICE:
 			notices.append(entry.text))
 	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 5}, false)
 	_check(not run.checkpoints_enabled, "presupuestos: sin checkpoints")
@@ -266,7 +266,7 @@ func _scenario_budget() -> void:
 	run.guide("Usá paletas blancas y fondo negro.")
 	await _wait(func() -> bool: return int(run.used.playtests) >= 4, 5.0)
 	_check(notices.any(func(text: String) -> bool: return text.contains("Playtests: 80 %")), "presupuestos: aviso al 80 %% (%s)" % [notices])
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.FINISHED, 15.0)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED, 15.0)
 	var messages := _user_messages(model)
 	_check(messages.size() == 3, "presupuestos: inicial, guía y cierre (%d)" % messages.size())
 	if messages.size() == 3:
@@ -288,10 +288,10 @@ func _scenario_budget_raise() -> void:
 	print("— presupuesto con el run en curso")
 	var run := _make("oneshot_budget")
 	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 5}, false)
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.CLOSING, 15.0)
-	_check(run.phase == OneShotRun.Phase.CLOSING, "presupuesto: cerrando por playtests (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.CLOSING, 15.0)
+	_check(run.phase == OneShotRun.RunPhase.CLOSING, "presupuesto: cerrando por playtests (%s)" % run.phase_label())
 	run.set_budgets({"playtests": 0})
-	_check(run.phase == OneShotRun.Phase.RUNNING and int(run.budgets.playtests) == 0, "presupuesto: ilimitado sigue (%s)" % run.phase_label())
+	_check(run.phase == OneShotRun.RunPhase.RUNNING and int(run.budgets.playtests) == 0, "presupuesto: ilimitado sigue (%s)" % run.phase_label())
 	_check(run.activity.any(func(entry: Dictionary) -> bool: return entry.text == "With the new budget, the run continues"), "presupuesto: la actividad lo dice")
 	var closing_at := _user_messages(run.model).size()  # el último es el pedido de reporte
 	await _wait(func() -> bool: return _user_messages(run.model).size() > closing_at, 10.0)
@@ -312,7 +312,7 @@ func _scenario_no_plan() -> void:
 	print("— sin plan")
 	var run := _make("oneshot_noplan")
 	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 0}, true)
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.FINISHED and not run.is_git_busy(), 10.0)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy(), 10.0)
 	_check(run.finish_reason == "The agent finished: all checks pass.", "sin plan: motivo (%s)" % run.finish_reason)
 	var messages := _user_messages(run.model)
 	_check(messages.size() == 2 and str(messages[1]).contains("“Puntaje” (pending)") and not str(messages[1]).contains("plan"), "sin plan: sigue por el check pendiente, sin hablar de plan %s" % [messages])
@@ -329,9 +329,9 @@ func _scenario_loop() -> void:
 	var run := _make("oneshot_loop")
 	run.loops.repeats = 2
 	await run.start("Salto", {"time": 0, "tokens": 0, "playtests": 0}, false)
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED, 20.0)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.PAUSED, 20.0)
 	var messages := _user_messages(run.model)
-	_check(run.phase == OneShotRun.Phase.PAUSED, "loop: pausa (%s)" % run.phase_label())
+	_check(run.phase == OneShotRun.RunPhase.PAUSED, "loop: pausa (%s)" % run.phase_label())
 	_check(messages.size() == 5, "loop: turnos %s" % [messages])
 	_check(messages.size() > 1 and str(messages[1]).contains("loop") and str(messages[1]).contains("“Edit player.gd” failed 2 times"), "loop: el Edit que falla corta el turno y pide otro enfoque %s" % [messages])
 	_check(not _agent_text(run.model).contains("no tendría que llegar"), "loop: el turno se cortó")
@@ -340,7 +340,7 @@ func _scenario_loop() -> void:
 	_check(loop_entries.size() == 3, "loop: actividad %s" % [loop_entries])
 	_check(run.pause_note.contains("Salto"), "loop: motivo de la pausa (%s)" % run.pause_note)
 	run.guide("Saltá con la tecla espacio")
-	_check(run.phase == OneShotRun.Phase.RUNNING and run.pause_note.is_empty(), "loop: guiar retoma")
+	_check(run.phase == OneShotRun.RunPhase.RUNNING and run.pause_note.is_empty(), "loop: guiar retoma")
 	_check(run.activity.back().kind == "guide" and run.activity.back().text == "sent: Saltá con la tecla espacio", "loop: en pausa la guía sale enseguida")
 	await _wait(func() -> bool: return _user_messages(run.model).size() == 6, 10.0)
 	run.stop()
@@ -366,16 +366,16 @@ func _scenario_spec() -> void:
 	var first := _user_messages(run.model)
 	_check(first.size() == 1 and str(first[0]).contains(spec_path) and str(first[0]).contains("end the turn without building") and str(first[0]).contains(run.files.progress_path()), "spec: el prompt pide el spec y el progreso")
 	run.files.write(spec_path, "# Pong\nDos paletas.\n")  # lo que haría el agente
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.SPEC_REVIEW, 10.0)
-	_check(run.phase == OneShotRun.Phase.SPEC_REVIEW, "spec: espera la revisión (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.SPEC_REVIEW, 10.0)
+	_check(run.phase == OneShotRun.RunPhase.SPEC_REVIEW, "spec: espera la revisión (%s)" % run.phase_label())
 	_check(str(run.activity.back().text).contains("spec.md is ready"), "spec: la actividad lo avisa")
 	_check(FileAccess.file_exists(run.git.root.path_join(".godot_agent/.gdignore")), "spec: .gdignore")
 	run.guide("Sumá power-ups")
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.SPEC_REVIEW and _user_messages(run.model).size() == 2, 10.0)
-	_check(run.phase == OneShotRun.Phase.SPEC_REVIEW, "spec: después de guiar vuelve a esperar (%s)" % run.phase_label())
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.SPEC_REVIEW and _user_messages(run.model).size() == 2, 10.0)
+	_check(run.phase == OneShotRun.RunPhase.SPEC_REVIEW, "spec: después de guiar vuelve a esperar (%s)" % run.phase_label())
 	run.approve_spec("# Pong\nDos paletas y power-ups.\n")
 	_check(run.files.read(spec_path).contains("power-ups"), "spec: se guardan los cambios del usuario")
-	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.FINISHED and not run.is_git_busy() and not run.last_report.is_empty(), 10.0)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy() and not run.last_report.is_empty(), 10.0)
 	var messages := _user_messages(run.model)
 	_check(messages.size() == 3 and str(messages[2]).begins_with("The spec is approved with changes"), "spec: aprobar sigue construyendo %s" % [messages])
 	_check(run.finish_reason == "The agent finished: all checks pass.", "spec: terminó (%s)" % run.finish_reason)
@@ -389,11 +389,11 @@ func _scenario_spec() -> void:
 
 
 func _user_messages(model: SessionModel) -> Array:
-	return model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.Kind.USER).map(func(entry: ChatEntry) -> String: return entry.text)
+	return model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER).map(func(entry: ChatEntry) -> String: return entry.text)
 
 
 func _agent_text(model: SessionModel) -> String:
-	return "\n".join(model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.Kind.AGENT).map(func(entry: ChatEntry) -> String: return entry.text))
+	return "\n".join(model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.AGENT).map(func(entry: ChatEntry) -> String: return entry.text))
 
 
 func _cp_labels(run: OneShotRun) -> Array:

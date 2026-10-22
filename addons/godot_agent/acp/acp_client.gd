@@ -19,20 +19,20 @@ const ERR_INTERNAL := -32603
 const ERR_TRANSPORT := -32000
 
 ## Resultado de un request: `ok`, `result` o `error {code, message, data?}`.
-class Response:
+class AcpResponse:
 	extends RefCounted
 	var ok: bool = false
 	var result: Variant = null
 	var error: Dictionary = {}
 
-	static func success(value: Variant) -> Response:
-		var response := Response.new()
+	static func success(value: Variant) -> AcpResponse:
+		var response := AcpResponse.new()
 		response.ok = true
 		response.result = value
 		return response
 
-	static func failure(code: int, message: String, data: Variant = null) -> Response:
-		var response := Response.new()
+	static func failure(code: int, message: String, data: Variant = null) -> AcpResponse:
+		var response := AcpResponse.new()
 		response.error = {"code": code, "message": message}
 		if data != null:
 			response.error["data"] = data
@@ -44,7 +44,7 @@ class Response:
 
 class PendingRequest:
 	extends RefCounted
-	signal completed(response: Response)
+	signal completed(response: AcpResponse)
 	var method: String
 
 
@@ -81,7 +81,7 @@ func pending_count() -> int:
 
 
 ## Manda un request y espera la respuesta: `var r: Response = await client.request(...)`.
-func request(method: String, params: Dictionary = {}) -> Response:
+func request(method: String, params: Dictionary = {}) -> AcpResponse:
 	var id := _next_id
 	_next_id += 1
 	var message := {"jsonrpc": "2.0", "id": id, "method": method, "params": params}
@@ -90,8 +90,8 @@ func request(method: String, params: Dictionary = {}) -> Response:
 	_pending[id] = pending
 	if not _write(message, "→ %s #%d" % [method, id]):
 		_pending.erase(id)
-		return Response.failure(ERR_TRANSPORT, "Could not send '%s' to the agent." % method)
-	var response: Response = await pending.completed
+		return AcpResponse.failure(ERR_TRANSPORT, "Could not send '%s' to the agent." % method)
+	var response: AcpResponse = await pending.completed
 	return response
 
 
@@ -104,7 +104,7 @@ func fail_all_pending(message: String) -> void:
 	var pending := _pending
 	_pending = {}
 	for id: int in pending:
-		(pending[id] as PendingRequest).completed.emit(Response.failure(ERR_TRANSPORT, message))
+		(pending[id] as PendingRequest).completed.emit(AcpResponse.failure(ERR_TRANSPORT, message))
 
 
 ## Procesa una línea leída del agente.
@@ -138,13 +138,13 @@ func _handle_response(id: Variant, message: Dictionary, raw: String) -> void:
 		_log_line(AgentLog.CH_ACP, "← response to an unknown id: %s" % str(id), raw)
 		return
 	_pending.erase(id)
-	var response: Response
+	var response: AcpResponse
 	if message.has("error") and message.error is Dictionary:
 		var error: Dictionary = message.error
-		response = Response.failure(int(error.get("code", ERR_INTERNAL)), str(error.get("message", "")), error.get("data"))
+		response = AcpResponse.failure(int(error.get("code", ERR_INTERNAL)), str(error.get("message", "")), error.get("data"))
 		_log_line(AgentLog.CH_ACP, "← %s #%s error: %s" % [pending.method, str(id), response.error_message()], raw)
 	else:
-		response = Response.success(message.get("result"))
+		response = AcpResponse.success(message.get("result"))
 		_log_line(AgentLog.CH_ACP, "← %s #%s ok" % [pending.method, str(id)], raw)
 	pending.completed.emit(response)
 
@@ -164,8 +164,8 @@ func _handle_request(id: Variant, method: String, params: Dictionary, raw: Strin
 		_respond_error(id, ERR_METHOD_NOT_FOUND, "Method not supported: %s" % method)
 		return
 	var value: Variant = await handler.call(params)
-	if value is Response:
-		var response: Response = value
+	if value is AcpResponse:
+		var response: AcpResponse = value
 		if response.ok:
 			_respond(id, response.result)
 		else:

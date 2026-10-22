@@ -179,19 +179,19 @@ func show_older() -> void:
 func _make_view(entry: ChatEntry) -> EntryView:
 	var view: EntryView
 	match entry.kind:
-		ChatEntry.Kind.USER:
+		ChatEntry.EntryKind.USER:
 			view = UserMessageView.new()
-		ChatEntry.Kind.AGENT, ChatEntry.Kind.THOUGHT:
+		ChatEntry.EntryKind.AGENT, ChatEntry.EntryKind.THOUGHT:
 			view = AgentMessageView.new()
-		ChatEntry.Kind.NOTICE:
+		ChatEntry.EntryKind.NOTICE:
 			view = NoticeView.new()
-		ChatEntry.Kind.TOOL_GROUP:
+		ChatEntry.EntryKind.TOOL_GROUP:
 			var group := ToolGroupView.new()
 			group.tool_call_lookup = _model.tool_call
 			view = group
-		ChatEntry.Kind.PLAN:
+		ChatEntry.EntryKind.PLAN:
 			view = PlanView.new()
-		ChatEntry.Kind.PERMISSION:
+		ChatEntry.EntryKind.PERMISSION:
 			view = PermissionView.new()
 		_:
 			if extra_view_factory.is_valid():

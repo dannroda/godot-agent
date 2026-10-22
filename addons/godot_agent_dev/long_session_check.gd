@@ -80,7 +80,7 @@ func run_long(tree: SceneTree) -> PackedStringArray:
 	# El último mensaje se ve completo (el refresco agrupado no pierde chunks).
 	var last_text := ""
 	for entry: Object in model.call(&"entries"):
-		if int(entry.get(&"kind")) == ChatEntry.Kind.AGENT:
+		if int(entry.get(&"kind")) == ChatEntry.EntryKind.AGENT:
 			last_text = str(entry.get(&"text"))
 	_check(last_text.contains("Mensaje %d" % (PAIRS - 1)) and last_text.ends_with("fin.\n"), "último mensaje incompleto: " + last_text.right(80))
 

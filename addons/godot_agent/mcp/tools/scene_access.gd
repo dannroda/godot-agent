@@ -10,7 +10,7 @@ const SKIPPED_PROPERTIES: PackedStringArray = ["script", "owner", "scene_file_pa
 
 
 ## Escena resuelta. Si `temporary`, `root` se instanció del disco y hay que liberarla con `release()`.
-class Resolved:
+class ResolvedNode:
 	extends RefCounted
 	var root: Node
 	var path: String = ""
@@ -25,8 +25,8 @@ class Resolved:
 
 ## `scene` vacío: la escena abierta en el editor. Si es la abierta, se usa la del editor (con los
 ## cambios sin guardar); si no, se instancia del disco.
-static func resolve(scene: String) -> Resolved:
-	var resolved := Resolved.new()
+static func resolve(scene: String) -> ResolvedNode:
+	var resolved := ResolvedNode.new()
 	var edited := EditorInterface.get_edited_scene_root()
 	if scene.is_empty():
 		if edited == null:

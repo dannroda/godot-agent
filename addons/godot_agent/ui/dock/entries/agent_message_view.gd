@@ -9,7 +9,7 @@ var _dirty: bool = false
 
 
 func _build() -> void:
-	if entry.kind == ChatEntry.Kind.THOUGHT:
+	if entry.kind == ChatEntry.EntryKind.THOUGHT:
 		_toggle = Button.new()
 		_toggle.flat = true
 		_toggle.toggle_mode = true
@@ -22,7 +22,7 @@ func _build() -> void:
 		add_child(_toggle)
 	_label = make_rich_label()
 	_label.meta_clicked.connect(_on_meta_clicked)
-	if entry.kind == ChatEntry.Kind.THOUGHT:
+	if entry.kind == ChatEntry.EntryKind.THOUGHT:
 		_label.visible = false
 		_label.add_theme_color_override(&"default_color", AgentTheme.MUTED)
 	add_child(_label)

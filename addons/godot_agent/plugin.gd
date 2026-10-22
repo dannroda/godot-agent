@@ -161,13 +161,13 @@ func _enter_tree() -> void:
 
 	_surfaces = EditorSurfaces.new(self)
 	_surfaces.side_slot = HarnessSettings.DOCK_SLOTS[_settings.dock_slot()]
-	_surfaces.add(EditorSurfaces.Surface.SIDE, dock, DOCK_TITLE, "godot_agent_dock")
-	_surfaces.add(EditorSurfaces.Surface.BOTTOM, log_panel, LOG_PANEL_TITLE, "godot_agent_log")
+	_surfaces.add(EditorSurfaces.EditorSurface.SIDE, dock, DOCK_TITLE, "godot_agent_dock")
+	_surfaces.add(EditorSurfaces.EditorSurface.BOTTOM, log_panel, LOG_PANEL_TITLE, "godot_agent_log")
 	_main_screen = AgentMainScreenScene.instantiate()
 	_main_screen.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_main_screen.setup(_oneshot, _settings.accent_color(), _oneshot_defaults())
 	_main_screen.diff_requested.connect(_diff_dialog.show_diff)
-	_surfaces.add(EditorSurfaces.Surface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
+	_surfaces.add(EditorSurfaces.EditorSurface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
 	_restore_oneshot.call_deferred()
 
 	_settings_dialog = SettingsDialog.new()
@@ -256,7 +256,7 @@ func _build() -> bool:
 
 ## Solo con la API vieja (4.6 y 4.7). En 4.8+ la main screen es un EditorDock (ver EditorSurfaces).
 func _has_main_screen() -> bool:
-	return not EditorSurfaces.uses_dock_api(EditorSurfaces.Surface.MAIN_SCREEN)
+	return not EditorSurfaces.uses_dock_api(EditorSurfaces.EditorSurface.MAIN_SCREEN)
 
 
 func _make_visible(visible: bool) -> void:
@@ -274,7 +274,7 @@ func _get_plugin_icon() -> Texture2D:
 
 func _show_log() -> void:
 	if _surfaces:
-		_surfaces.make_visible(EditorSurfaces.Surface.BOTTOM)
+		_surfaces.make_visible(EditorSurfaces.EditorSurface.BOTTOM)
 
 
 ## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).
@@ -300,7 +300,7 @@ func _on_conflict_detected(res_path: String) -> void:
 	var data := {"path": res_path}
 	_model.add_notice(
 		I18n.t("%s has unsaved changes and the agent modified it on disk. Nothing was overwritten.") % res_path,
-		ChatEntry.Level.WARNING,
+		ChatEntry.NoticeLevel.WARNING,
 		[
 			{"id": ACTION_CONFLICT_DIFF, "label": I18n.t("View diff"), "data": data},
 			{"id": ACTION_CONFLICT_USE_AGENT, "label": I18n.t("Use the agent's"), "data": data},
@@ -312,7 +312,7 @@ func _on_conflict_detected(res_path: String) -> void:
 func _on_open_scene_modified(res_path: String) -> void:
 	_model.add_notice(
 		I18n.t("The agent modified the open scene %s on disk, and it has unsaved changes: it was not reloaded. Reloading it discards your changes.") % res_path,
-		ChatEntry.Level.WARNING,
+		ChatEntry.NoticeLevel.WARNING,
 		[{"id": ACTION_RELOAD_SCENE, "label": I18n.t("Reload scene"), "data": {"path": res_path}}]
 	)
 
@@ -333,12 +333,12 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_undo_tool_call(str(payload))
 		AgentDock.ACTION_REVIEW_FOCUS:
 			if not _review_annotations.focus_finding(int(payload)):
-				_model.add_notice(I18n.t("Could not open the finding."), ChatEntry.Level.WARNING)
+				_model.add_notice(I18n.t("Could not open the finding."), ChatEntry.NoticeLevel.WARNING)
 		AgentDock.ACTION_REVIEW_FIX_ALL:
 			_fix_review_findings(_controller.review.findings.duplicate())
 		AgentDock.ACTION_OPEN_RUN_FILE:
 			if _surfaces:
-				_surfaces.make_visible(EditorSurfaces.Surface.MAIN_SCREEN)
+				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
 			_main_screen.call(&"show_run_file", path)
 
 
@@ -366,9 +366,9 @@ func _fix_review_findings(list: Array[Dictionary]) -> void:
 
 
 func _can_send() -> bool:
-	if _model.state == SessionModel.State.READY:
+	if _model.state == SessionModel.SessionState.READY:
 		return true
-	_model.add_notice(I18n.t("That needs a ready session with no turn in progress."), ChatEntry.Level.WARNING)
+	_model.add_notice(I18n.t("That needs a ready session with no turn in progress."), ChatEntry.NoticeLevel.WARNING)
 	return false
 
 
@@ -400,7 +400,7 @@ func _undo_tool_call(call_id: String) -> void:
 		_model.touch_tool_call(call)
 		_log.add(AgentLog.CH_MCP, "undone: %s" % call.undo_info.get("action", ""))
 	else:
-		_model.add_notice(I18n.t("Could not undo «%s»: %s") % [call.undo_info.get("action", ""), reason], ChatEntry.Level.WARNING)
+		_model.add_notice(I18n.t("Could not undo «%s»: %s") % [call.undo_info.get("action", ""), reason], ChatEntry.NoticeLevel.WARNING)
 
 
 ## Server MCP con las tools godot.* (spec §5). La política de permisos se aplica del lado del server
@@ -491,7 +491,7 @@ func _regenerate_mcp_token() -> void:
 	_log.remove_secret(_mcp_server.token)
 	if _mcp_server.start(port) == OK:
 		_log.add_secret(_mcp_server.token)
-		_model.add_notice(I18n.t("MCP token regenerated: the godot.* tools reach new sessions."), ChatEntry.Level.INFO)
+		_model.add_notice(I18n.t("MCP token regenerated: the godot.* tools reach new sessions."), ChatEntry.NoticeLevel.INFO)
 
 
 ## Umbrales de cuota del usuario (spec §10.1, EditorSettings godot_agent/quota/*).
@@ -513,14 +513,14 @@ func _on_editor_settings_changed() -> void:
 ## Elegir One-shot en el dock abre la pantalla Agent (ahí se escribe el objetivo).
 func _on_harness_mode_changed(mode: SessionModel.HarnessMode) -> void:
 	if mode == SessionModel.HarnessMode.ONESHOT and _oneshot and not _oneshot.is_active() and _surfaces:
-		_surfaces.make_visible(EditorSurfaces.Surface.MAIN_SCREEN)
+		_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
 
 
 ## Un One-shot que quedó a medias (el editor se cerró o se cayó) vuelve en pausa.
 func _restore_oneshot() -> void:
 	if _oneshot == null or not _oneshot.restore_interrupted():
 		return
-	_model.add_notice(I18n.t("There is an unfinished One-shot: «%s». It is paused in the Agent screen; «Resume» reopens the agent session.") % _oneshot.goal.left(80), ChatEntry.Level.WARNING)
+	_model.add_notice(I18n.t("There is an unfinished One-shot: «%s». It is paused in the Agent screen; «Resume» reopens the agent session.") % _oneshot.goal.left(80), ChatEntry.NoticeLevel.WARNING)
 
 
 ## Con un One-shot en curso, lo que se escribe en el dock guía al agente del run (oneshot.guide).
@@ -538,7 +538,7 @@ func _intercept_dock_retry() -> bool:
 	if _oneshot.can_resume():
 		_oneshot.resume()
 	else:
-		_model.add_notice(I18n.t("The One-shot is still running: pause or stop it from the Agent screen."), ChatEntry.Level.INFO)
+		_model.add_notice(I18n.t("The One-shot is still running: pause or stop it from the Agent screen."), ChatEntry.NoticeLevel.INFO)
 	return true
 
 
