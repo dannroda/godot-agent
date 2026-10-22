@@ -2,12 +2,17 @@
 extends RefCounted
 ## Registro de tools `godot.*` (spec §5–6): lista, valida argumentos, aplica la política de
 ## permisos del lado del server, ejecuta, recorta la salida y lo deja todo en el log (canal mcp).
+## Con `compact` (m3-09, D56), tools/list trae solo el núcleo tipado; las demás ("extendidas") se
+## descubren con `godot.methods` y se llaman con `godot.run(method, params)`, con su validación y
+## su permiso. Llamarlas por su nombre sigue funcionando.
 
 const McpTool := preload("mcp_tool.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const EditorContext := preload("../ui/editor_context.gd")
 
 const LOG_SUMMARY_CHARS := 120
+const METHODS_TOOL := "methods"
+const RUN_TOOL := "run"
 
 var agent_log: AgentLog
 ## Callable(group: String, title: String, description: String) -> bool (se espera con await).
@@ -15,11 +20,14 @@ var agent_log: AgentLog
 var authorizer: Callable
 var max_output_chars: int = 20000
 var max_image_side: int = 1280
+## tools/list solo con el núcleo, más `methods` y `run` para las extendidas.
+var compact: bool = false
 
 var _tools: Dictionary = {}  # name -> McpTool
 var _order: PackedStringArray = []
 ## Objetos dueños de los handlers: un Callable no mantiene vivo a su RefCounted.
 var _providers: Array = []
+var _extended: Dictionary = {}  # name -> true
 
 
 func register(tool: McpTool) -> void:
@@ -29,15 +37,28 @@ func register(tool: McpTool) -> void:
 
 
 ## Registra las tools de un proveedor (objeto con `tools() -> Array`) y lo mantiene vivo.
-func register_provider(provider: Object) -> void:
+## `extended`: sus tools no van en tools/list con `compact`.
+func register_provider(provider: Object, extended: bool = false) -> void:
 	if not provider in _providers:
 		_providers.append(provider)
 	for tool: McpTool in provider.call(&"tools"):
 		register(tool)
+		if extended:
+			_extended[tool.name] = true
+
+
+## Tools sueltas que pasan a extendidas (las de un proveedor que es núcleo en parte).
+func mark_extended(tool_names: PackedStringArray) -> void:
+	for tool_name: String in tool_names:
+		_extended[tool_name] = true
+
+
+func is_extended(tool_name: String) -> bool:
+	return _extended.has(tool_name)
 
 
 func has_tool(tool_name: String) -> bool:
-	return _tools.has(tool_name)
+	return _tools.has(tool_name) or (tool_name in [METHODS_TOOL, RUN_TOOL] and not _extended.is_empty())
 
 
 func get_tool(tool_name: String) -> McpTool:
@@ -52,15 +73,35 @@ func names() -> PackedStringArray:
 func list() -> Array:
 	var result: Array = []
 	for tool_name: String in _order:
-		result.append((_tools[tool_name] as McpTool).to_mcp())
+		if not (compact and _extended.has(tool_name)):
+			result.append((_tools[tool_name] as McpTool).to_mcp())
+	if compact and not _extended.is_empty():
+		result.append(_methods_tool().to_mcp())
+		result.append(_run_tool().to_mcp())
 	return result
 
 
 ## Ejecuta una tool y devuelve siempre un resultado MCP `{content, isError}`.
 func call_tool(tool_name: String, args: Variant) -> Dictionary:
 	var started := Time.get_ticks_msec()
-	var tool: McpTool = _tools.get(tool_name)
 	var result: Dictionary
+	if tool_name == METHODS_TOOL and not _tools.has(METHODS_TOOL):
+		result = _limit(_methods(args if args is Dictionary else {}))
+		_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
+		return result
+	if tool_name == RUN_TOOL and not _tools.has(RUN_TOOL):
+		var invalid_run := _run_tool().validate(args if args is Dictionary else {})
+		if not invalid_run.is_empty() or not args is Dictionary:
+			result = McpTool.error(invalid_run if not invalid_run.is_empty() else "The arguments must be a JSON object.")
+			_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
+			return result
+		if not _tools.has(str(args.method)):
+			result = McpTool.error("There is no method '%s'. godot.methods lists them." % args.method)
+			_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
+			return result
+		tool_name = str(args.method)
+		args = args.get("params", {}) if args.get("params") != null else {}
+	var tool: McpTool = _tools.get(tool_name)
 	if tool == null:
 		result = McpTool.error("There is no tool '%s'. Available: %s." % [tool_name, ", ".join(_order)])
 	elif not (args is Dictionary or args == null):
@@ -81,6 +122,53 @@ func call_tool(tool_name: String, args: Variant) -> Dictionary:
 	result = _limit(result)
 	_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
 	return result
+
+
+# --- descubrimiento (m3-09) --------------------------------------------------------------------------
+
+func _methods_tool() -> McpTool:
+	return McpTool.create(METHODS_TOOL, "read",
+		"Lists the extra godot methods that are not in your tool list (tilemaps, animation, resources, moving files, project settings and input actions, Godot API docs, the running game…): one line each. Call them with godot.run. Pass `method` to see its full description and parameters, or `query` to filter.",
+		{"method": {"type": "string"}, "query": {"type": "string"}}, [], Callable()) as McpTool
+
+
+func _run_tool() -> McpTool:
+	return McpTool.create(RUN_TOOL, "read",
+		"Runs an extra godot method (see godot.methods): `method` is its name and `params` its arguments object. The method's own permissions apply.",
+		{"method": {"type": "string"}, "params": {"type": "object"}}, ["method"], Callable()) as McpTool
+
+
+func _methods(args: Dictionary) -> Dictionary:
+	var wanted := str(args.get("method", "")) if args.get("method") != null else ""
+	if not wanted.is_empty():
+		var tool: McpTool = _tools.get(wanted)
+		if tool == null:
+			return McpTool.error("There is no method '%s'. godot.methods without arguments lists them." % wanted)
+		var lines: PackedStringArray = ["%s (permission group %s)" % [tool.name, tool.group], tool.description, "Parameters (JSON schema):", JSON.stringify(tool.input_schema)]
+		lines.append("Call: godot.run with {\"method\": \"%s\", \"params\": {…}}." % tool.name)
+		return McpTool.text("\n".join(lines))
+	var query := (str(args.get("query", "")) if args.get("query") != null else "").to_lower()
+	var lines: PackedStringArray = []
+	for tool_name: String in _order:
+		if not _extended.has(tool_name):
+			continue
+		var tool: McpTool = _tools[tool_name]
+		if not query.is_empty() and not tool_name.contains(query) and not tool.description.to_lower().contains(query):
+			continue
+		var params: PackedStringArray = []
+		var required: Array = tool.input_schema.get("required", [])
+		for param: String in (tool.input_schema.get("properties", {}) as Dictionary):
+			params.append(param if param in required else param + "?")
+		lines.append("- %s(%s): %s" % [tool_name, ", ".join(params), _first_sentence(tool.description)])
+	if lines.is_empty():
+		return McpTool.text("No method matches '%s'." % query)
+	lines.insert(0, "Extra methods (call with godot.run {method, params}; godot.methods {method} shows the details):")
+	return McpTool.text("\n".join(lines))
+
+
+static func _first_sentence(text: String) -> String:
+	var end := text.find(". ")
+	return text.left(end + 1) if end >= 0 else text
 
 
 func _authorize(tool: McpTool, args: Dictionary) -> bool:

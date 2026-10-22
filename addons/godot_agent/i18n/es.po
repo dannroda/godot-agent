@@ -1966,3 +1966,9 @@ msgstr "pasa"
 
 msgid "doesn't pass"
 msgstr "no pasa"
+
+msgid "Compact tool list: the agent finds the extra godot tools with godot.methods"
+msgstr "Lista de tools compacta: el agente encuentra las tools godot extra con godot.methods"
+
+msgid "The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session."
+msgstr "La lista de tools mantiene lectura, edición de escenas y correr el juego; tilemaps, animación, recursos, archivos, settings del proyecto, la documentación de la API y el juego en vivo van por godot.methods y godot.run. Ahorra contexto en cada turno. Vale desde la próxima sesión."

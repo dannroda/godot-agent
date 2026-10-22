@@ -183,6 +183,8 @@ Dejá el resto de los perfiles (Gemini CLI, Codex, custom) como entradas editabl
 
 Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `res://` y NodePaths relativos a la raíz de la escena.
 
+**tools/list compacto** (`compact_tools`, default activado, D56): tools/list trae el núcleo tipado (lectura, diagnóstico, edición de escenas, run_scene/stop_scene/capture_game_frame) más `methods` (lista y detalle de las demás) y `run(method, params)`, que las llama con su validación y su permiso. Son extendidas: API (`class_info`, `search_api`), proyecto, archivos, recursos, tilemaps, animación y `game_*`. Llamarlas por su nombre sigue funcionando.
+
 | Tool | Grupo | Args | Devuelve |
 |---|---|---|---|
 | `project_info` | read | — | Versión de Godot, nombre del proyecto, escena principal, autoloads, input map resumido, plugins activos |

@@ -103,11 +103,22 @@ func display_name() -> String:
 
 
 ## Nombre de la tool godot.* sin prefijo ("add_node"), o "" si no es del addon.
+## Nombre de la tool `godot.*`; por `godot.run` (D56), el del método que corrió.
 func godot_tool_name() -> String:
 	for prefix: String in ["mcp__godot__", "godot."]:
 		if title.begins_with(prefix):
-			return title.trim_prefix(prefix)
+			var name := title.trim_prefix(prefix)
+			if name == "run" and raw_input is Dictionary and raw_input.get("method") is String:
+				return raw_input.method
+			return name
 	return ""
+
+
+## Argumentos de la tool `godot.*`: por `godot.run`, los `params` del método.
+func godot_arguments() -> Variant:
+	if title.trim_prefix("mcp__godot__").trim_prefix("godot.") == "run" and raw_input is Dictionary and raw_input.get("method") is String:
+		return raw_input.get("params", {}) if raw_input.get("params") is Dictionary else {}
+	return raw_input
 
 
 func can_undo() -> bool:

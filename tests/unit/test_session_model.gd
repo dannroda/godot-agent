@@ -176,3 +176,19 @@ func test_content_to_text() -> void:
 	assert_eq(SessionModel.content_to_text({"type": "image", "data": ""}), "[image]", "image")
 	assert_eq(SessionModel.content_to_text({"type": "resource_link", "uri": "file:///x", "name": "x"}), "[x](file:///x)", "link")
 	assert_eq(SessionModel.content_to_text("raro"), "", "no dict")
+
+
+## Por godot.run (D56) la tool y sus argumentos son los del método: así el ↶ deshacer de la tarjeta
+## y la cuenta del One-shot ven la tool real.
+func test_godot_run_unwraps_method() -> void:
+	var model := SessionModel.new()
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "r", "title": "mcp__godot__run", "kind": "other", "status": "completed",
+		"rawInput": {"method": "tilemap_set_cells", "params": {"node_path": "Ground", "cells": []}}})
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "d", "title": "mcp__godot__add_node", "kind": "other", "status": "completed",
+		"rawInput": {"type": "Node2D"}})
+	var run: ToolCall = model.tool_call("r")
+	assert_eq(run.godot_tool_name(), "tilemap_set_cells", "nombre del método")
+	assert_eq(run.godot_arguments(), {"node_path": "Ground", "cells": []}, "params del método")
+	assert_eq(model.tool_call("d").godot_tool_name(), "add_node", "las demás, igual que antes")
+	assert_eq(model.tool_call("d").godot_arguments(), {"type": "Node2D"}, "argumentos directos")
+	assert_eq(model.find_godot_tool_call("tilemap_set_cells", {"node_path": "Ground", "cells": []}), run, "el deshacer encuentra la llamada por el método")

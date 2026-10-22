@@ -36,7 +36,7 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -75,6 +75,7 @@ var _roots_edit: TextEdit
 var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
+var _compact_tools_check: CheckBox
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
 var _loop_spin: SpinBox
@@ -262,6 +263,10 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_manual_runs_check = CheckBox.new()
 	_manual_runs_check.text = I18n.t("Use the playtest autoload also when running the game manually")
 	page.add_child(_manual_runs_check)
+	_compact_tools_check = CheckBox.new()
+	_compact_tools_check.text = I18n.t("Compact tool list: the agent finds the extra godot tools with godot.methods")
+	_compact_tools_check.tooltip_text = I18n.t("The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session.")
+	page.add_child(_compact_tools_check)
 	page.add_child(_title(I18n.t("Folders outside the project")))
 	page.add_child(_hint(I18n.t("The agent's fs/* can read and write in these folders besides the project (absolute paths, one per line).")))
 	_roots_edit = TextEdit.new()
@@ -409,6 +414,7 @@ func _load() -> void:
 	_max_output_spin.value = _config.max_output_chars
 	_max_image_spin.value = _config.max_image_side
 	_manual_runs_check.button_pressed = _config.playtest_on_manual_runs
+	_compact_tools_check.button_pressed = _config.compact_tools
 	_roots_edit.text = "\n".join(_config.extra_fs_roots)
 	_budget_spins.minutes.value = _config.budget_minutes
 	_budget_spins.tokens.value = _config.budget_tokens
@@ -468,6 +474,7 @@ func _on_save() -> void:
 	_config.max_output_chars = int(_max_output_spin.value)
 	_config.max_image_side = int(_max_image_spin.value)
 	_config.playtest_on_manual_runs = _manual_runs_check.button_pressed
+	_config.compact_tools = _compact_tools_check.button_pressed
 	_config.extra_fs_roots = _lines(_roots_edit.text)
 	_config.budget_minutes = int(_budget_spins.minutes.value)
 	_config.budget_tokens = int(_budget_spins.tokens.value)

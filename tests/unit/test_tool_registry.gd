@@ -87,3 +87,57 @@ func test_secret_redaction() -> void:
 	var entry := log.add(AgentLog.CH_ACP, "token abcdef0123456789", "{\"v\":\"Bearer abcdef0123456789\"}")
 	assert_false(str(entry.message).contains("abcdef0123456789"), "mensaje sin el secreto")
 	assert_false(str(entry.raw).contains("abcdef0123456789"), "raw sin el secreto")
+
+
+## tools/list compacto (D56): núcleo tipado más methods y run para las extendidas.
+func _compact_registry() -> ToolRegistry:
+	var registry := _registry()
+	registry.compact = true
+	registry.mark_extended(PackedStringArray(["picture"]))
+	registry.register(McpTool.create("paint", "edit_scene", "Pinta celdas. Detalle largo que no va en la lista.", {"cells": {"type": "array"}, "layer": {"type": "string"}}, ["layer"],
+		func(args: Dictionary) -> String: return "pintado %s" % args.layer))
+	registry.mark_extended(PackedStringArray(["paint"]))
+	return registry
+
+
+func test_compact_list() -> void:
+	var registry := _compact_registry()
+	var names: Array = registry.list().map(func(tool: Dictionary) -> String: return tool.name)
+	assert_eq(names, ["echo", "broken", "methods", "run"], "sin las extendidas, con methods y run")
+	assert_true(registry.has_tool("run") and registry.has_tool("methods") and registry.has_tool("paint"), "has_tool")
+	registry.compact = false
+	assert_eq(registry.list().size(), 4, "sin compact, todas y sin methods/run")
+
+
+func test_methods() -> void:
+	var registry := _compact_registry()
+	var listed: Dictionary = await registry.call_tool("methods", {})
+	var text: String = listed.content[0].text
+	assert_true(text.contains("- picture(): Imagen grande") and text.contains("- paint(cells?, layer): Pinta celdas.") and not text.contains("Detalle largo"), "una línea por método " + text)
+	assert_false(text.contains("echo"), "el núcleo no se repite")
+	var filtered: Dictionary = await registry.call_tool("methods", {"query": "celdas"})
+	assert_true(str(filtered.content[0].text).contains("paint") and not str(filtered.content[0].text).contains("picture"), "filtro")
+	var detail: Dictionary = await registry.call_tool("methods", {"method": "paint"})
+	assert_true(str(detail.content[0].text).contains("Detalle largo") and str(detail.content[0].text).contains("\"required\":[\"layer\"]") and str(detail.content[0].text).contains("edit_scene"), "detalle con schema y grupo")
+	var missing: Dictionary = await registry.call_tool("methods", {"method": "nada"})
+	assert_true(missing.isError, "método inexistente")
+
+
+func test_run() -> void:
+	var registry := _compact_registry()
+	var asked: Array = []
+	registry.authorizer = func(group: String, title: String, _description: String) -> bool:
+		asked.append([group, title])
+		return true
+	var ran: Dictionary = await registry.call_tool("run", {"method": "paint", "params": {"layer": "suelo"}})
+	assert_false(ran.isError, "corre el método")
+	assert_eq(ran.content[0].text, "pintado suelo", "resultado del método")
+	assert_eq(asked, [["edit_scene", "godot.paint"]], "permiso con el grupo del método, una sola vez")
+	var invalid: Dictionary = await registry.call_tool("run", {"method": "paint", "params": {}})
+	assert_true(invalid.isError and str(invalid.content[0].text).contains("layer"), "valida los params del método")
+	var unknown: Dictionary = await registry.call_tool("run", {"method": "volar"})
+	assert_true(unknown.isError and str(unknown.content[0].text).contains("godot.methods"), "método inexistente")
+	var no_method: Dictionary = await registry.call_tool("run", {"params": {}})
+	assert_true(no_method.isError and str(no_method.content[0].text).contains("method"), "falta method")
+	var direct: Dictionary = await registry.call_tool("paint", {"layer": "x"})
+	assert_false(direct.isError, "por su nombre sigue andando")

@@ -32,6 +32,9 @@ const PATH := "res://addons/godot_agent/config/project_config.tres"
 @export_range(256, 4096, 16, "suffix:px") var max_image_side: int = 1280
 ## Correr el autoload de playtest también en los runs manuales del usuario.
 @export var playtest_on_manual_runs: bool = false
+## tools/list compacto (D56): el núcleo tipado más godot.methods y godot.run para el resto, para
+## que las descripciones de ~55 tools no ocupen contexto en cada turno. Vale desde la próxima sesión.
+@export var compact_tools: bool = true
 @export_group("Completion")
 ## Completado predictivo en este proyecto (además del on/off global del usuario, spec §16.10).
 @export var completion_enabled: bool = true

@@ -12,6 +12,8 @@ const PlaytestDebugger := preload("../../playtest/playtest_debugger.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const ProjectTools := preload("project_tools.gd")
 
+## Las del juego en ejecución: extendidas con tools/list compacto (D56).
+const GAME_TOOLS: PackedStringArray = ["game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input"]
 const MAX_SECONDS := 120.0
 const STARTUP_TIMEOUT_S := 20.0
 const FRAME_TIMEOUT_S := 5.0

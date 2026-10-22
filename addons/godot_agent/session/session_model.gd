@@ -88,7 +88,7 @@ func find_godot_tool_call(tool_name: String, args: Dictionary) -> ToolCall:
 	var found: ToolCall = null
 	for id: String in _tool_calls:
 		var call: ToolCall = _tool_calls[id]
-		if call.godot_tool_name() == tool_name and call.undo_info.is_empty() and call.raw_input is Dictionary and call.raw_input == args:
+		if call.godot_tool_name() == tool_name and call.undo_info.is_empty() and call.godot_arguments() is Dictionary and call.godot_arguments() == args:
 			found = call
 	return found
 

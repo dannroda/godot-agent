@@ -438,35 +438,37 @@ func _start_mcp_server() -> void:
 	registry.agent_log = _log
 	registry.max_output_chars = _project_config.max_output_chars
 	registry.max_image_side = _project_config.max_image_side
+	registry.compact = _project_config.compact_tools
 	registry.authorizer = func(group: String, title: String, description: String) -> bool:
 		return await _controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
 	registry.register_provider(ReadTools.new())
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
-	registry.register_provider(api_tools)
+	registry.register_provider(api_tools, true)
 	var diagnostics := DiagnosticTools.new()
 	diagnostics.setup(_errors, EditorContext.project_path())
 	registry.register_provider(diagnostics)
 	var edit_tools := SceneEditTools.new()
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)
-	registry.register_provider(ProjectTools.new())
+	registry.register_provider(ProjectTools.new(), true)
 	var file_tools := FileTools.new()
 	file_tools.on_file_written = _sync.after_agent_write
 	file_tools.unsaved_buffer = _sync.buffer_text
-	registry.register_provider(file_tools)
-	registry.register_provider(ResourceTools.new())
+	registry.register_provider(file_tools, true)
+	registry.register_provider(ResourceTools.new(), true)
 	var tilemap_tools := TilemapTools.new()
 	tilemap_tools.on_action = _on_mcp_edit_action
-	registry.register_provider(tilemap_tools)
+	registry.register_provider(tilemap_tools, true)
 	var animation_tools := AnimationTools.new()
 	animation_tools.on_action = _on_mcp_edit_action
-	registry.register_provider(animation_tools)
+	registry.register_provider(animation_tools, true)
 	_run_tools = RunTools.new()
 	_run_tools.setup(_errors, _playtest_debugger)
 	_run_tools.max_image_side = _project_config.max_image_side
 	_run_tools.cleanup = _remove_playtest_autoload
 	registry.register_provider(_run_tools)
+	registry.mark_extended(RunTools.GAME_TOOLS)
 	_mcp_server = McpServer.new()
 	_mcp_server.registry = registry
 	_mcp_server.agent_log = _log
@@ -517,6 +519,7 @@ func _on_settings_saved() -> void:
 	_fs.extra_roots = _project_config.extra_fs_roots
 	_registry.max_output_chars = _project_config.max_output_chars
 	_registry.max_image_side = _project_config.max_image_side
+	_registry.compact = _project_config.compact_tools
 	_run_tools.max_image_side = _project_config.max_image_side
 	_main_screen.call(&"set_defaults", _oneshot_defaults())
 	_oneshot.loops.repeats = _project_config.loop_repeats

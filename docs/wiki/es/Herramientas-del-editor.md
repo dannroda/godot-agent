@@ -4,6 +4,13 @@
 
 El agente ve estas tools como `godot.<nombre>` (Claude Code las muestra como `mcp__godot__<nombre>`).
 
+**Lista de tools compacta** (activada por defecto, **Settings → Servidor MCP**): la descripción de cada tool ocupa contexto en cada turno, así que la lista de tools trae solo el núcleo (lectura, diagnóstico, edición de escenas y correr el juego) más dos:
+
+- `godot.methods` lista las demás, una línea cada una (`query` filtra; `method` muestra su descripción y parámetros);
+- `godot.run` llama una: `{"method": "tilemap_set_cells", "params": {…}}`. Valida los parámetros y pide el mismo permiso que la tool.
+
+Las extra son la documentación de la API (`class_info`, `search_api`), los settings del proyecto, archivos, recursos, tilemaps, animación y el juego en vivo. Con la lista compacta, tools/list pasa de unos 30.000 caracteres a unos 11.000. El setting vale desde la próxima sesión.
+
 | Grupo | Tool | Qué hace |
 |---|---|---|
 | Lectura | `project_info` | Versión de Godot, binario del editor, nombre del proyecto, escena principal, autoloads, acciones de input, plugins, renderer. |

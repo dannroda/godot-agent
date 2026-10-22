@@ -1518,7 +1518,7 @@ static func _one_line(text: String) -> String:
 
 
 static func _call_summary(call: ToolCall) -> String:
-	var input: Variant = call.raw_input
+	var input: Variant = call.godot_arguments()
 	if input is Dictionary:
 		for key: String in ["scene", "path", "file_path", "node", "command"]:
 			if input.has(key):

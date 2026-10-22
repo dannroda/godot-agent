@@ -44,8 +44,20 @@ func run(tree: SceneTree) -> PackedStringArray:
 	for tool: Dictionary in list.get("result", {}).get("tools", []):
 		names.append(tool.name)
 	print("[mcp-check] tools: ", ", ".join(names))
-	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "class_info", "search_api", "get_errors", "validate_scripts", "capture_editor_viewport"]:
+	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "get_errors", "validate_scripts", "capture_editor_viewport", "add_nodes", "run_scene", "methods", "run"]:
 		_expect(expected in names, "tools/list incluye %s" % expected)
+	# Compacto por defecto (D56): las extendidas se descubren con methods y se llaman con run.
+	for extended: String in ["class_info", "search_api", "tilemap_set_cells", "animation_create", "create_resource", "move_file", "set_input_action", "game_get"]:
+		_expect(not extended in names, "tools/list compacto no trae %s" % extended)
+	print("[mcp-check] tools/list: %d tools, %d chars" % [names.size(), JSON.stringify(list.get("result", {}).get("tools", [])).length()])
+	var methods := await _call_text("methods", {})
+	_expect(methods.contains("- class_info(") and methods.contains("- tilemap_set_cells(") and methods.contains("- game_wait("), "methods lista las extendidas")
+	var detail := await _call_text("methods", {"method": "search_api"})
+	_expect(detail.contains("\"query\"") and detail.contains("read"), "methods con method: schema y grupo")
+	var via_run := await _call_text("run", {"method": "class_info", "params": {"class": "Timer", "member": "one_shot"}})
+	_expect(via_run.contains("one_shot"), "run llama un método extendido · " + via_run.left(200))
+	var direct := await _call_text("class_info", {"class": "Timer", "member": "wait_time"})
+	_expect(direct.contains("wait_time"), "por su nombre sigue andando")
 
 	var info := await _call_text("project_info", {})
 	_expect(info.contains("Godot 4.") and info.contains("Autoloads"), "project_info")
