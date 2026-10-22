@@ -689,7 +689,9 @@ func _refresh_banner() -> void:
 		QuotaMonitor.State.WARNING:
 			text = "Cuota del plan al %d %% · %s" % [roundi(quota.max_utilization() * 100.0), quota.rule_text().to_lower()]
 		QuotaMonitor.State.PAUSE_SCHEDULED:
-			text = quota.rule_text()
+			text = _run.quota_pause_text()
+			if text.is_empty():
+				text = quota.rule_text()
 		QuotaMonitor.State.LIMITED:
 			color = AgentTheme.ERROR
 			var wait := quota.seconds_until_retry()

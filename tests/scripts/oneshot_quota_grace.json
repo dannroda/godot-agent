@@ -1,0 +1,45 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Nivel 1",
+        "priority": "high",
+        "status": "in_progress"
+       },
+       {
+        "content": "Jefe",
+        "priority": "high",
+        "status": "pending"
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.2
+    },
+    {
+     "quota": {
+      "five_hour": 0.93,
+      "seven_day": 0.3,
+      "status": "allowed_warning",
+      "resets_in": 3600
+     }
+    },
+    {
+     "delay": 30
+    },
+    {
+     "chunk": "Esto no debería llegar: el harness corta el turno."
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

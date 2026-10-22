@@ -640,3 +640,12 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - en el system prompt, con la ruta y la regla de usarla. `project_info` también la incluye.
 - **Por qué los tres**: la shell que usa Claude Code para su Bash puede volver a armar el PATH desde el perfil del usuario (`.zshrc`) y dejar el shim atrás. La regla del prompt con la ruta absoluta es lo que manda; el shim y `$GODOT` cubren el resto.
 - **Pruebas**: `test_editor_binary` (entorno, contenido del shim y que el shim corra la versión del editor) y `acp_session_check` (el agente falso recibe `$GODOT` y el PATH con el shim, y el prompt nombra el binario).
+
+## D44 · Cuándo pausa el One-shot por cuota
+
+- **Problema** (run real en great-boy-one): con la cuota al 95 %, el banner decía «se pausa en el próximo checkpoint» y el run siguió hasta el límite. La pausa solo se disparaba cuando el plan pasaba a otra tarea: un agente que se quedaba en una tarea larga, o trabajaba sin plan, nunca llegaba ahí. Además, al terminar un turno el run mandaba «Seguí con el plan» sin mirar la cuota.
+- **Ahora** (con la pausa programada, al pasar el umbral):
+  - pausa al empezar la tarea siguiente (con su checkpoint, como antes) **o** al terminar el turno, lo que llegue primero;
+  - red de seguridad: si ninguna de las dos llega en 10 min (`QUOTA_PAUSE_GRACE_S`), o la cuota pasa el 98 % (`QUOTA_PAUSE_HARD`), corta el turno a mitad de la tarea y pausa con un checkpoint `-quota`;
+  - el banner dice cuándo va a pausar y cuánto falta para que corte igual.
+- **Pruebas**: `oneshot_check` (cuota al terminar el turno; cuota con tope de espera) y el escenario de cuota de siempre.

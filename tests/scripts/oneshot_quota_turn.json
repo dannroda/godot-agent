@@ -1,0 +1,77 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Nivel 1",
+        "priority": "high",
+        "status": "in_progress"
+       },
+       {
+        "content": "Jefe",
+        "priority": "high",
+        "status": "pending"
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.2
+    },
+    {
+     "quota": {
+      "five_hour": 0.92,
+      "seven_day": 0.3,
+      "status": "allowed_warning",
+      "resets_in": 4
+     }
+    },
+    {
+     "chunk": "Avancé con el nivel 1; sigo en el próximo turno."
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "quota": {
+      "five_hour": 0.05,
+      "seven_day": 0.31,
+      "status": "allowed",
+      "resets_in": 18000
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Nivel 1",
+        "priority": "high",
+        "status": "completed"
+       },
+       {
+        "content": "Jefe",
+        "priority": "high",
+        "status": "completed"
+       }
+      ]
+     }
+    },
+    {
+     "chunk": "Verificaciones:\n```json\n{\"checks\": [{\"label\": \"El nivel carga\", \"status\": \"pass\"}]}\n```"
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

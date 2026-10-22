@@ -5,7 +5,7 @@ extends Node
 ## - checkpoint git antes de cada tarea del plan (cuando una entrada pasa a in_progress);
 ## - presupuestos de tiempo, tokens y playtests: aviso al 80 %, cierre con reporte al 100 %;
 ## - lo que el usuario escribe en el chat (guide) se encola para el fin del turno;
-## - cuota del plan: pausa en el próximo checkpoint, "limitado" con cpN-quota y reanudación;
+## - cuota del plan: pausa al terminar la tarea o el turno (con un tope de espera), "limitado" con cpN-quota y reanudación;
 ## - el estado se guarda en disco mientras corre (D37): si el editor se cierra o se cae, al volver
 ##   el run queda en pausa y «Retomar» reabre la sesión del agente.
 ## La UI (pantalla Agent) solo lee el estado y llama a los métodos públicos.
@@ -56,6 +56,10 @@ const ACTIVITY_LINE_CHARS := 140
 const ACTIVITY_LIMIT := 400
 ## Sin hora de reinicio en una pausa por cuota, se reintenta cada tanto.
 const PAUSE_RETRY_S := 3600
+## Con la pausa por cuota programada, el run espera a que termine la tarea o el turno. Si eso no
+## pasa en este tiempo, o la cuota llega a QUOTA_PAUSE_HARD, corta el turno y pausa igual.
+const QUOTA_PAUSE_GRACE_S := 600
+const QUOTA_PAUSE_HARD := 0.98
 const TICK_S := 0.5
 ## Cada cuánto se guarda el run como mucho (además de en cada cambio de fase).
 const SAVE_INTERVAL_MS := 2000
@@ -103,6 +107,9 @@ var pause_note: String = ""
 var resume_task: String = ""
 ## Fin de la pausa por cuota (unix; 0 = sin hora).
 var quota_resume_at: int = 0
+var quota_pause_grace_s: int = QUOTA_PAUSE_GRACE_S
+## Cuándo se programó la pausa por cuota (0 = no hay); para el tope de QUOTA_PAUSE_GRACE_S.
+var _quota_scheduled_msec: int = 0
 var run_id: String = ""
 ## El run se cargó de disco después de un cierre o una caída del editor.
 var recovered: bool = false
@@ -538,6 +545,9 @@ func _after_turn(reason: String) -> void:
 	if not _close_reason.is_empty():
 		_close()
 		return
+	if phase == Phase.RUNNING and quota.state == QuotaMonitor.State.PAUSE_SCHEDULED and reason != "cancelled":
+		_pause_for_quota(_task_name(_next_pending()))
+		return
 	if not _guidance.is_empty():
 		_run_turn(_pop_guidance())
 		return
@@ -775,6 +785,7 @@ func _tick() -> void:
 	if phase in [Phase.RUNNING, Phase.CLOSING]:
 		used[BUDGET_TIME] = float(used[BUDGET_TIME]) + TICK_S
 		_check_budgets()
+	_check_quota_pause()
 	match phase:
 		Phase.LIMITED:
 			if quota.retry_due():
@@ -806,20 +817,53 @@ func _check_budgets() -> void:
 			model.add_notice("One-shot · " + text, ChatEntry.Level.WARNING)
 
 
-## Umbral de pausa (spec §10.1): no corta la tarea en curso; al empezar la siguiente se crea su
-## checkpoint, se corta el turno y se espera a que se libere la cuota.
-func _pause_for_quota(next_task: String) -> void:
+## Umbral de pausa (spec §10.1): no corta la tarea en curso. Pausa al empezar la siguiente (con su
+## checkpoint) o al terminar el turno, lo que llegue primero; si ninguna llega a tiempo, la red de
+## _check_quota_pause corta el turno a mitad de la tarea.
+func _pause_for_quota(next_task: String, mid_task: bool = false) -> void:
 	resume_task = next_task
 	quota_resume_at = quota.pause_resets_at()
 	if quota_resume_at <= 0:
 		quota_resume_at = int(Time.get_unix_time_from_system()) + PAUSE_RETRY_S
+	_quota_scheduled_msec = 0
 	_set_phase(Phase.PAUSED_QUOTA)
 	report.count("quota_pauses")
-	_add_activity("cuota", "Cuota al %d %%: pausa antes de «%s»" % [roundi(quota.max_utilization() * 100.0), next_task])
+	var percent := roundi(quota.max_utilization() * 100.0)
+	if mid_task:
+		_add_activity("cuota", "Cuota al %d %%: la tarea no terminaba, se corta el turno y se pausa" % percent)
+	elif next_task.is_empty():
+		_add_activity("cuota", "Cuota al %d %%: pausa al terminar el turno" % percent)
+	else:
+		_add_activity("cuota", "Cuota al %d %%: pausa antes de «%s»" % [percent, next_task])
 	if checkpoints_enabled:
-		_checkpoint(next_task)
+		_checkpoint(next_task if not next_task.is_empty() else "Pausa por cuota", "-quota" if mid_task else "")
 	if _turn_running:
 		controller.cancel()
+
+
+## Red de la pausa por cuota: si la tarea o el turno no terminan en quota_pause_grace_s, o la
+## cuota llega a QUOTA_PAUSE_HARD, se corta el turno y se pausa a mitad de la tarea.
+func _check_quota_pause() -> void:
+	if phase != Phase.RUNNING or quota.state != QuotaMonitor.State.PAUSE_SCHEDULED:
+		_quota_scheduled_msec = 0
+		return
+	if _quota_scheduled_msec == 0:
+		_quota_scheduled_msec = Time.get_ticks_msec()
+	var waited_s := (Time.get_ticks_msec() - _quota_scheduled_msec) / 1000.0
+	if waited_s >= quota_pause_grace_s or quota.max_utilization() >= QUOTA_PAUSE_HARD:
+		_pause_for_quota(_task_name(_next_pending()), true)
+
+
+## Cuándo se pausa por cuota, para el banner: al terminar la tarea o el turno, como mucho en
+## los minutos que quedan de la espera. "" si no hay pausa programada.
+func quota_pause_text() -> String:
+	if quota.state != QuotaMonitor.State.PAUSE_SCHEDULED or phase != Phase.RUNNING:
+		return ""
+	var left := quota_pause_grace_s
+	if _quota_scheduled_msec > 0:
+		left = maxi(quota_pause_grace_s - int((Time.get_ticks_msec() - _quota_scheduled_msec) / 1000.0), 0)
+	return "Cuota al %d %%: el One-shot se pausa al terminar la tarea o el turno en curso (si no, en %s se corta y se pausa igual)" % [
+		roundi(quota.max_utilization() * 100.0), QuotaMonitor.format_duration(left)]
 
 
 ## Límite a mitad de turno: tool calls pendientes → cancelled, cpN-quota y "Limitado".

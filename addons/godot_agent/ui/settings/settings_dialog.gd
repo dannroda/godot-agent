@@ -289,7 +289,7 @@ func _build_oneshot(page: VBoxContainer) -> void:
 	page.add_child(_title("Cuota y límites (por usuario: la cuota es del plan, no del proyecto)"))
 	_warn_spin = _spin_row(page, "Avisar al llegar a", 1, 100, 1, "%")
 	_pause_check = CheckBox.new()
-	_pause_check.text = "Pausar el One-shot en el próximo checkpoint al llegar al umbral"
+	_pause_check.text = "Pausar el One-shot al llegar al umbral (al terminar la tarea o el turno en curso)"
 	_pause_check.toggled.connect(func(on: bool) -> void: _pause_spin.editable = on)
 	page.add_child(_pause_check)
 	_pause_spin = _spin_row(page, "Umbral de pausa", 1, 100, 1, "%")

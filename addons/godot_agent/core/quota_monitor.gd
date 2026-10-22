@@ -187,15 +187,15 @@ func note_retry() -> void:
 	_log("intento de reanudación %d" % _retries, "")
 
 
-## "se pausa al 90 % en el próximo checkpoint", para la barra del One-shot.
+## "se pausa al 90 %, al terminar la tarea o el turno", para la barra del One-shot.
 func rule_text() -> String:
 	if state == State.LIMITED:
 		return "Limitado: se retoma %s" % ("al reiniciarse la ventana" if limited_until > 0 else "con reintentos (5, 10, 20 y cada 60 min)")
 	if not pause_enabled:
 		return "Sin pausa por cuota · aviso al %d %%" % roundi(warn_threshold * 100.0)
 	if state == State.PAUSE_SCHEDULED:
-		return "Cuota al %d %%: se pausa en el próximo checkpoint" % roundi(max_utilization() * 100.0)
-	return "Se pausa al %d %% en el próximo checkpoint" % roundi(pause_threshold * 100.0)
+		return "Cuota al %d %%: se pausa al terminar la tarea o el turno en curso" % roundi(max_utilization() * 100.0)
+	return "Se pausa al %d %%, al terminar la tarea o el turno en curso" % roundi(pause_threshold * 100.0)
 
 
 ## "Ventana 63 % · reinicia en 2 h 10 min".

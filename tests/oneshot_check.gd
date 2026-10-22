@@ -25,6 +25,8 @@ func _initialize() -> void:
 		quit(1)
 	)
 	await _scenario_quota()
+	await _scenario_quota_turn_end()
+	await _scenario_quota_grace()
 	await _scenario_budget()
 	await _scenario_budget_raise()
 	await _scenario_no_plan()
@@ -169,6 +171,44 @@ func _scenario_quota() -> void:
 	var log := await run.git.run(["log", "--format=%s", "-6"])
 	_check(log.output.begins_with("cp5: Playtest final\ncp4-quota: Puntaje y saque\ncp3: Puntaje y saque\ncp2: Paletas y pelota\ncp1: Estado inicial"), "cuota: commits en la rama del agente:\n" + log.output)
 	controller.stop()
+	run.queue_free()
+
+
+## Sin pasar a otra tarea, la pausa por cuota llega al terminar el turno: no se manda «Seguí con
+## el plan» con la cuota al 92 % (pasó en un run real que nunca cambiaba de tarea).
+func _scenario_quota_turn_end() -> void:
+	print("— cuota al terminar el turno")
+	var run := _make("oneshot_quota_turn")
+	run.resume_auto = true
+	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED_QUOTA and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuota-turno: pausa al terminar el turno (%s)" % run.phase_label())
+	_check(_user_messages(run.model).size() == 1, "cuota-turno: no manda otro turno (%d)" % _user_messages(run.model).size())
+	_check(run.resume_task == "Nivel 1", "cuota-turno: retoma en la tarea en curso (%s)" % run.resume_task)
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).contains("pausa antes de «Nivel 1»")), "cuota-turno: la actividad lo dice")
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.FINISHED and not run.is_git_busy(), 15.0)
+	_check(run.phase == OneShotRun.Phase.FINISHED, "cuota-turno: retoma solo y termina (%s)" % run.phase_label())
+	_check(str(_user_messages(run.model)[1]).contains("desde la tarea «Nivel 1»"), "cuota-turno: prompt de reanudación")
+	run.controller.stop()
+	run.queue_free()
+
+
+## La tarea y el turno no terminan: pasado el tope de espera se corta el turno y se pausa con un
+## checkpoint -quota.
+func _scenario_quota_grace() -> void:
+	print("— cuota con tope de espera")
+	var run := _make("oneshot_quota_grace")
+	run.quota_pause_grace_s = 1
+	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.PAUSED_QUOTA and not run.is_git_busy(), 8.0)
+	_check(run.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuota-tope: pausa sin esperar a la tarea (%s)" % run.phase_label())
+	_check(run.quota_pause_text().is_empty(), "cuota-tope: el banner ya no dice que va a pausar")
+	await _wait(func() -> bool: return run.model.state == SessionModel.State.READY, 5.0)
+	_check(not _agent_text(run.model).contains("no debería llegar"), "cuota-tope: el turno se cortó")
+	_check(_cp_labels(run).back() == "cp3-quota Nivel 1", "cuota-tope: checkpoint -quota (%s)" % [_cp_labels(run)])
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).contains("la tarea no terminaba")), "cuota-tope: la actividad lo explica")
+	run.stop()
+	run.controller.stop()
 	run.queue_free()
 
 

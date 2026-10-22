@@ -49,7 +49,7 @@ func test_usage_update_and_states() -> void:
 	monitor.observe_update(_update(0.91, 0.8, "allowed_warning"))
 	assert_eq(monitor.state, QuotaMonitor.State.PAUSE_SCHEDULED, "91 %: pausa programada")
 	assert_eq(monitor.pause_resets_at(), NOW + 3600, "la pausa espera el reinicio de la ventana más llena")
-	assert_true(monitor.rule_text().contains("se pausa en el próximo checkpoint"), "regla activa: " + monitor.rule_text())
+	assert_true(monitor.rule_text().contains("se pausa al terminar la tarea o el turno en curso"), "regla activa: " + monitor.rule_text())
 	monitor.configure(0.75, 0.9, false)
 	assert_eq(monitor.state, QuotaMonitor.State.WARNING, "pausa desactivada: solo aviso")
 	monitor.configure(0.95, 0.99, true)

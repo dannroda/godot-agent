@@ -79,7 +79,7 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(_text(&"_goal_label") == "Pong de 2 jugadores con puntaje", "objetivo en la barra")
 	_check((_screen.get(&"_banner") as Control).visible and _text(&"_banner_label").begins_with("Cuota al 91 %: se pausa"), "banner de cuota: " + _text(&"_banner_label"))
 	_check(_text(&"_countdown_label").contains("Pausado por cuota antes de «Puntaje y saque»"), "cuenta regresiva: " + _text(&"_countdown_label"))
-	_check(_text(&"_rule_label").contains("próximo checkpoint"), "regla de cuota: " + _text(&"_rule_label"))
+	_check(_text(&"_rule_label").contains("al terminar la tarea o el turno"), "regla de cuota: " + _text(&"_rule_label"))
 	_check(((_screen.get(&"_quota_row") as Dictionary).label as Label).text == "Cuota  91 %", "barra de cuota: " + ((_screen.get(&"_quota_row") as Dictionary).label as Label).text)
 	_check(((_screen.get(&"_budget_rows") as Dictionary)[OneShotRun.BUDGET_PLAYTESTS].label as Label).text == "Playtests  1 / 10", "barra de playtests")
 	_check((_screen.get(&"_pause_button") as Button).text == "Retomar", "el botón dice Retomar")
