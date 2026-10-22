@@ -61,6 +61,8 @@ var retry_interceptor: Callable
 var can_switch_session: Callable
 
 var _model: SessionModel
+## Hay un One-shot activo (corriendo o en pausa): el botón de la vista vacía lo retoma.
+var _oneshot_active := false
 var _controller: SessionController
 var _settings: HarnessSettings
 var _profiles: Array[AgentProfile] = []
@@ -154,7 +156,7 @@ func _ready() -> void:
 			_reload_profiles())
 
 	_translate_scene_texts()
-	_start_button.pressed.connect(_start_session)
+	_start_button.pressed.connect(_on_start_pressed)
 	_start_button.add_theme_color_override(&"font_color", _accent)
 	_add_filter_button.pressed.connect(_on_add_filter_pressed)
 	_confirm_dialog.confirmed.connect(_on_patch_confirmed)
@@ -399,9 +401,14 @@ func _refresh_state() -> void:
 func _refresh_empty_state() -> void:
 	if _empty_state == null or _conversation == null:
 		return
-	var empty := _model.entries().is_empty() and _model.state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]
-	_empty_state.visible = empty
-	_conversation.visible = not empty
+	var entries := _model.entries()
+	var only_notices := entries.all(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.NOTICE)
+	# Sin sesión y con solo avisos (p. ej. el del One-shot a medias al reabrir el editor), el botón
+	# para arrancar sigue a la vista debajo de los avisos.
+	var idle := _model.state == SessionModel.SessionState.DISCONNECTED or (entries.is_empty() and _model.state == SessionModel.SessionState.FAILED)
+	_empty_state.visible = idle and only_notices
+	_conversation.visible = not entries.is_empty()
+	_start_button.text = I18n.t("Resume One-shot") if _oneshot_active else I18n.t("Start session")
 	var profile := _settings.active_profile()
 	_empty_command.text = profile.command_line() if profile else I18n.t("No profiles: set them up in the settings.")
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -409,6 +416,13 @@ func _refresh_empty_state() -> void:
 
 
 # --- sesión --------------------------------------------------------------------------------------
+
+## Con un One-shot activo, el botón lo retoma en su sesión (como «Reintentar», D45).
+func _on_start_pressed() -> void:
+	if _oneshot_active and retry_interceptor.is_valid() and retry_interceptor.call():
+		return
+	_start_session()
+
 
 func _start_session() -> void:
 	var profile := _settings.active_profile()
@@ -606,7 +620,9 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 ## Agent; el resto de los archivos de texto (.md, .txt…), que Godot no carga, con el programa del
 ## sistema.
 func set_oneshot_active(active: bool) -> void:
+	_oneshot_active = active
 	_composer.set_oneshot_active(active)
+	_refresh_empty_state()
 
 
 func _open_path(path: String, line: int) -> void:

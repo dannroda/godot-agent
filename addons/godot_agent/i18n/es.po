@@ -1676,8 +1676,8 @@ msgstr "Hay cambios sin commitear en el proyecto.\nSe guardan en un commit «WIP
 msgid "There is an ANTHROPIC_API_KEY in the environment: Claude Code may bill through the API instead of using your subscription."
 msgstr "Hay una ANTHROPIC_API_KEY en el entorno: Claude Code puede facturar por API en lugar de usar tu suscripción."
 
-msgid "There is an unfinished One-shot: «%s». It is paused in the Agent screen; «Resume» reopens the agent session."
-msgstr "Hay un One-shot a medias: «%s». Está en pausa en la pantalla Agent; «Retomar» reabre la sesión del agente."
+msgid "There is an unfinished One-shot: «%s». It is paused; «Resume One-shot» reopens the agent session."
+msgstr "Hay un One-shot sin terminar: «%s». Está en pausa; «Retomar One-shot» reabre la sesión del agente."
 
 msgid "There must be at least one agent."
 msgstr "Tiene que haber al menos un agente."
@@ -1861,3 +1861,9 @@ msgstr "Historial de la sesión"
 
 msgid "undo"
 msgstr "deshacer"
+
+msgid "Resume One-shot"
+msgstr "Retomar One-shot"
+
+msgid "Open Agent screen"
+msgstr "Abrir la pantalla Agent"

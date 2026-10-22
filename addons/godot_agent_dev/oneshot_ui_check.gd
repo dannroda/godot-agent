@@ -14,6 +14,7 @@ const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
+const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const MAIN_SCREEN_NAME := "Agent"
 const REPO_DIR := "user://oneshot_ui_check"
 const STEP_TIMEOUT_S := 15.0
@@ -187,8 +188,18 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	var saved := _run.store.load_run(_run.run_id)
 	saved["active"] = true
 	_run.store.save(saved)
-	_check(_run.restore_interrupted(), "carga el run a medias")
+	# Como al reabrir el editor: sin sesión, chat vacío, y el plugin restaura el run con su aviso.
+	_run.controller.call(&"stop")
+	_run.model.reset()
+	var plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	plugin.call(&"_restore_oneshot")
+	_check(_run.phase == OneShotRun.RunPhase.PAUSED, "carga el run a medias")
 	await _frames(3)
+	var notices: Array = _run.model.entries().filter(func(entry: Object) -> bool: return str(entry.get(&"text")).begins_with("There is an unfinished One-shot"))
+	_check(notices.size() == 1 and (notices[0].get(&"actions") as Array).map(func(action: Dictionary) -> String: return str(action.label)) == ["Resume One-shot", "Open Agent screen"], "run a medias: aviso con «Resume One-shot» y «Open Agent screen»")
+	var restored_dock := _find_by_script(DOCK_SCRIPT)
+	var dock_start: Button = restored_dock.get(&"_start_button")
+	_check(dock_start.is_visible_in_tree() and dock_start.text == "Resume One-shot", "run a medias: el dock ofrece «Resume One-shot» (%s, %s)" % [dock_start.is_visible_in_tree(), dock_start.text])
 	_check((_screen.get(&"_run_view") as Control).is_visible_in_tree(), "run a medias: se ve el run")
 	_check(_text(&"_phase_label").begins_with("Paused"), "run a medias: fase " + _text(&"_phase_label"))
 	_check(_text(&"_banner_label").begins_with("The One-shot was left unfinished"), "run a medias: banner " + _text(&"_banner_label"))

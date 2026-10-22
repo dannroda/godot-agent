@@ -45,6 +45,8 @@ const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
 const ACTION_CONFLICT_KEEP_MINE := "conflict_keep_mine"
 const ACTION_RELOAD_SCENE := "reload_scene"
 const ACTION_UNDO_TOOL_CALL := "undo_tool_call"
+const ACTION_ONESHOT_RESUME := "oneshot_resume"
+const ACTION_ONESHOT_SHOW := "oneshot_show"
 ## Acciones de edición del server MCP que todavía no se unieron a su tool call (llegan antes).
 const PENDING_UNDO_TTL_MS := 60000
 ## Kinds de tool call que escriben archivos: al completarse se sincroniza el editor.
@@ -331,6 +333,11 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_sync.reload_scene(path)
 		ACTION_UNDO_TOOL_CALL:
 			_undo_tool_call(str(payload))
+		ACTION_ONESHOT_RESUME:
+			_intercept_dock_retry()
+		ACTION_ONESHOT_SHOW:
+			if _surfaces:
+				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
 		AgentDock.ACTION_REVIEW_FOCUS:
 			if not _review_annotations.focus_finding(int(payload)):
 				_model.add_notice(I18n.t("Could not open the finding."), ChatEntry.NoticeLevel.WARNING)
@@ -520,7 +527,10 @@ func _on_harness_mode_changed(mode: SessionModel.HarnessMode) -> void:
 func _restore_oneshot() -> void:
 	if _oneshot == null or not _oneshot.restore_interrupted():
 		return
-	_model.add_notice(I18n.t("There is an unfinished One-shot: «%s». It is paused in the Agent screen; «Resume» reopens the agent session.") % _oneshot.goal.left(80), ChatEntry.NoticeLevel.WARNING)
+	_model.add_notice(I18n.t("There is an unfinished One-shot: «%s». It is paused; «Resume One-shot» reopens the agent session.") % _oneshot.goal.left(80), ChatEntry.NoticeLevel.WARNING, [
+		{"id": ACTION_ONESHOT_RESUME, "label": I18n.t("Resume One-shot")},
+		{"id": ACTION_ONESHOT_SHOW, "label": I18n.t("Open Agent screen")},
+	])
 
 
 ## Con un One-shot en curso, lo que se escribe en el dock guía al agente del run (oneshot.guide).
