@@ -51,6 +51,8 @@ const WRITING_KINDS: PackedStringArray = ["edit", "delete", "move"]
 const PLUGIN_NAME := "Agent"
 const DOCK_TITLE := "Agent"
 const LOG_PANEL_TITLE := "Agent Log"
+## Runs del One-shot (D37): datos del usuario, fuera del repo.
+const ONESHOT_STORE_DIR := "user://godot_agent/oneshot"
 const ICON_NAME := &"Script"
 
 var _export_plugin: AgentExportPlugin
@@ -129,6 +131,7 @@ func _enter_tree() -> void:
 		var profile := _settings.active_profile()
 		return profile != null and await _controller.reopen(profile, lost_id)
 	_oneshot.resume_auto = _settings.quota_resume_auto()
+	_oneshot.store.dir = ONESHOT_STORE_DIR
 	add_child(_oneshot)
 	_model.harness_mode_changed.connect(_on_harness_mode_changed)
 
@@ -150,6 +153,7 @@ func _enter_tree() -> void:
 	_main_screen.setup(_oneshot, _settings.accent_color(), _oneshot_defaults())
 	_main_screen.diff_requested.connect(_diff_dialog.show_diff)
 	_surfaces.add(EditorSurfaces.Surface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
+	_restore_oneshot.call_deferred()
 
 	_settings_dialog = SettingsDialog.new()
 	_settings_dialog.setup(_settings, _project_config)
@@ -177,7 +181,7 @@ func _exit_tree() -> void:
 		_completion.queue_free()
 		_completion = null
 	if _oneshot:
-		_oneshot.stop()
+		_oneshot.suspend()  # queda guardado para retomarlo al volver (D37)
 		remove_child(_oneshot)
 		_oneshot.queue_free()
 		_oneshot = null
@@ -487,6 +491,13 @@ func _on_editor_settings_changed() -> void:
 func _on_harness_mode_changed(mode: SessionModel.HarnessMode) -> void:
 	if mode == SessionModel.HarnessMode.ONESHOT and _oneshot and not _oneshot.is_active() and _surfaces:
 		_surfaces.make_visible(EditorSurfaces.Surface.MAIN_SCREEN)
+
+
+## Un One-shot que quedó a medias (el editor se cerró o se cayó) vuelve en pausa.
+func _restore_oneshot() -> void:
+	if _oneshot == null or not _oneshot.restore_interrupted():
+		return
+	_model.add_notice("Hay un One-shot a medias: «%s». Está en pausa en la pantalla Agent; «Retomar» reabre la sesión del agente." % _oneshot.goal.left(80), ChatEntry.Level.WARNING)
 
 
 ## Con un One-shot en curso, lo que se escribe en el dock es "Guiar al agente".

@@ -69,6 +69,7 @@ var _review_button: Button
 var _accept_button: Button
 # Diálogos
 var _wip_dialog: ConfirmationDialog
+var _no_git_dialog: ConfirmationDialog
 var _restore_dialog: ConfirmationDialog
 var _accept_dialog: ConfirmationDialog
 var _changes_dialog: AcceptDialog
@@ -118,6 +119,7 @@ func _ready() -> void:
 	add_child(_summary_timer)
 	_run.changed.connect(_refresh)
 	_run.activity_added.connect(_on_activity_added)
+	_run.restored.connect(_on_restored)
 	_run.quota.changed.connect(_refresh)
 	_run.model.plan_changed.connect(func(_plan: Array) -> void: _refresh())
 	visibility_changed.connect(func() -> void:
@@ -423,6 +425,13 @@ func _build_dialogs() -> void:
 	_wip_dialog.ok_button_text = "Commitear como WIP y empezar"
 	_wip_dialog.confirmed.connect(_start_run)
 	add_child(_wip_dialog)
+	_no_git_dialog = ConfirmationDialog.new()
+	_no_git_dialog.title = "Sin checkpoints"
+	_no_git_dialog.ok_button_text = "Seguir sin checkpoints"
+	_no_git_dialog.confirmed.connect(func() -> void:
+		_checkpoints_check.button_pressed = false
+		_start_run())
+	add_child(_no_git_dialog)
 	_restore_dialog = ConfirmationDialog.new()
 	_restore_dialog.title = "Volver a un checkpoint"
 	_restore_dialog.ok_button_text = "Volver acá"
@@ -542,6 +551,8 @@ func _refresh_banner() -> void:
 			color = AgentTheme.ERROR
 			var wait := quota.seconds_until_retry()
 			text = "Límite del plan alcanzado · " + ("se puede volver a intentar en %s" % QuotaMonitor.format_duration(wait) if wait > 0 else "ya se puede reintentar")
+	if text.is_empty() and _run.recovered and _run.phase == OneShotRun.Phase.PAUSED:
+		text = "El One-shot quedó a medias porque el editor se cerró. «Retomar» reabre la sesión del agente y sigue; «Detener» lo da por terminado."
 	if text.is_empty() and _run.phase == OneShotRun.Phase.FINISHED and not _show_form:
 		text = _run.finish_reason
 		color = _accent
@@ -608,7 +619,7 @@ func _refresh_top_bar() -> void:
 
 
 func _refresh_plan() -> void:
-	var plan: Array = _run.model.plan
+	var plan: Array = _run.current_plan()
 	var signature := JSON.stringify(plan) + ("|fin" if plan.is_empty() and _run.phase == OneShotRun.Phase.FINISHED else "")
 	if signature == _plan_signature:
 		return
@@ -774,6 +785,11 @@ func _on_start_pressed() -> void:
 	_start_button.disabled = true
 	var check: Dictionary = await _run.preflight(_checkpoints_check.button_pressed)
 	_start_button.disabled = false
+	if not str(check.warning).is_empty():
+		# Sin git o sin commits no hay checkpoints: «Volver acá» no va a existir (D37).
+		_no_git_dialog.dialog_text = "%s\n\nSin checkpoints no se puede volver atrás ni revisar los cambios del One-shot." % check.warning
+		_no_git_dialog.popup_centered()
+		return
 	if check.needs_wip_confirm:
 		_wip_dialog.popup_centered()
 		return
@@ -815,7 +831,7 @@ func _on_guide_pressed() -> void:
 
 func _on_plan_edit_pressed() -> void:
 	var lines: PackedStringArray = []
-	for entry: Variant in _run.model.plan:
+	for entry: Variant in _run.current_plan():
 		if entry is Dictionary:
 			lines.append(str(entry.get("content", "")))
 	_plan_edit.text = "\n".join(lines)
@@ -827,6 +843,20 @@ func _set_plan_editing(editing: bool) -> void:
 	_plan_edit_bar.visible = editing
 	(_plan_list.get_parent() as Control).visible = not editing
 	_plan_edit_button.visible = not editing
+
+
+## Un run cargado de disco: se rearma la actividad y se muestra la vista del run.
+func _on_restored() -> void:
+	_activity_text.clear()
+	for entry: Dictionary in _run.activity:
+		_on_activity_added(entry)
+	_plan_signature = ""
+	_checks_signature = ""
+	_checkpoints_signature = ""
+	_capture_shown = null
+	_show_form = false
+	_summary_dirty = true
+	_refresh()
 
 
 func _on_activity_added(entry: Dictionary) -> void:

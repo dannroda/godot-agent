@@ -127,6 +127,9 @@ Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un
 6. Al final:
    - **Revisar cambios** lista los archivos; con doble clic se ve el diff contra el inicio.
    - **Aceptar todo** hace un commit final en `agent/<fecha>`. El merge lo hacés vos.
+7. **Si el editor se cierra o se cae** con un One-shot en curso, el run queda guardado. Al volver aparece en pausa en la pantalla Agent, con su actividad. **Retomar** reabre la sesión del agente; si no puede, abre una nueva con el resumen del plan. **Detener** lo da por terminado.
+
+Sin git, o con un repo sin commits, no hay checkpoints. El harness lo avisa antes de empezar.
 
 Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para probar, `tests/make_sandbox.sh <carpeta>` arma un proyecto aparte.
 
@@ -207,6 +210,7 @@ Perfiles incluidos (se agregan, editan y eligen en la misma sección):
 | Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, modo, debounce, umbral, multilínea, fuentes, corpus extra, perfiles LLM sin keys) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
 | Permisos, presupuestos, checkpoints, límites de las tools, carpetas extra, completado del proyecto | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
 | Historial de sesiones | `user://godot_agent/sessions/` | tu usuario, este proyecto |
+| Runs del One-shot (estado, última captura; los últimos 20) | `user://godot_agent/oneshot/` | tu usuario, este proyecto |
 
 El puerto, el color y la ubicación del dock se aplican al reabrir el editor. Desde 4.8 el editor recuerda dónde dejaste el dock, así que la ubicación de Settings es solo la inicial.
 

@@ -27,6 +27,7 @@ func _initialize() -> void:
 	await _scenario_quota()
 	await _scenario_budget()
 	await _scenario_no_plan()
+	await _scenario_recover()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -55,15 +56,58 @@ func _repo(name: String) -> String:
 	return dir
 
 
-func _make(scenario: String) -> OneShotRun:
+## `repo`: carpeta de un repo ya armado (si no, uno nuevo con el nombre del guion).
+func _make(scenario: String, repo: String = "") -> OneShotRun:
 	var model := SessionModel.new()
 	var controller := SessionController.new()
 	controller.setup(model, AgentLog.new(), ProjectSettings.globalize_path("res://").trim_suffix("/"))
 	var run := OneShotRun.new()
-	run.setup(controller, _repo(scenario))
+	run.setup(controller, repo if not repo.is_empty() else _repo(scenario))
 	run.restart_session = func(_lost_id: String) -> bool: return await controller.start(_profile(scenario))
 	root.add_child(run)
 	return run
+
+
+## El editor se cae a mitad de un turno: el run quedó guardado. Otro editor lo carga en pausa y
+## «Retomar» sigue en una sesión nueva con el resumen (D37).
+func _scenario_recover() -> void:
+	print("— recuperación")
+	var store_dir := ProjectSettings.globalize_path("user://oneshot_check/store")
+	OS.execute("rm", ["-rf", store_dir])
+	var run := _make("oneshot_recover")
+	run.store.dir = store_dir
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	# El primer turno deja plan, playtest y checks; el editor se cae en el segundo.
+	await _wait(func() -> bool: return run.checks.size() == 2 and _user_messages(run.model).size() == 2 and not run.is_git_busy(), 10.0)
+	await create_timer(2.6).timeout  # un guardado periódico
+	var session_id := run.model.session_id
+	var checkpoints := _cp_labels(run)
+	# Caída: sin suspend() ni _finish(); lo último en disco es el guardado periódico.
+	run.set(&"_suspended", true)
+	var repo := run.git.root
+	run.controller.stop()
+	run.queue_free()
+	await process_frame
+
+	var again := _make("oneshot_recover_resume", repo)
+	again.store.dir = store_dir
+	_check(again.restore_interrupted(), "recuperación: carga el run a medias")
+	_check(again.recovered and again.phase == OneShotRun.Phase.PAUSED, "recuperación: queda en pausa (%s)" % again.phase_label())
+	_check(again.goal == "Pong con puntaje" and int(again.used.playtests) == 1 and again.checks.size() == 2, "recuperación: objetivo, playtests y checks")
+	_check(_cp_labels(again) == checkpoints and again.checkpoints_enabled, "recuperación: checkpoints %s" % [_cp_labels(again)])
+	_check(again.current_plan().size() == 2 and again.resume_task == "Paletas y pelota", "recuperación: plan guardado y tarea (%s)" % again.resume_task)
+	_check(str(again.activity.back().text).contains("«Retomar»"), "recuperación: la actividad lo explica")
+	_check(again.to_dict().session_id == session_id, "recuperación: recuerda la sesión del agente")
+	again.resume()
+	await _wait(func() -> bool: return again.phase == OneShotRun.Phase.FINISHED and not again.is_git_busy(), 15.0)
+	var messages := _user_messages(again.model)
+	_check(not messages.is_empty() and str(messages[0]).begins_with("Retomamos un One-shot") and str(messages[0]).contains("[in_progress] Paletas y pelota") and str(messages[0]).contains("[pass] Paletas"), "recuperación: sesión nueva con el resumen %s" % [messages.map(func(m: String) -> String: return m.left(60))])
+	_check(again.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("El editor se había cerrado: se abrió una sesión nueva")), "recuperación: actividad de la sesión nueva")
+	_check(again.finish_reason == "El agente terminó el plan.", "recuperación: terminó (%s)" % again.finish_reason)
+	_check(_cp_labels(again).back() == "cp3 Puntaje", "recuperación: sigue creando checkpoints (%s)" % [_cp_labels(again)])
+	_check(again.store.load_interrupted().is_empty(), "recuperación: terminado, ya no se ofrece retomar")
+	again.controller.stop()
+	again.queue_free()
 
 
 func _scenario_quota() -> void:

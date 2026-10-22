@@ -541,3 +541,23 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Límite del plan**: el composer sigue bloqueado como antes, y si la cuota está agotada, la cola se pausa.
 - **Prueba**: `test_prompt_queue`, `test_composer` (Enter con un turno en curso) y `--godot-agent-queue-test`. Este último hace un turno largo, encola dos prompts con Enter, cancela, verifica que la cola quedó en pausa, aprieta «Enviar ahora» y comprueba que salen los dos en orden.
 
+## D37 · El One-shot se guarda en disco y se retoma después de un cierre o una caída
+
+- **Lo que pasó** (D35): el editor se cayó con un One-shot recién terminado y el run, que vivía solo en memoria, se perdió. Lo mismo pasaba al cerrar el editor con un run en curso, porque `_exit_tree` lo daba por terminado.
+- **Decisión**: `OneShotRun` guarda su estado en `user://godot_agent/oneshot/<id>.json` (`OneShotStore`). Los datos son del usuario y no van al repo.
+  - Se guarda en cada cambio de fase y como mucho cada 2 s mientras corre.
+  - La escritura es atómica: un archivo temporal y después rename. La última captura va en `<id>.png`. Quedan los últimos 20 runs.
+  - Se guarda: objetivo, presupuestos y uso, checks, actividad, plan, tarea actual, guía pendiente, el estado de los checkpoints (rama, sha base, lista) y la sesión del agente.
+- **Al cerrar el editor o deshabilitar el plugin**, el run se suspende (`suspend()`): queda guardado como activo, en lugar de terminarse.
+- **Al abrir el editor**:
+  - Si el run más nuevo quedó activo, se carga en pausa y el dock avisa. La pantalla Agent muestra el run con su actividad y un banner que lo explica.
+  - Mientras tanto se ve el plan guardado, porque la sesión del dock puede ser otra.
+- **«Retomar»** reabre la sesión del run, aunque el dock tenga otra abierta. Usa `controller.reopen`, que hace `session/load` con el historial; si falla, abre una sesión nueva y manda el resumen (objetivo, plan, checks y checkpoints).
+  - «Guiar al agente» sobre un run cargado también retoma primero.
+  - «Detener» lo da por terminado.
+- **Sin checkpoints**: si al empezar git no está disponible o el repo no tiene commits (el caso de little-villages), un diálogo lo dice y ofrece seguir sin checkpoints. Antes ese aviso se perdía y el run arrancaba sin «Volver acá».
+- **Pruebas**:
+  - `test_oneshot_store`;
+  - `oneshot_check` (recuperación): el editor "se cae" a mitad del segundo turno; otra instancia carga el run en pausa, con plan, checks y checkpoints, retoma en una sesión nueva con el resumen y termina creando cp3 en la misma rama;
+  - `--godot-agent-oneshot-test` verifica la pantalla con un run cargado.
+

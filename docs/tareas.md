@@ -1043,7 +1043,7 @@ Nota: el artículo también usa contratos por sprint (generator y evaluator acue
 
 **Relacionadas:** One-shot: evaluator separado y vuelta de corrección
 
-## M7 — Pulido  (8/12, 8 en revisión)
+## M7 — Pulido  (9/12, 9 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -1262,7 +1262,7 @@ Tests: unit de la cola (encolar, quitar, pausa por cancel o error) y un ui-check
 - Si hay un One-shot activo o la cuota está agotada, la cola se pausa.
 - Opción descartada: «Enviar ya», que cortaba el turno actual. Con «Detener» y después «Enviar ahora» se logra lo mismo.
 
-### Persistir el run del One-shot y ofrecer retomarlo · Pendiente
+### Persistir el run del One-shot y ofrecer retomarlo · Revisión
 
 **Prioridad:** alta · **Tamaño:** M
 
@@ -1272,6 +1272,18 @@ Qué hacer:
 - Guardar el run en `user://godot_agent/oneshot/<id>.json` a medida que avanza, con escritura atómica (archivo temporal y después rename).
 - Al abrir el editor con un run sin terminar o reciente, ofrecer "Retomar". Eso restaura la pantalla y hace `session/load` de la sesión ACP.
 - Avisar antes de arrancar un One-shot si el repo no tiene commits, porque sin commits no hay checkpoints.
+
+**Prueba:** - `test_oneshot_store`.
+- `oneshot_check` (recuperación): el editor "se cae" a mitad de turno, otra instancia carga el run y retoma con el resumen hasta cp3.
+- `--godot-agent-oneshot-test`: la pantalla con un run cargado (banner, Retomar, plan, actividad) y Detener lo cierra.
+
+**Notas:** D37. `oneshot/oneshot_store.gd` guarda en `user://godot_agent/oneshot/<id>.json`, con la captura en `<id>.png`. Escribe con archivo temporal y rename, y conserva los últimos 20 runs.
+- **Cuándo guarda:** en cada cambio de fase y como mucho cada 2 s mientras corre.
+- **Al cerrar el editor:** `_exit_tree` del plugin llama a `suspend()` en lugar de `stop()`, así el run queda guardado como activo.
+- **Al abrir el editor:** `_restore_oneshot` carga el run a medias en pausa y avisa en el dock. Hasta retomar se ve el plan guardado (`current_plan()`).
+- **Retomar:** reabre su propia sesión con `reopen` (session/load) o, si no puede, abre una nueva con `_summary_prompt`.
+- **Aviso antes de empezar:** si los checkpoints no se pueden usar, un diálogo ofrece seguir sin ellos. Antes el warning de `preflight` se ignoraba.
+- **Prueba de UI:** usa una carpeta temporal para el store, así un run a medias no aparece en otra prueba.
 
 **Bloquea a:** One-shot: informe de métricas de la corrida
 

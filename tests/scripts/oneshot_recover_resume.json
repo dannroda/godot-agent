@@ -1,0 +1,17 @@
+{
+	"turns": [
+		{"steps": [
+			{"update": {"sessionUpdate": "plan", "entries": [
+				{"content": "Paletas y pelota", "status": "completed", "priority": "high"},
+				{"content": "Puntaje", "status": "in_progress", "priority": "medium"}
+			]}},
+			{"delay": 0.3},
+			{"update": {"sessionUpdate": "plan", "entries": [
+				{"content": "Paletas y pelota", "status": "completed", "priority": "high"},
+				{"content": "Puntaje", "status": "completed", "priority": "medium"}
+			]}},
+			{"chunk": "Retomé desde el resumen y terminé el puntaje.\n```json\n{\"checks\": [{\"label\": \"Puntaje\", \"status\": \"pass\"}]}\n```"},
+			{"stop": "end_turn"}
+		]}
+	]
+}

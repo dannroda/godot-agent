@@ -5,11 +5,15 @@ extends Node
 ## - checkpoint git antes de cada tarea del plan (cuando una entrada pasa a in_progress);
 ## - presupuestos de tiempo, tokens y playtests: aviso al 80 %, cierre con reporte al 100 %;
 ## - "Guiar al agente" se encola para el fin del turno;
-## - cuota del plan: pausa en el próximo checkpoint, "limitado" con cpN-quota y reanudación.
+## - cuota del plan: pausa en el próximo checkpoint, "limitado" con cpN-quota y reanudación;
+## - el estado se guarda en disco mientras corre (D37): si el editor se cierra o se cae, al volver
+##   el run queda en pausa y «Retomar» reabre la sesión del agente.
 ## La UI (pantalla Agent) solo lee el estado y llama a los métodos públicos.
 
 signal changed
 signal activity_added(entry: Dictionary)
+## Se cargó un run guardado (la UI rearma la actividad).
+signal restored
 
 const SessionController := preload("../session/session_controller.gd")
 const SessionModel := preload("../session/session_model.gd")
@@ -18,6 +22,7 @@ const ToolCall := preload("../session/tool_call.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
 const GitCheckpoints := preload("git_checkpoints.gd")
 const FindingsParser := preload("../review/findings_parser.gd")
+const OneShotStore := preload("oneshot_store.gd")
 
 enum Phase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED }
 
@@ -44,6 +49,8 @@ const ACTIVITY_LIMIT := 400
 ## Sin hora de reinicio en una pausa por cuota, se reintenta cada tanto.
 const PAUSE_RETRY_S := 3600
 const TICK_S := 0.5
+## Cada cuánto se guarda el run como mucho (además de en cada cambio de fase).
+const SAVE_INTERVAL_MS := 2000
 
 var controller: SessionController
 var model: SessionModel
@@ -56,6 +63,8 @@ var after_restore: Callable
 var restart_session: Callable
 ## Retomar solo al reiniciarse la cuota (Settings) o esperar confirmación.
 var resume_auto: bool = true
+## Dónde se guardan los runs (sin carpeta, no se guardan).
+var store := OneShotStore.new()
 
 var phase: Phase = Phase.IDLE
 var goal: String = ""
@@ -72,6 +81,9 @@ var finish_reason: String = ""
 var resume_task: String = ""
 ## Fin de la pausa por cuota (unix; 0 = sin hora).
 var quota_resume_at: int = 0
+var run_id: String = ""
+## El run se cargó de disco después de un cierre o una caída del editor.
+var recovered: bool = false
 
 var _started_msec: int = 0
 var _turn_running: bool = false
@@ -88,6 +100,15 @@ var _close_reason: String = ""
 ## Ya se creó el cpN-quota de este límite (los reintentos fallidos no crean otro).
 var _quota_checkpoint_done: bool = false
 var _timer: Timer
+## Último plan visto: lo que se guarda, y lo que se muestra mientras la sesión no se reabre.
+var _plan_snapshot: Array = []
+## Sesión del agente de un run cargado de disco: «Retomar» la reabre con session/load.
+var _recovered_session_id: String = ""
+var _dirty: bool = false
+var _capture_dirty: bool = false
+var _last_save_msec: int = 0
+## El editor se está cerrando: el run quedó guardado tal como estaba y no se vuelve a escribir.
+var _suspended: bool = false
 
 
 func setup(session_controller: SessionController, project_root: String) -> void:
@@ -104,6 +125,7 @@ func _ready() -> void:
 	add_child(_timer)
 	model.plan_changed.connect(_on_plan_changed)
 	model.tool_call_changed.connect(_on_tool_call_changed)
+	changed.connect(func() -> void: _dirty = true)
 
 
 func is_active() -> bool:
@@ -121,10 +143,17 @@ func phase_label() -> String:
 
 ## Fase "n de m" según el plan, o "".
 func plan_position() -> String:
-	if model.plan.is_empty():
+	var plan := current_plan()
+	if plan.is_empty():
 		return ""
 	var index := _current_task if _current_task >= 0 else _completed_count()
-	return "fase %d de %d" % [mini(index + 1, model.plan.size()), model.plan.size()]
+	return "fase %d de %d" % [mini(index + 1, plan.size()), plan.size()]
+
+
+## El plan del agente. Mientras un run cargado de disco no reabre su sesión (o si la sesión nueva
+## todavía no mandó plan), el último que se vio.
+func current_plan() -> Array:
+	return _plan_snapshot if not _recovered_session_id.is_empty() or model.plan.is_empty() else model.plan
 
 
 func budget_ratio(budget: String) -> float:
@@ -150,6 +179,11 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool) 
 	if is_active():
 		return false
 	goal = goal_text.strip_edges()
+	run_id = OneShotStore.new_id()
+	recovered = false
+	_recovered_session_id = ""
+	_suspended = false
+	_plan_snapshot = []
 	budgets.merge(budget_values, true)
 	used = {BUDGET_TIME: 0.0, BUDGET_TOKENS: 0, BUDGET_PLAYTESTS: 0}
 	checks.clear()
@@ -226,19 +260,25 @@ func resume() -> void:
 	_set_phase(Phase.RUNNING)
 	if was_limited:
 		quota.note_retry()
-	if not controller.is_connected_to_agent():
-		var lost_id := model.session_id
+	# Un run cargado de disco retoma su propia sesión, aunque el dock tenga otra abierta.
+	var from_disk := not _recovered_session_id.is_empty()
+	var lost_id := _recovered_session_id if from_disk else model.session_id
+	if not controller.is_connected_to_agent() or (from_disk and model.session_id != lost_id):
 		if not await _restart_session(lost_id):
+			_recovered_session_id = ""
 			_finish("No se pudo reabrir la sesión con el agente.")
 			return
+		_recovered_session_id = ""
 		model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+		var what := "El editor se había cerrado" if from_disk else "La sesión se perdió"
 		if not lost_id.is_empty() and model.session_id == lost_id:
-			_add_activity("sesión", "La sesión se perdió: se reabrió con session/load")
+			_add_activity("sesión", "%s: se reabrió la sesión con session/load" % what)
 			_run_turn(_resume_prompt())
 		else:
-			_add_activity("sesión", "La sesión se perdió: se abrió una nueva con el resumen del plan")
+			_add_activity("sesión", "%s: se abrió una sesión nueva con el resumen del plan" % what)
 			_run_turn(_summary_prompt())
 		return
+	_recovered_session_id = ""
 	_run_turn(_resume_prompt())
 
 
@@ -256,6 +296,10 @@ func guide(text: String) -> void:
 	if text.is_empty() or not is_active():
 		return
 	_add_activity("guía", text)
+	if not _recovered_session_id.is_empty():  # primero se reabre la sesión del run
+		_guidance.append(text)
+		resume()
+		return
 	if _turn_running or phase in [Phase.PREPARING, Phase.CLOSING, Phase.LIMITED]:
 		_guidance.append(text)
 		changed.emit()
@@ -372,7 +416,7 @@ func _after_turn(reason: String) -> void:
 		return
 	if reason == "cancelled":
 		return
-	if model.plan.is_empty():
+	if current_plan().is_empty():
 		_after_turn_without_plan()
 		return
 	if _plan_pending() and _idle_continues < MAX_IDLE_CONTINUES:
@@ -411,8 +455,10 @@ func _close() -> void:
 func _finish(reason: String) -> void:
 	finish_reason = reason
 	_timer.stop()
-	_set_phase(Phase.FINISHED)
+	_recovered_session_id = ""
 	_add_activity("estado", reason)
+	_set_phase(Phase.FINISHED)
+	store.prune()
 
 
 func _restart_session(lost_id: String) -> bool:
@@ -432,7 +478,7 @@ func _resume_prompt() -> String:
 
 func _summary_prompt() -> String:
 	var lines: PackedStringArray = ["Retomamos un One-shot que se interrumpió.", "", initial_prompt(), "", "Plan hasta ahora:"]
-	for entry: Variant in model.plan:
+	for entry: Variant in current_plan():
 		if entry is Dictionary:
 			lines.append("- [%s] %s" % [entry.get("status", "pending"), entry.get("content", "")])
 	if not checks.is_empty():
@@ -451,6 +497,8 @@ func _summary_prompt() -> String:
 func _on_plan_changed(plan: Array) -> void:
 	if not is_active() or model.replaying:
 		return
+	if not plan.is_empty():
+		_plan_snapshot = plan.duplicate(true)
 	var in_progress := -1
 	for i in plan.size():
 		if plan[i] is Dictionary and str(plan[i].get("status", "")) == "in_progress":
@@ -477,7 +525,7 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 		used[BUDGET_PLAYTESTS] = int(used[BUDGET_PLAYTESTS]) + 1
 		_add_activity("playtest", "Playtest #%d · %s" % [used[BUDGET_PLAYTESTS], _call_summary(call)])
 		# Sin plan no hay tareas que marquen los checkpoints: se crea uno por playtest (D24).
-		if model.plan.is_empty() and checkpoints_enabled:
+		if current_plan().is_empty() and checkpoints_enabled:
 			_checkpoint("Playtest #%d" % used[BUDGET_PLAYTESTS])
 		_check_budgets()
 	elif not name.is_empty() or call.status == ToolCall.STATUS_FAILED:
@@ -490,6 +538,7 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 				if image:
 					_captured_calls[call.id] = true
 					last_capture = image
+					_capture_dirty = true
 					last_capture_caption = "Playtest #%d · %s" % [maxi(int(used[BUDGET_PLAYTESTS]), 1), _elapsed_text()]
 					changed.emit()
 
@@ -519,6 +568,8 @@ func _account_tokens(usage: Dictionary) -> void:
 # --- presupuestos y cuota ------------------------------------------------------------------------
 
 func _tick() -> void:
+	if _dirty and Time.get_ticks_msec() - _last_save_msec >= SAVE_INTERVAL_MS:
+		_save()
 	if phase in [Phase.RUNNING, Phase.CLOSING]:
 		used[BUDGET_TIME] = float(used[BUDGET_TIME]) + TICK_S
 		_check_budgets()
@@ -588,6 +639,105 @@ func _on_quota_back(reason: String) -> void:
 		_set_phase(Phase.WAITING_CONFIRM)
 
 
+# --- persistencia (D37) ---------------------------------------------------------------------------
+
+## El editor se cierra o se deshabilita el plugin con el run en curso: queda guardado como estaba,
+## para retomarlo al volver (en lugar de darlo por terminado).
+func suspend() -> void:
+	if not is_active():
+		return
+	_save()
+	_suspended = true
+	_timer.stop()
+
+
+## Carga el último run si quedó a medias. Queda en pausa: «Retomar» reabre su sesión.
+func restore_interrupted() -> bool:
+	if is_active():
+		return false
+	var data := store.load_interrupted()
+	if data.is_empty():
+		return false
+	_apply(data)
+	return true
+
+
+func to_dict() -> Dictionary:
+	return {
+		"id": run_id,
+		"active": is_active(),
+		"phase": PHASE_LABELS[phase],
+		"goal": goal,
+		"budgets": budgets,
+		"used": used,
+		"checkpoints_enabled": checkpoints_enabled,
+		"git": {"base_branch": git.base_branch, "base_sha": git.base_sha, "agent_branch": git.agent_branch, "checkpoints": git.checkpoints},
+		"checks": checks,
+		"activity": activity,
+		"plan": _plan_snapshot,
+		"current_task": _current_task,
+		"resume_task": resume_task if not resume_task.is_empty() else _task_name(_current_task),
+		"guidance": _guidance,
+		"close_reason": _close_reason,
+		"finish_reason": finish_reason,
+		"warned": _warned,
+		"session_id": _recovered_session_id if not _recovered_session_id.is_empty() else model.session_id,
+		"elapsed_ms": Time.get_ticks_msec() - _started_msec if _started_msec > 0 else 0,
+		"capture_caption": last_capture_caption,
+	}
+
+
+func _apply(data: Dictionary) -> void:
+	run_id = str(data.id)
+	goal = str(data.get("goal", ""))
+	budgets.merge(data.get("budgets", {}) as Dictionary, true)
+	var saved_used: Dictionary = data.get("used", {})
+	used = {BUDGET_TIME: float(saved_used.get(BUDGET_TIME, 0)), BUDGET_TOKENS: int(saved_used.get(BUDGET_TOKENS, 0)), BUDGET_PLAYTESTS: int(saved_used.get(BUDGET_PLAYTESTS, 0))}
+	checkpoints_enabled = bool(data.get("checkpoints_enabled", false))
+	var saved_git: Dictionary = data.get("git", {})
+	git.base_branch = str(saved_git.get("base_branch", ""))
+	git.base_sha = str(saved_git.get("base_sha", ""))
+	git.agent_branch = str(saved_git.get("agent_branch", ""))
+	git.checkpoints.assign(saved_git.get("checkpoints", []))
+	checks.assign(data.get("checks", []))
+	activity.assign(data.get("activity", []))
+	_plan_snapshot = data.get("plan", []) if data.get("plan") is Array else []
+	_current_task = int(data.get("current_task", -1))
+	resume_task = str(data.get("resume_task", ""))
+	_guidance.assign(data.get("guidance", []))
+	_close_reason = str(data.get("close_reason", ""))
+	_warned = data.get("warned", {}) if data.get("warned") is Dictionary else {}
+	_recovered_session_id = str(data.get("session_id", ""))
+	_started_msec = Time.get_ticks_msec() - int(data.get("elapsed_ms", 0))
+	last_capture = store.load_capture(run_id)
+	last_capture_caption = str(data.get("capture_caption", ""))
+	finish_reason = ""
+	_idle_continues = 0
+	_suspended = false
+	recovered = true
+	phase = Phase.PAUSED
+	var where := " y sigue desde «%s»" % resume_task if not resume_task.is_empty() else ""
+	_add_activity("sesión", "El editor se cerró con el One-shot en curso. «Retomar» reabre la sesión del agente%s." % where)
+	_timer.start()
+	restored.emit()
+	changed.emit()
+	_save()
+
+
+func _save() -> void:
+	if _suspended or run_id.is_empty() or not store.is_enabled():
+		return
+	_dirty = false
+	_last_save_msec = Time.get_ticks_msec()
+	store.save(to_dict(), last_capture if _capture_dirty else null)
+	_capture_dirty = false
+
+
+func _exit_tree() -> void:
+	if _dirty:
+		_save()
+
+
 # --- auxiliares ------------------------------------------------------------------------------------
 
 func _checkpoint(label: String, suffix: String = "") -> void:
@@ -614,6 +764,7 @@ func _set_phase(value: Phase) -> void:
 		return
 	phase = value
 	changed.emit()
+	_save()
 
 
 func _add_activity(kind: String, text: String) -> void:
@@ -630,22 +781,24 @@ func _elapsed_text() -> String:
 
 
 func _task_name(index: int) -> String:
-	if index >= 0 and index < model.plan.size() and model.plan[index] is Dictionary:
-		return str(model.plan[index].get("content", "tarea %d" % (index + 1)))
+	var plan := current_plan()
+	if index >= 0 and index < plan.size() and plan[index] is Dictionary:
+		return str(plan[index].get("content", "tarea %d" % (index + 1)))
 	return ""
 
 
 func _completed_count() -> int:
 	var count := 0
-	for entry: Variant in model.plan:
+	for entry: Variant in current_plan():
 		if entry is Dictionary and str(entry.get("status", "")) == "completed":
 			count += 1
 	return count
 
 
 func _next_pending() -> int:
-	for i in model.plan.size():
-		if model.plan[i] is Dictionary and str(model.plan[i].get("status", "")) != "completed":
+	var plan := current_plan()
+	for i in plan.size():
+		if plan[i] is Dictionary and str(plan[i].get("status", "")) != "completed":
 			return i
 	return -1
 

@@ -5,7 +5,9 @@ extends RefCounted
 ## repo git temporal en user://, nunca sobre este repo.
 ## Recorre el formulario, la pausa por cuota (banner, cuenta regresiva, cpN), "Limitado" con
 ## cpN-quota, Retomar con confirmación, el resumen de cambios, "Volver acá" y "Aceptar todo".
-## Con `shot_path` guarda capturas <shot>_paused.png, <shot>_limited.png y <shot>.png.
+## Al final, un run a medias cargado de disco (D37): actividad, plan y aviso, y Detener lo cierra.
+## Con `shot_path` guarda capturas <shot>_paused.png, <shot>_limited.png, <shot>_recovered.png y
+## <shot>.png.
 
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
@@ -45,6 +47,9 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_run.after_restore = func(paths: PackedStringArray) -> void: _restored = paths
 	_run.restart_session = func(_lost_id: String) -> bool: return await controller.call(&"start", _profile())
 	_run.resume_auto = true
+	var store_dir := ProjectSettings.globalize_path(REPO_DIR + "_store")
+	OS.execute("rm", ["-rf", store_dir])
+	_run.store.dir = store_dir  # no el del proyecto: un run a medias aparecería en otra prueba
 	EditorInterface.set_main_screen_editor(MAIN_SCREEN_NAME)
 	await _frames(10)
 
@@ -148,6 +153,24 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	(_screen.get(&"_new_button") as Button).pressed.emit()
 	await _frames(2)
 	_check(form.is_visible_in_tree() and goal.text == "Pong de 2 jugadores con puntaje", "Nuevo One-shot vuelve al formulario con el objetivo")
+
+	# El mismo run, como si el editor se hubiera caído a mitad: vuelve en pausa con su actividad.
+	var saved := _run.store.load_run(_run.run_id)
+	saved["active"] = true
+	_run.store.save(saved)
+	_check(_run.restore_interrupted(), "carga el run a medias")
+	await _frames(3)
+	_check((_screen.get(&"_run_view") as Control).is_visible_in_tree(), "run a medias: se ve el run")
+	_check(_text(&"_phase_label").begins_with("Pausado"), "run a medias: fase " + _text(&"_phase_label"))
+	_check(_text(&"_banner_label").begins_with("El One-shot quedó a medias"), "run a medias: banner " + _text(&"_banner_label"))
+	_check((_screen.get(&"_pause_button") as Button).text == "Retomar", "run a medias: Retomar")
+	_check(_rows(&"_plan_list") == 3, "run a medias: el plan guardado (%d)" % _rows(&"_plan_list"))
+	var activity := (_screen.get(&"_activity_text") as RichTextLabel).get_parsed_text()
+	_check(activity.contains("Playtest #1") and activity.contains("«Retomar» reabre la sesión"), "run a medias: la actividad se rearmó")
+	_shot(shot_path, "_recovered")
+	(_screen.get(&"_stop_button") as Button).pressed.emit()
+	await _frames(2)
+	_check(_run.phase == OneShotRun.Phase.FINISHED and _run.store.load_interrupted().is_empty(), "run a medias: Detener lo cierra")
 	controller.call(&"stop")
 	return failures
 
