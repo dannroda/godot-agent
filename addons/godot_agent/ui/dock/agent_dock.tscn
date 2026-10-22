@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://addons/godot_agent/ui/dock/agent_dock.gd" id="1_dock"]
 
 [node name="Agent" type="VBoxContainer"]
-custom_minimum_size = Vector2(260, 0)
+custom_minimum_size = Vector2(220, 0)
 script = ExtResource("1_dock")
 
 [node name="Header" type="HBoxContainer" parent="."]
@@ -42,7 +42,7 @@ layout_mode = 2
 tooltip_text = "Harness settings"
 flat = true
 
-[node name="ModeBar" type="HBoxContainer" parent="."]
+[node name="ModeBar" type="HFlowContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
 

@@ -9,6 +9,7 @@ const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
+const LayoutCheck := preload("layout_check.gd")
 const PERMISSION_VIEW_SCRIPT := "res://addons/godot_agent/ui/dock/entries/permission_view.gd"
 const FAKE_URL := "https://claude.ai/code/session_01FakeRemoteSession"
 const WAIT_S := 15.0
@@ -80,9 +81,8 @@ func _run(shot_path: String) -> void:
 	if not await _until(withdrawn):
 		failures.append("la tarjeta del permiso contestado desde el celular no quedó cerrada")
 	await _tree.create_timer(0.3).timeout
-	# Ni la franja ni la tarjeta ensanchan el dock más allá de su mínimo de diseño.
-	if _dock.get_combined_minimum_size().x > _dock.custom_minimum_size.x + 1.0:
-		failures.append("el dock pide %d px (mínimo de diseño %d)" % [_dock.get_combined_minimum_size().x, _dock.custom_minimum_size.x])
+	# Con la franja y la tarjeta a la vista, el dock entra en su panel (m7-23).
+	failures.append_array(LayoutCheck.dock_fits(_dock))
 	if not shot_path.is_empty():
 		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
 	_press(banner, I18n.t("Turn off"))

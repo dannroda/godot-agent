@@ -93,6 +93,7 @@ const LOGIN_ARG := "--godot-agent-login-test"
 const QUEUE_ARG := "--godot-agent-queue-test"
 const COMPLETION_ARG := "--godot-agent-completion-test"
 const I18N_ARG := "--godot-agent-i18n-test"
+const LayoutCheck := preload("layout_check.gd")
 const I18N_CATALOG := "res://addons/godot_agent/i18n/es.po"
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
 const LOG_PANEL_SCRIPT := "res://addons/godot_agent/ui/log_panel/agent_log_panel.gd"
@@ -959,6 +960,8 @@ func _run_i18n_test() -> void:
 	var failures: PackedStringArray = []
 	var seen := {}
 	_untranslated(dock, catalog, "dock", failures, seen)
+	# Con los textos en español (más largos), el dock sigue entrando en su panel (m7-23).
+	failures.append_array(LayoutCheck.dock_fits(dock))
 	EditorInterface.set_main_screen_editor(MAIN_SCREEN_NAME)
 	await get_tree().create_timer(0.5).timeout
 	_untranslated(main_screen, catalog, "pantalla Agent", failures, seen)

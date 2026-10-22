@@ -113,7 +113,7 @@ var _history_items: Array[Dictionary] = []
 @onready var _history_button: Button = %HistoryButton
 @onready var _new_session_button: Button = %NewSessionButton
 @onready var _settings_button: Button = %SettingsButton
-@onready var _mode_bar: HBoxContainer = %ModeBar
+@onready var _mode_bar: HFlowContainer = %ModeBar
 @onready var _status_label: Label = %StatusLabel
 @onready var _body: VBoxContainer = %Body
 @onready var _empty_state: VBoxContainer = %EmptyState
@@ -239,14 +239,15 @@ func _build_header() -> void:
 
 func _build_mode_bar() -> void:
 	var group := ButtonGroup.new()
-	_mode_bar.add_theme_constant_override(&"separation", 0)
+	# Flow y no HBox: en un dock angosto los modos pasan a una segunda línea en lugar de cortarse.
+	_mode_bar.add_theme_constant_override(&"h_separation", 0)
+	_mode_bar.add_theme_constant_override(&"v_separation", 0)
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
 		var button := Button.new()
 		button.text = I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])
 		button.toggle_mode = true
 		button.button_group = group
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.clip_text = true
 		button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 		button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(_accent, 0.2), _accent, 3, 3))
 		button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.08), 3, 3))
