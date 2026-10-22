@@ -65,7 +65,7 @@ Godot editor (hilo principal)
    │      ▲ eventos ACP          │ comandos
    ├─ AcpClient ──────── JSON-RPC 2.0, ids, requests pendientes, handlers client-side
    │      ▲ líneas JSON          │
-   ├─ AgentProcess ───── OS.execute_with_pipe + Thread lector (stdout/stderr) ⇄ proceso agente
+   ├─ AgentProcess ───── OS.execute_with_pipe + lectura por frame (stdout/stderr) ⇄ proceso agente
    │
    ├─ McpServer ──────── TCPServer 127.0.0.1:<puerto> · HTTP mínimo · Streamable HTTP (JSON)
    │      └─ ToolRegistry ── tools godot.* (lectura, edición, ejecución)
@@ -79,7 +79,7 @@ Componentes y responsabilidades (la ubicación exacta de archivos la define la s
 
 | Componente | Responsabilidad | No hace |
 |---|---|---|
-| `AgentProcess` | Lanza el comando del perfil y lee stdout línea por línea y stderr en threads. Expone `send_line(String)`, la señal `line_received(String)`, `stderr_received(String)` y `exited(code)`. Mata el proceso al deshabilitar el plugin o cerrar el editor. | No parsea JSON |
+| `AgentProcess` | Lanza el comando del perfil y lee stdout línea por línea y stderr desde el hilo principal, sin bloquear y sin threads (D35). Expone `send_line(String)`, la señal `line_received(String)`, `stderr_received(String)` y `exited(code)`. Mata el proceso al deshabilitar el plugin o cerrar el editor. | No parsea JSON |
 | `AcpClient` | JSON-RPC 2.0 sobre líneas. Mapa id → callback. `request(method, params) -> Variant` usable con `await`. Despacha requests entrantes del agente a handlers registrados. | No conoce la UI |
 | `SessionModel` | Fuente de verdad de la sesión: mensajes (con merge de chunks), tool calls por `toolCallId`, plan, modo actual, permisos pendientes, uso de tokens. Emite señales granulares. | No hace IO |
 | `McpServer` | HTTP mínimo (POST `/mcp`), valida el token, rutea `initialize`, `tools/list` y `tools/call` al `ToolRegistry`. | No decide permisos |

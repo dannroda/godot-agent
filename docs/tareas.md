@@ -1043,7 +1043,7 @@ Nota: el artículo también usa contratos por sprint (generator y evaluator acue
 
 **Relacionadas:** One-shot: evaluator separado y vuelta de corrección
 
-## M7 — Pulido  (6/12, 6 en revisión)
+## M7 — Pulido  (8/12, 8 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -1236,7 +1236,7 @@ Bajo pendiente: load_record y replay son sincrónicos. Corren solo al elegir una
 
 Durante la verificación, la sesión larga en 4.8 dio frames de 0,4–2 s, siempre al fin del turno. Midiendo: el guardado del historial tardaba 9 ms o 607 ms según la carga del disco. Las escrituras pasaron a un worker (cola en orden en WorkerThreadPool) y la misma secuencia quedó en 83–133 ms.
 
-### Cola de prompts en el chat · Pendiente
+### Cola de prompts en el chat · Revisión
 
 **Prioridad:** alta · **Tamaño:** M
 
@@ -1251,6 +1251,16 @@ Propuesta:
 - Opcional: "Enviar ya" sobre un ítem cancela el turno actual y lo manda. ACP no permite inyectar texto en medio de un turno.
 
 Tests: unit de la cola (encolar, quitar, pausa por cancel o error) y un ui-check con el agente falso: dos prompts encolados durante un turno largo salen en orden.
+
+**Prueba:** `test_prompt_queue` y `test_composer` (Enter con un turno en curso, `insert_text`). `--godot-agent-queue-test`: un turno largo, dos prompts encolados con Enter, cancel → cola en pausa, «Enviar ahora» → salen en orden.
+
+**Notas:** D36. `session/prompt_queue.gd` es el modelo y `ui/dock/prompt_queue_view.gd` la vista, arriba del composer. El dock decide cuándo enviar.
+- Con un turno en curso, el composer entrega el texto igual y el placeholder lo avisa.
+- Al encolar se toma el contexto (escena, selección, captura y archivos).
+- Con `end_turn` sale el siguiente. Si el turno se cancela, falla, se niega o se cierra la sesión, o si empieza otra sesión, la cola se pausa: nunca se descarta sola.
+- «Enviar ahora» solo funciona con una sesión lista.
+- Si hay un One-shot activo o la cuota está agotada, la cola se pausa.
+- Opción descartada: «Enviar ya», que cortaba el turno actual. Con «Detener» y después «Enviar ahora» se logra lo mismo.
 
 ### Persistir el run del One-shot y ofrecer retomarlo · Pendiente
 
@@ -1267,7 +1277,7 @@ Qué hacer:
 
 **Relacionadas:** One-shot: spec y progreso en archivos (planner y traspaso)
 
-### Crash al recargar agent_process.gd con un agente corriendo · Pendiente
+### Crash al recargar agent_process.gd con un agente corriendo · Revisión
 
 **Prioridad:** media · **Tamaño:** S
 
@@ -1278,6 +1288,16 @@ Opciones:
 - Que los hilos no ejecuten GDScript del addon en el loop: usar una clase interna o mínima que no cambie, o hacer el polling desde el hilo principal.
 
 Hay que reproducirlo en un test y confirmar que no crashea.
+
+**Prueba:** `test_agent_process`: recarga el script con un proceso escribiendo y sigue leyendo. También cubre stdout, stderr, el exit después de la última línea, stdin y stop. Matriz 4.6.3, 4.7.2 y 4.8-beta1.
+
+**Notas:** D35. `AgentProcess` ya no usa threads. Lee los pipes en `process_frame`, solo los bytes disponibles (`get_length()`: FIONREAD en Unix, PeekNamedPipe en Windows), así que no bloquea.
+- El pipe sigue siendo bloqueante: en modo no bloqueante, `store_buffer` podía escribir a medias en stdin sin avisar.
+- El exit se decide por el proceso y no por EOF. Muerto el proceso, se espera a que los pipes se vacíen y a que mueran los descendientes, hasta 2 s.
+- Descendientes: en Linux salen de `/proc/<pid>/task/*/children`, sin lanzar procesos. En macOS, pgrep cada 10 s.
+- Reproducción: con los threads, recargar `agent_process.gd` en headless crasheaba igual que en el editor.
+- Sin probar en Windows: puede quedar un error de PeekNamedPipe en Output al cerrar.
+- Quedan threads cortos en los checkpoints de git, el índice del completado y el historial.
 
 ### One-shot: detectar loops sin progreso real · Pendiente
 

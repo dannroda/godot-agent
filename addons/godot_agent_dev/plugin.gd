@@ -44,6 +44,9 @@ extends EditorPlugin
 ## - `-- --godot-agent-login-test [--godot-agent-ui-shot=<ruta.png>]`: el agente falso pide login
 ##   (tests/scripts/auth.json); desde los botones del dock corre el login, pega el código en el
 ##   diálogo y la sesión abre.
+## - `-- --godot-agent-queue-test [--godot-agent-ui-shot=<ruta.png>]`: con un turno largo
+##   (tests/scripts/cancel.json) se escriben dos prompts en el composer: quedan en cola, el cancel
+##   la pausa, «Enviar ahora» la retoma y salen los dos en orden.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -80,6 +83,7 @@ const LONG_ARG := "--godot-agent-long-test"
 const SETTINGS_ARG := "--godot-agent-settings-shots="
 const HISTORY_ARG := "--godot-agent-history-test="
 const LOGIN_ARG := "--godot-agent-login-test"
+const QUEUE_ARG := "--godot-agent-queue-test"
 const COMPLETION_ARG := "--godot-agent-completion-test"
 const CompletionCheck := preload("completion_check.gd")
 const LongSessionCheck := preload("long_session_check.gd")
@@ -133,6 +137,8 @@ func _enter_tree() -> void:
 		_run_completion_test.call_deferred()
 	if LOGIN_ARG in args:
 		_run_login_test.call_deferred(_arg_value(UI_SHOT_ARG))
+	if QUEUE_ARG in args:
+		_run_queue_test.call_deferred(_arg_value(UI_SHOT_ARG))
 	for arg: String in args:
 		if arg.begins_with(SCREENSHOT_ARG):
 			_take_screenshot.call_deferred(arg.trim_prefix(SCREENSHOT_ARG))
@@ -793,6 +799,72 @@ func _run_login_test(shot_path: String) -> void:
 		return
 	controller.call(&"stop")
 	_finish(0, "login: desde el dock, con el código pegado, la sesión abrió")
+
+
+func _run_queue_test(shot_path: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var controller: Object = dock.get(&"_controller")
+	var model: Object = dock.get(&"_model")
+	var composer: Object = dock.get(&"_composer")
+	var queue: Object = dock.get(&"_queue")
+	var profile := AgentProfile.from_dict({
+		"id": "fake", "display_name": "Agente falso", "command": OS.get_executable_path(),
+		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
+			"--script", "res://tests/fake_agent.gd", "--", "--scenario=res://tests/scripts/cancel.json"],
+	})
+	if not await controller.call(&"start", profile):
+		_finish(1, "no arrancó la sesión (%s)" % model.get(&"failure_message"))
+		return
+	var failures: PackedStringArray = []
+	var user_messages := func() -> Array:
+		return (model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return int(entry.get(&"kind")) == 0).map(func(entry: Object) -> String: return str(entry.get(&"text")))
+	var input: CodeEdit = composer.get(&"_input")
+	# Turno largo; mientras corre, dos prompts escritos en el composer con Enter.
+	for text: String in ["arrancá", "primero en cola", "segundo en cola"]:
+		input.text = text
+		composer.call(&"_submit")
+		await get_tree().process_frame
+	if not bool(model.call(&"is_busy")):
+		failures.append("el primer turno no quedó corriendo")
+	if int(queue.call(&"size")) != 2 or user_messages.call() != ["arrancá"]:
+		failures.append("no se encolaron: cola %d, mensajes %s" % [queue.call(&"size"), user_messages.call()])
+	if not input.text.is_empty():
+		failures.append("el composer no se vació al encolar")
+	var queue_view: Control = dock.get(&"_queue_view")
+	if not queue_view.is_visible_in_tree():
+		failures.append("la cola no se ve")
+	if not shot_path.is_empty():
+		await get_tree().create_timer(0.3).timeout
+		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
+	# Cancelar pausa la cola: no sale nada solo.
+	dock.call(&"_on_cancel_requested")
+	var deadline := Time.get_ticks_msec() + 10000
+	while bool(model.call(&"is_busy")) and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	await get_tree().create_timer(1.0).timeout
+	if not bool(queue.get(&"paused")) or user_messages.call().size() != 1:
+		failures.append("el cancel no pausó la cola: pausada %s, mensajes %s" % [queue.get(&"paused"), user_messages.call()])
+	var send_now := await _wait_button(dock, "Enviar ahora")
+	if send_now == null or send_now.disabled:
+		failures.append("no se ofrece «Enviar ahora»")
+	else:
+		send_now.pressed.emit()
+	deadline = Time.get_ticks_msec() + 15000
+	while (not bool(queue.call(&"is_empty")) or bool(model.call(&"is_busy"))) and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if user_messages.call() != ["arrancá", "primero en cola", "segundo en cola"]:
+		failures.append("no salieron en orden: %s" % [user_messages.call()])
+	if queue_view.visible:
+		failures.append("la cola vacía sigue visible")
+	controller.call(&"stop")
+	for failure: String in failures:
+		print("[queue-test] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "queue-test: %d fallas" % failures.size())
 
 
 func _wait_button(root: Node, text: String) -> Button:

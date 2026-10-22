@@ -45,6 +45,7 @@ El addon no escribe nada en `project.godot`. La única excepción es un autoload
 - **Subagentes** (Claude Code): lo que hace un subagente queda dentro de la tarjeta de su llamada `Agent`. Sus herramientas y su último texto van plegados, con el prompt mientras trabaja y el informe al terminar. Su texto no se mezcla con la respuesta principal.
 - **Composer**:
   - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
+  - **cola**: con el agente trabajando, Enter deja el mensaje en cola, arriba del composer. Cada mensaje se puede editar (vuelve al composer) o quitar. Cuando el turno termina bien, sale el siguiente con el contexto que tenía al escribirlo. Si el turno se cancela, falla o cambia la sesión, la cola queda en pausa hasta «Enviar ahora». Durante un One-shot lo que escribís va a «Guiar al agente», no a la cola;
   - **↑** en la primera línea y **↓** en la última recorren los prompts que enviaste en este proyecto, como en una terminal (se guardan los últimos 100 en `user://godot_agent/prompt_history.json`);
   - `/` al comienzo lista los comandos del agente y `@` los nodos de la escena y los archivos del proyecto. La lista aparece arriba del texto y filtra mientras escribís; las flechas mueven, Enter o Tab eligen y Esc la cierra;
   - **+ contexto** adjunta la escena abierta, la selección o una captura del viewport;

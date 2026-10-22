@@ -1,9 +1,12 @@
 @tool
 extends RefCounted
-## Proceso del agente: lo lanza con OS.execute_with_pipe y lee stdout (por líneas) y stderr en
-## threads. Las señales se emiten siempre en el hilo principal. Las líneas de stdout se encolan y
-## se entregan con un presupuesto de tiempo por frame: una ráfaga de updates no congela el editor.
-## No parsea JSON: eso es del AcpClient.
+## Proceso del agente: lo lanza con OS.execute_with_pipe y lee stdout (por líneas) y stderr desde el
+## hilo principal, una vez por frame y solo los bytes que ya están en el pipe (get_length), así que
+## nunca bloquea. Sin threads a propósito (D35): si el editor recarga un script del addon modificado
+## en disco (un git pull, un proyecto con el addon por symlink), un thread que estaba ejecutando ese
+## script sigue con el bytecode liberado y el editor se cae. Las líneas de stdout se entregan con un
+## presupuesto de tiempo por frame: una ráfaga de updates no congela el editor. No parsea JSON: eso
+## es del AcpClient.
 
 signal line_received(line: String)
 signal stderr_received(line: String)
@@ -12,34 +15,37 @@ signal exited(code: int)
 const ProcessTree := preload("process_tree.gd")
 const CommandResolver := preload("command_resolver.gd")
 
-## Cada cuánto el watcher mira si el proceso sigue vivo.
+## Cada cuánto se mira si el proceso sigue vivo.
 const WATCH_INTERVAL_MS := 200
+## Muerto el proceso, un nieto (p. ej. node bajo npx) puede seguir escribiendo un rato.
 const EOF_GRACE_MS := 2000
-## Cada cuántas vueltas del watcher se refresca la lista de descendientes.
-const CHILDREN_REFRESH_TICKS := 10
+## Cada cuánto se refresca la lista de descendientes (con pgrep, que lanza procesos, menos seguido).
+const CHILDREN_REFRESH_MS := 2000
+const CHILDREN_REFRESH_PGREP_MS := 10000
 ## Tiempo de un frame que se puede usar para entregar líneas de stdout (el resto, al siguiente).
 const LINE_BUDGET_USEC := 6000
+## Bytes que se leen de un pipe por frame como máximo.
+const READ_CHUNK := 1 << 20
 
 var _stdio: FileAccess
 var _stderr: FileAccess
 var _pid: int = 0
-var _stdout_thread: Thread
-var _stderr_thread: Thread
-var _watch_thread: Thread
-var _stopping: bool = false
-## stdout llegó a EOF: el exit se emite después de la última línea.
-var _stdout_done: bool = false
-var _exit_emitted: bool = false
 var _last_error: String = ""
-## Descendientes vistos por última vez: si el proceso principal muere, sus hijos quedan
-## huérfanos (pgrep -P ya no los encuentra) y pueden mantener los pipes abiertos.
-var _known_children: PackedInt32Array = []
-var _children_mutex := Mutex.new()
+## Cambia en cada start() y stop(): un handler que para (o relanza) el proceso corta la entrega.
+var _generation: int = 0
+var _polling: bool = false
+## Bytes leídos que todavía no forman una línea completa.
+var _stdout_rest: PackedByteArray = []
+var _stderr_rest: PackedByteArray = []
+## Líneas de stdout que esperan su turno de entrega.
 var _lines: PackedStringArray = []
-var _lines_mutex := Mutex.new()
-var _drain_scheduled: bool = false
-## Código de salida que espera a que se entreguen las líneas encoladas (-1: ninguno).
-var _pending_exit_code: int = -1
+var _next_watch_ms: int = 0
+var _next_children_ms: int = 0
+## Momento en que se vio muerto el proceso (-1: vivo).
+var _dead_since_ms: int = -1
+## Descendientes vistos por última vez: si el proceso principal muere, sus hijos quedan
+## huérfanos (ya no cuelgan de él) y pueden seguir vivos con los pipes abiertos.
+var _known_children: PackedInt32Array = []
 
 
 ## Lanza `command` con `args`. `env` se aplica al entorno del hijo (se hereda del editor: se
@@ -65,19 +71,18 @@ func start(command: String, args: PackedStringArray, env: Dictionary = {}) -> bo
 	if info.is_empty():
 		_last_error = "No se pudo lanzar '%s'." % executable
 		return false
+	_generation += 1
 	_stdio = info.stdio
 	_stderr = info.stderr
 	_pid = info.pid
-	_stopping = false
-	_stdout_done = false
-	_exit_emitted = false
-
-	_stdout_thread = Thread.new()
-	_stdout_thread.start(_read_stdout)
-	_stderr_thread = Thread.new()
-	_stderr_thread.start(_read_stderr)
-	_watch_thread = Thread.new()
-	_watch_thread.start(_watch_exit)
+	_stdout_rest.clear()
+	_stderr_rest.clear()
+	_lines.clear()
+	_known_children.clear()
+	_dead_since_ms = -1
+	_next_watch_ms = 0
+	_next_children_ms = Time.get_ticks_msec() + WATCH_INTERVAL_MS
+	_set_polling(true)
 	return true
 
 
@@ -103,153 +108,170 @@ func send_line(line: String) -> bool:
 	return _stdio.get_error() == OK
 
 
-## Mata el proceso (y sus hijos) y espera a los threads. Seguro de llamar varias veces.
+## Mata el proceso (y sus hijos) y cierra los pipes. Seguro de llamar varias veces.
 func stop() -> void:
-	_stopping = true
+	_generation += 1
+	_set_polling(false)
 	if _pid > 0 and OS.is_process_running(_pid):
 		ProcessTree.kill_tree(_pid)
 	_kill_known_children()
-	_join_threads()
 	for pipe: FileAccess in [_stdio, _stderr]:
 		if pipe:
 			pipe.close()
 	_stdio = null
 	_stderr = null
 	_pid = 0
+	_lines.clear()
 
 
 func _notification(what: int) -> void:
-	# Red de seguridad: si se pierde la última referencia sin stop(), no quedan procesos ni threads.
-	if what == NOTIFICATION_PREDELETE and (_pid > 0 or _stdout_thread != null):
+	# Red de seguridad: si se pierde la última referencia sin stop(), no quedan procesos.
+	if what == NOTIFICATION_PREDELETE and (_pid > 0 or _stdio != null):
 		stop()
 
 
-func _join_threads() -> void:
-	for thread: Thread in [_stdout_thread, _stderr_thread, _watch_thread]:
-		if thread and thread.is_started():
-			thread.wait_to_finish()
-	_stdout_thread = null
-	_stderr_thread = null
-	_watch_thread = null
+func _set_polling(enabled: bool) -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or enabled == _polling:
+		return
+	_polling = enabled
+	if enabled:
+		tree.process_frame.connect(_poll)
+	else:
+		tree.process_frame.disconnect(_poll)
 
 
-# --- threads -------------------------------------------------------------------------------------
+# --- lectura -------------------------------------------------------------------------------------
+
+## Una vez por frame: lee lo que haya en los pipes, entrega líneas y mira si el proceso sigue vivo.
+func _poll() -> void:
+	var generation := _generation
+	_read_stderr()
+	if generation != _generation:
+		return
+	_read_stdout()
+	_deliver_lines(generation)
+	if generation != _generation:
+		return
+	var now := Time.get_ticks_msec()
+	if now < _next_watch_ms:
+		return
+	_next_watch_ms = now + WATCH_INTERVAL_MS
+	if _dead_since_ms < 0:
+		if OS.is_process_running(_pid):
+			if now >= _next_children_ms:
+				_refresh_children()
+			return
+		_dead_since_ms = now
+	# Muerto: el exit sale después de la última línea y cuando los huérfanos dejaron de escribir.
+	if not _lines.is_empty() or _available(_stdio) > 0 or _available(_stderr) > 0:
+		return
+	if now - _dead_since_ms < EOF_GRACE_MS and _children_alive():
+		return
+	_finish()
+
+
+func _finish() -> void:
+	_set_polling(false)
+	_kill_known_children()
+	var generation := _generation
+	var rest := _stderr_rest.get_string_from_utf8().strip_edges(false, true)
+	_stderr_rest.clear()
+	if not rest.is_empty():
+		stderr_received.emit(rest)
+	rest = _stdout_rest.get_string_from_utf8().strip_edges(false, true)
+	_stdout_rest.clear()
+	if not rest.is_empty() and generation == _generation:
+		line_received.emit(rest)
+	if generation == _generation:
+		exited.emit(OS.get_process_exit_code(_pid))
+
 
 func _read_stdout() -> void:
-	_read_lines(_stdio, _queue_line)
-	_stdout_done = true
-
-
-## Desde el thread lector: encola y, si no hay una entrega pendiente, la agenda.
-func _queue_line(line: String) -> void:
-	_lines_mutex.lock()
-	_lines.append(line)
-	var schedule := not _drain_scheduled
-	_drain_scheduled = true
-	_lines_mutex.unlock()
-	if schedule:
-		_drain_lines.call_deferred()
+	var data := _read_available(_stdio)
+	if data.is_empty():
+		return
+	_stdout_rest.append_array(data)
+	var split := _split_lines(_stdout_rest)
+	_stdout_rest = split.rest
+	_lines.append_array(split.lines)
 
 
 func _read_stderr() -> void:
-	_read_lines(_stderr, func(line: String) -> void: _emit_stderr.call_deferred(line))
-
-
-## Lee hasta EOF. get_line bloquea; termina cuando el proceso cierra el pipe (o lo matamos).
-## `on_line` corre en el thread lector.
-func _read_lines(file: FileAccess, on_line: Callable) -> void:
-	if file == null:
+	var data := _read_available(_stderr)
+	if data.is_empty():
 		return
-	while not _stopping:
-		var line := file.get_line()
-		var error := file.get_error()
-		if error != OK and line.is_empty():
-			break
-		if not line.is_empty():
-			on_line.call(line)
+	_stderr_rest.append_array(data)
+	var split := _split_lines(_stderr_rest)
+	_stderr_rest = split.rest
+	var generation := _generation
+	for line: String in split.lines:
+		stderr_received.emit(line)
+		if generation != _generation:
+			return
 
 
-func _watch_exit() -> void:
-	var tick := 0
-	while not _stopping and OS.is_process_running(_pid):
-		if tick % CHILDREN_REFRESH_TICKS == 1:
-			var children := ProcessTree.descendants(_pid)
-			_children_mutex.lock()
-			_known_children = children
-			_children_mutex.unlock()
-		tick += 1
-		OS.delay_msec(WATCH_INTERVAL_MS)
-	# Un nieto (p. ej. node bajo npx) puede mantener stdout abierto un rato: se le da un margen.
-	var waited := 0
-	while not _stopping and not _stdout_done and waited < EOF_GRACE_MS:
-		OS.delay_msec(WATCH_INTERVAL_MS)
-		waited += WATCH_INTERVAL_MS
-	if not _stdout_done:
-		_kill_known_children()
-	if _stopping:
-		return
-	var code := OS.get_process_exit_code(_pid)
-	_emit_exited.call_deferred(code)
-
-
-## En el hilo principal: entrega líneas hasta agotar el presupuesto del frame. Si quedan, sigue en
-## el próximo frame (no con call_deferred: correría en la misma vuelta de la cola de mensajes).
-func _drain_lines() -> void:
-	if _stopping:
+## Entrega líneas hasta agotar el presupuesto del frame; las que quedan salen en el próximo.
+func _deliver_lines(generation: int) -> void:
+	if _lines.is_empty():
 		return
 	var started := Time.get_ticks_usec()
-	while true:
-		_lines_mutex.lock()
-		var batch := _lines
-		_lines = PackedStringArray()
-		if batch.is_empty():
-			_drain_scheduled = false
-			_lines_mutex.unlock()
-			break
-		_lines_mutex.unlock()
-		for i in batch.size():
-			line_received.emit(batch[i])
-			if _stopping:
-				return
-			var tree := Engine.get_main_loop() as SceneTree
-			if tree and Time.get_ticks_usec() - started > LINE_BUDGET_USEC:
-				_lines_mutex.lock()
-				_lines = batch.slice(i + 1) + _lines
-				var more := not _lines.is_empty()
-				_drain_scheduled = more
-				_lines_mutex.unlock()
-				if more:
-					tree.process_frame.connect(_drain_lines, CONNECT_ONE_SHOT)
-					return
-				break
-	if _pending_exit_code >= 0:
-		var code := _pending_exit_code
-		_pending_exit_code = -1
-		_emit_exited(code)
+	var batch := _lines
+	_lines = PackedStringArray()
+	for i in batch.size():
+		line_received.emit(batch[i])
+		if generation != _generation:
+			return
+		if Time.get_ticks_usec() - started > LINE_BUDGET_USEC and i + 1 < batch.size():
+			_lines = batch.slice(i + 1) + _lines
+			return
 
 
-func _emit_stderr(line: String) -> void:
-	stderr_received.emit(line)
+## Bytes que ya están en el pipe. Leer exactamente eso no bloquea aunque el pipe sea bloqueante.
+static func _available(pipe: FileAccess) -> int:
+	return pipe.get_length() if pipe else 0
 
 
-func _emit_exited(code: int) -> void:
-	if _exit_emitted or _stopping:
+static func _read_available(pipe: FileAccess) -> PackedByteArray:
+	var count := mini(_available(pipe), READ_CHUNK)
+	return pipe.get_buffer(count) if count > 0 else PackedByteArray()
+
+
+## `{lines, rest}`: las líneas completas de `data` (sin vacías ni el \r final) y lo que sobra.
+static func _split_lines(data: PackedByteArray) -> Dictionary:
+	var lines: PackedStringArray = []
+	var start := 0
+	var newline := data.find(10)
+	while newline >= 0:
+		var line := data.slice(start, newline).get_string_from_utf8().strip_edges(false, true)
+		if not line.is_empty():
+			lines.append(line)
+		start = newline + 1
+		newline = data.find(10, start)
+	return {"lines": lines, "rest": data.slice(start)}
+
+
+# --- descendientes -------------------------------------------------------------------------------
+
+func _refresh_children() -> void:
+	if not ProcessTree.can_list_descendants():
+		_next_children_ms = Time.get_ticks_msec() + 3600000
 		return
-	_lines_mutex.lock()
-	var draining := _drain_scheduled
-	_lines_mutex.unlock()
-	if draining:
-		_pending_exit_code = code  # después de la última línea encolada
-		return
-	_exit_emitted = true
-	exited.emit(code)
+	_known_children = ProcessTree.descendants(_pid)
+	var interval := CHILDREN_REFRESH_MS if ProcessTree.has_proc_children() else CHILDREN_REFRESH_PGREP_MS
+	_next_children_ms = Time.get_ticks_msec() + interval
+
+
+func _children_alive() -> bool:
+	for child: int in _known_children:
+		if ProcessTree.is_alive(child):
+			return true
+	return false
 
 
 func _kill_known_children() -> void:
-	_children_mutex.lock()
 	var children := _known_children
 	_known_children = PackedInt32Array()
-	_children_mutex.unlock()
 	# No son hijos directos: OS.is_process_running daría error. OS.kill sobre un pid muerto no hace nada.
 	for child: int in children:
 		OS.kill(child)
@@ -271,4 +293,3 @@ static func _restore_env(saved: Dictionary) -> void:
 			OS.unset_environment(key)
 		else:
 			OS.set_environment(key, saved[key])
-

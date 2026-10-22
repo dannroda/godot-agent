@@ -2,8 +2,9 @@
 extends VBoxContainer
 ## Composer del dock: chips de contexto, texto con autocompletado (`/` comandos del agente,
 ## `@` archivos y nodos), medidor de contexto, selector de modelo y enviar/detener.
-## Enter envía, Ctrl+Enter o Shift+Enter bajan de línea y Esc cancela el turno. Flecha arriba en la
-## primera línea y abajo en la última recorren los prompts enviados, como en una terminal.
+## Enter envía (con un turno en curso, el dock lo deja en cola), Ctrl+Enter o Shift+Enter bajan de
+## línea y Esc cancela el turno. Flecha arriba en la primera línea y abajo en la última recorren los
+## prompts enviados, como en una terminal.
 
 signal submitted(text: String)
 signal cancel_requested
@@ -15,6 +16,7 @@ const AgentTheme := preload("../agent_theme.gd")
 const SuggestionList := preload("suggestion_list.gd")
 
 const PLACEHOLDER := "Pedile algo… @ para nodos y archivos, / para comandos"
+const PLACEHOLDER_BUSY := "El agente está trabajando: Enter deja el mensaje en cola"
 ## Prompts que se recuerdan (los más viejos se descartan).
 const HISTORY_LIMIT := 100
 ## Filas que se cargan en la lista (se ven hasta SuggestionList.MAX_ROWS, el resto con scroll).
@@ -135,6 +137,15 @@ func clear() -> void:
 	_update_send_button()
 
 
+## Pone `text` en el composer para seguir editándolo (después de lo que ya haya escrito).
+func insert_text(text: String) -> void:
+	_input.text = text if _input.text.strip_edges().is_empty() else _input.text.rstrip("\n") + "\n" + text
+	_input.set_caret_line(_input.get_line_count() - 1)
+	_input.set_caret_column(_input.get_line(_input.get_line_count() - 1).length())
+	_input.grab_focus()
+	_update_send_button()
+
+
 func focus() -> void:
 	_input.grab_focus()
 
@@ -142,6 +153,7 @@ func focus() -> void:
 ## `busy`: hay un turno en curso (el botón pasa a Detener).
 func set_busy(busy: bool) -> void:
 	_busy = busy
+	_input.placeholder_text = PLACEHOLDER_BUSY if busy else PLACEHOLDER
 	_update_send_button()
 
 
@@ -251,7 +263,7 @@ func _on_send_pressed() -> void:
 
 func _submit() -> void:
 	var value := _input.text.strip_edges()
-	if value.is_empty() or _busy or not _lock_text.is_empty():
+	if value.is_empty() or not _lock_text.is_empty():
 		return
 	_remember(value)
 	submitted.emit(value)
@@ -447,7 +459,7 @@ func _update_send_button() -> void:
 		return
 	if _busy:
 		_send_button.text = "■ Detener"
-		_send_button.tooltip_text = "Detener el turno (Esc)"
+		_send_button.tooltip_text = "Detener el turno (Esc). Enter deja lo escrito en cola."
 		_send_button.disabled = false
 	elif not _lock_text.is_empty():
 		_send_button.text = _lock_text

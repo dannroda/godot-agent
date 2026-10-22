@@ -161,3 +161,34 @@ func test_prompt_history() -> void:
 	reopened.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+
+
+## Con un turno en curso, Enter igual entrega el texto (el dock lo encola) y el placeholder lo avisa.
+func test_enter_while_busy_and_insert_text() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var composer: VBoxContainer = Composer.new()
+	composer.call(&"setup", Color.ORANGE)
+	tree.root.add_child(composer)
+	await tree.process_frame
+	var sent: PackedStringArray = []
+	composer.connect(&"submitted", func(text: String) -> void: sent.append(text))
+	var input: CodeEdit = composer.get(&"_input")
+	composer.call(&"set_busy", true)
+	assert_true(input.placeholder_text.contains("cola"), "el placeholder avisa que encola")
+	input.grab_focus()
+	input.text = "después"
+	input.set_caret_column(7)
+	await _press(input, KEY_ENTER, false, false)
+	assert_eq(sent, PackedStringArray(["después"]), "Enter entrega el texto con un turno en curso")
+	composer.call(&"set_locked", "⏳ 3 h")
+	await _press(input, KEY_ENTER, false, false)
+	assert_eq(sent.size(), 1, "con el límite del plan no se entrega")
+	composer.call(&"set_locked", "")
+	composer.call(&"set_busy", false)
+	assert_false(input.placeholder_text.contains("cola"), "placeholder normal")
+	input.text = ""
+	composer.call(&"insert_text", "editar esto")
+	assert_eq(input.text, "editar esto", "insert_text en vacío")
+	composer.call(&"insert_text", "y esto")
+	assert_eq(input.text, "editar esto\ny esto", "insert_text después de lo escrito")
+	composer.queue_free()

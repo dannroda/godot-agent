@@ -509,3 +509,35 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - 4.6 y 4.7 tienen `EditorDock` para el dock y el panel inferior, pero no para la main screen (D9).
   - Las decisiones anteriores que hablan de 4.4 quedan como estaban: cuentan lo que pasaba cuando se tomaron.
 
+
+## D35 · AgentProcess sin threads: el editor ya no se cae si un script del addon cambia en disco
+
+- **Lo que pasó** (2026-10-22, little-villages, 4.8-beta1): el proyecto usa el addon por symlink al repo. Se editó `agent_process.gd` con el agente corriendo, el editor recargó el script y se cayó con SIGSEGV.
+  - En el core dump se ve el thread `_watch_exit`, dentro de `GDScriptInstance::callp`. El thread seguía ejecutando el bytecode del script, y la recarga ya lo había liberado.
+  - Lo mismo pasa con un `git pull` del addon con una sesión abierta. El run del One-shot estaba solo en memoria y se perdió (m7-09).
+- **Decisión**: `AgentProcess` lee los pipes desde el hilo principal, en `process_frame`, sin threads.
+  - Cada frame lee solo los bytes que ya están en el pipe: `FileAccess.get_length()` usa FIONREAD en Unix y PeekNamedPipe en Windows, también en 4.6. Leer exactamente eso no bloquea, aunque el pipe sea bloqueante.
+  - El pipe sigue en modo bloqueante a propósito. En modo no bloqueante, `store_buffer` puede escribir a medias en stdin sin decir cuánto, y eso rompería el JSON-RPC con prompts grandes (imágenes).
+  - Las líneas de stdout se arman acá (`_split_lines`) y se entregan con el mismo presupuesto por frame que antes. El exit sale después de la última línea, incluida una última sin `\n`.
+  - El fin del stream se define por el proceso, no por EOF: un pipe vacío y un EOF dan el mismo error en `get_buffer`. Muerto el proceso, se espera a que se vacíen los pipes y, hasta `EOF_GRACE_MS`, a que los descendientes que quedaron (un nieto de npx) mueran. Después se los mata.
+  - Los descendientes en Linux salen de `/proc/<pid>/task/*/children`, sin lanzar procesos; se refrescan cada 2 s. En macOS se usa `pgrep` cada 10 s, porque lanza procesos desde el hilo principal. En Windows no hace falta: `taskkill /T`.
+- **Costo**: con el editor sin foco, los frames bajan a unos 10 por segundo y cada lectura toma lo que haya en el pipe (64 KB en Linux). Si el agente escribe más rápido que eso, su `write` espera; nada se pierde.
+- **Sin probar**: Windows. Ahí `PeekNamedPipe` falla cuando el pipe ya se cerró, y puede quedar un error en Output al terminar el proceso.
+- **Prueba**: `test_agent_process`:
+  - recarga `agent_process.gd` con un proceso escribiendo y verifica que sigue leyendo. Con los threads, esto crasheaba en headless igual que en el editor;
+  - verifica stdout, stderr, el exit después de la última línea, stdin y stop.
+- Quedan threads cortos (checkpoints de git, índice del completado, escrituras del historial): duran milisegundos o segundos, no toda la sesión.
+
+## D36 · Cola de prompts en el dock
+
+- **Pedido del usuario**: poder escribir y encolar prompts mientras el agente trabaja, como en Claude Code. Antes, Enter no hacía nada con un turno en curso.
+- **Funcionamiento**:
+  - Con un turno en curso, el composer entrega el texto igual. El dock lo guarda en una `PromptQueue` junto con su contexto: escena, selección, captura y archivos, tomados al encolar.
+  - ACP no permite meter texto dentro de un turno, así que la cola espera al fin del turno.
+- **Envío automático solo con `end_turn`**:
+  - Si el turno termina cancelado, con error, por negativa o por límite, la cola se pausa: lo que el usuario pidió puede ya no tener sentido. Lo mismo pasa si la sesión se cierra o empieza otra (`entries_cleared`).
+  - La cola nunca se descarta sola, para no perder lo que el usuario escribió. La vista muestra el motivo de la pausa y «Enviar ahora» (con una sesión lista) o «Descartar».
+- **One-shot**: durante un One-shot el composer ya va a «Guiar al agente» (`submit_interceptor`), así que la cola no recibe nada. Si un One-shot arranca con prompts en cola, la cola se pausa en lugar de mandarlos dentro del One-shot.
+- **Límite del plan**: el composer sigue bloqueado como antes, y si la cuota está agotada, la cola se pausa.
+- **Prueba**: `test_prompt_queue`, `test_composer` (Enter con un turno en curso) y `--godot-agent-queue-test`. Este último hace un turno largo, encola dos prompts con Enter, cancela, verifica que la cola quedó en pausa, aprieta «Enviar ahora» y comprueba que salen los dos en orden.
+

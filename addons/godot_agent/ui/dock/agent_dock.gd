@@ -21,6 +21,8 @@ const EditorContext := preload("../editor_context.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
 const Composer := preload("composer.gd")
+const PromptQueue := preload("../../session/prompt_queue.gd")
+const PromptQueueView := preload("prompt_queue_view.gd")
 const ReviewPanel := preload("review_panel.gd")
 const QuotaMeter := preload("quota_meter.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
@@ -55,6 +57,9 @@ var _presets_mtime: int = -1
 var _pending_prompt: String = ""
 var _conversation: ConversationView
 var _composer: Composer
+## Prompts escritos mientras el agente trabaja: salen de a uno al terminar cada turno.
+var _queue := PromptQueue.new()
+var _queue_view: PromptQueueView
 var _mode_buttons: Dictionary = {}  # HarnessMode -> Button
 ## Chips de contexto actuales: id -> {label, tooltip, block}
 var _chips: Dictionary = {}
@@ -121,7 +126,15 @@ func _ready() -> void:
 	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
 	_composer.screenshot_requested.connect(_on_screenshot_requested)
 	_composer.context_chip_removed.connect(_on_chip_removed)
-	_composer_slot.add_child(_composer)
+	var composer_column := VBoxContainer.new()
+	composer_column.add_theme_constant_override(&"separation", AgentTheme.px(4))
+	_composer_slot.add_child(composer_column)
+	_queue_view = PromptQueueView.new()
+	_queue_view.setup(_queue)
+	_queue_view.edit_requested.connect(_composer.insert_text)
+	_queue_view.send_now_requested.connect(_send_next_queued.bind(true))
+	composer_column.add_child(_queue_view)
+	composer_column.add_child(_composer)
 	_build_review_panel()
 	_build_quota_meter()
 	_settings.changed.connect(func(key: String) -> void:
@@ -138,17 +151,24 @@ func _ready() -> void:
 	_context_poll_timer.timeout.connect(_refresh_chips)
 
 	# Pull del estado actual y después push por señales.
-	_model.state_changed.connect(func(_state: SessionModel.State) -> void: _refresh_state())
+	_model.state_changed.connect(func(state: SessionModel.State) -> void:
+		_refresh_state()
+		_queue_view.set_send_available(state == SessionModel.State.READY)
+		if state in [SessionModel.State.DISCONNECTED, SessionModel.State.FAILED]:
+			_queue.pause("la sesión se cerró"))
+	_model.turn_finished.connect(_on_turn_finished)
 	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
 	_model.usage_changed.connect(_composer.set_usage)
 	_model.commands_changed.connect(_composer.set_commands)
 	_model.config_options_changed.connect(func(_options: Array) -> void: _composer.set_model_option(_model.config_option("model")))
 	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_modes())
 	_model.entries_cleared.connect(_refresh_state)
+	_model.entries_cleared.connect(func() -> void: _queue.pause("empezó otra sesión"))
 	_model.entry_added.connect(func(_entry: ChatEntry) -> void: _refresh_empty_state())
 	_reload_profiles()
 	_refresh_modes()
 	_refresh_state()
+	_queue_view.set_send_available(_model.state == SessionModel.State.READY)
 	_refresh_title()
 	_composer.set_usage(_model.usage_used, _model.usage_size)
 	_composer.set_model_option(_model.config_option("model"))
@@ -451,6 +471,9 @@ func _on_submitted(text: String) -> void:
 	_composer.clear()
 	if submit_interceptor.is_valid() and submit_interceptor.call(text):
 		return
+	if _model.is_busy() or (_model.state == SessionModel.State.STARTING and not _pending_prompt.is_empty()):
+		_queue.add(text, _take_context_blocks())
+		return
 	match _model.state:
 		SessionModel.State.READY:
 			_send(text)
@@ -462,11 +485,61 @@ func _on_submitted(text: String) -> void:
 
 
 func _send(text: String) -> void:
+	_controller.send_prompt(text, _take_context_blocks())
+
+
+## El contexto adjunto para un prompt; la captura y los archivos agregados se usan una sola vez.
+func _take_context_blocks() -> Array:
 	var blocks := _context_blocks()
 	_screenshot_block = {}
 	_extra_files.clear()
 	_refresh_chips()
-	_controller.send_prompt(text, blocks)
+	return blocks
+
+
+# --- cola de prompts -----------------------------------------------------------------------------
+
+## Con end_turn sale el próximo de la cola; si el turno terminó de otra forma, la cola espera al
+## usuario (lo que había pedido puede ya no tener sentido).
+func _on_turn_finished(stop_reason: String) -> void:
+	if _queue.is_empty():
+		return
+	if stop_reason == "end_turn":
+		_send_next_queued.call_deferred()
+	else:
+		_queue.pause(_pause_reason(stop_reason))
+
+
+static func _pause_reason(stop_reason: String) -> String:
+	match stop_reason:
+		"cancelled":
+			return "el turno se canceló"
+		"error":
+			return "el turno terminó con error"
+		"refusal":
+			return "el agente se negó a seguir"
+		_:
+			return "el turno terminó con «%s»" % stop_reason
+
+
+## `resume`: el usuario pidió «Enviar ahora» (si no, solo sale si la cola no está en pausa).
+func _send_next_queued(resume: bool = false) -> void:
+	if _model.state != SessionModel.State.READY or _queue.is_empty():
+		return
+	if resume:
+		_queue.resume()
+	if _queue.paused:
+		return
+	if can_switch_session.is_valid() and not can_switch_session.call():
+		_queue.pause("hay un One-shot en curso")
+		return
+	var quota := _controller.quota
+	if quota.is_limited() and quota.seconds_until_retry() > 0:
+		_queue.pause("límite del plan")
+		return
+	var item := _queue.take_next()
+	if not item.is_empty():
+		_controller.send_prompt(str(item.text), item.blocks)
 
 
 func _on_cancel_requested() -> void:
