@@ -35,12 +35,14 @@ enum SessionState {
 }
 
 ## Modos del harness (spec §7). Viven del lado del cliente.
-enum HarnessMode { ASK, REVIEW, BUILD, ONESHOT }
+## AUTO va al final para no cambiar los valores de los demás (D57); en la UI se muestra después de BUILD.
+enum HarnessMode { ASK, REVIEW, BUILD, ONESHOT, AUTO }
 
 const HARNESS_MODE_LABELS: Dictionary = {
 	HarnessMode.ASK: "Ask",  # i18n
 	HarnessMode.REVIEW: "Review",  # i18n
 	HarnessMode.BUILD: "Build",  # i18n
+	HarnessMode.AUTO: "Auto",  # i18n
 	HarnessMode.ONESHOT: "One-shot",  # i18n
 }
 

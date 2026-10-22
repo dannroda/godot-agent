@@ -17,6 +17,7 @@ const SessionModel := preload("../../session/session_model.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const CompletionSettingsPage := preload("completion_settings_page.gd")
+const AutoRulesPage := preload("auto_rules_page.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 
 enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
@@ -35,8 +36,8 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.ASK: "Ask",  # i18n
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
-const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -68,6 +69,7 @@ var _form_fields: Dictionary = {}  # nombre -> control
 # Permisos
 var _matrix: Dictionary = {}  # grupo -> {modo -> OptionButton}
 var _timeout_spin: SpinBox
+var _auto_rules_page: AutoRulesPage
 # MCP
 var _port_spin: SpinBox
 var _url_label: Label
@@ -217,7 +219,7 @@ func _build_permissions(page: VBoxContainer) -> void:
 	page.add_child(_title(I18n.t("Permissions by mode")))
 	page.add_child(_hint(I18n.t("godot.* tools are authorized in the MCP server; the agent's own tools (shell, file editing) when the agent asks for permission. \"Ask\" shows a card in the chat.")))
 	var grid := GridContainer.new()
-	grid.columns = 5
+	grid.columns = MODES.size() + 1
 	grid.add_theme_constant_override(&"h_separation", AgentTheme.px(10))
 	page.add_child(grid)
 	grid.add_child(_hint(I18n.t("Group")))
@@ -233,6 +235,8 @@ func _build_permissions(page: VBoxContainer) -> void:
 			var option := OptionButton.new()
 			for decision: String in DECISIONS:
 				option.add_item(I18n.t(DECISION_LABELS[decision]))
+			if group == PermissionPolicy.GROUP_SHELL and mode == SessionModel.HarnessMode.AUTO:
+				option.tooltip_text = I18n.t("In Auto mode, \"Ask\" lets the lists of the Auto mode section decide first: commands on the allowlist run without a card.")
 			grid.add_child(option)
 			_matrix[group][mode] = option
 	var defaults := Button.new()
@@ -241,6 +245,9 @@ func _build_permissions(page: VBoxContainer) -> void:
 	defaults.pressed.connect(func() -> void: _load_matrix({}))
 	page.add_child(defaults)
 	_timeout_spin = _spin_row(page, I18n.t("Wait for an answer before denying"), 10, 3600, 1, "s")
+	page.add_child(HSeparator.new())
+	_auto_rules_page = AutoRulesPage.new()
+	page.add_child(_auto_rules_page)
 
 
 func _build_mcp(page: VBoxContainer) -> void:
@@ -409,6 +416,7 @@ func _load() -> void:
 	_rebuild_profiles()
 	_load_matrix(_config.permissions)
 	_timeout_spin.value = _config.permission_timeout_s
+	_auto_rules_page.load_from(_config.auto_shell_rules)
 	_port_spin.value = _settings.mcp_port()
 	_refresh_url()
 	_max_output_spin.value = _config.max_output_chars
@@ -471,6 +479,7 @@ func _on_save() -> void:
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
 	_config.permissions = matrix_overrides()
 	_config.permission_timeout_s = int(_timeout_spin.value)
+	_config.auto_shell_rules = _auto_rules_page.rules()
 	_config.max_output_chars = int(_max_output_spin.value)
 	_config.max_image_side = int(_max_image_spin.value)
 	_config.playtest_on_manual_runs = _manual_runs_check.button_pressed
@@ -524,6 +533,9 @@ func validate() -> Dictionary:
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
 			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
+	var rules_error := _auto_rules_page.validate()
+	if not rules_error.is_empty():
+		return {"section": SettingsSection.PERMISSIONS, "message": rules_error}
 	var completion_error := _completion_page.validate()
 	if not completion_error.is_empty():
 		return {"section": SettingsSection.COMPLETION, "message": completion_error}

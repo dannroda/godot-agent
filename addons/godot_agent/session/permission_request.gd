@@ -22,6 +22,10 @@ var diff: Dictionary = {}
 var outcome: Dictionary = {}
 ## Kind de la opción elegida ("" si se canceló).
 var chosen_kind: String = ""
+## Modo Auto (D57): patrón que la tarjeta propone para «Permitir siempre» ("" = no se ofrece).
+var rule_pattern: String = ""
+## `{pattern, list}` que el usuario eligió agregar a las listas del modo Auto, o {}.
+var rule_to_add: Dictionary = {}
 
 
 func is_pending() -> bool:

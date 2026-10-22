@@ -105,6 +105,8 @@ func _enter_tree() -> void:
 	_controller.history = SessionHistory.new()
 	_project_config = ProjectConfig.load_or_default()
 	_controller.policy = PermissionPolicy.new(_project_config.permissions)
+	_controller.shell_rules = _project_config.auto_shell_rules
+	_controller.shell_rules_changed.connect(_on_shell_rules_changed)
 	_apply_quota_settings()
 	EditorInterface.get_editor_settings().settings_changed.connect(_on_editor_settings_changed)
 
@@ -509,6 +511,13 @@ func _oneshot_defaults() -> Dictionary:
 	}
 
 
+## «Permitir siempre» en una tarjeta del modo Auto: la regla ya está en el array de la config.
+func _on_shell_rules_changed() -> void:
+	var result := _project_config.save_to_project()
+	if result != OK:
+		_log.add(AgentLog.CH_PERM, "could not save %s: %s" % [ProjectConfig.PATH, error_string(result)])
+
+
 func _open_settings() -> void:
 	_settings_dialog.open()
 
@@ -516,6 +525,7 @@ func _open_settings() -> void:
 ## La config del proyecto se aplica en caliente; los settings de usuario llegan por settings_changed.
 func _on_settings_saved() -> void:
 	_controller.policy.overrides = _project_config.permissions
+	_controller.shell_rules = _project_config.auto_shell_rules
 	_fs.extra_roots = _project_config.extra_fs_roots
 	_registry.max_output_chars = _project_config.max_output_chars
 	_registry.max_image_side = _project_config.max_image_side

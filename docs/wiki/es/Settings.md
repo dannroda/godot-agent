@@ -8,7 +8,7 @@
 |---|---|
 | **Agentes** | Perfiles de agentes (ver abajo). |
 | **Completado** | [Completado inline](Completado-inline.md). |
-| **Permisos** | La [matriz de permisos](Modos-y-permisos.md#permisos) por modo, y el tiempo para contestar. |
+| **Permisos** | La [matriz de permisos](Modos-y-permisos.md#permisos) por modo, el tiempo para contestar y las listas de comandos de shell del [modo Auto](Modos-y-permisos.md#modo-auto). |
 | **Servidor MCP** | Puerto, **Regenerar token**, límites de los resultados, lista de tools compacta, carpetas extra. |
 | **One-shot y cuota** | Presupuestos por defecto, checkpoints, revisión del spec, repeticiones para los loops, vueltas de QA, criterios del juego (peso y mínimo), umbrales de aviso y pausa de la cuota, qué hacer cuando se reinicia la cuota. |
 | **Interfaz** | Color de acento, ubicación del dock, idioma. |

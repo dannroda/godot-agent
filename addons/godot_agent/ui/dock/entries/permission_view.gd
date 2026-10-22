@@ -12,6 +12,9 @@ var _title: Label
 var _description: Label
 var _diff_slot: VBoxContainer
 var _buttons: HFlowContainer
+## Modo Auto (D57): patrón editable + «Permitir siempre», que lo agrega a la allowlist.
+var _rule_row: HBoxContainer
+var _rule_edit: LineEdit
 var _result: Label
 
 
@@ -40,10 +43,22 @@ func _build() -> void:
 	column.add_child(_diff_slot)
 	_buttons = HFlowContainer.new()
 	column.add_child(_buttons)
+	_rule_row = HBoxContainer.new()
+	column.add_child(_rule_row)
+	_rule_edit = LineEdit.new()
+	_rule_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_rule_edit.tooltip_text = I18n.t("Pattern for the Auto mode allowlist: * matches anything. You can review the lists in Settings → Permissions.")
+	_rule_row.add_child(_rule_edit)
+	var always := Button.new()
+	always.text = I18n.t("Always allow")
+	always.tooltip_text = _rule_edit.tooltip_text
+	always.pressed.connect(_on_always_allow)
+	_rule_row.add_child(always)
 	_result = Label.new()
 	_result.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	column.add_child(_result)
 	var request: PermissionRequest = entry.permission
+	_rule_edit.text = request.rule_pattern
 	if not request.diff.is_empty():
 		var card := DiffCard.new()
 		card.setup_diff(request.diff, accent)
@@ -65,6 +80,7 @@ func refresh() -> void:
 	for child: Node in _buttons.get_children():
 		child.queue_free()
 	_buttons.visible = pending
+	_rule_row.visible = pending and not request.rule_pattern.is_empty()
 	_result.visible = not pending
 	if not pending:
 		_result.text = _result_text(request)
@@ -72,6 +88,15 @@ func refresh() -> void:
 	for option: Variant in request.options:
 		if option is Dictionary:
 			_buttons.add_child(_option_button(request, option))
+
+
+func _on_always_allow() -> void:
+	var request: PermissionRequest = entry.permission
+	var pattern := _rule_edit.text.strip_edges()
+	if pattern.is_empty() or not request.is_pending():
+		return
+	request.rule_to_add = {"pattern": pattern, "list": "allow"}
+	request.select(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]))
 
 
 func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
@@ -106,6 +131,8 @@ static func _option_label(option: Dictionary) -> String:
 static func _result_text(request: PermissionRequest) -> String:
 	if request.outcome.get("outcome") != "selected":
 		return "⊘ " + I18n.t("Permission cancelled")
+	if not request.rule_to_add.is_empty() and request.was_allowed():
+		return "✓ " + I18n.t("Allowed · «%s» added to the Auto allowlist") % str(request.rule_to_add.get("pattern", ""))
 	match request.chosen_kind:
 		PermissionRequest.KIND_ALLOW_ONCE:
 			return "✓ " + I18n.t("Allowed once")

@@ -248,15 +248,17 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 
 ## 7. Modos y permisos
 
-| Grupo | Preguntar | Revisar | Construir | One-shot |
-|---|---|---|---|---|
-| read | allow | allow | allow | allow |
-| diagnostics | allow | allow | allow | allow |
-| edit_scene | deny | deny | ask | allow |
-| edit_files (incluye `fs/write_text_file` y Edit/Write del agente) | deny | deny | ask | allow |
-| run | deny | ask | ask | allow |
-| shell / execute del agente | deny | deny | ask | ask |
-| project settings / export / addons | deny | deny | ask | allow (D49) |
+| Grupo | Preguntar | Revisar | Construir | Auto (D57) | One-shot |
+|---|---|---|---|---|---|
+| read | allow | allow | allow | allow | allow |
+| diagnostics | allow | allow | allow | allow | allow |
+| edit_scene | deny | deny | ask | allow | allow |
+| edit_files (incluye `fs/write_text_file` y Edit/Write del agente) | deny | deny | ask | allow | allow |
+| run | deny | ask | ask | allow | allow |
+| shell / execute del agente | deny | deny | ask | ask (primero las listas) | ask |
+| project settings / export / addons | deny | deny | ask | allow | allow (D49) |
+
+- **Auto** (D57) es el chat sin tarjetas para lo que se puede deshacer. Para shell, `ShellRules` compara el comando con dos listas de patrones (allowlist y «preguntar siempre») que el usuario revisa en Settings: corre solo si cada parte del comando está en la allowlist y ninguna en la otra; sustitución de comandos o redirección a un archivo → tarjeta. La tarjeta propone un patrón para «Permitir siempre», que queda en las listas con su origen y fecha.
 
 - Los permisos del agente (`session/request_permission`) se mapean a grupos según el `kind` del tool call: `read`/`search` → read; `edit`/`delete`/`move` → edit_files; `execute` → shell; el resto → ask.
 - Las tools MCP del addon aplican la misma política del lado del server. En "ask", la tool espera la respuesta de la UI con un timeout configurable; si vence, devuelve deny con mensaje.

@@ -8,6 +8,8 @@ signal connected
 signal disconnected
 ## Terminó la sincronización del modo del agente con el del harness (session/set_mode).
 signal agent_mode_synced
+## El usuario agregó una regla del modo Auto desde una tarjeta: hay que guardar la config.
+signal shell_rules_changed
 
 const AgentProcess := preload("../transport/agent_process.gd")
 const AcpClient := preload("../acp/acp_client.gd")
@@ -18,6 +20,7 @@ const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionRequest := preload("permission_request.gd")
+const ShellRules := preload("shell_rules.gd")
 const ProjectWriteGuard := preload("project_write_guard.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
@@ -55,6 +58,7 @@ const MODE_RULES: Dictionary = {
 	SessionModel.HarnessMode.ASK: "Only answer questions: do not modify files, scenes or settings, and do not run commands.",
 	SessionModel.HarnessMode.REVIEW: "Read-only review: do not modify anything. Report the findings in a ```json block with {\"findings\":[{\"path\",\"line\",\"severity\":\"bug|order|perf|style\",\"title\",\"body\",\"suggestion\"}]} (path relative to the project, line starting at 1). Each block replaces the previous review: include every finding that still applies. Departures from the Godot conventions below are findings too (severity order for structure, style for typing).",
 	SessionModel.HarnessMode.BUILD: "You can edit scenes and scripts; the user approves the changes.",
+	SessionModel.HarnessMode.AUTO: "You can edit scenes, scripts and project settings and run the game without asking. Shell commands run without asking only if they are on the user's allowlist (read-only ones like ls, grep, git status); any other command waits for the user's approval, so prefer the godot.* and file tools.",
 	SessionModel.HarnessMode.ONESHOT: "Work autonomously until the goal is met; verify with run_scene, capture_game_frame and get_errors after each task.",
 }
 ## Modo del agente (si los publica) que corresponde a cada modo del harness.
@@ -63,11 +67,14 @@ const AGENT_MODE_FOR: Dictionary = {
 	SessionModel.HarnessMode.REVIEW: ["plan"],
 	SessionModel.HarnessMode.BUILD: ["default"],
 	SessionModel.HarnessMode.ONESHOT: ["default"],
+	SessionModel.HarnessMode.AUTO: ["default"],
 }
 
 var model: SessionModel
 var client: AcpClient
 var policy: PermissionPolicy = PermissionPolicy.new()
+## Reglas de shell del modo Auto (D57): el array de project_config, que se modifica en el lugar.
+var shell_rules: Array = ShellRules.default_rules()
 var fs: FsHandler
 var agent_log: AgentLog
 ## Cuota del plan (spec §10.1): estado, ventanas y límite; la UI y el One-shot la leen de acá.
@@ -526,6 +533,16 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	var decision := policy.decide(request.group, model.harness_mode)
 	if PermissionPolicy.is_godot_mcp_tool(tool_call):
 		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
+	elif decision == PermissionPolicy.ASK and request.group == PermissionPolicy.GROUP_SHELL and model.harness_mode == SessionModel.HarnessMode.AUTO:
+		var command := str((checked.get("rawInput") as Dictionary).get("command", "")) if checked.get("rawInput") is Dictionary else ""
+		var verdict := ShellRules.classify(command, shell_rules)
+		if verdict.decision == ShellRules.ALLOW:
+			_log_perm("allowed by Auto mode, %s: %s" % [verdict.reason, command])
+			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
+		_log_perm("Auto mode asks, %s: %s" % [verdict.reason, command])
+		# En lugar de «siempre en esta sesión» (todo el grupo shell), la tarjeta propone una regla.
+		request.rule_pattern = ShellRules.suggest_pattern(command, shell_rules)
+		request.options = options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
 	match decision:
 		PermissionPolicy.ALLOW:
 			_log_perm("allowed by %s mode: %s" % [_mode_label(), request.title])
@@ -535,6 +552,8 @@ func _on_request_permission(params: Dictionary) -> Variant:
 			_notify_denied(request.group, request.title)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	var outcome := await _ask_user(request, 0)
+	if not request.rule_to_add.is_empty():
+		_add_shell_rule(request.rule_to_add)
 	if outcome.get("outcome") != "selected":
 		return {"outcome": {"outcome": "cancelled"}}
 	if request.was_allowed():
@@ -562,6 +581,19 @@ func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 		policy.grant_for_session(request.group)
 	_log_perm("%s: %s" % [_outcome_label(request), request.title])
 	return outcome
+
+
+## Regla elegida en una tarjeta («Permitir siempre»): queda en las listas con su origen y fecha.
+func _add_shell_rule(rule: Dictionary) -> void:
+	var pattern := ShellRules.normalize(str(rule.get("pattern", "")))
+	if pattern.is_empty():
+		return
+	for existing: Variant in shell_rules:
+		if existing is Dictionary and existing.get("pattern") == pattern and existing.get("list") == rule.get("list"):
+			return
+	shell_rules.append(ShellRules.make_rule(pattern, str(rule.get("list", ShellRules.LIST_ALLOW)), ShellRules.ORIGIN_CARD, ShellRules.today()))
+	_log_perm("rule added to the Auto %s list: %s" % [rule.get("list", ShellRules.LIST_ALLOW), pattern])
+	shell_rules_changed.emit()
 
 
 func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bool:

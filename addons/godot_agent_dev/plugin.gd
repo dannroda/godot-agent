@@ -47,6 +47,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-queue-test [--godot-agent-ui-shot=<ruta.png>]`: con un turno largo
 ##   (tests/scripts/cancel.json) se escriben dos prompts en el composer: quedan en cola, el cancel
 ##   la pausa, «Enviar ahora» la retoma y salen los dos en orden.
+## - `-- --godot-agent-auto-test [--godot-agent-ui-shot=<prefijo>]`: modo Auto (D57) por la UI: botón del
+##   dock, tarjetas con «Permitir siempre», la regla guardada y la sección de Settings → Permisos.
 ## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla Agent,
 ##   el Agent Log y cada página de Settings: ningún texto visible que tenga traducción queda en inglés.
 
@@ -98,6 +100,8 @@ const LongSessionCheck := preload("long_session_check.gd")
 const CLAUDE_ONESHOT_TIMEOUT_S := 2700.0
 const OneShotUiCheck := preload("oneshot_ui_check.gd")
 const ReviewCheck := preload("review_check.gd")
+const AUTO_ARG := "--godot-agent-auto-test"
+const AutoCheck := preload("auto_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
 const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
@@ -136,6 +140,8 @@ func _enter_tree() -> void:
 		_run_claude_scene_test.call_deferred()
 	if REVIEW_ARG in args:
 		_run_review_test.call_deferred(false)
+	if AUTO_ARG in args:
+		_run_auto_test.call_deferred()
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
 	if ONESHOT_ARG in args:
@@ -456,6 +462,15 @@ func _run_review_test(real_claude: bool) -> void:
 	for failure: String in failures:
 		print("[review-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "review-test%s: %d fallas" % [" (Claude)" if real_claude else "", failures.size()])
+
+
+func _run_auto_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures := _failures(await AutoCheck.new().run_auto(get_tree(), _arg_value(UI_SHOT_ARG)))
+	for failure: String in failures:
+		print("[auto-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "auto-test: %d fallas" % failures.size())
 
 
 func _run_oneshot_test() -> void:

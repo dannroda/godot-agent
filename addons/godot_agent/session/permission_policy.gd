@@ -37,18 +37,20 @@ const MODE_KEYS: Dictionary = {
 	SessionModel.HarnessMode.REVIEW: "review",
 	SessionModel.HarnessMode.BUILD: "build",
 	SessionModel.HarnessMode.ONESHOT: "oneshot",
+	SessionModel.HarnessMode.AUTO: "auto",
 }
-## Defaults de la spec §7: grupo -> [Preguntar, Revisar, Construir, One-shot].
+## Defaults de la spec §7: grupo -> [Preguntar, Revisar, Construir, One-shot, Auto].
+## En Auto, el "ask" de shell lo resuelve primero ShellRules con sus listas (D57).
 const DEFAULTS: Dictionary = {
-	GROUP_READ: [ALLOW, ALLOW, ALLOW, ALLOW],
-	GROUP_DIAGNOSTICS: [ALLOW, ALLOW, ALLOW, ALLOW],
-	GROUP_EDIT_SCENE: [DENY, DENY, ASK, ALLOW],
-	GROUP_EDIT_FILES: [DENY, DENY, ASK, ALLOW],
-	GROUP_RUN: [DENY, ASK, ASK, ALLOW],
-	GROUP_SHELL: [DENY, DENY, ASK, ASK],
+	GROUP_READ: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
+	GROUP_DIAGNOSTICS: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
+	GROUP_EDIT_SCENE: [DENY, DENY, ASK, ALLOW, ALLOW],
+	GROUP_EDIT_FILES: [DENY, DENY, ASK, ALLOW, ALLOW],
+	GROUP_RUN: [DENY, ASK, ASK, ALLOW, ALLOW],
+	GROUP_SHELL: [DENY, DENY, ASK, ASK, ASK],
 	# One-shot: allow desde D49. Input map, autoloads y settings son parte de armar un juego, y antes
 	# el agente los escribía en project.godot con edit_files (allow en One-shot).
-	GROUP_PROJECT: [DENY, DENY, ASK, ALLOW],
+	GROUP_PROJECT: [DENY, DENY, ASK, ALLOW, ALLOW],
 }
 ## kind de un tool call de ACP → grupo.
 const KIND_GROUPS: Dictionary = {

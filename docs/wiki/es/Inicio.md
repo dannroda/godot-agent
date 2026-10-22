@@ -10,7 +10,7 @@ Godot Agent Harness pone un agente de código adentro del editor de Godot. El ag
 |---|---|
 | [Primeros pasos](Primeros-pasos.md) | Instalar, iniciar sesión, el dock, los primeros prompts, el idioma de la interfaz. |
 | [Cómo funciona](Como-funciona.md) | Las piezas: proceso del agente, ACP, servidor MCP, sincronización con el editor, sesiones. |
-| [Modos y permisos](Modos-y-permisos.md) | Preguntar, Revisar, Construir y One-shot, y la matriz de permisos. |
+| [Modos y permisos](Modos-y-permisos.md) | Preguntar, Revisar, Construir, Auto y One-shot, y la matriz de permisos. |
 | [Herramientas del editor](Herramientas-del-editor.md) | Las tools `godot.*` que puede llamar el agente y qué hace cada una. |
 | [One-shot](One-shot.md) | Construir un objetivo entero: spec, plan, presupuestos, checkpoints, cuota, cambio de cuenta, informe. |
 | [Revisar](Revisar.md) | Revisión de código con hallazgos en el Script Editor. |

@@ -10,16 +10,16 @@ const M := SessionModel.HarnessMode
 func test_default_matrix() -> void:
 	var policy := PermissionPolicy.new()
 	var expected := {
-		"read": ["allow", "allow", "allow", "allow"],
-		"diagnostics": ["allow", "allow", "allow", "allow"],
-		"edit_scene": ["deny", "deny", "ask", "allow"],
-		"edit_files": ["deny", "deny", "ask", "allow"],
-		"run": ["deny", "ask", "ask", "allow"],
-		"shell": ["deny", "deny", "ask", "ask"],
-		"project": ["deny", "deny", "ask", "allow"],
+		"read": ["allow", "allow", "allow", "allow", "allow"],
+		"diagnostics": ["allow", "allow", "allow", "allow", "allow"],
+		"edit_scene": ["deny", "deny", "ask", "allow", "allow"],
+		"edit_files": ["deny", "deny", "ask", "allow", "allow"],
+		"run": ["deny", "ask", "ask", "allow", "allow"],
+		"shell": ["deny", "deny", "ask", "ask", "ask"],
+		"project": ["deny", "deny", "ask", "allow", "allow"],
 	}
 	for group: String in expected:
-		for mode: int in [M.ASK, M.REVIEW, M.BUILD, M.ONESHOT]:
+		for mode: int in [M.ASK, M.REVIEW, M.BUILD, M.ONESHOT, M.AUTO]:
 			assert_eq(policy.decide(group, mode), expected[group][mode], "%s/%d" % [group, mode])
 	assert_eq(policy.decide("other", M.ONESHOT), "ask", "grupo desconocido → ask")
 
@@ -51,3 +51,12 @@ func test_kind_mapping() -> void:
 	assert_eq(PermissionPolicy.group_for_tool_call({"kind": "fetch"}), "other", "fetch → other")
 	assert_true(PermissionPolicy.is_godot_mcp_tool({"title": "mcp__godot__scene_tree"}), "tool del server godot")
 	assert_false(PermissionPolicy.is_godot_mcp_tool({"title": "Bash"}), "otra tool")
+
+
+func test_auto_overrides() -> void:
+	var policy := PermissionPolicy.new({"shell": {"auto": "deny"}, "run": {"auto": "ask"}})
+	assert_eq(policy.decide("shell", M.AUTO), "deny", "override de Auto")
+	assert_eq(policy.decide("run", M.AUTO), "ask", "run en Auto con override")
+	assert_eq(policy.decide("run", M.ONESHOT), "allow", "no toca One-shot")
+	policy.set_matrix_value("edit_files", M.AUTO, "ask")
+	assert_eq(policy.overrides.edit_files, {"auto": "ask"}, "se guarda con la clave auto")

@@ -4,11 +4,14 @@ extends Resource
 ## Vive en res://addons/godot_agent/config/project_config.tres (excluido del export con el addon).
 
 const PATH := "res://addons/godot_agent/config/project_config.tres"
+const ShellRules := preload("../session/shell_rules.gd")
 
 ## grupo (String) -> { modo (String) -> "allow" | "ask" | "deny" }. Vacío = defaults de la spec.
 @export var permissions: Dictionary = {}
 ## Segundos que una tool MCP espera la respuesta de la UI en "ask" antes de denegar.
 @export_range(10, 3600, 1, "suffix:s") var permission_timeout_s: int = 300
+## Modo Auto (D57): reglas de shell `{pattern, list: "allow"|"ask", origin, added}`.
+@export var auto_shell_rules: Array = ShellRules.default_rules()
 @export_group("One-shot")
 @export_range(1, 600, 1, "suffix:min") var budget_minutes: int = 45
 @export_range(10000, 20000000, 1000) var budget_tokens: int = 1500000

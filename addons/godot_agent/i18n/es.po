@@ -1972,3 +1972,78 @@ msgstr "Lista de tools compacta: el agente encuentra las tools godot extra con g
 
 msgid "The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session."
 msgstr "La lista de tools mantiene lectura, edición de escenas y correr el juego; tilemaps, animación, recursos, archivos, settings del proyecto, la documentación de la API y el juego en vivo van por godot.methods y godot.run. Ahorra contexto en cada turno. Vale desde la próxima sesión."
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "The agent edits scenes, scripts and settings and runs the game without asking. Shell commands on the allowlist run on their own; any other asks (Settings → Permissions)."
+msgstr "El agente edita escenas, scripts y settings y corre el juego sin preguntar. Los comandos de shell de la allowlist corren solos; cualquier otro pregunta (Settings → Permisos)."
+
+msgid "Pattern for the Auto mode allowlist: * matches anything. You can review the lists in Settings → Permissions."
+msgstr "Patrón para la allowlist del modo Auto: * vale por cualquier texto. Las listas se revisan en Settings → Permisos."
+
+msgid "Always allow"
+msgstr "Permitir siempre"
+
+msgid "Allowed · «%s» added to the Auto allowlist"
+msgstr "Permitido · «%s» agregado a la allowlist de Auto"
+
+msgid "Allowlist"
+msgstr "Allowlist"
+
+msgid "Always ask"
+msgstr "Preguntar siempre"
+
+msgid "Default"
+msgstr "Default"
+
+msgid "Added by you"
+msgstr "Agregada por vos"
+
+msgid "From a permission card"
+msgstr "Desde una tarjeta de permiso"
+
+msgid "Auto mode: shell commands"
+msgstr "Modo Auto: comandos de shell"
+
+msgid "In Auto mode, a command runs without asking if every part of it matches the allowlist and none matches the «Always ask» list. Anything else shows a card. * matches anything, and «git log *» also matches «git log» alone. The agent's permission log (Agent Log, perm channel) records each decision."
+msgstr "En modo Auto, un comando corre sin preguntar si cada parte coincide con la allowlist y ninguna con la lista «Preguntar siempre». Todo lo demás muestra una tarjeta. * vale por cualquier texto, y «git log *» también cubre «git log» solo. El log de permisos (Agent Log, canal perm) registra cada decisión."
+
+msgid "All rules"
+msgstr "Todas las reglas"
+
+msgid "Added by you or from cards"
+msgstr "Agregadas por vos o desde tarjetas"
+
+msgid "e.g. npm test *"
+msgstr "p. ej. npm test *"
+
+msgid "Remove selected"
+msgstr "Quitar la seleccionada"
+
+msgid "Restore the default rules"
+msgstr "Restaurar las reglas default"
+
+msgid "Puts back the default rules and keeps the ones added by you or from cards."
+msgstr "Vuelve a poner las reglas default y conserva las agregadas por vos o desde tarjetas."
+
+msgid "Auto mode: a rule has an empty pattern."
+msgstr "Modo Auto: hay una regla con el patrón vacío."
+
+msgid "Auto mode: «%s» is twice in the same list."
+msgstr "Modo Auto: «%s» está dos veces en la misma lista."
+
+msgid "Pattern"
+msgstr "Patrón"
+
+msgid "List"
+msgstr "Lista"
+
+msgid "Origin"
+msgstr "Origen"
+
+msgid "Added"
+msgstr "Agregada"
+
+msgid "In Auto mode, \"Ask\" lets the lists of the Auto mode section decide first: commands on the allowlist run without a card."
+msgstr "En modo Auto, \"Preguntar\" deja que primero decidan las listas de la sección Modo Auto: los comandos de la allowlist corren sin tarjeta."

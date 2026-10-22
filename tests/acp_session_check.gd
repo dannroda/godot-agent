@@ -11,6 +11,7 @@ const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const FsHandler := preload("res://addons/godot_agent/acp/fs_handler.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
+const ShellRules := preload("res://addons/godot_agent/session/shell_rules.gd")
 const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
 const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
 const EditorBinary := preload("res://addons/godot_agent/transport/editor_binary.gd")
@@ -18,7 +19,7 @@ const TMP_DIR := "res://tests/tmp"
 
 const TIMEOUT_S := 20.0
 ## Un await colgado no debe colgar el test: pasado este tiempo, falla y sale.
-const WATCHDOG_S := 90.0
+const WATCHDOG_S := 120.0
 
 var _failures: PackedStringArray = []
 var _checks: int = 0
@@ -36,6 +37,7 @@ func _initialize() -> void:
 	await _scenario_permissions_build()
 	await _scenario_permissions_ask()
 	await _scenario_project_writes()
+	await _scenario_auto_shell()
 	await _scenario_quota()
 	await _scenario_history()
 	await _scenario_login()
@@ -279,6 +281,57 @@ func _scenario_project_writes() -> void:
 	var rejected := model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.NOTICE and entry.text.begins_with("Rejected:"))
 	_check(rejected.size() == 3, "escrituras: 3 avisos de rechazo (%d)" % rejected.size())
 	_check(not FileAccess.file_exists("res://tests/tmp/boss.tscn"), "escrituras: la escena no se escribió")
+	controller.stop()
+
+
+## Modo Auto (D57): edición y comandos de la allowlist sin tarjeta; rm y una redirección piden
+## permiso; «Permitir siempre» agrega la regla, que cubre el comando siguiente.
+func _scenario_auto_shell() -> void:
+	print("— modo Auto")
+	var made := await _make("auto_shell", SessionModel.HarnessMode.AUTO)
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	var log: AgentLog = made[2]
+	var rules := ShellRules.default_rules()
+	controller.shell_rules = rules
+	var saved: Array[int] = [0]
+	controller.shell_rules_changed.connect(func() -> void: saved[0] += 1)
+	var cards: Array[String] = []
+	var proposed: Array[String] = []
+	var offered_session: Array[bool] = [false]
+	model.permission_requested.connect(func(request: PermissionRequest) -> void:
+		cards.append(request.title)
+		proposed.append(request.rule_pattern)
+		if not request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS]).is_empty():
+			offered_session[0] = true
+		if request.title == "npm test":
+			request.rule_to_add = {"pattern": "npm test *", "list": "allow"}
+			request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]))
+		else:
+			request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE]))
+	)
+	var stop_reason: String = await controller.send_prompt("auto")
+	_check(stop_reason == "end_turn", "auto: end_turn (%s)" % stop_reason)
+	var responses := _agent_responses(log)
+	if responses.size() == 6:
+		_check(responses[0].contains("\"optionId\":\"allow\""), "auto: ls && git status sin tarjeta (%s)" % responses[0])
+		_check(responses[1].contains("\"optionId\":\"reject\""), "auto: rm pide permiso y se rechaza (%s)" % responses[1])
+		_check(responses[2].contains("\"optionId\":\"allow\""), "auto: npm test permitido desde la tarjeta (%s)" % responses[2])
+		_check(responses[3].contains("\"optionId\":\"allow\""), "auto: la regla nueva cubre npm test -- --watch (%s)" % responses[3])
+		_check(responses[4].contains("\"optionId\":\"allow\""), "auto: edición sin tarjeta (%s)" % responses[4])
+		_check(responses[5].contains("\"optionId\":\"reject\""), "auto: redirección a un archivo pide permiso (%s)" % responses[5])
+	else:
+		_check(false, "auto: 6 respuestas (%d)" % responses.size())
+	_check(cards == ["rm -rf /tmp/godot_agent_auto", "npm test", "echo hola > /tmp/godot_agent_auto.txt"], "auto: tarjetas solo para rm, npm test y la redirección (%s)" % str(cards))
+	_check(proposed == ["", "npm test", ""], "auto: patrones propuestos (%s)" % str(proposed))
+	_check(not offered_session[0], "auto: la tarjeta no ofrece «siempre en esta sesión»")
+	var added: Array = rules.filter(func(rule: Dictionary) -> bool: return rule.origin == ShellRules.ORIGIN_CARD)
+	_check(added.size() == 1 and added[0].pattern == "npm test *" and added[0].list == "allow" and not str(added[0].added).is_empty(), "auto: regla agregada con origen y fecha (%s)" % str(added))
+	_check(saved[0] == 1, "auto: se pide guardar la config una vez (%d)" % saved[0])
+	var perm_log := "\n".join(log.entries().filter(func(entry: Dictionary) -> bool: return entry.channel == AgentLog.CH_PERM).map(func(entry: Dictionary) -> String: return str(entry.message)))
+	_check(perm_log.contains("allowed by Auto mode, on the allowlist (ls *, git status *)"), "auto: el log dice qué regla permitió")
+	_check(perm_log.contains("Auto mode asks, «rm -rf /tmp/godot_agent_auto» is on the ask list (rm *)"), "auto: el log dice por qué preguntó")
+	_check(perm_log.contains("rule added to the Auto allow list: npm test *"), "auto: el log registra la regla nueva")
 	controller.stop()
 
 

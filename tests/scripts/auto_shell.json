@@ -1,0 +1,208 @@
+{
+	"turns": [
+		{
+			"steps": [
+				{
+					"chunk": "Modo Auto."
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "a0",
+								"title": "ls -la && git status",
+								"kind": "execute",
+								"rawInput": {
+									"command": "ls -la && git status"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "always",
+									"name": "Always allow",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "a1",
+								"title": "rm -rf /tmp/godot_agent_auto",
+								"kind": "execute",
+								"rawInput": {
+									"command": "rm -rf /tmp/godot_agent_auto"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "always",
+									"name": "Always allow",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "a2",
+								"title": "npm test",
+								"kind": "execute",
+								"rawInput": {
+									"command": "npm test"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "always",
+									"name": "Always allow",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "a3",
+								"title": "npm test -- --watch",
+								"kind": "execute",
+								"rawInput": {
+									"command": "npm test -- --watch"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "always",
+									"name": "Always allow",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "e1",
+								"title": "Edit /tmp/godot_agent_auto.gd",
+								"kind": "edit",
+								"rawInput": {
+									"file_path": "/tmp/godot_agent_auto.gd",
+									"old_string": "a",
+									"new_string": "b"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "always",
+									"name": "Always allow",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "a4",
+								"title": "echo hola > /tmp/godot_agent_auto.txt",
+								"kind": "execute",
+								"rawInput": {
+									"command": "echo hola > /tmp/godot_agent_auto.txt"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "always",
+									"name": "Always allow",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"chunk": "Listo."
+				}
+			]
+		}
+	]
+}

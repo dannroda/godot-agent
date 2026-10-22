@@ -30,7 +30,7 @@ Other agents (Gemini CLI, Codex, your own) are set up in **Settings → Agents**
 ## 3. The dock
 
 - **Header**: agent profile, session title, **History**, **New session** and **Settings**.
-- **Modes**: Ask · Review · Build · One-shot (see [Modes and permissions](Modes-and-permissions.md)).
+- **Modes**: Ask · Review · Build · Auto · One-shot (see [Modes and permissions](Modes-and-permissions.md)).
 - **Conversation**: Markdown, grouped tool calls (with their duration), diffs, permission cards and the agent's plan. A subagent's work stays folded inside its `Agent` card.
 - **Composer**:
   - **Enter** sends; **Ctrl+Enter** or **Shift+Enter** add a line; **Esc** stops the turn;
