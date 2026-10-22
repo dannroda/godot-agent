@@ -196,6 +196,8 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `validate_scripts` | diagnostics | `paths?` | Parseo de los scripts indicados (o todos), con errores por línea. Usar la recarga o el parse del editor; si no alcanza, `godot --headless --check-only` como subproceso |
 | `capture_editor_viewport` | diagnostics | `which: "2d"\|"3d"` | PNG en base64 como content de imagen |
 | `add_node` | edit_scene | `parent`, `type`, `name`, `properties?` | NodePath creado y nombre del paso de undo |
+| `add_nodes` | edit_scene | parent, nodes[{name, type\|scene, properties?, script?, groups?, children?}], scene? | Subárbol entero en un paso de undo (m4-08) |
+| `duplicate_node` | edit_scene | node_path, new_name?, new_parent?, scene? | Duplica con hijos, script, grupos y conexiones internas |
 | `set_properties` | edit_scene | `node_path`, `properties` | Valores anteriores y nuevos |
 | `remove_node` / `reparent_node` / `rename_node` | edit_scene | — | Con undo |
 | `connect_signal` | edit_scene | `from`, `signal`, `to`, `method` | Con undo y conexión persistente |

@@ -16,7 +16,9 @@ El agente ve estas tools como `godot.<nombre>` (Claude Code las muestra como `mc
 | Diagnóstico | `get_errors` | Errores y warnings del editor y de la última ejecución. Devuelve una marca: pasala como `since` para ver solo los nuevos. |
 | | `validate_scripts` | Parsea los scripts en un proceso aparte (con el binario del editor) y devuelve los errores por archivo y línea, sin correr el juego. |
 | | `capture_editor_viewport` | Una imagen del viewport 2D/3D. |
-| Editar escenas | `add_node`, `set_properties`, `remove_node`, `reparent_node`, `rename_node`, `connect_signal`, `instantiate_scene`, `open_scene`, `save_scene` | Ediciones sobre escenas abiertas, cada una un paso de deshacer del editor. |
+| Editar escenas | `add_nodes` | Un subárbol entero en una llamada y un paso de deshacer: nodos anidados con tipo, propiedades, script, grupos y escenas instanciadas. Si un item es inválido, no crea nada. |
+| | `duplicate_node` | Copia un nodo con sus hijos, script, grupos y propiedades; al lado del original o bajo otro padre. |
+| | `add_node`, `set_properties`, `remove_node`, `reparent_node`, `rename_node`, `connect_signal`, `instantiate_scene`, `open_scene`, `save_scene` | Ediciones sobre escenas abiertas, cada una un paso de deshacer del editor. |
 | Editar archivos | `create_scene`, `attach_script` | Escenas y scripts nuevos en disco. `create_scene` también recibe el script de la raíz y sus propiedades (variables exportadas incluidas), así ninguna escena se escribe a mano. |
 | Ejecutar | `run_scene` | Corre una escena (con `inputs` simulados, si querés) y devuelve los errores reales. |
 | | `capture_game_frame` | Un frame del juego corriendo. |

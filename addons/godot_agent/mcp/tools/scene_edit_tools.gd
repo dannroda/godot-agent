@@ -1,7 +1,8 @@
 @tool
 extends RefCounted
-## Tools de edición (spec §6): grupo edit_scene (add_node, set_properties, remove_node,
-## reparent_node, rename_node, connect_signal, instantiate_scene, open_scene, save_scene) y
+## Tools de edición (spec §6): grupo edit_scene (add_node, add_nodes, duplicate_node,
+## set_properties, remove_node, reparent_node, rename_node, connect_signal, instantiate_scene,
+## open_scene, save_scene) y
 ## edit_files (create_scene, attach_script). Cada tool que cambia la escena es una sola acción de
 ## EditorUndoRedoManager y devuelve el nombre del paso de undo.
 
@@ -13,6 +14,8 @@ const PermissionPolicy := preload("../../session/permission_policy.gd")
 
 const ACTION_PREFIX := "Agent: "
 const SCENE_ARG := {"type": "string", "description": "res://…tscn scene; opened if it is not the current one (default: the open one)"}
+## Tope de nodos por add_nodes: un árbol más grande se arma en varias llamadas.
+const BATCH_LIMIT := 200
 
 ## Callable(tool_name: String, args: Dictionary, undo_info: Dictionary): cada acción commiteada.
 var on_action: Callable
@@ -31,6 +34,17 @@ func tools() -> Array:
 				"properties": {"type": "object"},
 				"scene": SCENE_ARG,
 			}, ["parent", "type", "name"], _add_node),
+		McpTool.create("add_nodes", scene,
+			"Builds a whole subtree in ONE call and ONE undo step: nested nodes with type, properties, script, groups and instanced scenes. Prefer it over many add_node calls when building a scene. Each item of `nodes` is {name, type | scene (res://…tscn to instance), properties?, script? (res://…gd, created if missing), groups?, children?: [items]}. Nothing is created if any item is invalid.",
+			{
+				"parent": {"type": "string", "description": "NodePath of the parent (\".\" = root)"},
+				"nodes": {"type": "array", "description": "Top-level items; each may have `children`"},
+				"scene": SCENE_ARG,
+			}, ["parent", "nodes"], _add_nodes),
+		McpTool.create("duplicate_node", scene,
+			"Duplicates a node with its children, script, groups, properties and the signal connections between them (with undo). The copy goes right after the original, or under `new_parent`.",
+			{"node_path": {"type": "string"}, "new_name": {"type": "string"}, "new_parent": {"type": "string"}, "scene": SCENE_ARG},
+			["node_path"], _duplicate_node),
 		McpTool.create("set_properties", scene,
 			"Changes properties of a node (with undo, a single step). Returns the old and new values.",
 			{"node_path": {"type": "string"}, "properties": {"type": "object"}, "scene": SCENE_ARG},
@@ -108,6 +122,174 @@ func _add_node(args: Dictionary) -> Dictionary:
 	if not applied.is_empty():
 		text += " Properties: %s." % ", ".join(applied)
 	return _done(text, action)
+
+
+func _add_nodes(args: Dictionary) -> Dictionary:
+	var root := _scene_root(args)
+	if root == null:
+		return _no_scene(args)
+	var parent := SceneAccess.find_node(root, str(args.parent))
+	if parent == null:
+		return _missing(root, str(args.parent))
+	var items: Array = args.nodes
+	if items.is_empty():
+		return McpTool.error("`nodes` is empty.")
+	var created: Array[Node] = []  # padres antes que hijos, para asignar owners en orden
+	var tops: Array[Node] = []
+	var summary: PackedStringArray = []
+	var taken := {}
+	for child: Node in parent.get_children():
+		taken[String(child.name)] = true
+	for item: Variant in items:
+		var built: Variant = _build_item(item, String(parent.name), taken, created, summary, 0)
+		if built is String:
+			for node: Node in tops:
+				node.free()
+			return McpTool.error(built + " Nothing was created.")
+		tops.append(built)
+		if created.size() > BATCH_LIMIT:
+			for node: Node in tops:
+				node.free()
+			return McpTool.error("More than %d nodes in one call: split the tree in several add_nodes calls. Nothing was created." % BATCH_LIMIT)
+	var action := ACTION_PREFIX + "add %d nodes under %s" % [created.size(), parent.name]
+	var undo_redo := EditorInterface.get_editor_undo_redo()
+	undo_redo.create_action(action, UndoRedo.MERGE_DISABLE, root)
+	for top: Node in tops:
+		undo_redo.add_do_method(parent, &"add_child", top, true)
+		undo_redo.add_do_reference(top)
+	for node: Node in created:
+		undo_redo.add_do_method(node, &"set_owner", root)
+	for top: Node in tops:
+		undo_redo.add_undo_method(parent, &"remove_child", top)
+	undo_redo.commit_action()
+	_select(tops[0])
+	_record("add_nodes", args, action, root)
+	return _done("Created %d nodes under %s:\n%s" % [created.size(), SceneAccess.relative_path(root, parent), "\n".join(summary)], action)
+
+
+## Arma un item de add_nodes (y sus hijos) fuera del árbol. Devuelve el Node o el error, con la
+## ruta del item. `taken`: nombres ya usados entre los hermanos.
+func _build_item(item: Variant, parent_label: String, taken: Dictionary, created: Array[Node], summary: PackedStringArray, depth: int) -> Variant:
+	if not item is Dictionary:
+		return "Each item of `nodes` must be an object (under %s)." % parent_label
+	var data: Dictionary = item
+	for key: String in data:
+		if not key in ["name", "type", "scene", "properties", "script", "groups", "children"]:
+			return "Unknown key '%s' in an item under %s. Valid: name, type, scene, properties, script, groups, children." % [key, parent_label]
+	var node_name := str(data.get("name", "")).validate_node_name()
+	if node_name.is_empty():
+		return "An item under %s has no `name`." % parent_label
+	var label := "%s/%s" % [parent_label, node_name]
+	if taken.has(node_name):
+		return "%s: there is already a node named %s there." % [label, node_name]
+	var node: Node
+	var scene_path := str(data.get("scene", ""))
+	if not scene_path.is_empty():
+		if data.has("type"):
+			return "%s: use either `type` or `scene`, not both." % label
+		if not ResourceLoader.exists(scene_path, "PackedScene"):
+			return "%s: the scene %s does not exist." % [label, scene_path]
+		var packed := load(scene_path) as PackedScene
+		node = packed.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) if packed else null
+		if node == null:
+			return "%s: could not instantiate %s." % [label, scene_path]
+	else:
+		var made := _instantiate_type(str(data.get("type", "")))
+		if made is String:
+			return "%s: %s" % [label, made if data.has("type") else "missing `type` (or `scene`)."]
+		node = made
+	node.name = node_name
+	var script_path := str(data.get("script", ""))
+	if not script_path.is_empty():
+		var loaded: Variant = _load_or_create_script(script_path, node)
+		if loaded is String:
+			node.free()
+			return "%s: %s" % [label, loaded]
+		node.set_script(loaded)
+	var properties: Variant = data.get("properties", {})
+	if not properties is Dictionary:
+		node.free()
+		return "%s: `properties` must be an object." % label
+	for property: String in properties:
+		var result := ValueCoercion.coerce(node, property, properties[property])
+		if not result.ok:
+			node.free()
+			return "%s: %s" % [label, result.error]
+		node.set(property, result.value)
+	var groups: Variant = data.get("groups", [])
+	if not groups is Array:
+		node.free()
+		return "%s: `groups` must be an array of names." % label
+	for group: Variant in groups:
+		node.add_to_group(str(group), true)
+	taken[node_name] = true
+	created.append(node)
+	var details: PackedStringArray = [scene_path if not scene_path.is_empty() else node.get_class()]
+	if not script_path.is_empty():
+		details.append(script_path.get_file())
+	summary.append("%s%s (%s)" % ["  ".repeat(depth), node_name, ", ".join(details)])
+	var children: Variant = data.get("children", [])
+	if not children is Array:
+		node.free()
+		return "%s: `children` must be an array." % label
+	var child_names := {}
+	for child: Node in node.get_children():
+		child_names[String(child.name)] = true
+	for child_item: Variant in children:
+		var child: Variant = _build_item(child_item, label, child_names, created, summary, depth + 1)
+		if child is String:
+			node.free()
+			return child
+		node.add_child(child, true)
+	return node
+
+
+func _duplicate_node(args: Dictionary) -> Dictionary:
+	var root := _scene_root(args)
+	if root == null:
+		return _no_scene(args)
+	var node := SceneAccess.find_node(root, str(args.node_path))
+	if node == null:
+		return _missing(root, str(args.node_path))
+	if node == root:
+		return McpTool.error("Cannot duplicate the scene root: instance its scene instead.")
+	var parent := node.get_parent()
+	var new_parent_path := McpTool.str_arg(args, "new_parent")
+	if not new_parent_path.is_empty():
+		parent = SceneAccess.find_node(root, new_parent_path)
+		if parent == null:
+			return _missing(root, new_parent_path)
+		if parent == node or node.is_ancestor_of(parent):
+			return McpTool.error("Cannot put the copy inside the original.")
+	var wanted := McpTool.str_arg(args, "new_name").validate_node_name()
+	var copy_name := wanted if not wanted.is_empty() else _free_name(parent, String(node.name))
+	if parent.has_node(NodePath(copy_name)):
+		return McpTool.error("%s already has a child named %s." % [SceneAccess.relative_path(root, parent), copy_name])
+	var copy := node.duplicate(Node.DUPLICATE_SIGNALS | Node.DUPLICATE_GROUPS | Node.DUPLICATE_SCRIPTS | Node.DUPLICATE_USE_INSTANTIATION)
+	if copy == null:
+		return McpTool.error("Could not duplicate %s." % node.name)
+	copy.name = copy_name
+	# Los nodos del original que son de la escena: su copia (misma ruta relativa) también.
+	var owned: Array[Node] = [copy]
+	for original: Node in node.find_children("*", "", true, false):
+		if original.owner == root:
+			var twin := copy.get_node_or_null(node.get_path_to(original))
+			if twin:
+				owned.append(twin)
+	var action := ACTION_PREFIX + "duplicate %s" % node.name
+	var undo_redo := EditorInterface.get_editor_undo_redo()
+	undo_redo.create_action(action, UndoRedo.MERGE_DISABLE, root)
+	undo_redo.add_do_method(parent, &"add_child", copy, true)
+	if parent == node.get_parent():
+		undo_redo.add_do_method(parent, &"move_child", copy, node.get_index() + 1)
+	for owned_node: Node in owned:
+		undo_redo.add_do_method(owned_node, &"set_owner", root)
+	undo_redo.add_do_reference(copy)
+	undo_redo.add_undo_method(parent, &"remove_child", copy)
+	undo_redo.commit_action()
+	_select(copy)
+	_record("duplicate_node", args, action, root)
+	return _done("Duplicated %s as %s (%d nodes)." % [SceneAccess.relative_path(root, node), SceneAccess.relative_path(root, copy), owned.size()], action)
 
 
 func _set_properties(args: Dictionary) -> Dictionary:
@@ -462,6 +644,15 @@ static func _instantiate_type(type_name: String) -> Variant:
 				return "%s does not extend Node." % type_name
 			return instance
 	return "There is no class '%s' (neither as a Godot class nor as a project class_name)." % type_name
+
+
+## `base`, o `base2`, `base3`… el primero que no usa ningún hijo de `parent`.
+static func _free_name(parent: Node, base: String) -> String:
+	var stem := base.trim_suffix(str(base.to_int())) if base.to_int() > 0 and base.ends_with(str(base.to_int())) else base
+	var index := 2
+	while parent.has_node(NodePath("%s%d" % [stem, index])):
+		index += 1
+	return "%s%d" % [stem, index]
 
 
 ## El nodo y sus descendientes que pertenecen a la escena (para restaurar owners).

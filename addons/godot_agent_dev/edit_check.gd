@@ -15,6 +15,7 @@ const NEW_SCENE := "res://tests/tmp/edit_new_scene.tscn"
 const NEW_SCRIPT := "res://tests/tmp/edit_enemies.gd"
 const BOSS_SCRIPT := "res://tests/tmp/edit_boss.gd"
 const BOSS_SCENE := "res://tests/tmp/edit_boss.tscn"
+const BATCH_SCRIPT := "res://tests/tmp/edit_bar.gd"
 
 var _model: Object
 var _plugin: Node
@@ -36,7 +37,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	if _server == null or _plugin == null or _model == null:
 		failures.append("no se encontró el server, el plugin o el modelo")
 		return failures
-	for path: String in [EDIT_SCENE, NEW_SCENE, NEW_SCRIPT, BOSS_SCRIPT, BOSS_SCENE]:
+	for path: String in [EDIT_SCENE, NEW_SCENE, NEW_SCRIPT, BOSS_SCRIPT, BOSS_SCENE, BATCH_SCRIPT]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	# Copia sin el uid de la cabecera: dos .tscn con el mismo uid confunden al editor.
 	var header_uid := RegEx.create_from_string(" uid=\"uid://[a-z0-9]+\"")
@@ -92,6 +93,40 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(root.has_node("Enemies/Squad/Icon") and root.get_node("Enemies/Squad/Icon").owner == root, "undo de remove_node restaura hijos con owner")
 	var root_removal: Dictionary = await _call("remove_node", {"node_path": "."})
 	_expect(root_removal.get("isError", false), "no borra la raíz")
+
+	# add_nodes: un subárbol entero en un paso de undo; un item inválido no crea nada.
+	var batch := await _call_text("add_nodes", {"parent": ".", "nodes": [
+		{"name": "HUD", "type": "CanvasLayer", "groups": ["ui"], "children": [
+			{"name": "Score", "type": "Label", "properties": {"text": "0", "position": [8, 8]}},
+			{"name": "Bar", "type": "HBoxContainer", "script": BATCH_SCRIPT, "children": [
+				{"name": "Pause", "type": "Button", "properties": {"text": "II"}},
+				{"name": "Mini", "scene": FIXTURE_SCENE},
+			]},
+		]},
+		{"name": "Spawner", "type": "Marker2D"},
+	]})
+	var hud := root.get_node_or_null("HUD")
+	var all_owned := hud != null
+	for path: String in ["HUD", "HUD/Score", "HUD/Bar", "HUD/Bar/Pause", "HUD/Bar/Mini", "Spawner"]:
+		all_owned = all_owned and root.has_node(path) and root.get_node(path).owner == root
+	_expect(all_owned and batch.contains("Created 6 nodes"), "add_nodes crea el subárbol con owners (%s)" % batch)
+	_expect(hud != null and hud.is_in_group("ui") and (root.get_node("HUD/Score") as Label).text == "0" and root.get_node("HUD/Bar").get_script() != null and FileAccess.file_exists(BATCH_SCRIPT), "add_nodes: grupos, propiedades y script creado")
+	_expect(root.has_node("HUD/Bar/Mini/Player") and root.get_node("HUD/Bar/Mini/Player").owner != root and root.get_node("HUD/Bar/Mini").scene_file_path == FIXTURE_SCENE, "add_nodes: escena instanciada sin abrir sus nodos")
+	EditorUndo._trigger_editor_undo()
+	_expect(not root.has_node("HUD") and not root.has_node("Spawner"), "Ctrl+Z deshace add_nodes de una vez")
+	var bad_batch: Dictionary = await _call("add_nodes", {"parent": ".", "nodes": [{"name": "Ok", "type": "Node2D"}, {"name": "Bad", "type": "Node2D", "children": [{"name": "X", "type": "Nodo"}]}]})
+	_expect(bad_batch.get("isError", false) and _text(bad_batch).contains("Bad/X") and not root.has_node("Ok"), "add_nodes inválido no crea nada (%s)" % _text(bad_batch))
+
+	# duplicate_node: copia con hijos, script, grupos y propiedades; undo la saca.
+	var duplicated := await _call_text("duplicate_node", {"node_path": "Player"})
+	var twin := root.get_node_or_null("Player2")
+	_expect(twin != null and twin.owner == root and twin.get_node("Sprite").owner == root and twin.is_in_group("player") and twin.get_script() != null and twin.position == Vector2(100, 50), "duplicate_node (%s)" % duplicated)
+	_expect(twin != null and twin.get_index() == root.get_node("Player").get_index() + 1, "duplicate_node la pone al lado del original")
+	EditorUndo._trigger_editor_undo()
+	_expect(not root.has_node("Player2"), "Ctrl+Z deshace duplicate_node")
+	await _call_text("duplicate_node", {"node_path": "Player", "new_name": "Ghost", "new_parent": "Enemies"})
+	_expect(root.has_node("Enemies/Ghost/Sprite"), "duplicate_node con nombre y padre")
+	EditorUndo._trigger_editor_undo()
 
 	# instantiate_scene, attach_script, create_scene, save_scene.
 	var instanced := await _call_text("instantiate_scene", {"parent": "Enemies", "scene_path": FIXTURE_SCENE, "name": "Copy"})

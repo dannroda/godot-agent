@@ -113,6 +113,9 @@ const OBJECT_GROWTH_TOLERANCE := 50
 
 func _enter_tree() -> void:
 	var args := OS.get_cmdline_user_args()
+	# tests/tmp no está en git: en un clon o worktree nuevo no existe y los checks no podían escribir.
+	if not args.is_empty():
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/tmp"))
 	if CYCLE_ARG in args:
 		_run_cycle_test.call_deferred()
 	if SYNC_ARG in args:
@@ -418,7 +421,7 @@ func _run_claude_edit_test() -> void:
 func _run_mcp_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
-	var failures: PackedStringArray = await McpCheck.new().run(get_tree())
+	var failures := _failures(await McpCheck.new().run(get_tree()))
 	for failure: String in failures:
 		print("[mcp-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "mcp-test: %d fallas" % failures.size())
@@ -427,7 +430,7 @@ func _run_mcp_test() -> void:
 func _run_edit_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
-	var failures: PackedStringArray = await EditCheck.new().run_edit(get_tree())
+	var failures := _failures(await EditCheck.new().run_edit(get_tree()))
 	for failure: String in failures:
 		print("[edit-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "edit-test: %d fallas" % failures.size())
@@ -436,7 +439,7 @@ func _run_edit_test() -> void:
 func _run_run_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
-	var failures: PackedStringArray = await RunCheck.new().run_run(get_tree())
+	var failures := _failures(await RunCheck.new().run_run(get_tree()))
 	for failure: String in failures:
 		print("[run-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "run-test: %d fallas" % failures.size())
@@ -449,7 +452,7 @@ func _run_review_test(real_claude: bool) -> void:
 		_finish(1, "no se encontró el dock")
 		return
 	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.defaults()[0]) if real_claude else null
-	var failures: PackedStringArray = await ReviewCheck.new().run_review(get_tree(), profile, _arg_value(UI_SHOT_ARG))
+	var failures := _failures(await ReviewCheck.new().run_review(get_tree(), profile, _arg_value(UI_SHOT_ARG)))
 	for failure: String in failures:
 		print("[review-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "review-test%s: %d fallas" % [" (Claude)" if real_claude else "", failures.size()])
@@ -458,7 +461,7 @@ func _run_review_test(real_claude: bool) -> void:
 func _run_oneshot_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
-	var failures: PackedStringArray = await OneShotUiCheck.new().run_oneshot(get_tree(), _arg_value(UI_SHOT_ARG))
+	var failures := _failures(await OneShotUiCheck.new().run_oneshot(get_tree(), _arg_value(UI_SHOT_ARG)))
 	for failure: String in failures:
 		print("[oneshot-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "oneshot-test: %d fallas" % failures.size())
@@ -467,7 +470,7 @@ func _run_oneshot_test() -> void:
 func _run_claude_oneshot_test() -> void:
 	get_tree().create_timer(CLAUDE_ONESHOT_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
-	var failures: PackedStringArray = await OneShotUiCheck.new().run_claude_oneshot(get_tree(), _arg_value(UI_SHOT_ARG))
+	var failures := _failures(await OneShotUiCheck.new().run_claude_oneshot(get_tree(), _arg_value(UI_SHOT_ARG)))
 	for failure: String in failures:
 		print("[claude-oneshot] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "claude-oneshot-test: %d fallas" % failures.size())
@@ -477,7 +480,7 @@ func _run_long_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
 	var check := LongSessionCheck.new()
-	var failures: PackedStringArray = await check.run_long(get_tree())
+	var failures := _failures(await check.run_long(get_tree()))
 	print("[long-check] ", check.report)
 	for failure: String in failures:
 		print("[long-check] FALLA ", failure)
@@ -488,7 +491,7 @@ func _run_completion_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
 	var check := CompletionCheck.new()
-	var failures: PackedStringArray = await check.run(get_tree(), _arg_value(UI_SHOT_ARG))
+	var failures := _failures(await check.run(get_tree(), _arg_value(UI_SHOT_ARG)))
 	check.cleanup()
 	for line: String in check.report:
 		print("[completion-check] ", line)
@@ -1187,6 +1190,14 @@ func _print_new_orphans(before: Array) -> void:
 
 func _on_safety_timeout() -> void:
 	_finish(1, "timeout")
+
+
+## Las fallas que devolvió un check. Si el check se cortó por un error de script, la corrutina
+## devuelve null: antes eso se leía como "0 fallas" y la prueba pasaba sin haber corrido.
+static func _failures(result: Variant) -> PackedStringArray:
+	if result is PackedStringArray:
+		return result
+	return PackedStringArray(["el check se cortó por un error de script (ver el Output)"])
 
 
 func _finish(code: int, message: String) -> void:
