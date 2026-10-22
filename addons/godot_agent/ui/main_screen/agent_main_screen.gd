@@ -25,6 +25,7 @@ const ACTIVITY_COLORS: Dictionary = {
 	"aviso": Color("#ff7a7a"),
 	"loop": Color("#ff9f5a"),
 	"spec": Color("#8fd3c7"),
+	"guía": Color("#ffd479"),
 }
 const SUMMARY_INTERVAL_S := 2.0
 ## El formulario crece con la pantalla (m6-13): ancho y alto del objetivo, en px sin escalar.

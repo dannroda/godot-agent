@@ -193,6 +193,9 @@ func _scenario_budget() -> void:
 	if messages.size() == 3:
 		_check(messages[1] == "Usá paletas blancas y fondo negro.", "presupuestos: la guía va al terminar el turno")
 		_check(str(messages[2]).begins_with("Se agotó el presupuesto de playtests.") and str(messages[2]).contains("reporte final"), "presupuestos: prompt de cierre")
+	var guide_entries: Array = run.activity.filter(func(entry: Dictionary) -> bool: return entry.kind == "guía").map(func(entry: Dictionary) -> String: return entry.text)
+	_check(guide_entries == ["en cola: Usá paletas blancas y fondo negro.", "enviado: Usá paletas blancas y fondo negro."], "presupuestos: la guía queda en cola y después sale %s" % [guide_entries])
+	_check(notices.any(func(text: String) -> bool: return text.begins_with("One-shot · en cola: «Usá paletas")), "presupuestos: el chat avisa que la guía está en cola")
 	_check(not _agent_text(model).contains("No debería llegar"), "presupuestos: al 100 % corta el turno")
 	_check(run.finish_reason == "Se agotó el presupuesto de playtests.", "presupuestos: motivo (%s)" % run.finish_reason)
 	_check(run.checks.size() == 2 and run.checks[1].status == "fail", "presupuestos: checks del reporte")
@@ -259,6 +262,7 @@ func _scenario_loop() -> void:
 	_check(run.pause_note.contains("Salto"), "loop: motivo de la pausa (%s)" % run.pause_note)
 	run.guide("Saltá con la tecla espacio")
 	_check(run.phase == OneShotRun.Phase.RUNNING and run.pause_note.is_empty(), "loop: guiar retoma")
+	_check(run.activity.back().kind == "guía" and run.activity.back().text == "enviado: Saltá con la tecla espacio", "loop: en pausa la guía sale enseguida")
 	await _wait(func() -> bool: return _user_messages(run.model).size() == 6, 10.0)
 	run.stop()
 	await _wait(func() -> bool: return not run.last_report.is_empty(), 5.0)

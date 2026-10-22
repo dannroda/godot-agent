@@ -110,6 +110,9 @@ var recovered: bool = false
 var _started_msec: int = 0
 var _turn_running: bool = false
 var _guidance: Array[String] = []
+## Los textos de _guidance que escribió el usuario (los demás los pone el harness, p. ej. el aviso
+## de loop): al salir quedan en la actividad como «enviado».
+var _user_guidance: Array[String] = []
 var _warned: Dictionary = {}
 var _current_task: int = -1
 var _plan_progress: int = 0
@@ -221,6 +224,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	checks.clear()
 	activity.clear()
 	_guidance.clear()
+	_user_guidance.clear()
 	_warned.clear()
 	_counted_playtests.clear()
 	_captured_calls.clear()
@@ -343,20 +347,38 @@ func guide(text: String) -> void:
 	text = text.strip_edges()
 	if text.is_empty() or not is_active():
 		return
-	_add_activity("guía", text)
 	report.count("guidance")
 	if not _recovered_session_id.is_empty():  # primero se reabre la sesión del run
-		_guidance.append(text)
+		_queue_guidance(text)
 		resume()
 		return
 	if _turn_running or phase in [Phase.PREPARING, Phase.CLOSING, Phase.LIMITED]:
-		_guidance.append(text)
+		_queue_guidance(text)
 		changed.emit()
 		return
 	if phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM, Phase.SPEC_REVIEW]:
 		pause_note = ""
 		_set_phase(Phase.RUNNING)
+	_add_activity("guía", "enviado: " + text)
 	_run_turn(text)
+
+
+## La guía espera al final del turno: queda en la actividad y en el chat, para que se vea que no
+## se perdió (m6-14).
+func _queue_guidance(text: String) -> void:
+	_guidance.append(text)
+	_user_guidance.append(text)
+	_add_activity("guía", "en cola: " + text)
+	model.add_notice("One-shot · en cola: «%s». Le llega al agente al terminar el turno." % text.left(120), ChatEntry.Level.INFO)
+
+
+func _pop_guidance() -> String:
+	var text: String = _guidance.pop_front()
+	var index := _user_guidance.find(text)
+	if index >= 0:
+		_user_guidance.remove_at(index)
+		_add_activity("guía", "enviado: " + text)
+	return text
 
 
 ## Presupuestos nuevos con el run en curso (m6-12); 0 = sin límite. Los avisos del 80 % se rearman
@@ -517,7 +539,7 @@ func _after_turn(reason: String) -> void:
 		_close()
 		return
 	if not _guidance.is_empty():
-		_run_turn(_guidance.pop_front())
+		_run_turn(_pop_guidance())
 		return
 	if reason == "cancelled":
 		if _continue_after_cancel:
@@ -860,6 +882,7 @@ func to_dict() -> Dictionary:
 		"current_task": _current_task,
 		"resume_task": resume_task if not resume_task.is_empty() else _task_name(_current_task),
 		"guidance": _guidance,
+		"user_guidance": _user_guidance,
 		"close_reason": _close_reason,
 		"finish_reason": finish_reason,
 		"warned": _warned,
@@ -891,6 +914,7 @@ func _apply(data: Dictionary) -> void:
 	_current_task = int(data.get("current_task", -1))
 	resume_task = str(data.get("resume_task", ""))
 	_guidance.assign(data.get("guidance", []))
+	_user_guidance.assign(data.get("user_guidance", []))
 	_close_reason = str(data.get("close_reason", ""))
 	_warned = data.get("warned", {}) if data.get("warned") is Dictionary else {}
 	pause_note = str(data.get("pause_note", ""))
