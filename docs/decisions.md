@@ -731,3 +731,15 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Guard**: `.tres` entra en los archivos que no se escriben a mano (Write/Edit y `fs/write_text_file`); el rechazo nombra las tools.
 - **Pruebas**: `test_resource_values` (inline con hint, class_name con array tipado, describe sin defaults), `test_project_write_guard` y `--godot-agent-edit-test` (crear con array tipado y sub-recurso, leer, cambiar y Ctrl+Z que vuelve a guardar, asignar por ruta e inline, nodo class_name sin @tool, no pisa).
 
+## D52 · Tools de tilemaps
+
+- **Problema**: `tile_map_data` es binario y no se escribe a mano; sin tools, el agente armaba los niveles con `set_cell` en `_ready()`, que no se ve en el editor y contradice "componer con escenas guardadas" (m7-19).
+- **Tools** (`mcp/tools/tilemap_tools.gd`), solo para `TileMapLayer` (al `TileMap` viejo se le sugiere el nuevo):
+  - `tileset_add_atlas`: crea un tile por celda de la grilla que no sea transparente (como "crear tiles en regiones no transparentes" del editor); `collision` les da un cuadrado completo y agrega una capa de física si no hay.
+  - `tileset_add_scenes`: fuente de escenas; cada escena es la alternativa N del tile (0, 0).
+  - `tilemap_set_cells` (celdas sueltas, con tile por celda, y/o un rectángulo; `erase`), `tilemap_paint_terrain` (connect o path, terreno por índice o nombre) y `tilemap_clear`.
+  - `tilemap_get`: fuentes con sus tiles, capas de física, sets de terrenos y un mapa ASCII (hasta 100×60, o el `rect` pedido) con leyenda `a = source:(x,y)`.
+- **Deshacer**: las celdas se cambian directo y se registra `tile_map_data` antes y después en una acción (`commit_action(false)`); las fuentes con `add_source`/`remove_source`. Si el TileSet es un `.tres`, se guarda al hacer y al deshacer.
+- **Fuera por ahora**: configurar terrenos (peering bits por tile). Se hace en el editor de TileSet; las tools pintan con los que haya, y el error lo explica.
+- **Pruebas**: `--godot-agent-edit-test` (TileSet inline con add_node, atlas de una textura con un tile transparente, colisión, rect y celdas sueltas, tile inexistente, mapa y leyenda, Ctrl+Z, erase, clear y su undo, terreno por nombre), en 4.8-beta1 y 4.6.3.
+

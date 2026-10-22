@@ -206,6 +206,9 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `set_project_setting` | project | name, value | Con undo global; guarda project.godot (m4-09) |
 | `set_input_action` / `remove_input_action` | project | action, events[], deadzone?, append? | Eventos como "Space", "Ctrl+S", "mouse:left", "joy_button:a", "joy_axis:left_x:-" |
 | `set_autoload` / `remove_autoload` | project | name, path, enabled? | Con undo global |
+| `tilemap_get` | read | node_path, rect? | TileSet (fuentes, física, terrenos) y mapa ASCII con leyenda (m4-11) |
+| `tileset_add_atlas` / `tileset_add_scenes` | edit_scene | node_path, texture/scenes, tile_size?, collision? | Fuentes del TileSet con undo |
+| `tilemap_set_cells` / `tilemap_paint_terrain` / `tilemap_clear` | edit_scene | node_path, cells?, rect?, source_id?, atlas?, terrain? | Un paso de undo por llamada (tile_map_data antes/después) |
 | `get_resource` | read | path | Tipo, script, uid y propiedades no default con sub-recursos |
 | `create_resource` / `set_resource_properties` | edit_files | path, type, properties | `.tres` por el editor, con undo al cambiar (m4-13) |
 | `move_file` / `copy_file` / `delete_file` | edit_files | from, to / path | Con referencias al día y uid; borrar se niega si algo lo usa (m4-10) |

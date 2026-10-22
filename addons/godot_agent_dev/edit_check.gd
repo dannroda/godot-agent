@@ -282,6 +282,51 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var exists_again: Dictionary = await _call("create_resource", {"path": res_dir + "/panel.tres", "type": "StyleBoxFlat"})
 	_expect(exists_again.get("isError", false), "create_resource no pisa")
 
+	# Tilemaps (m4-11): capa con TileSet inline, atlas desde una textura, celdas, terreno y undo.
+	var tiles_png := FILES_DIR + "/tiles.png"
+	var sheet := Image.create(48, 16, false, Image.FORMAT_RGBA8)
+	sheet.fill_rect(Rect2i(0, 0, 16, 16), Color.GREEN)
+	sheet.fill_rect(Rect2i(16, 0, 16, 16), Color.SADDLE_BROWN)  # el tercer tile queda transparente
+	sheet.save_png(ProjectSettings.globalize_path(tiles_png))
+	EditorInterface.get_resource_filesystem().scan()
+	await _tree.create_timer(2.0).timeout
+	await _call_text("add_node", {"parent": ".", "type": "TileMapLayer", "name": "Ground", "properties": {"tile_set": {"type": "TileSet", "tile_size": [16, 16]}}})
+	var atlas_text := await _call_text("tileset_add_atlas", {"node_path": "Ground", "texture": tiles_png, "collision": true})
+	var ground := root.get_node_or_null("Ground") as TileMapLayer
+	var atlas_source := ground.tile_set.get_source(0) as TileSetAtlasSource if ground and ground.tile_set and ground.tile_set.has_source(0) else null
+	_expect(atlas_source != null and atlas_source.get_tiles_count() == 2 and ground.tile_set.get_physics_layers_count() == 1 and atlas_source.get_tile_data(Vector2i(0, 0), 0).get_collision_polygons_count(0) == 1, "tileset_add_atlas: 2 tiles (el transparente no), con colisión (%s)" % atlas_text)
+	var cells_text := await _call_text("tilemap_set_cells", {"node_path": "Ground", "rect": [0, 3, 10, 1]})
+	await _call_text("tilemap_set_cells", {"node_path": "Ground", "cells": [[2, 2], {"x": 3, "y": 2, "atlas": [1, 0]}]})
+	_expect(ground.get_used_cells().size() == 12 and ground.get_cell_atlas_coords(Vector2i(3, 2)) == Vector2i(1, 0) and cells_text.contains("Set 10 cells"), "tilemap_set_cells con rect y celdas (%s)" % cells_text)
+	var bad_tile: Dictionary = await _call("tilemap_set_cells", {"node_path": "Ground", "cells": [[0, 0]], "atlas": [2, 0]})
+	_expect(bad_tile.get("isError", false) and _text(bad_tile).contains("no tile at atlas"), "tile inexistente → error")
+	var map_text := await _call_text("tilemap_get", {"node_path": "Ground"})
+	_expect(map_text.contains("12 cells") and map_text.contains("   3 aaaaaaaaaa") and map_text.contains("b = 0:(1,0)") and map_text.contains("Physics layers: 1"), "tilemap_get con mapa y leyenda (%s)" % map_text)
+	EditorUndo._trigger_editor_undo()
+	_expect(ground.get_used_cells().size() == 10, "Ctrl+Z deshace las celdas sueltas")
+	await _call_text("tilemap_set_cells", {"node_path": "Ground", "rect": [0, 3, 2, 1], "erase": true})
+	_expect(ground.get_used_cells().size() == 8, "erase")
+	await _call_text("tilemap_clear", {"node_path": "Ground"})
+	_expect(ground.get_used_cells().is_empty(), "tilemap_clear")
+	EditorUndo._trigger_editor_undo()
+	_expect(ground.get_used_cells().size() == 8, "Ctrl+Z deshace el clear")
+	var no_terrain: Dictionary = await _call("tilemap_paint_terrain", {"node_path": "Ground", "rect": [0, 0, 2, 2], "terrain": 0})
+	_expect(no_terrain.get("isError", false) and _text(no_terrain).contains("no terrain sets"), "sin terrenos → error que explica")
+	# Un terreno armado como en el editor de TileSet: el tile verde con sus cuatro lados en el terreno 0.
+	ground.tile_set.add_terrain_set()
+	ground.tile_set.set_terrain_set_mode(0, TileSet.TERRAIN_MODE_MATCH_SIDES)
+	ground.tile_set.add_terrain(0)
+	ground.tile_set.set_terrain_name(0, 0, "grass")
+	var grass := atlas_source.get_tile_data(Vector2i(0, 0), 0)
+	grass.terrain_set = 0
+	grass.terrain = 0
+	for side: int in [TileSet.CELL_NEIGHBOR_RIGHT_SIDE, TileSet.CELL_NEIGHBOR_BOTTOM_SIDE, TileSet.CELL_NEIGHBOR_LEFT_SIDE, TileSet.CELL_NEIGHBOR_TOP_SIDE]:
+		grass.set_terrain_peering_bit(side, 0)
+	var painted := await _call_text("tilemap_paint_terrain", {"node_path": "Ground", "rect": [10, 0, 3, 3], "terrain": "Grass"})
+	_expect(ground.get_cell_source_id(Vector2i(11, 1)) == 0 and ground.get_cell_atlas_coords(Vector2i(11, 1)) == Vector2i(0, 0) and painted.contains("grass"), "tilemap_paint_terrain por nombre (%s)" % painted)
+	var not_layer: Dictionary = await _call("tilemap_get", {"node_path": "Timer"})
+	_expect(not_layer.get("isError", false) and _text(not_layer).contains("not a TileMapLayer"), "tilemap_get sobre otro nodo → error")
+
 	# Permisos: Preguntar deniega; Construir pregunta (se acepta solo).
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
 	var denied: Dictionary = await _call("add_node", {"parent": ".", "type": "Node", "name": "Denied"})
