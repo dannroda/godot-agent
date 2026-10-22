@@ -22,6 +22,7 @@ El agente ve estas tools como `godot.<nombre>` (Claude Code las muestra como `mc
 | | `add_node`, `set_properties`, `remove_node`, `reparent_node`, `rename_node`, `connect_signal`, `instantiate_scene`, `open_scene`, `save_scene` | Ediciones sobre escenas abiertas, cada una un paso de deshacer del editor. |
 | Editar archivos | `create_scene`, `attach_script` | Escenas y scripts nuevos en disco. `create_scene` también recibe el script de la raíz y sus propiedades (variables exportadas incluidas), así ninguna escena se escribe a mano. |
 | Proyecto | `set_project_setting`, `set_input_action`, `remove_input_action`, `set_autoload`, `remove_autoload` | Settings del proyecto, acciones de input (teclas, mouse, joystick) y autoloads a través del editor: cada cambio es un paso de deshacer y guarda `project.godot`. Editar `project.godot` a mano se rechaza. |
+| Archivos | `move_file`, `copy_file`, `delete_file` | Mover o renombrar manteniendo el uid y reescribiendo cada referencia `res://`; copiar como recurso nuevo (también desde fuera del proyecto); borrar solo si nada lo referencia (a la papelera). `mv`, `cp` y `rm` sobre archivos del proyecto se rechazan. |
 | Ejecutar | `run_scene` | Corre una escena (con `inputs` simulados, si querés) y devuelve los errores reales. |
 | | `capture_game_frame` | Un frame del juego corriendo. |
 | | `stop_scene` | Lo detiene. |

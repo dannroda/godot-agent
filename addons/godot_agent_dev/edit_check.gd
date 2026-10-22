@@ -206,6 +206,51 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(project_asks == ["godot.set_input_action"], "project: One-shot no pregunta, Construir sí (%s)" % [project_asks])
 	_expect(_without_features(FileAccess.get_file_as_string("res://project.godot")) == project_before, "project.godot queda como estaba")
 
+	# Archivos con referencias (m4-10): mover arregla rutas y mantiene el uid; borrar se niega si algo
+	# lo usa; copiar da un uid nuevo.
+	# Carpeta nueva en cada corrida: el caché de uids del editor recuerda las rutas de la anterior.
+	for old: String in DirAccess.get_directories_at("res://tests/tmp"):
+		if old.begins_with("files_"):
+			_remove_tree(ProjectSettings.globalize_path("res://tests/tmp/" + old))
+	var FILES_DIR := "res://tests/tmp/files_%d" % Time.get_unix_time_from_system()
+	await _call_text("create_scene", {"path": FILES_DIR + "/hero.tscn", "root_type": "Node2D", "root_name": "Hero", "script_path": FILES_DIR + "/hero.gd"})
+	EditorInterface.get_resource_filesystem().scan()
+	await _tree.create_timer(1.5).timeout
+	var hero_uid := ResourceLoader.get_resource_uid(FILES_DIR + "/hero.tscn")
+	_write(FILES_DIR + "/level.tscn", '[gd_scene format=3]\n\n[ext_resource type="PackedScene" uid="%s" path="%s/hero.tscn" id="1_hero"]\n\n[node name="Level" type="Node2D"]\n\n[node name="Hero" parent="." instance=ExtResource("1_hero")]\n' % [ResourceUID.id_to_text(hero_uid), FILES_DIR])
+	_write(FILES_DIR + "/spawner.gd", 'extends Node\n\nconst HERO := preload("%s/hero.tscn")\nconst HERO_SCRIPT := "%s/hero.gd"\n' % [FILES_DIR, FILES_DIR])
+	EditorInterface.get_resource_filesystem().scan()
+	await _tree.create_timer(1.5).timeout
+	var moved_text := await _call_text("move_file", {"from": FILES_DIR + "/hero.tscn", "to": FILES_DIR + "/actors/hero.tscn"})
+	var level_text := FileAccess.get_file_as_string(FILES_DIR + "/level.tscn")
+	_expect(FileAccess.file_exists(FILES_DIR + "/actors/hero.tscn") and not FileAccess.file_exists(FILES_DIR + "/hero.tscn"), "move_file mueve (%s)" % moved_text)
+	_expect(level_text.contains("path=\"%s/actors/hero.tscn\"" % FILES_DIR) and FileAccess.get_file_as_string(FILES_DIR + "/spawner.gd").contains(FILES_DIR + "/actors/hero.tscn"), "move_file reescribe las referencias (%s | %s)" % [level_text, FileAccess.get_file_as_string(FILES_DIR + "/spawner.gd")])
+	_expect(hero_uid != ResourceUID.INVALID_ID and ResourceLoader.get_resource_uid(FILES_DIR + "/actors/hero.tscn") == hero_uid, "move_file mantiene el uid")
+	var moved_folder := await _call_text("move_file", {"from": FILES_DIR + "/actors", "to": FILES_DIR + "/characters"})
+	_expect(FileAccess.get_file_as_string(FILES_DIR + "/level.tscn").contains(FILES_DIR + "/characters/hero.tscn") and DirAccess.dir_exists_absolute(FILES_DIR + "/characters"), "move_file de una carpeta (%s)" % moved_folder)
+	var moved_script := await _call_text("move_file", {"from": FILES_DIR + "/hero.gd", "to": FILES_DIR + "/scripts/hero.gd"})
+	_expect(FileAccess.get_file_as_string(FILES_DIR + "/characters/hero.tscn").contains(FILES_DIR + "/scripts/hero.gd") and FileAccess.file_exists(FILES_DIR + "/scripts/hero.gd.uid") and not FileAccess.file_exists(FILES_DIR + "/hero.gd.uid"), "move_file de un script con su .uid (%s)" % moved_script)
+	EditorInterface.get_resource_filesystem().scan()
+	await _tree.create_timer(1.5).timeout
+	var level_scene := ResourceLoader.load(FILES_DIR + "/level.tscn", "", ResourceLoader.CACHE_MODE_IGNORE) as PackedScene
+	var level_node := level_scene.instantiate() if level_scene else null
+	_expect(level_node != null and level_node.get_node_or_null("Hero") != null and level_node.get_node("Hero").get_script() != null, "la escena que lo instancia sigue cargando")
+	if level_node:
+		level_node.free()
+	var refused: Dictionary = await _call("delete_file", {"path": FILES_DIR + "/characters/hero.tscn"})
+	_expect(refused.get("isError", false) and _text(refused).contains("level.tscn") and _text(refused).contains("spawner.gd") and FileAccess.file_exists(FILES_DIR + "/characters/hero.tscn"), "delete_file se niega y dice qué se rompería (%s)" % _text(refused))
+	var copied := await _call_text("copy_file", {"from": FILES_DIR + "/characters/hero.tscn", "to": FILES_DIR + "/hero_copy.tscn"})
+	EditorInterface.get_resource_filesystem().scan()
+	await _tree.create_timer(1.5).timeout
+	var copy_uid := ResourceLoader.get_resource_uid(FILES_DIR + "/hero_copy.tscn")
+	_expect(copy_uid != ResourceUID.INVALID_ID and copy_uid != hero_uid, "copy_file da un uid nuevo (%s)" % copied)
+	var deleted := await _call_text("delete_file", {"path": FILES_DIR + "/hero_copy.tscn"})
+	_expect(not FileAccess.file_exists(FILES_DIR + "/hero_copy.tscn") and deleted.contains("Deleted"), "delete_file sin referencias (%s)" % deleted)
+	var open_move: Dictionary = await _call("move_file", {"from": EDIT_SCENE, "to": FILES_DIR + "/moved.tscn"})
+	_expect(open_move.get("isError", false) and _text(open_move).contains("open"), "move_file no mueve una escena abierta")
+	var overwrite: Dictionary = await _call("move_file", {"from": FILES_DIR + "/level.tscn", "to": FILES_DIR + "/spawner.gd"})
+	_expect(overwrite.get("isError", false), "move_file no pisa")
+
 	# Permisos: Preguntar deniega; Construir pregunta (se acepta solo).
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
 	var denied: Dictionary = await _call("add_node", {"parent": ".", "type": "Node", "name": "Denied"})
@@ -248,3 +293,20 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 ## Guardar los settings reescribe config/features con la versión del editor que corre la prueba.
 static func _without_features(text: String) -> String:
 	return RegEx.create_from_string("config/features=.*\n").sub(text, "")
+
+
+static func _write(path: String, text: String) -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(text)
+	file.close()
+
+
+static func _remove_tree(absolute: String) -> void:
+	if not DirAccess.dir_exists_absolute(absolute):
+		return
+	for file: String in DirAccess.get_files_at(absolute):
+		DirAccess.remove_absolute(absolute.path_join(file))
+	for sub: String in DirAccess.get_directories_at(absolute):
+		_remove_tree(absolute.path_join(sub))
+	DirAccess.remove_absolute(absolute)

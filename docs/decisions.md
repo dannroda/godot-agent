@@ -707,3 +707,16 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Efecto lateral**: `ProjectSettings.save()` reescribe `config/features` con la versión del editor, igual que cuando el usuario cambia un setting.
 - **Pruebas**: `test_project_tools` (eventos), `test_project_write_guard` y `--godot-agent-edit-test` (acción con append y Ctrl+Z, setting con prefijo y tipo inválido, autoload que no pisa un singleton, permisos por modo, `project.godot` igual al final).
 
+## D50 · Mover, copiar y borrar archivos con las referencias al día
+
+- **Problema**: el agente movía o borraba con `mv`/`rm` y una escena quedaba apuntando a una ruta que ya no existe, sin aviso hasta abrirla.
+- **Tools** (`mcp/tools/file_tools.gd`, grupo edit_files):
+  - `move_file` (archivo o carpeta): mueve también el `.uid` y el `.import`, mantiene el uid (`ResourceUID.set_id`), pasa el recurso cacheado a la ruta nueva y reescribe `res://viejo` → `res://nuevo` en `.tscn`, `.tres`, `.gd`, shaders, `project.godot`, `.cfg`, `.json`, `.cs` y `.gdextension`. Una ruta exacta solo matchea entera (termina en comilla, espacio, `)`, `,` o `::`); una carpeta, como prefijo. Los archivos reescritos pasan por `EditorSync` (scripts abiertos sin diálogo, escenas abiertas recargadas, conflicto si había cambios sin guardar). No mueve escenas abiertas.
+  - `copy_file`: la copia es otro recurso (uid nuevo en la cabecera de `.tscn`/`.tres`; sin `.uid` ni `.import`, que el editor regenera). Acepta un origen fuera del proyecto, para traer assets.
+  - `delete_file`: busca la ruta y el uid en los archivos de texto del proyecto; si algo lo nombra, no borra y lista archivo y línea. Si no, a la papelera del sistema (o borrado, si no hay papelera).
+  - No se reescribe nada dentro de `addons/godot_agent` ni de carpetas ocultas o con `.gdignore`. Las rutas relativas en scripts (`preload("x.tscn")`) no se tocan: el resultado lo avisa.
+  - No hay deshacer del editor: quedan los checkpoints del One-shot y git.
+- **Guard**: `ProjectWriteGuard` rechaza `mv`, `cp` (por el destino), `rm`, `rmdir`, `unlink`, `git mv` y `git rm` sobre rutas del proyecto.
+- **Hallazgo al probarlo**: la primera versión reescribió el propio `edit_check.gd`, que tenía la ruta del fixture como literal, y el editor recargó el script en medio de la prueba ("Canceling suspended execution… due to a script reload"). Reescribir referencias en scripts es lo que se busca, pero hay que saber que recarga esos scripts.
+- **Pruebas**: `test_project_write_guard` (mv, rm -rf, cp hacia y desde el proyecto, git mv, sudo, strings) y `--godot-agent-edit-test` (escena, carpeta y script movidos con referencias y uid; la escena que lo instancia sigue cargando; borrar se niega con la lista; copia con uid nuevo; no mueve una escena abierta ni pisa).
+

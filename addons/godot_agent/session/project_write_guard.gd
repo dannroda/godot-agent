@@ -5,6 +5,8 @@ extends RefCounted
 ## `godot.*`. Se rechazan solas, sin tarjeta:
 ## - comandos de shell que escriben archivos del proyecto: redirecciones, `tee`, `sed -i`, `dd of=`
 ##   y scripts (python, node, ruby, perl) que abren archivos para escribir;
+## - `mv`, `cp`, `rm` (y `git mv`/`git rm`) sobre archivos del proyecto: rompen referencias; van
+##   por move_file, copy_file y delete_file (m4-10);
 ## - escribir a mano `.tscn`, `.uid`, `.import` o `project.godot` con las herramientas de archivos
 ##   del agente.
 ## Escribir fuera del proyecto (`/tmp`…) sigue pasando por la política de permisos de siempre.
@@ -22,6 +24,9 @@ const WRITE_APIS: PackedStringArray = [
 	"writeFile", "appendFile", "createWriteStream", "File.write", "IO.write",
 ]
 const SAFE_TARGETS: PackedStringArray = ["/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"]
+## Comandos de archivos: para cp solo cuenta el destino (copiar algo del proyecto afuera no lo toca).
+const FILE_COMMANDS: PackedStringArray = ["mv", "cp", "rm", "rmdir", "unlink"]
+const COMMAND_PREFIXES: PackedStringArray = ["sudo", "command", "builtin", "nice", "time"]
 
 
 ## Qué escribiría `tool_call` en el proyecto por fuera del editor: un archivo, un comando
@@ -70,6 +75,7 @@ static func shell_write_target(command: String, project_root: String) -> String:
 	for match: RegExMatch in in_place.search_all(str(split.command)):
 		var files := _path_args(match.get_string(2))
 		targets.append_array(files if not files.is_empty() else PackedStringArray(["."]))
+	targets.append_array(file_command_targets(line))
 	for target: String in targets:
 		if is_inside(target, project_root):
 			return target
@@ -86,6 +92,43 @@ static func shell_write_target(command: String, project_root: String) -> String:
 		if not target.is_empty():
 			return target
 	return ""
+
+
+## Rutas que tocan los mv/cp/rm/rmdir/unlink y git mv/git rm de una línea (sin comillas).
+static func file_command_targets(line: String) -> PackedStringArray:
+	var targets: PackedStringArray = []
+	for segment: String in RegEx.create_from_string("[;&|\n]+").sub(line, "\n", true).split("\n", false):
+		var words := segment.strip_edges().split(" ", false)
+		while not words.is_empty() and (words[0] in COMMAND_PREFIXES or words[0].contains("=")):
+			words.remove_at(0)
+		if words.is_empty():
+			continue
+		var command := words[0].get_file()
+		var args := words.slice(1)
+		if command == "git" and not args.is_empty() and args[0] in ["mv", "rm"]:
+			command = args[0]
+			args = args.slice(1)
+		elif not command in FILE_COMMANDS:
+			continue
+		var paths: PackedStringArray = []
+		var target_dir := ""
+		for i: int in args.size():
+			if args[i] in ["-t", "--target-directory"] and i + 1 < args.size():
+				target_dir = args[i + 1]
+			elif args[i].begins_with("--target-directory="):
+				target_dir = args[i].get_slice("=", 1)
+			elif not args[i].begins_with("-") and (i == 0 or not args[i - 1] in ["-t", "--target-directory"]):
+				paths.append(args[i])
+		if command == "cp":
+			if not target_dir.is_empty():
+				targets.append(target_dir)
+			elif not paths.is_empty():
+				targets.append(paths[paths.size() - 1])
+		else:
+			targets.append_array(paths)
+			if not target_dir.is_empty():
+				targets.append(target_dir)
+	return targets
 
 
 ## Una ruta relativa cuenta como del proyecto (el agente corre con cwd en el proyecto). Las que

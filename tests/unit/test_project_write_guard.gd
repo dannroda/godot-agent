@@ -56,3 +56,16 @@ func test_edit_tools() -> void:
 	assert_eq(_target("sed -i 's/a/b/' project.godot"), "project.godot", "sed -i sobre project.godot")
 	var shell := {"kind": "execute", "rawInput": {"command": "echo a > b.txt"}}
 	assert_eq(ProjectWriteGuard.blocked_target(shell, PermissionPolicy.GROUP_SHELL, ROOT), "b.txt", "shell por blocked_target")
+
+
+func test_file_commands() -> void:
+	assert_eq(_target("mv player.gd actors/player.gd"), "player.gd", "mv dentro del proyecto")
+	assert_eq(_target("rm -rf assets/old"), "assets/old", "rm -rf")
+	assert_eq(_target("cp ~/Downloads/hero.png sprites/hero.png"), "sprites/hero.png", "cp hacia el proyecto")
+	assert_eq(_target("cp sprites/hero.png /tmp/hero.png"), "", "cp del proyecto hacia afuera")
+	assert_eq(_target("git mv a.gd b.gd"), "a.gd", "git mv")
+	assert_eq(_target("cd /tmp && rm -f build.log"), "build.log", "una ruta relativa cuenta como del proyecto")
+	assert_eq(_target("rm /tmp/report.txt && echo ok"), "", "rm fuera del proyecto")
+	assert_eq(_target("sudo rm " + ROOT + "/x.tscn"), ROOT + "/x.tscn", "con sudo y ruta absoluta")
+	assert_eq(_target("git status && git diff"), "", "git de lectura")
+	assert_eq(_target("echo 'rm -rf res'"), "", "rm dentro de un string")
