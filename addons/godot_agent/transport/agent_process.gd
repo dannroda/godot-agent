@@ -41,11 +41,6 @@ var _drain_scheduled: bool = false
 ## Código de salida que espera a que se entreguen las líneas encoladas (-1: ninguno).
 var _pending_exit_code: int = -1
 
-## Godot 4.4.x: cerrar o liberar el FileAccess de un pipe de execute_with_pipe cierra fds
-## equivocados (incluso el 0 del editor) y rompe el siguiente proceso (D11). Ahí los pipes viejos
-## no se cierran: se guardan acá hasta que se cierra el editor. Corregido en 4.5.
-static var _retained_pipes: Array[FileAccess] = []
-
 
 ## Lanza `command` con `args`. `env` se aplica al entorno del hijo (se hereda del editor: se
 ## setea antes de lanzar y se restaura después). Devuelve false y deja last_error() si falla.
@@ -116,11 +111,7 @@ func stop() -> void:
 	_kill_known_children()
 	_join_threads()
 	for pipe: FileAccess in [_stdio, _stderr]:
-		if pipe == null:
-			continue
-		if pipe_close_is_broken():
-			_retained_pipes.append(pipe)
-		else:
+		if pipe:
 			pipe.close()
 	_stdio = null
 	_stderr = null
@@ -131,11 +122,6 @@ func _notification(what: int) -> void:
 	# Red de seguridad: si se pierde la última referencia sin stop(), no quedan procesos ni threads.
 	if what == NOTIFICATION_PREDELETE and (_pid > 0 or _stdout_thread != null):
 		stop()
-
-
-static func pipe_close_is_broken() -> bool:
-	var version := Engine.get_version_info()
-	return version.major == 4 and version.minor < 5
 
 
 func _join_threads() -> void:

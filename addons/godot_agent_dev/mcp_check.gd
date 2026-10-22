@@ -70,7 +70,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var before := await _call_text("get_errors", {})
 	var mark := int(before.get_slice("marca: ", 1).get_slice(" ", 0))
 	push_error(marker)
-	await _tree.create_timer(0.3).timeout  # el panel Output agrega los mensajes diferido (4.4)
+	await _tree.create_timer(0.3).timeout  # margen para que el Logger reciba el error
 	var errors := await _call_text("get_errors", {"since": mark})
 	var again := await _call_text("get_errors", {"since": int(errors.get_slice("marca: ", 1).get_slice(" ", 0))})
 	_expect(not again.contains(marker), "get_errors no repite lo anterior a la marca")

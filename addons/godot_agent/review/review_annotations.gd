@@ -150,7 +150,7 @@ func _attach(code_edit: CodeEdit) -> void:
 	_editors[code_edit] = {"path": "", "lines": {}, "band": band, "card": card, "card_line": -1, "card_layout": []}
 
 
-## Barra de estado de CodeTextEditor: el HBoxContainer hermano que sigue al CodeEdit (4.4–4.8).
+## Barra de estado de CodeTextEditor: el HBoxContainer hermano que sigue al CodeEdit (4.6–4.8).
 static func _status_bar(code_edit: CodeEdit) -> HBoxContainer:
 	var parent := code_edit.get_parent()
 	if parent == null:

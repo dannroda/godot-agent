@@ -16,7 +16,7 @@ Tiene cuatro modos: Preguntar, Revisar, Construir y One-shot.
 
 ## Requisitos
 
-- **Godot 4.4 o más nuevo.** Se prueba en 4.4.1, 4.7.2 y 4.8-beta1.
+- **Godot 4.6 o más nuevo.** Se prueba en 4.6.3, 4.7.2 y 4.8-beta1.
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`; el perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
   - una sesión de Claude Code: la que ya tenga `claude` en la máquina, la que se inicia desde el dock (ver [Iniciar sesión en el agente](#iniciar-sesión-en-el-agente)), o una API key en una variable de entorno (ver [Perfiles](#perfiles-de-agentes)).
@@ -94,7 +94,7 @@ El addon levanta un servidor MCP en `127.0.0.1` (nunca en otra interfaz), con un
 - Las ediciones de archivos del agente (`fs/*` de ACP) pasan por el editor: si tenés un script abierto con cambios sin guardar, no se pisan, y aparece un aviso de conflicto con el diff.
 - Claude Code escribe con sus propias herramientas, directo al disco. El editor se pone al día solo, sin el diálogo de "modificado afuera":
   - los scripts abiertos se actualizan en el Script Editor;
-  - las escenas abiertas sin cambios sin guardar se recargan (en Godot 4.4 no se puede saber si tienen cambios, así que avisa);
+  - las escenas abiertas sin cambios sin guardar se recargan (en Godot 4.6 no se puede saber si tienen cambios, así que avisa);
   - lo que el agente cambie en `project.godot` (acciones de input, autoloads, la escena principal…) se aplica a la configuración del proyecto en el editor, y el editor lo guarda.
 
   Una escena con cambios sin guardar nunca se pisa: aparece un aviso con **Recargar escena**.
@@ -229,16 +229,14 @@ Los settings de usuario (`EditorSettings`) y el historial (`user://`) no se toca
 
 | Versión | Qué pasa | Cómo lo maneja el addon |
 |---|---|---|
-| 4.4.x | Cerrar los pipes de un proceso hijo cierra descriptores equivocados, incluido el stdin del editor (D11). | No cierra los pipes de un agente terminado hasta que se cierra el editor: quedan unos pocos descriptores por sesión. |
-| 4.4.x | No existe `Logger`. | `get_errors` lee el panel Output, con los mensajes un poco demorados. |
-| 4.4–4.6 | No existe `EditorDock`. | Usa la API vieja de docks y main screen (D9). |
-| 4.7 | `EditorDock` existe, pero la main screen como dock llega en 4.8. | Dock y panel con `EditorDock`; main screen con la API vieja. |
+| 4.6 | No existe `EditorInterface.get_unsaved_scenes()`. | Si el agente cambia en disco una escena abierta, avisa con **Recargar escena** en vez de recargarla sola (D33). |
+| 4.6–4.7 | `EditorDock` existe, pero la main screen como dock llega en 4.8. | Dock y panel con `EditorDock`; main screen con la API vieja (D9). |
 | 4.8-beta1 | `_has_main_screen()` deja un `EditorDock` huérfano al deshabilitar, y cerrar el editor con la pantalla Agent activa da un error de foco. | Main screen con `add_dock`; antes de cerrar, pasa a la pantalla 2D (D9). |
 
 ## Desarrollo
 
 ```sh
-G=/ruta/a/godot   # 4.4.1, 4.7.2 o 4.8
+G=/ruta/a/godot   # 4.6.3, 4.7.2 o 4.8
 $G --headless --path . --import
 $G --headless --path . --script tests/run_all.gd            # unitarios
 $G --headless --path . --script tests/acp_session_check.gd  # ACP contra el agente falso

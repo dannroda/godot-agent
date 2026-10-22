@@ -228,7 +228,7 @@ func _remember_project_file() -> void:
 
 
 ## Escena abierta que cambió en disco: sin cambios sin guardar se recarga (sin el diálogo de
-## Godot); con cambios, no se pisa y se avisa. Sin `get_unsaved_scenes` (Godot 4.4) no se puede
+## Godot); con cambios, no se pisa y se avisa. Sin `get_unsaved_scenes` (Godot 4.6) no se puede
 ## saber, así que se avisa siempre.
 func _sync_open_scene(res_path: String) -> void:
 	_scene_mtimes[res_path] = FileAccess.get_modified_time(res_path)

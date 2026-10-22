@@ -2,7 +2,8 @@
 extends RefCounted
 ## Agrega y quita las superficies del addon en el editor: dock lateral, panel inferior y main screen.
 ## Usa EditorDock + add_dock donde existe y la API vieja en las versiones anteriores
-## (docs/decisions.md, D9). Todo lo de EditorDock va por reflexión para que parsee en 4.4.
+## (docs/decisions.md, D9). Lo de EditorDock va por reflexión: los slots de panel inferior y main
+## screen existen recién en 4.8.
 ## Cada superficie se monta dentro de un MinSizeGuard: su tamaño mínimo no puede agrandar el editor.
 
 enum Surface { SIDE, BOTTOM, MAIN_SCREEN }

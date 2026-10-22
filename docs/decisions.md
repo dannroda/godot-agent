@@ -497,3 +497,15 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - un guardado del editor no recarga;
   - no aparece ningún diálogo.
 
+## D34 · Mínimo Godot 4.6 (antes 4.4)
+
+- **Decisión del usuario**: soportar tres versiones (4.6, 4.7 y 4.8) es más manejable que arrastrar 4.4 y 4.5. La matriz de pruebas pasa a 4.6.3, 4.7.2 y 4.8-beta1; la spec §2 dice ahora «Mínimo soportado: 4.6».
+- **Código que se fue**, porque solo existía por 4.4:
+  - los pipes retenidos de `AgentProcess` (D11): cerrar los pipes de `execute_with_pipe` rompía descriptores del editor hasta 4.4.x, y está corregido desde 4.5;
+  - la lectura del panel Output en `ErrorCollector`: 4.4 no tenía `Logger`. El Logger pasó de un script compilado en runtime (para que el archivo parseara en 4.4) a `core/editor_logger.gd`;
+  - las llamadas por reflexión a `Node.get_orphan_node_ids()` (dev plugin) y a `Script.get_global_name()`.
+- **Lo que sigue dependiendo de la versión**:
+  - 4.6 no tiene `EditorInterface.get_unsaved_scenes()` (llega en 4.7): ahí una escena abierta que el agente cambia en disco no se recarga sola (D33).
+  - 4.6 y 4.7 tienen `EditorDock` para el dock y el panel inferior, pero no para la main screen (D9).
+  - Las decisiones anteriores que hablan de 4.4 quedan como estaban: cuentan lo que pasaba cuando se tomaron.
+

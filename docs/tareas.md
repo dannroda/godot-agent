@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-21
+> Generado: 2026-10-22
 
 ## M0 — Esqueleto y decisiones  (6/6, 6 en revisión)
 
@@ -785,7 +785,7 @@ review_check.gd ubica la línea esperada buscando el código, y con Claude real 
 Observado (D23): en plan mode Claude Code ejecuta comandos de solo lectura y escribe su archivo de plan fuera del proyecto sin pedirle permiso al cliente. El log perm quedó vacío en Revisar.
 progress.md tiene la sección M5.
 
-## M6 — One-shot  (8/8, 8 en revisión)
+## M6 — One-shot  (8/11, 8 en revisión)
 
 Pantalla principal completa, checkpoints git, presupuestos, checks, "Guiar al agente" y reglas de cuota del plan (§10.1).
 
@@ -984,7 +984,66 @@ El banner de la pantalla Agent: aviso (≥ umbral), pausa programada (texto de r
 
 **Bloqueada por:** 6.6 QuotaMonitor: fuentes, estados y umbrales
 
-## M7 — Pulido  (6/7, 6 en revisión)
+### One-shot: evaluator separado y vuelta de corrección · Pendiente
+
+**Prioridad:** alta · **Tamaño:** L
+
+Hoy el One-shot es un solo agente que planifica, construye y reporta sus propios checks en un bloque JSON, y el harness acepta esos pass/fail tal cual (`oneshot_run.gd:190`, `initial_prompt`). Según "Harness design for long-running application development" (Anthropic, 2026-03), el agente que construye es indulgente con su propio trabajo. Un evaluator aparte, ajustado para ser escéptico y que use la app como un usuario, encuentra bugs reales que el generator dio por buenos.
+
+Qué hacer:
+- Cuando el generator da el objetivo por cumplido (o se agota el plan), abrir una sesión ACP nueva, separada y sin el contexto del generator, con un prompt de QA escéptico.
+- El evaluator juega el juego con `godot.run_scene` e inputs simulados, `capture_game_frame` y `get_errors`, y lee el código. Califica cada check y cada criterio (ver la tarea de criterios) con un umbral duro, y devuelve findings concretos: qué falló, cómo reproducirlo y dónde.
+- Los checks del run pasan a usar el veredicto del evaluator. El autorreporte del generator queda solo como progreso.
+- Si algo no pasa, los findings vuelven al generator como el próximo turno. Hay un máximo de vueltas configurable (2 por defecto), que cuenta para los presupuestos y la detección de loops (m7-11).
+- En modo Preguntar, el evaluator usa permisos de solo lectura más run/capture: no edita archivos.
+- Reutilizar lo que se pueda del modo Revisar (`FindingsParser`, tarjetas de hallazgos).
+- Mostrar en la pantalla del One-shot la fase "Evaluando", con los findings de cada vuelta.
+
+Afinar el prompt leyendo trazas reales del evaluator. El artículo cuenta que al principio encontraba problemas y se convencía solo de aprobarlos.
+
+Tests: el agente falso con dos roles. El generator reporta todo en pass, el evaluator encuentra un fallo, y el run hace una vuelta de corrección y cierra en pass.
+
+**Relacionadas:** One-shot: criterios de evaluación para juegos
+
+### One-shot: spec y progreso en archivos (planner y traspaso) · Pendiente
+
+**Prioridad:** media · **Tamaño:** M
+
+Basado en "Harness design for long-running application development" (Anthropic, 2026-03):
+- Un planner que convierte el objetivo corto en un spec evita que el generator se quede corto de alcance. El spec tiene que ser ambicioso en alcance pero de alto nivel; si mete detalle técnico, los errores se arrastran.
+- Los agentes se pasan el trabajo por archivos, no por contexto.
+
+Qué hacer:
+- Primer paso del One-shot: escribir el spec en `.godot_agent/oneshot/<id>/spec.md`. Incluye las mecánicas, el loop de juego, la dirección visual y los criterios de "terminado". Antes de construir, el usuario puede revisarlo y editarlo (paso opcional, con "Aprobar spec").
+- El generator mantiene `progress.md`: qué está hecho, qué falta, decisiones y problemas conocidos. Se actualiza al cerrar cada tarea.
+- El evaluator lee el spec y el progress, y escribe `qa-<n>.md` con sus findings.
+- Esos archivos son el traspaso. Si el editor se cae o hay que reiniciar contexto, una sesión nueva retoma leyendo spec y progress. Se complementa con m7-09: el estado del harness va en `user://` y el del trabajo en el proyecto.
+- Decidir si `.godot_agent/` se ignora en git, se commitea en los checkpoints o queda excluido del export. El export check no debe incluirlo.
+
+**Relacionadas:** Persistir el run del One-shot y ofrecer retomarlo
+
+### One-shot: criterios de evaluación para juegos · Pendiente
+
+**Prioridad:** media · **Tamaño:** S
+
+El artículo "Harness design for long-running application development" (Anthropic, 2026-03) muestra que criterios explícitos, con peso y umbral, guían tanto al generator como al evaluator, y que su redacción cambia el resultado. Hacen falta criterios propios para juegos de Godot.
+
+Criterios propuestos, con su umbral cada uno:
+- **Jugabilidad:** la mecánica principal responde a los inputs, hay un loop completo (empezar → jugar → ganar o perder → reiniciar) y no hay estados trabados. Este es el fallo típico: "las entidades aparecen pero no responden al input".
+- **Funcionalidad:** cada feature del spec funciona en un playtest con inputs simulados, sin errores en `get_errors`.
+- **Visual y feel:** legibilidad, feedback de las acciones y coherencia de estilo, evaluados con `capture_game_frame`.
+- **Código:** tipado estático, estructura de escenas y sin warnings. Se puede reutilizar el modo Revisar.
+
+Qué hacer:
+- Ponerlos en el prompt del generator y del evaluator, con pesos y umbrales configurables en Settings.
+- Calibrar al evaluator con ejemplos de puntaje (few-shot) para que no se corra con el tiempo.
+- Dejar explícito que el evaluator no puede oír: el audio solo se verifica por código (que los nodos existan y se disparen), no por calidad.
+
+Nota: el artículo también usa contratos por sprint (generator y evaluator acuerdan antes de cada tarea cómo se verifica). Con Opus 4.6 ellos mismos los sacaron por costo, así que por ahora quedan afuera. Se pueden reconsiderar si el informe de m7-12 muestra checks mal definidos.
+
+**Relacionadas:** One-shot: evaluator separado y vuelta de corrección
+
+## M7 — Pulido  (6/12, 6 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -1176,6 +1235,89 @@ Bajos arreglados:
 Bajo pendiente: load_record y replay son sincrónicos. Corren solo al elegir una sesión.
 
 Durante la verificación, la sesión larga en 4.8 dio frames de 0,4–2 s, siempre al fin del turno. Midiendo: el guardado del historial tardaba 9 ms o 607 ms según la carga del disco. Las escrituras pasaron a un worker (cola en orden en WorkerThreadPool) y la misma secuencia quedó en 83–133 ms.
+
+### Cola de prompts en el chat · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M
+
+Hoy, con un turno en curso, el composer no deja enviar: Enter no hace nada y el botón pasa a "■ Detener" (`composer.gd` `_submit` retorna si `_busy`). La idea es poder encolar prompts mientras el agente trabaja, como en Claude Code.
+
+Propuesta:
+- Con un turno en curso, Enter encola el texto en lugar de ignorarlo. Arriba del composer aparece una lista "En cola (N)"; cada ítem se puede editar (vuelve al composer) o quitar (✕).
+- Al terminar el turno con `end_turn`, se manda el siguiente de la cola automáticamente (`session_model.turn_finished`).
+- Si el turno termina cancelado, con error o por límite de cuota, la cola se pausa y no se manda nada solo. Se muestra "N en cola · Enviar ahora / Descartar".
+- El contexto adjunto (escena, selección, imagen) se toma al encolar, para que el agente reciba lo que el usuario veía al escribir.
+- La cola vive en el controller o el dock, no en el One-shot. Cambiar de sesión o cerrar el dock la descarta, avisando si no estaba vacía.
+- Opcional: "Enviar ya" sobre un ítem cancela el turno actual y lo manda. ACP no permite inyectar texto en medio de un turno.
+
+Tests: unit de la cola (encolar, quitar, pausa por cancel o error) y un ui-check con el agente falso: dos prompts encolados durante un turno largo salen en orden.
+
+### Persistir el run del One-shot y ofrecer retomarlo · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M
+
+El estado del One-shot (plan, checks, checkpoints, presupuestos, actividad) vive solo en memoria en `oneshot/oneshot_run.gd`. Si el editor crashea, se pierde todo. Visto en little-villages el 2026-10-22: después del crash, para la sesión era como si el One-shot no hubiera corrido.
+
+Qué hacer:
+- Guardar el run en `user://godot_agent/oneshot/<id>.json` a medida que avanza, con escritura atómica (archivo temporal y después rename).
+- Al abrir el editor con un run sin terminar o reciente, ofrecer "Retomar". Eso restaura la pantalla y hace `session/load` de la sesión ACP.
+- Avisar antes de arrancar un One-shot si el repo no tiene commits, porque sin commits no hay checkpoints.
+
+**Bloquea a:** One-shot: informe de métricas de la corrida
+
+**Relacionadas:** One-shot: spec y progreso en archivos (planner y traspaso)
+
+### Crash al recargar agent_process.gd con un agente corriendo · Pendiente
+
+**Prioridad:** media · **Tamaño:** S
+
+Si se modifica `transport/agent_process.gd` en disco mientras hay un agente corriendo (un git pull, o un proyecto que usa el addon por symlink), Godot recarga el script en caliente. El hilo `_watch_exit` sigue ejecutando el bytecode viejo, que ya fue liberado, y el editor muere con SIGSEGV. Visto el 2026-10-22 en little-villages; el backtrace está en `Thread::_start_func` → `GDScriptInstance::callp`.
+
+Opciones:
+- Detectar la recarga del script (por ejemplo con `NOTIFICATION_PREDELETE` o la recarga de scripts del editor) y detener los hilos antes de que ocurra.
+- Que los hilos no ejecuten GDScript del addon en el loop: usar una clase interna o mínima que no cambie, o hacer el polling desde el hilo principal.
+
+Hay que reproducirlo en un test y confirmar que no crashea.
+
+### One-shot: detectar loops sin progreso real · Pendiente
+
+**Prioridad:** media · **Tamaño:** M
+
+Hoy el One-shot tiene dos frenos:
+- los presupuestos de tiempo, tokens y playtests;
+- `MAX_IDLE_CONTINUES` (3 turnos seguidos sin avance).
+
+Pero `_idle_continues` vuelve a 0 apenas un turno trae resumen (`oneshot_run.gd:337-341`). Un agente que "arregla" una y otra vez el mismo check sin lograrlo, o que repite la misma tool con los mismos argumentos, solo se detiene al agotar el presupuesto. Es uno de los modos de falla de corridas largas ("loop forever, retry bad actions") del artículo "Agent Harness — A no-BS guide".
+
+Qué hacer:
+- Huella por check fallido: guardar la etiqueta y el error de `get_errors`/`run_scene`. Si el mismo check falla con la misma huella N veces seguidas (N=3, configurable), avisar en la actividad. Al pasar el umbral, pausar con "Guiar al agente" o pedirle un enfoque distinto en el próximo continue.
+- Huella por tool call (nombre + argumentos normalizados): la misma huella K veces dentro de una ventana de turnos dispara el mismo aviso.
+- Que el avance real se cuente por el plan (una entrada que pasa a completed) o por los checks (fail → pass), no porque haya texto de resumen.
+
+Tests: unit con secuencias simuladas, y un guion del agente falso que repite el mismo error.
+
+**Relacionadas:** One-shot: informe de métricas de la corrida
+
+### One-shot: informe de métricas de la corrida · Pendiente
+
+**Prioridad:** media · **Tamaño:** M
+
+Al cerrar, el One-shot le pide al agente un reporte final en texto ("qué quedó hecho, qué falta y cómo probarlo"). Pero el harness no arma un informe propio con datos medidos. Sin ese informe no se pueden comparar corridas, ni saber si conviene cambiar de modelo, ajustar el prompt o sumar una tool. Es el punto de "observability & evaluation" del artículo "Agent Harness — A no-BS guide".
+
+Qué hacer: al terminar (por cualquier motivo), generar un informe a partir de datos que ya tenemos (activity, tool calls, plan, checks, budgets, checkpoints). Debe incluir:
+- el objetivo y el motivo de cierre;
+- la duración total y por tarea del plan;
+- los tokens usados, los playtests y el presupuesto consumido;
+- las tools usadas: conteo por tool y fallidas;
+- los checks: estado final y cuántas veces falló cada uno;
+- los checkpoints creados, los permisos pedidos y denegados, y los errores de turno y pausas por cuota;
+- los archivos cambiados (`changes_summary`).
+
+Se muestra en la pantalla del One-shot y se guarda en `user://godot_agent/oneshot/<id>.report.json` (junto a lo de m7-09), para compararlo con otras corridas. Opcional: exportarlo como Markdown.
+
+**Bloqueada por:** Persistir el run del One-shot y ofrecer retomarlo
+
+**Relacionadas:** One-shot: detectar loops sin progreso real
 
 ## M8a — Completado predictivo: núcleo sin IA  (7/7, 7 en revisión)
 

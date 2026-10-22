@@ -253,7 +253,7 @@ func _run_external_test() -> void:
 	if applied.size() != 1 or applied[0] != PackedStringArray(["application/config/description", "input/agent_jump"]):
 		failures.append("A: tenía que aplicar solo lo que cambió (%s)" % [applied])
 
-	# B · el agente edita la escena abierta, sin cambios del usuario: se recarga sola. Godot 4.4 no
+	# B · el agente edita la escena abierta, sin cambios del usuario: se recarga sola. Godot 4.6 no
 	# tiene get_unsaved_scenes: no se puede saber si hay cambios, así que avisa y no recarga.
 	var supports_unsaved := EditorInterface.has_method(&"get_unsaved_scenes")
 	var notices: Array[String] = []
@@ -272,7 +272,7 @@ func _run_external_test() -> void:
 		failures.append_array(_visible_dialogs("B"))
 	else:
 		if notices.is_empty():
-			failures.append("B (4.4): no avisó que el agente cambió la escena")
+			failures.append("B (4.6): no avisó que el agente cambió la escena")
 		_visible_dialogs("B")  # el de Godot es esperable acá
 		EditorInterface.reload_scene_from_path(EXTERNAL_SCENE)
 		await get_tree().create_timer(0.5).timeout
@@ -297,7 +297,7 @@ func _run_external_test() -> void:
 	_write(EXTERNAL_SCENE, scene_text)
 	EditorInterface.reload_scene_from_path(EXTERNAL_SCENE)
 	await get_tree().create_timer(1.1).timeout
-	notices.clear()  # en 4.4 la reescritura de arriba avisa: no es lo que se mide acá
+	notices.clear()  # en 4.6 la reescritura de arriba avisa: no es lo que se mide acá
 	root = EditorInterface.get_edited_scene_root()
 	EditorInterface.save_scene()
 	await get_tree().create_timer(1.5).timeout
@@ -989,14 +989,11 @@ func _orphans() -> int:
 	return int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
 
 
-## Node.get_orphan_node_ids() no existe en 4.4: se llama por reflexión para que el script parsee igual.
 func _orphan_ids() -> Array:
-	if not ClassDB.class_has_method(&"Node", &"get_orphan_node_ids"):
-		return []
-	return ClassDB.call(&"class_call_static", &"Node", &"get_orphan_node_ids")
+	return Array(Node.get_orphan_node_ids())
 
 
-## Huérfanos con un script del addon (solo 4.5+, donde existe get_orphan_node_ids).
+## Huérfanos con un script del addon.
 func _addon_orphans() -> PackedStringArray:
 	var result: PackedStringArray = []
 	for id: int in _orphan_ids():

@@ -286,7 +286,7 @@ func _collect_owned(node: Node, scene_root: Node, out: Array[Node]) -> void:
 func _live_type(node: Node) -> String:
 	var script := node.get_script() as Script
 	if script:
-		var global_name := str(script.get_global_name()) if script.has_method(&"get_global_name") else ""
+		var global_name := str(script.get_global_name())
 		if not global_name.is_empty():
 			return global_name
 	return node.get_class()

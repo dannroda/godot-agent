@@ -2,65 +2,34 @@
 extends RefCounted
 ## Errores y warnings del editor con número de secuencia, para `get_errors(since)` (spec §6).
 ## Fuentes:
-## - 4.5+: un Logger propio (OS.add_logger). La clase Logger no existe en 4.4, así que el script
-##   se compila en runtime desde LOGGER_SOURCE y este archivo parsea en todas las versiones.
-## - 4.4: el texto del panel Output (EditorLog), por líneas nuevas.
-## - Siempre: el árbol de errores del Debugger (errores del juego corriendo).
+## - un Logger propio (OS.add_logger, editor_logger.gd) con los errores del editor;
+## - el árbol de errores del Debugger (errores del juego corriendo).
+
+const EditorLogger := preload("editor_logger.gd")
 
 const MAX_ENTRIES := 500
-const LOGGER_SOURCE := """extends Logger
-const MAX_PENDING := 1000
-var _mutex := Mutex.new()
-var _pending: Array = []
-
-func _log_error(function: String, file: String, line: int, code: String, rationale: String, editor_notify: bool, error_type: int, script_backtraces: Array[ScriptBacktrace]) -> void:
-	_mutex.lock()
-	if _pending.size() < MAX_PENDING:
-		_pending.append([function, file, line, code, rationale, error_type])
-	_mutex.unlock()
-
-func _log_message(message: String, error: bool) -> void:
-	pass
-
-func drain() -> Array:
-	_mutex.lock()
-	var result := _pending
-	_pending = []
-	_mutex.unlock()
-	return result
-"""
 const LOGGER_TYPES: Dictionary = {0: "error", 1: "warning", 2: "script", 3: "shader"}
 const TIME_PATTERN := "^\\d+:\\d+:\\d+"
 
 ## `{seq, kind, message, file, line, source}`
 var _entries: Array[Dictionary] = []
 var _next_seq: int = 1
-var _logger: Object
-var _output_lines_seen: int = 0
+var _logger: EditorLogger
 var _debugger_seen: Dictionary = {}
 var _time_regex := RegEx.create_from_string(TIME_PATTERN)
-var _inline_location := RegEx.create_from_string("^(\\S+):(\\d+) - (.*)$")
 
 
 func start() -> void:
-	if _logger or not ClassDB.class_exists(&"Logger") or not OS.has_method(&"add_logger"):
+	if _logger:
 		return
-	var script := GDScript.new()
-	script.source_code = LOGGER_SOURCE
-	if script.reload() != OK:
-		return
-	_logger = script.new()
-	OS.call(&"add_logger", _logger)
+	_logger = EditorLogger.new()
+	OS.add_logger(_logger)
 
 
 func stop() -> void:
 	if _logger:
-		OS.call(&"remove_logger", _logger)
+		OS.remove_logger(_logger)
 		_logger = null
-
-
-func uses_logger() -> bool:
-	return _logger != null
 
 
 ## Última marca (para `since`).
@@ -80,11 +49,9 @@ func entries_since(since: int) -> Array[Dictionary]:
 
 func collect() -> void:
 	if _logger:
-		for item: Array in _logger.call(&"drain"):
+		for item: Array in _logger.drain():
 			var message := str(item[4]) if not str(item[4]).is_empty() else str(item[3])
 			add(LOGGER_TYPES.get(int(item[5]), "error"), message, str(item[1]), int(item[2]), "editor")
-	else:
-		_collect_output()
 	_collect_debugger()
 
 
@@ -102,48 +69,7 @@ static func format_entry(entry: Dictionary) -> String:
 	return "#%d [%s/%s]%s — %s" % [entry.seq, entry.source, entry.kind, location, entry.message]
 
 
-# --- 4.4: panel Output ---------------------------------------------------------------------------
-
-func _collect_output() -> void:
-	var label := _output_label()
-	if label == null:
-		return
-	var lines := label.get_parsed_text().split("\n")
-	if lines.size() < _output_lines_seen:
-		_output_lines_seen = 0  # se limpió el panel
-	var i := _output_lines_seen
-	while i < lines.size():
-		var line := lines[i].strip_edges()
-		var kind := ""
-		for prefix: String in ["SCRIPT ERROR:", "USER SCRIPT ERROR:", "ERROR:", "USER ERROR:"]:
-			if line.begins_with(prefix):
-				kind = "script" if prefix.contains("SCRIPT") else "error"
-				line = line.trim_prefix(prefix).strip_edges()
-				break
-		if kind.is_empty():
-			for prefix: String in ["WARNING:", "USER WARNING:", "SCRIPT WARNING:"]:
-				if line.begins_with(prefix):
-					kind = "warning"
-					line = line.trim_prefix(prefix).strip_edges()
-					break
-		if not kind.is_empty():
-			var file := ""
-			var line_number := 0
-			# 4.4 escribe "ERROR: archivo:línea - mensaje" en el panel.
-			var inline := _inline_location.search(line)
-			if inline:
-				file = inline.get_string(1)
-				line_number = int(inline.get_string(2))
-				line = inline.get_string(3)
-			elif i + 1 < lines.size() and lines[i + 1].strip_edges().begins_with("at:"):
-				var location := _parse_location(lines[i + 1])
-				file = location[0]
-				line_number = location[1]
-				i += 1
-			add(kind, line, file, line_number, "output")
-		i += 1
-	_output_lines_seen = lines.size()
-
+# --- panel Output -------------------------------------------------------------------------------
 
 ## Texto actual del panel Output (incluye lo que imprime el juego corriendo).
 func output_text() -> String:
