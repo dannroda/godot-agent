@@ -17,6 +17,9 @@ const PATH := "res://addons/godot_agent/config/project_config.tres"
 ## Repeticiones iguales (check que falla, tool call que falla o cambio repetido) que el One-shot
 ## toma como loop (D38): la primera vez pide otro enfoque, la segunda pausa.
 @export_range(2, 20) var loop_repeats: int = 3
+## Criterios de evaluación del juego (D40): id -> {weight, threshold}. Vacío = defaults de
+## oneshot/game_criteria.gd.
+@export var criteria: Dictionary = {}
 @export_group("Herramientas")
 ## Directorios fuera del proyecto que fs/* puede leer y escribir (rutas absolutas).
 @export var extra_fs_roots: PackedStringArray = []

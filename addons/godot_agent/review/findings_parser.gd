@@ -1,7 +1,7 @@
 @tool
 extends RefCounted
-## Extrae del texto del agente los bloques `{"findings": […]}` (spec §9.4) y `{"checks": […]}`
-## (One-shot, §10), de forma tolerante:
+## Extrae del texto del agente los bloques `{"findings": […]}` (spec §9.4), `{"checks": […]}`
+## (One-shot, §10) y `{"scores": […]}` (criterios del evaluador, D40), de forma tolerante:
 ## - en fences ```json o sin fence, con texto alrededor, o varios bloques en el mismo mensaje;
 ## - comas finales, campos con otros nombres (description, fix, file…), "archivo.gd:12" en path;
 ## - severidades en inglés o castellano.
@@ -17,19 +17,23 @@ const SEVERITY_ALIASES: Dictionary = {
 const MAX_TEXT := 4000
 
 
-## `{findings: Array[Dictionary], checks: Array[Dictionary]}`.
+## `{findings: Array[Dictionary], checks: Array[Dictionary], scores: Array[Dictionary]}`.
 ## Finding: {path (res:// si se pudo), line (≥1, 0 = sin línea), severity, title, body, suggestion}.
 ## Check: {label, status: pass|fail|pending, detail}.
+## Score: {criterion, score (0–10), reason}.
 static func parse(text: String, project_root: String = "") -> Dictionary:
 	var findings: Array[Dictionary] = []
 	var checks: Array[Dictionary] = []
+	var scores: Array[Dictionary] = []
 	var seen: Dictionary = {}
 	for candidate: Variant in _json_candidates(text):
 		var raw_findings: Variant = null
 		var raw_checks: Variant = null
+		var raw_scores: Variant = null
 		if candidate is Dictionary:
 			raw_findings = candidate.get("findings")
 			raw_checks = candidate.get("checks")
+			raw_scores = candidate.get("scores")
 		elif candidate is Array and not candidate.is_empty() and candidate[0] is Dictionary and (candidate[0] as Dictionary).has("line"):
 			raw_findings = candidate
 		if raw_findings is Array:
@@ -44,7 +48,23 @@ static func parse(text: String, project_root: String = "") -> Dictionary:
 				var check := normalize_check(item)
 				if not check.is_empty():
 					checks.append(check)
-	return {"findings": findings, "checks": checks}
+		if raw_scores is Array:
+			for item: Variant in raw_scores:
+				var score := normalize_score(item)
+				if not score.is_empty():
+					scores.append(score)
+	return {"findings": findings, "checks": checks, "scores": scores}
+
+
+## Puntaje de un criterio: {criterion, score (0–10), reason}.
+static func normalize_score(item: Variant) -> Dictionary:
+	if not item is Dictionary:
+		return {}
+	var criterion := _first_string(item, ["criterion", "criterio", "id", "name", "label"])
+	var value: Variant = _first_value(item, ["score", "puntaje", "value", "nota"])
+	if criterion.is_empty() or not (value is float or value is int or (value is String and (value as String).is_valid_float())):
+		return {}
+	return {"criterion": criterion, "score": clampf(float(value), 0.0, 10.0), "reason": _first_string(item, ["reason", "razón", "razon", "detail", "evidence", "notes"]).left(MAX_TEXT)}
 
 
 static func normalize_finding(item: Variant, project_root: String = "") -> Dictionary:
@@ -136,7 +156,7 @@ static func _json_candidates(text: String) -> Array:
 		if end < 0:
 			break
 		var chunk := outside.substr(brace, end - brace + 1)
-		if chunk.contains("\"findings\"") or chunk.contains("\"checks\""):
+		if chunk.contains("\"findings\"") or chunk.contains("\"checks\"") or chunk.contains("\"scores\""):
 			var parsed: Variant = _parse_lenient(chunk)
 			if parsed != null:
 				candidates.append(parsed)

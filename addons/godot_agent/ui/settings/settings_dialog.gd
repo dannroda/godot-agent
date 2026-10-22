@@ -16,13 +16,14 @@ const SessionModel := preload("../../session/session_model.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const CompletionSettingsPage := preload("completion_settings_page.gd")
+const GameCriteria := preload("../../oneshot/game_criteria.gd")
 
 enum Section { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
 const SECTION_LABELS: PackedStringArray = ["Agentes", "Permisos", "Servidor MCP", "One-shot y cuota", "Completado", "Interfaz", "Export"]
 const DECISIONS: PackedStringArray = [PermissionPolicy.ALLOW, PermissionPolicy.ASK, PermissionPolicy.DENY]
 const DECISION_LABELS: Dictionary = {PermissionPolicy.ALLOW: "sí", PermissionPolicy.ASK: "preguntar", PermissionPolicy.DENY: "no"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "loop_repeats", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "loop_repeats", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = ["Derecha, arriba", "Derecha, abajo", "Izquierda, arriba", "Izquierda, abajo"]
 
 ## () -> String: URL actual del server MCP ("" si no escucha).
@@ -59,6 +60,8 @@ var _manual_runs_check: CheckBox
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
 var _loop_spin: SpinBox
+## id -> {weight: SpinBox, threshold: SpinBox}
+var _criteria_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
 var _warn_spin: SpinBox
 var _pause_spin: SpinBox
@@ -255,6 +258,30 @@ func _build_oneshot(page: VBoxContainer) -> void:
 	page.add_child(_checkpoints_check)
 	_loop_spin = _spin_row(page, "Loop: repeticiones iguales", 2, 20, 1, "")
 	_loop_spin.tooltip_text = "Un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio repetido.\nLa primera vez se le pide otro enfoque al agente; si vuelve a pasar, el One-shot se pausa."
+	page.add_child(_title("Criterios de evaluación del juego (por proyecto)"))
+	page.add_child(_hint("Van en el prompt del agente y en la rúbrica del evaluador. Puntaje de 0 a 10: el juego pasa si cada criterio llega a su mínimo. Peso 0 = no se usa."))
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override(&"h_separation", AgentTheme.px(10))
+	page.add_child(grid)
+	for header: String in ["Criterio", "Peso", "Mínimo"]:
+		grid.add_child(_hint(header))
+	for criterion: Dictionary in GameCriteria.DEFAULTS:
+		var label := Label.new()
+		label.text = criterion.name
+		label.tooltip_text = criterion.description
+		label.mouse_filter = Control.MOUSE_FILTER_PASS
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(label)
+		var spins := {}
+		for key: String in ["weight", "threshold"]:
+			var spin := SpinBox.new()
+			spin.min_value = 0
+			spin.max_value = 10
+			spin.custom_minimum_size.x = AgentTheme.px(90)
+			grid.add_child(spin)
+			spins[key] = spin
+		_criteria_spins[criterion.id] = spins
 	page.add_child(_title("Cuota y límites (por usuario: la cuota es del plan, no del proyecto)"))
 	_warn_spin = _spin_row(page, "Avisar al llegar a", 1, 100, 1, "%")
 	_pause_check = CheckBox.new()
@@ -351,6 +378,9 @@ func _load() -> void:
 	_budget_spins.playtests.value = _config.budget_playtests
 	_checkpoints_check.button_pressed = _config.checkpoints_enabled
 	_loop_spin.value = _config.loop_repeats
+	for criterion: Dictionary in GameCriteria.resolve(_config.criteria):
+		_criteria_spins[criterion.id].weight.value = criterion.weight
+		_criteria_spins[criterion.id].threshold.value = criterion.threshold
 	_warn_spin.value = roundi(_settings.quota_warn() * 100.0)
 	_pause_spin.value = roundi(_settings.quota_pause() * 100.0)
 	_pause_check.button_pressed = _settings.quota_pause_enabled()
@@ -402,6 +432,12 @@ func _on_save() -> void:
 	_config.budget_playtests = int(_budget_spins.playtests.value)
 	_config.checkpoints_enabled = _checkpoints_check.button_pressed
 	_config.loop_repeats = int(_loop_spin.value)
+	var criteria := {}
+	for criterion: Dictionary in GameCriteria.DEFAULTS:
+		var spins: Dictionary = _criteria_spins[criterion.id]
+		if int(spins.weight.value) != int(criterion.weight) or int(spins.threshold.value) != int(criterion.threshold):
+			criteria[criterion.id] = {"weight": int(spins.weight.value), "threshold": int(spins.threshold.value)}
+	_config.criteria = criteria
 	var result := _config.save_to_project()
 	if result != OK:
 		for property: String in before:

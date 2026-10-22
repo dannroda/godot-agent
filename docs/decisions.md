@@ -589,3 +589,19 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Dónde**: se guarda en `user://godot_agent/oneshot/<id>.report.json` (`OneShotStore.save_report`), al lado del estado (D37), y se poda con él. Las métricas parciales van dentro del estado guardado, así un run retomado después de una caída no las pierde.
 - **UI**: botón «Informe» en la barra de abajo cuando el run terminó. Abre el informe en Markdown (con el conversor del dock) y «Copiar Markdown» lo deja en el portapapeles.
 - **Pruebas**: `test_run_report`; `oneshot_check` (recuperación: el informe suma lo de antes de la caída y queda en disco; loop: loops, guías y fallas); `--godot-agent-oneshot-test` abre el informe.
+
+## D40 · Criterios de evaluación para juegos
+
+- **Por qué**: en "Harness design for long-running application development" (Anthropic, 2026-03), criterios explícitos con peso y umbral guían tanto al que construye como al que evalúa, y su redacción cambia el resultado.
+- **Criterios** (`oneshot/game_criteria.gd`), puntaje de 0 a 10:
+  - **Jugabilidad** (peso 3, mínimo 7): la mecánica responde a los inputs, hay un loop completo (empezar, jugar, ganar o perder, reiniciar) y nada se traba. El fallo típico es "las entidades aparecen pero no responden al input".
+  - **Funcionalidad** (3, 7): cada feature del objetivo funciona en un playtest con inputs simulados, sin errores en `get_errors`.
+  - **Visual y feel** (2, 5): legibilidad, feedback de las acciones y estilo coherente, mirado con `capture_game_frame`.
+  - **Código** (1, 5): tipado estático, escenas bien armadas y sin warnings.
+- **Veredicto**: el juego pasa si cada criterio con peso llega a su mínimo; un criterio sin puntaje no pasa. El peso arma el promedio ponderado y le dice al agente qué priorizar. Peso 0 apaga un criterio.
+- **Dónde se usan**:
+  - el prompt inicial del One-shot los lista con mínimo y peso;
+  - la rúbrica del evaluador (D42) suma tres ejemplos de puntaje por criterio (3, 6 y 9) como referencia fija, para que no se vuelva indulgente vuelta a vuelta, y aclara que no puede oír: el audio se verifica solo por código.
+- **Formato**: el evaluador responde con un bloque `{"scores": [{criterion, score, reason}]}`, que `FindingsParser` lee junto a `checks` y `findings`. El criterio se reconoce por id o por nombre, sin importar mayúsculas ni tildes.
+- **Config**: `criteria` en `project_config.tres` (id → peso y mínimo; solo se guarda lo que difiere del default), editable en Settings → One-shot.
+- **Fuera por ahora**: los contratos por sprint del artículo (el generator y el evaluator acuerdan cómo se verifica cada tarea). Ellos mismos los sacaron por costo; se pueden reconsiderar si el informe (D39) muestra checks mal definidos.

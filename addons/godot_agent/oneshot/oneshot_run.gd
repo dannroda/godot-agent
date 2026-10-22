@@ -27,6 +27,7 @@ const FindingsParser := preload("../review/findings_parser.gd")
 const OneShotStore := preload("oneshot_store.gd")
 const LoopDetector := preload("loop_detector.gd")
 const RunReport := preload("run_report.gd")
+const GameCriteria := preload("game_criteria.gd")
 
 enum Phase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED }
 
@@ -73,6 +74,8 @@ var store := OneShotStore.new()
 var loops := LoopDetector.new()
 ## Métricas para el informe final (D39).
 var report := RunReport.new()
+## Criterios de evaluación del juego (D40), con los pesos y umbrales del proyecto.
+var criteria: Array[Dictionary] = GameCriteria.resolve()
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
 
@@ -257,6 +260,8 @@ func initial_prompt() -> String:
 		"3. Al terminar cada tarea, reportá las verificaciones vigentes en un bloque ```json {\"checks\":[{\"label\":\"…\",\"status\":\"pass|fail|pending\"}]}.",
 		"4. Presupuestos: %s. Si te acercás al límite, priorizá dejar algo jugable." % (", ".join(limits) if not limits.is_empty() else "sin límite"),
 		"No hagas commits ni cambies de rama: los checkpoints git los maneja el harness.",
+		"",
+		GameCriteria.generator_text(criteria),
 	])
 
 

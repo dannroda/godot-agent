@@ -125,6 +125,7 @@ Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un
 4. **Checkpoints**: cada tarea del plan (o cada playtest, si el agente no informa un plan) es un commit `cpN` en la rama `agent/<fecha>`. **Volver acá** deja el proyecto exactamente como en ese checkpoint y pausa el run; **Retomar** sigue desde ahí.
 5. **Presupuestos** de tiempo, tokens y playtests: avisa al 80 % y, al 100 %, pide el reporte final y termina.
    **Loops**: si el agente repite lo mismo sin avanzar (un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio una y otra vez), el run le pide otro enfoque; si vuelve a pasar, se pausa y espera que lo guíes. Las repeticiones se ajustan en Settings → One-shot.
+   **Criterios del juego**: el agente sabe de entrada cómo se evalúa lo que hace: jugabilidad, funcionalidad, visual y feel, y código, cada uno con peso y mínimo de 0 a 10 (Settings → One-shot).
 6. Al final:
    - **Revisar cambios** lista los archivos; con doble clic se ve el diff contra el inicio.
    - **Aceptar todo** hace un commit final en `agent/<fecha>`. El merge lo hacés vos.

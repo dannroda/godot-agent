@@ -1022,7 +1022,7 @@ Qué hacer:
 
 **Relacionadas:** Persistir el run del One-shot y ofrecer retomarlo
 
-### One-shot: criterios de evaluación para juegos · Pendiente
+### One-shot: criterios de evaluación para juegos · En curso
 
 **Prioridad:** media · **Tamaño:** S
 
@@ -1043,7 +1043,7 @@ Nota: el artículo también usa contratos por sprint (generator y evaluator acue
 
 **Relacionadas:** One-shot: evaluator separado y vuelta de corrección
 
-## M7 — Pulido  (9/12, 9 en revisión)
+## M7 — Pulido  (11/12, 11 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -1311,7 +1311,7 @@ Hay que reproducirlo en un test y confirmar que no crashea.
 - Sin probar en Windows: puede quedar un error de PeekNamedPipe en Output al cerrar.
 - Quedan threads cortos en los checkpoints de git, el índice del completado y el historial.
 
-### One-shot: detectar loops sin progreso real · Pendiente
+### One-shot: detectar loops sin progreso real · Revisión
 
 **Prioridad:** media · **Tamaño:** M
 
@@ -1328,9 +1328,14 @@ Qué hacer:
 
 Tests: unit con secuencias simuladas, y un guion del agente falso que repite el mismo error.
 
+**Prueba:** test_loop_detector (8 tests); oneshot_check escenario «loop» con umbral 2: dos Edit fallidos cortan el turno y piden otro enfoque, el mismo check roto pide otro enfoque y después pausa, guiar retoma. Matriz 4.6.3/4.7.2/4.8-beta1 + 24 UI checks en verde.
+
+**Notas:** c2faff8 (D38). LoopDetector (oneshot/loop_detector.gd) con tres huellas: check con el mismo detalle en `repeats` reportes seguidos; tool call que falla con los mismos argumentos (si es lectura/verificación, un cambio en el medio reinicia la cuenta); el mismo cambio repetido repeats+1 veces en las últimas 40. Primera vez: actividad «loop», aviso y guía "otro enfoque" (corta el turno si viene de tool calls); la misma huella otra vez: pausa con banner (pause_note). Umbral `loop_repeats` (3) en project_config + Settings → One-shot.
+Corrección a la descripción: _idle_continues no se reiniciaba por el resumen sino por playtests; ahora el avance real son tareas completadas + checks en pass (_progress()).
+
 **Relacionadas:** One-shot: informe de métricas de la corrida
 
-### One-shot: informe de métricas de la corrida · Pendiente
+### One-shot: informe de métricas de la corrida · Revisión
 
 **Prioridad:** media · **Tamaño:** M
 
@@ -1346,6 +1351,10 @@ Qué hacer: al terminar (por cualquier motivo), generar un informe a partir de d
 - los archivos cambiados (`changes_summary`).
 
 Se muestra en la pantalla del One-shot y se guarda en `user://godot_agent/oneshot/<id>.report.json` (junto a lo de m7-09), para compararlo con otras corridas. Opcional: exportarlo como Markdown.
+
+**Prueba:** test_run_report; oneshot_check (recuperación: informe en disco con lo de antes de la caída; loop: loops/guías/fallas); --godot-agent-oneshot-test abre el informe y busca godot.run_scene y pong.gd. Matriz completa en verde.
+
+**Notas:** c2faff8 (D39). RunReport (oneshot/run_report.gd) junta métricas mientras corre (tareas in_progress→completed, tools por nombre con fallas, fallas por check, eventos: turnos, errores, permisos pedidos/denegados, pausas por cuota, límites, loops, guías) y se guardan dentro del estado (sobreviven a una caída). _finish → _write_report: build + changes_summary → store.save_report(<id>.report.json), se poda con el run. UI: botón «Informe» (barra de abajo, al terminar) con el Markdown renderizado y «Copiar Markdown».
 
 **Bloqueada por:** Persistir el run del One-shot y ofrecer retomarlo
 
