@@ -44,7 +44,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	for tool: Dictionary in list.get("result", {}).get("tools", []):
 		names.append(tool.name)
 	print("[mcp-check] tools: ", ", ".join(names))
-	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "get_errors", "validate_scripts", "capture_editor_viewport"]:
+	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "class_info", "search_api", "get_errors", "validate_scripts", "capture_editor_viewport"]:
 		_expect(expected in names, "tools/list incluye %s" % expected)
 
 	var info := await _call_text("project_info", {})
@@ -65,6 +65,12 @@ func run(tree: SceneTree) -> PackedStringArray:
 	_expect(missing.get("isError", false) and _text(missing).contains("Player"), "get_node inexistente: error con sugerencias")
 	var state := await _call_text("editor_state", {})
 	_expect(state.contains("main_fixture.tscn") and state.contains("Player (CharacterBody2D)"), "editor_state: escena y selección")
+	var timer_api := await _call_text("class_info", {"class": "Timer"})
+	_expect(timer_api.contains("start(time_sec: float = -1") and timer_api.contains("A countdown timer."), "class_info: firma y descripción del caché del editor")
+	var script_api := await _call_text("class_info", {"class": "Status"})
+	_expect(script_api.contains("Project class_name, script res://tests/fixtures/global_names/status.gd"), "class_info: class_name del proyecto")
+	var found := await _call_text("search_api", {"query": "move and slide"})
+	_expect(found.contains("CharacterBody2D.move_and_slide("), "search_api")
 
 	var marker := "mcp-check-marker-%d" % Time.get_ticks_msec()
 	var before := await _call_text("get_errors", {})

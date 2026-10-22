@@ -11,6 +11,8 @@ El agente ve estas tools como `godot.<nombre>` (Claude Code las muestra como `mc
 | | `scene_tree` | El árbol de una escena: tipos, scripts, escenas instanciadas, grupos y propiedades que difieren del default. Sin `scene`, la escena abierta con sus cambios sin guardar. |
 | | `get_node` | Un nodo en detalle: propiedades que difieren del default, script, grupos, conexiones de señales guardadas e hijos. |
 | | `editor_state` | Escena actual y abiertas, selección, script abierto con la línea del cursor, y si el juego está corriendo. |
+| | `class_info` | La API de una clase en la versión de Godot del editor abierto: herencia, firmas de métodos, propiedades con su default, señales y constantes, con descripción. Clases del motor, tipos built-in (`Vector2`…), `@GlobalScope` y `class_name` del proyecto. Con `member`, la documentación completa de un miembro. |
+| | `search_api` | Busca clases y miembros por nombre o capacidad ("raycast", "move toward"). |
 | Diagnóstico | `get_errors` | Errores y warnings del editor y de la última ejecución. Devuelve una marca: pasala como `since` para ver solo los nuevos. |
 | | `validate_scripts` | Parsea los scripts en un proceso aparte (con el binario del editor) y devuelve los errores por archivo y línea, sin correr el juego. |
 | | `capture_editor_viewport` | Una imagen del viewport 2D/3D. |

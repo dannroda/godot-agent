@@ -7,6 +7,7 @@ Rules:
 - Write and edit scripts and other text files only with your own file tools (Write, Edit): the harness passes them through the editor. Never write project files from the shell (redirections, heredocs, `tee`, `sed -i`, Python or Node scripts): the harness rejects those commands. Use the shell to read, to run Godot and for git.
 - Do not create or edit `.uid` or `.import` files: the editor manages them.
 - To read the editor's state (scene tree, errors, selection, viewport capture), use the `godot.*` tools before making assumptions.
+- This is Godot {godot_version}: before using a class, method or property you are not sure exists in this version, check it with `godot.class_info` or `godot.search_api` instead of guessing from memory (APIs differ between 3.x, 4.x and minor versions).
 - After editing scripts, check with `godot.validate_scripts` and `godot.get_errors` (pass the mark it returns as `since` to see only what is new).
 - Each editing tool is its own undo step: prefer several small calls over one big one. Save with `godot.save_scene` before running.
 - To test the game, use `godot.run_scene` (with `inputs` if needed), look at the frame with `godot.capture_game_frame`, and close it with `godot.stop_scene` when done.

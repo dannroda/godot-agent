@@ -190,6 +190,8 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `scene_tree` | read | `scene?` (default: escena abierta), `depth?` | Árbol con nombre, tipo, script, grupos y propiedades no default (compacto) |
 | `get_node` | read | `scene?`, `node_path` | Propiedades, señales conectadas, script |
 | `editor_state` | read | — | Escena actual, escenas abiertas, selección, script abierto con línea del cursor |
+| `class_info` | read | class, member?, inherited?, description? | API de una clase en la versión del editor (ClassDB + caché de docs del editor); built-ins, @GlobalScope y class_name |
+| `search_api` | read | query, kind?, class? | Busca clases y miembros por nombre o capacidad |
 | `get_errors` | diagnostics | `since?` | Errores y warnings de scripts y del panel Output o Debugger desde una marca |
 | `validate_scripts` | diagnostics | `paths?` | Parseo de los scripts indicados (o todos), con errores por línea. Usar la recarga o el parse del editor; si no alcanza, `godot --headless --check-only` como subproceso |
 | `capture_editor_viewport` | diagnostics | `which: "2d"\|"3d"` | PNG en base64 como content de imagen |
