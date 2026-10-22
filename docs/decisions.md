@@ -630,3 +630,13 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - un link del chat a `.godot_agent/oneshot/…` abre ese visor en su pestaña. Los demás archivos de texto que Godot no carga (`.md`, `.txt`…) se abren con el programa del sistema, en vez de «No se pudo abrir».
 - **Guiar = el chat**: con un One-shot en curso, lo que se escribe en el chat del dock ya iba a `guide()`. El campo «Guiar al agente» de la pantalla duplicaba eso y confundía, así que se sacó. El placeholder del composer lo dice.
 - **Pruebas**: `test_oneshot_files`; `oneshot_check` (spec): esperar, guiar, aprobar con cambios, terminar y el spec en git; `--godot-agent-oneshot-test` con la columna del spec, el visor y un link a progress.md.
+
+## D43 · El agente corre Godot con el binario del editor
+
+- **Problema** (reporte del usuario): el agente corre `godot --headless` por su cuenta (importar, validar, correr tests) y toma el `godot` del PATH, que puede ser otra versión que la del editor abierto. El usuario tiene varias versiones instaladas una al lado de la otra.
+- **Qué hace** (`transport/editor_binary.gd`): el binario es `OS.get_executable_path()` y le llega al agente por tres lados:
+  - en su entorno, como `GODOT` y `GODOT_BIN`. El perfil del agente puede definirlas y entonces mandan las del perfil;
+  - como un shim `godot` (`godot.cmd` en Windows) que lanza ese binario. Vive en `<cache>/godot_agent/bin-<hash del binario>/`, uno por binario para que editores de versiones distintas no se pisen, y va al frente del PATH del agente;
+  - en el system prompt, con la ruta y la regla de usarla. `project_info` también la incluye.
+- **Por qué los tres**: la shell que usa Claude Code para su Bash puede volver a armar el PATH desde el perfil del usuario (`.zshrc`) y dejar el shim atrás. La regla del prompt con la ruta absoluta es lo que manda; el shim y `$GODOT` cubren el resto.
+- **Pruebas**: `test_editor_binary` (entorno, contenido del shim y que el shim corra la versión del editor) y `acp_session_check` (el agente falso recibe `$GODOT` y el PATH con el shim, y el prompt nombra el binario).

@@ -120,6 +120,7 @@ func _handle_line(line: String) -> void:
 			}
 			result.merge(_scenario.get("initialize", {}), true)
 			printerr("fake_agent: initialize %s" % JSON.stringify(message.get("params", {})))
+			printerr("fake_agent: GODOT=%s PATH=%s" % [OS.get_environment("GODOT"), OS.get_environment("PATH").get_slice(":", 0)])
 			_reply(id, result)
 		"session/new":
 			var auth: Dictionary = _scenario.get("auth", {})

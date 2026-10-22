@@ -46,6 +46,7 @@ func tools() -> Array:
 func _project_info(_args: Dictionary) -> String:
 	var lines: PackedStringArray = []
 	lines.append("Godot %s" % Engine.get_version_info().string)
+	lines.append("Binario del editor (usalo para correr Godot por línea de comandos): %s" % OS.get_executable_path())
 	lines.append("Proyecto: %s" % ProjectSettings.get_setting("application/config/name", ""))
 	lines.append("Ruta: %s" % ProjectSettings.globalize_path("res://").trim_suffix("/"))
 	lines.append("Escena principal: %s" % ProjectSettings.get_setting("application/run/main_scene", "(ninguna)"))

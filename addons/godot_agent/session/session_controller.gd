@@ -24,6 +24,8 @@ const QuotaMonitor := preload("../core/quota_monitor.gd")
 const ReviewStore := preload("../review/review_store.gd")
 const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
+const EditorBinary := preload("../transport/editor_binary.gd")
+const CommandResolver := preload("../transport/command_resolver.gd")
 
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
@@ -137,7 +139,9 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_process.line_received.connect(client.receive_line)
 	_process.stderr_received.connect(_on_stderr)
 	_process.exited.connect(_on_process_exited.bind(_process))
-	if not _process.start(agent_profile.command, agent_profile.args, agent_profile.resolved_env()):
+	var base_path := CommandResolver.child_path_for(CommandResolver.resolve(agent_profile.command))
+	var env := EditorBinary.child_env(agent_profile.resolved_env(), base_path)
+	if not _process.start(agent_profile.command, agent_profile.args, env):
 		_fail("No se pudo lanzar el agente: %s" % _process.last_error())
 		_process = null
 		return false
@@ -443,6 +447,7 @@ func system_prompt() -> String:
 	variables["project_path"] = variables.get("project_path", cwd)
 	variables["project_name"] = variables.get("project_name", cwd.get_file())
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)
+	variables["godot_bin"] = variables.get("godot_bin", EditorBinary.path())
 	return "<harness_context>\n%s\n</harness_context>" % template.format(variables)
 
 

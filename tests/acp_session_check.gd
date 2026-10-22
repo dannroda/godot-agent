@@ -13,6 +13,7 @@ const FsHandler := preload("res://addons/godot_agent/acp/fs_handler.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
 const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
 const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
+const EditorBinary := preload("res://addons/godot_agent/transport/editor_binary.gd")
 const TMP_DIR := "res://tests/tmp"
 
 const TIMEOUT_S := 20.0
@@ -102,6 +103,10 @@ func _scenario_basic() -> void:
 	_check(_log_has(log, "línea ignorada"), "basic: la línea no JSON se loguea")
 	_check(_log_has(log, "desconocida, ignorada"), "basic: la variante desconocida se loguea")
 	_check(_log_has(log, "fake_agent: prompt") and _log_has(log, "harness_context"), "basic: el primer prompt lleva el contexto del harness")
+	var godot_bin := OS.get_executable_path()
+	_check(_log_has(log, "fake_agent: GODOT=%s" % godot_bin), "basic: el agente recibe el binario del editor en $GODOT")
+	_check(_log_has(log, "PATH=%s" % EditorBinary.shim_dir()), "basic: el shim godot va al frente del PATH del agente")
+	_check(_log_has(log, "binario de este editor") and _log_has(log, godot_bin.json_escape()), "basic: el system prompt nombra el binario del editor")
 
 	# El cambio de modo del harness se refleja en el modo del agente.
 	model.set_harness_mode(SessionModel.HarnessMode.ASK)
