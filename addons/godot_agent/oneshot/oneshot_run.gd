@@ -645,9 +645,10 @@ func _write_report() -> void:
 		"id": run_id, "goal": goal, "finish_reason": finish_reason, "duration_ms": _elapsed_ms(),
 		"budgets": budgets.duplicate(), "used": used.duplicate(), "checks": checks.duplicate(true),
 		"files_dir": files.relative_dir(),
-		"checkpoints": git.checkpoints.map(func(cp: Dictionary) -> Dictionary: return {"name": cp.name, "label": cp.label}) if checkpoints_enabled else [],
 	}
+	# changes_summary espera la cola de git: después, los checkpoints en curso ya están en la lista.
 	data["changes"] = await changes_summary() if checkpoints_enabled else {}
+	data["checkpoints"] = git.checkpoints.map(func(cp: Dictionary) -> Dictionary: return {"name": cp.name, "label": cp.label}) if checkpoints_enabled else []
 	last_report = report.build(data)
 	store.save_report(run_id, last_report)
 	report_ready.emit()
