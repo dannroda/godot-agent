@@ -82,12 +82,9 @@ static func _collect_files(dir: EditorFileSystemDirectory, out: PackedStringArra
 		_collect_files(dir.get_subdir(i), out)
 
 
-## Captura del viewport (2D o 3D según la escena) como bloque de imagen ACP, o {}.
-static func capture_viewport_block() -> Dictionary:
-	var image := capture_viewport(_prefers_3d())
-	if image == null:
-		return {}
-	return {"type": "image", "mimeType": "image/png", "data": Marshalls.raw_to_base64(image.save_png_to_buffer())}
+## Captura del viewport (2D o 3D según la escena), o null.
+static func capture_scene_viewport() -> Image:
+	return capture_viewport(_prefers_3d())
 
 
 static func capture_viewport(three_d: bool) -> Image:

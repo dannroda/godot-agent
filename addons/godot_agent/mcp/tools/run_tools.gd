@@ -122,16 +122,26 @@ func _stop_scene(_args: Dictionary) -> Dictionary:
 func _capture_game_frame(_args: Dictionary) -> Dictionary:
 	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
 		return McpTool.error("No game is running with the playtest probe: launch it with run_scene (manual runs do not have it).")
+	var frame: Variant = await capture_frame()
+	if frame is String:
+		return McpTool.error(frame)
+	var image: Image = frame
+	return McpTool.image(image, "Game frame (%dx%d)" % [image.get_width(), image.get_height()])
+
+
+## El frame actual del juego (que tiene que tener la probe) como Image, o el error en inglés.
+## También lo usa «+ contexto → Captura del juego» del dock.
+func capture_frame() -> Variant:
 	_state.erase("frame")
 	debugger.send("capture", [max_image_side])
 	await _until(func() -> bool: return _state.has("frame"), FRAME_TIMEOUT_S)
 	if not _state.has("frame"):
 		var paused := " The game is stopped in the debugger." if _state.has("breaked") else ""
-		return McpTool.error("The game frame did not arrive within %d s.%s" % [FRAME_TIMEOUT_S, paused])
+		return "The game frame did not arrive within %d s.%s" % [FRAME_TIMEOUT_S, paused]
 	var image := Image.new()
 	if image.load_png_from_buffer(_state.frame) != OK:
-		return McpTool.error("The game frame arrived corrupted.")
-	return McpTool.image(image, "Game frame (%dx%d)" % [image.get_width(), image.get_height()])
+		return "The game frame arrived corrupted."
+	return image
 
 
 ## Llena `out` con los pasos normalizados; devuelve "" o el error.

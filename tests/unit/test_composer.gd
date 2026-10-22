@@ -192,3 +192,65 @@ func test_enter_while_busy_and_insert_text() -> void:
 	composer.call(&"insert_text", "y esto")
 	assert_eq(input.text, "editar esto\ny esto", "insert_text después de lo escrito")
 	composer.queue_free()
+
+
+## Archivos copiados en un gestor de archivos: `file://` (con %20) o rutas absolutas, una por línea.
+## Cualquier otra cosa es texto y se pega como siempre.
+func test_clipboard_file_paths() -> void:
+	var dir := OS.get_user_data_dir().path_join("clipboard test")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var png := dir.path_join("a b.png")
+	var txt := dir.path_join("notas.txt")
+	Image.create(4, 4, false, Image.FORMAT_RGB8).save_png(png)
+	FileAccess.open(txt, FileAccess.WRITE).store_string("x")
+	var uri := "file://" + png.uri_encode().replace("%2F", "/")
+	assert_eq(Composer.clipboard_file_paths(uri), PackedStringArray([png]), "file:// con espacios")
+	assert_eq(Composer.clipboard_file_paths("%s\n%s\n" % [png, txt]), PackedStringArray([png, txt]), "rutas absolutas")
+	assert_eq(Composer.clipboard_file_paths("hola\n" + png), PackedStringArray(), "una línea de texto: se pega el texto")
+	assert_eq(Composer.clipboard_file_paths(dir.path_join("no-existe.png")), PackedStringArray(), "archivo que no existe")
+	assert_eq(Composer.clipboard_file_paths("res://icon.svg"), PackedStringArray(), "res:// es texto")
+	assert_eq(Composer.clipboard_file_paths(""), PackedStringArray(), "vacío")
+
+
+## Arrastrar archivos del FileSystem al texto los adjunta (las carpetas se ignoran); el texto
+## arrastrado lo sigue insertando el TextEdit.
+func test_drop_files() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var composer: VBoxContainer = Composer.new()
+	composer.call(&"setup", Color.ORANGE)
+	tree.root.add_child(composer)
+	# El root headless mide 64x64: el texto tiene que quedar adentro.
+	composer.position = Vector2.ZERO
+	composer.size = Vector2(60, 60)
+	await tree.process_frame
+	var attached: Array[PackedStringArray] = []
+	composer.connect(&"files_attached", func(paths: PackedStringArray) -> void: attached.append(paths))
+	var input: CodeEdit = composer.get(&"_input")
+	await _drag_onto(input, {"type": "files_and_dirs", "files": PackedStringArray(["res://dir/", "res://c.tscn"])})
+	await _drag_onto(input, {"type": "files", "files": PackedStringArray(["res://a.gd", "res://b.png"]), "from": null})
+	assert_eq(attached, [PackedStringArray(["res://c.tscn"]), PackedStringArray(["res://a.gd", "res://b.png"])] as Array[PackedStringArray], "adjunta sin carpetas")
+	await _drag_onto(input, "texto")
+	assert_eq(input.text, "texto", "el texto arrastrado lo inserta el TextEdit")
+	composer.queue_free()
+
+
+func _drag_onto(target: Control, data: Variant) -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	# Una esquina: el centro puede caer fuera del root headless (64x64).
+	var center := target.get_global_rect().position + Vector2(10, 10)
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	tree.root.push_input(press)
+	target.force_drag(data, null)
+	var motion := InputEventMouseMotion.new()
+	motion.position = center
+	motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+	tree.root.push_input(motion)
+	await tree.process_frame
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = center
+	tree.root.push_input(release)
+	await tree.process_frame

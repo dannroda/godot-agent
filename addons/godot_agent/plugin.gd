@@ -152,6 +152,7 @@ func _enter_tree() -> void:
 	dock.retry_interceptor = _intercept_dock_retry
 	_controller.after_login = _after_agent_login
 	dock.can_switch_session = func() -> bool: return not _oneshot.is_active()
+	dock.game_capture = _capture_game_for_dock
 	_oneshot.changed.connect(func() -> void:
 		if is_instance_valid(dock):
 			dock.set_oneshot_active(_oneshot.is_active()))
@@ -245,6 +246,16 @@ func _exit_tree() -> void:
 	if _surfaces:
 		_surfaces.remove_all()
 		_surfaces = null
+
+
+## «+ contexto → Captura del juego»: el frame como Image, o el motivo (traducido) si no se puede.
+func _capture_game_for_dock() -> Variant:
+	if not EditorInterface.is_playing_scene():
+		return I18n.t("No game is running.")
+	if _run_tools == null or not _playtest_debugger.has_probe():
+		return I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server.")
+	var frame: Variant = await _run_tools.capture_frame()
+	return frame if frame is Image else I18n.t("Could not capture the game frame.")
 
 
 ## Justo antes de correr el juego: alta del autoload de playtest si el run lo pidió el harness

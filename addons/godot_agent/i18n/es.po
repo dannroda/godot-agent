@@ -329,8 +329,8 @@ msgstr "Pedile algo… @ para nodos y archivos, / para comandos"
 msgid "Ask the agent to review a script or a folder: the findings show up here and in the Script Editor."
 msgstr "Pedile al agente que revise un script o una carpeta: los hallazgos aparecen acá y en el Script Editor."
 
-msgid "Attach a viewport screenshot"
-msgstr "Adjuntar una captura del viewport"
+msgid "Attach a viewport screenshot (Ctrl+V pastes an image)"
+msgstr "Adjuntar una captura del viewport (Ctrl+V pega una imagen)"
 
 msgid "Automatic (editor language)"
 msgstr "Automático (idioma del editor)"
@@ -1307,9 +1307,6 @@ msgstr "Guardar"
 msgid "Save spec"
 msgstr "Guardar spec"
 
-msgid "screenshot"
-msgstr "captura"
-
 msgid "Selection: %s"
 msgstr "Selección: %s"
 
@@ -1772,9 +1769,6 @@ msgstr "Ver diff"
 msgid "Viewport screenshot"
 msgstr "Captura del viewport"
 
-msgid "Viewport screenshot (click to remove it)"
-msgstr "Captura del viewport (tocá para quitarla)"
-
 msgid "Visuals and feel"
 msgstr "Visual y feel"
 
@@ -1870,3 +1864,36 @@ msgstr "Abrir la pantalla Agent"
 
 msgid "Rejected: «%s» writes %s without going through the editor. Scripts go through the agent's file tools and scenes through the godot.* tools."
 msgstr "Rechazado: «%s» escribe %s sin pasar por el editor. Los scripts van con las herramientas de archivos del agente y las escenas con las tools godot.*."
+
+msgid "pasted image"
+msgstr "imagen pegada"
+
+msgid "Game screenshot"
+msgstr "Captura del juego"
+
+msgid "No game is running."
+msgstr "No hay ningún juego corriendo."
+
+msgid "Could not read the image %s."
+msgstr "No se pudo leer la imagen %s."
+
+msgid "Only images and project files can be attached: %s."
+msgstr "Solo se pueden adjuntar imágenes y archivos del proyecto: %s."
+
+msgid "At most %d images per message."
+msgstr "Como mucho %d imágenes por mensaje."
+
+msgid "game"
+msgstr "juego"
+
+msgid "viewport"
+msgstr "viewport"
+
+msgid "This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server."
+msgstr "Este run no tiene el autoload de playtest, así que no se puede capturar. Correlo desde el agente, o activá «Usar el autoload de playtest también al correr el juego a mano» en Settings → Servidor MCP."
+
+msgid "Could not capture the game frame."
+msgstr "No se pudo capturar el frame del juego."
+
+msgid "screenshot"
+msgstr "captura"

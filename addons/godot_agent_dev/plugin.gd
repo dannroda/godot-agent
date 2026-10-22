@@ -685,10 +685,27 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	if not chips.has("file:res://project.godot"):
 		_finish(1, "+ contexto no agregó el chip del archivo")
 		return
+	# Imágenes: un archivo de afuera del proyecto (como al pegar archivos copiados) y una pegada,
+	# grande, que se achica.
+	var outside_png := OS.get_user_data_dir().path_join("ui_test_attach.png")
+	Image.create(16, 8, false, Image.FORMAT_RGB8).save_png(outside_png)
+	dock.call(&"add_context_files", PackedStringArray([outside_png]))
+	var pasted := Image.create(2560, 1000, false, Image.FORMAT_RGBA8)
+	pasted.fill(Color.ORANGE)
+	dock.call(&"attach_image", pasted, "pegada")
+	var images: Array = (dock.call(&"_context_blocks") as Array).filter(func(block: Dictionary) -> bool: return block.type == "image")
+	if images.size() != 2:
+		_finish(1, "las imágenes adjuntas no quedaron como bloques de imagen: %d" % images.size())
+		return
+	var decoded := Image.new()
+	decoded.load_png_from_buffer(Marshalls.base64_to_raw(str(images[1].data)))
+	if decoded.get_width() != 1280 or pasted.get_width() != 2560:
+		_finish(1, "la imagen pegada no se achicó a 1280 (o se tocó la original): %d" % decoded.get_width())
+		return
 	dock.call(&"_on_submitted", "hola, ¿qué hay que hacer con las oleadas?")
 	chips = dock.get(&"_chips")
-	if chips.has("file:res://project.godot"):
-		_finish(1, "el chip del archivo siguió después de enviar")
+	if chips.has("file:res://project.godot") or chips.keys().any(func(id: String) -> bool: return id.begins_with("image:")):
+		_finish(1, "los adjuntos siguieron después de enviar: %s" % [chips.keys()])
 		return
 	while int(model.get(&"state")) != 2:  # READY
 		await get_tree().process_frame

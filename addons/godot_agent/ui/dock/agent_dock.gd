@@ -33,11 +33,15 @@ const I18n := preload("../../core/i18n.gd")
 const PRESETS_POLL_INTERVAL_S := 2.0
 const CHIP_SCENE := "scene"
 const CHIP_SELECTION := "selection"
-const CHIP_SCREENSHOT := "screenshot"
+const CHIP_IMAGE_PREFIX := "image:"
 const CHIP_FILE_PREFIX := "file:"
 const ADD_CONTEXT_SCRIPT := 0
 const ADD_CONTEXT_FILE := 1
 const ADD_CONTEXT_SCREENSHOT := 2
+const ADD_CONTEXT_GAME := 3
+## Imágenes adjuntas por prompt.
+const MAX_IMAGES := 6
+const IMAGE_EXTENSIONS: PackedStringArray = ["png", "jpg", "jpeg", "webp", "bmp", "tga", "svg"]
 ## Acciones de la revisión que resuelve el plugin (junto con las de las tarjetas del Script Editor).
 const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
@@ -59,6 +63,8 @@ var submit_interceptor: Callable
 var retry_interceptor: Callable
 ## () -> bool: si se puede cambiar de sesión (no con un One-shot en curso). Sin asignar: siempre.
 var can_switch_session: Callable
+## () -> Variant (async): el frame del juego en ejecución como Image, o el motivo (String) si no hay.
+var game_capture: Callable
 
 var _model: SessionModel
 ## Hay un One-shot activo (corriendo o en pausa): el botón de la vista vacía lo retoma.
@@ -78,7 +84,9 @@ var _mode_buttons: Dictionary = {}  # HarnessMode -> Button
 ## Chips de contexto actuales: id -> {label, tooltip, block}
 var _chips: Dictionary = {}
 var _dismissed_chips: Dictionary = {}  # "id|valor" -> true
-var _screenshot_block: Dictionary = {}
+## Imágenes adjuntas para el próximo prompt: chip id -> {label, tooltip, block}.
+var _images: Dictionary = {}
+var _image_serial: int = 0
 ## Archivos agregados con "+ contexto" para el próximo prompt (res_path, en orden).
 var _extra_files: PackedStringArray = []
 var _add_context_menu: PopupMenu
@@ -139,6 +147,8 @@ func _ready() -> void:
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
 	_composer.screenshot_requested.connect(_on_screenshot_requested)
+	_composer.image_pasted.connect(func(image: Image) -> void: attach_image(image, I18n.t("pasted image")))
+	_composer.files_attached.connect(add_context_files)
 	_composer.context_chip_removed.connect(_on_chip_removed)
 	var composer_column := VBoxContainer.new()
 	composer_column.add_theme_constant_override(&"separation", AgentTheme.px(4))
@@ -534,7 +544,7 @@ func _send(text: String) -> void:
 ## El contexto adjunto para un prompt; la captura y los archivos agregados se usan una sola vez.
 func _take_context_blocks() -> Array:
 	var blocks := _context_blocks()
-	_screenshot_block = {}
+	_images.clear()
 	_extra_files.clear()
 	_refresh_chips()
 	return blocks
@@ -690,8 +700,7 @@ func _refresh_chips() -> void:
 			"tooltip": selection,
 			"block": {"type": "text", "text": "Selection in the editor (scene %s): %s" % [scene_path, selection]},
 		}
-	if not _screenshot_block.is_empty():
-		chips[CHIP_SCREENSHOT] = {"label": "▣ " + I18n.t("screenshot"), "tooltip": I18n.t("Viewport screenshot (click to remove it)"), "block": _screenshot_block}
+	chips.merge(_images)
 	for res_path: String in _extra_files:
 		chips[CHIP_FILE_PREFIX + res_path] = {
 			"label": "📄 " + res_path.get_file(),
@@ -722,8 +731,8 @@ func _on_chip_removed(chip_id: String) -> void:
 			_dismissed_chips[CHIP_SCENE + "|" + EditorContext.current_scene_path()] = true
 		CHIP_SELECTION:
 			_dismissed_chips[CHIP_SELECTION + "|" + EditorContext.selection_description()] = true
-		CHIP_SCREENSHOT:
-			_screenshot_block = {}
+		_ when chip_id.begins_with(CHIP_IMAGE_PREFIX):
+			_images.erase(chip_id)
 		_:
 			var index := _extra_files.find(chip_id.trim_prefix(CHIP_FILE_PREFIX))
 			if index >= 0:
@@ -731,7 +740,7 @@ func _on_chip_removed(chip_id: String) -> void:
 	_refresh_chips()
 
 
-## "+ contexto": script actual, un archivo del proyecto o una captura del viewport.
+## "+ contexto": script actual, un archivo del proyecto, una captura del viewport o del juego.
 func _on_add_context_pressed() -> void:
 	if _add_context_menu == null:
 		_add_context_menu = PopupMenu.new()
@@ -743,6 +752,10 @@ func _on_add_context_pressed() -> void:
 		_add_context_menu.add_item(I18n.t("Current script: %s") % script.resource_path.get_file(), ADD_CONTEXT_SCRIPT)
 	_add_context_menu.add_item(I18n.t("Project file…"), ADD_CONTEXT_FILE)
 	_add_context_menu.add_item(I18n.t("Viewport screenshot"), ADD_CONTEXT_SCREENSHOT)
+	_add_context_menu.add_item(I18n.t("Game screenshot"), ADD_CONTEXT_GAME)
+	if not EditorInterface.is_playing_scene():
+		_add_context_menu.set_item_disabled(-1, true)
+		_add_context_menu.set_item_tooltip(-1, I18n.t("No game is running."))
 	_add_context_menu.reset_size()
 	_add_context_menu.popup(Rect2i(Vector2i(get_screen_position() + get_local_mouse_position()), Vector2i.ZERO))
 
@@ -764,15 +777,58 @@ func _on_add_context_selected(id: int) -> void:
 			_file_dialog.popup_centered_ratio(0.6)
 		ADD_CONTEXT_SCREENSHOT:
 			_on_screenshot_requested()
+		ADD_CONTEXT_GAME:
+			_capture_game()
 
 
-## Agrega archivos del proyecto (res://) como resource_link para el próximo prompt.
+## Agrega archivos para el próximo prompt: las imágenes como imagen (de donde sean) y el resto, si
+## es del proyecto, como resource_link.
 func add_context_files(paths: PackedStringArray) -> void:
+	var outside: PackedStringArray = []
 	for path: String in paths:
+		if path.get_extension().to_lower() in IMAGE_EXTENSIONS:
+			var image := Image.load_from_file(path)
+			if image == null or image.is_empty():
+				_model.add_notice(I18n.t("Could not read the image %s.") % path.get_file(), ChatEntry.NoticeLevel.WARNING)
+			else:
+				attach_image(image, path.get_file(), path)
+			continue
 		var res_path := path if path.begins_with("res://") else EditorContext.to_res_path(path)
-		if not res_path.is_empty() and not res_path in _extra_files:
+		if res_path.is_empty():
+			outside.append(path.get_file())
+		elif not res_path in _extra_files:
 			_extra_files.append(res_path)
+	if not outside.is_empty():
+		_model.add_notice(I18n.t("Only images and project files can be attached: %s.") % ", ".join(outside), ChatEntry.NoticeLevel.WARNING)
 	_refresh_chips()
+
+
+## Adjunta `image` al próximo prompt (achicada a EditorContext.MAX_IMAGE_SIDE).
+func attach_image(image: Image, label: String, tooltip: String = "") -> void:
+	if not (_model.session_id.is_empty() or _model.supports_image()):
+		_model.add_notice(I18n.t("The agent does not accept images"), ChatEntry.NoticeLevel.WARNING)
+		return
+	if _images.size() >= MAX_IMAGES:
+		_model.add_notice(I18n.t("At most %d images per message.") % MAX_IMAGES, ChatEntry.NoticeLevel.WARNING)
+		return
+	var fitted := EditorContext.fit_image(image.duplicate() as Image, EditorContext.MAX_IMAGE_SIDE)
+	_image_serial += 1
+	_images[CHIP_IMAGE_PREFIX + str(_image_serial)] = {
+		"label": "▣ " + label,
+		"tooltip": I18n.t("%s (click to remove it)") % (tooltip if not tooltip.is_empty() else "%s, %dx%d" % [label, fitted.get_width(), fitted.get_height()]),
+		"block": {"type": "image", "mimeType": "image/png", "data": Marshalls.raw_to_base64(fitted.save_png_to_buffer())},
+	}
+	_refresh_chips()
+
+
+func _capture_game() -> void:
+	if not game_capture.is_valid():
+		return
+	var frame: Variant = await game_capture.call()
+	if frame is Image:
+		attach_image(frame, I18n.t("game"))
+	else:
+		_model.add_notice(str(frame), ChatEntry.NoticeLevel.WARNING)
 
 
 func _context_blocks() -> Array:
@@ -783,12 +839,11 @@ func _context_blocks() -> Array:
 
 
 func _on_screenshot_requested() -> void:
-	var block := EditorContext.capture_viewport_block()
-	if block.is_empty():
+	var image := EditorContext.capture_scene_viewport()
+	if image == null:
 		_model.add_notice(I18n.t("Could not capture the viewport."), ChatEntry.NoticeLevel.WARNING)
 		return
-	_screenshot_block = block
-	_refresh_chips()
+	attach_image(image, I18n.t("viewport"))
 
 
 # --- presets de export (M0) ----------------------------------------------------------------------

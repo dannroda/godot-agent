@@ -4,7 +4,8 @@ extends "mcp_check.gd"
 ## - el probe reproduce inputs y captura frames;
 ## - un script roto devuelve el error real del debugger;
 ## - el autoload de playtest no queda en project.godot (ni en memoria) después de cada run,
-##   y un run manual no lo lleva.
+##   y un run manual no lo lleva;
+## - «+ contexto → Captura del juego» del dock adjunta el frame, o avisa por qué no puede.
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
@@ -16,6 +17,8 @@ const QUITS_SCENE := "res://tests/fixtures/run_quits.tscn"
 const RUN_ARGS_ENV := "GODOT_AGENT_TEST_RUN_ARGS"
 const RUN_ARGS_SETTING := "editor/run/main_run_args"
 
+var _dock: Node
+
 
 func run_run(tree: SceneTree) -> PackedStringArray:
 	_tree = tree
@@ -25,6 +28,7 @@ func run_run(tree: SceneTree) -> PackedStringArray:
 		if script and script.resource_path == SERVER_SCRIPT:
 			_server = node
 		elif script and script.resource_path == DOCK_SCRIPT:
+			_dock = node
 			model = node.get(&"_model")
 	if _server == null or model == null:
 		failures.append("no se encontró el server o el modelo")
@@ -57,6 +61,10 @@ func _check_runs(model: Object) -> void:
 	_check_autoload_gone("después de run_scene")
 	var frame: Dictionary = await _call("capture_game_frame", {})
 	_expect(not frame.get("isError", false) and _frame_is_red(frame), "capture_game_frame: frame rojo del juego")
+	await _dock.call(&"_capture_game")
+	var images: Dictionary = _dock.get(&"_images")
+	_expect(images.size() == 1 and _frame_is_red({"content": [images.values()[0].block]}), "dock: Captura del juego adjunta el frame rojo")
+	images.clear()
 	var stopped := await _call_text("stop_scene", {})
 	_expect(stopped.contains("stopped") and not EditorInterface.is_playing_scene(), "stop_scene")
 
@@ -80,6 +88,11 @@ func _check_runs(model: Object) -> void:
 		await _tree.process_frame
 	var manual_frame: Dictionary = await _call("capture_game_frame", {})
 	_expect(manual_frame.get("isError", false), "run manual: sin probe")
+	var entries_before: int = (model.call(&"entries") as Array).size()
+	await _dock.call(&"_capture_game")
+	var entries: Array = model.call(&"entries")
+	_expect((_dock.get(&"_images") as Dictionary).is_empty() and entries.size() == entries_before + 1 and str(entries[-1].text).contains("playtest autoload"),
+		"dock: Captura del juego en un run manual avisa que falta el autoload")
 	EditorInterface.stop_playing_scene()
 	await _tree.create_timer(1.0).timeout
 	_check_autoload_gone("después del run manual")

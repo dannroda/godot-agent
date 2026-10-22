@@ -4,13 +4,18 @@ extends VBoxContainer
 ## `@` archivos y nodos), medidor de contexto, selector de modelo y enviar/detener.
 ## Enter envía (con un turno en curso, el dock lo deja en cola), Ctrl+Enter o Shift+Enter bajan de
 ## línea y Esc cancela el turno. Flecha arriba en la primera línea y abajo en la última recorren los
-## prompts enviados, como en una terminal.
+## prompts enviados, como en una terminal. Ctrl+V con una imagen (o archivos copiados) en el
+## portapapeles la adjunta en lugar de pegar texto; los archivos arrastrados desde el FileSystem
+## también se adjuntan.
 
 signal submitted(text: String)
 signal cancel_requested
 signal model_selected(value: String)
 signal screenshot_requested
 signal context_chip_removed(chip_id: String)
+signal image_pasted(image: Image)
+## Rutas absolutas o res:// pegadas o arrastradas.
+signal files_attached(paths: PackedStringArray)
 
 const AgentTheme := preload("../agent_theme.gd")
 const SuggestionList := preload("suggestion_list.gd")
@@ -19,10 +24,13 @@ const I18n := preload("../../core/i18n.gd")
 const PLACEHOLDER := "Ask for something… @ for nodes and files, / for commands"  # i18n
 const PLACEHOLDER_BUSY := "The agent is working: Enter queues the message"  # i18n
 const PLACEHOLDER_ONESHOT := "One-shot running: write to the agent; it gets it when the turn ends"  # i18n
+const SCREENSHOT_TOOLTIP := "Attach a viewport screenshot (Ctrl+V pastes an image)"  # i18n
 ## Prompts que se recuerdan (los más viejos se descartan).
 const HISTORY_LIMIT := 100
 ## Filas que se cargan en la lista (se ven hasta SuggestionList.MAX_ROWS, el resto con scroll).
 const LIST_LIMIT := 200
+## Más líneas que esto en el portapapeles no es una lista de archivos copiados.
+const PASTED_FILES_LIMIT := 20
 
 ## Callable() -> Array[Dictionary] `{label, insert}` para `@`.
 var mention_provider: Callable
@@ -92,12 +100,14 @@ func _ready() -> void:
 			_history_index = -1)
 	_input.caret_changed.connect(_refresh_suggestions)
 	_input.focus_exited.connect(func() -> void: _close_suggestions())
+	# El TextEdit consulta primero el forwarding: el texto arrastrado lo sigue manejando él.
+	_input.set_drag_forwarding(Callable(), _can_drop_files, _drop_files)
 	add_child(_input)
 
 	var row := HBoxContainer.new()
 	add_child(row)
 	row.add_child(_icon_button("@", I18n.t("Mention a node or file"), _insert_prefix.bind("@")))
-	_screenshot_button = _icon_button("", I18n.t("Attach a viewport screenshot"), func() -> void: screenshot_requested.emit())
+	_screenshot_button = _icon_button("", I18n.t(SCREENSHOT_TOOLTIP), func() -> void: screenshot_requested.emit())
 	_screenshot_button.icon = AgentTheme.icon(&"Image")
 	if _screenshot_button.icon == null:
 		_screenshot_button.text = "▣"
@@ -196,7 +206,7 @@ func set_commands(commands: Array) -> void:
 
 func set_screenshot_available(available: bool) -> void:
 	_screenshot_button.disabled = not available
-	_screenshot_button.tooltip_text = I18n.t("Attach a viewport screenshot") if available else I18n.t("The agent does not accept images")
+	_screenshot_button.tooltip_text = I18n.t(SCREENSHOT_TOOLTIP) if available else I18n.t("The agent does not accept images")
 
 
 func set_usage(used: int, total: int) -> void:
@@ -298,6 +308,9 @@ func _on_input_gui_input(event: InputEvent) -> void:
 	if plain and key.keycode == KEY_DOWN and _input.get_caret_line() == _input.get_line_count() - 1 and _recall(1):
 		_input.accept_event()
 		return
+	if key.keycode == KEY_V and key.is_command_or_control_pressed() and not (key.shift_pressed or key.alt_pressed) and _paste_attachment():
+		_input.accept_event()
+		return
 	if key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
 		_input.accept_event()
 		if key.is_command_or_control_pressed() or key.shift_pressed:
@@ -330,6 +343,56 @@ func _handle_list_key(key: InputEventKey) -> bool:
 		_:
 			return false
 	return true
+
+
+# --- adjuntos --------------------------------------------------------------------------------------
+
+## Ctrl+V: una imagen o archivos copiados en el portapapeles se adjuntan. false = pegar texto.
+func _paste_attachment() -> bool:
+	if DisplayServer.clipboard_has_image():
+		var image := DisplayServer.clipboard_get_image()
+		if image and not image.is_empty():
+			image_pasted.emit(image)
+			return true
+	var paths := clipboard_file_paths(DisplayServer.clipboard_get())
+	if paths.is_empty():
+		return false
+	files_attached.emit(paths)
+	return true
+
+
+## Las rutas de archivos copiados en un gestor de archivos (`file:///…` o rutas absolutas, una por
+## línea). Vacío si alguna línea no es un archivo existente: entonces es texto para pegar.
+static func clipboard_file_paths(text: String) -> PackedStringArray:
+	var paths: PackedStringArray = []
+	var lines := text.strip_edges().split("\n", false)
+	if lines.is_empty() or lines.size() > PASTED_FILES_LIMIT:
+		return paths
+	for line: String in lines:
+		var path := line.strip_edges()
+		if path.begins_with("file://"):
+			path = path.trim_prefix("file://").uri_decode()
+		if not path.is_absolute_path() or path.begins_with("res://") or not FileAccess.file_exists(path):
+			return PackedStringArray()
+		paths.append(path)
+	return paths
+
+
+func _can_drop_files(_position: Vector2, data: Variant) -> bool:
+	return data is Dictionary and data.get("type") in ["files", "files_and_dirs"] and data.get("files") is PackedStringArray
+
+
+## El TextEdit llama a esto con cualquier dato que se suelte (también texto, que después inserta él).
+func _drop_files(position: Vector2, data: Variant) -> void:
+	if not _can_drop_files(position, data):
+		return
+	var files: PackedStringArray = data.files
+	var paths: PackedStringArray = []
+	for path: String in files:
+		if not path.ends_with("/"):
+			paths.append(path)
+	if not paths.is_empty():
+		files_attached.emit(paths)
 
 
 # --- historial de prompts ------------------------------------------------------------------------

@@ -764,3 +764,10 @@ Sin Ollama ni llama.cpp en esta máquina, no se probó contra un modelo real. Pa
 - **El addon no cargaba en un juego con `class_name Level`** (D47, great-boy-one): los enums y clases internas de una palabra (`Level`, `State`, `Kind`…) chocaban con las clases globales del juego. Ahora tienen nombres compuestos; las pruebas corren con clases globales de nombres genéricos y `test_type_names` lo vigila.
 - **El dock no ofrecía arrancar ni retomar al reabrir el editor con un One-shot a medias** (reporte del usuario): el aviso del run contaba como conversación y escondía «Start session». Ahora, sin sesión y con solo avisos, el botón sigue a la vista; con un One-shot esperando dice «Resume One-shot» y lo retoma en su sesión. El aviso trae «Resume One-shot» y «Open Agent screen». `--godot-agent-oneshot-test` (reapertura con el camino real del plugin).
 - **El agente escribía el proyecto desde la shell** (D48, reporte del usuario en great-boy-one, con swallowtail como referencia): python con heredoc para un script y `cat >` para escenas. Ahora el harness rechaza solo los comandos que escriben archivos del proyecto y los `.tscn`/`.uid`/`.import` escritos a mano, el system prompt lo explica, y `create_scene` recibe script y propiedades de la raíz para que la escena salga en una llamada.
+- **Imágenes en el chat** (pedido del usuario):
+  - Ctrl+V adjunta la imagen del portapapeles, o los archivos copiados en el gestor de archivos;
+  - arrastrar archivos del FileSystem los adjunta: las imágenes como imagen y el resto como link;
+  - **+ contexto → Captura del juego** adjunta el frame del juego que está corriendo, con la misma captura que `capture_game_frame`. Sin el autoload de playtest, avisa cómo activarlo;
+  - hasta 6 imágenes por mensaje, achicadas a 1280 px.
+
+  Pruebas: `test_composer` (rutas pegadas, y arrastre real con `force_drag` en el que el texto lo sigue insertando el TextEdit), `--godot-agent-ui-test=ui_demo` (archivo de afuera más imagen pegada, achicada, y que salgan como bloques de imagen) y `--godot-agent-run-test` (captura del juego desde el dock, y el aviso en un run manual).
