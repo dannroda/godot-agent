@@ -100,6 +100,7 @@ func _enter_tree() -> void:
 	_sync.conflict_detected.connect(_on_conflict_detected)
 	_sync.open_scene_modified.connect(_on_open_scene_modified)
 	add_child(_sync)
+	scene_saved.connect(_sync.note_scene_saved)
 	_fs = FsHandler.new()
 	_fs.setup(EditorContext.project_path(), _log)
 	_fs.extra_roots = _project_config.extra_fs_roots
@@ -290,7 +291,7 @@ func _on_conflict_detected(res_path: String) -> void:
 
 func _on_open_scene_modified(res_path: String) -> void:
 	_model.add_notice(
-		"El agente modificó en disco la escena abierta %s. Para escenas abiertas debería usar las tools godot.*." % res_path,
+		"El agente modificó en disco la escena abierta %s, que tiene cambios sin guardar: no se recargó. Recargarla descarta tus cambios." % res_path,
 		ChatEntry.Level.WARNING,
 		[{"id": ACTION_RELOAD_SCENE, "label": "Recargar escena", "data": {"path": res_path}}]
 	)

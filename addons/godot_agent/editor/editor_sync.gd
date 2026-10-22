@@ -1,22 +1,29 @@
 @tool
 extends Node
-## Sincronización editor ↔ disco (spec §8). Después de una escritura del agente (fs/write, un tool
-## call de edición o el watcher de scripts abiertos):
+## Sincronización editor ↔ disco (spec §8). Claude Code escribe con sus propias herramientas,
+## directo al disco: el editor se pone al día después de una escritura del agente (fs/write, un
+## tool call de edición o el watcher de scripts, escenas abiertas y project.godot):
 ## - avisa a EditorFileSystem;
 ## - si el script está abierto sin cambios, carga la versión del disco en el CodeEdit (deshacible,
 ##   conservando cursor y scroll) y alinea la fecha del recurso para que no salga el diálogo de
 ##   "modificado afuera";
 ## - si el usuario tenía cambios sin guardar, no pisa: emite `conflict_detected`;
-## - si es una escena abierta, emite `open_scene_modified` (se recarga solo si el usuario acepta).
+## - una escena abierta sin cambios sin guardar se recarga sola; con cambios, no se pisa y se
+##   emite `open_scene_modified` (se recarga solo si el usuario acepta);
+## - `project.godot` se aplica a ProjectSettings y el editor lo guarda: queda igual que el archivo
+##   y Godot no pregunta si recargarlo.
 
 signal conflict_detected(res_path: String)
 signal conflict_resolved(res_path: String)
 signal open_scene_modified(res_path: String)
+## project.godot cambió en disco y se aplicó al editor (`names`: settings que cambiaron).
+signal project_settings_applied(names: PackedStringArray)
 
 const AgentLog := preload("../core/agent_log.gd")
 const EditorContext := preload("../ui/editor_context.gd")
 
 const POLL_INTERVAL_S := 0.5
+const PROJECT_FILE := "res://project.godot"
 const EDITOR_MANAGED_EXTENSIONS: PackedStringArray = ["uid", "import"]
 
 var agent_log: AgentLog
@@ -24,6 +31,11 @@ var agent_log: AgentLog
 var _known_mtimes: Dictionary = {}
 ## res_path -> texto del disco en conflicto.
 var _conflicts: Dictionary = {}
+## res_path -> mtime visto la última vez (escenas abiertas).
+var _scene_mtimes: Dictionary = {}
+var _project_mtime: int = 0
+## project.godot tal como se vio la última vez: para saber qué settings se borraron.
+var _project_snapshot: ConfigFile
 var _poll_timer: Timer
 
 
@@ -35,8 +47,9 @@ func _ready() -> void:
 	_poll_timer = Timer.new()
 	_poll_timer.wait_time = POLL_INTERVAL_S
 	_poll_timer.autostart = true
-	_poll_timer.timeout.connect(poll_open_scripts)
+	_poll_timer.timeout.connect(_poll)
 	add_child(_poll_timer)
+	_remember_project_file()
 
 
 func conflicts() -> PackedStringArray:
@@ -76,10 +89,11 @@ func after_agent_write(abs_path: String, _old_text: String = "", _new_text: Stri
 func sync_path(res_path: String) -> void:
 	if res_path.get_extension() in EDITOR_MANAGED_EXTENSIONS:
 		_log("aviso: el agente modificó %s (lo maneja el editor)" % res_path)
+	if res_path == PROJECT_FILE:
+		apply_project_file()
+		return
 	if res_path.get_extension() in ["tscn", "scn"] and res_path in EditorInterface.get_open_scenes():
-		_update_filesystem(res_path)
-		_log("escena abierta modificada en disco: %s" % res_path)
-		open_scene_modified.emit(res_path)
+		_sync_open_scene(res_path)
 		return
 	var open := _open_editor(res_path)
 	if not open.is_empty():
@@ -87,6 +101,12 @@ func sync_path(res_path: String) -> void:
 	else:
 		_reload_cached_script(res_path)
 	_update_filesystem(res_path)
+
+
+func _poll() -> void:
+	poll_open_scripts()
+	poll_open_scenes()
+	poll_project_file()
 
 
 ## Watcher: detecta escrituras al disco de scripts abiertos que no pasaron por fs/write
@@ -128,6 +148,99 @@ func _sync_open_script(res_path: String, open: Dictionary) -> void:
 	_log("recargado en el Script Editor: %s" % res_path)
 
 
+## Watcher de escenas abiertas. Los guardados del editor no cuentan: los avisa `note_scene_saved`.
+func poll_open_scenes() -> void:
+	var open_scenes := EditorInterface.get_open_scenes()
+	for res_path: String in _scene_mtimes.keys():
+		if not res_path in open_scenes:
+			_scene_mtimes.erase(res_path)
+	for res_path: String in open_scenes:
+		if res_path.is_empty() or not FileAccess.file_exists(res_path):
+			continue
+		var mtime := FileAccess.get_modified_time(res_path)
+		if not _scene_mtimes.has(res_path):
+			_scene_mtimes[res_path] = mtime
+		elif _scene_mtimes[res_path] != mtime:
+			_sync_open_scene(res_path)
+
+
+## El editor guardó la escena (EditorPlugin.scene_saved): no es un cambio del agente.
+func note_scene_saved(res_path: String) -> void:
+	if FileAccess.file_exists(res_path):
+		_scene_mtimes[res_path] = FileAccess.get_modified_time(res_path)
+	if res_path == PROJECT_FILE:
+		_remember_project_file()
+
+
+func poll_project_file() -> void:
+	if FileAccess.file_exists(PROJECT_FILE) and FileAccess.get_modified_time(PROJECT_FILE) != _project_mtime:
+		apply_project_file()
+
+
+## Pone ProjectSettings igual a project.godot (lo que el agente agregó, cambió o borró) y lo guarda
+## desde el editor: así Godot no pregunta si recargarlo, y un guardado posterior del editor no pisa
+## lo del agente. Si el editor ya tenía lo mismo (lo guardó él), no hace nada. Un archivo que no
+## se puede leer no se toca: queda el diálogo de Godot.
+func apply_project_file() -> PackedStringArray:
+	var changed: PackedStringArray = []
+	var file := ConfigFile.new()
+	var error := file.load(PROJECT_FILE)
+	if error != OK:
+		_project_mtime = FileAccess.get_modified_time(PROJECT_FILE)
+		_log("project.godot cambió en disco pero no se puede leer (%s): no se aplicó" % error_string(error))
+		return changed
+	for section: String in file.get_sections():
+		if section.is_empty():
+			continue  # config_version: es del formato, no un setting
+		for key: String in file.get_section_keys(section):
+			var setting := "%s/%s" % [section, key]
+			var value: Variant = file.get_value(section, key)
+			if not ProjectSettings.has_setting(setting) or var_to_str(ProjectSettings.get_setting(setting)) != var_to_str(value):
+				ProjectSettings.set_setting(setting, value)
+				changed.append(setting)
+	if _project_snapshot:
+		for section: String in _project_snapshot.get_sections():
+			if section.is_empty():
+				continue
+			for key: String in _project_snapshot.get_section_keys(section):
+				var setting := "%s/%s" % [section, key]
+				if not file.has_section_key(section, key) and ProjectSettings.has_setting(setting):
+					ProjectSettings.set_setting(setting, null)
+					changed.append(setting)
+	if not changed.is_empty():
+		var save_error := ProjectSettings.save()
+		if save_error != OK:
+			_log("no se pudo guardar project.godot: %s" % error_string(save_error))
+		_log("project.godot: el editor tomó %d %s del disco (%s)" % [changed.size(), "cambio" if changed.size() == 1 else "cambios", ", ".join(changed.slice(0, 6))])
+		project_settings_applied.emit(changed)
+	_project_snapshot = file
+	_project_mtime = FileAccess.get_modified_time(PROJECT_FILE)
+	return changed
+
+
+func _remember_project_file() -> void:
+	if not FileAccess.file_exists(PROJECT_FILE):
+		return
+	var file := ConfigFile.new()
+	if file.load(PROJECT_FILE) == OK:
+		_project_snapshot = file
+	_project_mtime = FileAccess.get_modified_time(PROJECT_FILE)
+
+
+## Escena abierta que cambió en disco: sin cambios sin guardar se recarga (sin el diálogo de
+## Godot); con cambios, no se pisa y se avisa. Sin `get_unsaved_scenes` (Godot 4.4) no se puede
+## saber, así que se avisa siempre.
+func _sync_open_scene(res_path: String) -> void:
+	_scene_mtimes[res_path] = FileAccess.get_modified_time(res_path)
+	_update_filesystem(res_path)
+	var unsaved: PackedStringArray = EditorInterface.call(&"get_unsaved_scenes") if EditorInterface.has_method(&"get_unsaved_scenes") else PackedStringArray([res_path])
+	if res_path in unsaved:
+		_log("escena abierta con cambios sin guardar modificada en disco: %s" % res_path)
+		open_scene_modified.emit(res_path)
+		return
+	reload_scene(res_path)
+
+
 ## Conflicto: usar la versión del agente (el cambio en el buffer se puede deshacer con Ctrl+Z).
 func resolve_use_disk(res_path: String) -> void:
 	var open := _open_editor(res_path)
@@ -160,6 +273,8 @@ func resolve_keep_buffer(res_path: String) -> void:
 
 func reload_scene(res_path: String) -> void:
 	EditorInterface.reload_scene_from_path(res_path)
+	if FileAccess.file_exists(res_path):
+		_scene_mtimes[res_path] = FileAccess.get_modified_time(res_path)
 	_log("escena recargada: %s" % res_path)
 
 

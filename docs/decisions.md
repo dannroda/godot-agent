@@ -477,3 +477,23 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - `test_agent_login` cubre la elección de métodos, el comando y el reconocimiento del error.
 - **Pendiente**: no hay un botón para iniciar sesión cuando la sesión ya abre (por ejemplo, para cambiar de cuenta). Para eso sigue estando `claude auth login` en una terminal.
 
+## D33 · El editor toma lo que el agente escribe por fuera (después de M8c)
+
+- **Síntoma** (probando el One-shot en un proyecto real): el agente parecía editar desde afuera, porque al volver al editor Godot mostraba «Files have been modified outside Godot» por `project.godot` y por las escenas abiertas.
+- **Causa**: en `claude-agent-acp` (0.94), el Write y el Edit de Claude Code escriben directo al disco. El adaptador tiene `writeTextFile`, pero ninguna herramienta lo llama. El addon ya ponía al día los scripts abiertos (D15), pero:
+  - de una escena abierta solo avisaba;
+  - con `project.godot` no hacía nada. Godot compara la fecha del archivo con la del último guardado de ProjectSettings y, al volver el foco, pregunta si recargarlo. Si el usuario no recargaba, el próximo guardado del editor pisaba lo del agente (acciones de input, autoloads, escena principal).
+- **`project.godot`**: un watcher (cada 0,5 s, más los tool calls y «Volver acá») compara el archivo con ProjectSettings. Para eso lee el archivo con ConfigFile y compara cada valor con `var_to_str` (los InputEvent son objetos).
+  - Lo que cambió o se agregó se aplica con `set_setting`. Lo que estaba en la versión anterior del archivo y ya no está se borra con `set_setting(nombre, null)`.
+  - Después llama a `ProjectSettings.save()`. Eso deja la fecha de guardado igual a la del archivo, así Godot no pregunta, y el editor queda con lo mismo que el archivo.
+  - Si el editor ya tenía lo mismo (lo guardó él), no hace nada. La sección raíz (`config_version`) no se toca. Un archivo que no se puede leer no se aplica, y queda el diálogo de Godot.
+  - Siempre está activo, igual que el de los scripts: equivale a elegir «Recargar» en el diálogo.
+- **Escenas abiertas**: si la escena no tiene cambios sin guardar (`EditorInterface.get_unsaved_scenes()`, desde 4.7), se recarga con `reload_scene_from_path`, sin diálogo. Con cambios sin guardar no se pisa: queda el aviso con «Recargar escena». En 4.4 esa API no existe y no hay una forma segura de saberlo (el número de versión del undo no ve los cambios hechos sin undo), así que en 4.4 se avisa siempre.
+  - El watcher de escenas ignora los guardados del propio editor (`EditorPlugin.scene_saved`). Sin eso, cada Ctrl+S recargaba la escena y se perdía el historial de deshacer; el external test lo verifica sacando la conexión.
+- **Prueba**: `--godot-agent-external-test` escribe `project.godot` y la escena abierta como lo haría el Write de Claude Code. Antes del arreglo mostraba el diálogo en los dos casos. Verifica lo siguiente:
+  - los settings llegan a ProjectSettings y se aplican solo esos dos;
+  - al volver el archivo atrás, se borran;
+  - la escena se recarga, salvo con cambios sin guardar, donde avisa;
+  - un guardado del editor no recarga;
+  - no aparece ningún diálogo.
+

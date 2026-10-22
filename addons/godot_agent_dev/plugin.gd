@@ -10,6 +10,9 @@ extends EditorPlugin
 ## - `-- --godot-agent-sync-test`: abre un script, lo modifica en disco como lo haría el agente y
 ##   verifica que el editor se actualiza sin el diálogo de "modificado afuera" (buffer limpio) y
 ##   que no pisa cambios sin guardar (conflicto). Necesita ventana.
+## - `-- --godot-agent-external-test`: el agente escribe `project.godot` y una escena abierta por
+##   su cuenta (como el Write de Claude Code): el editor los toma sin el diálogo de "modificado
+##   afuera" (settings aplicados, escena recargada) y no pisa una escena con cambios sin guardar.
 ## - `-- --godot-agent-claude-edit-test`: verificación de M2 con Claude Code real (gasta tokens).
 ##   En Construir pide editar un script abierto: tiene que haber permiso con diff y el buffer se
 ##   actualiza sin diálogos. En Preguntar, la misma edición se deniega y el archivo no cambia.
@@ -52,6 +55,8 @@ const SessionModel := preload("res://addons/godot_agent/session/session_model.gd
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const SYNC_ARG := "--godot-agent-sync-test"
 const SYNC_SCRIPT := "res://addons/godot_agent/editor/editor_sync.gd"
+const EXTERNAL_ARG := "--godot-agent-external-test"
+const EXTERNAL_SCENE := "res://tests/fixtures/main_fixture.tscn"
 const SYNC_TARGET := "res://tests/tmp/sync_target.gd"
 const CLAUDE_EDIT_ARG := "--godot-agent-claude-edit-test"
 const CLAUDE_EDIT_TARGET := "res://tests/tmp/claude_target.gd"
@@ -100,6 +105,8 @@ func _enter_tree() -> void:
 		_run_cycle_test.call_deferred()
 	if SYNC_ARG in args:
 		_run_sync_test.call_deferred()
+	if EXTERNAL_ARG in args:
+		_run_external_test.call_deferred()
 	if CLAUDE_EDIT_ARG in args:
 		_run_claude_edit_test.call_deferred()
 	if MCP_ARG in args:
@@ -208,6 +215,115 @@ func _run_sync_test() -> void:
 	for failure: String in failures:
 		print("[sync-test] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "sync-test: %d fallas" % failures.size())
+
+
+func _run_external_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	var failures: PackedStringArray = []
+	await get_tree().create_timer(1.5).timeout
+	var sync: Node = _find_by_script(SYNC_SCRIPT)
+	if sync == null:
+		_finish(1, "no se encontró EditorSync")
+		return
+	EditorInterface.open_scene_from_path(EXTERNAL_SCENE)
+	await get_tree().create_timer(1.0).timeout
+	var project_text := FileAccess.get_file_as_string("res://project.godot")
+	var scene_text := FileAccess.get_file_as_string(EXTERNAL_SCENE)
+	var applied: Array[PackedStringArray] = []
+	var on_applied := func(names: PackedStringArray) -> void: applied.append(names)
+	sync.connect(&"project_settings_applied", on_applied)
+
+	# A · el agente edita project.godot: una acción de input nueva y una descripción.
+	await get_tree().create_timer(1.1).timeout  # mtime con resolución de 1 s
+	var event := "Object(InputEventKey,\"resource_local_to_scene\":false,\"resource_name\":\"\",\"device\":-1,\"window_id\":0,\"alt_pressed\":false,\"shift_pressed\":false,\"ctrl_pressed\":false,\"meta_pressed\":false,\"pressed\":false,\"keycode\":0,\"physical_keycode\":74,\"key_label\":0,\"unicode\":106,\"location\":0,\"echo\":false,\"script\":null)"
+	var edited := project_text.replace("[application]\n", "[application]\n\nconfig/description=\"Editado por el agente\"\n")
+	if not edited.contains("[input]"):
+		edited += "\n[input]\n"
+	edited = edited.replace("[input]\n", "[input]\n\nagent_jump={\n\"deadzone\": 0.2,\n\"events\": [%s]\n}\n" % event)
+	_write("res://project.godot", edited)
+	await get_tree().create_timer(1.5).timeout
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await get_tree().create_timer(1.0).timeout
+	if ProjectSettings.get_setting("application/config/description", "") != "Editado por el agente":
+		failures.append("A: la descripción no llegó a ProjectSettings")
+	var action: Variant = ProjectSettings.get_setting("input/agent_jump", null)
+	if not action is Dictionary or (action.get("events", []) as Array).size() != 1 or not action.events[0] is InputEventKey:
+		failures.append("A: la acción de input no llegó a ProjectSettings (%s)" % [action])
+	failures.append_array(_visible_dialogs("A"))
+	if applied.size() != 1 or applied[0] != PackedStringArray(["application/config/description", "input/agent_jump"]):
+		failures.append("A: tenía que aplicar solo lo que cambió (%s)" % [applied])
+
+	# B · el agente edita la escena abierta, sin cambios del usuario: se recarga sola. Godot 4.4 no
+	# tiene get_unsaved_scenes: no se puede saber si hay cambios, así que avisa y no recarga.
+	var supports_unsaved := EditorInterface.has_method(&"get_unsaved_scenes")
+	var notices: Array[String] = []
+	var on_modified := func(res_path: String) -> void: notices.append(res_path)
+	sync.connect(&"open_scene_modified", on_modified)
+	await get_tree().create_timer(1.1).timeout
+	_write(EXTERNAL_SCENE, scene_text.replace("speed = 300.0", "speed = 450.0"))
+	await get_tree().create_timer(1.5).timeout
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await get_tree().create_timer(1.0).timeout
+	var root := EditorInterface.get_edited_scene_root()
+	var player := root.get_node_or_null(^"Player") if root else null
+	if supports_unsaved:
+		if player == null or float(player.get(&"speed")) != 450.0:
+			failures.append("B: la escena abierta no se recargó (%s)" % [player.get(&"speed") if player else "sin Player"])
+		failures.append_array(_visible_dialogs("B"))
+	else:
+		if notices.is_empty():
+			failures.append("B (4.4): no avisó que el agente cambió la escena")
+		_visible_dialogs("B")  # el de Godot es esperable acá
+		EditorInterface.reload_scene_from_path(EXTERNAL_SCENE)
+		await get_tree().create_timer(0.5).timeout
+	notices.clear()
+
+	# C · la escena tiene cambios sin guardar: no se pisa (aviso para recargar).
+	root = EditorInterface.get_edited_scene_root()
+	root.get_node(^"Player").set(&"position", Vector2(7, 7))
+	EditorInterface.mark_scene_as_unsaved()
+	await get_tree().create_timer(1.1).timeout
+	_write(EXTERNAL_SCENE, scene_text.replace("speed = 300.0", "speed = 600.0"))
+	await get_tree().create_timer(1.5).timeout
+	root = EditorInterface.get_edited_scene_root()
+	if float(root.get_node(^"Player").get(&"speed")) == 600.0:
+		failures.append("C: se recargó encima de los cambios sin guardar")
+	if notices.is_empty():
+		failures.append("C: no avisó que el agente cambió la escena")
+	notices.clear()
+	print("[external-test] get_unsaved_scenes: %s" % supports_unsaved)
+
+	# E · un guardado del editor (Ctrl+S) no es un cambio del agente: no recarga (perdería el undo).
+	_write(EXTERNAL_SCENE, scene_text)
+	EditorInterface.reload_scene_from_path(EXTERNAL_SCENE)
+	await get_tree().create_timer(1.1).timeout
+	notices.clear()  # en 4.4 la reescritura de arriba avisa: no es lo que se mide acá
+	root = EditorInterface.get_edited_scene_root()
+	EditorInterface.save_scene()
+	await get_tree().create_timer(1.5).timeout
+	if EditorInterface.get_edited_scene_root() != root:
+		failures.append("E: guardar desde el editor recargó la escena")
+	if not notices.is_empty():
+		failures.append("E: guardar desde el editor avisó un cambio del agente")
+
+	# Deja todo como estaba (el editor guarda project.godot con lo que tiene en memoria).
+	_write(EXTERNAL_SCENE, scene_text)
+	EditorInterface.reload_scene_from_path(EXTERNAL_SCENE)
+	await get_tree().create_timer(1.1).timeout
+	_write("res://project.godot", project_text)
+	await get_tree().create_timer(1.5).timeout
+	if ProjectSettings.has_setting("input/agent_jump") or ProjectSettings.get_setting("application/config/description", "") != "":
+		failures.append("D: al volver project.godot atrás, no se quitó lo del agente")
+	if applied.size() != 2 or applied[1] != PackedStringArray(["application/config/description", "input/agent_jump"]):
+		failures.append("D: tenía que quitar solo lo del agente (%s)" % [applied])
+	sync.disconnect(&"project_settings_applied", on_applied)
+	sync.disconnect(&"open_scene_modified", on_modified)
+	get_tree().root.propagate_notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	await get_tree().create_timer(1.0).timeout
+	_visible_dialogs("fin")
+	for failure: String in failures:
+		print("[external-test] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "external-test: %d fallas" % failures.size())
 
 
 func _run_claude_edit_test() -> void:

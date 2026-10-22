@@ -92,6 +92,12 @@ El addon levanta un servidor MCP en `127.0.0.1` (nunca en otra interfaz), con un
 
 - Cada edición de escena es un paso de undo del editor. La tarjeta del tool call tiene **↶ undo** mientras nadie haya tocado la escena después.
 - Las ediciones de archivos del agente (`fs/*` de ACP) pasan por el editor: si tenés un script abierto con cambios sin guardar, no se pisan, y aparece un aviso de conflicto con el diff.
+- Claude Code escribe con sus propias herramientas, directo al disco. El editor se pone al día solo, sin el diálogo de "modificado afuera":
+  - los scripts abiertos se actualizan en el Script Editor;
+  - las escenas abiertas sin cambios sin guardar se recargan (en Godot 4.4 no se puede saber si tienen cambios, así que avisa);
+  - lo que el agente cambie en `project.godot` (acciones de input, autoloads, la escena principal…) se aplica a la configuración del proyecto en el editor, y el editor lo guarda.
+
+  Una escena con cambios sin guardar nunca se pisa: aparece un aviso con **Recargar escena**.
 - **Settings → Servidor MCP**:
   - puerto fijo (por defecto, uno libre al azar);
   - **Regenerar token**;
