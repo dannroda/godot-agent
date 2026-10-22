@@ -40,11 +40,11 @@ const DEFAULTS: Array[Dictionary] = [
 	{
 		"id": "code", "weight": 1, "threshold": 5,
 		"name": "Code",  # i18n
-		"description": "Statically typed GDScript, well-built scenes and no parser warnings.",
+		"description": "Follows the Godot conventions: statically typed GDScript, composed from scenes saved on disk, built-in nodes before custom scripts, call down and signal up, tunable values in exports or Resources, seeded randomness, and no parser warnings.",
 		"anchors": [
-			"3: no types, logic piled into one script, warnings or fragile node paths",
-			"6: mostly typed, reasonable structure, a warning or two",
-			"9: fully typed, scenes and scripts with one responsibility each, no warnings",
+			"3: no types, a script that builds the whole tree in _ready, logic piled into one script, get_parent() chains or warnings",
+			"6: mostly typed and split into scenes, but some magic numbers in the code or a child reaching for its parent",
+			"9: fully typed, one scene and one responsibility per piece, signals up, tunables exported or in Resources, no warnings",
 		],
 	},
 ]
