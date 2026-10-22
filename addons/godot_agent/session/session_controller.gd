@@ -603,7 +603,7 @@ func _notify_denied(group: String, title: String) -> void:
 
 func _notify_blocked_write(title: String, target: String) -> void:
 	_log_perm("rejected, writes %s outside the editor: %s" % [target, title])
-	model.add_notice(I18n.t("Rejected: «%s» writes %s without going through the editor. Scripts go through the agent's file tools and scenes through the godot.* tools.") % [title.left(80), target], ChatEntry.NoticeLevel.WARNING)
+	model.add_notice(I18n.t("Rejected: «%s» writes %s without going through the editor. Scripts go through the agent's file tools; scenes and project settings through the godot.* tools.") % [title.left(80), target], ChatEntry.NoticeLevel.WARNING)
 
 
 static func _selected_or_cancelled(option_id: String) -> Dictionary:

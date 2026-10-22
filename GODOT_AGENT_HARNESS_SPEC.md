@@ -202,6 +202,10 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `remove_node` / `reparent_node` / `rename_node` | edit_scene | — | Con undo |
 | `connect_signal` | edit_scene | `from`, `signal`, `to`, `method` | Con undo y conexión persistente |
 | `instantiate_scene` | edit_scene | `parent`, `scene_path`, `name?` | Con undo |
+| `project_settings` | read | prefix? | Settings con valor y default |
+| `set_project_setting` | project | name, value | Con undo global; guarda project.godot (m4-09) |
+| `set_input_action` / `remove_input_action` | project | action, events[], deadzone?, append? | Eventos como "Space", "Ctrl+S", "mouse:left", "joy_button:a", "joy_axis:left_x:-" |
+| `set_autoload` / `remove_autoload` | project | name, path, enabled? | Con undo global |
 | `create_scene` | edit_files | `path`, `root_type`, `root_name` | Crea y guarda el `.tscn` |
 | `open_scene` / `save_scene` | edit_scene | `path` | — |
 | `attach_script` | edit_files | `node_path`, `script_path` | Crea el script si no existe |

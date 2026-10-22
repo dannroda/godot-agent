@@ -5,13 +5,16 @@ extends RefCounted
 ## `godot.*`. Se rechazan solas, sin tarjeta:
 ## - comandos de shell que escriben archivos del proyecto: redirecciones, `tee`, `sed -i`, `dd of=`
 ##   y scripts (python, node, ruby, perl) que abren archivos para escribir;
-## - escribir a mano `.tscn`, `.uid` o `.import` con las herramientas de archivos del agente.
+## - escribir a mano `.tscn`, `.uid`, `.import` o `project.godot` con las herramientas de archivos
+##   del agente.
 ## Escribir fuera del proyecto (`/tmp`…) sigue pasando por la política de permisos de siempre.
 
 const PermissionPolicy := preload("permission_policy.gd")
 
 ## Archivos que mantiene el editor (o sus tools): no se escriben a mano.
 const EDITOR_FILE_EXTENSIONS: PackedStringArray = ["tscn", "uid", "import"]
+## Archivos por nombre que se cambian con tools del editor (m4-09).
+const EDITOR_FILE_NAMES: PackedStringArray = ["project.godot"]
 const INTERPRETERS: PackedStringArray = ["python", "python3", "node", "ruby", "perl"]
 ## APIs de escritura de los intérpretes de INTERPRETERS.
 const WRITE_APIS: PackedStringArray = [
@@ -29,9 +32,21 @@ static func blocked_target(tool_call: Dictionary, group: String, project_root: S
 		return shell_write_target(str(raw.get("command", "")), project_root)
 	if group == PermissionPolicy.GROUP_EDIT_FILES:
 		for path: String in _edit_paths(tool_call, raw):
-			if path.get_extension().to_lower() in EDITOR_FILE_EXTENSIONS and is_inside(path, project_root):
+			if is_editor_managed(path) and is_inside(path, project_root):
 				return path
 	return ""
+
+
+## true si el archivo lo mantiene el editor y no se escribe a mano.
+static func is_editor_managed(path: String) -> bool:
+	return path.get_extension().to_lower() in EDITOR_FILE_EXTENSIONS or path.get_file() in EDITOR_FILE_NAMES
+
+
+## Con qué se cambia un archivo que mantiene el editor (para el mensaje al agente).
+static func alternative_for(path: String) -> String:
+	if path.get_file() == "project.godot":
+		return "change project settings with the godot.* tools (set_project_setting, set_input_action, set_autoload)"
+	return "create and edit scenes with the godot.* tools (create_scene, add_nodes, set_properties, save_scene); the editor manages .uid and .import files"
 
 
 ## El primer archivo del proyecto que escribe el comando, o "" si no escribe en el proyecto.

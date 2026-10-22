@@ -12,6 +12,7 @@ El agente ve estas tools como `godot.<nombre>` (Claude Code las muestra como `mc
 | | `get_node` | Un nodo en detalle: propiedades que difieren del default, script, grupos, conexiones de señales guardadas e hijos. |
 | | `editor_state` | Escena actual y abiertas, selección, script abierto con la línea del cursor, y si el juego está corriendo. |
 | | `class_info` | La API de una clase en la versión de Godot del editor abierto: herencia, firmas de métodos, propiedades con su default, señales y constantes, con descripción. Clases del motor, tipos built-in (`Vector2`…), `@GlobalScope` y `class_name` del proyecto. Con `member`, la documentación completa de un miembro. |
+| | `project_settings` | Los settings bajo un prefijo con su valor y su default; sin prefijo, los que difieren del default. |
 | | `search_api` | Busca clases y miembros por nombre o capacidad ("raycast", "move toward"). |
 | Diagnóstico | `get_errors` | Errores y warnings del editor y de la última ejecución. Devuelve una marca: pasala como `since` para ver solo los nuevos. |
 | | `validate_scripts` | Parsea los scripts en un proceso aparte (con el binario del editor) y devuelve los errores por archivo y línea, sin correr el juego. |
@@ -20,6 +21,7 @@ El agente ve estas tools como `godot.<nombre>` (Claude Code las muestra como `mc
 | | `duplicate_node` | Copia un nodo con sus hijos, script, grupos y propiedades; al lado del original o bajo otro padre. |
 | | `add_node`, `set_properties`, `remove_node`, `reparent_node`, `rename_node`, `connect_signal`, `instantiate_scene`, `open_scene`, `save_scene` | Ediciones sobre escenas abiertas, cada una un paso de deshacer del editor. |
 | Editar archivos | `create_scene`, `attach_script` | Escenas y scripts nuevos en disco. `create_scene` también recibe el script de la raíz y sus propiedades (variables exportadas incluidas), así ninguna escena se escribe a mano. |
+| Proyecto | `set_project_setting`, `set_input_action`, `remove_input_action`, `set_autoload`, `remove_autoload` | Settings del proyecto, acciones de input (teclas, mouse, joystick) y autoloads a través del editor: cada cambio es un paso de deshacer y guarda `project.godot`. Editar `project.godot` a mano se rechaza. |
 | Ejecutar | `run_scene` | Corre una escena (con `inputs` simulados, si querés) y devuelve los errores reales. |
 | | `capture_game_frame` | Un frame del juego corriendo. |
 | | `stop_scene` | Lo detiene. |

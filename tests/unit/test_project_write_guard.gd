@@ -50,5 +50,9 @@ func test_edit_tools() -> void:
 	assert_eq(ProjectWriteGuard.blocked_target(script, PermissionPolicy.GROUP_EDIT_FILES, ROOT), "", "un script se escribe con las tools del agente")
 	var outside := {"kind": "edit", "rawInput": {"file_path": "/tmp/x.tscn"}}
 	assert_eq(ProjectWriteGuard.blocked_target(outside, PermissionPolicy.GROUP_EDIT_FILES, ROOT), "", "fuera del proyecto")
+	var settings := {"kind": "edit", "rawInput": {"file_path": ROOT + "/project.godot"}}
+	assert_eq(ProjectWriteGuard.blocked_target(settings, PermissionPolicy.GROUP_EDIT_FILES, ROOT), ROOT + "/project.godot", "project.godot a mano (m4-09)")
+	assert_true(ProjectWriteGuard.alternative_for("project.godot").contains("set_project_setting"), "el rechazo nombra la tool")
+	assert_eq(_target("sed -i 's/a/b/' project.godot"), "project.godot", "sed -i sobre project.godot")
 	var shell := {"kind": "execute", "rawInput": {"command": "echo a > b.txt"}}
 	assert_eq(ProjectWriteGuard.blocked_target(shell, PermissionPolicy.GROUP_SHELL, ROOT), "b.txt", "shell por blocked_target")

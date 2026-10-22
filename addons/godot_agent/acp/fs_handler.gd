@@ -8,7 +8,8 @@ const AgentLog := preload("../core/agent_log.gd")
 
 ## Carpetas del proyecto donde el agente nunca escribe.
 const FORBIDDEN_DIRS: PackedStringArray = [".godot", ".git"]
-## Escenas, .uid e .import: los maneja el editor (con las tools godot.*) y no se escriben a mano (D48).
+## Escenas, .uid, .import y project.godot: los maneja el editor (con las tools godot.*) y no se
+## escriben a mano (D48).
 const ProjectWriteGuard := preload("../session/project_write_guard.gd")
 
 var project_root: String = ""
@@ -63,9 +64,9 @@ func write_text_file(params: Dictionary) -> Variant:
 		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, "Missing 'content'.")
 	var new_text: String = params.content
 	var old_text := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else ""
-	if path.get_extension().to_lower() in ProjectWriteGuard.EDITOR_FILE_EXTENSIONS:
+	if ProjectWriteGuard.is_editor_managed(path):
 		_log("write rejected, the editor handles %s" % _short(path))
-		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, "%s is not written by hand: create and edit scenes with the godot.* tools (create_scene, add_node, set_properties, save_scene); the editor manages .uid and .import files." % _short(path))
+		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, "%s is not written by hand: %s." % [_short(path), ProjectWriteGuard.alternative_for(path)])
 	if write_authorizer.is_valid():
 		var allowed: bool = await write_authorizer.call(path, old_text, new_text)
 		if not allowed:

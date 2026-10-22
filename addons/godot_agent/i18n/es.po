@@ -1862,8 +1862,8 @@ msgstr "Retomar One-shot"
 msgid "Open Agent screen"
 msgstr "Abrir la pantalla Agent"
 
-msgid "Rejected: «%s» writes %s without going through the editor. Scripts go through the agent's file tools and scenes through the godot.* tools."
-msgstr "Rechazado: «%s» escribe %s sin pasar por el editor. Los scripts van con las herramientas de archivos del agente y las escenas con las tools godot.*."
+msgid "Rejected: «%s» writes %s without going through the editor. Scripts go through the agent's file tools; scenes and project settings through the godot.* tools."
+msgstr "Rechazado: «%s» escribe %s sin pasar por el editor. Los scripts van con las herramientas de archivos del agente; las escenas y la configuración del proyecto, con las tools godot.*."
 
 msgid "pasted image"
 msgstr "imagen pegada"

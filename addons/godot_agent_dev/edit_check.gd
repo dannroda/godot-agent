@@ -157,6 +157,51 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var saved_text := FileAccess.get_file_as_string(EDIT_SCENE)
 	_expect(saved.contains("Saved") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios")
 
+	# Project settings por el editor (m4-09): cada cambio guarda project.godot y Ctrl+Z lo revierte.
+	# El grupo project pregunta también en One-shot: se acepta solo y se cuenta.
+	var project_asks: Array = []
+	var allow_project := func(request: Object) -> void:
+		project_asks.append(request.get(&"title"))
+		request.call(&"select", request.call(&"option_id_for", PackedStringArray(["allow_once"])))
+	_model.connect(&"permission_requested", allow_project)
+	var project_before := _without_features(FileAccess.get_file_as_string("res://project.godot"))
+	var jump := await _call_text("set_input_action", {"action": "agent_jump", "events": ["Space", "joy_button:a"]})
+	var jump_action: Variant = ProjectSettings.get_setting("input/agent_jump", null)
+	_expect(jump_action is Dictionary and jump_action.events.size() == 2 and FileAccess.get_file_as_string("res://project.godot").contains("agent_jump") and jump.contains("key Space (physical), joy_button a"), "set_input_action guarda la acción (%s)" % jump)
+	await _call_text("set_input_action", {"action": "agent_jump", "events": ["W"], "append": true})
+	_expect((ProjectSettings.get_setting("input/agent_jump") as Dictionary).events.size() == 3, "set_input_action con append")
+	EditorUndo._trigger_editor_undo()
+	_expect((ProjectSettings.get_setting("input/agent_jump") as Dictionary).events.size() == 2, "Ctrl+Z deshace el append")
+	EditorUndo._trigger_editor_undo()
+	_expect(not ProjectSettings.has_setting("input/agent_jump") and not FileAccess.get_file_as_string("res://project.godot").contains("agent_jump"), "Ctrl+Z saca la acción y guarda")
+	var width := await _call_text("set_project_setting", {"name": "display/window/size/viewport_width", "value": 640})
+	_expect(int(ProjectSettings.get_setting("display/window/size/viewport_width")) == 640 and width.contains("→ 640"), "set_project_setting (%s)" % width)
+	var listed := await _call_text("project_settings", {"prefix": "display/window/size"})
+	_expect(listed.contains("display/window/size/viewport_width = 640  (default 1152)"), "project_settings con prefijo (%s)" % listed.left(200))
+	var wrong: Dictionary = await _call("set_project_setting", {"name": "display/window/size/viewport_width", "value": "ancho"})
+	_expect(wrong.get("isError", false), "set_project_setting con tipo inválido → error")
+	var via_input: Dictionary = await _call("set_project_setting", {"name": "input/x", "value": {}})
+	_expect(via_input.get("isError", false) and _text(via_input).contains("set_input_action"), "input/ va por su tool")
+	EditorUndo._trigger_editor_undo()
+	_expect(int(ProjectSettings.get_setting("display/window/size/viewport_width")) == 1152, "Ctrl+Z revierte el setting")
+	var autoload := await _call_text("set_autoload", {"name": "AgentState", "path": NEW_SCRIPT})
+	_expect(str(ProjectSettings.get_setting("autoload/AgentState", "")) == "*" + NEW_SCRIPT and autoload.contains("Added"), "set_autoload (%s)" % autoload)
+	var clash: Dictionary = await _call("set_autoload", {"name": "Input", "path": NEW_SCRIPT})
+	_expect(clash.get("isError", false), "set_autoload no pisa un singleton de Godot")
+	await _call_text("remove_autoload", {"name": "AgentState"})
+	_expect(not ProjectSettings.has_setting("autoload/AgentState"), "remove_autoload")
+	EditorUndo._trigger_editor_undo()
+	_expect(ProjectSettings.has_setting("autoload/AgentState"), "Ctrl+Z restaura el autoload")
+	EditorUndo._trigger_editor_undo()
+	_expect(not ProjectSettings.has_setting("autoload/AgentState"), "Ctrl+Z saca el autoload")
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
+	var denied_setting: Dictionary = await _call("set_project_setting", {"name": "display/window/size/viewport_width", "value": 800})
+	_expect(denied_setting.get("isError", false) and int(ProjectSettings.get_setting("display/window/size/viewport_width")) == 1152, "Preguntar deniega el grupo project")
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
+	_model.disconnect(&"permission_requested", allow_project)
+	_expect(project_asks.size() == 8 and "godot.set_input_action" in project_asks, "el grupo project pregunta en One-shot (%d)" % project_asks.size())
+	_expect(_without_features(FileAccess.get_file_as_string("res://project.godot")) == project_before, "project.godot queda como estaba")
+
 	# Permisos: Preguntar deniega; Construir pregunta (se acepta solo).
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
 	var denied: Dictionary = await _call("add_node", {"parent": ".", "type": "Node", "name": "Denied"})
@@ -194,3 +239,8 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 
 	EditorInterface.save_scene()
 	return failures
+
+
+## Guardar los settings reescribe config/features con la versión del editor que corre la prueba.
+static func _without_features(text: String) -> String:
+	return RegEx.create_from_string("config/features=.*\n").sub(text, "")

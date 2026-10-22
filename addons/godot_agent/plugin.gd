@@ -27,6 +27,7 @@ const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
 const ApiTools := preload("mcp/tools/api_tools.gd")
+const ProjectTools := preload("mcp/tools/project_tools.gd")
 const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
@@ -444,6 +445,7 @@ func _start_mcp_server() -> void:
 	var edit_tools := SceneEditTools.new()
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)
+	registry.register_provider(ProjectTools.new())
 	_run_tools = RunTools.new()
 	_run_tools.setup(_errors, _playtest_debugger)
 	_run_tools.max_image_side = _project_config.max_image_side
