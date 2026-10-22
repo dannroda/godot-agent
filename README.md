@@ -1,257 +1,76 @@
 # Godot Agent Harness
 
-Addon de editor para Godot 4 que conecta un agente de código (Claude Code, Gemini CLI, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. El agente conversa en un dock y puede ver y tocar el proyecto con las herramientas del editor:
-- leer escenas;
-- editar nodos con undo;
-- correr el juego y capturar frames;
-- leer los errores.
+**English** · [Español](README.es.md)
 
-Tiene cuatro modos: Preguntar, Revisar, Construir y One-shot.
+An editor addon for Godot 4 that connects a coding agent (Claude Code, Gemini CLI, Codex, or any agent that speaks [ACP](https://agentclientprotocol.com)) to the editor. You chat with the agent in a dock, and it can see and change your project through the editor's own tools:
 
-- 100 % GDScript con tipos estáticos, sin GDExtension ni dependencias.
-- Solo vive en el editor: nada del addon llega a un juego exportado.
-- El harness nunca hace merge ni push, y no guarda claves.
+- read scenes and scripts, the selection and the errors;
+- edit nodes and properties, each change one undo step;
+- run the game with simulated input and look at captured frames;
+- review code and leave findings in the Script Editor.
 
-> Estado: hitos M0–M8c de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md), todos implementados. El avance y cómo se verificó cada parte están en [`docs/progress.md`](docs/progress.md); las decisiones de diseño, en [`docs/decisions.md`](docs/decisions.md).
+It has four modes: **Ask**, **Review**, **Build** and **One-shot**. One-shot pursues a whole goal ("a 2-player Pong with score") with a plan, budgets, git checkpoints and playtests.
 
-## Requisitos
+- 100 % statically typed GDScript: no GDExtension, no dependencies.
+- Editor-only: nothing from the addon ends up in an exported game.
+- The harness never merges or pushes, never stores keys and never reads the agent's credentials.
+- The interface is in English and Spanish (it follows the editor language; you can change it in Settings).
 
-- **Godot 4.6 o más nuevo.** Se prueba en 4.6.3, 4.7.2 y 4.8-beta1.
-- **Un agente ACP.** Para Claude Code:
-  - Node.js con `npx`; el perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
-  - una sesión de Claude Code: la que ya tenga `claude` en la máquina, la que se inicia desde el dock (ver [Iniciar sesión en el agente](#iniciar-sesión-en-el-agente)), o una API key en una variable de entorno (ver [Perfiles](#perfiles-de-agentes)).
-- **git**, solo para los checkpoints del modo One-shot.
-- Linux, macOS o Windows. El desarrollo es en Linux; no hay comandos atados a un shell.
+> Status: milestones M0–M8c of [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) are implemented. Progress and how each part was verified: [`docs/progress.md`](docs/progress.md). Design decisions: [`docs/decisions.md`](docs/decisions.md). Both are in Spanish.
 
-## Instalación
+## Documentation
 
-1. Copiá `addons/godot_agent/` a la carpeta `addons/` de tu proyecto. No copies `addons/godot_agent_dev/`: es el plugin de pruebas del repo.
-2. **Proyecto → Configuración del proyecto → Plugins**: habilitá **Godot Agent Harness**.
-3. Aparecen tres superficies:
-   - el dock **Agent** (a la derecha);
-   - el panel inferior **Agent Log**;
-   - la pantalla **Agent** (arriba, junto a 2D/3D/Script), que es la del One-shot.
-4. En el dock, **Iniciar sesión**. Con Claude Code, la primera vez `npx` descarga el adapter.
+The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use each part:
 
-El addon no escribe nada en `project.godot`. La única excepción es un autoload de playtest temporal: se agrega solo cuando el harness corre el juego y se quita en cuanto el juego arranca.
+- [Getting started](docs/wiki/en/Getting-started.md): install, sign in, first conversation.
+- [How it works](docs/wiki/en/How-it-works.md): the agent process, ACP, the MCP server and how the editor stays in sync.
+- [Modes and permissions](docs/wiki/en/Modes-and-permissions.md)
+- [Editor tools (MCP)](docs/wiki/en/Editor-tools.md)
+- [One-shot](docs/wiki/en/One-shot.md): plan, spec, budgets, checkpoints, quota, switching accounts, report.
+- [Review](docs/wiki/en/Review.md)
+- [Inline completion](docs/wiki/en/Inline-completion.md), local or with an LLM.
+- [Settings and profiles](docs/wiki/en/Settings.md): where everything is stored, agent profiles, export and updating.
+- [Troubleshooting](docs/wiki/en/Troubleshooting.md): known limitations by Godot version.
 
-## Uso
+## Requirements
 
-### El dock
+- **Godot 4.6 or newer.** Tested on 4.6.3, 4.7.2 and 4.8-beta1.
+- **An ACP agent.** For Claude Code:
+  - Node.js with `npx`. The default profile runs `npx -y @agentclientprotocol/claude-agent-acp`;
+  - a Claude Code account: the one `claude` already uses on your machine, one you sign in to from the dock, or an API key in an environment variable.
+- **git**, only for One-shot checkpoints.
+- Linux, macOS or Windows.
 
-- **Header**: perfil de agente, título de la sesión, **Historial**, **Nueva sesión** y **Settings**.
-- **Modos**: Preguntar · Revisar · Construir · One-shot.
-- **Conversación**: Markdown, tool calls agrupados, diffs, tarjetas de permiso y el plan del agente.
-- **Subagentes** (Claude Code): lo que hace un subagente queda dentro de la tarjeta de su llamada `Agent`. Sus herramientas y su último texto van plegados, con el prompt mientras trabaja y el informe al terminar. Su texto no se mezcla con la respuesta principal.
-- **Composer**:
-  - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
-  - **cola**: con el agente trabajando, Enter deja el mensaje en cola, arriba del composer. Cada mensaje se puede editar (vuelve al composer) o quitar. Cuando el turno termina bien, sale el siguiente con el contexto que tenía al escribirlo. Si el turno se cancela, falla o cambia la sesión, la cola queda en pausa hasta «Enviar ahora». Durante un One-shot lo que escribís va a «Guiar al agente», no a la cola;
-  - **↑** en la primera línea y **↓** en la última recorren los prompts que enviaste en este proyecto, como en una terminal (se guardan los últimos 100 en `user://godot_agent/prompt_history.json`);
-  - `/` al comienzo lista los comandos del agente y `@` los nodos de la escena y los archivos del proyecto. La lista aparece arriba del texto y filtra mientras escribís; las flechas mueven, Enter o Tab eligen y Esc la cierra;
-  - **+ contexto** adjunta la escena abierta, la selección o una captura del viewport;
-  - también hay selector de modelo y medidor de contexto.
-- **Cuota del plan**: si el agente la informa, aparece debajo del estado (ver [Cuota](#cuota-del-plan)).
+## Install
 
-### Modos
+1. Copy `addons/godot_agent/` into your project's `addons/` folder. Don't copy `addons/godot_agent_dev/`: it's this repository's test plugin.
+2. **Project → Project Settings → Plugins**: enable **Godot Agent Harness**.
+3. Three surfaces appear:
+   - the **Agent** dock (right side);
+   - the **Agent Log** bottom panel;
+   - the **Agent** screen (top bar, next to 2D/3D/Script), where One-shot runs.
+4. Click **Start session** in the dock. With Claude Code, `npx` downloads the adapter the first time.
 
-| Modo | Qué hace el agente |
-|---|---|
-| **Preguntar** | Responde sobre el proyecto. Puede leer, no puede editar ni correr nada. |
-| **Revisar** | Revisa escenas y scripts y devuelve hallazgos (bug, orden, rendimiento, estilo). Las marcas aparecen en el Script Editor, con "Aplicar arreglo", "Preguntar" y "Descartar". La revisión se puede exportar a `CLAUDE.md`. |
-| **Construir** | Edita escenas y scripts y corre el juego, pidiendo permiso según la matriz. |
-| **One-shot** | Persigue un objetivo con presupuestos, checkpoints git y playtests, en la pantalla Agent (ver [One-shot](#one-shot)). |
+The addon writes nothing to `project.godot`. The one exception is a temporary playtest autoload, added only while the harness runs the game.
 
-Cambiar de modo cambia también el modo del agente, si lo publica: Preguntar y Revisar usan `plan`, y Construir y One-shot usan `default`.
+## Quick start
 
-### Permisos
+- **Ask** something about the project: "How many nodes does Main.tscn have?". The agent reads the scene with the editor tools; it can't change anything in this mode.
+- **Build**: "Add a Label called WaveLabel to the HUD and connect the wave_started signal". The edit shows up in the scene tree and Ctrl+Z undoes it. Each action that changes something asks for permission first.
+- **Review** a folder: the findings show up as marks in the Script Editor, with **Apply fix**.
+- **One-shot**: pick it in the dock, write the goal in the Agent screen and start. The agent plans, builds, playtests and leaves every step as a git checkpoint on its own branch.
 
-Cada acción cae en un grupo, y cada grupo tiene una decisión por modo: **sí**, **preguntar** o **no**. "Preguntar" muestra una tarjeta en el chat. Si nadie contesta en 5 minutos (configurable), se deniega. Valores de la spec:
-
-| Grupo | Preguntar | Revisar | Construir | One-shot |
-|---|---|---|---|---|
-| Lectura | sí | sí | sí | sí |
-| Diagnóstico | sí | sí | sí | sí |
-| Editar escenas | no | no | preguntar | sí |
-| Editar archivos | no | no | preguntar | sí |
-| Ejecutar el juego | no | preguntar | preguntar | sí |
-| Shell / comandos | no | no | preguntar | preguntar |
-| Project settings, export y addons | no | no | preguntar | preguntar |
-
-La matriz se cambia en **Settings → Permisos**. Se guarda solo lo que difiere de la spec.
-
-### Herramientas del editor (MCP)
-
-El addon levanta un servidor MCP en `127.0.0.1` (nunca en otra interfaz), con un token Bearer que cambia en cada arranque, y se lo pasa al agente al abrir la sesión. Si el agente no soporta MCP por HTTP, usa un puente stdio que corre con el mismo binario de Godot. Las herramientas:
-
-| Grupo | Herramientas |
-|---|---|
-| Lectura | `project_info`, `list_files`, `scene_tree`, `get_node`, `editor_state` |
-| Diagnóstico | `get_errors`, `validate_scripts`, `capture_editor_viewport` |
-| Editar escenas | `add_node`, `set_properties`, `remove_node`, `reparent_node`, `rename_node`, `connect_signal`, `instantiate_scene`, `open_scene`, `save_scene` |
-| Editar archivos | `create_scene`, `attach_script` |
-| Ejecutar el juego | `run_scene`, `stop_scene`, `capture_game_frame` |
-
-- Cada edición de escena es un paso de undo del editor. La tarjeta del tool call tiene **↶ undo** mientras nadie haya tocado la escena después.
-- Las ediciones de archivos del agente (`fs/*` de ACP) pasan por el editor: si tenés un script abierto con cambios sin guardar, no se pisan, y aparece un aviso de conflicto con el diff.
-- Claude Code escribe con sus propias herramientas, directo al disco. El editor se pone al día solo, sin el diálogo de "modificado afuera":
-  - los scripts abiertos se actualizan en el Script Editor;
-  - las escenas abiertas sin cambios sin guardar se recargan (en Godot 4.6 no se puede saber si tienen cambios, así que avisa);
-  - lo que el agente cambie en `project.godot` (acciones de input, autoloads, la escena principal…) se aplica a la configuración del proyecto en el editor, y el editor lo guarda.
-
-  Una escena con cambios sin guardar nunca se pisa: aparece un aviso con **Recargar escena**.
-- **Settings → Servidor MCP**:
-  - puerto fijo (por defecto, uno libre al azar);
-  - **Regenerar token**;
-  - límite de caracteres por resultado y lado máximo de las capturas;
-  - carpetas fuera del proyecto que el agente puede leer y escribir.
-
-### Iniciar sesión en el agente
-
-Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un botón por cada forma de login que ofrezca. Con Claude Code son **Iniciar sesión · Claude Subscription** y **Iniciar sesión · Anthropic Console**, como en Zed o JetBrains (el "terminal auth" de ACP).
-
-- El botón corre el login del propio agente (`npx -y @agentclientprotocol/claude-agent-acp --cli auth login --claudeai`) sin bloquear el editor, y se abre el navegador.
-- Si el navegador no se abre, **Abrir enlace** abre la página de login. Si la página te da un código, **Pegar código…** se lo pasa al login. **Cancelar** lo corta.
-- Al terminar, el agente se vuelve a lanzar y la sesión abre. Lo mismo vale si la cuenta se cierra a mitad de una sesión y un turno falla por eso.
-- Las credenciales las guarda el agente, igual que con `claude` en una terminal. El addon no las lee ni las guarda, y el código pegado no va al log.
-
-### One-shot
-
-1. Elegí **One-shot** en el dock: se abre la pantalla **Agent**.
-2. Escribí el objetivo (por ejemplo "Pong de 2 jugadores con puntaje"), revisá los presupuestos y si querés checkpoints, y tocá **Iniciar One-shot**. Con **Revisar el spec antes de construir**, el agente primero escribe el spec del juego y espera: lo leés y editás con **Revisar spec**, y **Aprobar spec** lo pone a construir. Si hay cambios sin commitear, el harness pregunta antes. Esos cambios quedan en un commit "WIP" en la rama del agente, nunca en la tuya.
-3. El agente arma un plan, trabaja y verifica con playtests (`run_scene` + `capture_game_frame`). Reporta checks en `pass`, `fail` o `pending`. La pantalla muestra:
-   - el plan, que se puede editar;
-   - la actividad, con "Guiar al agente";
-   - la última captura, las verificaciones y los checkpoints.
-4. **Checkpoints**: cada tarea del plan (o cada playtest, si el agente no informa un plan) es un commit `cpN` en la rama `agent/<fecha>`. **Volver acá** deja el proyecto exactamente como en ese checkpoint y pausa el run; **Retomar** sigue desde ahí.
-5. **Presupuestos** de tiempo, tokens y playtests: avisa al 80 % y, al 100 %, pide el reporte final y termina. Con el run en curso se cambian con **Presupuestos** (0 = sin límite; **Ilimitado** los saca a todos). Si el run iba a cerrar por presupuesto y el nuevo alcanza, sigue.
-   **Guiar al agente**: con el One-shot en curso, lo que escribís en el chat del dock le llega al agente al terminar el turno.
-   **Loops**: si el agente repite lo mismo sin avanzar (un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio una y otra vez), el run le pide otro enfoque; si vuelve a pasar, se pausa y espera que lo guíes. Las repeticiones se ajustan en Settings → One-shot.
-   **Spec y progreso en archivos**: el agente escribe `spec.md` al empezar y actualiza `progress.md` al cerrar cada tarea, en `.godot_agent/oneshot/<id>/` dentro del proyecto. Se ven con **Spec y progreso** (o tocando la ruta en el chat). Si hay que retomar en una sesión nueva, se lee de ahí. La carpeta tiene `.gdignore` (no entra al FileSystem ni al export) y viaja en los checkpoints de la rama del agente; si no la querés en tu rama, borrala antes del merge.
-   **Criterios del juego**: el agente sabe de entrada cómo se evalúa lo que hace: jugabilidad, funcionalidad, visual y feel, y código, cada uno con peso y mínimo de 0 a 10 (Settings → One-shot).
-6. Al final:
-   - **Revisar cambios** lista los archivos; con doble clic se ve el diff contra el inicio.
-   - **Aceptar todo** hace un commit final en `agent/<fecha>`. El merge lo hacés vos.
-   - **Informe**: lo que midió el harness (duración por tarea, tokens, playtests, tools usadas y fallidas, cuántas veces falló cada check, permisos, errores, pausas, loops y archivos cambiados). Se guarda en `user://godot_agent/oneshot/<id>.report.json` para comparar corridas, y se puede copiar como Markdown.
-7. **Si el editor se cierra o se cae** con un One-shot en curso, el run queda guardado. Al volver aparece en pausa en la pantalla Agent, con su actividad. **Retomar** reabre la sesión del agente; si no puede, abre una nueva con el resumen del plan. **Detener** lo da por terminado.
-
-Sin git, o con un repo sin commits, no hay checkpoints. El harness lo avisa antes de empezar.
-
-Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para probar, `tests/make_sandbox.sh <carpeta>` arma un proyecto aparte.
-
-### Cuota del plan
-
-Si el agente informa la cuota de su plan (Claude Code lo hace: ver D22 en las decisiones), el dock muestra la ventana actual y la semanal, con la hora de reinicio.
-- **Aviso** al 75 %.
-- **Pausa del One-shot** al 90 %, en el próximo checkpoint, sin cortar una tarea a la mitad.
-- **Limitado**: cuando el agente informa que se alcanzó el límite, el envío queda bloqueado con una cuenta regresiva. Al reiniciarse la ventana, el One-shot retoma solo o espera confirmación.
-
-Todo se configura en **Settings → One-shot y cuota**. El harness no estima la cuota con tokens, no consulta endpoints no documentados y no lee archivos ni credenciales del agente. Si el agente no la informa, el medidor lo dice y no inventa un número.
-
-### Historial
-
-Cada sesión se guarda en `user://godot_agent/sessions/` (la carpeta de datos del editor para este proyecto). Se guarda una vez por turno, sin capturas y con los resultados largos recortados. **Historial** en el dock lista las sesiones de este proyecto.
-- Si el agente soporta `session/load` (Claude Code sí), la sesión se reanuda de verdad: el agente recupera su contexto.
-- Si no, la conversación se ve en modo solo lectura, y escribir abre una sesión nueva.
-
-### Completado inline
-
-Sugerencias en gris mientras escribís en el Script Editor. Por defecto son solo locales: no usan IA ni el agente y no salen del editor. Un LLM es opcional (ver abajo).
-
-- **Tab** acepta la sugerencia en un solo paso de deshacer. **Esc** la descarta. **Alt+\\** pide una a mano. **Alt+Shift+\\** prende o apaga el completado.
-- Si no hay sugerencia, o si el popup de autocompletado de Godot está abierto, Tab funciona como siempre.
-- De dónde salen las sugerencias:
-  - **reglas de Godot**:
-    - `@onready var ` propone los nodos hijos de la escena, con tipo y ruta;
-    - `func _` propone los virtuales de la clase base, con su firma;
-    - `$`/`%` propone rutas de nodos;
-    - también hay reglas para acciones del input map, grupos, `.connect(`, `func _on_`, `preload("` y `extends `;
-  - **líneas del proyecto**: si una línea se repite en otros scripts, se sugiere al escribir su comienzo. Si se repite con otro nombre (`enemy_` en lugar de `player_`), se adapta. En una línea vacía se sugiere lo que suele seguir a la de arriba, y un bloque corto si el proyecto siempre lo escribe igual;
-  - **n-gram**: un modelo de los tokens del proyecto completa la línea mientras está seguro;
-  - **historial**: lo que escribiste en esta sesión.
-- Las sugerencias de varias líneas muestran la primera en el lugar y el resto en una caja debajo. **Ctrl+→** acepta palabra por palabra.
-- Si hay dudas entre dos opciones, no se muestra nada.
-- El índice del proyecto se arma en segundo plano y no incluye `addons/` en las líneas sugeridas. Se configura en `project_config.tres`, sección Completado.
-- Se apaga con `godot_agent/completion/enabled` en Configuración del editor, o por proyecto con `completion_enabled`.
-- En la misma sección: `multiline` y `max_lines` (8 por defecto), cada fuente por separado (`sources/rule`, `retrieval`, `ngram`, `history`) y `extra_corpus`, carpetas de otros proyectos tuyos que solo entrenan el n-gram.
-- Todo eso se edita también en **Settings → Completado**, que muestra además la latencia (p50/p95) y la tasa de aceptación de cada fuente en la sesión. Los cambios se aplican sin reiniciar.
-- En la barra del Script Editor, **● Completado** muestra el estado (verde activo, ámbar esperando al LLM, rojo error, gris apagado) y el modo. Un clic lo prende o lo apaga.
-
-#### Con un LLM (opcional)
-
-En **Settings → Completado**, elegí el modo:
-- **Solo local** (default): sin red.
-- **Híbrido**: lo local sale como siempre; si no hay nada local, después de 200 ms sin tipear se le pide al LLM. Alt+\\ va directo al LLM.
-- **Solo LLM**.
-
-Perfiles incluidos (se agregan, editan y eligen en la misma sección):
-
-| Tipo | URL por defecto | Notas |
-|---|---|---|
-| Ollama | `http://127.0.0.1:11434` | `ollama pull qwen2.5-coder:1.5b-base` (los modelos `-base` traen FIM) |
-| llama.cpp (`llama-server`) | `http://127.0.0.1:9931` | endpoint `/infill`; cargá un modelo con FIM |
-| Codestral | `https://api.mistral.ai` | key en la variable `MISTRAL_API_KEY` |
-| OpenAI-compatible (LM Studio, vLLM…) | `http://127.0.0.1:1234` | `/v1/completions` con la plantilla FIM del modelo |
-| Gemini (experimental) | Google | key en `GEMINI_API_KEY`; sin FIM, más lento |
-
-- Las keys no se guardan: el perfil tiene el **nombre** de la variable de entorno y el valor se lee del entorno del editor al pedir. Settings no acepta una key pegada en ese campo.
-- Un perfil remoto avisa que el código alrededor del cursor (y un resumen del proyecto: nodos, autoloads, acciones) se envía a ese servidor.
-- Las sugerencias del LLM llevan un punto al final (se puede apagar).
-- El Agent Log (canal `cmp`) registra latencias y tamaños, no código, salvo que prendas «Log raw».
-
-## Perfiles de agentes
-
-**Settings → Agentes**: agregar, editar, quitar y marcar el predeterminado. Cada perfil tiene un comando, sus argumentos (uno por línea) y variables de entorno.
-
-- **Claves**: en el entorno, `NOMBRE=$VARIABLE` toma el valor de `VARIABLE` del entorno del editor al lanzar el agente. Settings no acepta un valor literal en variables con nombre de secreto (`*KEY*`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*`), y el log del harness enmascara el token MCP. Ejemplo: `ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY`.
-- Perfiles incluidos:
-  - Claude Code (`npx -y @agentclientprotocol/claude-agent-acp`);
-  - Gemini CLI (`gemini`; agregá el argumento que tu versión use para ACP, por ejemplo `--experimental-acp`);
-  - Codex, sin comando: configuralo con el adapter ACP que uses.
-
-## Settings: dónde se guarda cada cosa
-
-| Qué | Dónde | Alcance |
-|---|---|---|
-| Perfiles, puerto MCP, cuota, color de acento, ubicación del dock, completado (on/off, modo, debounce, umbral, multilínea, fuentes, corpus extra, perfiles LLM sin keys) | `EditorSettings`, prefijo `godot_agent/` | tu usuario, todos los proyectos |
-| Permisos, presupuestos, checkpoints, umbral de loops, límites de las tools, carpetas extra, completado del proyecto | `res://addons/godot_agent/config/project_config.tres` | el proyecto (se puede commitear) |
-| Historial de sesiones | `user://godot_agent/sessions/` | tu usuario, este proyecto |
-| Runs del One-shot (estado, última captura; los últimos 20) | `user://godot_agent/oneshot/` | tu usuario, este proyecto |
-
-El puerto, el color y la ubicación del dock se aplican al reabrir el editor. Desde 4.8 el editor recuerda dónde dejaste el dock, así que la ubicación de Settings es solo la inicial.
-
-## Export
-
-El addon no llega a un juego exportado: un export plugin saltea todo `addons/godot_agent/` y quita el autoload de playtest. Como red de seguridad, por si exportás con el plugin deshabilitado, agregá `addons/godot_agent/*` al **filtro de exclusión** de cada preset (diálogo de Exportar, pestaña Recursos). **Settings → Export** muestra qué presets no lo tienen y lo agrega, previa confirmación. Como el editor tiene los presets en memoria, reinicialo después de usar ese botón.
-
-Quedan dos rastros conocidos e inofensivos: rutas del addon en `uid_cache.bin` y el plugin en la lista de plugins habilitados de `project.binary` (D8).
-
-## Actualizar sin perder la config
-
-La config del proyecto vive dentro de la carpeta del addon. Para actualizar:
-
-1. Guardá `addons/godot_agent/config/project_config.tres`, si existe. Si editaste `config/system_prompt.md` o `config/quota_patterns.txt`, guardalos también.
-2. Borrá `addons/godot_agent/` y copiá la versión nueva.
-3. Volvé a poner esos archivos en `config/`.
-
-Los settings de usuario (`EditorSettings`) y el historial (`user://`) no se tocan al reemplazar la carpeta.
-
-## Limitaciones conocidas por versión
-
-| Versión | Qué pasa | Cómo lo maneja el addon |
-|---|---|---|
-| 4.6 | No existe `EditorInterface.get_unsaved_scenes()`. | Si el agente cambia en disco una escena abierta, avisa con **Recargar escena** en vez de recargarla sola (D33). |
-| 4.6–4.7 | `EditorDock` existe, pero la main screen como dock llega en 4.8. | Dock y panel con `EditorDock`; main screen con la API vieja (D9). |
-| 4.8-beta1 | `_has_main_screen()` deja un `EditorDock` huérfano al deshabilitar, y cerrar el editor con la pantalla Agent activa da un error de foco. | Main screen con `add_dock`; antes de cerrar, pasa a la pantalla 2D (D9). |
-
-## Desarrollo
+## Development
 
 ```sh
-G=/ruta/a/godot   # 4.6.3, 4.7.2 o 4.8
+G=/path/to/godot   # 4.6.3, 4.7.2 or 4.8
 $G --headless --path . --import
-$G --headless --path . --script tests/run_all.gd            # unitarios
-$G --headless --path . --script tests/acp_session_check.gd  # ACP contra el agente falso
-$G --headless --path . --script tests/oneshot_check.gd      # loop del One-shot
-tests/run_in_xvfb.sh $G --godot-agent-cycle-test             # editor en Xvfb: habilitar/deshabilitar 5 veces sin huérfanos
+$G --headless --path . --script tests/run_all.gd            # unit tests
+$G --headless --path . --script tests/acp_session_check.gd  # ACP against the fake agent
+$G --headless --path . --script tests/oneshot_check.gd      # One-shot loop
+tests/run_in_xvfb.sh $G --godot-agent-cycle-test             # editor in Xvfb: enable/disable 5 times without leaks
 ```
 
-`docs/progress.md` tiene la lista completa por hito, incluidas las pruebas con Claude Code real (gastan tokens). El tablero de tareas está en `compass/` ([`docs/tareas.md`](docs/tareas.md) es su export).
+The interface text is written in English in the code, wrapped in `I18n.t("…")`. Translations live in `addons/godot_agent/i18n/<language>.po`; `tests/unit/test_i18n.gd` fails if a text has no Spanish translation. What the agent reads (prompts, tool descriptions and results) is English only.
+
+The task board lives in `compass/` ([`docs/tareas.md`](docs/tareas.md) is its export).

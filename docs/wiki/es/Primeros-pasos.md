@@ -1,0 +1,54 @@
+# Primeros pasos
+
+[Inicio](Inicio.md) · [English](../en/Getting-started.md)
+
+## 1. Instalar
+
+1. Copiá `addons/godot_agent/` a la carpeta `addons/` de tu proyecto.
+2. **Proyecto → Configuración del proyecto → Plugins** → habilitá **Godot Agent Harness**.
+3. Aparecen tres superficies:
+   - el dock **Agent**, a la derecha: la conversación;
+   - el panel inferior **Agent Log**: lo que va y viene entre el editor y el agente, por canal;
+   - la pantalla **Agent** en la barra de arriba, junto a 2D/3D/Script: la vista del One-shot.
+
+Requisitos: Godot 4.6 o más nuevo y, para Claude Code, Node.js con `npx`.
+
+## 2. Abrir una sesión
+
+Tocá **Iniciar sesión** en el dock. El perfil por defecto lanza Claude Code con su adapter ACP (`npx -y @agentclientprotocol/claude-agent-acp`); la primera vez, `npx` lo descarga.
+
+Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un botón por cada forma de login que ofrezca. Con Claude Code son **Iniciar sesión · Claude Subscription** e **Iniciar sesión · Anthropic Console**:
+
+- el botón corre el login del propio agente y abre el navegador;
+- si el navegador no se abre, **Abrir enlace** lo abre; si la página te da un código, **Pegar código…** se lo pasa al login;
+- al terminar, el agente se relanza y la sesión abre.
+
+Las credenciales las guarda el agente, igual que `claude` en una terminal. El harness no las lee, y el código pegado no va al log.
+
+Otros agentes (Gemini CLI, Codex, el tuyo) se configuran en **Settings → Agentes**: ver [Settings](Settings.md#perfiles-de-agentes).
+
+## 3. El dock
+
+- **Header**: perfil de agente, título de la sesión, **Historial**, **Nueva sesión** y **Settings**.
+- **Modos**: Preguntar · Revisar · Construir · One-shot (ver [Modos y permisos](Modos-y-permisos.md)).
+- **Conversación**: Markdown, tool calls agrupados (con su duración), diffs, tarjetas de permiso y el plan del agente. Lo que hace un subagente queda plegado dentro de su tarjeta `Agent`.
+- **Composer**:
+  - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
+  - con el agente trabajando, Enter deja el mensaje **en cola**, arriba del composer. Cada mensaje en cola se puede editar o quitar. Cuando termina el turno sale el siguiente. Si el turno se cancela o falla, la cola espera **Enviar ahora**;
+  - **↑** / **↓** en la primera o la última línea recorren los prompts que enviaste en este proyecto;
+  - `/` al comienzo lista los comandos del agente, y `@` los nodos de la escena y los archivos del proyecto;
+  - **+ contexto** adjunta la escena abierta, la selección o una captura del viewport;
+  - selector de modelo y medidor de contexto.
+- **Cuota del plan**: si el agente la informa, el dock muestra la ventana de 5 horas y la semanal, con la hora de reinicio.
+
+## 4. Primeros prompts
+
+- *Preguntar*: "¿qué hace el script del Player cuando lo golpean?"
+- *Construir*: "agregá un Label WaveLabel al HUD que muestre la oleada actual". Mirá cómo cambia el árbol de la escena; **Ctrl+Z** deshace cada paso.
+- *Construir*: "corré la escena principal, apretá espacio dos veces y decime qué errores aparecen". El agente corre el juego con inputs simulados y lee los errores reales.
+
+## 5. Idioma de la interfaz
+
+La interfaz está en inglés y en español, y sigue el idioma del editor (**Editor → Configuración del editor → Interfaz → Idioma del editor**). Para forzar uno, usá **Settings → Interfaz → Idioma**; el cambio se aplica al reabrir el editor.
+
+Lo que lee el agente (sus instrucciones y las descripciones de las tools) va siempre en inglés; el agente te responde en tu idioma.
