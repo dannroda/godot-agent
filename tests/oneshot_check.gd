@@ -27,6 +27,7 @@ func _initialize() -> void:
 	await _scenario_quota()
 	await _scenario_quota_turn_end()
 	await _scenario_quota_grace()
+	await _scenario_account()
 	await _scenario_budget()
 	await _scenario_budget_raise()
 	await _scenario_no_plan()
@@ -210,6 +211,42 @@ func _scenario_quota_grace() -> void:
 	run.stop()
 	run.controller.stop()
 	run.queue_free()
+
+
+## Límite del plan: el run guardado sigue esperando la cuota al reabrir el editor, y «Cambiar de
+## cuenta» relanza el agente y sigue sin esperar (m6-15).
+func _scenario_account() -> void:
+	print("— cambio de cuenta")
+	var store_dir := ProjectSettings.globalize_path("user://oneshot_check/store_account")
+	OS.execute("rm", ["-rf", store_dir])
+	var run := _make("oneshot_account")
+	run.store.dir = store_dir
+	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.LIMITED and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.Phase.LIMITED, "cuenta: limitado (%s)" % run.phase_label())
+	var now := int(Time.get_unix_time_from_system())
+	_check(run.quota_resume_at > now + 3000, "cuenta: guarda cuándo se reinicia la ventana (%d)" % (run.quota_resume_at - now))
+	run.suspend()
+	run.controller.stop()
+	run.queue_free()
+
+	var again := _make("oneshot_account")
+	again.store.dir = store_dir
+	again.resume_auto = true
+	_check(again.restore_interrupted(), "cuenta: se restaura al reabrir")
+	_check(again.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuenta: sigue esperando la cuota (%s)" % again.phase_label())
+	_check(again.quota_resume_at > now + 3000, "cuenta: con la hora de reinicio")
+	_check(str(again.activity.back().text).contains("retoma solo a las"), "cuenta: la actividad dice cuándo retoma (%s)" % again.activity.back().text)
+	await create_timer(1.5).timeout
+	_check(again.phase == OneShotRun.Phase.PAUSED_QUOTA, "cuenta: no retoma antes de hora")
+	again.restart_session = func(_lost_id: String) -> bool: return await again.controller.start(_profile("oneshot_account_after"))
+	again.switch_account()
+	await _wait(func() -> bool: return again.phase == OneShotRun.Phase.FINISHED and not again.is_git_busy(), 15.0)
+	_check(again.phase == OneShotRun.Phase.FINISHED, "cuenta: retoma con la cuenta nueva y termina (%s · %s)" % [again.phase_label(), again.finish_reason])
+	_check(again.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("Cambio de cuenta: se abrió una sesión nueva")), "cuenta: la actividad lo dice")
+	_check(int(again.report.events.get("account_switches", 0)) == 1, "cuenta: el informe lo cuenta")
+	again.controller.stop()
+	again.queue_free()
 
 
 func _scenario_budget() -> void:

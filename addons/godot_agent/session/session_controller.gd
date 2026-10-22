@@ -82,6 +82,9 @@ var cwd: String = ""
 var mcp_servers_provider: Callable
 ## Callable() -> Dictionary: variables para el prompt de sistema ({project_name}, …).
 var prompt_variables_provider: Callable
+## Después de un login exitoso: si devuelve true, ya se ocupó de la sesión (el One-shot retoma la
+## suya con la cuenta nueva) y no se abre una sesión nueva.
+var after_login: Callable
 
 var _process: AgentProcess
 var _profile: AgentProfile
@@ -417,6 +420,9 @@ func _on_login_finished(ok: bool, message: String) -> void:
 		return
 	agent_log.add(AgentLog.CH_PROC, "Login completo")
 	_login_entry = null
+	if after_login.is_valid() and await after_login.call():
+		model.add_notice("Sesión iniciada.")
+		return
 	if _profile and await start(_profile):
 		model.add_notice("Sesión iniciada.")
 
@@ -429,6 +435,14 @@ func _set_login_notice(text: String, level: ChatEntry.Level, actions: Array[Dict
 	_login_entry.level = level
 	_login_entry.actions = actions
 	model.notify_entry_changed(_login_entry)
+
+
+## Métodos de login que el addon sabe correr: {id, label}. Para «Cambiar de cuenta».
+func login_methods() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for method: Dictionary in AgentLogin.usable_methods(model.auth_methods):
+		result.append({"id": str(method.id), "label": AgentLogin.label_of(method)})
+	return result
 
 
 ## Un botón por método que el addon sabe usar.

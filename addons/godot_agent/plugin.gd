@@ -144,6 +144,8 @@ func _enter_tree() -> void:
 	dock.settings_requested.connect(_open_settings)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.submit_interceptor = _intercept_dock_prompt
+	dock.retry_interceptor = _intercept_dock_retry
+	_controller.after_login = _after_agent_login
 	dock.can_switch_session = func() -> bool: return not _oneshot.is_active()
 	_oneshot.changed.connect(func() -> void:
 		if is_instance_valid(dock):
@@ -518,6 +520,26 @@ func _intercept_dock_prompt(text: String) -> bool:
 	if _oneshot == null or not _oneshot.is_active():
 		return false
 	_oneshot.guide(text)
+	return true
+
+
+## Con un One-shot en curso, «Reintentar» retoma el run en su sesión en lugar de abrir una en blanco.
+func _intercept_dock_retry() -> bool:
+	if _oneshot == null or not _oneshot.is_active():
+		return false
+	if _oneshot.can_resume():
+		_oneshot.resume()
+	else:
+		_model.add_notice("El One-shot sigue en curso: pausalo o detenelo desde la pantalla Agent.", ChatEntry.Level.INFO)
+	return true
+
+
+## Login hecho desde el dock o desde «Cambiar de cuenta»: si hay un One-shot esperando, retoma su
+## sesión con la cuenta nueva (m6-15).
+func _after_agent_login() -> bool:
+	if _oneshot == null or not _oneshot.is_active() or not _oneshot.can_resume():
+		return false
+	_oneshot.switch_account()
 	return true
 
 

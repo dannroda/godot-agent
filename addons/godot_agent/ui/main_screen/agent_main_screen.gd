@@ -28,6 +28,7 @@ const ACTIVITY_COLORS: Dictionary = {
 	"guía": Color("#ffd479"),
 }
 const SUMMARY_INTERVAL_S := 2.0
+const ACCOUNT_ALREADY_SWITCHED := 1000
 ## El formulario crece con la pantalla (m6-13): ancho y alto del objetivo, en px sin escalar.
 const FORM_MIN_WIDTH := 640
 const FORM_MAX_WIDTH := 1400
@@ -61,6 +62,8 @@ var _spec_edit: TextEdit
 var _files_paths: PackedStringArray = []
 var _plan_title: Label
 var _budgets_button: Button
+## «Cambiar de cuenta» (m6-15): login con otra cuenta o «ya cambié», y retoma la misma sesión.
+var _account_button: MenuButton
 var _budgets_dialog: ConfirmationDialog
 ## clave de presupuesto -> SpinBox del diálogo
 var _budgets_edit: Dictionary = {}
@@ -283,6 +286,13 @@ func _build_top_bar() -> Control:
 	_budgets_button.tooltip_text = "Cambiar los presupuestos con el run en curso (0 = sin límite)."
 	_budgets_button.pressed.connect(_show_budgets)
 	header.add_child(_budgets_button)
+	_account_button = MenuButton.new()
+	_account_button.text = "Cambiar de cuenta"
+	_account_button.flat = false
+	_account_button.tooltip_text = "Seguir con otra cuenta del agente sin esperar a que se reinicie la cuota: se reinicia el agente y retoma la misma sesión."
+	_account_button.about_to_popup.connect(_fill_account_menu)
+	_account_button.get_popup().id_pressed.connect(_on_account_menu)
+	header.add_child(_account_button)
 	_spec_button = Button.new()
 	_spec_button.text = "Spec"
 	_spec_button.tooltip_text = "El spec que escribió el agente (.godot_agent/oneshot/<id>/spec.md): se puede leer y editar."
@@ -760,7 +770,8 @@ func _refresh_top_bar() -> void:
 	_pause_button.visible = not finished
 	_stop_button.visible = not finished
 	_new_button.visible = finished
-	var can_resume := _run.phase in [OneShotRun.Phase.PAUSED, OneShotRun.Phase.PAUSED_QUOTA, OneShotRun.Phase.LIMITED, OneShotRun.Phase.WAITING_CONFIRM]
+	var can_resume := _run.can_resume()
+	_account_button.visible = _run.is_active() and can_resume
 	_pause_button.text = "Retomar" if can_resume else "Pausar"
 	_pause_button.disabled = not (can_resume or _run.phase == OneShotRun.Phase.RUNNING)
 	_pause_button.tooltip_text = "Reintenta ya, sin esperar el reinicio de la ventana." if _run.phase == OneShotRun.Phase.LIMITED else ""
@@ -978,6 +989,28 @@ func _start_run() -> void:
 		_goal_edit.text = ""
 	_summary_dirty = true
 	_refresh()
+
+
+## Un ítem por método de login del agente (corre el login y, al terminar, el run retoma con la
+## cuenta nueva) y «ya cambié» para cuando se hizo en una terminal.
+func _fill_account_menu() -> void:
+	var popup := _account_button.get_popup()
+	popup.clear()
+	var methods := _run.controller.login_methods()
+	for i in methods.size():
+		popup.add_item("Iniciar sesión con otra cuenta · %s" % methods[i].label, i)
+	if not methods.is_empty():
+		popup.add_separator()
+	popup.add_item("Ya inicié sesión con otra cuenta (en una terminal): reiniciar el agente", ACCOUNT_ALREADY_SWITCHED)
+
+
+func _on_account_menu(id: int) -> void:
+	if id == ACCOUNT_ALREADY_SWITCHED:
+		_run.switch_account()
+		return
+	var methods := _run.controller.login_methods()
+	if id >= 0 and id < methods.size():
+		_run.controller.login(str(methods[id].id))
 
 
 func _on_pause_pressed() -> void:

@@ -47,6 +47,8 @@ const PROMPT_HISTORY_PATH := "user://godot_agent/prompt_history.json"
 
 ## (texto) -> bool: si devuelve true, el texto del composer ya se manejó (p. ej. guía del One-shot).
 var submit_interceptor: Callable
+## «Reintentar» de un aviso de error: si devuelve true, otro se ocupó (el One-shot retoma su run).
+var retry_interceptor: Callable
 ## () -> bool: si se puede cambiar de sesión (no con un One-shot en curso). Sin asignar: siempre.
 var can_switch_session: Callable
 
@@ -551,6 +553,8 @@ func _on_cancel_requested() -> void:
 func _on_action_requested(action: String, payload: Variant) -> void:
 	match action:
 		SessionController.ACTION_RETRY:
+			if retry_interceptor.is_valid() and retry_interceptor.call():
+				return
 			_start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit()

@@ -1,0 +1,39 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "quota": {
+      "five_hour": 0.1,
+      "seven_day": 0.1,
+      "status": "allowed",
+      "resets_in": 18000
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Nivel 1",
+        "priority": "high",
+        "status": "completed"
+       },
+       {
+        "content": "Jefe",
+        "priority": "high",
+        "status": "completed"
+       }
+      ]
+     }
+    },
+    {
+     "chunk": "Verificaciones:\n```json\n{\"checks\": [{\"label\": \"El nivel carga\", \"status\": \"pass\"}]}\n```"
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

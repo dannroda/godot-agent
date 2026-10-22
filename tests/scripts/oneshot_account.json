@@ -1,0 +1,36 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Nivel 1",
+        "priority": "high",
+        "status": "in_progress"
+       },
+       {
+        "content": "Jefe",
+        "priority": "high",
+        "status": "pending"
+       }
+      ]
+     }
+    },
+    {
+     "chunk": "Armo el nivel 1."
+    },
+    {
+     "delay": 0.2
+    },
+    {
+     "limit": {
+      "resets_in": 3600
+     }
+    }
+   ]
+  }
+ ]
+}

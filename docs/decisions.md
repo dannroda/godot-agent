@@ -649,3 +649,18 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - red de seguridad: si ninguna de las dos llega en 10 min (`QUOTA_PAUSE_GRACE_S`), o la cuota pasa el 98 % (`QUOTA_PAUSE_HARD`), corta el turno a mitad de la tarea y pausa con un checkpoint `-quota`;
   - el banner dice cuándo va a pausar y cuánto falta para que corte igual.
 - **Pruebas**: `oneshot_check` (cuota al terminar el turno; cuota con tope de espera) y el escenario de cuota de siempre.
+
+## D45 · Cambiar de cuenta al llegar al límite
+
+- **Pedido** (run real en great-boy-one, límite de 5 h): seguir con otra cuenta sin esperar el reinicio, y que cerrar el editor no pierda la espera.
+- **«Cambiar de cuenta»** (pantalla Agent, visible cuando el run se puede retomar). Tiene dos caminos:
+  - «Iniciar sesión con otra cuenta · <método>»: corre el login del agente (D32) y, al terminar, el run retoma solo; el hook es `SessionController.after_login`;
+  - «Ya inicié sesión con otra cuenta (en una terminal)»: para quien lo hizo con `claude` → `/login`.
+- **Qué pasa al cambiar** (`OneShotRun.switch_account`):
+  - la cuota medida era de la cuenta anterior: `QuotaMonitor.forget_account` la borra hasta que el agente informe la nueva;
+  - se relanza el proceso del agente, que lee las credenciales nuevas;
+  - se retoma la misma sesión con `session/load`, porque las conversaciones de Claude Code son locales y no dependen de la cuenta. Si no carga, se abre una sesión nueva con el resumen del plan, como en D37.
+- **«Reintentar» del dock** con un One-shot activo retoma el run en su sesión. Antes abría una sesión en blanco y el run seguía ahí sin contexto.
+- **Cerrar el editor esperando la cuota**: el estado guarda la fase (`phase_id`) y `quota_resume_at`. Al reabrir, un run que estaba Limitado o Pausado por cuota vuelve a «Pausado por cuota» y retoma solo a la hora del reinicio. Antes quedaba en pausa normal.
+- **Prompt de reanudación**: si hay spec, recuerda releer spec.md y progress.md.
+- **Pruebas**: `oneshot_check` (cambio de cuenta: límite, restauración esperando la cuota, cambio y fin) y `--godot-agent-oneshot-test` (menú en Limitado, «Reintentar» del dock en la misma sesión).

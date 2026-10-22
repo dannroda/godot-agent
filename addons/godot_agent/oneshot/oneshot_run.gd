@@ -137,6 +137,9 @@ var _timer: Timer
 var _plan_snapshot: Array = []
 ## Sesión del agente de un run cargado de disco: «Retomar» la reabre con session/load.
 var _recovered_session_id: String = ""
+## Por qué se reabre la sesión en el próximo resume() (para la actividad): el editor se cerró, se
+## cambió de cuenta…
+var _reopen_reason: String = ""
 var _dirty: bool = false
 var _capture_dirty: bool = false
 var _last_save_msec: int = 0
@@ -311,8 +314,13 @@ func pause() -> void:
 		controller.cancel()
 
 
+## Fases desde las que se puede retomar (Retomar, Reintentar, Cambiar de cuenta).
+func can_resume() -> bool:
+	return phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.LIMITED, Phase.WAITING_CONFIRM]
+
+
 func resume() -> void:
-	if not phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.LIMITED, Phase.WAITING_CONFIRM]:
+	if not can_resume():
 		return
 	var was_limited := phase == Phase.LIMITED or quota.is_limited()
 	pause_note = ""
@@ -329,7 +337,8 @@ func resume() -> void:
 			return
 		_recovered_session_id = ""
 		model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
-		var what := "El editor se había cerrado" if from_disk else "La sesión se perdió"
+		var what := _reopen_reason if not _reopen_reason.is_empty() else ("El editor se había cerrado" if from_disk else "La sesión se perdió")
+		_reopen_reason = ""
 		if not lost_id.is_empty() and model.session_id == lost_id:
 			_add_activity("sesión", "%s: se reabrió la sesión con session/load" % what)
 			_run_turn(_resume_prompt())
@@ -339,6 +348,22 @@ func resume() -> void:
 		return
 	_recovered_session_id = ""
 	_run_turn(_resume_prompt())
+
+
+## Cambio de cuenta (m6-15): la cuota medida era de la cuenta anterior. Se relanza el proceso del
+## agente, que lee las credenciales nuevas, y se retoma la misma sesión con session/load.
+func switch_account() -> void:
+	if not can_resume():
+		return
+	var session_id := _recovered_session_id if not _recovered_session_id.is_empty() else model.session_id
+	quota.forget_account()
+	quota_resume_at = 0
+	report.count("account_switches")
+	_add_activity("sesión", "Cambio de cuenta: se reinicia el agente y se retoma la misma sesión")
+	controller.stop()
+	_recovered_session_id = session_id
+	_reopen_reason = "Cambio de cuenta"
+	resume()
 
 
 func stop() -> void:
@@ -649,9 +674,10 @@ func _resume_prompt() -> String:
 	var task := resume_task if not resume_task.is_empty() else _task_name(_next_pending())
 	var last := git.checkpoints.back() if checkpoints_enabled and not git.checkpoints.is_empty() else {}
 	var where := "" if last.is_empty() else "; el estado está en el checkpoint %s (%s)" % [last.name, last.label]
+	var handoff := " Si te falta contexto, releé spec.md y progress.md en %s." % files.dir() if files.has_spec() else ""
 	if task.is_empty():
-		return "Continuá con el objetivo desde donde quedaste%s." % where
-	return "Continuá con el plan desde la tarea «%s»%s." % [task, where]
+		return "Continuá con el objetivo desde donde quedaste%s.%s" % [where, handoff]
+	return "Continuá con el plan desde la tarea «%s»%s.%s" % [task, where, handoff]
 
 
 func _summary_prompt() -> String:
@@ -872,6 +898,7 @@ func _enter_limited() -> void:
 	resume_task = _task_name(_current_task) if _current_task >= 0 else _task_name(_next_pending())
 	_set_phase(Phase.LIMITED)
 	report.count("limited")
+	quota_resume_at = quota.limited_until
 	var until := "hasta las %s" % Time.get_time_string_from_unix_time(quota.limited_until + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5) if quota.limited_until > 0 else "sin hora de reinicio (reintentos 5, 10, 20 y cada 60 min)"
 	_add_activity("cuota", "Límite del plan alcanzado %s" % until)
 	if checkpoints_enabled and not _quota_checkpoint_done:
@@ -915,6 +942,8 @@ func to_dict() -> Dictionary:
 		"id": run_id,
 		"active": is_active(),
 		"phase": PHASE_LABELS[phase],
+		"phase_id": Phase.keys()[phase],
+		"quota_resume_at": quota_resume_at,
 		"goal": goal,
 		"budgets": budgets,
 		"used": used,
@@ -977,7 +1006,16 @@ func _apply(data: Dictionary) -> void:
 	recovered = true
 	phase = Phase.PAUSED
 	var where := " y sigue desde «%s»" % resume_task if not resume_task.is_empty() else ""
-	_add_activity("sesión", "El editor se cerró con el One-shot en curso. «Retomar» reabre la sesión del agente%s." % where)
+	# Un run que esperaba la cuota sigue esperándola: retoma solo cuando se reinicia la ventana.
+	quota_resume_at = int(data.get("quota_resume_at", 0))
+	var waiting_quota := str(data.get("phase_id", "")) in ["LIMITED", "PAUSED_QUOTA"]
+	if waiting_quota and quota_resume_at > int(Time.get_unix_time_from_system()):
+		phase = Phase.PAUSED_QUOTA
+		var at := Time.get_time_string_from_unix_time(quota_resume_at + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5)
+		_add_activity("sesión", "El editor se cerró con el One-shot esperando la cuota: retoma solo a las %s%s («Retomar» o «Cambiar de cuenta» para no esperar)." % [at, where])
+	else:
+		quota_resume_at = 0
+		_add_activity("sesión", "El editor se cerró con el One-shot en curso. «Retomar» reabre la sesión del agente%s." % where)
 	_timer.start()
 	restored.emit()
 	changed.emit()

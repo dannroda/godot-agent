@@ -13,6 +13,7 @@ const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
+const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const MAIN_SCREEN_NAME := "Agent"
 const REPO_DIR := "user://oneshot_ui_check"
 const STEP_TIMEOUT_S := 15.0
@@ -102,11 +103,20 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(_text(&"_banner_label").begins_with("Límite del plan alcanzado"), "banner de límite")
 	_check(_rows(&"_checkpoints_list") == 4, "cp4-quota en la lista (%d)" % _rows(&"_checkpoints_list"))
 	_shot(shot_path, "_limited")
+	var account: MenuButton = _screen.get(&"_account_button")
+	_check(account.is_visible_in_tree(), "«Cambiar de cuenta» en Limitado")
+	account.about_to_popup.emit()
+	var popup := account.get_popup()
+	_check(popup.item_count >= 1 and popup.get_item_text(popup.item_count - 1).begins_with("Ya inicié sesión con otra cuenta"), "menú de cambio de cuenta")
 
 	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.WAITING_CONFIRM)
 	await _frames(2)
 	_check(_text(&"_countdown_label").begins_with("La cuota se liberó"), "espera confirmación: " + _text(&"_countdown_label"))
-	(_screen.get(&"_pause_button") as Button).pressed.emit()
+	# «Reintentar» del dock retoma el run en su sesión (m6-15), no abre una en blanco.
+	var dock := _find_by_script(DOCK_SCRIPT)
+	var session_id: String = _run.model.session_id
+	_check(dock != null and (dock.get(&"retry_interceptor") as Callable).call(), "«Reintentar» del dock lo toma el One-shot")
+	_check(_run.phase == OneShotRun.Phase.RUNNING and _run.model.session_id == session_id, "retoma en la misma sesión")
 	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.FINISHED and not _run.is_git_busy())
 	_check(_run.phase == OneShotRun.Phase.FINISHED, "terminó (%s)" % _run.phase_label())
 	_screen.set(&"_summary_dirty", true)
@@ -322,6 +332,14 @@ func run_claude_oneshot(tree: SceneTree, shot_path: String = "") -> PackedString
 		_shot(shot_path, "_restored")
 	_run.controller.call(&"stop")
 	return failures
+
+
+func _find_by_script(path: String) -> Node:
+	for node: Node in _tree.root.find_children("*", "", true, false):
+		var script := node.get_script() as Script
+		if script and script.resource_path == path:
+			return node
+	return null
 
 
 func _find_files(dir: String, extension: String) -> PackedStringArray:

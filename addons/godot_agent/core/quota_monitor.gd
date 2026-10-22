@@ -137,6 +137,16 @@ func observe_turn_ok() -> void:
 		_recompute()
 
 
+## Se cambió de cuenta: lo medido era de la anterior. Queda sin datos hasta que el agente informe.
+func forget_account() -> void:
+	windows.clear()
+	last_rate_limit = {}
+	last_usage_update = {}
+	if _limited:
+		_leave_limited("cambio de cuenta")
+	_recompute()
+
+
 # --- consultas -------------------------------------------------------------------------------------
 
 func has_data() -> bool:
