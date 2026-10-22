@@ -125,7 +125,9 @@ Medido con `tests/plugin_cycle_check.gd`: en **4.8-beta1** un plugin con `_has_m
 
 - Todo lo de `EditorDock` se llama por reflexión (`ClassDB.instantiate`, `set`, `call(&"add_dock")`) para que el addon parsee en 4.4.
 - Los valores de `EditorDock.DockSlot` no son los de `EditorPlugin.DockSlot`: se leen con `ClassDB.class_get_integer_constant(&"EditorDock", …)`.
-- **Main screen activa al cerrar (4.8-beta1)**: si el editor se cierra con la main screen "Agent" activa, el `remove_dock` da `Condition "!is_inside_tree()"` en `grab_focus`. `EditorSurfaces` cambia antes a la pantalla "2D". No a "Script": en headless eso mete al editor en un bucle de llamadas diferidas ("Message queue out of memory") y crashea. Las dos cosas se reprodujeron y se verificó que el cambio las arregla (tarea m7-01: reportarlas upstream).
+- **Main screen activa al cerrar (4.8-beta1)**: si el editor se cierra con la main screen "Agent" activa, el `remove_dock` da `Condition "!is_inside_tree()"` en `grab_focus`. `EditorSurfaces` cambia antes a la pantalla "2D". No a "Script": en headless eso mete al editor en un bucle de llamadas diferidas ("Message queue out of memory") y crashea. Las dos cosas se reprodujeron y se verificó que el cambio las arregla.
+  - **Revisado en m7-01 (2026-10-22)**: ninguna de las dos se reproduce en 4.8-beta1 ni en 4.8-dev7 (repro mínimo con `add_dock` en main screen, con la pantalla anterior en 2D o en Script, y el addon sin el cambio, en xvfb y en headless). No se reportan. El cambio a "2D" se deja como precaución: no cuesta nada y solo se probó en Linux.
+  - **Sí se reporta** el `EditorDock` huérfano de `_has_main_screen()` (`tests/upstream/main_screen_orphan` en el repo principal; sigue en 4.8-beta1 y master e7cfa294a). Mientras no se arregle, la main screen en 4.8 sigue por `add_dock`.
 
 ## D10 · Export plugin: orden por nombre y baja del autoload a mano
 

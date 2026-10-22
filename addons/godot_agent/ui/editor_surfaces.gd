@@ -93,9 +93,9 @@ func remove_all() -> void:
 		var mounted: Control = entry.mounted
 		var wrapper: Control = entry.wrapper
 		if is_instance_valid(wrapper):
-			# 4.8-beta1: quitar la main screen activa al cerrar el editor da
-			# "Condition !is_inside_tree()" en grab_focus. Se cambia de pantalla antes. A "2D" y no a
-			# "Script": con "Script", en headless, el editor entra en un bucle de llamadas diferidas y crashea.
+			# Precaución (D9): durante el desarrollo, quitar la main screen activa al cerrar el editor daba
+			# "Condition !is_inside_tree()" en grab_focus. En 4.8-beta1 y dev7 ya no se reproduce, pero
+			# cambiar antes de pantalla no cuesta nada. A "2D" y no a "Script", que en headless crasheaba.
 			if entry.surface == EditorSurface.MAIN_SCREEN and wrapper.is_visible_in_tree():
 				EditorInterface.set_main_screen_editor("2D")
 			_plugin.call(&"remove_dock", wrapper)
