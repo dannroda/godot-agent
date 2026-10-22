@@ -56,6 +56,7 @@ func _build() -> void:
 	_rule_row.add_child(always)
 	_result = Label.new()
 	_result.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_result)
 	var request: PermissionRequest = entry.permission
 	_rule_edit.text = request.rule_pattern
@@ -129,6 +130,8 @@ static func _option_label(option: Dictionary) -> String:
 
 
 static func _result_text(request: PermissionRequest) -> String:
+	if request.withdrawn:
+		return "⇄ " + I18n.t("Answered elsewhere: from Remote Control, or no longer needed")
 	if request.outcome.get("outcome") != "selected":
 		return "⊘ " + I18n.t("Permission cancelled")
 	if not request.rule_to_add.is_empty() and request.was_allowed():

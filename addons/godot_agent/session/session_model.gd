@@ -17,6 +17,8 @@ signal config_options_changed(options: Array)
 signal commands_changed(commands: Array)
 signal title_changed(title: String)
 signal harness_mode_changed(mode: HarnessMode)
+## Remote Control de Claude Code (m7-21): link de la sesión en claude.ai, o "" si está apagado.
+signal remote_control_changed(url: String)
 signal turn_finished(stop_reason: String)
 signal permission_requested(request: PermissionRequest)
 
@@ -50,6 +52,7 @@ var state: SessionState = SessionState.DISCONNECTED
 var session_id: String = ""
 var title: String = ""
 var harness_mode: HarnessMode = HarnessMode.BUILD
+var remote_control_url: String = ""
 var agent_info: Dictionary = {}
 var agent_capabilities: Dictionary = {}
 var auth_methods: Array = []
@@ -111,6 +114,18 @@ func set_state(value: SessionState) -> void:
 	state_changed.emit(state)
 
 
+func set_remote_control(url: String) -> void:
+	if url == remote_control_url:
+		return
+	remote_control_url = url
+	remote_control_changed.emit(url)
+
+
+## true si el agente publica el comando `/remote-control` (claude-agent-acp con un SDK que lo soporta).
+func supports_remote_control() -> bool:
+	return commands.any(func(command: Variant) -> bool: return command is Dictionary and command.get("name") == "remote-control")
+
+
 func set_harness_mode(value: HarnessMode) -> void:
 	if harness_mode == value:
 		return
@@ -132,6 +147,7 @@ func reset() -> void:
 	_group_of_call.clear()
 	_plan_entry = null
 	cancel_pending_permissions()
+	set_remote_control("")
 	entries_cleared.emit()
 	title_changed.emit(title)
 	plan_changed.emit(plan)

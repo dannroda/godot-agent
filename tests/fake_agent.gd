@@ -23,6 +23,8 @@ extends SceneTree
 ##   {"update": {...}}                 session/update arbitrario (tool_call, plan, usage_update…)
 ##   {"delay": segundos}
 ##   {"request": {"method", "params"}} request al cliente; espera la respuesta y la reporta por stderr
+##                                     con "cancel_after": segundos, lo retira con `$/cancel_request`
+##                                     (un permiso contestado desde Remote Control, m7-21)
 ##   {"garbage": "texto"}              una línea que no es JSON
 ##   {"stop": "end_turn"}              responde el prompt (si no está, al terminar los pasos)
 ##   {"error": "mensaje", "data": {}} responde el prompt con un error JSON-RPC (-32603)
@@ -32,6 +34,9 @@ extends SceneTree
 ##                                     mensaje "You've hit your limit · resets HH:MM" y error del prompt
 ##   {"exit": true}                    el proceso se mata a sí mismo (simula una caída)
 ## Un session/cancel corta el turno en curso y responde stopReason "cancelled".
+## `/remote-control [nombre]` y `/remote-control off` solos en el prompt se contestan como
+## claude-agent-acp 0.94; al activarlo corren los pasos de "remote_steps" del guion, fuera de un
+## prompt, como un turno mandado desde el celular.
 
 const STDIN_BUFFER := 1 << 20
 
@@ -49,6 +54,7 @@ var _wait_until_msec: int = 0
 var _waiting_request_id: int = -1
 var _next_request_id: int = 1000
 var _message_counter: int = 0
+var _cancel_at_msec: int = 0
 
 
 func _initialize() -> void:
@@ -151,6 +157,10 @@ func _handle_line(line: String) -> void:
 			var prompt_text := JSON.stringify(message.get("params", {}).get("prompt", []))
 			printerr("fake_agent: prompt %s" % prompt_text)
 			var prompt_session := str(message.get("params", {}).get("sessionId", ""))
+			var prompt: Array = message.get("params", {}).get("prompt", [])
+			if prompt.size() == 1 and str(prompt[0].get("text", "")).strip_edges().begins_with("/remote-control"):
+				_remote_control(id, str(prompt[0].text).strip_edges())
+				return
 			if prompt_text.contains("QA evaluation (One-shot)") and _scenario.has("evaluator_turns"):
 				_qa_sessions[prompt_session] = true
 			_start_turn(id, _qa_sessions.has(prompt_session))
@@ -171,6 +181,17 @@ func _handle_line(line: String) -> void:
 				_send({"jsonrpc": "2.0", "id": id, "error": {"code": -32601, "message": "Method not found"}})
 
 
+## Como claude-agent-acp 0.94 (runRemoteControlCommand): responde en la sesión y termina el turno.
+func _remote_control(id: Variant, text: String) -> void:
+	var off := text.trim_prefix("/remote-control").strip_edges().to_lower() == "off"
+	var reply := "Remote Control is off. Run /remote-control to reconnect." if off else "Remote Control is active. Continue this session from claude.ai/code or the Claude mobile app:\n\nhttps://claude.ai/code/session_01FakeRemoteSession\n\nRun /remote-control off to disconnect."
+	printerr("fake_agent: remote-control %s" % ("off" if off else "on"))
+	_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": reply}})
+	_reply(id, {"stopReason": "end_turn"})
+	if not off and _scenario.get("remote_steps") is Array:
+		_steps = (_scenario.remote_steps as Array).duplicate(true)
+
+
 func _start_turn(id: Variant, evaluator: bool = false) -> void:
 	_prompt_id = id
 	var turns: Array = _scenario.get("evaluator_turns" if evaluator else "turns", [])
@@ -188,6 +209,10 @@ func _start_turn(id: Variant, evaluator: bool = false) -> void:
 
 
 func _advance_turn() -> void:
+	if _cancel_at_msec > 0 and Time.get_ticks_msec() >= _cancel_at_msec and _waiting_request_id != -1:
+		_cancel_at_msec = 0
+		printerr("fake_agent: cancel_request %d" % _waiting_request_id)
+		_send({"jsonrpc": "2.0", "method": "$/cancel_request", "params": {"requestId": _waiting_request_id}})
 	while not _steps.is_empty():
 		if Time.get_ticks_msec() < _wait_until_msec or _waiting_request_id != -1:
 			return
@@ -205,6 +230,8 @@ func _advance_turn() -> void:
 			_next_request_id += 1
 			var params: Dictionary = _expand(step.request.get("params", {}))
 			params["sessionId"] = _session_id
+			if step.has("cancel_after"):
+				_cancel_at_msec = Time.get_ticks_msec() + int(float(step.cancel_after) * 1000.0)
 			_send({"jsonrpc": "2.0", "id": _waiting_request_id, "method": step.request.method, "params": params})
 		elif step.has("garbage"):
 			print(step.garbage)

@@ -347,6 +347,11 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	if not controller.is_connected_to_agent() and not await _restart_session(""):
 		_finish(I18n.t("Couldn't open a session with the agent."))
 		return false
+	# Remote Control (m7-21): los turnos que se mandan desde el celular no pasan por el run y
+	# romperían los presupuestos y el conteo de checks. Se apaga antes de empezar.
+	if not model.remote_control_url.is_empty():
+		_add_activity("warning", I18n.t("Remote Control turned off: One-shot runs on its own."))
+		await controller.send_prompt(controller.remote_control_command(false))
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
 	_set_phase(RunPhase.RUNNING)
 	_timer.start()

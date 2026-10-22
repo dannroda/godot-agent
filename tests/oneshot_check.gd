@@ -32,6 +32,7 @@ func _initialize() -> void:
 	await _scenario_budget()
 	await _scenario_budget_raise()
 	await _scenario_no_plan()
+	await _scenario_remote_control()
 	await _scenario_recover()
 	await _scenario_loop()
 	await _scenario_spec()
@@ -321,6 +322,22 @@ func _scenario_no_plan() -> void:
 	_check(messages.size() == 2 and str(messages[1]).contains("“Puntaje” (pending)") and not str(messages[1]).contains("plan"), "sin plan: sigue por el check pendiente, sin hablar de plan %s" % [messages])
 	_check(_cp_labels(run) == ["cp1 Initial state", "cp2 Playtest #1", "cp3 Playtest #2"], "sin plan: checkpoint por playtest %s" % [_cp_labels(run)])
 	_check(run.checks.size() == 2 and run.checks.all(func(check: Dictionary) -> bool: return check.status == "pass"), "sin plan: checks")
+	run.controller.stop()
+	run.queue_free()
+
+
+## Remote Control prendido en el chat (m7-21): empezar el One-shot lo apaga antes del primer turno.
+func _scenario_remote_control() -> void:
+	print("— Remote Control")
+	var run := _make("oneshot_noplan")
+	_check(await run.controller.start(_profile("oneshot_noplan")), "remote: la sesión arranca")
+	await run.controller.send_prompt(run.controller.remote_control_command(true))
+	_check(not run.model.remote_control_url.is_empty(), "remote: prendido antes del run")
+	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	_check(run.model.remote_control_url.is_empty(), "remote: el run lo apagó")
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return entry.text == "Remote Control turned off: One-shot runs on its own."), "remote: queda en la actividad")
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy(), 10.0)
+	_check(run.finish_reason == "The agent finished: all checks pass.", "remote: el run sigue normal (%s)" % run.finish_reason)
 	run.controller.stop()
 	run.queue_free()
 

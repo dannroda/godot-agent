@@ -19,7 +19,7 @@ const TMP_DIR := "res://tests/tmp"
 
 const TIMEOUT_S := 20.0
 ## Un await colgado no debe colgar el test: pasado este tiempo, falla y sale.
-const WATCHDOG_S := 120.0
+const WATCHDOG_S := 150.0
 
 var _failures: PackedStringArray = []
 var _checks: int = 0
@@ -38,6 +38,7 @@ func _initialize() -> void:
 	await _scenario_permissions_ask()
 	await _scenario_project_writes()
 	await _scenario_auto_shell()
+	await _scenario_remote_control()
 	await _scenario_quota()
 	await _scenario_history()
 	await _scenario_login()
@@ -333,6 +334,61 @@ func _scenario_auto_shell() -> void:
 	_check(perm_log.contains("Auto mode asks, «rm -rf /tmp/godot_agent_auto» is on the ask list (rm *)"), "auto: el log dice por qué preguntó")
 	_check(perm_log.contains("rule added to the Auto allow list: npm test *"), "auto: el log registra la regla nueva")
 	controller.stop()
+
+
+## Remote Control (m7-21): el comando va solo (sin contexto ni adjuntos) aunque sea el primer
+## mensaje; el link queda en el modelo; un permiso pedido desde el celular y contestado ahí se
+## retira con $/cancel_request y la tarjeta se cierra; el contexto viaja con el mensaje siguiente.
+func _scenario_remote_control() -> void:
+	print("— Remote Control")
+	var made := await _make("remote_control", SessionModel.HarnessMode.BUILD)
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	var log: AgentLog = made[2]
+	await create_timer(0.3).timeout
+	_check(model.supports_remote_control(), "remote: el agente publica /remote-control")
+	var cards: Array[PermissionRequest] = []
+	model.permission_requested.connect(func(request: PermissionRequest) -> void: cards.append(request))
+	var command := controller.remote_control_command(true)
+	_check(command.begins_with("/remote-control "), "remote: comando con el nombre del proyecto (%s)" % command)
+	var stop_reason: String = await controller.send_prompt(command, [{"type": "text", "text": "adjunto"}])
+	_check(stop_reason == "end_turn", "remote: end_turn (%s)" % stop_reason)
+	var prompts := _sent_prompts(log)
+	_check(prompts.size() == 1 and prompts[0].size() == 1 and str(prompts[0][0].text) == command, "remote: el comando va solo, sin contexto ni adjuntos (%s)" % str(prompts))
+	_check(model.remote_control_url == "https://claude.ai/code/session_01FakeRemoteSession", "remote: link en el modelo (%s)" % model.remote_control_url)
+	# El «celular» corre un comando: el permiso llega acá y lo contestan allá.
+	var deadline := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < deadline and (cards.is_empty() or cards[0].is_pending()):
+		await process_frame
+	_check(cards.size() == 1, "remote: la tarjeta del permiso remoto aparece (%d)" % cards.size())
+	if cards.size() == 1:
+		_check(cards[0].withdrawn and not cards[0].is_pending(), "remote: $/cancel_request la cierra como contestada en otro lado")
+	_check(model.pending_permissions.is_empty(), "remote: sin permisos pendientes")
+	var perm := "\n".join(log.entries().filter(func(entry: Dictionary) -> bool: return entry.channel == AgentLog.CH_PERM).map(func(entry: Dictionary) -> String: return str(entry.message)))
+	_check(perm.contains("withdrawn by the agent"), "remote: el log dice que se retiró")
+	stop_reason = await controller.send_prompt("hola")
+	prompts = _sent_prompts(log)
+	_check(prompts.size() == 2 and str(prompts[1][0].text).begins_with("<harness_context>"), "remote: el contexto del harness viaja con el mensaje siguiente")
+	stop_reason = await controller.send_prompt(controller.remote_control_command(false))
+	_check(model.remote_control_url.is_empty(), "remote: /remote-control off lo apaga")
+	await controller.send_prompt(command)
+	_check(not model.remote_control_url.is_empty(), "remote: se vuelve a prender")
+	controller.stop()
+	_check(model.remote_control_url.is_empty() or model.state == SessionModel.SessionState.DISCONNECTED, "remote: al cerrar la sesión no queda prendido")
+	await controller.start(_fake_profile("remote_control"))
+	_check(model.remote_control_url.is_empty(), "remote: una sesión nueva arranca apagada")
+	controller.stop()
+
+
+## Bloques de cada session/prompt que mandó el cliente, en orden.
+func _sent_prompts(log: AgentLog) -> Array:
+	var result: Array = []
+	for entry: Dictionary in log.entries():
+		if str(entry.message).begins_with("→ session/prompt"):
+			var message: Variant = JSON.parse_string(str(entry.raw))
+			if message is Dictionary:
+				result.append(message.params.prompt)
+	return result
 
 
 # --- helpers -------------------------------------------------------------------------------------

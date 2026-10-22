@@ -7,6 +7,9 @@ extends RefCounted
 signal notification_received(method: String, params: Dictionary)
 ## Una línea que no es JSON-RPC válido (se loguea y se ignora).
 signal invalid_line(line: String, reason: String)
+## El agente retiró un request que nos hizo (`$/cancel_request`): con Remote Control, un permiso
+## contestado desde el celular (m7-21).
+signal incoming_cancelled(id: Variant)
 
 const AgentLog := preload("../core/agent_log.gd")
 
@@ -57,6 +60,9 @@ var _pending: Dictionary = {}  # id (int) -> PendingRequest
 var _request_handlers: Dictionary = {}
 ## method -> Callable(params: Dictionary) -> void
 var _notification_handlers: Dictionary = {}
+## Id del request entrante cuyo handler se está llamando: el handler lo lee al empezar, antes del
+## primer await, para asociarlo con lo que crea.
+var handling_id: Variant = null
 
 
 func setup(send_line: Callable, agent_log: AgentLog = null) -> void:
@@ -151,6 +157,8 @@ func _handle_response(id: Variant, message: Dictionary, raw: String) -> void:
 
 func _handle_notification(method: String, params: Dictionary, raw: String) -> void:
 	_log_line(AgentLog.CH_ACP, "← %s%s" % [method, _notification_suffix(method, params)], raw)
+	if method == "$/cancel_request":
+		incoming_cancelled.emit(_normalize_id(params.get("requestId")))
 	var handler: Callable = _notification_handlers.get(method, Callable())
 	if handler.is_valid():
 		handler.call(params)
@@ -163,6 +171,7 @@ func _handle_request(id: Variant, method: String, params: Dictionary, raw: Strin
 	if not handler.is_valid():
 		_respond_error(id, ERR_METHOD_NOT_FOUND, "Method not supported: %s" % method)
 		return
+	handling_id = id
 	var value: Variant = await handler.call(params)
 	if value is AcpResponse:
 		var response: AcpResponse = value

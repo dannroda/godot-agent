@@ -22,6 +22,8 @@ var diff: Dictionary = {}
 var outcome: Dictionary = {}
 ## Kind de la opción elegida ("" si se canceló).
 var chosen_kind: String = ""
+## El agente retiró el pedido (`$/cancel_request`): lo contestaron desde Remote Control (m7-21).
+var withdrawn: bool = false
 ## Modo Auto (D57): patrón que la tarjeta propone para «Permitir siempre» ("" = no se ofrece).
 var rule_pattern: String = ""
 ## `{pattern, list}` que el usuario eligió agregar a las listas del modo Auto, o {}.

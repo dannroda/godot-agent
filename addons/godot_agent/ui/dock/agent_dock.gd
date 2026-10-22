@@ -94,6 +94,10 @@ var _add_context_menu: PopupMenu
 var _file_dialog: EditorFileDialog
 var _review_panel: ReviewPanel
 var _quota_meter: QuotaMeter
+## Remote Control (m7-21): botón de la línea de estado y franja con el link mientras está prendido.
+var _remote_button: Button
+var _remote_banner: PanelContainer
+var _remote_link: Button
 var _quota_timer: Timer
 var _quota_state: int = QuotaMonitor.QuotaState.UNKNOWN
 var _export_dialog: ConfirmationDialog
@@ -162,6 +166,7 @@ func _ready() -> void:
 	composer_column.add_child(_composer)
 	_build_review_panel()
 	_build_quota_meter()
+	_build_remote_control()
 	_settings.changed.connect(func(key: String) -> void:
 		if key == HarnessSettings.KEY_PROFILES:
 			_reload_profiles())
@@ -251,6 +256,81 @@ func _build_mode_bar() -> void:
 		button.pressed.connect(func() -> void: _model.set_harness_mode(mode))
 		_mode_bar.add_child(button)
 		_mode_buttons[mode] = button
+
+
+func _build_remote_control() -> void:
+	_remote_button = Button.new()
+	_remote_button.text = I18n.t("Remote")
+	_remote_button.flat = true
+	_remote_button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
+	_remote_button.tooltip_text = I18n.t("Remote Control: continue this session from claude.ai/code or the Claude app on your phone.")
+	_remote_button.pressed.connect(func() -> void: _on_submitted(_controller.remote_control_command(_model.remote_control_url.is_empty())))
+	# Va a la derecha de la línea de estado: el encabezado ya llena un dock angosto.
+	var status_row := HBoxContainer.new()
+	add_child(status_row)
+	move_child(status_row, _status_label.get_index())
+	_status_label.reparent(status_row)
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_row.add_child(_remote_button)
+	_remote_banner = PanelContainer.new()
+	_remote_banner.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(_accent, 0.08), Color(_accent, 0.5), 4, 6))
+	var column := VBoxContainer.new()
+	_remote_banner.add_child(column)
+	var row := HBoxContainer.new()
+	column.add_child(row)
+	var label := Label.new()
+	label.text = "● " + I18n.t("Remote Control on")
+	label.add_theme_color_override(&"font_color", _accent)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	row.add_child(label)
+	var copy := Button.new()
+	copy.text = I18n.t("Copy link")
+	copy.flat = true
+	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(_model.remote_control_url))
+	row.add_child(copy)
+	var off := Button.new()
+	off.text = I18n.t("Turn off")
+	off.flat = true
+	off.add_theme_color_override(&"font_color", AgentTheme.ERROR)
+	off.pressed.connect(func() -> void: _on_submitted(_controller.remote_control_command(false)))
+	row.add_child(off)
+	# Button y no LinkButton: LinkButton pide el ancho del link entero y ensancha el dock.
+	_remote_link = Button.new()
+	_remote_link.flat = true
+	_remote_link.clip_text = true
+	_remote_link.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_remote_link.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_remote_link.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_remote_link.add_theme_color_override(&"font_color", _accent)
+	_remote_link.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_remote_link.pressed.connect(func() -> void: OS.shell_open(_model.remote_control_url))
+	column.add_child(_remote_link)
+	var hint := Label.new()
+	hint.text = I18n.t("What you write from the phone and its answers only show there. Here you see the tool calls that ask for permission, and you can answer them from either side.")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	hint.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+	column.add_child(hint)
+	add_child(_remote_banner)
+	move_child(_remote_banner, _quota_meter.get_index() + 1)
+	_model.remote_control_changed.connect(func(_url: String) -> void: _refresh_remote_control())
+	_model.commands_changed.connect(func(_commands: Array) -> void: _refresh_remote_control())
+	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_remote_control())
+
+
+## El botón aparece si el agente publica `/remote-control`, fuera de One-shot (sus turnos no
+## pasarían por el run). La franja, mientras está prendido.
+func _refresh_remote_control() -> void:
+	if not _remote_button:
+		return
+	var on := not _model.remote_control_url.is_empty()
+	_remote_button.visible = _model.supports_remote_control() and _model.harness_mode != SessionModel.HarnessMode.ONESHOT and not on
+	_remote_button.disabled = _model.state != SessionModel.SessionState.READY
+	_remote_banner.visible = on
+	_remote_link.text = _model.remote_control_url
+	_remote_link.tooltip_text = _model.remote_control_url
 
 
 func _refresh_modes() -> void:
@@ -405,6 +485,7 @@ func _refresh_state() -> void:
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
 	_new_session_button.disabled = _model.state == SessionModel.SessionState.STARTING or _model.is_busy()
+	_refresh_remote_control()
 	_refresh_title()
 	_refresh_empty_state()
 
@@ -539,6 +620,10 @@ func _on_submitted(text: String) -> void:
 
 
 func _send(text: String) -> void:
+	# Un comando con / va solo: los adjuntos quedan para el próximo mensaje (ver send_prompt).
+	if SessionController.is_slash_command(text):
+		_controller.send_prompt(text)
+		return
 	_controller.send_prompt(text, _take_context_blocks())
 
 

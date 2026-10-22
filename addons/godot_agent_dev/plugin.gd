@@ -49,6 +49,9 @@ extends EditorPlugin
 ##   la pausa, «Enviar ahora» la retoma y salen los dos en orden.
 ## - `-- --godot-agent-auto-test [--godot-agent-ui-shot=<prefijo>]`: modo Auto (D57) por la UI: botón del
 ##   dock, tarjetas con «Permitir siempre», la regla guardada y la sección de Settings → Permisos.
+## - `-- --godot-agent-remote-test [--godot-agent-ui-shot=<ruta.png>]`: Remote Control (m7-21) con el
+##   agente falso: botón del encabezado, franja con el link, tarjeta contestada desde el celular,
+##   «Apagar» y el botón escondido en One-shot.
 ## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla Agent,
 ##   el Agent Log y cada página de Settings: ningún texto visible que tenga traducción queda en inglés.
 
@@ -102,6 +105,8 @@ const OneShotUiCheck := preload("oneshot_ui_check.gd")
 const ReviewCheck := preload("review_check.gd")
 const AUTO_ARG := "--godot-agent-auto-test"
 const AutoCheck := preload("auto_check.gd")
+const REMOTE_ARG := "--godot-agent-remote-test"
+const RemoteCheck := preload("remote_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
 const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
@@ -142,6 +147,8 @@ func _enter_tree() -> void:
 		_run_review_test.call_deferred(false)
 	if AUTO_ARG in args:
 		_run_auto_test.call_deferred()
+	if REMOTE_ARG in args:
+		_run_remote_test.call_deferred()
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
 	if ONESHOT_ARG in args:
@@ -471,6 +478,15 @@ func _run_auto_test() -> void:
 	for failure: String in failures:
 		print("[auto-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "auto-test: %d fallas" % failures.size())
+
+
+func _run_remote_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures := _failures(await RemoteCheck.new().run_remote(get_tree(), _arg_value(UI_SHOT_ARG)))
+	for failure: String in failures:
+		print("[remote-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "remote-test: %d fallas" % failures.size())
 
 
 func _run_oneshot_test() -> void:

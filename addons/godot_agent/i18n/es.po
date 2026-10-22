@@ -2047,3 +2047,27 @@ msgstr "Agregada"
 
 msgid "In Auto mode, \"Ask\" lets the lists of the Auto mode section decide first: commands on the allowlist run without a card."
 msgstr "En modo Auto, \"Preguntar\" deja que primero decidan las listas de la sección Modo Auto: los comandos de la allowlist corren sin tarjeta."
+
+msgid "Remote Control turned off: One-shot runs on its own."
+msgstr "Remote Control apagado: el One-shot corre solo."
+
+msgid "Remote"
+msgstr "Remoto"
+
+msgid "Remote Control: continue this session from claude.ai/code or the Claude app on your phone."
+msgstr "Remote Control: seguí esta sesión desde claude.ai/code o la app de Claude en el celular."
+
+msgid "Remote Control on"
+msgstr "Remote Control activo"
+
+msgid "Copy link"
+msgstr "Copiar link"
+
+msgid "Turn off"
+msgstr "Apagar"
+
+msgid "What you write from the phone and its answers only show there. Here you see the tool calls that ask for permission, and you can answer them from either side."
+msgstr "Lo que escribas desde el celular y sus respuestas se ven solo allá. Acá aparecen las herramientas que piden permiso, y se pueden contestar de cualquiera de los dos lados."
+
+msgid "Answered elsewhere: from Remote Control, or no longer needed"
+msgstr "Contestado en otro lado: desde Remote Control, o ya no hacía falta"

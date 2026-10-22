@@ -10,7 +10,7 @@ Godot Agent Harness puts a coding agent inside the Godot editor. The agent runs 
 |---|---|
 | [Getting started](Getting-started.md) | Install, sign in, the dock, your first prompts, the interface language. |
 | [How it works](How-it-works.md) | The pieces: agent process, ACP, MCP server, editor sync, sessions. |
-| [Modes and permissions](Modes-and-permissions.md) | Ask, Review, Build, Auto and One-shot, and the permission matrix. |
+| [Modes and permissions](Modes-and-permissions.md) | Ask, Review, Build, Auto and One-shot, the permission matrix and Remote Control. |
 | [Editor tools](Editor-tools.md) | The `godot.*` tools the agent can call, and what each one does. |
 | [One-shot](One-shot.md) | Building a whole goal: spec, plan, budgets, checkpoints, quota, switching accounts, report. |
 | [Review](Review.md) | Code review with findings in the Script Editor. |

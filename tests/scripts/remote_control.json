@@ -1,0 +1,73 @@
+{
+	"on_new_session": [
+		{
+			"update": {
+				"sessionUpdate": "available_commands_update",
+				"availableCommands": [
+					{
+						"name": "compact",
+						"description": "Compact"
+					},
+					{
+						"name": "remote-control",
+						"description": "Continue this session from claude.ai/code or the Claude app"
+					}
+				]
+			}
+		}
+	],
+	"remote_steps": [
+		{
+			"delay": 0.2
+		},
+		{
+			"update": {
+				"sessionUpdate": "tool_call",
+				"toolCallId": "r1",
+				"title": "echo hola > /tmp/godot_agent_rc.txt",
+				"kind": "execute",
+				"status": "pending",
+				"rawInput": {
+					"command": "echo hola > /tmp/godot_agent_rc.txt"
+				}
+			}
+		},
+		{
+			"request": {
+				"method": "session/request_permission",
+				"params": {
+					"toolCall": {
+						"toolCallId": "r1",
+						"title": "echo hola > /tmp/godot_agent_rc.txt",
+						"kind": "execute",
+						"rawInput": {
+							"command": "echo hola > /tmp/godot_agent_rc.txt"
+						}
+					},
+					"options": [
+						{
+							"optionId": "allow",
+							"name": "Allow",
+							"kind": "allow_once"
+						},
+						{
+							"optionId": "reject",
+							"name": "Reject",
+							"kind": "reject_once"
+						}
+					]
+				}
+			},
+			"cancel_after": 0.5
+		}
+	],
+	"turns": [
+		{
+			"steps": [
+				{
+					"chunk": "Hola desde el dock."
+				}
+			]
+		}
+	]
+}

@@ -817,3 +817,19 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - Filtro de las agregadas, edición del patrón o de la lista (la regla pasa a origen usuario con fecha nueva), quitar, y «Restaurar las reglas default», que conserva las agregadas.
   - Se guarda en `project_config.tres` (`auto_shell_rules`). Cada decisión queda en el Agent Log, canal perm, con el comando, el resultado y la regla.
 - **Pruebas**: `test_shell_rules` (allow/ask, compuestos, comillas, sustituciones, redirecciones, patrones, sugerencias), `test_permission_policy` (columna Auto y overrides), `acp_session_check` (escenario `auto_shell`: sin tarjeta, rm, «Permitir siempre» que cubre el comando siguiente, edición, redirección, log) y `--godot-agent-auto-test` (todo por la UI del editor: botón del dock, tarjetas, config guardada, Settings).
+
+## D58 · Remote Control: comandos con / solos, permisos que se contestan de los dos lados, apagado en One-shot
+
+- **Pedido** (m7-21): seguir desde el celular una sesión abierta en el dock, con el Remote Control de Claude Code.
+- **Lo que hace claude-agent-acp 0.94** (probado con Claude Code real y el celular):
+  - Intercepta `/remote-control [nombre]` y `/remote-control off` solo si son el único bloque de texto del prompt. Responde con el link (`https://claude.ai/code/session_…`) o «Remote Control is off».
+  - Los turnos remotos no llegan al cliente ACP: ni el mensaje del usuario ni el texto del agente. Sí llegan las herramientas que piden permiso (`tool_call` + `session/request_permission`). Las que corren sin preguntar (lectura) no generan tráfico.
+  - El permiso es una carrera: si el cliente contesta en el momento, el celular no pregunta; si muestra una tarjeta, el celular también. Si contesta el celular, el adaptador manda la notificación `$/cancel_request {requestId}`.
+- **Comandos con /**: cualquier prompt que empieza con `/comando` va solo, sin `<harness_context>`, el prompt de sistema ni adjuntos. Con el contexto delante, Claude Code no lo reconocía («/remote-control isn't available in this environment»). El prompt de sistema viaja con el mensaje siguiente.
+- **`$/cancel_request`**: `AcpClient` lo emite como `incoming_cancelled(id)`; el controller cierra la tarjeta de ese request (`withdrawn`), lo deja en el log de permisos y la tarjeta dice «Contestado en otro lado». Antes quedaba colgada.
+- **UI**: botón «Remoto» en la línea de estado (el encabezado ya llena un dock angosto), visible si el agente publica `remote-control`, fuera de One-shot y con la sesión lista. Mientras está prendido, una franja con el link (abre el navegador), «Copiar link», «Apagar» y la aclaración de que los mensajes del celular no se ven en el dock.
+  - Nombre de la sesión remota: el del proyecto.
+  - Descartado por ahora: QR. Godot no trae generador de QR y el link se copia o se abre en claude.ai/code, donde está la sesión; en el celular aparece en la lista de sesiones de la app.
+- **One-shot**: corre solo y sus turnos no se ven desde el celular de forma útil, así que el botón no aparece en ese modo y empezar un One-shot manda `/remote-control off` si estaba prendido (queda en la actividad).
+- **Estado**: el link se toma de la respuesta al comando; `/remote-control off` o una sesión nueva lo limpian.
+- **Pruebas**: `test_slash_command`, `acp_session_check` (escenario `remote_control`: el comando solo, link en el modelo, permiso «del celular» retirado con `$/cancel_request`, contexto en el mensaje siguiente, off) y `--godot-agent-remote-test` (botón, franja, tarjeta cerrada, Apagar, One-shot sin botón, el dock no se ensancha).

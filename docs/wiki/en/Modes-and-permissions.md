@@ -69,3 +69,13 @@ Whatever the mode, the harness rejects on its own, without a card:
 The chat shows a "Rejected: …" notice. The agent is told to write scripts with its own file tools (the harness passes them through the editor) and scenes with the `godot.*` tools. Commands that write outside the project, such as to `/tmp`, follow the matrix above as usual.
 
 Change the matrix in **Settings → Permissions**. Only what differs from the defaults is saved, in the project's config (`project_config.tres`), so it can be committed and shared with your team.
+
+## Remote Control
+
+With Claude Code you can continue a dock session from claude.ai/code or the Claude app on your phone. When the agent offers `/remote-control`, a **Remote** button shows on the status line; it turns Remote Control on, with the project's name as the session name. While it's on, a strip under the status line shows the link, **Copy link** and **Turn off**. Typing `/remote-control` or `/remote-control off` in the composer does the same.
+
+- What you write from the phone, and the agent's answers, only show on the phone: Claude Code doesn't send them to the harness. The dock still sees the tool calls that need permission.
+- Permissions keep following the mode. What the matrix allows or denies, Auto's lists and the rejected writes above are decided by the harness at once, so the phone doesn't ask. When the harness would show a card, the phone asks too, and you can answer on either side. If you answer on the phone, the dock's card closes with "Answered elsewhere".
+- Commands Claude Code runs without asking (read-only ones such as `git status`) don't reach the harness at all.
+- One-shot runs on its own: the button is hidden in that mode, and starting a One-shot turns Remote Control off. A new session starts with it off.
+- Slash commands (`/remote-control`, `/compact`…) are sent alone, without the harness context or attachments: Claude Code only recognizes a command when it's the whole message.

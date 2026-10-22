@@ -75,6 +75,8 @@ var client: AcpClient
 var policy: PermissionPolicy = PermissionPolicy.new()
 ## Reglas de shell del modo Auto (D57): el array de project_config, que se modifica en el lugar.
 var shell_rules: Array = ShellRules.default_rules()
+## Pedidos de permiso del agente que esperan respuesta: id del request ACP -> PermissionRequest.
+var _permissions_by_acp_id: Dictionary = {}
 var fs: FsHandler
 var agent_log: AgentLog
 ## Cuota del plan (spec §10.1): estado, ventanas y límite; la UI y el One-shot la leen de acá.
@@ -121,6 +123,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	quota.setup(agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
 	client.set_request_handler("session/request_permission", _on_request_permission)
+	client.incoming_cancelled.connect(_on_incoming_cancelled)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
 
 
@@ -236,12 +239,19 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if model.state != SessionModel.SessionState.READY:
 		return ""
 	var blocks: Array = []
-	var includes_system_prompt := not _system_prompt_sent
+	# Un comando (`/remote-control`, `/compact`, una skill) va solo, sin el contexto del harness ni
+	# los adjuntos: el agente solo lo reconoce si el prompt empieza con él, y el adapter de Claude
+	# intercepta `/remote-control` solo si es el único bloque. El contexto viaja con el próximo prompt.
+	var is_command := is_slash_command(text)
+	var includes_system_prompt := not _system_prompt_sent and not is_command
 	if includes_system_prompt:
 		blocks.append({"type": "text", "text": system_prompt()})
 		_system_prompt_sent = true
-	blocks.append_array(extra_blocks)
-	blocks.append({"type": "text", "text": text})
+	if is_command:
+		blocks.append({"type": "text", "text": text.strip_edges()})
+	else:
+		blocks.append_array(extra_blocks)
+		blocks.append({"type": "text", "text": text})
 	var attachments: Array[Dictionary] = []
 	for block: Variant in extra_blocks:
 		if block is Dictionary:
@@ -263,6 +273,8 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
 	var turn_text := agent_text_since(first_new_entry)
+	if is_command and text.strip_edges().begins_with("/remote-control"):
+		_observe_remote_control(turn_text)
 	quota.observe_agent_text(turn_text)
 	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
 		review.ingest_turn_text(turn_text, cwd)
@@ -286,6 +298,31 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	model.finish_turn(stop_reason)
 	_record_turn_end(stop_reason)
 	return stop_reason
+
+
+## Lo que contestó el adapter a `/remote-control` (claude-agent-acp 0.94, runRemoteControlCommand):
+## «Remote Control is active… <link>» o «Remote Control is off…». Un error deja el estado como estaba.
+func _observe_remote_control(turn_text: String) -> void:
+	var link := RegEx.create_from_string("https://claude\\.ai/code/\\S+").search(turn_text)
+	if turn_text.contains("Remote Control is active") and link:
+		model.set_remote_control(link.get_string())
+		agent_log.add(AgentLog.CH_ACP, "Remote Control on: %s" % link.get_string())
+	elif turn_text.contains("Remote Control is off"):
+		model.set_remote_control("")
+		agent_log.add(AgentLog.CH_ACP, "Remote Control off")
+
+
+## Prende o apaga Remote Control. El nombre de la sesión en claude.ai es el del proyecto.
+func remote_control_command(enable: bool) -> String:
+	if not enable:
+		return "/remote-control off"
+	var project_name := str(ProjectSettings.get_setting("application/config/name", "")).strip_edges()
+	return "/remote-control %s" % (project_name if not project_name.is_empty() else cwd.get_file())
+
+
+## true si el texto es un comando del agente: empieza con `/` seguido de un nombre (no una ruta).
+static func is_slash_command(text: String) -> bool:
+	return RegEx.create_from_string("^/[A-Za-z][\\w:.-]*(\\s|$)").search(text.strip_edges()) != null
 
 
 ## Texto del agente en el turno: ahí llegan los avisos de límite (D22) y los bloques de hallazgos.
@@ -504,6 +541,7 @@ func authorize(group: String, title: String, description: String, diff: Dictiona
 # --- internos ------------------------------------------------------------------------------------
 
 func _on_request_permission(params: Dictionary) -> Variant:
+	var acp_id: Variant = client.handling_id
 	var tool_call: Dictionary = params.get("toolCall", {}) if params.get("toolCall") is Dictionary else {}
 	var options: Array = params.get("options", []) if params.get("options") is Array else []
 	if tool_call.get("toolCallId") is String:
@@ -551,7 +589,9 @@ func _on_request_permission(params: Dictionary) -> Variant:
 		PermissionPolicy.DENY:
 			_notify_denied(request.group, request.title)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+	_permissions_by_acp_id[acp_id] = request
 	var outcome := await _ask_user(request, 0)
+	_permissions_by_acp_id.erase(acp_id)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)
 	if outcome.get("outcome") != "selected":
@@ -581,6 +621,15 @@ func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 		policy.grant_for_session(request.group)
 	_log_perm("%s: %s" % [_outcome_label(request), request.title])
 	return outcome
+
+
+## El agente retiró un pedido de permiso: lo contestaron desde Remote Control o ya no hace falta.
+func _on_incoming_cancelled(id: Variant) -> void:
+	var request: PermissionRequest = _permissions_by_acp_id.get(id)
+	if request and request.is_pending():
+		request.withdrawn = true
+		_log_perm("withdrawn by the agent (answered from Remote Control or no longer needed): %s" % request.title)
+		request.cancel()
 
 
 ## Regla elegida en una tarjeta («Permitir siempre»): queda en las listas con su origen y fecha.
