@@ -1,0 +1,77 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Escribo el spec.\n\n"
+    },
+    {
+     "delay": 0.4
+    },
+    {
+     "chunk": "Listo, spec.md escrito."
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "chunk": "Escribo el spec.\n\n"
+    },
+    {
+     "delay": 0.4
+    },
+    {
+     "chunk": "Listo, spec.md escrito."
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  },
+  {
+   "steps": [
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run1",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn"
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run1",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "chunk": "Construido.\n```json\n{\"checks\": [{\"label\": \"Saque\", \"status\": \"pass\"}]}\n```\n"
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

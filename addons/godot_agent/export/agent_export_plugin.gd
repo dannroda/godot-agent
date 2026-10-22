@@ -6,6 +6,8 @@ const PlaytestAutoload := preload("../playtest/playtest_autoload.gd")
 const ExportPresetsPatcher := preload("export_presets_patcher.gd")
 
 const ADDON_DIR := "res://addons/godot_agent/"
+## Spec, progreso e informes del One-shot (D41). Su .gdignore ya los deja afuera; esto es por las dudas.
+const ONESHOT_FILES_DIR := "res://.godot_agent/"
 
 ## Quita el autoload de playtest; lo inyecta el plugin (remove_autoload_singleton es de EditorPlugin).
 var _remove_playtest_autoload: Callable
@@ -39,5 +41,5 @@ func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String,
 
 
 func _export_file(path: String, _type: String, _features: PackedStringArray) -> void:
-	if path.begins_with(ADDON_DIR):
+	if path.begins_with(ADDON_DIR) or path.begins_with(ONESHOT_FILES_DIR):
 		skip()

@@ -117,7 +117,7 @@ Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un
 ### One-shot
 
 1. Elegí **One-shot** en el dock: se abre la pantalla **Agent**.
-2. Escribí el objetivo (por ejemplo "Pong de 2 jugadores con puntaje"), revisá los presupuestos y si querés checkpoints, y tocá **Iniciar One-shot**. Si hay cambios sin commitear, el harness pregunta antes. Esos cambios quedan en un commit "WIP" en la rama del agente, nunca en la tuya.
+2. Escribí el objetivo (por ejemplo "Pong de 2 jugadores con puntaje"), revisá los presupuestos y si querés checkpoints, y tocá **Iniciar One-shot**. Con **Revisar el spec antes de construir**, el agente primero escribe el spec del juego y espera: lo leés y editás con **Revisar spec**, y **Aprobar spec** lo pone a construir. Si hay cambios sin commitear, el harness pregunta antes. Esos cambios quedan en un commit "WIP" en la rama del agente, nunca en la tuya.
 3. El agente arma un plan, trabaja y verifica con playtests (`run_scene` + `capture_game_frame`). Reporta checks en `pass`, `fail` o `pending`. La pantalla muestra:
    - el plan, que se puede editar;
    - la actividad, con "Guiar al agente";
@@ -125,6 +125,7 @@ Si el agente no tiene una cuenta con sesión iniciada, el aviso de error trae un
 4. **Checkpoints**: cada tarea del plan (o cada playtest, si el agente no informa un plan) es un commit `cpN` en la rama `agent/<fecha>`. **Volver acá** deja el proyecto exactamente como en ese checkpoint y pausa el run; **Retomar** sigue desde ahí.
 5. **Presupuestos** de tiempo, tokens y playtests: avisa al 80 % y, al 100 %, pide el reporte final y termina.
    **Loops**: si el agente repite lo mismo sin avanzar (un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio una y otra vez), el run le pide otro enfoque; si vuelve a pasar, se pausa y espera que lo guíes. Las repeticiones se ajustan en Settings → One-shot.
+   **Spec y progreso en archivos**: el agente escribe `spec.md` al empezar y actualiza `progress.md` al cerrar cada tarea, en `.godot_agent/oneshot/<id>/` dentro del proyecto. Si hay que retomar en una sesión nueva, se lee de ahí. La carpeta tiene `.gdignore` (no entra al FileSystem ni al export) y viaja en los checkpoints de la rama del agente; si no la querés en tu rama, borrala antes del merge.
    **Criterios del juego**: el agente sabe de entrada cómo se evalúa lo que hace: jugabilidad, funcionalidad, visual y feel, y código, cada uno con peso y mínimo de 0 a 10 (Settings → One-shot).
 6. Al final:
    - **Revisar cambios** lista los archivos; con doble clic se ve el diff contra el inicio.

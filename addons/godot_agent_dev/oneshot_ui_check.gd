@@ -44,6 +44,7 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	controller.call(&"stop")
 	var repo := _make_repo()
 	_run.git.root = repo
+	_run.files.project_root = repo  # el spec y el progreso (D41) van al repo de prueba, no al del addon
 	_run.after_restore = func(paths: PackedStringArray) -> void: _restored = paths
 	_run.restart_session = func(_lost_id: String) -> bool: return await controller.call(&"start", _profile())
 	_run.resume_auto = true
@@ -183,6 +184,35 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	(_screen.get(&"_stop_button") as Button).pressed.emit()
 	await _frames(2)
 	_check(_run.phase == OneShotRun.Phase.FINISHED and _run.store.load_interrupted().is_empty(), "run a medias: Detener lo cierra")
+
+	# Spec (D41): el agente escribe el spec y espera; «Revisar spec» lo muestra y «Aprobar spec» sigue.
+	var spec_repo := _make_repo()
+	_run.git.root = spec_repo
+	_run.files.project_root = spec_repo
+	_run.restart_session = func(_lost_id: String) -> bool: return await controller.call(&"start", _profile("oneshot_spec"))
+	controller.call(&"stop")
+	(_screen.get(&"_new_button") as Button).pressed.emit()
+	await _frames(2)
+	(_screen.get(&"_spec_check") as CheckBox).button_pressed = true
+	start.pressed.emit()
+	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.RUNNING)
+	_run.files.write(_run.files.spec_path(), "# Pong\nDos paletas.\n")  # lo que haría el agente
+	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.SPEC_REVIEW)
+	await _frames(3)
+	var spec_button: Button = _screen.get(&"_spec_button")
+	_check(spec_button.visible and spec_button.text == "Revisar spec", "spec: botón Revisar spec")
+	_check(_text(&"_banner_label").begins_with("El agente escribió el spec"), "spec: banner " + _text(&"_banner_label"))
+	spec_button.pressed.emit()
+	await _frames(2)
+	var spec_dialog: ConfirmationDialog = _screen.get(&"_spec_dialog")
+	var spec_edit: TextEdit = _screen.get(&"_spec_edit")
+	_check(spec_dialog.visible and spec_edit.text.contains("Dos paletas") and spec_dialog.ok_button_text == "Aprobar spec", "spec: el diálogo muestra el spec")
+	spec_edit.text = "# Pong\nDos paletas y power-ups.\n"
+	_shot(shot_path, "_spec")
+	spec_dialog.get_ok_button().pressed.emit()
+	await _wait(func() -> bool: return _run.phase == OneShotRun.Phase.FINISHED and not _run.is_git_busy())
+	_check(_run.phase == OneShotRun.Phase.FINISHED and _run.files.read(_run.files.spec_path()).contains("power-ups"), "spec: aprobado con cambios y terminado (%s)" % _run.phase_label())
+	_check(not spec_button.text.begins_with("Revisar") and spec_button.visible, "spec: queda el botón Spec")
 	controller.call(&"stop")
 	return failures
 
@@ -276,11 +306,11 @@ func _find_files(dir: String, extension: String) -> PackedStringArray:
 	return found
 
 
-func _profile() -> AgentProfile:
+func _profile(scenario: String = "oneshot_ui") -> AgentProfile:
 	return AgentProfile.from_dict({
 		"id": "fake", "display_name": "Agente falso", "command": OS.get_executable_path(),
 		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
-			"--script", "res://tests/fake_agent.gd", "--", "--scenario=res://tests/scripts/oneshot_ui.json"],
+			"--script", "res://tests/fake_agent.gd", "--", "--scenario=res://tests/scripts/%s.json" % scenario],
 	})
 
 

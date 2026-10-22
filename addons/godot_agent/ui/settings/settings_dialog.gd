@@ -23,7 +23,7 @@ const SECTION_LABELS: PackedStringArray = ["Agentes", "Permisos", "Servidor MCP"
 const DECISIONS: PackedStringArray = [PermissionPolicy.ALLOW, PermissionPolicy.ASK, PermissionPolicy.DENY]
 const DECISION_LABELS: Dictionary = {PermissionPolicy.ALLOW: "sí", PermissionPolicy.ASK: "preguntar", PermissionPolicy.DENY: "no"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "loop_repeats", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = ["Derecha, arriba", "Derecha, abajo", "Izquierda, arriba", "Izquierda, abajo"]
 
 ## () -> String: URL actual del server MCP ("" si no escucha).
@@ -60,6 +60,7 @@ var _manual_runs_check: CheckBox
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
 var _loop_spin: SpinBox
+var _spec_review_check: CheckBox
 ## id -> {weight: SpinBox, threshold: SpinBox}
 var _criteria_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
@@ -256,6 +257,9 @@ func _build_oneshot(page: VBoxContainer) -> void:
 	_checkpoints_check = CheckBox.new()
 	_checkpoints_check.text = "Crear un checkpoint git antes de cada tarea de One-shot"
 	page.add_child(_checkpoints_check)
+	_spec_review_check = CheckBox.new()
+	_spec_review_check.text = "Revisar el spec antes de construir (el agente lo escribe y espera «Aprobar spec»)"
+	page.add_child(_spec_review_check)
 	_loop_spin = _spin_row(page, "Loop: repeticiones iguales", 2, 20, 1, "")
 	_loop_spin.tooltip_text = "Un check que falla igual, una tool call que falla con los mismos argumentos o el mismo cambio repetido.\nLa primera vez se le pide otro enfoque al agente; si vuelve a pasar, el One-shot se pausa."
 	page.add_child(_title("Criterios de evaluación del juego (por proyecto)"))
@@ -378,6 +382,7 @@ func _load() -> void:
 	_budget_spins.playtests.value = _config.budget_playtests
 	_checkpoints_check.button_pressed = _config.checkpoints_enabled
 	_loop_spin.value = _config.loop_repeats
+	_spec_review_check.button_pressed = _config.spec_review
 	for criterion: Dictionary in GameCriteria.resolve(_config.criteria):
 		_criteria_spins[criterion.id].weight.value = criterion.weight
 		_criteria_spins[criterion.id].threshold.value = criterion.threshold
@@ -432,6 +437,7 @@ func _on_save() -> void:
 	_config.budget_playtests = int(_budget_spins.playtests.value)
 	_config.checkpoints_enabled = _checkpoints_check.button_pressed
 	_config.loop_repeats = int(_loop_spin.value)
+	_config.spec_review = _spec_review_check.button_pressed
 	var criteria := {}
 	for criterion: Dictionary in GameCriteria.DEFAULTS:
 		var spins: Dictionary = _criteria_spins[criterion.id]

@@ -24,6 +24,7 @@ const ACTIVITY_COLORS: Dictionary = {
 	"presupuesto": Color("#f5c26b"),
 	"aviso": Color("#ff7a7a"),
 	"loop": Color("#ff9f5a"),
+	"spec": Color("#8fd3c7"),
 }
 const SUMMARY_INTERVAL_S := 2.0
 const SCENE_EXTENSIONS: PackedStringArray = ["tscn", "scn"]
@@ -43,6 +44,10 @@ var _form: Control
 var _goal_edit: TextEdit
 var _budget_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
+var _spec_check: CheckBox
+var _spec_button: Button
+var _spec_dialog: ConfirmationDialog
+var _spec_edit: TextEdit
 var _form_rule: Label
 var _start_button: Button
 # Vista del One-shot
@@ -106,6 +111,7 @@ func set_defaults(defaults: Dictionary) -> void:
 		(_budget_spins[key] as SpinBox).value = float(_defaults.get(key, 0))
 	if _checkpoints_check:
 		_checkpoints_check.button_pressed = bool(_defaults.get("checkpoints", true))
+		_spec_check.button_pressed = bool(_defaults.get("spec_review", false))
 
 
 func _ready() -> void:
@@ -202,6 +208,10 @@ func _build_form() -> void:
 	_checkpoints_check.text = "Crear un checkpoint git antes de cada tarea (rama agent/<fecha>; nunca hace merge ni push)"
 	_checkpoints_check.button_pressed = bool(_defaults.get("checkpoints", true))
 	box.add_child(_checkpoints_check)
+	_spec_check = CheckBox.new()
+	_spec_check.text = "Revisar el spec antes de construir (el agente lo escribe y espera «Aprobar spec»)"
+	_spec_check.button_pressed = bool(_defaults.get("spec_review", false))
+	box.add_child(_spec_check)
 	_form_rule = Label.new()
 	_form_rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_form_rule.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -248,6 +258,11 @@ func _build_top_bar() -> Control:
 	_phase_label.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
 	_phase_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_phase_label)
+	_spec_button = Button.new()
+	_spec_button.text = "Spec"
+	_spec_button.tooltip_text = "El spec que escribió el agente (.godot_agent/oneshot/<id>/spec.md): se puede leer y editar."
+	_spec_button.pressed.connect(_show_spec)
+	header.add_child(_spec_button)
 	_pause_button = Button.new()
 	_pause_button.pressed.connect(_on_pause_pressed)
 	header.add_child(_pause_button)
@@ -472,6 +487,15 @@ func _build_dialogs() -> void:
 	_error_dialog = AcceptDialog.new()
 	_error_dialog.title = "One-shot"
 	add_child(_error_dialog)
+	_spec_dialog = ConfirmationDialog.new()
+	_spec_dialog.title = "Spec del One-shot"
+	_spec_dialog.min_size = Vector2i(AgentTheme.px(640), AgentTheme.px(480))
+	_spec_dialog.confirmed.connect(_on_spec_confirmed)
+	_spec_edit = TextEdit.new()
+	_spec_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_spec_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_spec_dialog.add_child(_spec_edit)
+	add_child(_spec_dialog)
 	_report_dialog = AcceptDialog.new()
 	_report_dialog.title = "Informe del One-shot"
 	_report_dialog.ok_button_text = "Cerrar"
@@ -576,6 +600,8 @@ func _refresh_banner() -> void:
 			color = AgentTheme.ERROR
 			var wait := quota.seconds_until_retry()
 			text = "Límite del plan alcanzado · " + ("se puede volver a intentar en %s" % QuotaMonitor.format_duration(wait) if wait > 0 else "ya se puede reintentar")
+	if text.is_empty() and _run.phase == OneShotRun.Phase.SPEC_REVIEW:
+		text = "El agente escribió el spec. Revisalo con «Revisar spec» (lo podés editar) y aprobalo para que empiece a construir; «Guiar al agente» le pide cambios." if _run.files.has_spec() else "El agente no escribió el spec. Guialo para que lo escriba, o aprobá para seguir sin spec."
 	if text.is_empty() and _run.phase == OneShotRun.Phase.PAUSED and not _run.pause_note.is_empty():
 		text = _run.pause_note
 	if text.is_empty() and _run.recovered and _run.phase == OneShotRun.Phase.PAUSED:
@@ -596,7 +622,7 @@ func _refresh_top_bar() -> void:
 	match _run.phase:
 		OneShotRun.Phase.LIMITED:
 			phase_color = AgentTheme.ERROR
-		OneShotRun.Phase.PAUSED, OneShotRun.Phase.PAUSED_QUOTA, OneShotRun.Phase.WAITING_CONFIRM:
+		OneShotRun.Phase.PAUSED, OneShotRun.Phase.PAUSED_QUOTA, OneShotRun.Phase.WAITING_CONFIRM, OneShotRun.Phase.SPEC_REVIEW:
 			phase_color = AgentTheme.WARNING
 	_phase_label.add_theme_color_override(&"font_color", phase_color)
 	_goal_label.text = _run.goal
@@ -643,6 +669,8 @@ func _refresh_top_bar() -> void:
 	_pause_button.disabled = not (can_resume or _run.phase == OneShotRun.Phase.RUNNING)
 	_pause_button.tooltip_text = "Reintenta ya, sin esperar el reinicio de la ventana." if _run.phase == OneShotRun.Phase.LIMITED else ""
 	_stop_button.disabled = not _run.is_active()
+	_spec_button.visible = _run.files.has_spec() or _run.phase == OneShotRun.Phase.SPEC_REVIEW
+	_spec_button.text = "Revisar spec" if _run.phase == OneShotRun.Phase.SPEC_REVIEW else "Spec"
 
 
 func _refresh_plan() -> void:
@@ -835,7 +863,7 @@ func _start_run() -> void:
 	_checks_signature = ""
 	_show_form = false
 	var goal := _goal_edit.text
-	var started: bool = await _run.start(goal, budgets, _checkpoints_check.button_pressed)
+	var started: bool = await _run.start(goal, budgets, _checkpoints_check.button_pressed, _spec_check.button_pressed)
 	if started:
 		_goal_edit.text = ""
 	_summary_dirty = true
@@ -958,3 +986,18 @@ func _show_report() -> void:
 		return
 	_report_text.text = MarkdownBBCode.new().convert(RunReport.to_markdown(_run.last_report))
 	_report_dialog.popup_centered()
+
+
+func _show_spec() -> void:
+	_spec_edit.text = _run.files.read(_run.files.spec_path())
+	var reviewing := _run.phase == OneShotRun.Phase.SPEC_REVIEW
+	_spec_dialog.ok_button_text = "Aprobar spec" if reviewing else "Guardar"
+	_spec_dialog.dialog_text = ""
+	_spec_dialog.popup_centered()
+
+
+func _on_spec_confirmed() -> void:
+	if _run.phase == OneShotRun.Phase.SPEC_REVIEW:
+		_run.approve_spec(_spec_edit.text)
+	elif _spec_edit.text != _run.files.read(_run.files.spec_path()):
+		_run.files.write(_run.files.spec_path(), _spec_edit.text)

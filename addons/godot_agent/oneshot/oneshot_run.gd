@@ -28,8 +28,9 @@ const OneShotStore := preload("oneshot_store.gd")
 const LoopDetector := preload("loop_detector.gd")
 const RunReport := preload("run_report.gd")
 const GameCriteria := preload("game_criteria.gd")
+const OneShotFiles := preload("oneshot_files.gd")
 
-enum Phase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED }
+enum Phase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW }
 
 const PHASE_LABELS: Dictionary = {
 	Phase.IDLE: "Sin iniciar",
@@ -41,6 +42,7 @@ const PHASE_LABELS: Dictionary = {
 	Phase.WAITING_CONFIRM: "Listo para retomar",
 	Phase.CLOSING: "Cerrando",
 	Phase.FINISHED: "Terminado",
+	Phase.SPEC_REVIEW: "Spec para revisar",
 }
 const BUDGET_TIME := "time"
 const BUDGET_TOKENS := "tokens"
@@ -76,6 +78,10 @@ var loops := LoopDetector.new()
 var report := RunReport.new()
 ## Criterios de evaluación del juego (D40), con los pesos y umbrales del proyecto.
 var criteria: Array[Dictionary] = GameCriteria.resolve()
+## spec.md, progress.md y qa-<n>.md en el proyecto (D41).
+var files := OneShotFiles.new()
+## El agente escribe el spec y espera «Aprobar spec» antes de construir.
+var spec_review: bool = false
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
 
@@ -125,6 +131,8 @@ var _capture_dirty: bool = false
 var _last_save_msec: int = 0
 ## El editor se está cerrando: el run quedó guardado tal como estaba y no se vuelve a escribir.
 var _suspended: bool = false
+## Falta que el usuario apruebe el spec: el próximo fin de turno pasa a SPEC_REVIEW.
+var _awaiting_spec: bool = false
 
 
 func setup(session_controller: SessionController, project_root: String) -> void:
@@ -132,6 +140,7 @@ func setup(session_controller: SessionController, project_root: String) -> void:
 	model = controller.model
 	quota = controller.quota
 	git = GitCheckpoints.new(project_root)
+	files.project_root = project_root
 
 
 func _ready() -> void:
@@ -192,11 +201,14 @@ func preflight(use_checkpoints: bool) -> Dictionary:
 	return {"ok": true, "needs_wip_confirm": not await git.is_clean(), "warning": ""}
 
 
-func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool) -> bool:
+func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, review_spec: bool = false) -> bool:
 	if is_active():
 		return false
 	goal = goal_text.strip_edges()
 	run_id = OneShotStore.new_id()
+	files.run_id = run_id
+	spec_review = review_spec
+	_awaiting_spec = review_spec
 	recovered = false
 	_recovered_session_id = ""
 	_suspended = false
@@ -233,6 +245,9 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool) 
 				_add_activity("aviso", git.last_error)
 		else:
 			_add_activity("aviso", git.last_error)
+	# Después de git.start: los archivos nacen en la rama del agente.
+	if not files.prepare():
+		_add_activity("aviso", "No se pudo crear %s: el agente no va a tener dónde escribir el spec" % files.relative_dir())
 	if not controller.is_connected_to_agent() and not await _restart_session(""):
 		_finish("No se pudo abrir una sesión con el agente.")
 		return false
@@ -251,13 +266,17 @@ func initial_prompt() -> String:
 		limits.append("%d tokens" % budgets[BUDGET_TOKENS])
 	if int(budgets[BUDGET_PLAYTESTS]) > 0:
 		limits.append("%d playtests" % budgets[BUDGET_PLAYTESTS])
+	var spec_step := "0. Antes que nada, escribí el spec del juego en %s: mecánicas, loop de juego (empezar → jugar → ganar o perder → reiniciar), dirección visual y qué significa \"terminado\". Ambicioso en alcance pero de alto nivel: sin detalle técnico (nada de nodos, scripts ni APIs)." % files.spec_path()
+	if spec_review:
+		spec_step += " Después terminá el turno sin construir nada: el usuario lo revisa y lo aprueba."
 	return "\n".join([
 		"Objetivo (modo One-shot): %s" % goal,
 		"",
 		"Trabajá de forma autónoma hasta cumplir el objetivo:",
-		"1. Armá primero un plan con tu herramienta de plan o de tareas (por ejemplo TodoWrite o TaskCreate/TaskUpdate), una entrada por tarea. Marcá cada tarea in_progress al empezarla y completed al terminarla: el harness ve el plan y crea un checkpoint git antes de cada tarea.",
+		spec_step,
+		"1. Armá un plan a partir del spec con tu herramienta de plan o de tareas (por ejemplo TodoWrite o TaskCreate/TaskUpdate), una entrada por tarea. Marcá cada tarea in_progress al empezarla y completed al terminarla: el harness ve el plan y crea un checkpoint git antes de cada tarea.",
 		"2. Después de cada tarea, verificá con godot.run_scene (con inputs si hace falta), godot.capture_game_frame y godot.get_errors.",
-		"3. Al terminar cada tarea, reportá las verificaciones vigentes en un bloque ```json {\"checks\":[{\"label\":\"…\",\"status\":\"pass|fail|pending\"}]}.",
+		"3. Al terminar cada tarea, actualizá %s (qué está hecho, qué falta, decisiones y problemas conocidos: es lo que lee quien retome) y reportá las verificaciones vigentes en un bloque ```json {\"checks\":[{\"label\":\"…\",\"status\":\"pass|fail|pending\"}]}." % files.progress_path(),
 		"4. Presupuestos: %s. Si te acercás al límite, priorizá dejar algo jugable." % (", ".join(limits) if not limits.is_empty() else "sin límite"),
 		"No hagas commits ni cambies de rama: los checkpoints git los maneja el harness.",
 		"",
@@ -330,10 +349,23 @@ func guide(text: String) -> void:
 		_guidance.append(text)
 		changed.emit()
 		return
-	if phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM]:
+	if phase in [Phase.PAUSED, Phase.PAUSED_QUOTA, Phase.WAITING_CONFIRM, Phase.SPEC_REVIEW]:
 		pause_note = ""
 		_set_phase(Phase.RUNNING)
 	_run_turn(text)
+
+
+## «Aprobar spec» (D41): con `text` distinto del archivo, primero se guarda lo que editó el usuario.
+func approve_spec(text: String = "") -> void:
+	if phase != Phase.SPEC_REVIEW:
+		return
+	var edited := not text.strip_edges().is_empty() and text != files.read(files.spec_path())
+	if edited:
+		files.write(files.spec_path(), text)
+	_awaiting_spec = false
+	_add_activity("spec", "Spec aprobado" + (" con cambios del usuario" if edited else ""))
+	_set_phase(Phase.RUNNING)
+	_run_turn("El spec está aprobado%s. Seguí con el resto: armá el plan a partir del spec y construí." % (" con cambios: releelo antes de armar el plan" if edited else ""))
 
 
 ## El usuario editó el plan: se manda como guía.
@@ -449,6 +481,9 @@ func _after_turn(reason: String) -> void:
 		return
 	if reason == "cancelled":
 		return
+	if _awaiting_spec:
+		_enter_spec_review()
+		return
 	if current_plan().is_empty():
 		_after_turn_without_plan()
 		return
@@ -479,6 +514,15 @@ func _after_turn_without_plan() -> void:
 		_run_turn("Seguí con el objetivo: quedan checks sin pasar: %s. Verificá con run_scene, capture_game_frame y get_errors, y reportá el bloque de checks." % ", ".join(open))
 
 
+func _enter_spec_review() -> void:
+	_set_phase(Phase.SPEC_REVIEW)
+	if files.has_spec():
+		_add_activity("spec", "%s/%s listo: revisalo y aprobalo para que empiece a construir" % [files.relative_dir(), OneShotFiles.SPEC])
+	else:
+		_add_activity("aviso", "El agente no escribió %s/%s. Guialo para que lo escriba, o aprobá para seguir sin spec." % [files.relative_dir(), OneShotFiles.SPEC])
+	model.add_notice("One-shot · el spec está listo para revisar en la pantalla Agent.", ChatEntry.Level.INFO)
+
+
 func _close() -> void:
 	_set_phase(Phase.CLOSING)
 	_add_activity("presupuesto", _close_reason)
@@ -500,6 +544,7 @@ func _write_report() -> void:
 	var data := {
 		"id": run_id, "goal": goal, "finish_reason": finish_reason, "duration_ms": _elapsed_ms(),
 		"budgets": budgets.duplicate(), "used": used.duplicate(), "checks": checks.duplicate(true),
+		"files_dir": files.relative_dir(),
 		"checkpoints": git.checkpoints.map(func(cp: Dictionary) -> Dictionary: return {"name": cp.name, "label": cp.label}) if checkpoints_enabled else [],
 	}
 	data["changes"] = await changes_summary() if checkpoints_enabled else {}
@@ -535,7 +580,10 @@ func _resume_prompt() -> String:
 
 
 func _summary_prompt() -> String:
-	var lines: PackedStringArray = ["Retomamos un One-shot que se interrumpió.", "", initial_prompt(), "", "Plan hasta ahora:"]
+	var lines: PackedStringArray = ["Retomamos un One-shot que se interrumpió.", "", initial_prompt(), ""]
+	if files.has_spec():
+		lines.append_array(["El traspaso está en %s: leé spec.md y progress.md (y los qa-*.md si hay) antes de seguir; el spec ya está escrito." % files.dir(), ""])
+	lines.append("Plan hasta ahora:")
 	for entry: Variant in current_plan():
 		if entry is Dictionary:
 			lines.append("- [%s] %s" % [entry.get("status", "pending"), entry.get("content", "")])
@@ -773,6 +821,8 @@ func to_dict() -> Dictionary:
 		"finish_reason": finish_reason,
 		"warned": _warned,
 		"pause_note": pause_note,
+		"spec_review": spec_review,
+		"awaiting_spec": _awaiting_spec,
 		"report": report.to_dict(),
 		"session_id": _recovered_session_id if not _recovered_session_id.is_empty() else model.session_id,
 		"elapsed_ms": _elapsed_ms(),
@@ -801,6 +851,9 @@ func _apply(data: Dictionary) -> void:
 	_close_reason = str(data.get("close_reason", ""))
 	_warned = data.get("warned", {}) if data.get("warned") is Dictionary else {}
 	pause_note = str(data.get("pause_note", ""))
+	files.run_id = run_id
+	spec_review = bool(data.get("spec_review", false))
+	_awaiting_spec = bool(data.get("awaiting_spec", false))
 	report.apply(data.get("report", {}) if data.get("report") is Dictionary else {})
 	last_report = {}
 	_recovered_session_id = str(data.get("session_id", ""))

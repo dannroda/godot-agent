@@ -29,6 +29,7 @@ func _initialize() -> void:
 	await _scenario_no_plan()
 	await _scenario_recover()
 	await _scenario_loop()
+	await _scenario_spec()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -241,6 +242,39 @@ func _scenario_loop() -> void:
 	_check(edit.size() == 1 and int(edit[0].failed) == 2, "loop: informe cuenta los Edit fallidos %s" % [edit])
 	var salto: Array = run.last_report.get("checks", []).filter(func(row: Dictionary) -> bool: return row.label == "Salto")
 	_check(salto.size() == 1 and int(salto[0].failures) >= 4, "loop: informe cuenta las fallas del check %s" % [salto])
+	run.controller.stop()
+	run.queue_free()
+
+
+## Spec y traspaso por archivos (D41): el agente escribe spec.md y espera; guiar le pide cambios
+## y vuelve a esperar; «Aprobar spec» con cambios del usuario sigue construyendo. Los archivos
+## quedan en .godot_agent/ (con .gdignore) y entran en los checkpoints.
+func _scenario_spec() -> void:
+	print("— spec")
+	var run := _make("oneshot_spec")
+	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 0}, true, true)
+	var spec_path := run.files.spec_path()
+	var first := _user_messages(run.model)
+	_check(first.size() == 1 and str(first[0]).contains(spec_path) and str(first[0]).contains("terminá el turno sin construir") and str(first[0]).contains(run.files.progress_path()), "spec: el prompt pide el spec y el progreso")
+	run.files.write(spec_path, "# Pong\nDos paletas.\n")  # lo que haría el agente
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.SPEC_REVIEW, 10.0)
+	_check(run.phase == OneShotRun.Phase.SPEC_REVIEW, "spec: espera la revisión (%s)" % run.phase_label())
+	_check(str(run.activity.back().text).contains("spec.md listo"), "spec: la actividad lo avisa")
+	_check(FileAccess.file_exists(run.git.root.path_join(".godot_agent/.gdignore")), "spec: .gdignore")
+	run.guide("Sumá power-ups")
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.SPEC_REVIEW and _user_messages(run.model).size() == 2, 10.0)
+	_check(run.phase == OneShotRun.Phase.SPEC_REVIEW, "spec: después de guiar vuelve a esperar (%s)" % run.phase_label())
+	run.approve_spec("# Pong\nDos paletas y power-ups.\n")
+	_check(run.files.read(spec_path).contains("power-ups"), "spec: se guardan los cambios del usuario")
+	await _wait(func() -> bool: return run.phase == OneShotRun.Phase.FINISHED and not run.is_git_busy() and not run.last_report.is_empty(), 10.0)
+	var messages := _user_messages(run.model)
+	_check(messages.size() == 3 and str(messages[2]).begins_with("El spec está aprobado con cambios"), "spec: aprobar sigue construyendo %s" % [messages])
+	_check(run.finish_reason == "El agente terminó: todos los checks pasan.", "spec: terminó (%s)" % run.finish_reason)
+	var tracked := []
+	OS.execute("git", ["-C", run.git.root, "ls-files", ".godot_agent"], tracked)
+	_check(str(tracked[0]).contains("spec.md"), "spec: el spec entra en los checkpoints (%s)" % tracked)
+	_check(str(run.last_report.get("files_dir", "")) == run.files.relative_dir(), "spec: el informe apunta a los archivos")
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text) == "Spec aprobado con cambios del usuario"), "spec: actividad de la aprobación")
 	run.controller.stop()
 	run.queue_free()
 

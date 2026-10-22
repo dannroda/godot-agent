@@ -14,6 +14,8 @@ const PATH := "res://addons/godot_agent/config/project_config.tres"
 @export_range(10000, 20000000, 1000) var budget_tokens: int = 1500000
 @export_range(1, 100) var budget_playtests: int = 8
 @export var checkpoints_enabled: bool = true
+## Default del formulario: el agente escribe el spec y espera «Aprobar spec» antes de construir (D41).
+@export var spec_review: bool = false
 ## Repeticiones iguales (check que falla, tool call que falla o cambio repetido) que el One-shot
 ## toma como loop (D38): la primera vez pide otro enfoque, la segunda pausa.
 @export_range(2, 20) var loop_repeats: int = 3

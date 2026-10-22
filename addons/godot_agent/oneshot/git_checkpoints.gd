@@ -13,6 +13,9 @@ const BRANCH_PREFIX := "agent/"
 const FALLBACK_NAME := "Godot Agent Harness"
 const FALLBACK_EMAIL := "godot-agent@localhost"
 const PATHSPEC: PackedStringArray = ["--", ".", ":(exclude).godot"]
+## Para el resumen de cambios: spec, progreso y QA del One-shot (D41) van en los checkpoints pero no
+## son cambios del juego.
+const SUMMARY_PATHSPEC: PackedStringArray = ["--", ".", ":(exclude).godot", ":(exclude).godot_agent"]
 
 var root: String = ""
 var git_path: String = "git"
@@ -154,7 +157,7 @@ func changes_summary() -> Dictionary:
 	if not await _on_agent_branch():
 		return {}
 	await run(PackedStringArray(["add", "-A"]) + await _add_pathspec())
-	var numstat := await run(PackedStringArray(["diff", "--cached", "--numstat", "--relative", base_sha]) + PATHSPEC)
+	var numstat := await run(PackedStringArray(["diff", "--cached", "--numstat", "--relative", base_sha]) + SUMMARY_PATHSPEC)
 	var files: Array[Dictionary] = []
 	var added := 0
 	var removed := 0

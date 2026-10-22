@@ -605,3 +605,23 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Formato**: el evaluador responde con un bloque `{"scores": [{criterion, score, reason}]}`, que `FindingsParser` lee junto a `checks` y `findings`. El criterio se reconoce por id o por nombre, sin importar mayúsculas ni tildes.
 - **Config**: `criteria` en `project_config.tres` (id → peso y mínimo; solo se guarda lo que difiere del default), editable en Settings → One-shot.
 - **Fuera por ahora**: los contratos por sprint del artículo (el generator y el evaluator acuerdan cómo se verifica cada tarea). Ellos mismos los sacaron por costo; se pueden reconsiderar si el informe (D39) muestra checks mal definidos.
+
+## D41 · Spec y progreso del One-shot en archivos
+
+- **Por qué** ("Harness design for long-running application development", Anthropic, 2026-03):
+  - un planner que convierte el objetivo corto en un spec evita que el agente se quede corto de alcance; el spec tiene que ser ambicioso pero de alto nivel, porque el detalle técnico equivocado se arrastra;
+  - los agentes se pasan el trabajo por archivos, no por contexto.
+- **Archivos** (`OneShotFiles`), en `<proyecto>/.godot_agent/oneshot/<id>/`:
+  - `spec.md`: lo escribe el agente como paso 0: mecánicas, loop de juego, dirección visual y qué es "terminado", sin nodos ni APIs;
+  - `progress.md`: lo actualiza al cerrar cada tarea (hecho, falta, decisiones, problemas conocidos);
+  - `qa-<n>.md`: el informe del evaluador en cada vuelta (D42).
+- **Traspaso**: si hay que abrir una sesión nueva (el editor se cayó, se perdió la sesión), el prompt de resumen manda leer spec y progress antes de seguir. El estado del harness sigue en `user://` (D37); el del trabajo, en el proyecto.
+- **Revisión opcional** («Revisar el spec antes de construir», default en Settings → One-shot): el agente escribe el spec y termina el turno; el run pasa a «Spec para revisar».
+  - «Revisar spec» abre el archivo en un diálogo editable; «Aprobar spec» guarda lo editado y sigue construyendo.
+  - «Guiar al agente» le pide cambios y el run vuelve a esperar la aprobación.
+  - Si el agente no escribió el spec, el banner lo dice y se puede aprobar igual.
+- **Git y export**:
+  - `.godot_agent/.gdignore` deja la carpeta fuera del FileSystem del editor, de la importación y del export; el export plugin además saltea `res://.godot_agent/` por las dudas.
+  - La carpeta entra en los checkpoints: así, «Volver acá» deja spec y progreso sincronizados con el código. Va en la rama del agente; si el usuario no la quiere en su rama, la borra antes del merge.
+  - «Revisar cambios» y el resumen de cambios no la cuentan: no son cambios del juego.
+- **Pruebas**: `test_oneshot_files`; `oneshot_check` (spec): esperar, guiar, aprobar con cambios, terminar y el spec en git; `--godot-agent-oneshot-test` con «Revisar spec» y «Aprobar spec».

@@ -785,7 +785,7 @@ review_check.gd ubica la línea esperada buscando el código, y con Claude real 
 Observado (D23): en plan mode Claude Code ejecuta comandos de solo lectura y escribe su archivo de plan fuera del proyecto sin pedirle permiso al cliente. El log perm quedó vacío en Revisar.
 progress.md tiene la sección M5.
 
-## M6 — One-shot  (8/11, 8 en revisión)
+## M6 — One-shot  (9/13, 9 en revisión)
 
 Pantalla principal completa, checkpoints git, presupuestos, checks, "Guiar al agente" y reglas de cuota del plan (§10.1).
 
@@ -1005,7 +1005,7 @@ Tests: el agente falso con dos roles. El generator reporta todo en pass, el eval
 
 **Relacionadas:** One-shot: criterios de evaluación para juegos
 
-### One-shot: spec y progreso en archivos (planner y traspaso) · Pendiente
+### One-shot: spec y progreso en archivos (planner y traspaso) · En curso
 
 **Prioridad:** media · **Tamaño:** M
 
@@ -1022,7 +1022,7 @@ Qué hacer:
 
 **Relacionadas:** Persistir el run del One-shot y ofrecer retomarlo
 
-### One-shot: criterios de evaluación para juegos · En curso
+### One-shot: criterios de evaluación para juegos · Revisión
 
 **Prioridad:** media · **Tamaño:** S
 
@@ -1041,7 +1041,35 @@ Qué hacer:
 
 Nota: el artículo también usa contratos por sprint (generator y evaluator acuerdan antes de cada tarea cómo se verifica). Con Opus 4.6 ellos mismos los sacaron por costo, así que por ahora quedan afuera. Se pueden reconsiderar si el informe de m7-12 muestra checks mal definidos.
 
+**Prueba:** test_game_criteria (resolve con overrides, textos de prompt/rúbrica, veredicto, bloque scores del parser) en 4.6.3 y 4.8; settings-shots muestra la grilla; cycle test y oneshot_check en verde.
+
+**Notas:** a17a419 (D40). oneshot/game_criteria.gd: 4 criterios (jugabilidad 3/7, funcionalidad 3/7, visual y feel 2/5, código 1/5 = peso/mínimo), cada uno con 3 anclas de puntaje (3/6/9) para calibrar al evaluador; AUDIO_NOTE (no puede oír). generator_text va en initial_prompt; evaluator_rubric la usa el evaluador de m6-09. verdict(): pasa si cada criterio con peso llega al mínimo (sin puntaje = no pasa), promedio ponderado. FindingsParser lee `scores` [{criterion, score 0–10, reason}]; el criterio se reconoce por id o nombre sin tildes. Config `criteria` (solo lo que difiere del default) + grilla Peso/Mínimo en Settings → One-shot. Contratos por sprint quedan afuera (ver D40).
+
 **Relacionadas:** One-shot: evaluator separado y vuelta de corrección
+
+### One-shot: cambiar presupuestos con el run en curso, y opción ilimitado · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S
+
+Pedido del usuario (2026-10-22): una vez arrancado el One-shot, poder cambiar los presupuestos de tiempo, tokens y playtests desde la pantalla Agent, y tener un botón o setting "ilimitado" para cuando el run ya está en curso.
+
+Qué hacer:
+- Editar cada presupuesto desde la barra de arriba del run (spin al tocar la barra, o un diálogo «Presupuestos»), con un "sin límite" por presupuesto y un «Ilimitado» general.
+- Al subir un presupuesto que ya pasó el 80 % o el 100 %:
+  - se rearman los avisos;
+  - si el run estaba cerrando por presupuesto y todavía no mandó el pedido de reporte final, sigue.
+- Se guarda en el estado del run (D37) y queda en la actividad y en el informe (D39).
+
+### Pantalla Agent: el editor del objetivo es chico en monitores grandes · Pendiente
+
+**Prioridad:** media · **Tamaño:** S
+
+Pedido del usuario (2026-10-22): en la pantalla Agent, el campo para escribir el prompt del One-shot queda chico en monitores grandes. El panel del formulario tiene un ancho fijo de 640 px y el objetivo, 110 px de alto.
+
+Qué hacer:
+- Que el formulario y el TextEdit del objetivo escalen con el tamaño de la pantalla, con un mínimo y un máximo razonables.
+- Revisar también el campo «Guiar al agente» de la vista del run: que sea multilínea y crezca.
+- Verificarlo con capturas a 1280×720 y a 2560×1440.
 
 ## M7 — Pulido  (11/12, 11 en revisión)
 

@@ -446,6 +446,7 @@ func _oneshot_defaults() -> Dictionary:
 		OneShotRun.BUDGET_TOKENS: _project_config.budget_tokens,
 		OneShotRun.BUDGET_PLAYTESTS: _project_config.budget_playtests,
 		"checkpoints": _project_config.checkpoints_enabled,
+		"spec_review": _project_config.spec_review,
 	}
 
 
