@@ -86,6 +86,13 @@ func _run(shot_path: String) -> void:
 		return false
 	if not await _until(withdrawn):
 		failures.append("la tarjeta del permiso contestado desde el celular no quedó cerrada")
+	# QR del link (m7-25): el botón lo muestra, con la matriz del link.
+	var qr_button: Button = _dock.get(&"_remote_qr_button")
+	var qr_view: Control = _dock.get(&"_remote_qr")
+	qr_button.button_pressed = true
+	await _tree.process_frame
+	if not qr_view.is_visible_in_tree() or qr_view.get(&"qr") == null or int(qr_view.get(&"qr").get(&"size")) == 0:
+		failures.append("«QR» no muestra el código")
 	await _check_remote_files()
 	await _tree.create_timer(0.3).timeout
 	# Con la franja, la tarjeta y el aviso a la vista, el dock entra en su panel (m7-23).

@@ -72,7 +72,7 @@ Change the matrix in **Settings → Permissions**. Only what differs from the de
 
 ## Remote Control
 
-With Claude Code you can continue a dock session from claude.ai/code or the Claude app on your phone. When the agent offers `/remote-control`, a **Remote** button shows on the status line; it turns Remote Control on, with the project's name as the session name. While it's on, a strip under the status line shows the link, **Copy link** and **Turn off**. Typing `/remote-control` or `/remote-control off` in the composer does the same.
+With Claude Code you can continue a dock session from claude.ai/code or the Claude app on your phone. When the agent offers `/remote-control`, a **Remote** button shows on the status line; it turns Remote Control on, with the project's name as the session name. While it's on, a strip under the status line shows the link, **QR** (a QR code of the link, to open it with your phone's camera), **Copy link** and **Turn off**. Typing `/remote-control` or `/remote-control off` in the composer does the same.
 
 - What you write from the phone, and the agent's answers, only show on the phone: Claude Code doesn't send them to the harness. The dock still sees the tool calls that need permission.
 - The files that change while Remote Control is on (and no dock turn is running) show up in the chat as one notice per burst: "From Remote Control: modified player.gd · created enemy.gd". **View diff** shows each file before and now, and **Undo** puts them back as they were. Undo is offered when the harness knows the previous text: text files up to 256 KB. Files you save from the editor don't count, and the harness only looks at the first 5000 files of the project.

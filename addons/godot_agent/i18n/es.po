@@ -2104,3 +2104,9 @@ msgstr "No se pudo restaurar: %s"
 
 msgid "The project has more than %d files: changes from Remote Control are only watched in the first ones."
 msgstr "El proyecto tiene más de %d archivos: los cambios desde Remote Control se miran solo en los primeros."
+
+msgid "QR"
+msgstr "QR"
+
+msgid "Show a QR code of the link, to open the session on your phone."
+msgstr "Muestra un código QR del link, para abrir la sesión en el celular."

@@ -25,6 +25,7 @@ const PromptQueue := preload("../../session/prompt_queue.gd")
 const PromptQueueView := preload("prompt_queue_view.gd")
 const ReviewPanel := preload("review_panel.gd")
 const QuotaMeter := preload("quota_meter.gd")
+const QrView := preload("qr_view.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const ReviewStore := preload("../../review/review_store.gd")
 const I18n := preload("../../core/i18n.gd")
@@ -98,6 +99,8 @@ var _quota_meter: QuotaMeter
 var _remote_button: Button
 var _remote_banner: PanelContainer
 var _remote_link: Button
+var _remote_qr_button: Button
+var _remote_qr: QrView
 var _quota_timer: Timer
 var _quota_state: int = QuotaMonitor.QuotaState.UNKNOWN
 var _export_dialog: ConfirmationDialog
@@ -286,6 +289,13 @@ func _build_remote_control() -> void:
 	label.clip_text = true
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(label)
+	_remote_qr_button = Button.new()
+	_remote_qr_button.text = I18n.t("QR")
+	_remote_qr_button.flat = true
+	_remote_qr_button.toggle_mode = true
+	_remote_qr_button.tooltip_text = I18n.t("Show a QR code of the link, to open the session on your phone.")
+	_remote_qr_button.toggled.connect(func(on: bool) -> void: _remote_qr.visible = on)
+	row.add_child(_remote_qr_button)
 	var copy := Button.new()
 	copy.text = I18n.t("Copy link")
 	copy.flat = true
@@ -308,6 +318,9 @@ func _build_remote_control() -> void:
 	_remote_link.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_remote_link.pressed.connect(func() -> void: OS.shell_open(_model.remote_control_url))
 	column.add_child(_remote_link)
+	_remote_qr = QrView.new()
+	_remote_qr.visible = false
+	column.add_child(_remote_qr)
 	var hint := Label.new()
 	hint.text = I18n.t("What you write from the phone and its answers only show there. Here you see the tool calls that ask for permission, and you can answer them from either side.")
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -331,6 +344,7 @@ func _refresh_remote_control() -> void:
 	_remote_button.disabled = _model.state != SessionModel.SessionState.READY
 	_remote_banner.visible = on
 	_remote_link.text = _model.remote_control_url
+	_remote_qr.set_text(_model.remote_control_url)
 	_remote_link.tooltip_text = _model.remote_control_url
 
 
