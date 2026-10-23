@@ -9,6 +9,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - The README has a quick start with screenshots, in English and Spanish.
 - MIT license and a contributing guide (`CONTRIBUTING.md`).
 
+### Changed
+
+- Everything in the release zip is inside `addons/godot_agent/`: the READMEs, the changelog and the license travel with the addon instead of landing next to it in your project.
+
 ### Fixed
 
 - A long first line of the agent's thinking no longer makes the chat wider than the dock, which cut off the right side of every message.

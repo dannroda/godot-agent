@@ -67,11 +67,12 @@ jobs:
           git tag "v${{ steps.version.outputs.version }}"
           git push origin main "v${{ steps.version.outputs.version }}"
 
-      # Solo lo que está en git: nada de la config local del addon ni del plugin de dev.
+      # Solo lo que está en git, todo dentro de addons/godot_agent/ (READMEs, changelog y licencia
+      # incluidos): nada de la config local del addon ni del plugin de dev.
       - name: Package
         run: |
           ZIP="godot-agent-harness-v${{ steps.version.outputs.version }}.zip"
-          git archive --format=zip -o "$ZIP" HEAD addons/godot_agent README.md README.es.md CHANGELOG.md LICENSE
+          python3 .github/scripts/package.py "${{ steps.version.outputs.version }}" "$ZIP"
           unzip -l "$ZIP" | tail -1
 
       - name: Publish
