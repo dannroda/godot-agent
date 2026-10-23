@@ -19,6 +19,9 @@ func _build() -> void:
 		_toggle.flat = true
 		_toggle.toggle_mode = true
 		_toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		# La primera línea del pensamiento se corta con «…»: sin esto el botón ensancha el chat.
+		_toggle.clip_text = true
+		_toggle.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		_toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		_toggle.toggled.connect(func(open: bool) -> void:
 			_label.visible = open

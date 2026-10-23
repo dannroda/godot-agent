@@ -1,0 +1,94 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://tests/docs_demo/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://tests/docs_demo/spawner.gd" id="2_spawner"]
+[ext_resource type="Script" path="res://tests/docs_demo/hud.gd" id="3_hud"]
+
+[node name="Main" type="Node2D"]
+
+[node name="Background" type="ColorRect" parent="."]
+offset_right = 1152.0
+offset_bottom = 648.0
+color = Color(0.06, 0.07, 0.13, 1)
+
+[node name="Stars" type="Node2D" parent="."]
+modulate = Color(1, 1, 1, 0.6)
+
+[node name="Star1" type="Polygon2D" parent="Stars"]
+position = Vector2(120, 90)
+polygon = PackedVector2Array(-2, 0, 0, -2, 2, 0, 0, 2)
+
+[node name="Star2" type="Polygon2D" parent="Stars"]
+position = Vector2(860, 140)
+polygon = PackedVector2Array(-2, 0, 0, -2, 2, 0, 0, 2)
+
+[node name="Star3" type="Polygon2D" parent="Stars"]
+position = Vector2(400, 520)
+polygon = PackedVector2Array(-2, 0, 0, -2, 2, 0, 0, 2)
+
+[node name="Star4" type="Polygon2D" parent="Stars"]
+position = Vector2(1010, 470)
+polygon = PackedVector2Array(-2, 0, 0, -2, 2, 0, 0, 2)
+
+[node name="Star5" type="Polygon2D" parent="Stars"]
+position = Vector2(640, 60)
+polygon = PackedVector2Array(-2, 0, 0, -2, 2, 0, 0, 2)
+
+[node name="Player" type="Polygon2D" parent="."]
+position = Vector2(576, 324)
+color = Color(0.95, 0.66, 0.35, 1)
+polygon = PackedVector2Array(0, -24, 16, 18, 0, 10, -16, 18)
+script = ExtResource("1_player")
+
+[node name="Spawner" type="Node2D" parent="."]
+script = ExtResource("2_spawner")
+
+[node name="Asteroid1" type="Polygon2D" parent="Spawner"]
+position = Vector2(220, 180)
+scale = Vector2(2.2, 2.2)
+color = Color(0.55, 0.58, 0.65, 1)
+polygon = PackedVector2Array(-20, -8, -6, -22, 16, -16, 22, 4, 6, 20, -16, 14)
+
+[node name="Asteroid2" type="Polygon2D" parent="Spawner"]
+position = Vector2(900, 230)
+rotation = 0.8
+scale = Vector2(1.6, 1.6)
+color = Color(0.55, 0.58, 0.65, 1)
+polygon = PackedVector2Array(-20, -8, -6, -22, 16, -16, 22, 4, 6, 20, -16, 14)
+
+[node name="Asteroid3" type="Polygon2D" parent="Spawner"]
+position = Vector2(760, 500)
+rotation = 2.1
+scale = Vector2(2.6, 2.6)
+color = Color(0.55, 0.58, 0.65, 1)
+polygon = PackedVector2Array(-20, -8, -6, -22, 16, -16, 22, 4, 6, 20, -16, 14)
+
+[node name="Asteroid4" type="Polygon2D" parent="Spawner"]
+position = Vector2(320, 470)
+rotation = 4.0
+scale = Vector2(1.3, 1.3)
+color = Color(0.55, 0.58, 0.65, 1)
+polygon = PackedVector2Array(-20, -8, -6, -22, 16, -16, 22, 4, 6, 20, -16, 14)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("3_hud")
+
+[node name="Margin" type="MarginContainer" parent="HUD"]
+offset_right = 1152.0
+offset_bottom = 60.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 24
+
+[node name="Score" type="Label" parent="HUD/Margin"]
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_font_sizes/font_size = 24
+text = "Score 0"
+
+[node name="WaveLabel" type="Label" parent="HUD/Margin"]
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 0
+theme_override_font_sizes/font_size = 24
+text = "Wave 1"

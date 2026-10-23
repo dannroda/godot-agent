@@ -1,0 +1,14 @@
+{
+	"session": {
+		"modes": {"currentModeId": "default", "availableModes": [{"id": "default", "name": "Default"}, {"id": "plan", "name": "Plan"}]}
+	},
+	"turns": [
+		{"steps": [
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "tests/docs_demo/player.gd"}}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "r2", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "tests/docs_demo/hud.gd"}}},
+			{"chunk": "I read the scripts in `tests/docs_demo/`. Two real problems:\n\n"},
+			{"chunk": "```json\n{\"findings\": [\n  {\"path\": \"tests/docs_demo/player.gd\", \"line\": 14, \"severity\": \"bug\", \"title\": \"Movement depends on the frame rate\", \"body\": \"velocity is added without multiplying by delta: the ship moves faster on faster screens.\", \"suggestion\": \"position += velocity * delta\"},\n  {\"path\": \"tests/docs_demo/hud.gd\", \"line\": 8, \"severity\": \"performance\", \"title\": \"get_node on every frame\", \"body\": \"The label is looked up in every _process call.\", \"suggestion\": \"@onready var _score: Label = $Margin/Score\"}\n]}\n```\n\nI didn't change anything."},
+			{"stop": "end_turn"}
+		]}
+	]
+}

@@ -1,0 +1,52 @@
+{
+	"session": {
+		"modes": {"currentModeId": "default", "availableModes": [{"id": "default", "name": "Default"}, {"id": "plan", "name": "Plan"}]},
+		"configOptions": [
+			{"id": "model", "name": "Model", "type": "select", "currentValue": "opus",
+			 "options": [{"value": "opus", "name": "Opus"}, {"value": "sonnet", "name": "Sonnet"}]}
+		]
+	},
+	"on_new_session": [
+		{"update": {"sessionUpdate": "available_commands_update", "availableCommands": [{"name": "review", "description": "Revisar los cambios"}]}}
+	],
+	"turns": [
+		{"steps": [
+			{"update": {"sessionUpdate": "usage_update", "used": 38000, "size": 200000}},
+			{"thought": "El spawner ya cuenta las oleadas; al HUD le falta una señal para enterarse."},
+			{"chunk": "Miro la escena y `spawner.gd`, y después conecto el **contador de oleadas** al HUD."},
+			{"update": {"sessionUpdate": "plan", "entries": [
+				{"content": "Leer la escena y el spawner", "priority": "high", "status": "completed"},
+				{"content": "Emitir wave_started desde el spawner", "priority": "high", "status": "completed"},
+				{"content": "Mostrar la oleada en el HUD", "priority": "medium", "status": "completed"}
+			]}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "mcp__godot__scene_tree", "kind": "read", "status": "completed", "rawInput": {"scene": "res://tests/docs_demo/main.tscn"}}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t2", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "tests/docs_demo/spawner.gd"}, "locations": [{"path": "tests/docs_demo/spawner.gd", "line": 13}],
+				"content": [{"type": "content", "content": {"type": "text", "text": "extends Node2D\n\n@export var asteroids_per_wave: int = 4\n\nvar wave := 0\n"}}]}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t3", "title": "Edit", "kind": "edit", "status": "in_progress", "rawInput": {"file_path": "tests/docs_demo/spawner.gd"},
+				"content": [{"type": "diff", "path": "tests/docs_demo/spawner.gd", "oldText": "extends Node2D\n\n@export var asteroids_per_wave: int = 4\n\nvar wave := 0\n\n\nfunc start_wave() -> void:\n\twave += 1\n", "newText": "extends Node2D\n\nsignal wave_started(index: int)\n\n@export var asteroids_per_wave: int = 4\n\nvar wave := 0\n\n\nfunc start_wave() -> void:\n\twave += 1\n\twave_started.emit(wave)\n"}]}},
+			{"delay": 0.2},
+			{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "t3", "status": "completed"}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t4", "title": "mcp__godot__connect_signal", "kind": "edit", "status": "completed", "rawInput": {"scene": "res://tests/docs_demo/main.tscn", "from": "Spawner", "signal": "wave_started", "to": "HUD", "method": "_on_wave_started"}}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "t5", "title": "mcp__godot__set_properties", "kind": "edit", "status": "completed", "rawInput": {"scene": "res://tests/docs_demo/main.tscn", "node_path": "HUD/Margin/WaveLabel", "properties": {"text": "Wave 1"}}}},
+			{"chunk": "\n\nListo:\n\n- `spawner.gd` emite `wave_started(index)` cuando empieza una oleada.\n- El HUD la escucha y actualiza **WaveLabel**:\n\n```gdscript\nfunc _on_wave_started(index: int) -> void:\n\t$Margin/WaveLabel.text = \"Oleada %d\" % index\n```\n\nProbalo con **F5**: el texto cambia con cada oleada."},
+			{"update": {"sessionUpdate": "session_info_update", "title": "Contador de oleadas en el HUD"}},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Cada oleada va a sumar un 15 % a la velocidad de los asteroides. Primero cambio `player.gd` para que la nave no quede atrás:"},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "p1", "title": "Edit player.gd", "kind": "edit", "status": "pending",
+				"rawInput": {"file_path": "tests/docs_demo/player.gd"},
+				"content": [{"type": "diff", "path": "tests/docs_demo/player.gd", "oldText": "\tposition += velocity\n", "newText": "\tposition += velocity * delta\n"}]}},
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "p1", "title": "Edit player.gd", "kind": "edit", "rawInput": {"file_path": "tests/docs_demo/player.gd"}},
+				"options": [
+					{"optionId": "allow_always", "name": "Always Allow", "kind": "allow_always"},
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "p1", "status": "failed"}},
+			{"chunk": "Listo, no lo toco."},
+			{"stop": "end_turn"}
+		]}
+	]
+}

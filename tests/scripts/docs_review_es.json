@@ -1,0 +1,14 @@
+{
+	"session": {
+		"modes": {"currentModeId": "default", "availableModes": [{"id": "default", "name": "Default"}, {"id": "plan", "name": "Plan"}]}
+	},
+	"turns": [
+		{"steps": [
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "tests/docs_demo/player.gd"}}},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "r2", "title": "Read", "kind": "read", "status": "completed", "rawInput": {"file_path": "tests/docs_demo/hud.gd"}}},
+			{"chunk": "Leí los scripts de `tests/docs_demo/`. Hay dos problemas reales:\n\n"},
+			{"chunk": "```json\n{\"findings\": [\n  {\"path\": \"tests/docs_demo/player.gd\", \"line\": 14, \"severity\": \"bug\", \"title\": \"El movimiento depende del framerate\", \"body\": \"velocity se suma sin multiplicar por delta: en pantallas más rápidas la nave va más rápido.\", \"suggestion\": \"position += velocity * delta\"},\n  {\"path\": \"tests/docs_demo/hud.gd\", \"line\": 8, \"severity\": \"performance\", \"title\": \"get_node en cada frame\", \"body\": \"El Label se busca en cada llamada a _process.\", \"suggestion\": \"@onready var _score: Label = $Margin/Score\"}\n]}\n```\n\nNo modifiqué nada."},
+			{"stop": "end_turn"}
+		]}
+	]
+}

@@ -2,6 +2,8 @@
 
 [English](README.md) · **Español**
 
+![El dock Agent al lado de una escena 2D: el agente leyó la escena, editó un script y conectó una señal con las herramientas del editor](docs/images/es/overview.png)
+
 Addon de editor para Godot 4 que conecta un agente de código (Claude Code, Gemini CLI, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
 
 - leer escenas y scripts, la selección y los errores;
@@ -60,10 +62,35 @@ El addon no escribe nada en `project.godot`. La única excepción es un autoload
 
 ## Para empezar
 
-- **Preguntar** algo del proyecto: "¿cuántos nodos tiene Main.tscn?". El agente lee la escena con las herramientas del editor; en este modo no puede cambiar nada.
-- **Construir**: "agregá un Label WaveLabel al HUD y conectá la señal wave_started". El cambio aparece en el árbol de la escena y Ctrl+Z lo deshace. Cada acción que cambia algo pide permiso antes.
-- **Revisar** una carpeta: los hallazgos aparecen como marcas en el Script Editor, con **Aplicar arreglo**.
-- **One-shot**: elegilo en el dock, escribí el objetivo en la pantalla Agent y arrancá. El agente planifica, construye, prueba el juego y deja cada paso como un checkpoint git en su propia rama.
+Abrí el dock **Agent**, tocá **Iniciar sesión** y elegí un modo en el composer (abajo a la derecha del dock).
+
+### Preguntar y Construir
+
+**Preguntar** responde sobre el proyecto: "¿cuántos nodos tiene Main.tscn?". El agente lee la escena con las herramientas del editor; en este modo no puede cambiar nada.
+
+**Construir** cambia el proyecto: "agregá un contador de oleadas al HUD". El chat muestra el plan del agente, cada herramienta que usa (las `godot.*` trabajan a través del editor) y el diff de cada archivo. Los cambios en escenas aparecen al toque en el árbol de la escena, y Ctrl+Z deshace cada uno.
+
+<img src="docs/images/es/chat.png" alt="Una conversación en Construir: el plan, cinco herramientas, el diff de spawner.gd y la respuesta del agente" width="360">
+
+### Permisos
+
+Cada acción que cambia algo pregunta antes, con una tarjeta en el chat: permitirla una vez, por el resto de la sesión, o denegarla. **Settings → Permisos** define qué permite, pregunta o deniega cada modo, por grupo de herramientas.
+
+<img src="docs/images/es/permission.png" alt="Una tarjeta de permiso para editar player.gd, con su diff y los botones Siempre en esta sesión, Permitir una vez y Denegar" width="360">
+
+![La matriz de permisos en Settings: una fila por grupo de herramientas, una columna por modo](docs/images/es/settings.png)
+
+### Revisar
+
+**Revisá** una carpeta o un grupo de archivos: el agente los lee sin cambiar nada, y cada hallazgo aparece como una marca en el Script Editor, con **Aplicar arreglo**, **Preguntar** y **Descartar**. **Arreglar en modo Construir** le pasa todos los hallazgos al agente.
+
+![Un hallazgo de la revisión en el Script Editor: get_node en cada frame, con el arreglo sugerido y los botones Aplicar arreglo, Preguntar y Descartar](docs/images/es/review.png)
+
+### One-shot
+
+Elegí **One-shot** en el dock, escribí el objetivo en la pantalla **Agent** (arriba, junto a 2D/3D/Script) y arrancá. El agente planifica, construye, prueba el juego y deja cada paso como un checkpoint git en su propia rama. Ver [One-shot](docs/wiki/es/One-shot.md).
+
+Las capturas salen de `tests/docs_shots.sh`, con un agente falso y la escena de demo de `tests/docs_demo/`.
 
 ## Desarrollo
 

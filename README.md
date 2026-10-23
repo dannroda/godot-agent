@@ -2,6 +2,8 @@
 
 **English** · [Español](README.es.md)
 
+![The Agent dock next to a 2D scene: the agent read the scene, edited a script and connected a signal through the editor tools](docs/images/en/overview.png)
+
 An editor addon for Godot 4 that connects a coding agent (Claude Code, Gemini CLI, Codex, or any agent that speaks [ACP](https://agentclientprotocol.com)) to the editor. You chat with the agent in a dock, and it can see and change your project through the editor's own tools:
 
 - read scenes and scripts, the selection and the errors;
@@ -60,10 +62,35 @@ The addon writes nothing to `project.godot`. The one exception is a temporary pl
 
 ## Quick start
 
-- **Ask** something about the project: "How many nodes does Main.tscn have?". The agent reads the scene with the editor tools; it can't change anything in this mode.
-- **Build**: "Add a Label called WaveLabel to the HUD and connect the wave_started signal". The edit shows up in the scene tree and Ctrl+Z undoes it. Each action that changes something asks for permission first.
-- **Review** a folder: the findings show up as marks in the Script Editor, with **Apply fix**.
-- **One-shot**: pick it in the dock, write the goal in the Agent screen and start. The agent plans, builds, playtests and leaves every step as a git checkpoint on its own branch.
+Open the **Agent** dock, click **Start session** and pick a mode in the composer (bottom right of the dock).
+
+### Ask and Build
+
+**Ask** answers questions about the project: "How many nodes does Main.tscn have?". The agent reads the scene with the editor tools; it can't change anything in this mode.
+
+**Build** changes the project: "Add a wave counter to the HUD". The chat shows the agent's plan, every tool it calls (the `godot.*` ones work through the editor) and the diff of each file. Scene edits show up in the scene tree right away, and Ctrl+Z undoes each one.
+
+<img src="docs/images/en/chat.png" alt="A Build conversation: the plan, five tool calls, the diff of spawner.gd and the agent's answer" width="360">
+
+### Permissions
+
+Each action that changes something asks first, in a card in the chat: allow it once, for the rest of the session, or deny it. **Settings → Permissions** sets what each mode allows, asks or denies, per group of tools.
+
+<img src="docs/images/en/permission.png" alt="A permission card for editing player.gd, with its diff and the Always allow in this session, Allow once and Deny buttons" width="360">
+
+![The permission matrix in Settings: one row per group of tools, one column per mode](docs/images/en/settings.png)
+
+### Review
+
+**Review** a folder or a set of files: the agent reads them without changing anything, and each finding shows up as a mark in the Script Editor, with **Apply fix**, **Ask** and **Dismiss**. **Fix in Build mode** hands every finding to the agent.
+
+![A review finding in the Script Editor: get_node on every frame, with the suggested fix and the Apply fix, Ask and Dismiss buttons](docs/images/en/review.png)
+
+### One-shot
+
+Pick **One-shot** in the dock, write the goal in the **Agent** screen (top bar, next to 2D/3D/Script) and start. The agent plans, builds, playtests and leaves every step as a git checkpoint on its own branch. See [One-shot](docs/wiki/en/One-shot.md).
+
+The screenshots come from `tests/docs_shots.sh`, with a fake agent and the demo scene in `tests/docs_demo/`.
 
 ## Development
 
