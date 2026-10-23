@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T22:42:48.245Z",
+  "description": "Encontrado armando las capturas (m7-41): con una sesión abierta, la fila de abajo del composer (@, imagen, /, anillo de cuota, uso «38k / 200k» 90 px, modo 66, modelo 67, Enviar 63) pide 418 px; el dock por defecto mide ~289 px en 1920x1200, así que el modelo y Enviar quedan cortados (el dock se recorta en su guard). layout_check no lo ve porque mide sin sesión (sin uso ni modelo). Opciones: pasar el uso al tooltip del anillo o acortarlo, OptionButtons con clip_text, o una segunda fila cuando no entra. Agregar a layout_check el caso con sesión. (El botón «Thinking» que ensanchaba el chat ya se arregló en m7-41.)",
+  "milestone": "m07",
+  "notes": "",
+  "order": 42,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ui"
+  ],
+  "test": "",
+  "title": "El composer no entra en el dock con el ancho por defecto (sesión abierta)",
+  "updated_at": "2026-10-23T22:42:48.245Z"
+}

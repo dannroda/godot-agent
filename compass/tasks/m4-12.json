@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:24:09.182Z",
+  "description": "Como animation.* (y más adelante animtree.*) de swallowtail. Crear animaciones en un AnimationPlayer, agregar pistas y keyframes, leer y borrar, con deshacer; también SpriteFrames para AnimatedSprite2D. Hoy set_properties no llega a pistas ni keyframes, y el agente anima por código o escribe la biblioteca a mano.",
+  "milestone": "m04",
+  "notes": "Commit 4dd9bbf (rama swallowtail-tools). D53 en docs/decisions.md.\n- `mcp/tools/animation_tools.gd`: animation_get (read); animation_create, animation_set_track, animation_remove, sprite_frames_set (edit_scene), con el botón «↶ undo» del chat.\n- Undo: copia editada de la animación cambiada en su AnimationLibrary; SpriteFrames restaurado cuadro por cuadro. Bibliotecas/SpriteFrames en .tres propios se guardan al hacer y al deshacer.\n- Fuera por ahora: AnimationTree (animtree.* de swallowtail, la descripción dice \"más adelante\"), pistas bezier, de audio y 3D.",
+  "order": 12,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "swallowtail"
+  ],
+  "test": "`--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: animation_create (length, loop linear, autoplay); animation_set_track de position (3 keys, continuous), modulate con colores y una pista de método; key fuera del largo y propiedad inexistente → error; animation_get con keys; Ctrl+Z quita la pista de método; animation_remove de una pista y de la animación (con su autoplay), y Ctrl+Z la restaura; sprite_frames_set desde una hoja (AtlasTexture, autoplay, sin la animación default), reemplazo de cuadros y Ctrl+Z; animation_get de un AnimatedSprite2D.",
+  "title": "Tools de animación",
+  "updated_at": "2026-10-22T20:46:46.756Z"
+}

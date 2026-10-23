@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T22:17:54.272Z",
+  "description": "Pedido del usuario (2026-10-23): que el harness pueda buscar en la Asset Library de Godot (godotengine.org/asset-library/api: /asset?filter=&category=&godot_version=, /asset/<id> con download_url y download_hash), sugerir plugins según lo que se está haciendo, instalarlos (bajar el zip, extraer addons/<x>/ con ZIPReader, verificar el hash) y activarlos (EditorInterface.set_plugin_enabled). Dos caras: una pestaña \"Godot assets\" en la ventana Extensions (buscar, ver, instalar, activar/desactivar los addons del proyecto) y tools MCP godot.asset_search / godot.asset_install con permiso propio (instalar baja código de terceros: pedir siempre). Reusa la descarga y extracción del updater (m7-38).",
+  "milestone": "m07",
+  "notes": "",
+  "order": 39,
+  "priority": "medium",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "test": "",
+  "title": "Asset Library de Godot: buscar, sugerir, instalar y activar plugins",
+  "updated_at": "2026-10-23T22:17:54.272Z"
+}

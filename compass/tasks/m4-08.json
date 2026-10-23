@@ -1,0 +1,25 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:24:08.383Z",
+  "description": "Como batch.addnodes y node.duplicate de swallowtail. Una tool que crea un subárbol entero (nodos anidados con tipos, propiedades, scripts e instancias) en una llamada y un solo paso de deshacer, y otra que duplica un nodo con sus hijos. Hoy cada nodo es un add_node: escribir el .tscn a mano era más corto, y D48 lo bloquea. Sirve en cualquier modo que edite escenas.",
+  "links": [
+    {
+      "task": "m7-18",
+      "type": "related"
+    }
+  ],
+  "milestone": "m04",
+  "notes": "Commit 36ebd0a (rama swallowtail-tools).\n- `add_nodes(parent, nodes, scene?)`: items {name, type | scene, properties?, script?, groups?, children?}. Arma todo fuera del árbol, valida antes de tocar la escena (todo o nada) y lo aplica en una acción de EditorUndoRedo. Tope de 200 nodos por llamada.\n- `duplicate_node(node_path, new_name?, new_parent?)`: Node.duplicate con señales, grupos, scripts e instanciación; restaura owners por ruta relativa; nombre libre Player2, Player3…\n- System prompt: add_nodes para subárboles nuevos.\n- Hallazgo aparte: los checks del editor que se cortaban por un error de script devolvían null y daban \"PASS: 0 fallas\". En el worktree pasaba porque `tests/tmp/` (ignorado por git) no existía. Ahora un corte cuenta como falla y el plugin de dev crea `tests/tmp`.",
+  "order": 8,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "swallowtail"
+  ],
+  "test": "`--godot-agent-edit-test` en el editor real (4.8-beta1 y 4.6.3): add_nodes arma HUD (CanvasLayer > Label, HBox con script nuevo > Button + escena instanciada) y un Marker2D, con owners, grupos, propiedades y script; un Ctrl+Z lo saca entero; un item inválido anidado no crea nada y el error dice la ruta (Bad/X). duplicate_node copia Player con Sprite, grupo, script y posición al lado del original; Ctrl+Z la saca; con new_name/new_parent va bajo Enemies.",
+  "title": "Armar escenas en lote",
+  "updated_at": "2026-10-22T20:06:56.054Z"
+}

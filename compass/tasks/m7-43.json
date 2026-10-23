@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T23:39:23.758Z",
+  "description": "Pedido del usuario (2026-10-23, para después): que se vea lo que hacen los subagentes (hoy el chat agrupa las tools con parentToolUseId bajo la tarjeta del Agent/Task, pero hay que revisar si se ve su progreso en vivo, su prompt y su reporte, y cuántos corren a la vez) y una setting para permitir/denegar el uso de subagentes y la cantidad permitida (por modo; tool Agent/Task de Claude Code: negarla por permiso, contar los que están en curso y rechazar los que pasen el límite).",
+  "milestone": "m07",
+  "notes": "",
+  "order": 43,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Subagentes: ver lo que hacen y setting para permitirlos y limitarlos",
+  "updated_at": "2026-10-23T23:39:23.758Z"
+}

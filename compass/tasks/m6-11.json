@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T04:27:55.395Z",
+  "description": "El artículo \"Harness design for long-running application development\" (Anthropic, 2026-03) muestra que criterios explícitos, con peso y umbral, guían tanto al generator como al evaluator, y que su redacción cambia el resultado. Hacen falta criterios propios para juegos de Godot.\n\nCriterios propuestos, con su umbral cada uno:\n- **Jugabilidad:** la mecánica principal responde a los inputs, hay un loop completo (empezar → jugar → ganar o perder → reiniciar) y no hay estados trabados. Este es el fallo típico: \"las entidades aparecen pero no responden al input\".\n- **Funcionalidad:** cada feature del spec funciona en un playtest con inputs simulados, sin errores en `get_errors`.\n- **Visual y feel:** legibilidad, feedback de las acciones y coherencia de estilo, evaluados con `capture_game_frame`.\n- **Código:** tipado estático, estructura de escenas y sin warnings. Se puede reutilizar el modo Revisar.\n\nQué hacer:\n- Ponerlos en el prompt del generator y del evaluator, con pesos y umbrales configurables en Settings.\n- Calibrar al evaluator con ejemplos de puntaje (few-shot) para que no se corra con el tiempo.\n- Dejar explícito que el evaluator no puede oír: el audio solo se verifica por código (que los nodos existan y se disparen), no por calidad.\n\nNota: el artículo también usa contratos por sprint (generator y evaluator acuerdan antes de cada tarea cómo se verifica). Con Opus 4.6 ellos mismos los sacaron por costo, así que por ahora quedan afuera. Se pueden reconsiderar si el informe de m7-12 muestra checks mal definidos.",
+  "milestone": "m06",
+  "notes": "a17a419 (D40). oneshot/game_criteria.gd: 4 criterios (jugabilidad 3/7, funcionalidad 3/7, visual y feel 2/5, código 1/5 = peso/mínimo), cada uno con 3 anclas de puntaje (3/6/9) para calibrar al evaluador; AUDIO_NOTE (no puede oír). generator_text va en initial_prompt; evaluator_rubric la usa el evaluador de m6-09. verdict(): pasa si cada criterio con peso llega al mínimo (sin puntaje = no pasa), promedio ponderado. FindingsParser lee `scores` [{criterion, score 0–10, reason}]; el criterio se reconoce por id o nombre sin tildes. Config `criteria` (solo lo que difiere del default) + grilla Peso/Mínimo en Settings → One-shot. Contratos por sprint quedan afuera (ver D40).",
+  "order": 11,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "test_game_criteria (resolve con overrides, textos de prompt/rúbrica, veredicto, bloque scores del parser) en 4.6.3 y 4.8; settings-shots muestra la grilla; cycle test y oneshot_check en verde.",
+  "title": "One-shot: criterios de evaluación para juegos",
+  "updated_at": "2026-10-22T05:50:19.550Z"
+}

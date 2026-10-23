@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:24:09.371Z",
+  "decisions": [
+    {
+      "alternatives": "Desactivada por defecto; un solo godot_run para todo, sin núcleo tipado; dejar class_info/search_api en el núcleo; mover también la edición de escenas a extendidas",
+      "at": "2026-10-22T21:31:51.336Z",
+      "text": "Lista compacta activada por defecto: núcleo tipado (lectura, diagnóstico, edición de escenas, run_scene/stop_scene/capture_game_frame) más godot.methods y godot.run; API, proyecto, archivos, recursos, tilemaps, animación y game_* pasan a extendidas",
+      "why": "tools/list baja de 29.978 a 11.232 caracteres (−63 %) en cada turno; lo de todos los turnos queda tipado y lo puntual se descubre con methods. Permisos, validación y log siguen por método, y llamar por nombre directo sigue funcionando (D56)"
+    }
+  ],
+  "description": "Como godot_run + engine.commands de swallowtail. Cada tool MCP suma su descripción al contexto del agente en cada turno. Con las tareas de swallowtail la lista crece mucho. Mantener un núcleo de tools tipadas (lectura, edición de escenas, ejecución) y exponer el resto por una tool genérica godot.run(method, params), más una tool que lista los métodos disponibles con sus parámetros. Medir el tamaño de tools/list antes y después. Los permisos se siguen aplicando por método.",
+  "milestone": "m03",
+  "notes": "Commit 07a1d14 en swallowtail-tools (D56). Medido: completo 55 tools / 29.978 caracteres → compacto 26 tools / 11.232 (−63 %); la salida de methods sin filtro son 5.359 caracteres, solo cuando se pide. Setting compact_tools en Settings → Servidor MCP (default activado; vale desde la próxima sesión). ToolCall.godot_tool_name()/godot_arguments() desenvuelven run, así el deshacer de la tarjeta y el conteo del One-shot ven la tool real. El prompt de sistema explica que una tool nombrada que no está en la lista se usa vía methods/run.",
+  "order": 9,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "swallowtail"
+  ],
+  "test": "run_all (test_tool_registry: lista compacta, methods con filtro y detalle, run con validación y permiso del grupo del método; test_session_model: ToolCall desenvuelve run) 197/0 en 4.8-beta1 y 4.6.3; --godot-agent-mcp-test por HTTP (lista sin extendidas, methods, run(class_info), llamada directa) PASS en 4.8-beta1 y 4.6.3; edit-test y run-test PASS en 4.8-beta1 con compacto activo.",
+  "title": "Tool genérica con descubrimiento cuando crezcan las tools",
+  "updated_at": "2026-10-22T21:31:51.525Z"
+}

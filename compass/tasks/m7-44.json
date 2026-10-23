@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T23:39:23.819Z",
+  "description": "Pedido del usuario (2026-10-23, para después): poder tener múltiples sesiones de agente abiertas en el editor, coordinadas para no pisarse (archivos y escenas en edición, el juego corriendo, checkpoints). Investigar cómo lo hace el plugin «backstitch» pero local, y la funcionalidad de Claude Code para que sesiones se comuniquen entre sí (mensajes entre sesiones locales). Decidir: locks por archivo/escena en el harness, cola para run_game, un canal compartido; y cómo se ve en el dock (pestañas por sesión).",
+  "milestone": "m07",
+  "notes": "",
+  "order": 44,
+  "priority": "medium",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "test": "",
+  "title": "Varias sesiones abiertas a la vez que se coordinan entre sí",
+  "updated_at": "2026-10-23T23:39:23.819Z"
+}

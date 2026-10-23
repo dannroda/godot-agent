@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:24:08.847Z",
+  "description": "Como tilemap.* de swallowtail. Para TileMapLayer y TileSet: crear la capa, agregar fuentes de atlas o de escenas, poner celdas, rellenar rectángulos, pintar con terrenos, leer celdas y las usadas, limpiar. Todo con deshacer. tile_map_data no se puede escribir a mano, y sin tools el agente arma los niveles desde código. Sirve para construir niveles en Construir y One-shot (p. ej. el Megaman de great-boy-one).",
+  "milestone": "m04",
+  "notes": "Commit 11ec564 (rama swallowtail-tools). D52 en docs/decisions.md.\n- `mcp/tools/tilemap_tools.gd`: tilemap_get (read); tileset_add_atlas, tileset_add_scenes, tilemap_set_cells, tilemap_paint_terrain, tilemap_clear (edit_scene). Usan el botón «↶ undo» del chat, como las demás tools de escena.\n- La capa se crea con add_node/add_nodes (tile_set inline gracias a D51).\n- Deshacer de celdas: tile_map_data antes/después. Un TileSet .tres se guarda al hacer y al deshacer.\n- Fuera por ahora: configurar terrenos (peering bits). Se pinta con los que ya tenga el TileSet.",
+  "order": 11,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "swallowtail"
+  ],
+  "test": "`--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: TileMapLayer con TileSet inline vía add_node; tileset_add_atlas de una textura 48×16 crea 2 tiles (el transparente no) con colisión y capa de física; tilemap_set_cells con rect y celdas sueltas (una con otro atlas); tile inexistente → error; tilemap_get muestra 12 celdas, la fila `3 aaaaaaaaaa`, la leyenda y la capa de física; Ctrl+Z deshace un set; erase; clear y su Ctrl+Z; paint_terrain sin terrenos → error que explica; con un terreno armado, pinta 3×3 por nombre; sobre un Timer → error.",
+  "title": "Tools de tilemaps",
+  "updated_at": "2026-10-22T20:42:54.720Z"
+}

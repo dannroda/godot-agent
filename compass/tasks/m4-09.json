@@ -1,0 +1,34 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:24:08.443Z",
+  "decisions": [
+    {
+      "alternatives": "Dejar las tools en edit_files (pierde el control aparte que pide la tarea); dejar ask (regresión del One-shot). En Construir sigue preguntando; se puede volver a ask en Settings → Permisos.",
+      "at": "2026-10-22T20:18:54.333Z",
+      "review": "ok",
+      "text": "El grupo project pasa a allow en One-shot (antes ask)",
+      "why": "Solo lo usan las tools nuevas, y antes el agente hacía lo mismo escribiendo project.godot con edit_files, que en One-shot se permite. Con ask, un One-shot desatendido se quedaba esperando (y vencía el permiso) para agregar una acción de input."
+    }
+  ],
+  "description": "Como inputmap.*, project.addautoload/setsetting de swallowtail. Tools para leer y cambiar acciones de input (con sus eventos), autoloads y project settings a través del editor (ProjectSettings + guardar), con deshacer cuando se pueda. Hoy el agente edita project.godot como texto y D33 lo sincroniza, pero es frágil. Con las tools, el harness puede rechazar también las ediciones a mano de project.godot (extensión de D48). Grupo de permisos: project.",
+  "links": [
+    {
+      "task": "m7-18",
+      "type": "related"
+    }
+  ],
+  "milestone": "m04",
+  "notes": "Commits b2fb5ae y 7edecdd (rama swallowtail-tools). D49 en docs/decisions.md.\n- `mcp/tools/project_tools.gd`: `project_settings` (read) y `set_project_setting`, `set_input_action`, `remove_input_action`, `set_autoload`, `remove_autoload` (grupo project).\n- Cada cambio es una acción del historial global de deshacer y guarda project.godot (también al deshacer). El «↶ undo» del chat sigue siendo solo para escenas: estas se deshacen con Ctrl+Z.\n- Guard: project.godot entra en `ProjectWriteGuard.is_editor_managed`; el rechazo de fs/write_text_file nombra las tools. Traducción del aviso actualizada.\n- Grupo project: allow en One-shot (antes ask), ver la decisión. Construir pregunta; Preguntar y Revisar deniegan.\n- `ProjectSettings.save()` reescribe `config/features` con la versión del editor (como hace el editor).",
+  "order": 9,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "swallowtail"
+  ],
+  "test": "`test_project_tools` (teclas con modificadores, mouse, joypad por nombre y número, ejes con signo, errores) y `test_project_write_guard` (project.godot por Write y por `sed -i`). `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: set_input_action guarda en project.godot, append y dos Ctrl+Z la sacan; set_project_setting + project_settings con prefijo, tipo inválido → error, input/ → su tool, Ctrl+Z revierte; set_autoload / remove_autoload con undo; el nombre `Input` se rechaza; Preguntar deniega; project.godot igual al final. acp_session_check: 117 checks, 0 fallos.",
+  "title": "Project settings por el editor: input map, autoloads y settings",
+  "updated_at": "2026-10-22T21:22:17.884Z"
+}

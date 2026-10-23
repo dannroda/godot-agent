@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T20:20:22.666Z",
+  "description": "Hoy Claude Code se usa a través de `npx -y @agentclientprotocol/claude-agent-acp`, lo que obliga a tener Node. Claude Code tiene un modo sin interfaz (`claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --mcp-config … --permission-prompt-tool mcp__godot__permission`) y, con el instalador nativo, es un binario autónomo. Prueba corta: lanzarlo desde GDScript, mandar un prompt que use una tool godot.* y una que pida permiso, y registrar qué eventos llegan (texto en streaming, tool calls y resultados, uso, rate limit, resultado) con la versión instalada. Con eso decidir si vale un segundo transporte solo para Claude (ACP queda para Gemini CLI y Codex). Revisar qué se pierde del adapter: cambio de modo y modelo, cancelar, --resume, imágenes, login, /remote-control, _meta de subagentes.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 31,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Prueba: hablar con Claude Code en stream-json desde GDScript, sin claude-agent-acp",
+  "updated_at": "2026-10-23T20:20:22.666Z"
+}

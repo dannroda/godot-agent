@@ -1,0 +1,24 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T23:34:23.519Z",
+  "decisions": [
+    {
+      "alternatives": "Botones recortados con tooltip; íconos con texto corto; un selector desplegable",
+      "at": "2026-10-22T23:38:15.084Z",
+      "text": "El mínimo del dock baja de 260 a 220 px y la barra de modos pasa a ser un HFlowContainer: si no entran, los modos siguen en una segunda línea",
+      "why": "El panel del editor por defecto mide 240 px, y con 260 el MinSizeGuard recortaba el último modo, el botón de Settings y Enviar. Cortar palabras («Constr…») se lee peor que dos líneas."
+    }
+  ],
+  "description": "Visto en las capturas de m2-09 y m7-21 (2026-10-22): con cinco modos (Preguntar, Revisar, Construir, Auto, One-shot) el último botón queda cortado («One-s…») cuando el dock está en su mínimo de diseño (260 px), y el MinSizeGuard lo recorta. En español los nombres son más largos y empeora.\n\nOpciones: botones que se achican con clip y tooltip, íconos más texto corto, o un selector desplegable cuando no hay lugar. Que el check del editor verifique que la barra no pasa el mínimo del dock (como hace remote_check con la franja), en inglés y en español.",
+  "milestone": "m07",
+  "notes": "Commit 2f42d86 en la rama dock-narrow (pusheada, sin mergear). La causa no era la barra de modos sola: el mínimo de diseño de 260 px del dock no entraba en el panel por defecto de 240, y el MinSizeGuard recortaba 20 px a la derecha (también el «+» del encabezado y Enviar). Bajó a 220 y la barra pasó a HFlowContainer sin clip_text.",
+  "order": 23,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "layout_check.gd (nuevo) falla antes del arreglo con el dock en el panel por defecto de 240 px: «el dock pide 260 px», y Settings, One-shot y Enviar quedan fuera del borde, en inglés y en español. Después pasa: corre en --godot-agent-remote-test (con la franja y una tarjeta) y en --godot-agent-i18n-test (español). Suite completa verde en 4.8-beta1 y 4.6.3.",
+  "title": "La barra de modos no entra en un dock angosto",
+  "updated_at": "2026-10-22T23:51:39.322Z"
+}

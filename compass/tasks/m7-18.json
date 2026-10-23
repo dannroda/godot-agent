@@ -1,0 +1,15 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:20:41.137Z",
+  "description": "En great-boy-one el agente del One-shot editó un script con un heredoc de python3 y escribió escenas con cat >, salteándose el editor (el usuario mostró cómo lo hace swallowtail). D48: rechazo automático de shell que escribe archivos del proyecto y de .tscn/.uid/.import a mano, reglas en el system prompt, y create_scene con script y propiedades de la raíz.",
+  "milestone": "m07",
+  "notes": "Commit 9f289c8 (D48). ACP no lleva el motivo del rechazo: el system prompt explica la regla, y el chat avisa con «Rejected: … without going through the editor».",
+  "order": 18,
+  "priority": "high",
+  "refs": [],
+  "status": "review",
+  "test": "test_project_write_guard (24 casos, incluidos los comandos de la captura del usuario); acp_session_check _scenario_project_writes (modo One-shot: 3 «Rejected:» sin tarjeta); edit-test con create_scene + script + exports. Matriz 4.6.3/4.7.2/4.8-beta1 verde: run_all 176/1328, acp 117, oneshot 106, 27 UI checks. El external-test de 4.6.3 no imprimió nada en la matriz y pasó al repetirlo solo.",
+  "title": "El agente no escribe el proyecto por fuera del editor",
+  "updated_at": "2026-10-22T08:36:54.563Z"
+}

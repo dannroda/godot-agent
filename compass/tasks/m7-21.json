@@ -1,0 +1,53 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T22:16:33.549Z",
+  "decisions": [
+    {
+      "alternatives": "QR generado en GDScript (un encoder propio, más código para mantener)",
+      "at": "2026-10-22T23:17:52.920Z",
+      "reply": "QR agregado en m7-25 (rama remote-qr).",
+      "review": "reverted",
+      "text": "Sin QR: la franja muestra el link con «Copiar link» y el link abre el navegador",
+      "why": "Godot no trae generador de QR; la sesión aparece igual en la lista de sesiones de la app de Claude y en claude.ai/code"
+    },
+    {
+      "alternatives": "Dejarlo prendido y solo avisar; no dejar empezar el One-shot mientras está prendido",
+      "at": "2026-10-22T23:17:52.970Z",
+      "text": "Empezar un One-shot apaga Remote Control (y en ese modo el botón no aparece)",
+      "why": "Los turnos mandados desde el celular no pasan por el run: romperían presupuestos y el conteo de checks"
+    },
+    {
+      "alternatives": "Que con Remote Control prendido todo lo que pregunta se conteste solo desde el celular",
+      "at": "2026-10-22T23:17:53.011Z",
+      "text": "Los permisos se contestan de los dos lados; si contesta el celular la tarjeta se cierra como «Contestado en otro lado»",
+      "why": "Es como funciona el adaptador ($/cancel_request); la matriz del modo sigue decidiendo lo que no pregunta"
+    },
+    {
+      "alternatives": "Nombre fijo («Godot») o pedirlo al prender; botón en el encabezado o en un menú",
+      "at": "2026-10-22T23:17:53.049Z",
+      "text": "La sesión remota se llama como el proyecto, y el botón «Remoto» va en la línea de estado, no en el encabezado",
+      "why": "El nombre del proyecto identifica la sesión en la app; el encabezado ya llena un dock angosto y el botón lo ensanchaba"
+    },
+    {
+      "alternatives": "Tratar aparte solo /remote-control",
+      "at": "2026-10-22T23:17:53.090Z",
+      "text": "Todo prompt que empieza con /comando va solo, sin contexto del harness ni adjuntos (no solo /remote-control)",
+      "why": "Claude Code reconoce un comando solo si es el mensaje entero; con el contexto delante /remote-control fallaba"
+    }
+  ],
+  "description": "Pedido del usuario (2026-10-22): seguir la sesión del dock desde claude.ai/code o la app de Claude en el celular.\n\n**Qué hay en el adapter** (@agentclientprotocol/claude-agent-acp 0.94.0, `dist/acp-agent.js`):\n- si el SDK expone `query.enableRemoteControl`, publica el comando `remote-control` en `available_commands_update`;\n- intercepta `/remote-control [nombre]` y `/remote-control off` en `session/prompt` (líneas ~2162–2190 y 2281–2303);\n- responde en la sesión con «Remote Control is active… <session_url>» o con el error;\n- no se puede cambiar a mitad de un turno.\n\nRequisitos de Claude Code (según docs de terceros; verificar en code.claude.com): research preview; planes Pro, Max, Team o Enterprise; login con claude.ai, no API key; sin ANTHROPIC_BASE_URL propio.\n\n**Sin verificar (primer paso):** probar con Claude real desde el dock.\n- ¿El comando aparece y anda?\n- Un prompt mandado desde el celular, ¿llega al dock como turno sin `session/prompt` del harness? ¿Con `user_message_chunk`? Hoy SessionModel puede no esperar eso.\n- Las tool calls y los permisos de esos turnos, ¿llegan como `session/request_permission` al editor? Si es así, alguien tiene que aprobar en la PC (esto se cruza con el modo Auto, m2-09).\n- ¿Funcionan `session/cancel` y session/load con Remote Control activo?\n\n**A hacer según lo que salga:**\n- botón o entrada de menú «Remote Control» en el dock (además de `/remote-control`);\n- indicador de estado (conectado / apagado) y el link clickeable más un QR;\n- mostrar los turnos que vienen del remoto, marcados como tales;\n- historial;\n- que la cuota y el One-shot no se rompan con turnos ajenos;\n- la decisión de permisos mientras el usuario no está en la PC.\n\nDocumentar en la wiki (en/es) y como decisión.",
+  "milestone": "m07",
+  "notes": "Commit 2f69910 en la rama remote-control (pusheada, sin mergear a main). D58.\n\nHallazgos con claude-agent-acp 0.94: los mensajes del celular y las respuestas del agente NO llegan al cliente ACP, así que «mostrar los turnos remotos en el dock» no se puede; la franja lo aclara. Llegan solo las tool calls que piden permiso; lo de solo lectura corre sin tráfico. El permiso es una carrera: si el harness contesta en el momento (matriz, D48, Auto) el celular no pregunta; si hay tarjeta, preguntan los dos y el que contesta primero gana ($/cancel_request).\n\nSin QR (link + copiar). session/load con Remote Control activo no se probó.",
+  "order": 21,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "acp"
+  ],
+  "test": "Con Claude Code real (probe, antes del arreglo): /remote-control da el link, el celular sigue la sesión (probado por el usuario), y contestar un permiso en el celular manda $/cancel_request. El cierre de la tarjeta con Claude real no se probó; con el agente falso sí. Automático (4.8-beta1 y 4.6.3): test_slash_command; acp_session_check escenario remote_control (comando solo, link en el modelo, permiso retirado con $/cancel_request, contexto en el mensaje siguiente, off, sesión nueva apagada); oneshot_check «Remote Control» (el run lo apaga); --godot-agent-remote-test (botón, franja, tarjeta cerrada, Apagar, sin botón en One-shot, el dock no pasa su mínimo de diseño); i18n.",
+  "title": "Soporte para Remote Control de Claude Code desde el dock",
+  "updated_at": "2026-10-23T00:12:15.791Z"
+}

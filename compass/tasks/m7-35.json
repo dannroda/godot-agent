@@ -1,0 +1,34 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T20:53:16.472Z",
+  "decisions": [
+    {
+      "alternatives": "Permitir en Auto y One-shot como las tools de edición; usar readOnlyHint para permitir las de solo lectura (el adaptador no lo manda en el pedido de permiso).",
+      "at": "2026-10-23T21:11:42.370Z",
+      "text": "Los servers MCP de terceros arrancan en Preguntar en todos los modos, incluidos Auto y One-shot",
+      "why": "Un server de terceros puede hacer cualquier cosa (borrar en Blender, escribir en una base), y el harness no sabe qué hacen sus tools. Se permite explícitamente por server y modo, desde Settings o desde la tarjeta."
+    }
+  ],
+  "description": "Las tools `mcp__<server>__*` que no son de godot caen en el grupo Other (PermissionPolicy.matrix_value devuelve ask para grupos sin DEFAULTS), en todos los modos: el One-shot se frena esperando.\n\nHacer: un grupo por server (mcp:blender) con valores por modo editables en Settings (por defecto ask; sugerir allow para tools read-only si el server marca readOnlyHint), \"Permitir siempre este server\" desde la tarjeta de permiso, y que el One-shot avise antes de arrancar si hay servers en ask. En el chat, mostrar el nombre corto (blender.get_objects_summary) como con godot.* (tool_call.gd, tool_group_view.gd, run_report.gd).",
+  "links": [
+    {
+      "task": "m7-34",
+      "type": "related"
+    }
+  ],
+  "milestone": "m07",
+  "notes": "Grupo mcp:<server> sacado del prefijo mcp__<server>__ (title o _meta.claudeCode.toolName); ask por defecto en todos los modos, overrides en la matriz. La tarjeta suma un botón «Permitir siempre «x» en modo M, en este proyecto» (persist_label/persist_allow → permissions_changed → plugin guarda la config). One-shot: activity warning al arrancar. No se usó readOnlyHint (el adaptador no lo manda en el permiso).",
+  "order": 35,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "mcp",
+    "permisos"
+  ],
+  "test": "acp_session_check escenario \"MCP servers de terceros\": tarjeta por server con nombre corto, «Permitir siempre en el proyecto» guarda allow en Construir y la segunda tool de blender pasa sin tarjeta, db sigue preguntando, mcp_servers_not_allowed para el aviso del One-shot. Unit test_policy_groups_per_server. Xvfb auto/remote/cycle/oneshot/i18n en verde.",
+  "title": "Permisos por server MCP externo en la matriz",
+  "updated_at": "2026-10-23T21:11:42.370Z"
+}

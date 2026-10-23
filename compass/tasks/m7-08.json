@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T04:23:15.010Z",
+  "description": "Hoy, con un turno en curso, el composer no deja enviar: Enter no hace nada y el botón pasa a \"■ Detener\" (`composer.gd` `_submit` retorna si `_busy`). La idea es poder encolar prompts mientras el agente trabaja, como en Claude Code.\n\nPropuesta:\n- Con un turno en curso, Enter encola el texto en lugar de ignorarlo. Arriba del composer aparece una lista \"En cola (N)\"; cada ítem se puede editar (vuelve al composer) o quitar (✕).\n- Al terminar el turno con `end_turn`, se manda el siguiente de la cola automáticamente (`session_model.turn_finished`).\n- Si el turno termina cancelado, con error o por límite de cuota, la cola se pausa y no se manda nada solo. Se muestra \"N en cola · Enviar ahora / Descartar\".\n- El contexto adjunto (escena, selección, imagen) se toma al encolar, para que el agente reciba lo que el usuario veía al escribir.\n- La cola vive en el controller o el dock, no en el One-shot. Cambiar de sesión o cerrar el dock la descarta, avisando si no estaba vacía.\n- Opcional: \"Enviar ya\" sobre un ítem cancela el turno actual y lo manda. ACP no permite inyectar texto en medio de un turno.\n\nTests: unit de la cola (encolar, quitar, pausa por cancel o error) y un ui-check con el agente falso: dos prompts encolados durante un turno largo salen en orden.",
+  "milestone": "m07",
+  "notes": "D36. `session/prompt_queue.gd` es el modelo y `ui/dock/prompt_queue_view.gd` la vista, arriba del composer. El dock decide cuándo enviar.\n- Con un turno en curso, el composer entrega el texto igual y el placeholder lo avisa.\n- Al encolar se toma el contexto (escena, selección, captura y archivos).\n- Con `end_turn` sale el siguiente. Si el turno se cancela, falla, se niega o se cierra la sesión, o si empieza otra sesión, la cola se pausa: nunca se descarta sola.\n- «Enviar ahora» solo funciona con una sesión lista.\n- Si hay un One-shot activo o la cuota está agotada, la cola se pausa.\n- Opción descartada: «Enviar ya», que cortaba el turno actual. Con «Detener» y después «Enviar ahora» se logra lo mismo.",
+  "order": 8,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "`test_prompt_queue` y `test_composer` (Enter con un turno en curso, `insert_text`). `--godot-agent-queue-test`: un turno largo, dos prompts encolados con Enter, cancel → cola en pausa, «Enviar ahora» → salen en orden.",
+  "title": "Cola de prompts en el chat",
+  "updated_at": "2026-10-22T05:12:53.039Z"
+}

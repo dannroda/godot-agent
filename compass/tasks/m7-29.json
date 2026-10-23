@@ -1,0 +1,37 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T18:03:28.550Z",
+  "decisions": [
+    {
+      "alternatives": "Todo en un solo RichTextLabel con el código en una tabla de una celda (es lo que queda para la pantalla One-shot y los thoughts).",
+      "at": "2026-10-23T18:18:27.896Z",
+      "text": "En el chat, los bloques de código son un control aparte (caja con lenguaje y copiar), no BBCode dentro del mismo RichTextLabel",
+      "why": "Una tabla de RichTextLabel no llega a todo el ancho y no hay forma de poner un botón de copiar adentro. Costo: no se puede seleccionar de corrido texto y código a la vez."
+    },
+    {
+      "alternatives": "Dejarlas como texto (el test de m7-04 lo pedía así; se cambió).",
+      "at": "2026-10-23T18:18:27.951Z",
+      "text": "Las URL sueltas (https://…) pasan a ser links; antes quedaban como texto",
+      "why": "Es lo que hace GFM y lo que espera quien lee el chat; los guiones bajos de la URL no se toman como itálica y la puntuación final queda afuera."
+    },
+    {
+      "alternatives": "☑/☐ (lo de antes), ✓/○.",
+      "at": "2026-10-23T18:18:27.998Z",
+      "text": "Tareas de lista con ▣ / □ en lugar de ☑ / ☐",
+      "why": "Con la fuente del editor, ☑ salía como emoji de color y ☐ diminuto; ▣ y □ son de la misma familia y se ven parejos."
+    }
+  ],
+  "description": "El conversor de m7-04 cubre lo mínimo pero se ve pobre: las tablas salen como texto mono con los |, las líneas largas de una lista no quedan alineadas bajo el texto, los bloques de código son un fondo detrás de las letras sin forma de copiarlos, los títulos h3–h6 son iguales a negrita, no hay espacio entre párrafos, las URL sueltas no son links y ![img](…) sale como \"!\" + link. Mejorarlo: tablas reales con encabezado y bordes, listas con sangría colgante ([ul]/[ol]), regla horizontal [hr], URLs sueltas como links, imágenes como link que abre el visor, bloques de código en el chat como caja a todo el ancho con lenguaje, botón copiar y resaltado de GDScript.",
+  "milestone": "m07",
+  "notes": "- markdown_bbcode.gd: `blocks()` parte el texto en `{bbcode}` y `{code, language}`; `convert()` los junta (el código en una tabla de una celda con fondo) para la pantalla One-shot y los thoughts.\n- Cada ítem de lista es su propio `[ul bullet=<marca>]`: la marca es el número del texto, así una lista cortada por un bloque de código sigue en 3 y las líneas largas quedan alineadas. Anidado por sangría real (pila de sangrías), lista suelta con [br] para los párrafos del ítem.\n- Tablas: `[table]` con encabezado en negrita sobre fondo, bordes, padding y [center]/[right] por columna; también sin | en los bordes (GFM).\n- Respiro entre bloques separados por una línea en blanco: una línea con un espacio a 45 % del tamaño.\n- code_bbcode.gd (no CodeHighlighter: choca con la clase nativa): resaltado por línea con los colores del Script Editor (Editor Settings), GDScript y shaders con keywords y tipos (ClassDB para los del motor), el resto solo strings/números/comentarios.\n- code_block_view.gd: caja del chat con lenguaje, botón copiar (ActionCopy) y RichTextLabel mono seleccionable. agent_message_view reusa los controles por posición en el streaming.\n- El dock: `MarkdownBBCode.link_target()` entiende `ruta#L42`, `ruta:42[:col]` y file://; los links a imágenes abren el visor de m7-28.\n- [hr], [br], [ul bullet=], padding de celdas y [right] en celdas probados en 4.6.3.\n- Se mantuvo el recuadro de fondo del RichTextLabel del editor (como antes), ahora uno solo por mensaje, con los tramos de texto sin fondo adentro.",
+  "order": 29,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "- run_all -- markdown: test_markdown_bbcode, 12 tests y 107 checks (tablas con alineación, | escapado y dentro de code, filas cortas/largas; listas anidadas, sueltas, perezosas y numeración que sigue después de un bloque de código; blocks(); resaltado de GDScript/shader; URLs sueltas con puntuación y paréntesis; imágenes; link_target con #L, :línea y file://; tags balanceados).\n- Suite completa: 224 tests en 4.6.3, 4.7.2 y 4.8-beta1.\n- `--godot-agent-ui-test=ui_markdown`: el mensaje queda en un solo recuadro con el bloque de código en su caja; capturas revisadas (título, links, lista con sangría colgante, código resaltado con copiar, tabla, tareas, cita, regla). Pasa en 4.6.3 y 4.8-beta1. ui_demo y el cycle test siguen pasando.",
+  "title": "Markdown del chat: tablas, listas, bloques de código y más",
+  "updated_at": "2026-10-23T18:18:27.998Z"
+}

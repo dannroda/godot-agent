@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T07:01:36.921Z",
+  "description": "El usuario reportó que el agente corre `godot --headless` y toma el godot del PATH, que puede ser otra versión que la del editor abierto. Hay que darle el binario del editor: OS.get_executable_path() en las variables de entorno GODOT y GODOT_BIN del proceso del agente, un shim `godot` al frente del PATH del hijo, y una regla en el system prompt con la ruta. project_info también la reporta.",
+  "milestone": "m07",
+  "notes": "08bfad4 (oneshot-wip, D43). transport/editor_binary.gd entrega el binario por tres vías:\n- GODOT y GODOT_BIN en el entorno del agente (el perfil puede pisarlas);\n- un shim `godot` en <cache>/godot_agent/bin-<hash>/, al frente del PATH;\n- una regla con la ruta en el system prompt y en project_info.\nLa regla del prompt es la que manda, porque la shell de Claude Code puede volver a armar el PATH desde .zshrc.",
+  "order": 16,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "test_editor_binary (entorno, contenido del shim y que el shim corra la versión del editor). acp_session_check: el agente falso ve $GODOT y el shim al frente del PATH, y el prompt nombra el binario.",
+  "title": "El agente usa el binario del editor abierto para correr Godot",
+  "updated_at": "2026-10-22T07:21:27.685Z"
+}

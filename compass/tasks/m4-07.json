@@ -1,0 +1,41 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:24:08.257Z",
+  "decisions": [
+    {
+      "alternatives": "Un servidor TCP/WebSocket en el juego con token como el MCP; inyectar el probe siempre en runs manuales.",
+      "at": "2026-10-22T21:07:52.322Z",
+      "review": "ok",
+      "text": "El canal juego↔editor es el del debugger (request/reply con id por el probe de playtest), sin socket ni token propios; runs manuales solo con el setting de autoload en runs manuales",
+      "why": "El debugger del editor ya escucha solo en 127.0.0.1 y habla únicamente con el juego que lanzó; un socket aparte duplicaba eso. El probe sigue sin llegar al export."
+    },
+    {
+      "alternatives": "Mantener el default de solo apretar; todas las tools game_* en run.",
+      "at": "2026-10-22T21:07:52.396Z",
+      "review": "ok",
+      "text": "Un paso de input sin `pressed` ahora es apretar y soltar (0.1 s), también en run_scene; game_tree/game_get van en el grupo read y el resto en run",
+      "why": "Un tap es lo que se quiere casi siempre; antes un paso sin pressed dejaba la tecla apretada. Leer el juego no cambia nada; game_wait evalúa una Expression que puede llamar métodos, así que va en run."
+    }
+  ],
+  "description": "Como runtime.* e input.* de swallowtail. Con el juego corriendo (run_scene o un run manual), el agente puede leer el árbol vivo, leer y cambiar propiedades, llamar métodos, esperar una condición o una señal (waitfor, awaitsignal), mandar inputs en vivo (tecla, acción, click, secuencia) y leer los errores del juego. Hoy solo hay inputs fijos al lanzar, capturas y errores, así que verificar \"el jefe murió\" o \"subió el puntaje\" es adivinar por la imagen. Sirve en Construir (probar lo que se acaba de hacer), en Revisar (reproducir un bug) y en One-shot (checks y el evaluador de m6-09). Se apoya en el autoload de playtest (que ya se quita al terminar y nunca llega al export). El canal juego ↔ editor queda en 127.0.0.1 con token, como el MCP.",
+  "links": [
+    {
+      "task": "m6-09",
+      "type": "related"
+    }
+  ],
+  "milestone": "m04",
+  "notes": "Commit 27deaa5 en swallowtail-tools (D54). Protocolo 2 del probe: request [id, op, params] → reply [id, {text}|{error}]; ops tree, get, set, call, wait, input. Los resultados incluyen los errores [game] nuevos; si el juego está parado en el debugger lo dice. Los inputs de run_scene usan los mismos pasos (action, key, event, click, move). En 4.6/4.7 el motor deja un error \"get_node() with absolute paths…\" en @implicit_new del primer script con variables cuando corre bajo el debugger (no es del harness, en 4.8 no pasa); el run-check lo ignora. System prompt y loop_detector conocen las tools nuevas.",
+  "order": 7,
+  "priority": "high",
+  "refs": [],
+  "size": "l",
+  "status": "review",
+  "tags": [
+    "swallowtail"
+  ],
+  "test": "tests/run_in_xvfb.sh <godot> --godot-agent-run-test pasa en 4.8-beta1, 4.7.2 y 4.6.3: game_tree (árbol vivo, sin el probe), game_get (variables del script, propiedades pedidas, nodo inexistente), game_set (conversión de vectores y error de valor inválido), game_call (resultado, método inexistente), game_wait (condición, timeout, condición rota, señal con argumentos), game_input (acción, Ctrl+S y click recibidos por el juego). Unit: test_run_tools (normalize_steps). Suite: 193 tests, 0 fallos; mcp-test 0 fallas.",
+  "title": "Inspeccionar y controlar el juego en ejecución",
+  "updated_at": "2026-10-22T21:22:17.506Z"
+}

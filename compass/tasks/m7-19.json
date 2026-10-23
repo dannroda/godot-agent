@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T08:24:08.322Z",
+  "description": "Como el CLAUDE.md que trae swallowtail. Reglas de estructura en el system prompt, para todos los modos (Construir, Revisar y One-shot): componer con escenas guardadas en disco (sin un script que arme todo el árbol en _ready), nodos built-in antes que scripts propios, \"call down, signal up\", tipado estático, valores ajustables en Resources o data.json y no en constantes, aleatoriedad con semilla (playtests reproducibles), verificar después de cada cambio. Son las mismas reglas de las skills de Godot del usuario. Respetar el CLAUDE.md/AGENTS.md del proyecto si dice otra cosa. Revisar también que la rúbrica de criterios (D40) y la revisión (M5) usen las mismas reglas.",
+  "milestone": "m07",
+  "notes": "Commit eacaaaf (rama swallowtail-tools).\n- `config/system_prompt.md`: sección \"Godot conventions\" (escenas en disco, nodos built-in, call down/signal up, tipado, tunables en exports/Resources/data, RNG con semilla, verificar después de cada cambio). El CLAUDE.md/AGENTS.md del proyecto manda si dice otra cosa.\n- Revisar (M5): la regla del modo pide reportar los desvíos como findings (severidad order para estructura, style para tipado).\n- D40: el criterio Código y sus anclas 3/6/9 usan las mismas reglas.",
+  "order": 19,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "swallowtail"
+  ],
+  "test": "`tests/unit/test_system_prompt.gd`: las convenciones aparecen en el system prompt de los cuatro modos; Revisar las pide como hallazgos; el criterio Código de la rúbrica (D40) las nombra. Suite unitaria completa en 4.8-beta1: 180 tests, 0 fallos.",
+  "title": "Convenciones de Godot en el system prompt",
+  "updated_at": "2026-10-22T19:55:58.886Z"
+}

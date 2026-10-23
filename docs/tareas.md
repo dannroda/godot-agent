@@ -1446,7 +1446,7 @@ Al reabrir con un One-shot a medias, el aviso contaba como conversación y el do
 
 **Notas:** Commit dc2fc2d. Venía de D37: el aviso del run a medias contaba como conversación y escondía la vista vacía.
 
-## M7 — Pulido  (31/33, 31 en revisión)
+## M7 — Pulido  (36/44, 36 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -2118,6 +2118,128 @@ Pedido del usuario: un mensaje en la cola (escrito mientras el agente trabaja) e
 - La primera fase (cancelar pausa la cola; «Enviar ahora» del encabezado) sigue pasando.
 
 **Notas:** PromptQueueView: botón ➤ en cada fila (antes de editar y quitar) con la señal send_item_now_requested(index). Dock `_send_queued_now(index)`: pasa el prompt al frente, saca la pausa y, si el agente trabaja, marca `_interrupt_for_queue` y cancela; `_on_turn_finished` ve la marca y manda el siguiente aunque el turno haya terminado con cancelled. Sin turno en curso lo manda directo.
+
+### Extensiones: panel de MCP servers (los del addon y los del agente) · Revisión
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `ui`, `mcp`
+
+El usuario quiere manejar MCP, skills y plugins desde el editor como en Claude Code (pedido 2026-10-23, ejemplo: el MCP de Blender).
+
+Hoy: el addon solo pasa su server godot en session/new; claude-agent-acp además carga los de la config de Claude Code (settingSources user/project/local: ~/.claude.json, .mcp.json), pero el addon no los muestra ni los maneja, y sus tools caen en el grupo Other (ask en todos los modos, One-shot se frena).
+
+Hacer:
+- Pestaña Extensions en Settings → MCP: lista de servers propios del addon (stdio con command/args/env, o http con url/headers), por proyecto (res://, versionable) y globales (EditorSettings / user://). Se pasan en mcpServers de session/new y session/load, así sirven para cualquier agente ACP (Claude, Gemini, Codex).
+- Ver también los que el agente carga solo: en Claude, el estado que da `/mcp` del adaptador (conectado, falló, deshabilitado), con Reconectar y Habilitar/Deshabilitar (`/mcp reconnect|enable|disable <server>`).
+- Importar desde .mcp.json / ~/.claude.json y "Agregar a Claude Code" (claude mcp add-json, scope project o user) como opción.
+- Secretos (tokens en headers/env) fuera del repo: en user:// y agregados a AgentLog.add_secret.
+- Al cambiar la lista, se aplica en la próxima sesión (o reinicia la sesión con aviso).
+
+**Decisiones:**
+- ! Los MCP se configuran en el addon y se pasan por ACP; skills y plugins usan los archivos de Claude Code, no un formato propio · sin revisar
+  Por qué: mcpServers es parte de ACP, así que un MCP configurado en el addon sirve para Claude, Gemini y Codex. Skills y plugins existen solo en Claude Code: duplicar su formato implicaría mantener dos copias que se desincronizan con la CLI.
+  Descartado: Que el addon edite directamente ~/.claude.json o .mcp.json también para MCP (queda atado a Claude). Un formato propio de skills y plugins para todos los agentes (Gemini y Codex no los soportan).
+
+**Prueba:** Unit (234 tests en 4.6.3, 4.7.2 y 4.8-beta1): test_external_mcp_servers (to_acp stdio/http, $VAR/${VAR}, validación, merge, import de .mcp.json, nombres, página de Settings). Xvfb: --godot-agent-settings-shots (en y es) importa un server, la matriz suma la fila mcp:blender, guardar escribe project_config.tres y external_mcp_names. Contra claude-agent-acp 0.95.0 real con un server stdio de prueba: la tool llega como mcp__pingsrv__ping (title y _meta.claudeCode.toolName), el env llega al server.
+
+**Notas:** Hecho: mcp/external_mcp_servers.gd (formato, validación, to_acp, secret_values, from_mcp_json), ui/settings/mcp_servers_page.gd arriba en Settings → Servidores MCP, project_config.mcp_servers y EditorSettings mcp/servers; plugin._mcp_servers agrega los habilitados (HTTP queda afuera con aviso si el agente no lo soporta). No hecho: ver el estado de los servers que el agente carga solo (el SDK tiene mcpServerStatus pero ACP no lo expone; queda el hint de /mcp) ni "Agregar a Claude Code" (claude mcp add-json).
+
+**Relacionadas:** Permisos por server MCP externo en la matriz
+
+### Permisos por server MCP externo en la matriz · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `mcp`, `permisos`
+
+Las tools `mcp__<server>__*` que no son de godot caen en el grupo Other (PermissionPolicy.matrix_value devuelve ask para grupos sin DEFAULTS), en todos los modos: el One-shot se frena esperando.
+
+Hacer: un grupo por server (mcp:blender) con valores por modo editables en Settings (por defecto ask; sugerir allow para tools read-only si el server marca readOnlyHint), "Permitir siempre este server" desde la tarjeta de permiso, y que el One-shot avise antes de arrancar si hay servers en ask. En el chat, mostrar el nombre corto (blender.get_objects_summary) como con godot.* (tool_call.gd, tool_group_view.gd, run_report.gd).
+
+**Decisiones:**
+- ! Los servers MCP de terceros arrancan en Preguntar en todos los modos, incluidos Auto y One-shot · sin revisar
+  Por qué: Un server de terceros puede hacer cualquier cosa (borrar en Blender, escribir en una base), y el harness no sabe qué hacen sus tools. Se permite explícitamente por server y modo, desde Settings o desde la tarjeta.
+  Descartado: Permitir en Auto y One-shot como las tools de edición; usar readOnlyHint para permitir las de solo lectura (el adaptador no lo manda en el pedido de permiso).
+
+**Prueba:** acp_session_check escenario "MCP servers de terceros": tarjeta por server con nombre corto, «Permitir siempre en el proyecto» guarda allow en Construir y la segunda tool de blender pasa sin tarjeta, db sigue preguntando, mcp_servers_not_allowed para el aviso del One-shot. Unit test_policy_groups_per_server. Xvfb auto/remote/cycle/oneshot/i18n en verde.
+
+**Notas:** Grupo mcp:<server> sacado del prefijo mcp__<server>__ (title o _meta.claudeCode.toolName); ask por defecto en todos los modos, overrides en la matriz. La tarjeta suma un botón «Permitir siempre «x» en modo M, en este proyecto» (persist_label/persist_allow → permissions_changed → plugin guarda la config). One-shot: activity warning al arrancar. No se usó readOnlyHint (el adaptador no lo manda en el permiso).
+
+**Relacionadas:** Extensiones: panel de MCP servers (los del addon y los del agente)
+
+### Extensiones: skills (listar, crear, activar, skills de Godot incluidas) · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ui`
+
+Skills de Claude Code = carpetas con SKILL.md en ~/.claude/skills (usuario) y <proyecto>/.claude/skills (proyecto); los plugins también traen skills. claude-agent-acp las carga (settingSources) y el SDK acepta `skills` (lista o 'all') por `_meta.claudeCode.options` en session/new.
+
+Hacer: en Extensions → Skills, lista con origen (usuario, proyecto, plugin), descripción del frontmatter y activar/desactivar por proyecto (options.skills); crear una skill nueva (plantilla SKILL.md abierta en el editor de scripts), importar una carpeta o zip, y copiar de usuario a proyecto. Evaluar incluir skills de Godot con el addon (convenciones, tests headless) en vez de meter todo en el system prompt.
+
+Otros agentes: Gemini y Codex no tienen skills; para ellos ocultar la sección o (decidir) inyectar la descripción en el system prompt.
+
+### Extensiones: plugins de Claude Code (marketplaces, instalar, habilitar) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ui`
+
+Plugins de Claude Code: se instalan desde marketplaces y se habilitan en settings (enabledPlugins); traen skills, comandos, agentes, hooks y MCP. claude-agent-acp los carga de la config del usuario, y el SDK acepta `plugins: [{type: "local", path}]` por `_meta.claudeCode.options`.
+
+Hacer: en Extensions → Plugins, lista de instalados con estado y lo que trae (`claude plugin details`), Habilitar/Deshabilitar (por proyecto o usuario), agregar marketplace e instalar (por el CLI `claude plugin ...`, que puede no estar instalado aparte del adaptador: detectarlo y explicar), y cargar un plugin local de una carpeta del proyecto (options.plugins). Después de cambiar, recargar en la sesión abierta (el SDK tiene reload_plugins) o reiniciarla con aviso. Solo Claude Code; para otros agentes la sección dice que no aplica.
+
+**Prueba:** Unit test_claude_extensions (parseo de mcp list, plugin list, acciones --json, scopes de config, cwd por sh, ventana sin CLI) en 4.6.3, 4.7.2 y 4.8-beta1. tests/extensions_cli_check.gd contra el CLI real con CLAUDE_CONFIG_DIR temporal: agrega un marketplace local, instala, deshabilita, desinstala, quita (12 checks; la config del usuario quedó con el mismo md5). Xvfb --godot-agent-extensions-shots (en y es): abre desde el dock con la config real, 9 instalados, 3912 disponibles, 2 marketplaces, 12 MCP con estado.
+
+**Notas:** extensions/claude_cli.gd (busca claude o el del SDK en la cache de npx; corre con AgentProcess vía sh -c cd), extensions/claude_extensions.gd (parseo estático + acciones), ui/extensions/extensions_window.gd. Botón ExtensionsButton en el header del dock. No se recarga en la sesión abierta (ACP no expone reload_plugins): franja con «Nueva sesión». Cuidado: `claude plugin enable` de un id inexistente lo agrega a enabledPlugins sin fallar; la ventana solo ofrece enable para instalados. No probado: Autenticar (claude mcp login abre el navegador) ni un install que pide aceptar el comando del marketplace (el formato de shownCommand se supuso).
+
+### Updater: buscar e instalar versiones nuevas del addon desde el editor · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ui`
+
+Pedido del usuario (2026-10-23): un updater.
+
+- Chequeo: GitHub API releases/latest de dannroda/godot-agent (HTTPRequest, sin token) al abrir el editor (una vez por día como máximo, se puede apagar en Settings) y con un botón «Buscar actualizaciones»; compara el tag con plugin.cfg (AddonVersion). Pre-releases solo si se pide.
+- Aviso en el dock: «Versión X disponible» con las notas del release (Markdown del CHANGELOG) y «Actualizar».
+- Actualizar: baja el zip del asset, lo extrae (ZIPReader) a user:// y lo valida (plugin.cfg con la versión esperada). Después reemplaza addons/godot_agent conservando config/project_config.tres y los config/*.md|txt que el usuario cambió, y pide reiniciar el editor (EditorInterface.restart_editor). Reemplazar scripts del addon con el plugin cargado puede tirar el editor (D35, hot reload): deshabilitar el plugin antes de escribir, o escribir y reiniciar enseguida. Hay que probar cuál es seguro.
+- No ofrecerlo si el addon es un checkout de git o un symlink (desarrollo): ahí se actualiza con git.
+
+**Prueba:** Unit: tests/unit/test_addon_updater.gd (versiones, elección del release, extracción y validación de un zip armado con ZIPPacker, install con borrado/respaldo/KEEP, copia de dev); 246 tests verdes en 4.6.3, 4.7.2 y 4.8-beta1. UI: --godot-agent-update-shots= (aviso debajo del de export, notas en Markdown, Settings → Buscar ahora dice copia de desarrollo, «Después» guarda la versión), en en y es; ciclo del plugin y settings shots pasan. E2E real: sandbox con el addon copiado marcado 0.1.0 + Godot self-contained (._sc_) + plugin sonda en Xvfb propio: encontró v0.1.3 en GitHub, bajó el zip (sigue el redirect), lo instaló, respaldó system_prompt.md editado, conservó project_config.tres, borró addon_updater.gd (0.1.3 no lo trae), reinició y el plugin quedó habilitado en 0.1.3.
+
+**Notas:** Commit 6bc34fc en worktree-updater (sin merge todavía). core/addon_updater.gd (Node con HTTPRequest; API /releases?per_page=10, elige el más nuevo no-draft con .zip; pre-releases no). ui/dock/update_banner.gd vía dock.add_banner(). Settings → Interfaz → Actualizaciones (check al abrir, una vez por día; Buscar ahora). Instalar: confirm → download a user://godot_agent/update → validar versión de plugin.cfg → save_all_scenes, controller.stop → install → restart_editor(false) sin awaits entre escribir y reiniciar. Solo borra archivos obsoletos de tipos del release (gd, uid, tscn, po, cfg, md, txt). Copia de dev (symlink o godot_agent_dev) no se actualiza. Canal de log nuevo "update". Ojo: quien tenga 0.1.3 o anterior tiene que instalar a mano la primera versión que traiga el updater. Sin probar: Windows/macOS, y Authenticate de GitHub con rate limit (60 req/h sin token: una búsqueda por día alcanza).
+
+### Asset Library de Godot: buscar, sugerir, instalar y activar plugins · Pendiente
+
+**Prioridad:** media · **Tamaño:** L
+
+Pedido del usuario (2026-10-23): que el harness pueda buscar en la Asset Library de Godot (godotengine.org/asset-library/api: /asset?filter=&category=&godot_version=, /asset/<id> con download_url y download_hash), sugerir plugins según lo que se está haciendo, instalarlos (bajar el zip, extraer addons/<x>/ con ZIPReader, verificar el hash) y activarlos (EditorInterface.set_plugin_enabled). Dos caras: una pestaña "Godot assets" en la ventana Extensions (buscar, ver, instalar, activar/desactivar los addons del proyecto) y tools MCP godot.asset_search / godot.asset_install con permiso propio (instalar baja código de terceros: pedir siempre). Reusa la descarga y extracción del updater (m7-38).
+
+### Marketplace propio (repo) con las skills, tools y plugins de Godot · Pendiente
+
+**Prioridad:** baja · **Tamaño:** M
+
+Pedido del usuario (2026-10-23, «para después»): un repo que sea un marketplace de Claude Code (.claude-plugin/marketplace.json) con las skills, tools (MCP) y demás que se usan para Godot, para que las skills que se creen vayan ahí. El harness lo puede ofrecer como marketplace sugerido en la ventana Extensions (m7-37) y en la pestaña de skills (m7-36).
+
+### Guía con imágenes para el README (y la wiki) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `docs`
+
+Pedido del usuario (2026-10-23): una guía con capturas, al menos para el README. Capturas reales del editor (Xvfb, plugin de dev con agente falso para que no dependa de una cuenta): dock con una conversación, tarjeta de permiso, modos, Review con marcas en el Script Editor, pantalla One-shot, Settings, Extensions, aviso de update. Van a docs/images/ y se regeneran con un flag del plugin de dev.
+
+**Prueba:** tests/docs_shots.sh <godot> en|es: copia limpia del proyecto + Godot self-contained con el idioma del editor; --godot-agent-docs-shots= saca overview, chat, permission, review y settings sin fallas en los dos idiomas. Revisadas a ojo: sin rutas del usuario, sin contenido de tests, sin recortes. Unit 246 verdes, ui_markdown y ciclo del plugin pasan.
+
+**Notas:** Commits 6cf8931 (LICENSE MIT a nombre de Daniel Rodriguez Aires, CONTRIBUTING.md, LICENSE en el zip del release) y 06cd486 (guía) en worktree-docs-guide, sin merge. README «Quick start» con capturas en en/es (docs/images/<lang>/, .gdignore). Escena demo tests/docs_demo/ (con 2 bugs a propósito para Review), escenarios docs_build(_es)/docs_review(_es). El dock se ensancha a 480 px moviendo split_offsets del DockHSplitMain (un offset por divisor entre hijos visibles). Arreglado de paso: el botón «Thinking» no recortaba su texto y ensanchaba el chat más que el dock. Pendiente aparte: m7-42 (fila del composer más ancha que el dock por defecto). Descripción y topics de GitHub puestos con gh repo edit. Sin captura del One-shot (su check usa contenido de test en español).
+
+### El composer no entra en el dock con el ancho por defecto (sesión abierta) · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ui`
+
+Encontrado armando las capturas (m7-41): con una sesión abierta, la fila de abajo del composer (@, imagen, /, anillo de cuota, uso «38k / 200k» 90 px, modo 66, modelo 67, Enviar 63) pide 418 px; el dock por defecto mide ~289 px en 1920x1200, así que el modelo y Enviar quedan cortados (el dock se recorta en su guard). layout_check no lo ve porque mide sin sesión (sin uso ni modelo). Opciones: pasar el uso al tooltip del anillo o acortarlo, OptionButtons con clip_text, o una segunda fila cuando no entra. Agregar a layout_check el caso con sesión. (El botón «Thinking» que ensanchaba el chat ya se arregló en m7-41.)
+
+### Subagentes: ver lo que hacen y setting para permitirlos y limitarlos · Pendiente
+
+**Prioridad:** media · **Tamaño:** M
+
+Pedido del usuario (2026-10-23, para después): que se vea lo que hacen los subagentes (hoy el chat agrupa las tools con parentToolUseId bajo la tarjeta del Agent/Task, pero hay que revisar si se ve su progreso en vivo, su prompt y su reporte, y cuántos corren a la vez) y una setting para permitir/denegar el uso de subagentes y la cantidad permitida (por modo; tool Agent/Task de Claude Code: negarla por permiso, contar los que están en curso y rechazar los que pasen el límite).
+
+### Varias sesiones abiertas a la vez que se coordinan entre sí · Pendiente
+
+**Prioridad:** media · **Tamaño:** L
+
+Pedido del usuario (2026-10-23, para después): poder tener múltiples sesiones de agente abiertas en el editor, coordinadas para no pisarse (archivos y escenas en edición, el juego corriendo, checkpoints). Investigar cómo lo hace el plugin «backstitch» pero local, y la funcionalidad de Claude Code para que sesiones se comuniquen entre sí (mensajes entre sesiones locales). Decidir: locks por archivo/escena en el harness, cola para run_game, un canal compartido; y cómo se ve en el dock (pestañas por sesión).
 
 ## M8a — Completado predictivo: núcleo sin IA  (7/7, 7 en revisión)
 

@@ -1,0 +1,17 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T20:22:00.174Z",
+  "description": "Pedido del usuario: un mensaje en la cola (escrito mientras el agente trabaja) espera a que termine el turno. Agregar «Enviar ahora» en cada mensaje encolado: corta el turno en curso (session/cancel) y lo manda enseguida, sin perder el resto de la cola.",
+  "milestone": "m07",
+  "notes": "PromptQueueView: botón ➤ en cada fila (antes de editar y quitar) con la señal send_item_now_requested(index). Dock `_send_queued_now(index)`: pasa el prompt al frente, saca la pausa y, si el agente trabaja, marca `_interrupt_for_queue` y cancela; `_on_turn_finished` ve la marca y manda el siguiente aunque el turno haya terminado con cancelled. Sin turno en curso lo manda directo.",
+  "order": 33,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "- test_prompt_queue: move_to_front, y en la vista el ➤ de cada fila avisa su índice, sigue a set_send_available y no saca el prompt (lo hace el dock).\n- --godot-agent-queue-test, segunda fase (tests/scripts/queue_now.json): con un turno largo corriendo y \"uno\", \"dos\" en cola, ➤ en \"dos\" corta el turno (no llega el resto del texto largo), \"dos\" sale enseguida, \"uno\" queda en la cola sin pausa y sale después.\n- La primera fase (cancelar pausa la cola; «Enviar ahora» del encabezado) sigue pasando.",
+  "title": "Cola de mensajes: «Enviar ahora»",
+  "updated_at": "2026-10-23T20:29:25.083Z"
+}

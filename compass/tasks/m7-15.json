@@ -1,0 +1,15 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T06:59:51.579Z",
+  "description": "Crear docs/wiki/en y docs/wiki/es con páginas Markdown sobre cómo funciona y cómo usarlo: arquitectura (ACP, MCP, editor), primeros pasos, modos y permisos, tools MCP, One-shot (spec, presupuestos, checkpoints, cuota, informe, criterios), Revisar, completado predictivo, Settings y troubleshooting. Se puede copiar tal cual a la wiki de GitHub.",
+  "milestone": "m07",
+  "notes": "Commit c274ae8. Pendiente si cambian etiquetas: volver a correr la verificación de negritas contra el código.",
+  "order": 15,
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "docs/wiki/en y docs/wiki/es con 10 páginas cada una (inicio, primeros pasos, cómo funciona, modos y permisos, herramientas del editor, One-shot, revisión, completado, settings, problemas frecuentes); etiquetas verificadas contra la interfaz final.",
+  "title": "Mini wiki: cómo funciona y cómo usarlo (en y es)",
+  "updated_at": "2026-10-22T08:13:14.539Z"
+}

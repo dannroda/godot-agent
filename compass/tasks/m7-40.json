@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T22:18:52.032Z",
+  "description": "Pedido del usuario (2026-10-23, «para después»): un repo que sea un marketplace de Claude Code (.claude-plugin/marketplace.json) con las skills, tools (MCP) y demás que se usan para Godot, para que las skills que se creen vayan ahí. El harness lo puede ofrecer como marketplace sugerido en la ventana Extensions (m7-37) y en la pestaña de skills (m7-36).",
+  "milestone": "m07",
+  "notes": "",
+  "order": 40,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Marketplace propio (repo) con las skills, tools y plugins de Godot",
+  "updated_at": "2026-10-23T22:18:52.032Z"
+}

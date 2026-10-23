@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T07:10:52.917Z",
+  "description": "El usuario llegó al límite de 5 h en un One-shot real (great-boy-one, 2026-10-22). Preguntó si puede cambiar de cuenta y si el botón Reintentar sobrevive a cerrar el editor.\n\nHoy pasa esto:\n- «Reintentar» del dock abre una sesión en blanco, y el run después retoma ahí sin contexto.\n- Cambiar de cuenta en una terminal no tiene efecto hasta que se relanza el proceso del agente.\n- Un run en Limitado que se restaura al reabrir el editor queda en pausa normal y no retoma solo.\n\nQué hacer:\n- En Limitado / Pausado por cuota, un botón «Cambié de cuenta» que reinicia el proceso del agente, limpia el estado de cuota de la cuenta anterior y retoma con session/load.\n- Con un One-shot activo, «Reintentar» del dock retoma el run con su sesión.\n- Al restaurar, si el run estaba en Limitado o Pausado por cuota, vuelve a esa fase con su cuenta regresiva.\n- El prompt de reanudación menciona spec.md y progress.md si existen.",
+  "milestone": "m06",
+  "notes": "69155d2 (D45).\n- MenuButton «Cambiar de cuenta» en la pantalla Agent, con dos opciones:\n  - login con un método del agente; al terminar, SessionController.after_login llama a switch_account;\n  - «Ya inicié sesión con otra cuenta (en una terminal)».\n- switch_account: QuotaMonitor.forget_account, controller.stop y resume con session/load de la misma sesión.\n- «Reintentar» del dock con un One-shot activo pasa por retry_interceptor y va a resume() en la sesión del run.\n- Se persisten phase_id y quota_resume_at: un run en Limitado o Pausado por cuota vuelve a Pausado por cuota y retoma solo a la hora.\n- El prompt de reanudación menciona spec.md y progress.md.\n- Arreglo aparte (b041a85): el informe lista los checkpoints después de esperar la cola de git (fallo intermitente en 4.7).",
+  "order": 15,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "oneshot_check «cambio de cuenta»: límite, suspend y restore en Pausado por cuota sin retomar antes de hora, después switch_account y termina; el informe cuenta account_switches. --godot-agent-oneshot-test: menú en Limitado, y «Reintentar» del dock retoma en la misma sesión.",
+  "title": "One-shot: cambiar de cuenta al llegar al límite y retomar sin perder contexto",
+  "updated_at": "2026-10-22T07:21:27.842Z"
+}

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T23:34:23.616Z",
+  "description": "Pendiente de m7-21 (2026-10-22). El cierre de la tarjeta cuando el permiso se contesta en el celular ($/cancel_request → «Contestado en otro lado») solo se probó con el agente falso; con Claude real se vio que el adaptador manda la notificación, pero eso fue antes del arreglo.\n\nProbar con Claude Code real y el celular:\n- un permiso contestado en el celular cierra la tarjeta del dock, y el log de permisos lo registra;\n- contestar en el dock cierra el aviso del celular;\n- recargar la sesión (historial / session/load) con Remote Control prendido: ¿sigue prendido del lado de Claude? ¿El dock debería mostrar la franja? Hoy una sesión nueva arranca con el link vacío;\n- reiniciar el editor con Remote Control prendido.\n\nAnotar lo que salga en D58 y la wiki.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 24,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "acp"
+  ],
+  "test": "",
+  "title": "Remote Control: verificar con Claude real el cierre de la tarjeta y session/load",
+  "updated_at": "2026-10-22T23:34:23.616Z"
+}

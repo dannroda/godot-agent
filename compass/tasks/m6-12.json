@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-22T06:39:18.904Z",
+  "description": "Pedido del usuario (2026-10-22): una vez arrancado el One-shot, poder cambiar los presupuestos de tiempo, tokens y playtests desde la pantalla Agent, y tener un botón o setting \"ilimitado\" para cuando el run ya está en curso.\n\nQué hacer:\n- Editar cada presupuesto desde la barra de arriba del run (spin al tocar la barra, o un diálogo «Presupuestos»), con un \"sin límite\" por presupuesto y un «Ilimitado» general.\n- Al subir un presupuesto que ya pasó el 80 % o el 100 %:\n  - se rearman los avisos;\n  - si el run estaba cerrando por presupuesto y todavía no mandó el pedido de reporte final, sigue.\n- Se guarda en el estado del run (D37) y queda en la actividad y en el informe (D39).",
+  "milestone": "m06",
+  "notes": "755ef8b (rama oneshot-wip, worktree agent-harness-wt). Main sigue sin avanzar porque el editor del usuario usa el addon por symlink.\n- El botón «Presupuestos» se ve mientras el run está activo. Abre un diálogo con un spin por presupuesto (0 = sin límite) y la acción «Ilimitado».\n- OneShotRun.set_budgets rearma los avisos y registra la actividad y budget_changes en el informe.\n- Si el cierre fue por presupuesto (BUDGET_CLOSE_PREFIX) y ya no hay ninguno agotado, el run sigue:\n  - en CLOSING vuelve a RUNNING;\n  - en RUNNING continúa después del cancel, o con _resume_prompt.\n- En la barra, el texto es «x / y min» o «x min / ∞».",
+  "order": 12,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "oneshot_check._scenario_budget_raise: cerrando por tiempo, se sube el presupuesto y el run sigue. --godot-agent-oneshot-test cubre el diálogo de presupuestos con «Ilimitado». Matriz 4.6.3/4.7.2/4.8-beta1 y 24 UI checks en verde.",
+  "title": "One-shot: cambiar presupuestos con el run en curso, y opción ilimitado",
+  "updated_at": "2026-10-22T07:01:31.850Z"
+}

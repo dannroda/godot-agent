@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T20:53:16.588Z",
+  "description": "Plugins de Claude Code: se instalan desde marketplaces y se habilitan en settings (enabledPlugins); traen skills, comandos, agentes, hooks y MCP. claude-agent-acp los carga de la config del usuario, y el SDK acepta `plugins: [{type: \"local\", path}]` por `_meta.claudeCode.options`.\n\nHacer: en Extensions → Plugins, lista de instalados con estado y lo que trae (`claude plugin details`), Habilitar/Deshabilitar (por proyecto o usuario), agregar marketplace e instalar (por el CLI `claude plugin ...`, que puede no estar instalado aparte del adaptador: detectarlo y explicar), y cargar un plugin local de una carpeta del proyecto (options.plugins). Después de cambiar, recargar en la sesión abierta (el SDK tiene reload_plugins) o reiniciarla con aviso. Solo Claude Code; para otros agentes la sección dice que no aplica.",
+  "milestone": "m07",
+  "notes": "extensions/claude_cli.gd (busca claude o el del SDK en la cache de npx; corre con AgentProcess vía sh -c cd), extensions/claude_extensions.gd (parseo estático + acciones), ui/extensions/extensions_window.gd. Botón ExtensionsButton en el header del dock. No se recarga en la sesión abierta (ACP no expone reload_plugins): franja con «Nueva sesión». Cuidado: `claude plugin enable` de un id inexistente lo agrega a enabledPlugins sin fallar; la ventana solo ofrece enable para instalados. No probado: Autenticar (claude mcp login abre el navegador) ni un install que pide aceptar el comando del marketplace (el formato de shownCommand se supuso).",
+  "order": 37,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "ui"
+  ],
+  "test": "Unit test_claude_extensions (parseo de mcp list, plugin list, acciones --json, scopes de config, cwd por sh, ventana sin CLI) en 4.6.3, 4.7.2 y 4.8-beta1. tests/extensions_cli_check.gd contra el CLI real con CLAUDE_CONFIG_DIR temporal: agrega un marketplace local, instala, deshabilita, desinstala, quita (12 checks; la config del usuario quedó con el mismo md5). Xvfb --godot-agent-extensions-shots (en y es): abre desde el dock con la config real, 9 instalados, 3912 disponibles, 2 marketplaces, 12 MCP con estado.",
+  "title": "Extensiones: plugins de Claude Code (marketplaces, instalar, habilitar)",
+  "updated_at": "2026-10-23T21:39:33.337Z"
+}

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-23T20:53:16.527Z",
+  "description": "Skills de Claude Code = carpetas con SKILL.md en ~/.claude/skills (usuario) y <proyecto>/.claude/skills (proyecto); los plugins también traen skills. claude-agent-acp las carga (settingSources) y el SDK acepta `skills` (lista o 'all') por `_meta.claudeCode.options` en session/new.\n\nHacer: en Extensions → Skills, lista con origen (usuario, proyecto, plugin), descripción del frontmatter y activar/desactivar por proyecto (options.skills); crear una skill nueva (plantilla SKILL.md abierta en el editor de scripts), importar una carpeta o zip, y copiar de usuario a proyecto. Evaluar incluir skills de Godot con el addon (convenciones, tests headless) en vez de meter todo en el system prompt.\n\nOtros agentes: Gemini y Codex no tienen skills; para ellos ocultar la sección o (decidir) inyectar la descripción en el system prompt.",
+  "milestone": "m07",
+  "notes": "",
+  "order": 36,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ui"
+  ],
+  "test": "",
+  "title": "Extensiones: skills (listar, crear, activar, skills de Godot incluidas)",
+  "updated_at": "2026-10-23T20:53:16.527Z"
+}
