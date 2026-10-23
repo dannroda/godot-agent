@@ -117,8 +117,7 @@ func _run(shot_path: String) -> void:
 	if not await _until(func() -> bool: return not banner.visible and button.is_visible_in_tree()):
 		failures.append("«%s» no lo apagó" % I18n.t("Turn off"))
 	await _until(func() -> bool: return not _model.call(&"is_busy"))
-	var buttons: Dictionary = _dock.get(&"_mode_buttons")
-	(buttons[SessionModel.HarnessMode.ONESHOT] as Button).pressed.emit()
+	(_dock.get(&"_composer") as Object).call(&"choose_mode", SessionModel.HarnessMode.ONESHOT)
 	await _tree.process_frame
 	if button.visible:
 		failures.append("en One-shot el botón de Remote Control sigue a la vista")

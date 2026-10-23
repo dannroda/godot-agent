@@ -25,6 +25,13 @@ func test_order_and_pause() -> void:
 	assert_eq(queue.remove_at(0).text, "tres", "quitar el último")
 	assert_false(queue.paused, "vacía deja de estar en pausa")
 	assert_true(changes[0] >= 7, "avisa cada cambio")
+	queue.add("a")
+	queue.add("b")
+	queue.add("c")
+	queue.move_to_front(2)
+	assert_eq(queue.items.map(func(item: Dictionary) -> String: return item.text), ["c", "a", "b"], "move_to_front")
+	queue.move_to_front(7)
+	assert_eq(queue.size(), 3, "fuera de rango no hace nada")
 
 
 func test_view() -> void:
@@ -54,11 +61,20 @@ func test_view() -> void:
 	var first_row := rows.get_child(0)
 	var row_label := first_row.get_child(0) as Label
 	assert_eq(row_label.text, "primero ⏎ con dos líneas", "una línea por prompt")
-	(first_row.get_child(1) as Button).pressed.emit()
+	var sent_now: Array[int] = []
+	view.connect(&"send_item_now_requested", func(index: int) -> void: sent_now.append(index))
+	var send_row := first_row.get_child(1) as Button
+	assert_true(send_row.disabled, "«Enviar ahora» de la fila sigue a set_send_available")
+	view.call(&"set_send_available", true)
+	assert_false(send_row.disabled, "con sesión lista, habilitado")
+	(rows.get_child(1).get_child(1) as Button).pressed.emit()
+	assert_eq(sent_now, [1], "«Enviar ahora» de una fila avisa su índice")
+	assert_eq(queue.size(), 2, "y no la saca de la cola (lo hace el dock)")
+	(first_row.get_child(2) as Button).pressed.emit()
 	assert_eq(edited, PackedStringArray(["primero\ncon dos líneas"]), "editar lo devuelve completo")
 	assert_eq(queue.size(), 1, "y sale de la cola")
 	await tree.process_frame
-	(rows.get_child(rows.get_child_count() - 1).get_child(2) as Button).pressed.emit()
+	(rows.get_child(rows.get_child_count() - 1).get_child(3) as Button).pressed.emit()
 	assert_true(queue.is_empty(), "quitar")
 	await tree.process_frame
 	assert_false(view.visible, "vacía se oculta")

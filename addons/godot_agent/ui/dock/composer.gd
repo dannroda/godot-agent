@@ -1,7 +1,7 @@
 @tool
 extends VBoxContainer
 ## Composer del dock: chips de contexto, texto con autocompletado (`/` comandos del agente,
-## `@` archivos y nodos), medidor de contexto, selector de modelo y enviar/detener.
+## `@` archivos y nodos), medidor de contexto, selectores de modo y de modelo y enviar/detener.
 ## Enter envía (con un turno en curso, el dock lo deja en cola), Ctrl+Enter o Shift+Enter bajan de
 ## línea y Esc cancela el turno. Flecha arriba en la primera línea y abajo en la última recorren los
 ## prompts enviados, como en una terminal. Ctrl+V con una imagen (o archivos copiados) en el
@@ -11,6 +11,8 @@ extends VBoxContainer
 signal submitted(text: String)
 signal cancel_requested
 signal model_selected(value: String)
+## Un HarnessMode elegido en el selector de modo.
+signal mode_selected(mode: int)
 signal screenshot_requested
 signal context_chip_removed(chip_id: String)
 signal image_pasted(image: Image)
@@ -52,6 +54,9 @@ var _draft: String = ""
 var _recalling: bool = false
 var _input: CodeEdit
 var _meter: Label
+var _mode_button: OptionButton
+var _modes: Array[Dictionary] = []
+var _current_mode: int = -1
 var _model_button: OptionButton
 var _send_button: Button
 var _screenshot_button: Button
@@ -119,6 +124,19 @@ func _ready() -> void:
 	_meter.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_meter.tooltip_text = I18n.t("Context used")
 	row.add_child(_meter)
+	_mode_button = OptionButton.new()
+	_mode_button.flat = true
+	_mode_button.fit_to_longest_item = false
+	_mode_button.add_theme_color_override(&"font_color", _accent)
+	_mode_button.add_theme_color_override(&"font_hover_color", _accent.lightened(0.2))
+	_mode_button.add_theme_color_override(&"font_pressed_color", _accent)
+	_mode_button.add_theme_color_override(&"font_focus_color", _accent)
+	_mode_button.visible = false
+	_mode_button.item_selected.connect(func(index: int) -> void: mode_selected.emit(_mode_button.get_item_id(index)))
+	row.add_child(_mode_button)
+	set_modes(_modes)
+	if _current_mode >= 0:
+		set_current_mode(_current_mode)
 	_model_button = OptionButton.new()
 	_model_button.flat = true
 	_model_button.fit_to_longest_item = false
@@ -216,6 +234,36 @@ func set_usage(used: int, total: int) -> void:
 	var ratio := float(used) / float(total)
 	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0)
 	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= 0.8 else AgentTheme.MUTED)
+
+
+## Los modos del harness, en orden: `{id, label, tooltip}` (ya traducidos).
+func set_modes(modes: Array[Dictionary]) -> void:
+	_modes = modes
+	if _mode_button == null:
+		return  # se aplica al armar el composer
+	_mode_button.clear()
+	for mode: Dictionary in modes:
+		_mode_button.add_item(str(mode.label), int(mode.id))
+		_mode_button.set_item_tooltip(_mode_button.item_count - 1, str(mode.tooltip))
+	_mode_button.visible = not modes.is_empty()
+
+
+func set_current_mode(mode: int) -> void:
+	_current_mode = mode
+	if _mode_button == null:
+		return
+	var index := _mode_button.get_item_index(mode)
+	if index >= 0:
+		_mode_button.select(index)
+		_mode_button.tooltip_text = "%s: %s" % [I18n.t("Mode"), _mode_button.get_item_tooltip(index)]
+
+
+## Elige un modo como si lo hiciera el usuario (para las pruebas del dock).
+func choose_mode(mode: int) -> void:
+	var index := _mode_button.get_item_index(mode)
+	if index >= 0:
+		_mode_button.select(index)
+		_mode_button.item_selected.emit(index)
 
 
 ## `option` es la configOption "model" del agente (o {} para ocultar el selector).

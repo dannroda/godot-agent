@@ -58,18 +58,18 @@ func _run(shot_prefix: String) -> void:
 	_model = _dock.get(&"_model")
 	_controller = _dock.get(&"_controller")
 
-	# El modo se elige con el botón del dock, entre Construir y One-shot.
-	var buttons: Dictionary = _dock.get(&"_mode_buttons")
-	var auto_button: Button = buttons.get(SessionModel.HarnessMode.AUTO)
-	if auto_button == null:
-		failures.append("el dock no tiene el botón Auto")
+	# El modo se elige en el selector del composer (m7-32), entre Construir y One-shot.
+	var composer: Object = _dock.get(&"_composer")
+	var mode_button: OptionButton = composer.get(&"_mode_button")
+	var auto_index := mode_button.get_item_index(SessionModel.HarnessMode.AUTO)
+	if auto_index < 0:
+		failures.append("el selector de modo no tiene Auto")
 		return
-	var order: Array = buttons.values().map(func(button: Button) -> int: return button.get_index())
-	if auto_button.get_index() != (buttons[SessionModel.HarnessMode.BUILD] as Button).get_index() + 1:
-		failures.append("Auto no está después de Construir (%s)" % str(order))
-	if auto_button.tooltip_text.is_empty():
-		failures.append("el botón Auto no tiene tooltip")
-	auto_button.pressed.emit()
+	if auto_index != mode_button.get_item_index(SessionModel.HarnessMode.BUILD) + 1:
+		failures.append("Auto no está después de Construir")
+	if mode_button.get_item_tooltip(auto_index).is_empty():
+		failures.append("Auto no tiene tooltip en el selector")
+	composer.call(&"choose_mode", SessionModel.HarnessMode.AUTO)
 	if _model.get(&"harness_mode") != SessionModel.HarnessMode.AUTO:
 		failures.append("el botón no pasó a modo Auto")
 		return

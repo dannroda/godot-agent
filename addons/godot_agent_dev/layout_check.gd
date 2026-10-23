@@ -16,13 +16,9 @@ static func dock_fits(dock: Control) -> PackedStringArray:
 		var button := node as BaseButton
 		if button.is_visible_in_tree() and button.get_global_rect().end.x > right + 1.0:
 			failures.append("«%s» queda fuera del dock (%d > %d)" % [_label(button), button.get_global_rect().end.x, right])
-	for button: Button in (dock.get(&"_mode_buttons") as Dictionary).values():
-		var font := button.get_theme_font(&"font")
-		var font_size := button.get_theme_font_size(&"font_size")
-		var style := button.get_theme_stylebox(&"normal")
-		var needed := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x + style.get_minimum_size().x
-		if needed > button.size.x + 1.0:
-			failures.append("el modo «%s» no se lee entero (%d de %d px)" % [button.text, button.size.x, needed])
+	var mode_button: OptionButton = (dock.get(&"_composer") as Object).get(&"_mode_button")
+	if not mode_button.is_visible_in_tree():
+		failures.append("no se ve el selector de modo")
 	return failures
 
 

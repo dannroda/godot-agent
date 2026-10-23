@@ -38,6 +38,16 @@ func remove_at(index: int) -> Dictionary:
 	return item
 
 
+## Pasa el item `index` al principio (lo próximo que sale).
+func move_to_front(index: int) -> void:
+	if index <= 0 or index >= items.size():
+		return
+	var item := items[index]
+	items.remove_at(index)
+	items.insert(0, item)
+	changed.emit()
+
+
 ## El próximo a mandar ({} si no hay o está en pausa).
 func take_next() -> Dictionary:
 	if paused or items.is_empty():

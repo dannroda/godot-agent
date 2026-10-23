@@ -1,12 +1,14 @@
 @tool
 extends PanelContainer
-## Prompts en cola, arriba del composer: "En cola (N)", una fila por prompt (editar o quitar) y,
-## si la cola está en pausa, el motivo con «Enviar ahora». Solo muestra y edita la PromptQueue; el
-## envío lo decide el dock.
+## Prompts en cola, arriba del composer: "En cola (N)", una fila por prompt (enviar ahora, editar o
+## quitar) y, si la cola está en pausa, el motivo con «Enviar ahora». Solo muestra y edita la
+## PromptQueue; el envío lo decide el dock.
 
 ## El usuario quiere seguir editando un prompt encolado (ya salió de la cola).
 signal edit_requested(text: String)
 signal send_now_requested
+## «Enviar ahora» de una fila: el dock corta el turno en curso y manda ese prompt (m7-33).
+signal send_item_now_requested(index: int)
 
 const AgentTheme := preload("../agent_theme.gd")
 const PromptQueue := preload("../../session/prompt_queue.gd")
@@ -20,6 +22,7 @@ var _title: Label
 var _reason: Label
 var _send_now: Button
 var _rows: VBoxContainer
+var _send_available: bool = true
 
 
 func setup(queue: PromptQueue) -> void:
@@ -56,7 +59,11 @@ func _ready() -> void:
 
 ## «Enviar ahora» solo con una sesión lista (si la sesión se cerró, primero hay que abrir otra).
 func set_send_available(available: bool) -> void:
+	_send_available = available
 	_send_now.disabled = not available
+	for row: Node in _rows.get_children():
+		if row.has_meta(&"send"):
+			(row.get_meta(&"send") as Button).disabled = not available
 	_send_now.tooltip_text = I18n.t("Resume the queue: sends the next prompt") if available else I18n.t("A ready session is needed: open a new one or retry")
 
 
@@ -77,6 +84,11 @@ func _refresh() -> void:
 		label.tooltip_text = text
 		label.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(label)
+		var send := _small_button("➤", I18n.t("Send now: stops the agent's current turn and sends this message"))
+		send.disabled = not _send_available
+		send.pressed.connect(func() -> void: send_item_now_requested.emit(i))
+		row.add_child(send)
+		row.set_meta(&"send", send)
 		var edit := _small_button("✎", I18n.t("Edit: moves it back to the composer"))
 		edit.pressed.connect(_on_edit.bind(i))
 		row.add_child(edit)

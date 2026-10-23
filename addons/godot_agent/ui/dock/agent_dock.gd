@@ -84,7 +84,8 @@ var _composer: Composer
 ## Prompts escritos mientras el agente trabaja: salen de a uno al terminar cada turno.
 var _queue := PromptQueue.new()
 var _queue_view: PromptQueueView
-var _mode_buttons: Dictionary = {}  # HarnessMode -> Button
+## Se canceló el turno para mandar un prompt de la cola con «Enviar ahora» (m7-33).
+var _interrupt_for_queue: bool = false
 ## Chips de contexto actuales: id -> {label, tooltip, block}
 var _chips: Dictionary = {}
 var _dismissed_chips: Dictionary = {}  # "id|valor" -> true
@@ -118,7 +119,6 @@ var _history_items: Array[Dictionary] = []
 @onready var _history_button: Button = %HistoryButton
 @onready var _new_session_button: Button = %NewSessionButton
 @onready var _settings_button: Button = %SettingsButton
-@onready var _mode_bar: HFlowContainer = %ModeBar
 @onready var _status_label: Label = %StatusLabel
 @onready var _body: VBoxContainer = %Body
 @onready var _empty_state: VBoxContainer = %EmptyState
@@ -144,7 +144,6 @@ func setup(model: SessionModel, controller: SessionController, settings: Harness
 
 func _ready() -> void:
 	_build_header()
-	_build_mode_bar()
 	_conversation = ConversationView.new()
 	_conversation.setup(_model, _accent)
 	_conversation.action_requested.connect(_on_action_requested)
@@ -156,6 +155,7 @@ func _ready() -> void:
 	_composer.submitted.connect(_on_submitted)
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
+	_build_mode_selector()
 	_composer.screenshot_requested.connect(_on_screenshot_requested)
 	_composer.image_pasted.connect(func(image: Image) -> void: attach_image(image, I18n.t("pasted image")))
 	_composer.files_attached.connect(add_context_files)
@@ -167,6 +167,7 @@ func _ready() -> void:
 	_queue_view.setup(_queue)
 	_queue_view.edit_requested.connect(_composer.insert_text)
 	_queue_view.send_now_requested.connect(_send_next_queued.bind(true))
+	_queue_view.send_item_now_requested.connect(_send_queued_now)
 	composer_column.add_child(_queue_view)
 	composer_column.add_child(_composer)
 	_build_review_panel()
@@ -242,26 +243,14 @@ func _build_header() -> void:
 	_title_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 
 
-func _build_mode_bar() -> void:
-	var group := ButtonGroup.new()
-	# Flow y no HBox: en un dock angosto los modos pasan a una segunda línea en lugar de cortarse.
-	_mode_bar.add_theme_constant_override(&"h_separation", 0)
-	_mode_bar.add_theme_constant_override(&"v_separation", 0)
+## El modo va en un dropdown de la fila del composer, al lado del modelo (m7-32): los cinco botones
+## ocupaban una o dos filas arriba de la conversación.
+func _build_mode_selector() -> void:
+	var modes: Array[Dictionary] = []
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
-		var button := Button.new()
-		button.text = I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])
-		button.toggle_mode = true
-		button.button_group = group
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
-		button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(_accent, 0.2), _accent, 3, 3))
-		button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.08), 3, 3))
-		button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.08), Color(1, 1, 1, 0.12), 3, 3))
-		button.add_theme_color_override(&"font_pressed_color", _accent)
-		button.tooltip_text = I18n.t(MODE_TOOLTIPS[mode])
-		button.pressed.connect(func() -> void: _model.set_harness_mode(mode))
-		_mode_bar.add_child(button)
-		_mode_buttons[mode] = button
+		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode])})
+	_composer.set_modes(modes)
+	_composer.mode_selected.connect(func(mode: int) -> void: _model.set_harness_mode(mode as SessionModel.HarnessMode))
 
 
 func _build_remote_control() -> void:
@@ -355,8 +344,8 @@ func _refresh_remote_control() -> void:
 
 
 func _refresh_modes() -> void:
-	for mode: SessionModel.HarnessMode in _mode_buttons:
-		(_mode_buttons[mode] as Button).set_pressed_no_signal(mode == _model.harness_mode)
+	if _composer:
+		_composer.set_current_mode(_model.harness_mode)
 	if _review_panel:
 		_review_panel.visible = _model.harness_mode == SessionModel.HarnessMode.REVIEW
 
@@ -660,9 +649,13 @@ func _take_context_blocks() -> Array:
 ## Con end_turn sale el próximo de la cola; si el turno terminó de otra forma, la cola espera al
 ## usuario (lo que había pedido puede ya no tener sentido).
 func _on_turn_finished(stop_reason: String) -> void:
+	var interrupted := _interrupt_for_queue
+	_interrupt_for_queue = false
 	if _queue.is_empty():
 		return
-	if stop_reason == "end_turn":
+	if interrupted:
+		_send_next_queued.call_deferred(true)
+	elif stop_reason == "end_turn":
 		_send_next_queued.call_deferred()
 	else:
 		_queue.pause(_pause_reason(stop_reason))
@@ -698,6 +691,18 @@ func _send_next_queued(resume: bool = false) -> void:
 	var item := _queue.take_next()
 	if not item.is_empty():
 		_controller.send_prompt(str(item.text), item.blocks)
+
+
+## «Enviar ahora» de un prompt de la cola: pasa al frente y, si el agente está trabajando, se
+## cancela el turno; sale apenas el agente confirma la cancelación. El resto de la cola sigue después.
+func _send_queued_now(index: int) -> void:
+	_queue.move_to_front(index)
+	_queue.resume()
+	if _model.is_busy():
+		_interrupt_for_queue = true
+		_controller.cancel()
+	else:
+		_send_next_queued(true)
 
 
 func _on_cancel_requested() -> void:

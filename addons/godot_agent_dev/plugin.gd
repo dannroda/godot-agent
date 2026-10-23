@@ -974,6 +974,38 @@ func _run_queue_test(shot_path: String) -> void:
 	if queue_view.visible:
 		failures.append("la cola vacía sigue visible")
 	controller.call(&"stop")
+	# m7-33: con un turno largo corriendo, «Enviar ahora» de la segunda fila corta el turno y manda
+	# ese prompt antes que el primero.
+	profile.args[profile.args.size() - 1] = "--scenario=res://tests/scripts/queue_now.json"
+	if not await controller.call(&"start", profile):
+		failures.append("no arrancó la segunda sesión (%s)" % model.get(&"failure_message"))
+	else:
+		for text: String in ["largo", "uno", "dos"]:
+			input.text = text
+			composer.call(&"_submit")
+			await get_tree().process_frame
+		var rows: VBoxContainer = queue_view.get(&"_rows")
+		await get_tree().process_frame
+		if rows.get_child_count() != 2:
+			failures.append("enviar ahora: la cola no tiene 2 filas (%d)" % rows.get_child_count())
+		else:
+			(rows.get_child(1).get_child(1) as Button).pressed.emit()
+			deadline = Time.get_ticks_msec() + 20000
+			while user_messages.call().size() < 2 and Time.get_ticks_msec() < deadline:
+				await get_tree().process_frame
+			var agent_text := (model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return int(entry.get(&"kind")) == 1).map(func(entry: Object) -> String: return str(entry.get(&"text")))
+			if user_messages.call() != ["largo", "dos"]:
+				failures.append("enviar ahora: no salió «dos» enseguida: %s" % [user_messages.call()])
+			if agent_text.any(func(text: String) -> bool: return text.contains("no tendría que llegar")):
+				failures.append("enviar ahora: el turno largo no se cortó")
+			if int(queue.call(&"size")) != 1 or bool(queue.get(&"paused")):
+				failures.append("enviar ahora: «uno» no quedó en la cola sin pausa (%d, pausada %s)" % [queue.call(&"size"), queue.get(&"paused")])
+			deadline = Time.get_ticks_msec() + 20000
+			while (not bool(queue.call(&"is_empty")) or bool(model.call(&"is_busy"))) and Time.get_ticks_msec() < deadline:
+				await get_tree().process_frame
+			if user_messages.call() != ["largo", "dos", "uno"]:
+				failures.append("enviar ahora: el resto de la cola no siguió: %s" % [user_messages.call()])
+		controller.call(&"stop")
 	for failure: String in failures:
 		print("[queue-test] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "queue-test: %d fallas" % failures.size())
