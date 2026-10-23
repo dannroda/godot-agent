@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
 First public release.
 
 ### Agent chat in the editor
