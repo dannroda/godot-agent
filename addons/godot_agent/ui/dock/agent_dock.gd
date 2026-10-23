@@ -24,7 +24,7 @@ const Composer := preload("composer.gd")
 const PromptQueue := preload("../../session/prompt_queue.gd")
 const PromptQueueView := preload("prompt_queue_view.gd")
 const ReviewPanel := preload("review_panel.gd")
-const QuotaMeter := preload("quota_meter.gd")
+const QuotaRing := preload("quota_ring.gd")
 const QrView := preload("qr_view.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const ReviewStore := preload("../../review/review_store.gd")
@@ -94,7 +94,7 @@ var _extra_files: PackedStringArray = []
 var _add_context_menu: PopupMenu
 var _file_dialog: EditorFileDialog
 var _review_panel: ReviewPanel
-var _quota_meter: QuotaMeter
+var _quota_ring: QuotaRing
 ## Remote Control (m7-21): botón de la línea de estado y franja con el link mientras está prendido.
 var _remote_button: Button
 var _remote_banner: FoldableContainer
@@ -168,7 +168,7 @@ func _ready() -> void:
 	composer_column.add_child(_queue_view)
 	composer_column.add_child(_composer)
 	_build_review_panel()
-	_build_quota_meter()
+	_build_quota_ring()
 	_build_remote_control()
 	_settings.changed.connect(func(key: String) -> void:
 		if key == HarnessSettings.KEY_PROFILES:
@@ -332,7 +332,7 @@ func _build_remote_control() -> void:
 	hint.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
 	column.add_child(hint)
 	add_child(_remote_banner)
-	move_child(_remote_banner, _quota_meter.get_index() + 1)
+	move_child(_remote_banner, status_row.get_index() + 1)
 	_model.remote_control_changed.connect(func(_url: String) -> void: _refresh_remote_control())
 	_model.commands_changed.connect(func(_commands: Array) -> void: _refresh_remote_control())
 	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_remote_control())
@@ -361,11 +361,10 @@ func _refresh_modes() -> void:
 
 # --- cuota del plan -------------------------------------------------------------------------------
 
-func _build_quota_meter() -> void:
-	_quota_meter = QuotaMeter.new()
-	_quota_meter.setup(_controller.quota, _accent)
-	add_child(_quota_meter)
-	move_child(_quota_meter, _status_label.get_index() + 1)
+func _build_quota_ring() -> void:
+	_quota_ring = QuotaRing.new()
+	_quota_ring.setup(_controller.quota, _accent)
+	_composer.add_status_control(_quota_ring)
 	_quota_timer = Timer.new()
 	_quota_timer.wait_time = 1.0
 	_quota_timer.timeout.connect(_on_quota_tick)
@@ -390,7 +389,6 @@ func _on_quota_changed() -> void:
 				else:
 					_model.add_notice(I18n.t("Plan limit reached. The agent did not say when it resets."), ChatEntry.NoticeLevel.ERROR)
 		_quota_state = quota.state
-	_composer.set_usage_hint("" if quota.has_data() else I18n.t("The agent does not report the plan quota."))
 	_on_quota_tick()
 	if quota.is_limited() or quota.has_data():
 		_quota_timer.start()
@@ -400,7 +398,7 @@ func _on_quota_changed() -> void:
 
 func _on_quota_tick() -> void:
 	var quota := _controller.quota
-	_quota_meter.refresh()
+	_quota_ring.refresh()
 	if quota.is_limited() and quota.seconds_until_retry() > 0:
 		_composer.set_locked("⏳ %s" % QuotaMonitor.format_duration(quota.seconds_until_retry()), I18n.t("Plan limit reached: you can send again when the window resets"))
 	else:

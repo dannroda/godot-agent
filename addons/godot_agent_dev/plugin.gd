@@ -752,8 +752,8 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	if scenario == "ui_quota":
 		var composer: Control = dock.get(&"_composer")
 		var send: Button = composer.get(&"_send_button")
-		var meter: Control = dock.get(&"_quota_meter")
-		if not (send.disabled and send.text.begins_with("⏳") and meter.visible):
+		var meter: Control = dock.get(&"_quota_ring")
+		if not (send.disabled and send.text.begins_with("⏳") and meter.is_visible_in_tree() and str(meter.get(&"tooltip_text")).contains("\n")):
 			_finish(1, "cuota: el envío no quedó bloqueado (%s, disabled=%s) o no se ve el medidor" % [send.text, send.disabled])
 			return
 	if not shot_path.is_empty():

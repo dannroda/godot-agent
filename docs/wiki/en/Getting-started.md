@@ -39,8 +39,8 @@ Other agents (Gemini CLI, Codex, your own) are set up in **Settings → Agents**
   - `/` at the start lists the agent's commands, and `@` lists the scene's nodes and the project's files;
   - **+ context** attaches the open scene, the selection, a project file, a viewport capture or a **game screenshot** of the running game. The game screenshot needs the playtest autoload: runs launched by the agent have it, and so do yours if you enable **Use the playtest autoload also when running the game manually** (Settings → MCP server);
   - **Ctrl+V** with an image on the clipboard attaches it (a screenshot, for example), and so do files copied in your file manager. Dragging files from the FileSystem dock attaches them too. Up to 6 images per message, scaled down to 1280 px;
-  - model selector and context meter.
-- **Plan quota**: if the agent reports it, the dock shows the 5-hour and weekly windows with their reset time.
+  - model selector and context meter. Claude Code's default option shows the model it uses, for example **Opus 5.5 (default)**.
+- **Plan quota**: the two rings next to the context meter. The outer one is the 5-hour window and the inner one the weekly window; they turn yellow at the warning threshold and red at the limit. Hover them for the percentages and reset times. Claude Code reports the quota with the first message of each session, so until then the rings stay grey.
 
 ## 4. First prompts
 

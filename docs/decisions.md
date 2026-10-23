@@ -271,6 +271,7 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   3. antes, normalmente, un `usage_update` con `status: "rejected"`.
 
   `QuotaMonitor` mira las tres cosas. Los prefijos están en `config/quota_patterns.txt` (editable), anclados al principio de línea. Un patrón suelto como "rate limit" dispararía con la prosa del agente.
+- **Dónde se ve**: dos anillos en la fila de abajo del composer, al lado del contexto (afuera la ventana actual, adentro la semanal), con el detalle en el tooltip. Siempre visibles: grises y con el motivo en el tooltip mientras no hay datos, porque la cuota llega recién con el primer turno de la sesión y una barra que aparece y desaparece parecía rota. Antes eran dos barras debajo del estado, ocultas sin datos.
 - **Prohibido y respetado**: no se consulta el endpoint de uso del adapter (`/usage`, `usage-markdown.js`) ni se leen credenciales o archivos de `~/.claude`.
 
 ## D23 · Revisión: de dónde salen los hallazgos y cómo se muestran (M5, spec §9.4)

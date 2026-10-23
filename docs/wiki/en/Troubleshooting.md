@@ -22,9 +22,9 @@ You hit your plan's window. Wait for the reset (the countdown shows when), or us
 
 On Godot 4.6, the editor can't tell whether a scene has unsaved changes, so instead of reloading it on its own you get a notice with **Reload scene**. On 4.7+ open scenes without unsaved changes reload by themselves. A scene with unsaved changes is never overwritten.
 
-## The quota meter says the agent doesn't report it
+## The quota rings are grey
 
-Only some agents report their plan's quota (Claude Code does). The harness never estimates it, so without that information One-shot won't pause for quota.
+Claude Code reports the plan quota with the first message of each session, so a new session shows grey rings until you send something. Sessions driven from Remote Control don't report it to the dock: their turns don't go through ACP. Other agents may never report it. The harness never estimates it, so without that information One-shot won't pause for quota.
 
 ## Limitations by Godot version
 

@@ -212,6 +212,29 @@ func test_clipboard_file_paths() -> void:
 	assert_eq(Composer.clipboard_file_paths(""), PackedStringArray(), "vacío")
 
 
+## La opción "default" de Claude Code muestra el modelo que usa: «Opus 5.5 (default)».
+func test_model_label() -> void:
+	var options := [
+		{"value": "default", "name": "Default (recommended)", "description": "Opus 5.5"},
+		{"value": "opus", "name": "Opus 5.5", "description": "For complex work"},
+		{"value": "haiku", "name": "Haiku 5.5", "description": "Fastest"},
+	]
+	assert_eq(Composer.model_label(options[0], options), "Opus 5.5 (default)", "default con el modelo")
+	assert_eq(Composer.model_label(options[1], options), "Opus 5.5", "las demás, con su nombre")
+	var unknown := [{"value": "default", "name": "Default (recommended)", "description": "Uses the best model"}, options[1]]
+	assert_eq(Composer.model_label(unknown[0], unknown), "Default (recommended)", "descripción que no es un modelo: el nombre")
+	var tree := Engine.get_main_loop() as SceneTree
+	var composer: VBoxContainer = Composer.new()
+	composer.call(&"setup", Color.ORANGE)
+	tree.root.add_child(composer)
+	await tree.process_frame
+	composer.call(&"set_model_option", {"currentValue": "default", "options": options})
+	var button: OptionButton = composer.get(&"_model_button")
+	assert_eq(button.text, "Opus 5.5 (default)", "el selector muestra el modelo")
+	assert_eq(button.get_item_tooltip(0), "Default (recommended)", "y el nombre original en el tooltip")
+	composer.queue_free()
+
+
 ## Arrastrar archivos del FileSystem al texto los adjunta (las carpetas se ignoran); el texto
 ## arrastrado lo sigue insertando el TextEdit.
 func test_drop_files() -> void:

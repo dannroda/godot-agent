@@ -39,8 +39,8 @@ Otros agentes (Gemini CLI, Codex, el tuyo) se configuran en **Settings → Agent
   - `/` al comienzo lista los comandos del agente, y `@` los nodos de la escena y los archivos del proyecto;
   - **+ contexto** adjunta la escena abierta, la selección, un archivo del proyecto, una captura del viewport o una **captura del juego** que está corriendo. La del juego necesita el autoload de playtest: está en los runs que lanza el agente, y en los tuyos si activás **Usar el autoload de playtest también al correr el juego a mano** (Settings → Servidor MCP);
   - **Ctrl+V** con una imagen en el portapapeles la adjunta (por ejemplo, una captura de pantalla), igual que con archivos copiados en el gestor de archivos. Arrastrar archivos desde el panel FileSystem también los adjunta. Van hasta 6 imágenes por mensaje, achicadas a 1280 px;
-  - selector de modelo y medidor de contexto.
-- **Cuota del plan**: si el agente la informa, el dock muestra la ventana de 5 horas y la semanal, con la hora de reinicio.
+  - selector de modelo y medidor de contexto. La opción por defecto de Claude Code muestra el modelo que usa, por ejemplo **Opus 5.5 (por defecto)**.
+- **Cuota del plan**: los dos anillos al lado del medidor de contexto. El de afuera es la ventana de 5 horas y el de adentro, la semanal; se ponen amarillos en el umbral de aviso y rojos en el límite. Con el mouse encima se ven los porcentajes y la hora de reinicio. Claude Code informa la cuota con el primer mensaje de cada sesión, así que hasta entonces los anillos quedan grises.
 
 ## 4. Primeros prompts
 

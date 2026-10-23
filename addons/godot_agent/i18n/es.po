@@ -1103,9 +1103,6 @@ msgstr "Cuota del plan al %d %% · %s"
 msgid "Plan quota at %d %%."
 msgstr "Cuota del plan al %d %%."
 
-msgid "Plan quota reported by the agent: %d %%"
-msgstr "Cuota del plan informada por el agente: %d %%"
-
 msgid "Plan quota: %s"
 msgstr "Cuota del plan: %s"
 
@@ -1501,9 +1498,6 @@ msgstr "El agente no acepta imágenes"
 
 msgid "The agent does not offer that sign-in method."
 msgstr "El agente no ofrece ese método de inicio de sesión."
-
-msgid "The agent does not report the plan quota."
-msgstr "El agente no informa la cuota del plan."
 
 msgid "The agent doesn't report the plan quota."
 msgstr "El agente no informa la cuota del plan."
@@ -2137,3 +2131,18 @@ msgstr "Pregunta: hay una comilla sin cerrar."
 
 msgid "Asks."
 msgstr "Pregunta."
+
+msgid "Plan quota"
+msgstr "Cuota del plan"
+
+msgid "Outer ring: %s"
+msgstr "Anillo de afuera: %s"
+
+msgid "Inner ring: %s"
+msgstr "Anillo de adentro: %s"
+
+msgid "No data yet: Claude Code reports it with the first message of each session. Other agents may not report it."
+msgstr "Todavía no hay datos: Claude Code la informa con el primer mensaje de cada sesión. Otros agentes pueden no informarla."
+
+msgid "%s (default)"
+msgstr "%s (por defecto)"

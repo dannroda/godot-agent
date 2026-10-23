@@ -60,7 +60,6 @@ var _oneshot_active: bool = false
 ## Motivo del bloqueo del envío (límite del plan, con la cuenta regresiva); "" = sin bloqueo.
 var _lock_text: String = ""
 var _lock_tooltip: String = ""
-var _usage_hint: String = ""
 var _commands: Array = []
 var _model_values: PackedStringArray = []
 
@@ -194,10 +193,10 @@ func set_locked(text: String, tooltip: String = "") -> void:
 	_update_send_button()
 
 
-## Texto extra del tooltip del medidor de contexto (por ejemplo, que el agente no informa la cuota).
-func set_usage_hint(hint: String) -> void:
-	_usage_hint = hint
-	_meter.tooltip_text = _meter.tooltip_text.get_slice("\n", 0) + ("\n" + hint if not hint.is_empty() else "")
+## Un indicador más en la fila de abajo, antes del medidor de contexto (la cuota del plan).
+func add_status_control(control: Control) -> void:
+	_meter.get_parent().add_child(control)
+	_meter.get_parent().move_child(control, _meter.get_index())
 
 
 func set_commands(commands: Array) -> void:
@@ -215,7 +214,7 @@ func set_usage(used: int, total: int) -> void:
 		return
 	_meter.text = "%s / %s" % [_short_number(used), _short_number(total)]
 	var ratio := float(used) / float(total)
-	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0) + ("\n" + _usage_hint if not _usage_hint.is_empty() else "")
+	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0)
 	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= 0.8 else AgentTheme.MUTED)
 
 
@@ -232,11 +231,27 @@ func set_model_option(option: Dictionary) -> void:
 		if not item is Dictionary:
 			continue
 		_model_values.append(str(item.get("value", "")))
-		_model_button.add_item(str(item.get("name", item.get("value", ""))))
-		_model_button.set_item_tooltip(_model_button.item_count - 1, str(item.get("description", "")))
+		var name := str(item.get("name", item.get("value", "")))
+		var label := model_label(item, options)
+		_model_button.add_item(label)
+		# La opción por defecto conserva su nombre original en el tooltip («Default (recommended)»).
+		_model_button.set_item_tooltip(_model_button.item_count - 1, name if label != name else str(item.get("description", "")))
 		if str(item.get("value", "")) == current:
 			_model_button.select(_model_button.item_count - 1)
 	_model_button.visible = true
+
+
+## Nombre de una opción del selector. La opción "default" de Claude Code se llama «Default
+## (recommended)» y trae el modelo en la descripción: se muestra «Opus 5.5 (default)».
+static func model_label(item: Dictionary, options: Array) -> String:
+	var name := str(item.get("name", item.get("value", "")))
+	if str(item.get("value", "")) != "default":
+		return name
+	var model := str(item.get("description", "")).strip_edges()
+	for other: Variant in options:
+		if other is Dictionary and other != item and str(other.get("name", "")) == model and not model.is_empty():
+			return I18n.t("%s (default)") % model
+	return name
 
 
 ## Chips de contexto: `[{id, label, tooltip}]`.

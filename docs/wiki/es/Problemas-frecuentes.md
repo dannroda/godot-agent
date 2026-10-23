@@ -22,9 +22,9 @@ Llegaste al límite de la ventana de tu plan. Esperá el reinicio (la cuenta reg
 
 En Godot 4.6, el editor no puede saber si una escena tiene cambios sin guardar, así que en lugar de recargarla sola aparece un aviso con **Recargar escena**. Desde 4.7, las escenas abiertas sin cambios sin guardar se recargan solas. Una escena con cambios sin guardar nunca se pisa.
 
-## El medidor de cuota dice que el agente no la informa
+## Los anillos de cuota están grises
 
-Solo algunos agentes informan la cuota de su plan (Claude Code lo hace). El harness nunca la estima, así que sin ese dato el One-shot no pausa por cuota.
+Claude Code informa la cuota del plan con el primer mensaje de cada sesión, así que una sesión nueva muestra los anillos grises hasta que mandás algo. Lo que se manda desde Remote Control no la informa al dock: esos turnos no pasan por ACP. Otros agentes pueden no informarla nunca. El harness nunca la estima, así que sin ese dato el One-shot no pausa por cuota.
 
 ## Limitaciones por versión de Godot
 
