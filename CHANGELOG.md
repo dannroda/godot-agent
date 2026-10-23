@@ -4,17 +4,20 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
-## [0.1.4] - 2026-10-23
-
 ### Added
 
-- **Updater**: when the editor opens (once a day), the addon checks GitHub for a new release and shows a notice in the dock with the release notes and **Update**, which downloads it, replaces `addons/godot_agent/` (keeping `project_config.tres` and backing up your edited `system_prompt.md` / `quota_patterns.txt`) and restarts the editor. **Settings → Interface → Updates** has **Check now** and turns the check off.
 - The README has a quick start with screenshots, in English and Spanish.
 - MIT license and a contributing guide (`CONTRIBUTING.md`).
 
 ### Fixed
 
 - A long first line of the agent's thinking no longer makes the chat wider than the dock, which cut off the right side of every message.
+
+## [0.1.4] - 2026-10-23
+
+### Added
+
+- **Updater**: when the editor opens (once a day), the addon checks GitHub for a new release and shows a notice in the dock with the release notes and **Update**, which downloads it, replaces `addons/godot_agent/` (keeping `project_config.tres` and backing up your edited `system_prompt.md` / `quota_patterns.txt`) and restarts the editor. **Settings → Interface → Updates** has **Check now** and turns the check off.
 
 ## [0.1.3] - 2026-10-23
 
