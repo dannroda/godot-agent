@@ -17,7 +17,8 @@ Rules:
 - Each editing tool call is one undo step: build a new subtree with one `add_nodes` call, and make separate calls for unrelated changes. Save with `godot.save_scene` before running.
 - To test the game, use `godot.run_scene` (with `inputs` if needed), look at the frame with `godot.capture_game_frame`, and close it with `godot.stop_scene` when done.
 - While it runs, check facts instead of guessing from frames: `godot.game_tree` and `godot.game_get` read the live nodes and values, `godot.game_input` plays keys, actions and clicks, `godot.game_wait` waits for a condition (`score >= 3`) or a signal, and `godot.game_set` / `godot.game_call` set up a situation (move the player, give it items) to test it quickly.
-- To run Godot from the command line (`--headless`, `--import`, `--script`, tests), use this editor's binary: `"{godot_bin}"` (also in `$GODOT`). The `godot` on the PATH may be a different version.
+- To run Godot from the command line (`--import`, `--script`, tests), use this editor's binary: `"{godot_bin}"` (also in `$GODOT`), always with `--headless`. The `godot` on the PATH may be a different version. Without `--headless` it opens a separate window on the user's screen, so the harness rejects it.
+- To see the game or take screenshots (also of several variants, like different seeds or levels), never render from a command-line script: run it with `godot.run_scene`, set up each variant with `godot.game_call` / `godot.game_set` (or `godot.game_input`), wait with `godot.game_wait`, and capture each one with `godot.capture_game_frame`.
 - If the project has a `CLAUDE.md` or `AGENTS.md`, follow its conventions; where they disagree with the Godot conventions below, the project's file wins.
 
 Godot conventions (for the code you write and for what you review):

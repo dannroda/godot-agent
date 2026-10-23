@@ -22,6 +22,7 @@ const PermissionPolicy := preload("permission_policy.gd")
 const PermissionRequest := preload("permission_request.gd")
 const ShellRules := preload("shell_rules.gd")
 const ProjectWriteGuard := preload("project_write_guard.gd")
+const GodotWindowGuard := preload("godot_window_guard.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
@@ -568,6 +569,13 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	if not blocked.is_empty() and not PermissionPolicy.is_godot_mcp_tool(tool_call):
 		_notify_blocked_write(request.title, blocked)
 		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+	# Godot con ventana desde la shell: abre el juego aparte en vez de correrlo en el editor (m7-30).
+	if request.group == PermissionPolicy.GROUP_SHELL and checked.get("rawInput") is Dictionary:
+		var launch := GodotWindowGuard.windowed_launch(str((checked.rawInput as Dictionary).get("command", "")), EditorBinary.path())
+		if not launch.is_empty():
+			_log_perm("rejected, opens Godot in its own window: %s" % launch)
+			model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
+			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	var decision := policy.decide(request.group, model.harness_mode)
 	if PermissionPolicy.is_godot_mcp_tool(tool_call):
 		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
