@@ -2110,3 +2110,6 @@ msgstr "QR"
 
 msgid "Show a QR code of the link, to open the session on your phone."
 msgstr "Muestra un código QR del link, para abrir la sesión en el celular."
+
+msgid "Click the title to fold or unfold."
+msgstr "Clic en el título para plegar o desplegar."

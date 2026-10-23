@@ -86,7 +86,21 @@ func _run(shot_path: String) -> void:
 		return false
 	if not await _until(withdrawn):
 		failures.append("la tarjeta del permiso contestado desde el celular no quedó cerrada")
-	# QR del link (m7-25): el botón lo muestra, con la matriz del link.
+	# Plegable (m7-26): plegada deja a la vista el título y los botones, no el link.
+	var foldable := banner as FoldableContainer
+	if foldable == null:
+		failures.append("la franja no es plegable")
+	else:
+		foldable.fold()
+		await _tree.process_frame
+		if link.is_visible_in_tree():
+			failures.append("plegada, el link sigue a la vista")
+		if _find_button(banner, I18n.t("Turn off")) == null:
+			failures.append("plegada, «%s» no está a la vista" % I18n.t("Turn off"))
+		if not shot_path.is_empty():
+			await _tree.create_timer(0.2).timeout
+			EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_folded.png")
+	# QR del link (m7-25): el botón lo muestra, con la matriz del link (y despliega la franja).
 	var qr_button: Button = _dock.get(&"_remote_qr_button")
 	var qr_view: Control = _dock.get(&"_remote_qr")
 	qr_button.button_pressed = true

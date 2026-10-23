@@ -97,7 +97,7 @@ var _review_panel: ReviewPanel
 var _quota_meter: QuotaMeter
 ## Remote Control (m7-21): botón de la línea de estado y franja con el link mientras está prendido.
 var _remote_button: Button
-var _remote_banner: PanelContainer
+var _remote_banner: FoldableContainer
 var _remote_link: Button
 var _remote_qr_button: Button
 var _remote_qr: QrView
@@ -276,37 +276,41 @@ func _build_remote_control() -> void:
 	_status_label.reparent(status_row)
 	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status_row.add_child(_remote_button)
-	_remote_banner = PanelContainer.new()
-	_remote_banner.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(_accent, 0.08), Color(_accent, 0.5), 4, 6))
+	# Plegable (m7-26): el título y los botones quedan a la vista; el link, el QR y la aclaración se
+	# pliegan. El estado se conserva mientras el editor está abierto.
+	_remote_banner = FoldableContainer.new()
+	_remote_banner.title = "● " + I18n.t("Remote Control on")
+	_remote_banner.title_text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_remote_banner.tooltip_text = I18n.t("Click the title to fold or unfold.")
+	var title_panel := AgentTheme.panel(Color(_accent, 0.08), Color(_accent, 0.5), 4, 6)
+	for item: StringName in [&"title_panel", &"title_hover_panel", &"title_collapsed_panel", &"title_collapsed_hover_panel"]:
+		_remote_banner.add_theme_stylebox_override(item, title_panel)
+	_remote_banner.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(_accent, 0.05), Color(_accent, 0.5), 4, 6))
+	for item: StringName in [&"font_color", &"hover_font_color", &"collapsed_font_color"]:
+		_remote_banner.add_theme_color_override(item, _accent)
 	var column := VBoxContainer.new()
 	_remote_banner.add_child(column)
-	var row := HBoxContainer.new()
-	column.add_child(row)
-	var label := Label.new()
-	label.text = "● " + I18n.t("Remote Control on")
-	label.add_theme_color_override(&"font_color", _accent)
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.clip_text = true
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	row.add_child(label)
 	_remote_qr_button = Button.new()
 	_remote_qr_button.text = I18n.t("QR")
 	_remote_qr_button.flat = true
 	_remote_qr_button.toggle_mode = true
 	_remote_qr_button.tooltip_text = I18n.t("Show a QR code of the link, to open the session on your phone.")
-	_remote_qr_button.toggled.connect(func(on: bool) -> void: _remote_qr.visible = on)
-	row.add_child(_remote_qr_button)
+	_remote_qr_button.toggled.connect(func(on: bool) -> void:
+		_remote_qr.visible = on
+		if on:
+			_remote_banner.expand())
+	_remote_banner.add_title_bar_control(_remote_qr_button)
 	var copy := Button.new()
 	copy.text = I18n.t("Copy link")
 	copy.flat = true
 	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(_model.remote_control_url))
-	row.add_child(copy)
+	_remote_banner.add_title_bar_control(copy)
 	var off := Button.new()
 	off.text = I18n.t("Turn off")
 	off.flat = true
 	off.add_theme_color_override(&"font_color", AgentTheme.ERROR)
 	off.pressed.connect(func() -> void: _on_submitted(_controller.remote_control_command(false)))
-	row.add_child(off)
+	_remote_banner.add_title_bar_control(off)
 	# Button y no LinkButton: LinkButton pide el ancho del link entero y ensancha el dock.
 	_remote_link = Button.new()
 	_remote_link.flat = true
