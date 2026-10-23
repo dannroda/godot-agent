@@ -816,6 +816,7 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Revisión**: Settings → Permisos → «Modo Auto: comandos de shell» lista cada regla con patrón, lista, origen (default / agregada por vos / desde una tarjeta) y fecha.
   - Filtro de las agregadas, edición del patrón o de la lista (la regla pasa a origen usuario con fecha nueva), quitar, y «Restaurar las reglas default», que conserva las agregadas.
   - Se guarda en `project_config.tres` (`auto_shell_rules`). Cada decisión queda en el Agent Log, canal perm, con el comando, el resultado y la regla.
+  - Probar un comando (m2-10): un campo arriba de la tabla clasifica lo que se escribe con las reglas en edición (sin guardar), muestra la decisión y el motivo traducidos y resalta la regla que decidió. `classify` devuelve además `code` (CODE_*) y `segment`; `reason` sigue en inglés para el log.
 - **Pruebas**: `test_shell_rules` (allow/ask, compuestos, comillas, sustituciones, redirecciones, patrones, sugerencias), `test_permission_policy` (columna Auto y overrides), `acp_session_check` (escenario `auto_shell`: sin tarjeta, rm, «Permitir siempre» que cubre el comando siguiente, edición, redirección, log) y `--godot-agent-auto-test` (todo por la UI del editor: botón del dock, tarjetas, config guardada, Settings).
 
 ## D58 · Remote Control: comandos con / solos, permisos que se contestan de los dos lados, apagado en One-shot

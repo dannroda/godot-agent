@@ -27,6 +27,10 @@ const ORIGIN_LABELS: Dictionary = {
 const LISTS: PackedStringArray = [ShellRules.LIST_ALLOW, ShellRules.LIST_ASK]
 
 var _tree: Tree
+var _test_edit: LineEdit
+var _test_result: Label
+## Patrones que decidieron el comando de prueba: se resaltan en la tabla.
+var _highlight: PackedStringArray = []
 var _filter: OptionButton
 var _pattern_edit: LineEdit
 var _list_option: OptionButton
@@ -41,6 +45,19 @@ func _init() -> void:
 	title.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
 	add_child(title)
 	add_child(_hint(I18n.t("In Auto mode, a command runs without asking if every part of it matches the allowlist and none matches the «Always ask» list. Anything else shows a card. * matches anything, and «git log *» also matches «git log» alone. The agent's permission log (Agent Log, perm channel) records each decision.")))
+	# Probar un comando (m2-10): el resultado sale de las reglas que se están editando, sin guardar.
+	var test_row := HBoxContainer.new()
+	add_child(test_row)
+	_test_edit = LineEdit.new()
+	_test_edit.placeholder_text = I18n.t("Test a command, e.g. git status && npm test")
+	_test_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_test_edit.clear_button_enabled = true
+	_test_edit.text_changed.connect(func(_text: String) -> void: _refresh())
+	test_row.add_child(_test_edit)
+	_test_result = Label.new()
+	_test_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_test_result.visible = false
+	add_child(_test_result)
 	var bar := HBoxContainer.new()
 	add_child(bar)
 	_filter = OptionButton.new()
@@ -116,8 +133,10 @@ func validate() -> String:
 
 
 func _refresh() -> void:
+	_classify_test()
 	_tree.clear()
 	var root := _tree.create_item()
+	var first_highlighted: TreeItem = null
 	for index: int in _rules.size():
 		var rule: Dictionary = _rules[index]
 		if not _passes_filter(rule):
@@ -134,6 +153,47 @@ func _refresh() -> void:
 		item.set_text(RuleColumn.ADDED, str(rule.get("added", "")))
 		if rule.get("list") == ShellRules.LIST_ASK:
 			item.set_custom_color(RuleColumn.LIST, AgentTheme.WARNING)
+		if str(rule.get("pattern", "")) in _highlight:
+			for column: int in RuleColumn.size():
+				item.set_custom_bg_color(column, Color(AgentTheme.WARNING if rule.get("list") == ShellRules.LIST_ASK else AgentTheme.ADDED, 0.18))
+			if first_highlighted == null:
+				first_highlighted = item
+	if first_highlighted and _tree.is_inside_tree():
+		_tree.scroll_to_item(first_highlighted)
+
+
+## Clasifica el comando de prueba con las reglas en edición y deja el resultado en la etiqueta.
+func _classify_test() -> void:
+	var command := _test_edit.text.strip_edges() if _test_edit else ""
+	_highlight = []
+	if command.is_empty():
+		_test_result.visible = false
+		return
+	var verdict := ShellRules.classify(command, _rules)
+	if not str(verdict.rule).is_empty():
+		_highlight = str(verdict.rule).split(", ")
+	_test_result.visible = true
+	_test_result.text = describe_verdict(verdict)
+	_test_result.add_theme_color_override(&"font_color", AgentTheme.ADDED if verdict.decision == ShellRules.ALLOW else AgentTheme.WARNING)
+
+
+## El resultado de `ShellRules.classify` en una frase traducida.
+static func describe_verdict(verdict: Dictionary) -> String:
+	var segment := str(verdict.get("segment", ""))
+	match str(verdict.get("code", "")):
+		ShellRules.CODE_ALLOWED:
+			return I18n.t("Runs without asking: every part is on the allowlist (%s).") % verdict.rule
+		ShellRules.CODE_ASK_LIST:
+			return I18n.t("Asks: «%s» is on the «Always ask» list (%s).") % [segment, verdict.rule]
+		ShellRules.CODE_NOT_ALLOWED:
+			return I18n.t("Asks: «%s» is not on the allowlist.") % segment
+		ShellRules.CODE_SUBSTITUTION:
+			return I18n.t("Asks: it runs a command inside another one ($(…), backticks or <(…)), and the lists can't judge that.")
+		ShellRules.CODE_REDIRECT:
+			return I18n.t("Asks: it writes its output to a file (%s).") % (segment if not segment.is_empty() else "…")
+		ShellRules.CODE_QUOTE:
+			return I18n.t("Asks: a quote is not closed.")
+	return I18n.t("Asks.")
 
 
 func _passes_filter(rule: Dictionary) -> bool:

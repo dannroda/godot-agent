@@ -192,6 +192,27 @@ func _check_settings(shot_prefix: String) -> void:
 		return
 	if row.get_text(2) != I18n.t("From a permission card") or row.get_text(3).is_empty():
 		failures.append("origen y fecha de la regla: %s · %s" % [row.get_text(2), row.get_text(3)])
+	# Probar un comando (m2-10): con la regla de la tarjeta, «npm test --watch» corre sin preguntar y
+	# la fila de esa regla queda resaltada; «git push» pregunta.
+	var test_edit: LineEdit = page.get(&"_test_edit")
+	var test_result: Label = page.get(&"_test_result")
+	test_edit.text = "ls && npm test --watch"
+	test_edit.text_changed.emit(test_edit.text)
+	var expected := I18n.t("Runs without asking: every part is on the allowlist (%s).") % ("ls *, " + CARD_RULE)
+	if not test_result.visible or test_result.text != expected:
+		failures.append("prueba de comando: «%s»" % test_result.text)
+	var highlighted := false
+	for item: TreeItem in tree.get_root().get_children():
+		if item.get_text(0) == CARD_RULE and item.get_custom_bg_color(0).a > 0.0:
+			highlighted = true
+	if not highlighted:
+		failures.append("la regla que decidió no se resalta en la tabla")
+	test_edit.text = "git push origin main"
+	test_edit.text_changed.emit(test_edit.text)
+	if not test_result.text.begins_with(I18n.t("Asks: «%s» is on the «Always ask» list (%s).").get_slice("«", 0)):
+		failures.append("prueba de git push: «%s»" % test_result.text)
+	test_edit.text = "ls && npm test --watch"
+	test_edit.text_changed.emit(test_edit.text)
 	# Filtro «agregadas por vos o desde tarjetas»: solo esa.
 	var filter: OptionButton = page.get(&"_filter")
 	filter.select(3)

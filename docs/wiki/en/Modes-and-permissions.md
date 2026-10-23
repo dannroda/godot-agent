@@ -54,6 +54,7 @@ When a command shows a card, the card proposes a pattern, such as `npm test` for
 
 **Reviewing the lists**: **Settings → Permissions → Auto mode: shell commands** shows every rule with its list, its origin (default, added by you, from a permission card) and the date it was added.
 
+- **Test a command**: type one in the field above the table to see whether it would run or ask, and why. The rule that decided is highlighted in the table. It uses the rules as you are editing them, before saving.
 - You can filter for the ones you or the cards added, edit a pattern or move it to the other list, remove rules and restore the defaults (this keeps the rules you added).
 - They're saved in `project_config.tres`, with the rest of the project's permissions.
 

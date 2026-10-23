@@ -2113,3 +2113,27 @@ msgstr "Muestra un código QR del link, para abrir la sesión en el celular."
 
 msgid "Click the title to fold or unfold."
 msgstr "Clic en el título para plegar o desplegar."
+
+msgid "Test a command, e.g. git status && npm test"
+msgstr "Probá un comando, p. ej. git status && npm test"
+
+msgid "Runs without asking: every part is on the allowlist (%s)."
+msgstr "Corre sin preguntar: cada parte está en la allowlist (%s)."
+
+msgid "Asks: «%s» is on the «Always ask» list (%s)."
+msgstr "Pregunta: «%s» está en la lista «Preguntar siempre» (%s)."
+
+msgid "Asks: «%s» is not on the allowlist."
+msgstr "Pregunta: «%s» no está en la allowlist."
+
+msgid "Asks: it runs a command inside another one ($(…), backticks or <(…)), and the lists can't judge that."
+msgstr "Pregunta: corre un comando dentro de otro ($(…), backticks o <(…)), y las listas no pueden juzgar eso."
+
+msgid "Asks: it writes its output to a file (%s)."
+msgstr "Pregunta: escribe su salida en un archivo (%s)."
+
+msgid "Asks: a quote is not closed."
+msgstr "Pregunta: hay una comilla sin cerrar."
+
+msgid "Asks."
+msgstr "Pregunta."

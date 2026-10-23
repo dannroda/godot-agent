@@ -86,3 +86,28 @@ func test_default_rules() -> void:
 	assert_eq(rules[0].added, "", "sin fecha")
 	var rule := ShellRules.make_rule("  make   test ", ShellRules.LIST_ALLOW, ShellRules.ORIGIN_CARD, "2026-10-22")
 	assert_eq(rule, {"pattern": "make test", "list": "allow", "origin": "card", "added": "2026-10-22"}, "make_rule normaliza")
+
+
+func test_codes() -> void:
+	var rules := ShellRules.default_rules()
+	var cases := {
+		"ls && git status": [ShellRules.CODE_ALLOWED, ""],
+		"ls; rm -rf x": [ShellRules.CODE_ASK_LIST, "rm -rf x"],
+		"npm test": [ShellRules.CODE_NOT_ALLOWED, "npm test"],
+		"echo $(id)": [ShellRules.CODE_SUBSTITUTION, ""],
+		"diff <(ls a) <(ls b)": [ShellRules.CODE_SUBSTITUTION, ""],
+		"echo hola > out.txt": [ShellRules.CODE_REDIRECT, "out.txt"],
+		"echo 'abierta": [ShellRules.CODE_QUOTE, ""],
+		"": [ShellRules.CODE_EMPTY, ""],
+	}
+	for command: String in cases:
+		var verdict := ShellRules.classify(command, rules)
+		assert_eq([verdict.code, verdict.segment], cases[command], "código y segmento de «%s»" % command)
+
+
+func test_describe_verdict() -> void:
+	var page := load("res://addons/godot_agent/ui/settings/auto_rules_page.gd")
+	var rules := ShellRules.default_rules()
+	assert_eq(page.describe_verdict(ShellRules.classify("ls && git status -s", rules)), "Runs without asking: every part is on the allowlist (ls *, git status *).", "permitido")
+	assert_eq(page.describe_verdict(ShellRules.classify("git push", rules)), "Asks: «git push» is on the «Always ask» list (git push *).", "lista ask")
+	assert_eq(page.describe_verdict(ShellRules.classify("echo a > b.txt", rules)), "Asks: it writes its output to a file (b.txt).", "redirección")

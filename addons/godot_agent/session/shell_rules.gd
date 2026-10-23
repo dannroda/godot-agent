@@ -18,6 +18,14 @@ const ORIGIN_CARD := "card"
 
 const ALLOW := "allow"
 const ASK := "ask"
+## Motivo de la decisión de `classify`.
+const CODE_ALLOWED := "allowed"
+const CODE_NOT_ALLOWED := "not_allowed"
+const CODE_ASK_LIST := "ask_list"
+const CODE_SUBSTITUTION := "substitution"
+const CODE_REDIRECT := "redirect"
+const CODE_QUOTE := "quote"
+const CODE_EMPTY := "empty"
 
 const DEFAULT_ALLOW: PackedStringArray = [
 	"ls *", "cat *", "head *", "tail *", "wc *", "grep *", "rg *", "find *", "pwd", "cd *", "echo *",
@@ -60,26 +68,27 @@ static func today() -> String:
 
 
 ## `{decision: "allow"|"ask", rule, reason}`. `rule` es el patrón que decidió ("" si ninguno) y
-## `reason` una frase en inglés para el Agent Log.
+## `reason` una frase en inglés para el Agent Log. `code` (CODE_*) y `segment` (la parte del
+## comando o el archivo de la redirección) sirven para mostrar el motivo traducido.
 static func classify(command: String, rules: Array) -> Dictionary:
 	var parsed := split(command)
 	if not str(parsed.unsafe).is_empty():
-		return {"decision": ASK, "rule": "", "reason": str(parsed.unsafe)}
+		return {"decision": ASK, "rule": "", "reason": str(parsed.unsafe), "code": parsed.code, "segment": str(parsed.get("target", ""))}
 	var segments: PackedStringArray = parsed.segments
 	if segments.is_empty():
-		return {"decision": ASK, "rule": "", "reason": "empty command"}
+		return {"decision": ASK, "rule": "", "reason": "empty command", "code": CODE_EMPTY, "segment": ""}
 	for segment: String in segments:
 		var ask_rule := _matching(segment, rules, LIST_ASK)
 		if not ask_rule.is_empty():
-			return {"decision": ASK, "rule": ask_rule, "reason": "«%s» is on the ask list (%s)" % [segment, ask_rule]}
+			return {"decision": ASK, "rule": ask_rule, "reason": "«%s» is on the ask list (%s)" % [segment, ask_rule], "code": CODE_ASK_LIST, "segment": segment}
 	var used: PackedStringArray = []
 	for segment: String in segments:
 		var allow_rule := _matching(segment, rules, LIST_ALLOW)
 		if allow_rule.is_empty():
-			return {"decision": ASK, "rule": "", "reason": "«%s» is not on the allowlist" % segment}
+			return {"decision": ASK, "rule": "", "reason": "«%s» is not on the allowlist" % segment, "code": CODE_NOT_ALLOWED, "segment": segment}
 		if not allow_rule in used:
 			used.append(allow_rule)
-	return {"decision": ALLOW, "rule": ", ".join(used), "reason": "on the allowlist (%s)" % ", ".join(used)}
+	return {"decision": ALLOW, "rule": ", ".join(used), "reason": "on the allowlist (%s)" % ", ".join(used), "code": CODE_ALLOWED, "segment": ""}
 
 
 ## true si `pattern` coincide con el comando simple `segment` (ya normalizado).
@@ -118,7 +127,7 @@ static func split(command: String) -> Dictionary:
 			i += 2
 			continue
 		if c == "`" or (c == "$" and next == "("):
-			return {"segments": segments, "unsafe": "command substitution"}
+			return {"segments": segments, "unsafe": "command substitution", "code": CODE_SUBSTITUTION}
 		if quote == "\"":
 			current += c
 			if c == "\"":
@@ -131,7 +140,7 @@ static func split(command: String) -> Dictionary:
 			i += 1
 			continue
 		if (c == "<" or c == ">") and next == "(":
-			return {"segments": segments, "unsafe": "process substitution"}
+			return {"segments": segments, "unsafe": "process substitution", "code": CODE_SUBSTITUTION}
 		if c == ">" or (c == "&" and next == ">"):
 			# n>destino, >>destino, &>destino: solo vale si no escribe un archivo.
 			var j := i + 1 if c == ">" else i + 2
@@ -148,7 +157,7 @@ static func split(command: String) -> Dictionary:
 				j += 1
 			target = target.trim_prefix("\"").trim_suffix("\"").trim_prefix("'").trim_suffix("'")
 			if not target.begins_with("&") and not target in SAFE_TARGETS:
-				return {"segments": segments, "unsafe": "redirects output to %s" % (target if not target.is_empty() else "a file")}
+				return {"segments": segments, "unsafe": "redirects output to %s" % (target if not target.is_empty() else "a file"), "code": CODE_REDIRECT, "target": target}
 			current = _drop_fd(current)
 			i = j
 			continue
@@ -160,9 +169,9 @@ static func split(command: String) -> Dictionary:
 		current += c
 		i += 1
 	if not quote.is_empty():
-		return {"segments": segments, "unsafe": "unterminated quote"}
+		return {"segments": segments, "unsafe": "unterminated quote", "code": CODE_QUOTE}
 	_push(segments, current)
-	return {"segments": segments, "unsafe": ""}
+	return {"segments": segments, "unsafe": "", "code": ""}
 
 
 ## Patrón para «Permitir siempre» a partir del primer comando que no está en la allowlist:
