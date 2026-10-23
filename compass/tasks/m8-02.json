@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:44.237Z",
   "description": "Texto atenuado con draw_string sobre el CodeEdit respetando fuente, scroll, wrap y zoom. Tab acepta (una acción de undo), Esc descarta; interceptar solo con sugerencia visible y popup cerrado. Documentar si gui_input alcanza o hace falta _input.",
   "milestone": "m08",
-  "notes": "",
+  "notes": "gui_input + accept_event alcanza (no hizo falta _input). x del ghost = get_caret_draw_pos: get_rect_at_line_column al final de la línea devuelve el carácter anterior (4.4 y 4.8). TextLine recortado sin minimapa ni scrollbar.",
   "order": 2,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "test_completion_controller (Tab acepta en una acción de undo, Tab sin sugerencia indenta, Esc, popup nativo); --godot-agent-completion-test con capturas (posición en el caret, recorte al área de texto).",
   "title": "GhostTextRenderer y aceptación",
-  "updated_at": "2026-10-21T04:33:44.237Z"
+  "updated_at": "2026-10-21T09:46:24.180Z"
 }

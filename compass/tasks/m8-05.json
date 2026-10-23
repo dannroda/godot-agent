@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:44.369Z",
   "description": "Índice de líneas normalizadas con puntaje frecuencia × cercanía × recencia; predicción de línea siguiente; historial de sesión estilo fish; ranker con umbral, margen y desempate por longitud; presupuesto <5 ms en el hilo principal.",
   "milestone": "m08",
-  "notes": "",
+  "notes": "line_index.gd (bsearch sobre líneas únicas ordenadas), typed_history.gd, ranker.gd, local_provider.gd, post_processor.gd (M8a: una línea, solapamiento con suffix, descartes, balanceo). La predicción de línea siguiente quedó para M8b (m9-01).",
   "order": 5,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/unit/test_completion_local.gd (índice, cercanía × recencia, ambigüedad, historial, ranker, post-procesado, reglas primero); bench p95 1,5–1,7 ms.",
   "title": "LineRetrieval, SessionHistory y Ranker",
-  "updated_at": "2026-10-21T04:33:44.369Z"
+  "updated_at": "2026-10-21T09:46:24.311Z"
 }

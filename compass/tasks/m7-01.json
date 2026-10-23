@@ -1,16 +1,45 @@
 {
-  "checklist": [],
+  "checklist": [
+    {
+      "detail": "Proyecto mínimo: legacy_ms (_has_main_screen) + driver que lo alterna 5 veces y cuenta EditorDock huérfanos. Correr: godot --headless --editor --path . -- --cycle. Zipear sin .godot/ ni .uid.",
+      "done": true,
+      "text": "Zipear tests/upstream/main_screen_orphan"
+    },
+    {
+      "detail": "Si ya está arreglado, cerrar la tarea y anotar la versión.",
+      "done": true,
+      "text": "Probar en el último 4.8 publicado antes de abrir el issue"
+    },
+    {
+      "detail": "Tested versions: 4.8-beta1, master e7cfa294a; regresión de #113051. Incluir la causa y el arreglo probable.",
+      "done": false,
+      "text": "Abrir el issue con la plantilla de bug"
+    },
+    {
+      "detail": "El error de grab_focus ya no se reproduce; el cambio a 2D es inofensivo pero su comentario describe un bug que no aparece. Actualizar D9.",
+      "done": true,
+      "text": "Decidir si se saca el cambio a 2D de remove_all()"
+    }
+  ],
   "code": "",
   "created_at": "2026-10-21T04:23:26.740Z",
-  "description": "El addon esquiva dos problemas de 4.8-beta1 que conviene reportar upstream con un repro mínimo: (1) un plugin con _has_main_screen() == true deja un EditorDock huérfano en cada deshabilitado; (2) quitar con remove_dock una main screen activa al cerrar el editor da \"Condition !is_inside_tree()\" en grab_focus, y cambiar antes a \"Script\" en headless crashea por desborde de la cola de mensajes. Ver docs/decisions.md D9. Si se arreglan, simplificar ui/editor_surfaces.gd.",
+  "decisions": [
+    {
+      "alternatives": "Sacar el cambio a 2D y simplificar remove_all()",
+      "at": "2026-10-22T21:33:18.594Z",
+      "text": "Se deja el cambio a \"2D\" en remove_all() como precaución, con el comentario y D9 corregidos (el error de grab_focus ya no se reproduce)",
+      "why": "No cuesta nada y solo se descartó el bug en Linux (xvfb y headless); sacarlo arriesga reintroducirlo en Windows/macOS sin ganar nada"
+    }
+  ],
+  "description": "Reportar upstream un leak de 4.8: un plugin con `_has_main_screen() == true` deja un `EditorDock` huérfano cada vez que se deshabilita. No hay issue ni PR abierto (búsqueda del 2026-10-21: \"EditorDock\", \"main screen\", \"has_main_screen\", \"remove_main_plugin\", \"LegacyMainScreenContainer\", \"orphan\"). Si se arregla, el path de main screen con la API vieja vuelve a ser utilizable en 4.8 (hoy `ui/editor_surfaces.gd` usa `add_dock` en 4.8+, D9).\n\n**Causa (editor/editor_main_screen.cpp, igual en 4.8-beta1 y en master al 2026-10-21):** desde #113051 (main screen plugins → docks, @KoBeWi), cuando un plugin legacy agrega su control al main screen, `LegacyMainScreenContainer::add_child_notify` crea por dentro un `EditorDock` con `memnew`, lo registra con `add_dock` y lo guarda en el meta `_dock` del plugin. Al deshabilitar, `EditorMainScreen::remove_main_plugin` llama a `EditorDockManager::remove_dock(dock)`, que lo saca del árbol (`_move_dock(p_dock, nullptr)`), pero nadie lo libera: no hay `queue_free`/`memdelete` y el meta `_dock` queda. Cada ciclo deja un `EditorDock` fuera del árbol, con su `visibility_changed` conectado.\n\n**Repro mínimo:** proyecto vacío con un plugin:\n\n```gdscript\n@tool\nextends EditorPlugin\nvar panel: Control\nfunc _enter_tree() -> void:\n\tpanel = Label.new()\n\tEditorInterface.get_editor_main_screen().add_child(panel)\nfunc _exit_tree() -> void:\n\tpanel.queue_free()\nfunc _has_main_screen() -> bool:\n\treturn true\nfunc _get_plugin_name() -> String:\n\treturn \"LegacyMS\"\n```\n\nAlternarlo 5 veces con `EditorInterface.set_plugin_enabled()` desde otro plugin y contar los `EditorDock` en `Node.get_orphan_node_ids()`. Medido en 4.8-beta1 (4d10419ca) y master e7cfa294a, headless: base 2, después 3, 4, 5, 6, 7 (uno más por ciclo). Con `add_dock` + `remove_dock` + `queue_free` desde el plugin no crece.\n\n**Arreglo probable:** en `remove_main_plugin`, después de `remove_dock`, liberar el dock (`dock->queue_free()`) y `remove_meta(\"_dock\")`. Ojo: el control del plugin está reparentado dentro del dock, así que liberarlo también libera el control si el plugin no lo hizo en `_exit_tree`.\n\n**Aparte, menor:** sin `_get_plugin_icon()`, el mismo path da `WARNING: Trying to access a non-existing editor theme icon \"LegacyMS\"` en cada habilitado, porque `add_child_notify` hace `set_icon_name(get_plugin_name())`. Se puede mencionar en el mismo issue.\n\n**Descartado:** el segundo problema que listaba D9 (`Condition \"!is_inside_tree()\"` en `grab_focus` al cerrar el editor con la main screen activa; crash por \"Message queue out of memory\" al cambiar antes a \"Script\" en headless) no se reproduce en 4.8-beta1 ni en 4.8-dev7. Se probó con un repro mínimo (`add_dock` en main screen, con la pantalla anterior en 2D y en Script; con y sin cambiar a \"Script\" en `_exit_tree`) y con el addon real sin el cambio a \"2D\" de `remove_all()` (prueba de captura, xvfb y headless). No se reporta.",
   "milestone": "m07",
-  "notes": "",
+  "notes": "2026-10-22: 4.8-beta1 sigue siendo el último 4.8 publicado. El repro sigue fallando en 4.8-beta1 (4d10419ca) y master e7cfa294a: 2 → 7 EditorDock huérfanos en 5 ciclos. editor_main_screen.cpp no cambió después de a1bf7cf93 (18/10, incluido en e7cfa294a). No hay issue ni PR. Nota: c40a33125 depreca _has_main_screen(), así que upstream puede darle poca prioridad; el issue lo menciona. Borrador del issue (plantilla de bug, scripts inline) en tests/upstream/issue_main_screen_orphan.md y zip del MRP en tests/upstream/main_screen_orphan.zip (repo principal, sin trackear). El usuario prefirió abrirlo él: falta pegar el link acá. Cambio a 2D de remove_all(): queda como precaución, con el comentario y D9 corregidos (commit 9f3464e).",
   "order": 1,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
-  "title": "Reportar a Godot los problemas de docks de 4.8-beta1",
-  "updated_at": "2026-10-21T04:23:26.740Z"
+  "status": "review",
+  "test": "Issue abierto en godotengine/godot con el repro adjunto y su link en notes (pendiente: lo abre el usuario). Si se arregla upstream, `tests/plugin_cycle_check.gd` pasa en esa versión con la main screen por `_has_main_screen()`.",
+  "title": "Reportar a Godot el EditorDock huérfano de _has_main_screen (4.8)",
+  "updated_at": "2026-10-22T21:35:47.782Z"
 }

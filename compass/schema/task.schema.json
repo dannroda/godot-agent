@@ -204,6 +204,11 @@
             "pattern": "^D[0-9]+$",
             "description": "La entrada del documento de decisiones a la que se promovió"
           },
+          "session": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "La sesión de Claude Code que hizo la pregunta (CLAUDE_CODE_SESSION_ID): responderla en la web puede retomarla en el chat (§32)"
+          },
           "at": {
             "type": "string",
             "format": "date-time",

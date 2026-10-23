@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:44.325Z",
   "description": "Reglas de la tabla §16.2a: @onready var, $/%, acciones de input, func _ virtuales con firma, .connect(, func _on_, grupos, preload/load, extends.",
   "milestone": "m08",
-  "notes": "",
+  "notes": "local/context_rules.gd: @onready var (nombres repetidos con el padre), $/%, acciones, func _ virtuales, .connect(, func _on_ (solo con firma conocida), grupos, preload/load por tipo, extends.",
   "order": 4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/unit/test_completion_rules.gd: un test por regla sobre tests/completion_fixture.",
   "title": "ContextRules",
-  "updated_at": "2026-10-21T04:33:44.325Z"
+  "updated_at": "2026-10-21T09:46:24.272Z"
 }

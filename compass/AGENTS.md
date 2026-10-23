@@ -24,6 +24,16 @@ claude mcp add --scope user scompass -- node <carpeta de scope-compass>/hub/bin/
 
 Los hitos (`compass://milestone/<id>`), las tareas (`compass://task/<id>`) y los documentos (`compass://doc/<alias>`) se adjuntan con `@scompass:…`.
 
+## Chat
+
+La web del tablero tiene un chat (botón *Chat*, solo en el mismo equipo) con el Claude Code instalado. Lanza `claude` en la carpeta del proyecto con el MCP `scompass` y las herramientas de lectura (`Read`, `Grep`, `Glob`), permitidas de antemano: no edita archivos ni corre comandos, y lo demás se niega sin preguntar. Si sos ese agente:
+
+- Un mensaje puede empezar con `Tarea abierta: <código> <título> (compass://task/<id>)`: es la tarea que el usuario tiene abierta; leela con `show_task` si hace falta.
+- Lo que haya que editar o correr, decilo para hacerlo en la terminal.
+- Las reglas de esta guía valen igual: registrá las decisiones, pasá a `review` lo que termines.
+
+Las conversaciones son sesiones de Claude Code (se pueden seguir con `claude --resume <id>`, con el mismo perfil); el hub solo guarda la lista y una copia para mostrarlas, fuera de `compass/`. Cada conversación usa un perfil de Claude Code (`~/.claude` o una carpeta de `~/.claude-profiles/`, que se lanza con `CLAUDE_CONFIG_DIR`), y el panel muestra su cuenta, el uso de sus límites y los tokens de cada respuesta.
+
 ## Modelo
 
 - **Hito** (`compass/milestones/<id>.json`): id `m00`, `m01`, …; campos `code` ("M0"), `title`, `order`, `goal`, `done_when` y `due` (fecha objetivo opcional; atrasado si pasa con tareas sin terminar).
@@ -119,7 +129,7 @@ scompass decisions --revert                          # las de todo el proyecto (
 ```
 
 - Las decisiones se numeran desde 1, como los pasos, y `show` las lista con su estado: `?` pregunta abierta, `!` sin revisar, `↺` a revertir, `✓` resuelta.
-- Las preguntas también se registran (`--ask`), con la respuesta cuando llega: así queda por qué la tarea quedó como quedó.
+- Las preguntas también se registran (`--ask`), con la respuesta cuando llega: así queda por qué la tarea quedó como quedó. Desde Claude Code, `--ask` guarda solo la sesión que pregunta (`CLAUDE_CODE_SESSION_ID`): si el usuario responde en la web, puede mandarte la respuesta a esa misma sesión por el chat.
 - Revisar (`decision ok`, `revert`) es del usuario. Antes de seguir con una tarea, mirá si tiene alguna a revertir: deshacela siguiendo `reply`, marcala `reverted` y, si en su lugar decidiste otra cosa, registrala como decisión nueva.
 - Las de diseño grandes del proyecto (las que cambian la spec) van además al documento de decisiones: `scompass decision promote m5-02 1` agrega una resuelta como entrada `D<n>` al final del documento `decisiones` (o el de `config.json › decisions_doc`) y la marca en la tarea. Hacelo cuando te lo pidan o cuando la decisión cambie la spec; no commitea.
 
@@ -193,7 +203,7 @@ scompass doc diff gdd                        # cambios sin commitear y las secci
 
 ## Proyectos del equipo
 
-Cada hub que se levanta anota su proyecto en `~/.config/scope-compass/projects.json` (en Windows, `%APPDATA%\scope-compass\projects.json`), para que el Inicio lo muestre aunque después se apague. No hace falta tocarlo para operar el tablero. Un tablero en una carpeta temporal (`/tmp`, para probar algo) no se anota solo, y el Inicio olvida al arrancar los temporales que ya no existen; para tests, `SCOMPASS_CONFIG` y `SCOMPASS_REGISTRY` apuntando a una carpeta propia aíslan todo.
+Cada hub que se levanta anota su proyecto en `~/.config/scope-compass/projects.json` (en Windows, `%APPDATA%\scope-compass\projects.json`), para que el Inicio lo muestre aunque después se apague. Al lado, `chats/` guarda las conversaciones del chat de cada proyecto. No hace falta tocarlo para operar el tablero. Un tablero en una carpeta temporal (`/tmp`, para probar algo) no se anota solo, y el Inicio olvida al arrancar los temporales que ya no existen; para tests, `SCOMPASS_CONFIG` y `SCOMPASS_REGISTRY` apuntando a una carpeta propia aíslan todo.
 
 ```sh
 scompass home list --json   # { "file", "projects": [ { "path", "name", "found", "hubs": [ { "pid", "port" } ] } ] }

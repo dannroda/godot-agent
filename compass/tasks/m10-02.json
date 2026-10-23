@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:34:10.928Z",
   "description": "Endpoints verificados contra la documentación y anotados en decisions.md. Plantillas FIM por perfil, stop tokens, keys por nombre de variable de entorno, aviso de envío de código en perfiles remotos, Gemini marcado experimental. Contexto de ProjectContext con presupuesto y prioridad.",
   "milestone": "m10",
-  "notes": "",
+  "notes": "Endpoints verificados (docs y código en el scratchpad dl/) y anotados en D28: Ollama /api/generate (suffix → 400 en modelos sin FIM; con plantilla, raw:true), llama.cpp /infill en el puerto 9931 con input_extra, Codestral /v1/fim/completions en api.mistral.ai (additionalProperties false), OpenAI /v1/completions con la plantilla de Qwen por defecto (suffix no es portable, máx. 4 stops), Gemini generateContent con x-goog-api-key, gemini-3.5-flash-lite, experimental. Keys solo por nombre de variable (OS.get_environment en cada pedido; vacía → no se manda nada). Contexto de ProjectContext como comentarios #, prioridad nodos > base > clases > autoloads > acciones > grupos, 4 chars/token. Sin Ollama ni llama.cpp en la máquina: no se probó contra un modelo real.",
   "order": 2,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "test_completion_llm: test_profiles (defaults por tipo, is_remote con localhost/127.0.0.1/[::1] vs red, experimental, to_dict sin key), test_build_requests (URL, headers y body de los 5 tipos, plantillas FIM, límites de stops), test_parse_responses (formatos, errores, cercos y thought de Gemini, respuesta bloqueada), test_split_and_context (recorte en salto de línea, contexto con presupuesto). test_settings_dialog: key pegada rechazada, aviso de host remoto.",
   "title": "Proveedores Ollama, llama.cpp, Codestral, OpenAI-compatible y Gemini",
-  "updated_at": "2026-10-21T04:34:10.928Z"
+  "updated_at": "2026-10-21T11:43:50.913Z"
 }

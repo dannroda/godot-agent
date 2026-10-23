@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-22
+> Generado: 2026-10-23
 
 ## M0 — Esqueleto y decisiones  (6/6, 6 en revisión)
 
@@ -296,7 +296,7 @@ Es la base de la verificación de M6 (m6-05).
 
 **Bloqueada por:** 1.13 Verificar qué cuota reporta el adapter de Claude Code
 
-## M2 — Tool calls, diffs y permisos  (8/8, 8 en revisión)
+## M2 — Tool calls, diffs y permisos  (10/10, 10 en revisión)
 
 Render de tool_call/tool_call_update, tarjeta de diff y plan; session/request_permission con PermissionPolicy; fs/read_text_file y fs/write_text_file con sincronización editor ↔ disco.
 
@@ -458,7 +458,76 @@ Ruido conocido: la prueba de ciclo puede crecer más de 50 objetos si corre just
 
 Docs: progress.md (sección M2) y decisions.md (D15).
 
-## M3 — Servidor MCP y tools de lectura  (7/7, 7 en revisión)
+### Modo Auto: chat sin pedir permiso, shell clasificada por listas revisables · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `permisos`
+
+Pedido del usuario (2026-10-22): un modo para el chat que no corte a cada rato. Es como Construir, pero sin pedir permiso para lo que se puede deshacer. No es One-shot: sin spec, plan, presupuestos ni evaluador; es solo una política de permisos.
+
+**Matriz** (`PermissionPolicy.DEFAULTS`, nueva columna AUTO en `SessionModel.HarnessMode`):
+- read, diagnostics, edit_scene, edit_files, run y project se permiten (red de seguridad: ↶ de las tarjetas, undo del editor, D48);
+- shell lo decide el clasificador.
+Los overrides por proyecto y «permitir en esta sesión» siguen funcionando igual.
+
+**Clasificador de shell, por reglas** (no por modelo: predecible, sin costo, testeable), con tres resultados:
+- **allowlist** (se permite): comandos de lectura o build, como `ls`, `cat`, `grep`, `find`, `git status/diff/log/show`, `godot --headless …`;
+- **denylist** (siempre se pregunta, nunca se permite solo): lo destructivo o hacia afuera, como `rm`, `git push/reset/checkout/clean`, `curl`/`wget`, instaladores de paquetes, `sudo`, y escribir o redirigir fuera del proyecto;
+- **el resto**: se pregunta.
+
+Un comando compuesto (`&&`, `;`, `|`, `$(…)`, backticks) se permite solo si cada parte está en la allowlist. Si hay redirección a un archivo, se evalúa también la ruta de destino.
+
+**Listas revisables** (pedido explícito del usuario): tiene que poder ver qué comandos entran en cada lista y por qué.
+- Las listas se guardan en project_config: patrón + origen (default / agregado por el usuario / agregado desde una tarjeta de permiso) + fecha.
+- La tarjeta de permiso de una shell en Auto ofrece «Permitir siempre este comando» y «Preguntar siempre». No agrega nada sin que el usuario lo elija, y al agregar muestra el patrón que va a quedar (p. ej. `npm test` vs `npm *`) para poder ajustarlo.
+- En Settings → Permisos, una sección «Modo Auto» con las dos listas: ver, editar, borrar, origen de cada entrada, y «restaurar defaults».
+- Canal `permissions` en el Agent Log: cada decisión del clasificador (comando, resultado, regla que lo decidió). Así se puede revisar después qué se permitió solo.
+
+**UI:** «Auto» en el selector de modo del dock (con tooltip que explique qué permite) y en es.po.
+
+Registrar la decisión de diseño como D57 en docs/decisions.md y actualizar la wiki (Modos y Settings, en/es) y la spec.
+
+**Decisiones:**
+- ! La tarjeta de shell en Auto no ofrece «Preguntar siempre» ni «Siempre en esta sesión»: solo «Permitir siempre» con el patrón editable; la lista «preguntar siempre» se edita en Settings · sin revisar
+  Por qué: La tarjeta ya está preguntando, así que agregar a esa lista solo importa si hay un allow más amplio; y «siempre en esta sesión» habría abierto todo el grupo shell, listas incluidas
+  Descartado: Ofrecer los dos botones en la tarjeta (como decía la descripción); dejar «siempre en esta sesión»
+- ! Defaults: allowlist de lectura/build incluyendo `godot --headless *`; «preguntar siempre» para rm, mv, sudo, chmod, kill, git push/reset/checkout/restore/clean/rebase, curl, wget, ssh, instaladores y find -delete/-exec · sin revisar
+  Por qué: `godot --headless` es como el agente valida scripts; puede correr código arbitrario, igual que run_scene (que en Auto está en allow)
+  Descartado: Dejar `godot --headless *` afuera de la allowlist (preguntaría cada vez); listas más amplias (sort, tree, file, que pueden escribir con flags)
+- ! Auto va entre Construir y One-shot en el dock y en Settings; en el enum va al final (valor 4) para no cambiar los demás · sin revisar
+  Por qué: Orden de menos a más autonomía; el valor del enum no se renumera
+  Descartado: Ponerlo al final de la barra, después de One-shot
+- ! Las decisiones del clasificador van al canal `perm` que ya existía en el Agent Log, no a un canal `permissions` nuevo · sin revisar
+  Por qué: El canal perm ya registra cada permiso (allowed by mode, asking, denied); así las decisiones de Auto quedan intercaladas con las demás, en orden
+  Descartado: Un canal `permissions` aparte solo para el modo Auto
+
+**Prueba:** Todo en 4.8-beta1 y 4.6.3:
+- run_all 205/0, con test_shell_rules (allow/ask, compuestos, comillas, sustituciones, redirecciones, patrones con `*`, sugerencias) y test_permission_policy (columna Auto y overrides);
+- acp_session_check 133/0 (escenario auto_shell: ls && git status sin tarjeta; rm con tarjeta; «Permitir siempre» de npm test cubre npm test -- --watch; edición sin tarjeta; redirección con tarjeta; regla con origen y fecha; log perm);
+- oneshot_check 125/0;
+- editor: --godot-agent-auto-test (botón Auto del dock, tarjetas resueltas con sus botones, config guardada, regla vista, filtrada y borrada en Settings → Permisos), mcp, edit, run, oneshot e i18n (es): PASS.
+
+**Notas:** Commit 0f083c0 en la rama auto-mode (worktree agent-harness-st), subida a origin; main sin tocar porque el usuario tiene el editor abierto. D57 en docs/decisions.md.
+- Nuevo: session/shell_rules.gd (clasificador), ui/settings/auto_rules_page.gd (listas en Settings), addons/godot_agent_dev/auto_check.gd, tests/scripts/auto_shell.json.
+- Config: project_config.auto_shell_rules ({pattern, list, origin, added}).
+- Tarjeta: patrón editable + «Permitir siempre». No se ofrece si una regla allow no ganaría (redirección, sustitución, lista ask).
+- Diferencias con la descripción, registradas como decisiones: sin «Preguntar siempre» en la tarjeta, y canal perm en lugar de uno nuevo.
+- Capturas de la tarjeta y de Settings revisadas.
+
+### Modo Auto: probar un comando contra las reglas desde Settings · Revisión
+
+**Prioridad:** baja · **Tamaño:** S
+
+Pedido del usuario (2026-10-22), sigue a m2-09 (D57). Hoy, para saber si un comando de shell corre solo o pregunta en Auto, hay que esperar a que el agente lo use y mirar el Agent Log.
+
+En Settings → Permisos → «Modo Auto: comandos de shell», un campo donde se escribe un comando y muestra al momento el resultado de ShellRules.classify con las reglas que se están editando (todavía sin guardar): corre / pregunta, la regla que decidió y el motivo (parte fuera de la allowlist, redirección, sustitución…). Si se puede, marcar en la tabla la regla que decidió.
+
+Tests: unitario si hace falta lógica nueva, y el check del editor de Auto (--godot-agent-auto-test) usando el campo.
+
+**Prueba:** test_shell_rules: código y segmento de cada tipo de decisión (permitido, lista ask, fuera de la allowlist, sustitución, sustitución de procesos, redirección, comilla, vacío) y el texto del resultado. --godot-agent-auto-test: con la regla agregada desde la tarjeta, «ls && npm test --watch» corre sin preguntar con las dos reglas, la fila se resalta, y «git push origin main» pregunta; captura revisada. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido.
+
+**Notas:** Rama auto-rule-tester (encima de remote-qr, pusheada, sin mergear). Durante el desarrollo, un scroll_to_item diferido con un TreeItem ya borrado tiró el editor; ahora el scroll es directo al final del refresh. Esa caída dejó un project_config.tres en el worktree (el check no llegó a restaurarlo); se borró a mano.
+
+## M3 — Servidor MCP y tools de lectura  (9/9, 9 en revisión)
 
 McpServer con token, initialize, tools/list y tools/call; tools read y diagnostics; fallback del shim stdio.
 
@@ -612,7 +681,41 @@ La prueba de ciclo se volvió robusta: espera el escaneo del FS, toma la línea 
 Bug encontrado y corregido: el set_process(false) en _ready del server lo apagaba después de start().
 Docs: D16, D17, D18 y la sección M3 de progress.md.
 
-## M4 — Tools de edición y ejecución  (6/6, 6 en revisión)
+### Consultar la API del motor · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `swallowtail`
+
+Como engine.classinfo/search/docs de swallowtail. Tool de lectura que responde con lo que tiene la versión de Godot del editor abierto: métodos, propiedades, señales, constantes y herencia de una clase (ClassDB), búsqueda por nombre o capacidad, y la documentación cuando esté disponible. Evita APIs inventadas o de otra versión (4.6 vs 4.8). Sirve en todos los modos, incluido Preguntar.
+
+**Decisiones:**
+- ✓ Las descripciones salen del caché de docs que arma el editor (`editor_doc_cache-<major>.<minor>.res`); los miembros, de ClassDB
+  Por qué: Godot no expone la documentación a GDScript. El caché lo regenera el editor para su propio binario, así que coincide con la versión abierta, y carga en ~80 ms. ClassDB manda sobre qué existe (incluye GDExtensions sin docs).
+  Descartado: Bajar el XML de docs de GitHub por versión (red, y no coincide con builds propios); solo ClassDB sin descripciones. Si el formato interno del caché cambia, la tool sigue andando sin descripciones.
+
+**Prueba:** `tests/unit/test_api_tools.gd` (firmas con defaults, sin setters, herencia, miembro heredado, built-ins y @GlobalScope desde el caché, sugerencias para KinematicBody2D, búsqueda con filtros, BBCode a texto, índice en <3 s): pasa en 4.6.3, 4.7.2 y 4.8-beta1. `--godot-agent-mcp-test` en el editor real (4.8-beta1): tools/list las incluye, class_info Timer con descripción, class_name del proyecto y search_api.
+
+**Notas:** Commit fe41b95 (rama swallowtail-tools). `mcp/tools/api_tools.gd`, grupo read (sirve en Preguntar):
+- `class_info(class, member?, inherited?, description?)`: herencia, métodos con firma (virtual/const/static), propiedades con default, señales, enums y constantes, con una línea de descripción. Sin `inherited`, solo los miembros propios. `member` busca también en los ancestros y da la descripción completa. Clase inexistente → nombres parecidos.
+- `search_api(query, kind?, class?)`: todas las palabras en el nombre (y en la descripción breve, para clases). Índice de ~19k entradas en ~300 ms, se arma la primera vez; no pide defaults (ClassDB instanciaría cada clase).
+- Engine classes desde ClassDB + caché; built-ins, @GlobalScope y @GDScript solo del caché; class_name del proyecto desde su script.
+- System prompt: consultar estas tools antes de usar una API dudosa. Wiki (en/es) y spec §6 actualizados.
+
+### Tool genérica con descubrimiento cuando crezcan las tools · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `swallowtail`
+
+Como godot_run + engine.commands de swallowtail. Cada tool MCP suma su descripción al contexto del agente en cada turno. Con las tareas de swallowtail la lista crece mucho. Mantener un núcleo de tools tipadas (lectura, edición de escenas, ejecución) y exponer el resto por una tool genérica godot.run(method, params), más una tool que lista los métodos disponibles con sus parámetros. Medir el tamaño de tools/list antes y después. Los permisos se siguen aplicando por método.
+
+**Decisiones:**
+- ! Lista compacta activada por defecto: núcleo tipado (lectura, diagnóstico, edición de escenas, run_scene/stop_scene/capture_game_frame) más godot.methods y godot.run; API, proyecto, archivos, recursos, tilemaps, animación y game_* pasan a extendidas · sin revisar
+  Por qué: tools/list baja de 29.978 a 11.232 caracteres (−63 %) en cada turno; lo de todos los turnos queda tipado y lo puntual se descubre con methods. Permisos, validación y log siguen por método, y llamar por nombre directo sigue funcionando (D56)
+  Descartado: Desactivada por defecto; un solo godot_run para todo, sin núcleo tipado; dejar class_info/search_api en el núcleo; mover también la edición de escenas a extendidas
+
+**Prueba:** run_all (test_tool_registry: lista compacta, methods con filtro y detalle, run con validación y permiso del grupo del método; test_session_model: ToolCall desenvuelve run) 197/0 en 4.8-beta1 y 4.6.3; --godot-agent-mcp-test por HTTP (lista sin extendidas, methods, run(class_info), llamada directa) PASS en 4.8-beta1 y 4.6.3; edit-test y run-test PASS en 4.8-beta1 con compacto activo.
+
+**Notas:** Commit 07a1d14 en swallowtail-tools (D56). Medido: completo 55 tools / 29.978 caracteres → compacto 26 tools / 11.232 (−63 %); la salida de methods sin filtro son 5.359 caracteres, solo cuando se pide. Setting compact_tools en Settings → Servidor MCP (default activado; vale desde la próxima sesión). ToolCall.godot_tool_name()/godot_arguments() desenvuelven run, así el deshacer de la tarjeta y el conteo del One-shot ven la tool real. El prompt de sistema explica que una tool nombrada que no está en la lista se usa vía methods/run.
+
+## M4 — Tools de edición y ejecución  (13/13, 13 en revisión)
 
 Grupos edit_scene, edit_files y run con undo; run_scene con captura de errores, autoload de playtest con su ciclo de vida, capture_game_frame e inputs simulados.
 
@@ -702,6 +805,126 @@ Los tool calls MCP de edición registran su paso de undo; el dock muestra "↶ u
 
 **Notas:** docs/progress.md (sección M4) y decisions.md D19–D21. El prompt de sistema suma reglas para edición en pasos chicos y para run_scene/capture/stop. Los editores 4.4/4.7 reescriben tests/fixtures/main_fixture.tscn al correr la suite (sin unique_id): se restaura con git checkout, igual que project.godot.
 
+### Inspeccionar y controlar el juego en ejecución · Revisión
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `swallowtail`
+
+Como runtime.* e input.* de swallowtail. Con el juego corriendo (run_scene o un run manual), el agente puede leer el árbol vivo, leer y cambiar propiedades, llamar métodos, esperar una condición o una señal (waitfor, awaitsignal), mandar inputs en vivo (tecla, acción, click, secuencia) y leer los errores del juego. Hoy solo hay inputs fijos al lanzar, capturas y errores, así que verificar "el jefe murió" o "subió el puntaje" es adivinar por la imagen. Sirve en Construir (probar lo que se acaba de hacer), en Revisar (reproducir un bug) y en One-shot (checks y el evaluador de m6-09). Se apoya en el autoload de playtest (que ya se quita al terminar y nunca llega al export). El canal juego ↔ editor queda en 127.0.0.1 con token, como el MCP.
+
+**Decisiones:**
+- ✓ El canal juego↔editor es el del debugger (request/reply con id por el probe de playtest), sin socket ni token propios; runs manuales solo con el setting de autoload en runs manuales
+  Por qué: El debugger del editor ya escucha solo en 127.0.0.1 y habla únicamente con el juego que lanzó; un socket aparte duplicaba eso. El probe sigue sin llegar al export.
+  Descartado: Un servidor TCP/WebSocket en el juego con token como el MCP; inyectar el probe siempre en runs manuales.
+- ✓ Un paso de input sin `pressed` ahora es apretar y soltar (0.1 s), también en run_scene; game_tree/game_get van en el grupo read y el resto en run
+  Por qué: Un tap es lo que se quiere casi siempre; antes un paso sin pressed dejaba la tecla apretada. Leer el juego no cambia nada; game_wait evalúa una Expression que puede llamar métodos, así que va en run.
+  Descartado: Mantener el default de solo apretar; todas las tools game_* en run.
+
+**Prueba:** tests/run_in_xvfb.sh <godot> --godot-agent-run-test pasa en 4.8-beta1, 4.7.2 y 4.6.3: game_tree (árbol vivo, sin el probe), game_get (variables del script, propiedades pedidas, nodo inexistente), game_set (conversión de vectores y error de valor inválido), game_call (resultado, método inexistente), game_wait (condición, timeout, condición rota, señal con argumentos), game_input (acción, Ctrl+S y click recibidos por el juego). Unit: test_run_tools (normalize_steps). Suite: 193 tests, 0 fallos; mcp-test 0 fallas.
+
+**Notas:** Commit 27deaa5 en swallowtail-tools (D54). Protocolo 2 del probe: request [id, op, params] → reply [id, {text}|{error}]; ops tree, get, set, call, wait, input. Los resultados incluyen los errores [game] nuevos; si el juego está parado en el debugger lo dice. Los inputs de run_scene usan los mismos pasos (action, key, event, click, move). En 4.6/4.7 el motor deja un error "get_node() with absolute paths…" en @implicit_new del primer script con variables cuando corre bajo el debugger (no es del harness, en 4.8 no pasa); el run-check lo ignora. System prompt y loop_detector conocen las tools nuevas.
+
+**Relacionadas:** One-shot: evaluator separado y vuelta de corrección
+
+### Armar escenas en lote · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `swallowtail`
+
+Como batch.addnodes y node.duplicate de swallowtail. Una tool que crea un subárbol entero (nodos anidados con tipos, propiedades, scripts e instancias) en una llamada y un solo paso de deshacer, y otra que duplica un nodo con sus hijos. Hoy cada nodo es un add_node: escribir el .tscn a mano era más corto, y D48 lo bloquea. Sirve en cualquier modo que edite escenas.
+
+**Prueba:** `--godot-agent-edit-test` en el editor real (4.8-beta1 y 4.6.3): add_nodes arma HUD (CanvasLayer > Label, HBox con script nuevo > Button + escena instanciada) y un Marker2D, con owners, grupos, propiedades y script; un Ctrl+Z lo saca entero; un item inválido anidado no crea nada y el error dice la ruta (Bad/X). duplicate_node copia Player con Sprite, grupo, script y posición al lado del original; Ctrl+Z la saca; con new_name/new_parent va bajo Enemies.
+
+**Notas:** Commit 36ebd0a (rama swallowtail-tools).
+- `add_nodes(parent, nodes, scene?)`: items {name, type | scene, properties?, script?, groups?, children?}. Arma todo fuera del árbol, valida antes de tocar la escena (todo o nada) y lo aplica en una acción de EditorUndoRedo. Tope de 200 nodos por llamada.
+- `duplicate_node(node_path, new_name?, new_parent?)`: Node.duplicate con señales, grupos, scripts e instanciación; restaura owners por ruta relativa; nombre libre Player2, Player3…
+- System prompt: add_nodes para subárboles nuevos.
+- Hallazgo aparte: los checks del editor que se cortaban por un error de script devolvían null y daban "PASS: 0 fallas". En el worktree pasaba porque `tests/tmp/` (ignorado por git) no existía. Ahora un corte cuenta como falla y el plugin de dev crea `tests/tmp`.
+
+**Relacionadas:** El agente no escribe el proyecto por fuera del editor
+
+### Project settings por el editor: input map, autoloads y settings · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `swallowtail`
+
+Como inputmap.*, project.addautoload/setsetting de swallowtail. Tools para leer y cambiar acciones de input (con sus eventos), autoloads y project settings a través del editor (ProjectSettings + guardar), con deshacer cuando se pueda. Hoy el agente edita project.godot como texto y D33 lo sincroniza, pero es frágil. Con las tools, el harness puede rechazar también las ediciones a mano de project.godot (extensión de D48). Grupo de permisos: project.
+
+**Decisiones:**
+- ✓ El grupo project pasa a allow en One-shot (antes ask)
+  Por qué: Solo lo usan las tools nuevas, y antes el agente hacía lo mismo escribiendo project.godot con edit_files, que en One-shot se permite. Con ask, un One-shot desatendido se quedaba esperando (y vencía el permiso) para agregar una acción de input.
+  Descartado: Dejar las tools en edit_files (pierde el control aparte que pide la tarea); dejar ask (regresión del One-shot). En Construir sigue preguntando; se puede volver a ask en Settings → Permisos.
+
+**Prueba:** `test_project_tools` (teclas con modificadores, mouse, joypad por nombre y número, ejes con signo, errores) y `test_project_write_guard` (project.godot por Write y por `sed -i`). `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: set_input_action guarda en project.godot, append y dos Ctrl+Z la sacan; set_project_setting + project_settings con prefijo, tipo inválido → error, input/ → su tool, Ctrl+Z revierte; set_autoload / remove_autoload con undo; el nombre `Input` se rechaza; Preguntar deniega; project.godot igual al final. acp_session_check: 117 checks, 0 fallos.
+
+**Notas:** Commits b2fb5ae y 7edecdd (rama swallowtail-tools). D49 en docs/decisions.md.
+- `mcp/tools/project_tools.gd`: `project_settings` (read) y `set_project_setting`, `set_input_action`, `remove_input_action`, `set_autoload`, `remove_autoload` (grupo project).
+- Cada cambio es una acción del historial global de deshacer y guarda project.godot (también al deshacer). El «↶ undo» del chat sigue siendo solo para escenas: estas se deshacen con Ctrl+Z.
+- Guard: project.godot entra en `ProjectWriteGuard.is_editor_managed`; el rechazo de fs/write_text_file nombra las tools. Traducción del aviso actualizada.
+- Grupo project: allow en One-shot (antes ask), ver la decisión. Construir pregunta; Preguntar y Revisar deniegan.
+- `ProjectSettings.save()` reescribe `config/features` con la versión del editor (como hace el editor).
+
+**Relacionadas:** El agente no escribe el proyecto por fuera del editor
+
+### Mover, copiar y borrar archivos arreglando referencias · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `swallowtail`
+
+Como fs.move/copy/delete de swallowtail. Mover o renombrar actualiza las rutas res:// en escenas y recursos, mueve los .uid/.import y mantiene el uid. Copiar da un uid nuevo. Borrar se niega si algo lo referencia o si es una escena abierta, y dice qué se rompería. Hoy el agente usa mv/rm y una escena queda rota sin aviso. Con las tools, el harness puede rechazar mv/rm/cp dentro del proyecto (extensión de D48).
+
+**Prueba:** `test_project_write_guard.test_file_commands` (mv, rm -rf, cp hacia el proyecto sí / hacia afuera no, git mv, sudo con ruta absoluta, rm en /tmp, rm dentro de un string). `--godot-agent-edit-test` en 4.8-beta1 (dos corridas seguidas) y 4.6.3: mover una escena instanciada por otra y precargada por un script reescribe ambas y mantiene el uid; mover la carpeta y el script (con su .uid) también; la escena que la instancia sigue cargando con el script; delete_file se niega y lista level.tscn y spawner.gd; copy_file da uid nuevo; delete_file sin referencias borra; no mueve una escena abierta ni pisa un archivo.
+
+**Notas:** Commit 819ddf7 (rama swallowtail-tools). D50 en docs/decisions.md.
+- `mcp/tools/file_tools.gd` (grupo edit_files): `move_file`, `copy_file`, `delete_file`. Los archivos reescritos pasan por EditorSync.after_agent_write (scripts abiertos, escenas abiertas, conflictos).
+- copy_file trae también archivos de afuera del proyecto (assets bajados).
+- delete_file va a la papelera del sistema cuando se puede (la prueba deja un hero_copy.tscn en la papelera por corrida).
+- Guard: mv, cp (destino), rm, rmdir, unlink, git mv/rm sobre el proyecto → rechazo.
+- Sin deshacer del editor (no hay API para el FileSystem); quedan checkpoints y git.
+- Hallazgo: reescribir un script recarga ese script en el editor y corta sus corrutinas suspendidas. Le pasó a la propia prueba (tenía la ruta como literal). Las tools del harness son síncronas, y `addons/godot_agent` queda fuera de las reescrituras.
+
+**Relacionadas:** El agente no escribe el proyecto por fuera del editor
+
+### Tools de tilemaps · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `swallowtail`
+
+Como tilemap.* de swallowtail. Para TileMapLayer y TileSet: crear la capa, agregar fuentes de atlas o de escenas, poner celdas, rellenar rectángulos, pintar con terrenos, leer celdas y las usadas, limpiar. Todo con deshacer. tile_map_data no se puede escribir a mano, y sin tools el agente arma los niveles desde código. Sirve para construir niveles en Construir y One-shot (p. ej. el Megaman de great-boy-one).
+
+**Prueba:** `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: TileMapLayer con TileSet inline vía add_node; tileset_add_atlas de una textura 48×16 crea 2 tiles (el transparente no) con colisión y capa de física; tilemap_set_cells con rect y celdas sueltas (una con otro atlas); tile inexistente → error; tilemap_get muestra 12 celdas, la fila `3 aaaaaaaaaa`, la leyenda y la capa de física; Ctrl+Z deshace un set; erase; clear y su Ctrl+Z; paint_terrain sin terrenos → error que explica; con un terreno armado, pinta 3×3 por nombre; sobre un Timer → error.
+
+**Notas:** Commit 11ec564 (rama swallowtail-tools). D52 en docs/decisions.md.
+- `mcp/tools/tilemap_tools.gd`: tilemap_get (read); tileset_add_atlas, tileset_add_scenes, tilemap_set_cells, tilemap_paint_terrain, tilemap_clear (edit_scene). Usan el botón «↶ undo» del chat, como las demás tools de escena.
+- La capa se crea con add_node/add_nodes (tile_set inline gracias a D51).
+- Deshacer de celdas: tile_map_data antes/después. Un TileSet .tres se guarda al hacer y al deshacer.
+- Fuera por ahora: configurar terrenos (peering bits). Se pinta con los que ya tenga el TileSet.
+
+### Tools de animación · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `swallowtail`
+
+Como animation.* (y más adelante animtree.*) de swallowtail. Crear animaciones en un AnimationPlayer, agregar pistas y keyframes, leer y borrar, con deshacer; también SpriteFrames para AnimatedSprite2D. Hoy set_properties no llega a pistas ni keyframes, y el agente anima por código o escribe la biblioteca a mano.
+
+**Prueba:** `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: animation_create (length, loop linear, autoplay); animation_set_track de position (3 keys, continuous), modulate con colores y una pista de método; key fuera del largo y propiedad inexistente → error; animation_get con keys; Ctrl+Z quita la pista de método; animation_remove de una pista y de la animación (con su autoplay), y Ctrl+Z la restaura; sprite_frames_set desde una hoja (AtlasTexture, autoplay, sin la animación default), reemplazo de cuadros y Ctrl+Z; animation_get de un AnimatedSprite2D.
+
+**Notas:** Commit 4dd9bbf (rama swallowtail-tools). D53 en docs/decisions.md.
+- `mcp/tools/animation_tools.gd`: animation_get (read); animation_create, animation_set_track, animation_remove, sprite_frames_set (edit_scene), con el botón «↶ undo» del chat.
+- Undo: copia editada de la animación cambiada en su AnimationLibrary; SpriteFrames restaurado cuadro por cuadro. Bibliotecas/SpriteFrames en .tres propios se guardan al hacer y al deshacer.
+- Fuera por ahora: AnimationTree (animtree.* de swallowtail, la descripción dice "más adelante"), pistas bezier, de audio y 3D.
+
+### Recursos .tres: crear, leer y editar · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `swallowtail`
+
+Como resource.* de swallowtail. Crear un recurso (built-in o de un script con class_name) con sus propiedades, leerlo y editarlo a través del editor, y asignarlo a un nodo. Es lo que pide el diseño data-driven (valores ajustables en Resources). Hoy el agente escribe los .tres a mano. Con las tools, el harness puede rechazar también los .tres escritos a mano (extensión de D48).
+
+**Prueba:** `test_resource_values` (StyleBoxFlat inline con hint, error con tipo que no cumple, class_name FixtureLoot con Array[FixtureItem] que sigue tipado, describe sin defaults) y `test_project_write_guard` (.tres a mano). `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: create_resource FixtureLoot con items inline (uno con StyleBoxFlat inline) y weights; get_resource muestra `[0] <FixtureItem, inline>`, bg_color y weights sin defaults; set_resource_properties guarda y Ctrl+Z revierte y vuelve a guardar; panel.tres asignado por ruta y luego un StyleBoxFlat inline con set_properties; add_nodes con un class_name sin @tool; no pisa. Suite: 192 tests, 0 fallos.
+
+**Notas:** Commit 5b19448 (rama swallowtail-tools). D51 en docs/decisions.md.
+- `mcp/tools/resource_tools.gd`: `get_resource` (read), `create_resource` y `set_resource_properties` (edit_files). Para asignar a un nodo: `set_properties` con la ruta res:// o inline.
+- ValueCoercion: recursos inline `{"type": …}` contra el hint, y arrays tipados elemento por elemento (sirve en set_properties y add_nodes).
+- Arreglo de paso: en el editor, `script.new()` falla para class_name sin @tool. Ahora se instancia la base nativa y se pone el script (como el Inspector). `add_node` con un class_name de nodo también fallaba por eso.
+- Guard: `.tres` a mano se rechaza.
+- Fixtures nuevos con class_name: tests/fixtures/resources/ (FixtureItem, FixtureLoot, FixtureEnemy).
+
+**Relacionadas:** El agente no escribe el proyecto por fuera del editor
+
 ## M5 — Revisar y Script Editor  (4/4, 4 en revisión)
 
 Modo Revisar, parseo de findings, anotaciones en el CodeEdit, tarjetas y lista de hallazgos; "Aplicar arreglo" y "Exportar a CLAUDE.md".
@@ -785,7 +1008,7 @@ review_check.gd ubica la línea esperada buscando el código, y con Claude real 
 Observado (D23): en plan mode Claude Code ejecuta comandos de solo lectura y escribe su archivo de plan fuera del proyecto sin pedirle permiso al cliente. El log perm quedó vacío en Revisar.
 progress.md tiene la sección M5.
 
-## M6 — One-shot  (9/13, 9 en revisión)
+## M6 — One-shot  (18/18, 18 en revisión)
 
 Pantalla principal completa, checkpoints git, presupuestos, checks, "Guiar al agente" y reglas de cuota del plan (§10.1).
 
@@ -984,7 +1207,7 @@ El banner de la pantalla Agent: aviso (≥ umbral), pausa programada (texto de r
 
 **Bloqueada por:** 6.6 QuotaMonitor: fuentes, estados y umbrales
 
-### One-shot: evaluator separado y vuelta de corrección · Pendiente
+### One-shot: evaluator separado y vuelta de corrección · Revisión
 
 **Prioridad:** alta · **Tamaño:** L
 
@@ -1003,9 +1226,21 @@ Afinar el prompt leyendo trazas reales del evaluator. El artículo cuenta que al
 
 Tests: el agente falso con dos roles. El generator reporta todo en pass, el evaluator encuentra un fallo, y el run hace una vuelta de corrección y cierra en pass.
 
-**Relacionadas:** One-shot: criterios de evaluación para juegos
+**Decisiones:**
+- ✓ El evaluador corre en una sesión nueva del mismo proceso del agente, con permisos restringidos en la política (no edita), y después se vuelve a la sesión del que construye con restart_session
+  Por qué: Las tools godot.* se autorizan con el controller del dock: un segundo proceso habría heredado los permisos de One-shot salvo con un token por rol en el server MCP. Volver con restart_session reusa el camino de la recuperación (session/load o sesión nueva con resumen).
+  Descartado: Segundo SessionController y proceso del agente para el evaluador, con un token MCP por rol.
+- ✓ qa_rounds (default 2) cuenta evaluaciones, con una vuelta de corrección entre una y otra; la última evaluación decide el final. Una evaluación sin checks ni puntajes no tiene veredicto y termina el run sin otra vuelta
+  Por qué: Con 2: QA → corrección → QA y fin, como pide el test. Repetir una evaluación que no da veredicto gasta presupuesto sin información nueva.
+  Descartado: Contar vueltas de corrección (QA hasta 3 veces con 2); reintentar la evaluación sin veredicto.
 
-### One-shot: spec y progreso en archivos (planner y traspaso) · En curso
+**Prueba:** tests/oneshot_check.gd (125 checks, 0 fallos en 4.8-beta1 y 4.6.3): escenario "evaluador" con el agente falso en dos roles (evaluator_turns): el generator reporta todo en pass; el evaluador, en sesión nueva sin el prompt del generator y con edit_files/edit_scene/shell en deny y run en allow, encuentra que el puntaje no sube; el run vuelve al generator con checks, criterios y hallazgos; corrige y la vuelta 2 aprueba ("QA round 2: the game passes."). También qa-1.md/qa-2.md, checks verified, actividad qa, playtests del evaluador en el presupuesto, informe con las vueltas. --godot-agent-oneshot-test pasa en 4.8-beta1 y 4.6.3 (fase «Evaluating · QA round 1», Pausar habilitado, banner final, actividad, tabla del informe). Unit 193/0, acp_session_check 117/0.
+
+**Notas:** Commit 65f9317 en swallowtail-tools (D55; las referencias a "D42" en D40/D41 pasaron a D55). Setting nuevo qa_rounds en Settings → One-shot. PermissionPolicy.restrictions y SessionController.mode_rules_override sirven para cualquier rol futuro. Pendiente del enunciado: afinar el prompt leyendo trazas reales del evaluador (necesita correr con Claude Code real). Arreglé de paso el check del dock en oneshot-test ("el dock ofrece «Resume One-shot»"), que fallaba desde dc2fc2d bajo Xvfb porque la pestaña del dock no era la elegida en su slot: ahora mira la visibilidad dentro del dock.
+
+**Relacionadas:** One-shot: criterios de evaluación para juegos; Inspeccionar y controlar el juego en ejecución
+
+### One-shot: spec y progreso en archivos (planner y traspaso) · Revisión
 
 **Prioridad:** media · **Tamaño:** M
 
@@ -1019,6 +1254,26 @@ Qué hacer:
 - El evaluator lee el spec y el progress, y escribe `qa-<n>.md` con sus findings.
 - Esos archivos son el traspaso. Si el editor se cae o hay que reiniciar contexto, una sesión nueva retoma leyendo spec y progress. Se complementa con m7-09: el estado del harness va en `user://` y el del trabajo en el proyecto.
 - Decidir si `.godot_agent/` se ignora en git, se commitea en los checkpoints o queda excluido del export. El export check no debe incluirlo.
+
+**Prueba:** test_oneshot_files; oneshot_check «spec» (espera, guiar, aprobar con cambios, termina, spec.md en git, informe con files_dir); --godot-agent-oneshot-test con Revisar/Aprobar spec. Matriz 4.6.3/4.7.2/4.8-beta1 + 24 UI checks en verde.
+
+**Notas:** ad50af8 (D41). OneShotFiles (oneshot/oneshot_files.gd) escribe en <proyecto>/.godot_agent/oneshot/<id>/:
+- spec.md: paso 0 del prompt, de alto nivel (mecánicas, loop, dirección visual, criterio de «terminado»);
+- progress.md: se actualiza al cerrar cada tarea;
+- qa-<n>.md: lo escribe el evaluador (m6-09).
+El prompt de resumen manda leer esos archivos.
+
+Opción «Revisar el spec antes de construir» (form y Settings, config spec_review): agrega Phase.SPEC_REVIEW y approve_spec.
+
+Decisión git/export:
+- .godot_agent/.gdignore deja la carpeta fuera del FileSystem y del export; además, el export plugin saltea res://.godot_agent/;
+- la carpeta entra en los checkpoints, sincronizada con el código;
+- SUMMARY_PATHSPEC la excluye de «Revisar cambios».
+
+Feedback del usuario, resuelto en 755ef8b (oneshot-wip):
+- durante la revisión, la columna Plan muestra el spec con «Editar» y «Aprobar spec»;
+- diálogo con pestañas Spec, Progreso y QA, más «Mostrar en carpeta» y «Abrir con editor externo»;
+- los links a .godot_agent desde el chat abren ese visor; otros archivos que no son recursos usan OS.shell_open.
 
 **Relacionadas:** Persistir el run del One-shot y ofrecer retomarlo
 
@@ -1047,7 +1302,7 @@ Nota: el artículo también usa contratos por sprint (generator y evaluator acue
 
 **Relacionadas:** One-shot: evaluator separado y vuelta de corrección
 
-### One-shot: cambiar presupuestos con el run en curso, y opción ilimitado · Pendiente
+### One-shot: cambiar presupuestos con el run en curso, y opción ilimitado · Revisión
 
 **Prioridad:** alta · **Tamaño:** S
 
@@ -1060,7 +1315,17 @@ Qué hacer:
   - si el run estaba cerrando por presupuesto y todavía no mandó el pedido de reporte final, sigue.
 - Se guarda en el estado del run (D37) y queda en la actividad y en el informe (D39).
 
-### Pantalla Agent: el editor del objetivo es chico en monitores grandes · Pendiente
+**Prueba:** oneshot_check._scenario_budget_raise: cerrando por tiempo, se sube el presupuesto y el run sigue. --godot-agent-oneshot-test cubre el diálogo de presupuestos con «Ilimitado». Matriz 4.6.3/4.7.2/4.8-beta1 y 24 UI checks en verde.
+
+**Notas:** 755ef8b (rama oneshot-wip, worktree agent-harness-wt). Main sigue sin avanzar porque el editor del usuario usa el addon por symlink.
+- El botón «Presupuestos» se ve mientras el run está activo. Abre un diálogo con un spin por presupuesto (0 = sin límite) y la acción «Ilimitado».
+- OneShotRun.set_budgets rearma los avisos y registra la actividad y budget_changes en el informe.
+- Si el cierre fue por presupuesto (BUDGET_CLOSE_PREFIX) y ya no hay ninguno agotado, el run sigue:
+  - en CLOSING vuelve a RUNNING;
+  - en RUNNING continúa después del cancel, o con _resume_prompt.
+- En la barra, el texto es «x / y min» o «x min / ∞».
+
+### Pantalla Agent: el editor del objetivo es chico en monitores grandes · Revisión
 
 **Prioridad:** media · **Tamaño:** S
 
@@ -1071,7 +1336,117 @@ Qué hacer:
 - Revisar también el campo «Guiar al agente» de la vista del run: que sea multilínea y crezca.
 - Verificarlo con capturas a 1280×720 y a 2560×1440.
 
-## M7 — Pulido  (11/12, 11 en revisión)
+**Prueba:** --godot-agent-oneshot-test verifica que el formulario crezca a 1920×1200 (captura _form). Matriz y UI checks en verde.
+
+**Notas:** 755ef8b (oneshot-wip).
+- El formulario ocupa el 62 % del ancho, entre 640 y 1400 px.
+- El objetivo ocupa el 40 % del alto disponible, con un mínimo de 110 px.
+- Los tamaños se recalculan con _fit_form, conectado a center.resized.
+- Se sacó el campo «Guiar al agente»: la guía va por el chat del dock, cuyo placeholder cambia durante el One-shot.
+
+### Cola de guía visible en el One-shot · Revisión
+
+**Tamaño:** S
+
+El usuario no veía dónde quedaban los mensajes encolados durante un One-shot. Ahora, al escribir en el chat mientras el agente trabaja, se agrega al log una entrada de tipo guía «en cola: …» y se muestra un aviso en el chat. Cuando el mensaje sale de verdad, se agrega «enviado: …».
+
+**Prueba:** oneshot_check presupuestos: «en cola» y «enviado» en orden, y el aviso del chat. oneshot_check loop: en pausa, la guía sale enseguida.
+
+**Notas:** 518c819.
+- OneShotRun._queue_guidance agrega la actividad «guía · en cola: …» y un aviso en el chat.
+- _pop_guidance registra «enviado: …» cuando la guía sale de verdad. Si sale enseguida, se registra «enviado» directo.
+- _user_guidance separa la guía del usuario de la que mete el harness (por ejemplo el aviso de loop) y se persiste.
+- Color «guía» en la actividad.
+
+### One-shot: cambiar de cuenta al llegar al límite y retomar sin perder contexto · Revisión
+
+**Prioridad:** alta · **Tamaño:** M
+
+El usuario llegó al límite de 5 h en un One-shot real (great-boy-one, 2026-10-22). Preguntó si puede cambiar de cuenta y si el botón Reintentar sobrevive a cerrar el editor.
+
+Hoy pasa esto:
+- «Reintentar» del dock abre una sesión en blanco, y el run después retoma ahí sin contexto.
+- Cambiar de cuenta en una terminal no tiene efecto hasta que se relanza el proceso del agente.
+- Un run en Limitado que se restaura al reabrir el editor queda en pausa normal y no retoma solo.
+
+Qué hacer:
+- En Limitado / Pausado por cuota, un botón «Cambié de cuenta» que reinicia el proceso del agente, limpia el estado de cuota de la cuenta anterior y retoma con session/load.
+- Con un One-shot activo, «Reintentar» del dock retoma el run con su sesión.
+- Al restaurar, si el run estaba en Limitado o Pausado por cuota, vuelve a esa fase con su cuenta regresiva.
+- El prompt de reanudación menciona spec.md y progress.md si existen.
+
+**Prueba:** oneshot_check «cambio de cuenta»: límite, suspend y restore en Pausado por cuota sin retomar antes de hora, después switch_account y termina; el informe cuenta account_switches. --godot-agent-oneshot-test: menú en Limitado, y «Reintentar» del dock retoma en la misma sesión.
+
+**Notas:** 69155d2 (D45).
+- MenuButton «Cambiar de cuenta» en la pantalla Agent, con dos opciones:
+  - login con un método del agente; al terminar, SessionController.after_login llama a switch_account;
+  - «Ya inicié sesión con otra cuenta (en una terminal)».
+- switch_account: QuotaMonitor.forget_account, controller.stop y resume con session/load de la misma sesión.
+- «Reintentar» del dock con un One-shot activo pasa por retry_interceptor y va a resume() en la sesión del run.
+- Se persisten phase_id y quota_resume_at: un run en Limitado o Pausado por cuota vuelve a Pausado por cuota y retoma solo a la hora.
+- El prompt de reanudación menciona spec.md y progress.md.
+- Arreglo aparte (b041a85): el informe lista los checkpoints después de esperar la cola de git (fallo intermitente en 4.7).
+
+### One-shot: tiempos visibles de tareas, turnos y tools · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+El usuario pidió (2026-10-22) ver cuánto tarda la sesión en hacer cada cosa.
+
+Qué hacer:
+- Mientras corre: cada tarea del plan muestra su duración (las terminadas, cuánto tardaron; la actual, un contador).
+- La actividad registra el fin de cada turno con su duración.
+- Las tool calls muestran su duración (el dock ya lo hace por grupo).
+- Al final: el informe ya tiene las duraciones por tarea (D39); sumar el desglose por turno y el tiempo de espera por cuota.
+
+**Prueba:** test_run_report (timing, markdown, persistencia, task_ms, format_ms). oneshot_check: actividad de turnos y espera por cuota en el informe. --godot-agent-oneshot-test: duraciones en el plan.
+
+**Notas:** f9b7582.
+- RunReport suma:
+  - turns [{started_ms, ms, reason, tools}] y waits (quota, paused, spec_review);
+  - el tiempo acumulado (ms) de cada tool;
+  - task_ms() para la duración de una tarea;
+  - format_ms().
+- El informe gana timing (trabajando, turnos, promedio, el más largo, esperas), la sección «Tiempos» y la columna de tiempo en Tools.
+- Run:
+  - una actividad «Turno N · duración · n tools» por turno, con el motivo si fue cortado o falló;
+  - la duración en cada actividad de tool;
+  - las esperas se miden en _set_phase (WAIT_KINDS).
+- Plan: un label de duración por tarea que se actualiza en cada refresco sin rearmar la lista.
+- Además: is_git_busy() cuenta las operaciones en cola (_git_pending); antes daba false un frame entre operaciones y el escenario de cuota fallaba de forma intermitente.
+
+### La pausa por cuota no llegaba si la tarea no cambiaba · Revisión
+
+**Prioridad:** alta · **Tamaño:** S
+
+Reporte del usuario (great-boy-one, 2026-10-22): el banner decía «Cuota al 95 %: se pausa en el próximo checkpoint», pero el One-shot nunca pausó.
+
+Causa: la pausa solo se disparaba cuando el plan pasaba a otra tarea. Si el agente seguía en la misma tarea o trabajaba sin plan, no llegaba nunca. Además, al terminar un turno se mandaba «Seguí con el plan» sin mirar la cuota.
+
+Arreglo:
+- Pausar al terminar el turno.
+- Red de seguridad: si la pausa lleva 10 min programada o la cuota llega al 98 %, se corta el turno y se pausa con un checkpoint -quota.
+- El banner dice cuándo va a pausar.
+
+**Prueba:** oneshot_check: «cuota al terminar el turno» (no manda otro turno y retoma solo), «cuota con tope de espera» (corta el turno con cp3-quota) y el escenario de cuota de siempre. test_quota_monitor y --godot-agent-oneshot-test para la regla.
+
+**Notas:** b4736c0 (D44).
+- La pausa por cuota también se dispara al terminar el turno, antes de mandar «Seguí con el plan».
+- _check_quota_pause corta el turno y pausa con un checkpoint -quota si la pausa lleva QUOTA_PAUSE_GRACE_S (600 s) programada o la cuota llega a QUOTA_PAUSE_HARD (0,98).
+- quota_pause_text() alimenta el banner: dice cuándo pausa y cuánto falta para que corte igual.
+- Textos: «se pausa al terminar la tarea o el turno en curso».
+
+### Dock: retomar el One-shot al reabrir el editor · Revisión
+
+**Prioridad:** alta
+
+Al reabrir con un One-shot a medias, el aviso contaba como conversación y el dock escondía «Start session»: no había cómo arrancar ni retomar desde el dock. Ahora el botón sigue a la vista con solo avisos y, con un run esperando, dice «Resume One-shot»; el aviso trae «Resume One-shot» y «Open Agent screen».
+
+**Prueba:** --godot-agent-oneshot-test simula la reapertura (chat vacío, sin sesión, _restore_oneshot del plugin): el aviso trae «Resume One-shot» y «Open Agent screen», y el dock muestra «Resume One-shot». Matriz 4.6.3/4.7.2/4.8-beta1 verde (27 UI checks).
+
+**Notas:** Commit dc2fc2d. Venía de D37: el aviso del run a medias contaba como conversación y escondía la vista vacía.
+
+## M7 — Pulido  (31/33, 31 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -1080,7 +1455,7 @@ Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimient
 - Sesión de más de 500 entradas sin degradación visible.
 - README de uso escrito.
 
-### Reportar a Godot el EditorDock huérfano de _has_main_screen (4.8) · Pendiente
+### Reportar a Godot el EditorDock huérfano de _has_main_screen (4.8) · Revisión
 
 **Prioridad:** baja · **Tamaño:** S
 
@@ -1113,16 +1488,23 @@ Alternarlo 5 veces con `EditorInterface.set_plugin_enabled()` desde otro plugin 
 
 **Descartado:** el segundo problema que listaba D9 (`Condition "!is_inside_tree()"` en `grab_focus` al cerrar el editor con la main screen activa; crash por "Message queue out of memory" al cambiar antes a "Script" en headless) no se reproduce en 4.8-beta1 ni en 4.8-dev7. Se probó con un repro mínimo (`add_dock` en main screen, con la pantalla anterior en 2D y en Script; con y sin cambiar a "Script" en `_exit_tree`) y con el addon real sin el cambio a "2D" de `remove_all()` (prueba de captura, xvfb y headless). No se reporta.
 
-- [ ] Zipear tests/upstream/main_screen_orphan
+- [x] Zipear tests/upstream/main_screen_orphan
   Proyecto mínimo: legacy_ms (_has_main_screen) + driver que lo alterna 5 veces y cuenta EditorDock huérfanos. Correr: godot --headless --editor --path . -- --cycle. Zipear sin .godot/ ni .uid.
-- [ ] Probar en el último 4.8 publicado antes de abrir el issue
+- [x] Probar en el último 4.8 publicado antes de abrir el issue
   Si ya está arreglado, cerrar la tarea y anotar la versión.
 - [ ] Abrir el issue con la plantilla de bug
   Tested versions: 4.8-beta1, master e7cfa294a; regresión de #113051. Incluir la causa y el arreglo probable.
-- [ ] Decidir si se saca el cambio a 2D de remove_all()
+- [x] Decidir si se saca el cambio a 2D de remove_all()
   El error de grab_focus ya no se reproduce; el cambio a 2D es inofensivo pero su comentario describe un bug que no aparece. Actualizar D9.
 
-**Prueba:** Issue abierto en godotengine/godot con el repro adjunto y su link en notes. Si se arregla upstream, `tests/plugin_cycle_check.gd` pasa en esa versión con la main screen por `_has_main_screen()`.
+**Decisiones:**
+- ! Se deja el cambio a "2D" en remove_all() como precaución, con el comentario y D9 corregidos (el error de grab_focus ya no se reproduce) · sin revisar
+  Por qué: No cuesta nada y solo se descartó el bug en Linux (xvfb y headless); sacarlo arriesga reintroducirlo en Windows/macOS sin ganar nada
+  Descartado: Sacar el cambio a 2D y simplificar remove_all()
+
+**Prueba:** Issue abierto en godotengine/godot con el repro adjunto y su link en notes (pendiente: lo abre el usuario). Si se arregla upstream, `tests/plugin_cycle_check.gd` pasa en esa versión con la main screen por `_has_main_screen()`.
+
+**Notas:** 2026-10-22: 4.8-beta1 sigue siendo el último 4.8 publicado. El repro sigue fallando en 4.8-beta1 (4d10419ca) y master e7cfa294a: 2 → 7 EditorDock huérfanos en 5 ciclos. editor_main_screen.cpp no cambió después de a1bf7cf93 (18/10, incluido en e7cfa294a). No hay issue ni PR. Nota: c40a33125 depreca _has_main_screen(), así que upstream puede darle poca prioridad; el issue lo menciona. Borrador del issue (plantilla de bug, scripts inline) en tests/upstream/issue_main_screen_orphan.md y zip del MRP en tests/upstream/main_screen_orphan.zip (repo principal, sin trackear). El usuario prefirió abrirlo él: falta pegar el link acá. Cambio a 2D de remove_all(): queda como precaución, con el comentario y D9 corregidos (commit 9f3464e).
 
 ### 7.2 Diálogo de Settings completo · Revisión
 
@@ -1387,6 +1769,355 @@ Se muestra en la pantalla del One-shot y se guarda en `user://godot_agent/onesho
 **Bloqueada por:** Persistir el run del One-shot y ofrecer retomarlo
 
 **Relacionadas:** One-shot: detectar loops sin progreso real
+
+### Interfaz en inglés con traducción al español · Revisión
+
+**Prioridad:** alta · **Tamaño:** L
+
+El usuario pidió que el plugin esté primero en inglés y traducido al español. Los textos de la UI pasan a inglés con tr() y la traducción española va en un .po que se carga en el dominio de traducción del editor. Elegido con el usuario: el idioma sigue al del editor de Godot, y Settings → Interfaz suma un override (Automático / English / Español). Lo que lee el agente (descripciones de las tools MCP, prompts del One-shot, system prompt, rúbrica) queda solo en inglés, con la instrucción de responder en el idioma del usuario. Hay unos 650 literales en español repartidos por ui, oneshot, session, mcp y otras carpetas, y los tests se actualizan al inglés.
+
+**Prueba:** run_all (test_i18n: catálogo completo, placeholders, sin entradas sin usar) y --godot-agent-i18n-test con GODOT_AGENT_LANGUAGE=es (dock, pantalla Agent, Agent Log y cada página de Settings sin textos traducibles en inglés). Matriz 4.6.3/4.7.2/4.8-beta1 verde en 6541f02.
+
+**Notas:** D46. Texto fuente en inglés; español en addons/godot_agent/i18n/es.po (~620 msgids), cargado con load() como Translation. Idioma: GODOT_AGENT_LANGUAGE > Settings → Interface → Language > idioma del editor; se aplica al reabrir. Lo que lee el agente (prompts, tools, logs, nombres de deshacer, commits de checkpoint) queda solo en inglés. Raíces con auto_translate desactivado; los diálogos ponen cancel_button_text = I18n.t("Cancel"). Commit da82c9f (+ ajustes en 6541f02 y dc2fc2d).
+
+### README en inglés y en español · Revisión
+
+**Tamaño:** M
+
+README.md pasa a inglés y README.es.md queda como versión en español. Cada uno enlaza al otro y a la wiki. El contenido se mantiene al día con lo que hace el plugin (One-shot con spec, presupuestos editables, guía por el chat, informe, criterios).
+
+**Prueba:** README.md y README.es.md enlazan a la wiki de su idioma; los nombres de botones en negrita coinciden con los textos de la interfaz (script de verificación contra el código y es.po).
+
+**Notas:** Commit c274ae8.
+
+### Mini wiki: cómo funciona y cómo usarlo (en y es) · Revisión
+
+**Tamaño:** M
+
+Crear docs/wiki/en y docs/wiki/es con páginas Markdown sobre cómo funciona y cómo usarlo: arquitectura (ACP, MCP, editor), primeros pasos, modos y permisos, tools MCP, One-shot (spec, presupuestos, checkpoints, cuota, informe, criterios), Revisar, completado predictivo, Settings y troubleshooting. Se puede copiar tal cual a la wiki de GitHub.
+
+**Prueba:** docs/wiki/en y docs/wiki/es con 10 páginas cada una (inicio, primeros pasos, cómo funciona, modos y permisos, herramientas del editor, One-shot, revisión, completado, settings, problemas frecuentes); etiquetas verificadas contra la interfaz final.
+
+**Notas:** Commit c274ae8. Pendiente si cambian etiquetas: volver a correr la verificación de negritas contra el código.
+
+### El agente usa el binario del editor abierto para correr Godot · Revisión
+
+**Prioridad:** alta · **Tamaño:** S
+
+El usuario reportó que el agente corre `godot --headless` y toma el godot del PATH, que puede ser otra versión que la del editor abierto. Hay que darle el binario del editor: OS.get_executable_path() en las variables de entorno GODOT y GODOT_BIN del proceso del agente, un shim `godot` al frente del PATH del hijo, y una regla en el system prompt con la ruta. project_info también la reporta.
+
+**Prueba:** test_editor_binary (entorno, contenido del shim y que el shim corra la versión del editor). acp_session_check: el agente falso ve $GODOT y el shim al frente del PATH, y el prompt nombra el binario.
+
+**Notas:** 08bfad4 (oneshot-wip, D43). transport/editor_binary.gd entrega el binario por tres vías:
+- GODOT y GODOT_BIN en el entorno del agente (el perfil puede pisarlas);
+- un shim `godot` en <cache>/godot_agent/bin-<hash>/, al frente del PATH;
+- una regla con la ruta en el system prompt y en project_info.
+La regla del prompt es la que manda, porque la shell de Claude Code puede volver a armar el PATH desde .zshrc.
+
+### El addon no cargaba en un juego con class_name Level · Revisión
+
+**Prioridad:** alta
+
+great-boy-one declara class_name Level y el addon tenía enum Level (ChatEntry): Godot resolvía el tipo a la clase global y el dock no compilaba (4.6, 4.7 y 4.8). Enums y clases internas con nombres compuestos (D47), clases globales genéricas en tests/fixtures/global_names y test_type_names.
+
+**Prueba:** Con tests/fixtures/global_names en el proyecto (Level, State, Kind, Phase, Request…), el código anterior da los mismos Parse Error; con el arreglo, matriz 4.6.3/4.7.2/4.8-beta1 verde (27 UI checks) y una copia de great-boy-one abre sin SCRIPT ERROR. test_type_names falla con un enum o clase interna de una palabra.
+
+**Notas:** D47. Commit 6541f02, ya en main.
+
+### El agente no escribe el proyecto por fuera del editor · Revisión
+
+**Prioridad:** alta
+
+En great-boy-one el agente del One-shot editó un script con un heredoc de python3 y escribió escenas con cat >, salteándose el editor (el usuario mostró cómo lo hace swallowtail). D48: rechazo automático de shell que escribe archivos del proyecto y de .tscn/.uid/.import a mano, reglas en el system prompt, y create_scene con script y propiedades de la raíz.
+
+**Prueba:** test_project_write_guard (24 casos, incluidos los comandos de la captura del usuario); acp_session_check _scenario_project_writes (modo One-shot: 3 «Rejected:» sin tarjeta); edit-test con create_scene + script + exports. Matriz 4.6.3/4.7.2/4.8-beta1 verde: run_all 176/1328, acp 117, oneshot 106, 27 UI checks. El external-test de 4.6.3 no imprimió nada en la matriz y pasó al repetirlo solo.
+
+**Notas:** Commit 9f289c8 (D48). ACP no lleva el motivo del rechazo: el system prompt explica la regla, y el chat avisa con «Rejected: … without going through the editor».
+
+**Relacionadas:** Armar escenas en lote; Project settings por el editor: input map, autoloads y settings; Mover, copiar y borrar archivos arreglando referencias; Recursos .tres: crear, leer y editar
+
+### Convenciones de Godot en el system prompt · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `swallowtail`
+
+Como el CLAUDE.md que trae swallowtail. Reglas de estructura en el system prompt, para todos los modos (Construir, Revisar y One-shot): componer con escenas guardadas en disco (sin un script que arme todo el árbol en _ready), nodos built-in antes que scripts propios, "call down, signal up", tipado estático, valores ajustables en Resources o data.json y no en constantes, aleatoriedad con semilla (playtests reproducibles), verificar después de cada cambio. Son las mismas reglas de las skills de Godot del usuario. Respetar el CLAUDE.md/AGENTS.md del proyecto si dice otra cosa. Revisar también que la rúbrica de criterios (D40) y la revisión (M5) usen las mismas reglas.
+
+**Prueba:** `tests/unit/test_system_prompt.gd`: las convenciones aparecen en el system prompt de los cuatro modos; Revisar las pide como hallazgos; el criterio Código de la rúbrica (D40) las nombra. Suite unitaria completa en 4.8-beta1: 180 tests, 0 fallos.
+
+**Notas:** Commit eacaaaf (rama swallowtail-tools).
+- `config/system_prompt.md`: sección "Godot conventions" (escenas en disco, nodos built-in, call down/signal up, tipado, tunables en exports/Resources/data, RNG con semilla, verificar después de cada cambio). El CLAUDE.md/AGENTS.md del proyecto manda si dice otra cosa.
+- Revisar (M5): la regla del modo pide reportar los desvíos como findings (severidad order para estructura, style para tipado).
+- D40: el criterio Código y sus anclas 3/6/9 usan las mismas reglas.
+
+### Imágenes en el chat: pegar, arrastrar y capturar el juego · Revisión
+
+**Prioridad:** alta
+
+Pedido del usuario: poder pegar imágenes en el chat del agente, o que saque capturas del juego en ejecución. El agente ya captura con run_scene + capture_game_frame; faltaba que el usuario pudiera adjuntar. Ctrl+V con imagen o archivos copiados, arrastrar archivos del FileSystem, «+ contexto → Captura del juego» (con aviso si el run no tiene el autoload de playtest), hasta 6 imágenes por mensaje achicadas a 1280 px.
+
+**Prueba:** test_composer: rutas de archivos copiados (file:// con %20, absolutas, texto mezclado → se pega como texto) y arrastre real con force_drag (archivos sin carpetas; el texto arrastrado lo sigue insertando el TextEdit). --godot-agent-ui-test=ui_demo: PNG de afuera del proyecto + imagen pegada de 2560 px → dos bloques de imagen, la pegada achicada a 1280 sin tocar la original, y los chips se limpian al enviar. --godot-agent-run-test: Captura del juego desde el dock adjunta el frame rojo del juego; en un run manual avisa que falta el autoload. Matriz 4.6.3/4.7.2/4.8-beta1 verde: run_all 178/1336, acp 117, oneshot 106, 33 UI checks.
+
+**Notas:** Commit 844f3c0. El TextEdit llama al drop del forwarding con cualquier dato (también texto) y después inserta el texto él: _drop_files filtra. Archivos soltados desde el sistema operativo no se manejan: el editor ya los importa al FileSystem, así que alcanza con Ctrl+V o con arrastrarlos desde el FileSystem.
+
+### Soporte para Remote Control de Claude Code desde el dock · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
+
+Pedido del usuario (2026-10-22): seguir la sesión del dock desde claude.ai/code o la app de Claude en el celular.
+
+**Qué hay en el adapter** (@agentclientprotocol/claude-agent-acp 0.94.0, `dist/acp-agent.js`):
+- si el SDK expone `query.enableRemoteControl`, publica el comando `remote-control` en `available_commands_update`;
+- intercepta `/remote-control [nombre]` y `/remote-control off` en `session/prompt` (líneas ~2162–2190 y 2281–2303);
+- responde en la sesión con «Remote Control is active… <session_url>» o con el error;
+- no se puede cambiar a mitad de un turno.
+
+Requisitos de Claude Code (según docs de terceros; verificar en code.claude.com): research preview; planes Pro, Max, Team o Enterprise; login con claude.ai, no API key; sin ANTHROPIC_BASE_URL propio.
+
+**Sin verificar (primer paso):** probar con Claude real desde el dock.
+- ¿El comando aparece y anda?
+- Un prompt mandado desde el celular, ¿llega al dock como turno sin `session/prompt` del harness? ¿Con `user_message_chunk`? Hoy SessionModel puede no esperar eso.
+- Las tool calls y los permisos de esos turnos, ¿llegan como `session/request_permission` al editor? Si es así, alguien tiene que aprobar en la PC (esto se cruza con el modo Auto, m2-09).
+- ¿Funcionan `session/cancel` y session/load con Remote Control activo?
+
+**A hacer según lo que salga:**
+- botón o entrada de menú «Remote Control» en el dock (además de `/remote-control`);
+- indicador de estado (conectado / apagado) y el link clickeable más un QR;
+- mostrar los turnos que vienen del remoto, marcados como tales;
+- historial;
+- que la cuota y el One-shot no se rompan con turnos ajenos;
+- la decisión de permisos mientras el usuario no está en la PC.
+
+Documentar en la wiki (en/es) y como decisión.
+
+**Decisiones:**
+- ✓ Sin QR: la franja muestra el link con «Copiar link» y el link abre el navegador · revertida
+  Por qué: Godot no trae generador de QR; la sesión aparece igual en la lista de sesiones de la app de Claude y en claude.ai/code
+  Descartado: QR generado en GDScript (un encoder propio, más código para mantener)
+  Qué hacer: QR agregado en m7-25 (rama remote-qr).
+- ! Empezar un One-shot apaga Remote Control (y en ese modo el botón no aparece) · sin revisar
+  Por qué: Los turnos mandados desde el celular no pasan por el run: romperían presupuestos y el conteo de checks
+  Descartado: Dejarlo prendido y solo avisar; no dejar empezar el One-shot mientras está prendido
+- ! Los permisos se contestan de los dos lados; si contesta el celular la tarjeta se cierra como «Contestado en otro lado» · sin revisar
+  Por qué: Es como funciona el adaptador ($/cancel_request); la matriz del modo sigue decidiendo lo que no pregunta
+  Descartado: Que con Remote Control prendido todo lo que pregunta se conteste solo desde el celular
+- ! La sesión remota se llama como el proyecto, y el botón «Remoto» va en la línea de estado, no en el encabezado · sin revisar
+  Por qué: El nombre del proyecto identifica la sesión en la app; el encabezado ya llena un dock angosto y el botón lo ensanchaba
+  Descartado: Nombre fijo («Godot») o pedirlo al prender; botón en el encabezado o en un menú
+- ! Todo prompt que empieza con /comando va solo, sin contexto del harness ni adjuntos (no solo /remote-control) · sin revisar
+  Por qué: Claude Code reconoce un comando solo si es el mensaje entero; con el contexto delante /remote-control fallaba
+  Descartado: Tratar aparte solo /remote-control
+
+**Prueba:** Con Claude Code real (probe, antes del arreglo): /remote-control da el link, el celular sigue la sesión (probado por el usuario), y contestar un permiso en el celular manda $/cancel_request. El cierre de la tarjeta con Claude real no se probó; con el agente falso sí. Automático (4.8-beta1 y 4.6.3): test_slash_command; acp_session_check escenario remote_control (comando solo, link en el modelo, permiso retirado con $/cancel_request, contexto en el mensaje siguiente, off, sesión nueva apagada); oneshot_check «Remote Control» (el run lo apaga); --godot-agent-remote-test (botón, franja, tarjeta cerrada, Apagar, sin botón en One-shot, el dock no pasa su mínimo de diseño); i18n.
+
+**Notas:** Commit 2f69910 en la rama remote-control (pusheada, sin mergear a main). D58.
+
+Hallazgos con claude-agent-acp 0.94: los mensajes del celular y las respuestas del agente NO llegan al cliente ACP, así que «mostrar los turnos remotos en el dock» no se puede; la franja lo aclara. Llegan solo las tool calls que piden permiso; lo de solo lectura corre sin tráfico. El permiso es una carrera: si el harness contesta en el momento (matriz, D48, Auto) el celular no pregunta; si hay tarjeta, preguntan los dos y el que contesta primero gana ($/cancel_request).
+
+Sin QR (link + copiar). session/load con Remote Control activo no se probó.
+
+### Remote Control: mostrar en el dock lo que cambió desde el celular · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
+
+Pedido del usuario (2026-10-22), sale de m7-21. Claude Code no le pasa al cliente ACP los mensajes ni las respuestas de los turnos remotos (D58), así que hoy lo que se hace desde el celular no deja rastro en el dock.
+
+Lo que el editor sí ve: los archivos y escenas que cambian (la sincronización editor ↔ disco) y las tool calls que piden permiso. Mientras Remote Control está prendido, agregar al chat una entrada tipo «Desde el celular: cambió player.gd, main.tscn», con ↶ para deshacer cuando se pueda (undo del editor o checkpoint).
+
+A definir:
+- cómo agrupar (por ráfaga de cambios, o por permiso pedido);
+- qué pasa con cambios hechos a mano en el editor mientras tanto (no atribuirlos al celular);
+- deshacer: archivos fuera del editor vs. escenas abiertas.
+
+Documentar en la wiki (Remote Control) y en D58.
+
+**Decisiones:**
+- ! Los cambios del celular se detectan mirando los archivos del proyecto (cada 2 s, solo con Remote Control prendido y sin turno del dock), agrupados por tanda en un aviso con «Ver diff» y «Deshacer» · sin revisar
+  Por qué: Los turnos remotos no llegan por ACP y las tool calls que corren sin permiso tampoco; los archivos son lo único que se ve siempre
+  Descartado: Atribuir cada cambio a una tool call (incompleto); EditorFileSystem (solo escanea cuando el editor recupera el foco); un watcher del sistema operativo (no hay API en Godot)
+- ! Deshacer guarda el texto solo de archivos de texto de hasta 256 KB (32 MB en total) y mira hasta 5000 archivos; los binarios aparecen en el aviso pero sin Deshacer · sin revisar
+  Por qué: Memoria y tiempo de cada vuelta acotados en proyectos grandes; recorrer 750 archivos cada 2 s no se nota
+  Descartado: Checkpoint git al prender Remote Control (toca el repo del usuario); copiar también binarios
+
+**Prueba:** test_remote_watch (cambios modificado/creado/borrado sin .godot, .uid ni ignorados; texto de antes; restaurar; rebase y guardado desde el editor; merge de tandas; texto del aviso). --godot-agent-remote-test: con Remote Control prendido se modifica y crea un archivo en tests/tmp, aparece el aviso con los dos, «Ver diff» abre el diff, «Deshacer» los deja como estaban y no genera otro aviso. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido. Con Claude real y el celular no se probó (va con m7-24).
+
+**Notas:** Rama remote-activity (encima de dock-narrow, pusheada, sin mergear). Ver D58 «Actividad del celular». Recorrer este repo (~750 archivos) cada 2 s no se nota. Límite: se compara fecha (segundos) y tamaño.
+
+### La barra de modos no entra en un dock angosto · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Visto en las capturas de m2-09 y m7-21 (2026-10-22): con cinco modos (Preguntar, Revisar, Construir, Auto, One-shot) el último botón queda cortado («One-s…») cuando el dock está en su mínimo de diseño (260 px), y el MinSizeGuard lo recorta. En español los nombres son más largos y empeora.
+
+Opciones: botones que se achican con clip y tooltip, íconos más texto corto, o un selector desplegable cuando no hay lugar. Que el check del editor verifique que la barra no pasa el mínimo del dock (como hace remote_check con la franja), en inglés y en español.
+
+**Decisiones:**
+- ! El mínimo del dock baja de 260 a 220 px y la barra de modos pasa a ser un HFlowContainer: si no entran, los modos siguen en una segunda línea · sin revisar
+  Por qué: El panel del editor por defecto mide 240 px, y con 260 el MinSizeGuard recortaba el último modo, el botón de Settings y Enviar. Cortar palabras («Constr…») se lee peor que dos líneas.
+  Descartado: Botones recortados con tooltip; íconos con texto corto; un selector desplegable
+
+**Prueba:** layout_check.gd (nuevo) falla antes del arreglo con el dock en el panel por defecto de 240 px: «el dock pide 260 px», y Settings, One-shot y Enviar quedan fuera del borde, en inglés y en español. Después pasa: corre en --godot-agent-remote-test (con la franja y una tarjeta) y en --godot-agent-i18n-test (español). Suite completa verde en 4.8-beta1 y 4.6.3.
+
+**Notas:** Commit 2f42d86 en la rama dock-narrow (pusheada, sin mergear). La causa no era la barra de modos sola: el mínimo de diseño de 260 px del dock no entraba en el panel por defecto de 240, y el MinSizeGuard recortaba 20 px a la derecha (también el «+» del encabezado y Enviar). Bajó a 220 y la barra pasó a HFlowContainer sin clip_text.
+
+### Remote Control: verificar con Claude real el cierre de la tarjeta y session/load · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `acp`
+
+Pendiente de m7-21 (2026-10-22). El cierre de la tarjeta cuando el permiso se contesta en el celular ($/cancel_request → «Contestado en otro lado») solo se probó con el agente falso; con Claude real se vio que el adaptador manda la notificación, pero eso fue antes del arreglo.
+
+Probar con Claude Code real y el celular:
+- un permiso contestado en el celular cierra la tarjeta del dock, y el log de permisos lo registra;
+- contestar en el dock cierra el aviso del celular;
+- recargar la sesión (historial / session/load) con Remote Control prendido: ¿sigue prendido del lado de Claude? ¿El dock debería mostrar la franja? Hoy una sesión nueva arranca con el link vacío;
+- reiniciar el editor con Remote Control prendido.
+
+Anotar lo que salga en D58 y la wiki.
+
+### Remote Control: QR del link en la franja · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
+
+Pedido del usuario (2026-10-22). Quedó afuera de m7-21 (revierte la decisión «Sin QR»). El usuario: «godot debería ser capaz de generar qr. Se puede usar _draw por ejemplo. O alguna forma de generarlo usando gdscript».
+
+Encoder QR en GDScript (modo byte, corrección M; versiones hasta ~6 alcanzan para un link de claude.ai): datos → Reed-Solomon → matriz con patrones, máscara elegida por penalización. Dibujado con _draw (o una Image/ImageTexture) con zona de silencio, en la franja de Remote Control o en un popup al tocarlo. Test unitario del encoder contra vectores conocidos (matriz de un texto de referencia) y el check del editor de Remote Control.
+
+**Decisiones:**
+- ! El QR se muestra con un botón «QR» en la franja (oculto por defecto), dibujado con _draw al ancho del dock · sin revisar
+  Por qué: Con el QR siempre a la vista la franja ocupa ~250 px de alto en el dock; el link se sigue copiando o abriendo sin él
+  Descartado: QR siempre visible; en un popup aparte
+
+**Prueba:** test_qr_code: matriz del link de prueba igual a la de qrencode 4 (misma máscara elegida); versión 7 con bloque de versión y texto UTF-8 igual a qrencode con la máscara 3; límites (versión 1, 213 bytes en la 10, 214 no entra); imagen con zona de silencio. A mano: 11 largos (versiones 1–10) decodificados con zbarimg, 8 idénticos a qrencode y los otros 3 idénticos con la máscara de qrencode (libqrencode calcula la penalización distinto). --godot-agent-remote-test: «QR» muestra el código y la captura del editor se decodifica con zbarimg. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido.
+
+**Notas:** Rama remote-qr (encima de remote-activity, pusheada, sin mergear). Traducido de la librería de Project Nayuki (MIT); el aviso de copyright está en el encabezado de core/qr_code.gd. Con un celular real no se escaneó.
+
+### Remote Control: franja colapsable · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `acp`
+
+Pedido del usuario (2026-10-23): «Que se pueda colapsar, creo que hay un nodo control colapsable». Con el link, el QR y la aclaración, la franja de Remote Control ocupa mucho alto en el dock. Usar FoldableContainer (Godot 4.5+, el mínimo del addon es 4.6): el título «● Remote Control activo» y los botones a la vista siempre, el resto plegable; recordar el estado.
+
+**Prueba:** --godot-agent-remote-test en 4.8-beta1 y 4.6.3: la franja es un FoldableContainer; plegada, el link no se ve y «Apagar» sí; «QR» la despliega y muestra el código. Capturas plegada y desplegada revisadas. Suite completa verde en las dos versiones, i18n incluido.
+
+**Notas:** Commit en la rama remote-qr (encima de m7-25). El estado plegado se conserva mientras el editor está abierto (no se guarda entre sesiones: Remote Control arranca apagado en cada sesión nueva). get_title_bar_control no existe en 4.6, así que el código no lo usa.
+
+### Cuota del plan como anillos en la fila del composer y modelo por defecto con nombre · Revisión
+
+**Tamaño:** S
+
+El medidor de cuota (dos barras debajo del estado) quedaba oculto hasta el primer mensaje de cada sesión y parecía haber desaparecido. Pasa a dos anillos chicos al lado del contexto (afuera la ventana de 5 h, adentro la semanal), siempre visibles, con el detalle en el tooltip y grises con el motivo mientras no hay datos. Además, el selector de modelo mostraba «Default (recommended)»: ahora muestra el modelo que usa, «Opus 5.5 (default)».
+
+**Decisiones:**
+- ! Dos anillos concéntricos (afuera 5 h, adentro semanal) de 16 px, siempre visibles y grises sin datos · sin revisar
+  Por qué: Ocupan el lugar de un ícono en la fila del composer; siempre visibles para que no parezca que la cuota desapareció cuando la sesión todavía no la informó.
+  Descartado: Dos barras finitas en la fila; un solo círculo con la ventana más llena; seguir ocultándolo sin datos.
+- ! La opción "default" se muestra como «<modelo> (default)» solo si su descripción coincide con el nombre de otra opción; el nombre original queda en el tooltip · sin revisar
+  Por qué: Claude Code pone el modelo en la descripción de "default"; si otro agente usa la descripción para otra cosa, se mantiene su nombre.
+  Descartado: Usar siempre la descripción; mostrar el modelo de _claude/model del usage_update (llega recién con el primer turno).
+
+**Prueba:** test_quota_ring (tooltip sin datos, con las dos ventanas y con el límite; colores por umbral) y test_composer.test_model_label. Escenario ui_quota del editor: el anillo se ve y su tooltip trae el detalle. Pasada completa verde en 4.8-beta1 y 4.6.3, incluido i18n. A mano: abrir una sesión de Claude Code, ver los anillos grises y el selector «Opus 5.5 (default)»; después del primer mensaje, los anillos se llenan.
+
+**Notas:** ui/dock/quota_ring.gd reemplaza a quota_meter.gd. Se agrega con Composer.add_status_control antes del medidor de contexto. Se sacó set_usage_hint: el aviso de que el agente no informa la cuota ahora va en el tooltip del anillo. La franja de Remote Control se ubica después de status_row. El nombre del modelo sale de Composer.model_label. Commit 6d83e4e en la rama quota-ring, sin mergear.
+
+### Capturas del agente: verlas en grande · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Responsable:** Claude
+
+Las capturas que devuelve el agente (godot.capture_game_frame, screenshots) se ven en el chat a 160 px de alto y no hay forma de agrandarlas. Un clic en la miniatura abre un visor con la imagen ajustada a la ventana, zoom con la rueda, arrastre para moverla, 1:1 / Ajustar y guardar como PNG. Lo mismo para la captura del último playtest en la pantalla One-shot.
+
+**Decisiones:**
+- ! El visor es una ventana (AcceptDialog) que se abre con un clic en la miniatura, no una ampliación dentro del dock · sin revisar
+  Por qué: El dock es angosto: para ver la captura en grande hace falta una ventana. Abre ajustada al 85 % del editor, con zoom, arrastre y Guardar PNG…; las miniaturas siguen a 160 px.
+  Descartado: Miniaturas más grandes en el chat; expandir la imagen dentro del dock; abrirla con el visor del sistema (OS.shell_open de un PNG temporal).
+
+**Prueba:** - `--godot-agent-ui-test=ui_markdown` (tests/scripts/ui_markdown.json, agente falso con una captura de `capture_game_frame`): hay una sola miniatura clicable, el clic abre el visor con el tamaño en el título (480×270), y al cerrarlo se libera. Capturas en <shot>_chat.png y <shot>_viewer.png. Pasa en 4.6.3 y 4.8-beta1.
+- run_all: 224 tests en 4.6.3, 4.7.2 y 4.8-beta1; cycle test (5 ciclos sin huérfanos) y ui_demo siguen pasando.
+- Falta probar a mano (no automatizado): rueda (zoom hacia el puntero), arrastrar, doble clic (Ajustar ↔ 100 %), teclas + − 0 1 y Guardar PNG… (si cae dentro del proyecto, re-escanea el FileSystem).
+
+**Notas:** ui/image_viewer.gd: AcceptDialog que se cuelga del base control del editor y se libera al cerrarse. `ImageViewer.attach(rect, get_image)` vuelve clicable una miniatura (cursor de mano, tooltip); lo usan la tool_group_view (imágenes de tool calls) y la columna "Último playtest" del One-shot. `ImageViewer.open()` lo usa también el dock para los links a imágenes del Markdown (`![alt](ruta)` y links a .png/.jpg/.webp/.svg…).
+Ajustar no tiene tope: una captura chica se agranda hasta llenar la ventana; desde 200 % se dibuja sin filtro (píxeles nítidos).
+Trabajado en el worktree .claude/worktrees/chat-images-markdown (rama chat-images-markdown) para no recargar el addon bajo el editor abierto.
+
+### Markdown del chat: tablas, listas, bloques de código y más · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Responsable:** Claude
+
+El conversor de m7-04 cubre lo mínimo pero se ve pobre: las tablas salen como texto mono con los |, las líneas largas de una lista no quedan alineadas bajo el texto, los bloques de código son un fondo detrás de las letras sin forma de copiarlos, los títulos h3–h6 son iguales a negrita, no hay espacio entre párrafos, las URL sueltas no son links y ![img](…) sale como "!" + link. Mejorarlo: tablas reales con encabezado y bordes, listas con sangría colgante ([ul]/[ol]), regla horizontal [hr], URLs sueltas como links, imágenes como link que abre el visor, bloques de código en el chat como caja a todo el ancho con lenguaje, botón copiar y resaltado de GDScript.
+
+**Decisiones:**
+- ! En el chat, los bloques de código son un control aparte (caja con lenguaje y copiar), no BBCode dentro del mismo RichTextLabel · sin revisar
+  Por qué: Una tabla de RichTextLabel no llega a todo el ancho y no hay forma de poner un botón de copiar adentro. Costo: no se puede seleccionar de corrido texto y código a la vez.
+  Descartado: Todo en un solo RichTextLabel con el código en una tabla de una celda (es lo que queda para la pantalla One-shot y los thoughts).
+- ! Las URL sueltas (https://…) pasan a ser links; antes quedaban como texto · sin revisar
+  Por qué: Es lo que hace GFM y lo que espera quien lee el chat; los guiones bajos de la URL no se toman como itálica y la puntuación final queda afuera.
+  Descartado: Dejarlas como texto (el test de m7-04 lo pedía así; se cambió).
+- ! Tareas de lista con ▣ / □ en lugar de ☑ / ☐ · sin revisar
+  Por qué: Con la fuente del editor, ☑ salía como emoji de color y ☐ diminuto; ▣ y □ son de la misma familia y se ven parejos.
+  Descartado: ☑/☐ (lo de antes), ✓/○.
+
+**Prueba:** - run_all -- markdown: test_markdown_bbcode, 12 tests y 107 checks (tablas con alineación, | escapado y dentro de code, filas cortas/largas; listas anidadas, sueltas, perezosas y numeración que sigue después de un bloque de código; blocks(); resaltado de GDScript/shader; URLs sueltas con puntuación y paréntesis; imágenes; link_target con #L, :línea y file://; tags balanceados).
+- Suite completa: 224 tests en 4.6.3, 4.7.2 y 4.8-beta1.
+- `--godot-agent-ui-test=ui_markdown`: el mensaje queda en un solo recuadro con el bloque de código en su caja; capturas revisadas (título, links, lista con sangría colgante, código resaltado con copiar, tabla, tareas, cita, regla). Pasa en 4.6.3 y 4.8-beta1. ui_demo y el cycle test siguen pasando.
+
+**Notas:** - markdown_bbcode.gd: `blocks()` parte el texto en `{bbcode}` y `{code, language}`; `convert()` los junta (el código en una tabla de una celda con fondo) para la pantalla One-shot y los thoughts.
+- Cada ítem de lista es su propio `[ul bullet=<marca>]`: la marca es el número del texto, así una lista cortada por un bloque de código sigue en 3 y las líneas largas quedan alineadas. Anidado por sangría real (pila de sangrías), lista suelta con [br] para los párrafos del ítem.
+- Tablas: `[table]` con encabezado en negrita sobre fondo, bordes, padding y [center]/[right] por columna; también sin | en los bordes (GFM).
+- Respiro entre bloques separados por una línea en blanco: una línea con un espacio a 45 % del tamaño.
+- code_bbcode.gd (no CodeHighlighter: choca con la clase nativa): resaltado por línea con los colores del Script Editor (Editor Settings), GDScript y shaders con keywords y tipos (ClassDB para los del motor), el resto solo strings/números/comentarios.
+- code_block_view.gd: caja del chat con lenguaje, botón copiar (ActionCopy) y RichTextLabel mono seleccionable. agent_message_view reusa los controles por posición en el streaming.
+- El dock: `MarkdownBBCode.link_target()` entiende `ruta#L42`, `ruta:42[:col]` y file://; los links a imágenes abren el visor de m7-28.
+- [hr], [br], [ul bullet=], padding de celdas y [right] en celdas probados en 4.6.3.
+- Se mantuvo el recuadro de fondo del RichTextLabel del editor (como antes), ahora uno solo por mensaje, con los tramos de texto sin fondo adentro.
+
+### El agente no abre Godot en una ventana desde la shell · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Responsable:** Claude · **Etiquetas:** `bug`
+
+Reporte del usuario (little-villages): para sacar capturas de 4 semillas, el agente escribió /tmp/shoot_seeds.gd y lo corrió con `timeout 90 "$GODOT" --path . --script …` sin --headless (headless no dibuja). Se abrió el juego en una ventana aparte, gris, en vez de correrlo desde el editor. Rechazar sin tarjeta (como D48) los comandos que lanzan Godot sin --headless, y que el system prompt diga cómo sacar capturas: run_scene + game_call/game_set para preparar la situación + capture_game_frame.
+
+**Decisiones:**
+- ! Godot sin --headless por la shell se rechaza solo, en todo modo, aunque el usuario lo hubiera permitido con la tarjeta · sin revisar
+  Por qué: En el reporte, el usuario aprobó el comando sin ver que abría una ventana. La alternativa del editor (run_scene + capture_game_frame) existe y es la que se quiere; mismo criterio que las escrituras de D48.
+  Descartado: Solo la instrucción en el system prompt; mostrar la tarjeta con una advertencia; rechazarlo solo en Auto/One-shot.
+
+**Prueba:** - test_godot_window_guard (3 tests, 14 checks): el comando de la captura (`timeout 90 "$GODOT" --path . --script /tmp/shoot_seeds.gd …`) se rechaza; también godot del PATH, el binario del editor, ${GODOT}, binarios descargados y prefijos (timeout -k, env, VAR=). Pasan --headless, --display-driver headless, --version, --export-*, xvfb-run, y godot como argumento o dentro de un string.
+- Suite completa: 227 tests en 4.6.3, 4.7.2 y 4.8-beta1.
+- Falta: probarlo con Claude Code real pidiéndole capturas de varias semillas (que use run_scene + game_call + capture_game_frame).
+
+**Notas:** session/godot_window_guard.gd: `windowed_launch(command, godot_bin)` parte el comando por ; && || | y saltos, saca prefijos (timeout con opciones y duración, env, VAR=…, nice -n, time, sudo…) y mira si el primer word es Godot ($GODOT, ${GODOT}, el binario del editor, godot*, Godot_v*) sin un flag que evite la ventana.
+SessionController lo aplica después del guard de D48: rechazo sin tarjeta, en todo modo, con aviso en el chat. Mismo límite que D48: si las reglas `allow` de Claude Code dejan pasar el comando, no hay pedido de permiso y solo queda el system prompt.
+System prompt: `$GODOT` siempre con --headless, y para ver el juego o sacar capturas (también de variantes, como semillas) run_scene + game_call/game_set/game_input + game_wait + capture_game_frame, nunca un script que renderice.
+
+### Prueba: hablar con Claude Code en stream-json desde GDScript, sin claude-agent-acp · Pendiente
+
+**Prioridad:** baja · **Tamaño:** M
+
+Hoy Claude Code se usa a través de `npx -y @agentclientprotocol/claude-agent-acp`, lo que obliga a tener Node. Claude Code tiene un modo sin interfaz (`claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --mcp-config … --permission-prompt-tool mcp__godot__permission`) y, con el instalador nativo, es un binario autónomo. Prueba corta: lanzarlo desde GDScript, mandar un prompt que use una tool godot.* y una que pida permiso, y registrar qué eventos llegan (texto en streaming, tool calls y resultados, uso, rate limit, resultado) con la versión instalada. Con eso decidir si vale un segundo transporte solo para Claude (ACP queda para Gemini CLI y Codex). Revisar qué se pierde del adapter: cambio de modo y modelo, cancelar, --resume, imágenes, login, /remote-control, _meta de subagentes.
+
+### Modo (Preguntar/Revisar/Construir/Auto/One-shot) como dropdown al lado del selector de modelo · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
+
+Pedido del usuario: los cinco botones de modo ocupan dos filas arriba del dock. Pasarlos a un dropdown en la fila del composer, al lado del selector de modelo, para ganar lugar en la conversación.
+
+**Prueba:** - --godot-agent-auto-test: Auto está en el selector justo después de Construir, con tooltip, y elegirlo pasa a modo Auto.
+- --godot-agent-remote-test: elegir One-shot en el selector esconde Remote Control.
+- --godot-agent-i18n-test (es): el dock entra en el panel (LayoutCheck) y el selector se ve.
+- ui_demo: captura revisada, ya no está la fila de botones y «Construir ▾» va en la fila del composer.
+- run_all: 227 tests (4.7.2).
+
+**Notas:** Composer: `_mode_button` (OptionButton plano, en el color de acento) antes del selector de modelo; `set_modes([{id,label,tooltip}])`, `set_current_mode(id)` (el tooltip del botón dice el modo actual) y `choose_mode(id)` para las pruebas. Se guardan hasta que el composer arma sus controles. Dock: sin el HFlowContainer ModeBar (también fuera del .tscn); `_build_mode_selector()` y `_refresh_modes()` van por el composer.
+
+### Cola de mensajes: «Enviar ahora» · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
+
+Pedido del usuario: un mensaje en la cola (escrito mientras el agente trabaja) espera a que termine el turno. Agregar «Enviar ahora» en cada mensaje encolado: corta el turno en curso (session/cancel) y lo manda enseguida, sin perder el resto de la cola.
+
+**Prueba:** - test_prompt_queue: move_to_front, y en la vista el ➤ de cada fila avisa su índice, sigue a set_send_available y no saca el prompt (lo hace el dock).
+- --godot-agent-queue-test, segunda fase (tests/scripts/queue_now.json): con un turno largo corriendo y "uno", "dos" en cola, ➤ en "dos" corta el turno (no llega el resto del texto largo), "dos" sale enseguida, "uno" queda en la cola sin pausa y sale después.
+- La primera fase (cancelar pausa la cola; «Enviar ahora» del encabezado) sigue pasando.
+
+**Notas:** PromptQueueView: botón ➤ en cada fila (antes de editar y quitar) con la señal send_item_now_requested(index). Dock `_send_queued_now(index)`: pasa el prompt al frente, saca la pausa y, si el agente trabaja, marca `_interrupt_for_queue` y cancela; `_on_turn_finished` ve la marca y manda el siguiente aunque el turno haya terminado con cancelled. Sin turno en curso lo manda directo.
 
 ## M8a — Completado predictivo: núcleo sin IA  (7/7, 7 en revisión)
 

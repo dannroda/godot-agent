@@ -16,9 +16,9 @@ jobs:
         # La mínima soportada, la estable actual y la beta en la que se desarrolla.
         godot: [4.6.3-stable, 4.7.2-stable, 4.8-beta1]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/godot
           key: godot-${{ matrix.godot }}

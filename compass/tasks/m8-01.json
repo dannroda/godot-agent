@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:33:44.179Z",
   "description": "Uno por CodeEdit (enganche con editor_script_changed). Dispara con caret al final o solo cierres a la derecha, sin selección, popup nativo cerrado, archivo .gd. Invalida al mover de línea, tipear distinto, Esc o perder foco. Type-through. Atajo manual Alt+\\ (spec §16.5).",
   "milestone": "m08",
-  "notes": "",
+  "notes": "completion/completion_controller.gd + completion_service.gd. text_changed/caret_changed llegan diferidos: se compara contra el último estado (línea, columna, get_version). Debounce vía tick(now) desde el servicio. Detalles en D26.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/unit/test_completion_controller.gd (CodeEdit real, reloj simulado: debounce, condiciones de disparo, type-through, invalidación, respuesta vieja, Alt+\\); --godot-agent-completion-test en 4.4.1/4.7.2/4.8.",
   "title": "CompletionController: disparo, debounce e invalidación",
-  "updated_at": "2026-10-21T04:33:44.179Z"
+  "updated_at": "2026-10-21T09:46:23.998Z"
 }

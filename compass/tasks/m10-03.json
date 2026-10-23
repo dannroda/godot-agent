@@ -5,13 +5,13 @@
   "created_at": "2026-10-21T04:34:10.980Z",
   "description": "Canal cmp con fuente, latencia, tamaños, resultado y caché (sin código salvo raw). Contadores p50/p95 y aceptación por fuente en Settings. Indicador en el Script Editor (estado y modo, clic on/off, atajo global). Settings de §16.10 aplicables sin reiniciar.",
   "milestone": "m10",
-  "notes": "",
+  "notes": "completion_metrics.gd: p50/p95 (últimas 200), mostradas/aceptadas/parciales/errores por fuente; en el log cada 10 sugerencias y en Settings → Completado («Esta sesión, por fuente», con reinicio). completion_indicator.gd: Button en el primer HBoxContainer con MenuButton del Script Editor. Settings → Completado es una página propia (ui/settings/completion_settings_page.gd) que el diálogo agrega como sección; completion_enabled y completion_exclude entran en el rollback de CONFIG_PROPERTIES. plugin.gd conecta completion_metrics_provider/reset. El log cmp nunca lleva código salvo completion/log_raw; un error HTTP solo muestra campos de mensaje conocidos (revisión: un 422 de FastAPI repite el prompt).",
   "order": 3,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "test_settings_dialog: test_completion_section (carga, validación de la sección: key pegada con y sin guiones, codestral sin variable, híbrido sin perfiles, corpus relativo; stops con escapes; ABM de perfiles con id libre y activo; aviso de host remoto) y test_completion_save (cada valor a EditorSettings o a project_config; tabla de contadores). En el editor real: indicador en la barra del Script Editor con «local» → «híbrido · fake-coder», «pensando» mientras espera, error con HTTP 500, Alt+Shift+\\ apaga y prende; cambio de modo sin reiniciar.",
   "title": "Métricas, indicador y settings del completado",
-  "updated_at": "2026-10-21T04:34:10.980Z"
+  "updated_at": "2026-10-21T11:43:50.057Z"
 }
