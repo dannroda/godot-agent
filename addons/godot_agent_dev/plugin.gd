@@ -1058,6 +1058,7 @@ func _run_i18n_test() -> void:
 	_untranslated(dock, catalog, "dock", failures, seen)
 	# Con los textos en español (más largos), el dock sigue entrando en su panel (m7-23).
 	failures.append_array(LayoutCheck.dock_fits(dock))
+	failures.append_array(await LayoutCheck.composer_fits(dock))
 	EditorInterface.set_main_screen_editor(MAIN_SCREEN_NAME)
 	await get_tree().create_timer(0.5).timeout
 	_untranslated(main_screen, catalog, "pantalla Agent", failures, seen)

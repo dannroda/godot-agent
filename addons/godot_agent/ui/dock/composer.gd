@@ -67,6 +67,15 @@ var _lock_text: String = ""
 var _lock_tooltip: String = ""
 var _commands: Array = []
 var _model_values: PackedStringArray = []
+## Fila de abajo y los botones que se esconden cuando no entra (ver _fit_row).
+var _row: HBoxContainer
+var _mention_button: Button
+var _commands_button: Button
+var _spacer: Control
+## Cuánto se compactó la fila: 0 = completa, 1 = enviar sin texto, 2 = sin medidor, 3 = sin `/`,
+## 4 = sin `@`, 5 = sin captura, 6 = el modelo se corta con «…».
+var _compact_level: int = 0
+var _fit_queued: bool = false
 
 
 func setup(accent: Color) -> void:
@@ -109,17 +118,20 @@ func _ready() -> void:
 	add_child(_input)
 
 	var row := HBoxContainer.new()
+	_row = row
 	add_child(row)
-	row.add_child(_icon_button("@", I18n.t("Mention a node or file"), _insert_prefix.bind("@")))
+	_mention_button = _icon_button("@", I18n.t("Mention a node or file"), _insert_prefix.bind("@"))
+	row.add_child(_mention_button)
 	_screenshot_button = _icon_button("", I18n.t(SCREENSHOT_TOOLTIP), func() -> void: screenshot_requested.emit())
 	_screenshot_button.icon = AgentTheme.icon(&"Image")
 	if _screenshot_button.icon == null:
 		_screenshot_button.text = "▣"
 	row.add_child(_screenshot_button)
-	row.add_child(_icon_button("/", I18n.t("Agent commands"), _insert_prefix.bind("/")))
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
+	_commands_button = _icon_button("/", I18n.t("Agent commands"), _insert_prefix.bind("/"))
+	row.add_child(_commands_button)
+	_spacer = Control.new()
+	_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_spacer)
 	_meter = Label.new()
 	_meter.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_meter.tooltip_text = I18n.t("Context used")
@@ -156,6 +168,20 @@ func _ready() -> void:
 	row.add_child(_send_button)
 	set_usage(0, 0)
 	_update_send_button()
+	row.resized.connect(_queue_fit)
+
+
+func _enter_tree() -> void:
+	var guard := _size_guard()
+	if guard and not guard.resized.is_connected(_queue_fit):
+		guard.resized.connect(_queue_fit)
+	_queue_fit()
+
+
+func _exit_tree() -> void:
+	var guard := _size_guard()
+	if guard and guard.resized.is_connected(_queue_fit):
+		guard.resized.disconnect(_queue_fit)
 
 
 func current_text() -> String:
@@ -185,6 +211,7 @@ func set_busy(busy: bool) -> void:
 	_busy = busy
 	_update_placeholder()
 	_update_send_button()
+	_queue_fit()
 
 
 ## Con un One-shot en curso, lo que se escribe guía al agente del run.
@@ -209,12 +236,15 @@ func set_locked(text: String, tooltip: String = "") -> void:
 	_lock_text = text
 	_lock_tooltip = tooltip
 	_update_send_button()
+	_queue_fit()
 
 
 ## Un indicador más en la fila de abajo, antes del medidor de contexto (la cuota del plan).
 func add_status_control(control: Control) -> void:
 	_meter.get_parent().add_child(control)
 	_meter.get_parent().move_child(control, _meter.get_index())
+	control.visibility_changed.connect(_queue_fit)
+	_queue_fit()
 
 
 func set_commands(commands: Array) -> void:
@@ -227,6 +257,7 @@ func set_screenshot_available(available: bool) -> void:
 
 
 func set_usage(used: int, total: int) -> void:
+	_queue_fit()
 	if total <= 0:
 		_meter.text = ""
 		return
@@ -246,6 +277,7 @@ func set_modes(modes: Array[Dictionary]) -> void:
 		_mode_button.add_item(str(mode.label), int(mode.id))
 		_mode_button.set_item_tooltip(_mode_button.item_count - 1, str(mode.tooltip))
 	_mode_button.visible = not modes.is_empty()
+	_queue_fit()
 
 
 func set_current_mode(mode: int) -> void:
@@ -273,6 +305,7 @@ func set_model_option(option: Dictionary) -> void:
 	var options: Variant = option.get("options", [])
 	if not options is Array or (options as Array).is_empty():
 		_model_button.visible = false
+		_queue_fit()
 		return
 	var current := str(option.get("currentValue", ""))
 	for item: Variant in options:
@@ -287,6 +320,7 @@ func set_model_option(option: Dictionary) -> void:
 		if str(item.get("value", "")) == current:
 			_model_button.select(_model_button.item_count - 1)
 	_model_button.visible = true
+	_queue_fit()
 
 
 ## Nombre de una opción del selector. La opción "default" de Claude Code se llama «Default
@@ -598,8 +632,9 @@ func _word_before_caret() -> Dictionary:
 func _update_send_button() -> void:
 	if _send_button == null:
 		return
+	var short := _compact_level >= 1
 	if _busy:
-		_send_button.text = "■ " + I18n.t("Stop")
+		_send_button.text = "■" if short else "■ " + I18n.t("Stop")
 		_send_button.tooltip_text = I18n.t("Stop the turn (Esc). Enter queues what you typed.")
 		_send_button.disabled = false
 	elif not _lock_text.is_empty():
@@ -607,9 +642,130 @@ func _update_send_button() -> void:
 		_send_button.tooltip_text = _lock_tooltip
 		_send_button.disabled = true
 	else:
-		_send_button.text = I18n.t("Send") + " ➤"
+		_send_button.text = "➤" if short else I18n.t("Send") + " ➤"
 		_send_button.tooltip_text = I18n.t("Send (Enter; Ctrl+Enter adds a new line)")
 		_send_button.disabled = not _input.editable or _input.text.strip_edges().is_empty()
+
+
+func _queue_fit() -> void:
+	if _fit_queued or _row == null:
+		return
+	_fit_queued = true
+	_fit_row.call_deferred()
+
+
+## Con el dock angosto, la fila de abajo (con la sesión activa: medidor, cuota, modo, modelo y
+## enviar) pide más ancho que el que hay; el MinSizeGuard recorta lo que sobra y el selector de
+## modelo y Enviar quedaban cortados. Se compacta de a pasos hasta que entra: Enviar/Detener
+## solo con el símbolo, sin el medidor (la cuota y el anillo de contexto siguen), sin `/`, sin `@`
+## sin captura (Ctrl+V sigue pegando imágenes) y, si un nombre de modelo largo sigue sin entrar, el
+## selector de modelo toma el ancho que queda y corta el nombre con «…» (el tooltip lo muestra).
+func _fit_row() -> void:
+	_fit_queued = false
+	if _row == null or not is_inside_tree():
+		return
+	var available := _available_row_width()
+	if available <= 0.0:
+		return
+	var level := 0
+	while level < 6 and _row_width(level) > available:
+		level += 1
+	if level == _compact_level:
+		return
+	_compact_level = level
+	_meter.visible = level < 2
+	_commands_button.visible = level < 3
+	_mention_button.visible = level < 4
+	_screenshot_button.visible = level < 5
+	# Con overrun el texto deja de contar en el mínimo del botón: solo en el último nivel.
+	_model_button.clip_text = level >= 6
+	_model_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 6 else TextServer.OVERRUN_NO_TRIMMING
+	_model_button.custom_minimum_size.x = AgentTheme.px(60) if level >= 6 else 0.0
+	_model_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 6 else Control.SIZE_FILL
+	_spacer.visible = level < 6
+	_update_send_button()
+
+
+## Ancho que tiene la fila de verdad: si el contenido del dock pide más que su MinSizeGuard, el
+## guard lo deja más ancho y recorta el sobrante, que no se ve.
+func _available_row_width() -> float:
+	var width := _row.size.x
+	var content: Node = self
+	while content.get_parent() != null:
+		var parent := content.get_parent()
+		if _is_size_guard(parent):
+			width -= maxf(0.0, (content as Control).size.x - (parent as Control).size.x)
+			break
+		content = parent
+	return width
+
+
+## Ancho mínimo de la fila en el nivel de compactación `level`, sin importar el nivel actual.
+func _row_width(level: int) -> float:
+	var hidden: Array[Control] = []
+	if level >= 2:
+		hidden.append(_meter)
+	if level >= 3:
+		hidden.append(_commands_button)
+	if level >= 4:
+		hidden.append(_mention_button)
+	if level >= 5:
+		hidden.append(_screenshot_button)
+	# Los que se esconden al compactar cuentan aunque estén ocultos ahora.
+	var compactable: Array[Control] = [_meter, _commands_button, _mention_button, _screenshot_button]
+	var width := 0.0
+	var count := 0
+	for child: Node in _row.get_children():
+		var control := child as Control
+		if control == null or control in hidden or (not control.visible and not control in compactable):
+			continue
+		if control == _meter and _meter.text.is_empty():
+			continue
+		if control == _send_button:
+			width += _send_width(level >= 1)
+		elif control == _model_button:
+			width += _model_width(level >= 6)
+		else:
+			width += control.get_combined_minimum_size().x
+		count += 1
+	return width + maxf(0, count - 1) * _row.get_theme_constant(&"separation")
+
+
+## Ancho de Enviar/Detener con el texto completo o solo el símbolo (el bloqueo no se acorta).
+func _send_width(short: bool) -> float:
+	var text := _lock_text
+	if _busy:
+		text = "■" if short else "■ " + I18n.t("Stop")
+	elif _lock_text.is_empty():
+		text = "➤" if short else I18n.t("Send") + " ➤"
+	var font := _send_button.get_theme_font(&"font")
+	var font_size := _send_button.get_theme_font_size(&"font_size")
+	var style := _send_button.get_theme_stylebox(&"normal")
+	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x + style.get_minimum_size().x
+
+
+## Ancho del selector de modelo con el nombre entero o cortado (sin importar cómo está ahora).
+func _model_width(clipped: bool) -> float:
+	var font := _model_button.get_theme_font(&"font")
+	var font_size := _model_button.get_theme_font_size(&"font_size")
+	var text_width := font.get_string_size(_model_button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var current := _model_button.get_minimum_size().x
+	var bare := current if _model_button.clip_text else current - text_width
+	return maxf(bare, AgentTheme.px(60)) if clipped else bare + text_width
+
+
+func _size_guard() -> Control:
+	var node := get_parent()
+	while node != null:
+		if _is_size_guard(node):
+			return node as Control
+		node = node.get_parent()
+	return null
+
+
+static func _is_size_guard(node: Node) -> bool:
+	var script := node.get_script() as Script
+	return script != null and script.resource_path.ends_with("/ui/min_size_guard.gd")
 
 
 static func _short_number(value: int) -> String:

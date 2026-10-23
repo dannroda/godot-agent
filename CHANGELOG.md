@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- In a narrow dock, the composer's bottom row no longer cuts off the model selector and **Send**: it compacts step by step (**Send**/**Stop** as just the symbol, then without the context counter and the `/`, `@` and screenshot buttons, and finally shortening the model name with "…").
+
 ## [0.1.5] - 2026-10-23
 
 ### Added

@@ -22,6 +22,33 @@ static func dock_fits(dock: Control) -> PackedStringArray:
 	return failures
 
 
+## Con una sesión activa la fila del composer suma el medidor, el modelo y Detener (m7-42): se
+## compacta hasta entrar, con el modelo y Enviar/Detener siempre a la vista. Deja el composer como
+## estaba.
+static func composer_fits(dock: Control) -> PackedStringArray:
+	var composer: Object = dock.get(&"_composer")
+	var tree := dock.get_tree()
+	composer.call(&"set_usage", 38000, 200000)
+	composer.call(&"set_model_option", {"currentValue": "default", "options": [
+		{"value": "default", "name": "Default (recommended)", "description": "Opus 5.5"},
+		{"value": "opus", "name": "Opus 5.5"},
+		{"value": "sonnet", "name": "Sonnet 5.5"}]})
+	var failures: PackedStringArray = []
+	for busy: bool in [false, true]:
+		composer.call(&"set_busy", busy)
+		for i in 4:
+			await tree.process_frame
+		for failure: String in dock_fits(dock):
+			failures.append("con sesión%s: %s" % [" ocupada" if busy else "", failure])
+		for name: StringName in [&"_model_button", &"_send_button"]:
+			if not (composer.get(name) as Control).is_visible_in_tree():
+				failures.append("con sesión, no se ve %s" % name)
+	composer.call(&"set_busy", false)
+	composer.call(&"set_usage", 0, 0)
+	composer.call(&"set_model_option", {})
+	return failures
+
+
 static func _label(button: BaseButton) -> String:
 	if button is Button and not (button as Button).text.is_empty():
 		return (button as Button).text
