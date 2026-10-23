@@ -48,7 +48,7 @@ Como red de seguridad, por si exportás con el plugin deshabilitado, agregá `ad
 La config del proyecto vive dentro de la carpeta del addon. Para actualizar:
 
 1. Guardá `addons/godot_agent/config/project_config.tres` si existe, y `config/system_prompt.md` o `config/quota_patterns.txt` si los editaste.
-2. Borrá `addons/godot_agent/` y copiá la versión nueva.
+2. Borrá `addons/godot_agent/` y descomprimí la versión nueva de los [releases](https://github.com/dannroda/godot-agent/releases) (o copiala del repo). La versión se ve en **Configuración del proyecto → Plugins**.
 3. Volvé a poner esos archivos en `config/`.
 
 Los settings de usuario (`EditorSettings`) y el historial (`user://`) no se tocan al reemplazar la carpeta.

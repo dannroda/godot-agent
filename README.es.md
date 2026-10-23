@@ -6,15 +6,16 @@ Addon de editor para Godot 4 que conecta un agente de código (Claude Code, Gemi
 
 - leer escenas y scripts, la selección y los errores;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
-- correr el juego con inputs simulados y mirar capturas de frames;
+- correr el juego con inputs simulados y mirar capturas de frames (un clic en el chat la abre en grande);
 - revisar código y dejar hallazgos en el Script Editor.
 
-Tiene cuatro modos: **Preguntar**, **Revisar**, **Construir** y **One-shot**. El One-shot persigue un objetivo entero ("Pong de 2 jugadores con puntaje") con plan, presupuestos, checkpoints git y playtests.
+Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construir que corre sin preguntar los comandos de shell que tus reglas permiten) y **One-shot**. El One-shot persigue un objetivo entero ("Pong de 2 jugadores con puntaje") con plan, presupuestos, checkpoints git y playtests.
 
 - 100 % GDScript con tipos estáticos: sin GDExtension ni dependencias.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
 - El harness nunca hace merge ni push, no guarda claves y no lee las credenciales del agente.
 - La interfaz está en inglés y en español: sigue el idioma del editor y se cambia en Settings.
+- El chat muestra el Markdown del agente: tablas, listas, citas y bloques de código con resaltado y botón para copiar.
 
 > Estado: los hitos M0–M8c de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) están implementados. El avance y cómo se verificó cada parte: [`docs/progress.md`](docs/progress.md). Las decisiones de diseño: [`docs/decisions.md`](docs/decisions.md).
 
@@ -43,7 +44,7 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 
 ## Instalación
 
-1. Copiá `addons/godot_agent/` a la carpeta `addons/` de tu proyecto. No copies `addons/godot_agent_dev/`: es el plugin de pruebas del repo.
+1. Bajá `godot-agent-harness-vX.Y.Z.zip` del [último release](https://github.com/dannroda/godot-agent/releases/latest) y descomprimilo en tu proyecto, de forma que `addons/godot_agent/` quede en su carpeta `addons/`. Desde un clon del repo, copiá `addons/godot_agent/`; no copies `addons/godot_agent_dev/`: es el plugin de pruebas del repo.
 2. **Proyecto → Configuración del proyecto → Plugins**: habilitá **Godot Agent Harness**.
 3. Aparecen tres superficies:
    - el dock **Agent** (a la derecha);
@@ -72,5 +73,11 @@ tests/run_in_xvfb.sh $G --godot-agent-cycle-test             # editor en Xvfb: h
 ```
 
 Los textos de la interfaz se escriben en inglés en el código, con `I18n.t("…")`. Las traducciones están en `addons/godot_agent/i18n/<idioma>.po`, y `tests/unit/test_i18n.gd` falla si un texto no tiene traducción al español. Lo que lee el agente (prompts, descripciones y resultados de las tools) va solo en inglés.
+
+### CI y releases
+
+- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP y el del One-shot, en Godot 4.6.3, 4.7.2 y 4.8-beta1.
+- **Release** (`.github/workflows/release.yml`): se corre a mano desde **Actions → Release → Run workflow**, eligiendo `patch`, `minor`, `major` o una versión exacta `X.Y.Z`. Corre el CI, sube `version` en `addons/godot_agent/plugin.cfg`, commitea "Release vX.Y.Z" en `main` con el tag `vX.Y.Z` y publica un release de GitHub con el zip del addon y, como notas, los commits desde el tag anterior.
+- La versión vive solo en `plugin.cfg`: el `clientInfo` de ACP y el `serverInfo` del MCP la leen de ahí.
 
 El tablero de tareas está en `compass/` ([`docs/tareas.md`](docs/tareas.md) es su export).

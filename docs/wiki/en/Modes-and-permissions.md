@@ -65,7 +65,8 @@ Each decision also goes to the **Agent Log**, perm channel: the command, whether
 Whatever the mode, the harness rejects on its own, without a card:
 
 - shell commands that write project files: redirections (`>`), `tee`, `sed -i`, `dd of=`, and Python, Node, Ruby or Perl scripts that open files for writing;
-- writing a `.tscn`, `.uid` or `.import` by hand, with the agent's file tools or through the editor's file access.
+- writing a `.tscn`, `.uid` or `.import` by hand, with the agent's file tools or through the editor's file access;
+- running Godot from the shell without `--headless`: it would open the game or an editor in a separate window. To see the game, the agent runs it from the editor (`godot.run_scene`) and captures it (`godot.capture_game_frame`).
 
 The chat shows a "Rejected: …" notice. The agent is told to write scripts with its own file tools (the harness passes them through the editor) and scenes with the `godot.*` tools. Commands that write outside the project, such as to `/tmp`, follow the matrix above as usual.
 

@@ -12,6 +12,7 @@ signal agent_mode_synced
 signal shell_rules_changed
 
 const AgentProcess := preload("../transport/agent_process.gd")
+const AddonVersion := preload("../core/addon_version.gd")
 const AcpClient := preload("../acp/acp_client.gd")
 const SessionModel := preload("session_model.gd")
 const ChatEntry := preload("chat_entry.gd")
@@ -36,7 +37,6 @@ const I18n := preload("../core/i18n.gd")
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
 const CLIENT_TITLE := "Godot Agent Harness"
-const CLIENT_VERSION := "0.1.0"
 const SYSTEM_PROMPT_PATH := "res://addons/godot_agent/config/system_prompt.md"
 
 ## Acciones que ofrecen los avisos de error (spec §15).
@@ -168,7 +168,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 
 	var init := await client.request("initialize", {
 		"protocolVersion": PROTOCOL_VERSION,
-		"clientInfo": {"name": CLIENT_NAME, "title": CLIENT_TITLE, "version": CLIENT_VERSION},
+		"clientInfo": {"name": CLIENT_NAME, "title": CLIENT_TITLE, "version": AddonVersion.version()},
 		"clientCapabilities": client_capabilities(),
 	})
 	if generation != _connect_generation:

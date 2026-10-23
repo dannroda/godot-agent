@@ -48,7 +48,7 @@ As a safety net, in case you export with the plugin disabled, add `addons/godot_
 The project's config lives inside the addon folder. To update:
 
 1. Keep `addons/godot_agent/config/project_config.tres` if it exists, and `config/system_prompt.md` or `config/quota_patterns.txt` if you edited them.
-2. Delete `addons/godot_agent/` and copy the new version.
+2. Delete `addons/godot_agent/` and unzip the new version from the [releases](https://github.com/dannroda/godot-agent/releases) (or copy it from the repository). The version is in **Project Settings → Plugins**.
 3. Put those files back in `config/`.
 
 User settings (`EditorSettings`) and history (`user://`) aren't touched when you replace the folder.

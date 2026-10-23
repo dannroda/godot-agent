@@ -6,15 +6,16 @@ An editor addon for Godot 4 that connects a coding agent (Claude Code, Gemini CL
 
 - read scenes and scripts, the selection and the errors;
 - edit nodes and properties, each change one undo step;
-- run the game with simulated input and look at captured frames;
+- run the game with simulated input and look at captured frames (click one in the chat to see it full size);
 - review code and leave findings in the Script Editor.
 
-It has four modes: **Ask**, **Review**, **Build** and **One-shot**. One-shot pursues a whole goal ("a 2-player Pong with score") with a plan, budgets, git checkpoints and playtests.
+It has five modes: **Ask**, **Review**, **Build**, **Auto** (Build that runs the shell commands your rules allow without asking) and **One-shot**. One-shot pursues a whole goal ("a 2-player Pong with score") with a plan, budgets, git checkpoints and playtests.
 
 - 100 % statically typed GDScript: no GDExtension, no dependencies.
 - Editor-only: nothing from the addon ends up in an exported game.
 - The harness never merges or pushes, never stores keys and never reads the agent's credentials.
 - The interface is in English and Spanish (it follows the editor language; you can change it in Settings).
+- The chat renders the agent's Markdown: tables, lists, quotes, and code blocks with highlighting and a copy button.
 
 > Status: milestones M0–M8c of [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) are implemented. Progress and how each part was verified: [`docs/progress.md`](docs/progress.md). Design decisions: [`docs/decisions.md`](docs/decisions.md). Both are in Spanish.
 
@@ -43,7 +44,7 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
 
 ## Install
 
-1. Copy `addons/godot_agent/` into your project's `addons/` folder. Don't copy `addons/godot_agent_dev/`: it's this repository's test plugin.
+1. Download `godot-agent-harness-vX.Y.Z.zip` from the [latest release](https://github.com/dannroda/godot-agent/releases/latest) and unzip it into your project, so that `addons/godot_agent/` ends up in its `addons/` folder. From a clone of this repository, copy `addons/godot_agent/` instead; don't copy `addons/godot_agent_dev/`: it's this repository's test plugin.
 2. **Project → Project Settings → Plugins**: enable **Godot Agent Harness**.
 3. Three surfaces appear:
    - the **Agent** dock (right side);
@@ -72,5 +73,11 @@ tests/run_in_xvfb.sh $G --godot-agent-cycle-test             # editor in Xvfb: e
 ```
 
 The interface text is written in English in the code, wrapped in `I18n.t("…")`. Translations live in `addons/godot_agent/i18n/<language>.po`; `tests/unit/test_i18n.gd` fails if a text has no Spanish translation. What the agent reads (prompts, tool descriptions and results) is English only.
+
+### CI and releases
+
+- **CI** (`.github/workflows/ci.yml`): on every push to `main` and every pull request, the unit tests, the ACP check and the One-shot check run headless on Godot 4.6.3, 4.7.2 and 4.8-beta1.
+- **Release** (`.github/workflows/release.yml`): run it by hand from **Actions → Release → Run workflow**, choosing `patch`, `minor`, `major` or an exact `X.Y.Z`. It runs the CI, bumps `version` in `addons/godot_agent/plugin.cfg`, commits "Release vX.Y.Z" to `main` with the tag `vX.Y.Z`, and publishes a GitHub release with the zip of the addon and the commits since the previous tag as notes.
+- The version lives only in `plugin.cfg`: the ACP `clientInfo` and the MCP `serverInfo` read it from there.
 
 The task board lives in `compass/` ([`docs/tareas.md`](docs/tareas.md) is its export).

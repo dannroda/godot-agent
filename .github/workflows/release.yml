@@ -1,0 +1,84 @@
+name: Release
+
+# A mano, desde Actions → Release → Run workflow: corre los tests, sube la versión en plugin.cfg,
+# la commitea en main con el tag vX.Y.Z y publica el release con el zip del addon.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "patch, minor, major o una versión exacta (X.Y.Z)"
+        required: true
+        default: patch
+      prerelease:
+        description: "Marcar como pre-release"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Bump version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          VERSION=$(sh .github/scripts/bump-version.sh "$BUMP")
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "tag v$VERSION already exists" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Release notes
+        run: |
+          PREVIOUS=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          RANGE=${PREVIOUS:+$PREVIOUS..}HEAD
+          {
+            echo "## Changes"
+            echo
+            git log --no-merges --format='- %s' $RANGE | grep -v '^- Release v' || true
+            echo
+            echo "Install: unzip into your project so that \`addons/godot_agent/\` ends up in its \`addons/\` folder, then enable **Godot Agent Harness** in Project Settings → Plugins. Requires Godot 4.6 or newer."
+          } > notes.md
+          cat notes.md
+
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v${{ steps.version.outputs.version }}"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin main "v${{ steps.version.outputs.version }}"
+
+      # Solo lo que está en git: nada de la config local del addon ni del plugin de dev.
+      - name: Package
+        run: |
+          ZIP="godot-agent-harness-v${{ steps.version.outputs.version }}.zip"
+          git archive --format=zip -o "$ZIP" HEAD addons/godot_agent README.md README.es.md
+          unzip -l "$ZIP" | tail -1
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            "godot-agent-harness-v${{ steps.version.outputs.version }}.zip" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --notes-file notes.md \
+            ${{ inputs.prerelease && '--prerelease' || '' }}

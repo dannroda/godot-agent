@@ -9,6 +9,7 @@ signal started(port: int)
 signal stopped
 
 const HttpParser := preload("http_parser.gd")
+const AddonVersion := preload("../core/addon_version.gd")
 const ToolRegistry := preload("tool_registry.gd")
 const AgentLog := preload("../core/agent_log.gd")
 
@@ -16,7 +17,6 @@ const HOST := "127.0.0.1"
 const ENDPOINT := "/mcp"
 const SERVER_NAME := "godot"
 const SERVER_TITLE := "Godot Agent Harness"
-const SERVER_VERSION := "0.1.0"
 ## Versiones de MCP que se aceptan; si el cliente pide otra, se responde la primera.
 const PROTOCOL_VERSIONS: PackedStringArray = ["2025-06-18", "2025-03-26", "2024-11-05"]
 const MAX_CONNECTIONS := 16
@@ -240,7 +240,7 @@ func _dispatch(message: Variant, headers: Dictionary, session_id: String) -> Var
 			return _rpc_result(id, {
 				"protocolVersion": version,
 				"capabilities": {"tools": {"listChanged": false}},
-				"serverInfo": {"name": SERVER_NAME, "title": SERVER_TITLE, "version": SERVER_VERSION},
+				"serverInfo": {"name": SERVER_NAME, "title": SERVER_TITLE, "version": AddonVersion.version()},
 				"instructions": INSTRUCTIONS,
 			})
 		"ping":

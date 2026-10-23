@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    name: Tests (Godot ${{ matrix.godot }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # La mínima soportada, la estable actual y la beta en la que se desarrolla.
+        godot: [4.6.3-stable, 4.7.2-stable, 4.8-beta1]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ matrix.godot }}
+
+      - name: Install Godot
+        run: sh .github/scripts/install-godot.sh ~/godot ${{ matrix.godot }}
+
+      - name: Import
+        run: ~/godot/godot --headless --path . --import
+
+      # Los checkpoints del One-shot hacen commits en un repo de prueba.
+      - name: Git identity
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@users.noreply.github.com"
+
+      - name: Unit tests
+        run: ~/godot/godot --headless --path . --script tests/run_all.gd
+
+      - name: ACP against the fake agent
+        run: ~/godot/godot --headless --path . --script tests/acp_session_check.gd
+
+      - name: One-shot loop
+        run: ~/godot/godot --headless --path . --script tests/oneshot_check.gd
