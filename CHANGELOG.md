@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-23
+
 ### Added
 
 - The README has a quick start with screenshots, in English and Spanish.
