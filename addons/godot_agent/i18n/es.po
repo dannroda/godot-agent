@@ -2278,3 +2278,180 @@ msgstr "Apagado: el servidor queda en la lista pero el agente no lo recibe."
 
 msgid "MCP servers of other programs: their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask."
 msgstr "Servidores MCP de otros programas: sus tools preguntan salvo que las permitas acá. Los que el agente carga de su propia configuración aparecen después de que piden permiso por primera vez."
+
+msgid "Extensions: plugins, marketplaces and MCP servers"
+msgstr "Extensiones: plugins, marketplaces y servidores MCP"
+
+msgid "This addon (Settings → MCP servers)"
+msgstr "Este addon (Settings → Servidores MCP)"
+
+msgid "User"
+msgstr "Usuario"
+
+msgid "Project (.mcp.json)"
+msgstr "Proyecto (.mcp.json)"
+
+msgid "Local (this project, only you)"
+msgstr "Local (este proyecto, solo vos)"
+
+msgid "claude.ai"
+msgstr "claude.ai"
+
+msgid "From plugins"
+msgstr "De plugins"
+
+msgid "✓ Connected"
+msgstr "✓ Conectado"
+
+msgid "⚠ Needs auth"
+msgstr "⚠ Falta autenticar"
+
+msgid "✗ Failed"
+msgstr "✗ Falló"
+
+msgid "Pending approval"
+msgstr "Falta aprobarlo"
+
+msgid "Disabled"
+msgstr "Deshabilitado"
+
+msgid "Not configured"
+msgstr "Sin configurar"
+
+msgid "Unknown"
+msgstr "Desconocido"
+
+msgid "User (all projects)"
+msgstr "Usuario (todos los proyectos)"
+
+msgid "Project (shared, .claude/settings.json)"
+msgstr "Proyecto (compartido, .claude/settings.json)"
+
+msgid "Extensions"
+msgstr "Extensiones"
+
+msgid "Plugin changes apply when a new session opens."
+msgstr "Los cambios de plugins se aplican al abrir una sesión nueva."
+
+msgid "The Claude Code CLI (claude) was not found in the PATH or next to the ACP adapter. Open a Claude Code session once (npx downloads it) or install Claude Code."
+msgstr "No se encontró el CLI de Claude Code (claude) en el PATH ni junto al adaptador ACP. Abrí una sesión de Claude Code una vez (npx lo descarga) o instalá Claude Code."
+
+msgid "Search plugins…"
+msgstr "Buscar plugins…"
+
+msgid "Where Install puts a new plugin."
+msgstr "Dónde instala Instalar un plugin nuevo."
+
+msgid "GitHub repo (owner/repo), URL or path…"
+msgstr "Repo de GitHub (dueño/repo), URL o ruta…"
+
+msgid "Filter servers…"
+msgstr "Filtrar servidores…"
+
+msgid "Check the servers again"
+msgstr "Volver a revisar los servidores"
+
+msgid "In a session, /mcp in the chat reconnects or turns off a server (/mcp reconnect <name>, /mcp disable <name>)."
+msgstr "En una sesión, /mcp en el chat reconecta o apaga un servidor (/mcp reconnect <nombre>, /mcp disable <nombre>)."
+
+msgid "Add server"
+msgstr "Agregar servidor"
+
+msgid "Servers for the agent are added in Settings → MCP servers."
+msgstr "Los servidores para el agente se agregan en Settings → Servidores MCP."
+
+msgid "Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent."
+msgstr "Los plugins y marketplaces son de Claude Code, y el perfil de agente activo es otro agente."
+
+msgid "Loading…"
+msgstr "Cargando…"
+
+msgid "Installed (%d)"
+msgstr "Instalados (%d)"
+
+msgid "Available (%d)"
+msgstr "Disponibles (%d)"
+
+msgid "Showing the %d most installed. Search to find the others."
+msgstr "Se muestran los %d más instalados. Buscá para encontrar los demás."
+
+msgid "Enable or disable"
+msgstr "Habilitar o deshabilitar"
+
+msgid "Enabling %s…"
+msgstr "Habilitando %s…"
+
+msgid "Disabling %s…"
+msgstr "Deshabilitando %s…"
+
+msgid "Update"
+msgstr "Actualizar"
+
+msgid "Updating %s…"
+msgstr "Actualizando %s…"
+
+msgid "Uninstall"
+msgstr "Desinstalar"
+
+msgid "Uninstall %s?"
+msgstr "¿Desinstalar %s?"
+
+msgid "Uninstalling %s…"
+msgstr "Desinstalando %s…"
+
+msgid "Scope: %s"
+msgstr "Alcance: %s"
+
+msgid "%s installs"
+msgstr "%s instalaciones"
+
+msgid "Install"
+msgstr "Instalar"
+
+msgid "Installing %s…"
+msgstr "Instalando %s…"
+
+msgid "from %s"
+msgstr "de %s"
+
+msgid "Remove the marketplace %s? Its plugins stay installed until you uninstall them."
+msgstr "¿Quitar el marketplace %s? Sus plugins quedan instalados hasta que los desinstales."
+
+msgid "Removing %s…"
+msgstr "Quitando %s…"
+
+msgid "No marketplaces yet."
+msgstr "Todavía no hay marketplaces."
+
+msgid "Checking the servers…"
+msgstr "Revisando los servidores…"
+
+msgid "Authenticate"
+msgstr "Autenticar"
+
+msgid "Claude Code opens the browser to sign in to this server."
+msgstr "Claude Code abre el navegador para iniciar sesión en este servidor."
+
+msgid "Waiting for the sign-in in the browser (%s)…"
+msgstr "Esperando el inicio de sesión en el navegador (%s)…"
+
+msgid "This plugin runs a command of its marketplace to install:\n\n%s\n\nRun it?"
+msgstr "Este plugin corre un comando de su marketplace para instalarse:\n\n%s\n\n¿Correrlo?"
+
+msgid "Run and install"
+msgstr "Correr e instalar"
+
+msgid "Adding %s…"
+msgstr "Agregando %s…"
+
+msgid "Plugins (%d)"
+msgstr "Plugins (%d)"
+
+msgid "Marketplaces (%d)"
+msgstr "Marketplaces (%d)"
+
+msgid "Passed to the agent"
+msgstr "Se le pasa al agente"
+
+msgid "Off"
+msgstr "Apagado"

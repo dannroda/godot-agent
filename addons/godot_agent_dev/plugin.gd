@@ -88,6 +88,8 @@ const ONESHOT_ARG := "--godot-agent-oneshot-test"
 const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
 const LONG_ARG := "--godot-agent-long-test"
 const SETTINGS_ARG := "--godot-agent-settings-shots="
+## m7-37: abre Extensions desde el dock con el CLI real (solo lectura) y saca una captura por pestaña.
+const EXTENSIONS_ARG := "--godot-agent-extensions-shots="
 const HISTORY_ARG := "--godot-agent-history-test="
 const LOGIN_ARG := "--godot-agent-login-test"
 const QUEUE_ARG := "--godot-agent-queue-test"
@@ -175,6 +177,8 @@ func _enter_tree() -> void:
 			_run_history_test.call_deferred(arg.trim_prefix(HISTORY_ARG))
 		if arg.begins_with(SETTINGS_ARG):
 			_run_settings_shots.call_deferred(arg.trim_prefix(SETTINGS_ARG))
+		if arg.begins_with(EXTENSIONS_ARG):
+			_run_extensions_shots.call_deferred(arg.trim_prefix(EXTENSIONS_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
 
@@ -1175,6 +1179,56 @@ func _run_settings_shots(prefix: String) -> void:
 		_finish(1, "settings: el server MCP no quedó guardado o permitido (oneshot=%s, nombres=%s)" % [mcp_ok, names])
 		return
 	_finish(0, "settings: %d secciones, guardar aplica la matriz y los servers MCP" % nav.item_count)
+
+
+func _run_extensions_shots(prefix: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var button: Button = null
+	for child: Node in dock.get_node("Header").get_children():
+		if child is Button and child.name == &"ExtensionsButton":
+			button = child
+	if button == null:
+		_finish(1, "extensions: el header no tiene el botón")
+		return
+	button.pressed.emit()
+	await get_tree().create_timer(0.5).timeout
+	var window: Window = null
+	for node: Node in EditorInterface.get_base_control().get_children():
+		if node is AcceptDialog and node.has_method(&"refresh") and node.get(&"_mcp_box") != null:
+			window = node
+	if window == null or not window.visible:
+		_finish(1, "extensions: el botón no abrió la ventana")
+		return
+	var deadline := Time.get_ticks_msec() + 150000
+	while not (window.get(&"_loading") as Dictionary).is_empty() and Time.get_ticks_msec() < deadline:
+		await get_tree().create_timer(0.5).timeout
+	if not (window.get(&"_loading") as Dictionary).is_empty():
+		_finish(1, "extensions: no terminó de cargar (%s)" % [window.get(&"_loading")])
+		return
+	var tabs: TabContainer = window.get(&"_tabs")
+	for i in tabs.get_tab_count():
+		tabs.current_tab = i
+		await get_tree().create_timer(0.5).timeout
+		window.get_texture().get_image().save_png("%s_%d.png" % [prefix, i])
+	(window.get(&"_plugin_search") as LineEdit).text = "godot"
+	(window.get(&"_plugin_search") as LineEdit).text_changed.emit("godot")
+	tabs.current_tab = 0
+	await get_tree().create_timer(0.5).timeout
+	window.get_texture().get_image().save_png("%s_search.png" % prefix)
+	var installed: Array = window.get(&"_installed")
+	var available: Array = window.get(&"_available")
+	var mcp: Array = window.get(&"_mcp")
+	var errors := [window.get(&"_plugins_error"), window.get(&"_markets_error"), window.get(&"_mcp_error")].filter(func(text: String) -> bool: return not text.is_empty())
+	window.hide()
+	if not errors.is_empty():
+		_finish(1, "extensions: errores %s" % [errors])
+		return
+	_finish(0, "extensions: %d instalados, %d disponibles, %d marketplaces, %d MCP servers" % [installed.size(), available.size(), (window.get(&"_markets") as Array).size(), mcp.size()])
 
 
 func _take_screenshot(path: String) -> void:

@@ -8,7 +8,8 @@ An editor addon for Godot 4 that connects a coding agent (Claude Code, Gemini CL
 - edit nodes and properties, each change one undo step;
 - run the game with simulated input and look at captured frames (click one in the chat to see it full size);
 - review code and leave findings in the Script Editor;
-- use the MCP servers of other programs (Blender, a database…), set up in Settings with their own permissions.
+- use the MCP servers of other programs (Blender, a database…), set up in Settings with their own permissions;
+- manage Claude Code's plugins, marketplaces and MCP servers from the **Extensions** window.
 
 It has five modes: **Ask**, **Review**, **Build**, **Auto** (Build that runs the shell commands your rules allow without asking) and **One-shot**. One-shot pursues a whole goal ("a 2-player Pong with score") with a plan, budgets, git checkpoints and playtests.
 

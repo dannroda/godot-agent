@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Extensions** window, from the dock header: install, enable, update and uninstall Claude Code plugins, search the plugins of your marketplaces, add and remove marketplaces, and see every MCP server the agent loads with its status (connected, needs auth, failed), with **Authenticate** for the ones that need it.
+
 ## [0.1.2] - 2026-10-23
 
 ### Added

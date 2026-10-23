@@ -51,6 +51,16 @@ Claude Code also loads the servers of its own configuration (`claude mcp add`, `
 
 The tools of each server ask for permission until you allow them: see [MCP servers of other programs](Modes-and-permissions.md#mcp-servers-of-other-programs).
 
+## Extensions
+
+The **Extensions** button in the dock header (next to Settings) opens a window with Claude Code's plugins, marketplaces and every MCP server the agent sees. Changes apply right away through the Claude Code CLI (`claude`), with the agent profile's environment (for example `CLAUDE_CONFIG_DIR`). If `claude` isn't in the `PATH`, the window uses the one the ACP adapter downloads with npx.
+
+- **Plugins**: the installed ones with an on/off switch, **Update** and **Uninstall**, their scope and the MCP servers each one brings (colored by their status); below, the available ones from your marketplaces, the most installed first, with a search box and **Install** (in the scope chosen at the top: user, project or local). If a plugin needs to run a command of its marketplace to install, the window shows the command and asks first.
+- **Marketplaces**: add one (a GitHub `owner/repo`, a URL or a folder), update it or remove it.
+- **MCP servers**: the addon's own servers from [Other MCP servers](#other-mcp-servers) and the ones Claude Code loads (user, project `.mcp.json`, local, claude.ai and plugins), each with its status: connected, needs auth, failed, pending approval, not configured. **Authenticate** runs `claude mcp login`, which opens the browser. In a session, `/mcp` in the chat reconnects or turns off a server.
+
+Plugins load when a session opens: after a change, the window offers **New session**. Plugins and marketplaces are Claude Code's; with another agent profile those tabs say so.
+
 ## Export
 
 An export plugin skips all of `addons/godot_agent/` and removes the playtest autoload, so the addon never reaches an exported game.

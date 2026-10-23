@@ -6,6 +6,8 @@ extends VBoxContainer
 signal show_log_requested
 ## Abrir el diálogo de Settings (lo maneja el plugin: necesita la config del proyecto y el server MCP).
 signal settings_requested
+## Abrir la ventana Extensions: plugins, marketplaces y MCP servers (m7-37).
+signal extensions_requested
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
 signal action_forwarded(action: String, payload: Variant)
 
@@ -237,6 +239,16 @@ func _build_header() -> void:
 	_history_button.pressed.connect(_show_history_menu)
 	_new_session_button.icon = AgentTheme.icon(&"Add")
 	_new_session_button.pressed.connect(_on_new_session_pressed)
+	var extensions := Button.new()
+	extensions.name = "ExtensionsButton"
+	extensions.flat = true
+	extensions.icon = AgentTheme.icon(&"AssetLib")
+	if extensions.icon == null:
+		extensions.text = "⧉"
+	extensions.tooltip_text = I18n.t("Extensions: plugins, marketplaces and MCP servers")
+	extensions.pressed.connect(func() -> void: extensions_requested.emit())
+	_settings_button.add_sibling(extensions)
+	_settings_button.get_parent().move_child(extensions, _settings_button.get_index())
 	_settings_button.icon = AgentTheme.icon(&"Tools")
 	_settings_button.pressed.connect(func() -> void: settings_requested.emit())
 	_profile_button.item_selected.connect(_on_profile_selected)

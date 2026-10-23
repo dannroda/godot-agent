@@ -11,6 +11,8 @@ const AgentLogPanelScene := preload("ui/log_panel/agent_log_panel.tscn")
 const AgentLog := preload("core/agent_log.gd")
 const HarnessSettings := preload("core/harness_settings.gd")
 const SettingsDialog := preload("ui/settings/settings_dialog.gd")
+const ExtensionsWindow := preload("ui/extensions/extensions_window.gd")
+const ClaudeExtensions := preload("extensions/claude_extensions.gd")
 const I18n := preload("core/i18n.gd")
 const SessionHistory := preload("session/session_history.gd")
 const SessionModel := preload("session/session_model.gd")
@@ -85,6 +87,7 @@ var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 var _review_annotations: ReviewAnnotations
 var _oneshot: OneShotRun
 var _settings_dialog: SettingsDialog
+var _extensions_window: ExtensionsWindow
 var _main_screen: Control
 var _fs: FsHandler
 var _registry: ToolRegistry
@@ -169,6 +172,7 @@ func _enter_tree() -> void:
 	dock.setup(_model, _controller, _settings)
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
+	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.submit_interceptor = _intercept_dock_prompt
 	dock.retry_interceptor = _intercept_dock_retry
@@ -210,6 +214,18 @@ func _enter_tree() -> void:
 			_completion.metrics.clear()
 	_settings_dialog.saved.connect(_on_settings_saved)
 	EditorInterface.get_base_control().add_child(_settings_dialog)
+
+	_extensions_window = ExtensionsWindow.new()
+	_extensions_window.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_extensions_window.addon_servers_provider = _external_mcp_servers
+	_extensions_window.is_claude_provider = func() -> bool:
+		var profile := _settings.active_profile()
+		return profile != null and ClaudeExtensions.is_claude_profile(profile.command, profile.args)
+	_extensions_window.new_session_requested.connect(func() -> void:
+		if is_instance_valid(dock):
+			dock.call(&"_on_new_session_pressed"))
+	_extensions_window.mcp_settings_requested.connect(func() -> void: _settings_dialog.open(SettingsDialog.SettingsSection.MCP))
+	EditorInterface.get_base_control().add_child(_extensions_window)
 
 	_completion = CompletionService.new()
 	_completion.setup(_settings, _project_config, _log)
@@ -257,6 +273,9 @@ func _exit_tree() -> void:
 	if _settings_dialog:
 		_settings_dialog.queue_free()
 		_settings_dialog = null
+	if _extensions_window:
+		_extensions_window.queue_free()
+		_extensions_window = null
 	_main_screen = null
 	_fs = null
 	_registry = null
@@ -572,6 +591,13 @@ func _on_shell_rules_changed() -> void:
 func _on_permissions_changed() -> void:
 	_project_config.permissions = _controller.policy.overrides
 	_on_shell_rules_changed()
+
+
+## El CLI corre con el entorno del perfil activo (CLAUDE_CONFIG_DIR y demás), como el agente.
+func _open_extensions() -> void:
+	var profile := _settings.active_profile()
+	_extensions_window.extensions = ClaudeExtensions.new(EditorContext.project_path(), profile.resolved_env() if profile else {})
+	_extensions_window.open()
 
 
 func _open_settings() -> void:
