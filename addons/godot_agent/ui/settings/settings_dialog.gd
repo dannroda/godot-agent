@@ -20,6 +20,7 @@ const CompletionSettingsPage := preload("completion_settings_page.gd")
 const AutoRulesPage := preload("auto_rules_page.gd")
 const McpServersPage := preload("mcp_servers_page.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
+const AddonVersion := preload("../../core/addon_version.gd")
 
 enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
 const SECTION_LABELS: PackedStringArray = [
@@ -102,6 +103,12 @@ var _completion_page: CompletionSettingsPage
 var _accent_picker: ColorPickerButton
 var _dock_option: OptionButton
 var _language_option: OptionButton
+var _update_check: CheckBox
+var _update_status: Label
+var _update_button: Button
+## «Buscar ahora» (m7-38): el plugin busca un release nuevo (y si hay, muestra el aviso en el dock);
+## devuelve el texto para mostrar acá. Corrutina: `func() -> String`.
+var update_checker: Callable
 var _export_label: Label
 var _export_button: Button
 var _export_confirm: ConfirmationDialog
@@ -397,6 +404,32 @@ func _build_interface(page: VBoxContainer) -> void:
 	row.add_child(_language_option)
 	page.add_child(row)
 	page.add_child(_hint(I18n.t("These apply when the editor is reopened. The position is the initial one: if you move the dock later, the editor remembers where you left it.")))
+	page.add_child(_title(I18n.t("Updates")))
+	_update_check = CheckBox.new()
+	_update_check.text = I18n.t("Check for a new version when the editor opens (once a day)")
+	page.add_child(_update_check)
+	row = HBoxContainer.new()
+	_update_status = Label.new()
+	_update_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_update_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(_update_status)
+	_update_button = Button.new()
+	_update_button.text = I18n.t("Check now")
+	_update_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_update_button.pressed.connect(_on_check_update)
+	row.add_child(_update_button)
+	page.add_child(row)
+
+
+func _on_check_update() -> void:
+	if not update_checker.is_valid():
+		return
+	_update_button.disabled = true
+	_update_status.text = I18n.t("Checking…")
+	var status: String = await update_checker.call()
+	if is_instance_valid(_update_button):
+		_update_button.disabled = false
+		_update_status.text = status
 
 
 func _build_export(page: VBoxContainer) -> void:
@@ -460,6 +493,8 @@ func _load() -> void:
 	_dock_option.select(clampi(_settings.dock_slot(), 0, DOCK_SLOT_LABELS.size() - 1))
 	var language_codes: Array = I18n.LANGUAGES.map(func(language: Dictionary) -> String: return language.code)
 	_language_option.select(maxi(language_codes.find(_settings.language()), 0))
+	_update_check.button_pressed = _settings.update_check_on_start()
+	_update_status.text = I18n.t("Installed version: %s") % AddonVersion.version()
 	_completion_page.metrics_provider = completion_metrics_provider
 	_completion_page.metrics_reset = completion_metrics_reset
 	_completion_page.load_from(_settings, _config)
@@ -494,6 +529,7 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_ACCENT, _accent_picker.color)
 	_settings.set_value(HarnessSettings.KEY_DOCK_SLOT, _dock_option.selected)
 	_settings.set_value(HarnessSettings.KEY_LANGUAGE, I18n.LANGUAGES[_language_option.selected].code)
+	_settings.set_value(HarnessSettings.KEY_UPDATE_CHECK, _update_check.button_pressed)
 	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
 	_config.permissions = matrix_overrides()

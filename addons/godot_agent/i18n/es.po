@@ -2455,3 +2455,66 @@ msgstr "Se le pasa al agente"
 
 msgid "Off"
 msgstr "Apagado"
+
+msgid "This is a development copy of the addon (a link or with godot_agent_dev): update it with git."
+msgstr "Esta es una copia de desarrollo del addon (un link o con godot_agent_dev): actualizala con git."
+
+msgid "Could not check: %s"
+msgstr "No se pudo buscar: %s"
+
+msgid "You have the latest version (%s)."
+msgstr "Tenés la última versión (%s)."
+
+msgid "Version %s is available: see the notice in the dock."
+msgstr "Está disponible la versión %s: mirá el aviso en el dock."
+
+msgid "Godot Agent Harness %s will be downloaded and installed over addons/godot_agent, and the editor will restart. Open scenes are saved first and the agent session closes. Your project settings (project_config.tres) are kept."
+msgstr "Se va a bajar Godot Agent Harness %s e instalar sobre addons/godot_agent, y el editor se reinicia. Antes se guardan las escenas abiertas y se cierra la sesión del agente. La configuración del proyecto (project_config.tres) queda."
+
+msgid "Update and restart"
+msgstr "Actualizar y reiniciar"
+
+msgid "Downloading %s…"
+msgstr "Bajando %s…"
+
+msgid "your previous %s were saved in %s"
+msgstr "tus %s anteriores quedaron guardados en %s"
+
+msgid "What's new"
+msgstr "Novedades"
+
+msgid "Later"
+msgstr "Después"
+
+msgid "Don't show this version again. Settings → Interface checks again."
+msgstr "No mostrar más esta versión. Settings → Interfaz vuelve a buscar."
+
+msgid "Godot Agent Harness %s is available (you have %s)."
+msgstr "Está disponible Godot Agent Harness %s (tenés la %s)."
+
+msgid "The update failed: %s"
+msgstr "No se pudo actualizar: %s"
+
+msgid "What's new in %s"
+msgstr "Novedades de %s"
+
+msgid "This release has no notes."
+msgstr "Este release no tiene notas."
+
+msgid "See the release on GitHub"
+msgstr "Ver el release en GitHub"
+
+msgid "Updates"
+msgstr "Actualizaciones"
+
+msgid "Check for a new version when the editor opens (once a day)"
+msgstr "Buscar una versión nueva al abrir el editor (una vez por día)"
+
+msgid "Check now"
+msgstr "Buscar ahora"
+
+msgid "Checking…"
+msgstr "Buscando…"
+
+msgid "Installed version: %s"
+msgstr "Versión instalada: %s"

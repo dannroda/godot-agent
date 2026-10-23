@@ -90,6 +90,9 @@ const LONG_ARG := "--godot-agent-long-test"
 const SETTINGS_ARG := "--godot-agent-settings-shots="
 ## m7-37: abre Extensions desde el dock con el CLI real (solo lectura) y saca una captura por pestaña.
 const EXTENSIONS_ARG := "--godot-agent-extensions-shots="
+## m7-38: muestra el aviso de versión nueva con un release de mentira (sin red), sus notas y
+## «Buscar ahora» de Settings, que en el repo dice que es una copia de desarrollo.
+const UPDATE_ARG := "--godot-agent-update-shots="
 const HISTORY_ARG := "--godot-agent-history-test="
 const LOGIN_ARG := "--godot-agent-login-test"
 const QUEUE_ARG := "--godot-agent-queue-test"
@@ -179,6 +182,8 @@ func _enter_tree() -> void:
 			_run_settings_shots.call_deferred(arg.trim_prefix(SETTINGS_ARG))
 		if arg.begins_with(EXTENSIONS_ARG):
 			_run_extensions_shots.call_deferred(arg.trim_prefix(EXTENSIONS_ARG))
+		if arg.begins_with(UPDATE_ARG):
+			_run_update_shots.call_deferred(arg.trim_prefix(UPDATE_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
 
@@ -1229,6 +1234,70 @@ func _run_extensions_shots(prefix: String) -> void:
 		_finish(1, "extensions: errores %s" % [errors])
 		return
 	_finish(0, "extensions: %d instalados, %d disponibles, %d marketplaces, %d MCP servers" % [installed.size(), available.size(), (window.get(&"_markets") as Array).size(), mcp.size()])
+
+
+func _run_update_shots(prefix: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var banner: Control = null
+	for child: Node in dock.get_children():
+		if child.has_method(&"show_release"):
+			banner = child
+	if banner == null:
+		_finish(1, "update: el dock no tiene el aviso")
+		return
+	if banner.get_index() != (dock.get(&"_export_banner") as Control).get_index() + 1:
+		_finish(1, "update: el aviso no está debajo del de export")
+		return
+	banner.call(&"show_release", {
+		"version": "9.9.9",
+		"notes": "## Added\n\n- **Updater**: the dock tells you when a new version is out.\n- Something else with `code`.\n\n## Fixed\n\n- A bug.",
+		"html_url": "https://github.com/dannroda/godot-agent/releases/tag/v9.9.9",
+		"zip_url": "",
+	}, "0.1.3")
+	await get_tree().create_timer(0.5).timeout
+	var image := EditorInterface.get_base_control().get_viewport().get_texture().get_image()
+	image.get_region(Rect2i(dock.get_global_rect())).save_png("%s_banner.png" % prefix)
+	banner.get(&"_buttons").get_child(0).pressed.emit()
+	await get_tree().create_timer(0.5).timeout
+	var notes: Window = banner.get(&"_notes_dialog")
+	if not notes.visible:
+		_finish(1, "update: «What's new» no abrió las notas")
+		return
+	notes.get_texture().get_image().save_png("%s_notes.png" % prefix)
+	notes.hide()
+	(dock.get(&"_settings_button") as Button).pressed.emit()
+	await get_tree().create_timer(0.5).timeout
+	var dialog: Window = null
+	for node: Node in EditorInterface.get_base_control().get_children():
+		if node is ConfirmationDialog and node.has_method(&"matrix_overrides"):
+			dialog = node
+	var nav: ItemList = dialog.get(&"_nav")
+	nav.select(5)
+	nav.item_selected.emit(5)
+	(dialog.get(&"_update_button") as Button).pressed.emit()
+	await get_tree().create_timer(0.5).timeout
+	var status := (dialog.get(&"_update_status") as Label).text
+	dialog.get_texture().get_image().save_png("%s_settings.png" % prefix)
+	dialog.hide()
+	if not status.contains("git"):
+		_finish(1, "update: «Check now» en el repo no dijo que es una copia de desarrollo: %s" % status)
+		return
+	banner.get(&"_buttons").get_child(1).pressed.emit()
+	if banner.visible:
+		_finish(1, "update: «Later» no ocultó el aviso")
+		return
+	var settings := EditorInterface.get_editor_settings()
+	var dismissed := str(settings.get_setting("godot_agent/update/dismissed_version"))
+	settings.set_setting("godot_agent/update/dismissed_version", "")
+	if dismissed != "9.9.9":
+		_finish(1, "update: «Later» no guardó la versión (%s)" % dismissed)
+		return
+	_finish(0, "update: aviso, notas, Settings (%s) y «Later»" % status)
 
 
 func _take_screenshot(path: String) -> void:

@@ -11,6 +11,7 @@ const CHANNEL_COLORS: Dictionary = {
 	&"proc": Color("#9aa0a6"),
 	&"quota": Color("#f2d16b"),
 	&"cmp": Color("#7fd98b"),
+	&"update": Color("#6fd3c8"),
 }
 const USER_BUBBLE := Color("#33405a")
 const GODOT_TOOL := Color("#b493ff")

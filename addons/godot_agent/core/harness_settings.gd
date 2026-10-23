@@ -27,6 +27,11 @@ const RESUME_CONFIRM := 1
 const KEY_DOCK_SLOT := "ui/dock_slot"
 ## Idioma de la interfaz (D46): "auto" (el del editor), "en", "es".
 const KEY_LANGUAGE := "ui/language"
+## Actualizaciones del addon (m7-38): buscar al abrir el editor (una vez por día), cuándo se buscó
+## por última vez (unix) y la versión a la que se le dijo «Después».
+const KEY_UPDATE_CHECK := "update/check_on_start"
+const KEY_UPDATE_LAST_CHECK := "update/last_check"
+const KEY_UPDATE_DISMISSED := "update/dismissed_version"
 ## Completado predictivo (spec §16.10): on/off global, debounce local y umbral/margen del ranker.
 const KEY_COMPLETION_ENABLED := "completion/enabled"
 const KEY_COMPLETION_DEBOUNCE := "completion/local_debounce_ms"
@@ -74,6 +79,9 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
 		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Resume automatically,Wait for confirmation")
 		_declare(KEY_LANGUAGE, "auto", TYPE_STRING, PROPERTY_HINT_ENUM, "auto,en,es")
+		_declare(KEY_UPDATE_CHECK, true, TYPE_BOOL)
+		_declare(KEY_UPDATE_LAST_CHECK, 0, TYPE_INT)
+		_declare(KEY_UPDATE_DISMISSED, "", TYPE_STRING)
 		_declare(KEY_DOCK_SLOT, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Right top,Right bottom,Left top,Left bottom")
 		_declare(KEY_COMPLETION_ENABLED, true, TYPE_BOOL)
 		_declare(KEY_COMPLETION_DEBOUNCE, 30, TYPE_INT, PROPERTY_HINT_RANGE, "0,200,1,suffix:ms")
@@ -192,6 +200,10 @@ func quota_resume_auto() -> bool:
 ## Índice en DOCK_SLOTS.
 func language() -> String:
 	return str(get_value(KEY_LANGUAGE, "auto"))
+
+
+func update_check_on_start() -> bool:
+	return bool(get_value(KEY_UPDATE_CHECK, true))
 
 
 func dock_slot() -> int:

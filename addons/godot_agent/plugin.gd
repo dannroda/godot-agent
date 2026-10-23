@@ -49,6 +49,9 @@ const AgentDock := preload("ui/dock/agent_dock.gd")
 const OneShotRun := preload("oneshot/oneshot_run.gd")
 const GameCriteria := preload("oneshot/game_criteria.gd")
 const CompletionService := preload("completion/completion_service.gd")
+const AddonUpdater := preload("core/addon_updater.gd")
+const AddonVersion := preload("core/addon_version.gd")
+const UpdateBanner := preload("ui/dock/update_banner.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -67,6 +70,8 @@ const DOCK_TITLE := "Agent"
 const LOG_PANEL_TITLE := "Agent Log"
 ## Runs del One-shot (D37): datos del usuario, fuera del repo.
 const ONESHOT_STORE_DIR := "user://godot_agent/oneshot"
+const UPDATE_BACKUP_DIR := "user://godot_agent/update/backup-%s"
+const UPDATE_CHECK_INTERVAL_S := 86400
 const ICON_NAME := &"Script"
 
 var _export_plugin: AgentExportPlugin
@@ -92,6 +97,8 @@ var _main_screen: Control
 var _fs: FsHandler
 var _registry: ToolRegistry
 var _completion: CompletionService
+var _updater: AddonUpdater
+var _update_banner: UpdateBanner
 
 
 func _enter_tree() -> void:
@@ -199,6 +206,17 @@ func _enter_tree() -> void:
 	_surfaces.add(EditorSurfaces.EditorSurface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
 	_restore_oneshot.call_deferred()
 
+	_updater = AddonUpdater.new()
+	add_child(_updater)
+	_update_banner = UpdateBanner.new()
+	_update_banner.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_update_banner.update_requested.connect(_on_update_requested)
+	_update_banner.dismissed.connect(func() -> void:
+		_settings.set_value(HarnessSettings.KEY_UPDATE_DISMISSED, str(_update_banner.release().get("version", ""))))
+	dock.add_banner(_update_banner)
+	if _settings.update_check_on_start() and Time.get_unix_time_from_system() - int(_settings.get_value(HarnessSettings.KEY_UPDATE_LAST_CHECK, 0)) >= UPDATE_CHECK_INTERVAL_S:
+		_check_updates.call_deferred(false)
+
 	_settings_dialog = SettingsDialog.new()
 	_settings_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_settings_dialog.setup(_settings, _project_config)
@@ -213,6 +231,7 @@ func _enter_tree() -> void:
 		if _completion:
 			_completion.metrics.clear()
 	_settings_dialog.saved.connect(_on_settings_saved)
+	_settings_dialog.update_checker = _check_updates.bind(true)
 	EditorInterface.get_base_control().add_child(_settings_dialog)
 
 	_extensions_window = ExtensionsWindow.new()
@@ -239,6 +258,11 @@ func _exit_tree() -> void:
 		remove_child(_completion)
 		_completion.queue_free()
 		_completion = null
+	if _updater:
+		remove_child(_updater)
+		_updater.queue_free()
+		_updater = null
+	_update_banner = null
 	if _oneshot:
 		_oneshot.suspend()  # queda guardado para retomarlo al volver (D37)
 		remove_child(_oneshot)
@@ -598,6 +622,75 @@ func _open_extensions() -> void:
 	var profile := _settings.active_profile()
 	_extensions_window.extensions = ClaudeExtensions.new(EditorContext.project_path(), profile.resolved_env() if profile else {})
 	_extensions_window.open()
+
+
+## Busca un release nuevo (m7-38) y, si hay, muestra el aviso en el dock. Al abrir el editor
+## (`manual` false) no vuelve a mostrar la versión a la que se le dijo «Después». Devuelve el texto
+## para Settings.
+func _check_updates(manual: bool) -> String:
+	if AddonUpdater.is_dev_copy():
+		return I18n.t("This is a development copy of the addon (a link or with godot_agent_dev): update it with git.")
+	if not _updater:
+		return ""
+	var result: Dictionary = await _updater.check()
+	if not _updater:
+		return ""
+	if not result.error.is_empty():
+		_log.add(AgentLog.CH_UPDATE, "could not check for a new version: %s" % result.error)
+		return I18n.t("Could not check: %s") % result.error
+	_settings.set_value(HarnessSettings.KEY_UPDATE_LAST_CHECK, int(Time.get_unix_time_from_system()))
+	var release: Dictionary = result.release
+	if release.is_empty():
+		return I18n.t("You have the latest version (%s).") % AddonVersion.version()
+	if manual or str(release.version) != str(_settings.get_value(HarnessSettings.KEY_UPDATE_DISMISSED, "")):
+		_update_banner.show_release(release, AddonVersion.version())
+	return I18n.t("Version %s is available: see the notice in the dock.") % release.version
+
+
+func _on_update_requested() -> void:
+	var release := _update_banner.release()
+	var confirm := ConfirmationDialog.new()
+	confirm.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	confirm.title = I18n.t("Update")
+	confirm.dialog_text = I18n.t("Godot Agent Harness %s will be downloaded and installed over addons/godot_agent, and the editor will restart. Open scenes are saved first and the agent session closes. Your project settings (project_config.tres) are kept.") % release.version
+	confirm.ok_button_text = I18n.t("Update and restart")
+	confirm.cancel_button_text = I18n.t("Cancel")
+	confirm.confirmed.connect(_install_update.bind(release))
+	confirm.visibility_changed.connect(func() -> void:
+		if not confirm.visible:
+			confirm.queue_free.call_deferred())
+	EditorInterface.get_base_control().add_child(confirm)
+	confirm.popup_centered()
+
+
+## Baja, valida e instala el release y reinicia el editor. Entre escribir los archivos y reiniciar
+## no hay awaits: el editor no llega a recargar los scripts nuevos con el plugin viejo cargado.
+func _install_update(release: Dictionary) -> void:
+	if AddonUpdater.is_dev_copy():
+		_update_banner.set_error(I18n.t("This is a development copy of the addon (a link or with godot_agent_dev): update it with git."))
+		return
+	_update_banner.set_progress(I18n.t("Downloading %s…") % release.version)
+	var staged: Dictionary = await _updater.download(release)
+	if not _updater:
+		return
+	if not staged.ok:
+		_log.add(AgentLog.CH_UPDATE, "could not download %s: %s" % [release.version, staged.error])
+		_update_banner.set_error(staged.error)
+		return
+	_update_banner.set_progress(I18n.t("Installing %s…") % release.version)
+	EditorInterface.save_all_scenes()
+	if _controller:
+		_controller.stop()
+	var backup := ProjectSettings.globalize_path(UPDATE_BACKUP_DIR % AddonVersion.version())
+	var installed := AddonUpdater.install(staged.dir, ProjectSettings.globalize_path(AddonUpdater.ADDON_DIR), backup)
+	if not installed.ok:
+		_log.add(AgentLog.CH_UPDATE, "could not install %s: %s" % [release.version, installed.error])
+		_update_banner.set_error(installed.error)
+		return
+	_log.add(AgentLog.CH_UPDATE, "installed %s: %d files written, %d removed, backed up: %s" % [release.version, installed.written, installed.removed.size(), ", ".join(installed.backed_up) if not installed.backed_up.is_empty() else "none"])
+	if not installed.backed_up.is_empty():
+		print("Godot Agent Harness: %s" % (I18n.t("your previous %s were saved in %s") % [", ".join(installed.backed_up), backup]))
+	EditorInterface.restart_editor(false)
 
 
 func _open_settings() -> void:

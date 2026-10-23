@@ -54,6 +54,8 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
    - the **Agent** screen (top bar, next to 2D/3D/Script), where One-shot runs.
 4. Click **Start session** in the dock. With Claude Code, `npx` downloads the adapter the first time.
 
+New versions show up as a notice in the dock, with **Update** (see [Updating the addon](docs/wiki/en/Settings.md#updating-the-addon)).
+
 The addon writes nothing to `project.godot`. The one exception is a temporary playtest autoload, added only while the harness runs the game.
 
 ## Quick start

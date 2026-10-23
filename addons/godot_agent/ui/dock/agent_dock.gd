@@ -982,6 +982,12 @@ func _on_screenshot_requested() -> void:
 
 # --- presets de export (M0) ----------------------------------------------------------------------
 
+## Un aviso del plugin (por ejemplo el de versión nueva) debajo del de export.
+func add_banner(banner: Control) -> void:
+	add_child(banner)
+	move_child(banner, _export_banner.get_index() + 1)
+
+
 func refresh_export_banner() -> void:
 	if not is_node_ready():
 		return

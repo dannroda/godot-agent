@@ -13,7 +13,8 @@ const CH_PERM := &"perm"
 const CH_PROC := &"proc"
 const CH_QUOTA := &"quota"
 const CH_CMP := &"cmp"
-const CHANNELS: Array[StringName] = [CH_ACP, CH_MCP, CH_FS, CH_PERM, CH_PROC, CH_QUOTA, CH_CMP]
+const CH_UPDATE := &"update"
+const CHANNELS: Array[StringName] = [CH_ACP, CH_MCP, CH_FS, CH_PERM, CH_PROC, CH_QUOTA, CH_CMP, CH_UPDATE]
 
 const DEFAULT_CAPACITY := 2000
 ## Tope de caracteres del JSON crudo guardado por entrada.

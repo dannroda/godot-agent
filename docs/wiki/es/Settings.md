@@ -11,7 +11,7 @@
 | **Permisos** | La [matriz de permisos](Modos-y-permisos.md#permisos) por modo, el tiempo para contestar y las listas de comandos de shell del [modo Auto](Modos-y-permisos.md#modo-auto). |
 | **Servidores MCP** | [Otros servidores MCP](#otros-servidores-mcp) para el agente; del servidor del addon: puerto, **Regenerar token**, límites de los resultados, lista de tools compacta, carpetas extra. |
 | **One-shot y cuota** | Presupuestos por defecto, checkpoints, revisión del spec, repeticiones para los loops, vueltas de QA, criterios del juego (peso y mínimo), umbrales de aviso y pausa de la cuota, qué hacer cuando se reinicia la cuota. |
-| **Interfaz** | Color de acento, ubicación del dock, idioma. |
+| **Interfaz** | Color de acento, ubicación del dock, idioma, [actualizaciones](#actualizar-el-addon). |
 | **Export** | Revisa que cada preset de export excluya el addon. |
 
 ## Dónde se guarda cada cosa
@@ -69,10 +69,16 @@ Como red de seguridad, por si exportás con el plugin deshabilitado, agregá `ad
 
 ## Actualizar el addon
 
-La config del proyecto vive dentro de la carpeta del addon. Para actualizar:
+Al abrir el editor (como mucho una vez por día), el addon mira los [releases](https://github.com/dannroda/godot-agent/releases) de GitHub. Si hay una versión más nueva, aparece un aviso arriba del dock:
 
-1. Guardá `addons/godot_agent/config/project_config.tres` si existe, y `config/system_prompt.md` o `config/quota_patterns.txt` si los editaste.
-2. Borrá `addons/godot_agent/` y descomprimí la versión nueva de los [releases](https://github.com/dannroda/godot-agent/releases) (o copiala del repo). La versión se ve en **Configuración del proyecto → Plugins**.
-3. Volvé a poner esos archivos en `config/`.
+- **Novedades**: las notas del release.
+- **Actualizar**: después de confirmar, baja el release, comprueba que el zip sea esa versión, guarda las escenas abiertas, cierra la sesión del agente, reemplaza `addons/godot_agent/` y reinicia el editor.
+- **Después**: oculta el aviso de esa versión.
 
-Los settings de usuario (`EditorSettings`) y el historial (`user://`) no se tocan al reemplazar la carpeta.
+**Settings → Interfaz → Actualizaciones** tiene **Buscar ahora** y apaga la búsqueda al abrir el editor.
+
+La actualización conserva `config/project_config.tres` (la config del proyecto). Si editaste `config/system_prompt.md` o `config/quota_patterns.txt` y la versión nueva los cambia, tu copia se guarda en `user://godot_agent/update/backup-<versión anterior>/` antes de reemplazarla (el panel Salida dice dónde). Los archivos que agregaste a la carpeta del addon y que no son código quedan. Los settings de usuario (`EditorSettings`) y el historial (`user://`) no se tocan.
+
+Si `addons/godot_agent` es un link a un clon del repo, o está `addons/godot_agent_dev/` al lado, el addon es una copia de desarrollo: no se actualiza solo, actualizalo con git.
+
+Para actualizar a mano: guardá `config/project_config.tres` y los archivos de `config/` que editaste, borrá `addons/godot_agent/`, descomprimí la versión nueva y volvé a poner esos archivos. La versión se ve en **Configuración del proyecto → Plugins**.
