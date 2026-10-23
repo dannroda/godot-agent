@@ -830,8 +830,8 @@ msgstr "Lado máximo de las capturas"
 msgid "Max tokens"
 msgstr "Máximo de tokens"
 
-msgid "MCP server"
-msgstr "Servidor MCP"
+msgid "MCP servers"
+msgstr "Servidores MCP"
 
 msgid "MCP token regenerated: the godot.* tools reach new sessions."
 msgstr "Token MCP regenerado: las tools godot.* llegan a las sesiones nuevas."
@@ -2182,3 +2182,99 @@ msgstr "Rechazado: «%s» abre Godot en su propia ventana. Por línea de comando
 
 msgid "Send now: stops the agent's current turn and sends this message"
 msgstr "Enviar ahora: corta el turno del agente y manda este mensaje"
+
+msgid "The MCP server «%s» was left out: this agent only takes stdio servers."
+msgstr "El servidor MCP «%s» quedó afuera: este agente solo acepta servidores stdio."
+
+msgid "MCP: a server has no name."
+msgstr "MCP: un servidor no tiene nombre."
+
+msgid "MCP: «%s» can only have letters, digits, - and _."
+msgstr "MCP: «%s» solo puede tener letras, números, - y _."
+
+msgid "MCP: «godot» is the addon's own server; use another name."
+msgstr "MCP: «godot» es el servidor del addon; usá otro nombre."
+
+msgid "MCP: two servers are called «%s»."
+msgstr "MCP: hay dos servidores que se llaman «%s»."
+
+msgid "MCP: «%s» needs an http:// or https:// URL."
+msgstr "MCP: «%s» necesita una URL http:// o https://."
+
+msgid "MCP: «%s» needs a command."
+msgstr "MCP: «%s» necesita un comando."
+
+msgid "MCP: «%s» has %s written in. Use $VARIABLE from the environment: the harness doesn't store keys."
+msgstr "MCP: «%s» tiene %s escrito a mano. Usá $VARIABLE del entorno: el harness no guarda claves."
+
+msgid "These MCP servers ask for permission in One-shot: %s. The run waits at each of their tools; allow them in Settings → Permissions so it doesn't stop."
+msgstr "Estos servidores MCP piden permiso en One-shot: %s. El run espera en cada una de sus tools; permitilos en Settings → Permisos para que no se frene."
+
+msgid "Always allow «%s» in %s mode, in this project"
+msgstr "Permitir siempre «%s» en modo %s, en este proyecto"
+
+msgid "Saved in the permission matrix of this project: you can change it in Settings → Permissions."
+msgstr "Queda en la matriz de permisos de este proyecto: lo podés cambiar en Settings → Permisos."
+
+msgid "Allowed · saved in the permissions of this project"
+msgstr "Permitido · guardado en los permisos de este proyecto"
+
+msgid "This project"
+msgstr "Este proyecto"
+
+msgid "All my projects"
+msgstr "Todos mis proyectos"
+
+msgid "Other MCP servers"
+msgstr "Otros servidores MCP"
+
+msgid "Tools from other programs (Blender, a database, a web service…) that the agent can use besides godot.*. The addon passes them to the agent when a session opens, so they work with any agent; changes apply from the next session. In arguments, environment and headers, $VAR takes the value of VAR from the editor's environment: keys are not saved."
+msgstr "Tools de otros programas (Blender, una base de datos, un servicio web…) que el agente puede usar además de godot.*. El addon se los pasa al agente al abrir la sesión, así que sirven con cualquier agente; los cambios valen desde la próxima sesión. En argumentos, entorno y headers, $VAR toma el valor de VAR del entorno del editor: las claves no se guardan."
+
+msgid "Claude Code also loads the servers of its own configuration (claude mcp add, .mcp.json). Type /mcp in the chat to see their status, reconnect or disable them. Each server's permissions are in Settings → Permissions."
+msgstr "Claude Code además carga los servidores de su propia configuración (claude mcp add, .mcp.json). Escribí /mcp en el chat para ver su estado, reconectarlos o deshabilitarlos. Los permisos de cada servidor están en Settings → Permisos."
+
+msgid "+ Add server"
+msgstr "+ Agregar servidor"
+
+msgid "Import .mcp.json"
+msgstr "Importar .mcp.json"
+
+msgid "Adds the servers of the project's .mcp.json (the file Claude Code and other agents read) that are not on the list yet."
+msgstr "Agrega los servidores del .mcp.json del proyecto (el archivo que leen Claude Code y otros agentes) que todavía no están en la lista."
+
+msgid "This project: saved in addons/godot_agent/config/project_config.tres, so it goes with the project. All my projects: saved in the editor settings."
+msgstr "Este proyecto: se guarda en addons/godot_agent/config/project_config.tres, así que va con el proyecto. Todos mis proyectos: se guarda en la configuración del editor."
+
+msgid "Saved in"
+msgstr "Guardado en"
+
+msgid "Command (stdio)"
+msgstr "Comando (stdio)"
+
+msgid "URL (HTTP)"
+msgstr "URL (HTTP)"
+
+msgid "Type"
+msgstr "Tipo"
+
+msgid "URL"
+msgstr "URL"
+
+msgid "Headers (Name: value)"
+msgstr "Headers (Nombre: valor)"
+
+msgid "%d servers added from .mcp.json."
+msgstr "%d servidores agregados desde .mcp.json."
+
+msgid "The servers of .mcp.json are already on the list."
+msgstr "Los servidores de .mcp.json ya están en la lista."
+
+msgid "No other servers yet."
+msgstr "Todavía no hay otros servidores."
+
+msgid "Off: the server stays on the list but the agent doesn't get it."
+msgstr "Apagado: el servidor queda en la lista pero el agente no lo recibe."
+
+msgid "MCP servers of other programs: their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask."
+msgstr "Servidores MCP de otros programas: sus tools preguntan salvo que las permitas acá. Los que el agente carga de su propia configuración aparecen después de que piden permiso por primera vez."

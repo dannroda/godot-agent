@@ -10,6 +10,9 @@ signal disconnected
 signal agent_mode_synced
 ## El usuario agregó una regla del modo Auto desde una tarjeta: hay que guardar la config.
 signal shell_rules_changed
+## El usuario permitió un MCP server de terceros desde una tarjeta, para el modo y el proyecto: hay
+## que guardar la matriz de la config (m7-35).
+signal permissions_changed
 
 const AgentProcess := preload("../transport/agent_process.gd")
 const AddonVersion := preload("../core/addon_version.gd")
@@ -76,6 +79,11 @@ var client: AcpClient
 var policy: PermissionPolicy = PermissionPolicy.new()
 ## Reglas de shell del modo Auto (D57): el array de project_config, que se modifica en el lugar.
 var shell_rules: Array = ShellRules.default_rules()
+## MCP servers de terceros que el addon le pasa al agente (m7-34), para avisar en el One-shot.
+var external_mcp_names: PackedStringArray = []
+## Servers de terceros cuyas tools pidieron permiso (también los que el agente carga de su propia
+## configuración): server -> true. Settings los muestra en la matriz.
+var seen_mcp_servers: Dictionary = {}
 ## Pedidos de permiso del agente que esperan respuesta: id del request ACP -> PermissionRequest.
 var _permissions_by_acp_id: Dictionary = {}
 var fs: FsHandler
@@ -577,6 +585,10 @@ func _on_request_permission(params: Dictionary) -> Variant:
 			model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	var decision := policy.decide(request.group, model.harness_mode)
+	if PermissionPolicy.is_mcp_group(request.group):
+		var server := request.group.trim_prefix(PermissionPolicy.GROUP_MCP_PREFIX)
+		seen_mcp_servers[server] = true
+		request.persist_label = I18n.t("Always allow «%s» in %s mode, in this project") % [server, I18n.t(_mode_label())]
 	if PermissionPolicy.is_godot_mcp_tool(tool_call):
 		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
 	elif decision == PermissionPolicy.ASK and request.group == PermissionPolicy.GROUP_SHELL and model.harness_mode == SessionModel.HarnessMode.AUTO:
@@ -602,6 +614,10 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	_permissions_by_acp_id.erase(acp_id)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)
+	if request.persist_allow and request.was_allowed():
+		policy.set_matrix_value(request.group, model.harness_mode, PermissionPolicy.ALLOW)
+		_log_perm("%s allowed in %s mode, saved in the project matrix" % [request.group, _mode_label()])
+		permissions_changed.emit()
 	if outcome.get("outcome") != "selected":
 		return {"outcome": {"outcome": "cancelled"}}
 	if request.was_allowed():
@@ -720,6 +736,21 @@ static func _first_diff(tool_call: Dictionary, call: Variant) -> Dictionary:
 			if block is Dictionary and block.get("type") == "diff":
 				return block
 	return {}
+
+
+## MCP servers de terceros (configurados o ya vistos) que en `mode` preguntan o se niegan: en el
+## One-shot, cada tool de esos frena el run hasta que alguien conteste.
+func mcp_servers_not_allowed(mode: SessionModel.HarnessMode) -> PackedStringArray:
+	var names: Dictionary = {}
+	for name: String in external_mcp_names:
+		names[name] = true
+	names.merge(seen_mcp_servers)
+	var result: PackedStringArray = []
+	for name: String in names:
+		if policy.decide(PermissionPolicy.mcp_group(name), mode) != PermissionPolicy.ALLOW:
+			result.append(name)
+	result.sort()
+	return result
 
 
 func _mode_label() -> String:

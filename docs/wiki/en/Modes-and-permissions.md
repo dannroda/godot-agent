@@ -35,6 +35,14 @@ Defaults:
 
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.
 
+### MCP servers of other programs
+
+The tools of an MCP server other than `godot` (a [server from Settings](Settings.md#other-mcp-servers), or one the agent loads from its own configuration) belong to a group of their own, **MCP · name**, which is **Ask** in every mode until you change it.
+
+- In **Settings → Permissions**, below the matrix, there's a row for each server on the list and for each one that already asked in this session.
+- The card of one of these tools also offers **Always allow «name» in *mode* mode, in this project**, which saves **Allow** in that row. **Always allow in this session** only covers that server.
+- When a One-shot starts, the activity warns about the servers that would ask: the run waits at each of their tools.
+
 ## Auto mode
 
 Auto is for working in the chat without approving every step. Edits can be undone (the ↶ on each card, the editor's undo), so they go through on their own. The shell is different, so each command is checked against two lists of patterns:

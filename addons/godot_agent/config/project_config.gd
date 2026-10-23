@@ -31,6 +31,9 @@ const ShellRules := preload("../session/shell_rules.gd")
 @export_group("Tools")
 ## Directorios fuera del proyecto que fs/* puede leer y escribir (rutas absolutas).
 @export var extra_fs_roots: PackedStringArray = []
+## MCP servers de terceros para el agente en este proyecto (m7-34): ver mcp/external_mcp_servers.gd.
+## Los secretos van como $VARIABLE del entorno.
+@export var mcp_servers: Array = []
 @export_range(1000, 200000, 1000) var max_output_chars: int = 20000
 @export_range(256, 4096, 16, "suffix:px") var max_image_side: int = 1280
 ## Correr el autoload de playtest también en los runs manuales del usuario.

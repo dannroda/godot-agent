@@ -15,6 +15,8 @@ var _buttons: HFlowContainer
 ## Modo Auto (D57): patrón editable + «Permitir siempre», que lo agrega a la allowlist.
 var _rule_row: HBoxContainer
 var _rule_edit: LineEdit
+## MCP server de terceros (m7-35): «Permitir siempre en este proyecto» para el modo actual.
+var _persist: Button
 var _result: Label
 
 
@@ -54,6 +56,12 @@ func _build() -> void:
 	always.tooltip_text = _rule_edit.tooltip_text
 	always.pressed.connect(_on_always_allow)
 	_rule_row.add_child(always)
+	_persist = Button.new()
+	# Recortado: el dock puede tener 220 px (m7-23); el texto entero queda en el tooltip.
+	_persist.clip_text = true
+	_persist.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_persist.pressed.connect(_on_persist_allow)
+	column.add_child(_persist)
 	_result = Label.new()
 	_result.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -73,7 +81,7 @@ func refresh() -> void:
 	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(
 		Color(accent, 0.10 if pending else 0.03), Color(accent, 0.8 if pending else 0.25), 6, 8
 	))
-	var group_label: String = I18n.t(PermissionPolicy.GROUP_LABELS[request.group]) if PermissionPolicy.GROUP_LABELS.has(request.group) else request.group
+	var group_label := PermissionPolicy.group_label(request.group)
 	_title.text = I18n.t("Permission: %s") % request.title
 	_title.tooltip_text = I18n.t("Group: %s") % group_label
 	_description.text = request.description
@@ -82,6 +90,9 @@ func refresh() -> void:
 		child.queue_free()
 	_buttons.visible = pending
 	_rule_row.visible = pending and not request.rule_pattern.is_empty()
+	_persist.visible = pending and not request.persist_label.is_empty()
+	_persist.text = request.persist_label
+	_persist.tooltip_text = "%s\n%s" % [request.persist_label, I18n.t("Saved in the permission matrix of this project: you can change it in Settings → Permissions.")]
 	_result.visible = not pending
 	if not pending:
 		_result.text = _result_text(request)
@@ -98,6 +109,14 @@ func _on_always_allow() -> void:
 		return
 	request.rule_to_add = {"pattern": pattern, "list": "allow"}
 	request.select(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]))
+
+
+func _on_persist_allow() -> void:
+	var request: PermissionRequest = entry.permission
+	if not request.is_pending():
+		return
+	request.persist_allow = true
+	request.select(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
 
 
 func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
@@ -134,6 +153,8 @@ static func _result_text(request: PermissionRequest) -> String:
 		return "⇄ " + I18n.t("Answered elsewhere: from Remote Control, or no longer needed")
 	if request.outcome.get("outcome") != "selected":
 		return "⊘ " + I18n.t("Permission cancelled")
+	if request.persist_allow and request.was_allowed():
+		return "✓ " + I18n.t("Allowed · saved in the permissions of this project")
 	if not request.rule_to_add.is_empty() and request.was_allowed():
 		return "✓ " + I18n.t("Allowed · «%s» added to the Auto allowlist") % str(request.rule_to_add.get("pattern", ""))
 	match request.chosen_kind:

@@ -7,6 +7,7 @@ signal changed(key: String)
 
 const AgentProfile := preload("agent_profile.gd")
 const LlmProfile := preload("../completion/llm/llm_profile.gd")
+const ExternalMcpServers := preload("../mcp/external_mcp_servers.gd")
 
 const PREFIX := "godot_agent/"
 const KEY_PROFILES := "agents/profiles"
@@ -14,6 +15,8 @@ const KEY_ACCENT := "ui/accent_color"
 const KEY_LAST_PROFILE := "agents/last_profile"
 ## Puerto del server MCP (0 = aleatorio en cada arranque).
 const KEY_MCP_PORT := "mcp/port"
+## MCP servers de terceros para todos los proyectos del usuario (m7-34), JSON.
+const KEY_MCP_SERVERS := "mcp/servers"
 ## Cuota del plan (spec §10.1, §9.5): umbrales en %, pausa del One-shot y qué hacer al reiniciarse.
 const KEY_QUOTA_WARN := "quota/warn_percent"
 const KEY_QUOTA_PAUSE := "quota/pause_percent"
@@ -65,6 +68,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_PROFILES, JSON.stringify(AgentProfile.defaults()), TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_LAST_PROFILE, "", TYPE_STRING)
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
+		_declare(KEY_MCP_SERVERS, "[]", TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_QUOTA_WARN, 75, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
@@ -158,6 +162,15 @@ func set_active_profile(id: String) -> void:
 
 func mcp_port() -> int:
 	return clampi(int(get_value(KEY_MCP_PORT, 0)), 0, 65535)
+
+
+func mcp_servers() -> Array:
+	var raw: Variant = get_value(KEY_MCP_SERVERS, "")
+	return ExternalMcpServers.normalize_list(JSON.parse_string(raw) if raw is String and not raw.is_empty() else [])
+
+
+func save_mcp_servers(list: Array) -> void:
+	set_value(KEY_MCP_SERVERS, JSON.stringify(list, "\t"))
 
 
 func quota_warn() -> float:

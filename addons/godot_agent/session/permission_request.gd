@@ -28,6 +28,11 @@ var withdrawn: bool = false
 var rule_pattern: String = ""
 ## `{pattern, list}` que el usuario eligió agregar a las listas del modo Auto, o {}.
 var rule_to_add: Dictionary = {}
+## MCP server de terceros (m7-35): la tarjeta ofrece permitirlo siempre en este modo y proyecto, con
+## este texto en el botón ("" = no se ofrece).
+var persist_label: String = ""
+## El usuario eligió permitir el grupo en este modo, guardado en la matriz del proyecto.
+var persist_allow: bool = false
 
 
 func is_pending() -> bool:

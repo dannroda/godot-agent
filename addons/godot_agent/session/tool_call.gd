@@ -2,6 +2,8 @@
 extends RefCounted
 ## Un tool call del agente, indexado por `toolCallId` (ACP tool_call / tool_call_update).
 
+const ExternalMcpServers := preload("../mcp/external_mcp_servers.gd")
+
 const STATUS_PENDING := "pending"
 const STATUS_IN_PROGRESS := "in_progress"
 const STATUS_COMPLETED := "completed"
@@ -95,11 +97,12 @@ func diffs() -> Array[Dictionary]:
 	return result
 
 
-## Nombre corto para la UI. Las tools MCP del addon llegan como `mcp__godot__<tool>`.
+## Nombre corto para la UI. Las tools MCP llegan como `mcp__<server>__<tool>`: se muestran como
+## `godot.add_node` o `blender.get_objects_summary`.
 func display_name() -> String:
 	if title.is_empty():
 		return kind
-	return title
+	return ExternalMcpServers.short_tool_name(title)
 
 
 ## Nombre de la tool godot.* sin prefijo ("add_node"), o "" si no es del addon.

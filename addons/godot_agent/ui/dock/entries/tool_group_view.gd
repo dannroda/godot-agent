@@ -356,10 +356,7 @@ func _on_spinner() -> void:
 
 
 static func _short_name(call: ToolCall) -> String:
-	var name := call.display_name()
-	if name.begins_with("mcp__godot__"):
-		return "godot." + name.trim_prefix("mcp__godot__")
-	return name
+	return call.display_name()
 
 
 static func _summary(call: ToolCall) -> String:

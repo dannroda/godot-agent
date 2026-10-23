@@ -1,0 +1,27 @@
+{
+	"turns": [
+		{"steps": [
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "m1", "title": "mcp__blender__get_objects_summary", "kind": "other", "rawInput": {},
+					"_meta": {"claudeCode": {"toolName": "mcp__blender__get_objects_summary", "mcpServer": {"name": "blender", "source": "dynamic"}}}},
+				"options": [
+					{"optionId": "allow_always", "name": "Always Allow", "kind": "allow_always"},
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "m2", "title": "mcp__blender__render_viewport", "kind": "other", "rawInput": {}},
+				"options": [
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "m3", "title": "mcp__db__query", "kind": "other", "rawInput": {"sql": "select 1"}},
+				"options": [
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"stop": "end_turn"}
+		]}
+	]
+}

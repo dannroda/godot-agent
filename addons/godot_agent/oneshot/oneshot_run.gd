@@ -331,6 +331,10 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	last_capture = null
 	_started_msec = Time.get_ticks_msec()
 	_set_phase(RunPhase.PREPARING)
+	# Una tool de un MCP server de terceros en "ask" frena el run hasta que alguien conteste (m7-35).
+	var asking := controller.mcp_servers_not_allowed(SessionModel.HarnessMode.ONESHOT)
+	if not asking.is_empty():
+		_add_activity("warning", I18n.t("These MCP servers ask for permission in One-shot: %s. The run waits at each of their tools; allow them in Settings → Permissions so it doesn't stop.") % ", ".join(asking))
 	checkpoints_enabled = false
 	if use_checkpoints:
 		if await git.check_available():

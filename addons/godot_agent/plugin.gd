@@ -21,6 +21,7 @@ const RemoteActivity := preload("session/remote_activity.gd")
 const FsHandler := preload("acp/fs_handler.gd")
 const PermissionPolicy := preload("session/permission_policy.gd")
 const ProjectConfig := preload("config/project_config.gd")
+const ExternalMcpServers := preload("mcp/external_mcp_servers.gd")
 const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
@@ -109,6 +110,8 @@ func _enter_tree() -> void:
 	_controller.policy = PermissionPolicy.new(_project_config.permissions)
 	_controller.shell_rules = _project_config.auto_shell_rules
 	_controller.shell_rules_changed.connect(_on_shell_rules_changed)
+	_controller.permissions_changed.connect(_on_permissions_changed)
+	_controller.external_mcp_names = _external_mcp_names()
 	_apply_quota_settings()
 	EditorInterface.get_editor_settings().settings_changed.connect(_on_editor_settings_changed)
 
@@ -198,6 +201,8 @@ func _enter_tree() -> void:
 	_settings_dialog.mcp_url_provider = func() -> String:
 		return _mcp_server.url() if _mcp_server and _mcp_server.is_listening() else ""
 	_settings_dialog.regenerate_token = _regenerate_mcp_token
+	_settings_dialog.seen_mcp_servers_provider = func() -> PackedStringArray:
+		return PackedStringArray(_controller.seen_mcp_servers.keys())
 	_settings_dialog.completion_metrics_provider = func() -> Array[Dictionary]:
 		return _completion.metrics.summary() if _completion else ([] as Array[Dictionary])
 	_settings_dialog.completion_metrics_reset = func() -> void:
@@ -498,17 +503,44 @@ func _start_mcp_server() -> void:
 	_controller.mcp_servers_provider = _mcp_servers
 
 
-## Entradas `mcpServers` para session/new: HTTP si el agente lo soporta; si no, el shim stdio.
+## Entradas `mcpServers` para session/new: la del addon (HTTP si el agente lo soporta; si no, el
+## shim stdio) y los servers de terceros de Settings (m7-34).
 func _mcp_servers() -> Array:
-	if _mcp_server == null or not _mcp_server.is_listening():
-		return []
-	if _model.supports_http_mcp():
-		return [_mcp_server.http_server_entry()]
-	var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, _mcp_server.url(), _mcp_server.token)
-	if entry.is_empty():
-		_log.add(AgentLog.CH_MCP, "could not prepare the stdio shim in user://: the agent will not have the godot.* tools")
-		return []
-	return [entry]
+	var result: Array = []
+	if _mcp_server and _mcp_server.is_listening():
+		if _model.supports_http_mcp():
+			result.append(_mcp_server.http_server_entry())
+		else:
+			var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, _mcp_server.url(), _mcp_server.token)
+			if entry.is_empty():
+				_log.add(AgentLog.CH_MCP, "could not prepare the stdio shim in user://: the agent will not have the godot.* tools")
+			else:
+				result.append(entry)
+	for server: Dictionary in _external_mcp_servers():
+		if not bool(server.enabled):
+			continue
+		var entry := ExternalMcpServers.to_acp(server, _model.supports_http_mcp())
+		if entry.is_empty():
+			_log.add(AgentLog.CH_MCP, "%s left out: the agent doesn't take HTTP MCP servers" % server.name)
+			_model.add_notice(I18n.t("The MCP server «%s» was left out: this agent only takes stdio servers.") % server.name, ChatEntry.NoticeLevel.WARNING)
+			continue
+		for secret: String in ExternalMcpServers.secret_values(server):
+			_log.add_secret(secret)
+		result.append(entry)
+	return result
+
+
+## Servers de terceros del usuario y del proyecto (si se llaman igual, gana el del proyecto).
+func _external_mcp_servers() -> Array:
+	return ExternalMcpServers.merge(_settings.mcp_servers(), ExternalMcpServers.normalize_list(_project_config.mcp_servers))
+
+
+func _external_mcp_names() -> PackedStringArray:
+	var names: PackedStringArray = []
+	for server: Dictionary in _external_mcp_servers():
+		if bool(server.enabled):
+			names.append(server.name)
+	return names
 
 
 func _prompt_variables() -> Dictionary:
@@ -536,6 +568,12 @@ func _on_shell_rules_changed() -> void:
 		_log.add(AgentLog.CH_PERM, "could not save %s: %s" % [ProjectConfig.PATH, error_string(result)])
 
 
+## «Permitir siempre en este proyecto» en la tarjeta de un MCP server de terceros (m7-35).
+func _on_permissions_changed() -> void:
+	_project_config.permissions = _controller.policy.overrides
+	_on_shell_rules_changed()
+
+
 func _open_settings() -> void:
 	_settings_dialog.open()
 
@@ -544,6 +582,7 @@ func _open_settings() -> void:
 func _on_settings_saved() -> void:
 	_controller.policy.overrides = _project_config.permissions
 	_controller.shell_rules = _project_config.auto_shell_rules
+	_controller.external_mcp_names = _external_mcp_names()
 	_fs.extra_roots = _project_config.extra_fs_roots
 	_registry.max_output_chars = _project_config.max_output_chars
 	_registry.max_image_side = _project_config.max_image_side

@@ -6,6 +6,7 @@ extends RefCounted
 ## para comparar corridas.
 
 const I18n := preload("../core/i18n.gd")
+const ExternalMcpServers := preload("../mcp/external_mcp_servers.gd")
 
 const VERSION := 1
 const MAX_TURNS := 2000
@@ -102,9 +103,9 @@ static func tool_label(title: String, godot_tool: String, tool_name: String, kin
 	if not godot_tool.is_empty():
 		return "godot." + godot_tool
 	if not tool_name.is_empty():
-		return tool_name
+		return ExternalMcpServers.short_tool_name(tool_name)
 	if title.begins_with("mcp__"):
-		return title.trim_prefix("mcp__").replace("__", ".")
+		return ExternalMcpServers.short_tool_name(title)
 	return title.get_slice(" ", 0) if not title.is_empty() else kind
 
 

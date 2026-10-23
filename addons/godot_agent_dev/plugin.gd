@@ -1129,21 +1129,52 @@ func _run_settings_shots(prefix: String) -> void:
 		nav.item_selected.emit(i)
 		await get_tree().create_timer(0.4).timeout
 		dialog.get_texture().get_image().save_png("%s_%d.png" % [prefix, i])
-	# Guardar aplica la matriz en caliente y escribe project_config.tres (se borra al final).
+	# m7-34/m7-35: un server de terceros en la lista suma su fila a la matriz de permisos.
+	var mcp_page: Object = dialog.get(&"_mcp_servers_page")
+	mcp_page.call(&"import_mcp_json", JSON.stringify({"mcpServers": {"blender": {"command": "uvx", "args": ["blender-mcp"], "env": {"BLENDER_TOKEN": "$BLENDER_TOKEN"}}}}))
+	mcp_page.emit_signal(&"servers_changed")
+	mcp_page.call(&"_edit", 0)
+	nav.select(2)
+	nav.item_selected.emit(2)
+	await get_tree().create_timer(0.4).timeout
+	dialog.get_texture().get_image().save_png("%s_mcp_servers.png" % prefix)
+	nav.select(1)
+	nav.item_selected.emit(1)
+	await get_tree().create_timer(0.4).timeout
+	dialog.get_texture().get_image().save_png("%s_mcp_permissions.png" % prefix)
+	var matrix: Dictionary = dialog.get(&"_matrix")
+	if not matrix.has("mcp:blender"):
+		_finish(1, "settings: la matriz no tiene la fila de mcp:blender (%s)" % [matrix.keys()])
+		return
+	(matrix["mcp:blender"][3] as OptionButton).select(0)  # One-shot (HarnessMode 3) · Permitir
+	# Guardar aplica la matriz en caliente y escribe project_config.tres (se restaura al final).
 	var config_path := "res://addons/godot_agent/config/project_config.tres"
 	var had_config := FileAccess.file_exists(config_path)
-	var option: OptionButton = (dialog.get(&"_matrix") as Dictionary)["read"][0]  # Lectura · Preguntar
+	var config_before := FileAccess.get_file_as_string(config_path) if had_config else ""
+	var option: OptionButton = matrix["read"][0]  # Lectura · Preguntar
 	option.select(2)  # no
 	dialog.call(&"_on_save")
-	var policy: Object = (dock.get(&"_controller") as Object).get(&"policy")
+	var controller: Object = dock.get(&"_controller")
+	var policy: Object = controller.get(&"policy")
 	var saved_ok: bool = not dialog.visible and policy.call(&"matrix_value", "read", 0) == "deny" and FileAccess.file_exists(config_path)
-	if not had_config:
+	var mcp_ok: bool = policy.call(&"matrix_value", "mcp:blender", 3) == "allow" and policy.call(&"matrix_value", "mcp:blender", 2) == "ask"
+	var names: PackedStringArray = controller.get(&"external_mcp_names")
+	var saved_text := FileAccess.get_file_as_string(config_path)
+	if had_config:
+		var file := FileAccess.open(config_path, FileAccess.WRITE)
+		file.store_string(config_before)
+		file.close()
+	else:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(config_path))
 	policy.set(&"overrides", {})
+	controller.set(&"external_mcp_names", PackedStringArray())
 	if not saved_ok:
 		_finish(1, "settings: guardar no aplicó la matriz (visible=%s, read/ask=%s)" % [dialog.visible, policy.call(&"matrix_value", "read", 0)])
 		return
-	_finish(0, "settings: %d secciones, guardar aplica la matriz" % nav.item_count)
+	if not mcp_ok or names != PackedStringArray(["blender"]) or not saved_text.contains("blender-mcp"):
+		_finish(1, "settings: el server MCP no quedó guardado o permitido (oneshot=%s, nombres=%s)" % [mcp_ok, names])
+		return
+	_finish(0, "settings: %d secciones, guardar aplica la matriz y los servers MCP" % nav.item_count)
 
 
 func _take_screenshot(path: String) -> void:

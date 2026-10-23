@@ -18,13 +18,14 @@ const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const CompletionSettingsPage := preload("completion_settings_page.gd")
 const AutoRulesPage := preload("auto_rules_page.gd")
+const McpServersPage := preload("mcp_servers_page.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 
 enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
 const SECTION_LABELS: PackedStringArray = [
 	"Agents",  # i18n
 	"Permissions",  # i18n
-	"MCP server",  # i18n
+	"MCP servers",  # i18n
 	"One-shot and quota",  # i18n
 	"Completion",  # i18n
 	"Interface",  # i18n
@@ -37,7 +38,7 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -52,6 +53,8 @@ var regenerate_token: Callable
 ## () -> Array[Dictionary] y () -> void: contadores del completado (sección Completado).
 var completion_metrics_provider: Callable
 var completion_metrics_reset: Callable
+## () -> PackedStringArray: MCP servers de terceros que ya pidieron permiso en la sesión (m7-35).
+var seen_mcp_servers_provider: Callable
 
 var _settings: HarnessSettings
 var _config: ProjectConfig
@@ -70,6 +73,8 @@ var _form_fields: Dictionary = {}  # nombre -> control
 var _matrix: Dictionary = {}  # grupo -> {modo -> OptionButton}
 var _timeout_spin: SpinBox
 var _auto_rules_page: AutoRulesPage
+## Filas de la matriz para los MCP servers de terceros (m7-35): se rearman con la lista.
+var _mcp_grid: GridContainer
 # MCP
 var _port_spin: SpinBox
 var _url_label: Label
@@ -78,6 +83,7 @@ var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
 var _compact_tools_check: CheckBox
+var _mcp_servers_page: McpServersPage
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
 var _loop_spin: SpinBox
@@ -227,7 +233,7 @@ func _build_permissions(page: VBoxContainer) -> void:
 		grid.add_child(_hint(I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])))
 	for group: String in PermissionPolicy.GROUPS:
 		var label := Label.new()
-		label.text = I18n.t(PermissionPolicy.GROUP_LABELS[group])
+		label.text = PermissionPolicy.group_label(group)
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		grid.add_child(label)
 		_matrix[group] = {}
@@ -239,6 +245,11 @@ func _build_permissions(page: VBoxContainer) -> void:
 				option.tooltip_text = I18n.t("In Auto mode, \"Ask\" lets the lists of the Auto mode section decide first: commands on the allowlist run without a card.")
 			grid.add_child(option)
 			_matrix[group][mode] = option
+	page.add_child(_hint(I18n.t("MCP servers of other programs: their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask.")))
+	_mcp_grid = GridContainer.new()
+	_mcp_grid.columns = MODES.size() + 1
+	_mcp_grid.add_theme_constant_override(&"h_separation", AgentTheme.px(10))
+	page.add_child(_mcp_grid)
 	var defaults := Button.new()
 	defaults.text = I18n.t("Reset to the spec defaults")
 	defaults.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -251,6 +262,10 @@ func _build_permissions(page: VBoxContainer) -> void:
 
 
 func _build_mcp(page: VBoxContainer) -> void:
+	_mcp_servers_page = McpServersPage.new()
+	_mcp_servers_page.servers_changed.connect(func() -> void: _rebuild_mcp_matrix(matrix_overrides()))
+	page.add_child(_mcp_servers_page)
+	page.add_child(HSeparator.new())
 	page.add_child(_title(I18n.t("Editor tools (the addon's MCP server)")))
 	_url_label = Label.new()
 	_url_label.add_theme_font_override(&"font", AgentTheme.mono_font())
@@ -414,6 +429,8 @@ func _load() -> void:
 	_editing = -1
 	_profile_form.visible = false
 	_rebuild_profiles()
+	_mcp_servers_page.load_from(_settings.mcp_servers(), _config.mcp_servers)
+	_rebuild_mcp_matrix(_config.permissions)
 	_load_matrix(_config.permissions)
 	_timeout_spin.value = _config.permission_timeout_s
 	_auto_rules_page.load_from(_config.auto_shell_rules)
@@ -458,6 +475,7 @@ func _load_matrix(overrides: Dictionary) -> void:
 func _on_save() -> void:
 	if _profile_form.visible:
 		_apply_profile_form()
+	_mcp_servers_page.apply_pending()
 	var error := validate()
 	_error_label.text = error.message if not error.is_empty() else ""
 	if not error.is_empty():
@@ -468,6 +486,7 @@ func _on_save() -> void:
 		before[property] = _config.get(property)
 	_settings.save_profiles(_profiles)
 	_settings.set_value(HarnessSettings.KEY_MCP_PORT, int(_port_spin.value))
+	_settings.save_mcp_servers(_mcp_servers_page.user_servers())
 	_settings.set_value(HarnessSettings.KEY_QUOTA_WARN, int(_warn_spin.value))
 	_settings.set_value(HarnessSettings.KEY_QUOTA_PAUSE, int(_pause_spin.value))
 	_settings.set_value(HarnessSettings.KEY_QUOTA_PAUSE_ENABLED, _pause_check.button_pressed)
@@ -485,6 +504,7 @@ func _on_save() -> void:
 	_config.playtest_on_manual_runs = _manual_runs_check.button_pressed
 	_config.compact_tools = _compact_tools_check.button_pressed
 	_config.extra_fs_roots = _lines(_roots_edit.text)
+	_config.mcp_servers = _mcp_servers_page.project_servers()
 	_config.budget_minutes = int(_budget_spins.minutes.value)
 	_config.budget_tokens = int(_budget_spins.tokens.value)
 	_config.budget_playtests = int(_budget_spins.playtests.value)
@@ -533,6 +553,9 @@ func validate() -> Dictionary:
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
 			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
+	var mcp_error := _mcp_servers_page.validate()
+	if not mcp_error.is_empty():
+		return {"section": SettingsSection.MCP, "message": mcp_error}
 	var rules_error := _auto_rules_page.validate()
 	if not rules_error.is_empty():
 		return {"section": SettingsSection.PERMISSIONS, "message": rules_error}
@@ -540,6 +563,44 @@ func validate() -> Dictionary:
 	if not completion_error.is_empty():
 		return {"section": SettingsSection.COMPLETION, "message": completion_error}
 	return {}
+
+
+## Una fila por MCP server de terceros: los de la lista, los que ya pidieron permiso y los que
+## tienen valores guardados. `overrides` da los valores de las filas.
+func _rebuild_mcp_matrix(overrides: Dictionary) -> void:
+	for group: String in _matrix.keys():
+		if PermissionPolicy.is_mcp_group(group):
+			_matrix.erase(group)
+	for child: Node in _mcp_grid.get_children():
+		_mcp_grid.remove_child(child)
+		child.queue_free()
+	var names: Dictionary = {}
+	for name: String in _mcp_servers_page.server_names():
+		names[name] = true
+	if seen_mcp_servers_provider.is_valid():
+		for name: String in seen_mcp_servers_provider.call():
+			names[name] = true
+	for group: String in overrides:
+		if PermissionPolicy.is_mcp_group(group):
+			names[group.trim_prefix(PermissionPolicy.GROUP_MCP_PREFIX)] = true
+	var sorted := names.keys()
+	sorted.sort()
+	_mcp_grid.visible = not sorted.is_empty()
+	var policy := PermissionPolicy.new(overrides)
+	for name: String in sorted:
+		var group := PermissionPolicy.mcp_group(name)
+		var label := Label.new()
+		label.text = PermissionPolicy.group_label(group)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_mcp_grid.add_child(label)
+		_matrix[group] = {}
+		for mode: SessionModel.HarnessMode in MODES:
+			var option := OptionButton.new()
+			for decision: String in DECISIONS:
+				option.add_item(I18n.t(DECISION_LABELS[decision]))
+			option.select(DECISIONS.find(policy.matrix_value(group, mode)))
+			_mcp_grid.add_child(option)
+			_matrix[group][mode] = option
 
 
 ## Solo lo que difiere de la spec: así un cambio de defaults en el addon llega a los proyectos.

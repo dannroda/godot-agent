@@ -4,6 +4,12 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Settings → MCP servers**: MCP servers of other programs (Blender, a database, a web service…) for the agent, per project or for all your projects. They're passed to the agent over ACP, so they work with any agent. Keys go as `$VARIABLE` from the editor's environment; **Import .mcp.json** brings the project's servers.
+- Each MCP server other than `godot` has its own row in the permission matrix (Ask by default). Its permission card can allow it for good in the current mode, and a One-shot warns at the start about servers that would ask.
+- MCP tools show up as `server.tool` in the chat (for example `blender.get_objects_summary`).
+
 ## [0.1.1] - 2026-10-23
 
 First public release.

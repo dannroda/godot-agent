@@ -8,6 +8,7 @@ const SessionController := preload("res://addons/godot_agent/session/session_con
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
+const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const FsHandler := preload("res://addons/godot_agent/acp/fs_handler.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
@@ -36,6 +37,7 @@ func _initialize() -> void:
 	await _scenario_crash()
 	await _scenario_permissions_build()
 	await _scenario_permissions_ask()
+	await _scenario_mcp_external()
 	await _scenario_project_writes()
 	await _scenario_auto_shell()
 	await _scenario_remote_control()
@@ -250,6 +252,44 @@ func _scenario_permissions_ask() -> void:
 		if entry.kind == ChatEntry.EntryKind.NOTICE and entry.text.begins_with("Denied in Ask mode"):
 			denied += 1
 	_check(denied >= 3, "permisos/ask: avisos de denegado (%d)" % denied)
+	controller.stop()
+
+
+## MCP servers de terceros (m7-35): un grupo por server; «Permitir siempre en este proyecto» guarda
+## allow en el modo y el siguiente pedido de ese server ya no pregunta, el de otro server sí.
+func _scenario_mcp_external() -> void:
+	print("— MCP servers de terceros")
+	var made := await _make("mcp_external", SessionModel.HarnessMode.BUILD)
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	var log: AgentLog = made[2]
+	controller.policy = PermissionPolicy.new({})
+	var cards: Array[String] = []
+	var saved: Array[int] = [0]
+	controller.permissions_changed.connect(func() -> void: saved[0] += 1)
+	model.permission_requested.connect(func(request: PermissionRequest) -> void:
+		cards.append("%s|%s|%s" % [request.group, request.title, not request.persist_label.is_empty()])
+		if request.group == "mcp:blender":
+			request.persist_allow = true
+			request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]))
+		else:
+			request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE]))
+	)
+	var stop_reason: String = await controller.send_prompt("usá blender")
+	_check(stop_reason == "end_turn", "mcp: end_turn (%s)" % stop_reason)
+	var responses := _agent_responses(log)
+	_check(cards == ["mcp:blender|blender.get_objects_summary|true", "mcp:db|db.query|true"], "mcp: una tarjeta por server, con nombre corto y «siempre en el proyecto»: %s" % [cards])
+	if responses.size() == 3:
+		_check(responses[0].contains("\"optionId\":\"allow\""), "mcp: blender permitido (%s)" % responses[0])
+		_check(responses[1].contains("\"optionId\":\"allow\""), "mcp: la segunda tool de blender pasa sin tarjeta (%s)" % responses[1])
+		_check(responses[2].contains("\"optionId\":\"reject\""), "mcp: db denegado por el usuario (%s)" % responses[2])
+	else:
+		_check(false, "mcp: 3 respuestas (%d)" % responses.size())
+	_check(saved[0] == 1, "mcp: avisa una vez que hay que guardar la matriz (%d)" % saved[0])
+	_check(controller.policy.matrix_value("mcp:blender", SessionModel.HarnessMode.BUILD) == "allow", "mcp: allow guardado para Construir")
+	_check(controller.policy.matrix_value("mcp:blender", SessionModel.HarnessMode.ONESHOT) == "ask", "mcp: los otros modos siguen en ask")
+	_check(controller.mcp_servers_not_allowed(SessionModel.HarnessMode.ONESHOT) == PackedStringArray(["blender", "db"]), "mcp: el One-shot avisaría por los dos (%s)" % controller.mcp_servers_not_allowed(SessionModel.HarnessMode.ONESHOT))
+	_check(controller.mcp_servers_not_allowed(SessionModel.HarnessMode.BUILD) == PackedStringArray(["db"]), "mcp: en Construir solo db")
 	controller.stop()
 
 

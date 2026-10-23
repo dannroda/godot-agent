@@ -9,7 +9,7 @@ Open **Settings** from the dock header.
 | **Agents** | Agent profiles (see below). |
 | **Completion** | [Inline completion](Inline-completion.md). |
 | **Permissions** | The [permission matrix](Modes-and-permissions.md#permissions) per mode, the timeout to answer, and the [Auto mode](Modes-and-permissions.md#auto-mode) lists of shell commands. |
-| **MCP server** | Port, **Regenerate token**, result limits, compact tool list, extra folders. |
+| **MCP servers** | [Other MCP servers](#other-mcp-servers) for the agent; for the addon's own server: port, **Regenerate token**, result limits, compact tool list, extra folders. |
 | **One-shot and quota** | Default budgets, checkpoints, spec review, loop repeats, QA rounds, game criteria (weight and minimum), quota warning and pause thresholds, what to do when the quota resets. |
 | **Interface** | Accent color, dock position, language. |
 | **Export** | Checks that every export preset excludes the addon. |
@@ -18,8 +18,8 @@ Open **Settings** from the dock header.
 
 | What | Where | Scope |
 |---|---|---|
-| Agent profiles, MCP port, quota, accent color, dock position, language, completion (including LLM profiles, without keys) | `EditorSettings`, prefix `godot_agent/` | you, all projects |
-| Permissions, budgets, checkpoints, loop threshold, criteria, tool limits, extra folders, project completion options | `res://addons/godot_agent/config/project_config.tres` | the project (can be committed) |
+| Agent profiles, MCP port, MCP servers for all your projects, quota, accent color, dock position, language, completion (including LLM profiles, without keys) | `EditorSettings`, prefix `godot_agent/` | you, all projects |
+| Permissions, MCP servers of the project, budgets, checkpoints, loop threshold, criteria, tool limits, extra folders, project completion options | `res://addons/godot_agent/config/project_config.tres` | the project (can be committed) |
 | Session history | `user://godot_agent/sessions/` | you, this project |
 | One-shot runs (state, last capture, reports; the last 20) | `user://godot_agent/oneshot/` | you, this project |
 | Spec, progress and QA of each run | `.godot_agent/oneshot/<id>/` in the project | the project (travels in the agent's branch) |
@@ -36,6 +36,20 @@ The port, the accent color, the dock position and the language apply when you re
   - **Gemini CLI**: `gemini`; add the argument your version uses for ACP, for example `--experimental-acp`;
   - **Codex**: no command; set it up with the ACP adapter you use.
 - The agent always receives `GODOT`/`GODOT_BIN` with the editor's binary; a profile can override them.
+
+## Other MCP servers
+
+**Settings → MCP servers** lists MCP servers of other programs (Blender, a database, a web service…). The addon passes them to the agent when a session opens, next to its own `godot` server, so they work with any ACP agent. Changes apply from the next session.
+
+- **+ Add server**: a name (letters, digits, `-` and `_`), where it's saved, and either a command with arguments and environment (stdio) or a URL with headers (HTTP; only for agents that accept HTTP servers, otherwise it's left out with a notice).
+- **Saved in**: *This project* goes into `project_config.tres` (it can be committed); *All my projects* goes into `EditorSettings`. If both have a server with the same name, the project's wins.
+- **Keys**: in arguments, environment and headers, `$VARIABLE` or `${VARIABLE}` takes the value from the editor's environment when the session opens, for example `Authorization: Bearer $SENTRY_TOKEN`. Values with a secret-looking name must use a variable, and the Agent Log hides the resolved values.
+- **Import .mcp.json** adds the servers of the project's `.mcp.json` that aren't on the list yet.
+- The checkbox turns a server off without removing it.
+
+Claude Code also loads the servers of its own configuration (`claude mcp add`, `.mcp.json`, `~/.claude.json`). Type `/mcp` in the chat to see their status, reconnect them or turn them off.
+
+The tools of each server ask for permission until you allow them: see [MCP servers of other programs](Modes-and-permissions.md#mcp-servers-of-other-programs).
 
 ## Export
 
