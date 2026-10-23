@@ -11,6 +11,9 @@ const SessionModel := preload("res://addons/godot_agent/session/session_model.gd
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const LayoutCheck := preload("layout_check.gd")
 const PERMISSION_VIEW_SCRIPT := "res://addons/godot_agent/ui/dock/entries/permission_view.gd"
+const NOTICE_VIEW_SCRIPT := "res://addons/godot_agent/ui/dock/entries/notice_view.gd"
+const EDITED_FILE := "res://tests/tmp/remote_activity_edit.gd"
+const CREATED_FILE := "res://tests/tmp/remote_activity_new.gd"
 const FAKE_URL := "https://claude.ai/code/session_01FakeRemoteSession"
 const WAIT_S := 15.0
 
@@ -24,6 +27,8 @@ var _controller: Object
 func run_remote(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_tree = tree
 	await _run(shot_path)
+	for path: String in [EDITED_FILE, CREATED_FILE]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	if _controller:
 		_controller.call(&"stop")
 	if _model:
@@ -61,6 +66,7 @@ func _run(shot_path: String) -> void:
 		return
 	if banner.visible:
 		failures.append("la franja de Remote Control se ve antes de prenderlo")
+	_write(EDITED_FILE, "extends Node\n")
 	button.pressed.emit()
 	if not await _until(func() -> bool: return banner.is_visible_in_tree()):
 		failures.append("la franja no aparece al prenderlo")
@@ -80,8 +86,9 @@ func _run(shot_path: String) -> void:
 		return false
 	if not await _until(withdrawn):
 		failures.append("la tarjeta del permiso contestado desde el celular no quedó cerrada")
+	await _check_remote_files()
 	await _tree.create_timer(0.3).timeout
-	# Con la franja y la tarjeta a la vista, el dock entra en su panel (m7-23).
+	# Con la franja, la tarjeta y el aviso a la vista, el dock entra en su panel (m7-23).
 	failures.append_array(LayoutCheck.dock_fits(_dock))
 	if not shot_path.is_empty():
 		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
@@ -94,6 +101,65 @@ func _run(shot_path: String) -> void:
 	await _tree.process_frame
 	if button.visible:
 		failures.append("en One-shot el botón de Remote Control sigue a la vista")
+
+
+## «El celular» modifica un archivo y crea otro: aparece un aviso con los dos, el diff los muestra
+## y «Deshacer» los deja como estaban.
+func _check_remote_files() -> void:
+	await _tree.create_timer(0.5).timeout
+	_write(EDITED_FILE, "extends Node2D\n")
+	_write(CREATED_FILE, "extends Node\n")
+	var notice: Array = [null]
+	var found := await _until(func() -> bool:
+		for view: Node in _dock.find_children("*", "", true, false):
+			if view.get_script() and (view.get_script() as Script).resource_path == NOTICE_VIEW_SCRIPT:
+				var text := str(view.get(&"entry").get(&"text"))
+				if text.contains(I18n.t("From Remote Control: %s") % ""):
+					notice[0] = view
+					return true
+		return false)
+	if not found:
+		failures.append("no apareció el aviso de los archivos cambiados desde el celular")
+		return
+	var view: Control = notice[0]
+	var text := str(view.get(&"entry").get(&"text"))
+	if not (text.contains(EDITED_FILE.trim_prefix("res://")) and text.contains(CREATED_FILE.trim_prefix("res://"))):
+		failures.append("el aviso no nombra los dos archivos: %s" % text)
+	_press(view, I18n.t("View diff"))
+	await _tree.create_timer(0.3).timeout
+	var dialog: Window = null
+	for node: Node in EditorInterface.get_base_control().get_children():
+		if node is Window and node.has_method(&"show_diff") and (node as Window).visible:
+			dialog = node
+	if dialog == null:
+		failures.append("«%s» no abrió el diff" % I18n.t("View diff"))
+	else:
+		dialog.hide()
+	await _until(func() -> bool: return view.is_queued_for_deletion() or _find_button(view, I18n.t("Undo")) != null)
+	_press(view, I18n.t("Undo"))
+	await _tree.create_timer(0.3).timeout
+	if FileAccess.get_file_as_string(EDITED_FILE) != "extends Node\n" or FileAccess.file_exists(CREATED_FILE):
+		failures.append("«%s» no dejó los archivos como estaban" % I18n.t("Undo"))
+	if not str(view.get(&"entry").get(&"text")).contains(I18n.t("Undone.")):
+		failures.append("el aviso no dice que se deshizo")
+	# Deshacer no cuenta como otro cambio del celular.
+	await _tree.create_timer(4.5).timeout
+	var notices := _dock.find_children("*", "", true, false).filter(func(node: Node) -> bool: return node.get_script() and (node.get_script() as Script).resource_path == NOTICE_VIEW_SCRIPT and str(node.get(&"entry").get(&"text")).contains(I18n.t("From Remote Control: %s") % ""))
+	if notices.size() != 1:
+		failures.append("después de deshacer hay %d avisos de Remote Control" % notices.size())
+
+
+func _write(path: String, text: String) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(text)
+	file.close()
+
+
+func _find_button(root: Node, text: String) -> Button:
+	for button: Node in root.find_children("*", "Button", true, false):
+		if (button as Button).text == text and (button as Button).is_visible_in_tree() and not button.is_queued_for_deletion():
+			return button
+	return null
 
 
 func _until(condition: Callable) -> bool:

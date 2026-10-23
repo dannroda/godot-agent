@@ -17,6 +17,7 @@ const SessionModel := preload("session/session_model.gd")
 const SessionController := preload("session/session_controller.gd")
 const EditorContext := preload("ui/editor_context.gd")
 const EditorSync := preload("editor/editor_sync.gd")
+const RemoteActivity := preload("session/remote_activity.gd")
 const FsHandler := preload("acp/fs_handler.gd")
 const PermissionPolicy := preload("session/permission_policy.gd")
 const ProjectConfig := preload("config/project_config.gd")
@@ -73,6 +74,7 @@ var _model: SessionModel
 var _controller: SessionController
 var _project_config: ProjectConfig
 var _sync: EditorSync
+var _remote_activity: RemoteActivity
 var _diff_dialog: DiffDialog
 var _mcp_server: McpServer
 var _errors: ErrorCollector
@@ -116,6 +118,14 @@ func _enter_tree() -> void:
 	_sync.open_scene_modified.connect(_on_open_scene_modified)
 	add_child(_sync)
 	scene_saved.connect(_sync.note_scene_saved)
+	_remote_activity = RemoteActivity.new()
+	_remote_activity.setup(_model, _log, EditorContext.project_path())
+	_remote_activity.after_restore = _sync.after_agent_write
+	add_child(_remote_activity)
+	scene_saved.connect(_remote_activity.note_saved)
+	resource_saved.connect(func(resource: Resource) -> void:
+		if _remote_activity:
+			_remote_activity.note_saved(resource.resource_path))
 	_fs = FsHandler.new()
 	_fs.setup(EditorContext.project_path(), _log)
 	_fs.extra_roots = _project_config.extra_fs_roots
@@ -226,6 +236,9 @@ func _exit_tree() -> void:
 	if _errors:
 		_errors.stop()
 		_errors = null
+	if _remote_activity:
+		_remote_activity.queue_free()
+		_remote_activity = null
 	if _sync:
 		_sync.queue_free()
 		_sync = null
@@ -353,6 +366,11 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_sync.reload_scene(path)
 		ACTION_UNDO_TOOL_CALL:
 			_undo_tool_call(str(payload))
+		RemoteActivity.ACTION_DIFF:
+			var texts := _remote_activity.diff_texts(int(payload))
+			_diff_dialog.show_diff(I18n.t("Changes from Remote Control"), I18n.t("before"), texts[0], I18n.t("now"), texts[1])
+		RemoteActivity.ACTION_UNDO:
+			_remote_activity.undo(int(payload))
 		ACTION_ONESHOT_RESUME:
 			_intercept_dock_retry()
 		ACTION_ONESHOT_SHOW:

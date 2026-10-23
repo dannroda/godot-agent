@@ -2071,3 +2071,36 @@ msgstr "Lo que escribas desde el celular y sus respuestas se ven solo allá. Ac�
 
 msgid "Answered elsewhere: from Remote Control, or no longer needed"
 msgstr "Contestado en otro lado: desde Remote Control, o ya no hacía falta"
+
+msgid "Changes from Remote Control"
+msgstr "Cambios desde Remote Control"
+
+msgid "before"
+msgstr "antes"
+
+msgid "Undo"
+msgstr "Deshacer"
+
+msgid "and %d more"
+msgstr "y %d más"
+
+msgid "modified %s"
+msgstr "modificó %s"
+
+msgid "created %s"
+msgstr "creó %s"
+
+msgid "deleted %s"
+msgstr "borró %s"
+
+msgid "From Remote Control: %s"
+msgstr "Desde Remote Control: %s"
+
+msgid "Undone."
+msgstr "Deshecho."
+
+msgid "Could not restore: %s"
+msgstr "No se pudo restaurar: %s"
+
+msgid "The project has more than %d files: changes from Remote Control are only watched in the first ones."
+msgstr "El proyecto tiene más de %d archivos: los cambios desde Remote Control se miran solo en los primeros."
