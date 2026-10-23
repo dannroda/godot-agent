@@ -13,6 +13,7 @@ const OneShotRun := preload("../../oneshot/oneshot_run.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
+const ImageViewer := preload("../image_viewer.gd")
 const RunReport := preload("../../oneshot/run_report.gd")
 const I18n := preload("../../core/i18n.gd")
 
@@ -472,6 +473,7 @@ func _build_side_column() -> Control:
 	_capture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_capture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_capture_rect.custom_minimum_size.y = AgentTheme.px(170)
+	ImageViewer.attach(_capture_rect, func() -> Image: return _capture_shown)
 	box.add_child(_capture_rect)
 	_capture_caption = Label.new()
 	_capture_caption.add_theme_color_override(&"font_color", AgentTheme.MUTED)

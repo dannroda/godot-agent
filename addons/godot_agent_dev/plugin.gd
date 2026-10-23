@@ -756,11 +756,61 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		if not (send.disabled and send.text.begins_with("⏳") and meter.is_visible_in_tree() and str(meter.get(&"tooltip_text")).contains("\n")):
 			_finish(1, "cuota: el envío no quedó bloqueado (%s, disabled=%s) o no se ve el medidor" % [send.text, send.disabled])
 			return
+	if scenario == "ui_markdown" and not await _check_markdown_and_viewer(dock, shot_path):
+		return
 	if not shot_path.is_empty():
 		var image := EditorInterface.get_base_control().get_viewport().get_texture().get_image()
 		image.save_png(shot_path)
 	controller.call(&"stop")
 	_finish(0, "ui-test %s" % scenario)
+
+
+## m7-28/m7-29: el mensaje del agente lleva su bloque de código en una caja aparte, y un clic en la
+## captura del tool call abre el visor (captura en <shot>_viewer.png), que se libera al cerrarlo.
+func _check_markdown_and_viewer(dock: Control, shot_path: String) -> bool:
+	dock.emit_signal(&"show_log_requested")  # el log ocupa lugar: se vuelve a plegar
+	var code_views := dock.find_children("*", "PanelContainer", true, false).filter(func(node: Node) -> bool:
+		return str(node.get_script().resource_path if node.get_script() else "").ends_with("code_block_view.gd"))
+	if code_views.size() != 1:
+		_finish(1, "markdown: se esperaba 1 bloque de código en su caja, hay %d" % code_views.size())
+		return false
+	var thumbs := dock.find_children("*", "TextureRect", true, false).filter(func(node: Node) -> bool:
+		return (node as TextureRect).mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND and (node as Control).is_visible_in_tree())
+	if thumbs.size() != 1:
+		_finish(1, "visor: se esperaba 1 miniatura clicable, hay %d" % thumbs.size())
+		return false
+	var thumb: TextureRect = thumbs[0]
+	var scroll := dock.find_children("*", "ScrollContainer", true, false)
+	for node: Node in scroll:
+		if (node as ScrollContainer).is_ancestor_of(thumb):
+			(node as ScrollContainer).ensure_control_visible(thumb)
+	await get_tree().create_timer(0.3).timeout
+	if not shot_path.is_empty():
+		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_chat.png")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = thumb.size / 2.0
+	thumb.gui_input.emit(click)
+	await get_tree().create_timer(0.5).timeout
+	var viewers := EditorInterface.get_base_control().find_children("*", "AcceptDialog", false, false).filter(func(node: Node) -> bool:
+		return node.get_script() != null and str(node.get_script().resource_path).ends_with("image_viewer.gd"))
+	if viewers.size() != 1 or not (viewers[0] as Window).visible:
+		_finish(1, "visor: el clic en la miniatura no abrió el visor (%d)" % viewers.size())
+		return false
+	var viewer: AcceptDialog = viewers[0]
+	if not str(viewer.title).contains("480×270"):
+		_finish(1, "visor: el título no tiene el tamaño de la imagen: %s" % viewer.title)
+		return false
+	if not shot_path.is_empty():
+		viewer.get_texture().get_image().save_png(shot_path.get_basename() + "_viewer.png")
+	viewer.hide()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if is_instance_valid(viewer):
+		_finish(1, "visor: no se liberó al cerrarlo")
+		return false
+	return true
 
 
 ## M7: dos turnos con el agente falso, cerrar, y reabrir la sesión desde el menú de historial del dock.

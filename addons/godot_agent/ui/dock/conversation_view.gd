@@ -60,6 +60,7 @@ func set_accent(accent: Color) -> void:
 	_markdown.code_color = AgentTheme.color_hex(accent)
 	_markdown.muted_color = "#8a8f98"
 	_markdown.code_bg_color = "#" + Color(0, 0, 0, 0.25).to_html(true)
+	_markdown.highlighter.use_editor_colors()
 
 
 func _ready() -> void:

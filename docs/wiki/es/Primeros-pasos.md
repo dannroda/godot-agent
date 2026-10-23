@@ -31,7 +31,7 @@ Otros agentes (Gemini CLI, Codex, el tuyo) se configuran en **Settings → Agent
 
 - **Header**: perfil de agente, título de la sesión, **Historial**, **Nueva sesión** y **Settings**.
 - **Modos**: Preguntar · Revisar · Construir · Auto · One-shot (ver [Modos y permisos](Modos-y-permisos.md)).
-- **Conversación**: Markdown, tool calls agrupados (con su duración), diffs, tarjetas de permiso y el plan del agente. Lo que hace un subagente queda plegado dentro de su tarjeta `Agent`.
+- **Conversación**: Markdown (tablas, listas, citas y bloques de código con resaltado y botón para copiar), tool calls agrupados (con su duración), diffs, tarjetas de permiso y el plan del agente. Lo que hace un subagente queda plegado dentro de su tarjeta `Agent`. Un clic en una captura que sacó el agente la abre en grande: rueda para el zoom, arrastrar para moverla y **Guardar PNG…** para quedártela. Los links a archivos los abren en el editor (`archivo.gd#L42` va a la línea) y los links a imágenes, en el mismo visor.
 - **Composer**:
   - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
   - con el agente trabajando, Enter deja el mensaje **en cola**, arriba del composer. Cada mensaje en cola se puede editar o quitar. Cuando termina el turno sale el siguiente. Si el turno se cancela o falla, la cola espera **Enviar ahora**;

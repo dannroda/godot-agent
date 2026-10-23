@@ -2146,3 +2146,33 @@ msgstr "Todavía no hay datos: Claude Code la informa con el primer mensaje de c
 
 msgid "%s (default)"
 msgstr "%s (por defecto)"
+
+msgid "Fit"
+msgstr "Ajustar"
+
+msgid "Fit to the window (double click on the image)"
+msgstr "Ajustar a la ventana (doble clic en la imagen)"
+
+msgid "Actual size"
+msgstr "Tamaño real"
+
+msgid "Wheel: zoom · drag: move"
+msgstr "Rueda: zoom · arrastrar: mover"
+
+msgid "Save PNG…"
+msgstr "Guardar PNG…"
+
+msgid "Click to view full size"
+msgstr "Clic para verla en grande"
+
+msgid "Screenshot"
+msgstr "Captura"
+
+msgid "Copy code"
+msgstr "Copiar código"
+
+msgid "Copied"
+msgstr "Copiado"
+
+msgid "code"
+msgstr "código"

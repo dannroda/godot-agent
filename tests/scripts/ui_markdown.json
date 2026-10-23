@@ -1,0 +1,39 @@
+{
+	"turns": [
+		{
+			"steps": [
+				{
+					"chunk": "Corrí la escena y saqué una captura:"
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "c1",
+						"title": "mcp__godot__capture_game_frame",
+						"kind": "other",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://Main.tscn"
+						},
+						"content": [
+							{
+								"type": "content",
+								"content": {
+									"type": "image",
+									"mimeType": "image/png",
+									"data": "iVBORw0KGgoAAAANSUhEUgAAAeAAAAEOCAIAAADe+FMwAAAAAXNSR0IArs4c6QAABNVJREFUeJzt27FNHGEURlFAWwTUQewCHBGQUgU1kRIQUYA7cO7YlEEEAWwAK3v/O2/PiayVgcEafbp6ks+vru/P3pyffXTYJ8f/wua3KjzDsF+n8Ax+nfIzDPt1LvZ9KwDWM9AAUbv9OQ7AagoaIMpAA0Q5cQBEKWiAKAUNEKWgAaIMNECUEwdAlIIGiDLQAFFOHABRChogSkEDRClogCgDDRDlxAEQpaABogw0QJQTB0CUggaIUtAAUQoaIMpAA0Q5cQBEKWiAKAMNEOXEARCloAGiFDRAlIIGiDLQAFFOHABRChogykADRDlxAEQpaIAoBQ0QpaABogw0QJQTB0CUggaIUtAAUQoaIMpAA0Q5cQBEKWiAKAMNEOXEARCloAGiFDRAlIIGiDLQAFFOHABRChogykADRDlxAEQpaIAoBQ0QpaABogw0QJQTB0CUggaIMtAAUU4cAFEKGiBKQQNEKWiAKAMNEOXEARCloAGiDDRAlBMHQJSCBohS0ABRChogykADRDlxAEQpaIAoAw0Q5cQBEKWgAaIUNECUggaIMtAAUU4cAFEKGiBKQQNEKWiAKAMNEOXEARCloAGiDDRAlBMHQJSCBohS0ABRChogykADRDlxAEQpaIAoAw0Q5cQBEKWgAaIUNECUggaIMtAAUU4cAFEKGiDKQANEOXEARClogCgFDRCloAGiDDRAlBMHQJSCBogy0ABRThwAUQoaIEpBA0QpaIAoAw0Q5cQBEKWgAaIMNECUEwdAlIIGiFLQAFEKGiDKQANEOXEARClogCgFDRCloAGiDDRAlBMHQJSCBogy0ABRThwAUQoaIEpBA0QpaIAoAw0Q5cQBEKWgAaIMNECUEwdA1G71AzDT84+XJT/35tflkp8L/4OCZhbvM4O4QQNEGWiAKCcOZvE+M4iCBogy0ABRThzM4n1mEAUNEKWgmcX7zCAKGiDKQANEOXEwi/eZQRQ0QJSBBohy4mAW7zODKGiAKAXNLN5nBlHQAFEGGiDKiYNZvM8MoqABogw0QJQTB7N4nxlEQQNEKWhm8T4ziIIGiDLQAFFOHMzifWYQBQ0QpaCZxfvMIAoaIMpAA0Q5cTCL95lBFDRAlIEGiHLiYBbvM4MoaIAoBc0s3mcGUdAAUbvVD8BMP39fvv95b9R+/vArn3z9r8EAThwAUU4cAFEGGiDKiQMgSkEDRClogCgFDRBloAGinDgAohQ0QJSBBohy4gCIUtAAUQoaIEpBA0QZaIAoJw6AKAUNEGWgAaKcOACiFDRAlIIGiFLQAFEGGiDKiQMgSkEDRBlogCgnDoAoBQ0QtcmCvru9Wv0IwMb8efy7+hG+TUEDRBlogKhNnjgAvm2DW6egAaIUNHAaNrh1ChogykADRDlxAKdhg1unoAGiDDRAlBMHcBo2uHW71Q9wiIenj/+nfu+//OcPD/vk+F/Y/Fae4Z9/q8IznOavsxUKGiDKDRogykADRDlxAEQpaIAoAw0Q5cQBEKWgAaIUNECUggaIMtAAUU4cAFEKGiDKQANEOXEARClogCgFDRCloAGiDDRAlBMHQJSCBogy0ABRThwAUQoaIEpBA0QpaIAoAw0Q5cQBEKWgAaIMNECUEwdAlIIGiFLQAFEKGiDKQANEOXEARClogKhXX8MOWx/yXRgAAAAASUVORK5CYII="
+								}
+							}
+						]
+					}
+				},
+				{
+					"chunk": "## Qué encontré\n\nEl **jugador** no colisiona porque `collision_mask` está en 0. Detalle en [player.gd:42](res://player/player.gd#L42) y en https://docs.godotengine.org/en/stable/tutorials/physics/physics_introduction.html.\n\n### Cambios\n\n1. Activar la capa 2 en el `CharacterBody2D`, que es la que usan los tiles del nivel y los enemigos; sin eso el cuerpo atraviesa todo.\n2. Ajustar la velocidad:\n\n   ```gdscript\n   @export var speed := 220.0  # px/s\n\n   func _physics_process(delta: float) -> void:\n   \tvar dir := Input.get_vector(\"left\", \"right\", \"up\", \"down\")\n   \tvelocity = dir * speed\n   \tmove_and_slide()\n   ```\n3. Probar de nuevo con `run_scene`.\n\n| Nodo | Capa | Máscara |\n|:-----|:----:|--------:|\n| Player | 1 | 2 |\n| Enemy | 3 | 1, 2 |\n| `TileMapLayer` | 2 | — |\n\n- [x] Revisé las capas\n- [ ] Falta el sonido\n  - el `AudioStreamPlayer2D` no está en la escena\n\n> **Ojo:** si cambiás la máscara en el inspector, *guardá la escena* antes de correrla.\n\n---\n\nListo. ~~Nada más~~ Eso es todo."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

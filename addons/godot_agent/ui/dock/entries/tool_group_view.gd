@@ -6,6 +6,7 @@ extends "entry_view.gd"
 
 const ToolCall := preload("../../../session/tool_call.gd")
 const DiffCard := preload("diff_card.gd")
+const ImageViewer := preload("../../image_viewer.gd")
 
 const STATUS_ICONS: Dictionary = {
 	ToolCall.STATUS_PENDING: "○",
@@ -316,6 +317,7 @@ static func _image_preview(block: Dictionary) -> Control:
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
 	var height := mini(image.get_height(), AgentTheme.px(IMAGE_MAX_HEIGHT))
 	rect.custom_minimum_size = Vector2(0, height)
+	ImageViewer.attach(rect, func() -> Image: return image)
 	return rect
 
 

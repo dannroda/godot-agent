@@ -29,6 +29,8 @@ const QrView := preload("qr_view.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const ReviewStore := preload("../../review/review_store.gd")
 const I18n := preload("../../core/i18n.gd")
+const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
+const ImageViewer := preload("../image_viewer.gd")
 
 ## export_presets.cfg no pasa por EditorFileSystem: se mira su fecha de modificación cada tanto.
 const PRESETS_POLL_INTERVAL_S := 2.0
@@ -720,8 +722,15 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			var url := str(payload)
 			if url.begins_with("http://") or url.begins_with("https://"):
 				OS.shell_open(url)
-			else:
-				_open_path(url.trim_prefix("file://"), 0)
+				return
+			var target := MarkdownBBCode.link_target(url)
+			var absolute := _absolute_path(target.path)
+			if absolute.get_extension().to_lower() in IMAGE_EXTENSIONS and FileAccess.file_exists(absolute):
+				var image := Image.load_from_file(absolute)
+				if image != null and not image.is_empty():
+					ImageViewer.open(image, str(target.path).get_file(), self)
+					return
+			_open_path(target.path, target.line)
 		"open_location":
 			var location: Dictionary = payload
 			_open_path(str(location.path), int(location.get("line", 0)))
@@ -739,12 +748,7 @@ func set_oneshot_active(active: bool) -> void:
 
 
 func _open_path(path: String, line: int) -> void:
-	var absolute := path
-	if path.begins_with("res://"):
-		absolute = ProjectSettings.globalize_path(path)
-	elif not path.is_absolute_path():
-		absolute = ProjectSettings.globalize_path("res://").path_join(path.trim_prefix("./"))
-	absolute = absolute.simplify_path()
+	var absolute := _absolute_path(path)
 	if absolute.contains("/.godot_agent/oneshot/"):
 		action_forwarded.emit(ACTION_OPEN_RUN_FILE, {"path": absolute})
 		return
@@ -754,6 +758,16 @@ func _open_path(path: String, line: int) -> void:
 		OS.shell_open(absolute)
 		return
 	_model.add_notice(I18n.t("Could not open %s.") % path, ChatEntry.NoticeLevel.WARNING)
+
+
+## Ruta de un link del chat: res://, absoluta o relativa al proyecto.
+static func _absolute_path(path: String) -> String:
+	var absolute := path
+	if path.begins_with("res://"):
+		absolute = ProjectSettings.globalize_path(path)
+	elif not path.is_absolute_path():
+		absolute = ProjectSettings.globalize_path("res://").path_join(path.trim_prefix("./"))
+	return absolute.simplify_path()
 
 
 func _ask_login_code() -> void:

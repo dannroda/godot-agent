@@ -31,7 +31,7 @@ Other agents (Gemini CLI, Codex, your own) are set up in **Settings → Agents**
 
 - **Header**: agent profile, session title, **History**, **New session** and **Settings**.
 - **Modes**: Ask · Review · Build · Auto · One-shot (see [Modes and permissions](Modes-and-permissions.md)).
-- **Conversation**: Markdown, grouped tool calls (with their duration), diffs, permission cards and the agent's plan. A subagent's work stays folded inside its `Agent` card.
+- **Conversation**: Markdown (tables, lists, quotes and code blocks with highlighting and a copy button), grouped tool calls (with their duration), diffs, permission cards and the agent's plan. A subagent's work stays folded inside its `Agent` card. Click a screenshot the agent took to see it full size: wheel to zoom, drag to move, **Save PNG…** to keep it. Links to files open them in the editor (`file.gd#L42` goes to the line), and links to images open in the same viewer.
 - **Composer**:
   - **Enter** sends; **Ctrl+Enter** or **Shift+Enter** add a line; **Esc** stops the turn;
   - while the agent works, Enter **queues** the message above the composer. You can edit or remove each queued message. When the turn ends, the next one goes out. If the turn is cancelled or fails, the queue waits for **Send now**;
