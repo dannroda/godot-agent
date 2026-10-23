@@ -1,16 +1,17 @@
 name: Release
 
 # A mano, desde Actions → Release → Run workflow: corre los tests, sube la versión en plugin.cfg,
-# la commitea en main con el tag vX.Y.Z y publica el release con el zip del addon.
+# pasa la sección Unreleased de CHANGELOG.md (en inglés) a la versión nueva, lo commitea en main
+# con el tag vX.Y.Z y publica el release con el zip del addon y esa sección como notas.
 on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "patch, minor, major o una versión exacta (X.Y.Z)"
+        description: "patch, minor, major or an exact version (X.Y.Z)"
         required: true
         default: patch
       prerelease:
-        description: "Marcar como pre-release"
+        description: "Mark as a pre-release"
         type: boolean
         default: false
 
@@ -45,18 +46,18 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # Las notas salen de CHANGELOG.md (en inglés), no de los commits (en español).
       - name: Release notes
         run: |
-          PREVIOUS=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
-          RANGE=${PREVIOUS:+$PREVIOUS..}HEAD
           {
-            echo "## Changes"
+            python3 .github/scripts/changelog.py notes
             echo
-            git log --no-merges --format='- %s' $RANGE | grep -v '^- Release v' || true
+            echo "---"
             echo
             echo "Install: unzip into your project so that \`addons/godot_agent/\` ends up in its \`addons/\` folder, then enable **Godot Agent Harness** in Project Settings → Plugins. Requires Godot 4.6 or newer."
           } > notes.md
           cat notes.md
+          python3 .github/scripts/changelog.py release "${{ steps.version.outputs.version }}"
 
       - name: Commit and tag
         run: |
@@ -70,7 +71,7 @@ jobs:
       - name: Package
         run: |
           ZIP="godot-agent-harness-v${{ steps.version.outputs.version }}.zip"
-          git archive --format=zip -o "$ZIP" HEAD addons/godot_agent README.md README.es.md
+          git archive --format=zip -o "$ZIP" HEAD addons/godot_agent README.md README.es.md CHANGELOG.md
           unzip -l "$ZIP" | tail -1
 
       - name: Publish
