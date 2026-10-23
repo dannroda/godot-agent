@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation (wiki)
+    url: https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Home.md
+    about: How the harness works and how to use each part.
+  - name: Troubleshooting
+    url: https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Troubleshooting.md
+    about: Known limitations by Godot version.

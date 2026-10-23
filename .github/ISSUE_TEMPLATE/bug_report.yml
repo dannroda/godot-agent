@@ -1,0 +1,77 @@
+name: Bug report
+description: Something in the addon doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. English or Spanish are both fine. Check [Troubleshooting](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Troubleshooting.md) first: it lists known limitations by Godot version.
+  - type: input
+    id: addon-version
+    attributes:
+      label: Addon version
+      description: Project Settings → Plugins, or Settings → Interface → Updates.
+      placeholder: "0.1.4"
+    validations:
+      required: true
+  - type: input
+    id: godot-version
+    attributes:
+      label: Godot version
+      placeholder: "4.7.2.stable"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent
+      description: Which agent profile, and how it runs.
+      placeholder: "Claude Code (npx -y @agentclientprotocol/claude-agent-acp)"
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - Ask
+        - Review
+        - Build
+        - Auto
+        - One-shot
+        - Not related to a mode
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a session in Build mode
+        2. Ask "…"
+        3. …
+  - type: textarea
+    id: log
+    attributes:
+      label: Agent Log
+      description: The relevant lines of the Agent Log panel (bottom of the editor). Tokens are masked there, but read it before pasting. If the editor crashed, paste the end of the editor output instead.
+      render: text
+  - type: checkboxes
+    id: crash
+    attributes:
+      label: Crash
+      options:
+        - label: The editor crashed or froze.
