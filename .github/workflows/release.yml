@@ -71,7 +71,7 @@ jobs:
       - name: Package
         run: |
           ZIP="godot-agent-harness-v${{ steps.version.outputs.version }}.zip"
-          git archive --format=zip -o "$ZIP" HEAD addons/godot_agent README.md README.es.md CHANGELOG.md
+          git archive --format=zip -o "$ZIP" HEAD addons/godot_agent README.md README.es.md CHANGELOG.md LICENSE
           unzip -l "$ZIP" | tail -1
 
       - name: Publish

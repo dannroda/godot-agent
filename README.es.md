@@ -85,3 +85,11 @@ Los textos de la interfaz se escriben en inglés en el código, con `I18n.t("…
 - La versión vive solo en `plugin.cfg`: el `clientInfo` de ACP y el `serverInfo` del MCP la leen de ahí.
 
 El tablero de tareas está en `compass/` ([`docs/tareas.md`](docs/tareas.md) es su export).
+
+## Contribuir
+
+Mirá [CONTRIBUTING.md](CONTRIBUTING.md) (en inglés; los issues y pull requests pueden ser en castellano): cómo reportar un bug, armar el repo, correr los tests y mandar un pull request.
+
+## Licencia
+
+[MIT](LICENSE) © Daniel Rodriguez Aires

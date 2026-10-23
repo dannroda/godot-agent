@@ -85,3 +85,11 @@ The interface text is written in English in the code, wrapped in `I18n.t("…")`
 - The version lives only in `plugin.cfg`: the ACP `clientInfo` and the MCP `serverInfo` read it from there.
 
 The task board lives in `compass/` ([`docs/tareas.md`](docs/tareas.md) is its export).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md): how to report a bug, set up the repository, run the tests and send a pull request.
+
+## License
+
+[MIT](LICENSE) © Daniel Rodriguez Aires
