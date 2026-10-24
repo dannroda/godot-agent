@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-24
+
 ### Added
 
 - **Godot addons** tab in the Extensions window: search the [Godot Asset Store](https://store.godotengine.org) for your Godot version, install an addon (only its `addons/` folder by default, never overwriting your files, with a preview of what it writes) and enable or disable the project's plugins. It also finds newer versions of the project's plugins and updates them: the addon's folder is replaced, files the new version dropped are removed and its plugins stay enabled. Installs are recorded in `.godot_agent/assets.json`; plugins installed by hand are matched with the store by name.
