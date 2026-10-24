@@ -120,6 +120,9 @@ const AssetCheck := preload("asset_check.gd")
 ## un CLAUDE_CONFIG_DIR de prueba).
 const SKILLS_ARG := "--godot-agent-skills-test="
 const SkillsCheck := preload("skills_check.gd")
+## m7-44: varias sesiones en pestañas del dock, coordinadas por archivo y por el juego.
+const SESSIONS_ARG := "--godot-agent-sessions-test="
+const SessionsCheck := preload("sessions_check.gd")
 const AUTO_ARG := "--godot-agent-auto-test"
 const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
@@ -201,6 +204,8 @@ func _enter_tree() -> void:
 			_run_asset_test.call_deferred(arg.trim_prefix(ASSET_ARG))
 		if arg.begins_with(SKILLS_ARG):
 			_run_skills_test.call_deferred(arg.trim_prefix(SKILLS_ARG))
+		if arg.begins_with(SESSIONS_ARG):
+			_run_sessions_test.call_deferred(arg.trim_prefix(SESSIONS_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
 
@@ -713,8 +718,15 @@ func _arg_value(prefix: String) -> String:
 func _find_dock() -> Control:
 	for node: Node in EditorInterface.get_base_control().find_children("*", "VBoxContainer", true, false):
 		if node.get_script() and (node.get_script() as Script).resource_path == DOCK_SCRIPT:
-			var guard := node.get_parent()  # MinSizeGuard
+			# Sube hasta la ranura del editor: el dock va dentro de las pestañas de sesiones (m7-44)
+			# y de un MinSizeGuard.
+			var guard := node.get_parent()
 			var holder := guard.get_parent()
+			while holder and not holder.has_method(&"make_visible") and not holder is TabContainer:
+				guard = holder
+				holder = holder.get_parent()
+			if holder == null:
+				return node
 			if holder.has_method(&"make_visible"):
 				holder.call(&"make_visible")
 			elif holder is TabContainer:
@@ -1261,6 +1273,18 @@ func _run_docs_shots(dir: String) -> void:
 	for failure: String in failures:
 		print("[docs-shots] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "docs-shots: %d fallas" % failures.size())
+
+
+func _run_sessions_test(prefix: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	var main_plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	if dock == null or main_plugin == null:
+		_finish(1, "no se encontró el dock o el plugin")
+		return
+	var failures := await SessionsCheck.new().run(get_tree(), main_plugin, dock, prefix)
+	_finish(0 if failures.is_empty() else 1, "sessions-test: %s" % ("ok" if failures.is_empty() else "; ".join(failures)))
 
 
 func _run_skills_test(prefix: String) -> void:

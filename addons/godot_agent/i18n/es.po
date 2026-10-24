@@ -2806,3 +2806,18 @@ msgstr "Subagentes a la vez"
 
 msgid "How many subagents Claude Code can run at the same time in each mode; one more is rejected with a notice in the chat. 0 = no limit of the harness."
 msgstr "Cuántos subagentes puede correr Claude Code al mismo tiempo en cada modo; uno más se rechaza con un aviso en el chat. 0 = sin límite del harness."
+
+msgid "Session 1"
+msgstr "Sesión 1"
+
+msgid "Session %d"
+msgstr "Sesión %d"
+
+msgid "Message from «%s»: %s"
+msgstr "Mensaje de «%s»: %s"
+
+msgid "Rejected: %s is being edited by «%s». It's free again when that session's turn ends."
+msgstr "Rechazado: %s lo está editando «%s». Queda libre cuando termine el turno de esa sesión."
+
+msgid "Open another agent session alongside this one. Sessions don't step on each other: a file one is editing in its turn is off limits to the rest, and the game runs for one at a time."
+msgstr "Abre otra sesión del agente junto a esta. Las sesiones no se pisan: un archivo que una está editando en su turno queda fuera del alcance de las demás, y el juego corre para una a la vez."

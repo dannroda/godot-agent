@@ -71,6 +71,8 @@ var retry_interceptor: Callable
 var can_switch_session: Callable
 ## () -> Variant (async): el frame del juego en ejecución como Image, o el motivo (String) si no hay.
 var game_capture: Callable
+## false en las sesiones extra (m7-44): el One-shot corre solo en la primera.
+var allow_oneshot: bool = true
 
 var _model: SessionModel
 ## Hay un One-shot activo (corriendo o en pausa): el botón de la vista vacía lo retoma.
@@ -264,6 +266,8 @@ func _build_header() -> void:
 func _build_mode_selector() -> void:
 	var modes: Array[Dictionary] = []
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
+		if mode == SessionModel.HarnessMode.ONESHOT and not allow_oneshot:
+			continue
 		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode])})
 	_composer.set_modes(modes)
 	_composer.mode_selected.connect(func(mode: int) -> void: _model.set_harness_mode(mode as SessionModel.HarnessMode))
@@ -726,6 +730,18 @@ func _send_queued_now(index: int) -> void:
 		_controller.cancel()
 	else:
 		_send_next_queued(true)
+
+
+## Un mensaje de otra sesión abierta en el editor (m7-44): sale como prompt apenas esta queda libre,
+## detrás de lo que ya esperaba en la cola. false si la sesión no está conectada.
+func deliver_message(text: String) -> bool:
+	if not _controller.is_connected_to_agent():
+		return false
+	if _model.state == SessionModel.SessionState.READY and _queue.is_empty():
+		_controller.send_prompt(text)
+	else:
+		_queue.add(text)
+	return true
 
 
 func _on_cancel_requested() -> void:

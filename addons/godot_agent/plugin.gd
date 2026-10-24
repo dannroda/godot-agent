@@ -55,6 +55,9 @@ const CompletionService := preload("completion/completion_service.gd")
 const AddonUpdater := preload("core/addon_updater.gd")
 const AddonVersion := preload("core/addon_version.gd")
 const UpdateBanner := preload("ui/dock/update_banner.gd")
+const SessionCoordinator := preload("session/session_coordinator.gd")
+const SessionTabs := preload("ui/dock/session_tabs.gd")
+const SessionTools := preload("mcp/tools/session_tools.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -76,6 +79,8 @@ const ONESHOT_STORE_DIR := "user://godot_agent/oneshot"
 const UPDATE_BACKUP_DIR := "user://godot_agent/update/backup-%s"
 const UPDATE_CHECK_INTERVAL_S := 86400
 const ICON_NAME := &"Script"
+## Id de la primera sesión (m7-44); el token principal del server MCP es el suyo.
+const PRIMARY_SESSION := "s1"
 
 var _export_plugin: AgentExportPlugin
 var _surfaces: EditorSurfaces
@@ -103,6 +108,12 @@ var _completion: CompletionService
 var _updater: AddonUpdater
 var _store: AssetStore
 var _update_banner: UpdateBanner
+## Varias sesiones a la vez (m7-44). La primera es `_model`/`_controller` (PRIMARY_SESSION), la del One-shot,
+## la revisión y Remote Control; las otras: id -> {model, controller}.
+var _coordinator: SessionCoordinator
+var _tabs: SessionTabs
+var _extra_sessions: Dictionary = {}
+var _session_serial: int = 1
 
 
 func _enter_tree() -> void:
@@ -116,27 +127,19 @@ func _enter_tree() -> void:
 	I18n.setup(_settings.language())
 	_log = AgentLog.new()
 	_model = SessionModel.new()
-	_controller = SessionController.new()
-	_controller.setup(_model, _log, EditorContext.project_path())
-	_controller.prompt_variables_provider = _prompt_variables
-	_controller.session_meta_provider = _session_meta
-	_controller.history = SessionHistory.new()
 	_project_config = ProjectConfig.load_or_default()
-	_controller.policy = PermissionPolicy.new(_project_config.permissions)
-	_controller.policy.subagent_limits = _project_config.subagent_limits
-	_controller.shell_rules = _project_config.auto_shell_rules
-	_controller.shell_rules_changed.connect(_save_project_config)
-	_controller.permissions_changed.connect(_on_permissions_changed)
-	_controller.external_mcp_names = _external_mcp_names()
-	_apply_quota_settings()
-	EditorInterface.get_editor_settings().settings_changed.connect(_on_editor_settings_changed)
-
+	_coordinator = SessionCoordinator.new()
 	_sync = EditorSync.new()
 	_sync.setup(_log)
 	_sync.conflict_detected.connect(_on_conflict_detected)
 	_sync.open_scene_modified.connect(_on_open_scene_modified)
 	add_child(_sync)
 	scene_saved.connect(_sync.note_scene_saved)
+	_controller = _make_controller(_model, PRIMARY_SESSION)
+	_fs = _controller.fs
+	_coordinator.register(PRIMARY_SESSION, I18n.t("Session 1"))
+	EditorInterface.get_editor_settings().settings_changed.connect(_on_editor_settings_changed)
+
 	_remote_activity = RemoteActivity.new()
 	_remote_activity.setup(_model, _log, EditorContext.project_path())
 	_remote_activity.after_restore = _sync.after_agent_write
@@ -145,13 +148,6 @@ func _enter_tree() -> void:
 	resource_saved.connect(func(resource: Resource) -> void:
 		if _remote_activity:
 			_remote_activity.note_saved(resource.resource_path))
-	_fs = FsHandler.new()
-	_fs.setup(EditorContext.project_path(), _log)
-	_fs.extra_roots = _project_config.extra_fs_roots
-	_fs.buffer_reader = _sync.buffer_text
-	_fs.after_write = _sync.after_agent_write
-	_controller.set_fs_handler(_fs)
-	_model.tool_call_changed.connect(_on_tool_call_changed)
 	_diff_dialog = DiffDialog.new()
 	_diff_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	EditorInterface.get_base_control().add_child(_diff_dialog)
@@ -197,13 +193,18 @@ func _enter_tree() -> void:
 			dock.set_oneshot_active(_oneshot.is_active()))
 	var log_panel := AgentLogPanelScene.instantiate()
 	log_panel.setup(_log)
+	_tabs = SessionTabs.new()
+	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
+	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
+	_tabs.new_session_requested.connect(_open_session_tab)
+	_tabs.close_requested.connect(_close_session_tab)
 	# Los textos ya vienen traducidos por I18n: que el editor no los vuelva a traducir con los suyos.
-	for surface: Node in [dock, log_panel]:
+	for surface: Node in [_tabs, log_panel]:
 		surface.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 
 	_surfaces = EditorSurfaces.new(self)
 	_surfaces.side_slot = HarnessSettings.DOCK_SLOTS[_settings.dock_slot()]
-	_surfaces.add(EditorSurfaces.EditorSurface.SIDE, dock, DOCK_TITLE, "godot_agent_dock")
+	_surfaces.add(EditorSurfaces.EditorSurface.SIDE, _tabs, DOCK_TITLE, "godot_agent_dock")
 	_surfaces.add(EditorSurfaces.EditorSurface.BOTTOM, log_panel, LOG_PANEL_TITLE, "godot_agent_log")
 	_main_screen = AgentMainScreenScene.instantiate()
 	_main_screen.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -282,6 +283,9 @@ func _exit_tree() -> void:
 		remove_child(_oneshot)
 		_oneshot.queue_free()
 		_oneshot = null
+	for id: String in _extra_sessions.keys():
+		_close_session_tab(id)
+	_tabs = null
 	if _controller:
 		_controller.stop()
 		if _controller.history:
@@ -375,8 +379,8 @@ func _show_log() -> void:
 
 
 ## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).
-func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
-	if _model.replaying:
+func _on_tool_call_changed(call: ToolCall, _group: ChatEntry, model: SessionModel = null) -> void:
+	if (model if model else _model).replaying:
 		return
 	if not _pending_undo.is_empty() and call.undo_info.is_empty() and not call.godot_tool_name().is_empty():
 		_match_pending_undo()
@@ -488,26 +492,35 @@ func _on_mcp_edit_action(tool_name: String, args: Dictionary, info: Dictionary) 
 func _match_pending_undo() -> void:
 	var now := Time.get_ticks_msec()
 	for pending: Dictionary in _pending_undo.duplicate():
-		var call := _model.find_godot_tool_call(pending.tool, pending.args)
+		var call: ToolCall = null
+		for model: SessionModel in _models():
+			call = model.find_godot_tool_call(pending.tool, pending.args)
+			if call:
+				call.undo_info = pending.info
+				model.touch_tool_call(call)
+				_pending_undo.erase(pending)
+				break
 		if call:
-			call.undo_info = pending.info
-			_model.touch_tool_call(call)
-			_pending_undo.erase(pending)
+			continue
 		elif now - int(pending.time) > PENDING_UNDO_TTL_MS:
 			_pending_undo.erase(pending)
 
 
 func _undo_tool_call(call_id: String) -> void:
-	var call := _model.tool_call(call_id)
+	var model := _model
+	for candidate: SessionModel in _models():
+		if candidate.tool_call(call_id):
+			model = candidate
+	var call := model.tool_call(call_id)
 	if call == null or not call.can_undo():
 		return
 	var reason := EditorUndo.undo(call.undo_info)
 	if reason.is_empty():
 		call.undo_done = true
-		_model.touch_tool_call(call)
+		model.touch_tool_call(call)
 		_log.add(AgentLog.CH_MCP, "undone: %s" % call.undo_info.get("action", ""))
 	else:
-		_model.add_notice(I18n.t("Could not undo «%s»: %s") % [call.undo_info.get("action", ""), reason], ChatEntry.NoticeLevel.WARNING)
+		model.add_notice(I18n.t("Could not undo «%s»: %s") % [call.undo_info.get("action", ""), reason], ChatEntry.NoticeLevel.WARNING)
 
 
 ## El cliente del Asset Store, compartido por la pestaña de Extensions y las tools del agente.
@@ -529,8 +542,10 @@ func _start_mcp_server() -> void:
 	registry.max_output_chars = _project_config.max_output_chars
 	registry.max_image_side = _project_config.max_image_side
 	registry.compact = _project_config.compact_tools
-	registry.authorizer = func(group: String, title: String, description: String) -> bool:
-		return await _controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
+	registry.session_authorizer = func(caller: String, group: String, title: String, description: String) -> bool:
+		var controller := _controller_of(_session_of(caller))
+		return controller != null and await controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
+	registry.guard = _guard_tool
 	registry.register_provider(ReadTools.new())
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
@@ -562,24 +577,32 @@ func _start_mcp_server() -> void:
 	_run_tools.cleanup = _remove_playtest_autoload
 	registry.register_provider(_run_tools)
 	registry.mark_extended(RunTools.GAME_TOOLS)
+	var session_tools := SessionTools.new()
+	# Por el campo y no por `registry`: el registro guarda la tool y la lambda no puede guardarlo a él.
+	session_tools.caller = func() -> String: return _session_of(_registry.current_caller if _registry else "")
+	session_tools.describe = _describe_sessions
+	session_tools.send = _send_to_session
+	registry.register_provider(session_tools, true)
 	_mcp_server = McpServer.new()
 	_mcp_server.registry = registry
 	_mcp_server.agent_log = _log
 	add_child(_mcp_server)
 	if _mcp_server.start(_settings.mcp_port()) == OK:
 		_log.add_secret(_mcp_server.token)
-	_controller.mcp_servers_provider = _mcp_servers
 
 
 ## Entradas `mcpServers` para session/new: la del addon (HTTP si el agente lo soporta; si no, el
 ## shim stdio) y los servers de terceros de Settings (m7-34).
-func _mcp_servers() -> Array:
+func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null) -> Array:
+	if model == null:
+		model = _model
 	var result: Array = []
 	if _mcp_server and _mcp_server.is_listening():
-		if _model.supports_http_mcp():
-			result.append(_mcp_server.http_server_entry())
+		var token := _mcp_server.token if session == PRIMARY_SESSION else _mcp_server.session_token(session)
+		if model.supports_http_mcp():
+			result.append(_mcp_server.http_server_entry(token))
 		else:
-			var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, _mcp_server.url(), _mcp_server.token)
+			var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, _mcp_server.url(), token)
 			if entry.is_empty():
 				_log.add(AgentLog.CH_MCP, "could not prepare the stdio shim in user://: the agent will not have the godot.* tools")
 			else:
@@ -587,10 +610,10 @@ func _mcp_servers() -> Array:
 	for server: Dictionary in _external_mcp_servers():
 		if not bool(server.enabled):
 			continue
-		var entry := ExternalMcpServers.to_acp(server, _model.supports_http_mcp())
+		var entry := ExternalMcpServers.to_acp(server, model.supports_http_mcp())
 		if entry.is_empty():
 			_log.add(AgentLog.CH_MCP, "%s left out: the agent doesn't take HTTP MCP servers" % server.name)
-			_model.add_notice(I18n.t("The MCP server «%s» was left out: this agent only takes stdio servers.") % server.name, ChatEntry.NoticeLevel.WARNING)
+			model.add_notice(I18n.t("The MCP server «%s» was left out: this agent only takes stdio servers.") % server.name, ChatEntry.NoticeLevel.WARNING)
 			continue
 		for secret: String in ExternalMcpServers.secret_values(server):
 			_log.add_secret(secret)
@@ -637,15 +660,17 @@ func _save_project_config() -> void:
 
 
 ## «Permitir siempre en este proyecto» en la tarjeta de un MCP server de terceros (m7-35).
-func _on_permissions_changed() -> void:
-	_project_config.permissions = _controller.policy.overrides
+func _on_permissions_changed(controller: SessionController = null) -> void:
+	_project_config.permissions = (controller if controller else _controller).policy.overrides
+	for other: SessionController in _controllers():
+		other.policy.overrides = _project_config.permissions
 	_save_project_config()
 
 
 ## `_meta` de session/new y session/load para Claude Code: las skills apagadas en el proyecto
 ## (m7-36) y que pida permiso para cada subagente, así el modo decide y se cuentan (m7-43).
-func _session_meta() -> Dictionary:
-	var profile := _controller.profile()
+func _session_meta(controller: SessionController = null) -> Dictionary:
+	var profile := (controller if controller else _controller).profile()
 	if profile == null or not ClaudeExtensions.is_claude_profile(profile.command, profile.args):
 		return {}
 	var settings := SkillCatalog.session_settings(_project_config.disabled_skills)
@@ -736,11 +761,12 @@ func _open_settings() -> void:
 
 ## La config del proyecto se aplica en caliente; los settings de usuario llegan por settings_changed.
 func _on_settings_saved() -> void:
-	_controller.policy.overrides = _project_config.permissions
-	_controller.policy.subagent_limits = _project_config.subagent_limits
-	_controller.shell_rules = _project_config.auto_shell_rules
-	_controller.external_mcp_names = _external_mcp_names()
-	_fs.extra_roots = _project_config.extra_fs_roots
+	for controller: SessionController in _controllers():
+		controller.policy.overrides = _project_config.permissions
+		controller.policy.subagent_limits = _project_config.subagent_limits
+		controller.shell_rules = _project_config.auto_shell_rules
+		controller.external_mcp_names = _external_mcp_names()
+		controller.fs.extra_roots = _project_config.extra_fs_roots
 	_registry.max_output_chars = _project_config.max_output_chars
 	_registry.max_image_side = _project_config.max_image_side
 	_registry.compact = _project_config.compact_tools
@@ -764,7 +790,8 @@ func _regenerate_mcp_token() -> void:
 
 ## Umbrales de cuota del usuario (spec §10.1, EditorSettings godot_agent/quota/*).
 func _apply_quota_settings() -> void:
-	_controller.quota.configure(_settings.quota_warn(), _settings.quota_pause(), _settings.quota_pause_enabled())
+	for controller: SessionController in _controllers():
+		controller.quota.configure(_settings.quota_warn(), _settings.quota_pause(), _settings.quota_pause_enabled())
 
 
 func _on_editor_settings_changed() -> void:
@@ -839,3 +866,198 @@ func _after_oneshot_restore(paths: PackedStringArray) -> void:
 
 func _remove_playtest_autoload() -> void:
 	PlaytestAutoload.unregister(self)
+
+
+# --- varias sesiones (m7-44) ----------------------------------------------------------------------
+
+## Controller de una sesión con lo que comparten todas: política y reglas del proyecto, fs con el
+## editor, el server MCP con su token propio y la coordinación de archivos.
+func _make_controller(model: SessionModel, id: String) -> SessionController:
+	var controller := SessionController.new()
+	controller.setup(model, _log, EditorContext.project_path())
+	controller.prompt_variables_provider = _prompt_variables
+	# Lo que guarda el controller o el modelo se refiere a la sesión por id: un Callable que los
+	# capture armaría un ciclo de referencias y no se liberarían al cerrar.
+	controller.session_meta_provider = func() -> Dictionary: return _session_meta(_controller_of(id))
+	controller.history = SessionHistory.new()
+	controller.policy = PermissionPolicy.new(_project_config.permissions)
+	controller.policy.subagent_limits = _project_config.subagent_limits
+	controller.shell_rules = _project_config.auto_shell_rules
+	controller.shell_rules_changed.connect(_save_project_config)
+	controller.permissions_changed.connect(func() -> void: _on_permissions_changed(_controller_of(id)))
+	controller.external_mcp_names = _external_mcp_names()
+	controller.quota.configure(_settings.quota_warn(), _settings.quota_pause(), _settings.quota_pause_enabled())
+	var fs := FsHandler.new()
+	fs.setup(EditorContext.project_path(), _log)
+	fs.extra_roots = _project_config.extra_fs_roots
+	fs.buffer_reader = _sync.buffer_text
+	fs.after_write = _sync.after_agent_write
+	controller.set_fs_handler(fs)
+	controller.mcp_servers_provider = _mcp_servers.bind(id, model)
+	controller.file_guard = func(paths: PackedStringArray) -> String: return _claim_files(id, paths)
+	model.tool_call_changed.connect(func(call: ToolCall, group: ChatEntry) -> void: _on_tool_call_changed(call, group, _model_of(id)))
+	model.turn_finished.connect(func(_stop_reason: String) -> void:
+		if _coordinator:
+			_coordinator.release_files(id))
+	return controller
+
+
+func _open_session_tab() -> void:
+	_session_serial += 1
+	var id := "s%d" % _session_serial
+	var label := I18n.t("Session %d") % _session_serial
+	var model := SessionModel.new()
+	var controller := _make_controller(model, id)
+	_extra_sessions[id] = {"model": model, "controller": controller}
+	_coordinator.register(id, label)
+	var dock := AgentDockScene.instantiate()
+	dock.allow_oneshot = false
+	dock.setup(model, controller, _settings)
+	dock.show_log_requested.connect(_show_log)
+	dock.settings_requested.connect(_open_settings)
+	dock.extensions_requested.connect(_open_extensions)
+	dock.action_forwarded.connect(_on_dock_action)
+	dock.game_capture = _capture_game_for_dock
+	_tabs.add_session(id, dock, model, label)
+	_log.add(AgentLog.CH_ACP, "%s opened" % label)
+
+
+func _close_session_tab(id: String) -> void:
+	var session: Dictionary = _extra_sessions.get(id, {})
+	if session.is_empty():
+		return
+	_extra_sessions.erase(id)
+	var controller: SessionController = session.controller
+	controller.stop()
+	if controller.history:
+		controller.history.flush()
+	if _coordinator:
+		_log.add(AgentLog.CH_ACP, "%s closed" % _coordinator.label(id))
+		_coordinator.unregister(id)
+	if _mcp_server:
+		_mcp_server.remove_session_token(id)
+	if _tabs:
+		_tabs.remove_session(id)
+
+
+## La sesión de quien llama a una tool godot.*: el token principal ("") es el de la primera.
+func _session_of(caller: String) -> String:
+	return PRIMARY_SESSION if caller.is_empty() else caller
+
+
+func _controller_of(id: String) -> SessionController:
+	if id == PRIMARY_SESSION:
+		return _controller
+	var session: Dictionary = _extra_sessions.get(id, {})
+	return session.get("controller")
+
+
+func _model_of(id: String) -> SessionModel:
+	if id == PRIMARY_SESSION:
+		return _model
+	var session: Dictionary = _extra_sessions.get(id, {})
+	return session.get("model")
+
+
+func _controllers() -> Array[SessionController]:
+	var result: Array[SessionController] = []
+	if _controller:
+		result.append(_controller)
+	for id: String in _extra_sessions:
+		result.append(_extra_sessions[id].controller)
+	return result
+
+
+func _models() -> Array[SessionModel]:
+	var result: Array[SessionModel] = []
+	if _model:
+		result.append(_model)
+	for id: String in _extra_sessions:
+		result.append(_extra_sessions[id].model)
+	return result
+
+
+## "" si la sesión `id` puede escribir `paths` (quedan suyos en el turno); si no, el nombre de la
+## que los está editando.
+func _claim_files(id: String, paths: PackedStringArray) -> String:
+	if _coordinator == null or not _coordinator.is_shared():
+		return ""
+	var taken := _coordinator.claim_files(id, paths)
+	return "" if taken.is_empty() else _coordinator.label(str(taken.values()[0]))
+
+
+## Coordinación de las tools godot.* entre sesiones: el juego para una a la vez (las demás esperan
+## en cola) y los archivos que otra está editando, fuera de alcance.
+func _guard_tool(mcp_caller: String, tool_name: String, args: Dictionary) -> String:
+	if _coordinator == null or not _coordinator.is_shared():
+		return ""
+	var caller := _session_of(mcp_caller)
+	if tool_name == "run_scene":
+		var holder: String = await _coordinator.acquire_game(caller)
+		if not holder.is_empty():
+			return "The game is in use by «%s»: it launched it and it's still running. Try again when it stops (godot.sessions shows it), or work on something else meanwhile." % _coordinator.label(holder)
+		return ""
+	if tool_name == "stop_scene" or tool_name == "capture_game_frame" or tool_name in RunTools.GAME_TOOLS:
+		var owner := _coordinator.game_owner()
+		if not owner.is_empty() and owner != caller:
+			return "The running game belongs to «%s». Run your own with run_scene when it stops (godot.sessions shows it)." % _coordinator.label(owner)
+		return ""
+	var group := _registry.group_of(tool_name)
+	if not group in [PermissionPolicy.GROUP_EDIT_SCENE, PermissionPolicy.GROUP_EDIT_FILES, PermissionPolicy.GROUP_PROJECT]:
+		return ""
+	var paths := SessionCoordinator.paths_in_args(args)
+	if paths.is_empty() and group == PermissionPolicy.GROUP_EDIT_SCENE:
+		var root := EditorInterface.get_edited_scene_root()
+		if root and not root.scene_file_path.is_empty():
+			paths.append(root.scene_file_path)
+	if group == PermissionPolicy.GROUP_PROJECT:
+		paths.append("res://project.godot")
+	var taken := _coordinator.claim_files(caller, paths)
+	if taken.is_empty():
+		return ""
+	var path: String = taken.keys()[0]
+	return "%s is being edited by «%s» in its current turn. Don't touch it until that turn ends: work on something else, or coordinate with godot.session_send (godot.sessions lists who edits what)." % [path, _coordinator.label(str(taken[path]))]
+
+
+## Lo que ve una sesión de las demás (godot.sessions).
+func _describe_sessions(caller: String) -> String:
+	if _coordinator == null or not _coordinator.is_shared():
+		return "There is only one agent session open: yours."
+	var lines: PackedStringArray = ["You are «%s». Other agent sessions open in this editor:" % _coordinator.label(caller)]
+	for id: String in _coordinator.sessions():
+		if id == caller:
+			continue
+		var model: SessionModel = _model if id == PRIMARY_SESSION else _extra_sessions[id].model
+		var state := "working" if model.is_busy() else ("idle" if model.state == SessionModel.SessionState.READY else "not connected")
+		var line := "- «%s» · %s mode · %s" % [_coordinator.label(id), SessionModel.HARNESS_MODE_LABELS[model.harness_mode], state]
+		if not model.title.strip_edges().is_empty():
+			line += " · on: " + model.title.strip_edges()
+		var files := _coordinator.files_of(id)
+		if not files.is_empty():
+			line += "\n  editing: " + ", ".join(Array(files).map(func(path: String) -> String: return ProjectSettings.localize_path(path)))
+		lines.append(line)
+	var owner := _coordinator.game_owner()
+	lines.append("Game: " + ("not running" if owner.is_empty() else "running for «%s»" % _coordinator.label(owner)))
+	var mine := _coordinator.files_of(caller)
+	if not mine.is_empty():
+		lines.append("Files you hold in this turn: " + ", ".join(Array(mine).map(func(path: String) -> String: return ProjectSettings.localize_path(path))))
+	return "\n".join(lines)
+
+
+func _send_to_session(caller: String, to: String, message: String) -> String:
+	if _coordinator == null:
+		return "There is only one agent session open."
+	var target := ""
+	for id: String in _coordinator.sessions():
+		if _coordinator.label(id).to_lower() == to.to_lower() and id != caller:
+			target = id
+	if target.is_empty():
+		return "There is no other session called «%s»: godot.sessions lists them." % to
+	var dock: Control = _tabs.dock(target) if _tabs else null
+	var text := "[Message from «%s», another agent session open in this editor]\n%s" % [_coordinator.label(caller), message]
+	if dock == null or not dock.call(&"deliver_message", text):
+		return "«%s» is not connected to its agent: the message was not delivered." % to
+	var model: SessionModel = _model if target == PRIMARY_SESSION else _extra_sessions[target].model
+	model.add_notice(I18n.t("Message from «%s»: %s") % [_coordinator.label(caller), message.left(200)])
+	_log.add(AgentLog.CH_MCP, "message %s → %s (%d characters)" % [_coordinator.label(caller), _coordinator.label(target), message.length()])
+	return ""

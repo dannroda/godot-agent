@@ -44,6 +44,9 @@ var _server: TCPServer
 var _port: int = 0
 var _connections: Array[McpConnection] = []
 var _sessions: Dictionary = {}  # Mcp-Session-Id -> {client, protocolVersion}
+## Tokens de las otras sesiones del agente abiertas a la vez (m7-44): token -> id de la sesión. El
+## de `token` es el de la primera (id "").
+var _session_tokens: Dictionary = {}
 
 
 ## En _init y no en _ready: el plugin lo agrega en su _enter_tree y llama a start() antes de que
@@ -95,14 +98,30 @@ func url() -> String:
 	return "http://%s:%d%s" % [HOST, _port, ENDPOINT]
 
 
-## Entrada `mcpServers` de tipo http para session/new (spec §4.3).
-func http_server_entry() -> Dictionary:
+## Entrada `mcpServers` de tipo http para session/new (spec §4.3), con el token de la sesión.
+func http_server_entry(session_token: String = "") -> Dictionary:
 	return {
 		"type": "http",
 		"name": SERVER_NAME,
 		"url": url(),
-		"headers": [{"name": "Authorization", "value": "Bearer " + token}],
+		"headers": [{"name": "Authorization", "value": "Bearer " + (session_token if not session_token.is_empty() else token)}],
 	}
+
+
+## Token propio de otra sesión del agente: las tools que llama con él saben de qué sesión vienen.
+func session_token(session: String) -> String:
+	for existing: String in _session_tokens:
+		if _session_tokens[existing] == session:
+			return existing
+	var new_token := _random_hex(24)
+	_session_tokens[new_token] = session
+	return new_token
+
+
+func remove_session_token(session: String) -> void:
+	for existing: String in _session_tokens.keys():
+		if _session_tokens[existing] == session:
+			_session_tokens.erase(existing)
 
 
 func _exit_tree() -> void:
@@ -185,7 +204,8 @@ func _handle(request: HttpParser.ParsedRequest) -> Dictionary:
 		return {"status": 403, "body": _error_body(-32600, "Origin not allowed"), "close": true}
 	if path != ENDPOINT:
 		return {"status": 404, "body": _error_body(-32600, "The only path is %s" % ENDPOINT)}
-	if not _authorized(request.header("authorization")):
+	var caller: Variant = _caller(request.header("authorization"))
+	if caller == null:
 		_log("request rejected: invalid token")
 		return {"status": 401, "headers": {"WWW-Authenticate": "Bearer"}, "body": _error_body(-32600, "Invalid token")}
 	if request.method != "POST":
@@ -202,20 +222,20 @@ func _handle(request: HttpParser.ParsedRequest) -> Dictionary:
 	if message is Array:
 		var replies: Array = []
 		for item: Variant in message:
-			var reply: Variant = await _dispatch(item, headers, session_id)
+			var reply: Variant = await _dispatch(item, headers, session_id, caller)
 			if reply != null:
 				replies.append(reply)
 		if replies.is_empty():
 			return {"status": 202, "headers": headers}
 		return {"status": 200, "headers": headers, "body": JSON.stringify(replies).to_utf8_buffer()}
-	var single: Variant = await _dispatch(message, headers, session_id)
+	var single: Variant = await _dispatch(message, headers, session_id, caller)
 	if single == null:
 		return {"status": 202, "headers": headers}
 	return {"status": 200, "headers": headers, "body": JSON.stringify(single).to_utf8_buffer()}
 
 
 ## Un mensaje JSON-RPC → respuesta (Dictionary) o null si era notificación o respuesta.
-func _dispatch(message: Variant, headers: Dictionary, session_id: String) -> Variant:
+func _dispatch(message: Variant, headers: Dictionary, session_id: String, caller: String = "") -> Variant:
 	if not message is Dictionary or message.get("jsonrpc") != "2.0":
 		return _rpc_error(null, -32600, "Invalid JSON-RPC request")
 	var id: Variant = message.get("id")
@@ -253,7 +273,7 @@ func _dispatch(message: Variant, headers: Dictionary, session_id: String) -> Var
 			var tool_name: Variant = params.get("name")
 			if not tool_name is String or not registry.has_tool(tool_name):
 				return _rpc_error(id, -32602, "Unknown tool: %s" % tool_name)
-			var result: Variant = await registry.call_tool(tool_name, params.get("arguments", {}))
+			var result: Variant = await registry.call_tool(tool_name, params.get("arguments", {}), caller)
 			if not result is Dictionary or not result.get("content") is Array:
 				# call_tool se cortó por un error de script: igual se responde.
 				result = {"content": [{"type": "text", "text": "Internal harness error while running %s. Check the editor's Output panel." % tool_name}], "isError": true}
@@ -285,17 +305,28 @@ static func _origin_allowed(origin: String) -> bool:
 	return host in ["127.0.0.1", "localhost", "[::1]"]
 
 
-## Comparación en tiempo constante del header `Authorization: Bearer <token>`.
-func _authorized(header: String) -> bool:
+## La sesión del header `Authorization: Bearer <token>` ("" la primera), o null si no es válido.
+func _caller(header: String) -> Variant:
 	if token.is_empty() or not header.begins_with("Bearer "):
-		return false
-	var given := header.substr(7).strip_edges().to_utf8_buffer()
-	var expected := token.to_utf8_buffer()
-	if given.size() != expected.size():
+		return null
+	var given := header.substr(7).strip_edges()
+	if _same(given, token):
+		return ""
+	for existing: String in _session_tokens:
+		if _same(given, existing):
+			return _session_tokens[existing]
+	return null
+
+
+## Comparación en tiempo constante.
+static func _same(given: String, expected_text: String) -> bool:
+	var a := given.to_utf8_buffer()
+	var expected := expected_text.to_utf8_buffer()
+	if a.size() != expected.size():
 		return false
 	var diff := 0
 	for i in expected.size():
-		diff |= given[i] ^ expected[i]
+		diff |= a[i] ^ expected[i]
 	return diff == 0
 
 

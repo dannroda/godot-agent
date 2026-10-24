@@ -18,6 +18,15 @@ var agent_log: AgentLog
 ## Callable(group: String, title: String, description: String) -> bool (se espera con await).
 ## Sin authorizer se permite todo (tests).
 var authorizer: Callable
+## Con varias sesiones abiertas (m7-44): `(caller, group, title, description) -> bool` con la sesión
+## que llama ("" la primera). Si es válido, reemplaza a `authorizer`.
+var session_authorizer: Callable
+## `(caller, tool_name, args) -> String`: "" deja correr la tool; si no, el motivo por el que otra
+## sesión la impide (edita ese archivo, tiene el juego). Puede esperar (la cola del juego).
+var guard: Callable
+## La sesión que llama a la tool en curso, para los handlers que la necesitan (godot.sessions):
+## vale al empezar el handler, antes de su primer await.
+var current_caller: String = ""
 var max_output_chars: int = 20000
 var max_image_side: int = 1280
 ## tools/list solo con el núcleo, más `methods` y `run` para las extendidas.
@@ -81,8 +90,14 @@ func list() -> Array:
 	return result
 
 
+## Grupo de permisos de una tool, o "" si no existe.
+func group_of(tool_name: String) -> String:
+	var tool: McpTool = _tools.get(tool_name)
+	return tool.group if tool else ""
+
+
 ## Ejecuta una tool y devuelve siempre un resultado MCP `{content, isError}`.
-func call_tool(tool_name: String, args: Variant) -> Dictionary:
+func call_tool(tool_name: String, args: Variant, caller: String = "") -> Dictionary:
 	var started := Time.get_ticks_msec()
 	var result: Dictionary
 	if tool_name == METHODS_TOOL and not _tools.has(METHODS_TOOL):
@@ -113,12 +128,17 @@ func call_tool(tool_name: String, args: Variant) -> Dictionary:
 			result = McpTool.error(invalid)
 		elif not tool.handler.is_valid():
 			result = McpTool.error("The tool godot.%s is not available (the addon was reloaded). Retry in a moment." % tool.name)
-		elif not await _authorize(tool, arguments):
+		elif not await _authorize(tool, arguments, caller):
 			result = McpTool.error(
 				"Permission denied for godot.%s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [tool.name, tool.group]
 			)
 		else:
-			result = _normalize(await tool.handler.call(arguments))
+			var blocked: String = await guard.call(caller, tool.name, arguments) if guard.is_valid() else ""
+			if blocked.is_empty():
+				current_caller = caller
+				result = _normalize(await tool.handler.call(arguments))
+			else:
+				result = McpTool.error(blocked)
 	result = _limit(result)
 	_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
 	return result
@@ -171,10 +191,12 @@ static func _first_sentence(text: String) -> String:
 	return text.left(end + 1) if end >= 0 else text
 
 
-func _authorize(tool: McpTool, args: Dictionary) -> bool:
-	if not authorizer.is_valid():
-		return true
-	var allowed: Variant = await authorizer.call(tool.group, "godot.%s" % tool.name, tool.describe(args))
+func _authorize(tool: McpTool, args: Dictionary, caller: String = "") -> bool:
+	var allowed: Variant = true
+	if session_authorizer.is_valid():
+		allowed = await session_authorizer.call(caller, tool.group, "godot.%s" % tool.name, tool.describe(args))
+	elif authorizer.is_valid():
+		allowed = await authorizer.call(tool.group, "godot.%s" % tool.name, tool.describe(args))
 	return allowed == true
 
 

@@ -52,6 +52,16 @@ Every session is saved in `user://godot_agent/sessions/` once per turn, without 
 - if the agent supports `session/load` (Claude Code does), the session really resumes: the agent gets its context back;
 - otherwise you see the conversation read-only, and writing starts a new session.
 
+### Several sessions at once
+
+**+** at the top of the dock opens another session in its own tab, with its own agent, conversation and mode. Each agent can work on its own task in the same editor, and the harness keeps them from stepping on each other:
+
+- **Files**: a file one session writes in its turn (with the agent's own edit tools or with the `godot.*` tools) is off limits to the others until that turn ends. Another session that tries is rejected, with the name of the session that holds it.
+- **The game**: the session that ran the game keeps it until it stops. Another session's `run_scene` waits in line (up to a minute and a half), and the `godot.game_*` tools can't touch a game that isn't theirs.
+- **A channel between them**: `godot.sessions` shows each agent the other sessions, what they're doing, the files they hold and who has the game. `godot.session_send` leaves a message for another session, which reaches its agent as a prompt when its turn ends.
+
+The first tab is the one that runs One-shot, Review annotations and Remote Control; the others have the Ask, Review, Build and Auto modes. Closing a tab ends its session.
+
 ## The plan quota
 
 Claude Code reports the usage of your plan's windows (5 hours and weekly). The harness shows it, warns at 75 %, pauses One-shot at 90 % and, when the limit hits, blocks sending with a countdown until the window resets. It doesn't estimate the quota from tokens, doesn't call undocumented endpoints and doesn't read the agent's files. See [One-shot → quota](One-shot.md#plan-quota).

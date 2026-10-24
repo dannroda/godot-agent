@@ -111,6 +111,9 @@ var mode_rules_override: String = ""
 ## Después de un login exitoso: si devuelve true, ya se ocupó de la sesión (el One-shot retoma la
 ## suya con la cuenta nueva) y no se abre una sesión nueva.
 var after_login: Callable
+## Con varias sesiones abiertas (m7-44): `(paths: PackedStringArray) -> String`, "" si esta sesión
+## puede escribirlas (y quedan suyas en el turno) o el nombre de la sesión que las está editando.
+var file_guard: Callable
 
 var _process: AgentProcess
 var _profile: AgentProfile
@@ -598,6 +601,8 @@ func _on_request_permission(params: Dictionary) -> Variant:
 			_log_perm("rejected, opens Godot in its own window: %s" % launch)
 			model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+	if request.group == PermissionPolicy.GROUP_EDIT_FILES and _file_taken(_write_paths(request, call)):
+		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	var decision := policy.decide(request.group, model.harness_mode)
 	if PermissionPolicy.is_mcp_group(request.group):
 		var server := request.group.trim_prefix(PermissionPolicy.GROUP_MCP_PREFIX)
@@ -691,6 +696,8 @@ func _add_shell_rule(rule: Dictionary) -> void:
 
 
 func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bool:
+	if _file_taken(PackedStringArray([path])):
+		return false
 	var expiry: int = _preauthorized_writes.get(path, 0)
 	if expiry > Time.get_ticks_msec():
 		_preauthorized_writes.erase(path)
@@ -703,10 +710,29 @@ func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bo
 	)
 
 
+## true (y lo avisa) si otra sesión abierta está editando alguno de `paths` (m7-44).
+func _file_taken(paths: PackedStringArray) -> bool:
+	if not file_guard.is_valid() or paths.is_empty():
+		return false
+	var owner: String = file_guard.call(paths)
+	if owner.is_empty():
+		return false
+	var names := ", ".join(Array(paths).map(func(path: String) -> String: return path.get_file()))
+	_log_perm("rejected, %s is being edited by %s" % [names, owner])
+	model.add_notice(I18n.t("Rejected: %s is being edited by «%s». It's free again when that session's turn ends.") % [names, owner], ChatEntry.NoticeLevel.WARNING)
+	return true
+
+
 ## Un permiso de edición concedido cubre la escritura por fs/* que le sigue al mismo archivo.
 func _preauthorize(request: PermissionRequest, call: Variant) -> void:
 	if request.group != PermissionPolicy.GROUP_EDIT_FILES:
 		return
+	for path: String in _write_paths(request, call):
+		_preauthorized_writes[path] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
+
+
+## Archivos que escribe un pedido de edición: el del diff, los del input y las ubicaciones.
+func _write_paths(request: PermissionRequest, call: Variant) -> PackedStringArray:
 	var paths: PackedStringArray = []
 	if not request.diff.is_empty():
 		paths.append(str(request.diff.get("path", "")))
@@ -718,9 +744,11 @@ func _preauthorize(request: PermissionRequest, call: Variant) -> void:
 		for location: Variant in call.locations:
 			if location is Dictionary and location.get("path") is String:
 				paths.append(location.path)
+	var result: PackedStringArray = []
 	for path: String in paths:
-		if not path.is_empty():
-			_preauthorized_writes[path.simplify_path()] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
+		if not path.is_empty() and not path.simplify_path() in result:
+			result.append(path.simplify_path())
+	return result
 
 
 func _notify_denied(group: String, title: String) -> void:

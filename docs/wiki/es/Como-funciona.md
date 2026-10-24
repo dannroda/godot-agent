@@ -52,6 +52,16 @@ Cada sesión se guarda en `user://godot_agent/sessions/` una vez por turno, sin 
 - si el agente soporta `session/load` (Claude Code sí), la sesión se reanuda de verdad: el agente recupera su contexto;
 - si no, la conversación se ve en modo solo lectura, y escribir abre una sesión nueva.
 
+### Varias sesiones a la vez
+
+**+** arriba del dock abre otra sesión en su propia pestaña, con su agente, su conversación y su modo. Cada agente puede trabajar en lo suyo en el mismo editor, y el harness evita que se pisen:
+
+- **Archivos**: un archivo que una sesión escribe en su turno (con las herramientas de edición del agente o con las `godot.*`) queda fuera del alcance de las demás hasta que ese turno termina. Otra sesión que lo intente recibe un rechazo, con el nombre de la sesión que lo tiene.
+- **El juego**: la sesión que corrió el juego lo tiene hasta que se detiene. El `run_scene` de otra sesión espera en cola (hasta un minuto y medio), y las herramientas `godot.game_*` no tocan un juego ajeno.
+- **Un canal entre ellas**: `godot.sessions` le muestra a cada agente las otras sesiones, qué hacen, qué archivos tienen y quién tiene el juego. `godot.session_send` le deja un mensaje a otra sesión, que le llega a su agente como prompt cuando termina su turno.
+
+La primera pestaña es la que corre el One-shot, las marcas de Revisar y Remote Control; las demás tienen los modos Preguntar, Revisar, Construir y Auto. Cerrar una pestaña termina su sesión.
+
 ## La cuota del plan
 
 Claude Code informa el uso de las ventanas de tu plan (5 horas y semanal). El harness lo muestra, avisa al 75 %, pausa el One-shot al 90 % y, al llegar al límite, bloquea el envío con una cuenta regresiva hasta que la ventana se reinicia. No estima la cuota con tokens, no consulta endpoints no documentados y no lee archivos del agente. Ver [One-shot → cuota](One-shot.md#cuota-del-plan).

@@ -90,6 +90,26 @@ func test_http_errors() -> void:
 	_stop()
 
 
+## Varias sesiones (m7-44): cada una con su token, y la tool sabe de cuál viene.
+func test_session_tokens() -> void:
+	_start()
+	var callers: Array[String] = []
+	_server.registry.register(McpTool.create("who", "read", "Quién llama", {}, [], func(_args: Dictionary) -> String:
+		callers.append(_server.registry.current_caller)
+		return "ok"))
+	var second := _server.session_token("s2")
+	assert_eq(_server.session_token("s2"), second, "el mismo token para la misma sesión")
+	assert_true(second != _server.token, "distinto del principal")
+	assert_eq(_server.http_server_entry(second).headers[0].value, "Bearer " + second, "entrada http con su token")
+	await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(1, "tools/call", {"name": "who"}), _auth())
+	await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(2, "tools/call", {"name": "who"}), ["Content-Type: application/json", "Authorization: Bearer " + second])
+	assert_eq(callers, ["", "s2"] as Array[String], "la tool ve la sesión de cada token")
+	_server.remove_session_token("s2")
+	var revoked: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(3, "ping"), ["Content-Type: application/json", "Authorization: Bearer " + second])
+	assert_eq(revoked.status, 401, "al cerrar la sesión su token deja de valer")
+	_stop()
+
+
 func test_mcp_flow() -> void:
 	_start()
 	var init: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(1, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}), _auth())
