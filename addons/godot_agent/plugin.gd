@@ -13,6 +13,7 @@ const HarnessSettings := preload("core/harness_settings.gd")
 const SettingsDialog := preload("ui/settings/settings_dialog.gd")
 const ExtensionsWindow := preload("ui/extensions/extensions_window.gd")
 const ClaudeExtensions := preload("extensions/claude_extensions.gd")
+const SkillCatalog := preload("extensions/skill_catalog.gd")
 const I18n := preload("core/i18n.gd")
 const SessionHistory := preload("session/session_history.gd")
 const SessionModel := preload("session/session_model.gd")
@@ -118,11 +119,12 @@ func _enter_tree() -> void:
 	_controller = SessionController.new()
 	_controller.setup(_model, _log, EditorContext.project_path())
 	_controller.prompt_variables_provider = _prompt_variables
+	_controller.session_meta_provider = _session_meta
 	_controller.history = SessionHistory.new()
 	_project_config = ProjectConfig.load_or_default()
 	_controller.policy = PermissionPolicy.new(_project_config.permissions)
 	_controller.shell_rules = _project_config.auto_shell_rules
-	_controller.shell_rules_changed.connect(_on_shell_rules_changed)
+	_controller.shell_rules_changed.connect(_save_project_config)
 	_controller.permissions_changed.connect(_on_permissions_changed)
 	_controller.external_mcp_names = _external_mcp_names()
 	_apply_quota_settings()
@@ -247,6 +249,9 @@ func _enter_tree() -> void:
 	_extensions_window.new_session_requested.connect(func() -> void:
 		if is_instance_valid(dock):
 			dock.call(&"_on_new_session_pressed"))
+	_extensions_window.disabled_skills_changed.connect(func(names: PackedStringArray) -> void:
+		_project_config.disabled_skills = names
+		_save_project_config())
 	_extensions_window.mcp_settings_requested.connect(func() -> void: _settings_dialog.open(SettingsDialog.SettingsSection.MCP))
 	EditorInterface.get_base_control().add_child(_extensions_window)
 
@@ -623,8 +628,8 @@ func _oneshot_defaults() -> Dictionary:
 	}
 
 
-## «Permitir siempre» en una tarjeta del modo Auto: la regla ya está en el array de la config.
-func _on_shell_rules_changed() -> void:
+## Guarda la config del proyecto («Permitir siempre» del modo Auto, permisos, skills apagadas…).
+func _save_project_config() -> void:
 	var result := _project_config.save_to_project()
 	if result != OK:
 		_log.add(AgentLog.CH_PERM, "could not save %s: %s" % [ProjectConfig.PATH, error_string(result)])
@@ -633,13 +638,24 @@ func _on_shell_rules_changed() -> void:
 ## «Permitir siempre en este proyecto» en la tarjeta de un MCP server de terceros (m7-35).
 func _on_permissions_changed() -> void:
 	_project_config.permissions = _controller.policy.overrides
-	_on_shell_rules_changed()
+	_save_project_config()
+
+
+## `_meta` de session/new y session/load: las skills apagadas en el proyecto (solo Claude Code
+## tiene skills).
+func _session_meta() -> Dictionary:
+	var profile := _controller.profile()
+	if profile == null or not ClaudeExtensions.is_claude_profile(profile.command, profile.args):
+		return {}
+	var settings := SkillCatalog.session_settings(_project_config.disabled_skills)
+	return {} if settings.is_empty() else {"claudeCode": {"options": {"settings": settings}}}
 
 
 ## El CLI corre con el entorno del perfil activo (CLAUDE_CONFIG_DIR y demás), como el agente.
 func _open_extensions() -> void:
 	var profile := _settings.active_profile()
 	_extensions_window.extensions = ClaudeExtensions.new(EditorContext.project_path(), profile.resolved_env() if profile else {})
+	_extensions_window.disabled_skills = _project_config.disabled_skills
 	_extensions_window.open()
 
 

@@ -100,6 +100,9 @@ var last_turn_usage: Dictionary = {}
 var cwd: String = ""
 ## Callable() -> Array: entradas `mcpServers` para session/new (el server del addon, M3).
 var mcp_servers_provider: Callable
+## Callable() -> Dictionary: `_meta` de session/new y session/load (m7-36: las skills del proyecto
+## van en `claudeCode.options.skills`). {} = sin `_meta`.
+var session_meta_provider: Callable
 ## Callable() -> Dictionary: variables para el prompt de sistema ({project_name}, …).
 var prompt_variables_provider: Callable
 ## Reglas del modo para el prompt de sistema en lugar de las de MODE_RULES ("" = las del modo).
@@ -214,7 +217,7 @@ func open_session(generation: int = _connect_generation) -> bool:
 		model.reset()
 		model.set_state(SessionModel.SessionState.STARTING)
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
-	var result := await client.request("session/new", {"cwd": cwd, "mcpServers": mcp_servers})
+	var result := await client.request("session/new", _with_meta({"cwd": cwd, "mcpServers": mcp_servers}))
 	if generation != _connect_generation:
 		return false
 	if not result.ok or not result.result is Dictionary or not result.result.get("sessionId") is String:
@@ -800,7 +803,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		model.add_notice(I18n.t("%s cannot resume sessions (it does not announce session/load): the history stays read-only. Type to start a new session.") % _profile.display_name)
 		return false
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
-	var result := await client.request("session/load", {"sessionId": session_id, "cwd": cwd, "mcpServers": mcp_servers})
+	var result := await client.request("session/load", _with_meta({"sessionId": session_id, "cwd": cwd, "mcpServers": mcp_servers}))
 	if generation != _connect_generation:
 		return false
 	if not result.ok:
@@ -819,6 +822,13 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	_sync_agent_mode()
 	connected.emit()
 	return true
+
+
+func _with_meta(params: Dictionary) -> Dictionary:
+	var meta: Dictionary = session_meta_provider.call() if session_meta_provider.is_valid() else {}
+	if not meta.is_empty():
+		params._meta = meta
+	return params
 
 
 func _on_stderr(line: String) -> void:

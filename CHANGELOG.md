@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Skills** tab in the Extensions window: Claude Code's skills of the project (`.claude/skills`), of the user and of the installed plugins, with their description. A switch turns a user or project skill off for this project (from the next session the agent doesn't see it and it leaves the `/` menu; plugin skills go with their plugin). Create a skill from a template, import a skill folder or a zip, copy a user skill into the project, and install the Godot skills of the [godot-agent marketplace](https://github.com/dannroda/godot-agent-plugins) with one click.
+
 ## [0.1.6] - 2026-10-24
 
 ### Added

@@ -116,6 +116,10 @@ const DocsShots := preload("docs_shots.gd")
 ## tests/asset_check.sh, que usa una copia del proyecto).
 const ASSET_ARG := "--godot-agent-asset-test="
 const AssetCheck := preload("asset_check.gd")
+## m7-36: la pestaña Skills de Extensions (correr con tests/skills_check.sh: copia del proyecto y
+## un CLAUDE_CONFIG_DIR de prueba).
+const SKILLS_ARG := "--godot-agent-skills-test="
+const SkillsCheck := preload("skills_check.gd")
 const AUTO_ARG := "--godot-agent-auto-test"
 const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
@@ -195,6 +199,8 @@ func _enter_tree() -> void:
 			_run_docs_shots.call_deferred(arg.trim_prefix(DOCS_ARG))
 		if arg.begins_with(ASSET_ARG):
 			_run_asset_test.call_deferred(arg.trim_prefix(ASSET_ARG))
+		if arg.begins_with(SKILLS_ARG):
+			_run_skills_test.call_deferred(arg.trim_prefix(SKILLS_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
 
@@ -1255,6 +1261,17 @@ func _run_docs_shots(dir: String) -> void:
 	for failure: String in failures:
 		print("[docs-shots] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "docs-shots: %d fallas" % failures.size())
+
+
+func _run_skills_test(prefix: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := await SkillsCheck.new().run(get_tree(), dock, prefix)
+	_finish(0 if failures.is_empty() else 1, "skills-test: %s" % ("ok" if failures.is_empty() else "; ".join(failures)))
 
 
 func _run_asset_test(prefix: String) -> void:

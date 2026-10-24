@@ -1,13 +1,15 @@
 @tool
 extends AcceptDialog
 ## Ventana Extensions (m7-37), desde el header del dock: plugins y marketplaces de Claude Code,
-## todos los MCP servers que ve el agente con su estado y los addons de Godot del proyecto y del
-## Asset Store (m7-39, GodotAddonsTab). Los cambios se aplican al toque por el CLI
+## todos los MCP servers que ve el agente con su estado, las skills (m7-36, SkillsTab) y los addons
+## de Godot del proyecto y del Asset Store (m7-39, GodotAddonsTab). Los cambios se aplican al toque por el CLI
 ## (ClaudeExtensions); los de plugins valen desde la próxima sesión, y la franja de arriba lo dice
 ## con un botón para abrir una.
 
 ## «Nueva sesión» de la franja: los plugins se cargan al abrir la sesión.
 signal new_session_requested
+## Las skills apagadas en el proyecto cambiaron (la pestaña Skills).
+signal disabled_skills_changed(names: PackedStringArray)
 ## «Agregar server» de la pestaña MCP: los servers del addon se editan en Settings.
 signal mcp_settings_requested
 
@@ -16,8 +18,10 @@ const AgentTheme := preload("../agent_theme.gd")
 const ClaudeExtensions := preload("../../extensions/claude_extensions.gd")
 const ExtensionsUi := preload("extensions_ui.gd")
 const GodotAddonsTab := preload("godot_addons_tab.gd")
+const SkillsTab := preload("skills_tab.gd")
+const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 
-enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, GODOT_ADDONS }
+enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS }
 const AVAILABLE_LIMIT := 30
 const MCP_ORIGIN_ORDER: PackedStringArray = ["addon", "user", "project", "local", "claude.ai", "plugin", "other"]
 const MCP_ORIGIN_LABELS: Dictionary = {
@@ -51,6 +55,8 @@ var addon_servers_provider: Callable
 var is_claude_provider: Callable
 ## El cliente del Asset Store, para la pestaña de addons de Godot.
 var asset_store: Node
+## Skills apagadas en el proyecto (ProjectConfig.disabled_skills), para la pestaña Skills.
+var disabled_skills: PackedStringArray = []
 
 var _tabs: TabContainer
 var _banner: PanelContainer
@@ -63,6 +69,7 @@ var _markets_box: VBoxContainer
 var _mcp_filter: LineEdit
 var _mcp_box: VBoxContainer
 var _addons_tab: GodotAddonsTab
+var _skills_tab: SkillsTab
 var _confirm: ConfirmationDialog
 var _confirm_action: Callable
 
@@ -103,7 +110,7 @@ func _build() -> void:
 	var banner_row := HBoxContainer.new()
 	_banner.add_child(banner_row)
 	var banner_text := Label.new()
-	banner_text.text = I18n.t("Plugin changes apply when a new session opens.")
+	banner_text.text = I18n.t("Plugin and skill changes apply when a new session opens.")
 	banner_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	banner_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	banner_row.add_child(banner_text)
@@ -120,6 +127,14 @@ func _build() -> void:
 	_tabs.add_child(_build_plugins_tab())
 	_tabs.add_child(_build_markets_tab())
 	_tabs.add_child(_build_mcp_tab())
+	_skills_tab = SkillsTab.new()
+	_skills_tab.status_changed.connect(_set_status)
+	_skills_tab.next_session_changed.connect(func() -> void: _banner.visible = true)
+	_skills_tab.disabled_changed.connect(func(names: PackedStringArray) -> void:
+		disabled_skills = names
+		disabled_skills_changed.emit(names))
+	_skills_tab.suggested_install_requested.connect(_install_suggested_skills)
+	_tabs.add_child(_skills_tab)
 	_addons_tab = GodotAddonsTab.new()
 	_addons_tab.status_changed.connect(_set_status)
 	_tabs.add_child(_addons_tab)
@@ -147,6 +162,7 @@ func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 func refresh() -> void:
 	_addons_tab.store = asset_store
 	_addons_tab.refresh()
+	_refresh_skills()
 	if extensions == null or not extensions.cli.is_available():
 		_plugins_error = I18n.t("The Claude Code CLI (claude) was not found in the PATH or next to the ACP adapter. Open a Claude Code session once (npx downloads it) or install Claude Code.")
 		_markets_error = _plugins_error
@@ -494,6 +510,23 @@ func _run(label: String, action: Callable, plugins_changed: bool, with_sha: Call
 		_load_mcp()
 
 
+func _refresh_skills() -> void:
+	_skills_tab.is_claude = _is_claude()
+	_skills_tab.project_path = extensions.cli.cwd if extensions else ""
+	_skills_tab.claude_config_dir = SkillCatalog.config_dir(extensions.cli.env if extensions else {})
+	_skills_tab.disabled = disabled_skills.duplicate()
+	_skills_tab.refresh()
+
+
+## Agrega el marketplace de las skills de Godot (si falta) e instala sus plugins para el usuario.
+func _install_suggested_skills() -> void:
+	if not _markets.any(func(market: Variant) -> bool: return market is Dictionary and market.get("name") == SkillsTab.SUGGESTED_MARKETPLACE_NAME):
+		await _run(I18n.t("Adding %s…") % SkillsTab.SUGGESTED_MARKETPLACE, extensions.add_marketplace.bind(SkillsTab.SUGGESTED_MARKETPLACE), false, Callable(), true)
+	for id: String in SkillsTab.SUGGESTED_PLUGINS:
+		await _run(I18n.t("Installing %s…") % id, extensions.install_plugin.bind(id, "user"), true)
+	_refresh_skills()
+
+
 func _on_add_market() -> void:
 	var source := _market_source.text.strip_edges()
 	if source.is_empty():
@@ -535,14 +568,8 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.PLUGINS, I18n.t("Plugins (%d)") % _installed.size())
 	_tabs.set_tab_title(ExtensionsTab.MARKETPLACES, I18n.t("Marketplaces (%d)") % _markets.size())
 	_tabs.set_tab_title(ExtensionsTab.MCP, I18n.t("MCP servers"))
+	_tabs.set_tab_title(ExtensionsTab.SKILLS, I18n.t("Skills"))
 	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Godot addons"))
-
-
-
-
-
-
-
 
 
 func _chip(text: String, status: String) -> Control:

@@ -2330,8 +2330,8 @@ msgstr "Proyecto (compartido, .claude/settings.json)"
 msgid "Extensions"
 msgstr "Extensiones"
 
-msgid "Plugin changes apply when a new session opens."
-msgstr "Los cambios de plugins se aplican al abrir una sesión nueva."
+msgid "Plugin and skill changes apply when a new session opens."
+msgstr "Los cambios de plugins y skills se aplican al abrir una sesión nueva."
 
 msgid "The Claude Code CLI (claude) was not found in the PATH or next to the ACP adapter. Open a Claude Code session once (npx downloads it) or install Claude Code."
 msgstr "No se encontró el CLI de Claude Code (claude) en el PATH ni junto al adaptador ACP. Abrí una sesión de Claude Code una vez (npx lo descarga) o instalá Claude Code."
@@ -2677,3 +2677,111 @@ msgstr "Instalado"
 
 msgid "Version %s is in the project."
 msgstr "La versión %s está en el proyecto."
+
+msgid "Skills"
+msgstr "Skills"
+
+msgid "Project (.claude/skills)"
+msgstr "Proyecto (.claude/skills)"
+
+msgid "Filter skills…"
+msgstr "Filtrar skills…"
+
+msgid "In this project"
+msgstr "En este proyecto"
+
+msgid "For all projects"
+msgstr "Para todos los proyectos"
+
+msgid "Where New and Import put a skill."
+msgstr "Dónde dejan la skill Nueva e Importar."
+
+msgid "New skill"
+msgstr "Nueva skill"
+
+msgid "Import a skill folder or zip"
+msgstr "Importar una carpeta o un zip de skills"
+
+msgid "Read the skills again"
+msgstr "Volver a leer las skills"
+
+msgid "A skill turned off here is hidden from the agent in this project from the next session. Skills are a Claude Code feature."
+msgstr "Una skill apagada acá no le llega al agente en este proyecto desde la próxima sesión. Las skills son de Claude Code."
+
+msgid "Create"
+msgstr "Crear"
+
+msgid "Name (lowercase and dashes, e.g. level-design)"
+msgstr "Nombre (minúsculas y guiones, p. ej. level-design)"
+
+msgid "When the agent should use it"
+msgstr "Cuándo la tiene que usar el agente"
+
+msgid "Skills belong to Claude Code, and the active agent profile is another agent."
+msgstr "Las skills son de Claude Code, y el perfil activo es de otro agente."
+
+msgid "No skills yet. Create one, import one, or install a plugin that brings skills."
+msgstr "Todavía no hay skills. Creá una, importá una o instalá un plugin que traiga skills."
+
+msgid "Open SKILL.md"
+msgstr "Abrir SKILL.md"
+
+msgid "Show in the file manager"
+msgstr "Mostrar en el administrador de archivos"
+
+msgid "Copy to this project"
+msgstr "Copiar a este proyecto"
+
+msgid "Delete"
+msgstr "Borrar"
+
+msgid "Move the skill %s to the trash?"
+msgstr "¿Mandar la skill %s a la papelera?"
+
+msgid "Use in this project"
+msgstr "Usar en este proyecto"
+
+msgid "Plugin %s: it turns on and off with its plugin (Plugins tab)."
+msgstr "Plugin %s: se prende y se apaga con su plugin (pestaña Plugins)."
+
+msgid "Godot skills"
+msgstr "Skills de Godot"
+
+msgid "Architecture, signals and autoloads, gameplay patterns, data and saves, code review and shaders for Godot 4, from the %s marketplace."
+msgstr "Arquitectura, señales y autoloads, patrones de gameplay, datos y guardado, code review y shaders para Godot 4, del marketplace %s."
+
+msgid "%s turned on in this project."
+msgstr "%s prendida en este proyecto."
+
+msgid "%s turned off in this project."
+msgstr "%s apagada en este proyecto."
+
+msgid "A skill name is lowercase letters, digits and dashes: «%s» is not valid."
+msgstr "El nombre de una skill lleva minúsculas, números y guiones: «%s» no sirve."
+
+msgid "Could not create %s: a skill with that name may already exist."
+msgstr "No se pudo crear %s: puede que ya haya una skill con ese nombre."
+
+msgid "Created %s."
+msgstr "Se creó %s."
+
+msgid "Could not import: %s"
+msgstr "No se pudo importar: %s"
+
+msgid "Imported: %s."
+msgstr "Importadas: %s."
+
+msgid "Already there, left as they were: %s."
+msgstr "Ya estaban, quedaron como estaban: %s."
+
+msgid "Could not copy %s: %s"
+msgstr "No se pudo copiar %s: %s"
+
+msgid "%s copied to .claude/skills: commit it so your team gets it too."
+msgstr "%s copiada a .claude/skills: commiteala para que la tenga tu equipo."
+
+msgid "%s moved to the trash."
+msgstr "%s se fue a la papelera."
+
+msgid "Could not move %s to the trash."
+msgstr "No se pudo mandar %s a la papelera."

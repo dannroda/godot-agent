@@ -41,6 +41,9 @@ const ShellRules := preload("../session/shell_rules.gd")
 ## tools/list compacto (D56): el núcleo tipado más godot.methods y godot.run para el resto, para
 ## que las descripciones de ~55 tools no ocupen contexto en cada turno. Vale desde la próxima sesión.
 @export var compact_tools: bool = true
+## Skills de Claude Code apagadas en este proyecto (m7-36), por su nombre (`plugin:skill` las de
+## plugins). Vale desde la próxima sesión.
+@export var disabled_skills: PackedStringArray = []
 @export_group("Completion")
 ## Completado predictivo en este proyecto (además del on/off global del usuario, spec §16.10).
 @export var completion_enabled: bool = true
