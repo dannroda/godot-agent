@@ -32,6 +32,8 @@ const ToolRegistry := preload("mcp/tool_registry.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
 const ApiTools := preload("mcp/tools/api_tools.gd")
 const ProjectTools := preload("mcp/tools/project_tools.gd")
+const AssetTools := preload("mcp/tools/asset_tools.gd")
+const AssetStore := preload("core/asset_store.gd")
 const FileTools := preload("mcp/tools/file_tools.gd")
 const ResourceTools := preload("mcp/tools/resource_tools.gd")
 const TilemapTools := preload("mcp/tools/tilemap_tools.gd")
@@ -98,6 +100,7 @@ var _fs: FsHandler
 var _registry: ToolRegistry
 var _completion: CompletionService
 var _updater: AddonUpdater
+var _store: AssetStore
 var _update_banner: UpdateBanner
 
 
@@ -237,6 +240,7 @@ func _enter_tree() -> void:
 	_extensions_window = ExtensionsWindow.new()
 	_extensions_window.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_extensions_window.addon_servers_provider = _external_mcp_servers
+	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
 		var profile := _settings.active_profile()
 		return profile != null and ClaudeExtensions.is_claude_profile(profile.command, profile.args)
@@ -262,6 +266,10 @@ func _exit_tree() -> void:
 		remove_child(_updater)
 		_updater.queue_free()
 		_updater = null
+	if _store:
+		remove_child(_store)
+		_store.queue_free()
+		_store = null
 	_update_banner = null
 	if _oneshot:
 		_oneshot.suspend()  # queda guardado para retomarlo al volver (D37)
@@ -496,6 +504,14 @@ func _undo_tool_call(call_id: String) -> void:
 		_model.add_notice(I18n.t("Could not undo «%s»: %s") % [call.undo_info.get("action", ""), reason], ChatEntry.NoticeLevel.WARNING)
 
 
+## El cliente del Asset Store, compartido por la pestaña de Extensions y las tools del agente.
+func _asset_store() -> AssetStore:
+	if _store == null:
+		_store = AssetStore.new()
+		add_child(_store)
+	return _store
+
+
 ## Server MCP con las tools godot.* (spec §5). La política de permisos se aplica del lado del server
 ## con el modo actual del harness; "ask" muestra una tarjeta y vence a los permission_timeout_s.
 func _start_mcp_server() -> void:
@@ -520,6 +536,9 @@ func _start_mcp_server() -> void:
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)
 	registry.register_provider(ProjectTools.new(), true)
+	var asset_tools := AssetTools.new()
+	asset_tools.store = _asset_store()
+	registry.register_provider(asset_tools, true)
 	var file_tools := FileTools.new()
 	file_tools.on_file_written = _sync.after_agent_write
 	file_tools.unsaved_buffer = _sync.buffer_text

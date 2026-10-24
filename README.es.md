@@ -11,6 +11,7 @@ Addon de editor para Godot 4 que conecta un agente de código (Claude Code, Gemi
 - correr el juego con inputs simulados y mirar capturas de frames (un clic en el chat la abre en grande);
 - revisar código y dejar hallazgos en el Script Editor;
 - usar los servidores MCP de otros programas (Blender, una base de datos…), configurados en Settings con sus propios permisos;
+- buscar, instalar y activar addons de Godot del [Asset Store](https://store.godotengine.org) (el agente también los puede sugerir);
 - manejar los plugins, marketplaces y servidores MCP de Claude Code desde la ventana **Extensiones**.
 
 Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construir que corre sin preguntar los comandos de shell que tus reglas permiten) y **One-shot**. El One-shot persigue un objetivo entero ("Pong de 2 jugadores con puntaje") con plan, presupuestos, checkpoints git y playtests.

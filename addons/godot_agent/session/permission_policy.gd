@@ -18,13 +18,15 @@ const GROUP_EDIT_FILES := "edit_files"
 const GROUP_RUN := "run"
 const GROUP_SHELL := "shell"
 const GROUP_PROJECT := "project"
+## Instalar assets del Asset Store (m7-39): código de terceros en el proyecto, siempre se pregunta.
+const GROUP_ADDONS := "addons"
 ## Sin grupo conocido: siempre se pregunta (spec §7, "el resto → ask").
 const GROUP_OTHER := "other"
 ## Un grupo por MCP server de terceros (m7-35): `mcp:blender`. Sin override, ask en todos los modos.
 const GROUP_MCP_PREFIX := "mcp:"
 
 const GROUPS: PackedStringArray = [
-	GROUP_READ, GROUP_DIAGNOSTICS, GROUP_EDIT_SCENE, GROUP_EDIT_FILES, GROUP_RUN, GROUP_SHELL, GROUP_PROJECT,
+	GROUP_READ, GROUP_DIAGNOSTICS, GROUP_EDIT_SCENE, GROUP_EDIT_FILES, GROUP_RUN, GROUP_SHELL, GROUP_PROJECT, GROUP_ADDONS,
 ]
 const GROUP_LABELS: Dictionary = {
 	GROUP_READ: "Read",  # i18n
@@ -34,6 +36,7 @@ const GROUP_LABELS: Dictionary = {
 	GROUP_RUN: "Run the game",  # i18n
 	GROUP_SHELL: "Shell / commands",  # i18n
 	GROUP_PROJECT: "Project settings, export and addons",  # i18n
+	GROUP_ADDONS: "Install from the Asset Store",  # i18n
 	GROUP_OTHER: "Other",  # i18n
 }
 const MODE_KEYS: Dictionary = {
@@ -55,6 +58,8 @@ const DEFAULTS: Dictionary = {
 	# One-shot: allow desde D49. Input map, autoloads y settings son parte de armar un juego, y antes
 	# el agente los escribía en project.godot con edit_files (allow en One-shot).
 	GROUP_PROJECT: [DENY, DENY, ASK, ALLOW, ALLOW],
+	# Ask también en One-shot y Auto: baja código de terceros al proyecto (m7-39).
+	GROUP_ADDONS: [DENY, DENY, ASK, ASK, ASK],
 }
 ## kind de un tool call de ACP → grupo.
 const KIND_GROUPS: Dictionary = {

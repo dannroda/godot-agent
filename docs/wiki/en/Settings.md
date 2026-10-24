@@ -53,11 +53,13 @@ The tools of each server ask for permission until you allow them: see [MCP serve
 
 ## Extensions
 
-The **Extensions** button in the dock header (next to Settings) opens a window with Claude Code's plugins, marketplaces and every MCP server the agent sees. Changes apply right away through the Claude Code CLI (`claude`), with the agent profile's environment (for example `CLAUDE_CONFIG_DIR`). If `claude` isn't in the `PATH`, the window uses the one the ACP adapter downloads with npx.
+The **Extensions** button in the dock header (next to Settings) opens a window with Claude Code's plugins, marketplaces, every MCP server the agent sees and the project's Godot addons. Changes apply right away through the Claude Code CLI (`claude`), with the agent profile's environment (for example `CLAUDE_CONFIG_DIR`). If `claude` isn't in the `PATH`, the window uses the one the ACP adapter downloads with npx.
 
 - **Plugins**: the installed ones with an on/off switch, **Update** and **Uninstall**, their scope and the MCP servers each one brings (colored by their status); below, the available ones from your marketplaces, the most installed first, with a search box and **Install** (in the scope chosen at the top: user, project or local). If a plugin needs to run a command of its marketplace to install, the window shows the command and asks first.
 - **Marketplaces**: add one (a GitHub `owner/repo`, a URL or a folder), update it or remove it.
 - **MCP servers**: the addon's own servers from [Other MCP servers](#other-mcp-servers) and the ones Claude Code loads (user, project `.mcp.json`, local, claude.ai and plugins), each with its status: connected, needs auth, failed, pending approval, not configured. **Authenticate** runs `claude mcp login`, which opens the browser. In a session, `/mcp` in the chat reconnects or turns off a server.
+
+- **Godot addons**: the editor plugins in the project's `addons/` with an on/off switch (the harness itself has none), and a search of the [Godot Asset Store](https://store.godotengine.org) for this Godot version, sorted by relevance, recent updates, reviews or newest. **Install** downloads the newest stable release and shows what it will write before touching the project: only the `addons/` folder (zips often carry demos, a README or even a `project.godot`; a checkbox adds them), never overwriting a file that already exists, and **Enable its plugins** turns them on once the editor has imported the files. Paid assets are bought on the store website.
 
 Plugins load when a session opens: after a change, the window offers **New session**. Plugins and marketplaces are Claude Code's; with another agent profile those tabs say so.
 

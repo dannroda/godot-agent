@@ -110,6 +110,7 @@ const QA_RESTRICTIONS: Dictionary = {
 	PermissionPolicy.GROUP_EDIT_SCENE: PermissionPolicy.DENY,
 	PermissionPolicy.GROUP_EDIT_FILES: PermissionPolicy.DENY,
 	PermissionPolicy.GROUP_PROJECT: PermissionPolicy.DENY,
+	PermissionPolicy.GROUP_ADDONS: PermissionPolicy.DENY,
 	PermissionPolicy.GROUP_SHELL: PermissionPolicy.DENY,
 }
 ## Hallazgos que van a la actividad por vuelta (el resto está en qa-<n>.md).

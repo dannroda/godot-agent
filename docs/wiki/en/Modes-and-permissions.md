@@ -32,6 +32,7 @@ Defaults:
 | Run the game | Deny | Ask | Ask | Allow | Allow |
 | Shell / commands | Deny | Deny | Ask | Ask¹ | Ask |
 | Project settings, export and addons | Deny | Deny | Ask | Allow | Allow |
+| Install from the Asset Store | Deny | Deny | Ask | Ask | Ask |
 
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.
 

@@ -1,7 +1,8 @@
 @tool
 extends AcceptDialog
-## Ventana Extensions (m7-37), desde el header del dock: plugins y marketplaces de Claude Code y
-## todos los MCP servers que ve el agente con su estado. Los cambios se aplican al toque por el CLI
+## Ventana Extensions (m7-37), desde el header del dock: plugins y marketplaces de Claude Code,
+## todos los MCP servers que ve el agente con su estado y los addons de Godot del proyecto y del
+## Asset Store (m7-39, GodotAddonsTab). Los cambios se aplican al toque por el CLI
 ## (ClaudeExtensions); los de plugins valen desde la próxima sesión, y la franja de arriba lo dice
 ## con un botón para abrir una.
 
@@ -13,8 +14,10 @@ signal mcp_settings_requested
 const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const ClaudeExtensions := preload("../../extensions/claude_extensions.gd")
+const ExtensionsUi := preload("extensions_ui.gd")
+const GodotAddonsTab := preload("godot_addons_tab.gd")
 
-enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP }
+enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, GODOT_ADDONS }
 const AVAILABLE_LIMIT := 30
 const MCP_ORIGIN_ORDER: PackedStringArray = ["addon", "user", "project", "local", "claude.ai", "plugin", "other"]
 const MCP_ORIGIN_LABELS: Dictionary = {
@@ -46,6 +49,8 @@ var extensions: ClaudeExtensions
 var addon_servers_provider: Callable
 ## () -> bool: el perfil activo es Claude Code (plugins y marketplaces son de Claude Code).
 var is_claude_provider: Callable
+## El cliente del Asset Store, para la pestaña de addons de Godot.
+var asset_store: Node
 
 var _tabs: TabContainer
 var _banner: PanelContainer
@@ -57,6 +62,7 @@ var _market_source: LineEdit
 var _markets_box: VBoxContainer
 var _mcp_filter: LineEdit
 var _mcp_box: VBoxContainer
+var _addons_tab: GodotAddonsTab
 var _confirm: ConfirmationDialog
 var _confirm_action: Callable
 
@@ -114,6 +120,9 @@ func _build() -> void:
 	_tabs.add_child(_build_plugins_tab())
 	_tabs.add_child(_build_markets_tab())
 	_tabs.add_child(_build_mcp_tab())
+	_addons_tab = GodotAddonsTab.new()
+	_addons_tab.status_changed.connect(_set_status)
+	_tabs.add_child(_addons_tab)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -136,6 +145,8 @@ func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 
 
 func refresh() -> void:
+	_addons_tab.store = asset_store
+	_addons_tab.refresh()
 	if extensions == null or not extensions.cli.is_available():
 		_plugins_error = I18n.t("The Claude Code CLI (claude) was not found in the PATH or next to the ACP adapter. Open a Claude Code session once (npx downloads it) or install Claude Code.")
 		_markets_error = _plugins_error
@@ -150,7 +161,7 @@ func refresh() -> void:
 # --- pestañas ------------------------------------------------------------------------------------
 
 func _build_plugins_tab() -> Control:
-	var page := _tab_page("Plugins")
+	var page := ExtensionsUi.tab_page("Plugins")
 	var bar := HBoxContainer.new()
 	page.add_child(bar)
 	_plugin_search = LineEdit.new()
@@ -164,12 +175,12 @@ func _build_plugins_tab() -> Control:
 		_scope_option.add_item(I18n.t(SCOPE_LABELS[scope]))
 	_scope_option.tooltip_text = I18n.t("Where Install puts a new plugin.")
 	bar.add_child(_scope_option)
-	_plugins_box = _scroll_list(page)
+	_plugins_box = ExtensionsUi.scroll_list(page)
 	return page.get_parent()
 
 
 func _build_markets_tab() -> Control:
-	var page := _tab_page("Marketplaces")
+	var page := ExtensionsUi.tab_page("Marketplaces")
 	var bar := HBoxContainer.new()
 	page.add_child(bar)
 	_market_source = LineEdit.new()
@@ -181,12 +192,12 @@ func _build_markets_tab() -> Control:
 	add.text = I18n.t("Add")
 	add.pressed.connect(_on_add_market)
 	bar.add_child(add)
-	_markets_box = _scroll_list(page)
+	_markets_box = ExtensionsUi.scroll_list(page)
 	return page.get_parent()
 
 
 func _build_mcp_tab() -> Control:
-	var page := _tab_page("MCP servers")
+	var page := ExtensionsUi.tab_page("MCP servers")
 	var bar := HBoxContainer.new()
 	page.add_child(bar)
 	_mcp_filter = LineEdit.new()
@@ -200,8 +211,8 @@ func _build_mcp_tab() -> Control:
 	reload.tooltip_text = I18n.t("Check the servers again")
 	reload.pressed.connect(func() -> void: _load_mcp())
 	bar.add_child(reload)
-	_mcp_box = _scroll_list(page)
-	var hint := _muted(I18n.t("In a session, /mcp in the chat reconnects or turns off a server (/mcp reconnect <name>, /mcp disable <name>)."))
+	_mcp_box = ExtensionsUi.scroll_list(page)
+	var hint := ExtensionsUi.muted(I18n.t("In a session, /mcp in the chat reconnects or turns off a server (/mcp reconnect <name>, /mcp disable <name>)."))
 	page.add_child(hint)
 	var add := Button.new()
 	add.text = I18n.t("Add server")
@@ -257,34 +268,34 @@ func _rebuild_all() -> void:
 
 
 func _rebuild_plugins() -> void:
-	_clear(_plugins_box)
+	ExtensionsUi.clear(_plugins_box)
 	_update_tab_titles()
 	if not _is_claude():
-		_plugins_box.add_child(_muted(I18n.t("Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent.")))
+		_plugins_box.add_child(ExtensionsUi.muted(I18n.t("Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent.")))
 		return
 	if not _plugins_error.is_empty():
-		_plugins_box.add_child(_error(_plugins_error))
+		_plugins_box.add_child(ExtensionsUi.error_label(_plugins_error))
 	if _loading.has(ExtensionsTab.PLUGINS) and _installed.is_empty():
-		_plugins_box.add_child(_muted(I18n.t("Loading…")))
+		_plugins_box.add_child(ExtensionsUi.muted(I18n.t("Loading…")))
 		return
 	var query := _plugin_search.text.strip_edges().to_lower()
 	var installed := _installed.filter(func(plugin: Variant) -> bool: return plugin is Dictionary and (query.is_empty() or str(plugin.get("id", "")).to_lower().contains(query)))
-	_plugins_box.add_child(_section(I18n.t("Installed (%d)") % installed.size()))
+	_plugins_box.add_child(ExtensionsUi.section(I18n.t("Installed (%d)") % installed.size()))
 	for plugin: Dictionary in installed:
 		_plugins_box.add_child(_installed_card(plugin))
 	var available := ClaudeExtensions.filter_available(_available, _installed, query, AVAILABLE_LIMIT)
-	_plugins_box.add_child(_section(I18n.t("Available (%d)") % available.total))
+	_plugins_box.add_child(ExtensionsUi.section(I18n.t("Available (%d)") % available.total))
 	for plugin: Dictionary in available.items:
 		_plugins_box.add_child(_available_card(plugin))
 	if available.total > available.items.size():
-		_plugins_box.add_child(_muted(I18n.t("Showing the %d most installed. Search to find the others.") % available.items.size()))
+		_plugins_box.add_child(ExtensionsUi.muted(I18n.t("Showing the %d most installed. Search to find the others.") % available.items.size()))
 
 
 func _installed_card(plugin: Dictionary) -> Control:
 	var id := str(plugin.get("id", ""))
 	var scope := str(plugin.get("scope", "user"))
 	var enabled := bool(plugin.get("enabled", false))
-	var card := _card()
+	var card := ExtensionsUi.card()
 	var column := VBoxContainer.new()
 	card.add_child(column)
 	var row := HBoxContainer.new()
@@ -307,12 +318,12 @@ func _installed_card(plugin: Dictionary) -> Control:
 	toggle.toggled.connect(func(on: bool) -> void:
 		_run(I18n.t("Enabling %s…") % id if on else I18n.t("Disabling %s…") % id, extensions.set_plugin_enabled.bind(id, on, scope), true))
 	row.add_child(toggle)
-	row.add_child(_icon_button(&"Reload", I18n.t("Update"), func() -> void:
+	row.add_child(ExtensionsUi.icon_button(&"Reload", I18n.t("Update"), func() -> void:
 		_run(I18n.t("Updating %s…") % id, extensions.update_plugin.bind(id, scope), true, func(sha: String) -> Callable: return extensions.update_plugin.bind(id, scope, sha))))
-	row.add_child(_icon_button(&"Remove", I18n.t("Uninstall"), func() -> void:
+	row.add_child(ExtensionsUi.icon_button(&"Remove", I18n.t("Uninstall"), func() -> void:
 		_ask(I18n.t("Uninstall %s?") % id, I18n.t("Uninstall"), func() -> void:
 			_run(I18n.t("Uninstalling %s…") % id, extensions.uninstall_plugin.bind(id, scope), true))))
-	column.add_child(_muted(I18n.t("Scope: %s") % scope))
+	column.add_child(ExtensionsUi.muted(I18n.t("Scope: %s") % scope))
 	var servers: Variant = plugin.get("mcpServers")
 	if servers is Dictionary and not (servers as Dictionary).is_empty():
 		var chips := HFlowContainer.new()
@@ -324,7 +335,7 @@ func _installed_card(plugin: Dictionary) -> Control:
 
 func _available_card(plugin: Dictionary) -> Control:
 	var id := str(plugin.get("pluginId", ""))
-	var card := _card()
+	var card := ExtensionsUi.card()
 	var column := VBoxContainer.new()
 	card.add_child(column)
 	var row := HBoxContainer.new()
@@ -335,7 +346,7 @@ func _available_card(plugin: Dictionary) -> Control:
 	row.add_child(name)
 	var count := int(plugin.get("installCount", 0))
 	if count > 0:
-		var installs := _muted(I18n.t("%s installs") % _short_count(count))
+		var installs := ExtensionsUi.muted(I18n.t("%s installs") % _short_count(count))
 		installs.autowrap_mode = TextServer.AUTOWRAP_OFF
 		row.add_child(installs)
 	var install := Button.new()
@@ -354,26 +365,26 @@ func _available_card(plugin: Dictionary) -> Control:
 	var source := _source_link(plugin.get("source"))
 	if not source.is_empty():
 		from += " · " + source
-	column.add_child(_muted(from))
+	column.add_child(ExtensionsUi.muted(from))
 	return card
 
 
 func _rebuild_markets() -> void:
-	_clear(_markets_box)
+	ExtensionsUi.clear(_markets_box)
 	_update_tab_titles()
 	if not _is_claude():
-		_markets_box.add_child(_muted(I18n.t("Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent.")))
+		_markets_box.add_child(ExtensionsUi.muted(I18n.t("Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent.")))
 		return
 	if not _markets_error.is_empty():
-		_markets_box.add_child(_error(_markets_error))
+		_markets_box.add_child(ExtensionsUi.error_label(_markets_error))
 	if _loading.has(ExtensionsTab.MARKETPLACES) and _markets.is_empty():
-		_markets_box.add_child(_muted(I18n.t("Loading…")))
+		_markets_box.add_child(ExtensionsUi.muted(I18n.t("Loading…")))
 		return
 	for market: Variant in _markets:
 		if not market is Dictionary:
 			continue
 		var name := str(market.get("name", ""))
-		var card := _card()
+		var card := ExtensionsUi.card()
 		var row := HBoxContainer.new()
 		card.add_child(row)
 		var column := VBoxContainer.new()
@@ -384,19 +395,19 @@ func _rebuild_markets() -> void:
 		column.add_child(label)
 		var where := _source_link(market)
 		if not where.is_empty():
-			column.add_child(_muted(where))
-		row.add_child(_icon_button(&"Reload", I18n.t("Update"), func() -> void:
+			column.add_child(ExtensionsUi.muted(where))
+		row.add_child(ExtensionsUi.icon_button(&"Reload", I18n.t("Update"), func() -> void:
 			_run(I18n.t("Updating %s…") % name, extensions.update_marketplace.bind(name), false, Callable(), true)))
-		row.add_child(_icon_button(&"Remove", I18n.t("Remove"), func() -> void:
+		row.add_child(ExtensionsUi.icon_button(&"Remove", I18n.t("Remove"), func() -> void:
 			_ask(I18n.t("Remove the marketplace %s? Its plugins stay installed until you uninstall them.") % name, I18n.t("Remove"), func() -> void:
 				_run(I18n.t("Removing %s…") % name, extensions.remove_marketplace.bind(name), false, Callable(), true))))
 		_markets_box.add_child(card)
 	if _markets.is_empty() and _markets_error.is_empty():
-		_markets_box.add_child(_muted(I18n.t("No marketplaces yet.")))
+		_markets_box.add_child(ExtensionsUi.muted(I18n.t("No marketplaces yet.")))
 
 
 func _rebuild_mcp() -> void:
-	_clear(_mcp_box)
+	ExtensionsUi.clear(_mcp_box)
 	_update_tab_titles()
 	var query := _mcp_filter.text.strip_edges().to_lower()
 	var groups: Dictionary = {}
@@ -408,20 +419,20 @@ func _rebuild_mcp() -> void:
 		for server: Dictionary in _mcp:
 			groups.get_or_add(server.origin, []).append(server)
 	if not _mcp_error.is_empty() and _is_claude():
-		_mcp_box.add_child(_error(_mcp_error))
+		_mcp_box.add_child(ExtensionsUi.error_label(_mcp_error))
 	if _loading.has(ExtensionsTab.MCP) and _is_claude():
-		_mcp_box.add_child(_muted(I18n.t("Checking the servers…")))
+		_mcp_box.add_child(ExtensionsUi.muted(I18n.t("Checking the servers…")))
 	for origin: String in MCP_ORIGIN_ORDER:
 		var servers: Array = groups.get(origin, []).filter(func(server: Dictionary) -> bool: return query.is_empty() or str(server.name).to_lower().contains(query))
 		if servers.is_empty():
 			continue
-		_mcp_box.add_child(_section("%s (%d)" % [I18n.t(MCP_ORIGIN_LABELS[origin]), servers.size()]))
+		_mcp_box.add_child(ExtensionsUi.section("%s (%d)" % [I18n.t(MCP_ORIGIN_LABELS[origin]), servers.size()]))
 		for server: Dictionary in servers:
 			_mcp_box.add_child(_mcp_row(server))
 
 
 func _mcp_row(server: Dictionary) -> Control:
-	var card := _card()
+	var card := ExtensionsUi.card()
 	var row := HBoxContainer.new()
 	card.add_child(row)
 	var column := VBoxContainer.new()
@@ -434,7 +445,7 @@ func _mcp_row(server: Dictionary) -> Control:
 	name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	column.add_child(name)
 	if not str(server.target).is_empty():
-		var target := _muted(str(server.target))
+		var target := ExtensionsUi.muted(str(server.target))
 		target.autowrap_mode = TextServer.AUTOWRAP_OFF
 		target.clip_text = true
 		target.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -524,69 +535,14 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.PLUGINS, I18n.t("Plugins (%d)") % _installed.size())
 	_tabs.set_tab_title(ExtensionsTab.MARKETPLACES, I18n.t("Marketplaces (%d)") % _markets.size())
 	_tabs.set_tab_title(ExtensionsTab.MCP, I18n.t("MCP servers"))
+	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Godot addons"))
 
 
-func _tab_page(tab_name: String) -> VBoxContainer:
-	var margin := MarginContainer.new()
-	margin.name = tab_name
-	for side: String in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, AgentTheme.px(6))
-	var page := VBoxContainer.new()
-	page.add_theme_constant_override(&"separation", AgentTheme.px(6))
-	margin.add_child(page)
-	return page
 
 
-func _scroll_list(page: VBoxContainer) -> VBoxContainer:
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	page.add_child(scroll)
-	var box := VBoxContainer.new()
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override(&"separation", AgentTheme.px(6))
-	scroll.add_child(box)
-	return box
 
 
-func _card() -> PanelContainer:
-	var card := PanelContainer.new()
-	card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.1), 6, 8))
-	return card
 
-
-func _section(text: String) -> Label:
-	var label := Label.new()
-	label.text = text.to_upper()
-	label.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
-	label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	return label
-
-
-func _muted(text: String) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
-	label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	return label
-
-
-func _error(text: String) -> Label:
-	var label := _muted(text)
-	label.add_theme_color_override(&"font_color", AgentTheme.ERROR)
-	return label
-
-
-func _icon_button(icon_name: StringName, tooltip: String, action: Callable) -> Button:
-	var button := Button.new()
-	button.flat = true
-	button.icon = AgentTheme.icon(icon_name)
-	if button.icon == null:
-		button.text = tooltip
-	button.tooltip_text = tooltip
-	button.pressed.connect(action)
-	return button
 
 
 func _chip(text: String, status: String) -> Control:
@@ -657,9 +613,3 @@ static func _short_count(count: int) -> String:
 	if count >= 1000:
 		return "%.1fk" % (count / 1000.0)
 	return str(count)
-
-
-static func _clear(box: Container) -> void:
-	for child: Node in box.get_children():
-		box.remove_child(child)
-		child.queue_free()

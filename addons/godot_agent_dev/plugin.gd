@@ -112,6 +112,10 @@ const CLAUDE_ONESHOT_TIMEOUT_S := 2700.0
 const OneShotUiCheck := preload("oneshot_ui_check.gd")
 const ReviewCheck := preload("review_check.gd")
 const DocsShots := preload("docs_shots.gd")
+## m7-39: instala un plugin del Asset Store desde Extensions y prueba las tools (red; correr con
+## tests/asset_check.sh, que usa una copia del proyecto).
+const ASSET_ARG := "--godot-agent-asset-test="
+const AssetCheck := preload("asset_check.gd")
 const AUTO_ARG := "--godot-agent-auto-test"
 const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
@@ -189,6 +193,8 @@ func _enter_tree() -> void:
 			_run_update_shots.call_deferred(arg.trim_prefix(UPDATE_ARG))
 		if arg.begins_with(DOCS_ARG):
 			_run_docs_shots.call_deferred(arg.trim_prefix(DOCS_ARG))
+		if arg.begins_with(ASSET_ARG):
+			_run_asset_test.call_deferred(arg.trim_prefix(ASSET_ARG))
 		if arg.begins_with(UI_TEST_ARG):
 			_run_ui_test.call_deferred(arg.trim_prefix(UI_TEST_ARG), _arg_value(UI_SHOT_ARG))
 
@@ -1249,6 +1255,17 @@ func _run_docs_shots(dir: String) -> void:
 	for failure: String in failures:
 		print("[docs-shots] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "docs-shots: %d fallas" % failures.size())
+
+
+func _run_asset_test(prefix: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := await AssetCheck.new().run(get_tree(), dock, prefix)
+	_finish(0 if failures.is_empty() else 1, "asset-test: %s" % ("ok" if failures.is_empty() else "; ".join(failures)))
 
 
 func _run_update_shots(prefix: String) -> void:

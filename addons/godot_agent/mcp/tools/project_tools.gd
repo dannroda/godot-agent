@@ -15,7 +15,7 @@ const LIST_LIMIT := 400
 const OWN_TOOL_PREFIXES: Dictionary = {
 	"input/": "set_input_action / remove_input_action",
 	"autoload/": "set_autoload / remove_autoload",
-	"editor_plugins/": "the Plugins tab of Project Settings (ask the user)",
+	"editor_plugins/": "plugin_enable",
 }
 const MOUSE_BUTTONS: Dictionary = {
 	"left": MOUSE_BUTTON_LEFT, "right": MOUSE_BUTTON_RIGHT, "middle": MOUSE_BUTTON_MIDDLE,

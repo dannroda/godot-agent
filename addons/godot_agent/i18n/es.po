@@ -2518,3 +2518,120 @@ msgstr "Buscando…"
 
 msgid "Installed version: %s"
 msgstr "Versión instalada: %s"
+
+msgid "Install from the Asset Store"
+msgstr "Instalar desde el Asset Store"
+
+msgid "Godot addons"
+msgstr "Addons de Godot"
+
+msgid "Most relevant"
+msgstr "Más relevantes"
+
+msgid "Recently updated"
+msgstr "Actualizados hace poco"
+
+msgid "Best reviewed"
+msgstr "Mejor valorados"
+
+msgid "Newest"
+msgstr "Más nuevos"
+
+msgid "Search the Godot Asset Store…"
+msgstr "Buscar en el Asset Store de Godot…"
+
+msgid "Search the Asset Store"
+msgstr "Buscar en el Asset Store"
+
+msgid "Assets for this Godot version from store.godotengine.org. Install never overwrites a file of the project. The agent can also search and suggest them."
+msgstr "Assets para esta versión de Godot de store.godotengine.org. Instalar nunca pisa un archivo del proyecto. El agente también puede buscarlos y sugerirlos."
+
+msgid "Also install the files outside addons/ (demos, README…)"
+msgstr "Instalar también los archivos de afuera de addons/ (demos, README…)"
+
+msgid "Enable its plugins"
+msgstr "Activar sus plugins"
+
+msgid "Install canceled."
+msgstr "Instalación cancelada."
+
+msgid "The Asset Store is not available."
+msgstr "El Asset Store no está disponible."
+
+msgid "Could not search the Asset Store: %s"
+msgstr "No se pudo buscar en el Asset Store: %s"
+
+msgid "In this project (%d)"
+msgstr "En este proyecto (%d)"
+
+msgid "No editor plugins in addons/ yet."
+msgstr "Todavía no hay plugins del editor en addons/."
+
+msgid "Searching the Asset Store…"
+msgstr "Buscando en el Asset Store…"
+
+msgid "Asset Store (%d)"
+msgstr "Asset Store (%d)"
+
+msgid "Nothing found for this Godot version."
+msgstr "No se encontró nada para esta versión de Godot."
+
+msgid "Previous page"
+msgstr "Página anterior"
+
+msgid "Page %d of %d"
+msgstr "Página %d de %d"
+
+msgid "Next page"
+msgstr "Página siguiente"
+
+msgid "%s enabled."
+msgstr "%s activado."
+
+msgid "%s disabled."
+msgstr "%s desactivado."
+
+msgid "Godot could not change %s: look at the Output panel."
+msgstr "Godot no pudo cambiar %s: mirá el panel Output."
+
+msgid "Open its page on the store"
+msgstr "Abrir su página en el store"
+
+msgid "Paid"
+msgstr "Pago"
+
+msgid "Paid assets are bought on the store website."
+msgstr "Los assets pagos se compran en la web del store."
+
+msgid "by %s"
+msgstr "de %s"
+
+msgid "Could not download %s: %s"
+msgstr "No se pudo bajar %s: %s"
+
+msgid "Install %s %s in the project?"
+msgstr "¿Instalar %s %s en el proyecto?"
+
+msgid "Nothing new to write."
+msgstr "No hay nada nuevo para escribir."
+
+msgid "%d new files in: %s"
+msgstr "%d archivos nuevos en: %s"
+
+msgid "%d already exist and are not overwritten."
+msgstr "%d ya existen y no se pisan."
+
+msgid "%d files outside addons/ are left out."
+msgstr "%d archivos de afuera de addons/ quedan afuera."
+
+msgid "It has no editor plugin to enable."
+msgstr "No trae ningún plugin del editor para activar."
+
+msgid "Installing %s failed: %s"
+msgstr "Falló la instalación de %s: %s"
+
+msgid "%s installed (%d files) and its plugins enabled."
+msgstr "%s instalado (%d archivos) y sus plugins activados."
+
+msgid "%s installed (%d files)."
+msgstr "%s instalado (%d archivos)."
