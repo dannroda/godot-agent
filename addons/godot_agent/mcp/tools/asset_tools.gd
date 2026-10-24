@@ -2,14 +2,15 @@
 extends RefCounted
 ## Godot Asset Store y plugins del proyecto (m7-39): asset_search, asset_details y addons_list
 ## (grupo read), asset_install (grupo addons: pregunta en todos los modos que lo permiten, incluso
-## Auto, porque baja código de terceros al proyecto) y plugin_enable (grupo project).
+## Auto, porque baja código de terceros al proyecto; con `update` reemplaza la versión instalada) y
+## plugin_enable (grupo project). addons_list con `check_updates` avisa de versiones nuevas.
 
 const McpTool := preload("../mcp_tool.gd")
 const AssetStore := preload("../../core/asset_store.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 
-## Plugins que el agente no puede apagar: el propio harness.
-const PROTECTED_FOLDERS: PackedStringArray = ["godot_agent", "godot_agent_dev"]
+## Plugins que el agente no puede apagar ni actualizar: el propio harness.
+const PROTECTED_FOLDERS := AssetStore.PROTECTED_FOLDERS
 
 var store: AssetStore
 ## (path: String) -> bool, y (path: String, enabled: bool). Por defecto, los del editor.
@@ -21,16 +22,17 @@ var addons_dir: String = "res://addons"
 func tools() -> Array:
 	var read := PermissionPolicy.GROUP_READ
 	var install := McpTool.create("asset_install", PermissionPolicy.GROUP_ADDONS,
-		"Downloads an asset from the Godot Asset Store and installs it in the project (always asks the user). Only files under addons/ are installed unless include_other_files is true (zips often carry demos, READMEs and even a project.godot); existing files are never overwritten (they're listed as conflicts). Its plugins are enabled unless enable_plugins is false. Use the id from asset_search.",
+		"Downloads an asset from the Godot Asset Store and installs it in the project (always asks the user). Only files under addons/ are installed unless include_other_files is true (zips often carry demos, READMEs and even a project.godot); existing files are never overwritten (they're listed as conflicts), except with update=true, which replaces the installed version's addons/ folder (removing the files the new version no longer has) and keeps its plugins enabled. Its plugins are enabled unless enable_plugins is false. Use the id from asset_search; addons_list with check_updates finds the updates.",
 		{
 			"asset": {"type": "string", "description": "publisher/slug"},
+			"update": {"type": "boolean", "description": "Replace the installed version of this asset"},
 			"version": {"type": "string", "description": "A release from asset_details; default the newest stable one for this Godot version"},
 			"include_other_files": {"type": "boolean"},
 			"enable_plugins": {"type": "boolean", "description": "Default true"},
 		}, ["asset"], _install)
 	install.describer = func(args: Dictionary) -> String:
 		var version := McpTool.str_arg(args, "version")
-		return "%s%s" % [McpTool.str_arg(args, "asset"), " " + version if not version.is_empty() else ""]
+		return "%s%s%s" % ["update " if args.get("update", false) else "", McpTool.str_arg(args, "asset"), " " + version if not version.is_empty() else ""]
 	var enable := McpTool.create("plugin_enable", PermissionPolicy.GROUP_PROJECT,
 		"Enables or disables an editor plugin of the project (as in Project Settings → Plugins). `plugin` is its folder under addons/ (from addons_list) or the res:// path of its plugin.cfg.",
 		{"plugin": {"type": "string"}, "enabled": {"type": "boolean"}}, ["plugin", "enabled"], _plugin_enable)
@@ -49,8 +51,8 @@ func tools() -> Array:
 			{"asset": {"type": "string", "description": "publisher/slug"}}, ["asset"], _details),
 		install,
 		McpTool.create("addons_list", read,
-			"Lists the editor plugins in the project's addons/ folder with their version and whether they're enabled.",
-			{}, [], _addons_list),
+			"Lists the editor plugins in the project's addons/ folder with their version and whether they're enabled. With check_updates, also asks the Asset Store for newer releases (for plugins installed by hand it matches the asset by name, so check it with asset_details before updating).",
+			{"check_updates": {"type": "boolean"}}, [], _addons_list),
 		enable,
 	]
 
@@ -121,13 +123,15 @@ func _install(args: Dictionary) -> Dictionary:
 		return McpTool.error(details.error)
 	if int(details.asset.price_cent) > 0:
 		return McpTool.error("%s is a paid asset: the user has to buy it on %s." % [asset_id, details.asset.store_url])
-	var prepared: Dictionary = await store.prepare(asset_id, McpTool.str_arg(args, "version"), not bool(args.get("include_other_files", false)))
+	var update := bool(args.get("update", false))
+	var prepared: Dictionary = await store.prepare(asset_id, McpTool.str_arg(args, "version"), not bool(args.get("include_other_files", false)), update)
 	if not prepared.ok:
 		return McpTool.error(prepared.error)
 	var plan: Dictionary = prepared.plan
 	if plan.files.is_empty():
 		DirAccess.remove_absolute(prepared.zip)
-		return McpTool.error("Nothing to install: every file of %s %s already exists (%d conflicts). Nothing was changed." % [asset_id, prepared.release.version, plan.conflicts.size()])
+		return McpTool.error("Nothing to install: every file of %s %s already exists (%d conflicts). Nothing was changed.%s" % [
+			asset_id, prepared.release.version, plan.conflicts.size(), "" if update else " To replace the installed version, call it again with update=true."])
 	var done: Dictionary = await store.finish(prepared, bool(args.get("enable_plugins", true)))
 	if not done.ok:
 		return McpTool.error("Installing %s stopped after %d files: %s" % [asset_id, done.written, done.error])
@@ -135,7 +139,9 @@ func _install(args: Dictionary) -> Dictionary:
 
 
 static func install_report(asset_id: String, release: Dictionary, plan: Dictionary, done: Dictionary) -> String:
-	var lines: PackedStringArray = ["Installed %s %s: %d files." % [asset_id, release.version, done.written]]
+	var replaced: int = plan.files.filter(func(entry: Dictionary) -> bool: return entry.get("replaces", false)).size()
+	var lines: PackedStringArray = ["%s %s %s: %d files%s." % ["Updated" if replaced > 0 else "Installed", asset_id, release.version, done.written,
+		" (%d replaced, %d old ones removed)" % [replaced, int(done.get("removed", 0))] if replaced > 0 else ""]]
 	var folders := {}
 	for entry: Dictionary in plan.files:
 		var target: String = entry.target
@@ -152,15 +158,30 @@ static func install_report(asset_id: String, release: Dictionary, plan: Dictiona
 	return "\n".join(lines)
 
 
-func _addons_list(_args: Dictionary) -> Dictionary:
+func _addons_list(args: Dictionary) -> Dictionary:
 	var plugins := AssetStore.project_plugins(addons_dir)
 	if plugins.is_empty():
 		return McpTool.text("The project has no editor plugins in addons/.")
+	var updates := {}
+	var footer := ""
+	if args.get("check_updates", false):
+		if not is_instance_valid(store):
+			return McpTool.error("The Asset Store is not available.")
+		var checked: Dictionary = await store.check_updates(plugins)
+		for update: Dictionary in checked.updates:
+			updates[update.folder] = update
+		footer = "\nChecked %d plugins against the Asset Store: %d updates.%s" % [checked.checked, checked.updates.size(),
+			" Some checks failed: %s" % checked.error if not checked.error.is_empty() else ""]
 	var lines: PackedStringArray = []
 	for plugin: Dictionary in plugins:
-		lines.append("- %s: %s%s, %s" % [plugin.folder, plugin.name, " " + plugin.version if not plugin.version.is_empty() else "",
-			"enabled" if is_enabled.call(plugin.path) else "disabled"])
-	return McpTool.text("\n".join(lines))
+		var line := "- %s: %s%s, %s" % [plugin.folder, plugin.name, " " + plugin.version if not plugin.version.is_empty() else "",
+			"enabled" if is_enabled.call(plugin.path) else "disabled"]
+		var update: Dictionary = updates.get(str(plugin.folder).get_slice("/", 0), {})
+		if not update.is_empty():
+			line += " — update available: %s → %s (asset_install asset=%s update=true%s)" % [update.installed, update.latest, update.asset_id,
+				"; matched by name" if update.guessed else ""]
+		lines.append(line)
+	return McpTool.text("\n".join(lines) + footer)
 
 
 func _plugin_enable(args: Dictionary) -> Dictionary:

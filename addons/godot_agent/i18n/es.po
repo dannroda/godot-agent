@@ -2615,8 +2615,8 @@ msgstr "¿Instalar %s %s en el proyecto?"
 msgid "Nothing new to write."
 msgstr "No hay nada nuevo para escribir."
 
-msgid "%d new files in: %s"
-msgstr "%d archivos nuevos en: %s"
+msgid "%d files in: %s"
+msgstr "%d archivos en: %s"
 
 msgid "%d already exist and are not overwritten."
 msgstr "%d ya existen y no se pisan."
@@ -2635,3 +2635,45 @@ msgstr "%s instalado (%d archivos) y sus plugins activados."
 
 msgid "%s installed (%d files)."
 msgstr "%s instalado (%d archivos)."
+
+msgid "Updates available: %d."
+msgstr "Hay actualizaciones: %d."
+
+msgid "Could not check for updates: %s"
+msgstr "No se pudieron buscar actualizaciones: %s"
+
+msgid "Checking for updates…"
+msgstr "Buscando actualizaciones…"
+
+msgid "Check for updates"
+msgstr "Buscar actualizaciones"
+
+msgid "Update to %s"
+msgstr "Actualizar a %s"
+
+msgid "%s %s → %s on the Asset Store (%s)."
+msgstr "%s %s → %s en el Asset Store (%s)."
+
+msgid "Installed by hand: matched with the store by its name."
+msgstr "Instalado a mano: se lo encontró en el store por el nombre."
+
+msgid "Update from the Asset Store"
+msgstr "Actualizar desde el Asset Store"
+
+msgid "Update %s to %s?"
+msgstr "¿Actualizar %s a %s?"
+
+msgid "%d replace the installed version (edits you made to them are lost)."
+msgstr "%d reemplazan la versión instalada (se pierden los cambios que les hayas hecho)."
+
+msgid "%d files of the old version are removed."
+msgstr "Se borran %d archivos de la versión vieja."
+
+msgid "%s updated to %s."
+msgstr "%s actualizado a %s."
+
+msgid "Installed"
+msgstr "Instalado"
+
+msgid "Version %s is in the project."
+msgstr "La versión %s está en el proyecto."

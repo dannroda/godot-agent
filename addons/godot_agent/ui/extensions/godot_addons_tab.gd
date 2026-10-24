@@ -1,7 +1,8 @@
 @tool
 extends MarginContainer
 ## Pestaña «Godot addons» de Extensions (m7-39): los plugins de addons/ del proyecto, con su
-## interruptor, y la búsqueda en el Asset Store. Instalar baja la release, muestra qué archivos
+## interruptor y, si el Asset Store tiene una versión nueva, «Actualizar»; y la búsqueda en el
+## Asset Store. Instalar baja la release, muestra qué archivos
 ## escribe (lo que ya existe no se pisa; lo de afuera de addons/ queda afuera salvo que se pida) y
 ## después activa sus plugins.
 
@@ -44,6 +45,12 @@ var _page: int = 1
 var _pages: int = 0
 var _count: int = 0
 var _busy: bool = false
+## Actualizaciones encontradas, por carpeta de addons/ (ver AssetStore.check_updates).
+var _updates: Dictionary = {}
+var _checking: bool = false
+var _checked: bool = false
+## Assets anotados que siguen en el proyecto: id -> versión.
+var _installed: Dictionary = {}
 ## Lo que devolvió AssetStore.prepare() más `name`, mientras se confirma la instalación.
 var _pending: Dictionary = {}
 
@@ -92,7 +99,9 @@ func _build_dialog() -> void:
 	_include_other.text = I18n.t("Also install the files outside addons/ (demos, README…)")
 	_include_other.toggled.connect(func(on: bool) -> void:
 		if not _pending.is_empty():
-			_pending.plan = AssetStore.plan_install(_pending.zip, not on)
+			var stale: Array = _pending.plan.stale
+			_pending.plan = AssetStore.plan_install(_pending.zip, not on, "res://", AssetStore.addon_folders(_pending.plan) if _pending.update else PackedStringArray())
+			_pending.plan.stale = stale
 			_update_dialog())
 	column.add_child(_include_other)
 	_enable_plugins = CheckBox.new()
@@ -107,11 +116,32 @@ func _build_dialog() -> void:
 	add_child(_dialog)
 
 
-## Vuelve a leer los plugins del proyecto; la primera vez, busca los assets más relevantes.
+## Vuelve a leer los plugins del proyecto; la primera vez, busca los assets más relevantes y
+## versiones nuevas de los plugins.
 func refresh() -> void:
 	_rebuild()
 	if not _searched:
-		search(1)
+		await search(1)
+	if not _checked:
+		check_updates()
+
+
+func check_updates() -> void:
+	if store == null or _checking:
+		return
+	_checking = true
+	_rebuild()
+	var result: Dictionary = await store.check_updates(AssetStore.project_plugins(addons_dir))
+	_checking = false
+	_checked = true
+	_updates.clear()
+	for update: Dictionary in result.updates:
+		_updates[update.folder] = update
+	if not result.updates.is_empty():
+		status_changed.emit(I18n.t("Updates available: %d.") % result.updates.size(), AgentTheme.WARNING)
+	elif not result.error.is_empty():
+		status_changed.emit(I18n.t("Could not check for updates: %s") % result.error, AgentTheme.ERROR)
+	_rebuild()
 
 
 func search(page: int) -> void:
@@ -136,8 +166,17 @@ func search(page: int) -> void:
 func _rebuild() -> void:
 	ExtensionsUi.clear(_box)
 	ExtensionsUi.clear(_pager)
+	_installed = AssetStore.installed_assets(store.manifest_path if store else AssetStore.MANIFEST_PATH)
 	var plugins := AssetStore.project_plugins(addons_dir)
-	_box.add_child(ExtensionsUi.section(I18n.t("In this project (%d)") % plugins.size()))
+	var header := HBoxContainer.new()
+	var section := ExtensionsUi.section(I18n.t("In this project (%d)") % plugins.size())
+	section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(section)
+	if _checking:
+		header.add_child(ExtensionsUi.muted(I18n.t("Checking for updates…")))
+	else:
+		header.add_child(ExtensionsUi.icon_button(&"Reload", I18n.t("Check for updates"), check_updates))
+	_box.add_child(header)
 	for plugin: Dictionary in plugins:
 		_box.add_child(_plugin_row(plugin))
 	if plugins.is_empty():
@@ -194,6 +233,15 @@ func _plugin_row(plugin: Dictionary) -> Control:
 	# El harness no se apaga desde su propia ventana: sin interruptor.
 	if str(plugin.folder).get_slice("/", 0) in AssetTools.PROTECTED_FOLDERS:
 		return card
+	var update: Dictionary = _updates.get(str(plugin.folder).get_slice("/", 0), {})
+	if not update.is_empty():
+		var button := Button.new()
+		button.text = I18n.t("Update to %s") % update.latest
+		button.tooltip_text = I18n.t("%s %s → %s on the Asset Store (%s).") % [plugin.name, update.installed, update.latest, update.asset_id]
+		if update.guessed:
+			button.tooltip_text += "\n" + I18n.t("Installed by hand: matched with the store by its name.")
+		button.pressed.connect(_prepare_update.bind(update))
+		row.add_child(button)
 	var toggle := CheckButton.new()
 	toggle.button_pressed = enabled
 	toggle.tooltip_text = I18n.t("Enable or disable")
@@ -223,7 +271,11 @@ func _asset_card(asset: Dictionary) -> Control:
 	if not str(asset.store_url).is_empty():
 		row.add_child(ExtensionsUi.icon_button(&"ExternalLink", I18n.t("Open its page on the store"), OS.shell_open.bind(str(asset.store_url))))
 	var install := Button.new()
-	if int(asset.price_cent) > 0:
+	if _installed.has(asset.id):
+		install.text = I18n.t("Installed")
+		install.disabled = true
+		install.tooltip_text = I18n.t("Version %s is in the project.") % _installed[asset.id]
+	elif int(asset.price_cent) > 0:
 		install.text = I18n.t("Paid")
 		install.disabled = true
 		install.tooltip_text = I18n.t("Paid assets are bought on the store website.")
@@ -247,11 +299,20 @@ func _asset_card(asset: Dictionary) -> Control:
 
 ## Baja la release y muestra qué se va a escribir antes de tocar el proyecto.
 func _prepare_install(asset: Dictionary) -> void:
+	await _prepare(str(asset.id), str(asset.name), false)
+
+
+func _prepare_update(update: Dictionary) -> void:
+	await _prepare(str(update.asset_id), str(update.name), true)
+
+
+func _prepare(asset_id: String, asset_name: String, update: bool) -> void:
 	if _busy or not _pending.is_empty():
 		return
+	var asset := {"name": asset_name}
 	_busy = true
 	status_changed.emit(I18n.t("Downloading %s…") % asset.name, AgentTheme.MUTED)
-	var prepared: Dictionary = await store.prepare(str(asset.id), "", true)
+	var prepared: Dictionary = await store.prepare(asset_id, "", true, update)
 	_busy = false
 	if not prepared.ok:
 		status_changed.emit(I18n.t("Could not download %s: %s") % [asset.name, prepared.error], AgentTheme.ERROR)
@@ -259,35 +320,43 @@ func _prepare_install(asset: Dictionary) -> void:
 	_pending = prepared
 	_pending.name = str(asset.name)
 	_include_other.set_pressed_no_signal(false)
-	_enable_plugins.button_pressed = true
+	# Al actualizar, los plugins quedan como estaban.
+	_enable_plugins.button_pressed = not update
 	_update_dialog()
 	status_changed.emit("", AgentTheme.MUTED)
 	_dialog.popup_centered()
 
 
 func _update_dialog() -> void:
-	_dialog_text.text = install_summary(_pending.name, str(_pending.release.version), _pending.plan)
-	_enable_plugins.visible = not _pending.plan.plugins.is_empty()
+	_dialog_text.text = install_summary(_pending.name, str(_pending.release.version), _pending.plan, _pending.update)
+	_dialog.title = I18n.t("Update from the Asset Store") if _pending.update else I18n.t("Install from the Asset Store")
+	_dialog.ok_button_text = I18n.t("Update") if _pending.update else I18n.t("Install")
+	_enable_plugins.visible = not _pending.update and not _pending.plan.plugins.is_empty()
 	_include_other.visible = _include_other.button_pressed or not _pending.plan.other.is_empty()
 	_dialog.get_ok_button().disabled = _pending.plan.files.is_empty()
 	_dialog.reset_size()
 
 
 ## Texto del diálogo de instalación: qué se escribe, qué ya existe y qué queda afuera.
-static func install_summary(asset_name: String, version: String, plan: Dictionary) -> String:
-	var lines: PackedStringArray = [I18n.t("Install %s %s in the project?") % [asset_name, version], ""]
+static func install_summary(asset_name: String, version: String, plan: Dictionary, update: bool = false) -> String:
+	var lines: PackedStringArray = [(I18n.t("Update %s to %s?") if update else I18n.t("Install %s %s in the project?")) % [asset_name, version], ""]
+	var replaced: int = plan.files.filter(func(entry: Dictionary) -> bool: return entry.get("replaces", false)).size()
 	var folders := {}
 	for entry: Dictionary in plan.files:
 		folders["/".join(str(entry.target).trim_prefix("res://").split("/").slice(0, 2))] = true
 	if plan.files.is_empty():
 		lines.append(I18n.t("Nothing new to write."))
 	else:
-		lines.append(I18n.t("%d new files in: %s") % [plan.files.size(), ", ".join(PackedStringArray(folders.keys()))])
+		lines.append(I18n.t("%d files in: %s") % [plan.files.size(), ", ".join(PackedStringArray(folders.keys()))])
+	if replaced > 0:
+		lines.append(I18n.t("%d replace the installed version (edits you made to them are lost).") % replaced)
+	if not plan.get("stale", []).is_empty():
+		lines.append(I18n.t("%d files of the old version are removed.") % plan.stale.size())
 	if not plan.conflicts.is_empty():
 		lines.append(I18n.t("%d already exist and are not overwritten.") % plan.conflicts.size())
 	if not plan.other.is_empty():
 		lines.append(I18n.t("%d files outside addons/ are left out.") % plan.other.size())
-	if plan.plugins.is_empty():
+	if plan.plugins.is_empty() and not update:
 		lines.append(I18n.t("It has no editor plugin to enable."))
 	return "\n".join(lines)
 
@@ -303,8 +372,16 @@ func _finish_install() -> void:
 	_busy = false
 	if not done.ok:
 		status_changed.emit(I18n.t("Installing %s failed: %s") % [prepared.name, done.error], AgentTheme.ERROR)
+	elif prepared.update:
+		_updates.erase(_folder_of(prepared))
+		status_changed.emit(I18n.t("%s updated to %s.") % [prepared.name, prepared.release.version], AgentTheme.ADDED)
 	elif not done.enabled.is_empty():
 		status_changed.emit(I18n.t("%s installed (%d files) and its plugins enabled.") % [prepared.name, done.written], AgentTheme.ADDED)
 	else:
 		status_changed.emit(I18n.t("%s installed (%d files).") % [prepared.name, done.written], AgentTheme.ADDED)
 	_rebuild()
+
+
+static func _folder_of(prepared: Dictionary) -> String:
+	var folders := AssetStore.addon_folders(prepared.plan)
+	return folders[0].get_file() if not folders.is_empty() else ""

@@ -6,8 +6,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Added
 
-- **Godot addons** tab in the Extensions window: search the [Godot Asset Store](https://store.godotengine.org) for your Godot version, install an addon (only its `addons/` folder by default, never overwriting your files, with a preview of what it writes) and enable or disable the project's plugins.
-- The agent can search the Asset Store, suggest addons and install them (`godot.asset_search`, `asset_details`, `asset_install`, `addons_list`, `plugin_enable`). Installing has its own permission group, **Install from the Asset Store**, which asks in every mode, Auto and One-shot included.
+- **Godot addons** tab in the Extensions window: search the [Godot Asset Store](https://store.godotengine.org) for your Godot version, install an addon (only its `addons/` folder by default, never overwriting your files, with a preview of what it writes) and enable or disable the project's plugins. It also finds newer versions of the project's plugins and updates them: the addon's folder is replaced, files the new version dropped are removed and its plugins stay enabled. Installs are recorded in `.godot_agent/assets.json`; plugins installed by hand are matched with the store by name.
+- The agent can search the Asset Store, suggest addons and install them (`godot.asset_search`, `asset_details`, `asset_install`, `addons_list`, `plugin_enable`), and find and apply plugin updates (`addons_list` with `check_updates`, `asset_install` with `update`). Installing has its own permission group, **Install from the Asset Store**, which asks in every mode, Auto and One-shot included.
 
 ### Fixed
 

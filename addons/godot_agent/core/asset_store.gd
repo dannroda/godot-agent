@@ -4,8 +4,10 @@ extends Node
 ## con la misma API que usa el editor (store.godotengine.org/api/v1, sin autenticación). La
 ## instalación sigue al instalador del editor: saca la carpeta raíz del zip (salvo que sea addons/)
 ## y nunca pisa un archivo que ya existe. Además, por defecto solo instala lo que va en addons/ (los
-## zips suelen traer demos, README y hasta un project.godot). Activar los plugins lo hace el que
-## llama (necesita el editor).
+## zips suelen traer demos, README y hasta un project.godot). Cada instalación queda anotada en
+## res://.godot_agent/assets.json (asset, versión, carpetas y archivos), y con eso check_updates()
+## avisa de versiones nuevas y una actualización reemplaza la carpeta del addon (borra lo que la
+## versión nueva ya no trae). Para los plugins instalados a mano adivina el asset por el nombre.
 
 const AddonUpdater := preload("addon_updater.gd")
 const AddonVersion := preload("addon_version.gd")
@@ -22,6 +24,13 @@ const SCAN_TIMEOUT_S := 30.0
 const BODY_LIMIT := 4000
 ## Largo de la descripción de cada resultado de la búsqueda.
 const DESCRIPTION_LIMIT := 240
+## Qué asset y qué versión vino a cada carpeta de addons/ (.godot_agent/ nunca se exporta:
+## el export plugin la saltea).
+const MANIFEST_PATH := "res://.godot_agent/assets.json"
+## Plugins que no se tocan desde acá: el propio harness (se actualiza con su updater).
+const PROTECTED_FOLDERS: PackedStringArray = ["godot_agent", "godot_agent_dev"]
+
+var manifest_path: String = MANIFEST_PATH
 
 ## `{assets: [ver parse_hits], count, pages, error}`.
 func search(query: String, page: int = 1, sort: String = "relevance") -> Dictionary:
@@ -73,8 +82,10 @@ func download(asset_id: String, release: Dictionary) -> Dictionary:
 
 
 ## Primer paso de instalar: elige la release (`version` o la estable más nueva para esta versión
-## de Godot), baja el zip y arma el plan. `{ok, asset_id, release, zip, plan, error}`.
-func prepare(asset_id: String, version: String = "", only_addons: bool = true) -> Dictionary:
+## de Godot), baja el zip y arma el plan. `{ok, asset_id, release, zip, plan, update, error}`.
+## Con `update`, los archivos de las carpetas de addons/ que ya tiene el proyecto se reemplazan y
+## `plan.stale` lista los de la versión anotada que la nueva ya no trae.
+func prepare(asset_id: String, version: String = "", only_addons: bool = true, update: bool = false) -> Dictionary:
 	var fail := func(message: String) -> Dictionary:
 		return {"ok": false, "asset_id": asset_id, "release": {}, "zip": "", "plan": {}, "error": message}
 	var listed := await releases(asset_id)
@@ -92,25 +103,85 @@ func prepare(asset_id: String, version: String = "", only_addons: bool = true) -
 	var plan := plan_install(downloaded.zip, only_addons)
 	if not plan.error.is_empty():
 		return fail.call(plan.error)
-	return {"ok": true, "asset_id": asset_id, "release": release, "zip": downloaded.zip, "plan": plan, "error": ""}
+	if update:
+		var entry: Dictionary = read_manifest(manifest_path).get(asset_id, {})
+		plan = plan_install(downloaded.zip, only_addons, "res://", addon_folders(plan))
+		plan.stale = stale_files(entry, plan)
+	return {"ok": true, "asset_id": asset_id, "release": release, "zip": downloaded.zip, "plan": plan, "update": update, "error": ""}
 
 
-## Segundo paso: escribe los archivos, hace que el editor los vea y, con `enable_plugins`, activa
-## los plugins que trae. `{ok, written, enabled: [path], error}`.
+## Segundo paso: escribe los archivos, hace que el editor los vea, anota la instalación y, con
+## `enable_plugins`, activa los plugins que trae. En una actualización, los plugins que estaban
+## activos se apagan antes de reemplazar sus scripts y se vuelven a prender después.
+## `{ok, written, removed, enabled: [path], error}`.
 func finish(prepared: Dictionary, enable_plugins: bool) -> Dictionary:
-	var installed := install(prepared.zip, prepared.plan)
+	var plan: Dictionary = prepared.plan
+	var was_enabled: PackedStringArray = []
+	if Engine.is_editor_hint() and prepared.get("update", false):
+		for path: String in plan.plugins:
+			if EditorInterface.is_plugin_enabled(path):
+				EditorInterface.set_plugin_enabled(path, false)
+				was_enabled.append(path)
+	var installed := install(prepared.zip, plan)
 	DirAccess.remove_absolute(prepared.zip)
 	if not installed.ok:
-		return {"ok": false, "written": installed.written, "enabled": [], "error": installed.error}
+		return {"ok": false, "written": installed.written, "removed": 0, "enabled": [], "error": installed.error}
+	var removed := 0
+	for path: String in plan.get("stale", []):
+		if DirAccess.remove_absolute(path) == OK:
+			removed += 1
+	var manifest := read_manifest(manifest_path)
+	manifest[prepared.asset_id] = manifest_entry(str(prepared.release.version), plan)
+	write_manifest(manifest_path, manifest)
 	var enabled: PackedStringArray = []
 	if Engine.is_editor_hint():
-		await _scan(prepared.plan)
-		if enable_plugins:
-			for path: String in prepared.plan.plugins:
+		await _scan(plan)
+		for path: String in plan.plugins:
+			if enable_plugins or path in was_enabled:
 				EditorInterface.set_plugin_enabled(path, true)
 				if EditorInterface.is_plugin_enabled(path):
 					enabled.append(path)
-	return {"ok": true, "written": installed.written, "enabled": enabled, "error": ""}
+	return {"ok": true, "written": installed.written, "removed": removed, "enabled": enabled, "error": ""}
+
+
+## Versiones nuevas de los plugins del proyecto. Para cada carpeta de addons/ busca su asset en lo
+## anotado al instalar o, si se instaló a mano, por el nombre del plugin, y compara la versión
+## instalada con la release estable más nueva para esta versión de Godot.
+## `{updates: [{folder, name, asset_id, installed, latest, guessed}], checked, error}`.
+func check_updates(plugins: Array[Dictionary]) -> Dictionary:
+	var manifest := read_manifest(manifest_path)
+	var updates: Array[Dictionary] = []
+	var seen := {}
+	var checked := 0
+	var last_error := ""
+	for plugin: Dictionary in plugins:
+		var top := str(plugin.folder).get_slice("/", 0)
+		if top in PROTECTED_FOLDERS or seen.has(top):
+			continue
+		seen[top] = true
+		var asset_id := manifest_asset_for(manifest, top)
+		var installed := str(manifest.get(asset_id, {}).get("version", "")) if not asset_id.is_empty() else str(plugin.version)
+		var guessed := asset_id.is_empty()
+		if guessed:
+			if installed.is_empty():
+				continue  # sin versión no hay con qué comparar
+			var found := await search(str(plugin.name))
+			if not found.error.is_empty():
+				last_error = found.error
+				continue
+			asset_id = match_asset(plugin, found.assets)
+			if asset_id.is_empty():
+				continue
+		var listed := await releases(asset_id)
+		if not listed.error.is_empty():
+			last_error = listed.error
+			continue
+		checked += 1
+		var latest := pick_release(listed.releases)
+		if not latest.is_empty() and AddonUpdater.compare_versions(str(latest.version), installed) > 0:
+			updates.append({"folder": top, "name": str(plugin.name), "asset_id": asset_id,
+				"installed": installed, "latest": str(latest.version), "guessed": guessed})
+	return {"updates": updates, "checked": checked, "error": last_error}
 
 
 ## Hace que el editor vea e importe los archivos nuevos, y espera a que registre sus uids y termine
@@ -263,10 +334,11 @@ static func pick_release(list: Array[Dictionary], version: String = "") -> Dicti
 
 ## Qué escribiría instalar el zip en `target_root` (res:// en el editor):
 ## `{files: [{zip, target}], conflicts: [target], other: [target], plugins: [res://…/plugin.cfg], error}`.
-## `files` son los que se escriben; `conflicts` ya existen y no se tocan; `other` quedan afuera por
-## no ir en addons/ (con `only_addons` y si el zip trae addons/).
-static func plan_install(zip_path: String, only_addons: bool = true, target_root: String = "res://") -> Dictionary:
-	var plan := {"files": [], "conflicts": [], "other": [], "plugins": [], "error": ""}
+## `files` son los que se escriben (`replaces` si pisan uno que existe); `conflicts` ya existen y no
+## se tocan; `other` quedan afuera por no ir en addons/ (con `only_addons` y si el zip trae
+## addons/). Lo que cae dentro de una carpeta de `replace` (actualizar) se pisa.
+static func plan_install(zip_path: String, only_addons: bool = true, target_root: String = "res://", replace: PackedStringArray = []) -> Dictionary:
+	var plan := {"files": [], "conflicts": [], "other": [], "plugins": [], "stale": [], "error": ""}
 	var reader := ZIPReader.new()
 	if reader.open(zip_path) != OK:
 		plan.error = "The downloaded file is not a valid zip."
@@ -293,10 +365,11 @@ static func plan_install(zip_path: String, only_addons: bool = true, target_root
 		if only_addons and has_addons and not relative.begins_with("addons/"):
 			plan.other.append(target)
 			continue
-		if FileAccess.file_exists(target):
+		var exists := FileAccess.file_exists(target)
+		if exists and not Array(replace).any(func(folder: String) -> bool: return target.begins_with(folder + "/")):
 			plan.conflicts.append(target)
 			continue
-		plan.files.append({"zip": entry.zip, "target": target})
+		plan.files.append({"zip": entry.zip, "target": target, "replaces": exists})
 		if relative.begins_with("addons/") and relative.get_file() == "plugin.cfg":
 			plan.plugins.append(target)
 	if entries.is_empty():
@@ -322,6 +395,18 @@ static func install(zip_path: String, plan: Dictionary) -> Dictionary:
 		written += 1
 	reader.close()
 	return {"ok": true, "written": written, "error": ""}
+
+
+## Los assets anotados cuyas carpetas siguen en el proyecto: id -> versión (si se borró la carpeta a
+## mano, ya no está instalado).
+static func installed_assets(path: String) -> Dictionary:
+	var result := {}
+	var manifest := read_manifest(path)
+	for asset_id: String in manifest:
+		var entry: Variant = manifest[asset_id]
+		if entry is Dictionary and (entry.get("folders", []) as Array).any(func(folder: Variant) -> bool: return DirAccess.dir_exists_absolute(str(folder))):
+			result[asset_id] = str(entry.get("version", ""))
+	return result
 
 
 ## Uids que declaran los archivos instalados: los `.uid` de los scripts y el `uid="uid://…"` del
@@ -356,6 +441,86 @@ static func import_outputs(plan: Dictionary) -> PackedStringArray:
 		for path: Variant in config.get_value("deps", "dest_files", []):
 			result.append(str(path))
 	return result
+
+
+## Carpetas de addons/ que toca el plan (`res://addons/x`), con lo que escribe y lo que ya existe.
+static func addon_folders(plan: Dictionary) -> PackedStringArray:
+	var result: PackedStringArray = []
+	var targets: Array = plan.files.map(func(entry: Dictionary) -> String: return entry.target) + Array(plan.conflicts)
+	for target: String in targets:
+		var at := target.find("/addons/")
+		if at < 0:
+			continue
+		var folder := target.left(at + "/addons/".length()) + target.substr(at + "/addons/".length()).get_slice("/", 0)
+		if not folder in result and folder != target:
+			result.append(folder)
+	return result
+
+
+## Lo que se anota de una instalación: versión, carpetas de addons/ y archivos escritos.
+static func manifest_entry(version: String, plan: Dictionary) -> Dictionary:
+	return {
+		"version": version,
+		"folders": Array(addon_folders(plan)),
+		"files": plan.files.map(func(entry: Dictionary) -> String: return entry.target),
+	}
+
+
+## Archivos de la versión anotada que la nueva ya no trae (solo dentro de sus carpetas de addons/).
+static func stale_files(entry: Dictionary, plan: Dictionary) -> PackedStringArray:
+	var result: PackedStringArray = []
+	var new_files := {}
+	for file: Dictionary in plan.files:
+		new_files[file.target] = true
+	var folders: Array = entry.get("folders", [])
+	for path: Variant in entry.get("files", []):
+		var file := str(path)
+		if not new_files.has(file) and folders.any(func(folder: String) -> bool: return file.begins_with(folder + "/")) and FileAccess.file_exists(file):
+			result.append(file)
+	return result
+
+
+static func read_manifest(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return data if data is Dictionary else {}
+
+
+static func write_manifest(path: String, manifest: Dictionary) -> void:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(manifest, "\t", true))
+		file.close()
+
+
+## El asset anotado que instaló `addons/<folder>` ("" si no hay).
+static func manifest_asset_for(manifest: Dictionary, folder: String) -> String:
+	for asset_id: String in manifest:
+		var entry: Variant = manifest[asset_id]
+		if entry is Dictionary and (entry.get("folders", []) as Array).any(func(path: Variant) -> bool: return str(path).get_file() == folder):
+			return asset_id
+	return ""
+
+
+## El resultado de una búsqueda que es este plugin instalado a mano: mismo nombre o slug igual a la
+## carpeta (sin mayúsculas ni signos). "" si ninguno coincide.
+static func match_asset(plugin: Dictionary, assets: Array[Dictionary]) -> String:
+	var name := _simplify(str(plugin.name))
+	var folder := _simplify(str(plugin.folder).get_slice("/", 0))
+	for asset: Dictionary in assets:
+		if _simplify(str(asset.name)) == name or _simplify(str(asset.id).get_slice("/", 1)) == folder:
+			return str(asset.id)
+	return ""
+
+
+static func _simplify(text: String) -> String:
+	var result := ""
+	for character in text.to_lower():
+		if character.is_valid_identifier() or character.is_valid_int():
+			result += character
+	return result.replace("_", "")
 
 
 ## Plugins del proyecto: `[{path, folder, name, version, description, author}]`, por carpeta.

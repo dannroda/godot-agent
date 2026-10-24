@@ -3,7 +3,10 @@ extends RefCounted
 ## m7-39 de punta a punta, con red y en una copia del proyecto (tests/asset_check.sh): la pestaña
 ## «Godot addons» de Extensions busca en el Asset Store, instala un plugin chico (Simple TODO, solo
 ## GDScript) con el diálogo y lo deja activo; después las tools del agente lo listan, lo apagan y lo
-## prenden, y volver a instalarlo no pisa nada. Guarda capturas en `<prefijo>_*.png`.
+## prenden, y volver a instalarlo no pisa nada. Por último, con la versión anotada vuelta atrás, la
+## pestaña ofrece actualizarlo y la actualización lo deja activo y borra lo que la versión nueva no
+## trae; y sin la anotación (instalado a mano), addons_list lo encuentra por el nombre. Guarda
+## capturas en `<prefijo>_*.png`.
 
 const AssetStore := preload("res://addons/godot_agent/core/asset_store.gd")
 const AssetTools := preload("res://addons/godot_agent/mcp/tools/asset_tools.gd")
@@ -74,8 +77,74 @@ func run(tree: SceneTree, dock: Control, prefix: String) -> PackedStringArray:
 		failures.append("el plugin %s no quedó activo" % plugin_cfg)
 	await tree.create_timer(0.5).timeout
 	window.get_texture().get_image().save_png("%s_installed.png" % prefix)
+	if not tab.find_children("*", "Button", true, false).any(func(button: Button) -> bool: return button.text == "Installed" and button.disabled):
+		failures.append("el resultado del store no dice que ya está instalado")
 	window.hide()
 	failures.append_array(await _check_tools(plugin_cfg))
+	failures.append_array(await _check_update(window, tab, plugin_cfg, prefix))
+	return failures
+
+
+## Una versión vieja anotada: la pestaña la detecta, Actualizar reemplaza la carpeta, borra lo viejo
+## y deja el plugin activo.
+func _check_update(window: AcceptDialog, tab: Control, plugin_cfg: String, prefix: String) -> PackedStringArray:
+	var failures: PackedStringArray = []
+	var manifest := AssetStore.read_manifest(AssetStore.MANIFEST_PATH)
+	if not manifest.has(ASSET_ID):
+		return ["la instalación no quedó anotada en %s" % AssetStore.MANIFEST_PATH]
+	var latest := str(manifest[ASSET_ID].version)
+	var stale := plugin_cfg.get_base_dir().path_join("removed_in_new_version.gd")
+	var file := FileAccess.open(stale, FileAccess.WRITE)
+	file.store_string("extends Node\n")
+	file.close()
+	manifest[ASSET_ID].version = "v0.1"
+	(manifest[ASSET_ID].files as Array).append(stale)
+	AssetStore.write_manifest(AssetStore.MANIFEST_PATH, manifest)
+	window.popup_centered()
+	tab.call(&"check_updates")
+	if not await _until(func() -> bool: return not tab.get(&"_checking")):
+		return ["la búsqueda de actualizaciones no terminó"]
+	var folder := plugin_cfg.get_base_dir().get_file()
+	var update: Dictionary = (tab.get(&"_updates") as Dictionary).get(folder, {})
+	if update.is_empty() or update.latest != latest or update.guessed:
+		return ["no ofreció actualizar %s: %s" % [folder, tab.get(&"_updates")]]
+	await _tree.create_timer(0.5).timeout
+	window.get_texture().get_image().save_png("%s_update.png" % prefix)
+	tab.call(&"_prepare_update", update)
+	var dialog: ConfirmationDialog = tab.get(&"_dialog")
+	if not await _until(func() -> bool: return dialog.visible):
+		return ["el diálogo de actualización no apareció"]
+	var text := (tab.get(&"_dialog_text") as Label).text
+	if not text.contains("removed") or not text.contains("replace"):
+		failures.append("el diálogo no dice qué reemplaza y qué borra: %s" % text)
+	dialog.get_texture().get_image().save_png("%s_update_dialog.png" % prefix)
+	dialog.get_ok_button().pressed.emit()
+	var status: Label = window.get(&"_status")
+	if not await _until(func() -> bool: return status.text.contains("updated") or status.text.contains("failed")):
+		return failures + PackedStringArray(["la actualización no terminó (%s)" % status.text])
+	if not status.text.contains("updated"):
+		failures.append("la actualización falló: %s" % status.text)
+	if FileAccess.file_exists(stale):
+		failures.append("no borró el archivo que la versión nueva no trae")
+	if not EditorInterface.is_plugin_enabled(plugin_cfg):
+		failures.append("después de actualizar, el plugin quedó apagado")
+	if str(AssetStore.read_manifest(AssetStore.MANIFEST_PATH)[ASSET_ID].version) != latest:
+		failures.append("la anotación no tiene la versión nueva")
+	window.hide()
+	# Instalado a mano: sin anotación y con un plugin.cfg de versión vieja, se lo busca por el nombre.
+	DirAccess.remove_absolute(AssetStore.MANIFEST_PATH)
+	var config := ConfigFile.new()
+	config.load(plugin_cfg)
+	config.set_value("plugin", "version", "0.1")
+	config.save(plugin_cfg)
+	var store := AssetStore.new()
+	EditorInterface.get_base_control().add_child(store)
+	var tools := AssetTools.new()
+	tools.store = store
+	var listed := _text(await tools._addons_list({"check_updates": true}))
+	if not listed.contains("update available: 0.1 → %s (asset_install asset=%s update=true; matched by name)" % [latest, ASSET_ID]):
+		failures.append("addons_list no encontró la actualización por el nombre: %s" % listed)
+	store.queue_free()
 	return failures
 
 
@@ -93,8 +162,8 @@ func _check_tools(plugin_cfg: String) -> PackedStringArray:
 	if details.isError or not _text(details).contains("Releases for this Godot version"):
 		failures.append("asset_details: %s" % _text(details).left(300))
 	var folder := plugin_cfg.trim_prefix("res://addons/").get_base_dir()
-	if not _text(tools._addons_list({})).contains("%s:" % folder):
-		failures.append("addons_list no lo lista: %s" % _text(tools._addons_list({})))
+	if not _text(await tools._addons_list({})).contains("%s:" % folder):
+		failures.append("addons_list no lo lista: %s" % _text(await tools._addons_list({})))
 	var off: Dictionary = tools._plugin_enable({"plugin": folder, "enabled": false})
 	if off.isError or EditorInterface.is_plugin_enabled(plugin_cfg):
 		failures.append("plugin_enable false: %s" % _text(off))

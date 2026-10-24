@@ -128,6 +128,56 @@ func test_what_the_editor_must_import() -> void:
 	assert_eq(Array(AssetStore.import_outputs(plan)), ["res://.godot/imported/icon.svg-1.ctex"], "lo que genera el import")
 
 
+func test_update_plan_and_manifest() -> void:
+	var root := _clean("asset_update")
+	var target := root.path_join("project")
+	var zip := root.path_join("v2.zip")
+	_zip(zip, {
+		"repo/addons/thing/plugin.cfg": "[plugin]\nversion=\"2.0\"\n",
+		"repo/addons/thing/new.gd": "new",
+		"repo/addons/thing/a.gd": "a v2",
+	})
+	_write(target.path_join("addons/thing/plugin.cfg"), "[plugin]\nversion=\"1.0\"\n")
+	_write(target.path_join("addons/thing/a.gd"), "a v1")
+	_write(target.path_join("addons/thing/gone.gd"), "old")
+	_write(target.path_join("addons/thing/mine.txt"), "user file")
+	var plain := AssetStore.plan_install(zip, true, target)
+	assert_eq(plain.conflicts.size(), 2, "sin update, lo que existe es conflicto")
+	var folders := AssetStore.addon_folders(plain)
+	assert_eq(Array(folders), [target.path_join("addons/thing")], "carpeta del addon, con los conflictos")
+	var plan := AssetStore.plan_install(zip, true, target, folders)
+	assert_eq(plan.conflicts, [], "con update se pisa dentro de la carpeta")
+	assert_eq(plan.files.filter(func(f: Dictionary) -> bool: return f.replaces).size(), 2, "dos reemplazan")
+	var entry := {"version": "v1.0", "folders": [target.path_join("addons/thing")],
+		"files": [target.path_join("addons/thing/plugin.cfg"), target.path_join("addons/thing/a.gd"), target.path_join("addons/thing/gone.gd"), target.path_join("elsewhere/x.gd")]}
+	assert_eq(Array(AssetStore.stale_files(entry, plan)), [target.path_join("addons/thing/gone.gd")], "solo lo viejo de su carpeta; mine.txt no estaba anotado")
+	assert_eq(AssetStore.stale_files({}, plan), PackedStringArray(), "instalado a mano: no se borra nada")
+	assert_true(AssetStore.install(zip, plan).ok, "actualiza")
+	assert_eq(FileAccess.get_file_as_string(target.path_join("addons/thing/a.gd")), "a v2", "pisó")
+	var recorded := AssetStore.manifest_entry("v2.0", plan)
+	assert_eq(recorded.version, "v2.0", "versión")
+	assert_eq(recorded.files.size(), 3, "archivos escritos")
+	var path := root.path_join("assets.json")
+	AssetStore.write_manifest(path, {"me/thing": recorded})
+	var manifest := AssetStore.read_manifest(path)
+	assert_eq(manifest["me/thing"].version, "v2.0", "se lee lo que se escribió")
+	assert_eq(AssetStore.manifest_asset_for(manifest, "thing"), "me/thing", "carpeta → asset")
+	assert_eq(AssetStore.manifest_asset_for(manifest, "other"), "", "carpeta sin anotar")
+	assert_eq(AssetStore.read_manifest(root.path_join("nada.json")), {}, "sin archivo")
+	AssetStore.write_manifest(path, {"me/thing": recorded, "me/gone": {"version": "1", "folders": [target.path_join("addons/gone")]}})
+	assert_eq(AssetStore.installed_assets(path), {"me/thing": "v2.0"}, "sin las carpetas borradas a mano")
+
+
+func test_match_asset() -> void:
+	var hits: Array[Dictionary] = [
+		{"id": "a/other", "name": "Other"},
+		{"id": "kobewi/simple-todo", "name": "Simple TODO"},
+	]
+	assert_eq(AssetStore.match_asset({"name": "Simple TODO", "folder": "SimpleTODO"}, hits), "kobewi/simple-todo", "por nombre")
+	assert_eq(AssetStore.match_asset({"name": "Todo board", "folder": "simple_todo"}, hits), "kobewi/simple-todo", "por carpeta y slug")
+	assert_eq(AssetStore.match_asset({"name": "Nope", "folder": "nope"}, hits), "", "sin coincidencia")
+
+
 func test_project_plugins() -> void:
 	var root := _clean("asset_project_plugins")
 	_write(root.path_join("addons/b_tool/plugin.cfg"), "[plugin]\nname=\"B Tool\"\nversion=\"1.2\"\nauthor=\"me\"\n")
