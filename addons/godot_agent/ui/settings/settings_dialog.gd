@@ -39,7 +39,7 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -72,6 +72,7 @@ var _editing: int = -1
 var _form_fields: Dictionary = {}  # nombre -> control
 # Permisos
 var _matrix: Dictionary = {}  # grupo -> {modo -> OptionButton}
+var _subagent_spins: Dictionary = {}  # modo -> SpinBox
 var _timeout_spin: SpinBox
 var _auto_rules_page: AutoRulesPage
 ## Filas de la matriz para los MCP servers de terceros (m7-35): se rearman con la lista.
@@ -252,6 +253,18 @@ func _build_permissions(page: VBoxContainer) -> void:
 				option.tooltip_text = I18n.t("In Auto mode, \"Ask\" lets the lists of the Auto mode section decide first: commands on the allowlist run without a card.")
 			grid.add_child(option)
 			_matrix[group][mode] = option
+	var limit_label := Label.new()
+	limit_label.text = I18n.t("Subagents at once")
+	limit_label.tooltip_text = I18n.t("How many subagents Claude Code can run at the same time in each mode; one more is rejected with a notice in the chat. 0 = no limit of the harness.")
+	limit_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	grid.add_child(limit_label)
+	for mode: SessionModel.HarnessMode in MODES:
+		var spin := SpinBox.new()
+		spin.min_value = 0
+		spin.max_value = 20
+		spin.tooltip_text = limit_label.tooltip_text
+		grid.add_child(spin)
+		_subagent_spins[mode] = spin
 	page.add_child(_hint(I18n.t("MCP servers of other programs: their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask.")))
 	_mcp_grid = GridContainer.new()
 	_mcp_grid.columns = MODES.size() + 1
@@ -260,7 +273,9 @@ func _build_permissions(page: VBoxContainer) -> void:
 	var defaults := Button.new()
 	defaults.text = I18n.t("Reset to the spec defaults")
 	defaults.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	defaults.pressed.connect(func() -> void: _load_matrix({}))
+	defaults.pressed.connect(func() -> void:
+		_load_matrix({})
+		_load_subagent_limits({}))
 	page.add_child(defaults)
 	_timeout_spin = _spin_row(page, I18n.t("Wait for an answer before denying"), 10, 3600, 1, "s")
 	page.add_child(HSeparator.new())
@@ -465,6 +480,7 @@ func _load() -> void:
 	_mcp_servers_page.load_from(_settings.mcp_servers(), _config.mcp_servers)
 	_rebuild_mcp_matrix(_config.permissions)
 	_load_matrix(_config.permissions)
+	_load_subagent_limits(_config.subagent_limits)
 	_timeout_spin.value = _config.permission_timeout_s
 	_auto_rules_page.load_from(_config.auto_shell_rules)
 	_port_spin.value = _settings.mcp_port()
@@ -507,6 +523,23 @@ func _load_matrix(overrides: Dictionary) -> void:
 			(_matrix[group][mode] as OptionButton).select(DECISIONS.find(policy.matrix_value(group, mode)))
 
 
+func _load_subagent_limits(limits: Dictionary) -> void:
+	var policy := PermissionPolicy.new()
+	policy.subagent_limits = limits
+	for mode: SessionModel.HarnessMode in _subagent_spins:
+		(_subagent_spins[mode] as SpinBox).value = policy.subagent_limit(mode)
+
+
+## Límites de subagentes de la UI: mode_key -> int, sin los modos en 0.
+func subagent_limits() -> Dictionary:
+	var limits := {}
+	for mode: SessionModel.HarnessMode in _subagent_spins:
+		var value := int((_subagent_spins[mode] as SpinBox).value)
+		if value > 0:
+			limits[PermissionPolicy.MODE_KEYS[mode]] = value
+	return limits
+
+
 func _on_save() -> void:
 	if _profile_form.visible:
 		_apply_profile_form()
@@ -533,6 +566,7 @@ func _on_save() -> void:
 	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
 	_config.permissions = matrix_overrides()
+	_config.subagent_limits = subagent_limits()
 	_config.permission_timeout_s = int(_timeout_spin.value)
 	_config.auto_shell_rules = _auto_rules_page.rules()
 	_config.max_output_chars = int(_max_output_spin.value)

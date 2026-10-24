@@ -64,7 +64,9 @@ func run(tree: SceneTree, dock: Control, prefix: String) -> PackedStringArray:
 		controller.set(&"_profile", AgentProfile.from_dict(AgentProfile.defaults()[0]))
 		var meta: Dictionary = main_plugin.call(&"_session_meta")
 		controller.set(&"_profile", previous)
-		if meta != {"claudeCode": {"options": {"settings": settings}}}:
+		var expected := settings.duplicate()
+		expected["permissions"] = {"ask": ["Agent"]}
+		if meta != {"claudeCode": {"options": {"settings": expected}}}:
 			failures.append("_meta de la sesión: %s" % meta)
 	# Nueva skill en el proyecto.
 	(tab.get(&"_where") as OptionButton).select(0)

@@ -8,6 +8,8 @@ const ShellRules := preload("../session/shell_rules.gd")
 
 ## grupo (String) -> { modo (String) -> "allow" | "ask" | "deny" }. Vacío = defaults de la spec.
 @export var permissions: Dictionary = {}
+## Subagentes de Claude Code a la vez por modo (m7-43): mode_key -> int; 0 o ausente = sin límite.
+@export var subagent_limits: Dictionary = {}
 ## Segundos que una tool MCP espera la respuesta de la UI en "ask" antes de denegar.
 @export_range(10, 3600, 1, "suffix:s") var permission_timeout_s: int = 300
 ## Modo Auto (D57): reglas de shell `{pattern, list: "allow"|"ask", origin, added}`.

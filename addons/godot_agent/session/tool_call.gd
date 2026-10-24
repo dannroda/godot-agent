@@ -39,10 +39,23 @@ var parent_id: String = ""
 var child_ids: PackedStringArray = []
 ## Lo que fue escribiendo el subagente (los últimos SUBAGENT_TEXT_MAX caracteres).
 var subagent_text: String = ""
+## Sesión ACP del subagente que lanzó este tool call (subagentes nativos de ACP, m7-43), o "".
+var subagent_session_id: String = ""
+## Estado de trabajo que el agente informa de ese subagente: running, requires_action, idle o
+## unknown; "" si no informa.
+var subagent_state: String = ""
 
 
 func is_finished() -> bool:
 	return status in [STATUS_COMPLETED, STATUS_FAILED, STATUS_CANCELLED]
+
+
+## true mientras el subagente trabaja: según su estado si el agente lo informa (uno en segundo
+## plano sigue después de que termina el tool call que lo lanzó) y si no, mientras corre el tool call.
+func is_working() -> bool:
+	if not subagent_state.is_empty():
+		return subagent_state in ["running", "requires_action"]
+	return not is_finished()
 
 
 ## Aplica los campos presentes de un ToolCall / ToolCallUpdate de ACP.

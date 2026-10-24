@@ -123,6 +123,7 @@ func _enter_tree() -> void:
 	_controller.history = SessionHistory.new()
 	_project_config = ProjectConfig.load_or_default()
 	_controller.policy = PermissionPolicy.new(_project_config.permissions)
+	_controller.policy.subagent_limits = _project_config.subagent_limits
 	_controller.shell_rules = _project_config.auto_shell_rules
 	_controller.shell_rules_changed.connect(_save_project_config)
 	_controller.permissions_changed.connect(_on_permissions_changed)
@@ -641,14 +642,15 @@ func _on_permissions_changed() -> void:
 	_save_project_config()
 
 
-## `_meta` de session/new y session/load: las skills apagadas en el proyecto (solo Claude Code
-## tiene skills).
+## `_meta` de session/new y session/load para Claude Code: las skills apagadas en el proyecto
+## (m7-36) y que pida permiso para cada subagente, así el modo decide y se cuentan (m7-43).
 func _session_meta() -> Dictionary:
 	var profile := _controller.profile()
 	if profile == null or not ClaudeExtensions.is_claude_profile(profile.command, profile.args):
 		return {}
 	var settings := SkillCatalog.session_settings(_project_config.disabled_skills)
-	return {} if settings.is_empty() else {"claudeCode": {"options": {"settings": settings}}}
+	settings["permissions"] = {"ask": Array(PermissionPolicy.SUBAGENT_ASK_RULES)}
+	return {"claudeCode": {"options": {"settings": settings}}}
 
 
 ## El CLI corre con el entorno del perfil activo (CLAUDE_CONFIG_DIR y demás), como el agente.
@@ -735,6 +737,7 @@ func _open_settings() -> void:
 ## La config del proyecto se aplica en caliente; los settings de usuario llegan por settings_changed.
 func _on_settings_saved() -> void:
 	_controller.policy.overrides = _project_config.permissions
+	_controller.policy.subagent_limits = _project_config.subagent_limits
 	_controller.shell_rules = _project_config.auto_shell_rules
 	_controller.external_mcp_names = _external_mcp_names()
 	_fs.extra_roots = _project_config.extra_fs_roots

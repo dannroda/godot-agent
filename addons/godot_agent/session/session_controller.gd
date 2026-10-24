@@ -117,6 +117,9 @@ var _profile: AgentProfile
 var _system_prompt_sent: bool = false
 var _connect_generation: int = 0
 var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
+## Subagentes que el harness dejó arrancar (toolCallId -> true): cuentan para el límite aunque el
+## agente todavía no los haya pasado a in_progress.
+var _approved_subagents: Dictionary = {}
 var _mode_syncs_running: int = 0
 ## El último _load_session falló por el agente (sin loadSession o error), no por una cancelación.
 var _load_failed: bool = false
@@ -236,6 +239,7 @@ func open_session(generation: int = _connect_generation) -> bool:
 	_system_prompt_sent = false
 	policy.clear_session()
 	_preauthorized_writes.clear()
+	_approved_subagents.clear()
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.display_name, cwd)
 	model.set_state(SessionModel.SessionState.READY)
@@ -405,6 +409,9 @@ func client_capabilities() -> Dictionary:
 		# Login con el comando del agente (claude-agent-acp ofrece entonces «Claude Subscription» y
 		# «Anthropic Console»). El agente guarda sus credenciales; el addon no las ve.
 		"auth": {"terminal": true},
+		# Subagentes nativos (RFD de ACP, m7-43): el agente anuncia cada subagente con su sesión y su
+		# estado, que sigue después del tool call que lo lanzó si corre en segundo plano.
+		"subagents": {},
 	}
 
 
@@ -559,12 +566,16 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	if tool_call.get("toolCallId") is String:
 		var update := tool_call.duplicate()
 		update["sessionUpdate"] = "tool_call_update"
-		model.apply_update(update)
+		var session_id := str(params.get("sessionId", ""))
+		if session_id == model.session_id or not model.apply_child_update(session_id, update):
+			model.apply_update(update)
 	var request := PermissionRequest.new()
 	request.tool_call_id = str(tool_call.get("toolCallId", ""))
 	request.options = options
 	request.group = PermissionPolicy.group_for_tool_call(tool_call)
 	var call := model.tool_call(request.tool_call_id)
+	if call and call.tool_name in ToolCall.SUBAGENT_TOOLS:
+		request.group = PermissionPolicy.GROUP_SUBAGENTS
 	request.title = call.display_name() if call else str(tool_call.get("title", I18n.t("Agent tool")))
 	var subagent: ToolCall = model.tool_call(call.parent_id) if call and not call.parent_id.is_empty() else null
 	if subagent:
@@ -604,6 +615,11 @@ func _on_request_permission(params: Dictionary) -> Variant:
 		# En lugar de «siempre en esta sesión» (todo el grupo shell), la tarjeta propone una regla.
 		request.rule_pattern = ShellRules.suggest_pattern(command, shell_rules)
 		request.options = options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
+	if request.group == PermissionPolicy.GROUP_SUBAGENTS and decision != PermissionPolicy.DENY:
+		if _subagent_limit_reached(request.tool_call_id):
+			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+		if decision == PermissionPolicy.ALLOW:
+			_approved_subagents[request.tool_call_id] = true
 	match decision:
 		PermissionPolicy.ALLOW:
 			_log_perm("allowed by %s mode: %s" % [_mode_label(), request.title])
@@ -625,6 +641,8 @@ func _on_request_permission(params: Dictionary) -> Variant:
 		return {"outcome": {"outcome": "cancelled"}}
 	if request.was_allowed():
 		_preauthorize(request, call)
+		if request.group == PermissionPolicy.GROUP_SUBAGENTS:
+			_approved_subagents[request.tool_call_id] = true
 		# "Siempre" queda en la memoria de la sesión del harness; al agente se le responde
 		# "una vez" para que no lo guarde en sus settings en disco (spec §4.2).
 		var once := request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE])
@@ -777,7 +795,11 @@ func _send_line(line: String) -> bool:
 ## Durante session/load el agente vuelve a mandar toda la conversación; acá se descarta, porque
 ## model.session_id recién se asigna con la respuesta y el dock ya la armó desde el historial.
 func _on_session_update(params: Dictionary) -> void:
-	if params.get("sessionId") != model.session_id or not params.get("update") is Dictionary:
+	if not params.get("update") is Dictionary:
+		return
+	if params.get("sessionId") != model.session_id:
+		if params.get("sessionId") is String and not model.session_id.is_empty():
+			model.apply_child_update(params.sessionId, params.update)
 		return
 	if params.update.get("sessionUpdate") == "usage_update":
 		quota.observe_update(params.update)
@@ -815,12 +837,29 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	_system_prompt_sent = true  # ya está en el contexto que el agente recuperó
 	policy.clear_session()
 	_preauthorized_writes.clear()
+	_approved_subagents.clear()
 	if history:
 		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
 	model.set_state(SessionModel.SessionState.READY)
 	model.add_notice(I18n.t("Session resumed: the agent recovered its context with session/load."))
 	_sync_agent_mode()
 	connected.emit()
+	return true
+
+
+## true (y lo avisa) si lanzar otro subagente pasa el límite del modo (m7-43).
+func _subagent_limit_reached(tool_call_id: String) -> bool:
+	var limit := policy.subagent_limit(model.harness_mode)
+	if limit <= 0:
+		return false
+	# Cuentan los que el agente informa trabajando y, sin informe, los que corren o ya se permitieron
+	# (un pedido pendiente que se rechaza no arranca).
+	var running := model.running_subagents().filter(func(call: ToolCall) -> bool:
+		return call.id != tool_call_id and (not call.subagent_state.is_empty() or call.status == ToolCall.STATUS_IN_PROGRESS or _approved_subagents.has(call.id)))
+	if running.size() < limit:
+		return false
+	_log_perm("rejected, %d subagents already running (limit %d in %s mode)" % [running.size(), limit, _mode_label()])
+	model.add_notice(I18n.t("A subagent was not started: %d already running, the limit in %s mode (Settings → Permissions).") % [running.size(), I18n.t(_mode_label())], ChatEntry.NoticeLevel.WARNING)
 	return true
 
 

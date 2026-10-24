@@ -2785,3 +2785,24 @@ msgstr "%s se fue a la papelera."
 
 msgid "Could not move %s to the trash."
 msgstr "No se pudo mandar %s a la papelera."
+
+msgid "Subagents"
+msgstr "Subagentes"
+
+msgid "A subagent was not started: %d already running, the limit in %s mode (Settings → Permissions)."
+msgstr "Un subagente no arrancó: ya corren %d, el límite del modo %s (Settings → Permisos)."
+
+msgid "%d subagent"
+msgstr "%d subagente"
+
+msgid "%d subagents"
+msgstr "%d subagentes"
+
+msgid "Subagents running:"
+msgstr "Subagentes en curso:"
+
+msgid "Subagents at once"
+msgstr "Subagentes a la vez"
+
+msgid "How many subagents Claude Code can run at the same time in each mode; one more is rejected with a notice in the chat. 0 = no limit of the harness."
+msgstr "Cuántos subagentes puede correr Claude Code al mismo tiempo en cada modo; uno más se rechaza con un aviso en el chat. 0 = sin límite del harness."

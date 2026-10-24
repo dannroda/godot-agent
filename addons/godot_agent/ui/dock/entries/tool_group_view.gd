@@ -69,7 +69,7 @@ func refresh() -> void:
 	var failed := 0
 	for call: ToolCall in calls:
 		_refresh_row(call, _body)
-		running = running or not call.is_finished()
+		running = running or not call.is_finished() or (call.is_subagent() and call.is_working())
 		total_msec += call.duration_msec()
 		if call.status == ToolCall.STATUS_FAILED:
 			failed += 1
@@ -198,7 +198,7 @@ func _refresh_subagent(call: ToolCall, parts: Dictionary) -> void:
 	var toggle: Button = parts.toggle
 	var count := (I18n.t("%d subagent tool") if children.size() == 1 else I18n.t("%d subagent tools")) % children.size()
 	var text := "%s %s" % ["▾" if toggle.button_pressed else "▸", count]
-	if not call.is_finished() and not children.is_empty():
+	if call.is_working() and not children.is_empty():
 		var latest: ToolCall = children.back()
 		text += " · " + _short_name(latest)
 	toggle.text = text

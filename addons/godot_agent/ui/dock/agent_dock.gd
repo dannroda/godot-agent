@@ -196,6 +196,10 @@ func _ready() -> void:
 		if state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]:
 			_queue.pause(I18n.t("the session closed")))
 	_model.turn_finished.connect(_on_turn_finished)
+	# Los subagentes en curso se cuentan en la línea de estado (m7-43).
+	_model.tool_call_changed.connect(func(call: SessionModel.ToolCall, _group: ChatEntry) -> void:
+		if call.is_subagent():
+			_refresh_state())
 	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
 	_model.usage_changed.connect(_composer.set_usage)
 	_model.commands_changed.connect(_composer.set_commands)
@@ -492,6 +496,9 @@ func _refresh_state() -> void:
 		SessionModel.SessionState.PROMPTING:
 			text = I18n.t("● %s · working…") % name
 			color = _accent
+			var subagents := _model.running_subagents()
+			if not subagents.is_empty():
+				text += " · " + (I18n.t("%d subagent") if subagents.size() == 1 else I18n.t("%d subagents")) % subagents.size()
 		SessionModel.SessionState.CANCELLING:
 			text = I18n.t("● %s · cancelling…") % name
 			color = AgentTheme.WARNING
@@ -500,6 +507,10 @@ func _refresh_state() -> void:
 			color = AgentTheme.ERROR
 	_status_label.text = text
 	_status_label.tooltip_text = _model.failure_message
+	if _model.state == SessionModel.SessionState.PROMPTING:
+		var names := _model.running_subagents().map(func(call: SessionModel.ToolCall) -> String: return "• " + call.display_name())
+		if not names.is_empty():
+			_status_label.tooltip_text = I18n.t("Subagents running:") + "\n" + "\n".join(names)
 	_status_label.add_theme_color_override(&"font_color", color)
 	_composer.set_busy(_model.is_busy())
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)

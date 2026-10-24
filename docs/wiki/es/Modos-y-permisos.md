@@ -33,8 +33,17 @@ Valores por defecto:
 | Shell / comandos | Denegar | Denegar | Preguntar | Preguntar¹ | Preguntar |
 | Project settings, export y addons | Denegar | Denegar | Preguntar | Permitir | Permitir |
 | Instalar desde el Asset Store | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
+| Subagentes | Permitir | Permitir | Permitir | Permitir | Permitir |
 
 ¹ En Auto, primero deciden las [listas del modo Auto](#modo-auto); solo lo que no permiten muestra una tarjeta.
+
+### Subagentes
+
+Con Claude Code, lanzar un subagente (su tool **Agent**) pasa por el grupo **Subagentes**: podés denegarlo o hacer que pregunte en un modo.
+
+- **Subagentes a la vez**, en la matriz de **Ajustes → Permisos**, limita cuántos corren al mismo tiempo en cada modo (0 = sin límite). Uno más se rechaza con un aviso en el chat, y al agente se le dice por qué.
+- La tarjeta de un subagente en el chat muestra su prompt, las tools que corre y lo que va escribiendo, y al final su informe. Uno que corre en segundo plano sigue en curso hasta que termina, aunque ya haya terminado el tool call que lo lanzó.
+- Mientras el agente trabaja, la línea de estado cuenta los subagentes en curso; su tooltip los lista.
 
 ### Servidores MCP de otros programas
 

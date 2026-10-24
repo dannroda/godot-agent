@@ -6,6 +6,7 @@ extends RefCounted
 const SessionModel := preload("session_model.gd")
 const I18n := preload("../core/i18n.gd")
 const ExternalMcpServers := preload("../mcp/external_mcp_servers.gd")
+const ToolCall := preload("tool_call.gd")
 
 const ALLOW := "allow"
 const ASK := "ask"
@@ -20,6 +21,9 @@ const GROUP_SHELL := "shell"
 const GROUP_PROJECT := "project"
 ## Instalar assets del Asset Store (m7-39): código de terceros en el proyecto, siempre se pregunta.
 const GROUP_ADDONS := "addons"
+## Subagentes de Claude Code (tool Agent, m7-43). La sesión pide permiso para cada uno
+## (SUBAGENT_ASK_RULES); acá se permiten o no por modo, y subagent_limits los cuenta.
+const GROUP_SUBAGENTS := "subagents"
 ## Sin grupo conocido: siempre se pregunta (spec §7, "el resto → ask").
 const GROUP_OTHER := "other"
 ## Un grupo por MCP server de terceros (m7-35): `mcp:blender`. Sin override, ask en todos los modos.
@@ -27,6 +31,7 @@ const GROUP_MCP_PREFIX := "mcp:"
 
 const GROUPS: PackedStringArray = [
 	GROUP_READ, GROUP_DIAGNOSTICS, GROUP_EDIT_SCENE, GROUP_EDIT_FILES, GROUP_RUN, GROUP_SHELL, GROUP_PROJECT, GROUP_ADDONS,
+	GROUP_SUBAGENTS,
 ]
 const GROUP_LABELS: Dictionary = {
 	GROUP_READ: "Read",  # i18n
@@ -37,6 +42,7 @@ const GROUP_LABELS: Dictionary = {
 	GROUP_SHELL: "Shell / commands",  # i18n
 	GROUP_PROJECT: "Project settings, export and addons",  # i18n
 	GROUP_ADDONS: "Install from the Asset Store",  # i18n
+	GROUP_SUBAGENTS: "Subagents",  # i18n
 	GROUP_OTHER: "Other",  # i18n
 }
 const MODE_KEYS: Dictionary = {
@@ -60,7 +66,11 @@ const DEFAULTS: Dictionary = {
 	GROUP_PROJECT: [DENY, DENY, ASK, ALLOW, ALLOW],
 	# Ask también en One-shot y Auto: baja código de terceros al proyecto (m7-39).
 	GROUP_ADDONS: [DENY, DENY, ASK, ASK, ASK],
+	# Como antes de m7-43: Claude Code los lanzaba sin preguntar.
+	GROUP_SUBAGENTS: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
 }
+## Reglas `ask` de las settings de la sesión: que Claude Code pida permiso para cada subagente.
+const SUBAGENT_ASK_RULES: PackedStringArray = ["Agent"]
 ## kind de un tool call de ACP → grupo.
 const KIND_GROUPS: Dictionary = {
 	"read": GROUP_READ,
@@ -73,6 +83,9 @@ const KIND_GROUPS: Dictionary = {
 
 ## Overrides por proyecto: grupo -> { mode_key -> decisión }.
 var overrides: Dictionary = {}
+## Subagentes a la vez por modo (m7-43): mode_key -> int. 0 o ausente = sin límite del harness
+## (Claude Code tiene el suyo, 20).
+var subagent_limits: Dictionary = {}
 var _session_grants: Dictionary = {}  # grupo -> true
 ## Decisiones que pisan la matriz mientras dura un rol (el evaluador del One-shot, D55): grupo -> decisión.
 var restrictions: Dictionary = {}
@@ -121,10 +134,18 @@ func set_matrix_value(group: String, mode: SessionModel.HarnessMode, value: Stri
 ## Grupo de un tool call de ACP según su kind (las tools `godot.*` las decide el server MCP).
 ## Las tools de un MCP server de terceros van al grupo de ese server.
 static func group_for_tool_call(tool_call: Dictionary) -> String:
+	var meta: Variant = tool_call.get("_meta")
+	if meta is Dictionary and meta.get("claudeCode") is Dictionary and str(meta.claudeCode.get("toolName", "")) in ToolCall.SUBAGENT_TOOLS:
+		return GROUP_SUBAGENTS
 	var server := mcp_server_of(tool_call)
 	if not server.is_empty():
 		return mcp_group(server)
 	return KIND_GROUPS.get(str(tool_call.get("kind", "")), GROUP_OTHER)
+
+
+## Subagentes a la vez permitidos en `mode`, o 0 si no hay límite.
+func subagent_limit(mode: SessionModel.HarnessMode) -> int:
+	return maxi(0, int(subagent_limits.get(MODE_KEYS.get(mode, ""), 0)))
 
 
 ## Server de terceros de un tool call (`mcp__<server>__<tool>` en el título o en

@@ -33,8 +33,17 @@ Defaults:
 | Shell / commands | Deny | Deny | Ask | Ask¹ | Ask |
 | Project settings, export and addons | Deny | Deny | Ask | Allow | Allow |
 | Install from the Asset Store | Deny | Deny | Ask | Ask | Ask |
+| Subagents | Allow | Allow | Allow | Allow | Allow |
 
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.
+
+### Subagents
+
+With Claude Code, launching a subagent (its **Agent** tool) goes through the **Subagents** group, so you can deny it or have it ask in a mode.
+
+- **Subagents at once**, in the matrix of **Settings → Permissions**, caps how many run at the same time in each mode (0 = no limit). One more is rejected with a notice in the chat, and the agent is told why.
+- A subagent's card in the chat shows its prompt, the tools it runs and what it writes as it works, and its report at the end. One that runs in the background stays in progress until it ends, even after the tool call that launched it.
+- While the agent works, the status line counts the subagents running; its tooltip lists them.
 
 ### MCP servers of other programs
 

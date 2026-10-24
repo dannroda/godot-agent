@@ -75,6 +75,9 @@ var pending_permissions: Array[PermissionRequest] = []
 var _entries: Array[ChatEntry] = []
 var _tool_calls: Dictionary = {}  # toolCallId -> ToolCall
 var _group_of_call: Dictionary = {}  # toolCallId -> ChatEntry (TOOL_GROUP)
+## Subagentes nativos de ACP (m7-43): sesión del hijo -> {state, title, description, launch}, con
+## `launch` el tool call de Agent/Task que lo lanzó (lo dice el session_message de su prompt).
+var _subagent_sessions: Dictionary = {}
 var _plan_entry: ChatEntry
 var _next_entry_id: int = 1
 
@@ -145,6 +148,7 @@ func reset() -> void:
 	_entries.clear()
 	_tool_calls.clear()
 	_group_of_call.clear()
+	_subagent_sessions.clear()
 	_plan_entry = null
 	cancel_pending_permissions()
 	set_remote_control("")
@@ -308,9 +312,77 @@ func apply_update(update: Dictionary) -> bool:
 			usage_used = int(update.get("used", usage_used))
 			usage_size = int(update.get("size", usage_size))
 			usage_changed.emit(usage_used, usage_size)
+		"subagent_update":
+			_apply_subagent_update(update)
+		"session_message":
+			_link_subagent(update)
 		_:
 			return false
 	return true
+
+
+## true si `session_id` es la sesión de un subagente que anunció el agente.
+func is_subagent_session(session_id: String) -> bool:
+	return _subagent_sessions.has(session_id)
+
+
+## Aplica un update de la sesión de un subagente: va al tool call que lo lanzó, como los que marca
+## `parentToolUseId`. false si la sesión no es de un subagente conocido.
+func apply_child_update(session_id: String, update: Dictionary) -> bool:
+	var info: Dictionary = _subagent_sessions.get(session_id, {})
+	if info.is_empty():
+		return false
+	var kind := str(update.get("sessionUpdate", ""))
+	if kind in ["subagent_update", "session_message"]:
+		return apply_update(update)
+	if not kind in ["agent_message_chunk", "agent_thought_chunk", "user_message_chunk", "plan", "tool_call", "tool_call_update"]:
+		return true
+	if parent_tool_call_id(update).is_empty():
+		if str(info.launch).is_empty():
+			return true
+		update = update.duplicate()
+		var meta: Dictionary = (update.get("_meta") as Dictionary).duplicate(true) if update.get("_meta") is Dictionary else {}
+		var claude: Dictionary = meta.get("claudeCode") if meta.get("claudeCode") is Dictionary else {}
+		claude["parentToolUseId"] = info.launch
+		meta["claudeCode"] = claude
+		update["_meta"] = meta
+	return apply_update(update)
+
+
+## Anuncio o cambio de estado de un subagente (`subagent_update`, sessionId = el del hijo).
+func _apply_subagent_update(update: Dictionary) -> void:
+	var child := str(update.get("sessionId", ""))
+	if child.is_empty():
+		return
+	if not _subagent_sessions.has(child):
+		_subagent_sessions[child] = {"state": "", "title": "", "description": "", "launch": ""}
+	var info: Dictionary = _subagent_sessions[child]
+	if update.get("state") is Dictionary:
+		info.state = str((update.state as Dictionary).get("state", ""))
+	for key: String in ["title", "description"]:
+		if update.get(key) is String:
+			info[key] = update[key]
+	_sync_subagent(child)
+
+
+## El prompt de un lanzamiento llega como session_message con el id del tool call de Agent/Task.
+func _link_subagent(update: Dictionary) -> void:
+	var child := str(update.get("recipientSessionId", ""))
+	var launch := str(update.get("messageId", ""))
+	if not _subagent_sessions.has(child) or not _tool_calls.has(launch):
+		return
+	_subagent_sessions[child].launch = launch
+	_sync_subagent(child)
+
+
+func _sync_subagent(child: String) -> void:
+	var info: Dictionary = _subagent_sessions[child]
+	var call: ToolCall = _tool_calls.get(str(info.launch))
+	if call == null:
+		return
+	call.subagent_session_id = child
+	call.subagent_state = info.state
+	_emit_tool_call_changed(call)
 
 
 ## Fin del turno (resultado de session/prompt).
@@ -496,6 +568,17 @@ func _push(entry: ChatEntry) -> ChatEntry:
 	_entries.append(entry)
 	entry_added.emit(entry)
 	return entry
+
+
+## Subagentes (Agent/Task) que siguen trabajando, en el orden en que arrancaron.
+func running_subagents() -> Array[ToolCall]:
+	var running: Array[ToolCall] = []
+	for id: String in _tool_calls:
+		var call: ToolCall = _tool_calls[id]
+		if call.is_subagent() and call.is_working():
+			running.append(call)
+	running.sort_custom(func(a: ToolCall, b: ToolCall) -> bool: return a.started_msec < b.started_msec)
+	return running
 
 
 ## Id del tool call de Agent/Task cuyo subagente mandó este update (`_meta.claudeCode.parentToolUseId`
