@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T17:33:44.945Z",
+  "description": "Revisión de m7-39: el zip se llama solo por asset_id; si el agente instala el mismo asset mientras el diálogo de la pestaña está abierto, pisa el zip y lo borra, y la pestaña falla con «not a valid zip».",
+  "milestone": "m07",
+  "notes": "download(): el zip se llama <asset>_<ticks_usec>.zip. Se sigue borrando al terminar o cancelar.",
+  "order": 49,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "Sin test: cambio de nombre de archivo; asset_check.sh lo ejercita al instalar.",
+  "title": "Asset Store: zip temporal propio por descarga",
+  "updated_at": "2026-10-27T17:35:44.270Z"
+}

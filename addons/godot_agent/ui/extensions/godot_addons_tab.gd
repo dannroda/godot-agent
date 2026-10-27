@@ -100,7 +100,7 @@ func _build_dialog() -> void:
 	_include_other.toggled.connect(func(on: bool) -> void:
 		if not _pending.is_empty():
 			var stale: Array = _pending.plan.stale
-			_pending.plan = AssetStore.plan_install(_pending.zip, not on, "res://", AssetStore.addon_folders(_pending.plan) if _pending.update else PackedStringArray())
+			_pending.plan = AssetStore.plan_install(_pending.zip, not on, "res://", _pending.replace)
 			_pending.plan.stale = stale
 			_update_dialog())
 	column.add_child(_include_other)

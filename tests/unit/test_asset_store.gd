@@ -30,13 +30,15 @@ func test_parse_hits() -> void:
 			"publisher": {"name": "Nathan Hoad", "slug": "nathanhoad"}}},
 		{"asset": {"name": "Paid", "slug": "paid", "price_cent": 500, "publisher": {"slug": "acme"}}},
 		{"asset": {"name": "Broken", "slug": "../x", "publisher": {"slug": "acme"}}},
+		{"asset": {"name": "New", "slug": "new", "reviews_score": null, "price_cent": null, "publisher": {"slug": "acme"}}},
 		"basura",
 	])
-	assert_eq(hits.size(), 2, "descarta lo que no tiene un id válido")
+	assert_eq(hits.size(), 3, "descarta lo que no tiene un id válido")
 	assert_eq(hits[0].id, "nathanhoad/dialogue-manager", "id")
 	assert_eq(hits[0].publisher, "Nathan Hoad", "publisher")
 	assert_eq(hits[0].description, "Branching dialogue.", "descripción sin espacios")
 	assert_eq(hits[1].price_cent, 500, "precio")
+	assert_eq([hits[2].score, hits[2].price_cent], [0, 0], "null del store como 0")
 	assert_eq(AssetStore.parse_hits(null), [], "sin hits")
 
 
@@ -56,13 +58,14 @@ func test_compatible_releases() -> void:
 	var list := [
 		{"version": "v5.0.0", "stable": true, "min_godot_version": "4.8", "max_godot_version": null, "download_url": "u5"},
 		{"version": "v4.1.0-beta", "stable": false, "min_godot_version": "4.6", "max_godot_version": null, "download_url": "u4b"},
-		{"version": "v4.0.0", "stable": true, "min_godot_version": "4.6", "max_godot_version": "4.7", "download_url": "u4"},
+		{"version": "v4.0.0", "stable": true, "min_godot_version": "4.6", "max_godot_version": "4.7", "download_url": "u4", "size": null},
 		{"version": "v3.0.0", "stable": true, "min_godot_version": "4.2", "max_godot_version": "4.5", "download_url": "u3"},
 		{"version": "v2.0.0", "stable": true, "download_url": ""},
 	]
 	var releases := AssetStore.compatible_releases(list, GODOT_472)
 	assert_eq(releases.map(func(r: Dictionary) -> String: return r.version), ["v4.1.0-beta", "v4.0.0"], "4.7.2 entra en un máximo 4.7; sin url no")
 	assert_eq(AssetStore.pick_release(releases).version, "v4.0.0", "la estable más nueva")
+	assert_eq(releases[1].size_mb, 0.0, "size null")
 	assert_eq(AssetStore.pick_release(releases, "4.1.0-beta").version, "v4.1.0-beta", "una versión pedida, sin v")
 	assert_eq(AssetStore.pick_release(releases, "9.9"), {}, "una versión que no está")
 	var only_beta := AssetStore.compatible_releases([list[1]], GODOT_472)
@@ -79,6 +82,7 @@ func test_plan_with_root_folder() -> void:
 		"repo-1.0/README.md": "readme",
 		"repo-1.0/project.godot": "no",
 		"repo-1.0/../evil.gd": "no",
+		"repo-1.0/addons/godot_agent/plugin.gd": "no",
 	})
 	var target := root.path_join("project")
 	_write(target.path_join("addons/thing/thing.gd"), "mine")
@@ -94,6 +98,7 @@ func test_plan_with_root_folder() -> void:
 	assert_eq(FileAccess.get_file_as_string(target.path_join("addons/thing/thing.gd")), "mine", "no pisó")
 	assert_true(FileAccess.file_exists(target.path_join("addons/thing/plugin.cfg")), "escribió")
 	assert_false(FileAccess.file_exists(root.path_join("evil.gd")), "sin rutas con ..")
+	assert_false(all.files.any(func(f: Dictionary) -> bool: return "godot_agent" in f.target), "nunca dentro del harness")
 
 
 func test_plan_without_addons() -> void:
@@ -152,6 +157,10 @@ func test_update_plan_and_manifest() -> void:
 		"files": [target.path_join("addons/thing/plugin.cfg"), target.path_join("addons/thing/a.gd"), target.path_join("addons/thing/gone.gd"), target.path_join("elsewhere/x.gd")]}
 	assert_eq(Array(AssetStore.stale_files(entry, plan)), [target.path_join("addons/thing/gone.gd")], "solo lo viejo de su carpeta; mine.txt no estaba anotado")
 	assert_eq(AssetStore.stale_files({}, plan), PackedStringArray(), "instalado a mano: no se borra nada")
+	var other := target.path_join("addons/other")
+	assert_eq(Array(AssetStore.replace_folders({"folders": [other]}, plain)), [other], "anotado: solo sus carpetas, no las que trae el zip")
+	assert_eq(AssetStore.replace_folders({}, plain), folders, "a mano: las del zip")
+	assert_eq(AssetStore.plan_install(zip, true, target, [other]).conflicts.size(), 2, "lo de otra carpeta no se pisa")
 	assert_true(AssetStore.install(zip, plan).ok, "actualiza")
 	assert_eq(FileAccess.get_file_as_string(target.path_join("addons/thing/a.gd")), "a v2", "pisó")
 	var recorded := AssetStore.manifest_entry("v2.0", plan)

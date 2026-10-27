@@ -73,7 +73,8 @@ func releases(asset_id: String) -> Dictionary:
 func download(asset_id: String, release: Dictionary) -> Dictionary:
 	var stage := ProjectSettings.globalize_path(STAGE_DIR)
 	DirAccess.make_dir_recursive_absolute(stage)
-	var zip_path := stage.path_join("%s.zip" % asset_id.replace("/", "__"))
+	# Uno por descarga: la pestaña y el agente pueden tener el mismo asset preparado a la vez.
+	var zip_path := stage.path_join("%s_%d.zip" % [asset_id.replace("/", "__"), Time.get_ticks_usec()])
 	var response := await _fetch(str(release.download_url), zip_path)
 	if not response.error.is_empty():
 		DirAccess.remove_absolute(zip_path)
@@ -82,8 +83,8 @@ func download(asset_id: String, release: Dictionary) -> Dictionary:
 
 
 ## Primer paso de instalar: elige la release (`version` o la estable más nueva para esta versión
-## de Godot), baja el zip y arma el plan. `{ok, asset_id, release, zip, plan, update, error}`.
-## Con `update`, los archivos de las carpetas de addons/ que ya tiene el proyecto se reemplazan y
+## de Godot), baja el zip y arma el plan. `{ok, asset_id, release, zip, plan, update, replace, error}`.
+## Con `update`, los archivos de las carpetas `replace` (ver replace_folders) se reemplazan y
 ## `plan.stale` lista los de la versión anotada que la nueva ya no trae.
 func prepare(asset_id: String, version: String = "", only_addons: bool = true, update: bool = false) -> Dictionary:
 	var fail := func(message: String) -> Dictionary:
@@ -103,11 +104,13 @@ func prepare(asset_id: String, version: String = "", only_addons: bool = true, u
 	var plan := plan_install(downloaded.zip, only_addons)
 	if not plan.error.is_empty():
 		return fail.call(plan.error)
+	var replace: PackedStringArray = []
 	if update:
 		var entry: Dictionary = read_manifest(manifest_path).get(asset_id, {})
-		plan = plan_install(downloaded.zip, only_addons, "res://", addon_folders(plan))
+		replace = replace_folders(entry, plan)
+		plan = plan_install(downloaded.zip, only_addons, "res://", replace)
 		plan.stale = stale_files(entry, plan)
-	return {"ok": true, "asset_id": asset_id, "release": release, "zip": downloaded.zip, "plan": plan, "update": update, "error": ""}
+	return {"ok": true, "asset_id": asset_id, "release": release, "zip": downloaded.zip, "plan": plan, "update": update, "replace": replace, "error": ""}
 
 
 ## Segundo paso: escribe los archivos, hace que el editor los vea, anota la instalación y, con
@@ -125,6 +128,8 @@ func finish(prepared: Dictionary, enable_plugins: bool) -> Dictionary:
 	var installed := install(prepared.zip, plan)
 	DirAccess.remove_absolute(prepared.zip)
 	if not installed.ok:
+		for path: String in was_enabled:
+			EditorInterface.set_plugin_enabled(path, true)
 		return {"ok": false, "written": installed.written, "removed": 0, "enabled": [], "error": installed.error}
 	var removed := 0
 	for path: String in plan.get("stale", []):
@@ -244,8 +249,9 @@ static func parse_hits(hits: Variant) -> Array[Dictionary]:
 			"publisher": str(publisher.get("name", publisher.get("slug", ""))),
 			"description": one_line(str(asset.get("description", ""))),
 			"license": str(asset.get("license_type", "")),
-			"score": int(asset.get("reviews_score", 0)),
-			"price_cent": int(asset.get("price_cent", 0)),
+			# int(str()): el store puede mandar null, e int(null) es error.
+			"score": int(str(asset.get("reviews_score", 0))),
+			"price_cent": int(str(asset.get("price_cent", 0))),
 			"store_url": str(asset.get("store_url", "")),
 			"thumbnail": str(asset.get("thumbnail", "")),
 		})
@@ -312,7 +318,7 @@ static func compatible_releases(list: Array, version: Dictionary) -> Array[Dicti
 			"max_godot": str(high) if high is String else "",
 			"date": str(item.get("created", "")),
 			"download_url": str(item.download_url),
-			"size_mb": float(item.get("size", 0.0)),
+			"size_mb": float(str(item.get("size", 0.0))),
 		})
 	return result
 
@@ -356,6 +362,8 @@ static func plan_install(zip_path: String, only_addons: bool = true, target_root
 		var relative := name.trim_prefix(root)
 		if relative.is_empty() or relative.is_absolute_path() or ".." in relative.split("/") or relative.begins_with("/"):
 			continue
+		if relative.begins_with("addons/") and relative.get_slice("/", 1) in PROTECTED_FOLDERS:
+			continue  # nunca se escribe dentro del harness
 		if relative.begins_with("addons/"):
 			has_addons = true
 		entries.append({"zip": name, "relative": relative})
@@ -455,6 +463,13 @@ static func addon_folders(plan: Dictionary) -> PackedStringArray:
 		if not folder in result and folder != target:
 			result.append(folder)
 	return result
+
+
+## Carpetas que una actualización puede pisar: las anotadas al instalar el asset; si se instaló a
+## mano (sin anotación), las de addons/ que trae el zip.
+static func replace_folders(entry: Dictionary, plan: Dictionary) -> PackedStringArray:
+	var folders: Array = entry.get("folders", [])
+	return PackedStringArray(folders) if not folders.is_empty() else addon_folders(plan)
 
 
 ## Lo que se anota de una instalación: versión, carpetas de addons/ y archivos escritos.

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T17:33:44.645Z",
+  "description": "Revisión de m7-39: int(null) es error de script en Godot 4 (probado en 4.7.2) y get(key, 0) devuelve null si la clave viene con null. Un hit con reviews_score o price_cent null corta search() (pestaña y agente); lo mismo size en compatible_releases.",
+  "milestone": "m07",
+  "notes": "parse_hits (score, price_cent) y compatible_releases (size) usan int(str(…)) / float(str(…)), como ya hacía parse_details con price_cent: str(null) da 0.",
+  "order": 48,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "Unit: test_asset_store (run_all -- asset: 17 tests, 94 checks, 0 fallos en 4.7.2). Fixture con reviews_score y price_cent null, y una release con size null.",
+  "title": "Asset Store: un campo null del store no rompe la búsqueda",
+  "updated_at": "2026-10-27T17:35:44.027Z"
+}
