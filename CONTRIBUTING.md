@@ -50,7 +50,7 @@ If you link the addon into a project whose editor is open, saving a file of the 
 
 - One topic per pull request, based on `main`.
 - Add a line to the **Unreleased** section of [`CHANGELOG.md`](CHANGELOG.md), in English, for anything a user would notice. The release notes come from there.
-- Update the [wiki pages](docs/wiki) (English and Spanish) and the READMEs if the change affects what users see or do. If it changes what the README screenshots show, regenerate them with `tests/docs_shots.sh <godot> en` and `… es` (needs `xvfb-run`; it works on a temporary copy of the project and doesn't touch your editor settings).
+- Update the [wiki pages](docs/wiki) (English and Spanish) and the READMEs if the change affects what users see or do. If it changes what the README screenshots show, regenerate them with `tests/docs_shots.sh <godot> en` and `… es` (needs `xvfb-run`; it works on a temporary copy of the project and doesn't touch your editor settings). `docs/wiki` is the source of the [GitHub wiki](https://github.com/dannroda/godot-agent/wiki): `python3 .github/scripts/wiki.py <wiki checkout>` copies it there.
 - Don't commit `addons/godot_agent/config/project_config.tres`: it's your local project config.
 - CI must pass: unit tests, the ACP check and the One-shot check, on the three Godot versions.
 
