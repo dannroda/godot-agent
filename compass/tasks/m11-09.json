@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:21:06.021Z",
+  "description": "Idea de la comparación con otros harness (2026-10-27). Como las cloud tasks de Codex o el coding agent de Copilot. Una sesión trabaja en otra copia del proyecto con su propio Godot headless y entrega un diff o una rama para integrar, sin competir con el editor abierto. Choca con «el harness nunca mergea»: decidir cómo se integra.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 9,
+  "priority": "low",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Tareas en segundo plano en un worktree con Godot headless",
+  "updated_at": "2026-10-27T23:21:06.021Z"
+}

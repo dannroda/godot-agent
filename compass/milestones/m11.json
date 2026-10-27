@@ -1,0 +1,9 @@
+{
+  "code": "M9",
+  "done_when": [
+    "Cada idea quedó hecha o descartada con su motivo en la tarjeta."
+  ],
+  "goal": "Lo que vale la pena traer de Claude Code, Codex, Antigravity, Copilot y Cursor, adaptado a Godot: deshacer y revisar por turno, sesiones que avisan, verificación automática, chat en línea en el Script Editor, artefactos del juego, más contexto y trabajo en segundo plano.",
+  "order": 11,
+  "title": "Ideas de otros harness"
+}

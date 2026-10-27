@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:21:04.175Z",
+  "description": "Idea de la comparación con otros harness (2026-10-27). Como el Agent Manager de Antigravity. Con varias pestañas, un pedido de permiso en una que no está a la vista pasa desapercibido. Marcar la pestaña («⚠ nombre»), notificación del editor y, si hace falta, un resumen de las sesiones.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 3,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Avisar cuando una sesión en segundo plano necesita al usuario",
+  "updated_at": "2026-10-27T23:21:04.175Z"
+}

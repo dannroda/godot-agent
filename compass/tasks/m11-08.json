@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:21:05.714Z",
+  "description": "Idea de la comparación con otros harness (2026-10-27). @errors, @output, @game (árbol del juego en marcha), @docs Clase (referencia de la API) y arrastrar un nodo del Scene Tree al composer. Revisar primero qué menciones existen.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 8,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Más contexto con @: errores, output, juego y docs",
+  "updated_at": "2026-10-27T23:21:05.714Z"
+}

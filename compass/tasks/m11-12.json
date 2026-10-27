@@ -1,0 +1,25 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:24:30.307Z",
+  "description": "Idea (2026-10-27), surgió de cómo Zed integra Antigravity. El registro de ACP (cdn.agentclientprotocol.com/registry/v1/latest/registry.json) lista ~43 agentes con su forma de instalarlos: npx, uvx o un binario por plataforma (zip con sha256, comando y args). Entre ellos Claude Agent, Codex, Gemini CLI, Copilot, Cursor, Google Antigravity, Goose, OpenCode, Junie, Kimi, Qwen Code, Mistral Vibe. En Settings → Perfiles: elegir un agente del registro y que el harness arme el perfil (npx/uvx) o baje, verifique y descomprima el binario en user://, como hace Zed. Reemplaza armar perfiles a mano y cubre agy sin código propio.",
+  "links": [
+    {
+      "task": "m11-11",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "",
+  "order": 12,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Instalar agentes desde el registro de ACP",
+  "updated_at": "2026-10-27T23:24:30.634Z"
+}

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:21:06.342Z",
+  "description": "Idea de la comparación con otros harness (2026-10-27). Como Copilot o Codex. Crear un PR desde una sesión y traer los comentarios de un PR como hallazgos de Revisar. Opcional y apagado por defecto: hoy el harness nunca pushea por diseño.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 10,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Integración opcional con GitHub: PR desde una sesión y comentarios como hallazgos",
+  "updated_at": "2026-10-27T23:21:06.342Z"
+}

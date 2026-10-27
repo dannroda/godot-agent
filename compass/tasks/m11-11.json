@@ -1,0 +1,25 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:21:06.654Z",
+  "description": "Idea de la comparación con otros harness (2026-10-27). Google publica un adaptador ACP oficial para Antigravity en el registro de ACP (id antigravity-acp, v1.4.3, autor Google LLC, licencia propietaria): un zip por plataforma desde dl.google.com/agy-extensions/releases/<os>/agy-acp-server-<versión>-<os>-<arch>.zip, con sha256, que se ejecuta como ./agy_acp_server.par (en Linux con el argumento --uid=; en Windows agy_acp_server.exe). Así lo integra Zed: lee el registro, baja y verifica el zip, y lanza ese comando como agente ACP por stdio. Hay también adaptadores de la comunidad (agy-acp, antigravity-acp de GitHub) que leen el almacenamiento local de Antigravity; preferir el oficial. A probar: login, que pase los mcpServers de session/new (sin eso no ve godot.*) y godot.sessions/session_send entre agy y Claude Code en el mismo dock.",
+  "links": [
+    {
+      "task": "m7-52",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "",
+  "order": 11,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Soporte para Antigravity CLI (agy) como agente",
+  "updated_at": "2026-10-27T23:24:30.046Z"
+}

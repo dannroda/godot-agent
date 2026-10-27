@@ -1,0 +1,29 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:21:03.557Z",
+  "description": "Idea de la comparación con otros harness (2026-10-27). Como /rewind de Claude Code o volver a un mensaje en Cursor/Copilot. Hoy hay checkpoints de git solo en One-shot y deshacer por tool godot.*. Snapshot del proyecto al empezar cada turno de Construir/Auto (refs de git, sin ramas ni commits en la rama del usuario) y acción «volver a antes de este mensaje» en el chat. Reusar oneshot/git_checkpoints.gd.",
+  "links": [
+    {
+      "task": "m11-02",
+      "type": "blocks"
+    },
+    {
+      "task": "m11-09",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Checkpoints y «volver a antes de este mensaje» en cada turno",
+  "updated_at": "2026-10-27T23:21:11.775Z"
+}

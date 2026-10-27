@@ -2422,6 +2422,8 @@ Pedido del usuario (2026-10-27): «a una sesión nueva, si no le mando un primer
 
 **Notas:** Causa (historial de LittleVillages b52301ca y 9bc88f39, claude-agent-acp 0.98): los agentes usaban SendMessage/ListAgents de Claude Code, no godot.session_send. (1) El adaptador solo reenvía mensajes de usuario de otros clientes si origin.kind == human (isRemoteHumanMessage, para Remote Control); el de otra sesión se descarta, así que el chat ve la respuesta del turno que Claude arranca solo, sin la pregunta. (2) Antes del primer session/prompt la sesión del SDK no corre y no lee su bandeja: el mensaje se procesa recién con el primer prompt. Ninguno se arregla del lado del harness. Hecho: el system prompt dice que con otras sesiones del editor se usen godot.sessions/godot.session_send (entra como prompt, se ve en el chat y sirve sin primer prompt); SessionController._notice_outside_turn() avisa una vez por tanda cuando llega trabajo del agente fuera de un turno pedido (sin user_message_chunk antes, sin parentToolUseId), y se rearma con cada prompt.
 
+**Relacionadas:** Soporte para Antigravity CLI (agy) como agente
+
 ### Renombrar las sesiones (pestañas del dock) · Revisión
 
 **Prioridad:** media · **Tamaño:** S
@@ -2634,3 +2636,96 @@ Cambiar de proveedor y modo desde Settings sin reiniciar; en híbrido la sugeren
 **Prueba:** Matriz en 4.4.1, 4.7.2 y 4.8-beta1: run_all 131 tests / 995 checks, acp_session_check 90, oneshot_check 34, cycle test y --godot-agent-completion-test con el paso híbrido contra tests/fake_llm_server.gd (cambio de modo sin reiniciar, un solo pedido con modelo y prefix, marcador, error, vuelta a local sin pedidos). Lo local nunca espera al LLM: test_hybrid_mode con un proveedor falso de 300 ms en vuelo.
 
 **Notas:** Ollama y llama.cpp no están instalados en esta máquina: no se probó contra un modelo real (pasos manuales en progress.md M8c). Revisión de código del diff hecha y corregida (progress.md M8c › Revisión de código): body de error al log, JSON de perfiles con tipos inválidos, redirecciones que reenviaban key y código (max_redirects 0, body ≤ 1 MB), Codestral/Gemini sin key, suffix con caret al final de línea, HTTPRequest sin liberar en un controller reemplazado. Además is_remote con [::1] y keys sin guiones. Los settings del paso del editor son los EditorSettings reales y se restauran al terminar.
+
+## M9 — Ideas de otros harness  (0/12)
+
+Lo que vale la pena traer de Claude Code, Codex, Antigravity, Copilot y Cursor, adaptado a Godot: deshacer y revisar por turno, sesiones que avisan, verificación automática, chat en línea en el Script Editor, artefactos del juego, más contexto y trabajo en segundo plano.
+
+**Hecho cuando:**
+- Cada idea quedó hecha o descartada con su motivo en la tarjeta.
+
+### Checkpoints y «volver a antes de este mensaje» en cada turno · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como /rewind de Claude Code o volver a un mensaje en Cursor/Copilot. Hoy hay checkpoints de git solo en One-shot y deshacer por tool godot.*. Snapshot del proyecto al empezar cada turno de Construir/Auto (refs de git, sin ramas ni commits en la rama del usuario) y acción «volver a antes de este mensaje» en el chat. Reusar oneshot/git_checkpoints.gd.
+
+**Bloquea a:** Revisar los cambios del turno: diff y descartar por archivo
+
+**Relacionadas:** Tareas en segundo plano en un worktree con Godot headless
+
+### Revisar los cambios del turno: diff y descartar por archivo · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como Keep/Undo por archivo de Copilot o el diff como artefacto de Antigravity. Al pie de cada turno: «N archivos cambiados · ver diff · descartar». Reusar la lista de cambios y el DiffDialog del One-shot. Se apoya en los checkpoints por turno.
+
+**Bloqueada por:** Checkpoints y «volver a antes de este mensaje» en cada turno
+
+### Avisar cuando una sesión en segundo plano necesita al usuario · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como el Agent Manager de Antigravity. Con varias pestañas, un pedido de permiso en una que no está a la vista pasa desapercibido. Marcar la pestaña («⚠ nombre»), notificación del editor y, si hace falta, un resumen de las sesiones.
+
+### Verificación automática al terminar cada turno · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como los hooks de Claude Code o los tests que corren Codex y Copilot. Al terminar un turno de Construir/Auto, correr godot.validate_scripts y get_errors; si hay errores nuevos, devolvérselos al agente (otro turno, con tope) o mostrarlos. Configurable por proyecto.
+
+### Chat en línea en el Script Editor (seleccionar y pedir) · Pendiente
+
+**Prioridad:** media · **Tamaño:** L · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como Ctrl+I de Copilot o Cmd+K de Cursor: seleccionar código, escribir el pedido y ver el cambio como diff en el mismo editor, para aceptar o rechazar. Puente entre el dock y el completado (M8). Después: sugerencias del próximo cambio relacionado (next edit suggestions de Copilot).
+
+### Artefactos de verificación: capturas y GIF del juego · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como los walkthroughs de Antigravity. Al cerrar una tarea, un resumen con capturas del juego de antes y después o un GIF del playtest, para mirar o compartir. Ya existen capture_game_frame y game_input; falta juntarlos. Diferencial: ningún otro harness muestra el juego corriendo.
+
+### Instrucciones del proyecto: editar AGENTS.md/CLAUDE.md y generarlas · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como las reglas de Cursor, las custom instructions de Copilot o /init de Claude Code. Panel para ver y editar AGENTS.md/CLAUDE.md del proyecto y un «generar convenciones» que analice autoloads, capas de colisión, estructura de carpetas y estilo de los scripts.
+
+### Más contexto con @: errores, output, juego y docs · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). @errors, @output, @game (árbol del juego en marcha), @docs Clase (referencia de la API) y arrastrar un nodo del Scene Tree al composer. Revisar primero qué menciones existen.
+
+### Tareas en segundo plano en un worktree con Godot headless · Pendiente
+
+**Prioridad:** baja · **Tamaño:** L · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como las cloud tasks de Codex o el coding agent de Copilot. Una sesión trabaja en otra copia del proyecto con su propio Godot headless y entrega un diff o una rama para integrar, sin competir con el editor abierto. Choca con «el harness nunca mergea»: decidir cómo se integra.
+
+**Relacionadas:** Checkpoints y «volver a antes de este mensaje» en cada turno
+
+### Integración opcional con GitHub: PR desde una sesión y comentarios como hallazgos · Pendiente
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Como Copilot o Codex. Crear un PR desde una sesión y traer los comentarios de un PR como hallazgos de Revisar. Opcional y apagado por defecto: hoy el harness nunca pushea por diseño.
+
+### Soporte para Antigravity CLI (agy) como agente · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la comparación con otros harness (2026-10-27). Google publica un adaptador ACP oficial para Antigravity en el registro de ACP (id antigravity-acp, v1.4.3, autor Google LLC, licencia propietaria): un zip por plataforma desde dl.google.com/agy-extensions/releases/<os>/agy-acp-server-<versión>-<os>-<arch>.zip, con sha256, que se ejecuta como ./agy_acp_server.par (en Linux con el argumento --uid=; en Windows agy_acp_server.exe). Así lo integra Zed: lee el registro, baja y verifica el zip, y lanza ese comando como agente ACP por stdio. Hay también adaptadores de la comunidad (agy-acp, antigravity-acp de GitHub) que leen el almacenamiento local de Antigravity; preferir el oficial. A probar: login, que pase los mcpServers de session/new (sin eso no ve godot.*) y godot.sessions/session_send entre agy y Claude Code en el mismo dock.
+
+**Bloqueada por:** Instalar agentes desde el registro de ACP
+
+**Relacionadas:** Mensajes entre sesiones: el recibido no se ve y una sesión nueva no los lee hasta su primer prompt
+
+### Instalar agentes desde el registro de ACP · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea (2026-10-27), surgió de cómo Zed integra Antigravity. El registro de ACP (cdn.agentclientprotocol.com/registry/v1/latest/registry.json) lista ~43 agentes con su forma de instalarlos: npx, uvx o un binario por plataforma (zip con sha256, comando y args). Entre ellos Claude Agent, Codex, Gemini CLI, Copilot, Cursor, Google Antigravity, Goose, OpenCode, Junie, Kimi, Qwen Code, Mistral Vibe. En Settings → Perfiles: elegir un agente del registro y que el harness arme el perfil (npx/uvx) o baje, verifique y descomprima el binario en user://, como hace Zed. Reemplaza armar perfiles a mano y cubre agy sin código propio.
+
+**Bloquea a:** Soporte para Antigravity CLI (agy) como agente

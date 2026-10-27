@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T23:21:05.110Z",
+  "description": "Idea de la comparación con otros harness (2026-10-27). Como los walkthroughs de Antigravity. Al cerrar una tarea, un resumen con capturas del juego de antes y después o un GIF del playtest, para mirar o compartir. Ya existen capture_game_frame y game_input; falta juntarlos. Diferencial: ningún otro harness muestra el juego corriendo.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 6,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Artefactos de verificación: capturas y GIF del juego",
+  "updated_at": "2026-10-27T23:21:05.110Z"
+}
