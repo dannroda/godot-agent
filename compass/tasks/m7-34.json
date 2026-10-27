@@ -6,6 +6,7 @@
     {
       "alternatives": "Que el addon edite directamente ~/.claude.json o .mcp.json también para MCP (queda atado a Claude). Un formato propio de skills y plugins para todos los agentes (Gemini y Codex no los soportan).",
       "at": "2026-10-23T20:53:21.687Z",
+      "review": "ok",
       "text": "Los MCP se configuran en el addon y se pasan por ACP; skills y plugins usan los archivos de Claude Code, no un formato propio",
       "why": "mcpServers es parte de ACP, así que un MCP configurado en el addon sirve para Claude, Gemini y Codex. Skills y plugins existen solo en Claude Code: duplicar su formato implicaría mantener dos copias que se desincronizan con la CLI."
     }
@@ -24,5 +25,5 @@
   ],
   "test": "Unit (234 tests en 4.6.3, 4.7.2 y 4.8-beta1): test_external_mcp_servers (to_acp stdio/http, $VAR/${VAR}, validación, merge, import de .mcp.json, nombres, página de Settings). Xvfb: --godot-agent-settings-shots (en y es) importa un server, la matriz suma la fila mcp:blender, guardar escribe project_config.tres y external_mcp_names. Contra claude-agent-acp 0.95.0 real con un server stdio de prueba: la tool llega como mcp__pingsrv__ping (title y _meta.claudeCode.toolName), el env llega al server.",
   "title": "Extensiones: panel de MCP servers (los del addon y los del agente)",
-  "updated_at": "2026-10-23T21:11:42.255Z"
+  "updated_at": "2026-10-27T17:32:09.617Z"
 }

@@ -2,18 +2,27 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-23T22:42:48.245Z",
+  "decisions": [
+    {
+      "alternatives": "Una segunda fila cuando no entra; mover el uso al tooltip del anillo siempre; clip_text siempre en los OptionButtons",
+      "at": "2026-10-23T23:56:38.815Z",
+      "review": "ok",
+      "text": "La fila se compacta por niveles (Enviar solo con símbolo, después sin uso, /, @ y captura, y por último el modelo con «…») en vez de pasar a dos filas",
+      "why": "Mantiene el composer en una sola fila y no le quita alto al chat. Lo que se esconde tiene otro acceso: el anillo de contexto y su tooltip, escribir / o @, y Ctrl+V para la imagen."
+    }
+  ],
   "description": "Encontrado armando las capturas (m7-41): con una sesión abierta, la fila de abajo del composer (@, imagen, /, anillo de cuota, uso «38k / 200k» 90 px, modo 66, modelo 67, Enviar 63) pide 418 px; el dock por defecto mide ~289 px en 1920x1200, así que el modelo y Enviar quedan cortados (el dock se recorta en su guard). layout_check no lo ve porque mide sin sesión (sin uso ni modelo). Opciones: pasar el uso al tooltip del anillo o acortarlo, OptionButtons con clip_text, o una segunda fila cuando no entra. Agregar a layout_check el caso con sesión. (El botón «Thinking» que ensanchaba el chat ya se arregló en m7-41.)",
   "milestone": "m07",
-  "notes": "",
+  "notes": "Commit 8e8aada, ya en main (vino de worktree-composer-width). composer.gd _fit_row(): calcula el ancho visible (row.size.x menos lo que el contenido del dock se pasa del MinSizeGuard) y sube el nivel de compactación hasta que entra: 1 Enviar/Detener solo símbolo, 2 sin medidor, 3 sin /, 4 sin @, 5 sin captura, 6 modelo con clip + «…» y expand (spacer oculto). Anchos medidos independientes del nivel actual (fuente para Enviar y modelo) para no oscilar. Ojo: con text_overrun_behavior != NO_TRIMMING el Button no cuenta el texto en su mínimo, por eso el overrun se pone solo en el nivel 6.",
   "order": 42,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ui"
   ],
-  "test": "",
+  "test": "GODOT_AGENT_LANGUAGE=es tests/run_in_xvfb.sh godot --godot-agent-i18n-test (LayoutCheck.composer_fits: dock de 240 px con uso, modelo y modo, libre y ocupado); pasa en 4.6.3, 4.7.2 y 4.8-beta1. Docs shots a 480 px muestran la fila completa.",
   "title": "El composer no entra en el dock con el ancho por defecto (sesión abierta)",
-  "updated_at": "2026-10-23T22:42:48.245Z"
+  "updated_at": "2026-10-27T18:59:54.243Z"
 }

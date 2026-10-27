@@ -6,13 +6,14 @@
     {
       "alternatives": "QR siempre visible; en un popup aparte",
       "at": "2026-10-23T00:05:28.315Z",
+      "review": "ok",
       "text": "El QR se muestra con un botón «QR» en la franja (oculto por defecto), dibujado con _draw al ancho del dock",
       "why": "Con el QR siempre a la vista la franja ocupa ~250 px de alto en el dock; el link se sigue copiando o abriendo sin él"
     }
   ],
   "description": "Pedido del usuario (2026-10-22). Quedó afuera de m7-21 (revierte la decisión «Sin QR»). El usuario: «godot debería ser capaz de generar qr. Se puede usar _draw por ejemplo. O alguna forma de generarlo usando gdscript».\n\nEncoder QR en GDScript (modo byte, corrección M; versiones hasta ~6 alcanzan para un link de claude.ai): datos → Reed-Solomon → matriz con patrones, máscara elegida por penalización. Dibujado con _draw (o una Image/ImageTexture) con zona de silencio, en la franja de Remote Control o en un popup al tocarlo. Test unitario del encoder contra vectores conocidos (matriz de un texto de referencia) y el check del editor de Remote Control.",
   "milestone": "m07",
-  "notes": "Rama remote-qr (encima de remote-activity, pusheada, sin mergear). Traducido de la librería de Project Nayuki (MIT); el aviso de copyright está en el encabezado de core/qr_code.gd. Con un celular real no se escaneó.",
+  "notes": "Commit 2f5b02e, ya en main (vino de la rama remote-qr). Traducido de la librería de Project Nayuki (MIT); el aviso de copyright está en el encabezado de core/qr_code.gd. Con un celular real no se escaneó.",
   "order": 25,
   "priority": "medium",
   "refs": [],
@@ -23,5 +24,5 @@
   ],
   "test": "test_qr_code: matriz del link de prueba igual a la de qrencode 4 (misma máscara elegida); versión 7 con bloque de versión y texto UTF-8 igual a qrencode con la máscara 3; límites (versión 1, 213 bytes en la 10, 214 no entra); imagen con zona de silencio. A mano: 11 largos (versiones 1–10) decodificados con zbarimg, 8 idénticos a qrencode y los otros 3 idénticos con la máscara de qrencode (libqrencode calcula la penalización distinto). --godot-agent-remote-test: «QR» muestra el código y la captura del editor se decodifica con zbarimg. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido.",
   "title": "Remote Control: QR del link en la franja",
-  "updated_at": "2026-10-23T00:12:15.730Z"
+  "updated_at": "2026-10-27T18:59:51.261Z"
 }

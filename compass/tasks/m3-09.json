@@ -6,6 +6,7 @@
     {
       "alternatives": "Desactivada por defecto; un solo godot_run para todo, sin núcleo tipado; dejar class_info/search_api en el núcleo; mover también la edición de escenas a extendidas",
       "at": "2026-10-22T21:31:51.336Z",
+      "review": "ok",
       "text": "Lista compacta activada por defecto: núcleo tipado (lectura, diagnóstico, edición de escenas, run_scene/stop_scene/capture_game_frame) más godot.methods y godot.run; API, proyecto, archivos, recursos, tilemaps, animación y game_* pasan a extendidas",
       "why": "tools/list baja de 29.978 a 11.232 caracteres (−63 %) en cada turno; lo de todos los turnos queda tipado y lo puntual se descubre con methods. Permisos, validación y log siguen por método, y llamar por nombre directo sigue funcionando (D56)"
     }
@@ -23,5 +24,5 @@
   ],
   "test": "run_all (test_tool_registry: lista compacta, methods con filtro y detalle, run con validación y permiso del grupo del método; test_session_model: ToolCall desenvuelve run) 197/0 en 4.8-beta1 y 4.6.3; --godot-agent-mcp-test por HTTP (lista sin extendidas, methods, run(class_info), llamada directa) PASS en 4.8-beta1 y 4.6.3; edit-test y run-test PASS en 4.8-beta1 con compacto activo.",
   "title": "Tool genérica con descubrimiento cuando crezcan las tools",
-  "updated_at": "2026-10-22T21:31:51.525Z"
+  "updated_at": "2026-10-27T17:32:25.460Z"
 }

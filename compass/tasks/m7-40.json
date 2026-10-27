@@ -2,15 +2,38 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-23T22:18:52.032Z",
+  "decisions": [
+    {
+      "alternatives": "Un plugin por skill (6); un solo plugin con todo",
+      "at": "2026-10-24T00:48:01.633Z",
+      "review": "ok",
+      "text": "Dos plugins por tema (gdscript con 5 skills, shaders con 1), con los nombres de las skills sin cambiar",
+      "why": "Las 5 de GDScript se citan entre sí, así que separadas quedarían referencias rotas; las de shaders son independientes. Con los nombres iguales, las referencias cruzadas y los hábitos siguen andando."
+    },
+    {
+      "alternatives": "Copiarlas al repo con su NOTICE",
+      "at": "2026-10-24T00:48:01.676Z",
+      "review": "ok",
+      "text": "Las skills básicas de awesome-gamedev-agent-skills se recomiendan en el README, no se copian",
+      "why": "Son de otro autor (Apache 2.0) y se actualizan en su propio marketplace; las nuestras van más allá de lo básico y las nombran con su origen."
+    },
+    {
+      "alternatives": "Copiarlas al repo con NOTICE; fijarlas a un commit; incluir router y los motores no Godot",
+      "at": "2026-10-24T01:00:15.553Z",
+      "review": "ok",
+      "text": "El marketplace lista godot, disciplines, genres y workflows de awesome-gamedev-agent-skills apuntando a su repo (sin router), generados con scripts/sync_upstream.py",
+      "why": "Pedido del usuario: instalar las de awesome-gamedev desde nuestro marketplace. Apuntar a su repo evita copiar código Apache 2.0 y trae sus actualizaciones (la versión es su commit). router queda afuera porque enruta a skills de otros motores que no se instalan."
+    }
+  ],
   "description": "Pedido del usuario (2026-10-23, «para después»): un repo que sea un marketplace de Claude Code (.claude-plugin/marketplace.json) con las skills, tools (MCP) y demás que se usan para Godot, para que las skills que se creen vayan ahí. El harness lo puede ofrecer como marketplace sugerido en la ventana Extensions (m7-37) y en la pestaña de skills (m7-36).",
   "milestone": "m07",
-  "notes": "",
+  "notes": "Publicado en https://github.com/dannroda/godot-agent-plugins (CI verde). Marketplace \"godot-agent\" con dos plugins: gdscript (godot-architecture, godot-communication, godot-patterns, godot-data-driven, godot-code-review) y shaders (godot-shader-techniques), copiados de las skills del usuario sin rutas locales a los PDFs; los libros quedan citados por título/capítulo/página. Chequeo de texto literal contra ambos libros (ventanas de 12 palabras): solo esqueletos de código genéricos. claude plugin validate --strict pasa. Instalados en el perfil personal desde GitHub (gdscript@godot-agent y shaders@godot-agent). Mover las skills locales godot-* a skills/.trash lo bloqueó el permiso automático: lo hace el usuario. Queda para m7-36/m7-37: sugerir el marketplace desde Extensions y la pestaña de skills.",
   "order": 40,
   "priority": "low",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "claude plugin validate --strict en el marketplace y cada plugin; CI del repo verde; claude plugin list muestra gdscript@godot-agent y shaders@godot-agent habilitados.",
   "title": "Marketplace propio (repo) con las skills, tools y plugins de Godot",
-  "updated_at": "2026-10-23T22:18:52.032Z"
+  "updated_at": "2026-10-27T17:32:06.024Z"
 }

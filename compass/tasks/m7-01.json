@@ -27,6 +27,7 @@
     {
       "alternatives": "Sacar el cambio a 2D y simplificar remove_all()",
       "at": "2026-10-22T21:33:18.594Z",
+      "review": "ok",
       "text": "Se deja el cambio a \"2D\" en remove_all() como precaución, con el comentario y D9 corregidos (el error de grab_focus ya no se reproduce)",
       "why": "No cuesta nada y solo se descartó el bug en Linux (xvfb y headless); sacarlo arriesga reintroducirlo en Windows/macOS sin ganar nada"
     }
@@ -41,5 +42,5 @@
   "status": "review",
   "test": "Issue abierto en godotengine/godot con el repro adjunto y su link en notes (pendiente: lo abre el usuario). Si se arregla upstream, `tests/plugin_cycle_check.gd` pasa en esa versión con la main screen por `_has_main_screen()`.",
   "title": "Reportar a Godot el EditorDock huérfano de _has_main_screen (4.8)",
-  "updated_at": "2026-10-22T21:35:47.782Z"
+  "updated_at": "2026-10-27T17:32:24.418Z"
 }

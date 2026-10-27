@@ -5,7 +5,7 @@
   "created_at": "2026-10-21T04:32:34.244Z",
   "description": "Tarjeta de diff: ruta, +N/−M, primeras líneas coloreadas y \"Abrir en Script\". Plan: reemplazo completo en cada update, estados por entrada, colapsable.",
   "milestone": "m02",
-  "notes": "Adelantado en M1:\n- entries/diff_card.gd con core/line_diff.gd (LCS);\n- entries/plan_view.gd, que se re-ubica al final si el agente lo reemplaza.\n\nFalta el test de line_diff.",
+  "notes": "Adelantado en M1:\n- entries/diff_card.gd con core/line_diff.gd (LCS);\n- entries/plan_view.gd, que se re-ubica al final si el agente lo reemplaza.\n\nEl test de line_diff se agregó después (tests/unit/test_line_diff.gd).",
   "order": 2,
   "priority": "high",
   "refs": [],
@@ -13,5 +13,5 @@
   "status": "review",
   "test": "- tests/unit/test_line_diff.gd: igualdad, alta, baja, reemplazo, conteos y first_changed_line.\n- test_session_model: el plan reemplaza y se re-ubica (entry_removed).\n- Captura de la UI con ui_demo.json: tarjeta de diff y plan visibles.",
   "title": "Tarjeta de diff y plan colapsable",
-  "updated_at": "2026-10-21T05:23:02.636Z"
+  "updated_at": "2026-10-27T18:59:48.150Z"
 }

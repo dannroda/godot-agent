@@ -6,31 +6,35 @@
     {
       "alternatives": "Ofrecer los dos botones en la tarjeta (como decía la descripción); dejar «siempre en esta sesión»",
       "at": "2026-10-22T22:35:35.120Z",
+      "review": "ok",
       "text": "La tarjeta de shell en Auto no ofrece «Preguntar siempre» ni «Siempre en esta sesión»: solo «Permitir siempre» con el patrón editable; la lista «preguntar siempre» se edita en Settings",
       "why": "La tarjeta ya está preguntando, así que agregar a esa lista solo importa si hay un allow más amplio; y «siempre en esta sesión» habría abierto todo el grupo shell, listas incluidas"
     },
     {
       "alternatives": "Dejar `godot --headless *` afuera de la allowlist (preguntaría cada vez); listas más amplias (sort, tree, file, que pueden escribir con flags)",
       "at": "2026-10-22T22:35:35.165Z",
+      "review": "ok",
       "text": "Defaults: allowlist de lectura/build incluyendo `godot --headless *`; «preguntar siempre» para rm, mv, sudo, chmod, kill, git push/reset/checkout/restore/clean/rebase, curl, wget, ssh, instaladores y find -delete/-exec",
       "why": "`godot --headless` es como el agente valida scripts; puede correr código arbitrario, igual que run_scene (que en Auto está en allow)"
     },
     {
       "alternatives": "Ponerlo al final de la barra, después de One-shot",
       "at": "2026-10-22T22:35:35.209Z",
+      "review": "ok",
       "text": "Auto va entre Construir y One-shot en el dock y en Settings; en el enum va al final (valor 4) para no cambiar los demás",
       "why": "Orden de menos a más autonomía; el valor del enum no se renumera"
     },
     {
       "alternatives": "Un canal `permissions` aparte solo para el modo Auto",
       "at": "2026-10-22T22:35:38.889Z",
+      "review": "ok",
       "text": "Las decisiones del clasificador van al canal `perm` que ya existía en el Agent Log, no a un canal `permissions` nuevo",
       "why": "El canal perm ya registra cada permiso (allowed by mode, asking, denied); así las decisiones de Auto quedan intercaladas con las demás, en orden"
     }
   ],
   "description": "Pedido del usuario (2026-10-22): un modo para el chat que no corte a cada rato. Es como Construir, pero sin pedir permiso para lo que se puede deshacer. No es One-shot: sin spec, plan, presupuestos ni evaluador; es solo una política de permisos.\n\n**Matriz** (`PermissionPolicy.DEFAULTS`, nueva columna AUTO en `SessionModel.HarnessMode`):\n- read, diagnostics, edit_scene, edit_files, run y project se permiten (red de seguridad: ↶ de las tarjetas, undo del editor, D48);\n- shell lo decide el clasificador.\nLos overrides por proyecto y «permitir en esta sesión» siguen funcionando igual.\n\n**Clasificador de shell, por reglas** (no por modelo: predecible, sin costo, testeable), con tres resultados:\n- **allowlist** (se permite): comandos de lectura o build, como `ls`, `cat`, `grep`, `find`, `git status/diff/log/show`, `godot --headless …`;\n- **denylist** (siempre se pregunta, nunca se permite solo): lo destructivo o hacia afuera, como `rm`, `git push/reset/checkout/clean`, `curl`/`wget`, instaladores de paquetes, `sudo`, y escribir o redirigir fuera del proyecto;\n- **el resto**: se pregunta.\n\nUn comando compuesto (`&&`, `;`, `|`, `$(…)`, backticks) se permite solo si cada parte está en la allowlist. Si hay redirección a un archivo, se evalúa también la ruta de destino.\n\n**Listas revisables** (pedido explícito del usuario): tiene que poder ver qué comandos entran en cada lista y por qué.\n- Las listas se guardan en project_config: patrón + origen (default / agregado por el usuario / agregado desde una tarjeta de permiso) + fecha.\n- La tarjeta de permiso de una shell en Auto ofrece «Permitir siempre este comando» y «Preguntar siempre». No agrega nada sin que el usuario lo elija, y al agregar muestra el patrón que va a quedar (p. ej. `npm test` vs `npm *`) para poder ajustarlo.\n- En Settings → Permisos, una sección «Modo Auto» con las dos listas: ver, editar, borrar, origen de cada entrada, y «restaurar defaults».\n- Canal `permissions` en el Agent Log: cada decisión del clasificador (comando, resultado, regla que lo decidió). Así se puede revisar después qué se permitió solo.\n\n**UI:** «Auto» en el selector de modo del dock (con tooltip que explique qué permite) y en es.po.\n\nRegistrar la decisión de diseño como D57 en docs/decisions.md y actualizar la wiki (Modos y Settings, en/es) y la spec.",
   "milestone": "m02",
-  "notes": "Commit 0f083c0 en la rama auto-mode (worktree agent-harness-st), subida a origin; main sin tocar porque el usuario tiene el editor abierto. D57 en docs/decisions.md.\n- Nuevo: session/shell_rules.gd (clasificador), ui/settings/auto_rules_page.gd (listas en Settings), addons/godot_agent_dev/auto_check.gd, tests/scripts/auto_shell.json.\n- Config: project_config.auto_shell_rules ({pattern, list, origin, added}).\n- Tarjeta: patrón editable + «Permitir siempre». No se ofrece si una regla allow no ganaría (redirección, sustitución, lista ask).\n- Diferencias con la descripción, registradas como decisiones: sin «Preguntar siempre» en la tarjeta, y canal perm en lugar de uno nuevo.\n- Capturas de la tarjeta y de Settings revisadas.",
+  "notes": "Commit 0f083c0 en la rama auto-mode (worktree agent-harness-st), subida a origin; ya está en main. D57 en docs/decisions.md.\n- Nuevo: session/shell_rules.gd (clasificador), ui/settings/auto_rules_page.gd (listas en Settings), addons/godot_agent_dev/auto_check.gd, tests/scripts/auto_shell.json.\n- Config: project_config.auto_shell_rules ({pattern, list, origin, added}).\n- Tarjeta: patrón editable + «Permitir siempre». No se ofrece si una regla allow no ganaría (redirección, sustitución, lista ask).\n- Diferencias con la descripción, registradas como decisiones: sin «Preguntar siempre» en la tarjeta, y canal perm en lugar de uno nuevo.\n- Capturas de la tarjeta y de Settings revisadas.",
   "order": 9,
   "priority": "medium",
   "refs": [],
@@ -41,5 +45,5 @@
   ],
   "test": "Todo en 4.8-beta1 y 4.6.3:\n- run_all 205/0, con test_shell_rules (allow/ask, compuestos, comillas, sustituciones, redirecciones, patrones con `*`, sugerencias) y test_permission_policy (columna Auto y overrides);\n- acp_session_check 133/0 (escenario auto_shell: ls && git status sin tarjeta; rm con tarjeta; «Permitir siempre» de npm test cubre npm test -- --watch; edición sin tarjeta; redirección con tarjeta; regla con origen y fecha; log perm);\n- oneshot_check 125/0;\n- editor: --godot-agent-auto-test (botón Auto del dock, tarjetas resueltas con sus botones, config guardada, regla vista, filtrada y borrada en Settings → Permisos), mcp, edit, run, oneshot e i18n (es): PASS.",
   "title": "Modo Auto: chat sin pedir permiso, shell clasificada por listas revisables",
-  "updated_at": "2026-10-22T22:42:17.244Z"
+  "updated_at": "2026-10-27T18:59:48.692Z"
 }

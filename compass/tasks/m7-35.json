@@ -6,6 +6,7 @@
     {
       "alternatives": "Permitir en Auto y One-shot como las tools de edición; usar readOnlyHint para permitir las de solo lectura (el adaptador no lo manda en el pedido de permiso).",
       "at": "2026-10-23T21:11:42.370Z",
+      "review": "ok",
       "text": "Los servers MCP de terceros arrancan en Preguntar en todos los modos, incluidos Auto y One-shot",
       "why": "Un server de terceros puede hacer cualquier cosa (borrar en Blender, escribir en una base), y el harness no sabe qué hacen sus tools. Se permite explícitamente por server y modo, desde Settings o desde la tarjeta."
     }
@@ -30,5 +31,5 @@
   ],
   "test": "acp_session_check escenario \"MCP servers de terceros\": tarjeta por server con nombre corto, «Permitir siempre en el proyecto» guarda allow en Construir y la segunda tool de blender pasa sin tarjeta, db sigue preguntando, mcp_servers_not_allowed para el aviso del One-shot. Unit test_policy_groups_per_server. Xvfb auto/remote/cycle/oneshot/i18n en verde.",
   "title": "Permisos por server MCP externo en la matriz",
-  "updated_at": "2026-10-23T21:11:42.370Z"
+  "updated_at": "2026-10-27T17:32:09.185Z"
 }

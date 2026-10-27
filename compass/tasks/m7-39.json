@@ -2,15 +2,31 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-23T22:17:54.272Z",
+  "decisions": [
+    {
+      "alternatives": "Asset Library clásica (godotengine.org/asset-library/api); instalar todo el zip como el editor; sobrescribir para poder actualizar",
+      "at": "2026-10-24T00:19:24.829Z",
+      "review": "ok",
+      "text": "Store nuevo (store.godotengine.org) en vez de la Asset Library clásica; Instalar escribe por defecto solo addons/ y nunca pisa archivos",
+      "why": "El editor de Godot ya solo usa el store nuevo (la URL clásica no está en el código de master), y su API trae releases por versión de Godot. Los zips traen demos, README y hasta project.godot: instalar solo addons/ evita ensuciar el proyecto; no pisar sigue al instalador del editor."
+    },
+    {
+      "alternatives": "Dentro del grupo project con una excepción fija de «siempre preguntar»",
+      "at": "2026-10-24T00:19:24.878Z",
+      "review": "ok",
+      "text": "asset_install tiene un grupo de permisos propio («Install from the Asset Store»: Preguntar en Construir, Auto y One-shot); plugin_enable va en el grupo project",
+      "why": "Instalar baja código de terceros: se pide confirmación siempre, pero como grupo de la matriz se puede cambiar en Settings si alguien lo quiere en Permitir. El evaluador del One-shot lo tiene denegado."
+    }
+  ],
   "description": "Pedido del usuario (2026-10-23): que el harness pueda buscar en la Asset Library de Godot (godotengine.org/asset-library/api: /asset?filter=&category=&godot_version=, /asset/<id> con download_url y download_hash), sugerir plugins según lo que se está haciendo, instalarlos (bajar el zip, extraer addons/<x>/ con ZIPReader, verificar el hash) y activarlos (EditorInterface.set_plugin_enabled). Dos caras: una pestaña \"Godot assets\" en la ventana Extensions (buscar, ver, instalar, activar/desactivar los addons del proyecto) y tools MCP godot.asset_search / godot.asset_install con permiso propio (instalar baja código de terceros: pedir siempre). Reusa la descarga y extracción del updater (m7-38).",
   "milestone": "m07",
-  "notes": "",
+  "notes": "Commit 20df5e3 en worktree-asset-store. API del store nuevo (la del editor en master; la clásica ya no está en el código de Godot): search/query/?query=&require_release=true&type=0&sort=&compatibility=4.7.2&page=N (24 por página, hits[].asset), assets/<pub>/<slug>/, releases/<pub>/<slug>/ (download_url firmado, vence a los 10 min: se pide justo antes de bajar). price_cent > 0 = pago, no se instala. Para activar un plugin recién instalado hay que esperar a que el editor importe (dest_files de los .import) y registre los uids; si no, preload(\"uid://…\") falla. Tools en la lista extendida (godot.methods/run); el system prompt pide buscar addons antes de escribir sistemas grandes. Helpers de UI de Extensions movidos a extensions_ui.gd.",
   "order": 39,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/asset_check.sh <godot> (con red, copia del proyecto): busca, instala Simple TODO con el diálogo y queda activo; las tools lo listan, lo apagan/prenden, no dejan apagar el harness y reinstalar no pisa nada. Pasa en 4.6.3, 4.7.2 y 4.8-beta1. Unit: test_asset_store, test_asset_tools.",
   "title": "Asset Library de Godot: buscar, sugerir, instalar y activar plugins",
-  "updated_at": "2026-10-23T22:17:54.272Z"
+  "updated_at": "2026-10-27T17:32:08.028Z"
 }

@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-23
+> Generado: 2026-10-27
 
 ## M0 — Esqueleto y decisiones  (6/6, 6 en revisión)
 
@@ -336,7 +336,7 @@ Tarjeta de diff: ruta, +N/−M, primeras líneas coloreadas y "Abrir en Script".
 - entries/diff_card.gd con core/line_diff.gd (LCS);
 - entries/plan_view.gd, que se re-ubica al final si el agente lo reemplaza.
 
-Falta el test de line_diff.
+El test de line_diff se agregó después (tests/unit/test_line_diff.gd).
 
 ### 2.3 PermissionPolicy con matriz configurable · Revisión
 
@@ -487,16 +487,16 @@ Un comando compuesto (`&&`, `;`, `|`, `$(…)`, backticks) se permite solo si ca
 Registrar la decisión de diseño como D57 en docs/decisions.md y actualizar la wiki (Modos y Settings, en/es) y la spec.
 
 **Decisiones:**
-- ! La tarjeta de shell en Auto no ofrece «Preguntar siempre» ni «Siempre en esta sesión»: solo «Permitir siempre» con el patrón editable; la lista «preguntar siempre» se edita en Settings · sin revisar
+- ✓ La tarjeta de shell en Auto no ofrece «Preguntar siempre» ni «Siempre en esta sesión»: solo «Permitir siempre» con el patrón editable; la lista «preguntar siempre» se edita en Settings
   Por qué: La tarjeta ya está preguntando, así que agregar a esa lista solo importa si hay un allow más amplio; y «siempre en esta sesión» habría abierto todo el grupo shell, listas incluidas
   Descartado: Ofrecer los dos botones en la tarjeta (como decía la descripción); dejar «siempre en esta sesión»
-- ! Defaults: allowlist de lectura/build incluyendo `godot --headless *`; «preguntar siempre» para rm, mv, sudo, chmod, kill, git push/reset/checkout/restore/clean/rebase, curl, wget, ssh, instaladores y find -delete/-exec · sin revisar
+- ✓ Defaults: allowlist de lectura/build incluyendo `godot --headless *`; «preguntar siempre» para rm, mv, sudo, chmod, kill, git push/reset/checkout/restore/clean/rebase, curl, wget, ssh, instaladores y find -delete/-exec
   Por qué: `godot --headless` es como el agente valida scripts; puede correr código arbitrario, igual que run_scene (que en Auto está en allow)
   Descartado: Dejar `godot --headless *` afuera de la allowlist (preguntaría cada vez); listas más amplias (sort, tree, file, que pueden escribir con flags)
-- ! Auto va entre Construir y One-shot en el dock y en Settings; en el enum va al final (valor 4) para no cambiar los demás · sin revisar
+- ✓ Auto va entre Construir y One-shot en el dock y en Settings; en el enum va al final (valor 4) para no cambiar los demás
   Por qué: Orden de menos a más autonomía; el valor del enum no se renumera
   Descartado: Ponerlo al final de la barra, después de One-shot
-- ! Las decisiones del clasificador van al canal `perm` que ya existía en el Agent Log, no a un canal `permissions` nuevo · sin revisar
+- ✓ Las decisiones del clasificador van al canal `perm` que ya existía en el Agent Log, no a un canal `permissions` nuevo
   Por qué: El canal perm ya registra cada permiso (allowed by mode, asking, denied); así las decisiones de Auto quedan intercaladas con las demás, en orden
   Descartado: Un canal `permissions` aparte solo para el modo Auto
 
@@ -506,7 +506,7 @@ Registrar la decisión de diseño como D57 en docs/decisions.md y actualizar la 
 - oneshot_check 125/0;
 - editor: --godot-agent-auto-test (botón Auto del dock, tarjetas resueltas con sus botones, config guardada, regla vista, filtrada y borrada en Settings → Permisos), mcp, edit, run, oneshot e i18n (es): PASS.
 
-**Notas:** Commit 0f083c0 en la rama auto-mode (worktree agent-harness-st), subida a origin; main sin tocar porque el usuario tiene el editor abierto. D57 en docs/decisions.md.
+**Notas:** Commit 0f083c0 en la rama auto-mode (worktree agent-harness-st), subida a origin; ya está en main. D57 en docs/decisions.md.
 - Nuevo: session/shell_rules.gd (clasificador), ui/settings/auto_rules_page.gd (listas en Settings), addons/godot_agent_dev/auto_check.gd, tests/scripts/auto_shell.json.
 - Config: project_config.auto_shell_rules ({pattern, list, origin, added}).
 - Tarjeta: patrón editable + «Permitir siempre». No se ofrece si una regla allow no ganaría (redirección, sustitución, lista ask).
@@ -525,7 +525,7 @@ Tests: unitario si hace falta lógica nueva, y el check del editor de Auto (--go
 
 **Prueba:** test_shell_rules: código y segmento de cada tipo de decisión (permitido, lista ask, fuera de la allowlist, sustitución, sustitución de procesos, redirección, comilla, vacío) y el texto del resultado. --godot-agent-auto-test: con la regla agregada desde la tarjeta, «ls && npm test --watch» corre sin preguntar con las dos reglas, la fila se resalta, y «git push origin main» pregunta; captura revisada. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido.
 
-**Notas:** Rama auto-rule-tester (encima de remote-qr, pusheada, sin mergear). Durante el desarrollo, un scroll_to_item diferido con un TreeItem ya borrado tiró el editor; ahora el scroll es directo al final del refresh. Esa caída dejó un project_config.tres en el worktree (el check no llegó a restaurarlo); se borró a mano.
+**Notas:** Commit 21c6977, ya en main (vino de la rama auto-rule-tester). Durante el desarrollo, un scroll_to_item diferido con un TreeItem ya borrado tiró el editor; ahora el scroll es directo al final del refresh. Esa caída dejó un project_config.tres en el worktree (el check no llegó a restaurarlo); se borró a mano.
 
 ## M3 — Servidor MCP y tools de lectura  (9/9, 9 en revisión)
 
@@ -707,7 +707,7 @@ Como engine.classinfo/search/docs de swallowtail. Tool de lectura que responde c
 Como godot_run + engine.commands de swallowtail. Cada tool MCP suma su descripción al contexto del agente en cada turno. Con las tareas de swallowtail la lista crece mucho. Mantener un núcleo de tools tipadas (lectura, edición de escenas, ejecución) y exponer el resto por una tool genérica godot.run(method, params), más una tool que lista los métodos disponibles con sus parámetros. Medir el tamaño de tools/list antes y después. Los permisos se siguen aplicando por método.
 
 **Decisiones:**
-- ! Lista compacta activada por defecto: núcleo tipado (lectura, diagnóstico, edición de escenas, run_scene/stop_scene/capture_game_frame) más godot.methods y godot.run; API, proyecto, archivos, recursos, tilemaps, animación y game_* pasan a extendidas · sin revisar
+- ✓ Lista compacta activada por defecto: núcleo tipado (lectura, diagnóstico, edición de escenas, run_scene/stop_scene/capture_game_frame) más godot.methods y godot.run; API, proyecto, archivos, recursos, tilemaps, animación y game_* pasan a extendidas
   Por qué: tools/list baja de 29.978 a 11.232 caracteres (−63 %) en cada turno; lo de todos los turnos queda tipado y lo puntual se descubre con methods. Permisos, validación y log siguen por método, y llamar por nombre directo sigue funcionando (D56)
   Descartado: Desactivada por defecto; un solo godot_run para todo, sin núcleo tipado; dejar class_info/search_api en el núcleo; mover también la edición de escenas a extendidas
 
@@ -1446,7 +1446,7 @@ Al reabrir con un One-shot a medias, el aviso contaba como conversación y el do
 
 **Notas:** Commit dc2fc2d. Venía de D37: el aviso del run a medias contaba como conversación y escondía la vista vacía.
 
-## M7 — Pulido  (36/44, 36 en revisión)
+## M7 — Pulido  (48/50, 48 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -1498,7 +1498,7 @@ Alternarlo 5 veces con `EditorInterface.set_plugin_enabled()` desde otro plugin 
   El error de grab_focus ya no se reproduce; el cambio a 2D es inofensivo pero su comentario describe un bug que no aparece. Actualizar D9.
 
 **Decisiones:**
-- ! Se deja el cambio a "2D" en remove_all() como precaución, con el comentario y D9 corregidos (el error de grab_focus ya no se reproduce) · sin revisar
+- ✓ Se deja el cambio a "2D" en remove_all() como precaución, con el comentario y D9 corregidos (el error de grab_focus ya no se reproduce)
   Por qué: No cuesta nada y solo se descartó el bug en Linux (xvfb y headless); sacarlo arriesga reintroducirlo en Windows/macOS sin ganar nada
   Descartado: Sacar el cambio a 2D y simplificar remove_all()
 
@@ -1894,22 +1894,22 @@ Documentar en la wiki (en/es) y como decisión.
   Por qué: Godot no trae generador de QR; la sesión aparece igual en la lista de sesiones de la app de Claude y en claude.ai/code
   Descartado: QR generado en GDScript (un encoder propio, más código para mantener)
   Qué hacer: QR agregado en m7-25 (rama remote-qr).
-- ! Empezar un One-shot apaga Remote Control (y en ese modo el botón no aparece) · sin revisar
+- ✓ Empezar un One-shot apaga Remote Control (y en ese modo el botón no aparece)
   Por qué: Los turnos mandados desde el celular no pasan por el run: romperían presupuestos y el conteo de checks
   Descartado: Dejarlo prendido y solo avisar; no dejar empezar el One-shot mientras está prendido
-- ! Los permisos se contestan de los dos lados; si contesta el celular la tarjeta se cierra como «Contestado en otro lado» · sin revisar
+- ✓ Los permisos se contestan de los dos lados; si contesta el celular la tarjeta se cierra como «Contestado en otro lado»
   Por qué: Es como funciona el adaptador ($/cancel_request); la matriz del modo sigue decidiendo lo que no pregunta
   Descartado: Que con Remote Control prendido todo lo que pregunta se conteste solo desde el celular
-- ! La sesión remota se llama como el proyecto, y el botón «Remoto» va en la línea de estado, no en el encabezado · sin revisar
+- ✓ La sesión remota se llama como el proyecto, y el botón «Remoto» va en la línea de estado, no en el encabezado
   Por qué: El nombre del proyecto identifica la sesión en la app; el encabezado ya llena un dock angosto y el botón lo ensanchaba
   Descartado: Nombre fijo («Godot») o pedirlo al prender; botón en el encabezado o en un menú
-- ! Todo prompt que empieza con /comando va solo, sin contexto del harness ni adjuntos (no solo /remote-control) · sin revisar
+- ✓ Todo prompt que empieza con /comando va solo, sin contexto del harness ni adjuntos (no solo /remote-control)
   Por qué: Claude Code reconoce un comando solo si es el mensaje entero; con el contexto delante /remote-control fallaba
   Descartado: Tratar aparte solo /remote-control
 
 **Prueba:** Con Claude Code real (probe, antes del arreglo): /remote-control da el link, el celular sigue la sesión (probado por el usuario), y contestar un permiso en el celular manda $/cancel_request. El cierre de la tarjeta con Claude real no se probó; con el agente falso sí. Automático (4.8-beta1 y 4.6.3): test_slash_command; acp_session_check escenario remote_control (comando solo, link en el modelo, permiso retirado con $/cancel_request, contexto en el mensaje siguiente, off, sesión nueva apagada); oneshot_check «Remote Control» (el run lo apaga); --godot-agent-remote-test (botón, franja, tarjeta cerrada, Apagar, sin botón en One-shot, el dock no pasa su mínimo de diseño); i18n.
 
-**Notas:** Commit 2f69910 en la rama remote-control (pusheada, sin mergear a main). D58.
+**Notas:** Commit 2f69910 (rama remote-control), ya en main. D58.
 
 Hallazgos con claude-agent-acp 0.94: los mensajes del celular y las respuestas del agente NO llegan al cliente ACP, así que «mostrar los turnos remotos en el dock» no se puede; la franja lo aclara. Llegan solo las tool calls que piden permiso; lo de solo lectura corre sin tráfico. El permiso es una carrera: si el harness contesta en el momento (matriz, D48, Auto) el celular no pregunta; si hay tarjeta, preguntan los dos y el que contesta primero gana ($/cancel_request).
 
@@ -1931,16 +1931,16 @@ A definir:
 Documentar en la wiki (Remote Control) y en D58.
 
 **Decisiones:**
-- ! Los cambios del celular se detectan mirando los archivos del proyecto (cada 2 s, solo con Remote Control prendido y sin turno del dock), agrupados por tanda en un aviso con «Ver diff» y «Deshacer» · sin revisar
+- ✓ Los cambios del celular se detectan mirando los archivos del proyecto (cada 2 s, solo con Remote Control prendido y sin turno del dock), agrupados por tanda en un aviso con «Ver diff» y «Deshacer»
   Por qué: Los turnos remotos no llegan por ACP y las tool calls que corren sin permiso tampoco; los archivos son lo único que se ve siempre
   Descartado: Atribuir cada cambio a una tool call (incompleto); EditorFileSystem (solo escanea cuando el editor recupera el foco); un watcher del sistema operativo (no hay API en Godot)
-- ! Deshacer guarda el texto solo de archivos de texto de hasta 256 KB (32 MB en total) y mira hasta 5000 archivos; los binarios aparecen en el aviso pero sin Deshacer · sin revisar
+- ✓ Deshacer guarda el texto solo de archivos de texto de hasta 256 KB (32 MB en total) y mira hasta 5000 archivos; los binarios aparecen en el aviso pero sin Deshacer
   Por qué: Memoria y tiempo de cada vuelta acotados en proyectos grandes; recorrer 750 archivos cada 2 s no se nota
   Descartado: Checkpoint git al prender Remote Control (toca el repo del usuario); copiar también binarios
 
 **Prueba:** test_remote_watch (cambios modificado/creado/borrado sin .godot, .uid ni ignorados; texto de antes; restaurar; rebase y guardado desde el editor; merge de tandas; texto del aviso). --godot-agent-remote-test: con Remote Control prendido se modifica y crea un archivo en tests/tmp, aparece el aviso con los dos, «Ver diff» abre el diff, «Deshacer» los deja como estaban y no genera otro aviso. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido. Con Claude real y el celular no se probó (va con m7-24).
 
-**Notas:** Rama remote-activity (encima de dock-narrow, pusheada, sin mergear). Ver D58 «Actividad del celular». Recorrer este repo (~750 archivos) cada 2 s no se nota. Límite: se compara fecha (segundos) y tamaño.
+**Notas:** Commit 3b0ded6, ya en main (vino de la rama remote-activity). Ver D58 «Actividad del celular». Recorrer este repo (~750 archivos) cada 2 s no se nota. Límite: se compara fecha (segundos) y tamaño.
 
 ### La barra de modos no entra en un dock angosto · Revisión
 
@@ -1951,13 +1951,13 @@ Visto en las capturas de m2-09 y m7-21 (2026-10-22): con cinco modos (Preguntar,
 Opciones: botones que se achican con clip y tooltip, íconos más texto corto, o un selector desplegable cuando no hay lugar. Que el check del editor verifique que la barra no pasa el mínimo del dock (como hace remote_check con la franja), en inglés y en español.
 
 **Decisiones:**
-- ! El mínimo del dock baja de 260 a 220 px y la barra de modos pasa a ser un HFlowContainer: si no entran, los modos siguen en una segunda línea · sin revisar
+- ✓ El mínimo del dock baja de 260 a 220 px y la barra de modos pasa a ser un HFlowContainer: si no entran, los modos siguen en una segunda línea
   Por qué: El panel del editor por defecto mide 240 px, y con 260 el MinSizeGuard recortaba el último modo, el botón de Settings y Enviar. Cortar palabras («Constr…») se lee peor que dos líneas.
   Descartado: Botones recortados con tooltip; íconos con texto corto; un selector desplegable
 
 **Prueba:** layout_check.gd (nuevo) falla antes del arreglo con el dock en el panel por defecto de 240 px: «el dock pide 260 px», y Settings, One-shot y Enviar quedan fuera del borde, en inglés y en español. Después pasa: corre en --godot-agent-remote-test (con la franja y una tarjeta) y en --godot-agent-i18n-test (español). Suite completa verde en 4.8-beta1 y 4.6.3.
 
-**Notas:** Commit 2f42d86 en la rama dock-narrow (pusheada, sin mergear). La causa no era la barra de modos sola: el mínimo de diseño de 260 px del dock no entraba en el panel por defecto de 240, y el MinSizeGuard recortaba 20 px a la derecha (también el «+» del encabezado y Enviar). Bajó a 220 y la barra pasó a HFlowContainer sin clip_text.
+**Notas:** Commit 2f42d86 (rama dock-narrow), ya en main. La causa no era la barra de modos sola: el mínimo de diseño de 260 px del dock no entraba en el panel por defecto de 240, y el MinSizeGuard recortaba 20 px a la derecha (también el «+» del encabezado y Enviar). Bajó a 220 y la barra pasó a HFlowContainer sin clip_text.
 
 ### Remote Control: verificar con Claude real el cierre de la tarjeta y session/load · Pendiente
 
@@ -1982,13 +1982,13 @@ Pedido del usuario (2026-10-22). Quedó afuera de m7-21 (revierte la decisión �
 Encoder QR en GDScript (modo byte, corrección M; versiones hasta ~6 alcanzan para un link de claude.ai): datos → Reed-Solomon → matriz con patrones, máscara elegida por penalización. Dibujado con _draw (o una Image/ImageTexture) con zona de silencio, en la franja de Remote Control o en un popup al tocarlo. Test unitario del encoder contra vectores conocidos (matriz de un texto de referencia) y el check del editor de Remote Control.
 
 **Decisiones:**
-- ! El QR se muestra con un botón «QR» en la franja (oculto por defecto), dibujado con _draw al ancho del dock · sin revisar
+- ✓ El QR se muestra con un botón «QR» en la franja (oculto por defecto), dibujado con _draw al ancho del dock
   Por qué: Con el QR siempre a la vista la franja ocupa ~250 px de alto en el dock; el link se sigue copiando o abriendo sin él
   Descartado: QR siempre visible; en un popup aparte
 
 **Prueba:** test_qr_code: matriz del link de prueba igual a la de qrencode 4 (misma máscara elegida); versión 7 con bloque de versión y texto UTF-8 igual a qrencode con la máscara 3; límites (versión 1, 213 bytes en la 10, 214 no entra); imagen con zona de silencio. A mano: 11 largos (versiones 1–10) decodificados con zbarimg, 8 idénticos a qrencode y los otros 3 idénticos con la máscara de qrencode (libqrencode calcula la penalización distinto). --godot-agent-remote-test: «QR» muestra el código y la captura del editor se decodifica con zbarimg. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido.
 
-**Notas:** Rama remote-qr (encima de remote-activity, pusheada, sin mergear). Traducido de la librería de Project Nayuki (MIT); el aviso de copyright está en el encabezado de core/qr_code.gd. Con un celular real no se escaneó.
+**Notas:** Commit 2f5b02e, ya en main (vino de la rama remote-qr). Traducido de la librería de Project Nayuki (MIT); el aviso de copyright está en el encabezado de core/qr_code.gd. Con un celular real no se escaneó.
 
 ### Remote Control: franja colapsable · Revisión
 
@@ -1998,7 +1998,7 @@ Pedido del usuario (2026-10-23): «Que se pueda colapsar, creo que hay un nodo c
 
 **Prueba:** --godot-agent-remote-test en 4.8-beta1 y 4.6.3: la franja es un FoldableContainer; plegada, el link no se ve y «Apagar» sí; «QR» la despliega y muestra el código. Capturas plegada y desplegada revisadas. Suite completa verde en las dos versiones, i18n incluido.
 
-**Notas:** Commit en la rama remote-qr (encima de m7-25). El estado plegado se conserva mientras el editor está abierto (no se guarda entre sesiones: Remote Control arranca apagado en cada sesión nueva). get_title_bar_control no existe en 4.6, así que el código no lo usa.
+**Notas:** Commit b99a386, ya en main (vino de la rama remote-qr). El estado plegado se conserva mientras el editor está abierto (no se guarda entre sesiones: Remote Control arranca apagado en cada sesión nueva). get_title_bar_control no existe en 4.6, así que el código no lo usa.
 
 ### Cuota del plan como anillos en la fila del composer y modelo por defecto con nombre · Revisión
 
@@ -2007,16 +2007,16 @@ Pedido del usuario (2026-10-23): «Que se pueda colapsar, creo que hay un nodo c
 El medidor de cuota (dos barras debajo del estado) quedaba oculto hasta el primer mensaje de cada sesión y parecía haber desaparecido. Pasa a dos anillos chicos al lado del contexto (afuera la ventana de 5 h, adentro la semanal), siempre visibles, con el detalle en el tooltip y grises con el motivo mientras no hay datos. Además, el selector de modelo mostraba «Default (recommended)»: ahora muestra el modelo que usa, «Opus 5.5 (default)».
 
 **Decisiones:**
-- ! Dos anillos concéntricos (afuera 5 h, adentro semanal) de 16 px, siempre visibles y grises sin datos · sin revisar
+- ✓ Dos anillos concéntricos (afuera 5 h, adentro semanal) de 16 px, siempre visibles y grises sin datos
   Por qué: Ocupan el lugar de un ícono en la fila del composer; siempre visibles para que no parezca que la cuota desapareció cuando la sesión todavía no la informó.
   Descartado: Dos barras finitas en la fila; un solo círculo con la ventana más llena; seguir ocultándolo sin datos.
-- ! La opción "default" se muestra como «<modelo> (default)» solo si su descripción coincide con el nombre de otra opción; el nombre original queda en el tooltip · sin revisar
+- ✓ La opción "default" se muestra como «<modelo> (default)» solo si su descripción coincide con el nombre de otra opción; el nombre original queda en el tooltip
   Por qué: Claude Code pone el modelo en la descripción de "default"; si otro agente usa la descripción para otra cosa, se mantiene su nombre.
   Descartado: Usar siempre la descripción; mostrar el modelo de _claude/model del usage_update (llega recién con el primer turno).
 
 **Prueba:** test_quota_ring (tooltip sin datos, con las dos ventanas y con el límite; colores por umbral) y test_composer.test_model_label. Escenario ui_quota del editor: el anillo se ve y su tooltip trae el detalle. Pasada completa verde en 4.8-beta1 y 4.6.3, incluido i18n. A mano: abrir una sesión de Claude Code, ver los anillos grises y el selector «Opus 5.5 (default)»; después del primer mensaje, los anillos se llenan.
 
-**Notas:** ui/dock/quota_ring.gd reemplaza a quota_meter.gd. Se agrega con Composer.add_status_control antes del medidor de contexto. Se sacó set_usage_hint: el aviso de que el agente no informa la cuota ahora va en el tooltip del anillo. La franja de Remote Control se ubica después de status_row. El nombre del modelo sale de Composer.model_label. Commit 6d83e4e en la rama quota-ring, sin mergear.
+**Notas:** ui/dock/quota_ring.gd reemplaza a quota_meter.gd. Se agrega con Composer.add_status_control antes del medidor de contexto. Se sacó set_usage_hint: el aviso de que el agente no informa la cuota ahora va en el tooltip del anillo. La franja de Remote Control se ubica después de status_row. El nombre del modelo sale de Composer.model_label. Commit 6d83e4e (rama quota-ring), ya en main.
 
 ### Capturas del agente: verlas en grande · Revisión
 
@@ -2025,7 +2025,7 @@ El medidor de cuota (dos barras debajo del estado) quedaba oculto hasta el prime
 Las capturas que devuelve el agente (godot.capture_game_frame, screenshots) se ven en el chat a 160 px de alto y no hay forma de agrandarlas. Un clic en la miniatura abre un visor con la imagen ajustada a la ventana, zoom con la rueda, arrastre para moverla, 1:1 / Ajustar y guardar como PNG. Lo mismo para la captura del último playtest en la pantalla One-shot.
 
 **Decisiones:**
-- ! El visor es una ventana (AcceptDialog) que se abre con un clic en la miniatura, no una ampliación dentro del dock · sin revisar
+- ✓ El visor es una ventana (AcceptDialog) que se abre con un clic en la miniatura, no una ampliación dentro del dock
   Por qué: El dock es angosto: para ver la captura en grande hace falta una ventana. Abre ajustada al 85 % del editor, con zoom, arrastre y Guardar PNG…; las miniaturas siguen a 160 px.
   Descartado: Miniaturas más grandes en el chat; expandir la imagen dentro del dock; abrirla con el visor del sistema (OS.shell_open de un PNG temporal).
 
@@ -2044,13 +2044,13 @@ Trabajado en el worktree .claude/worktrees/chat-images-markdown (rama chat-image
 El conversor de m7-04 cubre lo mínimo pero se ve pobre: las tablas salen como texto mono con los |, las líneas largas de una lista no quedan alineadas bajo el texto, los bloques de código son un fondo detrás de las letras sin forma de copiarlos, los títulos h3–h6 son iguales a negrita, no hay espacio entre párrafos, las URL sueltas no son links y ![img](…) sale como "!" + link. Mejorarlo: tablas reales con encabezado y bordes, listas con sangría colgante ([ul]/[ol]), regla horizontal [hr], URLs sueltas como links, imágenes como link que abre el visor, bloques de código en el chat como caja a todo el ancho con lenguaje, botón copiar y resaltado de GDScript.
 
 **Decisiones:**
-- ! En el chat, los bloques de código son un control aparte (caja con lenguaje y copiar), no BBCode dentro del mismo RichTextLabel · sin revisar
+- ✓ En el chat, los bloques de código son un control aparte (caja con lenguaje y copiar), no BBCode dentro del mismo RichTextLabel
   Por qué: Una tabla de RichTextLabel no llega a todo el ancho y no hay forma de poner un botón de copiar adentro. Costo: no se puede seleccionar de corrido texto y código a la vez.
   Descartado: Todo en un solo RichTextLabel con el código en una tabla de una celda (es lo que queda para la pantalla One-shot y los thoughts).
-- ! Las URL sueltas (https://…) pasan a ser links; antes quedaban como texto · sin revisar
+- ✓ Las URL sueltas (https://…) pasan a ser links; antes quedaban como texto
   Por qué: Es lo que hace GFM y lo que espera quien lee el chat; los guiones bajos de la URL no se toman como itálica y la puntuación final queda afuera.
   Descartado: Dejarlas como texto (el test de m7-04 lo pedía así; se cambió).
-- ! Tareas de lista con ▣ / □ en lugar de ☑ / ☐ · sin revisar
+- ✓ Tareas de lista con ▣ / □ en lugar de ☑ / ☐
   Por qué: Con la fuente del editor, ☑ salía como emoji de color y ☐ diminuto; ▣ y □ son de la misma familia y se ven parejos.
   Descartado: ☑/☐ (lo de antes), ✓/○.
 
@@ -2075,7 +2075,7 @@ El conversor de m7-04 cubre lo mínimo pero se ve pobre: las tablas salen como t
 Reporte del usuario (little-villages): para sacar capturas de 4 semillas, el agente escribió /tmp/shoot_seeds.gd y lo corrió con `timeout 90 "$GODOT" --path . --script …` sin --headless (headless no dibuja). Se abrió el juego en una ventana aparte, gris, en vez de correrlo desde el editor. Rechazar sin tarjeta (como D48) los comandos que lanzan Godot sin --headless, y que el system prompt diga cómo sacar capturas: run_scene + game_call/game_set para preparar la situación + capture_game_frame.
 
 **Decisiones:**
-- ! Godot sin --headless por la shell se rechaza solo, en todo modo, aunque el usuario lo hubiera permitido con la tarjeta · sin revisar
+- ✓ Godot sin --headless por la shell se rechaza solo, en todo modo, aunque el usuario lo hubiera permitido con la tarjeta
   Por qué: En el reporte, el usuario aprobó el comando sin ver que abría una ventana. La alternativa del editor (run_scene + capture_game_frame) existe y es la que se quiere; mismo criterio que las escrituras de D48.
   Descartado: Solo la instrucción en el system prompt; mostrar la tarjeta con una advertencia; rechazarlo solo en Auto/One-shot.
 
@@ -2135,7 +2135,7 @@ Hacer:
 - Al cambiar la lista, se aplica en la próxima sesión (o reinicia la sesión con aviso).
 
 **Decisiones:**
-- ! Los MCP se configuran en el addon y se pasan por ACP; skills y plugins usan los archivos de Claude Code, no un formato propio · sin revisar
+- ✓ Los MCP se configuran en el addon y se pasan por ACP; skills y plugins usan los archivos de Claude Code, no un formato propio
   Por qué: mcpServers es parte de ACP, así que un MCP configurado en el addon sirve para Claude, Gemini y Codex. Skills y plugins existen solo en Claude Code: duplicar su formato implicaría mantener dos copias que se desincronizan con la CLI.
   Descartado: Que el addon edite directamente ~/.claude.json o .mcp.json también para MCP (queda atado a Claude). Un formato propio de skills y plugins para todos los agentes (Gemini y Codex no los soportan).
 
@@ -2154,7 +2154,7 @@ Las tools `mcp__<server>__*` que no son de godot caen en el grupo Other (Permiss
 Hacer: un grupo por server (mcp:blender) con valores por modo editables en Settings (por defecto ask; sugerir allow para tools read-only si el server marca readOnlyHint), "Permitir siempre este server" desde la tarjeta de permiso, y que el One-shot avise antes de arrancar si hay servers en ask. En el chat, mostrar el nombre corto (blender.get_objects_summary) como con godot.* (tool_call.gd, tool_group_view.gd, run_report.gd).
 
 **Decisiones:**
-- ! Los servers MCP de terceros arrancan en Preguntar en todos los modos, incluidos Auto y One-shot · sin revisar
+- ✓ Los servers MCP de terceros arrancan en Preguntar en todos los modos, incluidos Auto y One-shot
   Por qué: Un server de terceros puede hacer cualquier cosa (borrar en Blender, escribir en una base), y el harness no sabe qué hacen sus tools. Se permite explícitamente por server y modo, desde Settings o desde la tarjeta.
   Descartado: Permitir en Auto y One-shot como las tools de edición; usar readOnlyHint para permitir las de solo lectura (el adaptador no lo manda en el pedido de permiso).
 
@@ -2164,7 +2164,7 @@ Hacer: un grupo por server (mcp:blender) con valores por modo editables en Setti
 
 **Relacionadas:** Extensiones: panel de MCP servers (los del addon y los del agente)
 
-### Extensiones: skills (listar, crear, activar, skills de Godot incluidas) · Pendiente
+### Extensiones: skills (listar, crear, activar, skills de Godot incluidas) · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ui`
 
@@ -2173,6 +2173,21 @@ Skills de Claude Code = carpetas con SKILL.md en ~/.claude/skills (usuario) y <p
 Hacer: en Extensions → Skills, lista con origen (usuario, proyecto, plugin), descripción del frontmatter y activar/desactivar por proyecto (options.skills); crear una skill nueva (plantilla SKILL.md abierta en el editor de scripts), importar una carpeta o zip, y copiar de usuario a proyecto. Evaluar incluir skills de Godot con el addon (convenciones, tests headless) en vez de meter todo en el system prompt.
 
 Otros agentes: Gemini y Codex no tienen skills; para ellos ocultar la sección o (decidir) inyectar la descripción en el system prompt.
+
+**Decisiones:**
+- ✓ Apagar skills por proyecto con skillOverrides "off" en las settings de la sesión, no con options.skills; las skills de plugins no tienen interruptor (van con su plugin)
+  Por qué: Probado contra Claude Code real: la lista de options.skills no ocultó nada, y una lista blanca escondería las skills que trae Claude Code. skillOverrides oculta la skill del modelo y del menú /, pero el CLI no lo aplica a skills de plugins.
+  Descartado: options.skills con todas menos las apagadas; escribir skillOverrides en .claude/settings.local.json
+- ✓ Las skills de Godot no vienen dentro del addon: la pestaña sugiere el marketplace godot-agent y lo instala con un clic
+  Por qué: Viven en dannroda/godot-agent-plugins (m7-40), se actualizan solas por plugin y sirven fuera del harness; meterlas en el addon las duplicaría y engordaría el zip.
+  Descartado: Copiarlas en addons/godot_agent y pasarlas por el system prompt o por .claude/skills del proyecto
+- ✓ El SKILL.md se abre con la app del sistema (OS.shell_open), no en el editor de scripts; con Gemini o Codex la pestaña solo dice que las skills son de Claude Code
+  Por qué: .claude/ es una carpeta oculta que el FileSystem de Godot no ve, y las skills de usuario están fuera del proyecto, así que el editor de scripts no las puede abrir. Inyectar descripciones en el prompt de otros agentes sumaría contexto sin la carga bajo demanda que hace útiles a las skills.
+  Descartado: Abrir el archivo en el Script Editor; inyectar las descripciones en el system prompt de otros agentes
+
+**Prueba:** Unit: tests/unit/test_skill_catalog.gd (frontmatter, scan con plugins declarados por el marketplace, settings de sesión, crear/copiar, importar carpeta y zip); 269 tests en 4.6.3, 4.7.2 y 4.8-beta1. UI: tests/skills_check.sh (copia del proyecto, CLAUDE_CONFIG_DIR de prueba) en las tres versiones; i18n es, cycle, ui remote, settings. Real: tests/skills_session_check.gd -- godot-patterns contra Claude Code: con la skill apagada el menú baja de 120 a 119 comandos, el modelo ya no la nombra y los 63 comandos propios de Claude Code siguen.
+
+**Notas:** Commit d5f5ece (worktree-skills-tab), en main desde el 2026-10-27: había quedado sin mergear y la v0.1.6 salió sin m7-36, m7-43 ni m7-44. Pestaña Skills en Extensions (ui/extensions/skills_tab.gd) sobre extensions/skill_catalog.gd, que lee del disco las skills del proyecto (.claude/skills), del usuario (<CLAUDE_CONFIG_DIR>/skills) y de los plugins (installed_plugins.json + plugin.json o la entrada del marketplace con `skills`, para los strict:false como awesome-gamedev). Apagar una skill guarda su nombre en ProjectConfig.disabled_skills y la sesión manda `_meta.claudeCode.options.settings.skillOverrides {nombre: "off"}` en session/new y session/load (SessionController.session_meta_provider). Hallazgos con Claude Code 2.1.310 / claude-agent-acp 0.95: `options.skills` (lista) no ocultó nada; skillOverrides sí oculta skills de usuario/proyecto del modelo y del menú /, pero no se aplica a skills de plugins (el CLI solo los mira para skills sincronizadas): esas van con su plugin. Crear (plantilla, abre el SKILL.md con la app del sistema), importar carpeta o zip, copiar de usuario a proyecto, borrar (a la papelera). Tarjeta que sugiere el marketplace godot-agent (m7-40) e instala gdscript y shaders.
 
 ### Extensiones: plugins de Claude Code (marketplaces, instalar, habilitar) · Revisión
 
@@ -2199,19 +2214,46 @@ Pedido del usuario (2026-10-23): un updater.
 
 **Prueba:** Unit: tests/unit/test_addon_updater.gd (versiones, elección del release, extracción y validación de un zip armado con ZIPPacker, install con borrado/respaldo/KEEP, copia de dev); 246 tests verdes en 4.6.3, 4.7.2 y 4.8-beta1. UI: --godot-agent-update-shots= (aviso debajo del de export, notas en Markdown, Settings → Buscar ahora dice copia de desarrollo, «Después» guarda la versión), en en y es; ciclo del plugin y settings shots pasan. E2E real: sandbox con el addon copiado marcado 0.1.0 + Godot self-contained (._sc_) + plugin sonda en Xvfb propio: encontró v0.1.3 en GitHub, bajó el zip (sigue el redirect), lo instaló, respaldó system_prompt.md editado, conservó project_config.tres, borró addon_updater.gd (0.1.3 no lo trae), reinició y el plugin quedó habilitado en 0.1.3.
 
-**Notas:** Commit 6bc34fc en worktree-updater (sin merge todavía). core/addon_updater.gd (Node con HTTPRequest; API /releases?per_page=10, elige el más nuevo no-draft con .zip; pre-releases no). ui/dock/update_banner.gd vía dock.add_banner(). Settings → Interfaz → Actualizaciones (check al abrir, una vez por día; Buscar ahora). Instalar: confirm → download a user://godot_agent/update → validar versión de plugin.cfg → save_all_scenes, controller.stop → install → restart_editor(false) sin awaits entre escribir y reiniciar. Solo borra archivos obsoletos de tipos del release (gd, uid, tscn, po, cfg, md, txt). Copia de dev (symlink o godot_agent_dev) no se actualiza. Canal de log nuevo "update". Ojo: quien tenga 0.1.3 o anterior tiene que instalar a mano la primera versión que traiga el updater. Sin probar: Windows/macOS, y Authenticate de GitHub con rate limit (60 req/h sin token: una búsqueda por día alcanza).
+**Notas:** Commit 6bc34fc (worktree-updater), ya en main. core/addon_updater.gd (Node con HTTPRequest; API /releases?per_page=10, elige el más nuevo no-draft con .zip; pre-releases no). ui/dock/update_banner.gd vía dock.add_banner(). Settings → Interfaz → Actualizaciones (check al abrir, una vez por día; Buscar ahora). Instalar: confirm → download a user://godot_agent/update → validar versión de plugin.cfg → save_all_scenes, controller.stop → install → restart_editor(false) sin awaits entre escribir y reiniciar. Solo borra archivos obsoletos de tipos del release (gd, uid, tscn, po, cfg, md, txt). Copia de dev (symlink o godot_agent_dev) no se actualiza. Canal de log nuevo "update". Ojo: quien tenga 0.1.3 o anterior tiene que instalar a mano la primera versión que traiga el updater. Sin probar: Windows/macOS, y Authenticate de GitHub con rate limit (60 req/h sin token: una búsqueda por día alcanza).
 
-### Asset Library de Godot: buscar, sugerir, instalar y activar plugins · Pendiente
+### Asset Library de Godot: buscar, sugerir, instalar y activar plugins · Revisión
 
 **Prioridad:** media · **Tamaño:** L
 
 Pedido del usuario (2026-10-23): que el harness pueda buscar en la Asset Library de Godot (godotengine.org/asset-library/api: /asset?filter=&category=&godot_version=, /asset/<id> con download_url y download_hash), sugerir plugins según lo que se está haciendo, instalarlos (bajar el zip, extraer addons/<x>/ con ZIPReader, verificar el hash) y activarlos (EditorInterface.set_plugin_enabled). Dos caras: una pestaña "Godot assets" en la ventana Extensions (buscar, ver, instalar, activar/desactivar los addons del proyecto) y tools MCP godot.asset_search / godot.asset_install con permiso propio (instalar baja código de terceros: pedir siempre). Reusa la descarga y extracción del updater (m7-38).
 
-### Marketplace propio (repo) con las skills, tools y plugins de Godot · Pendiente
+**Decisiones:**
+- ✓ Store nuevo (store.godotengine.org) en vez de la Asset Library clásica; Instalar escribe por defecto solo addons/ y nunca pisa archivos
+  Por qué: El editor de Godot ya solo usa el store nuevo (la URL clásica no está en el código de master), y su API trae releases por versión de Godot. Los zips traen demos, README y hasta project.godot: instalar solo addons/ evita ensuciar el proyecto; no pisar sigue al instalador del editor.
+  Descartado: Asset Library clásica (godotengine.org/asset-library/api); instalar todo el zip como el editor; sobrescribir para poder actualizar
+- ✓ asset_install tiene un grupo de permisos propio («Install from the Asset Store»: Preguntar en Construir, Auto y One-shot); plugin_enable va en el grupo project
+  Por qué: Instalar baja código de terceros: se pide confirmación siempre, pero como grupo de la matriz se puede cambiar en Settings si alguien lo quiere en Permitir. El evaluador del One-shot lo tiene denegado.
+  Descartado: Dentro del grupo project con una excepción fija de «siempre preguntar»
+
+**Prueba:** tests/asset_check.sh <godot> (con red, copia del proyecto): busca, instala Simple TODO con el diálogo y queda activo; las tools lo listan, lo apagan/prenden, no dejan apagar el harness y reinstalar no pisa nada. Pasa en 4.6.3, 4.7.2 y 4.8-beta1. Unit: test_asset_store, test_asset_tools.
+
+**Notas:** Commit 20df5e3 en worktree-asset-store. API del store nuevo (la del editor en master; la clásica ya no está en el código de Godot): search/query/?query=&require_release=true&type=0&sort=&compatibility=4.7.2&page=N (24 por página, hits[].asset), assets/<pub>/<slug>/, releases/<pub>/<slug>/ (download_url firmado, vence a los 10 min: se pide justo antes de bajar). price_cent > 0 = pago, no se instala. Para activar un plugin recién instalado hay que esperar a que el editor importe (dest_files de los .import) y registre los uids; si no, preload("uid://…") falla. Tools en la lista extendida (godot.methods/run); el system prompt pide buscar addons antes de escribir sistemas grandes. Helpers de UI de Extensions movidos a extensions_ui.gd.
+
+### Marketplace propio (repo) con las skills, tools y plugins de Godot · Revisión
 
 **Prioridad:** baja · **Tamaño:** M
 
 Pedido del usuario (2026-10-23, «para después»): un repo que sea un marketplace de Claude Code (.claude-plugin/marketplace.json) con las skills, tools (MCP) y demás que se usan para Godot, para que las skills que se creen vayan ahí. El harness lo puede ofrecer como marketplace sugerido en la ventana Extensions (m7-37) y en la pestaña de skills (m7-36).
+
+**Decisiones:**
+- ✓ Dos plugins por tema (gdscript con 5 skills, shaders con 1), con los nombres de las skills sin cambiar
+  Por qué: Las 5 de GDScript se citan entre sí, así que separadas quedarían referencias rotas; las de shaders son independientes. Con los nombres iguales, las referencias cruzadas y los hábitos siguen andando.
+  Descartado: Un plugin por skill (6); un solo plugin con todo
+- ✓ Las skills básicas de awesome-gamedev-agent-skills se recomiendan en el README, no se copian
+  Por qué: Son de otro autor (Apache 2.0) y se actualizan en su propio marketplace; las nuestras van más allá de lo básico y las nombran con su origen.
+  Descartado: Copiarlas al repo con su NOTICE
+- ✓ El marketplace lista godot, disciplines, genres y workflows de awesome-gamedev-agent-skills apuntando a su repo (sin router), generados con scripts/sync_upstream.py
+  Por qué: Pedido del usuario: instalar las de awesome-gamedev desde nuestro marketplace. Apuntar a su repo evita copiar código Apache 2.0 y trae sus actualizaciones (la versión es su commit). router queda afuera porque enruta a skills de otros motores que no se instalan.
+  Descartado: Copiarlas al repo con NOTICE; fijarlas a un commit; incluir router y los motores no Godot
+
+**Prueba:** claude plugin validate --strict en el marketplace y cada plugin; CI del repo verde; claude plugin list muestra gdscript@godot-agent y shaders@godot-agent habilitados.
+
+**Notas:** Publicado en https://github.com/dannroda/godot-agent-plugins (CI verde). Marketplace "godot-agent" con dos plugins: gdscript (godot-architecture, godot-communication, godot-patterns, godot-data-driven, godot-code-review) y shaders (godot-shader-techniques), copiados de las skills del usuario sin rutas locales a los PDFs; los libros quedan citados por título/capítulo/página. Chequeo de texto literal contra ambos libros (ventanas de 12 palabras): solo esqueletos de código genéricos. claude plugin validate --strict pasa. Instalados en el perfil personal desde GitHub (gdscript@godot-agent y shaders@godot-agent). Mover las skills locales godot-* a skills/.trash lo bloqueó el permiso automático: lo hace el usuario. Queda para m7-36/m7-37: sugerir el marketplace desde Extensions y la pestaña de skills.
 
 ### Guía con imágenes para el README (y la wiki) · Revisión
 
@@ -2221,25 +2263,131 @@ Pedido del usuario (2026-10-23): una guía con capturas, al menos para el README
 
 **Prueba:** tests/docs_shots.sh <godot> en|es: copia limpia del proyecto + Godot self-contained con el idioma del editor; --godot-agent-docs-shots= saca overview, chat, permission, review y settings sin fallas en los dos idiomas. Revisadas a ojo: sin rutas del usuario, sin contenido de tests, sin recortes. Unit 246 verdes, ui_markdown y ciclo del plugin pasan.
 
-**Notas:** Commits 6cf8931 (LICENSE MIT a nombre de Daniel Rodriguez Aires, CONTRIBUTING.md, LICENSE en el zip del release) y 06cd486 (guía) en worktree-docs-guide, sin merge. README «Quick start» con capturas en en/es (docs/images/<lang>/, .gdignore). Escena demo tests/docs_demo/ (con 2 bugs a propósito para Review), escenarios docs_build(_es)/docs_review(_es). El dock se ensancha a 480 px moviendo split_offsets del DockHSplitMain (un offset por divisor entre hijos visibles). Arreglado de paso: el botón «Thinking» no recortaba su texto y ensanchaba el chat más que el dock. Pendiente aparte: m7-42 (fila del composer más ancha que el dock por defecto). Descripción y topics de GitHub puestos con gh repo edit. Sin captura del One-shot (su check usa contenido de test en español).
+**Notas:** Commits 8d0647a (LICENSE MIT a nombre de Daniel Rodriguez Aires, CONTRIBUTING.md, LICENSE en el zip del release) y 94ca4f4 (guía), ya en main (en worktree-docs-guide eran 6cf8931 y 06cd486). README «Quick start» con capturas en en/es (docs/images/<lang>/, .gdignore). Escena demo tests/docs_demo/ (con 2 bugs a propósito para Review), escenarios docs_build(_es)/docs_review(_es). El dock se ensancha a 480 px moviendo split_offsets del DockHSplitMain (un offset por divisor entre hijos visibles). Arreglado de paso: el botón «Thinking» no recortaba su texto y ensanchaba el chat más que el dock. Pendiente aparte: m7-42 (fila del composer más ancha que el dock por defecto). Descripción y topics de GitHub puestos con gh repo edit. Sin captura del One-shot (su check usa contenido de test en español).
 
-### El composer no entra en el dock con el ancho por defecto (sesión abierta) · Pendiente
+### El composer no entra en el dock con el ancho por defecto (sesión abierta) · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ui`
 
 Encontrado armando las capturas (m7-41): con una sesión abierta, la fila de abajo del composer (@, imagen, /, anillo de cuota, uso «38k / 200k» 90 px, modo 66, modelo 67, Enviar 63) pide 418 px; el dock por defecto mide ~289 px en 1920x1200, así que el modelo y Enviar quedan cortados (el dock se recorta en su guard). layout_check no lo ve porque mide sin sesión (sin uso ni modelo). Opciones: pasar el uso al tooltip del anillo o acortarlo, OptionButtons con clip_text, o una segunda fila cuando no entra. Agregar a layout_check el caso con sesión. (El botón «Thinking» que ensanchaba el chat ya se arregló en m7-41.)
 
-### Subagentes: ver lo que hacen y setting para permitirlos y limitarlos · Pendiente
+**Decisiones:**
+- ✓ La fila se compacta por niveles (Enviar solo con símbolo, después sin uso, /, @ y captura, y por último el modelo con «…») en vez de pasar a dos filas
+  Por qué: Mantiene el composer en una sola fila y no le quita alto al chat. Lo que se esconde tiene otro acceso: el anillo de contexto y su tooltip, escribir / o @, y Ctrl+V para la imagen.
+  Descartado: Una segunda fila cuando no entra; mover el uso al tooltip del anillo siempre; clip_text siempre en los OptionButtons
+
+**Prueba:** GODOT_AGENT_LANGUAGE=es tests/run_in_xvfb.sh godot --godot-agent-i18n-test (LayoutCheck.composer_fits: dock de 240 px con uso, modelo y modo, libre y ocupado); pasa en 4.6.3, 4.7.2 y 4.8-beta1. Docs shots a 480 px muestran la fila completa.
+
+**Notas:** Commit 8e8aada, ya en main (vino de worktree-composer-width). composer.gd _fit_row(): calcula el ancho visible (row.size.x menos lo que el contenido del dock se pasa del MinSizeGuard) y sube el nivel de compactación hasta que entra: 1 Enviar/Detener solo símbolo, 2 sin medidor, 3 sin /, 4 sin @, 5 sin captura, 6 modelo con clip + «…» y expand (spacer oculto). Anchos medidos independientes del nivel actual (fuente para Enviar y modelo) para no oscilar. Ojo: con text_overrun_behavior != NO_TRIMMING el Button no cuenta el texto en su mínimo, por eso el overrun se pone solo en el nivel 6.
+
+### Subagentes: ver lo que hacen y setting para permitirlos y limitarlos · Revisión
 
 **Prioridad:** media · **Tamaño:** M
 
 Pedido del usuario (2026-10-23, para después): que se vea lo que hacen los subagentes (hoy el chat agrupa las tools con parentToolUseId bajo la tarjeta del Agent/Task, pero hay que revisar si se ve su progreso en vivo, su prompt y su reporte, y cuántos corren a la vez) y una setting para permitir/denegar el uso de subagentes y la cantidad permitida (por modo; tool Agent/Task de Claude Code: negarla por permiso, contar los que están en curso y rechazar los que pasen el límite).
 
-### Varias sesiones abiertas a la vez que se coordinan entre sí · Pendiente
+**Decisiones:**
+- ✓ Seguir los subagentes con la forma nativa de ACP (clientCapabilities.subagents) en vez de limitar con la variable CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS
+  Por qué: Solo la forma nativa informa cuándo termina un subagente en segundo plano, y da su sesión para mostrar sus tools en la tarjeta. La variable de entorno se fija al arrancar el proceso y no puede cambiar por modo durante la sesión.
+  Descartado: Variable de entorno de Claude Code; contar por el estado del tool call de Agent (falla con los de segundo plano)
+- ✓ Subagentes permitidos en todos los modos por defecto, sin límite (0)
+  Por qué: Así se comportaba antes; el límite y la denegación se activan desde Ajustes → Permisos.
+  Descartado: Denegar en Ask/Review; límite por defecto (p. ej. 3)
+
+**Prueba:** Unit: tests/unit/test_subagents.gd (grupo, límite, modo, sesiones nativas, pedido de permiso del hijo); 276 tests en 4.6.3/4.7.2/4.8. Real (gasta tokens): godot --headless --path . --script tests/subagents_session_check.gd → PASS (uno permitido, otro rechazado por límite 1 en Build, estados running→idle, su Read dentro de la tarjeta). UI: settings shots, i18n es, cycle y skills_check pasan.
+
+**Notas:** Commit 9ae15c6 (worktree-skills-tab). Grupo de permisos "subagents" (Agent/Task, por defecto Allow en todo modo) y "Subagentes a la vez" por modo (project_config.subagent_limits, 0 = sin límite). La sesión manda settings permissions.ask ["Agent"] en _meta, así cada lanzamiento llega como session/request_permission. Hallazgo: los subagentes pueden correr en segundo plano y el tool call de Agent termina enseguida, así que contar por estado del tool call no sirve. El cliente ahora declara clientCapabilities.subagents {} (RFD de ACP): claude-agent-acp anuncia cada hijo con subagent_update (running/requires_action/idle), liga la sesión hija al tool call con un session_message (messageId = id del lanzamiento), y los updates y pedidos de permiso del hijo llegan con su sessionId. SessionModel.apply_child_update los manda a la tarjeta del lanzamiento; ToolCall.subagent_state/is_working() decide si corre. Sin ese informe (otros agentes) se cuenta como antes, por el tool call.
+
+### Varias sesiones abiertas a la vez que se coordinan entre sí · Revisión
 
 **Prioridad:** media · **Tamaño:** L
 
 Pedido del usuario (2026-10-23, para después): poder tener múltiples sesiones de agente abiertas en el editor, coordinadas para no pisarse (archivos y escenas en edición, el juego corriendo, checkpoints). Investigar cómo lo hace el plugin «backstitch» pero local, y la funcionalidad de Claude Code para que sesiones se comuniquen entre sí (mensajes entre sesiones locales). Decidir: locks por archivo/escena en el harness, cola para run_game, un canal compartido; y cómo se ve en el dock (pestañas por sesión).
+
+**Decisiones:**
+- ✓ Lock per file for the length of the owning session's turn, enforced (rejection with the owner's name), instead of advisory claims or worktrees
+  Por qué: The harness already sees every write (edit permission, fs/write, godot.* tools), so enforcing costs nothing and doesn't depend on the agent obeying. Releasing at the end of the turn avoids stale locks without timers. There's only one live editor, so a worktree per agent doesn't fit (merging .tscn is painful).
+  Descartado: Advisory claims via a tool with TTL; a permission card for the user; worktree/branch per session; CRDT like backstitch
+- ✓ Channel between sessions as its own godot.* tools (sessions, session_send) and not Claude Code's SendMessage
+  Por qué: claude-agent-acp doesn't bring cross-session messages to the client, and ACP has nothing between sibling sessions; with our own tools it works with any agent and the message is visible in the chat of the session that receives it (it arrives as a queued prompt).
+  Descartado: Claude Code's SendMessage/ListAgents with crossSessionInbound accept; a shared notes file
+- ✓ Tab bar always visible (Session 1 + «+»), One-shot / Review / Remote Control only in the first session
+  Por qué: The «+» in the tab bar is distinguishable from the header's «+» (new conversation) and is discoverable; the One-shot, review annotations and Remote Control are tied to a single session in the plugin, and moving them to N sessions would be another task.
+  Descartado: Hide the row with a single session and put the button in the header; One-shot in any tab
+
+**Prueba:** Unit: tests/unit/test_sessions.gd (claims, game queue, registry guard and caller, controller file guard, session tools) and test_mcp_server.test_session_tokens; 283 tests. Editor: tests/run_in_xvfb.sh godot --godot-agent-sessions-test=<prefix> → PASS (opens a second tab, its own token, s2 can't touch a file s1 copied, godot.sessions shows it, it frees up at the end of the turn, closing revokes the token). cycle, i18n, queue, auto, review, oneshot, login, remote, edit, sync, run, mcp and external all pass.
+
+**Notas:** Commit 59f352c (worktree-skills-tab). Research: backstitch (inkandswitch) is real-time version control with Automerge (CRDT), not agent coordination. What carries over is the visual diff idea. Claude Code has cross-session messaging (ListAgents/SendMessage over a Unix socket), but claude-agent-acp 0.95 doesn't bring it to the client, and ACP has nothing for messages between sibling sessions. Implemented: SessionTabs (one AgentDock per session, + opens another, close only on the extras); the first one (PRIMARY_SESSION "s1") keeps One-shot, Review annotations and Remote Control. plugin._make_controller wires each session: its own FsHandler, its own MCP token (McpServer.session_token; registry.call_tool gets the caller; session_authorizer uses that session's controller). SessionCoordinator: per-turn file claims (released on turn_finished or on close), enforced in controller.file_guard (edit permission + fs/write) and in registry.guard (godot.* tools in edit_scene/edit_files/project, paths res:// from args or the open scene); the game belongs to whoever launched it while it runs, run_scene from another session waits up to 90 s, game_*/stop/capture of someone else's game are rejected. godot.sessions / godot.session_send (extended, via godot.run) to see the others and send a message that arrives as a queued prompt. Not done: a real run with two Claude agents at once (token routing tested over HTTP and the guard in the editor); checkpoints are still per One-shot (primary session only).
+
+### Asset Store: detectar y aplicar actualizaciones de plugins · Revisión
+
+**Prioridad:** media · **Tamaño:** M
+
+Pedido del usuario (2026-10-24): «Agrega también el poder detectar updates de plugins», sobre m7-39. Detectar versiones nuevas en el Asset Store de los plugins del proyecto (instalados desde el harness o a mano) y poder actualizarlos desde la pestaña y desde las tools del agente.
+
+**Decisiones:**
+- ✓ Las instalaciones se anotan en res://.godot_agent/assets.json (versionable) y los plugins instalados a mano se buscan en el store por nombre; actualizar reemplaza la carpeta del addon
+  Por qué: plugin.cfg no dice de qué asset vino ni todos los autores suben la versión ahí; el archivo en el proyecto lo comparte el equipo y el export lo saltea. Reemplazar la carpeta es lo que hace falta para actualizar (el instalador nunca pisa); se avisa que se pierden los cambios locales.
+  Descartado: Guardar la anotación en user:// (por máquina); solo detectar sin actualizar; chequear actualizaciones al abrir el editor como el updater del addon
+
+**Prueba:** tests/asset_check.sh <godot> (red, copia del proyecto): tras instalar, el resultado dice «Installed»; con la versión anotada vuelta a v0.1 la pestaña ofrece «Update to 1.6», el diálogo dice qué reemplaza y borra, actualizar deja el plugin activo, borra el archivo viejo y anota la versión; sin anotación y con plugin.cfg 0.1, addons_list check_updates lo encuentra por nombre. Pasa en 4.6.3, 4.7.2 y 4.8-beta1. Unit: test_asset_store (plan con replace, stale, manifest, match_asset, installed_assets), test_asset_tools (FakeStore).
+
+**Notas:** Commit ab6a502 en worktree-asset-updates. Anotación en res://.godot_agent/assets.json: {asset_id: {version, folders, files}}. Instalados a mano: search(plugin.name) y match por nombre simplificado o slug == carpeta; sin versión en plugin.cfg no se compara. Actualizar: plan_install con replace=carpetas de addons/ del zip, stale = anotados que ya no vienen (sin anotación no se borra nada), plugins activos se apagan antes de escribir y se prenden después. PROTECTED_FOLDERS pasó a AssetStore.
+
+### Asset Store: una actualización no pisa al harness ni a otros plugins · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `bug`
+
+Revisión de m7-39/m7-45: con update=true, plan_install reemplaza todas las carpetas addons/* que trae el zip nuevo (addon_folders(plan)), no las anotadas para ese asset; un zip que trae addons/godot_agent u otro plugin los pisa. PROTECTED_FOLDERS no se mira al instalar (una instalación nueva puede agregar archivos dentro de addons/godot_agent).
+
+**Decisiones:**
+- ✓ Los archivos del zip dentro de addons/godot_agent(_dev) se saltean en silencio, sin listarlos como conflicto
+  Por qué: Listarlos como conflicto metería la carpeta del harness en las carpetas anotadas del asset (installed_assets lo daría por instalado); un zip que trae el harness es un caso raro
+  Descartado: Listarlos como conflicto u «otros»; rechazar el zip entero
+
+**Prueba:** Unit: test_asset_store (run_all -- asset: 17 tests, 94 checks, 0 fallos en 4.7.2). Casos: zip con addons/godot_agent no lo planea; anotado con otra carpeta deja los archivos existentes como conflicto.
+
+**Notas:** plan_install saltea todo lo de addons/<PROTECTED_FOLDERS> del zip (como las rutas con ..). Nuevo replace_folders(entry, plan): una actualización pisa solo las carpetas anotadas del asset; sin anotación (instalado a mano), las de addons/ del zip. prepare() devuelve replace y la pestaña lo reusa al tildar «incluir otros archivos».
+
+### Asset Store: una actualización que falla vuelve a activar sus plugins · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `bug`
+
+Revisión de m7-45: finish() apaga los plugins activos antes de escribir y, si install() falla (disco lleno, archivo de solo lectura), vuelve sin prenderlos: el plugin queda apagado y a medio reemplazar.
+
+**Prueba:** Necesita el editor (EditorInterface); no tiene test propio. Revisado leyendo el código; asset_check.sh no cubre una escritura fallida.
+
+**Notas:** finish(): si install() falla, vuelve a activar los plugins que apagó (was_enabled) antes de devolver el error. Los archivos quedan a medio reemplazar, como antes.
+
+### Asset Store: un campo null del store no rompe la búsqueda · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `bug`
+
+Revisión de m7-39: int(null) es error de script en Godot 4 (probado en 4.7.2) y get(key, 0) devuelve null si la clave viene con null. Un hit con reviews_score o price_cent null corta search() (pestaña y agente); lo mismo size en compatible_releases.
+
+**Prueba:** Unit: test_asset_store (run_all -- asset: 17 tests, 94 checks, 0 fallos en 4.7.2). Fixture con reviews_score y price_cent null, y una release con size null.
+
+**Notas:** parse_hits (score, price_cent) y compatible_releases (size) usan int(str(…)) / float(str(…)), como ya hacía parse_details con price_cent: str(null) da 0.
+
+### Asset Store: zip temporal propio por descarga · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `bug`
+
+Revisión de m7-39: el zip se llama solo por asset_id; si el agente instala el mismo asset mientras el diálogo de la pestaña está abierto, pisa el zip y lo borra, y la pestaña falla con «not a valid zip».
+
+**Prueba:** Sin test: cambio de nombre de archivo; asset_check.sh lo ejercita al instalar.
+
+**Notas:** download(): el zip se llama <asset>_<ticks_usec>.zip. Se sigue borrando al terminar o cancelar.
+
+### Asset Store: apagar el harness durante una instalación no rompe _scan · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `bug`
+
+Revisión de m7-39: plugin.gd saca el AssetStore del árbol al apagarse; _scan sigue esperando get_tree().process_frame y get_tree() es null: error a mitad de finish(), con los archivos escritos y sin anotar en el manifest.
+
+**Prueba:** Script de prueba: un Node que hace await process_frame, remove_child + queue_free → no imprime ni da error.
+
+**Notas:** Sin cambios: la revisión se equivocó. Probado en 4.7.2: si el nodo se libera durante un await, Godot no reanuda la corrutina (sin error), así que _scan nunca llega a get_tree() null. Apagar el harness a mitad de una instalación la abandona: archivos escritos, sin anotar en el manifest; aceptable al apagar el plugin.
 
 ## M8a — Completado predictivo: núcleo sin IA  (7/7, 7 en revisión)
 

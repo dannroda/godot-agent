@@ -2,18 +2,41 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-23T20:53:16.527Z",
+  "decisions": [
+    {
+      "alternatives": "options.skills con todas menos las apagadas; escribir skillOverrides en .claude/settings.local.json",
+      "at": "2026-10-24T02:11:21.510Z",
+      "review": "ok",
+      "text": "Apagar skills por proyecto con skillOverrides \"off\" en las settings de la sesión, no con options.skills; las skills de plugins no tienen interruptor (van con su plugin)",
+      "why": "Probado contra Claude Code real: la lista de options.skills no ocultó nada, y una lista blanca escondería las skills que trae Claude Code. skillOverrides oculta la skill del modelo y del menú /, pero el CLI no lo aplica a skills de plugins."
+    },
+    {
+      "alternatives": "Copiarlas en addons/godot_agent y pasarlas por el system prompt o por .claude/skills del proyecto",
+      "at": "2026-10-24T02:11:21.552Z",
+      "review": "ok",
+      "text": "Las skills de Godot no vienen dentro del addon: la pestaña sugiere el marketplace godot-agent y lo instala con un clic",
+      "why": "Viven en dannroda/godot-agent-plugins (m7-40), se actualizan solas por plugin y sirven fuera del harness; meterlas en el addon las duplicaría y engordaría el zip."
+    },
+    {
+      "alternatives": "Abrir el archivo en el Script Editor; inyectar las descripciones en el system prompt de otros agentes",
+      "at": "2026-10-24T02:11:21.597Z",
+      "review": "ok",
+      "text": "El SKILL.md se abre con la app del sistema (OS.shell_open), no en el editor de scripts; con Gemini o Codex la pestaña solo dice que las skills son de Claude Code",
+      "why": ".claude/ es una carpeta oculta que el FileSystem de Godot no ve, y las skills de usuario están fuera del proyecto, así que el editor de scripts no las puede abrir. Inyectar descripciones en el prompt de otros agentes sumaría contexto sin la carga bajo demanda que hace útiles a las skills."
+    }
+  ],
   "description": "Skills de Claude Code = carpetas con SKILL.md en ~/.claude/skills (usuario) y <proyecto>/.claude/skills (proyecto); los plugins también traen skills. claude-agent-acp las carga (settingSources) y el SDK acepta `skills` (lista o 'all') por `_meta.claudeCode.options` en session/new.\n\nHacer: en Extensions → Skills, lista con origen (usuario, proyecto, plugin), descripción del frontmatter y activar/desactivar por proyecto (options.skills); crear una skill nueva (plantilla SKILL.md abierta en el editor de scripts), importar una carpeta o zip, y copiar de usuario a proyecto. Evaluar incluir skills de Godot con el addon (convenciones, tests headless) en vez de meter todo en el system prompt.\n\nOtros agentes: Gemini y Codex no tienen skills; para ellos ocultar la sección o (decidir) inyectar la descripción en el system prompt.",
   "milestone": "m07",
-  "notes": "",
+  "notes": "Commit d5f5ece (worktree-skills-tab), en main desde el 2026-10-27: había quedado sin mergear y la v0.1.6 salió sin m7-36, m7-43 ni m7-44. Pestaña Skills en Extensions (ui/extensions/skills_tab.gd) sobre extensions/skill_catalog.gd, que lee del disco las skills del proyecto (.claude/skills), del usuario (<CLAUDE_CONFIG_DIR>/skills) y de los plugins (installed_plugins.json + plugin.json o la entrada del marketplace con `skills`, para los strict:false como awesome-gamedev). Apagar una skill guarda su nombre en ProjectConfig.disabled_skills y la sesión manda `_meta.claudeCode.options.settings.skillOverrides {nombre: \"off\"}` en session/new y session/load (SessionController.session_meta_provider). Hallazgos con Claude Code 2.1.310 / claude-agent-acp 0.95: `options.skills` (lista) no ocultó nada; skillOverrides sí oculta skills de usuario/proyecto del modelo y del menú /, pero no se aplica a skills de plugins (el CLI solo los mira para skills sincronizadas): esas van con su plugin. Crear (plantilla, abre el SKILL.md con la app del sistema), importar carpeta o zip, copiar de usuario a proyecto, borrar (a la papelera). Tarjeta que sugiere el marketplace godot-agent (m7-40) e instala gdscript y shaders.",
   "order": 36,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ui"
   ],
-  "test": "",
+  "test": "Unit: tests/unit/test_skill_catalog.gd (frontmatter, scan con plugins declarados por el marketplace, settings de sesión, crear/copiar, importar carpeta y zip); 269 tests en 4.6.3, 4.7.2 y 4.8-beta1. UI: tests/skills_check.sh (copia del proyecto, CLAUDE_CONFIG_DIR de prueba) en las tres versiones; i18n es, cycle, ui remote, settings. Real: tests/skills_session_check.gd -- godot-patterns contra Claude Code: con la skill apagada el menú baja de 120 a 119 comandos, el modelo ya no la nombra y los 63 comandos propios de Claude Code siguen.",
   "title": "Extensiones: skills (listar, crear, activar, skills de Godot incluidas)",
-  "updated_at": "2026-10-23T20:53:16.527Z"
+  "updated_at": "2026-10-27T18:59:52.770Z"
 }

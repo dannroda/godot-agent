@@ -7,6 +7,7 @@
     {
       "alternatives": "Solo la instrucción en el system prompt; mostrar la tarjeta con una advertencia; rechazarlo solo en Auto/One-shot.",
       "at": "2026-10-23T18:38:29.060Z",
+      "review": "ok",
       "text": "Godot sin --headless por la shell se rechaza solo, en todo modo, aunque el usuario lo hubiera permitido con la tarjeta",
       "why": "En el reporte, el usuario aprobó el comando sin ver que abría una ventana. La alternativa del editor (run_scene + capture_game_frame) existe y es la que se quiere; mismo criterio que las escrituras de D48."
     }
@@ -24,5 +25,5 @@
   ],
   "test": "- test_godot_window_guard (3 tests, 14 checks): el comando de la captura (`timeout 90 \"$GODOT\" --path . --script /tmp/shoot_seeds.gd …`) se rechaza; también godot del PATH, el binario del editor, ${GODOT}, binarios descargados y prefijos (timeout -k, env, VAR=). Pasan --headless, --display-driver headless, --version, --export-*, xvfb-run, y godot como argumento o dentro de un string.\n- Suite completa: 227 tests en 4.6.3, 4.7.2 y 4.8-beta1.\n- Falta: probarlo con Claude Code real pidiéndole capturas de varias semillas (que use run_scene + game_call + capture_game_frame).",
   "title": "El agente no abre Godot en una ventana desde la shell",
-  "updated_at": "2026-10-23T18:38:29.060Z"
+  "updated_at": "2026-10-27T17:32:10.298Z"
 }
