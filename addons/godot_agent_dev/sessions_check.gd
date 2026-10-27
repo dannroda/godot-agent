@@ -78,6 +78,27 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 		failures.append("al terminar el turno de la primera, la segunda sigue sin poder: %s" % after.content[0].text)
 	await _save_shot(tree, tabs, "%s_second.png" % prefix)
 
+	# Renombrar (m7-53): doble clic abre el campo; el nombre vale también para los agentes.
+	tabs.call(&"start_rename", second)
+	var popup: PopupPanel = tabs.get(&"_rename_popup")
+	var edit: LineEdit = tabs.get(&"_rename_edit")
+	if not popup.visible or edit.text != "Session 2":
+		failures.append("renombrar no abrió el campo con el nombre actual")
+	await _save_shot(tree, tabs, "%s_rename.png" % prefix)
+	edit.text_submitted.emit("  Level design ")
+	await tree.process_frame
+	if bar.get_tab_title(1) != "Level design" or coordinator.call(&"label", second) != "Level design":
+		failures.append("el nombre no llegó a la pestaña y al coordinador: %s / %s" % [bar.get_tab_title(1), coordinator.call(&"label", second)])
+	var renamed: Dictionary = await registry.call(&"call_tool", "sessions", {}, "")
+	if not str(renamed.content[0].text).contains("«Level design»"):
+		failures.append("godot.sessions no usa el nombre nuevo: %s" % renamed.content[0].text)
+	tabs.rename_requested.emit(second, "session 1")
+	if coordinator.call(&"label", second) != "Level design":
+		failures.append("se aceptó un nombre repetido")
+	tabs.rename_requested.emit(second, "")
+	if bar.get_tab_title(1) != "Session 2":
+		failures.append("un nombre vacío no volvió a «Session 2»: %s" % bar.get_tab_title(1))
+
 	# Cerrar la pestaña: el coordinador y el server MCP la olvidan.
 	bar.tab_button_pressed.emit(1)
 	await tree.process_frame

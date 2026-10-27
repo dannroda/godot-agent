@@ -10,6 +10,7 @@ const CommandResolver := preload("../transport/command_resolver.gd")
 
 ## Lo que puede tardar un comando antes de cortarlo (un install clona un repo).
 const DEFAULT_TIMEOUT_MS := 180000
+const AUTH_TIMEOUT_MS := 20000
 
 ## Ruta del ejecutable ("" si no se encontró).
 var path: String = ""
@@ -86,6 +87,21 @@ func run(args: PackedStringArray, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> Dicti
 	process.stop()
 	_running.erase(process)
 	return {"code": state.code, "stdout": "\n".join(out), "stderr": "\n".join(err), "timed_out": timed_out}
+
+
+## La cuenta con la que está logueado (`claude auth status`, con el CLAUDE_CONFIG_DIR del perfil):
+## `{email, org, plan, method}`, o {} si no hay sesión iniciada o el CLI no contestó.
+func auth_status() -> Dictionary:
+	var result := await run(["auth", "status", "--json"], AUTH_TIMEOUT_MS)
+	return parse_auth_status(result.stdout) if result.code == 0 else {}
+
+
+static func parse_auth_status(text: String) -> Dictionary:
+	var data: Variant = JSON.parse_string(text)
+	if not data is Dictionary or data.get("loggedIn") != true:
+		return {}
+	var field := func(key: String) -> String: return str(data[key]) if data.get(key) is String else ""
+	return {"email": field.call("email"), "org": field.call("orgName"), "plan": field.call("subscriptionType"), "method": field.call("authMethod")}
 
 
 ## Mata lo que esté corriendo (al cerrar la ventana o el editor).

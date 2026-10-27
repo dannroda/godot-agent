@@ -19,6 +19,8 @@ signal title_changed(title: String)
 signal harness_mode_changed(mode: HarnessMode)
 ## Remote Control de Claude Code (m7-21): link de la sesión en claude.ai, o "" si está apagado.
 signal remote_control_changed(url: String)
+## La cuenta del agente cambió (ver `account`).
+signal account_changed
 signal turn_finished(stop_reason: String)
 signal permission_requested(request: PermissionRequest)
 
@@ -54,6 +56,9 @@ var title: String = ""
 var harness_mode: HarnessMode = HarnessMode.BUILD
 var remote_control_url: String = ""
 var agent_info: Dictionary = {}
+## Con qué cuenta está logueado el agente (Claude Code): `{email, org, plan, method}`, o {} si no se
+## sabe. Es del proceso, no de la conversación: reset() no la borra.
+var account: Dictionary = {}
 var agent_capabilities: Dictionary = {}
 var auth_methods: Array = []
 var current_agent_mode: String = ""
@@ -122,6 +127,12 @@ func set_remote_control(url: String) -> void:
 		return
 	remote_control_url = url
 	remote_control_changed.emit(url)
+
+
+func set_account(value: Dictionary) -> void:
+	if value != account:
+		account = value
+		account_changed.emit()
 
 
 ## true si el agente publica el comando `/remote-control` (claude-agent-acp con un SDK que lo soporta).

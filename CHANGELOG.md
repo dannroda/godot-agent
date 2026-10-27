@@ -9,6 +9,15 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - **Skills** tab in the Extensions window: Claude Code's skills of the project (`.claude/skills`), of the user and of the installed plugins, with their description. A switch turns a user or project skill off for this project (from the next session the agent doesn't see it and it leaves the `/` menu; plugin skills go with their plugin). Create a skill from a template, import a skill folder or a zip, copy a user skill into the project, and install the Godot skills of the [godot-agent marketplace](https://github.com/dannroda/godot-agent-plugins) with one click.
 - **Subagents** permission group and a **Subagents at once** limit per mode (Settings → Permissions): Claude Code's subagents can be denied or asked for in a mode, and one past the limit is rejected with a notice. The chat follows each subagent through its own session (its prompt, tools, text and report, also for one in the background), and the status line counts the ones running.
 - **Several agent sessions at once**, each in its own tab of the dock (**+** opens another). They don't step on each other: a file one session writes in its turn is off limits to the others until that turn ends, the game runs for one session at a time (another's `run_scene` waits in line), and `godot.sessions` / `godot.session_send` let the agents see what the others are doing and leave each other messages.
+- Session tabs can be renamed (double-click a tab): the name is also how the agents refer to that session in `godot.sessions` and `godot.session_send`, so two sessions can't share it. Leaving it empty goes back to «Session N».
+- The dock's status line shows the Claude Code account each session is signed in with (from `claude auth status`, so each agent profile shows its own); its tooltip adds the organization and the plan.
+
+### Fixed
+
+- The **+** that opens another session tab and the **Extensions** button were much smaller than the header's other icons.
+- The status line's tooltip (the error, the running subagents) never showed.
+- When Claude Code works on something the editor never received (a message from another of its sessions through `SendMessage`, or a background task that finished), the chat now says so instead of showing an answer with no question. The agent is told to use `godot.sessions` / `godot.session_send` with the other sessions in the editor: those messages show in the chat, and they also reach a session that has no prompt yet.
+- Updating an addon from the Asset Store only replaces the folders that asset installed, and never writes inside the harness's own folders. A failed update turns its plugins back on, and an Asset Store result with an empty field no longer breaks the search.
 
 ## [0.1.6] - 2026-10-24
 

@@ -4,6 +4,7 @@ extends "test_case.gd"
 const ClaudeExtensions := preload("res://addons/godot_agent/extensions/claude_extensions.gd")
 const ClaudeCli := preload("res://addons/godot_agent/extensions/claude_cli.gd")
 const ExtensionsWindow := preload("res://addons/godot_agent/ui/extensions/extensions_window.gd")
+const AgentDock := preload("res://addons/godot_agent/ui/dock/agent_dock.gd")
 
 const MCP_LIST := """Checking MCP server health…
 
@@ -82,6 +83,16 @@ func test_claude_profile_detection() -> void:
 	assert_true(ClaudeExtensions.is_claude_profile("npx", PackedStringArray(["-y", "@agentclientprotocol/claude-agent-acp"])), "el adaptador por npx")
 	assert_true(ClaudeExtensions.is_claude_profile("/usr/local/bin/claude", PackedStringArray([])), "el CLI")
 	assert_false(ClaudeExtensions.is_claude_profile("gemini", PackedStringArray(["--experimental-acp"])), "Gemini")
+
+
+func test_parse_auth_status() -> void:
+	var account := ClaudeCli.parse_auth_status('{"loggedIn": true, "authMethod": "claude.ai", "email": "a@b.c", "orgName": "Org", "subscriptionType": "pro"}')
+	assert_eq(account, {"email": "a@b.c", "org": "Org", "plan": "pro", "method": "claude.ai"}, "cuenta de claude.ai")
+	assert_eq(ClaudeCli.parse_auth_status('{"loggedIn": true, "authMethod": "api_key", "email": null}').email, "", "con API key no hay email")
+	assert_eq(ClaudeCli.parse_auth_status('{"loggedIn": false}'), {}, "sin sesión")
+	assert_eq(ClaudeCli.parse_auth_status("Not logged in"), {}, "salida que no es JSON")
+	assert_eq(AgentDock.account_summary({"email": "a@b.c", "org": "", "plan": "max"}), "Account: a@b.c\nPlan: Max", "tooltip sin organización")
+	assert_eq(AgentDock.account_summary({}), "", "sin cuenta, sin tooltip")
 
 
 func test_cli_wraps_cwd() -> void:

@@ -126,3 +126,27 @@ func test_session_tools() -> void:
 	assert_eq(sent, [["s2", "Session 1", "I'm on the HUD"]], "con el mensaje limpio")
 	assert_true(by_name.session_send.handler.call({"to": "Session 9", "message": "hi"}).isError, "a una que no existe, error")
 	assert_true(by_name.session_send.handler.call({"to": "Session 1", "message": "  "}).isError, "vacío, error")
+
+
+func test_notice_for_work_outside_a_turn() -> void:
+	var controller := SessionController.new()
+	controller.setup(SessionModel.new(), AgentLog.new(), "/tmp/project")
+	var model := controller.model
+	model.session_id = "s"
+	model.set_state(SessionModel.SessionState.READY)
+	var notices := func() -> int: return model.entries().filter(func(e: Variant) -> bool: return e.kind == e.EntryKind.NOTICE).size()
+	var chunk := func(kind: String, text: String) -> void:
+		controller.call(&"_on_session_update", {"sessionId": "s", "update": {"sessionUpdate": kind, "content": {"type": "text", "text": text}}})
+	chunk.call("agent_message_chunk", "Got it, ")
+	chunk.call("agent_message_chunk", "replying.")
+	assert_eq(notices.call(), 1, "un aviso por tanda, con el mensaje que no llegó")
+	controller.call(&"_on_session_update", {"sessionId": "s", "update": {"sessionUpdate": "tool_call", "toolCallId": "b1", "title": "Bash", "_meta": {"claudeCode": {"parentToolUseId": "a1"}}}})
+	assert_eq(notices.call(), 1, "lo de un subagente no cuenta")
+	controller.set(&"_outside_turn_noticed", false)
+	chunk.call("user_message_chunk", "from the phone")
+	chunk.call("agent_message_chunk", "ok")
+	assert_eq(notices.call(), 1, "Remote Control trae el mensaje: sin aviso")
+	controller.set(&"_outside_turn_noticed", false)
+	model.set_state(SessionModel.SessionState.PROMPTING)
+	chunk.call("agent_message_chunk", "in a turn")
+	assert_eq(notices.call(), 1, "dentro de un turno pedido, sin aviso")

@@ -198,6 +198,7 @@ func _enter_tree() -> void:
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
 	_tabs.new_session_requested.connect(_open_session_tab)
 	_tabs.close_requested.connect(_close_session_tab)
+	_tabs.rename_requested.connect(_rename_session)
 	# Los textos ya vienen traducidos por I18n: que el editor no los vuelva a traducir con los suyos.
 	for surface: Node in [_tabs, log_panel]:
 		surface.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -906,6 +907,9 @@ func _open_session_tab() -> void:
 	_session_serial += 1
 	var id := "s%d" % _session_serial
 	var label := I18n.t("Session %d") % _session_serial
+	while _label_taken(label, id):  # alguna otra se renombró así
+		_session_serial += 1
+		label = I18n.t("Session %d") % _session_serial
 	var model := SessionModel.new()
 	var controller := _make_controller(model, id)
 	_extra_sessions[id] = {"model": model, "controller": controller}
@@ -938,6 +942,24 @@ func _close_session_tab(id: String) -> void:
 		_mcp_server.remove_session_token(id)
 	if _tabs:
 		_tabs.remove_session(id)
+
+
+## Renombrar una pestaña (m7-53): el nombre es también el que usan los agentes en godot.sessions y
+## godot.session_send, así que no se repite.
+func _rename_session(id: String, name: String) -> void:
+	var label := name if not name.is_empty() else _tabs.default_label(id)
+	if _label_taken(label, id):
+		_model_of(id).add_notice(I18n.t("There is already a session called «%s»: pick another name.") % label, ChatEntry.NoticeLevel.WARNING)
+		return
+	_coordinator.register(id, label)
+	_tabs.set_label(id, label)
+
+
+func _label_taken(label: String, except: String) -> bool:
+	for other: String in _coordinator.sessions():
+		if other != except and _coordinator.label(other).to_lower() == label.to_lower():
+			return true
+	return false
 
 
 ## La sesión de quien llama a una tool godot.*: el token principal ("") es el de la primera.

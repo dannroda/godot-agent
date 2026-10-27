@@ -35,6 +35,8 @@ const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
 const EditorBinary := preload("../transport/editor_binary.gd")
 const CommandResolver := preload("../transport/command_resolver.gd")
+const ClaudeExtensions := preload("../extensions/claude_extensions.gd")
+const ClaudeCli := preload("../extensions/claude_cli.gd")
 const I18n := preload("../core/i18n.gd")
 
 const PROTOCOL_VERSION := 1
@@ -118,6 +120,8 @@ var file_guard: Callable
 var _process: AgentProcess
 var _profile: AgentProfile
 var _system_prompt_sent: bool = false
+## Ya se avisó que el agente trabaja fuera de un turno pedido desde el chat (se rearma con cada prompt).
+var _outside_turn_noticed: bool = false
 var _connect_generation: int = 0
 var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
 ## Subagentes que el harness dejó arrancar (toolCallId -> true): cuentan para el límite aunque el
@@ -247,6 +251,7 @@ func open_session(generation: int = _connect_generation) -> bool:
 		history.begin(model.session_id, _profile.id, _profile.display_name, cwd)
 	model.set_state(SessionModel.SessionState.READY)
 	_sync_agent_mode()
+	_refresh_account()
 	connected.emit()
 	return true
 
@@ -276,6 +281,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		if block is Dictionary:
 			attachments.append(block)
 	model.add_user_message(text, attachments)
+	_outside_turn_noticed = false
 	if history:
 		history.record_prompt(text)
 	model.set_state(SessionModel.SessionState.PROMPTING)
@@ -710,6 +716,22 @@ func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bo
 	)
 
 
+## Pide al CLI de Claude Code con qué cuenta está logueado el perfil (su CLAUDE_CONFIG_DIR) y la
+## deja en el modelo. Otros agentes no la informan: queda vacía.
+func _refresh_account() -> void:
+	var profile := _profile
+	if profile == null or not ClaudeExtensions.is_claude_profile(profile.command, profile.args):
+		model.set_account({})
+		return
+	var cli := ClaudeCli.new(cwd, profile.resolved_env())
+	var account := await cli.auth_status() if cli.is_available() else {}
+	if profile == _profile:  # no se cambió de agente mientras tanto
+		model.set_account(account)
+		if not account.is_empty():
+			# Sin el email: el log se pega en reportes de bugs.
+			agent_log.add(AgentLog.CH_PROC, "Logged in (%s, %s plan)" % [account.method, account.plan])
+
+
 ## true (y lo avisa) si otra sesión abierta está editando alguno de `paths` (m7-44).
 func _file_taken(paths: PackedStringArray) -> bool:
 	if not file_guard.is_valid() or paths.is_empty():
@@ -831,10 +853,26 @@ func _on_session_update(params: Dictionary) -> void:
 		return
 	if params.update.get("sessionUpdate") == "usage_update":
 		quota.observe_update(params.update)
+	_notice_outside_turn(params.update)
 	if not model.apply_update(params.update):
 		agent_log.add(AgentLog.CH_ACP, "Unknown session/update variant, ignored: %s" % str(params.update.get("sessionUpdate", "?")))
 	elif history:
 		history.record_update(params.update)
+
+
+## Claude Code arranca un turno solo cuando le llega un mensaje de otra sesión suya (SendMessage) o
+## termina una tarea en segundo plano, y claude-agent-acp (0.98) no reenvía ese mensaje: el chat
+## vería la respuesta sin la pregunta. Se avisa una vez hasta el próximo prompt. Un mensaje de Remote
+## Control sí llega (user_message_chunk) y no lleva aviso.
+func _notice_outside_turn(update: Dictionary) -> void:
+	if model.state != SessionModel.SessionState.READY or _outside_turn_noticed or not model.parent_tool_call_id(update).is_empty():
+		return
+	var kind := str(update.get("sessionUpdate", ""))
+	if kind == "user_message_chunk":
+		_outside_turn_noticed = true
+	elif kind in ["agent_message_chunk", "agent_thought_chunk", "tool_call"]:
+		_outside_turn_noticed = true
+		model.add_notice(I18n.t("The agent is answering something it received outside this chat (a message from another Claude Code session or a background task that finished): the editor only gets its answer. To see the messages between sessions, ask the agents to use godot.session_send."))
 
 
 func _record_turn_end(stop_reason: String) -> void:
@@ -871,6 +909,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	model.set_state(SessionModel.SessionState.READY)
 	model.add_notice(I18n.t("Session resumed: the agent recovered its context with session/load."))
 	_sync_agent_mode()
+	_refresh_account()
 	connected.emit()
 	return true
 

@@ -2821,3 +2821,21 @@ msgstr "Rechazado: %s lo está editando «%s». Queda libre cuando termine el tu
 
 msgid "Open another agent session alongside this one. Sessions don't step on each other: a file one is editing in its turn is off limits to the rest, and the game runs for one at a time."
 msgstr "Abre otra sesión del agente junto a esta. Las sesiones no se pisan: un archivo que una está editando en su turno queda fuera del alcance de las demás, y el juego corre para una a la vez."
+
+msgid "Account: %s"
+msgstr "Cuenta: %s"
+
+msgid "Organization: %s"
+msgstr "Organización: %s"
+
+msgid "Plan: %s"
+msgstr "Plan: %s"
+
+msgid "The agent is answering something it received outside this chat (a message from another Claude Code session or a background task that finished): the editor only gets its answer. To see the messages between sessions, ask the agents to use godot.session_send."
+msgstr "El agente está respondiendo algo que recibió fuera de este chat (un mensaje de otra sesión de Claude Code o una tarea en segundo plano que terminó): al editor solo le llega su respuesta. Para ver los mensajes entre sesiones, pedile a los agentes que usen godot.session_send."
+
+msgid "Double-click to rename"
+msgstr "Doble clic para renombrar"
+
+msgid "There is already a session called «%s»: pick another name."
+msgstr "Ya hay una sesión llamada «%s»: elegí otro nombre."

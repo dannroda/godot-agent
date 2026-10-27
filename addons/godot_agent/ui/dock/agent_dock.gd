@@ -203,6 +203,7 @@ func _ready() -> void:
 		if call.is_subagent():
 			_refresh_state())
 	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
+	_model.account_changed.connect(_refresh_state)
 	_model.usage_changed.connect(_composer.set_usage)
 	_model.commands_changed.connect(_composer.set_commands)
 	_model.config_options_changed.connect(func(_options: Array) -> void: _composer.set_model_option(_model.config_option("model")))
@@ -248,7 +249,8 @@ func _build_header() -> void:
 	var extensions := Button.new()
 	extensions.name = "ExtensionsButton"
 	extensions.flat = true
-	extensions.icon = AgentTheme.icon(&"AssetLib")
+	# EditorPlugin (un enchufe) llena el cuadro como los otros íconos del header; AssetLib se veía diminuto.
+	extensions.icon = AgentTheme.icon(&"EditorPlugin")
 	if extensions.icon == null:
 		extensions.text = "⧉"
 	extensions.tooltip_text = I18n.t("Extensions: plugins, marketplaces and MCP servers")
@@ -286,6 +288,8 @@ func _build_remote_control() -> void:
 	move_child(status_row, _status_label.get_index())
 	_status_label.reparent(status_row)
 	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Un Label ignora el mouse por defecto: sin esto su tooltip (cuenta, error, subagentes) no se ve.
+	_status_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	status_row.add_child(_remote_button)
 	# Plegable (m7-26): el título y los botones quedan a la vista; el link, el QR y la aclaración se
 	# pliegan. El estado se conserva mientras el editor está abierto.
@@ -483,6 +487,19 @@ func _refresh_title() -> void:
 	_title_label.tooltip_text = _title_label.text
 
 
+## Tooltip de la cuenta: «Account: email», la organización y el plan.
+static func account_summary(account: Dictionary) -> String:
+	if str(account.get("email", "")).is_empty():
+		return ""
+	var lines: PackedStringArray = [I18n.t("Account: %s") % account.email]
+	# En una cuenta personal la organización es «<email>'s Organization»: no suma nada.
+	if not str(account.get("org", "")).is_empty() and not str(account.org).contains(account.email):
+		lines.append(I18n.t("Organization: %s") % account.org)
+	if not str(account.get("plan", "")).is_empty():
+		lines.append(I18n.t("Plan: %s") % str(account.plan).capitalize())
+	return "\n".join(lines)
+
+
 func _refresh_state() -> void:
 	var profile := _controller.profile() if _controller.profile() else _settings.active_profile()
 	var name := profile.display_name if profile else I18n.t("Agent")
@@ -509,8 +526,11 @@ func _refresh_state() -> void:
 		SessionModel.SessionState.FAILED:
 			text = I18n.t("✗ %s · error") % name
 			color = AgentTheme.ERROR
+	var email := str(_model.account.get("email", ""))
+	if not email.is_empty() and _model.state != SessionModel.SessionState.DISCONNECTED:
+		text += " · " + email
 	_status_label.text = text
-	_status_label.tooltip_text = _model.failure_message
+	_status_label.tooltip_text = _model.failure_message if not _model.failure_message.is_empty() else account_summary(_model.account)
 	if _model.state == SessionModel.SessionState.PROMPTING:
 		var names := _model.running_subagents().map(func(call: SessionModel.ToolCall) -> String: return "• " + call.display_name())
 		if not names.is_empty():
