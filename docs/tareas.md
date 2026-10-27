@@ -1446,7 +1446,7 @@ Al reabrir con un One-shot a medias, el aviso contaba como conversación y el do
 
 **Notas:** Commit dc2fc2d. Venía de D37: el aviso del run a medias contaba como conversación y escondía la vista vacía.
 
-## M7 — Pulido  (48/50, 48 en revisión)
+## M7 — Pulido  (51/53, 51 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -2388,6 +2388,57 @@ Revisión de m7-39: plugin.gd saca el AssetStore del árbol al apagarse; _scan s
 **Prueba:** Script de prueba: un Node que hace await process_frame, remove_child + queue_free → no imprime ni da error.
 
 **Notas:** Sin cambios: la revisión se equivocó. Probado en 4.7.2: si el nodo se libera durante un await, Godot no reanuda la corrutina (sin error), así que _scan nunca llega a get_tree() null. Apagar el harness a mitad de una instalación la abandona: archivos escritos, sin anotar en el manifest; aceptable al apagar el plugin.
+
+### Dock: mostrar con qué cuenta está logueada cada sesión; «+» de pestañas más grande · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Pedido del usuario (2026-10-27): «en ningún lado estamos mostrando qué cuenta está logueada en la sesión» y «el + para abrir una sesión paralela es muy chiquito».
+
+**Decisiones:**
+- ! La cuenta va en la línea de estado del dock («● Claude Code · ready · email»), con organización y plan en su tooltip · sin revisar
+  Por qué: Es la línea que ya nombra el agente de cada sesión, existe en cada pestaña y recorta con «…» en un dock angosto
+  Descartado: Una etiqueta propia en el header; solo en el tooltip de la cuota; en la pantalla del One-shot
+- ! El «+» de pestañas usa el mismo ícono Add que «Nueva conversación» del header · sin revisar
+  Por qué: Con el mismo tamaño se ve como el resto de los íconos; se distingue por estar en la fila de pestañas (como en un navegador) y por su tooltip
+  Descartado: Texto «+» más grande (el glifo igual queda chico); otro ícono del editor
+
+**Prueba:** Unit: test_claude_extensions.test_parse_auth_status (claude.ai, API key sin email, sin sesión, salida no JSON, tooltip); suite 284 tests (falla solo test_api_tools.test_search, previa). Editor: --godot-agent-sessions-test pasa y la captura muestra el «+» del tamaño de los íconos del header. auth_status() contra el CLI real devuelve las cuatro claves. No probado: la línea de estado con Claude real en el editor (el agente falso no es Claude).
+
+**Notas:** ClaudeCli.auth_status() corre `claude auth status --json` (Claude Code 2.1.311) con el entorno del perfil (su CLAUDE_CONFIG_DIR) y parse_auth_status() devuelve {email, org, plan, method}. SessionController._refresh_account() lo pide al quedar lista la sesión (session/new y session/load), solo si ClaudeExtensions.is_claude_profile(); queda en SessionModel.account (no lo borra reset(): es del proceso) con la señal account_changed. El dock suma «· email» a la línea de estado y el tooltip dice cuenta, organización (salvo la «<email>'s Organization» de una cuenta personal) y plan. El Agent Log anota método y plan, sin el email. De paso: el StatusLabel tenía mouse_filter IGNORE (default de Label), así que su tooltip (error, subagentes) nunca se veía. «+» de pestañas: ícono Add del editor en un botón de 28 px; con texto «+» salía de unos 8 px.
+
+### Mensajes entre sesiones: el recibido no se ve y una sesión nueva no los lee hasta su primer prompt · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `bug`
+
+Pedido del usuario (2026-10-27): «a una sesión nueva, si no le mando un primer mensaje, no aparecen los mensajes… si se lo envía otra sesión no se muestra» y «no aparece en el log/chat el mensaje recibido, solo que envía».
+
+**Decisiones:**
+- ! No se oculta SendMessage/ListAgents de Claude Code: el system prompt orienta a godot.session_send y el chat avisa cuando llega trabajo sin su mensaje · sin revisar
+  Por qué: Denegar las tools nativas rompería la coordinación con sesiones de Claude fuera del editor (terminal, otros proyectos); el aviso también cubre tareas en segundo plano que terminan
+  Descartado: Reglas deny para SendMessage en las settings de la sesión; godot.session_send como tool del núcleo (no extendida)
+
+**Prueba:** Unit: test_sessions.test_notice_for_work_outside_a_turn (aviso una vez, subagente no cuenta, Remote Control sin aviso, dentro de un turno sin aviso); suite 285/0; acp_session_check 159/0. No probado con dos Claude reales: que el agente elija godot.session_send después del cambio de prompt.
+
+**Notas:** Causa (historial de LittleVillages b52301ca y 9bc88f39, claude-agent-acp 0.98): los agentes usaban SendMessage/ListAgents de Claude Code, no godot.session_send. (1) El adaptador solo reenvía mensajes de usuario de otros clientes si origin.kind == human (isRemoteHumanMessage, para Remote Control); el de otra sesión se descarta, así que el chat ve la respuesta del turno que Claude arranca solo, sin la pregunta. (2) Antes del primer session/prompt la sesión del SDK no corre y no lee su bandeja: el mensaje se procesa recién con el primer prompt. Ninguno se arregla del lado del harness. Hecho: el system prompt dice que con otras sesiones del editor se usen godot.sessions/godot.session_send (entra como prompt, se ve en el chat y sirve sin primer prompt); SessionController._notice_outside_turn() avisa una vez por tanda cuando llega trabajo del agente fuera de un turno pedido (sin user_message_chunk antes, sin parentToolUseId), y se rearma con cada prompt.
+
+### Renombrar las sesiones (pestañas del dock) · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Pedido del usuario (2026-10-27): «poder nombrar las sesiones. Así no serían simplemente "Session n" y uno podría saber qué hacen».
+
+**Decisiones:**
+- ! Se renombra con doble clic sobre la pestaña (campo flotante debajo), sin menú contextual · sin revisar
+  Por qué: Es el gesto habitual para renombrar pestañas y no ocupa lugar en un dock angosto; el tooltip de la pestaña lo dice
+  Descartado: Clic derecho con menú; un botón de lápiz; que el agente le ponga nombre solo
+- ! Ícono de Extensions: EditorPlugin (pieza de rompecabezas a color) · sin revisar
+  Por qué: Llena el cuadro como el resto de los íconos y es el de Project Settings → Plugins; AssetLib dibuja una figura diminuta
+  Descartado: Un ícono gris de otro tipo; texto «Ext»
+
+**Prueba:** Editor: --godot-agent-sessions-test pasa con el caso nuevo (abre el campo con el nombre actual, aplica «  Level design » recortado a pestaña, coordinador y godot.sessions, rechaza «session 1», vacío vuelve a «Session 2»). Suite completa e i18n en verde.
+
+**Notas:** SessionTabs: doble clic en una pestaña abre un PopupPanel con un LineEdit (máx. 40) debajo de ella; Enter emite rename_requested(id, nombre). plugin._rename_session lo aplica al coordinador (godot.sessions, session_send, los rechazos «being edited by») y a la pestaña; vacío vuelve a «Session N». Un nombre repetido (sin distinguir mayúsculas) se rechaza con aviso en el chat de esa sesión, porque session_send busca por nombre; al abrir otra pestaña, «Session N» saltea los que ya usa alguna renombrada. Los nombres no se guardan entre reinicios del editor (las pestañas extra tampoco). Aparte, pedido en el mismo rato: el botón Extensions pasó del ícono AssetLib (diminuto) a EditorPlugin, que es a color (pieza naranja).
 
 ## M8a — Completado predictivo: núcleo sin IA  (7/7, 7 en revisión)
 

@@ -1,0 +1,30 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T19:21:47.848Z",
+  "decisions": [
+    {
+      "alternatives": "Clic derecho con menú; un botón de lápiz; que el agente le ponga nombre solo",
+      "at": "2026-10-27T19:21:48.417Z",
+      "text": "Se renombra con doble clic sobre la pestaña (campo flotante debajo), sin menú contextual",
+      "why": "Es el gesto habitual para renombrar pestañas y no ocupa lugar en un dock angosto; el tooltip de la pestaña lo dice"
+    },
+    {
+      "alternatives": "Un ícono gris de otro tipo; texto «Ext»",
+      "at": "2026-10-27T19:21:48.736Z",
+      "text": "Ícono de Extensions: EditorPlugin (pieza de rompecabezas a color)",
+      "why": "Llena el cuadro como el resto de los íconos y es el de Project Settings → Plugins; AssetLib dibuja una figura diminuta"
+    }
+  ],
+  "description": "Pedido del usuario (2026-10-27): «poder nombrar las sesiones. Así no serían simplemente \"Session n\" y uno podría saber qué hacen».",
+  "milestone": "m07",
+  "notes": "SessionTabs: doble clic en una pestaña abre un PopupPanel con un LineEdit (máx. 40) debajo de ella; Enter emite rename_requested(id, nombre). plugin._rename_session lo aplica al coordinador (godot.sessions, session_send, los rechazos «being edited by») y a la pestaña; vacío vuelve a «Session N». Un nombre repetido (sin distinguir mayúsculas) se rechaza con aviso en el chat de esa sesión, porque session_send busca por nombre; al abrir otra pestaña, «Session N» saltea los que ya usa alguna renombrada. Los nombres no se guardan entre reinicios del editor (las pestañas extra tampoco). Aparte, pedido en el mismo rato: el botón Extensions pasó del ícono AssetLib (diminuto) a EditorPlugin, que es a color (pieza naranja).",
+  "order": 53,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Editor: --godot-agent-sessions-test pasa con el caso nuevo (abre el campo con el nombre actual, aplica «  Level design » recortado a pestaña, coordinador y godot.sessions, rechaza «session 1», vacío vuelve a «Session 2»). Suite completa e i18n en verde.",
+  "title": "Renombrar las sesiones (pestañas del dock)",
+  "updated_at": "2026-10-27T19:21:49.062Z"
+}

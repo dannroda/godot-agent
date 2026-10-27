@@ -1,0 +1,30 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-27T19:07:26.092Z",
+  "decisions": [
+    {
+      "alternatives": "Una etiqueta propia en el header; solo en el tooltip de la cuota; en la pantalla del One-shot",
+      "at": "2026-10-27T19:07:26.676Z",
+      "text": "La cuenta va en la línea de estado del dock («● Claude Code · ready · email»), con organización y plan en su tooltip",
+      "why": "Es la línea que ya nombra el agente de cada sesión, existe en cada pestaña y recorta con «…» en un dock angosto"
+    },
+    {
+      "alternatives": "Texto «+» más grande (el glifo igual queda chico); otro ícono del editor",
+      "at": "2026-10-27T19:07:26.977Z",
+      "text": "El «+» de pestañas usa el mismo ícono Add que «Nueva conversación» del header",
+      "why": "Con el mismo tamaño se ve como el resto de los íconos; se distingue por estar en la fila de pestañas (como en un navegador) y por su tooltip"
+    }
+  ],
+  "description": "Pedido del usuario (2026-10-27): «en ningún lado estamos mostrando qué cuenta está logueada en la sesión» y «el + para abrir una sesión paralela es muy chiquito».",
+  "milestone": "m07",
+  "notes": "ClaudeCli.auth_status() corre `claude auth status --json` (Claude Code 2.1.311) con el entorno del perfil (su CLAUDE_CONFIG_DIR) y parse_auth_status() devuelve {email, org, plan, method}. SessionController._refresh_account() lo pide al quedar lista la sesión (session/new y session/load), solo si ClaudeExtensions.is_claude_profile(); queda en SessionModel.account (no lo borra reset(): es del proceso) con la señal account_changed. El dock suma «· email» a la línea de estado y el tooltip dice cuenta, organización (salvo la «<email>'s Organization» de una cuenta personal) y plan. El Agent Log anota método y plan, sin el email. De paso: el StatusLabel tenía mouse_filter IGNORE (default de Label), así que su tooltip (error, subagentes) nunca se veía. «+» de pestañas: ícono Add del editor en un botón de 28 px; con texto «+» salía de unos 8 px.",
+  "order": 51,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Unit: test_claude_extensions.test_parse_auth_status (claude.ai, API key sin email, sin sesión, salida no JSON, tooltip); suite 284 tests (falla solo test_api_tools.test_search, previa). Editor: --godot-agent-sessions-test pasa y la captura muestra el «+» del tamaño de los íconos del header. auth_status() contra el CLI real devuelve las cuatro claves. No probado: la línea de estado con Claude real en el editor (el agente falso no es Claude).",
+  "title": "Dock: mostrar con qué cuenta está logueada cada sesión; «+» de pestañas más grande",
+  "updated_at": "2026-10-27T19:07:27.252Z"
+}
