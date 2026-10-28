@@ -5,6 +5,7 @@ extends RefCounted
 ## valen desde la próxima sesión del agente.
 
 const ClaudeCli := preload("claude_cli.gd")
+const TomlLite := preload("toml_lite.gd")
 
 ## Estados de un MCP server según `claude mcp list`.
 const MCP_CONNECTED := "connected"
@@ -312,42 +313,16 @@ static func parse_mcp_json(text: String, origin: String) -> Array:
 	return result
 
 
-## Parsea `[mcp_servers.<nombre>]` en `config.toml` de Codex.
+## Los `mcp_servers` de un `config.toml` de Codex (tablas `[mcp_servers.x]`, tablas en línea o
+## claves con puntos).
 static func parse_codex_mcp_toml(text: String, origin: String) -> Array:
 	var result: Array = []
-	var header_re := RegEx.create_from_string("^\\[mcp_servers\\.(?:\"([^\"]+)\"|'([^']+)'|([A-Za-z0-9_-]+))\\]\\s*$")
-	var current_name := ""
-	var current: Dictionary = {}
-	for raw_line: String in text.replace("\r\n", "\n").split("\n"):
-		var line := raw_line.strip_edges()
-		if line.is_empty() or line.begins_with("#"):
-			continue
-		if line.begins_with("["):
-			_flush_codex_mcp_entry(result, current_name, current, origin)
-			var m := header_re.search(line)
-			if m:
-				current_name = m.get_string(1) if not m.get_string(1).is_empty() else (m.get_string(2) if not m.get_string(2).is_empty() else m.get_string(3))
-				current = {}
-			else:
-				current_name = ""
-			continue
-		if current_name.is_empty():
-			continue
-		var eq := line.find("=")
-		if eq <= 0:
-			continue
-		var key := line.substr(0, eq).strip_edges()
-		var val_text := line.substr(eq + 1).strip_edges()
-		if key in ["command", "url"]:
-			var parsed: Variant = _parse_json(val_text)
-			current[key] = str(parsed) if parsed is String else val_text.trim_prefix("'").trim_suffix("'")
-		elif key == "args":
-			var parsed_args: Variant = _parse_json(val_text)
-			if parsed_args is Array:
-				current["args"] = parsed_args
-		elif key == "enabled":
-			current["enabled"] = val_text != "false"
-	_flush_codex_mcp_entry(result, current_name, current, origin)
+	var servers: Variant = TomlLite.parse(text).get("mcp_servers")
+	if not servers is Dictionary:
+		return result
+	for server_name: Variant in servers:
+		if servers[server_name] is Dictionary:
+			_flush_codex_mcp_entry(result, str(server_name), servers[server_name], origin)
 	return result
 
 

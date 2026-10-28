@@ -102,6 +102,10 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 		request.resolved.connect(func(_outcome: Dictionary) -> void: _refresh_tab(id), CONNECT_ONE_SHOT)
 		_refresh_tab(id)
 		_notify_waiting(id))
+	model.elicitation_requested.connect(func(request: RefCounted) -> void:
+		request.resolved.connect(func(_response: Dictionary) -> void: _refresh_tab(id), CONNECT_ONE_SHOT)
+		_refresh_tab(id)
+		_notify_waiting(id, I18n.t("«%s» is waiting for your answer.")))
 	_refresh_tab(id)
 	select(id)
 
@@ -191,19 +195,21 @@ func _refresh_tab(id: String) -> void:
 	if index < 0:
 		return
 	var model: SessionModel = _models[id]
-	# «⚠»: espera un permiso del usuario (m11-03); pesa más que «●» (trabajando).
-	var mark := "⚠ " if not model.pending_permissions.is_empty() else ("● " if model.is_busy() else "")
+	# «⚠»: espera un permiso o una respuesta del usuario (m11-03); pesa más que «●» (trabajando).
+	var waiting := not model.pending_permissions.is_empty() or not model.pending_elicitations.is_empty()
+	var mark := "⚠ " if waiting else ("● " if model.is_busy() else "")
 	_bar.set_tab_title(index, mark + str(_labels[id]))
 	_bar.set_tab_tooltip(index, label(id) + "\n" + I18n.t("Double-click to rename"))
 
 
-## Un pedido de permiso de una sesión que no está a la vista (otra pestaña, o el dock tapado por
+## Un pedido de permiso (o un formulario del agente) de una sesión que no está a la vista (otra pestaña, o el dock tapado por
 ## otro) también avisa con un toast del editor.
-func _notify_waiting(id: String) -> void:
+func _notify_waiting(id: String, message: String = "") -> void:
 	var dock: Control = _docks.get(id)
 	if dock == null or dock.is_visible_in_tree() or not Engine.is_editor_hint():
 		return
-	EditorInterface.get_editor_toaster().push_toast(I18n.t("«%s» is waiting for your permission.") % _labels[id], EditorToaster.SEVERITY_WARNING)
+	var text := message if not message.is_empty() else I18n.t("«%s» is waiting for your permission.")
+	EditorInterface.get_editor_toaster().push_toast(text % _labels[id], EditorToaster.SEVERITY_WARNING)
 
 
 func _on_tab_changed(index: int) -> void:

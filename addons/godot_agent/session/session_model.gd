@@ -320,10 +320,11 @@ func complete_elicitation(elicitation_id: String) -> void:
 	for entry: ChatEntry in _entries:
 		if entry.kind == ChatEntry.EntryKind.ELICITATION and entry.elicitation != null:
 			var req: ElicitationRequest = entry.elicitation
-			if req.elicitation_id == elicitation_id:
+			if req.elicitation_id == elicitation_id and req.mode == ElicitationRequest.MODE_URL:
 				req.completed_by_agent = true
+				# El usuario no abrió el enlace desde acá: se cierra sin decir que aceptó.
 				if req.is_pending():
-					req.accept()
+					req.cancel()
 				else:
 					entry_updated.emit(entry)
 

@@ -244,3 +244,15 @@ func test_opencode_payload_and_codes_only_in_errors() -> void:
 	monitor.observe_session_info({"sessionUpdate": "session_info_update", "_meta": {"opencode/retry": null}})
 	assert_false(monitor.observe_agent_text("Si la API devuelve insufficient_quota o rateLimitExceeded, reintentamos."), "prosa con códigos no limita")
 	assert_true(monitor.observe_prompt_error({"code": -32603, "message": "Error: insufficient_quota"}), "el mismo código en un error sí")
+
+
+## /status de Codex con el locale en español, grupos con espacios y el límite de gasto del asiento.
+func test_codex_status_locale_and_spend() -> void:
+	var text := "**codex 5h limit:** 82% left (resets 24:05)\n**codex Weekly limit:** 64% left (resets 12:00 on 3 dic.)\n**codex Individual spend limit:** 10% left (resets 1 dic.)\n**Codex Spark 5h limit:** 50% left (resets 18:30)"
+	var groups := QuotaMonitor.parse_codex_status(text, NOW)
+	assert_true(groups.has("Codex Spark"), "grupo con espacios: %s" % [groups.keys()])
+	var week: Dictionary = groups.get("codex", {}).get(QuotaMonitor.WINDOW_WEEKLY, {})
+	assert_true(absf(float(week.get("utilization", 0.0)) - 0.36) < 0.001, "el spend limit no pisa la semanal")
+	assert_true(int(week.get("resets_at", 0)) - NOW > 86400, "3 dic. es una fecha, no una hora de hoy")
+	var current: Dictionary = groups.get("codex", {}).get(QuotaMonitor.WINDOW_CURRENT, {})
+	assert_true(int(current.get("resets_at", 0)) > NOW, "24:05 se lee como 00:05")

@@ -47,6 +47,7 @@ const WINDOW_LABELS: Dictionary = {
 	WINDOW_WEEKLY: "Week",  # i18n
 }
 const MONTHS: PackedStringArray = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+const MONTHS_ES: PackedStringArray = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 ## Reintentos sin hora de reinicio (minutos): 5, 10, 20 y después cada 60.
 const BACKOFF_MINUTES: Array[int] = [5, 10, 20, 60]
 const DEFAULT_WARN := 0.75
@@ -410,7 +411,7 @@ static func _usage_group(groups: Dictionary, key: String) -> Dictionary:
 ## Devuelve `{grupo: {five_hour: {utilization 0–1, resets_at}, seven_day: {…}}}`.
 static func parse_codex_status(text: String, now: int) -> Dictionary:
 	var parsed: Dictionary = {}
-	var pattern := RegEx.create_from_string("(?i)^(?:\\*\\*)?(?:(?!weekly\\s+limit|individual\\s+spend|\\d+[mhd]\\s+limit)([\\w.-]+?)\\s+)?(weekly\\s+limit|individual\\s+spend\\s+limit|\\d+[mhd]\\s+limit|limit):(?:\\*\\*)?\\s*(?:\\[[^\\]]*\\]\\s*)?(\\d+(?:\\.\\d+)?)%\\s+left(?:\\s*\\((?:[^)]*;\\s*)?resets\\s+([^)]+)\\))?")
+	var pattern := RegEx.create_from_string("(?i)^(?:\\*\\*)?(?:(?!weekly\\s+limit|individual\\s+spend|\\d+[mhd]\\s+limit)([\\w.-]+(?:\\s+(?!weekly\\s+limit|individual\\s+spend|\\d+[mhd]\\s+limit)[\\w.-]+)*?)\\s+)?(weekly\\s+limit|individual\\s+spend\\s+limit|\\d+[mhd]\\s+limit|limit):(?:\\*\\*)?\\s*(?:\\[[^\\]]*\\]\\s*)?(\\d+(?:\\.\\d+)?)%\\s+left(?:\\s*\\((?:[^)]*;\\s*)?resets\\s+([^)]+)\\))?")
 	for raw_line: String in text.split("\n"):
 		var cleaned := raw_line.strip_edges().trim_prefix("│").trim_suffix("│").strip_edges()
 		var found := pattern.search(cleaned)
@@ -418,7 +419,9 @@ static func parse_codex_status(text: String, now: int) -> Dictionary:
 			continue
 		var group := found.get_string(1) if not found.get_string(1).is_empty() else "codex"
 		var label := found.get_string(2).to_lower()
-		var window := WINDOW_WEEKLY if ("week" in label or "d limit" in label or "spend" in label) else WINDOW_CURRENT
+		if "spend" in label:  # gasto de créditos del asiento, no una ventana: pisaría la semanal
+			continue
+		var window := WINDOW_WEEKLY if ("week" in label or "d limit" in label) else WINDOW_CURRENT
 		var used := clampf(1.0 - float(found.get_string(3)) / 100.0, 0.0, 1.0)
 		var reset := _parse_codex_reset(found.get_string(4).strip_edges(), now)
 		if not parsed.has(group):
@@ -452,11 +455,14 @@ static func parse_codex_account(text: String) -> Dictionary:
 static func _parse_codex_reset(reset_text: String, now: int) -> int:
 	if reset_text.is_empty():
 		return 0
-	var date_match := RegEx.create_from_string("(?i)(?:(\\d{1,2}):(\\d{2})\\s+on\\s+)?(?:(\\d{1,2})\\s+([a-z]{3})|([a-z]{3})\\s+(\\d{1,2}))").search(reset_text)
+	# codex-acp formatea la fecha con el locale del sistema: "Nov 3", "3 nov." o "3 de nov.".
+	var date_match := RegEx.create_from_string("(?i)(?:(\\d{1,2}):(\\d{2})\\s+(?:on|el)\\s+)?(?:(\\d{1,2})\\s+(?:de\\s+)?(\\p{L}{3,})\\.?|(\\p{L}{3,})\\.?\\s+(\\d{1,2}))").search(reset_text)
 	if date_match:
 		var day := int(date_match.get_string(3) if not date_match.get_string(3).is_empty() else date_match.get_string(6))
-		var mon_str := (date_match.get_string(4) if not date_match.get_string(4).is_empty() else date_match.get_string(5)).to_lower()
+		var mon_str := (date_match.get_string(4) if not date_match.get_string(4).is_empty() else date_match.get_string(5)).to_lower().left(3)
 		var month := MONTHS.find(mon_str) + 1
+		if month == 0:
+			month = MONTHS_ES.find(mon_str) + 1
 		if month > 0 and day >= 1 and day <= 31:
 			var hour := int(date_match.get_string(1)) if not date_match.get_string(1).is_empty() else 0
 			var minute := int(date_match.get_string(2)) if not date_match.get_string(2).is_empty() else 0
@@ -482,6 +488,8 @@ static func parse_reset_time(text: String, now: int) -> int:
 	if meridiem == "pm" and hour < 12:
 		hour += 12
 	elif meridiem == "am" and hour == 12:
+		hour = 0
+	if hour == 24:  # toLocaleTimeString con hour12: false escribe 24:05 pasada la medianoche
 		hour = 0
 	if hour > 23 or minute > 59:
 		return 0

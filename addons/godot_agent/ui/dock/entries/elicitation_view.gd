@@ -79,13 +79,17 @@ func _build_fields() -> void:
 		if request.is_required(name):
 			label_text += " *"
 		var desc_text := str(prop.get("description", "")) if prop.get("description") is String else ""
+		# Un opcional sin default que el usuario no tocó no se manda: un CheckBox o un SpinBox no
+		# tienen "vacío" y el agente recibiría un false o un 0 que nadie eligió.
+		var touched := [request.is_required(name) or prop.get("default") != null]
 		if prop_type == "boolean":
 			var check := CheckBox.new()
 			check.text = label_text
-			check.button_pressed = bool(defaults.get(name, false))
+			check.button_pressed = defaults.get(name) == true
 			check.tooltip_text = desc_text
+			check.toggled.connect(func(_on: bool) -> void: touched[0] = true)
 			row.add_child(check)
-			_field_readers[name] = func() -> Variant: return check.button_pressed
+			_field_readers[name] = func() -> Variant: return check.button_pressed if touched[0] else null
 			continue
 		var label := Label.new()
 		label.text = label_text
@@ -101,17 +105,26 @@ func _build_fields() -> void:
 		match prop_type:
 			"integer", "number":
 				var spin := SpinBox.new()
-				spin.step = 1.0 if prop_type == "integer" else 0.01
-				spin.allow_lesser = not (prop.has("minimum") and prop.get("minimum") != null)
-				spin.allow_greater = not (prop.has("maximum") and prop.get("maximum") != null)
+				# step 0: sin redondear los number (las flechas siguen de a 1).
+				spin.step = 1.0 if prop_type == "integer" else 0.0
+				spin.custom_arrow_step = 1.0
+				var minimum: Variant = prop.get("minimum")
+				var maximum: Variant = prop.get("maximum")
+				spin.allow_lesser = not (minimum is int or minimum is float)
+				spin.allow_greater = not (maximum is int or maximum is float)
 				if not spin.allow_lesser:
-					spin.min_value = float(prop.get("minimum", 0))
+					spin.min_value = ceilf(float(minimum)) if prop_type == "integer" else float(minimum)
 				if not spin.allow_greater:
-					spin.max_value = float(prop.get("maximum", 100))
-				spin.value = float(defaults.get(name, 0))
+					spin.max_value = floorf(float(maximum)) if prop_type == "integer" else float(maximum)
+				var initial_value: Variant = defaults.get(name, 0)
+				spin.value = float(initial_value) if (initial_value is int or initial_value is float) else spin.min_value if not spin.allow_lesser else 0.0
+				spin.value_changed.connect(func(_value: float) -> void: touched[0] = true)
 				row.add_child(spin)
 				var is_int := prop_type == "integer"
-				_field_readers[name] = func() -> Variant: return int(roundi(spin.value)) if is_int else spin.value
+				_field_readers[name] = func() -> Variant:
+					if not touched[0]:
+						return null
+					return roundi(spin.value) if is_int else spin.value
 			"array":
 				var choices := ElicitationRequest.enum_choices(prop)
 				var checks_box := VBoxContainer.new()
@@ -169,6 +182,8 @@ func collect_values() -> Dictionary:
 	for name: String in _field_readers:
 		var reader: Callable = _field_readers[name]
 		var val: Variant = reader.call()
+		if val == null:
+			continue
 		if val is String and str(val).is_empty():
 			var request: ElicitationRequest = entry.elicitation
 			if request and not request.is_required(name):

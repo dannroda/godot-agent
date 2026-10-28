@@ -112,7 +112,7 @@ func test_controller_handles_create_complete_and_cancel() -> void:
 	}))
 	assert_true(url_req.completed_by_agent, "marcado como completado por el agente")
 	assert_eq(model.pending_elicitations.size(), 0, "ya no está pendiente")
-	assert_eq(sent.back().get("result"), {"action": "accept"}, "responde accept sin content en modo url")
+	assert_eq(sent.back().get("result"), {"action": "cancel"}, "responde cancel: el usuario no aceptó desde acá")
 
 	# 2. Form elicitation retirada con $/cancel_request
 	controller.client.receive_line(JSON.stringify({
@@ -159,3 +159,21 @@ func test_controller_rejects_invalid_elicitation() -> void:
 	var response: Variant = await controller._on_create_elicitation({"mode": "url", "elicitationId": "e", "url": "file:///etc/passwd"})
 	assert_true(response is Object and not response.ok, "responde error sin mostrar la tarjeta")
 	assert_eq(model.entries().size(), 0, "no hay tarjeta")
+
+
+## Un booleano o un número opcional sin default que el usuario no tocó no se manda.
+func test_untouched_optional_fields_are_left_out() -> void:
+	var req := ElicitationRequest.from_params({"mode": "form", "requestedSchema": {"type": "object", "properties": {
+		"verbose": {"type": "boolean"}, "port": {"type": "integer"}, "ratio": {"type": "number", "minimum": 0.005}}}})
+	var entry := ChatEntry.new()
+	entry.id = 1
+	entry.kind = ChatEntry.EntryKind.ELICITATION
+	entry.elicitation = req
+	var view := ElicitationView.new()
+	view.setup(entry, Color.CORNFLOWER_BLUE, MarkdownBBCode.new())
+	(Engine.get_main_loop() as SceneTree).root.add_child(view)  # Range solo avisa cambios en el árbol
+	assert_eq(view.collect_values(), {}, "nada que el usuario no eligió")
+	var spins := view.find_children("*", "SpinBox", true, false)
+	(spins[1] as SpinBox).value = 0.0125
+	assert_eq(view.collect_values(), {"ratio": 0.0125}, "number sin redondear a 0.01")
+	view.queue_free()

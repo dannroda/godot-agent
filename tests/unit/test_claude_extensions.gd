@@ -3,6 +3,7 @@ extends "test_case.gd"
 
 const ClaudeExtensions := preload("res://addons/godot_agent/extensions/claude_extensions.gd")
 const ClaudeCli := preload("res://addons/godot_agent/extensions/claude_cli.gd")
+const TomlLite := preload("res://addons/godot_agent/extensions/toml_lite.gd")
 const ExtensionsWindow := preload("res://addons/godot_agent/ui/extensions/extensions_window.gd")
 const InstructionsTab := preload("res://addons/godot_agent/ui/extensions/instructions_tab.gd")
 const AgentDock := preload("res://addons/godot_agent/ui/dock/agent_dock.gd")
@@ -163,3 +164,39 @@ func _write(path: String, text: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(text)
 	file.close()
+
+
+## config.toml de Codex como se escribe a mano: comentarios al final, arrays de varias líneas,
+## strings literales, tablas en línea, claves con puntos y subtablas.
+func test_codex_toml_variants() -> void:
+	var toml := """
+model = "gpt-5" # comentario
+mcp_servers.dotted.url = "https://example.com/mcp"
+[mcp_servers.github]  # el de GitHub
+command = "npx" # npx
+args = [
+	"-y",  # sin confirmar
+	'@modelcontextprotocol/server-github',
+]
+enabled = false # apagado
+
+[mcp_servers.github.env]
+TOKEN = "x # no es comentario"
+
+[mcp_servers]
+inline = { command = "uvx", args = ["srv"] }
+
+[[profiles]]
+command = "ignored"
+"""
+	var servers := ClaudeExtensions.parse_codex_mcp_toml(toml, ClaudeExtensions.ORIGIN_USER)
+	var by_name: Dictionary = {}
+	for server: Dictionary in servers:
+		by_name[server.name] = server
+	assert_eq(by_name.keys().size(), 3, "tres servers: %s" % [by_name.keys()])
+	assert_eq(by_name.get("github", {}).get("target"), "npx -y @modelcontextprotocol/server-github", "array de varias líneas con comentarios y string literal")
+	assert_eq(by_name.get("github", {}).get("status"), ClaudeExtensions.MCP_DISABLED, "enabled = false con comentario")
+	assert_eq(by_name.get("inline", {}).get("target"), "uvx srv", "tabla en línea")
+	assert_eq(by_name.get("dotted", {}).get("target"), "https://example.com/mcp", "clave con puntos")
+	var parsed := TomlLite.parse(toml)
+	assert_eq(parsed.mcp_servers.github.env.TOKEN, "x # no es comentario", "# dentro de un string")

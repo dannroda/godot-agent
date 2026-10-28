@@ -2861,6 +2861,9 @@ msgstr "Ya hay una sesión llamada «%s»: elegí otro nombre."
 msgid "«%s» is waiting for your permission."
 msgstr "«%s» espera tu permiso."
 
+msgid "«%s» is waiting for your answer."
+msgstr "«%s» espera tu respuesta."
+
 msgid "Check after the turn: some scripts don't parse. The agent gets the errors to fix them (%d of %d)."
 msgstr "Verificación al terminar el turno: hay scripts que no parsean. El agente recibe los errores para corregirlos (%d de %d)."
 
