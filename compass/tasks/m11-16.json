@@ -4,16 +4,16 @@
   "created_at": "2026-10-28T19:15:09.079Z",
   "description": "Los agentes anuncian sessionCapabilities.list y resume (Antigravity los tiene; session/list devuelve id, cwd y título). Mostrar en el historial las sesiones que guarda el agente para el proyecto (cwd), retomarlas con session/resume cuando no hay loadSession o no hace falta repetir el historial, y cerrar o borrar con session/close y session/delete si el agente los anuncia.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "SessionModel (supports_list_sessions, supports_resume_session, supports_close_session, supports_delete_session y can_resume_sessions) y SessionController (list_agent_sessions con paginación por cursor, _load_session con session/resume cuando ya hay historial local o sin loadSession, close_session en open_session, delete_session local y en el agente, y merge_session_lists en el menú de historial de AgentDock).",
   "order": 16,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "acp"
   ],
-  "test": "",
+  "test": "godot --headless --path . --script tests/run_all.gd -- session_model",
   "title": "Sesiones del agente: session/list, resume, close y delete",
-  "updated_at": "2026-10-28T19:15:09.079Z"
+  "updated_at": "2026-10-28T21:26:39.457Z"
 }

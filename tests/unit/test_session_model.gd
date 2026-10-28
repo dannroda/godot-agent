@@ -5,6 +5,8 @@ const SessionModel := preload("res://addons/godot_agent/session/session_model.gd
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const ToolCall := preload("res://addons/godot_agent/session/tool_call.gd")
 const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
+const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
+const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 
 
 func _chunk(kind: String, text: String, message_id: Variant = null) -> Dictionary:
@@ -202,3 +204,53 @@ func test_supports_logout() -> void:
 	assert_false(model.supports_logout(), "sin logout")
 	model.apply_initialize({})
 	assert_false(model.supports_logout(), "sin capacidades")
+
+
+func test_session_capabilities_and_merge() -> void:
+	var model := SessionModel.new()
+	assert_false(model.can_resume_sessions(), "sin capacidades no reanuda")
+	model.apply_initialize({
+		"agentCapabilities": {
+			"loadSession": false,
+			"sessionCapabilities": {
+				"list": {},
+				"resume": {},
+				"close": {},
+				"delete": {},
+			},
+		},
+	})
+	assert_true(model.supports_list_sessions(), "sessionCapabilities.list")
+	assert_true(model.supports_resume_session(), "sessionCapabilities.resume")
+	assert_true(model.supports_close_session(), "sessionCapabilities.close")
+	assert_true(model.supports_delete_session(), "sessionCapabilities.delete")
+	assert_true(model.can_resume_sessions(), "reanuda con sessionCapabilities.resume aunque loadSession sea false")
+
+	var profile := AgentProfile.new()
+	profile.id = "claude"
+	profile.display_name = "Claude Code"
+	var norm := SessionController.normalize_agent_session({
+		"sessionId": "sess_remote",
+		"cwd": "/tmp/proj",
+		"title": "Desde CLI",
+		"updatedAt": "2026-04-20T12:00:00Z",
+	}, profile)
+	assert_eq(norm.id, "sess_remote", "id normalizado")
+	assert_eq(norm.title, "Desde CLI", "título normalizado")
+	assert_eq(norm.agent, "Claude Code", "agente normalizado")
+	assert_true(int(norm.updated) > 0, "updatedAt parseado a unix")
+
+	var local: Array[Dictionary] = [
+		{"id": "s1", "title": "", "updated": 100, "turns": 3},
+		{"id": "s2", "title": "Local 2", "updated": 300, "turns": 1},
+	]
+	var remote: Array[Dictionary] = [
+		{"id": "s1", "title": "Título del agente", "updated": 250, "turns": 0},
+		{"id": "s3", "title": "Remota 3", "updated": 200, "turns": 0},
+	]
+	var merged := SessionController.merge_session_lists(local, remote, 10)
+	assert_eq(merged.size(), 3, "3 sesiones sin duplicar s1")
+	assert_eq(merged[0].id, "s2", "más reciente primero (300)")
+	assert_eq(merged[1].id, "s1", "s1 con fecha actualizada del agente (250)")
+	assert_eq(merged[1].title, "Título del agente", "completa título vacío con el del agente")
+	assert_eq(merged[2].id, "s3", "incluye sesión solo remota (200)")

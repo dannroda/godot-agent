@@ -111,6 +111,8 @@ var quota: QuotaMonitor
 var review: ReviewStore = ReviewStore.new()
 ## Historial en disco (M7). null = no se graba (tests).
 var history: SessionHistory
+## Sesiones que informó el agente con `session/list` para este proyecto (m11-16).
+var agent_sessions: Array[Dictionary] = []
 ## `usage` del último session/prompt (tokens del turno: inputTokens, outputTokens, cachedReadTokens…).
 var last_turn_usage: Dictionary = {}
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
@@ -181,6 +183,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	quota.setup(agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
 	connected.connect(_query_agent_usage)
+	connected.connect(_refresh_agent_sessions)
 	client.set_request_handler("session/request_permission", _on_request_permission)
 	client.incoming_cancelled.connect(_on_incoming_cancelled)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
@@ -271,6 +274,10 @@ func open_session(generation: int = _connect_generation) -> bool:
 	if _process == null or not _process.is_running():
 		return await start(_profile) if _profile else false
 	_cancel_abandoned_requests()
+	if not model.session_id.is_empty() and model.supports_close_session():
+		await close_session(model.session_id)
+		if generation != _connect_generation:
+			return false
 	if model.state != SessionModel.SessionState.STARTING:
 		model.reset()
 		model.set_state(SessionModel.SessionState.STARTING)
@@ -1128,21 +1135,31 @@ func _record_turn_end(stop_reason: String) -> void:
 		history.record_turn_end(stop_reason)
 
 
-## Reanuda una sesión del historial: la conversación sale del archivo y session/load le devuelve
-## al agente su contexto. Sin soporte de session/load el historial queda de solo lectura.
+## Reanuda una sesión del historial o de `session/list` (m11-16): si hay registro local, arma la
+## conversación desde el archivo y usa `session/resume` (sin replay) o `session/load`; si viene solo
+## del agente, `session/load` reconstruye la conversación o `session/resume` retoma el contexto.
 func _load_session(record: Dictionary, generation: int) -> bool:
 	var session_id := str(record.get("id", ""))
-	SessionHistory.replay(record, model)
-	if not model.supports_load_session():
+	var has_local_events := record.get("events") is Array and not (record.events as Array).is_empty()
+	if has_local_events:
+		SessionHistory.replay(record, model)
+	if not model.can_resume_sessions():
 		_load_failed = true
 		stop()
 		model.add_notice(I18n.t("%s cannot resume sessions (it does not announce session/load): the history stays read-only. Type to start a new session.") % _profile.display_name)
 		return false
+	var use_resume := (has_local_events and model.supports_resume_session()) or not model.supports_load_session()
+	var method := "session/resume" if use_resume else "session/load"
+	if not has_local_events and method == "session/load":
+		# Sin historial local, dejamos que los updates del replay entren al modelo y al historial.
+		model.session_id = session_id
+		if history and _profile:
+			history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
 	_cancel_abandoned_requests()
 	var req_id := client.next_request_id()
 	_session_request_id = req_id
-	var result := await client.request("session/load", _with_meta({"sessionId": session_id, "cwd": cwd, "mcpServers": mcp_servers}))
+	var result := await client.request(method, _with_meta({"sessionId": session_id, "cwd": cwd, "mcpServers": mcp_servers}))
 	if _session_request_id == req_id:
 		_session_request_id = 0
 	if generation != _connect_generation or result.error.get("code") == AcpClient.ERR_REQUEST_CANCELLED:
@@ -1153,18 +1170,127 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		model.add_notice(I18n.t("Could not resume the session: %s. The history stays read-only.") % result.error_message(), ChatEntry.NoticeLevel.WARNING)
 		return false
 	model.apply_session(session_id, result.result if result.result is Dictionary else {})
+	var remote_title := str(record.get("title", ""))
+	if not remote_title.is_empty() and model.title.is_empty():
+		model.apply_update({"sessionUpdate": "session_info_update", "title": remote_title})
 	_system_prompt_sent = true  # ya está en el contexto que el agente recuperó
 	policy.clear_session()
 	_preauthorized_writes.clear()
 	_preauthorized_commands.clear()
 	_approved_subagents.clear()
-	if history:
+	if history and _profile and (has_local_events or method == "session/resume"):
 		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
 	model.set_state(SessionModel.SessionState.READY)
-	model.add_notice(I18n.t("Session resumed: the agent recovered its context with session/load."))
+	var resumed_msg := I18n.t("Session resumed: the agent recovered its context with session/resume.") if use_resume else I18n.t("Session resumed: the agent recovered its context with session/load.")
+	model.add_notice(resumed_msg)
 	_sync_agent_mode()
 	_refresh_account()
 	connected.emit()
+	return true
+
+
+## Pide al agente sus sesiones de `filter_cwd` con `session/list` (m11-16).
+func list_agent_sessions(filter_cwd: String = cwd) -> Array[Dictionary]:
+	if _process == null or not _process.is_running() or not model.supports_list_sessions():
+		return []
+	var collected: Array[Dictionary] = []
+	var cursor := ""
+	for _page in 3:
+		var params: Dictionary = {}
+		if not filter_cwd.is_empty():
+			params["cwd"] = filter_cwd
+		if not cursor.is_empty():
+			params["cursor"] = cursor
+		var result := await client.request("session/list", params)
+		if not result.ok or not result.result is Dictionary:
+			break
+		var raw_list: Variant = result.result.get("sessions")
+		if raw_list is Array:
+			for item: Variant in raw_list:
+				if not item is Dictionary or not item.get("sessionId") is String:
+					continue
+				var item_cwd := str(item.get("cwd", filter_cwd)).simplify_path().trim_suffix("/")
+				if not filter_cwd.is_empty() and item_cwd != filter_cwd.simplify_path().trim_suffix("/"):
+					continue
+				collected.append(normalize_agent_session(item, _profile))
+		var next_cursor: Variant = result.result.get("nextCursor")
+		if not next_cursor is String or str(next_cursor).is_empty():
+			break
+		cursor = str(next_cursor)
+	agent_sessions = collected
+	return collected
+
+
+func _refresh_agent_sessions() -> void:
+	if model.supports_list_sessions():
+		await list_agent_sessions(cwd)
+
+
+## Convierte un `SessionInfo` de `session/list` al formato de resumen que usa el menú de historial.
+static func normalize_agent_session(item: Dictionary, agent_profile: AgentProfile = null) -> Dictionary:
+	var updated := 0
+	if item.get("updatedAt") is String and not str(item.updatedAt).is_empty():
+		updated = int(Time.get_unix_time_from_datetime_string(str(item.updatedAt)))
+	return {
+		"id": str(item.get("sessionId", "")),
+		"title": str(item.get("title", "")) if item.get("title") is String else "",
+		"cwd": str(item.get("cwd", "")),
+		"updated": updated,
+		"turns": 0,
+		"profile_id": agent_profile.id if agent_profile else "",
+		"agent": agent_profile.display_name if agent_profile else "",
+		"from_agent": true,
+	}
+
+
+## Une las sesiones del historial local con las de `session/list` sin duplicar `id`, más recientes primero.
+static func merge_session_lists(local_list: Array[Dictionary], remote_list: Array[Dictionary], max_items: int = 20) -> Array[Dictionary]:
+	var by_id: Dictionary = {}
+	var combined: Array[Dictionary] = []
+	for item: Dictionary in local_list:
+		var id := str(item.get("id", ""))
+		if id.is_empty() or by_id.has(id):
+			continue
+		var copy := item.duplicate()
+		by_id[id] = copy
+		combined.append(copy)
+	for item: Dictionary in remote_list:
+		var id := str(item.get("id", ""))
+		if id.is_empty():
+			continue
+		if by_id.has(id):
+			var existing: Dictionary = by_id[id]
+			if str(existing.get("title", "")).is_empty() and not str(item.get("title", "")).is_empty():
+				existing["title"] = item.title
+			if int(item.get("updated", 0)) > int(existing.get("updated", 0)):
+				existing["updated"] = item.updated
+		else:
+			var copy := item.duplicate()
+			by_id[id] = copy
+			combined.append(copy)
+	combined.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("updated", 0)) > int(b.get("updated", 0)))
+	return combined.slice(0, max_items) if max_items > 0 else combined
+
+
+## Cierra una sesión en el agente con `session/close` (m11-16) si lo soporta.
+func close_session(target_session_id: String = "") -> bool:
+	var sid := target_session_id if not target_session_id.is_empty() else model.session_id
+	if sid.is_empty() or _process == null or not _process.is_running() or not model.supports_close_session():
+		return false
+	var result := await client.request("session/close", {"sessionId": sid})
+	return result.ok
+
+
+## Elimina una sesión del historial local y, si el agente soporta `session/delete`, también en el agente.
+func delete_session(target_session_id: String) -> bool:
+	if target_session_id.is_empty():
+		return false
+	if history:
+		history.remove(target_session_id)
+	agent_sessions = agent_sessions.filter(func(item: Dictionary) -> bool: return str(item.get("id", "")) != target_session_id)
+	if _process != null and _process.is_running() and model.supports_delete_session():
+		var result := await client.request("session/delete", {"sessionId": target_session_id})
+		return result.ok
 	return true
 
 

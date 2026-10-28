@@ -215,6 +215,30 @@ func supports_load_session() -> bool:
 	return bool(agent_capabilities.get("loadSession", false))
 
 
+func supports_list_sessions() -> bool:
+	var caps: Variant = agent_capabilities.get("sessionCapabilities")
+	return caps is Dictionary and caps.get("list") is Dictionary
+
+
+func supports_resume_session() -> bool:
+	var caps: Variant = agent_capabilities.get("sessionCapabilities")
+	return caps is Dictionary and caps.get("resume") is Dictionary
+
+
+func supports_close_session() -> bool:
+	var caps: Variant = agent_capabilities.get("sessionCapabilities")
+	return caps is Dictionary and caps.get("close") is Dictionary
+
+
+func supports_delete_session() -> bool:
+	var caps: Variant = agent_capabilities.get("sessionCapabilities")
+	return caps is Dictionary and caps.get("delete") is Dictionary
+
+
+func can_resume_sessions() -> bool:
+	return supports_load_session() or supports_resume_session()
+
+
 ## Opción de configuración por id (`model`, `mode`…) o {}.
 func config_option(id: String) -> Dictionary:
 	for option: Variant in config_options:

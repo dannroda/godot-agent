@@ -1328,8 +1328,14 @@ msgstr "sesión"
 msgid "Session history"
 msgstr "Historial de sesiones"
 
+msgid "Delete session"
+msgstr "Eliminar sesión"
+
 msgid "Session resumed: the agent recovered its context with session/load."
 msgstr "Sesión reanudada: el agente recuperó su contexto con session/load."
+
+msgid "Session resumed: the agent recovered its context with session/resume."
+msgstr "Sesión reanudada: el agente recuperó su contexto con session/resume."
 
 msgid "Set active"
 msgstr "Activo"

@@ -124,6 +124,7 @@ var _export_preview: TextEdit
 var _login_code_dialog: ConfirmationDialog
 var _login_code_input: LineEdit
 var _history_menu: PopupMenu
+var _history_delete_menu: PopupMenu
 var _history_items: Array[Dictionary] = []
 
 @onready var _profile_button: OptionButton = %ProfileButton
@@ -254,6 +255,10 @@ func _build_header() -> void:
 	_history_menu = PopupMenu.new()
 	_history_menu.id_pressed.connect(_on_history_selected)
 	add_child(_history_menu)
+	_history_delete_menu = PopupMenu.new()
+	_history_delete_menu.name = "DeleteSessionMenu"
+	_history_delete_menu.id_pressed.connect(_on_history_delete_selected)
+	_history_menu.add_child(_history_delete_menu)
 	_history_button.pressed.connect(_show_history_menu)
 	_new_session_button.icon = AgentTheme.icon(&"Add")
 	_new_session_button.pressed.connect(_on_new_session_pressed)
@@ -636,23 +641,33 @@ func _warn_api_key(profile: AgentProfile) -> void:
 		)
 
 
-## Sesiones de este proyecto, la más reciente primero (spec §11).
+## Sesiones de este proyecto, la más reciente primero (spec §11 y session/list de m11-16).
 func _show_history_menu() -> void:
 	_history_menu.clear()
-	_history_items = []
-	if _controller.history:
-		_history_items = _controller.history.list(_controller.cwd).slice(0, HISTORY_MENU_SIZE)
+	_history_delete_menu.clear()
+	var local_items: Array[Dictionary] = _controller.history.list(_controller.cwd) if _controller.history else []
+	_history_items = SessionController.merge_session_lists(local_items, _controller.agent_sessions, HISTORY_MENU_SIZE)
+	if _controller.is_connected_to_agent() and _model.supports_list_sessions():
+		_controller.list_agent_sessions(_controller.cwd)
 	if _history_items.is_empty():
 		_history_menu.add_item(I18n.t("No saved sessions for this project"))
 		_history_menu.set_item_disabled(0, true)
 	for i in _history_items.size():
 		var item := _history_items[i]
 		var title := str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else I18n.t("(untitled)")
-		var when := Time.get_datetime_string_from_unix_time(int(item.get("updated", 0)) + _timezone_bias_s(), true).substr(5, 11).replace("-", "/")
-		_history_menu.add_item("%s · %s · %s" % [when, title, item.get("agent", "")], i)
-		_history_menu.set_item_tooltip(_history_menu.item_count - 1, I18n.t("%d turns · %s") % [int(item.get("turns", 0)), item.get("id", "")])
+		var updated := int(item.get("updated", 0))
+		var when := Time.get_datetime_string_from_unix_time(updated + _timezone_bias_s(), true).substr(5, 11).replace("-", "/") if updated > 0 else "—"
+		var label := "%s · %s · %s" % [when, title, item.get("agent", "")]
+		_history_menu.add_item(label, i)
+		var turns := int(item.get("turns", 0))
+		_history_menu.set_item_tooltip(_history_menu.item_count - 1, (I18n.t("%d turns · %s") % [turns, item.get("id", "")]) if turns > 0 else str(item.get("id", "")))
 		if item.get("id") == _model.session_id:
 			_history_menu.set_item_disabled(_history_menu.item_count - 1, true)
+		else:
+			_history_delete_menu.add_item(label, i)
+	if _history_delete_menu.item_count > 0:
+		_history_menu.add_separator()
+		_history_menu.add_submenu_node_item(I18n.t("Delete session"), _history_delete_menu)
 	var busy := _model.state in [SessionModel.SessionState.STARTING, SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]
 	for i in _history_menu.item_count:
 		_history_menu.set_item_disabled(i, _history_menu.is_item_disabled(i) or busy)
@@ -660,9 +675,14 @@ func _show_history_menu() -> void:
 	_history_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO))
 
 
-## Muestra la sesión y la reanuda con session/load si el agente lo soporta (si no, solo lectura).
+## Muestra la sesión y la reanuda con session/load o session/resume si el agente lo soporta.
 func open_history_session(id: String) -> bool:
 	var record: Dictionary = _controller.history.load_record(id) if _controller.history else {}
+	if record.is_empty():
+		for item: Dictionary in _controller.agent_sessions:
+			if str(item.get("id", "")) == id:
+				record = item.duplicate()
+				break
 	if record.is_empty():
 		_model.add_notice(I18n.t("Could not read session %s from the history.") % id, ChatEntry.NoticeLevel.WARNING)
 		return false
@@ -672,6 +692,14 @@ func open_history_session(id: String) -> bool:
 	if profile == null:
 		return false
 	return await _controller.start(profile, record)
+
+
+func _on_history_delete_selected(index: int) -> void:
+	if index < 0 or index >= _history_items.size():
+		return
+	var id := str(_history_items[index].get("id", ""))
+	if not id.is_empty() and id != _model.session_id:
+		await _controller.delete_session(id)
 
 
 func _on_history_selected(index: int) -> void:
