@@ -151,3 +151,21 @@ func test_quoting_and_agent_env_ask() -> void:
 func test_command_key_ignores_quoting() -> void:
 	assert_eq(SessionController.command_key("npm run \"a b\""), SessionController.command_key(TerminalHandler.format_command_line("npm", PackedStringArray(["run", "a b"]))), "misma clave")
 	assert_false(SessionController.command_key("npm run a b") == SessionController.command_key("npm run 'a b'"), "otros args, otra clave")
+
+
+## El controller se libera solo (sin ciclos con su terminal ni su modelo): un ciclo de referencias
+## terminaba en un double free al cerrar Godot 4.8.
+func test_controller_has_no_reference_cycles() -> void:
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	controller.setup(model, AgentLog.new(), "/tmp")
+	var handler := TerminalHandler.new()
+	handler.setup("/tmp", AgentLog.new())
+	controller.set_terminal_handler(handler)
+	var controller_ref: WeakRef = weakref(controller)
+	var model_ref: WeakRef = weakref(model)
+	controller = null
+	model = null
+	handler = null
+	assert_eq(controller_ref.get_ref(), null, "el controller se libera")
+	assert_eq(model_ref.get_ref(), null, "el modelo se libera")

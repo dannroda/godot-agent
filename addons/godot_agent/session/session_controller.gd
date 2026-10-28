@@ -200,7 +200,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	client.set_notification_handler("elicitation/complete", _on_complete_elicitation)
 	client.incoming_cancelled.connect(_on_incoming_cancelled)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
-	model.config_options_changed.connect(func(_options: Array) -> void: quota.select_antigravity_model(_current_model_name()))
+	model.config_options_changed.connect(_on_config_options_changed)
 
 
 ## fs/read_text_file y fs/write_text_file. Las escrituras pasan por la política (edit_files).
@@ -215,8 +215,9 @@ func set_terminal_handler(handler: TerminalHandler) -> void:
 	terminal = handler
 	terminal.command_authorizer = _authorize_terminal_command
 	terminal.env_provider = _terminal_base_env
-	terminal.output_changed.connect(func(terminal_id: String, output: String, exit_code: Variant) -> void:
-		model.set_terminal_output(terminal_id, output, exit_code))
+	# Métodos y no lambdas en las señales de lo que es del controller (terminal, model): una lambda
+	# lo captura y arma un ciclo que no se libera; en Godot 4.8 terminaba en un double free al salir.
+	terminal.output_changed.connect(_on_terminal_output)
 	terminal.register(client)
 
 func profile() -> AgentProfile:
@@ -1557,3 +1558,11 @@ func _auth_hint() -> String:
 		if method is Dictionary:
 			names.append("%s (%s)" % [method.get("name", method.get("id", "?")), method.get("description", "")])
 	return ", ".join(names)
+
+
+func _on_terminal_output(terminal_id: String, output: String, exit_code: Variant) -> void:
+	model.set_terminal_output(terminal_id, output, exit_code)
+
+
+func _on_config_options_changed(_options: Array) -> void:
+	quota.select_antigravity_model(_current_model_name())
