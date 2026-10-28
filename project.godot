@@ -19,4 +19,4 @@ config/features=PackedStringArray("4.7")
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_agent/plugin.cfg", "res://addons/godot_agent_dev/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_agent/plugin.cfg", "res://addons/godot_agent_dev/plugin.cfg", "res://addons/scope_compass/plugin.cfg")
