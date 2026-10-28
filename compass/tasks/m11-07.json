@@ -2,18 +2,26 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-27T23:21:05.407Z",
+  "decisions": [
+    {
+      "alternatives": "Pedirle al agente que analice el proyecto y escriba el archivo (como /init)",
+      "at": "2026-10-28T00:06:58.644Z",
+      "text": "Los datos del proyecto los arma el harness, sin el agente",
+      "why": "Son datos que se leen sin pensar (ProjectSettings y carpetas), no gastan tokens y se pueden regenerar; las convenciones de estilo se le pueden pedir al agente en el chat"
+    }
+  ],
   "description": "Idea de la comparación con otros harness (2026-10-27). Como las reglas de Cursor, las custom instructions de Copilot o /init de Claude Code. Panel para ver y editar AGENTS.md/CLAUDE.md del proyecto y un «generar convenciones» que analice autoloads, capas de colisión, estructura de carpetas y estilo de los scripts.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "ui/extensions/instructions_tab.gd: pestaña «Instructions» de Extensions con CLAUDE.md, AGENTS.md y GEMINI.md del proyecto (quién lee cada uno, «(nuevo)» si no existe), un TextEdit y Guardar; cambiar de archivo guarda el que se editaba. core/project_facts.gd: section() arma «## Project facts» entre <!-- godot-agent:project-facts --> … <!-- /… --> con versión de Godot, nombre, escena principal, autoloads, capas con nombre (física, render, navegación, avoidance), acciones de input sin ui_* y carpetas de primer nivel (sin ocultas ni .gdignore); merge() la reemplaza o la agrega al final sin tocar el resto. No hecho: que el agente analice el estilo del código y proponga convenciones (se puede pedir en el chat; la sección generada no gasta tokens).",
   "order": 7,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Unit: test_project_facts (sección con todos los datos y sin ui_* ni capas sin nombre; merge en archivo vacío, al final y reemplazando una vez); test_claude_extensions ahora cuenta 6 pestañas; suite 299/0. Editor: --godot-agent-extensions-shots pasa y la captura de la pestaña se ve bien.",
   "title": "Instrucciones del proyecto: editar AGENTS.md/CLAUDE.md y generarlas",
-  "updated_at": "2026-10-27T23:21:05.407Z"
+  "updated_at": "2026-10-28T00:06:59.992Z"
 }

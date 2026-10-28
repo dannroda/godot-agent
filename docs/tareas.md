@@ -2637,95 +2637,190 @@ Cambiar de proveedor y modo desde Settings sin reiniciar; en híbrido la sugeren
 
 **Notas:** Ollama y llama.cpp no están instalados en esta máquina: no se probó contra un modelo real (pasos manuales en progress.md M8c). Revisión de código del diff hecha y corregida (progress.md M8c › Revisión de código): body de error al log, JSON de perfiles con tipos inválidos, redirecciones que reenviaban key y código (max_redirects 0, body ≤ 1 MB), Codestral/Gemini sin key, suffix con caret al final de línea, HTTPRequest sin liberar en un controller reemplazado. Además is_remote con [::1] y keys sin guiones. Los settings del paso del editor son los EditorSettings reales y se restauran al terminar.
 
-## M9 — Ideas de otros harness  (0/12)
+## M9 — Ideas de otros harness  (12/12, 12 en revisión)
 
 Lo que vale la pena traer de Claude Code, Codex, Antigravity, Copilot y Cursor, adaptado a Godot: deshacer y revisar por turno, sesiones que avisan, verificación automática, chat en línea en el Script Editor, artefactos del juego, más contexto y trabajo en segundo plano.
 
 **Hecho cuando:**
 - Cada idea quedó hecha o descartada con su motivo en la tarjeta.
 
-### Checkpoints y «volver a antes de este mensaje» en cada turno · Pendiente
+### Checkpoints y «volver a antes de este mensaje» en cada turno · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como /rewind de Claude Code o volver a un mensaje en Cursor/Copilot. Hoy hay checkpoints de git solo en One-shot y deshacer por tool godot.*. Snapshot del proyecto al empezar cada turno de Construir/Auto (refs de git, sin ramas ni commits en la rama del usuario) y acción «volver a antes de este mensaje» en el chat. Reusar oneshot/git_checkpoints.gd.
 
+**Decisiones:**
+- ! Snapshots como commits sueltos con un index propio, no git stash ni ramas · sin revisar
+  Por qué: stash create no incluye archivos sin trackear y stash push toca el árbol con el editor abierto; ramas o commits ensuciarían el historial del usuario. Las refs propias no se ven en git log ni en las ramas
+  Descartado: git stash create; una rama por sesión; copiar los archivos a user://
+- ! Prendido por defecto y solo en Construir y Auto · sin revisar
+  Por qué: Es invisible (refs fuera de las ramas) y es lo que más ayuda al deshacer; en Preguntar y Revisar el agente no edita y One-shot tiene sus checkpoints
+  Descartado: Apagado por defecto; también en One-shot
+
+**Prueba:** Unit: test_turn_snapshots (parse_diff; repo temporal: qué captura, diff A/M/D sin ignorados, volver un archivo, volver todo, deshacer la vuelta, HEAD e index del usuario intactos, refs; aviso de fin de turno con acciones y sin aviso si no hubo cambios); suite completa en verde. Editor: auto-test, edit-test y cycle-test pasan; el turno de auto-test dejó sus dos snapshots con el cambio real (project_config.tres). No probado a mano: los botones del aviso y el diálogo en el editor.
+
+**Notas:** session/turn_snapshots.gd: snapshot = commit suelto de la carpeta del proyecto armado con un index propio (copia del real, por GIT_INDEX_FILE vía env o cmd /c set en un Thread; OS.execute no recibe entorno): add -A, write-tree, commit-tree -p HEAD, update-ref refs/godot-agent/turns/<sesión>/<ms>, se guardan 60 por sesión. Respeta .gitignore; diff y restore excluyen .godot/ y .godot_agent/. restore(sesión, sha, paths) toma un snapshot de ahora, restaura con git restore --source --worktree (no toca el index) y borra lo que se creó después; devuelve {changed, before} para deshacerlo. SessionController: snapshot al empezar cada turno de Construir/Auto (no comandos /), y al terminar _report_turn_changes() deja un aviso «Este turno cambió N archivos (+a −r): …» con «Ver cambios» y «Volver a antes de este turno» (data {session, start, end, files}). Plugin: TurnSnapshots compartido (setup() mira git), confirmación antes de volver todo, recarga lo abierto, aviso «Vuelto atrás» con «Deshacer» y note_for_agent() para el próximo prompt. Ajuste turn_snapshots (true) en Settings → Servidores MCP. No se reporta en turnos que terminan con error.
+
 **Bloquea a:** Revisar los cambios del turno: diff y descartar por archivo
 
 **Relacionadas:** Tareas en segundo plano en un worktree con Godot headless
 
-### Revisar los cambios del turno: diff y descartar por archivo · Pendiente
+### Revisar los cambios del turno: diff y descartar por archivo · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como Keep/Undo por archivo de Copilot o el diff como artefacto de Antigravity. Al pie de cada turno: «N archivos cambiados · ver diff · descartar». Reusar la lista de cambios y el DiffDialog del One-shot. Se apoya en los checkpoints por turno.
 
+**Prueba:** Ver m11-01. La UI del diálogo no tiene check propio en el editor.
+
+**Notas:** ui/turn_changes_dialog.gd: lista de archivos del turno (estado +/~/−, ruta, +a −r) con «Diff» (DiffDialog: antes del turno vs. ahora) y «Volver atrás» por archivo (TurnSnapshots.restore con esa ruta; queda «Vuelto atrás»). Se abre desde el aviso de fin de turno (ver m11-01).
+
 **Bloqueada por:** Checkpoints y «volver a antes de este mensaje» en cada turno
 
-### Avisar cuando una sesión en segundo plano necesita al usuario · Pendiente
+### Avisar cuando una sesión en segundo plano necesita al usuario · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como el Agent Manager de Antigravity. Con varias pestañas, un pedido de permiso en una que no está a la vista pasa desapercibido. Marcar la pestaña («⚠ nombre»), notificación del editor y, si hace falta, un resumen de las sesiones.
 
-### Verificación automática al terminar cada turno · Pendiente
+**Prueba:** Editor: --godot-agent-sessions-test con el caso nuevo (permiso en la segunda con la primera al frente → «⚠ », se va al cancelarlo); captura revisada. El toast no se verifica en el check.
+
+**Notas:** SessionTabs: la pestaña muestra «⚠ nombre» mientras SessionModel.pending_permissions no está vacío (pesa más que «●» trabajando); se refresca al pedir y al resolver cada permiso. Si el dock de esa sesión no está a la vista (otra pestaña o el dock tapado), EditorToaster muestra ««nombre» espera tu permiso.». No hice un panel de resumen de sesiones: godot.sessions y las pestañas alcanzan por ahora.
+
+### Verificación automática al terminar cada turno · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como los hooks de Claude Code o los tests que corren Codex y Copilot. Al terminar un turno de Construir/Auto, correr godot.validate_scripts y get_errors; si hay errores nuevos, devolvérselos al agente (otro turno, con tope) o mostrarlos. Configurable por proyecto.
 
-### Chat en línea en el Script Editor (seleccionar y pedir) · Pendiente
+**Decisiones:**
+- ! La verificación solo usa validate_scripts (errores de parseo), no get_errors · sin revisar
+  Por qué: get_errors mezcla errores del juego que el agente pudo provocar a propósito al probar; los de parseo son inequívocos y baratos de corregir
+  Descartado: Sumar los errores del editor desde la marca del inicio del turno
+- ! Hasta 2 turnos de corrección seguidos y prendida por defecto · sin revisar
+  Por qué: Corrige lo común sin quedar en loop; el usuario la puede apagar por proyecto
+  Descartado: Solo avisar sin devolverle los errores al agente; apagada por defecto
+
+**Prueba:** Unit: test_diagnostic_tools.test_scripts_modified_since (filtro por mtime, carpetas ocultas y .gdignore, failure_lines) y test_turn_check_sends_fix_or_notice (manda la corrección, con tope queda aviso, en Preguntar no verifica); suite 287/0; acp_session_check 159/0. No probado con Claude real en el editor.
+
+**Notas:** SessionController._verify_turn(): después de un turno con end_turn en Construir o Auto (no en comandos con /), llama a turn_verifier(inicio del turno). El plugin lo conecta a DiagnosticTools.verify_changed_scripts(): recorre res:// en disco (no el EditorFileSystem, que puede no tener todavía lo que el agente creó por shell; saltea carpetas ocultas y con .gdignore), valida con el checker en otro proceso los .gd con mtime >= inicio del turno y devuelve las líneas «✗ ruta» + errores. Si hay errores y la sesión está READY, manda un prompt «[Automatic check after your turn]…» con aviso en el chat, hasta MAX_FIX_TURNS = 2 seguidos (se reinicia con cada prompt del usuario); si no (tope, la cola del dock ya mandó otro prompt), deja los errores como aviso. Ajuste del proyecto verify_after_turn (true), en Settings → Servidores MCP. Solo errores de parseo: get_errors queda afuera para no devolver errores del juego que el agente provocó a propósito.
+
+### Chat en línea en el Script Editor (seleccionar y pedir) · Revisión
 
 **Prioridad:** media · **Tamaño:** L · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como Ctrl+I de Copilot o Cmd+K de Cursor: seleccionar código, escribir el pedido y ver el cambio como diff en el mismo editor, para aceptar o rechazar. Puente entre el dock y el completado (M8). Después: sugerencias del próximo cambio relacionado (next edit suggestions de Copilot).
 
-### Artefactos de verificación: capturas y GIF del juego · Pendiente
+**Decisiones:**
+- ! El pedido va a la sesión activa del dock (queda en el chat) en vez de una sesión aparte · sin revisar
+  Por qué: Reusa la conexión, el modo y los permisos que ya hay y deja rastro de lo pedido; una sesión propia costaría otro agente corriendo
+  Descartado: Una sesión oculta solo para el chat en línea; una llamada directa a un LLM como el completado
+- ! Atajo Alt+I · sin revisar
+  Por qué: Ctrl+I ya es Indentar en el Script Editor; Alt+\ es el pedido manual del completado
+  Descartado: Ctrl+Shift+I; solo el menú contextual
+
+**Prueba:** Unit: test_inline_edit (extract_code, build_prompt con y sin selección, apply sobre un CodeEdit con deshacer en un paso, rechazo si el código cambió, inserción en el caret, Alt+I); suite 296/0. Editor: cycle-test y edit-test pasan con el menú registrado (el crecimiento de objetos varía entre corridas: 1–33, también sin esta feature). No probado: el flujo completo con un agente real.
+
+**Notas:** editor/inline_edit.gd (Node del plugin): Alt+I en el CodeEdit activo (Ctrl+I ya es Indentar) y editor/inline_edit_menu.gd (EditorContextMenuPlugin en CONTEXT_SLOT_SCRIPT_EDITOR_CODE) abren un LineEdit junto al caret. El pedido va con build_prompt (archivo, líneas, código seleccionado; pide solo el código nuevo en un bloque y no editar archivos) a la sesión de la pestaña activa por plugin._ask_inline (send_prompt + agent_text_since; error si no hay sesión o está ocupada). extract_code toma el primer bloque; la propuesta se ve con DiffDialog.diff_bbcode (sacado del DiffDialog) en un PopupPanel con Aceptar/Rechazar. apply() verifica que el rango siga igual y reemplaza en begin/end_complex_operation (un Ctrl+Z, sin guardar). Pedido y respuesta quedan en el chat. No hecho: sugerencias del próximo cambio (next edit suggestions); queda como idea.
+
+### Artefactos de verificación: capturas y GIF del juego · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como los walkthroughs de Antigravity. Al cerrar una tarea, un resumen con capturas del juego de antes y después o un GIF del playtest, para mirar o compartir. Ya existen capture_game_frame y game_input; falta juntarlos. Diferencial: ningún otro harness muestra el juego corriendo.
 
-### Instrucciones del proyecto: editar AGENTS.md/CLAUDE.md y generarlas · Pendiente
+**Decisiones:**
+- ! Reporte como carpeta con report.md y PNG, sin GIF · sin revisar
+  Por qué: Godot no escribe GIF ni WebP animado sin código extra; las capturas que el agente ya toma son lo que verifica el trabajo, y un .md con imágenes se lee en GitHub o en cualquier visor
+  Descartado: Escribir un GIF a mano (LZW); grabar video con Movie Maker
+
+**Prueba:** Unit: test_turn_report (collect solo del turno, write con resumen, archivos y la captura byte a byte); test_turn_snapshots estable en 3 corridas; suite completa en verde.
+
+**Notas:** session/turn_report.gd: collect(model, first_entry) junta el texto del agente y las imágenes (base64 + mimeType) de los tool calls del turno; write() escribe res://.godot_agent/reports/<fecha>/report.md (resumen, archivos con +/−, capturas) y capture-N.png/jpg/webp tal como llegaron. El aviso de fin de turno de Construir/Auto (SessionController._report_turn_changes) suma «N capturas del juego o del editor» y la acción «Guardar reporte» (ACTION_TURN_REPORT); el plugin escribe el reporte y abre la carpeta. Sin git aparece igual si hubo capturas. No hecho: GIF o video del playtest (Godot no escribe GIF ni WebP animado; queda la secuencia de capturas). De paso, turn_snapshots: el index propio se arma una vez con read-tree HEAD y se reusa (copiar el del usuario le cambiaba la fecha y git podía no ver un cambio del mismo tamaño en el mismo segundo; lo agarró el test).
+
+### Instrucciones del proyecto: editar AGENTS.md/CLAUDE.md y generarlas · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como las reglas de Cursor, las custom instructions de Copilot o /init de Claude Code. Panel para ver y editar AGENTS.md/CLAUDE.md del proyecto y un «generar convenciones» que analice autoloads, capas de colisión, estructura de carpetas y estilo de los scripts.
 
-### Más contexto con @: errores, output, juego y docs · Pendiente
+**Decisiones:**
+- ! Los datos del proyecto los arma el harness, sin el agente · sin revisar
+  Por qué: Son datos que se leen sin pensar (ProjectSettings y carpetas), no gastan tokens y se pueden regenerar; las convenciones de estilo se le pueden pedir al agente en el chat
+  Descartado: Pedirle al agente que analice el proyecto y escriba el archivo (como /init)
+
+**Prueba:** Unit: test_project_facts (sección con todos los datos y sin ui_* ni capas sin nombre; merge en archivo vacío, al final y reemplazando una vez); test_claude_extensions ahora cuenta 6 pestañas; suite 299/0. Editor: --godot-agent-extensions-shots pasa y la captura de la pestaña se ve bien.
+
+**Notas:** ui/extensions/instructions_tab.gd: pestaña «Instructions» de Extensions con CLAUDE.md, AGENTS.md y GEMINI.md del proyecto (quién lee cada uno, «(nuevo)» si no existe), un TextEdit y Guardar; cambiar de archivo guarda el que se editaba. core/project_facts.gd: section() arma «## Project facts» entre <!-- godot-agent:project-facts --> … <!-- /… --> con versión de Godot, nombre, escena principal, autoloads, capas con nombre (física, render, navegación, avoidance), acciones de input sin ui_* y carpetas de primer nivel (sin ocultas ni .gdignore); merge() la reemplaza o la agrega al final sin tocar el resto. No hecho: que el agente analice el estilo del código y proponga convenciones (se puede pedir en el chat; la sección generada no gasta tokens).
+
+### Más contexto con @: errores, output, juego y docs · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). @errors, @output, @game (árbol del juego en marcha), @docs Clase (referencia de la API) y arrastrar un nodo del Scene Tree al composer. Revisar primero qué menciones existen.
 
-### Tareas en segundo plano en un worktree con Godot headless · Pendiente
+**Prueba:** Unit: test_mentions (detección sin repetir y con la clase, sin falsos positivos, opciones del menú; run_for_user sin permiso y con tool inexistente); suite 301/0. Editor: queue-test y auto-test pasan con el envío nuevo. No probado a mano: arrastrar nodos ni el texto de @game con un juego corriendo.
+
+**Notas:** agent_dock: SPECIAL_MENTIONS (@errors, @output, @game, @docs:Clase) van primero en el menú de @ y, al enviar (también lo que sale de la cola), special_mentions_in() las encuentra (sin mails ni nodos parecidos) y _send_with_mentions() agrega un bloque de texto por cada una con lo que trae context_provider. plugin._context_for_mention usa ToolRegistry.run_for_user() (nuevo: corre la tool sin permiso ni guard, porque la pide el usuario; con el tope de max_output_chars): get_errors desde 0, game_tree y class_info; @output son los últimos 4000 caracteres del panel Output (ErrorCollector.output_text). composer: arrastrar nodos del dock Escena escribe @ruta relativa a la escena. Las menciones de nodos y archivos de antes siguen siendo solo texto.
+
+### Tareas en segundo plano en un worktree con Godot headless · Revisión
 
 **Prioridad:** baja · **Tamaño:** L · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como las cloud tasks de Codex o el coding agent de Copilot. Una sesión trabaja en otra copia del proyecto con su propio Godot headless y entrega un diff o una rama para integrar, sin competir con el editor abierto. Choca con «el harness nunca mergea»: decidir cómo se integra.
 
+**Decisiones:**
+- ! Aplicar los cambios de la copia con git apply como cambios sin commitear, no con merge · sin revisar
+  Por qué: El harness no mergea por diseño; así el usuario revisa y commitea él, y si algo no entra limpio la rama queda para resolverlo a mano
+  Descartado: git merge de la rama; cherry-pick del commit
+- ! La copia va al lado del repo (<repo>.godot-agent-copies/), desde el último commit · sin revisar
+  Por qué: Dentro del proyecto Godot la importaría como parte del juego; un worktree solo parte de un commit, así que lo sin commitear no está (se avisa)
+  Descartado: Dentro del proyecto con .gdignore; copiar también los cambios sin commitear
+
+**Prueba:** Unit: test_worktree_session (repo temporal con el proyecto en una subcarpeta: crea la copia al lado, el proyecto no cambia mientras el agente trabaja, commit_changes lista lo cambiado, apply_to_project deja los cambios sin commitear en la misma rama, remove borra copia y rama); suite 302/0. Editor: --godot-agent-sessions-test abre una copia de este repo, verifica cwd, que una tool de edición se rechaza y una de lectura anda, y que cerrarla sin cambios la borra (worktree y rama).
+
+**Notas:** session/worktree_session.gd: create() hace git worktree add -b agent/copy-<fecha> en <repo>.godot-agent-copies/<fecha> (al lado del repo: adentro Godot lo importaría) desde HEAD, con el proyecto en su misma subcarpeta; commit_changes() commitea lo del agente en esa rama y lista los archivos cambiados; apply_to_project() arma el diff base..rama (git diff --binary, limitado al proyecto) y lo aplica con git apply en el repo principal como cambios sin commitear (el harness no mergea; si no entra limpio, queda la rama); remove() saca el worktree y, si se pide, la rama. SessionTabs: «+» abre un menú (sesión / sesión en una copia). Plugin: _make_controller con la copia como cwd y raíz de fs, sin sync con buffers, sin locks ni verificación por res://, con TurnSnapshots propios (los avisos de cambios del turno y volver atrás funcionan sobre la copia); aviso en el chat y note_for_agent explicando dónde trabaja y cómo validar con Godot headless. ToolRegistry.precheck (nuevo): rechaza antes de pedir permiso las tools no de lectura y las game_* para una copia (si no, Construir mostraba una tarjeta y recién después rechazaba). Cerrar la pestaña: si cambió algo, diálogo Aplicar al proyecto / Dejar la rama / Descartar / Cancelar; sin cambios, se borra sola. Al apagar el plugin las copias quedan como están. Una vez, en una corrida del check, quedó una copia sin borrar; no se repitió en tres corridas más.
+
 **Relacionadas:** Checkpoints y «volver a antes de este mensaje» en cada turno
 
-### Integración opcional con GitHub: PR desde una sesión y comentarios como hallazgos · Pendiente
+### Integración opcional con GitHub: PR desde una sesión y comentarios como hallazgos · Revisión
 
 **Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Como Copilot o Codex. Crear un PR desde una sesión y traer los comentarios de un PR como hallazgos de Revisar. Opcional y apagado por defecto: hoy el harness nunca pushea por diseño.
 
-### Soporte para Antigravity CLI (agy) como agente · Pendiente
+**Decisiones:**
+- ! Abrir un PR desde una copia va apagado por defecto y solo se ofrece al cerrarla · sin revisar
+  Por qué: Es lo único del harness que pushea; la importación de comentarios solo lee y queda siempre disponible
+  Descartado: Prendido por defecto; un botón aparte para pushear cualquier rama
+
+**Prueba:** Unit: test_github_reviews (repo de remotes ssh/https/otro host; comentarios a hallazgos con prefijo de proyecto, sin respuestas ni fuera del proyecto ni vacíos, original_line, autor; proyecto en la raíz); suite 304/0. Real: con gh sin sesión, fetch_review devuelve el error de gh legible. No probado: con gh logueado, importar un PR real ni abrir uno (pushea).
+
+**Notas:** core/github_reviews.gd con el CLI gh y --repo owner/repo sacado de git remote origin (así no depende del cwd del editor): fetch_review(pr) usa gh pr view (número o la rama actual) y gh api --paginate repos/<repo>/pulls/<n>/comments; comments_to_findings() pasa cada comentario con archivo del proyecto y línea (o original_line si quedó desactualizado) a un hallazgo res:// con el texto y «— @autor on GitHub», sin respuestas de hilo. Panel de Revisar: «De un PR de GitHub…» abre un diálogo con el número (vacío = rama actual) y carga los hallazgos en el ReviewStore (marcas en el Script Editor, «Arreglar en modo Construir»). Solo lee. PR desde una copia (m11-09): con github_pull_requests (apagado por defecto, Settings → Servidores MCP), el diálogo al cerrar una copia suma «Pushear y abrir un PR»: git push -u origin <rama> desde la copia y gh pr create contra la rama de partida (WorktreeSession guarda base_branch); la copia se saca y la rama queda.
+
+### Soporte para Antigravity CLI (agy) como agente · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea de la comparación con otros harness (2026-10-27). Google publica un adaptador ACP oficial para Antigravity en el registro de ACP (id antigravity-acp, v1.4.3, autor Google LLC, licencia propietaria): un zip por plataforma desde dl.google.com/agy-extensions/releases/<os>/agy-acp-server-<versión>-<os>-<arch>.zip, con sha256, que se ejecuta como ./agy_acp_server.par (en Linux con el argumento --uid=; en Windows agy_acp_server.exe). Así lo integra Zed: lee el registro, baja y verifica el zip, y lanza ese comando como agente ACP por stdio. Hay también adaptadores de la comunidad (agy-acp, antigravity-acp de GitHub) que leen el almacenamiento local de Antigravity; preferir el oficial. A probar: login, que pase los mcpServers de session/new (sin eso no ve godot.*) y godot.sessions/session_send entre agy y Claude Code en el mismo dock.
 
+**Prueba:** Probe ACP a mano (initialize y session/new) contra el binario real. Pendiente del usuario: login con Google y mensajes entre agy y Claude Code.
+
+**Notas:** Con m11-12, Google Antigravity se agrega desde Settings → Agentes → «+ Del registro de ACP…» (adaptador oficial de Google, antigravity-acp 1.4.3, ./agy_acp_server.par --uid= en Linux, ~930 MB). Probado a mano por stdio: initialize anuncia mcpCapabilities {http, sse} (recibe el MCP del harness por HTTP: godot.* incluidas sessions/session_send), loadSession, imágenes y _meta.antigravity.systemPrompt.append, y authMethods oauth-personal, oauth-business, gemini-api-key, agent-platform. session/new sin login devuelve -32000 «Authentication required», que SessionController.is_auth_required reconoce, así que el dock ofrece esos métodos (ACP authenticate). Falta, con la cuenta del usuario: completar el login, una conversación real con las tools godot.* y un godot.session_send entre agy y Claude Code en dos pestañas.
+
 **Bloqueada por:** Instalar agentes desde el registro de ACP
 
 **Relacionadas:** Mensajes entre sesiones: el recibido no se ve y una sesión nueva no los lee hasta su primer prompt
 
-### Instalar agentes desde el registro de ACP · Pendiente
+### Instalar agentes desde el registro de ACP · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea (2026-10-27), surgió de cómo Zed integra Antigravity. El registro de ACP (cdn.agentclientprotocol.com/registry/v1/latest/registry.json) lista ~43 agentes con su forma de instalarlos: npx, uvx o un binario por plataforma (zip con sha256, comando y args). Entre ellos Claude Agent, Codex, Gemini CLI, Copilot, Cursor, Google Antigravity, Goose, OpenCode, Junie, Kimi, Qwen Code, Mistral Vibe. En Settings → Perfiles: elegir un agente del registro y que el harness arme el perfil (npx/uvx) o baje, verifique y descomprima el binario en user://, como hace Zed. Reemplaza armar perfiles a mano y cubre agy sin código propio.
+
+**Prueba:** Unit: test_acp_registry (parse con preferencia y plataforma, perfiles npx/uvx/binario, extract zip con zip slip, tar.gz, ejecutable suelto, chmod, filtro del diálogo); suite 291/0. Real: fetch del registro (43 agentes, linux-x86_64) e install de antigravity-acp 1.4.3 (sha256 ok, 930 MB, ejecutable). Editor: --godot-agent-settings-shots pasa y muestra el botón. No probado: el diálogo abierto en el editor (necesita red).
+
+**Notas:** core/acp_registry.gd (Node): fetch() lee cdn.agentclientprotocol.com/registry/v1/latest/registry.json; parse(data, platform) elige npx > uvx > binario de la plataforma (platform_key: linux|darwin|windows-x86_64|aarch64) y descarta ids que no son nombres de archivo; profile_for() arma el perfil; install() baja el binario, verifica el sha256 si el registro lo trae y extract() lo descomprime en <editor data>/godot_agent/agents/<id>/<versión>/ (.zip con ZIPReader sin rutas que salgan; .tar.* con el tar del sistema; otro = el ejecutable suelto) y le da chmod +x. ui/settings/acp_registry_dialog.gd: lista con filtro, «Agregar», segundo clic «Agregar sin checksum» si falta el sha256 (42 de las ~100 descargas del registro no lo traen), aviso de que un binario puede tardar. Settings → Agentes: «+ Del registro de ACP…»; agregar uno con el mismo id reemplaza el perfil (conserva si era el predeterminado). El registro hoy: 43 agentes, 1.0.0. Los perfiles incluidos (Gemini sin --acp, Codex sin comando) no se tocaron: con el registro ya se pueden agregar bien.
 
 **Bloquea a:** Soporte para Antigravity CLI (agy) como agente

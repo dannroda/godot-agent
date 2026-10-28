@@ -4,16 +4,16 @@
   "created_at": "2026-10-27T23:21:04.175Z",
   "description": "Idea de la comparación con otros harness (2026-10-27). Como el Agent Manager de Antigravity. Con varias pestañas, un pedido de permiso en una que no está a la vista pasa desapercibido. Marcar la pestaña («⚠ nombre»), notificación del editor y, si hace falta, un resumen de las sesiones.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "SessionTabs: la pestaña muestra «⚠ nombre» mientras SessionModel.pending_permissions no está vacío (pesa más que «●» trabajando); se refresca al pedir y al resolver cada permiso. Si el dock de esa sesión no está a la vista (otra pestaña o el dock tapado), EditorToaster muestra ««nombre» espera tu permiso.». No hice un panel de resumen de sesiones: godot.sessions y las pestañas alcanzan por ahora.",
   "order": 3,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Editor: --godot-agent-sessions-test con el caso nuevo (permiso en la segunda con la primera al frente → «⚠ », se va al cancelarlo); captura revisada. El toast no se verifica en el check.",
   "title": "Avisar cuando una sesión en segundo plano necesita al usuario",
-  "updated_at": "2026-10-27T23:21:04.175Z"
+  "updated_at": "2026-10-27T23:28:26.255Z"
 }

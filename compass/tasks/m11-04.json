@@ -2,18 +2,32 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-27T23:21:04.478Z",
+  "decisions": [
+    {
+      "alternatives": "Sumar los errores del editor desde la marca del inicio del turno",
+      "at": "2026-10-27T23:32:18.889Z",
+      "text": "La verificación solo usa validate_scripts (errores de parseo), no get_errors",
+      "why": "get_errors mezcla errores del juego que el agente pudo provocar a propósito al probar; los de parseo son inequívocos y baratos de corregir"
+    },
+    {
+      "alternatives": "Solo avisar sin devolverle los errores al agente; apagada por defecto",
+      "at": "2026-10-27T23:32:19.193Z",
+      "text": "Hasta 2 turnos de corrección seguidos y prendida por defecto",
+      "why": "Corrige lo común sin quedar en loop; el usuario la puede apagar por proyecto"
+    }
+  ],
   "description": "Idea de la comparación con otros harness (2026-10-27). Como los hooks de Claude Code o los tests que corren Codex y Copilot. Al terminar un turno de Construir/Auto, correr godot.validate_scripts y get_errors; si hay errores nuevos, devolvérselos al agente (otro turno, con tope) o mostrarlos. Configurable por proyecto.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "SessionController._verify_turn(): después de un turno con end_turn en Construir o Auto (no en comandos con /), llama a turn_verifier(inicio del turno). El plugin lo conecta a DiagnosticTools.verify_changed_scripts(): recorre res:// en disco (no el EditorFileSystem, que puede no tener todavía lo que el agente creó por shell; saltea carpetas ocultas y con .gdignore), valida con el checker en otro proceso los .gd con mtime >= inicio del turno y devuelve las líneas «✗ ruta» + errores. Si hay errores y la sesión está READY, manda un prompt «[Automatic check after your turn]…» con aviso en el chat, hasta MAX_FIX_TURNS = 2 seguidos (se reinicia con cada prompt del usuario); si no (tope, la cola del dock ya mandó otro prompt), deja los errores como aviso. Ajuste del proyecto verify_after_turn (true), en Settings → Servidores MCP. Solo errores de parseo: get_errors queda afuera para no devolver errores del juego que el agente provocó a propósito.",
   "order": 4,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Unit: test_diagnostic_tools.test_scripts_modified_since (filtro por mtime, carpetas ocultas y .gdignore, failure_lines) y test_turn_check_sends_fix_or_notice (manda la corrección, con tope queda aviso, en Preguntar no verifica); suite 287/0; acp_session_check 159/0. No probado con Claude real en el editor.",
   "title": "Verificación automática al terminar cada turno",
-  "updated_at": "2026-10-27T23:21:04.478Z"
+  "updated_at": "2026-10-27T23:32:19.479Z"
 }

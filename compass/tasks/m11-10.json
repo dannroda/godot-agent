@@ -2,18 +2,26 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-27T23:21:06.342Z",
+  "decisions": [
+    {
+      "alternatives": "Prendido por defecto; un botón aparte para pushear cualquier rama",
+      "at": "2026-10-28T00:24:55.147Z",
+      "text": "Abrir un PR desde una copia va apagado por defecto y solo se ofrece al cerrarla",
+      "why": "Es lo único del harness que pushea; la importación de comentarios solo lee y queda siempre disponible"
+    }
+  ],
   "description": "Idea de la comparación con otros harness (2026-10-27). Como Copilot o Codex. Crear un PR desde una sesión y traer los comentarios de un PR como hallazgos de Revisar. Opcional y apagado por defecto: hoy el harness nunca pushea por diseño.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "core/github_reviews.gd con el CLI gh y --repo owner/repo sacado de git remote origin (así no depende del cwd del editor): fetch_review(pr) usa gh pr view (número o la rama actual) y gh api --paginate repos/<repo>/pulls/<n>/comments; comments_to_findings() pasa cada comentario con archivo del proyecto y línea (o original_line si quedó desactualizado) a un hallazgo res:// con el texto y «— @autor on GitHub», sin respuestas de hilo. Panel de Revisar: «De un PR de GitHub…» abre un diálogo con el número (vacío = rama actual) y carga los hallazgos en el ReviewStore (marcas en el Script Editor, «Arreglar en modo Construir»). Solo lee. PR desde una copia (m11-09): con github_pull_requests (apagado por defecto, Settings → Servidores MCP), el diálogo al cerrar una copia suma «Pushear y abrir un PR»: git push -u origin <rama> desde la copia y gh pr create contra la rama de partida (WorktreeSession guarda base_branch); la copia se saca y la rama queda.",
   "order": 10,
   "priority": "low",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Unit: test_github_reviews (repo de remotes ssh/https/otro host; comentarios a hallazgos con prefijo de proyecto, sin respuestas ni fuera del proyecto ni vacíos, original_line, autor; proyecto en la raíz); suite 304/0. Real: con gh sin sesión, fetch_review devuelve el error de gh legible. No probado: con gh logueado, importar un PR real ni abrir uno (pushea).",
   "title": "Integración opcional con GitHub: PR desde una sesión y comentarios como hallazgos",
-  "updated_at": "2026-10-27T23:21:06.342Z"
+  "updated_at": "2026-10-28T00:24:57.988Z"
 }

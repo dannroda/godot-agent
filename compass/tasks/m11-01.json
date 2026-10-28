@@ -2,6 +2,20 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-27T23:21:03.557Z",
+  "decisions": [
+    {
+      "alternatives": "git stash create; una rama por sesión; copiar los archivos a user://",
+      "at": "2026-10-27T23:52:06.628Z",
+      "text": "Snapshots como commits sueltos con un index propio, no git stash ni ramas",
+      "why": "stash create no incluye archivos sin trackear y stash push toca el árbol con el editor abierto; ramas o commits ensuciarían el historial del usuario. Las refs propias no se ven en git log ni en las ramas"
+    },
+    {
+      "alternatives": "Apagado por defecto; también en One-shot",
+      "at": "2026-10-27T23:52:10.261Z",
+      "text": "Prendido por defecto y solo en Construir y Auto",
+      "why": "Es invisible (refs fuera de las ramas) y es lo que más ayuda al deshacer; en Preguntar y Revisar el agente no edita y One-shot tiene sus checkpoints"
+    }
+  ],
   "description": "Idea de la comparación con otros harness (2026-10-27). Como /rewind de Claude Code o volver a un mensaje en Cursor/Copilot. Hoy hay checkpoints de git solo en One-shot y deshacer por tool godot.*. Snapshot del proyecto al empezar cada turno de Construir/Auto (refs de git, sin ramas ni commits en la rama del usuario) y acción «volver a antes de este mensaje» en el chat. Reusar oneshot/git_checkpoints.gd.",
   "links": [
     {
@@ -14,16 +28,16 @@
     }
   ],
   "milestone": "m11",
-  "notes": "",
+  "notes": "session/turn_snapshots.gd: snapshot = commit suelto de la carpeta del proyecto armado con un index propio (copia del real, por GIT_INDEX_FILE vía env o cmd /c set en un Thread; OS.execute no recibe entorno): add -A, write-tree, commit-tree -p HEAD, update-ref refs/godot-agent/turns/<sesión>/<ms>, se guardan 60 por sesión. Respeta .gitignore; diff y restore excluyen .godot/ y .godot_agent/. restore(sesión, sha, paths) toma un snapshot de ahora, restaura con git restore --source --worktree (no toca el index) y borra lo que se creó después; devuelve {changed, before} para deshacerlo. SessionController: snapshot al empezar cada turno de Construir/Auto (no comandos /), y al terminar _report_turn_changes() deja un aviso «Este turno cambió N archivos (+a −r): …» con «Ver cambios» y «Volver a antes de este turno» (data {session, start, end, files}). Plugin: TurnSnapshots compartido (setup() mira git), confirmación antes de volver todo, recarga lo abierto, aviso «Vuelto atrás» con «Deshacer» y note_for_agent() para el próximo prompt. Ajuste turn_snapshots (true) en Settings → Servidores MCP. No se reporta en turnos que terminan con error.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Unit: test_turn_snapshots (parse_diff; repo temporal: qué captura, diff A/M/D sin ignorados, volver un archivo, volver todo, deshacer la vuelta, HEAD e index del usuario intactos, refs; aviso de fin de turno con acciones y sin aviso si no hubo cambios); suite completa en verde. Editor: auto-test, edit-test y cycle-test pasan; el turno de auto-test dejó sus dos snapshots con el cambio real (project_config.tres). No probado a mano: los botones del aviso y el diálogo en el editor.",
   "title": "Checkpoints y «volver a antes de este mensaje» en cada turno",
-  "updated_at": "2026-10-27T23:21:11.775Z"
+  "updated_at": "2026-10-27T23:52:13.341Z"
 }

@@ -10,16 +10,16 @@
     }
   ],
   "milestone": "m11",
-  "notes": "",
+  "notes": "core/acp_registry.gd (Node): fetch() lee cdn.agentclientprotocol.com/registry/v1/latest/registry.json; parse(data, platform) elige npx > uvx > binario de la plataforma (platform_key: linux|darwin|windows-x86_64|aarch64) y descarta ids que no son nombres de archivo; profile_for() arma el perfil; install() baja el binario, verifica el sha256 si el registro lo trae y extract() lo descomprime en <editor data>/godot_agent/agents/<id>/<versión>/ (.zip con ZIPReader sin rutas que salgan; .tar.* con el tar del sistema; otro = el ejecutable suelto) y le da chmod +x. ui/settings/acp_registry_dialog.gd: lista con filtro, «Agregar», segundo clic «Agregar sin checksum» si falta el sha256 (42 de las ~100 descargas del registro no lo traen), aviso de que un binario puede tardar. Settings → Agentes: «+ Del registro de ACP…»; agregar uno con el mismo id reemplaza el perfil (conserva si era el predeterminado). El registro hoy: 43 agentes, 1.0.0. Los perfiles incluidos (Gemini sin --acp, Codex sin comando) no se tocaron: con el registro ya se pueden agregar bien.",
   "order": 12,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Unit: test_acp_registry (parse con preferencia y plataforma, perfiles npx/uvx/binario, extract zip con zip slip, tar.gz, ejecutable suelto, chmod, filtro del diálogo); suite 291/0. Real: fetch del registro (43 agentes, linux-x86_64) e install de antigravity-acp 1.4.3 (sha256 ok, 930 MB, ejecutable). Editor: --godot-agent-settings-shots pasa y muestra el botón. No probado: el diálogo abierto en el editor (necesita red).",
   "title": "Instalar agentes desde el registro de ACP",
-  "updated_at": "2026-10-27T23:24:30.634Z"
+  "updated_at": "2026-10-27T23:37:29.007Z"
 }

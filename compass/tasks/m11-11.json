@@ -10,16 +10,16 @@
     }
   ],
   "milestone": "m11",
-  "notes": "",
+  "notes": "Con m11-12, Google Antigravity se agrega desde Settings → Agentes → «+ Del registro de ACP…» (adaptador oficial de Google, antigravity-acp 1.4.3, ./agy_acp_server.par --uid= en Linux, ~930 MB). Probado a mano por stdio: initialize anuncia mcpCapabilities {http, sse} (recibe el MCP del harness por HTTP: godot.* incluidas sessions/session_send), loadSession, imágenes y _meta.antigravity.systemPrompt.append, y authMethods oauth-personal, oauth-business, gemini-api-key, agent-platform. session/new sin login devuelve -32000 «Authentication required», que SessionController.is_auth_required reconoce, así que el dock ofrece esos métodos (ACP authenticate). Falta, con la cuenta del usuario: completar el login, una conversación real con las tools godot.* y un godot.session_send entre agy y Claude Code en dos pestañas.",
   "order": 11,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Probe ACP a mano (initialize y session/new) contra el binario real. Pendiente del usuario: login con Google y mensajes entre agy y Claude Code.",
   "title": "Soporte para Antigravity CLI (agy) como agente",
-  "updated_at": "2026-10-27T23:24:30.046Z"
+  "updated_at": "2026-10-27T23:37:29.534Z"
 }

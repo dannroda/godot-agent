@@ -4,16 +4,16 @@
   "created_at": "2026-10-27T23:21:03.872Z",
   "description": "Idea de la comparación con otros harness (2026-10-27). Como Keep/Undo por archivo de Copilot o el diff como artefacto de Antigravity. Al pie de cada turno: «N archivos cambiados · ver diff · descartar». Reusar la lista de cambios y el DiffDialog del One-shot. Se apoya en los checkpoints por turno.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "ui/turn_changes_dialog.gd: lista de archivos del turno (estado +/~/−, ruta, +a −r) con «Diff» (DiffDialog: antes del turno vs. ahora) y «Volver atrás» por archivo (TurnSnapshots.restore con esa ruta; queda «Vuelto atrás»). Se abre desde el aviso de fin de turno (ver m11-01).",
   "order": 2,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Ver m11-01. La UI del diálogo no tiene check propio en el editor.",
   "title": "Revisar los cambios del turno: diff y descartar por archivo",
-  "updated_at": "2026-10-27T23:21:03.872Z"
+  "updated_at": "2026-10-27T23:52:20.012Z"
 }

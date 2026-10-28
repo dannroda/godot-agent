@@ -2,18 +2,32 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-10-27T23:21:04.790Z",
+  "decisions": [
+    {
+      "alternatives": "Una sesión oculta solo para el chat en línea; una llamada directa a un LLM como el completado",
+      "at": "2026-10-27T23:57:28.545Z",
+      "text": "El pedido va a la sesión activa del dock (queda en el chat) en vez de una sesión aparte",
+      "why": "Reusa la conexión, el modo y los permisos que ya hay y deja rastro de lo pedido; una sesión propia costaría otro agente corriendo"
+    },
+    {
+      "alternatives": "Ctrl+Shift+I; solo el menú contextual",
+      "at": "2026-10-27T23:57:29.325Z",
+      "text": "Atajo Alt+I",
+      "why": "Ctrl+I ya es Indentar en el Script Editor; Alt+\\ es el pedido manual del completado"
+    }
+  ],
   "description": "Idea de la comparación con otros harness (2026-10-27). Como Ctrl+I de Copilot o Cmd+K de Cursor: seleccionar código, escribir el pedido y ver el cambio como diff en el mismo editor, para aceptar o rechazar. Puente entre el dock y el completado (M8). Después: sugerencias del próximo cambio relacionado (next edit suggestions de Copilot).",
   "milestone": "m11",
-  "notes": "",
+  "notes": "editor/inline_edit.gd (Node del plugin): Alt+I en el CodeEdit activo (Ctrl+I ya es Indentar) y editor/inline_edit_menu.gd (EditorContextMenuPlugin en CONTEXT_SLOT_SCRIPT_EDITOR_CODE) abren un LineEdit junto al caret. El pedido va con build_prompt (archivo, líneas, código seleccionado; pide solo el código nuevo en un bloque y no editar archivos) a la sesión de la pestaña activa por plugin._ask_inline (send_prompt + agent_text_since; error si no hay sesión o está ocupada). extract_code toma el primer bloque; la propuesta se ve con DiffDialog.diff_bbcode (sacado del DiffDialog) en un PopupPanel con Aceptar/Rechazar. apply() verifica que el rango siga igual y reemplaza en begin/end_complex_operation (un Ctrl+Z, sin guardar). Pedido y respuesta quedan en el chat. No hecho: sugerencias del próximo cambio (next edit suggestions); queda como idea.",
   "order": 5,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
+  "test": "Unit: test_inline_edit (extract_code, build_prompt con y sin selección, apply sobre un CodeEdit con deshacer en un paso, rechazo si el código cambió, inserción en el caret, Alt+I); suite 296/0. Editor: cycle-test y edit-test pasan con el menú registrado (el crecimiento de objetos varía entre corridas: 1–33, también sin esta feature). No probado: el flujo completo con un agente real.",
   "title": "Chat en línea en el Script Editor (seleccionar y pedir)",
-  "updated_at": "2026-10-27T23:21:04.790Z"
+  "updated_at": "2026-10-27T23:57:30.280Z"
 }
