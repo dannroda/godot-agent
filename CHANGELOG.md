@@ -4,6 +4,25 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Agent terminals**: agents that run their commands through the editor (ACP `terminal/*`, used by Codex and others) go through the same shell rules as the rest: the mode's permission, the Auto lists, and the guards that block writing scenes by hand or opening Godot in its own window. The output shows live in the tool card. A command that sets environment variables always asks, and the card shows them.
+- **Agent forms and links** (ACP elicitation): when the agent needs an answer (text, options, a confirmation) or wants you to open a link to finish something, it shows as a card in the chat. Only web links (http/https) are accepted, and the address is shown before you open it. A session in another tab shows **⚠** and a notice while it waits for your answer.
+- **Agent sessions in the history**: for agents that keep their own sessions (such as Google Antigravity), the history menu also lists them and resumes them. Deleting a session asks first, and deletes it in the agent too when it supports that.
+- **Sign out** in the status line, for agents that support it (Claude Code, Google Antigravity).
+- **Quota for more agents**: Google Antigravity (each model group in the quota ring's tooltip), Codex (its 5-hour and weekly limits), and the limit errors of OpenCode, Copilot and Cursor.
+- The Extensions window works with every agent profile, not only Claude Code: skills, instructions, rules and workflows in the folders each agent reads (Codex, Google Antigravity, Copilot, Cursor, OpenCode), and the MCP servers from their config files.
+- On first launch there are no preset agents: the dock offers **Set up an agent…**, which opens Settings → Agents.
+
+### Changed
+
+- Adding an agent from the ACP registry shows the download progress, has no timeout for big programs, and reuses a version that's already installed.
+- Agent errors show their details, and **Open the log below** reopens the panel even when it was closed.
+
+### Fixed
+
+- Godot 4.8 crashed when closing the editor with the plugin enabled.
+- An agent could cancel a request and still have a command start.
 ## [0.1.7] - 2026-10-27
 
 ### Added
