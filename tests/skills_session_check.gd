@@ -23,7 +23,7 @@ func _initialize() -> void:
 	var controller := SessionController.new()
 	var project := ProjectSettings.globalize_path("res://").trim_suffix("/")
 	controller.setup(model, AgentLog.new(), project)
-	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.defaults()[0])
+	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)
 	var skills := SkillCatalog.scan(SkillCatalog.config_dir(profile.resolved_env()), project)
 	print("skills en disco: ", skills.map(func(skill: Dictionary) -> String: return skill.id))
 	if not await controller.start(profile):

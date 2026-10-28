@@ -30,7 +30,7 @@ func _initialize() -> void:
 	)
 	var controller := SessionController.new()
 	controller.setup(model, log, ProjectSettings.globalize_path("res://").trim_suffix("/"))
-	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.defaults()[0])
+	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)
 	print("perfil: ", profile.command_line())
 	if not await controller.start(profile):
 		printerr("FAIL no arrancó: ", model.failure_message)

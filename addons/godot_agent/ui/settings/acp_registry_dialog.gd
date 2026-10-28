@@ -16,16 +16,20 @@ var _agents: Array[Dictionary] = []
 var _query: LineEdit
 var _box: VBoxContainer
 var _status: Label
+var _progress: ProgressBar
 var _busy: bool = false
+var _downloading: String = ""  # nombre del agente cuyo binario se está bajando
 
 
 func _init() -> void:
 	title = I18n.t("Agents from the ACP registry")
 	ok_button_text = I18n.t("Close")
+	# Sin wrap_controls la ventana no crece con la lista (~40 agentes): scrollea, como Extensiones.
+	wrap_controls = false
+	min_size = Vector2i(AgentTheme.px(480), AgentTheme.px(400))
 	registry = AcpRegistry.new()
 	add_child(registry)
 	var page := VBoxContainer.new()
-	page.custom_minimum_size = Vector2(AgentTheme.px(520), AgentTheme.px(460))
 	add_child(page)
 	page.add_child(ExtensionsUi.muted(I18n.t("Agents that speak ACP, from the public registry that Zed and JetBrains use. Adding one creates its profile; a program is downloaded only for agents that ship one for this platform.")))
 	_query = LineEdit.new()
@@ -36,11 +40,33 @@ func _init() -> void:
 	_box = ExtensionsUi.scroll_list(page)
 	_status = ExtensionsUi.muted("")
 	page.add_child(_status)
+	_progress = ProgressBar.new()
+	_progress.visible = false
+	_progress.editor_preview_indeterminate = true  # el diálogo corre en el editor: sin esto no se anima ni se dibuja
+	page.add_child(_progress)
+	registry.unpacking.connect(func() -> void:
+		_downloading = ""
+		_progress.indeterminate = true
+		_status.text = I18n.t("Verifying and unpacking…"))
+	set_process(false)
+
+
+func _process(_delta: float) -> void:
+	if _downloading.is_empty():
+		return
+	var bytes: Array[int] = registry.download_progress()
+	var done := String.humanize_size(bytes[0])
+	_progress.indeterminate = bytes[1] <= 0
+	if bytes[1] > 0:
+		_progress.value = 100.0 * bytes[0] / bytes[1]
+		_status.text = I18n.t("Downloading %s: %s of %s") % [_downloading, done, String.humanize_size(bytes[1])]
+	else:
+		_status.text = I18n.t("Downloading %s: %s") % [_downloading, done]
 
 
 ## Abre el diálogo y, la primera vez, lee el registro.
 func open() -> void:
-	popup_centered()
+	popup_centered_clamped(Vector2i(AgentTheme.px(560), AgentTheme.px(560)), 0.8)
 	if _agents.is_empty() and not _busy:
 		_busy = true
 		_status.text = I18n.t("Reading the ACP registry…")
@@ -101,9 +127,17 @@ func _add(agent: Dictionary, button: Button) -> void:
 		return
 	_busy = true
 	button.disabled = true
-	# Un binario puede pesar cientos de MB (el de Antigravity, ~900) y el registro no dice cuánto.
-	_status.text = I18n.t("Downloading %s: it can take a few minutes…") % agent.name if agent.kind == AcpRegistry.KIND_BINARY else I18n.t("Installing %s…") % agent.name
+	# Un binario puede pesar cientos de MB (el de Antigravity, ~900): se ve cuánto va.
+	if agent.kind == AcpRegistry.KIND_BINARY:
+		_downloading = agent.name
+		_progress.value = 0
+		_progress.visible = true
+		set_process(true)
+	else:
+		_status.text = I18n.t("Installing %s…") % agent.name
 	var result: Dictionary = await registry.install(agent)
+	set_process(false)
+	_progress.visible = false
 	_busy = false
 	button.disabled = false
 	if not result.ok:

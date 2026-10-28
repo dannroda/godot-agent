@@ -1,7 +1,7 @@
 @tool
 extends MarginContainer
 ## Pestaña «Instructions» de Extensions (m11-07): ver y editar las instrucciones del proyecto para
-## los agentes (CLAUDE.md lo lee Claude Code; AGENTS.md, Codex y otros; GEMINI.md, Gemini CLI), y
+## los agentes (CLAUDE.md lo lee Claude Code; AGENTS.md, Codex y otros; GEMINI.md, Google Antigravity), y
 ## agregarles los datos del proyecto que el harness lee solo (ver ProjectFacts).
 
 signal status_changed(text: String, color: Color)
@@ -12,7 +12,7 @@ const ProjectFacts := preload("../../core/project_facts.gd")
 const ExtensionsUi := preload("extensions_ui.gd")
 
 const FILES: PackedStringArray = ["CLAUDE.md", "AGENTS.md", "GEMINI.md"]
-const READERS := {"CLAUDE.md": "Claude Code", "AGENTS.md": "Codex, Copilot, Cursor, OpenCode…", "GEMINI.md": "Gemini CLI"}
+const READERS := {"CLAUDE.md": "Claude Code", "AGENTS.md": "Codex, Antigravity, Copilot, Cursor, OpenCode…", "GEMINI.md": "Google Antigravity"}
 
 var project_path: String = ""
 var _file: OptionButton

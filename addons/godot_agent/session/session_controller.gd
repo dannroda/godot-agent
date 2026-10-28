@@ -8,6 +8,7 @@ signal connected
 signal disconnected
 ## Terminó la sincronización del modo del agente con el del harness (session/set_mode).
 signal agent_mode_synced
+signal _usage_query_done
 ## El usuario agregó una regla del modo Auto desde una tarjeta: hay que guardar la config.
 signal shell_rules_changed
 ## El usuario permitió un MCP server de terceros desde una tarjeta, para el modo y el proyecto: hay
@@ -56,6 +57,8 @@ const ACTION_TURN_CHANGES := "turn_changes"
 const ACTION_TURN_RESTORE := "turn_restore"
 ## Guardar el reporte del turno (m11-06), con la misma `data`.
 const ACTION_TURN_REPORT := "turn_report"
+## agentInfo.name del adaptador oficial de Google Antigravity (m11-11).
+const ANTIGRAVITY_AGENT := "antigravity-acp"
 const ACTION_SHOW_LOG := "show_log"
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
@@ -157,6 +160,9 @@ var _load_failed: bool = false
 var _login: AgentLogin
 ## Aviso del login en curso (se actualiza con el enlace y el resultado).
 var _login_entry: ChatEntry
+## El `/usage` de Antigravity en curso: sus mensajes no van al chat (ver `_query_agent_usage`).
+var _usage_query_running: bool = false
+var _usage_query_text: String = ""
 
 
 func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String) -> void:
@@ -168,6 +174,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	quota = QuotaMonitor.new()
 	quota.setup(agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
+	connected.connect(_query_agent_usage)
 	client.set_request_handler("session/request_permission", _on_request_permission)
 	client.incoming_cancelled.connect(_on_incoming_cancelled)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
@@ -284,6 +291,8 @@ func open_session(generation: int = _connect_generation) -> bool:
 ## En modo Revisar, un bloque `findings` en la respuesta reemplaza la revisión, salvo que
 ## `collect_findings` sea false (preguntas sobre un hallazgo).
 func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool = true) -> String:
+	if _usage_query_running:
+		await _usage_query_done
 	if model.state != SessionModel.SessionState.READY:
 		return ""
 	var turn_started := int(Time.get_unix_time_from_system())
@@ -359,7 +368,54 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		_report_turn_changes.call_deferred(turn_start, first_new_entry)
 	if stop_reason == "end_turn" and not is_command:
 		_verify_turn.call_deferred(turn_started)
+	_query_agent_usage()
 	return stop_reason
+
+
+## Antigravity no manda la cuota en usage_update: la dice su comando `/usage`, que no gasta tokens.
+## Se le pide al abrir la sesión y después de cada turno, sin que la pregunta ni la respuesta
+## aparezcan en el chat; un prompt del usuario que llega en el medio espera a que termine.
+func _query_agent_usage() -> void:
+	if str(model.agent_info.get("name", "")) != ANTIGRAVITY_AGENT or model.state != SessionModel.SessionState.READY or _usage_query_running:
+		return
+	_usage_query_running = true
+	_usage_query_text = ""
+	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": [{"type": "text", "text": "/usage"}]})
+	_usage_query_running = false
+	_usage_query_done.emit()
+	if not result.ok:
+		agent_log.add(AgentLog.CH_QUOTA, "/usage failed: %s" % result.error_message())
+		return
+	var groups := QuotaMonitor.parse_antigravity_usage(_usage_query_text)
+	quota.observe_windows(QuotaMonitor.antigravity_windows(groups, _current_model_name()), _usage_query_text)
+
+
+## Nombre del modelo elegido en la opción `model` («Gemini 3.8 Flash»), o su valor si no tiene nombre.
+func _current_model_name() -> String:
+	var option := model.config_option("model")
+	var value := str(option.get("currentValue", ""))
+	for item: Variant in option.get("options", []):
+		if item is Dictionary and str(item.get("value", "")) == value:
+			return str(item.get("name", value))
+	return value
+
+
+## Cierra la sesión de la cuenta en el agente (ACP `logout`) y lo detiene: la próxima sesión pide
+## login. Las credenciales las borra el agente; el addon no las ve.
+func logout() -> bool:
+	if not model.supports_logout() or not is_connected_to_agent():
+		return false
+	var result := await client.request("logout", {})
+	if not result.ok:
+		model.add_notice(I18n.t("Could not sign out: %s") % result.error_message(), ChatEntry.NoticeLevel.ERROR)
+		return false
+	agent_log.add(AgentLog.CH_PROC, "Signed out")
+	var name := _profile.display_name if _profile else str(model.agent_info.get("title", ""))
+	quota.forget_account()
+	model.set_account({})
+	stop()
+	model.add_notice(I18n.t("Signed out of %s. Start a session to sign in with another account.") % name)
+	return true
 
 
 ## Al terminar un turno de Construir o Auto, un aviso con lo que dejó: los archivos que cambió (si
@@ -942,6 +998,11 @@ func _on_session_update(params: Dictionary) -> void:
 		if params.get("sessionId") is String and not model.session_id.is_empty():
 			model.apply_child_update(params.sessionId, params.update)
 		return
+	if _usage_query_running and params.update.get("sessionUpdate") in ["agent_message_chunk", "agent_thought_chunk", "user_message_chunk"]:
+		var content: Variant = params.update.get("content")
+		if params.update.sessionUpdate == "agent_message_chunk" and content is Dictionary:
+			_usage_query_text += str(content.get("text", ""))
+		return
 	if params.update.get("sessionUpdate") == "usage_update":
 		quota.observe_update(params.update)
 	_notice_outside_turn(params.update)
@@ -1076,7 +1137,7 @@ func _fail(message: String, extra_actions: Array[Dictionary] = []) -> void:
 
 
 func _error_actions() -> Array[Dictionary]:
-	return [{"id": ACTION_RETRY, "label": I18n.t("Retry")}, {"id": ACTION_SHOW_LOG, "label": I18n.t("Show log")}]
+	return [{"id": ACTION_RETRY, "label": I18n.t("Retry")}, {"id": ACTION_SHOW_LOG, "label": I18n.t("Open the log below")}]
 
 
 func _auth_hint() -> String:

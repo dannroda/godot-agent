@@ -57,6 +57,7 @@ func test_extract() -> void:
 	assert_false(FileAccess.file_exists(root.path_join("evil.txt")), "sin rutas que salgan")
 	if OS.get_name() != "Windows":
 		assert_eq(OS.execute("test", ["-x", root.path_join("zip/agy_acp_server.par")]), 0, "queda ejecutable")
+		assert_eq(OS.execute("test", ["-x", root.path_join("zip/lib/data.txt")]), 0, "los demás del zip también (Antigravity lanza otro)")
 		OS.execute("tar", ["-czf", root.path_join("kilo.tar.gz"), "-C", root.path_join("zip"), "agy_acp_server.par"])
 		assert_eq(AcpRegistry.extract(root.path_join("kilo.tar.gz"), "https://x/kilo-linux.tar.gz", root.path_join("tar"), "./agy_acp_server.par"), "", "tar.gz con el tar del sistema")
 		assert_true(FileAccess.file_exists(root.path_join("tar/agy_acp_server.par")), "descomprimido")

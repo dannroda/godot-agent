@@ -192,3 +192,13 @@ func test_godot_run_unwraps_method() -> void:
 	assert_eq(model.tool_call("d").godot_tool_name(), "add_node", "las demás, igual que antes")
 	assert_eq(model.tool_call("d").godot_arguments(), {"type": "Node2D"}, "argumentos directos")
 	assert_eq(model.find_godot_tool_call("tilemap_set_cells", {"node_path": "Ground", "cells": []}), run, "el deshacer encuentra la llamada por el método")
+
+
+func test_supports_logout() -> void:
+	var model := SessionModel.new()
+	model.apply_initialize({"agentCapabilities": {"auth": {"logout": {}}}})
+	assert_true(model.supports_logout(), "auth.logout anunciado")
+	model.apply_initialize({"agentCapabilities": {"auth": {}}})
+	assert_false(model.supports_logout(), "sin logout")
+	model.apply_initialize({})
+	assert_false(model.supports_logout(), "sin capacidades")

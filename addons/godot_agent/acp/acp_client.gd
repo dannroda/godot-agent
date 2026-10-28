@@ -41,8 +41,12 @@ class AcpResponse:
 			response.error["data"] = data
 		return response
 
+	## Con `data.details` (o `data` texto), el detalle va al final: «Internal error» solo no dice nada.
 	func error_message() -> String:
-		return "%s (%s)" % [error.get("message", "error"), error.get("code", "?")]
+		var text := "%s (%s)" % [error.get("message", "error"), error.get("code", "?")]
+		var data: Variant = error.get("data")
+		var details: Variant = data.get("details") if data is Dictionary else data
+		return text + ": " + str(details) if details is String and not details.is_empty() else text
 
 
 class PendingRequest:

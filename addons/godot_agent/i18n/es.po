@@ -887,8 +887,8 @@ msgstr "No se modificó ningún preset. Revisá el panel Output."
 msgid "No profiles: completion is local only."
 msgstr "Sin perfiles: el completado es solo local."
 
-msgid "No profiles: set them up in the settings."
-msgstr "No hay perfiles: configuralos en ajustes."
+msgid "No agents yet: add one from the ACP registry or by hand."
+msgstr "Todavía no hay agentes: agregá uno del registro de ACP o a mano."
 
 msgid "No quota pause · warning at %d %%"
 msgstr "Sin pausa por cuota · aviso al %d %%"
@@ -1349,8 +1349,8 @@ msgstr "Mostrar %d anteriores (%d ocultas)"
 msgid "Show in folder"
 msgstr "Mostrar en carpeta"
 
-msgid "Show log"
-msgstr "Ver log"
+msgid "Open the log below"
+msgstr "Abrir el log abajo"
 
 msgid "Show the %s channel"
 msgstr "Mostrar el canal %s"
@@ -1405,6 +1405,9 @@ msgstr "Spec para revisar"
 
 msgid "Start One-shot"
 msgstr "Iniciar One-shot"
+
+msgid "Set up an agent…"
+msgstr "Configurar un agente…"
 
 msgid "Start session"
 msgstr "Iniciar sesión"
@@ -1669,9 +1672,6 @@ msgstr "Hay una ANTHROPIC_API_KEY en el entorno: Claude Code puede facturar por 
 
 msgid "There is an unfinished One-shot: «%s». It is paused; «Resume One-shot» reopens the agent session."
 msgstr "Hay un One-shot sin terminar: «%s». Está en pausa; «Retomar One-shot» reabre la sesión del agente."
-
-msgid "There must be at least one agent."
-msgstr "Tiene que haber al menos un agente."
 
 msgid "These apply when the editor is reopened. The position is the initial one: if you move the dock later, the editor remembers where you left it."
 msgstr "Se aplican al reabrir el editor. La ubicación es la inicial: si después movés el dock, el editor recuerda dónde lo dejaste."
@@ -2891,11 +2891,17 @@ msgstr "%s se agregó a los agentes. Guardá los ajustes para conservarlo."
 msgid "+ From the ACP registry…"
 msgstr "+ Del registro de ACP…"
 
-msgid "Claude, Codex, Gemini, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile."
-msgstr "Claude, Codex, Gemini, Copilot, Cursor, Google Antigravity y decenas más: elegí uno y el harness arma su perfil."
+msgid "Claude, Codex, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile."
+msgstr "Claude, Codex, Copilot, Cursor, Google Antigravity y decenas más: elegí uno y el harness arma su perfil."
 
-msgid "Downloading %s: it can take a few minutes…"
-msgstr "Bajando %s: puede tardar unos minutos…"
+msgid "Downloading %s: %s of %s"
+msgstr "Bajando %s: %s de %s"
+
+msgid "Downloading %s: %s"
+msgstr "Bajando %s: %s"
+
+msgid "Verifying and unpacking…"
+msgstr "Verificando y descomprimiendo…"
 
 msgid "Changes of the turn"
 msgstr "Cambios del turno"
@@ -3124,3 +3130,24 @@ msgstr "%s Los cambios quedan en la rama %s."
 
 msgid "Import"
 msgstr "Importar"
+
+msgid "Sign out"
+msgstr "Cerrar sesión"
+
+msgid "Sign out of this agent's account: the next session asks you to sign in."
+msgstr "Cierra la sesión de la cuenta de este agente: la próxima sesión te pide iniciar sesión."
+
+msgid "Sign out of %s (%s)?"
+msgstr "¿Cerrar la sesión de %s (%s)?"
+
+msgid "Sign out of %s?"
+msgstr "¿Cerrar la sesión de %s?"
+
+msgid "The agent deletes its saved credentials; the session closes."
+msgstr "El agente borra las credenciales guardadas y la sesión se cierra."
+
+msgid "Could not sign out: %s"
+msgstr "No se pudo cerrar la sesión: %s"
+
+msgid "Signed out of %s. Start a session to sign in with another account."
+msgstr "Se cerró la sesión de %s. Iniciá una sesión para entrar con otra cuenta."

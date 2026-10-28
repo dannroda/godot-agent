@@ -112,3 +112,10 @@ func test_send_failure_returns_error() -> void:
 	var response: AcpClient.AcpResponse = await client.request("initialize", {})
 	assert_false(response.ok, "falla sin transporte")
 	assert_eq(client.pending_count(), 0, "no queda pendiente")
+
+
+func test_error_message_details() -> void:
+	assert_eq(AcpClient.AcpResponse.failure(-32603, "Internal error").error_message(), "Internal error (-32603)", "sin data")
+	assert_eq(AcpClient.AcpResponse.failure(-32603, "Internal error", {"details": "Permission denied"}).error_message(), "Internal error (-32603): Permission denied", "data.details")
+	assert_eq(AcpClient.AcpResponse.failure(-1, "x", "texto").error_message(), "x (-1): texto", "data texto")
+	assert_eq(AcpClient.AcpResponse.failure(-1, "x", {"other": 1}).error_message(), "x (-1)", "data sin details")

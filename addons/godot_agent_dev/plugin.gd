@@ -415,7 +415,7 @@ func _run_claude_edit_test() -> void:
 		var option: String = request.call(&"option_id_for", PackedStringArray(["allow_once"]))
 		request.call(&"select", option)
 	)
-	var profile := AgentProfile.from_dict(AgentProfile.defaults()[0])
+	var profile := AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)
 	if not await controller.call(&"start", profile):
 		_finish(1, "no arrancó Claude: %s" % model.get(&"failure_message"))
 		return
@@ -496,7 +496,7 @@ func _run_review_test(real_claude: bool) -> void:
 	if _find_dock() == null:
 		_finish(1, "no se encontró el dock")
 		return
-	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.defaults()[0]) if real_claude else null
+	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE) if real_claude else null
 	var failures := _failures(await ReviewCheck.new().run_review(get_tree(), profile, _arg_value(UI_SHOT_ARG)))
 	for failure: String in failures:
 		print("[review-check] FALLA ", failure)
@@ -579,7 +579,7 @@ func _run_claude_scene_test() -> void:
 	await get_tree().create_timer(0.5).timeout
 	var controller: Object = dock.get(&"_controller")
 	var model: Object = dock.get(&"_model")
-	if not await controller.call(&"start", AgentProfile.from_dict(AgentProfile.defaults()[0])):
+	if not await controller.call(&"start", AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)):
 		_finish(1, "no arrancó Claude: %s" % model.get(&"failure_message"))
 		return
 	model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
@@ -654,7 +654,7 @@ func _run_claude_mcp_test() -> void:
 		if entry.channel == &"mcp":
 			print("[claude-mcp] mcp: ", str(entry.message).left(200))
 	)
-	if not await controller.call(&"start", AgentProfile.from_dict(AgentProfile.defaults()[0])):
+	if not await controller.call(&"start", AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)):
 		_finish(1, "no arrancó Claude: %s" % model.get(&"failure_message"))
 		return
 	print("[claude-mcp] http MCP: ", model.call(&"supports_http_mcp"))

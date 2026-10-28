@@ -34,7 +34,7 @@ const ORIGIN_LABELS: Dictionary = {
 var project_path: String = ""
 var claude_config_dir: String = ""
 var disabled: PackedStringArray = []
-## false: el perfil activo no es Claude Code (Gemini y Codex no tienen skills).
+## false: el perfil activo no es Claude Code (la pestaña solo sabe de las skills de Claude).
 var is_claude: bool = true
 ## Abre un archivo con la app del sistema (los checks lo reemplazan).
 var open_file: Callable = func(path: String) -> void: OS.shell_open(path)

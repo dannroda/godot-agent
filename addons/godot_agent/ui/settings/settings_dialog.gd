@@ -203,7 +203,7 @@ func _build_agents(page: VBoxContainer) -> void:
 		_edit_profile(_profiles.size() - 1))
 	var from_registry := Button.new()
 	from_registry.text = I18n.t("+ From the ACP registry…")
-	from_registry.tooltip_text = I18n.t("Claude, Codex, Gemini, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile.")
+	from_registry.tooltip_text = I18n.t("Claude, Codex, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile.")
 	from_registry.pressed.connect(func() -> void:
 		if _registry_dialog == null:
 			_registry_dialog = AcpRegistryDialog.new()
@@ -638,7 +638,7 @@ func validate() -> Dictionary:
 	var ids: Dictionary = {}
 	var defaults := 0
 	for profile: AgentProfile in _profiles:
-		# Sin comando vale: queda listado pero no arranca (el default de Codex viene así).
+		# Sin comando vale: queda listado pero no arranca.
 		if profile.id.strip_edges().is_empty():
 			return {"section": SettingsSection.AGENTS, "message": I18n.t("Each agent needs an ID (%s).") % profile.display_name}
 		if ids.has(profile.id):
@@ -649,8 +649,6 @@ func validate() -> Dictionary:
 			var value: String = profile.env[key]
 			if _secret_name.search(key) and not value.is_empty() and not value.begins_with("$"):
 				return {"section": SettingsSection.AGENTS, "message": I18n.t("%s: %s looks like a secret. Use $VARIABLE from the environment: the harness doesn't store keys.") % [profile.display_name, key]}
-	if _profiles.is_empty():
-		return {"section": SettingsSection.AGENTS, "message": I18n.t("There must be at least one agent.")}
 	if defaults > 1:
 		return {"section": SettingsSection.AGENTS, "message": I18n.t("Only one agent can be the default.")}
 	if _pause_check.button_pressed and _pause_spin.value <= _warn_spin.value:

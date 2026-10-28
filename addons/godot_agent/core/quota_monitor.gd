@@ -2,7 +2,8 @@
 extends RefCounted
 ## Cuota del plan del usuario (spec §10.1).
 ## Fuentes, en orden:
-## 1. los `usage_update` con `_meta["_claude/rateLimit"]` (D22);
+## 1. los `usage_update` con `_meta["_claude/rateLimit"]` (D22), o el `/usage` de Antigravity, que
+##    no manda la cuota en usage_update (ver `parse_antigravity_usage`);
 ## 2. avisos y errores de límite en el texto del agente o en session/prompt, con los patrones de
 ##    config/quota_patterns.txt;
 ## 3. sin datos, el estado queda "desconocido".
@@ -33,6 +34,7 @@ const WINDOW_LABELS: Dictionary = {
 	WINDOW_CURRENT: "Window",  # i18n
 	WINDOW_WEEKLY: "Week",  # i18n
 }
+const MONTHS: PackedStringArray = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 ## Reintentos sin hora de reinicio (minutos): 5, 10, 20 y después cada 60.
 const BACKOFF_MINUTES: Array[int] = [5, 10, 20, 60]
 const DEFAULT_WARN := 0.75
@@ -141,6 +143,19 @@ func observe_turn_ok() -> void:
 		_recompute()
 
 
+## Ventanas de otra fuente que `usage_update` ({five_hour: {utilization, resets_at}, seven_day: …}).
+func observe_windows(new_windows: Dictionary, raw: String) -> void:
+	if new_windows.is_empty():
+		_log("/usage: no quota windows in the agent's answer", raw)
+		return
+	windows = new_windows.duplicate(true)
+	var parts: PackedStringArray = []
+	for window_name: String in windows:
+		parts.append("%s %s" % [window_name, _percent(windows[window_name].utilization)])
+	_log("plan quota (/usage): %s" % " · ".join(parts), raw)
+	_recompute()
+
+
 ## Se cambió de cuenta: lo medido era de la anterior. Queda sin datos hasta que el agente informe.
 func forget_account() -> void:
 	windows.clear()
@@ -242,6 +257,59 @@ static func rate_limit_info(update: Dictionary) -> Dictionary:
 ## Hora de reinicio en un aviso de límite, como unix (0 si no tiene). Acepta el formato viejo
 ## "…|<unix>" y "resets 3pm", "resets 3:30 pm", "resets 15:00", "reinicia a las 15:00" (hora local:
 ## la próxima vez que llegue esa hora).
+## El `/usage` de Antigravity lista, por grupo de modelos, cuánto queda de cada ventana:
+##   - **Gemini Models**
+##     - **Weekly Limit Remaining:** 86% remaining (resets Nov 02, 2026, 00:41 UTC)
+##     - **Five Hour Limit Remaining:** 100% remaining (resets Oct 29, 2026, 00:09 UTC)
+## Devuelve {grupo: {five_hour: {utilization 0–1, resets_at}, seven_day: {…}}}.
+static func parse_antigravity_usage(text: String) -> Dictionary:
+	var groups: Dictionary = {}
+	var group := ""
+	var heading := RegEx.create_from_string("^- \\*\\*(.+?)\\*\\*\\s*$")
+	var limit := RegEx.create_from_string("^\\s+- \\*\\*(.+?)\\*\\*\\s*(\\d+(?:\\.\\d+)?)% remaining(?: \\(resets (\\w+) (\\d+), (\\d+), (\\d+):(\\d+) UTC\\))?")
+	for line: String in text.split("\n"):
+		var found := heading.search(line)
+		if found:
+			group = found.get_string(1)
+			groups[group] = {}
+			continue
+		found = limit.search(line)
+		if found == null or group.is_empty():
+			continue
+		var label := found.get_string(1).to_lower()
+		var window := WINDOW_WEEKLY if "week" in label else (WINDOW_CURRENT if "five hour" in label else "")
+		if window.is_empty():
+			continue
+		var reset := 0
+		var month := MONTHS.find(found.get_string(3).left(3).to_lower()) + 1
+		if month > 0:
+			reset = Time.get_unix_time_from_datetime_dict({"year": int(found.get_string(5)), "month": month, "day": int(found.get_string(4)), "hour": int(found.get_string(6)), "minute": int(found.get_string(7)), "second": 0})
+		groups[group][window] = {"utilization": 1.0 - float(found.get_string(2)) / 100.0, "resets_at": reset}
+	return groups
+
+
+## Las ventanas del grupo del modelo en uso: Argon tiene su semana aparte y comparte las 5 h con el
+## grupo de Gemini; Claude y GPT van juntos; el resto es el grupo de Gemini.
+static func antigravity_windows(groups: Dictionary, model_name: String) -> Dictionary:
+	var name := model_name.to_lower()
+	var key := "argon" if "argon" in name else ("claude" if "claude" in name or "gpt" in name else "gemini")
+	var result: Dictionary = _usage_group(groups, key).duplicate(true)
+	if key == "argon":
+		var gemini := _usage_group(groups, "gemini")
+		for window: String in gemini:
+			if not result.has(window):
+				result[window] = gemini[window].duplicate()
+	return result
+
+
+static func _usage_group(groups: Dictionary, key: String) -> Dictionary:
+	for group: String in groups:
+		var lower := group.to_lower()
+		if key in lower and (key != "gemini" or not "argon" in lower):
+			return groups[group]
+	return {}
+
+
 static func parse_reset_time(text: String, now: int) -> int:
 	var unix := RegEx.create_from_string("\\|\\s*(\\d{9,11})\\b").search(text)
 	if unix:

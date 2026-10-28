@@ -5,6 +5,9 @@ extends Node
 ## los binarios, baja el archivo, lo verifica con su sha256 (si el registro lo trae) y lo
 ## descomprime en la carpeta de datos del editor, compartida por todos los proyectos.
 
+## Terminó la descarga de un binario y empieza a verificarlo y descomprimirlo.
+signal unpacking
+
 const AddonVersion := preload("addon_version.gd")
 
 const REGISTRY_URL := "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"
@@ -17,6 +20,7 @@ const KINDS: PackedStringArray = [KIND_NPX, KIND_UVX, KIND_BINARY]
 
 ## Dónde se descomprimen los binarios: `<carpeta>/<id>/<versión>/`.
 var install_root: String = ""
+var _download: HTTPRequest
 
 
 func _init() -> void:
@@ -42,12 +46,17 @@ func install(agent: Dictionary) -> Dictionary:
 		return {"ok": true, "profile": profile_for(agent, ""), "error": ""}
 	var binary: Dictionary = agent.binary
 	var dest := install_root.path_join(agent.id).path_join(agent.version)
+	# Ya instalada esa versión (otro proyecto, o un «Agregar» que se cortó después del unzip): no se baja de nuevo.
+	if FileAccess.file_exists(dest.path_join(str(binary.cmd).trim_prefix("./"))):
+		return {"ok": true, "profile": profile_for(agent, dest), "error": ""}
 	var archive := install_root.path_join("%s-%s.download" % [agent.id, agent.version])
 	DirAccess.make_dir_recursive_absolute(install_root)
 	var response := await _fetch(binary.archive, archive)
 	if not response.error.is_empty():
 		DirAccess.remove_absolute(archive)
 		return {"ok": false, "profile": {}, "error": response.error}
+	unpacking.emit()
+	await get_tree().process_frame  # que el diálogo pinte el aviso antes del sha256 y el unzip, que bloquean
 	if not str(binary.sha256).is_empty() and FileAccess.get_sha256(archive) != str(binary.sha256).to_lower():
 		DirAccess.remove_absolute(archive)
 		return {"ok": false, "profile": {}, "error": "The download doesn't match the registry's checksum: it was not installed."}
@@ -134,6 +143,7 @@ static func extract(archive: String, url: String, dest: String, cmd: String) -> 
 		var reader := ZIPReader.new()
 		if reader.open(archive) != OK:
 			return "The downloaded file is not a valid zip."
+		var written: PackedStringArray = []
 		for path: String in reader.get_files():
 			if path.ends_with("/") or path.is_absolute_path() or ".." in path.split("/"):
 				continue
@@ -145,7 +155,11 @@ static func extract(archive: String, url: String, dest: String, cmd: String) -> 
 				return "Could not write %s." % target
 			file.store_buffer(reader.read_file(path))
 			file.close()
+			written.append(ProjectSettings.globalize_path(target))
 		reader.close()
+		# ZIPReader no trae los permisos: el programa puede lanzar otros del zip (Antigravity lanza localharness_external).
+		if OS.get_name() != "Windows" and not written.is_empty():
+			OS.execute("chmod", PackedStringArray(["+x"]) + written)
 	elif ".tar." in name or name.ends_with(".tgz"):
 		var output := []
 		if OS.execute("tar", ["-xf", ProjectSettings.globalize_path(archive), "-C", ProjectSettings.globalize_path(dest)], output, true) != 0:
@@ -168,17 +182,28 @@ static func _strings(value: Variant) -> PackedStringArray:
 	return result
 
 
+## `[bajados, total]` en bytes de la descarga en curso; total -1 si el servidor no lo dice.
+func download_progress() -> Array[int]:
+	if _download == null:
+		return [0, -1]
+	return [_download.get_downloaded_bytes(), _download.get_body_size()]
+
+
 ## `{body: PackedByteArray, error}`. Con `download_file`, el cuerpo va a ese archivo.
 func _fetch(url: String, download_file: String = "") -> Dictionary:
 	var http := HTTPRequest.new()
-	http.timeout = TIMEOUT_S
+	# timeout es el del pedido entero: un binario de ~900 MB no entra en TIMEOUT_S.
+	http.timeout = TIMEOUT_S if download_file.is_empty() else 0.0
 	http.download_file = download_file
 	add_child(http)
+	if not download_file.is_empty():
+		_download = http
 	var headers := PackedStringArray(["User-Agent: godot-agent-harness/%s" % AddonVersion.version()])
 	if http.request(url, headers) != OK:
 		http.queue_free()
 		return {"body": PackedByteArray(), "error": "Could not connect to %s." % url.get_slice("/", 2)}
 	var result: Array = await http.request_completed
+	_download = null
 	http.queue_free()
 	if int(result[0]) != HTTPRequest.RESULT_SUCCESS:
 		return {"body": PackedByteArray(), "error": "No connection to %s (%d)." % [url.get_slice("/", 2), int(result[0])]}

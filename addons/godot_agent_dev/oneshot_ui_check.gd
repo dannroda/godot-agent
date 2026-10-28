@@ -323,7 +323,7 @@ func run_claude_oneshot(tree: SceneTree, shot_path: String = "") -> PackedString
 		print("[claude-oneshot] permiso %s: %s" % ["denegado" if deny else "concedido", title.left(160)])
 		var option: String = request.call(&"option_id_for", PackedStringArray(["reject_once"] if deny else ["allow_once"]))
 		request.call(&"select", option))
-	_run.restart_session = func(_lost_id: String) -> bool: return await _run.controller.call(&"start", AgentProfile.from_dict(AgentProfile.defaults()[0]))
+	_run.restart_session = func(_lost_id: String) -> bool: return await _run.controller.call(&"start", AgentProfile.from_dict(AgentProfile.CLAUDE_CODE))
 	_run.activity_added.connect(func(entry: Dictionary) -> void: print("[claude-oneshot] %s %s %s" % [entry.time, entry.kind, str(entry.text).left(200)]))
 	EditorInterface.set_main_screen_editor(MAIN_SCREEN_NAME)
 	await _frames(10)

@@ -110,6 +110,8 @@ var _review_panel: ReviewPanel
 var _quota_ring: QuotaRing
 ## Remote Control (m7-21): botón de la línea de estado y franja con el link mientras está prendido.
 var _remote_button: Button
+var _logout_button: Button
+var _logout_dialog: ConfirmationDialog
 var _remote_banner: FoldableContainer
 var _remote_link: Button
 var _remote_qr_button: Button
@@ -300,6 +302,14 @@ func _build_remote_control() -> void:
 	# Un Label ignora el mouse por defecto: sin esto su tooltip (cuenta, error, subagentes) no se ve.
 	_status_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	status_row.add_child(_remote_button)
+	# Cerrar sesión de la cuenta (ACP `logout`), para cualquier agente que lo anuncie.
+	_logout_button = Button.new()
+	_logout_button.text = I18n.t("Sign out")
+	_logout_button.flat = true
+	_logout_button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
+	_logout_button.tooltip_text = I18n.t("Sign out of this agent's account: the next session asks you to sign in.")
+	_logout_button.pressed.connect(_confirm_logout)
+	status_row.add_child(_logout_button)
 	# Plegable (m7-26): el título y los botones quedan a la vista; el link, el QR y la aclaración se
 	# pliegan. El estado se conserva mientras el editor está abierto.
 	_remote_banner = FoldableContainer.new()
@@ -370,10 +380,28 @@ func _refresh_remote_control() -> void:
 	var on := not _model.remote_control_url.is_empty()
 	_remote_button.visible = _model.supports_remote_control() and _model.harness_mode != SessionModel.HarnessMode.ONESHOT and not on
 	_remote_button.disabled = _model.state != SessionModel.SessionState.READY
+	_logout_button.visible = _model.supports_logout() and _controller.is_connected_to_agent()
+	_logout_button.disabled = _model.state != SessionModel.SessionState.READY
 	_remote_banner.visible = on
 	_remote_link.text = _model.remote_control_url
 	_remote_qr.set_text(_model.remote_control_url)
 	_remote_link.tooltip_text = _model.remote_control_url
+
+
+func _confirm_logout() -> void:
+	if _logout_dialog == null:
+		_logout_dialog = ConfirmationDialog.new()
+		_logout_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		_logout_dialog.title = I18n.t("Sign out")
+		_logout_dialog.ok_button_text = I18n.t("Sign out")
+		_logout_dialog.cancel_button_text = I18n.t("Cancel")
+		_logout_dialog.confirmed.connect(func() -> void: _controller.logout())
+		add_child(_logout_dialog)
+	var profile := _controller.profile()
+	var who := str(_model.account.get("email", ""))
+	var name := profile.display_name if profile else I18n.t("Agent")
+	_logout_dialog.dialog_text = (I18n.t("Sign out of %s (%s)?") % [name, who] if not who.is_empty() else I18n.t("Sign out of %s?") % name) + "\n" + I18n.t("The agent deletes its saved credentials; the session closes.")
+	_logout_dialog.popup_centered()
 
 
 func _refresh_modes() -> void:
@@ -565,11 +593,15 @@ func _refresh_empty_state() -> void:
 	var idle := _model.state == SessionModel.SessionState.DISCONNECTED or (entries.is_empty() and _model.state == SessionModel.SessionState.FAILED)
 	_empty_state.visible = idle and only_notices
 	_conversation.visible = not entries.is_empty()
-	_start_button.text = I18n.t("Resume One-shot") if _oneshot_active else I18n.t("Start session")
 	var profile := _settings.active_profile()
-	_empty_command.text = profile.command_line() if profile else I18n.t("No profiles: set them up in the settings.")
+	# Primer arranque: no hay agentes preseteados y el botón lleva a elegir uno (Settings → Agentes).
+	if profile == null:
+		_start_button.text = I18n.t("Set up an agent…")
+	else:
+		_start_button.text = I18n.t("Resume One-shot") if _oneshot_active else I18n.t("Start session")
+	_empty_command.text = profile.command_line() if profile else I18n.t("No agents yet: add one from the ACP registry or by hand.")
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	_start_button.disabled = profile == null or _model.state == SessionModel.SessionState.STARTING
+	_start_button.disabled = _model.state == SessionModel.SessionState.STARTING
 
 
 # --- sesión --------------------------------------------------------------------------------------

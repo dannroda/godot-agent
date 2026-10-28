@@ -9,12 +9,26 @@ const PermissionPolicy := preload("res://addons/godot_agent/session/permission_p
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 
 
-func _dialog(config: ProjectConfig = ProjectConfig.new()) -> SettingsDialog:
+## Sin agentes preseteados: los tests cargan tres a mano.
+func _dialog(config: ProjectConfig = ProjectConfig.new(), with_agents := true) -> SettingsDialog:
+	var settings := HarnessSettings.new()
+	if with_agents:
+		var list: Array[AgentProfile] = []
+		for id: String in ["claude-code", "gemini", "codex"]:
+			list.append(AgentProfile.from_dict(AgentProfile.CLAUDE_CODE.merged({"id": id, "default": id == "claude-code"}, true)))
+		settings.save_profiles(list)
 	var dialog := SettingsDialog.new()
-	dialog.setup(HarnessSettings.new(), config)
+	dialog.setup(settings, config)
 	(Engine.get_main_loop() as SceneTree).root.add_child(dialog)
 	dialog.call(&"_load")
 	return dialog
+
+
+func test_no_agents_preset() -> void:
+	var dialog := _dialog(ProjectConfig.new(), false)
+	assert_true((dialog.get(&"_profiles") as Array).is_empty(), "primer arranque: sin agentes")
+	assert_true(dialog.validate().is_empty(), "sin agentes se puede guardar el resto")
+	dialog.free()
 
 
 func test_loads_and_validates() -> void:
@@ -22,7 +36,7 @@ func test_loads_and_validates() -> void:
 	assert_true(dialog.validate().is_empty(), "los defaults validan")
 	assert_true(dialog.matrix_overrides().is_empty(), "matriz de la spec: sin overrides")
 	var profiles: Array = dialog.get(&"_profiles")
-	assert_true(profiles.size() >= 1, "carga los perfiles default")
+	assert_true(profiles.size() >= 1, "carga los perfiles guardados")
 
 	(profiles[0] as AgentProfile).env = {"ANTHROPIC_API_KEY": "sk-ant-123"}
 	var error := dialog.validate()

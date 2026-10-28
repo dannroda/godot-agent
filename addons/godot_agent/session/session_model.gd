@@ -202,6 +202,12 @@ func supports_http_mcp() -> bool:
 	return mcp_caps is Dictionary and bool(mcp_caps.get("http", false))
 
 
+## ACP `logout` (agentCapabilities.auth.logout): Claude Code y Antigravity lo anuncian.
+func supports_logout() -> bool:
+	var auth: Variant = agent_capabilities.get("auth")
+	return auth is Dictionary and auth.get("logout") is Dictionary
+
+
 func supports_load_session() -> bool:
 	return bool(agent_capabilities.get("loadSession", false))
 

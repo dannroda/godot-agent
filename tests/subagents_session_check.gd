@@ -44,7 +44,7 @@ func _initialize() -> void:
 	model.tool_call_changed.connect(func(call: SessionModel.ToolCall, _group: ChatEntry) -> void:
 		if not call.subagent_state.is_empty() and (states.is_empty() or states.back() != call.subagent_state):
 			states.append(call.subagent_state))
-	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.defaults()[0])
+	var profile: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)
 	if not await controller.start(profile):
 		printerr("FAIL no arrancó: ", model.failure_message)
 		quit(1)

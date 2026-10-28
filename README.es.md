@@ -4,7 +4,7 @@
 
 ![El dock Agent al lado de una escena 2D: el agente leyó la escena, editó un script y conectó una señal con las herramientas del editor](docs/images/es/overview.png)
 
-Addon de editor para Godot 4 que conecta un agente de código (Claude Code, Gemini CLI, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
+Addon de editor para Godot 4 que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
 
 - leer escenas y scripts, la selección y los errores;
 - editar nodos y propiedades, cada cambio un paso de deshacer;

@@ -61,7 +61,7 @@ func run(tree: SceneTree, dock: Control, prefix: String) -> PackedStringArray:
 		# Sin sesión abierta no hay perfil: se usa el de Claude Code por defecto, como al conectar.
 		var controller: Object = main_plugin.get(&"_controller")
 		var previous: Variant = controller.get(&"_profile")
-		controller.set(&"_profile", AgentProfile.from_dict(AgentProfile.defaults()[0]))
+		controller.set(&"_profile", AgentProfile.from_dict(AgentProfile.CLAUDE_CODE))
 		var meta: Dictionary = main_plugin.call(&"_session_meta")
 		controller.set(&"_profile", previous)
 		var expected := settings.duplicate()

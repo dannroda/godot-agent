@@ -4,6 +4,9 @@ extends RefCounted
 ## EditorSettings. `env` guarda valores literales: para secretos, el perfil referencia una
 ## variable del entorno del editor con `$NOMBRE` y se resuelve al lanzar (no se guarda la clave).
 
+## Claude Code por ACP, para las pruebas contra el agente real: al usuario no se le presetea ninguno.
+const CLAUDE_CODE := {"id": "claude-code", "display_name": "Claude Code", "command": "npx", "args": ["-y", "@agentclientprotocol/claude-agent-acp"]}
+
 var id: String = ""
 var display_name: String = ""
 var command: String = ""
@@ -57,31 +60,3 @@ func command_line() -> String:
 	parts.append_array(args)
 	return " ".join(parts)
 
-
-static func defaults() -> Array[Dictionary]:
-	return [
-		{
-			"id": "claude-code",
-			"display_name": "Claude Code",
-			"command": "npx",
-			"args": ["-y", "@agentclientprotocol/claude-agent-acp"],
-			"env": {},
-			"default": true,
-		},
-		{
-			"id": "gemini-cli",
-			"display_name": "Gemini CLI",
-			"command": "gemini",
-			"args": [],
-			"env": {},
-			"default": false,
-		},
-		{
-			"id": "codex",
-			"display_name": "Codex",
-			"command": "",
-			"args": [],
-			"env": {},
-			"default": false,
-		},
-	]

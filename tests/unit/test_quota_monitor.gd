@@ -126,3 +126,47 @@ func test_format_duration() -> void:
 	assert_eq(QuotaMonitor.format_duration(4 * 60 + 10), "4 min", "minutos")
 	assert_eq(QuotaMonitor.format_duration(2 * 3600 + 10 * 60), "2 h 10 min", "horas")
 	assert_eq(QuotaMonitor.format_duration(3 * 86400), "3 days", "días")
+
+
+## El `/usage` real de Antigravity 1.4.3 (2026-10-28).
+const AGY_USAGE := """### Session Usage
+- **Session total:** data not available yet
+
+### Quota Limits
+- **Gemini Models**
+  *(Models within this group: Gemini Flash, Gemini Pro)*
+  - **Weekly Limit Remaining:** 86% remaining (resets Nov 02, 2026, 00:41 UTC)
+  - **Five Hour Limit Remaining:** 100% remaining (resets Oct 29, 2026, 00:09 UTC)
+- **Claude and GPT models**
+  *(Models within this group: Claude Opus, Claude Sonnet, GPT-OSS)*
+  - **Weekly Limit Remaining:** 100% remaining (resets Nov 04, 2026, 19:10 UTC)
+  - **Five Hour Limit Remaining:** 100% remaining (resets Oct 29, 2026, 00:10 UTC)
+- **Gemini 4 Argon**
+  *(For paid Pro plans, Argon quota is separate.)*
+  - **Gemini 4 Argon Weekly Limit:** 59% remaining (resets Nov 02, 2026, 20:04 UTC)
+"""
+
+
+func test_antigravity_usage() -> void:
+	var groups := QuotaMonitor.parse_antigravity_usage(AGY_USAGE)
+	assert_eq(groups.keys(), ["Gemini Models", "Claude and GPT models", "Gemini 4 Argon"], "tres grupos")
+	var gemini: Dictionary = groups["Gemini Models"]
+	assert_true(absf(gemini.seven_day.utilization - 0.14) < 0.001, "86 % restante = 14 % usado")
+	assert_eq(gemini.five_hour.utilization, 0.0, "100 % restante")
+	assert_eq(gemini.seven_day.resets_at, Time.get_unix_time_from_datetime_string("2026-11-02T00:41:00"), "reinicio en UTC")
+	assert_eq(groups["Gemini 4 Argon"].keys(), ["seven_day"], "Argon solo trae la semana")
+
+	var flash := QuotaMonitor.antigravity_windows(groups, "Gemini 3.8 Flash")
+	assert_true(absf(flash.seven_day.utilization - 0.14) < 0.001, "Flash usa el grupo de Gemini")
+	var argon := QuotaMonitor.antigravity_windows(groups, "Gemini 4 Argon")
+	assert_true(absf(argon.seven_day.utilization - 0.41) < 0.001, "Argon: su propia semana")
+	assert_eq(argon.five_hour, gemini.five_hour, "Argon: las 5 h del grupo de Gemini")
+	assert_eq(QuotaMonitor.antigravity_windows(groups, "Claude Opus 5.5").seven_day.resets_at, Time.get_unix_time_from_datetime_string("2026-11-04T19:10:00"), "Claude va con GPT")
+	assert_true(QuotaMonitor.parse_antigravity_usage("ok").is_empty(), "sin cuota, vacío")
+
+	var monitor := _monitor()
+	monitor.observe_windows(argon, AGY_USAGE)
+	assert_true(monitor.has_data(), "las ventanas de /usage cuentan como datos")
+	assert_true(absf(monitor.utilization(QuotaMonitor.WINDOW_WEEKLY) - 0.41) < 0.001, "semana")
+	monitor.observe_windows({}, "nada")
+	assert_true(monitor.has_data(), "una respuesta sin ventanas no borra las anteriores")

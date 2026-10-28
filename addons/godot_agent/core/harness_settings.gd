@@ -70,7 +70,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 	_editor_settings = editor_settings
 	if _editor_settings:
 		_declare(KEY_ACCENT, DEFAULT_ACCENT, TYPE_COLOR)
-		_declare(KEY_PROFILES, JSON.stringify(AgentProfile.defaults()), TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
+		_declare(KEY_PROFILES, "[]", TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_LAST_PROFILE, "", TYPE_STRING)
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
 		_declare(KEY_MCP_SERVERS, "[]", TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
@@ -128,7 +128,7 @@ func profiles() -> Array[AgentProfile]:
 	var raw: Variant = get_value(KEY_PROFILES, "")
 	var data: Variant = JSON.parse_string(raw) if raw is String and not raw.is_empty() else null
 	if not data is Array:
-		data = AgentProfile.defaults()
+		return result
 	for item: Variant in data:
 		if item is Dictionary:
 			var profile: AgentProfile = AgentProfile.from_dict(item)

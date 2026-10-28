@@ -71,6 +71,7 @@ func make_visible(surface: EditorSurface) -> void:
 			continue
 		var wrapper: Control = entry.wrapper
 		if is_instance_valid(wrapper):
+			wrapper.call(&"open")  # si el usuario cerró el panel, make_visible solo no lo vuelve a abrir
 			wrapper.call(&"make_visible")
 			return
 		var mounted: Control = entry.mounted
