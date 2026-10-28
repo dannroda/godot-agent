@@ -14,6 +14,18 @@
 
 Switching mode also switches the agent's own mode when it publishes one: Ask and Review use `plan`; Build, Auto and One-shot use `default`.
 
+### Check after each turn
+
+In Build and Auto, when a turn ends the harness validates the `.gd` scripts that changed during it, whichever way the agent wrote them. If one doesn't parse, the agent gets the errors in a new turn to fix them, up to two turns in a row; after that, or if you already queued a message, they stay as a notice in the chat. Turn it off in Settings → MCP servers (**Check the scripts after each turn**).
+
+### Changes of each turn
+
+In Build and Auto, when the project is in a git repo, a turn that changed files ends with a notice: how many files, lines added and removed, and two actions. **View changes** lists the files, each with its diff and **Go back** (that file returns to how it was before the turn). **Go back to before this turn** does that for every file, including what changed after the turn, and asks first; the chat then offers **Undo**. The agent is told which files were reverted before its next turn.
+
+The notice also counts the screenshots the agent took during the turn (of the game or the editor), and **Save report** writes `.godot_agent/reports/<date>/report.md` with what the agent said, the files it changed and those screenshots as PNG files, and opens the folder: something to look at later or to share. Without git, the notice shows only when there are screenshots.
+
+The harness takes a snapshot of the project folder at the start and at the end of each turn, as git commits outside your branches (`refs/godot-agent/turns/…`, the last 60 per session). Your branch, index and stash are not touched, and files `.gitignore` leaves out are not part of it, nor are `.godot/` and `.godot_agent/`. Turn it off in Settings → MCP servers (**Keep a snapshot of the project on each turn**).
+
 ## Permissions
 
 Every action belongs to a group, and each group has a decision per mode: **Allow**, **Ask** or **Deny**.

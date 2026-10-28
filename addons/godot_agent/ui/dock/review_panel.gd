@@ -6,6 +6,8 @@ extends PanelContainer
 signal finding_selected(id: int)
 signal export_requested
 signal fix_all_requested
+## Traer los comentarios de revisión de un PR de GitHub como hallazgos (m11-10).
+signal github_import_requested
 
 const ReviewStore := preload("../../review/review_store.gd")
 const AgentTheme := preload("../agent_theme.gd")
@@ -86,6 +88,12 @@ func _ready() -> void:
 	_fix_button.add_theme_color_override(&"font_hover_color", Color("#1a1408"))
 	_fix_button.pressed.connect(fix_all_requested.emit)
 	actions.add_child(_fix_button)
+	var github := Button.new()
+	github.text = I18n.t("From a GitHub PR…")
+	github.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	github.tooltip_text = I18n.t("Brings the review comments of a pull request (with the gh CLI) as findings, with their file and line")
+	github.pressed.connect(github_import_requested.emit)
+	actions.add_child(github)
 	column.add_child(actions)
 
 	_store.changed.connect(refresh)

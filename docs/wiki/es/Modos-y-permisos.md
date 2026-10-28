@@ -14,6 +14,18 @@
 
 Cambiar de modo cambia también el modo del agente, si lo publica: Preguntar y Revisar usan `plan`; Construir, Auto y One-shot usan `default`.
 
+### Verificación al terminar cada turno
+
+En Construir y Auto, al terminar un turno el harness valida los scripts `.gd` que cambiaron, los haya escrito el agente como sea. Si alguno no parsea, el agente recibe los errores en un turno nuevo para corregirlos, hasta dos turnos seguidos; después de eso, o si ya encolaste un mensaje, quedan como aviso en el chat. Se apaga en Settings → Servidores MCP (**Verificar los scripts al terminar cada turno**).
+
+### Cambios de cada turno
+
+En Construir y Auto, si el proyecto está en un repo de git, un turno que cambió archivos termina con un aviso: cuántos archivos, líneas agregadas y quitadas, y dos acciones. **Ver cambios** lista los archivos, cada uno con su diff y **Volver atrás** (ese archivo vuelve a como estaba antes del turno). **Volver a antes de este turno** hace eso con todos, incluido lo que cambió después del turno, y pregunta antes; después el chat ofrece **Deshacer**. Antes de su próximo turno, el agente se entera de qué archivos se volvieron atrás.
+
+El aviso también cuenta las capturas que el agente tomó en el turno (del juego o del editor), y **Guardar reporte** escribe `.godot_agent/reports/<fecha>/report.md` con lo que contó el agente, los archivos que cambió y esas capturas como PNG, y abre la carpeta: algo para mirar después o compartir. Sin git, el aviso aparece solo si hay capturas.
+
+El harness guarda un snapshot de la carpeta del proyecto al empezar y al terminar cada turno, como commits de git fuera de tus ramas (`refs/godot-agent/turns/…`, los últimos 60 por sesión). Tu rama, el index y el stash no se tocan, y lo que `.gitignore` deja afuera no entra, ni `.godot/` ni `.godot_agent/`. Se apaga en Settings → Servidores MCP (**Guardar un snapshot del proyecto en cada turno**).
+
 ## Permisos
 
 Cada acción cae en un grupo, y cada grupo tiene una decisión por modo: **Permitir**, **Preguntar** o **Denegar**.

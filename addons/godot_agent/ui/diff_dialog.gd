@@ -21,6 +21,12 @@ func _ready() -> void:
 
 func show_diff(dialog_title: String, old_label: String, old_text: String, new_label: String, new_text: String) -> void:
 	title = dialog_title
+	_label.text = diff_bbcode(old_label, old_text, new_label, new_text)
+	popup_centered_ratio(0.6)
+
+
+## El diff por líneas en BBCode, con un encabezado de qué es cada lado y cuántas líneas cambian.
+static func diff_bbcode(old_label: String, old_text: String, new_label: String, new_text: String) -> String:
 	var ops := LineDiff.diff(old_text, new_text)
 	var counts := LineDiff.count(ops)
 	var lines: PackedStringArray = [
@@ -37,5 +43,4 @@ func show_diff(dialog_title: String, old_label: String, old_text: String, new_la
 				lines.append("[bgcolor=#%s]− %s[/bgcolor]" % [AgentTheme.REMOVED_BG.to_html(true), text])
 			_:
 				lines.append("[color=#8a8f98]  %s[/color]" % text)
-	_label.text = "\n".join(lines)
-	popup_centered_ratio(0.6)
+	return "\n".join(lines)

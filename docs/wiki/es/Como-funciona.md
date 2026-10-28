@@ -62,6 +62,10 @@ Cada sesión se guarda en `user://godot_agent/sessions/` una vez por turno, sin 
 
 La primera pestaña es la que corre el One-shot, las marcas de Revisar y Remote Control; las demás tienen los modos Preguntar, Revisar, Construir y Auto. Cerrar una pestaña termina su sesión.
 
+**+** también ofrece **Sesión nueva en una copia aparte (git worktree)**: el agente trabaja en una copia del proyecto en una rama nueva (`agent/copy-<fecha>`), creada al lado del repo (`<repo>.godot-agent-copies/`) desde tu último commit, así que los cambios sin commitear no están. No toca el editor abierto: edita archivos con sus propias herramientas y los verifica con Godot headless, y las herramientas `godot.*` que editan el proyecto del editor o corren su juego se le rechazan. Al cerrar su pestaña, lo que cambió se commitea en su rama y elegís: **Aplicar al proyecto** (como cambios sin commitear, con `git apply`; si cambiaste los mismos archivos y no entra limpio, la rama queda), **Dejar la rama** o **Descartar**. Una copia sin cambios se borra sola.
+
+Doble clic en una pestaña la renombra (vacía, vuelve a «Sesión N»). El nombre es también el que usan los agentes para referirse a esa sesión, así que dos sesiones no pueden compartirlo. Una pestaña con **⚠** espera tu permiso; si no está a la vista, el editor además muestra un aviso. **●** quiere decir que su agente está trabajando. La línea de estado debajo del header muestra con qué cuenta de Claude Code está logueada cada sesión.
+
 ## La cuota del plan
 
 Claude Code informa el uso de las ventanas de tu plan (5 horas y semanal). El harness lo muestra, avisa al 75 %, pausa el One-shot al 90 % y, al llegar al límite, bloquea el envío con una cuenta regresiva hasta que la ventana se reinicia. No estima la cuota con tokens, no consulta endpoints no documentados y no lee archivos del agente. Ver [One-shot → cuota](One-shot.md#cuota-del-plan).

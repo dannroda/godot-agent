@@ -61,3 +61,9 @@ Pick the mode in **Settings → Completion**:
 - A remote profile warns you that the code around the cursor, and a summary of the project (nodes, autoloads, actions), is sent to that server.
 - LLM suggestions end with a small dot; you can turn it off.
 - The Agent Log (`cmp` channel) records latencies and sizes, never code, unless you turn on **"Raw" log**.
+
+## Ask the agent for a change (Alt+I)
+
+Different from the suggestions above, this goes to the agent. Select some code (or leave the cursor where something should go) and press **Alt+I**, or right-click → **Ask the agent to change this…**. Write what you want ("make these constants", "add a jump with coyote time") and press Enter.
+
+The request goes to the session of the dock's active tab, with the file, the lines and the selected code, and the agent answers with just the new code. It shows up as a diff next to the code: **Accept** replaces the selection (or inserts at the cursor) as one Ctrl+Z step, without saving the file; **Reject** leaves it as it was. If you changed that code while the agent was answering, the proposal is not applied. The request and the answer also stay in the chat. A session has to be started in the dock, and free (not in the middle of a turn).

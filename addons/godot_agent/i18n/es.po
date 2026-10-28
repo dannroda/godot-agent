@@ -2839,3 +2839,288 @@ msgstr "Doble clic para renombrar"
 
 msgid "There is already a session called «%s»: pick another name."
 msgstr "Ya hay una sesión llamada «%s»: elegí otro nombre."
+
+msgid "«%s» is waiting for your permission."
+msgstr "«%s» espera tu permiso."
+
+msgid "Check after the turn: some scripts don't parse. The agent gets the errors to fix them (%d of %d)."
+msgstr "Verificación al terminar el turno: hay scripts que no parsean. El agente recibe los errores para corregirlos (%d de %d)."
+
+msgid "Check after the turn: some scripts don't parse."
+msgstr "Verificación al terminar el turno: hay scripts que no parsean."
+
+msgid "Check the scripts after each turn"
+msgstr "Verificar los scripts al terminar cada turno"
+
+msgid "In Build and Auto, when a turn ends the harness validates the scripts that changed. If one doesn't parse, the agent gets the errors to fix them (up to 2 turns in a row); then they stay as a notice in the chat."
+msgstr "En Construir y Auto, al terminar un turno el harness valida los scripts que cambiaron. Si alguno no parsea, el agente recibe los errores para corregirlos (hasta 2 turnos seguidos); después quedan como aviso en el chat."
+
+msgid "Agents from the ACP registry"
+msgstr "Agentes del registro de ACP"
+
+msgid "Agents that speak ACP, from the public registry that Zed and JetBrains use. Adding one creates its profile; a program is downloaded only for agents that ship one for this platform."
+msgstr "Agentes que hablan ACP, del registro público que usan Zed y JetBrains. Agregar uno crea su perfil; solo se baja un programa para los agentes que traen uno para esta plataforma."
+
+msgid "Filter by name, author or description"
+msgstr "Filtrar por nombre, autor o descripción"
+
+msgid "Reading the ACP registry…"
+msgstr "Leyendo el registro de ACP…"
+
+msgid "Could not read the ACP registry: %s"
+msgstr "No se pudo leer el registro de ACP: %s"
+
+msgid "%d agents for this platform."
+msgstr "%d agentes para esta plataforma."
+
+msgid "The registry has no checksum for this download: it can't be verified."
+msgstr "El registro no trae checksum para esta descarga: no se puede verificar."
+
+msgid "Add without checksum"
+msgstr "Agregar sin checksum"
+
+msgid "program for this platform"
+msgstr "programa para esta plataforma"
+
+msgid "Could not add %s: %s"
+msgstr "No se pudo agregar %s: %s"
+
+msgid "%s added to the agents. Save the settings to keep it."
+msgstr "%s se agregó a los agentes. Guardá los ajustes para conservarlo."
+
+msgid "+ From the ACP registry…"
+msgstr "+ Del registro de ACP…"
+
+msgid "Claude, Codex, Gemini, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile."
+msgstr "Claude, Codex, Gemini, Copilot, Cursor, Google Antigravity y decenas más: elegí uno y el harness arma su perfil."
+
+msgid "Downloading %s: it can take a few minutes…"
+msgstr "Bajando %s: puede tardar unos minutos…"
+
+msgid "Changes of the turn"
+msgstr "Cambios del turno"
+
+msgid "What the agent changed in the project during that turn. «Go back» leaves a file as it was before the turn."
+msgstr "Lo que el agente cambió en el proyecto durante ese turno. «Volver atrás» deja un archivo como estaba antes del turno."
+
+msgid "Diff"
+msgstr "Diff"
+
+msgid "Went back"
+msgstr "Vuelto atrás"
+
+msgid "Go back"
+msgstr "Volver atrás"
+
+msgid "This turn changed %d files (+%d −%d): %s"
+msgstr "Este turno cambió %d archivos (+%d −%d): %s"
+
+msgid "View changes"
+msgstr "Ver cambios"
+
+msgid "Go back to before this turn"
+msgstr "Volver a antes de este turno"
+
+msgid "before the turn"
+msgstr "antes del turno"
+
+msgid "The project's files go back to how they were before this turn, including what changed after it (by the agent or by you). Files .gitignore leaves out are not touched. You can undo it from the chat."
+msgstr "Los archivos del proyecto vuelven a como estaban antes de este turno, incluido lo que cambió después (por el agente o por vos). Lo que .gitignore deja afuera no se toca. Se puede deshacer desde el chat."
+
+msgid "Could not go back: git failed."
+msgstr "No se pudo volver atrás: falló git."
+
+msgid "Went back: %s"
+msgstr "Vuelto atrás: %s"
+
+msgid "Keep a snapshot of the project on each turn (git)"
+msgstr "Guardar un snapshot del proyecto en cada turno (git)"
+
+msgid "In Build and Auto, each turn ends with a notice of the files it changed, to see their diff and go back. The snapshots are git commits outside your branches (refs/godot-agent/turns); your branch, index and stash are not touched."
+msgstr "En Construir y Auto, cada turno termina con un aviso de los archivos que cambió, para ver su diff y volver atrás. Los snapshots son commits de git fuera de tus ramas (refs/godot-agent/turns); tu rama, el index y el stash no se tocan."
+
+msgid "Ask the agent to change this code…"
+msgstr "Pedile al agente un cambio en este código…"
+
+msgid "Reject"
+msgstr "Rechazar"
+
+msgid "Accept"
+msgstr "Aceptar"
+
+msgid "Asking the agent…"
+msgstr "Preguntándole al agente…"
+
+msgid "The agent didn't answer with a code block: its reply is in the chat."
+msgstr "El agente no contestó con un bloque de código: su respuesta está en el chat."
+
+msgid "The agent's proposal: accept it to apply it (Ctrl+Z undoes it), or reject it."
+msgstr "La propuesta del agente: aceptala para aplicarla (Ctrl+Z la deshace) o rechazala."
+
+msgid "proposal"
+msgstr "propuesta"
+
+msgid "The code changed while the agent was answering: the proposal was not applied."
+msgstr "El código cambió mientras el agente contestaba: la propuesta no se aplicó."
+
+msgid "Ask the agent to change this… (Alt+I)"
+msgstr "Pedirle un cambio al agente… (Alt+I)"
+
+msgid "Start a session in the Agent dock first."
+msgstr "Primero iniciá una sesión en el dock del agente."
+
+msgid "The agent is busy: try again when its turn ends."
+msgstr "El agente está ocupado: probá de nuevo cuando termine su turno."
+
+msgid "The turn ended with «%s»."
+msgstr "El turno terminó con «%s»."
+
+msgid "%d captures of the game or the editor."
+msgstr "%d capturas del juego o del editor."
+
+msgid "Save report"
+msgstr "Guardar reporte"
+
+msgid "Could not save the report in %s."
+msgstr "No se pudo guardar el reporte en %s."
+
+msgid "Report saved in %s."
+msgstr "Reporte guardado en %s."
+
+msgid "What every agent session reads about this project: conventions, how to run and test it, what not to touch. Each agent reads its own file at the start of a session."
+msgstr "Lo que toda sesión de un agente lee sobre este proyecto: convenciones, cómo correrlo y probarlo, qué no tocar. Cada agente lee su propio archivo al empezar una sesión."
+
+msgid "Empty: this file doesn't exist yet. Write here or add the project facts, then save."
+msgstr "Vacío: este archivo todavía no existe. Escribí acá o agregá los datos del proyecto, y guardá."
+
+msgid "Add the project facts"
+msgstr "Agregar los datos del proyecto"
+
+msgid "Godot version, main scene, autoloads, named layers, input actions and folders, read from the project. It goes between markers: adding it again updates it without touching the rest."
+msgstr "Versión de Godot, escena principal, autoloads, capas con nombre, acciones de input y carpetas, leídos del proyecto. Va entre marcadores: agregarlo de nuevo lo actualiza sin tocar el resto."
+
+msgid "%s (new)"
+msgstr "%s (nuevo)"
+
+msgid "Read by %s."
+msgstr "Lo lee %s."
+
+msgid "Project facts added to %s: save to keep them."
+msgstr "Datos del proyecto agregados a %s: guardá para conservarlos."
+
+msgid "Could not save %s."
+msgstr "No se pudo guardar %s."
+
+msgid "%s saved: agents read it from their next session."
+msgstr "%s guardado: los agentes lo leen desde su próxima sesión."
+
+msgid "Instructions"
+msgstr "Instrucciones"
+
+msgid "the editor's errors and warnings"
+msgstr "los errores y warnings del editor"
+
+msgid "the end of the Output panel"
+msgstr "el final del panel Output"
+
+msgid "the running game's node tree"
+msgstr "el árbol de nodos del juego en marcha"
+
+msgid "the API reference of a class"
+msgstr "la referencia de la API de una clase"
+
+msgid "New session in a separate copy (git worktree)"
+msgstr "Sesión nueva en una copia aparte (git worktree)"
+
+msgid "The agent works in a copy of the project on a new branch, outside the project folder, without touching the open editor. When you close its tab you choose whether to apply its changes to the project."
+msgstr "El agente trabaja en una copia del proyecto en una rama nueva, fuera de la carpeta del proyecto, sin tocar el editor abierto. Al cerrar su pestaña elegís si aplicar sus cambios al proyecto."
+
+msgid "Could not create the separate copy: %s"
+msgstr "No se pudo crear la copia aparte: %s"
+
+msgid "Session %d (copy)"
+msgstr "Sesión %d (copia)"
+
+msgid "This session works in a separate copy of the project, %s, on the branch %s (from your last commit: uncommitted changes aren't in it). The open editor isn't touched. When you close the tab you choose whether to apply its changes to the project."
+msgstr "Esta sesión trabaja en una copia aparte del proyecto, %s, en la rama %s (desde tu último commit: los cambios sin commitear no están). El editor abierto no se toca. Al cerrar la pestaña elegís si aplicar sus cambios al proyecto."
+
+msgid "Changes of the separate copy"
+msgstr "Cambios de la copia aparte"
+
+msgid "«%s» changed %d files in its copy:\n%s\n\nApply them to the project as uncommitted changes, keep them only in the branch %s, or discard them?"
+msgstr "«%s» cambió %d archivos en su copia:\n%s\n\n¿Aplicarlos al proyecto como cambios sin commitear, dejarlos solo en la rama %s o descartarlos?"
+
+msgid "Apply to the project"
+msgstr "Aplicar al proyecto"
+
+msgid "Keep the branch"
+msgstr "Dejar la rama"
+
+msgid "The changes of «%s» are in the project now, uncommitted (%d files)."
+msgstr "Los cambios de «%s» ya están en el proyecto, sin commitear (%d archivos)."
+
+msgid "The changes of «%s» stay in the branch %s."
+msgstr "Los cambios de «%s» quedan en la rama %s."
+
+msgid "git worktree failed: %s"
+msgstr "git worktree falló: %s"
+
+msgid "git diff failed: %s"
+msgstr "git diff falló: %s"
+
+msgid "The changes don't apply cleanly (did you change those files too?): %s. They stay in the branch %s."
+msgstr "Los cambios no entran limpios (¿cambiaste esos archivos también?): %s. Quedan en la rama %s."
+
+msgid "From a GitHub PR…"
+msgstr "De un PR de GitHub…"
+
+msgid "Brings the review comments of a pull request (with the gh CLI) as findings, with their file and line"
+msgstr "Trae los comentarios de revisión de un pull request (con el CLI gh) como hallazgos, con su archivo y línea"
+
+msgid "Review comments from GitHub"
+msgstr "Comentarios de revisión de GitHub"
+
+msgid "Pull request number (empty: the one of the current branch). It needs the gh CLI signed in."
+msgstr "Número del pull request (vacío: el de la rama actual). Necesita el CLI gh con sesión iniciada."
+
+msgid "Reading the pull request's review comments…"
+msgstr "Leyendo los comentarios de revisión del pull request…"
+
+msgid "%s has no review comments on lines of this project's files."
+msgstr "%s no tiene comentarios de revisión en líneas de archivos de este proyecto."
+
+msgid "%d review comments from %s are in the findings and the Script Editor."
+msgstr "%d comentarios de revisión de %s están en los hallazgos y en el Script Editor."
+
+msgid "The project's git remote «origin» is not a GitHub repository."
+msgstr "El remote «origin» del proyecto no es un repositorio de GitHub."
+
+msgid "gh could not find the pull request: %s"
+msgstr "gh no encontró el pull request: %s"
+
+msgid "gh could not read the review comments: %s"
+msgstr "gh no pudo leer los comentarios de revisión: %s"
+
+msgid "git push failed: %s"
+msgstr "git push falló: %s"
+
+msgid "gh could not open the pull request: %s"
+msgstr "gh no pudo abrir el pull request: %s"
+
+msgid "Offer to push and open a GitHub pull request when closing a separate copy"
+msgstr "Ofrecer pushear y abrir un pull request de GitHub al cerrar una copia aparte"
+
+msgid "Uses git push and the gh CLI. Off by default: otherwise the harness never pushes."
+msgstr "Usa git push y el CLI gh. Apagado por defecto: si no, el harness nunca pushea."
+
+msgid "Push and open a PR"
+msgstr "Pushear y abrir un PR"
+
+msgid "Pull request opened with the changes of «%s»: %s"
+msgstr "Pull request abierto con los cambios de «%s»: %s"
+
+msgid "%s The changes stay in the branch %s."
+msgstr "%s Los cambios quedan en la rama %s."
+
+msgid "Import"
+msgstr "Importar"

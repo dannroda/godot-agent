@@ -37,8 +37,12 @@ const EditorBinary := preload("../transport/editor_binary.gd")
 const CommandResolver := preload("../transport/command_resolver.gd")
 const ClaudeExtensions := preload("../extensions/claude_extensions.gd")
 const ClaudeCli := preload("../extensions/claude_cli.gd")
+const TurnSnapshots := preload("turn_snapshots.gd")
+const TurnReport := preload("turn_report.gd")
 const I18n := preload("../core/i18n.gd")
 
+## Turnos seguidos que la verificación al terminar un turno manda para corregir errores (m11-04).
+const MAX_FIX_TURNS := 2
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
 const CLIENT_TITLE := "Godot Agent Harness"
@@ -46,6 +50,12 @@ const SYSTEM_PROMPT_PATH := "res://addons/godot_agent/config/system_prompt.md"
 
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"
+## Aviso de lo que cambió un turno (m11-01, m11-02): ver los cambios y volver atrás. Su `data` es
+## `{session, start, end, files}`; lo resuelve el plugin.
+const ACTION_TURN_CHANGES := "turn_changes"
+const ACTION_TURN_RESTORE := "turn_restore"
+## Guardar el reporte del turno (m11-06), con la misma `data`.
+const ACTION_TURN_REPORT := "turn_report"
 const ACTION_SHOW_LOG := "show_log"
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
@@ -116,12 +126,26 @@ var after_login: Callable
 ## Con varias sesiones abiertas (m7-44): `(paths: PackedStringArray) -> String`, "" si esta sesión
 ## puede escribirlas (y quedan suyas en el turno) o el nombre de la sesión que las está editando.
 var file_guard: Callable
+## Verificación al terminar un turno de Construir o Auto (m11-04): `(since_unix: int) -> String`,
+## los errores de los scripts que cambiaron en el turno o "". Se espera con await. Sin asignar, no
+## se verifica.
+var turn_verifier: Callable
+## Snapshots por turno de Construir o Auto (m11-01); compartidos por las sesiones, cada una con su
+## `session_key`. Sin asignar o sin git, no se guardan.
+var snapshots: TurnSnapshots
+var session_key: String = ""
 
 var _process: AgentProcess
 var _profile: AgentProfile
 var _system_prompt_sent: bool = false
 ## Ya se avisó que el agente trabaja fuera de un turno pedido desde el chat (se rearma con cada prompt).
 var _outside_turn_noticed: bool = false
+## Turnos seguidos que mandó la verificación para corregir errores (se reinicia con cada prompt del
+## usuario); al llegar a MAX_FIX_TURNS solo se avisa.
+var _fix_turns: int = 0
+var _sending_fix: bool = false
+## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
+var _note_for_agent: String = ""
 var _connect_generation: int = 0
 var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
 ## Subagentes que el harness dejó arrancar (toolCallId -> true): cuentan para el límite aunque el
@@ -262,6 +286,9 @@ func open_session(generation: int = _connect_generation) -> bool:
 func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool = true) -> String:
 	if model.state != SessionModel.SessionState.READY:
 		return ""
+	var turn_started := int(Time.get_unix_time_from_system())
+	if not _sending_fix:
+		_fix_turns = 0
 	var blocks: Array = []
 	# Un comando (`/remote-control`, `/compact`, una skill) va solo, sin el contexto del harness ni
 	# los adjuntos: el agente solo lo reconoce si el prompt empieza con él, y el adapter de Claude
@@ -274,6 +301,9 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if is_command:
 		blocks.append({"type": "text", "text": text.strip_edges()})
 	else:
+		if not _note_for_agent.is_empty():
+			blocks.append({"type": "text", "text": _note_for_agent})
+			_note_for_agent = ""
 		blocks.append_array(extra_blocks)
 		blocks.append({"type": "text", "text": text})
 	var attachments: Array[Dictionary] = []
@@ -286,6 +316,9 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		history.record_prompt(text)
 	model.set_state(SessionModel.SessionState.PROMPTING)
 	var first_new_entry := model.entries().size()
+	var turn_start := ""
+	if not is_command and snapshots and snapshots.available and model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
+		turn_start = await snapshots.take(session_key)
 	# Si se acaba de cambiar de modo, el turno espera a que el agente esté en el modo que corresponde.
 	while _mode_syncs_running > 0:
 		await agent_mode_synced
@@ -322,7 +355,65 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		quota.observe_turn_ok()
 	model.finish_turn(stop_reason)
 	_record_turn_end(stop_reason)
+	if not is_command and model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
+		_report_turn_changes.call_deferred(turn_start, first_new_entry)
+	if stop_reason == "end_turn" and not is_command:
+		_verify_turn.call_deferred(turn_started)
 	return stop_reason
+
+
+## Al terminar un turno de Construir o Auto, un aviso con lo que dejó: los archivos que cambió (si
+## hay snapshot) con las acciones para verlos y volver atrás (m11-02), y «Guardar reporte» con eso y
+## las capturas que tomó (m11-06). Sin cambios ni capturas, nada.
+func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
+	var data := {"session": session_key, "start": turn_start, "end": "", "files": [], "first_entry": first_entry}
+	var parts: PackedStringArray = []
+	var actions: Array[Dictionary] = []
+	if not turn_start.is_empty():
+		data.end = await snapshots.take(session_key)
+		if not str(data.end).is_empty():
+			var changes: Dictionary = await snapshots.diff(turn_start, data.end)
+			data.files = changes.files
+			if not changes.files.is_empty():
+				var names := PackedStringArray(changes.files.slice(0, 4).map(func(file: Dictionary) -> String: return str(file.path).get_file()))
+				if changes.files.size() > 4:
+					names.append("…")
+				parts.append(I18n.t("This turn changed %d files (+%d −%d): %s") % [changes.files.size(), changes.added, changes.removed, ", ".join(names)])
+				actions.append({"id": ACTION_TURN_CHANGES, "label": I18n.t("View changes"), "data": data})
+				actions.append({"id": ACTION_TURN_RESTORE, "label": I18n.t("Go back to before this turn"), "data": data})
+	var captures: int = TurnReport.collect(model, first_entry).images.size() if first_entry >= 0 else 0
+	if captures > 0:
+		parts.append(I18n.t("%d captures of the game or the editor.") % captures)
+	if parts.is_empty():
+		return
+	if first_entry >= 0:
+		actions.append({"id": ACTION_TURN_REPORT, "label": I18n.t("Save report"), "data": data})
+	model.add_notice(" ".join(parts), ChatEntry.NoticeLevel.INFO, actions)
+
+
+## Para el próximo prompt: el agente se entera de que el usuario volvió archivos atrás.
+func note_for_agent(text: String) -> void:
+	_note_for_agent = text if _note_for_agent.is_empty() else _note_for_agent + "\n" + text
+
+
+## Después de un turno de Construir o Auto, valida los scripts que cambiaron. Si alguno no parsea,
+## se lo devuelve al agente en un turno nuevo (hasta MAX_FIX_TURNS seguidos) o, si no se puede
+## (tope, cola del usuario esperando, otro turno en curso), lo deja como aviso en el chat.
+func _verify_turn(turn_started: int) -> void:
+	if not turn_verifier.is_valid() or not model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
+		return
+	var errors: String = await turn_verifier.call(turn_started)
+	if errors.is_empty():
+		return
+	agent_log.add(AgentLog.CH_PROC, "Check after the turn: scripts with errors\n%s" % errors)
+	if _fix_turns < MAX_FIX_TURNS and model.state == SessionModel.SessionState.READY:
+		_fix_turns += 1
+		model.add_notice(I18n.t("Check after the turn: some scripts don't parse. The agent gets the errors to fix them (%d of %d).") % [_fix_turns, MAX_FIX_TURNS], ChatEntry.NoticeLevel.WARNING)
+		_sending_fix = true
+		send_prompt("[Automatic check after your turn] These scripts you changed don't parse. Fix them, then check again with godot.validate_scripts:\n" + errors)
+		_sending_fix = false
+	else:
+		model.add_notice(I18n.t("Check after the turn: some scripts don't parse.") + "\n" + errors, ChatEntry.NoticeLevel.WARNING)
 
 
 ## Lo que contestó el adapter a `/remote-control` (claude-agent-acp 0.94, runRemoteControlCommand):

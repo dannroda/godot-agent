@@ -36,7 +36,7 @@ Other agents (Gemini CLI, Codex, your own) are set up in **Settings → Agents**
   - **Enter** sends; **Ctrl+Enter** or **Shift+Enter** add a line; **Esc** stops the turn;
   - while the agent works, Enter **queues** the message above the composer. You can edit or remove each queued message. When the turn ends, the next one goes out. If the turn is cancelled or fails, the queue waits for **Send now**;
   - **↑** / **↓** at the first or last line walk through the prompts you sent in this project;
-  - `/` at the start lists the agent's commands, and `@` lists the scene's nodes and the project's files;
+  - `/` at the start lists the agent's commands, and `@` lists the scene's nodes and the project's files. Dragging nodes from the Scene dock writes them as `@path`. Four mentions bring context when you send: `@errors` (the editor's errors and warnings), `@output` (the end of the Output panel), `@game` (the running game's node tree) and `@docs:Class` (the API reference of a class, for example `@docs:CharacterBody2D`);
   - **+ context** attaches the open scene, the selection, a project file, a viewport capture or a **game screenshot** of the running game. The game screenshot needs the playtest autoload: runs launched by the agent have it, and so do yours if you enable **Use the playtest autoload also when running the game manually** (Settings → MCP server);
   - **Ctrl+V** with an image on the clipboard attaches it (a screenshot, for example), and so do files copied in your file manager. Dragging files from the FileSystem dock attaches them too. Up to 6 images per message, scaled down to 1280 px;
   - model selector and context meter. Claude Code's default option shows the model it uses, for example **Opus 5.5 (default)**.

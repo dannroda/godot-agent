@@ -4,7 +4,8 @@ extends VBoxContainer
 ## dock completo, y «+» para abrir otra, como las pestañas de un navegador. La primera no se cierra:
 ## solo las demás llevan el botón de cerrar. Doble clic en una pestaña la renombra.
 
-signal new_session_requested
+## «+»: otra sesión; `in_copy`, en una copia aparte del proyecto (git worktree, m11-09).
+signal new_session_requested(in_copy: bool)
 signal close_requested(id: String)
 signal active_changed(id: String)
 ## El usuario escribió un nombre para la sesión ("" = volver al de por defecto). Lo aplica set_label().
@@ -18,6 +19,7 @@ const SessionModel := preload("../../session/session_model.gd")
 
 var _bar: TabBar
 var _add_button: Button
+var _new_menu: PopupMenu
 ## Los docks, uno encima del otro (se ve el de la pestaña activa); como contenedor, pide el mínimo
 ## del dock visible, igual que cuando el dock iba solo.
 var _stack: MarginContainer
@@ -58,7 +60,15 @@ func _init() -> void:
 		_add_button.text = "+"
 	_add_button.custom_minimum_size = Vector2.ONE * AgentTheme.px(28)
 	_add_button.tooltip_text = I18n.t("Open another agent session alongside this one. Sessions don't step on each other: a file one is editing in its turn is off limits to the rest, and the game runs for one at a time.")
-	_add_button.pressed.connect(func() -> void: new_session_requested.emit())
+	_new_menu = PopupMenu.new()
+	_new_menu.add_item(I18n.t("New session"), 0)
+	_new_menu.add_item(I18n.t("New session in a separate copy (git worktree)"), 1)
+	_new_menu.set_item_tooltip(1, I18n.t("The agent works in a copy of the project on a new branch, outside the project folder, without touching the open editor. When you close its tab you choose whether to apply its changes to the project."))
+	_new_menu.id_pressed.connect(func(id: int) -> void: new_session_requested.emit(id == 1))
+	_add_button.add_child(_new_menu)
+	_add_button.pressed.connect(func() -> void:
+		var rect := _add_button.get_global_rect()
+		_new_menu.popup(Rect2i(Vector2i(_add_button.get_screen_position() + Vector2(0, rect.size.y)), Vector2i.ZERO)))
 	row.add_child(_add_button)
 	_rename_popup = PopupPanel.new()
 	_rename_edit = LineEdit.new()
@@ -88,6 +98,10 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 		_bar.set_tab_button_icon(_ids.size() - 1, AgentTheme.icon(&"Close"))
 	model.title_changed.connect(func(_title: String) -> void: _refresh_tab(id))
 	model.state_changed.connect(func(_state: SessionModel.SessionState) -> void: _refresh_tab(id))
+	model.permission_requested.connect(func(request: RefCounted) -> void:
+		request.resolved.connect(func(_outcome: Dictionary) -> void: _refresh_tab(id), CONNECT_ONE_SHOT)
+		_refresh_tab(id)
+		_notify_waiting(id))
 	_refresh_tab(id)
 	select(id)
 
@@ -177,9 +191,19 @@ func _refresh_tab(id: String) -> void:
 	if index < 0:
 		return
 	var model: SessionModel = _models[id]
-	var busy := model.is_busy()
-	_bar.set_tab_title(index, ("● " if busy else "") + str(_labels[id]))
+	# «⚠»: espera un permiso del usuario (m11-03); pesa más que «●» (trabajando).
+	var mark := "⚠ " if not model.pending_permissions.is_empty() else ("● " if model.is_busy() else "")
+	_bar.set_tab_title(index, mark + str(_labels[id]))
 	_bar.set_tab_tooltip(index, label(id) + "\n" + I18n.t("Double-click to rename"))
+
+
+## Un pedido de permiso de una sesión que no está a la vista (otra pestaña, o el dock tapado por
+## otro) también avisa con un toast del editor.
+func _notify_waiting(id: String) -> void:
+	var dock: Control = _docks.get(id)
+	if dock == null or dock.is_visible_in_tree() or not Engine.is_editor_hint():
+		return
+	EditorInterface.get_editor_toaster().push_toast(I18n.t("«%s» is waiting for your permission.") % _labels[id], EditorToaster.SEVERITY_WARNING)
 
 
 func _on_tab_changed(index: int) -> void:

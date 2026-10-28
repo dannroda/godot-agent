@@ -18,3 +18,9 @@ In **Review** mode, the agent reviews scenes and scripts and returns findings in
 ## Export to CLAUDE.md
 
 The review can be exported to the project's `CLAUDE.md` as conventions, for example "use static types everywhere" or "don't use `get_parent()` for behaviour". You see a preview first. From then on the agent follows them in every mode.
+
+## Comments from a GitHub pull request
+
+**From a GitHub PR…** in the findings panel brings the review comments of a pull request as findings, with the [GitHub CLI](https://cli.github.com) (`gh`, signed in with `gh auth login`). Write its number, or leave it empty for the pull request of the current branch. Each comment on a line of a file of this project becomes a finding with its text and author, marked in the Script Editor like the agent's; replies within a thread are left out. From there, **Fix in Build mode** asks the agent to address them. It only reads: nothing is posted to GitHub.
+
+The other direction is optional: with **Offer to push and open a GitHub pull request when closing a separate copy** (Settings → MCP servers, off by default), closing a [session in a separate copy](How-it-works.md#several-sessions-at-once) offers **Push and open a PR**, which pushes its branch to `origin` and opens a pull request against the branch you were on.

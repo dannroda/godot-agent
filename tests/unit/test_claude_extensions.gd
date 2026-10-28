@@ -112,7 +112,7 @@ func test_window_builds_offline() -> void:
 	window.addon_servers_provider = func() -> Array: return [{"name": "db", "enabled": true}]
 	window.call(&"_rebuild_all")
 	var tabs: TabContainer = window.get(&"_tabs")
-	assert_eq(tabs.get_tab_count(), 5, "cinco pestañas")
+	assert_eq(tabs.get_tab_count(), 6, "seis pestañas (con Instructions)")
 	assert_eq(tabs.get_tab_title(3), "Skills", "la de skills")
 	assert_eq(tabs.get_tab_title(4), "Godot addons", "la de addons de Godot")
 	assert_eq(tabs.get_tab_title(0), "Plugins (1)", "cuenta en el título")

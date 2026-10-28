@@ -476,12 +476,17 @@ static func clipboard_file_paths(text: String) -> PackedStringArray:
 
 
 func _can_drop_files(_position: Vector2, data: Variant) -> bool:
+	if data is Dictionary and data.get("type") == "nodes" and data.get("nodes") is Array:
+		return true
 	return data is Dictionary and data.get("type") in ["files", "files_and_dirs"] and data.get("files") is PackedStringArray
 
 
 ## El TextEdit llama a esto con cualquier dato que se suelte (también texto, que después inserta él).
 func _drop_files(position: Vector2, data: Variant) -> void:
 	if not _can_drop_files(position, data):
+		return
+	if data.type == "nodes":
+		_insert_node_mentions(data.nodes)
 		return
 	var files: PackedStringArray = data.files
 	var paths: PackedStringArray = []
@@ -490,6 +495,19 @@ func _drop_files(position: Vector2, data: Variant) -> void:
 			paths.append(path)
 	if not paths.is_empty():
 		files_attached.emit(paths)
+
+
+## Nodos arrastrados desde el Scene Tree (m11-08): se escriben como @ruta relativa a la escena.
+func _insert_node_mentions(nodes: Array) -> void:
+	var root := EditorInterface.get_edited_scene_root() if Engine.is_editor_hint() else null
+	var mentions: PackedStringArray = []
+	for path: Variant in nodes:
+		var node := get_tree().root.get_node_or_null(path) if path is NodePath else null
+		if node and root and (node == root or root.is_ancestor_of(node)):
+			mentions.append("@" + ("." if node == root else String(root.get_path_to(node))))
+	if not mentions.is_empty():
+		_input.insert_text_at_caret(" ".join(mentions) + " ")
+		_input.grab_focus()
 
 
 # --- historial de prompts ------------------------------------------------------------------------

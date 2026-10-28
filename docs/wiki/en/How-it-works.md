@@ -62,6 +62,10 @@ Every session is saved in `user://godot_agent/sessions/` once per turn, without 
 
 The first tab is the one that runs One-shot, Review annotations and Remote Control; the others have the Ask, Review, Build and Auto modes. Closing a tab ends its session.
 
+**+** also offers **New session in a separate copy (git worktree)**: the agent works in a copy of the project on a new branch (`agent/copy-<date>`), created next to the repo (`<repo>.godot-agent-copies/`) from your last commit, so uncommitted changes aren't in it. It doesn't touch the open editor: it edits files with its own tools and checks them with Godot headless, and the `godot.*` tools that edit the editor's project or run its game are rejected for it. When you close its tab, what it changed is committed to its branch and you choose: **Apply to the project** (as uncommitted changes, with `git apply`; if you changed the same files and it doesn't apply cleanly, the branch stays), **Keep the branch** or **Discard**. A copy without changes is removed on its own.
+
+Double-click a tab to rename it (leave it empty to go back to «Session N»). The name is also how the agents refer to that session, so two sessions can't share it. A tab marked **⚠** is waiting for your permission; if it isn't in view, the editor also shows a notice. **●** means its agent is working. The status line under the header shows the Claude Code account each session is signed in with.
+
 ## The plan quota
 
 Claude Code reports the usage of your plan's windows (5 hours and weekly). The harness shows it, warns at 75 %, pauses One-shot at 90 % and, when the limit hits, blocks sending with a countdown until the window resets. It doesn't estimate the quota from tokens, doesn't call undocumented endpoints and doesn't read the agent's files. See [One-shot → quota](One-shot.md#plan-quota).

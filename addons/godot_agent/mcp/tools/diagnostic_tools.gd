@@ -78,24 +78,57 @@ func _validate_scripts(args: Dictionary) -> Dictionary:
 	var report: Dictionary = await check_scripts(paths)
 	if not report.error.is_empty():
 		return McpTool.error(report.error)
-	var lines: PackedStringArray = []
-	var failed := 0
-	for path: String in paths:
-		var result: Dictionary = report.results.get(path, {"ok": false, "errors": []})
-		if result.ok and result.errors.is_empty():
-			continue
-		failed += 1
-		lines.append("✗ %s" % path)
-		for error: String in result.errors:
-			lines.append("  " + error)
-		if result.errors.is_empty():
-			lines.append("  could not be loaded (no details)")
+	var lines := failure_lines(paths, report)
+	var failed: int = Array(lines).filter(func(line: String) -> bool: return line.begins_with("✗ ")).size()
 	var header := "%d scripts validated · %d with errors" % [paths.size(), failed]
 	if truncated:
 		header += " (validated the first %d; pass `paths` for the rest)" % MAX_SCRIPTS
 	if failed == 0:
 		return McpTool.text(header + "\nEverything parses fine.")
 	return McpTool.text(header + "\n" + "\n".join(lines))
+
+
+## Verificación al terminar un turno (m11-04): valida los .gd del proyecto modificados desde
+## `since_unix`. "" si no cambió ninguno, todos parsean o el validador no pudo correr; si no, los
+## errores por archivo.
+func verify_changed_scripts(since_unix: int) -> String:
+	var paths := scripts_modified_since("res://", since_unix)
+	if paths.is_empty():
+		return ""
+	var report: Dictionary = await check_scripts(paths.slice(0, MAX_SCRIPTS))
+	return "\n".join(failure_lines(paths.slice(0, MAX_SCRIPTS), report)) if report.error.is_empty() else ""
+
+
+## Los `.gd` bajo `root` modificados desde `since_unix`. Recorre el disco y no el EditorFileSystem:
+## un script que el agente creó desde la shell todavía puede no estar escaneado. Saltea carpetas
+## ocultas (.godot, .git) y las que tienen .gdignore.
+static func scripts_modified_since(root: String, since_unix: int) -> PackedStringArray:
+	var result: PackedStringArray = []
+	if FileAccess.file_exists(root.path_join(".gdignore")):
+		return result
+	for file: String in DirAccess.get_files_at(root):
+		var path := root.path_join(file)
+		if file.ends_with(".gd") and FileAccess.get_modified_time(path) >= since_unix:
+			result.append(path)
+	for dir: String in DirAccess.get_directories_at(root):
+		if not dir.begins_with("."):
+			result.append_array(scripts_modified_since(root.path_join(dir), since_unix))
+	return result
+
+
+## Una línea «✗ ruta» por script que no parsea, con sus errores debajo.
+static func failure_lines(paths: PackedStringArray, report: Dictionary) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	for path: String in paths:
+		var result: Dictionary = report.results.get(path, {"ok": false, "errors": []})
+		if result.ok and result.errors.is_empty():
+			continue
+		lines.append("✗ %s" % path)
+		for error: String in result.errors:
+			lines.append("  " + error)
+		if result.errors.is_empty():
+			lines.append("  could not be loaded (no details)")
+	return lines
 
 
 ## Corre el checker en un proceso aparte. Devuelve `{error, results: {path: {ok, errors[]}}}`.

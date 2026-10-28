@@ -61,3 +61,9 @@ Elegí el modo en **Settings → Completado**:
 - Un perfil remoto avisa que el código alrededor del cursor, y un resumen del proyecto (nodos, autoloads, acciones), se envía a ese servidor.
 - Las sugerencias del LLM terminan con un punto chico; se puede apagar.
 - El Agent Log (canal `cmp`) registra latencias y tamaños, nunca código, salvo que prendas **Log "raw"**.
+
+## Pedirle un cambio al agente (Alt+I)
+
+A diferencia de las sugerencias de arriba, esto va al agente. Seleccioná código (o dejá el cursor donde tiene que ir algo) y apretá **Alt+I**, o clic derecho → **Pedirle un cambio al agente…**. Escribí lo que querés («hacé constantes estas variables», «agregá un salto con coyote time») y apretá Enter.
+
+El pedido va a la sesión de la pestaña activa del dock, con el archivo, las líneas y el código seleccionado, y el agente contesta solo con el código nuevo. Aparece como diff junto al código: **Aceptar** reemplaza la selección (o inserta en el cursor) como un solo paso de Ctrl+Z, sin guardar el archivo; **Rechazar** lo deja como estaba. Si cambiaste ese código mientras el agente contestaba, la propuesta no se aplica. El pedido y la respuesta quedan también en el chat. Tiene que haber una sesión iniciada en el dock, y libre (no en medio de un turno).

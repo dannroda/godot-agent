@@ -19,9 +19,10 @@ const ClaudeExtensions := preload("../../extensions/claude_extensions.gd")
 const ExtensionsUi := preload("extensions_ui.gd")
 const GodotAddonsTab := preload("godot_addons_tab.gd")
 const SkillsTab := preload("skills_tab.gd")
+const InstructionsTab := preload("instructions_tab.gd")
 const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 
-enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS }
+enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS }
 const AVAILABLE_LIMIT := 30
 const MCP_ORIGIN_ORDER: PackedStringArray = ["addon", "user", "project", "local", "claude.ai", "plugin", "other"]
 const MCP_ORIGIN_LABELS: Dictionary = {
@@ -70,6 +71,7 @@ var _mcp_filter: LineEdit
 var _mcp_box: VBoxContainer
 var _addons_tab: GodotAddonsTab
 var _skills_tab: SkillsTab
+var _instructions_tab: InstructionsTab
 var _confirm: ConfirmationDialog
 var _confirm_action: Callable
 
@@ -138,6 +140,9 @@ func _build() -> void:
 	_addons_tab = GodotAddonsTab.new()
 	_addons_tab.status_changed.connect(_set_status)
 	_tabs.add_child(_addons_tab)
+	_instructions_tab = InstructionsTab.new()
+	_instructions_tab.status_changed.connect(_set_status)
+	_tabs.add_child(_instructions_tab)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -162,6 +167,7 @@ func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 func refresh() -> void:
 	_addons_tab.store = asset_store
 	_addons_tab.refresh()
+	_instructions_tab.refresh()
 	_refresh_skills()
 	if extensions == null or not extensions.cli.is_available():
 		_plugins_error = I18n.t("The Claude Code CLI (claude) was not found in the PATH or next to the ACP adapter. Open a Claude Code session once (npx downloads it) or install Claude Code.")
@@ -570,6 +576,7 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.MCP, I18n.t("MCP servers"))
 	_tabs.set_tab_title(ExtensionsTab.SKILLS, I18n.t("Skills"))
 	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Godot addons"))
+	_tabs.set_tab_title(ExtensionsTab.INSTRUCTIONS, I18n.t("Instructions"))
 
 
 func _chip(text: String, status: String) -> Control:

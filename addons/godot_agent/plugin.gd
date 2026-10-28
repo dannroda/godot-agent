@@ -28,6 +28,15 @@ const ExternalMcpServers := preload("mcp/external_mcp_servers.gd")
 const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
+const TurnChangesDialog := preload("ui/turn_changes_dialog.gd")
+const TurnSnapshots := preload("session/turn_snapshots.gd")
+const InlineEdit := preload("editor/inline_edit.gd")
+## Lo que trae @output: el final del panel Output.
+const OUTPUT_MENTION_CHARS := 4000
+const TurnReport := preload("session/turn_report.gd")
+const WorktreeSession := preload("session/worktree_session.gd")
+const GithubReviews := preload("core/github_reviews.gd")
+const InlineEditMenu := preload("editor/inline_edit_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
@@ -92,8 +101,12 @@ var _project_config: ProjectConfig
 var _sync: EditorSync
 var _remote_activity: RemoteActivity
 var _diff_dialog: DiffDialog
+var _turn_dialog: TurnChangesDialog
+## Snapshots por turno de todas las sesiones (m11-01); `available` queda en false sin git.
+var _turn_snapshots: TurnSnapshots
 var _mcp_server: McpServer
 var _errors: ErrorCollector
+var _diagnostics: DiagnosticTools
 var _playtest_debugger: PlaytestDebugger
 var _run_tools: RunTools
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
@@ -105,6 +118,9 @@ var _main_screen: Control
 var _fs: FsHandler
 var _registry: ToolRegistry
 var _completion: CompletionService
+## Chat en línea en el Script Editor (m11-05).
+var _inline_edit: InlineEdit
+var _inline_menu: InlineEditMenu
 var _updater: AddonUpdater
 var _store: AssetStore
 var _update_banner: UpdateBanner
@@ -135,6 +151,8 @@ func _enter_tree() -> void:
 	_sync.open_scene_modified.connect(_on_open_scene_modified)
 	add_child(_sync)
 	scene_saved.connect(_sync.note_scene_saved)
+	_turn_snapshots = TurnSnapshots.new(EditorContext.project_path())
+	_turn_snapshots.setup()
 	_controller = _make_controller(_model, PRIMARY_SESSION)
 	_fs = _controller.fs
 	_coordinator.register(PRIMARY_SESSION, I18n.t("Session 1"))
@@ -151,6 +169,11 @@ func _enter_tree() -> void:
 	_diff_dialog = DiffDialog.new()
 	_diff_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	EditorInterface.get_base_control().add_child(_diff_dialog)
+	_turn_dialog = TurnChangesDialog.new()
+	_turn_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_turn_dialog.diff_requested.connect(_show_turn_diff)
+	_turn_dialog.revert_requested.connect(func(data: Dictionary, path: String) -> void: _restore_turn(data, PackedStringArray([path])))
+	EditorInterface.get_base_control().add_child(_turn_dialog)
 	_playtest_debugger = PlaytestDebugger.new()
 	# El juego ya leyó project.godot cuando su sesión de debug arranca: el autoload se quita ahí.
 	_playtest_debugger.session_started.connect(_remove_playtest_autoload)
@@ -188,6 +211,7 @@ func _enter_tree() -> void:
 	_controller.after_login = _after_agent_login
 	dock.can_switch_session = func() -> bool: return not _oneshot.is_active()
 	dock.game_capture = _capture_game_for_dock
+	dock.context_provider = _context_for_mention
 	_oneshot.changed.connect(func() -> void:
 		if is_instance_valid(dock):
 			dock.set_oneshot_active(_oneshot.is_active()))
@@ -261,6 +285,12 @@ func _enter_tree() -> void:
 	_completion = CompletionService.new()
 	_completion.setup(_settings, _project_config, _log)
 	add_child(_completion)
+	_inline_edit = InlineEdit.new()
+	_inline_edit.ask = _ask_inline
+	add_child(_inline_edit)
+	_inline_menu = InlineEditMenu.new()
+	_inline_menu.inline_edit = _inline_edit
+	add_context_menu_plugin(EditorContextMenuPlugin.CONTEXT_SLOT_SCRIPT_EDITOR_CODE, _inline_menu)
 
 
 func _exit_tree() -> void:
@@ -270,6 +300,13 @@ func _exit_tree() -> void:
 		remove_child(_completion)
 		_completion.queue_free()
 		_completion = null
+	if _inline_menu:
+		remove_context_menu_plugin(_inline_menu)
+		_inline_menu = null
+	if _inline_edit:
+		remove_child(_inline_edit)
+		_inline_edit.queue_free()
+		_inline_edit = null
 	if _updater:
 		remove_child(_updater)
 		_updater.queue_free()
@@ -285,7 +322,7 @@ func _exit_tree() -> void:
 		_oneshot.queue_free()
 		_oneshot = null
 	for id: String in _extra_sessions.keys():
-		_close_session_tab(id)
+		_close_session_tab(id, false)
 	_tabs = null
 	if _controller:
 		_controller.stop()
@@ -313,6 +350,10 @@ func _exit_tree() -> void:
 	if _diff_dialog:
 		_diff_dialog.queue_free()
 		_diff_dialog = null
+	if _turn_dialog:
+		_turn_dialog.queue_free()
+		_turn_dialog = null
+	_turn_snapshots = null
 	if _settings_dialog:
 		_settings_dialog.queue_free()
 		_settings_dialog = null
@@ -322,6 +363,7 @@ func _exit_tree() -> void:
 	_main_screen = null
 	_fs = null
 	_registry = null
+	_diagnostics = null
 	if _playtest_debugger:
 		remove_debugger_plugin(_playtest_debugger)
 		_playtest_debugger = null
@@ -433,6 +475,12 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_sync.reload_scene(path)
 		ACTION_UNDO_TOOL_CALL:
 			_undo_tool_call(str(payload))
+		SessionController.ACTION_TURN_CHANGES:
+			_turn_dialog.show_turn(payload)
+		SessionController.ACTION_TURN_RESTORE:
+			_confirm_turn_restore(payload)
+		SessionController.ACTION_TURN_REPORT:
+			_save_turn_report(payload)
 		RemoteActivity.ACTION_DIFF:
 			var texts := _remote_activity.diff_texts(int(payload))
 			_diff_dialog.show_diff(I18n.t("Changes from Remote Control"), I18n.t("before"), texts[0], I18n.t("now"), texts[1])
@@ -547,13 +595,14 @@ func _start_mcp_server() -> void:
 		var controller := _controller_of(_session_of(caller))
 		return controller != null and await controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
 	registry.guard = _guard_tool
+	registry.precheck = _precheck_tool
 	registry.register_provider(ReadTools.new())
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
 	registry.register_provider(api_tools, true)
-	var diagnostics := DiagnosticTools.new()
-	diagnostics.setup(_errors, EditorContext.project_path())
-	registry.register_provider(diagnostics)
+	_diagnostics = DiagnosticTools.new()
+	_diagnostics.setup(_errors, EditorContext.project_path())
+	registry.register_provider(_diagnostics)
 	var edit_tools := SceneEditTools.new()
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)
@@ -768,6 +817,8 @@ func _on_settings_saved() -> void:
 		controller.shell_rules = _project_config.auto_shell_rules
 		controller.external_mcp_names = _external_mcp_names()
 		controller.fs.extra_roots = _project_config.extra_fs_roots
+		if controller.cwd == EditorContext.project_path():  # una copia (m11-09) tiene los suyos
+			controller.snapshots = _turn_snapshots if _project_config.turn_snapshots else null
 	_registry.max_output_chars = _project_config.max_output_chars
 	_registry.max_image_side = _project_config.max_image_side
 	_registry.compact = _project_config.compact_tools
@@ -865,6 +916,116 @@ func _after_oneshot_restore(paths: PackedStringArray) -> void:
 	EditorInterface.get_resource_filesystem().scan()
 
 
+## El texto de una mención especial del composer (m11-08): las mismas tools que usa el agente, sin
+## permiso porque las pide el usuario.
+func _context_for_mention(kind: String, arg: String) -> String:
+	if _registry == null:
+		return ""
+	match kind:
+		"errors":
+			return await _registry.run_for_user("get_errors", {"since": 0})
+		"output":
+			var text := _errors.output_text() if _errors else ""
+			return text.right(OUTPUT_MENTION_CHARS).strip_edges()
+		"game":
+			return await _registry.run_for_user("game_tree", {})
+		"docs":
+			return await _registry.run_for_user("class_info", {"class": arg})
+	return ""
+
+
+## Un pedido del chat en línea (m11-05): va a la sesión de la pestaña activa y espera su turno.
+func _ask_inline(prompt: String) -> Dictionary:
+	var id := _tabs.active_id() if _tabs else PRIMARY_SESSION
+	var controller := _controller_of(id if not id.is_empty() else PRIMARY_SESSION)
+	var model := _model_of(id if not id.is_empty() else PRIMARY_SESSION)
+	if controller == null or not controller.is_connected_to_agent():
+		return {"text": "", "error": I18n.t("Start a session in the Agent dock first.")}
+	if model.state != SessionModel.SessionState.READY:
+		return {"text": "", "error": I18n.t("The agent is busy: try again when its turn ends.")}
+	var first := model.entries().size()
+	var reason: String = await controller.send_prompt(prompt)
+	return {"text": controller.agent_text_since(first), "error": "" if reason == "end_turn" else I18n.t("The turn ended with «%s».") % reason}
+
+
+# --- cambios por turno (m11-01, m11-02) ------------------------------------------------------------
+
+func _show_turn_diff(data: Dictionary, path: String) -> void:
+	var snapshots := _snapshots_of(str(data.get("session", PRIMARY_SESSION)))
+	var before := await snapshots.text_at(str(data.start), path)
+	var full := snapshots.git.root.path_join(path)
+	var now := FileAccess.get_file_as_string(full) if FileAccess.file_exists(full) else ""
+	_diff_dialog.show_diff(path, I18n.t("before the turn"), before, I18n.t("now"), now)
+
+
+## Los snapshots de una sesión: los del proyecto, o los de su copia (m11-09).
+func _snapshots_of(session: String) -> TurnSnapshots:
+	var controller := _controller_of(session)
+	return controller.snapshots if controller and controller.snapshots else _turn_snapshots
+
+
+## Reporte del turno (m11-06) en res://.godot_agent/reports/<fecha>/, y se abre su carpeta.
+func _save_turn_report(data: Dictionary) -> void:
+	var model := _model_of(str(data.get("session", PRIMARY_SESSION)))
+	if model == null:
+		return
+	var collected := TurnReport.collect(model, int(data.get("first_entry", 0)))
+	var now := Time.get_datetime_string_from_system()
+	var project := str(ProjectSettings.get_setting("application/config/name", EditorContext.project_path().get_file()))
+	var path := TurnReport.write(TurnReport.DIR, now.replace(":", "-").replace("T", "_"), "Turn report · %s · %s" % [project, now.replace("T", " ")], collected, data.get("files", []))
+	if path.is_empty():
+		model.add_notice(I18n.t("Could not save the report in %s.") % TurnReport.DIR, ChatEntry.NoticeLevel.ERROR)
+		return
+	model.add_notice(I18n.t("Report saved in %s.") % path.get_base_dir())
+	OS.shell_show_in_file_manager(ProjectSettings.globalize_path(path))
+
+
+## Volver atrás todo un turno pisa también lo que vino después en esos archivos: se confirma. Deshacer
+## una vuelta atrás (`undo` en data) no pregunta.
+func _confirm_turn_restore(data: Dictionary) -> void:
+	if data.get("undo", false):
+		_restore_turn(data)
+		return
+	var confirm := ConfirmationDialog.new()
+	confirm.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	confirm.title = I18n.t("Go back to before this turn")
+	confirm.dialog_text = I18n.t("The project's files go back to how they were before this turn, including what changed after it (by the agent or by you). Files .gitignore leaves out are not touched. You can undo it from the chat.")
+	confirm.ok_button_text = I18n.t("Go back")
+	confirm.cancel_button_text = I18n.t("Cancel")
+	confirm.confirmed.connect(_restore_turn.bind(data))
+	confirm.visibility_changed.connect(func() -> void:
+		if not confirm.visible:
+			confirm.queue_free.call_deferred())
+	EditorInterface.get_base_control().add_child(confirm)
+	confirm.popup_centered()
+
+
+## Deja los archivos (todos o `paths`) como en el snapshot `data.start`, recarga lo abierto, avisa en
+## el chat de esa sesión (con «Deshacer») y le deja una nota al agente para su próximo turno.
+func _restore_turn(data: Dictionary, paths: PackedStringArray = []) -> void:
+	var session := str(data.get("session", PRIMARY_SESSION))
+	var model := _model_of(session)
+	var snapshots := _snapshots_of(session)
+	var result: Dictionary = await snapshots.restore(session, str(data.start), paths)
+	if result.is_empty():
+		if model:
+			model.add_notice(I18n.t("Could not go back: git failed."), ChatEntry.NoticeLevel.ERROR)
+		return
+	var changed: PackedStringArray = result.changed
+	if snapshots == _turn_snapshots:  # en una copia no hay nada abierto en el editor
+		_after_oneshot_restore(changed)
+	if paths.size() == 1:
+		_turn_dialog.mark_reverted(paths[0])
+	if changed.is_empty() or model == null:
+		return
+	var names := ", ".join(changed)
+	var undo := {"session": session, "start": result.before, "undo": true}
+	model.add_notice(I18n.t("Went back: %s") % names, ChatEntry.NoticeLevel.INFO, [{"id": SessionController.ACTION_TURN_RESTORE, "label": I18n.t("Undo"), "data": undo}])
+	var controller := _controller_of(session)
+	if controller and not data.get("undo", false):
+		controller.note_for_agent("[The user reverted these project files to how they were before one of your earlier turns: %s. Re-read them before editing them again.]" % names)
+
+
 func _remove_playtest_autoload() -> void:
 	PlaytestAutoload.unregister(self)
 
@@ -873,9 +1034,10 @@ func _remove_playtest_autoload() -> void:
 
 ## Controller de una sesión con lo que comparten todas: política y reglas del proyecto, fs con el
 ## editor, el server MCP con su token propio y la coordinación de archivos.
-func _make_controller(model: SessionModel, id: String) -> SessionController:
+func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = null) -> SessionController:
 	var controller := SessionController.new()
-	controller.setup(model, _log, EditorContext.project_path())
+	var root: String = copy.info.project if copy else EditorContext.project_path()
+	controller.setup(model, _log, root)
 	controller.prompt_variables_provider = _prompt_variables
 	# Lo que guarda el controller o el modelo se refiere a la sesión por id: un Callable que los
 	# capture armaría un ciclo de referencias y no se liberarían al cerrar.
@@ -889,13 +1051,30 @@ func _make_controller(model: SessionModel, id: String) -> SessionController:
 	controller.external_mcp_names = _external_mcp_names()
 	controller.quota.configure(_settings.quota_warn(), _settings.quota_pause(), _settings.quota_pause_enabled())
 	var fs := FsHandler.new()
-	fs.setup(EditorContext.project_path(), _log)
+	fs.setup(root, _log)
 	fs.extra_roots = _project_config.extra_fs_roots
-	fs.buffer_reader = _sync.buffer_text
-	fs.after_write = _sync.after_agent_write
+	if copy == null:  # en una copia (m11-09) no hay buffers del editor que sincronizar
+		fs.buffer_reader = _sync.buffer_text
+		fs.after_write = _sync.after_agent_write
 	controller.set_fs_handler(fs)
 	controller.mcp_servers_provider = _mcp_servers.bind(id, model)
+	controller.session_key = id
+	if copy:
+		# Sus archivos no son los del editor: sin locks ni verificación por res://, y snapshots propios.
+		var snapshots := TurnSnapshots.new(root)
+		snapshots.setup()
+		controller.snapshots = snapshots if _project_config.turn_snapshots else null
+		return _finish_controller(controller, model, id)
 	controller.file_guard = func(paths: PackedStringArray) -> String: return _claim_files(id, paths)
+	controller.snapshots = _turn_snapshots if _project_config.turn_snapshots else null
+	controller.turn_verifier = func(since_unix: int) -> String:
+		if _diagnostics == null or not _project_config.verify_after_turn:
+			return ""
+		return await _diagnostics.verify_changed_scripts(since_unix)
+	return _finish_controller(controller, model, id)
+
+
+func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:
 	model.tool_call_changed.connect(func(call: ToolCall, group: ChatEntry) -> void: _on_tool_call_changed(call, group, _model_of(id)))
 	model.turn_finished.connect(func(_stop_reason: String) -> void:
 		if _coordinator:
@@ -903,16 +1082,24 @@ func _make_controller(model: SessionModel, id: String) -> SessionController:
 	return controller
 
 
-func _open_session_tab() -> void:
+func _open_session_tab(in_copy: bool = false) -> void:
+	var copy: WorktreeSession = null
+	if in_copy:
+		copy = WorktreeSession.new(EditorContext.project_path())
+		var stamp := Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "-")
+		if not await copy.create(stamp):
+			EditorInterface.get_editor_toaster().push_toast(I18n.t("Could not create the separate copy: %s") % copy.last_error, EditorToaster.SEVERITY_WARNING)
+			return
 	_session_serial += 1
 	var id := "s%d" % _session_serial
-	var label := I18n.t("Session %d") % _session_serial
+	var pattern := I18n.t("Session %d (copy)") if copy else I18n.t("Session %d")
+	var label := pattern % _session_serial
 	while _label_taken(label, id):  # alguna otra se renombró así
 		_session_serial += 1
-		label = I18n.t("Session %d") % _session_serial
+		label = pattern % _session_serial
 	var model := SessionModel.new()
-	var controller := _make_controller(model, id)
-	_extra_sessions[id] = {"model": model, "controller": controller}
+	var controller := _make_controller(model, id, copy)
+	_extra_sessions[id] = {"model": model, "controller": controller, "copy": copy}
 	_coordinator.register(id, label)
 	var dock := AgentDockScene.instantiate()
 	dock.allow_oneshot = false
@@ -922,14 +1109,29 @@ func _open_session_tab() -> void:
 	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
+	dock.context_provider = _context_for_mention
 	_tabs.add_session(id, dock, model, label)
 	_log.add(AgentLog.CH_ACP, "%s opened" % label)
+	if copy:
+		model.add_notice(I18n.t("This session works in a separate copy of the project, %s, on the branch %s (from your last commit: uncommitted changes aren't in it). The open editor isn't touched. When you close the tab you choose whether to apply its changes to the project.") % [copy.info.project, copy.info.branch])
+		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work run Godot headless on your folder, for example: \"$GODOT\" --headless --path %s --quit (it imports the project and reports script errors).]" % [copy.info.project, copy.info.branch, copy.info.project])
 
 
-func _close_session_tab(id: String) -> void:
+## Cerrar una pestaña. Una sesión en una copia (m11-09) primero commitea lo suyo en su rama y, si
+## cambió algo, pregunta qué hacer; `ask` en false (al apagar el plugin) cierra sin tocar la copia.
+func _close_session_tab(id: String, ask: bool = true) -> void:
 	var session: Dictionary = _extra_sessions.get(id, {})
 	if session.is_empty():
 		return
+	var copy: WorktreeSession = session.get("copy")
+	if copy and ask and not session.get("resolved", false):
+		(session.controller as SessionController).stop()
+		var changed := await copy.commit_changes()
+		if changed.is_empty():
+			await copy.remove(true)
+		else:
+			_ask_copy_fate(id, copy, changed)
+			return
 	_extra_sessions.erase(id)
 	var controller: SessionController = session.controller
 	controller.stop()
@@ -942,6 +1144,64 @@ func _close_session_tab(id: String) -> void:
 		_mcp_server.remove_session_token(id)
 	if _tabs:
 		_tabs.remove_session(id)
+
+
+func _ask_copy_fate(id: String, copy: WorktreeSession, changed: PackedStringArray) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dialog.title = I18n.t("Changes of the separate copy")
+	var shown := PackedStringArray(Array(changed).slice(0, 12))
+	if changed.size() > 12:
+		shown.append("…")
+	dialog.dialog_text = I18n.t("«%s» changed %d files in its copy:\n%s\n\nApply them to the project as uncommitted changes, keep them only in the branch %s, or discard them?") % [_coordinator.label(id), changed.size(), "\n".join(shown), copy.info.branch]
+	dialog.ok_button_text = I18n.t("Apply to the project")
+	dialog.add_button(I18n.t("Keep the branch"), false, "keep")
+	if _project_config.github_pull_requests:
+		dialog.add_button(I18n.t("Push and open a PR"), false, "pr")
+	dialog.add_button(I18n.t("Discard"), false, "discard")
+	dialog.cancel_button_text = I18n.t("Cancel")
+	dialog.confirmed.connect(func() -> void: _resolve_copy(id, copy, changed, "apply"))
+	dialog.custom_action.connect(func(action: StringName) -> void:
+		dialog.hide()
+		_resolve_copy(id, copy, changed, String(action)))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free.call_deferred())
+	EditorInterface.get_base_control().add_child(dialog)
+	dialog.popup_centered()
+
+
+## Lo que eligió el usuario para la copia al cerrar su pestaña; después la pestaña se cierra.
+func _resolve_copy(id: String, copy: WorktreeSession, changed: PackedStringArray, action: String) -> void:
+	var label := _coordinator.label(id) if _coordinator else id
+	match action:
+		"apply":
+			var error := await copy.apply_to_project()
+			if error.is_empty():
+				await copy.remove(true)
+				_after_oneshot_restore(changed)
+				_model.add_notice(I18n.t("The changes of «%s» are in the project now, uncommitted (%d files).") % [label, changed.size()])
+			else:
+				await copy.remove(false)
+				_model.add_notice(error, ChatEntry.NoticeLevel.WARNING)
+		"keep":
+			await copy.remove(false)
+			_model.add_notice(I18n.t("The changes of «%s» stay in the branch %s.") % [label, copy.info.branch])
+		"pr":
+			var body := "Changes made by the agent session \"%s\" of Godot Agent Harness in a separate copy.\n\nFiles:\n%s" % [label, "\n".join(Array(changed).map(func(path: String) -> String: return "- `%s`" % path))]
+			var opened: Dictionary = await GithubReviews.new(EditorContext.project_path()).open_pull_request(str(copy.info.dir), str(copy.info.branch), str(copy.info.base_branch), label, body)
+			await copy.remove(false)
+			if str(opened.error).is_empty():
+				_model.add_notice(I18n.t("Pull request opened with the changes of «%s»: %s") % [label, opened.url])
+			else:
+				_model.add_notice(I18n.t("%s The changes stay in the branch %s.") % [opened.error, copy.info.branch], ChatEntry.NoticeLevel.WARNING)
+		"discard":
+			await copy.remove(true)
+		_:
+			return
+	var session: Dictionary = _extra_sessions.get(id, {})
+	session.resolved = true
+	_close_session_tab(id)
 
 
 ## Renombrar una pestaña (m7-53): el nombre es también el que usan los agentes en godot.sessions y
@@ -1010,6 +1270,15 @@ func _claim_files(id: String, paths: PackedStringArray) -> String:
 
 ## Coordinación de las tools godot.* entre sesiones: el juego para una a la vez (las demás esperan
 ## en cola) y los archivos que otra está editando, fuera de alcance.
+## Una sesión en una copia aparte (m11-09) no puede usar las tools que editan o corren el proyecto
+## del editor: se rechazan antes de pedir permiso.
+func _precheck_tool(mcp_caller: String, tool_name: String) -> String:
+	var copy: WorktreeSession = _extra_sessions.get(_session_of(mcp_caller), {}).get("copy")
+	if copy and (_registry.group_of(tool_name) != PermissionPolicy.GROUP_READ or tool_name in RunTools.GAME_TOOLS):
+		return "You work in a separate copy at %s: godot.%s acts on the project open in the editor, not on your copy. Edit the files in your copy and check them with Godot headless (\"$GODOT\" --headless --path %s --quit)." % [copy.info.project, tool_name, copy.info.project]
+	return ""
+
+
 func _guard_tool(mcp_caller: String, tool_name: String, args: Dictionary) -> String:
 	if _coordinator == null or not _coordinator.is_shared():
 		return ""

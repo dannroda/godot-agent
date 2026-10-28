@@ -11,6 +11,7 @@ signal saved
 const HarnessSettings := preload("../../core/harness_settings.gd")
 const I18n := preload("../../core/i18n.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
+const AcpRegistryDialog := preload("acp_registry_dialog.gd")
 const ProjectConfig := preload("../../config/project_config.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SessionModel := preload("../../session/session_model.gd")
@@ -39,7 +40,7 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -68,6 +69,7 @@ var _error_label: Label
 var _profiles: Array[AgentProfile] = []
 var _profile_list: VBoxContainer
 var _profile_form: GridContainer
+var _registry_dialog: AcpRegistryDialog
 var _editing: int = -1
 var _form_fields: Dictionary = {}  # nombre -> control
 # Permisos
@@ -84,6 +86,9 @@ var _roots_edit: TextEdit
 var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
+var _verify_check: CheckBox
+var _snapshots_check: CheckBox
+var _github_pr_check: CheckBox
 var _compact_tools_check: CheckBox
 var _mcp_servers_page: McpServersPage
 # One-shot y cuota
@@ -196,7 +201,19 @@ func _build_agents(page: VBoxContainer) -> void:
 		profile.display_name = I18n.t("New agent")
 		_profiles.append(profile)
 		_edit_profile(_profiles.size() - 1))
-	page.add_child(add)
+	var from_registry := Button.new()
+	from_registry.text = I18n.t("+ From the ACP registry…")
+	from_registry.tooltip_text = I18n.t("Claude, Codex, Gemini, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile.")
+	from_registry.pressed.connect(func() -> void:
+		if _registry_dialog == null:
+			_registry_dialog = AcpRegistryDialog.new()
+			_registry_dialog.profile_added.connect(_add_registry_profile)
+			add_child(_registry_dialog)
+		_registry_dialog.open())
+	var add_row := HBoxContainer.new()
+	add_row.add_child(add)
+	add_row.add_child(from_registry)
+	page.add_child(add_row)
 	_profile_form = GridContainer.new()
 	_profile_form.columns = 2
 	_profile_form.visible = false
@@ -311,6 +328,18 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_compact_tools_check.text = I18n.t("Compact tool list: the agent finds the extra godot tools with godot.methods")
 	_compact_tools_check.tooltip_text = I18n.t("The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session.")
 	page.add_child(_compact_tools_check)
+	_verify_check = CheckBox.new()
+	_verify_check.text = I18n.t("Check the scripts after each turn")
+	_verify_check.tooltip_text = I18n.t("In Build and Auto, when a turn ends the harness validates the scripts that changed. If one doesn't parse, the agent gets the errors to fix them (up to 2 turns in a row); then they stay as a notice in the chat.")
+	page.add_child(_verify_check)
+	_snapshots_check = CheckBox.new()
+	_snapshots_check.text = I18n.t("Keep a snapshot of the project on each turn (git)")
+	_snapshots_check.tooltip_text = I18n.t("In Build and Auto, each turn ends with a notice of the files it changed, to see their diff and go back. The snapshots are git commits outside your branches (refs/godot-agent/turns); your branch, index and stash are not touched.")
+	page.add_child(_snapshots_check)
+	_github_pr_check = CheckBox.new()
+	_github_pr_check.text = I18n.t("Offer to push and open a GitHub pull request when closing a separate copy")
+	_github_pr_check.tooltip_text = I18n.t("Uses git push and the gh CLI. Off by default: otherwise the harness never pushes.")
+	page.add_child(_github_pr_check)
 	page.add_child(_title(I18n.t("Folders outside the project")))
 	page.add_child(_hint(I18n.t("The agent's fs/* can read and write in these folders besides the project (absolute paths, one per line).")))
 	_roots_edit = TextEdit.new()
@@ -489,6 +518,9 @@ func _load() -> void:
 	_max_image_spin.value = _config.max_image_side
 	_manual_runs_check.button_pressed = _config.playtest_on_manual_runs
 	_compact_tools_check.button_pressed = _config.compact_tools
+	_verify_check.button_pressed = _config.verify_after_turn
+	_snapshots_check.button_pressed = _config.turn_snapshots
+	_github_pr_check.button_pressed = _config.github_pull_requests
 	_roots_edit.text = "\n".join(_config.extra_fs_roots)
 	_budget_spins.minutes.value = _config.budget_minutes
 	_budget_spins.tokens.value = _config.budget_tokens
@@ -573,6 +605,9 @@ func _on_save() -> void:
 	_config.max_image_side = int(_max_image_spin.value)
 	_config.playtest_on_manual_runs = _manual_runs_check.button_pressed
 	_config.compact_tools = _compact_tools_check.button_pressed
+	_config.verify_after_turn = _verify_check.button_pressed
+	_config.turn_snapshots = _snapshots_check.button_pressed
+	_config.github_pull_requests = _github_pr_check.button_pressed
 	_config.extra_fs_roots = _lines(_roots_edit.text)
 	_config.mcp_servers = _mcp_servers_page.project_servers()
 	_config.budget_minutes = int(_budget_spins.minutes.value)
@@ -720,6 +755,19 @@ func _rebuild_profiles() -> void:
 			button.pressed.connect((action[1] as Callable).bind(i))
 			row.add_child(button)
 		_profile_list.add_child(card)
+
+
+## Un perfil del registro de ACP: reemplaza al de su mismo id (una versión nueva) o se agrega.
+func _add_registry_profile(data: Dictionary) -> void:
+	var profile: AgentProfile = AgentProfile.from_dict(data)
+	for i in _profiles.size():
+		if _profiles[i].id == profile.id:
+			profile.is_default = _profiles[i].is_default
+			_profiles[i] = profile
+			_rebuild_profiles()
+			return
+	_profiles.append(profile)
+	_rebuild_profiles()
 
 
 func _edit_profile(index: int) -> void:

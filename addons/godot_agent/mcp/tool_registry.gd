@@ -24,6 +24,10 @@ var session_authorizer: Callable
 ## `(caller, tool_name, args) -> String`: "" deja correr la tool; si no, el motivo por el que otra
 ## sesión la impide (edita ese archivo, tiene el juego). Puede esperar (la cola del juego).
 var guard: Callable
+## `(caller, tool_name) -> String`: un rechazo que no depende del usuario (una sesión en una copia
+## aparte no puede usar las tools que editan el editor, m11-09). Corre antes de pedir permiso, para
+## no mostrar una tarjeta que igual se rechazaría.
+var precheck: Callable
 ## La sesión que llama a la tool en curso, para los handlers que la necesitan (godot.sessions):
 ## vale al empezar el handler, antes de su primer await.
 var current_caller: String = ""
@@ -96,6 +100,21 @@ func group_of(tool_name: String) -> String:
 	return tool.group if tool else ""
 
 
+## Corre una tool para lo que pide el usuario desde la UI (las menciones @errors, @game… del
+## composer, m11-08): sin permiso ni guard, porque no la llama el agente. Devuelve el texto del
+## resultado (con el tope de max_output_chars) o "" si no existe.
+func run_for_user(tool_name: String, args: Dictionary) -> String:
+	var tool: McpTool = _tools.get(tool_name)
+	if tool == null or not tool.handler.is_valid():
+		return ""
+	var result := _limit(_normalize(await tool.handler.call(args)))
+	var texts: PackedStringArray = []
+	for block: Variant in result.content:
+		if block is Dictionary and block.get("type") == "text":
+			texts.append(str(block.text))
+	return "\n".join(texts)
+
+
 ## Ejecuta una tool y devuelve siempre un resultado MCP `{content, isError}`.
 func call_tool(tool_name: String, args: Variant, caller: String = "") -> Dictionary:
 	var started := Time.get_ticks_msec()
@@ -128,6 +147,8 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 			result = McpTool.error(invalid)
 		elif not tool.handler.is_valid():
 			result = McpTool.error("The tool godot.%s is not available (the addon was reloaded). Retry in a moment." % tool.name)
+		elif precheck.is_valid() and not str(precheck.call(caller, tool.name)).is_empty():
+			result = McpTool.error(str(precheck.call(caller, tool.name)))
 		elif not await _authorize(tool, arguments, caller):
 			result = McpTool.error(
 				"Permission denied for godot.%s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [tool.name, tool.group]

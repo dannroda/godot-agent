@@ -43,6 +43,15 @@ const ShellRules := preload("../session/shell_rules.gd")
 ## tools/list compacto (D56): el núcleo tipado más godot.methods y godot.run para el resto, para
 ## que las descripciones de ~55 tools no ocupen contexto en cada turno. Vale desde la próxima sesión.
 @export var compact_tools: bool = true
+## Al terminar un turno de Construir o Auto, validar los scripts que cambiaron y devolverle los
+## errores al agente (m11-04).
+@export var verify_after_turn: bool = true
+## Guardar un snapshot de git del proyecto al empezar y al terminar cada turno de Construir o Auto,
+## para ver qué cambió y volver atrás (m11-01). Sin git, no hace nada.
+@export var turn_snapshots: bool = true
+## Al cerrar una sesión en una copia aparte, ofrecer «Pushear y abrir un PR» (m11-10). Pushea la rama
+## de la copia a origin: por eso viene apagado.
+@export var github_pull_requests: bool = false
 ## Skills de Claude Code apagadas en este proyecto (m7-36), por su nombre (`plugin:skill` las de
 ## plugins). Vale desde la próxima sesión.
 @export var disabled_skills: PackedStringArray = []

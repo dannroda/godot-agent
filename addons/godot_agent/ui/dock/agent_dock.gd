@@ -26,6 +26,7 @@ const Composer := preload("composer.gd")
 const PromptQueue := preload("../../session/prompt_queue.gd")
 const PromptQueueView := preload("prompt_queue_view.gd")
 const ReviewPanel := preload("review_panel.gd")
+const GithubReviews := preload("../../core/github_reviews.gd")
 const QuotaRing := preload("quota_ring.gd")
 const QrView := preload("qr_view.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
@@ -44,6 +45,9 @@ const ADD_CONTEXT_SCRIPT := 0
 const ADD_CONTEXT_FILE := 1
 const ADD_CONTEXT_SCREENSHOT := 2
 const ADD_CONTEXT_GAME := 3
+## Menciones que se convierten en contexto al enviar (m11-08): `@errors`, `@output`, `@game` y
+## `@docs:Clase`. El texto lo trae `context_provider`.
+const SPECIAL_MENTIONS: PackedStringArray = ["errors", "output", "game", "docs:"]
 ## Imágenes adjuntas por prompt.
 const MAX_IMAGES := 6
 const IMAGE_EXTENSIONS: PackedStringArray = ["png", "jpg", "jpeg", "webp", "bmp", "tga", "svg"]
@@ -71,6 +75,8 @@ var retry_interceptor: Callable
 var can_switch_session: Callable
 ## () -> Variant (async): el frame del juego en ejecución como Image, o el motivo (String) si no hay.
 var game_capture: Callable
+## `(kind: String, arg: String) -> String`: el texto de una mención especial (m11-08); lo pone el plugin.
+var context_provider: Callable
 ## false en las sesiones extra (m7-44): el One-shot corre solo en la primera.
 var allow_oneshot: bool = true
 
@@ -155,7 +161,10 @@ func _ready() -> void:
 	_composer = Composer.new()
 	_composer.setup(_accent)
 	_composer.history_path = PROMPT_HISTORY_PATH
-	_composer.mention_provider = EditorContext.mention_options
+	_composer.mention_provider = func() -> Array[Dictionary]:
+		var options := special_mention_options()
+		options.append_array(EditorContext.mention_options())
+		return options
 	_composer.submitted.connect(_on_submitted)
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
@@ -428,6 +437,7 @@ func _build_review_panel() -> void:
 	_review_panel.finding_selected.connect(func(id: int) -> void: action_forwarded.emit(ACTION_REVIEW_FOCUS, id))
 	_review_panel.fix_all_requested.connect(func() -> void: action_forwarded.emit(ACTION_REVIEW_FIX_ALL, null))
 	_review_panel.export_requested.connect(_on_review_export_requested)
+	_review_panel.github_import_requested.connect(_on_github_import_requested)
 	add_child(_review_panel)
 	move_child(_review_panel, _body.get_index())
 	_export_dialog = ConfirmationDialog.new()
@@ -679,7 +689,40 @@ func _send(text: String) -> void:
 	if SessionController.is_slash_command(text):
 		_controller.send_prompt(text)
 		return
-	_controller.send_prompt(text, _take_context_blocks())
+	_send_with_mentions(text, _take_context_blocks())
+
+
+## Manda el prompt con el contexto de sus menciones especiales (@errors, @game…) agregado.
+func _send_with_mentions(text: String, blocks: Array) -> void:
+	var expanded := blocks.duplicate()
+	for mention: Dictionary in special_mentions_in(text):
+		var found: String = await context_provider.call(mention.kind, mention.arg) if context_provider.is_valid() else ""
+		expanded.append({"type": "text", "text": "Context the user attached with @%s:\n%s" % [mention.token, found if not found.strip_edges().is_empty() else "(nothing)"]})
+	_controller.send_prompt(text, expanded)
+
+
+## Las menciones especiales de `text`, sin repetir: `[{token, kind, arg}]` (`arg`: la clase de @docs:).
+static func special_mentions_in(text: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var regex := RegEx.create_from_string("(?<![\\w@])@(errors|output|game|docs:([A-Za-z_@][A-Za-z0-9_]*))(?![\\w:])")
+	var seen := {}
+	for found: RegExMatch in regex.search_all(text):
+		var token := found.get_string(1)
+		if seen.has(token):
+			continue
+		seen[token] = true
+		result.append({"token": token, "kind": "docs" if token.begins_with("docs:") else token, "arg": found.get_string(2)})
+	return result
+
+
+## Las menciones especiales para el menú de @ (van primero).
+static func special_mention_options() -> Array[Dictionary]:
+	return [
+		{"label": "@errors · " + I18n.t("the editor's errors and warnings"), "insert": "errors"},
+		{"label": "@output · " + I18n.t("the end of the Output panel"), "insert": "output"},
+		{"label": "@game · " + I18n.t("the running game's node tree"), "insert": "game"},
+		{"label": "@docs:Class · " + I18n.t("the API reference of a class"), "insert": "docs:"},
+	]
 
 
 ## El contexto adjunto para un prompt; la captura y los archivos agregados se usan una sola vez.
@@ -737,7 +780,7 @@ func _send_next_queued(resume: bool = false) -> void:
 		return
 	var item := _queue.take_next()
 	if not item.is_empty():
-		_controller.send_prompt(str(item.text), item.blocks)
+		_send_with_mentions(str(item.text), item.blocks)
 
 
 ## «Enviar ahora» de un prompt de la cola: pasa al frente y, si el agente está trabajando, se
@@ -1025,6 +1068,48 @@ func _on_screenshot_requested() -> void:
 		_model.add_notice(I18n.t("Could not capture the viewport."), ChatEntry.NoticeLevel.WARNING)
 		return
 	attach_image(image, I18n.t("viewport"))
+
+
+# --- comentarios de un PR de GitHub como hallazgos (m11-10) -----------------------------------------
+
+func _on_github_import_requested() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dialog.title = I18n.t("Review comments from GitHub")
+	var column := VBoxContainer.new()
+	var hint := Label.new()
+	hint.text = I18n.t("Pull request number (empty: the one of the current branch). It needs the gh CLI signed in.")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = AgentTheme.px(320)
+	column.add_child(hint)
+	var number := LineEdit.new()
+	number.placeholder_text = "123"
+	column.add_child(number)
+	dialog.add_child(column)
+	dialog.ok_button_text = I18n.t("Import")
+	dialog.cancel_button_text = I18n.t("Cancel")
+	dialog.register_text_enter(number)
+	dialog.confirmed.connect(func() -> void: _import_github_review(number.text))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free.call_deferred())
+	add_child(dialog)
+	dialog.popup_centered()
+	number.grab_focus()
+
+
+func _import_github_review(pr: String) -> void:
+	_model.add_notice(I18n.t("Reading the pull request's review comments…"))
+	var result: Dictionary = await GithubReviews.new(EditorContext.project_path()).fetch_review(pr)
+	if not str(result.error).is_empty():
+		_model.add_notice(str(result.error), ChatEntry.NoticeLevel.WARNING)
+	elif result.findings.is_empty():
+		_model.add_notice(I18n.t("%s has no review comments on lines of this project's files.") % result.url)
+	else:
+		var findings: Array[Dictionary] = []
+		findings.assign(result.findings)
+		_controller.review.set_findings(findings)
+		_model.add_notice(I18n.t("%d review comments from %s are in the findings and the Script Editor.") % [findings.size(), result.url])
 
 
 # --- presets de export (M0) ----------------------------------------------------------------------

@@ -9,7 +9,7 @@ Open **Settings** from the dock header.
 | **Agents** | Agent profiles (see below). |
 | **Completion** | [Inline completion](Inline-completion.md). |
 | **Permissions** | The [permission matrix](Modes-and-permissions.md#permissions) per mode, the timeout to answer, and the [Auto mode](Modes-and-permissions.md#auto-mode) lists of shell commands. |
-| **MCP servers** | [Other MCP servers](#other-mcp-servers) for the agent; for the addon's own server: port, **Regenerate token**, result limits, compact tool list, extra folders. |
+| **MCP servers** | [Other MCP servers](#other-mcp-servers) for the agent; for the addon's own server: port, **Regenerate token**, result limits, compact tool list, checking the scripts after each turn, a snapshot of the project on each turn, extra folders. |
 | **One-shot and quota** | Default budgets, checkpoints, spec review, loop repeats, QA rounds, game criteria (weight and minimum), quota warning and pause thresholds, what to do when the quota resets. |
 | **Interface** | Accent color, dock position, language, [updates](#updating-the-addon). |
 | **Export** | Checks that every export preset excludes the addon. |
@@ -37,6 +37,12 @@ The port, the accent color, the dock position and the language apply when you re
   - **Codex**: no command; set it up with the ACP adapter you use.
 - The agent always receives `GODOT`/`GODOT_BIN` with the editor's binary; a profile can override them.
 
+### From the ACP registry
+
+**+ From the ACP registry…** lists the agents of the public [ACP registry](https://agentclientprotocol.com/registry) that Zed and JetBrains use (Claude, Codex, Gemini CLI, Copilot, Cursor, Google Antigravity, Goose, OpenCode…), with a filter. **Add** creates the profile: agents published on npm or PyPI run with `npx` or `uvx`, and the rest download a program for this platform into the editor's data folder (`godot_agent/agents/<id>/<version>/`), shared by all projects. The download is checked against the registry's sha256; when the registry has none, **Add** asks for a second click (**Add without checksum**). Adding the same agent again replaces its profile with the new version. Some agents are big: Google Antigravity's is about 900 MB.
+
+Google Antigravity asks you to sign in the first time (Google account, Gemini Enterprise, a Gemini API key or Agent Platform); the dock offers the methods it publishes.
+
 ## Other MCP servers
 
 **Settings → MCP servers** lists MCP servers of other programs (Blender, a database, a web service…). The addon passes them to the agent when a session opens, next to its own `godot` server, so they work with any ACP agent. Changes apply from the next session.
@@ -61,6 +67,7 @@ The **Extensions** button in the dock header (next to Settings) opens a window w
 - **Skills**: Claude Code's skills, grouped by where they live: the project's (`.claude/skills`, shared with your team through git), yours (`skills` in Claude Code's config folder, for every project) and the ones installed plugins bring, each with its description, a button to open its `SKILL.md` and one to show its folder. The switch of a project or user skill turns it off **in this project** (saved in the project config): from the next session the agent doesn't see it and it leaves the `/` menu. Plugin skills have no switch: they turn on and off with their plugin in **Plugins**. **+** creates a skill from a template and opens its `SKILL.md`; the folder button imports a skill folder, a folder with several, or a zip; both put it in this project or in your skills, as chosen at the top. A user skill can be copied into the project, and project and user skills can be moved to the trash. While the Godot skills of the [godot-agent marketplace](https://github.com/dannroda/godot-agent-plugins) aren't installed, a card offers to add the marketplace and install its `gdscript` and `shaders` plugins. Skills are a Claude Code feature: with another agent the tab says so.
 - **Godot addons**: the editor plugins in the project's `addons/` with an on/off switch (the harness itself has none), and a search of the [Godot Asset Store](https://store.godotengine.org) for this Godot version, sorted by relevance, recent updates, reviews or newest. **Install** downloads the newest stable release and shows what it will write before touching the project: only the `addons/` folder (zips often carry demos, a README or even a `project.godot`; a checkbox adds them), never overwriting a file that already exists, and **Enable its plugins** turns them on once the editor has imported the files. Paid assets are bought on the store website.
   - **Updates**: when the tab opens (and with the ↻ button) it asks the store for newer versions of the project's plugins; a plugin with one shows **Update to X**. Updating replaces the addon's folder (edits you made inside it are lost), removes the files the new version no longer has and leaves its plugins as they were. Each install is recorded in `.godot_agent/assets.json` (commit it so your team gets the same updates); a plugin installed by hand is matched with the store by its name, and only if its `plugin.cfg` has a version.
+- **Instructions**: the project's instructions for the agents, to read and edit: `CLAUDE.md` (Claude Code), `AGENTS.md` (Codex, Copilot, Cursor, OpenCode…) and `GEMINI.md` (Gemini CLI). **Add the project facts** writes what the harness can read on its own (Godot version, main scene, autoloads, named layers, input actions other than `ui_*`, top-level folders) between `<!-- godot-agent:project-facts -->` markers: adding it again updates that part and leaves the rest as you wrote it. Switching files saves the one you were editing. Agents read it from their next session.
 
 Plugins load when a session opens: after a change, the window offers **New session**. Plugins and marketplaces are Claude Code's; with another agent profile those tabs say so.
 
