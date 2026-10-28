@@ -22,6 +22,7 @@ const EditorContext := preload("ui/editor_context.gd")
 const EditorSync := preload("editor/editor_sync.gd")
 const RemoteActivity := preload("session/remote_activity.gd")
 const FsHandler := preload("acp/fs_handler.gd")
+const TerminalHandler := preload("acp/terminal_handler.gd")
 const PermissionPolicy := preload("session/permission_policy.gd")
 const ProjectConfig := preload("config/project_config.gd")
 const ExternalMcpServers := preload("mcp/external_mcp_servers.gd")
@@ -1057,6 +1058,10 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 		fs.buffer_reader = _sync.buffer_text
 		fs.after_write = _sync.after_agent_write
 	controller.set_fs_handler(fs)
+	var terminal := TerminalHandler.new()
+	terminal.setup(root, _log)
+	terminal.extra_roots = _project_config.extra_fs_roots
+	controller.set_terminal_handler(terminal)
 	controller.mcp_servers_provider = _mcp_servers.bind(id, model)
 	controller.session_key = id
 	if copy:

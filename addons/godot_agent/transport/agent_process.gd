@@ -10,6 +10,7 @@ extends RefCounted
 
 signal line_received(line: String)
 signal stderr_received(line: String)
+signal output_received(data: PackedByteArray)
 signal exited(code: int)
 
 const ProcessTree := preload("process_tree.gd")
@@ -27,6 +28,9 @@ const LINE_BUDGET_USEC := 6000
 ## Bytes que se leen de un pipe por frame como máximo.
 const READ_CHUNK := 1 << 20
 
+## En true (terminales ACP, m11-15), entrega los bytes crudos de stdout y stderr por `output_received`
+## en lugar de partirlos en líneas.
+var raw_mode: bool = false
 var _stdio: FileAccess
 var _stderr: FileAccess
 var _pid: int = 0
@@ -191,6 +195,9 @@ func _read_stdout() -> void:
 	var data := _read_available(_stdio)
 	if data.is_empty():
 		return
+	if raw_mode:
+		output_received.emit(data)
+		return
 	_stdout_rest.append_array(data)
 	var split := _split_lines(_stdout_rest)
 	_stdout_rest = split.rest
@@ -200,6 +207,9 @@ func _read_stdout() -> void:
 func _read_stderr() -> void:
 	var data := _read_available(_stderr)
 	if data.is_empty():
+		return
+	if raw_mode:
+		output_received.emit(data)
 		return
 	_stderr_rest.append_array(data)
 	var split := _split_lines(_stderr_rest)

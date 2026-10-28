@@ -29,6 +29,7 @@ const ShellRules := preload("shell_rules.gd")
 const ProjectWriteGuard := preload("project_write_guard.gd")
 const GodotWindowGuard := preload("godot_window_guard.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
+const TerminalHandler := preload("../acp/terminal_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
 const ReviewStore := preload("../review/review_store.gd")
@@ -102,6 +103,7 @@ var seen_mcp_servers: Dictionary = {}
 ## Pedidos de permiso del agente que esperan respuesta: id del request ACP -> PermissionRequest.
 var _permissions_by_acp_id: Dictionary = {}
 var fs: FsHandler
+var terminal: TerminalHandler
 var agent_log: AgentLog
 ## Cuota del plan (spec §10.1): estado, ventanas y límite; la UI y el One-shot la leen de acá.
 var quota: QuotaMonitor
@@ -151,6 +153,7 @@ var _sending_fix: bool = false
 var _note_for_agent: String = ""
 var _connect_generation: int = 0
 var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
+var _preauthorized_commands: Dictionary = {}  # command line -> vencimiento (msec)
 ## Subagentes que el harness dejó arrancar (toolCallId -> true): cuentan para el límite aunque el
 ## agente todavía no los haya pasado a in_progress.
 var _approved_subagents: Dictionary = {}
@@ -188,6 +191,16 @@ func set_fs_handler(handler: FsHandler) -> void:
 	fs = handler
 	fs.write_authorizer = _authorize_fs_write
 	fs.register(client)
+
+
+## terminal/* (m11-15). Los comandos pasan por las guardas del proyecto y la política (shell).
+func set_terminal_handler(handler: TerminalHandler) -> void:
+	terminal = handler
+	terminal.command_authorizer = _authorize_terminal_command
+	terminal.env_provider = _terminal_base_env
+	terminal.output_changed.connect(func(terminal_id: String, output: String, exit_code: Variant) -> void:
+		model.set_terminal_output(terminal_id, output, exit_code))
+	terminal.register(client)
 
 func profile() -> AgentProfile:
 	return _profile
@@ -285,6 +298,7 @@ func open_session(generation: int = _connect_generation) -> bool:
 	_system_prompt_sent = false
 	policy.clear_session()
 	_preauthorized_writes.clear()
+	_preauthorized_commands.clear()
 	_approved_subagents.clear()
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.display_name, cwd)
@@ -564,6 +578,8 @@ func set_config_option(id: String, value: String) -> bool:
 func stop() -> void:
 	_connect_generation += 1
 	cancel_login()
+	if terminal:
+		terminal.stop_all()
 	if _process:
 		var process := _process
 		_process = null
@@ -584,7 +600,7 @@ func client_capabilities() -> Dictionary:
 			"readTextFile": client.has_request_handler("fs/read_text_file"),
 			"writeTextFile": client.has_request_handler("fs/write_text_file"),
 		},
-		"terminal": false,
+		"terminal": client.has_request_handler("terminal/create"),
 		# Login con el comando del agente (claude-agent-acp ofrece entonces «Claude Subscription» y
 		# «Anthropic Console»). El agente guarda sus credenciales; el addon no las ve.
 		"auth": {"terminal": true},
@@ -809,9 +825,7 @@ func _on_request_permission(params: Dictionary) -> Variant:
 		PermissionPolicy.DENY:
 			_notify_denied(request.group, request.title)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
-	_permissions_by_acp_id[acp_id] = request
 	var outcome := await _ask_user(request, 0)
-	_permissions_by_acp_id.erase(acp_id)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)
 	if request.persist_allow and request.was_allowed():
@@ -833,6 +847,9 @@ func _on_request_permission(params: Dictionary) -> Variant:
 
 
 func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
+	var acp_id: Variant = client.handling_id
+	if acp_id != null:
+		_permissions_by_acp_id[acp_id] = request
 	_log_perm("asking the user: %s" % request.title)
 	model.add_permission(request)
 	if timeout_s > 0:
@@ -843,6 +860,8 @@ func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 				request.cancel()
 		)
 	var outcome: Dictionary = request.outcome if not request.is_pending() else await request.resolved
+	if acp_id != null and _permissions_by_acp_id.get(acp_id) == request:
+		_permissions_by_acp_id.erase(acp_id)
 	if request.chosen_kind == PermissionRequest.KIND_ALLOW_ALWAYS:
 		policy.grant_for_session(request.group)
 	_log_perm("%s: %s" % [_outcome_label(request), request.title])
@@ -886,6 +905,55 @@ func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bo
 	)
 
 
+func _authorize_terminal_command(command_line: String, working_dir: String) -> String:
+	var blocked := ProjectWriteGuard.blocked_target({"kind": "execute", "rawInput": {"command": command_line}}, PermissionPolicy.GROUP_SHELL, working_dir if not working_dir.is_empty() else cwd)
+	if not blocked.is_empty():
+		_notify_blocked_write(command_line, blocked)
+		return "%s is not written by hand: %s." % [blocked, ProjectWriteGuard.alternative_for(blocked)]
+	var launch := GodotWindowGuard.windowed_launch(command_line, EditorBinary.path())
+	if not launch.is_empty():
+		_log_perm("rejected, opens Godot in its own window: %s" % launch)
+		model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
+		return "Command-line Godot only runs with --headless: %s" % launch
+	var expiry: int = _preauthorized_commands.get(command_line, 0)
+	if expiry > Time.get_ticks_msec():
+		_preauthorized_commands.erase(command_line)
+		return ""
+	var decision := policy.decide(PermissionPolicy.GROUP_SHELL, model.harness_mode)
+	if decision == PermissionPolicy.ALLOW:
+		_log_perm("allowed by %s mode: %s" % [_mode_label(), command_line])
+		return ""
+	if decision == PermissionPolicy.DENY:
+		_notify_denied(PermissionPolicy.GROUP_SHELL, command_line)
+		return "Permission denied in %s mode: %s" % [_mode_label(), command_line]
+	if model.harness_mode == SessionModel.HarnessMode.AUTO:
+		var verdict := ShellRules.classify(command_line, shell_rules)
+		if verdict.decision == ShellRules.ALLOW:
+			_log_perm("allowed by Auto mode, %s: %s" % [verdict.reason, command_line])
+			return ""
+		_log_perm("Auto mode asks, %s: %s" % [verdict.reason, command_line])
+	var request := PermissionRequest.new()
+	request.group = PermissionPolicy.GROUP_SHELL
+	request.title = I18n.t("Terminal")
+	request.description = command_line
+	request.options = PermissionRequest.default_options()
+	if model.harness_mode == SessionModel.HarnessMode.AUTO:
+		request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
+		request.options = request.options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
+	var outcome := await _ask_user(request, 0)
+	if not request.rule_to_add.is_empty():
+		_add_shell_rule(request.rule_to_add)
+	if outcome.get("outcome") == "selected" and request.was_allowed():
+		return ""
+	return "Permission denied by the user or the current mode: %s" % command_line
+
+
+func _terminal_base_env() -> Dictionary:
+	var profile_env: Dictionary = _profile.resolved_env() if _profile else {}
+	var base_path := CommandResolver.child_path_for(CommandResolver.resolve(_profile.command)) if _profile else ""
+	return EditorBinary.child_env(profile_env, base_path)
+
+
 ## Pide al CLI de Claude Code con qué cuenta está logueado el perfil (su CLAUDE_CONFIG_DIR) y la
 ## deja en el modelo. Otros agentes no la informan: queda vacía.
 func _refresh_account() -> void:
@@ -915,8 +983,13 @@ func _file_taken(paths: PackedStringArray) -> bool:
 	return true
 
 
-## Un permiso de edición concedido cubre la escritura por fs/* que le sigue al mismo archivo.
+## Un permiso de edición concedido cubre la escritura por fs/* que le sigue al mismo archivo; uno de
+## shell cubre el terminal/create que le sigue con el mismo comando.
 func _preauthorize(request: PermissionRequest, call: Variant) -> void:
+	if request.group == PermissionPolicy.GROUP_SHELL:
+		if not request.description.is_empty():
+			_preauthorized_commands[request.description] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
+		return
 	if request.group != PermissionPolicy.GROUP_EDIT_FILES:
 		return
 	for path: String in _write_paths(request, call):
@@ -1083,6 +1156,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	_system_prompt_sent = true  # ya está en el contexto que el agente recuperó
 	policy.clear_session()
 	_preauthorized_writes.clear()
+	_preauthorized_commands.clear()
 	_approved_subagents.clear()
 	if history:
 		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)

@@ -83,6 +83,8 @@ var _group_of_call: Dictionary = {}  # toolCallId -> ChatEntry (TOOL_GROUP)
 ## Subagentes nativos de ACP (m7-43): sesión del hijo -> {state, title, description, launch}, con
 ## `launch` el tool call de Agent/Task que lo lanzó (lo dice el session_message de su prompt).
 var _subagent_sessions: Dictionary = {}
+## Salida de cada terminal ACP (m11-15): terminalId -> {output: String, exit_code: Variant}.
+var _terminal_outputs: Dictionary = {}
 var _plan_entry: ChatEntry
 var _next_entry_id: int = 1
 
@@ -160,6 +162,7 @@ func reset() -> void:
 	_tool_calls.clear()
 	_group_of_call.clear()
 	_subagent_sessions.clear()
+	_terminal_outputs.clear()
 	_plan_entry = null
 	cancel_pending_permissions()
 	set_remote_control("")
@@ -463,7 +466,61 @@ func _apply_tool_call(data: Dictionary, is_new: bool, parent: String = "") -> vo
 			# Un pedido de permiso puede llegar antes que el update que dice de qué subagente es.
 			_reparent(call, parent)
 	call.apply(data)
+	_apply_terminal_meta(data)
+	_sync_terminal_blocks(call)
 	_emit_tool_call_changed(call)
+
+
+## Actualiza la salida de un terminal ACP (m11-15) y refresca los tool calls que lo muestran.
+func set_terminal_output(terminal_id: String, output: String, exit_code: Variant = null) -> void:
+	if terminal_id.is_empty():
+		return
+	var current: Dictionary = _terminal_outputs.get(terminal_id, {})
+	var resolved_exit: Variant = exit_code if exit_code != null else current.get("exit_code")
+	_terminal_outputs[terminal_id] = {"output": output, "exit_code": resolved_exit}
+	for call_id: String in _tool_calls:
+		var call: ToolCall = _tool_calls[call_id]
+		if _sync_terminal_blocks(call):
+			_emit_tool_call_changed(call)
+
+
+func _apply_terminal_meta(data: Dictionary) -> void:
+	var meta: Variant = data.get("_meta")
+	if not meta is Dictionary:
+		return
+	var exit_code: Variant = null
+	if meta.get("terminal_exit") is Dictionary:
+		exit_code = (meta.terminal_exit as Dictionary).get("exit_code")
+	if meta.get("terminal_output") is Dictionary:
+		var out: Dictionary = meta.terminal_output
+		set_terminal_output(str(out.get("terminal_id", "")), str(out.get("data", "")), exit_code)
+	elif meta.get("terminal_output_delta") is Dictionary:
+		var delta: Dictionary = meta.terminal_output_delta
+		var tid := str(delta.get("terminal_id", ""))
+		var prev := str((_terminal_outputs.get(tid, {}) as Dictionary).get("output", ""))
+		set_terminal_output(tid, prev + str(delta.get("data", "")), exit_code)
+
+
+func _sync_terminal_blocks(call: ToolCall) -> bool:
+	var changed := false
+	for i in call.content.size():
+		var block: Variant = call.content[i]
+		if not block is Dictionary or block.get("type") != "terminal":
+			continue
+		var tid := str(block.get("terminalId", ""))
+		if tid.is_empty() or not _terminal_outputs.has(tid):
+			continue
+		var info: Dictionary = _terminal_outputs[tid]
+		var out := str(info.get("output", ""))
+		var code: Variant = info.get("exit_code")
+		if block.get("output") != out or block.get("exitCode") != code:
+			var updated: Dictionary = (block as Dictionary).duplicate()
+			updated["output"] = out
+			if code != null:
+				updated["exitCode"] = code
+			call.content[i] = updated
+			changed = true
+	return changed
 
 
 ## Un tool call nuevo: dentro del subagente `parent` o, sin padre, en el grupo del final de la

@@ -1460,8 +1460,6 @@ msgstr "Tarea %d: %s"
 msgid "Temperature"
 msgstr "Temperatura"
 
-msgid "Terminal: not supported in v1."
-msgstr "Terminal: no soportado en v1."
 
 msgid "That needs a ready session with no turn in progress."
 msgstr "Para eso hace falta una sesión lista y sin un turno en curso."

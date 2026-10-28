@@ -212,7 +212,7 @@ func _refresh_subagent(call: ToolCall, parts: Dictionary) -> void:
 	note.text = "💬 " + (last_text if last_text.length() <= SUBAGENT_NOTE_CHARS else "…" + last_text.right(SUBAGENT_NOTE_CHARS))
 
 
-## Contenido del tool call: diffs como tarjetas, texto breve, terminal "no soportado", ubicaciones.
+## Contenido del tool call: diffs como tarjetas, texto breve, salida de terminal, ubicaciones.
 func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 	var signature := "%s|%d|%d" % [call.status, str(call.content).hash(), call.locations.size()]
 	if extra.get_meta(&"signature", "") == signature:
@@ -230,7 +230,11 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 				card.open_requested.connect(func(path: String, line: int) -> void: action_requested.emit("open_location", {"path": path, "line": line}))
 				extra.add_child(card)
 			"terminal":
-				extra.add_child(_muted_label(I18n.t("Terminal: not supported in v1.")))
+				var term_text := str(block.get("output", ""))
+				if call.status == ToolCall.STATUS_FAILED and not term_text.strip_edges().is_empty():
+					extra.add_child(_muted_label(term_text.left(400), AgentTheme.ERROR))
+				elif not term_text.strip_edges().is_empty():
+					extra.add_child(_output_toggle(term_text, _output_noun(call)))
 			"content":
 				var inner: Variant = block.get("content")
 				if not inner is Dictionary:
