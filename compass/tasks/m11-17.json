@@ -4,16 +4,16 @@
   "created_at": "2026-10-28T19:15:09.338Z",
   "description": "ACP v1 suma elicitation/create y elicitation/complete del lado del cliente: el agente pide datos al usuario con un esquema (texto, opciones, confirmación). Anunciar la capacidad y mostrarlos como tarjeta en el dock, como los permisos.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "Agregados ElicitationRequest (session/elicitation_request.gd) y ElicitationView (ui/dock/entries/elicitation_view.gd) para formularios (mode: form con string, enum/oneOf, boolean, integer/number y array multi-select) y enlaces (mode: url). Conectados elicitation/create, elicitation/complete, $/cancel_request y clientCapabilities.elicitation en SessionController, SessionModel y ConversationView. Cubierto en tests/unit/test_elicitation.gd.",
   "order": 17,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "acp"
   ],
   "test": "",
   "title": "Formularios del agente (elicitation/create y complete)",
-  "updated_at": "2026-10-28T19:15:09.338Z"
+  "updated_at": "2026-10-28T21:52:58.064Z"
 }

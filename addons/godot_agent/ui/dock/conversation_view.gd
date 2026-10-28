@@ -20,6 +20,7 @@ const NoticeView := preload("entries/notice_view.gd")
 const ToolGroupView := preload("entries/tool_group_view.gd")
 const PlanView := preload("entries/plan_view.gd")
 const PermissionView := preload("entries/permission_view.gd")
+const ElicitationView := preload("entries/elicitation_view.gd")
 
 ## Vistas vivas como máximo; las más viejas se descartan (siguen en el modelo).
 const MAX_VIEWS := 250
@@ -194,6 +195,8 @@ func _make_view(entry: ChatEntry) -> EntryView:
 			view = PlanView.new()
 		ChatEntry.EntryKind.PERMISSION:
 			view = PermissionView.new()
+		ChatEntry.EntryKind.ELICITATION:
+			view = ElicitationView.new()
 		_:
 			if extra_view_factory.is_valid():
 				view = extra_view_factory.call(entry)

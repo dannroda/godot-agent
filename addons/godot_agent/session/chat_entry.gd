@@ -2,7 +2,7 @@
 extends RefCounted
 ## Una entrada de la conversación tal como la muestra el dock.
 
-enum EntryKind { USER, AGENT, THOUGHT, TOOL_GROUP, PLAN, PERMISSION, NOTICE }
+enum EntryKind { USER, AGENT, THOUGHT, TOOL_GROUP, PLAN, PERMISSION, ELICITATION, NOTICE }
 
 ## Severidad de los NOTICE.
 enum NoticeLevel { INFO, WARNING, ERROR }
@@ -19,6 +19,8 @@ var tool_call_ids: PackedStringArray = []
 var plan: Array = []
 ## PERMISSION: el PermissionRequest (M2).
 var permission: RefCounted
+## ELICITATION: el ElicitationRequest (m11-17).
+var elicitation: RefCounted
 ## NOTICE
 var level: NoticeLevel = NoticeLevel.INFO
 ## NOTICE: acciones sugeridas (`[{id, label}]`), p. ej. "Reintentar" o "Ver log".

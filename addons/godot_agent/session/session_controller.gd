@@ -25,6 +25,7 @@ const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionRequest := preload("permission_request.gd")
+const ElicitationRequest := preload("elicitation_request.gd")
 const ShellRules := preload("shell_rules.gd")
 const ProjectWriteGuard := preload("project_write_guard.gd")
 const GodotWindowGuard := preload("godot_window_guard.gd")
@@ -102,6 +103,8 @@ var external_mcp_names: PackedStringArray = []
 var seen_mcp_servers: Dictionary = {}
 ## Pedidos de permiso del agente que esperan respuesta: id del request ACP -> PermissionRequest.
 var _permissions_by_acp_id: Dictionary = {}
+## Formularios y enlaces (`elicitation/create`) que esperan respuesta: id del request ACP -> ElicitationRequest.
+var _elicitations_by_acp_id: Dictionary = {}
 var fs: FsHandler
 var terminal: TerminalHandler
 var agent_log: AgentLog
@@ -185,6 +188,8 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	connected.connect(_query_agent_usage)
 	connected.connect(_refresh_agent_sessions)
 	client.set_request_handler("session/request_permission", _on_request_permission)
+	client.set_request_handler("elicitation/create", _on_create_elicitation)
+	client.set_notification_handler("elicitation/complete", _on_complete_elicitation)
 	client.incoming_cancelled.connect(_on_incoming_cancelled)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
 
@@ -602,7 +607,7 @@ func stop() -> void:
 
 
 func client_capabilities() -> Dictionary:
-	return {
+	var capabilities := {
 		"fs": {
 			"readTextFile": client.has_request_handler("fs/read_text_file"),
 			"writeTextFile": client.has_request_handler("fs/write_text_file"),
@@ -615,6 +620,9 @@ func client_capabilities() -> Dictionary:
 		# estado, que sigue después del tool call que lo lanzó si corre en segundo plano.
 		"subagents": {},
 	}
+	if client.has_request_handler("elicitation/create"):
+		capabilities["elicitation"] = {"form": {}, "url": {}}
+	return capabilities
 
 
 static func is_auth_required(error: Dictionary) -> bool:
@@ -875,13 +883,35 @@ func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 	return outcome
 
 
-## El agente retiró un pedido de permiso: lo contestaron desde Remote Control o ya no hace falta.
+## El agente retiró un pedido de permiso o formulario: lo contestaron desde Remote Control o ya no hace falta.
 func _on_incoming_cancelled(id: Variant) -> void:
 	var request: PermissionRequest = _permissions_by_acp_id.get(id)
 	if request and request.is_pending():
 		request.withdrawn = true
 		_log_perm("withdrawn by the agent (answered from Remote Control or no longer needed): %s" % request.title)
 		request.cancel()
+	var elicitation: ElicitationRequest = _elicitations_by_acp_id.get(id)
+	if elicitation and elicitation.is_pending():
+		elicitation.withdrawn = true
+		elicitation.cancel()
+
+
+## Formulario o enlace del agente (`elicitation/create`, m11-17): muestra la tarjeta y devuelve la respuesta.
+func _on_create_elicitation(params: Dictionary) -> Variant:
+	var acp_id: Variant = client.handling_id
+	var request := ElicitationRequest.from_params(params)
+	if acp_id != null:
+		_elicitations_by_acp_id[acp_id] = request
+	model.add_elicitation(request)
+	var response: Dictionary = request.response if not request.is_pending() else await request.resolved
+	if acp_id != null and _elicitations_by_acp_id.get(acp_id) == request:
+		_elicitations_by_acp_id.erase(acp_id)
+	return response
+
+
+## Notificación `elicitation/complete` (m11-17): cierra el formulario/enlace con ese `elicitationId`.
+func _on_complete_elicitation(params: Dictionary) -> void:
+	model.complete_elicitation(str(params.get("elicitationId", "")))
 
 
 ## Regla elegida en una tarjeta («Permitir siempre»): queda en las listas con su origen y fecha.

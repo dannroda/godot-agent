@@ -23,10 +23,12 @@ signal remote_control_changed(url: String)
 signal account_changed
 signal turn_finished(stop_reason: String)
 signal permission_requested(request: PermissionRequest)
+signal elicitation_requested(request: ElicitationRequest)
 
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
 const PermissionRequest := preload("permission_request.gd")
+const ElicitationRequest := preload("elicitation_request.gd")
 const I18n := preload("../core/i18n.gd")
 
 enum SessionState {
@@ -76,6 +78,7 @@ var failure_message: String = ""
 var replaying: bool = false
 
 var pending_permissions: Array[PermissionRequest] = []
+var pending_elicitations: Array[ElicitationRequest] = []
 
 var _entries: Array[ChatEntry] = []
 var _tool_calls: Dictionary = {}  # toolCallId -> ToolCall
@@ -295,10 +298,42 @@ func add_permission(request: PermissionRequest) -> ChatEntry:
 	return entry
 
 
-## Al cancelar el turno, los permisos pendientes se responden como cancelados (spec §4.1).
+## Agrega una tarjeta de formulario o enlace del agente (`elicitation/create`, m11-17).
+func add_elicitation(request: ElicitationRequest) -> ChatEntry:
+	var entry := _new_entry(ChatEntry.EntryKind.ELICITATION)
+	entry.elicitation = request
+	entry.text = request.message
+	pending_elicitations.append(request)
+	request.resolved.connect(func(_response: Dictionary) -> void:
+		pending_elicitations.erase(request)
+		entry_updated.emit(entry)
+	, CONNECT_ONE_SHOT)
+	_push(entry)
+	elicitation_requested.emit(request)
+	return entry
+
+
+## Notificación `elicitation/complete` (m11-17): el flujo por URL con ese `elicitation_id` terminó.
+func complete_elicitation(elicitation_id: String) -> void:
+	if elicitation_id.is_empty():
+		return
+	for entry: ChatEntry in _entries:
+		if entry.kind == ChatEntry.EntryKind.ELICITATION and entry.elicitation != null:
+			var req: ElicitationRequest = entry.elicitation
+			if req.elicitation_id == elicitation_id:
+				req.completed_by_agent = true
+				if req.is_pending():
+					req.accept()
+				else:
+					entry_updated.emit(entry)
+
+
+## Al cancelar el turno, los permisos y formularios pendientes se responden como cancelados (spec §4.1).
 func cancel_pending_permissions() -> void:
 	for request: PermissionRequest in pending_permissions.duplicate():
 		request.cancel()
+	for elicitation: ElicitationRequest in pending_elicitations.duplicate():
+		elicitation.cancel()
 
 
 func notify_entry_changed(entry: ChatEntry) -> void:

@@ -3155,3 +3155,30 @@ msgstr "No se pudo cerrar la sesión: %s"
 
 msgid "Signed out of %s. Start a session to sign in with another account."
 msgstr "Se cerró la sesión de %s. Iniciá una sesión para entrar con otra cuenta."
+
+msgid "Confirmation link"
+msgstr "Enlace de confirmación"
+
+msgid "Agent question"
+msgstr "Pregunta del agente"
+
+msgid "Submit"
+msgstr "Enviar"
+
+msgid "Decline"
+msgstr "Rechazar"
+
+msgid "Complete the required field: %s"
+msgstr "Completá el campo obligatorio: %s"
+
+msgid "Completed"
+msgstr "Completado"
+
+msgid "Submitted"
+msgstr "Enviado"
+
+msgid "Declined"
+msgstr "Rechazado"
+
+msgid "Cancelled"
+msgstr "Cancelado"

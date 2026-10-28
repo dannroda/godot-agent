@@ -1,0 +1,137 @@
+extends "test_case.gd"
+## Formularios y enlaces del agente (`elicitation/create` y `elicitation/complete`, m11-17).
+
+const ElicitationRequest := preload("res://addons/godot_agent/session/elicitation_request.gd")
+const ElicitationView := preload("res://addons/godot_agent/ui/dock/entries/elicitation_view.gd")
+const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
+const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
+const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
+const MarkdownBBCode := preload("res://addons/godot_agent/ui/markdown/markdown_bbcode.gd")
+
+
+func test_elicitation_request_schema_and_validation() -> void:
+	var req := ElicitationRequest.from_params({
+		"mode": "form",
+		"message": "Choose the export options:",
+		"elicitationId": "el_1",
+		"requestedSchema": {
+			"type": "object",
+			"required": ["name", "tags"],
+			"properties": {
+				"name": {"type": "string", "title": "Project Name", "minLength": 2},
+				"debug": {"type": "boolean", "default": true},
+				"target": {"type": "string", "oneOf": [{"const": "linux", "title": "Linux"}, {"const": "web", "title": "Web"}]},
+				"tags": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["2d", "3d", "vr"]}},
+			},
+		},
+	})
+	assert_eq(req.mode, ElicitationRequest.MODE_FORM, "modo form")
+	assert_eq(req.elicitation_id, "el_1", "elicitationId")
+	assert_eq(req.field_names(), PackedStringArray(["name", "debug", "target", "tags"]), "campos")
+	assert_true(req.is_required("name"), "name requerido")
+	assert_false(req.is_required("debug"), "debug opcional")
+	assert_eq(req.validate({"name": "", "tags": ["2d"]}), "Project Name", "string vacío falla minLength/required")
+	assert_eq(req.validate({"name": "a", "tags": ["2d"]}), "Project Name", "string de 1 char falla minLength 2")
+	assert_eq(req.validate({"name": "ok", "tags": []}), "tags", "array vacío falla minItems/required")
+	assert_eq(req.validate({"name": "ok", "tags": ["2d"]}), "", "válido")
+	var choices := ElicitationRequest.enum_choices(req.field_schema("target"))
+	assert_eq(choices.size(), 2, "dos opciones oneOf")
+	assert_eq(choices[0], {"value": "linux", "label": "Linux", "description": ""}, "primera opción")
+	req.accept({"name": "ok", "debug": false, "target": "web", "tags": ["2d"]})
+	assert_false(req.is_pending(), "resuelto")
+	assert_eq(req.response, {
+		"action": "accept",
+		"content": {"name": "ok", "debug": false, "target": "web", "tags": ["2d"]},
+	}, "respuesta accept con content")
+
+
+func test_elicitation_view_builds_and_collects_values() -> void:
+	var req := ElicitationRequest.from_params({
+		"mode": "form",
+		"message": "Configure build:",
+		"requestedSchema": {
+			"type": "object",
+			"required": ["title"],
+			"properties": {
+				"title": {"type": "string", "default": "Demo"},
+				"fullscreen": {"type": "boolean", "default": true},
+				"count": {"type": "integer", "default": 3, "minimum": 1, "maximum": 10},
+				"platform": {"type": "string", "enum": ["linux", "windows"], "default": "windows"},
+				"features": {"type": "array", "items": {"enum": ["audio", "net"]}, "default": ["net"]},
+			},
+		},
+	})
+	var entry := ChatEntry.new()
+	entry.id = 1
+	entry.kind = ChatEntry.EntryKind.ELICITATION
+	entry.elicitation = req
+	var view := ElicitationView.new()
+	view.setup(entry, Color.CORNFLOWER_BLUE, MarkdownBBCode.new())
+	view._ready()
+	var values := view.collect_values()
+	assert_eq(values.get("title"), "Demo", "default string")
+	assert_eq(values.get("fullscreen"), true, "default boolean")
+	assert_eq(values.get("count"), 3, "default integer")
+	assert_eq(values.get("platform"), "windows", "default enum")
+	assert_eq(values.get("features"), ["net"], "default multi-select")
+	view.free()
+
+
+func test_controller_handles_create_complete_and_cancel() -> void:
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	var sent: Array[Dictionary] = []
+	controller.setup(model, AgentLog.new(), "/tmp")
+	controller.client.setup(func(line: String) -> bool:
+		sent.append(JSON.parse_string(line))
+		return true
+	)
+	var caps := controller.client_capabilities()
+	assert_eq(caps.get("elicitation"), {"form": {}, "url": {}}, "declara capacidades form y url")
+
+	# 1. URL elicitation que se completa con elicitation/complete
+	controller.client.receive_line(JSON.stringify({
+		"jsonrpc": "2.0",
+		"id": 41,
+		"method": "elicitation/create",
+		"params": {
+			"mode": "url",
+			"elicitationId": "oauth_99",
+			"message": "Complete OAuth in your browser",
+			"url": "https://example.com/auth",
+		},
+	}))
+	assert_eq(model.pending_elicitations.size(), 1, "elicitation en espera")
+	var url_req: ElicitationRequest = model.pending_elicitations[0]
+	assert_eq(url_req.url, "https://example.com/auth", "url guardada")
+	controller.client.receive_line(JSON.stringify({
+		"jsonrpc": "2.0",
+		"method": "elicitation/complete",
+		"params": {"elicitationId": "oauth_99"},
+	}))
+	assert_true(url_req.completed_by_agent, "marcado como completado por el agente")
+	assert_eq(model.pending_elicitations.size(), 0, "ya no está pendiente")
+	assert_eq(sent.back().get("result"), {"action": "accept"}, "responde accept sin content en modo url")
+
+	# 2. Form elicitation retirada con $/cancel_request
+	controller.client.receive_line(JSON.stringify({
+		"jsonrpc": "2.0",
+		"id": 42,
+		"method": "elicitation/create",
+		"params": {
+			"mode": "form",
+			"message": "Pick a name",
+			"requestedSchema": {"type": "object", "properties": {"name": {"type": "string"}}},
+		},
+	}))
+	assert_eq(model.pending_elicitations.size(), 1, "segundo elicitation pendiente")
+	var form_req: ElicitationRequest = model.pending_elicitations[0]
+	controller.client.receive_line(JSON.stringify({
+		"jsonrpc": "2.0",
+		"method": "$/cancel_request",
+		"params": {"requestId": 42},
+	}))
+	assert_true(form_req.withdrawn, "marcado como retirado por $/cancel_request")
+	assert_eq(model.pending_elicitations.size(), 0, "ya no queda pendiente")
+	assert_eq(sent.back().get("result"), {"action": "cancel"}, "responde action cancel")
