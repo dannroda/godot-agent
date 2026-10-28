@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-10-28
+
 ### Added
 
 - **Agent terminals**: agents that run their commands through the editor (ACP `terminal/*`, used by Codex and others) go through the same shell rules as the rest: the mode's permission, the Auto lists, and the guards that block writing scenes by hand or opening Godot in its own window. The output shows live in the tool card. A command that sets environment variables always asks, and the card shows them.
@@ -23,6 +25,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 - Godot 4.8 crashed when closing the editor with the plugin enabled.
 - An agent could cancel a request and still have a command start.
+
 ## [0.1.7] - 2026-10-27
 
 ### Added
