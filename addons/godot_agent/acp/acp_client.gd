@@ -166,6 +166,9 @@ func receive_line(line: String) -> void:
 
 	if has_method and id != null:
 		_handle_request(id, message.method, _params(message), text)
+		# Solo vale mientras el handler corre sin suspenderse: después, otro código (una tool MCP,
+		# otro request) lo leería creyendo que es suyo.
+		handling_id = null
 	elif has_method:
 		_handle_notification(message.method, _params(message), text)
 	elif id != null and (message.has("result") or message.has("error")):
@@ -202,8 +205,9 @@ func _handle_notification(method: String, params: Dictionary, raw: String) -> vo
 		if req_id != null and _incoming.has(req_id):
 			_cancelled_incoming[req_id] = true
 		incoming_cancelled.emit(req_id)
+		# La marca queda hasta que el handler termina (_handle_request la borra): lo que sigue
+		# después de un await la consulta con is_incoming_cancelled().
 		if req_id != null and _incoming.erase(req_id):
-			_cancelled_incoming.erase(req_id)
 			_respond_error(req_id, ERR_REQUEST_CANCELLED, "Request cancelled.")
 	var handler: Callable = _notification_handlers.get(method, Callable())
 	if handler.is_valid():
@@ -220,7 +224,6 @@ func _handle_request(id: Variant, method: String, params: Dictionary, raw: Strin
 	_incoming[id] = true
 	handling_id = id
 	var value: Variant = await handler.call(params)
-	handling_id = null
 	var was_cancelled := _cancelled_incoming.erase(id)
 	if not _incoming.erase(id):
 		return

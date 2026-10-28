@@ -17,10 +17,6 @@
 ^Usage limit reached
 ^Rate limit reached
 ^You have reached your .* (usage|request|monthly|weekly|rate) limit
-^You've reached your .* (quota|limit)
 ^Upgrade your plan to continue
-user_model_rate_limited
-insufficient_quota
-usageLimitExceeded
-rateLimitExceeded
-# Sin patrones sueltos ("rate limit"): la prosa del agente los dispararía.
+# Sin patrones sueltos ("rate limit") ni códigos como insufficient_quota: la prosa del agente (o el
+# código del que habla) los dispararía. Los códigos se buscan solo en los errores (LIMIT_ERROR_KINDS).

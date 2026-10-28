@@ -35,6 +35,10 @@ const LIMIT_ERROR_KINDS: PackedStringArray = [
 	"usageLimitExceeded", "rateLimitExceeded", "quota_exhausted", "rate_limited",
 	"budget_exhausted", "user_model_rate_limited",
 ]
+## Códigos que Copilot, Codex y OpenAI ponen en el mensaje de error de un límite.
+const LIMIT_CODES_IN_ERRORS: PackedStringArray = [
+	"user_model_rate_limited", "insufficient_quota", "usageLimitExceeded", "rateLimitExceeded",
+]
 ## Ventanas que se muestran, en orden: la actual y la semanal (D22).
 const WINDOW_CURRENT := "five_hour"
 const WINDOW_WEEKLY := "seven_day"
@@ -123,6 +127,15 @@ func observe_update(update: Dictionary) -> void:
 	_recompute()
 
 
+## true si el texto de un error trae uno de LIMIT_CODES_IN_ERRORS como palabra. En la prosa del
+## agente no se buscan: hablaría de ellos al trabajar en código que los maneja.
+static func _mentions_limit_kind(text: String) -> bool:
+	for code: String in LIMIT_CODES_IN_ERRORS:
+		if RegEx.create_from_string("\\b%s\\b" % code).search(text) != null:
+			return true
+	return false
+
+
 ## Texto del agente en un turno: si coincide con un patrón de límite, se pasa a "limitado".
 func observe_agent_text(text: String) -> bool:
 	var match_text := matching_line(text)
@@ -145,7 +158,7 @@ func observe_prompt_error(error: Dictionary) -> bool:
 				break
 	var text := "%s %s" % [error.get("message", ""), JSON.stringify(data) if data != null else ""]
 	var line := matching_line(str(error.get("message", "")))
-	var is_limit := kind in LIMIT_ERROR_KINDS or not matching_line(text).is_empty()
+	var is_limit := kind in LIMIT_ERROR_KINDS or not matching_line(text).is_empty() or _mentions_limit_kind(text)
 	_log("session/prompt error%s: %s" % [" (limit)" if is_limit else "", str(error.get("message", "")).left(300)], JSON.stringify(error))
 	if is_limit:
 		_enter_limited("error", str(error.get("message", "")), parse_reset_time(line if not line.is_empty() else text, _now()))
@@ -168,9 +181,11 @@ func observe_session_info(update: Dictionary) -> void:
 	if not retry is Dictionary:
 		return
 	var err: Variant = retry.get("error")
-	var err_type := str(err.get("type", "")) if err is Dictionary else ""
+	# OpenCode manda {type: "provider.rate-limit", message: "Rate limit exceeded", status: 429}.
+	var err_type := str(err.get("type", "")).to_lower().replace("-", "_").replace(".", "_") if err is Dictionary else ""
+	var status := int(err.get("status", 0)) if err is Dictionary and (err.get("status") is int or err.get("status") is float) else 0
 	var msg := str(err.get("message", err)) if err is Dictionary else str(err)
-	if not (err_type in LIMIT_ERROR_KINDS or "rate_limit" in err_type.to_lower() or "quota" in err_type.to_lower() or not matching_line(msg).is_empty()):
+	if not (status == 429 or err_type in LIMIT_ERROR_KINDS or "rate_limit" in err_type or "quota" in err_type or not matching_line(msg).is_empty()):
 		return
 	var reset := 0
 	var next_at := str(retry.get("nextRetryAt", ""))

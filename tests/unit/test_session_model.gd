@@ -254,3 +254,14 @@ func test_session_capabilities_and_merge() -> void:
 	assert_eq(merged[1].id, "s1", "s1 con fecha actualizada del agente (250)")
 	assert_eq(merged[1].title, "Título del agente", "completa título vacío con el del agente")
 	assert_eq(merged[2].id, "s3", "incluye sesión solo remota (200)")
+
+
+## Retomar una sesión que solo lista el agente (session/list) deja la cabecera completa para guardar.
+func test_history_begin_from_agent_listing() -> void:
+	var listed := SessionController.normalize_agent_session({"sessionId": "remote1", "cwd": "/tmp", "title": "T"})
+	var history := SessionHistory.new()
+	history.begin("remote1", "p", "Agente", "/tmp", listed)
+	var meta: Dictionary = history.get(&"_meta")
+	for key: String in ["format", "id", "profile_id", "agent", "cwd", "created"]:
+		assert_true(meta.has(key), "cabecera con %s" % key)
+	assert_false(meta.has("from_agent"), "sin la marca del menú")

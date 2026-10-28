@@ -60,8 +60,11 @@ func begin(session_id: String, profile_id: String, agent_name: String, cwd: Stri
 		_meta.erase("events")
 		_meta.events_count = (previous.get("events", []) as Array).size()
 		_meta.updated = now
-		# Sin entrada en el índice (borrado o de otro formato), el registro trae solo la cabecera.
-		_meta.merge({"title": "", "turns": 0, "truncated": false})
+		# Sin entrada en el índice (borrado o de otro formato), el registro trae solo la cabecera; una
+		# sesión que solo lista el agente (session/list, m11-16) no trae ni eso.
+		_meta.merge({"title": "", "turns": 0, "truncated": false, "format": FORMAT, "profile_id": profile_id,
+			"agent": agent_name, "cwd": cwd, "created": now})
+		_meta.erase("from_agent")
 	else:
 		_meta = {"format": FORMAT, "id": session_id, "profile_id": profile_id, "agent": agent_name, "cwd": cwd,
 			"title": "", "created": now, "updated": now, "turns": 0, "events_count": 0, "truncated": false}

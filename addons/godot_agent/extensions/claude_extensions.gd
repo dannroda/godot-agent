@@ -272,8 +272,6 @@ static func agent_mcp_servers(kind: String, project_dir: String, env: Dictionary
 					add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(project_dir.path_join(rel)), ORIGIN_PROJECT))
 			if not home.is_empty() and FileAccess.file_exists(home.path_join(".config/opencode/opencode.json")):
 				add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(home.path_join(".config/opencode/opencode.json")), ORIGIN_USER))
-	if not project_dir.is_empty() and FileAccess.file_exists(project_dir.path_join(".mcp.json")):
-		add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(project_dir.path_join(".mcp.json")), ORIGIN_PROJECT))
 	return servers
 
 

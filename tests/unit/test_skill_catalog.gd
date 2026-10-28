@@ -155,3 +155,14 @@ func test_import() -> void:
 	packer.close_file()
 	packer.close()
 	assert_eq(SkillCatalog.import_path(root_zip, dest).imported, ["solo-skill"], "en la raíz del zip, con el nombre del zip")
+
+
+## Cada agente lista solo las carpetas de skills del proyecto que lee (Claude, solo .claude/skills).
+func test_project_dirs_per_agent() -> void:
+	var project := _fresh("per_agent")
+	_write(project.path_join(".agents/skills/shared/SKILL.md"), _skill_md("shared", "Shared"))
+	_write(project.path_join(".claude/skills/mine/SKILL.md"), _skill_md("mine", "Claude"))
+	var claude_ids := SkillCatalog.scan(_fresh("cfg_claude"), project).map(func(skill: Dictionary) -> String: return skill.id)
+	assert_eq(claude_ids, ["mine"], "Claude no ve .agents/skills")
+	var codex_ids := SkillCatalog.scan(_fresh("cfg_codex"), project, "codex", {}, _fresh("home_codex")).map(func(skill: Dictionary) -> String: return skill.id)
+	assert_eq(codex_ids, ["shared"], "Codex no ve .claude/skills")

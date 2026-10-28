@@ -231,3 +231,16 @@ func test_codex_and_other_agents_quota() -> void:
 	assert_eq(monitor.limited_until, Time.get_unix_time_from_datetime_string("2026-10-28T20:00:00"), "hasta nextRetryAt")
 	monitor.observe_session_info({"sessionUpdate": "session_info_update", "_meta": {"opencode/retry": null}})
 	assert_eq(monitor.state, QuotaMonitor.QuotaState.UNKNOWN, "OpenCode retry null sale de limitado")
+
+
+## El reintento real de OpenCode (provider.rate-limit, 429) y los códigos de error solo en errores:
+## en la prosa del agente (hablando de código que los maneja) no marcan límite.
+func test_opencode_payload_and_codes_only_in_errors() -> void:
+	var monitor := _monitor()
+	monitor.observe_session_info({"sessionUpdate": "session_info_update", "_meta": {"opencode/retry": {
+		"attempt": 1, "error": {"type": "provider.rate-limit", "message": "Rate limit exceeded", "status": 429}
+	}}})
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.LIMITED, "payload real de OpenCode")
+	monitor.observe_session_info({"sessionUpdate": "session_info_update", "_meta": {"opencode/retry": null}})
+	assert_false(monitor.observe_agent_text("Si la API devuelve insufficient_quota o rateLimitExceeded, reintentamos."), "prosa con códigos no limita")
+	assert_true(monitor.observe_prompt_error({"code": -32603, "message": "Error: insufficient_quota"}), "el mismo código en un error sí")

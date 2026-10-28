@@ -1331,6 +1331,12 @@ msgstr "Historial de sesiones"
 msgid "Delete session"
 msgstr "Eliminar sesión"
 
+msgid "Delete «%s»? It cannot be undone; if the agent keeps it too, it is deleted there as well."
+msgstr "¿Borrar «%s»? No se puede deshacer; si el agente también la guarda, se borra ahí también."
+
+msgid "Could not delete the session in the agent: %s"
+msgstr "El agente no pudo borrar la sesión: %s"
+
 msgid "Session resumed: the agent recovered its context with session/load."
 msgstr "Sesión reanudada: el agente recuperó su contexto con session/load."
 
@@ -1468,6 +1474,9 @@ msgstr "Temperatura"
 
 msgid "Terminal"
 msgstr "Terminal"
+
+msgid "in %s"
+msgstr "en %s"
 
 msgid "That needs a ready session with no turn in progress."
 msgstr "Para eso hace falta una sesión lista y sin un turno en curso."

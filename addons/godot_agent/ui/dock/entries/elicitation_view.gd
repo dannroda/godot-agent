@@ -193,7 +193,9 @@ func refresh() -> void:
 	else:
 		_title.text = I18n.t("Agent question")
 	_message.text = request.message
-	_message.visible = not request.message.is_empty()
+	if request.mode == ElicitationRequest.MODE_URL:  # el destino a la vista antes de abrirlo
+		_message.text = (request.message + "\n" if not request.message.is_empty() else "") + request.url
+	_message.visible = not _message.text.is_empty()
 	var desc := request.schema_description()
 	_description.text = desc
 	_description.visible = not desc.is_empty() and desc != request.message
@@ -210,8 +212,9 @@ func refresh() -> void:
 		var open_btn := _primary_button(I18n.t("Open link"))
 		open_btn.tooltip_text = request.url
 		open_btn.pressed.connect(func() -> void:
-			if not request.url.is_empty():
-				action_requested.emit("open_link", request.url)
+			# Directo al navegador y solo http(s): «open_link» del chat también abre archivos locales.
+			if ElicitationRequest.is_web_url(request.url):
+				OS.shell_open(request.url.strip_edges())
 			request.accept()
 		)
 		_buttons.add_child(open_btn)

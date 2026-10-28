@@ -62,6 +62,7 @@ const ACTION_TURN_REPORT := "turn_report"
 ## agentInfo.name del adaptador oficial de Google Antigravity (m11-11) y de Codex (m11-20).
 const ANTIGRAVITY_AGENT := "antigravity-acp"
 const CODEX_AGENT := "codex-acp"
+const USAGE_QUERY_TIMEOUT_S := 20
 const ACTION_SHOW_LOG := "show_log"
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
@@ -108,6 +109,10 @@ var _permissions_by_acp_id: Dictionary = {}
 var _elicitations_by_acp_id: Dictionary = {}
 var fs: FsHandler
 var terminal: TerminalHandler
+var _closing_previous := false
+## Cuenta que informó el agente con _auth/status_update, y de qué perfil.
+var _agent_account: Dictionary = {}
+var _agent_account_profile: AgentProfile
 var agent_log: AgentLog
 ## Cuota del plan (spec §10.1): estado, ventanas y límite; la UI y el One-shot la leen de acá.
 var quota: QuotaMonitor
@@ -279,16 +284,33 @@ func reopen(agent_profile: AgentProfile, lost_id: String) -> bool:
 
 ## session/new sobre el proceso ya inicializado (también sirve para "Nueva sesión").
 func open_session(generation: int = _connect_generation) -> bool:
+	return await _open_session(generation, true)
+
+
+## Nueva sesión sin cerrar la anterior en el agente (el One-shot vuelve a ella con session/load).
+func open_session_keeping_previous() -> bool:
+	return await _open_session(_connect_generation, false)
+
+
+func _open_session(generation: int, close_previous: bool) -> bool:
 	if _process == null or not _process.is_running():
 		return await start(_profile) if _profile else false
+	if _closing_previous:  # un segundo «Nueva sesión» mientras se cierra la anterior
+		return false
 	_cancel_abandoned_requests()
-	if not model.session_id.is_empty() and model.supports_close_session():
-		await close_session(model.session_id)
-		if generation != _connect_generation:
-			return false
+	if terminal:
+		terminal.stop_all()
+	var previous_id := model.session_id
+	# Antes del await del close: así ningún prompt va a la sesión que se cierra.
 	if model.state != SessionModel.SessionState.STARTING:
 		model.reset()
 		model.set_state(SessionModel.SessionState.STARTING)
+	if close_previous and not previous_id.is_empty() and model.supports_close_session():
+		_closing_previous = true
+		await close_session(previous_id)
+		_closing_previous = false
+		if generation != _connect_generation:
+			return false
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
 	var req_id := client.next_request_id()
 	_session_request_id = req_id
@@ -413,7 +435,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 ## local, que no gasta tokens. Se le pide al abrir la sesión y después de cada turno, sin que la
 ## pregunta ni la respuesta aparezcan en el chat; un prompt del usuario que llega en el medio espera.
 func _query_agent_usage() -> void:
-	var agent_name := str(model.agent_info.get("name", ""))
+	var agent_name := _usage_agent()
 	var command := "/usage" if agent_name == ANTIGRAVITY_AGENT else ("/status" if agent_name == CODEX_AGENT else "")
 	if command.is_empty() or model.state != SessionModel.SessionState.READY or _usage_query_running:
 		return
@@ -421,6 +443,15 @@ func _query_agent_usage() -> void:
 	_usage_query_text = ""
 	var req_id := client.next_request_id()
 	_usage_query_id = req_id
+	# Sin respuesta a tiempo se cancela: un prompt del usuario espera a que termine.
+	var session_id := model.session_id
+	(Engine.get_main_loop() as SceneTree).create_timer(USAGE_QUERY_TIMEOUT_S).timeout.connect(func() -> void:
+		if _usage_query_id == req_id:
+			agent_log.add(AgentLog.CH_QUOTA, "%s got no answer in %d s, cancelled" % [command, USAGE_QUERY_TIMEOUT_S])
+			_usage_query_id = 0
+			client.notify("session/cancel", {"sessionId": session_id})
+			client.cancel_request(req_id)
+	)
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": [{"type": "text", "text": command}]})
 	if _usage_query_id == req_id:
 		_usage_query_id = 0
@@ -440,6 +471,18 @@ func _query_agent_usage() -> void:
 			var account := QuotaMonitor.parse_codex_account(_usage_query_text)
 			if not account.is_empty():
 				model.set_account(account)
+
+
+## ANTIGRAVITY_AGENT, CODEX_AGENT o "": qué comando local de cuota entiende el agente. Codex solo si
+## anuncia /status: el adaptador del registro (@agentclientprotocol/codex-acp) lo corre local; el
+## viejo de Zed no lo tiene y se lo pasaría al modelo como un prompt.
+func _usage_agent() -> String:
+	var agent_name := str(model.agent_info.get("name", ""))
+	if agent_name == ANTIGRAVITY_AGENT:
+		return ANTIGRAVITY_AGENT
+	if agent_name.get_file() == CODEX_AGENT and model.commands.any(func(command: Variant) -> bool: return command is Dictionary and command.get("name") == "status"):
+		return CODEX_AGENT
+	return ""
 
 
 ## Cancela con `$/cancel_request` un `/usage`, `/status` o apertura de sesión que ya no se espera (m11-18).
@@ -912,6 +955,10 @@ func _on_incoming_cancelled(id: Variant) -> void:
 func _on_create_elicitation(params: Dictionary) -> Variant:
 	var acp_id: Variant = client.handling_id
 	var request := ElicitationRequest.from_params(params)
+	var invalid: String = request.invalid_reason()
+	if not invalid.is_empty():
+		_log_perm("elicitation rejected: %s" % invalid)
+		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, invalid)
 	if acp_id != null:
 		_elicitations_by_acp_id[acp_id] = request
 	model.add_elicitation(request)
@@ -954,7 +1001,9 @@ func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bo
 	)
 
 
-func _authorize_terminal_command(command_line: String, working_dir: String) -> String:
+## Con variables de entorno del agente siempre se pregunta y la tarjeta las muestra: cambian lo que
+## hace el comando (LD_PRELOAD, GIT_CONFIG_*, PATH…) sin que se vea en la línea que revisan las reglas.
+func _authorize_terminal_command(command_line: String, working_dir: String, env: Dictionary = {}) -> String:
 	var blocked := ProjectWriteGuard.blocked_target({"kind": "execute", "rawInput": {"command": command_line}}, PermissionPolicy.GROUP_SHELL, working_dir if not working_dir.is_empty() else cwd)
 	if not blocked.is_empty():
 		_notify_blocked_write(command_line, blocked)
@@ -965,17 +1014,19 @@ func _authorize_terminal_command(command_line: String, working_dir: String) -> S
 		model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
 		return "Command-line Godot only runs with --headless: %s" % launch
 	var expiry: int = _preauthorized_commands.get(command_line, 0)
-	if expiry > Time.get_ticks_msec():
+	if expiry > Time.get_ticks_msec() and env.is_empty():
 		_preauthorized_commands.erase(command_line)
 		return ""
 	var decision := policy.decide(PermissionPolicy.GROUP_SHELL, model.harness_mode)
-	if decision == PermissionPolicy.ALLOW:
+	if decision == PermissionPolicy.ALLOW and env.is_empty():
 		_log_perm("allowed by %s mode: %s" % [_mode_label(), command_line])
 		return ""
 	if decision == PermissionPolicy.DENY:
 		_notify_denied(PermissionPolicy.GROUP_SHELL, command_line)
 		return "Permission denied in %s mode: %s" % [_mode_label(), command_line]
-	if model.harness_mode == SessionModel.HarnessMode.AUTO:
+	if not env.is_empty():
+		_log_perm("asks, the agent sets environment variables (%s): %s" % [", ".join(PackedStringArray(env.keys())), command_line])
+	elif model.harness_mode == SessionModel.HarnessMode.AUTO:
 		var verdict := ShellRules.classify(command_line, shell_rules)
 		if verdict.decision == ShellRules.ALLOW:
 			_log_perm("allowed by Auto mode, %s: %s" % [verdict.reason, command_line])
@@ -985,9 +1036,17 @@ func _authorize_terminal_command(command_line: String, working_dir: String) -> S
 	request.group = PermissionPolicy.GROUP_SHELL
 	request.title = I18n.t("Terminal")
 	request.description = command_line
+	if not env.is_empty():
+		var assignments: PackedStringArray = []
+		for key: Variant in env:
+			assignments.append("%s=%s" % [key, TerminalHandler.shell_quote(str(env[key]))])
+		request.description = "%s %s" % [" ".join(assignments), command_line]
+	if not working_dir.is_empty() and working_dir.simplify_path().trim_suffix("/") != cwd.simplify_path().trim_suffix("/"):
+		request.description += "\n" + I18n.t("in %s") % working_dir
 	request.options = PermissionRequest.default_options()
-	if model.harness_mode == SessionModel.HarnessMode.AUTO:
-		request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
+	if model.harness_mode == SessionModel.HarnessMode.AUTO or not env.is_empty():
+		if env.is_empty():  # una regla no ve las variables: con env solo se permite una vez
+			request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
 		request.options = request.options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
 	var outcome := await _ask_user(request, 0)
 	if not request.rule_to_add.is_empty():
@@ -1008,7 +1067,8 @@ func _terminal_base_env() -> Dictionary:
 func _refresh_account() -> void:
 	var profile := _profile
 	if profile == null or not ClaudeExtensions.is_claude_profile(profile.command, profile.args):
-		model.set_account({})
+		# La que mandó el agente con _auth/status_update (llega una vez, antes de session/new).
+		model.set_account(_agent_account if profile == _agent_account_profile else {})
 		return
 	var cli := ClaudeCli.new(cwd, profile.resolved_env())
 	var account := await cli.auth_status() if cli.is_available() else {}
@@ -1025,16 +1085,19 @@ func _on_auth_status_update(params: Dictionary) -> void:
 	if not status is Dictionary:
 		return
 	var kind := str(status.get("kind", ""))
+	_agent_account_profile = _profile
 	if kind == "none":
+		_agent_account = {}
 		model.set_account({})
 		return
 	var acc: Dictionary = status.get("account") if status.get("account") is Dictionary else {}
-	model.set_account({
+	_agent_account = {
 		"email": str(acc.get("email", "")),
 		"org": str(acc.get("organization", "")),
 		"plan": str(acc.get("plan", "")),
 		"method": str(status.get("label", kind)),
-	})
+	}
+	model.set_account(_agent_account)
 
 
 ## true (y lo avisa) si otra sesión abierta está editando alguno de `paths` (m7-44).
@@ -1254,6 +1317,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 ## Pide al agente sus sesiones de `filter_cwd` con `session/list` (m11-16).
 func list_agent_sessions(filter_cwd: String = cwd) -> Array[Dictionary]:
 	if _process == null or not _process.is_running() or not model.supports_list_sessions():
+		agent_sessions = []  # las del agente anterior no son de este
 		return []
 	var collected: Array[Dictionary] = []
 	var cursor := ""
@@ -1270,9 +1334,6 @@ func list_agent_sessions(filter_cwd: String = cwd) -> Array[Dictionary]:
 		if raw_list is Array:
 			for item: Variant in raw_list:
 				if not item is Dictionary or not item.get("sessionId") is String:
-					continue
-				var item_cwd := str(item.get("cwd", filter_cwd)).simplify_path().trim_suffix("/")
-				if not filter_cwd.is_empty() and item_cwd != filter_cwd.simplify_path().trim_suffix("/"):
 					continue
 				collected.append(normalize_agent_session(item, _profile))
 		var next_cursor: Variant = result.result.get("nextCursor")
@@ -1343,16 +1404,20 @@ func close_session(target_session_id: String = "") -> bool:
 	return result.ok
 
 
-## Elimina una sesión del historial local y, si el agente soporta `session/delete`, también en el agente.
-func delete_session(target_session_id: String) -> bool:
+## Elimina una sesión del historial local y, si es del perfil conectado y el agente soporta
+## `session/delete`, también en el agente. Si el agente no la borra, la local queda.
+func delete_session(target_session_id: String, session_profile_id: String = "") -> bool:
 	if target_session_id.is_empty():
 		return false
+	var same_agent := _profile != null and (session_profile_id.is_empty() or session_profile_id == _profile.id)
+	if same_agent and _process != null and _process.is_running() and model.supports_delete_session():
+		var result := await client.request("session/delete", {"sessionId": target_session_id})
+		if not result.ok:
+			model.add_notice(I18n.t("Could not delete the session in the agent: %s") % result.error_message(), ChatEntry.NoticeLevel.WARNING)
+			return false
 	if history:
 		history.remove(target_session_id)
 	agent_sessions = agent_sessions.filter(func(item: Dictionary) -> bool: return str(item.get("id", "")) != target_session_id)
-	if _process != null and _process.is_running() and model.supports_delete_session():
-		var result := await client.request("session/delete", {"sessionId": target_session_id})
-		return result.ok
 	return true
 
 
@@ -1388,6 +1453,8 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 		return
 	_process = null
 	process.stop()
+	if terminal:
+		terminal.stop_all()
 	client.fail_all_pending("The agent exited (code %d)." % code)
 	_fail(I18n.t("The agent exited unexpectedly (code %d).") % code)
 	disconnected.emit()

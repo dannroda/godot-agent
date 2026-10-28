@@ -21,8 +21,9 @@ const MAX_RELEASED_OUTPUTS := 32
 var project_root: String = ""
 var extra_roots: PackedStringArray = []
 var agent_log: AgentLog
-## Callable(command_line: String, working_dir: String) -> String (puede ser async).
-## Devuelve "" si se autorizó, o el motivo si se rechazó o denegó.
+## Callable(command_line: String, working_dir: String, env: Dictionary) -> String (puede ser async).
+## `env` son las variables que pide el agente. Devuelve "" si se autorizó, o el motivo si se rechazó
+## o denegó.
 var command_authorizer: Callable
 ## Callable() -> Dictionary: variables de entorno base para los comandos (PATH, GODOT, las del perfil…).
 var env_provider: Callable
@@ -61,9 +62,15 @@ func create_terminal(params: Dictionary) -> Variant:
 	if not cwd_check.is_empty():
 		_log("terminal rejected: %s" % cwd_check)
 		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, cwd_check)
+	if OS.get_name() == "Windows" and not args.is_empty():
+		for arg: String in args:
+			# cmd.exe no tiene escape para «"» dentro de comillas: un arg así cortaría el comando.
+			if arg.contains("\"") or arg.contains("\n") or arg.contains("\r"):
+				return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, "Arguments with quotes or line breaks are not supported on Windows: %s" % arg)
+	var agent_env := _env_from_params(params.get("env"))
 	var command_line := format_command_line(command, args)
 	if command_authorizer.is_valid():
-		var reason: String = await command_authorizer.call(command_line, working_dir)
+		var reason: String = await command_authorizer.call(command_line, working_dir, agent_env)
 		if _client and acp_id != null and _client.is_incoming_cancelled(acp_id):
 			return AcpClient.AcpResponse.failure(AcpClient.ERR_REQUEST_CANCELLED, "Request cancelled")
 		if not reason.is_empty():
@@ -73,7 +80,7 @@ func create_terminal(params: Dictionary) -> Variant:
 	if params.get("outputByteLimit") != null:
 		byte_limit = maxi(0, int(params.outputByteLimit))
 	var launch := _launch_command(command, args, working_dir)
-	var child_env := _build_env(params.get("env"), str(launch[0]))
+	var child_env := _build_env(agent_env, str(launch[0]))
 	var process := AgentProcess.new()
 	process.raw_mode = true
 	var terminal_id := "term_%d" % _next_id
@@ -197,16 +204,22 @@ static func truncate_utf8_prefix(buffer: PackedByteArray, byte_limit: int) -> Di
 	return {"bytes": kept, "text": kept.get_string_from_utf8(), "truncated": true}
 
 
+## El comando como lo vería un shell POSIX: es lo que muestran las tarjetas y lo que revisan las
+## guardas y las reglas de Auto, así que cada arg va citado igual que se ejecuta (literal).
 static func format_command_line(command: String, args: PackedStringArray) -> String:
 	if args.is_empty():
 		return command
-	var parts: PackedStringArray = [command]
+	var parts: PackedStringArray = [shell_quote(command)]
 	for arg: String in args:
-		if arg.find(" ") >= 0 or arg.find("\"") >= 0:
-			parts.append("\"%s\"" % arg.replace("\"", "\\\""))
-		else:
-			parts.append(arg)
+		parts.append(shell_quote(arg))
 	return " ".join(parts)
+
+
+## Cita `text` para sh con comillas simples si tiene algo fuera de [A-Za-z0-9_./=:,@+%-].
+static func shell_quote(text: String) -> String:
+	if not text.is_empty() and RegEx.create_from_string("^[A-Za-z0-9_./=:,@+%-]+$").search(text) != null:
+		return text
+	return "'%s'" % text.replace("'", "'\\''")
 
 
 func _on_output(chunk: PackedByteArray, terminal_id: String) -> void:
@@ -318,14 +331,21 @@ func _launch_command(command: String, args: PackedStringArray, working_dir: Stri
 	return ["/bin/sh", wrapped]
 
 
-func _build_env(raw_env: Variant, launch_cmd: String) -> Dictionary:
+func _build_env(agent_env: Dictionary, launch_cmd: String) -> Dictionary:
 	var result: Dictionary = env_provider.call() if env_provider.is_valid() else {}
 	if not result.has("PATH"):
 		var resolved := CommandResolver.resolve(launch_cmd)
 		result["PATH"] = CommandResolver.child_path_for(resolved if not resolved.is_empty() else launch_cmd)
+	result.merge(agent_env, true)
+	return result
+
+
+## Variables que pide el agente (`env`: [{name, value}], o un diccionario).
+static func _env_from_params(raw_env: Variant) -> Dictionary:
+	var result: Dictionary = {}
 	if raw_env is Array:
 		for item: Variant in raw_env:
-			if item is Dictionary and item.get("name") is String:
+			if item is Dictionary and item.get("name") is String and not str(item.name).is_empty():
 				result[str(item.name)] = str(item.get("value", ""))
 	elif raw_env is Dictionary:
 		for key: Variant in raw_env:

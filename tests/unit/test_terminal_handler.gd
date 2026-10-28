@@ -6,6 +6,7 @@ const AcpClient := preload("res://addons/godot_agent/acp/acp_client.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
+const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
 
 
 func test_utf8_boundary_truncation() -> void:
@@ -114,3 +115,33 @@ func test_controller_policy_and_model_sync() -> void:
 	var call := model.tool_call("tc_term")
 	assert_eq((call.content[0] as Dictionary).get("output"), "línea 1\nlínea 2", "salida inyectada en el bloque terminal")
 	assert_eq((call.content[0] as Dictionary).get("exitCode"), 0, "exitCode inyectado en el bloque terminal")
+
+
+## Los args se citan como se ejecutan (literal) y las variables del agente siempre se preguntan.
+func test_quoting_and_agent_env_ask() -> void:
+	assert_eq(TerminalHandler.format_command_line("cp", PackedStringArray(["-b", "--suffix='", "a b", "x.tscn"])), "cp -b '--suffix='\\''' 'a b' x.tscn", "comillas simples POSIX")
+	assert_eq(TerminalHandler.shell_quote(""), "''", "arg vacío")
+	var root := ProjectSettings.globalize_path(temp_dir("term_env")).simplify_path().trim_suffix("/")
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	var log_sink := AgentLog.new()
+	controller.setup(model, log_sink, root)
+	var handler := TerminalHandler.new()
+	handler.setup(root, log_sink)
+	controller.set_terminal_handler(handler)
+	model.set_harness_mode(SessionModel.HarnessMode.AUTO)
+	var plain: Variant = await handler.create_terminal({"sessionId": "s1", "command": "ls", "args": ["-la"], "cwd": root})
+	assert_true(plain is Dictionary, "ls -la permitido por Auto sin preguntar")
+	var results: Array = []
+	var run := func() -> void:
+		results.append(await handler.create_terminal({"sessionId": "s1", "command": "ls", "args": ["-la"], "cwd": root,
+			"env": [{"name": "LD_PRELOAD", "value": "/tmp/x.so"}]}))
+	run.call()
+	assert_eq(model.pending_permissions.size(), 1, "con env pregunta aunque la regla lo permita")
+	var request: PermissionRequest = model.pending_permissions[0]
+	assert_true(request.description.begins_with("LD_PRELOAD=/tmp/x.so ls -la"), "la tarjeta muestra las variables")
+	assert_true(request.rule_pattern.is_empty(), "sin regla propuesta: no vería las variables")
+	request.cancel()
+	await Engine.get_main_loop().process_frame
+	assert_true(results.size() == 1 and results[0] is AcpClient.AcpResponse and not results[0].ok, "denegado al cancelar")
+	handler.stop_all()

@@ -156,3 +156,24 @@ func test_cancel_request_both_directions() -> void:
 	await Engine.get_main_loop().process_frame
 	await Engine.get_main_loop().process_frame
 	assert_eq(_sent.size(), 1, "cuando el handler termina después, no vuelve a responder")
+
+
+## La marca de cancelado dura hasta que el handler termina, y handling_id solo vale mientras el
+## handler corre sin suspenderse (después lo leería otra cosa creyendo que es suyo).
+func test_incoming_cancel_mark_survives_await() -> void:
+	var client := _make_client()
+	var seen: Array = []
+	client.set_request_handler("terminal/create", func(_params: Dictionary) -> Variant:
+		var my_id: Variant = client.handling_id
+		await Engine.get_main_loop().process_frame
+		seen.append(client.is_incoming_cancelled(my_id))
+		return {"terminalId": "t"}
+	)
+	client.receive_line('{"jsonrpc":"2.0","id":7,"method":"terminal/create","params":{}}')
+	assert_eq(client.handling_id, null, "handling_id se limpia cuando el handler se suspende")
+	client.receive_line('{"jsonrpc":"2.0","method":"$/cancel_request","params":{"requestId":7}}')
+	await Engine.get_main_loop().process_frame
+	await Engine.get_main_loop().process_frame
+	assert_eq(seen, [true], "después del await el handler ve que lo cancelaron")
+	assert_false(client.is_incoming_cancelled(7), "la marca se borra al terminar")
+	assert_eq(_sent.size(), 1, "una sola respuesta (-32800)")

@@ -119,6 +119,7 @@ var _remote_qr: QrView
 var _quota_timer: Timer
 var _quota_state: int = QuotaMonitor.QuotaState.UNKNOWN
 var _export_dialog: ConfirmationDialog
+var _delete_session_dialog: ConfirmationDialog
 var _export_preview: TextEdit
 ## Para pegar el código de la página de login (se arma la primera vez).
 var _login_code_dialog: ConfirmationDialog
@@ -697,9 +698,24 @@ func open_history_session(id: String) -> bool:
 func _on_history_delete_selected(index: int) -> void:
 	if index < 0 or index >= _history_items.size():
 		return
-	var id := str(_history_items[index].get("id", ""))
-	if not id.is_empty() and id != _model.session_id:
-		await _controller.delete_session(id)
+	var item := _history_items[index]
+	var id := str(item.get("id", ""))
+	if id.is_empty() or id == _model.session_id:
+		return
+	if _delete_session_dialog == null:
+		_delete_session_dialog = ConfirmationDialog.new()
+		_delete_session_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		_delete_session_dialog.title = I18n.t("Delete session")
+		_delete_session_dialog.ok_button_text = I18n.t("Delete")
+		_delete_session_dialog.cancel_button_text = I18n.t("Cancel")
+		add_child(_delete_session_dialog)
+	var title := str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else I18n.t("(untitled)")
+	_delete_session_dialog.dialog_text = I18n.t("Delete «%s»? It cannot be undone; if the agent keeps it too, it is deleted there as well.") % title
+	for connection: Dictionary in _delete_session_dialog.confirmed.get_connections():
+		_delete_session_dialog.confirmed.disconnect(connection.callable)
+	_delete_session_dialog.confirmed.connect(func() -> void:
+		_controller.delete_session(id, str(item.get("profile_id", ""))), CONNECT_ONE_SHOT)
+	_delete_session_dialog.popup_centered()
 
 
 func _on_history_selected(index: int) -> void:

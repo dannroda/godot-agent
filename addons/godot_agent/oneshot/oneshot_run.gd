@@ -1080,7 +1080,7 @@ func _evaluate() -> void:
 		_generator_session_id = model.session_id
 	controller.policy.restrictions = QA_RESTRICTIONS.duplicate()
 	controller.mode_rules_override = QA_MODE_RULES
-	var opened: bool = await controller.open_session()
+	var opened: bool = await controller.open_session_keeping_previous()
 	if not is_inside_tree() or phase != RunPhase.EVALUATING:
 		_end_qa_role()
 		return

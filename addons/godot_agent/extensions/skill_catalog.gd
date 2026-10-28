@@ -79,10 +79,22 @@ static func project_dir(project_path: String, agent_kind: String = "claude") -> 
 	return project_path.path_join(".agents").path_join("skills")
 
 
-## Todas las carpetas de skills del proyecto que pueden existir (estándar `.agents/skills`, `.claude/skills`, etc.).
+## Carpetas de skills del proyecto que lee `agent_kind` (la de project_dir primero). Solo las suyas:
+## una skill de otra carpeta aparecería como del proyecto y el agente nunca la cargaría.
+const PROJECT_SKILL_DIRS: Dictionary = {
+	"claude": [".claude/skills"],
+	"codex": [".agents/skills", ".codex/skills"],
+	"antigravity": [".agent/skills", ".agents/skills"],
+	"opencode": [".opencode/skills", ".agents/skills"],
+	"copilot": [".github/skills", ".agents/skills"],
+	"cursor": [".cursor/skills", ".agents/skills"],
+}
+
+
 static func project_dirs(project_path: String, agent_kind: String = "claude") -> PackedStringArray:
 	var dirs: PackedStringArray = [project_dir(project_path, agent_kind)]
-	for rel: String in [".agents/skills", ".agent/skills", ".claude/skills", ".codex/skills", ".opencode/skills", ".github/skills", ".cursor/skills"]:
+	var kind := agent_kind if not agent_kind.is_empty() else "claude"
+	for rel: String in PROJECT_SKILL_DIRS.get(kind, [".agents/skills"]):
 		var candidate := project_path.path_join(rel)
 		if not candidate in dirs:
 			dirs.append(candidate)

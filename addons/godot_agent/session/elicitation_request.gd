@@ -45,6 +45,25 @@ static func from_params(params: Dictionary) -> RefCounted:
 	return req
 
 
+## Motivo por el que el pedido no se puede mostrar ("" si está bien): modo desconocido, o un enlace
+## sin id o que no es http(s) (un file:// o una ruta abriría un archivo local con el programa del sistema).
+func invalid_reason() -> String:
+	if mode == MODE_FORM:
+		return ""
+	if mode != MODE_URL:
+		return "Unsupported elicitation mode: %s" % mode
+	if elicitation_id.is_empty():
+		return "Missing 'elicitationId'."
+	if not is_web_url(url):
+		return "The url must be http or https: %s" % url
+	return ""
+
+
+static func is_web_url(text: String) -> bool:
+	var lower := text.strip_edges().to_lower()
+	return (lower.begins_with("https://") or lower.begins_with("http://")) and lower.length() > lower.find("//") + 2
+
+
 func is_pending() -> bool:
 	return response.is_empty()
 
@@ -159,10 +178,11 @@ func validate(values: Dictionary) -> String:
 		var prop: Dictionary = props[key] if props[key] is Dictionary else {}
 		var label := str(prop.get("title", name))
 		var val: Variant = values.get(name)
-		if val is String and prop.get("minLength") is int and str(val).length() < int(prop.minLength):
+		# JSON trae todos los números como float.
+		if val is String and _is_number(prop.get("minLength")) and str(val).length() < int(prop.minLength):
 			if not str(val).is_empty() or is_required(name):
 				return label
-		if val is Array and prop.get("minItems") is int and (val as Array).size() < int(prop.minItems):
+		if val is Array and _is_number(prop.get("minItems")) and (val as Array).size() < int(prop.minItems):
 			if not (val as Array).is_empty() or is_required(name):
 				return label
 	return ""
@@ -198,3 +218,7 @@ static func enum_choices(prop: Dictionary) -> Array[Dictionary]:
 			var val := str(item)
 			result.append({"value": val, "label": val, "description": ""})
 	return result
+
+
+static func _is_number(value: Variant) -> bool:
+	return value is int or value is float

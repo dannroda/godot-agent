@@ -135,3 +135,27 @@ func test_controller_handles_create_complete_and_cancel() -> void:
 	assert_true(form_req.withdrawn, "marcado como retirado por $/cancel_request")
 	assert_eq(model.pending_elicitations.size(), 0, "ya no queda pendiente")
 	assert_eq(sent.back().get("result"), {"action": "cancel"}, "responde action cancel")
+
+
+## Un enlace que no es http(s) se rechaza (abriría un archivo local), y los mínimos que llegan por
+## JSON (floats) se validan igual.
+func test_rejects_local_links_and_json_numbers() -> void:
+	var bad := ElicitationRequest.from_params({"mode": "url", "elicitationId": "e", "url": "file:///tmp/run.sh"})
+	assert_false(bad.invalid_reason().is_empty(), "file:// rechazado")
+	assert_false(ElicitationRequest.from_params({"mode": "url", "elicitationId": "e", "url": "run.sh"}).invalid_reason().is_empty(), "ruta relativa rechazada")
+	assert_false(ElicitationRequest.from_params({"mode": "url", "url": "https://example.com"}).invalid_reason().is_empty(), "sin elicitationId")
+	assert_false(ElicitationRequest.from_params({"mode": "raw"}).invalid_reason().is_empty(), "modo desconocido")
+	assert_eq(ElicitationRequest.from_params({"mode": "url", "elicitationId": "e", "url": "https://example.com/ok"}).invalid_reason(), "", "https aceptado")
+	var form: Variant = ElicitationRequest.from_params(JSON.parse_string('{"mode":"form","requestedSchema":{"type":"object","properties":{"name":{"type":"string","minLength":3},"tags":{"type":"array","minItems":2}}}}'))
+	assert_eq(form.validate({"name": "ab"}), "name", "minLength desde JSON")
+	assert_eq(form.validate({"name": "abc", "tags": ["x"]}), "tags", "minItems desde JSON")
+	assert_eq(form.validate({"name": "abc", "tags": ["x", "y"]}), "", "válido")
+
+
+func test_controller_rejects_invalid_elicitation() -> void:
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	controller.setup(model, AgentLog.new(), "/tmp")
+	var response: Variant = await controller._on_create_elicitation({"mode": "url", "elicitationId": "e", "url": "file:///etc/passwd"})
+	assert_true(response is Object and not response.ok, "responde error sin mostrar la tarjeta")
+	assert_eq(model.entries().size(), 0, "no hay tarjeta")
