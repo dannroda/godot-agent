@@ -27,6 +27,14 @@ const STATE_LABELS: Dictionary = {
 const PATTERNS_PATH := "res://addons/godot_agent/config/quota_patterns.txt"
 ## Clave de `_meta` donde claude-agent-acp manda el SDKRateLimitInfo en los usage_update (D22).
 const CLAUDE_RATE_LIMIT_KEY := "_claude/rateLimit"
+## Clave de `_meta` donde OpenCode avisa reintentos programados en `session_info_update` (m11-20).
+const OPENCODE_RETRY_KEY := "opencode/retry"
+## Códigos/tipos de error estructurados que los agentes ACP reportan al alcanzar un límite (m11-20).
+const LIMIT_ERROR_KINDS: PackedStringArray = [
+	"rate_limit", "billing_error", "rate_limit_error", "insufficient_quota",
+	"usageLimitExceeded", "rateLimitExceeded", "quota_exhausted", "rate_limited",
+	"budget_exhausted", "user_model_rate_limited",
+]
 ## Ventanas que se muestran, en orden: la actual y la semanal (D22).
 const WINDOW_CURRENT := "five_hour"
 const WINDOW_WEEKLY := "seven_day"
@@ -129,15 +137,48 @@ func observe_agent_text(text: String) -> bool:
 ## Error de session/prompt. Se loguean todos (para ver la forma real); devuelve si parece de límite.
 func observe_prompt_error(error: Dictionary) -> bool:
 	var data: Variant = error.get("data")
-	var kind := str(data.get("errorKind", "")) if data is Dictionary else ""
+	var kind := ""
+	if data is Dictionary:
+		for key: String in ["errorKind", "type", "code", "errorName", "reason"]:
+			if data.get(key) is String and not str(data[key]).is_empty():
+				kind = str(data[key])
+				break
 	var text := "%s %s" % [error.get("message", ""), JSON.stringify(data) if data != null else ""]
 	var line := matching_line(str(error.get("message", "")))
-	var is_limit := kind in ["rate_limit", "billing_error"] or not matching_line(text).is_empty()
+	var is_limit := kind in LIMIT_ERROR_KINDS or not matching_line(text).is_empty()
 	_log("session/prompt error%s: %s" % [" (limit)" if is_limit else "", str(error.get("message", "")).left(300)], JSON.stringify(error))
 	if is_limit:
 		_enter_limited("error", str(error.get("message", "")), parse_reset_time(line if not line.is_empty() else text, _now()))
 		_recompute()
 	return is_limit
+
+
+## `session_info_update`: OpenCode avisa reintentos por límite en `_meta["opencode/retry"]` y los
+## limpia con `null` cuando arranca el paso siguiente (m11-20).
+func observe_session_info(update: Dictionary) -> void:
+	var meta: Variant = update.get("_meta")
+	if not meta is Dictionary or not meta.has(OPENCODE_RETRY_KEY):
+		return
+	var retry: Variant = meta.get(OPENCODE_RETRY_KEY)
+	if retry == null:
+		if _limited:
+			_leave_limited("the agent started the next step")
+			_recompute()
+		return
+	if not retry is Dictionary:
+		return
+	var err: Variant = retry.get("error")
+	var err_type := str(err.get("type", "")) if err is Dictionary else ""
+	var msg := str(err.get("message", err)) if err is Dictionary else str(err)
+	if not (err_type in LIMIT_ERROR_KINDS or "rate_limit" in err_type.to_lower() or "quota" in err_type.to_lower() or not matching_line(msg).is_empty()):
+		return
+	var reset := 0
+	var next_at := str(retry.get("nextRetryAt", ""))
+	if not next_at.is_empty():
+		reset = Time.get_unix_time_from_datetime_string(next_at)
+	_log("scheduled retry in session_info_update: %s" % msg, JSON.stringify(update))
+	_enter_limited("cuota", msg, reset)
+	_recompute()
 
 
 ## Un turno terminó bien: si estaba "limitado", la cuota volvió.
@@ -344,6 +385,73 @@ static func _usage_group(groups: Dictionary, key: String) -> Dictionary:
 		if key in lower and (key != "gemini" or not "argon" in lower):
 			return groups[group]
 	return {}
+
+
+## El `/status` de `codex-acp` (local, sin gastar tokens) lista las ventanas de `RateLimitsMap`:
+##   **codex 5h limit:** 82% left (resets 18:30)
+##   **codex Weekly limit:** 64% left (resets 12:00 on 3 Nov)
+##   **codex individual spend limit:** 75% left (25 of 100 credits used; resets Nov 3)
+## También acepta el formato de barra del CLI (`│ 5h limit: [██░░] 40% left (resets 16:10) │`).
+## Devuelve `{grupo: {five_hour: {utilization 0–1, resets_at}, seven_day: {…}}}`.
+static func parse_codex_status(text: String, now: int) -> Dictionary:
+	var parsed: Dictionary = {}
+	var pattern := RegEx.create_from_string("(?i)^(?:\\*\\*)?(?:(?!weekly\\s+limit|individual\\s+spend|\\d+[mhd]\\s+limit)([\\w.-]+?)\\s+)?(weekly\\s+limit|individual\\s+spend\\s+limit|\\d+[mhd]\\s+limit|limit):(?:\\*\\*)?\\s*(?:\\[[^\\]]*\\]\\s*)?(\\d+(?:\\.\\d+)?)%\\s+left(?:\\s*\\((?:[^)]*;\\s*)?resets\\s+([^)]+)\\))?")
+	for raw_line: String in text.split("\n"):
+		var cleaned := raw_line.strip_edges().trim_prefix("│").trim_suffix("│").strip_edges()
+		var found := pattern.search(cleaned)
+		if found == null:
+			continue
+		var group := found.get_string(1) if not found.get_string(1).is_empty() else "codex"
+		var label := found.get_string(2).to_lower()
+		var window := WINDOW_WEEKLY if ("week" in label or "d limit" in label or "spend" in label) else WINDOW_CURRENT
+		var used := clampf(1.0 - float(found.get_string(3)) / 100.0, 0.0, 1.0)
+		var reset := _parse_codex_reset(found.get_string(4).strip_edges(), now)
+		if not parsed.has(group):
+			parsed[group] = {}
+		parsed[group][window] = {"utilization": used, "resets_at": reset}
+	return parsed
+
+
+## Elige las ventanas activas de `parse_codex_status` para el modelo en uso (o el grupo `codex`).
+static func codex_windows(parsed_groups: Dictionary, model_name: String = "") -> Dictionary:
+	if parsed_groups.is_empty():
+		return {}
+	if not model_name.is_empty() and parsed_groups.has(model_name):
+		return parsed_groups[model_name].duplicate(true)
+	if parsed_groups.has("codex"):
+		return parsed_groups["codex"].duplicate(true)
+	return parsed_groups[parsed_groups.keys()[0]].duplicate(true)
+
+
+## Extrae `{email, org, plan, method}` de la línea `**Account:** ChatGPT pro (email)` de `/status`.
+static func parse_codex_account(text: String) -> Dictionary:
+	var chatgpt := RegEx.create_from_string("(?i)\\*\\*Account:\\*\\*\\s*ChatGPT\\s+(\\w+)\\s*\\(([^)]+)\\)").search(text)
+	if chatgpt:
+		return {"email": chatgpt.get_string(2).strip_edges(), "org": "", "plan": chatgpt.get_string(1).strip_edges(), "method": "ChatGPT"}
+	var api_key := RegEx.create_from_string("(?i)\\*\\*Account:\\*\\*\\s*API key").search(text)
+	if api_key:
+		return {"email": "", "org": "", "plan": "", "method": "API key"}
+	return {}
+
+
+static func _parse_codex_reset(reset_text: String, now: int) -> int:
+	if reset_text.is_empty():
+		return 0
+	var date_match := RegEx.create_from_string("(?i)(?:(\\d{1,2}):(\\d{2})\\s+on\\s+)?(?:(\\d{1,2})\\s+([a-z]{3})|([a-z]{3})\\s+(\\d{1,2}))").search(reset_text)
+	if date_match:
+		var day := int(date_match.get_string(3) if not date_match.get_string(3).is_empty() else date_match.get_string(6))
+		var mon_str := (date_match.get_string(4) if not date_match.get_string(4).is_empty() else date_match.get_string(5)).to_lower()
+		var month := MONTHS.find(mon_str) + 1
+		if month > 0 and day >= 1 and day <= 31:
+			var hour := int(date_match.get_string(1)) if not date_match.get_string(1).is_empty() else 0
+			var minute := int(date_match.get_string(2)) if not date_match.get_string(2).is_empty() else 0
+			var offset := _utc_offset_s()
+			var year := int(Time.get_datetime_dict_from_unix_time(now + offset).get("year", 2026))
+			var candidate := Time.get_unix_time_from_datetime_dict({"year": year, "month": month, "day": day, "hour": hour, "minute": minute, "second": 0}) - offset
+			if candidate <= now:
+				candidate = Time.get_unix_time_from_datetime_dict({"year": year + 1, "month": month, "day": day, "hour": hour, "minute": minute, "second": 0}) - offset
+			return candidate
+	return parse_reset_time("resets " + reset_text, now)
 
 
 static func parse_reset_time(text: String, now: int) -> int:

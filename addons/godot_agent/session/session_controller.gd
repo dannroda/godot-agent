@@ -59,8 +59,9 @@ const ACTION_TURN_CHANGES := "turn_changes"
 const ACTION_TURN_RESTORE := "turn_restore"
 ## Guardar el reporte del turno (m11-06), con la misma `data`.
 const ACTION_TURN_REPORT := "turn_report"
-## agentInfo.name del adaptador oficial de Google Antigravity (m11-11).
+## agentInfo.name del adaptador oficial de Google Antigravity (m11-11) y de Codex (m11-20).
 const ANTIGRAVITY_AGENT := "antigravity-acp"
+const CODEX_AGENT := "codex-acp"
 const ACTION_SHOW_LOG := "show_log"
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
@@ -168,7 +169,7 @@ var _load_failed: bool = false
 var _login: AgentLogin
 ## Aviso del login en curso (se actualiza con el enlace y el resultado).
 var _login_entry: ChatEntry
-## El `/usage` de Antigravity en curso: sus mensajes no van al chat (ver `_query_agent_usage`).
+## El `/usage` o `/status` en curso: sus mensajes no van al chat (ver `_query_agent_usage`).
 var _usage_query_running: bool = false
 var _usage_query_id: int = 0
 var _usage_query_text: String = ""
@@ -185,6 +186,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	quota = QuotaMonitor.new()
 	quota.setup(agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
+	client.set_notification_handler("_auth/status_update", _on_auth_status_update)
 	connected.connect(_query_agent_usage)
 	connected.connect(_refresh_agent_sessions)
 	client.set_request_handler("session/request_permission", _on_request_permission)
@@ -407,27 +409,37 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	return stop_reason
 
 
-## Antigravity no manda la cuota en usage_update: la dice su comando `/usage`, que no gasta tokens.
-## Se le pide al abrir la sesión y después de cada turno, sin que la pregunta ni la respuesta
-## aparezcan en el chat; un prompt del usuario que llega en el medio espera a que termine.
+## Antigravity (`/usage`) y Codex (`/status`) no mandan la cuota en usage_update: la dice su comando
+## local, que no gasta tokens. Se le pide al abrir la sesión y después de cada turno, sin que la
+## pregunta ni la respuesta aparezcan en el chat; un prompt del usuario que llega en el medio espera.
 func _query_agent_usage() -> void:
-	if str(model.agent_info.get("name", "")) != ANTIGRAVITY_AGENT or model.state != SessionModel.SessionState.READY or _usage_query_running:
+	var agent_name := str(model.agent_info.get("name", ""))
+	var command := "/usage" if agent_name == ANTIGRAVITY_AGENT else ("/status" if agent_name == CODEX_AGENT else "")
+	if command.is_empty() or model.state != SessionModel.SessionState.READY or _usage_query_running:
 		return
 	_usage_query_running = true
 	_usage_query_text = ""
 	var req_id := client.next_request_id()
 	_usage_query_id = req_id
-	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": [{"type": "text", "text": "/usage"}]})
+	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": [{"type": "text", "text": command}]})
 	if _usage_query_id == req_id:
 		_usage_query_id = 0
 	_usage_query_running = false
 	_usage_query_done.emit()
 	if not result.ok:
 		if result.error.get("code") != AcpClient.ERR_REQUEST_CANCELLED:
-			agent_log.add(AgentLog.CH_QUOTA, "/usage failed: %s" % result.error_message())
+			agent_log.add(AgentLog.CH_QUOTA, "%s failed: %s" % [command, result.error_message()])
 		return
-	var groups := QuotaMonitor.parse_antigravity_usage(_usage_query_text)
-	quota.observe_windows(QuotaMonitor.antigravity_windows(groups, _current_model_name()), _usage_query_text, groups)
+	if agent_name == ANTIGRAVITY_AGENT:
+		var groups := QuotaMonitor.parse_antigravity_usage(_usage_query_text)
+		quota.observe_windows(QuotaMonitor.antigravity_windows(groups, _current_model_name()), _usage_query_text, groups)
+	elif agent_name == CODEX_AGENT:
+		var groups := QuotaMonitor.parse_codex_status(_usage_query_text, int(quota.now_provider.call()))
+		quota.observe_windows(QuotaMonitor.codex_windows(groups, _current_model_name()), _usage_query_text, groups if groups.size() > 1 else {})
+		if model.account.is_empty():
+			var account := QuotaMonitor.parse_codex_account(_usage_query_text)
+			if not account.is_empty():
+				model.set_account(account)
 
 
 ## Cancela con `$/cancel_request` un `/usage`, `/status` o apertura de sesión que ya no se espera (m11-18).
@@ -440,7 +452,6 @@ func _cancel_abandoned_requests() -> void:
 		var sid := _session_request_id
 		_session_request_id = 0
 		client.cancel_request(sid)
-
 func _current_model_name() -> String:
 	var option := model.config_option("model")
 	var value := str(option.get("currentValue", ""))
@@ -1008,6 +1019,24 @@ func _refresh_account() -> void:
 			agent_log.add(AgentLog.CH_PROC, "Logged in (%s, %s plan)" % [account.method, account.plan])
 
 
+## Notificación `_auth/status_update` (extensión ACP de `codex-acp`): actualiza la cuenta del modelo.
+func _on_auth_status_update(params: Dictionary) -> void:
+	var status: Variant = params.get("authStatus")
+	if not status is Dictionary:
+		return
+	var kind := str(status.get("kind", ""))
+	if kind == "none":
+		model.set_account({})
+		return
+	var acc: Dictionary = status.get("account") if status.get("account") is Dictionary else {}
+	model.set_account({
+		"email": str(acc.get("email", "")),
+		"org": str(acc.get("organization", "")),
+		"plan": str(acc.get("plan", "")),
+		"method": str(status.get("label", kind)),
+	})
+
+
 ## true (y lo avisa) si otra sesión abierta está editando alguno de `paths` (m7-44).
 func _file_taken(paths: PackedStringArray) -> bool:
 	if not file_guard.is_valid() or paths.is_empty():
@@ -1139,6 +1168,8 @@ func _on_session_update(params: Dictionary) -> void:
 		return
 	if params.update.get("sessionUpdate") == "usage_update":
 		quota.observe_update(params.update)
+	elif params.update.get("sessionUpdate") == "session_info_update":
+		quota.observe_session_info(params.update)
 	_notice_outside_turn(params.update)
 	if not model.apply_update(params.update):
 		agent_log.add(AgentLog.CH_ACP, "Unknown session/update variant, ignored: %s" % str(params.update.get("sessionUpdate", "?")))

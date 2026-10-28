@@ -182,3 +182,52 @@ func test_antigravity_usage() -> void:
 	assert_true(absf(monitor.utilization(QuotaMonitor.WINDOW_WEEKLY) - 0.14) < 0.001, "cambiar de modelo actualiza los anillos con su grupo")
 	monitor.observe_windows({}, "nada")
 	assert_true(monitor.has_data(), "una respuesta sin ventanas no borra las anteriores")
+
+
+## `/status` de `codex-acp` (CodexCommands.ts) y errores de Codex, Copilot, Cursor y OpenCode (m11-20).
+const CODEX_STATUS := """**Model:** gpt-5-codex  
+**Directory:** /workspace  
+**Approval:** on-request  
+**Sandbox:** workspace-write  
+**Account:** ChatGPT pro (dev@example.com)  
+**Session:** `019a0000-0000-7000-8000-000000000001`  
+  
+**Token usage:** 12.4K total  (1.2K input + 10.0K cached input, 1.2K output)  
+**Context window:** 6% used (12.4K used / 200.0K)  
+**codex 5h limit:** 82% left (resets 18:30)  
+**codex Weekly limit:** 64% left (resets 12:00 on 3 Nov)
+"""
+
+
+func test_codex_and_other_agents_quota() -> void:
+	var groups := QuotaMonitor.parse_codex_status(CODEX_STATUS, NOW)
+	assert_eq(groups.keys(), ["codex"], "grupo codex del /status")
+	var win := QuotaMonitor.codex_windows(groups, "gpt-5-codex")
+	assert_true(absf(win.five_hour.utilization - 0.18) < 0.001, "82 % left = 18 % usado")
+	assert_true(absf(win.seven_day.utilization - 0.36) < 0.001, "64 % left = 36 % usado")
+	assert_true(win.five_hour.resets_at > NOW, "reinicio de 5 h hoy o mañana")
+	assert_true(win.seven_day.resets_at > NOW, "reinicio semanal el 3 Nov")
+	var account := QuotaMonitor.parse_codex_account(CODEX_STATUS)
+	assert_eq(account, {"email": "dev@example.com", "org": "", "plan": "pro", "method": "ChatGPT"}, "cuenta leída de /status")
+
+	var cli_bars := " │ 5h limit:      [████████████░░░░░░░░]  40% left (resets 16:10)      │\n │ Weekly limit:  [████████████████░░░░]  80% left (resets 02:12 on Nov 22) │"
+	var cli_win := QuotaMonitor.codex_windows(QuotaMonitor.parse_codex_status(cli_bars, NOW))
+	assert_true(absf(cli_win.five_hour.utilization - 0.60) < 0.001, "barra CLI 5h")
+	assert_true(absf(cli_win.seven_day.utilization - 0.20) < 0.001, "barra CLI semanal")
+
+	var monitor := _monitor()
+	assert_true(monitor.observe_prompt_error({"code": -32603, "message": "Request failed", "data": {"type": "usageLimitExceeded"}}), "Codex usageLimitExceeded")
+	monitor.observe_turn_ok()
+	assert_true(monitor.observe_prompt_error({"code": -32603, "message": "HTTP 429: user_model_rate_limited"}), "Copilot/Cursor user_model_rate_limited")
+	monitor.observe_turn_ok()
+	assert_true(monitor.observe_agent_text("Upgrade your plan to continue using this model."), "Cursor límite de plan")
+	monitor.observe_turn_ok()
+
+	# OpenCode: reintento programado en session_info_update (_meta["opencode/retry"]).
+	monitor.observe_session_info({"sessionUpdate": "session_info_update", "_meta": {"opencode/retry": {
+		"attempt": 1, "nextRetryAt": "2026-10-28T20:00:00Z", "error": {"type": "rate_limit_error", "message": "Rate limit reached"}
+	}}})
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.LIMITED, "OpenCode retry entra en limitado")
+	assert_eq(monitor.limited_until, Time.get_unix_time_from_datetime_string("2026-10-28T20:00:00"), "hasta nextRetryAt")
+	monitor.observe_session_info({"sessionUpdate": "session_info_update", "_meta": {"opencode/retry": null}})
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.UNKNOWN, "OpenCode retry null sale de limitado")

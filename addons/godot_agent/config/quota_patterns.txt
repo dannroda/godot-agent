@@ -13,4 +13,14 @@
 ^Your group's usage limit is set to \$0
 # Formato viejo de Claude Code: "Claude AI usage limit reached|<unix>".
 ^Claude AI usage limit reached
+# Codex, GitHub Copilot y Cursor (mensajes y errores de cuota o límite del plan).
+^Usage limit reached
+^Rate limit reached
+^You have reached your .* (usage|request|monthly|weekly|rate) limit
+^You've reached your .* (quota|limit)
+^Upgrade your plan to continue
+user_model_rate_limited
+insufficient_quota
+usageLimitExceeded
+rateLimitExceeded
 # Sin patrones sueltos ("rate limit"): la prosa del agente los dispararía.

@@ -4,16 +4,16 @@
   "created_at": "2026-10-28T19:15:10.136Z",
   "description": "Claude (usage_update _meta _claude/rateLimit) y Antigravity (/usage) ya informan la cuota. Ver qué informan Codex, Copilot y Cursor por ACP (usage_update, _meta, comandos como /status) y leerlo sin endpoints ni archivos del agente (regla de QuotaMonitor).",
   "milestone": "m11",
-  "notes": "",
+  "notes": "Codex (codex-acp): usage_update solo trae tokens de contexto, pero su comando local /status (sin gastar tokens) informa las ventanas de 5 h y semanal de RateLimitsMap y la cuenta; SessionController._query_agent_usage lo pide igual que /usage de Antigravity, y _auth/status_update mantiene model.account al día. OpenCode: reintentos por límite en session_info_update (_meta[\"opencode/retry\"]). Copilot y Cursor no mandan ventanas de cuota por ACP (Copilot solo contexto/costo en usage_update; Cursor nada): se detectan sus errores y textos de límite (user_model_rate_limited, usageLimitExceeded, insufficient_quota, Upgrade your plan…).",
   "order": 20,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "acp"
   ],
-  "test": "",
+  "test": "tests/unit/test_quota_monitor.gd test_codex_and_other_agents_quota.",
   "title": "Cuota de los demás agentes",
-  "updated_at": "2026-10-28T19:23:21.409Z"
+  "updated_at": "2026-10-28T20:58:42.714Z"
 }
