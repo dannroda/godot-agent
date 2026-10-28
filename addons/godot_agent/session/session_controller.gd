@@ -63,6 +63,7 @@ const ACTION_TURN_REPORT := "turn_report"
 const ANTIGRAVITY_AGENT := "antigravity-acp"
 const CODEX_AGENT := "codex-acp"
 const USAGE_QUERY_TIMEOUT_S := 20
+const CLOSE_TIMEOUT_S := 10
 const ACTION_SHOW_LOG := "show_log"
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
@@ -233,6 +234,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_connect_generation += 1
 	var generation := _connect_generation
 	_profile = agent_profile
+	_agent_account = {}  # el proceso nuevo la vuelve a mandar después de initialize
 	model.reset()
 	model.failure_message = ""
 	model.set_state(SessionModel.SessionState.STARTING)
@@ -446,7 +448,7 @@ func _query_agent_usage() -> void:
 	# Sin respuesta a tiempo se cancela: un prompt del usuario espera a que termine.
 	var session_id := model.session_id
 	(Engine.get_main_loop() as SceneTree).create_timer(USAGE_QUERY_TIMEOUT_S).timeout.connect(func() -> void:
-		if _usage_query_id == req_id:
+		if _usage_query_id == req_id and _process != null:
 			agent_log.add(AgentLog.CH_QUOTA, "%s got no answer in %d s, cancelled" % [command, USAGE_QUERY_TIMEOUT_S])
 			_usage_query_id = 0
 			client.notify("session/cancel", {"sessionId": session_id})
@@ -516,6 +518,7 @@ func logout() -> bool:
 	agent_log.add(AgentLog.CH_PROC, "Signed out")
 	var name := _profile.display_name if _profile else str(model.agent_info.get("title", ""))
 	quota.forget_account()
+	_agent_account = {}
 	model.set_account({})
 	stop()
 	model.add_notice(I18n.t("Signed out of %s. Start a session to sign in with another account.") % name)
@@ -1013,9 +1016,10 @@ func _authorize_terminal_command(command_line: String, working_dir: String, env:
 		_log_perm("rejected, opens Godot in its own window: %s" % launch)
 		model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
 		return "Command-line Godot only runs with --headless: %s" % launch
-	var expiry: int = _preauthorized_commands.get(command_line, 0)
+	var preauth_key := command_key(command_line)
+	var expiry: int = _preauthorized_commands.get(preauth_key, 0)
 	if expiry > Time.get_ticks_msec() and env.is_empty():
-		_preauthorized_commands.erase(command_line)
+		_preauthorized_commands.erase(preauth_key)
 		return ""
 	var decision := policy.decide(PermissionPolicy.GROUP_SHELL, model.harness_mode)
 	if decision == PermissionPolicy.ALLOW and env.is_empty():
@@ -1115,10 +1119,54 @@ func _file_taken(paths: PackedStringArray) -> bool:
 
 ## Un permiso de edición concedido cubre la escritura por fs/* que le sigue al mismo archivo; uno de
 ## shell cubre el terminal/create que le sigue con el mismo comando.
+## Las palabras del comando sin las comillas: `npm run "a b"` (lo que pidió el agente) y
+## `npm run 'a b'` (lo que arma terminal/create) son la misma clave.
+static func command_key(command: String) -> String:
+	var words: PackedStringArray = []
+	var word := ""
+	var in_word := false
+	var quote := ""
+	var i := 0
+	while i < command.length():
+		var c := command[i]
+		if quote == "'":
+			if c == "'":
+				quote = ""
+			else:
+				word += c
+		elif quote == "\"":
+			if c == "\"":
+				quote = ""
+			elif c == "\\" and i + 1 < command.length():
+				i += 1
+				word += command[i]
+			else:
+				word += c
+		elif c == "'" or c == "\"":
+			quote = c
+			in_word = true
+		elif c == "\\" and i + 1 < command.length():
+			i += 1
+			word += command[i]
+			in_word = true
+		elif c == " " or c == "\t":
+			if in_word:
+				words.append(word)
+			word = ""
+			in_word = false
+		else:
+			word += c
+			in_word = true
+		i += 1
+	if in_word:
+		words.append(word)
+	return "\u0001".join(words)
+
+
 func _preauthorize(request: PermissionRequest, call: Variant) -> void:
 	if request.group == PermissionPolicy.GROUP_SHELL:
 		if not request.description.is_empty():
-			_preauthorized_commands[request.description] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
+			_preauthorized_commands[command_key(request.description)] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
 		return
 	if request.group != PermissionPolicy.GROUP_EDIT_FILES:
 		return
@@ -1400,6 +1448,12 @@ func close_session(target_session_id: String = "") -> bool:
 	var sid := target_session_id if not target_session_id.is_empty() else model.session_id
 	if sid.is_empty() or _process == null or not _process.is_running() or not model.supports_close_session():
 		return false
+	# Sin respuesta a tiempo se cancela: mientras tanto «Nueva sesión» no hace nada.
+	var req_id := client.next_request_id()
+	(Engine.get_main_loop() as SceneTree).create_timer(CLOSE_TIMEOUT_S).timeout.connect(func() -> void:
+		if client.cancel_request(req_id):
+			agent_log.add(AgentLog.CH_ACP, "session/close got no answer in %d s, cancelled" % CLOSE_TIMEOUT_S)
+	)
 	var result := await client.request("session/close", {"sessionId": sid})
 	return result.ok
 

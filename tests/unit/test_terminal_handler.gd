@@ -145,3 +145,9 @@ func test_quoting_and_agent_env_ask() -> void:
 	await Engine.get_main_loop().process_frame
 	assert_true(results.size() == 1 and results[0] is AcpClient.AcpResponse and not results[0].ok, "denegado al cancelar")
 	handler.stop_all()
+
+
+## Lo que pidió el agente con comillas dobles y lo que arma terminal/create con simples es la misma clave.
+func test_command_key_ignores_quoting() -> void:
+	assert_eq(SessionController.command_key("npm run \"a b\""), SessionController.command_key(TerminalHandler.format_command_line("npm", PackedStringArray(["run", "a b"]))), "misma clave")
+	assert_false(SessionController.command_key("npm run a b") == SessionController.command_key("npm run 'a b'"), "otros args, otra clave")

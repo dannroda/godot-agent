@@ -1,9 +1,10 @@
 @tool
 extends RefCounted
 ## Lector de TOML acotado a lo que traen los config.toml de agentes (Codex): tablas `[a.b]` con
-## claves citadas, claves con puntos, strings básicos y literales, números, booleanos, arrays (también
-## de varias líneas) y tablas en línea, con comentarios al final. Los arrays de tablas (`[[x]]`) se
-## saltean. Lo que no entiende lo ignora: es para mostrar, no para validar.
+## claves citadas, claves con puntos, strings básicos y literales (también de varias líneas, con
+## comillas triples), números, booleanos, arrays (también de varias líneas) y tablas en línea, con
+## comentarios al final. Los arrays de tablas (`[[x]]`) se saltean. Lo que no entiende lo ignora: es
+## para mostrar, no para validar.
 
 
 ## Diccionario con las tablas anidadas de `text`.
@@ -36,7 +37,7 @@ static func _statements(text: String) -> PackedStringArray:
 	var result: PackedStringArray = []
 	var pending := ""
 	var depth := 0
-	for raw: String in text.replace("\r\n", "\n").split("\n"):
+	for raw: String in _flatten_multiline_strings(text.replace("\r\n", "\n")).split("\n"):
 		var line := _strip_comment(raw).strip_edges()
 		if line.is_empty():
 			continue
@@ -48,6 +49,44 @@ static func _statements(text: String) -> PackedStringArray:
 	if not pending.is_empty():
 		result.append(pending)
 	return result
+
+
+## Pasa cada string de comillas triples a un string básico de una línea (con \n), así el resto
+## del lector trabaja por líneas. Respeta los strings de una línea y los comentarios.
+static func _flatten_multiline_strings(text: String) -> String:
+	var out := ""
+	var i := 0
+	var n := text.length()
+	while i < n:
+		var c := text[i]
+		if c == "#":
+			var line_end := text.find("\n", i)
+			line_end = n if line_end < 0 else line_end
+			out += text.substr(i, line_end - i)
+			i = line_end
+			continue
+		var triple := text.substr(i, 3)
+		if triple == "\"\"\"" or triple == "'''":
+			var close := text.find(triple, i + 3)
+			close = n if close < 0 else close
+			var body := text.substr(i + 3, close - i - 3).trim_prefix("\n")
+			if triple == "'''":  # literal: nada se escapa
+				body = body.replace("\\", "\\\\")
+			out += "\"%s\"" % body.replace("\"", "\\\"").replace("\n", "\\n")
+			i = mini(close + 3, n)
+			continue
+		if c == "\"" or c == "'":
+			var j := i + 1
+			while j < n and text[j] != c and text[j] != "\n":
+				if c == "\"" and text[j] == "\\":
+					j += 1
+				j += 1
+			out += text.substr(i, j + 1 - i)
+			i = j + 1
+			continue
+		out += c
+		i += 1
+	return out
 
 
 static func _strip_comment(line: String) -> String:

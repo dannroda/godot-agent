@@ -200,3 +200,13 @@ command = "ignored"
 	assert_eq(by_name.get("dotted", {}).get("target"), "https://example.com/mcp", "clave con puntos")
 	var parsed := TomlLite.parse(toml)
 	assert_eq(parsed.mcp_servers.github.env.TOKEN, "x # no es comentario", "# dentro de un string")
+
+
+## Strings de comillas triples (como developer_instructions) no rompen lo que sigue.
+func test_codex_toml_multiline_strings() -> void:
+	var toml := "developer_instructions = \"\"\"\nUsá # y = libremente\n[no es tabla]\n\"\"\"\nnote = '''C:\\ruta\n'''\n[mcp_servers.after]\ncommand = \"uvx\"\n"
+	var parsed := TomlLite.parse(toml)
+	assert_eq(parsed.get("developer_instructions"), "Usá # y = libremente\n[no es tabla]\n", "string básico de varias líneas")
+	assert_eq(parsed.get("note"), "C:\\ruta\n", "literal de varias líneas sin escapes")
+	var servers := ClaudeExtensions.parse_codex_mcp_toml(toml, ClaudeExtensions.ORIGIN_USER)
+	assert_eq(servers.size(), 1, "el server de después se lee")
