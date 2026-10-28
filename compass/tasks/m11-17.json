@@ -4,7 +4,7 @@
   "created_at": "2026-10-28T19:15:09.338Z",
   "description": "ACP v1 suma elicitation/create y elicitation/complete del lado del cliente: el agente pide datos al usuario con un esquema (texto, opciones, confirmación). Anunciar la capacidad y mostrarlos como tarjeta en el dock, como los permisos.",
   "milestone": "m11",
-  "notes": "Agregados ElicitationRequest (session/elicitation_request.gd) y ElicitationView (ui/dock/entries/elicitation_view.gd) para formularios (mode: form con string, enum/oneOf, boolean, integer/number y array multi-select) y enlaces (mode: url). Conectados elicitation/create, elicitation/complete, $/cancel_request y clientCapabilities.elicitation en SessionController, SessionModel y ConversationView. Cubierto en tests/unit/test_elicitation.gd.",
+  "notes": "Agregados ElicitationRequest (session/elicitation_request.gd) y ElicitationView (ui/dock/entries/elicitation_view.gd) para formularios (mode: form con string, enum/oneOf, boolean, integer/number y array multi-select) y enlaces (mode: url). Conectados elicitation/create, elicitation/complete, $/cancel_request y clientCapabilities.elicitation en SessionController, SessionModel y ConversationView.\n\nRevisión (2026-10-28, 2431546 y 651d557): un enlace que no era http(s) iba por open_link del chat y terminaba en OS.shell_open de un archivo local. Ahora invalid_reason() rechaza con -32602 modos desconocidos, url sin elicitationId o que no es http(s); la URL se ve en la tarjeta y se abre directo en el navegador. minLength/minItems no se validaban nunca (JSON trae floats). Un booleano o número opcional sin default que el usuario no tocó no se manda; los number no se redondean (step 0); un default no numérico no rompe. elicitation/complete con el enlace pendiente responde cancel (antes accept sin que el usuario aceptara) y no toca formularios. Las pestañas de fondo muestran «⚠» y toast también para formularios. Quedan sin validar: maxLength, maxItems, pattern y format; enumNames; un required enum sin default preselecciona la primera opción.",
   "order": 17,
   "priority": "medium",
   "refs": [],
@@ -13,7 +13,7 @@
   "tags": [
     "acp"
   ],
-  "test": "",
+  "test": "godot --headless --path . --script tests/run_all.gd -- elicitation (incluye test_rejects_local_links_and_json_numbers, test_controller_rejects_invalid_elicitation, test_untouched_optional_fields_are_left_out). No probado con un agente real que mande elicitation/create ni la tarjeta en el editor.",
   "title": "Formularios del agente (elicitation/create y complete)",
-  "updated_at": "2026-10-28T21:52:58.064Z"
+  "updated_at": "2026-10-28T23:01:18.592Z"
 }

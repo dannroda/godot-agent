@@ -2851,9 +2851,11 @@ Acceso rápido para cerrar la sesión de la cuenta en cualquier agente que anunc
 
 Hoy clientCapabilities.terminal es false: los agentes corren sus comandos por su cuenta. Implementar terminal/create, output, wait_for_exit, kill y release para que los comandos del agente corran desde el editor, con la política de shell (reglas de Auto, permisos por modo), salida en la tarjeta del tool call y límite de bytes. Lo usan Codex y otros agentes del registro; se prueba con Claude Code y Antigravity.
 
-**Prueba:** godot --headless --path . --script tests/run_all.gd -- terminal_handler
+**Prueba:** godot --headless --path . --script tests/run_all.gd -- terminal_handler (test_quoting_and_agent_env_ask: comillas POSIX, Auto permite ls -la sin env y pregunta con LD_PRELOAD, sin regla propuesta; test_command_key_ignores_quoting). No probado con un agente real que use terminal/* (Codex) ni en Windows.
 
 **Notas:** TerminalHandler (terminal/create, output, wait_for_exit, kill y release) con AgentProcess en modo raw (sin threads), truncado UTF-8 desde el principio según outputByteLimit, autorización por SessionController (ProjectWriteGuard, GodotWindowGuard, ShellRules en Auto y tarjetas de permiso), clientCapabilities.terminal = true y visualización de bloques {type: terminal, terminalId} en ToolGroupView.
+
+Revisión (2026-10-28, 2431546): el env del agente pasaba sin filtro y la política no lo veía (en Auto, git status + GIT_CONFIG_* corría código sin preguntar). Ahora con env siempre se pregunta, la tarjeta muestra NOMBRE=valor y el cwd si no es el del proyecto, y no propone regla. format_command_line cita cada arg como sh (shell_quote): las guardas revisan lo mismo que corre. En Windows se rechazan args con comillas o saltos de línea (cmd.exe no las escapa). Las terminales se matan si el agente se cae o al abrir otra sesión. handling_id ahora solo vale mientras el handler no se suspende (antes una tarjeta de una tool MCP quedaba asociada a un wait_for_exit y un $/cancel_request la cancelaba). c32c82c: los comandos preautorizados se comparan por palabras sin comillas (SessionController.command_key), así npm run "a b" del agente y npm run 'a b' de terminal/create no preguntan dos veces. Quedan: exit_signal SIGTERM fijo aunque Unix manda SIGKILL; la tarjeta de un fallo muestra el principio de la salida y no el final; la decodificación UTF-8 por chunk puede cortar un carácter.
 
 ### Sesiones del agente: session/list, resume, close y delete · Revisión
 
@@ -2861,9 +2863,11 @@ Hoy clientCapabilities.terminal es false: los agentes corren sus comandos por su
 
 Los agentes anuncian sessionCapabilities.list y resume (Antigravity los tiene; session/list devuelve id, cwd y título). Mostrar en el historial las sesiones que guarda el agente para el proyecto (cwd), retomarlas con session/resume cuando no hay loadSession o no hace falta repetir el historial, y cerrar o borrar con session/close y session/delete si el agente los anuncia.
 
-**Prueba:** godot --headless --path . --script tests/run_all.gd -- session_model
+**Prueba:** godot --headless --path . --script tests/run_all.gd -- session_model (test_session_capabilities_and_merge, test_history_begin_from_agent_listing). acp_session_check 159/0. No probado contra un agente real con session/list (Antigravity) ni el diálogo de borrar en el editor.
 
 **Notas:** SessionModel (supports_list_sessions, supports_resume_session, supports_close_session, supports_delete_session y can_resume_sessions) y SessionController (list_agent_sessions con paginación por cursor, _load_session con session/resume cuando ya hay historial local o sin loadSession, close_session en open_session, delete_session local y en el agente, y merge_session_lists en el menú de historial de AgentDock).
+
+Revisión (2026-10-28, 2431546): retomar una sesión que solo lista el agente rompía el historial (el registro no traía created y save() fallaba): SessionHistory.begin completa la cabecera. Borrar desde el menú pide confirmación, manda session/delete solo si la sesión es del perfil conectado y, si el agente falla, deja la local y avisa. open_session resetea el modelo antes del await del close (sin doble session/new ni prompts a la sesión que se cierra) y un segundo «Nueva sesión» durante el close se ignora. El One-shot usa open_session_keeping_previous() para no cerrar la sesión del generador que después vuelve a cargar. agent_sessions se vacía al pasar a un agente sin session/list; se sacó el filtro por cwd del cliente (en Windows descartaba todo). c32c82c: session/close se cancela a los 10 s (CLOSE_TIMEOUT_S), así un agente que no contesta no deja «Nueva sesión» sin efecto. Quedan: el menú muestra la lista del pedido anterior; tope de 3 páginas; updatedAt ignora el offset de zona; fake_agent no implementa list/resume/close/delete (el timeout del close no tiene test).
 
 ### Formularios del agente (elicitation/create y complete) · Revisión
 
@@ -2871,7 +2875,11 @@ Los agentes anuncian sessionCapabilities.list y resume (Antigravity los tiene; s
 
 ACP v1 suma elicitation/create y elicitation/complete del lado del cliente: el agente pide datos al usuario con un esquema (texto, opciones, confirmación). Anunciar la capacidad y mostrarlos como tarjeta en el dock, como los permisos.
 
-**Notas:** Agregados ElicitationRequest (session/elicitation_request.gd) y ElicitationView (ui/dock/entries/elicitation_view.gd) para formularios (mode: form con string, enum/oneOf, boolean, integer/number y array multi-select) y enlaces (mode: url). Conectados elicitation/create, elicitation/complete, $/cancel_request y clientCapabilities.elicitation en SessionController, SessionModel y ConversationView. Cubierto en tests/unit/test_elicitation.gd.
+**Prueba:** godot --headless --path . --script tests/run_all.gd -- elicitation (incluye test_rejects_local_links_and_json_numbers, test_controller_rejects_invalid_elicitation, test_untouched_optional_fields_are_left_out). No probado con un agente real que mande elicitation/create ni la tarjeta en el editor.
+
+**Notas:** Agregados ElicitationRequest (session/elicitation_request.gd) y ElicitationView (ui/dock/entries/elicitation_view.gd) para formularios (mode: form con string, enum/oneOf, boolean, integer/number y array multi-select) y enlaces (mode: url). Conectados elicitation/create, elicitation/complete, $/cancel_request y clientCapabilities.elicitation en SessionController, SessionModel y ConversationView.
+
+Revisión (2026-10-28, 2431546 y 651d557): un enlace que no era http(s) iba por open_link del chat y terminaba en OS.shell_open de un archivo local. Ahora invalid_reason() rechaza con -32602 modos desconocidos, url sin elicitationId o que no es http(s); la URL se ve en la tarjeta y se abre directo en el navegador. minLength/minItems no se validaban nunca (JSON trae floats). Un booleano o número opcional sin default que el usuario no tocó no se manda; los number no se redondean (step 0); un default no numérico no rompe. elicitation/complete con el enlace pendiente responde cancel (antes accept sin que el usuario aceptara) y no toca formularios. Las pestañas de fondo muestran «⚠» y toast también para formularios. Quedan sin validar: maxLength, maxItems, pattern y format; enumNames; un required enum sin default preselecciona la primera opción.
 
 ### Cancelar requests en vuelo ($/cancel_request) · Revisión
 
@@ -2879,9 +2887,11 @@ ACP v1 suma elicitation/create y elicitation/complete del lado del cliente: el a
 
 Soportar $/cancel_request en las dos direcciones: el cliente cancela un request que ya no espera (por ejemplo un /usage o un session/load que se dejó) y atiende el del agente cancelando permisos, fs o terminales pendientes.
 
-**Prueba:** tests/unit/test_acp_client.gd test_cancel_request_both_directions; suite de session_controller.
+**Prueba:** tests/unit/test_acp_client.gd test_cancel_request_both_directions y test_incoming_cancel_mark_survives_await (falla sin el arreglo).
 
 **Notas:** AcpClient.cancel_request(id) manda $/cancel_request, resuelve el await local con ERR_REQUEST_CANCELLED (-32800) e ignora respuestas tardías; SessionController._cancel_abandoned_requests() cancela /usage, /status o session/new|load|resume en vuelo al abrir otra sesión. Del lado entrante, $/cancel_request emite incoming_cancelled (cancela tarjetas de permiso de request_permission, fs/write_text_file y terminal/create en _ask_user, elicitations y esperas de terminal) y responde -32800 sin duplicar si el handler termina más tarde.
+
+Revisión (2026-10-28, 2431546): is_incoming_cancelled() nunca daba true (la marca se borraba en la misma llamada que la ponía), así que un terminal/create cancelado igual lanzaba el proceso. Ahora la marca dura hasta que el handler termina. handling_id se limpia en receive_line apenas el handler se suspende. Quedan: un -32800 del propio agente se toma como cancelación local (session/new podría quedar en STARTING); _cancelled_outgoing crece si el agente nunca responde.
 
 ### Extensiones por agente: skills, plugins, reglas e instrucciones · Revisión
 
@@ -2889,7 +2899,11 @@ Soportar $/cancel_request en las dos direcciones: el cliente cancela un request 
 
 La pestaña de Extensiones (skills, plugins, marketplaces) es solo de Claude Code. Investigar y soportar lo equivalente de cada agente con perfil: Codex (skills, AGENTS.md, config de MCP), Antigravity (AGENTS.md y GEMINI.md, reglas, workflows y skills, a confirmar dónde los lee), Copilot, Cursor y OpenCode. Lo que sea por archivos se arma desde el editor; lo que el agente anuncie por ACP (available_commands, configOptions) ya se muestra.
 
-**Notas:** Extendidas las pestañas Skills, Instructions y MCP de Extensions a todos los agentes: detección de perfil (Claude, Codex, Antigravity, Copilot, Cursor, OpenCode) en ClaudeExtensions.agent_kind(); escaneo, creación, importación y copia de skills en .agents/skills, .agent/skills, ~/.codex/skills, ~/.gemini/config/skills y plugins de Antigravity en SkillCatalog y SkillsTab; edición y alta de instrucciones, reglas y workflows (.github/copilot-instructions.md, .cursorrules, .agents/rules/*.md, .agents/workflows/*.md, .claude/rules/*.md, .cursor/rules/*.mdc) en InstructionsTab; y lectura de MCP servers desde config.toml de Codex, mcp_config.json de Antigravity, .cursor/mcp.json, .vscode/mcp.json y opencode.json en ClaudeExtensions.agent_mcp_servers().
+**Prueba:** godot --headless --path . --script tests/run_all.gd -- claude_extensions skill_catalog (test_codex_toml_variants, test_codex_toml_multiline_strings y test_project_dirs_per_agent). No probado en el editor con perfiles de cada agente.
+
+**Notas:** Extendidas las pestañas Skills, Instructions y MCP de Extensions a todos los agentes: detección de perfil (Claude, Codex, Antigravity, Copilot, Cursor, OpenCode) en ClaudeExtensions.agent_kind(); escaneo, creación, importación y copia de skills en SkillCatalog y SkillsTab; edición y alta de instrucciones, reglas y workflows en InstructionsTab; y lectura de MCP servers desde config.toml de Codex, mcp_config.json de Antigravity, .cursor/mcp.json, .vscode/mcp.json y opencode.json en ClaudeExtensions.agent_mcp_servers().
+
+Revisión (2026-10-28, 2431546, 651d557 y c32c82c): regresión en Claude: project_dirs listaba .agents/skills, .codex/skills, etc. para todos y aparecían como del proyecto skills que Claude no carga. Ahora PROJECT_SKILL_DIRS da las de cada agente. .mcp.json ya no se lista para agentes que no son Claude. config.toml de Codex con un lector de TOML acotado (extensions/toml_lite.gd): comentarios al final, arrays de varias líneas, strings literales, strings de comillas triples, tablas en línea, claves con puntos. Rutas de Antigravity verificadas contra la documentación actual: .agents/rules, .agents/workflows, .agents/skills, .agents/plugins, ~/.gemini/config/skills, ~/.gemini/config/mcp_config.json y ~/.gemini/config/plugins son las vigentes (.agent/ sigue por compatibilidad). Quedan: JSONC (opencode.jsonc, .vscode/mcp.json con comentarios) no se lee; Gemini CLI se detecta como «other»; borrar una skill de ~/.agents/skills la saca para todos los agentes sin decirlo.
 
 ### Cuota de los demás agentes · Revisión
 
@@ -2897,9 +2911,11 @@ La pestaña de Extensiones (skills, plugins, marketplaces) es solo de Claude Cod
 
 Claude (usage_update _meta _claude/rateLimit) y Antigravity (/usage) ya informan la cuota. Ver qué informan Codex, Copilot y Cursor por ACP (usage_update, _meta, comandos como /status) y leerlo sin endpoints ni archivos del agente (regla de QuotaMonitor).
 
-**Prueba:** tests/unit/test_quota_monitor.gd test_codex_and_other_agents_quota.
+**Prueba:** tests/unit/test_quota_monitor.gd test_codex_and_other_agents_quota, test_opencode_payload_and_codes_only_in_errors y test_codex_status_locale_and_spend. No probado contra codex-acp real.
 
-**Notas:** Codex (codex-acp): usage_update solo trae tokens de contexto, pero su comando local /status (sin gastar tokens) informa las ventanas de 5 h y semanal de RateLimitsMap y la cuenta; SessionController._query_agent_usage lo pide igual que /usage de Antigravity, y _auth/status_update mantiene model.account al día. OpenCode: reintentos por límite en session_info_update (_meta["opencode/retry"]). Copilot y Cursor no mandan ventanas de cuota por ACP (Copilot solo contexto/costo en usage_update; Cursor nada): se detectan sus errores y textos de límite (user_model_rate_limited, usageLimitExceeded, insufficient_quota, Upgrade your plan…).
+**Notas:** Codex (codex-acp): usage_update solo trae tokens de contexto, pero su comando local /status (sin gastar tokens) informa las ventanas de 5 h y semanal de RateLimitsMap y la cuenta; SessionController._query_agent_usage lo pide igual que /usage de Antigravity, y _auth/status_update mantiene model.account al día. OpenCode: reintentos por límite en session_info_update (_meta["opencode/retry"]). Copilot y Cursor no mandan ventanas de cuota por ACP: se detectan sus errores y textos de límite.
+
+Revisión (2026-10-28, 2431546, 651d557 y c32c82c): Codex nunca se detectaba: el adaptador del registro se llama @agentclientprotocol/codex-acp, y el viejo de Zed (codex-acp) no tiene /status y se lo mandaría al modelo como prompt. Ahora _usage_agent() pide nombre …/codex-acp y que anuncie el comando status. La consulta oculta se cancela a los 20 s (session/cancel + $/cancel_request), y no hace nada si el agente ya se detuvo. La cuenta de _auth/status_update se borraba con el _refresh_account del session/new; ahora se guarda (_agent_account) y se olvida al reiniciar el agente o cerrar sesión. Retry real de OpenCode (provider.rate-limit, status 429). Los códigos insufficient_quota, rateLimitExceeded, etc. solo se buscan en errores (LIMIT_CODES_IN_ERRORS), no en la prosa del agente. /status: fechas con locale (3 dic., 3 de nov.), 24:05 como 00:05, grupos con espacios, y el límite de gasto del asiento no pisa la semanal. Queda: el offset de zona es el de hoy y no el del día del reinicio (cambio de horario).
 
 ### Cuota por grupo de modelos en el tooltip · Revisión
 
@@ -2910,3 +2926,5 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 **Prueba:** tests/unit/test_quota_monitor.gd test_antigravity_usage (describe_groups, QuotaRing.describe y select_antigravity_model).
 
 **Notas:** QuotaMonitor.groups guarda los grupos de /usage, describe_groups() arma una línea por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y QuotaRing.describe() las agrega al tooltip debajo de los anillos. select_antigravity_model() cambia las ventanas activas en cuanto cambia la opción model.
+
+Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).

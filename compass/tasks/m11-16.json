@@ -4,7 +4,7 @@
   "created_at": "2026-10-28T19:15:09.079Z",
   "description": "Los agentes anuncian sessionCapabilities.list y resume (Antigravity los tiene; session/list devuelve id, cwd y título). Mostrar en el historial las sesiones que guarda el agente para el proyecto (cwd), retomarlas con session/resume cuando no hay loadSession o no hace falta repetir el historial, y cerrar o borrar con session/close y session/delete si el agente los anuncia.",
   "milestone": "m11",
-  "notes": "SessionModel (supports_list_sessions, supports_resume_session, supports_close_session, supports_delete_session y can_resume_sessions) y SessionController (list_agent_sessions con paginación por cursor, _load_session con session/resume cuando ya hay historial local o sin loadSession, close_session en open_session, delete_session local y en el agente, y merge_session_lists en el menú de historial de AgentDock).",
+  "notes": "SessionModel (supports_list_sessions, supports_resume_session, supports_close_session, supports_delete_session y can_resume_sessions) y SessionController (list_agent_sessions con paginación por cursor, _load_session con session/resume cuando ya hay historial local o sin loadSession, close_session en open_session, delete_session local y en el agente, y merge_session_lists en el menú de historial de AgentDock).\n\nRevisión (2026-10-28, 2431546): retomar una sesión que solo lista el agente rompía el historial (el registro no traía created y save() fallaba): SessionHistory.begin completa la cabecera. Borrar desde el menú pide confirmación, manda session/delete solo si la sesión es del perfil conectado y, si el agente falla, deja la local y avisa. open_session resetea el modelo antes del await del close (sin doble session/new ni prompts a la sesión que se cierra) y un segundo «Nueva sesión» durante el close se ignora. El One-shot usa open_session_keeping_previous() para no cerrar la sesión del generador que después vuelve a cargar. agent_sessions se vacía al pasar a un agente sin session/list; se sacó el filtro por cwd del cliente (en Windows descartaba todo). c32c82c: session/close se cancela a los 10 s (CLOSE_TIMEOUT_S), así un agente que no contesta no deja «Nueva sesión» sin efecto. Quedan: el menú muestra la lista del pedido anterior; tope de 3 páginas; updatedAt ignora el offset de zona; fake_agent no implementa list/resume/close/delete (el timeout del close no tiene test).",
   "order": 16,
   "priority": "medium",
   "refs": [],
@@ -13,7 +13,7 @@
   "tags": [
     "acp"
   ],
-  "test": "godot --headless --path . --script tests/run_all.gd -- session_model",
+  "test": "godot --headless --path . --script tests/run_all.gd -- session_model (test_session_capabilities_and_merge, test_history_begin_from_agent_listing). acp_session_check 159/0. No probado contra un agente real con session/list (Antigravity) ni el diálogo de borrar en el editor.",
   "title": "Sesiones del agente: session/list, resume, close y delete",
-  "updated_at": "2026-10-28T21:26:39.457Z"
+  "updated_at": "2026-10-28T23:17:11.046Z"
 }
