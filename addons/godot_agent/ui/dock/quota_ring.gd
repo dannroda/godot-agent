@@ -53,6 +53,10 @@ func describe() -> String:
 		lines.append(I18n.t("Outer ring: %s") % _quota.describe_window(QuotaMonitor.WINDOW_CURRENT))
 	if _quota.utilization(QuotaMonitor.WINDOW_WEEKLY) >= 0.0:
 		lines.append(I18n.t("Inner ring: %s") % _quota.describe_window(QuotaMonitor.WINDOW_WEEKLY))
+	var group_lines := _quota.describe_groups()
+	if not group_lines.is_empty():
+		lines.append("")
+		lines.append_array(group_lines)
 	return "\n".join(lines)
 
 

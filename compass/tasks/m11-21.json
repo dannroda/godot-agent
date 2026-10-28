@@ -4,16 +4,16 @@
   "created_at": "2026-10-28T19:15:10.388Z",
   "description": "Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y los anillos muestran solo el del modelo en uso. Mostrar todos los grupos en el tooltip de los anillos, como el menú View Usage del IDE de Antigravity.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "QuotaMonitor.groups guarda los grupos de /usage, describe_groups() arma una línea por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y QuotaRing.describe() las agrega al tooltip debajo de los anillos. select_antigravity_model() cambia las ventanas activas en cuanto cambia la opción model.",
   "order": 21,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "acp"
   ],
-  "test": "",
+  "test": "tests/unit/test_quota_monitor.gd test_antigravity_usage (describe_groups, QuotaRing.describe y select_antigravity_model).",
   "title": "Cuota por grupo de modelos en el tooltip",
-  "updated_at": "2026-10-28T19:15:10.388Z"
+  "updated_at": "2026-10-28T20:04:02.516Z"
 }

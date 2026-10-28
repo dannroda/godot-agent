@@ -51,6 +51,9 @@ var now_provider: Callable = func() -> int: return int(Time.get_unix_time_from_s
 var state: QuotaState = QuotaState.UNKNOWN
 ## {nombre: {utilization: 0–1, resets_at: unix (0 = desconocida)}}
 var windows: Dictionary = {}
+## Cuota por grupo de modelos cuando el agente informa varios (Antigravity `/usage`, m11-21):
+## `{grupo: {five_hour: {utilization, resets_at}, seven_day: {…}}}`.
+var groups: Dictionary = {}
 var last_usage_update: Dictionary = {}
 ## Último SDKRateLimitInfo: {status, resetsAt, rateLimitType, utilization, surpassedThreshold,
 ## unifiedWindows: {five_hour: {utilization 0–1, resetsAt}, seven_day: {…}}, …} (D22).
@@ -102,6 +105,7 @@ func observe_update(update: Dictionary) -> void:
 		_log("usage_update: %s/%s context tokens, no quota data" % [update.get("used", "?"), update.get("size", "?")], raw)
 		return
 	last_rate_limit = info
+	groups.clear()
 	_log("plan quota: %s" % describe_rate_limit(info), raw)
 	_read_windows(info)
 	if str(info.get("status", "")) == "rejected":
@@ -144,11 +148,13 @@ func observe_turn_ok() -> void:
 
 
 ## Ventanas de otra fuente que `usage_update` ({five_hour: {utilization, resets_at}, seven_day: …}).
-func observe_windows(new_windows: Dictionary, raw: String) -> void:
+## `new_groups` guarda el desglose por grupo de modelos (Antigravity) para el tooltip y cambios de modelo.
+func observe_windows(new_windows: Dictionary, raw: String, new_groups: Dictionary = {}) -> void:
 	if new_windows.is_empty():
 		_log("/usage: no quota windows in the agent's answer", raw)
 		return
 	windows = new_windows.duplicate(true)
+	groups = new_groups.duplicate(true)
 	var parts: PackedStringArray = []
 	for window_name: String in windows:
 		parts.append("%s %s" % [window_name, _percent(windows[window_name].utilization)])
@@ -156,9 +162,20 @@ func observe_windows(new_windows: Dictionary, raw: String) -> void:
 	_recompute()
 
 
+## Actualiza las ventanas activas cuando cambia el modelo elegido en un agente con grupos (Antigravity).
+func select_antigravity_model(model_name: String) -> void:
+	if groups.is_empty():
+		return
+	var selected := antigravity_windows(groups, model_name)
+	if not selected.is_empty() and selected != windows:
+		windows = selected
+		_recompute()
+
+
 ## Se cambió de cuenta: lo medido era de la anterior. Queda sin datos hasta que el agente informe.
 func forget_account() -> void:
 	windows.clear()
+	groups.clear()
 	last_rate_limit = {}
 	last_usage_update = {}
 	if _limited:
@@ -231,10 +248,29 @@ func rule_text() -> String:
 
 ## "Window 63 % · resets in 2 h 10 min".
 func describe_window(window: String) -> String:
+	return _describe_window_data(window, windows.get(window, {}))
+
+
+## Una línea por grupo de modelos ("Gemini Models: Window 0 % · resets in 1 h · Week 14 % · resets in 4 days").
+func describe_groups() -> PackedStringArray:
+	var lines: PackedStringArray = []
+	for group_name: String in groups:
+		var group: Dictionary = groups[group_name]
+		var parts: PackedStringArray = []
+		for window: String in [WINDOW_CURRENT, WINDOW_WEEKLY]:
+			if group.get(window) is Dictionary:
+				parts.append(_describe_window_data(window, group[window]))
+		if not parts.is_empty():
+			lines.append("%s: %s" % [group_name, " · ".join(parts)])
+	return lines
+
+
+func _describe_window_data(window: String, data: Dictionary) -> String:
 	var label := I18n.t(WINDOW_LABELS[window]) if WINDOW_LABELS.has(window) else window
-	var percent := roundi(utilization(window) * 100.0)
-	if resets_at(window) > 0:
-		return I18n.t("%s %d %% · resets in %s") % [label, percent, format_duration(resets_at(window) - _now())]
+	var percent := roundi(float(data.get("utilization", 0.0)) * 100.0)
+	var reset := int(data.get("resets_at", 0))
+	if reset > 0:
+		return I18n.t("%s %d %% · resets in %s") % [label, percent, format_duration(reset - _now())]
 	return "%s %d %%" % [label, percent]
 
 

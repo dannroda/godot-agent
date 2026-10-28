@@ -2,6 +2,7 @@ extends "test_case.gd"
 ## QuotaMonitor (spec §10.1, D22): fuentes, estados, umbrales, hora de reinicio y backoff.
 
 const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
+const QuotaRing := preload("res://addons/godot_agent/ui/dock/quota_ring.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 
 const NOW := 1792560000  # unix fijo para los tests
@@ -165,8 +166,19 @@ func test_antigravity_usage() -> void:
 	assert_true(QuotaMonitor.parse_antigravity_usage("ok").is_empty(), "sin cuota, vacío")
 
 	var monitor := _monitor()
-	monitor.observe_windows(argon, AGY_USAGE)
+	monitor.observe_windows(argon, AGY_USAGE, groups)
 	assert_true(monitor.has_data(), "las ventanas de /usage cuentan como datos")
 	assert_true(absf(monitor.utilization(QuotaMonitor.WINDOW_WEEKLY) - 0.41) < 0.001, "semana")
+	var group_lines := monitor.describe_groups()
+	assert_eq(group_lines.size(), 3, "tres líneas de grupos para el tooltip")
+	assert_true(group_lines[0].begins_with("Gemini Models: ") and group_lines[0].contains("Week 14 %"), "detalle de Gemini: " + group_lines[0])
+	assert_true(group_lines[2].begins_with("Gemini 4 Argon: ") and group_lines[2].contains("Week 41 %"), "detalle de Argon: " + group_lines[2])
+	var ring := QuotaRing.new()
+	ring.setup(monitor, Color.WHITE)
+	var tooltip := ring.describe()
+	assert_true(tooltip.contains("Gemini Models:") and tooltip.contains("Claude and GPT models:") and tooltip.contains("Gemini 4 Argon:"), "el tooltip del anillo lista todos los grupos")
+	ring.free()
+	monitor.select_antigravity_model("Gemini 3.8 Flash")
+	assert_true(absf(monitor.utilization(QuotaMonitor.WINDOW_WEEKLY) - 0.14) < 0.001, "cambiar de modelo actualiza los anillos con su grupo")
 	monitor.observe_windows({}, "nada")
 	assert_true(monitor.has_data(), "una respuesta sin ventanas no borra las anteriores")

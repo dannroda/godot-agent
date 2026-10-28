@@ -192,6 +192,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	client.set_notification_handler("elicitation/complete", _on_complete_elicitation)
 	client.incoming_cancelled.connect(_on_incoming_cancelled)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
+	model.config_options_changed.connect(func(_options: Array) -> void: quota.select_antigravity_model(_current_model_name()))
 
 
 ## fs/read_text_file y fs/write_text_file. Las escrituras pasan por la política (edit_files).
@@ -426,7 +427,7 @@ func _query_agent_usage() -> void:
 			agent_log.add(AgentLog.CH_QUOTA, "/usage failed: %s" % result.error_message())
 		return
 	var groups := QuotaMonitor.parse_antigravity_usage(_usage_query_text)
-	quota.observe_windows(QuotaMonitor.antigravity_windows(groups, _current_model_name()), _usage_query_text)
+	quota.observe_windows(QuotaMonitor.antigravity_windows(groups, _current_model_name()), _usage_query_text, groups)
 
 
 ## Cancela con `$/cancel_request` un `/usage`, `/status` o apertura de sesión que ya no se espera (m11-18).
