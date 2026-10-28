@@ -119,3 +119,40 @@ func test_error_message_details() -> void:
 	assert_eq(AcpClient.AcpResponse.failure(-32603, "Internal error", {"details": "Permission denied"}).error_message(), "Internal error (-32603): Permission denied", "data.details")
 	assert_eq(AcpClient.AcpResponse.failure(-1, "x", "texto").error_message(), "x (-1): texto", "data texto")
 	assert_eq(AcpClient.AcpResponse.failure(-1, "x", {"other": 1}).error_message(), "x (-1)", "data sin details")
+
+
+func test_cancel_request_both_directions() -> void:
+	var client := _make_client()
+	# Saliente: cancel_request manda $/cancel_request y resuelve con ERR_REQUEST_CANCELLED (-32800).
+	var out_results: Array = []
+	var start_out := func() -> void:
+		out_results.append(await client.request("session/load", {"sessionId": "s1"}))
+	start_out.call()
+	var req_id := client.last_request_id
+	assert_eq(req_id, 1, "last_request_id")
+	assert_true(client.cancel_request(req_id), "cancela el request pendiente")
+	assert_eq(out_results.size(), 1, "el await termina al cancelar")
+	assert_eq(int(out_results[0].error.code), AcpClient.ERR_REQUEST_CANCELLED, "-32800")
+	assert_eq(_sent[1].method, "$/cancel_request", "notificación $/cancel_request")
+	assert_eq(int(_sent[1].params.requestId), req_id, "requestId enviado")
+	# Una respuesta tardía al id cancelado se ignora sin error.
+	client.receive_line('{"jsonrpc":"2.0","id":1,"result":{}}')
+	assert_eq(client.pending_count(), 0, "sin pendientes")
+
+	# Entrante: si el agente manda $/cancel_request mientras el handler espera, responde -32800 una sola vez.
+	_sent.clear()
+	var cancelled_ids: Array = []
+	client.incoming_cancelled.connect(func(id: Variant) -> void: cancelled_ids.append(id))
+	client.set_request_handler("fs/write_text_file", func(_params: Dictionary) -> Variant:
+		await Engine.get_main_loop().process_frame
+		return {"ok": true}
+	)
+	client.receive_line('{"jsonrpc":"2.0","id":42,"method":"fs/write_text_file","params":{}}')
+	client.receive_line('{"jsonrpc":"2.0","method":"$/cancel_request","params":{"requestId":42}}')
+	assert_eq(cancelled_ids, [42], "señal incoming_cancelled")
+	assert_eq(_sent.size(), 1, "responde -32800 enseguida")
+	assert_eq(int(_sent[0].id), 42, "mismo id")
+	assert_eq(int(_sent[0].error.code), AcpClient.ERR_REQUEST_CANCELLED, "-32800")
+	await Engine.get_main_loop().process_frame
+	await Engine.get_main_loop().process_frame
+	assert_eq(_sent.size(), 1, "cuando el handler termina después, no vuelve a responder")

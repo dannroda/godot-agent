@@ -162,7 +162,10 @@ var _login: AgentLogin
 var _login_entry: ChatEntry
 ## El `/usage` de Antigravity en curso: sus mensajes no van al chat (ver `_query_agent_usage`).
 var _usage_query_running: bool = false
+var _usage_query_id: int = 0
 var _usage_query_text: String = ""
+## Request `session/new`, `session/load` o `session/resume` en vuelo (se cancela con `$/cancel_request` si se abre otra).
+var _session_request_id: int = 0
 
 
 func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String) -> void:
@@ -254,12 +257,17 @@ func reopen(agent_profile: AgentProfile, lost_id: String) -> bool:
 func open_session(generation: int = _connect_generation) -> bool:
 	if _process == null or not _process.is_running():
 		return await start(_profile) if _profile else false
+	_cancel_abandoned_requests()
 	if model.state != SessionModel.SessionState.STARTING:
 		model.reset()
 		model.set_state(SessionModel.SessionState.STARTING)
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
+	var req_id := client.next_request_id()
+	_session_request_id = req_id
 	var result := await client.request("session/new", _with_meta({"cwd": cwd, "mcpServers": mcp_servers}))
-	if generation != _connect_generation:
+	if _session_request_id == req_id:
+		_session_request_id = 0
+	if generation != _connect_generation or result.error.get("code") == AcpClient.ERR_REQUEST_CANCELLED:
 		return false
 	if not result.ok or not result.result is Dictionary or not result.result.get("sessionId") is String:
 		var detail := result.error_message() if not result.ok else "response without sessionId"
@@ -380,17 +388,32 @@ func _query_agent_usage() -> void:
 		return
 	_usage_query_running = true
 	_usage_query_text = ""
+	var req_id := client.next_request_id()
+	_usage_query_id = req_id
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": [{"type": "text", "text": "/usage"}]})
+	if _usage_query_id == req_id:
+		_usage_query_id = 0
 	_usage_query_running = false
 	_usage_query_done.emit()
 	if not result.ok:
-		agent_log.add(AgentLog.CH_QUOTA, "/usage failed: %s" % result.error_message())
+		if result.error.get("code") != AcpClient.ERR_REQUEST_CANCELLED:
+			agent_log.add(AgentLog.CH_QUOTA, "/usage failed: %s" % result.error_message())
 		return
 	var groups := QuotaMonitor.parse_antigravity_usage(_usage_query_text)
 	quota.observe_windows(QuotaMonitor.antigravity_windows(groups, _current_model_name()), _usage_query_text)
 
 
-## Nombre del modelo elegido en la opción `model` («Gemini 3.8 Flash»), o su valor si no tiene nombre.
+## Cancela con `$/cancel_request` un `/usage`, `/status` o apertura de sesión que ya no se espera (m11-18).
+func _cancel_abandoned_requests() -> void:
+	if _usage_query_id > 0:
+		var uid := _usage_query_id
+		_usage_query_id = 0
+		client.cancel_request(uid)
+	if _session_request_id > 0:
+		var sid := _session_request_id
+		_session_request_id = 0
+		client.cancel_request(sid)
+
 func _current_model_name() -> String:
 	var option := model.config_option("model")
 	var value := str(option.get("currentValue", ""))
@@ -1043,8 +1066,13 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		model.add_notice(I18n.t("%s cannot resume sessions (it does not announce session/load): the history stays read-only. Type to start a new session.") % _profile.display_name)
 		return false
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
+	_cancel_abandoned_requests()
+	var req_id := client.next_request_id()
+	_session_request_id = req_id
 	var result := await client.request("session/load", _with_meta({"sessionId": session_id, "cwd": cwd, "mcpServers": mcp_servers}))
-	if generation != _connect_generation:
+	if _session_request_id == req_id:
+		_session_request_id = 0
+	if generation != _connect_generation or result.error.get("code") == AcpClient.ERR_REQUEST_CANCELLED:
 		return false
 	if not result.ok:
 		_load_failed = true

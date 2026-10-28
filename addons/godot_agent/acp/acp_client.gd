@@ -18,6 +18,8 @@ const ERR_INVALID_REQUEST := -32600
 const ERR_METHOD_NOT_FOUND := -32601
 const ERR_INVALID_PARAMS := -32602
 const ERR_INTERNAL := -32603
+## Request cancelado con `$/cancel_request` (ACP / LSP).
+const ERR_REQUEST_CANCELLED := -32800
 ## Error local: el request no se pudo mandar o se cortó la conexión.
 const ERR_TRANSPORT := -32000
 
@@ -59,6 +61,11 @@ var _send_line: Callable
 var _log: AgentLog
 var _next_id: int = 1
 var _pending: Dictionary = {}  # id (int) -> PendingRequest
+var _cancelled_outgoing: Dictionary = {}  # id (int) -> true
+var _incoming: Dictionary = {}  # id (Variant) -> true (requests entrantes en vuelo)
+var _cancelled_incoming: Dictionary = {}  # id (Variant) -> true
+## Id del último request saliente enviado con `request()`, disponible antes de que termine su await.
+var last_request_id: int = 0
 ## method -> Callable(params: Dictionary) -> Variant. Para requests, el valor devuelto (o awaited)
 ## es el `result`; si es un Response con ok=false, se responde como error.
 var _request_handlers: Dictionary = {}
@@ -90,10 +97,15 @@ func pending_count() -> int:
 	return _pending.size()
 
 
+func next_request_id() -> int:
+	return _next_id
+
+
 ## Manda un request y espera la respuesta: `var r: Response = await client.request(...)`.
 func request(method: String, params: Dictionary = {}) -> AcpResponse:
 	var id := _next_id
 	_next_id += 1
+	last_request_id = id
 	var message := {"jsonrpc": "2.0", "id": id, "method": method, "params": params}
 	var pending := PendingRequest.new()
 	pending.method = method
@@ -105,6 +117,24 @@ func request(method: String, params: Dictionary = {}) -> AcpResponse:
 	return response
 
 
+## Cancela un request saliente en vuelo mandando `$/cancel_request` al agente y despertando su await
+## con `ERR_REQUEST_CANCELLED` (-32800). Si la respuesta llega igual más tarde, se ignora.
+func cancel_request(id: int) -> bool:
+	var pending: PendingRequest = _pending.get(id)
+	if pending == null:
+		return false
+	_pending.erase(id)
+	_cancelled_outgoing[id] = true
+	notify("$/cancel_request", {"requestId": id})
+	pending.completed.emit(AcpResponse.failure(ERR_REQUEST_CANCELLED, "Request cancelled."))
+	return true
+
+
+## true si el agente mandó `$/cancel_request` para el request entrante `id`.
+func is_incoming_cancelled(id: Variant) -> bool:
+	return _cancelled_incoming.has(id)
+
+
 func notify(method: String, params: Dictionary = {}) -> bool:
 	return _write({"jsonrpc": "2.0", "method": method, "params": params}, "→ %s" % method)
 
@@ -113,6 +143,9 @@ func notify(method: String, params: Dictionary = {}) -> bool:
 func fail_all_pending(message: String) -> void:
 	var pending := _pending
 	_pending = {}
+	_cancelled_outgoing.clear()
+	_incoming.clear()
+	_cancelled_incoming.clear()
 	for id: int in pending:
 		(pending[id] as PendingRequest).completed.emit(AcpResponse.failure(ERR_TRANSPORT, message))
 
@@ -143,6 +176,9 @@ func receive_line(line: String) -> void:
 
 
 func _handle_response(id: Variant, message: Dictionary, raw: String) -> void:
+	if _cancelled_outgoing.erase(id):
+		_log_line(AgentLog.CH_ACP, "← response to cancelled request #%s ignored" % str(id), raw)
+		return
 	var pending: PendingRequest = _pending.get(id)
 	if pending == null:
 		_log_line(AgentLog.CH_ACP, "← response to an unknown id: %s" % str(id), raw)
@@ -162,7 +198,13 @@ func _handle_response(id: Variant, message: Dictionary, raw: String) -> void:
 func _handle_notification(method: String, params: Dictionary, raw: String) -> void:
 	_log_line(AgentLog.CH_ACP, "← %s%s" % [method, _notification_suffix(method, params)], raw)
 	if method == "$/cancel_request":
-		incoming_cancelled.emit(_normalize_id(params.get("requestId")))
+		var req_id: Variant = _normalize_id(params.get("requestId"))
+		if req_id != null and _incoming.has(req_id):
+			_cancelled_incoming[req_id] = true
+		incoming_cancelled.emit(req_id)
+		if req_id != null and _incoming.erase(req_id):
+			_cancelled_incoming.erase(req_id)
+			_respond_error(req_id, ERR_REQUEST_CANCELLED, "Request cancelled.")
 	var handler: Callable = _notification_handlers.get(method, Callable())
 	if handler.is_valid():
 		handler.call(params)
@@ -175,14 +217,23 @@ func _handle_request(id: Variant, method: String, params: Dictionary, raw: Strin
 	if not handler.is_valid():
 		_respond_error(id, ERR_METHOD_NOT_FOUND, "Method not supported: %s" % method)
 		return
+	_incoming[id] = true
 	handling_id = id
 	var value: Variant = await handler.call(params)
+	handling_id = null
+	var was_cancelled := _cancelled_incoming.erase(id)
+	if not _incoming.erase(id):
+		return
 	if value is AcpResponse:
 		var response: AcpResponse = value
 		if response.ok:
 			_respond(id, response.result)
+		elif was_cancelled:
+			_respond_error(id, ERR_REQUEST_CANCELLED, "Request cancelled.")
 		else:
 			_respond_error(id, int(response.error.get("code", ERR_INTERNAL)), str(response.error.get("message", "")))
+	elif was_cancelled and value == null:
+		_respond_error(id, ERR_REQUEST_CANCELLED, "Request cancelled.")
 	else:
 		_respond(id, value)
 

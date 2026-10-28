@@ -4,16 +4,16 @@
   "created_at": "2026-10-28T19:15:09.621Z",
   "description": "Soportar $/cancel_request en las dos direcciones: el cliente cancela un request que ya no espera (por ejemplo un /usage o un session/load que se dejó) y atiende el del agente cancelando permisos, fs o terminales pendientes.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "AcpClient.cancel_request(id) manda $/cancel_request, resuelve el await local con ERR_REQUEST_CANCELLED (-32800) e ignora respuestas tardías; SessionController._cancel_abandoned_requests() cancela /usage, /status o session/new|load|resume en vuelo al abrir otra sesión. Del lado entrante, $/cancel_request emite incoming_cancelled (cancela tarjetas de permiso de request_permission, fs/write_text_file y terminal/create en _ask_user, elicitations y esperas de terminal) y responde -32800 sin duplicar si el handler termina más tarde.",
   "order": 18,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "acp"
   ],
-  "test": "",
+  "test": "tests/unit/test_acp_client.gd test_cancel_request_both_directions; suite de session_controller.",
   "title": "Cancelar requests en vuelo ($/cancel_request)",
-  "updated_at": "2026-10-28T19:15:09.621Z"
+  "updated_at": "2026-10-28T21:03:25.548Z"
 }
