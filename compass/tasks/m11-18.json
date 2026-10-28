@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-28T19:15:09.621Z",
+  "description": "Soportar $/cancel_request en las dos direcciones: el cliente cancela un request que ya no espera (por ejemplo un /usage o un session/load que se dejó) y atiende el del agente cancelando permisos, fs o terminales pendientes.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 18,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "acp"
+  ],
+  "test": "",
+  "title": "Cancelar requests en vuelo ($/cancel_request)",
+  "updated_at": "2026-10-28T19:15:09.621Z"
+}

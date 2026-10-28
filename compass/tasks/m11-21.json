@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-28T19:15:10.388Z",
+  "description": "Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y los anillos muestran solo el del modelo en uso. Mostrar todos los grupos en el tooltip de los anillos, como el menú View Usage del IDE de Antigravity.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 21,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "acp"
+  ],
+  "test": "",
+  "title": "Cuota por grupo de modelos en el tooltip",
+  "updated_at": "2026-10-28T19:15:10.388Z"
+}

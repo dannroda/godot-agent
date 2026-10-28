@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-28T19:15:09.338Z",
+  "description": "ACP v1 suma elicitation/create y elicitation/complete del lado del cliente: el agente pide datos al usuario con un esquema (texto, opciones, confirmación). Anunciar la capacidad y mostrarlos como tarjeta en el dock, como los permisos.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 17,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "acp"
+  ],
+  "test": "",
+  "title": "Formularios del agente (elicitation/create y complete)",
+  "updated_at": "2026-10-28T19:15:09.338Z"
+}

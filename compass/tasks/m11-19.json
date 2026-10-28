@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-28T19:15:09.882Z",
+  "description": "La pestaña de Extensiones (skills, plugins, marketplaces) es solo de Claude Code. Investigar y soportar lo equivalente de cada agente con perfil: Codex (skills, AGENTS.md, config de MCP), Antigravity (AGENTS.md y GEMINI.md, reglas, workflows y skills, a confirmar dónde los lee), Copilot, Cursor y OpenCode. Lo que sea por archivos se arma desde el editor; lo que el agente anuncie por ACP (available_commands, configOptions) ya se muestra.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 19,
+  "priority": "medium",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "tags": [
+    "acp"
+  ],
+  "test": "",
+  "title": "Extensiones por agente: skills, plugins, reglas e instrucciones",
+  "updated_at": "2026-10-28T19:23:21.149Z"
+}

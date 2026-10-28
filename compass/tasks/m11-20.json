@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-28T19:15:10.136Z",
+  "description": "Claude (usage_update _meta _claude/rateLimit) y Antigravity (/usage) ya informan la cuota. Ver qué informan Codex, Copilot y Cursor por ACP (usage_update, _meta, comandos como /status) y leerlo sin endpoints ni archivos del agente (regla de QuotaMonitor).",
+  "milestone": "m11",
+  "notes": "",
+  "order": 20,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "acp"
+  ],
+  "test": "",
+  "title": "Cuota de los demás agentes",
+  "updated_at": "2026-10-28T19:23:21.409Z"
+}

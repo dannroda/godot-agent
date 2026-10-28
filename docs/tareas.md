@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-27
+> Generado: 2026-10-28
 
 ## M0 — Esqueleto y decisiones  (6/6, 6 en revisión)
 
@@ -2637,7 +2637,7 @@ Cambiar de proveedor y modo desde Settings sin reiniciar; en híbrido la sugeren
 
 **Notas:** Ollama y llama.cpp no están instalados en esta máquina: no se probó contra un modelo real (pasos manuales en progress.md M8c). Revisión de código del diff hecha y corregida (progress.md M8c › Revisión de código): body de error al log, JSON de perfiles con tipos inválidos, redirecciones que reenviaban key y código (max_redirects 0, body ≤ 1 MB), Codestral/Gemini sin key, suffix con caret al final de línea, HTTPRequest sin liberar en un controller reemplazado. Además is_remote con [::1] y keys sin guiones. Los settings del paso del editor son los EditorSettings reales y se restauran al terminar.
 
-## M9 — Ideas de otros harness  (12/12, 12 en revisión)
+## M9 — Ideas de otros harness  (14/21, 14 en revisión)
 
 Lo que vale la pena traer de Claude Code, Codex, Antigravity, Copilot y Cursor, adaptado a Godot: deshacer y revisar por turno, sesiones que avisan, verificación automática, chat en línea en el Script Editor, artefactos del juego, más contexto y trabajo en segundo plano.
 
@@ -2824,3 +2824,65 @@ Idea (2026-10-27), surgió de cómo Zed integra Antigravity. El registro de ACP 
 **Notas:** core/acp_registry.gd (Node): fetch() lee cdn.agentclientprotocol.com/registry/v1/latest/registry.json; parse(data, platform) elige npx > uvx > binario de la plataforma (platform_key: linux|darwin|windows-x86_64|aarch64) y descarta ids que no son nombres de archivo; profile_for() arma el perfil; install() baja el binario, verifica el sha256 si el registro lo trae y extract() lo descomprime en <editor data>/godot_agent/agents/<id>/<versión>/ (.zip con ZIPReader sin rutas que salgan; .tar.* con el tar del sistema; otro = el ejecutable suelto) y le da chmod +x. ui/settings/acp_registry_dialog.gd: lista con filtro, «Agregar», segundo clic «Agregar sin checksum» si falta el sha256 (42 de las ~100 descargas del registro no lo traen), aviso de que un binario puede tardar. Settings → Agentes: «+ Del registro de ACP…»; agregar uno con el mismo id reemplaza el perfil (conserva si era el predeterminado). El registro hoy: 43 agentes, 1.0.0. Los perfiles incluidos (Gemini sin --acp, Codex sin comando) no se tocaron: con el registro ya se pueden agregar bien.
 
 **Bloquea a:** Soporte para Antigravity CLI (agy) como agente
+
+### Cuota de Antigravity con /usage · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `acp`
+
+Antigravity no manda la cuota en usage_update (solo el contexto, used/size). Su comando /usage, que no gasta tokens, lista por grupo de modelos (Gemini, Claude y GPT, Gemini 4 Argon) cuánto queda de la semana y de las 5 h, con la hora de reinicio en UTC: lo mismo que el menú View Usage del IDE de Antigravity, que lo saca del backend de Google. Pedirlo sin mostrarlo en el chat al abrir la sesión y después de cada turno, y llevar el grupo del modelo en uso a los anillos de cuota.
+
+**Prueba:** tests/unit/test_quota_monitor.gd test_antigravity_usage con el /usage real; contra agy 1.4.3 headless: la cuota llega al abrir (14 %) y se actualiza tras el turno (semana 15 %, 5 h 1 %), y en el chat quedan solo el prompt y la respuesta.
+
+**Notas:** QuotaMonitor.parse_antigravity_usage y antigravity_windows (Argon: semana propia y 5 h del grupo de Gemini). SessionController._query_agent_usage manda /usage oculto (agentInfo.name antigravity-acp) al conectar y al final de cada turno; un prompt del usuario espera a que termine. agy guarda /usage en su historial: un session/load podría reproducirlo.
+
+### Cerrar sesión de la cuenta del agente (ACP logout) · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `acp`
+
+Acceso rápido para cerrar la sesión de la cuenta en cualquier agente que anuncie agentCapabilities.auth.logout (Claude Code con claude auth logout, Antigravity): botón en la línea de estado con confirmación; el agente borra sus credenciales, se cierra la sesión y la próxima pide login.
+
+**Prueba:** test_session_model test_supports_logout. Sin probar contra la cuenta real (borraría las credenciales).
+
+**Notas:** Método ACP logout (SDK 2.1: AGENT_METHODS.logout = "logout"), anunciado con agentCapabilities.auth.logout. SessionController.logout: request, olvida cuenta y cuota, detiene el agente y avisa. Botón «Cerrar sesión» en la fila de estado del dock con confirmación.
+
+### Terminales del cliente ACP (terminal/*) · Pendiente
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `acp`
+
+Hoy clientCapabilities.terminal es false: los agentes corren sus comandos por su cuenta. Implementar terminal/create, output, wait_for_exit, kill y release para que los comandos del agente corran desde el editor, con la política de shell (reglas de Auto, permisos por modo), salida en la tarjeta del tool call y límite de bytes. Lo usan Codex y otros agentes del registro; se prueba con Claude Code y Antigravity.
+
+### Sesiones del agente: session/list, resume, close y delete · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
+
+Los agentes anuncian sessionCapabilities.list y resume (Antigravity los tiene; session/list devuelve id, cwd y título). Mostrar en el historial las sesiones que guarda el agente para el proyecto (cwd), retomarlas con session/resume cuando no hay loadSession o no hace falta repetir el historial, y cerrar o borrar con session/close y session/delete si el agente los anuncia.
+
+### Formularios del agente (elicitation/create y complete) · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
+
+ACP v1 suma elicitation/create y elicitation/complete del lado del cliente: el agente pide datos al usuario con un esquema (texto, opciones, confirmación). Anunciar la capacidad y mostrarlos como tarjeta en el dock, como los permisos.
+
+### Cancelar requests en vuelo ($/cancel_request) · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `acp`
+
+Soportar $/cancel_request en las dos direcciones: el cliente cancela un request que ya no espera (por ejemplo un /usage o un session/load que se dejó) y atiende el del agente cancelando permisos, fs o terminales pendientes.
+
+### Extensiones por agente: skills, plugins, reglas e instrucciones · Pendiente
+
+**Prioridad:** media · **Tamaño:** L · **Etiquetas:** `acp`
+
+La pestaña de Extensiones (skills, plugins, marketplaces) es solo de Claude Code. Investigar y soportar lo equivalente de cada agente con perfil: Codex (skills, AGENTS.md, config de MCP), Antigravity (AGENTS.md y GEMINI.md, reglas, workflows y skills, a confirmar dónde los lee), Copilot, Cursor y OpenCode. Lo que sea por archivos se arma desde el editor; lo que el agente anuncie por ACP (available_commands, configOptions) ya se muestra.
+
+### Cuota de los demás agentes · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
+
+Claude (usage_update _meta _claude/rateLimit) y Antigravity (/usage) ya informan la cuota. Ver qué informan Codex, Copilot y Cursor por ACP (usage_update, _meta, comandos como /status) y leerlo sin endpoints ni archivos del agente (regla de QuotaMonitor).
+
+### Cuota por grupo de modelos en el tooltip · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `acp`
+
+Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y los anillos muestran solo el del modelo en uso. Mostrar todos los grupos en el tooltip de los anillos, como el menú View Usage del IDE de Antigravity.

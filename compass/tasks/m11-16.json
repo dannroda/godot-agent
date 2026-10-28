@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-28T19:15:09.079Z",
+  "description": "Los agentes anuncian sessionCapabilities.list y resume (Antigravity los tiene; session/list devuelve id, cwd y título). Mostrar en el historial las sesiones que guarda el agente para el proyecto (cwd), retomarlas con session/resume cuando no hay loadSession o no hace falta repetir el historial, y cerrar o borrar con session/close y session/delete si el agente los anuncia.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 16,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "acp"
+  ],
+  "test": "",
+  "title": "Sesiones del agente: session/list, resume, close y delete",
+  "updated_at": "2026-10-28T19:15:09.079Z"
+}
