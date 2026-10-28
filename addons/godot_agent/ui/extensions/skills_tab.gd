@@ -30,11 +30,14 @@ const ORIGIN_LABELS: Dictionary = {
 	SkillCatalog.ORIGIN_USER: "User (all projects)",  # i18n
 	SkillCatalog.ORIGIN_PLUGIN: "From plugins",  # i18n
 }
+const ORIGIN_PROJECT_AGENTS := "Project (.agents/skills)"  # i18n
 
 var project_path: String = ""
 var claude_config_dir: String = ""
+var agent_kind: String = "claude"
+var agent_env: Dictionary = {}
 var disabled: PackedStringArray = []
-## false: el perfil activo no es Claude Code (la pestaña solo sabe de las skills de Claude).
+## true si el perfil activo es Claude Code (habilita el marketplace sugerido y apagar skills por sesión).
 var is_claude: bool = true
 ## Abre un archivo con la app del sistema (los checks lo reemplazan).
 var open_file: Callable = func(path: String) -> void: OS.shell_open(path)
@@ -42,6 +45,7 @@ var open_file: Callable = func(path: String) -> void: OS.shell_open(path)
 var _filter: LineEdit
 var _where: OptionButton
 var _box: VBoxContainer
+var _hint: Label
 var _new_dialog: ConfirmationDialog
 var _new_name: LineEdit
 var _new_description: LineEdit
@@ -75,7 +79,8 @@ func _init() -> void:
 	bar.add_child(ExtensionsUi.icon_button(&"Load", I18n.t("Import a skill folder or zip"), _open_import))
 	bar.add_child(ExtensionsUi.icon_button(&"Reload", I18n.t("Read the skills again"), refresh))
 	_box = ExtensionsUi.scroll_list(page)
-	page.add_child(ExtensionsUi.muted(I18n.t("A skill turned off here is hidden from the agent in this project from the next session. Skills are a Claude Code feature.")))
+	_hint = ExtensionsUi.muted(I18n.t("A skill turned off here is hidden from the agent in this project from the next session."))
+	page.add_child(_hint)
 	_build_dialogs()
 
 
@@ -113,24 +118,27 @@ func _build_dialogs() -> void:
 
 ## Vuelve a leer las skills del disco.
 func refresh() -> void:
-	_skills = SkillCatalog.scan(claude_config_dir, project_path) if is_claude else []
+	var kind := "claude" if is_claude else (agent_kind if not agent_kind.is_empty() else "other")
+	_skills = SkillCatalog.scan(claude_config_dir, project_path, kind, agent_env)
 	_rebuild()
 
 
 func _rebuild() -> void:
 	ExtensionsUi.clear(_box)
-	if not is_claude:
-		_box.add_child(ExtensionsUi.muted(I18n.t("Skills belong to Claude Code, and the active agent profile is another agent.")))
-		return
+	if _hint:
+		_hint.text = I18n.t("A skill turned off here is hidden from the agent in this project from the next session.") if is_claude else I18n.t("Skills are folders with a SKILL.md file (.agents/skills in the project, or in your user folder). Changes apply from the next session.")
 	var query := _filter.text.strip_edges().to_lower()
-	if not _has_suggested() and query.is_empty():
+	if is_claude and not _has_suggested() and query.is_empty():
 		_box.add_child(_suggested_card())
 	for origin: String in SkillCatalog.ORIGINS:
 		var skills := _skills.filter(func(skill: Dictionary) -> bool:
 			return skill.origin == origin and (query.is_empty() or str(skill.id).to_lower().contains(query) or str(skill.description).to_lower().contains(query)))
 		if skills.is_empty():
 			continue
-		_box.add_child(ExtensionsUi.section("%s (%d)" % [I18n.t(ORIGIN_LABELS[origin]), skills.size()]))
+		var origin_label: String = ORIGIN_LABELS[origin]
+		if origin == SkillCatalog.ORIGIN_PROJECT and not is_claude:
+			origin_label = ORIGIN_PROJECT_AGENTS
+		_box.add_child(ExtensionsUi.section("%s (%d)" % [I18n.t(origin_label), skills.size()]))
 		for skill: Dictionary in skills:
 			_box.add_child(_skill_card(skill))
 	if _skills.is_empty():
@@ -161,7 +169,7 @@ func _skill_card(skill: Dictionary) -> Control:
 	if skill.origin != SkillCatalog.ORIGIN_PLUGIN:
 		row.add_child(ExtensionsUi.icon_button(&"Remove", I18n.t("Delete"), func() -> void:
 			_ask(I18n.t("Move the skill %s to the trash?") % id, I18n.t("Delete"), _delete.bind(skill))))
-	if skill.origin != SkillCatalog.ORIGIN_PLUGIN:
+	if is_claude and skill.origin != SkillCatalog.ORIGIN_PLUGIN:
 		var toggle := CheckButton.new()
 		toggle.button_pressed = not disabled.has(id)
 		toggle.tooltip_text = I18n.t("Use in this project")
@@ -220,7 +228,8 @@ func _set_enabled(on: bool, id: String) -> void:
 
 
 func _target_dir() -> String:
-	return SkillCatalog.project_dir(project_path) if _where.selected == 0 else SkillCatalog.user_dir(claude_config_dir)
+	var kind := "claude" if is_claude else (agent_kind if not agent_kind.is_empty() else "other")
+	return SkillCatalog.project_dir(project_path, kind) if _where.selected == 0 else SkillCatalog.user_dir(claude_config_dir, kind, agent_env)
 
 
 func _open_new_dialog() -> void:
@@ -265,13 +274,14 @@ func _import(path: String) -> void:
 
 
 func _copy_to_project(skill: Dictionary) -> void:
-	var error := SkillCatalog.copy_skill(str(skill.path), SkillCatalog.project_dir(project_path))
+	var kind := "claude" if is_claude else (agent_kind if not agent_kind.is_empty() else "other")
+	var error := SkillCatalog.copy_skill(str(skill.path), SkillCatalog.project_dir(project_path, kind))
 	refresh()
 	if not error.is_empty():
 		status_changed.emit(I18n.t("Could not copy %s: %s") % [skill.id, error], AgentTheme.ERROR)
 		return
 	next_session_changed.emit()
-	status_changed.emit(I18n.t("%s copied to .claude/skills: commit it so your team gets it too.") % skill.id, AgentTheme.ADDED)
+	status_changed.emit(I18n.t("%s copied to %s: commit it so your team gets it too.") % [skill.id, SkillCatalog.project_relative_dir(kind)], AgentTheme.ADDED)
 
 
 func _delete(skill: Dictionary) -> void:

@@ -64,6 +64,34 @@ func test_scan() -> void:
 	assert_eq(SkillCatalog.scan(_fresh("empty"), _fresh("empty_project")), [], "sin nada")
 
 
+func test_multi_agent_skills_and_plugins() -> void:
+	var home := _fresh("agy_home")
+	var project := _fresh("agy_project")
+	_write(project.path_join(".agents/skills/level-gen/SKILL.md"), _skill_md("level-gen", "Generate levels"))
+	_write(home.path_join(".gemini/config/skills/shader-opt/SKILL.md"), _skill_md("shader-opt", "Optimize shaders"))
+	_write(home.path_join(".agents/skills/shared-skill/SKILL.md"), _skill_md("shared-skill", "Shared across agents"))
+	_write(project.path_join(".agents/plugins/combat-pack/plugin.json"), JSON.stringify({"name": "combat-pack"}))
+	_write(project.path_join(".agents/plugins/combat-pack/skills/hitbox/SKILL.md"), _skill_md("hitbox", "Hitbox setup"))
+	var agy_skills := SkillCatalog.scan("", project, "antigravity", {}, home)
+	assert_eq(agy_skills.map(func(s: Dictionary) -> String: return "%s/%s" % [s.origin, s.id]), [
+		"project/level-gen",
+		"user/shader-opt",
+		"user/shared-skill",
+		"plugin/combat-pack:hitbox",
+	], "Antigravity lee .agents/skills, ~/.gemini/config/skills, ~/.agents/skills y plugins")
+
+	var codex_home := home.path_join(".codex")
+	_write(codex_home.path_join("skills/codex-helper/SKILL.md"), _skill_md("codex-helper", "Codex skill"))
+	var codex_skills := SkillCatalog.scan("", project, "codex", {"CODEX_HOME": codex_home}, home)
+	assert_eq(codex_skills.map(func(s: Dictionary) -> String: return "%s/%s" % [s.origin, s.id]), [
+		"project/level-gen",
+		"user/codex-helper",
+		"user/shared-skill",
+	], "Codex lee .agents/skills, $CODEX_HOME/skills y ~/.agents/skills")
+	assert_eq(SkillCatalog.project_relative_dir("codex"), ".agents/skills", "carpeta del proyecto para Codex")
+	assert_eq(SkillCatalog.project_relative_dir("claude"), ".claude/skills", "carpeta del proyecto para Claude")
+
+
 func test_session_settings() -> void:
 	assert_eq(SkillCatalog.session_settings([]), {}, "sin apagadas, nada")
 	assert_eq(SkillCatalog.session_settings(["c", "p:a"]), {"skillOverrides": {"c": "off", "p:a": "off"}}, "las apagadas en off")

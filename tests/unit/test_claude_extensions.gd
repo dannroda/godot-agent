@@ -4,6 +4,7 @@ extends "test_case.gd"
 const ClaudeExtensions := preload("res://addons/godot_agent/extensions/claude_extensions.gd")
 const ClaudeCli := preload("res://addons/godot_agent/extensions/claude_cli.gd")
 const ExtensionsWindow := preload("res://addons/godot_agent/ui/extensions/extensions_window.gd")
+const InstructionsTab := preload("res://addons/godot_agent/ui/extensions/instructions_tab.gd")
 const AgentDock := preload("res://addons/godot_agent/ui/dock/agent_dock.gd")
 
 const MCP_LIST := """Checking MCP server health…
@@ -83,6 +84,41 @@ func test_claude_profile_detection() -> void:
 	assert_true(ClaudeExtensions.is_claude_profile("npx", PackedStringArray(["-y", "@agentclientprotocol/claude-agent-acp"])), "el adaptador por npx")
 	assert_true(ClaudeExtensions.is_claude_profile("/usr/local/bin/claude", PackedStringArray([])), "el CLI")
 	assert_false(ClaudeExtensions.is_claude_profile("gemini", PackedStringArray(["--experimental-acp"])), "Gemini")
+	assert_eq(ClaudeExtensions.agent_kind("npx", PackedStringArray(["-y", "@zed-industries/codex-acp"])), "codex", "Codex")
+	assert_eq(ClaudeExtensions.agent_kind("agy", PackedStringArray(["acp"])), "antigravity", "Antigravity")
+	assert_eq(ClaudeExtensions.agent_kind("npx", PackedStringArray(["copilot-acp"])), "copilot", "Copilot")
+	assert_eq(ClaudeExtensions.agent_kind("cursor-agent", PackedStringArray(["acp"])), "cursor", "Cursor")
+	assert_eq(ClaudeExtensions.agent_kind("opencode", PackedStringArray(["acp"])), "opencode", "OpenCode")
+
+
+func test_other_agents_mcp_and_instructions() -> void:
+	var root := ProjectSettings.globalize_path("user://test_other_agents_extensions")
+	var home := root.path_join("home")
+	var project := root.path_join("project")
+	DirAccess.make_dir_recursive_absolute(home.path_join(".codex"))
+	DirAccess.make_dir_recursive_absolute(project.path_join(".agents/rules"))
+	DirAccess.make_dir_recursive_absolute(project.path_join(".agents/workflows"))
+	DirAccess.make_dir_recursive_absolute(project.path_join(".cursor/rules"))
+	_write(home.path_join(".codex/config.toml"), "[mcp_servers.github]\ncommand = \"npx\"\nargs = [\"-y\", \"@modelcontextprotocol/server-github\"]\n\n[mcp_servers.disabled_srv]\nurl = \"https://example.com/mcp\"\nenabled = false\n")
+	var codex_mcp := ClaudeExtensions.agent_mcp_servers("codex", project, {"CODEX_HOME": home.path_join(".codex")}, home)
+	assert_eq(codex_mcp.size(), 2, "dos servers de Codex en config.toml")
+	assert_eq([codex_mcp[0].name, codex_mcp[0].target, codex_mcp[0].origin], ["github", "npx -y @modelcontextprotocol/server-github", "user"], "stdio server en TOML")
+	assert_eq([codex_mcp[1].name, codex_mcp[1].status], ["disabled_srv", ClaudeExtensions.MCP_DISABLED], "server deshabilitado en TOML")
+
+	DirAccess.make_dir_recursive_absolute(home.path_join(".gemini/config"))
+	_write(home.path_join(".gemini/config/mcp_config.json"), JSON.stringify({"mcpServers": {"firebase": {"command": "npx", "args": ["firebase-mcp"]}}}))
+	var agy_mcp := ClaudeExtensions.agent_mcp_servers("antigravity", project, {}, home)
+	assert_eq(agy_mcp.size(), 1, "server de Antigravity en mcp_config.json")
+	assert_eq([agy_mcp[0].name, agy_mcp[0].origin], ["firebase", "user"], "origen user")
+
+	_write(project.path_join(".agents/rules/gdscript.md"), "# GDScript rules")
+	_write(project.path_join(".agents/workflows/release.md"), "# Release workflow")
+	_write(project.path_join(".cursor/rules/style.mdc"), "# Cursor rule")
+	var extras := InstructionsTab.discover_extra_files(project)
+	assert_eq(extras, PackedStringArray([".agents/rules/gdscript.md", ".agents/workflows/release.md", ".cursor/rules/style.mdc"]), "reglas y workflows descubiertos")
+	assert_eq(InstructionsTab.default_file_for("codex", project), "AGENTS.md", "Codex prefiere AGENTS.md")
+	assert_eq(InstructionsTab.default_file_for("antigravity", project), "GEMINI.md", "Antigravity prefiere GEMINI.md")
+	assert_eq(InstructionsTab.default_file_for("copilot", project), ".github/copilot-instructions.md", "Copilot prefiere .github/copilot-instructions.md")
 
 
 func test_parse_auth_status() -> void:

@@ -54,6 +54,8 @@ var extensions: ClaudeExtensions
 var addon_servers_provider: Callable
 ## () -> bool: el perfil activo es Claude Code (plugins y marketplaces son de Claude Code).
 var is_claude_provider: Callable
+## () -> String: familia del perfil activo (`claude`, `codex`, `antigravity`, `copilot`, `cursor`, `opencode`, `other`).
+var agent_kind_provider: Callable
 ## El cliente del Asset Store, para la pestaña de addons de Godot.
 var asset_store: Node
 ## Skills apagadas en el proyecto (ProjectConfig.disabled_skills), para la pestaña Skills.
@@ -167,8 +169,16 @@ func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 func refresh() -> void:
 	_addons_tab.store = asset_store
 	_addons_tab.refresh()
+	_instructions_tab.agent_kind = _agent_kind()
+	if extensions and not extensions.cli.cwd.is_empty():
+		_instructions_tab.project_path = extensions.cli.cwd
 	_instructions_tab.refresh()
 	_refresh_skills()
+	if not _is_claude():
+		_mcp_error = ""
+		_mcp = ClaudeExtensions.agent_mcp_servers(_agent_kind(), extensions.cli.cwd if extensions else "", extensions.cli.env if extensions else {})
+		_rebuild_all()
+		return
 	if extensions == null or not extensions.cli.is_available():
 		_plugins_error = I18n.t("The Claude Code CLI (claude) was not found in the PATH or next to the ACP adapter. Open a Claude Code session once (npx downloads it) or install Claude Code.")
 		_markets_error = _plugins_error
@@ -271,6 +281,11 @@ func _load_markets() -> void:
 
 
 func _load_mcp() -> void:
+	if not _is_claude():
+		_mcp_error = ""
+		_mcp = ClaudeExtensions.agent_mcp_servers(_agent_kind(), extensions.cli.cwd if extensions else "", extensions.cli.env if extensions else {})
+		_rebuild_mcp()
+		return
 	_loading[ExtensionsTab.MCP] = true
 	_rebuild_mcp()
 	var data: Dictionary = await extensions.mcp_servers()
@@ -437,9 +452,8 @@ func _rebuild_mcp() -> void:
 	for server: Dictionary in addon:
 		var entry := {"name": server.name, "target": "", "status": "addon_on" if server.get("enabled", true) else "addon_off", "detail": "", "origin": "addon"}
 		groups.get_or_add("addon", []).append(entry)
-	if _is_claude():
-		for server: Dictionary in _mcp:
-			groups.get_or_add(server.origin, []).append(server)
+	for server: Dictionary in _mcp:
+		groups.get_or_add(server.origin, []).append(server)
 	if not _mcp_error.is_empty() and _is_claude():
 		_mcp_box.add_child(ExtensionsUi.error_label(_mcp_error))
 	if _loading.has(ExtensionsTab.MCP) and _is_claude():
@@ -518,6 +532,8 @@ func _run(label: String, action: Callable, plugins_changed: bool, with_sha: Call
 
 func _refresh_skills() -> void:
 	_skills_tab.is_claude = _is_claude()
+	_skills_tab.agent_kind = _agent_kind()
+	_skills_tab.agent_env = extensions.cli.env if extensions else {}
 	_skills_tab.project_path = extensions.cli.cwd if extensions else ""
 	_skills_tab.claude_config_dir = SkillCatalog.config_dir(extensions.cli.env if extensions else {})
 	_skills_tab.disabled = disabled_skills.duplicate()
@@ -557,6 +573,12 @@ func _set_status(text: String, color: Color) -> void:
 
 func _is_claude() -> bool:
 	return is_claude_provider.call() if is_claude_provider.is_valid() else true
+
+
+func _agent_kind() -> String:
+	if agent_kind_provider.is_valid():
+		return str(agent_kind_provider.call())
+	return ClaudeExtensions.AGENT_CLAUDE if _is_claude() else ClaudeExtensions.AGENT_OTHER
 
 
 ## Estado del server de un plugin según `claude mcp list` (`plugin:<plugin>:<server>`), o "".

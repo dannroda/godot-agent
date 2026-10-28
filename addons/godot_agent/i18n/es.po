@@ -1466,6 +1466,8 @@ msgstr "Tarea %d: %s"
 msgid "Temperature"
 msgstr "Temperatura"
 
+msgid "Terminal"
+msgstr "Terminal"
 
 msgid "That needs a ready session with no turn in progress."
 msgstr "Para eso hace falta una sesión lista y sin un turno en curso."
@@ -2688,6 +2690,9 @@ msgstr "Skills"
 msgid "Project (.claude/skills)"
 msgstr "Proyecto (.claude/skills)"
 
+msgid "Project (.agents/skills)"
+msgstr "Proyecto (.agents/skills)"
+
 msgid "Filter skills…"
 msgstr "Filtrar skills…"
 
@@ -2709,8 +2714,11 @@ msgstr "Importar una carpeta o un zip de skills"
 msgid "Read the skills again"
 msgstr "Volver a leer las skills"
 
-msgid "A skill turned off here is hidden from the agent in this project from the next session. Skills are a Claude Code feature."
-msgstr "Una skill apagada acá no le llega al agente en este proyecto desde la próxima sesión. Las skills son de Claude Code."
+msgid "A skill turned off here is hidden from the agent in this project from the next session."
+msgstr "Una skill apagada acá no le llega al agente en este proyecto desde la próxima sesión."
+
+msgid "Skills are folders with a SKILL.md file (.agents/skills in the project, or in your user folder). Changes apply from the next session."
+msgstr "Las skills son carpetas con un archivo SKILL.md (.agents/skills en el proyecto, o en tu carpeta de usuario). Los cambios se aplican desde la próxima sesión."
 
 msgid "Create"
 msgstr "Crear"
@@ -2720,9 +2728,6 @@ msgstr "Nombre (minúsculas y guiones, p. ej. level-design)"
 
 msgid "When the agent should use it"
 msgstr "Cuándo la tiene que usar el agente"
-
-msgid "Skills belong to Claude Code, and the active agent profile is another agent."
-msgstr "Las skills son de Claude Code, y el perfil activo es de otro agente."
 
 msgid "No skills yet. Create one, import one, or install a plugin that brings skills."
 msgstr "Todavía no hay skills. Creá una, importá una o instalá un plugin que traiga skills."
@@ -2781,8 +2786,8 @@ msgstr "Ya estaban, quedaron como estaban: %s."
 msgid "Could not copy %s: %s"
 msgstr "No se pudo copiar %s: %s"
 
-msgid "%s copied to .claude/skills: commit it so your team gets it too."
-msgstr "%s copiada a .claude/skills: commiteala para que la tenga tu equipo."
+msgid "%s copied to %s: commit it so your team gets it too."
+msgstr "%s copiada a %s: commiteala para que la tenga tu equipo."
 
 msgid "%s moved to the trash."
 msgstr "%s se fue a la papelera."
@@ -3182,3 +3187,24 @@ msgstr "Rechazado"
 
 msgid "Cancelled"
 msgstr "Cancelado"
+
+msgid "Rule (.agents/rules/*.md)"
+msgstr "Regla (.agents/rules/*.md)"
+
+msgid "Workflow (.agents/workflows/*.md)"
+msgstr "Workflow (.agents/workflows/*.md)"
+
+msgid "Claude rule (.claude/rules/*.md)"
+msgstr "Regla de Claude (.claude/rules/*.md)"
+
+msgid "Cursor rule (.cursor/rules/*.mdc)"
+msgstr "Regla de Cursor (.cursor/rules/*.mdc)"
+
+msgid "New rule or workflow file"
+msgstr "Nuevo archivo de regla o workflow"
+
+msgid "File name (e.g. coding-style)"
+msgstr "Nombre de archivo (p. ej. estilo-codigo)"
+
+msgid "Enter a valid file name."
+msgstr "Ingresá un nombre de archivo válido."

@@ -2637,7 +2637,7 @@ Cambiar de proveedor y modo desde Settings sin reiniciar; en híbrido la sugeren
 
 **Notas:** Ollama y llama.cpp no están instalados en esta máquina: no se probó contra un modelo real (pasos manuales en progress.md M8c). Revisión de código del diff hecha y corregida (progress.md M8c › Revisión de código): body de error al log, JSON de perfiles con tipos inválidos, redirecciones que reenviaban key y código (max_redirects 0, body ≤ 1 MB), Codestral/Gemini sin key, suffix con caret al final de línea, HTTPRequest sin liberar en un controller reemplazado. Además is_remote con [::1] y keys sin guiones. Los settings del paso del editor son los EditorSettings reales y se restauran al terminar.
 
-## M9 — Ideas de otros harness  (14/21, 14 en revisión)
+## M9 — Ideas de otros harness  (21/21, 21 en revisión)
 
 Lo que vale la pena traer de Claude Code, Codex, Antigravity, Copilot y Cursor, adaptado a Godot: deshacer y revisar por turno, sesiones que avisan, verificación automática, chat en línea en el Script Editor, artefactos del juego, más contexto y trabajo en segundo plano.
 
@@ -2845,44 +2845,68 @@ Acceso rápido para cerrar la sesión de la cuenta en cualquier agente que anunc
 
 **Notas:** Método ACP logout (SDK 2.1: AGENT_METHODS.logout = "logout"), anunciado con agentCapabilities.auth.logout. SessionController.logout: request, olvida cuenta y cuota, detiene el agente y avisa. Botón «Cerrar sesión» en la fila de estado del dock con confirmación.
 
-### Terminales del cliente ACP (terminal/*) · Pendiente
+### Terminales del cliente ACP (terminal/*) · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `acp`
 
 Hoy clientCapabilities.terminal es false: los agentes corren sus comandos por su cuenta. Implementar terminal/create, output, wait_for_exit, kill y release para que los comandos del agente corran desde el editor, con la política de shell (reglas de Auto, permisos por modo), salida en la tarjeta del tool call y límite de bytes. Lo usan Codex y otros agentes del registro; se prueba con Claude Code y Antigravity.
 
-### Sesiones del agente: session/list, resume, close y delete · Pendiente
+**Prueba:** godot --headless --path . --script tests/run_all.gd -- terminal_handler
+
+**Notas:** TerminalHandler (terminal/create, output, wait_for_exit, kill y release) con AgentProcess en modo raw (sin threads), truncado UTF-8 desde el principio según outputByteLimit, autorización por SessionController (ProjectWriteGuard, GodotWindowGuard, ShellRules en Auto y tarjetas de permiso), clientCapabilities.terminal = true y visualización de bloques {type: terminal, terminalId} en ToolGroupView.
+
+### Sesiones del agente: session/list, resume, close y delete · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
 
 Los agentes anuncian sessionCapabilities.list y resume (Antigravity los tiene; session/list devuelve id, cwd y título). Mostrar en el historial las sesiones que guarda el agente para el proyecto (cwd), retomarlas con session/resume cuando no hay loadSession o no hace falta repetir el historial, y cerrar o borrar con session/close y session/delete si el agente los anuncia.
 
-### Formularios del agente (elicitation/create y complete) · Pendiente
+**Prueba:** godot --headless --path . --script tests/run_all.gd -- session_model
+
+**Notas:** SessionModel (supports_list_sessions, supports_resume_session, supports_close_session, supports_delete_session y can_resume_sessions) y SessionController (list_agent_sessions con paginación por cursor, _load_session con session/resume cuando ya hay historial local o sin loadSession, close_session en open_session, delete_session local y en el agente, y merge_session_lists en el menú de historial de AgentDock).
+
+### Formularios del agente (elicitation/create y complete) · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
 
 ACP v1 suma elicitation/create y elicitation/complete del lado del cliente: el agente pide datos al usuario con un esquema (texto, opciones, confirmación). Anunciar la capacidad y mostrarlos como tarjeta en el dock, como los permisos.
 
-### Cancelar requests en vuelo ($/cancel_request) · Pendiente
+**Notas:** Agregados ElicitationRequest (session/elicitation_request.gd) y ElicitationView (ui/dock/entries/elicitation_view.gd) para formularios (mode: form con string, enum/oneOf, boolean, integer/number y array multi-select) y enlaces (mode: url). Conectados elicitation/create, elicitation/complete, $/cancel_request y clientCapabilities.elicitation en SessionController, SessionModel y ConversationView. Cubierto en tests/unit/test_elicitation.gd.
+
+### Cancelar requests en vuelo ($/cancel_request) · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `acp`
 
 Soportar $/cancel_request en las dos direcciones: el cliente cancela un request que ya no espera (por ejemplo un /usage o un session/load que se dejó) y atiende el del agente cancelando permisos, fs o terminales pendientes.
 
-### Extensiones por agente: skills, plugins, reglas e instrucciones · Pendiente
+**Prueba:** tests/unit/test_acp_client.gd test_cancel_request_both_directions; suite de session_controller.
+
+**Notas:** AcpClient.cancel_request(id) manda $/cancel_request, resuelve el await local con ERR_REQUEST_CANCELLED (-32800) e ignora respuestas tardías; SessionController._cancel_abandoned_requests() cancela /usage, /status o session/new|load|resume en vuelo al abrir otra sesión. Del lado entrante, $/cancel_request emite incoming_cancelled (cancela tarjetas de permiso de request_permission, fs/write_text_file y terminal/create en _ask_user, elicitations y esperas de terminal) y responde -32800 sin duplicar si el handler termina más tarde.
+
+### Extensiones por agente: skills, plugins, reglas e instrucciones · Revisión
 
 **Prioridad:** media · **Tamaño:** L · **Etiquetas:** `acp`
 
 La pestaña de Extensiones (skills, plugins, marketplaces) es solo de Claude Code. Investigar y soportar lo equivalente de cada agente con perfil: Codex (skills, AGENTS.md, config de MCP), Antigravity (AGENTS.md y GEMINI.md, reglas, workflows y skills, a confirmar dónde los lee), Copilot, Cursor y OpenCode. Lo que sea por archivos se arma desde el editor; lo que el agente anuncie por ACP (available_commands, configOptions) ya se muestra.
 
-### Cuota de los demás agentes · Pendiente
+**Notas:** Extendidas las pestañas Skills, Instructions y MCP de Extensions a todos los agentes: detección de perfil (Claude, Codex, Antigravity, Copilot, Cursor, OpenCode) en ClaudeExtensions.agent_kind(); escaneo, creación, importación y copia de skills en .agents/skills, .agent/skills, ~/.codex/skills, ~/.gemini/config/skills y plugins de Antigravity en SkillCatalog y SkillsTab; edición y alta de instrucciones, reglas y workflows (.github/copilot-instructions.md, .cursorrules, .agents/rules/*.md, .agents/workflows/*.md, .claude/rules/*.md, .cursor/rules/*.mdc) en InstructionsTab; y lectura de MCP servers desde config.toml de Codex, mcp_config.json de Antigravity, .cursor/mcp.json, .vscode/mcp.json y opencode.json en ClaudeExtensions.agent_mcp_servers().
+
+### Cuota de los demás agentes · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `acp`
 
 Claude (usage_update _meta _claude/rateLimit) y Antigravity (/usage) ya informan la cuota. Ver qué informan Codex, Copilot y Cursor por ACP (usage_update, _meta, comandos como /status) y leerlo sin endpoints ni archivos del agente (regla de QuotaMonitor).
 
-### Cuota por grupo de modelos en el tooltip · Pendiente
+**Prueba:** tests/unit/test_quota_monitor.gd test_codex_and_other_agents_quota.
+
+**Notas:** Codex (codex-acp): usage_update solo trae tokens de contexto, pero su comando local /status (sin gastar tokens) informa las ventanas de 5 h y semanal de RateLimitsMap y la cuenta; SessionController._query_agent_usage lo pide igual que /usage de Antigravity, y _auth/status_update mantiene model.account al día. OpenCode: reintentos por límite en session_info_update (_meta["opencode/retry"]). Copilot y Cursor no mandan ventanas de cuota por ACP (Copilot solo contexto/costo en usage_update; Cursor nada): se detectan sus errores y textos de límite (user_model_rate_limited, usageLimitExceeded, insufficient_quota, Upgrade your plan…).
+
+### Cuota por grupo de modelos en el tooltip · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `acp`
 
 Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y los anillos muestran solo el del modelo en uso. Mostrar todos los grupos en el tooltip de los anillos, como el menú View Usage del IDE de Antigravity.
+
+**Prueba:** tests/unit/test_quota_monitor.gd test_antigravity_usage (describe_groups, QuotaRing.describe y select_antigravity_model).
+
+**Notas:** QuotaMonitor.groups guarda los grupos de /usage, describe_groups() arma una línea por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y QuotaRing.describe() las agrega al tooltip debajo de los anillos. select_antigravity_model() cambia las ventanas activas en cuanto cambia la opción model.

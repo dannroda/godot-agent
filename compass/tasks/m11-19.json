@@ -4,16 +4,16 @@
   "created_at": "2026-10-28T19:15:09.882Z",
   "description": "La pestaña de Extensiones (skills, plugins, marketplaces) es solo de Claude Code. Investigar y soportar lo equivalente de cada agente con perfil: Codex (skills, AGENTS.md, config de MCP), Antigravity (AGENTS.md y GEMINI.md, reglas, workflows y skills, a confirmar dónde los lee), Copilot, Cursor y OpenCode. Lo que sea por archivos se arma desde el editor; lo que el agente anuncie por ACP (available_commands, configOptions) ya se muestra.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "Extendidas las pestañas Skills, Instructions y MCP de Extensions a todos los agentes: detección de perfil (Claude, Codex, Antigravity, Copilot, Cursor, OpenCode) en ClaudeExtensions.agent_kind(); escaneo, creación, importación y copia de skills en .agents/skills, .agent/skills, ~/.codex/skills, ~/.gemini/config/skills y plugins de Antigravity en SkillCatalog y SkillsTab; edición y alta de instrucciones, reglas y workflows (.github/copilot-instructions.md, .cursorrules, .agents/rules/*.md, .agents/workflows/*.md, .claude/rules/*.md, .cursor/rules/*.mdc) en InstructionsTab; y lectura de MCP servers desde config.toml de Codex, mcp_config.json de Antigravity, .cursor/mcp.json, .vscode/mcp.json y opencode.json en ClaudeExtensions.agent_mcp_servers().",
   "order": 19,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "acp"
   ],
   "test": "",
   "title": "Extensiones por agente: skills, plugins, reglas e instrucciones",
-  "updated_at": "2026-10-28T19:23:21.149Z"
+  "updated_at": "2026-10-28T22:02:33.595Z"
 }

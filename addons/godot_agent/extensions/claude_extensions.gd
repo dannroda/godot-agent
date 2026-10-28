@@ -23,6 +23,15 @@ const ORIGIN_PLUGIN := "plugin"
 const ORIGIN_OTHER := "other"
 const SCOPES: PackedStringArray = ["user", "project", "local"]
 
+## Familias de agentes para extensiones por archivos (m11-19).
+const AGENT_CLAUDE := "claude"
+const AGENT_CODEX := "codex"
+const AGENT_ANTIGRAVITY := "antigravity"
+const AGENT_COPILOT := "copilot"
+const AGENT_CURSOR := "cursor"
+const AGENT_OPENCODE := "opencode"
+const AGENT_OTHER := "other"
+
 var cli: ClaudeCli
 
 
@@ -34,6 +43,25 @@ func _init(project_dir: String = "", env: Dictionary = {}) -> void:
 static func is_claude_profile(command: String, args: PackedStringArray) -> bool:
 	var line := " ".join(PackedStringArray([command]) + args).to_lower()
 	return line.contains("claude-agent-acp") or line.contains("claude-code-acp") or command.get_file().get_basename() == "claude"
+
+
+## Qué agente lanza un perfil (`claude`, `codex`, `antigravity`, `copilot`, `cursor`, `opencode`, `other`).
+static func agent_kind(command: String, args: PackedStringArray, profile_id: String = "") -> String:
+	if is_claude_profile(command, args):
+		return AGENT_CLAUDE
+	var line := (" ".join(PackedStringArray([profile_id, command]) + args)).to_lower()
+	var bin := command.get_file().get_basename().to_lower()
+	if line.contains("codex-acp") or line.contains("@zed-industries/codex") or bin == "codex" or profile_id.to_lower().begins_with("codex"):
+		return AGENT_CODEX
+	if line.contains("antigravity") or bin == "agy" or bin == "antigravity":
+		return AGENT_ANTIGRAVITY
+	if line.contains("copilot") or bin == "copilot":
+		return AGENT_COPILOT
+	if line.contains("cursor-acp") or line.contains("cursor-agent") or bin == "cursor" or bin == "cursor-agent" or profile_id.to_lower().begins_with("cursor"):
+		return AGENT_CURSOR
+	if line.contains("opencode") or bin == "opencode":
+		return AGENT_OPENCODE
+	return AGENT_OTHER
 
 
 ## `{installed: [], available: [], error}`. `available` solo si se pide (es grande: miles).
@@ -197,6 +225,152 @@ static func config_scopes(config_dir: String, project_dir: String) -> Dictionary
 			for name: Variant in projects[key].mcpServers:
 				scopes[str(name)] = ORIGIN_LOCAL
 	return scopes
+
+
+## MCP servers configurados en los archivos del agente (m11-19) para agentes que no son Claude Code:
+## Codex (`config.toml`), Antigravity (`mcp_config.json`), Cursor (`.cursor/mcp.json`), Copilot
+## (`.vscode/mcp.json`) y OpenCode (`opencode.json`).
+static func agent_mcp_servers(kind: String, project_dir: String, env: Dictionary = {}, home_dir: String = "") -> Array:
+	var home := home_dir if not home_dir.is_empty() else OS.get_environment("HOME")
+	var servers: Array = []
+	var seen: Dictionary = {}
+	var add_entries := func(entries: Array) -> void:
+		for item: Dictionary in entries:
+			var key := "%s|%s" % [item.origin, item.name]
+			if not seen.has(key):
+				seen[key] = true
+				servers.append(item)
+	match kind:
+		AGENT_CODEX:
+			var codex_home := str(env.get("CODEX_HOME", OS.get_environment("CODEX_HOME")))
+			if codex_home.is_empty():
+				codex_home = home.path_join(".codex")
+			if not project_dir.is_empty() and FileAccess.file_exists(project_dir.path_join(".codex/config.toml")):
+				add_entries.call(parse_codex_mcp_toml(FileAccess.get_file_as_string(project_dir.path_join(".codex/config.toml")), ORIGIN_PROJECT))
+			if FileAccess.file_exists(codex_home.path_join("config.toml")):
+				add_entries.call(parse_codex_mcp_toml(FileAccess.get_file_as_string(codex_home.path_join("config.toml")), ORIGIN_USER))
+		AGENT_ANTIGRAVITY:
+			for rel: String in [".agents/mcp_config.json", ".agent/mcp_config.json"]:
+				if not project_dir.is_empty() and FileAccess.file_exists(project_dir.path_join(rel)):
+					add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(project_dir.path_join(rel)), ORIGIN_PROJECT))
+			for rel: String in [".gemini/config/mcp_config.json", ".gemini/antigravity/mcp_config.json"]:
+				if not home.is_empty() and FileAccess.file_exists(home.path_join(rel)):
+					add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(home.path_join(rel)), ORIGIN_USER))
+		AGENT_CURSOR:
+			if not project_dir.is_empty() and FileAccess.file_exists(project_dir.path_join(".cursor/mcp.json")):
+				add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(project_dir.path_join(".cursor/mcp.json")), ORIGIN_PROJECT))
+			if not home.is_empty() and FileAccess.file_exists(home.path_join(".cursor/mcp.json")):
+				add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(home.path_join(".cursor/mcp.json")), ORIGIN_USER))
+		AGENT_COPILOT:
+			if not project_dir.is_empty() and FileAccess.file_exists(project_dir.path_join(".vscode/mcp.json")):
+				add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(project_dir.path_join(".vscode/mcp.json")), ORIGIN_PROJECT))
+			if not home.is_empty() and FileAccess.file_exists(home.path_join(".copilot/mcp-config.json")):
+				add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(home.path_join(".copilot/mcp-config.json")), ORIGIN_USER))
+		AGENT_OPENCODE:
+			for rel: String in ["opencode.json", ".opencode/opencode.json"]:
+				if not project_dir.is_empty() and FileAccess.file_exists(project_dir.path_join(rel)):
+					add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(project_dir.path_join(rel)), ORIGIN_PROJECT))
+			if not home.is_empty() and FileAccess.file_exists(home.path_join(".config/opencode/opencode.json")):
+				add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(home.path_join(".config/opencode/opencode.json")), ORIGIN_USER))
+	if not project_dir.is_empty() and FileAccess.file_exists(project_dir.path_join(".mcp.json")):
+		add_entries.call(parse_mcp_json(FileAccess.get_file_as_string(project_dir.path_join(".mcp.json")), ORIGIN_PROJECT))
+	return servers
+
+
+## Parsea archivos JSON de MCP (`mcpServers`, `servers` de VS Code/Copilot o `mcp` de OpenCode).
+static func parse_mcp_json(text: String, origin: String) -> Array:
+	var data: Variant = _parse_json(text)
+	if not data is Dictionary:
+		return []
+	var dict: Dictionary = {}
+	for key: String in ["mcpServers", "servers", "mcp"]:
+		if data.get(key) is Dictionary:
+			dict = data[key]
+			break
+	var result: Array = []
+	for name: Variant in dict:
+		var entry: Variant = dict[name]
+		if not entry is Dictionary:
+			continue
+		var target := str(entry.get("url", entry.get("serverUrl", "")))
+		if target.is_empty():
+			var cmd: Variant = entry.get("command", "")
+			if cmd is Array:
+				target = " ".join(PackedStringArray(cmd))
+			elif cmd is String and not str(cmd).is_empty():
+				var args_arr: Array = entry.get("args", []) if entry.get("args") is Array else []
+				var parts: PackedStringArray = [str(cmd)]
+				for arg: Variant in args_arr:
+					parts.append(str(arg))
+				target = " ".join(parts)
+		var disabled: bool = entry.get("enabled") == false or entry.get("disabled") == true
+		result.append({
+			"name": str(name),
+			"target": target.strip_edges(),
+			"status": MCP_DISABLED if disabled else MCP_UNKNOWN,
+			"detail": "",
+			"origin": origin,
+		})
+	return result
+
+
+## Parsea `[mcp_servers.<nombre>]` en `config.toml` de Codex.
+static func parse_codex_mcp_toml(text: String, origin: String) -> Array:
+	var result: Array = []
+	var header_re := RegEx.create_from_string("^\\[mcp_servers\\.(?:\"([^\"]+)\"|'([^']+)'|([A-Za-z0-9_-]+))\\]\\s*$")
+	var current_name := ""
+	var current: Dictionary = {}
+	for raw_line: String in text.replace("\r\n", "\n").split("\n"):
+		var line := raw_line.strip_edges()
+		if line.is_empty() or line.begins_with("#"):
+			continue
+		if line.begins_with("["):
+			_flush_codex_mcp_entry(result, current_name, current, origin)
+			var m := header_re.search(line)
+			if m:
+				current_name = m.get_string(1) if not m.get_string(1).is_empty() else (m.get_string(2) if not m.get_string(2).is_empty() else m.get_string(3))
+				current = {}
+			else:
+				current_name = ""
+			continue
+		if current_name.is_empty():
+			continue
+		var eq := line.find("=")
+		if eq <= 0:
+			continue
+		var key := line.substr(0, eq).strip_edges()
+		var val_text := line.substr(eq + 1).strip_edges()
+		if key in ["command", "url"]:
+			var parsed: Variant = _parse_json(val_text)
+			current[key] = str(parsed) if parsed is String else val_text.trim_prefix("'").trim_suffix("'")
+		elif key == "args":
+			var parsed_args: Variant = _parse_json(val_text)
+			if parsed_args is Array:
+				current["args"] = parsed_args
+		elif key == "enabled":
+			current["enabled"] = val_text != "false"
+	_flush_codex_mcp_entry(result, current_name, current, origin)
+	return result
+
+
+static func _flush_codex_mcp_entry(result: Array, current_name: String, current: Dictionary, origin: String) -> void:
+	if current_name.is_empty():
+		return
+	var target := str(current.get("url", ""))
+	if target.is_empty() and not str(current.get("command", "")).is_empty():
+		var parts: PackedStringArray = [str(current.command)]
+		if current.get("args") is Array:
+			for arg: Variant in current.args:
+				parts.append(str(arg))
+		target = " ".join(parts)
+	var disabled: bool = current.get("enabled") == false
+	result.append({
+		"name": current_name,
+		"target": target.strip_edges(),
+		"status": MCP_DISABLED if disabled else MCP_UNKNOWN,
+		"detail": "",
+		"origin": origin,
+	})
 
 
 ## Resultado de una acción: con `--json`, la última línea de stdout es un objeto con el resultado.

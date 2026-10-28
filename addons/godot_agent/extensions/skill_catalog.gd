@@ -17,11 +17,47 @@ const SKILL_FILE := "SKILL.md"
 const NAME_PATTERN := "^[a-z0-9][a-z0-9-]{0,63}$"
 
 
-## Carpeta de skills del usuario: <CLAUDE_CONFIG_DIR>/skills, o ~/.claude/skills.
-static func user_dir(config_dir: String) -> String:
-	if config_dir.is_empty():
-		config_dir = OS.get_environment("HOME").path_join(".claude")
-	return config_dir.path_join("skills")
+## Carpeta de skills del usuario: <CLAUDE_CONFIG_DIR>/skills para Claude Code, o la carpeta de
+## usuario del agente activo (`~/.codex/skills`, `~/.gemini/config/skills`, `~/.agents/skills`…).
+static func user_dir(config_dir: String, agent_kind: String = "claude", env: Dictionary = {}, home_dir: String = "") -> String:
+	var home := home_dir if not home_dir.is_empty() else OS.get_environment("HOME")
+	match agent_kind:
+		"claude", "":
+			if config_dir.is_empty():
+				config_dir = home.path_join(".claude")
+			return config_dir.path_join("skills")
+		"codex":
+			var codex_home := str(env.get("CODEX_HOME", OS.get_environment("CODEX_HOME")))
+			if codex_home.is_empty():
+				codex_home = home.path_join(".codex")
+			return codex_home.path_join("skills")
+		"antigravity":
+			return home.path_join(".gemini").path_join("config").path_join("skills")
+		"opencode":
+			return home.path_join(".config").path_join("opencode").path_join("skills")
+		"copilot":
+			return home.path_join(".copilot").path_join("skills")
+		"cursor":
+			return home.path_join(".cursor").path_join("skills")
+		_:
+			return home.path_join(".agents").path_join("skills")
+
+
+## Todas las carpetas de skills del usuario que lee `agent_kind`, en orden de prioridad.
+static func user_dirs(config_dir: String, agent_kind: String = "claude", env: Dictionary = {}, home_dir: String = "") -> PackedStringArray:
+	var primary := user_dir(config_dir, agent_kind, env, home_dir)
+	var dirs: PackedStringArray = [primary]
+	if agent_kind in ["claude", ""] and home_dir.is_empty():
+		return dirs
+	var home := home_dir if not home_dir.is_empty() else OS.get_environment("HOME")
+	var extras: PackedStringArray = []
+	if agent_kind == "antigravity":
+		extras.append(home.path_join(".gemini").path_join("antigravity").path_join("skills"))
+	extras.append(home.path_join(".agents").path_join("skills"))
+	for extra: String in extras:
+		if not extra in dirs:
+			dirs.append(extra)
+	return dirs
 
 
 ## Carpeta de configuración de Claude Code: la del perfil del agente, la del entorno o ~/.claude.
@@ -30,24 +66,88 @@ static func config_dir(env: Dictionary) -> String:
 	return dir if not dir.is_empty() else OS.get_environment("HOME").path_join(".claude")
 
 
-static func project_dir(project_path: String) -> String:
-	return project_path.path_join(".claude").path_join("skills")
+## Ruta relativa de la carpeta de skills del proyecto según el agente (`.claude/skills` o `.agents/skills`).
+static func project_relative_dir(agent_kind: String = "claude") -> String:
+	return ".claude/skills" if agent_kind in ["claude", ""] else ".agents/skills"
+
+
+static func project_dir(project_path: String, agent_kind: String = "claude") -> String:
+	if agent_kind in ["claude", ""]:
+		return project_path.path_join(".claude").path_join("skills")
+	if agent_kind == "antigravity" and DirAccess.dir_exists_absolute(project_path.path_join(".agent").path_join("skills")) and not DirAccess.dir_exists_absolute(project_path.path_join(".agents").path_join("skills")):
+		return project_path.path_join(".agent").path_join("skills")
+	return project_path.path_join(".agents").path_join("skills")
+
+
+## Todas las carpetas de skills del proyecto que pueden existir (estándar `.agents/skills`, `.claude/skills`, etc.).
+static func project_dirs(project_path: String, agent_kind: String = "claude") -> PackedStringArray:
+	var dirs: PackedStringArray = [project_dir(project_path, agent_kind)]
+	for rel: String in [".agents/skills", ".agent/skills", ".claude/skills", ".codex/skills", ".opencode/skills", ".github/skills", ".cursor/skills"]:
+		var candidate := project_path.path_join(rel)
+		if not candidate in dirs:
+			dirs.append(candidate)
+	return dirs
 
 
 ## Todas las skills: [{name, id, origin, plugin, path, description}]. `id` es el nombre que usa
-## Claude Code (`plugin:skill` para las de plugins); `path` es la carpeta de la skill.
-static func scan(claude_config_dir: String, project_path: String) -> Array[Dictionary]:
+## el agente (`plugin:skill` para las de plugins); `path` es la carpeta de la skill.
+static func scan(claude_config_dir: String, project_path: String, agent_kind: String = "claude", env: Dictionary = {}, home_dir: String = "") -> Array[Dictionary]:
 	var skills: Array[Dictionary] = []
-	skills.append_array(_scan_dir(project_dir(project_path), ORIGIN_PROJECT))
-	skills.append_array(_scan_dir(user_dir(claude_config_dir), ORIGIN_USER))
-	for plugin: Dictionary in installed_plugins(claude_config_dir):
-		for folder: String in plugin_skill_dirs(plugin, claude_config_dir):
-			var skill := read_skill(folder, ORIGIN_PLUGIN)
-			if not skill.is_empty():
-				skill.plugin = plugin.id
-				skill.id = "%s:%s" % [str(plugin.id).get_slice("@", 0), skill.name]
+	var seen_project: Dictionary = {}
+	for dir: String in project_dirs(project_path, agent_kind):
+		for skill: Dictionary in _scan_dir(dir, ORIGIN_PROJECT):
+			if not seen_project.has(skill.id):
+				seen_project[skill.id] = true
 				skills.append(skill)
+	var seen_user: Dictionary = {}
+	for dir: String in user_dirs(claude_config_dir, agent_kind, env, home_dir):
+		for skill: Dictionary in _scan_dir(dir, ORIGIN_USER):
+			if not seen_user.has(skill.id):
+				seen_user[skill.id] = true
+				skills.append(skill)
+	if agent_kind in ["claude", ""]:
+		for plugin: Dictionary in installed_plugins(claude_config_dir):
+			for folder: String in plugin_skill_dirs(plugin, claude_config_dir):
+				var skill := read_skill(folder, ORIGIN_PLUGIN)
+				if not skill.is_empty():
+					skill.plugin = plugin.id
+					skill.id = "%s:%s" % [str(plugin.id).get_slice("@", 0), skill.name]
+					skills.append(skill)
+	elif agent_kind == "antigravity":
+		for plugin: Dictionary in antigravity_plugins(project_path, home_dir):
+			for folder: String in plugin_skill_dirs(plugin, ""):
+				var skill := read_skill(folder, ORIGIN_PLUGIN)
+				if not skill.is_empty():
+					skill.plugin = plugin.id
+					skill.id = "%s:%s" % [plugin.id, skill.name]
+					skills.append(skill)
 	return skills
+
+
+## Plugins de Antigravity en `.agents/plugins/*`, `.agent/plugins/*` y `~/.gemini/config/plugins/*`: `[{id, path}]`.
+static func antigravity_plugins(project_path: String, home_dir: String = "") -> Array[Dictionary]:
+	var plugins: Array[Dictionary] = []
+	var seen: Dictionary = {}
+	var home := home_dir if not home_dir.is_empty() else OS.get_environment("HOME")
+	var roots: PackedStringArray = []
+	if not project_path.is_empty():
+		roots.append(project_path.path_join(".agents").path_join("plugins"))
+		roots.append(project_path.path_join(".agent").path_join("plugins"))
+	if not home.is_empty():
+		roots.append(home.path_join(".gemini").path_join("config").path_join("plugins"))
+	for root: String in roots:
+		if not DirAccess.dir_exists_absolute(root):
+			continue
+		for child: String in DirAccess.get_directories_at(root):
+			if child.begins_with(".") or seen.has(child):
+				continue
+			var folder := root.path_join(child)
+			var manifest: Variant = _read_json(folder.path_join("plugin.json"))
+			if manifest is Dictionary or DirAccess.dir_exists_absolute(folder.path_join("skills")):
+				var plugin_id := str((manifest as Dictionary).get("name", child)) if manifest is Dictionary else child
+				seen[child] = true
+				plugins.append({"id": plugin_id, "path": folder})
+	return plugins
 
 
 ## Plugins instalados según <config>/plugins/installed_plugins.json: [{id, path}].
@@ -69,6 +169,8 @@ static func plugin_skill_dirs(plugin: Dictionary, claude_config_dir: String) -> 
 	var root := str(plugin.path)
 	var declared: Variant = null
 	var manifest: Variant = _read_json(root.path_join(".claude-plugin").path_join("plugin.json"))
+	if manifest == null:
+		manifest = _read_json(root.path_join("plugin.json"))
 	if manifest is Dictionary:
 		declared = manifest.get("skills")
 	if declared == null:
