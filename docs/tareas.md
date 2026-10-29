@@ -3888,7 +3888,7 @@ Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 
 
 tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un editor headless) falla en 4.7.2 con «ERROR: 3 resources still in use at exit»; en 4.8-beta1 pasa. Ya fallaba antes de m13 (probado con el código anterior). El CI no corre este check: sumarlo a la matriz cuando pase. Con --verbose se ve qué recursos quedan.
 
-## M12 — Que el agente se verifique solo  (0/5)
+## M12 — Que el agente se verifique solo  (0/6)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
@@ -3914,3 +3914,5 @@ Como Ziva (validate-physics-setup, validate-tilemap-structure): tools de solo le
 ### Mover y renombrar archivos sin romper referencias · Pendiente
 
 Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool godot.* llevando el .uid y el .import, buscando referencias por ruta literal en .tscn/.tres/.gd/project.godot; si hay alguna que no se puede actualizar sin riesgo, rechazar. Resultado con outcome (unchanged, rolled_back, partial) y si es seguro reintentar.
+
+### Guía de Godot headless en GDScript (lo de walker, sin C#) · Pendiente
