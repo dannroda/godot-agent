@@ -50,3 +50,28 @@ jobs:
         run: |
           sed -i 's|, "res://addons/scope_compass/plugin.cfg"||' project.godot
           ~/godot/godot --headless --path . --script tests/plugin_cycle_check.gd
+
+  # C# (m14-07): validate_scripts compila con dotnet build; el test compila un proyecto de verdad.
+  csharp:
+    name: C# (Godot .NET 4.7.2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/godot-mono
+          key: godot-mono-4.7.2-stable
+
+      - name: Install Godot .NET
+        run: sh .github/scripts/install-godot.sh ~/godot-mono 4.7.2-stable mono
+
+      - name: Import
+        run: ~/godot-mono/godot --headless --path . --import
+
+      - name: C# tests
+        run: ~/godot-mono/godot --headless --path . --script tests/run_all.gd -- csharp

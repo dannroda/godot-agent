@@ -3892,7 +3892,7 @@ tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un edit
 
 **Notas:** Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.
 
-## M12 — Que el agente se verifique solo  (5/8, 5 en revisión)
+## M12 — Que el agente se verifique solo  (7/8, 7 en revisión)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
@@ -3939,7 +3939,7 @@ Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool 
 
 **Notas:** move_file ya mantenía uid, .uid/.import y referencias res:// (m4-10). Se sumó: rutas relativas de scripts (preload, load, ResourceLoader.load/exists, extends "…") recalculadas desde las carpetas nuevas cuando se mueve el script o lo que nombra; resultado PARTIAL con la lista si un archivo no se pudo escribir, y 'Nothing changed: safe to retry' si el movimiento en sí falla. No se hizo: rechazar por referencias que no se pueden actualizar (rutas armadas en código como "res://levels/" + name no se pueden detectar con certeza; las con prefijo literal de carpeta ya se reescriben).
 
-### Guía de Godot headless en GDScript (lo de walker, sin C#) · En curso
+### Guía de Godot headless en GDScript (lo de walker, sin C#) · Revisión
 
 walker (github.com/nikbearbrown/walker, MIT, engines/godot.md) trae una guía de Godot para agentes en C#; pasarla a GDScript y sumarla a lo que lee el agente (prompt de sistema o una skill en Extensiones), sobre todo para las sesiones en una copia aparte (m11-09), que no tienen las tools godot.* del editor:
 1. Cadena de verificación headless: godot --headless --import después de tocar assets, y godot --headless --quit (o --check-only por script) para errores de parseo.
@@ -3952,7 +3952,7 @@ Verificar cada regla en 4.7.2 y 4.8 antes de escribirla; citar walker (y Godogen
 
 **Notas:** addons/godot_agent/config/godot_headless.md: cadena de verificación (--import no parsea scripts; --check-only --script sale con 1 si hay error), escenas armadas por un script SceneTree con owner y conteo de nodos (un nodo sin owner se pierde sin error), fallas silenciosas (owner, .gdignore: los assets no se importan pero los scripts sí cargan, recursos compartidos, APIs adivinadas, suavizado dependiente del framerate) y video (--write-movie necesita ventana: en el editor, run_scene record). El prompt de sistema da la ruta ({headless_guide}); las sesiones en una copia la reciben entera en su nota, que antes decía que --quit reportaba errores de scripts. Cita a walker (MIT).
 
-### C# con el mismo soporte que GDScript · Pendiente
+### C# con el mismo soporte que GDScript · Revisión
 
 Pedido del usuario (29/10): que un proyecto en C# tenga lo mismo que uno en GDScript. Hoy el addon da por hecho .gd en:
 - Verificación al terminar el turno y get_errors (mcp/tools/diagnostic_tools.gd:66, 111, 200): solo mira .gd. Para C#: dotnet build del proyecto (con el SDK detectado) y sus errores con archivo y línea; si no hay SDK o el editor no es la versión .NET, avisarlo una vez.
@@ -3964,6 +3964,10 @@ Pedido del usuario (29/10): que un proyecto en C# tenga lo mismo que uno en GDSc
 - Remote watch (session/remote_watch.gd:13): sumar cs y csproj.
 - Prompt de sistema y Alt+I: reglas de C# en Godot (clases partial, señales con [Signal] y EventHandler, [Export], nombres en PascalCase, GD.Print), con lo de m14-06 en su versión C# (de walker, engines/godot.md).
 - Tests: un proyecto de prueba en C# en la matriz de CI con la versión .NET de Godot (4.7.2 y 4.8).
+
+**Prueba:** test_csharp_build (parser y compilación real del fixture si hay dotnet); test_system_prompt (reglas solo con .csproj); en el editor Godot .NET 4.7.2 (Xvfb): create_scene con Hero.cs nuevo, validate_scripts sin errores, .cs roto → 'line 7: CS0103' en validate_scripts y en la verificación de fin de turno
+
+**Notas:** Hecho: core/csharp_build.gd (dotnet build en inglés, errores ruta(línea,col) a res://); validate_scripts acepta .cs y, sin paths, compila el C# si hay .csproj (avisa si hay .cs sin .csproj); la verificación de fin de turno compila si cambió algún .cs; attach_script/create_scene crean .cs como partial class con el nombre del archivo (y avisan si el editor no es .NET); set_autoload acepta .cs; menciones @ y Remote Control suman .cs; move_file avisa que la clase tiene que llamarse como el archivo; abrir un hallazgo en un .cs no salta a la pestaña Script si se abre en un editor externo; reglas de C# en el prompt solo con .csproj; job de CI con Godot .NET 4.7.2 + dotnet 8. De paso: validate_scripts sin paths saltea los scripts del harness (con el addon instalado no entraba en 60 s). La sincronización de buffers ya era genérica (por Script) y cubre los .cs abiertos.
 
 ### Completado predictivo para C# en el Script Editor · Pendiente
 

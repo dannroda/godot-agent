@@ -6,6 +6,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Added
 
+- **C# projects** (Godot .NET): `validate_scripts` and the check at the end of each turn compile with `dotnet build` and give the errors by file and line; `attach_script` and `create_scene` create `.cs` scripts as a partial class named like the file; `.cs` files can be mentioned with `@`; findings in a `.cs` open in your external editor if you use one; and the agent gets the C# conventions when the project has a `.csproj`.
 - A guide for running Godot from the command line (`config/godot_headless.md`, adapted from walker): checking scripts with `--check-only`, building scenes with a script that counts its nodes, and the failures Godot doesn't report (a node without `owner`, `.gdignore`). Sessions in a separate copy get it in full; the system prompt points to it.
 - `godot.move_file` also fixes the relative paths of scripts (`preload("enemy.tscn")`, `load`, `extends "base.gd"`) when the script or what it names moves, and says PARTIAL with the list if a file could not be updated.
 - `godot.validate_physics` and `godot.validate_tilemap`: read-only checks of collision shapes, layers and masks, and of TileMapLayer cells and collisions, which the agent runs after touching physics or maps.
@@ -16,6 +17,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Fixed
 
+- `validate_scripts` without paths no longer times out in projects with the harness installed: it skips the harness's own scripts.
 - Disabling the plugin on Godot 4.7 no longer leaves the run tools and the playtest debugger in memory.
 
 ## [0.1.10] - 2026-10-29

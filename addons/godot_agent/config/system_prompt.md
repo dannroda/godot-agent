@@ -32,3 +32,4 @@ Godot conventions (for the code you write and for what you review):
 - Randomness through a `RandomNumberGenerator` with a seed you can set, so playtests are reproducible.
 - Verify after every change: validate the scripts, check the errors and, if the change is visible, run the scene and look at it.
 - Answer in the user's language.
+{csharp_rules}

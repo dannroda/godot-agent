@@ -11,7 +11,7 @@
    - el panel inferior **Agent Log**: lo que va y viene entre el editor y el agente, por canal;
    - la pantalla **One-shot** en la barra de arriba, junto a 2D/3D/Script, donde corre el One-shot.
 
-Requisitos: Godot 4.7 o más nuevo y, para Claude Code, Node.js con `npx`.
+Requisitos: Godot 4.7 o más nuevo y, para Claude Code, Node.js con `npx`. Los proyectos en C# andan con la versión .NET de Godot y el SDK de .NET (`dotnet`), que el harness usa para compilar e informar los errores de C#.
 
 ## 2. Abrir una sesión
 

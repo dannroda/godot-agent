@@ -179,8 +179,8 @@ func _set_autoload(args: Dictionary) -> Dictionary:
 			if str(info["class"]) == name:
 				return McpTool.error("%s is already a class_name (%s): an autoload cannot have the same name." % [name, info.path])
 	var path := str(args.path)
-	if not path.begins_with("res://") or path.get_extension() not in ["gd", "tscn", "scn"]:
-		return McpTool.error("`path` must be res://…gd or res://…tscn.")
+	if not path.begins_with("res://") or path.get_extension() not in ["gd", "cs", "tscn", "scn"]:
+		return McpTool.error("`path` must be res://…gd, res://…cs or res://…tscn.")
 	if not FileAccess.file_exists(path):
 		return McpTool.error("%s does not exist: create it first." % path)
 	var value := ("*" if args.get("enabled", true) != false else "") + path

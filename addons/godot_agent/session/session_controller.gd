@@ -24,6 +24,7 @@ const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
+const CsharpBuild := preload("../core/csharp_build.gd")
 const UsageQuery := preload("usage_query.gd")
 const SessionCatalog := preload("session_catalog.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
@@ -51,6 +52,13 @@ const SYSTEM_PROMPT_PATH := "res://addons/godot_agent/config/system_prompt.md"
 ## Guía de Godot por línea de comandos (m14-06): el prompt da su ruta; las sesiones en una copia la
 ## reciben entera.
 const HEADLESS_GUIDE_PATH := "res://addons/godot_agent/config/godot_headless.md"
+## Reglas de C# para el prompt, solo si el proyecto tiene un .csproj (m14-07).
+const CSHARP_RULES := """
+C# in this project (it has a .csproj):
+- A script is `public partial class <Name> : <NodeType>` in a file with the same name (`Player.cs` holds `Player`). `godot.attach_script` and `godot.create_scene` create .cs scripts like that.
+- Exported values: `[Export] public float Speed = 300.0f;`. Signals: `[Signal] public delegate void HitEventHandler(int damage);`, emitted with `EmitSignal(SignalName.Hit, 5)`.
+- Godot's API is PascalCase in C#: `MoveAndSlide()`, `GetNode<Label>("HUD/Score")`, `Input.GetVector(…)`, `GD.Print(…)`.
+- After changing C#, run `godot.validate_scripts`: it compiles with dotnet build and returns the errors by file and line. The game runs the new code only after a build."""
 
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"
@@ -816,6 +824,7 @@ func system_prompt() -> String:
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)
 	variables["godot_bin"] = variables.get("godot_bin", EditorBinary.path())
 	variables["headless_guide"] = variables.get("headless_guide", ProjectSettings.globalize_path(HEADLESS_GUIDE_PATH))
+	variables["csharp_rules"] = CSHARP_RULES if not CsharpBuild.find_project(cwd).is_empty() else ""
 	return "<harness_context>\n%s\n</harness_context>" % template.format(variables)
 
 

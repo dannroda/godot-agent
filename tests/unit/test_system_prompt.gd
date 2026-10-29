@@ -33,3 +33,19 @@ func test_code_criterion_uses_conventions() -> void:
 	var code: Dictionary = GameCriteria.resolve().filter(func(c: Dictionary) -> bool: return c.id == "code")[0]
 	for text: String in ["scenes saved on disk", "call down and signal up", "Resources", "seeded"]:
 		assert_true(str(code.description).contains(text), text)
+
+
+## m14-07: las reglas de C# van solo si el proyecto tiene un .csproj.
+func test_csharp_rules_only_with_csproj() -> void:
+	var dir := ProjectSettings.globalize_path(temp_dir("prompt_csharp"))
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	controller.setup(model, AgentLog.new(), dir)
+	assert_false(controller.system_prompt().contains("C# in this project"), "sin .csproj, sin reglas de C#")
+	var file := FileAccess.open(dir.path_join("Game.csproj"), FileAccess.WRITE)
+	file.store_string("<Project Sdk=\"Godot.NET.Sdk/4.7.2\" />")
+	file.close()
+	var prompt := controller.system_prompt()
+	assert_true(prompt.contains("C# in this project") and prompt.contains("public partial class"), "con .csproj, las reglas")
+	assert_false(RegEx.create_from_string("\\{[a-z_]+\\}").search(prompt) != null, "sin variables sin reemplazar")
+	DirAccess.remove_absolute(dir.path_join("Game.csproj"))

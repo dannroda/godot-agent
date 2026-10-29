@@ -69,12 +69,12 @@ func tools() -> Array:
 		McpTool.create("save_scene", scene, "Saves the current scene (or the given one, which must be open).",
 			{"path": {"type": "string"}}, [], _save_scene),
 		McpTool.create("create_scene", files,
-			"Creates and saves a new .tscn with a root node, optionally with its script (created with `extends <root_type>` if it does not exist) and root properties, including the script's exported variables. Never write a .tscn by hand. Does not open it: use open_scene to add children.",
+			"Creates and saves a new .tscn with a root node, optionally with its script (.gd or .cs; created with `extends <root_type>`, or as a C# partial class, if it does not exist) and root properties, including the script's exported variables. Never write a .tscn by hand. Does not open it: use open_scene to add children.",
 			{"path": {"type": "string"}, "root_type": {"type": "string"}, "root_name": {"type": "string"},
 				"script_path": {"type": "string"}, "properties": {"type": "object"}},
 			["path", "root_type", "root_name"], _create_scene),
 		McpTool.create("attach_script", files,
-			"Attaches a script to a node (with undo). If the file does not exist, creates it with `extends <node type>`.",
+			"Attaches a script (.gd, or .cs in the .NET editor) to a node (with undo). If the file does not exist, creates it: `extends <node type>`, or for C# a partial class named like the file that inherits the node type.",
 			{"node_path": {"type": "string"}, "script_path": {"type": "string"}, "scene": SCENE_ARG},
 			["node_path", "script_path"], _attach_script),
 	]
@@ -578,16 +578,21 @@ func _attach_script(args: Dictionary) -> Dictionary:
 # --- internos ------------------------------------------------------------------------------------
 
 ## El script de `script_path` para `node` (lo crea con `extends <clase del nodo>` si no existe), o
-## el motivo del error.
+## el motivo del error. Un .cs (m14-07) se crea como clase partial con el nombre del archivo.
 func _load_or_create_script(script_path: String, node: Node) -> Variant:
-	if not script_path.begins_with("res://") or script_path.get_extension() != "gd":
-		return "`script_path` must be res://…gd."
+	var extension := script_path.get_extension()
+	if not script_path.begins_with("res://") or not extension in ["gd", "cs"]:
+		return "`script_path` must be res://…gd or res://…cs."
+	if extension == "cs" and not ClassDB.class_exists(&"CSharpScript"):
+		return "This editor has no C# support: C# scripts need the .NET version of Godot."
+	if extension == "cs" and not script_path.get_file().get_basename().is_valid_identifier():
+		return "A C# script's file name is its class name: %s is not a valid one (use PascalCase, like Player.cs)." % script_path.get_file()
 	if not FileAccess.file_exists(script_path):
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(script_path.get_base_dir()))
 		var file := FileAccess.open(script_path, FileAccess.WRITE)
 		if file == null:
 			return "Could not create %s: %s." % [script_path, error_string(FileAccess.get_open_error())]
-		file.store_string("extends %s\n\n\nfunc _ready() -> void:\n\tpass\n" % node.get_class())
+		file.store_string(script_template(extension, script_path.get_file().get_basename(), node.get_class()))
 		file.close()
 		EditorInterface.get_resource_filesystem().update_file(script_path)
 	var script := ResourceLoader.load(script_path, "", ResourceLoader.CACHE_MODE_REPLACE) as Script
@@ -597,6 +602,13 @@ func _load_or_create_script(script_path: String, node: Node) -> Variant:
 	if not String(base).is_empty() and not node.is_class(base):
 		return "%s extends %s and %s is %s: cannot attach it." % [script_path, base, node.name, node.get_class()]
 	return script
+
+
+## Lo que tiene un script nuevo: `extends` en GDScript; en C#, la clase partial con el nombre del archivo.
+static func script_template(extension: String, class_name_of_file: String, base: String) -> String:
+	if extension == "cs":
+		return "using Godot;\n\npublic partial class %s : %s\n{\n\tpublic override void _Ready()\n\t{\n\t}\n}\n" % [class_name_of_file, base]
+	return "extends %s\n\n\nfunc _ready() -> void:\n\tpass\n" % base
 
 
 ## La escena sobre la que se edita: la indicada en `scene` (se abre si hace falta) o la actual.

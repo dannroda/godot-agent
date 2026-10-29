@@ -10,7 +10,7 @@ enum FileChange { MODIFIED, CREATED, DELETED }
 
 ## Extensiones cuyo texto se guarda para el diff y el deshacer.
 const TEXT_EXTENSIONS: PackedStringArray = [
-	"gd", "gdshader", "gdshaderinc", "shader", "tscn", "tres", "cfg", "godot", "json", "md", "txt",
+	"gd", "cs", "csproj", "gdshader", "gdshaderinc", "shader", "tscn", "tres", "cfg", "godot", "json", "md", "txt",
 	"csv", "cs", "ini", "yaml", "yml", "toml", "xml", "html", "js", "css", "py", "sh",
 ]
 ## Los maneja el editor: cambian solos al importar.

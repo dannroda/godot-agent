@@ -122,6 +122,8 @@ func _move_file(args: Dictionary) -> Dictionary:
 	if not relative_changed.is_empty():
 		lines.append("Updated relative paths (preload, load, extends) in %d script(s): %s" % [relative_changed.size(), ", ".join(relative_changed.slice(0, REFERENCE_LIST_LIMIT))])
 	lines.append_array(warnings)
+	if from.get_extension() == "cs" and from.get_file().get_basename() != to.get_file().get_basename():
+		lines.append("C#: the class inside must be named like the file. Rename the class to %s in %s too, and check with validate_scripts." % [to.get_file().get_basename(), to])
 	if not failed.is_empty():
 		lines.append("PARTIAL: the move is done, but these could not be written and still point to the old path: %s. Fix them by hand (do not retry the move)." % ", ".join(failed))
 	return McpTool.text("\n".join(lines))

@@ -5,7 +5,7 @@ extends RefCounted
 
 const MAX_IMAGE_SIDE := 1280
 const MENTION_FILE_LIMIT := 3000
-const MENTION_EXTENSIONS: PackedStringArray = ["gd", "tscn", "tres", "gdshader", "cfg", "json", "md", "txt", "csv"]
+const MENTION_EXTENSIONS: PackedStringArray = ["gd", "cs", "tscn", "tres", "gdshader", "cfg", "json", "md", "txt", "csv"]
 
 
 static func project_path() -> String:
@@ -122,12 +122,22 @@ static func open_location(path: String, line: int = 0) -> bool:
 	var resource := load(res_path)
 	if resource is Script:
 		EditorInterface.edit_script(resource, maxi(line, 1) if line > 0 else -1)
-		EditorInterface.set_main_screen_editor("Script")
+		if not opens_externally(res_path):
+			EditorInterface.set_main_screen_editor("Script")
 		return true
 	if resource:
 		EditorInterface.edit_resource(resource)
 		return true
 	return false
+
+
+## Si `edit_script` lo abre en un editor externo (VS Code, Rider…) en lugar del Script Editor: el
+## externo general, o el de C# (`dotnet/editor/external_editor`, 0 = ninguno) para los .cs (m14-07).
+static func opens_externally(res_path: String) -> bool:
+	var settings := EditorInterface.get_editor_settings()
+	if settings.get_setting("text_editor/external/use_external_editor"):
+		return true
+	return res_path.get_extension() == "cs" and settings.has_setting("dotnet/editor/external_editor") and int(settings.get_setting("dotnet/editor/external_editor")) != 0
 
 
 ## Ruta `res://` para una ruta absoluta dentro del proyecto, o "" si queda afuera.

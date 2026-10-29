@@ -370,6 +370,7 @@ func _editor_node() -> Node:
 
 
 ## Script cerrado pero cargado en memoria (p. ej. por una escena abierta): se recarga del disco.
+## Solo GDScript: un .cs cambia de verdad con el build del ensamblado (validate_scripts o al correr).
 func _reload_cached_script(res_path: String) -> void:
 	if res_path.get_extension() != "gd" or not ResourceLoader.has_cached(res_path):
 		return
