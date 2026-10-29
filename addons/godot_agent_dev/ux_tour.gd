@@ -6,6 +6,7 @@ extends RefCounted
 
 const DocsShots := preload("docs_shots.gd")
 const SettingsDialog := preload("res://addons/godot_agent/ui/settings/settings_dialog.gd")
+const ExtensionsWindow := preload("res://addons/godot_agent/ui/extensions/extensions_window.gd")
 const RegistryDialog := preload("res://addons/godot_agent/ui/settings/acp_registry_dialog.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 
@@ -55,7 +56,7 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	await _frames(30)
 	var ext := _by_script("res://addons/godot_agent/ui/extensions/extensions_window.gd") as Window
 	if ext:
-		for tab in (ext.get(&"_tabs") as TabContainer).get_tab_count():
+		for tab in ExtensionsWindow.ExtensionsTab.size():
 			ext.call(&"open", tab)
 			await _frames(40)
 			_save(ext.get_texture().get_image(), "2%d_extensiones_%d" % [tab, tab])
