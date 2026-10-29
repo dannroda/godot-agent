@@ -329,7 +329,10 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 		if not result.ok and is_auth_required(result.error):
 			login_actions = _login_actions()
 			if not login_actions.is_empty():
-				message = I18n.t("Could not open the session: %s. Sign in to continue.") % detail
+				# Pedir el login no es un error (m12-11): tarjeta neutra, sin código ni «Reintentar».
+				agent_log.add(AgentLog.CH_PROC, message)
+				_fail(I18n.t("Sign in to %s to continue.") % _agent_name(), login_actions, ChatEntry.NoticeLevel.INFO, false)
+				return false
 			else:
 				message = I18n.t("Could not open the session: %s. The agent asks for authentication: %s") % [detail, _auth_hint()]
 		_fail(message, login_actions)
@@ -411,11 +414,14 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
-			var actions: Array[Dictionary] = []
+			var login_actions: Array[Dictionary] = []
 			if is_auth_required(result.error):
-				actions = _login_actions()
-			actions.append_array(_error_actions())
-			model.add_notice(I18n.t("The turn ended with an error: %s") % result.error_message(), ChatEntry.NoticeLevel.ERROR, actions)
+				login_actions = _login_actions()
+			if not login_actions.is_empty():
+				agent_log.add(AgentLog.CH_PROC, "The turn ended with an error: %s" % result.error_message())
+				model.add_notice(I18n.t("Sign in to %s again to continue.") % _agent_name(), ChatEntry.NoticeLevel.INFO, login_actions)
+			else:
+				model.add_notice(I18n.t("The turn ended with an error: %s") % result.error_message(), ChatEntry.NoticeLevel.ERROR, _error_actions())
 			model.finish_turn("error")
 		_record_turn_end("error")
 		return "error"
@@ -798,11 +804,21 @@ func login_methods() -> Array[Dictionary]:
 
 
 ## Un botón por método que el addon sabe usar.
+## El primer método como botón principal; los demás, en el menú «Otras formas de entrar» (m12-11).
 func _login_actions() -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
 	for method: Dictionary in AgentLogin.usable_methods(model.auth_methods):
-		actions.append({"id": ACTION_LOGIN, "label": I18n.t("Sign in · %s") % AgentLogin.label_of(method), "data": str(method.id)})
+		var action := {"id": ACTION_LOGIN, "label": AgentLogin.label_of(method), "data": str(method.id)}
+		if actions.is_empty():
+			action["primary"] = true
+		else:
+			action["more"] = I18n.t("Other ways to sign in")
+		actions.append(action)
 	return actions
+
+
+func _agent_name() -> String:
+	return _profile.display_name if _profile else I18n.t("the agent")
 
 
 func system_prompt() -> String:
@@ -1556,12 +1572,13 @@ func _sync_agent_mode() -> void:
 			return
 
 
-func _fail(message: String, extra_actions: Array[Dictionary] = []) -> void:
+func _fail(message: String, extra_actions: Array[Dictionary] = [], level := ChatEntry.NoticeLevel.ERROR, with_error_actions := true) -> void:
 	model.failure_message = message
 	agent_log.add(AgentLog.CH_PROC, message)
 	var actions := extra_actions.duplicate()
-	actions.append_array(_error_actions())
-	model.add_notice(message, ChatEntry.NoticeLevel.ERROR, actions)
+	if with_error_actions:
+		actions.append_array(_error_actions())
+	model.add_notice(message, level, actions)
 	model.set_state(SessionModel.SessionState.FAILED)
 
 

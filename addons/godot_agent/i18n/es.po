@@ -474,8 +474,6 @@ msgstr "No se pudo abrir el hallazgo."
 msgid "Could not open the session: %s"
 msgstr "No se pudo abrir la sesión: %s"
 
-msgid "Could not open the session: %s. Sign in to continue."
-msgstr "No se pudo abrir la sesión: %s. Iniciá sesión para seguir."
 
 msgid "Could not open the session: %s. The agent asks for authentication: %s"
 msgstr "No se pudo abrir la sesión: %s. El agente pide autenticarse: %s"
@@ -1371,8 +1369,6 @@ msgstr "Mostrar los mensajes JSON-RPC completos"
 msgid "Shown"
 msgstr "Mostradas"
 
-msgid "Sign in · %s"
-msgstr "Iniciar sesión · %s"
 
 msgid "Sign-in cancelled."
 msgstr "Inicio de sesión cancelado."
@@ -3270,3 +3266,15 @@ msgstr "Esperando la respuesta del agente"
 
 msgid "%d s"
 msgstr "%d s"
+
+msgid "Sign in to %s to continue."
+msgstr "Iniciá sesión en %s para seguir."
+
+msgid "Sign in to %s again to continue."
+msgstr "Volvé a iniciar sesión en %s para seguir."
+
+msgid "Other ways to sign in"
+msgstr "Otras formas de entrar"
+
+msgid "the agent"
+msgstr "el agente"

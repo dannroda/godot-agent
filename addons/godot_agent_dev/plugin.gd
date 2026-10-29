@@ -920,7 +920,7 @@ func _run_login_test(shot_path: String) -> void:
 	if await controller.call(&"start", profile):
 		_finish(1, "la sesión abrió sin login")
 		return
-	var login_button := await _wait_button(dock, "Sign in · Cuenta falsa")
+	var login_button := await _wait_button(dock, "Cuenta falsa")
 	if login_button == null:
 		_finish(1, "el aviso no ofrece iniciar sesión")
 		return

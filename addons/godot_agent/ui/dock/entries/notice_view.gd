@@ -1,6 +1,8 @@
 @tool
 extends "entry_view.gd"
 ## Aviso del harness (cancelación, errores de transporte…) con acciones concretas (spec §15).
+## Una acción `primary` va con el color de acento; las que traen `more` (el texto del menú) van
+## juntas en ese menú, después de los botones (p. ej. «Otras formas de entrar», m12-11).
 
 var _panel: PanelContainer
 var _label: Label
@@ -27,16 +29,43 @@ func refresh() -> void:
 			color = AgentTheme.WARNING
 		ChatEntry.NoticeLevel.ERROR:
 			color = AgentTheme.ERROR
-	var bg := Color(color, 0.08) if entry.level != ChatEntry.NoticeLevel.INFO else Color.TRANSPARENT
-	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(bg, Color(color, 0.5) if bg.a > 0.0 else Color.TRANSPARENT, 6, 6))
+	# Un aviso que pide algo (tiene acción principal) va en una tarjeta neutra, alineado a la izquierda.
+	var asks := entry.level == ChatEntry.NoticeLevel.INFO and entry.actions.any(func(action: Dictionary) -> bool: return bool(action.get("primary", false)))
+	var bg := Color(color, 0.08) if entry.level != ChatEntry.NoticeLevel.INFO else (Color(1, 1, 1, 0.04) if asks else Color.TRANSPARENT)
+	var border := Color(color, 0.5) if entry.level != ChatEntry.NoticeLevel.INFO else (Color(1, 1, 1, 0.12) if asks else Color.TRANSPARENT)
+	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(bg, border, 6, 8 if asks else 6))
 	_label.text = entry.text
-	_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.NoticeLevel.INFO else AgentTheme.MUTED)
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO else HORIZONTAL_ALIGNMENT_LEFT
+	if asks:
+		_label.remove_theme_color_override(&"font_color")
+	else:
+		_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.NoticeLevel.INFO else AgentTheme.MUTED)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO and not asks else HORIZONTAL_ALIGNMENT_LEFT
+	_actions.alignment = FlowContainer.ALIGNMENT_BEGIN if asks else FlowContainer.ALIGNMENT_END
 	for child: Node in _actions.get_children():
 		child.queue_free()
+	var menus: Dictionary = {}  # texto del menú -> MenuButton
 	for action: Dictionary in entry.actions:
+		var emit := func() -> void: action_requested.emit(str(action.id), action.get("data", entry))
+		var label := str(action.get("label", action.get("id", "")))
+		var more := str(action.get("more", ""))
+		if not more.is_empty():
+			var menu: MenuButton = menus.get(more)
+			if menu == null:
+				menu = MenuButton.new()
+				menu.text = more + " ▾"
+				menu.flat = false
+				menu.get_popup().id_pressed.connect(func(index: int) -> void: (menu.get_meta(&"actions") as Array)[index].call())
+				menu.set_meta(&"actions", [])
+				menus[more] = menu
+			menu.get_popup().add_item(label, menu.get_popup().item_count)
+			(menu.get_meta(&"actions") as Array).append(emit)
+			continue
 		var button := Button.new()
-		button.text = str(action.get("label", action.get("id", "")))
-		button.pressed.connect(func() -> void: action_requested.emit(str(action.id), action.get("data", entry)))
+		button.text = label
+		if bool(action.get("primary", false)):
+			AgentTheme.style_accent_button(button, accent, 4, 6)
+		button.pressed.connect(emit)
 		_actions.add_child(button)
+	for more: String in menus:
+		_actions.add_child(menus[more])
 	_actions.visible = not entry.actions.is_empty()

@@ -556,8 +556,9 @@ func _scenario_login() -> void:
 	_check(_log_has(log, "\"auth\":{\"terminal\":true}"), "login: initialize declara auth.terminal")
 	var failure: ChatEntry = model.entries().back()
 	var login_actions := failure.actions.filter(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN)
-	_check(login_actions.size() == 1 and login_actions[0].data == "fake-login" and login_actions[0].label == "Sign in · Cuenta falsa", "login: un botón por método usable (%s)" % [failure.actions])
-	_check(failure.text.contains("Sign in to continue"), "login: el aviso lo dice (%s)" % failure.text)
+	_check(login_actions.size() == 1 and login_actions[0].data == "fake-login" and login_actions[0].label == "Cuenta falsa" and login_actions[0].get("primary", false), "login: un botón por método usable, el primero principal (%s)" % [failure.actions])
+	_check(failure.text == "Sign in to Agente falso to continue." and failure.level == ChatEntry.NoticeLevel.INFO, "login: aviso neutro que lo dice (%s)" % failure.text)
+	_check(not failure.actions.any(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_RETRY), "login: sin «Reintentar»")
 	var link_shown := func() -> bool:
 		return model.entries().any(func(entry: ChatEntry) -> bool:
 			return entry.actions.any(func(action: Dictionary) -> bool: return action.id == "open_link"))
