@@ -25,3 +25,4 @@ Godot Agent Harness pone un agente de código adentro del editor de Godot. El ag
 - Nunca lee las credenciales del agente ni sus archivos privados.
 - El servidor MCP escucha solo en `127.0.0.1`, con un token que cambia en cada arranque.
 - Nada del addon llega a un juego exportado.
+- Sin telemetría. Qué le llega al agente y a su proveedor, qué guarda el addon y cómo borrarlo: [Privacidad y uso de datos](https://github.com/dannroda/godot-agent/blob/main/PRIVACY.es.md).

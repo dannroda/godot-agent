@@ -20,7 +20,7 @@ It has five modes: **Ask**, **Review**, **Build**, **Auto** (Build that runs the
 
 - 100 % statically typed GDScript: no GDExtension, no dependencies.
 - Editor-only: nothing from the addon ends up in an exported game.
-- The harness never merges or pushes, never stores keys and never reads the agent's credentials.
+- The harness never merges or pushes, never stores keys and never reads the agent's credentials. It has no telemetry: what you share goes to the agent you choose and its provider. Details in [PRIVACY.md](PRIVACY.md); to report a vulnerability, [SECURITY.md](SECURITY.md).
 - The interface is in English and Spanish (it follows the editor language; you can change it in Settings).
 - The chat renders the agent's Markdown: tables, lists, quotes, and code blocks with highlighting and a copy button.
 

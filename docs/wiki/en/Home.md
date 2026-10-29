@@ -25,3 +25,4 @@ Godot Agent Harness puts a coding agent inside the Godot editor. The agent runs 
 - It never reads the agent's credentials or its private files.
 - The MCP server listens only on `127.0.0.1`, with a token that changes on every start.
 - Nothing from the addon reaches an exported game.
+- No telemetry. What goes to the agent and its provider, what the addon stores and how to delete it: [Privacy and data use](https://github.com/dannroda/godot-agent/blob/main/PRIVACY.md).

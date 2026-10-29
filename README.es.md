@@ -20,7 +20,7 @@ Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construi
 
 - 100 % GDScript con tipos estáticos: sin GDExtension ni dependencias.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
-- El harness nunca hace merge ni push, no guarda claves y no lee las credenciales del agente.
+- El harness nunca hace merge ni push, no guarda claves y no lee las credenciales del agente. No tiene telemetría: lo que compartís va al agente que elegís y a su proveedor. Detalles en [PRIVACY.es.md](PRIVACY.es.md); para reportar una vulnerabilidad, [SECURITY.md](SECURITY.md).
 - La interfaz está en inglés y en español: sigue el idioma del editor y se cambia en Settings.
 - El chat muestra el Markdown del agente: tablas, listas, citas y bloques de código con resaltado y botón para copiar.
 
