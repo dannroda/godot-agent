@@ -67,6 +67,7 @@ func _process(_delta: float) -> void:
 ## Abre el diálogo y, la primera vez, lee el registro.
 func open() -> void:
 	popup_centered_clamped(Vector2i(AgentTheme.px(560), AgentTheme.px(560)), 0.8)
+	ExtensionsUi.refit_dialog(self)
 	if _agents.is_empty() and not _busy:
 		_busy = true
 		_status.text = I18n.t("Reading the ACP registry…")

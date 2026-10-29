@@ -127,6 +127,8 @@ func _build() -> void:
 	root.add_child(_banner)
 	_tabs = TabContainer.new()
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Cada pestaña se mide la primera vez que se muestra: acomodar de nuevo al cambiar.
+	_tabs.tab_changed.connect(func(_tab: int) -> void: ExtensionsUi.refit_dialog(self))
 	root.add_child(_tabs)
 	_tabs.add_child(_build_plugins_tab())
 	_tabs.add_child(_build_markets_tab())
@@ -163,6 +165,7 @@ func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 	_build()
 	_tabs.current_tab = tab
 	popup_centered_clamped(Vector2i(AgentTheme.px(640), AgentTheme.px(760)), 0.9)
+	ExtensionsUi.refit_dialog(self)
 	refresh()
 
 

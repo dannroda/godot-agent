@@ -291,6 +291,11 @@ func _enter_tree() -> void:
 	add_child(_completion)
 	_inline_edit = InlineEdit.new()
 	_inline_edit.ask = _ask_inline
+	_inline_edit.cancel = func() -> void:
+		var controller := _controller_of(_active_session_id())
+		if controller:
+			controller.cancel()
+	_inline_edit.start_session = _start_inline_session
 	add_child(_inline_edit)
 	_inline_menu = InlineEditMenu.new()
 	_inline_menu.inline_edit = _inline_edit
@@ -939,17 +944,33 @@ func _context_for_mention(kind: String, arg: String) -> String:
 
 
 ## Un pedido del chat en línea (m11-05): va a la sesión de la pestaña activa y espera su turno.
-func _ask_inline(prompt: String) -> Dictionary:
+func _active_session_id() -> String:
 	var id := _tabs.active_id() if _tabs else PRIMARY_SESSION
-	var controller := _controller_of(id if not id.is_empty() else PRIMARY_SESSION)
-	var model := _model_of(id if not id.is_empty() else PRIMARY_SESSION)
+	return id if not id.is_empty() else PRIMARY_SESSION
+
+
+func _ask_inline(prompt: String) -> Dictionary:
+	var id := _active_session_id()
+	var controller := _controller_of(id)
+	var model := _model_of(id)
 	if controller == null or not controller.is_connected_to_agent():
-		return {"text": "", "error": I18n.t("Start a session in the Agent dock first.")}
+		return {"text": "", "error": I18n.t("There's no session open in the Agent dock."), "no_session": true}
 	if model.state != SessionModel.SessionState.READY:
 		return {"text": "", "error": I18n.t("The agent is busy: try again when its turn ends.")}
 	var first := model.entries().size()
 	var reason: String = await controller.send_prompt(prompt)
 	return {"text": controller.agent_text_since(first), "error": "" if reason == "end_turn" else I18n.t("The turn ended with «%s».") % reason}
+
+
+## «Iniciar sesión» del Alt+I: la abre en la pestaña activa del dock, como su botón.
+func _start_inline_session() -> bool:
+	var id := _active_session_id()
+	var dock: Control = _tabs.dock(id) if _tabs else null
+	if dock == null:
+		return false
+	await dock.call(&"_start_session")
+	var controller := _controller_of(id)
+	return controller != null and controller.is_connected_to_agent()
 
 
 # --- cambios por turno (m11-01, m11-02) ------------------------------------------------------------

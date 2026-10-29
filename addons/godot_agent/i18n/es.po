@@ -2993,8 +2993,8 @@ msgstr "El código cambió mientras el agente contestaba: la propuesta no se apl
 msgid "Ask the agent to change this… (Alt+I)"
 msgstr "Pedirle un cambio al agente… (Alt+I)"
 
-msgid "Start a session in the Agent dock first."
-msgstr "Primero iniciá una sesión en el dock del agente."
+msgid "There's no session open in the Agent dock."
+msgstr "No hay una sesión abierta en el dock del agente."
 
 msgid "The agent is busy: try again when its turn ends."
 msgstr "El agente está ocupado: probá de nuevo cuando termine su turno."
@@ -3220,3 +3220,15 @@ msgstr "Nombre de archivo (p. ej. estilo-codigo)"
 
 msgid "Enter a valid file name."
 msgstr "Ingresá un nombre de archivo válido."
+
+msgid "line %d"
+msgstr "línea %d"
+
+msgid "lines %d–%d"
+msgstr "líneas %d–%d"
+
+msgid "Starting the session…"
+msgstr "Abriendo la sesión…"
+
+msgid "The session didn't start: look at the Agent dock."
+msgstr "La sesión no se abrió: mirá el dock del agente."

@@ -43,3 +43,8 @@ func test_apply() -> void:
 	assert_true(InlineEdit.is_shortcut(key), "Alt+I")
 	key.ctrl_pressed = true
 	assert_false(InlineEdit.is_shortcut(key), "Ctrl+Alt+I no")
+
+
+func test_where_label() -> void:
+	assert_eq(InlineEdit.where_label({"from_line": 14, "to_line": 15}), "lines 15–16", "rango, desde 1")
+	assert_eq(InlineEdit.where_label({"from_line": 14, "to_line": 14}), "line 15", "una línea")

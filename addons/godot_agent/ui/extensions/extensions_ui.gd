@@ -68,6 +68,15 @@ static func scroll_list(page: VBoxContainer) -> VBoxContainer:
 	return box
 
 
+## Con wrap_controls = false, un AcceptDialog acomoda su contenido solo al cambiar de tamaño: un
+## texto con autowrap se mide primero con ancho ~0, deja el contenido altísimo y queda debajo de los
+## botones (m12-01). Un frame después de abrirlo, el aviso de tema lo vuelve a acomodar.
+static func refit_dialog(dialog: AcceptDialog) -> void:
+	await dialog.get_tree().process_frame
+	if is_instance_valid(dialog) and dialog.visible:
+		dialog.notification(Window.NOTIFICATION_THEME_CHANGED)
+
+
 static func clear(box: Container) -> void:
 	for child: Node in box.get_children():
 		box.remove_child(child)

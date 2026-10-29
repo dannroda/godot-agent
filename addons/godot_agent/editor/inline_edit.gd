@@ -11,8 +11,13 @@ const AgentTheme := preload("../ui/agent_theme.gd")
 const DiffDialog := preload("../ui/diff_dialog.gd")
 
 ## `(prompt: String) -> Dictionary`: lo manda a la sesión activa y espera el turno. Devuelve
-## `{text, error}`: lo que contestó el agente o por qué no se pudo. Lo pone el plugin.
+## `{text, error, no_session}`: lo que contestó el agente o por qué no se pudo (`no_session` si no
+## hay sesión abierta). Lo pone el plugin.
 var ask: Callable
+## `() -> void`: cancela el turno de la sesión activa. Lo pone el plugin.
+var cancel: Callable
+## `() -> bool`: abre la sesión de la pestaña activa del dock; true si quedó conectada. Lo pone el plugin.
+var start_session: Callable
 
 var _attached: Dictionary = {}  # CodeEdit -> el Callable conectado a su gui_input
 var _field_popup: PopupPanel
@@ -20,7 +25,11 @@ var _field: LineEdit
 var _proposal_popup: PopupPanel
 var _proposal_text: RichTextLabel
 var _proposal_status: Label
+var _request_label: Label
+var _dismiss: Button
+var _start: Button
 var _accept: Button
+var _waiting: bool = false
 ## El pedido en curso: {code_edit, path, from_line, from_column, to_line, to_column, original, code}.
 var _pending: Dictionary = {}
 
@@ -35,8 +44,12 @@ func _ready() -> void:
 	add_child(_field_popup)
 	_proposal_popup = PopupPanel.new()
 	var column := VBoxContainer.new()
-	column.custom_minimum_size = Vector2(AgentTheme.px(520), AgentTheme.px(220))
+	column.custom_minimum_size.x = AgentTheme.px(520)
 	_proposal_popup.add_child(column)
+	_request_label = Label.new()
+	_request_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_request_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	column.add_child(_request_label)
 	_proposal_status = Label.new()
 	_proposal_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_proposal_status)
@@ -50,12 +63,13 @@ func _ready() -> void:
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_END
 	column.add_child(buttons)
-	var reject := Button.new()
-	reject.text = I18n.t("Reject")
-	reject.pressed.connect(func() -> void:
-		_pending = {}
-		_proposal_popup.hide())
-	buttons.add_child(reject)
+	_dismiss = Button.new()
+	_dismiss.pressed.connect(_on_dismiss)
+	buttons.add_child(_dismiss)
+	_start = Button.new()
+	_start.text = I18n.t("Start session")
+	_start.pressed.connect(_on_start_session)
+	buttons.add_child(_start)
 	_accept = Button.new()
 	_accept.text = I18n.t("Accept")
 	_accept.pressed.connect(_on_accept)
@@ -150,12 +164,16 @@ func _on_submitted(instruction: String) -> void:
 		_pending = {}
 		return
 	var request := _pending
+	request.instruction = instruction.strip_edges()
+	_request_label.text = "«%s» · %s" % [request.instruction, where_label(request)]
+	_waiting = true
 	_show_proposal(I18n.t("Asking the agent…"), "", false)
-	var answer: Dictionary = await ask.call(build_prompt(request.path, request, instruction.strip_edges()))
+	var answer: Dictionary = await ask.call(build_prompt(request.path, request, request.instruction))
 	if _pending != request:
 		return  # se rechazó o se pidió otra cosa mientras tanto
+	_waiting = false
 	if not str(answer.error).is_empty():
-		_show_proposal(str(answer.error), "", false)
+		_show_proposal(str(answer.error), "", false, bool(answer.get("no_session", false)))
 		return
 	var code := extract_code(str(answer.text))
 	if code.is_empty():
@@ -165,14 +183,50 @@ func _on_submitted(instruction: String) -> void:
 	_show_proposal(I18n.t("The agent's proposal: accept it to apply it (Ctrl+Z undoes it), or reject it."), DiffDialog.diff_bbcode(I18n.t("now"), str(request.original), I18n.t("proposal"), code), true)
 
 
-func _show_proposal(status: String, diff: String, can_accept: bool) -> void:
+func _show_proposal(status: String, diff: String, can_accept: bool, can_start: bool = false) -> void:
 	_proposal_status.text = status
 	_proposal_text.text = diff
 	_proposal_text.visible = not diff.is_empty()
+	_proposal_text.custom_minimum_size.y = AgentTheme.px(200) if not diff.is_empty() else 0
 	_accept.visible = can_accept
+	_start.visible = can_start and start_session.is_valid()
+	_dismiss.text = I18n.t("Cancel") if _waiting else (I18n.t("Reject") if can_accept else I18n.t("Close"))
 	var code_edit: CodeEdit = _pending.get("code_edit")
 	var at := Vector2i(code_edit.get_screen_position() + code_edit.get_caret_draw_pos()) if is_instance_valid(code_edit) else Vector2i.ZERO
+	# Sin esto la ventana conserva el alto de la propuesta anterior (m12-06).
+	_proposal_popup.reset_size()
 	_proposal_popup.popup(Rect2i(at, Vector2i.ZERO))
+
+
+## «líneas 15–16» o «línea 15» (insertar en el caret).
+static func where_label(span: Dictionary) -> String:
+	var from := int(span.from_line) + 1
+	var to := int(span.to_line) + 1
+	return I18n.t("line %d") % from if from == to else I18n.t("lines %d–%d") % [from, to]
+
+
+## Esperando, cancela el turno; si no, descarta la propuesta o cierra el aviso.
+func _on_dismiss() -> void:
+	if _waiting and cancel.is_valid():
+		cancel.call()
+	_waiting = false
+	_pending = {}
+	_proposal_popup.hide()
+
+
+## Sin sesión: la abre en el dock y manda el mismo pedido cuando conecta.
+func _on_start_session() -> void:
+	var request := _pending
+	_waiting = false
+	_show_proposal(I18n.t("Starting the session…"), "", false)
+	_start.visible = false
+	var connected: bool = await start_session.call()
+	if _pending != request:
+		return
+	if not connected:
+		_show_proposal(I18n.t("The session didn't start: look at the Agent dock."), "", false)
+		return
+	_on_submitted(str(request.instruction))
 
 
 func _on_accept() -> void:

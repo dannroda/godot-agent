@@ -55,7 +55,9 @@ func _rebuild() -> void:
 		path.tooltip_text = str(file.path)
 		path.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(path)
-		row.add_child(ExtensionsUi.muted("+%d −%d" % [file.added, file.removed]))
+		var counts := ExtensionsUi.muted("+%d −%d" % [file.added, file.removed])
+		counts.autowrap_mode = TextServer.AUTOWRAP_OFF
+		row.add_child(counts)
 		var diff := Button.new()
 		diff.text = I18n.t("Diff")
 		diff.flat = true

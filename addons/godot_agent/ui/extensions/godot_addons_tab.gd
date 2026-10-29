@@ -173,7 +173,9 @@ func _rebuild() -> void:
 	section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(section)
 	if _checking:
-		header.add_child(ExtensionsUi.muted(I18n.t("Checking for updates…")))
+		var checking := ExtensionsUi.muted(I18n.t("Checking for updates…"))
+		checking.autowrap_mode = TextServer.AUTOWRAP_OFF  # con autowrap, al lado del título expandido queda con ancho 0 y sale en vertical
+		header.add_child(checking)
 	else:
 		header.add_child(ExtensionsUi.icon_button(&"Reload", I18n.t("Check for updates"), check_updates))
 	_box.add_child(header)

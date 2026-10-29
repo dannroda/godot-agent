@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (0/36)
+## M10 — Revisión de UX  (4/37, 4 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -2937,7 +2937,7 @@ Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el r
 - Cada hallazgo quedó hecho o descartado con su motivo en la tarjeta.
 - Un recorrido de capturas de todas las superficies no muestra controles tapados ni cortados.
 
-### «Cerrar» tapa el contenido y esconde «Guardar» en Extensiones y el registro · Pendiente
+### «Cerrar» tapa el contenido y esconde «Guardar» en Extensiones y el registro · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `extensiones`
 
@@ -2950,7 +2950,11 @@ Archivos: extensions_window.gd, instructions_tab.gd, acp_registry_dialog.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
 
-### «Buscando actualizaciones…» se dibuja en vertical en Addons de Godot · Pendiente
+**Prueba:** Recorrido de capturas en Xvfb (Extensiones › Instrucciones y registro de ACP); prueba headless de AcceptDialog con y sin wrap_controls.
+
+**Notas:** Causa: con wrap_controls = false, AcceptDialog acomoda su contenido solo al cambiar de tamaño; un Label con autowrap se mide primero con ancho ~0 y deja el contenido de 1873 px de alto, debajo de los botones. ExtensionsUi.refit_dialog manda NOTIFICATION_THEME_CHANGED un frame después de abrir (y al cambiar de pestaña). Verificado con captura en Xvfb: Instrucciones muestra Guardar y el registro su estado.
+
+### «Buscando actualizaciones…» se dibuja en vertical en Addons de Godot · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `extensiones`
 
@@ -2961,6 +2965,10 @@ Propuesta: El aviso en la fila del título («En este proyecto (3) · buscando a
 Archivos: godot_addons_tab.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+**Prueba:** Captura de Addons de Godot en Xvfb.
+
+**Notas:** ExtensionsUi.muted tiene autowrap: en una fila al lado de un título expandido queda con ancho 0. Sin autowrap en «Buscando actualizaciones…» y en los «+N −M» de turn_changes_dialog.
 
 ### El panel de Revisar tapa la conversación y no se va · Pendiente
 
@@ -2999,7 +3007,7 @@ Archivos: agent_log_panel.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### El panel de Alt+I queda gigante y tapa el código · Pendiente
+### El panel de Alt+I queda gigante y tapa el código · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `alt-i`
 
@@ -3012,7 +3020,9 @@ Archivos: editor/inline_edit.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
 
-### Alt+I: «Reject» cuando no hay nada que rechazar · Pendiente
+**Notas:** reset_size() antes de cada popup en _show_proposal; el RichTextLabel del diff pide 200 px solo cuando hay diff.
+
+### Alt+I: «Reject» cuando no hay nada que rechazar · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `alt-i`
 
@@ -3391,3 +3401,13 @@ Propuesta: «Abrir el log» filtra por la sesión y salta a la línea del error,
 Archivos: agent_log_panel.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Migrar perfiles viejos: quitar Gemini CLI y el Codex sin comando · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
+
+Los perfiles preseteados se sacaron en 0.1.8, pero quien ya tenía la configuración guardada conserva «Gemini CLI» (discontinuado, reemplazado por Antigravity) y «Codex» sin comando: aparecen en Ajustes › Agentes y en el selector del dock. Visto en la configuración real de Godot 4.7 durante la revisión del 29/10.
+
+Propuesta: al cargar los perfiles, quitar una vez el gemini-cli preseteado (command "gemini", sin args) y el codex con comando vacío, solo si siguen iguales al preset (no tocar uno editado), y avisar en el log.
+
+Archivos: harness_settings.gd (profiles)
