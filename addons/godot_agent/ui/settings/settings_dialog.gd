@@ -40,6 +40,8 @@ const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.ASK: "Ask",  # i18n
 	PermissionPolicy.DENY: "Deny",  # i18n
 }
+## Celdas de la matriz (m12-22): un ícono y un color por decisión.
+const DECISION_MARKS: Dictionary = {PermissionPolicy.ALLOW: "✓", PermissionPolicy.ASK: "?", PermissionPolicy.DENY: "✕"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
 const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
@@ -323,7 +325,19 @@ func _build_permissions(page: VBoxContainer) -> void:
 	page.add_child(grid)
 	grid.add_child(_hint(I18n.t("Group")))
 	for mode: SessionModel.HarnessMode in MODES:
-		grid.add_child(_hint(I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])))
+		# Encabezado de la columna con «↺»: vuelve esa columna a los valores de la spec (m12-22).
+		var header := HBoxContainer.new()
+		# Sin autowrap: dentro de un HBox un Label que parte palabras se dibuja en vertical.
+		var mode_label := _hint(I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]))
+		mode_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		header.add_child(mode_label)
+		var reset := Button.new()
+		reset.flat = true
+		reset.text = "↺"
+		reset.tooltip_text = I18n.t("Restore this column to the defaults")
+		reset.pressed.connect(_reset_matrix_column.bind(mode))
+		header.add_child(reset)
+		grid.add_child(header)
 	for group: String in PermissionPolicy.GROUPS:
 		var label := Label.new()
 		label.text = PermissionPolicy.group_label(group)
@@ -331,15 +345,13 @@ func _build_permissions(page: VBoxContainer) -> void:
 		grid.add_child(label)
 		_matrix[group] = {}
 		for mode: SessionModel.HarnessMode in MODES:
-			var option := OptionButton.new()
-			for decision: String in DECISIONS:
-				option.add_item(I18n.t(DECISION_LABELS[decision]))
+			var option := _matrix_cell(group, mode)
 			if group == PermissionPolicy.GROUP_SHELL and mode == SessionModel.HarnessMode.AUTO:
 				option.tooltip_text = I18n.t("In Auto mode, \"Ask\" lets the lists of the Auto mode section decide first: commands on the allowlist run without a card.")
 			grid.add_child(option)
 			_matrix[group][mode] = option
 	var limit_label := Label.new()
-	limit_label.text = I18n.t("Subagents at once")
+	limit_label.text = I18n.t("Subagents at once (0 = no limit)")
 	limit_label.tooltip_text = I18n.t("How many subagents Claude Code can run at the same time in each mode; one more is rejected with a notice in the chat. 0 = no limit of the harness.")
 	limit_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	grid.add_child(limit_label)
@@ -350,6 +362,7 @@ func _build_permissions(page: VBoxContainer) -> void:
 		spin.tooltip_text = limit_label.tooltip_text
 		grid.add_child(spin)
 		_subagent_spins[mode] = spin
+	page.add_child(_hint(I18n.t("A highlighted cell differs from the defaults.")))
 	page.add_child(_hint(I18n.t("MCP servers of other programs: their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask.")))
 	_mcp_grid = GridContainer.new()
 	_mcp_grid.columns = MODES.size() + 1
@@ -632,6 +645,7 @@ func _load_matrix(overrides: Dictionary) -> void:
 	for group: String in _matrix:
 		for mode: SessionModel.HarnessMode in _matrix[group]:
 			(_matrix[group][mode] as OptionButton).select(DECISIONS.find(policy.matrix_value(group, mode)))
+			_style_matrix_cell(_matrix[group][mode], group, mode)
 
 
 func _load_subagent_limits(limits: Dictionary) -> void:
@@ -778,12 +792,46 @@ func _rebuild_mcp_matrix(overrides: Dictionary) -> void:
 		_mcp_grid.add_child(label)
 		_matrix[group] = {}
 		for mode: SessionModel.HarnessMode in MODES:
-			var option := OptionButton.new()
-			for decision: String in DECISIONS:
-				option.add_item(I18n.t(DECISION_LABELS[decision]))
+			var option := _matrix_cell(group, mode)
 			option.select(DECISIONS.find(policy.matrix_value(group, mode)))
+			_style_matrix_cell(option, group, mode)
 			_mcp_grid.add_child(option)
 			_matrix[group][mode] = option
+
+
+## Una celda: «✓ Permitir», «? Preguntar», «✕ Denegar», con su color y resaltada si no es el default.
+func _matrix_cell(group: String, mode: SessionModel.HarnessMode) -> OptionButton:
+	var option := OptionButton.new()
+	for decision: String in DECISIONS:
+		option.add_item("%s %s" % [DECISION_MARKS[decision], I18n.t(DECISION_LABELS[decision])])
+	option.item_selected.connect(func(_index: int) -> void: _style_matrix_cell(option, group, mode))
+	return option
+
+
+func _style_matrix_cell(option: OptionButton, group: String, mode: SessionModel.HarnessMode) -> void:
+	var decision: String = DECISIONS[maxi(option.selected, 0)]
+	var color: Color = {PermissionPolicy.ALLOW: AgentTheme.ADDED, PermissionPolicy.ASK: AgentTheme.WARNING, PermissionPolicy.DENY: AgentTheme.ERROR}[decision]
+	for item: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
+		option.add_theme_color_override(item, color)
+	var differs := decision != PermissionPolicy.new({}).matrix_value(group, mode)
+	option.tooltip_text = I18n.t("Changed: the default is %s") % I18n.t(DECISION_LABELS[PermissionPolicy.new({}).matrix_value(group, mode)]) if differs else ""
+	if differs:
+		var box := AgentTheme.panel(Color(color, 0.12), Color(_accent_picker.color if _accent_picker else color, 0.9), 4, 4)
+		option.add_theme_stylebox_override(&"normal", box)
+	else:
+		option.remove_theme_stylebox_override(&"normal")
+
+
+func _reset_matrix_column(mode: SessionModel.HarnessMode) -> void:
+	var defaults := PermissionPolicy.new({})
+	for group: String in _matrix:
+		var option: OptionButton = (_matrix[group] as Dictionary).get(mode)
+		if option:
+			option.select(DECISIONS.find(defaults.matrix_value(group, mode)))
+			_style_matrix_cell(option, group, mode)
+	var spin: SpinBox = _subagent_spins.get(mode)
+	if spin:
+		spin.value = PermissionPolicy.new().subagent_limit(mode)  # sin límites guardados: 0
 
 
 ## Solo lo que difiere de la spec: así un cambio de defaults en el addon llega a los proyectos.

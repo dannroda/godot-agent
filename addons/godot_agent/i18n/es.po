@@ -2801,8 +2801,6 @@ msgstr "%d subagentes"
 msgid "Subagents running:"
 msgstr "Subagentes en curso:"
 
-msgid "Subagents at once"
-msgstr "Subagentes a la vez"
 
 msgid "How many subagents Claude Code can run at the same time in each mode; one more is rejected with a notice in the chat. 0 = no limit of the harness."
 msgstr "Cuántos subagentes puede correr Claude Code al mismo tiempo en cada modo; uno más se rechaza con un aviso en el chat. 0 = sin límite del harness."
@@ -3404,3 +3402,15 @@ msgstr "Este turno cambió 1 archivo (+%d −%d): %s"
 
 msgid "Undo turn"
 msgstr "Deshacer el turno"
+
+msgid "Restore this column to the defaults"
+msgstr "Volver esta columna a los valores por defecto"
+
+msgid "Subagents at once (0 = no limit)"
+msgstr "Subagentes a la vez (0 = sin límite)"
+
+msgid "A highlighted cell differs from the defaults."
+msgstr "Una celda resaltada difiere de los valores por defecto."
+
+msgid "Changed: the default is %s"
+msgstr "Cambiado: por defecto es %s"

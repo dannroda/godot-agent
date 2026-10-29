@@ -248,3 +248,20 @@ func test_agents_page() -> void:
 	dialog.call(&"_edit_profile", 0)
 	assert_true((dialog.get(&"_profile_form") as Control).visible, "clic en el agente: su formulario")
 	dialog.free()
+
+
+## m12-22: la celda que difiere del default se marca y «↺» vuelve la columna a la spec.
+func test_matrix_cells_and_column_reset() -> void:
+	var config := ProjectConfig.new()
+	config.permissions = {PermissionPolicy.GROUP_SHELL: {"build": PermissionPolicy.ALLOW}}
+	var dialog := _dialog(config)
+	var matrix: Dictionary = dialog.get(&"_matrix")
+	var changed: OptionButton = matrix[PermissionPolicy.GROUP_SHELL][SessionModel.HarnessMode.BUILD]
+	var same: OptionButton = matrix[PermissionPolicy.GROUP_READ][SessionModel.HarnessMode.BUILD]
+	assert_true(changed.has_theme_stylebox_override(&"normal") and not changed.tooltip_text.is_empty(), "la cambiada se resalta y dice el default")
+	assert_false(same.has_theme_stylebox_override(&"normal"), "la de siempre, no")
+	assert_true(changed.get_item_text(changed.selected).begins_with("✓"), "con su ícono")
+	dialog.call(&"_reset_matrix_column", SessionModel.HarnessMode.BUILD)
+	assert_true(dialog.matrix_overrides().is_empty(), "la columna vuelve a la spec")
+	assert_false(changed.has_theme_stylebox_override(&"normal"), "y deja de resaltarse")
+	dialog.free()
