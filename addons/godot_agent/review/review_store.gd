@@ -7,6 +7,7 @@ extends RefCounted
 signal changed
 
 const FindingsParser := preload("findings_parser.gd")
+const AtomicFile := preload("../core/atomic_file.gd")
 
 const SEVERITY_LABELS: Dictionary = {
 	"bug": "bug",  # i18n
@@ -154,10 +155,6 @@ static func claude_md_section(list: Array[Dictionary], date: String) -> String:
 ## Agrega la sección al final de CLAUDE.md (lo crea si no existe). Devuelve "" o el error.
 static func append_to_claude_md(section: String, path: String = CLAUDE_MD_PATH) -> String:
 	var previous := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else ""
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return error_string(FileAccess.get_open_error())
 	var separator := "" if previous.is_empty() else ("\n" if previous.ends_with("\n") else "\n\n")
-	file.store_string(previous + separator + section.strip_edges() + "\n")
-	file.close()
-	return ""
+	var error := AtomicFile.write_text(path, previous + separator + section.strip_edges() + "\n")
+	return "" if error == OK else error_string(error)

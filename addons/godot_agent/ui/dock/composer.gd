@@ -22,6 +22,7 @@ signal files_attached(paths: PackedStringArray)
 const AgentTheme := preload("../agent_theme.gd")
 const SuggestionList := preload("suggestion_list.gd")
 const I18n := preload("../../core/i18n.gd")
+const AtomicFile := preload("../../core/atomic_file.gd")
 
 const PLACEHOLDER := "Ask for something… @ for nodes and files, / for commands"  # i18n
 const PLACEHOLDER_BUSY := "The agent is working: Enter queues the message"  # i18n
@@ -617,11 +618,7 @@ func _load_history() -> void:
 func _save_history() -> void:
 	if history_path.is_empty():
 		return
-	DirAccess.make_dir_recursive_absolute(history_path.get_base_dir())
-	var file := FileAccess.open(history_path, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(Array(_history)))
-		file.close()
+	AtomicFile.write_text(history_path, JSON.stringify(Array(_history)))
 
 
 ## Abre, filtra o cierra la lista según la palabra que se está escribiendo: `/` al comienzo del

@@ -18,6 +18,8 @@ const ERR_INVALID_REQUEST := -32600
 const ERR_METHOD_NOT_FOUND := -32601
 const ERR_INVALID_PARAMS := -32602
 const ERR_INTERNAL := -32603
+## Requests cancelados cuya respuesta tardía se recuerda para ignorarla (m13-02).
+const MAX_CANCELLED_REMEMBERED := 256
 ## Request cancelado con `$/cancel_request` (ACP / LSP).
 const ERR_REQUEST_CANCELLED := -32800
 ## Error local: el request no se pudo mandar o se cortó la conexión.
@@ -125,6 +127,9 @@ func cancel_request(id: int) -> bool:
 		return false
 	_pending.erase(id)
 	_cancelled_outgoing[id] = true
+	# Si la respuesta no llega nunca, la marca quedaría para siempre: se guardan las últimas.
+	if _cancelled_outgoing.size() > MAX_CANCELLED_REMEMBERED:
+		_cancelled_outgoing.erase(_cancelled_outgoing.keys()[0])
 	notify("$/cancel_request", {"requestId": id})
 	pending.completed.emit(AcpResponse.failure(ERR_REQUEST_CANCELLED, "Request cancelled."))
 	return true

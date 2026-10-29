@@ -11,6 +11,7 @@ const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const ProjectFacts := preload("../../core/project_facts.gd")
 const ExtensionsUi := preload("extensions_ui.gd")
+const AtomicFile := preload("../../core/atomic_file.gd")
 
 const FILES: PackedStringArray = [
 	"CLAUDE.md",
@@ -271,14 +272,9 @@ func _add_facts() -> void:
 func _save() -> void:
 	if _editor.text == _saved_text:
 		return
-	var full_path := project_path.path_join(_current)
-	DirAccess.make_dir_recursive_absolute(full_path.get_base_dir())
-	var file := FileAccess.open(full_path, FileAccess.WRITE)
-	if file == null:
+	if AtomicFile.write_text(project_path.path_join(_current), _editor.text) != OK:
 		status_changed.emit(I18n.t("Could not save %s.") % _current, AgentTheme.ERROR)
 		return
-	file.store_string(_editor.text)
-	file.close()
 	_saved_text = _editor.text
 	_fill_options()
 	status_changed.emit(I18n.t("%s saved: agents read it from their next session.") % _current, AgentTheme.ADDED)

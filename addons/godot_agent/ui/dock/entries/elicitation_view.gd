@@ -260,7 +260,7 @@ func refresh() -> void:
 			# Directo al navegador y solo http(s): «open_link» del chat también abre archivos locales.
 			if ElicitationRequest.is_web_url(request.url):
 				OS.shell_open(request.url.strip_edges())
-			request.accept.call_deferred()  # fuera del clic, como en permission_view
+			request.accept()
 		)
 		_buttons.add_child(open_btn)
 	else:
@@ -272,14 +272,14 @@ func refresh() -> void:
 	var decline_btn := Button.new()
 	decline_btn.text = I18n.t("Don't answer")
 	decline_btn.tooltip_text = I18n.t("The agent continues without this answer. Esc cancels the request.")
-	decline_btn.pressed.connect(func() -> void: request.decline.call_deferred())
+	decline_btn.pressed.connect(func() -> void: request.decline())
 	_buttons.add_child(decline_btn)
 
 
 func _on_panel_input(event: InputEvent) -> void:
 	var request: ElicitationRequest = entry.elicitation
 	if event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE and request and request.is_pending():
-		request.cancel.call_deferred()
+		request.cancel()
 		_panel.accept_event()
 
 
@@ -301,7 +301,7 @@ func _on_submit() -> void:
 		_error_label.visible = true
 		return
 	_error_label.visible = false
-	request.accept.call_deferred(values)
+	request.accept(values)
 
 
 static func _result_text(request: ElicitationRequest) -> String:

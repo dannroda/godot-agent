@@ -141,8 +141,10 @@ func apply_settings() -> void:
 	if _config and context.exclude != _config.completion_exclude:
 		context.exclude = _config.completion_exclude
 		context.request_refresh()
-	# Apagado no indexa; al prenderlo arranca el primer build.
+	# Apagado no indexa; al prenderlo arranca el primer build. Tampoco hace falta el _process de
+	# cada frame (m13-02): los controllers de pestañas cerradas se sueltan al volver a prenderlo.
 	_indexing = enabled
+	set_process(enabled)
 	if enabled and not context.has_built() and not context.is_building():
 		context.start_build()
 	var color := Color(EditorInterface.get_editor_settings().get_setting(COMMENT_COLOR_SETTING))

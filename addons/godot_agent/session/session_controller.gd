@@ -967,6 +967,13 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	return _selected_or_cancelled(reject_once if not reject_once.is_empty() else str(outcome.optionId))
 
 
+## Un frame del árbol (sin árbol, en algunos tests, no espera).
+func _next_frame() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree:
+		await tree.process_frame
+
+
 func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 	var acp_id: Variant = client.handling_id
 	if acp_id != null:
@@ -980,7 +987,15 @@ func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 				_log_perm("no answer in %d s, denied: %s" % [timeout_s, request.title])
 				request.cancel()
 		)
-	var outcome: Dictionary = request.outcome if not request.is_pending() else await request.resolved
+	var outcome: Dictionary = request.outcome
+	if request.is_pending():
+		outcome = await request.resolved
+		# `resolved` llega dentro de quien respondió (un clic, stop()): lo que sigue (guardar la
+		# escena, editar nodos) va en el frame siguiente. Godot 4.8 se cayó en
+		# BaseButton::on_action_event al guardar dentro del clic (m12-39, m13-02). Si lo retiró
+		# el agente ($/cancel_request) no hay clic y la respuesta tiene que salir ya.
+		if not request.withdrawn:
+			await _next_frame()
 	if acp_id != null and _permissions_by_acp_id.get(acp_id) == request:
 		_permissions_by_acp_id.erase(acp_id)
 	if request.chosen_kind == PermissionRequest.KIND_ALLOW_ALWAYS:
@@ -1013,7 +1028,11 @@ func _on_create_elicitation(params: Dictionary) -> Variant:
 	if acp_id != null:
 		_elicitations_by_acp_id[acp_id] = request
 	model.add_elicitation(request)
-	var response: Dictionary = request.response if not request.is_pending() else await request.resolved
+	var response: Dictionary = request.response
+	if request.is_pending():
+		response = await request.resolved
+		if not request.withdrawn:
+			await _next_frame()  # como en _ask_user: fuera de quien respondió
 	if acp_id != null and _elicitations_by_acp_id.get(acp_id) == request:
 		_elicitations_by_acp_id.erase(acp_id)
 	return response

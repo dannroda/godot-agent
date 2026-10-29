@@ -4,6 +4,8 @@ extends RefCounted
 ## captura. Se escriben con un archivo temporal y rename, así un crash a mitad de escritura no deja
 ## un JSON roto. Si el editor se cae con un run en curso, al volver se lo ofrece para retomar.
 
+const AtomicFile := preload("../core/atomic_file.gd")
+
 const VERSION := 1
 ## Runs que se guardan; los más viejos se borran.
 const KEEP := 20
@@ -108,10 +110,4 @@ static func new_id() -> String:
 
 
 static func _write_atomic(path: String, text: String) -> bool:
-	var temp := path + ".tmp"
-	var file := FileAccess.open(temp, FileAccess.WRITE)
-	if file == null:
-		return false
-	file.store_string(text)
-	file.close()
-	return DirAccess.rename_absolute(temp, path) == OK
+	return AtomicFile.write_text(path, text) == OK

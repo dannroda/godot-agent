@@ -177,3 +177,12 @@ func test_incoming_cancel_mark_survives_await() -> void:
 	assert_eq(seen, [true], "después del await el handler ve que lo cancelaron")
 	assert_false(client.is_incoming_cancelled(7), "la marca se borra al terminar")
 	assert_eq(_sent.size(), 1, "una sola respuesta (-32800)")
+
+
+func test_cancelled_requests_are_capped() -> void:
+	var client := AcpClient.new()
+	client.setup(func(_line: String) -> bool: return true)
+	for i in AcpClient.MAX_CANCELLED_REMEMBERED + 10:
+		client.request("x", {})
+		client.cancel_request(client.last_request_id)
+	assert_eq((client.get(&"_cancelled_outgoing") as Dictionary).size(), AcpClient.MAX_CANCELLED_REMEMBERED, "tope de marcas")

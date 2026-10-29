@@ -7,6 +7,8 @@ extends RefCounted
 ## `.godot_agent/.gdignore` deja la carpeta fuera del FileSystem del editor y del export; git la
 ## incluye en los checkpoints, así spec y progreso quedan sincronizados con el código.
 
+const AtomicFile := preload("../core/atomic_file.gd")
+
 const ROOT_DIR := ".godot_agent"
 const SPEC := "spec.md"
 const PROGRESS := "progress.md"
@@ -74,10 +76,4 @@ func read(path: String) -> String:
 
 
 func write(path: String, text: String) -> bool:
-	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return false
-	file.store_string(text)
-	file.close()
-	return true
+	return AtomicFile.write_text(path, text) == OK

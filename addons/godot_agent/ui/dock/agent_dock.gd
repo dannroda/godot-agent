@@ -895,6 +895,8 @@ func _start_session() -> void:
 		settings_requested.emit()
 		return
 	var started: bool = await _controller.start(profile)
+	if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
+		return
 	if started:
 		_warn_api_key(profile)
 		_composer.focus()
@@ -1043,6 +1045,8 @@ func _send_with_mentions(text: String, blocks: Array) -> void:
 	var expanded := blocks.duplicate()
 	for mention: Dictionary in special_mentions_in(text):
 		var found: String = await context_provider.call(mention.kind, mention.arg) if context_provider.is_valid() else ""
+		if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
+			return
 		expanded.append({"type": "text", "text": "Context the user attached with @%s:\n%s" % [mention.token, found if not found.strip_edges().is_empty() else "(nothing)"]})
 	_controller.send_prompt(text, expanded)
 
@@ -1397,6 +1401,8 @@ func _capture_game() -> void:
 	if not game_capture.is_valid():
 		return
 	var frame: Variant = await game_capture.call()
+	if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
+		return
 	if frame is Image:
 		attach_image(frame, I18n.t("game"))
 	else:
@@ -1449,6 +1455,8 @@ func _on_github_import_requested() -> void:
 func _import_github_review(pr: String) -> void:
 	_model.add_notice(I18n.t("Reading the pull request's review comments…"))
 	var result: Dictionary = await GithubReviews.new(EditorContext.project_path()).fetch_review(pr)
+	if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
+		return
 	if not str(result.error).is_empty():
 		_model.add_notice(str(result.error), ChatEntry.NoticeLevel.WARNING)
 	elif result.findings.is_empty():

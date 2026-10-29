@@ -158,7 +158,7 @@ func _on_always_allow() -> void:
 	if pattern.is_empty() or not request.is_pending():
 		return
 	request.rule_to_add = {"pattern": pattern, "list": "allow"}
-	request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]))
+	request.select(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]))
 
 
 func _on_persist_allow() -> void:
@@ -166,7 +166,7 @@ func _on_persist_allow() -> void:
 	if not request.is_pending():
 		return
 	request.persist_allow = true
-	request.select.call_deferred(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
+	request.select(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
 
 
 func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
@@ -189,9 +189,7 @@ func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
 				button.shortcut_in_tooltip = true
 		PermissionRequest.KIND_ALLOW_ALWAYS:
 			button.flat = true
-	# Diferido: quien espera el permiso (guardar la escena, editar nodos) se reanuda en el mismo
-	# emit; dentro del clic, Godot 4.8 se cayó al seguir procesando el botón (29/10).
-	button.pressed.connect(func() -> void: request.select.call_deferred(str(option.get("optionId", ""))))
+	button.pressed.connect(func() -> void: request.select(str(option.get("optionId", ""))))
 	return button
 
 

@@ -15,6 +15,7 @@ extends RefCounted
 ## escritura se saltea al leer. Las escrituras van a un worker, en orden; las lecturas lo esperan.
 
 const SessionModel := preload("session_model.gd")
+const AtomicFile := preload("../core/atomic_file.gd")
 
 const DIR := "user://godot_agent/sessions"
 const INDEX_FILE := "index.json"
@@ -374,11 +375,4 @@ static func _read_index(abs_dir: String) -> Array[Dictionary]:
 
 ## Escribe en un temporal y lo renombra: un cierre a mitad de escritura no rompe el índice anterior.
 static func _write_index(abs_dir: String, index: Array) -> Error:
-	var path := abs_dir.path_join(INDEX_FILE)
-	var temp := path + ".tmp"
-	var file := FileAccess.open(temp, FileAccess.WRITE)
-	if file == null:
-		return FileAccess.get_open_error()
-	file.store_string(JSON.stringify({"format": FORMAT, "sessions": index}))
-	file.close()
-	return DirAccess.rename_absolute(temp, path)
+	return AtomicFile.write_text(abs_dir.path_join(INDEX_FILE), JSON.stringify({"format": FORMAT, "sessions": index}))

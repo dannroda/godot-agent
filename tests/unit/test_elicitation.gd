@@ -112,6 +112,9 @@ func test_controller_handles_create_complete_and_cancel() -> void:
 	}))
 	assert_true(url_req.completed_by_agent, "marcado como completado por el agente")
 	assert_eq(model.pending_elicitations.size(), 0, "ya no está pendiente")
+	# La respuesta sale un frame después: lo que sigue a un pedido resuelto no corre dentro de quien
+	# lo resolvió (m13-02).
+	await (Engine.get_main_loop() as SceneTree).process_frame
 	assert_eq(sent.back().get("result"), {"action": "cancel"}, "responde cancel: el usuario no aceptó desde acá")
 
 	# 2. Form elicitation retirada con $/cancel_request
