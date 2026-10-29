@@ -103,6 +103,12 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var bad_args: Dictionary = await _call("capture_editor_viewport", {"which": "4d"})
 	_expect(bad_args.get("isError", false), "enum inválido → isError")
 
+	# Validadores (m14-04), por godot.run como los demás métodos extendidos.
+	var physics := await _call_text("run", {"method": "validate_physics", "params": {"scene": FIXTURE_SCENE}})
+	_expect(physics.contains(FIXTURE_SCENE) and physics.contains("bodies/areas"), "validate_physics · " + physics.left(300))
+	var tilemap := await _call_text("run", {"method": "validate_tilemap", "params": {}})
+	_expect(tilemap.contains("TileMapLayer"), "validate_tilemap · " + tilemap.left(300))
+
 	# Errores nuevos en la respuesta siguiente (m14-02): un script roto que el editor carga.
 	await _call_text("editor_state", {})
 	var broken := FileAccess.open(BAD_SCRIPT, FileAccess.WRITE)

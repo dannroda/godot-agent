@@ -23,6 +23,7 @@ The extra ones are API docs (`class_info`, `search_api`), project settings, the 
 | | `search_api` | Finds classes and members by name or capability ("raycast", "move toward"). |
 | Diagnostics | `get_errors` | Errors and warnings from the editor and the last run. It returns a mark; pass it as `since` to see only new ones. |
 | | `validate_scripts` | Parses scripts in a separate process (the editor's binary) and returns errors by file and line, without running the game. |
+| | `validate_physics`, `validate_tilemap` | Read-only checks the agent runs after touching physics or maps: bodies and areas without a shape, shapes outside a body, collision masks that match no layer in the scene; TileMapLayers without a TileSet, cells the TileSet doesn't have, placed tiles without collision. |
 | | `capture_editor_viewport` | An image of the 2D/3D viewport. |
 | Edit scenes | `add_nodes` | A whole subtree in one call and one undo step: nested nodes with type, properties, script, groups and instanced scenes. Nothing is created if one item is invalid. |
 | | `duplicate_node` | Copies a node with its children, script, groups and properties; next to the original or under another parent. |

@@ -23,6 +23,7 @@ Las extra son la documentación de la API (`class_info`, `search_api`), los sett
 | | `search_api` | Busca clases y miembros por nombre o capacidad ("raycast", "move toward"). |
 | Diagnóstico | `get_errors` | Errores y warnings del editor y de la última ejecución. Devuelve una marca: pasala como `since` para ver solo los nuevos. |
 | | `validate_scripts` | Parsea los scripts en un proceso aparte (con el binario del editor) y devuelve los errores por archivo y línea, sin correr el juego. |
+| | `validate_physics`, `validate_tilemap` | Revisiones de solo lectura que el agente corre después de tocar física o mapas: cuerpos y áreas sin forma, formas fuera de un cuerpo, máscaras de colisión que no cruzan ninguna capa de la escena; TileMapLayers sin TileSet, celdas que el TileSet no tiene, tiles sin colisión. |
 | | `capture_editor_viewport` | Una imagen del viewport 2D/3D. |
 | Editar escenas | `add_nodes` | Un subárbol entero en una llamada y un paso de deshacer: nodos anidados con tipo, propiedades, script, grupos y escenas instanciadas. Si un item es inválido, no crea nada. |
 | | `duplicate_node` | Copia un nodo con sus hijos, script, grupos y propiedades; al lado del original o bajo otro padre. |

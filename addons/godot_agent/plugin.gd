@@ -50,6 +50,7 @@ const AssetStore := preload("core/asset_store.gd")
 const FileTools := preload("mcp/tools/file_tools.gd")
 const ResourceTools := preload("mcp/tools/resource_tools.gd")
 const TilemapTools := preload("mcp/tools/tilemap_tools.gd")
+const ValidateTools := preload("mcp/tools/validate_tools.gd")
 const AnimationTools := preload("mcp/tools/animation_tools.gd")
 const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
@@ -680,6 +681,7 @@ func _start_mcp_server() -> void:
 	var tilemap_tools := TilemapTools.new()
 	tilemap_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(tilemap_tools, true)
+	registry.register_provider(ValidateTools.new(), true)
 	var animation_tools := AnimationTools.new()
 	animation_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(animation_tools, true)
