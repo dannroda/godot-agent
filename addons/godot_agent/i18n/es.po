@@ -3252,3 +3252,18 @@ msgstr "%d hallazgo · en el panel de Revisar y el Script Editor"
 
 msgid "%d findings · in the Review panel and the Script Editor"
 msgstr "%d hallazgos · en el panel de Revisar y el Script Editor"
+
+msgid "No agent set up yet: the One-shot needs one."
+msgstr "Todavía no hay un agente configurado: el One-shot necesita uno."
+
+msgid "Runs with %s (the agent selected in the dock)."
+msgstr "Corre con %s (el agente elegido en el dock)."
+
+msgid "A One-shot is already running."
+msgstr "Ya hay un One-shot en curso."
+
+msgid "Set up an agent first."
+msgstr "Primero configurá un agente."
+
+msgid "Write the goal first."
+msgstr "Primero escribí el objetivo."

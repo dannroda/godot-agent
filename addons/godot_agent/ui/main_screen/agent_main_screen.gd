@@ -8,6 +8,8 @@ extends VBoxContainer
 ## Solo lee el estado de OneShotRun y llama a sus métodos públicos.
 
 signal diff_requested(title: String, old_label: String, old_text: String, new_label: String, new_text: String)
+## «Configurar un agente…» del formulario: abrir Ajustes › Agentes.
+signal settings_requested
 
 const OneShotRun := preload("../../oneshot/oneshot_run.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
@@ -96,6 +98,10 @@ var _spec_view: RichTextLabel
 var _spec_bar: HBoxContainer
 var _spec_shown: String = ""
 var _form_rule: Label
+## Con qué agente corre el One-shot y, junto a «Iniciar», qué falta para arrancar (m12-33).
+var _agent_label: Label
+var _setup_agent_button: Button
+var _start_hint: Label
 var _start_button: Button
 # Vista del One-shot
 var _run_view: Control
@@ -144,6 +150,10 @@ var _summary: Dictionary = {}
 var _summary_dirty: bool = false
 var _summary_running: bool = false
 var _summary_timer: Timer
+
+
+## Nombre del agente con que corre el One-shot ("" = no hay ninguno configurado). Lo pone el plugin.
+var agent_name: Callable = func() -> String: return ""
 
 
 func setup(run: OneShotRun, accent: Color, defaults: Dictionary) -> void:
@@ -229,6 +239,17 @@ func _build_form() -> void:
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	box.add_child(intro)
+	var agent_row := HBoxContainer.new()
+	agent_row.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	box.add_child(agent_row)
+	_agent_label = Label.new()
+	_agent_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_agent_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	agent_row.add_child(_agent_label)
+	_setup_agent_button = Button.new()
+	_setup_agent_button.text = I18n.t("Set up an agent…")
+	_setup_agent_button.pressed.connect(func() -> void: settings_requested.emit())
+	agent_row.add_child(_setup_agent_button)
 	box.add_child(_heading(I18n.t("Goal")))
 	_goal_edit = TextEdit.new()
 	_goal_edit.placeholder_text = I18n.t("E.g.: 2-player Pong with score, serve and restart. Use the assets in res://assets and follow CLAUDE.md.")
@@ -278,7 +299,14 @@ func _build_form() -> void:
 	box.add_child(_form_rule)
 	var actions := HBoxContainer.new()
 	actions.alignment = BoxContainer.ALIGNMENT_END
+	actions.add_theme_constant_override(&"separation", AgentTheme.px(10))
 	box.add_child(actions)
+	_start_hint = Label.new()
+	_start_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_start_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_start_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_start_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	actions.add_child(_start_hint)
 	_start_button = _accent_button(I18n.t("Start One-shot"))
 	_start_button.pressed.connect(_on_start_pressed)
 	actions.add_child(_start_button)
@@ -727,7 +755,35 @@ func _refresh() -> void:
 
 func _refresh_form() -> void:
 	_form_rule.text = I18n.t("Plan quota: %s") % _run.quota.rule_text().to_lower() if _run.quota.has_data() else I18n.t("The agent hasn't reported the plan quota yet: the One-shot pauses for quota only if it does.")
-	_start_button.disabled = _goal_edit.text.strip_edges().is_empty() or _run.is_active()
+	var agent := str(agent_name.call())
+	if agent.is_empty():
+		_agent_label.text = I18n.t("No agent set up yet: the One-shot needs one.")
+		_agent_label.add_theme_color_override(&"font_color", AgentTheme.WARNING)
+	else:
+		_agent_label.text = I18n.t("Runs with %s (the agent selected in the dock).") % agent
+		_agent_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_setup_agent_button.visible = agent.is_empty()
+	var missing := start_blocker(agent, _goal_edit.text, _run.is_active())
+	_start_hint.text = missing
+	_start_button.disabled = not missing.is_empty()
+	_start_button.tooltip_text = missing
+
+
+## Qué falta para poder iniciar ("" = nada).
+static func start_blocker(agent: String, goal: String, active: bool) -> String:
+	if active:
+		return I18n.t("A One-shot is already running.")
+	if agent.is_empty():
+		return I18n.t("Set up an agent first.")
+	if goal.strip_edges().is_empty():
+		return I18n.t("Write the goal first.")
+	return ""
+
+
+## Se cambió el agente del dock o se agregó uno en Ajustes.
+func refresh_agent() -> void:
+	if _run != null and is_instance_valid(_start_button):
+		_refresh_form()
 
 
 func _refresh_banner() -> void:
@@ -1018,7 +1074,7 @@ func _muted_label(text: String) -> Label:
 # --- eventos -------------------------------------------------------------------------------------
 
 func _on_start_pressed() -> void:
-	if _goal_edit.text.strip_edges().is_empty() or _run.is_active():
+	if not start_blocker(str(agent_name.call()), _goal_edit.text, _run.is_active()).is_empty():
 		return
 	_start_button.disabled = true
 	var check: Dictionary = await _run.preflight(_checkpoints_check.button_pressed)

@@ -238,6 +238,13 @@ func _enter_tree() -> void:
 	_main_screen.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_main_screen.setup(_oneshot, _settings.accent_color(), _oneshot_defaults())
 	_main_screen.diff_requested.connect(_diff_dialog.show_diff)
+	_main_screen.settings_requested.connect(_open_settings)
+	_main_screen.agent_name = func() -> String:
+		var profile := _settings.active_profile()
+		return profile.display_name if profile else ""
+	_settings.changed.connect(func(key: String) -> void:
+		if _main_screen and key in [HarnessSettings.KEY_PROFILES, HarnessSettings.KEY_LAST_PROFILE]:
+			_main_screen.refresh_agent())
 	_surfaces.add(EditorSurfaces.EditorSurface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
 	_restore_oneshot.call_deferred()
 
