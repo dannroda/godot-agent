@@ -18,6 +18,8 @@ signal action_forwarded(action: String, payload: Variant)
 
 const SessionModel := preload("../../session/session_model.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
+const FirstRunGuide := preload("first_run_guide.gd")
+const RecentSessions := preload("recent_sessions.gd")
 const SessionController := preload("../../session/session_controller.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
@@ -152,10 +154,9 @@ var _history_items: Array[Dictionary] = []
 @onready var _empty_command: Label = %EmptyCommand
 @onready var _start_button: Button = %StartButton
 ## Debajo de «Nueva sesión»: las últimas sesiones del proyecto con «Continuar» (m12-12).
-var _recent_box: VBoxContainer
+var _recent_box: RecentSessions
 ## Sin agentes: los sugeridos con lo que piden y «Agregar» (m12-15).
-var _suggested_box: VBoxContainer
-var _recent_signature: String = ""
+var _suggested_box: FirstRunGuide
 @onready var _composer_slot: MarginContainer = %ComposerSlot
 @onready var _export_banner: PanelContainer = %ExportBanner
 @onready var _export_banner_label: Label = %ExportBannerLabel
@@ -176,18 +177,18 @@ func setup(model: SessionModel, controller: SessionController, settings: Harness
 
 func _ready() -> void:
 	_build_header()
-	_recent_box = VBoxContainer.new()
-	_recent_box.name = "RecentSessions"
-	_recent_box.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	_recent_box = RecentSessions.new()
+	_recent_box.continue_requested.connect(func(id: String) -> void:
+		if _model.state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]:
+			open_history_session(id))
 	_empty_state.add_child(_recent_box)
-	_suggested_box = VBoxContainer.new()
-	_suggested_box.name = "SuggestedAgents"
-	_suggested_box.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	_suggested_box = FirstRunGuide.new()
+	_suggested_box.setup(_accent)
+	_suggested_box.add_requested.connect(add_suggested_agent)
+	_suggested_box.registry_requested.connect(registry_requested.emit)
+	_suggested_box.manual_requested.connect(settings_requested.emit)
 	_empty_state.add_child(_suggested_box)
 	_empty_state.move_child(_suggested_box, _start_button.get_index())
-	for agent: Dictionary in SuggestedAgents.AGENTS:
-		_suggested_box.add_child(_suggested_row(agent, agent == SuggestedAgents.AGENTS[0]))
-	_build_first_run_guide()
 	_conversation = ConversationView.new()
 	_conversation.setup(_model, _accent)
 	_conversation.action_requested.connect(_on_action_requested)
@@ -688,96 +689,11 @@ func _refresh_empty_state() -> void:
 		recent = _controller.history.list(_controller.cwd).slice(0, RECENT_SESSIONS)
 	if not recent.is_empty() and _start_button.text == I18n.t("Start session"):
 		_start_button.text = I18n.t("New session")
-	_refresh_recent(recent)
+	_recent_box.show_items(recent)
 
 
-func _refresh_recent(items: Array[Dictionary]) -> void:
-	var signature := ",".join(items.map(func(item: Dictionary) -> String: return "%s:%s" % [item.get("id", ""), item.get("updated", 0)]))
-	_recent_box.visible = not items.is_empty()
-	if signature == _recent_signature:
-		return
-	_recent_signature = signature
-	for child: Node in _recent_box.get_children():
-		_recent_box.remove_child(child)
-		child.queue_free()
-	if items.is_empty():
-		return
-	var heading := Label.new()
-	heading.text = I18n.t("Previous sessions")
-	heading.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	_recent_box.add_child(heading)
-	for item: Dictionary in items:
-		_recent_box.add_child(_recent_row(item))
-
-
-## Un agente sugerido (m12-15): nombre, lo que pide y «Agregar». Claude Code se guarda directo; los
-## demás abren el registro de ACP filtrado, desde Ajustes.
-## Primer arranque (canvas «Primer arranque»): debajo de los sugeridos, los otros caminos y los pasos.
-func _build_first_run_guide() -> void:
-	var links := HFlowContainer.new()
-	links.add_theme_constant_override(&"h_separation", AgentTheme.px(16))
-	var registry := LinkButton.new()
-	registry.text = I18n.t("See all the agents in the ACP registry")
-	registry.pressed.connect(func() -> void: registry_requested.emit(""))
-	links.add_child(registry)
-	var manual := LinkButton.new()
-	manual.text = I18n.t("Add one by hand")
-	manual.pressed.connect(func() -> void: settings_requested.emit())
-	links.add_child(manual)
-	for link: LinkButton in [registry, manual]:
-		link.underline = LinkButton.UNDERLINE_MODE_ON_HOVER
-		link.add_theme_color_override(&"font_color", _accent)
-	_suggested_box.add_child(links)
-	var steps_panel := PanelContainer.new()
-	steps_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.03), Color(0, 0, 0, 0), 6, 10))
-	var steps := Label.new()
-	steps.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	steps.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	steps.text = "\n".join([
-		"1. " + I18n.t("Add an agent. If it has to be downloaded, the progress shows here."),
-		"2. " + I18n.t("Sign in with the account it asks for, from the browser."),
-		"3. " + I18n.t("Ask it something, with @ to name nodes and files."),
-	])
-	steps_panel.add_child(steps)
-	_suggested_box.add_child(steps_panel)
-
-
-func _suggested_row(agent: Dictionary, recommended: bool) -> Control:
-	var card := PanelContainer.new()
-	card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.1), 6, 8))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override(&"separation", AgentTheme.px(8))
-	card.add_child(row)
-	var text := VBoxContainer.new()
-	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_theme_constant_override(&"separation", 0)
-	row.add_child(text)
-	var name_row := HBoxContainer.new()
-	text.add_child(name_row)
-	var name_label := Label.new()
-	name_label.text = str(agent.name)
-	name_row.add_child(name_label)
-	if recommended:
-		var tag := Label.new()
-		tag.text = I18n.t("recommended")
-		tag.add_theme_color_override(&"font_color", _accent)
-		tag.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
-		name_row.add_child(tag)
-	var needs := Label.new()
-	needs.text = I18n.t(str(agent.needs))
-	needs.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	needs.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	text.add_child(needs)
-	var add := Button.new()
-	add.text = I18n.t("Add")
-	add.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	add.pressed.connect(func() -> void: add_suggested_agent(agent))
-	if recommended:
-		AgentTheme.style_accent_button(add, _accent)
-	row.add_child(add)
-	return card
-
-
+## «Agregar» en un sugerido (m12-15): Claude Code se guarda directo; los demás abren el registro de
+## ACP filtrado, desde Ajustes.
 func add_suggested_agent(agent: Dictionary) -> void:
 	var data := SuggestedAgents.profile_of(agent)
 	if data.is_empty():
@@ -788,52 +704,6 @@ func add_suggested_agent(agent: Dictionary) -> void:
 	list.append(AgentProfile.from_dict(data))
 	_settings.save_profiles(list)
 	_settings.set_active_profile(str(data.id))
-
-
-## Una sesión anterior: título, «agente · cuándo · N turnos» y «Continuar».
-func _recent_row(item: Dictionary) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override(&"separation", AgentTheme.px(8))
-	var text := VBoxContainer.new()
-	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_theme_constant_override(&"separation", 0)
-	row.add_child(text)
-	var title := Label.new()
-	title.text = str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else I18n.t("(untitled)")
-	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	title.clip_text = true
-	title.tooltip_text = title.text
-	text.add_child(title)
-	var meta := Label.new()
-	meta.text = recent_meta(item, _timezone_bias_s())
-	meta.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	meta.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	meta.clip_text = true
-	text.add_child(meta)
-	var resume := Button.new()
-	resume.text = I18n.t("Continue")
-	resume.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var id := str(item.get("id", ""))
-	resume.pressed.connect(func() -> void:
-		if _model.state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]:
-			open_history_session(id))
-	row.add_child(resume)
-	return row
-
-
-## «Claude Code · 29/10 03:56 · 4 turns».
-static func recent_meta(item: Dictionary, bias_s: int = 0) -> String:
-	var parts: PackedStringArray = []
-	if not str(item.get("agent", "")).is_empty():
-		parts.append(str(item.agent))
-	var updated := int(item.get("updated", 0))
-	if updated > 0:
-		var stamp := Time.get_datetime_string_from_unix_time(updated + bias_s, true)
-		parts.append("%s/%s %s" % [stamp.substr(8, 2), stamp.substr(5, 2), stamp.substr(11, 5)])
-	var turns := int(item.get("turns", 0))
-	if turns > 0:
-		parts.append((I18n.t("%d turn") if turns == 1 else I18n.t("%d turns")) % turns)
-	return " · ".join(parts)
 
 
 ## Al abrir el editor con «Continuar la última sesión» (m12-12). false si no había ninguna.
@@ -896,7 +766,7 @@ func _show_history_menu() -> void:
 		var item := _history_items[i]
 		var title := str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else I18n.t("(untitled)")
 		var updated := int(item.get("updated", 0))
-		var when := Time.get_datetime_string_from_unix_time(updated + _timezone_bias_s(), true).substr(5, 11).replace("-", "/") if updated > 0 else "—"
+		var when := Time.get_datetime_string_from_unix_time(updated + RecentSessions.timezone_bias_s(), true).substr(5, 11).replace("-", "/") if updated > 0 else "—"
 		var label := "%s · %s · %s" % [when, title, item.get("agent", "")]
 		_history_menu.add_item(label, i)
 		var turns := int(item.get("turns", 0))
@@ -967,10 +837,6 @@ func _on_history_selected(index: int) -> void:
 		_model.add_notice(I18n.t("A One-shot is running: stop it before opening another session."), ChatEntry.NoticeLevel.WARNING)
 		return
 	open_history_session(str(_history_items[index].get("id", "")))
-
-
-static func _timezone_bias_s() -> int:
-	return int(Time.get_time_zone_from_system().get("bias", 0)) * 60
 
 
 func _on_new_session_pressed() -> void:
