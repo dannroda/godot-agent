@@ -96,6 +96,7 @@ var _export_plugin: AgentExportPlugin
 var _surfaces: EditorSurfaces
 var _settings: HarnessSettings
 var _log: AgentLog
+var _log_panel: Control
 var _model: SessionModel
 var _controller: SessionController
 var _project_config: ProjectConfig
@@ -223,6 +224,7 @@ func _enter_tree() -> void:
 		if is_instance_valid(dock):
 			dock.set_oneshot_active(_oneshot.is_active()))
 	var log_panel := AgentLogPanelScene.instantiate()
+	_log_panel = log_panel
 	log_panel.setup(_log)
 	_tabs = SessionTabs.new()
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
@@ -447,9 +449,11 @@ func _get_plugin_icon() -> Texture2D:
 	return EditorInterface.get_editor_theme().get_icon(ICON_NAME, &"EditorIcons")
 
 
-func _show_log() -> void:
+func _show_log(seq: int = 0) -> void:
 	if _surfaces:
 		_surfaces.make_visible(EditorSurfaces.EditorSurface.BOTTOM)
+	if seq > 0 and is_instance_valid(_log_panel):
+		_log_panel.focus_entry.call_deferred(seq)
 
 
 ## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).

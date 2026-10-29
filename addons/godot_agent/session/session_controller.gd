@@ -437,6 +437,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 				agent_log.add(AgentLog.CH_PROC, "The turn ended with an error: %s" % result.error_message())
 				model.add_notice(I18n.t("Sign in to %s again to continue.") % _agent_name(), ChatEntry.NoticeLevel.INFO, login_actions)
 			else:
+				agent_log.add(AgentLog.CH_ACP, "The turn ended with an error: %s" % result.error_message())
 				model.add_notice(I18n.t("The turn ended with an error: %s") % result.error_message(), ChatEntry.NoticeLevel.ERROR, _error_actions())
 			model.finish_turn("error")
 		_record_turn_end("error")
@@ -1611,6 +1612,9 @@ func _fail(message: String, extra_actions: Array[Dictionary] = [], level := Chat
 func _fail_agent(title: String, cause: String, log_message: String, actions: Array[Dictionary]) -> void:
 	model.failure_message = log_message
 	agent_log.add(AgentLog.CH_PROC, log_message)
+	for action: Dictionary in actions:
+		if action.id == ACTION_SHOW_LOG:
+			action["data"] = agent_log.last_seq()
 	var entry := model.add_notice(cause, ChatEntry.NoticeLevel.ERROR, actions)
 	entry.title = title
 	entry.details = "\n".join(_stderr_tail)
@@ -1632,8 +1636,9 @@ static func is_registry_binary(command: String) -> bool:
 	return command.replace("\\", "/").contains("/godot_agent/agents/")
 
 
+## «Abrir el log abajo» lleva el `seq` de la última línea del log (la del error): el panel salta ahí (m12-36).
 func _error_actions() -> Array[Dictionary]:
-	return [{"id": ACTION_RETRY, "label": I18n.t("Retry")}, {"id": ACTION_SHOW_LOG, "label": I18n.t("Open the log below")}]
+	return [{"id": ACTION_RETRY, "label": I18n.t("Retry")}, {"id": ACTION_SHOW_LOG, "label": I18n.t("Open the log below"), "data": agent_log.last_seq()}]
 
 
 func _auth_hint() -> String:

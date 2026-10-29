@@ -167,6 +167,11 @@ func _scenario_crash() -> void:
 	_check(notice.kind == ChatEntry.EntryKind.NOTICE and notice.level == ChatEntry.NoticeLevel.ERROR, "crash: aviso de error")
 	_check(notice.actions.size() == 2, "crash: con acciones Reintentar / Ver log")
 	_check(notice.title == "Agente falso stopped" and notice.text.contains("code"), "crash: título y causa para personas (%s · %s)" % [notice.title, notice.text])
+	# m12-36: «Abrir el log» lleva a la línea del error.
+	var show_log: Array = notice.actions.filter(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_SHOW_LOG)
+	var seq: int = int(show_log[0].get("data", 0)) if not show_log.is_empty() else 0
+	var line: Array = controller.agent_log.entries().filter(func(entry: Dictionary) -> bool: return int(entry.seq) == seq)
+	_check(not line.is_empty() and str(line[0].message).contains("exited"), "crash: «Abrir el log» apunta a la línea del error (%d)" % seq)
 	# Reintentar reabre una sesión limpia.
 	var ok: bool = await controller.start(controller.profile())
 	_check(ok and model.state == SessionModel.SessionState.READY, "crash: reintentar")

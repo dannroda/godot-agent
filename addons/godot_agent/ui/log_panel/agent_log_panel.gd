@@ -13,6 +13,9 @@ const RAW_DISPLAY_LIMIT := 4000
 
 var _log: AgentLog
 var _enabled_channels: Dictionary = {}  # StringName -> bool
+## La línea resaltada (m12-36: «Abrir el log» desde un error) y el párrafo de cada entrada a la vista.
+var _highlight_seq: int = 0
+var _paragraph_of: Dictionary = {}  # seq -> índice de párrafo
 
 @onready var _channel_filters: HBoxContainer = %ChannelFilters
 @onready var _count_label: Label = %CountLabel
@@ -83,6 +86,7 @@ func _rebuild() -> void:
 	if not is_node_ready():
 		return
 	_output.clear()
+	_paragraph_of.clear()
 	if _log:
 		for entry: Dictionary in _log.entries():
 			if _visible(entry):
@@ -97,7 +101,26 @@ func _append(entry: Dictionary) -> void:
 	]
 	if _raw_toggle.button_pressed and not str(entry.raw).is_empty():
 		line += "\n[color=#8a8f98]%s[/color]" % MarkdownBBCode.escape(str(entry.raw).left(RAW_DISPLAY_LIMIT))
+	if int(entry.seq) == _highlight_seq:
+		line = "[bgcolor=%s]%s[/bgcolor]" % ["#" + Color(AgentTheme.WARNING, 0.25).to_html(true), line]
+	_paragraph_of[int(entry.seq)] = maxi(0, _output.get_paragraph_count() - 1)
 	_output.append_text(line + "\n")
+
+
+## Muestra la línea `seq` resaltada y la lleva a la vista (con todos los canales prendidos, para
+## que no quede escondida por un filtro).
+func focus_entry(seq: int) -> void:
+	if not is_node_ready():
+		return
+	_highlight_seq = seq
+	for toggle: Node in _channel_filters.get_children():
+		if toggle is Button and not (toggle as Button).button_pressed:
+			(toggle as Button).button_pressed = true
+	for channel: StringName in _enabled_channels:
+		_enabled_channels[channel] = true
+	_rebuild()
+	if _paragraph_of.has(seq):
+		_output.scroll_to_paragraph(_paragraph_of[seq])
 
 
 func _visible(entry: Dictionary) -> bool:

@@ -59,6 +59,11 @@ func add(channel: StringName, message: String, raw: String = "") -> Dictionary:
 	return entry
 
 
+## El `seq` de la última entrada (0 = ninguna): un aviso de error lo guarda para saltar a su línea.
+func last_seq() -> int:
+	return _next_seq - 1
+
+
 func entries() -> Array[Dictionary]:
 	return _entries
 

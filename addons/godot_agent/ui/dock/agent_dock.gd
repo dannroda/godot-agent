@@ -3,7 +3,8 @@ extends VBoxContainer
 ## Dock "Agent" (spec §9.1, mockup pantalla 1): header con perfil, título y acciones; selector de
 ## modo; conversación; composer. Solo habla con SessionModel (estado) y SessionController (comandos).
 
-signal show_log_requested
+## `seq`: la línea del Agent Log a mostrar (0 = solo abrir el panel, m12-36).
+signal show_log_requested(seq: int)
 ## Abrir el diálogo de Settings (lo maneja el plugin: necesita la config del proyecto y el server MCP).
 signal settings_requested
 ## Agregar un agente sugerido desde el registro de ACP, filtrado por `query` (m12-15).
@@ -1163,7 +1164,7 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 				return
 			_start_session()
 		SessionController.ACTION_SHOW_LOG:
-			show_log_requested.emit()
+			show_log_requested.emit(int(payload) if payload is int else 0)
 		SessionController.ACTION_EDIT_AGENT:
 			settings_requested.emit()
 		SessionController.ACTION_LOGIN:
