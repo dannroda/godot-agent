@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (8/9, 8 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (9/10, 9 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3864,7 +3864,7 @@ Informe: docs/revisiones/arquitectura.md
 
 **Notas:** agent_dock.gd 1615 → 1310 líneas. Vistas nuevas: remote_control_banner.gd, first_run_guide.gd, recent_sessions.gd; review_panel.gd suma exportar a CLAUDE.md e importar de GitHub. Se fueron los botones Remote/Sign out ocultos que guardaban estado. Quedan en el dock, por ser su núcleo o estar en el .tscn: header y chip, estado, historial, cola, contexto del prompt, el aviso de export presets y el diálogo del código de login. De paso: review_check fallaba desde m12-03 (panel plegado); arreglado.
 
-### API pública del dock y EditorInterface inyectado (A5, A6) · En curso
+### API pública del dock y EditorInterface inyectado (A5, A6) · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `arquitectura`
 
@@ -3883,3 +3883,5 @@ Informe: docs/revisiones/arquitectura.md
 Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 4.6 (la recarga de escenas sin EditorInterface.get_unsaved_scenes, la API vieja de docks donde 4.7 ya tiene EditorDock), la matriz de CI (4.6.3), README, CONTRIBUTING, la wiki y la spec; decisión nueva en docs/decisions.md que reemplaza a D34. Con 4.7 se puede usar Control.custom_maximum_size.
 
 **Prueba:** run_all 369/369 en 4.7.2 y 4.8-beta1; external-test y ux_tour en Xvfb en 4.7.2 (dock, Agent Log y One-shot montados); plugin_cycle_check pasa en 4.8 y en 4.7.2 falla igual que antes del cambio («3 resources still in use at exit»)
+
+### plugin_cycle_check falla en 4.7.2: «3 resources still in use at exit» · Pendiente
