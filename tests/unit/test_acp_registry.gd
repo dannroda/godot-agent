@@ -94,3 +94,11 @@ func test_grouped_and_install_summary() -> void:
 	big.binary.size = 912 * 1024 * 1024
 	assert_true(AcpRegistryDialog.install_summary(big).contains("912"), "el tamaño si el registro lo trae: %s" % AcpRegistryDialog.install_summary(big))
 	assert_eq(AcpRegistryDialog.install_summary(agents[1]), "program for this platform: the harness downloads it", "sin tamaño")
+
+
+## m12-28: los sugeridos usan una descripción propia, traducible; el resto, la del registro.
+func test_description_of() -> void:
+	var agents := AcpRegistry.parse(DATA, "linux-x86_64")
+	assert_eq(AcpRegistryDialog.description_of(agents[1]), "Google's coding agent, with Gemini, Claude and GPT models in its plan.", "Antigravity: la propia")
+	var other := {"id": "kilo", "name": "Kilo", "description": "Kilo's own text"}
+	assert_eq(AcpRegistryDialog.description_of(other), "Kilo's own text", "otro: la del registro")

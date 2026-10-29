@@ -111,11 +111,13 @@ static func grouped(agents: Array[Dictionary], added: PackedStringArray) -> Arra
 
 ## Uno de los agentes sugeridos (Claude Code, Codex, Antigravity): su id o su nombre lo nombra.
 static func is_suggested(agent: Dictionary) -> bool:
-	var text := ("%s %s" % [agent.id, agent.name]).to_lower()
-	for suggested: Dictionary in SuggestedAgents.AGENTS:
-		if text.contains(str(suggested.key)):
-			return true
-	return false
+	return not SuggestedAgents.matching(str(agent.id), str(agent.name)).is_empty()
+
+
+## La descripción: la propia (traducida) para los sugeridos, la del registro para el resto (m12-28).
+static func description_of(agent: Dictionary) -> String:
+	var suggested := SuggestedAgents.matching(str(agent.id), str(agent.name))
+	return I18n.t(str(suggested.description)) if not suggested.is_empty() else str(agent.description)
 
 
 ## «npx · se baja al usarlo», «uvx · …» o «programa para esta plataforma · 912 MB».
@@ -167,8 +169,9 @@ func _agent_card(agent: Dictionary, added := false) -> Control:
 			return
 		_add(agent, add, installed))
 	row.add_child(add)
-	if not str(agent.description).is_empty():
-		column.add_child(ExtensionsUi.muted(agent.description))
+	var description := description_of(agent)
+	if not description.is_empty():
+		column.add_child(ExtensionsUi.muted(description))
 	var meta: PackedStringArray = []
 	if added:
 		meta.append(I18n.t("✓ added"))

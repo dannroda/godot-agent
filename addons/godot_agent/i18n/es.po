@@ -3465,3 +3465,12 @@ msgstr "Ya está en tus agentes: agregarlo de nuevo reemplaza su perfil por el d
 
 msgid "✓ added"
 msgstr "✓ agregado"
+
+msgid "Anthropic's coding agent: reads and edits the project, runs commands and uses the editor tools."
+msgstr "El agente de código de Anthropic: lee y edita el proyecto, corre comandos y usa las herramientas del editor."
+
+msgid "OpenAI's coding agent, through its ACP adapter."
+msgstr "El agente de código de OpenAI, por su adaptador de ACP."
+
+msgid "Google's coding agent, with Gemini, Claude and GPT models in its plan."
+msgstr "El agente de código de Google, con modelos Gemini, Claude y GPT en su plan."
