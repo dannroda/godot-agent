@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (4/9, 4 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (5/9, 5 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3826,13 +3826,17 @@ Informe: docs/revisiones/arquitectura.md
 
 **Bloquea a:** SessionController como fachada (A2)
 
-### SessionController como fachada (A2) · Pendiente
+### SessionController como fachada (A2) · En curso
 
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `arquitectura`
 
 Separar en colaboradores inyectados, en este orden y con los tests pasando en cada paso: PermissionBroker (authorize, _ask_user, _on_request_permission, autorizador de terminales, Preauthorizations), UsageQuery sobre el adaptador de A1, SessionLifecycle (new, load, resume, list, close, delete, historial). La API pública del controller no cambia.
 
 Informe: docs/revisiones/arquitectura.md
+
+**Prueba:** run_all 370 en 4.7.2 (solo test_completion_local, conocido) y 4.8-beta1 (0 fallos); acp_session_check 162, oneshot_check 130, subagents_session_check; plugin_cycle_check en 4.8 sin huérfanos; test nuevo test_usage_query
+
+**Notas:** Hecho en tres pasos: PermissionBroker (2d955e7), UsageQuery (ffbe7c8) y SessionCatalog (e37865d). session/new, load y resume siguen en el controller: dependen del proceso, la generación de la conexión, los errores y el login; separarlas pediría una referencia de vuelta al controller (ciclo de RefCounted) o una docena de callables. SessionController: 1566 → 1137 líneas. La API pública no cambió, salvo los estáticos normalize_agent_session y merge_session_lists, que ahora son de SessionCatalog (dos llamadas actualizadas).
 
 **Bloqueada por:** Un adaptador por agente (A1)
 
@@ -3860,7 +3864,7 @@ plugin.gd llama dock.call(&"_on_new_session_pressed") y dock.call(&"_start_sessi
 
 Informe: docs/revisiones/arquitectura.md
 
-### Dejar de soportar Godot 4.6 · En curso
+### Dejar de soportar Godot 4.6 · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `compatibilidad`
 

@@ -4,16 +4,16 @@
   "created_at": "2026-10-29T13:15:28.541Z",
   "description": "Separar en colaboradores inyectados, en este orden y con los tests pasando en cada paso: PermissionBroker (authorize, _ask_user, _on_request_permission, autorizador de terminales, Preauthorizations), UsageQuery sobre el adaptador de A1, SessionLifecycle (new, load, resume, list, close, delete, historial). La API pública del controller no cambia.\n\nInforme: docs/revisiones/arquitectura.md",
   "milestone": "m13",
-  "notes": "",
+  "notes": "Hecho en tres pasos: PermissionBroker (2d955e7), UsageQuery (ffbe7c8) y SessionCatalog (e37865d). session/new, load y resume siguen en el controller: dependen del proceso, la generación de la conexión, los errores y el login; separarlas pediría una referencia de vuelta al controller (ciclo de RefCounted) o una docena de callables. SessionController: 1566 → 1137 líneas. La API pública no cambió, salvo los estáticos normalize_agent_session y merge_session_lists, que ahora son de SessionCatalog (dos llamadas actualizadas).",
   "order": 5,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "arquitectura"
   ],
-  "test": "",
+  "test": "run_all 370 en 4.7.2 (solo test_completion_local, conocido) y 4.8-beta1 (0 fallos); acp_session_check 162, oneshot_check 130, subagents_session_check; plugin_cycle_check en 4.8 sin huérfanos; test nuevo test_usage_query",
   "title": "SessionController como fachada (A2)",
-  "updated_at": "2026-10-29T13:15:28.541Z"
+  "updated_at": "2026-10-29T15:25:27.372Z"
 }
