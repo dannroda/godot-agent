@@ -16,7 +16,7 @@ The agent gets the path of the running editor's binary in `$GODOT`, in its instr
 
 ## "Plan limit reached"
 
-You hit your plan's window. Wait for the reset (the countdown shows when), or use **Switch account** in the Agent screen during a One-shot (see [One-shot → switching accounts](One-shot.md#switching-accounts)). Outside One-shot, sign in with another account and start a new session or resume it from **History**.
+You hit your plan's window. Wait for the reset (the countdown shows when), or use **Switch account** in the One-shot screen during a One-shot (see [One-shot → switching accounts](One-shot.md#switching-accounts)). Outside One-shot, sign in with another account and start a new session or resume it from **History**.
 
 ## A scene didn't update after the agent changed it
 
@@ -32,7 +32,7 @@ Claude Code reports the plan quota with the first message of each session, so a 
 |---|---|---|
 | 4.6 | `EditorInterface.get_unsaved_scenes()` doesn't exist. | If the agent changes an open scene on disk, you get **Reload scene** instead of an automatic reload. |
 | 4.6–4.7 | `EditorDock` exists, but the main screen as a dock arrives in 4.8. | Dock and panel use `EditorDock`; the main screen uses the old API. |
-| 4.8-beta1 | `_has_main_screen()` leaves an orphan `EditorDock` when disabling, and closing the editor with the Agent screen active gives a focus error. | The main screen uses `add_dock`; before closing, the editor switches to the 2D screen. |
+| 4.8-beta1 | `_has_main_screen()` leaves an orphan `EditorDock` when disabling, and closing the editor with the One-shot screen active gives a focus error. | The main screen uses `add_dock`; before closing, the editor switches to the 2D screen. |
 
 Two known, harmless traces remain in exports: addon paths in `uid_cache.bin`, and the plugin in the enabled plugin list of `project.binary`.
 

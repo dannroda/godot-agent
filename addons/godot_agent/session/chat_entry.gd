@@ -26,5 +26,8 @@ var level: NoticeLevel = NoticeLevel.INFO
 ## NOTICE: acciones sugeridas (`[{id, label}]`), p. ej. "Reintentar" o "Ver log".
 var actions: Array[Dictionary] = []
 var created_unix: float = 0.0
+## AGENT: el harness ya leyó su bloque `findings` (modo Revisar) y el chat lo muestra plegado con
+## esta cantidad de hallazgos (m12-38); -1 = no hubo bloque leído.
+var findings_count: int = -1
 ## Imágenes u otros bloques no textuales adjuntos (USER).
 var attachments: Array[Dictionary] = []

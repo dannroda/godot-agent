@@ -9,7 +9,7 @@
 3. You get three surfaces:
    - the **Agent** dock, on the right: the conversation;
    - the **Agent Log** bottom panel: what goes between the editor and the agent, by channel;
-   - the **Agent** screen in the top bar, next to 2D/3D/Script: the One-shot view.
+   - the **One-shot** screen in the top bar, next to 2D/3D/Script, where One-shot runs.
 
 Requirements: Godot 4.6+, and for Claude Code, Node.js with `npx`.
 

@@ -56,6 +56,16 @@ static func parse(text: String, project_root: String = "") -> Dictionary:
 	return {"findings": findings, "checks": checks, "scores": scores}
 
 
+## El código de un bloque es un bloque `findings` legible (para plegarlo en el chat, m12-38).
+static func is_findings_block(code: String) -> bool:
+	if not code.contains("\"findings\"") and not code.contains("\"line\""):
+		return false
+	var parsed: Variant = _parse_lenient(code)
+	if parsed is Dictionary:
+		return (parsed as Dictionary).get("findings") is Array
+	return parsed is Array and not parsed.is_empty() and parsed[0] is Dictionary and (parsed[0] as Dictionary).has("line")
+
+
 ## Puntaje de un criterio: {criterion, score (0–10), reason}.
 static func normalize_score(item: Variant) -> Dictionary:
 	if not item is Dictionary:

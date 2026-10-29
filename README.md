@@ -54,7 +54,7 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
 3. Three surfaces appear:
    - the **Agent** dock (right side);
    - the **Agent Log** bottom panel;
-   - the **Agent** screen (top bar, next to 2D/3D/Script), where One-shot runs.
+   - the **One-shot** screen (top bar, next to 2D/3D/Script).
 4. Click **Start session** in the dock. With Claude Code, `npx` downloads the adapter the first time.
 
 New versions show up as a notice in the dock, with **Update** (see [Updating the addon](docs/wiki/en/Settings.md#updating-the-addon)).
@@ -89,7 +89,7 @@ Each action that changes something asks first, in a card in the chat: allow it o
 
 ### One-shot
 
-Pick **One-shot** in the dock, write the goal in the **Agent** screen (top bar, next to 2D/3D/Script) and start. The agent plans, builds, playtests and leaves every step as a git checkpoint on its own branch. See [One-shot](docs/wiki/en/One-shot.md).
+Pick **One-shot** in the dock, write the goal in the **One-shot** screen (top bar, next to 2D/3D/Script) and start. The agent plans, builds, playtests and leaves every step as a git checkpoint on its own branch. See [One-shot](docs/wiki/en/One-shot.md).
 
 The screenshots come from `tests/docs_shots.sh`, with a fake agent and the demo scene in `tests/docs_demo/`.
 

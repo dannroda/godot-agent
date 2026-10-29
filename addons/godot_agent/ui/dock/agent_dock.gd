@@ -54,7 +54,7 @@ const IMAGE_EXTENSIONS: PackedStringArray = ["png", "jpg", "jpeg", "webp", "bmp"
 ## Acciones de la revisión que resuelve el plugin (junto con las de las tarjetas del Script Editor).
 const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
-## Un link a .godot_agent/oneshot/… (spec, progreso, QA): lo muestra la pantalla Agent.
+## Un link a .godot_agent/oneshot/… (spec, progreso, QA): lo muestra la pantalla One-shot.
 const ACTION_OPEN_RUN_FILE := "open_run_file"
 ## Tooltips de los botones de modo (las reglas que lee el agente están en SessionController.MODE_RULES).
 const MODE_TOOLTIPS: Dictionary = {

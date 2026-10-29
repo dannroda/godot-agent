@@ -29,6 +29,8 @@ var _docks: Dictionary = {}  # id -> dock
 var _models: Dictionary = {}  # id -> SessionModel
 var _labels: Dictionary = {}  # id -> nombre de la sesión («Session 2» o el que le puso el usuario)
 var _defaults: Dictionary = {}  # id -> nombre por defecto («Session 2»)
+## Sesiones que ya avisaron con un toast y siguen esperando: no se apila otro hasta que respondas.
+var _toasted: Dictionary = {}  # id -> true
 var _rename_popup: PopupPanel
 var _rename_edit: LineEdit
 var _renaming: String = ""
@@ -120,6 +122,7 @@ func remove_session(id: String) -> void:
 	_models.erase(id)
 	_labels.erase(id)
 	_defaults.erase(id)
+	_toasted.erase(id)
 	_bar.remove_tab(index)
 	_stack.remove_child(dock)
 	dock.queue_free()
@@ -197,19 +200,30 @@ func _refresh_tab(id: String) -> void:
 	var model: SessionModel = _models[id]
 	# «⚠»: espera un permiso o una respuesta del usuario (m11-03); pesa más que «●» (trabajando).
 	var waiting := not model.pending_permissions.is_empty() or not model.pending_elicitations.is_empty()
+	if not waiting:
+		_toasted.erase(id)
 	var mark := "⚠ " if waiting else ("● " if model.is_busy() else "")
 	_bar.set_tab_title(index, mark + str(_labels[id]))
 	_bar.set_tab_tooltip(index, label(id) + "\n" + I18n.t("Double-click to rename"))
 
 
 ## Un pedido de permiso (o un formulario del agente) de una sesión que no está a la vista (otra pestaña, o el dock tapado por
-## otro) también avisa con un toast del editor.
+## otro) también avisa con un toast del editor. Uno por sesión mientras siga esperando (m12-19): el
+## toaster no deja actualizar ni quitar un toast, y la pestaña sigue con «⚠» hasta que respondas.
 func _notify_waiting(id: String, message: String = "") -> void:
 	var dock: Control = _docks.get(id)
-	if dock == null or dock.is_visible_in_tree() or not Engine.is_editor_hint():
+	if dock == null or dock.is_visible_in_tree() or not Engine.is_editor_hint() or not _claim_toast(id):
 		return
 	var text := message if not message.is_empty() else I18n.t("«%s» is waiting for your permission.")
 	EditorInterface.get_editor_toaster().push_toast(text % _labels[id], EditorToaster.SEVERITY_WARNING)
+
+
+## true si la sesión todavía no avisó desde que empezó a esperar (y lo marca).
+func _claim_toast(id: String) -> bool:
+	if _toasted.has(id):
+		return false
+	_toasted[id] = true
+	return true
 
 
 func _on_tab_changed(index: int) -> void:

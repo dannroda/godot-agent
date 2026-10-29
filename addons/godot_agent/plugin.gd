@@ -81,7 +81,7 @@ const PENDING_UNDO_TTL_MS := 60000
 ## Kinds de tool call que escriben archivos: al completarse se sincroniza el editor.
 const WRITING_KINDS: PackedStringArray = ["edit", "delete", "move"]
 
-const PLUGIN_NAME := "Agent"
+const PLUGIN_NAME := "One-shot"
 const DOCK_TITLE := "Agent"
 const LOG_PANEL_TITLE := "Agent Log"
 ## Runs del One-shot (D37): datos del usuario, fuera del repo.
@@ -143,6 +143,8 @@ func _enter_tree() -> void:
 	_settings = HarnessSettings.new(EditorInterface.get_editor_settings())
 	I18n.setup(_settings.language())
 	_log = AgentLog.new()
+	for removed: String in _settings.retire_old_presets():
+		_log.add(AgentLog.CH_ACP, "removed the old %s agent preset: it was never set up" % removed)
 	_model = SessionModel.new()
 	_project_config = ProjectConfig.load_or_default()
 	_coordinator = SessionCoordinator.new()
@@ -866,7 +868,7 @@ func _on_editor_settings_changed() -> void:
 
 # --- One-shot ------------------------------------------------------------------------------------
 
-## Elegir One-shot en el dock abre la pantalla Agent (ahí se escribe el objetivo).
+## Elegir One-shot en el dock abre la pantalla One-shot (ahí se escribe el objetivo).
 func _on_harness_mode_changed(mode: SessionModel.HarnessMode) -> void:
 	if mode == SessionModel.HarnessMode.ONESHOT and _oneshot and not _oneshot.is_active() and _surfaces:
 		_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
@@ -878,7 +880,7 @@ func _restore_oneshot() -> void:
 		return
 	_model.add_notice(I18n.t("There is an unfinished One-shot: «%s». It is paused; «Resume One-shot» reopens the agent session.") % _oneshot.goal.left(80), ChatEntry.NoticeLevel.WARNING, [
 		{"id": ACTION_ONESHOT_RESUME, "label": I18n.t("Resume One-shot")},
-		{"id": ACTION_ONESHOT_SHOW, "label": I18n.t("Open Agent screen")},
+		{"id": ACTION_ONESHOT_SHOW, "label": I18n.t("Open One-shot screen")},
 	])
 
 
@@ -897,7 +899,7 @@ func _intercept_dock_retry() -> bool:
 	if _oneshot.can_resume():
 		_oneshot.resume()
 	else:
-		_model.add_notice(I18n.t("The One-shot is still running: pause or stop it from the Agent screen."), ChatEntry.NoticeLevel.INFO)
+		_model.add_notice(I18n.t("The One-shot is still running: pause or stop it from the One-shot screen."), ChatEntry.NoticeLevel.INFO)
 	return true
 
 

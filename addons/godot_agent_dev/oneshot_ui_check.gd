@@ -1,6 +1,6 @@
 @tool
 extends RefCounted
-## Verificación de M6 dentro del editor: la pantalla Agent maneja un One-shot con el agente falso
+## Verificación de M6 dentro del editor: la pantalla One-shot maneja un One-shot con el agente falso
 ## (tests/scripts/oneshot_ui.json: el guion de oneshot_check con ventanas de cuota de 8 s) sobre un
 ## repo git temporal en user://, nunca sobre este repo.
 ## Recorre el formulario, la pausa por cuota (banner, cuenta regresiva, cpN), "Limitado" con
@@ -16,7 +16,7 @@ const RunReport := preload("res://addons/godot_agent/oneshot/run_report.gd")
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
-const MAIN_SCREEN_NAME := "Agent"
+const MAIN_SCREEN_NAME := "One-shot"
 const REPO_DIR := "user://oneshot_ui_check"
 const STEP_TIMEOUT_S := 15.0
 const CLAUDE_GOAL := "Pong de 2 jugadores con puntaje: paletas con W/S y flechas arriba/abajo, pelota que rebota, puntaje arriba y saque desde el centro después de cada punto."
@@ -37,7 +37,7 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 		if script and script.resource_path == MAIN_SCREEN_SCRIPT:
 			_screen = node
 	if _screen == null:
-		failures.append("no se encontró la pantalla Agent")
+		failures.append("no se encontró la pantalla One-shot")
 		return failures
 	if not FileAccess.file_exists("res://tests/fake_agent.gd"):
 		failures.append("hace falta el repo del addon (tests/fake_agent.gd)")
@@ -199,7 +199,7 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(_run.phase == OneShotRun.RunPhase.PAUSED, "carga el run a medias")
 	await _frames(3)
 	var notices: Array = _run.model.entries().filter(func(entry: Object) -> bool: return str(entry.get(&"text")).begins_with("There is an unfinished One-shot"))
-	_check(notices.size() == 1 and (notices[0].get(&"actions") as Array).map(func(action: Dictionary) -> String: return str(action.label)) == ["Resume One-shot", "Open Agent screen"], "run a medias: aviso con «Resume One-shot» y «Open Agent screen»")
+	_check(notices.size() == 1 and (notices[0].get(&"actions") as Array).map(func(action: Dictionary) -> String: return str(action.label)) == ["Resume One-shot", "Open One-shot screen"], "run a medias: aviso con «Resume One-shot» y «Open One-shot screen»")
 	var restored_dock := _find_by_script(DOCK_SCRIPT)
 	var dock_start: Button = restored_dock.get(&"_start_button")
 	# Dentro del dock: según el layout del editor, la pestaña del dock puede no ser la elegida en su slot.
@@ -313,7 +313,7 @@ func run_claude_oneshot(tree: SceneTree, shot_path: String = "") -> PackedString
 		if script and script.resource_path == MAIN_SCREEN_SCRIPT:
 			_screen = node
 	if _screen == null or not FileAccess.file_exists("res://.sandbox_one_shot"):
-		failures.append("hace falta la pantalla Agent dentro del sandbox de tests/make_sandbox.sh")
+		failures.append("hace falta la pantalla One-shot dentro del sandbox de tests/make_sandbox.sh")
 		return failures
 	_run = _screen.get(&"_run")
 	var model: Object = _run.model

@@ -59,3 +59,13 @@ func test_checks() -> void:
 	assert_eq(checks[1], {"label": "Sin errores", "status": "fail", "detail": "2 errores"}, "fail con detalle")
 	assert_eq(checks[2].status, "pending", "string suelto: pendiente")
 	assert_eq(checks[3].status, "pass", "ok bool")
+
+
+## m12-38: qué bloques de código se pliegan en el chat.
+func test_is_findings_block() -> void:
+	assert_true(FindingsParser.is_findings_block("{\"findings\": [{\"path\": \"a.gd\", \"line\": 3, \"title\": \"x\"}]}"), "objeto con findings")
+	assert_true(FindingsParser.is_findings_block("{\"findings\": [],}"), "vacío y con coma final")
+	assert_true(FindingsParser.is_findings_block("[{\"path\": \"a.gd\", \"line\": 3}]"), "lista suelta de hallazgos")
+	assert_false(FindingsParser.is_findings_block("{\"findings\": [{\"path\""), "a medio escribir (streaming)")
+	assert_false(FindingsParser.is_findings_block("func _ready() -> void:\n\tpass"), "código común")
+	assert_false(FindingsParser.is_findings_block("{\"checks\": []}"), "otro bloque")

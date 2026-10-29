@@ -4,7 +4,7 @@
 
 ```
 ┌──────────────── Editor de Godot ─────────────┐
-│  Dock / pantalla Agent      Script Editor    │
+│  Dock / pantalla One-shot   Script Editor    │
 │        │                          ▲          │
 │  SessionController ── EditorSync ─┘          │
 │     │       ▲                                │

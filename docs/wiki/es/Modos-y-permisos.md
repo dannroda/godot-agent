@@ -10,7 +10,7 @@
 | **Revisar** | Revisa escenas y scripts y devuelve hallazgos (bug, estructura, rendimiento, estilo), que aparecen como marcas en el Script Editor. Ver [Revisar](Revisar.md). |
 | **Construir** | Edita escenas y scripts y corre el juego, pidiendo permiso según la matriz de abajo. |
 | **Auto** | Como Construir, pero sin tarjetas para lo que se puede deshacer: edita escenas, scripts y settings del proyecto y corre el juego solo. Los comandos de shell corren solos solo si están en la allowlist; ver [Modo Auto](#modo-auto). |
-| **One-shot** | Persigue un objetivo entero con presupuestos, checkpoints y playtests, en la pantalla Agent. Ver [One-shot](One-shot.md). |
+| **One-shot** | Persigue un objetivo entero con presupuestos, checkpoints y playtests, en la pantalla One-shot. Ver [One-shot](One-shot.md). |
 
 Cambiar de modo cambia también el modo del agente, si lo publica: Preguntar y Revisar usan `plan`; Construir, Auto y One-shot usan `default`.
 

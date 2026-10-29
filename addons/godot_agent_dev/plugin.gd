@@ -3,7 +3,7 @@ extends EditorPlugin
 ## Herramientas de test que necesitan el editor. No hace nada salvo que se lance con:
 ## - `-- --godot-agent-cycle-test`: alterna el plugin godot_agent N veces y sale.
 ##   Código de salida: 0 bien, 1 si quedan nodos huérfanos u objetos que crecen ciclo a ciclo.
-## - `-- --godot-agent-screenshot=<ruta.png>`: abre la main screen "Agent", guarda una captura
+## - `-- --godot-agent-screenshot=<ruta.png>`: abre la main screen "One-shot", guarda una captura
 ##   del editor y sale (necesita ventana, no headless).
 ## - `-- --godot-agent-ui-test=<guion> --godot-agent-ui-shot=<ruta.png>`: conecta el dock al agente
 ##   falso con tests/scripts/<guion>.json, manda "hola", espera el fin del turno, captura y sale.
@@ -30,7 +30,7 @@ extends EditorPlugin
 ##   registrado (before) o con un run_scene en curso (during). Al reabrir, no tiene que quedar.
 ## - `-- --godot-agent-review-test [--godot-agent-ui-shot=<ruta.png>]`: modo Revisar con el agente
 ##   falso sobre tests/fixtures/review/ (ver review_check.gd). Necesita ventana.
-## - `-- --godot-agent-oneshot-test [--godot-agent-ui-shot=<ruta.png>]`: la pantalla Agent maneja un
+## - `-- --godot-agent-oneshot-test [--godot-agent-ui-shot=<ruta.png>]`: la pantalla One-shot maneja un
 ##   One-shot con el agente falso sobre un repo temporal (cuota, checkpoints, Volver acá, Aceptar).
 ## - `-- --godot-agent-claude-oneshot-test [--godot-agent-ui-shot=<ruta.png>]`: One-shot de Pong
 ##   con Claude Code real (gasta tokens), dentro del sandbox de `tests/make_sandbox.sh <dir> --dev`.
@@ -52,7 +52,7 @@ extends EditorPlugin
 ## - `-- --godot-agent-remote-test [--godot-agent-ui-shot=<ruta.png>]`: Remote Control (m7-21) con el
 ##   agente falso: botón del encabezado, franja con el link, tarjeta contestada desde el celular,
 ##   «Apagar» y el botón escondido en One-shot.
-## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla Agent,
+## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla One-shot,
 ##   el Agent Log y cada página de Settings: ningún texto visible que tenga traducción queda en inglés.
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
@@ -131,7 +131,7 @@ const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
 const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
-const MAIN_SCREEN_NAME := "Agent"
+const MAIN_SCREEN_NAME := "One-shot"
 const TARGET_PLUGIN := "godot_agent"
 const CYCLES := 5
 const SETTLE_FRAMES := 5
@@ -1075,7 +1075,7 @@ func _run_i18n_test() -> void:
 	var main_screen := _find_by_script(MAIN_SCREEN_SCRIPT)
 	var log_panel := _find_by_script(LOG_PANEL_SCRIPT)
 	if catalog == null or dock == null or main_screen == null or log_panel == null:
-		_finish(1, "falta el catálogo, el dock, la pantalla Agent o el Agent Log")
+		_finish(1, "falta el catálogo, el dock, la pantalla One-shot o el Agent Log")
 		return
 	var failures: PackedStringArray = []
 	var seen := {}
@@ -1085,7 +1085,7 @@ func _run_i18n_test() -> void:
 	failures.append_array(await LayoutCheck.composer_fits(dock))
 	EditorInterface.set_main_screen_editor(MAIN_SCREEN_NAME)
 	await get_tree().create_timer(0.5).timeout
-	_untranslated(main_screen, catalog, "pantalla Agent", failures, seen)
+	_untranslated(main_screen, catalog, "pantalla One-shot", failures, seen)
 	_untranslated(log_panel, catalog, "Agent Log", failures, seen)
 	(dock.get(&"_settings_button") as Button).pressed.emit()
 	await get_tree().create_timer(0.5).timeout

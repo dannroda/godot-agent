@@ -406,7 +406,8 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		_observe_remote_control(turn_text)
 	quota.observe_agent_text(turn_text)
 	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
-		review.ingest_turn_text(turn_text, cwd)
+		if review.ingest_turn_text(turn_text, cwd):
+			_fold_findings(first_new_entry)
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
@@ -613,6 +614,16 @@ func agent_text_since(first_entry: int) -> String:
 		if entries[i].kind == ChatEntry.EntryKind.AGENT:
 			parts.append(entries[i].text)
 	return "\n".join(parts)
+
+
+## Los mensajes del turno con el bloque `findings` ya leído lo muestran plegado (m12-38).
+func _fold_findings(first_entry: int) -> void:
+	var entries := model.entries()
+	for i in range(first_entry, entries.size()):
+		var entry: ChatEntry = entries[i]
+		if entry.kind == ChatEntry.EntryKind.AGENT and entry.text.contains("\"findings\""):
+			entry.findings_count = review.findings.size()
+			model.entry_updated.emit(entry)
 
 
 ## Cambia el modo del harness y manda el turno cuando el agente ya está en el modo que corresponde.

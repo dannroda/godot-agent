@@ -13,6 +13,14 @@ const PREFIX := "godot_agent/"
 const KEY_PROFILES := "agents/profiles"
 const KEY_ACCENT := "ui/accent_color"
 const KEY_LAST_PROFILE := "agents/last_profile"
+## Ya se quitaron los presets viejos (m12-37).
+const KEY_PRESETS_RETIRED := "agents/presets_retired"
+## Perfiles que se preseteaban hasta 0.1.7 y ya no sirven: Gemini CLI se discontinuó (lo reemplaza
+## Antigravity) y el Codex venía sin comando. Sin `default`: no cuenta para comparar.
+const RETIRED_PRESETS: Array[Dictionary] = [
+	{"id": "gemini-cli", "display_name": "Gemini CLI", "command": "gemini", "args": [], "env": {}},
+	{"id": "codex", "display_name": "Codex", "command": "", "args": [], "env": {}},
+]
 ## Puerto del server MCP (0 = aleatorio en cada arranque).
 const KEY_MCP_PORT := "mcp/port"
 ## MCP servers de terceros para todos los proyectos del usuario (m7-34), JSON.
@@ -72,6 +80,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_ACCENT, DEFAULT_ACCENT, TYPE_COLOR)
 		_declare(KEY_PROFILES, "[]", TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_LAST_PROFILE, "", TYPE_STRING)
+		_declare(KEY_PRESETS_RETIRED, false, TYPE_BOOL)
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
 		_declare(KEY_MCP_SERVERS, "[]", TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
 		_declare(KEY_QUOTA_WARN, 75, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
@@ -142,6 +151,35 @@ func save_profiles(list: Array[AgentProfile]) -> void:
 	for profile: AgentProfile in list:
 		data.append(profile.to_dict())
 	set_value(KEY_PROFILES, JSON.stringify(data, "\t"))
+
+
+## Quita una sola vez los presets viejos que siguen tal como venían (uno editado se queda).
+## Devuelve los nombres quitados, para el log.
+func retire_old_presets() -> PackedStringArray:
+	var removed: PackedStringArray = []
+	if bool(get_value(KEY_PRESETS_RETIRED, false)):
+		return removed
+	var kept: Array[AgentProfile] = []
+	for candidate: AgentProfile in profiles():
+		if _is_retired_preset(candidate):
+			removed.append(candidate.display_name)
+			if str(get_value(KEY_LAST_PROFILE, "")) == candidate.id:
+				set_value(KEY_LAST_PROFILE, "")
+		else:
+			kept.append(candidate)
+	if not removed.is_empty():
+		save_profiles(kept)
+	set_value(KEY_PRESETS_RETIRED, true)
+	return removed
+
+
+static func _is_retired_preset(candidate: AgentProfile) -> bool:
+	var data := candidate.to_dict()
+	data.erase("default")
+	for preset: Dictionary in RETIRED_PRESETS:
+		if data == preset:
+			return true
+	return false
 
 
 func profile(id: String) -> AgentProfile:

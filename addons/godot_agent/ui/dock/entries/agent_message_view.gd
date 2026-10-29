@@ -3,9 +3,13 @@ extends "entry_view.gd"
 ## Texto del agente (Markdown → BBCode, sin burbuja). Los bloques de código van en su propia caja
 ## (con copiar), entre los tramos de texto. Los thoughts se muestran colapsados, en un solo label.
 ## El streaming refresca muchas veces por segundo: la conversión se agrupa una vez por frame y los
-## controles de cada tramo se reusan mientras no cambie de tipo.
+## controles de cada tramo se reusan mientras no cambie de tipo. En Revisar, el bloque `findings`
+## que el harness ya leyó va plegado detrás de una línea con la cantidad (m12-38).
 
 const CodeBlockView := preload("../../markdown/code_block_view.gd")
+const FindingsParser := preload("../../../review/findings_parser.gd")
+
+enum SegmentKind { TEXT, CODE, FINDINGS }
 
 var _toggle: Button
 var _label: RichTextLabel  # solo en los thoughts
@@ -65,26 +69,77 @@ func _flush() -> void:
 	var blocks := markdown.blocks(entry.text)
 	for i in blocks.size():
 		var block: Dictionary = blocks[i]
-		var is_code := block.has("code")
+		var kind := SegmentKind.TEXT
+		if block.has("code"):
+			kind = SegmentKind.FINDINGS if entry.findings_count >= 0 and FindingsParser.is_findings_block(block.code) else SegmentKind.CODE
 		var child: Control = _segments.get_child(i) if i < _segments.get_child_count() else null
-		if child != null and (child is CodeBlockView) != is_code:
+		if child != null and _kind_of(child) != kind:
 			_segments.remove_child(child)
 			child.queue_free()
 			child = null
 		if child == null:
-			child = CodeBlockView.new() if is_code else _make_text_label()
-			if not is_code:
-				child.add_theme_stylebox_override(&"normal", StyleBoxEmpty.new())
+			match kind:
+				SegmentKind.CODE:
+					child = CodeBlockView.new()
+				SegmentKind.FINDINGS:
+					child = _make_findings_fold()
+				_:
+					child = _make_text_label()
+					child.add_theme_stylebox_override(&"normal", StyleBoxEmpty.new())
 			_segments.add_child(child)
 			_segments.move_child(child, i)
-		if is_code:
-			(child as CodeBlockView).set_code(block.code, block.language, markdown)
-		elif (child as RichTextLabel).text != block.bbcode:
-			(child as RichTextLabel).text = block.bbcode
+		match kind:
+			SegmentKind.CODE:
+				(child as CodeBlockView).set_code(block.code, block.language, markdown)
+			SegmentKind.FINDINGS:
+				_update_findings_fold(child, block)
+			_:
+				if (child as RichTextLabel).text != block.bbcode:
+					(child as RichTextLabel).text = block.bbcode
 	while _segments.get_child_count() > blocks.size():
 		var extra := _segments.get_child(_segments.get_child_count() - 1)
 		_segments.remove_child(extra)
 		extra.queue_free()
+
+
+func _kind_of(child: Control) -> SegmentKind:
+	if child.has_meta(&"findings_fold"):
+		return SegmentKind.FINDINGS
+	return SegmentKind.CODE if child is CodeBlockView else SegmentKind.TEXT
+
+
+## Una línea «▸ 2 findings · …» que abre el JSON en su caja de código.
+func _make_findings_fold() -> VBoxContainer:
+	var fold := VBoxContainer.new()
+	fold.set_meta(&"findings_fold", true)
+	var toggle := Button.new()
+	toggle.flat = true
+	toggle.toggle_mode = true
+	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	toggle.clip_text = true
+	toggle.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	toggle.tooltip_text = I18n.t("Show the JSON the agent wrote")
+	toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	fold.add_child(toggle)
+	var code := CodeBlockView.new()
+	code.visible = false
+	fold.add_child(code)
+	toggle.toggled.connect(func(open: bool) -> void:
+		code.visible = open
+		toggle.text = _findings_fold_text(open))
+	return fold
+
+
+func _update_findings_fold(fold: Control, block: Dictionary) -> void:
+	var toggle := fold.get_child(0) as Button
+	toggle.text = _findings_fold_text(toggle.button_pressed)
+	(fold.get_child(1) as CodeBlockView).set_code(block.code, block.language, markdown)
+
+
+func _findings_fold_text(open: bool) -> String:
+	var count := entry.findings_count
+	var summary := (I18n.t("%d finding · in the Review panel and the Script Editor") if count == 1 else I18n.t("%d findings · in the Review panel and the Script Editor")) % count
+	return ("▾ " if open else "▸ ") + summary
 
 
 func _make_text_label() -> RichTextLabel:

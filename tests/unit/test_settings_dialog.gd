@@ -195,3 +195,23 @@ func _has_text(root: Node, needle: String) -> bool:
 		if (label as Label).text.contains(needle):
 			return true
 	return false
+
+
+## m12-37: Gemini CLI y el Codex sin comando de 0.1.7 se quitan una vez; uno editado se queda.
+func test_retire_old_presets() -> void:
+	var settings := HarnessSettings.new()
+	var list: Array[AgentProfile] = []
+	list.append(AgentProfile.from_dict(AgentProfile.CLAUDE_CODE.merged({"env": {}, "default": true})))
+	list.append(AgentProfile.from_dict({"id": "gemini-cli", "display_name": "Gemini CLI", "command": "gemini", "args": [], "env": {}, "default": false}))
+	list.append(AgentProfile.from_dict({"id": "codex", "display_name": "Codex", "command": "codex-acp", "args": [], "env": {}, "default": false}))
+	settings.save_profiles(list)
+	settings.set_active_profile("gemini-cli")
+	assert_eq(Array(settings.retire_old_presets()), ["Gemini CLI"], "quita solo el preset sin editar")
+	var ids: Array = []
+	for profile: AgentProfile in settings.profiles():
+		ids.append(profile.id)
+	assert_eq(ids, ["claude-code", "codex"], "el Codex con comando se queda")
+	assert_eq(settings.active_profile().id, "claude-code", "el activo quitado vuelve al default")
+	list.append(AgentProfile.from_dict({"id": "gemini-cli", "display_name": "Gemini CLI", "command": "gemini"}))
+	settings.save_profiles(list)
+	assert_true(settings.retire_old_presets().is_empty(), "una sola vez")

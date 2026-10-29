@@ -10,7 +10,7 @@
 | **Review** | Reviews scenes and scripts and returns findings (bug, structure, performance, style), shown as marks in the Script Editor. See [Review](Review.md). |
 | **Build** | Edits scenes and scripts and runs the game, asking for permission according to the matrix below. |
 | **Auto** | Like Build, but without cards for what can be undone: it edits scenes, scripts and project settings and runs the game on its own. Shell commands run on their own only if they're on the allowlist; see [Auto mode](#auto-mode). |
-| **One-shot** | Pursues a whole goal with budgets, checkpoints and playtests, in the Agent screen. See [One-shot](One-shot.md). |
+| **One-shot** | Pursues a whole goal with budgets, checkpoints and playtests, in the One-shot screen. See [One-shot](One-shot.md). |
 
 Switching mode also switches the agent's own mode when it publishes one: Ask and Review use `plan`; Build, Auto and One-shot use `default`.
 

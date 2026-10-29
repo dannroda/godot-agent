@@ -4,6 +4,16 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- The One-shot main screen (top bar, next to 2D/3D/Script) is now called **One-shot** instead of **Agent**, so it no longer shares its name with the dock.
+- In Review mode, the `findings` JSON the agent writes is folded in the chat into one line ("2 findings · in the Review panel and the Script Editor"); a click shows the JSON.
+- A session in another tab shows one editor notice while it waits for you, not one per permission or question.
+
+### Fixed
+
+- The old **Gemini CLI** preset and the **Codex** preset without a command, left over from versions before 0.1.8, are removed once from Settings → Agents and the dock's agent selector. A profile you edited stays.
+
 ## [0.1.8] - 2026-10-28
 
 ### Added

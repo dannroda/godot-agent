@@ -16,7 +16,7 @@ El agente recibe la ruta del binario del editor abierto en `$GODOT`, en sus inst
 
 ## "Límite del plan alcanzado"
 
-Llegaste al límite de la ventana de tu plan. Esperá el reinicio (la cuenta regresiva dice cuándo), o usá **Cambiar de cuenta** en la pantalla Agent durante un One-shot (ver [One-shot → cambiar de cuenta](One-shot.md#cambiar-de-cuenta)). Fuera del One-shot, iniciá sesión con otra cuenta y abrí una sesión nueva o retomala desde **Historial**.
+Llegaste al límite de la ventana de tu plan. Esperá el reinicio (la cuenta regresiva dice cuándo), o usá **Cambiar de cuenta** en la pantalla One-shot durante un One-shot (ver [One-shot → cambiar de cuenta](One-shot.md#cambiar-de-cuenta)). Fuera del One-shot, iniciá sesión con otra cuenta y abrí una sesión nueva o retomala desde **Historial**.
 
 ## Una escena no se actualizó después de que el agente la cambió
 
@@ -32,7 +32,7 @@ Claude Code informa la cuota del plan con el primer mensaje de cada sesión, as�
 |---|---|---|
 | 4.6 | No existe `EditorInterface.get_unsaved_scenes()`. | Si el agente cambia en disco una escena abierta, aparece **Recargar escena** en lugar de recargarla sola. |
 | 4.6–4.7 | `EditorDock` existe, pero la main screen como dock llega en 4.8. | Dock y panel con `EditorDock`; la main screen con la API vieja. |
-| 4.8-beta1 | `_has_main_screen()` deja un `EditorDock` huérfano al deshabilitar, y cerrar el editor con la pantalla Agent activa da un error de foco. | Main screen con `add_dock`; antes de cerrar, el editor pasa a la pantalla 2D. |
+| 4.8-beta1 | `_has_main_screen()` deja un `EditorDock` huérfano al deshabilitar, y cerrar el editor con la pantalla One-shot activa da un error de foco. | Main screen con `add_dock`; antes de cerrar, el editor pasa a la pantalla 2D. |
 
 Quedan dos rastros conocidos e inofensivos en los exports: rutas del addon en `uid_cache.bin` y el plugin en la lista de plugins habilitados de `project.binary`.
 

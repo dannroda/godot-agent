@@ -11,7 +11,7 @@ extends Node
 ## - cuando el agente da el objetivo por cumplido, un evaluador aparte (sesión nueva, sin el
 ##   contexto del que construye y sin permisos de edición) juega el juego y decide los checks; si no
 ##   pasa, sus hallazgos vuelven como el próximo turno (D55).
-## La UI (pantalla Agent) solo lee el estado y llama a los métodos públicos.
+## La UI (pantalla One-shot) solo lee el estado y llama a los métodos públicos.
 
 signal changed
 signal activity_added(entry: Dictionary)
@@ -744,7 +744,7 @@ func _enter_spec_review() -> void:
 		_add_activity("spec", I18n.t("%s/%s is ready: review and approve it so the agent starts building") % [files.relative_dir(), OneShotFiles.SPEC])
 	else:
 		_add_activity("warning", I18n.t("The agent didn't write %s/%s. Ask it in the chat to write it, or approve to continue without a spec.") % [files.relative_dir(), OneShotFiles.SPEC])
-	model.add_notice(I18n.t("One-shot · the spec is ready for review in the Agent screen."), ChatEntry.NoticeLevel.INFO)
+	model.add_notice(I18n.t("One-shot · the spec is ready for review in the One-shot screen."), ChatEntry.NoticeLevel.INFO)
 
 
 func _close() -> void:

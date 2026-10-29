@@ -12,7 +12,7 @@ El One-shot le da al agente un objetivo entero ("Pong de 2 jugadores con puntaje
 
 ## Arrancar un run
 
-1. Elegí **One-shot** en el dock: se abre la pantalla **Agent**.
+1. Elegí **One-shot** en el dock: se abre la pantalla **One-shot**.
 2. Escribí el objetivo. El editor crece con la pantalla, así que entran objetivos largos.
 3. Revisá los presupuestos (tiempo, tokens, playtests) y las opciones:
    - **Crear un checkpoint git antes de cada tarea de One-shot**: un commit por tarea en una rama del agente;
@@ -35,7 +35,7 @@ Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para proba
    - **Aceptar todo** hace un commit final en `agent/<fecha>`. El merge lo hacés vos;
    - **Informe** muestra lo que midió el harness (ver abajo).
 
-## La pantalla Agent
+## La pantalla One-shot
 
 - **Barra de arriba**:
   - objetivo y fase;
@@ -126,7 +126,7 @@ En los dos casos, el harness relanza el agente para que tome las credenciales nu
 
 El run se guarda en `user://` mientras corre. Si el editor se cierra o se cae:
 
-- al reabrirlo, el run vuelve a la pantalla Agent con su actividad y un aviso en el chat;
+- al reabrirlo, el run vuelve a la pantalla One-shot con su actividad y un aviso en el chat;
 - si estaba esperando la cuota, sigue esperando y retoma solo a la hora del reinicio. **Retomar** o **Cambiar de cuenta** evitan la espera;
 - si no, queda en pausa: **Retomar** reabre la sesión del agente (o una nueva con el resumen del plan);
 - **Detener** lo da por terminado.

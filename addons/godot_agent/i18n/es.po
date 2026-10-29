@@ -957,8 +957,8 @@ msgstr "One-shot · posible loop: %s. Se le pide otro enfoque."
 msgid "One-shot · queued: “%s”. The agent gets it when the current turn ends."
 msgstr "One-shot · en cola: «%s». Le llega al agente al terminar el turno."
 
-msgid "One-shot · the spec is ready for review in the Agent screen."
-msgstr "One-shot · el spec está listo para revisar en la pantalla Agent."
+msgid "One-shot · the spec is ready for review in the One-shot screen."
+msgstr "One-shot · el spec está listo para revisar en la pantalla One-shot."
 
 msgid "One-shot: no task running yet."
 msgstr "One-shot: todavía no hay una tarea en curso."
@@ -1632,8 +1632,8 @@ msgstr "Los modos híbrido y solo LLM necesitan un perfil LLM."
 msgid "The MCP server is not listening."
 msgstr "El server MCP no está escuchando."
 
-msgid "The One-shot is still running: pause or stop it from the Agent screen."
-msgstr "El One-shot sigue en curso: pausalo o detenelo desde la pantalla Agent."
+msgid "The One-shot is still running: pause or stop it from the One-shot screen."
+msgstr "El One-shot sigue en curso: pausalo o detenelo desde la pantalla One-shot."
 
 msgid "The One-shot was left unfinished because the editor closed. “Resume” reopens the agent's session and continues; “Stop” ends it."
 msgstr "El One-shot quedó a medias porque el editor se cerró. «Retomar» reabre la sesión del agente y sigue; «Detener» lo da por terminado."
@@ -1866,8 +1866,8 @@ msgstr "deshacer"
 msgid "Resume One-shot"
 msgstr "Retomar One-shot"
 
-msgid "Open Agent screen"
-msgstr "Abrir la pantalla Agent"
+msgid "Open One-shot screen"
+msgstr "Abrir la pantalla One-shot"
 
 msgid "Rejected: «%s» writes %s without going through the editor. Scripts go through the agent's file tools; scenes and project settings through the godot.* tools."
 msgstr "Rechazado: «%s» escribe %s sin pasar por el editor. Los scripts van con las herramientas de archivos del agente; las escenas y la configuración del proyecto, con las tools godot.*."
@@ -3243,3 +3243,12 @@ msgstr "No responder"
 
 msgid "The agent continues without this answer. Esc cancels the request."
 msgstr "El agente sigue sin esta respuesta. Esc cancela el pedido."
+
+msgid "Show the JSON the agent wrote"
+msgstr "Ver el JSON que escribió el agente"
+
+msgid "%d finding · in the Review panel and the Script Editor"
+msgstr "%d hallazgo · en el panel de Revisar y el Script Editor"
+
+msgid "%d findings · in the Review panel and the Script Editor"
+msgstr "%d hallazgos · en el panel de Revisar y el Script Editor"
