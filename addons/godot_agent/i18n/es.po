@@ -2677,14 +2677,8 @@ msgstr "Proyecto (.agents/skills)"
 msgid "Filter skills…"
 msgstr "Filtrar skills…"
 
-msgid "In this project"
-msgstr "En este proyecto"
 
-msgid "For all projects"
-msgstr "Para todos los proyectos"
 
-msgid "Where New and Import put a skill."
-msgstr "Dónde dejan la skill Nueva e Importar."
 
 msgid "New skill"
 msgstr "Nueva skill"
@@ -3474,3 +3468,33 @@ msgstr "El agente de código de OpenAI, por su adaptador de ACP."
 
 msgid "Google's coding agent, with Gemini, Claude and GPT models in its plan."
 msgstr "El agente de código de Google, con modelos Gemini, Claude y GPT en su plan."
+
+msgid "All"
+msgstr "Todas"
+
+msgid "Show the skills of…"
+msgstr "Mostrar las skills de…"
+
+msgid "+ Skill"
+msgstr "+ Skill"
+
+msgid "Create or import a skill, here or for all your projects"
+msgstr "Crear o importar una skill, acá o para todos tus proyectos"
+
+msgid "New skill in this project"
+msgstr "Skill nueva en este proyecto"
+
+msgid "New skill for all my projects"
+msgstr "Skill nueva para todos mis proyectos"
+
+msgid "Import a folder or zip into this project…"
+msgstr "Importar una carpeta o zip a este proyecto…"
+
+msgid "Import a folder or zip for all my projects…"
+msgstr "Importar una carpeta o zip para todos mis proyectos…"
+
+msgid "Actions for this skill"
+msgstr "Acciones de esta skill"
+
+msgid "Delete…"
+msgstr "Borrar…"

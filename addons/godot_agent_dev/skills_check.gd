@@ -69,7 +69,7 @@ func run(tree: SceneTree, dock: Control, prefix: String) -> PackedStringArray:
 		if meta != {"claudeCode": {"options": {"settings": expected}}}:
 			failures.append("_meta de la sesión: %s" % meta)
 	# Nueva skill en el proyecto.
-	(tab.get(&"_where") as OptionButton).select(0)
+	tab.set(&"_target_scope", 0)  # «+ Skill › Nueva skill en este proyecto»
 	tab.call(&"_open_new_dialog")
 	(tab.get(&"_new_name") as LineEdit).text = "made-here"
 	(tab.get(&"_new_description") as LineEdit).text = "Use when testing"
