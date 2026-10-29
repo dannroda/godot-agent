@@ -73,6 +73,8 @@ var usage_size: int = 0
 var last_stop_reason: String = ""
 ## Mensaje del último error de conexión (estado FAILED).
 var failure_message: String = ""
+## La sesión no abrió porque el agente pide iniciar sesión (m12-11): el estado no se muestra como error.
+var login_required: bool = false
 ## true mientras se vuelve a armar una conversación del historial: las señales no son eventos nuevos
 ## (nada de sincronizar archivos, checkpoints ni playtests).
 var replaying: bool = false

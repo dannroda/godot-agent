@@ -877,8 +877,6 @@ msgstr "No se modificó ningún preset. Revisá el panel Output."
 msgid "No profiles: completion is local only."
 msgstr "Sin perfiles: el completado es solo local."
 
-msgid "No agents yet: add one from the ACP registry or by hand."
-msgstr "Todavía no hay agentes: agregá uno del registro de ACP o a mano."
 
 msgid "No quota pause · warning at %d %%"
 msgstr "Sin pausa por cuota · aviso al %d %%"
@@ -3343,3 +3341,15 @@ msgstr "Agente predeterminado"
 
 msgid "no command: click to set it up"
 msgstr "sin comando: hacé clic para configurarlo"
+
+msgid "Other agents…"
+msgstr "Otros agentes…"
+
+msgid "Add an agent to start"
+msgstr "Agregá un agente para empezar"
+
+msgid "Add an agent to start:"
+msgstr "Agregá un agente para empezar:"
+
+msgid "○ %s · sign-in needed"
+msgstr "○ %s · falta iniciar sesión"

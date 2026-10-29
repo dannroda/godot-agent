@@ -6,12 +6,15 @@ extends VBoxContainer
 signal show_log_requested
 ## Abrir el diálogo de Settings (lo maneja el plugin: necesita la config del proyecto y el server MCP).
 signal settings_requested
+## Agregar un agente sugerido desde el registro de ACP, filtrado por `query` (m12-15).
+signal registry_requested(query: String)
 ## Abrir la ventana Extensions: plugins, marketplaces y MCP servers (m7-37).
 signal extensions_requested
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
 signal action_forwarded(action: String, payload: Variant)
 
 const SessionModel := preload("../../session/session_model.gd")
+const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const SessionController := preload("../../session/session_controller.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
@@ -142,6 +145,8 @@ var _history_items: Array[Dictionary] = []
 @onready var _start_button: Button = %StartButton
 ## Debajo de «Nueva sesión»: las últimas sesiones del proyecto con «Continuar» (m12-12).
 var _recent_box: VBoxContainer
+## Sin agentes: los sugeridos con lo que piden y «Agregar» (m12-15).
+var _suggested_box: VBoxContainer
 var _recent_signature: String = ""
 @onready var _composer_slot: MarginContainer = %ComposerSlot
 @onready var _export_banner: PanelContainer = %ExportBanner
@@ -167,6 +172,13 @@ func _ready() -> void:
 	_recent_box.name = "RecentSessions"
 	_recent_box.add_theme_constant_override(&"separation", AgentTheme.px(6))
 	_empty_state.add_child(_recent_box)
+	_suggested_box = VBoxContainer.new()
+	_suggested_box.name = "SuggestedAgents"
+	_suggested_box.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	_empty_state.add_child(_suggested_box)
+	_empty_state.move_child(_suggested_box, _start_button.get_index())
+	for agent: Dictionary in SuggestedAgents.AGENTS:
+		_suggested_box.add_child(_suggested_row(agent))
 	_conversation = ConversationView.new()
 	_conversation.setup(_model, _accent)
 	_conversation.action_requested.connect(_on_action_requested)
@@ -577,8 +589,11 @@ func _refresh_state() -> void:
 			text = I18n.t("● %s · cancelling…") % name
 			color = AgentTheme.WARNING
 		SessionModel.SessionState.FAILED:
-			text = I18n.t("✗ %s · error") % name
-			color = AgentTheme.ERROR
+			if _model.login_required:
+				text = I18n.t("○ %s · sign-in needed") % name
+			else:
+				text = I18n.t("✗ %s · error") % name
+				color = AgentTheme.ERROR
 	var email := str(_model.account.get("email", ""))
 	if not email.is_empty() and _model.state != SessionModel.SessionState.DISCONNECTED:
 		text += " · " + email
@@ -611,10 +626,12 @@ func _refresh_empty_state() -> void:
 	var profile := _settings.active_profile()
 	# Primer arranque: no hay agentes preseteados y el botón lleva a elegir uno (Settings → Agentes).
 	if profile == null:
-		_start_button.text = I18n.t("Set up an agent…")
+		_start_button.text = I18n.t("Other agents…")
 	else:
 		_start_button.text = I18n.t("Resume One-shot") if _oneshot_active else I18n.t("Start session")
-	_empty_command.text = profile.command_line() if profile else I18n.t("No agents yet: add one from the ACP registry or by hand.")
+	_suggested_box.visible = profile == null
+	_composer.set_unavailable(I18n.t("Add an agent to start") if profile == null and _controller.profile() == null else "")
+	_empty_command.text = profile.command_line() if profile else I18n.t("Add an agent to start:")
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_start_button.disabled = _model.state == SessionModel.SessionState.STARTING
 	var recent: Array[Dictionary] = []
@@ -642,6 +659,46 @@ func _refresh_recent(items: Array[Dictionary]) -> void:
 	_recent_box.add_child(heading)
 	for item: Dictionary in items:
 		_recent_box.add_child(_recent_row(item))
+
+
+## Un agente sugerido (m12-15): nombre, lo que pide y «Agregar». Claude Code se guarda directo; los
+## demás abren el registro de ACP filtrado, desde Ajustes.
+func _suggested_row(agent: Dictionary) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.1), 6, 8))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	card.add_child(row)
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override(&"separation", 0)
+	row.add_child(text)
+	var name_label := Label.new()
+	name_label.text = str(agent.name)
+	text.add_child(name_label)
+	var needs := Label.new()
+	needs.text = I18n.t(str(agent.needs))
+	needs.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	needs.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	text.add_child(needs)
+	var add := Button.new()
+	add.text = I18n.t("Add")
+	add.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	add.pressed.connect(func() -> void: add_suggested_agent(agent))
+	row.add_child(add)
+	return card
+
+
+func add_suggested_agent(agent: Dictionary) -> void:
+	var data := SuggestedAgents.profile_of(agent)
+	if data.is_empty():
+		registry_requested.emit(str(agent.get("registry_query", "")))
+		return
+	var list := _settings.profiles()
+	data["default"] = list.is_empty()
+	list.append(AgentProfile.from_dict(data))
+	_settings.save_profiles(list)
+	_settings.set_active_profile(str(data.id))
 
 
 ## Una sesión anterior: título, «agente · cuándo · N turnos» y «Continuar».

@@ -62,6 +62,9 @@ var _send_button: Button
 var _screenshot_button: Button
 var _busy: bool = false
 var _oneshot_active: bool = false
+## Por qué no se puede escribir (sin agentes, m12-15): va de placeholder y apaga el campo.
+var _unavailable_text: String = ""
+var _enabled: bool = true
 ## Motivo del bloqueo del envío (límite del plan, con la cuenta regresiva); "" = sin bloqueo.
 var _lock_text: String = ""
 var _lock_tooltip: String = ""
@@ -217,12 +220,25 @@ func set_oneshot_active(active: bool) -> void:
 
 
 func _update_placeholder() -> void:
+	if not _unavailable_text.is_empty():
+		_input.placeholder_text = _unavailable_text
+		return
 	_input.placeholder_text = I18n.t(PLACEHOLDER_ONESHOT) if _oneshot_active else (I18n.t(PLACEHOLDER_BUSY) if _busy else I18n.t(PLACEHOLDER))
 
 
 func set_enabled(enabled: bool) -> void:
-	_input.editable = enabled
+	_enabled = enabled
+	_input.editable = _enabled and _unavailable_text.is_empty()
 	_update_send_button()
+
+
+## `text` no vacío: el composer no se puede usar y dice por qué («Agregá un agente para empezar»).
+func set_unavailable(text: String) -> void:
+	if text == _unavailable_text:
+		return
+	_unavailable_text = text
+	_update_placeholder()
+	set_enabled(_enabled)
 
 
 ## Bloquea el envío mientras dure el límite del plan (spec §10.1). `text` va en el botón.

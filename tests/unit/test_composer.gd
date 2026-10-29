@@ -277,3 +277,21 @@ func _drag_onto(target: Control, data: Variant) -> void:
 	release.position = center
 	tree.root.push_input(release)
 	await tree.process_frame
+
+
+## m12-15: sin agentes el composer no se puede usar y dice qué falta; set_enabled no lo reabre.
+func test_unavailable_without_agent() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var composer: VBoxContainer = Composer.new()
+	composer.call(&"setup", Color.ORANGE)
+	tree.root.add_child(composer)
+	await tree.process_frame
+	var input: CodeEdit = composer.get(&"_input")
+	composer.call(&"set_unavailable", "Add an agent to start")
+	composer.call(&"set_enabled", true)
+	assert_false(input.editable, "apagado aunque la sesión no esté arrancando")
+	assert_eq(input.placeholder_text, "Add an agent to start", "dice qué falta")
+	composer.call(&"set_unavailable", "")
+	assert_true(input.editable, "con agente vuelve")
+	assert_false(input.placeholder_text == "Add an agent to start", "y su placeholder de siempre")
+	composer.free()

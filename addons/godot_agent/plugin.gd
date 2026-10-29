@@ -207,6 +207,9 @@ func _enter_tree() -> void:
 	dock.setup(_model, _controller, _settings)
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
+	dock.registry_requested.connect(func(query: String) -> void:
+		_settings_dialog.open()
+		_settings_dialog.open_registry(query))
 	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.submit_interceptor = _intercept_dock_prompt

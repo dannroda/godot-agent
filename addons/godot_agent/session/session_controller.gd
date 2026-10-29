@@ -246,6 +246,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_agent_account = {}  # el proceso nuevo la vuelve a mandar después de initialize
 	model.reset()
 	model.failure_message = ""
+	model.login_required = false
 	_stderr_tail.clear()
 	model.set_state(SessionModel.SessionState.STARTING)
 	agent_log.add(AgentLog.CH_PROC, "Launching %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
@@ -345,6 +346,7 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 			if not login_actions.is_empty():
 				# Pedir el login no es un error (m12-11): tarjeta neutra, sin código ni «Reintentar».
 				agent_log.add(AgentLog.CH_PROC, message)
+				model.login_required = true
 				_fail(I18n.t("Sign in to %s to continue.") % _agent_name(), login_actions, ChatEntry.NoticeLevel.INFO, false)
 				return false
 			else:
