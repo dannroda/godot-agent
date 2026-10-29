@@ -4,11 +4,11 @@
   "created_at": "2026-10-29T21:59:11.822Z",
   "description": "Como godot-ai: cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la llamada anterior (sin esperar al fin del turno), y las tools que escriben scripts devuelven el diagnóstico de ese archivo. Además, rechazar o esperar con un código claro cuando el editor está importando, corriendo el juego o sin escena abierta (EDITOR_IMPORTING, EDITOR_PLAYING, EDITOR_NO_SCENE), y que run_scene diga 'break' si un error de parseo frena el arranque.",
   "milestone": "m14",
-  "notes": "",
+  "notes": "Cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la respuesta anterior a esa sesión (marca por sesión en ToolRegistry); las tools que ya los traen (run_scene, game_*, get_errors, validate_scripts) solo avanzan la marca. Las tools que escriben esperan hasta 8 s si el editor importa y si no responden EDITOR_IMPORTING. No se hizo: diagnóstico en la misma escritura de un script, porque el agente escribe con fs/write_text_file de ACP y su respuesta no lleva datos; lo cubren el aviso en la tool siguiente y la verificación al terminar el turno. run_scene ya informa 'break' (el juego paró en el debugger por un error).",
   "order": 2,
   "refs": [],
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "test_tool_registry.test_new_errors_in_each_response; mcp-test en Xvfb 4.7.2 y 4.8-beta1: un script roto aparece en la respuesta siguiente de editor_state y una sola vez; edit-test, run-test y sessions-test pasan",
   "title": "Errores nuevos en cada respuesta y estado del editor",
-  "updated_at": "2026-10-29T21:59:12.061Z"
+  "updated_at": "2026-10-29T22:40:25.985Z"
 }

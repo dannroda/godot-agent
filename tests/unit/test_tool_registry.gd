@@ -169,3 +169,22 @@ func test_copy_from_outside_asks_as_shell() -> void:
 		return false
 	await registry.call_tool("copy_file", {"from": "/etc/hostname", "to": "res://tests/tmp/h.txt"})
 	assert_eq(asked, ["shell"], "el permiso se pide con ese grupo")
+
+
+## m14-02: cada respuesta trae los errores nuevos desde la anterior de esa sesión.
+func test_new_errors_in_each_response() -> void:
+	var registry := _registry()
+	var entries: Array[Dictionary] = []
+	registry.error_mark = func() -> int: return entries.size()
+	registry.errors_since = func(since: int) -> Array[Dictionary]: return entries.slice(since)
+	var first: Dictionary = await registry.call_tool("echo", {"text": "a"})
+	assert_eq((first.content as Array).size(), 1, "sin errores nuevos, sin aviso")
+	entries.append({"seq": 1, "kind": "error", "message": "Parse Error: Expected end of statement", "file": "res://player.gd", "line": 12, "source": "editor"})
+	entries.append({"seq": 2, "kind": "warning", "message": "unused", "file": "", "line": 0, "source": "editor"})
+	var second: Dictionary = await registry.call_tool("echo", {"text": "b"})
+	var notice: String = second.content.back().text
+	assert_true(notice.contains("1 error, 1 warning") and notice.contains("res://player.gd:12 — Parse Error"), "avisa el error con archivo y línea · " + notice)
+	assert_eq((await registry.call_tool("echo", {"text": "c"})).content.size(), 1, "una sola vez")
+	entries.append({"seq": 3, "kind": "error", "message": "x", "file": "", "line": 0, "source": "game"})
+	assert_eq((await registry.call_tool("echo", {"text": "d"}, "s2")).content.size(), 1, "otra sesión arranca su marca en su primera llamada")
+	assert_true((await registry.call_tool("echo", {"text": "e"})).content.back().text.contains("1 error"), "la primera sesión lo ve en su próxima llamada")

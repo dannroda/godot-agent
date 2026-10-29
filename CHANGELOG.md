@@ -6,6 +6,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Added
 
+- Every `godot.*` tool result now lists the editor errors and warnings that appeared since that session's previous call, so the agent sees a broken script right away instead of at the end of the turn.
+- Tools that edit scenes, files or the project wait up to 8 s while the editor imports assets, and then answer `EDITOR_IMPORTING` instead of editing half-loaded resources.
 - `game_input` and `run_scene` inputs can go by physics frame (`frame`, `hold_frames`, `settle_frames`) instead of seconds, so the same sequence plays the same at any framerate; actions take a `strength`.
 
 ### Fixed

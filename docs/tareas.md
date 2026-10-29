@@ -3892,14 +3892,14 @@ tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un edit
 
 **Notas:** Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.
 
-## M12 — Que el agente se verifique solo  (0/8)
+## M12 — Que el agente se verifique solo  (1/8, 1 en revisión)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
 **Hecho cuando:**
 - El agente se entera de los errores en la misma tool que los causó, prueba el juego con input reproducible y valida física y TileMaps sin que el usuario lo pida.
 
-### Input del juego por frame: secuencias reproducibles · En curso
+### Input del juego por frame: secuencias reproducibles · Revisión
 
 Como godot-ai (game_manage op=input_sequence): una tool que recibe una línea de tiempo de input por frame ({at_frame, action/key/mouse, pressed, strength} y settle_frames) y la reproduce en el juego. Las teclas sueltas de hoy se desfasan con el framerate y las pruebas del evaluador del One-shot no se repiten igual. Devolver el estado al final (captura opcional).
 
@@ -3907,9 +3907,13 @@ Como godot-ai (game_manage op=input_sequence): una tool que recibe una línea de
 
 **Notas:** game_input y los inputs de run_scene aceptan frame (frames de física desde el inicio), hold_frames (default 6) y settle_frames; strength para acciones. No se mezclan t y frame en una llamada. El probe espera physics_frame en vez de timers.
 
-### Errores nuevos en cada respuesta y estado del editor · Pendiente
+### Errores nuevos en cada respuesta y estado del editor · En curso
 
 Como godot-ai: cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la llamada anterior (sin esperar al fin del turno), y las tools que escriben scripts devuelven el diagnóstico de ese archivo. Además, rechazar o esperar con un código claro cuando el editor está importando, corriendo el juego o sin escena abierta (EDITOR_IMPORTING, EDITOR_PLAYING, EDITOR_NO_SCENE), y que run_scene diga 'break' si un error de parseo frena el arranque.
+
+**Prueba:** test_tool_registry.test_new_errors_in_each_response; mcp-test en Xvfb 4.7.2 y 4.8-beta1: un script roto aparece en la respuesta siguiente de editor_state y una sola vez; edit-test, run-test y sessions-test pasan
+
+**Notas:** Cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la respuesta anterior a esa sesión (marca por sesión en ToolRegistry); las tools que ya los traen (run_scene, game_*, get_errors, validate_scripts) solo avanzan la marca. Las tools que escriben esperan hasta 8 s si el editor importa y si no responden EDITOR_IMPORTING. No se hizo: diagnóstico en la misma escritura de un script, porque el agente escribe con fs/write_text_file de ACP y su respuesta no lleva datos; lo cubren el aviso en la tool siguiente y la verificación al terminar el turno. run_scene ya informa 'break' (el juego paró en el debugger por un error).
 
 ### Playtest con veredicto: pass, fail o blocked con evidencia · Pendiente
 

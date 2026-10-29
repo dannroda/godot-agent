@@ -11,6 +11,10 @@ const AgentLog := preload("../core/agent_log.gd")
 const EditorContext := preload("../ui/editor_context.gd")
 
 const LOG_SUMMARY_CHARS := 120
+## Tools que ya traen en su resultado los errores nuevos: solo avanzan la marca (m14-02).
+const REPORTS_ERRORS: PackedStringArray = ["get_errors", "validate_scripts", "run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input"]
+## Errores que se listan en el aviso; los demás se cuentan.
+const NEW_ERRORS_SHOWN := 5
 const METHODS_TOOL := "methods"
 const RUN_TOOL := "run"
 
@@ -35,6 +39,11 @@ var max_output_chars: int = 20000
 var max_image_side: int = 1280
 ## tools/list solo con el núcleo, más `methods` y `run` para las extendidas.
 var compact: bool = false
+## Errores nuevos en cada respuesta (m14-02): `() -> int`, la marca actual del ErrorCollector, y
+## `(since: int) -> Array[Dictionary]`, sus entradas desde ahí. Sin asignar, no se avisa.
+var error_mark: Callable
+var errors_since: Callable
+var _error_marks: Dictionary = {}  # caller -> marca de la última respuesta
 
 var _tools: Dictionary = {}  # name -> McpTool
 var _order: PackedStringArray = []
@@ -119,6 +128,7 @@ func run_for_user(tool_name: String, args: Dictionary) -> String:
 func call_tool(tool_name: String, args: Variant, caller: String = "") -> Dictionary:
 	var started := Time.get_ticks_msec()
 	var result: Dictionary
+	var error_mark_before: int = _error_marks.get(caller, error_mark.call()) if error_mark.is_valid() else -1
 	if tool_name == METHODS_TOOL and not _tools.has(METHODS_TOOL):
 		result = _limit(_methods(args if args is Dictionary else {}))
 		_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
@@ -160,9 +170,39 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 				result = _normalize(await tool.handler.call(arguments))
 			else:
 				result = McpTool.error(blocked)
+	if error_mark.is_valid():
+		if not tool_name in REPORTS_ERRORS:
+			result = _with_new_errors(result, errors_since.call(error_mark_before))
+		_error_marks[caller] = error_mark.call()
 	result = _limit(result)
 	_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
 	return result
+
+
+## El aviso de errores y warnings que aparecieron desde la respuesta anterior a esta sesión: así el
+## agente se entera en la misma tool, sin esperar al fin del turno ni llamar a get_errors.
+static func _with_new_errors(result: Dictionary, entries: Array) -> Dictionary:
+	var found := entries.filter(func(entry: Dictionary) -> bool: return entry.get("kind") == "error")
+	var warnings := entries.filter(func(entry: Dictionary) -> bool: return entry.get("kind") == "warning").size()
+	if found.is_empty() and warnings == 0:
+		return result
+	var counts: PackedStringArray = []
+	if not found.is_empty():
+		counts.append("%d error%s" % [found.size(), "" if found.size() == 1 else "s"])
+	if warnings > 0:
+		counts.append("%d warning%s" % [warnings, "" if warnings == 1 else "s"])
+	var lines: PackedStringArray = ["New in the editor since your previous godot.* call: %s (get_errors shows all of them):" % ", ".join(counts)]
+	for entry: Dictionary in found.slice(0, NEW_ERRORS_SHOWN):
+		var file := str(entry.get("file", ""))
+		var location := ("%s:%d" % [file, int(entry.line)] if int(entry.get("line", 0)) > 0 else file) if not file.is_empty() else str(entry.get("source", ""))
+		lines.append("- %s — %s" % [location, str(entry.get("message", "")).strip_edges().left(300)])
+	if found.size() > NEW_ERRORS_SHOWN:
+		lines.append("- … and %d more" % (found.size() - NEW_ERRORS_SHOWN))
+	var with_notice := result.duplicate()
+	var content: Array = (result.get("content", []) as Array).duplicate()
+	content.append({"type": "text", "text": "\n".join(lines)})
+	with_notice["content"] = content
+	return with_notice
 
 
 # --- descubrimiento (m3-09) --------------------------------------------------------------------------

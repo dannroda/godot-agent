@@ -103,6 +103,18 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var bad_args: Dictionary = await _call("capture_editor_viewport", {"which": "4d"})
 	_expect(bad_args.get("isError", false), "enum inválido → isError")
 
+	# Errores nuevos en la respuesta siguiente (m14-02): un script roto que el editor carga.
+	await _call_text("editor_state", {})
+	var broken := FileAccess.open(BAD_SCRIPT, FileAccess.WRITE)
+	broken.store_string("extends Node\n\nfunc _ready() -> void:\n\tvar x := \n")
+	broken.close()
+	ResourceLoader.load(BAD_SCRIPT, "", ResourceLoader.CACHE_MODE_IGNORE)
+	await _tree.create_timer(0.3).timeout
+	var after := await _call_text("editor_state", {})
+	_expect(after.contains("New in the editor since your previous godot.* call") and after.contains("mcp_bad_script.gd"), "editor_state trae el error nuevo · " + after.right(300))
+	var once := await _call_text("editor_state", {})
+	_expect(not once.contains("New in the editor since"), "el aviso sale una sola vez")
+
 	await _check_shim()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(BAD_SCRIPT))
 	return failures

@@ -93,6 +93,8 @@ const UPDATE_CHECK_INTERVAL_S := 86400
 const ICON_NAME := &"Script"
 ## Id de la primera sesión (m7-44); el token principal del server MCP es el suyo.
 const PRIMARY_SESSION := "s1"
+## Cuánto espera una tool que escribe a que el editor termine de importar (m14-02).
+const IMPORT_WAIT_S := 8
 
 var _export_plugin: AgentExportPlugin
 var _surfaces: EditorSurfaces
@@ -654,6 +656,8 @@ func _start_mcp_server() -> void:
 		return controller != null and await controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
 	registry.guard = _guard_tool
 	registry.precheck = _precheck_tool
+	registry.error_mark = _errors.mark
+	registry.errors_since = _errors.entries_since
 	registry.register_provider(ReadTools.new())
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
@@ -1245,11 +1249,26 @@ func _precheck_tool(mcp_caller: String, tool_name: String) -> String:
 
 
 func _guard_tool(mcp_caller: String, tool_name: String, args: Dictionary) -> String:
-	if _coordinator == null:
-		return ""
+	var importing := await _wait_import(tool_name)
+	if not importing.is_empty() or _coordinator == null:
+		return importing
 	var root := EditorInterface.get_edited_scene_root()
 	var edited := root.scene_file_path if root else ""
 	return await _coordinator.guard_tool(_session_of(mcp_caller), tool_name, _registry.group_of(tool_name), args, edited)
+
+
+## Las tools que escriben esperan a que el editor termine de importar (m14-02): editar mientras
+## importa pisa recursos a medio cargar. "" para seguir; si no termina a tiempo, el motivo.
+func _wait_import(tool_name: String) -> String:
+	if not _registry.group_of(tool_name) in [PermissionPolicy.GROUP_EDIT_SCENE, PermissionPolicy.GROUP_EDIT_FILES, PermissionPolicy.GROUP_PROJECT]:
+		return ""
+	var filesystem := EditorInterface.get_resource_filesystem()
+	var deadline := Time.get_ticks_msec() + int(IMPORT_WAIT_S * 1000)
+	while filesystem.is_scanning() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if filesystem.is_scanning():
+		return "EDITOR_IMPORTING: the editor is still importing assets after %d s. Retry godot.%s in a few seconds; editing now could overwrite half-loaded resources." % [IMPORT_WAIT_S, tool_name]
+	return ""
 
 
 ## Lo que ve una sesión de las demás (godot.sessions).
