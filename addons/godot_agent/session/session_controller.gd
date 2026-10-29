@@ -25,6 +25,7 @@ const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionRequest := preload("permission_request.gd")
+const Preauthorizations := preload("preauthorizations.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
 const ShellRules := preload("shell_rules.gd")
 const ProjectWriteGuard := preload("project_write_guard.gd")
@@ -82,7 +83,6 @@ const AUTH_REQUIRED_CODE := -32000
 const AUTH_REQUIRED_MESSAGE := "authentication required"
 ## Ventana en la que un permiso de edición ya concedido cubre el fs/write_text_file que le sigue
 ## (el adapter de Claude pide permiso para Edit y después escribe por fs/*).
-const PREAUTHORIZED_WRITE_MS := 120000
 
 const MODE_RULES: Dictionary = {
 	SessionModel.HarnessMode.ASK: "Only answer questions: do not modify files, scenes or settings, and do not run commands.",
@@ -172,8 +172,7 @@ var _sending_fix: bool = false
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
 var _note_for_agent: String = ""
 var _connect_generation: int = 0
-var _preauthorized_writes: Dictionary = {}  # ruta absoluta -> vencimiento (msec)
-var _preauthorized_commands: Dictionary = {}  # command line -> vencimiento (msec)
+var _preauth := Preauthorizations.new()
 ## Subagentes que el harness dejó arrancar (toolCallId -> true): cuentan para el límite aunque el
 ## agente todavía no los haya pasado a in_progress.
 var _approved_subagents: Dictionary = {}
@@ -356,8 +355,7 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	model.apply_session(result.result.sessionId, result.result)
 	_system_prompt_sent = false
 	policy.clear_session()
-	_preauthorized_writes.clear()
-	_preauthorized_commands.clear()
+	_preauth.clear()
 	_approved_subagents.clear()
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.display_name, cwd)
@@ -914,7 +912,7 @@ func _on_request_permission(params: Dictionary) -> Variant:
 			_log_perm("rejected, opens Godot in its own window: %s" % launch)
 			model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
-	if request.group == PermissionPolicy.GROUP_EDIT_FILES and _file_taken(_write_paths(request, call)):
+	if request.group == PermissionPolicy.GROUP_EDIT_FILES and _file_taken(Preauthorizations.write_paths(request, call)):
 		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	var decision := policy.decide(request.group, model.harness_mode)
 	if PermissionPolicy.is_mcp_group(request.group):
@@ -941,7 +939,7 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	match decision:
 		PermissionPolicy.ALLOW:
 			_log_perm("allowed by %s mode: %s" % [_mode_label(), request.title])
-			_preauthorize(request, call)
+			_preauth.grant(request, call)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
 		PermissionPolicy.DENY:
 			_notify_denied(request.group, request.title)
@@ -956,7 +954,7 @@ func _on_request_permission(params: Dictionary) -> Variant:
 	if outcome.get("outcome") != "selected":
 		return {"outcome": {"outcome": "cancelled"}}
 	if request.was_allowed():
-		_preauthorize(request, call)
+		_preauth.grant(request, call)
 		if request.group == PermissionPolicy.GROUP_SUBAGENTS:
 			_approved_subagents[request.tool_call_id] = true
 		# "Siempre" queda en la memoria de la sesión del harness; al agente se le responde
@@ -1059,9 +1057,7 @@ func _add_shell_rule(rule: Dictionary) -> void:
 func _authorize_fs_write(path: String, old_text: String, new_text: String) -> bool:
 	if _file_taken(PackedStringArray([path])):
 		return false
-	var expiry: int = _preauthorized_writes.get(path, 0)
-	if expiry > Time.get_ticks_msec():
-		_preauthorized_writes.erase(path)
+	if _preauth.consume_write(path):
 		return true
 	var counts := LineDiff.count(LineDiff.diff(old_text, new_text))
 	var description := "%s · +%d −%d" % [path.trim_prefix(cwd + "/"), counts.added, counts.removed]
@@ -1083,10 +1079,7 @@ func _authorize_terminal_command(command_line: String, working_dir: String, env:
 		_log_perm("rejected, opens Godot in its own window: %s" % launch)
 		model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
 		return "Command-line Godot only runs with --headless: %s" % launch
-	var preauth_key := command_key(command_line)
-	var expiry: int = _preauthorized_commands.get(preauth_key, 0)
-	if expiry > Time.get_ticks_msec() and env.is_empty():
-		_preauthorized_commands.erase(preauth_key)
+	if env.is_empty() and _preauth.consume_command(command_line):
 		return ""
 	var decision := policy.decide(PermissionPolicy.GROUP_SHELL, model.harness_mode)
 	if decision == PermissionPolicy.ALLOW and env.is_empty():
@@ -1182,89 +1175,6 @@ func _file_taken(paths: PackedStringArray) -> bool:
 	_log_perm("rejected, %s is being edited by %s" % [names, owner])
 	model.add_notice(I18n.t("Rejected: %s is being edited by «%s». It's free again when that session's turn ends.") % [names, owner], ChatEntry.NoticeLevel.WARNING)
 	return true
-
-
-## Un permiso de edición concedido cubre la escritura por fs/* que le sigue al mismo archivo; uno de
-## shell cubre el terminal/create que le sigue con el mismo comando.
-## Las palabras del comando sin las comillas: `npm run "a b"` (lo que pidió el agente) y
-## `npm run 'a b'` (lo que arma terminal/create) son la misma clave. Un carácter de control del
-## shell citado o escapado queda marcado: `echo 'a;rm x'` (aprobado) no cubre `echo a;rm x`.
-static func command_key(command: String) -> String:
-	var words: PackedStringArray = []
-	var word := ""
-	var in_word := false
-	var quote := ""
-	var i := 0
-	while i < command.length():
-		var c := command[i]
-		if quote == "'":
-			if c == "'":
-				quote = ""
-			else:
-				word += _literal(c)
-		elif quote == "\"":
-			if c == "\"":
-				quote = ""
-			elif c == "\\" and i + 1 < command.length():
-				i += 1
-				word += _literal(command[i])
-			else:
-				word += c if c in "$`" else _literal(c)  # entre comillas dobles $ y ` siguen activos
-		elif c == "'" or c == "\"":
-			quote = c
-			in_word = true
-		elif c == "\\" and i + 1 < command.length():
-			i += 1
-			word += _literal(command[i])
-			in_word = true
-		elif c == " " or c == "\t":
-			if in_word:
-				words.append(word)
-			word = ""
-			in_word = false
-		else:
-			word += c
-			in_word = true
-		i += 1
-	if in_word:
-		words.append(word)
-	return "\u0001".join(words)
-
-
-## Un carácter que el shell no interpreta por estar citado: los de control llevan una marca.
-static func _literal(c: String) -> String:
-	return "\u0002" + c if c in ";|&<>$`()\n*?" else c
-
-
-func _preauthorize(request: PermissionRequest, call: Variant) -> void:
-	if request.group == PermissionPolicy.GROUP_SHELL:
-		if not request.description.is_empty():
-			_preauthorized_commands[command_key(request.description)] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
-		return
-	if request.group != PermissionPolicy.GROUP_EDIT_FILES:
-		return
-	for path: String in _write_paths(request, call):
-		_preauthorized_writes[path] = Time.get_ticks_msec() + PREAUTHORIZED_WRITE_MS
-
-
-## Archivos que escribe un pedido de edición: el del diff, los del input y las ubicaciones.
-func _write_paths(request: PermissionRequest, call: Variant) -> PackedStringArray:
-	var paths: PackedStringArray = []
-	if not request.diff.is_empty():
-		paths.append(str(request.diff.get("path", "")))
-	if call and call.raw_input is Dictionary:
-		for key: String in ["file_path", "path", "notebook_path"]:
-			if call.raw_input.get(key) is String:
-				paths.append(call.raw_input[key])
-	if call:
-		for location: Variant in call.locations:
-			if location is Dictionary and location.get("path") is String:
-				paths.append(location.path)
-	var result: PackedStringArray = []
-	for path: String in paths:
-		if not path.is_empty() and not path.simplify_path() in result:
-			result.append(path.simplify_path())
-	return result
 
 
 func _notify_denied(group: String, title: String) -> void:
@@ -1421,8 +1331,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		model.apply_update({"sessionUpdate": "session_info_update", "title": remote_title})
 	_system_prompt_sent = true  # ya está en el contexto que el agente recuperó
 	policy.clear_session()
-	_preauthorized_writes.clear()
-	_preauthorized_commands.clear()
+	_preauth.clear()
 	_approved_subagents.clear()
 	if history and _profile and (has_local_events or method == "session/resume"):
 		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)

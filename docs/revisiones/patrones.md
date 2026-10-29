@@ -12,7 +12,7 @@ real pero acotado), **baja** (riesgo chico o costo de mantenimiento).
 
 | # | Gravedad | Hallazgo | Estado |
 |---|---|---|---|
-| P1 | alta | Seis scripts de más de 1100 líneas con muchas responsabilidades | ver abajo |
+| P1 | alta | Seis scripts de más de 1100 líneas con muchas responsabilidades | en parte (sigue en m13-03) |
 | P2 | alta | Lo que espera un permiso o una pregunta corría dentro de quien la respondió | arreglado |
 | P3 | media | `run_all` no contaba los errores de script como fallos | arreglado |
 | P4 | media | `await` largos en el dock sin comprobar que siga en el árbol | arreglado |
@@ -30,6 +30,14 @@ la espera de un permiso, la tool que guarda la escena y el clic del dock quedaro
 se viera. Arreglo: sacar piezas con límites claros, empezando por los permisos del controller
 (`authorize`, `_ask_user`, la preautorización y el autorizador de terminales). El resto es tema de la
 revisión de arquitectura (m13-03).
+
+Hecho: la preautorización salió a `session/preauthorizations.gd` (`command_key`, `grant`,
+`consume_write`, `consume_command`, `write_paths`); el controller bajó de 1657 a 1585 líneas.
+No se hizo, y queda para m13-03 con este orden: la consulta de cuota (`/usage`, `/status`) está atada
+al enrutado de `session/update` (sus mensajes no van al chat) y al bloqueo de `send_prompt`, así que
+sacarla pide antes decidir cómo se enrutan esas actualizaciones; después los permisos de ACP
+(`_on_request_permission`, `_ask_user`, el autorizador de terminales) y, en el dock y el plugin, el
+armado de cada sección en su propio script.
 
 ## P2 · Lo que sigue a una respuesta corría dentro de quien respondió
 

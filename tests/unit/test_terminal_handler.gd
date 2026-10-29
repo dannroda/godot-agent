@@ -1,6 +1,7 @@
 extends "test_case.gd"
 ## Terminales ACP (m11-15): terminal/create, output, wait_for_exit, kill, release y política.
 
+const Preauthorizations := preload("res://addons/godot_agent/session/preauthorizations.gd")
 const TerminalHandler := preload("res://addons/godot_agent/acp/terminal_handler.gd")
 const AcpClient := preload("res://addons/godot_agent/acp/acp_client.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
@@ -149,11 +150,11 @@ func test_quoting_and_agent_env_ask() -> void:
 
 ## Lo que pidió el agente con comillas dobles y lo que arma terminal/create con simples es la misma clave.
 func test_command_key_ignores_quoting() -> void:
-	assert_eq(SessionController.command_key("npm run \"a b\""), SessionController.command_key(TerminalHandler.format_command_line("npm", PackedStringArray(["run", "a b"]))), "misma clave")
-	assert_false(SessionController.command_key("npm run a b") == SessionController.command_key("npm run 'a b'"), "otros args, otra clave")
-	assert_false(SessionController.command_key("echo 'a;rm x'") == SessionController.command_key("echo a;rm x"), "un ; citado no cubre uno que se ejecuta")
-	assert_false(SessionController.command_key("echo a\\|sh") == SessionController.command_key("echo a|sh"), "ni uno escapado")
-	assert_eq(SessionController.command_key("echo \"a;b\""), SessionController.command_key(TerminalHandler.format_command_line("echo", PackedStringArray(["a;b"]))), "citado con comillas dobles o simples, misma clave")
+	assert_eq(Preauthorizations.command_key("npm run \"a b\""), Preauthorizations.command_key(TerminalHandler.format_command_line("npm", PackedStringArray(["run", "a b"]))), "misma clave")
+	assert_false(Preauthorizations.command_key("npm run a b") == Preauthorizations.command_key("npm run 'a b'"), "otros args, otra clave")
+	assert_false(Preauthorizations.command_key("echo 'a;rm x'") == Preauthorizations.command_key("echo a;rm x"), "un ; citado no cubre uno que se ejecuta")
+	assert_false(Preauthorizations.command_key("echo a\\|sh") == Preauthorizations.command_key("echo a|sh"), "ni uno escapado")
+	assert_eq(Preauthorizations.command_key("echo \"a;b\""), Preauthorizations.command_key(TerminalHandler.format_command_line("echo", PackedStringArray(["a;b"]))), "citado con comillas dobles o simples, misma clave")
 
 
 ## El controller se libera solo (sin ciclos con su terminal ni su modelo): un ciclo de referencias
