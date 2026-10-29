@@ -151,7 +151,7 @@ func test_window_builds_offline() -> void:
 	var tabs: TabContainer = window.get(&"_tabs")
 	assert_eq(tabs.get_tab_count(), 6, "seis pestañas (con Instructions)")
 	assert_eq(tabs.get_tab_title(3), "Skills", "la de skills")
-	assert_eq(tabs.get_tab_title(4), "Godot addons", "la de addons de Godot")
+	assert_eq(tabs.get_tab_title(4), "Project addons", "la de los addons del proyecto")
 	assert_eq(tabs.get_tab_title(0), "Plugins (1)", "cuenta en el título")
 	var mcp_box: VBoxContainer = window.get(&"_mcp_box")
 	var sections := mcp_box.get_children().filter(func(child: Node) -> bool: return child is Label).map(func(label: Label) -> String: return label.text)
