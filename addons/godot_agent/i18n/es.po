@@ -3278,3 +3278,24 @@ msgstr "Otras formas de entrar"
 
 msgid "the agent"
 msgstr "el agente"
+
+msgid "When the editor opens"
+msgstr "Al abrir el editor"
+
+msgid "Show the previous sessions"
+msgstr "Mostrar las sesiones anteriores"
+
+msgid "Continue the last session"
+msgstr "Continuar la última sesión"
+
+msgid "Previous sessions"
+msgstr "Sesiones anteriores"
+
+msgid "Continue"
+msgstr "Continuar"
+
+msgid "%d turn"
+msgstr "%d turno"
+
+msgid "%d turns"
+msgstr "%d turnos"

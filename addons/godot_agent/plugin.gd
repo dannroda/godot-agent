@@ -247,6 +247,7 @@ func _enter_tree() -> void:
 			_main_screen.refresh_agent())
 	_surfaces.add(EditorSurfaces.EditorSurface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
 	_restore_oneshot.call_deferred()
+	_continue_last_session.call_deferred(dock)
 
 	_updater = AddonUpdater.new()
 	add_child(_updater)
@@ -885,6 +886,13 @@ func _on_harness_mode_changed(mode: SessionModel.HarnessMode) -> void:
 
 
 ## Un One-shot que quedó a medias (el editor se cerró o se cayó) vuelve en pausa.
+## «Al abrir el editor: continuar la última sesión» (m12-12); no con un One-shot a medias.
+func _continue_last_session(dock: Control) -> void:
+	if not _settings.continue_on_open() or not is_instance_valid(dock) or (_oneshot and _oneshot.is_active()):
+		return
+	dock.continue_last_session()
+
+
 func _restore_oneshot() -> void:
 	if _oneshot == null or not _oneshot.restore_interrupted():
 		return

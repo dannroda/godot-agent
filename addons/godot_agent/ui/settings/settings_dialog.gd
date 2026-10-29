@@ -109,6 +109,7 @@ var _completion_page: CompletionSettingsPage
 var _accent_picker: ColorPickerButton
 var _dock_option: OptionButton
 var _language_option: OptionButton
+var _on_open_option: OptionButton
 var _update_check: CheckBox
 var _update_status: Label
 var _update_button: Button
@@ -448,6 +449,16 @@ func _build_interface(page: VBoxContainer) -> void:
 	row.add_child(_language_option)
 	page.add_child(row)
 	page.add_child(_hint(I18n.t("These apply when the editor is reopened. The position is the initial one: if you move the dock later, the editor remembers where you left it.")))
+	row = HBoxContainer.new()
+	label = Label.new()
+	label.text = I18n.t("When the editor opens")
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(label)
+	_on_open_option = OptionButton.new()
+	_on_open_option.add_item(I18n.t("Show the previous sessions"), HarnessSettings.ON_OPEN_LIST)
+	_on_open_option.add_item(I18n.t("Continue the last session"), HarnessSettings.ON_OPEN_CONTINUE)
+	row.add_child(_on_open_option)
+	page.add_child(row)
 	page.add_child(_title(I18n.t("Updates")))
 	_update_check = CheckBox.new()
 	_update_check.text = I18n.t("Check for a new version when the editor opens (once a day)")
@@ -542,6 +553,7 @@ func _load() -> void:
 	var language_codes: Array = I18n.LANGUAGES.map(func(language: Dictionary) -> String: return language.code)
 	_language_option.select(maxi(language_codes.find(_settings.language()), 0))
 	_update_check.button_pressed = _settings.update_check_on_start()
+	_on_open_option.select(_on_open_option.get_item_index(HarnessSettings.ON_OPEN_CONTINUE if _settings.continue_on_open() else HarnessSettings.ON_OPEN_LIST))
 	_update_status.text = I18n.t("Installed version: %s") % AddonVersion.version()
 	_completion_page.metrics_provider = completion_metrics_provider
 	_completion_page.metrics_reset = completion_metrics_reset
@@ -595,6 +607,7 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_DOCK_SLOT, _dock_option.selected)
 	_settings.set_value(HarnessSettings.KEY_LANGUAGE, I18n.LANGUAGES[_language_option.selected].code)
 	_settings.set_value(HarnessSettings.KEY_UPDATE_CHECK, _update_check.button_pressed)
+	_settings.set_value(HarnessSettings.KEY_ON_OPEN, _on_open_option.get_selected_id())
 	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
 	_config.permissions = matrix_overrides()

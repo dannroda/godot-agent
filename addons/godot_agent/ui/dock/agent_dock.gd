@@ -16,6 +16,8 @@ const SessionController := preload("../../session/session_controller.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
 const HISTORY_MENU_SIZE := 30
+## Sesiones anteriores en el dock vacío (m12-12).
+const RECENT_SESSIONS := 5
 const AgentProfile := preload("../../core/agent_profile.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
@@ -138,6 +140,9 @@ var _history_items: Array[Dictionary] = []
 @onready var _empty_state: VBoxContainer = %EmptyState
 @onready var _empty_command: Label = %EmptyCommand
 @onready var _start_button: Button = %StartButton
+## Debajo de «Nueva sesión»: las últimas sesiones del proyecto con «Continuar» (m12-12).
+var _recent_box: VBoxContainer
+var _recent_signature: String = ""
 @onready var _composer_slot: MarginContainer = %ComposerSlot
 @onready var _export_banner: PanelContainer = %ExportBanner
 @onready var _export_banner_label: Label = %ExportBannerLabel
@@ -158,6 +163,10 @@ func setup(model: SessionModel, controller: SessionController, settings: Harness
 
 func _ready() -> void:
 	_build_header()
+	_recent_box = VBoxContainer.new()
+	_recent_box.name = "RecentSessions"
+	_recent_box.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	_empty_state.add_child(_recent_box)
 	_conversation = ConversationView.new()
 	_conversation.setup(_model, _accent)
 	_conversation.action_requested.connect(_on_action_requested)
@@ -608,6 +617,87 @@ func _refresh_empty_state() -> void:
 	_empty_command.text = profile.command_line() if profile else I18n.t("No agents yet: add one from the ACP registry or by hand.")
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_start_button.disabled = _model.state == SessionModel.SessionState.STARTING
+	var recent: Array[Dictionary] = []
+	if _empty_state.visible and profile != null and not _oneshot_active and _controller.history:
+		recent = _controller.history.list(_controller.cwd).slice(0, RECENT_SESSIONS)
+	if not recent.is_empty() and _start_button.text == I18n.t("Start session"):
+		_start_button.text = I18n.t("New session")
+	_refresh_recent(recent)
+
+
+func _refresh_recent(items: Array[Dictionary]) -> void:
+	var signature := ",".join(items.map(func(item: Dictionary) -> String: return "%s:%s" % [item.get("id", ""), item.get("updated", 0)]))
+	_recent_box.visible = not items.is_empty()
+	if signature == _recent_signature:
+		return
+	_recent_signature = signature
+	for child: Node in _recent_box.get_children():
+		_recent_box.remove_child(child)
+		child.queue_free()
+	if items.is_empty():
+		return
+	var heading := Label.new()
+	heading.text = I18n.t("Previous sessions")
+	heading.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_recent_box.add_child(heading)
+	for item: Dictionary in items:
+		_recent_box.add_child(_recent_row(item))
+
+
+## Una sesión anterior: título, «agente · cuándo · N turnos» y «Continuar».
+func _recent_row(item: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override(&"separation", 0)
+	row.add_child(text)
+	var title := Label.new()
+	title.text = str(item.get("title", "")) if not str(item.get("title", "")).is_empty() else I18n.t("(untitled)")
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	title.clip_text = true
+	title.tooltip_text = title.text
+	text.add_child(title)
+	var meta := Label.new()
+	meta.text = recent_meta(item, _timezone_bias_s())
+	meta.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	meta.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	meta.clip_text = true
+	text.add_child(meta)
+	var resume := Button.new()
+	resume.text = I18n.t("Continue")
+	resume.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var id := str(item.get("id", ""))
+	resume.pressed.connect(func() -> void:
+		if _model.state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]:
+			open_history_session(id))
+	row.add_child(resume)
+	return row
+
+
+## «Claude Code · 29/10 03:56 · 4 turns».
+static func recent_meta(item: Dictionary, bias_s: int = 0) -> String:
+	var parts: PackedStringArray = []
+	if not str(item.get("agent", "")).is_empty():
+		parts.append(str(item.agent))
+	var updated := int(item.get("updated", 0))
+	if updated > 0:
+		var stamp := Time.get_datetime_string_from_unix_time(updated + bias_s, true)
+		parts.append("%s/%s %s" % [stamp.substr(8, 2), stamp.substr(5, 2), stamp.substr(11, 5)])
+	var turns := int(item.get("turns", 0))
+	if turns > 0:
+		parts.append((I18n.t("%d turn") if turns == 1 else I18n.t("%d turns")) % turns)
+	return " · ".join(parts)
+
+
+## Al abrir el editor con «Continuar la última sesión» (m12-12). false si no había ninguna.
+func continue_last_session() -> bool:
+	if _controller.history == null or _model.state != SessionModel.SessionState.DISCONNECTED or _oneshot_active:
+		return false
+	var items: Array[Dictionary] = _controller.history.list(_controller.cwd)
+	if items.is_empty() or _settings.active_profile() == null:
+		return false
+	return await open_history_session(str(items[0].get("id", "")))
 
 
 # --- sesión --------------------------------------------------------------------------------------

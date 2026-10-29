@@ -215,3 +215,17 @@ func test_retire_old_presets() -> void:
 	list.append(AgentProfile.from_dict({"id": "gemini-cli", "display_name": "Gemini CLI", "command": "gemini"}))
 	settings.save_profiles(list)
 	assert_true(settings.retire_old_presets().is_empty(), "una sola vez")
+
+
+## m12-12: «Al abrir el editor» se lee de los settings de usuario.
+func test_on_open_setting() -> void:
+	var dialog := _dialog()
+	var settings: HarnessSettings = dialog.get(&"_settings")
+	var option: OptionButton = dialog.get(&"_on_open_option")
+	assert_false(settings.continue_on_open(), "por defecto muestra las sesiones")
+	assert_eq(option.get_selected_id(), HarnessSettings.ON_OPEN_LIST, "el desplegable lo refleja")
+	settings.set_value(HarnessSettings.KEY_ON_OPEN, HarnessSettings.ON_OPEN_CONTINUE)
+	dialog.call(&"_load")
+	assert_true(settings.continue_on_open(), "continuar la última")
+	assert_eq(option.get_selected_id(), HarnessSettings.ON_OPEN_CONTINUE, "y el desplegable también")
+	dialog.free()

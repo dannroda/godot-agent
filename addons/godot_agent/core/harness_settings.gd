@@ -33,6 +33,10 @@ const KEY_QUOTA_RESUME := "quota/resume_mode"
 const RESUME_AUTO := 0
 const RESUME_CONFIRM := 1
 const KEY_DOCK_SLOT := "ui/dock_slot"
+## Al abrir el editor (m12-12): el dock muestra las sesiones anteriores o continúa la última.
+const KEY_ON_OPEN := "ui/on_open"
+const ON_OPEN_LIST := 0
+const ON_OPEN_CONTINUE := 1
 ## Idioma de la interfaz (D46): "auto" (el del editor), "en", "es".
 const KEY_LANGUAGE := "ui/language"
 ## Actualizaciones del addon (m7-38): buscar al abrir el editor (una vez por día), cuándo se buscó
@@ -92,6 +96,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_UPDATE_LAST_CHECK, 0, TYPE_INT)
 		_declare(KEY_UPDATE_DISMISSED, "", TYPE_STRING)
 		_declare(KEY_DOCK_SLOT, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Right top,Right bottom,Left top,Left bottom")
+		_declare(KEY_ON_OPEN, ON_OPEN_LIST, TYPE_INT, PROPERTY_HINT_ENUM, "Show the previous sessions,Continue the last session")
 		_declare(KEY_COMPLETION_ENABLED, true, TYPE_BOOL)
 		_declare(KEY_COMPLETION_DEBOUNCE, 30, TYPE_INT, PROPERTY_HINT_RANGE, "0,200,1,suffix:ms")
 		_declare(KEY_COMPLETION_THRESHOLD, 0.5, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0.05,1,0.01")
@@ -242,6 +247,10 @@ func language() -> String:
 
 func update_check_on_start() -> bool:
 	return bool(get_value(KEY_UPDATE_CHECK, true))
+
+
+func continue_on_open() -> bool:
+	return int(get_value(KEY_ON_OPEN, ON_OPEN_LIST)) == ON_OPEN_CONTINUE
 
 
 func dock_slot() -> int:
