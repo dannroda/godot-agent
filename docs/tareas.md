@@ -3888,7 +3888,7 @@ Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 
 
 tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un editor headless) falla en 4.7.2 con «ERROR: 3 resources still in use at exit»; en 4.8-beta1 pasa. Ya fallaba antes de m13 (probado con el código anterior). El CI no corre este check: sumarlo a la matriz cuando pase. Con --verbose se ve qué recursos quedan.
 
-## M12 — Que el agente se verifique solo  (0/6)
+## M12 — Que el agente se verifique solo  (0/7)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
@@ -3916,3 +3916,12 @@ Como Ziva (validate-physics-setup, validate-tilemap-structure): tools de solo le
 Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool godot.* llevando el .uid y el .import, buscando referencias por ruta literal en .tscn/.tres/.gd/project.godot; si hay alguna que no se puede actualizar sin riesgo, rechazar. Resultado con outcome (unchanged, rolled_back, partial) y si es seguro reintentar.
 
 ### Guía de Godot headless en GDScript (lo de walker, sin C#) · Pendiente
+
+walker (github.com/nikbearbrown/walker, MIT, engines/godot.md) trae una guía de Godot para agentes en C#; pasarla a GDScript y sumarla a lo que lee el agente (prompt de sistema o una skill en Extensiones), sobre todo para las sesiones en una copia aparte (m11-09), que no tienen las tools godot.* del editor:
+1. Cadena de verificación headless: godot --headless --import después de tocar assets, y godot --headless --quit (o --check-only por script) para errores de parseo.
+2. Escenas armadas por un script: un 'extends SceneTree' corrido con --headless --script que arma el árbol, le pone owner a cada nodo, lo empaqueta con PackedScene.pack y lo guarda con ResourceSaver; validar contando nodos antes de empaquetar y después de instanciar, y guardar solo si coinciden (sin _ready ni _process en el builder).
+3. Catálogo de fallas silenciosas, versión GDScript: owner sin poner (el nodo no se guarda), .gdignore que esconde una carpeta, recursos .tres compartidos que se mutan, no recorrer los hijos de un GLB instanciado, enums adivinados, amortiguar con exp(-rate * delta) para no depender del framerate.
+4. Captura determinística: --write-movie con --fixed-fps y --quit-after, en Xvfb, como evidencia en video (se cruza con m14-03).
+Verificar cada regla en 4.7.2 y 4.8 antes de escribirla; citar walker (y Godogen) como fuente.
+
+### C# con el mismo soporte que GDScript · Pendiente
