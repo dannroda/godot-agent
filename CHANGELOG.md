@@ -9,9 +9,24 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - The One-shot main screen (top bar, next to 2D/3D/Script) is now called **One-shot** instead of **Agent**, so it no longer shares its name with the dock.
 - In Review mode, the `findings` JSON the agent writes is folded in the chat into one line ("2 findings · in the Review panel and the Script Editor"); a click shows the JSON.
 - A session in another tab shows one editor notice while it waits for you, not one per permission or question.
+- **Dock**: one row of controls on top: the agent chip with its state (click to pick the agent), the title, history, **+** (new session or new tab) and **⋯** (Extensions, Settings, Remote Control, sign out). The tab row shows up once there are two sessions. The agent's text no longer sits in a box, and editor tools show names for people ("Connect signal") in aligned columns, with their output nested.
+- **Composer**: **+** holds mentions, game images and agent commands; the mode is a pill; the context used moves into the quota ring's tooltip and comes back to the row from 80 %.
+- With no session, the dock lists the project's previous sessions with **Continue**. **Settings → Interface → When the editor opens** can continue the last one instead.
+- With no agents, the dock suggests Claude Code, Codex and Google Antigravity with what each needs, and the composer says to add one first. Settings → Agents suggests the same, and with agents shows the list next to the form, with a star for the default.
+- Signing in is a neutral card with the main method as a button and **Other ways to sign in**, instead of a red error with six buttons.
+- Agent errors say what happened in plain words, show the last lines of the agent's output with **Copy**, and offer the fix (**Edit the agent**, **Reinstall…** for agents downloaded from the ACP registry). **Open the log below** jumps to the error's line, highlighted.
+- What a turn changed is a footer line with **View changes** and **Undo turn**.
+- **Settings**: Save and Cancel sit together on the right and a dot marks sections with unsaved changes; permission cells are colored, changed ones are highlighted and each column has a reset; MCP servers and Completion keep their fine-tuning under **Advanced**; the plan quota has its own section; Export says to create a preset first.
+- **ACP registry**: added agents first, then the suggested ones, then the rest; each card says how it installs (npx, uvx or a download, with its size when the registry has it). The suggested agents have their own translated descriptions.
+- **Extensions**: Skills has a scope filter, **+ Skill** that asks where, and the actions in a **⋯** menu; Instructions lists the files with who reads each one; tabs without an agent say so and offer to set one up; lists show placeholder rows while loading. **Godot addons** is now **Project addons**: the installed plugins first, and the Asset Store search on demand.
+- **One-shot**: the form says which agent runs it and what's missing to start, and uses two columns (goal with examples, and the agent, budgets and options).
+- **Alt+I** while waiting shows the request, the agent, a spinner and the elapsed time.
+- An agent's question no longer shows a second time as a tool.
 
 ### Fixed
 
+- Reinstalling an agent from the ACP registry deletes the installed version first; before, adding it again reused what was on disk.
+- With an unfinished One-shot and no saved agents, the dock offers **Resume One-shot** again.
 - The old **Gemini CLI** preset and the **Codex** preset without a command, left over from versions before 0.1.8, are removed once from Settings → Agents and the dock's agent selector. A profile you edited stays.
 
 ## [0.1.8] - 2026-10-28
