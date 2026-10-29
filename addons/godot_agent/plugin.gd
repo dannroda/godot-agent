@@ -13,7 +13,8 @@ const HarnessSettings := preload("core/harness_settings.gd")
 const SettingsDialog := preload("ui/settings/settings_dialog.gd")
 const ExtensionsWindow := preload("ui/extensions/extensions_window.gd")
 const ClaudeExtensions := preload("extensions/claude_extensions.gd")
-const SkillCatalog := preload("extensions/skill_catalog.gd")
+const AgentAdapters := preload("session/agents/agent_adapters.gd")
+const AgentAdapter := preload("session/agents/agent_adapter.gd")
 const I18n := preload("core/i18n.gd")
 const SessionHistory := preload("session/session_history.gd")
 const SessionModel := preload("session/session_model.gd")
@@ -289,15 +290,13 @@ func _enter_tree() -> void:
 	_extensions_window.addon_servers_provider = _external_mcp_servers
 	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
-		var profile := _settings.active_profile()
-		return profile != null and ClaudeExtensions.is_claude_profile(profile.command, profile.args)
+		return _active_adapter().kind == ClaudeExtensions.AGENT_CLAUDE
 	_extensions_window.has_agent_provider = func() -> bool: return _settings.active_profile() != null
 	_extensions_window.agents_requested.connect(func() -> void:
 		_extensions_window.hide()
 		_settings_dialog.open(SettingsDialog.SettingsSection.AGENTS))
 	_extensions_window.agent_kind_provider = func() -> String:
-		var profile := _settings.active_profile()
-		return ClaudeExtensions.agent_kind(profile.command, profile.args, profile.id) if profile != null else ClaudeExtensions.AGENT_CLAUDE
+		return _active_adapter().kind if _settings.active_profile() != null else ClaudeExtensions.AGENT_CLAUDE
 	_extensions_window.new_session_requested.connect(func() -> void:
 		if is_instance_valid(dock):
 			dock.call(&"_on_new_session_pressed"))
@@ -756,15 +755,15 @@ func _on_permissions_changed(controller: SessionController = null) -> void:
 	_save_project_config()
 
 
-## `_meta` de session/new y session/load para Claude Code: las skills apagadas en el proyecto
-## (m7-36) y que pida permiso para cada subagente, así el modo decide y se cuentan (m7-43).
+## `_meta` de session/new y session/load: lo arma el adaptador del agente (m13-04).
 func _session_meta(controller: SessionController = null) -> Dictionary:
-	var profile := (controller if controller else _controller).profile()
-	if profile == null or not ClaudeExtensions.is_claude_profile(profile.command, profile.args):
-		return {}
-	var settings := SkillCatalog.session_settings(_project_config.disabled_skills)
-	settings["permissions"] = {"ask": Array(PermissionPolicy.SUBAGENT_ASK_RULES)}
-	return {"claudeCode": {"options": {"settings": settings}}}
+	return (controller if controller else _controller).adapter.session_meta(_project_config.disabled_skills)
+
+
+## El adaptador del perfil activo (antes de conectar): qué familia de extensiones mostrar.
+func _active_adapter() -> AgentAdapter:
+	var profile := _settings.active_profile()
+	return AgentAdapters.for_profile(profile.command, profile.args, profile.id) if profile else AgentAdapter.new()
 
 
 ## El CLI corre con el entorno del perfil activo (CLAUDE_CONFIG_DIR y demás), como el agente.

@@ -907,7 +907,8 @@ func _start_session() -> void:
 
 
 func _warn_api_key(profile: AgentProfile) -> void:
-	if profile.command_line().contains("claude") and (OS.has_environment("ANTHROPIC_API_KEY") or profile.env.has("ANTHROPIC_API_KEY")):
+	var key := _controller.adapter.api_key_variable()
+	if not key.is_empty() and (OS.has_environment(key) or profile.env.has(key)):
 		_model.add_notice(
 			I18n.t("There is an ANTHROPIC_API_KEY in the environment: Claude Code may bill through the API instead of using your subscription."),
 			ChatEntry.NoticeLevel.WARNING

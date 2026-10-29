@@ -39,7 +39,8 @@ const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
 const EditorBinary := preload("../transport/editor_binary.gd")
 const CommandResolver := preload("../transport/command_resolver.gd")
-const ClaudeExtensions := preload("../extensions/claude_extensions.gd")
+const AgentAdapters := preload("agents/agent_adapters.gd")
+const AgentAdapter := preload("agents/agent_adapter.gd")
 const ClaudeCli := preload("../extensions/claude_cli.gd")
 const TurnSnapshots := preload("turn_snapshots.gd")
 const TurnReport := preload("turn_report.gd")
@@ -60,9 +61,6 @@ const ACTION_TURN_CHANGES := "turn_changes"
 const ACTION_TURN_RESTORE := "turn_restore"
 ## Guardar el reporte del turno (m11-06), con la misma `data`.
 const ACTION_TURN_REPORT := "turn_report"
-## agentInfo.name del adaptador oficial de Google Antigravity (m11-11) y de Codex (m11-20).
-const ANTIGRAVITY_AGENT := "antigravity-acp"
-const CODEX_AGENT := "codex-acp"
 const USAGE_QUERY_TIMEOUT_S := 20
 const CLOSE_TIMEOUT_S := 10
 const ACTION_SHOW_LOG := "show_log"
@@ -160,6 +158,9 @@ var session_key: String = ""
 
 var _process: AgentProcess
 var _profile: AgentProfile
+## Lo propio del agente conectado (cuota, cuenta, `_meta`): sale del perfil al arrancar y del
+## `agentInfo` después de initialize (m13-04).
+var adapter: AgentAdapter = AgentAdapter.new()
 ## Últimas líneas de stderr del agente (para el aviso de error, m12-13).
 var _stderr_tail: PackedStringArray = []
 var _system_prompt_sent: bool = false
@@ -242,6 +243,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_connect_generation += 1
 	var generation := _connect_generation
 	_profile = agent_profile
+	adapter = AgentAdapters.for_profile(agent_profile.command, agent_profile.args, agent_profile.id)
 	_agent_account = {}  # el proceso nuevo la vuelve a mandar después de initialize
 	model.reset()
 	model.failure_message = ""
@@ -278,6 +280,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 			"The agent did not respond to initialize: %s" % init.error_message(), _crash_actions())
 		return false
 	model.apply_initialize(init.result)
+	adapter = AgentAdapters.for_session(_profile.command, _profile.args, _profile.id, model.agent_info)
 	var protocol := int(init.result.get("protocolVersion", PROTOCOL_VERSION))
 	if protocol != PROTOCOL_VERSION:
 		agent_log.add(AgentLog.CH_ACP, "The agent uses protocol version %d (the client asked for %d)" % [protocol, PROTOCOL_VERSION])
@@ -460,8 +463,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 ## local, que no gasta tokens. Se le pide al abrir la sesión y después de cada turno, sin que la
 ## pregunta ni la respuesta aparezcan en el chat; un prompt del usuario que llega en el medio espera.
 func _query_agent_usage() -> void:
-	var agent_name := _usage_agent()
-	var command := "/usage" if agent_name == ANTIGRAVITY_AGENT else ("/status" if agent_name == CODEX_AGENT else "")
+	var command := adapter.quota_command(model)
 	if command.is_empty() or model.state != SessionModel.SessionState.READY or _usage_query_running:
 		return
 	_usage_query_running = true
@@ -486,28 +488,7 @@ func _query_agent_usage() -> void:
 		if result.error.get("code") != AcpClient.ERR_REQUEST_CANCELLED:
 			agent_log.add(AgentLog.CH_QUOTA, "%s failed: %s" % [command, result.error_message()])
 		return
-	if agent_name == ANTIGRAVITY_AGENT:
-		var groups := QuotaMonitor.parse_antigravity_usage(_usage_query_text)
-		quota.observe_windows(QuotaMonitor.antigravity_windows(groups, _current_model_name()), _usage_query_text, groups)
-	elif agent_name == CODEX_AGENT:
-		var groups := QuotaMonitor.parse_codex_status(_usage_query_text, int(quota.now_provider.call()))
-		quota.observe_windows(QuotaMonitor.codex_windows(groups, _current_model_name()), _usage_query_text, groups if groups.size() > 1 else {})
-		if model.account.is_empty():
-			var account := QuotaMonitor.parse_codex_account(_usage_query_text)
-			if not account.is_empty():
-				model.set_account(account)
-
-
-## ANTIGRAVITY_AGENT, CODEX_AGENT o "": qué comando local de cuota entiende el agente. Codex solo si
-## anuncia /status: el adaptador del registro (@agentclientprotocol/codex-acp) lo corre local; el
-## viejo de Zed no lo tiene y se lo pasaría al modelo como un prompt.
-func _usage_agent() -> String:
-	var agent_name := str(model.agent_info.get("name", ""))
-	if agent_name == ANTIGRAVITY_AGENT:
-		return ANTIGRAVITY_AGENT
-	if agent_name.get_file() == CODEX_AGENT and model.commands.any(func(command: Variant) -> bool: return command is Dictionary and command.get("name") == "status"):
-		return CODEX_AGENT
-	return ""
+	adapter.read_quota(_usage_query_text, quota, model, _current_model_name())
 
 
 ## Cancela con `$/cancel_request` un `/usage`, `/status` o apertura de sesión que ya no se espera (m11-18).
@@ -1130,7 +1111,7 @@ func _terminal_base_env() -> Dictionary:
 ## deja en el modelo. Otros agentes no la informan: queda vacía.
 func _refresh_account() -> void:
 	var profile := _profile
-	if profile == null or not ClaudeExtensions.is_claude_profile(profile.command, profile.args):
+	if profile == null or not adapter.reads_account_from_cli():
 		# La que mandó el agente con _auth/status_update (llega una vez, antes de session/new).
 		model.set_account(_agent_account if profile == _agent_account_profile else {})
 		return
@@ -1582,4 +1563,4 @@ func _on_terminal_output(terminal_id: String, output: String, exit_code: Variant
 
 
 func _on_config_options_changed(_options: Array) -> void:
-	quota.select_antigravity_model(_current_model_name())
+	adapter.model_changed(quota, _current_model_name())
