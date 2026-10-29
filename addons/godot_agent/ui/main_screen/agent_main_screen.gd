@@ -61,6 +61,15 @@ const FORM_MAX_WIDTH := 1400
 const FORM_WIDTH_RATIO := 0.62
 const GOAL_MIN_HEIGHT := 110
 const GOAL_HEIGHT_RATIO := 0.4
+## Dos columnas (m12-34): objetivo a la izquierda; agente, presupuestos y opciones a la derecha.
+## Por debajo de este ancho del formulario se apilan.
+const FORM_COLUMNS_MIN_WIDTH := 820
+const SIDE_COLUMN_WIDTH := 320
+const GOAL_EXAMPLES: PackedStringArray = [
+	"2-player Pong with score, serve and restart",  # i18n
+	"Top-down shooter: the player dodges and shoots waves of enemies",  # i18n
+	"Platformer with three short levels, coins and a goal flag",  # i18n
+]
 const SCENE_EXTENSIONS: PackedStringArray = ["tscn", "scn"]
 const SCRIPT_EXTENSIONS: PackedStringArray = ["gd", "cs", "gdshader"]
 
@@ -98,6 +107,8 @@ var _spec_view: RichTextLabel
 var _spec_bar: HBoxContainer
 var _spec_shown: String = ""
 var _form_rule: Label
+var _form_columns: BoxContainer
+var _side_column: VBoxContainer
 ## Con qué agente corre el One-shot y, junto a «Iniciar», qué falta para arrancar (m12-33).
 var _agent_label: Label
 var _setup_agent_button: Button
@@ -239,9 +250,19 @@ func _build_form() -> void:
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	box.add_child(intro)
+	_form_columns = BoxContainer.new()
+	_form_columns.add_theme_constant_override(&"separation", AgentTheme.px(24))
+	box.add_child(_form_columns)
+	var goal_column := VBoxContainer.new()
+	goal_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	goal_column.add_theme_constant_override(&"separation", AgentTheme.px(10))
+	_form_columns.add_child(goal_column)
+	_side_column = VBoxContainer.new()
+	_side_column.add_theme_constant_override(&"separation", AgentTheme.px(10))
+	_form_columns.add_child(_side_column)
 	var agent_row := HBoxContainer.new()
 	agent_row.add_theme_constant_override(&"separation", AgentTheme.px(8))
-	box.add_child(agent_row)
+	_side_column.add_child(agent_row)
 	_agent_label = Label.new()
 	_agent_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_agent_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -250,57 +271,72 @@ func _build_form() -> void:
 	_setup_agent_button.text = I18n.t("Set up an agent…")
 	_setup_agent_button.pressed.connect(func() -> void: settings_requested.emit())
 	agent_row.add_child(_setup_agent_button)
-	box.add_child(_heading(I18n.t("Goal")))
+	goal_column.add_child(_heading(I18n.t("Goal")))
 	_goal_edit = TextEdit.new()
 	_goal_edit.placeholder_text = I18n.t("E.g.: 2-player Pong with score, serve and restart. Use the assets in res://assets and follow CLAUDE.md.")
 	_goal_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	_goal_edit.custom_minimum_size.y = AgentTheme.px(GOAL_MIN_HEIGHT)
 	_goal_edit.text_changed.connect(_refresh_form)
-	box.add_child(_goal_edit)
-	box.add_child(_heading(I18n.t("Budgets (0 = unlimited)")))
-	var budgets := HFlowContainer.new()
+	goal_column.add_child(_goal_edit)
+	var examples := VBoxContainer.new()
+	examples.add_theme_constant_override(&"separation", AgentTheme.px(4))
+	var examples_label := Label.new()
+	examples_label.text = I18n.t("Examples:")
+	examples_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	examples.add_child(examples_label)
+	for example: String in GOAL_EXAMPLES:
+		var link := LinkButton.new()
+		link.text = "· " + I18n.t(example)
+		link.tooltip_text = I18n.t("Use it as the goal")
+		link.pressed.connect(func() -> void:
+			_goal_edit.text = I18n.t(example)
+			_refresh_form())
+		examples.add_child(link)
+	goal_column.add_child(examples)
+	_side_column.add_child(_heading(I18n.t("Budgets (0 = unlimited)")))
+	# Etiqueta y valor en dos columnas (m12-34): antes eran tres columnas de 290 px para valores como «8».
+	var budgets := GridContainer.new()
+	budgets.columns = 2
 	budgets.add_theme_constant_override(&"h_separation", AgentTheme.px(12))
-	box.add_child(budgets)
+	_side_column.add_child(budgets)
 	var specs: Array[Dictionary] = [
 		{"key": OneShotRun.BUDGET_TIME, "suffix": "min", "max": 600, "step": 1},
 		{"key": OneShotRun.BUDGET_TOKENS, "suffix": "", "max": 20000000, "step": 10000},
 		{"key": OneShotRun.BUDGET_PLAYTESTS, "suffix": "", "max": 100, "step": 1},
 	]
 	for spec: Dictionary in specs:
-		var column := VBoxContainer.new()
-		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var label := Label.new()
 		label.text = I18n.t(OneShotRun.BUDGET_LABELS[spec.key])
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-		column.add_child(label)
+		budgets.add_child(label)
 		var spin := SpinBox.new()
 		spin.max_value = spec.max
 		spin.step = spec.step
 		spin.suffix = spec.suffix
 		spin.value = float(_defaults.get(spec.key, 0))
 		spin.select_all_on_focus = true
-		spin.custom_minimum_size.x = AgentTheme.px(110)  # «1500000» entero: si no entra, la fila baja de línea
-		column.add_child(spin)
-		budgets.add_child(column)
+		spin.custom_minimum_size.x = AgentTheme.px(130)  # «1500000» entero
+		budgets.add_child(spin)
 		_budget_spins[spec.key] = spin
 	_checkpoints_check = CheckBox.new()
 	_checkpoints_check.text = I18n.t("Create a git checkpoint before each task (branch agent/<date>; never merges or pushes)")
 	_checkpoints_check.button_pressed = bool(_defaults.get("checkpoints", true))
 	_checkpoints_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_checkpoints_check)
+	_side_column.add_child(_checkpoints_check)
 	_spec_check = CheckBox.new()
 	_spec_check.text = I18n.t("Review the spec before building (the agent writes it and waits for “Approve spec”)")
 	_spec_check.button_pressed = bool(_defaults.get("spec_review", false))
 	_spec_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_spec_check)
+	_side_column.add_child(_spec_check)
 	_form_rule = Label.new()
 	_form_rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_form_rule.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	box.add_child(_form_rule)
+	_side_column.add_child(_form_rule)
 	var actions := HBoxContainer.new()
 	actions.alignment = BoxContainer.ALIGNMENT_END
 	actions.add_theme_constant_override(&"separation", AgentTheme.px(10))
-	box.add_child(actions)
+	_side_column.add_child(actions)
 	_start_hint = Label.new()
 	_start_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_start_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -697,6 +733,9 @@ func _fit_form(area: Control, panel: Control) -> void:
 	var width := clampf(area.size.x * FORM_WIDTH_RATIO, AgentTheme.px(FORM_MIN_WIDTH), maxf(AgentTheme.px(FORM_MAX_WIDTH), AgentTheme.px(FORM_MIN_WIDTH)))
 	# Nunca más ancho que el área: angosto, el formulario se achica hasta FORM_NARROW_WIDTH.
 	panel.custom_minimum_size.x = clampf(width, AgentTheme.px(FORM_NARROW_WIDTH), maxf(area.size.x - AgentTheme.px(32), AgentTheme.px(FORM_NARROW_WIDTH)))
+	var columns := panel.custom_minimum_size.x >= AgentTheme.px(FORM_COLUMNS_MIN_WIDTH)
+	_form_columns.vertical = not columns
+	_side_column.custom_minimum_size.x = AgentTheme.px(SIDE_COLUMN_WIDTH) if columns else 0.0
 	_goal_edit.custom_minimum_size.y = maxf(AgentTheme.px(GOAL_MIN_HEIGHT), area.size.y * GOAL_HEIGHT_RATIO)
 
 

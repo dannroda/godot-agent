@@ -3512,3 +3512,18 @@ msgstr "Addons del proyecto"
 
 msgid "+ Rule or workflow"
 msgstr "+ Regla o workflow"
+
+msgid "2-player Pong with score, serve and restart"
+msgstr "Pong de 2 jugadores con puntaje, saque y reinicio"
+
+msgid "Top-down shooter: the player dodges and shoots waves of enemies"
+msgstr "Shooter visto desde arriba: el jugador esquiva y dispara a oleadas de enemigos"
+
+msgid "Platformer with three short levels, coins and a goal flag"
+msgstr "Plataformas con tres niveles cortos, monedas y una bandera de llegada"
+
+msgid "Examples:"
+msgstr "Ejemplos:"
+
+msgid "Use it as the goal"
+msgstr "Usarlo como objetivo"

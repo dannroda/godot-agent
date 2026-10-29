@@ -51,6 +51,8 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_run.after_restore = func(paths: PackedStringArray) -> void: _restored = paths
 	_run.restart_session = func(_lost_id: String) -> bool: return await controller.call(&"start", _profile())
 	_run.resume_auto = true
+	# Sin perfiles en Ajustes el formulario no deja iniciar (m12-33): el run usa el agente falso.
+	_screen.set(&"agent_name", func() -> String: return "Agente falso")
 	var qa_rounds: int = _run.qa_max_rounds
 	_run.qa_max_rounds = 0  # los guiones de antes del evaluador (D55) terminan con lo que reporta el agente
 	var store_dir := ProjectSettings.globalize_path(REPO_DIR + "_store")

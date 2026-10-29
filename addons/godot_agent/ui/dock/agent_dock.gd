@@ -744,11 +744,14 @@ func _refresh_empty_state() -> void:
 	_conversation.visible = not entries.is_empty()
 	var profile := _settings.active_profile()
 	# Primer arranque: no hay agentes preseteados y el botón lleva a elegir uno (Settings → Agentes).
-	if profile == null:
+	# Un One-shot a medias se retoma con el agente del run, aunque no haya perfiles guardados.
+	if _oneshot_active:
+		_start_button.text = I18n.t("Resume One-shot")
+	elif profile == null:
 		_start_button.text = I18n.t("Other agents…")
 	else:
-		_start_button.text = I18n.t("Resume One-shot") if _oneshot_active else I18n.t("Start session")
-	_suggested_box.visible = profile == null
+		_start_button.text = I18n.t("Start session")
+	_suggested_box.visible = profile == null and not _oneshot_active
 	_composer.set_unavailable(I18n.t("Add an agent to start") if profile == null and _controller.profile() == null else "")
 	_empty_command.text = profile.command_line() if profile else I18n.t("Add an agent to start:")
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
