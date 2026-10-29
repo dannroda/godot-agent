@@ -3398,3 +3398,9 @@ msgstr "Comando del agente (/)"
 
 msgid "Context: %s of %s (%d %%)"
 msgstr "Contexto: %s de %s (%d %%)"
+
+msgid "This turn changed 1 file (+%d −%d): %s"
+msgstr "Este turno cambió 1 archivo (+%d −%d): %s"
+
+msgid "Undo turn"
+msgstr "Deshacer el turno"

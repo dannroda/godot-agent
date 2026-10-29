@@ -68,6 +68,12 @@ func refresh() -> void:
 	var bg := Color(color, 0.08) if entry.level != ChatEntry.NoticeLevel.INFO else (Color(1, 1, 1, 0.04) if asks else Color.TRANSPARENT)
 	var border := Color(color, 0.5) if entry.level != ChatEntry.NoticeLevel.INFO else (Color(1, 1, 1, 0.12) if asks else Color.TRANSPARENT)
 	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(bg, border, 6, 8 if asks else 6))
+	if entry.footer:
+		# Pie del turno (m12-20): una línea arriba, el texto a la izquierda y las acciones como enlaces.
+		var footer_box := AgentTheme.panel(Color.TRANSPARENT, Color.TRANSPARENT, 0, 4)
+		footer_box.border_width_top = 1
+		footer_box.border_color = Color(1, 1, 1, 0.1)
+		_panel.add_theme_stylebox_override(&"panel", footer_box)
 	_title.text = entry.title
 	_title.visible = not entry.title.is_empty()
 	_title.add_theme_color_override(&"font_color", color)
@@ -78,8 +84,8 @@ func refresh() -> void:
 		_label.remove_theme_color_override(&"font_color")
 	else:
 		_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.NoticeLevel.INFO else AgentTheme.MUTED)
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO and not asks else HORIZONTAL_ALIGNMENT_LEFT
-	_actions.alignment = FlowContainer.ALIGNMENT_BEGIN if asks else FlowContainer.ALIGNMENT_END
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO and not asks and not entry.footer else HORIZONTAL_ALIGNMENT_LEFT
+	_actions.alignment = FlowContainer.ALIGNMENT_BEGIN if asks or entry.footer else FlowContainer.ALIGNMENT_END
 	for child: Node in _actions.get_children():
 		child.queue_free()
 	var menus: Dictionary = {}  # texto del menú -> MenuButton
@@ -101,8 +107,12 @@ func refresh() -> void:
 			continue
 		var button := Button.new()
 		button.text = label
+		button.tooltip_text = str(action.get("tooltip", ""))
 		if bool(action.get("primary", false)):
 			AgentTheme.style_accent_button(button, accent, 4, 6)
+		elif entry.footer:
+			button.flat = true
+			button.add_theme_color_override(&"font_color", accent)
 		button.pressed.connect(emit)
 		_actions.add_child(button)
 	for more: String in menus:

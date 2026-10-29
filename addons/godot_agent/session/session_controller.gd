@@ -565,9 +565,10 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 				var names := PackedStringArray(changes.files.slice(0, 4).map(func(file: Dictionary) -> String: return str(file.path).get_file()))
 				if changes.files.size() > 4:
 					names.append("…")
-				parts.append(I18n.t("This turn changed %d files (+%d −%d): %s") % [changes.files.size(), changes.added, changes.removed, ", ".join(names)])
+				var summary := I18n.t("This turn changed 1 file (+%d −%d): %s") % [changes.added, changes.removed, ", ".join(names)] if changes.files.size() == 1 else I18n.t("This turn changed %d files (+%d −%d): %s") % [changes.files.size(), changes.added, changes.removed, ", ".join(names)]
+				parts.append(summary)
 				actions.append({"id": ACTION_TURN_CHANGES, "label": I18n.t("View changes"), "data": data})
-				actions.append({"id": ACTION_TURN_RESTORE, "label": I18n.t("Go back to before this turn"), "data": data})
+				actions.append({"id": ACTION_TURN_RESTORE, "label": I18n.t("Undo turn"), "data": data, "tooltip": I18n.t("Go back to before this turn")})
 	var captures: int = TurnReport.collect(model, first_entry).images.size() if first_entry >= 0 else 0
 	if captures > 0:
 		parts.append(I18n.t("%d captures of the game or the editor.") % captures)
@@ -575,7 +576,9 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 		return
 	if first_entry >= 0:
 		actions.append({"id": ACTION_TURN_REPORT, "label": I18n.t("Save report"), "data": data})
-	model.add_notice(" ".join(parts), ChatEntry.NoticeLevel.INFO, actions)
+	var entry := model.add_notice(" ".join(parts), ChatEntry.NoticeLevel.INFO, actions)
+	entry.footer = true
+	model.notify_entry_changed(entry)
 
 
 ## Para el próximo prompt: el agente se entera de que el usuario volvió archivos atrás.

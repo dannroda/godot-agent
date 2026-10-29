@@ -27,6 +27,8 @@ var level: NoticeLevel = NoticeLevel.INFO
 ## debajo (m12-13).
 var title: String = ""
 var details: String = ""
+## NOTICE: pie del turno (m12-20): una línea con los cambios y las acciones como enlaces, sin caja.
+var footer: bool = false
 ## NOTICE: acciones sugeridas (`[{id, label}]`), p. ej. "Reintentar" o "Ver log".
 var actions: Array[Dictionary] = []
 var created_unix: float = 0.0

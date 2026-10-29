@@ -54,3 +54,21 @@ func test_agent_error_card() -> void:
 	view.refresh()
 	assert_false((view.get(&"_details") as Control).visible or (view.get(&"_title") as Label).visible, "sin título ni log, no se muestran")
 	view.free()
+
+
+## m12-20: el pie del turno, a la izquierda y con las acciones como enlaces.
+func test_turn_footer() -> void:
+	var entry := ChatEntry.new()
+	entry.kind = ChatEntry.EntryKind.NOTICE
+	entry.footer = true
+	entry.text = "This turn changed 1 file (+3 −1): player.gd"
+	entry.actions = [{"id": "turn_changes", "label": "View changes"}, {"id": "turn_restore", "label": "Undo turn", "tooltip": "Go back to before this turn"}]
+	var view := NoticeView.new()
+	view.setup(entry, Color.ORANGE, MarkdownBBCode.new())
+	view.call(&"_build")
+	view.refresh()
+	assert_eq((view.get(&"_label") as Label).horizontal_alignment, HORIZONTAL_ALIGNMENT_LEFT, "texto a la izquierda")
+	var buttons := (view.get(&"_actions") as Node).get_children().filter(func(child: Node) -> bool: return not child.is_queued_for_deletion())
+	assert_true(buttons.all(func(button: Button) -> bool: return button.flat), "acciones como enlaces")
+	assert_eq((buttons[1] as Button).tooltip_text, "Go back to before this turn", "con su tooltip")
+	view.free()
