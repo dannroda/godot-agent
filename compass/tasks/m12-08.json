@@ -9,12 +9,12 @@
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "doing",
   "tags": [
     "ux",
     "alt-i"
   ],
   "test": "",
   "title": "Alt+I: esperando no dice qué se pidió ni muestra avance",
-  "updated_at": "2026-10-29T06:20:35.609Z"
+  "updated_at": "2026-10-29T07:27:06.703Z"
 }

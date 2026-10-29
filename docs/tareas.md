@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (16/40, 16 en revisión)
+## M10 — Revisión de UX  (17/40, 17 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3476,13 +3476,17 @@ Arreglo: las vistas de permiso y de pregunta del agente resuelven el pedido con 
 
 **Notas:** Arreglo en 715fbb0: permission_view y elicitation_view resuelven el pedido con call_deferred, así la tool que esperaba el permiso no corre dentro de BaseButton::on_action_event.
 
-### La pregunta del agente aparece también como herramienta · Pendiente
+### La pregunta del agente aparece también como herramienta · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
 
 Con AskUserQuestion de Claude Code, la pregunta se ve dos veces: como fila del grupo de herramientas («¿Me das permiso…? · other · output · 1 line») y como tarjeta de pregunta justo abajo.
 
 Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo toolCallId) o mostrarlo como «Pregunta · respondida».
+
+**Prueba:** test_elicitation.test_question_tool_call_leaves_the_tool_group (headless).
+
+**Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
 ## M11 — Revisiones de seguridad, patrones y arquitectura  (0/3)
 
