@@ -8,6 +8,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 - **Requires Godot 4.7 or newer** (was 4.6). Tested on 4.7.2 and 4.8-beta1.
 
+### Fixed
+
+- With the language on **auto**, the addon follows the editor's language again on Godot 4.7+ (it used the system's).
+
 ## [0.1.9] - 2026-10-29
 
 ### Changed

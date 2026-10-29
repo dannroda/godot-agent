@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (7/9, 7 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (8/9, 8 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3852,7 +3852,7 @@ Informe: docs/revisiones/arquitectura.md
 
 **Notas:** plugin.gd 1420 → 1265 líneas. Siguen en el plugin, por ser armado: _make_controller, abrir/cerrar pestañas y el destino de una copia (diálogos del editor). sessions-test pasa con la copia del proyecto como repo git (sin git falla igual con el código anterior: no puede crear el worktree).
 
-### Una vista por sección del dock (A4) · En curso
+### Una vista por sección del dock (A4) · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `arquitectura`
 
@@ -3864,13 +3864,17 @@ Informe: docs/revisiones/arquitectura.md
 
 **Notas:** agent_dock.gd 1615 → 1310 líneas. Vistas nuevas: remote_control_banner.gd, first_run_guide.gd, recent_sessions.gd; review_panel.gd suma exportar a CLAUDE.md e importar de GitHub. Se fueron los botones Remote/Sign out ocultos que guardaban estado. Quedan en el dock, por ser su núcleo o estar en el .tscn: header y chip, estado, historial, cola, contexto del prompt, el aviso de export presets y el diálogo del código de login. De paso: review_check fallaba desde m12-03 (panel plegado); arreglado.
 
-### API pública del dock y EditorInterface inyectado (A5, A6) · Pendiente
+### API pública del dock y EditorInterface inyectado (A5, A6) · En curso
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `arquitectura`
 
 plugin.gd llama dock.call(&"_on_new_session_pressed") y dock.call(&"_start_session"): hacerlos públicos. acp_registry, i18n, asset_store y error_collector leen EditorInterface solos: que el plugin se lo pase.
 
 Informe: docs/revisiones/arquitectura.md
+
+**Prueba:** run_all 372 (solo test_completion_local); acp_session_check 162; oneshot_check 130; plugin_cycle_check 4.8 pasa (4.7 falla igual que antes); en Xvfb con el editor en «es», el sistema en inglés y sin GODOT_AGENT_LANGUAGE, el dock sale en español
+
+**Notas:** A5: start_session/new_session públicos en el dock; también ensure_identity/add_pathspec de GitCheckpoints. A6: I18n recibe el idioma del editor (y se arregló que con «auto» usaba el del sistema en 4.7+, porque la clave pasó a localization/); AcpRegistry recibe install_root; ErrorCollector se mudó a editor/ (lee el Output y el Debugger: es un adaptador del editor). AssetStore queda como está: su paso de instalar es por definición una acción del editor (prender plugins, scan) y lo puro (plan, manifiesto, releases compatibles) ya es estático y tiene tests.
 
 ### Dejar de soportar Godot 4.6 · Revisión
 
