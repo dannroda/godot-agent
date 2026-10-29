@@ -2,7 +2,7 @@
 
 [Inicio](Inicio.md) · [English](../en/Settings.md)
 
-**Settings** se abre desde el header del dock.
+**Settings** se abre desde el menú **⋯** del header del dock.
 
 | Sección | Qué hay |
 |---|---|
@@ -61,7 +61,7 @@ Las tools de cada servidor piden permiso hasta que las permitas: ver [Servidores
 
 ## Extensiones
 
-El botón **Extensiones** del header del dock (al lado de Settings) abre una ventana con los plugins y marketplaces de Claude Code, todos los servidores MCP que ve el agente, las skills y los addons de Godot del proyecto. Los cambios se aplican al toque por el CLI de Claude Code (`claude`), con el entorno del perfil del agente (por ejemplo `CLAUDE_CONFIG_DIR`). Si `claude` no está en el `PATH`, la ventana usa el que baja el adaptador ACP con npx.
+**Extensiones**, en el menú **⋯** del header del dock, abre una ventana con los plugins y marketplaces de Claude Code, todos los servidores MCP que ve el agente, las skills y los addons de Godot del proyecto. Los cambios se aplican al toque por el CLI de Claude Code (`claude`), con el entorno del perfil del agente (por ejemplo `CLAUDE_CONFIG_DIR`). Si `claude` no está en el `PATH`, la ventana usa el que baja el adaptador ACP con npx.
 
 - **Plugins**: los instalados con un interruptor, **Actualizar** y **Desinstalar**, su alcance y los servidores MCP que trae cada uno (con el color de su estado); abajo, los disponibles de tus marketplaces, primero los más instalados, con buscador e **Instalar** (en el alcance elegido arriba: usuario, proyecto o local). Si un plugin necesita correr un comando de su marketplace para instalarse, la ventana muestra el comando y pregunta antes.
 - **Marketplaces**: agregar uno (un `dueño/repo` de GitHub, una URL o una carpeta), actualizarlo o quitarlo.

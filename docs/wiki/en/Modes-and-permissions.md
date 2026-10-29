@@ -20,7 +20,7 @@ In Build and Auto, when a turn ends the harness validates the `.gd` scripts that
 
 ### Changes of each turn
 
-In Build and Auto, when the project is in a git repo, a turn that changed files ends with a notice: how many files, lines added and removed, and two actions. **View changes** lists the files, each with its diff and **Go back** (that file returns to how it was before the turn). **Go back to before this turn** does that for every file, including what changed after the turn, and asks first; the chat then offers **Undo**. The agent is told which files were reverted before its next turn.
+In Build and Auto, when the project is in a git repo, a turn that changed files ends with a footer line: how many files, lines added and removed, and two actions. **View changes** lists the files, each with its diff and **Go back** (that file returns to how it was before the turn). **Undo turn** goes back to before the turn for every file, including what changed after the turn, and asks first; the chat then offers **Undo**. The agent is told which files were reverted before its next turn.
 
 The notice also counts the screenshots the agent took during the turn (of the game or the editor), and **Save report** writes `.godot_agent/reports/<date>/report.md` with what the agent said, the files it changed and those screenshots as PNG files, and opens the folder: something to look at later or to share. Without git, the notice shows only when there are screenshots.
 
@@ -55,7 +55,7 @@ With Claude Code, launching a subagent (its **Agent** tool) goes through the **S
 
 - **Subagents at once**, in the matrix of **Settings → Permissions**, caps how many run at the same time in each mode (0 = no limit). One more is rejected with a notice in the chat, and the agent is told why.
 - A subagent's card in the chat shows its prompt, the tools it runs and what it writes as it works, and its report at the end. One that runs in the background stays in progress until it ends, even after the tool call that launched it.
-- While the agent works, the status line counts the subagents running; its tooltip lists them.
+- While the agent works, the agent chip in the header counts the subagents running; its tooltip lists them.
 
 ### MCP servers of other programs
 
@@ -104,7 +104,7 @@ Change the matrix in **Settings → Permissions**. Only what differs from the de
 
 ## Remote Control
 
-With Claude Code you can continue a dock session from claude.ai/code or the Claude app on your phone. When the agent offers `/remote-control`, a **Remote** button shows on the status line; it turns Remote Control on, with the project's name as the session name. While it's on, a strip under the status line shows the link, **QR** (a QR code of the link, to open it with your phone's camera), **Copy link** and **Turn off**. Click the strip's title to fold it to one line. Typing `/remote-control` or `/remote-control off` in the composer does the same.
+With Claude Code you can continue a dock session from claude.ai/code or the Claude app on your phone. When the agent offers `/remote-control`, **Remote Control** shows in the header's **⋯** menu; it turns Remote Control on, with the project's name as the session name. While it's on, a strip under the header shows the link, **QR** (a QR code of the link, to open it with your phone's camera), **Copy link** and **Turn off**. Click the strip's title to fold it to one line. Typing `/remote-control` or `/remote-control off` in the composer does the same.
 
 - What you write from the phone, and the agent's answers, only show on the phone: Claude Code doesn't send them to the harness. The dock still sees the tool calls that need permission.
 - The files that change while Remote Control is on (and no dock turn is running) show up in the chat as one notice per burst: "From Remote Control: modified player.gd · created enemy.gd". **View diff** shows each file before and now, and **Undo** puts them back as they were. Undo is offered when the harness knows the previous text: text files up to 256 KB. Files you save from the editor don't count, and the harness only looks at the first 5000 files of the project.

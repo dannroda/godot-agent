@@ -54,7 +54,7 @@ Cada sesión se guarda en `user://godot_agent/sessions/` una vez por turno, sin 
 
 ### Varias sesiones a la vez
 
-**+** arriba del dock abre otra sesión en su propia pestaña, con su agente, su conversación y su modo. Cada agente puede trabajar en lo suyo en el mismo editor, y el harness evita que se pisen:
+**+** del header del dock › **Pestaña nueva** abre otra sesión en su propia pestaña (ahí aparece la fila de pestañas), con su agente, su conversación y su modo. Cada agente puede trabajar en lo suyo en el mismo editor, y el harness evita que se pisen:
 
 - **Archivos**: un archivo que una sesión escribe en su turno (con las herramientas de edición del agente o con las `godot.*`) queda fuera del alcance de las demás hasta que ese turno termina. Otra sesión que lo intente recibe un rechazo, con el nombre de la sesión que lo tiene.
 - **El juego**: la sesión que corrió el juego lo tiene hasta que se detiene. El `run_scene` de otra sesión espera en cola (hasta un minuto y medio), y las herramientas `godot.game_*` no tocan un juego ajeno.
@@ -62,9 +62,9 @@ Cada sesión se guarda en `user://godot_agent/sessions/` una vez por turno, sin 
 
 La primera pestaña es la que corre el One-shot, las marcas de Revisar y Remote Control; las demás tienen los modos Preguntar, Revisar, Construir y Auto. Cerrar una pestaña termina su sesión.
 
-**+** también ofrece **Sesión nueva en una copia aparte (git worktree)**: el agente trabaja en una copia del proyecto en una rama nueva (`agent/copy-<fecha>`), creada al lado del repo (`<repo>.godot-agent-copies/`) desde tu último commit, así que los cambios sin commitear no están. No toca el editor abierto: edita archivos con sus propias herramientas y los verifica con Godot headless, y las herramientas `godot.*` que editan el proyecto del editor o corren su juego se le rechazan. Al cerrar su pestaña, lo que cambió se commitea en su rama y elegís: **Aplicar al proyecto** (como cambios sin commitear, con `git apply`; si cambiaste los mismos archivos y no entra limpio, la rama queda), **Dejar la rama** o **Descartar**. Una copia sin cambios se borra sola.
+**+** también ofrece **Pestaña nueva en una copia aparte (git worktree)**: el agente trabaja en una copia del proyecto en una rama nueva (`agent/copy-<fecha>`), creada al lado del repo (`<repo>.godot-agent-copies/`) desde tu último commit, así que los cambios sin commitear no están. No toca el editor abierto: edita archivos con sus propias herramientas y los verifica con Godot headless, y las herramientas `godot.*` que editan el proyecto del editor o corren su juego se le rechazan. Al cerrar su pestaña, lo que cambió se commitea en su rama y elegís: **Aplicar al proyecto** (como cambios sin commitear, con `git apply`; si cambiaste los mismos archivos y no entra limpio, la rama queda), **Dejar la rama** o **Descartar**. Una copia sin cambios se borra sola.
 
-Doble clic en una pestaña la renombra (vacía, vuelve a «Sesión N»). El nombre es también el que usan los agentes para referirse a esa sesión, así que dos sesiones no pueden compartirlo. Una pestaña con **⚠** espera tu permiso; si no está a la vista, el editor además muestra un aviso. **●** quiere decir que su agente está trabajando. La línea de estado debajo del header muestra con qué cuenta de Claude Code está logueada cada sesión.
+Doble clic en una pestaña la renombra (vacía, vuelve a «Sesión N»). El nombre es también el que usan los agentes para referirse a esa sesión, así que dos sesiones no pueden compartirlo. Una pestaña con **⚠** espera tu permiso; si no está a la vista, el editor además muestra un aviso. **●** quiere decir que su agente está trabajando. El chip del agente en el header muestra con qué cuenta de Claude Code está logueada cada sesión.
 
 ## La cuota del plan
 

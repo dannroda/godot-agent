@@ -55,7 +55,7 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
    - the **Agent** dock (right side);
    - the **Agent Log** bottom panel;
    - the **One-shot** screen (top bar, next to 2D/3D/Script).
-4. Click **Start session** in the dock. With Claude Code, `npx` downloads the adapter the first time.
+4. In the dock, **Add** one of the suggested agents (or set one up in Settings → Agents) and click **Start session**. With Claude Code, `npx` downloads the adapter the first time.
 
 New versions show up as a notice in the dock, with **Update** (see [Updating the addon](docs/wiki/en/Settings.md#updating-the-addon)).
 

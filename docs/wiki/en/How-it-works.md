@@ -54,7 +54,7 @@ Every session is saved in `user://godot_agent/sessions/` once per turn, without 
 
 ### Several sessions at once
 
-**+** at the top of the dock opens another session in its own tab, with its own agent, conversation and mode. Each agent can work on its own task in the same editor, and the harness keeps them from stepping on each other:
+**+** in the dock header › **New tab** opens another session in its own tab (the tab row shows up then), with its own agent, conversation and mode. Each agent can work on its own task in the same editor, and the harness keeps them from stepping on each other:
 
 - **Files**: a file one session writes in its turn (with the agent's own edit tools or with the `godot.*` tools) is off limits to the others until that turn ends. Another session that tries is rejected, with the name of the session that holds it.
 - **The game**: the session that ran the game keeps it until it stops. Another session's `run_scene` waits in line (up to a minute and a half), and the `godot.game_*` tools can't touch a game that isn't theirs.
@@ -62,9 +62,9 @@ Every session is saved in `user://godot_agent/sessions/` once per turn, without 
 
 The first tab is the one that runs One-shot, Review annotations and Remote Control; the others have the Ask, Review, Build and Auto modes. Closing a tab ends its session.
 
-**+** also offers **New session in a separate copy (git worktree)**: the agent works in a copy of the project on a new branch (`agent/copy-<date>`), created next to the repo (`<repo>.godot-agent-copies/`) from your last commit, so uncommitted changes aren't in it. It doesn't touch the open editor: it edits files with its own tools and checks them with Godot headless, and the `godot.*` tools that edit the editor's project or run its game are rejected for it. When you close its tab, what it changed is committed to its branch and you choose: **Apply to the project** (as uncommitted changes, with `git apply`; if you changed the same files and it doesn't apply cleanly, the branch stays), **Keep the branch** or **Discard**. A copy without changes is removed on its own.
+**+** also offers **New tab in a separate copy (git worktree)**: the agent works in a copy of the project on a new branch (`agent/copy-<date>`), created next to the repo (`<repo>.godot-agent-copies/`) from your last commit, so uncommitted changes aren't in it. It doesn't touch the open editor: it edits files with its own tools and checks them with Godot headless, and the `godot.*` tools that edit the editor's project or run its game are rejected for it. When you close its tab, what it changed is committed to its branch and you choose: **Apply to the project** (as uncommitted changes, with `git apply`; if you changed the same files and it doesn't apply cleanly, the branch stays), **Keep the branch** or **Discard**. A copy without changes is removed on its own.
 
-Double-click a tab to rename it (leave it empty to go back to «Session N»). The name is also how the agents refer to that session, so two sessions can't share it. A tab marked **⚠** is waiting for your permission; if it isn't in view, the editor also shows a notice. **●** means its agent is working. The status line under the header shows the Claude Code account each session is signed in with.
+Double-click a tab to rename it (leave it empty to go back to «Session N»). The name is also how the agents refer to that session, so two sessions can't share it. A tab marked **⚠** is waiting for your permission; if it isn't in view, the editor also shows a notice. **●** means its agent is working. The agent chip in the header shows the Claude Code account each session is signed in with.
 
 ## The plan quota
 
