@@ -151,6 +151,9 @@ func test_quoting_and_agent_env_ask() -> void:
 func test_command_key_ignores_quoting() -> void:
 	assert_eq(SessionController.command_key("npm run \"a b\""), SessionController.command_key(TerminalHandler.format_command_line("npm", PackedStringArray(["run", "a b"]))), "misma clave")
 	assert_false(SessionController.command_key("npm run a b") == SessionController.command_key("npm run 'a b'"), "otros args, otra clave")
+	assert_false(SessionController.command_key("echo 'a;rm x'") == SessionController.command_key("echo a;rm x"), "un ; citado no cubre uno que se ejecuta")
+	assert_false(SessionController.command_key("echo a\\|sh") == SessionController.command_key("echo a|sh"), "ni uno escapado")
+	assert_eq(SessionController.command_key("echo \"a;b\""), SessionController.command_key(TerminalHandler.format_command_line("echo", PackedStringArray(["a;b"]))), "citado con comillas dobles o simples, misma clave")
 
 
 ## El controller se libera solo (sin ciclos con su terminal ni su modelo): un ciclo de referencias

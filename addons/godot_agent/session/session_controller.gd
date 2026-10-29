@@ -1121,7 +1121,8 @@ func _file_taken(paths: PackedStringArray) -> bool:
 ## Un permiso de edición concedido cubre la escritura por fs/* que le sigue al mismo archivo; uno de
 ## shell cubre el terminal/create que le sigue con el mismo comando.
 ## Las palabras del comando sin las comillas: `npm run "a b"` (lo que pidió el agente) y
-## `npm run 'a b'` (lo que arma terminal/create) son la misma clave.
+## `npm run 'a b'` (lo que arma terminal/create) son la misma clave. Un carácter de control del
+## shell citado o escapado queda marcado: `echo 'a;rm x'` (aprobado) no cubre `echo a;rm x`.
 static func command_key(command: String) -> String:
 	var words: PackedStringArray = []
 	var word := ""
@@ -1134,21 +1135,21 @@ static func command_key(command: String) -> String:
 			if c == "'":
 				quote = ""
 			else:
-				word += c
+				word += _literal(c)
 		elif quote == "\"":
 			if c == "\"":
 				quote = ""
 			elif c == "\\" and i + 1 < command.length():
 				i += 1
-				word += command[i]
+				word += _literal(command[i])
 			else:
-				word += c
+				word += c if c in "$`" else _literal(c)  # entre comillas dobles $ y ` siguen activos
 		elif c == "'" or c == "\"":
 			quote = c
 			in_word = true
 		elif c == "\\" and i + 1 < command.length():
 			i += 1
-			word += command[i]
+			word += _literal(command[i])
 			in_word = true
 		elif c == " " or c == "\t":
 			if in_word:
@@ -1162,6 +1163,11 @@ static func command_key(command: String) -> String:
 	if in_word:
 		words.append(word)
 	return "\u0001".join(words)
+
+
+## Un carácter que el shell no interpreta por estar citado: los de control llevan una marca.
+static func _literal(c: String) -> String:
+	return "\u0002" + c if c in ";|&<>$`()\n*?" else c
 
 
 func _preauthorize(request: PermissionRequest, call: Variant) -> void:
