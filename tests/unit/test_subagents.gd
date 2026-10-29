@@ -30,7 +30,7 @@ func _controller(mode: SessionModel.HarnessMode) -> SessionController:
 
 func _ask(controller: SessionController, id: String) -> String:
 	controller.model.apply_update(_agent_call(id, "pending"))
-	var result: Variant = controller.call(&"_on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": id, "title": "Task"}, "options": OPTIONS})
+	var result: Variant = controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": id, "title": "Task"}, "options": OPTIONS})
 	return str(result.outcome.get("optionId", "")) if result is Dictionary else "card"
 
 
@@ -123,7 +123,7 @@ func test_child_permission_request_goes_to_launch() -> void:
 	var controller := _controller(M.BUILD)
 	controller.model.apply_update(_agent_call("a1", "in_progress"))
 	_announce(controller.model, "a1", "c1")
-	controller.call(&"_on_request_permission", {"sessionId": "c1", "toolCall": {"toolCallId": "b1", "title": "ls", "kind": "execute", "status": "pending",
+	controller.permissions.call(&"on_request_permission", {"sessionId": "c1", "toolCall": {"toolCallId": "b1", "title": "ls", "kind": "execute", "status": "pending",
 		"rawInput": {"command": "ls"}}, "options": OPTIONS})
 	assert_eq(controller.model.tool_call("b1").parent_id, "a1", "el pedido del hijo queda en la tarjeta del subagente")
 	assert_true("subagents" in controller.client_capabilities(), "declara subagentes nativos")

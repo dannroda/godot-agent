@@ -96,14 +96,14 @@ func test_controller_file_guard() -> void:
 	controller.file_guard = func(paths: PackedStringArray) -> String: return "Session 1" if "/tmp/project/a.gd" in paths else ""
 	controller.model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "e1", "title": "Edit a.gd", "kind": "edit", "status": "pending",
 		"rawInput": {"file_path": "/tmp/project/a.gd"}})
-	var result: Variant = controller.call(&"_on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "e1", "kind": "edit"}, "options": OPTIONS})
+	var result: Variant = controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "e1", "kind": "edit"}, "options": OPTIONS})
 	assert_eq(str(result.outcome.get("optionId", "")), "reject", "otra sesión lo está editando")
 	var notices := controller.model.entries().filter(func(entry: Variant) -> bool: return entry.kind == SessionModel.ChatEntry.EntryKind.NOTICE)
 	assert_true(not notices.is_empty() and str(notices.back().text).contains("Session 1"), "avisa quién lo tiene")
-	assert_true(not await controller.call(&"_authorize_fs_write", "/tmp/project/a.gd", "", "x"), "tampoco por fs/write_text_file")
+	assert_true(not await controller.permissions.authorize_fs_write("/tmp/project/a.gd", "", "x"), "tampoco por fs/write_text_file")
 	controller.model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "e2", "title": "Edit b.gd", "kind": "edit", "status": "pending",
 		"rawInput": {"file_path": "/tmp/project/b.gd"}})
-	result = controller.call(&"_on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "e2", "kind": "edit"}, "options": OPTIONS})
+	result = controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "e2", "kind": "edit"}, "options": OPTIONS})
 	assert_eq(str(result.outcome.get("optionId", "")), "allow", "un archivo libre sigue la política del modo")
 
 
