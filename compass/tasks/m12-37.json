@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:22:15.406Z",
+  "description": "Los perfiles preseteados se sacaron en 0.1.8, pero quien ya tenía la configuración guardada conserva «Gemini CLI» (discontinuado, reemplazado por Antigravity) y «Codex» sin comando: aparecen en Ajustes › Agentes y en el selector del dock. Visto en la configuración real de Godot 4.7 durante la revisión del 29/10.\n\nPropuesta: al cargar los perfiles, quitar una vez el gemini-cli preseteado (command \"gemini\", sin args) y el codex con comando vacío, solo si siguen iguales al preset (no tocar uno editado), y avisar en el log.\n\nArchivos: harness_settings.gd (profiles)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 37,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "ajustes"
+  ],
+  "test": "",
+  "title": "Migrar perfiles viejos: quitar Gemini CLI y el Codex sin comando",
+  "updated_at": "2026-10-29T06:22:15.406Z"
+}
