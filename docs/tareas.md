@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (5/9, 5 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (6/9, 6 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3826,7 +3826,7 @@ Informe: docs/revisiones/arquitectura.md
 
 **Bloquea a:** SessionController como fachada (A2)
 
-### SessionController como fachada (A2) · En curso
+### SessionController como fachada (A2) · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `arquitectura`
 
@@ -3840,13 +3840,17 @@ Informe: docs/revisiones/arquitectura.md
 
 **Bloqueada por:** Un adaptador por agente (A1)
 
-### plugin.gd solo arma (A3) · Pendiente
+### plugin.gd solo arma (A3) · En curso
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `arquitectura`
 
 Sacar del plugin la coordinación del One-shot con el dock, los cambios por turno y las pestañas de sesión hacia sus dueños (OneShotRun/pantalla, TurnSnapshots, SessionTabs/SessionCoordinator); el plugin crea y conecta.
 
 Informe: docs/revisiones/arquitectura.md
+
+**Prueba:** run_all 372 (solo test_completion_local); oneshot_check 130; acp_session_check 162; en Xvfb 4.7.2: sessions-test, oneshot-test y external-test pasan; plugin_cycle_check 4.8 pasa
+
+**Notas:** plugin.gd 1420 → 1265 líneas. Siguen en el plugin, por ser armado: _make_controller, abrir/cerrar pestañas y el destino de una copia (diálogos del editor). sessions-test pasa con la copia del proyecto como repo git (sin git falla igual con el código anterior: no puede crear el worktree).
 
 ### Una vista por sección del dock (A4) · Pendiente
 

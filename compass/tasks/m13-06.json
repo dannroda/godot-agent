@@ -4,16 +4,16 @@
   "created_at": "2026-10-29T13:15:28.798Z",
   "description": "Sacar del plugin la coordinación del One-shot con el dock, los cambios por turno y las pestañas de sesión hacia sus dueños (OneShotRun/pantalla, TurnSnapshots, SessionTabs/SessionCoordinator); el plugin crea y conecta.\n\nInforme: docs/revisiones/arquitectura.md",
   "milestone": "m13",
-  "notes": "",
+  "notes": "plugin.gd 1420 → 1265 líneas. Siguen en el plugin, por ser armado: _make_controller, abrir/cerrar pestañas y el destino de una copia (diálogos del editor). sessions-test pasa con la copia del proyecto como repo git (sin git falla igual con el código anterior: no puede crear el worktree).",
   "order": 6,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "arquitectura"
   ],
-  "test": "",
+  "test": "run_all 372 (solo test_completion_local); oneshot_check 130; acp_session_check 162; en Xvfb 4.7.2: sessions-test, oneshot-test y external-test pasan; plugin_cycle_check 4.8 pasa",
   "title": "plugin.gd solo arma (A3)",
-  "updated_at": "2026-10-29T13:15:28.798Z"
+  "updated_at": "2026-10-29T15:35:32.718Z"
 }
