@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (1/3, 1 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (2/3, 2 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3792,11 +3792,15 @@ Informe en docs/revisiones/seguridad.md (S1–S14). Arreglados:
 A decidir: S3 (en Auto, `godot --headless *` permitido + edición permitida
 corre cualquier código sin preguntar); el informe propone opciones.
 
-### Revisión de patrones de Godot · Pendiente
+### Revisión de patrones de Godot · Revisión
 
 **Prioridad:** media · **Tamaño:** L · **Etiquetas:** `revision`, `patrones`
 
 Revisar el GDScript del addon contra los patrones de Godot 4: ciclo de vida de nodos y RefCounted (ciclos de referencias como el del crash de 4.8), await y señales que sobreviven al nodo, call_deferred, @tool y recarga de scripts en caliente, Resources compartidos, Window/AcceptDialog y layout (wrap_controls, autowrap), y rendimiento en el editor. Informe y una tarea por hallazgo.
+
+**Prueba:** run_all: 364 tests (test_atomic_file, test_acp_client.test_cancelled_requests_are_capped, el runner probado con un test que falla a propósito); un error de script ahora falla el test.
+
+**Notas:** Informe en docs/revisiones/patrones.md (P1–P7). Arreglados P2–P7 en df66c50 y P1 en parte (preautorización en session/preauthorizations.gd, siguiente commit). P2: lo que espera un permiso o una pregunta sigue en el frame siguiente (salvo pedido retirado por el agente). P3: run_all falla los tests con errores de script (Logger). P4: guardas tras los await del dock. P5: AtomicFile.write_text. P6: tope de 256 en _cancelled_outgoing. P7: el completado apaga _process cuando está apagado. El resto de P1 pasa a m13-03 con el orden propuesto en el informe.
 
 ### Revisión de arquitectura · Pendiente
 
