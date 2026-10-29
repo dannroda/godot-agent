@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (2/8, 2 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (3/8, 3 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3802,7 +3802,7 @@ Revisar el GDScript del addon contra los patrones de Godot 4: ciclo de vida de n
 
 **Notas:** Informe en docs/revisiones/patrones.md (P1–P7). Arreglados P2–P7 en df66c50 y P1 en parte (preautorización en session/preauthorizations.gd, siguiente commit). P2: lo que espera un permiso o una pregunta sigue en el frame siguiente (salvo pedido retirado por el agente). P3: run_all falla los tests con errores de script (Logger). P4: guardas tras los await del dock. P5: AtomicFile.write_text. P6: tope de 256 en _cancelled_outgoing. P7: el completado apaga _process cuando está apagado. El resto de P1 pasa a m13-03 con el orden propuesto en el informe.
 
-### Revisión de arquitectura · En curso
+### Revisión de arquitectura · Revisión
 
 **Prioridad:** media · **Tamaño:** L · **Etiquetas:** `revision`, `arquitectura`
 
@@ -3812,13 +3812,17 @@ Revisar la estructura del addon: el tamaño y las responsabilidades de session_c
 
 **Notas:** Informe en docs/revisiones/arquitectura.md (A1–A8). Las capas están limpias (acp, transport, oneshot y extensions no tocan el editor). Propuestas cargadas como tareas: m13-04 (adaptador por agente), m13-05 (controller como fachada, bloqueada por m13-04), m13-06 (plugin solo arma), m13-07 (una vista por sección del dock), m13-08 (API pública del dock y EditorInterface inyectado). Estado (A7) y tests (A8) sin cambios necesarios.
 
-### Un adaptador por agente (A1) · Pendiente
+### Un adaptador por agente (A1) · En curso
 
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `arquitectura`
 
 Lo propio de cada agente (comando y lectura de la cuota, cómo saber la cuenta, tipo de extensiones, archivos de instrucciones, «¿es Claude?») está repartido entre session_controller, quota_monitor, skill_catalog, claude_extensions, plugin y agent_dock, con ramas por nombre. AgentAdapter (RefCounted, estrategia) con matches(agent_info, profile) y lo que cambia por agente, más uno genérico; el controller lo pide al conectar. Sumar un agente = un archivo.
 
 Informe: docs/revisiones/arquitectura.md
+
+**Prueba:** test_agent_adapters (4 tests); run_all 368; acp_session_check 162/0.
+
+**Notas:** Hecho en 482e020. session/agents/: agent_adapter.gd (genérico), claude_adapter.gd, antigravity_adapter.gd, codex_adapter.gd y agent_adapters.gd (elige por perfil y, después de initialize, por agentInfo.name). El controller usa adapter.quota_command/read_quota/model_changed/reads_account_from_cli; el plugin, adapter.session_meta y kind para Extensiones; el dock, adapter.api_key_variable. La detección por comando sigue en ClaudeExtensions.agent_kind (la usan las extensiones). Sin probar contra agy real: la instalación pide login.
 
 **Bloquea a:** SessionController como fachada (A2)
 
