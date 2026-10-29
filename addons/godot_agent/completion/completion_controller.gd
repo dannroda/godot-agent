@@ -26,6 +26,8 @@ const CompletionRequest := preload("completion_request.gd")
 const CompletionResult := preload("completion_result.gd")
 const GhostTextRenderer := preload("ghost_text_renderer.gd")
 const TypedHistory := preload("local/typed_history.gd")
+## Scripts que se completan: GDScript y C# (m14-08; el Script Editor de Godot .NET no completa C#).
+const LANGUAGES: PackedStringArray = ["gd", "cs"]
 const SuggestionCache := preload("suggestion_cache.gd")
 
 const CLOSERS := ")]}\"'"
@@ -243,7 +245,7 @@ func build_request(line: int, column: int) -> CompletionRequest:
 
 ## Condiciones de disparo (spec §16.5).
 func can_trigger(manual: bool) -> bool:
-	if not enabled or code_edit == null or provider == null or path.get_extension() != "gd":
+	if not enabled or code_edit == null or provider == null or not path.get_extension() in LANGUAGES:
 		return false
 	if code_edit.has_selection() or code_edit.get_caret_count() > 1 or native_popup_open():
 		return false

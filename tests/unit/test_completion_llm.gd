@@ -177,3 +177,9 @@ func test_provider_with_fake_server() -> void:
 	server.queue_free()
 	OS.unset_environment(KEY_ENV)
 	await tree.process_frame
+
+
+## m14-08: la instrucción y el contexto van en el lenguaje del archivo.
+func test_language_of_file() -> void:
+	assert_eq(LlmClient.language_of("Player.cs"), "C#", "un .cs es C#")
+	assert_eq(LlmClient.language_of("player.gd"), "GDScript", "un .gd es GDScript")

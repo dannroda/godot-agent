@@ -165,6 +165,11 @@ func lines() -> LineIndex:
 	return index.lines
 
 
+## El índice de líneas del lenguaje de `path`: el de C# para un .cs (m14-08), si no el de GDScript.
+func lines_for(path: String) -> LineIndex:
+	return index.csharp_lines if path.get_extension() == "cs" else index.lines
+
+
 func ngram() -> NGramModel:
 	return index.ngram
 

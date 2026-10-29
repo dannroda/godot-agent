@@ -10,6 +10,8 @@ const GdLexer := preload("local/gd_lexer.gd")
 const NGramModel := preload("local/ngram_model.gd")
 
 const SCRIPT_EXT := "gd"
+## C# (m14-08): solo entra al índice de líneas propio; las reglas y el n-gram son de GDScript.
+const CSHARP_EXT := "cs"
 const SCENE_EXT := "tscn"
 ## Extensiones que no son recursos cargables.
 const SKIP_EXT: PackedStringArray = ["import", "uid", "tmp", "translation", "godot"]
@@ -34,6 +36,10 @@ var resources: PackedStringArray = []
 ## Estilo de los handlers conectados en código: `_on_<señal>` o `_on_<emisor>_<señal>`.
 var handler_style: Dictionary = {"signal": 0, "emitter": 0}
 var lines: LineIndex = LineIndex.new()
+## Las líneas de los .cs del proyecto, aparte: sugerirle GDScript a un .cs no sirve.
+var csharp_lines: LineIndex = LineIndex.new()
+## ruta -> {mtime, lines} de los .cs.
+var csharp: Dictionary = {}
 var ngram: NGramModel = NGramModel.new()
 ## Scripts de las carpetas de corpus extra (fuera del proyecto): ruta -> {mtime, tokens}. Solo
 ## entrenan el n-gram.
@@ -77,6 +83,14 @@ static func build(options: Dictionary) -> RefCounted:
 				index.scripts[path] = previous.scripts[path]
 			else:
 				index.scripts[path] = index._parse_script(FileAccess.get_file_as_string(path), mtime, -1, corpus)
+		elif ext == CSHARP_EXT and not _excluded(path, root, exclude):
+			if buffers.has(path):
+				var buffer: Dictionary = buffers[path]
+				index.csharp[path] = {"mtime": -1, "lines": LineIndex.lines_of(str(buffer.text), int(buffer.get("skip_line", -1)), "//")}
+			elif previous and mtime < fresh_after and previous.csharp.has(path) and int(previous.csharp[path].mtime) == mtime:
+				index.csharp[path] = previous.csharp[path]
+			else:
+				index.csharp[path] = {"mtime": mtime, "lines": LineIndex.lines_of(FileAccess.get_file_as_string(path), -1, "//")}
 		elif ext == SCENE_EXT:
 			if previous and mtime < fresh_after and previous.scenes.has(path) and int(previous.scenes[path].mtime) == mtime:
 				index.scenes[path] = previous.scenes[path]
@@ -96,6 +110,13 @@ static func build(options: Dictionary) -> RefCounted:
 			file_lines[path] = info.lines
 			mtimes[path] = info.mtime if int(info.mtime) >= 0 else options.get("now", Time.get_unix_time_from_system())
 	index.lines = LineIndex.build(file_lines, mtimes, float(options.get("now", Time.get_unix_time_from_system())))
+	if not index.csharp.is_empty():
+		var csharp_files: Dictionary = {}
+		var csharp_mtimes: Dictionary = {}
+		for path: String in index.csharp:
+			csharp_files[path] = index.csharp[path].lines
+			csharp_mtimes[path] = index.csharp[path].mtime if int(index.csharp[path].mtime) >= 0 else options.get("now", Time.get_unix_time_from_system())
+		index.csharp_lines = LineIndex.build(csharp_files, csharp_mtimes, float(options.get("now", Time.get_unix_time_from_system())))
 	index._index_extra(options.get("extra_corpus", PackedStringArray()), previous, fresh_after, cancel)
 	var token_files: Dictionary = {}
 	for path: String in index.scripts:

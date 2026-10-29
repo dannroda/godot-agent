@@ -135,10 +135,10 @@ static func normalize(line: String) -> String:
 	return result
 
 
-## Secuencia de un texto: {lines, indents}. Los comentarios no cuentan; las líneas vacías y
-## `skip_line` (0-based, la del caret en un buffer, a medio escribir) quedan como "" y cortan los
-## bloques.
-static func lines_of(text: String, skip_line: int = -1) -> Dictionary:
+## Secuencia de un texto: {lines, indents}. Los comentarios (`comment`: "#" en GDScript, "//" en C#)
+## no cuentan; las líneas vacías y `skip_line` (0-based, la del caret en un buffer, a medio
+## escribir) quedan como "" y cortan los bloques.
+static func lines_of(text: String, skip_line: int = -1, comment: String = "#") -> Dictionary:
 	var lines := PackedStringArray()
 	var indents := PackedInt32Array()
 	var source := text.split("\n")
@@ -146,7 +146,7 @@ static func lines_of(text: String, skip_line: int = -1) -> Dictionary:
 	for i in source.size():
 		var raw := source[i]
 		var line := normalize(raw).strip_edges(false, true)
-		if line.begins_with("#"):
+		if line.begins_with(comment):
 			continue
 		if i == skip_line:
 			line = ""

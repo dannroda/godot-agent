@@ -4,6 +4,8 @@
 
 Grey suggestions while you type in the Script Editor. By default they are **local only**: no AI, no agent, nothing leaves the editor. An LLM is optional.
 
+It works in GDScript and in C#. Godot .NET opens `.cs` files in its own Script Editor when no external editor is set, as plain text with no completion; there the suggestions come only from the lines of the project's `.cs` files and what you typed, and an LLM gets the file as C#.
+
 ## Keys
 
 | Key | What it does |

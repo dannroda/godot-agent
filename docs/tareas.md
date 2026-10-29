@@ -3969,10 +3969,14 @@ Pedido del usuario (29/10): que un proyecto en C# tenga lo mismo que uno en GDSc
 
 **Notas:** Hecho: core/csharp_build.gd (dotnet build en inglés, errores ruta(línea,col) a res://); validate_scripts acepta .cs y, sin paths, compila el C# si hay .csproj (avisa si hay .cs sin .csproj); la verificación de fin de turno compila si cambió algún .cs; attach_script/create_scene crean .cs como partial class con el nombre del archivo (y avisan si el editor no es .NET); set_autoload acepta .cs; menciones @ y Remote Control suman .cs; move_file avisa que la clase tiene que llamarse como el archivo; abrir un hallazgo en un .cs no salta a la pestaña Script si se abre en un editor externo; reglas de C# en el prompt solo con .csproj; job de CI con Godot .NET 4.7.2 + dotnet 8. De paso: validate_scripts sin paths saltea los scripts del harness (con el addon instalado no entraba en 60 s). La sincronización de buffers ya era genérica (por Script) y cubre los .cs abiertos.
 
-### Completado predictivo para C# en el Script Editor · Pendiente
+### Completado predictivo para C# en el Script Editor · En curso
 
 Comprobado en Godot 4.7.2 .NET (29/10, Xvfb, editor externo en «None», el default): un .cs se abre en el Script Editor interno como un CodeEdit común (ScriptTextEditor), pero sin nada para C#: resaltado EditorPlainTextSyntaxHighlighter (texto plano), code_completion_enabled = false, 0 opciones al pedir completado después de 'Velocity.', y el panel de métodos vacío. El predictivo llenaría un hueco real.
 - completion_controller.gd:246 solo se engancha a .gd: sumar .cs.
 - El proveedor LLM sirve tal cual (le llega el texto); el local (project_index.gd, context_rules.gd) está hecho para GDScript: índice de símbolos C# (clases partial, métodos, [Export], señales [Signal]) y la API de Godot en PascalCase (GetVector, MoveAndSlide).
 - De paso, ver si conviene un resaltado de C# propio (el de Godot es texto plano), con un CodeHighlighter y las palabras clave que ya da CSharpLanguage.
 - Probar con Godot .NET 4.7.2 y 4.8 en Xvfb, con una copia autocontenida (sin tocar la config del usuario).
+
+**Prueba:** test_completion_local.test_csharp_uses_its_own_lines (índices separados, sin //, un .cs se completa con C# y un .gd nunca); test_completion_llm.test_language_of_file; en Godot .NET 4.7.2 (Xvfb): escribir 'Velocity = Velo' en Boss.cs muestra la línea de C# y MoveAndSlide() en gris (captura)
+
+**Notas:** El controller se engancha a .gd y .cs. El índice del proyecto arma un índice de líneas aparte con los .cs (comentarios // fuera); el proveedor local usa el índice del lenguaje del archivo y, en C#, apaga las reglas de contexto y el n-gram (son de GDScript); el historial de lo tecleado sigue. LLM: la instrucción de Gemini y el filename de llama.cpp según el lenguaje, y el contexto del proyecto como comentarios //. No se hizo el resaltado de C# propio (queda texto plano): se puede sumar después.

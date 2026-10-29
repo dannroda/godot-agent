@@ -85,7 +85,10 @@ func complete(request: CompletionRequest) -> CompletionResult:
 ## Todos los candidatos de una línea, ya post-procesados (para el ranker, los tests y la evaluación).
 func gather(request: CompletionRequest) -> Array[Dictionary]:
 	var raw: Array[Dictionary] = []
-	if _on(SOURCE_RULES):
+	# En C# (m14-08) solo cuentan las líneas de los .cs y lo tecleado: las reglas de contexto y el
+	# n-gram están hechos para GDScript.
+	var csharp := request.path.get_extension() == "cs"
+	if _on(SOURCE_RULES) and not csharp:
 		raw.append_array(rules.candidates(request, context))
 		# La regla reconoce el contexto pero no puede elegir: nadie adivina.
 		if ContextRules.is_veto(raw):
@@ -98,14 +101,14 @@ func gather(request: CompletionRequest) -> Array[Dictionary]:
 			if not request.previous_lines.is_empty() and not request.previous_lines[request.previous_lines.size() - 1].strip_edges().is_empty():
 				if _on(SOURCE_RETRIEVAL):
 					raw.append_array(next_line(request))
-				if _on(SOURCE_NGRAM):
+				if _on(SOURCE_NGRAM) and not csharp:
 					raw.append_array(ngram(request))
 		elif prefix.length() >= MIN_PREFIX:
 			if _on(SOURCE_RETRIEVAL):
 				raw.append_array(retrieval(prefix, request))
 			if _on(SOURCE_HISTORY):
 				raw.append_array(history.query(prefix))
-			if _on(SOURCE_NGRAM):
+			if _on(SOURCE_NGRAM) and not csharp:
 				raw.append_array(ngram(request))
 	var out: Array[Dictionary] = []
 	for candidate: Dictionary in raw:
@@ -125,7 +128,7 @@ func _on(source: String) -> bool:
 ## es su parte del total × soporte (la evidencia absoluta: pocas apariciones lejanas no alcanzan
 ## aunque sean la única opción).
 func retrieval(prefix: String, request: CompletionRequest) -> Array[Dictionary]:
-	var lines := context.lines()
+	var lines := context.lines_for(request.path)
 	# Se adapta solo si ninguna línea empieza así: una línea ya completa o un prefijo ambiguo
 	# (más de MAX_SCAN) no se reemplazan con la de un pariente.
 	var adapted := not lines.has_prefix(prefix)
@@ -151,7 +154,7 @@ func next_line(request: CompletionRequest) -> Array[Dictionary]:
 	var previous := LineIndex.normalize(above).strip_edges(false, true)
 	if previous.length() < LineIndex.MIN_LINE:
 		return out
-	var found := context.lines().next_lines(previous, request.path, MAX_SCAN)
+	var found := context.lines_for(request.path).next_lines(previous, request.path, MAX_SCAN)
 	var scored := _scored(found, NEXT_LINE_WEIGHT)
 	var previous_level := GdLexer.indent_level(above, request.indent_size)
 	var current_level := GdLexer.indent_level(request.line_prefix, request.indent_size)
@@ -195,7 +198,7 @@ func ngram(request: CompletionRequest) -> Array[Dictionary]:
 
 ## La línea elegida más las que la siguen en el corpus mientras todas sus apariciones coinciden.
 func _with_block(text: String, chosen: Dictionary, request: CompletionRequest) -> String:
-	var more := context.lines().extend(chosen.positions, max_lines - 1, MIN_BLOCK_SUPPORT)
+	var more := context.lines_for(request.path).extend(chosen.positions, max_lines - 1, MIN_BLOCK_SUPPORT)
 	if more.is_empty():
 		return text
 	var block := text

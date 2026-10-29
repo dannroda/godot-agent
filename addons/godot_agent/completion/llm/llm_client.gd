@@ -8,7 +8,7 @@ const LlmProfile := preload("llm_profile.gd")
 
 const CURSOR := "<CURSOR>"
 ## Gemini no tiene FIM: se le pide el texto del cursor con una instrucción (experimental).
-const GEMINI_INSTRUCTION := "You are a code completion engine for GDScript (Godot 4). The user message is a GDScript file with the marker <CURSOR>. Reply with only the code to insert at <CURSOR>: no explanations, no Markdown fences, no repetition of the code before or after the cursor. Reply with an empty message if nothing fits."
+const GEMINI_INSTRUCTION := "You are a code completion engine for {language} (Godot 4). The user message is a {language} file with the marker <CURSOR>. Reply with only the code to insert at <CURSOR>: no explanations, no Markdown fences, no repetition of the code before or after the cursor. Reply with an empty message if nothing fits."
 ## OpenAI acepta hasta 4 stops y Gemini hasta 5.
 const MAX_STOPS := {LlmProfile.KIND_OPENAI: 4, LlmProfile.KIND_GEMINI: 5}
 
@@ -47,7 +47,7 @@ static func build(profile: LlmProfile, prefix: String, suffix: String, extra: St
 				"temperature": profile.temperature, "cache_prompt": true,
 			}
 			if not extra.is_empty():
-				body.input_extra = [{"filename": "project_context.gd", "text": extra}]
+				body.input_extra = [{"filename": "project_context." + file_name.get_extension(), "text": extra}]
 			if not stops.is_empty():
 				body.stop = Array(stops)
 		LlmProfile.KIND_CODESTRAL:
@@ -71,7 +71,7 @@ static func build(profile: LlmProfile, prefix: String, suffix: String, extra: St
 			if not stops.is_empty():
 				config.stopSequences = Array(stops)
 			body = {
-				"systemInstruction": {"parts": [{"text": GEMINI_INSTRUCTION}]},
+				"systemInstruction": {"parts": [{"text": GEMINI_INSTRUCTION.format({"language": language_of(file_name)})}]},
 				"contents": [{"role": "user", "parts": [{"text": "%s%s%s%s" % [extra, prefix, CURSOR, suffix]}]}],
 				"generationConfig": config,
 			}
@@ -117,6 +117,11 @@ static func parse(kind: String, code: int, body: String) -> Dictionary:
 	if not text is String:
 		return {"error": "response has no text"}
 	return {"text": text}
+
+
+## El lenguaje de un script para el modelo: C# para los .cs (m14-08), si no GDScript.
+static func language_of(file_name: String) -> String:
+	return "C#" if file_name.get_extension() == "cs" else "GDScript"
 
 
 ## Lo que devuelve un modelo instructivo envuelto en ```gdscript ... ```.

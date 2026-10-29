@@ -63,19 +63,23 @@ static func sections(context: ProjectContext, path: String, text: String) -> Arr
 ## sección que no entra entera entra hasta donde llega, y las siguientes no).
 static func render(context: ProjectContext, path: String, text: String, budget_tokens: int = DEFAULT_BUDGET_TOKENS) -> String:
 	var budget := maxi(0, budget_tokens) * CHARS_PER_TOKEN
+	# El contexto va como comentarios del lenguaje del archivo (m14-08).
+	var comment := "//" if path.get_extension() == "cs" else "#"
 	var lines := PackedStringArray()
 	var used := 0
 	for section: Array in sections(context, path, text):
 		var items: PackedStringArray = section[1]
 		if items.is_empty():
 			continue
-		var title := "# %s:" % section[0]
+		var title := "%s %s:" % [comment, section[0]]
 		if used + title.length() + 1 > budget:
 			break
 		lines.append(title)
 		used += title.length() + 1
 		for item: String in items:
-			var line := "#   " + item
+			if item.strip_edges().is_empty():
+				continue
+			var line := comment + "   " + item
 			if used + line.length() + 1 > budget:
 				return "\n".join(lines) + "\n"
 			lines.append(line)

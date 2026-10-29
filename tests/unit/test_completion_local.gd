@@ -325,3 +325,32 @@ func test_suggestion_cache() -> void:
 	provider.history.record("\tvar mana := 10")
 	assert_true(provider.cache_generation() != before, "el historial también")
 	assert_true(SuggestionCache.key_for(request, 1) != SuggestionCache.key_for(request, 2), "la generación entra en la clave")
+
+
+## m14-08: un .cs se completa con las líneas de los .cs del proyecto, nunca con GDScript.
+func test_csharp_uses_its_own_lines() -> void:
+	var root := temp_dir("completion_csharp")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root.path_join("scripts")))
+	var csharp := "using Godot;\n\npublic partial class Enemy%s : CharacterBody2D\n{\n\t// Sigue al jugador.\n\tpublic override void _PhysicsProcess(double delta)\n\t{\n\t\tVelocity = Velocity.MoveToward(Vector2.Zero, Friction * (float)delta);\n\t\tMoveAndSlide();\n\t}\n}\n"
+	for name: String in ["a", "b", "c"]:
+		var file := FileAccess.open(root.path_join("scripts/%s.cs" % name), FileAccess.WRITE)
+		file.store_string(csharp % name.to_upper())
+		file.close()
+		var gd := FileAccess.open(root.path_join("scripts/%s.gd" % name), FileAccess.WRITE)
+		gd.store_string("extends Node\n\nfunc _physics_process(delta: float) -> void:\n\tvelocity = velocity.move_toward(Vector2.ZERO, friction * delta)\n")
+		gd.close()
+	var context := ProjectContext.new()
+	context.root = root
+	context.build_now()
+	assert_true(context.lines_for("x.cs").has_prefix("Velocity = Velocity"), "las líneas de C#, en su índice")
+	assert_false(context.lines_for("x.cs").has_prefix("velocity = velocity"), "sin GDScript en el de C#")
+	assert_false(context.lines_for("x.gd").has_prefix("Velocity = Velocity"), "sin C# en el de GDScript")
+	assert_false(context.lines_for("x.cs").has_prefix("// Sigue"), "sin los comentarios //")
+	var provider := LocalProvider.new(context)
+	var request := CompletionRequest.make(root.path_join("scripts/new.cs"), "using Godot;\n\npublic partial class New : CharacterBody2D\n{\n\tpublic override void _PhysicsProcess(double delta)\n\t{\n\t\tVelocity = Velo\n", 6, 17)
+	var result := provider.complete(request)
+	var text: String = result.text if result else "<nada>"
+	assert_true(text.begins_with("city.MoveToward(Vector2.Zero, Friction * (float)delta);") and text.contains("MoveAndSlide();"), "completa con la línea de C# y la que la sigue · " + text)
+	var gd_request := CompletionRequest.make(root.path_join("scripts/new.gd"), "extends Node\n\nfunc _physics_process(delta: float) -> void:\n\tvelocity = velo\n", 3, 16)
+	var gd_result := provider.complete(gd_request)
+	assert_true(gd_result == null or not gd_result.text.contains("MoveToward"), "un .gd no recibe C#")

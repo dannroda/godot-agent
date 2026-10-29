@@ -4,6 +4,8 @@
 
 Sugerencias en gris mientras escribís en el Script Editor. Por defecto son **solo locales**: sin IA, sin el agente, y nada sale del editor. Un LLM es opcional.
 
+Anda en GDScript y en C#. Godot .NET abre los `.cs` en su propio Script Editor cuando no hay un editor externo configurado, como texto plano y sin completado; ahí las sugerencias salen solo de las líneas de los `.cs` del proyecto y de lo que escribiste, y un LLM recibe el archivo como C#.
+
 ## Teclas
 
 | Tecla | Qué hace |
