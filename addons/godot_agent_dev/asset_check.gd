@@ -35,7 +35,8 @@ func run(tree: SceneTree, dock: Control, prefix: String) -> PackedStringArray:
 	var tabs: TabContainer = window.get(&"_tabs")
 	var tab: Control = window.get(&"_addons_tab")
 	tabs.current_tab = tab.get_index()
-	# Al abrir busca los más relevantes.
+	# La búsqueda está detrás de «Buscar en el Asset Store…» (m12-31): la primera vez trae los más relevantes.
+	tab.call(&"show_search")
 	if not await _until(func() -> bool: return not tab.get(&"_searching") and tab.get(&"_searched")):
 		return ["la búsqueda inicial no terminó"]
 	if not str(tab.get(&"_error")).is_empty():

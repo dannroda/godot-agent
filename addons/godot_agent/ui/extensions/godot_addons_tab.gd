@@ -5,6 +5,8 @@ extends MarginContainer
 ## Asset Store. Instalar baja la release, muestra qué archivos
 ## escribe (lo que ya existe no se pisa; lo de afuera de addons/ queda afuera salvo que se pida) y
 ## después activa sus plugins.
+## Desde m12-31 la pestaña es «Addons del proyecto»: arriba lo instalado; la búsqueda queda detrás de
+## «Buscar en el Asset Store…» (el editor ya tiene su Tienda de Assets) y no corre sola al abrir.
 
 ## Texto para la línea de estado de la ventana.
 signal status_changed(text: String, color: Color)
@@ -29,6 +31,8 @@ var set_plugin_enabled: Callable = func(path: String, enabled: bool) -> void: Ed
 var addons_dir: String = "res://addons"
 
 var _query: LineEdit
+var _search_row: HBoxContainer
+var _search_toggle: Button
 var _sort: OptionButton
 var _box: VBoxContainer
 var _pager: HBoxContainer
@@ -62,7 +66,26 @@ func _init() -> void:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override(&"separation", AgentTheme.px(6))
 	add_child(page)
+	var top := HBoxContainer.new()
+	page.add_child(top)
+	var intro := ExtensionsUi.muted(I18n.t("The editor plugins in this project's addons/ folder, with updates from the Asset Store."))
+	intro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(intro)
+	_search_toggle = Button.new()
+	_search_toggle.text = I18n.t("Search the Asset Store…")
+	_search_toggle.toggle_mode = true
+	_search_toggle.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_search_toggle.tooltip_text = I18n.t("Like the editor's Asset Store tab, but the install never overwrites a file of the project. The agent can also search and suggest assets.")
+	_search_toggle.toggled.connect(func(on: bool) -> void:
+		if on:
+			show_search()
+		else:
+			_search_row.visible = false
+			_rebuild())
+	top.add_child(_search_toggle)
 	var bar := HBoxContainer.new()
+	bar.visible = false
+	_search_row = bar
 	page.add_child(bar)
 	_query = LineEdit.new()
 	_query.placeholder_text = I18n.t("Search the Godot Asset Store…")
@@ -80,7 +103,6 @@ func _init() -> void:
 	_pager = HBoxContainer.new()
 	_pager.alignment = BoxContainer.ALIGNMENT_CENTER
 	page.add_child(_pager)
-	page.add_child(ExtensionsUi.muted(I18n.t("Assets for this Godot version from store.godotengine.org. Install never overwrites a file of the project. The agent can also search and suggest them.")))
 	_build_dialog()
 
 
@@ -116,14 +138,23 @@ func _build_dialog() -> void:
 	add_child(_dialog)
 
 
-## Vuelve a leer los plugins del proyecto; la primera vez, busca los assets más relevantes y
-## versiones nuevas de los plugins.
+## Vuelve a leer los plugins del proyecto y, la primera vez, busca versiones nuevas de los plugins.
 func refresh() -> void:
 	_rebuild()
-	if not _searched:
-		await search(1)
 	if not _checked:
 		check_updates()
+
+
+## Muestra la búsqueda y, la primera vez, trae los assets más relevantes.
+func show_search() -> void:
+	_search_row.visible = true
+	if not _search_toggle.button_pressed:
+		_search_toggle.set_pressed_no_signal(true)
+	_query.grab_focus.call_deferred()
+	if not _searched:
+		await search(1)
+	else:
+		_rebuild()
 
 
 func check_updates() -> void:
@@ -185,8 +216,10 @@ func _rebuild() -> void:
 		_box.add_child(ExtensionsUi.muted(I18n.t("No editor plugins in addons/ yet.")))
 	if not _error.is_empty():
 		_box.add_child(ExtensionsUi.error_label(_error))
+	if not _search_row.visible:
+		return
 	if _searching:
-		_box.add_child(ExtensionsUi.muted(I18n.t("Searching the Asset Store…")))
+		_box.add_child(ExtensionsUi.skeleton(I18n.t("Searching the Asset Store…")))
 		return
 	if not _searched:
 		return

@@ -646,7 +646,7 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.MARKETPLACES, I18n.t("Marketplaces (%d)") % _markets.size())
 	_tabs.set_tab_title(ExtensionsTab.MCP, I18n.t("MCP servers"))
 	_tabs.set_tab_title(ExtensionsTab.SKILLS, I18n.t("Skills"))
-	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Godot addons"))
+	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Project addons"))
 	_tabs.set_tab_title(ExtensionsTab.INSTRUCTIONS, I18n.t("Instructions"))
 	if _nav.item_count != _tabs.get_tab_count():
 		_nav.clear()

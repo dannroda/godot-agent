@@ -2509,8 +2509,6 @@ msgstr "Versión instalada: %s"
 msgid "Install from the Asset Store"
 msgstr "Instalar desde el Asset Store"
 
-msgid "Godot addons"
-msgstr "Addons de Godot"
 
 msgid "Most relevant"
 msgstr "Más relevantes"
@@ -2530,8 +2528,6 @@ msgstr "Buscar en el Asset Store de Godot…"
 msgid "Search the Asset Store"
 msgstr "Buscar en el Asset Store"
 
-msgid "Assets for this Godot version from store.godotengine.org. Install never overwrites a file of the project. The agent can also search and suggest them."
-msgstr "Assets para esta versión de Godot de store.godotengine.org. Instalar nunca pisa un archivo del proyecto. El agente también puede buscarlos y sugerirlos."
 
 msgid "Also install the files outside addons/ (demos, README…)"
 msgstr "Instalar también los archivos de afuera de addons/ (demos, README…)"
@@ -3501,3 +3497,15 @@ msgstr "Borrar…"
 
 msgid "No agent set up yet. Plugins, marketplaces and the agent's own MCP servers depend on which one you use."
 msgstr "Todavía no hay un agente configurado. Los plugins, los marketplaces y los servidores MCP propios del agente dependen de cuál uses."
+
+msgid "The editor plugins in this project's addons/ folder, with updates from the Asset Store."
+msgstr "Los plugins del editor de la carpeta addons/ del proyecto, con las actualizaciones del Asset Store."
+
+msgid "Search the Asset Store…"
+msgstr "Buscar en el Asset Store…"
+
+msgid "Like the editor's Asset Store tab, but the install never overwrites a file of the project. The agent can also search and suggest assets."
+msgstr "Como la Tienda de Assets del editor, pero la instalación nunca pisa un archivo del proyecto. El agente también puede buscar y sugerir assets."
+
+msgid "Project addons"
+msgstr "Addons del proyecto"
