@@ -7,10 +7,21 @@ signal scored(total: int)
 var score: int = 0
 var speed: float = 1.5
 var target := Vector2(3, 4)
+var _accept_frame := -1
 
 
 func _ready() -> void:
 	print("run_fixture listo")
+
+
+## Input por frame (m14-01): cuántos frames de física quedó apretada ui_accept y con qué fuerza.
+func _physics_process(_delta: float) -> void:
+	if Input.is_action_just_pressed("ui_accept"):
+		_accept_frame = Engine.get_physics_frames()
+		print("ui_accept fuerza %.2f" % Input.get_action_strength("ui_accept"))
+	elif Input.is_action_just_released("ui_accept") and _accept_frame >= 0:
+		print("ui_accept sostenido %d frames" % (Engine.get_physics_frames() - _accept_frame))
+		_accept_frame = -1
 
 
 func add_score(points: int) -> int:

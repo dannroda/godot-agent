@@ -4,11 +4,11 @@
   "created_at": "2026-10-29T21:59:11.326Z",
   "description": "Como godot-ai (game_manage op=input_sequence): una tool que recibe una línea de tiempo de input por frame ({at_frame, action/key/mouse, pressed, strength} y settle_frames) y la reproduce en el juego. Las teclas sueltas de hoy se desfasan con el framerate y las pruebas del evaluador del One-shot no se repiten igual. Devolver el estado al final (captura opcional).",
   "milestone": "m14",
-  "notes": "",
+  "notes": "game_input y los inputs de run_scene aceptan frame (frames de física desde el inicio), hold_frames (default 6) y settle_frames; strength para acciones. No se mezclan t y frame en una llamada. El probe espera physics_frame en vez de timers.",
   "order": 1,
   "refs": [],
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "test_run_tools.test_normalize_by_frame; run-test en Xvfb 4.7.2 y 4.8-beta1: ui_accept sostenido exactamente 9 frames con fuerza 0.40 (las pulsaciones por tiempo dieron 12 y 6 frames en la misma corrida)",
   "title": "Input del juego por frame: secuencias reproducibles",
-  "updated_at": "2026-10-29T21:59:11.553Z"
+  "updated_at": "2026-10-29T22:22:23.296Z"
 }

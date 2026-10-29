@@ -37,7 +37,7 @@ Las extra son la documentación de la API (`class_info`, `search_api`), los sett
 | Ejecutar | `run_scene` | Corre una escena (con `inputs` simulados, si querés) y devuelve los errores reales. |
 | | `capture_game_frame` | Un frame del juego corriendo. |
 | | `stop_scene` | Lo detiene. |
-| Juego en vivo | `game_tree`, `game_get` (lectura), `game_set`, `game_call`, `game_wait`, `game_input` | Con el juego corriendo (lanzado por `run_scene`, o un run manual con «Usar el autoload de playtest también al correr el juego a mano»): el árbol de nodos vivo, leer y cambiar propiedades, llamar métodos, esperar a que una expresión sea verdadera o a que se emita una señal, y mandar teclas, acciones, clicks y joystick. Los cambios son solo en vivo; los archivos de escena no cambian. Los errores del juego que aparecen mientras tanto vuelven con el resultado. |
+| Juego en vivo | `game_tree`, `game_get` (lectura), `game_set`, `game_call`, `game_wait`, `game_input` | Con el juego corriendo (lanzado por `run_scene`, o un run manual con «Usar el autoload de playtest también al correr el juego a mano»): el árbol de nodos vivo, leer y cambiar propiedades, llamar métodos, esperar a que una expresión sea verdadera o a que se emita una señal, y mandar teclas, acciones, clicks y joystick, por tiempo o por frame de física (la misma secuencia da lo mismo a cualquier framerate). Los cambios son solo en vivo; los archivos de escena no cambian. Los errores del juego que aparecen mientras tanto vuelven con el resultado. |
 
 ## Detalles
 

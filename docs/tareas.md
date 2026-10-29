@@ -3763,7 +3763,7 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
 
 **Notas:** TabContainer con tabs_visible = false y un ItemList a la izquierda (como Ajustes) que lo maneja; los títulos con contadores se copian a la lista. Ventana de 820 × 760 (mínimo 720 × 600). Los contadores siguen mostrando (0) mientras carga.
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (9/10)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (10/10, 1 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3884,7 +3884,7 @@ Informe: docs/revisiones/arquitectura.md
 
 **Bloqueada por:** Un adaptador por agente (A1)
 
-### plugin_cycle_check falla en 4.7.2: «3 resources still in use at exit» · En curso
+### plugin_cycle_check falla en 4.7.2: «3 resources still in use at exit» · Revisión
 
 tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un editor headless) falla en 4.7.2 con «ERROR: 3 resources still in use at exit»; en 4.8-beta1 pasa. Ya fallaba antes de m13 (probado con el código anterior). El CI no corre este check: sumarlo a la matriz cuando pase. Con --verbose se ve qué recursos quedan.
 
@@ -3899,9 +3899,13 @@ Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique s
 **Hecho cuando:**
 - El agente se entera de los errores en la misma tool que los causó, prueba el juego con input reproducible y valida física y TileMaps sin que el usuario lo pida.
 
-### Input del juego por frame: secuencias reproducibles · Pendiente
+### Input del juego por frame: secuencias reproducibles · En curso
 
 Como godot-ai (game_manage op=input_sequence): una tool que recibe una línea de tiempo de input por frame ({at_frame, action/key/mouse, pressed, strength} y settle_frames) y la reproduce en el juego. Las teclas sueltas de hoy se desfasan con el framerate y las pruebas del evaluador del One-shot no se repiten igual. Devolver el estado al final (captura opcional).
+
+**Prueba:** test_run_tools.test_normalize_by_frame; run-test en Xvfb 4.7.2 y 4.8-beta1: ui_accept sostenido exactamente 9 frames con fuerza 0.40 (las pulsaciones por tiempo dieron 12 y 6 frames en la misma corrida)
+
+**Notas:** game_input y los inputs de run_scene aceptan frame (frames de física desde el inicio), hold_frames (default 6) y settle_frames; strength para acciones. No se mezclan t y frame en una llamada. El probe espera physics_frame en vez de timers.
 
 ### Errores nuevos en cada respuesta y estado del editor · Pendiente
 

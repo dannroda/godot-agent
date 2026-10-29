@@ -80,8 +80,8 @@ func _answer(id: int, op: String, params: Dictionary) -> void:
 			result = await _wait(params)
 		"input":
 			var steps: Array = params.get("steps") if params.get("steps") is Array else []
-			var played: int = await _play_inputs(steps)
-			result = {"text": "Inputs: %d of %d played." % [played, steps.size()]}
+			var played: int = await _play_inputs(steps, int(params.get("settle_frames", 0)))
+			result = {"text": "Inputs: %d of %d played%s." % [played, steps.size(), " (by physics frame)" if _by_frame(steps) else ""]}
 		_:
 			result = {"error": "Unknown request '%s'." % op}
 	EngineDebugger.send_message(PREFIX + ":reply", [id, result])
@@ -257,25 +257,40 @@ func _play_and_report(steps: Array) -> void:
 
 
 ## Pasos `{t: segundos desde ahora, kind, pressed, …}` reproducidos con Input.parse_input_event.
-## kind: action (action), key (keycode y ctrl/shift/alt/meta), mouse_button (button, x, y),
+## kind: action (action, strength), key (keycode y ctrl/shift/alt/meta), mouse_button (button, x, y),
 ## mouse_motion (x, y), joy_button (button), joy_axis (axis, value). Sin kind es una acción.
-func _play_inputs(steps: Array) -> int:
+## Con `frame` en vez de `t` (m14-01) cada paso sale en ese frame de física contado desde ahora: la
+## misma secuencia da lo mismo a cualquier framerate. `settle_frames`: frames de espera al final.
+func _play_inputs(steps: Array, settle_frames: int = 0) -> int:
 	var ordered := steps.filter(func(step: Variant) -> bool: return step is Dictionary)
-	ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.get("t", 0.0)) < float(b.get("t", 0.0)))
+	var by_frame := _by_frame(ordered)
+	var key := "frame" if by_frame else "t"
+	ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.get(key, 0.0)) < float(b.get(key, 0.0)))
+	var start_frame := Engine.get_physics_frames()
 	var elapsed := 0.0
 	var played := 0
 	for step: Dictionary in ordered:
-		var wait := float(step.get("t", 0.0)) - elapsed
-		if wait > 0.0:
-			await get_tree().create_timer(wait, true, false, true).timeout
-			elapsed += wait
+		if by_frame:
+			while Engine.get_physics_frames() - start_frame < int(step.get("frame", 0)):
+				await get_tree().physics_frame
+		else:
+			var wait := float(step.get("t", 0.0)) - elapsed
+			if wait > 0.0:
+				await get_tree().create_timer(wait, true, false, true).timeout
+				elapsed += wait
 		var event: Variant = _event(step)
 		if event is String:
 			EngineDebugger.send_message(PREFIX + ":problem", [event])
 			continue
 		Input.parse_input_event(event)
 		played += 1
+	for _frame in maxi(settle_frames, 0):
+		await get_tree().physics_frame
 	return played
+
+
+static func _by_frame(steps: Array) -> bool:
+	return steps.any(func(step: Variant) -> bool: return step is Dictionary and step.has("frame"))
 
 
 func _event(step: Dictionary) -> Variant:
@@ -288,7 +303,7 @@ func _event(step: Dictionary) -> Variant:
 			var event := InputEventAction.new()
 			event.action = action
 			event.pressed = pressed
-			event.strength = 1.0 if pressed else 0.0
+			event.strength = float(step.get("strength", 1.0)) if pressed else 0.0
 			return event
 		"key":
 			var key := InputEventKey.new()

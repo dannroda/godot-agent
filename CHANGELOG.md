@@ -4,6 +4,14 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- `game_input` and `run_scene` inputs can go by physics frame (`frame`, `hold_frames`, `settle_frames`) instead of seconds, so the same sequence plays the same at any framerate; actions take a `strength`.
+
+### Fixed
+
+- Disabling the plugin on Godot 4.7 no longer leaves the run tools and the playtest debugger in memory.
+
 ## [0.1.10] - 2026-10-29
 
 ### Changed

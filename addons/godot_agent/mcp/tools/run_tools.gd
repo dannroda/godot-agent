@@ -30,8 +30,11 @@ const INPUT_MAX_STEPS := 200
 const TAP_HOLD_S := 0.1
 ## Pausa por defecto entre pasos sin `t`.
 const STEP_GAP_S := 0.05
+## Con `frame` (m14-01): pulsación por defecto en frames de física, y el máximo de frames.
+const TAP_HOLD_FRAMES := 6
+const FRAME_MAX := 60 * 60
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP server)."
-const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"} or {move: [x, y]} (window pixels), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1)."
+const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"} or {move: [x, y]} (window pixels), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
 var errors: ErrorCollector
 var debugger: PlaytestDebugger
@@ -88,7 +91,8 @@ func tools() -> Array:
 	var steps_schema := {"type": "array", "description": STEPS_HELP, "items": {"type": "object", "properties": {
 		"t": {"type": "number"}, "action": {"type": "string"}, "key": {"type": "string"}, "event": {"type": "string"},
 		"click": {"type": "array", "items": {"type": "number"}}, "move": {"type": "array", "items": {"type": "number"}},
-		"button": {"type": "string"}, "pressed": {"type": "boolean"}, "hold": {"type": "number"}}}}
+		"button": {"type": "string"}, "pressed": {"type": "boolean"}, "hold": {"type": "number"},
+		"frame": {"type": "integer"}, "hold_frames": {"type": "integer"}, "strength": {"type": "number"}}}}
 	var path_schema := {"type": "string", "description": "Node path in the running game: relative to the current scene (\"Player\", \"HUD/Score\"), \"\" for the scene itself, or absolute (\"/root/GameState\" for an autoload)"}
 	return [
 		McpTool.create("run_scene", run,
@@ -119,7 +123,7 @@ func tools() -> Array:
 			[], _game_wait),
 		McpTool.create("game_input", run,
 			"Sends live input to the running game and waits until it has been played: keys, InputMap actions, mouse clicks and moves, joypad. " + STEPS_HELP,
-			{"steps": steps_schema}, ["steps"], _game_input),
+			{"steps": steps_schema, "settle_frames": {"type": "integer", "description": "Physics frames to wait after the last step before answering (frame mode; default 0)"}}, ["steps"], _game_input),
 	]
 
 
@@ -217,20 +221,33 @@ static func normalize_steps(value: Variant, out: Array) -> String:
 	if (value as Array).size() > INPUT_MAX_STEPS:
 		return "At most %d steps per call." % INPUT_MAX_STEPS
 	var next_t := 0.0
+	var next_frame := 0
+	var by_frame := (value as Array).any(func(step: Variant) -> bool: return step is Dictionary and step.has("frame"))
 	for step: Variant in value:
 		if not step is Dictionary:
 			return "Each step must be an object. " + STEPS_HELP
 		var shown := JSON.stringify(step).left(120)
 		if step.has("t") and not (step.t is float or step.t is int):
 			return "`t` must be a number: %s" % shown
+		if by_frame and step.has("t"):
+			return "Use either `t` or `frame` in one call, not both: %s" % shown
+		if step.has("frame") and not (step.frame is int or (step.frame is float and is_equal_approx(step.frame, roundf(step.frame)))):
+			return "`frame` must be a whole number: %s" % shown
+		if step.has("strength") and not (step.strength is float or step.strength is int):
+			return "`strength` must be a number between 0 and 1: %s" % shown
 		var t := maxf(float(step.get("t", next_t)), 0.0)
 		var hold := clampf(float(step.get("hold", TAP_HOLD_S)), 0.0, WAIT_MAX_S)
+		var frame := clampi(int(step.get("frame", next_frame)), 0, FRAME_MAX)
+		var hold_frames := clampi(int(step.get("hold_frames", TAP_HOLD_FRAMES)), 0, FRAME_MAX)
 		var events: Array = []
 		if step.get("action") is String:
 			var action: String = step.action
 			if not ProjectSettings.has_setting("input/" + action) and not InputMap.has_action(action):
 				return "The action '%s' does not exist in the project's InputMap." % action
-			events.append({"kind": "action", "action": action})
+			var action_event := {"kind": "action", "action": action}
+			if step.has("strength"):
+				action_event["strength"] = clampf(float(step.strength), 0.0, 1.0)
+			events.append(action_event)
 		elif step.get("key") is String or step.get("event") is String:
 			var spec: String = step.get("key") if step.get("key") is String else step.get("event")
 			if step.get("key") is String and not ":" in spec:
@@ -255,7 +272,10 @@ static func normalize_steps(value: Variant, out: Array) -> String:
 		else:
 			return "Step without action, key, event, click or move: %s. %s" % [shown, STEPS_HELP]
 		for event: Dictionary in events:
-			event["t"] = t
+			if by_frame:
+				event["frame"] = frame
+			else:
+				event["t"] = t
 			if event.get("kind") == "mouse_motion":
 				event.erase("motion")
 				out.append(event)
@@ -267,9 +287,14 @@ static func normalize_steps(value: Variant, out: Array) -> String:
 				out.append(event)
 				var release := event.duplicate()
 				release["pressed"] = false
-				release["t"] = t + hold
+				if by_frame:
+					release["frame"] = frame + hold_frames
+				else:
+					release["t"] = t + hold
 				out.append(release)
-		next_t = t + (hold if not step.has("pressed") and not step.has("move") else 0.0) + STEP_GAP_S
+		var tap: bool = not step.has("pressed") and not step.has("move")
+		next_t = t + (hold if tap else 0.0) + STEP_GAP_S
+		next_frame = frame + (hold_frames if tap else 0) + 1
 	return ""
 
 
@@ -379,10 +404,20 @@ func _game_input(args: Dictionary) -> Dictionary:
 		return McpTool.error(invalid)
 	if steps.is_empty():
 		return McpTool.error("`steps` is empty. " + STEPS_HELP)
-	var duration := 0.0
+	var settle := clampi(int(args.get("settle_frames", 0)), 0, FRAME_MAX)
+	var duration := float(settle) / physics_fps()
 	for step: Dictionary in steps:
-		duration = maxf(duration, float(step.t))
-	return await _game_request("input", {"steps": steps}, duration)
+		duration = maxf(duration, step_seconds(step) + float(settle) / physics_fps())
+	return await _game_request("input", {"steps": steps, "settle_frames": settle}, duration)
+
+
+## Cuándo sale un paso del probe, en segundos (`frame` a los frames de física por segundo del proyecto).
+static func step_seconds(step: Dictionary) -> float:
+	return float(step.frame) / physics_fps() if step.has("frame") else float(step.get("t", 0.0))
+
+
+static func physics_fps() -> float:
+	return maxf(float(ProjectSettings.get_setting("physics/common/physics_ticks_per_second", 60)), 1.0)
 
 
 ## Manda un pedido al probe y arma el resultado con su respuesta y los errores nuevos del juego.

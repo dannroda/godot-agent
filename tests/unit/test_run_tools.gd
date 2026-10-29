@@ -31,6 +31,19 @@ func test_normalize_taps_and_kinds() -> void:
 	assert_eq([steps[7].kind, steps[7].axis, steps[7].value, steps[7].t], ["joy_axis", JOY_AXIS_LEFT_X, -1.0, 2.0], "eje con t explícito")
 
 
+## m14-01: por frame de física, con soltar a los hold_frames y fuerza en las acciones.
+func test_normalize_by_frame() -> void:
+	var steps: Array = []
+	assert_eq(RunTools.normalize_steps([{"frame": 10, "action": "ui_accept", "strength": 0.5}, {"action": "ui_cancel", "hold_frames": 2}, {"frame": 40, "action": "ui_left", "pressed": true}], steps), "", "pasos por frame")
+	assert_eq(steps.map(func(step: Dictionary) -> String: return "%s@%d:%s" % [step.action, step.frame, step.pressed]),
+		["ui_accept@10:true", "ui_accept@16:false", "ui_cancel@17:true", "ui_cancel@19:false", "ui_left@40:true"], "frames: tap de 6, el siguiente justo después, hold_frames propio")
+	assert_eq(steps[0].strength, 0.5, "fuerza de la acción")
+	assert_false(steps.any(func(step: Dictionary) -> bool: return step.has("t")), "sin t en modo frame")
+	assert_true(RunTools.normalize_steps([{"frame": 1, "action": "ui_accept"}, {"t": 2, "action": "ui_accept"}], []).contains("either `t` or `frame`"), "no se mezclan t y frame")
+	assert_true(RunTools.normalize_steps([{"frame": 1.5, "action": "ui_accept"}], []).contains("whole number"), "frame entero")
+	assert_eq(RunTools.step_seconds({"frame": 120}), 120.0 / RunTools.physics_fps(), "frame a segundos con los ticks del proyecto")
+
+
 func test_output_delta() -> void:
 	assert_eq(RunTools._output_delta("a\nb\n", "a\nb\nc\n\nd"), "c\nd", "solo lo nuevo, sin líneas vacías")
 	assert_eq(RunTools._output_delta("viejo\n", "nuevo"), "nuevo", "panel limpiado al correr: todo")

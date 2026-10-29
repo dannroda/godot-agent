@@ -141,6 +141,11 @@ func _check_live_game() -> void:
 	_expect(played.contains("Inputs: 7 of 7"), "game_input: todos los eventos · " + played)
 	await _tree.create_timer(0.5).timeout
 	_expect(_output_has("ctrl+s recibido") and _output_has("click 1 en (40.0, 30.0)") and _output_has("ui_accept soltado"), "game_input: el juego recibió tecla, click y acción")
+	# Por frame de física (m14-01): sostenida exactamente hold_frames y con la fuerza pedida.
+	var by_frame := await _call_text("game_input", {"steps": [{"frame": 5, "action": "ui_accept", "hold_frames": 9, "strength": 0.4}], "settle_frames": 3})
+	_expect(by_frame.contains("Inputs: 2 of 2 played (by physics frame)"), "game_input por frame · " + by_frame)
+	await _tree.create_timer(0.3).timeout
+	_expect(_output_has("ui_accept sostenido 9 frames") and _output_has("ui_accept fuerza 0.40"), "game_input por frame: 9 frames y fuerza 0.4 en el juego")
 
 
 ## Llamada sin esperar: deja el texto en `box.text` cuando termina.
