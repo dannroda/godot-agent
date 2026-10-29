@@ -71,3 +71,11 @@ func test_dialog_filter() -> void:
 	assert_eq(AcpRegistryDialog.filter(agents, "google").map(func(a: Dictionary) -> String: return a.id), ["antigravity-acp"], "por autor")
 	assert_eq(AcpRegistryDialog.filter(agents, "").size(), 3, "sin filtro, todos")
 	assert_eq(AcpRegistryDialog.filter(agents, "kilo code").size(), 1, "todas las palabras")
+
+
+## m12-13: el aviso de error ofrece reinstalar solo los binarios que bajó el registro.
+func test_is_registry_binary() -> void:
+	const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
+	assert_true(SessionController.is_registry_binary("/home/u/.local/share/godot/godot_agent/agents/antigravity/1.2/agy"), "binario del registro")
+	assert_true(SessionController.is_registry_binary("C:\\Users\\u\\AppData\\Roaming\\Godot\\godot_agent\\agents\\x\\1\\x.exe"), "en Windows")
+	assert_false(SessionController.is_registry_binary("npx"), "npx no")

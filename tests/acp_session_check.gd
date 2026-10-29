@@ -166,6 +166,7 @@ func _scenario_crash() -> void:
 	var notice: ChatEntry = model.entries().back()
 	_check(notice.kind == ChatEntry.EntryKind.NOTICE and notice.level == ChatEntry.NoticeLevel.ERROR, "crash: aviso de error")
 	_check(notice.actions.size() == 2, "crash: con acciones Reintentar / Ver log")
+	_check(notice.title == "Agente falso stopped" and notice.text.contains("code"), "crash: título y causa para personas (%s · %s)" % [notice.title, notice.text])
 	# Reintentar reabre una sesión limpia.
 	var ok: bool = await controller.start(controller.profile())
 	_check(ok and model.state == SessionModel.SessionState.READY, "crash: reintentar")

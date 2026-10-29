@@ -173,6 +173,15 @@ func _build() -> void:
 
 
 ## Carga los valores actuales y abre el diálogo.
+## El registro de ACP, encima de Ajustes (también para reinstalar un agente que falla, m12-13).
+func open_registry() -> void:
+	if _registry_dialog == null:
+		_registry_dialog = AcpRegistryDialog.new()
+		_registry_dialog.profile_added.connect(_add_registry_profile)
+		add_child(_registry_dialog)
+	_registry_dialog.open()
+
+
 func open(section: SettingsSection = SettingsSection.AGENTS) -> void:
 	_load()
 	_show_section(section)
@@ -205,12 +214,7 @@ func _build_agents(page: VBoxContainer) -> void:
 	var from_registry := Button.new()
 	from_registry.text = I18n.t("+ From the ACP registry…")
 	from_registry.tooltip_text = I18n.t("Claude, Codex, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile.")
-	from_registry.pressed.connect(func() -> void:
-		if _registry_dialog == null:
-			_registry_dialog = AcpRegistryDialog.new()
-			_registry_dialog.profile_added.connect(_add_registry_profile)
-			add_child(_registry_dialog)
-		_registry_dialog.open())
+	from_registry.pressed.connect(open_registry)
 	var add_row := HBoxContainer.new()
 	add_row.add_child(add)
 	add_row.add_child(from_registry)

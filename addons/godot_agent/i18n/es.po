@@ -490,8 +490,6 @@ msgstr "No se pudo guardar %s: %s"
 msgid "Could not sign in: %s"
 msgstr "No se pudo iniciar sesión: %s"
 
-msgid "Could not start the agent: %s"
-msgstr "No se pudo lanzar el agente: %s"
 
 msgid "Could not undo «%s»: %s"
 msgstr "No se pudo deshacer «%s»: %s"
@@ -1493,8 +1491,6 @@ msgstr "El agente se cerró: retomá cuando quieras (se abre una sesión nueva c
 msgid "The agent cut the response short: it hit the token limit."
 msgstr "El agente cortó la respuesta: llegó al máximo de tokens."
 
-msgid "The agent did not respond to initialize: %s"
-msgstr "El agente no respondió a initialize: %s"
 
 msgid "The agent didn't report a plan: progress comes from the playtests and the checks."
 msgstr "El agente no informó un plan: el avance sale de los playtests y las verificaciones."
@@ -1514,8 +1510,6 @@ msgstr "El agente no ofrece ese método de inicio de sesión."
 msgid "The agent doesn't report the plan quota."
 msgstr "El agente no informa la cuota del plan."
 
-msgid "The agent exited unexpectedly (code %d)."
-msgstr "El agente se cerró inesperadamente (código %d)."
 
 msgid "The agent finished the plan."
 msgstr "El agente terminó el plan."
@@ -3299,3 +3293,33 @@ msgstr "%d turno"
 
 msgid "%d turns"
 msgstr "%d turnos"
+
+msgid "Could not start %s"
+msgstr "No se pudo iniciar %s"
+
+msgid "The command «%s» didn't run: %s. Check the agent's command in Settings › Agents."
+msgstr "El comando «%s» no corrió: %s. Revisá el comando del agente en Ajustes › Agentes."
+
+msgid "Edit the agent"
+msgstr "Editar el agente"
+
+msgid "%s didn't start"
+msgstr "%s no arrancó"
+
+msgid "It didn't answer the first message (initialize): %s"
+msgstr "No contestó el primer mensaje (initialize): %s"
+
+msgid "%s stopped"
+msgstr "%s se detuvo"
+
+msgid "The agent's process ended unexpectedly (code %d)."
+msgstr "El proceso del agente terminó de golpe (código %d)."
+
+msgid "Reinstall…"
+msgstr "Reinstalar…"
+
+msgid "Last lines of the log"
+msgstr "Últimas líneas del log"
+
+msgid "Reinstall"
+msgstr "Reinstalar"

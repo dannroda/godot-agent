@@ -23,6 +23,10 @@ var permission: RefCounted
 var elicitation: RefCounted
 ## NOTICE
 var level: NoticeLevel = NoticeLevel.INFO
+## NOTICE: título en negrita arriba del texto, y líneas del log (monoespaciado, con «Copiar»)
+## debajo (m12-13).
+var title: String = ""
+var details: String = ""
 ## NOTICE: acciones sugeridas (`[{id, label}]`), p. ej. "Reintentar" o "Ver log".
 var actions: Array[Dictionary] = []
 var created_unix: float = 0.0

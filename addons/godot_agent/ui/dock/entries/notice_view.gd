@@ -5,7 +5,11 @@ extends "entry_view.gd"
 ## juntas en ese menú, después de los botones (p. ej. «Otras formas de entrar», m12-11).
 
 var _panel: PanelContainer
+var _title: Label
 var _label: Label
+## Las últimas líneas del log (m12-13), con «Copiar».
+var _details: PanelContainer
+var _details_text: Label
 var _actions: HFlowContainer
 
 
@@ -14,9 +18,39 @@ func _build() -> void:
 	add_child(_panel)
 	var column := VBoxContainer.new()
 	_panel.add_child(column)
+	_title = Label.new()
+	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var theme := AgentTheme.editor_theme()
+	if theme.has_font(&"bold", &"EditorFonts"):
+		_title.add_theme_font_override(&"font", theme.get_font(&"bold", &"EditorFonts"))
+	_title.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
+	column.add_child(_title)
 	_label = Label.new()
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_label)
+	_details = PanelContainer.new()
+	_details.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(0, 0, 0, 0.25), Color.TRANSPARENT, 4, 6))
+	column.add_child(_details)
+	var details_column := VBoxContainer.new()
+	_details.add_child(details_column)
+	var details_header := HBoxContainer.new()
+	details_column.add_child(details_header)
+	var details_title := Label.new()
+	details_title.text = I18n.t("Last lines of the log")
+	details_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details_title.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	details_header.add_child(details_title)
+	var copy := Button.new()
+	copy.flat = true
+	copy.text = I18n.t("Copy")
+	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(entry.details))
+	details_header.add_child(copy)
+	_details_text = Label.new()
+	_details_text.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_details_text.add_theme_font_override(&"font", AgentTheme.mono_font())
+	_details_text.add_theme_font_size_override(&"font_size", AgentTheme.mono_font_size())
+	_details_text.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	details_column.add_child(_details_text)
 	_actions = HFlowContainer.new()
 	_actions.alignment = FlowContainer.ALIGNMENT_END
 	column.add_child(_actions)
@@ -34,8 +68,13 @@ func refresh() -> void:
 	var bg := Color(color, 0.08) if entry.level != ChatEntry.NoticeLevel.INFO else (Color(1, 1, 1, 0.04) if asks else Color.TRANSPARENT)
 	var border := Color(color, 0.5) if entry.level != ChatEntry.NoticeLevel.INFO else (Color(1, 1, 1, 0.12) if asks else Color.TRANSPARENT)
 	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(bg, border, 6, 8 if asks else 6))
+	_title.text = entry.title
+	_title.visible = not entry.title.is_empty()
+	_title.add_theme_color_override(&"font_color", color)
+	_details_text.text = entry.details
+	_details.visible = not entry.details.is_empty()
 	_label.text = entry.text
-	if asks:
+	if asks or not entry.title.is_empty():
 		_label.remove_theme_color_override(&"font_color")
 	else:
 		_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.NoticeLevel.INFO else AgentTheme.MUTED)

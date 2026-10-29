@@ -985,6 +985,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			_start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit()
+		SessionController.ACTION_EDIT_AGENT:
+			settings_requested.emit()
 		SessionController.ACTION_LOGIN:
 			_controller.login(str(payload))
 		SessionController.ACTION_LOGIN_CODE:

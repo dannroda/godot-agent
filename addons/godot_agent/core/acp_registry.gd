@@ -41,11 +41,14 @@ func fetch() -> Dictionary:
 
 ## Instala un agente de `parse` y devuelve `{ok, profile, error}`: el perfil (Dictionary de
 ## AgentProfile) listo para guardar. npx y uvx no bajan nada; un binario se baja y se descomprime.
-func install(agent: Dictionary) -> Dictionary:
+## `reinstall` borra antes la versión instalada (una que falla al arrancar, m12-13).
+func install(agent: Dictionary, reinstall := false) -> Dictionary:
 	if agent.kind != KIND_BINARY:
 		return {"ok": true, "profile": profile_for(agent, ""), "error": ""}
 	var binary: Dictionary = agent.binary
 	var dest := install_root.path_join(agent.id).path_join(agent.version)
+	if reinstall and DirAccess.dir_exists_absolute(dest):
+		remove_recursive(dest)
 	# Ya instalada esa versión (otro proyecto, o un «Agregar» que se cortó después del unzip): no se baja de nuevo.
 	if FileAccess.file_exists(dest.path_join(str(binary.cmd).trim_prefix("./"))):
 		return {"ok": true, "profile": profile_for(agent, dest), "error": ""}
@@ -68,6 +71,27 @@ func install(agent: Dictionary) -> Dictionary:
 
 
 # --- estático (testeable sin red) ----------------------------------------------------------------
+
+## Borra una carpeta con todo lo que tiene.
+static func remove_recursive(absolute: String) -> Error:
+	for file: String in DirAccess.get_files_at(absolute):
+		var error := DirAccess.remove_absolute(absolute.path_join(file))
+		if error != OK:
+			return error
+	for sub: String in DirAccess.get_directories_at(absolute):
+		var error := remove_recursive(absolute.path_join(sub))
+		if error != OK:
+			return error
+	return DirAccess.remove_absolute(absolute)
+
+
+## La versión de un binario del registro ya está en disco.
+func is_installed(agent: Dictionary) -> bool:
+	if agent.kind != KIND_BINARY:
+		return false
+	var dest := install_root.path_join(agent.id).path_join(agent.version)
+	return FileAccess.file_exists(dest.path_join(str(agent.binary.cmd).trim_prefix("./")))
+
 
 ## Clave de plataforma del registro: `linux-x86_64`, `darwin-aarch64`, `windows-x86_64`…
 static func platform_key() -> String:

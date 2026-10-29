@@ -65,6 +65,12 @@ const CODEX_AGENT := "codex-acp"
 const USAGE_QUERY_TIMEOUT_S := 20
 const CLOSE_TIMEOUT_S := 10
 const ACTION_SHOW_LOG := "show_log"
+## Errores al lanzar el agente (m12-13): abrir Ajustes › Agentes, o el registro de ACP para
+## reinstalar un agente que vino de ahí.
+const ACTION_EDIT_AGENT := "edit_agent"
+const ACTION_REINSTALL_AGENT := "reinstall_agent"
+## Líneas de stderr del agente que muestra el aviso de error.
+const STDERR_TAIL := 8
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
 const ACTION_LOGIN := "login"
@@ -154,6 +160,8 @@ var session_key: String = ""
 
 var _process: AgentProcess
 var _profile: AgentProfile
+## Últimas líneas de stderr del agente (para el aviso de error, m12-13).
+var _stderr_tail: PackedStringArray = []
 var _system_prompt_sent: bool = false
 ## Ya se avisó que el agente trabaja fuera de un turno pedido desde el chat (se rearma con cada prompt).
 var _outside_turn_noticed: bool = false
@@ -238,6 +246,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_agent_account = {}  # el proceso nuevo la vuelve a mandar después de initialize
 	model.reset()
 	model.failure_message = ""
+	_stderr_tail.clear()
 	model.set_state(SessionModel.SessionState.STARTING)
 	agent_log.add(AgentLog.CH_PROC, "Launching %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
 
@@ -248,8 +257,11 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	var base_path := CommandResolver.child_path_for(CommandResolver.resolve(agent_profile.command))
 	var env := EditorBinary.child_env(agent_profile.resolved_env(), base_path)
 	if not _process.start(agent_profile.command, agent_profile.args, env):
-		_fail(I18n.t("Could not start the agent: %s") % _process.last_error())
+		var error := _process.last_error()
 		_process = null
+		_fail_agent(I18n.t("Could not start %s") % _agent_name(),
+			I18n.t("The command «%s» didn't run: %s. Check the agent's command in Settings › Agents.") % [agent_profile.command, error],
+			"Could not start the agent: %s" % error, [{"id": ACTION_EDIT_AGENT, "label": I18n.t("Edit the agent"), "primary": true}, {"id": ACTION_RETRY, "label": I18n.t("Retry")}])
 		return false
 	agent_log.add(AgentLog.CH_PROC, "Process started (pid %d)" % _process.pid())
 
@@ -261,7 +273,9 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	if generation != _connect_generation:
 		return false
 	if not init.ok or not init.result is Dictionary:
-		_fail(I18n.t("The agent did not respond to initialize: %s") % init.error_message())
+		_fail_agent(I18n.t("%s didn't start") % _agent_name(),
+			I18n.t("It didn't answer the first message (initialize): %s") % init.error_message(),
+			"The agent did not respond to initialize: %s" % init.error_message(), _crash_actions())
 		return false
 	model.apply_initialize(init.result)
 	var protocol := int(init.result.get("protocolVersion", PROTOCOL_VERSION))
@@ -1534,6 +1548,9 @@ func _with_meta(params: Dictionary) -> Dictionary:
 
 func _on_stderr(line: String) -> void:
 	agent_log.add(AgentLog.CH_PROC, line)
+	_stderr_tail.append(line)
+	if _stderr_tail.size() > STDERR_TAIL:
+		_stderr_tail.remove_at(0)
 
 
 func _on_process_exited(code: int, process: AgentProcess) -> void:
@@ -1544,7 +1561,9 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 	if terminal:
 		terminal.stop_all()
 	client.fail_all_pending("The agent exited (code %d)." % code)
-	_fail(I18n.t("The agent exited unexpectedly (code %d).") % code)
+	_fail_agent(I18n.t("%s stopped") % _agent_name(),
+		I18n.t("The agent's process ended unexpectedly (code %d).") % code,
+		"The agent exited unexpectedly (code %d)." % code, _crash_actions())
 	disconnected.emit()
 
 
@@ -1580,6 +1599,32 @@ func _fail(message: String, extra_actions: Array[Dictionary] = [], level := Chat
 		actions.append_array(_error_actions())
 	model.add_notice(message, level, actions)
 	model.set_state(SessionModel.SessionState.FAILED)
+
+
+## Error al lanzar o mantener el agente (m12-13): título y causa para personas, las últimas líneas
+## de su stderr y la acción que lo arregla. `log_message` va al log y al tooltip del estado.
+func _fail_agent(title: String, cause: String, log_message: String, actions: Array[Dictionary]) -> void:
+	model.failure_message = log_message
+	agent_log.add(AgentLog.CH_PROC, log_message)
+	var entry := model.add_notice(cause, ChatEntry.NoticeLevel.ERROR, actions)
+	entry.title = title
+	entry.details = "\n".join(_stderr_tail)
+	model.notify_entry_changed(entry)
+	model.set_state(SessionModel.SessionState.FAILED)
+
+
+## Reintentar primero; un agente del registro (binario bajado por el harness) se puede reinstalar.
+func _crash_actions() -> Array[Dictionary]:
+	var actions: Array[Dictionary] = [{"id": ACTION_RETRY, "label": I18n.t("Retry"), "primary": true}]
+	if _profile and is_registry_binary(_profile.command):
+		actions.append({"id": ACTION_REINSTALL_AGENT, "label": I18n.t("Reinstall…")})
+	actions.append({"id": ACTION_SHOW_LOG, "label": I18n.t("Open the log below")})
+	return actions
+
+
+## El comando es un binario que bajó el registro de ACP (`<datos del editor>/godot_agent/agents/`).
+static func is_registry_binary(command: String) -> bool:
+	return command.replace("\\", "/").contains("/godot_agent/agents/")
 
 
 func _error_actions() -> Array[Dictionary]:

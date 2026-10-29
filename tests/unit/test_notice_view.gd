@@ -31,3 +31,26 @@ func test_login_card_primary_and_more_menu() -> void:
 	menu.get_popup().id_pressed.emit(1)
 	assert_eq(got, [["login", "key"]], "el ítem del menú corre su acción")
 	view.free()
+
+
+## m12-13: un error del agente con título, causa, las líneas del log y su acción.
+func test_agent_error_card() -> void:
+	var entry := ChatEntry.new()
+	entry.kind = ChatEntry.EntryKind.NOTICE
+	entry.level = ChatEntry.NoticeLevel.ERROR
+	entry.title = "Claude Code stopped"
+	entry.text = "The agent's process ended unexpectedly (code 1)."
+	entry.details = "Error: Cannot find module\n    at node:internal"
+	entry.actions = [{"id": "retry", "label": "Retry", "primary": true}]
+	var view := NoticeView.new()
+	view.setup(entry, Color.ORANGE, MarkdownBBCode.new())
+	view.call(&"_build")
+	view.refresh()
+	assert_true((view.get(&"_title") as Label).visible, "título a la vista")
+	assert_true((view.get(&"_details") as Control).visible, "las líneas del log")
+	assert_eq((view.get(&"_details_text") as Label).text, entry.details, "tal cual")
+	entry.details = ""
+	entry.title = ""
+	view.refresh()
+	assert_false((view.get(&"_details") as Control).visible or (view.get(&"_title") as Label).visible, "sin título ni log, no se muestran")
+	view.free()

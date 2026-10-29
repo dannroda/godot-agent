@@ -486,6 +486,9 @@ func _on_open_scene_modified(res_path: String) -> void:
 func _on_dock_action(action: String, payload: Variant) -> void:
 	var path := str(payload.get("path", "")) if payload is Dictionary else ""
 	match action:
+		SessionController.ACTION_REINSTALL_AGENT:
+			_settings_dialog.open()
+			_settings_dialog.open_registry()
 		ACTION_CONFLICT_DIFF:
 			var buffer: Variant = _sync.buffer_text(ProjectSettings.globalize_path(path))
 			_diff_dialog.show_diff(I18n.t("Conflict: %s") % path.get_file(), I18n.t("your version"), str(buffer) if buffer != null else "", I18n.t("agent's version"), _sync.conflict_disk_text(path))

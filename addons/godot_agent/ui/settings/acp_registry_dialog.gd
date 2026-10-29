@@ -105,14 +105,16 @@ func _agent_card(agent: Dictionary) -> Control:
 	heading.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(heading)
 	var add := Button.new()
-	add.text = I18n.t("Add")
+	# Ya en disco: «Reinstalar» borra esa versión y la vuelve a bajar (m12-13).
+	var installed := registry.is_installed(agent)
+	add.text = I18n.t("Reinstall") if installed else I18n.t("Add")
 	var unverified: bool = agent.kind == AcpRegistry.KIND_BINARY and str(agent.binary.sha256).is_empty()
 	add.tooltip_text = I18n.t("The registry has no checksum for this download: it can't be verified.") if unverified else ""
 	add.pressed.connect(func() -> void:
-		if unverified and add.text != I18n.t("Add without checksum"):
+		if unverified and not installed and add.text != I18n.t("Add without checksum"):
 			add.text = I18n.t("Add without checksum")
 			return
-		_add(agent, add))
+		_add(agent, add, installed))
 	row.add_child(add)
 	if not str(agent.description).is_empty():
 		column.add_child(ExtensionsUi.muted(agent.description))
@@ -123,7 +125,7 @@ func _agent_card(agent: Dictionary) -> Control:
 	return card
 
 
-func _add(agent: Dictionary, button: Button) -> void:
+func _add(agent: Dictionary, button: Button, reinstall := false) -> void:
 	if _busy:
 		return
 	_busy = true
@@ -136,7 +138,7 @@ func _add(agent: Dictionary, button: Button) -> void:
 		set_process(true)
 	else:
 		_status.text = I18n.t("Installing %s…") % agent.name
-	var result: Dictionary = await registry.install(agent)
+	var result: Dictionary = await registry.install(agent, reinstall)
 	set_process(false)
 	_progress.visible = false
 	_busy = false
