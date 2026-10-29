@@ -25,6 +25,7 @@ const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
 const UsageQuery := preload("usage_query.gd")
+const SessionCatalog := preload("session_catalog.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
@@ -56,7 +57,6 @@ const ACTION_TURN_CHANGES := "turn_changes"
 const ACTION_TURN_RESTORE := "turn_restore"
 ## Guardar el reporte del turno (m11-06), con la misma `data`.
 const ACTION_TURN_REPORT := "turn_report"
-const CLOSE_TIMEOUT_S := 10
 const ACTION_SHOW_LOG := "show_log"
 ## Errores al lanzar el agente (m12-13): abrir Ajustes › Agentes, o el registro de ACP para
 ## reinstalar un agente que vino de ahí.
@@ -123,8 +123,11 @@ var quota: QuotaMonitor
 var review: ReviewStore = ReviewStore.new()
 ## Historial en disco (M7). null = no se graba (tests).
 var history: SessionHistory
+## Las sesiones del proyecto en el agente: `session/list`, `close` y `delete` (m13-05).
+var sessions := SessionCatalog.new()
 ## Sesiones que informó el agente con `session/list` para este proyecto (m11-16).
-var agent_sessions: Array[Dictionary] = []
+var agent_sessions: Array[Dictionary]:
+	get: return sessions.agent_sessions
 ## `usage` del último session/prompt (tokens del turno: inputTokens, outputTokens, cachedReadTokens…).
 var last_turn_usage: Dictionary = {}
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
@@ -194,6 +197,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	quota = QuotaMonitor.new()
 	quota.setup(agent_log)
 	usage_query.setup(client, agent_log)
+	sessions.setup(model, client, agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
 	client.set_notification_handler("_auth/status_update", _on_auth_status_update)
 	connected.connect(_query_agent_usage)
@@ -997,32 +1001,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 
 ## Pide al agente sus sesiones de `filter_cwd` con `session/list` (m11-16).
 func list_agent_sessions(filter_cwd: String = cwd) -> Array[Dictionary]:
-	if _process == null or not _process.is_running() or not model.supports_list_sessions():
-		agent_sessions = []  # las del agente anterior no son de este
-		return []
-	var collected: Array[Dictionary] = []
-	var cursor := ""
-	for _page in 3:
-		var params: Dictionary = {}
-		if not filter_cwd.is_empty():
-			params["cwd"] = filter_cwd
-		if not cursor.is_empty():
-			params["cursor"] = cursor
-		var result := await client.request("session/list", params)
-		if not result.ok or not result.result is Dictionary:
-			break
-		var raw_list: Variant = result.result.get("sessions")
-		if raw_list is Array:
-			for item: Variant in raw_list:
-				if not item is Dictionary or not item.get("sessionId") is String:
-					continue
-				collected.append(normalize_agent_session(item, _profile))
-		var next_cursor: Variant = result.result.get("nextCursor")
-		if not next_cursor is String or str(next_cursor).is_empty():
-			break
-		cursor = str(next_cursor)
-	agent_sessions = collected
-	return collected
+	return await sessions.list(filter_cwd, _agent_running(), _profile)
 
 
 func _refresh_agent_sessions() -> void:
@@ -1030,82 +1009,20 @@ func _refresh_agent_sessions() -> void:
 		await list_agent_sessions(cwd)
 
 
-## Convierte un `SessionInfo` de `session/list` al formato de resumen que usa el menú de historial.
-static func normalize_agent_session(item: Dictionary, agent_profile: AgentProfile = null) -> Dictionary:
-	var updated := 0
-	if item.get("updatedAt") is String and not str(item.updatedAt).is_empty():
-		updated = int(Time.get_unix_time_from_datetime_string(str(item.updatedAt)))
-	return {
-		"id": str(item.get("sessionId", "")),
-		"title": str(item.get("title", "")) if item.get("title") is String else "",
-		"cwd": str(item.get("cwd", "")),
-		"updated": updated,
-		"turns": 0,
-		"profile_id": agent_profile.id if agent_profile else "",
-		"agent": agent_profile.display_name if agent_profile else "",
-		"from_agent": true,
-	}
-
-
-## Une las sesiones del historial local con las de `session/list` sin duplicar `id`, más recientes primero.
-static func merge_session_lists(local_list: Array[Dictionary], remote_list: Array[Dictionary], max_items: int = 20) -> Array[Dictionary]:
-	var by_id: Dictionary = {}
-	var combined: Array[Dictionary] = []
-	for item: Dictionary in local_list:
-		var id := str(item.get("id", ""))
-		if id.is_empty() or by_id.has(id):
-			continue
-		var copy := item.duplicate()
-		by_id[id] = copy
-		combined.append(copy)
-	for item: Dictionary in remote_list:
-		var id := str(item.get("id", ""))
-		if id.is_empty():
-			continue
-		if by_id.has(id):
-			var existing: Dictionary = by_id[id]
-			if str(existing.get("title", "")).is_empty() and not str(item.get("title", "")).is_empty():
-				existing["title"] = item.title
-			if int(item.get("updated", 0)) > int(existing.get("updated", 0)):
-				existing["updated"] = item.updated
-		else:
-			var copy := item.duplicate()
-			by_id[id] = copy
-			combined.append(copy)
-	combined.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("updated", 0)) > int(b.get("updated", 0)))
-	return combined.slice(0, max_items) if max_items > 0 else combined
-
-
 ## Cierra una sesión en el agente con `session/close` (m11-16) si lo soporta.
 func close_session(target_session_id: String = "") -> bool:
-	var sid := target_session_id if not target_session_id.is_empty() else model.session_id
-	if sid.is_empty() or _process == null or not _process.is_running() or not model.supports_close_session():
-		return false
-	# Sin respuesta a tiempo se cancela: mientras tanto «Nueva sesión» no hace nada.
-	var req_id := client.next_request_id()
-	(Engine.get_main_loop() as SceneTree).create_timer(CLOSE_TIMEOUT_S).timeout.connect(func() -> void:
-		if client.cancel_request(req_id):
-			agent_log.add(AgentLog.CH_ACP, "session/close got no answer in %d s, cancelled" % CLOSE_TIMEOUT_S)
-	)
-	var result := await client.request("session/close", {"sessionId": sid})
-	return result.ok
+	return await sessions.close(target_session_id if not target_session_id.is_empty() else model.session_id, _agent_running())
 
 
 ## Elimina una sesión del historial local y, si es del perfil conectado y el agente soporta
 ## `session/delete`, también en el agente. Si el agente no la borra, la local queda.
 func delete_session(target_session_id: String, session_profile_id: String = "") -> bool:
-	if target_session_id.is_empty():
-		return false
 	var same_agent := _profile != null and (session_profile_id.is_empty() or session_profile_id == _profile.id)
-	if same_agent and _process != null and _process.is_running() and model.supports_delete_session():
-		var result := await client.request("session/delete", {"sessionId": target_session_id})
-		if not result.ok:
-			model.add_notice(I18n.t("Could not delete the session in the agent: %s") % result.error_message(), ChatEntry.NoticeLevel.WARNING)
-			return false
-	if history:
-		history.remove(target_session_id)
-	agent_sessions = agent_sessions.filter(func(item: Dictionary) -> bool: return str(item.get("id", "")) != target_session_id)
-	return true
+	return await sessions.delete(target_session_id, same_agent and _agent_running(), history)
+
+
+func _agent_running() -> bool:
+	return _process != null and _process.is_running()
 
 
 func _with_meta(params: Dictionary) -> Dictionary:

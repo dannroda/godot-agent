@@ -229,7 +229,7 @@ func test_session_capabilities_and_merge() -> void:
 	var profile := AgentProfile.new()
 	profile.id = "claude"
 	profile.display_name = "Claude Code"
-	var norm := SessionController.normalize_agent_session({
+	var norm := SessionController.SessionCatalog.normalize_agent_session({
 		"sessionId": "sess_remote",
 		"cwd": "/tmp/proj",
 		"title": "Desde CLI",
@@ -248,7 +248,7 @@ func test_session_capabilities_and_merge() -> void:
 		{"id": "s1", "title": "Título del agente", "updated": 250, "turns": 0},
 		{"id": "s3", "title": "Remota 3", "updated": 200, "turns": 0},
 	]
-	var merged := SessionController.merge_session_lists(local, remote, 10)
+	var merged := SessionController.SessionCatalog.merge_session_lists(local, remote, 10)
 	assert_eq(merged.size(), 3, "3 sesiones sin duplicar s1")
 	assert_eq(merged[0].id, "s2", "más reciente primero (300)")
 	assert_eq(merged[1].id, "s1", "s1 con fecha actualizada del agente (250)")
@@ -258,7 +258,7 @@ func test_session_capabilities_and_merge() -> void:
 
 ## Retomar una sesión que solo lista el agente (session/list) deja la cabecera completa para guardar.
 func test_history_begin_from_agent_listing() -> void:
-	var listed := SessionController.normalize_agent_session({"sessionId": "remote1", "cwd": "/tmp", "title": "T"})
+	var listed := SessionController.SessionCatalog.normalize_agent_session({"sessionId": "remote1", "cwd": "/tmp", "title": "T"})
 	var history := SessionHistory.new()
 	history.begin("remote1", "p", "Agente", "/tmp", listed)
 	var meta: Dictionary = history.get(&"_meta")

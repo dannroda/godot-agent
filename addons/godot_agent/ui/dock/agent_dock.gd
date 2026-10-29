@@ -1013,7 +1013,7 @@ func _show_history_menu() -> void:
 	_history_menu.clear()
 	_history_delete_menu.clear()
 	var local_items: Array[Dictionary] = _controller.history.list(_controller.cwd) if _controller.history else []
-	_history_items = SessionController.merge_session_lists(local_items, _controller.agent_sessions, HISTORY_MENU_SIZE)
+	_history_items = SessionController.SessionCatalog.merge_session_lists(local_items, _controller.agent_sessions, HISTORY_MENU_SIZE)
 	if _controller.is_connected_to_agent() and _model.supports_list_sessions():
 		_controller.list_agent_sessions(_controller.cwd)
 	if _history_items.is_empty():
