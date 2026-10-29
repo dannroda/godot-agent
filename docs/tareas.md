@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (14/40, 14 en revisión)
+## M10 — Revisión de UX  (15/40, 15 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3456,7 +3456,7 @@ Propuesta: una vez leído, reemplazarlo en el mensaje por una línea («2 hallaz
 
 Archivos: ReviewStore, agent_message_view.gd. Sale de m12-03.
 
-### Crash de Godot 4.8 al aprobar un permiso que guarda la escena · Pendiente
+### Crash de Godot 4.8 al aprobar un permiso que guarda la escena · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `bug`, `dock`
 
@@ -3465,6 +3465,10 @@ Archivos: ReviewStore, agent_message_view.gd. Sale de m12-03.
 Backtrace con los símbolos de debug de 4.8-beta1: crash dentro de BaseButton::on_action_event, procesando el clic (Viewport::_gui_input_event ← DisplayServerX11::process_events). El await del permiso se reanuda en el mismo emit de resolved, así que la tool (guardar la escena) corría dentro del manejador del clic.
 
 Arreglo: las vistas de permiso y de pregunta del agente resuelven el pedido con call_deferred. No se pudo reproducir en Xvfb (un permiso y save_scene con un clic real sobrevive en 4.8-beta1); falta el caso con dos tools en paralelo.
+
+**Prueba:** Xvfb con 4.8-beta1: aprobar con un clic real un permiso de save_scene no tira el editor. Sin repro del caso original (dos tools en paralelo), que quedó para probar a mano en LittleVillages.
+
+**Notas:** Arreglo en 715fbb0: permission_view y elicitation_view resuelven el pedido con call_deferred, así la tool que esperaba el permiso no corre dentro de BaseButton::on_action_event.
 
 ### La pregunta del agente aparece también como herramienta · Pendiente
 
