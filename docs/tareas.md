@@ -3456,6 +3456,8 @@ Propuesta: una vez leído, reemplazarlo en el mensaje por una línea («2 hallaz
 
 Archivos: ReviewStore, agent_message_view.gd. Sale de m12-03.
 
+**Notas:** Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.
+
 ### Crash de Godot 4.8 al aprobar un permiso que guarda la escena · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `bug`, `dock`
