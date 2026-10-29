@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (10/39, 10 en revisión)
+## M10 — Revisión de UX  (14/40, 14 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3205,7 +3205,7 @@ Archivos: composer.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
 
-### Avisos del editor repetidos por sesión · Pendiente
+### Avisos del editor repetidos por sesión · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
 
@@ -3216,6 +3216,8 @@ Propuesta: Un aviso por sesión que se actualiza y se va al responder.
 Archivos: session_tabs.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+**Notas:** Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.
 
 ### Pie de turno con los cambios · Pendiente
 
@@ -3406,7 +3408,7 @@ Archivos: agent_main_screen.tscn
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
 
-### Dos cosas se llaman «Agent» · Pendiente
+### Dos cosas se llaman «Agent» · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `oneshot`
 
@@ -3417,6 +3419,8 @@ Propuesta: La pantalla principal como «One-shot».
 Archivos: plugin.gd (_get_plugin_name)
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+**Notas:** Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.
 
 ### Agent Log: ir a la línea del error desde el chat · Pendiente
 
@@ -3430,7 +3434,7 @@ Archivos: agent_log_panel.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### Migrar perfiles viejos: quitar Gemini CLI y el Codex sin comando · Pendiente
+### Migrar perfiles viejos: quitar Gemini CLI y el Codex sin comando · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
 
@@ -3440,7 +3444,9 @@ Propuesta: al cargar los perfiles, quitar una vez el gemini-cli preseteado (comm
 
 Archivos: harness_settings.gd (profiles)
 
-### Ocultar el bloque findings del chat en Revisar · Pendiente
+**Notas:** Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.
+
+### Ocultar el bloque findings del chat en Revisar · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
 
@@ -3459,6 +3465,14 @@ Archivos: ReviewStore, agent_message_view.gd. Sale de m12-03.
 Backtrace con los símbolos de debug de 4.8-beta1: crash dentro de BaseButton::on_action_event, procesando el clic (Viewport::_gui_input_event ← DisplayServerX11::process_events). El await del permiso se reanuda en el mismo emit de resolved, así que la tool (guardar la escena) corría dentro del manejador del clic.
 
 Arreglo: las vistas de permiso y de pregunta del agente resuelven el pedido con call_deferred. No se pudo reproducir en Xvfb (un permiso y save_scene con un clic real sobrevive en 4.8-beta1); falta el caso con dos tools en paralelo.
+
+### La pregunta del agente aparece también como herramienta · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
+
+Con AskUserQuestion de Claude Code, la pregunta se ve dos veces: como fila del grupo de herramientas («¿Me das permiso…? · other · output · 1 line») y como tarjeta de pregunta justo abajo.
+
+Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo toolCallId) o mostrarlo como «Pregunta · respondida».
 
 ## M11 — Revisiones de seguridad, patrones y arquitectura  (0/3)
 

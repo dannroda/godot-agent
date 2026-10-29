@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:42.004Z",
   "description": "La pantalla principal «Agent» abre One-shot y la pestaña del dock también se llama Agent.\n\nPropuesta: La pantalla principal como «One-shot».\n\nArchivos: plugin.gd (_get_plugin_name)\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.",
   "order": 35,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "oneshot"
   ],
   "test": "",
   "title": "Dos cosas se llaman «Agent»",
-  "updated_at": "2026-10-29T06:20:42.004Z"
+  "updated_at": "2026-10-29T07:15:47.828Z"
 }
