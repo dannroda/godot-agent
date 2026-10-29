@@ -13,14 +13,15 @@
     }
   ],
   "description": "Las capturas que devuelve el agente (godot.capture_game_frame, screenshots) se ven en el chat a 160 px de alto y no hay forma de agrandarlas. Un clic en la miniatura abre un visor con la imagen ajustada a la ventana, zoom con la rueda, arrastre para moverla, 1:1 / Ajustar y guardar como PNG. Lo mismo para la captura del último playtest en la pantalla One-shot.",
+  "done_at": "2026-10-29T22:14:43.616Z",
   "milestone": "m07",
   "notes": "ui/image_viewer.gd: AcceptDialog que se cuelga del base control del editor y se libera al cerrarse. `ImageViewer.attach(rect, get_image)` vuelve clicable una miniatura (cursor de mano, tooltip); lo usan la tool_group_view (imágenes de tool calls) y la columna \"Último playtest\" del One-shot. `ImageViewer.open()` lo usa también el dock para los links a imágenes del Markdown (`![alt](ruta)` y links a .png/.jpg/.webp/.svg…).\nAjustar no tiene tope: una captura chica se agranda hasta llenar la ventana; desde 200 % se dibuja sin filtro (píxeles nítidos).\nTrabajado en el worktree .claude/worktrees/chat-images-markdown (rama chat-images-markdown) para no recargar el addon bajo el editor abierto.",
-  "order": 28,
+  "order": -16,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "- `--godot-agent-ui-test=ui_markdown` (tests/scripts/ui_markdown.json, agente falso con una captura de `capture_game_frame`): hay una sola miniatura clicable, el clic abre el visor con el tamaño en el título (480×270), y al cerrarlo se libera. Capturas en <shot>_chat.png y <shot>_viewer.png. Pasa en 4.6.3 y 4.8-beta1.\n- run_all: 224 tests en 4.6.3, 4.7.2 y 4.8-beta1; cycle test (5 ciclos sin huérfanos) y ui_demo siguen pasando.\n- Falta probar a mano (no automatizado): rueda (zoom hacia el puntero), arrastrar, doble clic (Ajustar ↔ 100 %), teclas + − 0 1 y Guardar PNG… (si cae dentro del proyecto, re-escanea el FileSystem).",
   "title": "Capturas del agente: verlas en grande",
-  "updated_at": "2026-10-27T17:32:10.923Z"
+  "updated_at": "2026-10-29T22:14:43.616Z"
 }

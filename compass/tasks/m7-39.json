@@ -19,14 +19,15 @@
     }
   ],
   "description": "Pedido del usuario (2026-10-23): que el harness pueda buscar en la Asset Library de Godot (godotengine.org/asset-library/api: /asset?filter=&category=&godot_version=, /asset/<id> con download_url y download_hash), sugerir plugins según lo que se está haciendo, instalarlos (bajar el zip, extraer addons/<x>/ con ZIPReader, verificar el hash) y activarlos (EditorInterface.set_plugin_enabled). Dos caras: una pestaña \"Godot assets\" en la ventana Extensions (buscar, ver, instalar, activar/desactivar los addons del proyecto) y tools MCP godot.asset_search / godot.asset_install con permiso propio (instalar baja código de terceros: pedir siempre). Reusa la descarga y extracción del updater (m7-38).",
+  "done_at": "2026-10-29T22:14:48.283Z",
   "milestone": "m07",
   "notes": "Commit 20df5e3 en worktree-asset-store. API del store nuevo (la del editor en master; la clásica ya no está en el código de Godot): search/query/?query=&require_release=true&type=0&sort=&compatibility=4.7.2&page=N (24 por página, hits[].asset), assets/<pub>/<slug>/, releases/<pub>/<slug>/ (download_url firmado, vence a los 10 min: se pide justo antes de bajar). price_cent > 0 = pago, no se instala. Para activar un plugin recién instalado hay que esperar a que el editor importe (dest_files de los .import) y registre los uids; si no, preload(\"uid://…\") falla. Tools en la lista extendida (godot.methods/run); el system prompt pide buscar addons antes de escribir sistemas grandes. Helpers de UI de Extensions movidos a extensions_ui.gd.",
-  "order": 39,
+  "order": -22,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "test": "tests/asset_check.sh <godot> (con red, copia del proyecto): busca, instala Simple TODO con el diálogo y queda activo; las tools lo listan, lo apagan/prenden, no dejan apagar el harness y reinstalar no pisa nada. Pasa en 4.6.3, 4.7.2 y 4.8-beta1. Unit: test_asset_store, test_asset_tools.",
   "title": "Asset Library de Godot: buscar, sugerir, instalar y activar plugins",
-  "updated_at": "2026-10-27T17:32:08.028Z"
+  "updated_at": "2026-10-29T22:14:48.283Z"
 }

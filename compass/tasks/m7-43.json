@@ -19,14 +19,15 @@
     }
   ],
   "description": "Pedido del usuario (2026-10-23, para después): que se vea lo que hacen los subagentes (hoy el chat agrupa las tools con parentToolUseId bajo la tarjeta del Agent/Task, pero hay que revisar si se ve su progreso en vivo, su prompt y su reporte, y cuántos corren a la vez) y una setting para permitir/denegar el uso de subagentes y la cantidad permitida (por modo; tool Agent/Task de Claude Code: negarla por permiso, contar los que están en curso y rechazar los que pasen el límite).",
+  "done_at": "2026-10-29T22:14:50.053Z",
   "milestone": "m07",
   "notes": "Commit 9ae15c6 (worktree-skills-tab). Grupo de permisos \"subagents\" (Agent/Task, por defecto Allow en todo modo) y \"Subagentes a la vez\" por modo (project_config.subagent_limits, 0 = sin límite). La sesión manda settings permissions.ask [\"Agent\"] en _meta, así cada lanzamiento llega como session/request_permission. Hallazgo: los subagentes pueden correr en segundo plano y el tool call de Agent termina enseguida, así que contar por estado del tool call no sirve. El cliente ahora declara clientCapabilities.subagents {} (RFD de ACP): claude-agent-acp anuncia cada hijo con subagent_update (running/requires_action/idle), liga la sesión hija al tool call con un session_message (messageId = id del lanzamiento), y los updates y pedidos de permiso del hijo llegan con su sessionId. SessionModel.apply_child_update los manda a la tarjeta del lanzamiento; ToolCall.subagent_state/is_working() decide si corre. Sin ese informe (otros agentes) se cuenta como antes, por el tool call.",
-  "order": 43,
+  "order": -21.9375,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "Unit: tests/unit/test_subagents.gd (grupo, límite, modo, sesiones nativas, pedido de permiso del hijo); 276 tests en 4.6.3/4.7.2/4.8. Real (gasta tokens): godot --headless --path . --script tests/subagents_session_check.gd → PASS (uno permitido, otro rechazado por límite 1 en Build, estados running→idle, su Read dentro de la tarjeta). UI: settings shots, i18n es, cycle y skills_check pasan.",
   "title": "Subagentes: ver lo que hacen y setting para permitirlos y limitarlos",
-  "updated_at": "2026-10-27T17:32:02.341Z"
+  "updated_at": "2026-10-29T22:14:50.053Z"
 }

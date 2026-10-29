@@ -3,6 +3,7 @@
   "code": "",
   "created_at": "2026-10-22T08:24:09.307Z",
   "description": "Como resource.* de swallowtail. Crear un recurso (built-in o de un script con class_name) con sus propiedades, leerlo y editarlo a través del editor, y asignarlo a un nodo. Es lo que pide el diseño data-driven (valores ajustables en Resources). Hoy el agente escribe los .tres a mano. Con las tools, el harness puede rechazar también los .tres escritos a mano (extensión de D48).",
+  "done_at": "2026-10-29T22:14:08.518Z",
   "links": [
     {
       "task": "m7-18",
@@ -11,15 +12,15 @@
   ],
   "milestone": "m04",
   "notes": "Commit 5b19448 (rama swallowtail-tools). D51 en docs/decisions.md.\n- `mcp/tools/resource_tools.gd`: `get_resource` (read), `create_resource` y `set_resource_properties` (edit_files). Para asignar a un nodo: `set_properties` con la ruta res:// o inline.\n- ValueCoercion: recursos inline `{\"type\": …}` contra el hint, y arrays tipados elemento por elemento (sirve en set_properties y add_nodes).\n- Arreglo de paso: en el editor, `script.new()` falla para class_name sin @tool. Ahora se instancia la base nativa y se pone el script (como el Inspector). `add_node` con un class_name de nodo también fallaba por eso.\n- Guard: `.tres` a mano se rechaza.\n- Fixtures nuevos con class_name: tests/fixtures/resources/ (FixtureItem, FixtureLoot, FixtureEnemy).",
-  "order": 13,
+  "order": -11,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "swallowtail"
   ],
   "test": "`test_resource_values` (StyleBoxFlat inline con hint, error con tipo que no cumple, class_name FixtureLoot con Array[FixtureItem] que sigue tipado, describe sin defaults) y `test_project_write_guard` (.tres a mano). `--godot-agent-edit-test` en 4.8-beta1 y 4.6.3: create_resource FixtureLoot con items inline (uno con StyleBoxFlat inline) y weights; get_resource muestra `[0] <FixtureItem, inline>`, bg_color y weights sin defaults; set_resource_properties guarda y Ctrl+Z revierte y vuelve a guardar; panel.tres asignado por ruta y luego un StyleBoxFlat inline con set_properties; add_nodes con un class_name sin @tool; no pisa. Suite: 192 tests, 0 fallos.",
   "title": "Recursos .tres: crear, leer y editar",
-  "updated_at": "2026-10-22T20:39:01.657Z"
+  "updated_at": "2026-10-29T22:14:08.518Z"
 }

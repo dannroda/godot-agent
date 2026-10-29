@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-28T19:15:09.621Z",
   "description": "Soportar $/cancel_request en las dos direcciones: el cliente cancela un request que ya no espera (por ejemplo un /usage o un session/load que se dejó) y atiende el del agente cancelando permisos, fs o terminales pendientes.",
+  "done_at": "2026-10-29T22:15:19.976Z",
   "milestone": "m11",
   "notes": "AcpClient.cancel_request(id) manda $/cancel_request, resuelve el await local con ERR_REQUEST_CANCELLED (-32800) e ignora respuestas tardías; SessionController._cancel_abandoned_requests() cancela /usage, /status o session/new|load|resume en vuelo al abrir otra sesión. Del lado entrante, $/cancel_request emite incoming_cancelled (cancela tarjetas de permiso de request_permission, fs/write_text_file y terminal/create en _ask_user, elicitations y esperas de terminal) y responde -32800 sin duplicar si el handler termina más tarde.\n\nRevisión (2026-10-28, 2431546): is_incoming_cancelled() nunca daba true (la marca se borraba en la misma llamada que la ponía), así que un terminal/create cancelado igual lanzaba el proceso. Ahora la marca dura hasta que el handler termina. handling_id se limpia en receive_line apenas el handler se suspende. Quedan: un -32800 del propio agente se toma como cancelación local (session/new podría quedar en STARTING); _cancelled_outgoing crece si el agente nunca responde.",
-  "order": 18,
+  "order": -16,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "tests/unit/test_acp_client.gd test_cancel_request_both_directions y test_incoming_cancel_mark_survives_await (falla sin el arreglo).",
   "title": "Cancelar requests en vuelo ($/cancel_request)",
-  "updated_at": "2026-10-28T23:01:18.633Z"
+  "updated_at": "2026-10-29T22:15:19.976Z"
 }

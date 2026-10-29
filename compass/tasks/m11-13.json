@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-28T19:15:08.303Z",
   "description": "Antigravity no manda la cuota en usage_update (solo el contexto, used/size). Su comando /usage, que no gasta tokens, lista por grupo de modelos (Gemini, Claude y GPT, Gemini 4 Argon) cuánto queda de la semana y de las 5 h, con la hora de reinicio en UTC: lo mismo que el menú View Usage del IDE de Antigravity, que lo saca del backend de Google. Pedirlo sin mostrarlo en el chat al abrir la sesión y después de cada turno, y llevar el grupo del modelo en uso a los anillos de cuota.",
+  "done_at": "2026-10-29T22:15:17.842Z",
   "milestone": "m11",
   "notes": "QuotaMonitor.parse_antigravity_usage y antigravity_windows (Argon: semana propia y 5 h del grupo de Gemini). SessionController._query_agent_usage manda /usage oculto (agentInfo.name antigravity-acp) al conectar y al final de cada turno; un prompt del usuario espera a que termine. agy guarda /usage en su historial: un session/load podría reproducirlo.",
-  "order": 13,
+  "order": -11,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "tests/unit/test_quota_monitor.gd test_antigravity_usage con el /usage real; contra agy 1.4.3 headless: la cuota llega al abrir (14 %) y se actualiza tras el turno (semana 15 %, 5 h 1 %), y en el chat quedan solo el prompt y la respuesta.",
   "title": "Cuota de Antigravity con /usage",
-  "updated_at": "2026-10-28T19:15:17.957Z"
+  "updated_at": "2026-10-29T22:15:17.842Z"
 }

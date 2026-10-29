@@ -19,17 +19,18 @@
     }
   ],
   "description": "Pedido del usuario (2026-10-22), sale de m7-21. Claude Code no le pasa al cliente ACP los mensajes ni las respuestas de los turnos remotos (D58), así que hoy lo que se hace desde el celular no deja rastro en el dock.\n\nLo que el editor sí ve: los archivos y escenas que cambian (la sincronización editor ↔ disco) y las tool calls que piden permiso. Mientras Remote Control está prendido, agregar al chat una entrada tipo «Desde el celular: cambió player.gd, main.tscn», con ↶ para deshacer cuando se pueda (undo del editor o checkpoint).\n\nA definir:\n- cómo agrupar (por ráfaga de cambios, o por permiso pedido);\n- qué pasa con cambios hechos a mano en el editor mientras tanto (no atribuirlos al celular);\n- deshacer: archivos fuera del editor vs. escenas abiertas.\n\nDocumentar en la wiki (Remote Control) y en D58.",
+  "done_at": "2026-10-29T22:14:39.648Z",
   "milestone": "m07",
   "notes": "Commit 3b0ded6, ya en main (vino de la rama remote-activity). Ver D58 «Actividad del celular». Recorrer este repo (~750 archivos) cada 2 s no se nota. Límite: se compara fecha (segundos) y tamaño.",
   "order": 22,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "test_remote_watch (cambios modificado/creado/borrado sin .godot, .uid ni ignorados; texto de antes; restaurar; rebase y guardado desde el editor; merge de tandas; texto del aviso). --godot-agent-remote-test: con Remote Control prendido se modifica y crea un archivo en tests/tmp, aparece el aviso con los dos, «Ver diff» abre el diff, «Deshacer» los deja como estaban y no genera otro aviso. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido. Con Claude real y el celular no se probó (va con m7-24).",
   "title": "Remote Control: mostrar en el dock lo que cambió desde el celular",
-  "updated_at": "2026-10-27T18:59:50.239Z"
+  "updated_at": "2026-10-29T22:14:39.648Z"
 }

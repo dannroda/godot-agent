@@ -4,14 +4,15 @@
   "code": "6.1",
   "created_at": "2026-10-21T04:33:15.123Z",
   "description": "Barra superior: objetivo, estado/fase, presupuestos con barras (cuota de la ventana, tiempo, tokens, playtests), la regla de cuota activa en una línea (\"se pausa al 90 % en el próximo checkpoint\"), cuenta regresiva hasta el reinicio en \"Limitado\", y Pausar/Detener (spec §9.2 actualizado). Columnas Plan (editable), Actividad (con \"Guiar al agente\") y Playtest/Verificaciones/Checkpoints. Barra inferior con resumen de cambios, \"Revisar cambios\" y \"Aceptar todo\" (docs/design pantalla 2).",
+  "done_at": "2026-10-29T22:14:13.653Z",
   "milestone": "m06",
   "notes": "ui/main_screen/agent_main_screen.gd:\n- formulario con objetivo, presupuestos (defaults de project_config) y checkpoints; preflight, y diálogo de WIP si hay cambios sin commitear;\n- barra superior: OBJETIVO · ONE-SHOT, fase y \"fase n de m\", Pausar/Retomar, Detener (o Nuevo One-shot), el objetivo, y la grilla Cuota/Tiempo/Tokens/Playtests (4 columnas, 2 si es angosta), con la regla de cuota y la cuenta regresiva;\n- banner de cuota o de fin;\n- columnas:\n  - Plan: ✓ ● ○, con \"Editar\" que manda el texto como guía;\n  - Actividad: RichTextLabel con hora y tipo, más \"Guiar al agente\";\n  - Último playtest, Verificaciones y Checkpoints con \"Volver acá\" (con confirmación);\n- barra inferior: archivos, escenas y scripts, +/−, Revisar cambios (lista; doble clic emite diff_requested hacia el DiffDialog) y Aceptar todo (con confirmación).\nEl resumen se recalcula con debounce de 2 s después de la actividad.\nPlugin:\n- crea OneShotRun (after_restore recarga las escenas abiertas y pasa los scripts por EditorSync; restart_session usa el perfil activo; resume_auto sale de Settings);\n- elegir One-shot en el dock abre la pantalla Agent;\n- con un One-shot en curso, el composer del dock manda \"Guiar al agente\";\n- EditorSurfaces.make_visible(MAIN_SCREEN) con la API vieja usa set_main_screen_editor.\ngit_checkpoints.changes_summary ahora corre solo en la rama del agente.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "test": "tests/run_in_xvfb.sh $G --godot-agent-oneshot-test [--godot-agent-ui-shot=…] (addons/godot_agent_dev/oneshot_ui_check.gd, agente falso con tests/scripts/oneshot_ui.json sobre un repo git temporal en user://). PASS en 4.4.1, 4.7.2 y 4.8-beta1. Recorre:\n- el formulario: no deja iniciar sin objetivo;\n- en \"Pausado por cuota\": fase \"fase 2 de 3\", objetivo, banner, cuenta regresiva, regla, barras de cuota y playtests, Retomar, 3 tareas, 2 verificaciones, 3 checkpoints, captura y actividad;\n- en \"Limitado\": ⏳, banner de límite y cp4-quota;\n- espera la confirmación y Retomar;\n- al terminar: resumen \"1 archivo cambiado · 0 escenas · 1 script\", \"Nuevo One-shot\" y banner de fin;\n- Revisar cambios: lista y diff contra la base;\n- Volver acá a cp2 borra pong.gd y recarga;\n- Aceptar todo deja las dos ramas.\nCycle test de 5 ciclos sin huérfanos en las tres versiones. Capturas revisadas a ojo.",
   "title": "Pantalla principal One-shot",
-  "updated_at": "2026-10-21T07:50:08.945Z"
+  "updated_at": "2026-10-29T22:14:13.653Z"
 }

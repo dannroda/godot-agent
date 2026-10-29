@@ -3,6 +3,7 @@
   "code": "",
   "created_at": "2026-10-27T23:21:06.654Z",
   "description": "Idea de la comparación con otros harness (2026-10-27). Google publica un adaptador ACP oficial para Antigravity en el registro de ACP (id antigravity-acp, v1.4.3, autor Google LLC, licencia propietaria): un zip por plataforma desde dl.google.com/agy-extensions/releases/<os>/agy-acp-server-<versión>-<os>-<arch>.zip, con sha256, que se ejecuta como ./agy_acp_server.par (en Linux con el argumento --uid=; en Windows agy_acp_server.exe). Así lo integra Zed: lee el registro, baja y verifica el zip, y lanza ese comando como agente ACP por stdio. Hay también adaptadores de la comunidad (agy-acp, antigravity-acp de GitHub) que leen el almacenamiento local de Antigravity; preferir el oficial. A probar: login, que pase los mcpServers de session/new (sin eso no ve godot.*) y godot.sessions/session_send entre agy y Claude Code en el mismo dock.",
+  "done_at": "2026-10-29T22:15:16.902Z",
   "links": [
     {
       "task": "m7-52",
@@ -11,15 +12,15 @@
   ],
   "milestone": "m11",
   "notes": "Con m11-12, Google Antigravity se agrega desde Settings → Agentes → «+ Del registro de ACP…» (adaptador oficial de Google, antigravity-acp 1.4.3, ./agy_acp_server.par --uid= en Linux, ~930 MB). Probado a mano por stdio: initialize anuncia mcpCapabilities {http, sse} (recibe el MCP del harness por HTTP: godot.* incluidas sessions/session_send), loadSession, imágenes y _meta.antigravity.systemPrompt.append, y authMethods oauth-personal, oauth-business, gemini-api-key, agent-platform. session/new sin login devuelve -32000 «Authentication required», que SessionController.is_auth_required reconoce, así que el dock ofrece esos métodos (ACP authenticate). Falta, con la cuenta del usuario: completar el login, una conversación real con las tools godot.* y un godot.session_send entre agy y Claude Code en dos pestañas.",
-  "order": 11,
+  "order": -9,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "idea"
   ],
   "test": "Probe ACP a mano (initialize y session/new) contra el binario real. Pendiente del usuario: login con Google y mensajes entre agy y Claude Code.",
   "title": "Soporte para Antigravity CLI (agy) como agente",
-  "updated_at": "2026-10-27T23:37:29.534Z"
+  "updated_at": "2026-10-29T22:15:16.902Z"
 }

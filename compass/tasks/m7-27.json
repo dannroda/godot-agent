@@ -19,13 +19,14 @@
     }
   ],
   "description": "El medidor de cuota (dos barras debajo del estado) quedaba oculto hasta el primer mensaje de cada sesión y parecía haber desaparecido. Pasa a dos anillos chicos al lado del contexto (afuera la ventana de 5 h, adentro la semanal), siempre visibles, con el detalle en el tooltip y grises con el motivo mientras no hay datos. Además, el selector de modelo mostraba «Default (recommended)»: ahora muestra el modelo que usa, «Opus 5.5 (default)».",
+  "done_at": "2026-10-29T22:14:42.217Z",
   "milestone": "m07",
   "notes": "ui/dock/quota_ring.gd reemplaza a quota_meter.gd. Se agrega con Composer.add_status_control antes del medidor de contexto. Se sacó set_usage_hint: el aviso de que el agente no informa la cuota ahora va en el tooltip del anillo. La franja de Remote Control se ubica después de status_row. El nombre del modelo sale de Composer.model_label. Commit 6d83e4e (rama quota-ring), ya en main.",
-  "order": 27,
+  "order": -14,
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "test_quota_ring (tooltip sin datos, con las dos ventanas y con el límite; colores por umbral) y test_composer.test_model_label. Escenario ui_quota del editor: el anillo se ve y su tooltip trae el detalle. Pasada completa verde en 4.8-beta1 y 4.6.3, incluido i18n. A mano: abrir una sesión de Claude Code, ver los anillos grises y el selector «Opus 5.5 (default)»; después del primer mensaje, los anillos se llenan.",
   "title": "Cuota del plan como anillos en la fila del composer y modelo por defecto con nombre",
-  "updated_at": "2026-10-27T18:59:52.260Z"
+  "updated_at": "2026-10-29T22:14:42.217Z"
 }

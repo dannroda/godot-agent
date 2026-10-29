@@ -4,14 +4,15 @@
   "code": "0.1",
   "created_at": "2026-10-21T03:47:18.908Z",
   "description": "Cargar godot-architecture, godot-communication, godot-patterns, godot-code-review y godot-data-driven; proponer estructura de carpetas bajo res://addons/godot_agent/ y la lista de clases. Registrar los choques skill↔spec y las verificaciones de API (execute_with_pipe en 4.4, tags de editor) en docs/decisions.md.",
+  "done_at": "2026-10-29T22:13:36.544Z",
   "milestone": "m00",
   "notes": "Binarios: 4.8-beta1 en /opt/godot/versions/4.8-beta1/godot (dev), 4.7.2 en PATH, 4.4.1 oficial bajado al scratchpad solo para verificar. Hallazgos: en 4.4 el export filtra la carpeta pero deja class_name y rutas en global_script_class_cache.cfg/uid_cache.bin → addon sin class_name (preload consts). read_string_from_stdin(buffer_size) no tiene default en 4.4. editor_runtime existe en 4.4.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "docs/decisions.md tiene D1–D9: estructura, sin class_name, composición, API verificada en 4.4.1/4.7.2/4.8-beta1, settings por proyecto, presets, test de ciclo, uid_cache y docks.",
   "title": "Cargar skills y proponer estructura en docs/decisions.md",
-  "updated_at": "2026-10-21T04:02:57.060Z"
+  "updated_at": "2026-10-29T22:13:36.544Z"
 }

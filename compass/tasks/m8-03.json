@@ -4,14 +4,15 @@
   "code": "8.3",
   "created_at": "2026-10-21T04:33:44.277Z",
   "description": "extends/class_name y API de la clase base (ClassDB), firmas de clases del proyecto, nodos hijos por escena que usa el script ($ y %), autoloads, input map, grupos, señales conectadas. Invalidación por archivo con filesystem_changed.",
+  "done_at": "2026-10-29T22:14:59.318Z",
   "milestone": "m08",
   "notes": "project_index.gd (worker, inmutable al publicarse, reutiliza por mtime salvo archivos de <2 s) + project_context.gd (ClassDB, ProjectSettings, escena abierta con caché). Sin persistencia: <1 s.",
   "order": 3,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "test": "test_completion_rules.test_context_index (fixture); test_completion_bench (build 200 scripts ≈180 ms, rebuild incremental).",
   "title": "ProjectContext indexado en segundo plano",
-  "updated_at": "2026-10-21T09:46:24.219Z"
+  "updated_at": "2026-10-29T22:14:59.318Z"
 }

@@ -6,22 +6,24 @@
     {
       "alternatives": "Escribir un GIF a mano (LZW); grabar video con Movie Maker",
       "at": "2026-10-28T00:00:56.070Z",
+      "review": "ok",
       "text": "Reporte como carpeta con report.md y PNG, sin GIF",
       "why": "Godot no escribe GIF ni WebP animado sin código extra; las capturas que el agente ya toma son lo que verifica el trabajo, y un .md con imágenes se lee en GitHub o en cualquier visor"
     }
   ],
   "description": "Idea de la comparación con otros harness (2026-10-27). Como los walkthroughs de Antigravity. Al cerrar una tarea, un resumen con capturas del juego de antes y después o un GIF del playtest, para mirar o compartir. Ya existen capture_game_frame y game_input; falta juntarlos. Diferencial: ningún otro harness muestra el juego corriendo.",
+  "done_at": "2026-10-29T22:15:14.588Z",
   "milestone": "m11",
   "notes": "session/turn_report.gd: collect(model, first_entry) junta el texto del agente y las imágenes (base64 + mimeType) de los tool calls del turno; write() escribe res://.godot_agent/reports/<fecha>/report.md (resumen, archivos con +/−, capturas) y capture-N.png/jpg/webp tal como llegaron. El aviso de fin de turno de Construir/Auto (SessionController._report_turn_changes) suma «N capturas del juego o del editor» y la acción «Guardar reporte» (ACTION_TURN_REPORT); el plugin escribe el reporte y abre la carpeta. Sin git aparece igual si hubo capturas. No hecho: GIF o video del playtest (Godot no escribe GIF ni WebP animado; queda la secuencia de capturas). De paso, turn_snapshots: el index propio se arma una vez con read-tree HEAD y se reusa (copiar el del usuario le cambiaba la fecha y git podía no ver un cambio del mismo tamaño en el mismo segundo; lo agarró el test).",
-  "order": 6,
+  "order": -4,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "idea"
   ],
   "test": "Unit: test_turn_report (collect solo del turno, write con resumen, archivos y la captura byte a byte); test_turn_snapshots estable en 3 corridas; suite completa en verde.",
   "title": "Artefactos de verificación: capturas y GIF del juego",
-  "updated_at": "2026-10-28T00:00:57.886Z"
+  "updated_at": "2026-10-29T22:16:00.322Z"
 }

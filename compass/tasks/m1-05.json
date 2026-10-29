@@ -4,14 +4,15 @@
   "code": "1.5",
   "created_at": "2026-10-21T04:32:00.998Z",
   "description": "Perfiles (id, display_name, command, args, env, default) en EditorSettings godot_agent/. Perfil Claude Code con el adapter ACP verificado con npm view; Gemini/Codex/custom editables sin flags inciertos. Aviso si hay ANTHROPIC_API_KEY en el entorno (spec §4.4, §11).",
+  "done_at": "2026-10-29T22:13:44.123Z",
   "milestone": "m01",
   "notes": "core/agent_profile.gd y core/harness_settings.gd (EditorSettings, o memoria en tests).\n- Perfil por defecto: npx -y @agentclientprotocol/claude-agent-acp, verificado con npm view (D13).\n- En env, \"$VAR\" se resuelve del entorno del editor, así no se guardan claves.\n- Gemini y Codex quedan como entradas editables.\n- ui/settings/profiles_dialog.gd es un stub hasta M7.",
-  "order": 5,
+  "order": -1,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "Al habilitar el plugin aparecen godot_agent/agents/profiles y ui/accent_color en Editor Settings. El botón de ajustes del dock edita los perfiles como JSON y valida que los ids sean únicos. Con ANTHROPIC_API_KEY en el entorno, al iniciar sesión aparece un aviso.",
   "title": "Perfiles de agentes y HarnessSettings",
-  "updated_at": "2026-10-21T05:06:18.642Z"
+  "updated_at": "2026-10-29T22:13:44.123Z"
 }

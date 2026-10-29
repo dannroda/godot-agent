@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:40.559Z",
   "description": "Cuatro íconos sin texto por skill; el selector dice «En este proyecto» y la lista muestra «Usuario».\n\nPropuesta: Acciones en un menú «⋯» con texto; el selector como filtro con «Todas» y secciones con su alcance.\n\nArchivos: skills_tab.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "done_at": "2026-10-29T22:15:37.469Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en 3e45bcf sin atribución.\nUX: Extensiones › Skills con un filtro por alcance, «+ Skill» que pregunta dónde y acciones en «⋯» (m12-29)\nNota: el desplegable «En este proyecto / Para todos los proyectos» decía dónde\niban Nueva e Importar, pero parecía un filtro de la lista (y la lista mostraba\n«Usuario»). Ahora es un filtro de verdad: Todas, Este proyecto, Todos mis\nproyectos, De plugins. «+ Skill» es un menú con «Skill nueva en este proyecto»,\n«… para todos mis proyectos» y lo mismo para importar una carpeta o zip. En cada\nskill, Abrir SKILL.md, Mostrar en el gestor de archivos, Copiar a este proyecto y\nBorrar… van con su nombre en un menú «⋯»; el interruptor queda a la vista. El\ncheck del dev plugin elige el destino con `_target_scope`.",
-  "order": 29,
+  "order": -26,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "extensiones"
   ],
   "test": "--godot-agent-skills-test en Xvfb (crea en el proyecto, copia, importa un zip; pasa) con su captura; test_i18n.",
   "title": "Extensiones › Skills: acciones como íconos sueltos",
-  "updated_at": "2026-10-29T12:51:29.370Z"
+  "updated_at": "2026-10-29T22:15:37.469Z"
 }

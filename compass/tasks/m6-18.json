@@ -3,13 +3,14 @@
   "code": "",
   "created_at": "2026-10-22T08:13:14.664Z",
   "description": "Al reabrir con un One-shot a medias, el aviso contaba como conversación y el dock escondía «Start session»: no había cómo arrancar ni retomar desde el dock. Ahora el botón sigue a la vista con solo avisos y, con un run esperando, dice «Resume One-shot»; el aviso trae «Resume One-shot» y «Open Agent screen».",
+  "done_at": "2026-10-29T22:14:23.389Z",
   "milestone": "m06",
   "notes": "Commit dc2fc2d. Venía de D37: el aviso del run a medias contaba como conversación y escondía la vista vacía.",
   "order": 18,
   "priority": "high",
   "refs": [],
-  "status": "review",
+  "status": "done",
   "test": "--godot-agent-oneshot-test simula la reapertura (chat vacío, sin sesión, _restore_oneshot del plugin): el aviso trae «Resume One-shot» y «Open Agent screen», y el dock muestra «Resume One-shot». Matriz 4.6.3/4.7.2/4.8-beta1 verde (27 UI checks).",
   "title": "Dock: retomar el One-shot al reabrir el editor",
-  "updated_at": "2026-10-22T08:24:24.745Z"
+  "updated_at": "2026-10-29T22:14:23.389Z"
 }

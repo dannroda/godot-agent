@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:41.526Z",
   "description": "Botón apagado casi ilegible, sin texto de qué falta ni con qué agente corre.\n\nPropuesta: El agente elegido arriba y, junto al botón, lo que falta («Escribí el objetivo»); sin agentes, el selector del dock.\n\nArchivos: agent_main_screen.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)",
+  "done_at": "2026-10-29T22:15:39.786Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en e289169 sin atribución. El formulario dice con qué agente corre («Corre con X (el agente elegido en el dock)»); sin agente, aviso en amarillo y «Configurar un agente…» que abre Ajustes (no el selector del dock de la propuesta). Junto a «Iniciar One-shot» va lo que falta (objetivo, agente o un One-shot en curso), también como tooltip; el plugin refresca al cambiar los perfiles o el elegido.",
-  "order": 33,
+  "order": -30,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "oneshot"
   ],
   "test": "test_oneshot_form.test_start_blocker (headless). Sin captura nueva.",
   "title": "One-shot: «Iniciar» deshabilitado sin decir por qué",
-  "updated_at": "2026-10-29T07:23:41.016Z"
+  "updated_at": "2026-10-29T22:15:39.786Z"
 }

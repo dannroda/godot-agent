@@ -3,13 +3,14 @@
   "code": "",
   "created_at": "2026-10-22T06:59:51.641Z",
   "description": "El usuario no veía dónde quedaban los mensajes encolados durante un One-shot. Ahora, al escribir en el chat mientras el agente trabaja, se agrega al log una entrada de tipo guía «en cola: …» y se muestra un aviso en el chat. Cuando el mensaje sale de verdad, se agrega «enviado: …».",
+  "done_at": "2026-10-29T22:14:20.282Z",
   "milestone": "m06",
   "notes": "518c819.\n- OneShotRun._queue_guidance agrega la actividad «guía · en cola: …» y un aviso en el chat.\n- _pop_guidance registra «enviado: …» cuando la guía sale de verdad. Si sale enseguida, se registra «enviado» directo.\n- _user_guidance separa la guía del usuario de la que mete el harness (por ejemplo el aviso de loop) y se persiste.\n- Color «guía» en la actividad.",
   "order": 14,
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "oneshot_check presupuestos: «en cola» y «enviado» en orden, y el aviso del chat. oneshot_check loop: en pausa, la guía sale enseguida.",
   "title": "Cola de guía visible en el One-shot",
-  "updated_at": "2026-10-22T07:21:27.756Z"
+  "updated_at": "2026-10-29T22:14:20.282Z"
 }

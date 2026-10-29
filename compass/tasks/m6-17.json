@@ -3,14 +3,15 @@
   "code": "",
   "created_at": "2026-10-22T07:10:53.037Z",
   "description": "Reporte del usuario (great-boy-one, 2026-10-22): el banner decía «Cuota al 95 %: se pausa en el próximo checkpoint», pero el One-shot nunca pausó.\n\nCausa: la pausa solo se disparaba cuando el plan pasaba a otra tarea. Si el agente seguía en la misma tarea o trabajaba sin plan, no llegaba nunca. Además, al terminar un turno se mandaba «Seguí con el plan» sin mirar la cuota.\n\nArreglo:\n- Pausar al terminar el turno.\n- Red de seguridad: si la pausa lleva 10 min programada o la cuota llega al 98 %, se corta el turno y se pausa con un checkpoint -quota.\n- El banner dice cuándo va a pausar.",
+  "done_at": "2026-10-29T22:14:21.558Z",
   "milestone": "m06",
   "notes": "b4736c0 (D44).\n- La pausa por cuota también se dispara al terminar el turno, antes de mandar «Seguí con el plan».\n- _check_quota_pause corta el turno y pausa con un checkpoint -quota si la pausa lleva QUOTA_PAUSE_GRACE_S (600 s) programada o la cuota llega a QUOTA_PAUSE_HARD (0,98).\n- quota_pause_text() alimenta el banner: dice cuándo pausa y cuánto falta para que corte igual.\n- Textos: «se pausa al terminar la tarea o el turno en curso».",
-  "order": 17,
+  "order": -14,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "oneshot_check: «cuota al terminar el turno» (no manda otro turno y retoma solo), «cuota con tope de espera» (corta el turno con cp3-quota) y el escenario de cuota de siempre. test_quota_monitor y --godot-agent-oneshot-test para la regla.",
   "title": "La pausa por cuota no llegaba si la tarea no cambiaba",
-  "updated_at": "2026-10-22T07:21:27.798Z"
+  "updated_at": "2026-10-29T22:14:21.558Z"
 }

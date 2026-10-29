@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:40.321Z",
   "description": "Las descripciones del registro vienen en inglés.\n\nPropuesta: Texto propio en es.po para los sugeridos.\n\nArchivos: acp_registry_dialog.gd, es.po\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "done_at": "2026-10-29T22:15:37.017Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en e27adce sin atribución.\nUX: los agentes sugeridos del registro de ACP tienen descripción propia y traducida (m12-28)\nNota: el registro solo trae descripciones en inglés. Para los sugeridos (Claude\nCode, Codex, Google Antigravity) la tarjeta usa un texto propio de\ncore/suggested_agents.gd, marcado para i18n y con su traducción en es.po; el\nresto sigue con la descripción del registro (traducir decenas de textos que\ncambian con cada versión del registro no se sostiene). SuggestedAgents.matching\nreconoce un agente del registro por id o nombre.",
-  "order": 28,
+  "order": -25,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "registro"
   ],
   "test": "test_acp_registry.test_description_of, test_i18n (headless).",
   "title": "Registro de ACP: descripciones en inglés",
-  "updated_at": "2026-10-29T12:51:28.907Z"
+  "updated_at": "2026-10-29T22:15:37.017Z"
 }

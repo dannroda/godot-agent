@@ -3,13 +3,14 @@
   "code": "",
   "created_at": "2026-10-22T06:59:51.521Z",
   "description": "README.md pasa a inglés y README.es.md queda como versión en español. Cada uno enlaza al otro y a la wiki. El contenido se mantiene al día con lo que hace el plugin (One-shot con spec, presupuestos editables, guía por el chat, informe, criterios).",
+  "done_at": "2026-10-29T22:14:35.522Z",
   "milestone": "m07",
   "notes": "Commit c274ae8.",
-  "order": 14,
+  "order": -10,
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "README.md y README.es.md enlazan a la wiki de su idioma; los nombres de botones en negrita coinciden con los textos de la interfaz (script de verificación contra el código y es.po).",
   "title": "README en inglés y en español",
-  "updated_at": "2026-10-22T08:13:14.487Z"
+  "updated_at": "2026-10-29T22:14:35.522Z"
 }

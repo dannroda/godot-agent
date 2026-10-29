@@ -4,14 +4,15 @@
   "code": "7.5",
   "created_at": "2026-10-21T04:33:43.855Z",
   "description": "Más de 500 entradas sin degradación: límite de nodos vivos en la lista (las viejas se colapsan o se cargan bajo demanda), batch de chunks por frame. Medido con un guion largo del agente falso.",
+  "done_at": "2026-10-29T22:14:29.387Z",
   "milestone": "m07",
   "notes": "- transport/agent_process.gd: el thread lector encola las líneas de stdout y el hilo principal las entrega con un presupuesto de 6 ms por frame. Lo que sobra sigue en process_frame: con call_deferred correría en la misma vuelta de la cola de mensajes. El exit espera a la última línea encolada. stderr sigue con call_deferred.\n- ui/dock/conversation_view.gd:\n  - las vistas nuevas se arman por tandas con 8 ms por frame;\n  - si una ráfaga trae más entradas que el tope, las que quedarían ocultas no se arman;\n  - los refrescos (tool groups, plan, permisos) se agrupan a uno por vista y por frame;\n  - \"N entradas anteriores ocultas\" pasó a ser el botón \"Mostrar 50 anteriores (N ocultas)\", que arma las previas arriba y sube el tope hasta la próxima sesión.\n- agent_message_view ya convertía el Markdown una vez por frame.",
   "order": 5,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "tests/run_in_xvfb.sh $G --godot-agent-long-test (addons/godot_agent_dev/long_session_check.gd): el agente falso manda un turno de 641 entradas, 320 mensajes en Markdown de 12 chunks cada uno, alternados con tool calls. Antes del cambio, un frame tardó 3951 ms: toda la ráfaga en un solo frame, con 391 vistas armadas y tiradas. Ahora, en 4.8 con OpenGL por software en Xvfb: p95 45–97 ms y peor frame 105–129 ms (umbrales del check: 120 y 400). Quedan 250 vistas vivas y 391 ocultas, el último mensaje está completo y \"Mostrar anteriores\" agrega 50. run_all, acp_session_check y oneshot_check siguen pasando.",
   "title": "Rendimiento con sesiones largas",
-  "updated_at": "2026-10-21T08:10:09.423Z"
+  "updated_at": "2026-10-29T22:14:29.387Z"
 }

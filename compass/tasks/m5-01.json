@@ -4,14 +4,15 @@
   "code": "5.1",
   "created_at": "2026-10-21T04:33:14.863Z",
   "description": "Extrae bloques {\"findings\":[…]} y {\"checks\":[…]} del texto del agente aunque vengan en fences, con texto alrededor o con campos faltantes; normaliza severidades bug|order|perf|style. Tests unitarios.",
+  "done_at": "2026-10-29T22:14:10.563Z",
   "milestone": "m05",
   "notes": "review/findings_parser.gd: parse(text, project_root) → {findings, checks}. Acepta fences ```json o sin lenguaje, JSON suelto con prosa alrededor (busca llaves balanceadas respetando strings), varios bloques (sin duplicados), comas finales, campos alternativos (file/description/fix/kind…), \"ruta.gd:12\" en path, rutas relativas o absolutas → res://, severidades en castellano/inglés → bug|order|perf|style (desconocida → style). Checks: {title, ok, detail} con ok bool/string/número. review/review_store.gd: revisión vigente; cada turno en modo Revisar con bloque findings la reemplaza (D23); dismiss, counts, scope_label, fix_prompt, question_prompt, claude_md_section y append_to_claude_md.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "godot --headless --path . --script tests/run_all.gd -- findings (test_findings_parser: 6 tests/28 checks) y -- review_store (3 tests/24 checks); 4.8 y 4.4.1.",
   "title": "Parser tolerante de findings y checks",
-  "updated_at": "2026-10-21T07:08:25.334Z"
+  "updated_at": "2026-10-29T22:14:10.563Z"
 }

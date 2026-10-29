@@ -3,13 +3,14 @@
   "code": "",
   "created_at": "2026-10-22T08:40:10.019Z",
   "description": "Pedido del usuario: poder pegar imágenes en el chat del agente, o que saque capturas del juego en ejecución. El agente ya captura con run_scene + capture_game_frame; faltaba que el usuario pudiera adjuntar. Ctrl+V con imagen o archivos copiados, arrastrar archivos del FileSystem, «+ contexto → Captura del juego» (con aviso si el run no tiene el autoload de playtest), hasta 6 imágenes por mensaje achicadas a 1280 px.",
+  "done_at": "2026-10-29T22:14:39.167Z",
   "milestone": "m07",
   "notes": "Commit 844f3c0. El TextEdit llama al drop del forwarding con cualquier dato (también texto) y después inserta el texto él: _drop_files filtra. Archivos soltados desde el sistema operativo no se manejan: el editor ya los importa al FileSystem, así que alcanza con Ctrl+V o con arrastrarlos desde el FileSystem.",
-  "order": 20,
+  "order": -12,
   "priority": "high",
   "refs": [],
-  "status": "review",
+  "status": "done",
   "test": "test_composer: rutas de archivos copiados (file:// con %20, absolutas, texto mezclado → se pega como texto) y arrastre real con force_drag (archivos sin carpetas; el texto arrastrado lo sigue insertando el TextEdit). --godot-agent-ui-test=ui_demo: PNG de afuera del proyecto + imagen pegada de 2560 px → dos bloques de imagen, la pegada achicada a 1280 sin tocar la original, y los chips se limpian al enviar. --godot-agent-run-test: Captura del juego desde el dock adjunta el frame rojo del juego; en un run manual avisa que falta el autoload. Matriz 4.6.3/4.7.2/4.8-beta1 verde: run_all 178/1336, acp 117, oneshot 106, 33 UI checks.",
   "title": "Imágenes en el chat: pegar, arrastrar y capturar el juego",
-  "updated_at": "2026-10-22T08:53:15.663Z"
+  "updated_at": "2026-10-29T22:14:39.167Z"
 }

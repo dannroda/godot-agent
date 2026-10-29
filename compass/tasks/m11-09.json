@@ -6,28 +6,31 @@
     {
       "alternatives": "git merge de la rama; cherry-pick del commit",
       "at": "2026-10-28T00:21:50.818Z",
+      "review": "ok",
       "text": "Aplicar los cambios de la copia con git apply como cambios sin commitear, no con merge",
       "why": "El harness no mergea por diseño; así el usuario revisa y commitea él, y si algo no entra limpio la rama queda para resolverlo a mano"
     },
     {
       "alternatives": "Dentro del proyecto con .gdignore; copiar también los cambios sin commitear",
       "at": "2026-10-28T00:21:52.316Z",
+      "review": "ok",
       "text": "La copia va al lado del repo (<repo>.godot-agent-copies/), desde el último commit",
       "why": "Dentro del proyecto Godot la importaría como parte del juego; un worktree solo parte de un commit, así que lo sin commitear no está (se avisa)"
     }
   ],
   "description": "Idea de la comparación con otros harness (2026-10-27). Como las cloud tasks de Codex o el coding agent de Copilot. Una sesión trabaja en otra copia del proyecto con su propio Godot headless y entrega un diff o una rama para integrar, sin competir con el editor abierto. Choca con «el harness nunca mergea»: decidir cómo se integra.",
+  "done_at": "2026-10-29T22:15:15.917Z",
   "milestone": "m11",
   "notes": "session/worktree_session.gd: create() hace git worktree add -b agent/copy-<fecha> en <repo>.godot-agent-copies/<fecha> (al lado del repo: adentro Godot lo importaría) desde HEAD, con el proyecto en su misma subcarpeta; commit_changes() commitea lo del agente en esa rama y lista los archivos cambiados; apply_to_project() arma el diff base..rama (git diff --binary, limitado al proyecto) y lo aplica con git apply en el repo principal como cambios sin commitear (el harness no mergea; si no entra limpio, queda la rama); remove() saca el worktree y, si se pide, la rama. SessionTabs: «+» abre un menú (sesión / sesión en una copia). Plugin: _make_controller con la copia como cwd y raíz de fs, sin sync con buffers, sin locks ni verificación por res://, con TurnSnapshots propios (los avisos de cambios del turno y volver atrás funcionan sobre la copia); aviso en el chat y note_for_agent explicando dónde trabaja y cómo validar con Godot headless. ToolRegistry.precheck (nuevo): rechaza antes de pedir permiso las tools no de lectura y las game_* para una copia (si no, Construir mostraba una tarjeta y recién después rechazaba). Cerrar la pestaña: si cambió algo, diálogo Aplicar al proyecto / Dejar la rama / Descartar / Cancelar; sin cambios, se borra sola. Al apagar el plugin las copias quedan como están. Una vez, en una corrida del check, quedó una copia sin borrar; no se repitió en tres corridas más.",
-  "order": 9,
+  "order": -7,
   "priority": "low",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "tags": [
     "idea"
   ],
   "test": "Unit: test_worktree_session (repo temporal con el proyecto en una subcarpeta: crea la copia al lado, el proyecto no cambia mientras el agente trabaja, commit_changes lista lo cambiado, apply_to_project deja los cambios sin commitear en la misma rama, remove borra copia y rama); suite 302/0. Editor: --godot-agent-sessions-test abre una copia de este repo, verifica cwd, que una tool de edición se rechaza y una de lectura anda, y que cerrarla sin cambios la borra (worktree y rama).",
   "title": "Tareas en segundo plano en un worktree con Godot headless",
-  "updated_at": "2026-10-28T00:21:53.009Z"
+  "updated_at": "2026-10-29T22:15:59.908Z"
 }

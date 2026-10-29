@@ -3,6 +3,7 @@
   "code": "",
   "created_at": "2026-10-22T04:27:55.332Z",
   "description": "Basado en \"Harness design for long-running application development\" (Anthropic, 2026-03):\n- Un planner que convierte el objetivo corto en un spec evita que el generator se quede corto de alcance. El spec tiene que ser ambicioso en alcance pero de alto nivel; si mete detalle técnico, los errores se arrastran.\n- Los agentes se pasan el trabajo por archivos, no por contexto.\n\nQué hacer:\n- Primer paso del One-shot: escribir el spec en `.godot_agent/oneshot/<id>/spec.md`. Incluye las mecánicas, el loop de juego, la dirección visual y los criterios de \"terminado\". Antes de construir, el usuario puede revisarlo y editarlo (paso opcional, con \"Aprobar spec\").\n- El generator mantiene `progress.md`: qué está hecho, qué falta, decisiones y problemas conocidos. Se actualiza al cerrar cada tarea.\n- El evaluator lee el spec y el progress, y escribe `qa-<n>.md` con sus findings.\n- Esos archivos son el traspaso. Si el editor se cae o hay que reiniciar contexto, una sesión nueva retoma leyendo spec y progress. Se complementa con m7-09: el estado del harness va en `user://` y el del trabajo en el proyecto.\n- Decidir si `.godot_agent/` se ignora en git, se commitea en los checkpoints o queda excluido del export. El export check no debe incluirlo.",
+  "done_at": "2026-10-29T22:14:18.583Z",
   "links": [
     {
       "task": "m7-09",
@@ -11,12 +12,12 @@
   ],
   "milestone": "m06",
   "notes": "ad50af8 (D41). OneShotFiles (oneshot/oneshot_files.gd) escribe en <proyecto>/.godot_agent/oneshot/<id>/:\n- spec.md: paso 0 del prompt, de alto nivel (mecánicas, loop, dirección visual, criterio de «terminado»);\n- progress.md: se actualiza al cerrar cada tarea;\n- qa-<n>.md: lo escribe el evaluador (m6-09).\nEl prompt de resumen manda leer esos archivos.\n\nOpción «Revisar el spec antes de construir» (form y Settings, config spec_review): agrega Phase.SPEC_REVIEW y approve_spec.\n\nDecisión git/export:\n- .godot_agent/.gdignore deja la carpeta fuera del FileSystem y del export; además, el export plugin saltea res://.godot_agent/;\n- la carpeta entra en los checkpoints, sincronizada con el código;\n- SUMMARY_PATHSPEC la excluye de «Revisar cambios».\n\nFeedback del usuario, resuelto en 755ef8b (oneshot-wip):\n- durante la revisión, la columna Plan muestra el spec con «Editar» y «Aprobar spec»;\n- diálogo con pestañas Spec, Progreso y QA, más «Mostrar en carpeta» y «Abrir con editor externo»;\n- los links a .godot_agent desde el chat abren ese visor; otros archivos que no son recursos usan OS.shell_open.",
-  "order": 10,
+  "order": -8,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "test_oneshot_files; oneshot_check «spec» (espera, guiar, aprobar con cambios, termina, spec.md en git, informe con files_dir); --godot-agent-oneshot-test con Revisar/Aprobar spec. Matriz 4.6.3/4.7.2/4.8-beta1 + 24 UI checks en verde.",
   "title": "One-shot: spec y progreso en archivos (planner y traspaso)",
-  "updated_at": "2026-10-22T07:01:31.966Z"
+  "updated_at": "2026-10-29T22:14:18.583Z"
 }

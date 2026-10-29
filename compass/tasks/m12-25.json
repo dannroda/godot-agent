@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:39.614Z",
   "description": "Presupuestos y checkpoint repetidos; los umbrales de cuota quedan abajo de los criterios.\n\nPropuesta: Acá «Valores iniciales de cada One-shot»; la cuota en su propia sección.\n\nArchivos: settings_dialog._build_oneshot\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)",
+  "done_at": "2026-10-29T22:15:35.149Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en ee0c73e sin atribución.\nUX: Ajustes › One-shot son los valores iniciales y la cuota tiene su sección (m12-25)\nNota: «One-shot y cuota» se parte en dos secciones. «One-shot» titula\n«Valores iniciales de cada One-shot (por proyecto)» con una línea que dice que\nla pantalla One-shot arranca con esos y ahí se cambian por corrida; sigue con\nloops, vueltas de QA y criterios. «Cuota del plan» (nueva, después de\nOne-shot) tiene aviso, pausa y qué hacer al reiniciarse, con una línea sobre el\nanillo; la validación de los umbrales lleva ahí. Wiki (en y es) al día.",
-  "order": 25,
+  "order": -22,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "ajustes"
   ],
   "test": "test_settings_dialog (el umbral de pausa ahora apunta a QUOTA), test_i18n; capturas de las 8 secciones en Xvfb (--godot-agent-settings-shots, pasa).",
   "title": "Ajustes › One-shot repite la pantalla de One-shot",
-  "updated_at": "2026-10-29T12:51:27.495Z"
+  "updated_at": "2026-10-29T22:15:35.149Z"
 }

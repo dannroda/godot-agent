@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:41.276Z",
   "description": "Para saber qué lee Antigravity hay que abrir el desplegable archivo por archivo.\n\nPropuesta: Lista de archivos con quién lo lee al lado y el editor a la derecha.\n\nArchivos: instructions_tab.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)",
+  "done_at": "2026-10-29T22:15:38.792Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en c7e0c61 sin atribución.\nUX: Extensiones › Instrucciones con la lista de archivos y quién lee cada uno (m12-32)\nNota: el desplegable de archivos pasa a una lista a la izquierda (Tree) con dos\nlíneas por archivo: el nombre (o «(nuevo)» si todavía no existe, en gris) y qué\nagente lo lee (CLAUDE.md · Claude Code, AGENTS.md · Codex, Antigravity…, las\nreglas y workflows encontrados con el suyo). El editor y sus botones van a la\nderecha, con «CLAUDE.md · Lo lee Claude Code.» arriba. «+ Regla o workflow» abre\nel mismo diálogo de antes.",
-  "order": 32,
+  "order": -29,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "extensiones"
   ],
   "test": "--godot-agent-extensions-shots en Xvfb (pasa; captura de Instrucciones), test_claude_extensions y test_i18n (headless).",
   "title": "Extensiones › Instrucciones: qué agente lee cada archivo",
-  "updated_at": "2026-10-29T12:51:30.893Z"
+  "updated_at": "2026-10-29T22:15:38.792Z"
 }

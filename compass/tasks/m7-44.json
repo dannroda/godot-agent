@@ -26,14 +26,15 @@
     }
   ],
   "description": "Pedido del usuario (2026-10-23, para después): poder tener múltiples sesiones de agente abiertas en el editor, coordinadas para no pisarse (archivos y escenas en edición, el juego corriendo, checkpoints). Investigar cómo lo hace el plugin «backstitch» pero local, y la funcionalidad de Claude Code para que sesiones se comuniquen entre sí (mensajes entre sesiones locales). Decidir: locks por archivo/escena en el harness, cola para run_game, un canal compartido; y cómo se ve en el dock (pestañas por sesión).",
+  "done_at": "2026-10-29T22:14:51.088Z",
   "milestone": "m07",
   "notes": "Commit 59f352c (worktree-skills-tab). Research: backstitch (inkandswitch) is real-time version control with Automerge (CRDT), not agent coordination. What carries over is the visual diff idea. Claude Code has cross-session messaging (ListAgents/SendMessage over a Unix socket), but claude-agent-acp 0.95 doesn't bring it to the client, and ACP has nothing for messages between sibling sessions. Implemented: SessionTabs (one AgentDock per session, + opens another, close only on the extras); the first one (PRIMARY_SESSION \"s1\") keeps One-shot, Review annotations and Remote Control. plugin._make_controller wires each session: its own FsHandler, its own MCP token (McpServer.session_token; registry.call_tool gets the caller; session_authorizer uses that session's controller). SessionCoordinator: per-turn file claims (released on turn_finished or on close), enforced in controller.file_guard (edit permission + fs/write) and in registry.guard (godot.* tools in edit_scene/edit_files/project, paths res:// from args or the open scene); the game belongs to whoever launched it while it runs, run_scene from another session waits up to 90 s, game_*/stop/capture of someone else's game are rejected. godot.sessions / godot.session_send (extended, via godot.run) to see the others and send a message that arrives as a queued prompt. Not done: a real run with two Claude agents at once (token routing tested over HTTP and the guard in the editor); checkpoints are still per One-shot (primary session only).",
-  "order": 44,
+  "order": -21.984375,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "test": "Unit: tests/unit/test_sessions.gd (claims, game queue, registry guard and caller, controller file guard, session tools) and test_mcp_server.test_session_tokens; 283 tests. Editor: tests/run_in_xvfb.sh godot --godot-agent-sessions-test=<prefix> → PASS (opens a second tab, its own token, s2 can't touch a file s1 copied, godot.sessions shows it, it frees up at the end of the turn, closing revokes the token). cycle, i18n, queue, auto, review, oneshot, login, remote, edit, sync, run, mcp and external all pass.",
   "title": "Varias sesiones abiertas a la vez que se coordinan entre sí",
-  "updated_at": "2026-10-27T17:32:00.899Z"
+  "updated_at": "2026-10-29T22:14:51.088Z"
 }

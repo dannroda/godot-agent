@@ -3,6 +3,7 @@
   "code": "",
   "created_at": "2026-10-22T08:24:08.784Z",
   "description": "Como fs.move/copy/delete de swallowtail. Mover o renombrar actualiza las rutas res:// en escenas y recursos, mueve los .uid/.import y mantiene el uid. Copiar da un uid nuevo. Borrar se niega si algo lo referencia o si es una escena abierta, y dice qué se rompería. Hoy el agente usa mv/rm y una escena queda rota sin aviso. Con las tools, el harness puede rechazar mv/rm/cp dentro del proyecto (extensión de D48).",
+  "done_at": "2026-10-29T22:14:07.212Z",
   "links": [
     {
       "task": "m7-18",
@@ -11,15 +12,15 @@
   ],
   "milestone": "m04",
   "notes": "Commit 819ddf7 (rama swallowtail-tools). D50 en docs/decisions.md.\n- `mcp/tools/file_tools.gd` (grupo edit_files): `move_file`, `copy_file`, `delete_file`. Los archivos reescritos pasan por EditorSync.after_agent_write (scripts abiertos, escenas abiertas, conflictos).\n- copy_file trae también archivos de afuera del proyecto (assets bajados).\n- delete_file va a la papelera del sistema cuando se puede (la prueba deja un hero_copy.tscn en la papelera por corrida).\n- Guard: mv, cp (destino), rm, rmdir, unlink, git mv/rm sobre el proyecto → rechazo.\n- Sin deshacer del editor (no hay API para el FileSystem); quedan checkpoints y git.\n- Hallazgo: reescribir un script recarga ese script en el editor y corta sus corrutinas suspendidas. Le pasó a la propia prueba (tenía la ruta como literal). Las tools del harness son síncronas, y `addons/godot_agent` queda fuera de las reescrituras.",
-  "order": 10,
+  "order": -8,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "swallowtail"
   ],
   "test": "`test_project_write_guard.test_file_commands` (mv, rm -rf, cp hacia el proyecto sí / hacia afuera no, git mv, sudo con ruta absoluta, rm en /tmp, rm dentro de un string). `--godot-agent-edit-test` en 4.8-beta1 (dos corridas seguidas) y 4.6.3: mover una escena instanciada por otra y precargada por un script reescribe ambas y mantiene el uid; mover la carpeta y el script (con su .uid) también; la escena que la instancia sigue cargando con el script; delete_file se niega y lista level.tscn y spawner.gd; copy_file da uid nuevo; delete_file sin referencias borra; no mueve una escena abierta ni pisa un archivo.",
   "title": "Mover, copiar y borrar archivos arreglando referencias",
-  "updated_at": "2026-10-22T20:33:08.953Z"
+  "updated_at": "2026-10-29T22:14:07.212Z"
 }

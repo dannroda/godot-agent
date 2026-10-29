@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-28T19:15:09.882Z",
   "description": "La pestaña de Extensiones (skills, plugins, marketplaces) es solo de Claude Code. Investigar y soportar lo equivalente de cada agente con perfil: Codex (skills, AGENTS.md, config de MCP), Antigravity (AGENTS.md y GEMINI.md, reglas, workflows y skills, a confirmar dónde los lee), Copilot, Cursor y OpenCode. Lo que sea por archivos se arma desde el editor; lo que el agente anuncie por ACP (available_commands, configOptions) ya se muestra.",
+  "done_at": "2026-10-29T22:15:20.403Z",
   "milestone": "m11",
   "notes": "Extendidas las pestañas Skills, Instructions y MCP de Extensions a todos los agentes: detección de perfil (Claude, Codex, Antigravity, Copilot, Cursor, OpenCode) en ClaudeExtensions.agent_kind(); escaneo, creación, importación y copia de skills en SkillCatalog y SkillsTab; edición y alta de instrucciones, reglas y workflows en InstructionsTab; y lectura de MCP servers desde config.toml de Codex, mcp_config.json de Antigravity, .cursor/mcp.json, .vscode/mcp.json y opencode.json en ClaudeExtensions.agent_mcp_servers().\n\nRevisión (2026-10-28, 2431546, 651d557 y c32c82c): regresión en Claude: project_dirs listaba .agents/skills, .codex/skills, etc. para todos y aparecían como del proyecto skills que Claude no carga. Ahora PROJECT_SKILL_DIRS da las de cada agente. .mcp.json ya no se lista para agentes que no son Claude. config.toml de Codex con un lector de TOML acotado (extensions/toml_lite.gd): comentarios al final, arrays de varias líneas, strings literales, strings de comillas triples, tablas en línea, claves con puntos. Rutas de Antigravity verificadas contra la documentación actual: .agents/rules, .agents/workflows, .agents/skills, .agents/plugins, ~/.gemini/config/skills, ~/.gemini/config/mcp_config.json y ~/.gemini/config/plugins son las vigentes (.agent/ sigue por compatibilidad). Quedan: JSONC (opencode.jsonc, .vscode/mcp.json con comentarios) no se lee; Gemini CLI se detecta como «other»; borrar una skill de ~/.agents/skills la saca para todos los agentes sin decirlo.",
-  "order": 19,
+  "order": -17,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "godot --headless --path . --script tests/run_all.gd -- claude_extensions skill_catalog (test_codex_toml_variants, test_codex_toml_multiline_strings y test_project_dirs_per_agent). No probado en el editor con perfiles de cada agente.",
   "title": "Extensiones por agente: skills, plugins, reglas e instrucciones",
-  "updated_at": "2026-10-28T23:17:11.082Z"
+  "updated_at": "2026-10-29T22:15:20.403Z"
 }

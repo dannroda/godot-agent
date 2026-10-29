@@ -4,14 +4,15 @@
   "code": "4.6",
   "created_at": "2026-10-21T04:33:14.812Z",
   "description": "\"Agregá un Label WaveLabel al HUD y conectá la señal X\": aparece en el árbol, Ctrl+Z lo deshace en pasos; run_scene devuelve errores reales con un script roto. Tras run_scene, run manual y editor matado a mitad de un playtest, el autoload no queda en project.godot y export_check sigue pasando.",
+  "done_at": "2026-10-29T22:14:05.363Z",
   "milestone": "m04",
   "notes": "docs/progress.md (sección M4) y decisions.md D19–D21. El prompt de sistema suma reglas para edición en pasos chicos y para run_scene/capture/stop. Los editores 4.4/4.7 reescriben tests/fixtures/main_fixture.tscn al correr la suite (sin unique_id): se restaura con git checkout, igual que project.godot.",
-  "order": 6,
+  "order": -4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "- Claude Code real (`tests/run_in_xvfb.sh $G --godot-agent-claude-scene-test`, 4.8 y 4.4.1): agregó WaveLabel bajo HUD con add_node y conectó WaveTimer.timeout con connect_signal; el primer Ctrl+Z deshizo la conexión y el siguiente el Label; el .tscn en disco no cambió.\n- run_scene con un script roto: run_check.gd (\"se detuvo en el debugger … queue_free … run_broken.gd\").\n- Autoload: run_check.gd (después de run_scene, de un juego que terminó solo y de un run manual) y `setsid -w tests/crash_check.sh $G` (editor matado con el autoload recién registrado y con un run en curso; al reabrir no está en project.godot y export_check pasa).\n- Suite completa (unit 58/353, acp, export, cycle, sync, ui, mcp, edit, run) en 4.4.1, 4.7.2 y 4.8-beta1.",
   "title": "Verificar M4",
-  "updated_at": "2026-10-21T06:46:44.978Z"
+  "updated_at": "2026-10-29T22:14:05.363Z"
 }

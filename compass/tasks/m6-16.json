@@ -3,14 +3,15 @@
   "code": "",
   "created_at": "2026-10-22T07:10:52.974Z",
   "description": "El usuario pidió (2026-10-22) ver cuánto tarda la sesión en hacer cada cosa.\n\nQué hacer:\n- Mientras corre: cada tarea del plan muestra su duración (las terminadas, cuánto tardaron; la actual, un contador).\n- La actividad registra el fin de cada turno con su duración.\n- Las tool calls muestran su duración (el dock ya lo hace por grupo).\n- Al final: el informe ya tiene las duraciones por tarea (D39); sumar el desglose por turno y el tiempo de espera por cuota.",
+  "done_at": "2026-10-29T22:14:21.177Z",
   "milestone": "m06",
   "notes": "f9b7582.\n- RunReport suma:\n  - turns [{started_ms, ms, reason, tools}] y waits (quota, paused, spec_review);\n  - el tiempo acumulado (ms) de cada tool;\n  - task_ms() para la duración de una tarea;\n  - format_ms().\n- El informe gana timing (trabajando, turnos, promedio, el más largo, esperas), la sección «Tiempos» y la columna de tiempo en Tools.\n- Run:\n  - una actividad «Turno N · duración · n tools» por turno, con el motivo si fue cortado o falló;\n  - la duración en cada actividad de tool;\n  - las esperas se miden en _set_phase (WAIT_KINDS).\n- Plan: un label de duración por tarea que se actualiza en cada refresco sin rearmar la lista.\n- Además: is_git_busy() cuenta las operaciones en cola (_git_pending); antes daba false un frame entre operaciones y el escenario de cuota fallaba de forma intermitente.",
-  "order": 16,
+  "order": -13,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "test_run_report (timing, markdown, persistencia, task_ms, format_ms). oneshot_check: actividad de turnos y espera por cuota en el informe. --godot-agent-oneshot-test: duraciones en el plan.",
   "title": "One-shot: tiempos visibles de tareas, turnos y tools",
-  "updated_at": "2026-10-22T07:21:27.921Z"
+  "updated_at": "2026-10-29T22:14:21.177Z"
 }

@@ -12,17 +12,18 @@
     }
   ],
   "description": "Como engine.classinfo/search/docs de swallowtail. Tool de lectura que responde con lo que tiene la versión de Godot del editor abierto: métodos, propiedades, señales, constantes y herencia de una clase (ClassDB), búsqueda por nombre o capacidad, y la documentación cuando esté disponible. Evita APIs inventadas o de otra versión (4.6 vs 4.8). Sirve en todos los modos, incluido Preguntar.",
+  "done_at": "2026-10-29T22:14:00.847Z",
   "milestone": "m03",
   "notes": "Commit fe41b95 (rama swallowtail-tools). `mcp/tools/api_tools.gd`, grupo read (sirve en Preguntar):\n- `class_info(class, member?, inherited?, description?)`: herencia, métodos con firma (virtual/const/static), propiedades con default, señales, enums y constantes, con una línea de descripción. Sin `inherited`, solo los miembros propios. `member` busca también en los ancestros y da la descripción completa. Clase inexistente → nombres parecidos.\n- `search_api(query, kind?, class?)`: todas las palabras en el nombre (y en la descripción breve, para clases). Índice de ~19k entradas en ~300 ms, se arma la primera vez; no pide defaults (ClassDB instanciaría cada clase).\n- Engine classes desde ClassDB + caché; built-ins, @GlobalScope y @GDScript solo del caché; class_name del proyecto desde su script.\n- System prompt: consultar estas tools antes de usar una API dudosa. Wiki (en/es) y spec §6 actualizados.",
-  "order": 8,
+  "order": -6,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "swallowtail"
   ],
   "test": "`tests/unit/test_api_tools.gd` (firmas con defaults, sin setters, herencia, miembro heredado, built-ins y @GlobalScope desde el caché, sugerencias para KinematicBody2D, búsqueda con filtros, BBCode a texto, índice en <3 s): pasa en 4.6.3, 4.7.2 y 4.8-beta1. `--godot-agent-mcp-test` en el editor real (4.8-beta1): tools/list las incluye, class_info Timer con descripción, class_name del proyecto y search_api.",
   "title": "Consultar la API del motor",
-  "updated_at": "2026-10-22T21:22:18.376Z"
+  "updated_at": "2026-10-29T22:14:00.847Z"
 }

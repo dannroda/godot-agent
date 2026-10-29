@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:38.653Z",
   "description": "Sin agentes, una línea sobre $VAR y dos botones. «Predeterminado» es texto que es botón, y Editar abre el formulario debajo de la lista.\n\nPropuesta: Sin agentes, los tres sugeridos. Con agentes, lista a la izquierda y formulario a la derecha; estrella de predeterminado; la nota de $VAR junto al campo de entorno.\n\nArchivos: settings_dialog._build_agents\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)",
+  "done_at": "2026-10-29T22:15:32.662Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en ebb6759 sin atribución.\nUX: Ajustes › Agentes con sugeridos, lista y formulario lado a lado y estrella (m12-21)\nNota: sin agentes, la página muestra Claude Code, Codex y Google Antigravity\ncon lo que pide cada uno y «Agregar» (core/suggested_agents.gd, que va a usar\ntambién el dock en m12-15): Claude Code se arma directo (npx, queda\npredeterminado si es el primero); Codex y Antigravity abren el registro de ACP\nfiltrado por su nombre, porque el registro da el comando de cada plataforma. Con\nagentes: la lista a la izquierda (clic en la tarjeta la edita y la marca), el\nformulario a la derecha, una estrella para el predeterminado (☆ → ★) y quitar\ncomo ícono; la nota de $VAR va debajo del campo de entorno.",
-  "order": 21,
+  "order": -18,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "ajustes"
   ],
   "test": "test_settings_dialog.test_agents_page, test_i18n (headless); captura de Ajustes › Agentes sin agentes en Xvfb (--godot-agent-settings-shots), que pasa.",
   "title": "Ajustes › Agentes: vacío sin guía y el formulario lejos",
-  "updated_at": "2026-10-29T12:51:25.629Z"
+  "updated_at": "2026-10-29T22:15:32.662Z"
 }

@@ -4,14 +4,15 @@
   "code": "6.3",
   "created_at": "2026-10-21T04:33:15.215Z",
   "description": "Prompt inicial (objetivo, modo, plan, bloque checks, run_scene/capture/get_errors tras cada tarea). Presupuestos de tiempo, tokens y playtests: aviso al 80%, al 100% session/cancel + prompt de cierre con reporte final. \"Guiar al agente\" encola un prompt para el fin del turno.",
+  "done_at": "2026-10-29T22:14:14.639Z",
   "milestone": "m06",
   "notes": "oneshot/oneshot_run.gd (Node), fases IDLE/PREPARING/RUNNING/PAUSED/PAUSED_QUOTA/LIMITED/WAITING_CONFIRM/CLOSING/FINISHED.\n- preflight(use_checkpoints) → {needs_wip_confirm, warning}; start(goal, budgets, checkpoints).\n- Turnos con controller.send_in_mode(ONESHOT). Checks del texto de cada turno (FindingsParser, formato del spec {label, status}).\n- Checkpoint al pasar una entrada del plan a in_progress.\n- Auto-continuación si quedan tareas pendientes (máx. 3 turnos seguidos sin avance).\n- Guía encolada para el fin del turno. edit_plan → guía.\n- Presupuestos:\n  - tiempo activo, sin pausas ni limitado;\n  - tokens = input + output + cache writes del usage de session/prompt, sin las lecturas de caché (D24);\n  - playtests = run_scene completados.\n  Aviso al 80 % (notice + actividad); al 100 %, cancel y prompt de cierre.\n- Actividad con hh:mm:ss desde el inicio. Última captura = imagen en el contenido de un tool call.\n- pause/resume/stop/restore/accept_all/changes_summary. Sesión perdida: sesión nueva con un prompt resumen (plan, checks, checkpoints).\n- Operaciones git serializadas (_git).",
-  "order": 3,
+  "order": -1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "tests/oneshot_check.gd (headless, agente falso, 30 checks) en 4.4.1, 4.7.2 y 4.8:\n- escenario oneshot_quota: prompt inicial con objetivo y bloque checks; checkpoints por tarea; playtest contado; captura; checks; pausa por cuota; límite; reanudación sola y con confirmación; fin del plan;\n- escenario oneshot_budget: aviso al 80 % de playtests; la guía va al terminar el turno; al 100 %, session/cancel y prompt de cierre con reporte final; motivo de fin; checks del reporte.",
   "title": "Loop One-shot y presupuestos",
-  "updated_at": "2026-10-21T07:36:00.541Z"
+  "updated_at": "2026-10-29T22:14:14.639Z"
 }

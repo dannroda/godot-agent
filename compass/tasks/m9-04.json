@@ -4,14 +4,15 @@
   "code": "8b.4",
   "created_at": "2026-10-21T04:34:10.193Z",
   "description": "Pasos de §16.6 en orden (tokens FIM, recorte al bloque, solapamiento con suffix, indentación del editor, descartes, chequeo de balanceo) y caché LRU por hash de prefix. Tests con salidas defectuosas reales.",
+  "done_at": "2026-10-29T22:15:05.698Z",
   "milestone": "m09",
   "notes": "PostProcessor.process(text, request, max_lines, stops). Con suffix no vacío fuerza una línea. Sangría con request.indent_unit() (indent_use_spaces/indent_size del CodeEdit). SuggestionCache: 64 entradas, clave ruta:hash del texto:línea:largo del prefijo:manual:generación del proveedor (índice, ProjectSettings, escena abierta, historial; agregada por la revisión: sin ella devolvía sugerencias viejas). Los resultados en caché se marcan cached y se loguean como hit.",
-  "order": 4,
+  "order": -2,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "run_all -- completion: test_post_processor_defective_outputs (FIM, stops, recorte, solapamiento, sangría tabs/espacios, paréntesis multilínea), test_suggestion_cache (LRU, hits/misses). El servicio vacía la caché al publicar índice y al cambiar Settings.",
   "title": "PostProcessor y SuggestionCache",
-  "updated_at": "2026-10-21T11:18:54.344Z"
+  "updated_at": "2026-10-29T22:15:05.698Z"
 }

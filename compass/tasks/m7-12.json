@@ -3,14 +3,15 @@
   "code": "",
   "created_at": "2026-10-22T04:25:57.653Z",
   "description": "Al cerrar, el One-shot le pide al agente un reporte final en texto (\"qué quedó hecho, qué falta y cómo probarlo\"). Pero el harness no arma un informe propio con datos medidos. Sin ese informe no se pueden comparar corridas, ni saber si conviene cambiar de modelo, ajustar el prompt o sumar una tool. Es el punto de \"observability & evaluation\" del artículo \"Agent Harness — A no-BS guide\".\n\nQué hacer: al terminar (por cualquier motivo), generar un informe a partir de datos que ya tenemos (activity, tool calls, plan, checks, budgets, checkpoints). Debe incluir:\n- el objetivo y el motivo de cierre;\n- la duración total y por tarea del plan;\n- los tokens usados, los playtests y el presupuesto consumido;\n- las tools usadas: conteo por tool y fallidas;\n- los checks: estado final y cuántas veces falló cada uno;\n- los checkpoints creados, los permisos pedidos y denegados, y los errores de turno y pausas por cuota;\n- los archivos cambiados (`changes_summary`).\n\nSe muestra en la pantalla del One-shot y se guarda en `user://godot_agent/oneshot/<id>.report.json` (junto a lo de m7-09), para compararlo con otras corridas. Opcional: exportarlo como Markdown.",
+  "done_at": "2026-10-29T22:14:34.177Z",
   "milestone": "m07",
   "notes": "c2faff8 (D39). RunReport (oneshot/run_report.gd) junta métricas mientras corre (tareas in_progress→completed, tools por nombre con fallas, fallas por check, eventos: turnos, errores, permisos pedidos/denegados, pausas por cuota, límites, loops, guías) y se guardan dentro del estado (sobreviven a una caída). _finish → _write_report: build + changes_summary → store.save_report(<id>.report.json), se poda con el run. UI: botón «Informe» (barra de abajo, al terminar) con el Markdown renderizado y «Copiar Markdown».",
-  "order": 12,
+  "order": -7,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "test_run_report; oneshot_check (recuperación: informe en disco con lo de antes de la caída; loop: loops/guías/fallas); --godot-agent-oneshot-test abre el informe y busca godot.run_scene y pong.gd. Matriz completa en verde.",
   "title": "One-shot: informe de métricas de la corrida",
-  "updated_at": "2026-10-22T05:47:06.898Z"
+  "updated_at": "2026-10-29T22:14:34.177Z"
 }

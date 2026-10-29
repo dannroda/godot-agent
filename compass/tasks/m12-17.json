@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:37.714Z",
   "description": "Texto, plan, herramientas y respuesta en cajas iguales; nombres técnicos cortados (godot.connect_sig…), salida y spawner.gd:13 sueltos.\n\nPropuesta: Texto del agente sin caja; grilla de tres columnas con nombres para personas y la salida anidada.\n\nArchivos: conversation_view.gd, tool_group_view.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)",
+  "done_at": "2026-10-29T22:15:30.818Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en 1b83347 sin atribución.\nUX: el texto del agente sin caja y las herramientas en grilla con nombres para personas (m12-17)\nNota: el mensaje del agente ya no va en un recuadro (el estilo del RichTextLabel\ndel editor): se lee como texto, y las cajas quedan para el código, las\nherramientas y las tarjetas. En el grupo de herramientas, las godot.* muestran un\nnombre para personas («Connect signal», «Scene tree», «Set properties»; el técnico\nen el tooltip) y ninguno pasa de 22 caracteres; la columna del nombre toma el\nancho del más largo del grupo, así estado, nombre y resumen quedan alineados en\ntres columnas (antes el nombre era un 40 % fijo que cortaba «godot.connect_sig…»).\nLa salida, los diffs y los enlaces («spawner.gd:13») van anidados bajo la fila.\nDecisión: la sangría de lo anidado es la de la columna de estado y no la del\nresumen: con la del resumen, un diff (que ya pide su ancho) ensanchaba el dock.",
-  "order": 17,
+  "order": -14,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "dock"
   ],
   "test": "test_tool_group_view.test_short_names_for_people, run_all; en Xvfb la captura de --godot-agent-ui-test=docs_build (antes y después) y --godot-agent-remote-test, que verifica que el dock entra en su panel.",
   "title": "Todo va en una caja y las herramientas se cortan",
-  "updated_at": "2026-10-29T12:51:24.225Z"
+  "updated_at": "2026-10-29T22:15:30.818Z"
 }

@@ -4,14 +4,15 @@
   "code": "8b.5",
   "created_at": "2026-10-21T04:34:10.240Z",
   "description": "tests/completion_eval/ con 30–50 recortes reales y script headless que corre cualquier combinación de fuentes: exact match de primera línea, similitud por tokens, cobertura, falsos positivos y latencia, por fuente.",
+  "done_at": "2026-10-29T22:15:06.271Z",
   "milestone": "m09",
   "notes": "tests/completion_eval/project: juego propio \"Mossy Caverns\" (33 scripts, 20 escenas, .gdignore). cases.txt: file | line | cut, ⏎ marca espacio final, 4 grupos. El runner corta el archivo en el caret y lo pasa como buffer sin guardar. El historial arranca vacío por caso (se prueba en unit).",
-  "order": 5,
+  "order": -3,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "godot --headless --path . --script tests/run_completion_eval.gd [-- combos] [--cases]: 48 casos, tabla por combinación y por fuente ganadora (exactas, correctas, FP, similitud, cobertura, p50/p95). test_completion_eval valida los casos y corre la regresión.",
   "title": "Set de evaluación del completado",
-  "updated_at": "2026-10-21T11:18:49.513Z"
+  "updated_at": "2026-10-29T22:15:06.271Z"
 }

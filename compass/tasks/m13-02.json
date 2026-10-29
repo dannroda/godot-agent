@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:37:59.099Z",
   "description": "Revisar el GDScript del addon contra los patrones de Godot 4: ciclo de vida de nodos y RefCounted (ciclos de referencias como el del crash de 4.8), await y señales que sobreviven al nodo, call_deferred, @tool y recarga de scripts en caliente, Resources compartidos, Window/AcceptDialog y layout (wrap_controls, autowrap), y rendimiento en el editor. Informe y una tarea por hallazgo.",
+  "done_at": "2026-10-29T22:15:47.308Z",
   "milestone": "m13",
   "notes": "Informe en docs/revisiones/patrones.md (P1–P7). Arreglados P2–P7 en df66c50 y P1 en parte (preautorización en session/preauthorizations.gd, siguiente commit). P2: lo que espera un permiso o una pregunta sigue en el frame siguiente (salvo pedido retirado por el agente). P3: run_all falla los tests con errores de script (Logger). P4: guardas tras los await del dock. P5: AtomicFile.write_text. P6: tope de 256 en _cancelled_outgoing. P7: el completado apaga _process cuando está apagado. El resto de P1 pasa a m13-03 con el orden propuesto en el informe.",
-  "order": 2,
+  "order": 0,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "tags": [
     "revision",
     "patrones"
   ],
   "test": "run_all: 364 tests (test_atomic_file, test_acp_client.test_cancelled_requests_are_capped, el runner probado con un test que falla a propósito); un error de script ahora falla el test.",
   "title": "Revisión de patrones de Godot",
-  "updated_at": "2026-10-29T13:09:10.111Z"
+  "updated_at": "2026-10-29T22:15:47.308Z"
 }

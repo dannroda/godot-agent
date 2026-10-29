@@ -4,14 +4,15 @@
   "code": "1.4",
   "created_at": "2026-10-21T04:32:00.907Z",
   "description": "Fuente de verdad: entradas (mensajes con merge de chunks, thoughts), tool calls por toolCallId, plan, modo, permisos pendientes, uso de tokens, comandos disponibles. Señales granulares; no hace IO. Variantes desconocidas de session/update se loguean y se ignoran.",
+  "done_at": "2026-10-29T22:13:43.674Z",
   "milestone": "m01",
   "notes": "Archivos: session/session_model.gd, chat_entry.gd y tool_call.gd.\n- Estados: DISCONNECTED/STARTING/READY/PROMPTING/CANCELLING/FAILED.\n- HarnessMode vive en el modelo.\n- Señal entry_removed: el plan se re-ubica al final.",
   "order": 4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "tests/unit/test_session_model.gd (7 tests) cubre:\n- merge por messageId;\n- thoughts;\n- grupos de tool calls;\n- cancel → cancelled;\n- plan (que se mueve al final);\n- variantes desconocidas;\n- content_to_text.",
   "title": "SessionModel: estado de la conversación",
-  "updated_at": "2026-10-21T04:54:12.079Z"
+  "updated_at": "2026-10-29T22:13:43.674Z"
 }

@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-28T19:15:10.136Z",
   "description": "Claude (usage_update _meta _claude/rateLimit) y Antigravity (/usage) ya informan la cuota. Ver qué informan Codex, Copilot y Cursor por ACP (usage_update, _meta, comandos como /status) y leerlo sin endpoints ni archivos del agente (regla de QuotaMonitor).",
+  "done_at": "2026-10-29T22:15:20.788Z",
   "milestone": "m11",
   "notes": "Codex (codex-acp): usage_update solo trae tokens de contexto, pero su comando local /status (sin gastar tokens) informa las ventanas de 5 h y semanal de RateLimitsMap y la cuenta; SessionController._query_agent_usage lo pide igual que /usage de Antigravity, y _auth/status_update mantiene model.account al día. OpenCode: reintentos por límite en session_info_update (_meta[\"opencode/retry\"]). Copilot y Cursor no mandan ventanas de cuota por ACP: se detectan sus errores y textos de límite.\n\nRevisión (2026-10-28, 2431546, 651d557 y c32c82c): Codex nunca se detectaba: el adaptador del registro se llama @agentclientprotocol/codex-acp, y el viejo de Zed (codex-acp) no tiene /status y se lo mandaría al modelo como prompt. Ahora _usage_agent() pide nombre …/codex-acp y que anuncie el comando status. La consulta oculta se cancela a los 20 s (session/cancel + $/cancel_request), y no hace nada si el agente ya se detuvo. La cuenta de _auth/status_update se borraba con el _refresh_account del session/new; ahora se guarda (_agent_account) y se olvida al reiniciar el agente o cerrar sesión. Retry real de OpenCode (provider.rate-limit, status 429). Los códigos insufficient_quota, rateLimitExceeded, etc. solo se buscan en errores (LIMIT_CODES_IN_ERRORS), no en la prosa del agente. /status: fechas con locale (3 dic., 3 de nov.), 24:05 como 00:05, grupos con espacios, y el límite de gasto del asiento no pisa la semanal. Queda: el offset de zona es el de hoy y no el del día del reinicio (cambio de horario).",
-  "order": 20,
+  "order": -18,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "tests/unit/test_quota_monitor.gd test_codex_and_other_agents_quota, test_opencode_payload_and_codes_only_in_errors y test_codex_status_locale_and_spend. No probado contra codex-acp real.",
   "title": "Cuota de los demás agentes",
-  "updated_at": "2026-10-28T23:17:11.119Z"
+  "updated_at": "2026-10-29T22:15:20.788Z"
 }

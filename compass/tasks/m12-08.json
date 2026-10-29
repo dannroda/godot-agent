@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:35.609Z",
   "description": "«Asking the agent…» fijo en un panel vacío.\n\nPropuesta: El pedido entre comillas, «Claude Code · líneas 15–16», indicador animado y tiempo.\n\nArchivos: editor/inline_edit.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)",
+  "done_at": "2026-10-29T22:15:26.851Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en 889a52d sin atribución.\nUX: Alt+I esperando muestra el pedido, el agente, un indicador y el tiempo (m12-08)",
-  "order": 8,
+  "order": -5,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "alt-i"
   ],
   "test": "test_inline_edit.test_waiting_texts (headless); test_i18n. Sin captura.",
   "title": "Alt+I: esperando no dice qué se pidió ni muestra avance",
-  "updated_at": "2026-10-29T12:51:47.240Z"
+  "updated_at": "2026-10-29T22:15:26.851Z"
 }

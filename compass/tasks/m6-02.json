@@ -4,14 +4,15 @@
   "code": "6.2",
   "created_at": "2026-10-21T04:33:15.168Z",
   "description": "git con OS.execute y args en array: repo limpio o commit WIP con confirmación, rama agent/<timestamp>, commit cpN antes de cada tarea del plan, \"Volver acá\" con reset --hard solo en la rama del agente + scan + recarga de escenas. Nunca merge ni push. Sin git: se desactiva con aviso.",
+  "done_at": "2026-10-29T22:14:14.147Z",
   "milestone": "m06",
   "notes": "oneshot/git_checkpoints.gd:\n- OS.execute(\"git\", [\"-C\", root, …]) en un Thread, esperando frames;\n- pathspec \"-- . :(exclude).godot\" en add/status/diff/checkout/clean;\n- start(): checkout -b agent/<ts>, WIP si había cambios (en la rama del agente; la confirmación la pide la UI) y cp1;\n- checkpoint(label, suffix) hace commit --allow-empty --no-verify \"cpN[-quota]: label\";\n- restore() equivale a un reset --hard limitado a la carpeta del proyecto: reset --mixed sha + checkout -- . + clean -fd. Devuelve las rutas cambiadas para recargar el editor y solo corre en la rama del agente;\n- changes_summary() = add -A + diff --cached --numstat contra la base;\n- base_text() para los diffs;\n- accept() hace el commit final. Nunca merge ni push.\nSin user.email configurado usa -c user.name/user.email de fallback.",
-  "order": 2,
+  "order": 0,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "run_all -- git_checkpoints (2 tests, 33 checks) en 4.4.1, 4.7.2 y 4.8 sobre un repo temporal con el proyecto en una subcarpeta:\n- sin git o sin repo se desactiva con el motivo;\n- con cambios del usuario, el WIP va a la rama agent/<ts> y main no se toca;\n- cp1 \"Estado inicial\" y cpN;\n- changes_summary sin .godot;\n- restore deja player.gd como en cp2, borra los archivos nuevos (también los sin commitear), no toca .godot/ ni los cambios sin commitear fuera del proyecto, y descarta los checkpoints posteriores;\n- fuera de la rama del agente no commitea ni restaura;\n- accept deja las dos ramas, sin merge.\noneshot_check también verifica la cadena de commits cp1…cp5.",
   "title": "Checkpoints git",
-  "updated_at": "2026-10-21T07:36:00.273Z"
+  "updated_at": "2026-10-29T22:14:14.147Z"
 }

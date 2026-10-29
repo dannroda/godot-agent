@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:36.074Z",
   "description": "El mismo diff en la herramienta y en la tarjeta de permiso; «Siempre en esta sesión» primero y sin atajos.\n\nPropuesta: Resaltar la herramienta que espera y una barra de decisión fija sobre el composer: Permitir, Denegar y «siempre» como enlace. Enter/Esc solo con el foco en la barra (en el composer Enter encola y Esc detiene el turno).\n\nArchivos: entries/permission_view.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 2)",
+  "done_at": "2026-10-29T22:15:27.691Z",
   "milestone": "m12",
   "notes": "Hecho: orden fijo de botones por kind (sorted_options), foco en «Permitir una vez» al aparecer salvo que se esté escribiendo (Enter acepta), Esc deniega solo con el foco en la tarjeta (shortcut_context), y el diff plegado detrás de «Ver el cambio» cuando la herramienta ya lo muestra. No hecho: la barra fija sobre el composer (cambia el layout del dock; queda para cuando se rehaga el dock).",
-  "order": 10,
+  "order": -7,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "dock"
   ],
   "test": "test_permission_view.test_sorted_options; captura de la guía (permission) en Xvfb.",
   "title": "El permiso repite el diff y el botón riesgoso va primero",
-  "updated_at": "2026-10-29T06:48:38.185Z"
+  "updated_at": "2026-10-29T22:15:27.691Z"
 }

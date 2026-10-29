@@ -4,14 +4,15 @@
   "code": "2.5",
   "created_at": "2026-10-21T04:32:36.384Z",
   "description": "Leer devuelve el buffer del Script Editor si el archivo está abierto con cambios sin guardar (soporta line/limit). Escribir pasa por la política (edit_files) y la sincronización de §8. Rechazar rutas fuera del proyecto salvo directorios extra.",
+  "done_at": "2026-10-29T22:13:52.657Z",
   "milestone": "m02",
   "notes": "acp/fs_handler.gd no depende del editor.\n- buffer_reader = EditorSync.buffer_text (el buffer solo se usa si tiene cambios sin guardar).\n- after_write = EditorSync.after_agent_write.\n- Las rutas extra salen de ProjectConfig.extra_fs_roots.\n- Escribir .uid o .import se permite, pero queda un aviso en el log.",
-  "order": 5,
+  "order": 1.125,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "Lo cubren:\n- tests/unit/test_fs_handler.gd: rutas fuera del proyecto, .., relativas y .godot/; line/limit; prefiere el buffer; escritura denegada;\n- acp_session_check: write y read reales a través del agente falso.",
   "title": "fs/read_text_file y fs/write_text_file",
-  "updated_at": "2026-10-21T05:13:49.147Z"
+  "updated_at": "2026-10-29T22:13:52.657Z"
 }

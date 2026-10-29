@@ -3,14 +3,15 @@
   "code": "",
   "created_at": "2026-10-22T04:23:15.260Z",
   "description": "Si se modifica `transport/agent_process.gd` en disco mientras hay un agente corriendo (un git pull, o un proyecto que usa el addon por symlink), Godot recarga el script en caliente. El hilo `_watch_exit` sigue ejecutando el bytecode viejo, que ya fue liberado, y el editor muere con SIGSEGV. Visto el 2026-10-22 en little-villages; el backtrace está en `Thread::_start_func` → `GDScriptInstance::callp`.\n\nOpciones:\n- Detectar la recarga del script (por ejemplo con `NOTIFICATION_PREDELETE` o la recarga de scripts del editor) y detener los hilos antes de que ocurra.\n- Que los hilos no ejecuten GDScript del addon en el loop: usar una clase interna o mínima que no cambie, o hacer el polling desde el hilo principal.\n\nHay que reproducirlo en un test y confirmar que no crashea.",
+  "done_at": "2026-10-29T22:14:33.262Z",
   "milestone": "m07",
   "notes": "D35. `AgentProcess` ya no usa threads. Lee los pipes en `process_frame`, solo los bytes disponibles (`get_length()`: FIONREAD en Unix, PeekNamedPipe en Windows), así que no bloquea.\n- El pipe sigue siendo bloqueante: en modo no bloqueante, `store_buffer` podía escribir a medias en stdin sin avisar.\n- El exit se decide por el proceso y no por EOF. Muerto el proceso, se espera a que los pipes se vacíen y a que mueran los descendientes, hasta 2 s.\n- Descendientes: en Linux salen de `/proc/<pid>/task/*/children`, sin lanzar procesos. En macOS, pgrep cada 10 s.\n- Reproducción: con los threads, recargar `agent_process.gd` en headless crasheaba igual que en el editor.\n- Sin probar en Windows: puede quedar un error de PeekNamedPipe en Output al cerrar.\n- Quedan threads cortos en los checkpoints de git, el índice del completado y el historial.",
-  "order": 10,
+  "order": -5,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "`test_agent_process`: recarga el script con un proceso escribiendo y sigue leyendo. También cubre stdout, stderr, el exit después de la última línea, stdin y stop. Matriz 4.6.3, 4.7.2 y 4.8-beta1.",
   "title": "Crash al recargar agent_process.gd con un agente corriendo",
-  "updated_at": "2026-10-22T05:12:52.987Z"
+  "updated_at": "2026-10-29T22:14:33.262Z"
 }

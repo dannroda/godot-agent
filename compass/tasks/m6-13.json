@@ -3,14 +3,15 @@
   "code": "",
   "created_at": "2026-10-22T06:39:18.965Z",
   "description": "Pedido del usuario (2026-10-22): en la pantalla Agent, el campo para escribir el prompt del One-shot queda chico en monitores grandes. El panel del formulario tiene un ancho fijo de 640 px y el objetivo, 110 px de alto.\n\nQué hacer:\n- Que el formulario y el TextEdit del objetivo escalen con el tamaño de la pantalla, con un mínimo y un máximo razonables.\n- Revisar también el campo «Guiar al agente» de la vista del run: que sea multilínea y crezca.\n- Verificarlo con capturas a 1280×720 y a 2560×1440.",
+  "done_at": "2026-10-29T22:14:19.828Z",
   "milestone": "m06",
   "notes": "755ef8b (oneshot-wip).\n- El formulario ocupa el 62 % del ancho, entre 640 y 1400 px.\n- El objetivo ocupa el 40 % del alto disponible, con un mínimo de 110 px.\n- Los tamaños se recalculan con _fit_form, conectado a center.resized.\n- Se sacó el campo «Guiar al agente»: la guía va por el chat del dock, cuyo placeholder cambia durante el One-shot.",
-  "order": 13,
+  "order": -11,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "--godot-agent-oneshot-test verifica que el formulario crezca a 1920×1200 (captura _form). Matriz y UI checks en verde.",
   "title": "Pantalla Agent: el editor del objetivo es chico en monitores grandes",
-  "updated_at": "2026-10-22T07:01:31.898Z"
+  "updated_at": "2026-10-29T22:14:19.828Z"
 }

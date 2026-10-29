@@ -13,17 +13,18 @@
     }
   ],
   "description": "Reporte del usuario (little-villages): para sacar capturas de 4 semillas, el agente escribió /tmp/shoot_seeds.gd y lo corrió con `timeout 90 \"$GODOT\" --path . --script …` sin --headless (headless no dibuja). Se abrió el juego en una ventana aparte, gris, en vez de correrlo desde el editor. Rechazar sin tarjeta (como D48) los comandos que lanzan Godot sin --headless, y que el system prompt diga cómo sacar capturas: run_scene + game_call/game_set para preparar la situación + capture_game_frame.",
+  "done_at": "2026-10-29T22:14:43.192Z",
   "milestone": "m07",
   "notes": "session/godot_window_guard.gd: `windowed_launch(command, godot_bin)` parte el comando por ; && || | y saltos, saca prefijos (timeout con opciones y duración, env, VAR=…, nice -n, time, sudo…) y mira si el primer word es Godot ($GODOT, ${GODOT}, el binario del editor, godot*, Godot_v*) sin un flag que evite la ventana.\nSessionController lo aplica después del guard de D48: rechazo sin tarjeta, en todo modo, con aviso en el chat. Mismo límite que D48: si las reglas `allow` de Claude Code dejan pasar el comando, no hay pedido de permiso y solo queda el system prompt.\nSystem prompt: `$GODOT` siempre con --headless, y para ver el juego o sacar capturas (también de variantes, como semillas) run_scene + game_call/game_set/game_input + game_wait + capture_game_frame, nunca un script que renderice.",
-  "order": 30,
+  "order": -15,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "bug"
   ],
   "test": "- test_godot_window_guard (3 tests, 14 checks): el comando de la captura (`timeout 90 \"$GODOT\" --path . --script /tmp/shoot_seeds.gd …`) se rechaza; también godot del PATH, el binario del editor, ${GODOT}, binarios descargados y prefijos (timeout -k, env, VAR=). Pasan --headless, --display-driver headless, --version, --export-*, xvfb-run, y godot como argumento o dentro de un string.\n- Suite completa: 227 tests en 4.6.3, 4.7.2 y 4.8-beta1.\n- Falta: probarlo con Claude Code real pidiéndole capturas de varias semillas (que use run_scene + game_call + capture_game_frame).",
   "title": "El agente no abre Godot en una ventana desde la shell",
-  "updated_at": "2026-10-27T17:32:10.298Z"
+  "updated_at": "2026-10-29T22:14:43.192Z"
 }

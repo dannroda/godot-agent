@@ -4,14 +4,15 @@
   "code": "0.4",
   "created_at": "2026-10-21T03:47:19.071Z",
   "description": "Red de seguridad para exports con el plugin deshabilitado: agregar addons/godot_agent/* al exclude_filter de cada preset en export_presets.cfg, previa confirmación. Aviso visible (en M0 desde el dock; Settings llega en M7).",
+  "done_at": "2026-10-29T22:13:38.788Z",
   "milestone": "m00",
   "notes": "Banner en el dock (Settings llega en M7). Edita export_presets.cfg con ConfigFile previa confirmación; pide reiniciar el editor porque los presets viven en memoria y el diálogo de Export puede pisar el cambio (D6). El dock relee el archivo cada 2 s si cambió su mtime. Falta probar el banner a mano en el editor con ventana.",
-  "order": 4,
+  "order": 0.25,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "tests/unit/test_export_presets_patcher.gd (5 tests) + prueba manual 5 de docs/progress.md.",
   "title": "Botón \"Agregar a los presets\" (filtro de exclusión)",
-  "updated_at": "2026-10-21T04:23:24.972Z"
+  "updated_at": "2026-10-29T22:13:38.788Z"
 }

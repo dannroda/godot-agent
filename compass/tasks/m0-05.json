@@ -4,14 +4,15 @@
   "code": "0.5",
   "created_at": "2026-10-21T03:47:19.119Z",
   "description": "Exporta un preset de prueba como .zip con --export-pack, lo abre con ZIPReader y falla si encuentra archivos de addons/godot_agent/ o el autoload de playtest en project.binary. Debe pasar con el plugin habilitado y deshabilitado (con filtro).",
+  "done_at": "2026-10-29T22:13:39.363Z",
   "milestone": "m00",
   "notes": "Proyectos temporales en user://export_check/<escenario>. Incluye un escenario de control (plugin off, sin filtro) que tiene que detectar el addon, para que el test no pase por no mirar. El huérfano se escribe después del --import porque el plugin lo limpia al cerrar. Runner unitario: tests/run_all.gd + tests/unit/test_case.gd.",
-  "order": 5,
+  "order": 0.125,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "godot --headless --path . --script tests/export_check.gd → PASS (4 escenarios) en 4.4.1, 4.7.2 y 4.8-beta1.",
   "title": "Test headless de export (tests/export_check.gd)",
-  "updated_at": "2026-10-21T04:23:25.575Z"
+  "updated_at": "2026-10-29T22:13:39.363Z"
 }

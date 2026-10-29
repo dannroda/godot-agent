@@ -12,18 +12,19 @@
     }
   ],
   "description": "El usuario quiere manejar MCP, skills y plugins desde el editor como en Claude Code (pedido 2026-10-23, ejemplo: el MCP de Blender).\n\nHoy: el addon solo pasa su server godot en session/new; claude-agent-acp además carga los de la config de Claude Code (settingSources user/project/local: ~/.claude.json, .mcp.json), pero el addon no los muestra ni los maneja, y sus tools caen en el grupo Other (ask en todos los modos, One-shot se frena).\n\nHacer:\n- Pestaña Extensions en Settings → MCP: lista de servers propios del addon (stdio con command/args/env, o http con url/headers), por proyecto (res://, versionable) y globales (EditorSettings / user://). Se pasan en mcpServers de session/new y session/load, así sirven para cualquier agente ACP (Claude, Gemini, Codex).\n- Ver también los que el agente carga solo: en Claude, el estado que da `/mcp` del adaptador (conectado, falló, deshabilitado), con Reconectar y Habilitar/Deshabilitar (`/mcp reconnect|enable|disable <server>`).\n- Importar desde .mcp.json / ~/.claude.json y \"Agregar a Claude Code\" (claude mcp add-json, scope project o user) como opción.\n- Secretos (tokens en headers/env) fuera del repo: en user:// y agregados a AgentLog.add_secret.\n- Al cambiar la lista, se aplica en la próxima sesión (o reinicia la sesión con aviso).",
+  "done_at": "2026-10-29T22:14:45.038Z",
   "milestone": "m07",
   "notes": "Hecho: mcp/external_mcp_servers.gd (formato, validación, to_acp, secret_values, from_mcp_json), ui/settings/mcp_servers_page.gd arriba en Settings → Servidores MCP, project_config.mcp_servers y EditorSettings mcp/servers; plugin._mcp_servers agrega los habilitados (HTTP queda afuera con aviso si el agente no lo soporta). No hecho: ver el estado de los servers que el agente carga solo (el SDK tiene mcpServerStatus pero ACP no lo expone; queda el hint de /mcp) ni \"Agregar a Claude Code\" (claude mcp add-json).",
-  "order": 34,
+  "order": -17.5,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ui",
     "mcp"
   ],
   "test": "Unit (234 tests en 4.6.3, 4.7.2 y 4.8-beta1): test_external_mcp_servers (to_acp stdio/http, $VAR/${VAR}, validación, merge, import de .mcp.json, nombres, página de Settings). Xvfb: --godot-agent-settings-shots (en y es) importa un server, la matriz suma la fila mcp:blender, guardar escribe project_config.tres y external_mcp_names. Contra claude-agent-acp 0.95.0 real con un server stdio de prueba: la tool llega como mcp__pingsrv__ping (title y _meta.claudeCode.toolName), el env llega al server.",
   "title": "Extensiones: panel de MCP servers (los del addon y los del agente)",
-  "updated_at": "2026-10-27T17:32:09.617Z"
+  "updated_at": "2026-10-29T22:14:45.038Z"
 }

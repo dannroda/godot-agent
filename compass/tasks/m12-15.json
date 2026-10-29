@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:37.246Z",
   "description": "Sin agentes, el composer tiene main.tscn y «Construir» como si se pudiera usar; «Configurar un agente…» lleva a una lista vacía en Ajustes.\n\nPropuesta: Los tres agentes más usados en el dock con lo que piden y «Agregar»; composer deshabilitado con «Agregá un agente para empezar».\n\nArchivos: agent_dock._refresh_empty_state\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 4)",
+  "done_at": "2026-10-29T22:15:29.983Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en d7f3a99 sin atribución.\nUX: primer arranque con los agentes sugeridos en el dock y el composer apagado (m12-15)\nNota: sin agentes, el dock vacío muestra «Agregá un agente para empezar:» con\nClaude Code, Codex y Google Antigravity (lo que pide cada uno y «Agregar»):\nClaude Code se guarda directo y queda elegido; los otros abren Ajustes y el\nregistro de ACP filtrado por su nombre. El botón de abajo pasa a «Otros\nagentes…» (abre Ajustes). El composer queda apagado con el placeholder\n«Agregá un agente para empezar» (Composer.set_unavailable; set_enabled no lo\nreabre) mientras no haya ningún perfil. De paso (m12-11): si la sesión no abrió\nporque falta iniciar sesión, la línea de estado dice «○ <agente> · falta\niniciar sesión» en gris, no «✗ · error» en rojo (SessionModel.login_required).",
-  "order": 15,
+  "order": -12,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "dock"
   ],
   "test": "test_composer.test_unavailable_without_agent, test_i18n (headless); capturas en Xvfb: el dock sin agentes (--godot-agent-screenshot) y el login desde el dock (--godot-agent-login-test, pasa).",
   "title": "Primer arranque: el composer activo sin agente y la elección en Ajustes",
-  "updated_at": "2026-10-29T12:51:23.742Z"
+  "updated_at": "2026-10-29T22:15:29.983Z"
 }

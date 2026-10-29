@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:39.846Z",
   "description": "Botones separados en el medio del pie; nada marca la sección con cambios; Export deshabilitado sin decir por qué.\n\nPropuesta: Botones juntos a la derecha, un punto en la sección con cambios, y en Export «Creá un preset de export primero».\n\nArchivos: settings_dialog.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)",
+  "done_at": "2026-10-29T22:15:36.053Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en 9bd8e21 sin atribución.\nUX: Ajustes con Guardar y Cancelar juntos, «•» en las secciones cambiadas y Export que dice qué falta (m12-26)\nNota: los botones del diálogo quedan juntos a la derecha (los espaciadores del\nAcceptDialog dejan de estirarse y uno solo, al principio, los empuja). Al abrir se\nguarda un resumen de cada sección (valores de sus controles, más los perfiles y\nlos servidores MCP); cada 0,3 s, mientras está abierto, la sección que difiere\nlleva «• » en la lista y el tooltip «Cambiado: todavía sin guardar»; si se\nvuelve al valor de antes, la marca se va. Export sin presets: «creá uno primero\nen Proyecto → Exportar…», y el botón apagado dice por qué en su tooltip (también\ncuando todos ya tienen el filtro).",
-  "order": 26,
+  "order": -23,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "ajustes"
   ],
   "test": "test_settings_dialog.test_dirty_sections, test_i18n; captura en Xvfb (--godot-agent-settings-shots, pasa: Permisos y Servidores MCP con «•» después de que el check los cambia).",
   "title": "Ajustes: Guardar y Cancelar lejos y sin aviso de cambios",
-  "updated_at": "2026-10-29T12:51:27.965Z"
+  "updated_at": "2026-10-29T22:15:36.053Z"
 }

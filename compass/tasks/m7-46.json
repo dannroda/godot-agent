@@ -12,17 +12,18 @@
     }
   ],
   "description": "Revisión de m7-39/m7-45: con update=true, plan_install reemplaza todas las carpetas addons/* que trae el zip nuevo (addon_folders(plan)), no las anotadas para ese asset; un zip que trae addons/godot_agent u otro plugin los pisa. PROTECTED_FOLDERS no se mira al instalar (una instalación nueva puede agregar archivos dentro de addons/godot_agent).",
+  "done_at": "2026-10-29T22:14:51.538Z",
   "milestone": "m07",
   "notes": "plan_install saltea todo lo de addons/<PROTECTED_FOLDERS> del zip (como las rutas con ..). Nuevo replace_folders(entry, plan): una actualización pisa solo las carpetas anotadas del asset; sin anotación (instalado a mano), las de addons/ del zip. prepare() devuelve replace y la pestaña lo reusa al tildar «incluir otros archivos».",
-  "order": 46,
+  "order": -21.9921875,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "bug"
   ],
   "test": "Unit: test_asset_store (run_all -- asset: 17 tests, 94 checks, 0 fallos en 4.7.2). Casos: zip con addons/godot_agent no lo planea; anotado con otra carpeta deja los archivos existentes como conflicto.",
   "title": "Asset Store: una actualización no pisa al harness ni a otros plugins",
-  "updated_at": "2026-10-27T17:36:50.789Z"
+  "updated_at": "2026-10-29T22:14:51.538Z"
 }

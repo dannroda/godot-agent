@@ -4,14 +4,15 @@
   "code": "7.3",
   "created_at": "2026-10-21T04:33:43.128Z",
   "description": "user://godot_agent/sessions/<id>.json con eventos ACP normalizados; lista en el dock para reabrir y mostrar; session/load para reanudar si el agente lo soporta.",
+  "done_at": "2026-10-29T22:14:27.653Z",
   "milestone": "m07",
   "notes": "session/session_history.gd guarda en user://godot_agent/sessions/<id>.jsonl (JSON Lines: una cabecera y un evento por línea), más un index.json con título, fechas y turnos. Conserva hasta 100 sesiones.\n- Escritura: al fin de cada turno se agregan solo los eventos nuevos, en un worker (una cola en orden en WorkerThreadPool). Las lecturas y el cierre del plugin esperan con flush(). Con el disco ocupado, abrir el archivo llegó a 600 ms en el hilo principal.\n- Qué guarda: prompts del usuario (sin el system prompt ni los adjuntos), chunks unidos por mensaje, tool calls sin rawOutput ni _meta, plan, título y fin de turno. Las capturas se reemplazan por un marcador, los textos se recortan a 4000 caracteres y los diffs de más de 40k no se guardan.\n- Qué no guarda: usage, comandos, modos ni opciones.\n- El controller graba si tiene `history`; el plugin se lo da, los tests no.\n- start(profile, record): initialize, replay del archivo (con model.replaying, para que el plugin y el One-shot no lo tomen como eventos nuevos) y session/load. Las notificaciones que el agente manda durante el load se descartan solas, porque model.session_id recién se asigna con la respuesta.\n- reopen(profile, lost_id) es para el One-shot: usa session/load y, si el agente no lo soporta, abre una sesión nueva. Si se canceló, no relanza.\n- Sin loadSession, o si el load falla: solo lectura con un aviso.\n- Dock: el botón Historial lista las sesiones de este proyecto. No abre otra sesión mientras el agente trabaja ni con un One-shot en curso.",
-  "order": 3,
+  "order": -1,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "`$G --headless --path . --script tests/acp_session_check.gd`: escenario history (16 checks) en 4.4.1, 4.7.2 y 4.8-beta1.\n- Graba por turno.\n- Índice con título y turnos.\n- Sin capturas, rawOutput ni usage_update, y con los textos largos recortados.\n- Chunks unidos.\n- Rechaza ids con rutas.\n- session/load reanuda la misma sesión con la conversación del archivo (descarta el replay del agente) y sigue grabando en el mismo archivo.\n- Sin loadSession queda de solo lectura.\n\nEn el editor, `tests/run_in_xvfb.sh $G --godot-agent-history-test=<png>`: dos turnos con el agente falso, el menú de historial del dock muestra la sesión, y se reanuda desde el dock.",
   "title": "Historial de sesiones",
-  "updated_at": "2026-10-21T09:14:22.982Z"
+  "updated_at": "2026-10-29T22:14:27.653Z"
 }

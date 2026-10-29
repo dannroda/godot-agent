@@ -6,22 +6,24 @@
     {
       "alternatives": "Reglas deny para SendMessage en las settings de la sesión; godot.session_send como tool del núcleo (no extendida)",
       "at": "2026-10-27T19:11:52.370Z",
+      "review": "ok",
       "text": "No se oculta SendMessage/ListAgents de Claude Code: el system prompt orienta a godot.session_send y el chat avisa cuando llega trabajo sin su mensaje",
       "why": "Denegar las tools nativas rompería la coordinación con sesiones de Claude fuera del editor (terminal, otros proyectos); el aviso también cubre tareas en segundo plano que terminan"
     }
   ],
   "description": "Pedido del usuario (2026-10-27): «a una sesión nueva, si no le mando un primer mensaje, no aparecen los mensajes… si se lo envía otra sesión no se muestra» y «no aparece en el log/chat el mensaje recibido, solo que envía».",
+  "done_at": "2026-10-29T22:14:54.197Z",
   "milestone": "m07",
   "notes": "Causa (historial de LittleVillages b52301ca y 9bc88f39, claude-agent-acp 0.98): los agentes usaban SendMessage/ListAgents de Claude Code, no godot.session_send. (1) El adaptador solo reenvía mensajes de usuario de otros clientes si origin.kind == human (isRemoteHumanMessage, para Remote Control); el de otra sesión se descarta, así que el chat ve la respuesta del turno que Claude arranca solo, sin la pregunta. (2) Antes del primer session/prompt la sesión del SDK no corre y no lee su bandeja: el mensaje se procesa recién con el primer prompt. Ninguno se arregla del lado del harness. Hecho: el system prompt dice que con otras sesiones del editor se usen godot.sessions/godot.session_send (entra como prompt, se ve en el chat y sirve sin primer prompt); SessionController._notice_outside_turn() avisa una vez por tanda cuando llega trabajo del agente fuera de un turno pedido (sin user_message_chunk antes, sin parentToolUseId), y se rearma con cada prompt.",
-  "order": 52,
+  "order": -27,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "bug"
   ],
   "test": "Unit: test_sessions.test_notice_for_work_outside_a_turn (aviso una vez, subagente no cuenta, Remote Control sin aviso, dentro de un turno sin aviso); suite 285/0; acp_session_check 159/0. No probado con dos Claude reales: que el agente elija godot.session_send después del cambio de prompt.",
   "title": "Mensajes entre sesiones: el recibido no se ve y una sesión nueva no los lee hasta su primer prompt",
-  "updated_at": "2026-10-27T19:11:52.657Z"
+  "updated_at": "2026-10-29T22:16:05.643Z"
 }

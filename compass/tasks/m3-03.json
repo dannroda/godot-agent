@@ -4,14 +4,15 @@
   "code": "3.3",
   "created_at": "2026-10-21T04:32:37.465Z",
   "description": "Cada tool declara name, description, inputSchema, group y execute(args). Resultado {content, isError}; truncado de texto configurable con aviso; imágenes reescaladas a 1280 px; errores accionables; log con nombre, duración y resumen. Política del lado del server (ask con timeout).",
+  "done_at": "2026-10-29T22:13:58.277Z",
   "milestone": "m03",
   "notes": "mcp/mcp_tool.gd: `create(name, group, description, properties, required, handler)`.\n- validate() revisa required, tipos básicos, enum y argumentos desconocidos, con mensajes accionables.\n- Helpers text, error, image, int_arg y str_arg.\n\nmcp/tool_registry.gd: call_tool siempre devuelve {content, isError}.\n- Pasos: validación → authorizer (await; en plugin.gd es SessionController.authorize con permission_timeout_s de ProjectConfig) → handler.\n- Si el handler devuelve null (error de script), responde un error.\n- Trunca el texto a max_output_chars con un aviso y reescala imágenes PNG a max_image_side.\n- Log en el canal mcp con nombre, args, duración y resumen. El raw va en JSON, sin el base64.\n\nAgentLog.add_secret: el token MCP queda redactado en todo el log.",
-  "order": 3,
+  "order": -1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "tests/unit/test_tool_registry.gd:\n- list y orden;\n- validación (required, tipo, desconocido, enum, float entero);\n- tool desconocida y handler null;\n- authorizer async que deniega;\n- truncado y reescalado de imágenes;\n- log;\n- redacción del secreto.",
   "title": "ToolRegistry y base de tools",
-  "updated_at": "2026-10-21T05:43:04.705Z"
+  "updated_at": "2026-10-29T22:13:58.277Z"
 }

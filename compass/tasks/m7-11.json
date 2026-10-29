@@ -3,6 +3,7 @@
   "code": "",
   "created_at": "2026-10-22T04:25:57.515Z",
   "description": "Hoy el One-shot tiene dos frenos:\n- los presupuestos de tiempo, tokens y playtests;\n- `MAX_IDLE_CONTINUES` (3 turnos seguidos sin avance).\n\nPero `_idle_continues` vuelve a 0 apenas un turno trae resumen (`oneshot_run.gd:337-341`). Un agente que \"arregla\" una y otra vez el mismo check sin lograrlo, o que repite la misma tool con los mismos argumentos, solo se detiene al agotar el presupuesto. Es uno de los modos de falla de corridas largas (\"loop forever, retry bad actions\") del artículo \"Agent Harness — A no-BS guide\".\n\nQué hacer:\n- Huella por check fallido: guardar la etiqueta y el error de `get_errors`/`run_scene`. Si el mismo check falla con la misma huella N veces seguidas (N=3, configurable), avisar en la actividad. Al pasar el umbral, pausar con \"Guiar al agente\" o pedirle un enfoque distinto en el próximo continue.\n- Huella por tool call (nombre + argumentos normalizados): la misma huella K veces dentro de una ventana de turnos dispara el mismo aviso.\n- Que el avance real se cuente por el plan (una entrada que pasa a completed) o por los checks (fail → pass), no porque haya texto de resumen.\n\nTests: unit con secuencias simuladas, y un guion del agente falso que repite el mismo error.",
+  "done_at": "2026-10-29T22:14:33.773Z",
   "links": [
     {
       "task": "m7-12",
@@ -11,12 +12,12 @@
   ],
   "milestone": "m07",
   "notes": "c2faff8 (D38). LoopDetector (oneshot/loop_detector.gd) con tres huellas: check con el mismo detalle en `repeats` reportes seguidos; tool call que falla con los mismos argumentos (si es lectura/verificación, un cambio en el medio reinicia la cuenta); el mismo cambio repetido repeats+1 veces en las últimas 40. Primera vez: actividad «loop», aviso y guía \"otro enfoque\" (corta el turno si viene de tool calls); la misma huella otra vez: pausa con banner (pause_note). Umbral `loop_repeats` (3) en project_config + Settings → One-shot.\nCorrección a la descripción: _idle_continues no se reiniciaba por el resumen sino por playtests; ahora el avance real son tareas completadas + checks en pass (_progress()).",
-  "order": 11,
+  "order": -6,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "test_loop_detector (8 tests); oneshot_check escenario «loop» con umbral 2: dos Edit fallidos cortan el turno y piden otro enfoque, el mismo check roto pide otro enfoque y después pausa, guiar retoma. Matriz 4.6.3/4.7.2/4.8-beta1 + 24 UI checks en verde.",
   "title": "One-shot: detectar loops sin progreso real",
-  "updated_at": "2026-10-22T05:47:06.846Z"
+  "updated_at": "2026-10-29T22:14:33.773Z"
 }

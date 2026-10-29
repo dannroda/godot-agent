@@ -3,14 +3,15 @@
   "code": "",
   "created_at": "2026-10-22T23:34:23.568Z",
   "description": "Pedido del usuario (2026-10-22), sigue a m2-09 (D57). Hoy, para saber si un comando de shell corre solo o pregunta en Auto, hay que esperar a que el agente lo use y mirar el Agent Log.\n\nEn Settings → Permisos → «Modo Auto: comandos de shell», un campo donde se escribe un comando y muestra al momento el resultado de ShellRules.classify con las reglas que se están editando (todavía sin guardar): corre / pregunta, la regla que decidió y el motivo (parte fuera de la allowlist, redirección, sustitución…). Si se puede, marcar en la tabla la regla que decidió.\n\nTests: unitario si hace falta lógica nueva, y el check del editor de Auto (--godot-agent-auto-test) usando el campo.",
+  "done_at": "2026-10-29T22:13:55.417Z",
   "milestone": "m02",
   "notes": "Commit 21c6977, ya en main (vino de la rama auto-rule-tester). Durante el desarrollo, un scroll_to_item diferido con un TreeItem ya borrado tiró el editor; ahora el scroll es directo al final del refresh. Esa caída dejó un project_config.tres en el worktree (el check no llegó a restaurarlo); se borró a mano.",
-  "order": 10,
+  "order": -2,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "test_shell_rules: código y segmento de cada tipo de decisión (permitido, lista ask, fuera de la allowlist, sustitución, sustitución de procesos, redirección, comilla, vacío) y el texto del resultado. --godot-agent-auto-test: con la regla agregada desde la tarjeta, «ls && npm test --watch» corre sin preguntar con las dos reglas, la fila se resalta, y «git push origin main» pregunta; captura revisada. Suite completa verde en 4.8-beta1 y 4.6.3, i18n incluido.",
   "title": "Modo Auto: probar un comando contra las reglas desde Settings",
-  "updated_at": "2026-10-27T18:59:49.213Z"
+  "updated_at": "2026-10-29T22:13:55.417Z"
 }

@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:37.952Z",
   "description": "@, imagen, /, anillo, 38k/200k, modo, modelo y Enviar en una fila; «Construir» parece un enlace.\n\nPropuesta: Un «+» con archivo o nodo, captura y comando; el modo como píldora; un anillo con contexto y cuota en el tooltip.\n\nArchivos: composer.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)",
+  "done_at": "2026-10-29T22:15:31.212Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en 9aa5563 sin atribución.\nUX: la barra del composer con «+», el modo como píldora y el contexto en el anillo (m12-18)\nNota: @, imagen y / pasan a un «+» con «Nodo o archivo (@)», «Imagen del juego»\n(apagada si el agente no acepta imágenes) y «Comando del agente (/)»; los\nbotones viejos quedan ocultos. El modo es una píldora con el color de acento\n(borde y fondo) en vez de texto que parecía un enlace. «38k / 200k» deja la\nfila: el contexto va primero en el tooltip del anillo de cuota («Contexto: 38k\nde 200k (19 %)») y vuelve a la fila solo desde el 80 %, en amarillo. Con esto la\nfila queda en «+», anillo, modo, modelo y Enviar. De paso (m12-14): el check de\nRemote Control busca el botón en el menú «⋯» (el botón vive oculto).",
-  "order": 18,
+  "order": -15,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "dock"
   ],
   "test": "test_composer.test_add_menu_and_meter (test_prompt_history con ancho fijo: con la fila más corta «segundo» se partía en dos líneas visuales), test_quota_ring, test_i18n; en Xvfb, --godot-agent-remote-test (incluye que el dock entra en su panel) y la captura de --godot-agent-ui-test=basic, que pasan.",
   "title": "Ocho controles en la barra del composer",
-  "updated_at": "2026-10-29T12:51:24.699Z"
+  "updated_at": "2026-10-29T22:15:31.212Z"
 }

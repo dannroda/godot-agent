@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-23T22:32:17.748Z",
   "description": "Pedido del usuario (2026-10-23): una guía con capturas, al menos para el README. Capturas reales del editor (Xvfb, plugin de dev con agente falso para que no dependa de una cuenta): dock con una conversación, tarjeta de permiso, modos, Review con marcas en el Script Editor, pantalla One-shot, Settings, Extensions, aviso de update. Van a docs/images/ y se regeneran con un flag del plugin de dev.",
+  "done_at": "2026-10-29T22:14:49.187Z",
   "milestone": "m07",
   "notes": "Commits 8d0647a (LICENSE MIT a nombre de Daniel Rodriguez Aires, CONTRIBUTING.md, LICENSE en el zip del release) y 94ca4f4 (guía), ya en main (en worktree-docs-guide eran 6cf8931 y 06cd486). README «Quick start» con capturas en en/es (docs/images/<lang>/, .gdignore). Escena demo tests/docs_demo/ (con 2 bugs a propósito para Review), escenarios docs_build(_es)/docs_review(_es). El dock se ensancha a 480 px moviendo split_offsets del DockHSplitMain (un offset por divisor entre hijos visibles). Arreglado de paso: el botón «Thinking» no recortaba su texto y ensanchaba el chat más que el dock. Pendiente aparte: m7-42 (fila del composer más ancha que el dock por defecto). Descripción y topics de GitHub puestos con gh repo edit. Sin captura del One-shot (su check usa contenido de test en español).",
-  "order": 41,
+  "order": -21.75,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "docs"
   ],
   "test": "tests/docs_shots.sh <godot> en|es: copia limpia del proyecto + Godot self-contained con el idioma del editor; --godot-agent-docs-shots= saca overview, chat, permission, review y settings sin fallas en los dos idiomas. Revisadas a ojo: sin rutas del usuario, sin contenido de tests, sin recortes. Unit 246 verdes, ui_markdown y ciclo del plugin pasan.",
   "title": "Guía con imágenes para el README (y la wiki)",
-  "updated_at": "2026-10-27T18:59:53.748Z"
+  "updated_at": "2026-10-29T22:14:49.187Z"
 }

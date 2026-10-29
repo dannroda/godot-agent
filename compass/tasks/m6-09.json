@@ -19,6 +19,7 @@
     }
   ],
   "description": "Hoy el One-shot es un solo agente que planifica, construye y reporta sus propios checks en un bloque JSON, y el harness acepta esos pass/fail tal cual (`oneshot_run.gd:190`, `initial_prompt`). Según \"Harness design for long-running application development\" (Anthropic, 2026-03), el agente que construye es indulgente con su propio trabajo. Un evaluator aparte, ajustado para ser escéptico y que use la app como un usuario, encuentra bugs reales que el generator dio por buenos.\n\nQué hacer:\n- Cuando el generator da el objetivo por cumplido (o se agota el plan), abrir una sesión ACP nueva, separada y sin el contexto del generator, con un prompt de QA escéptico.\n- El evaluator juega el juego con `godot.run_scene` e inputs simulados, `capture_game_frame` y `get_errors`, y lee el código. Califica cada check y cada criterio (ver la tarea de criterios) con un umbral duro, y devuelve findings concretos: qué falló, cómo reproducirlo y dónde.\n- Los checks del run pasan a usar el veredicto del evaluator. El autorreporte del generator queda solo como progreso.\n- Si algo no pasa, los findings vuelven al generator como el próximo turno. Hay un máximo de vueltas configurable (2 por defecto), que cuenta para los presupuestos y la detección de loops (m7-11).\n- En modo Preguntar, el evaluator usa permisos de solo lectura más run/capture: no edita archivos.\n- Reutilizar lo que se pueda del modo Revisar (`FindingsParser`, tarjetas de hallazgos).\n- Mostrar en la pantalla del One-shot la fase \"Evaluando\", con los findings de cada vuelta.\n\nAfinar el prompt leyendo trazas reales del evaluator. El artículo cuenta que al principio encontraba problemas y se convencía solo de aprobarlos.\n\nTests: el agente falso con dos roles. El generator reporta todo en pass, el evaluator encuentra un fallo, y el run hace una vuelta de corrección y cierra en pass.",
+  "done_at": "2026-10-29T22:14:18.154Z",
   "links": [
     {
       "task": "m6-11",
@@ -27,12 +28,12 @@
   ],
   "milestone": "m06",
   "notes": "Commit 65f9317 en swallowtail-tools (D55; las referencias a \"D42\" en D40/D41 pasaron a D55). Setting nuevo qa_rounds en Settings → One-shot. PermissionPolicy.restrictions y SessionController.mode_rules_override sirven para cualquier rol futuro. Pendiente del enunciado: afinar el prompt leyendo trazas reales del evaluador (necesita correr con Claude Code real). Arreglé de paso el check del dock en oneshot-test (\"el dock ofrece «Resume One-shot»\"), que fallaba desde dc2fc2d bajo Xvfb porque la pestaña del dock no era la elegida en su slot: ahora mira la visibilidad dentro del dock.",
-  "order": 9,
+  "order": -7,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "test": "tests/oneshot_check.gd (125 checks, 0 fallos en 4.8-beta1 y 4.6.3): escenario \"evaluador\" con el agente falso en dos roles (evaluator_turns): el generator reporta todo en pass; el evaluador, en sesión nueva sin el prompt del generator y con edit_files/edit_scene/shell en deny y run en allow, encuentra que el puntaje no sube; el run vuelve al generator con checks, criterios y hallazgos; corrige y la vuelta 2 aprueba (\"QA round 2: the game passes.\"). También qa-1.md/qa-2.md, checks verified, actividad qa, playtests del evaluador en el presupuesto, informe con las vueltas. --godot-agent-oneshot-test pasa en 4.8-beta1 y 4.6.3 (fase «Evaluating · QA round 1», Pausar habilitado, banner final, actividad, tabla del informe). Unit 193/0, acp_session_check 117/0.",
   "title": "One-shot: evaluator separado y vuelta de corrección",
-  "updated_at": "2026-10-22T21:28:05.877Z"
+  "updated_at": "2026-10-29T22:14:18.154Z"
 }

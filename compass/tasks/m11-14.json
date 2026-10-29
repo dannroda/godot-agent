@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-28T19:15:08.559Z",
   "description": "Acceso rápido para cerrar la sesión de la cuenta en cualquier agente que anuncie agentCapabilities.auth.logout (Claude Code con claude auth logout, Antigravity): botón en la línea de estado con confirmación; el agente borra sus credenciales, se cierra la sesión y la próxima pide login.",
+  "done_at": "2026-10-29T22:15:18.354Z",
   "milestone": "m11",
   "notes": "Método ACP logout (SDK 2.1: AGENT_METHODS.logout = \"logout\"), anunciado con agentCapabilities.auth.logout. SessionController.logout: request, olvida cuenta y cuota, detiene el agente y avisa. Botón «Cerrar sesión» en la fila de estado del dock con confirmación.",
-  "order": 14,
+  "order": -12,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "test_session_model test_supports_logout. Sin probar contra la cuenta real (borraría las credenciales).",
   "title": "Cerrar sesión de la cuenta del agente (ACP logout)",
-  "updated_at": "2026-10-28T19:15:18.485Z"
+  "updated_at": "2026-10-29T22:15:18.354Z"
 }

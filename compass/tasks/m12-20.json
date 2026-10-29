@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:38.418Z",
   "description": "El reporte del turno es un aviso más y se pierde.\n\nPropuesta: Pie: «Este turno cambió 1 archivo · Ver cambios · Deshacer turno».\n\nArchivos: SessionController._report_turn_changes\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)",
+  "done_at": "2026-10-29T22:15:32.198Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud, traído a main en 643175a sin atribución.\nUX: lo que cambió un turno va en un pie de línea con «Ver cambios» y «Deshacer el turno» (m12-20)\nNota: el aviso de los cambios del turno deja de ser una caja centrada como los\ndemás: es un pie (ChatEntry.footer) con una línea arriba, el texto a la izquierda\n(«Este turno cambió 1 archivo (+3 −1): player.gd», con singular) y las acciones\ncomo enlaces del color de acento: «Ver cambios», «Deshacer el turno» (antes\n«Volver a antes de este turno», ahora en el tooltip) y «Guardar el reporte».",
-  "order": 20,
+  "order": -17,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "dock"
   ],
   "test": "test_notice_view.test_turn_footer, test_turn_snapshots, test_i18n (headless). Sin captura: ningún check del dev plugin produce un turno con cambios.",
   "title": "Pie de turno con los cambios",
-  "updated_at": "2026-10-29T12:51:25.167Z"
+  "updated_at": "2026-10-29T22:15:32.198Z"
 }

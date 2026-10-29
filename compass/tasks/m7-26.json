@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-23T00:50:42.238Z",
   "description": "Pedido del usuario (2026-10-23): «Que se pueda colapsar, creo que hay un nodo control colapsable». Con el link, el QR y la aclaración, la franja de Remote Control ocupa mucho alto en el dock. Usar FoldableContainer (Godot 4.5+, el mínimo del addon es 4.6): el título «● Remote Control activo» y los botones a la vista siempre, el resto plegable; recordar el estado.",
+  "done_at": "2026-10-29T22:14:41.687Z",
   "milestone": "m07",
   "notes": "Commit b99a386, ya en main (vino de la rama remote-qr). El estado plegado se conserva mientras el editor está abierto (no se guarda entre sesiones: Remote Control arranca apagado en cada sesión nueva). get_title_bar_control no existe en 4.6, así que el código no lo usa.",
-  "order": 26,
+  "order": -13,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "--godot-agent-remote-test en 4.8-beta1 y 4.6.3: la franja es un FoldableContainer; plegada, el link no se ve y «Apagar» sí; «QR» la despliega y muestra el código. Capturas plegada y desplegada revisadas. Suite completa verde en las dos versiones, i18n incluido.",
   "title": "Remote Control: franja colapsable",
-  "updated_at": "2026-10-27T18:59:51.759Z"
+  "updated_at": "2026-10-29T22:14:41.687Z"
 }

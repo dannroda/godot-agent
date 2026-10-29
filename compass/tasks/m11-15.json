@@ -3,17 +3,18 @@
   "code": "",
   "created_at": "2026-10-28T19:15:08.817Z",
   "description": "Hoy clientCapabilities.terminal es false: los agentes corren sus comandos por su cuenta. Implementar terminal/create, output, wait_for_exit, kill y release para que los comandos del agente corran desde el editor, con la política de shell (reglas de Auto, permisos por modo), salida en la tarjeta del tool call y límite de bytes. Lo usan Codex y otros agentes del registro; se prueba con Claude Code y Antigravity.",
+  "done_at": "2026-10-29T22:15:18.737Z",
   "milestone": "m11",
   "notes": "TerminalHandler (terminal/create, output, wait_for_exit, kill y release) con AgentProcess en modo raw (sin threads), truncado UTF-8 desde el principio según outputByteLimit, autorización por SessionController (ProjectWriteGuard, GodotWindowGuard, ShellRules en Auto y tarjetas de permiso), clientCapabilities.terminal = true y visualización de bloques {type: terminal, terminalId} en ToolGroupView.\n\nRevisión (2026-10-28, 2431546): el env del agente pasaba sin filtro y la política no lo veía (en Auto, git status + GIT_CONFIG_* corría código sin preguntar). Ahora con env siempre se pregunta, la tarjeta muestra NOMBRE=valor y el cwd si no es el del proyecto, y no propone regla. format_command_line cita cada arg como sh (shell_quote): las guardas revisan lo mismo que corre. En Windows se rechazan args con comillas o saltos de línea (cmd.exe no las escapa). Las terminales se matan si el agente se cae o al abrir otra sesión. handling_id ahora solo vale mientras el handler no se suspende (antes una tarjeta de una tool MCP quedaba asociada a un wait_for_exit y un $/cancel_request la cancelaba). c32c82c: los comandos preautorizados se comparan por palabras sin comillas (SessionController.command_key), así npm run \"a b\" del agente y npm run 'a b' de terminal/create no preguntan dos veces. Quedan: exit_signal SIGTERM fijo aunque Unix manda SIGKILL; la tarjeta de un fallo muestra el principio de la salida y no el final; la decodificación UTF-8 por chunk puede cortar un carácter.",
-  "order": 15,
+  "order": -13,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "tags": [
     "acp"
   ],
   "test": "godot --headless --path . --script tests/run_all.gd -- terminal_handler (test_quoting_and_agent_env_ask: comillas POSIX, Auto permite ls -la sin env y pregunta con LD_PRELOAD, sin regla propuesta; test_command_key_ignores_quoting). No probado con un agente real que use terminal/* (Codex) ni en Windows.",
   "title": "Terminales del cliente ACP (terminal/*)",
-  "updated_at": "2026-10-28T23:17:10.953Z"
+  "updated_at": "2026-10-29T22:15:18.737Z"
 }

@@ -12,14 +12,15 @@
     }
   ],
   "description": "Pedido del usuario (2026-10-24): «Agrega también el poder detectar updates de plugins», sobre m7-39. Detectar versiones nuevas en el Asset Store de los plugins del proyecto (instalados desde el harness o a mano) y poder actualizarlos desde la pestaña y desde las tools del agente.",
+  "done_at": "2026-10-29T22:14:50.503Z",
   "milestone": "m07",
   "notes": "Commit ab6a502 en worktree-asset-updates. Anotación en res://.godot_agent/assets.json: {asset_id: {version, folders, files}}. Instalados a mano: search(plugin.name) y match por nombre simplificado o slug == carpeta; sin versión en plugin.cfg no se compara. Actualizar: plan_install con replace=carpetas de addons/ del zip, stale = anotados que ya no vienen (sin anotación no se borra nada), plugins activos se apagan antes de escribir y se prenden después. PROTECTED_FOLDERS pasó a AssetStore.",
-  "order": 45,
+  "order": -21.96875,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "tests/asset_check.sh <godot> (red, copia del proyecto): tras instalar, el resultado dice «Installed»; con la versión anotada vuelta a v0.1 la pestaña ofrece «Update to 1.6», el diálogo dice qué reemplaza y borra, actualizar deja el plugin activo, borra el archivo viejo y anota la versión; sin anotación y con plugin.cfg 0.1, addons_list check_updates lo encuentra por nombre. Pasa en 4.6.3, 4.7.2 y 4.8-beta1. Unit: test_asset_store (plan con replace, stale, manifest, match_asset, installed_assets), test_asset_tools (FakeStore).",
   "title": "Asset Store: detectar y aplicar actualizaciones de plugins",
-  "updated_at": "2026-10-27T17:32:06.726Z"
+  "updated_at": "2026-10-29T22:14:50.503Z"
 }

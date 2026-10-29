@@ -3,13 +3,14 @@
   "code": "",
   "created_at": "2026-10-22T08:13:14.606Z",
   "description": "great-boy-one declara class_name Level y el addon tenía enum Level (ChatEntry): Godot resolvía el tipo a la clase global y el dock no compilaba (4.6, 4.7 y 4.8). Enums y clases internas con nombres compuestos (D47), clases globales genéricas en tests/fixtures/global_names y test_type_names.",
+  "done_at": "2026-10-29T22:14:37.158Z",
   "milestone": "m07",
   "notes": "D47. Commit 6541f02, ya en main.",
   "order": 17,
   "priority": "high",
   "refs": [],
-  "status": "review",
+  "status": "done",
   "test": "Con tests/fixtures/global_names en el proyecto (Level, State, Kind, Phase, Request…), el código anterior da los mismos Parse Error; con el arreglo, matriz 4.6.3/4.7.2/4.8-beta1 verde (27 UI checks) y una copia de great-boy-one abre sin SCRIPT ERROR. test_type_names falla con un enum o clase interna de una palabra.",
   "title": "El addon no cargaba en un juego con class_name Level",
-  "updated_at": "2026-10-22T08:13:18.878Z"
+  "updated_at": "2026-10-29T22:14:37.158Z"
 }

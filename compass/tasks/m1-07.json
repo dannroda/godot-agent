@@ -4,14 +4,15 @@
   "code": "1.7",
   "created_at": "2026-10-21T04:32:01.233Z",
   "description": "Según docs/design (pantalla 1): selector de perfil, título de sesión, historial/nueva sesión/ajustes, selector de 4 modos, burbujas de usuario, texto del agente en RichTextLabel (Markdown→BBCode mínimo), thoughts colapsados, composer con enviar/detener, Ctrl+Enter y Esc. Acento único configurable (#f0a85a).",
+  "done_at": "2026-10-29T22:13:44.998Z",
   "milestone": "m01",
   "notes": "ui/dock/:\n- agent_dock.gd/.tscn;\n- conversation_view.gd: pull + push, tope de 250 vistas, sigue el fondo;\n- composer.gd: CodeEdit con completado de / y @, chips, Ctrl+Enter, Esc;\n- entries/: user, agent/thought, notice, tool_group, diff_card, plan.\n\nTambién ui/agent_theme.gd, ui/editor_context.gd y ui/markdown/markdown_bbcode.gd (con test).\n\nHistorial deshabilitado hasta M7.",
-  "order": 7,
+  "order": -2,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "test": "`$G -e --path . -- --godot-agent-ui-test=ui_demo --godot-agent-ui-shot=x.png` con el guion ui_demo. Captura revisada en 4.8-beta1 y 4.4.1: burbuja, thought colapsado, Markdown, plan, tool calls con diff, medidor 41k/200k y selector Opus. Prueba manual en docs/progress.md (M1).",
   "title": "Dock: header, modos, lista de mensajes y composer",
-  "updated_at": "2026-10-21T05:06:21.631Z"
+  "updated_at": "2026-10-29T22:13:44.998Z"
 }

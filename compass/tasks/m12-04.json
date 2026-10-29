@@ -3,13 +3,14 @@
   "code": "",
   "created_at": "2026-10-29T06:20:34.599Z",
   "description": "Seis pestañas en 640 px: Instrucciones queda detrás de las flechas y al llegar desaparecen Plugins y Marketplaces. Los contadores cambian mientras carga.\n\nPropuesta: Barra lateral como la de Ajustes, con los contadores solo cuando cargaron.\n\nArchivos: extensions_window.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)",
+  "done_at": "2026-10-29T22:15:24.393Z",
   "milestone": "m12",
   "notes": "TabContainer con tabs_visible = false y un ItemList a la izquierda (como Ajustes) que lo maneja; los títulos con contadores se copian a la lista. Ventana de 820 × 760 (mínimo 720 × 600). Los contadores siguen mostrando (0) mientras carga.",
   "order": 4,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "roto",
@@ -17,5 +18,5 @@
   ],
   "test": "Capturas de Extensiones en Xvfb: las seis secciones a la vista.",
   "title": "Las pestañas de Extensiones no entran en la ventana",
-  "updated_at": "2026-10-29T06:46:29.051Z"
+  "updated_at": "2026-10-29T22:15:24.393Z"
 }

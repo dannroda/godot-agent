@@ -12,6 +12,7 @@
     }
   ],
   "description": "Las tools `mcp__<server>__*` que no son de godot caen en el grupo Other (PermissionPolicy.matrix_value devuelve ask para grupos sin DEFAULTS), en todos los modos: el One-shot se frena esperando.\n\nHacer: un grupo por server (mcp:blender) con valores por modo editables en Settings (por defecto ask; sugerir allow para tools read-only si el server marca readOnlyHint), \"Permitir siempre este server\" desde la tarjeta de permiso, y que el One-shot avise antes de arrancar si hay servers en ask. En el chat, mostrar el nombre corto (blender.get_objects_summary) como con godot.* (tool_call.gd, tool_group_view.gd, run_report.gd).",
+  "done_at": "2026-10-29T22:14:45.433Z",
   "links": [
     {
       "task": "m7-34",
@@ -20,16 +21,16 @@
   ],
   "milestone": "m07",
   "notes": "Grupo mcp:<server> sacado del prefijo mcp__<server>__ (title o _meta.claudeCode.toolName); ask por defecto en todos los modos, overrides en la matriz. La tarjeta suma un botón «Permitir siempre «x» en modo M, en este proyecto» (persist_label/persist_allow → permissions_changed → plugin guarda la config). One-shot: activity warning al arrancar. No se usó readOnlyHint (el adaptador no lo manda en el permiso).",
-  "order": 35,
+  "order": -17.75,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "mcp",
     "permisos"
   ],
   "test": "acp_session_check escenario \"MCP servers de terceros\": tarjeta por server con nombre corto, «Permitir siempre en el proyecto» guarda allow en Construir y la segunda tool de blender pasa sin tarjeta, db sigue preguntando, mcp_servers_not_allowed para el aviso del One-shot. Unit test_policy_groups_per_server. Xvfb auto/remote/cycle/oneshot/i18n en verde.",
   "title": "Permisos por server MCP externo en la matriz",
-  "updated_at": "2026-10-27T17:32:09.185Z"
+  "updated_at": "2026-10-29T22:14:45.433Z"
 }

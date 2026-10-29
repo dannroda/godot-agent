@@ -4,14 +4,15 @@
   "code": "8c.1",
   "created_at": "2026-10-21T04:34:10.879Z",
   "description": "CompletionProvider (complete/cancel/describe) con LlmProvider sobre HTTPRequest reutilizado; tests/fake_completion_provider.gd con latencia configurable; modos solo local / híbrido / solo LLM con las reglas de §16.1 (el LLM nunca reemplaza ni demora lo local; una request en vuelo; secuencia).",
+  "done_at": "2026-10-29T22:15:08.189Z",
   "milestone": "m10",
   "notes": "LlmProvider: un HTTPRequest por editor SIN hilos (con use_threads, cancel_request() espera al hilo y se traba contra un server en el hilo principal). cancel_request() no emite request_completed: la cancelación se avisa a mano (RESULT_CANCELLED propio) y un contador de generación descarta respuestas tardías. Controller: MODE_LOCAL/HYBRID/LLM; en híbrido _llm_due = max(ahora, última tecla + debounce LLM) solo si no hubo nada local; la respuesta se muestra solo si suggestion vacía y seq/versión/caret iguales. tests/fake_completion_provider.gd ahora tiene `source` configurable. D28.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "test_completion_controller: test_hybrid_mode (lo local en el mismo frame aunque haya un LLM falso de 300 ms en vuelo; sin pedido si hubo algo local; debounce del LLM; tipear cancela y la respuesta cancelada no se muestra; Alt+\\ fuerza el LLM) y test_llm_only_mode. test_completion_llm: LlmProvider contra tests/fake_llm_server.gd (respuesta, cancelación sin esperar al server, reutilización del HTTPRequest, HTTP 404, conexión rechazada, sin key no se manda nada). En el editor real (--godot-agent-completion-test, 4.4.1/4.7.2/4.8): híbrido de punta a punta contra el server falso.",
   "title": "Interfaz de proveedores, proveedor falso y modo híbrido",
-  "updated_at": "2026-10-21T11:43:50.879Z"
+  "updated_at": "2026-10-29T22:15:08.189Z"
 }

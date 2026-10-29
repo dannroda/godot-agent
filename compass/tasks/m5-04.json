@@ -4,14 +4,15 @@
   "code": "5.4",
   "created_at": "2026-10-21T04:33:15.047Z",
   "description": "Revisar una carpeta con 3 bugs sembrados: aparecen anotados en las líneas correctas (agente falso con guion de findings y Claude Code real). Actualizar progress.",
+  "done_at": "2026-10-29T22:14:12.078Z",
   "milestone": "m05",
   "notes": "tests/fixtures/review/ tiene 3 bugs sin pistas en el código:\n- review_player.gd:13, movimiento sin delta (bug);\n- review_spawner.gd:10, setter exportado que usa un @onready antes de _ready (orden);\n- review_hud.gd:12, get_node en _process (rendimiento).\nreview_check.gd ubica la línea esperada buscando el código, y con Claude real acepta ±1 línea (marcó el HUD en la línea del _process) y severidades razonables.\nObservado (D23): en plan mode Claude Code ejecuta comandos de solo lectura y escribe su archivo de plan fuera del proyecto sin pedirle permiso al cliente. El log perm quedó vacío en Revisar.\nprogress.md tiene la sección M5.",
-  "order": 4,
+  "order": -2,
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "Agente falso: tests/run_in_xvfb.sh $G --godot-agent-review-test (tests/scripts/review.json) PASS en 4.4.1, 4.7.2 y 4.8-beta1, dos corridas seguidas en cada una.\nClaude Code real: XRUN_TIMEOUT=500 tests/run_in_xvfb.sh $G --godot-agent-claude-review-test, PASS en 4.8 (4 hallazgos: los 3 sembrados + uno válido sobre enemy_scene sin chequear) y en 4.4.1 (exactamente los 3).\nSuite completa: run_all 71/427, acp 65, cycle, ui, edit y export_check.",
   "title": "Verificar M5",
-  "updated_at": "2026-10-21T07:20:19.769Z"
+  "updated_at": "2026-10-29T22:14:12.078Z"
 }

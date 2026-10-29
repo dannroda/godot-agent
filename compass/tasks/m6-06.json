@@ -4,6 +4,7 @@
   "code": "6.6",
   "created_at": "2026-10-21T06:16:34.513Z",
   "description": "Spec §10.1. Fuentes, en orden: (1) campos de cuota del `usage_update` (los de m1-13); (2) avisos y errores de límite, con parseo tolerante y patrones en un archivo editable del addon; (3) sin datos: solo tokens de sesión y \"desconocido\". Estados normal / aviso / pausa_programada / limitado / desconocido, expuestos al SessionModel. Umbrales por usuario en EditorSettings godot_agent/: aviso (75 %), pausa del One-shot (90 % o nunca), y al reiniciar la ventana retomar solo o esperar confirmación. Hora de reinicio conocida → timer; sin hora → backoff 5, 10, 20 y luego cada 60 min. Tests unitarios con payloads del agente falso.",
+  "done_at": "2026-10-29T22:14:16.090Z",
   "links": [
     {
       "task": "m6-07",
@@ -16,15 +17,15 @@
   ],
   "milestone": "m06",
   "notes": "core/quota_monitor.gd:\n- estados UNKNOWN/NORMAL/WARNING/PAUSE_SCHEDULED/LIMITED;\n- ventanas five_hour/seven_day {utilization, resets_at} leídas de unifiedWindows;\n- \"limitado\" entra por status rejected, por texto o por error de límite, y sale con status allowed* o con un turno end_turn sin texto de límite;\n- hora de reinicio: el resetsAt exacto de la cuota rejected, si no la del texto (parse tolerante), si no backoff;\n- retry_due / seconds_until_retry / note_retry, rule_text(), describe_window(), format_duration();\n- cada transición se loguea en el canal quota.\nUmbrales en EditorSettings godot_agent/quota/: warn_percent 75, pause_percent 90, pause_enabled, resume_mode (Retomar solo / Esperar confirmación). El plugin los aplica al arrancar y con settings_changed.\nEl estado queda en SessionController.quota, que la UI lee por el controller; SessionController.last_turn_usage guarda el usage del session/prompt para el presupuesto de tokens.",
-  "order": 6,
+  "order": -4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "tags": [
     "quota"
   ],
   "test": "run_all -- quota: test_quota_monitor (7 tests, 49 checks): estados con payloads del agente falso, umbrales configurables, pausa desactivable, resetsAt exacto vs texto, backoff 5/10/20/60/60 y reinicio del backoff, parse_reset_time (HH:MM, am/pm, \"reinicia a las\", unix viejo), format_duration. acp_session_check (70 checks): con el agente falso normal → pausa programada (91 %) → limitado, ~120 s hasta el reinicio y la transición logueada en el canal quota.",
   "title": "QuotaMonitor: fuentes, estados y umbrales",
-  "updated_at": "2026-10-21T07:28:08.192Z"
+  "updated_at": "2026-10-29T22:14:16.090Z"
 }

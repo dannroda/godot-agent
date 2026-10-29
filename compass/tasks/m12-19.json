@@ -3,18 +3,19 @@
   "code": "",
   "created_at": "2026-10-29T06:20:38.191Z",
   "description": "«Sesión 1 espera tu permiso» y «espera tu respuesta» se apilan para la misma sesión.\n\nPropuesta: Un aviso por sesión que se actualiza y se va al responder.\n\nArchivos: session_tabs.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "done_at": "2026-10-29T22:15:31.743Z",
   "milestone": "m12",
   "notes": "Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.",
-  "order": 19,
+  "order": -16,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "tags": [
     "ux",
     "dock"
   ],
   "test": "",
   "title": "Avisos del editor repetidos por sesión",
-  "updated_at": "2026-10-29T07:15:47.344Z"
+  "updated_at": "2026-10-29T22:15:31.743Z"
 }

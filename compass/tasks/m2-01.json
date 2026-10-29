@@ -4,14 +4,15 @@
   "code": "2.1",
   "created_at": "2026-10-21T04:32:33.575Z",
   "description": "Grupo colapsable de tool calls (tool_call / tool_call_update por toolCallId): estado ✓/✗/spinner, título, kind, resumen, content de tipo content (texto/imagen), diff y terminal (\"no soportado\"), locations clickeables que abren archivo y línea.",
+  "done_at": "2026-10-29T22:13:50.102Z",
   "milestone": "m02",
   "notes": "entries/tool_group_view.gd:\n- estado, spinner, nombre (godot.* en violeta), resumen y ubicaciones clickeables;\n- diffs como tarjetas; terminal \"no soportado\";\n- texto de error en rojo; salida de texto plegada (\"▸ salida · N líneas\", hasta 40 líneas o 4000 caracteres, monoespaciada);\n- imágenes base64 png, jpeg o webp como miniatura de hasta 160 px; resource_link y resource como 📎 uri.\n\nLa firma de refresco usa un hash del content para redibujar cuando cambia en un update.\nEl botón undo sigue oculto hasta M4.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "- tests/unit/test_tool_group_view.gd: decode_image con png válido, mime no soportado, datos vacíos y basura.\n- run_all: 35 tests y 229 checks en 4.8.\n- Captura de la UI con ui_demo.json.",
   "title": "Render de tool calls en el dock",
-  "updated_at": "2026-10-21T05:23:46.881Z"
+  "updated_at": "2026-10-29T22:13:50.102Z"
 }

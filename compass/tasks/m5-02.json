@@ -4,14 +4,15 @@
   "code": "5.2",
   "created_at": "2026-10-21T04:33:14.950Z",
   "description": "Marcar la línea (fondo y gutter por severidad) en el Script Editor; tarjeta con título, explicación, sugerencia y botones Aplicar arreglo / Preguntar / Descartar. Banda \"Revisión del agente · solo lectura\" (docs/design pantalla 3).",
+  "done_at": "2026-10-29T22:14:11.079Z",
   "milestone": "m05",
   "notes": "review/review_annotations.gd (Node hijo del plugin):\n- gutter custom \"godot_agent_review\" al final, que dibuja ● y el fondo de la línea por severidad (ScriptTextEditor borra set_line_background_color al validar, D23);\n- tarjeta overlay en el CodeEdit bajo la línea (get_rect_at_line_column, sigue el scroll), que se abre con clic en la marca o desde la lista del dock (focus_finding);\n- banda \"Revisión del agente · solo lectura · N hallazgos\" en la barra de estado del CodeTextEditor, o como overlay si no la encuentra.\nAnota los editores que fueron el actual (editor_script_changed). Colores en AgentTheme.SEVERITY_COLORS/BG. Los botones de la tarjeta los resuelve plugin.gd:\n- Descartar: store.dismiss;\n- Preguntar: send_prompt sin recolectar hallazgos;\n- Aplicar arreglo: send_in_mode(BUILD) y saca el hallazgo si termina en end_turn.\nAfuera (D23): conteos por archivo en la lista de scripts y seguimiento de ediciones.",
-  "order": 2,
+  "order": 0,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "review",
+  "status": "done",
   "test": "tests/run_in_xvfb.sh $G --godot-agent-review-test (review_check.gd): marca en la línea, gutter propio, cursor, tarjeta con título y los 3 botones, banda en la barra de estado; Descartar saca la marca y cierra la tarjeta. Pasa en 4.4.1, 4.7.2 y 4.8-beta1. Captura revisada a ojo (4.8, agente falso y Claude real).",
   "title": "Anotaciones en el CodeEdit y tarjetas de hallazgo",
-  "updated_at": "2026-10-21T07:20:04.156Z"
+  "updated_at": "2026-10-29T22:14:11.079Z"
 }

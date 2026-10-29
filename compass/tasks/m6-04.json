@@ -4,14 +4,15 @@
   "code": "6.4",
   "created_at": "2026-10-21T04:33:15.307Z",
   "description": "tests/sandbox_project/ separado (con .gdignore para el anfitrión) para correr one-shots; nunca sobre el proyecto del addon.",
+  "done_at": "2026-10-29T22:14:15.088Z",
   "milestone": "m06",
   "notes": "tests/sandbox_project/ (.gdignore para que el proyecto del addon no lo importe) contiene:\n- project.godot (features 4.4, solo el plugin godot_agent);\n- CLAUDE.md con las convenciones del sandbox (scenes/, scripts/, no tocar addons/, verificar con godot.*, sin commits);\n- .gitignore con .godot/.\ntests/make_sandbox.sh lo copia fuera del repo con el addon y --dev habilita godot_agent_dev. Nunca se corre un One-shot sobre el proyecto del addon: los checkpoints crean ramas y \"Volver acá\" resetea la carpeta.\nrun_in_xvfb.sh acepta XRUN_PROJECT para abrir otro proyecto.",
-  "order": 4,
+  "order": -2,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "review",
+  "status": "done",
   "test": "tests/make_sandbox.sh <dir fuera del repo> --dev crea el proyecto, copia el addon (y el de dev), hace git init y el commit \"Sandbox inicial\". Se niega a usar un destino dentro del repo y a pisar una carpeta que no sea un sandbox (marca .sandbox_one_shot). Import headless de 4.8 sin errores. XRUN_PROJECT=<sandbox> tests/run_in_xvfb.sh … abre el editor sobre el sandbox; ahí corre --godot-agent-claude-oneshot-test (m6-05).",
   "title": "Proyecto sandbox para one-shots",
-  "updated_at": "2026-10-21T07:53:15.773Z"
+  "updated_at": "2026-10-29T22:14:15.088Z"
 }

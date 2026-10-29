@@ -3,6 +3,7 @@
   "code": "",
   "created_at": "2026-10-22T04:23:15.078Z",
   "description": "El estado del One-shot (plan, checks, checkpoints, presupuestos, actividad) vive solo en memoria en `oneshot/oneshot_run.gd`. Si el editor crashea, se pierde todo. Visto en little-villages el 2026-10-22: después del crash, para la sesión era como si el One-shot no hubiera corrido.\n\nQué hacer:\n- Guardar el run en `user://godot_agent/oneshot/<id>.json` a medida que avanza, con escritura atómica (archivo temporal y después rename).\n- Al abrir el editor con un run sin terminar o reciente, ofrecer \"Retomar\". Eso restaura la pantalla y hace `session/load` de la sesión ACP.\n- Avisar antes de arrancar un One-shot si el repo no tiene commits, porque sin commits no hay checkpoints.",
+  "done_at": "2026-10-29T22:14:32.768Z",
   "links": [
     {
       "task": "m7-12",
@@ -11,12 +12,12 @@
   ],
   "milestone": "m07",
   "notes": "D37. `oneshot/oneshot_store.gd` guarda en `user://godot_agent/oneshot/<id>.json`, con la captura en `<id>.png`. Escribe con archivo temporal y rename, y conserva los últimos 20 runs.\n- **Cuándo guarda:** en cada cambio de fase y como mucho cada 2 s mientras corre.\n- **Al cerrar el editor:** `_exit_tree` del plugin llama a `suspend()` en lugar de `stop()`, así el run queda guardado como activo.\n- **Al abrir el editor:** `_restore_oneshot` carga el run a medias en pausa y avisa en el dock. Hasta retomar se ve el plan guardado (`current_plan()`).\n- **Retomar:** reabre su propia sesión con `reopen` (session/load) o, si no puede, abre una nueva con `_summary_prompt`.\n- **Aviso antes de empezar:** si los checkpoints no se pueden usar, un diálogo ofrece seguir sin ellos. Antes el warning de `preflight` se ignoraba.\n- **Prueba de UI:** usa una carpeta temporal para el store, así un run a medias no aparece en otra prueba.",
-  "order": 9,
+  "order": -4,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "review",
+  "status": "done",
   "test": "- `test_oneshot_store`.\n- `oneshot_check` (recuperación): el editor \"se cae\" a mitad de turno, otra instancia carga el run y retoma con el resumen hasta cp3.\n- `--godot-agent-oneshot-test`: la pantalla con un run cargado (banner, Retomar, plan, actividad) y Detener lo cierra.",
   "title": "Persistir el run del One-shot y ofrecer retomarlo",
-  "updated_at": "2026-10-22T05:21:58.529Z"
+  "updated_at": "2026-10-29T22:14:32.768Z"
 }
