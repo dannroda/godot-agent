@@ -4,18 +4,18 @@
   "created_at": "2026-10-29T06:20:35.845Z",
   "description": "Con el dock ancho, al centro le quedan unos 320 px: el texto se corta a los dos lados y «Iniciar One-shot» no se ve.\n\nPropuesta: La tarjeta usa el ancho disponible y, angosta, apila las columnas con el botón siempre visible.\n\nArchivos: agent_main_screen.tscn\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)",
   "milestone": "m12",
-  "notes": "",
+  "notes": "El formulario va en un ScrollContainer y se achica hasta 280 px (FORM_NARROW_WIDTH) en vez de quedar fijo en 640 dentro de un CenterContainer; presupuestos en HFlowContainer con SpinBox de 110 px mínimo; las casillas con autowrap.",
   "order": 9,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "roto",
     "oneshot"
   ],
-  "test": "",
+  "test": "Captura de One-shot con el dock a 1230 px (centro de ~380 px) en Xvfb: todo visible, Iniciar One-shot incluido.",
   "title": "One-shot no se adapta al ancho y se corta",
-  "updated_at": "2026-10-29T06:20:35.845Z"
+  "updated_at": "2026-10-29T06:42:26.028Z"
 }

@@ -6,7 +6,7 @@
 custom_minimum_size = Vector2(0, 160)
 script = ExtResource("1_log")
 
-[node name="Toolbar" type="HBoxContainer" parent="."]
+[node name="Toolbar" type="HFlowContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 2
 

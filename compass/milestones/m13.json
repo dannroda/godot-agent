@@ -1,0 +1,9 @@
+{
+  "code": "M11",
+  "done_when": [
+    "Las tres revisiones tienen su informe y cada hallazgo quedó como tarea hecha o descartada con su motivo."
+  ],
+  "goal": "Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.",
+  "order": 13,
+  "title": "Revisiones de seguridad, patrones y arquitectura"
+}

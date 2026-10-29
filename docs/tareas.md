@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (4/37, 4 en revisión)
+## M10 — Revisión de UX  (6/37, 6 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -2995,7 +2995,7 @@ Archivos: extensions_window.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
 
-### La barra del Agent Log se corta · Pendiente
+### La barra del Agent Log se corta · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `log`
 
@@ -3006,6 +3006,10 @@ Propuesta: Canales como chips con estado, «3 entradas», Copiar/Limpiar como í
 Archivos: agent_log_panel.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+**Prueba:** Captura del Agent Log en Xvfb.
+
+**Notas:** Barra como HFlowContainer (baja de línea en vez de cortarse), canales con ● / ○ según estén prendidos, «N entradas», Copiar y Limpiar como íconos del editor con tooltip.
 
 ### El panel de Alt+I queda gigante y tapa el código · Revisión
 
@@ -3035,6 +3039,10 @@ Archivos: editor/inline_edit.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
 
+**Prueba:** test_inline_edit.test_where_label. Sin probar en el editor con un agente.
+
+**Notas:** Botón según estado: Cancelar (cancela el turno con controller.cancel), Cerrar o Rechazar. Sin sesión: «Iniciar sesión» abre la de la pestaña activa (agent_dock._start_session) y reenvía el pedido. El panel repite el pedido y las líneas (where_label), parte de m12-08.
+
 ### Alt+I: esperando no dice qué se pidió ni muestra avance · Pendiente
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `alt-i`
@@ -3048,7 +3056,7 @@ Archivos: editor/inline_edit.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
 
-### One-shot no se adapta al ancho y se corta · Pendiente
+### One-shot no se adapta al ancho y se corta · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `roto`, `oneshot`
 
@@ -3411,3 +3419,28 @@ Los perfiles preseteados se sacaron en 0.1.8, pero quien ya tenía la configurac
 Propuesta: al cargar los perfiles, quitar una vez el gemini-cli preseteado (command "gemini", sin args) y el codex con comando vacío, solo si siguen iguales al preset (no tocar uno editado), y avisar en el log.
 
 Archivos: harness_settings.gd (profiles)
+
+## M11 — Revisiones de seguridad, patrones y arquitectura  (0/3)
+
+Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
+
+**Hecho cuando:**
+- Las tres revisiones tienen su informe y cada hallazgo quedó como tarea hecha o descartada con su motivo.
+
+### Revisión de seguridad del addon · Pendiente
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `revision`, `seguridad`
+
+Revisar todo lo que el agente o un tercero puede hacer a través del harness: terminales y preautorización (como el command_key de eae1e13), fs/*, permisos por modo y reglas de Auto, el servidor MCP local (token, puerto, límites), instalación de agentes del registro (descargas, sha256, permisos de archivos), elicitation (URLs), extensiones y marketplaces, secretos en perfiles y en el log, y el export. Informe con hallazgos ordenados por gravedad y una tarea por hallazgo.
+
+### Revisión de patrones de Godot · Pendiente
+
+**Prioridad:** media · **Tamaño:** L · **Etiquetas:** `revision`, `patrones`
+
+Revisar el GDScript del addon contra los patrones de Godot 4: ciclo de vida de nodos y RefCounted (ciclos de referencias como el del crash de 4.8), await y señales que sobreviven al nodo, call_deferred, @tool y recarga de scripts en caliente, Resources compartidos, Window/AcceptDialog y layout (wrap_controls, autowrap), y rendimiento en el editor. Informe y una tarea por hallazgo.
+
+### Revisión de arquitectura · Pendiente
+
+**Prioridad:** media · **Tamaño:** L · **Etiquetas:** `revision`, `arquitectura`
+
+Revisar la estructura del addon: el tamaño y las responsabilidades de session_controller.gd, plugin.gd y agent_dock.gd, el acoplamiento entre sesión, dock y plugin, dónde vive el estado (EditorSettings, project_config.tres, user://), cómo se suman agentes nuevos (Claude, Antigravity, Codex) sin ramas por nombre, y la cobertura de tests por capa. Informe con propuestas y una tarea por cambio.

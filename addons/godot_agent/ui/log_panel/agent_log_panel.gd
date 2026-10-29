@@ -35,18 +35,24 @@ func _ready() -> void:
 		toggle.toggle_mode = true
 		toggle.button_pressed = true
 		toggle.flat = true
-		toggle.text = String(channel)
+		toggle.text = "● " + String(channel)
 		toggle.tooltip_text = I18n.t("Show the %s channel") % channel
 		toggle.add_theme_color_override(&"font_pressed_color", AgentTheme.CHANNEL_COLORS[channel])
 		toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		toggle.toggled.connect(_on_channel_toggled.bind(channel))
+		# El color solo no alcanza para ver si el canal está prendido (m12-05).
+		toggle.toggled.connect(func(on: bool) -> void: toggle.text = ("● " if on else "○ ") + String(channel))
 		_channel_filters.add_child(toggle)
 	# Los textos del .tscn están en inglés: el panel no usa la traducción automática del editor.
 	_raw_toggle.tooltip_text = I18n.t("Show the full JSON-RPC messages")
-	_copy_button.text = I18n.t("Copy")
+	# Íconos con tooltip: con texto, en el ancho por defecto del panel «Limpiar» quedaba cortado.
+	_copy_button.text = ""
 	_copy_button.tooltip_text = I18n.t("Copy the visible lines")
-	_clear_button.text = I18n.t("Clear")
+	_clear_button.text = ""
 	_clear_button.tooltip_text = I18n.t("Clear the log")
+	if Engine.is_editor_hint():
+		_copy_button.icon = EditorInterface.get_editor_theme().get_icon(&"ActionCopy", &"EditorIcons")
+		_clear_button.icon = EditorInterface.get_editor_theme().get_icon(&"Clear", &"EditorIcons")
 	_raw_toggle.toggled.connect(func(_on: bool) -> void: _rebuild())
 	_copy_button.pressed.connect(_on_copy_pressed)
 	_clear_button.pressed.connect(_on_clear_pressed)
@@ -99,7 +105,7 @@ func _visible(entry: Dictionary) -> bool:
 
 
 func _update_count() -> void:
-	_count_label.text = "%d" % (_log.entries().size() if _log else 0)
+	_count_label.text = I18n.t("%d entries") % (_log.entries().size() if _log else 0)
 
 
 func _on_clear_pressed() -> void:

@@ -395,8 +395,6 @@ msgstr "Checkpoints desactivados."
 msgid "Checks"
 msgstr "Verificaciones"
 
-msgid "Clear"
-msgstr "Limpiar"
 
 msgid "Clear the log"
 msgstr "Vaciar el log"
@@ -3232,3 +3230,6 @@ msgstr "Abriendo la sesión…"
 
 msgid "The session didn't start: look at the Agent dock."
 msgstr "La sesión no se abrió: mirá el dock del agente."
+
+msgid "%d entries"
+msgstr "%d entradas"

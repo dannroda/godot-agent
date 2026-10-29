@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:37:59.336Z",
+  "description": "Revisar la estructura del addon: el tamaño y las responsabilidades de session_controller.gd, plugin.gd y agent_dock.gd, el acoplamiento entre sesión, dock y plugin, dónde vive el estado (EditorSettings, project_config.tres, user://), cómo se suman agentes nuevos (Claude, Antigravity, Codex) sin ramas por nombre, y la cobertura de tests por capa. Informe con propuestas y una tarea por cambio.",
+  "milestone": "m13",
+  "notes": "",
+  "order": 3,
+  "priority": "medium",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "tags": [
+    "revision",
+    "arquitectura"
+  ],
+  "test": "",
+  "title": "Revisión de arquitectura",
+  "updated_at": "2026-10-29T06:37:59.336Z"
+}

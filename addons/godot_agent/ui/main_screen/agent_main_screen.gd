@@ -53,6 +53,8 @@ const SUMMARY_INTERVAL_S := 2.0
 const ACCOUNT_ALREADY_SWITCHED := 1000
 ## El formulario crece con la pantalla (m6-13): ancho y alto del objetivo, en px sin escalar.
 const FORM_MIN_WIDTH := 640
+## Ancho al que se achica el formulario cuando el centro es angosto.
+const FORM_NARROW_WIDTH := 280
 const FORM_MAX_WIDTH := 1400
 const FORM_WIDTH_RATIO := 0.62
 const GOAL_MIN_HEIGHT := 110
@@ -201,15 +203,20 @@ func _build_banner() -> void:
 
 
 func _build_form() -> void:
+	# Con el centro angosto (dock ancho) el formulario se achica y scrollea en vez de cortarse (m12-09).
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
+	_form = scroll
 	var center := CenterContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(center)
-	_form = center
+	scroll.add_child(center)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = AgentTheme.px(FORM_MIN_WIDTH)
 	panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(AgentTheme.dark_color(), Color(1, 1, 1, 0.08), 8, 20))
 	center.add_child(panel)
-	center.resized.connect(_fit_form.bind(center, panel))
+	scroll.resized.connect(_fit_form.bind(scroll, panel))
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override(&"separation", AgentTheme.px(10))
 	panel.add_child(box)
@@ -230,8 +237,8 @@ func _build_form() -> void:
 	_goal_edit.text_changed.connect(_refresh_form)
 	box.add_child(_goal_edit)
 	box.add_child(_heading(I18n.t("Budgets (0 = unlimited)")))
-	var budgets := HBoxContainer.new()
-	budgets.add_theme_constant_override(&"separation", AgentTheme.px(12))
+	var budgets := HFlowContainer.new()
+	budgets.add_theme_constant_override(&"h_separation", AgentTheme.px(12))
 	box.add_child(budgets)
 	var specs: Array[Dictionary] = [
 		{"key": OneShotRun.BUDGET_TIME, "suffix": "min", "max": 600, "step": 1},
@@ -251,16 +258,19 @@ func _build_form() -> void:
 		spin.suffix = spec.suffix
 		spin.value = float(_defaults.get(spec.key, 0))
 		spin.select_all_on_focus = true
+		spin.custom_minimum_size.x = AgentTheme.px(110)  # «1500000» entero: si no entra, la fila baja de línea
 		column.add_child(spin)
 		budgets.add_child(column)
 		_budget_spins[spec.key] = spin
 	_checkpoints_check = CheckBox.new()
 	_checkpoints_check.text = I18n.t("Create a git checkpoint before each task (branch agent/<date>; never merges or pushes)")
 	_checkpoints_check.button_pressed = bool(_defaults.get("checkpoints", true))
+	_checkpoints_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_checkpoints_check)
 	_spec_check = CheckBox.new()
 	_spec_check.text = I18n.t("Review the spec before building (the agent writes it and waits for “Approve spec”)")
 	_spec_check.button_pressed = bool(_defaults.get("spec_review", false))
+	_spec_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_spec_check)
 	_form_rule = Label.new()
 	_form_rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -655,10 +665,11 @@ func _column(ratio: float) -> VBoxContainer:
 
 ## Ancho del formulario y alto del objetivo según el espacio disponible. El resto del formulario
 ## mide unos 330 px; el objetivo se queda con hasta el 40 % del alto.
-func _fit_form(center: Control, panel: Control) -> void:
-	var width := clampf(center.size.x * FORM_WIDTH_RATIO, AgentTheme.px(FORM_MIN_WIDTH), maxf(AgentTheme.px(FORM_MAX_WIDTH), AgentTheme.px(FORM_MIN_WIDTH)))
-	panel.custom_minimum_size.x = minf(width, maxf(center.size.x - AgentTheme.px(32), AgentTheme.px(FORM_MIN_WIDTH)))
-	_goal_edit.custom_minimum_size.y = maxf(AgentTheme.px(GOAL_MIN_HEIGHT), center.size.y * GOAL_HEIGHT_RATIO)
+func _fit_form(area: Control, panel: Control) -> void:
+	var width := clampf(area.size.x * FORM_WIDTH_RATIO, AgentTheme.px(FORM_MIN_WIDTH), maxf(AgentTheme.px(FORM_MAX_WIDTH), AgentTheme.px(FORM_MIN_WIDTH)))
+	# Nunca más ancho que el área: angosto, el formulario se achica hasta FORM_NARROW_WIDTH.
+	panel.custom_minimum_size.x = clampf(width, AgentTheme.px(FORM_NARROW_WIDTH), maxf(area.size.x - AgentTheme.px(32), AgentTheme.px(FORM_NARROW_WIDTH)))
+	_goal_edit.custom_minimum_size.y = maxf(AgentTheme.px(GOAL_MIN_HEIGHT), area.size.y * GOAL_HEIGHT_RATIO)
 
 
 func _heading(text: String) -> Label:
