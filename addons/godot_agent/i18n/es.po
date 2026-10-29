@@ -2225,11 +2225,7 @@ msgstr "Todos mis proyectos"
 msgid "Other MCP servers"
 msgstr "Otros servidores MCP"
 
-msgid "Tools from other programs (Blender, a database, a web service…) that the agent can use besides godot.*. The addon passes them to the agent when a session opens, so they work with any agent; changes apply from the next session. In arguments, environment and headers, $VAR takes the value of VAR from the editor's environment: keys are not saved."
-msgstr "Tools de otros programas (Blender, una base de datos, un servicio web…) que el agente puede usar además de godot.*. El addon se los pasa al agente al abrir la sesión, así que sirven con cualquier agente; los cambios valen desde la próxima sesión. En argumentos, entorno y headers, $VAR toma el valor de VAR del entorno del editor: las claves no se guardan."
 
-msgid "Claude Code also loads the servers of its own configuration (claude mcp add, .mcp.json). Type /mcp in the chat to see their status, reconnect or disable them. Each server's permissions are in Settings → Permissions."
-msgstr "Claude Code además carga los servidores de su propia configuración (claude mcp add, .mcp.json). Escribí /mcp en el chat para ver su estado, reconectarlos o deshabilitarlos. Los permisos de cada servidor están en Settings → Permisos."
 
 msgid "+ Add server"
 msgstr "+ Agregar servidor"
@@ -3414,3 +3410,12 @@ msgstr "Una celda resaltada difiere de los valores por defecto."
 
 msgid "Changed: the default is %s"
 msgstr "Cambiado: por defecto es %s"
+
+msgid "Tools from other programs (Blender, a database…) for the agent, besides godot.*. They apply from the next session."
+msgstr "Herramientas de otros programas (Blender, una base de datos…) para el agente, además de godot.*. Se aplican desde la próxima sesión."
+
+msgid "Guide"
+msgstr "Guía"
+
+msgid "Advanced: the editor's MCP server, checks after each turn and folders"
+msgstr "Avanzado: el servidor MCP del editor, comprobaciones de cada turno y carpetas"

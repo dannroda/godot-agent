@@ -52,6 +52,7 @@ Google Antigravity asks you to sign in the first time (Google account, Gemini En
 - **Keys**: in arguments, environment and headers, `$VARIABLE` or `${VARIABLE}` takes the value from the editor's environment when the session opens, for example `Authorization: Bearer $SENTRY_TOKEN`. Values with a secret-looking name must use a variable, and the Agent Log hides the resolved values.
 - **Import .mcp.json** adds the servers of the project's `.mcp.json` that aren't on the list yet.
 - The checkbox turns a server off without removing it.
+- **Advanced**, folded at the bottom of the page: the editor's own MCP server (port, token, limits), the checks after each turn and the folders outside the project.
 
 Claude Code also loads the servers of its own configuration (`claude mcp add`, `.mcp.json`, `~/.claude.json`). Type `/mcp` in the chat to see their status, reconnect them or turn them off.
 

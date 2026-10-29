@@ -52,6 +52,7 @@ Google Antigravity pide iniciar sesión la primera vez (cuenta de Google, Gemini
 - **Claves**: en argumentos, entorno y headers, `$VARIABLE` o `${VARIABLE}` toma el valor del entorno del editor al abrir la sesión, por ejemplo `Authorization: Bearer $SENTRY_TOKEN`. Los valores con nombre de secreto tienen que usar una variable, y el Agent Log tapa los valores resueltos.
 - **Importar .mcp.json** agrega los servidores del `.mcp.json` del proyecto que todavía no están en la lista.
 - La casilla apaga un servidor sin quitarlo.
+- **Avanzado**, plegado al final de la página: el servidor MCP propio del editor (puerto, token, límites), las comprobaciones de cada turno y las carpetas fuera del proyecto.
 
 Claude Code además carga los servidores de su propia configuración (`claude mcp add`, `.mcp.json`, `~/.claude.json`). Escribí `/mcp` en el chat para ver su estado, reconectarlos o apagarlos.
 

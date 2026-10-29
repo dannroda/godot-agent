@@ -19,6 +19,9 @@ const SCOPE_LABELS: Dictionary = {
 }
 const MCP_JSON := "res://.mcp.json"
 
+const GUIDE_URL := "https://github.com/dannroda/godot-agent/wiki/Settings#other-mcp-servers"
+const GUIDE_URL_ES := "https://github.com/dannroda/godot-agent/wiki/Settings-es#otros-servidores-mcp"
+
 var _list: VBoxContainer
 var _form: GridContainer
 var _fields: Dictionary = {}  # nombre -> control
@@ -37,8 +40,18 @@ func _init() -> void:
 	title.text = I18n.t("Other MCP servers")
 	title.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
 	add_child(title)
-	add_child(_hint(I18n.t("Tools from other programs (Blender, a database, a web service…) that the agent can use besides godot.*. The addon passes them to the agent when a session opens, so they work with any agent; changes apply from the next session. In arguments, environment and headers, $VAR takes the value of VAR from the editor's environment: keys are not saved.")))
-	add_child(_hint(I18n.t("Claude Code also loads the servers of its own configuration (claude mcp add, .mcp.json). Type /mcp in the chat to see their status, reconnect or disable them. Each server's permissions are in Settings → Permissions.")))
+	# Una línea y la guía (m12-23): el detalle ($VAR, los servers propios del agente, /mcp) está en la wiki.
+	var intro := HBoxContainer.new()
+	add_child(intro)
+	var hint := _hint(I18n.t("Tools from other programs (Blender, a database…) for the agent, besides godot.*. They apply from the next session."))
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	intro.add_child(hint)
+	var guide := LinkButton.new()
+	guide.text = I18n.t("Guide")
+	guide.tooltip_text = guide_url()
+	guide.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	guide.pressed.connect(func() -> void: OS.shell_open(guide_url()))
+	intro.add_child(guide)
 	_list = VBoxContainer.new()
 	add_child(_list)
 	var actions := HBoxContainer.new()
@@ -287,6 +300,11 @@ func _code_edit() -> TextEdit:
 	text.custom_minimum_size.y = AgentTheme.px(60)
 	text.add_theme_font_override(&"font", AgentTheme.mono_font())
 	return text
+
+
+## La sección de la wiki sobre otros servidores MCP, en el idioma de la interfaz.
+static func guide_url() -> String:
+	return GUIDE_URL_ES if I18n.locale() == "es" else GUIDE_URL
 
 
 func _hint(text: String) -> Label:

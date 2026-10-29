@@ -386,6 +386,16 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_mcp_servers_page.servers_changed.connect(func() -> void: _rebuild_mcp_matrix(matrix_overrides()))
 	page.add_child(_mcp_servers_page)
 	page.add_child(HSeparator.new())
+	# Lo del servidor del editor, las comprobaciones de cada turno y las carpetas: en «Avanzado»,
+	# plegado (m12-23). La página queda para los servidores de otros programas.
+	var advanced := FoldableContainer.new()
+	advanced.name = "AdvancedMcp"
+	advanced.title = I18n.t("Advanced: the editor's MCP server, checks after each turn and folders")
+	advanced.folded = true
+	page.add_child(advanced)
+	page = VBoxContainer.new()
+	page.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	advanced.add_child(page)
 	page.add_child(_title(I18n.t("Editor tools (the addon's MCP server)")))
 	_url_label = Label.new()
 	_url_label.add_theme_font_override(&"font", AgentTheme.mono_font())
