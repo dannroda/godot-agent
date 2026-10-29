@@ -3419,3 +3419,6 @@ msgstr "Guía"
 
 msgid "Advanced: the editor's MCP server, checks after each turn and folders"
 msgstr "Avanzado: el servidor MCP del editor, comprobaciones de cada turno y carpetas"
+
+msgid "Advanced: thresholds, timings, corpus and log"
+msgstr "Avanzado: umbrales, tiempos, corpus y log"

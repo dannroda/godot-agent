@@ -60,6 +60,11 @@ var _raw_check: CheckBox
 var _metrics_grid: GridContainer
 
 
+## Dónde agregan los helpers (_check, _spin_row…): la página o el «Avanzado» plegado (m12-24).
+var _target: Container = self
+var _advanced: FoldableContainer
+
+
 func _init() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	add_theme_constant_override(&"separation", AgentTheme.px(8))
@@ -76,15 +81,7 @@ func _build() -> void:
 	add_child(_title(I18n.t("Local")))
 	for source: String in HarnessSettings.COMPLETION_SOURCES:
 		_source_checks[source] = _check(I18n.t(SOURCE_LABELS[source]) if SOURCE_LABELS.has(source) else source)
-	_threshold_spin = _spin_row(I18n.t("Ranker threshold"), 0.05, 1.0, 0.01, "")
-	_margin_spin = _spin_row(I18n.t("Margin over the runner-up"), 0.0, 0.5, 0.01, "")
-	_debounce_spin = _spin_row(I18n.t("Local debounce"), 0, 200, 1, "ms")
 	_multiline_check = _check(I18n.t("Multi-line suggestions"))
-	_max_lines_spin = _spin_row(I18n.t("Max lines per block"), 1, 16, 1, "")
-	add_child(_hint(I18n.t("Extra corpus: folders from your other projects that only train the n-gram (absolute paths, one per line).")))
-	_corpus_edit = _text_edit()
-	add_child(_hint(I18n.t("Excluded from the corpus in this project (paths relative to res://, one per line):")))
-	_exclude_edit = _text_edit()
 
 	add_child(_title(I18n.t("LLM (optional)")))
 	add_child(_hint(I18n.t("Keys are not saved: each profile has the name of the editor environment variable that holds it.")))
@@ -135,12 +132,32 @@ func _build() -> void:
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
 	apply.pressed.connect(apply_form)
 	_form.add_child(apply)
+	_marker_check = _check(I18n.t("Mark LLM suggestions (a dot at the end)"))
+
+	# Las perillas de ajuste fino, plegadas (m12-24).
+	_advanced = FoldableContainer.new()
+	_advanced.name = "AdvancedCompletion"
+	_advanced.title = I18n.t("Advanced: thresholds, timings, corpus and log")
+	_advanced.folded = true
+	add_child(_advanced)
+	var advanced_box := VBoxContainer.new()
+	advanced_box.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	_advanced.add_child(advanced_box)
+	_target = advanced_box
+	_threshold_spin = _spin_row(I18n.t("Ranker threshold"), 0.05, 1.0, 0.01, "")
+	_margin_spin = _spin_row(I18n.t("Margin over the runner-up"), 0.0, 0.5, 0.01, "")
+	_debounce_spin = _spin_row(I18n.t("Local debounce"), 0, 200, 1, "ms")
+	_max_lines_spin = _spin_row(I18n.t("Max lines per block"), 1, 16, 1, "")
+	advanced_box.add_child(_hint(I18n.t("Extra corpus: folders from your other projects that only train the n-gram (absolute paths, one per line).")))
+	_corpus_edit = _text_edit()
+	advanced_box.add_child(_hint(I18n.t("Excluded from the corpus in this project (paths relative to res://, one per line):")))
+	_exclude_edit = _text_edit()
 	_llm_debounce_spin = _spin_row(I18n.t("LLM debounce"), 75, 1000, 1, "ms")
 	_prefix_spin = _spin_row(I18n.t("Prefix (characters before the caret)"), 200, 32000, 100, "")
 	_suffix_spin = _spin_row(I18n.t("Suffix (characters after)"), 0, 16000, 100, "")
 	_context_spin = _spin_row(I18n.t("Project context (estimated tokens)"), 0, 16000, 50, "")
-	_marker_check = _check(I18n.t("Mark LLM suggestions (a dot at the end)"))
 	_raw_check = _check(I18n.t("\"Raw\" log: include the suggestions' code in the Agent Log"))
+	_target = self
 
 	add_child(_title(I18n.t("This session, by source")))
 	_metrics_grid = GridContainer.new()
@@ -413,7 +430,7 @@ func _hint(text: String) -> Label:
 func _check(text: String) -> CheckBox:
 	var check := CheckBox.new()
 	check.text = text
-	add_child(check)
+	_target.add_child(check)
 	return check
 
 
@@ -427,7 +444,7 @@ func _option_row(text: String, items: PackedStringArray) -> OptionButton:
 	for item: String in items:  # etiquetas de constantes, en inglés
 		option.add_item(I18n.t(item))
 	row.add_child(option)
-	add_child(row)
+	_target.add_child(row)
 	return option
 
 
@@ -449,7 +466,7 @@ func _spin_row(text: String, min_value: float, max_value: float, step: float, su
 	row.add_child(label)
 	var spin := _spin(min_value, max_value, step, suffix)
 	row.add_child(spin)
-	add_child(row)
+	_target.add_child(row)
 	return spin
 
 
@@ -458,7 +475,7 @@ func _text_edit(attach: bool = true) -> TextEdit:
 	text.custom_minimum_size.y = AgentTheme.px(60)
 	text.add_theme_font_override(&"font", AgentTheme.mono_font())
 	if attach:
-		add_child(text)
+		_target.add_child(text)
 	return text
 
 

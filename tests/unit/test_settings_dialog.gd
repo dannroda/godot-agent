@@ -265,3 +265,15 @@ func test_matrix_cells_and_column_reset() -> void:
 	assert_true(dialog.matrix_overrides().is_empty(), "la columna vuelve a la spec")
 	assert_false(changed.has_theme_stylebox_override(&"normal"), "y deja de resaltarse")
 	dialog.free()
+
+
+## m12-24: arriba lo que se usa; los números del completado en «Avanzado», plegado.
+func test_completion_advanced_folded() -> void:
+	var page: Node = preload("res://addons/godot_agent/ui/settings/completion_settings_page.gd").new()
+	var advanced: FoldableContainer = page.get(&"_advanced")
+	assert_true(advanced.folded, "plegado de entrada")
+	for name: StringName in [&"_threshold_spin", &"_margin_spin", &"_debounce_spin", &"_llm_debounce_spin", &"_corpus_edit"]:
+		assert_true(advanced.is_ancestor_of(page.get(name) as Node), "%s en Avanzado" % name)
+	for name: StringName in [&"_enabled_check", &"_mode_option", &"_multiline_check"]:
+		assert_false(advanced.is_ancestor_of(page.get(name) as Node), "%s a la vista" % name)
+	page.free()
