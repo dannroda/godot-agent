@@ -12,6 +12,8 @@ signal new_session_requested
 signal disabled_skills_changed(names: PackedStringArray)
 ## «Agregar server» de la pestaña MCP: los servers del addon se editan en Settings.
 signal mcp_settings_requested
+## «Configurar un agente…» cuando no hay ninguno (m12-30): abrir Ajustes › Agentes.
+signal agents_requested
 
 const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
@@ -54,6 +56,8 @@ var extensions: ClaudeExtensions
 var addon_servers_provider: Callable
 ## () -> bool: el perfil activo es Claude Code (plugins y marketplaces son de Claude Code).
 var is_claude_provider: Callable
+## () -> bool: hay algún perfil de agente configurado.
+var has_agent_provider: Callable
 ## () -> String: familia del perfil activo (`claude`, `codex`, `antigravity`, `copilot`, `cursor`, `opencode`, `other`).
 var agent_kind_provider: Callable
 ## El cliente del Asset Store, para la pestaña de addons de Godot.
@@ -324,13 +328,16 @@ func _rebuild_all() -> void:
 func _rebuild_plugins() -> void:
 	ExtensionsUi.clear(_plugins_box)
 	_update_tab_titles()
+	if not _has_agent():
+		_plugins_box.add_child(_no_agent_card())
+		return
 	if not _is_claude():
 		_plugins_box.add_child(ExtensionsUi.muted(I18n.t("Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent.")))
 		return
 	if not _plugins_error.is_empty():
 		_plugins_box.add_child(ExtensionsUi.error_label(_plugins_error))
 	if _loading.has(ExtensionsTab.PLUGINS) and _installed.is_empty():
-		_plugins_box.add_child(ExtensionsUi.muted(I18n.t("Loading…")))
+		_plugins_box.add_child(ExtensionsUi.skeleton(I18n.t("Loading…")))
 		return
 	var query := _plugin_search.text.strip_edges().to_lower()
 	var installed := _installed.filter(func(plugin: Variant) -> bool: return plugin is Dictionary and (query.is_empty() or str(plugin.get("id", "")).to_lower().contains(query)))
@@ -426,13 +433,16 @@ func _available_card(plugin: Dictionary) -> Control:
 func _rebuild_markets() -> void:
 	ExtensionsUi.clear(_markets_box)
 	_update_tab_titles()
+	if not _has_agent():
+		_markets_box.add_child(_no_agent_card())
+		return
 	if not _is_claude():
 		_markets_box.add_child(ExtensionsUi.muted(I18n.t("Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent.")))
 		return
 	if not _markets_error.is_empty():
 		_markets_box.add_child(ExtensionsUi.error_label(_markets_error))
 	if _loading.has(ExtensionsTab.MARKETPLACES) and _markets.is_empty():
-		_markets_box.add_child(ExtensionsUi.muted(I18n.t("Loading…")))
+		_markets_box.add_child(ExtensionsUi.skeleton(I18n.t("Loading…")))
 		return
 	for market: Variant in _markets:
 		if not market is Dictionary:
@@ -473,8 +483,10 @@ func _rebuild_mcp() -> void:
 		groups.get_or_add(server.origin, []).append(server)
 	if not _mcp_error.is_empty() and _is_claude():
 		_mcp_box.add_child(ExtensionsUi.error_label(_mcp_error))
+	if not _has_agent():
+		_mcp_box.add_child(_no_agent_card())
 	if _loading.has(ExtensionsTab.MCP) and _is_claude():
-		_mcp_box.add_child(ExtensionsUi.muted(I18n.t("Checking the servers…")))
+		_mcp_box.add_child(ExtensionsUi.skeleton(I18n.t("Checking the servers…"), 2))
 	for origin: String in MCP_ORIGIN_ORDER:
 		var servers: Array = groups.get(origin, []).filter(func(server: Dictionary) -> bool: return query.is_empty() or str(server.name).to_lower().contains(query))
 		if servers.is_empty():
@@ -587,6 +599,26 @@ func _set_status(text: String, color: Color) -> void:
 
 
 # --- auxiliares ----------------------------------------------------------------------------------
+
+func _has_agent() -> bool:
+	return has_agent_provider.call() if has_agent_provider.is_valid() else true
+
+
+## Sin agentes: qué falta y cómo agregar uno (m12-30).
+func _no_agent_card() -> Control:
+	var card := ExtensionsUi.card()
+	var row := HBoxContainer.new()
+	card.add_child(row)
+	var text := ExtensionsUi.muted(I18n.t("No agent set up yet. Plugins, marketplaces and the agent's own MCP servers depend on which one you use."))
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(text)
+	var add := Button.new()
+	add.text = I18n.t("Set up an agent…")
+	add.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	add.pressed.connect(func() -> void: agents_requested.emit())
+	row.add_child(add)
+	return card
+
 
 func _is_claude() -> bool:
 	return is_claude_provider.call() if is_claude_provider.is_valid() else true

@@ -81,3 +81,18 @@ static func clear(box: Container) -> void:
 	for child: Node in box.get_children():
 		box.remove_child(child)
 		child.queue_free()
+
+
+## Filas grises mientras se carga una lista (m12-30): ocupan el lugar de lo que viene, con el texto
+## arriba, en vez de una línea chica y la lista vacía.
+static func skeleton(text: String, rows: int = 3) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.name = "Skeleton"
+	box.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	box.add_child(muted(text))
+	for i in rows:
+		var row := PanelContainer.new()
+		row.custom_minimum_size.y = AgentTheme.px(46)
+		row.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.05 - i * 0.012), Color.TRANSPARENT, 6, 8))
+		box.add_child(row)
+	return box

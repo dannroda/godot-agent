@@ -288,6 +288,10 @@ func _enter_tree() -> void:
 	_extensions_window.is_claude_provider = func() -> bool:
 		var profile := _settings.active_profile()
 		return profile != null and ClaudeExtensions.is_claude_profile(profile.command, profile.args)
+	_extensions_window.has_agent_provider = func() -> bool: return _settings.active_profile() != null
+	_extensions_window.agents_requested.connect(func() -> void:
+		_extensions_window.hide()
+		_settings_dialog.open(SettingsDialog.SettingsSection.AGENTS))
 	_extensions_window.agent_kind_provider = func() -> String:
 		var profile := _settings.active_profile()
 		return ClaudeExtensions.agent_kind(profile.command, profile.args, profile.id) if profile != null else ClaudeExtensions.AGENT_CLAUDE

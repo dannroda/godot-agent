@@ -3498,3 +3498,6 @@ msgstr "Acciones de esta skill"
 
 msgid "Delete…"
 msgstr "Borrar…"
+
+msgid "No agent set up yet. Plugins, marketplaces and the agent's own MCP servers depend on which one you use."
+msgstr "Todavía no hay un agente configurado. Los plugins, los marketplaces y los servidores MCP propios del agente dependen de cuál uses."
