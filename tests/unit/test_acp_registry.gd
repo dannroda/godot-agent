@@ -79,3 +79,18 @@ func test_is_registry_binary() -> void:
 	assert_true(SessionController.is_registry_binary("/home/u/.local/share/godot/godot_agent/agents/antigravity/1.2/agy"), "binario del registro")
 	assert_true(SessionController.is_registry_binary("C:\\Users\\u\\AppData\\Roaming\\Godot\\godot_agent\\agents\\x\\1\\x.exe"), "en Windows")
 	assert_false(SessionController.is_registry_binary("npx"), "npx no")
+
+
+## m12-27: agregados arriba, después los sugeridos y el resto; cómo se instala cada uno.
+func test_grouped_and_install_summary() -> void:
+	var agents := AcpRegistry.parse(DATA, "linux-x86_64")
+	var groups := AcpRegistryDialog.grouped(agents, PackedStringArray(["kilo"]))
+	assert_eq(groups.map(func(group: Dictionary) -> String: return group.group), ["added", "suggested", "other"], "en ese orden")
+	assert_eq((groups[0].agents as Array).map(func(a: Dictionary) -> String: return a.id), ["kilo"], "el agregado")
+	assert_eq((groups[1].agents as Array).map(func(a: Dictionary) -> String: return a.id), ["antigravity-acp"], "Antigravity es sugerido")
+	assert_eq(AcpRegistryDialog.grouped(agents, PackedStringArray()).size(), 2, "sin agregados, sin ese grupo")
+	assert_eq(AcpRegistryDialog.install_summary(agents[2]), "npx @kilocode/cli@7.8 · Node.js downloads it the first time", "npx")
+	var big := agents[1].duplicate(true)
+	big.binary.size = 912 * 1024 * 1024
+	assert_true(AcpRegistryDialog.install_summary(big).contains("912"), "el tamaño si el registro lo trae: %s" % AcpRegistryDialog.install_summary(big))
+	assert_eq(AcpRegistryDialog.install_summary(agents[1]), "program for this platform: the harness downloads it", "sin tamaño")

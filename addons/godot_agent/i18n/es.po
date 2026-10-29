@@ -2870,8 +2870,6 @@ msgstr "El registro no trae checksum para esta descarga: no se puede verificar."
 msgid "Add without checksum"
 msgstr "Agregar sin checksum"
 
-msgid "program for this platform"
-msgstr "programa para esta plataforma"
 
 msgid "Could not add %s: %s"
 msgstr "No se pudo agregar %s: %s"
@@ -3437,3 +3435,33 @@ msgstr "Creá un preset de export primero"
 
 msgid "All presets already have the filter"
 msgstr "Todos los presets ya tienen el filtro"
+
+msgid "npx %s · Node.js downloads it the first time"
+msgstr "npx %s · Node.js lo baja la primera vez"
+
+msgid "uvx %s · uv downloads it the first time"
+msgstr "uvx %s · uv lo baja la primera vez"
+
+msgid "program for this platform · %s download"
+msgstr "programa para esta plataforma · se bajan %s"
+
+msgid "program for this platform: the harness downloads it"
+msgstr "programa para esta plataforma: lo baja el harness"
+
+msgid "Already added"
+msgstr "Ya agregados"
+
+msgid "Suggested"
+msgstr "Sugeridos"
+
+msgid "All agents"
+msgstr "Todos los agentes"
+
+msgid "Add again"
+msgstr "Agregar de nuevo"
+
+msgid "It's already in your agents: adding it again replaces its profile with the registry's."
+msgstr "Ya está en tus agentes: agregarlo de nuevo reemplaza su perfil por el del registro."
+
+msgid "✓ added"
+msgstr "✓ agregado"

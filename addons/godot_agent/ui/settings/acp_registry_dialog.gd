@@ -10,6 +10,10 @@ const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const AcpRegistry := preload("../../core/acp_registry.gd")
 const ExtensionsUi := preload("../extensions/extensions_ui.gd")
+const SuggestedAgents := preload("../../core/suggested_agents.gd")
+
+## `() -> PackedStringArray`: los ids de los perfiles que ya están en Ajustes. Lo pone Ajustes.
+var added_ids: Callable
 
 var registry: AcpRegistry
 var _agents: Array[Dictionary] = []
@@ -87,13 +91,56 @@ static func filter(agents: Array[Dictionary], query: String) -> Array[Dictionary
 		return Array(words).all(func(word: String) -> bool: return text.contains(word)))
 
 
+## Agregados primero, después los sugeridos y al final el resto por nombre (m12-27):
+## `[{group: "added"|"suggested"|"other", agents}]`, sin grupos vacíos.
+static func grouped(agents: Array[Dictionary], added: PackedStringArray) -> Array[Dictionary]:
+	var groups := {"added": [], "suggested": [], "other": []}
+	for agent: Dictionary in agents:
+		if added.has(str(agent.id)):
+			groups.added.append(agent)
+		elif is_suggested(agent):
+			groups.suggested.append(agent)
+		else:
+			groups.other.append(agent)
+	var result: Array[Dictionary] = []
+	for key: String in ["added", "suggested", "other"]:
+		if not (groups[key] as Array).is_empty():
+			result.append({"group": key, "agents": groups[key]})
+	return result
+
+
+## Uno de los agentes sugeridos (Claude Code, Codex, Antigravity): su id o su nombre lo nombra.
+static func is_suggested(agent: Dictionary) -> bool:
+	var text := ("%s %s" % [agent.id, agent.name]).to_lower()
+	for suggested: Dictionary in SuggestedAgents.AGENTS:
+		if text.contains(str(suggested.key)):
+			return true
+	return false
+
+
+## «npx · se baja al usarlo», «uvx · …» o «programa para esta plataforma · 912 MB».
+static func install_summary(agent: Dictionary) -> String:
+	match agent.kind:
+		AcpRegistry.KIND_NPX:
+			return I18n.t("npx %s · Node.js downloads it the first time") % agent.package
+		AcpRegistry.KIND_UVX:
+			return I18n.t("uvx %s · uv downloads it the first time") % agent.package
+	var size := int((agent.binary as Dictionary).get("size", 0))
+	return I18n.t("program for this platform · %s download") % String.humanize_size(size) if size > 0 else I18n.t("program for this platform: the harness downloads it")
+
+
 func _rebuild() -> void:
 	ExtensionsUi.clear(_box)
-	for agent: Dictionary in filter(_agents, _query.text):
-		_box.add_child(_agent_card(agent))
+	var added: PackedStringArray = added_ids.call() if added_ids.is_valid() else PackedStringArray()
+	var titles := {"added": I18n.t("Already added"), "suggested": I18n.t("Suggested"), "other": I18n.t("All agents")}
+	for group: Dictionary in grouped(filter(_agents, _query.text), added):
+		var heading := ExtensionsUi.muted(titles[group.group])
+		_box.add_child(heading)
+		for agent: Dictionary in group.agents:
+			_box.add_child(_agent_card(agent, group.group == "added"))
 
 
-func _agent_card(agent: Dictionary) -> Control:
+func _agent_card(agent: Dictionary, added := false) -> Control:
 	var card := ExtensionsUi.card()
 	var column := VBoxContainer.new()
 	card.add_child(column)
@@ -108,9 +155,12 @@ func _agent_card(agent: Dictionary) -> Control:
 	var add := Button.new()
 	# Ya en disco: «Reinstalar» borra esa versión y la vuelve a bajar (m12-13).
 	var installed := registry.is_installed(agent)
-	add.text = I18n.t("Reinstall") if installed else I18n.t("Add")
+	add.text = I18n.t("Reinstall") if installed else (I18n.t("Add again") if added else I18n.t("Add"))
+	if added and not installed:
+		add.tooltip_text = I18n.t("It's already in your agents: adding it again replaces its profile with the registry's.")
 	var unverified: bool = agent.kind == AcpRegistry.KIND_BINARY and str(agent.binary.sha256).is_empty()
-	add.tooltip_text = I18n.t("The registry has no checksum for this download: it can't be verified.") if unverified else ""
+	if unverified:
+		add.tooltip_text = I18n.t("The registry has no checksum for this download: it can't be verified.")
 	add.pressed.connect(func() -> void:
 		if unverified and not installed and add.text != I18n.t("Add without checksum"):
 			add.text = I18n.t("Add without checksum")
@@ -119,9 +169,12 @@ func _agent_card(agent: Dictionary) -> Control:
 	row.add_child(add)
 	if not str(agent.description).is_empty():
 		column.add_child(ExtensionsUi.muted(agent.description))
-	var how := {AcpRegistry.KIND_NPX: "npx %s", AcpRegistry.KIND_UVX: "uvx %s"}.get(agent.kind, "")
-	var meta: PackedStringArray = [I18n.t("by %s") % ", ".join(agent.authors)]
-	meta.append(how % agent.package if not how.is_empty() else I18n.t("program for this platform"))
+	var meta: PackedStringArray = []
+	if added:
+		meta.append(I18n.t("✓ added"))
+	if not agent.authors.is_empty():
+		meta.append(I18n.t("by %s") % ", ".join(agent.authors))
+	meta.append(install_summary(agent))
 	column.add_child(ExtensionsUi.muted(" · ".join(meta)))
 	return card
 
@@ -149,3 +202,4 @@ func _add(agent: Dictionary, button: Button, reinstall := false) -> void:
 		return
 	_status.text = I18n.t("%s added to the agents. Save the settings to keep it.") % agent.name
 	profile_added.emit(result.profile)
+	_rebuild()  # pasa a «Ya agregados»

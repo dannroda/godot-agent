@@ -123,7 +123,8 @@ static func parse(data: Dictionary, platform: String) -> Array[Dictionary]:
 			if kind == KIND_BINARY:
 				if not entry.get("archive") is String or not entry.get("cmd") is String:
 					continue
-				agent.binary = {"archive": entry.archive, "cmd": entry.cmd, "sha256": str(entry.get("sha256", ""))}
+				# `size` (bytes) si el registro lo trae: la tarjeta muestra cuánto se baja (m12-27).
+				agent.binary = {"archive": entry.archive, "cmd": entry.cmd, "sha256": str(entry.get("sha256", "")), "size": int(entry.get("size", 0)) if (entry.get("size") is int or entry.get("size") is float) else 0}
 			elif not entry.get("package") is String:
 				continue
 			agent.kind = kind

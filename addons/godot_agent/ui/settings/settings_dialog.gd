@@ -250,6 +250,8 @@ func open_registry(query: String = "") -> void:
 	if _registry_dialog == null:
 		_registry_dialog = AcpRegistryDialog.new()
 		_registry_dialog.profile_added.connect(_add_registry_profile)
+		_registry_dialog.added_ids = func() -> PackedStringArray:
+			return PackedStringArray(_profiles.map(func(profile: AgentProfile) -> String: return profile.id))
 		add_child(_registry_dialog)
 	_registry_dialog.open(query)
 
