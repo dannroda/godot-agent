@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-10-29
+
 ### Added
 
 - Inline completion in `.cs` files opened in Godot .NET's Script Editor (which has no C# completion of its own): suggestions from the project's C# lines, and the LLM gets the file as C#.
