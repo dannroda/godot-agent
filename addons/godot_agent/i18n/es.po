@@ -3383,3 +3383,18 @@ msgstr "Ajustes…"
 
 msgid "Remote Control"
 msgstr "Remote Control"
+
+msgid "Add: a node or file, an image of the game, an agent command"
+msgstr "Agregar: un nodo o archivo, una imagen del juego, un comando del agente"
+
+msgid "Node or file (@)"
+msgstr "Nodo o archivo (@)"
+
+msgid "Image of the game"
+msgstr "Imagen del juego"
+
+msgid "Agent command (/)"
+msgstr "Comando del agente (/)"
+
+msgid "Context: %s of %s (%d %%)"
+msgstr "Contexto: %s de %s (%d %%)"

@@ -61,9 +61,14 @@ func _run(shot_path: String) -> void:
 	if not await _controller.call(&"start", profile):
 		failures.append("no arrancó la sesión: %s" % _model.get(&"failure_message"))
 		return
-	if not await _until(func() -> bool: return button.is_visible_in_tree() and not button.disabled):
+	# Desde m12-14 el botón vive oculto en la fila de estado y se usa desde el menú «⋯» del header.
+	if not await _until(func() -> bool: return button.visible and not button.disabled):
 		failures.append("el botón «%s» no aparece con un agente que publica /remote-control" % button.text)
 		return
+	_dock.call(&"_fill_more_menu")
+	var more: PopupMenu = (_dock.get(&"_more_button") as MenuButton).get_popup()
+	if more.get_item_index(_dock.get(&"MORE_REMOTE")) < 0:
+		failures.append("el menú «⋯» no ofrece Remote Control")
 	if banner.visible:
 		failures.append("la franja de Remote Control se ve antes de prenderlo")
 	_write(EDITED_FILE, "extends Node\n")
@@ -114,7 +119,7 @@ func _run(shot_path: String) -> void:
 	if not shot_path.is_empty():
 		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
 	_press(banner, I18n.t("Turn off"))
-	if not await _until(func() -> bool: return not banner.visible and button.is_visible_in_tree()):
+	if not await _until(func() -> bool: return not banner.visible and button.visible):
 		failures.append("«%s» no lo apagó" % I18n.t("Turn off"))
 	await _until(func() -> bool: return not _model.call(&"is_busy"))
 	(_dock.get(&"_composer") as Object).call(&"choose_mode", SessionModel.HarnessMode.ONESHOT)

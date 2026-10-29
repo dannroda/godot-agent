@@ -256,6 +256,9 @@ func _ready() -> void:
 	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
 	_model.account_changed.connect(_refresh_state)
 	_model.usage_changed.connect(_composer.set_usage)
+	_model.usage_changed.connect(func(used: int, total: int) -> void:
+		if _quota_ring:
+			_quota_ring.set_context(used, total))
 	_model.commands_changed.connect(_composer.set_commands)
 	_model.config_options_changed.connect(func(_options: Array) -> void: _composer.set_model_option(_model.config_option("model")))
 	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_modes())
@@ -268,6 +271,7 @@ func _ready() -> void:
 	_queue_view.set_send_available(_model.state == SessionModel.SessionState.READY)
 	_refresh_title()
 	_composer.set_usage(_model.usage_used, _model.usage_size)
+	_quota_ring.set_context(_model.usage_used, _model.usage_size)
 	_composer.set_model_option(_model.config_option("model"))
 	_refresh_chips()
 	refresh_export_banner()

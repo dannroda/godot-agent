@@ -115,6 +115,8 @@ func test_prompt_history() -> void:
 	var composer: VBoxContainer = Composer.new()
 	composer.call(&"setup", Color.ORANGE)
 	composer.set(&"history_path", path)
+	# Ancho fijo: con el mínimo de la fila, «segundo» se partía en dos líneas visuales y arriba se movía adentro.
+	composer.custom_minimum_size.x = 400
 	tree.root.add_child(composer)
 	await tree.process_frame
 	var sent: PackedStringArray = []
@@ -295,3 +297,27 @@ func test_unavailable_without_agent() -> void:
 	assert_true(input.editable, "con agente vuelve")
 	assert_false(input.placeholder_text == "Add an agent to start", "y su placeholder de siempre")
 	composer.free()
+
+
+## m12-18: un «+» en lugar de @, imagen y /; el contexto en la fila solo casi lleno.
+func test_add_menu_and_meter() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var composer: VBoxContainer = Composer.new()
+	composer.call(&"setup", Color.ORANGE)
+	tree.root.add_child(composer)
+	await tree.process_frame
+	var menu: MenuButton = composer.get(&"_add_menu")
+	assert_eq(menu.get_popup().item_count, 3, "nodo o archivo, imagen y comando")
+	assert_false((composer.get(&"_mention_button") as Control).visible, "sin el @ suelto")
+	var input: CodeEdit = composer.get(&"_input")
+	menu.get_popup().id_pressed.emit(0)
+	assert_eq(input.text, "@", "«Nodo o archivo» escribe @")
+	composer.call(&"set_usage", 38000, 200000)
+	assert_eq((composer.get(&"_meter") as Label).text, "", "19 %: no ocupa la fila")
+	composer.call(&"set_usage", 170000, 200000)
+	assert_eq((composer.get(&"_meter") as Label).text, "170k / 200k", "85 %: a la vista")
+	composer.call(&"set_screenshot_available", false)
+	assert_true(menu.get_popup().is_item_disabled(1), "sin imágenes, la imagen apagada")
+	composer.free()
+	const QuotaRing := preload("res://addons/godot_agent/ui/dock/quota_ring.gd")
+	assert_eq(QuotaRing.context_line(38000, 200000), "Context: 38k of 200k (19 %)", "el contexto en el tooltip del anillo")

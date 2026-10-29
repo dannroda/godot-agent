@@ -15,6 +15,9 @@ const TRACK_COLOR := Color(1, 1, 1, 0.14)
 
 var _quota: QuotaMonitor
 var _accent: Color
+## Contexto usado de la sesión (m12-18): va primero en el tooltip.
+var _context_used: int = 0
+var _context_total: int = 0
 
 
 func setup(quota: QuotaMonitor, accent: Color) -> void:
@@ -31,6 +34,22 @@ func _ready() -> void:
 	refresh()
 
 
+func set_context(used: int, total: int) -> void:
+	_context_used = used
+	_context_total = total
+	refresh()
+
+
+static func context_line(used: int, total: int) -> String:
+	if total <= 0:
+		return ""
+	return I18n.t("Context: %s of %s (%d %%)") % [_short(used), _short(total), roundi(100.0 * used / total)]
+
+
+static func _short(value: int) -> String:
+	return "%dk" % roundi(value / 1000.0) if value >= 1000 else str(value)
+
+
 func refresh() -> void:
 	if not _quota:
 		return
@@ -41,7 +60,11 @@ func refresh() -> void:
 ## Texto del tooltip: cada ventana con su porcentaje y reinicio, el límite si lo hay, o por qué no
 ## hay datos.
 func describe() -> String:
-	var lines: PackedStringArray = [I18n.t("Plan quota")]
+	var lines: PackedStringArray = []
+	var context := context_line(_context_used, _context_total)
+	if not context.is_empty():
+		lines.append_array([context, ""])
+	lines.append(I18n.t("Plan quota"))
 	if _quota.is_limited():
 		var wait := _quota.seconds_until_retry()
 		lines.append((I18n.t("Plan limit reached · you can send again in %s") % QuotaMonitor.format_duration(wait)) if wait > 0 else I18n.t("Plan limit reached · you can retry now"))

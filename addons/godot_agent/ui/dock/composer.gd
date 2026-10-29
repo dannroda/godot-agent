@@ -54,6 +54,14 @@ var _draft: String = ""
 var _recalling: bool = false
 var _input: CodeEdit
 var _meter: Label
+## «+» (m12-18): mencionar un nodo o archivo, adjuntar una captura y los comandos del agente, en un
+## menú en vez de tres íconos sueltos.
+var _add_menu: MenuButton
+const ADD_MENTION := 0
+const ADD_IMAGE := 1
+const ADD_COMMAND := 2
+## El contexto se muestra en la fila solo desde este uso (el resto del tiempo, en el tooltip del anillo).
+const METER_SHOW_RATIO := 0.8
 var _mode_button: OptionButton
 var _modes: Array[Dictionary] = []
 var _current_mode: int = -1
@@ -132,6 +140,28 @@ func _ready() -> void:
 	row.add_child(_screenshot_button)
 	_commands_button = _icon_button("/", I18n.t("Agent commands"), _insert_prefix.bind("/"))
 	row.add_child(_commands_button)
+	# Los tres de arriba quedan ocultos detrás del «+» (m12-18).
+	for button: Button in [_mention_button, _screenshot_button, _commands_button]:
+		button.visible = false
+	_add_menu = MenuButton.new()
+	_add_menu.name = "AddMenu"
+	_add_menu.flat = true
+	_add_menu.icon = AgentTheme.icon(&"Add")
+	if _add_menu.icon == null:
+		_add_menu.text = "+"
+	_add_menu.tooltip_text = I18n.t("Add: a node or file, an image of the game, an agent command")
+	var add_popup := _add_menu.get_popup()
+	add_popup.add_item(I18n.t("Node or file (@)"), ADD_MENTION)
+	add_popup.add_item(I18n.t("Image of the game"), ADD_IMAGE)
+	add_popup.set_item_tooltip(1, I18n.t(SCREENSHOT_TOOLTIP))
+	add_popup.add_item(I18n.t("Agent command (/)"), ADD_COMMAND)
+	add_popup.id_pressed.connect(func(id: int) -> void:
+		if id == ADD_IMAGE:
+			screenshot_requested.emit()
+		else:
+			_insert_prefix("@" if id == ADD_MENTION else "/"))
+	row.add_child(_add_menu)
+	row.move_child(_add_menu, 0)
 	_spacer = Control.new()
 	_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(_spacer)
@@ -147,6 +177,12 @@ func _ready() -> void:
 	_mode_button.add_theme_color_override(&"font_pressed_color", _accent)
 	_mode_button.add_theme_color_override(&"font_focus_color", _accent)
 	_mode_button.visible = false
+	# Píldora (m12-18): que se lea como un control y no como un enlace.
+	_mode_button.flat = false
+	_mode_button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(_accent, 0.12), Color(_accent, 0.45), 10, 4))
+	_mode_button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(_accent, 0.2), Color(_accent, 0.6), 10, 4))
+	_mode_button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(_accent, 0.25), Color(_accent, 0.7), 10, 4))
+	_mode_button.add_theme_stylebox_override(&"focus", StyleBoxEmpty.new())
 	_mode_button.item_selected.connect(func(index: int) -> void: mode_selected.emit(_mode_button.get_item_id(index)))
 	row.add_child(_mode_button)
 	set_modes(_modes)
@@ -264,6 +300,9 @@ func set_commands(commands: Array) -> void:
 func set_screenshot_available(available: bool) -> void:
 	_screenshot_button.disabled = not available
 	_screenshot_button.tooltip_text = I18n.t(SCREENSHOT_TOOLTIP) if available else I18n.t("The agent does not accept images")
+	var popup := _add_menu.get_popup()
+	popup.set_item_disabled(popup.get_item_index(ADD_IMAGE), not available)
+	popup.set_item_tooltip(popup.get_item_index(ADD_IMAGE), _screenshot_button.tooltip_text)
 
 
 func set_usage(used: int, total: int) -> void:
@@ -271,8 +310,9 @@ func set_usage(used: int, total: int) -> void:
 	if total <= 0:
 		_meter.text = ""
 		return
-	_meter.text = "%s / %s" % [_short_number(used), _short_number(total)]
 	var ratio := float(used) / float(total)
+	# Casi lleno se ve en la fila; si no, va en el tooltip del anillo de cuota (m12-18).
+	_meter.text = "%s / %s" % [_short_number(used), _short_number(total)] if ratio >= METER_SHOW_RATIO else ""
 	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0)
 	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= 0.8 else AgentTheme.MUTED)
 
@@ -702,9 +742,6 @@ func _fit_row() -> void:
 		return
 	_compact_level = level
 	_meter.visible = level < 2
-	_commands_button.visible = level < 3
-	_mention_button.visible = level < 4
-	_screenshot_button.visible = level < 5
 	# Con overrun el texto deja de contar en el mínimo del botón: solo en el último nivel.
 	_model_button.clip_text = level >= 6
 	_model_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 6 else TextServer.OVERRUN_NO_TRIMMING
@@ -740,7 +777,7 @@ func _row_width(level: int) -> float:
 	if level >= 5:
 		hidden.append(_screenshot_button)
 	# Los que se esconden al compactar cuentan aunque estén ocultos ahora.
-	var compactable: Array[Control] = [_meter, _commands_button, _mention_button, _screenshot_button]
+	var compactable: Array[Control] = [_meter]
 	var width := 0.0
 	var count := 0
 	for child: Node in _row.get_children():
