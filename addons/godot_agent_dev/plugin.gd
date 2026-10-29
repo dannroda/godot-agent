@@ -322,9 +322,7 @@ func _run_external_test() -> void:
 	if applied.size() != 1 or applied[0] != PackedStringArray(["application/config/description", "input/agent_jump"]):
 		failures.append("A: tenía que aplicar solo lo que cambió (%s)" % [applied])
 
-	# B · el agente edita la escena abierta, sin cambios del usuario: se recarga sola. Godot 4.6 no
-	# tiene get_unsaved_scenes: no se puede saber si hay cambios, así que avisa y no recarga.
-	var supports_unsaved := EditorInterface.has_method(&"get_unsaved_scenes")
+	# B · el agente edita la escena abierta, sin cambios del usuario: se recarga sola.
 	var notices: Array[String] = []
 	var on_modified := func(res_path: String) -> void: notices.append(res_path)
 	sync.connect(&"open_scene_modified", on_modified)
@@ -335,16 +333,9 @@ func _run_external_test() -> void:
 	await get_tree().create_timer(1.0).timeout
 	var root := EditorInterface.get_edited_scene_root()
 	var player := root.get_node_or_null(^"Player") if root else null
-	if supports_unsaved:
-		if player == null or float(player.get(&"speed")) != 450.0:
-			failures.append("B: la escena abierta no se recargó (%s)" % [player.get(&"speed") if player else "sin Player"])
-		failures.append_array(_visible_dialogs("B"))
-	else:
-		if notices.is_empty():
-			failures.append("B (4.6): no avisó que el agente cambió la escena")
-		_visible_dialogs("B")  # el de Godot es esperable acá
-		EditorInterface.reload_scene_from_path(EXTERNAL_SCENE)
-		await get_tree().create_timer(0.5).timeout
+	if player == null or float(player.get(&"speed")) != 450.0:
+		failures.append("B: la escena abierta no se recargó (%s)" % [player.get(&"speed") if player else "sin Player"])
+	failures.append_array(_visible_dialogs("B"))
 	notices.clear()
 
 	# C · la escena tiene cambios sin guardar: no se pisa (aviso para recargar).
@@ -360,13 +351,12 @@ func _run_external_test() -> void:
 	if notices.is_empty():
 		failures.append("C: no avisó que el agente cambió la escena")
 	notices.clear()
-	print("[external-test] get_unsaved_scenes: %s" % supports_unsaved)
 
 	# E · un guardado del editor (Ctrl+S) no es un cambio del agente: no recarga (perdería el undo).
 	_write(EXTERNAL_SCENE, scene_text)
 	EditorInterface.reload_scene_from_path(EXTERNAL_SCENE)
 	await get_tree().create_timer(1.1).timeout
-	notices.clear()  # en 4.6 la reescritura de arriba avisa: no es lo que se mide acá
+	notices.clear()
 	root = EditorInterface.get_edited_scene_root()
 	EditorInterface.save_scene()
 	await get_tree().create_timer(1.5).timeout

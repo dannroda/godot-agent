@@ -1,6 +1,6 @@
 #!/bin/sh
 # Baja el editor de Godot para Linux y deja el binario en $1/godot.
-# Uso: install-godot.sh <carpeta> <versión>   (4.6.3-stable, 4.7.2-stable, 4.8-beta1…)
+# Uso: install-godot.sh <carpeta> <versión>   (4.7.2-stable, 4.8-beta1…)
 # Las estables salen de godotengine/godot y las demás (beta, rc, dev) de godotengine/godot-builds.
 set -eu
 DIR="$1"

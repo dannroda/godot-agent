@@ -9,11 +9,11 @@
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "compatibilidad"
   ],
-  "test": "",
+  "test": "run_all 369/369 en 4.7.2 y 4.8-beta1; external-test y ux_tour en Xvfb en 4.7.2 (dock, Agent Log y One-shot montados); plugin_cycle_check pasa en 4.8 y en 4.7.2 falla igual que antes del cambio («3 resources still in use at exit»)",
   "title": "Dejar de soportar Godot 4.6",
-  "updated_at": "2026-10-29T13:41:31.582Z"
+  "updated_at": "2026-10-29T14:56:18.739Z"
 }

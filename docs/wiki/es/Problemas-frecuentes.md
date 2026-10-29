@@ -20,7 +20,7 @@ Llegaste al límite de la ventana de tu plan. Esperá el reinicio (la cuenta reg
 
 ## Una escena no se actualizó después de que el agente la cambió
 
-En Godot 4.6, el editor no puede saber si una escena tiene cambios sin guardar, así que en lugar de recargarla sola aparece un aviso con **Recargar escena**. Desde 4.7, las escenas abiertas sin cambios sin guardar se recargan solas. Una escena con cambios sin guardar nunca se pisa.
+Las escenas abiertas sin cambios sin guardar se recargan solas. Una escena con cambios sin guardar nunca se pisa: en su lugar aparece un aviso con **Recargar escena**.
 
 ## Los anillos de cuota están grises
 
@@ -30,8 +30,7 @@ Claude Code informa la cuota del plan con el primer mensaje de cada sesión, as�
 
 | Versión | Qué pasa | Cómo lo maneja el addon |
 |---|---|---|
-| 4.6 | No existe `EditorInterface.get_unsaved_scenes()`. | Si el agente cambia en disco una escena abierta, aparece **Recargar escena** en lugar de recargarla sola. |
-| 4.6–4.7 | `EditorDock` existe, pero la main screen como dock llega en 4.8. | Dock y panel con `EditorDock`; la main screen con la API vieja. |
+| 4.7 | `EditorDock` existe, pero la main screen como dock llega en 4.8. | Dock y panel con `EditorDock`; la main screen con la API vieja. |
 | 4.8-beta1 | `_has_main_screen()` deja un `EditorDock` huérfano al deshabilitar, y cerrar el editor con la pantalla One-shot activa da un error de foco. | Main screen con `add_dock`; antes de cerrar, el editor pasa a la pantalla 2D. |
 
 Quedan dos rastros conocidos e inofensivos en los exports: rutas del addon en `uid_cache.bin` y el plugin en la lista de plugins habilitados de `project.binary`.

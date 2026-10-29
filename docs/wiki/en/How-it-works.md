@@ -40,7 +40,7 @@ Through it the agent calls the `godot.*` tools: read the scene tree, edit nodes,
 Claude Code also writes files with its own tools, straight to disk. The harness catches that and updates the editor, so the "modified outside Godot" dialog doesn't appear:
 
 - open scripts are updated in the Script Editor;
-- open scenes without unsaved changes are reloaded. On Godot 4.6, which can't tell whether a scene has unsaved changes, you get a notice with **Reload scene** instead;
+- open scenes without unsaved changes are reloaded;
 - changes to `project.godot` (input actions, autoloads, main scene…) are applied to the editor's project settings, and the editor saves them.
 
 A scene or script with unsaved changes is never overwritten: you get a conflict notice with the diff.

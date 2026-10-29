@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         # La mínima soportada, la estable actual y la beta en la que se desarrolla.
-        godot: [4.6.3-stable, 4.7.2-stable, 4.8-beta1]
+        godot: [4.7.2-stable, 4.8-beta1]
     steps:
       - uses: actions/checkout@v7
 

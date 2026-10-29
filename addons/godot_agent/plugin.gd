@@ -430,7 +430,7 @@ func _build() -> bool:
 	return true
 
 
-## Solo con la API vieja (4.6 y 4.7). En 4.8+ la main screen es un EditorDock (ver EditorSurfaces).
+## Solo con la API vieja (4.7). En 4.8+ la main screen es un EditorDock (ver EditorSurfaces).
 func _has_main_screen() -> bool:
 	return not EditorSurfaces.uses_dock_api(EditorSurfaces.EditorSurface.MAIN_SCREEN)
 

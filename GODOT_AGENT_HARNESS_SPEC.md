@@ -37,7 +37,7 @@ No hay daemon, ni server en Python, ni binarios nativos. El único proceso exter
   - Runtime externo permitido: el proceso del agente y lo que ese agente ya necesite (por ejemplo Node para el adapter de Claude).
   - Las herramientas de test también son GDScript (ver sección 13).
 - **Versión de Godot**: el desarrollo es en 4.8 beta.
-  - Mínimo soportado: 4.6 (antes 4.4; se subió para mantener tres versiones: 4.6, 4.7 y 4.8, docs/decisions.md D34).
+  - Mínimo soportado: 4.7 (antes 4.6 y antes 4.4; docs/decisions.md D59, que reemplaza a D34).
   - Verificá la firma real de `OS.execute_with_pipe` en la versión mínima. Si algo requiere una versión mayor, documentalo.
 - **Tipado estático** en todo el código (`var x: int`, retornos tipados, `class_name` donde la skill lo indique).
 - **Plataformas**: Linux primero, pero nada de bash-isms. Paths con `ProjectSettings.globalize_path` y comandos configurables. Tiene que poder andar en Windows y macOS.

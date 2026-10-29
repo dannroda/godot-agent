@@ -54,7 +54,7 @@ jobs:
             echo
             echo "---"
             echo
-            echo "Install: unzip into your project so that \`addons/godot_agent/\` ends up in its \`addons/\` folder, then enable **Godot Agent Harness** in Project Settings → Plugins. Requires Godot 4.6 or newer."
+            echo "Install: unzip into your project so that \`addons/godot_agent/\` ends up in its \`addons/\` folder, then enable **Godot Agent Harness** in Project Settings → Plugins. Requires Godot 4.7 or newer."
           } > notes.md
           cat notes.md
           python3 .github/scripts/changelog.py release "${{ steps.version.outputs.version }}"

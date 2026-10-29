@@ -1,9 +1,8 @@
 @tool
 extends RefCounted
 ## Agrega y quita las superficies del addon en el editor: dock lateral, panel inferior y main screen.
-## Usa EditorDock + add_dock donde existe y la API vieja en las versiones anteriores
-## (docs/decisions.md, D9). Lo de EditorDock va por reflexión: los slots de panel inferior y main
-## screen existen recién en 4.8.
+## Dock lateral y panel inferior son EditorDock + add_dock; la main screen también desde 4.8, y en
+## 4.7 va con la API vieja (docs/decisions.md, D9). El slot de main screen va por reflexión.
 ## Cada superficie se monta dentro de un MinSizeGuard: su tamaño mínimo no puede agrandar el editor.
 
 enum EditorSurface { SIDE, BOTTOM, MAIN_SCREEN }
@@ -25,16 +24,10 @@ func _init(plugin: EditorPlugin) -> void:
 	_plugin = plugin
 
 
-## true si la superficie se monta con EditorDock en esta versión del editor.
+## true si la superficie se monta con EditorDock en esta versión del editor (todas menos la main
+## screen en 4.7).
 static func uses_dock_api(surface: EditorSurface) -> bool:
-	if not ClassDB.class_exists(_DOCK_CLASS):
-		return false
-	match surface:
-		EditorSurface.BOTTOM:
-			return ClassDB.class_has_integer_constant(_DOCK_CLASS, &"DOCK_SLOT_BOTTOM")
-		EditorSurface.MAIN_SCREEN:
-			return ClassDB.class_has_integer_constant(_DOCK_CLASS, &"DOCK_SLOT_MAIN_SCREEN")
-	return true
+	return surface != EditorSurface.MAIN_SCREEN or ClassDB.class_has_integer_constant(_DOCK_CLASS, &"DOCK_SLOT_MAIN_SCREEN")
 
 
 func add(surface: EditorSurface, control: Control, title: String, layout_key: String, icon: Texture2D = null) -> void:
@@ -44,15 +37,10 @@ func add(surface: EditorSurface, control: Control, title: String, layout_key: St
 		wrapper = _make_dock(surface, mounted, title, layout_key, icon)
 		_plugin.call(&"add_dock", wrapper)
 	else:
-		match surface:
-			EditorSurface.SIDE:
-				_plugin.add_control_to_dock(ClassDB.class_get_integer_constant(&"EditorPlugin", side_slot) as EditorPlugin.DockSlot, mounted)
-			EditorSurface.BOTTOM:
-				_plugin.add_control_to_bottom_panel(mounted, title)
-			EditorSurface.MAIN_SCREEN:
-				# El plugin responde _has_main_screen() == true y maneja la visibilidad en _make_visible().
-				mounted.visible = false
-				EditorInterface.get_editor_main_screen().add_child(mounted)
+		# Main screen en 4.7: el plugin responde _has_main_screen() == true y maneja la visibilidad
+		# en _make_visible().
+		mounted.visible = false
+		EditorInterface.get_editor_main_screen().add_child(mounted)
 	_entries.append({ "surface": surface, "control": control, "mounted": mounted, "wrapper": wrapper, "title": title })
 
 
@@ -74,18 +62,8 @@ func make_visible(surface: EditorSurface) -> void:
 			wrapper.call(&"open")  # si el usuario cerró el panel, make_visible solo no lo vuelve a abrir
 			wrapper.call(&"make_visible")
 			return
-		var mounted: Control = entry.mounted
-		if not is_instance_valid(mounted):
-			return
-		match surface:
-			EditorSurface.BOTTOM:
-				_plugin.make_bottom_panel_item_visible(mounted)
-			EditorSurface.SIDE:
-				var tabs := mounted.get_parent() as TabContainer
-				if tabs:
-					tabs.current_tab = mounted.get_index()
-			EditorSurface.MAIN_SCREEN:
-				EditorInterface.set_main_screen_editor(entry.title)
+		if is_instance_valid(entry.mounted):
+			EditorInterface.set_main_screen_editor(entry.title)
 		return
 
 
@@ -102,14 +80,8 @@ func remove_all() -> void:
 			_plugin.call(&"remove_dock", wrapper)
 			wrapper.queue_free()
 			continue
-		if not is_instance_valid(mounted):
-			continue
-		match entry.surface:
-			EditorSurface.SIDE:
-				_plugin.remove_control_from_docks(mounted)
-			EditorSurface.BOTTOM:
-				_plugin.remove_control_from_bottom_panel(mounted)
-		mounted.queue_free()
+		if is_instance_valid(mounted):
+			mounted.queue_free()
 	_entries.clear()
 
 

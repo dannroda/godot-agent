@@ -3860,8 +3860,10 @@ plugin.gd llama dock.call(&"_on_new_session_pressed") y dock.call(&"_start_sessi
 
 Informe: docs/revisiones/arquitectura.md
 
-### Dejar de soportar Godot 4.6 · Pendiente
+### Dejar de soportar Godot 4.6 · En curso
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `compatibilidad`
 
 Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 4.6 (la recarga de escenas sin EditorInterface.get_unsaved_scenes, la API vieja de docks donde 4.7 ya tiene EditorDock), la matriz de CI (4.6.3), README, CONTRIBUTING, la wiki y la spec; decisión nueva en docs/decisions.md que reemplaza a D34. Con 4.7 se puede usar Control.custom_maximum_size.
+
+**Prueba:** run_all 369/369 en 4.7.2 y 4.8-beta1; external-test y ux_tour en Xvfb en 4.7.2 (dock, Agent Log y One-shot montados); plugin_cycle_check pasa en 4.8 y en 4.7.2 falla igual que antes del cambio («3 resources still in use at exit»)

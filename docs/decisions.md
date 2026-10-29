@@ -109,7 +109,7 @@ Habilitar/deshabilitar un plugin necesita `EditorInterface`, que no existe en `-
 
 Lo que **sí** falla el test: cualquier archivo bajo `addons/godot_agent/` (incluidos `.gdc` y `.remap`), el autoload de playtest en `project.binary` y clases del addon en `global_script_class_cache.cfg`.
 
-## D9 · Docks y main screen: EditorDock en 4.7+/4.8+, API vieja en 4.4–4.6
+## D9 · Docks y main screen: EditorDock en 4.7+/4.8+, API vieja en 4.4–4.6 (desde D59, solo la main screen en 4.7)
 
 En 4.8 `_has_main_screen`, `add_control_to_dock`, `add_control_to_bottom_panel` y `_get_plugin_icon` están deprecados en favor de `add_dock(EditorDock)` (main screen = `default_slot = DOCK_SLOT_MAIN_SCREEN` + layout `DOCK_LAYOUT_MAIN_SCREEN`; panel inferior = `DOCK_SLOT_BOTTOM`).
 
@@ -500,7 +500,7 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - un guardado del editor no recarga;
   - no aparece ningún diálogo.
 
-## D34 · Mínimo Godot 4.6 (antes 4.4)
+## D34 · Mínimo Godot 4.6 (antes 4.4) — reemplazada por D59
 
 - **Decisión del usuario**: soportar tres versiones (4.6, 4.7 y 4.8) es más manejable que arrastrar 4.4 y 4.5. La matriz de pruebas pasa a 4.6.3, 4.7.2 y 4.8-beta1; la spec §2 dice ahora «Mínimo soportado: 4.6».
 - **Código que se fue**, porque solo existía por 4.4:
@@ -841,3 +841,13 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - Descartado: atribuir cada cambio a una tool call. Las que corren sin permiso no llegan, y una ráfaga de archivos es lo que el usuario necesita revisar.
   - Límite: se compara fecha (en segundos) y tamaño. Un cambio que deja el archivo con el mismo tamaño, en el mismo segundo en que se sacó la foto, no se ve.
 - **Pruebas**: `test_slash_command`, `acp_session_check` (escenario `remote_control`: el comando solo, link en el modelo, permiso «del celular» retirado con `$/cancel_request`, contexto en el mensaje siguiente, off) y `--godot-agent-remote-test` (botón, franja, tarjeta cerrada, Apagar, One-shot sin botón, el dock no se ensancha).
+
+
+## D59 · Mínimo Godot 4.7 (antes 4.6), reemplaza a D34
+
+- **Decisión del usuario** (2026-10-29): se deja 4.6. La matriz de pruebas pasa a 4.7.2 y 4.8-beta1; la spec §2 dice «Mínimo soportado: 4.7».
+- **Código que se fue**, porque solo existía por 4.6 o antes:
+  - la recarga de escenas sin `EditorInterface.get_unsaved_scenes()` (D33): ahora se llama directo, y el caso «avisa siempre» del check externo ya no existe;
+  - la API vieja de dock lateral y panel inferior en `EditorSurfaces` (`add_control_to_dock`, `add_control_to_bottom_panel` y sus `remove_*`/`make_*_visible`): 4.7 tiene `EditorDock` con `DOCK_SLOT_BOTTOM`.
+- **Lo que sigue dependiendo de la versión**: la main screen como `EditorDock` llega en 4.8; en 4.7 va con `_has_main_screen()` + `_make_visible()` (D9).
+- **Ahora se puede usar** `Control.custom_maximum_size` (existe desde 4.7).

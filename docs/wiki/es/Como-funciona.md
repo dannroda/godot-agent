@@ -40,7 +40,7 @@ Por ahí el agente llama a las tools `godot.*`: leer el árbol de la escena, edi
 Claude Code también escribe archivos con sus propias herramientas, directo al disco. El harness lo detecta y actualiza el editor, sin el diálogo de "modificado fuera de Godot":
 
 - los scripts abiertos se actualizan en el Script Editor;
-- las escenas abiertas sin cambios sin guardar se recargan. En Godot 4.6, que no puede saber si una escena tiene cambios sin guardar, aparece un aviso con **Recargar escena**;
+- las escenas abiertas sin cambios sin guardar se recargan;
 - los cambios a `project.godot` (acciones de input, autoloads, escena principal…) se aplican a la configuración del proyecto en el editor, y el editor los guarda.
 
 Una escena o un script con cambios sin guardar nunca se pisa: aparece un aviso de conflicto con el diff.

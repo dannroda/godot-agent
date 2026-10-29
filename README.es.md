@@ -40,7 +40,7 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 
 ## Requisitos
 
-- **Godot 4.6 o más nuevo.** Se prueba en 4.6.3, 4.7.2 y 4.8-beta1.
+- **Godot 4.7 o más nuevo.** Se prueba en 4.7.2 y 4.8-beta1.
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`. El perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
   - una cuenta de Claude Code: la que ya usa `claude` en la máquina, una con la que iniciás sesión desde el dock, o una API key en una variable de entorno.
@@ -96,7 +96,7 @@ Las capturas salen de `tests/docs_shots.sh`, con un agente falso y la escena de 
 ## Desarrollo
 
 ```sh
-G=/ruta/a/godot   # 4.6.3, 4.7.2 o 4.8
+G=/ruta/a/godot   # 4.7.2 o 4.8
 $G --headless --path . --import
 $G --headless --path . --script tests/run_all.gd            # unitarios
 $G --headless --path . --script tests/acp_session_check.gd  # ACP contra el agente falso
@@ -108,7 +108,7 @@ Los textos de la interfaz se escriben en inglés en el código, con `I18n.t("…
 
 ### CI y releases
 
-- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP y el del One-shot, en Godot 4.6.3, 4.7.2 y 4.8-beta1.
+- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP y el del One-shot, en Godot 4.7.2 y 4.8-beta1.
 - **Release** (`.github/workflows/release.yml`): se corre a mano desde **Actions → Release → Run workflow**, eligiendo `patch`, `minor`, `major` o una versión exacta `X.Y.Z`. Corre el CI, sube `version` en `addons/godot_agent/plugin.cfg`, commitea "Release vX.Y.Z" en `main` con el tag `vX.Y.Z` pasa la sección **Unreleased** de [`CHANGELOG.md`](CHANGELOG.md) a la versión nueva y publica un release de GitHub con el zip del addon y esa sección como notas. El changelog y el release van en inglés: con cada cambio, agregá una entrada en **Unreleased** (el release falla si está vacía).
 - La versión vive solo en `plugin.cfg`: el `clientInfo` de ACP y el `serverInfo` del MCP la leen de ahí.
 

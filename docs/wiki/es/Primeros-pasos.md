@@ -11,7 +11,7 @@
    - el panel inferior **Agent Log**: lo que va y viene entre el editor y el agente, por canal;
    - la pantalla **One-shot** en la barra de arriba, junto a 2D/3D/Script, donde corre el One-shot.
 
-Requisitos: Godot 4.6 o más nuevo y, para Claude Code, Node.js con `npx`.
+Requisitos: Godot 4.7 o más nuevo y, para Claude Code, Node.js con `npx`.
 
 ## 2. Abrir una sesión
 

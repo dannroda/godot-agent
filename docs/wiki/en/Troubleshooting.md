@@ -20,7 +20,7 @@ You hit your plan's window. Wait for the reset (the countdown shows when), or us
 
 ## A scene didn't update after the agent changed it
 
-On Godot 4.6, the editor can't tell whether a scene has unsaved changes, so instead of reloading it on its own you get a notice with **Reload scene**. On 4.7+ open scenes without unsaved changes reload by themselves. A scene with unsaved changes is never overwritten.
+Open scenes without unsaved changes reload by themselves. A scene with unsaved changes is never overwritten: you get a notice with **Reload scene** instead.
 
 ## The quota rings are grey
 
@@ -30,8 +30,7 @@ Claude Code reports the plan quota with the first message of each session, so a 
 
 | Version | What happens | How the addon handles it |
 |---|---|---|
-| 4.6 | `EditorInterface.get_unsaved_scenes()` doesn't exist. | If the agent changes an open scene on disk, you get **Reload scene** instead of an automatic reload. |
-| 4.6–4.7 | `EditorDock` exists, but the main screen as a dock arrives in 4.8. | Dock and panel use `EditorDock`; the main screen uses the old API. |
+| 4.7 | `EditorDock` exists, but the main screen as a dock arrives in 4.8. | Dock and panel use `EditorDock`; the main screen uses the old API. |
 | 4.8-beta1 | `_has_main_screen()` leaves an orphan `EditorDock` when disabling, and closing the editor with the One-shot screen active gives a focus error. | The main screen uses `add_dock`; before closing, the editor switches to the 2D screen. |
 
 Two known, harmless traces remain in exports: addon paths in `uid_cache.bin`, and the plugin in the enabled plugin list of `project.binary`.
