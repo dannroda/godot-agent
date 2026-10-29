@@ -3888,7 +3888,7 @@ Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 
 
 tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un editor headless) falla en 4.7.2 con «ERROR: 3 resources still in use at exit»; en 4.8-beta1 pasa. Ya fallaba antes de m13 (probado con el código anterior). El CI no corre este check: sumarlo a la matriz cuando pase. Con --verbose se ve qué recursos quedan.
 
-## M12 — Que el agente se verifique solo  (0/7)
+## M12 — Que el agente se verifique solo  (0/8)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
@@ -3929,10 +3929,12 @@ Verificar cada regla en 4.7.2 y 4.8 antes de escribirla; citar walker (y Godogen
 Pedido del usuario (29/10): que un proyecto en C# tenga lo mismo que uno en GDScript. Hoy el addon da por hecho .gd en:
 - Verificación al terminar el turno y get_errors (mcp/tools/diagnostic_tools.gd:66, 111, 200): solo mira .gd. Para C#: dotnet build del proyecto (con el SDK detectado) y sus errores con archivo y línea; si no hay SDK o el editor no es la versión .NET, avisarlo una vez.
 - Adjuntar un script a un nodo (mcp/tools/scene_edit_tools.gd:583) y abrir con godot.* (project_tools.gd:182): aceptar .cs.
-- Sincronizar el buffer del Script Editor (editor/editor_sync.gd:374): .cs se edita en el editor externo; decidir qué hacer (recargar el assembly después del build).
+- Sincronizar el buffer del Script Editor (editor/editor_sync.gd:374): sin editor externo configurado (el default, «None»), Godot .NET abre los .cs en el Script Editor interno (comprobado en 4.7.2 mono, 29/10), así que hay que sincronizarlos igual que los .gd; con Rider o VS Code, recargar el assembly después del build.
 - Mover archivos (file_tools.gd:108) y la búsqueda de referencias (m14-05): los .cs referencian por namespace y clase, no por ruta.
 - Menciones @ (ui/editor_context.gd:8) y Revisar (hallazgos en el Script Editor; con editor externo, el link debe abrir file:line ahí).
-- Completado predictivo (completion_controller.gd:246, project_index.gd:12, context_rules.gd): decidir si aplica (el Script Editor de Godot casi no se usa para C#).
+- Completado predictivo para C#: en m14-08.
 - Remote watch (session/remote_watch.gd:13): sumar cs y csproj.
 - Prompt de sistema y Alt+I: reglas de C# en Godot (clases partial, señales con [Signal] y EventHandler, [Export], nombres en PascalCase, GD.Print), con lo de m14-06 en su versión C# (de walker, engines/godot.md).
 - Tests: un proyecto de prueba en C# en la matriz de CI con la versión .NET de Godot (4.7.2 y 4.8).
+
+### Completado predictivo para C# en el Script Editor · Pendiente

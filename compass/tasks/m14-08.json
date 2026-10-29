@@ -1,0 +1,14 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T22:08:42.824Z",
+  "description": "Comprobado en Godot 4.7.2 .NET (29/10, Xvfb, editor externo en «None», el default): un .cs se abre en el Script Editor interno como un CodeEdit común (ScriptTextEditor), pero sin nada para C#: resaltado EditorPlainTextSyntaxHighlighter (texto plano), code_completion_enabled = false, 0 opciones al pedir completado después de 'Velocity.', y el panel de métodos vacío. El predictivo llenaría un hueco real.\n- completion_controller.gd:246 solo se engancha a .gd: sumar .cs.\n- El proveedor LLM sirve tal cual (le llega el texto); el local (project_index.gd, context_rules.gd) está hecho para GDScript: índice de símbolos C# (clases partial, métodos, [Export], señales [Signal]) y la API de Godot en PascalCase (GetVector, MoveAndSlide).\n- De paso, ver si conviene un resaltado de C# propio (el de Godot es texto plano), con un CodeHighlighter y las palabras clave que ya da CSharpLanguage.\n- Probar con Godot .NET 4.7.2 y 4.8 en Xvfb, con una copia autocontenida (sin tocar la config del usuario).",
+  "milestone": "m14",
+  "notes": "",
+  "order": 8,
+  "refs": [],
+  "status": "todo",
+  "test": "",
+  "title": "Completado predictivo para C# en el Script Editor",
+  "updated_at": "2026-10-29T22:08:43.062Z"
+}
