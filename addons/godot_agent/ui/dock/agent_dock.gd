@@ -792,7 +792,7 @@ func _refresh_empty_state() -> void:
 		_start_button.text = I18n.t("Other agents…")
 	else:
 		_start_button.text = I18n.t("Start session")
-	var first_run := profile == null and not _oneshot_active
+	var first_run := profile == null and _controller.profile() == null and not _oneshot_active
 	_suggested_box.visible = first_run
 	_start_button.visible = not first_run
 	_history_button.visible = not first_run

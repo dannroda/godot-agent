@@ -21,7 +21,7 @@ BIN="$(command -v "$G")"
 if head -c 2 "$BIN" | grep -q '#!' && command -v godot-manager >/dev/null; then BIN="$(godot-manager which)"; fi
 cp -L "$BIN" "$TMP/godot"
 touch "$TMP/._sc_"
-mkdir -p "$TMP/editor_data" "$TMP/project/tests"
+mkdir -p "$TMP/editor_data" "$TMP/project/tests" "$TMP/project/addons"
 SERIES="$("$TMP/godot" --version | cut -d. -f1-2)"
 cat > "$TMP/editor_data/editor_settings-$SERIES.tres" <<EOT
 [gd_resource type="EditorSettings" format=3]
@@ -31,7 +31,7 @@ interface/editor/editor_language = "$LANG_CODE"
 interface/editor/localization/editor_language = "$LANG_CODE"
 EOT
 cp "$ROOT/project.godot" "$TMP/project/"
-cp -R "$ROOT/addons/godot_agent" "$ROOT/addons/godot_agent_dev" "$TMP/project/addons/" 2>/dev/null || { mkdir -p "$TMP/project/addons" && cp -R "$ROOT/addons/godot_agent" "$ROOT/addons/godot_agent_dev" "$TMP/project/addons/"; }
+cp -R "$ROOT/addons/godot_agent" "$ROOT/addons/godot_agent_dev" "$TMP/project/addons/"
 rm -f "$TMP/project/addons/godot_agent/config/project_config.tres"
 sed -i 's|^enabled=PackedStringArray(.*)|enabled=PackedStringArray("res://addons/godot_agent/plugin.cfg", "res://addons/godot_agent_dev/plugin.cfg")|' "$TMP/project/project.godot"
 cp -R "$ROOT/tests/." "$TMP/project/tests/"

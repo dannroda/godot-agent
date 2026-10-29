@@ -5,6 +5,7 @@ extends RefCounted
 ## ancho y angosto, Agent Log, y las conversaciones de la guía (DocsShots). Ver tests/ux_tour.sh.
 
 const DocsShots := preload("docs_shots.gd")
+const SettingsDialog := preload("res://addons/godot_agent/ui/settings/settings_dialog.gd")
 const RegistryDialog := preload("res://addons/godot_agent/ui/settings/acp_registry_dialog.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 
@@ -33,7 +34,7 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	await _frames(20)
 	var settings := _by_script("res://addons/godot_agent/ui/settings/settings_dialog.gd") as Window
 	if settings:
-		for section in 7:
+		for section in SettingsDialog.SECTION_LABELS.size():
 			settings.call(&"open", section)
 			await _frames(15)
 			_save(settings.get_texture().get_image(), "1%d_ajustes_%d" % [section, section])
@@ -54,7 +55,7 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	await _frames(30)
 	var ext := _by_script("res://addons/godot_agent/ui/extensions/extensions_window.gd") as Window
 	if ext:
-		for tab in 6:
+		for tab in (ext.get(&"_tabs") as TabContainer).get_tab_count():
 			ext.call(&"open", tab)
 			await _frames(40)
 			_save(ext.get_texture().get_image(), "2%d_extensiones_%d" % [tab, tab])
