@@ -1,0 +1,14 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T21:59:12.805Z",
+  "description": "Como Ziva (validate-physics-setup, validate-tilemap-structure): tools de solo lectura que revisan capas y máscaras de colisión que no se cruzan, cuerpos sin shape o con shape vacío, y TileMapLayers con celdas fuera del TileSet, huecos o tiles sin colisión donde se espera. El prompt de sistema le pide al agente correrlas después de tocar física o mapas.",
+  "milestone": "m14",
+  "notes": "",
+  "order": 4,
+  "refs": [],
+  "status": "todo",
+  "test": "",
+  "title": "Validadores de física y de TileMaps",
+  "updated_at": "2026-10-29T21:59:13.032Z"
+}

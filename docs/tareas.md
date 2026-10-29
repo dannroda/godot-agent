@@ -3885,3 +3885,32 @@ Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 
 **Prueba:** run_all 369/369 en 4.7.2 y 4.8-beta1; external-test y ux_tour en Xvfb en 4.7.2 (dock, Agent Log y One-shot montados); plugin_cycle_check pasa en 4.8 y en 4.7.2 falla igual que antes del cambio («3 resources still in use at exit»)
 
 ### plugin_cycle_check falla en 4.7.2: «3 resources still in use at exit» · Pendiente
+
+tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un editor headless) falla en 4.7.2 con «ERROR: 3 resources still in use at exit»; en 4.8-beta1 pasa. Ya fallaba antes de m13 (probado con el código anterior). El CI no corre este check: sumarlo a la matriz cuando pase. Con --verbose se ve qué recursos quedan.
+
+## M12 — Que el agente se verifique solo  (0/5)
+
+Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
+
+**Hecho cuando:**
+- El agente se entera de los errores en la misma tool que los causó, prueba el juego con input reproducible y valida física y TileMaps sin que el usuario lo pida.
+
+### Input del juego por frame: secuencias reproducibles · Pendiente
+
+Como godot-ai (game_manage op=input_sequence): una tool que recibe una línea de tiempo de input por frame ({at_frame, action/key/mouse, pressed, strength} y settle_frames) y la reproduce en el juego. Las teclas sueltas de hoy se desfasan con el framerate y las pruebas del evaluador del One-shot no se repiten igual. Devolver el estado al final (captura opcional).
+
+### Errores nuevos en cada respuesta y estado del editor · Pendiente
+
+Como godot-ai: cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la llamada anterior (sin esperar al fin del turno), y las tools que escriben scripts devuelven el diagnóstico de ese archivo. Además, rechazar o esperar con un código claro cuando el editor está importando, corriendo el juego o sin escena abierta (EDITOR_IMPORTING, EDITOR_PLAYING, EDITOR_NO_SCENE), y que run_scene diga 'break' si un error de parseo frena el arranque.
+
+### Playtest con veredicto: pass, fail o blocked con evidencia · Pendiente
+
+Como el Full Game Playtest Agent de Ziva: un playtest que corre la escena, manda input (usar m14-01), toma capturas y lee errores de runtime, y devuelve pass, fail o blocked con evidencia y pasos para reproducir, sin editar el proyecto. Reusar el evaluador del One-shot; que se pueda pedir suelto desde Revisar. Grabación opcional con --write-movie (idea de walker) en .godot_agent/.
+
+### Validadores de física y de TileMaps · Pendiente
+
+Como Ziva (validate-physics-setup, validate-tilemap-structure): tools de solo lectura que revisan capas y máscaras de colisión que no se cruzan, cuerpos sin shape o con shape vacío, y TileMapLayers con celdas fuera del TileSet, huecos o tiles sin colisión donde se espera. El prompt de sistema le pide al agente correrlas después de tocar física o mapas.
+
+### Mover y renombrar archivos sin romper referencias · Pendiente
+
+Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool godot.* llevando el .uid y el .import, buscando referencias por ruta literal en .tscn/.tres/.gd/project.godot; si hay alguna que no se puede actualizar sin riesgo, rechazar. Resultado con outcome (unchanged, rolled_back, partial) y si es seguro reintentar.

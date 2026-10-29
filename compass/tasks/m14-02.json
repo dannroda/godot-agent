@@ -1,0 +1,14 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T21:59:11.822Z",
+  "description": "Como godot-ai: cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la llamada anterior (sin esperar al fin del turno), y las tools que escriben scripts devuelven el diagnóstico de ese archivo. Además, rechazar o esperar con un código claro cuando el editor está importando, corriendo el juego o sin escena abierta (EDITOR_IMPORTING, EDITOR_PLAYING, EDITOR_NO_SCENE), y que run_scene diga 'break' si un error de parseo frena el arranque.",
+  "milestone": "m14",
+  "notes": "",
+  "order": 2,
+  "refs": [],
+  "status": "todo",
+  "test": "",
+  "title": "Errores nuevos en cada respuesta y estado del editor",
+  "updated_at": "2026-10-29T21:59:12.061Z"
+}

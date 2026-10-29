@@ -1,0 +1,14 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T21:59:13.284Z",
+  "description": "Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool godot.* llevando el .uid y el .import, buscando referencias por ruta literal en .tscn/.tres/.gd/project.godot; si hay alguna que no se puede actualizar sin riesgo, rechazar. Resultado con outcome (unchanged, rolled_back, partial) y si es seguro reintentar.",
+  "milestone": "m14",
+  "notes": "",
+  "order": 5,
+  "refs": [],
+  "status": "todo",
+  "test": "",
+  "title": "Mover y renombrar archivos sin romper referencias",
+  "updated_at": "2026-10-29T21:59:13.511Z"
+}

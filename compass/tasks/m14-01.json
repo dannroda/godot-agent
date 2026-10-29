@@ -1,0 +1,14 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T21:59:11.326Z",
+  "description": "Como godot-ai (game_manage op=input_sequence): una tool que recibe una línea de tiempo de input por frame ({at_frame, action/key/mouse, pressed, strength} y settle_frames) y la reproduce en el juego. Las teclas sueltas de hoy se desfasan con el framerate y las pruebas del evaluador del One-shot no se repiten igual. Devolver el estado al final (captura opcional).",
+  "milestone": "m14",
+  "notes": "",
+  "order": 1,
+  "refs": [],
+  "status": "todo",
+  "test": "",
+  "title": "Input del juego por frame: secuencias reproducibles",
+  "updated_at": "2026-10-29T21:59:11.553Z"
+}

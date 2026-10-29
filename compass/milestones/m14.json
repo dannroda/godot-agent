@@ -1,0 +1,9 @@
+{
+  "code": "M12",
+  "done_when": [
+    "El agente se entera de los errores en la misma tool que los causó, prueba el juego con input reproducible y valida física y TileMaps sin que el usuario lo pida."
+  ],
+  "goal": "Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.",
+  "order": 14,
+  "title": "Que el agente se verifique solo"
+}
