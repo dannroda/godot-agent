@@ -219,6 +219,8 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var hero_uid := ResourceLoader.get_resource_uid(FILES_DIR + "/hero.tscn")
 	_write(FILES_DIR + "/level.tscn", '[gd_scene format=3]\n\n[ext_resource type="PackedScene" uid="%s" path="%s/hero.tscn" id="1_hero"]\n\n[node name="Level" type="Node2D"]\n\n[node name="Hero" parent="." instance=ExtResource("1_hero")]\n' % [ResourceUID.id_to_text(hero_uid), FILES_DIR])
 	_write(FILES_DIR + "/spawner.gd", 'extends Node\n\nconst HERO := preload("%s/hero.tscn")\nconst HERO_SCRIPT := "%s/hero.gd"\n' % [FILES_DIR, FILES_DIR])
+	# Ruta relativa (m14-05): se recalcula cuando se mueve lo que nombra.
+	_write(FILES_DIR + "/relative.gd", 'extends Node\n\nconst HERO := preload("hero.tscn")\n')
 	EditorInterface.get_resource_filesystem().scan()
 	await _tree.create_timer(1.5).timeout
 	var moved_text := await _call_text("move_file", {"from": FILES_DIR + "/hero.tscn", "to": FILES_DIR + "/actors/hero.tscn"})
@@ -226,6 +228,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(FileAccess.file_exists(FILES_DIR + "/actors/hero.tscn") and not FileAccess.file_exists(FILES_DIR + "/hero.tscn"), "move_file mueve (%s)" % moved_text)
 	_expect(level_text.contains("path=\"%s/actors/hero.tscn\"" % FILES_DIR) and FileAccess.get_file_as_string(FILES_DIR + "/spawner.gd").contains(FILES_DIR + "/actors/hero.tscn"), "move_file reescribe las referencias (%s | %s)" % [level_text, FileAccess.get_file_as_string(FILES_DIR + "/spawner.gd")])
 	_expect(hero_uid != ResourceUID.INVALID_ID and ResourceLoader.get_resource_uid(FILES_DIR + "/actors/hero.tscn") == hero_uid, "move_file mantiene el uid")
+	_expect(FileAccess.get_file_as_string(FILES_DIR + "/relative.gd").contains('preload("actors/hero.tscn")') and moved_text.contains("relative paths"), "move_file recalcula la ruta relativa (%s)" % FileAccess.get_file_as_string(FILES_DIR + "/relative.gd"))
 	var moved_folder := await _call_text("move_file", {"from": FILES_DIR + "/actors", "to": FILES_DIR + "/characters"})
 	_expect(FileAccess.get_file_as_string(FILES_DIR + "/level.tscn").contains(FILES_DIR + "/characters/hero.tscn") and DirAccess.dir_exists_absolute(FILES_DIR + "/characters"), "move_file de una carpeta (%s)" % moved_folder)
 	var moved_script := await _call_text("move_file", {"from": FILES_DIR + "/hero.gd", "to": FILES_DIR + "/scripts/hero.gd"})

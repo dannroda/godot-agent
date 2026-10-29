@@ -6,6 +6,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Added
 
+- `godot.move_file` also fixes the relative paths of scripts (`preload("enemy.tscn")`, `load`, `extends "base.gd"`) when the script or what it names moves, and says PARTIAL with the list if a file could not be updated.
 - `godot.validate_physics` and `godot.validate_tilemap`: read-only checks of collision shapes, layers and masks, and of TileMapLayer cells and collisions, which the agent runs after touching physics or maps.
 - **Playtest…** in the Review panel: the agent plays the game to check what you ask and answers passed, failed (with steps to reproduce) or could not test, with evidence, without changing the project. `run_scene` can record the run as a video (`record: true`).
 - Every `godot.*` tool result now lists the editor errors and warnings that appeared since that session's previous call, so the agent sees a broken script right away instead of at the end of the turn.

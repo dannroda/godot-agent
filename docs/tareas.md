@@ -3892,7 +3892,7 @@ tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un edit
 
 **Notas:** Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.
 
-## M12 — Que el agente se verifique solo  (3/8, 3 en revisión)
+## M12 — Que el agente se verifique solo  (5/8, 5 en revisión)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
@@ -3923,7 +3923,7 @@ Como el Full Game Playtest Agent de Ziva: un playtest que corre la escena, manda
 
 **Notas:** Revisar suma «Playtest…» (pregunta qué comprobar y si grabar) y manda un prompt que pide jugar sin tocar el proyecto y contestar {"playtest": {verdict, summary, evidence, repro}}; el parser lo lee con alias y el controller lo deja como aviso (info si pasó, error si falló, warning si no se pudo). run_scene con record: true usa el Movie Maker del editor (AVI, 30 fps fijos, en res://.godot_agent/playtests/), cierra el juego desde el probe para que el video quede terminado y deja el Movie Maker como estaba. No se reusó el evaluador del One-shot: su rúbrica es de puntajes por criterio; acá hace falta pass/fail/blocked sobre un pedido.
 
-### Validadores de física y de TileMaps · En curso
+### Validadores de física y de TileMaps · Revisión
 
 Como Ziva (validate-physics-setup, validate-tilemap-structure): tools de solo lectura que revisan capas y máscaras de colisión que no se cruzan, cuerpos sin shape o con shape vacío, y TileMapLayers con celdas fuera del TileSet, huecos o tiles sin colisión donde se espera. El prompt de sistema le pide al agente correrlas después de tocar física o mapas.
 
@@ -3931,9 +3931,13 @@ Como Ziva (validate-physics-setup, validate-tilemap-structure): tools de solo le
 
 **Notas:** validate_physics y validate_tilemap (diagnostics, métodos extendidos por godot.run). Física: cuerpo o área sin forma habilitada, forma sin shape o fuera de un cuerpo, máscara 0, máscara que no cruza ninguna capa de la escena (cuenta las capas de física de los TileSets), capa 0 en un cuerpo. TileMapLayer: sin TileSet, celdas con fuente o tile que el TileSet no tiene, collision_enabled apagado con capas de física, tiles puestos sin polígonos de colisión. El prompt de sistema pide correrlas después de tocar física o mapas.
 
-### Mover y renombrar archivos sin romper referencias · Pendiente
+### Mover y renombrar archivos sin romper referencias · Revisión
 
 Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool godot.* llevando el .uid y el .import, buscando referencias por ruta literal en .tscn/.tres/.gd/project.godot; si hay alguna que no se puede actualizar sin riesgo, rechazar. Resultado con outcome (unchanged, rolled_back, partial) y si es seguro reintentar.
+
+**Prueba:** test_file_tools (relative_path y relative_rewrites con archivos, carpeta y script movidos); edit-test en Xvfb 4.7.2: preload("hero.tscn") pasa a preload("actors/hero.tscn")
+
+**Notas:** move_file ya mantenía uid, .uid/.import y referencias res:// (m4-10). Se sumó: rutas relativas de scripts (preload, load, ResourceLoader.load/exists, extends "…") recalculadas desde las carpetas nuevas cuando se mueve el script o lo que nombra; resultado PARTIAL con la lista si un archivo no se pudo escribir, y 'Nothing changed: safe to retry' si el movimiento en sí falla. No se hizo: rechazar por referencias que no se pueden actualizar (rutas armadas en código como "res://levels/" + name no se pueden detectar con certeza; las con prefijo literal de carpeta ya se reescriben).
 
 ### Guía de Godot headless en GDScript (lo de walker, sin C#) · Pendiente
 

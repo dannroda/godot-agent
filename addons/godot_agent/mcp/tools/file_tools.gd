@@ -36,7 +36,7 @@ func tools() -> Array:
 		return files if str(args.get("from", "")).strip_edges().begins_with("res://") else PermissionPolicy.GROUP_SHELL
 	return [
 		McpTool.create("move_file", files,
-			"Moves or renames a file or folder inside the project, like the editor's FileSystem dock: keeps the uid, moves the .uid/.import companions and rewrites every res:// reference in scenes, resources, scripts, shaders and project.godot. Use it instead of mv (the harness rejects mv/cp/rm on project files). Not undoable from the editor.",
+			"Moves or renames a file or folder inside the project, like the editor's FileSystem dock: keeps the uid, moves the .uid/.import companions and rewrites every res:// reference in scenes, resources, scripts, shaders and project.godot, and the relative paths of scripts (preload, load, extends). If a file cannot be updated, the result says PARTIAL and lists it. Use it instead of mv (the harness rejects mv/cp/rm on project files). Not undoable from the editor.",
 			{"from": {"type": "string"}, "to": {"type": "string", "description": "New res:// path (for a folder, the new folder path)"}},
 			["from", "to"], _move_file),
 		copy,
@@ -72,41 +72,58 @@ func _move_file(args: Dictionary) -> Dictionary:
 	var replacements := {from + "/": to + "/"} if is_dir else {from: to}
 	# Sin saltear nada: los archivos de una carpeta movida que se nombran entre sí también cambian.
 	var rewrites := _referencing_files(replacements, [], [])
-	var warnings := _unsaved_warnings(rewrites.keys())
+	# Rutas relativas de los scripts (preload("enemy.tscn")): se calculan con las carpetas de antes.
+	var relative := relative_rewrites(project_text_files(), from, to, is_dir)
+	var warnings := _unsaved_warnings(rewrites.keys() + relative.keys())
 	# Mover en disco: la carpeta entera o el archivo con sus compañeros.
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(to.get_base_dir()))
 	var error := DirAccess.rename_absolute(ProjectSettings.globalize_path(from), ProjectSettings.globalize_path(to))
 	if error != OK:
-		return McpTool.error("Could not move %s: %s." % [from, error_string(error)])
+		return McpTool.error("Could not move %s: %s. Nothing changed: it is safe to retry." % [from, error_string(error)])
+	var failed: PackedStringArray = []
 	if not is_dir:
 		for sidecar: String in SIDECARS:
 			if FileAccess.file_exists(from + "." + sidecar):
-				DirAccess.rename_absolute(ProjectSettings.globalize_path(from + "." + sidecar), ProjectSettings.globalize_path(to + "." + sidecar))
+				if DirAccess.rename_absolute(ProjectSettings.globalize_path(from + "." + sidecar), ProjectSettings.globalize_path(to + "." + sidecar)) != OK:
+					failed.append(from + "." + sidecar)
 	# Las referencias: archivos que apuntaban a lo movido, y los .import de lo movido.
 	var changed: PackedStringArray = []
 	for path: String in rewrites:
 		var target := _moved_path(path, from, to, is_dir)
-		if _rewrite(target, replacements):
+		var result := _rewrite(target, replacements)
+		if result == OK:
 			changed.append(target)
+		elif result != ERR_ALREADY_EXISTS:
+			failed.append(target)
+	var relative_changed: PackedStringArray = []
+	for path: String in relative:
+		var target := _moved_path(path, from, to, is_dir)
+		var result := _rewrite_literals(target, relative[path])
+		if result == OK:
+			relative_changed.append(target)
+		elif result != ERR_ALREADY_EXISTS:
+			failed.append(target)
 	for path: String in moved:
 		var new_path := _moved_path(path, from, to, is_dir)
-		if FileAccess.file_exists(new_path + ".import"):
-			_rewrite(new_path + ".import", replacements)
+		if FileAccess.file_exists(new_path + ".import") and _rewrite(new_path + ".import", replacements) not in [OK, ERR_ALREADY_EXISTS]:
+			failed.append(new_path + ".import")
 		if uids.has(path):
 			ResourceUID.set_id(uids[path], new_path)
 		if ResourceLoader.has_cached(path):
 			var cached := ResourceLoader.load(path)
 			if cached:
 				cached.take_over_path(new_path)
-	_refresh(changed)
+	_refresh(changed + relative_changed)
 	var lines: PackedStringArray = ["Moved %s → %s (%d file%s, uids kept)." % [from, to, moved.size(), "" if moved.size() == 1 else "s"]]
-	if changed.is_empty():
+	if changed.is_empty() and relative_changed.is_empty():
 		lines.append("No other file referenced it.")
-	else:
+	if not changed.is_empty():
 		lines.append("Updated references in %d file(s): %s" % [changed.size(), ", ".join(changed.slice(0, REFERENCE_LIST_LIMIT))])
+	if not relative_changed.is_empty():
+		lines.append("Updated relative paths (preload, load, extends) in %d script(s): %s" % [relative_changed.size(), ", ".join(relative_changed.slice(0, REFERENCE_LIST_LIMIT))])
 	lines.append_array(warnings)
-	if from.get_extension() == "gd" or is_dir:
-		lines.append("Relative paths inside scripts (preload(\"x.tscn\")) are not rewritten: check them with validate_scripts.")
+	if not failed.is_empty():
+		lines.append("PARTIAL: the move is done, but these could not be written and still point to the old path: %s. Fix them by hand (do not retry the move)." % ", ".join(failed))
 	return McpTool.text("\n".join(lines))
 
 
@@ -202,20 +219,77 @@ func _referencing_files(replacements: Dictionary, uid_texts: PackedStringArray, 
 	return result
 
 
-## Reemplaza en el archivo las rutas viejas por las nuevas. true si cambió.
-func _rewrite(path: String, replacements: Dictionary) -> bool:
+## Reemplaza en el archivo las rutas viejas por las nuevas: OK si cambió, ERR_ALREADY_EXISTS si no
+## había nada que cambiar, otro error si no se pudo escribir.
+func _rewrite(path: String, replacements: Dictionary) -> Error:
 	var text := FileAccess.get_file_as_string(path)
 	var updated := text
 	for old: String in replacements:
 		updated = _path_regex(old).sub(updated, _escape_replacement(replacements[old]), true)
+	return _store_if_changed(path, text, updated)
+
+
+## Cambia literales de ruta relativa de un script: `{viejo: nuevo}`, solo dentro de comillas.
+static func _rewrite_literals(path: String, literals: Dictionary) -> Error:
+	var text := FileAccess.get_file_as_string(path)
+	var updated := text
+	for old: String in literals:
+		for quote: String in ["\"", "'"]:
+			updated = updated.replace(quote + old + quote, quote + str(literals[old]) + quote)
+	return _store_if_changed(path, text, updated)
+
+
+static func _store_if_changed(path: String, text: String, updated: String) -> Error:
 	if updated == text:
-		return false
+		return ERR_ALREADY_EXISTS
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		return false
+		return FileAccess.get_open_error()
 	file.store_string(updated)
 	file.close()
-	return true
+	return OK
+
+
+## Rutas relativas de los scripts que dejan de apuntar a lo mismo al mover `from` a `to`: el script se
+## mueve, o lo que nombra con `preload`, `load` o `extends "…"`. `{script (ruta de antes): {literal
+## viejo: literal nuevo}}`, calculado con las carpetas de antes de mover.
+static func relative_rewrites(files: PackedStringArray, from: String, to: String, is_dir: bool) -> Dictionary:
+	var pattern := RegEx.create_from_string("(?:\\b(?:preload|load|ResourceLoader\\.load|ResourceLoader\\.exists)\\s*\\(\\s*|\\bextends\\s+)[\"']([^\"'\\n]+)[\"']")
+	var result := {}
+	for script: String in files:
+		if script.get_extension() != "gd":
+			continue
+		var literals := {}
+		for found: RegExMatch in pattern.search_all(FileAccess.get_file_as_string(script)):
+			var literal := found.get_string(1)
+			if literal.begins_with("res://") or literal.begins_with("uid://") or literal.begins_with("/") or literals.has(literal):
+				continue
+			var target := script.get_base_dir().path_join(literal).simplify_path()
+			var new_script := _moved_path(script, from, to, is_dir)
+			var new_target := _moved_path(target, from, to, is_dir)
+			if new_script == script and new_target == target:
+				continue
+			var updated := relative_path(new_script.get_base_dir(), new_target)
+			if updated != literal:
+				literals[literal] = updated
+		if not literals.is_empty():
+			result[script] = literals
+	return result
+
+
+## `target` (res://) visto desde la carpeta `dir` (res://): "enemy.tscn", "../ui/hud.tscn".
+static func relative_path(dir: String, target: String) -> String:
+	var dir_parts := Array(dir.trim_prefix("res://").split("/", false))
+	var target_parts := Array(target.trim_prefix("res://").split("/", false))
+	var common := 0
+	while common < dir_parts.size() and common < target_parts.size() - 1 and dir_parts[common] == target_parts[common]:
+		common += 1
+	var parts: PackedStringArray = []
+	for i in dir_parts.size() - common:
+		parts.append("..")
+	for part: Variant in target_parts.slice(common):
+		parts.append(str(part))
+	return "/".join(parts)
 
 
 ## Una ruta exacta termina donde termina el string (comillas, espacio, `::` de sub-recurso…); un

@@ -4,11 +4,11 @@
   "created_at": "2026-10-29T21:59:13.284Z",
   "description": "Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool godot.* llevando el .uid y el .import, buscando referencias por ruta literal en .tscn/.tres/.gd/project.godot; si hay alguna que no se puede actualizar sin riesgo, rechazar. Resultado con outcome (unchanged, rolled_back, partial) y si es seguro reintentar.",
   "milestone": "m14",
-  "notes": "",
+  "notes": "move_file ya mantenía uid, .uid/.import y referencias res:// (m4-10). Se sumó: rutas relativas de scripts (preload, load, ResourceLoader.load/exists, extends \"…\") recalculadas desde las carpetas nuevas cuando se mueve el script o lo que nombra; resultado PARTIAL con la lista si un archivo no se pudo escribir, y 'Nothing changed: safe to retry' si el movimiento en sí falla. No se hizo: rechazar por referencias que no se pueden actualizar (rutas armadas en código como \"res://levels/\" + name no se pueden detectar con certeza; las con prefijo literal de carpeta ya se reescriben).",
   "order": 5,
   "refs": [],
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "test_file_tools (relative_path y relative_rewrites con archivos, carpeta y script movidos); edit-test en Xvfb 4.7.2: preload(\"hero.tscn\") pasa a preload(\"actors/hero.tscn\")",
   "title": "Mover y renombrar archivos sin romper referencias",
-  "updated_at": "2026-10-29T21:59:13.511Z"
+  "updated_at": "2026-10-29T22:56:20.794Z"
 }
