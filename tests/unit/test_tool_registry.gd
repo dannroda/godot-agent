@@ -147,4 +147,5 @@ func test_default_describe() -> void:
 	var tool := McpTool.new()
 	assert_eq(tool.describe({"node_path": "World/Sun", "value": 1.2}), "node_path: World/Sun\nvalue: 1.2", "una línea por argumento, sin JSON")
 	assert_eq(tool.describe({}), "", "sin argumentos")
+	assert_eq(tool.describe({"node_path": "World/Sun", "properties": {"light_energy": 1.2}}), "node_path: World/Sun\nproperties.light_energy: 1.2", "un diccionario se abre un nivel")
 	assert_true(tool.describe({"text": "x".repeat(300)}).ends_with("…"), "valores largos recortados")

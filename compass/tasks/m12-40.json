@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T07:09:44.823Z",
+  "description": "Con AskUserQuestion de Claude Code, la pregunta se ve dos veces: como fila del grupo de herramientas («¿Me das permiso…? · other · output · 1 line») y como tarjeta de pregunta justo abajo.\n\nPropuesta: ocultar del grupo el tool call que originó una elicitation (mismo toolCallId) o mostrarlo como «Pregunta · respondida».",
+  "milestone": "m12",
+  "notes": "",
+  "order": 40,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "La pregunta del agente aparece también como herramienta",
+  "updated_at": "2026-10-29T07:09:44.823Z"
+}

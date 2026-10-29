@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (9/38, 9 en revisión)
+## M10 — Revisión de UX  (10/39, 10 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3163,7 +3163,7 @@ Archivos: agent_dock._refresh_empty_state
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 4)
 
-### Formulario del agente: «Rechazar» y «Cancelar» confunden · En curso
+### Formulario del agente: «Rechazar» y «Cancelar» confunden · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
 
@@ -3449,6 +3449,16 @@ En modo Revisar el agente contesta con un bloque ```json {"findings": …}``` qu
 Propuesta: una vez leído, reemplazarlo en el mensaje por una línea («2 hallazgos · ver en el panel») con el JSON plegado.
 
 Archivos: ReviewStore, agent_message_view.gd. Sale de m12-03.
+
+### Crash de Godot 4.8 al aprobar un permiso que guarda la escena · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `bug`, `dock`
+
+29/10 03:56, LittleVillages con Godot 4.8-beta1: Claude pidió set_properties (light_energy 1.2) y save_scene en paralelo; al aprobar, la escena se guardó (03:56:05) y el editor abortó (SIGABRT, core en systemd).
+
+Backtrace con los símbolos de debug de 4.8-beta1: crash dentro de BaseButton::on_action_event, procesando el clic (Viewport::_gui_input_event ← DisplayServerX11::process_events). El await del permiso se reanuda en el mismo emit de resolved, así que la tool (guardar la escena) corría dentro del manejador del clic.
+
+Arreglo: las vistas de permiso y de pregunta del agente resuelven el pedido con call_deferred. No se pudo reproducir en Xvfb (un permiso y save_scene con un clic real sobrevive en 4.8-beta1); falta el caso con dos tools en paralelo.
 
 ## M11 — Revisiones de seguridad, patrones y arquitectura  (0/3)
 

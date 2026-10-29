@@ -139,7 +139,8 @@ func _build() -> void:
 	_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# Cada pestaña se mide la primera vez que se muestra: acomodar de nuevo al cambiar.
 	_tabs.tab_changed.connect(func(tab: int) -> void:
-		_nav.select(tab)
+		if tab < _nav.item_count:  # al agregar la primera pestaña la lista todavía está vacía
+			_nav.select(tab)
 		ExtensionsUi.refit_dialog(self))
 	split.add_child(_tabs)
 	_tabs.add_child(_build_plugins_tab())

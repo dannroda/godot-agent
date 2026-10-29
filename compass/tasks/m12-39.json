@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T07:09:44.573Z",
+  "description": "29/10 03:56, LittleVillages con Godot 4.8-beta1: Claude pidió set_properties (light_energy 1.2) y save_scene en paralelo; al aprobar, la escena se guardó (03:56:05) y el editor abortó (SIGABRT, core en systemd).\n\nBacktrace con los símbolos de debug de 4.8-beta1: crash dentro de BaseButton::on_action_event, procesando el clic (Viewport::_gui_input_event ← DisplayServerX11::process_events). El await del permiso se reanuda en el mismo emit de resolved, así que la tool (guardar la escena) corría dentro del manejador del clic.\n\nArreglo: las vistas de permiso y de pregunta del agente resuelven el pedido con call_deferred. No se pudo reproducir en Xvfb (un permiso y save_scene con un clic real sobrevive en 4.8-beta1); falta el caso con dos tools en paralelo.",
+  "milestone": "m12",
+  "notes": "",
+  "order": 39,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "bug",
+    "dock"
+  ],
+  "test": "",
+  "title": "Crash de Godot 4.8 al aprobar un permiso que guarda la escena",
+  "updated_at": "2026-10-29T07:09:44.573Z"
+}

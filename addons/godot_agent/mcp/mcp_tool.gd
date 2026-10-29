@@ -40,14 +40,21 @@ func describe(args: Dictionary) -> String:
 	if describer.is_valid():
 		return str(describer.call(args))
 	# Una línea por argumento («node_path: World/Sun»): el JSON en una línea no se leía en la tarjeta.
-	var lines: PackedStringArray = []
+	# Un diccionario se abre un nivel: «properties.light_energy: 1.2».
+	var flat: Array = []
 	for key: Variant in args:
+		if args[key] is Dictionary and not (args[key] as Dictionary).is_empty():
+			for sub: Variant in args[key]:
+				flat.append(["%s.%s" % [key, sub], args[key][sub]])
+		else:
+			flat.append([str(key), args[key]])
+	var lines: PackedStringArray = []
+	for pair: Array in flat:
 		if lines.size() == DESCRIBE_MAX_LINES:
 			lines.append("…")
 			break
-		var value: Variant = args[key]
-		var text := str(value) if value is String else JSON.stringify(value)
-		lines.append("%s: %s" % [key, text.left(DESCRIBE_MAX_VALUE) + ("…" if text.length() > DESCRIBE_MAX_VALUE else "")])
+		var text := str(pair[1]) if pair[1] is String else JSON.stringify(pair[1])
+		lines.append("%s: %s" % [pair[0], text.left(DESCRIBE_MAX_VALUE) + ("…" if text.length() > DESCRIBE_MAX_VALUE else "")])
 	return "\n".join(lines)
 
 
