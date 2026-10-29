@@ -7,7 +7,7 @@ extends RefCounted
 ## run lo pidió el harness (`harness_requested`) y de baja cuando el juego ya leyó project.godot.
 
 const McpTool := preload("../mcp_tool.gd")
-const ErrorCollector := preload("../../core/error_collector.gd")
+const ErrorCollector := preload("../../editor/error_collector.gd")
 const PlaytestDebugger := preload("../../playtest/playtest_debugger.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const ProjectTools := preload("project_tools.gd")

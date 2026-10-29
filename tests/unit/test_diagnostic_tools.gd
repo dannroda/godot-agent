@@ -2,7 +2,7 @@ extends "test_case.gd"
 ## Salida del validador de scripts y ubicaciones de errores (spec §6).
 
 const DiagnosticTools := preload("res://addons/godot_agent/mcp/tools/diagnostic_tools.gd")
-const ErrorCollector := preload("res://addons/godot_agent/core/error_collector.gd")
+const ErrorCollector := preload("res://addons/godot_agent/editor/error_collector.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")

@@ -28,7 +28,7 @@ func create(stamp: String) -> bool:
 	if not await git.check_available():
 		last_error = git.last_error
 		return false
-	await git.call(&"_ensure_identity")
+	await git.ensure_identity()
 	var top: String = (await git.run(["rev-parse", "--show-toplevel"])).output
 	var prefix: String = str((await git.run(["rev-parse", "--show-prefix"])).output).trim_suffix("/")
 	var base: String = (await git.run(["rev-parse", "HEAD"])).output

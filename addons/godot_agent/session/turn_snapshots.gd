@@ -30,7 +30,7 @@ func setup() -> bool:
 	available = await git.check_available()
 	if not available:
 		return false
-	await git.call(&"_ensure_identity")
+	await git.ensure_identity()
 	_git_dir = _absolute((await git.run(["rev-parse", "--git-dir"])).output)
 	return true
 
@@ -45,7 +45,7 @@ func take(session: String) -> String:
 	# del usuario cada vez le pondría una fecha nueva y git podría no ver un cambio de igual tamaño.
 	if not FileAccess.file_exists(index) and (await _run_with_index(index, PackedStringArray(["read-tree", "HEAD"]))).code != 0:
 		return ""
-	var added := await _run_with_index(index, PackedStringArray(["add", "-A"]) + await git.call(&"_add_pathspec"))
+	var added := await _run_with_index(index, PackedStringArray(["add", "-A"]) + await git.add_pathspec())
 	if added.code != 0:
 		return ""
 	var tree := await _run_with_index(index, PackedStringArray(["write-tree"]))

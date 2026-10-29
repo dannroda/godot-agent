@@ -358,7 +358,7 @@ func _build_header() -> void:
 	_new_menu.set_item_tooltip(2, I18n.t("The agent works in a copy of the project on a new branch, outside the project folder, without touching the open editor. When you close its tab you choose whether to apply its changes to the project."))
 	_new_menu.id_pressed.connect(func(id: int) -> void:
 		if id == NEW_MENU_SESSION:
-			_on_new_session_pressed()
+			new_session()
 		else:
 			new_tab_requested.emit(id == NEW_MENU_TAB_COPY))
 	add_child(_new_menu)
@@ -722,10 +722,12 @@ func continue_last_session() -> bool:
 func _on_start_pressed() -> void:
 	if _oneshot_active and retry_interceptor.is_valid() and retry_interceptor.call():
 		return
-	_start_session()
+	start_session()
 
 
-func _start_session() -> void:
+## Abre una sesión con el agente activo (el botón del dock, «Iniciar sesión» del Alt+I). Sin agentes,
+## lleva a Ajustes.
+func start_session() -> void:
 	var profile := _settings.active_profile()
 	if profile == null:
 		settings_requested.emit()
@@ -839,13 +841,14 @@ func _on_history_selected(index: int) -> void:
 	open_history_session(str(_history_items[index].get("id", "")))
 
 
-func _on_new_session_pressed() -> void:
+## «Nueva sesión»: con el mismo agente conectado, session/new; si no, lo lanza.
+func new_session() -> void:
 	var active := _settings.active_profile()
 	var current := _controller.profile()
 	if _controller.is_connected_to_agent() and current and active and current.id == active.id:
 		_controller.open_session()
 	else:
-		_start_session()
+		start_session()
 
 
 func _on_submitted(text: String) -> void:
@@ -862,7 +865,7 @@ func _on_submitted(text: String) -> void:
 			_pending_prompt = text
 		SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED:
 			_pending_prompt = text
-			_start_session()
+			start_session()
 
 
 func _send(text: String) -> void:
@@ -999,7 +1002,7 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 		SessionController.ACTION_RETRY:
 			if retry_interceptor.is_valid() and retry_interceptor.call():
 				return
-			_start_session()
+			start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit(int(payload) if payload is int else 0)
 		SessionController.ACTION_EDIT_AGENT:

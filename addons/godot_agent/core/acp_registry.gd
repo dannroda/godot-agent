@@ -18,14 +18,10 @@ const KIND_BINARY := "binary"
 ## Orden de preferencia: npx y uvx se actualizan solos y no bajan nada al instalar.
 const KINDS: PackedStringArray = [KIND_NPX, KIND_UVX, KIND_BINARY]
 
-## Dónde se descomprimen los binarios: `<carpeta>/<id>/<versión>/`.
+## Dónde se descomprimen los binarios: `<carpeta>/<id>/<versión>/`. Lo pone quien lo crea (en el
+## editor, `<datos del editor>/godot_agent/agents`).
 var install_root: String = ""
 var _download: HTTPRequest
-
-
-func _init() -> void:
-	if Engine.is_editor_hint():
-		install_root = EditorInterface.get_editor_paths().get_data_dir().path_join("godot_agent/agents")
 
 
 ## `{agents: [ver parse], error}`.

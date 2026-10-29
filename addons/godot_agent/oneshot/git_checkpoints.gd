@@ -32,7 +32,7 @@ var checkpoints: Array[Dictionary] = []
 var last_error: String = ""
 
 var _identity: PackedStringArray = []
-## Pathspec de `git add`, resuelto la primera vez (ver _add_pathspec).
+## Pathspec de `git add`, resuelto la primera vez (ver add_pathspec).
 var _add_spec: PackedStringArray = []
 
 
@@ -91,7 +91,7 @@ func current_branch() -> String:
 ## se toca) — quien llama ya pidió confirmación. Después crea cp1 "Initial state".
 func start(timestamp: String = "") -> bool:
 	last_error = ""
-	await _ensure_identity()
+	await ensure_identity()
 	base_branch = await current_branch()
 	var sha := await run(["rev-parse", "HEAD"])
 	base_sha = sha.output
@@ -161,7 +161,7 @@ func restore(checkpoint_entry: Dictionary) -> Variant:
 func changes_summary() -> Dictionary:
 	if not await _on_agent_branch():
 		return {}
-	await run(PackedStringArray(["add", "-A"]) + await _add_pathspec())
+	await run(PackedStringArray(["add", "-A"]) + await add_pathspec())
 	var numstat := await run(PackedStringArray(["diff", "--cached", "--numstat", "--relative", base_sha]) + SUMMARY_PATHSPEC)
 	var files: Array[Dictionary] = []
 	var added := 0
@@ -205,7 +205,7 @@ func _abandon_branch() -> void:
 
 
 func _commit(message: String) -> String:
-	var staged := await run(PackedStringArray(["add", "-A"]) + await _add_pathspec())
+	var staged := await run(PackedStringArray(["add", "-A"]) + await add_pathspec())
 	if staged.code != 0:
 		last_error = I18n.t("git add failed: %s") % staged.output
 		return ""
@@ -219,7 +219,7 @@ func _commit(message: String) -> String:
 
 ## `git add` sale con error si el pathspec nombra una ruta ignorada, aunque sea para excluirla: si
 ## el repo ya ignora `.godot/`, alcanza con `.`.
-func _add_pathspec() -> PackedStringArray:
+func add_pathspec() -> PackedStringArray:
 	if _add_spec.is_empty():
 		var ignored := await run(["check-ignore", "-q", ".godot/"])
 		_add_spec = PackedStringArray(["--", "."]) if ignored.code == 0 else PATHSPEC
@@ -234,6 +234,6 @@ func _on_agent_branch() -> bool:
 	return true
 
 
-func _ensure_identity() -> void:
+func ensure_identity() -> void:
 	var email := await run(["config", "user.email"])
 	_identity = [] if email.code == 0 and not email.output.is_empty() else PackedStringArray(["-c", "user.name=" + FALLBACK_NAME, "-c", "user.email=" + FALLBACK_EMAIL])

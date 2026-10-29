@@ -57,7 +57,7 @@ const RunTools := preload("mcp/tools/run_tools.gd")
 const PlaytestDebugger := preload("playtest/playtest_debugger.gd")
 const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
-const ErrorCollector := preload("core/error_collector.gd")
+const ErrorCollector := preload("editor/error_collector.gd")
 const ReviewAnnotations := preload("review/review_annotations.gd")
 const ReviewStore := preload("review/review_store.gd")
 const AgentDock := preload("ui/dock/agent_dock.gd")
@@ -145,7 +145,7 @@ func _enter_tree() -> void:
 	add_export_plugin(_export_plugin)
 
 	_settings = HarnessSettings.new(EditorInterface.get_editor_settings())
-	I18n.setup(_settings.language())
+	I18n.setup(_settings.language(), _editor_language())
 	_log = AgentLog.new()
 	for removed: String in _settings.retire_old_presets():
 		_log.add(AgentLog.CH_ACP, "removed the old %s agent preset: it was never set up" % removed)
@@ -309,7 +309,7 @@ func _enter_tree() -> void:
 		return _active_adapter().kind if _settings.active_profile() != null else ClaudeExtensions.AGENT_CLAUDE
 	_extensions_window.new_session_requested.connect(func() -> void:
 		if is_instance_valid(dock):
-			dock.call(&"_on_new_session_pressed"))
+			dock.new_session())
 	_extensions_window.disabled_skills_changed.connect(func(names: PackedStringArray) -> void:
 		_project_config.disabled_skills = names
 		_save_project_config())
@@ -449,6 +449,15 @@ func _has_main_screen() -> bool:
 func _make_visible(visible: bool) -> void:
 	if _surfaces:
 		_surfaces.set_legacy_main_screen_visible(visible)
+
+
+## El idioma de la interfaz del editor. Desde 4.7 el setting está en `localization/`.
+static func _editor_language() -> String:
+	var settings := EditorInterface.get_editor_settings()
+	for key: String in ["interface/editor/localization/editor_language", "interface/editor/editor_language"]:
+		if settings.has_setting(key):
+			return str(settings.get_setting(key))
+	return ""
 
 
 func _get_plugin_name() -> String:
@@ -985,10 +994,10 @@ func _ask_inline(prompt: String) -> Dictionary:
 ## «Iniciar sesión» del Alt+I: la abre en la pestaña activa del dock, como su botón.
 func _start_inline_session() -> bool:
 	var id := _active_session_id()
-	var dock: Control = _tabs.dock(id) if _tabs else null
+	var dock := _tabs.dock(id) as AgentDock if _tabs else null
 	if dock == null:
 		return false
-	await dock.call(&"_start_session")
+	await dock.start_session()
 	var controller := _controller_of(id)
 	return controller != null and controller.is_connected_to_agent()
 

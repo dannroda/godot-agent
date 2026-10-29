@@ -26,13 +26,14 @@ static var _translation: Translation = null
 static var _locale: String = SOURCE
 
 
-## `language`: el setting ("auto", "en", "es"…).
-static func setup(language: String) -> void:
+## `language`: el setting ("auto", "en", "es"…). `editor_language`: el idioma del editor, que pasa
+## el plugin y vale con «auto» ("" = el del sistema).
+static func setup(language: String, editor_language: String = "") -> void:
 	var code := OS.get_environment(ENV_OVERRIDE)
 	if code.is_empty():
 		code = language
 	if code.is_empty() or code == AUTO:
-		code = editor_language()
+		code = editor_language if not editor_language.is_empty() else OS.get_locale_language()
 	set_locale(code)
 
 
@@ -54,14 +55,6 @@ static func set_locale(code: String) -> void:
 
 static func locale() -> String:
 	return _locale
-
-
-static func editor_language() -> String:
-	if Engine.is_editor_hint():
-		var settings := EditorInterface.get_editor_settings()
-		if settings and settings.has_setting("interface/editor/editor_language"):
-			return str(settings.get_setting("interface/editor/editor_language"))
-	return OS.get_locale_language()
 
 
 ## La traducción de `text` (un msgid en inglés), o `text` si no hay.

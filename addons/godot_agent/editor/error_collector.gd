@@ -5,7 +5,7 @@ extends RefCounted
 ## - un Logger propio (OS.add_logger, editor_logger.gd) con los errores del editor;
 ## - el árbol de errores del Debugger (errores del juego corriendo).
 
-const EditorLogger := preload("editor_logger.gd")
+const EditorLogger := preload("../core/editor_logger.gd")
 
 const MAX_ENTRIES := 500
 const LOGGER_TYPES: Dictionary = {0: "error", 1: "warning", 2: "script", 3: "shader"}

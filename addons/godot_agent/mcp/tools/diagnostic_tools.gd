@@ -3,7 +3,7 @@ extends RefCounted
 ## Tools de diagnóstico (spec §6): get_errors, validate_scripts y capture_editor_viewport.
 
 const McpTool := preload("../mcp_tool.gd")
-const ErrorCollector := preload("../../core/error_collector.gd")
+const ErrorCollector := preload("../../editor/error_collector.gd")
 const AgentProcess := preload("../../transport/agent_process.gd")
 const EditorContext := preload("../../ui/editor_context.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
