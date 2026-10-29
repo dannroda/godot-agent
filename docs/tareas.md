@@ -3939,7 +3939,7 @@ Como godot-ai (filesystem_manage move/rename): mover o renombrar desde una tool 
 
 **Notas:** move_file ya mantenía uid, .uid/.import y referencias res:// (m4-10). Se sumó: rutas relativas de scripts (preload, load, ResourceLoader.load/exists, extends "…") recalculadas desde las carpetas nuevas cuando se mueve el script o lo que nombra; resultado PARTIAL con la lista si un archivo no se pudo escribir, y 'Nothing changed: safe to retry' si el movimiento en sí falla. No se hizo: rechazar por referencias que no se pueden actualizar (rutas armadas en código como "res://levels/" + name no se pueden detectar con certeza; las con prefijo literal de carpeta ya se reescriben).
 
-### Guía de Godot headless en GDScript (lo de walker, sin C#) · Pendiente
+### Guía de Godot headless en GDScript (lo de walker, sin C#) · En curso
 
 walker (github.com/nikbearbrown/walker, MIT, engines/godot.md) trae una guía de Godot para agentes en C#; pasarla a GDScript y sumarla a lo que lee el agente (prompt de sistema o una skill en Extensiones), sobre todo para las sesiones en una copia aparte (m11-09), que no tienen las tools godot.* del editor:
 1. Cadena de verificación headless: godot --headless --import después de tocar assets, y godot --headless --quit (o --check-only por script) para errores de parseo.
@@ -3947,6 +3947,10 @@ walker (github.com/nikbearbrown/walker, MIT, engines/godot.md) trae una guía de
 3. Catálogo de fallas silenciosas, versión GDScript: owner sin poner (el nodo no se guarda), .gdignore que esconde una carpeta, recursos .tres compartidos que se mutan, no recorrer los hijos de un GLB instanciado, enums adivinados, amortiguar con exp(-rate * delta) para no depender del framerate.
 4. Captura determinística: --write-movie con --fixed-fps y --quit-after, en Xvfb, como evidencia en video (se cruza con m14-03).
 Verificar cada regla en 4.7.2 y 4.8 antes de escribirla; citar walker (y Godogen) como fuente.
+
+**Prueba:** cada regla probada en 4.7.2 y 4.8-beta1 (owner, .gdignore con PNG y .gd, --check-only exit 1/0, --import con script roto, set_script queda como ext_resource, --write-movie en Xvfb); el builder de la guía corre tal cual en las dos; test_system_prompt (ruta y sin variables sin reemplazar); sessions-test
+
+**Notas:** addons/godot_agent/config/godot_headless.md: cadena de verificación (--import no parsea scripts; --check-only --script sale con 1 si hay error), escenas armadas por un script SceneTree con owner y conteo de nodos (un nodo sin owner se pierde sin error), fallas silenciosas (owner, .gdignore: los assets no se importan pero los scripts sí cargan, recursos compartidos, APIs adivinadas, suavizado dependiente del framerate) y video (--write-movie necesita ventana: en el editor, run_scene record). El prompt de sistema da la ruta ({headless_guide}); las sesiones en una copia la reciben entera en su nota, que antes decía que --quit reportaba errores de scripts. Cita a walker (MIT).
 
 ### C# con el mismo soporte que GDScript · Pendiente
 

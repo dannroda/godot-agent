@@ -23,6 +23,10 @@ func test_conventions_in_every_mode() -> void:
 			assert_true(prompt.contains(text), "modo %d: %s" % [mode, text])
 	model.set_harness_mode(SessionModel.HarnessMode.REVIEW)
 	assert_true(controller.system_prompt().contains("Departures from the Godot conventions"), "Revisar las reporta como hallazgos")
+	var prompt := controller.system_prompt()
+	assert_true(prompt.contains(ProjectSettings.globalize_path(SessionController.HEADLESS_GUIDE_PATH)), "la ruta de la guía headless (m14-06)")
+	assert_false(RegEx.create_from_string("\\{[a-z_]+\\}").search(prompt) != null, "sin variables sin reemplazar")
+	assert_true(FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH).contains("owner = root"), "la guía existe")
 
 
 func test_code_criterion_uses_conventions() -> void:

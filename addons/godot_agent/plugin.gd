@@ -1101,7 +1101,7 @@ func _open_session_tab(in_copy: bool = false) -> void:
 	_log.add(AgentLog.CH_ACP, "%s opened" % label)
 	if copy:
 		model.add_notice(I18n.t("This session works in a separate copy of the project, %s, on the branch %s (from your last commit: uncommitted changes aren't in it). The open editor isn't touched. When you close the tab you choose whether to apply its changes to the project.") % [copy.info.project, copy.info.branch])
-		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work run Godot headless on your folder, for example: \"$GODOT\" --headless --path %s --quit (it imports the project and reports script errors).]" % [copy.info.project, copy.info.branch, copy.info.project])
+		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
 
 
 ## Cerrar una pestaña. Una sesión en una copia (m11-09) primero commitea lo suyo en su rama y, si

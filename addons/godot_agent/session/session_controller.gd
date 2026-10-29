@@ -48,6 +48,9 @@ const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
 const CLIENT_TITLE := "Godot Agent Harness"
 const SYSTEM_PROMPT_PATH := "res://addons/godot_agent/config/system_prompt.md"
+## Guía de Godot por línea de comandos (m14-06): el prompt da su ruta; las sesiones en una copia la
+## reciben entera.
+const HEADLESS_GUIDE_PATH := "res://addons/godot_agent/config/godot_headless.md"
 
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"
@@ -812,6 +815,7 @@ func system_prompt() -> String:
 	variables["project_name"] = variables.get("project_name", cwd.get_file())
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)
 	variables["godot_bin"] = variables.get("godot_bin", EditorBinary.path())
+	variables["headless_guide"] = variables.get("headless_guide", ProjectSettings.globalize_path(HEADLESS_GUIDE_PATH))
 	return "<harness_context>\n%s\n</harness_context>" % template.format(variables)
 
 

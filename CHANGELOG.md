@@ -6,6 +6,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Added
 
+- A guide for running Godot from the command line (`config/godot_headless.md`, adapted from walker): checking scripts with `--check-only`, building scenes with a script that counts its nodes, and the failures Godot doesn't report (a node without `owner`, `.gdignore`). Sessions in a separate copy get it in full; the system prompt points to it.
 - `godot.move_file` also fixes the relative paths of scripts (`preload("enemy.tscn")`, `load`, `extends "base.gd"`) when the script or what it names moves, and says PARTIAL with the list if a file could not be updated.
 - `godot.validate_physics` and `godot.validate_tilemap`: read-only checks of collision shapes, layers and masks, and of TileMapLayer cells and collisions, which the agent runs after touching physics or maps.
 - **Playtest…** in the Review panel: the agent plays the game to check what you ask and answers passed, failed (with steps to reproduce) or could not test, with evidence, without changing the project. `run_scene` can record the run as a video (`record: true`).
