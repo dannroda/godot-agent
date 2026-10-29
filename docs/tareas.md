@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (3/8, 3 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (4/9, 4 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3812,7 +3812,7 @@ Revisar la estructura del addon: el tamaño y las responsabilidades de session_c
 
 **Notas:** Informe en docs/revisiones/arquitectura.md (A1–A8). Las capas están limpias (acp, transport, oneshot y extensions no tocan el editor). Propuestas cargadas como tareas: m13-04 (adaptador por agente), m13-05 (controller como fachada, bloqueada por m13-04), m13-06 (plugin solo arma), m13-07 (una vista por sección del dock), m13-08 (API pública del dock y EditorInterface inyectado). Estado (A7) y tests (A8) sin cambios necesarios.
 
-### Un adaptador por agente (A1) · En curso
+### Un adaptador por agente (A1) · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `arquitectura`
 
@@ -3820,7 +3820,7 @@ Lo propio de cada agente (comando y lectura de la cuota, cómo saber la cuenta, 
 
 Informe: docs/revisiones/arquitectura.md
 
-**Prueba:** test_agent_adapters (4 tests); run_all 368; acp_session_check 162/0.
+**Prueba:** test_agent_adapters (4 tests); run_all 368; acp_session_check 162/0; contra agy 1.4.3 real: adaptador antigravity, /usage leído al abrir y tras el turno (semana 18 %, 5 h 0 %).
 
 **Notas:** Hecho en 482e020. session/agents/: agent_adapter.gd (genérico), claude_adapter.gd, antigravity_adapter.gd, codex_adapter.gd y agent_adapters.gd (elige por perfil y, después de initialize, por agentInfo.name). El controller usa adapter.quota_command/read_quota/model_changed/reads_account_from_cli; el plugin, adapter.session_meta y kind para Extensiones; el dock, adapter.api_key_variable. La detección por comando sigue en ClaudeExtensions.agent_kind (la usan las extensiones). Sin probar contra agy real: la instalación pide login.
 
@@ -3859,3 +3859,9 @@ Informe: docs/revisiones/arquitectura.md
 plugin.gd llama dock.call(&"_on_new_session_pressed") y dock.call(&"_start_session"): hacerlos públicos. acp_registry, i18n, asset_store y error_collector leen EditorInterface solos: que el plugin se lo pase.
 
 Informe: docs/revisiones/arquitectura.md
+
+### Dejar de soportar Godot 4.6 · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `compatibilidad`
+
+Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 4.6 (la recarga de escenas sin EditorInterface.get_unsaved_scenes, la API vieja de docks donde 4.7 ya tiene EditorDock), la matriz de CI (4.6.3), README, CONTRIBUTING, la wiki y la spec; decisión nueva en docs/decisions.md que reemplaza a D34. Con 4.7 se puede usar Control.custom_maximum_size.

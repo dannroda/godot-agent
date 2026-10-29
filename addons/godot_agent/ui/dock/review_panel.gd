@@ -151,11 +151,4 @@ func _row(finding: Dictionary) -> Button:
 
 
 static func _dot(color: Color) -> Texture2D:
-	var side := AgentTheme.px(8)
-	var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
-	var center := Vector2(side, side) / 2.0
-	for y in side:
-		for x in side:
-			var inside := Vector2(x + 0.5, y + 0.5).distance_to(center) <= side / 2.0
-			image.set_pixel(x, y, color if inside else Color.TRANSPARENT)
-	return ImageTexture.create_from_image(image)
+	return AgentTheme.dot(color)

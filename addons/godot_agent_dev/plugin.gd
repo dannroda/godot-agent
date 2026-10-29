@@ -95,6 +95,8 @@ const EXTENSIONS_ARG := "--godot-agent-extensions-shots="
 const UPDATE_ARG := "--godot-agent-update-shots="
 ## m7-41: las capturas de la guía (README y wiki) en la carpeta dada. Ver tests/docs_shots.sh.
 const DOCS_ARG := "--godot-agent-docs-shots="
+## Recorrido de capturas de toda la UI (tests/ux_tour.sh).
+const UX_TOUR_ARG := "--godot-agent-ux-tour="
 const HISTORY_ARG := "--godot-agent-history-test="
 const LOGIN_ARG := "--godot-agent-login-test"
 const QUEUE_ARG := "--godot-agent-queue-test"
@@ -112,6 +114,7 @@ const CLAUDE_ONESHOT_TIMEOUT_S := 2700.0
 const OneShotUiCheck := preload("oneshot_ui_check.gd")
 const ReviewCheck := preload("review_check.gd")
 const DocsShots := preload("docs_shots.gd")
+const UxTour := preload("ux_tour.gd")
 ## m7-39: instala un plugin del Asset Store desde Extensions y prueba las tools (red; correr con
 ## tests/asset_check.sh, que usa una copia del proyecto).
 const ASSET_ARG := "--godot-agent-asset-test="
@@ -200,6 +203,8 @@ func _enter_tree() -> void:
 			_run_update_shots.call_deferred(arg.trim_prefix(UPDATE_ARG))
 		if arg.begins_with(DOCS_ARG):
 			_run_docs_shots.call_deferred(arg.trim_prefix(DOCS_ARG))
+		if arg.begins_with(UX_TOUR_ARG):
+			_run_ux_tour.call_deferred(arg.trim_prefix(UX_TOUR_ARG))
 		if arg.begins_with(ASSET_ARG):
 			_run_asset_test.call_deferred(arg.trim_prefix(ASSET_ARG))
 		if arg.begins_with(SKILLS_ARG):
@@ -1273,6 +1278,15 @@ func _run_docs_shots(dir: String) -> void:
 	for failure: String in failures:
 		print("[docs-shots] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "docs-shots: %d fallas" % failures.size())
+
+
+func _run_ux_tour(dir: String) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S * 4).timeout.connect(_on_safety_timeout)  # recorre toda la UI y la guía
+	await get_tree().create_timer(3.0).timeout
+	var failures := _failures(await UxTour.new().run(get_tree(), dir, hide_bottom_panel))
+	for failure: String in failures:
+		print("[ux-tour] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "ux-tour: %d fallas" % failures.size())
 
 
 func _run_sessions_test(prefix: String) -> void:

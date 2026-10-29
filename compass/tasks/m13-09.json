@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T13:41:31.582Z",
+  "description": "Pedido del usuario (29/10): el mínimo pasa a 4.7. Sacar lo que solo existe por 4.6 (la recarga de escenas sin EditorInterface.get_unsaved_scenes, la API vieja de docks donde 4.7 ya tiene EditorDock), la matriz de CI (4.6.3), README, CONTRIBUTING, la wiki y la spec; decisión nueva en docs/decisions.md que reemplaza a D34. Con 4.7 se puede usar Control.custom_maximum_size.",
+  "milestone": "m13",
+  "notes": "",
+  "order": 9,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "compatibilidad"
+  ],
+  "test": "",
+  "title": "Dejar de soportar Godot 4.6",
+  "updated_at": "2026-10-29T13:41:31.582Z"
+}

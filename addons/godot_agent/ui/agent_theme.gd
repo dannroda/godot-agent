@@ -14,7 +14,6 @@ const CHANNEL_COLORS: Dictionary = {
 	&"update": Color("#6fd3c8"),
 }
 const USER_BUBBLE := Color("#33405a")
-const GODOT_TOOL := Color("#b493ff")
 const ADDED := Color("#7fd98b")
 const REMOVED := Color("#ff7a7a")
 const ADDED_BG := Color(0.2, 0.55, 0.3, 0.22)
@@ -91,6 +90,17 @@ static func style_accent_button(button: Button, accent: Color, radius: float = 4
 	button.add_theme_stylebox_override(&"disabled", panel(Color(accent, 0.35), Color.TRANSPARENT, radius, padding))
 	for state: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_hover_pressed_color", &"font_focus_color"]:
 		button.add_theme_color_override(state, ACCENT_TEXT)
+
+
+## Un punto lleno de `color` (estado del agente, severidad de un hallazgo).
+static func dot(color: Color, side_px: float = 8.0) -> Texture2D:
+	var side := px(side_px)
+	var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
+	var center := Vector2(side, side) / 2.0
+	for y in side:
+		for x in side:
+			image.set_pixel(x, y, color if Vector2(x + 0.5, y + 0.5).distance_to(center) <= side / 2.0 else Color.TRANSPARENT)
+	return ImageTexture.create_from_image(image)
 
 
 static func panel(bg: Color, border: Color = Color.TRANSPARENT, radius: float = 6.0, padding: float = 8.0) -> StyleBoxFlat:

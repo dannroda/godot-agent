@@ -121,7 +121,7 @@ func _refresh_row(call: ToolCall, container: VBoxContainer) -> void:
 	var name_label: Label = parts.name
 	name_label.text = _short_name(call)
 	name_label.tooltip_text = call.title if call.title != name_label.text else ""
-	name_label.add_theme_color_override(&"font_color", AgentTheme.GODOT_TOOL if call.is_godot_tool() else AgentTheme.font_color())
+	name_label.add_theme_color_override(&"font_color", AgentTheme.font_color())  # sin violeta: el nombre ya dice qué hace
 	var summary_label: Label = parts.summary
 	summary_label.text = _summary(call)
 	var undo_button: Button = parts.undo
@@ -268,6 +268,7 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 			link.text = "%s%s" % [path.get_file(), ":%d" % line if line > 0 else ""]
 			link.tooltip_text = path
 			link.underline = LinkButton.UNDERLINE_MODE_ON_HOVER
+			link.add_theme_color_override(&"font_color", AgentTheme.MUTED)  # un detalle de la fila, no una fila suelta
 			link.pressed.connect(func() -> void: action_requested.emit("open_location", {"path": path, "line": line}))
 			links.add_child(link)
 	if links.get_child_count() > 0:
@@ -291,6 +292,9 @@ func _output_toggle(text: String, noun: String = "") -> Control:
 	toggle.flat = true
 	toggle.toggle_mode = true
 	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	# Sin el relleno del tema: arranca en la misma columna que los enlaces y el nombre de la tool.
+	for state: StringName in [&"normal", &"hover", &"pressed", &"hover_pressed", &"focus"]:
+		toggle.add_theme_stylebox_override(state, StyleBoxEmpty.new())
 	if noun.is_empty():
 		noun = I18n.t("output")
 	toggle.text = "▸ " + (I18n.t("%s · %d line") if lines.size() == 1 else I18n.t("%s · %d lines")) % [noun, lines.size()]
@@ -365,11 +369,80 @@ func _on_spinner() -> void:
 			(_rows[call.id].status as Label).text = SPINNER[_spinner_frame % SPINNER.size()]
 
 
+## Nombre para personas de cada tool `godot.*` (m12-17); el técnico queda en el tooltip.
+const GODOT_TOOL_NAMES := {
+	"add_node": "Add node",  # i18n
+	"add_nodes": "Add nodes",  # i18n
+	"addons_list": "List addons",  # i18n
+	"animation_create": "Create animation",  # i18n
+	"animation_get": "Read animation",  # i18n
+	"animation_remove": "Remove animation",  # i18n
+	"animation_set_track": "Set animation track",  # i18n
+	"asset_details": "Asset details",  # i18n
+	"asset_install": "Install asset",  # i18n
+	"asset_search": "Search assets",  # i18n
+	"attach_script": "Attach script",  # i18n
+	"capture_editor_viewport": "Capture the editor",  # i18n
+	"capture_game_frame": "Capture the game",  # i18n
+	"class_info": "Class info",  # i18n
+	"connect_signal": "Connect signal",  # i18n
+	"copy_file": "Copy file",  # i18n
+	"create_resource": "Create resource",  # i18n
+	"create_scene": "Create scene",  # i18n
+	"delete_file": "Delete file",  # i18n
+	"duplicate_node": "Duplicate node",  # i18n
+	"editor_state": "Editor state",  # i18n
+	"game_call": "Call in the game",  # i18n
+	"game_get": "Read from the game",  # i18n
+	"game_input": "Input to the game",  # i18n
+	"game_set": "Set in the game",  # i18n
+	"game_tree": "Game tree",  # i18n
+	"game_wait": "Wait in the game",  # i18n
+	"get_errors": "Read errors",  # i18n
+	"get_node": "Read node",  # i18n
+	"get_resource": "Read resource",  # i18n
+	"instantiate_scene": "Instance scene",  # i18n
+	"list_files": "List files",  # i18n
+	"move_file": "Move file",  # i18n
+	"open_scene": "Open scene",  # i18n
+	"plugin_enable": "Enable plugin",  # i18n
+	"project_info": "Project info",  # i18n
+	"project_settings": "Project settings",  # i18n
+	"remove_autoload": "Remove autoload",  # i18n
+	"remove_input_action": "Remove input action",  # i18n
+	"remove_node": "Remove node",  # i18n
+	"rename_node": "Rename node",  # i18n
+	"reparent_node": "Move node",  # i18n
+	"run_scene": "Run scene",  # i18n
+	"save_scene": "Save scene",  # i18n
+	"scene_tree": "Scene tree",  # i18n
+	"search_api": "Search the API",  # i18n
+	"session_send": "Send to a session",  # i18n
+	"sessions": "Sessions",  # i18n
+	"set_autoload": "Set autoload",  # i18n
+	"set_input_action": "Set input action",  # i18n
+	"set_project_setting": "Set project setting",  # i18n
+	"set_properties": "Set properties",  # i18n
+	"set_resource_properties": "Set resource properties",  # i18n
+	"sprite_frames_set": "Set sprite frames",  # i18n
+	"stop_scene": "Stop scene",  # i18n
+	"tilemap_clear": "Clear tilemap",  # i18n
+	"tilemap_get": "Read tilemap",  # i18n
+	"tilemap_paint_terrain": "Paint terrain",  # i18n
+	"tilemap_set_cells": "Set tiles",  # i18n
+	"tileset_add_atlas": "Add tileset atlas",  # i18n
+	"tileset_add_scenes": "Add tileset scenes",  # i18n
+	"validate_scripts": "Validate scripts",  # i18n
+}
+
+
 ## Las tools del editor con nombre para personas («godot.connect_signal» → «Connect signal»); el
 ## nombre técnico queda en el tooltip. Las del agente (Read, Bash…) ya son cortas.
 static func _short_name(call: ToolCall) -> String:
 	var godot_name := call.godot_tool_name()
 	if not godot_name.is_empty():
+		if GODOT_TOOL_NAMES.has(godot_name):
+			return _cap_name(I18n.t(GODOT_TOOL_NAMES[godot_name]))
 		var human := godot_name.replace("_", " ")
 		return _cap_name(human.left(1).to_upper() + human.substr(1))
 	return _cap_name(call.display_name())

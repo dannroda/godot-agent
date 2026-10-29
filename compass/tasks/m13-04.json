@@ -19,7 +19,7 @@
   "tags": [
     "arquitectura"
   ],
-  "test": "test_agent_adapters (4 tests); run_all 368; acp_session_check 162/0.",
+  "test": "test_agent_adapters (4 tests); run_all 368; acp_session_check 162/0; contra agy 1.4.3 real: adaptador antigravity, /usage leído al abrir y tras el turno (semana 18 %, 5 h 0 %).",
   "title": "Un adaptador por agente (A1)",
-  "updated_at": "2026-10-29T13:32:55.031Z"
+  "updated_at": "2026-10-29T13:37:29.702Z"
 }

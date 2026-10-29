@@ -33,6 +33,8 @@ const STICK_THRESHOLD := 48.0
 
 ## Callable(entry: ChatEntry) -> EntryView para tipos que arma otro módulo (p. ej. permisos, M2).
 var extra_view_factory: Callable
+## Barra fija sobre el composer: el permiso pendiente va ahí y vuelve a su lugar al resolverse.
+var sticky_slot: Container
 
 var _model: SessionModel
 var _accent: Color
@@ -135,6 +137,7 @@ func _build_pending() -> void:
 			_track(entry, view)
 			_order.append(entry.id)
 			_list.add_child(view)
+			_place(entry, view)
 		if Time.get_ticks_usec() - started > BUILD_BUDGET_USEC:
 			break
 	_trim()
@@ -223,7 +226,27 @@ func _flush_refreshes() -> void:
 		var view: EntryView = _views.get(id)
 		if is_instance_valid(view) and view.is_node_ready():
 			view.refresh()
+			_place(pending[id], view)
 	_request_scroll()
+
+
+## Un permiso pendiente va a `sticky_slot`; resuelto, vuelve a la lista en su orden.
+func _place(entry: ChatEntry, view: EntryView) -> void:
+	if sticky_slot == null or entry.kind != ChatEntry.EntryKind.PERMISSION:
+		return
+	var target: Container = sticky_slot if entry.permission.is_pending() else _list
+	if view.get_parent() == target:
+		return
+	view.get_parent().remove_child(view)
+	target.add_child(view)
+	if target == _list:
+		var index := 1  # después de «Mostrar anteriores»
+		for id: int in _order:
+			if id == entry.id:
+				break
+			if (_views.get(id) as Node).get_parent() == _list:
+				index += 1
+		_list.move_child(view, index)
 
 
 func _on_tool_call_changed(_call: ToolCall, group: ChatEntry) -> void:

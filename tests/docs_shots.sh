@@ -14,7 +14,10 @@ if [ -z "$G" ]; then
 fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-cp "$(command -v "$G")" "$TMP/godot"
+BIN="$(command -v "$G")"
+# Un lanzador (p. ej. el de godot-manager) no sirve: el modo self-contained necesita el binario real.
+if head -c 2 "$BIN" | grep -q '#!' && command -v godot-manager >/dev/null; then BIN="$(godot-manager which)"; fi
+cp -L "$BIN" "$TMP/godot"
 touch "$TMP/._sc_"
 mkdir -p "$TMP/editor_data" "$TMP/project/tests"
 SERIES="$("$TMP/godot" --version | cut -d. -f1-2)"

@@ -10,7 +10,7 @@ var _list: RichTextLabel
 
 func _build() -> void:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(AgentTheme.dark_color(), 0.6), Color(accent, 0.35), 6, 6))
+	panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(AgentTheme.dark_color(), 0.6), Color(1, 1, 1, 0.08), 6, 6))
 	add_child(panel)
 	var column := VBoxContainer.new()
 	panel.add_child(column)

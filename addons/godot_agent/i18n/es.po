@@ -3324,8 +3324,6 @@ msgstr "Otros agentes…"
 msgid "Add an agent to start"
 msgstr "Agregá un agente para empezar"
 
-msgid "Add an agent to start:"
-msgstr "Agregá un agente para empezar:"
 
 msgid "○ %s · sign-in needed"
 msgstr "○ %s · falta iniciar sesión"
@@ -3527,3 +3525,234 @@ msgstr "Ejemplos:"
 
 msgid "Use it as the goal"
 msgstr "Usarlo como objetivo"
+
+msgid "not started"
+msgstr "sin iniciar"
+
+msgid "connecting…"
+msgstr "conectando…"
+
+msgid "working…"
+msgstr "trabajando…"
+
+msgid "cancelling…"
+msgstr "cancelando…"
+
+msgid "sign-in needed"
+msgstr "falta iniciar sesión"
+
+msgid "waiting for you"
+msgstr "te espera"
+
+msgid "Add node"
+msgstr "Agregar nodo"
+
+msgid "Add nodes"
+msgstr "Agregar nodos"
+
+msgid "List addons"
+msgstr "Listar addons"
+
+msgid "Create animation"
+msgstr "Crear animación"
+
+msgid "Read animation"
+msgstr "Leer animación"
+
+msgid "Remove animation"
+msgstr "Quitar animación"
+
+msgid "Set animation track"
+msgstr "Cambiar pista de animación"
+
+msgid "Asset details"
+msgstr "Detalles del asset"
+
+msgid "Install asset"
+msgstr "Instalar asset"
+
+msgid "Search assets"
+msgstr "Buscar assets"
+
+msgid "Attach script"
+msgstr "Asignar script"
+
+msgid "Capture the editor"
+msgstr "Capturar el editor"
+
+msgid "Capture the game"
+msgstr "Capturar el juego"
+
+msgid "Class info"
+msgstr "Info de clase"
+
+msgid "Connect signal"
+msgstr "Conectar señal"
+
+msgid "Copy file"
+msgstr "Copiar archivo"
+
+msgid "Create resource"
+msgstr "Crear recurso"
+
+msgid "Create scene"
+msgstr "Crear escena"
+
+msgid "Delete file"
+msgstr "Borrar archivo"
+
+msgid "Duplicate node"
+msgstr "Duplicar nodo"
+
+msgid "Editor state"
+msgstr "Estado del editor"
+
+msgid "Call in the game"
+msgstr "Llamar en el juego"
+
+msgid "Read from the game"
+msgstr "Leer del juego"
+
+msgid "Input to the game"
+msgstr "Entrada al juego"
+
+msgid "Set in the game"
+msgstr "Cambiar en el juego"
+
+msgid "Game tree"
+msgstr "Árbol del juego"
+
+msgid "Wait in the game"
+msgstr "Esperar en el juego"
+
+msgid "Read errors"
+msgstr "Leer errores"
+
+msgid "Read node"
+msgstr "Leer nodo"
+
+msgid "Read resource"
+msgstr "Leer recurso"
+
+msgid "Instance scene"
+msgstr "Instanciar escena"
+
+msgid "List files"
+msgstr "Listar archivos"
+
+msgid "Move file"
+msgstr "Mover archivo"
+
+msgid "Open scene"
+msgstr "Abrir escena"
+
+msgid "Enable plugin"
+msgstr "Activar plugin"
+
+msgid "Project info"
+msgstr "Info del proyecto"
+
+msgid "Project settings"
+msgstr "Ajustes del proyecto"
+
+msgid "Remove autoload"
+msgstr "Quitar autoload"
+
+msgid "Remove input action"
+msgstr "Quitar acción de entrada"
+
+msgid "Remove node"
+msgstr "Quitar nodo"
+
+msgid "Rename node"
+msgstr "Renombrar nodo"
+
+msgid "Move node"
+msgstr "Mover nodo"
+
+msgid "Run scene"
+msgstr "Correr escena"
+
+msgid "Save scene"
+msgstr "Guardar escena"
+
+msgid "Scene tree"
+msgstr "Árbol de escena"
+
+msgid "Search the API"
+msgstr "Buscar en la API"
+
+msgid "Sessions"
+msgstr "Sesiones"
+
+msgid "Send to a session"
+msgstr "Mandar a una sesión"
+
+msgid "Set autoload"
+msgstr "Agregar autoload"
+
+msgid "Set input action"
+msgstr "Cambiar acción de entrada"
+
+msgid "Set project setting"
+msgstr "Cambiar ajuste del proyecto"
+
+msgid "Set properties"
+msgstr "Cambiar propiedades"
+
+msgid "Set resource properties"
+msgstr "Cambiar propiedades del recurso"
+
+msgid "Set sprite frames"
+msgstr "Cambiar frames del sprite"
+
+msgid "Stop scene"
+msgstr "Detener escena"
+
+msgid "Clear tilemap"
+msgstr "Limpiar tilemap"
+
+msgid "Read tilemap"
+msgstr "Leer tilemap"
+
+msgid "Paint terrain"
+msgstr "Pintar terreno"
+
+msgid "Set tiles"
+msgstr "Poner tiles"
+
+msgid "Add tileset atlas"
+msgstr "Agregar atlas al tileset"
+
+msgid "Add tileset scenes"
+msgstr "Agregar escenas al tileset"
+
+msgid "Validate scripts"
+msgstr "Validar scripts"
+
+msgid "No agent"
+msgstr "Sin agente"
+
+msgid "See all the agents in the ACP registry"
+msgstr "Ver todos los agentes del registro de ACP"
+
+msgid "Add one by hand"
+msgstr "Agregar uno a mano"
+
+msgid "recommended"
+msgstr "recomendado"
+
+msgid "Choose which agent to work with"
+msgstr "Elegí con qué agente trabajar"
+
+msgid "The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents."
+msgstr "El agente ve y cambia el proyecto con las herramientas del editor. Podés sumar otros después en Ajustes → Agentes."
+
+msgid "Add an agent. If it has to be downloaded, the progress shows here."
+msgstr "Agregás un agente. Si hay que descargarlo, ves el progreso acá."
+
+msgid "Sign in with the account it asks for, from the browser."
+msgstr "Iniciás sesión con la cuenta que pida, desde el navegador."
+
+msgid "Ask it something, with @ to name nodes and files."
+msgstr "Le pedís algo, con @ para nombrar nodos y archivos."

@@ -61,7 +61,7 @@ var _add_menu: MenuButton
 const ADD_MENTION := 0
 const ADD_IMAGE := 1
 const ADD_COMMAND := 2
-## El contexto se muestra en la fila solo desde este uso (el resto del tiempo, en el tooltip del anillo).
+## Desde este uso del contexto, el porcentaje de la fila se pinta de advertencia.
 const METER_SHOW_RATIO := 0.8
 var _mode_button: OptionButton
 var _modes: Array[Dictionary] = []
@@ -312,10 +312,10 @@ func set_usage(used: int, total: int) -> void:
 		_meter.text = ""
 		return
 	var ratio := float(used) / float(total)
-	# Casi lleno se ve en la fila; si no, va en el tooltip del anillo de cuota (m12-18).
-	_meter.text = "%s / %s" % [_short_number(used), _short_number(total)] if ratio >= METER_SHOW_RATIO else ""
-	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0)
-	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= 0.8 else AgentTheme.MUTED)
+	# El porcentaje siempre al lado del anillo (m12-18); los tokens, en el tooltip.
+	_meter.text = "%d %%" % int(ratio * 100.0)
+	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0) + " · %s / %s" % [_short_number(used), _short_number(total)]
+	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= METER_SHOW_RATIO else AgentTheme.MUTED)
 
 
 ## Los modos del harness, en orden: `{id, label, tooltip}` (ya traducidos).

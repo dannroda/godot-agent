@@ -196,7 +196,8 @@ func _ready() -> void:
 	_empty_state.add_child(_suggested_box)
 	_empty_state.move_child(_suggested_box, _start_button.get_index())
 	for agent: Dictionary in SuggestedAgents.AGENTS:
-		_suggested_box.add_child(_suggested_row(agent))
+		_suggested_box.add_child(_suggested_row(agent, agent == SuggestedAgents.AGENTS[0]))
+	_build_first_run_guide()
 	_conversation = ConversationView.new()
 	_conversation.setup(_model, _accent)
 	_conversation.action_requested.connect(_on_action_requested)
@@ -219,6 +220,10 @@ func _ready() -> void:
 	var composer_column := VBoxContainer.new()
 	composer_column.add_theme_constant_override(&"separation", AgentTheme.px(4))
 	_composer_slot.add_child(composer_column)
+	var sticky := VBoxContainer.new()
+	sticky.name = "PendingPermissions"
+	composer_column.add_child(sticky)
+	_conversation.sticky_slot = sticky
 	_queue_view = PromptQueueView.new()
 	_queue_view.setup(_queue)
 	_queue_view.edit_requested.connect(_composer.insert_text)
@@ -256,6 +261,12 @@ func _ready() -> void:
 			_refresh_state())
 	_model.title_changed.connect(func(_title: String) -> void: _refresh_title())
 	_model.account_changed.connect(_refresh_state)
+	# El chip dice «te espera» mientras haya un permiso o una pregunta sin contestar.
+	_model.permission_requested.connect(func(_request: Variant) -> void: _refresh_state())
+	_model.elicitation_requested.connect(func(_request: Variant) -> void: _refresh_state())
+	_model.entry_updated.connect(func(entry: ChatEntry) -> void:
+		if entry.kind in [ChatEntry.EntryKind.PERMISSION, ChatEntry.EntryKind.ELICITATION]:
+			_refresh_state())
 	_model.usage_changed.connect(_composer.set_usage)
 	_model.usage_changed.connect(func(used: int, total: int) -> void:
 		if _quota_ring:
@@ -330,14 +341,13 @@ func _build_header() -> void:
 	_profile_button.visible = false
 	_settings_button.visible = false
 	extensions.visible = false
+	# Un chip con borde, el punto de estado y «▾»: plano y a todo el ancho no se veía que se podía tocar.
 	_agent_chip = Button.new()
 	_agent_chip.name = "AgentChip"
-	_agent_chip.flat = true
 	_agent_chip.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_agent_chip.clip_text = true
-	_agent_chip.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_agent_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_agent_chip.size_flags_stretch_ratio = 1.4
+	_agent_chip.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN  # mide lo que su texto; el título se lleva el resto
+	_agent_chip.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_agent_chip.add_theme_constant_override(&"h_separation", AgentTheme.px(6))
 	_agent_chip.pressed.connect(_show_agent_menu)
 	_profile_button.add_sibling(_agent_chip)
 	_agent_menu = PopupMenu.new()
@@ -662,6 +672,38 @@ func _on_profile_selected(index: int) -> void:
 		_model.add_notice(I18n.t("The %s profile is used when you press \"New session\".") % _profiles[index].display_name)
 
 
+## El chip del agente (m12-14): el nombre en el color del texto, el estado en el punto y el borde, y
+## la palabra del estado solo cuando no está listo.
+func _style_agent_chip(agent: String, color: Color) -> void:
+	var state := ""
+	match _model.state:
+		SessionModel.SessionState.DISCONNECTED:
+			state = I18n.t("not started")
+		SessionModel.SessionState.STARTING:
+			state = I18n.t("connecting…")
+		SessionModel.SessionState.PROMPTING:
+			state = I18n.t("working…")
+		SessionModel.SessionState.CANCELLING:
+			state = I18n.t("cancelling…")
+		SessionModel.SessionState.FAILED:
+			state = I18n.t("sign-in needed") if _model.login_required else I18n.t("error")
+	if not _model.pending_permissions.is_empty() or not _model.pending_elicitations.is_empty():
+		state = I18n.t("waiting for you")
+		color = _accent
+	if agent.is_empty():  # sin agentes configurados
+		agent = I18n.t("No agent")
+		state = ""
+	_agent_chip.text = agent + ("  ·  " + state if not state.is_empty() else "") + "  ▾"
+	_agent_chip.icon = AgentTheme.dot(color)
+	var border := Color(color, 0.55) if _model.state != SessionModel.SessionState.DISCONNECTED else Color(1, 1, 1, 0.16)
+	_agent_chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(1, 1, 1, 0.04), border, 6, 6))
+	_agent_chip.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.09), border, 6, 6))
+	_agent_chip.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(1, 1, 1, 0.12), border, 6, 6))
+	_agent_chip.add_theme_stylebox_override(&"focus", AgentTheme.panel(Color.TRANSPARENT, Color(_accent, 0.8), 6, 6))
+	for item: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
+		_agent_chip.add_theme_color_override(item, AgentTheme.font_color())
+
+
 func _refresh_title() -> void:
 	_title_label.text = _model.title if not _model.title.is_empty() else (I18n.t("New session") if not _model.session_id.is_empty() else "")
 	_title_label.tooltip_text = _title_label.text
@@ -720,10 +762,8 @@ func _refresh_state() -> void:
 			_status_label.tooltip_text = I18n.t("Subagents running:") + "\n" + "\n".join(names)
 	_status_label.add_theme_color_override(&"font_color", color)
 	if _agent_chip:
-		_agent_chip.text = text
+		_style_agent_chip(name if profile else "", color)
 		_agent_chip.tooltip_text = (_status_label.tooltip_text + "\n" if not _status_label.tooltip_text.is_empty() else "") + I18n.t("Click to choose the agent")
-		for item: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
-			_agent_chip.add_theme_color_override(item, color)
 	_composer.set_busy(_model.is_busy())
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
@@ -752,9 +792,22 @@ func _refresh_empty_state() -> void:
 		_start_button.text = I18n.t("Other agents…")
 	else:
 		_start_button.text = I18n.t("Start session")
-	_suggested_box.visible = profile == null and not _oneshot_active
+	var first_run := profile == null and not _oneshot_active
+	_suggested_box.visible = first_run
+	_start_button.visible = not first_run
+	_history_button.visible = not first_run
+	_new_session_button.visible = not first_run
 	_composer.set_unavailable(I18n.t("Add an agent to start") if profile == null and _controller.profile() == null else "")
-	_empty_command.text = profile.command_line() if profile else I18n.t("Add an agent to start:")
+	var title := _empty_state.get_node("EmptyTitle") as Label
+	title.text = I18n.t("Choose which agent to work with") if first_run else I18n.t("No session")
+	if first_run:
+		title.add_theme_font_size_override(&"font_size", AgentTheme.px(19))
+	else:
+		title.remove_theme_font_size_override(&"font_size")
+	_empty_command.text = I18n.t("The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents.") if first_run else profile.command_line() if profile else ""
+	for label: Label in [title, _empty_command]:
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if first_run else HORIZONTAL_ALIGNMENT_CENTER
+	_empty_state.alignment = BoxContainer.ALIGNMENT_BEGIN if first_run else BoxContainer.ALIGNMENT_CENTER
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_start_button.disabled = _model.state == SessionModel.SessionState.STARTING
 	var recent: Array[Dictionary] = []
@@ -786,7 +839,37 @@ func _refresh_recent(items: Array[Dictionary]) -> void:
 
 ## Un agente sugerido (m12-15): nombre, lo que pide y «Agregar». Claude Code se guarda directo; los
 ## demás abren el registro de ACP filtrado, desde Ajustes.
-func _suggested_row(agent: Dictionary) -> Control:
+## Primer arranque (canvas «Primer arranque»): debajo de los sugeridos, los otros caminos y los pasos.
+func _build_first_run_guide() -> void:
+	var links := HFlowContainer.new()
+	links.add_theme_constant_override(&"h_separation", AgentTheme.px(16))
+	var registry := LinkButton.new()
+	registry.text = I18n.t("See all the agents in the ACP registry")
+	registry.pressed.connect(func() -> void: registry_requested.emit(""))
+	links.add_child(registry)
+	var manual := LinkButton.new()
+	manual.text = I18n.t("Add one by hand")
+	manual.pressed.connect(func() -> void: settings_requested.emit())
+	links.add_child(manual)
+	for link: LinkButton in [registry, manual]:
+		link.underline = LinkButton.UNDERLINE_MODE_ON_HOVER
+		link.add_theme_color_override(&"font_color", _accent)
+	_suggested_box.add_child(links)
+	var steps_panel := PanelContainer.new()
+	steps_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.03), Color(0, 0, 0, 0), 6, 10))
+	var steps := Label.new()
+	steps.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	steps.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	steps.text = "\n".join([
+		"1. " + I18n.t("Add an agent. If it has to be downloaded, the progress shows here."),
+		"2. " + I18n.t("Sign in with the account it asks for, from the browser."),
+		"3. " + I18n.t("Ask it something, with @ to name nodes and files."),
+	])
+	steps_panel.add_child(steps)
+	_suggested_box.add_child(steps_panel)
+
+
+func _suggested_row(agent: Dictionary, recommended: bool) -> Control:
 	var card := PanelContainer.new()
 	card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.1), 6, 8))
 	var row := HBoxContainer.new()
@@ -796,9 +879,17 @@ func _suggested_row(agent: Dictionary) -> Control:
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text.add_theme_constant_override(&"separation", 0)
 	row.add_child(text)
+	var name_row := HBoxContainer.new()
+	text.add_child(name_row)
 	var name_label := Label.new()
 	name_label.text = str(agent.name)
-	text.add_child(name_label)
+	name_row.add_child(name_label)
+	if recommended:
+		var tag := Label.new()
+		tag.text = I18n.t("recommended")
+		tag.add_theme_color_override(&"font_color", _accent)
+		tag.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+		name_row.add_child(tag)
 	var needs := Label.new()
 	needs.text = I18n.t(str(agent.needs))
 	needs.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -808,6 +899,8 @@ func _suggested_row(agent: Dictionary) -> Control:
 	add.text = I18n.t("Add")
 	add.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	add.pressed.connect(func() -> void: add_suggested_agent(agent))
+	if recommended:
+		AgentTheme.style_accent_button(add, _accent)
 	row.add_child(add)
 	return card
 
