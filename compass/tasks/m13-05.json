@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T13:15:28.541Z",
+  "description": "Separar en colaboradores inyectados, en este orden y con los tests pasando en cada paso: PermissionBroker (authorize, _ask_user, _on_request_permission, autorizador de terminales, Preauthorizations), UsageQuery sobre el adaptador de A1, SessionLifecycle (new, load, resume, list, close, delete, historial). La API pública del controller no cambia.\n\nInforme: docs/revisiones/arquitectura.md",
+  "milestone": "m13",
+  "notes": "",
+  "order": 5,
+  "priority": "high",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "tags": [
+    "arquitectura"
+  ],
+  "test": "",
+  "title": "SessionController como fachada (A2)",
+  "updated_at": "2026-10-29T13:15:28.541Z"
+}

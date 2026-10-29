@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T13:15:28.798Z",
+  "description": "Sacar del plugin la coordinación del One-shot con el dock, los cambios por turno y las pestañas de sesión hacia sus dueños (OneShotRun/pantalla, TurnSnapshots, SessionTabs/SessionCoordinator); el plugin crea y conecta.\n\nInforme: docs/revisiones/arquitectura.md",
+  "milestone": "m13",
+  "notes": "",
+  "order": 6,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "arquitectura"
+  ],
+  "test": "",
+  "title": "plugin.gd solo arma (A3)",
+  "updated_at": "2026-10-29T13:15:28.798Z"
+}

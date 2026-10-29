@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T13:15:29.297Z",
+  "description": "plugin.gd llama dock.call(&\"_on_new_session_pressed\") y dock.call(&\"_start_session\"): hacerlos públicos. acp_registry, i18n, asset_store y error_collector leen EditorInterface solos: que el plugin se lo pase.\n\nInforme: docs/revisiones/arquitectura.md",
+  "milestone": "m13",
+  "notes": "",
+  "order": 8,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "arquitectura"
+  ],
+  "test": "",
+  "title": "API pública del dock y EditorInterface inyectado (A5, A6)",
+  "updated_at": "2026-10-29T13:15:29.297Z"
+}

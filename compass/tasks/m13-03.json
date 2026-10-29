@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:37:59.336Z",
   "description": "Revisar la estructura del addon: el tamaño y las responsabilidades de session_controller.gd, plugin.gd y agent_dock.gd, el acoplamiento entre sesión, dock y plugin, dónde vive el estado (EditorSettings, project_config.tres, user://), cómo se suman agentes nuevos (Claude, Antigravity, Codex) sin ramas por nombre, y la cobertura de tests por capa. Informe con propuestas y una tarea por cambio.",
   "milestone": "m13",
-  "notes": "De m13-02 (P1): sacar del controller la consulta de cuota (antes decidir cómo se enruta session/update mientras corre), después los permisos de ACP y el autorizador de terminales; en el dock y el plugin, el armado de cada sección en su script. La preautorización ya salió (session/preauthorizations.gd).",
+  "notes": "Informe en docs/revisiones/arquitectura.md (A1–A8). Las capas están limpias (acp, transport, oneshot y extensions no tocan el editor). Propuestas cargadas como tareas: m13-04 (adaptador por agente), m13-05 (controller como fachada, bloqueada por m13-04), m13-06 (plugin solo arma), m13-07 (una vista por sección del dock), m13-08 (API pública del dock y EditorInterface inyectado). Estado (A7) y tests (A8) sin cambios necesarios.",
   "order": 3,
   "priority": "medium",
   "refs": [],
   "size": "l",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "revision",
     "arquitectura"
   ],
-  "test": "",
+  "test": "Revisión: medición por carpeta (líneas, uso de EditorInterface y de UI), ramas por nombre de agente, accesos a privados, funciones más largas de plugin.gd, tests por capa.",
   "title": "Revisión de arquitectura",
-  "updated_at": "2026-10-29T13:09:10.387Z"
+  "updated_at": "2026-10-29T13:15:30.053Z"
 }

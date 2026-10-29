@@ -3763,7 +3763,7 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (2/3, 2 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (2/8, 2 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3802,8 +3802,56 @@ Revisar el GDScript del addon contra los patrones de Godot 4: ciclo de vida de n
 
 **Notas:** Informe en docs/revisiones/patrones.md (P1–P7). Arreglados P2–P7 en df66c50 y P1 en parte (preautorización en session/preauthorizations.gd, siguiente commit). P2: lo que espera un permiso o una pregunta sigue en el frame siguiente (salvo pedido retirado por el agente). P3: run_all falla los tests con errores de script (Logger). P4: guardas tras los await del dock. P5: AtomicFile.write_text. P6: tope de 256 en _cancelled_outgoing. P7: el completado apaga _process cuando está apagado. El resto de P1 pasa a m13-03 con el orden propuesto en el informe.
 
-### Revisión de arquitectura · Pendiente
+### Revisión de arquitectura · En curso
 
 **Prioridad:** media · **Tamaño:** L · **Etiquetas:** `revision`, `arquitectura`
 
 Revisar la estructura del addon: el tamaño y las responsabilidades de session_controller.gd, plugin.gd y agent_dock.gd, el acoplamiento entre sesión, dock y plugin, dónde vive el estado (EditorSettings, project_config.tres, user://), cómo se suman agentes nuevos (Claude, Antigravity, Codex) sin ramas por nombre, y la cobertura de tests por capa. Informe con propuestas y una tarea por cambio.
+
+**Prueba:** Revisión: medición por carpeta (líneas, uso de EditorInterface y de UI), ramas por nombre de agente, accesos a privados, funciones más largas de plugin.gd, tests por capa.
+
+**Notas:** Informe en docs/revisiones/arquitectura.md (A1–A8). Las capas están limpias (acp, transport, oneshot y extensions no tocan el editor). Propuestas cargadas como tareas: m13-04 (adaptador por agente), m13-05 (controller como fachada, bloqueada por m13-04), m13-06 (plugin solo arma), m13-07 (una vista por sección del dock), m13-08 (API pública del dock y EditorInterface inyectado). Estado (A7) y tests (A8) sin cambios necesarios.
+
+### Un adaptador por agente (A1) · Pendiente
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `arquitectura`
+
+Lo propio de cada agente (comando y lectura de la cuota, cómo saber la cuenta, tipo de extensiones, archivos de instrucciones, «¿es Claude?») está repartido entre session_controller, quota_monitor, skill_catalog, claude_extensions, plugin y agent_dock, con ramas por nombre. AgentAdapter (RefCounted, estrategia) con matches(agent_info, profile) y lo que cambia por agente, más uno genérico; el controller lo pide al conectar. Sumar un agente = un archivo.
+
+Informe: docs/revisiones/arquitectura.md
+
+**Bloquea a:** SessionController como fachada (A2)
+
+### SessionController como fachada (A2) · Pendiente
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `arquitectura`
+
+Separar en colaboradores inyectados, en este orden y con los tests pasando en cada paso: PermissionBroker (authorize, _ask_user, _on_request_permission, autorizador de terminales, Preauthorizations), UsageQuery sobre el adaptador de A1, SessionLifecycle (new, load, resume, list, close, delete, historial). La API pública del controller no cambia.
+
+Informe: docs/revisiones/arquitectura.md
+
+**Bloqueada por:** Un adaptador por agente (A1)
+
+### plugin.gd solo arma (A3) · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `arquitectura`
+
+Sacar del plugin la coordinación del One-shot con el dock, los cambios por turno y las pestañas de sesión hacia sus dueños (OneShotRun/pantalla, TurnSnapshots, SessionTabs/SessionCoordinator); el plugin crea y conecta.
+
+Informe: docs/revisiones/arquitectura.md
+
+### Una vista por sección del dock (A4) · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `arquitectura`
+
+agent_dock.gd arma encabezado, estado, historial, revisión, Remote Control, diálogos de login y exportar e importación de GitHub. Cada sección en su script con señales hacia el dock.
+
+Informe: docs/revisiones/arquitectura.md
+
+### API pública del dock y EditorInterface inyectado (A5, A6) · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `arquitectura`
+
+plugin.gd llama dock.call(&"_on_new_session_pressed") y dock.call(&"_start_session"): hacerlos públicos. acp_registry, i18n, asset_store y error_collector leen EditorInterface solos: que el plugin se lo pase.
+
+Informe: docs/revisiones/arquitectura.md

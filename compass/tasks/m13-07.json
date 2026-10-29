@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T13:15:29.047Z",
+  "description": "agent_dock.gd arma encabezado, estado, historial, revisión, Remote Control, diálogos de login y exportar e importación de GitHub. Cada sección en su script con señales hacia el dock.\n\nInforme: docs/revisiones/arquitectura.md",
+  "milestone": "m13",
+  "notes": "",
+  "order": 7,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "arquitectura"
+  ],
+  "test": "",
+  "title": "Una vista por sección del dock (A4)",
+  "updated_at": "2026-10-29T13:15:29.047Z"
+}
