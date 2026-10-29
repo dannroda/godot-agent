@@ -7,6 +7,7 @@ const ProjectConfig := preload("res://addons/godot_agent/config/project_config.g
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const SuggestedAgents := preload("res://addons/godot_agent/core/suggested_agents.gd")
 
 
 ## Sin agentes preseteados: los tests cargan tres a mano.
@@ -228,4 +229,22 @@ func test_on_open_setting() -> void:
 	dialog.call(&"_load")
 	assert_true(settings.continue_on_open(), "continuar la última")
 	assert_eq(option.get_selected_id(), HarnessSettings.ON_OPEN_CONTINUE, "y el desplegable también")
+	dialog.free()
+
+
+## m12-21: sin agentes, los sugeridos; con agentes, la lista y el formulario al lado, y la estrella.
+func test_agents_page() -> void:
+	var dialog := _dialog(ProjectConfig.new(), false)
+	var suggested: Control = dialog.get(&"_suggested_box")
+	assert_true(suggested.visible, "sin agentes: los sugeridos")
+	assert_true(_has_text(suggested, "Claude Code") and _has_text(suggested, "Google Antigravity"), "con su nombre")
+	dialog.add_suggested(SuggestedAgents.AGENTS[0])
+	var profiles: Array = dialog.get(&"_profiles")
+	assert_eq(profiles.size(), 1, "Claude Code se agrega directo")
+	assert_true((profiles[0] as AgentProfile).is_default and (profiles[0] as AgentProfile).command == "npx", "el primero queda predeterminado")
+	assert_false(suggested.visible, "con un agente, se van los sugeridos")
+	var stars := (dialog.get(&"_profile_list") as Node).find_children("*", "Button", true, false).filter(func(button: Node) -> bool: return (button as Button).text == "★")
+	assert_eq(stars.size(), 1, "estrella en el predeterminado")
+	dialog.call(&"_edit_profile", 0)
+	assert_true((dialog.get(&"_profile_form") as Control).visible, "clic en el agente: su formulario")
 	dialog.free()

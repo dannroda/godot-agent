@@ -22,6 +22,7 @@ const AutoRulesPage := preload("auto_rules_page.gd")
 const McpServersPage := preload("mcp_servers_page.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 const AddonVersion := preload("../../core/addon_version.gd")
+const SuggestedAgents := preload("../../core/suggested_agents.gd")
 
 enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
 const SECTION_LABELS: PackedStringArray = [
@@ -68,6 +69,7 @@ var _error_label: Label
 # Agentes
 var _profiles: Array[AgentProfile] = []
 var _profile_list: VBoxContainer
+var _suggested_box: VBoxContainer
 var _profile_form: GridContainer
 var _registry_dialog: AcpRegistryDialog
 var _editing: int = -1
@@ -174,12 +176,13 @@ func _build() -> void:
 
 ## Carga los valores actuales y abre el diálogo.
 ## El registro de ACP, encima de Ajustes (también para reinstalar un agente que falla, m12-13).
-func open_registry() -> void:
+## `query` lo abre filtrado (un agente sugerido, m12-21).
+func open_registry(query: String = "") -> void:
 	if _registry_dialog == null:
 		_registry_dialog = AcpRegistryDialog.new()
 		_registry_dialog.profile_added.connect(_add_registry_profile)
 		add_child(_registry_dialog)
-	_registry_dialog.open()
+	_registry_dialog.open(query)
 
 
 func open(section: SettingsSection = SettingsSection.AGENTS) -> void:
@@ -198,13 +201,30 @@ func _show_section(index: int) -> void:
 
 # --- secciones -----------------------------------------------------------------------------------
 
+## Sin agentes, los sugeridos con lo que piden; con agentes, la lista a la izquierda y el
+## formulario del elegido a la derecha (m12-21).
 func _build_agents(page: VBoxContainer) -> void:
 	page.add_child(_title(I18n.t("Agents · ACP protocol over stdio")))
-	page.add_child(_hint(I18n.t("In env, \"$VAR\" takes the value of VAR from the editor's environment when the agent is launched: keys are not saved.")))
+	_suggested_box = VBoxContainer.new()
+	_suggested_box.add_theme_constant_override(&"separation", AgentTheme.px(6))
+	page.add_child(_suggested_box)
+	_suggested_box.add_child(_hint(I18n.t("No agents yet. Add one of these, or any other from the ACP registry:")))
+	for agent: Dictionary in SuggestedAgents.AGENTS:
+		_suggested_box.add_child(_suggested_card(agent))
+	var split := HBoxContainer.new()
+	split.add_theme_constant_override(&"separation", AgentTheme.px(12))
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(split)
+	var left := VBoxContainer.new()
+	left.custom_minimum_size.x = AgentTheme.px(240)
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.size_flags_stretch_ratio = 0.8
+	split.add_child(left)
 	_profile_list = VBoxContainer.new()
-	page.add_child(_profile_list)
+	left.add_child(_profile_list)
 	var add := Button.new()
 	add.text = I18n.t("+ Add agent")
+	add.tooltip_text = I18n.t("A profile you fill in by hand: command, arguments and environment.")
 	add.pressed.connect(func() -> void:
 		var profile: AgentProfile = AgentProfile.new()
 		profile.id = "agente-%d" % (_profiles.size() + 1)
@@ -214,18 +234,21 @@ func _build_agents(page: VBoxContainer) -> void:
 	var from_registry := Button.new()
 	from_registry.text = I18n.t("+ From the ACP registry…")
 	from_registry.tooltip_text = I18n.t("Claude, Codex, Copilot, Cursor, Google Antigravity and dozens more: pick one and the harness sets up its profile.")
-	from_registry.pressed.connect(open_registry)
-	var add_row := HBoxContainer.new()
+	from_registry.pressed.connect(func() -> void: open_registry())
+	var add_row := HFlowContainer.new()
 	add_row.add_child(add)
 	add_row.add_child(from_registry)
-	page.add_child(add_row)
+	left.add_child(add_row)
 	_profile_form = GridContainer.new()
 	_profile_form.columns = 2
 	_profile_form.visible = false
-	page.add_child(_profile_form)
+	_profile_form.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_profile_form.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	split.add_child(_profile_form)
 	for field: Array in [["id", I18n.t("ID")], ["display_name", I18n.t("Name")], ["command", I18n.t("Command")], ["args", I18n.t("Arguments (one per line)")], ["env", I18n.t("Environment (KEY=value or KEY=$VAR)")]]:
 		var label := Label.new()
 		label.text = field[1]
+		label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		_profile_form.add_child(label)
 		var control: Control
 		if field[0] in ["args", "env"]:
@@ -236,7 +259,15 @@ func _build_agents(page: VBoxContainer) -> void:
 		else:
 			control = LineEdit.new()
 		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_profile_form.add_child(control)
+		if field[0] == "env":
+			# La nota de $VAR va junto al campo que la usa.
+			var column := VBoxContainer.new()
+			column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			column.add_child(control)
+			column.add_child(_hint(I18n.t("In env, \"$VAR\" takes the value of VAR from the editor's environment when the agent is launched: keys are not saved.")))
+			_profile_form.add_child(column)
+		else:
+			_profile_form.add_child(control)
 		_form_fields[field[0]] = control
 	_profile_form.add_child(Control.new())
 	var apply := Button.new()
@@ -244,6 +275,38 @@ func _build_agents(page: VBoxContainer) -> void:
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
 	apply.pressed.connect(_apply_profile_form)
 	_profile_form.add_child(apply)
+
+
+## Un agente sugerido: nombre, lo que pide y «Agregar».
+func _suggested_card(agent: Dictionary) -> Control:
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.1), 6, 8))
+	var row := HBoxContainer.new()
+	card.add_child(row)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(info)
+	var name_label := Label.new()
+	name_label.text = str(agent.name)
+	info.add_child(name_label)
+	var needs := _hint(I18n.t(str(agent.needs)))
+	info.add_child(needs)
+	var add := Button.new()
+	add.text = I18n.t("Add")
+	add.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	add.pressed.connect(func() -> void: add_suggested(agent))
+	row.add_child(add)
+	return card
+
+
+## Agrega un agente sugerido: Claude Code directo; los demás, desde el registro filtrado.
+func add_suggested(agent: Dictionary) -> void:
+	var data := SuggestedAgents.profile_of(agent)
+	if data.is_empty():
+		open_registry(str(agent.get("registry_query", "")))
+		return
+	data["default"] = _profiles.is_empty()
+	_add_registry_profile(data)
 
 
 func _build_completion(page: VBoxContainer) -> void:
@@ -740,35 +803,54 @@ func matrix_overrides() -> Dictionary:
 # --- perfiles ------------------------------------------------------------------------------------
 
 func _rebuild_profiles() -> void:
+	_suggested_box.visible = _profiles.is_empty()
 	for child: Node in _profile_list.get_children():
+		_profile_list.remove_child(child)
 		child.queue_free()
 	for i in _profiles.size():
 		var profile := _profiles[i]
+		var selected := i == _editing and _profile_form.visible
 		var card := PanelContainer.new()
-		card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.1), 6, 8))
+		card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.07 if selected else 0.04), Color(_accent_picker.color if _accent_picker else AgentTheme.MUTED, 0.8) if selected else Color(1, 1, 1, 0.1), 6, 8))
+		card.mouse_filter = Control.MOUSE_FILTER_STOP
+		card.tooltip_text = I18n.t("Click to edit")
+		card.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				_edit_profile(i))
 		var row := HBoxContainer.new()
 		card.add_child(row)
+		# Estrella: el predeterminado (llena) o hacerlo predeterminado (vacía).
+		var star := Button.new()
+		star.flat = true
+		star.text = "★" if profile.is_default else "☆"
+		star.tooltip_text = I18n.t("Default agent") if profile.is_default else I18n.t("Set as default")
+		star.add_theme_color_override(&"font_color", AgentTheme.WARNING if profile.is_default else AgentTheme.MUTED)
+		star.pressed.connect(_make_default.bind(i))
+		row.add_child(star)
 		var info := VBoxContainer.new()
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(info)
 		var name_label := Label.new()
-		name_label.text = I18n.t("%s · default") % profile.display_name if profile.is_default else profile.display_name
+		name_label.text = profile.display_name
+		name_label.clip_text = true
+		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		info.add_child(name_label)
 		var command := Label.new()
-		command.text = profile.command_line() if not profile.command.is_empty() else I18n.t("no command: set it up with Edit")
+		command.text = profile.command_line() if not profile.command.is_empty() else I18n.t("no command: click to set it up")
 		command.clip_text = true
 		command.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		command.add_theme_font_override(&"font", AgentTheme.mono_font())
 		command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		info.add_child(command)
-		for action: Array in [[I18n.t("Set as default"), _make_default], [I18n.t("Edit"), _edit_profile], [I18n.t("Remove"), _remove_profile]]:
-			if action[1] == _make_default and profile.is_default:
-				continue
-			var button := Button.new()
-			button.text = action[0]
-			button.flat = true
-			button.pressed.connect((action[1] as Callable).bind(i))
-			row.add_child(button)
+		var remove := Button.new()
+		remove.flat = true
+		remove.icon = AgentTheme.icon(&"Remove")
+		if remove.icon == null:
+			remove.text = "✕"
+		remove.tooltip_text = I18n.t("Remove")
+		remove.pressed.connect(_remove_profile.bind(i))
+		row.add_child(remove)
 		_profile_list.add_child(card)
 
 

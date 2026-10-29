@@ -80,8 +80,6 @@ msgstr "%s · %d línea"
 msgid "%s · %d lines"
 msgstr "%s · %d líneas"
 
-msgid "%s · default"
-msgstr "%s · predeterminado"
 
 msgid "%s · key in $%s"
 msgstr "%s · key en $%s"
@@ -869,8 +867,6 @@ msgstr "Sin checkpoints"
 msgid "No checkpoints: no change summary and no agent branch."
 msgstr "Sin checkpoints: no hay resumen de cambios ni rama del agente."
 
-msgid "no command: set it up with Edit"
-msgstr "sin comando: configuralo con Editar"
 
 msgid "No pending findings."
 msgstr "Sin hallazgos pendientes."
@@ -3323,3 +3319,27 @@ msgstr "Últimas líneas del log"
 
 msgid "Reinstall"
 msgstr "Reinstalar"
+
+msgid "No agents yet. Add one of these, or any other from the ACP registry:"
+msgstr "Todavía no hay agentes. Agregá uno de estos, u otro del registro de ACP:"
+
+msgid "A profile you fill in by hand: command, arguments and environment."
+msgstr "Un perfil que completás a mano: comando, argumentos y entorno."
+
+msgid "Node.js (npx) and a Claude account or an Anthropic API key"
+msgstr "Node.js (npx) y una cuenta de Claude o una API key de Anthropic"
+
+msgid "Node.js (npx) and a ChatGPT account or an OpenAI API key"
+msgstr "Node.js (npx) y una cuenta de ChatGPT o una API key de OpenAI"
+
+msgid "A Google account; its program is downloaded from the ACP registry"
+msgstr "Una cuenta de Google; su programa se baja del registro de ACP"
+
+msgid "Click to edit"
+msgstr "Clic para editar"
+
+msgid "Default agent"
+msgstr "Agente predeterminado"
+
+msgid "no command: click to set it up"
+msgstr "sin comando: hacé clic para configurarlo"
