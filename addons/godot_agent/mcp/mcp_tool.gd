@@ -18,6 +18,9 @@ var group: String = ""
 var handler: Callable
 ## Callable(args) -> String: descripción corta de la llamada para la tarjeta de permiso y el log.
 var describer: Callable
+## Callable(args) -> String: el grupo de permiso de una llamada cuando depende de los argumentos
+## (copiar desde fuera del proyecto pide como un comando de shell). Sin él, `group`.
+var group_resolver: Callable
 
 
 static func create(tool_name: String, tool_group: String, tool_description: String, properties: Dictionary, required: PackedStringArray, tool_handler: Callable) -> RefCounted:
@@ -30,6 +33,14 @@ static func create(tool_name: String, tool_group: String, tool_description: Stri
 		tool.input_schema["required"] = Array(required)
 	tool.handler = tool_handler
 	return tool
+
+
+func group_of(args: Dictionary) -> String:
+	if group_resolver.is_valid():
+		var resolved := str(group_resolver.call(args))
+		if not resolved.is_empty():
+			return resolved
+	return group
 
 
 func to_mcp() -> Dictionary:

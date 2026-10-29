@@ -10,6 +10,7 @@ extends RefCounted
 
 const McpTool := preload("../mcp_tool.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
+const FsHandler := preload("../../acp/fs_handler.gd")
 
 ## Archivos de texto donde se buscan y reescriben referencias.
 const TEXT_EXTENSIONS: PackedStringArray = ["tscn", "tres", "gd", "gdshader", "gdshaderinc", "godot", "cfg", "json", "cs", "gdextension"]
@@ -25,15 +26,20 @@ var unsaved_buffer: Callable
 
 func tools() -> Array:
 	var files := PermissionPolicy.GROUP_EDIT_FILES
+	var copy := McpTool.create("copy_file", files,
+		"Copies a file or folder into the project as a new resource (new uid). `from` can be res:// or an absolute path outside the project (to bring in downloaded assets); the editor imports it.",
+		{"from": {"type": "string"}, "to": {"type": "string"}},
+		["from", "to"], _copy_file) as McpTool
+	# Traer algo de fuera del proyecto lee cualquier archivo de la máquina: pide como un comando de
+	# shell (en Auto, pregunta), no como editar archivos (revisión de seguridad, M11).
+	copy.group_resolver = func(args: Dictionary) -> String:
+		return files if str(args.get("from", "")).strip_edges().begins_with("res://") else PermissionPolicy.GROUP_SHELL
 	return [
 		McpTool.create("move_file", files,
 			"Moves or renames a file or folder inside the project, like the editor's FileSystem dock: keeps the uid, moves the .uid/.import companions and rewrites every res:// reference in scenes, resources, scripts, shaders and project.godot. Use it instead of mv (the harness rejects mv/cp/rm on project files). Not undoable from the editor.",
 			{"from": {"type": "string"}, "to": {"type": "string", "description": "New res:// path (for a folder, the new folder path)"}},
 			["from", "to"], _move_file),
-		McpTool.create("copy_file", files,
-			"Copies a file or folder into the project as a new resource (new uid). `from` can be res:// or an absolute path outside the project (to bring in downloaded assets); the editor imports it.",
-			{"from": {"type": "string"}, "to": {"type": "string"}},
-			["from", "to"], _copy_file),
+		copy,
 		McpTool.create("delete_file", files,
 			"Deletes a file or folder of the project (to the system trash when possible), with its .uid/.import. Refuses if another file still references it (and lists them) or if it is an open scene: fix those references first.",
 			{"path": {"type": "string"}},
@@ -272,6 +278,11 @@ func _check_target(path: String, must_exist: bool) -> String:
 		return "%s already exists: it is not overwritten." % path
 	if path.get_extension() in SIDECARS:
 		return "%s is a .uid/.import companion: move or delete the file it belongs to." % path
+	# Una carpeta del proyecto que es un enlace a otro lado no sirve para mover o borrar afuera.
+	var project := ProjectSettings.globalize_path("res://").trim_suffix("/")
+	var link := FsHandler.link_escape(ProjectSettings.globalize_path(path), PackedStringArray([project]))
+	if not link.is_empty():
+		return "%s goes outside the project through the link %s: it is not moved, copied over or deleted." % [path, ProjectSettings.localize_path(link)]
 	return ""
 
 

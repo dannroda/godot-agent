@@ -89,6 +89,13 @@ func _check_path(path: String, for_write: bool) -> String:
 	if path.is_empty() or not path.is_absolute_path() or path.begins_with("res://") or path.begins_with("user://"):
 		return "The path must be absolute: %s" % path
 	var normalized := path.simplify_path()
+	var roots: PackedStringArray = [project_root]
+	for root: String in extra_roots:
+		roots.append(root.simplify_path().trim_suffix("/"))
+	# El chequeo de arriba es de texto: un enlace simbólico adentro que apunta afuera lo pasaría.
+	var link := link_escape(normalized, roots)
+	if not link.is_empty():
+		return "Path outside the project through the link %s: %s" % [link, path]
 	if not _inside(normalized, project_root):
 		for root: String in extra_roots:
 			if _inside(normalized, root.simplify_path().trim_suffix("/")):
@@ -99,6 +106,33 @@ func _check_path(path: String, for_write: bool) -> String:
 		for dir: String in FORBIDDEN_DIRS:
 			if relative == dir or relative.begins_with(dir + "/"):
 				return "The agent cannot write inside %s/: %s" % [dir, path]
+	return ""
+
+
+## El primer enlace simbólico de `path` (desde su raíz permitida) que lleva fuera de `roots`, o "".
+## Sigue los enlaces encadenados hasta 8 saltos.
+static func link_escape(path: String, roots: PackedStringArray) -> String:
+	var base := ""
+	for root: String in roots:
+		if _inside(path, root):
+			base = root
+			break
+	if base.is_empty():
+		return ""
+	var current := base
+	for part: String in path.substr(base.length()).split("/", false):
+		var next := current.path_join(part)
+		var hops := 0
+		while hops < 8:
+			var dir := DirAccess.open(next.get_base_dir())
+			if dir == null or not dir.is_link(next.get_file()):
+				break
+			var target := dir.read_link(next.get_file())
+			next = (target if target.is_absolute_path() else next.get_base_dir().path_join(target)).simplify_path()
+			hops += 1
+		if hops > 0 and not Array(roots).any(func(root: String) -> bool: return _inside(next, root)):
+			return current.path_join(part)
+		current = next
 	return ""
 
 

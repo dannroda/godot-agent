@@ -102,3 +102,14 @@ func test_description_of() -> void:
 	assert_eq(AcpRegistryDialog.description_of(agents[1]), "Google's coding agent, with Gemini, Claude and GPT models in its plan.", "Antigravity: la propia")
 	var other := {"id": "kilo", "name": "Kilo", "description": "Kilo's own text"}
 	assert_eq(AcpRegistryDialog.description_of(other), "Kilo's own text", "otro: la del registro")
+
+
+## Revisión de seguridad (M11): ni el zip ni el `cmd` del registro escriben fuera de la carpeta.
+func test_safe_relative_paths() -> void:
+	for ok: String in ["agy", "./bin/agy", "dist/agy_acp_server.par"]:
+		assert_true(AcpRegistry.is_safe_relative(ok), "vale: %s" % ok)
+	for bad: String in ["../x", "a/../../x", "..\\..\\x", "/etc/passwd", "C:\\Windows\\x.exe", "C:/x", ""]:
+		assert_false(AcpRegistry.is_safe_relative(bad), "no vale: %s" % bad)
+	var data := {"agents": [{"id": "evil-cmd", "name": "Evil", "version": "1", "distribution": {
+		"binary": {"linux-x86_64": {"archive": "https://x/a.bin", "cmd": "../../.bashrc"}}}}]}
+	assert_true(AcpRegistry.parse(data, "linux-x86_64").is_empty(), "un cmd que sale se descarta")

@@ -72,6 +72,14 @@ func install(agent: Dictionary, reinstall := false) -> Dictionary:
 
 # --- estático (testeable sin red) ----------------------------------------------------------------
 
+## Ruta relativa que no sale de su carpeta: sin `..`, sin raíz ni unidad (con `/` o `\`).
+static func is_safe_relative(path: String) -> bool:
+	var clean := path.replace("\\", "/").trim_prefix("./")
+	if clean.is_empty() or clean.begins_with("/") or clean.is_absolute_path() or clean.contains(":"):
+		return false
+	return not ".." in clean.split("/")
+
+
 ## Borra una carpeta con todo lo que tiene.
 static func remove_recursive(absolute: String) -> Error:
 	for file: String in DirAccess.get_files_at(absolute):
@@ -121,7 +129,8 @@ static func parse(data: Dictionary, platform: String) -> Array[Dictionary]:
 			if not entry is Dictionary:
 				continue
 			if kind == KIND_BINARY:
-				if not entry.get("archive") is String or not entry.get("cmd") is String:
+				# `cmd` es donde queda el programa adentro de la carpeta de instalación: nada que salga.
+				if not entry.get("archive") is String or not entry.get("cmd") is String or not is_safe_relative(str(entry.cmd)):
 					continue
 				# `size` (bytes) si el registro lo trae: la tarjeta muestra cuánto se baja (m12-27).
 				agent.binary = {"archive": entry.archive, "cmd": entry.cmd, "sha256": str(entry.get("sha256", "")), "size": int(entry.get("size", 0)) if (entry.get("size") is int or entry.get("size") is float) else 0}
@@ -170,9 +179,9 @@ static func extract(archive: String, url: String, dest: String, cmd: String) -> 
 			return "The downloaded file is not a valid zip."
 		var written: PackedStringArray = []
 		for path: String in reader.get_files():
-			if path.ends_with("/") or path.is_absolute_path() or ".." in path.split("/"):
+			if not is_safe_relative(path) or path.ends_with("/"):
 				continue
-			var target := dest.path_join(path)
+			var target := dest.path_join(path.replace("\\", "/"))
 			DirAccess.make_dir_recursive_absolute(target.get_base_dir())
 			var file := FileAccess.open(target, FileAccess.WRITE)
 			if file == null:

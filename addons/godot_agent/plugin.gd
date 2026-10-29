@@ -687,6 +687,7 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 	var result: Array = []
 	if _mcp_server and _mcp_server.is_listening():
 		var token := _mcp_server.token if session == PRIMARY_SESSION else _mcp_server.session_token(session)
+		_log.add_secret(token)  # el de cada pestaña también: el JSON crudo de session/new lo lleva
 		if model.supports_http_mcp():
 			result.append(_mcp_server.http_server_entry(token))
 		else:

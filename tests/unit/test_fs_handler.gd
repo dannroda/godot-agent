@@ -48,3 +48,26 @@ func test_write_denied() -> void:
 	var result: Variant = await fs.write_text_file({"path": root + "/b.gd", "content": "x"})
 	assert_true(result is AcpClient.AcpResponse and not result.ok, "denegado")
 	assert_false(FileAccess.file_exists(root + "/b.gd"), "no se escribió")
+
+
+## Revisión de seguridad (M11): un enlace simbólico adentro del proyecto que apunta afuera no sirve
+## para leer ni escribir fuera; uno que apunta adentro sí.
+func test_symlinks_out_of_the_project() -> void:
+	if OS.get_name() == "Windows":
+		return  # crear enlaces pide permisos de administrador
+	var root := ProjectSettings.globalize_path(temp_dir("fs_links"))
+	var outside := ProjectSettings.globalize_path(temp_dir("fs_links_outside"))
+	FileAccess.open(outside.path_join("secret.txt"), FileAccess.WRITE).store_string("no")
+	DirAccess.make_dir_recursive_absolute(root.path_join("real"))
+	var dir := DirAccess.open(root)
+	for link: String in ["out", "in"]:
+		DirAccess.remove_absolute(root.path_join(link))  # de una corrida anterior
+	assert_eq(dir.create_link(outside, root.path_join("out")), OK, "crea el enlace afuera")
+	assert_eq(dir.create_link(root.path_join("real"), root.path_join("in")), OK, "crea el enlace adentro")
+	var fs := _handler(root)
+	var read: Variant = fs.read_text_file({"path": root + "/out/secret.txt"})
+	assert_true(read is AcpClient.AcpResponse and not read.ok, "no lee por el enlace que sale")
+	var write: Variant = await fs.write_text_file({"path": root + "/out/new.txt", "content": "x"})
+	assert_true(write is AcpClient.AcpResponse and not write.ok and not FileAccess.file_exists(outside.path_join("new.txt")), "ni escribe")
+	var inside: Variant = await fs.write_text_file({"path": root + "/in/ok.txt", "content": "x"})
+	assert_true(inside is Dictionary, "un enlace que queda adentro sí")

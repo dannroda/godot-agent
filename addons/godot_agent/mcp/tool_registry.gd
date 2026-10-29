@@ -151,7 +151,7 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 			result = McpTool.error(str(precheck.call(caller, tool.name)))
 		elif not await _authorize(tool, arguments, caller):
 			result = McpTool.error(
-				"Permission denied for godot.%s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [tool.name, tool.group]
+				"Permission denied for godot.%s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [tool.name, tool.group_of(arguments)]
 			)
 		else:
 			var blocked: String = await guard.call(caller, tool.name, arguments) if guard.is_valid() else ""
@@ -214,10 +214,11 @@ static func _first_sentence(text: String) -> String:
 
 func _authorize(tool: McpTool, args: Dictionary, caller: String = "") -> bool:
 	var allowed: Variant = true
+	var group := tool.group_of(args)
 	if session_authorizer.is_valid():
-		allowed = await session_authorizer.call(caller, tool.group, "godot.%s" % tool.name, tool.describe(args))
+		allowed = await session_authorizer.call(caller, group, "godot.%s" % tool.name, tool.describe(args))
 	elif authorizer.is_valid():
-		allowed = await authorizer.call(tool.group, "godot.%s" % tool.name, tool.describe(args))
+		allowed = await authorizer.call(group, "godot.%s" % tool.name, tool.describe(args))
 	return allowed == true
 
 

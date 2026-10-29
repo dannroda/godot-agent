@@ -359,8 +359,9 @@ static func plan_install(zip_path: String, only_addons: bool = true, target_root
 	for name: String in names:
 		if name.ends_with("/"):
 			continue
-		var relative := name.trim_prefix(root)
-		if relative.is_empty() or relative.is_absolute_path() or ".." in relative.split("/") or relative.begins_with("/"):
+		# Con «\\» o una unidad («C:») una entrada saldría del proyecto en Windows (revisión de seguridad, M11).
+		var relative := name.trim_prefix(root).replace("\\", "/")
+		if relative.is_empty() or relative.is_absolute_path() or ".." in relative.split("/") or relative.begins_with("/") or relative.contains(":"):
 			continue
 		if relative.begins_with("addons/") and relative.get_slice("/", 1) in PROTECTED_FOLDERS:
 			continue  # nunca se escribe dentro del harness

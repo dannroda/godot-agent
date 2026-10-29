@@ -149,3 +149,23 @@ func test_default_describe() -> void:
 	assert_eq(tool.describe({}), "", "sin argumentos")
 	assert_eq(tool.describe({"node_path": "World/Sun", "properties": {"light_energy": 1.2}}), "node_path: World/Sun\nproperties.light_energy: 1.2", "un diccionario se abre un nivel")
 	assert_true(tool.describe({"text": "x".repeat(300)}).ends_with("…"), "valores largos recortados")
+
+
+## Revisión de seguridad (M11): copy_file desde fuera del proyecto pide como un comando de shell.
+func test_copy_from_outside_asks_as_shell() -> void:
+	const FileTools := preload("res://addons/godot_agent/mcp/tools/file_tools.gd")
+	var file_tools := FileTools.new()  # el handler es suyo: que viva toda la prueba
+	var copy: McpTool = null
+	for tool: McpTool in file_tools.tools():
+		if tool.name == "copy_file":
+			copy = tool
+	assert_eq(copy.group_of({"from": "res://a.png", "to": "res://b.png"}), "edit_files", "dentro del proyecto: editar archivos")
+	assert_eq(copy.group_of({"from": "/home/u/.ssh/id_rsa", "to": "res://k.txt"}), "shell", "de afuera: como shell")
+	var registry := ToolRegistry.new()
+	registry.register(copy)
+	var asked: Array = []
+	registry.authorizer = func(group: String, _title: String, _description: String) -> bool:
+		asked.append(group)
+		return false
+	await registry.call_tool("copy_file", {"from": "/etc/hostname", "to": "res://tests/tmp/h.txt"})
+	assert_eq(asked, ["shell"], "el permiso se pide con ese grupo")

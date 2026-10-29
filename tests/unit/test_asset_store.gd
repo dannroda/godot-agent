@@ -82,6 +82,8 @@ func test_plan_with_root_folder() -> void:
 		"repo-1.0/README.md": "readme",
 		"repo-1.0/project.godot": "no",
 		"repo-1.0/../evil.gd": "no",
+		"repo-1.0/..\\..\\evil2.gd": "no",
+		"repo-1.0/C:\\evil3.gd": "no",
 		"repo-1.0/addons/godot_agent/plugin.gd": "no",
 	})
 	var target := root.path_join("project")
@@ -98,6 +100,7 @@ func test_plan_with_root_folder() -> void:
 	assert_eq(FileAccess.get_file_as_string(target.path_join("addons/thing/thing.gd")), "mine", "no pisó")
 	assert_true(FileAccess.file_exists(target.path_join("addons/thing/plugin.cfg")), "escribió")
 	assert_false(FileAccess.file_exists(root.path_join("evil.gd")), "sin rutas con ..")
+	assert_false(all.files.any(func(f: Dictionary) -> bool: return "evil" in f.target) or all.other.any(func(p: String) -> bool: return "evil" in p), "ni con \\ ni con una unidad (M11)")
 	assert_false(all.files.any(func(f: Dictionary) -> bool: return "godot_agent" in f.target), "nunca dentro del harness")
 
 
