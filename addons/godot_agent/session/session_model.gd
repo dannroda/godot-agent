@@ -82,6 +82,9 @@ var pending_elicitations: Array[ElicitationRequest] = []
 
 var _entries: Array[ChatEntry] = []
 var _tool_calls: Dictionary = {}  # toolCallId -> ToolCall
+## Tool calls que son la pregunta de una tarjeta de elicitation (AskUserQuestion): no van en el
+## grupo de herramientas, la tarjeta ya los muestra (m12-40).
+var _question_calls: Dictionary = {}  # toolCallId -> true
 var _group_of_call: Dictionary = {}  # toolCallId -> ChatEntry (TOOL_GROUP)
 ## Subagentes nativos de ACP (m7-43): sesión del hijo -> {state, title, description, launch}, con
 ## `launch` el tool call de Agent/Task que lo lanzó (lo dice el session_message de su prompt).
@@ -163,6 +166,7 @@ func reset() -> void:
 	last_stop_reason = ""
 	_entries.clear()
 	_tool_calls.clear()
+	_question_calls.clear()
 	_group_of_call.clear()
 	_subagent_sessions.clear()
 	_terminal_outputs.clear()
@@ -304,6 +308,7 @@ func add_elicitation(request: ElicitationRequest) -> ChatEntry:
 	entry.elicitation = request
 	entry.text = request.message
 	pending_elicitations.append(request)
+	_hide_question_call(request)
 	request.resolved.connect(func(_response: Dictionary) -> void:
 		pending_elicitations.erase(request)
 		entry_updated.emit(entry)
@@ -311,6 +316,31 @@ func add_elicitation(request: ElicitationRequest) -> ChatEntry:
 	_push(entry)
 	elicitation_requested.emit(request)
 	return entry
+
+
+## El tool call que originó la pregunta (mismo toolCallId o, si el agente no lo manda, uno sin
+## terminar del último grupo con el mismo título) sale del grupo de herramientas.
+func _hide_question_call(request: ElicitationRequest) -> void:
+	var id := request.tool_call_id
+	if id.is_empty():
+		var group: ChatEntry = _entries.back() if not _entries.is_empty() else null
+		if group == null or group.kind != ChatEntry.EntryKind.TOOL_GROUP:
+			for i in range(_entries.size() - 1, -1, -1):
+				if _entries[i].kind == ChatEntry.EntryKind.TOOL_GROUP:
+					group = _entries[i]
+					break
+		if group == null or group.kind != ChatEntry.EntryKind.TOOL_GROUP:
+			return
+		for candidate_id: String in group.tool_call_ids:
+			var candidate: ToolCall = _tool_calls.get(candidate_id)
+			if candidate and not candidate.is_finished() and candidate.title.strip_edges() == request.message.strip_edges():
+				id = candidate_id
+		if id.is_empty():
+			return
+	_question_calls[id] = true
+	var call: ToolCall = _tool_calls.get(id)
+	if call and call.parent_id.is_empty():
+		_detach(call)
 
 
 ## Notificación `elicitation/complete` (m11-17): el flujo por URL con ese `elicitation_id` terminó.
@@ -603,6 +633,8 @@ func _attach(call: ToolCall, parent: String) -> void:
 		owner.child_ids.append(call.id)
 		_set_group(call, _group_of_call.get(parent))
 		return
+	if _question_calls.has(call.id):
+		return
 	var group: ChatEntry = _entries.back() if not _entries.is_empty() else null
 	if group == null or group.kind != ChatEntry.EntryKind.TOOL_GROUP:
 		group = _push(_new_entry(ChatEntry.EntryKind.TOOL_GROUP))
@@ -614,7 +646,14 @@ func _attach(call: ToolCall, parent: String) -> void:
 func _reparent(call: ToolCall, parent: String) -> void:
 	if parent == call.id or _is_descendant(parent, call.id):
 		return
+	_detach(call)
+	_attach(call, parent)
+
+
+## Saca un tool call de su grupo (y el grupo, si queda vacío).
+func _detach(call: ToolCall) -> void:
 	var group: ChatEntry = _group_of_call.get(call.id)
+	_group_of_call.erase(call.id)
 	if group and group.tool_call_ids.has(call.id):
 		group.tool_call_ids.remove_at(group.tool_call_ids.find(call.id))
 		if group.tool_call_ids.is_empty():
@@ -622,7 +661,6 @@ func _reparent(call: ToolCall, parent: String) -> void:
 			entry_removed.emit(group)
 		else:
 			entry_updated.emit(group)
-	_attach(call, parent)
 
 
 ## true si `id` es `ancestor` o está dentro de sus subagentes.

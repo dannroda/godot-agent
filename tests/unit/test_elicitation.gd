@@ -183,3 +183,21 @@ func test_untouched_optional_fields_are_left_out() -> void:
 	(spins[1] as SpinBox).value = 0.0125
 	assert_eq(view.collect_values(), {"ratio": 0.0125}, "number sin redondear a 0.01")
 	view.queue_free()
+
+
+## m12-40: el tool call de la pregunta (AskUserQuestion) no se repite en el grupo de herramientas.
+func test_question_tool_call_leaves_the_tool_group() -> void:
+	var model := SessionModel.new()
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "read", "title": "Read main.gd", "status": "completed"})
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "ask", "title": "Can I edit it?", "status": "in_progress"})
+	model.add_elicitation(ElicitationRequest.from_params({"message": "Can I edit it?", "toolCallId": "ask"}))
+	var group: ChatEntry = model.entries()[0]
+	assert_eq(Array(group.tool_call_ids), ["read"], "por toolCallId: sale del grupo")
+	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "ask", "status": "completed"})
+	assert_eq(Array(group.tool_call_ids), ["read"], "y no vuelve al terminar")
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "ask2", "title": "Which one?", "status": "in_progress"})
+	model.add_elicitation(ElicitationRequest.from_params({"message": "Which one?"}))
+	var kinds: Array = model.entries().map(func(entry: ChatEntry) -> int: return entry.kind)
+	assert_false(kinds.slice(2).has(ChatEntry.EntryKind.TOOL_GROUP), "sin toolCallId, por título: el grupo que quedaba vacío se va")
+	model.add_elicitation(ElicitationRequest.from_params({"message": "Unrelated"}))
+	assert_eq(Array(group.tool_call_ids), ["read"], "una pregunta sin tool call no saca nada")
