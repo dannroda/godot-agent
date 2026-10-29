@@ -3509,3 +3509,6 @@ msgstr "Como la Tienda de Assets del editor, pero la instalación nunca pisa un 
 
 msgid "Project addons"
 msgstr "Addons del proyecto"
+
+msgid "+ Rule or workflow"
+msgstr "+ Regla o workflow"

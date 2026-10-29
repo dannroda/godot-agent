@@ -45,7 +45,9 @@ const NEW_RULE_DIRS: Array[Dictionary] = [
 
 var project_path: String = ""
 var agent_kind: String = "claude"
-var _file: OptionButton
+## Los archivos a la izquierda con quién lee cada uno (m12-32); el editor del elegido a la derecha.
+var _files: Tree
+var _filling: bool = false
 var _editor: TextEdit
 var _readers: Label
 var _new_dialog: ConfirmationDialog
@@ -64,25 +66,42 @@ func _init() -> void:
 	page.add_theme_constant_override(&"separation", AgentTheme.px(6))
 	add_child(page)
 	page.add_child(ExtensionsUi.muted(I18n.t("What every agent session reads about this project: conventions, how to run and test it, what not to touch. Each agent reads its own file at the start of a session.")))
-	var bar := HBoxContainer.new()
-	page.add_child(bar)
-	_file = OptionButton.new()
-	_file.item_selected.connect(func(index: int) -> void:
-		if index >= 0 and index < _listed_files.size():
-			_switch_to(_listed_files[index]))
-	bar.add_child(_file)
-	bar.add_child(ExtensionsUi.icon_button(&"Add", I18n.t("New rule or workflow file"), _open_new_dialog))
+	var split := HBoxContainer.new()
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	split.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	page.add_child(split)
+	var left := VBoxContainer.new()
+	left.custom_minimum_size.x = AgentTheme.px(250)
+	split.add_child(left)
+	_files = Tree.new()
+	_files.name = "InstructionFiles"
+	_files.columns = 1
+	_files.hide_root = true
+	_files.select_mode = Tree.SELECT_ROW
+	_files.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_files.item_selected.connect(func() -> void:
+		var item := _files.get_selected()
+		if item and not _filling:
+			_switch_to(str(item.get_metadata(0))))
+	left.add_child(_files)
+	var add := Button.new()
+	add.text = I18n.t("+ Rule or workflow")
+	add.tooltip_text = I18n.t("New rule or workflow file")
+	add.pressed.connect(_open_new_dialog)
+	left.add_child(add)
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	split.add_child(right)
 	_readers = ExtensionsUi.muted("")
-	_readers.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bar.add_child(_readers)
+	right.add_child(_readers)
 	_editor = TextEdit.new()
 	_editor.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_editor.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	_editor.add_theme_font_override(&"font", AgentTheme.mono_font())
 	_editor.placeholder_text = I18n.t("Empty: this file doesn't exist yet. Write here or add the project facts, then save.")
-	page.add_child(_editor)
+	right.add_child(_editor)
 	var buttons := HBoxContainer.new()
-	page.add_child(buttons)
+	right.add_child(buttons)
 	var facts := Button.new()
 	facts.text = I18n.t("Add the project facts")
 	facts.tooltip_text = I18n.t("Godot version, main scene, autoloads, named layers, input actions and folders, read from the project. It goes between markers: adding it again updates it without touching the rest.")
@@ -186,11 +205,22 @@ func _fill_options() -> void:
 			_listed_files.append(extra)
 	if not _current.is_empty() and not _current in _listed_files:
 		_listed_files.append(_current)
-	_file.clear()
+	_filling = true
+	_files.clear()
+	var root := _files.create_item()
 	for file: String in _listed_files:
-		_file.add_item(file if FileAccess.file_exists(project_path.path_join(file)) else I18n.t("%s (new)") % file)
-	_file.select(maxi(0, _listed_files.find(_current)))
-	_readers.text = I18n.t("Read by %s.") % reader_of(_current)
+		var exists := FileAccess.file_exists(project_path.path_join(file))
+		var item := _files.create_item(root)
+		# Dos líneas: el archivo y quién lo lee, para ver de un vistazo qué lee cada agente.
+		item.set_text(0, "%s\n%s" % [file if exists else I18n.t("%s (new)") % file, reader_of(file)])
+		item.set_metadata(0, file)
+		item.set_tooltip_text(0, I18n.t("Read by %s.") % reader_of(file))
+		if not exists:
+			item.set_custom_color(0, AgentTheme.MUTED)
+		if file == _current:
+			item.select(0)
+	_filling = false
+	_readers.text = "%s · %s" % [_current, I18n.t("Read by %s.") % reader_of(_current)]
 
 
 func _load(file: String) -> void:
