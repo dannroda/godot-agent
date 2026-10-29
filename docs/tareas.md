@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (7/37, 7 en revisión)
+## M10 — Revisión de UX  (7/38, 7 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -2986,7 +2986,7 @@ Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
 **Notas:** Panel plegado por defecto en un FoldableContainer: el título resume alcance, archivos y contadores; se abre con un clic. La lista calcula su alto con la fila real (con 26 px fijos se veía un hallazgo y medio). Ocultar el bloque findings del chat quedó en m12-38. Cerrar el panel con la sesión no hizo falta: plegado ocupa una fila.
 
-### Las pestañas de Extensiones no entran en la ventana · Pendiente
+### Las pestañas de Extensiones no entran en la ventana · En curso
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `roto`, `extensiones`
 
@@ -2998,6 +2998,10 @@ Archivos: extensions_window.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
+
+**Prueba:** Capturas de Extensiones en Xvfb: las seis secciones a la vista.
+
+**Notas:** TabContainer con tabs_visible = false y un ItemList a la izquierda (como Ajustes) que lo maneja; los títulos con contadores se copian a la lista. Ventana de 820 × 760 (mínimo 720 × 600). Los contadores siguen mostrando (0) mientras carga.
 
 ### La barra del Agent Log se corta · Revisión
 
@@ -3427,6 +3431,16 @@ Los perfiles preseteados se sacaron en 0.1.8, pero quien ya tenía la configurac
 Propuesta: al cargar los perfiles, quitar una vez el gemini-cli preseteado (command "gemini", sin args) y el codex con comando vacío, solo si siguen iguales al preset (no tocar uno editado), y avisar en el log.
 
 Archivos: harness_settings.gd (profiles)
+
+### Ocultar el bloque findings del chat en Revisar · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
+
+En modo Revisar el agente contesta con un bloque ```json {"findings": …}``` que el harness ya convierte en hallazgos (panel y Script Editor), pero el chat lo sigue mostrando entero y ocupa media pantalla.
+
+Propuesta: una vez leído, reemplazarlo en el mensaje por una línea («2 hallazgos · ver en el panel») con el JSON plegado.
+
+Archivos: ReviewStore, agent_message_view.gd. Sale de m12-03.
 
 ## M11 — Revisiones de seguridad, patrones y arquitectura  (0/3)
 

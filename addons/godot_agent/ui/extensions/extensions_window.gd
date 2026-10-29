@@ -62,6 +62,8 @@ var asset_store: Node
 var disabled_skills: PackedStringArray = []
 
 var _tabs: TabContainer
+## Las secciones a la izquierda, como en Ajustes: seis pestañas no entraban en la ventana (m12-04).
+var _nav: ItemList
 var _banner: PanelContainer
 var _status: Label
 var _plugin_search: LineEdit
@@ -102,7 +104,7 @@ func _build() -> void:
 		return
 	title = I18n.t("Extensions")
 	ok_button_text = I18n.t("Close")
-	min_size = Vector2i(AgentTheme.px(560), AgentTheme.px(600))
+	min_size = Vector2i(AgentTheme.px(720), AgentTheme.px(600))
 	# Las listas se desplazan: que un texto con autowrap no agrande la ventana más allá de la pantalla.
 	wrap_controls = false
 	var root := VBoxContainer.new()
@@ -125,11 +127,21 @@ func _build() -> void:
 		new_session_requested.emit())
 	banner_row.add_child(restart)
 	root.add_child(_banner)
+	var split := HBoxContainer.new()
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(split)
+	_nav = ItemList.new()
+	_nav.custom_minimum_size.x = AgentTheme.px(170)
+	_nav.item_selected.connect(func(index: int) -> void: _tabs.current_tab = index)
+	split.add_child(_nav)
 	_tabs = TabContainer.new()
-	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tabs.tabs_visible = false
+	_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# Cada pestaña se mide la primera vez que se muestra: acomodar de nuevo al cambiar.
-	_tabs.tab_changed.connect(func(_tab: int) -> void: ExtensionsUi.refit_dialog(self))
-	root.add_child(_tabs)
+	_tabs.tab_changed.connect(func(tab: int) -> void:
+		_nav.select(tab)
+		ExtensionsUi.refit_dialog(self))
+	split.add_child(_tabs)
 	_tabs.add_child(_build_plugins_tab())
 	_tabs.add_child(_build_markets_tab())
 	_tabs.add_child(_build_mcp_tab())
@@ -164,7 +176,8 @@ func _build() -> void:
 func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 	_build()
 	_tabs.current_tab = tab
-	popup_centered_clamped(Vector2i(AgentTheme.px(640), AgentTheme.px(760)), 0.9)
+	_nav.select(tab)
+	popup_centered_clamped(Vector2i(AgentTheme.px(820), AgentTheme.px(760)), 0.9)
 	ExtensionsUi.refit_dialog(self)
 	refresh()
 
@@ -602,6 +615,13 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.SKILLS, I18n.t("Skills"))
 	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Godot addons"))
 	_tabs.set_tab_title(ExtensionsTab.INSTRUCTIONS, I18n.t("Instructions"))
+	if _nav.item_count != _tabs.get_tab_count():
+		_nav.clear()
+		for i in _tabs.get_tab_count():
+			_nav.add_item("")
+	for i in _tabs.get_tab_count():
+		_nav.set_item_text(i, _tabs.get_tab_title(i))
+	_nav.select(_tabs.current_tab)
 
 
 func _chip(text: String, status: String) -> Control:
