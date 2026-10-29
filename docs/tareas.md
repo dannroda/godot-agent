@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-28
+> Generado: 2026-10-29
 
 ## M0 — Esqueleto y decisiones  (6/6, 6 en revisión)
 
@@ -2928,3 +2928,466 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 **Notas:** QuotaMonitor.groups guarda los grupos de /usage, describe_groups() arma una línea por grupo (Gemini, Claude y GPT, Gemini 4 Argon) y QuotaRing.describe() las agrega al tooltip debajo de los anillos. select_antigravity_model() cambia las ventanas activas en cuanto cambia la opción model.
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
+
+## M10 — Revisión de UX  (0/36)
+
+Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
+
+**Hecho cuando:**
+- Cada hallazgo quedó hecho o descartado con su motivo en la tarjeta.
+- Un recorrido de capturas de todas las superficies no muestra controles tapados ni cortados.
+
+### «Cerrar» tapa el contenido y esconde «Guardar» en Extensiones y el registro · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `extensiones`
+
+En el registro de ACP y en Extensiones la lista sigue por debajo de «Cerrar». En Instrucciones el área de texto llega abajo y «Guardar» y «Agregar los datos del proyecto» quedan fuera de la ventana.
+
+Propuesta: Que el contenido de cada pestaña quepa en el alto disponible (se encogen el scroll y el área de texto) y las acciones de la pestaña en su propia barra arriba.
+
+Archivos: extensions_window.gd, instructions_tab.gd, acp_registry_dialog.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
+
+### «Buscando actualizaciones…» se dibuja en vertical en Addons de Godot · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `extensiones`
+
+El aviso es un Label con autowrap en una columna de ancho cero: una letra por línea, y el título de la sección queda centrado en el vacío.
+
+Propuesta: El aviso en la fila del título («En este proyecto (3) · buscando actualizaciones…»), sin autowrap o con ancho mínimo.
+
+Archivos: godot_addons_tab.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### El panel de Revisar tapa la conversación y no se va · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `roto`, `dock`
+
+Ocupa unos 230 px fijo arriba del chat, sigue después de cerrar la sesión, tapa tarjetas nuevas y muestra un hallazgo y medio cortado. El JSON de findings se ve crudo en el chat.
+
+Propuesta: Plegarlo a una fila («Revisión · 1 bug, 1 rend · Ver»), cerrarlo con la sesión y ocultar el bloque findings ya leído.
+
+Archivos: review_panel.gd, ReviewStore
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Las pestañas de Extensiones no entran en la ventana · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `roto`, `extensiones`
+
+Seis pestañas en 640 px: Instrucciones queda detrás de las flechas y al llegar desaparecen Plugins y Marketplaces. Los contadores cambian mientras carga.
+
+Propuesta: Barra lateral como la de Ajustes, con los contadores solo cuando cargaron.
+
+Archivos: extensions_window.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
+
+### La barra del Agent Log se corta · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `log`
+
+Con el ancho por defecto «Limpiar» queda en «Limp». Los canales son palabras de colores sin estado visible y el «3» no dice qué cuenta.
+
+Propuesta: Canales como chips con estado, «3 entradas», Copiar/Limpiar como íconos con tooltip.
+
+Archivos: agent_log_panel.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### El panel de Alt+I queda gigante y tapa el código · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `roto`, `alt-i`
+
+Mínimo fijo de 520 × 220 y no se achica al reabrirse: hereda el alto de la propuesta anterior (700 px negros para una línea).
+
+Propuesta: reset_size() antes de cada popup en _show_proposal, sin alto mínimo sin diff, abrirlo debajo de la selección.
+
+Archivos: editor/inline_edit.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
+
+### Alt+I: «Reject» cuando no hay nada que rechazar · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `alt-i`
+
+Esperando, «Reject» solo esconde el panel y el turno sigue en el dock. Sin sesión, el aviso no ofrece iniciarla.
+
+Propuesta: Esperando: «Cancelar» que cancela el turno. Sin sesión: «Iniciar con Claude Code» y el pedido sale al conectar. Propuesta: Aceptar (Enter) y Descartar (Esc).
+
+Archivos: editor/inline_edit.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
+
+### Alt+I: esperando no dice qué se pidió ni muestra avance · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `alt-i`
+
+«Asking the agent…» fijo en un panel vacío.
+
+Propuesta: El pedido entre comillas, «Claude Code · líneas 15–16», indicador animado y tiempo.
+
+Archivos: editor/inline_edit.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
+
+### One-shot no se adapta al ancho y se corta · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `roto`, `oneshot`
+
+Con el dock ancho, al centro le quedan unos 320 px: el texto se corta a los dos lados y «Iniciar One-shot» no se ve.
+
+Propuesta: La tarjeta usa el ancho disponible y, angosta, apila las columnas con el botón siempre visible.
+
+Archivos: agent_main_screen.tscn
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
+
+### El permiso repite el diff y el botón riesgoso va primero · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
+
+El mismo diff en la herramienta y en la tarjeta de permiso; «Siempre en esta sesión» primero y sin atajos.
+
+Propuesta: Resaltar la herramienta que espera y una barra de decisión fija sobre el composer: Permitir, Denegar y «siempre» como enlace. Enter/Esc solo con el foco en la barra (en el composer Enter encola y Esc detiene el turno).
+
+Archivos: entries/permission_view.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 2)
+
+### Pedir el login se ve como un error con seis botones · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
+
+Tarjeta roja «Authentication required (-32000)» con cuatro métodos que repiten «Sign in · Log in with…», más Retry y Open the log below.
+
+Propuesta: Tarjeta neutra «Iniciá sesión en <agente>» con el método principal como botón y los demás bajo «Otras formas de entrar», sin código ni Reintentar.
+
+Archivos: SessionController._login_actions, notice_view.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 8)
+
+### Al abrir, mostrar las sesiones anteriores y opción para continuar la última · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`, `ajustes`
+
+Con agente configurado, el dock abre en «Sin sesión» con «Iniciar sesión». Seguir lo anterior requiere el ícono de historial, y no hay forma de que reabra la última sesión solo.
+
+Propuesta: Lista de sesiones del proyecto (título, agente, cuándo, turnos, Continuar) con «Nueva sesión» arriba. En Ajustes › Interfaz: «Al abrir el editor: mostrar las sesiones / continuar la última».
+
+Archivos: agent_dock._refresh_empty_state, SessionHistory.list, harness_settings.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 9)
+
+### Un error del agente es un párrafo rojo sin qué hacer · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
+
+Todo en rojo con la ruta partida, y solo Reintentar y Abrir el log.
+
+Propuesta: Título y causa en lenguaje claro, las últimas líneas del log con Copiar, y la acción que lo arregla. «Reinstalar» un agente del registro tiene que borrar la versión instalada antes (hoy Agregar reutiliza lo que está en disco).
+
+Archivos: SessionController._fail, notice_view.gd, acp_registry.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 3)
+
+### Tres filas de controles antes del chat · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
+
+Pestañas de sesión, agente con cuatro íconos sin texto y la línea de estado que repite el agente. Dos «+» casi pegados (pestaña y sesión). Sin agentes el selector es solo «⌄».
+
+Propuesta: Una fila: chip del agente con estado, título, historial, «+» (sesión o pestaña) y «⋯» con extensiones, ajustes, cuenta y Remote Control.
+
+Archivos: agent_dock.tscn, session_tabs.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
+
+### Primer arranque: el composer activo sin agente y la elección en Ajustes · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
+
+Sin agentes, el composer tiene main.tscn y «Construir» como si se pudiera usar; «Configurar un agente…» lleva a una lista vacía en Ajustes.
+
+Propuesta: Los tres agentes más usados en el dock con lo que piden y «Agregar»; composer deshabilitado con «Agregá un agente para empezar».
+
+Archivos: agent_dock._refresh_empty_state
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 4)
+
+### Formulario del agente: «Rechazar» y «Cancelar» confunden · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
+
+Enviar, Rechazar y Cancelar (decline y cancel en ACP); la lista obligatoria arranca en «—»; ícono de documentación.
+
+Propuesta: «Enviar» y «No responder», Cancelar con Esc; listas con la primera opción o «Elegí…»; ícono de pregunta.
+
+Archivos: entries/elicitation_view.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Todo va en una caja y las herramientas se cortan · Pendiente
+
+**Prioridad:** media · **Tamaño:** L · **Etiquetas:** `ux`, `dock`
+
+Texto, plan, herramientas y respuesta en cajas iguales; nombres técnicos cortados (godot.connect_sig…), salida y spawner.gd:13 sueltos.
+
+Propuesta: Texto del agente sin caja; grilla de tres columnas con nombres para personas y la salida anidada.
+
+Archivos: conversation_view.gd, tool_group_view.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
+
+### Ocho controles en la barra del composer · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
+
+@, imagen, /, anillo, 38k/200k, modo, modelo y Enviar en una fila; «Construir» parece un enlace.
+
+Propuesta: Un «+» con archivo o nodo, captura y comando; el modo como píldora; un anillo con contexto y cuota en el tooltip.
+
+Archivos: composer.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
+
+### Avisos del editor repetidos por sesión · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
+
+«Sesión 1 espera tu permiso» y «espera tu respuesta» se apilan para la misma sesión.
+
+Propuesta: Un aviso por sesión que se actualiza y se va al responder.
+
+Archivos: session_tabs.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Pie de turno con los cambios · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
+
+El reporte del turno es un aviso más y se pierde.
+
+Propuesta: Pie: «Este turno cambió 1 archivo · Ver cambios · Deshacer turno».
+
+Archivos: SessionController._report_turn_changes
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
+
+### Ajustes › Agentes: vacío sin guía y el formulario lejos · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `ajustes`
+
+Sin agentes, una línea sobre $VAR y dos botones. «Predeterminado» es texto que es botón, y Editar abre el formulario debajo de la lista.
+
+Propuesta: Sin agentes, los tres sugeridos. Con agentes, lista a la izquierda y formulario a la derecha; estrella de predeterminado; la nota de $VAR junto al campo de entorno.
+
+Archivos: settings_dialog._build_agents
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
+
+### Ajustes › Permisos: 45 desplegables sin puntos de partida · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `ajustes`
+
+Matriz de 9 grupos por 5 modos con desplegables iguales; «Subagentes a la vez 0» ambiguo; nota de MCP cortada.
+
+Propuesta: Celdas con color e ícono que cambian con un clic, marcar lo que difiere del default, «Restaurar» por columna, «0 = sin límite».
+
+Archivos: settings_dialog._build_permissions
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Ajustes › Servidores MCP mezcla tres temas · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
+
+Servidores externos con dos párrafos largos, el servidor del editor (puerto, token, máximo) y las carpetas fuera del proyecto en la misma página.
+
+Propuesta: Solo los externos con una línea y enlace a la guía; el servidor del editor y las carpetas en «Avanzado».
+
+Archivos: mcp_servers_page.gd, settings_dialog.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
+
+### Ajustes › Completado: perillas de ajuste fino a la vista · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
+
+Umbral del ranker, margen y debounce al nivel de «Activado».
+
+Propuesta: Activado, modo y fuentes arriba; los números en «Avanzado» plegado.
+
+Archivos: completion_settings_page.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Ajustes › One-shot repite la pantalla de One-shot · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
+
+Presupuestos y checkpoint repetidos; los umbrales de cuota quedan abajo de los criterios.
+
+Propuesta: Acá «Valores iniciales de cada One-shot»; la cuota en su propia sección.
+
+Archivos: settings_dialog._build_oneshot
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
+
+### Ajustes: Guardar y Cancelar lejos y sin aviso de cambios · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
+
+Botones separados en el medio del pie; nada marca la sección con cambios; Export deshabilitado sin decir por qué.
+
+Propuesta: Botones juntos a la derecha, un punto en la sección con cambios, y en Export «Creá un preset de export primero».
+
+Archivos: settings_dialog.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
+
+### Registro de ACP: orden alfabético con lo menos útil primero · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `registro`
+
+Abre en Agoragentic, Amp y Auggie; nada dice si ya está agregado, qué cuenta pide o cuánto pesa.
+
+Propuesta: Sugeridos y agregados arriba, después el resto; tipo de instalación y tamaño en cada tarjeta.
+
+Archivos: acp_registry_dialog.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Registro de ACP: descripciones en inglés · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `registro`
+
+Las descripciones del registro vienen en inglés.
+
+Propuesta: Texto propio en es.po para los sugeridos.
+
+Archivos: acp_registry_dialog.gd, es.po
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Extensiones › Skills: acciones como íconos sueltos · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `extensiones`
+
+Cuatro íconos sin texto por skill; el selector dice «En este proyecto» y la lista muestra «Usuario».
+
+Propuesta: Acciones en un menú «⋯» con texto; el selector como filtro con «Todas» y secciones con su alcance.
+
+Archivos: skills_tab.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Extensiones: pestañas vacías o con mensajes confusos · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `extensiones`
+
+Cargando: una línea chica y 450 px vacíos. Sin agentes, Servidores MCP en blanco y Plugins dice «el perfil activo es otro agente» sin haber ninguno.
+
+Propuesta: Filas fantasma mientras carga; sin agente, un mensaje y un botón para agregar uno.
+
+Archivos: extensions_window.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Extensiones › Addons de Godot no es del agente · Pendiente
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `ux`, `extensiones`
+
+La tienda de addons de Godot comparte ventana con skills y MCP; el editor ya tiene su Tienda de Assets.
+
+Propuesta: Solo lo del agente; como mucho «Del proyecto» con lo instalado.
+
+Archivos: godot_addons_tab.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
+
+### Extensiones › Instrucciones: qué agente lee cada archivo · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `extensiones`
+
+Para saber qué lee Antigravity hay que abrir el desplegable archivo por archivo.
+
+Propuesta: Lista de archivos con quién lo lee al lado y el editor a la derecha.
+
+Archivos: instructions_tab.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
+
+### One-shot: «Iniciar» deshabilitado sin decir por qué · Pendiente
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `oneshot`
+
+Botón apagado casi ilegible, sin texto de qué falta ni con qué agente corre.
+
+Propuesta: El agente elegido arriba y, junto al botón, lo que falta («Escribí el objetivo»); sin agentes, el selector del dock.
+
+Archivos: agent_main_screen.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
+
+### One-shot: una tarjeta chica en una pantalla vacía · Pendiente
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `oneshot`
+
+900 px al medio de 1920, objetivo de 400 px de alto y presupuestos de 290 px para valores como «8».
+
+Propuesta: Dos columnas: objetivo con ejemplos a la izquierda; agente, presupuestos compactos y opciones a la derecha.
+
+Archivos: agent_main_screen.tscn
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
+
+### Dos cosas se llaman «Agent» · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `oneshot`
+
+La pantalla principal «Agent» abre One-shot y la pestaña del dock también se llama Agent.
+
+Propuesta: La pantalla principal como «One-shot».
+
+Archivos: plugin.gd (_get_plugin_name)
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+### Agent Log: ir a la línea del error desde el chat · Pendiente
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `ux`, `log`
+
+El log es una lista plana; desde un error se abre el panel pero no se ubica en la línea.
+
+Propuesta: «Abrir el log» filtra por la sesión y salta a la línea del error, resaltada.
+
+Archivos: agent_log_panel.gd
+
+Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH

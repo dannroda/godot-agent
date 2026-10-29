@@ -1,0 +1,21 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:34.114Z",
+  "description": "El aviso es un Label con autowrap en una columna de ancho cero: una letra por línea, y el título de la sección queda centrado en el vacío.\n\nPropuesta: El aviso en la fila del título («En este proyecto (3) · buscando actualizaciones…»), sin autowrap o con ancho mínimo.\n\nArchivos: godot_addons_tab.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "roto",
+    "extensiones"
+  ],
+  "test": "",
+  "title": "«Buscando actualizaciones…» se dibuja en vertical en Addons de Godot",
+  "updated_at": "2026-10-29T06:20:34.114Z"
+}

@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:35.609Z",
+  "description": "«Asking the agent…» fijo en un panel vacío.\n\nPropuesta: El pedido entre comillas, «Claude Code · líneas 15–16», indicador animado y tiempo.\n\nArchivos: editor/inline_edit.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 8,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "alt-i"
+  ],
+  "test": "",
+  "title": "Alt+I: esperando no dice qué se pidió ni muestra avance",
+  "updated_at": "2026-10-29T06:20:35.609Z"
+}

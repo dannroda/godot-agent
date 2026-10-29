@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:38.653Z",
+  "description": "Sin agentes, una línea sobre $VAR y dos botones. «Predeterminado» es texto que es botón, y Editar abre el formulario debajo de la lista.\n\nPropuesta: Sin agentes, los tres sugeridos. Con agentes, lista a la izquierda y formulario a la derecha; estrella de predeterminado; la nota de $VAR junto al campo de entorno.\n\nArchivos: settings_dialog._build_agents\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 21,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "ajustes"
+  ],
+  "test": "",
+  "title": "Ajustes › Agentes: vacío sin guía y el formulario lejos",
+  "updated_at": "2026-10-29T06:20:38.653Z"
+}

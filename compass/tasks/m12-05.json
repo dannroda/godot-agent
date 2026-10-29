@@ -1,0 +1,21 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:34.839Z",
+  "description": "Con el ancho por defecto «Limpiar» queda en «Limp». Los canales son palabras de colores sin estado visible y el «3» no dice qué cuenta.\n\nPropuesta: Canales como chips con estado, «3 entradas», Copiar/Limpiar como íconos con tooltip.\n\nArchivos: agent_log_panel.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 5,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "roto",
+    "log"
+  ],
+  "test": "",
+  "title": "La barra del Agent Log se corta",
+  "updated_at": "2026-10-29T06:20:34.839Z"
+}

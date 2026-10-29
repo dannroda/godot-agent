@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:38.889Z",
+  "description": "Matriz de 9 grupos por 5 modos con desplegables iguales; «Subagentes a la vez 0» ambiguo; nota de MCP cortada.\n\nPropuesta: Celdas con color e ícono que cambian con un clic, marcar lo que difiere del default, «Restaurar» por columna, «0 = sin límite».\n\nArchivos: settings_dialog._build_permissions\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 22,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "ajustes"
+  ],
+  "test": "",
+  "title": "Ajustes › Permisos: 45 desplegables sin puntos de partida",
+  "updated_at": "2026-10-29T06:20:38.889Z"
+}

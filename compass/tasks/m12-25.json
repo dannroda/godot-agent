@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:39.614Z",
+  "description": "Presupuestos y checkpoint repetidos; los umbrales de cuota quedan abajo de los criterios.\n\nPropuesta: Acá «Valores iniciales de cada One-shot»; la cuota en su propia sección.\n\nArchivos: settings_dialog._build_oneshot\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 25,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "ajustes"
+  ],
+  "test": "",
+  "title": "Ajustes › One-shot repite la pantalla de One-shot",
+  "updated_at": "2026-10-29T06:20:39.614Z"
+}

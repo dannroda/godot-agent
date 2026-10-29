@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:41.276Z",
+  "description": "Para saber qué lee Antigravity hay que abrir el desplegable archivo por archivo.\n\nPropuesta: Lista de archivos con quién lo lee al lado y el editor a la derecha.\n\nArchivos: instructions_tab.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 32,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "extensiones"
+  ],
+  "test": "",
+  "title": "Extensiones › Instrucciones: qué agente lee cada archivo",
+  "updated_at": "2026-10-29T06:20:41.276Z"
+}

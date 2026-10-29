@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:40.795Z",
+  "description": "Cargando: una línea chica y 450 px vacíos. Sin agentes, Servidores MCP en blanco y Plugins dice «el perfil activo es otro agente» sin haber ninguno.\n\nPropuesta: Filas fantasma mientras carga; sin agente, un mensaje y un botón para agregar uno.\n\nArchivos: extensions_window.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 30,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "extensiones"
+  ],
+  "test": "",
+  "title": "Extensiones: pestañas vacías o con mensajes confusos",
+  "updated_at": "2026-10-29T06:20:40.795Z"
+}

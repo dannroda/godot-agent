@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:39.135Z",
+  "description": "Servidores externos con dos párrafos largos, el servidor del editor (puerto, token, máximo) y las carpetas fuera del proyecto en la misma página.\n\nPropuesta: Solo los externos con una línea y enlace a la guía; el servidor del editor y las carpetas en «Avanzado».\n\nArchivos: mcp_servers_page.gd, settings_dialog.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 23,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "ajustes"
+  ],
+  "test": "",
+  "title": "Ajustes › Servidores MCP mezcla tres temas",
+  "updated_at": "2026-10-29T06:20:39.135Z"
+}

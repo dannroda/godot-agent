@@ -1,0 +1,21 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:33.875Z",
+  "description": "En el registro de ACP y en Extensiones la lista sigue por debajo de «Cerrar». En Instrucciones el área de texto llega abajo y «Guardar» y «Agregar los datos del proyecto» quedan fuera de la ventana.\n\nPropuesta: Que el contenido de cada pestaña quepa en el alto disponible (se encogen el scroll y el área de texto) y las acciones de la pestaña en su propia barra arriba.\n\nArchivos: extensions_window.gd, instructions_tab.gd, acp_registry_dialog.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "roto",
+    "extensiones"
+  ],
+  "test": "",
+  "title": "«Cerrar» tapa el contenido y esconde «Guardar» en Extensiones y el registro",
+  "updated_at": "2026-10-29T06:20:33.875Z"
+}

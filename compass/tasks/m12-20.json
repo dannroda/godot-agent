@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:38.418Z",
+  "description": "El reporte del turno es un aviso más y se pierde.\n\nPropuesta: Pie: «Este turno cambió 1 archivo · Ver cambios · Deshacer turno».\n\nArchivos: SessionController._report_turn_changes\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 20,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "Pie de turno con los cambios",
+  "updated_at": "2026-10-29T06:20:38.418Z"
+}

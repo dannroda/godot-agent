@@ -1,0 +1,21 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:36.538Z",
+  "description": "Con agente configurado, el dock abre en «Sin sesión» con «Iniciar sesión». Seguir lo anterior requiere el ícono de historial, y no hay forma de que reabra la última sesión solo.\n\nPropuesta: Lista de sesiones del proyecto (título, agente, cuándo, turnos, Continuar) con «Nueva sesión» arriba. En Ajustes › Interfaz: «Al abrir el editor: mostrar las sesiones / continuar la última».\n\nArchivos: agent_dock._refresh_empty_state, SessionHistory.list, harness_settings.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 9)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 12,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock",
+    "ajustes"
+  ],
+  "test": "",
+  "title": "Al abrir, mostrar las sesiones anteriores y opción para continuar la última",
+  "updated_at": "2026-10-29T06:20:36.538Z"
+}

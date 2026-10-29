@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:37.246Z",
+  "description": "Sin agentes, el composer tiene main.tscn y «Construir» como si se pudiera usar; «Configurar un agente…» lleva a una lista vacía en Ajustes.\n\nPropuesta: Los tres agentes más usados en el dock con lo que piden y «Agregar»; composer deshabilitado con «Agregá un agente para empezar».\n\nArchivos: agent_dock._refresh_empty_state\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 4)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 15,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "Primer arranque: el composer activo sin agente y la elección en Ajustes",
+  "updated_at": "2026-10-29T06:20:37.246Z"
+}

@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:36.776Z",
+  "description": "Todo en rojo con la ruta partida, y solo Reintentar y Abrir el log.\n\nPropuesta: Título y causa en lenguaje claro, las últimas líneas del log con Copiar, y la acción que lo arregla. «Reinstalar» un agente del registro tiene que borrar la versión instalada antes (hoy Agregar reutiliza lo que está en disco).\n\nArchivos: SessionController._fail, notice_view.gd, acp_registry.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 3)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 13,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "Un error del agente es un párrafo rojo sin qué hacer",
+  "updated_at": "2026-10-29T06:20:36.776Z"
+}

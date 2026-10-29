@@ -1,0 +1,21 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:34.599Z",
+  "description": "Seis pestañas en 640 px: Instrucciones queda detrás de las flechas y al llegar desaparecen Plugins y Marketplaces. Los contadores cambian mientras carga.\n\nPropuesta: Barra lateral como la de Ajustes, con los contadores solo cuando cargaron.\n\nArchivos: extensions_window.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 4,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "roto",
+    "extensiones"
+  ],
+  "test": "",
+  "title": "Las pestañas de Extensiones no entran en la ventana",
+  "updated_at": "2026-10-29T06:20:34.599Z"
+}

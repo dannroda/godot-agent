@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:37.714Z",
+  "description": "Texto, plan, herramientas y respuesta en cajas iguales; nombres técnicos cortados (godot.connect_sig…), salida y spawner.gd:13 sueltos.\n\nPropuesta: Texto del agente sin caja; grilla de tres columnas con nombres para personas y la salida anidada.\n\nArchivos: conversation_view.gd, tool_group_view.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 17,
+  "priority": "medium",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "Todo va en una caja y las herramientas se cortan",
+  "updated_at": "2026-10-29T06:20:37.714Z"
+}

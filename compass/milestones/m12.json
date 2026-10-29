@@ -1,0 +1,10 @@
+{
+  "code": "M10",
+  "done_when": [
+    "Cada hallazgo quedó hecho o descartado con su motivo en la tarjeta.",
+    "Un recorrido de capturas de todas las superficies no muestra controles tapados ni cortados."
+  ],
+  "goal": "Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.",
+  "order": 12,
+  "title": "Revisión de UX"
+}

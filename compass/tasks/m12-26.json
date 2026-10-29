@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:39.846Z",
+  "description": "Botones separados en el medio del pie; nada marca la sección con cambios; Export deshabilitado sin decir por qué.\n\nPropuesta: Botones juntos a la derecha, un punto en la sección con cambios, y en Export «Creá un preset de export primero».\n\nArchivos: settings_dialog.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 26,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "ajustes"
+  ],
+  "test": "",
+  "title": "Ajustes: Guardar y Cancelar lejos y sin aviso de cambios",
+  "updated_at": "2026-10-29T06:20:39.846Z"
+}

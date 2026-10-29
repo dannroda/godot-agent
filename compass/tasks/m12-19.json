@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:38.191Z",
+  "description": "«Sesión 1 espera tu permiso» y «espera tu respuesta» se apilan para la misma sesión.\n\nPropuesta: Un aviso por sesión que se actualiza y se va al responder.\n\nArchivos: session_tabs.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 19,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "Avisos del editor repetidos por sesión",
+  "updated_at": "2026-10-29T06:20:38.191Z"
+}

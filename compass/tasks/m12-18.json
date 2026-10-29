@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:37.952Z",
+  "description": "@, imagen, /, anillo, 38k/200k, modo, modelo y Enviar en una fila; «Construir» parece un enlace.\n\nPropuesta: Un «+» con archivo o nodo, captura y comando; el modo como píldora; un anillo con contexto y cuota en el tooltip.\n\nArchivos: composer.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)",
+  "milestone": "m12",
+  "notes": "",
+  "order": 18,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "Ocho controles en la barra del composer",
+  "updated_at": "2026-10-29T06:20:37.952Z"
+}

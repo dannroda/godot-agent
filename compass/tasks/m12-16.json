@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:37.479Z",
+  "description": "Enviar, Rechazar y Cancelar (decline y cancel en ACP); la lista obligatoria arranca en «—»; ícono de documentación.\n\nPropuesta: «Enviar» y «No responder», Cancelar con Esc; listas con la primera opción o «Elegí…»; ícono de pregunta.\n\nArchivos: entries/elicitation_view.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 16,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "dock"
+  ],
+  "test": "",
+  "title": "Formulario del agente: «Rechazar» y «Cancelar» confunden",
+  "updated_at": "2026-10-29T06:20:37.479Z"
+}

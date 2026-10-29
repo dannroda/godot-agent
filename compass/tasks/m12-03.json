@@ -1,0 +1,21 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:34.358Z",
+  "description": "Ocupa unos 230 px fijo arriba del chat, sigue después de cerrar la sesión, tapa tarjetas nuevas y muestra un hallazgo y medio cortado. El JSON de findings se ve crudo en el chat.\n\nPropuesta: Plegarlo a una fila («Revisión · 1 bug, 1 rend · Ver»), cerrarlo con la sesión y ocultar el bloque findings ya leído.\n\nArchivos: review_panel.gd, ReviewStore\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 3,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "roto",
+    "dock"
+  ],
+  "test": "",
+  "title": "El panel de Revisar tapa la conversación y no se va",
+  "updated_at": "2026-10-29T06:20:34.358Z"
+}

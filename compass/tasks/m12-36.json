@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-29T06:20:42.236Z",
+  "description": "El log es una lista plana; desde un error se abre el panel pero no se ubica en la línea.\n\nPropuesta: «Abrir el log» filtra por la sesión y salta a la línea del error, resaltada.\n\nArchivos: agent_log_panel.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
+  "milestone": "m12",
+  "notes": "",
+  "order": 36,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "ux",
+    "log"
+  ],
+  "test": "",
+  "title": "Agent Log: ir a la línea del error desde el chat",
+  "updated_at": "2026-10-29T06:20:42.236Z"
+}
