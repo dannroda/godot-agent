@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-10-29
+
 ### Changed
 
 - **Requires Godot 4.7 or newer** (was 4.6). Tested on 4.7.2 and 4.8-beta1.
