@@ -305,6 +305,9 @@ func _enter_tree() -> void:
 		if controller:
 			controller.cancel()
 	_inline_edit.start_session = _start_inline_session
+	_inline_edit.agent_name = func() -> String:
+		var controller := _controller_of(_active_session_id())
+		return controller.profile().display_name if controller and controller.profile() else ""
 	add_child(_inline_edit)
 	_inline_menu = InlineEditMenu.new()
 	_inline_menu.inline_edit = _inline_edit

@@ -10,6 +10,8 @@ const I18n := preload("../core/i18n.gd")
 const AgentTheme := preload("../ui/agent_theme.gd")
 const DiffDialog := preload("../ui/diff_dialog.gd")
 
+const SPINNER: PackedStringArray = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
 ## `(prompt: String) -> Dictionary`: lo manda a la sesión activa y espera el turno. Devuelve
 ## `{text, error, no_session}`: lo que contestó el agente o por qué no se pudo (`no_session` si no
 ## hay sesión abierta). Lo pone el plugin.
@@ -18,6 +20,8 @@ var ask: Callable
 var cancel: Callable
 ## `() -> bool`: abre la sesión de la pestaña activa del dock; true si quedó conectada. Lo pone el plugin.
 var start_session: Callable
+## `() -> String`: el nombre del agente de la sesión activa ("" si no hay). Lo pone el plugin.
+var agent_name: Callable
 
 var _attached: Dictionary = {}  # CodeEdit -> el Callable conectado a su gui_input
 var _field_popup: PopupPanel
@@ -30,6 +34,10 @@ var _dismiss: Button
 var _start: Button
 var _accept: Button
 var _waiting: bool = false
+## Esperando: indicador animado y segundos desde el pedido (m12-08).
+var _wait_timer: Timer
+var _wait_started_msec: int = 0
+var _wait_frame: int = 0
 ## El pedido en curso: {code_edit, path, from_line, from_column, to_line, to_column, original, code}.
 var _pending: Dictionary = {}
 
@@ -75,6 +83,10 @@ func _ready() -> void:
 	_accept.pressed.connect(_on_accept)
 	buttons.add_child(_accept)
 	add_child(_proposal_popup)
+	_wait_timer = Timer.new()
+	_wait_timer.wait_time = 0.15
+	_wait_timer.timeout.connect(_on_wait_tick)
+	add_child(_wait_timer)
 	if Engine.is_editor_hint():
 		EditorInterface.get_script_editor().editor_script_changed.connect(_on_script_changed)
 		_attach_current.call_deferred()
@@ -165,13 +177,19 @@ func _on_submitted(instruction: String) -> void:
 		return
 	var request := _pending
 	request.instruction = instruction.strip_edges()
-	_request_label.text = "«%s» · %s" % [request.instruction, where_label(request)]
+	var agent := str(agent_name.call()) if agent_name.is_valid() else ""
+	_request_label.text = request_label(request.instruction, agent, request)
+	_request_label.tooltip_text = request.instruction
 	_waiting = true
-	_show_proposal(I18n.t("Asking the agent…"), "", false)
+	_wait_started_msec = Time.get_ticks_msec()
+	_wait_frame = 0
+	_show_proposal(waiting_status(0, 0), "", false)
+	_wait_timer.start()
 	var answer: Dictionary = await ask.call(build_prompt(request.path, request, request.instruction))
 	if _pending != request:
 		return  # se rechazó o se pidió otra cosa mientras tanto
 	_waiting = false
+	_wait_timer.stop()
 	if not str(answer.error).is_empty():
 		_show_proposal(str(answer.error), "", false, bool(answer.get("no_session", false)))
 		return
@@ -198,6 +216,28 @@ func _show_proposal(status: String, diff: String, can_accept: bool, can_start: b
 	_proposal_popup.popup(Rect2i(at, Vector2i.ZERO))
 
 
+## «“hacelo async” · Claude Code · líneas 15–16».
+static func request_label(instruction: String, agent: String, span: Dictionary) -> String:
+	var parts: PackedStringArray = ["“%s”" % instruction]
+	if not agent.is_empty():
+		parts.append(agent)
+	parts.append(where_label(span))
+	return " · ".join(parts)
+
+
+## «⠋ Waiting for the answer · 4 s».
+static func waiting_status(frame: int, elapsed_msec: int) -> String:
+	return "%s %s · %s" % [SPINNER[frame % SPINNER.size()], I18n.t("Waiting for the agent's answer"), I18n.t("%d s") % int(elapsed_msec / 1000.0)]
+
+
+func _on_wait_tick() -> void:
+	if not _waiting:
+		_wait_timer.stop()
+		return
+	_wait_frame += 1
+	_proposal_status.text = waiting_status(_wait_frame, Time.get_ticks_msec() - _wait_started_msec)
+
+
 ## «líneas 15–16» o «línea 15» (insertar en el caret).
 static func where_label(span: Dictionary) -> String:
 	var from := int(span.from_line) + 1
@@ -210,6 +250,7 @@ func _on_dismiss() -> void:
 	if _waiting and cancel.is_valid():
 		cancel.call()
 	_waiting = false
+	_wait_timer.stop()
 	_pending = {}
 	_proposal_popup.hide()
 

@@ -2973,9 +2973,6 @@ msgstr "Rechazar"
 msgid "Accept"
 msgstr "Aceptar"
 
-msgid "Asking the agent…"
-msgstr "Preguntándole al agente…"
-
 msgid "The agent didn't answer with a code block: its reply is in the chat."
 msgstr "El agente no contestó con un bloque de código: su respuesta está en el chat."
 
@@ -3267,3 +3264,9 @@ msgstr "Primero configurá un agente."
 
 msgid "Write the goal first."
 msgstr "Primero escribí el objetivo."
+
+msgid "Waiting for the agent's answer"
+msgstr "Esperando la respuesta del agente"
+
+msgid "%d s"
+msgstr "%d s"

@@ -48,3 +48,11 @@ func test_apply() -> void:
 func test_where_label() -> void:
 	assert_eq(InlineEdit.where_label({"from_line": 14, "to_line": 15}), "lines 15–16", "rango, desde 1")
 	assert_eq(InlineEdit.where_label({"from_line": 14, "to_line": 14}), "line 15", "una línea")
+
+
+## m12-08: mientras espera, el panel dice qué se pidió, a quién, y cuánto lleva.
+func test_waiting_texts() -> void:
+	var span := {"from_line": 14, "to_line": 15}
+	assert_eq(InlineEdit.request_label("make it async", "Claude Code", span), "“make it async” · Claude Code · lines 15–16", "pedido, agente y líneas")
+	assert_eq(InlineEdit.request_label("x", "", {"from_line": 2, "to_line": 2}), "“x” · line 3", "sin agente")
+	assert_eq(InlineEdit.waiting_status(1, 4200), "⠙ Waiting for the agent's answer · 4 s", "indicador y segundos")
