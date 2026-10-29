@@ -83,10 +83,7 @@ func _ready() -> void:
 	_fix_button.text = I18n.t("Fix in Build mode")
 	_fix_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_fix_button.tooltip_text = I18n.t("Switches to Build mode and asks the agent to fix all the findings")
-	_fix_button.add_theme_stylebox_override(&"normal", AgentTheme.panel(_accent, _accent, 3, 4))
-	_fix_button.add_theme_stylebox_override(&"hover", AgentTheme.panel(_accent.lightened(0.1), _accent, 3, 4))
-	_fix_button.add_theme_color_override(&"font_color", Color("#1a1408"))
-	_fix_button.add_theme_color_override(&"font_hover_color", Color("#1a1408"))
+	AgentTheme.style_accent_button(_fix_button, _accent, 3, 4)
 	_fix_button.pressed.connect(fix_all_requested.emit)
 	actions.add_child(_fix_button)
 	var github := Button.new()

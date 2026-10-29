@@ -27,6 +27,9 @@ const SEVERITY_COLORS: Dictionary = {"bug": Color("#f0a640"), "order": Color("#c
 const SEVERITY_BG: Dictionary = {"bug": Color("#3a2e1c"), "order": Color("#2f2438"), "perf": Color("#1d2a36"), "style": Color("#2c2c2e")}
 
 
+## Texto sobre fondo de acento.
+const ACCENT_TEXT := Color("#1d1d1d")
+
 static func has_editor() -> bool:
 	return Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface")
 
@@ -77,6 +80,17 @@ static func dark_color() -> Color:
 static func font_color() -> Color:
 	var theme := editor_theme()
 	return theme.get_color(&"font_color", &"Editor") if theme.has_color(&"font_color", &"Editor") else Color("#dfe2e7")
+
+
+## Botón principal con fondo de acento y texto oscuro en todos los estados: el tema del editor
+## pinta en blanco el texto con foco o apretado, ilegible sobre el naranja.
+static func style_accent_button(button: Button, accent: Color, radius: float = 4.0, padding: float = 5.0) -> void:
+	button.add_theme_stylebox_override(&"normal", panel(accent, Color.TRANSPARENT, radius, padding))
+	button.add_theme_stylebox_override(&"hover", panel(accent.lightened(0.15), Color.TRANSPARENT, radius, padding))
+	button.add_theme_stylebox_override(&"pressed", panel(accent.darkened(0.12), Color.TRANSPARENT, radius, padding))
+	button.add_theme_stylebox_override(&"disabled", panel(Color(accent, 0.35), Color.TRANSPARENT, radius, padding))
+	for state: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_hover_pressed_color", &"font_focus_color"]:
+		button.add_theme_color_override(state, ACCENT_TEXT)
 
 
 static func panel(bg: Color, border: Color = Color.TRANSPARENT, radius: float = 6.0, padding: float = 8.0) -> StyleBoxFlat:

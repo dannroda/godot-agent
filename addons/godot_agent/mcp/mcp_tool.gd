@@ -7,6 +7,10 @@ extends RefCounted
 ## - un resultado MCP `{content: [...], isError: bool}` (ver `text`, `error`, `image`);
 ## - un String (se envuelve como texto) o una Image (se envuelve como imagen).
 
+## Tope de la descripción por defecto (la de la tarjeta de permiso).
+const DESCRIBE_MAX_LINES := 8
+const DESCRIBE_MAX_VALUE := 120
+
 var name: String = ""
 var description: String = ""
 var input_schema: Dictionary = {"type": "object", "properties": {}}
@@ -35,7 +39,16 @@ func to_mcp() -> Dictionary:
 func describe(args: Dictionary) -> String:
 	if describer.is_valid():
 		return str(describer.call(args))
-	return JSON.stringify(args).left(200) if not args.is_empty() else ""
+	# Una línea por argumento («node_path: World/Sun»): el JSON en una línea no se leía en la tarjeta.
+	var lines: PackedStringArray = []
+	for key: Variant in args:
+		if lines.size() == DESCRIBE_MAX_LINES:
+			lines.append("…")
+			break
+		var value: Variant = args[key]
+		var text := str(value) if value is String else JSON.stringify(value)
+		lines.append("%s: %s" % [key, text.left(DESCRIBE_MAX_VALUE) + ("…" if text.length() > DESCRIBE_MAX_VALUE else "")])
+	return "\n".join(lines)
 
 
 ## Valida los argumentos contra el schema (required y tipos básicos). Devuelve "" si están bien,

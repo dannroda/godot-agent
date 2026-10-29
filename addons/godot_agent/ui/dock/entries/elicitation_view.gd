@@ -5,6 +5,8 @@ extends "entry_view.gd"
 ## o un botón para abrir el enlace en modo `url`.
 
 const ElicitationRequest := preload("../../../session/elicitation_request.gd")
+## Hasta cuántas opciones se muestran a la vista (radio) en vez de en un desplegable (m12-16).
+const MAX_VISIBLE_CHOICES := 6
 
 var _panel: PanelContainer
 var _title: Label
@@ -26,7 +28,7 @@ func _build() -> void:
 	var header := HBoxContainer.new()
 	column.add_child(header)
 	var icon_rect := TextureRect.new()
-	icon_rect.texture = AgentTheme.icon(&"Help")
+	icon_rect.texture = AgentTheme.icon(&"NodeInfo")
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	icon_rect.modulate = accent
 	header.add_child(icon_rect)
@@ -57,6 +59,8 @@ func _build() -> void:
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_result)
 	_build_fields()
+	# Las teclas suben desde el control con foco: Esc dentro de la tarjeta cancela el pedido.
+	_panel.gui_input.connect(_on_panel_input)
 
 
 func _build_fields() -> void:
@@ -95,7 +99,7 @@ func _build_fields() -> void:
 		label.text = label_text
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(label)
-		if not desc_text.is_empty():
+		if not desc_text.is_empty() and desc_text != label_text:
 			var hint := Label.new()
 			hint.text = desc_text
 			hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -146,7 +150,33 @@ func _build_fields() -> void:
 					return selected
 			_:
 				var choices := ElicitationRequest.enum_choices(prop)
-				if not choices.is_empty():
+				if not choices.is_empty() and choices.size() <= MAX_VISIBLE_CHOICES:
+					# Pocas opciones: a la vista, con su descripción; sin elegir manda "".
+					var group := ButtonGroup.new()
+					group.allow_unpress = not request.is_required(name)
+					var def_choice := str(defaults.get(name, ""))
+					var radios: Array[Dictionary] = []
+					for choice: Dictionary in choices:
+						var radio := CheckBox.new()
+						radio.button_group = group
+						radio.text = str(choice.label)
+						radio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+						radio.button_pressed = str(choice.value) == def_choice
+						row.add_child(radio)
+						if not str(choice.description).is_empty():
+							var choice_hint := Label.new()
+							choice_hint.text = str(choice.description)
+							choice_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+							choice_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+							choice_hint.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+							row.add_child(choice_hint)
+						radios.append({"value": str(choice.value), "control": radio})
+					_field_readers[name] = func() -> Variant:
+						for item: Dictionary in radios:
+							if (item.control as CheckBox).button_pressed:
+								return item.value
+						return ""
+				elif not choices.is_empty():
 					var option_btn := OptionButton.new()
 					option_btn.clip_text = true
 					option_btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -172,7 +202,7 @@ func _build_fields() -> void:
 				else:
 					var edit := LineEdit.new()
 					edit.text = str(defaults.get(name, ""))
-					edit.placeholder_text = desc_text
+					edit.placeholder_text = "" if not desc_text.is_empty() else label_text  # la ayuda ya va arriba
 					row.add_child(edit)
 					_field_readers[name] = func() -> Variant: return edit.text
 
@@ -237,25 +267,26 @@ func refresh() -> void:
 		var submit_btn := _primary_button(I18n.t("Submit"))
 		submit_btn.pressed.connect(_on_submit)
 		_buttons.add_child(submit_btn)
+	# «No responder» es decline; cancel (cortar el pedido) queda en Esc con el foco en la tarjeta:
+	# dos botones de «no» al lado no se distinguían (m12-16).
 	var decline_btn := Button.new()
-	decline_btn.text = I18n.t("Decline")
+	decline_btn.text = I18n.t("Don't answer")
+	decline_btn.tooltip_text = I18n.t("The agent continues without this answer. Esc cancels the request.")
 	decline_btn.pressed.connect(func() -> void: request.decline())
 	_buttons.add_child(decline_btn)
-	var cancel_btn := Button.new()
-	cancel_btn.flat = true
-	cancel_btn.text = I18n.t("Cancel")
-	cancel_btn.add_theme_color_override(&"font_color", AgentTheme.ERROR)
-	cancel_btn.pressed.connect(func() -> void: request.cancel())
-	_buttons.add_child(cancel_btn)
+
+
+func _on_panel_input(event: InputEvent) -> void:
+	var request: ElicitationRequest = entry.elicitation
+	if event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE and request and request.is_pending():
+		request.cancel()
+		_panel.accept_event()
 
 
 func _primary_button(label_text: String) -> Button:
 	var button := Button.new()
 	button.text = label_text
-	button.add_theme_stylebox_override(&"normal", AgentTheme.panel(accent, Color.TRANSPARENT, 4, 5))
-	button.add_theme_stylebox_override(&"hover", AgentTheme.panel(accent.lightened(0.15), Color.TRANSPARENT, 4, 5))
-	button.add_theme_color_override(&"font_color", Color("#1d1d1d"))
-	button.add_theme_color_override(&"font_hover_color", Color("#1d1d1d"))
+	AgentTheme.style_accent_button(button, accent)
 	return button
 
 

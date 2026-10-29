@@ -3180,8 +3180,6 @@ msgstr "Pregunta del agente"
 msgid "Submit"
 msgstr "Enviar"
 
-msgid "Decline"
-msgstr "Rechazar"
 
 msgid "Complete the required field: %s"
 msgstr "Completá el campo obligatorio: %s"
@@ -3239,3 +3237,9 @@ msgstr "Ver el cambio"
 
 msgid "Hide the change"
 msgstr "Ocultar el cambio"
+
+msgid "Don't answer"
+msgstr "No responder"
+
+msgid "The agent continues without this answer. Esc cancels the request."
+msgstr "El agente sigue sin esta respuesta. Esc cancela el pedido."

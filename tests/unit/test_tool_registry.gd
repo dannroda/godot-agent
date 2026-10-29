@@ -141,3 +141,10 @@ func test_run() -> void:
 	assert_true(no_method.isError and str(no_method.content[0].text).contains("method"), "falta method")
 	var direct: Dictionary = await registry.call_tool("paint", {"layer": "x"})
 	assert_false(direct.isError, "por su nombre sigue andando")
+
+
+func test_default_describe() -> void:
+	var tool := McpTool.new()
+	assert_eq(tool.describe({"node_path": "World/Sun", "value": 1.2}), "node_path: World/Sun\nvalue: 1.2", "una línea por argumento, sin JSON")
+	assert_eq(tool.describe({}), "", "sin argumentos")
+	assert_true(tool.describe({"text": "x".repeat(300)}).ends_with("…"), "valores largos recortados")

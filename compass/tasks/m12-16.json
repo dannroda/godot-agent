@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:37.479Z",
   "description": "Enviar, Rechazar y Cancelar (decline y cancel en ACP); la lista obligatoria arranca en «—»; ícono de documentación.\n\nPropuesta: «Enviar» y «No responder», Cancelar con Esc; listas con la primera opción o «Elegí…»; ícono de pregunta.\n\nArchivos: entries/elicitation_view.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Con 6 opciones o menos, se muestran como radio con su descripción (antes: desplegable que arrancaba en «—»); la ayuda del campo va una vez (no también de placeholder); «No responder» (decline) y Esc con el foco en la tarjeta cancela; ícono NodeInfo en vez del libro de Help. Visto con un AskUserQuestion real de Claude Code.",
   "order": 16,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "dock"
   ],
-  "test": "",
+  "test": "test_elicitation (el enum de 2 opciones ahora es radio y conserva el default). Sin captura nueva: el recorrido no incluye un formulario.",
   "title": "Formulario del agente: «Rechazar» y «Cancelar» confunden",
-  "updated_at": "2026-10-29T06:20:37.479Z"
+  "updated_at": "2026-10-29T06:54:42.157Z"
 }

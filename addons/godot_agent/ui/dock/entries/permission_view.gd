@@ -175,10 +175,7 @@ func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
 	button.text = _option_label(option)
 	match kind:
 		PermissionRequest.KIND_ALLOW_ONCE:
-			button.add_theme_stylebox_override(&"normal", AgentTheme.panel(accent, Color.TRANSPARENT, 4, 5))
-			button.add_theme_stylebox_override(&"hover", AgentTheme.panel(accent.lightened(0.15), Color.TRANSPARENT, 4, 5))
-			button.add_theme_color_override(&"font_color", Color("#1d1d1d"))
-			button.add_theme_color_override(&"font_hover_color", Color("#1d1d1d"))
+			AgentTheme.style_accent_button(button, accent)
 		PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS:
 			button.flat = true
 			button.add_theme_color_override(&"font_color", AgentTheme.ERROR)

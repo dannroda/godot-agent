@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (8/38, 8 en revisión)
+## M10 — Revisión de UX  (9/38, 9 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3081,7 +3081,7 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
 
 **Notas:** El formulario va en un ScrollContainer y se achica hasta 280 px (FORM_NARROW_WIDTH) en vez de quedar fijo en 640 dentro de un CenterContainer; presupuestos en HFlowContainer con SpinBox de 110 px mínimo; las casillas con autowrap.
 
-### El permiso repite el diff y el botón riesgoso va primero · En curso
+### El permiso repite el diff y el botón riesgoso va primero · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
 
@@ -3163,7 +3163,7 @@ Archivos: agent_dock._refresh_empty_state
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 4)
 
-### Formulario del agente: «Rechazar» y «Cancelar» confunden · Pendiente
+### Formulario del agente: «Rechazar» y «Cancelar» confunden · En curso
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
 
@@ -3174,6 +3174,10 @@ Propuesta: «Enviar» y «No responder», Cancelar con Esc; listas con la primer
 Archivos: entries/elicitation_view.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+**Prueba:** test_elicitation (el enum de 2 opciones ahora es radio y conserva el default). Sin captura nueva: el recorrido no incluye un formulario.
+
+**Notas:** Con 6 opciones o menos, se muestran como radio con su descripción (antes: desplegable que arrancaba en «—»); la ayuda del campo va una vez (no también de placeholder); «No responder» (decline) y Esc con el foco en la tarjeta cancela; ícono NodeInfo en vez del libro de Help. Visto con un AskUserQuestion real de Claude Code.
 
 ### Todo va en una caja y las herramientas se cortan · Pendiente
 

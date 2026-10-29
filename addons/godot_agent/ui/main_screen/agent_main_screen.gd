@@ -683,12 +683,7 @@ func _heading(text: String) -> Label:
 func _accent_button(text: String) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.add_theme_stylebox_override(&"normal", AgentTheme.panel(_accent, Color.TRANSPARENT, 4, 6))
-	button.add_theme_stylebox_override(&"hover", AgentTheme.panel(_accent.lightened(0.12), Color.TRANSPARENT, 4, 6))
-	button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(_accent.darkened(0.12), Color.TRANSPARENT, 4, 6))
-	button.add_theme_stylebox_override(&"disabled", AgentTheme.panel(Color(_accent, 0.35), Color.TRANSPARENT, 4, 6))
-	for state: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
-		button.add_theme_color_override(state, Color("#1b1b1b"))
+	AgentTheme.style_accent_button(button, _accent, 4, 6)
 	return button
 
 
