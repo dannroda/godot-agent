@@ -1621,8 +1621,6 @@ msgstr "El One-shot quedó a medias porque el editor se cerró. «Retomar» reab
 msgid "The pause threshold must be higher than the warning threshold."
 msgstr "El umbral de pausa tiene que ser mayor que el de aviso."
 
-msgid "The project has no export presets yet."
-msgstr "El proyecto no tiene presets de export todavía."
 
 msgid "The project is not in a git repo: checkpoints are turned off."
 msgstr "El proyecto no está en un repo git: los checkpoints quedan desactivados."
@@ -3427,3 +3425,15 @@ msgstr "La pantalla One-shot arranca con estos; ahí se pueden cambiar antes de 
 
 msgid "The ring next to the composer shows it. Warnings apply to every session; the pause, to the One-shot."
 msgstr "El anillo junto al composer la muestra. Los avisos valen para todas las sesiones; la pausa, para el One-shot."
+
+msgid "Changed: not saved yet"
+msgstr "Cambiado: todavía sin guardar"
+
+msgid "The project has no export presets yet: create one first in Project → Export, then come back to add the filter."
+msgstr "El proyecto todavía no tiene presets de export: creá uno primero en Proyecto → Exportar y después volvé a agregar el filtro."
+
+msgid "Create an export preset first"
+msgstr "Creá un preset de export primero"
+
+msgid "All presets already have the filter"
+msgstr "Todos los presets ya tienen el filtro"

@@ -68,6 +68,9 @@ var _secret_name := RegEx.create_from_string("(?i)(key|token|secret|password|pas
 
 var _nav: ItemList
 var _pages: Array[Control] = []
+## Lo que tenía cada sección al abrir (m12-26): la que cambió lleva «•» en la lista de la izquierda.
+var _baseline: PackedStringArray = []
+var _dirty_timer: Timer
 var _error_label: Label
 # Agentes
 var _profiles: Array[AgentProfile] = []
@@ -174,10 +177,73 @@ func _build() -> void:
 	_error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_error_label.add_theme_color_override(&"font_color", AgentTheme.ERROR)
 	root.add_child(_error_label)
+	_group_buttons()
+	_dirty_timer = Timer.new()
+	_dirty_timer.wait_time = 0.3
+	_dirty_timer.timeout.connect(_refresh_dirty)
+	add_child(_dirty_timer)
+	visibility_changed.connect(func() -> void:
+		if visible:
+			_dirty_timer.start()
+		else:
+			_dirty_timer.stop())
 	_show_section(SettingsSection.AGENTS)
 
 
-## Carga los valores actuales y abre el diálogo.
+## Guardar y Cancelar juntos a la derecha (m12-26): el diálogo los separa con espaciadores que se
+## estiran; se dejan fijos y uno solo, al principio, empuja los botones al borde.
+func _group_buttons() -> void:
+	var box := get_ok_button().get_parent() as BoxContainer
+	if box == null:
+		return
+	for child: Node in box.get_children():
+		if child is Control and not child is BaseButton:
+			(child as Control).size_flags_horizontal = Control.SIZE_FILL
+			(child as Control).custom_minimum_size.x = AgentTheme.px(8)
+	var push := Control.new()
+	push.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(push)
+	box.move_child(push, 0)
+
+
+## Un resumen de los valores de una sección, para saber si cambió.
+func section_state(index: int) -> String:
+	var parts: PackedStringArray = []
+	match index:
+		SettingsSection.AGENTS:
+			parts.append(JSON.stringify(_profiles.map(func(profile: AgentProfile) -> Dictionary: return profile.to_dict())))
+		SettingsSection.MCP:
+			parts.append(JSON.stringify(_mcp_servers_page.get(&"_servers")))
+	for node: Node in _pages[index].find_children("*", "Control", true, false):
+		if node is SpinBox:
+			parts.append(str((node as SpinBox).value))
+		elif node is CheckBox or node is CheckButton:
+			parts.append(str((node as BaseButton).button_pressed))
+		elif node is OptionButton:
+			parts.append(str((node as OptionButton).selected))
+		elif node is ColorPickerButton:
+			parts.append((node as ColorPickerButton).color.to_html())
+		elif node is LineEdit and not node.get_parent() is SpinBox:
+			parts.append((node as LineEdit).text)
+		elif node is TextEdit:
+			parts.append((node as TextEdit).text)
+	return "\n".join(parts)
+
+
+func _snapshot_sections() -> void:
+	_baseline.clear()
+	for i in _pages.size():
+		_baseline.append(section_state(i))
+	_refresh_dirty()
+
+
+func _refresh_dirty() -> void:
+	for i in mini(_pages.size(), _baseline.size()):
+		var changed := section_state(i) != _baseline[i]
+		_nav.set_item_text(i, ("• " if changed else "") + I18n.t(SECTION_LABELS[i]))
+		_nav.set_item_tooltip(i, I18n.t("Changed: not saved yet") if changed else "")
+
+
 ## El registro de ACP, encima de Ajustes (también para reinstalar un agente que falla, m12-13).
 ## `query` lo abre filtrado (un agente sugerido, m12-21).
 func open_registry(query: String = "") -> void:
@@ -188,6 +254,7 @@ func open_registry(query: String = "") -> void:
 	_registry_dialog.open(query)
 
 
+## Carga los valores actuales y abre el diálogo.
 func open(section: SettingsSection = SettingsSection.AGENTS) -> void:
 	_load()
 	_show_section(section)
@@ -657,6 +724,7 @@ func _load() -> void:
 	_completion_page.metrics_provider = completion_metrics_provider
 	_completion_page.metrics_reset = completion_metrics_reset
 	_completion_page.load_from(_settings, _config)
+	_snapshot_sections()
 
 
 func _load_matrix(overrides: Dictionary) -> void:
@@ -995,11 +1063,13 @@ func _refresh_url() -> void:
 
 func _refresh_export() -> void:
 	if not ExportPresetsPatcher.presets_file_exists():
-		_export_label.text = I18n.t("The project has no export presets yet.")
+		_export_label.text = I18n.t("The project has no export presets yet: create one first in Project → Export, then come back to add the filter.")
 		_export_button.disabled = true
+		_export_button.tooltip_text = I18n.t("Create an export preset first")
 		return
 	var missing := ExportPresetsPatcher.presets_missing_filter()
 	_export_button.disabled = missing.is_empty()
+	_export_button.tooltip_text = I18n.t("All presets already have the filter") if missing.is_empty() else ""
 	if missing.is_empty():
 		_export_label.text = I18n.t("All presets exclude the addon.")
 	else:

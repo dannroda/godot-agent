@@ -277,3 +277,21 @@ func test_completion_advanced_folded() -> void:
 	for name: StringName in [&"_enabled_check", &"_mode_option", &"_multiline_check"]:
 		assert_false(advanced.is_ancestor_of(page.get(name) as Node), "%s a la vista" % name)
 	page.free()
+
+
+## m12-26: la sección con cambios sin guardar lleva «•»; al volver al valor de antes se va.
+func test_dirty_sections() -> void:
+	var dialog := _dialog()
+	var nav: ItemList = dialog.get(&"_nav")
+	dialog.call(&"_snapshot_sections")
+	var interface := SettingsDialog.SettingsSection.INTERFACE
+	assert_false(nav.get_item_text(interface).begins_with("•"), "recién abierto, sin marcas")
+	var update_check: CheckBox = dialog.get(&"_update_check")
+	update_check.button_pressed = not update_check.button_pressed
+	dialog.call(&"_refresh_dirty")
+	assert_true(nav.get_item_text(interface).begins_with("•"), "Interfaz cambió")
+	assert_false(nav.get_item_text(SettingsDialog.SettingsSection.AGENTS).begins_with("•"), "Agentes no")
+	update_check.button_pressed = not update_check.button_pressed
+	dialog.call(&"_refresh_dirty")
+	assert_false(nav.get_item_text(interface).begins_with("•"), "de vuelta como estaba")
+	dialog.free()
