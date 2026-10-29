@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (15/40, 15 en revisión)
+## M10 — Revisión de UX  (16/40, 16 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3382,7 +3382,7 @@ Archivos: instructions_tab.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
 
-### One-shot: «Iniciar» deshabilitado sin decir por qué · Pendiente
+### One-shot: «Iniciar» deshabilitado sin decir por qué · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ux`, `oneshot`
 
@@ -3394,6 +3394,10 @@ Archivos: agent_main_screen.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
+
+**Prueba:** test_oneshot_form.test_start_blocker (headless). Sin captura nueva.
+
+**Notas:** Hecho en la sesión cloud, traído a main en e289169 sin atribución. El formulario dice con qué agente corre («Corre con X (el agente elegido en el dock)»); sin agente, aviso en amarillo y «Configurar un agente…» que abre Ajustes (no el selector del dock de la propuesta). Junto a «Iniciar One-shot» va lo que falta (objetivo, agente o un One-shot en curso), también como tooltip; el plugin refresca al cambiar los perfiles o el elegido.
 
 ### One-shot: una tarjeta chica en una pantalla vacía · Pendiente
 

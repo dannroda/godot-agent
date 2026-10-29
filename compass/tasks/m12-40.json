@@ -9,12 +9,12 @@
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "doing",
   "tags": [
     "ux",
     "dock"
   ],
   "test": "",
   "title": "La pregunta del agente aparece también como herramienta",
-  "updated_at": "2026-10-29T07:09:44.823Z"
+  "updated_at": "2026-10-29T07:23:41.261Z"
 }
