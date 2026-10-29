@@ -81,8 +81,8 @@ func run_review(tree: SceneTree, profile: AgentProfile, shot_path: String = "") 
 	if fake:
 		_expect(store.findings.size() == 3, "exactamente 3 hallazgos (%d)" % store.findings.size())
 		_expect(store.scope_label() == "tests/fixtures/review/", "alcance: %s" % store.scope_label())
-	var title: Label = panel.get(&"_title")
-	_expect(title.text.begins_with("Review of tests/fixtures/review/"), "título del panel: %s" % title.text)
+	var fold: FoldableContainer = panel.get(&"_fold")
+	_expect(fold.title.begins_with("Review of tests/fixtures/review/"), "título del panel: %s" % fold.title)
 	if not shot_path.is_empty() and not seeded_ids.is_empty():
 		_annotations.focus_finding(seeded_ids[0])
 		await _frames(10)

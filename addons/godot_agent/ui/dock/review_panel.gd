@@ -2,6 +2,7 @@
 extends PanelContainer
 ## Panel de la revisión en el dock (modo Revisar, spec §9.4): alcance, aviso de solo lectura,
 ## contadores por severidad, lista `archivo:línea` y las acciones sobre toda la revisión.
+## Plegado muestra una fila con el alcance y los contadores, para no quitarle alto al chat (m12-03).
 
 signal finding_selected(id: int)
 signal export_requested
@@ -23,7 +24,7 @@ const COUNTER_LABELS: Dictionary = {
 
 var _store: ReviewStore
 var _accent: Color
-var _title: Label
+var _fold: FoldableContainer
 var _counters: HBoxContainer
 var _list: VBoxContainer
 var _scroll: ScrollContainer
@@ -39,14 +40,14 @@ func setup(store: ReviewStore, accent: Color) -> void:
 
 func _ready() -> void:
 	add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.03), Color(1, 1, 1, 0.08), 6, 8))
+	_fold = FoldableContainer.new()
+	_fold.folded = true
+	_fold.title_text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_fold.tooltip_text = I18n.t("Click the title to fold or unfold.")
+	add_child(_fold)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override(&"separation", AgentTheme.px(6))
-	add_child(column)
-
-	_title = Label.new()
-	_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_title.clip_text = true
-	column.add_child(_title)
+	_fold.add_child(column)
 	var notice := Label.new()
 	notice.text = I18n.t("Read-only: in this mode the agent does not modify anything.")
 	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -103,14 +104,16 @@ func _ready() -> void:
 func refresh() -> void:
 	var findings := _store.findings
 	var files := _store.paths().size()
-	if _store.reviewed_at == 0:
-		_title.text = I18n.t("Code review")
-	else:
-		_title.text = (I18n.t("Review of %s · %d file") if files == 1 else I18n.t("Review of %s · %d files")) % [_store.scope_label(), files]
+	var title := I18n.t("Code review")
+	if _store.reviewed_at != 0:
+		title = (I18n.t("Review of %s · %d file") if files == 1 else I18n.t("Review of %s · %d files")) % [_store.scope_label(), files]
 	for child: Node in _counters.get_children():
 		child.queue_free()
 	var counts := _store.counts()
+	var summary: PackedStringArray = []
 	for severity: String in COUNTER_LABELS:
+		if counts[severity] > 0:
+			summary.append("%d %s" % [counts[severity], I18n.t(COUNTER_LABELS[severity])])
 		var chip := Label.new()
 		chip.text = "%d %s" % [counts[severity], I18n.t(COUNTER_LABELS[severity])]
 		chip.tooltip_text = I18n.t(ReviewStore.SEVERITY_LABELS[severity])
@@ -128,8 +131,11 @@ func refresh() -> void:
 	_empty.visible = findings.is_empty()
 	if _store.reviewed_at != 0 and findings.is_empty():
 		_empty.text = I18n.t("No pending findings.")
+	_fold.title = " · ".join(PackedStringArray([title]) + summary)
 	_scroll.visible = not findings.is_empty()
-	_scroll.custom_minimum_size.y = mini(AgentTheme.px(LIST_MAX_HEIGHT), findings.size() * AgentTheme.px(26))
+	# Con el alto real de una fila: con 26 px fijos se veía un hallazgo y medio.
+	var row_height: float = (_list.get_child(0) as Control).get_combined_minimum_size().y if _list.get_child_count() > 0 else 0.0
+	_scroll.custom_minimum_size.y = minf(AgentTheme.px(LIST_MAX_HEIGHT), findings.size() * row_height)
 	_export_button.disabled = findings.is_empty()
 	_fix_button.disabled = findings.is_empty()
 
