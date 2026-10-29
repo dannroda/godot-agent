@@ -3233,3 +3233,9 @@ msgstr "La sesión no se abrió: mirá el dock del agente."
 
 msgid "%d entries"
 msgstr "%d entradas"
+
+msgid "Show the change"
+msgstr "Ver el cambio"
+
+msgid "Hide the change"
+msgstr "Ocultar el cambio"

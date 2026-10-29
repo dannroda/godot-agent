@@ -194,7 +194,9 @@ func _make_view(entry: ChatEntry) -> EntryView:
 		ChatEntry.EntryKind.PLAN:
 			view = PlanView.new()
 		ChatEntry.EntryKind.PERMISSION:
-			view = PermissionView.new()
+			var permission := PermissionView.new()
+			permission.tool_call_lookup = _model.tool_call
+			view = permission
 		ChatEntry.EntryKind.ELICITATION:
 			view = ElicitationView.new()
 		_:

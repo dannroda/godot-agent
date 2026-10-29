@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (7/38, 7 en revisión)
+## M10 — Revisión de UX  (8/38, 8 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -2986,7 +2986,7 @@ Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
 **Notas:** Panel plegado por defecto en un FoldableContainer: el título resume alcance, archivos y contadores; se abre con un clic. La lista calcula su alto con la fila real (con 26 px fijos se veía un hallazgo y medio). Ocultar el bloque findings del chat quedó en m12-38. Cerrar el panel con la sesión no hizo falta: plegado ocupa una fila.
 
-### Las pestañas de Extensiones no entran en la ventana · En curso
+### Las pestañas de Extensiones no entran en la ventana · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `roto`, `extensiones`
 
@@ -3081,7 +3081,7 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
 
 **Notas:** El formulario va en un ScrollContainer y se achica hasta 280 px (FORM_NARROW_WIDTH) en vez de quedar fijo en 640 dentro de un CenterContainer; presupuestos en HFlowContainer con SpinBox de 110 px mínimo; las casillas con autowrap.
 
-### El permiso repite el diff y el botón riesgoso va primero · Pendiente
+### El permiso repite el diff y el botón riesgoso va primero · En curso
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
 
@@ -3093,6 +3093,10 @@ Archivos: entries/permission_view.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 2)
+
+**Prueba:** test_permission_view.test_sorted_options; captura de la guía (permission) en Xvfb.
+
+**Notas:** Hecho: orden fijo de botones por kind (sorted_options), foco en «Permitir una vez» al aparecer salvo que se esté escribiendo (Enter acepta), Esc deniega solo con el foco en la tarjeta (shortcut_context), y el diff plegado detrás de «Ver el cambio» cuando la herramienta ya lo muestra. No hecho: la barra fija sobre el composer (cambia el layout del dock; queda para cuando se rehaga el dock).
 
 ### Pedir el login se ve como un error con seis botones · Pendiente
 

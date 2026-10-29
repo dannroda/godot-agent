@@ -6,6 +6,11 @@ extends "entry_view.gd"
 const PermissionRequest := preload("../../../session/permission_request.gd")
 const PermissionPolicy := preload("../../../session/permission_policy.gd")
 const DiffCard := preload("diff_card.gd")
+## Orden de los botones sin importar cómo los mande el agente (m12-10): primero lo seguro.
+const KIND_ORDER: PackedStringArray = [PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS, PermissionRequest.KIND_REJECT_ALWAYS]
+
+## `(id: String) -> ToolCall`: si la herramienta del pedido ya muestra su diff, acá queda plegado.
+var tool_call_lookup: Callable
 
 var _panel: PanelContainer
 var _title: Label
@@ -18,6 +23,7 @@ var _rule_edit: LineEdit
 ## MCP server de terceros (m7-35): «Permitir siempre en este proyecto» para el modo actual.
 var _persist: Button
 var _result: Label
+var _focused_once: bool = false
 
 
 func _build() -> void:
@@ -73,6 +79,18 @@ func _build() -> void:
 		card.setup_diff(request.diff, accent)
 		card.open_requested.connect(func(path: String, line: int) -> void: action_requested.emit("open_location", {"path": path, "line": line}))
 		_diff_slot.add_child(card)
+		# El mismo diff ya se ve en la tarjeta de la herramienta: acá plegado, a pedido.
+		if _tool_shows_diff(request):
+			card.visible = false
+			var toggle := Button.new()
+			toggle.flat = true
+			toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			toggle.text = I18n.t("Show the change")
+			toggle.pressed.connect(func() -> void:
+				card.visible = not card.visible
+				toggle.text = I18n.t("Hide the change") if card.visible else I18n.t("Show the change"))
+			_diff_slot.add_child(toggle)
+			_diff_slot.move_child(toggle, 0)
 
 
 func refresh() -> void:
@@ -97,9 +115,41 @@ func refresh() -> void:
 	if not pending:
 		_result.text = _result_text(request)
 		return
-	for option: Variant in request.options:
-		if option is Dictionary:
-			_buttons.add_child(_option_button(request, option))
+	for option: Dictionary in sorted_options(request.options):
+		_buttons.add_child(_option_button(request, option))
+	_focus_primary.call_deferred()
+
+
+## Las opciones en KIND_ORDER; las de kind desconocido, al final en el orden del agente.
+static func sorted_options(options: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for kind: String in KIND_ORDER:
+		for option: Variant in options:
+			if option is Dictionary and str(option.get("kind", "")) == kind:
+				result.append(option)
+	for option: Variant in options:
+		if option is Dictionary and not str(option.get("kind", "")) in KIND_ORDER:
+			result.append(option)
+	return result
+
+
+## Una vez, al aparecer: el foco va a «Permitir» (Enter lo acepta) salvo que se esté escribiendo.
+## Esc deniega solo con el foco en la tarjeta: en el composer, Esc detiene el turno.
+func _focus_primary() -> void:
+	if _focused_once or _buttons.get_child_count() == 0 or not is_inside_tree():
+		return
+	_focused_once = true
+	var owner_focus := get_viewport().gui_get_focus_owner()
+	if owner_focus is TextEdit or owner_focus is LineEdit:
+		return
+	(_buttons.get_child(0) as Button).grab_focus()
+
+
+func _tool_shows_diff(request: PermissionRequest) -> bool:
+	if request.tool_call_id.is_empty() or not tool_call_lookup.is_valid():
+		return false
+	var call: Object = tool_call_lookup.call(request.tool_call_id)
+	return call != null and not (call.call(&"diffs") as Array).is_empty()
 
 
 func _on_always_allow() -> void:
@@ -132,6 +182,16 @@ func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
 		PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS:
 			button.flat = true
 			button.add_theme_color_override(&"font_color", AgentTheme.ERROR)
+			if kind == PermissionRequest.KIND_REJECT_ONCE:
+				var shortcut := Shortcut.new()
+				var esc := InputEventKey.new()
+				esc.keycode = KEY_ESCAPE
+				shortcut.events = [esc]
+				button.shortcut = shortcut
+				button.shortcut_context = _panel  # solo con el foco en la tarjeta
+				button.shortcut_in_tooltip = true
+		PermissionRequest.KIND_ALLOW_ALWAYS:
+			button.flat = true
 	button.pressed.connect(func() -> void: request.select(str(option.get("optionId", ""))))
 	return button
 
