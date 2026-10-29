@@ -24,12 +24,13 @@ const GameCriteria := preload("../../oneshot/game_criteria.gd")
 const AddonVersion := preload("../../core/addon_version.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
 
-enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, COMPLETION, INTERFACE, EXPORT }
+enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, QUOTA, COMPLETION, INTERFACE, EXPORT }
 const SECTION_LABELS: PackedStringArray = [
 	"Agents",  # i18n
 	"Permissions",  # i18n
 	"MCP servers",  # i18n
-	"One-shot and quota",  # i18n
+	"One-shot",  # i18n
+	"Plan quota",  # i18n
 	"Completion",  # i18n
 	"Interface",  # i18n
 	"Export",  # i18n
@@ -159,7 +160,7 @@ func _build() -> void:
 	var pages := MarginContainer.new()
 	pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.add_child(pages)
-	for builder: Callable in [_build_agents, _build_permissions, _build_mcp, _build_oneshot, _build_completion, _build_interface, _build_export]:
+	for builder: Callable in [_build_agents, _build_permissions, _build_mcp, _build_oneshot, _build_quota, _build_completion, _build_interface, _build_export]:
 		var scroll := ScrollContainer.new()
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		var page := VBoxContainer.new()
@@ -438,8 +439,11 @@ func _build_mcp(page: VBoxContainer) -> void:
 	page.add_child(_roots_edit)
 
 
+## Los valores con que arranca el formulario de la pantalla One-shot (m12-25): allá se cambian para
+## una corrida; acá, para todas las del proyecto.
 func _build_oneshot(page: VBoxContainer) -> void:
-	page.add_child(_title(I18n.t("Default budgets (per project)")))
+	page.add_child(_title(I18n.t("Starting values for each One-shot (per project)")))
+	page.add_child(_hint(I18n.t("The One-shot screen starts with these; you can still change them there before starting a run.")))
 	_budget_spins["minutes"] = _spin_row(page, I18n.t("Time"), 1, 600, 1, "min")
 	_budget_spins["tokens"] = _spin_row(page, I18n.t("Tokens"), 10000, 20000000, 10000, "")
 	_budget_spins["playtests"] = _spin_row(page, I18n.t("Playtests"), 1, 100, 1, "")
@@ -477,7 +481,12 @@ func _build_oneshot(page: VBoxContainer) -> void:
 			grid.add_child(spin)
 			spins[key] = spin
 		_criteria_spins[criterion.id] = spins
+
+
+## La cuota del plan, en su propia sección (m12-25): es del usuario y vale fuera del One-shot también.
+func _build_quota(page: VBoxContainer) -> void:
 	page.add_child(_title(I18n.t("Quota and limits (per user: the quota belongs to the plan, not the project)")))
+	page.add_child(_hint(I18n.t("The ring next to the composer shows it. Warnings apply to every session; the pause, to the One-shot.")))
 	_warn_spin = _spin_row(page, I18n.t("Warn at"), 1, 100, 1, "%")
 	_pause_check = CheckBox.new()
 	_pause_check.text = I18n.t("Pause the One-shot at the threshold (when the current task or turn ends)")
@@ -756,7 +765,7 @@ func validate() -> Dictionary:
 	if defaults > 1:
 		return {"section": SettingsSection.AGENTS, "message": I18n.t("Only one agent can be the default.")}
 	if _pause_check.button_pressed and _pause_spin.value <= _warn_spin.value:
-		return {"section": SettingsSection.ONESHOT, "message": I18n.t("The pause threshold must be higher than the warning threshold.")}
+		return {"section": SettingsSection.QUOTA, "message": I18n.t("The pause threshold must be higher than the warning threshold.")}
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
 			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}

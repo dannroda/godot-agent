@@ -537,8 +537,6 @@ msgstr "Script actual: %s"
 msgid "cut short"
 msgstr "cortado"
 
-msgid "Default budgets (per project)"
-msgstr "Presupuestos default (por proyecto)"
 
 msgid "Denied"
 msgstr "Denegado"
@@ -917,8 +915,6 @@ msgstr "Ollama (local, FIM)"
 msgid "One-shot"
 msgstr "One-shot"
 
-msgid "One-shot and quota"
-msgstr "One-shot y cuota"
 
 msgid "One-shot budgets"
 msgstr "Presupuestos del One-shot"
@@ -3422,3 +3418,12 @@ msgstr "Avanzado: el servidor MCP del editor, comprobaciones de cada turno y car
 
 msgid "Advanced: thresholds, timings, corpus and log"
 msgstr "Avanzado: umbrales, tiempos, corpus y log"
+
+msgid "Starting values for each One-shot (per project)"
+msgstr "Valores iniciales de cada One-shot (por proyecto)"
+
+msgid "The One-shot screen starts with these; you can still change them there before starting a run."
+msgstr "La pantalla One-shot arranca con estos; ahí se pueden cambiar antes de empezar una corrida."
+
+msgid "The ring next to the composer shows it. Warnings apply to every session; the pause, to the One-shot."
+msgstr "El anillo junto al composer la muestra. Los avisos valen para todas las sesiones; la pausa, para el One-shot."

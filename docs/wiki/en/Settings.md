@@ -10,7 +10,8 @@ Open **Settings** from the dock header.
 | **Completion** | [Inline completion](Inline-completion.md). |
 | **Permissions** | The [permission matrix](Modes-and-permissions.md#permissions) per mode, the timeout to answer, and the [Auto mode](Modes-and-permissions.md#auto-mode) lists of shell commands. |
 | **MCP servers** | [Other MCP servers](#other-mcp-servers) for the agent; for the addon's own server: port, **Regenerate token**, result limits, compact tool list, checking the scripts after each turn, a snapshot of the project on each turn, extra folders. |
-| **One-shot and quota** | Default budgets, checkpoints, spec review, loop repeats, QA rounds, game criteria (weight and minimum), quota warning and pause thresholds, what to do when the quota resets. |
+| **One-shot** | The starting values of each One-shot (budgets, checkpoints, spec review), loop repeats, QA rounds, game criteria (weight and minimum). |
+| **Plan quota** | Quota warning and pause thresholds, what to do when the quota resets. |
 | **Interface** | Accent color, dock position, language, [updates](#updating-the-addon). |
 | **Export** | Checks that every export preset excludes the addon. |
 

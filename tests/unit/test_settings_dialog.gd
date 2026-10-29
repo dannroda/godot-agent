@@ -58,7 +58,7 @@ func test_loads_and_validates() -> void:
 
 	(dialog.get(&"_pause_spin") as SpinBox).value = 50
 	(dialog.get(&"_warn_spin") as SpinBox).value = 80
-	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.ONESHOT, "pausa por debajo del aviso")
+	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.QUOTA, "pausa por debajo del aviso")
 	(dialog.get(&"_pause_check") as CheckBox).button_pressed = false
 	assert_true(dialog.validate().is_empty(), "sin pausa no importa el umbral")
 

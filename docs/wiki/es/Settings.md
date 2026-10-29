@@ -10,7 +10,8 @@
 | **Completado** | [Completado inline](Completado-inline.md). |
 | **Permisos** | La [matriz de permisos](Modos-y-permisos.md#permisos) por modo, el tiempo para contestar y las listas de comandos de shell del [modo Auto](Modos-y-permisos.md#modo-auto). |
 | **Servidores MCP** | [Otros servidores MCP](#otros-servidores-mcp) para el agente; del servidor del addon: puerto, **Regenerar token**, límites de los resultados, lista de tools compacta, verificación de scripts al terminar cada turno, snapshot del proyecto en cada turno, carpetas extra. |
-| **One-shot y cuota** | Presupuestos por defecto, checkpoints, revisión del spec, repeticiones para los loops, vueltas de QA, criterios del juego (peso y mínimo), umbrales de aviso y pausa de la cuota, qué hacer cuando se reinicia la cuota. |
+| **One-shot** | Los valores iniciales de cada One-shot (presupuestos, checkpoints, revisión del spec), repeticiones para los loops, vueltas de QA, criterios del juego (peso y mínimo). |
+| **Cuota del plan** | Umbrales de aviso y pausa de la cuota, qué hacer cuando se reinicia la cuota. |
 | **Interfaz** | Color de acento, ubicación del dock, idioma, [actualizaciones](#actualizar-el-addon). |
 | **Export** | Revisa que cada preset de export excluya el addon. |
 

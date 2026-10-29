@@ -111,7 +111,7 @@ If the agent reports its plan quota (Claude Code does):
 
 - **Warning** at 75 %.
 - **Pause** at 90 %: the run pauses when the current task or turn ends, so a task isn't cut in half. If neither happens within 10 minutes, or the quota reaches 98 %, it stops the turn anyway and pauses with a `-quota` checkpoint. The banner says when it will pause.
-- **Limited**: when the limit hits, sending is blocked with a countdown, and a `cpN-quota` checkpoint saves the state. When the window resets, the run resumes on its own or waits for your confirmation (**Settings → One-shot and quota**). **Resume** tries right away.
+- **Limited**: when the limit hits, sending is blocked with a countdown, and a `cpN-quota` checkpoint saves the state. When the window resets, the run resumes on its own or waits for your confirmation (**Settings → Plan quota**). **Resume** tries right away.
 
 ### Switching accounts
 

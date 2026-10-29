@@ -111,7 +111,7 @@ Si el agente informa la cuota de su plan (Claude Code lo hace):
 
 - **Aviso** al 75 %.
 - **Pausa** al 90 %: el run se pausa al terminar la tarea o el turno en curso, para no cortar una tarea a la mitad. Si nada de eso pasa en 10 minutos, o la cuota llega al 98 %, corta el turno igual y se pausa con un checkpoint `-quota`. El banner dice cuándo va a pausar.
-- **Limitado**: al llegar al límite, el envío queda bloqueado con una cuenta regresiva, y un checkpoint `cpN-quota` guarda el estado. Cuando la ventana se reinicia, el run retoma solo o espera tu confirmación (**Settings → One-shot y cuota**). **Retomar** prueba enseguida.
+- **Limitado**: al llegar al límite, el envío queda bloqueado con una cuenta regresiva, y un checkpoint `cpN-quota` guarda el estado. Cuando la ventana se reinicia, el run retoma solo o espera tu confirmación (**Settings → Cuota del plan**). **Retomar** prueba enseguida.
 
 ### Cambiar de cuenta
 
