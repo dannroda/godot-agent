@@ -8,6 +8,8 @@ signal show_log_requested
 signal settings_requested
 ## Agregar un agente sugerido desde el registro de ACP, filtrado por `query` (m12-15).
 signal registry_requested(query: String)
+## «+ › Nueva pestaña» (m12-14): otra sesión al lado; `in_copy`, en una copia aparte del proyecto.
+signal new_tab_requested(in_copy: bool)
 ## Abrir la ventana Extensions: plugins, marketplaces y MCP servers (m7-37).
 signal extensions_requested
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
@@ -19,6 +21,15 @@ const SessionController := preload("../../session/session_controller.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
 const HISTORY_MENU_SIZE := 30
+## Ids de los menús del header (m12-14).
+const AGENT_MENU_MANAGE := 1000
+const NEW_MENU_SESSION := 0
+const NEW_MENU_TAB := 1
+const NEW_MENU_TAB_COPY := 2
+const MORE_EXTENSIONS := 0
+const MORE_SETTINGS := 1
+const MORE_REMOTE := 2
+const MORE_LOGOUT := 3
 ## Sesiones anteriores en el dock vacío (m12-12).
 const RECENT_SESSIONS := 5
 const AgentProfile := preload("../../core/agent_profile.gd")
@@ -116,6 +127,12 @@ var _quota_ring: QuotaRing
 ## Remote Control (m7-21): botón de la línea de estado y franja con el link mientras está prendido.
 var _remote_button: Button
 var _logout_button: Button
+## Header de una fila (m12-14): el chip del agente con su estado (elige el perfil), el título, el
+## historial, «+» (sesión o pestaña) y «⋯» (extensiones, ajustes, Remote Control, cerrar sesión).
+var _agent_chip: Button
+var _agent_menu: PopupMenu
+var _new_menu: PopupMenu
+var _more_button: MenuButton
 var _logout_dialog: ConfirmationDialog
 var _remote_banner: FoldableContainer
 var _remote_link: Button
@@ -283,7 +300,11 @@ func _build_header() -> void:
 	_history_menu.add_child(_history_delete_menu)
 	_history_button.pressed.connect(_show_history_menu)
 	_new_session_button.icon = AgentTheme.icon(&"Add")
-	_new_session_button.pressed.connect(_on_new_session_pressed)
+	_new_session_button.tooltip_text = I18n.t("New session or new tab")
+	_new_session_button.pressed.connect(func() -> void:
+		_new_menu.set_item_disabled(_new_menu.get_item_index(NEW_MENU_SESSION), _new_session_button.disabled)
+		var below := _new_session_button.get_screen_position() + Vector2(0, _new_session_button.size.y)
+		_new_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO)))
 	var extensions := Button.new()
 	extensions.name = "ExtensionsButton"
 	extensions.flat = true
@@ -299,6 +320,50 @@ func _build_header() -> void:
 	_settings_button.pressed.connect(func() -> void: settings_requested.emit())
 	_profile_button.item_selected.connect(_on_profile_selected)
 	_title_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	# Una fila (m12-14): ajustes y extensiones van al «⋯»; el selector de perfil, al chip del agente.
+	# Los botones viejos quedan ocultos (los usan los checks del dev plugin).
+	_profile_button.visible = false
+	_settings_button.visible = false
+	extensions.visible = false
+	_agent_chip = Button.new()
+	_agent_chip.name = "AgentChip"
+	_agent_chip.flat = true
+	_agent_chip.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_agent_chip.clip_text = true
+	_agent_chip.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_agent_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_agent_chip.size_flags_stretch_ratio = 1.4
+	_agent_chip.pressed.connect(_show_agent_menu)
+	_profile_button.add_sibling(_agent_chip)
+	_agent_menu = PopupMenu.new()
+	_agent_menu.id_pressed.connect(func(id: int) -> void:
+		if id == AGENT_MENU_MANAGE:
+			settings_requested.emit()
+		elif id >= 0 and id < _profiles.size():
+			_profile_button.select(id)
+			_on_profile_selected(id))
+	add_child(_agent_menu)
+	_new_menu = PopupMenu.new()
+	_new_menu.add_item(I18n.t("New session"), NEW_MENU_SESSION)
+	_new_menu.set_item_tooltip(0, I18n.t("Starts a new conversation in this tab."))
+	_new_menu.add_item(I18n.t("New tab"), NEW_MENU_TAB)
+	_new_menu.set_item_tooltip(1, I18n.t("Open another agent session alongside this one. Sessions don't step on each other: a file one is editing in its turn is off limits to the rest, and the game runs for one at a time."))
+	_new_menu.add_item(I18n.t("New tab in a separate copy (git worktree)"), NEW_MENU_TAB_COPY)
+	_new_menu.set_item_tooltip(2, I18n.t("The agent works in a copy of the project on a new branch, outside the project folder, without touching the open editor. When you close its tab you choose whether to apply its changes to the project."))
+	_new_menu.id_pressed.connect(func(id: int) -> void:
+		if id == NEW_MENU_SESSION:
+			_on_new_session_pressed()
+		else:
+			new_tab_requested.emit(id == NEW_MENU_TAB_COPY))
+	add_child(_new_menu)
+	_more_button = MenuButton.new()
+	_more_button.name = "MoreButton"
+	_more_button.flat = true
+	_more_button.text = "⋯"
+	_more_button.tooltip_text = I18n.t("More: extensions, settings, Remote Control and the account")
+	_more_button.about_to_popup.connect(_fill_more_menu)
+	_more_button.get_popup().id_pressed.connect(_on_more_selected)
+	_settings_button.add_sibling(_more_button)
 
 
 ## El modo va en un dropdown de la fila del composer, al lado del modelo (m7-32): los cinco botones
@@ -337,6 +402,8 @@ func _build_remote_control() -> void:
 	_logout_button.tooltip_text = I18n.t("Sign out of this agent's account: the next session asks you to sign in.")
 	_logout_button.pressed.connect(_confirm_logout)
 	status_row.add_child(_logout_button)
+	# El estado va en el chip del header (m12-14); Remote Control y cerrar sesión, en «⋯».
+	status_row.visible = false
 	# Plegable (m7-26): el título y los botones quedan a la vista; el link, el QR y la aclaración se
 	# pliegan. El estado se conserva mientras el editor está abierto.
 	_remote_banner = FoldableContainer.new()
@@ -413,6 +480,49 @@ func _refresh_remote_control() -> void:
 	_remote_link.text = _model.remote_control_url
 	_remote_qr.set_text(_model.remote_control_url)
 	_remote_link.tooltip_text = _model.remote_control_url
+
+
+func _show_agent_menu() -> void:
+	_agent_menu.clear()
+	var active := _settings.active_profile()
+	for i in _profiles.size():
+		_agent_menu.add_radio_check_item(_profiles[i].display_name, i)
+		_agent_menu.set_item_checked(_agent_menu.item_count - 1, active != null and _profiles[i].id == active.id)
+		_agent_menu.set_item_tooltip(_agent_menu.item_count - 1, _profiles[i].command_line())
+	if not _profiles.is_empty():
+		_agent_menu.add_separator()
+	_agent_menu.add_item(I18n.t("Manage agents…"), AGENT_MENU_MANAGE)
+	var below := _agent_chip.get_screen_position() + Vector2(0, _agent_chip.size.y)
+	_agent_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO))
+
+
+func _fill_more_menu() -> void:
+	var popup := _more_button.get_popup()
+	popup.clear()
+	popup.add_icon_item(AgentTheme.icon(&"EditorPlugin"), I18n.t("Extensions…"), MORE_EXTENSIONS)
+	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
+	if _remote_button.visible or _logout_button.visible:
+		popup.add_separator()
+	if _remote_button.visible:
+		popup.add_item(I18n.t("Remote Control"), MORE_REMOTE)
+		popup.set_item_tooltip(popup.item_count - 1, _remote_button.tooltip_text)
+		popup.set_item_disabled(popup.item_count - 1, _remote_button.disabled)
+	if _logout_button.visible:
+		popup.add_item(I18n.t("Sign out"), MORE_LOGOUT)
+		popup.set_item_tooltip(popup.item_count - 1, _logout_button.tooltip_text)
+		popup.set_item_disabled(popup.item_count - 1, _logout_button.disabled)
+
+
+func _on_more_selected(id: int) -> void:
+	match id:
+		MORE_EXTENSIONS:
+			extensions_requested.emit()
+		MORE_SETTINGS:
+			settings_requested.emit()
+		MORE_REMOTE:
+			_remote_button.pressed.emit()
+		MORE_LOGOUT:
+			_confirm_logout()
 
 
 func _confirm_logout() -> void:
@@ -604,6 +714,11 @@ func _refresh_state() -> void:
 		if not names.is_empty():
 			_status_label.tooltip_text = I18n.t("Subagents running:") + "\n" + "\n".join(names)
 	_status_label.add_theme_color_override(&"font_color", color)
+	if _agent_chip:
+		_agent_chip.text = text
+		_agent_chip.tooltip_text = (_status_label.tooltip_text + "\n" if not _status_label.tooltip_text.is_empty() else "") + I18n.t("Click to choose the agent")
+		for item: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
+			_agent_chip.add_theme_color_override(item, color)
 	_composer.set_busy(_model.is_busy())
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())

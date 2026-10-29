@@ -3353,3 +3353,33 @@ msgstr "Agregá un agente para empezar:"
 
 msgid "○ %s · sign-in needed"
 msgstr "○ %s · falta iniciar sesión"
+
+msgid "Starts a new conversation in this tab."
+msgstr "Empieza una conversación nueva en esta pestaña."
+
+msgid "New tab"
+msgstr "Pestaña nueva"
+
+msgid "New tab in a separate copy (git worktree)"
+msgstr "Pestaña nueva en una copia aparte (git worktree)"
+
+msgid "More: extensions, settings, Remote Control and the account"
+msgstr "Más: extensiones, ajustes, Remote Control y la cuenta"
+
+msgid "New session or new tab"
+msgstr "Sesión nueva o pestaña nueva"
+
+msgid "Click to choose the agent"
+msgstr "Clic para elegir el agente"
+
+msgid "Manage agents…"
+msgstr "Administrar agentes…"
+
+msgid "Extensions…"
+msgstr "Extensiones…"
+
+msgid "Settings…"
+msgstr "Ajustes…"
+
+msgid "Remote Control"
+msgstr "Remote Control"

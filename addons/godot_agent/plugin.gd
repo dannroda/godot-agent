@@ -207,6 +207,7 @@ func _enter_tree() -> void:
 	dock.setup(_model, _controller, _settings)
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
+	dock.new_tab_requested.connect(_open_session_tab)
 	dock.registry_requested.connect(func(query: String) -> void:
 		_settings_dialog.open()
 		_settings_dialog.open_registry(query))
@@ -1161,6 +1162,7 @@ func _open_session_tab(in_copy: bool = false) -> void:
 	dock.setup(model, controller, _settings)
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
+	dock.new_tab_requested.connect(_open_session_tab)
 	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock

@@ -18,6 +18,8 @@ const I18n := preload("../../core/i18n.gd")
 const SessionModel := preload("../../session/session_model.gd")
 
 var _bar: TabBar
+## La fila de pestañas: solo con dos sesiones o más (m12-14); con una, el «+» del dock abre otra.
+var _row: HBoxContainer
 var _add_button: Button
 var _new_menu: PopupMenu
 ## Los docks, uno encima del otro (se ve el de la pestaña activa); como contenedor, pide el mínimo
@@ -40,6 +42,8 @@ func _init() -> void:
 	add_theme_constant_override(&"separation", 0)
 	var row := HBoxContainer.new()
 	row.name = "SessionTabsRow"
+	row.visible = false
+	_row = row
 	add_child(row)
 	_bar = TabBar.new()
 	_bar.name = "SessionTabBar"
@@ -96,6 +100,7 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 	_defaults[id] = label
 	_stack.add_child(dock)
 	_bar.add_tab(label)
+	_row.visible = _ids.size() > 1
 	if _ids.size() > 1:
 		_bar.set_tab_button_icon(_ids.size() - 1, AgentTheme.icon(&"Close"))
 	model.title_changed.connect(func(_title: String) -> void: _refresh_tab(id))
@@ -124,6 +129,7 @@ func remove_session(id: String) -> void:
 	_defaults.erase(id)
 	_toasted.erase(id)
 	_bar.remove_tab(index)
+	_row.visible = _ids.size() > 1
 	_stack.remove_child(dock)
 	dock.queue_free()
 	_on_tab_changed(_bar.current_tab)
