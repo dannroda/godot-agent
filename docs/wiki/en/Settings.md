@@ -32,10 +32,7 @@ The port, the accent color, the dock position and the language apply when you re
 **Settings → Agents**: add, edit, remove and set the default. Each profile has a command, its arguments (one per line) and environment variables.
 
 - **Keys**: in the environment, `NAME=$VARIABLE` takes the value of `VARIABLE` from the editor's environment when the agent starts. Settings refuses a literal value in variables with a secret-looking name (`*KEY*`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*`). Example: `ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY`.
-- Included profiles:
-  - **Claude Code**: `npx -y @agentclientprotocol/claude-agent-acp`;
-  - **Gemini CLI**: `gemini`; add the argument your version uses for ACP, for example `--experimental-acp`;
-  - **Codex**: no command; set it up with the ACP adapter you use.
+- No agent comes preset. With none, the dock and this page suggest **Claude Code** (`npx -y @agentclientprotocol/claude-agent-acp`), **Codex** and **Google Antigravity** (these two from the ACP registry, which gives the command for your platform).
 - The agent always receives `GODOT`/`GODOT_BIN` with the editor's binary; a profile can override them.
 
 ### From the ACP registry

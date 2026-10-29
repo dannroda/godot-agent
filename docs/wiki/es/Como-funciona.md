@@ -11,7 +11,7 @@
 │     │ ACP   │ MCP (HTTP, 127.0.0.1 + token)  │
 └─────┼───────┼────────────────────────────────┘
       ▼       │
-   Proceso del agente (Claude Code, Gemini CLI…)
+   Proceso del agente (Claude Code, Antigravity…)
 ```
 
 ## El proceso del agente y ACP

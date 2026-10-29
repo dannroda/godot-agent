@@ -2,7 +2,7 @@
 
 [English](../en/Home.md) · **Español**
 
-Godot Agent Harness pone un agente de código adentro del editor de Godot. El agente corre como un proceso aparte (Claude Code, Gemini CLI, Codex…). El harness habla con él, muestra la conversación en un dock y le da herramientas del editor: lee escenas, edita nodos con deshacer, corre el juego y mira frames. Todo cambio pasa por el editor y por una política de permisos.
+Godot Agent Harness pone un agente de código adentro del editor de Godot. El agente corre como un proceso aparte (Claude Code, Google Antigravity, Codex…). Anda con proyectos en GDScript y en C#. El harness habla con él, muestra la conversación en un dock y le da herramientas del editor: lee escenas, edita nodos con deshacer, corre el juego y mira frames. Todo cambio pasa por el editor y por una política de permisos.
 
 ## Páginas
 

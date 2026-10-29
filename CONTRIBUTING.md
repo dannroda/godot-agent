@@ -19,7 +19,7 @@ For anything bigger than a small fix, open an issue first to agree on the approa
 
 ## Setting up
 
-You need Godot 4.7 or newer. CI runs 4.7.2 and 4.8-beta1. The repository is itself a Godot project: the addon is in `addons/godot_agent/`, and `addons/godot_agent_dev/` is a test-only plugin that drives the editor from the command line.
+You need Godot 4.7 or newer. CI runs 4.7.2 and 4.8-beta2, plus the C# tests on Godot .NET 4.7.2 (with the .NET SDK). The repository is itself a Godot project: the addon is in `addons/godot_agent/`, and `addons/godot_agent_dev/` is a test-only plugin that drives the editor from the command line.
 
 ```sh
 G=/path/to/godot

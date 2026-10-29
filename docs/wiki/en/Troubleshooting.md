@@ -31,7 +31,7 @@ Claude Code reports the plan quota with the first message of each session, so a 
 | Version | What happens | How the addon handles it |
 |---|---|---|
 | 4.7 | `EditorDock` exists, but the main screen as a dock arrives in 4.8. | Dock and panel use `EditorDock`; the main screen uses the old API. |
-| 4.8-beta1 | `_has_main_screen()` leaves an orphan `EditorDock` when disabling, and closing the editor with the One-shot screen active gives a focus error. | The main screen uses `add_dock`; before closing, the editor switches to the 2D screen. |
+| 4.8 (betas) | `_has_main_screen()` leaves an orphan `EditorDock` when disabling, and closing the editor with the One-shot screen active gives a focus error. | The main screen uses `add_dock`; before closing, the editor switches to the 2D screen. |
 
 Two known, harmless traces remain in exports: addon paths in `uid_cache.bin`, and the plugin in the enabled plugin list of `project.binary`.
 

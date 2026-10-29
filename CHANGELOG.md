@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- Tested on Godot 4.8-beta2 (was 4.8-beta1), besides 4.7.2 and Godot .NET 4.7.2.
+
 ## [0.1.11] - 2026-10-29
 
 ### Added

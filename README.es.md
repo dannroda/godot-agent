@@ -4,12 +4,14 @@
 
 ![El dock Agent al lado de una escena 2D: el agente leyó la escena, editó un script y conectó una señal con las herramientas del editor](docs/images/es/overview.png)
 
-Addon de editor para Godot 4 que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
+Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
 
 - leer escenas y scripts, la selección y los errores;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
-- correr el juego con inputs simulados y mirar capturas de frames (un clic en el chat la abre en grande);
+- correr el juego con inputs simulados, por tiempo o por frame de física para que una prueba dé siempre lo mismo, y mirar capturas de frames (un clic en el chat la abre en grande);
+- verificar su propio trabajo: cada resultado de una tool trae los errores del editor que aparecieron desde la llamada anterior, hay validadores de física y de TileMaps, y un **Playtest** contesta si pasó, si falló o si no se pudo probar, con evidencia (y un video si querés);
 - revisar código y dejar hallazgos en el Script Editor;
+- trabajar en proyectos C# con Godot .NET: compila con `dotnet build` y recibe los errores por archivo y línea, crea scripts `.cs`, y el completado inline también anda en los `.cs`;
 - usar los servidores MCP de otros programas (Blender, una base de datos…), configurados en Settings con sus propios permisos;
 - buscar, instalar y activar addons de Godot del [Asset Store](https://store.godotengine.org) (el agente también los puede sugerir);
 - manejar los plugins, marketplaces, servidores MCP y skills de Claude Code desde la ventana **Extensiones**, con skills de Godot a un clic.
@@ -40,7 +42,8 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 
 ## Requisitos
 
-- **Godot 4.7 o más nuevo.** Se prueba en 4.7.2 y 4.8-beta1.
+- **Godot 4.7 o más nuevo.** Se prueba en 4.7.2, 4.8-beta2 y Godot .NET 4.7.2.
+- **Para proyectos en C#**, la versión .NET de Godot y el SDK de .NET (`dotnet`).
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`. El perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
   - una cuenta de Claude Code: la que ya usa `claude` en la máquina, una con la que iniciás sesión desde el dock, o una API key en una variable de entorno.
@@ -108,7 +111,7 @@ Los textos de la interfaz se escriben en inglés en el código, con `I18n.t("…
 
 ### CI y releases
 
-- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP y el del One-shot, en Godot 4.7.2 y 4.8-beta1.
+- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP, el del One-shot y el ciclo de habilitar y deshabilitar el plugin, en Godot 4.7.2 y 4.8-beta2, y los tests de C# en Godot .NET 4.7.2.
 - **Release** (`.github/workflows/release.yml`): se corre a mano desde **Actions → Release → Run workflow**, eligiendo `patch`, `minor`, `major` o una versión exacta `X.Y.Z`. Corre el CI, sube `version` en `addons/godot_agent/plugin.cfg`, commitea "Release vX.Y.Z" en `main` con el tag `vX.Y.Z` pasa la sección **Unreleased** de [`CHANGELOG.md`](CHANGELOG.md) a la versión nueva y publica un release de GitHub con el zip del addon y esa sección como notas. El changelog y el release van en inglés: con cada cambio, agregá una entrada en **Unreleased** (el release falla si está vacía).
 - La versión vive solo en `plugin.cfg`: el `clientInfo` de ACP y el `serverInfo` del MCP la leen de ahí.
 
