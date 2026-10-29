@@ -8,7 +8,6 @@ signal connected
 signal disconnected
 ## Terminó la sincronización del modo del agente con el del harness (session/set_mode).
 signal agent_mode_synced
-signal _usage_query_done
 ## El usuario agregó una regla del modo Auto desde una tarjeta: hay que guardar la config.
 signal shell_rules_changed
 ## El usuario permitió un MCP server de terceros desde una tarjeta, para el modo y el proyecto: hay
@@ -25,6 +24,7 @@ const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
+const UsageQuery := preload("usage_query.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
@@ -56,7 +56,6 @@ const ACTION_TURN_CHANGES := "turn_changes"
 const ACTION_TURN_RESTORE := "turn_restore"
 ## Guardar el reporte del turno (m11-06), con la misma `data`.
 const ACTION_TURN_REPORT := "turn_report"
-const USAGE_QUERY_TIMEOUT_S := 20
 const CLOSE_TIMEOUT_S := 10
 const ACTION_SHOW_LOG := "show_log"
 ## Errores al lanzar el agente (m12-13): abrir Ajustes › Agentes, o el registro de ACP para
@@ -180,10 +179,8 @@ var _load_failed: bool = false
 var _login: AgentLogin
 ## Aviso del login en curso (se actualiza con el enlace y el resultado).
 var _login_entry: ChatEntry
-## El `/usage` o `/status` en curso: sus mensajes no van al chat (ver `_query_agent_usage`).
-var _usage_query_running: bool = false
-var _usage_query_id: int = 0
-var _usage_query_text: String = ""
+## El `/usage` o `/status` en curso: sus mensajes no van al chat (m13-05).
+var usage_query := UsageQuery.new()
 ## Request `session/new`, `session/load` o `session/resume` en vuelo (se cancela con `$/cancel_request` si se abre otra).
 var _session_request_id: int = 0
 
@@ -196,6 +193,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	client.setup(_send_line, agent_log)
 	quota = QuotaMonitor.new()
 	quota.setup(agent_log)
+	usage_query.setup(client, agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
 	client.set_notification_handler("_auth/status_update", _on_auth_status_update)
 	connected.connect(_query_agent_usage)
@@ -372,8 +370,8 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 ## En modo Revisar, un bloque `findings` en la respuesta reemplaza la revisión, salvo que
 ## `collect_findings` sea false (preguntas sobre un hallazgo).
 func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool = true) -> String:
-	if _usage_query_running:
-		await _usage_query_done
+	if usage_query.running:
+		await usage_query.done
 	if model.state != SessionModel.SessionState.READY:
 		return ""
 	var turn_started := int(Time.get_unix_time_from_system())
@@ -463,39 +461,16 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 ## pregunta ni la respuesta aparezcan en el chat; un prompt del usuario que llega en el medio espera.
 func _query_agent_usage() -> void:
 	var command := adapter.quota_command(model)
-	if command.is_empty() or model.state != SessionModel.SessionState.READY or _usage_query_running:
+	if command.is_empty() or model.state != SessionModel.SessionState.READY or usage_query.running:
 		return
-	_usage_query_running = true
-	_usage_query_text = ""
-	var req_id := client.next_request_id()
-	_usage_query_id = req_id
-	# Sin respuesta a tiempo se cancela: un prompt del usuario espera a que termine.
-	var session_id := model.session_id
-	(Engine.get_main_loop() as SceneTree).create_timer(USAGE_QUERY_TIMEOUT_S).timeout.connect(func() -> void:
-		if _usage_query_id == req_id and _process != null:
-			agent_log.add(AgentLog.CH_QUOTA, "%s got no answer in %d s, cancelled" % [command, USAGE_QUERY_TIMEOUT_S])
-			_usage_query_id = 0
-			client.notify("session/cancel", {"sessionId": session_id})
-			client.cancel_request(req_id)
-	)
-	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": [{"type": "text", "text": command}]})
-	if _usage_query_id == req_id:
-		_usage_query_id = 0
-	_usage_query_running = false
-	_usage_query_done.emit()
-	if not result.ok:
-		if result.error.get("code") != AcpClient.ERR_REQUEST_CANCELLED:
-			agent_log.add(AgentLog.CH_QUOTA, "%s failed: %s" % [command, result.error_message()])
-		return
-	adapter.read_quota(_usage_query_text, quota, model, _current_model_name())
+	var text: Variant = await usage_query.run(command, model.session_id, func() -> bool: return _process != null)
+	if text is String:
+		adapter.read_quota(text, quota, model, _current_model_name())
 
 
 ## Cancela con `$/cancel_request` un `/usage`, `/status` o apertura de sesión que ya no se espera (m11-18).
 func _cancel_abandoned_requests() -> void:
-	if _usage_query_id > 0:
-		var uid := _usage_query_id
-		_usage_query_id = 0
-		client.cancel_request(uid)
+	usage_query.cancel_abandoned()
 	if _session_request_id > 0:
 		var sid := _session_request_id
 		_session_request_id = 0
@@ -935,10 +910,7 @@ func _on_session_update(params: Dictionary) -> void:
 		if params.get("sessionId") is String and not model.session_id.is_empty():
 			model.apply_child_update(params.sessionId, params.update)
 		return
-	if _usage_query_running and params.update.get("sessionUpdate") in ["agent_message_chunk", "agent_thought_chunk", "user_message_chunk"]:
-		var content: Variant = params.update.get("content")
-		if params.update.sessionUpdate == "agent_message_chunk" and content is Dictionary:
-			_usage_query_text += str(content.get("text", ""))
+	if usage_query.capture(params.update):
 		return
 	if params.update.get("sessionUpdate") == "usage_update":
 		quota.observe_update(params.update)
