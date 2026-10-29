@@ -467,6 +467,35 @@ func stop() -> void:
 	_finish(I18n.t("Stopped by the user."))
 
 
+## Con el run en curso, lo que se escribe en el dock lo guía (`guide`). true si lo tomó.
+func take_dock_prompt(text: String) -> bool:
+	if not is_active():
+		return false
+	guide(text)
+	return true
+
+
+## Con el run en curso, «Reintentar» del dock retoma el run en su sesión en lugar de abrir una en
+## blanco; si no se puede, lo avisa en `dock_model`. true si lo tomó.
+func take_dock_retry(dock_model: SessionModel) -> bool:
+	if not is_active():
+		return false
+	if can_resume():
+		resume()
+	else:
+		dock_model.add_notice(I18n.t("The One-shot is still running: pause or stop it from the One-shot screen."), ChatEntry.NoticeLevel.INFO)
+	return true
+
+
+## Login hecho desde el dock o desde «Cambiar de cuenta»: si el run espera, retoma su sesión con la
+## cuenta nueva (m6-15). true si lo tomó.
+func take_login() -> bool:
+	if not is_active() or not can_resume():
+		return false
+	switch_account()
+	return true
+
+
 ## Lo que el usuario escribe en el chat del dock: se manda al terminar el turno actual (o ya, si no hay turno en curso).
 func guide(text: String) -> void:
 	text = text.strip_edges()

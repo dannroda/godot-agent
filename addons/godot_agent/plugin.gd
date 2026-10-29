@@ -31,6 +31,7 @@ const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
 const TurnChangesDialog := preload("ui/turn_changes_dialog.gd")
+const TurnChanges := preload("ui/turn_changes.gd")
 const TurnSnapshots := preload("session/turn_snapshots.gd")
 const InlineEdit := preload("editor/inline_edit.gd")
 ## Lo que trae @output: el final del panel Output.
@@ -105,6 +106,7 @@ var _sync: EditorSync
 var _remote_activity: RemoteActivity
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
+var _turn_changes: TurnChanges
 ## Snapshots por turno de todas las sesiones (m11-01); `available` queda en false sin git.
 var _turn_snapshots: TurnSnapshots
 var _mcp_server: McpServer
@@ -176,9 +178,17 @@ func _enter_tree() -> void:
 	EditorInterface.get_base_control().add_child(_diff_dialog)
 	_turn_dialog = TurnChangesDialog.new()
 	_turn_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	_turn_dialog.diff_requested.connect(_show_turn_diff)
-	_turn_dialog.revert_requested.connect(func(data: Dictionary, path: String) -> void: _restore_turn(data, PackedStringArray([path])))
 	EditorInterface.get_base_control().add_child(_turn_dialog)
+	_turn_changes = TurnChanges.new()
+	_turn_changes.project_snapshots = _turn_snapshots
+	_turn_changes.primary_session = PRIMARY_SESSION
+	_turn_changes.diff_dialog = _diff_dialog
+	_turn_changes.dialog = _turn_dialog
+	_turn_changes.controller_of = _controller_of
+	_turn_changes.model_of = _model_of
+	_turn_changes.after_restore = _after_oneshot_restore
+	_turn_dialog.diff_requested.connect(_turn_changes.show_diff)
+	_turn_dialog.revert_requested.connect(func(data: Dictionary, path: String) -> void: _turn_changes.restore(data, PackedStringArray([path])))
 	_playtest_debugger = PlaytestDebugger.new()
 	# El juego ya leyó project.godot cuando su sesión de debug arranca: el autoload se quita ahí.
 	_playtest_debugger.session_started.connect(_remove_playtest_autoload)
@@ -215,9 +225,9 @@ func _enter_tree() -> void:
 		_settings_dialog.open_registry(query))
 	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
-	dock.submit_interceptor = _intercept_dock_prompt
-	dock.retry_interceptor = _intercept_dock_retry
-	_controller.after_login = _after_agent_login
+	dock.submit_interceptor = func(text: String) -> bool: return _oneshot != null and _oneshot.take_dock_prompt(text)
+	dock.retry_interceptor = func() -> bool: return _oneshot != null and _oneshot.take_dock_retry(_model)
+	_controller.after_login = func() -> bool: return _oneshot != null and _oneshot.take_login()
 	dock.can_switch_session = func() -> bool: return not _oneshot.is_active()
 	dock.game_capture = _capture_game_for_dock
 	dock.context_provider = _context_for_mention
@@ -386,6 +396,7 @@ func _exit_tree() -> void:
 		_turn_dialog.queue_free()
 		_turn_dialog = null
 	_turn_snapshots = null
+	_turn_changes = null
 	if _settings_dialog:
 		_settings_dialog.queue_free()
 		_settings_dialog = null
@@ -515,16 +526,17 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 		SessionController.ACTION_TURN_CHANGES:
 			_turn_dialog.show_turn(payload)
 		SessionController.ACTION_TURN_RESTORE:
-			_confirm_turn_restore(payload)
+			_turn_changes.confirm_restore(payload)
 		SessionController.ACTION_TURN_REPORT:
-			_save_turn_report(payload)
+			_turn_changes.save_report(payload)
 		RemoteActivity.ACTION_DIFF:
 			var texts := _remote_activity.diff_texts(int(payload))
 			_diff_dialog.show_diff(I18n.t("Changes from Remote Control"), I18n.t("before"), texts[0], I18n.t("now"), texts[1])
 		RemoteActivity.ACTION_UNDO:
 			_remote_activity.undo(int(payload))
 		ACTION_ONESHOT_RESUME:
-			_intercept_dock_retry()
+			if _oneshot:
+				_oneshot.take_dock_retry(_model)
 		ACTION_ONESHOT_SHOW:
 			if _surfaces:
 				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
@@ -918,34 +930,6 @@ func _restore_oneshot() -> void:
 	])
 
 
-## Con un One-shot en curso, lo que se escribe en el dock guía al agente del run (oneshot.guide).
-func _intercept_dock_prompt(text: String) -> bool:
-	if _oneshot == null or not _oneshot.is_active():
-		return false
-	_oneshot.guide(text)
-	return true
-
-
-## Con un One-shot en curso, «Reintentar» retoma el run en su sesión en lugar de abrir una en blanco.
-func _intercept_dock_retry() -> bool:
-	if _oneshot == null or not _oneshot.is_active():
-		return false
-	if _oneshot.can_resume():
-		_oneshot.resume()
-	else:
-		_model.add_notice(I18n.t("The One-shot is still running: pause or stop it from the One-shot screen."), ChatEntry.NoticeLevel.INFO)
-	return true
-
-
-## Login hecho desde el dock o desde «Cambiar de cuenta»: si hay un One-shot esperando, retoma su
-## sesión con la cuenta nueva (m6-15).
-func _after_agent_login() -> bool:
-	if _oneshot == null or not _oneshot.is_active() or not _oneshot.can_resume():
-		return false
-	_oneshot.switch_account()
-	return true
-
-
 ## Después de "Volver acá": el editor relee lo que cambió en disco. Las escenas abiertas se recargan
 ## directamente (el usuario pidió volver); los scripts abiertos pasan por EditorSync (si tenían
 ## cambios sin guardar, conflicto en lugar de pisarlos).
@@ -1009,84 +993,6 @@ func _start_inline_session() -> bool:
 	return controller != null and controller.is_connected_to_agent()
 
 
-# --- cambios por turno (m11-01, m11-02) ------------------------------------------------------------
-
-func _show_turn_diff(data: Dictionary, path: String) -> void:
-	var snapshots := _snapshots_of(str(data.get("session", PRIMARY_SESSION)))
-	var before := await snapshots.text_at(str(data.start), path)
-	var full := snapshots.git.root.path_join(path)
-	var now := FileAccess.get_file_as_string(full) if FileAccess.file_exists(full) else ""
-	_diff_dialog.show_diff(path, I18n.t("before the turn"), before, I18n.t("now"), now)
-
-
-## Los snapshots de una sesión: los del proyecto, o los de su copia (m11-09).
-func _snapshots_of(session: String) -> TurnSnapshots:
-	var controller := _controller_of(session)
-	return controller.snapshots if controller and controller.snapshots else _turn_snapshots
-
-
-## Reporte del turno (m11-06) en res://.godot_agent/reports/<fecha>/, y se abre su carpeta.
-func _save_turn_report(data: Dictionary) -> void:
-	var model := _model_of(str(data.get("session", PRIMARY_SESSION)))
-	if model == null:
-		return
-	var collected := TurnReport.collect(model, int(data.get("first_entry", 0)))
-	var now := Time.get_datetime_string_from_system()
-	var project := str(ProjectSettings.get_setting("application/config/name", EditorContext.project_path().get_file()))
-	var path := TurnReport.write(TurnReport.DIR, now.replace(":", "-").replace("T", "_"), "Turn report · %s · %s" % [project, now.replace("T", " ")], collected, data.get("files", []))
-	if path.is_empty():
-		model.add_notice(I18n.t("Could not save the report in %s.") % TurnReport.DIR, ChatEntry.NoticeLevel.ERROR)
-		return
-	model.add_notice(I18n.t("Report saved in %s.") % path.get_base_dir())
-	OS.shell_show_in_file_manager(ProjectSettings.globalize_path(path))
-
-
-## Volver atrás todo un turno pisa también lo que vino después en esos archivos: se confirma. Deshacer
-## una vuelta atrás (`undo` en data) no pregunta.
-func _confirm_turn_restore(data: Dictionary) -> void:
-	if data.get("undo", false):
-		_restore_turn(data)
-		return
-	var confirm := ConfirmationDialog.new()
-	confirm.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	confirm.title = I18n.t("Go back to before this turn")
-	confirm.dialog_text = I18n.t("The project's files go back to how they were before this turn, including what changed after it (by the agent or by you). Files .gitignore leaves out are not touched. You can undo it from the chat.")
-	confirm.ok_button_text = I18n.t("Go back")
-	confirm.cancel_button_text = I18n.t("Cancel")
-	confirm.confirmed.connect(_restore_turn.bind(data))
-	confirm.visibility_changed.connect(func() -> void:
-		if not confirm.visible:
-			confirm.queue_free.call_deferred())
-	EditorInterface.get_base_control().add_child(confirm)
-	confirm.popup_centered()
-
-
-## Deja los archivos (todos o `paths`) como en el snapshot `data.start`, recarga lo abierto, avisa en
-## el chat de esa sesión (con «Deshacer») y le deja una nota al agente para su próximo turno.
-func _restore_turn(data: Dictionary, paths: PackedStringArray = []) -> void:
-	var session := str(data.get("session", PRIMARY_SESSION))
-	var model := _model_of(session)
-	var snapshots := _snapshots_of(session)
-	var result: Dictionary = await snapshots.restore(session, str(data.start), paths)
-	if result.is_empty():
-		if model:
-			model.add_notice(I18n.t("Could not go back: git failed."), ChatEntry.NoticeLevel.ERROR)
-		return
-	var changed: PackedStringArray = result.changed
-	if snapshots == _turn_snapshots:  # en una copia no hay nada abierto en el editor
-		_after_oneshot_restore(changed)
-	if paths.size() == 1:
-		_turn_dialog.mark_reverted(paths[0])
-	if changed.is_empty() or model == null:
-		return
-	var names := ", ".join(changed)
-	var undo := {"session": session, "start": result.before, "undo": true}
-	model.add_notice(I18n.t("Went back: %s") % names, ChatEntry.NoticeLevel.INFO, [{"id": SessionController.ACTION_TURN_RESTORE, "label": I18n.t("Undo"), "data": undo}])
-	var controller := _controller_of(session)
-	if controller and not data.get("undo", false):
-		controller.note_for_agent("[The user reverted these project files to how they were before one of your earlier turns: %s. Re-read them before editing them again.]" % names)
-
-
 func _remove_playtest_autoload() -> void:
 	PlaytestAutoload.unregister(self)
 
@@ -1130,7 +1036,7 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 		snapshots.setup()
 		controller.snapshots = snapshots if _project_config.turn_snapshots else null
 		return _finish_controller(controller, model, id)
-	controller.file_guard = func(paths: PackedStringArray) -> String: return _claim_files(id, paths)
+	controller.file_guard = func(paths: PackedStringArray) -> String: return _coordinator.claim_label(id, paths) if _coordinator else ""
 	controller.snapshots = _turn_snapshots if _project_config.turn_snapshots else null
 	controller.turn_verifier = func(since_unix: int) -> String:
 		if _diagnostics == null or not _project_config.verify_after_turn:
@@ -1159,7 +1065,7 @@ func _open_session_tab(in_copy: bool = false) -> void:
 	var id := "s%d" % _session_serial
 	var pattern := I18n.t("Session %d (copy)") if copy else I18n.t("Session %d")
 	var label := pattern % _session_serial
-	while _label_taken(label, id):  # alguna otra se renombró así
+	while _coordinator.label_taken(label, id):  # alguna otra se renombró así
 		_session_serial += 1
 		label = pattern % _session_serial
 	var model := SessionModel.new()
@@ -1274,18 +1180,11 @@ func _resolve_copy(id: String, copy: WorktreeSession, changed: PackedStringArray
 ## godot.session_send, así que no se repite.
 func _rename_session(id: String, name: String) -> void:
 	var label := name if not name.is_empty() else _tabs.default_label(id)
-	if _label_taken(label, id):
+	if _coordinator.label_taken(label, id):
 		_model_of(id).add_notice(I18n.t("There is already a session called «%s»: pick another name.") % label, ChatEntry.NoticeLevel.WARNING)
 		return
 	_coordinator.register(id, label)
 	_tabs.set_label(id, label)
-
-
-func _label_taken(label: String, except: String) -> bool:
-	for other: String in _coordinator.sessions():
-		if other != except and _coordinator.label(other).to_lower() == label.to_lower():
-			return true
-	return false
 
 
 ## La sesión de quien llama a una tool godot.*: el token principal ("") es el de la primera.
@@ -1325,15 +1224,6 @@ func _models() -> Array[SessionModel]:
 	return result
 
 
-## "" si la sesión `id` puede escribir `paths` (quedan suyos en el turno); si no, el nombre de la
-## que los está editando.
-func _claim_files(id: String, paths: PackedStringArray) -> String:
-	if _coordinator == null or not _coordinator.is_shared():
-		return ""
-	var taken := _coordinator.claim_files(id, paths)
-	return "" if taken.is_empty() else _coordinator.label(str(taken.values()[0]))
-
-
 ## Coordinación de las tools godot.* entre sesiones: el juego para una a la vez (las demás esperan
 ## en cola) y los archivos que otra está editando, fuera de alcance.
 ## Una sesión en una copia aparte (m11-09) no puede usar las tools que editan o corren el proyecto
@@ -1346,75 +1236,30 @@ func _precheck_tool(mcp_caller: String, tool_name: String) -> String:
 
 
 func _guard_tool(mcp_caller: String, tool_name: String, args: Dictionary) -> String:
-	if _coordinator == null or not _coordinator.is_shared():
+	if _coordinator == null:
 		return ""
-	var caller := _session_of(mcp_caller)
-	if tool_name == "run_scene":
-		var holder: String = await _coordinator.acquire_game(caller)
-		if not holder.is_empty():
-			return "The game is in use by «%s»: it launched it and it's still running. Try again when it stops (godot.sessions shows it), or work on something else meanwhile." % _coordinator.label(holder)
-		return ""
-	if tool_name == "stop_scene" or tool_name == "capture_game_frame" or tool_name in RunTools.GAME_TOOLS:
-		var owner := _coordinator.game_owner()
-		if not owner.is_empty() and owner != caller:
-			return "The running game belongs to «%s». Run your own with run_scene when it stops (godot.sessions shows it)." % _coordinator.label(owner)
-		return ""
-	var group := _registry.group_of(tool_name)
-	if not group in [PermissionPolicy.GROUP_EDIT_SCENE, PermissionPolicy.GROUP_EDIT_FILES, PermissionPolicy.GROUP_PROJECT]:
-		return ""
-	var paths := SessionCoordinator.paths_in_args(args)
-	if paths.is_empty() and group == PermissionPolicy.GROUP_EDIT_SCENE:
-		var root := EditorInterface.get_edited_scene_root()
-		if root and not root.scene_file_path.is_empty():
-			paths.append(root.scene_file_path)
-	if group == PermissionPolicy.GROUP_PROJECT:
-		paths.append("res://project.godot")
-	var taken := _coordinator.claim_files(caller, paths)
-	if taken.is_empty():
-		return ""
-	var path: String = taken.keys()[0]
-	return "%s is being edited by «%s» in its current turn. Don't touch it until that turn ends: work on something else, or coordinate with godot.session_send (godot.sessions lists who edits what)." % [path, _coordinator.label(str(taken[path]))]
+	var root := EditorInterface.get_edited_scene_root()
+	var edited := root.scene_file_path if root else ""
+	return await _coordinator.guard_tool(_session_of(mcp_caller), tool_name, _registry.group_of(tool_name), args, edited)
 
 
 ## Lo que ve una sesión de las demás (godot.sessions).
 func _describe_sessions(caller: String) -> String:
-	if _coordinator == null or not _coordinator.is_shared():
+	if _coordinator == null:
 		return "There is only one agent session open: yours."
-	var lines: PackedStringArray = ["You are «%s». Other agent sessions open in this editor:" % _coordinator.label(caller)]
-	for id: String in _coordinator.sessions():
-		if id == caller:
-			continue
-		var model: SessionModel = _model if id == PRIMARY_SESSION else _extra_sessions[id].model
-		var state := "working" if model.is_busy() else ("idle" if model.state == SessionModel.SessionState.READY else "not connected")
-		var line := "- «%s» · %s mode · %s" % [_coordinator.label(id), SessionModel.HARNESS_MODE_LABELS[model.harness_mode], state]
-		if not model.title.strip_edges().is_empty():
-			line += " · on: " + model.title.strip_edges()
-		var files := _coordinator.files_of(id)
-		if not files.is_empty():
-			line += "\n  editing: " + ", ".join(Array(files).map(func(path: String) -> String: return ProjectSettings.localize_path(path)))
-		lines.append(line)
-	var owner := _coordinator.game_owner()
-	lines.append("Game: " + ("not running" if owner.is_empty() else "running for «%s»" % _coordinator.label(owner)))
-	var mine := _coordinator.files_of(caller)
-	if not mine.is_empty():
-		lines.append("Files you hold in this turn: " + ", ".join(Array(mine).map(func(path: String) -> String: return ProjectSettings.localize_path(path))))
-	return "\n".join(lines)
+	return _coordinator.describe(caller, _model_of)
 
 
 func _send_to_session(caller: String, to: String, message: String) -> String:
 	if _coordinator == null:
 		return "There is only one agent session open."
-	var target := ""
-	for id: String in _coordinator.sessions():
-		if _coordinator.label(id).to_lower() == to.to_lower() and id != caller:
-			target = id
+	var target := _coordinator.find_by_label(to, caller)
 	if target.is_empty():
 		return "There is no other session called «%s»: godot.sessions lists them." % to
 	var dock: Control = _tabs.dock(target) if _tabs else null
 	var text := "[Message from «%s», another agent session open in this editor]\n%s" % [_coordinator.label(caller), message]
 	if dock == null or not dock.call(&"deliver_message", text):
 		return "«%s» is not connected to its agent: the message was not delivered." % to
-	var model: SessionModel = _model if target == PRIMARY_SESSION else _extra_sessions[target].model
-	model.add_notice(I18n.t("Message from «%s»: %s") % [_coordinator.label(caller), message.left(200)])
+	_model_of(target).add_notice(I18n.t("Message from «%s»: %s") % [_coordinator.label(caller), message.left(200)])
 	_log.add(AgentLog.CH_MCP, "message %s → %s (%d characters)" % [_coordinator.label(caller), _coordinator.label(target), message.length()])
 	return ""

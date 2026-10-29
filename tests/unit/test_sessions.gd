@@ -4,6 +4,7 @@ extends "test_case.gd"
 
 const SessionCoordinator := preload("res://addons/godot_agent/session/session_coordinator.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
@@ -41,6 +42,30 @@ func test_files_per_turn() -> void:
 	assert_eq(coordinator.files_of("s2"), PackedStringArray(), "cerrar la sesión suelta lo suyo")
 	assert_eq(coordinator.claim_files("s1", ["res://enemy.gd"]), {}, "y otra lo puede tomar")
 	assert_eq(SessionCoordinator.paths_in_args({"scene": "res://a.tscn", "paths": ["res://b.gd", 3], "name": "x"}), PackedStringArray(["res://a.tscn", "res://b.gd"]), "rutas en los argumentos")
+
+
+func test_labels_guard_and_describe() -> void:
+	var coordinator := _coordinator()
+	assert_true(coordinator.label_taken("session 2", "s1"), "nombre de otra, sin mayúsculas")
+	assert_false(coordinator.label_taken("Session 2", "s2"), "el propio no cuenta")
+	assert_eq(coordinator.find_by_label("SESSION 1", "s2"), "s1", "por nombre")
+	assert_eq(coordinator.find_by_label("Session 1", "s1"), "", "no a sí misma")
+	assert_eq(coordinator.claim_label("s1", ["res://a.gd"]), "", "s1 toma a.gd")
+	assert_eq(coordinator.claim_label("s2", ["res://a.gd"]), "Session 1", "s2 ve quién lo tiene")
+	var edit := await coordinator.guard_tool("s2", "set_property", PermissionPolicy.GROUP_EDIT_SCENE, {}, "res://a.gd")
+	assert_true(edit.contains("Session 1"), "la escena abierta cuenta si la tool no nombra ruta")
+	assert_eq(await coordinator.guard_tool("s2", "get_scene_tree", PermissionPolicy.GROUP_READ, {"scene": "res://a.gd"}, ""), "", "leer no se coordina")
+	coordinator.is_game_running = func() -> bool: return true
+	await coordinator.acquire_game("s1", 0.1)
+	assert_true((await coordinator.guard_tool("s2", "stop_scene", "", {}, "")).contains("belongs to «Session 1»"), "el juego ajeno no se toca")
+	var models := {"s1": SessionModel.new(), "s2": SessionModel.new()}
+	var text := coordinator.describe("s2", func(id: String) -> SessionModel: return models[id])
+	assert_true(text.contains("You are «Session 2»") and text.contains("«Session 1»") and text.contains("editing: res://a.gd"), "describe las otras y sus archivos")
+	assert_true(text.contains("running for «Session 1»"), "y de quién es el juego")
+	var alone := SessionCoordinator.new()
+	alone.register("s1", "Session 1")
+	assert_eq(alone.claim_label("s1", ["res://a.gd"]), "", "una sola: nada que coordinar")
+	assert_eq(alone.describe("s1", Callable()), "There is only one agent session open: yours.", "una sola")
 
 
 func test_game_queue() -> void:
