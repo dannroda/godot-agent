@@ -43,3 +43,10 @@ jobs:
 
       - name: One-shot loop
         run: ~/godot/godot --headless --path . --script tests/oneshot_check.gd
+
+      # Habilitar y deshabilitar el plugin 5 veces sin huérfanos ni recursos colgados (m13-10).
+      # scope_compass (el tablero) no está en el repo.
+      - name: Plugin enable/disable cycle
+        run: |
+          sed -i 's|, "res://addons/scope_compass/plugin.cfg"||' project.godot
+          ~/godot/godot --headless --path . --script tests/plugin_cycle_check.gd

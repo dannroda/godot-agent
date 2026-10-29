@@ -50,14 +50,36 @@ var _next_request: int = 1
 func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> void:
 	errors = collector
 	debugger = playtest_debugger
-	debugger.session_started.connect(func() -> void: _state["started"] = true)
-	debugger.session_stopped.connect(func() -> void: _state["stopped"] = true)
-	debugger.session_breaked.connect(func() -> void: _state["breaked"] = true)
-	debugger.probe_ready.connect(func() -> void: _state["ready"] = true)
-	debugger.inputs_done.connect(func(count: int) -> void: _state["inputs_done"] = count)
-	debugger.problem_reported.connect(func(text: String) -> void: (_state.get_or_add("problems", []) as Array).append(text))
-	debugger.frame_received.connect(func(png: PackedByteArray, _w: int, _h: int) -> void: _state["frame"] = png)
-	debugger.reply_received.connect(func(id: int, result: Dictionary) -> void: _replies[id] = result)
+	# Métodos y no lambdas: una lambda captura a RunTools, el debugger la guarda en su señal y
+	# RunTools guarda al debugger; el ciclo no se libera al deshabilitar el plugin (m13-10).
+	debugger.session_started.connect(_flag.bind("started"))
+	debugger.session_stopped.connect(_flag.bind("stopped"))
+	debugger.session_breaked.connect(_flag.bind("breaked"))
+	debugger.probe_ready.connect(_flag.bind("ready"))
+	debugger.inputs_done.connect(_on_inputs_done)
+	debugger.problem_reported.connect(_on_problem_reported)
+	debugger.frame_received.connect(_on_frame_received)
+	debugger.reply_received.connect(_on_reply_received)
+
+
+func _flag(key: String) -> void:
+	_state[key] = true
+
+
+func _on_inputs_done(count: int) -> void:
+	_state["inputs_done"] = count
+
+
+func _on_problem_reported(text: String) -> void:
+	(_state.get_or_add("problems", []) as Array).append(text)
+
+
+func _on_frame_received(png: PackedByteArray, _width: int, _height: int) -> void:
+	_state["frame"] = png
+
+
+func _on_reply_received(id: int, result: Dictionary) -> void:
+	_replies[id] = result
 
 
 func tools() -> Array:

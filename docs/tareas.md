@@ -3884,9 +3884,13 @@ Informe: docs/revisiones/arquitectura.md
 
 **Bloqueada por:** Un adaptador por agente (A1)
 
-### plugin_cycle_check falla en 4.7.2: «3 resources still in use at exit» · Pendiente
+### plugin_cycle_check falla en 4.7.2: «3 resources still in use at exit» · En curso
 
 tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un editor headless) falla en 4.7.2 con «ERROR: 3 resources still in use at exit»; en 4.8-beta1 pasa. Ya fallaba antes de m13 (probado con el código anterior). El CI no corre este check: sumarlo a la matriz cuando pase. Con --verbose se ve qué recursos quedan.
+
+**Prueba:** plugin_cycle_check pasa en 4.7.2 (antes: 3 resources still in use); run-test en Xvfb 0 fallas; run_all 372 (solo test_completion_local)
+
+**Notas:** Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.
 
 ## M12 — Que el agente se verifique solo  (0/8)
 

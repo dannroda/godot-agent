@@ -4,11 +4,11 @@
   "created_at": "2026-10-29T21:47:11.140Z",
   "description": "tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un editor headless) falla en 4.7.2 con «ERROR: 3 resources still in use at exit»; en 4.8-beta1 pasa. Ya fallaba antes de m13 (probado con el código anterior). El CI no corre este check: sumarlo a la matriz cuando pase. Con --verbose se ve qué recursos quedan.",
   "milestone": "m13",
-  "notes": "",
+  "notes": "Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.",
   "order": 10,
   "refs": [],
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "plugin_cycle_check pasa en 4.7.2 (antes: 3 resources still in use); run-test en Xvfb 0 fallas; run_all 372 (solo test_completion_local)",
   "title": "plugin_cycle_check falla en 4.7.2: «3 resources still in use at exit»",
-  "updated_at": "2026-10-29T21:47:26.627Z"
+  "updated_at": "2026-10-29T22:19:03.115Z"
 }
