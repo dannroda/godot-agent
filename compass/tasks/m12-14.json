@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:37.014Z",
   "description": "Pestañas de sesión, agente con cuatro íconos sin texto y la línea de estado que repite el agente. Dos «+» casi pegados (pestaña y sesión). Sin agentes el selector es solo «⌄».\n\nPropuesta: Una fila: chip del agente con estado, título, historial, «+» (sesión o pestaña) y «⋯» con extensiones, ajustes, cuenta y Remote Control.\n\nArchivos: agent_dock.tscn, session_tabs.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en d6b7975 sin atribución.\nUX: el dock arranca con una sola fila de controles (m12-14)\nNota: header de una fila: el chip del agente con su estado (antes la línea de\nestado aparte; clic: elegir el perfil o «Administrar agentes…»), el título, el\nhistorial, «+» con «Sesión nueva», «Pestaña nueva» y «Pestaña nueva en una copia\naparte» (el «+» de las pestañas ya no está al lado), y «⋯» con Extensiones,\nAjustes, Remote Control y Cerrar sesión (los dos últimos cuando el agente los\nofrece). La fila de pestañas aparece recién con dos sesiones. Los botones viejos\n(perfil, ajustes, extensiones, la fila de estado) quedan ocultos porque los usan\nlos checks del dev plugin. Con una sola pestaña no hay doble clic para renombrar\n(sí desde que hay dos).",
   "order": 14,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "dock"
   ],
-  "test": "",
+  "test": "run_all (351 tests; solo fallan los 4 de test_git_checkpoints que fallan como root), test_i18n; captura del dock con el agente falso en Xvfb (--godot-agent-ui-test=basic, pasa).",
   "title": "Tres filas de controles antes del chat",
-  "updated_at": "2026-10-29T06:20:37.014Z"
+  "updated_at": "2026-10-29T12:51:23.275Z"
 }

@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:36.776Z",
   "description": "Todo en rojo con la ruta partida, y solo Reintentar y Abrir el log.\n\nPropuesta: Título y causa en lenguaje claro, las últimas líneas del log con Copiar, y la acción que lo arregla. «Reinstalar» un agente del registro tiene que borrar la versión instalada antes (hoy Agregar reutiliza lo que está en disco).\n\nArchivos: SessionController._fail, notice_view.gd, acp_registry.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 3)",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en 22b7990 sin atribución.\nUX: un error del agente dice qué pasó, muestra el log y ofrece cómo arreglarlo (m12-13)\nNota: no arranca el comando, no contesta initialize o el proceso se cae: el\naviso trae un título («No se pudo iniciar Claude Code», «… no arrancó»,\n«… se detuvo»), la causa en una línea y, en una caja monoespaciada con\n«Copiar», las últimas 8 líneas del stderr del agente (ChatEntry.title y\ndetails). Acciones: si el comando no corre, «Editar el agente» (abre Ajustes ›\nAgentes) y Reintentar; si se cae, Reintentar (principal), «Reinstalar…» si el\ncomando es un binario bajado por el registro (abre el registro de ACP) y Abrir el\nlog. En el registro, un binario que ya está en disco muestra «Reinstalar»:\nborra esa versión antes de bajarla (antes «Agregar» reutilizaba lo instalado).\nEl mensaje técnico sigue en el log y en el tooltip del estado.",
   "order": 13,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "dock"
   ],
-  "test": "",
+  "test": "acp_session_check (161 checks, 0 fallos; el escenario crash pide título y causa), test_notice_view.test_agent_error_card, test_acp_registry.test_is_registry_binary, test_i18n. Sin captura.",
   "title": "Un error del agente es un párrafo rojo sin qué hacer",
-  "updated_at": "2026-10-29T06:20:36.776Z"
+  "updated_at": "2026-10-29T12:51:22.810Z"
 }

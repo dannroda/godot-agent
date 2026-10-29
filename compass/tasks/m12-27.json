@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:40.085Z",
   "description": "Abre en Agoragentic, Amp y Auggie; nada dice si ya está agregado, qué cuenta pide o cuánto pesa.\n\nPropuesta: Sugeridos y agregados arriba, después el resto; tipo de instalación y tamaño en cada tarjeta.\n\nArchivos: acp_registry_dialog.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en 43c040a sin atribución.\nUX: el registro de ACP muestra primero lo agregado y lo sugerido, y cómo se instala cada uno (m12-27)\nNota: la lista se agrupa en «Ya agregados» (ids de los perfiles de Ajustes),\n«Sugeridos» (Claude Code, Codex, Google Antigravity: los de\ncore/suggested_agents.gd, por id o nombre) y «Todos los agentes» por nombre;\nel filtro se aplica antes de agrupar. Un agregado dice «✓ agregado» y su botón es\n«Agregar de nuevo» (reemplaza el perfil) o «Reinstalar» si es un binario en\ndisco; al agregar uno, la lista se rearma y pasa arriba. Cada tarjeta dice cómo\nse instala: «npx <paquete> · Node.js lo baja la primera vez», lo mismo con uvx, o\n«programa para esta plataforma · se bajan 912 MB» cuando el registro trae el\ntamaño (si no: «lo baja el harness»). El autor solo si lo hay.",
   "order": 27,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "registro"
   ],
-  "test": "",
+  "test": "test_acp_registry.test_grouped_and_install_summary, test_settings_dialog, test_i18n (headless). Sin captura: el registro necesita red y acá el proxy la corta.",
   "title": "Registro de ACP: orden alfabético con lo menos útil primero",
-  "updated_at": "2026-10-29T06:20:40.085Z"
+  "updated_at": "2026-10-29T12:51:28.437Z"
 }

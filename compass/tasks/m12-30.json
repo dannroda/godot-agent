@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:40.795Z",
   "description": "Cargando: una línea chica y 450 px vacíos. Sin agentes, Servidores MCP en blanco y Plugins dice «el perfil activo es otro agente» sin haber ninguno.\n\nPropuesta: Filas fantasma mientras carga; sin agente, un mensaje y un botón para agregar uno.\n\nArchivos: extensions_window.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en 6764b5b sin atribución.\nUX: Extensiones sin agente dice qué falta y mientras carga muestra filas fantasma (m12-30)\nNota: sin ningún perfil de agente, Plugins, Marketplaces y Servidores MCP muestran\nuna tarjeta «Todavía no hay un agente configurado…» con «Configurar un agente…»\n(cierra Extensiones y abre Ajustes › Agentes), en vez de «el perfil activo es\notro agente» o la pestaña en blanco; en MCP siguen abajo los servidores del addon.\nMientras se cargan plugins, marketplaces o el estado de los servidores, en lugar\nde una línea chica y 450 px vacíos van el texto y 2 o 3 filas grises\n(ExtensionsUi.skeleton). Con un agente que no es Claude Code queda el aviso de antes.",
   "order": 30,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "extensiones"
   ],
-  "test": "",
+  "test": "--godot-agent-extensions-shots en Xvfb sin agentes (pasa; capturas de Plugins y Servidores MCP con la tarjeta), test_i18n.",
   "title": "Extensiones: pestañas vacías o con mensajes confusos",
-  "updated_at": "2026-10-29T06:20:40.795Z"
+  "updated_at": "2026-10-29T12:51:29.954Z"
 }

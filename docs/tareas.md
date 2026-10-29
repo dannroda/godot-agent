@@ -2929,7 +2929,7 @@ Antigravity tiene cuotas separadas por grupo (Gemini, Claude y GPT, Gemini 4 Arg
 
 Revisión (2026-10-28): sin problemas en lo propio de esta tarea. Nota: con varios grupos de Codex, config_options_changed también llama a select_antigravity_model, que aplica la heurística de Antigravity (no rompe nada hoy).
 
-## M10 — Revisión de UX  (17/40, 17 en revisión)
+## M10 — Revisión de UX  (40/40, 40 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3051,7 +3051,7 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
 
 **Notas:** Botón según estado: Cancelar (cancela el turno con controller.cancel), Cerrar o Rechazar. Sin sesión: «Iniciar sesión» abre la de la pestaña activa (agent_dock._start_session) y reenvía el pedido. El panel repite el pedido y las líneas (where_label), parte de m12-08.
 
-### Alt+I: esperando no dice qué se pidió ni muestra avance · Pendiente
+### Alt+I: esperando no dice qué se pidió ni muestra avance · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `alt-i`
 
@@ -3063,6 +3063,11 @@ Archivos: editor/inline_edit.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 10)
+
+**Prueba:** test_inline_edit.test_waiting_texts (headless); test_i18n. Sin captura.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 889a52d sin atribución.
+UX: Alt+I esperando muestra el pedido, el agente, un indicador y el tiempo (m12-08)
 
 ### One-shot no se adapta al ancho y se corta · Revisión
 
@@ -3098,7 +3103,7 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 2)
 
 **Notas:** Hecho: orden fijo de botones por kind (sorted_options), foco en «Permitir una vez» al aparecer salvo que se esté escribiendo (Enter acepta), Esc deniega solo con el foco en la tarjeta (shortcut_context), y el diff plegado detrás de «Ver el cambio» cuando la herramienta ya lo muestra. No hecho: la barra fija sobre el composer (cambia el layout del dock; queda para cuando se rehaga el dock).
 
-### Pedir el login se ve como un error con seis botones · Pendiente
+### Pedir el login se ve como un error con seis botones · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
 
@@ -3111,7 +3116,12 @@ Archivos: SessionController._login_actions, notice_view.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 8)
 
-### Al abrir, mostrar las sesiones anteriores y opción para continuar la última · Pendiente
+**Prueba:** tests/unit/test_notice_view.gd (headless) y acp_session_check actualizado. Sin captura.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 78f6424 sin atribución.
+UX: pedir el login es una tarjeta neutra con el método principal y «Otras formas de entrar» (m12-11)
+
+### Al abrir, mostrar las sesiones anteriores y opción para continuar la última · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`, `ajustes`
 
@@ -3124,7 +3134,18 @@ Archivos: agent_dock._refresh_empty_state, SessionHistory.list, harness_settings
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 9)
 
-### Un error del agente es un párrafo rojo sin qué hacer · Pendiente
+**Prueba:** test_settings_dialog.test_on_open_setting, test_dock_recent.test_recent_meta, test_i18n (headless). Sin captura.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 3cb7898 sin atribución.
+UX: el dock vacío muestra las sesiones anteriores y puede continuar la última al abrir (m12-12)
+Nota: sin sesión, debajo de «Nueva sesión» (antes «Iniciar sesión») van las
+últimas 5 sesiones del historial del proyecto: título, «agente · 29/10 03:56 ·
+4 turnos» y «Continuar» (open_history_session). No con un One-shot a medias ni
+sin agentes. Ajustes › Interfaz › «Al abrir el editor»: mostrar las sesiones
+anteriores (default) o continuar la última (setting de usuario ui/on_open);
+el plugin la retoma después de restaurar el One-shot, solo si no quedó uno activo.
+
+### Un error del agente es un párrafo rojo sin qué hacer · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
 
@@ -3137,7 +3158,22 @@ Archivos: SessionController._fail, notice_view.gd, acp_registry.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 3)
 
-### Tres filas de controles antes del chat · Pendiente
+**Prueba:** acp_session_check (161 checks, 0 fallos; el escenario crash pide título y causa), test_notice_view.test_agent_error_card, test_acp_registry.test_is_registry_binary, test_i18n. Sin captura.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 22b7990 sin atribución.
+UX: un error del agente dice qué pasó, muestra el log y ofrece cómo arreglarlo (m12-13)
+Nota: no arranca el comando, no contesta initialize o el proceso se cae: el
+aviso trae un título («No se pudo iniciar Claude Code», «… no arrancó»,
+«… se detuvo»), la causa en una línea y, en una caja monoespaciada con
+«Copiar», las últimas 8 líneas del stderr del agente (ChatEntry.title y
+details). Acciones: si el comando no corre, «Editar el agente» (abre Ajustes ›
+Agentes) y Reintentar; si se cae, Reintentar (principal), «Reinstalar…» si el
+comando es un binario bajado por el registro (abre el registro de ACP) y Abrir el
+log. En el registro, un binario que ya está en disco muestra «Reinstalar»:
+borra esa versión antes de bajarla (antes «Agregar» reutilizaba lo instalado).
+El mensaje técnico sigue en el log y en el tooltip del estado.
+
+### Tres filas de controles antes del chat · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
 
@@ -3150,7 +3186,21 @@ Archivos: agent_dock.tscn, session_tabs.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
 
-### Primer arranque: el composer activo sin agente y la elección en Ajustes · Pendiente
+**Prueba:** run_all (351 tests; solo fallan los 4 de test_git_checkpoints que fallan como root), test_i18n; captura del dock con el agente falso en Xvfb (--godot-agent-ui-test=basic, pasa).
+
+**Notas:** Hecho en la sesión cloud, traído a main en d6b7975 sin atribución.
+UX: el dock arranca con una sola fila de controles (m12-14)
+Nota: header de una fila: el chip del agente con su estado (antes la línea de
+estado aparte; clic: elegir el perfil o «Administrar agentes…»), el título, el
+historial, «+» con «Sesión nueva», «Pestaña nueva» y «Pestaña nueva en una copia
+aparte» (el «+» de las pestañas ya no está al lado), y «⋯» con Extensiones,
+Ajustes, Remote Control y Cerrar sesión (los dos últimos cuando el agente los
+ofrece). La fila de pestañas aparece recién con dos sesiones. Los botones viejos
+(perfil, ajustes, extensiones, la fila de estado) quedan ocultos porque los usan
+los checks del dev plugin. Con una sola pestaña no hay doble clic para renombrar
+(sí desde que hay dos).
+
+### Primer arranque: el composer activo sin agente y la elección en Ajustes · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
 
@@ -3162,6 +3212,20 @@ Archivos: agent_dock._refresh_empty_state
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 4)
+
+**Prueba:** test_composer.test_unavailable_without_agent, test_i18n (headless); capturas en Xvfb: el dock sin agentes (--godot-agent-screenshot) y el login desde el dock (--godot-agent-login-test, pasa).
+
+**Notas:** Hecho en la sesión cloud, traído a main en d7f3a99 sin atribución.
+UX: primer arranque con los agentes sugeridos en el dock y el composer apagado (m12-15)
+Nota: sin agentes, el dock vacío muestra «Agregá un agente para empezar:» con
+Claude Code, Codex y Google Antigravity (lo que pide cada uno y «Agregar»):
+Claude Code se guarda directo y queda elegido; los otros abren Ajustes y el
+registro de ACP filtrado por su nombre. El botón de abajo pasa a «Otros
+agentes…» (abre Ajustes). El composer queda apagado con el placeholder
+«Agregá un agente para empezar» (Composer.set_unavailable; set_enabled no lo
+reabre) mientras no haya ningún perfil. De paso (m12-11): si la sesión no abrió
+porque falta iniciar sesión, la línea de estado dice «○ <agente> · falta
+iniciar sesión» en gris, no «✗ · error» en rojo (SessionModel.login_required).
 
 ### Formulario del agente: «Rechazar» y «Cancelar» confunden · Revisión
 
@@ -3179,7 +3243,7 @@ Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
 **Notas:** Con 6 opciones o menos, se muestran como radio con su descripción (antes: desplegable que arrancaba en «—»); la ayuda del campo va una vez (no también de placeholder); «No responder» (decline) y Esc con el foco en la tarjeta cancela; ícono NodeInfo en vez del libro de Help. Visto con un AskUserQuestion real de Claude Code.
 
-### Todo va en una caja y las herramientas se cortan · Pendiente
+### Todo va en una caja y las herramientas se cortan · Revisión
 
 **Prioridad:** media · **Tamaño:** L · **Etiquetas:** `ux`, `dock`
 
@@ -3192,7 +3256,22 @@ Archivos: conversation_view.gd, tool_group_view.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
 
-### Ocho controles en la barra del composer · Pendiente
+**Prueba:** test_tool_group_view.test_short_names_for_people, run_all; en Xvfb la captura de --godot-agent-ui-test=docs_build (antes y después) y --godot-agent-remote-test, que verifica que el dock entra en su panel.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 1b83347 sin atribución.
+UX: el texto del agente sin caja y las herramientas en grilla con nombres para personas (m12-17)
+Nota: el mensaje del agente ya no va en un recuadro (el estilo del RichTextLabel
+del editor): se lee como texto, y las cajas quedan para el código, las
+herramientas y las tarjetas. En el grupo de herramientas, las godot.* muestran un
+nombre para personas («Connect signal», «Scene tree», «Set properties»; el técnico
+en el tooltip) y ninguno pasa de 22 caracteres; la columna del nombre toma el
+ancho del más largo del grupo, así estado, nombre y resumen quedan alineados en
+tres columnas (antes el nombre era un 40 % fijo que cortaba «godot.connect_sig…»).
+La salida, los diffs y los enlaces («spawner.gd:13») van anidados bajo la fila.
+Decisión: la sangría de lo anidado es la de la columna de estado y no la del
+resumen: con la del resumen, un diff (que ya pide su ancho) ensanchaba el dock.
+
+### Ocho controles en la barra del composer · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `dock`
 
@@ -3204,6 +3283,19 @@ Archivos: composer.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
+
+**Prueba:** test_composer.test_add_menu_and_meter (test_prompt_history con ancho fijo: con la fila más corta «segundo» se partía en dos líneas visuales), test_quota_ring, test_i18n; en Xvfb, --godot-agent-remote-test (incluye que el dock entra en su panel) y la captura de --godot-agent-ui-test=basic, que pasan.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 9aa5563 sin atribución.
+UX: la barra del composer con «+», el modo como píldora y el contexto en el anillo (m12-18)
+Nota: @, imagen y / pasan a un «+» con «Nodo o archivo (@)», «Imagen del juego»
+(apagada si el agente no acepta imágenes) y «Comando del agente (/)»; los
+botones viejos quedan ocultos. El modo es una píldora con el color de acento
+(borde y fondo) en vez de texto que parecía un enlace. «38k / 200k» deja la
+fila: el contexto va primero en el tooltip del anillo de cuota («Contexto: 38k
+de 200k (19 %)») y vuelve a la fila solo desde el 80 %, en amarillo. Con esto la
+fila queda en «+», anillo, modo, modelo y Enviar. De paso (m12-14): el check de
+Remote Control busca el botón en el menú «⋯» (el botón vive oculto).
 
 ### Avisos del editor repetidos por sesión · Revisión
 
@@ -3219,7 +3311,7 @@ Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
 **Notas:** Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.
 
-### Pie de turno con los cambios · Pendiente
+### Pie de turno con los cambios · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `dock`
 
@@ -3232,7 +3324,17 @@ Archivos: SessionController._report_turn_changes
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 1)
 
-### Ajustes › Agentes: vacío sin guía y el formulario lejos · Pendiente
+**Prueba:** test_notice_view.test_turn_footer, test_turn_snapshots, test_i18n (headless). Sin captura: ningún check del dev plugin produce un turno con cambios.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 643175a sin atribución.
+UX: lo que cambió un turno va en un pie de línea con «Ver cambios» y «Deshacer el turno» (m12-20)
+Nota: el aviso de los cambios del turno deja de ser una caja centrada como los
+demás: es un pie (ChatEntry.footer) con una línea arriba, el texto a la izquierda
+(«Este turno cambió 1 archivo (+3 −1): player.gd», con singular) y las acciones
+como enlaces del color de acento: «Ver cambios», «Deshacer el turno» (antes
+«Volver a antes de este turno», ahora en el tooltip) y «Guardar el reporte».
+
+### Ajustes › Agentes: vacío sin guía y el formulario lejos · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `ux`, `ajustes`
 
@@ -3245,7 +3347,20 @@ Archivos: settings_dialog._build_agents
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
 
-### Ajustes › Permisos: 45 desplegables sin puntos de partida · Pendiente
+**Prueba:** test_settings_dialog.test_agents_page, test_i18n (headless); captura de Ajustes › Agentes sin agentes en Xvfb (--godot-agent-settings-shots), que pasa.
+
+**Notas:** Hecho en la sesión cloud, traído a main en ebb6759 sin atribución.
+UX: Ajustes › Agentes con sugeridos, lista y formulario lado a lado y estrella (m12-21)
+Nota: sin agentes, la página muestra Claude Code, Codex y Google Antigravity
+con lo que pide cada uno y «Agregar» (core/suggested_agents.gd, que va a usar
+también el dock en m12-15): Claude Code se arma directo (npx, queda
+predeterminado si es el primero); Codex y Antigravity abren el registro de ACP
+filtrado por su nombre, porque el registro da el comando de cada plataforma. Con
+agentes: la lista a la izquierda (clic en la tarjeta la edita y la marca), el
+formulario a la derecha, una estrella para el predeterminado (☆ → ★) y quitar
+como ícono; la nota de $VAR va debajo del campo de entorno.
+
+### Ajustes › Permisos: 45 desplegables sin puntos de partida · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `ajustes`
 
@@ -3257,7 +3372,21 @@ Archivos: settings_dialog._build_permissions
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### Ajustes › Servidores MCP mezcla tres temas · Pendiente
+**Prueba:** test_settings_dialog.test_matrix_cells_and_column_reset y test_matrix_overrides, test_i18n; captura de Ajustes › Permisos en Xvfb (--godot-agent-settings-shots, pasa).
+
+**Notas:** Hecho en la sesión cloud, traído a main en ea3ae4b sin atribución.
+UX: Ajustes › Permisos con celdas de color, lo cambiado resaltado y «↺» por columna (m12-22)
+Nota: cada celda de la matriz dice «✓ Permitir», «? Preguntar» o «✕ Denegar» en
+verde, amarillo o rojo; la que difiere del valor por defecto lleva fondo y borde
+de acento y un tooltip con el default («Cambiado: por defecto es Preguntar»), y
+una nota debajo lo explica. Cada columna tiene «↺», que la vuelve a los valores
+por defecto (también el límite de subagentes). «Subagentes a la vez (0 = sin
+límite)». Decisión: las celdas siguen siendo desplegables (dos clics) en vez de
+cambiar con un clic: con tres valores, ciclar a ciegas lleva a dejar «Permitir»
+sin querer; el color y el ícono ya dan el vistazo rápido. Sirve igual para las
+filas de servidores MCP de terceros.
+
+### Ajustes › Servidores MCP mezcla tres temas · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
 
@@ -3270,7 +3399,19 @@ Archivos: mcp_servers_page.gd, settings_dialog.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
 
-### Ajustes › Completado: perillas de ajuste fino a la vista · Pendiente
+**Prueba:** test_settings_dialog, test_external_mcp_servers, test_i18n (headless); captura de Ajustes › Servidores MCP con un servidor en Xvfb (--godot-agent-settings-shots, pasa).
+
+**Notas:** Hecho en la sesión cloud, traído a main en ed2126e sin atribución.
+UX: Ajustes › Servidores MCP muestra solo los de otros programas y lo demás va en «Avanzado» (m12-23)
+Nota: los dos párrafos del principio pasan a una línea («Herramientas de otros
+programas… Se aplican desde la próxima sesión.») con un enlace «Guía» a la
+sección de la wiki (Settings#other-mcp-servers, o Settings-es en español), que
+ya explicaba $VAR, los servidores propios de Claude Code y /mcp. El servidor
+MCP del editor (URL, puerto, token, límites), las comprobaciones de cada turno
+(lista compacta, validar scripts, snapshots, PR de GitHub) y las carpetas fuera
+del proyecto quedan en un «Avanzado» plegado al final. La wiki (en y es) lo dice.
+
+### Ajustes › Completado: perillas de ajuste fino a la vista · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
 
@@ -3282,7 +3423,19 @@ Archivos: completion_settings_page.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### Ajustes › One-shot repite la pantalla de One-shot · Pendiente
+**Prueba:** test_settings_dialog.test_completion_advanced_folded, test_completion_section y test_completion_save, los test_completion_* (headless); captura de Ajustes › Completado en Xvfb (--godot-agent-settings-shots, pasa).
+
+**Notas:** Hecho en la sesión cloud, traído a main en f9086fe sin atribución.
+UX: Ajustes › Completado con lo de uso arriba y las perillas en «Avanzado» (m12-24)
+Nota: arriba quedan activado (usuario y proyecto), modo, atajos, las fuentes
+locales, sugerencias de varias líneas y los perfiles LLM (con «marcar las
+sugerencias del LLM»). En un «Avanzado: umbrales, tiempos, corpus y log»
+plegado: umbral del ranker, margen, debounce local, máximo de líneas, corpus
+extra y exclusiones, debounce del LLM, prefijo, sufijo, contexto del proyecto y
+el log «raw». Los contadores de la sesión siguen al final. Los helpers de la
+página agregan en `_target` (la página o el plegado).
+
+### Ajustes › One-shot repite la pantalla de One-shot · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
 
@@ -3295,7 +3448,18 @@ Archivos: settings_dialog._build_oneshot
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
 
-### Ajustes: Guardar y Cancelar lejos y sin aviso de cambios · Pendiente
+**Prueba:** test_settings_dialog (el umbral de pausa ahora apunta a QUOTA), test_i18n; capturas de las 8 secciones en Xvfb (--godot-agent-settings-shots, pasa).
+
+**Notas:** Hecho en la sesión cloud, traído a main en ee0c73e sin atribución.
+UX: Ajustes › One-shot son los valores iniciales y la cuota tiene su sección (m12-25)
+Nota: «One-shot y cuota» se parte en dos secciones. «One-shot» titula
+«Valores iniciales de cada One-shot (por proyecto)» con una línea que dice que
+la pantalla One-shot arranca con esos y ahí se cambian por corrida; sigue con
+loops, vueltas de QA y criterios. «Cuota del plan» (nueva, después de
+One-shot) tiene aviso, pausa y qué hacer al reiniciarse, con una línea sobre el
+anillo; la validación de los umbrales lleva ahí. Wiki (en y es) al día.
+
+### Ajustes: Guardar y Cancelar lejos y sin aviso de cambios · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `ajustes`
 
@@ -3308,7 +3472,20 @@ Archivos: settings_dialog.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 5)
 
-### Registro de ACP: orden alfabético con lo menos útil primero · Pendiente
+**Prueba:** test_settings_dialog.test_dirty_sections, test_i18n; captura en Xvfb (--godot-agent-settings-shots, pasa: Permisos y Servidores MCP con «•» después de que el check los cambia).
+
+**Notas:** Hecho en la sesión cloud, traído a main en 9bd8e21 sin atribución.
+UX: Ajustes con Guardar y Cancelar juntos, «•» en las secciones cambiadas y Export que dice qué falta (m12-26)
+Nota: los botones del diálogo quedan juntos a la derecha (los espaciadores del
+AcceptDialog dejan de estirarse y uno solo, al principio, los empuja). Al abrir se
+guarda un resumen de cada sección (valores de sus controles, más los perfiles y
+los servidores MCP); cada 0,3 s, mientras está abierto, la sección que difiere
+lleva «• » en la lista y el tooltip «Cambiado: todavía sin guardar»; si se
+vuelve al valor de antes, la marca se va. Export sin presets: «creá uno primero
+en Proyecto → Exportar…», y el botón apagado dice por qué en su tooltip (también
+cuando todos ya tienen el filtro).
+
+### Registro de ACP: orden alfabético con lo menos útil primero · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `registro`
 
@@ -3320,7 +3497,21 @@ Archivos: acp_registry_dialog.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### Registro de ACP: descripciones en inglés · Pendiente
+**Prueba:** test_acp_registry.test_grouped_and_install_summary, test_settings_dialog, test_i18n (headless). Sin captura: el registro necesita red y acá el proxy la corta.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 43c040a sin atribución.
+UX: el registro de ACP muestra primero lo agregado y lo sugerido, y cómo se instala cada uno (m12-27)
+Nota: la lista se agrupa en «Ya agregados» (ids de los perfiles de Ajustes),
+«Sugeridos» (Claude Code, Codex, Google Antigravity: los de
+core/suggested_agents.gd, por id o nombre) y «Todos los agentes» por nombre;
+el filtro se aplica antes de agrupar. Un agregado dice «✓ agregado» y su botón es
+«Agregar de nuevo» (reemplaza el perfil) o «Reinstalar» si es un binario en
+disco; al agregar uno, la lista se rearma y pasa arriba. Cada tarjeta dice cómo
+se instala: «npx <paquete> · Node.js lo baja la primera vez», lo mismo con uvx, o
+«programa para esta plataforma · se bajan 912 MB» cuando el registro trae el
+tamaño (si no: «lo baja el harness»). El autor solo si lo hay.
+
+### Registro de ACP: descripciones en inglés · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `registro`
 
@@ -3332,7 +3523,18 @@ Archivos: acp_registry_dialog.gd, es.po
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### Extensiones › Skills: acciones como íconos sueltos · Pendiente
+**Prueba:** test_acp_registry.test_description_of, test_i18n (headless).
+
+**Notas:** Hecho en la sesión cloud, traído a main en e27adce sin atribución.
+UX: los agentes sugeridos del registro de ACP tienen descripción propia y traducida (m12-28)
+Nota: el registro solo trae descripciones en inglés. Para los sugeridos (Claude
+Code, Codex, Google Antigravity) la tarjeta usa un texto propio de
+core/suggested_agents.gd, marcado para i18n y con su traducción en es.po; el
+resto sigue con la descripción del registro (traducir decenas de textos que
+cambian con cada versión del registro no se sostiene). SuggestedAgents.matching
+reconoce un agente del registro por id o nombre.
+
+### Extensiones › Skills: acciones como íconos sueltos · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `extensiones`
 
@@ -3344,7 +3546,20 @@ Archivos: skills_tab.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### Extensiones: pestañas vacías o con mensajes confusos · Pendiente
+**Prueba:** --godot-agent-skills-test en Xvfb (crea en el proyecto, copia, importa un zip; pasa) con su captura; test_i18n.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 3e45bcf sin atribución.
+UX: Extensiones › Skills con un filtro por alcance, «+ Skill» que pregunta dónde y acciones en «⋯» (m12-29)
+Nota: el desplegable «En este proyecto / Para todos los proyectos» decía dónde
+iban Nueva e Importar, pero parecía un filtro de la lista (y la lista mostraba
+«Usuario»). Ahora es un filtro de verdad: Todas, Este proyecto, Todos mis
+proyectos, De plugins. «+ Skill» es un menú con «Skill nueva en este proyecto»,
+«… para todos mis proyectos» y lo mismo para importar una carpeta o zip. En cada
+skill, Abrir SKILL.md, Mostrar en el gestor de archivos, Copiar a este proyecto y
+Borrar… van con su nombre en un menú «⋯»; el interruptor queda a la vista. El
+check del dev plugin elige el destino con `_target_scope`.
+
+### Extensiones: pestañas vacías o con mensajes confusos · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`, `extensiones`
 
@@ -3356,7 +3571,19 @@ Archivos: extensions_window.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
-### Extensiones › Addons de Godot no es del agente · Pendiente
+**Prueba:** --godot-agent-extensions-shots en Xvfb sin agentes (pasa; capturas de Plugins y Servidores MCP con la tarjeta), test_i18n.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 6764b5b sin atribución.
+UX: Extensiones sin agente dice qué falta y mientras carga muestra filas fantasma (m12-30)
+Nota: sin ningún perfil de agente, Plugins, Marketplaces y Servidores MCP muestran
+una tarjeta «Todavía no hay un agente configurado…» con «Configurar un agente…»
+(cierra Extensiones y abre Ajustes › Agentes), en vez de «el perfil activo es
+otro agente» o la pestaña en blanco; en MCP siguen abajo los servidores del addon.
+Mientras se cargan plugins, marketplaces o el estado de los servidores, en lugar
+de una línea chica y 450 px vacíos van el texto y 2 o 3 filas grises
+(ExtensionsUi.skeleton). Con un agente que no es Claude Code queda el aviso de antes.
+
+### Extensiones › Addons de Godot no es del agente · Revisión
 
 **Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `ux`, `extensiones`
 
@@ -3369,7 +3596,12 @@ Archivos: godot_addons_tab.gd
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
 
-### Extensiones › Instrucciones: qué agente lee cada archivo · Pendiente
+**Notas:** Hecho en la sesión cloud, traído a main en 375d9a2 sin atribución.
+Tests: la pestaña de addons se llama «Project addons» (m12-31)
+Arreglo del test test_claude_extensions.test_window_builds_offline, que seguía
+esperando «Godot addons» después del cambio de nombre de m12-31.
+
+### Extensiones › Instrucciones: qué agente lee cada archivo · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`, `extensiones`
 
@@ -3381,6 +3613,17 @@ Archivos: instructions_tab.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
+
+**Prueba:** --godot-agent-extensions-shots en Xvfb (pasa; captura de Instrucciones), test_claude_extensions y test_i18n (headless).
+
+**Notas:** Hecho en la sesión cloud, traído a main en c7e0c61 sin atribución.
+UX: Extensiones › Instrucciones con la lista de archivos y quién lee cada uno (m12-32)
+Nota: el desplegable de archivos pasa a una lista a la izquierda (Tree) con dos
+líneas por archivo: el nombre (o «(nuevo)» si todavía no existe, en gris) y qué
+agente lo lee (CLAUDE.md · Claude Code, AGENTS.md · Codex, Antigravity…, las
+reglas y workflows encontrados con el suyo). El editor y sus botones van a la
+derecha, con «CLAUDE.md · Lo lee Claude Code.» arriba. «+ Regla o workflow» abre
+el mismo diálogo de antes.
 
 ### One-shot: «Iniciar» deshabilitado sin decir por qué · Revisión
 
@@ -3399,7 +3642,7 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
 
 **Notas:** Hecho en la sesión cloud, traído a main en e289169 sin atribución. El formulario dice con qué agente corre («Corre con X (el agente elegido en el dock)»); sin agente, aviso en amarillo y «Configurar un agente…» que abre Ajustes (no el selector del dock de la propuesta). Junto a «Iniciar One-shot» va lo que falta (objetivo, agente o un One-shot en curso), también como tooltip; el plugin refresca al cambiar los perfiles o el elegido.
 
-### One-shot: una tarjeta chica en una pantalla vacía · Pendiente
+### One-shot: una tarjeta chica en una pantalla vacía · Revisión
 
 **Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`, `oneshot`
 
@@ -3411,6 +3654,25 @@ Archivos: agent_main_screen.tscn
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)
+
+**Prueba:** --godot-agent-oneshot-test en Xvfb (0 fallas, antes 1), --godot-agent-screenshot con el formulario en columnas, test_oneshot_* (headless).
+
+**Notas:** Hecho en la sesión cloud, traído a main en 4508998 sin atribución.
+UX: el formulario del One-shot en dos columnas, con ejemplos de objetivo y presupuestos compactos (m12-34)
+Nota: a la izquierda el objetivo (más alto) con tres ejemplos que se cargan con
+un clic («Pong de 2 jugadores…», un shooter de oleadas, un plataformas de tres
+niveles); a la derecha, el agente, los presupuestos como etiqueta y valor (antes
+tres columnas de 290 px para valores como «8»), las casillas, la regla de cuota
+e «Iniciar One-shot». Con el formulario por debajo de 820 px se apilan
+(BoxContainer.vertical), así sigue entrando en el centro angosto de m12-09.
+
+De paso:
+- m12-33: el nombre del agente sale del perfil de la sesión abierta y, si no hay,
+  del elegido en Ajustes (con el agente del run y sin perfiles guardados, Iniciar
+  quedaba apagado). El check oneshot_ui_check le pasa «Agente falso».
+- Dock vacío con un One-shot a medias y sin perfiles: el botón es «Retomar
+  One-shot» (antes «Configurar un agente…»/«Otros agentes…») y no se muestran
+  los sugeridos. Era la falla que el check ya tenía antes de este hito.
 
 ### Dos cosas se llaman «Agent» · Revisión
 
@@ -3426,7 +3688,7 @@ Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
 
 **Notas:** Hecho en la sesión cloud «Godot agent improvements» (rama claude/godot-agent-improvements-dh5g01), traído a main en ed333af sin atribución. Revisado: tests de la rama 341/341.
 
-### Agent Log: ir a la línea del error desde el chat · Pendiente
+### Agent Log: ir a la línea del error desde el chat · Revisión
 
 **Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `ux`, `log`
 
@@ -3437,6 +3699,19 @@ Propuesta: «Abrir el log» filtra por la sesión y salta a la línea del error,
 Archivos: agent_log_panel.gd
 
 Informe: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH
+
+**Prueba:** acp_session_check (162 checks, 0 fallos; el escenario crash verifica que la acción apunta a la línea «exited»), run_all. Sin captura: ningún check del dev plugin aprieta el botón.
+
+**Notas:** Hecho en la sesión cloud, traído a main en 253ac05 sin atribución.
+UX: «Abrir el log abajo» desde un error salta a su línea del Agent Log, resaltada (m12-36)
+Nota: los avisos de error (sesión que no abre, agente que no arranca o se cae,
+turno con error) guardan en su acción el `seq` de la línea del log que les
+corresponde (AgentLog.last_seq; el turno con error ahora también deja su línea en
+el log). Al apretarla, el dock emite show_log_requested(seq): el plugin abre el
+panel y AgentLogPanel.focus_entry prende todos los canales (para que un filtro no
+la esconda), la resalta en amarillo y la lleva a la vista. Lo que no se hizo:
+filtrar por sesión, porque el log es uno solo para todas las sesiones y sus
+líneas no dicen de cuál son (habría que etiquetar cada llamada a add).
 
 ### Migrar perfiles viejos: quitar Gemini CLI y el Codex sin comando · Revisión
 
@@ -3488,18 +3763,34 @@ Propuesta: ocultar del grupo el tool call que originó una elicitation (mismo to
 
 **Notas:** Hecho en la sesión cloud, traído a main en 441b7b9 sin atribución. El tool call que originó una pregunta sale del grupo de herramientas (y el grupo, si queda vacío): por el toolCallId de la elicitation o, si no viene, por un tool call sin terminar del último grupo con el mismo título que la pregunta; si llega después de la pregunta, no se agrega. SessionModel: _question_calls, _hide_question_call y _detach (sacado de _reparent).
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (0/3)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (1/3, 1 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
 **Hecho cuando:**
 - Las tres revisiones tienen su informe y cada hallazgo quedó como tarea hecha o descartada con su motivo.
 
-### Revisión de seguridad del addon · Pendiente
+### Revisión de seguridad del addon · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `revision`, `seguridad`
 
 Revisar todo lo que el agente o un tercero puede hacer a través del harness: terminales y preautorización (como el command_key de eae1e13), fs/*, permisos por modo y reglas de Auto, el servidor MCP local (token, puerto, límites), instalación de agentes del registro (descargas, sha256, permisos de archivos), elicitation (URLs), extensiones y marketplaces, secretos en perfiles y en el log, y el export. Informe con hallazgos ordenados por gravedad y una tarea por hallazgo.
+
+**Prueba:** test_fs_handler.test_symlinks_out_of_the_project, test_tool_registry.test_copy_from_outside_asks_as_shell, test_acp_registry.test_safe_relative_paths, test_asset_store (entradas nuevas), run_all (362 tests; solo los 4 de root), acp_session_check 162/0.
+
+**Notas:** Hecho en la sesión cloud, traído a main en d3b48c6 sin atribución.
+Seguridad: informe de la revisión y arreglos de rutas, permisos y log (m13-01)
+Informe en docs/revisiones/seguridad.md (S1–S14). Arreglados:
+- S1: fs/* y godot.move_file/delete_file ya no siguen enlaces simbólicos que
+  salen del proyecto (FsHandler.link_escape).
+- S2: godot.copy_file desde fuera del proyecto pide como un comando de shell
+  (McpTool.group_resolver): en Auto pregunta.
+- S4: registro de ACP: entradas del zip con «\» y un `cmd` que sale de la
+  carpeta de instalación se descartan (AcpRegistry.is_safe_relative).
+- S5: Asset Store: entradas del zip con «\» o con unidad se descartan.
+- S6: el token MCP de cada pestaña también se tapa en el Agent Log.
+A decidir: S3 (en Auto, `godot --headless *` permitido + edición permitida
+corre cualquier código sin preguntar); el informe propone opciones.
 
 ### Revisión de patrones de Godot · Pendiente
 

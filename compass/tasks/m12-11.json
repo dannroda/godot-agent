@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:36.306Z",
   "description": "Tarjeta roja «Authentication required (-32000)» con cuatro métodos que repiten «Sign in · Log in with…», más Retry y Open the log below.\n\nPropuesta: Tarjeta neutra «Iniciá sesión en <agente>» con el método principal como botón y los demás bajo «Otras formas de entrar», sin código ni Reintentar.\n\nArchivos: SessionController._login_actions, notice_view.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 8)",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en 78f6424 sin atribución.\nUX: pedir el login es una tarjeta neutra con el método principal y «Otras formas de entrar» (m12-11)",
   "order": 11,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "dock"
   ],
-  "test": "",
+  "test": "tests/unit/test_notice_view.gd (headless) y acp_session_check actualizado. Sin captura.",
   "title": "Pedir el login se ve como un error con seis botones",
-  "updated_at": "2026-10-29T06:20:36.306Z"
+  "updated_at": "2026-10-29T12:51:47.475Z"
 }

@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:41.766Z",
   "description": "900 px al medio de 1920, objetivo de 400 px de alto y presupuestos de 290 px para valores como «8».\n\nPropuesta: Dos columnas: objetivo con ejemplos a la izquierda; agente, presupuestos compactos y opciones a la derecha.\n\nArchivos: agent_main_screen.tscn\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 7)",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en 4508998 sin atribución.\nUX: el formulario del One-shot en dos columnas, con ejemplos de objetivo y presupuestos compactos (m12-34)\nNota: a la izquierda el objetivo (más alto) con tres ejemplos que se cargan con\nun clic («Pong de 2 jugadores…», un shooter de oleadas, un plataformas de tres\nniveles); a la derecha, el agente, los presupuestos como etiqueta y valor (antes\ntres columnas de 290 px para valores como «8»), las casillas, la regla de cuota\ne «Iniciar One-shot». Con el formulario por debajo de 820 px se apilan\n(BoxContainer.vertical), así sigue entrando en el centro angosto de m12-09.\n\nDe paso:\n- m12-33: el nombre del agente sale del perfil de la sesión abierta y, si no hay,\n  del elegido en Ajustes (con el agente del run y sin perfiles guardados, Iniciar\n  quedaba apagado). El check oneshot_ui_check le pasa «Agente falso».\n- Dock vacío con un One-shot a medias y sin perfiles: el botón es «Retomar\n  One-shot» (antes «Configurar un agente…»/«Otros agentes…») y no se muestran\n  los sugeridos. Era la falla que el check ya tenía antes de este hito.",
   "order": 34,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "oneshot"
   ],
-  "test": "",
+  "test": "--godot-agent-oneshot-test en Xvfb (0 fallas, antes 1), --godot-agent-screenshot con el formulario en columnas, test_oneshot_* (headless).",
   "title": "One-shot: una tarjeta chica en una pantalla vacía",
-  "updated_at": "2026-10-29T06:20:41.766Z"
+  "updated_at": "2026-10-29T12:51:31.364Z"
 }

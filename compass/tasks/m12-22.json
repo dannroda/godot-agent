@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:38.889Z",
   "description": "Matriz de 9 grupos por 5 modos con desplegables iguales; «Subagentes a la vez 0» ambiguo; nota de MCP cortada.\n\nPropuesta: Celdas con color e ícono que cambian con un clic, marcar lo que difiere del default, «Restaurar» por columna, «0 = sin límite».\n\nArchivos: settings_dialog._build_permissions\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en ea3ae4b sin atribución.\nUX: Ajustes › Permisos con celdas de color, lo cambiado resaltado y «↺» por columna (m12-22)\nNota: cada celda de la matriz dice «✓ Permitir», «? Preguntar» o «✕ Denegar» en\nverde, amarillo o rojo; la que difiere del valor por defecto lleva fondo y borde\nde acento y un tooltip con el default («Cambiado: por defecto es Preguntar»), y\nuna nota debajo lo explica. Cada columna tiene «↺», que la vuelve a los valores\npor defecto (también el límite de subagentes). «Subagentes a la vez (0 = sin\nlímite)». Decisión: las celdas siguen siendo desplegables (dos clics) en vez de\ncambiar con un clic: con tres valores, ciclar a ciegas lleva a dejar «Permitir»\nsin querer; el color y el ícono ya dan el vistazo rápido. Sirve igual para las\nfilas de servidores MCP de terceros.",
   "order": 22,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "ajustes"
   ],
-  "test": "",
+  "test": "test_settings_dialog.test_matrix_cells_and_column_reset y test_matrix_overrides, test_i18n; captura de Ajustes › Permisos en Xvfb (--godot-agent-settings-shots, pasa).",
   "title": "Ajustes › Permisos: 45 desplegables sin puntos de partida",
-  "updated_at": "2026-10-29T06:20:38.889Z"
+  "updated_at": "2026-10-29T12:51:26.096Z"
 }

@@ -4,17 +4,17 @@
   "created_at": "2026-10-29T06:20:39.377Z",
   "description": "Umbral del ranker, margen y debounce al nivel de «Activado».\n\nPropuesta: Activado, modo y fuentes arriba; los números en «Avanzado» plegado.\n\nArchivos: completion_settings_page.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en f9086fe sin atribución.\nUX: Ajustes › Completado con lo de uso arriba y las perillas en «Avanzado» (m12-24)\nNota: arriba quedan activado (usuario y proyecto), modo, atajos, las fuentes\nlocales, sugerencias de varias líneas y los perfiles LLM (con «marcar las\nsugerencias del LLM»). En un «Avanzado: umbrales, tiempos, corpus y log»\nplegado: umbral del ranker, margen, debounce local, máximo de líneas, corpus\nextra y exclusiones, debounce del LLM, prefijo, sufijo, contexto del proyecto y\nel log «raw». Los contadores de la sesión siguen al final. Los helpers de la\npágina agregan en `_target` (la página o el plegado).",
   "order": 24,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "ajustes"
   ],
-  "test": "",
+  "test": "test_settings_dialog.test_completion_advanced_folded, test_completion_section y test_completion_save, los test_completion_* (headless); captura de Ajustes › Completado en Xvfb (--godot-agent-settings-shots, pasa).",
   "title": "Ajustes › Completado: perillas de ajuste fino a la vista",
-  "updated_at": "2026-10-29T06:20:39.377Z"
+  "updated_at": "2026-10-29T12:51:27.031Z"
 }

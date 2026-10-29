@@ -4,18 +4,18 @@
   "created_at": "2026-10-29T06:20:36.538Z",
   "description": "Con agente configurado, el dock abre en «Sin sesión» con «Iniciar sesión». Seguir lo anterior requiere el ícono de historial, y no hay forma de que reabra la última sesión solo.\n\nPropuesta: Lista de sesiones del proyecto (título, agente, cuándo, turnos, Continuar) con «Nueva sesión» arriba. En Ajustes › Interfaz: «Al abrir el editor: mostrar las sesiones / continuar la última».\n\nArchivos: agent_dock._refresh_empty_state, SessionHistory.list, harness_settings.gd\n\nInforme: https://claude.ai/artifact/KsFLJqJYs2XKeoAc8BAPWH\nLienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 9)",
   "milestone": "m12",
-  "notes": "",
+  "notes": "Hecho en la sesión cloud, traído a main en 3cb7898 sin atribución.\nUX: el dock vacío muestra las sesiones anteriores y puede continuar la última al abrir (m12-12)\nNota: sin sesión, debajo de «Nueva sesión» (antes «Iniciar sesión») van las\núltimas 5 sesiones del historial del proyecto: título, «agente · 29/10 03:56 ·\n4 turnos» y «Continuar» (open_history_session). No con un One-shot a medias ni\nsin agentes. Ajustes › Interfaz › «Al abrir el editor»: mostrar las sesiones\nanteriores (default) o continuar la última (setting de usuario ui/on_open);\nel plugin la retoma después de restaurar el One-shot, solo si no quedó uno activo.",
   "order": 12,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "ux",
     "dock",
     "ajustes"
   ],
-  "test": "",
+  "test": "test_settings_dialog.test_on_open_setting, test_dock_recent.test_recent_meta, test_i18n (headless). Sin captura.",
   "title": "Al abrir, mostrar las sesiones anteriores y opción para continuar la última",
-  "updated_at": "2026-10-29T06:20:36.538Z"
+  "updated_at": "2026-10-29T12:51:22.257Z"
 }
