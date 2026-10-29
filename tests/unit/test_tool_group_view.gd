@@ -58,3 +58,15 @@ func _has_button_text(root: Node, text: String) -> bool:
 		if (node as Button).text == text:
 			return true
 	return false
+
+
+## m12-17: las tools del editor con nombre para personas, y ninguno más largo que el tope.
+func test_short_names_for_people() -> void:
+	const ToolCallScript := preload("res://addons/godot_agent/session/tool_call.gd")
+	var call := ToolCallScript.new()
+	call.title = "mcp__godot__connect_signal"
+	assert_eq(ToolGroupView._short_name(call), "Connect signal", "godot.connect_signal")
+	call.title = "Read"
+	assert_eq(ToolGroupView._short_name(call), "Read", "las del agente quedan")
+	call.title = "mcp__godot__set_project_setting_override_feature"
+	assert_true((ToolGroupView._short_name(call) as String).length() <= 22, "con tope y «…»")

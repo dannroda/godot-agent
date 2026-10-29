@@ -15,6 +15,8 @@ const STATUS_ICONS: Dictionary = {
 	ToolCall.STATUS_FAILED: "✗",
 	ToolCall.STATUS_CANCELLED: "⊘",
 }
+## Tope del nombre de la herramienta en la fila (m12-17); el entero queda en el tooltip.
+const NAME_MAX_CHARS := 22
 const SPINNER := ["◐", "◓", "◑", "◒"]
 const SUMMARY_MAX := 80
 const OUTPUT_PREVIEW_LINES := 40
@@ -73,6 +75,7 @@ func refresh() -> void:
 		total_msec += call.duration_msec()
 		if call.status == ToolCall.STATUS_FAILED:
 			failed += 1
+	_align_rows()
 	var count := (I18n.t("%d tool") if calls.size() == 1 else I18n.t("%d tools")) % calls.size()
 	var text := "%s %s · %s" % ["▾" if _header.button_pressed else "▸", count, _format_duration(total_msec)]
 	if failed > 0:
@@ -117,6 +120,7 @@ func _refresh_row(call: ToolCall, container: VBoxContainer) -> void:
 	status_label.add_theme_color_override(&"font_color", status_color)
 	var name_label: Label = parts.name
 	name_label.text = _short_name(call)
+	name_label.tooltip_text = call.title if call.title != name_label.text else ""
 	name_label.add_theme_color_override(&"font_color", AgentTheme.GODOT_TOOL if call.is_godot_tool() else AgentTheme.font_color())
 	var summary_label: Label = parts.summary
 	summary_label.text = _summary(call)
@@ -137,11 +141,10 @@ func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 	var status := Label.new()
 	status.custom_minimum_size.x = AgentTheme.px(14)
 	row.add_child(status)
+	# Columna del nombre con el ancho del más largo del grupo (_align_rows), no un 40 % que cortaba
+	# «godot.connect_sig…» (m12-17).
 	var name_label := Label.new()
-	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_label.size_flags_stretch_ratio = 0.6
-	name_label.clip_text = true
+	name_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	row.add_child(name_label)
 	var summary := Label.new()
 	summary.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -156,8 +159,11 @@ func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 	undo.tooltip_text = I18n.t("Undo in the editor (Ctrl+Z)")
 	undo.pressed.connect(func() -> void: action_requested.emit("undo_tool_call", call.id))
 	row.add_child(undo)
+	# La salida, los diffs y los enlaces van anidados bajo el resumen (m12-17).
+	var extra_margin := MarginContainer.new()
+	block.add_child(extra_margin)
 	var extra := VBoxContainer.new()
-	block.add_child(extra)
+	extra_margin.add_child(extra)
 	# Subagente: "▸ 5 herramientas · Read" y, al abrirlo, sus herramientas y su último texto.
 	var nested := VBoxContainer.new()
 	nested.visible = false
@@ -185,7 +191,7 @@ func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 		indent.visible = open
 		refresh()
 	)
-	return {"row": row, "status": status, "name": name_label, "summary": summary, "extra": extra, "undo": undo,
+	return {"row": row, "status": status, "name": name_label, "summary": summary, "extra": extra, "extra_margin": extra_margin, "undo": undo,
 		"nested": nested, "toggle": toggle, "indent": indent, "children": children, "note": note}
 
 
@@ -359,8 +365,35 @@ func _on_spinner() -> void:
 			(_rows[call.id].status as Label).text = SPINNER[_spinner_frame % SPINNER.size()]
 
 
+## Las tools del editor con nombre para personas («godot.connect_signal» → «Connect signal»); el
+## nombre técnico queda en el tooltip. Las del agente (Read, Bash…) ya son cortas.
 static func _short_name(call: ToolCall) -> String:
-	return call.display_name()
+	var godot_name := call.godot_tool_name()
+	if not godot_name.is_empty():
+		var human := godot_name.replace("_", " ")
+		return _cap_name(human.left(1).to_upper() + human.substr(1))
+	return _cap_name(call.display_name())
+
+
+static func _cap_name(text: String) -> String:
+	return text if text.length() <= NAME_MAX_CHARS else text.left(NAME_MAX_CHARS - 1) + "…"
+
+
+## La columna del nombre toma el ancho del nombre más largo del grupo; lo anidado (salida,
+## diffs, enlaces) arranca después de la columna de estado, sin sumar el nombre: un diff ya pide su
+## ancho y, más corrido, ensanchaba el dock.
+func _align_rows() -> void:
+	var width := 0.0
+	for parts: Dictionary in _rows.values():
+		var label: Label = parts.name
+		label.custom_minimum_size.x = 0
+		width = maxf(width, label.get_minimum_size().x)
+	width = ceilf(width)
+	for parts: Dictionary in _rows.values():
+		(parts.name as Label).custom_minimum_size.x = width
+		var row: HBoxContainer = parts.row
+		var indent := (parts.status as Control).custom_minimum_size.x + row.get_theme_constant(&"separation")
+		(parts.extra_margin as MarginContainer).add_theme_constant_override(&"margin_left", int(indent))
 
 
 static func _summary(call: ToolCall) -> String:

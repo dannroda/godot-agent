@@ -37,13 +37,10 @@ func _build() -> void:
 		_label.add_theme_color_override(&"default_color", AgentTheme.MUTED)
 		add_child(_label)
 		return
-	# Un solo recuadro (el estilo del RichTextLabel del editor) con los tramos adentro, sin fondo.
+	# Sin caja (m12-17): el texto del agente se lee como texto; las cajas quedan para el código,
+	# las herramientas y las tarjetas que piden algo.
 	var frame := PanelContainer.new()
-	var theme := AgentTheme.editor_theme()
-	if theme.has_stylebox(&"normal", &"RichTextLabel"):
-		frame.add_theme_stylebox_override(&"panel", theme.get_stylebox(&"normal", &"RichTextLabel"))
-	else:
-		frame.add_theme_stylebox_override(&"panel", StyleBoxEmpty.new())
+	frame.add_theme_stylebox_override(&"panel", StyleBoxEmpty.new())
 	add_child(frame)
 	_segments = VBoxContainer.new()
 	_segments.add_theme_constant_override(&"separation", AgentTheme.px(6))
