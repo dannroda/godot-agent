@@ -143,11 +143,12 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.REVIEW, "Preguntar no cambia el modo")
 
 	# Exportar a CLAUDE.md: vista previa (sin escribir el archivo del proyecto).
-	_dock.call(&"_on_review_export_requested")
+	var review_panel: Object = _dock.get(&"_review_panel")
+	review_panel.call(&"_on_export_requested")
 	await _frames(2)
-	var preview: TextEdit = _dock.get(&"_export_preview")
+	var preview: TextEdit = review_panel.get(&"_export_preview")
 	_expect(preview.text.contains("## Conventions from the agent review") and preview.text.contains("El movimiento depende del framerate"), "vista previa de CLAUDE.md")
-	(_dock.get(&"_export_dialog") as ConfirmationDialog).hide()
+	(review_panel.get(&"_export_dialog") as ConfirmationDialog).hide()
 
 	# Aplicar arreglo: pasa a Construir y, al terminar bien el turno, el hallazgo sale.
 	_press(_annotations.card_for(player_path), "Apply fix")
@@ -167,6 +168,8 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.REVIEW)
 	await _frames(2)
 	var panel: Control = _dock.get(&"_review_panel")
+	(panel.get(&"_fold") as FoldableContainer).expand()  # plegado desde m12-03: las acciones no se ven
+	await _frames(2)
 	_press(panel, "Fix in Build mode")
 	await _frames(2)
 	await _wait_turn()

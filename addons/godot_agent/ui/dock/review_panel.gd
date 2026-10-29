@@ -5,12 +5,14 @@ extends PanelContainer
 ## Plegado muestra una fila con el alcance y los contadores, para no quitarle alto al chat (m12-03).
 
 signal finding_selected(id: int)
-signal export_requested
 signal fix_all_requested
-## Traer los comentarios de revisión de un PR de GitHub como hallazgos (m11-10).
-signal github_import_requested
+## Un aviso para el chat (exportar a CLAUDE.md, importar de GitHub).
+signal notice_requested(text: String, level: ChatEntry.NoticeLevel)
 
 const ReviewStore := preload("../../review/review_store.gd")
+const ChatEntry := preload("../../session/chat_entry.gd")
+const GithubReviews := preload("../../core/github_reviews.gd")
+const EditorContext := preload("../editor_context.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
 
@@ -31,6 +33,8 @@ var _scroll: ScrollContainer
 var _empty: Label
 var _export_button: Button
 var _fix_button: Button
+var _export_dialog: ConfirmationDialog
+var _export_preview: TextEdit
 
 
 func setup(store: ReviewStore, accent: Color) -> void:
@@ -77,7 +81,7 @@ func _ready() -> void:
 	_export_button.text = I18n.t("Export to CLAUDE.md")
 	_export_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_export_button.tooltip_text = I18n.t("Adds the conventions from this review to CLAUDE.md (with a preview)")
-	_export_button.pressed.connect(export_requested.emit)
+	_export_button.pressed.connect(_on_export_requested)
 	actions.add_child(_export_button)
 	_fix_button = Button.new()
 	_fix_button.text = I18n.t("Fix in Build mode")
@@ -90,10 +94,22 @@ func _ready() -> void:
 	github.text = I18n.t("From a GitHub PR…")
 	github.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	github.tooltip_text = I18n.t("Brings the review comments of a pull request (with the gh CLI) as findings, with their file and line")
-	github.pressed.connect(github_import_requested.emit)
+	github.pressed.connect(_on_github_import_requested)
 	actions.add_child(github)
 	column.add_child(actions)
 
+	_export_dialog = ConfirmationDialog.new()
+	_export_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_export_dialog.cancel_button_text = I18n.t("Cancel")
+	_export_dialog.title = I18n.t("Export to CLAUDE.md")
+	_export_dialog.ok_button_text = I18n.t("Add to CLAUDE.md")
+	_export_dialog.min_size = Vector2i(AgentTheme.px(560), AgentTheme.px(360))
+	_export_preview = TextEdit.new()
+	_export_preview.editable = true  # vista previa editable antes de agregar
+	_export_preview.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_export_dialog.add_child(_export_preview)
+	_export_dialog.confirmed.connect(_on_export_confirmed)
+	add_child(_export_dialog)
 	_store.changed.connect(refresh)
 	refresh()
 
@@ -152,3 +168,65 @@ func _row(finding: Dictionary) -> Button:
 
 static func _dot(color: Color) -> Texture2D:
 	return AgentTheme.dot(color)
+
+
+# --- exportar a CLAUDE.md ------------------------------------------------------------------------
+
+func _on_export_requested() -> void:
+	_export_preview.text = ReviewStore.claude_md_section(_store.findings, Time.get_date_string_from_system())
+	var exists := FileAccess.file_exists(ReviewStore.CLAUDE_MD_PATH)
+	_export_dialog.title = I18n.t("Append to CLAUDE.md") if exists else I18n.t("Create CLAUDE.md")
+	_export_dialog.popup_centered()
+
+
+func _on_export_confirmed() -> void:
+	var error := ReviewStore.append_to_claude_md(_export_preview.text)
+	if not error.is_empty():
+		notice_requested.emit(I18n.t("Could not write CLAUDE.md: %s") % error, ChatEntry.NoticeLevel.ERROR)
+		return
+	EditorInterface.get_resource_filesystem().update_file(ReviewStore.CLAUDE_MD_PATH)
+	notice_requested.emit(I18n.t("Review conventions added to CLAUDE.md."), ChatEntry.NoticeLevel.INFO)
+
+
+# --- comentarios de un PR de GitHub como hallazgos (m11-10) -----------------------------------------
+
+func _on_github_import_requested() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dialog.title = I18n.t("Review comments from GitHub")
+	var column := VBoxContainer.new()
+	var hint := Label.new()
+	hint.text = I18n.t("Pull request number (empty: the one of the current branch). It needs the gh CLI signed in.")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = AgentTheme.px(320)
+	column.add_child(hint)
+	var number := LineEdit.new()
+	number.placeholder_text = "123"
+	column.add_child(number)
+	dialog.add_child(column)
+	dialog.ok_button_text = I18n.t("Import")
+	dialog.cancel_button_text = I18n.t("Cancel")
+	dialog.register_text_enter(number)
+	dialog.confirmed.connect(func() -> void: _import_github_review(number.text))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free.call_deferred())
+	add_child(dialog)
+	dialog.popup_centered()
+	number.grab_focus()
+
+
+func _import_github_review(pr: String) -> void:
+	notice_requested.emit(I18n.t("Reading the pull request's review comments…"), ChatEntry.NoticeLevel.INFO)
+	var result: Dictionary = await GithubReviews.new(EditorContext.project_path()).fetch_review(pr)
+	if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
+		return
+	if not str(result.error).is_empty():
+		notice_requested.emit(str(result.error), ChatEntry.NoticeLevel.WARNING)
+	elif result.findings.is_empty():
+		notice_requested.emit(I18n.t("%s has no review comments on lines of this project's files.") % result.url, ChatEntry.NoticeLevel.INFO)
+	else:
+		var findings: Array[Dictionary] = []
+		findings.assign(result.findings)
+		_store.set_findings(findings)
+		notice_requested.emit(I18n.t("%d review comments from %s are in the findings and the Script Editor.") % [findings.size(), result.url], ChatEntry.NoticeLevel.INFO)

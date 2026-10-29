@@ -43,11 +43,9 @@ const Composer := preload("composer.gd")
 const PromptQueue := preload("../../session/prompt_queue.gd")
 const PromptQueueView := preload("prompt_queue_view.gd")
 const ReviewPanel := preload("review_panel.gd")
-const GithubReviews := preload("../../core/github_reviews.gd")
 const QuotaRing := preload("quota_ring.gd")
-const QrView := preload("qr_view.gd")
+const RemoteControlBanner := preload("remote_control_banner.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
-const ReviewStore := preload("../../review/review_store.gd")
 const I18n := preload("../../core/i18n.gd")
 const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
 const ImageViewer := preload("../image_viewer.gd")
@@ -125,9 +123,6 @@ var _add_context_menu: PopupMenu
 var _file_dialog: EditorFileDialog
 var _review_panel: ReviewPanel
 var _quota_ring: QuotaRing
-## Remote Control (m7-21): botón de la línea de estado y franja con el link mientras está prendido.
-var _remote_button: Button
-var _logout_button: Button
 ## Header de una fila (m12-14): el chip del agente con su estado (elige el perfil), el título, el
 ## historial, «+» (sesión o pestaña) y «⋯» (extensiones, ajustes, Remote Control, cerrar sesión).
 var _agent_chip: Button
@@ -135,15 +130,10 @@ var _agent_menu: PopupMenu
 var _new_menu: PopupMenu
 var _more_button: MenuButton
 var _logout_dialog: ConfirmationDialog
-var _remote_banner: FoldableContainer
-var _remote_link: Button
-var _remote_qr_button: Button
-var _remote_qr: QrView
+var _remote_banner: RemoteControlBanner
 var _quota_timer: Timer
 var _quota_state: int = QuotaMonitor.QuotaState.UNKNOWN
-var _export_dialog: ConfirmationDialog
 var _delete_session_dialog: ConfirmationDialog
-var _export_preview: TextEdit
 ## Para pegar el código de la página de login (se arma la primera vez).
 var _login_code_dialog: ConfirmationDialog
 var _login_code_input: LineEdit
@@ -393,108 +383,20 @@ func _build_mode_selector() -> void:
 	_composer.mode_selected.connect(func(mode: int) -> void: _model.set_harness_mode(mode as SessionModel.HarnessMode))
 
 
+## Remote Control (m7-21): la franja va debajo del header; se prende desde «⋯».
 func _build_remote_control() -> void:
-	_remote_button = Button.new()
-	_remote_button.text = I18n.t("Remote")
-	_remote_button.flat = true
-	_remote_button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
-	_remote_button.tooltip_text = I18n.t("Remote Control: continue this session from claude.ai/code or the Claude app on your phone.")
-	_remote_button.pressed.connect(func() -> void: _on_submitted(_controller.remote_control_command(_model.remote_control_url.is_empty())))
-	# Va a la derecha de la línea de estado: el encabezado ya llena un dock angosto.
-	var status_row := HBoxContainer.new()
-	add_child(status_row)
-	move_child(status_row, _status_label.get_index())
-	_status_label.reparent(status_row)
-	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Un Label ignora el mouse por defecto: sin esto su tooltip (cuenta, error, subagentes) no se ve.
-	_status_label.mouse_filter = Control.MOUSE_FILTER_PASS
-	status_row.add_child(_remote_button)
-	# Cerrar sesión de la cuenta (ACP `logout`), para cualquier agente que lo anuncie.
-	_logout_button = Button.new()
-	_logout_button.text = I18n.t("Sign out")
-	_logout_button.flat = true
-	_logout_button.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
-	_logout_button.tooltip_text = I18n.t("Sign out of this agent's account: the next session asks you to sign in.")
-	_logout_button.pressed.connect(_confirm_logout)
-	status_row.add_child(_logout_button)
-	# El estado va en el chip del header (m12-14); Remote Control y cerrar sesión, en «⋯».
-	status_row.visible = false
-	# Plegable (m7-26): el título y los botones quedan a la vista; el link, el QR y la aclaración se
-	# pliegan. El estado se conserva mientras el editor está abierto.
-	_remote_banner = FoldableContainer.new()
-	_remote_banner.title = "● " + I18n.t("Remote Control on")
-	_remote_banner.title_text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_remote_banner.tooltip_text = I18n.t("Click the title to fold or unfold.")
-	var title_panel := AgentTheme.panel(Color(_accent, 0.08), Color(_accent, 0.5), 4, 6)
-	for item: StringName in [&"title_panel", &"title_hover_panel", &"title_collapsed_panel", &"title_collapsed_hover_panel"]:
-		_remote_banner.add_theme_stylebox_override(item, title_panel)
-	_remote_banner.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(_accent, 0.05), Color(_accent, 0.5), 4, 6))
-	for item: StringName in [&"font_color", &"hover_font_color", &"collapsed_font_color"]:
-		_remote_banner.add_theme_color_override(item, _accent)
-	var column := VBoxContainer.new()
-	_remote_banner.add_child(column)
-	_remote_qr_button = Button.new()
-	_remote_qr_button.text = I18n.t("QR")
-	_remote_qr_button.flat = true
-	_remote_qr_button.toggle_mode = true
-	_remote_qr_button.tooltip_text = I18n.t("Show a QR code of the link, to open the session on your phone.")
-	_remote_qr_button.toggled.connect(func(on: bool) -> void:
-		_remote_qr.visible = on
-		if on:
-			_remote_banner.expand())
-	_remote_banner.add_title_bar_control(_remote_qr_button)
-	var copy := Button.new()
-	copy.text = I18n.t("Copy link")
-	copy.flat = true
-	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(_model.remote_control_url))
-	_remote_banner.add_title_bar_control(copy)
-	var off := Button.new()
-	off.text = I18n.t("Turn off")
-	off.flat = true
-	off.add_theme_color_override(&"font_color", AgentTheme.ERROR)
-	off.pressed.connect(func() -> void: _on_submitted(_controller.remote_control_command(false)))
-	_remote_banner.add_title_bar_control(off)
-	# Button y no LinkButton: LinkButton pide el ancho del link entero y ensancha el dock.
-	_remote_link = Button.new()
-	_remote_link.flat = true
-	_remote_link.clip_text = true
-	_remote_link.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_remote_link.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_remote_link.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_remote_link.add_theme_color_override(&"font_color", _accent)
-	_remote_link.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_remote_link.pressed.connect(func() -> void: OS.shell_open(_model.remote_control_url))
-	column.add_child(_remote_link)
-	_remote_qr = QrView.new()
-	_remote_qr.visible = false
-	column.add_child(_remote_qr)
-	var hint := Label.new()
-	hint.text = I18n.t("What you write from the phone and its answers only show there. Here you see the tool calls that ask for permission, and you can answer them from either side.")
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	hint.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
-	column.add_child(hint)
+	# El estado va en el chip del header (m12-14): la línea de estado queda solo como texto del tooltip.
+	_status_label.visible = false
+	_remote_banner = RemoteControlBanner.new()
+	_remote_banner.setup(_model, _controller, _accent)
+	_remote_banner.command_requested.connect(_on_submitted)
 	add_child(_remote_banner)
-	move_child(_remote_banner, status_row.get_index() + 1)
-	_model.remote_control_changed.connect(func(_url: String) -> void: _refresh_remote_control())
-	_model.commands_changed.connect(func(_commands: Array) -> void: _refresh_remote_control())
-	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_remote_control())
+	move_child(_remote_banner, _status_label.get_index() + 1)
 
 
-## El botón aparece si el agente publica `/remote-control`, fuera de One-shot (sus turnos no
-## pasarían por el run). La franja, mientras está prendido.
-func _refresh_remote_control() -> void:
-	if not _remote_button:
-		return
-	var on := not _model.remote_control_url.is_empty()
-	_remote_button.visible = _model.supports_remote_control() and _model.harness_mode != SessionModel.HarnessMode.ONESHOT and not on
-	_remote_button.disabled = _model.state != SessionModel.SessionState.READY
-	_logout_button.visible = _model.supports_logout() and _controller.is_connected_to_agent()
-	_logout_button.disabled = _model.state != SessionModel.SessionState.READY
-	_remote_banner.visible = on
-	_remote_link.text = _model.remote_control_url
-	_remote_qr.set_text(_model.remote_control_url)
-	_remote_link.tooltip_text = _model.remote_control_url
+## Cerrar sesión de la cuenta (ACP `logout`), para cualquier agente que lo anuncie.
+func _can_logout() -> bool:
+	return _model.supports_logout() and _controller.is_connected_to_agent()
 
 
 func _show_agent_menu() -> void:
@@ -516,16 +418,17 @@ func _fill_more_menu() -> void:
 	popup.clear()
 	popup.add_icon_item(AgentTheme.icon(&"EditorPlugin"), I18n.t("Extensions…"), MORE_EXTENSIONS)
 	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
-	if _remote_button.visible or _logout_button.visible:
+	var ready := _model.state == SessionModel.SessionState.READY
+	if _remote_banner.can_turn_on() or _can_logout():
 		popup.add_separator()
-	if _remote_button.visible:
+	if _remote_banner.can_turn_on():
 		popup.add_item(I18n.t("Remote Control"), MORE_REMOTE)
-		popup.set_item_tooltip(popup.item_count - 1, _remote_button.tooltip_text)
-		popup.set_item_disabled(popup.item_count - 1, _remote_button.disabled)
-	if _logout_button.visible:
+		popup.set_item_tooltip(popup.item_count - 1, I18n.t(RemoteControlBanner.TOOLTIP))
+		popup.set_item_disabled(popup.item_count - 1, not ready)
+	if _can_logout():
 		popup.add_item(I18n.t("Sign out"), MORE_LOGOUT)
-		popup.set_item_tooltip(popup.item_count - 1, _logout_button.tooltip_text)
-		popup.set_item_disabled(popup.item_count - 1, _logout_button.disabled)
+		popup.set_item_tooltip(popup.item_count - 1, I18n.t("Sign out of this agent's account: the next session asks you to sign in."))
+		popup.set_item_disabled(popup.item_count - 1, not ready)
 
 
 func _on_more_selected(id: int) -> void:
@@ -535,7 +438,7 @@ func _on_more_selected(id: int) -> void:
 		MORE_SETTINGS:
 			settings_requested.emit()
 		MORE_REMOTE:
-			_remote_button.pressed.emit()
+			_remote_banner.turn_on()
 		MORE_LOGOUT:
 			_confirm_logout()
 
@@ -616,38 +519,9 @@ func _build_review_panel() -> void:
 	_review_panel.setup(_controller.review, _accent)
 	_review_panel.finding_selected.connect(func(id: int) -> void: action_forwarded.emit(ACTION_REVIEW_FOCUS, id))
 	_review_panel.fix_all_requested.connect(func() -> void: action_forwarded.emit(ACTION_REVIEW_FIX_ALL, null))
-	_review_panel.export_requested.connect(_on_review_export_requested)
-	_review_panel.github_import_requested.connect(_on_github_import_requested)
+	_review_panel.notice_requested.connect(func(text: String, level: ChatEntry.NoticeLevel) -> void: _model.add_notice(text, level))
 	add_child(_review_panel)
 	move_child(_review_panel, _body.get_index())
-	_export_dialog = ConfirmationDialog.new()
-	_export_dialog.cancel_button_text = I18n.t("Cancel")
-	_export_dialog.title = I18n.t("Export to CLAUDE.md")
-	_export_dialog.ok_button_text = I18n.t("Add to CLAUDE.md")
-	_export_dialog.min_size = Vector2i(AgentTheme.px(560), AgentTheme.px(360))
-	_export_preview = TextEdit.new()
-	_export_preview.editable = true  # vista previa editable antes de agregar
-	_export_preview.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_export_dialog.add_child(_export_preview)
-	_export_dialog.confirmed.connect(_on_review_export_confirmed)
-	add_child(_export_dialog)
-
-
-func _on_review_export_requested() -> void:
-	var review := _controller.review
-	_export_preview.text = ReviewStore.claude_md_section(review.findings, Time.get_date_string_from_system())
-	var exists := FileAccess.file_exists(ReviewStore.CLAUDE_MD_PATH)
-	_export_dialog.title = I18n.t("Append to CLAUDE.md") if exists else I18n.t("Create CLAUDE.md")
-	_export_dialog.popup_centered()
-
-
-func _on_review_export_confirmed() -> void:
-	var error := ReviewStore.append_to_claude_md(_export_preview.text)
-	if not error.is_empty():
-		_model.add_notice(I18n.t("Could not write CLAUDE.md: %s") % error, ChatEntry.NoticeLevel.ERROR)
-		return
-	EditorInterface.get_resource_filesystem().update_file(ReviewStore.CLAUDE_MD_PATH)
-	_model.add_notice(I18n.t("Review conventions added to CLAUDE.md."))
 
 
 func _reload_profiles() -> void:
@@ -768,7 +642,6 @@ func _refresh_state() -> void:
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
 	_new_session_button.disabled = _model.state == SessionModel.SessionState.STARTING or _model.is_busy()
-	_refresh_remote_control()
 	_refresh_title()
 	_refresh_empty_state()
 
@@ -1516,50 +1389,6 @@ func _on_screenshot_requested() -> void:
 		_model.add_notice(I18n.t("Could not capture the viewport."), ChatEntry.NoticeLevel.WARNING)
 		return
 	attach_image(image, I18n.t("viewport"))
-
-
-# --- comentarios de un PR de GitHub como hallazgos (m11-10) -----------------------------------------
-
-func _on_github_import_requested() -> void:
-	var dialog := ConfirmationDialog.new()
-	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	dialog.title = I18n.t("Review comments from GitHub")
-	var column := VBoxContainer.new()
-	var hint := Label.new()
-	hint.text = I18n.t("Pull request number (empty: the one of the current branch). It needs the gh CLI signed in.")
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size.x = AgentTheme.px(320)
-	column.add_child(hint)
-	var number := LineEdit.new()
-	number.placeholder_text = "123"
-	column.add_child(number)
-	dialog.add_child(column)
-	dialog.ok_button_text = I18n.t("Import")
-	dialog.cancel_button_text = I18n.t("Cancel")
-	dialog.register_text_enter(number)
-	dialog.confirmed.connect(func() -> void: _import_github_review(number.text))
-	dialog.visibility_changed.connect(func() -> void:
-		if not dialog.visible:
-			dialog.queue_free.call_deferred())
-	add_child(dialog)
-	dialog.popup_centered()
-	number.grab_focus()
-
-
-func _import_github_review(pr: String) -> void:
-	_model.add_notice(I18n.t("Reading the pull request's review comments…"))
-	var result: Dictionary = await GithubReviews.new(EditorContext.project_path()).fetch_review(pr)
-	if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
-		return
-	if not str(result.error).is_empty():
-		_model.add_notice(str(result.error), ChatEntry.NoticeLevel.WARNING)
-	elif result.findings.is_empty():
-		_model.add_notice(I18n.t("%s has no review comments on lines of this project's files.") % result.url)
-	else:
-		var findings: Array[Dictionary] = []
-		findings.assign(result.findings)
-		_controller.review.set_findings(findings)
-		_model.add_notice(I18n.t("%d review comments from %s are in the findings and the Script Editor.") % [findings.size(), result.url])
 
 
 # --- presets de export (M0) ----------------------------------------------------------------------

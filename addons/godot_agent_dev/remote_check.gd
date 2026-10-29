@@ -51,8 +51,8 @@ func _run(shot_path: String) -> void:
 		return
 	_model = _dock.get(&"_model")
 	_controller = _dock.get(&"_controller")
-	var button: Button = _dock.get(&"_remote_button")
 	var banner: Control = _dock.get(&"_remote_banner")
+	var can_turn_on := func() -> bool: return banner.call(&"can_turn_on")
 	var profile := AgentProfile.from_dict({
 		"id": "fake", "display_name": "Agente falso", "command": OS.get_executable_path(),
 		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
@@ -61,9 +61,9 @@ func _run(shot_path: String) -> void:
 	if not await _controller.call(&"start", profile):
 		failures.append("no arrancó la sesión: %s" % _model.get(&"failure_message"))
 		return
-	# Desde m12-14 el botón vive oculto en la fila de estado y se usa desde el menú «⋯» del header.
-	if not await _until(func() -> bool: return button.visible and not button.disabled):
-		failures.append("el botón «%s» no aparece con un agente que publica /remote-control" % button.text)
+	# Desde m12-14 se prende desde el menú «⋯» del header.
+	if not await _until(func() -> bool: return can_turn_on.call() and _model.state == SessionModel.SessionState.READY):
+		failures.append("Remote Control no se ofrece con un agente que publica /remote-control")
 		return
 	_dock.call(&"_fill_more_menu")
 	var more: PopupMenu = (_dock.get(&"_more_button") as MenuButton).get_popup()
@@ -72,15 +72,15 @@ func _run(shot_path: String) -> void:
 	if banner.visible:
 		failures.append("la franja de Remote Control se ve antes de prenderlo")
 	_write(EDITED_FILE, "extends Node\n")
-	button.pressed.emit()
+	banner.call(&"turn_on")
 	if not await _until(func() -> bool: return banner.is_visible_in_tree()):
 		failures.append("la franja no aparece al prenderlo")
 		return
-	var link: Button = _dock.get(&"_remote_link")
+	var link: Button = banner.get(&"link")
 	if link.text != FAKE_URL:
 		failures.append("link de la franja: %s" % link.text)
-	if button.visible:
-		failures.append("el botón sigue a la vista con Remote Control prendido")
+	if can_turn_on.call():
+		failures.append("«⋯» sigue ofreciendo prenderlo con Remote Control prendido")
 	# El permiso remoto aparece como tarjeta y se cierra al contestarlo «desde el celular».
 	var withdrawn := func() -> bool:
 		for view: Node in _dock.find_children("*", "", true, false):
@@ -106,8 +106,8 @@ func _run(shot_path: String) -> void:
 			await _tree.create_timer(0.2).timeout
 			EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_folded.png")
 	# QR del link (m7-25): el botón lo muestra, con la matriz del link (y despliega la franja).
-	var qr_button: Button = _dock.get(&"_remote_qr_button")
-	var qr_view: Control = _dock.get(&"_remote_qr")
+	var qr_button: Button = banner.get(&"qr_button")
+	var qr_view: Control = banner.get(&"qr")
 	qr_button.button_pressed = true
 	await _tree.process_frame
 	if not qr_view.is_visible_in_tree() or qr_view.get(&"qr") == null or int(qr_view.get(&"qr").get(&"size")) == 0:
@@ -119,13 +119,13 @@ func _run(shot_path: String) -> void:
 	if not shot_path.is_empty():
 		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
 	_press(banner, I18n.t("Turn off"))
-	if not await _until(func() -> bool: return not banner.visible and button.visible):
+	if not await _until(func() -> bool: return not banner.visible and can_turn_on.call()):
 		failures.append("«%s» no lo apagó" % I18n.t("Turn off"))
 	await _until(func() -> bool: return not _model.call(&"is_busy"))
 	(_dock.get(&"_composer") as Object).call(&"choose_mode", SessionModel.HarnessMode.ONESHOT)
 	await _tree.process_frame
-	if button.visible:
-		failures.append("en One-shot el botón de Remote Control sigue a la vista")
+	if can_turn_on.call():
+		failures.append("en One-shot «⋯» sigue ofreciendo Remote Control")
 
 
 ## «El celular» modifica un archivo y crea otro: aparece un aviso con los dos, el diff los muestra

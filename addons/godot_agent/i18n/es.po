@@ -2036,8 +2036,6 @@ msgstr "En modo Auto, \"Preguntar\" deja que primero decidan las listas de la se
 msgid "Remote Control turned off: One-shot runs on its own."
 msgstr "Remote Control apagado: el One-shot corre solo."
 
-msgid "Remote"
-msgstr "Remoto"
 
 msgid "Remote Control: continue this session from claude.ai/code or the Claude app on your phone."
 msgstr "Remote Control: seguí esta sesión desde claude.ai/code o la app de Claude en el celular."
