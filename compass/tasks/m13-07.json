@@ -4,16 +4,16 @@
   "created_at": "2026-10-29T13:15:29.047Z",
   "description": "agent_dock.gd arma encabezado, estado, historial, revisión, Remote Control, diálogos de login y exportar e importación de GitHub. Cada sección en su script con señales hacia el dock.\n\nInforme: docs/revisiones/arquitectura.md",
   "milestone": "m13",
-  "notes": "",
+  "notes": "agent_dock.gd 1615 → 1310 líneas. Vistas nuevas: remote_control_banner.gd, first_run_guide.gd, recent_sessions.gd; review_panel.gd suma exportar a CLAUDE.md e importar de GitHub. Se fueron los botones Remote/Sign out ocultos que guardaban estado. Quedan en el dock, por ser su núcleo o estar en el .tscn: header y chip, estado, historial, cola, contexto del prompt, el aviso de export presets y el diálogo del código de login. De paso: review_check fallaba desde m12-03 (panel plegado); arreglado.",
   "order": 7,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "arquitectura"
   ],
-  "test": "",
+  "test": "run_all 372 (solo test_completion_local); en Xvfb 4.7.2: remote-test, review-test (0 fallas tras el arreglo), history-test y ux_tour pasan; la captura del primer arranque es idéntica",
   "title": "Una vista por sección del dock (A4)",
-  "updated_at": "2026-10-29T13:15:29.047Z"
+  "updated_at": "2026-10-29T18:02:00.297Z"
 }
