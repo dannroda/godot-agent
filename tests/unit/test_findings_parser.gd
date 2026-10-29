@@ -69,3 +69,16 @@ func test_is_findings_block() -> void:
 	assert_false(FindingsParser.is_findings_block("{\"findings\": [{\"path\""), "a medio escribir (streaming)")
 	assert_false(FindingsParser.is_findings_block("func _ready() -> void:\n\tpass"), "código común")
 	assert_false(FindingsParser.is_findings_block("{\"checks\": []}"), "otro bloque")
+
+
+## m14-03: el veredicto de un playtest, con alias y listas o texto suelto.
+func test_playtest_verdict() -> void:
+	var text := "Jugué el nivel.\n```json\n{\"playtest\": {\"verdict\": \"FAILED\", \"summary\": \"No llega a la segunda plataforma\", \"evidence\": [\"Player.position.y = 412 en el frame 90\", 3], \"steps\": \"Saltar en el borde\"}}\n```"
+	var playtest: Dictionary = FindingsParser.parse(text).playtest
+	assert_eq(playtest.verdict, "fail", "failed → fail")
+	assert_eq(playtest.summary, "No llega a la segunda plataforma", "resumen")
+	assert_eq(playtest.evidence, PackedStringArray(["Player.position.y = 412 en el frame 90", "3"]), "evidencia")
+	assert_eq(playtest.repro, PackedStringArray(["Saltar en el borde"]), "pasos como texto suelto")
+	assert_eq(FindingsParser.parse("{\"playtest\": {\"verdict\": \"maybe\"}}").playtest, {}, "sin veredicto reconocible no hay playtest")
+	assert_eq(FindingsParser.parse("{\"findings\": []}").playtest, {}, "sin bloque")
+	assert_eq(FindingsParser.parse("{\"playtest\": {\"result\": \"blocked\", \"reason\": \"no hay escena principal\"}}").playtest.verdict, "blocked", "result y blocked")

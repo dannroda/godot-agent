@@ -19,6 +19,10 @@ En el modo **Revisar**, el agente revisa escenas y scripts y devuelve hallazgos 
 
 La revisión se puede exportar al `CLAUDE.md` del proyecto como convenciones, por ejemplo "tipado estático en todos lados" o "no usar `get_parent()` para comportamiento". Antes ves una vista previa. Desde ahí, el agente las respeta en todos los modos.
 
+## Playtest
+
+**Playtest…** en el panel de hallazgos pregunta qué comprobar jugando («que el jugador pueda saltar a la segunda plataforma»). El agente corre el juego, manda el input por frame de física para que el run se pueda repetir, lee el estado en vivo y captura frames, y contesta con un veredicto que aparece en el chat: **pasó**, **falló** con los pasos para reproducirlo, o **no se pudo probar** con el motivo, más lo que observó. No cambia el proyecto. Con **Grabar un video del run**, `run_scene` guarda un AVI en `res://.godot_agent/playtests/`: mientras graba, el juego corre a 30 fps fijos y se cierra solo al final.
+
 ## Comentarios de un pull request de GitHub
 
 **De un PR de GitHub…** en el panel de hallazgos trae los comentarios de revisión de un pull request como hallazgos, con el [CLI de GitHub](https://cli.github.com) (`gh`, con sesión iniciada con `gh auth login`). Escribí su número, o dejalo vacío para el pull request de la rama actual. Cada comentario en una línea de un archivo de este proyecto pasa a ser un hallazgo con su texto y su autor, marcado en el Script Editor como los del agente; las respuestas dentro de un hilo quedan afuera. Desde ahí, **Arreglar en modo Construir** le pide al agente que los resuelva. Solo lee: no publica nada en GitHub.

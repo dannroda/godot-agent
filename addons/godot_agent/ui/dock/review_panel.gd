@@ -8,6 +8,8 @@ signal finding_selected(id: int)
 signal fix_all_requested
 ## Un aviso para el chat (exportar a CLAUDE.md, importar de GitHub).
 signal notice_requested(text: String, level: ChatEntry.NoticeLevel)
+## Un prompt para mandar al agente (el de un playtest, m14-03).
+signal prompt_requested(text: String)
 
 const ReviewStore := preload("../../review/review_store.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
@@ -96,6 +98,12 @@ func _ready() -> void:
 	github.tooltip_text = I18n.t("Brings the review comments of a pull request (with the gh CLI) as findings, with their file and line")
 	github.pressed.connect(_on_github_import_requested)
 	actions.add_child(github)
+	var playtest := Button.new()
+	playtest.text = I18n.t("Playtest…")
+	playtest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	playtest.tooltip_text = I18n.t("The agent plays the game to check something and answers passed, failed or could not test, with evidence and steps to reproduce. It does not change the project.")
+	playtest.pressed.connect(_on_playtest_requested)
+	actions.add_child(playtest)
 	column.add_child(actions)
 
 	_export_dialog = ConfirmationDialog.new()
@@ -230,3 +238,35 @@ func _import_github_review(pr: String) -> void:
 		findings.assign(result.findings)
 		_store.set_findings(findings)
 		notice_requested.emit(I18n.t("%d review comments from %s are in the findings and the Script Editor.") % [findings.size(), result.url], ChatEntry.NoticeLevel.INFO)
+
+
+# --- playtest (m14-03) ---------------------------------------------------------------------------
+
+func _on_playtest_requested() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dialog.title = I18n.t("Playtest")
+	var column := VBoxContainer.new()
+	var hint := Label.new()
+	hint.text = I18n.t("What should the agent check by playing? For example: the player can jump onto the second platform.")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = AgentTheme.px(360)
+	column.add_child(hint)
+	var goal := LineEdit.new()
+	column.add_child(goal)
+	var record := CheckBox.new()
+	record.text = I18n.t("Record a video of the run (in res://.godot_agent/playtests/)")
+	column.add_child(record)
+	dialog.add_child(column)
+	dialog.ok_button_text = I18n.t("Start playtest")
+	dialog.cancel_button_text = I18n.t("Cancel")
+	dialog.register_text_enter(goal)
+	dialog.confirmed.connect(func() -> void:
+		if not goal.text.strip_edges().is_empty():
+			prompt_requested.emit(ReviewStore.playtest_prompt(goal.text, record.button_pressed)))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free.call_deferred())
+	add_child(dialog)
+	dialog.popup_centered()
+	goal.grab_focus()

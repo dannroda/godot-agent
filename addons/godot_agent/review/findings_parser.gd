@@ -1,7 +1,8 @@
 @tool
 extends RefCounted
 ## Extrae del texto del agente los bloques `{"findings": […]}` (spec §9.4), `{"checks": […]}`
-## (One-shot, §10) y `{"scores": […]}` (criterios del evaluador, D40), de forma tolerante:
+## (One-shot, §10), `{"scores": […]}` (criterios del evaluador, D40) y `{"playtest": {…}}` (veredicto
+## de un playtest, m14-03), de forma tolerante:
 ## - en fences ```json o sin fence, con texto alrededor, o varios bloques en el mismo mensaje;
 ## - comas finales, campos con otros nombres (description, fix, file…), "archivo.gd:12" en path;
 ## - severidades en inglés o castellano.
@@ -17,7 +18,8 @@ const SEVERITY_ALIASES: Dictionary = {
 const MAX_TEXT := 4000
 
 
-## `{findings: Array[Dictionary], checks: Array[Dictionary], scores: Array[Dictionary]}`.
+## `{findings: Array[Dictionary], checks: Array[Dictionary], scores: Array[Dictionary], playtest: Dictionary}`.
+## Playtest: {verdict: pass|fail|blocked, summary, evidence: [texto], repro: [paso]} o {} si no hubo.
 ## Finding: {path (res:// si se pudo), line (≥1, 0 = sin línea), severity, title, body, suggestion}.
 ## Check: {label, status: pass|fail|pending, detail}.
 ## Score: {criterion, score (0–10), reason}.
@@ -25,6 +27,7 @@ static func parse(text: String, project_root: String = "") -> Dictionary:
 	var findings: Array[Dictionary] = []
 	var checks: Array[Dictionary] = []
 	var scores: Array[Dictionary] = []
+	var playtest: Dictionary = {}
 	var seen: Dictionary = {}
 	for candidate: Variant in _json_candidates(text):
 		var raw_findings: Variant = null
@@ -34,6 +37,9 @@ static func parse(text: String, project_root: String = "") -> Dictionary:
 			raw_findings = candidate.get("findings")
 			raw_checks = candidate.get("checks")
 			raw_scores = candidate.get("scores")
+			var verdict := normalize_playtest(candidate.get("playtest"))
+			if not verdict.is_empty():
+				playtest = verdict  # el último bloque del turno manda
 		elif candidate is Array and not candidate.is_empty() and candidate[0] is Dictionary and (candidate[0] as Dictionary).has("line"):
 			raw_findings = candidate
 		if raw_findings is Array:
@@ -53,7 +59,41 @@ static func parse(text: String, project_root: String = "") -> Dictionary:
 				var score := normalize_score(item)
 				if not score.is_empty():
 					scores.append(score)
-	return {"findings": findings, "checks": checks, "scores": scores}
+	return {"findings": findings, "checks": checks, "scores": scores, "playtest": playtest}
+
+
+## Veredicto de un playtest, o {} si no se entiende (sin veredicto reconocible no hay playtest).
+static func normalize_playtest(item: Variant) -> Dictionary:
+	if not item is Dictionary:
+		return {}
+	var raw := _first_string(item, ["verdict", "result", "status"]).strip_edges().to_lower()
+	var verdict := ""
+	if raw in ["pass", "passed", "ok", "success", "works", "funciona"]:
+		verdict = "pass"
+	elif raw in ["fail", "failed", "broken", "falla", "error"]:
+		verdict = "fail"
+	elif raw in ["blocked", "bloqueado", "inconclusive", "skipped", "cannot test"]:
+		verdict = "blocked"
+	if verdict.is_empty():
+		return {}
+	return {
+		"verdict": verdict,
+		"summary": _first_string(item, ["summary", "reason", "detail", "description"]).left(MAX_TEXT),
+		"evidence": _strings(_first_value(item, ["evidence", "observations", "notes"])),
+		"repro": _strings(_first_value(item, ["repro", "steps", "reproduce", "steps_to_reproduce"])),
+	}
+
+
+static func _strings(value: Variant) -> PackedStringArray:
+	var result: PackedStringArray = []
+	if value is String and not (value as String).strip_edges().is_empty():
+		result.append((value as String).strip_edges().left(MAX_TEXT))
+	elif value is Array:
+		for item: Variant in value:
+			var text := str(int(item)) if item is float and is_equal_approx(item, roundf(item)) else str(item)
+			if (item is String or item is float or item is int) and not text.strip_edges().is_empty():
+				result.append(text.strip_edges().left(MAX_TEXT))
+	return result
 
 
 ## El código de un bloque es un bloque `findings` legible (para plegarlo en el chat, m12-38).
@@ -166,7 +206,7 @@ static func _json_candidates(text: String) -> Array:
 		if end < 0:
 			break
 		var chunk := outside.substr(brace, end - brace + 1)
-		if chunk.contains("\"findings\"") or chunk.contains("\"checks\"") or chunk.contains("\"scores\""):
+		if chunk.contains("\"findings\"") or chunk.contains("\"checks\"") or chunk.contains("\"scores\"") or chunk.contains("\"playtest\""):
 			var parsed: Variant = _parse_lenient(chunk)
 			if parsed != null:
 				candidates.append(parsed)

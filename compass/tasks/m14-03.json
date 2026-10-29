@@ -4,11 +4,11 @@
   "created_at": "2026-10-29T21:59:12.319Z",
   "description": "Como el Full Game Playtest Agent de Ziva: un playtest que corre la escena, manda input (usar m14-01), toma capturas y lee errores de runtime, y devuelve pass, fail o blocked con evidencia y pasos para reproducir, sin editar el proyecto. Reusar el evaluador del One-shot; que se pueda pedir suelto desde Revisar. Grabación opcional con --write-movie (idea de walker) en .godot_agent/.",
   "milestone": "m14",
-  "notes": "",
+  "notes": "Revisar suma «Playtest…» (pregunta qué comprobar y si grabar) y manda un prompt que pide jugar sin tocar el proyecto y contestar {\"playtest\": {verdict, summary, evidence, repro}}; el parser lo lee con alias y el controller lo deja como aviso (info si pasó, error si falló, warning si no se pudo). run_scene con record: true usa el Movie Maker del editor (AVI, 30 fps fijos, en res://.godot_agent/playtests/), cierra el juego desde el probe para que el video quede terminado y deja el Movie Maker como estaba. No se reusó el evaluador del One-shot: su rúbrica es de puntajes por criterio; acá hace falta pass/fail/blocked sobre un pedido.",
   "order": 3,
   "refs": [],
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "test_findings_parser.test_playtest_verdict, test_review_store.test_playtest_prompt_and_notice; en Xvfb 4.7.2 y 4.8-beta1: review-test (el veredicto del agente falso queda como aviso con evidencia y pasos) y run-test (record: AVI válido, juego cerrado, Movie Maker apagado)",
   "title": "Playtest con veredicto: pass, fail o blocked con evidencia",
-  "updated_at": "2026-10-29T21:59:12.552Z"
+  "updated_at": "2026-10-29T22:50:30.204Z"
 }

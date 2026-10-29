@@ -3754,3 +3754,36 @@ msgstr "Iniciás sesión con la cuenta que pida, desde el navegador."
 
 msgid "Ask it something, with @ to name nodes and files."
 msgstr "Le pedís algo, con @ para nombrar nodos y archivos."
+
+msgid "Playtest: passed"
+msgstr "Playtest: pasó"
+
+msgid "Playtest: failed"
+msgstr "Playtest: falló"
+
+msgid "Playtest: could not test"
+msgstr "Playtest: no se pudo probar"
+
+msgid "Evidence:"
+msgstr "Evidencia:"
+
+msgid "To reproduce:"
+msgstr "Para reproducirlo:"
+
+msgid "Playtest…"
+msgstr "Playtest…"
+
+msgid "The agent plays the game to check something and answers passed, failed or could not test, with evidence and steps to reproduce. It does not change the project."
+msgstr "El agente juega para comprobar algo y contesta si pasó, si falló o si no pudo probarlo, con evidencia y los pasos para reproducirlo. No cambia el proyecto."
+
+msgid "Playtest"
+msgstr "Playtest"
+
+msgid "What should the agent check by playing? For example: the player can jump onto the second platform."
+msgstr "¿Qué tiene que comprobar el agente jugando? Por ejemplo: que el jugador pueda saltar a la segunda plataforma."
+
+msgid "Record a video of the run (in res://.godot_agent/playtests/)"
+msgstr "Grabar un video del run (en res://.godot_agent/playtests/)"
+
+msgid "Start playtest"
+msgstr "Empezar el playtest"

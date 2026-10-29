@@ -18,6 +18,14 @@
 		{"steps": [
 			{"chunk": "Listo, lo arreglé."},
 			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Listo, lo arreglé."},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Jugué la escena.\n```json\n{\"playtest\": {\"verdict\": \"fail\", \"summary\": \"El puntaje no sube\", \"evidence\": [\"score = 0 después de 3 monedas\"], \"repro\": [\"Agarrar una moneda\", \"Mirar el HUD\"]}}\n```"},
+			{"stop": "end_turn"}
 		]}
 	]
 }

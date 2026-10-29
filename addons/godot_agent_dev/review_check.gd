@@ -8,6 +8,7 @@ extends RefCounted
 
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const ReviewStore := preload("res://addons/godot_agent/review/review_store.gd")
 const ReviewAnnotations := preload("res://addons/godot_agent/review/review_annotations.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
@@ -176,6 +177,15 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	await _frames(2)
 	_expect(store.findings.is_empty(), "Arreglar en modo Construir vacía la revisión (%d)" % store.findings.size())
 	_expect(not panel.visible, "el panel se oculta fuera de Revisar")
+
+	# Playtest (m14-03): el prompt del panel va al agente y su veredicto queda como aviso.
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.REVIEW)
+	await _frames(2)
+	panel.emit_signal(&"prompt_requested", "Playtest: the score goes up")
+	await _frames(2)
+	await _wait_turn()
+	var verdicts := (_model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return str(entry.get(&"text")).begins_with(I18n.t("Playtest: failed")))
+	_expect(verdicts.size() == 1 and str(verdicts[0].get(&"text")).contains("score = 0") and str(verdicts[0].get(&"text")).contains("2. "), "playtest: el veredicto queda como aviso con evidencia y pasos")
 
 
 func _wait_turn() -> void:

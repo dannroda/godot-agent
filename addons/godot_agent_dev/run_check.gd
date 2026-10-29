@@ -72,6 +72,16 @@ func _check_runs(model: Object) -> void:
 	var stopped := await _call_text("stop_scene", {})
 	_expect(stopped.contains("stopped") and not EditorInterface.is_playing_scene(), "stop_scene")
 
+	# Grabación (m14-03): el juego cierra solo, el video queda y el Movie Maker vuelve a como estaba.
+	var recorded := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "record": true})
+	var video := RegEx.create_from_string("Recording: (res://\\S+\\.avi)").search(recorded)
+	_expect(video != null and FileAccess.file_exists(video.get_string(1)) and not EditorInterface.is_playing_scene(), "run_scene con record: video y juego cerrado · " + recorded.right(300))
+	_expect(not EditorInterface.is_movie_maker_enabled(), "record: el Movie Maker vuelve a apagado")
+	if video:
+		var header := FileAccess.get_file_as_bytes(video.get_string(1)).slice(0, 12)
+		_expect(header.slice(0, 4).get_string_from_ascii() == "RIFF" and header.slice(8, 12).get_string_from_ascii() == "AVI ", "record: es un AVI")
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(video.get_string(1)))
+
 	# Script roto: el debugger pausa el juego y run_scene devuelve el error real.
 	var broken := await _call_text("run_scene", {"scene": BROKEN_SCENE, "seconds": 5})
 	_expect(broken.contains("stopped in the debugger") and broken.contains("queue_free"), "run_scene: error real del script roto · " + broken.left(400))

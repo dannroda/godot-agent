@@ -8,6 +8,8 @@ signal changed
 
 const FindingsParser := preload("findings_parser.gd")
 const AtomicFile := preload("../core/atomic_file.gd")
+const ChatEntry := preload("../session/chat_entry.gd")
+const I18n := preload("../core/i18n.gd")
 
 const SEVERITY_LABELS: Dictionary = {
 	"bug": "bug",  # i18n
@@ -128,6 +130,36 @@ static func fix_prompt(list: Array[Dictionary]) -> String:
 			line += "\n  Suggestion: " + str(finding.suggestion).replace("\n", "\n  ")
 		lines.append(line)
 	return "\n".join(lines)
+
+
+## Prompt de un playtest (m14-03): probar `goal` jugando, sin tocar el proyecto, y contestar con un
+## veredicto. Con `record`, el run se graba como evidencia.
+static func playtest_prompt(goal: String, record: bool) -> String:
+	return "\n".join([
+		"Playtest: %s" % goal.strip_edges(),
+		"Do not modify the project. Play the game to check it: godot.run_scene%s, godot.game_input with frame-based steps (reproducible), godot.game_get and godot.game_tree for the live state, godot.capture_game_frame to see it." % (" with record: true" if record else ""),
+		"Then answer with a ```json block {\"playtest\": {\"verdict\": \"pass|fail|blocked\", \"summary\": \"…\", \"evidence\": [\"what you observed, with values\"], \"repro\": [\"step 1\", \"step 2\"]}}: pass if it works as asked, fail with the steps that reproduce the problem, blocked if you could not test it (say why).",
+	])
+
+
+## El aviso del chat con un veredicto de playtest: nivel y texto.
+static func playtest_notice(playtest: Dictionary) -> Dictionary:
+	var titles := {
+		"pass": "Playtest: passed",  # i18n
+		"fail": "Playtest: failed",  # i18n
+		"blocked": "Playtest: could not test",  # i18n
+	}
+	var lines: PackedStringArray = [I18n.t(titles[playtest.verdict]) + (" — " + str(playtest.summary) if not str(playtest.summary).is_empty() else "")]
+	if not (playtest.evidence as PackedStringArray).is_empty():
+		lines.append(I18n.t("Evidence:"))
+		for item: String in playtest.evidence:
+			lines.append("• " + item)
+	if not (playtest.repro as PackedStringArray).is_empty():
+		lines.append(I18n.t("To reproduce:"))
+		for i in (playtest.repro as PackedStringArray).size():
+			lines.append("%d. %s" % [i + 1, playtest.repro[i]])
+	var level := ChatEntry.NoticeLevel.INFO if playtest.verdict == "pass" else (ChatEntry.NoticeLevel.ERROR if playtest.verdict == "fail" else ChatEntry.NoticeLevel.WARNING)
+	return {"text": "\n".join(lines), "level": level}
 
 
 static func question_prompt(finding: Dictionary) -> String:

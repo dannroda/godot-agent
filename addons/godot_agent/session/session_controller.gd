@@ -429,6 +429,11 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
 		if review.ingest_turn_text(turn_text, cwd):
 			_fold_findings(first_new_entry)
+	if turn_text.contains("\"playtest\""):
+		var playtest: Dictionary = ReviewStore.FindingsParser.parse(turn_text, cwd).playtest
+		if not playtest.is_empty():
+			var notice := ReviewStore.playtest_notice(playtest)
+			model.add_notice(notice.text, notice.level)
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:

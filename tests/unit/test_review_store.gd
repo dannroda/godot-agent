@@ -54,3 +54,13 @@ func test_prompts_and_export() -> void:
 	assert_eq(ReviewStore.append_to_claude_md("## A", path), "", "crea")
 	assert_eq(ReviewStore.append_to_claude_md("## B\n", path), "", "agrega")
 	assert_eq(FileAccess.get_file_as_string(path), "## A\n\n## B\n", "separado por una línea en blanco")
+
+
+func test_playtest_prompt_and_notice() -> void:
+	var prompt := ReviewStore.playtest_prompt("  el jugador salta  ", true)
+	assert_true(prompt.contains("Playtest: el jugador salta") and prompt.contains("record: true") and prompt.contains("\"playtest\"") and prompt.contains("Do not modify"), "prompt del playtest")
+	assert_false(ReviewStore.playtest_prompt("x", false).contains("record"), "sin grabar")
+	var notice := ReviewStore.playtest_notice({"verdict": "fail", "summary": "no salta", "evidence": PackedStringArray(["y = 412"]), "repro": PackedStringArray(["correr", "saltar"])})
+	assert_eq(notice.level, ReviewStore.ChatEntry.NoticeLevel.ERROR, "falló: error")
+	assert_true(str(notice.text).contains("no salta") and str(notice.text).contains("• y = 412") and str(notice.text).contains("2. saltar"), "texto con evidencia y pasos · " + str(notice.text))
+	assert_eq(ReviewStore.playtest_notice({"verdict": "pass", "summary": "", "evidence": PackedStringArray(), "repro": PackedStringArray()}).level, ReviewStore.ChatEntry.NoticeLevel.INFO, "pasó: info")

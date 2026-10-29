@@ -521,6 +521,7 @@ func _build_review_panel() -> void:
 	_review_panel.finding_selected.connect(func(id: int) -> void: action_forwarded.emit(ACTION_REVIEW_FOCUS, id))
 	_review_panel.fix_all_requested.connect(func() -> void: action_forwarded.emit(ACTION_REVIEW_FIX_ALL, null))
 	_review_panel.notice_requested.connect(func(text: String, level: ChatEntry.NoticeLevel) -> void: _model.add_notice(text, level))
+	_review_panel.prompt_requested.connect(_on_submitted)
 	add_child(_review_panel)
 	move_child(_review_panel, _body.get_index())
 

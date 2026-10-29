@@ -6,7 +6,8 @@ extends Node
 ## - juego → editor: `ready` [versión], `frame` [png], `inputs_done` [cantidad], `problem` [texto],
 ##   `reply` [id, {text} o {error}].
 ## - editor → juego: `capture` [lado máximo], `inputs` [[paso, …]], `request` [id, op, params]
-##   con op tree, get, set, call, wait o input (m4-07).
+##   con op tree, get, set, call, wait o input (m4-07), y `quit` (cierra el juego por su cuenta: así
+##   el Movie Maker termina de escribir el video, m14-03).
 
 const PREFIX := "godot_agent"
 const PROTOCOL := 2
@@ -45,6 +46,8 @@ func _on_message(message: String, data: Array) -> bool:
 		"request":
 			if data.size() >= 3:
 				_answer(int(data[0]), str(data[1]), data[2] if data[2] is Dictionary else {})
+		"quit":
+			get_tree().quit()
 		_:
 			return false
 	return true

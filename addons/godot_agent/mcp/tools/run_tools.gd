@@ -32,6 +32,12 @@ const TAP_HOLD_S := 0.1
 const STEP_GAP_S := 0.05
 ## Con `frame` (m14-01): pulsación por defecto en frames de física, y el máximo de frames.
 const TAP_HOLD_FRAMES := 6
+## Grabación de un run (m14-03): carpeta, fps fijos del Movie Maker y la espera a que el juego cierre.
+const RECORD_DIR := "res://.godot_agent/playtests"
+const RECORD_FPS := 30
+const RECORD_CLOSE_S := 10.0
+const MOVIE_FILE_SETTING := "editor/movie_writer/movie_file"
+const MOVIE_FPS_SETTING := "editor/movie_writer/fps"
 const FRAME_MAX := 60 * 60
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP server)."
 const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"} or {move: [x, y]} (window pixels), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
@@ -101,6 +107,7 @@ func tools() -> Array:
 				"scene": {"type": "string", "description": "res://…tscn path (default: the open scene)"},
 				"seconds": {"type": "number", "description": "Seconds to wait after the game starts (max. 120)"},
 				"inputs": steps_schema,
+				"record": {"type": "boolean", "description": "Record the run as a video (AVI) under res://.godot_agent/playtests/: evidence for a playtest. While recording the game runs at a fixed %d fps and closes by itself at the end of `seconds`." % RECORD_FPS},
 			},
 			["seconds"], _run_scene),
 		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
@@ -150,6 +157,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	if EditorInterface.is_playing_scene():
 		EditorInterface.stop_playing_scene()
 		await _until(func() -> bool: return not EditorInterface.is_playing_scene(), STOP_TIMEOUT_S)
+	var recording := _start_recording() if args.get("record") == true else {}
 	var since := errors.mark()
 	var output_before := errors.output_text()
 	_state = {}
@@ -159,6 +167,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	if not EditorInterface.is_playing_scene():
 		_busy = false
 		_cleanup()
+		_stop_recording(recording)
 		return McpTool.error("The editor could not launch %s (did a plugin's build fail?). Try get_errors." % scene)
 
 	await _until(func() -> bool: return _state.has("ready") or _state.has("stopped") or _state.has("breaked"), STARTUP_TIMEOUT_S)
@@ -170,11 +179,52 @@ func _run_scene(args: Dictionary) -> Dictionary:
 		notes.append("The playtest probe did not respond within %d s: no inputs or captures." % STARTUP_TIMEOUT_S)
 	await _until(func() -> bool: return _state.has("stopped") or _state.has("breaked"), seconds)
 	await Engine.get_main_loop().create_timer(SETTLE_S).timeout
+	if not recording.is_empty():
+		notes.append(await _finish_recording(recording))
 	if not _state.has("started"):
 		_cleanup()
 	var report := _report(scene, seconds, inputs, notes, since, output_before)
 	_busy = false
 	return McpTool.text(report)
+
+
+## Prende el Movie Maker del editor hacia un AVI nuevo; devuelve lo que hay que restaurar y la ruta.
+func _start_recording() -> Dictionary:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(RECORD_DIR))
+	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
+	var path := RECORD_DIR.path_join("playtest_%s.avi" % stamp)
+	var recording := {
+		"path": path, "enabled": EditorInterface.is_movie_maker_enabled(),
+		"file": ProjectSettings.get_setting(MOVIE_FILE_SETTING, ""), "fps": ProjectSettings.get_setting(MOVIE_FPS_SETTING, 60),
+	}
+	ProjectSettings.set_setting(MOVIE_FILE_SETTING, ProjectSettings.globalize_path(path))
+	ProjectSettings.set_setting(MOVIE_FPS_SETTING, RECORD_FPS)
+	EditorInterface.set_movie_maker_enabled(true)
+	return recording
+
+
+## Cierra el juego desde adentro (el video queda bien terminado) y deja el Movie Maker como estaba.
+func _finish_recording(recording: Dictionary) -> String:
+	if EditorInterface.is_playing_scene():
+		debugger.send("quit")
+		await _until(func() -> bool: return not EditorInterface.is_playing_scene(), RECORD_CLOSE_S)
+		if EditorInterface.is_playing_scene():
+			EditorInterface.stop_playing_scene()
+			await _until(func() -> bool: return not EditorInterface.is_playing_scene(), STOP_TIMEOUT_S)
+	_stop_recording(recording)
+	var path: String = recording.path
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null or file.get_length() == 0:
+		return "The recording was not written (%s)." % path
+	return "Recording: %s (%d KB, %d fps). The game was closed to finish the video." % [path, file.get_length() / 1024, RECORD_FPS]
+
+
+static func _stop_recording(recording: Dictionary) -> void:
+	if recording.is_empty():
+		return
+	EditorInterface.set_movie_maker_enabled(recording.enabled)
+	ProjectSettings.set_setting(MOVIE_FILE_SETTING, recording.file)
+	ProjectSettings.set_setting(MOVIE_FPS_SETTING, recording.fps)
 
 
 func _stop_scene(_args: Dictionary) -> Dictionary:

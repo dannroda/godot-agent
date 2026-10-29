@@ -3892,7 +3892,7 @@ tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un edit
 
 **Notas:** Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.
 
-## M12 — Que el agente se verifique solo  (1/8, 1 en revisión)
+## M12 — Que el agente se verifique solo  (2/8, 2 en revisión)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
@@ -3907,7 +3907,7 @@ Como godot-ai (game_manage op=input_sequence): una tool que recibe una línea de
 
 **Notas:** game_input y los inputs de run_scene aceptan frame (frames de física desde el inicio), hold_frames (default 6) y settle_frames; strength para acciones. No se mezclan t y frame en una llamada. El probe espera physics_frame en vez de timers.
 
-### Errores nuevos en cada respuesta y estado del editor · En curso
+### Errores nuevos en cada respuesta y estado del editor · Revisión
 
 Como godot-ai: cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la llamada anterior (sin esperar al fin del turno), y las tools que escriben scripts devuelven el diagnóstico de ese archivo. Además, rechazar o esperar con un código claro cuando el editor está importando, corriendo el juego o sin escena abierta (EDITOR_IMPORTING, EDITOR_PLAYING, EDITOR_NO_SCENE), y que run_scene diga 'break' si un error de parseo frena el arranque.
 
@@ -3915,9 +3915,13 @@ Como godot-ai: cada respuesta de una tool godot.* trae los errores y warnings nu
 
 **Notas:** Cada respuesta de una tool godot.* trae los errores y warnings nuevos desde la respuesta anterior a esa sesión (marca por sesión en ToolRegistry); las tools que ya los traen (run_scene, game_*, get_errors, validate_scripts) solo avanzan la marca. Las tools que escriben esperan hasta 8 s si el editor importa y si no responden EDITOR_IMPORTING. No se hizo: diagnóstico en la misma escritura de un script, porque el agente escribe con fs/write_text_file de ACP y su respuesta no lleva datos; lo cubren el aviso en la tool siguiente y la verificación al terminar el turno. run_scene ya informa 'break' (el juego paró en el debugger por un error).
 
-### Playtest con veredicto: pass, fail o blocked con evidencia · Pendiente
+### Playtest con veredicto: pass, fail o blocked con evidencia · En curso
 
 Como el Full Game Playtest Agent de Ziva: un playtest que corre la escena, manda input (usar m14-01), toma capturas y lee errores de runtime, y devuelve pass, fail o blocked con evidencia y pasos para reproducir, sin editar el proyecto. Reusar el evaluador del One-shot; que se pueda pedir suelto desde Revisar. Grabación opcional con --write-movie (idea de walker) en .godot_agent/.
+
+**Prueba:** test_findings_parser.test_playtest_verdict, test_review_store.test_playtest_prompt_and_notice; en Xvfb 4.7.2 y 4.8-beta1: review-test (el veredicto del agente falso queda como aviso con evidencia y pasos) y run-test (record: AVI válido, juego cerrado, Movie Maker apagado)
+
+**Notas:** Revisar suma «Playtest…» (pregunta qué comprobar y si grabar) y manda un prompt que pide jugar sin tocar el proyecto y contestar {"playtest": {verdict, summary, evidence, repro}}; el parser lo lee con alias y el controller lo deja como aviso (info si pasó, error si falló, warning si no se pudo). run_scene con record: true usa el Movie Maker del editor (AVI, 30 fps fijos, en res://.godot_agent/playtests/), cierra el juego desde el probe para que el video quede terminado y deja el Movie Maker como estaba. No se reusó el evaluador del One-shot: su rúbrica es de puntajes por criterio; acá hace falta pass/fail/blocked sobre un pedido.
 
 ### Validadores de física y de TileMaps · Pendiente
 
