@@ -172,8 +172,14 @@ func test_untouched_optional_fields_are_left_out() -> void:
 	var view := ElicitationView.new()
 	view.setup(entry, Color.CORNFLOWER_BLUE, MarkdownBBCode.new())
 	(Engine.get_main_loop() as SceneTree).root.add_child(view)  # Range solo avisa cambios en el árbol
+	# Desde _initialize el árbol todavía no corre: sin un frame, _ready no llega y no hay campos.
+	await (Engine.get_main_loop() as SceneTree).process_frame
 	assert_eq(view.collect_values(), {}, "nada que el usuario no eligió")
 	var spins := view.find_children("*", "SpinBox", true, false)
+	assert_eq(spins.size(), 2, "un SpinBox para port y otro para ratio")
+	if spins.size() < 2:
+		view.queue_free()
+		return
 	(spins[1] as SpinBox).value = 0.0125
 	assert_eq(view.collect_values(), {"ratio": 0.0125}, "number sin redondear a 0.01")
 	view.queue_free()
