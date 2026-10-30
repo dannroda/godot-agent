@@ -1,7 +1,7 @@
 @tool
 extends RefCounted
 ## Capturas de la guía (m7-41): con el agente falso y la escena de tests/docs_demo/, saca las
-## imágenes del README a `dir` (overview, chat, permission, review, settings). Conviene correrlo con
+## imágenes del README a `dir` (overview, chat, permission, review, settings y oneshot). Conviene correrlo con
 ## el editor en el mismo idioma que GODOT_AGENT_LANGUAGE (un Godot self-contained con
 ## interface/editor/editor_language): ver tests/docs_shots.sh.
 
@@ -13,6 +13,9 @@ const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const ANNOTATIONS_SCRIPT := "res://addons/godot_agent/review/review_annotations.gd"
 const DEMO_SCENE := "res://tests/docs_demo/main.tscn"
+const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
+## Repo y store del One-shot de la captura: aparte, para no dejar ramas ni runs en el proyecto.
+const ONESHOT_REPO := "user://docs_oneshot"
 const DOCK_WIDTH := 480
 const TURN_TIMEOUT_S := 30.0
 ## Prompts por idioma (GODOT_AGENT_LANGUAGE); los escenarios en español terminan en _es.
@@ -21,11 +24,13 @@ const PROMPTS := {
 		"build": "Add a wave counter to the HUD: it should say which asteroid wave is playing.",
 		"permission": "Now make the asteroids faster with every wave.",
 		"review": "Review the scripts in tests/docs_demo/.",
+		"oneshot": "An asteroid shooter: waves that get faster, a score and a game over screen.",
 	},
 	"es": {
 		"build": "Agregá un contador de oleadas al HUD: que diga qué oleada de asteroides se está jugando.",
 		"permission": "Ahora hacé que los asteroides vayan más rápido en cada oleada.",
 		"review": "Revisá los scripts de tests/docs_demo/.",
+		"oneshot": "Un shooter de asteroides: oleadas cada vez más rápidas, puntaje y pantalla de game over.",
 	},
 }
 
@@ -116,19 +121,79 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 			await _frames(10)
 			_save((node as Window).get_texture().get_image(), dir.path_join("settings.png"))
 			(node as Window).hide()
+
+	await _oneshot_shot(dir)
 	EditorInterface.set_main_screen_editor("2D")
 	return failures
 
 
-func _start(scenario: String) -> bool:
+## La pantalla One-shot con un run en curso: plan con una tarea hecha y otra en marcha, presupuestos,
+## checks, checkpoints y la captura del último playtest. Se guarda solo esa pantalla.
+func _oneshot_shot(dir: String) -> void:
+	var screen: Control = null
+	for node: Node in _tree.root.find_children("*", "VBoxContainer", true, false):
+		var script := node.get_script() as Script
+		if script and script.resource_path == MAIN_SCREEN_SCRIPT:
+			screen = node
+	if screen == null:
+		failures.append("no se encontró la pantalla One-shot")
+		return
+	var run: Object = screen.get(&"_run")
+	var controller: Object = run.get(&"controller")
+	controller.call(&"stop")
+	var repo := ProjectSettings.globalize_path(ONESHOT_REPO)
+	OS.execute("rm", ["-rf", repo, repo + "_store"])
+	DirAccess.make_dir_recursive_absolute(repo)
+	var file := FileAccess.open(repo.path_join("project.godot"), FileAccess.WRITE)
+	file.store_string("config_version=5\n")
+	file.close()
+	OS.execute("git", ["-c", "init.defaultBranch=main", "init", "-q", repo])
+	OS.execute("git", ["-C", repo, "add", "-A"])
+	OS.execute("git", ["-C", repo, "-c", "user.name=docs", "-c", "user.email=docs@example.com", "commit", "-q", "-m", "start"])
+	(run.get(&"git") as Object).set(&"root", repo)
+	(run.get(&"files") as Object).set(&"project_root", repo)
+	(run.get(&"store") as Object).set(&"dir", repo + "_store")
+	run.set(&"qa_max_rounds", 0)
+	var profile := _profile("docs_oneshot")
+	run.set(&"restart_session", func(_lost_id: String) -> bool: return await controller.call(&"start", profile))
+	screen.set(&"agent_name", func() -> String: return "Claude Code")
+	EditorInterface.set_main_screen_editor("One-shot")
+	await _frames(10)
+	var goal: TextEdit = screen.get(&"_goal_edit")
+	goal.text = PROMPTS[_language].oneshot
+	goal.text_changed.emit()
+	(screen.get(&"_checkpoints_check") as CheckBox).button_pressed = true
+	(screen.get(&"_start_button") as Button).pressed.emit()
+	var ready := func() -> bool:
+		return (screen.get(&"_checks_list") as Control).get_child_count() == 3 \
+			and (screen.get(&"_capture_rect") as TextureRect).texture != null \
+			and not bool(run.call(&"is_git_busy"))
+	var deadline := Time.get_ticks_msec() + int(TURN_TIMEOUT_S * 1000)
+	while not ready.call() and Time.get_ticks_msec() < deadline:
+		await _tree.process_frame
+	if not ready.call():
+		failures.append("el One-shot no llegó a mostrar el plan, los checks y la captura")
+	_hide_bottom_panel.call()
+	await _frames(30)
+	_save(_screen().get_region(Rect2i(screen.get_global_rect())), dir.path_join("oneshot.png"))
+	run.call(&"stop")
+	controller.call(&"stop")
+	await _frames(5)
+
+
+## El agente falso con el guion `scenario` (en el idioma de las capturas), con el nombre de Claude Code.
+func _profile(scenario: String) -> AgentProfile:
 	if _language != "en":
 		scenario += "_" + _language
-	var profile := AgentProfile.from_dict({
+	return AgentProfile.from_dict({
 		"id": "claude", "display_name": "Claude Code", "command": OS.get_executable_path(),
 		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
 			"--script", "res://tests/fake_agent.gd", "--", "--scenario=res://tests/scripts/%s.json" % scenario],
 	})
-	if not await _controller.call(&"start", profile):
+
+
+func _start(scenario: String) -> bool:
+	if not await _controller.call(&"start", _profile(scenario)):
 		failures.append("no arrancó la sesión %s: %s" % [scenario, _model.get(&"failure_message")])
 		return false
 	return true

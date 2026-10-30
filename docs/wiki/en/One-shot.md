@@ -2,6 +2,8 @@
 
 [Home](Home.md) · [Español](../es/One-shot.md)
 
+![The One-shot screen with a run in progress: the plan with one task done and one underway, budgets, the activity, the last playtest, checks and checkpoints](https://raw.githubusercontent.com/dannroda/godot-agent/main/docs/images/en/oneshot.png)
+
 One-shot gives the agent a whole goal ("a 2-player Pong with score", "a top-down shooter with three enemy types") and lets it work on its own. The harness keeps it on track:
 
 - a plan and a spec;

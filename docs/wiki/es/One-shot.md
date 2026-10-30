@@ -2,6 +2,8 @@
 
 [Inicio](Inicio.md) · [English](../en/One-shot.md)
 
+![La pantalla One-shot con un run en curso: el plan con una tarea hecha y otra en marcha, los presupuestos, la actividad, el último playtest, las verificaciones y los checkpoints](https://raw.githubusercontent.com/dannroda/godot-agent/main/docs/images/es/oneshot.png)
+
 El One-shot le da al agente un objetivo entero ("Pong de 2 jugadores con puntaje", "un shooter top-down con tres tipos de enemigos") y lo deja trabajar solo. El harness lo mantiene en carril con:
 
 - un plan y un spec;
