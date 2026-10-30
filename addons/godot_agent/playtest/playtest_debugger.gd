@@ -11,6 +11,9 @@ signal frame_received(png: PackedByteArray, width: int, height: int)
 signal inputs_done(count: int)
 signal problem_reported(text: String)
 signal reply_received(id: int, result: Dictionary)
+signal finding_received(finding: Dictionary)
+signal finding_frame_received(signature: String, png: PackedByteArray)
+signal film_frame_received(number: int, game_time: float, jpeg: PackedByteArray)
 
 const PREFIX := "godot_agent"
 
@@ -36,6 +39,15 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 		"reply":
 			if data.size() >= 2 and data[1] is Dictionary:
 				reply_received.emit(int(data[0]), data[1])
+		"finding":
+			if not data.is_empty() and data[0] is Dictionary:
+				finding_received.emit(data[0])
+		"finding_frame":
+			if data.size() >= 2 and data[1] is PackedByteArray:
+				finding_frame_received.emit(str(data[0]), data[1])
+		"film_frame":
+			if data.size() >= 3 and data[2] is PackedByteArray:
+				film_frame_received.emit(int(data[0]), float(data[1]), data[2])
 		_:
 			return false
 	return true
@@ -66,6 +78,12 @@ func send(message: String, data: Array = []) -> bool:
 		return false
 	get_session(_probe_session).send_message(PREFIX + ":" + message, data)
 	return true
+
+
+## Saca al juego de una pausa del debugger (m15-05).
+func resume() -> void:
+	if is_breaked():
+		get_session(_probe_session).send_message("continue", [])
 
 
 ## Motivo y ubicación de la pausa del debugger ("Invalid call…", "res://a.gd:12 in _ready").

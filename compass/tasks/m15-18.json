@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "13.18",
+  "created_at": "2026-10-30T22:47:07.063Z",
+  "description": "_show_in_level de dock.gd: busca el nodo por nombre o el más cercano y avisa cuál fue, lo selecciona y encuadra la cámara.",
+  "milestone": "m15",
+  "notes": "ui/dock/finding_locator.gd. Encuadrar la cámara sin comprobar a ojo.",
+  "order": 18,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "review-test: el botón contesta en el chat.",
+  "title": "Mostrar el hallazgo en la escena",
+  "updated_at": "2026-10-30T23:19:16.845Z"
+}

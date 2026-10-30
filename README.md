@@ -9,7 +9,7 @@ An editor addon for Godot 4 (GDScript and C# projects) that connects a coding ag
 - read scenes and scripts, the selection and the errors;
 - edit nodes and properties, each change one undo step;
 - run the game with simulated input, by time or by physics frame so a test plays the same every time, and look at captured frames (click one in the chat to see it full size);
-- check its own work: each tool result brings the editor errors that appeared since the last call, validators check physics and TileMaps, and a **Playtest** answers passed, failed or could not test, with evidence (and a video if you want);
+- check its own work: each tool result brings the editor errors that appeared since the last call, validators check physics and TileMaps, and a **Playtest** answers passed, failed or could not test, with evidence the harness checks against what the agent really did (and a video if you want). In-game detectors catch NaN transforms, bodies out of the world, long falls, long frames and a HUD past its maximum, and the agent can use the game's menus, play turn by turn or run a script inside the game to react in the same frame;
 - review code and leave findings in the Script Editor;
 - work on C# projects with Godot .NET: it compiles with `dotnet build` and gets the errors by file and line, creates `.cs` scripts, and inline completion works in `.cs` files too;
 - use the MCP servers of other programs (Blender, a database…), set up in Settings with their own permissions;

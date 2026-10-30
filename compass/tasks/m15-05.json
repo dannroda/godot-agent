@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "13.5",
+  "created_at": "2026-10-30T22:47:03.746Z",
+  "description": "Hoy un error deja el juego frenado en el debugger y run_tools.gd:478 pide continuar a mano, así que la primera falla termina el playtest. Autopilot manda continue solo mientras el agente corre (debugger.gd:42) y el error sigue llegando. Hacerlo en Playtest y en el evaluador; en Construir sigue frenando, porque ahí conviene arreglarlo en el momento. Un run manual tampoco cambia.",
+  "milestone": "m15",
+  "notes": "Parámetro continue_on_error de run_scene, que el prompt de Playtest y el del evaluador piden. Construir no lo pasa, así que frena. Tope de 30 pausas por run: un error por frame deja el juego parado. También saltea breakpoints del usuario mientras está activo.",
+  "order": 5,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game y run_broken con continue_on_error.",
+  "title": "Seguir tras un error de script durante un playtest",
+  "updated_at": "2026-10-30T23:19:10.363Z"
+}

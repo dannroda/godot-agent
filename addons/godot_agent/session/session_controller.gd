@@ -20,6 +20,8 @@ const AcpClient := preload("../acp/acp_client.gd")
 const SessionModel := preload("session_model.gd")
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
+const PlaytestMemory := preload("../review/playtest_memory.gd")
+const RunTools := preload("../mcp/tools/run_tools.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
@@ -62,6 +64,8 @@ C# in this project (it has a .csproj):
 
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"
+## Reproducir la filmación de un playtest (m15-23); `data`: su carpeta.
+const ACTION_PLAY_FILM := "play_film"
 ## Aviso de lo que cambió un turno (m11-01, m11-02): ver los cambios y volver atrás. Su `data` es
 ## `{session, start, end, files}`; lo resuelve el plugin.
 const ACTION_TURN_CHANGES := "turn_changes"
@@ -432,7 +436,12 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		_record_turn_end("cancelled")
 		return "cancelled"
 
+	var playtest_minutes := ReviewStore.playtest_minutes(text.strip_edges())
+	if playtest_minutes > 0:
+		RunTools.playtest_deadline_ms = Time.get_ticks_msec() + playtest_minutes * 60000
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
+	if playtest_minutes > 0:
+		RunTools.playtest_deadline_ms = 0
 	var turn_text := agent_text_since(first_new_entry)
 	if is_command and text.strip_edges().begins_with("/remote-control"):
 		_observe_remote_control(turn_text)
@@ -443,8 +452,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if turn_text.contains("\"playtest\""):
 		var playtest: Dictionary = ReviewStore.FindingsParser.parse(turn_text, cwd).playtest
 		if not playtest.is_empty():
-			var notice := ReviewStore.playtest_notice(playtest)
-			model.add_notice(notice.text, notice.level)
+			_report_playtest(playtest, turn_text, first_new_entry, text.contains(ReviewStore.RECORD_HINT))
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
@@ -613,6 +621,44 @@ func agent_text_since(first_entry: int) -> String:
 		if entries[i].kind == ChatEntry.EntryKind.AGENT:
 			parts.append(entries[i].text)
 	return "\n".join(parts)
+
+
+## El veredicto contrastado con el turno como aviso; los hallazgos y lo detectado van al panel de
+## Revisar, y lo aprendido a la memoria del juego (m15-15 a m15-18).
+func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int, record_asked: bool) -> void:
+	var audit := ReviewStore.playtest_audit(_tool_calls_since(first_entry), record_asked)
+	var audited := ReviewStore.audited_playtest(playtest, audit)
+	var notice := ReviewStore.playtest_notice(audited)
+	var actions: Array[Dictionary] = []
+	if not str(audited.film).is_empty():
+		actions.append({"id": ACTION_PLAY_FILM, "label": I18n.t("Play the recording"), "data": audited.film})
+	model.add_notice(notice.text, notice.level, actions)
+	ReviewStore.remember_playtest(playtest, audit, PlaytestMemory.new())
+	if model.harness_mode != SessionModel.HarnessMode.REVIEW:
+		return
+	var findings: Array[Dictionary] = []
+	findings.assign(ReviewStore.FindingsParser.parse(turn_text, cwd).findings)
+	findings.append_array(audit.detectors)
+	if not findings.is_empty():
+		for finding: Dictionary in findings:
+			finding["playtest"] = true
+		review.set_findings(findings)
+
+
+## Los tool calls del turno, con los de sus subagentes.
+func _tool_calls_since(first_entry: int) -> Array:
+	var calls: Array = []
+	var pending: Array = []
+	var entries := model.entries()
+	for i in range(first_entry, entries.size()):
+		if entries[i].kind == ChatEntry.EntryKind.TOOL_GROUP:
+			pending.append_array(entries[i].tool_call_ids)
+	while not pending.is_empty():
+		var call: ToolCall = model.tool_call(pending.pop_back())
+		if call:
+			calls.append(call)
+			pending.append_array(call.child_ids)
+	return calls
 
 
 ## Los mensajes del turno con el bloque `findings` ya leído lo muestran plegado (m12-38).

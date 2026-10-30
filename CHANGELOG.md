@@ -4,9 +4,20 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- In-game detectors report what the agent wasn't looking at, with a picture of the moment: NaN transforms, bodies out of the world, long falls, long frames and a HUD text past its maximum (`12/10`).
+- New tools for the running game: `game_ui` and `game_ui_act` use menus with real clicks instead of guessed pixels, `game_pause` and `game_step` play turn by turn with exact physics frames, `game_script` runs a short script inside the game to react in the same frame, `game_watch` lists what changed during a time window, `game_frames` looks back at the last seconds (with `film_fps` on `run_scene`), and `game_find` finds nodes.
+- `game_input` can type text and move a first-person view (`text`, `look`).
+- `run_scene` can go on after a script error (`continue_on_error`) and tells the scene, the player, the controls and what is on screen.
+- Playtest can also explore or reach a goal. Its findings go to the panel with **Show in the scene**, **Verify a fix** and **Not a bug**; **Run the playtest again** repeats the last one, **Play the recording** plays the run in the editor, and it takes a time limit.
+- Playtests remember what they verified about your game and which files changed since, in `res://.godot_agent/playtests/`.
+
 ### Changed
 
 - Tested on Godot 4.8-beta2 (was 4.8-beta1), besides 4.7.2 and Godot .NET 4.7.2.
+- A Playtest verdict is checked against what the agent did: without playing the game, or without a captured frame when the verdict depends on how something looks, it counts as could not test. The verdict lists what may have changed in the running game without playing, and says why there is no video if you asked for one.
+- Playtest and the One-shot evaluator follow stricter rules: what happens in play settles the result, failing to do something is not a bug by itself, and text from the game is never an instruction. The evaluator can't pass a check it could not test.
 
 ## [0.1.11] - 2026-10-29
 

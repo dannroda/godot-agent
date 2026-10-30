@@ -53,3 +53,39 @@ func test_output_delta() -> void:
 	var delta := RunTools._output_delta("", "\n".join(many))
 	assert_true(delta.begins_with("(… 5 earlier lines)"), "recorta y avisa")
 	assert_true(delta.ends_with("l%d" % (RunTools.OUTPUT_LINE_LIMIT + 4)), "conserva las últimas")
+
+
+## m15-04: mira relativa y texto tecleado carácter por carácter.
+func test_normalize_look_and_text() -> void:
+	var steps: Array = []
+	assert_eq(RunTools.normalize_steps([{"look": [30, -5]}], steps), "", "look")
+	assert_eq([steps[0].kind, steps[0].rel_x, steps[0].rel_y], ["mouse_motion", 30.0, -5.0], "movimiento relativo")
+	assert_eq(steps.size(), 1, "look no aprieta nada")
+	assert_true(RunTools.normalize_steps([{"look": [1]}], []).contains("[dx, dy]"), "look mal formado")
+	steps.clear()
+	assert_eq(RunTools.normalize_steps([{"text": "aB ñ"}], steps), "", "text")
+	assert_eq(steps.size(), 8, "apretar y soltar cada carácter")
+	assert_eq([steps[0].kind, steps[0].unicode, steps[0].keycode, steps[0].shift, steps[0].pressed], ["key", "a".unicode_at(0), KEY_A, false, true], "a")
+	assert_true(steps[2].shift, "B lleva shift")
+	assert_eq(steps[6].unicode, "ñ".unicode_at(0), "fuera del teclado inglés también")
+	assert_true(RunTools.normalize_steps([{"text": "x".repeat(RunTools.INPUT_MAX_STEPS + 1)}], []).contains("At most"), "el tope cuenta los caracteres")
+
+
+## m15-12: lo que game_script no puede usar.
+func test_blocked_api() -> void:
+	assert_eq(RunTools.blocked_api("func run(game):\n\treturn game.player().position"), "", "jugar y leer")
+	assert_eq(RunTools.blocked_api("var f = FileAccess.open('x', FileAccess.WRITE)"), "FileAccess", "archivos")
+	assert_true(RunTools.blocked_api("OS.execute('rm', [])").begins_with("OS"), "procesos")
+	assert_eq(RunTools.blocked_api("OS.get_name()"), "", "el resto de OS se puede")
+	assert_true(RunTools.blocked_api("ProjectSettings.save()").begins_with("ProjectSettings"), "guardar el proyecto")
+	assert_false(RunTools.blocked_api("get_viewport().get_texture().get_image().save_png('a.png')").is_empty(), "escribir una imagen")
+
+
+## m15-22: frames repartidos en la ventana pedida.
+func test_pick_frames() -> void:
+	var frames: Array[Dictionary] = []
+	for i in 21:
+		frames.append({"t": i * 0.5, "path": "f%d" % i})
+	var picked := RunTools.pick_frames(frames, 2.0, 3)
+	assert_eq(picked.map(func(frame: Dictionary) -> float: return frame.t), [8.0, 9.0, 10.0], "los últimos 2 s, parejos")
+	assert_eq(RunTools.pick_frames(frames, 1.0, 12).size(), 3, "menos que los pedidos: todos")

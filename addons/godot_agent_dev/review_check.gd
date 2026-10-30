@@ -186,6 +186,23 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	await _wait_turn()
 	var verdicts := (_model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return str(entry.get(&"text")).begins_with(I18n.t("Playtest: failed")))
 	_expect(verdicts.size() == 1 and str(verdicts[0].get(&"text")).contains("score = 0") and str(verdicts[0].get(&"text")).contains("2. "), "playtest: el veredicto queda como aviso con evidencia y pasos")
+	_expect(verdicts.size() == 1 and str(verdicts[0].get(&"text")).contains("game_set"), "playtest: el aviso lista lo que se cambió sin jugar")
+	_expect(verdicts.size() == 1 and str(verdicts[0].get(&"text")).contains("A frame took 1.00 s"), "playtest: el aviso lista lo que vieron los detectores")
+	_expect(verdicts.size() == 1 and (verdicts[0].get(&"actions") as Array).any(func(action: Dictionary) -> bool: return action.id == "play_film"), "playtest: el aviso ofrece la grabación")
+	# Hallazgos del playtest en el panel (m15-17, m15-18): sin archivo, con sus acciones.
+	await _frames(2)
+	_expect(store.findings.size() == 2 and store.findings.any(func(finding: Dictionary) -> bool: return finding.get("signature") == "hitch"), "playtest: los hallazgos y los detectores van al panel (%d)" % store.findings.size())
+	_press(panel, "Show in the scene")
+	await _frames(4)
+	var located := (_model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return str(entry.get(&"text")).begins_with(I18n.t("Showing %s.").get_slice("%s", 0)) or str(entry.get(&"text")).begins_with(I18n.t("Open the scene to show this finding in it.")) or str(entry.get(&"text")).begins_with(I18n.t("Nothing in the open scene matches this finding.")))
+	_expect(located.size() == 1, "Show in the scene contesta en el chat")
+	var before := store.findings.size()
+	_press(panel, "Not a bug")
+	await _frames(2)
+	_expect(store.findings.size() == before - 1, "Not a bug saca el hallazgo")
+	var memory := preload("res://addons/godot_agent/review/playtest_memory.gd").new()
+	_expect(not memory.not_a_bug().is_empty(), "Not a bug queda en la memoria del juego")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(memory.DIR.path_join(memory.NOT_A_BUG_FILE)))
 
 
 func _wait_turn() -> void:

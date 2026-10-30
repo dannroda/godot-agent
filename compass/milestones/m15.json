@@ -1,0 +1,10 @@
+{
+  "code": "M13",
+  "done_when": [
+    "Un veredicto de playtest no se acepta sin haber jugado y muestra qué se cambió directo en el juego.",
+    "En un juego de prueba con bugs plantados, los detectores los encuentran con captura del momento y el agente puede operar su UI y jugar a nivel de frame."
+  ],
+  "goal": "Ideas de ramenvr/autopilot (revisión del 30/10) para que un playtest sea confiable: el veredicto sale de jugar, los detectores ven lo que el agente no mira y el agente puede actuar a nivel de frame sin un segundo modelo. No se trae: el servicio Python con el modelo Jev, el autoload permanente, compartir datos por defecto, el marco de coordenadas de Unreal ni la navegación 3D (walk_to, nav.py, melee).",
+  "order": 15,
+  "title": "Playtesting: lo que traemos de Autopilot"
+}

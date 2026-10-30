@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "13.9",
+  "created_at": "2026-10-30T22:47:04.761Z",
+  "description": "Hoy el agente adivina los píxeles de click: [x, y]. lib/ui.gd lista los controles visibles con id, tipo, texto, habilitado y posición, y actúa con un clic real en el viewport, así que un overlay encima lo bloquea igual que a un jugador. No copiar su salida: si nadie toma el clic emiten pressed igual; nosotros lo reportamos como problema. Marcar los atajos que no son input real (OptionButton y set cambian el valor directo, ui.gd:207). Probar con stretch: coordenadas de viewport contra ventana. autopilot es Apache 2.0: si se copia código, conservar el aviso de licencia.",
+  "milestone": "m15",
+  "notes": "Sin fallback a emitir pressed: si nadie toma el clic es un error. Sin drag de Autopilot. Sin probar con stretch.",
+  "order": 9,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: clic, overlay que bloquea, opción marcada como no input.",
+  "title": "game_ui y game_ui_act",
+  "updated_at": "2026-10-30T23:19:12.398Z"
+}

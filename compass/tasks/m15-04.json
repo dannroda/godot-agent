@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "13.4",
+  "created_at": "2026-10-30T22:47:03.497Z",
+  "description": "Por lectura de _event en playtest_probe.gd (falta reproducirlo): InputEventMouseMotion va sin relative, así que un juego en primera persona que lea event.relative recibe cero; InputEventKey va sin unicode, así que probablemente no se pueda escribir en un LineEdit. Autopilot carga ambos (playtest.gd:658). Reproducir con un test y arreglar.",
+  "milestone": "m15",
+  "notes": "Se confirmó: faltaban relative y unicode. Pasos nuevos {look} y {text}; un {move} también calcula relative.",
+  "order": 4,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: texto en un LineEdit y mira con relative; test_run_tools.test_normalize_look_and_text.",
+  "title": "Input: mouse-look y texto en game_input",
+  "updated_at": "2026-10-30T23:19:09.859Z"
+}

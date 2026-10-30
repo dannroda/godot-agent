@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "13.14",
+  "created_at": "2026-10-30T22:47:06.046Z",
+  "description": "movement() (lib/world.gd:348) y peak = v²/2g permiten probar con datos del juego que un salto es imposible, que es lo que pide la regla de veredicto. Solo si apuntamos a juegos con salto.",
+  "milestone": "m15",
+  "notes": "En el kit de game_script: game.movement().",
+  "order": 14,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: movement lee JUMP_VELOCITY.",
+  "title": "Números de movimiento del jugador",
+  "updated_at": "2026-10-30T23:19:14.867Z"
+}

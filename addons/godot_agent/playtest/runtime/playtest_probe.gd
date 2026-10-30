@@ -1,26 +1,47 @@
 extends Node
 ## Autoload de playtest: corre dentro del juego lanzado por el harness.
-## Aislado a propósito: sin preload, sin class_name y sin referencias a scripts @tool del addon,
-## para que cargarlo no arrastre código de editor (spec §6, punto 5).
+## Aislado a propósito: sin class_name y sin referencias a scripts @tool del addon, para que cargarlo
+## no arrastre código de editor (spec §6, punto 5). Solo precarga los scripts de esta carpeta.
 ## Habla con el editor por el canal del debugger, prefijo `godot_agent:`:
 ## - juego → editor: `ready` [versión], `frame` [png], `inputs_done` [cantidad], `problem` [texto],
-##   `reply` [id, {text} o {error}].
+##   `reply` [id, {text} o {error}], `finding` [{detector, summary, signature, …}] y `finding_frame`
+##   [firma, png] (m15-07, m15-08), `film_frame` [n, t, jpeg] (m15-22).
 ## - editor → juego: `capture` [lado máximo], `inputs` [[paso, …]], `request` [id, op, params]
-##   con op tree, get, set, call, wait o input (m4-07), y `quit` (cierra el juego por su cuenta: así
-##   el Movie Maker termina de escribir el video, m14-03).
+##   con op tree, get, set, call, wait, input, find, ui, ui_act, script, pause, step, watch, film u
+##   opening, y `quit` (cierra el juego por su cuenta: así el Movie Maker termina de escribir el video).
+
+const Detectors := preload("detectors.gd")
+const GameUi := preload("game_ui.gd")
+const GameWorld := preload("game_world.gd")
+const ScriptKit := preload("script_kit.gd")
+const Watcher := preload("watcher.gd")
+const Film := preload("film.gd")
 
 const PREFIX := "godot_agent"
-const PROTOCOL := 2
+const PROTOCOL := 3
 const TREE_DEPTH := 4
 const TREE_LIMIT := 300
 const VALUE_LIMIT := 300
 const WAIT_MAX_S := 60.0
+const SCRIPT_MAX_S := 60.0
+const WATCH_MAX_S := 60.0
+const STEP_MAX_FRAMES := 60 * 60
+const FINDING_FRAME_SIDE := 640
+## Entre dos capturas automáticas de un hallazgo (m15-08).
+const FINDING_FRAME_GAP_MS := 5000
 ## Propiedades que `get` muestra cuando no se piden nombres (además de las variables del script).
 const SUMMARY_PROPERTIES: PackedStringArray = ["position", "global_position", "rotation", "scale", "velocity", "linear_velocity", "visible", "text", "value", "modulate"]
 
 ## Señales esperadas por `wait`: id → argumentos recibidos.
 var _signal_hits: Dictionary = {}
 var _next_wait: int = 0
+var _detectors := Detectors.new()
+var _film: Film
+var _ui: GameUi
+var _last_frame_ms: int = 0
+var _finding_frame_at: int = -FINDING_FRAME_GAP_MS
+## Último lugar del mouse: de ahí sale el `relative` de un movimiento a un punto.
+var _mouse_at := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -28,6 +49,9 @@ func _ready() -> void:
 		queue_free()
 		return
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_film = Film.new(self)
+	_ui = GameUi.new(self)
+	_last_frame_ms = Time.get_ticks_msec()
 	EngineDebugger.register_message_capture(PREFIX, _on_message)
 	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL])
 
@@ -35,6 +59,40 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if EngineDebugger.is_active() and EngineDebugger.has_capture(PREFIX):
 		EngineDebugger.unregister_message_capture(PREFIX)
+
+
+func _process(_delta: float) -> void:
+	var now := Time.get_ticks_msec()
+	var real_dt := (now - _last_frame_ms) / 1000.0
+	_last_frame_ms = now
+	_detectors.tick(self, _on_finding, real_dt)
+	_film.tick(now / 1000.0, now / 1000.0, _send_film_frame)
+
+
+func _send_film_frame(number: int, game_time: float, jpeg: PackedByteArray) -> void:
+	EngineDebugger.send_message(PREFIX + ":film_frame", [number, game_time, jpeg])
+
+
+## Un hallazgo: al editor, con una foto del momento salvo que acaba de sacar otra (m15-08).
+func _on_finding(finding: Dictionary) -> void:
+	finding.t = Time.get_ticks_msec() / 1000.0
+	EngineDebugger.send_message(PREFIX + ":finding", [finding])
+	var now := Time.get_ticks_msec()
+	if int(finding.count) == 1 and now - _finding_frame_at >= FINDING_FRAME_GAP_MS and Film.no_picture().is_empty():
+		_finding_frame_at = now
+		_send_finding_frame(str(finding.signature))
+
+
+func _send_finding_frame(signature: String) -> void:
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	if image == null or image.is_empty():
+		return
+	var longest := maxi(image.get_width(), image.get_height())
+	if longest > FINDING_FRAME_SIDE:
+		var scale := float(FINDING_FRAME_SIDE) / longest
+		image.resize(maxi(1, roundi(image.get_width() * scale)), maxi(1, roundi(image.get_height() * scale)), Image.INTERPOLATE_BILINEAR)
+	EngineDebugger.send_message(PREFIX + ":finding_frame", [signature, image.save_png_to_buffer()])
 
 
 func _on_message(message: String, data: Array) -> bool:
@@ -85,9 +143,152 @@ func _answer(id: int, op: String, params: Dictionary) -> void:
 			var steps: Array = params.get("steps") if params.get("steps") is Array else []
 			var played: int = await _play_inputs(steps, int(params.get("settle_frames", 0)))
 			result = {"text": "Inputs: %d of %d played%s." % [played, steps.size(), " (by physics frame)" if _by_frame(steps) else ""]}
+		"find":
+			result = _find(params)
+		"ui":
+			result = {"text": _ui_text()}
+		"ui_act":
+			result = _ui.act(params)
+		"script":
+			result = await _run_script(params)
+		"pause":
+			get_tree().paused = params.get("paused") == true
+			result = {"text": "The game is %s." % ("paused: it only advances with game_step" if get_tree().paused else "running")}
+		"step":
+			result = await _step(params)
+		"watch":
+			result = await _watch(params)
+		"film":
+			result = _film_op(params)
+		"opening":
+			result = {"text": _opening()}
 		_:
 			result = {"error": "Unknown request '%s'." % op}
+	if result.has("text"):
+		result.text = "%s\n[game time %.2f s, physics frame %d%s]" % [result.text, Time.get_ticks_msec() / 1000.0, Engine.get_physics_frames(), ", paused" if get_tree().paused else ""]
 	EngineDebugger.send_message(PREFIX + ":reply", [id, result])
+
+
+func _find(params: Dictionary) -> Dictionary:
+	var lines: PackedStringArray = []
+	for node: Node in GameWorld.find(get_tree(), params, self):
+		lines.append("%s (%s)" % [node.get_path(), node.get_class()])
+	return {"text": "\n".join(lines) if not lines.is_empty() else "No node matches."}
+
+
+func _ui_text() -> String:
+	var texts: PackedStringArray = []
+	var on_screen := _ui.texts()
+	for key: String in on_screen:
+		texts.append("%s: %s" % [key, JSON.stringify(str(on_screen[key]).left(120))])
+	var controls := _ui.list()
+	return "Controls (use the id with game_ui_act):\n%s\nTexts on screen:\n%s" % ["\n".join(controls) if not controls.is_empty() else "(none)", "\n".join(texts) if not texts.is_empty() else "(none)"]
+
+
+## Lo primero que se busca al empezar: escena, jugador, controles y qué hay en pantalla (m15-10).
+func _opening() -> String:
+	var body := GameWorld.player(get_tree())
+	var actions: PackedStringArray = []
+	for action: StringName in InputMap.get_actions():
+		if not str(action).begins_with("ui_"):
+			var keys: PackedStringArray = []
+			for event: InputEvent in InputMap.action_get_events(action):
+				keys.append(event.as_text().get_slice(" (", 0))
+			actions.append("%s (%s)" % [action, ", ".join(keys)])
+	return "Scene: %s\nPlayer: %s\nInput actions: %s\n%s" % [_scene_path(), body.get_path() if body else "(none: a menu?)", ", ".join(actions) if not actions.is_empty() else "(only the built-in ui_*)", _ui_text()]
+
+
+## Corre un script del agente adentro del juego (m15-12). Vencido el tiempo, sus esperas no vuelven.
+func _run_script(params: Dictionary) -> Dictionary:
+	var timeout := clampf(float(params.get("timeout", 10.0)), 0.1, SCRIPT_MAX_S)
+	var errors := ScriptKit.ScriptErrors.new()
+	OS.add_logger(errors)
+	var script := GDScript.new()
+	var code := str(params.get("code", ""))
+	script.source_code = code if code.begins_with("extends ") else "extends RefCounted\n" + code
+	var compiled := script.reload()
+	if compiled != OK or not script.can_instantiate():
+		OS.remove_logger(errors)
+		return {"error": "The script does not compile (the first line of your code is line 2 unless it starts with `extends`).\n%s" % "\n".join(errors.lines)}
+	var instance: Variant = script.new()
+	if not (instance as Object).has_method(&"run"):
+		OS.remove_logger(errors)
+		return {"error": "The script needs a `func run(game):`."}
+	var kit := ScriptKit.new(self)
+	var state := {"done": false, "value": null}
+	_drive_script(instance, kit, state)
+	var deadline := Time.get_ticks_msec() + int(timeout * 1000.0)
+	while not state.done and not errors.fatal and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	kit.aborted = not state.done
+	kit.release_all()
+	OS.remove_logger(errors)
+	var lines := kit.lines
+	lines.append_array(errors.lines)
+	if errors.fatal:
+		lines.append("The script stopped on an error; the keys it held were let go.")
+	elif not state.done:
+		lines.append("The script timed out after %.1f s; the keys it held were let go." % timeout)
+		get_tree().paused = true
+		lines.append("The game was paused where it stood: game_pause to let it run.")
+	else:
+		lines.append("run() returned: %s" % _format(state.value))
+	return {"text": "\n".join(lines)}
+
+
+func _drive_script(instance: Variant, kit: ScriptKit, state: Dictionary) -> void:
+	state.value = await instance.run(kit)
+	state.done = true
+
+
+## Avanza N frames de física con el juego corriendo, con inputs por frame, y lo deja en pausa (m15-13).
+func _step(params: Dictionary) -> Dictionary:
+	var steps: Array = params.get("steps") if params.get("steps") is Array else []
+	var frames := clampi(int(params.get("frames", 1)), 0, STEP_MAX_FRAMES)
+	for step: Variant in steps:
+		frames = maxi(frames, int(step.get("frame", 0)) + 1)
+	var start := Engine.get_physics_frames()
+	get_tree().paused = false
+	var played: int = 0
+	if not steps.is_empty():
+		played = await _play_inputs(steps)
+	# La señal sale antes de procesar los nodos: pausar en la siguiente deja justo `frames` procesados.
+	while Engine.get_physics_frames() - start <= frames:
+		await get_tree().physics_frame
+	get_tree().paused = true
+	return {"text": "Advanced %d physics frames with %d input events; paused again." % [Engine.get_physics_frames() - start - 1, played]}
+
+
+## Mira unos nodos cada frame durante `seconds`, opcionalmente con inputs en el medio (m15-20).
+func _watch(params: Dictionary) -> Dictionary:
+	var nodes: Array[Node] = []
+	for path: Variant in params.get("paths", []):
+		var found: Variant = _node(str(path))
+		if found is String:
+			return {"error": found}
+		nodes.append(found)
+	var seconds := clampf(float(params.get("seconds", 2.0)), 0.05, WATCH_MAX_S)
+	var watcher := Watcher.new()
+	watcher.start(nodes, PackedStringArray(params.get("properties", [])))
+	var steps: Variant = params.get("steps")
+	if steps is Array and not (steps as Array).is_empty():
+		_play_inputs(steps)
+	var deadline := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+		watcher.tick()
+	return {"text": watcher.report()}
+
+
+func _film_op(params: Dictionary) -> Dictionary:
+	if params.get("stop") == true:
+		_film.stop()
+		return {"text": "Filming stopped."}
+	var why := Film.no_picture()
+	if not why.is_empty():
+		return {"error": "Cannot film: %s." % why}
+	_film.start(float(params.get("fps", 4.0)))
+	return {"text": "Filming."}
 
 
 func _tree(params: Dictionary) -> Dictionary:
@@ -222,7 +423,7 @@ func _wait(params: Dictionary) -> Dictionary:
 			if value:
 				return {"text": "`%s` became true after %.2f s." % [condition, _elapsed(started)]}
 			if Time.get_ticks_msec() >= deadline:
-				return {"text": "Timed out after %.1f s: `%s` is still %s." % [timeout, condition, _format(value)]}
+				return {"text": "Timed out after %.1f s: `%s` is still %s.%s" % [timeout, condition, _format(value), " The game is paused: it does not advance while you wait (game_step, or game_pause)." if get_tree().paused else ""]}
 			await get_tree().process_frame
 	if not signal_name.is_empty():
 		if not node.has_signal(signal_name):
@@ -317,6 +518,9 @@ func _event(step: Dictionary) -> Variant:
 			key.alt_pressed = bool(step.get("alt", false))
 			key.meta_pressed = bool(step.get("meta", false))
 			key.pressed = pressed
+			key.key_label = key.keycode
+			if pressed and not (key.ctrl_pressed or key.alt_pressed or key.meta_pressed):
+				key.unicode = int(step.get("unicode", _unicode_of(key.keycode, key.shift_pressed)))
 			return key
 		"mouse_button":
 			var mouse := InputEventMouseButton.new()
@@ -329,7 +533,15 @@ func _event(step: Dictionary) -> Variant:
 			return mouse
 		"mouse_motion":
 			var motion := InputEventMouseMotion.new()
-			motion.position = _point(step)
+			# `look` mueve la mira sin ir a un punto: lo que lee un juego en primera persona (m15-04).
+			if step.has("rel_x"):
+				motion.position = _mouse_at
+				motion.relative = Vector2(float(step.rel_x), float(step.rel_y))
+			else:
+				motion.position = _point(step)
+				motion.relative = motion.position - _mouse_at
+				_mouse_at = motion.position
+			motion.screen_relative = motion.relative
 			motion.global_position = motion.position
 			return motion
 		"joy_button":
@@ -344,6 +556,16 @@ func _event(step: Dictionary) -> Variant:
 			axis.axis_value = float(step.get("value", 1.0)) if pressed else 0.0
 			return axis
 	return "Unknown input kind '%s'." % step.get("kind")
+
+
+## El carácter de una tecla, para que escriba en un LineEdit: sin esto el evento no teclea nada.
+static func _unicode_of(keycode: int, shift: bool) -> int:
+	if keycode == KEY_SPACE:
+		return 32
+	var text := OS.get_keycode_string(keycode as Key)
+	if text.length() != 1:
+		return 0
+	return (text if shift else text.to_lower()).unicode_at(0)
 
 
 static func _point(step: Dictionary) -> Vector2:

@@ -39,6 +39,10 @@ Las extra son la documentación de la API (`class_info`, `search_api`), los sett
 | | `capture_game_frame` | Un frame del juego corriendo. |
 | | `stop_scene` | Lo detiene. |
 | Juego en vivo | `game_tree`, `game_get` (lectura), `game_set`, `game_call`, `game_wait`, `game_input` | Con el juego corriendo (lanzado por `run_scene`, o un run manual con «Usar el autoload de playtest también al correr el juego a mano»): el árbol de nodos vivo, leer y cambiar propiedades, llamar métodos, esperar a que una expresión sea verdadera o a que se emita una señal, y mandar teclas, acciones, clicks y joystick, por tiempo o por frame de física (la misma secuencia da lo mismo a cualquier framerate). Los cambios son solo en vivo; los archivos de escena no cambian. Los errores del juego que aparecen mientras tanto vuelven con el resultado. |
+| | `game_find`, `game_ui` (lectura), `game_ui_act` | Buscar nodos por clase, grupo o nombre. Ver los textos y controles del juego con sus ids, y usarlos con un clic real: algo encima de un control lo bloquea y vuelve como error. |
+| | `game_pause`, `game_step` | Pausar el juego y avanzarlo frames de física exactos con input: jugar por turnos, incluso un juego rápido. |
+| | `game_script` | Un GDScript corto que corre dentro del juego: muchas lecturas e inputs en una llamada, reaccionando en el mismo frame. Se corta en su tiempo máximo, suelta las teclas y no puede usar archivos ni lanzar procesos. |
+| | `game_watch`, `game_frames` (lectura) | Qué cambió en unos nodos durante una ventana de tiempo, con marcas de tiempo, y los frames de los últimos segundos (con `film_fps` en `run_scene`). |
 
 ## Detalles
 

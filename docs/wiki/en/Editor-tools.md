@@ -39,6 +39,10 @@ The extra ones are API docs (`class_info`, `search_api`), project settings, the 
 | | `capture_game_frame` | A frame of the running game. |
 | | `stop_scene` | Stops it. |
 | Live game | `game_tree`, `game_get` (read), `game_set`, `game_call`, `game_wait`, `game_input` | With the game running (launched by `run_scene`, or a manual run with «Use the playtest autoload also when running the game manually»): the live node tree, read and change properties, call methods, wait until an expression is true or a signal is emitted, and send keys, actions, clicks and joypad input, by time or by physics frame (the same sequence plays the same at any framerate). Changes are live only; the scene files stay as they were. Game errors raised meanwhile come back with the result. |
+| | `game_find`, `game_ui` (read), `game_ui_act` | Find nodes by class, group or name. See the game's texts and controls with their ids, and use them with a real click: something on top of a control blocks it and comes back as an error. |
+| | `game_pause`, `game_step` | Pause the game and advance it exact physics frames with input: play turn by turn, even a fast game. |
+| | `game_script` | A short GDScript that runs inside the game: many reads and inputs in one call, reacting in the same frame. It stops at its timeout, lets go of the keys and can't use files or start processes. |
+| | `game_watch`, `game_frames` (read) | What changed in some nodes during a time window, with times, and the frames of the last seconds (with `film_fps` on `run_scene`). |
 
 ## Details
 

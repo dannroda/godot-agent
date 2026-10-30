@@ -12,7 +12,7 @@ const EditorContext := preload("../ui/editor_context.gd")
 
 const LOG_SUMMARY_CHARS := 120
 ## Tools que ya traen en su resultado los errores nuevos: solo avanzan la marca (m14-02).
-const REPORTS_ERRORS: PackedStringArray = ["get_errors", "validate_scripts", "run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input"]
+const REPORTS_ERRORS: PackedStringArray = ["get_errors", "validate_scripts", "run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch"]
 ## Errores que se listan en el aviso; los demás se cuentan.
 const NEW_ERRORS_SHOWN := 5
 const METHODS_TOOL := "methods"

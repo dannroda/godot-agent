@@ -45,6 +45,7 @@ const Composer := preload("composer.gd")
 const PromptQueue := preload("../../session/prompt_queue.gd")
 const PromptQueueView := preload("prompt_queue_view.gd")
 const ReviewPanel := preload("review_panel.gd")
+const FlipbookDialog := preload("../flipbook_dialog.gd")
 const QuotaRing := preload("quota_ring.gd")
 const RemoteControlBanner := preload("remote_control_banner.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
@@ -1006,6 +1007,9 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit(int(payload) if payload is int else 0)
+		SessionController.ACTION_PLAY_FILM:
+			if not FlipbookDialog.open(str(payload), self):
+				_model.add_notice(I18n.t("The recording isn't there any more."), ChatEntry.NoticeLevel.WARNING)
 		SessionController.ACTION_EDIT_AGENT:
 			settings_requested.emit()
 		SessionController.ACTION_LOGIN:

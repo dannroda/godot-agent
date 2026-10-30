@@ -1,0 +1,31 @@
+{
+  "checklist": [],
+  "code": "13.12",
+  "created_at": "2026-10-30T22:47:05.535Z",
+  "decisions": [
+    {
+      "alternatives": "Comprobar con git que el turno no cambió nada y fallar si cambió; no habilitarla en el evaluador; ejecutarla sin FileAccess (no parece posible en GDScript).",
+      "asked": true,
+      "at": "2026-10-30T22:47:09.916Z",
+      "reply": "Resuelto sin consultar para no frenar el hito: game_script rechaza por nombre FileAccess, DirAccess, ResourceSaver, ConfigFile, OS.execute y similares, y queda disponible para el evaluador. Frena descuidos, no a quien quiera esquivarlo. Revisar si hace falta algo más fuerte.",
+      "session": "45fb265c-a995-4ef9-9f01-fd1a6b1523c0",
+      "text": "¿Cómo se evita que game_script escriba archivos cuando el evaluador tiene prohibido editar?",
+      "why": "Un GDScript dentro del juego puede usar FileAccess, y eso esquiva el «no editar» del evaluador, que es justo donde más sirve la tool."
+    }
+  ],
+  "description": "Versión de su probe y sus ejecutores: el agente escribe un GDScript corto que corre dentro del juego, con lecturas, inputs y esperas, y devuelve lo que imprimió. Da reflejos a nivel de frame sin un segundo modelo y muchas comprobaciones en un turno; evita lecturas en lote y un expect en game_input. Kit mínimo: press, hold, release, wait, until, look_at. Cada helper devuelve Result(ok, why, data) con diagnóstico, como kit/control.py, porque eso separa fail de blocked. Medir antes de asumir (calibrate_look). Tiempo máximo: al vencer suelta las teclas y pausa (session.py:744-760). Registrar lo apretado y soltarlo siempre. No portar _Pace, _lead ni on_way: compensan correr fuera del juego.",
+  "milestone": "m15",
+  "notes": "look_at probado en 3D sin verificar la precisión exacta. La guarda de archivos es una lista de nombres: frena descuidos, no a quien quiera esquivarla.",
+  "order": 12,
+  "priority": "high",
+  "refs": [],
+  "size": "l",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: input, say, movement, no compila, API bloqueada, error propio, vencimiento que suelta y pausa; test_blocked_api.",
+  "title": "game_script: scripts cortos dentro del juego",
+  "updated_at": "2026-10-30T23:19:19.581Z"
+}

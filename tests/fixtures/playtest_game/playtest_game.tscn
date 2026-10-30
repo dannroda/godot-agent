@@ -1,0 +1,111 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://tests/fixtures/playtest_game/playtest_game.gd" id="1_game"]
+[ext_resource type="Script" path="res://tests/fixtures/playtest_game/player.gd" id="2_player"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(40, 1, 40)
+
+[sub_resource type="BoxShape3D" id="BoxShape_floor"]
+size = Vector3(40, 1, 40)
+
+[sub_resource type="BoxMesh" id="BoxMesh_gate"]
+size = Vector3(2, 3, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape_gate"]
+size = Vector3(2, 3, 0.5)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
+
+[node name="PlaytestGame" type="Node3D"]
+script = ExtResource("1_game")
+
+[node name="Floor" type="StaticBody3D" parent="."]
+position = Vector3(0, -0.5, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="Shape" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape_floor")
+
+[node name="Gate" type="StaticBody3D" parent="."]
+position = Vector3(4, 1.5, -8)
+
+[node name="Mesh" type="MeshInstance3D" parent="Gate"]
+mesh = SubResource("BoxMesh_gate")
+
+[node name="Shape" type="CollisionShape3D" parent="Gate"]
+shape = SubResource("BoxShape_gate")
+
+[node name="Lamp" type="Node3D" parent="."]
+position = Vector3(-3, 2, -3)
+
+[node name="Player" type="CharacterBody3D" parent="." groups=["player"]]
+position = Vector3(0, 1.1, 0)
+script = ExtResource("2_player")
+
+[node name="Shape" type="CollisionShape3D" parent="Player"]
+shape = SubResource("CapsuleShape_player")
+
+[node name="Camera3D" type="Camera3D" parent="Player"]
+position = Vector3(0, 0.6, 0)
+current = true
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Basket" type="Label" parent="HUD"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 200.0
+offset_bottom = 34.0
+
+[node name="Flash" type="Label" parent="HUD"]
+offset_left = 10.0
+offset_top = 40.0
+offset_right = 200.0
+offset_bottom = 64.0
+text = "Ready"
+
+[node name="Menu" type="VBoxContainer" parent="HUD"]
+offset_left = 10.0
+offset_top = 80.0
+offset_right = 210.0
+offset_bottom = 300.0
+
+[node name="Start" type="Button" parent="HUD/Menu"]
+layout_mode = 2
+text = "Start"
+
+[node name="Mailbox" type="Button" parent="HUD/Menu"]
+layout_mode = 2
+text = "Open the mailbox"
+
+[node name="Sound" type="CheckBox" parent="HUD/Menu"]
+layout_mode = 2
+text = "Sound"
+
+[node name="Level" type="OptionButton" parent="HUD/Menu"]
+layout_mode = 2
+item_count = 2
+popup/item_0/text = "Easy"
+popup/item_0/id = 0
+popup/item_1/text = "Hard"
+popup/item_1/id = 1
+
+[node name="Name" type="LineEdit" parent="HUD/Menu"]
+layout_mode = 2
+
+[node name="Covered" type="Button" parent="HUD"]
+offset_left = 300.0
+offset_top = 80.0
+offset_right = 420.0
+offset_bottom = 120.0
+text = "Covered"
+
+[node name="Overlay" type="ColorRect" parent="HUD"]
+offset_left = 290.0
+offset_top = 70.0
+offset_right = 430.0
+offset_bottom = 130.0
+color = Color(0, 0, 0, 0.5)

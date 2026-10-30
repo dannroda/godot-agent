@@ -1,0 +1,26 @@
+{
+  "checklist": [],
+  "code": "13.6",
+  "created_at": "2026-10-30T22:47:04.000Z",
+  "description": "Sin esto, los cambios a detectores y prompts no se pueden medir. Como Orchard Walk (plugin/godot/tests/game): un script que llama un método sobre null, algo que se hunde en el piso, un HUD «12/10», UI con menú. Más una suite de pedidos con resultado esperado, como bench/example.json.",
+  "links": [
+    {
+      "task": "m15-07",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m15",
+  "notes": "La suite se corre a mano con un agente real: no entra en CI porque gasta cuota. Todavía no se corrió.",
+  "order": 6,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "La usa run_check. tests/fixtures/playtest_game y tests/playtest_suite.json.",
+  "title": "Juego de prueba con bugs plantados",
+  "updated_at": "2026-10-30T23:19:10.872Z"
+}

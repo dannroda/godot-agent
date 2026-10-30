@@ -23,6 +23,16 @@ La revisión se puede exportar al `CLAUDE.md` del proyecto como convenciones, po
 
 **Playtest…** en el panel de hallazgos pregunta qué comprobar jugando («que el jugador pueda saltar a la segunda plataforma»). El agente corre el juego, manda el input por frame de física para que el run se pueda repetir, lee el estado en vivo y captura frames, y contesta con un veredicto que aparece en el chat: **pasó**, **falló** con los pasos para reproducirlo, o **no se pudo probar** con el motivo, más lo que observó. No cambia el proyecto. Con **Grabar un video del run**, `run_scene` guarda un AVI en `res://.godot_agent/playtests/`: mientras graba, el juego corre a 30 fps fijos y se cierra solo al final.
 
+El harness contrasta el veredicto con lo que hizo el agente. Un **pasó** o **falló** cuenta como **no se pudo probar** si el agente nunca jugó, o si el veredicto depende de cómo se ve algo y no capturó ningún frame. El veredicto también lista lo que puede haber cambiado en el juego sin jugar (`game_set`, `game_call`, `game_script`), lo que vieron los detectores y por qué no hay video si lo pediste.
+
+En la misma caja podés pedir tres cosas: verificar algo, lograr un objetivo o explorar («recorré este nivel y decime qué se ve mal», que contesta **explorado**). Un error de script no termina el playtest: el juego sigue y el error queda en la lista.
+
+Los **detectores** corren dentro del juego y avisan de lo que el agente no estaba mirando, con una imagen del momento: transforms con NaN, cuerpos fuera del mundo, un jugador cayendo durante 8 s, un frame de más de 0,75 s y un texto como `12/10` en el HUD.
+
+Los **hallazgos** del playtest y de los detectores van al panel de hallazgos, donde cada uno tiene **Mostrar en la escena**, **Verificar un arreglo** y **No es un bug**. Uno marcado como que no es un bug no vuelve a aparecer. **Repetir el playtest** repite el último tal cual, y **Reproducir la grabación** en el veredicto pasa los frames del run dentro del editor. El diálogo también fija un **tope de tiempo**, recordado por proyecto: al agente se le dice cuánto queda, pero el turno no se corta.
+
+**Memoria**: los playtests guardan lo que verificaron de tu juego (controles, mecánicas, trampas) y los scripts que sirvieron en `res://.godot_agent/playtests/`, y al siguiente se le dice qué archivos cambiaron desde entonces, para que vuelva a comprobar lo que puede haber quedado viejo. Borrá esa carpeta para empezar de cero.
+
 ## Comentarios de un pull request de GitHub
 
 **De un PR de GitHub…** en el panel de hallazgos trae los comentarios de revisión de un pull request como hallazgos, con el [CLI de GitHub](https://cli.github.com) (`gh`, con sesión iniciada con `gh auth login`). Escribí su número, o dejalo vacío para el pull request de la rama actual. Cada comentario en una línea de un archivo de este proyecto pasa a ser un hallazgo con su texto y su autor, marcado en el Script Editor como los del agente; las respuestas dentro de un hilo quedan afuera. Desde ahí, **Arreglar en modo Construir** le pide al agente que los resuelva. Solo lee: no publica nada en GitHub.

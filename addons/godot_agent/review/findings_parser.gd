@@ -19,7 +19,8 @@ const MAX_TEXT := 4000
 
 
 ## `{findings: Array[Dictionary], checks: Array[Dictionary], scores: Array[Dictionary], playtest: Dictionary}`.
-## Playtest: {verdict: pass|fail|blocked, summary, evidence: [texto], repro: [paso]} o {} si no hubo.
+## Playtest: {verdict: pass|fail|blocked|explored, kind, summary, evidence: [texto], repro: [paso], visual,
+## alerts, notes, stale_notes} o {} si no hubo.
 ## Finding: {path (res:// si se pudo), line (≥1, 0 = sin línea), severity, title, body, suggestion}.
 ## Check: {label, status: pass|fail|pending, detail}.
 ## Score: {criterion, score (0–10), reason}.
@@ -68,10 +69,12 @@ static func normalize_playtest(item: Variant) -> Dictionary:
 		return {}
 	var raw := _first_string(item, ["verdict", "result", "status"]).strip_edges().to_lower()
 	var verdict := ""
-	if raw in ["pass", "passed", "ok", "success", "works", "funciona"]:
+	if raw in ["pass", "passed", "ok", "success", "works", "funciona", "achieved"]:
 		verdict = "pass"
-	elif raw in ["fail", "failed", "broken", "falla", "error"]:
+	elif raw in ["fail", "failed", "broken", "falla", "error", "not_achieved"]:
 		verdict = "fail"
+	elif raw in ["explored", "explore"]:
+		verdict = "explored"
 	elif raw in ["blocked", "bloqueado", "inconclusive", "skipped", "cannot test"]:
 		verdict = "blocked"
 	if verdict.is_empty():
@@ -81,6 +84,11 @@ static func normalize_playtest(item: Variant) -> Dictionary:
 		"summary": _first_string(item, ["summary", "reason", "detail", "description"]).left(MAX_TEXT),
 		"evidence": _strings(_first_value(item, ["evidence", "observations", "notes"])),
 		"repro": _strings(_first_value(item, ["repro", "steps", "reproduce", "steps_to_reproduce"])),
+		"kind": _first_string(item, ["kind", "type"]).to_lower(),
+		"visual": item.get("visual") == true,
+		"alerts": _strings(item.get("alerts")),
+		"notes": _strings(item.get("notes")) if item.has("evidence") or item.has("observations") else PackedStringArray(),
+		"stale_notes": _strings(item.get("stale_notes")),
 	}
 
 
@@ -132,9 +140,11 @@ static func normalize_finding(item: Variant, project_root: String = "") -> Dicti
 	var title := _first_string(item, ["title", "título", "titulo", "summary", "name", "issue"])
 	if title.is_empty():
 		title = body.get_slice("\n", 0).left(120)
-	if path.is_empty() or title.is_empty():
+	var node := _first_string(item, ["node", "nodo"])
+	# Un hallazgo de playtest puede no tener archivo: está en un nodo del juego (m15-18).
+	if (path.is_empty() and node.is_empty()) or title.is_empty():
 		return {}
-	return {
+	var finding := {
 		"path": path,
 		"line": maxi(line, 0),
 		"severity": normalize_severity(_first_string(item, ["severity", "severidad", "kind", "type", "category", "level"])),
@@ -142,6 +152,9 @@ static func normalize_finding(item: Variant, project_root: String = "") -> Dicti
 		"body": body.left(MAX_TEXT),
 		"suggestion": _first_string(item, ["suggestion", "sugerencia", "fix", "suggested_fix", "suggestedFix", "replacement", "code"]).left(MAX_TEXT),
 	}
+	if not node.is_empty():
+		finding["node"] = node
+	return finding
 
 
 ## Check del One-shot (spec §10): {label, status: pass|fail|pending, detail}.

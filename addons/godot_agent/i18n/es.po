@@ -3770,6 +3770,96 @@ msgstr "Evidencia:"
 msgid "To reproduce:"
 msgstr "Para reproducirlo:"
 
+msgid "Before you trust this:"
+msgstr "Antes de confiar en esto:"
+
+msgid "May have changed the game directly, not by playing:"
+msgstr "Puede haber cambiado el juego directo, sin jugar:"
+
+msgid "The detectors saw:"
+msgstr "Los detectores vieron:"
+
+msgid "Playtest: explored"
+msgstr "Playtest: explorado"
+
+msgid "Play the recording"
+msgstr "Reproducir la grabación"
+
+msgid "The recording isn't there any more."
+msgstr "La grabación ya no está."
+
+msgid "Playtest recording"
+msgstr "Grabación del playtest"
+
+msgid "Play"
+msgstr "Reproducir"
+
+msgid "Run the playtest again"
+msgstr "Repetir el playtest"
+
+msgid "Show in the scene"
+msgstr "Mostrar en la escena"
+
+msgid "Verify a fix"
+msgstr "Verificar un arreglo"
+
+msgid "Not a bug"
+msgstr "No es un bug"
+
+msgid "Time limit in minutes (0: none)"
+msgstr "Tope de tiempo en minutos (0: sin tope)"
+
+msgid "Open the scene to show this finding in it."
+msgstr "Abrí la escena para mostrar este hallazgo."
+
+msgid "Nothing in the open scene matches this finding."
+msgstr "Nada de la escena abierta coincide con este hallazgo."
+
+msgid "Showing %s."
+msgstr "Mostrando %s."
+
+msgid "Showing %s, the nearest node to the finding."
+msgstr "Mostrando %s, el nodo más cercano al hallazgo."
+
+msgid "Find in the game"
+msgstr "Buscar en el juego"
+
+msgid "Look back at the game"
+msgstr "Volver a ver el juego"
+
+msgid "Pause the game"
+msgstr "Pausar el juego"
+
+msgid "Script in the game"
+msgstr "Script en el juego"
+
+msgid "Step the game"
+msgstr "Avanzar el juego"
+
+msgid "Game UI"
+msgstr "UI del juego"
+
+msgid "Use the game UI"
+msgstr "Usar la UI del juego"
+
+msgid "Watch the game"
+msgstr "Observar el juego"
+
+msgid "Video: %s"
+msgstr "Video: %s"
+
+msgid "No video: the recording was not written."
+msgstr "Sin video: la grabación no se escribió."
+
+msgid "No video: the agent did not record this run."
+msgstr "Sin video: el agente no grabó este run."
+
+msgid "The agent gave a verdict without playing the game, so it counts as could not test."
+msgstr "El agente dio un veredicto sin jugar el juego, así que cuenta como que no se pudo probar."
+
+msgid "The verdict rests on how something looks, but the agent captured no frame, so it counts as could not test."
+msgstr "El veredicto depende de cómo se ve algo, pero el agente no capturó ningún frame, así que cuenta como que no se pudo probar."
+
 msgid "Playtest…"
 msgstr "Playtest…"
 

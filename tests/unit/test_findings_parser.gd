@@ -80,5 +80,9 @@ func test_playtest_verdict() -> void:
 	assert_eq(playtest.evidence, PackedStringArray(["Player.position.y = 412 en el frame 90", "3"]), "evidencia")
 	assert_eq(playtest.repro, PackedStringArray(["Saltar en el borde"]), "pasos como texto suelto")
 	assert_eq(FindingsParser.parse("{\"playtest\": {\"verdict\": \"maybe\"}}").playtest, {}, "sin veredicto reconocible no hay playtest")
+	assert_false(playtest.visual, "sin visual")
+	var visual: Dictionary = FindingsParser.parse("{\"playtest\": {\"verdict\": \"pass\", \"visual\": true, \"alerts\": [\"solo el nivel 1\"]}}").playtest
+	assert_true(visual.visual, "visual")
+	assert_eq(visual.alerts, PackedStringArray(["solo el nivel 1"]), "avisos del agente")
 	assert_eq(FindingsParser.parse("{\"findings\": []}").playtest, {}, "sin bloque")
 	assert_eq(FindingsParser.parse("{\"playtest\": {\"result\": \"blocked\", \"reason\": \"no hay escena principal\"}}").playtest.verdict, "blocked", "result y blocked")

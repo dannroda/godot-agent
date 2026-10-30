@@ -23,6 +23,16 @@ The review can be exported to the project's `CLAUDE.md` as conventions, for exam
 
 **Playtest…** in the findings panel asks what to check by playing ("the player can jump onto the second platform"). The agent runs the game, sends input by physics frame so the run is reproducible, reads the live state and captures frames, and answers with a verdict that shows in the chat: **passed**, **failed** with the steps that reproduce it, or **could not test** with the reason, plus what it observed. It does not change the project. With **Record a video of the run**, `run_scene` saves an AVI under `res://.godot_agent/playtests/`: the game runs at a fixed 30 fps while it records and closes by itself at the end.
 
+The harness checks the verdict against what the agent did. A passed or failed verdict counts as **could not test** if the agent never played the game, or if the verdict depends on how something looks and it captured no frame. The verdict also lists what may have changed in the running game without playing (`game_set`, `game_call`, `game_script`), what the detectors saw, and why there is no video if you asked for one.
+
+You can ask for three things in the same box: to verify something, to reach a goal, or to explore ("go through this level and tell me what looks wrong", which answers **explored**). A script error doesn't end the playtest: the game goes on and the error is listed.
+
+**Detectors** run inside the game and report what the agent wasn't looking at, with a picture of the moment: NaN transforms, bodies out of the world, a player falling for 8 s, a frame over 0.75 s, and a text like `12/10` on the HUD.
+
+**Findings** of a playtest and of the detectors go to the findings panel, where each one has **Show in the scene**, **Verify a fix** and **Not a bug**. A finding marked as not a bug doesn't come back. **Run the playtest again** repeats the last one as it was, and **Play the recording** in the verdict plays the run's frames in the editor. The dialog also sets a **time limit**, remembered per project: the agent is told how much is left, but the turn isn't cut off.
+
+**Memory**: playtests keep what they verified about your game (controls, mechanics, pitfalls) and the scripts that worked in `res://.godot_agent/playtests/`, and the next one is told which files changed since, so it rechecks what may be out of date. Delete that folder to start over.
+
 ## Comments from a GitHub pull request
 
 **From a GitHub PR…** in the findings panel brings the review comments of a pull request as findings, with the [GitHub CLI](https://cli.github.com) (`gh`, signed in with `gh auth login`). Write its number, or leave it empty for the pull request of the current branch. Each comment on a line of a file of this project becomes a finding with its text and author, marked in the Script Editor like the agent's; replies within a thread are left out. From there, **Fix in Build mode** asks the agent to address them. It only reads: nothing is posted to GitHub.

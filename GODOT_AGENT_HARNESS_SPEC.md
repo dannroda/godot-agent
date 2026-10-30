@@ -226,7 +226,13 @@ Agrupadas para que `PermissionPolicy` pueda decidir. Los argumentos usan rutas `
 | `game_tree` / `game_get` | read | path, depth / properties | Árbol vivo y propiedades del juego corriendo (m4-07, D54) |
 | `game_set` / `game_call` | run | path, properties / method, args | Cambia propiedades o llama métodos en vivo |
 | `game_wait` | run | path, condition \| signal, timeout | Espera una Expression sobre el nodo, una señal o N segundos |
-| `game_input` | run | steps | Teclas, acciones, clicks, movimiento y joystick en vivo |
+| `game_input` | run | steps | Teclas, acciones, clicks, movimiento, mira relativa, texto y joystick en vivo |
+| `game_find` / `game_ui` | read | class, name / — | Buscar nodos; textos y controles en pantalla (M13) |
+| `game_ui_act` | run | id, action, value | Clic real sobre un control: lo que tiene encima lo bloquea |
+| `game_script` | run | code, timeout | GDScript dentro del juego, con el kit de `playtest/runtime/script_kit.gd` |
+| `game_pause` / `game_step` | run | paused / frames, steps | Jugar por turnos, con frames de física exactos |
+| `game_watch` | run | paths, seconds, properties, steps | Qué cambió cada frame, con marca de tiempo |
+| `game_frames` | read | seconds, count, fps | Frames de los últimos segundos (`film_fps` en `run_scene`) |
 
 **Notas de implementación:**
 

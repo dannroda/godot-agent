@@ -6,7 +6,8 @@ extends "mcp_check.gd"
 ## - el autoload de playtest no queda en project.godot (ni en memoria) después de cada run,
 ##   y un run manual no lo lleva;
 ## - «+ contexto → Captura del juego» del dock adjunta el frame, o avisa por qué no puede;
-## - game_tree, game_get, game_set, game_call, game_wait y game_input con el juego vivo (m4-07).
+## - game_tree, game_get, game_set, game_call, game_wait y game_input con el juego vivo (m4-07);
+## - detectores, UI, game_script, pausa, watch y filmación con un juego con bugs plantados (M13).
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
@@ -14,6 +15,9 @@ const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const RUN_SCENE := "res://tests/fixtures/run_fixture.tscn"
 const BROKEN_SCENE := "res://tests/fixtures/run_broken.tscn"
 const QUITS_SCENE := "res://tests/fixtures/run_quits.tscn"
+const GAME_SCENE := "res://tests/fixtures/playtest_game/playtest_game.tscn"
+const PlaytestMemory := preload("res://addons/godot_agent/review/playtest_memory.gd")
+const FlipbookDialog := preload("res://addons/godot_agent/ui/flipbook_dialog.gd")
 ## Argumentos extra para el juego (p. ej. "--rendering-driver opengl3" bajo Xvfb, sin GPU).
 const RUN_ARGS_ENV := "GODOT_AGENT_TEST_RUN_ARGS"
 const RUN_ARGS_SETTING := "editor/run/main_run_args"
@@ -88,6 +92,12 @@ func _check_runs(model: Object) -> void:
 	_expect(broken.contains("run_broken.gd"), "run_scene: ubicación del error")
 	await _call_text("stop_scene", {})
 
+	# Lo mismo pidiendo seguir (m15-05): el error se lista y el juego sigue.
+	var past := await _call_text("run_scene", {"scene": BROKEN_SCENE, "seconds": 1.5, "continue_on_error": true})
+	_expect(past.contains("still running") and past.contains("went past") and past.contains("queue_free"), "continue_on_error: sigue corriendo y lista el error · " + past.left(500))
+	await _call_text("stop_scene", {})
+	await _check_playtest_game()
+
 	# Juego que termina solo; run_scene reinicia uno que ya corría.
 	await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 0.5})
 	var quits := await _call_text("run_scene", {"scene": QUITS_SCENE, "seconds": 10})
@@ -156,6 +166,115 @@ func _check_live_game() -> void:
 	_expect(by_frame.contains("Inputs: 2 of 2 played (by physics frame)"), "game_input por frame · " + by_frame)
 	await _tree.create_timer(0.3).timeout
 	_expect(_output_has("ui_accept sostenido 9 frames") and _output_has("ui_accept fuerza 0.40"), "game_input por frame: 9 frames y fuerza 0.4 en el juego")
+
+
+## El juego con bugs plantados (M13).
+func _check_playtest_game() -> void:
+	var ran := await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 3.5, "continue_on_error": true, "film_fps": 5})
+	_expect(ran.contains("Now in the game") and ran.contains("Player: /root/PlaytestGame/Player") and ran.contains("HUD.Basket") and ran.contains("Filming: res://"), "run_scene: foto de lo que hay · " + ran.left(900))
+	var found := await _call_text("game_find", {"class": "CharacterBody3D"})
+	_expect(found.contains("/root/PlaytestGame/Player"), "game_find por clase · " + found)
+	_expect((await _call_text("game_find", {"class": "group:player"})).contains("Player"), "game_find por grupo")
+	_expect((await _call_text("game_find", {"name": "gat"})).contains("Gate"), "game_find por nombre")
+
+	# UI (m15-09)
+	var ui := await _call_text("game_ui", {})
+	_expect(ui.contains("HUD.Start button \"Start\" at (") and ui.contains("HUD.Sound checkbox") and ui.contains("options=[\"Easy\",\"Hard\"]") and ui.contains("HUD.Basket: \"Basket 0 / 10\""), "game_ui: controles y textos · " + ui)
+	var clicked := await _call_text("game_ui_act", {"id": "HUD.Start"})
+	_expect(clicked.contains("Clicked") and (await _call_text("game_get", {"path": "", "properties": ["start_presses"]})).contains("start_presses = 1"), "game_ui_act: el clic aprieta el botón · " + clicked)
+	var covered: Dictionary = await _call("game_ui_act", {"id": "HUD.Covered"})
+	_expect(covered.get("isError", false) and _text(covered).contains("Overlay") and _text(covered).contains("could not press"), "game_ui_act: un overlay bloquea el clic · " + _text(covered))
+	var chosen := await _call_text("game_ui_act", {"id": "HUD.Level", "value": "Hard"})
+	_expect(chosen.contains("not by input"), "game_ui_act: elegir una opción avisa que no es input · " + chosen)
+
+	# Input (m15-04): escribir y mirar con el mouse.
+	await _call_text("game_ui_act", {"id": "HUD.Name", "action": "focus"})
+	await _call_text("game_input", {"steps": [{"text": "Ana b"}]})
+	var typed := await _call_text("game_get", {"path": "", "properties": ["last_text"]})
+	_expect(typed.contains("Ana b"), "game_input text: escribe en el LineEdit · " + typed)
+	await _call_text("game_ui_act", {"id": "HUD.Start"})  # saca el foco del LineEdit: si no, se come el mouse
+	var before_look := await _call_text("game_get", {"path": "Player", "properties": ["rotation:y"]})
+	await _call_text("game_input", {"steps": [{"look": [300, 0]}]})
+	var after_look := await _call_text("game_get", {"path": "Player", "properties": ["rotation:y"]})
+	_expect(before_look.contains("rotation:y = 0.0") and not after_look.contains("rotation:y = 0.0"), "game_input look: la mira gira · " + after_look)
+
+	# Errores (m15-05): el clic dispara un error y el juego sigue.
+	var mailbox := await _call_text("game_ui_act", {"id": "HUD.Mailbox"})
+	await _tree.create_timer(0.5).timeout
+	var after_mailbox := mailbox + await _call_text("game_get", {"path": "", "properties": ["basket"]})
+	_expect(after_mailbox.contains("basket = 0") and after_mailbox.contains("queue_free"), "el juego sigue después de un error · " + after_mailbox)
+
+	# Detectores y foto del momento (m15-07, m15-08)
+	PlaytestMemory.new().mark_not_a_bug("nan:Lamp")
+	var all_findings: String = await _call_text("game_call", {"path": "", "method": "collect", "args": [12]})
+	all_findings += await _call_text("game_call", {"path": "", "method": "pull_lever"})
+	all_findings += await _call_text("game_call", {"path": "", "method": "break_lamp"})
+	all_findings += await _call_text("game_call", {"path": "", "method": "stutter"})
+	var deadline := Time.get_ticks_msec() + 3000
+	while Time.get_ticks_msec() < deadline:
+		all_findings += await _call_text("game_wait", {"timeout": 0.3})
+	_expect(all_findings.contains("[sig=hud_fraction:HUD.Basket]"), "detector: HUD por encima del máximo · " + all_findings.left(700))
+	_expect(all_findings.contains("[sig=out_of_world:Gate]"), "detector: fuera del mundo · " + all_findings.right(600))
+	_expect(all_findings.contains("Detector hitch"), "detector: frame largo")
+	_expect(not all_findings.contains("nan:Lamp"), "no es un bug: ya no se reporta")
+	var frame_found := RegEx.create_from_string("frame=(res://\\S+\\.png)").search(all_findings)
+	_expect(frame_found != null and FileAccess.file_exists(frame_found.get_string(1)), "la foto del hallazgo queda en disco")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(PlaytestMemory.DIR.path_join(PlaytestMemory.NOT_A_BUG_FILE)))
+
+	# Pausa y avance por frames (m15-13)
+	_expect((await _call_text("game_pause", {"paused": true})).contains("paused"), "game_pause")
+	var ticks_before := _number_of(await _call_text("game_get", {"path": "", "properties": ["ticks"]}), "ticks")
+	await _tree.create_timer(0.3).timeout
+	_expect(_number_of(await _call_text("game_get", {"path": "", "properties": ["ticks"]}), "ticks") == ticks_before, "en pausa el juego no avanza")
+	var stepped := await _call_text("game_step", {"frames": 10})
+	_expect(_number_of(await _call_text("game_get", {"path": "", "properties": ["ticks"]}), "ticks") - ticks_before == 10 and stepped.contains("paused again"), "game_step avanza esos frames y vuelve a pausar · " + stepped)
+	_expect((await _call_text("game_wait", {"condition": "false", "timeout": 0.1})).contains("The game is paused"), "game_wait en pausa lo avisa")
+	var y_before := await _call_text("game_get", {"path": "Player", "properties": ["velocity:y"]})
+	await _call_text("game_step", {"frames": 2, "steps": [{"action": "ui_accept", "hold_frames": 1}]})
+	var y_after := await _call_text("game_get", {"path": "Player", "properties": ["velocity:y"]})
+	_expect(y_before != y_after, "game_step: el input por frame llega · " + y_after)
+	await _call_text("game_pause", {"paused": false})
+
+	# game_script (m15-12, m15-14)
+	var jumped := await _call_text("game_script", {"code": "func run(game):\n\tvar pressed = await game.press(\"ui_left\", 2)\n\tgame.say(\"moved\", pressed.ok)\n\treturn game.movement()"})
+	_expect(jumped.contains("moved true") and jumped.contains("\"jump_speed\": 4.5") and jumped.contains("JUMP_VELOCITY"), "game_script: input, say y movement · " + jumped)
+	var aimed := await _call_text("game_script", {"code": "func run(game):\n\tvar r = await game.look_at(Vector3(4, 1.5, -8))\n\treturn [r.ok, r.why]"})
+	_expect(aimed.contains("[true") or aimed.contains("didn't get there"), "game_script: look_at mide y apunta · " + aimed)
+	var syntax: Dictionary = await _call("game_script", {"code": "func run(game):\n\testo no compila"})
+	_expect(syntax.get("isError", false) and _text(syntax).contains("does not compile"), "game_script: no compila → error · " + _text(syntax))
+	var blocked: Dictionary = await _call("game_script", {"code": "func run(game):\n\tFileAccess.open(\"res://a\", FileAccess.WRITE)"})
+	_expect(blocked.get("isError", false) and _text(blocked).contains("FileAccess"), "game_script: no puede tocar archivos")
+	var crashed := await _call_text("game_script", {"code": "func run(game):\n\tvar nothing = null\n\tnothing.boom()\n\treturn 1"})
+	_expect(crashed.contains("Script error") and (await _call_text("game_get", {"path": "", "properties": ["basket"]})).contains("basket"), "game_script: su error no frena el juego · " + crashed)
+	var timed := await _call_text("game_script", {"code": "func run(game):\n\tgame.hold(\"ui_right\")\n\twhile true:\n\t\tawait game.wait_frames(1)", "timeout": 0.5})
+	_expect(timed.contains("timed out") and timed.contains("paused"), "game_script: vencido suelta y pausa · " + timed)
+	var free := await _call_text("game_script", {"code": "func run(game):\n\treturn Input.is_action_pressed(\"ui_right\")"})
+	_expect(free.contains("returned: false"), "game_script: soltó lo que tenía apretado · " + free)
+	await _call_text("game_pause", {"paused": false})
+
+	# game_watch (m15-20)
+	var watched := await _call_text("game_watch", {"paths": ["HUD/Flash", ""], "seconds": 0.6, "properties": ["ticks"], "steps": [{"action": "ui_accept"}]})
+	_expect(watched.contains("Flash was hidden") and watched.contains("Flash was shown"), "game_watch: ve lo que dura 0,2 s · " + watched.left(500))
+
+	# Filmación (m15-22, m15-23)
+	await _tree.create_timer(0.6).timeout
+	var frames: Dictionary = await _call("game_frames", {"seconds": 5, "count": 3})
+	var images: Array = (frames.get("content", []) as Array).filter(func(block: Dictionary) -> bool: return block.get("type") == "image")
+	_expect(images.size() == 3 and images[0].mimeType == "image/jpeg", "game_frames: los últimos frames · %d" % images.size())
+	var film := RegEx.create_from_string("Filming: (res://\\S+)").search(ran)
+	if film:
+		_expect(FlipbookDialog.frames_of(film.get_string(1)).size() > 3, "la filmación queda en su carpeta")
+		_expect(FlipbookDialog.open(film.get_string(1), _dock), "el reproductor abre la filmación")
+		var player: Node = EditorInterface.get_base_control().get_children().filter(func(node: Node) -> bool: return node.get_script() == FlipbookDialog).back()
+		await _tree.create_timer(0.5).timeout
+		_expect(player.get(&"_index") > 0 and (player.get(&"_picture") as TextureRect).texture != null, "el reproductor avanza y muestra")
+		player.queue_free()
+	await _call_text("stop_scene", {})
+
+
+static func _number_of(text: String, property: String) -> int:
+	var found := RegEx.create_from_string("%s = (-?\\d+)" % property).search(text)
+	return int(found.get_string(1)) if found else -999
 
 
 ## Llamada sin esperar: deja el texto en `box.text` cuando termina.

@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "13.13",
+  "created_at": "2026-10-30T22:47:05.791Z",
+  "description": "Que el juego no siga mientras el agente piensa: pausa, input, N frames, pausa. El probe ya corre en PROCESS_MODE_ALWAYS. Autopilot pausa solo entre tool calls y sacó los runs por turnos (dock.gd:2353), con motivo sin documentar: probarlo pronto con un juego real. Los juegos que miden tiempo con Time.get_ticks_* siguen corriendo durante la pausa.",
+  "milestone": "m15",
+  "notes": "Probado con el juego de prueba, no con un agente real ni un juego real como pedía la tarea. Autopilot sacó los runs por turnos sin decir por qué.",
+  "order": 13,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: 10 frames exactos, sigue en pausa, input por frame llega.",
+  "title": "Pausa con avance por frames",
+  "updated_at": "2026-10-30T23:19:14.369Z"
+}

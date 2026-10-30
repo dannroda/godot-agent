@@ -17,8 +17,13 @@ const GithubReviews := preload("../../core/github_reviews.gd")
 const EditorContext := preload("../editor_context.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
+const PlaytestMemory := preload("../../review/playtest_memory.gd")
+const FindingLocator := preload("finding_locator.gd")
 
 const LIST_MAX_HEIGHT := 180
+const PLAYTEST_MINUTES_KEY := "playtest_minutes"
+const PLAYTEST_MINUTES_DEFAULT := 15
+const PLAYTEST_MINUTES_MAX := 600
 const COUNTER_LABELS: Dictionary = {
 	"bug": "bug",  # i18n
 	"order": "order",  # i18n
@@ -37,6 +42,9 @@ var _export_button: Button
 var _fix_button: Button
 var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
+var _run_again: Button
+## El último playtest pedido, para repetirlo tal cual (m15-17): {goal, record, minutes}.
+var _last_playtest: Dictionary = {}
 
 
 func setup(store: ReviewStore, accent: Color) -> void:
@@ -104,6 +112,12 @@ func _ready() -> void:
 	playtest.tooltip_text = I18n.t("The agent plays the game to check something and answers passed, failed or could not test, with evidence and steps to reproduce. It does not change the project.")
 	playtest.pressed.connect(_on_playtest_requested)
 	actions.add_child(playtest)
+	_run_again = Button.new()
+	_run_again.text = I18n.t("Run the playtest again")
+	_run_again.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_run_again.visible = false
+	_run_again.pressed.connect(func() -> void: _start_playtest(_last_playtest.goal, _last_playtest.record, _last_playtest.minutes))
+	actions.add_child(_run_again)
 	column.add_child(actions)
 
 	_export_dialog = ConfirmationDialog.new()
@@ -161,7 +175,52 @@ func refresh() -> void:
 	_fix_button.disabled = findings.is_empty()
 
 
-func _row(finding: Dictionary) -> Button:
+## Un hallazgo: su fila y, si salió de un playtest, qué hacer con él (m15-17, m15-18).
+func _row(finding: Dictionary) -> Control:
+	var row := _finding_button(finding)
+	if not finding.get("playtest", false):
+		return row
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override(&"separation", 0)
+	column.add_child(row)
+	var actions := HFlowContainer.new()
+	if finding.has("node") or finding.has("where"):
+		actions.add_child(_small_button(I18n.t("Show in the scene"), _show_in_scene.bind(finding)))
+	actions.add_child(_small_button(I18n.t("Verify a fix"), func() -> void: _start_playtest("Verify that this is fixed: %s. %s" % [finding.title, finding.body], false, _saved_minutes())))
+	actions.add_child(_small_button(I18n.t("Not a bug"), _mark_not_a_bug.bind(finding)))
+	column.add_child(actions)
+	return column
+
+
+static func _small_button(text: String, action: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.flat = true
+	button.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+	button.pressed.connect(action)
+	return button
+
+
+func _show_in_scene(finding: Dictionary) -> void:
+	var shown: Array = await FindingLocator.show(finding)
+	if is_inside_tree():
+		notice_requested.emit(shown[1], ChatEntry.NoticeLevel.INFO if shown[0] else ChatEntry.NoticeLevel.WARNING)
+
+
+## Queda en la memoria del juego: ni los detectores ni el agente lo vuelven a traer.
+func _mark_not_a_bug(finding: Dictionary) -> void:
+	PlaytestMemory.new().mark_not_a_bug(str(finding.get("signature", finding.title)))
+	_store.dismiss(int(finding.id))
+
+
+func _on_finding_pressed(finding: Dictionary) -> void:
+	if str(finding.path).is_empty():
+		_show_in_scene(finding)
+	else:
+		finding_selected.emit(int(finding.id))
+
+
+func _finding_button(finding: Dictionary) -> Button:
 	var row := Button.new()
 	row.flat = true
 	row.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -170,7 +229,7 @@ func _row(finding: Dictionary) -> Button:
 	row.text = "%s  ·  %s" % [ReviewStore.location(finding), finding.title]
 	row.tooltip_text = "%s\n[%s] %s\n%s" % [ReviewStore.location(finding), I18n.t(ReviewStore.SEVERITY_LABELS[finding.severity]), finding.title, finding.body]
 	row.icon = _dot(AgentTheme.SEVERITY_COLORS[finding.severity])
-	row.pressed.connect(finding_selected.emit.bind(int(finding.id)))
+	row.pressed.connect(_on_finding_pressed.bind(finding))
 	return row
 
 
@@ -257,16 +316,45 @@ func _on_playtest_requested() -> void:
 	var record := CheckBox.new()
 	record.text = I18n.t("Record a video of the run (in res://.godot_agent/playtests/)")
 	column.add_child(record)
+	var limit := HBoxContainer.new()
+	var limit_label := Label.new()
+	limit_label.text = I18n.t("Time limit in minutes (0: none)")
+	limit_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	limit.add_child(limit_label)
+	var minutes := SpinBox.new()
+	minutes.max_value = PLAYTEST_MINUTES_MAX
+	minutes.value = _saved_minutes()
+	limit.add_child(minutes)
+	column.add_child(limit)
 	dialog.add_child(column)
 	dialog.ok_button_text = I18n.t("Start playtest")
 	dialog.cancel_button_text = I18n.t("Cancel")
 	dialog.register_text_enter(goal)
 	dialog.confirmed.connect(func() -> void:
 		if not goal.text.strip_edges().is_empty():
-			prompt_requested.emit(ReviewStore.playtest_prompt(goal.text, record.button_pressed)))
+			_save_minutes(int(minutes.value))
+			_start_playtest(goal.text, record.button_pressed, int(minutes.value)))
 	dialog.visibility_changed.connect(func() -> void:
 		if not dialog.visible:
 			dialog.queue_free.call_deferred())
 	add_child(dialog)
 	dialog.popup_centered()
 	goal.grab_focus()
+
+
+func _start_playtest(goal: String, record: bool, minutes: int) -> void:
+	_last_playtest = {"goal": goal, "record": record, "minutes": minutes}
+	_run_again.visible = true
+	prompt_requested.emit(ReviewStore.playtest_prompt(goal, record, minutes, PlaytestMemory.new().brief()))
+
+
+## El tope de tiempo se recuerda por proyecto (m15-19).
+static func _saved_minutes() -> int:
+	if not AgentTheme.has_editor():
+		return PLAYTEST_MINUTES_DEFAULT
+	return int(EditorInterface.get_editor_settings().get_project_metadata("godot_agent", PLAYTEST_MINUTES_KEY, PLAYTEST_MINUTES_DEFAULT))
+
+
+static func _save_minutes(minutes: int) -> void:
+	if AgentTheme.has_editor():
+		EditorInterface.get_editor_settings().set_project_metadata("godot_agent", PLAYTEST_MINUTES_KEY, minutes)

@@ -393,11 +393,19 @@ const GODOT_TOOL_NAMES := {
 	"duplicate_node": "Duplicate node",  # i18n
 	"editor_state": "Editor state",  # i18n
 	"game_call": "Call in the game",  # i18n
+	"game_find": "Find in the game",  # i18n
+	"game_frames": "Look back at the game",  # i18n
 	"game_get": "Read from the game",  # i18n
 	"game_input": "Input to the game",  # i18n
+	"game_pause": "Pause the game",  # i18n
+	"game_script": "Script in the game",  # i18n
 	"game_set": "Set in the game",  # i18n
+	"game_step": "Step the game",  # i18n
 	"game_tree": "Game tree",  # i18n
+	"game_ui": "Game UI",  # i18n
+	"game_ui_act": "Use the game UI",  # i18n
 	"game_wait": "Wait in the game",  # i18n
+	"game_watch": "Watch the game",  # i18n
 	"get_errors": "Read errors",  # i18n
 	"get_node": "Read node",  # i18n
 	"get_resource": "Read resource",  # i18n

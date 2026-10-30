@@ -6,3 +6,4 @@
 *.zip
 *.pck
 tests/tmp/
+.godot_agent/

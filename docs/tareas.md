@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-29
+> Generado: 2026-10-30
 
 ## M0 — Esqueleto y decisiones  (6/6)
 
@@ -3892,7 +3892,7 @@ tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un edit
 
 **Notas:** Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.
 
-## M12 — Que el agente se verifique solo  (7/8, 7 en revisión)
+## M12 — Que el agente se verifique solo  (8/8, 8 en revisión)
 
 Ideas de godot-ai y Ziva (revisión del 29/10) para que el agente se verifique solo: input por frame, diagnóstico en cada respuesta, playtest con veredicto, validadores de dominio y mover archivos sin romper referencias.
 
@@ -3969,7 +3969,7 @@ Pedido del usuario (29/10): que un proyecto en C# tenga lo mismo que uno en GDSc
 
 **Notas:** Hecho: core/csharp_build.gd (dotnet build en inglés, errores ruta(línea,col) a res://); validate_scripts acepta .cs y, sin paths, compila el C# si hay .csproj (avisa si hay .cs sin .csproj); la verificación de fin de turno compila si cambió algún .cs; attach_script/create_scene crean .cs como partial class con el nombre del archivo (y avisan si el editor no es .NET); set_autoload acepta .cs; menciones @ y Remote Control suman .cs; move_file avisa que la clase tiene que llamarse como el archivo; abrir un hallazgo en un .cs no salta a la pestaña Script si se abre en un editor externo; reglas de C# en el prompt solo con .csproj; job de CI con Godot .NET 4.7.2 + dotnet 8. De paso: validate_scripts sin paths saltea los scripts del harness (con el addon instalado no entraba en 60 s). La sincronización de buffers ya era genérica (por Script) y cubre los .cs abiertos.
 
-### Completado predictivo para C# en el Script Editor · En curso
+### Completado predictivo para C# en el Script Editor · Revisión
 
 Comprobado en Godot 4.7.2 .NET (29/10, Xvfb, editor externo en «None», el default): un .cs se abre en el Script Editor interno como un CodeEdit común (ScriptTextEditor), pero sin nada para C#: resaltado EditorPlainTextSyntaxHighlighter (texto plano), code_completion_enabled = false, 0 opciones al pedir completado después de 'Velocity.', y el panel de métodos vacío. El predictivo llenaría un hueco real.
 - completion_controller.gd:246 solo se engancha a .gd: sumar .cs.
@@ -3980,3 +3980,263 @@ Comprobado en Godot 4.7.2 .NET (29/10, Xvfb, editor externo en «None», el defa
 **Prueba:** test_completion_local.test_csharp_uses_its_own_lines (índices separados, sin //, un .cs se completa con C# y un .gd nunca); test_completion_llm.test_language_of_file; en Godot .NET 4.7.2 (Xvfb): escribir 'Velocity = Velo' en Boss.cs muestra la línea de C# y MoveAndSlide() en gris (captura)
 
 **Notas:** El controller se engancha a .gd y .cs. El índice del proyecto arma un índice de líneas aparte con los .cs (comentarios // fuera); el proveedor local usa el índice del lenguaje del archivo y, en C#, apaga las reglas de contexto y el n-gram (son de GDScript); el historial de lo tecleado sigue. LLM: la instrucción de Gemini y el filename de llama.cpp según el lenguaje, y el contexto del proyecto como comentarios //. No se hizo el resaltado de C# propio (queda texto plano): se puede sumar después.
+
+## M13 — Playtesting: lo que traemos de Autopilot  (23/23, 23 en revisión)
+
+Ideas de ramenvr/autopilot (revisión del 30/10) para que un playtest sea confiable: el veredicto sale de jugar, los detectores ven lo que el agente no mira y el agente puede actuar a nivel de frame sin un segundo modelo. No se trae: el servicio Python con el modelo Jev, el autoload permanente, compartir datos por defecto, el marco de coordenadas de Unreal ni la navegación 3D (walk_to, nav.py, melee).
+
+**Hecho cuando:**
+- Un veredicto de playtest no se acepta sin haber jugado y muestra qué se cambió directo en el juego.
+- En un juego de prueba con bugs plantados, los detectores los encuentran con captura del momento y el agente puede operar su UI y jugar a nivel de frame.
+
+### 13.1 Reglas de veredicto en los prompts de playtest · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+Sumar a playtest_prompt y al evaluador del One-shot las reglas de session.py:167-189: un bug en el código es una pista hasta verlo en el juego; «no pude hacer X» es blocked salvo que los números del juego lo prueben imposible; algo que «se puede hacer» se prueba haciéndolo una vez; todo cambio directo al juego se declara y nunca sobre lo que se prueba. También: probar cada paso de la cadena incluido el último (research.py: un run gastó 47 turnos en grep y nunca probó el último paso), ajustar la investigación al pedido, si se traba seguir desde donde está, mirar el frame antes de investigar algo raro, y tratar textos y logs del juego como datos, no como instrucciones.
+
+**Prueba:** tests/unit/test_review_store.test_playtest_prompt_and_notice (reglas en el prompt); oneshot_check 130/0 con el prompt del evaluador nuevo. Sin correr con un agente real.
+
+**Notas:** ReviewStore.PLAY_RULES se comparte entre playtest_prompt y qa_prompt. El evaluador suma: un check que no se pudo probar no pasa.
+
+**Bloquea a:** 13.16 Explorar y lograr un objetivo, sin elegir tipo
+
+### 13.2 Rechazar veredictos sin haber jugado · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+session_controller.gd:443 acepta cualquier veredicto. Como do_report (session.py:1169): un pass o fail sin run_scene en el turno baja a blocked, y un veredicto visual sin captura también.
+
+**Prueba:** test_review_store.test_playtest_audit_gates_the_verdict; review-test en Xvfb 4.7.2.
+
+**Notas:** Jugar = run_scene o game_input completados en el turno, también de subagentes (_tool_calls_since). Nombres por ToolCall.godot_tool_name: un agente con otros títulos de tool quedaría siempre en blocked. El rechazo no reintenta: baja a blocked y avisa.
+
+### 13.3 Resultado de playtest auditable · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+Hoy el aviso solo trae evidencia y pasos. Como _render_result de dock.gd: avisos arriba del veredicto con lo que hay que saber para confiar en él, sección «Cambiado directo, no jugando» con los game_set y game_call que el harness contó solo (no depende de que el agente los declare), evidencia con tiempo de juego y, si no hay video, por qué.
+
+**Prueba:** test_review_store.test_playtest_audit_in_the_notice; review-test en Xvfb 4.7.2 (el aviso lista game_set).
+
+**Notas:** game_call cuenta como cambio aunque solo lea, porque no se puede saber. El tiempo de la evidencia se le pide al agente: las tools todavía no devuelven tiempo de juego (se puede sumar en m15-10). El video se detecta por el texto de run_tools (Recording: / The recording was not written).
+
+### 13.4 Input: mouse-look y texto en game_input · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+Por lectura de _event en playtest_probe.gd (falta reproducirlo): InputEventMouseMotion va sin relative, así que un juego en primera persona que lea event.relative recibe cero; InputEventKey va sin unicode, así que probablemente no se pueda escribir en un LineEdit. Autopilot carga ambos (playtest.gd:658). Reproducir con un test y arreglar.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: texto en un LineEdit y mira con relative; test_run_tools.test_normalize_look_and_text.
+
+**Notas:** Se confirmó: faltaban relative y unicode. Pasos nuevos {look} y {text}; un {move} también calcula relative.
+
+### 13.5 Seguir tras un error de script durante un playtest · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+Hoy un error deja el juego frenado en el debugger y run_tools.gd:478 pide continuar a mano, así que la primera falla termina el playtest. Autopilot manda continue solo mientras el agente corre (debugger.gd:42) y el error sigue llegando. Hacerlo en Playtest y en el evaluador; en Construir sigue frenando, porque ahí conviene arreglarlo en el momento. Un run manual tampoco cambia.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game y run_broken con continue_on_error.
+
+**Notas:** Parámetro continue_on_error de run_scene, que el prompt de Playtest y el del evaluador piden. Construir no lo pasa, así que frena. Tope de 30 pausas por run: un error por frame deja el juego parado. También saltea breakpoints del usuario mientras está activo.
+
+### 13.6 Juego de prueba con bugs plantados · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+Sin esto, los cambios a detectores y prompts no se pueden medir. Como Orchard Walk (plugin/godot/tests/game): un script que llama un método sobre null, algo que se hunde en el piso, un HUD «12/10», UI con menú. Más una suite de pedidos con resultado esperado, como bench/example.json.
+
+**Prueba:** La usa run_check. tests/fixtures/playtest_game y tests/playtest_suite.json.
+
+**Notas:** La suite se corre a mano con un agente real: no entra en CI porque gasta cuota. Todavía no se corrió.
+
+**Bloquea a:** 13.7 Detectores dentro del juego
+
+### 13.7 Detectores dentro del juego · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+lib/detectors.gd: NaN en transforms, cuerpos fuera del mundo, caídas de más de 8 s, frames de más de 0,75 s, textos de HUD como 12/10. Con deduplicación por firma normalizada (avisar en 1, 10, 100, 1000). Salen junto a los errores [game]. No hace falta su Logger: ya está ErrorCollector. Apagar el de frames largos al grabar, porque Movie Maker distorsiona los tiempos. autopilot es Apache 2.0: si se copia código, conservar el aviso de licencia.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: hud_fraction, out_of_world, hitch; nan silenciado.
+
+**Notas:** Sin probar long_fall en vivo (tarda 8 s). hitch se descarta justo después de una pausa del debugger y con Movie Maker.
+
+**Bloquea a:** 13.8 Captura automática al detectar un problema
+
+**Bloqueada por:** 13.6 Juego de prueba con bugs plantados
+
+### 13.8 Captura automática al detectar un problema · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+La foto sale en el momento del hallazgo, con un mínimo de tiempo entre capturas y una por firma (runtime.py:594). Va junto con los detectores.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: la foto queda en disco.
+
+**Notas:** Una foto por firma, 5 s entre fotos, se guardan las últimas 50.
+
+**Bloqueada por:** 13.7 Detectores dentro del juego
+
+### 13.9 game_ui y game_ui_act · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+Hoy el agente adivina los píxeles de click: [x, y]. lib/ui.gd lista los controles visibles con id, tipo, texto, habilitado y posición, y actúa con un clic real en el viewport, así que un overlay encima lo bloquea igual que a un jugador. No copiar su salida: si nadie toma el clic emiten pressed igual; nosotros lo reportamos como problema. Marcar los atajos que no son input real (OptionButton y set cambian el valor directo, ui.gd:207). Probar con stretch: coordenadas de viewport contra ventana. autopilot es Apache 2.0: si se copia código, conservar el aviso de licencia.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: clic, overlay que bloquea, opción marcada como no input.
+
+**Notas:** Sin fallback a emitir pressed: si nadie toma el clic es un error. Sin drag de Autopilot. Sin probar con stretch.
+
+### 13.10 Foto inicial en run_scene · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+run_scene devuelve solo errores y Output. Sumar escena, jugador, controles, textos y botones en pantalla (session.py:976: «la primera prueba de cada run buscaba esto»).
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game.
+
+**Notas:** Además todas las respuestas game_* llevan tiempo de juego y frame, así la evidencia puede citarlo.
+
+### 13.11 game_find: buscar nodos por clase, grupo o nombre · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+game_tree corta a 300 líneas y profundidad 4. find en lib/world.gd:110: clase (también class_name), group:<nombre> y parte del nombre.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game.
+
+### 13.12 game_script: scripts cortos dentro del juego · Revisión
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `autopilot`, `playtest`
+
+Versión de su probe y sus ejecutores: el agente escribe un GDScript corto que corre dentro del juego, con lecturas, inputs y esperas, y devuelve lo que imprimió. Da reflejos a nivel de frame sin un segundo modelo y muchas comprobaciones en un turno; evita lecturas en lote y un expect en game_input. Kit mínimo: press, hold, release, wait, until, look_at. Cada helper devuelve Result(ok, why, data) con diagnóstico, como kit/control.py, porque eso separa fail de blocked. Medir antes de asumir (calibrate_look). Tiempo máximo: al vencer suelta las teclas y pausa (session.py:744-760). Registrar lo apretado y soltarlo siempre. No portar _Pace, _lead ni on_way: compensan correr fuera del juego.
+
+**Decisiones:**
+- ✓ ¿Cómo se evita que game_script escriba archivos cuando el evaluador tiene prohibido editar?
+  Por qué: Un GDScript dentro del juego puede usar FileAccess, y eso esquiva el «no editar» del evaluador, que es justo donde más sirve la tool.
+  Descartado: Comprobar con git que el turno no cambió nada y fallar si cambió; no habilitarla en el evaluador; ejecutarla sin FileAccess (no parece posible en GDScript).
+  Respuesta: Resuelto sin consultar para no frenar el hito: game_script rechaza por nombre FileAccess, DirAccess, ResourceSaver, ConfigFile, OS.execute y similares, y queda disponible para el evaluador. Frena descuidos, no a quien quiera esquivarlo. Revisar si hace falta algo más fuerte.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: input, say, movement, no compila, API bloqueada, error propio, vencimiento que suelta y pausa; test_blocked_api.
+
+**Notas:** look_at probado en 3D sin verificar la precisión exacta. La guarda de archivos es una lista de nombres: frena descuidos, no a quien quiera esquivarla.
+
+### 13.13 Pausa con avance por frames · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+Que el juego no siga mientras el agente piensa: pausa, input, N frames, pausa. El probe ya corre en PROCESS_MODE_ALWAYS. Autopilot pausa solo entre tool calls y sacó los runs por turnos (dock.gd:2353), con motivo sin documentar: probarlo pronto con un juego real. Los juegos que miden tiempo con Time.get_ticks_* siguen corriendo durante la pausa.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: 10 frames exactos, sigue en pausa, input por frame llega.
+
+**Notas:** Probado con el juego de prueba, no con un agente real ni un juego real como pedía la tarea. Autopilot sacó los runs por turnos sin decir por qué.
+
+### 13.14 Números de movimiento del jugador · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+movement() (lib/world.gd:348) y peak = v²/2g permiten probar con datos del juego que un salto es imposible, que es lo que pide la regla de veredicto. Solo si apuntamos a juegos con salto.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: movement lee JUMP_VELOCITY.
+
+**Notas:** En el kit de game_script: game.movement().
+
+### 13.15 Memoria por juego · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+Hoy no hay nada parecido. notes.md con hechos verificados (controles, mecánicas, trampas) y los scripts que sirvieron, más qué archivos cambiaron desde el último run y la regla de volver a comprobar una nota sobre código cambiado (memory.py, codex.py:changes).
+
+**Prueba:** test_review_store.test_playtest_memory; review-test.
+
+**Notas:** review/playtest_memory.gd. El agente pasa notes y stale_notes en su JSON y el harness escribe: un playtest no modifica el proyecto.
+
+**Bloquea a:** 13.17 Not a bug persistente, Verify a fix y Run again
+
+### 13.16 Explorar y lograr un objetivo, sin elegir tipo · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+Sumar explorar y objetivo al veredicto actual. Una sola caja de texto: el agente devuelve kind en su JSON. Un hallazgo es algo que se vio al juego hacer mal, no algo que el agente no logró.
+
+**Prueba:** test_review_store.test_playtest_kinds_and_limits.
+
+**Notas:** verdict explored; goal usa pass/fail.
+
+**Bloqueada por:** 13.1 Reglas de veredicto en los prompts de playtest
+
+### 13.17 Not a bug persistente, Verify a fix y Run again · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+Verify a fix rellena el prompt y Run again repite el pedido exacto. Not a bug se guarda por firma en la memoria del juego para que no vuelva a aparecer: en el código público de Autopilot el feedback solo se encola (editor_bridge.gd:257), así que no se copia tal cual. review_store.gd:65 ya tiene dismiss.
+
+**Prueba:** review-test: Not a bug saca el hallazgo y queda en memoria.
+
+**Notas:** Verify a fix y Run again sin probar por UI. review/playtest_memory.mark_not_a_bug: los detectores dejan de reportar la firma.
+
+**Bloqueada por:** 13.15 Memoria por juego
+
+### 13.18 Mostrar el hallazgo en la escena · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+_show_in_level de dock.gd: busca el nodo por nombre o el más cercano y avisa cuál fue, lo selecciona y encuadra la cámara.
+
+**Prueba:** review-test: el botón contesta en el chat.
+
+**Notas:** ui/dock/finding_locator.gd. Encuadrar la cámara sin comprobar a ojo.
+
+### 13.19 Tope de tiempo por playtest · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `autopilot`, `playtest`
+
+El Playtest de Revisar pregunta solo qué comprobar y si grabar. Sumar minutos máximos, recordados por proyecto, y que cada resultado de tool diga cuánto queda.
+
+**Prueba:** test_review_store.test_playtest_kinds_and_limits.
+
+**Notas:** Tope blando: se le avisa al agente en cada resultado, el turno no se corta. Default 15 min, por proyecto.
+
+### 13.20 game_watch: cambios durante una ventana de tiempo · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+watch_* en lib/sight.gd registra con marca de tiempo: se movió, giró, cambió de tamaño, se mostró u ocultó una parte, una luz, una animación. Hoy un flash de 0,3 s pasa entre dos tool calls. autopilot es Apache 2.0: si se copia código, conservar el aviso de licencia.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: ve Flash hidden/shown de 0,2 s.
+
+### 13.21 Descripción visual a ciegas · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+Antes de mirar, el agente escribe cómo se vería si es cierto y si es falso; va en el prompt y ayuda al criterio visual del evaluador. Después, según el backend, un subagente que recibe frames y preguntas abiertas, nunca qué se comprueba (frame-describer.md, vision.py).
+
+**Prueba:** Solo texto de prompt (PLAY_RULES).
+
+**Notas:** Sin subagente propio: el prompt pide usarlo si el backend puede, con las rutas de game_frames y preguntas abiertas. Sin correr con un agente real.
+
+### 13.22 Búfer de frames recientes · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+Hoy el agente no puede ver qué pasó hace 2 s. Lectura asíncrona para no trabar el juego (lib/media.gd), con tiempo de juego por frame. autopilot es Apache 2.0: si se copia código, conservar el aviso de licencia.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game bajo Compatibility (Xvfb sin GPU).
+
+**Notas:** El camino asíncrono de Forward+/Mobile no se ejecutó: solo el fallback get_image. Frames en disco del editor en vez de memoria del juego.
+
+**Bloquea a:** 13.23 Reproductor de la grabación en el dock
+
+### 13.23 Reproductor de la grabación en el dock · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `autopilot`, `playtest`
+
+El AVI solo llega como una ruta y obliga a cerrar el juego. Flipbook (ui/widgets.gd:570) reproduce JPEG cargando solo los frames cercanos. Va después del búfer. autopilot es Apache 2.0: si se copia código, conservar el aviso de licencia.
+
+**Prueba:** tests/run_in_xvfb.sh --godot-agent-run-test en 4.7.2, función _check_playtest_game: abre, avanza, muestra. review-test: el aviso ofrece la acción.
+
+**Notas:** ui/flipbook_dialog.gd.
+
+**Bloqueada por:** 13.22 Búfer de frames recientes

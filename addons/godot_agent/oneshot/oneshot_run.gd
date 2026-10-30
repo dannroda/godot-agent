@@ -27,6 +27,8 @@ const ToolCall := preload("../session/tool_call.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
 const GitCheckpoints := preload("git_checkpoints.gd")
 const FindingsParser := preload("../review/findings_parser.gd")
+const ReviewStore := preload("../review/review_store.gd")
+const PlaytestMemory := preload("../review/playtest_memory.gd")
 const OneShotStore := preload("oneshot_store.gd")
 const LoopDetector := preload("loop_detector.gd")
 const RunReport := preload("run_report.gd")
@@ -1140,10 +1142,17 @@ func qa_prompt() -> String:
 	lines.append_array([
 		"",
 		"How to evaluate:",
-		"- Play it like a user: godot.run_scene with inputs, godot.game_input for live keys, actions and clicks, godot.capture_game_frame to look at it, and godot.game_tree, godot.game_get and godot.game_wait to verify facts (the score went up, the enemy died, the level changed) instead of guessing from a frame.",
+		"- Play it like a user: godot.run_scene with inputs, continue_on_error: true and film_fps: 4, godot.game_input for live keys, actions and clicks, godot.capture_game_frame to look at it, and godot.game_tree, godot.game_get and godot.game_wait to verify facts (the score went up, the enemy died, the level changed) instead of guessing from a frame.",
 		"- Read the code and the scenes, and check godot.get_errors.",
 		"- Do not change anything: edits, project settings and shell commands are denied. Report problems; the builder fixes them.",
 		"- If you found a problem, it fails. Do not talk yourself into approving it.",
+		"- A check you could not test is not a pass: mark it fail and say in its detail that you could not test it.",
+	])
+	lines.append_array(ReviewStore.PLAY_RULES)
+	var memory := PlaytestMemory.new().brief()
+	if not memory.is_empty():
+		lines.append(memory)
+	lines.append_array([
 	])
 	if not checks.is_empty():
 		lines.append_array(["", "Checks the builder reported (decide each one yourself, keeping the same label):"])

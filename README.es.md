@@ -9,7 +9,7 @@ Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agen
 - leer escenas y scripts, la selección y los errores;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
 - correr el juego con inputs simulados, por tiempo o por frame de física para que una prueba dé siempre lo mismo, y mirar capturas de frames (un clic en el chat la abre en grande);
-- verificar su propio trabajo: cada resultado de una tool trae los errores del editor que aparecieron desde la llamada anterior, hay validadores de física y de TileMaps, y un **Playtest** contesta si pasó, si falló o si no se pudo probar, con evidencia (y un video si querés);
+- verificar su propio trabajo: cada resultado de una tool trae los errores del editor que aparecieron desde la llamada anterior, hay validadores de física y de TileMaps, y un **Playtest** contesta si pasó, si falló o si no se pudo probar, con evidencia que el harness contrasta con lo que el agente hizo de verdad (y un video si querés). Detectores dentro del juego avisan de transforms con NaN, cuerpos fuera del mundo, caídas sin fin, frames largos y un HUD por encima de su máximo, y el agente puede usar los menús del juego, jugar por turnos o correr un script adentro del juego para reaccionar en el mismo frame;
 - revisar código y dejar hallazgos en el Script Editor;
 - trabajar en proyectos C# con Godot .NET: compila con `dotnet build` y recibe los errores por archivo y línea, crea scripts `.cs`, y el completado inline también anda en los `.cs`;
 - usar los servidores MCP de otros programas (Blender, una base de datos…), configurados en Settings con sus propios permisos;

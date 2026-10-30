@@ -24,7 +24,7 @@
 			{"stop": "end_turn"}
 		]},
 		{"steps": [
-			{"chunk": "Jugué la escena.\n```json\n{\"playtest\": {\"verdict\": \"fail\", \"summary\": \"El puntaje no sube\", \"evidence\": [\"score = 0 después de 3 monedas\"], \"repro\": [\"Agarrar una moneda\", \"Mirar el HUD\"]}}\n```"},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "pt1", "title": "mcp__godot__run_scene", "kind": "execute", "status": "completed", "rawInput": {"scene": "res://main.tscn", "seconds": 3}, "rawOutput": "ok\nFilming: res://.godot_agent/playtests/film_x\nDetector hitch ×1 [sig=hitch]: A frame took 1.00 s."}}, {"update": {"sessionUpdate": "tool_call", "toolCallId": "pt2", "title": "mcp__godot__game_set", "kind": "other", "status": "completed", "rawInput": {"path": "Player", "properties": {"hp": 5}}}}, {"chunk": "Jugué la escena.\n```json\n{\"playtest\": {\"verdict\": \"fail\", \"summary\": \"El puntaje no sube\", \"evidence\": [\"score = 0 después de 3 monedas\"], \"repro\": [\"Agarrar una moneda\", \"Mirar el HUD\"]}, \"findings\": [{\"title\": \"El puntaje no sube\", \"node\": \"Player\"}]}\n```"},
 			{"stop": "end_turn"}
 		]}
 	]

@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "13.2",
+  "created_at": "2026-10-30T22:47:02.973Z",
+  "description": "session_controller.gd:443 acepta cualquier veredicto. Como do_report (session.py:1169): un pass o fail sin run_scene en el turno baja a blocked, y un veredicto visual sin captura también.",
+  "milestone": "m15",
+  "notes": "Jugar = run_scene o game_input completados en el turno, también de subagentes (_tool_calls_since). Nombres por ToolCall.godot_tool_name: un agente con otros títulos de tool quedaría siempre en blocked. El rechazo no reintenta: baja a blocked y avisa.",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "autopilot",
+    "playtest"
+  ],
+  "test": "test_review_store.test_playtest_audit_gates_the_verdict; review-test en Xvfb 4.7.2.",
+  "title": "Rechazar veredictos sin haber jugado",
+  "updated_at": "2026-10-30T22:53:03.788Z"
+}
