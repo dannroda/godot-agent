@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-10-30
+
 ### Added
 
 - In-game detectors report what the agent wasn't looking at, with a picture of the moment: NaN transforms, bodies out of the world, long falls, long frames and a HUD text past its maximum (`12/10`).
