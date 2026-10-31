@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-10-31
+
 ### Added
 
 - **Run regressions** in the findings panel: a Playtest that passes leaves a script, and this repeats it without the agent and without using tokens.
