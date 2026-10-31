@@ -19,6 +19,7 @@ const GAME_SCENE := "res://tests/fixtures/playtest_game/playtest_game.tscn"
 const PlaytestMemory := preload("res://addons/godot_agent/review/playtest_memory.gd")
 const FlipbookDialog := preload("res://addons/godot_agent/ui/flipbook_dialog.gd")
 const RunTools := preload("res://addons/godot_agent/mcp/tools/run_tools.gd")
+const PlaytestRegressions := preload("res://addons/godot_agent/review/playtest_regressions.gd")
 ## Argumentos extra para el juego (p. ej. "--rendering-driver opengl3" bajo Xvfb, sin GPU).
 const RUN_ARGS_ENV := "GODOT_AGENT_TEST_RUN_ARGS"
 const RUN_ARGS_SETTING := "editor/run/main_run_args"
@@ -180,6 +181,8 @@ func _check_live_game() -> void:
 
 ## El juego con bugs plantados (M13).
 func _check_playtest_game() -> void:
+	await _check_regressions()
+	await _call_text("stop_scene", {})
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_agent/playtests"))
 	var photos_before := DirAccess.get_files_at("res://.godot_agent/playtests")
 	# Con tope de tiempo, como un Playtest: el segundo run_scene con tope hacía caer el editor (m16-03).
@@ -295,6 +298,27 @@ func _check_playtest_game() -> void:
 	var after_breakpoint: Dictionary = await _call("game_get", {"path": ""})
 	_expect(after_breakpoint.get("isError", false) and _text(after_breakpoint).contains("stopped in the debugger"), "sigue parado en el breakpoint · " + _text(after_breakpoint))
 	await _call_text("stop_scene", {})
+
+
+## Repetir playtests guardados sin agente (m16-06), por el mismo camino que el botón del panel. Reinicia el juego.
+func _check_regressions() -> void:
+	var regressions := PlaytestRegressions.new()
+	regressions.save("start works", GAME_SCENE, "func run(game):\n\tawait game.press(\"ui_accept\")\n\treturn game.node(\"HUD/Flash\") != null")
+	regressions.save("basket is full", GAME_SCENE, "func run(game):\n\treturn game.node(\"\").basket == 10")
+	var model: Object = _dock.get(&"_model")
+	_dock.emit_signal(&"action_forwarded", "run_regressions", null)
+	var result := ""
+	var deadline := Time.get_ticks_msec() + 40000
+	while result.is_empty() and Time.get_ticks_msec() < deadline:
+		await _tree.create_timer(0.2).timeout
+		for entry: Object in model.call(&"entries"):
+			if str(entry.get(&"text")).begins_with("Regressions:"):
+				result = str(entry.get(&"text"))
+	_expect(result.contains("1 of 2 fail") and result.contains("basket is full") and not result.contains("start works"), "regresiones: una pasa, una falla, y dice cuál · " + result.left(400))
+	_expect(not EditorInterface.is_playing_scene(), "regresiones: el juego queda cerrado")
+	for entry: Dictionary in regressions.list():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(entry.file))
+	await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 1, "continue_on_error": true})
 
 
 static func _number_of(text: String, property: String) -> int:

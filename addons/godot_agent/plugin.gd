@@ -55,6 +55,7 @@ const AnimationTools := preload("mcp/tools/animation_tools.gd")
 const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
+const PlaytestRegressions := preload("review/playtest_regressions.gd")
 const PlaytestDebugger := preload("playtest/playtest_debugger.gd")
 const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
@@ -117,6 +118,7 @@ var _errors: ErrorCollector
 var _diagnostics: DiagnosticTools
 var _playtest_debugger: PlaytestDebugger
 var _run_tools: RunTools
+var _regressions_running: bool = false
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 var _review_annotations: ReviewAnnotations
 var _oneshot: OneShotRun
@@ -557,10 +559,30 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 				_model.add_notice(I18n.t("Could not open the finding."), ChatEntry.NoticeLevel.WARNING)
 		AgentDock.ACTION_REVIEW_FIX_ALL:
 			_fix_review_findings(_controller.review.findings.duplicate())
+		AgentDock.ACTION_RUN_REGRESSIONS:
+			_run_regressions()
 		AgentDock.ACTION_OPEN_RUN_FILE:
 			if _surfaces:
 				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
 			_main_screen.call(&"show_run_file", path)
+
+
+## Repite los playtests guardados sin agente (m16-06) y deja el resultado en el chat.
+func _run_regressions() -> void:
+	if _regressions_running or _run_tools == null:
+		return
+	_regressions_running = true
+	var entries := PlaytestRegressions.new().list()
+	_model.add_notice(I18n.t("Running %d regressions, without the agent…") % entries.size(), ChatEntry.NoticeLevel.INFO)
+	var results: Array = []
+	for entry: Dictionary in entries:
+		results.append(await _run_tools.run_regression(entry))
+	_regressions_running = false
+	var summary := PlaytestRegressions.summary(results)
+	if summary.ok:
+		_model.add_notice(I18n.t("Regressions: all %d pass.") % results.size(), ChatEntry.NoticeLevel.INFO)
+	else:
+		_model.add_notice("%s\n%s" % [I18n.t("Regressions: %d of %d fail.") % [summary.failed, results.size()], summary.details], ChatEntry.NoticeLevel.ERROR)
 
 
 ## Botones de la tarjeta de un hallazgo en el Script Editor (spec §9.4).

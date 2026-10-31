@@ -89,6 +89,7 @@ static func normalize_playtest(item: Variant) -> Dictionary:
 		"alerts": _strings(item.get("alerts")),
 		"notes": _strings(item.get("notes")) if item.has("evidence") or item.has("observations") else PackedStringArray(),
 		"stale_notes": _strings(item.get("stale_notes")),
+		"regression": str(item.get("regression", "")) if item.get("regression") is String else "",
 	}
 
 

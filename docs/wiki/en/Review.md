@@ -33,6 +33,8 @@ You can ask for three things in the same box: to verify something, to reach a go
 
 **Findings** of a playtest and of the detectors go to the findings panel, where each one has **Show in the scene**, **Verify a fix** and **Not a bug**. A finding marked as not a bug doesn't come back. **Run the playtest again** repeats the last one as it was, and **Play the recording** in the verdict plays the run's frames in the editor. The dialog also sets a **time limit**, remembered per project: the agent is told how much is left, but the turn isn't cut off.
 
+**Regressions**: a playtest that passes leaves a script that repeats the check. **Run regressions** in the findings panel runs them all without the agent and without using tokens, and says which ones fail. They are kept in `res://.godot_agent/playtests/regressions/`. Only from the editor for now: there is no command-line way to run them in CI.
+
 **Memory**: playtests keep what they verified about your game (controls, mechanics, pitfalls) and the scripts that worked in `res://.godot_agent/playtests/`, and the next one is told which files changed since, so it rechecks what may be out of date. Delete that folder to start over.
 
 ## Comments from a GitHub pull request

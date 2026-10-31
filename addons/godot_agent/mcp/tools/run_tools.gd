@@ -12,6 +12,7 @@ const ErrorCollector := preload("../../editor/error_collector.gd")
 const PlaytestDebugger := preload("../../playtest/playtest_debugger.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const PlaytestMemory := preload("../../review/playtest_memory.gd")
+const PlaytestRegressions := preload("../../review/playtest_regressions.gd")
 const ProjectTools := preload("project_tools.gd")
 
 ## Las del juego en ejecución: extendidas con tools/list compacto (D56).
@@ -42,6 +43,8 @@ const MOVIE_FILE_SETTING := "editor/movie_writer/movie_file"
 const MOVIE_FPS_SETTING := "editor/movie_writer/fps"
 const FRAME_MAX := 60 * 60
 const SCRIPT_MAX_S := 60.0
+const REGRESSION_SETTLE_S := 0.5
+const REGRESSION_TIMEOUT_S := 30.0
 const WATCH_MAX_S := 60.0
 ## Pausas del debugger seguidas que se saltean antes de dejar el juego parado (m15-05): un error por
 ## frame frenaría todo igual.
@@ -775,6 +778,23 @@ func _game_frames(args: Dictionary) -> Dictionary:
 			content.append({"type": "text", "text": "t=%.2f %s" % [frame.t, frame.path]})
 			content.append({"type": "image", "mimeType": "image/jpeg", "data": Marshalls.raw_to_base64(bytes)})
 	return {"content": content, "isError": false}
+
+
+## Repite un playtest guardado sin agente (m16-06): {goal, passed, output}. Deja el juego cerrado.
+func run_regression(entry: Dictionary) -> Dictionary:
+	var result := {"goal": str(entry.get("goal", "")), "passed": false, "output": ""}
+	var ran: Dictionary = await _run_scene({"scene": str(entry.get("scene", "")), "seconds": REGRESSION_SETTLE_S, "continue_on_error": true})
+	if ran.get("isError", false) or not debugger.has_probe():
+		result.output = "The game did not start: %s" % str(ran.get("content", []))
+		return result
+	var played: Dictionary = await _game_script({"code": str(entry.get("code", "")), "timeout": REGRESSION_TIMEOUT_S})
+	var parts: PackedStringArray = []
+	for block: Dictionary in played.get("content", []):
+		parts.append(str(block.get("text", "")))
+	result.output = "\n".join(parts)
+	result.passed = not played.get("isError", false) and PlaytestRegressions.passed(result.output)
+	await _stop_scene({})
+	return result
 
 
 ## `count` frames repartidos en los últimos `seconds` de la lista.

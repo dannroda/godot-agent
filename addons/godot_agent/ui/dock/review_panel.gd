@@ -8,6 +8,8 @@ signal finding_selected(id: int)
 signal fix_all_requested
 ## Un aviso para el chat (exportar a CLAUDE.md, importar de GitHub).
 signal notice_requested(text: String, level: ChatEntry.NoticeLevel)
+## Repetir los playtests guardados, sin agente (m16-06).
+signal regressions_requested
 ## Un prompt para mandar al agente (el de un playtest, m14-03).
 signal prompt_requested(text: String)
 
@@ -18,6 +20,7 @@ const EditorContext := preload("../editor_context.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
 const PlaytestMemory := preload("../../review/playtest_memory.gd")
+const PlaytestRegressions := preload("../../review/playtest_regressions.gd")
 const FindingLocator := preload("finding_locator.gd")
 
 const LIST_MAX_HEIGHT := 180
@@ -43,6 +46,7 @@ var _fix_button: Button
 var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
 var _run_again: Button
+var _regressions_button: Button
 ## El último playtest pedido, para repetirlo tal cual (m15-17): {goal, record, minutes}.
 var _last_playtest: Dictionary = {}
 
@@ -118,6 +122,11 @@ func _ready() -> void:
 	_run_again.visible = false
 	_run_again.pressed.connect(func() -> void: _start_playtest(_last_playtest.goal, _last_playtest.record, _last_playtest.minutes))
 	actions.add_child(_run_again)
+	_regressions_button = Button.new()
+	_regressions_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_regressions_button.tooltip_text = I18n.t("Repeats the playtests that passed, without the agent and without using tokens.")
+	_regressions_button.pressed.connect(regressions_requested.emit)
+	actions.add_child(_regressions_button)
 	column.add_child(actions)
 
 	_export_dialog = ConfirmationDialog.new()
@@ -173,6 +182,9 @@ func refresh() -> void:
 	_scroll.custom_minimum_size.y = minf(AgentTheme.px(LIST_MAX_HEIGHT), findings.size() * row_height)
 	_export_button.disabled = findings.is_empty()
 	_fix_button.disabled = findings.is_empty()
+	var saved := PlaytestRegressions.new().list().size()
+	_regressions_button.visible = saved > 0
+	_regressions_button.text = I18n.t("Run regressions (%d)") % saved
 
 
 ## Un hallazgo: su fila y, si salió de un playtest, qué hacer con él (m15-17, m15-18).

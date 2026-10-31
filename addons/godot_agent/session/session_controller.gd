@@ -462,7 +462,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if turn_text.contains("\"playtest\""):
 		var playtest: Dictionary = ReviewStore.FindingsParser.parse(turn_text, cwd).playtest
 		if not playtest.is_empty():
-			_report_playtest(playtest, turn_text, first_new_entry, text.contains(ReviewStore.RECORD_HINT))
+			_report_playtest(playtest, turn_text, first_new_entry, text)
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
@@ -635,10 +635,13 @@ func agent_text_since(first_entry: int) -> String:
 
 ## El veredicto contrastado con el turno como aviso; los hallazgos y lo detectado van al panel de
 ## Revisar, y lo aprendido a la memoria del juego (m15-15 a m15-18).
-func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int, record_asked: bool) -> void:
-	var audit := ReviewStore.playtest_audit(tool_calls_since(first_entry), record_asked)
+func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int, prompt: String) -> void:
+	var audit := ReviewStore.playtest_audit(tool_calls_since(first_entry), prompt.contains(ReviewStore.RECORD_HINT))
 	var audited := ReviewStore.audited_playtest(playtest, audit)
 	var notice := ReviewStore.playtest_notice(audited)
+	if ReviewStore.keep_regression(ReviewStore.playtest_goal(prompt), audited, audit, ReviewStore.PlaytestRegressions.new()):
+		notice.text += "\n" + I18n.t("Saved: «Run regressions» in the findings panel repeats it without the agent.")
+		review.changed.emit()
 	var actions: Array[Dictionary] = []
 	if not str(audited.film).is_empty():
 		actions.append({"id": ACTION_PLAY_FILM, "label": I18n.t("Play the recording"), "data": audited.film})

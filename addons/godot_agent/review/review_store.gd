@@ -11,6 +11,7 @@ const AtomicFile := preload("../core/atomic_file.gd")
 const ChatEntry := preload("../session/chat_entry.gd")
 const ToolCall := preload("../session/tool_call.gd")
 const PlaytestMemory := preload("playtest_memory.gd")
+const PlaytestRegressions := preload("playtest_regressions.gd")
 const I18n := preload("../core/i18n.gd")
 
 const SEVERITY_LABELS: Dictionary = {
@@ -169,8 +170,13 @@ static func playtest_prompt(goal: String, record: bool, minutes: int = 0, memory
 		lines.append(memory)
 	if minutes > 0:
 		lines.append(TIME_LIMIT_FORMAT % minutes)
-	lines.append("Then answer with a ```json block {\"playtest\": {\"kind\": \"verify|goal|explore\", \"verdict\": \"pass|fail|blocked|explored\", \"summary\": \"…\", \"evidence\": [\"what you observed, with values and when (game time or frame)\"], \"repro\": [\"step 1\", \"step 2\"], \"visual\": false, \"alerts\": [\"what the reader must know to trust this, if anything\"], \"notes\": [\"a verified fact a later playtest needs: controls, mechanics, pitfalls\"], \"stale_notes\": [\"an earlier note, word for word, that no longer holds\"]}, \"findings\": [{\"title\": \"…\", \"body\": \"what you saw\", \"node\": \"the node's name\", \"path\": \"res://… if you know it\", \"severity\": \"bug\"}]}. kind: verify a claim, reach a goal, or explore for problems, as the request asks. pass if it works or the goal was reached, fail with the steps that reproduce the problem, blocked if you could not test it (say why), explored when you went looking for problems. A finding is something you saw the game do wrong, not something you could not do. Set visual to true if the verdict rests on how something looks, and capture the frame that shows it.")
+	lines.append("Then answer with a ```json block {\"playtest\": {\"kind\": \"verify|goal|explore\", \"verdict\": \"pass|fail|blocked|explored\", \"summary\": \"…\", \"evidence\": [\"what you observed, with values and when (game time or frame)\"], \"repro\": [\"step 1\", \"step 2\"], \"visual\": false, \"alerts\": [\"what the reader must know to trust this, if anything\"], \"notes\": [\"a verified fact a later playtest needs: controls, mechanics, pitfalls\"], \"stale_notes\": [\"an earlier note, word for word, that no longer holds\"], \"regression\": \"func run(game): …\"}, \"findings\": [{\"title\": \"…\", \"body\": \"what you saw\", \"node\": \"the node's name\", \"path\": \"res://… if you know it\", \"severity\": \"bug\"}]}. kind: verify a claim, reach a goal, or explore for problems, as the request asks. pass if it works or the goal was reached, fail with the steps that reproduce the problem, blocked if you could not test it (say why), explored when you went looking for problems. A finding is something you saw the game do wrong, not something you could not do. Set visual to true if the verdict rests on how something looks, and capture the frame that shows it. On a pass, add regression: a godot.game_script that repeats the check from the start of the scene with no help and returns true only if it still works (use input, not direct changes; try it first). It will run later without you, to catch this breaking.")
 	return "\n".join(lines)
+
+
+## Lo que pidió un prompt de playtest: la primera línea, sin el prefijo.
+static func playtest_goal(prompt: String) -> String:
+	return prompt.get_slice("\n", 0).trim_prefix("Playtest: ").strip_edges()
 
 
 static func is_playtest_prompt(prompt: String) -> bool:
@@ -226,7 +232,7 @@ static func finding_of_line(line: String) -> Dictionary:
 ## `record_asked`: el prompt pidió video. Devuelve {played, captured, changes, video, no_video, film,
 ## detectors: [hallazgo], scripts: [código]}.
 static func playtest_audit(calls: Array, record_asked: bool) -> Dictionary:
-	var audit := {"played": false, "captured": false, "video": "", "no_video": "", "film": ""}
+	var audit := {"played": false, "captured": false, "video": "", "no_video": "", "film": "", "scene": ""}
 	var changes := PackedStringArray()
 	var detectors := {}
 	var scripts := PackedStringArray()
@@ -255,6 +261,8 @@ static func playtest_audit(calls: Array, record_asked: bool) -> Dictionary:
 			var found := RegEx.create_from_string("Recording: (\\S+)").search(output)
 			if found:
 				audit.video = found.get_string(1)
+			if call.godot_arguments() is Dictionary and call.godot_arguments().get("scene") is String:
+				audit.scene = call.godot_arguments().scene
 			var film := RegEx.create_from_string("Filming: (\\S+)").search(output)
 			if film:
 				audit.film = film.get_string(1)
@@ -291,6 +299,14 @@ static func audited_playtest(playtest: Dictionary, audit: Dictionary) -> Diction
 		seen.append(str(finding.title) + (" (%s)" % finding.frame if finding.has("frame") else ""))
 	result.detectors = seen
 	return result
+
+
+## Guarda el script de un playtest que pasó para repetirlo sin agente (m16-06). true si lo guardó.
+static func keep_regression(goal: String, audited: Dictionary, audit: Dictionary, regressions: PlaytestRegressions) -> bool:
+	var code := str(audited.get("regression", ""))
+	if audited.verdict != "pass" or code.is_empty() or str(audit.get("scene", "")).is_empty():
+		return false
+	return not regressions.save(goal, audit.scene, code).is_empty()
 
 
 ## Lo que el turno de un playtest deja para los siguientes (m15-15).

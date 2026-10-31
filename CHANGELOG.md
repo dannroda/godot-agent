@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Run regressions** in the findings panel: a Playtest that passes leaves a script, and this repeats it without the agent and without using tokens.
+
 ### Fixed
 
 - Playtest could close the editor: with a time limit, which is on by default, the game's second run crashed it.

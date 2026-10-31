@@ -4,16 +4,16 @@
   "created_at": "2026-10-31T04:31:01.037Z",
   "description": "Un playtest que pasó deja su game_script: volver a correrlo sin agente da regresiones sin gastar tokens, también en CI.",
   "milestone": "m16",
-  "notes": "",
+  "notes": "review/playtest_regressions.gd. El agente deja `regression` en su JSON al pasar; run_tools.run_regression lo corre con game_script. Solo desde el editor: correrlas en CI por línea de comandos no está hecho, porque el probe necesita el debugger del editor. Un script puede no fallar nunca si está mal escrito: nadie revisa que detecte el bug.",
   "order": 6,
   "priority": "high",
   "refs": [],
   "size": "l",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "playtest"
   ],
-  "test": "",
+  "test": "test_playtest_regressions; run-test (una pasa, una falla, dice cuál, juego cerrado); suite real A,E: el agente dejó 2 de 2 y volvieron a pasar sin él.",
   "title": "Repetir un playtest sin agente",
-  "updated_at": "2026-10-31T04:31:01.037Z"
+  "updated_at": "2026-10-31T05:39:45.393Z"
 }

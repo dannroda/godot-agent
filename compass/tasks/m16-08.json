@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "14.8",
+  "created_at": "2026-10-31T05:39:45.657Z",
+  "description": "Se reproduce siempre: en run_check, llamar _check_regressions al final de _check_playtest_game (después de pausa, game_script, watch, frames y el reproductor). Antes del SIGSEGV aparecen errores progress_dialog.cpp «!tasks.has(p_task)» dentro de play_custom_scene, y el stack de GDScript mezcla corrutinas: parece una iteración anidada mientras se lanza el juego, que reanuda corrutinas. No se cae con un run_scene por HTTP en ese mismo punto, ni con las regresiones al principio. El check se movió al principio para no tapar el resto: esto sigue sin resolver. Puede ser la misma causa de fondo que la caída que se fue al sacar el static var de run_tools.gd.",
+  "milestone": "m16",
+  "notes": "",
+  "order": 8,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "playtest",
+    "bug"
+  ],
+  "test": "",
+  "title": "El editor se cae al correr regresiones tras una secuencia larga de pruebas",
+  "updated_at": "2026-10-31T05:39:45.657Z"
+}

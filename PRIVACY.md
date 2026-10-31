@@ -48,7 +48,7 @@ The addon's MCP server listens only on `127.0.0.1`, with a token that changes ev
 | Agent profiles, MCP settings, completion settings, language | Editor settings, prefix `godot_agent/` | Profiles name environment variables, never their values (Settings rejects a literal value in a variable named like a secret). |
 | Agents downloaded from the ACP registry | The editor's data folder, `godot_agent/agents/` | Shared by all projects. |
 | Project permissions, rules, budgets, MCP servers of the project | `res://addons/godot_agent/config/project_config.tres` | Part of the project: commit it or not, as you prefer. No keys. |
-| Turn reports, playtest videos and frames, what playtests learned about the game (notes, scripts, findings marked not a bug), One-shot spec and progress, installed-asset list | `res://.godot_agent/` | Inside the project. Never exported with the game. |
+| Turn reports, playtest videos and frames, what playtests learned about the game (notes, scripts, saved regressions, findings marked not a bug), One-shot spec and progress, installed-asset list | `res://.godot_agent/` | Inside the project. Never exported with the game. |
 | Snapshots of each turn, to show what changed and go back | git refs `refs/godot-agent/turns/*` in the project's repository | Local refs: they are not pushed unless you push them yourself. The last 60 per session. |
 | Agent Log | Memory only | Up to 2000 entries, cleared when the editor closes. It leaves the editor only if you copy it. |
 

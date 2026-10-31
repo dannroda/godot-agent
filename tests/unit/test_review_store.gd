@@ -140,6 +140,31 @@ func test_playtest_kinds_and_limits() -> void:
 	assert_eq(ReviewStore.FindingsParser.parse("{\"playtest\": {\"verdict\": \"not_achieved\"}}").playtest.verdict, "fail", "objetivo no logrado")
 
 
+## m16-06: el script de un playtest que pasó queda para repetirlo sin agente.
+func test_playtest_regressions() -> void:
+	var regressions := ReviewStore.PlaytestRegressions.new(temp_dir("regressions_%d" % Time.get_ticks_usec()))
+	var audit := {"scene": "res://a.tscn"}
+	var ok := _verdict("pass")
+	ok.regression = "func run(game):\n\treturn true"
+	assert_true(ReviewStore.keep_regression(" salta ", ok, audit, regressions), "guarda lo que pasó")
+	assert_true(ReviewStore.keep_regression("salta", ok, audit, regressions), "el mismo pedido reemplaza")
+	assert_eq(regressions.list().size(), 1, "una por pedido")
+	assert_eq([regressions.list()[0].goal, regressions.list()[0].scene], ["salta", "res://a.tscn"], "pedido y escena")
+	var failed := _verdict("fail")
+	failed.regression = ok.regression
+	assert_false(ReviewStore.keep_regression("otro", failed, audit, regressions), "lo que falló no")
+	assert_false(ReviewStore.keep_regression("otro", _verdict("pass"), audit, regressions), "sin script no")
+	assert_false(ReviewStore.keep_regression("otro", ok, {"scene": ""}, regressions), "sin escena no")
+	assert_true(ReviewStore.PlaytestRegressions.passed("x\nrun() returned: true\n[game time 1 s]"), "true pasa")
+	assert_false(ReviewStore.PlaytestRegressions.passed("run() returned: false"), "false no")
+	assert_false(ReviewStore.PlaytestRegressions.passed("run() returned: 1"), "otro valor no")
+	assert_false(ReviewStore.PlaytestRegressions.passed("Script error at line 2: boom\nrun() returned: true"), "con error no")
+	var summary := ReviewStore.PlaytestRegressions.summary([{"goal": "a", "passed": true, "output": ""}, {"goal": "b", "passed": false, "output": "run() returned: false"}])
+	assert_eq([summary.ok, summary.failed], [false, 1], "resumen")
+	assert_true(str(summary.details).contains("• b") and not str(summary.details).contains("• a"), "lista lo que falló")
+	assert_eq(ReviewStore.playtest_goal(ReviewStore.playtest_prompt("  salta ", false)), "salta", "el pedido sale del prompt")
+
+
 ## m15-15: notas, scripts, no es un bug y qué cambió.
 func test_playtest_memory() -> void:
 	var dir := temp_dir("playtest_memory_%d" % Time.get_ticks_usec())

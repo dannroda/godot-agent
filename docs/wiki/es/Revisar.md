@@ -33,6 +33,8 @@ Los **detectores** corren dentro del juego y avisan de lo que el agente no estab
 
 Los **hallazgos** del playtest y de los detectores van al panel de hallazgos, donde cada uno tiene **Mostrar en la escena**, **Verificar un arreglo** y **No es un bug**. Uno marcado como que no es un bug no vuelve a aparecer. **Repetir el playtest** repite el último tal cual, y **Reproducir la grabación** en el veredicto pasa los frames del run dentro del editor. El diálogo también fija un **tope de tiempo**, recordado por proyecto: al agente se le dice cuánto queda, pero el turno no se corta.
 
+**Regresiones**: un playtest que pasa deja un script que repite la comprobación. **Correr regresiones** en el panel de hallazgos los corre todos sin el agente y sin gastar tokens, y dice cuáles fallan. Se guardan en `res://.godot_agent/playtests/regressions/`. Por ahora solo desde el editor: no hay forma de correrlas por línea de comandos en CI.
+
 **Memoria**: los playtests guardan lo que verificaron de tu juego (controles, mecánicas, trampas) y los scripts que sirvieron en `res://.godot_agent/playtests/`, y al siguiente se le dice qué archivos cambiaron desde entonces, para que vuelva a comprobar lo que puede haber quedado viejo. Borrá esa carpeta para empezar de cero.
 
 ## Comentarios de un pull request de GitHub

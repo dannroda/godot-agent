@@ -4241,7 +4241,7 @@ El AVI solo llega como una ruta y obliga a cerrar el juego. Flipbook (ui/widgets
 
 **Bloqueada por:** 13.22 Búfer de frames recientes
 
-## M14 — Playtesting confiable y regresiones  (5/7, 5 en revisión)
+## M14 — Playtesting confiable y regresiones  (6/8, 6 en revisión)
 
 Validar M13 con un agente real y en CI, cerrar lo que aún puede engañar (evaluador sin controlar, breakpoints salteados) y convertir un playtest que pasó en un test de regresión que corre sin agente.
 
@@ -4300,14 +4300,24 @@ Hoy también pasa por encima de los breakpoints del usuario.
 
 **Notas:** Se distingue por el texto del debugger (empieza con Breakpoint).
 
-### 14.6 Repetir un playtest sin agente · Pendiente
+### 14.6 Repetir un playtest sin agente · Revisión
 
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `playtest`
 
 Un playtest que pasó deja su game_script: volver a correrlo sin agente da regresiones sin gastar tokens, también en CI.
+
+**Prueba:** test_playtest_regressions; run-test (una pasa, una falla, dice cuál, juego cerrado); suite real A,E: el agente dejó 2 de 2 y volvieron a pasar sin él.
+
+**Notas:** review/playtest_regressions.gd. El agente deja `regression` en su JSON al pasar; run_tools.run_regression lo corre con game_script. Solo desde el editor: correrlas en CI por línea de comandos no está hecho, porque el probe necesita el debugger del editor. Un script puede no fallar nunca si está mal escrito: nadie revisa que detecte el bug.
 
 ### 14.7 Una línea que aparece una vez deja de sugerirse a los ~9 días · Pendiente
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `completado`
 
 Lo destapó m16-01: con recencia 0.5 + 0.5·exp(-días/7), una línea de una sola aparición en otra carpeta queda bajo el umbral cuando su archivo envejece. D27 dice que una sola aparición alcanza. Decidir si el umbral o el piso de recencia cambian, midiendo con tests/completion_eval.
+
+### 14.8 El editor se cae al correr regresiones tras una secuencia larga de pruebas · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `playtest`, `bug`
+
+Se reproduce siempre: en run_check, llamar _check_regressions al final de _check_playtest_game (después de pausa, game_script, watch, frames y el reproductor). Antes del SIGSEGV aparecen errores progress_dialog.cpp «!tasks.has(p_task)» dentro de play_custom_scene, y el stack de GDScript mezcla corrutinas: parece una iteración anidada mientras se lanza el juego, que reanuda corrutinas. No se cae con un run_scene por HTTP en ese mismo punto, ni con las regresiones al principio. El check se movió al principio para no tapar el resto: esto sigue sin resolver. Puede ser la misma causa de fondo que la caída que se fue al sacar el static var de run_tools.gd.

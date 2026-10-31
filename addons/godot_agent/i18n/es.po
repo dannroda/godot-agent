@@ -3797,6 +3797,24 @@ msgstr "Reproducir"
 msgid "QA round %d: the evaluator gave a verdict without playing the game"
 msgstr "Vuelta de QA %d: el evaluador dio un veredicto sin jugar el juego"
 
+msgid "Saved: «Run regressions» in the findings panel repeats it without the agent."
+msgstr "Guardado: «Correr regresiones» en el panel de hallazgos lo repite sin el agente."
+
+msgid "Repeats the playtests that passed, without the agent and without using tokens."
+msgstr "Repite los playtests que pasaron, sin el agente y sin gastar tokens."
+
+msgid "Run regressions (%d)"
+msgstr "Correr regresiones (%d)"
+
+msgid "Running %d regressions, without the agent…"
+msgstr "Corriendo %d regresiones, sin el agente…"
+
+msgid "Regressions: all %d pass."
+msgstr "Regresiones: pasan las %d."
+
+msgid "Regressions: %d of %d fail."
+msgstr "Regresiones: fallan %d de %d."
+
 msgid "Run the playtest again"
 msgstr "Repetir el playtest"
 
