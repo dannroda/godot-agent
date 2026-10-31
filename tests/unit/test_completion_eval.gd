@@ -14,7 +14,8 @@ func test_eval_set() -> void:
 	runner.load_cases()
 	assert_eq(runner.errors, PackedStringArray(), "casos bien formados")
 	assert_true(runner.cases.size() >= 30 and runner.cases.size() <= 50, "entre 30 y 50 casos (%d)" % runner.cases.size())
-	var report := runner.run(Runner.parse_combos("rule+retrieval rule+retrieval+ngram ngram"))
+	# Edad fija: con la hora real, el resultado dependería de cuándo se copió el repo.
+	var report := runner.run(Runner.parse_combos("rule+retrieval rule+retrieval+ngram ngram"), Callable(), 0.0)
 	var base: Dictionary = report.combos[0].metrics
 	var full: Dictionary = report.combos[1].metrics
 	var ngram: Dictionary = report.combos[2].metrics

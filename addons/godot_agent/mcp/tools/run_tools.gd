@@ -57,12 +57,10 @@ const FILM_KEEP_RUNS := 5
 const FRAMES_MAX_SHOWN := 12
 const FINDING_FRAMES_KEPT := 50
 ## Cuándo se acaba el tiempo del playtest en curso (m15-19), como meta de Engine porque hay un solo juego
-## corriendo a la vez. No es un `static var`: escribirlo desde el controller rompía el bytecode de este
-## script y el editor se caía en el run_scene siguiente (Godot 4.7.2, m16-03).
+## corriendo a la vez. No es un `static var`: asignarlo desde otro script es un set sobre el recurso
+## GDScript, que en el editor lo marca como editado; el play siguiente guarda los recursos editados,
+## reescribe este archivo y lo recarga con _run_scene a mitad de camino, y el editor se cae (m16-03, m16-08).
 const DEADLINE_META := &"godot_agent_playtest_deadline_ms"
-## APIs que game_script no puede usar: el evaluador del One-shot y el Playtest no tocan el proyecto (m15-12).
-## shortcut: una lista de nombres frena un descuido, no a alguien que quiera esquivarla; si eso importa, hace falta correr el juego en un sandbox.
-const SCRIPT_BLOCKED := "\\b(FileAccess|DirAccess|ResourceSaver|ConfigFile|ZIPPacker|OS\\s*\\.\\s*(execute|execute_with_pipe|create_process|create_instance|shell_open|shell_show_in_file_manager|move_to_trash|kill)|ProjectSettings\\s*\\.\\s*save)\\b|\\.save_(png|jpg|webp|exr)\\s*\\("
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP server)."
 const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"}, {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
@@ -727,8 +725,7 @@ func _game_script(args: Dictionary) -> Dictionary:
 
 ## La API prohibida que usa un script, o "".
 static func blocked_api(code: String) -> String:
-	var found := RegEx.create_from_string(SCRIPT_BLOCKED).search(code)
-	return found.get_string(0) if found else ""
+	return PlaytestRegressions.blocked_api(code)
 
 
 func _game_pause(args: Dictionary) -> Dictionary:
@@ -781,12 +778,15 @@ func _game_frames(args: Dictionary) -> Dictionary:
 
 
 ## Repite un playtest guardado sin agente (m16-06): {goal, passed, output}. Deja el juego cerrado.
-func run_regression(entry: Dictionary) -> Dictionary:
+## `setup`: código que corre antes en el mismo juego, como el sabotaje que tiene que hacerla fallar.
+func run_regression(entry: Dictionary, setup: String = "") -> Dictionary:
 	var result := {"goal": str(entry.get("goal", "")), "passed": false, "output": ""}
 	var ran: Dictionary = await _run_scene({"scene": str(entry.get("scene", "")), "seconds": REGRESSION_SETTLE_S, "continue_on_error": true})
 	if ran.get("isError", false) or not debugger.has_probe():
 		result.output = "The game did not start: %s" % str(ran.get("content", []))
 		return result
+	if not setup.is_empty():
+		await _game_script({"code": setup, "timeout": REGRESSION_TIMEOUT_S})
 	var played: Dictionary = await _game_script({"code": str(entry.get("code", "")), "timeout": REGRESSION_TIMEOUT_S})
 	var parts: PackedStringArray = []
 	for block: Dictionary in played.get("content", []):

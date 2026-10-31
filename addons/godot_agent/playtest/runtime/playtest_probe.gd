@@ -42,9 +42,16 @@ var _last_frame_ms: int = 0
 var _finding_frame_at: int = -FINDING_FRAME_GAP_MS
 ## Último lugar del mouse: de ahí sale el `relative` de un movimiento a un punto.
 var _mouse_at := Vector2.ZERO
+## Sin editor ni debugger: lo usa regression_cli.gd solo para correr game_scripts (m16-09).
+var standalone: bool = false
 
 
 func _ready() -> void:
+	if standalone:
+		process_mode = Node.PROCESS_MODE_ALWAYS
+		_ui = GameUi.new(self)
+		set_process(false)
+		return
 	if not OS.has_feature("editor_runtime") or not EngineDebugger.is_active():
 		queue_free()
 		return
@@ -535,7 +542,7 @@ func _event(step: Dictionary) -> Variant:
 			var motion := InputEventMouseMotion.new()
 			# `look` mueve la mira sin ir a un punto: lo que lee un juego en primera persona (m15-04).
 			if step.has("rel_x"):
-				motion.position = _mouse_at
+				motion.position = GameUi.free_point(get_viewport(), _mouse_at)
 				motion.relative = Vector2(float(step.rel_x), float(step.rel_y))
 			else:
 				motion.position = _point(step)

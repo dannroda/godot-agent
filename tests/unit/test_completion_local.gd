@@ -19,11 +19,12 @@ const NOW := 1_800_000_000.0
 const READY_BLOCK := "extends Control\n\nfunc _ready() -> void:\n\thealth.changed.connect(_on_health_changed)\n\tvisible = false\n\tif debug:\n\t\tprint(\"ready\")\n\nfunc _on_health_changed(value: int) -> void:\n\t$Bar.value = value\n\t$Label.text = str(value)\n"
 
 
-func _provider() -> LocalProvider:
+## `now` 1.0: antes que cualquier mtime, los archivos cuentan como recién editados.
+func _provider(now: float = 1.0) -> LocalProvider:
 	var context := ProjectContext.new()
 	context.root = FIXTURE
 	context.settings_file = FIXTURE + "/project_settings.cfg"
-	context.fixed_now = 1.0  # antes que cualquier mtime: los archivos cuentan como recién editados
+	context.fixed_now = now
 	context.build_now()
 	return LocalProvider.new(context)
 
@@ -50,6 +51,7 @@ func test_line_index() -> void:
 	assert_eq(found[0].rest, "onnect(_on_health_changed)", "devuelve el resto")
 	# mismo archivo 3 + misma carpeta 2 + otra carpeta 1 × recencia vieja (~0.5)
 	assert_true(absf(float(found[0].raw) - (3.0 + 2.0 + 0.5)) < 0.01, "cercanía × recencia (%.3f)" % found[0].raw)
+	assert_true(absf(float(found[0].evidence) - 6.0) < 0.01, "la evidencia no baja con la edad (%.3f)" % found[0].evidence)
 	assert_eq(index.query("health.changed.", "res://c/x.gd", 100).size(), 2, "rango con dos líneas")
 	assert_true(index.query("health.changed.", "res://c/x.gd", 1).is_empty(), "más de max_scan: ambiguo, nada")
 	assert_true(index.query("var speed := 10", "res://a/one.gd", 100).is_empty(), "la línea completa no se sugiere a sí misma")
@@ -207,6 +209,9 @@ func test_retrieval_suggests_repeated_line() -> void:
 	assert_eq(_complete(provider, hud, "\tvar direction := Input.ge|"), "t_axis(\"move_left\", \"move_right\")", "dos apariciones en otra carpeta alcanzan")
 	assert_eq(_complete(provider, hud, "\tvelocity = velocity.mo|"), "ve_toward(Vector2.ZERO, FRICTION * delta)", "una sola aparición en otra carpeta alcanza (D27)")
 	assert_eq(_complete(provider, player, "\tvelocity = velocity.mo|"), "ve_toward(Vector2.ZERO, FRICTION * delta)", "en el mismo archivo también")
+	# Con todos los archivos de hace años también: la recencia no apaga una sola aparición (m16-07).
+	var aged := _provider(Time.get_unix_time_from_system() + 3 * 365 * 86400.0)
+	assert_eq(_complete(aged, hud, "\tvelocity = velocity.mo|"), "ve_toward(Vector2.ZERO, FRICTION * delta)", "una sola aparición en un proyecto viejo alcanza")
 	assert_eq(_complete(provider, hud, "\tva|"), "<nada>", "menos de 3 caracteres: nada")
 	var with_suffix := RulesTest.request_at(hud, "\tvar direction := Input.get_axis(|")
 	with_suffix.line_suffix = ")"

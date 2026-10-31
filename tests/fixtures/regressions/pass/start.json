@@ -1,0 +1,6 @@
+{
+	"goal": "Start can be pressed",
+	"scene": "res://tests/fixtures/playtest_game/playtest_game.tscn",
+	"code": "func run(game):\n\tgame.node(\"HUD/Menu/Start\").grab_focus()\n\tawait game.press(\"ui_accept\")\n\treturn game.node(\"\").start_presses == 1",
+	"sabotage": "func run(game):\n\tgame.node(\"HUD/Menu/Start\").disabled = true"
+}

@@ -159,6 +159,12 @@ func test_playtest_regressions() -> void:
 	assert_false(ReviewStore.PlaytestRegressions.passed("run() returned: false"), "false no")
 	assert_false(ReviewStore.PlaytestRegressions.passed("run() returned: 1"), "otro valor no")
 	assert_false(ReviewStore.PlaytestRegressions.passed("Script error at line 2: boom\nrun() returned: true"), "con error no")
+	assert_eq(ReviewStore.PlaytestRegressions.blocked_api("FileAccess.open('x', 2)"), "FileAccess", "la guarda vale también sin editor")
+	# Con el sabotaje (m16-09): detecta solo si terminó sin devolver true.
+	assert_true(ReviewStore.PlaytestRegressions.detects("run() returned: false"), "con sabotaje, false detecta")
+	assert_false(ReviewStore.PlaytestRegressions.detects("run() returned: true"), "con sabotaje, true no detecta")
+	assert_false(ReviewStore.PlaytestRegressions.detects("Script error at line 2: boom\nrun() returned: null"), "un error no es detectar")
+	assert_false(ReviewStore.PlaytestRegressions.detects("The script timed out after 30.0 s"), "vencer no es detectar")
 	var summary := ReviewStore.PlaytestRegressions.summary([{"goal": "a", "passed": true, "output": ""}, {"goal": "b", "passed": false, "output": "run() returned: false"}])
 	assert_eq([summary.ok, summary.failed], [false, 1], "resumen")
 	assert_true(str(summary.details).contains("• b") and not str(summary.details).contains("• a"), "lista lo que falló")

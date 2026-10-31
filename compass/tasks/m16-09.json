@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "14.9",
+  "created_at": "2026-10-31T06:38:47.163Z",
+  "decisions": [
+    {
+      "alternatives": "Pedir `sabotage` en el JSON del agente y verificarlo al guardar; heurística de correr el script sin inputs (falla con invariantes que no necesitan jugar).",
+      "at": "2026-10-31T06:38:56.595Z",
+      "text": "El control de \"detecta el bug\" es un sabotaje escrito a mano (suite y fixtures); al agente no se le pide escribir uno",
+      "why": "Pedirle al agente el sabotaje suma tokens y cambia el prompt del playtest, que habría que volver a medir; y un sabotaje del agente puede ser tan vacío como su script. La suite mide si sus regresiones discriminan."
+    }
+  ],
+  "description": "Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el probe necesitaba el debugger), y nadie comprobaba que el script del agente detecte el bug (uno mal escrito pasa siempre).",
+  "milestone": "m16",
+  "notes": "playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.",
+  "order": 9,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "playtest"
+  ],
+  "test": "tests/regressions_cli_check.sh (paso nuevo en CI): pass → 0, fail → 1, vacuous (pasa también con el sabotaje) → 1, en 4.7.2 y 4.8-beta2. run-test: con el sabotaje, la de start detecta y la vacía no. test_review_store: detects.",
+  "title": "Regresiones por línea de comandos y control de que detectan el bug",
+  "updated_at": "2026-10-31T06:38:56.595Z"
+}

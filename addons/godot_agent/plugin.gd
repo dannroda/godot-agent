@@ -5,6 +5,7 @@ extends EditorPlugin
 const AgentExportPlugin := preload("export/agent_export_plugin.gd")
 const PlaytestAutoload := preload("playtest/playtest_autoload.gd")
 const EditorSurfaces := preload("ui/editor_surfaces.gd")
+const EditorWindows := preload("ui/editor_windows.gd")
 const AgentDockScene := preload("ui/dock/agent_dock.tscn")
 const AgentMainScreenScene := preload("ui/main_screen/agent_main_screen.tscn")
 const AgentLogPanelScene := preload("ui/log_panel/agent_log_panel.tscn")
@@ -341,6 +342,8 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
+	# Antes de liberar dock, main screen y diálogos: el ProgressDialog del editor puede estar adentro (m16-08).
+	EditorWindows.rescue_progress(EditorInterface.get_base_control())
 	if EditorInterface.get_editor_settings().settings_changed.is_connected(_on_editor_settings_changed):
 		EditorInterface.get_editor_settings().settings_changed.disconnect(_on_editor_settings_changed)
 	if _completion:
@@ -857,7 +860,7 @@ func _on_update_requested() -> void:
 	confirm.confirmed.connect(_install_update.bind(release))
 	confirm.visibility_changed.connect(func() -> void:
 		if not confirm.visible:
-			confirm.queue_free.call_deferred())
+			EditorWindows.free_later.call_deferred(confirm))
 	EditorInterface.get_base_control().add_child(confirm)
 	confirm.popup_centered()
 
@@ -1175,7 +1178,7 @@ func _ask_copy_fate(id: String, copy: WorktreeSession, changed: PackedStringArra
 		_resolve_copy(id, copy, changed, String(action)))
 	dialog.visibility_changed.connect(func() -> void:
 		if not dialog.visible:
-			dialog.queue_free.call_deferred())
+			EditorWindows.free_later.call_deferred(dialog))
 	EditorInterface.get_base_control().add_child(dialog)
 	dialog.popup_centered()
 

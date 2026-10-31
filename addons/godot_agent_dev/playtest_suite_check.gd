@@ -58,8 +58,10 @@ func run(tree: SceneTree, profile: AgentProfile, only: String) -> PackedStringAr
 		print("[playtest-suite] %s esperado=%s obtenido=%s %.0f s · %s" % [last.id, last.expected, last.got, last.seconds, last.prompt])
 		if last.got != last.expected:
 			failures.append("%s: esperado %s, obtenido %s" % [last.id, last.expected, last.got])
-	await _replay(tree, results)
+	await _replay(tree, results, suite.prompts)
 	ProjectSettings.set_setting(RUN_ARGS_SETTING, previous_args)
+	# El play guarda project.godot con los argumentos de Xvfb puestos: sin esto quedan en el archivo.
+	ProjectSettings.save()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(RESULT.get_base_dir()))
 	var file := FileAccess.open(RESULT, FileAccess.WRITE)
 	file.store_string(JSON.stringify(results, "\t"))
@@ -67,8 +69,9 @@ func run(tree: SceneTree, profile: AgentProfile, only: String) -> PackedStringAr
 	return failures
 
 
-## Lo que el agente dejó guardado se repite sin él: un playtest que pasó tiene que volver a pasar (m16-06).
-func _replay(tree: SceneTree, results: Array[Dictionary]) -> void:
+## Lo que el agente dejó guardado se repite sin él: un playtest que pasó tiene que volver a pasar (m16-06),
+## y fallar con el sabotaje del pedido, o no detecta el bug (m16-09).
+func _replay(tree: SceneTree, results: Array[Dictionary], items: Array) -> void:
 	var run_tools: Object = null
 	for node: Node in tree.root.find_children("*", "EditorPlugin", true, false):
 		var script := node.get_script() as Script
@@ -84,6 +87,14 @@ func _replay(tree: SceneTree, results: Array[Dictionary]) -> void:
 		print("[playtest-suite] repetida sin agente: %s → %s\n%s" % [entry.goal.left(50), replay.passed, str(replay.output).left(300)])
 		if not replay.passed:
 			failures.append("la regresión no pasa sin el agente: %s" % entry.goal.left(60))
+			continue
+		for item: Dictionary in items:
+			if item.has("sabotage") and str(entry.goal).begins_with(str(item.prompt)):
+				var sabotaged: Dictionary = await run_tools.call(&"run_regression", entry, str(item.sabotage))
+				var detects := Regressions.detects(str(sabotaged.output))
+				print("[playtest-suite] con el sabotaje de %s: %s\n%s" % [item.id, "falla (detecta el bug)" if detects else "NO DETECTA", str(sabotaged.output).left(300)])
+				if not detects:
+					failures.append("la regresión de %s pasa también con el sabotaje: no detecta el bug" % item.id)
 
 
 ## Un playtest tiene que jugar: si el agente pide aprobar un plan no va a seguir solo, y esperar gasta cuota.

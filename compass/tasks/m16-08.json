@@ -4,17 +4,17 @@
   "created_at": "2026-10-31T05:39:45.657Z",
   "description": "Se reproduce siempre: en run_check, llamar _check_regressions al final de _check_playtest_game (después de pausa, game_script, watch, frames y el reproductor). Antes del SIGSEGV aparecen errores progress_dialog.cpp «!tasks.has(p_task)» dentro de play_custom_scene, y el stack de GDScript mezcla corrutinas: parece una iteración anidada mientras se lanza el juego, que reanuda corrutinas. No se cae con un run_scene por HTTP en ese mismo punto, ni con las regresiones al principio. El check se movió al principio para no tapar el resto: esto sigue sin resolver. Puede ser la misma causa de fondo que la caída que se fue al sacar el static var de run_tools.gd.",
   "milestone": "m16",
-  "notes": "",
+  "notes": "Eran tres causas, todas en 4.7.2.\n1) ProgressDialog. ProgressDialog::_reparent_and_show() de Godot (4.7.2 y master) cuelga el ProgressDialog del editor de la última ventana exclusiva y no lo devuelve. El reproductor de filmaciones era exclusivo y el test lo liberaba en el mismo frame en que las regresiones lanzaban el juego; la iteración anidada del progreso procesaba ese queue_free y se llevaba puesto al ProgressDialog («!tasks.has(p_task)» y SIGSEGV). No dependía de la secuencia larga. En uso real pasa con cualquier diálogo nuestro abierto mientras el editor muestra un progreso (play, reimport por archivos del agente). Arreglo: ui/editor_windows.gd (free_later / rescue_progress) en los diálogos que se liberan solos y en _exit_tree del plugin; el reproductor ya no es exclusivo.\n2) Autoload de playtest. add_autoload_singleton/remove_autoload_singleton en _build() y al arrancar o parar el juego pasan por el UndoRedo y update_autoload del editor; en 4.7.2 cada play después del primero imprimía «List::erase: p_I->data != this» (lista del editor corrupta, no en 4.8) y tras varios runs el editor se caía. Aislado con experimentos: play/stop puro sin el probe no lo da; con el probe sí, en cada play. Ahora el alta y la baja son ProjectSettings.set_setting + save (el juego lee project.godot del disco). crash_check y export_check siguen bien.\n3) static var de m16-03, otra causa ya entendida: asignar RunTools.playtest_deadline_ms desde otro script es un set sobre el recurso GDScript, que en el editor lo marca como editado; el play siguiente guarda los recursos editados, reescribe run_tools.gd (mtime cambiado durante el test) y lo recarga con _run_scene a mitad de camino. Reproducido con la versión vieja. Ahora run-test falla si el editor reescribe algún .gd del addon.\nDe paso: look_at fallaba en 4.8 en la copia local porque game.mouse() mandaba el movimiento donde había quedado el mouse tras un clic (sobre HUD/Overlay) y la GUI se lo comía; GameUi.free_point lo manda a un punto libre (también el paso look del probe). Y los checks ya no dejan main_run_args guardado en project.godot.",
   "order": 8,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "playtest",
     "bug"
   ],
-  "test": "",
+  "test": "run-test con las regresiones al final, justo después de liberar el reproductor (el orden que se caía siempre), check de rescate con reimport y regresiones con sabotaje: 0 fallas y sin «p_I->data» en 4.7.2 y 4.8-beta2. Sin los arreglos: SIGSEGV. review-test 0, run_all 396/0, plugin_cycle_check, export_check y crash_check bien.",
   "title": "El editor se cae al correr regresiones tras una secuencia larga de pruebas",
-  "updated_at": "2026-10-31T05:39:45.657Z"
+  "updated_at": "2026-10-31T06:38:47.105Z"
 }

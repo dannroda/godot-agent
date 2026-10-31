@@ -5,6 +5,9 @@ extends RefCounted
 
 const DIR := "res://.godot_agent/playtests/regressions"
 const PASS_MARK := "run() returned: true"
+## APIs que game_script no puede usar: el evaluador del One-shot y el Playtest no tocan el proyecto (m15-12).
+## shortcut: una lista de nombres frena un descuido, no a alguien que quiera esquivarla; si eso importa, hace falta correr el juego en un sandbox.
+const SCRIPT_BLOCKED := "\\b(FileAccess|DirAccess|ResourceSaver|ConfigFile|ZIPPacker|OS\\s*\\.\\s*(execute|execute_with_pipe|create_process|create_instance|shell_open|shell_show_in_file_manager|move_to_trash|kill)|ProjectSettings\\s*\\.\\s*save)\\b|\\.save_(png|jpg|webp|exr)\\s*\\("
 
 var base: String
 
@@ -39,9 +42,23 @@ func list() -> Array[Dictionary]:
 	return entries
 
 
+## La API prohibida que usa un script, o "". Acá y no en RunTools porque la línea de comandos corre sin
+## editor, y un script guardado por el agente pasa por la misma guarda que game_script.
+static func blocked_api(code: String) -> String:
+	var found := RegEx.create_from_string(SCRIPT_BLOCKED).search(code)
+	return found.get_string(0) if found else ""
+
+
 ## Solo pasa si el script devolvió true: sin errores ni vencimiento, que también dejan otro texto.
 static func passed(output: String) -> bool:
 	return output.contains(PASS_MARK) and not output.contains("Script error") and not output.contains("timed out")
+
+
+## Con el sabotaje puesto (`sabotage`: código que rompe en el juego lo que la regresión prueba) tiene
+## que terminar y no devolver true; si pasa igual, no detecta el bug (m16-09). Un error o un
+## vencimiento no cuentan como detectarlo.
+static func detects(output_with_sabotage: String) -> bool:
+	return output_with_sabotage.contains("run() returned:") and not passed(output_with_sabotage) and not output_with_sabotage.contains("Script error")
 
 
 ## El aviso con los resultados ({goal, passed, output}): texto y si pasaron todos.

@@ -6,6 +6,7 @@ extends AcceptDialog
 
 const AgentTheme := preload("agent_theme.gd")
 const I18n := preload("../core/i18n.gd")
+const EditorWindows := preload("editor_windows.gd")
 
 const DEFAULT_FPS := 4.0
 
@@ -72,8 +73,11 @@ func show_film(folder: String, frames: PackedStringArray, near: Node) -> void:
 	row.add_child(_scrub)
 	_time = Label.new()
 	row.add_child(_time)
-	confirmed.connect(queue_free)
-	canceled.connect(queue_free)
+	# No es modal: si fuera exclusivo, un run_scene con el visor abierto le colgaría el ProgressDialog del
+	# editor (m16-08).
+	exclusive = false
+	confirmed.connect(EditorWindows.free_later.bind(self))
+	canceled.connect(EditorWindows.free_later.bind(self))
 	var host: Node = EditorInterface.get_base_control() if AgentTheme.has_editor() else near.get_tree().root
 	host.add_child(self)
 	popup_centered_ratio(0.7)

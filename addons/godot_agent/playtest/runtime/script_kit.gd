@@ -5,6 +5,7 @@ extends RefCounted
 ## porque eso separa «el juego falla» de «no supe hacerlo».
 
 const GameWorld := preload("game_world.gd")
+const GameUi := preload("game_ui.gd")
 
 const TAP_FRAMES := 6
 const TURN_GAIN := 0.8
@@ -128,7 +129,7 @@ func mouse(dx: float, dy: float) -> void:
 	var motion := InputEventMouseMotion.new()
 	motion.relative = Vector2(dx, dy)
 	motion.screen_relative = motion.relative
-	motion.position = _host.get_viewport().get_mouse_position()
+	motion.position = GameUi.free_point(_host.get_viewport(), _host.get_viewport().get_mouse_position())
 	motion.global_position = motion.position
 	Input.parse_input_event(motion)
 

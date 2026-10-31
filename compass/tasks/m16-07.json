@@ -2,18 +2,26 @@
   "checklist": [],
   "code": "14.7",
   "created_at": "2026-10-31T04:37:56.716Z",
+  "decisions": [
+    {
+      "alternatives": "Bajar el umbral (sube los falsos positivos en todos los casos); subir el piso de recencia a ~0,7 (la recencia casi deja de distinguir); recencia relativa al archivo más nuevo (un archivo viejo en un proyecto activo sigue sin alcanzar).",
+      "at": "2026-10-31T06:42:27.780Z",
+      "text": "La recencia ya no entra en la evidencia (support); umbral y piso de recencia quedan igual",
+      "why": "La recencia sirve para preferir lo que se está tocando frente a otros candidatos, no para decidir si hay evidencia. Medido: con el proyecto envejecido vuelve a 17/18 sin cambiar nada a 0 días."
+    }
+  ],
   "description": "Lo destapó m16-01: con recencia 0.5 + 0.5·exp(-días/7), una línea de una sola aparición en otra carpeta queda bajo el umbral cuando su archivo envejece. D27 dice que una sola aparición alcanza. Decidir si el umbral o el piso de recencia cambian, midiendo con tests/completion_eval.",
   "milestone": "m16",
-  "notes": "",
+  "notes": "Medido con tests/completion_eval y `--age=N` nuevo (todos los archivos con N días desde el más nuevo; sin eso el eval dependía de cuándo se copió el repo). Antes, rule+retrieval+ngram: 17 exactas / 18 correctas a 0 días, 14 / 16 a 30 y a 365 días. La cuenta: support = 1 − e^(−raw) y una aparición lejana da raw = recencia, que baja de ln 2 a los ~7 días. El envejecimiento parejo no cambia las proporciones entre candidatos: solo apagaba el umbral, contra D27.\nCambio: la recencia queda solo en raw/Σraw (desempata entre archivos de distinta edad) y el support usa la evidencia sin recencia (LineIndex.weight(..., false) → \"evidence\"). Resultado: 17/18 a 0, 30 y 365 días; a 0 días las métricas son idénticas a las de antes. Umbral y piso de recencia sin tocar. D27 actualizada en decisions.md.",
   "order": 7,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "completado"
   ],
-  "test": "",
+  "test": "run_all completion: 50 tests 0 fallas; test_completion_local: «una sola aparición en un proyecto viejo alcanza» (falla sin el cambio) y evidence = 6.0 con raw = 5.5; test_completion_eval con edad fija 0. run_completion_eval --age=0/30/365: 17 exactas, 18 correctas, 2 FP en los tres.",
   "title": "Una línea que aparece una vez deja de sugerirse a los ~9 días",
-  "updated_at": "2026-10-31T04:37:56.716Z"
+  "updated_at": "2026-10-31T06:42:27.780Z"
 }

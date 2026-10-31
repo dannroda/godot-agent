@@ -118,6 +118,22 @@ func _find(id: String) -> Control:
 	return null
 
 
+## Dónde mandar un movimiento relativo del mouse (mirar en primera persona): `preferred`, salvo que
+## haya encima un control que frena el mouse, porque la GUI lo atiende y el juego no lo ve; entonces
+## otro punto libre del viewport. Un clic previo deja el mouse sobre un botón o un overlay.
+static func free_point(viewport: Viewport, preferred: Vector2) -> Vector2:
+	var size := viewport.get_visible_rect().size
+	var stoppers: Array[Control] = []
+	for node: Node in viewport.find_children("*", "Control", true, false):
+		var control := node as Control
+		if control.mouse_filter == Control.MOUSE_FILTER_STOP and control.get_viewport() == viewport and control.is_visible_in_tree():
+			stoppers.append(control)
+	for point: Vector2 in [preferred, size / 2.0, size * Vector2(0.5, 0.9), size * Vector2(0.9, 0.5), size * Vector2(0.9, 0.9), size * Vector2(0.1, 0.9)]:
+		if not stoppers.any(func(control: Control) -> bool: return Rect2(Vector2.ZERO, control.size).has_point(control.get_global_transform_with_canvas().affine_inverse() * point)):
+			return point
+	return preferred
+
+
 ## Un clic con movimiento antes, adentro del viewport y en sus coordenadas (vale con stretch).
 func _push_mouse(control: Control, button: MouseButton, double := false) -> void:
 	var viewport := control.get_viewport()

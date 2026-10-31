@@ -16,23 +16,22 @@ static func is_registered() -> bool:
 
 
 ## Alta, justo antes de correr (EditorPlugin._build). El juego es otro proceso que lee
-## project.godot del disco, y add_autoload_singleton no guarda: se guarda acá.
-static func register(plugin: EditorPlugin) -> void:
+## project.godot del disco: alcanza con el setting guardado. No pasa por add_autoload_singleton, que
+## arma una acción de deshacer y actualiza la lista de autoloads del editor en medio del play; en 4.7
+## eso corrompía una lista del editor (`List::erase`, «p_I->data != this») y después de varios runs el
+## editor se caía (m16-08).
+static func register(_plugin: EditorPlugin) -> void:
 	if not is_registered():
-		plugin.add_autoload_singleton(NAME, SCRIPT_PATH)
+		ProjectSettings.set_setting(SETTING, "*" + SCRIPT_PATH)
 	ProjectSettings.save()
 
 
 ## Quita el autoload si está registrado. Devuelve true si había algo que quitar.
-static func unregister(plugin: EditorPlugin) -> bool:
+static func unregister(_plugin: EditorPlugin) -> bool:
 	if not is_registered():
 		return false
-	plugin.remove_autoload_singleton(NAME)
-	# Durante un export (y con autoloads que el editor no llegó a cargar) remove_autoload_singleton
-	# no borra la entrada en el momento: se borra a mano para que no llegue a project.binary.
-	if is_registered():
-		ProjectSettings.set_setting(SETTING, null)
-	ProjectSettings.save()  # remove_autoload_singleton tampoco guarda
+	ProjectSettings.set_setting(SETTING, null)
+	ProjectSettings.save()
 	return true
 
 

@@ -182,7 +182,7 @@ func query(prefix: String, path: String, max_scan: int) -> Array[Dictionary]:
 		var key := keys[i]
 		if key.length() == prefix_length:
 			continue
-		out.append({"rest": key.substr(prefix_length), "raw": weight(positions[i], path), "positions": positions[i]})
+		out.append({"rest": key.substr(prefix_length), "raw": weight(positions[i], path), "evidence": weight(positions[i], path, false), "positions": positions[i]})
 	return out
 
 
@@ -207,7 +207,7 @@ func next_lines(line: String, path: String, max_scan: int) -> Array[Dictionary]:
 		group.append(next)
 	for group_key: String in groups:
 		var next_positions := PackedInt32Array(groups[group_key])
-		out.append({"text": group_key.get_slice("\u0001", 1), "delta": group_key.get_slice("\u0001", 0).to_int(), "raw": weight(next_positions, path), "positions": next_positions})
+		out.append({"text": group_key.get_slice("\u0001", 1), "delta": group_key.get_slice("\u0001", 0).to_int(), "raw": weight(next_positions, path), "evidence": weight(next_positions, path, false), "positions": next_positions})
 	return out
 
 
@@ -269,8 +269,9 @@ func adapt(prefix: String, path: String, max_scan: int) -> Array[Dictionary]:
 			if rest.strip_edges().is_empty():
 				continue
 			rest = substitute(rest, old, ident)
-			var entry: Dictionary = by_rest.get_or_add(rest, {"rest": rest, "raw": 0.0, "positions": PackedInt32Array()})
+			var entry: Dictionary = by_rest.get_or_add(rest, {"rest": rest, "raw": 0.0, "evidence": 0.0, "positions": PackedInt32Array()})
 			entry.raw = float(entry.raw) + weight(positions[key_index], path)
+			entry.evidence = float(entry.evidence) + weight(positions[key_index], path, false)
 			var merged: PackedInt32Array = entry.positions
 			merged.append_array(positions[key_index])
 			entry.positions = merged
@@ -297,13 +298,14 @@ static func _replace_word(text: String, old: String, new: String, before: String
 	return re.sub(text, new, true)
 
 
-## Σ cercanía × recencia de las posiciones (pares [archivo, posición]) respecto de `path`.
-func weight(pairs: PackedInt32Array, path: String) -> float:
+## Σ cercanía × recencia de las posiciones (pares [archivo, posición]) respecto de `path`. Sin
+## `recent`, solo cercanía: la evidencia, que no baja porque el proyecto envejezca (m16-07).
+func weight(pairs: PackedInt32Array, path: String, recent: bool = true) -> float:
 	var current_id: int = _file_ids.get(path, -1)
 	var current_dir := path.get_base_dir()
 	var raw := 0.0
 	for j in range(0, pairs.size(), 2):
 		var file_id := pairs[j]
 		var closeness := 3.0 if file_id == current_id else (2.0 if _dirs[file_id] == current_dir else 1.0)
-		raw += closeness * _recency[file_id]
+		raw += closeness * (_recency[file_id] if recent else 1.0)
 	return raw

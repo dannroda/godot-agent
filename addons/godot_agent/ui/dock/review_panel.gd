@@ -17,6 +17,7 @@ const ReviewStore := preload("../../review/review_store.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const GithubReviews := preload("../../core/github_reviews.gd")
 const EditorContext := preload("../editor_context.gd")
+const EditorWindows := preload("../editor_windows.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
 const PlaytestMemory := preload("../../review/playtest_memory.gd")
@@ -289,7 +290,7 @@ func _on_github_import_requested() -> void:
 	dialog.confirmed.connect(func() -> void: _import_github_review(number.text))
 	dialog.visibility_changed.connect(func() -> void:
 		if not dialog.visible:
-			dialog.queue_free.call_deferred())
+			EditorWindows.free_later.call_deferred(dialog))
 	add_child(dialog)
 	dialog.popup_centered()
 	number.grab_focus()
@@ -348,7 +349,7 @@ func _on_playtest_requested() -> void:
 			_start_playtest(goal.text, record.button_pressed, int(minutes.value)))
 	dialog.visibility_changed.connect(func() -> void:
 		if not dialog.visible:
-			dialog.queue_free.call_deferred())
+			EditorWindows.free_later.call_deferred(dialog))
 	add_child(dialog)
 	dialog.popup_centered()
 	goal.grab_focus()

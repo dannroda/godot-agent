@@ -1,0 +1,6 @@
+{
+	"goal": "Start can be pressed (checks only that a node exists)",
+	"scene": "res://tests/fixtures/playtest_game/playtest_game.tscn",
+	"code": "func run(game):\n\tawait game.press(\"ui_accept\")\n\treturn game.node(\"HUD/Flash\") != null",
+	"sabotage": "func run(game):\n\tgame.node(\"HUD/Menu/Start\").disabled = true"
+}

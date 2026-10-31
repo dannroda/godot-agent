@@ -8,6 +8,7 @@ const SessionModel := preload("../session/session_model.gd")
 const SessionController := preload("../session/session_controller.gd")
 const ChatEntry := preload("../session/chat_entry.gd")
 const TurnSnapshots := preload("../session/turn_snapshots.gd")
+const EditorWindows := preload("editor_windows.gd")
 const TurnReport := preload("../session/turn_report.gd")
 const DiffDialog := preload("diff_dialog.gd")
 const TurnChangesDialog := preload("turn_changes_dialog.gd")
@@ -72,7 +73,7 @@ func confirm_restore(data: Dictionary) -> void:
 	confirm.confirmed.connect(restore.bind(data))
 	confirm.visibility_changed.connect(func() -> void:
 		if not confirm.visible:
-			confirm.queue_free.call_deferred())
+			EditorWindows.free_later.call_deferred(confirm))
 	EditorInterface.get_base_control().add_child(confirm)
 	confirm.popup_centered()
 

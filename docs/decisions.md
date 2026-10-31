@@ -344,7 +344,7 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Recuperación**: las líneas normalizadas (sin indentación y con los espacios colapsados) se ordenan. Las que empiezan con lo escrito forman un rango, que se encuentra con `bsearch`.
   - Si el rango tiene más de 400 líneas, el prefijo es ambiguo y no se sugiere nada.
   - Puntaje: `raw` = Σ ocurrencias × cercanía (mismo archivo 3, misma carpeta 2, resto 1) × recencia del archivo (0,5 a 1, con semivida de 7 días).
-  - El puntaje final es `raw/Σraw × (1 − e^(−raw/1,5))`. El segundo factor exige evidencia: una línea que aparece una sola vez en otro archivo no llega al umbral (0,49 < 0,5), aunque sea la única opción. Dos apariciones, o una en el mismo archivo, sí. **M8b bajó la escala a 1** (una aparición lejana da 0,63 y alcanza): ver D27.
+  - El puntaje final es `raw/Σraw × (1 − e^(−raw/1,5))`. El segundo factor exige evidencia: una línea que aparece una sola vez en otro archivo no llega al umbral (0,49 < 0,5), aunque sea la única opción. Dos apariciones, o una en el mismo archivo, sí. **M8b bajó la escala a 1** (una aparición lejana da 0,63 y alcanza): ver D27. **m16-07**: la recencia solo entra en `raw/Σraw`; el segundo factor se calcula con la evidencia sin recencia (Σ cercanía), porque con la recencia una aparición lejana dejaba de alcanzar cuando su archivo pasaba de una semana (en el set de evaluación con todos los archivos a 365 días: 14 exactas en vez de 17).
 - **Ranker**:
   - Una regla que aplica gana sin pasar por el margen. Sus candidatos ya vienen ordenados (por ejemplo, el primer hijo no declarado).
   - Para el resto: umbral 0,5 y margen 0,12 sobre el primer rival.

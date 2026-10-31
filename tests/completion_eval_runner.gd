@@ -62,10 +62,14 @@ func load_cases() -> void:
 ## Corre las combinaciones sobre todos los casos. Devuelve {combos: [{sources, metrics, by_source,
 ## outcomes}]} con un outcome por caso: {file, line, cut, expected, got, source, exact, correct}.
 ## `configure`: se llama con cada proveedor antes de correr (para probar umbrales).
-func run(combos: Array[PackedStringArray] = parse_combos(DEFAULT_COMBOS), configure: Callable = Callable()) -> Dictionary:
+## `age_days`: edad de todos los archivos del proyecto, contada desde el más nuevo (la recencia baja con
+## la edad); -1 usa la hora real, y entonces el resultado depende de cuándo se copió el repo.
+func run(combos: Array[PackedStringArray] = parse_combos(DEFAULT_COMBOS), configure: Callable = Callable(), age_days: float = -1.0) -> Dictionary:
 	var context := ProjectContext.new()
 	context.root = PROJECT
 	context.settings_file = PROJECT + "/project_settings.cfg"
+	if age_days >= 0.0:
+		context.fixed_now = newest_mtime(PROJECT) + age_days * 86400.0
 	context.build_now()
 	var providers: Array[LocalProvider] = []
 	var results: Array[Dictionary] = []
@@ -96,6 +100,16 @@ func run(combos: Array[PackedStringArray] = parse_combos(DEFAULT_COMBOS), config
 		entry.metrics = _metrics(entry.outcomes, entry.latencies)
 		entry.by_source = _by_source(entry.outcomes)
 	return {"combos": results}
+
+
+static func newest_mtime(dir: String) -> float:
+	var newest := 0.0
+	for name: String in DirAccess.get_files_at(dir):
+		if name.get_extension() == "gd":
+			newest = maxf(newest, FileAccess.get_modified_time(dir.path_join(name)))
+	for sub: String in DirAccess.get_directories_at(dir):
+		newest = maxf(newest, newest_mtime(dir.path_join(sub)))
+	return newest
 
 
 ## "a+b c" -> [["a", "b"], ["c"]]

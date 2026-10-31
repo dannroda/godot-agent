@@ -1,0 +1,6 @@
+{
+	"goal": "The player jumps",
+	"scene": "res://tests/fixtures/playtest_game/playtest_game.tscn",
+	"code": "func run(game):\n\tawait game.wait(0.3)\n\tvar top = 0.0\n\tvar start = game.player().position.y\n\tgame.hold(\"ui_accept\")\n\tfor i in 40:\n\t\tawait game.wait_frames(1)\n\t\ttop = max(top, game.player().position.y - start)\n\tgame.release(\"ui_accept\")\n\treturn top > 0.5",
+	"sabotage": "func run(game):\n\tgame.player().set_physics_process(false)"
+}

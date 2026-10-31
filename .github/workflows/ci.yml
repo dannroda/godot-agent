@@ -44,6 +44,10 @@ jobs:
       - name: One-shot loop
         run: ~/godot/godot --headless --path . --script tests/oneshot_check.gd
 
+      # Playtests guardados, repetidos sin el editor ni el agente (m16-09).
+      - name: Regressions from the command line
+        run: sh tests/regressions_cli_check.sh ~/godot/godot
+
       # Habilitar y deshabilitar el plugin 5 veces sin huérfanos ni recursos colgados (m13-10).
       # scope_compass (el tablero) no está en el repo.
       - name: Plugin enable/disable cycle

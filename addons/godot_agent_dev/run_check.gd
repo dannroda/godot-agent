@@ -18,6 +18,7 @@ const QUITS_SCENE := "res://tests/fixtures/run_quits.tscn"
 const GAME_SCENE := "res://tests/fixtures/playtest_game/playtest_game.tscn"
 const PlaytestMemory := preload("res://addons/godot_agent/review/playtest_memory.gd")
 const FlipbookDialog := preload("res://addons/godot_agent/ui/flipbook_dialog.gd")
+const EditorWindows := preload("res://addons/godot_agent/ui/editor_windows.gd")
 const RunTools := preload("res://addons/godot_agent/mcp/tools/run_tools.gd")
 const PlaytestRegressions := preload("res://addons/godot_agent/review/playtest_regressions.gd")
 ## Argumentos extra para el juego (p. ej. "--rendering-driver opengl3" bajo Xvfb, sin GPU).
@@ -25,6 +26,7 @@ const RUN_ARGS_ENV := "GODOT_AGENT_TEST_RUN_ARGS"
 const RUN_ARGS_SETTING := "editor/run/main_run_args"
 
 var _dock: Node
+var _run_tools: Object
 
 
 func run_run(tree: SceneTree) -> PackedStringArray:
@@ -40,6 +42,7 @@ func run_run(tree: SceneTree) -> PackedStringArray:
 			model = node.get(&"_model")
 		elif script and script.resource_path == "res://addons/godot_agent/plugin.gd":
 			plugin_config = node.get(&"_project_config")
+			_run_tools = node.get(&"_run_tools")
 	if _server == null or model == null:
 		failures.append("no se encontró el server o el modelo")
 		return failures
@@ -50,10 +53,19 @@ func run_run(tree: SceneTree) -> PackedStringArray:
 	var manual_runs: bool = plugin_config.get(&"playtest_on_manual_runs") if plugin_config else false
 	if plugin_config:
 		plugin_config.set(&"playtest_on_manual_runs", false)
+	var scripts_before := _script_times("res://addons/godot_agent")
 	await _check_runs(model)
+	# Un script del addon que el editor guarda a mitad de camino se recarga bajo las corrutinas que lo
+	# están corriendo, y el editor se cae (m16-08).
+	var scripts_after := _script_times("res://addons/godot_agent")
+	for path: String in scripts_before:
+		if scripts_after.get(path) != scripts_before[path]:
+			failures.append("el editor reescribió %s durante el test" % path)
 	if plugin_config:
 		plugin_config.set(&"playtest_on_manual_runs", manual_runs)
 	ProjectSettings.set_setting(RUN_ARGS_SETTING, previous_args)
+	# El play guarda project.godot con los argumentos de Xvfb puestos: sin esto quedan en el archivo.
+	ProjectSettings.save()
 	return failures
 
 
@@ -181,7 +193,6 @@ func _check_live_game() -> void:
 
 ## El juego con bugs plantados (M13).
 func _check_playtest_game() -> void:
-	await _check_regressions()
 	await _call_text("stop_scene", {})
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_agent/playtests"))
 	var photos_before := DirAccess.get_files_at("res://.godot_agent/playtests")
@@ -289,7 +300,11 @@ func _check_playtest_game() -> void:
 		var player: Node = EditorInterface.get_base_control().get_children().filter(func(node: Node) -> bool: return node.get_script() == FlipbookDialog).back()
 		await _tree.create_timer(0.5).timeout
 		_expect(player.get(&"_index") > 0 and (player.get(&"_picture") as TextureRect).texture != null, "el reproductor avanza y muestra")
+		# Liberarlo abierto y lanzar el juego en el mismo frame hacía caer el editor: era exclusivo y el
+		# ProgressDialog se iba con él (m16-08).
 		player.queue_free()
+		await _check_regressions()
+		await _check_progress_rescue()
 
 	# Un breakpoint sí frena, aunque el run siga después de los errores (m16-05).
 	var stopped_at: Dictionary = await _call("game_call", {"path": "", "method": "stop_here"})
@@ -300,9 +315,39 @@ func _check_playtest_game() -> void:
 	await _call_text("stop_scene", {})
 
 
+## Un diálogo exclusivo abierto mientras el editor muestra un progreso se queda con el ProgressDialog;
+## al liberarlo con EditorWindows lo devuelve y el progreso siguiente no se cae (m16-08). El progreso
+## sale de un reimport: el de play_custom_scene no aparece siempre (en 4.8 no).
+func _check_progress_rescue() -> void:
+	var png := "res://tests/tmp/progress_probe.png"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(png.get_base_dir()))
+	Image.create(4, 4, false, Image.FORMAT_RGBA8).save_png(png)
+	var dialog := ConfirmationDialog.new()
+	EditorInterface.get_base_control().add_child(dialog)
+	dialog.popup_centered()
+	await _tree.process_frame
+	EditorInterface.get_resource_filesystem().reimport_files([png])
+	var caught := dialog.find_children("*", "ProgressDialog", true, false).size()
+	dialog.hide()
+	EditorWindows.free_later(dialog)
+	await _tree.process_frame
+	_expect(caught == 1, "el diálogo exclusivo se quedó con el ProgressDialog del reimport")
+	_expect(_tree.root.find_children("*", "ProgressDialog", true, false).size() == 1, "el ProgressDialog sigue en el editor después de liberar el diálogo")
+	EditorInterface.get_resource_filesystem().reimport_files([png])
+	var again := await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 0.5, "continue_on_error": true})
+	_expect(again.contains("Now in the game"), "después, el juego vuelve a arrancar · " + again.left(200))
+	for file: String in [png, png + ".import"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(file))
+
+
 ## Repetir playtests guardados sin agente (m16-06), por el mismo camino que el botón del panel. Reinicia el juego.
 func _check_regressions() -> void:
 	var regressions := PlaytestRegressions.new()
+	# Las que ya había (de la suite real o de quien lo corre) se apartan: el panel corre todas.
+	var stash := ProjectSettings.globalize_path("user://regressions_stash")
+	DirAccess.make_dir_recursive_absolute(stash)
+	for entry: Dictionary in regressions.list():
+		DirAccess.rename_absolute(ProjectSettings.globalize_path(entry.file), stash.path_join(str(entry.file).get_file()))
 	regressions.save("start works", GAME_SCENE, "func run(game):\n\tawait game.press(\"ui_accept\")\n\treturn game.node(\"HUD/Flash\") != null")
 	regressions.save("basket is full", GAME_SCENE, "func run(game):\n\treturn game.node(\"\").basket == 10")
 	var model: Object = _dock.get(&"_model")
@@ -318,7 +363,25 @@ func _check_regressions() -> void:
 	_expect(not EditorInterface.is_playing_scene(), "regresiones: el juego queda cerrado")
 	for entry: Dictionary in regressions.list():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(entry.file))
+	for name: String in DirAccess.get_files_at(stash):
+		DirAccess.rename_absolute(stash.path_join(name), ProjectSettings.globalize_path(regressions.base).path_join(name))
+	# Con el sabotaje puesto (m16-09): la que mira el contador del botón detecta que está roto; la que
+	# solo mira que exista un nodo pasa igual.
+	for fixture: Array in [["pass/start.json", true], ["vacuous/flash.json", false]]:
+		var entry: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/regressions/" + fixture[0]))
+		var sabotaged: Dictionary = await _run_tools.call(&"run_regression", entry, entry.sabotage)
+		_expect(PlaytestRegressions.detects(sabotaged.output) == fixture[1], "regresión con sabotaje, %s: detecta = %s · %s" % [fixture[0], fixture[1], str(sabotaged.output).left(200)])
 	await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 1, "continue_on_error": true})
+
+
+## ruta → fecha de modificación de los .gd de una carpeta, recursivo.
+static func _script_times(dir: String, into: Dictionary = {}) -> Dictionary:
+	for name: String in DirAccess.get_files_at(dir):
+		if name.get_extension() == "gd":
+			into[dir.path_join(name)] = FileAccess.get_modified_time(dir.path_join(name))
+	for sub: String in DirAccess.get_directories_at(dir):
+		_script_times(dir.path_join(sub), into)
+	return into
 
 
 static func _number_of(text: String, property: String) -> int:

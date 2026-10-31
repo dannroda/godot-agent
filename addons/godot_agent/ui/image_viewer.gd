@@ -7,6 +7,7 @@ extends AcceptDialog
 
 const AgentTheme := preload("agent_theme.gd")
 const I18n := preload("../core/i18n.gd")
+const EditorWindows := preload("editor_windows.gd")
 
 const MIN_ZOOM := 0.05
 const MAX_ZOOM := 16.0
@@ -64,7 +65,7 @@ func _init() -> void:
 	exclusive = false
 	visibility_changed.connect(func() -> void:
 		if not visible:
-			queue_free()
+			EditorWindows.free_later(self)
 	)
 	var column := VBoxContainer.new()
 	add_child(column)

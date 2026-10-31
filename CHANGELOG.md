@@ -4,6 +4,17 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- Saved playtest regressions run from the command line, for CI: `godot --headless --path . --script res://addons/godot_agent/playtest/regression_cli.gd`. A regression can carry a `sabotage` script that breaks what it checks; it then has to fail with it, or it counts as not detecting the bug.
+
+### Fixed
+
+- The editor could crash when a dialog of the add-on (such as the recording player or a confirmation) was open while the editor showed a progress bar: running the game, or reimporting files the agent wrote.
+- On Godot 4.7, running the game several times from the agent could crash the editor: the playtest autoload no longer goes through the editor's autoload list.
+- `look_at` in `game_script` said the view didn't turn when the mouse had been left over a button by an earlier click.
+- Inline completion stopped suggesting a line that appears once elsewhere in the project once its file was about a week old.
+
 ## [0.1.13] - 2026-10-31
 
 ### Added

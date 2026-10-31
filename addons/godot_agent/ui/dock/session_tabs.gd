@@ -15,6 +15,7 @@ const NAME_MAX := 40
 
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
+const EditorWindows := preload("../editor_windows.gd")
 const SessionModel := preload("../../session/session_model.gd")
 
 var _bar: TabBar
@@ -130,6 +131,7 @@ func remove_session(id: String) -> void:
 	_toasted.erase(id)
 	_bar.remove_tab(index)
 	_row.visible = _ids.size() > 1
+	EditorWindows.rescue_progress(dock)
 	_stack.remove_child(dock)
 	dock.queue_free()
 	_on_tab_changed(_bar.current_tab)

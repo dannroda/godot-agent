@@ -4241,7 +4241,7 @@ El AVI solo llega como una ruta y obliga a cerrar el juego. Flipbook (ui/widgets
 
 **Bloqueada por:** 13.22 Búfer de frames recientes
 
-## M14 — Playtesting confiable y regresiones  (6/8, 6 en revisión)
+## M14 — Playtesting confiable y regresiones  (9/9, 9 en revisión)
 
 Validar M13 con un agente real y en CI, cerrar lo que aún puede engañar (evaluador sin controlar, breakpoints salteados) y convertir un playtest que pasó en un test de regresión que corre sin agente.
 
@@ -4276,9 +4276,9 @@ Las herramientas de M13 solo corrieron en local con 4.7.2.
 
 tests/playtest_suite.json nunca se corrió: manda cada pedido a un agente real y compara con el resultado esperado. Gasta cuota, fuera de CI.
 
-**Prueba:** tests/run_in_xvfb.sh <godot> --godot-agent-claude-playtest-suite: 7/7 con Claude Code real (2026-10-31), unos 40k tokens de salida en total.
+**Prueba:** tests/run_in_xvfb.sh <godot> --godot-agent-claude-playtest-suite: 7/7 con Claude Code real en 4.7.2, fixture sin pistas; regresiones 2 de 2, repetidas sin agente y detectando su sabotaje. 25 a 63 s por pedido.
 
-**Notas:** Encontró dos bugs de v0.1.12 que el agente falso no ve: el modo plan trababa el Playtest y el static var del tope de tiempo hacía caer el editor al segundo run_scene. También _busy trabado tras un error interno. Causa del static var no entendida a fondo: se reproduce escribiéndolo desde otro script y se fue al sacarlo. Salvedad de los 7/7: los comentarios del fixture decían «Bug plantado» y el agente los leyó; ya se sacaron, sin volver a correr la suite.
+**Notas:** Encontró dos bugs de v0.1.12 que el agente falso no ve: el modo plan trababa el Playtest y el static var del tope de tiempo hacía caer el editor al segundo run_scene. También _busy trabado tras un error interno. La causa del static var quedó entendida en m16-08 (el set marca el recurso GDScript como editado y el play lo reescribe y recarga). Salvedad resuelta: sin los comentarios «Bug plantado» en el fixture, la suite completa volvió a dar 7/7 (2026-10-31), y las dos regresiones que dejó el agente (A, E) pasan sin él y fallan con el sabotaje de cada pedido (m16-09).
 
 ### 14.4 Controlar al evaluador del One-shot · Revisión
 
@@ -4310,14 +4310,47 @@ Un playtest que pasó deja su game_script: volver a correrlo sin agente da regre
 
 **Notas:** review/playtest_regressions.gd. El agente deja `regression` en su JSON al pasar; run_tools.run_regression lo corre con game_script. Solo desde el editor: correrlas en CI por línea de comandos no está hecho, porque el probe necesita el debugger del editor. Un script puede no fallar nunca si está mal escrito: nadie revisa que detecte el bug.
 
-### 14.7 Una línea que aparece una vez deja de sugerirse a los ~9 días · Pendiente
+### 14.7 Una línea que aparece una vez deja de sugerirse a los ~9 días · Revisión
 
 **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `completado`
 
 Lo destapó m16-01: con recencia 0.5 + 0.5·exp(-días/7), una línea de una sola aparición en otra carpeta queda bajo el umbral cuando su archivo envejece. D27 dice que una sola aparición alcanza. Decidir si el umbral o el piso de recencia cambian, midiendo con tests/completion_eval.
 
-### 14.8 El editor se cae al correr regresiones tras una secuencia larga de pruebas · Pendiente
+**Decisiones:**
+- ! La recencia ya no entra en la evidencia (support); umbral y piso de recencia quedan igual · sin revisar
+  Por qué: La recencia sirve para preferir lo que se está tocando frente a otros candidatos, no para decidir si hay evidencia. Medido: con el proyecto envejecido vuelve a 17/18 sin cambiar nada a 0 días.
+  Descartado: Bajar el umbral (sube los falsos positivos en todos los casos); subir el piso de recencia a ~0,7 (la recencia casi deja de distinguir); recencia relativa al archivo más nuevo (un archivo viejo en un proyecto activo sigue sin alcanzar).
+
+**Prueba:** run_all completion: 50 tests 0 fallas; test_completion_local: «una sola aparición en un proyecto viejo alcanza» (falla sin el cambio) y evidence = 6.0 con raw = 5.5; test_completion_eval con edad fija 0. run_completion_eval --age=0/30/365: 17 exactas, 18 correctas, 2 FP en los tres.
+
+**Notas:** Medido con tests/completion_eval y `--age=N` nuevo (todos los archivos con N días desde el más nuevo; sin eso el eval dependía de cuándo se copió el repo). Antes, rule+retrieval+ngram: 17 exactas / 18 correctas a 0 días, 14 / 16 a 30 y a 365 días. La cuenta: support = 1 − e^(−raw) y una aparición lejana da raw = recencia, que baja de ln 2 a los ~7 días. El envejecimiento parejo no cambia las proporciones entre candidatos: solo apagaba el umbral, contra D27.
+Cambio: la recencia queda solo en raw/Σraw (desempata entre archivos de distinta edad) y el support usa la evidencia sin recencia (LineIndex.weight(..., false) → "evidence"). Resultado: 17/18 a 0, 30 y 365 días; a 0 días las métricas son idénticas a las de antes. Umbral y piso de recencia sin tocar. D27 actualizada en decisions.md.
+
+### 14.8 El editor se cae al correr regresiones tras una secuencia larga de pruebas · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `playtest`, `bug`
 
 Se reproduce siempre: en run_check, llamar _check_regressions al final de _check_playtest_game (después de pausa, game_script, watch, frames y el reproductor). Antes del SIGSEGV aparecen errores progress_dialog.cpp «!tasks.has(p_task)» dentro de play_custom_scene, y el stack de GDScript mezcla corrutinas: parece una iteración anidada mientras se lanza el juego, que reanuda corrutinas. No se cae con un run_scene por HTTP en ese mismo punto, ni con las regresiones al principio. El check se movió al principio para no tapar el resto: esto sigue sin resolver. Puede ser la misma causa de fondo que la caída que se fue al sacar el static var de run_tools.gd.
+
+**Prueba:** run-test con las regresiones al final, justo después de liberar el reproductor (el orden que se caía siempre), check de rescate con reimport y regresiones con sabotaje: 0 fallas y sin «p_I->data» en 4.7.2 y 4.8-beta2. Sin los arreglos: SIGSEGV. review-test 0, run_all 396/0, plugin_cycle_check, export_check y crash_check bien.
+
+**Notas:** Eran tres causas, todas en 4.7.2.
+1) ProgressDialog. ProgressDialog::_reparent_and_show() de Godot (4.7.2 y master) cuelga el ProgressDialog del editor de la última ventana exclusiva y no lo devuelve. El reproductor de filmaciones era exclusivo y el test lo liberaba en el mismo frame en que las regresiones lanzaban el juego; la iteración anidada del progreso procesaba ese queue_free y se llevaba puesto al ProgressDialog («!tasks.has(p_task)» y SIGSEGV). No dependía de la secuencia larga. En uso real pasa con cualquier diálogo nuestro abierto mientras el editor muestra un progreso (play, reimport por archivos del agente). Arreglo: ui/editor_windows.gd (free_later / rescue_progress) en los diálogos que se liberan solos y en _exit_tree del plugin; el reproductor ya no es exclusivo.
+2) Autoload de playtest. add_autoload_singleton/remove_autoload_singleton en _build() y al arrancar o parar el juego pasan por el UndoRedo y update_autoload del editor; en 4.7.2 cada play después del primero imprimía «List::erase: p_I->data != this» (lista del editor corrupta, no en 4.8) y tras varios runs el editor se caía. Aislado con experimentos: play/stop puro sin el probe no lo da; con el probe sí, en cada play. Ahora el alta y la baja son ProjectSettings.set_setting + save (el juego lee project.godot del disco). crash_check y export_check siguen bien.
+3) static var de m16-03, otra causa ya entendida: asignar RunTools.playtest_deadline_ms desde otro script es un set sobre el recurso GDScript, que en el editor lo marca como editado; el play siguiente guarda los recursos editados, reescribe run_tools.gd (mtime cambiado durante el test) y lo recarga con _run_scene a mitad de camino. Reproducido con la versión vieja. Ahora run-test falla si el editor reescribe algún .gd del addon.
+De paso: look_at fallaba en 4.8 en la copia local porque game.mouse() mandaba el movimiento donde había quedado el mouse tras un clic (sobre HUD/Overlay) y la GUI se lo comía; GameUi.free_point lo manda a un punto libre (también el paso look del probe). Y los checks ya no dejan main_run_args guardado en project.godot.
+
+### 14.9 Regresiones por línea de comandos y control de que detectan el bug · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `playtest`
+
+Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el probe necesitaba el debugger), y nadie comprobaba que el script del agente detecte el bug (uno mal escrito pasa siempre).
+
+**Decisiones:**
+- ! El control de "detecta el bug" es un sabotaje escrito a mano (suite y fixtures); al agente no se le pide escribir uno · sin revisar
+  Por qué: Pedirle al agente el sabotaje suma tokens y cambia el prompt del playtest, que habría que volver a medir; y un sabotaje del agente puede ser tan vacío como su script. La suite mide si sus regresiones discriminan.
+  Descartado: Pedir `sabotage` en el JSON del agente y verificarlo al guardar; heurística de correr el script sin inputs (falla con invariantes que no necesitan jugar).
+
+**Prueba:** tests/regressions_cli_check.sh (paso nuevo en CI): pass → 0, fail → 1, vacuous (pasa también con el sabotaje) → 1, en 4.7.2 y 4.8-beta2. run-test: con el sabotaje, la de start detecta y la vacía no. test_review_store: detects.
+
+**Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.

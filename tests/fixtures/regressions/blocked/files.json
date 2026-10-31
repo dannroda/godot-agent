@@ -1,0 +1,5 @@
+{
+	"goal": "A saved script that writes a file",
+	"scene": "res://tests/fixtures/playtest_game/playtest_game.tscn",
+	"code": "func run(game):\n\tFileAccess.open(\"res://tests/tmp/blocked_regression.txt\", FileAccess.WRITE)\n\treturn true"
+}

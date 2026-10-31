@@ -1,0 +1,5 @@
+{
+	"goal": "The basket starts full",
+	"scene": "res://tests/fixtures/playtest_game/playtest_game.tscn",
+	"code": "func run(game):\n\treturn game.node(\"\").basket == 10"
+}

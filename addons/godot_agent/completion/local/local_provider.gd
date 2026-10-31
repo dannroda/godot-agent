@@ -178,7 +178,9 @@ func _scored(found: Array[Dictionary], weight: float) -> Array[Dictionary]:
 		total += float(entry.raw)
 	for entry: Dictionary in found:
 		var raw := float(entry.raw)
-		var support := 1.0 - exp(-raw / support_scale)
+		# La recencia reparte entre candidatos; cuánta evidencia hay no depende de la edad de los
+		# archivos: si no, una línea que aparece una vez dejaba de sugerirse a la semana (m16-07).
+		var support := 1.0 - exp(-float(entry.get("evidence", raw)) / support_scale)
 		out.append({"text": "", "score": raw / total * support * weight if total > 0.0 else 0.0, "source": SOURCE_RETRIEVAL})
 	return out
 
