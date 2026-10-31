@@ -18,6 +18,7 @@ const QUITS_SCENE := "res://tests/fixtures/run_quits.tscn"
 const GAME_SCENE := "res://tests/fixtures/playtest_game/playtest_game.tscn"
 const PlaytestMemory := preload("res://addons/godot_agent/review/playtest_memory.gd")
 const FlipbookDialog := preload("res://addons/godot_agent/ui/flipbook_dialog.gd")
+const RunTools := preload("res://addons/godot_agent/mcp/tools/run_tools.gd")
 ## Argumentos extra para el juego (p. ej. "--rendering-driver opengl3" bajo Xvfb, sin GPU).
 const RUN_ARGS_ENV := "GODOT_AGENT_TEST_RUN_ARGS"
 const RUN_ARGS_SETTING := "editor/run/main_run_args"
@@ -179,7 +180,12 @@ func _check_live_game() -> void:
 
 ## El juego con bugs plantados (M13).
 func _check_playtest_game() -> void:
+	# Con tope de tiempo, como un Playtest: el segundo run_scene con tope hacía caer el editor (m16-03).
+	RunTools.set_playtest_deadline(Time.get_ticks_msec() + 300000)
+	await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 1, "continue_on_error": true, "film_fps": 5})
 	var ran := await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 3.5, "continue_on_error": true, "film_fps": 5})
+	_expect(ran.contains("Playtest time left"), "run_scene: dice cuánto queda · " + ran.right(200))
+	RunTools.set_playtest_deadline(0)
 	_expect(ran.contains("Now in the game") and ran.contains("Player: /root/PlaytestGame/Player") and ran.contains("HUD.Basket") and ran.contains("Filming: res://"), "run_scene: foto de lo que hay · " + ran.left(900))
 	var found := await _call_text("game_find", {"class": "CharacterBody3D"})
 	_expect(found.contains("/root/PlaytestGame/Player"), "game_find por clase · " + found)

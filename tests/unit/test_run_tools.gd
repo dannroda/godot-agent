@@ -81,6 +81,12 @@ func test_blocked_api() -> void:
 	assert_false(RunTools.blocked_api("get_viewport().get_texture().get_image().save_png('a.png')").is_empty(), "escribir una imagen")
 
 
+## m16-03: un run_scene que murió no bloquea a los siguientes para siempre.
+func test_busy_expires() -> void:
+	assert_false(RunTools.busy_is_stale(1000, 1000 + int(RunTools.MAX_SECONDS * 1000.0)), "uno largo sigue en curso")
+	assert_true(RunTools.busy_is_stale(1000, 1000 + 3600000), "una hora después ya no")
+
+
 ## m15-22: frames repartidos en la ventana pedida.
 func test_pick_frames() -> void:
 	var frames: Array[Dictionary] = []

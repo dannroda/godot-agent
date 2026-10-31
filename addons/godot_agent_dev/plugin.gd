@@ -86,6 +86,9 @@ const REVIEW_ARG := "--godot-agent-review-test"
 const CLAUDE_REVIEW_ARG := "--godot-agent-claude-review-test"
 const ONESHOT_ARG := "--godot-agent-oneshot-test"
 const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
+## m16-03: tests/playtest_suite.json con Claude Code real (gasta tokens). Con =A,B, solo esos pedidos.
+const CLAUDE_PLAYTEST_ARG := "--godot-agent-claude-playtest-suite"
+const PlaytestSuiteCheck := preload("playtest_suite_check.gd")
 const LONG_ARG := "--godot-agent-long-test"
 const SETTINGS_ARG := "--godot-agent-settings-shots="
 ## m7-37: abre Extensions desde el dock con el CLI real (solo lectura) y saca una captura por pestaña.
@@ -174,6 +177,9 @@ func _enter_tree() -> void:
 		_run_remote_test.call_deferred()
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
+	for arg: String in args:
+		if arg == CLAUDE_PLAYTEST_ARG or arg.begins_with(CLAUDE_PLAYTEST_ARG + "="):
+			_run_playtest_suite.call_deferred(arg.trim_prefix(CLAUDE_PLAYTEST_ARG).trim_prefix("="))
 	if ONESHOT_ARG in args:
 		_run_oneshot_test.call_deferred()
 	if CLAUDE_ONESHOT_ARG in args:
@@ -496,6 +502,14 @@ func _run_review_test(real_claude: bool) -> void:
 	for failure: String in failures:
 		print("[review-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "review-test%s: %d fallas" % [" (Claude)" if real_claude else "", failures.size()])
+
+
+func _run_playtest_suite(only: String) -> void:
+	await get_tree().create_timer(2.0).timeout
+	var failures := _failures(await PlaytestSuiteCheck.new().run(get_tree(), AgentProfile.from_dict(AgentProfile.CLAUDE_CODE), only))
+	for failure: String in failures:
+		print("[playtest-suite] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "playtest-suite: %d fallas" % failures.size())
 
 
 func _run_auto_test() -> void:

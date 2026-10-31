@@ -9,11 +9,11 @@
   "priority": "high",
   "refs": [],
   "size": "s",
-  "status": "doing",
+  "status": "review",
   "tags": [
     "playtest"
   ],
-  "test": "",
+  "test": "CI en 4.7.2 y 4.8-beta2: run-test y review-test en verde (a53c78d).",
   "title": "run-test y review-test en CI",
-  "updated_at": "2026-10-31T04:37:55.215Z"
+  "updated_at": "2026-10-31T05:18:57.769Z"
 }

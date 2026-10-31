@@ -4,16 +4,16 @@
   "created_at": "2026-10-31T04:31:00.236Z",
   "description": "tests/playtest_suite.json nunca se corrió: manda cada pedido a un agente real y compara con el resultado esperado. Gasta cuota, fuera de CI.",
   "milestone": "m16",
-  "notes": "",
+  "notes": "Encontró dos bugs de v0.1.12 que el agente falso no ve: el modo plan trababa el Playtest y el static var del tope de tiempo hacía caer el editor al segundo run_scene. También _busy trabado tras un error interno. Causa del static var no entendida a fondo: se reproduce escribiéndolo desde otro script y se fue al sacarlo. Salvedad de los 7/7: los comentarios del fixture decían «Bug plantado» y el agente los leyó; ya se sacaron, sin volver a correr la suite.",
   "order": 3,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "playtest"
   ],
-  "test": "",
+  "test": "tests/run_in_xvfb.sh <godot> --godot-agent-claude-playtest-suite: 7/7 con Claude Code real (2026-10-31), unos 40k tokens de salida en total.",
   "title": "Runner de la suite de playtest con un agente real",
-  "updated_at": "2026-10-31T04:31:00.236Z"
+  "updated_at": "2026-10-31T05:18:58.285Z"
 }

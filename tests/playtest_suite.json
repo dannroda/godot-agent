@@ -1,11 +1,11 @@
 {
- "note": "Pedidos de playtest con el resultado esperado, sobre tests/fixtures/playtest_game/playtest_game.tscn. Sirve para medir los prompts con un agente real: mandá cada pedido desde «Playtest…» en Revisar y compará. No corre en CI porque gasta cuota.",
+ "note": "Pedidos de playtest con el resultado esperado, sobre tests/fixtures/playtest_game/playtest_game.tscn. Mide los prompts con un agente real: tests/run_in_xvfb.sh <godot> --godot-agent-claude-playtest-suite[=A,B]. No corre en CI porque gasta cuota.",
  "prompts": [
   {"id": "A", "prompt": "Verify that the Start button can be pressed", "expected": "pass"},
   {"id": "B", "prompt": "Verify that the Covered button can be pressed", "expected": "fail"},
   {"id": "C", "prompt": "Verify that the basket counter never shows more than its maximum", "expected": "fail"},
   {"id": "D", "prompt": "Verify that opening the mailbox works", "expected": "fail"},
-  {"id": "E", "prompt": "Verify that the player can jump 1 metre high", "expected": "pass"},
+  {"id": "E", "prompt": "Verify that the player can jump half a metre high", "expected": "pass"},
   {"id": "F", "prompt": "Verify that the player can jump onto the gate, 3 metres high", "expected": "fail"},
   {"id": "G", "prompt": "Explore this level and report everything that looks wrong", "expected": "explored"}
  ]

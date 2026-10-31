@@ -4,12 +4,15 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- Playtest could close the editor: with a time limit, which is on by default, the game's second run crashed it.
+- Playtest in Review didn't play: the agent stayed in plan mode and waited for a plan approval. It now plays, and goes back to plan mode at the end.
+- `run_scene` no longer stays stuck on "already in progress" after an internal error.
+
 ### Changed
 
 - The One-shot evaluator's verdict doesn't count if it never played the game, and its report lists what may have changed without playing and what the detectors saw.
-
-### Fixed
-
 - `continue_on_error` no longer skips breakpoints.
 - Tool rows no longer show the word "other" when a tool has nothing to show.
 

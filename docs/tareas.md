@@ -4241,7 +4241,7 @@ El AVI solo llega como una ruta y obliga a cerrar el juego. Flipbook (ui/widgets
 
 **Bloqueada por:** 13.22 Búfer de frames recientes
 
-## M14 — Playtesting confiable y regresiones  (3/6, 3 en revisión)
+## M14 — Playtesting confiable y regresiones  (5/7, 5 en revisión)
 
 Validar M13 con un agente real y en CI, cerrar lo que aún puede engañar (evaluador sin controlar, breakpoints salteados) y convertir un playtest que pasó en un test de regresión que corre sin agente.
 
@@ -4260,19 +4260,25 @@ Los 3 checks de run manual de run-test dependen de project_config.tres y test_co
 
 **Notas:** Causa de test_completion_local: la recencia baja el puntaje a medida que los archivos del fixture envejecen (mtime), y a los ~9 días una línea que aparece una sola vez deja de sugerirse; en CI el checkout siempre es nuevo. El test ahora fija la hora (ProjectContext.fixed_now). El comportamiento de producto queda aparte en m16-07.
 
-### 14.2 run-test y review-test en CI · En curso
+### 14.2 run-test y review-test en CI · Revisión
 
 **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `playtest`
 
 Las herramientas de M13 solo corrieron en local con 4.7.2.
 
+**Prueba:** CI en 4.7.2 y 4.8-beta2: run-test y review-test en verde (a53c78d).
+
 **Notas:** Paso nuevo en ci.yml con xvfb y mesa.
 
-### 14.3 Runner de la suite de playtest con un agente real · Pendiente
+### 14.3 Runner de la suite de playtest con un agente real · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `playtest`
 
 tests/playtest_suite.json nunca se corrió: manda cada pedido a un agente real y compara con el resultado esperado. Gasta cuota, fuera de CI.
+
+**Prueba:** tests/run_in_xvfb.sh <godot> --godot-agent-claude-playtest-suite: 7/7 con Claude Code real (2026-10-31), unos 40k tokens de salida en total.
+
+**Notas:** Encontró dos bugs de v0.1.12 que el agente falso no ve: el modo plan trababa el Playtest y el static var del tope de tiempo hacía caer el editor al segundo run_scene. También _busy trabado tras un error interno. Causa del static var no entendida a fondo: se reproduce escribiéndolo desde otro script y se fue al sacarlo. Salvedad de los 7/7: los comentarios del fixture decían «Bug plantado» y el agente los leyó; ya se sacaron, sin volver a correr la suite.
 
 ### 14.4 Controlar al evaluador del One-shot · Revisión
 
@@ -4299,3 +4305,9 @@ Hoy también pasa por encima de los breakpoints del usuario.
 **Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `playtest`
 
 Un playtest que pasó deja su game_script: volver a correrlo sin agente da regresiones sin gastar tokens, también en CI.
+
+### 14.7 Una línea que aparece una vez deja de sugerirse a los ~9 días · Pendiente
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `completado`
+
+Lo destapó m16-01: con recencia 0.5 + 0.5·exp(-días/7), una línea de una sola aparición en otra carpeta queda bajo el umbral cuando su archivo envejece. D27 dice que una sola aparición alcanza. Decidir si el umbral o el piso de recencia cambian, midiendo con tests/completion_eval.

@@ -426,6 +426,14 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var turn_start := ""
 	if not is_command and snapshots and snapshots.available and model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
 		turn_start = await snapshots.take(session_key)
+	# Un playtest en Revisar tiene que jugar: en plan el agente no corre nada y se queda esperando que
+	# aprueben un plan (m16-03). Lo que no puede hacer lo sigue frenando la matriz de permisos de Revisar.
+	var playtest_turn: bool = model.harness_mode == SessionModel.HarnessMode.REVIEW and ReviewStore.is_playtest_prompt(text.strip_edges())
+	if playtest_turn:
+		# Primero lo que esté en camino: el modo actual todavía no dice a qué modo está pasando.
+		while _mode_syncs_running > 0:
+			await agent_mode_synced
+		_sync_agent_mode(AGENT_MODE_FOR[SessionModel.HarnessMode.BUILD])
 	# Si se acaba de cambiar de modo, el turno espera a que el agente esté en el modo que corresponde.
 	while _mode_syncs_running > 0:
 		await agent_mode_synced
@@ -438,10 +446,12 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 
 	var playtest_minutes := ReviewStore.playtest_minutes(text.strip_edges())
 	if playtest_minutes > 0:
-		RunTools.playtest_deadline_ms = Time.get_ticks_msec() + playtest_minutes * 60000
+		RunTools.set_playtest_deadline(Time.get_ticks_msec() + playtest_minutes * 60000)
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
 	if playtest_minutes > 0:
-		RunTools.playtest_deadline_ms = 0
+		RunTools.set_playtest_deadline(0)
+	if playtest_turn:
+		_sync_agent_mode()
 	var turn_text := agent_text_since(first_new_entry)
 	if is_command and text.strip_edges().begins_with("/remote-control"):
 		_observe_remote_control(turn_text)
@@ -1123,21 +1133,23 @@ func _on_harness_mode_changed(_mode: SessionModel.HarnessMode) -> void:
 
 
 ## Si el agente publica modos, se elige el que corresponde al modo del harness.
-func _sync_agent_mode() -> void:
+func _sync_agent_mode(candidates: Variant = null) -> void:
 	if model.session_id.is_empty() or model.agent_modes.is_empty():
 		return
 	var available: PackedStringArray = []
 	for mode: Variant in model.agent_modes:
 		if mode is Dictionary:
 			available.append(str(mode.get("id", "")))
-	for candidate: String in AGENT_MODE_FOR[model.harness_mode]:
+	for candidate: String in (candidates if candidates != null else AGENT_MODE_FOR[model.harness_mode]):
 		if candidate in available and candidate != model.current_agent_mode:
 			_mode_syncs_running += 1
 			var result := await client.request("session/set_mode", {"sessionId": model.session_id, "modeId": candidate})
 			_mode_syncs_running -= 1
-			agent_mode_synced.emit()
 			if result.ok:
 				model.apply_update({"sessionUpdate": "current_mode_update", "currentModeId": candidate})
+			else:
+				agent_log.add(AgentLog.CH_ACP, "Could not switch the agent to mode %s: %s" % [candidate, result.error_message()])
+			agent_mode_synced.emit()  # después de anotarlo: quien espera mira el modo actual
 			return
 
 

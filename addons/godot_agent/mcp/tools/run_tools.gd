@@ -53,6 +53,10 @@ const FILM_MAX_FRAMES := 900
 const FILM_KEEP_RUNS := 5
 const FRAMES_MAX_SHOWN := 12
 const FINDING_FRAMES_KEPT := 50
+## Cuándo se acaba el tiempo del playtest en curso (m15-19), como meta de Engine porque hay un solo juego
+## corriendo a la vez. No es un `static var`: escribirlo desde el controller rompía el bytecode de este
+## script y el editor se caía en el run_scene siguiente (Godot 4.7.2, m16-03).
+const DEADLINE_META := &"godot_agent_playtest_deadline_ms"
 ## APIs que game_script no puede usar: el evaluador del One-shot y el Playtest no tocan el proyecto (m15-12).
 ## shortcut: una lista de nombres frena un descuido, no a alguien que quiera esquivarla; si eso importa, hace falta correr el juego en un sandbox.
 const SCRIPT_BLOCKED := "\\b(FileAccess|DirAccess|ResourceSaver|ConfigFile|ZIPPacker|OS\\s*\\.\\s*(execute|execute_with_pipe|create_process|create_instance|shell_open|shell_show_in_file_manager|move_to_trash|kill)|ProjectSettings\\s*\\.\\s*save)\\b|\\.save_(png|jpg|webp|exr)\\s*\\("
@@ -66,11 +70,9 @@ var max_image_side: int = 1280
 var harness_requested: bool = false
 ## Quita el autoload si el juego no llegó a arrancar (lo inyecta el plugin).
 var cleanup: Callable
-## Cuándo se acaba el tiempo del playtest en curso, en ms de Time.get_ticks_msec; 0 = sin tope (m15-19).
-## Lo fija el controller: hay un solo juego corriendo a la vez.
-static var playtest_deadline_ms: int = 0
 
 var _busy: bool = false
+var _busy_since_ms: int = 0
 var _state: Dictionary = {}
 var _replies: Dictionary = {}
 var _next_request: int = 1
@@ -283,7 +285,7 @@ func tools() -> Array:
 
 
 func _run_scene(args: Dictionary) -> Dictionary:
-	if _busy:
+	if _busy and not busy_is_stale(_busy_since_ms, Time.get_ticks_msec()):
 		return McpTool.error("A run_scene is already in progress: wait for it to finish.")
 	var scene := McpTool.str_arg(args, "scene")
 	if scene.is_empty():
@@ -302,6 +304,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 		return McpTool.error(invalid)
 
 	_busy = true
+	_busy_since_ms = Time.get_ticks_msec()
 	if EditorInterface.is_playing_scene():
 		EditorInterface.stop_playing_scene()
 		await _until(func() -> bool: return not EditorInterface.is_playing_scene(), STOP_TIMEOUT_S)
@@ -347,6 +350,12 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	var report := _report(scene, seconds, inputs, notes, since, output_before)
 	_busy = false
 	return McpTool.text(report)
+
+
+## Si un run_scene murió por un error interno nadie baja `_busy`: pasado lo máximo que puede durar uno,
+## no bloquea a los siguientes para siempre (lo encontró un agente real, m16-03).
+static func busy_is_stale(since_ms: int, now_ms: int) -> bool:
+	return now_ms - since_ms > int((MAX_SECONDS + STARTUP_TIMEOUT_S + STOP_TIMEOUT_S + RECORD_CLOSE_S + REQUEST_TIMEOUT_S) * 1000.0)
 
 
 ## Prende el Movie Maker del editor hacia un AVI nuevo; devuelve lo que hay que restaurar y la ruta.
@@ -580,7 +589,7 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 	for problem: Variant in _state.get("problems", []):
 		lines.append("Probe: %s" % problem)
 
-	var entries := errors.entries_since(since)
+	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return not is_engine_noise(entry))
 	if entries.is_empty():
 		lines.append("No errors or warnings.")
 	else:
@@ -596,6 +605,13 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 	return "\n".join(lines)
 
 
+## En 4.7 el debugger atiende mensajes del editor mientras se inicializa el probe y el motor deja este
+## error, que no es del juego (en 4.8 ya no pasa). Los agentes lo citaban en cada veredicto (m16-03).
+static func is_engine_noise(entry: Dictionary) -> bool:
+	var text := ErrorCollector.format_entry(entry)
+	return text.contains("@implicit_new") and text.contains("absolute paths from outside the active scene tree")
+
+
 ## Lo que traen todas las respuestas: errores salteados, hallazgos de los detectores y tiempo restante.
 func _extra_lines() -> PackedStringArray:
 	var lines: PackedStringArray = []
@@ -609,10 +625,18 @@ func _extra_lines() -> PackedStringArray:
 		if not signature in silenced:
 			lines.append(format_finding(_findings[signature]))
 	_findings_new = []
-	if playtest_deadline_ms > 0:
-		var left := (playtest_deadline_ms - Time.get_ticks_msec()) / 60000.0
+	if Engine.has_meta(DEADLINE_META):
+		var left: float = (int(Engine.get_meta(DEADLINE_META)) - Time.get_ticks_msec()) / 60000.0
 		lines.append("Playtest time left: %.1f min." % left if left > 0.0 else "The playtest's time is up: answer now with what you have.")
 	return lines
+
+
+## `ms`: en Time.get_ticks_msec; 0 = sin tope.
+static func set_playtest_deadline(ms: int) -> void:
+	if ms > 0:
+		Engine.set_meta(DEADLINE_META, ms)
+	elif Engine.has_meta(DEADLINE_META):
+		Engine.remove_meta(DEADLINE_META)
 
 
 ## La línea de un hallazgo en el resultado de una tool; ReviewStore la vuelve a leer para el panel.
@@ -817,7 +841,7 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 	if _continue_errors:
 		await (Engine.get_main_loop() as SceneTree).process_frame
 	lines.append_array(_extra_lines())
-	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return entry.source == "game")
+	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return entry.source == "game" and not is_engine_noise(entry))
 	if not entries.is_empty():
 		lines.append("Game errors and warnings (%d):" % entries.size())
 		for entry: Dictionary in entries.slice(maxi(entries.size() - ERROR_LIMIT, 0)):

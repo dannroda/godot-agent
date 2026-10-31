@@ -173,9 +173,13 @@ static func playtest_prompt(goal: String, record: bool, minutes: int = 0, memory
 	return "\n".join(lines)
 
 
+static func is_playtest_prompt(prompt: String) -> bool:
+	return prompt.begins_with("Playtest: ")
+
+
 ## El tope de tiempo escrito en un prompt de playtest, en minutos; 0 si no tiene.
 static func playtest_minutes(prompt: String) -> int:
-	if not prompt.begins_with("Playtest: "):
+	if not is_playtest_prompt(prompt):
 		return 0
 	var found := RegEx.create_from_string("(?m)^Time limit: (\\d+) minutes").search(prompt)
 	return int(found.get_string(1)) if found else 0
