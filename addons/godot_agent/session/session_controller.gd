@@ -626,7 +626,7 @@ func agent_text_since(first_entry: int) -> String:
 ## El veredicto contrastado con el turno como aviso; los hallazgos y lo detectado van al panel de
 ## Revisar, y lo aprendido a la memoria del juego (m15-15 a m15-18).
 func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int, record_asked: bool) -> void:
-	var audit := ReviewStore.playtest_audit(_tool_calls_since(first_entry), record_asked)
+	var audit := ReviewStore.playtest_audit(tool_calls_since(first_entry), record_asked)
 	var audited := ReviewStore.audited_playtest(playtest, audit)
 	var notice := ReviewStore.playtest_notice(audited)
 	var actions: Array[Dictionary] = []
@@ -646,7 +646,7 @@ func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int,
 
 
 ## Los tool calls del turno, con los de sus subagentes.
-func _tool_calls_since(first_entry: int) -> Array:
+func tool_calls_since(first_entry: int) -> Array:
 	var calls: Array = []
 	var pending: Array = []
 	var entries := model.entries()

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "14.4",
+  "created_at": "2026-10-31T04:31:00.492Z",
+  "description": "El rechazo de veredictos y la lista de cambios directos solo aplican al Playtest: el evaluador puede aprobar sin jugar.",
+  "milestone": "m16",
+  "notes": "Sin jugar, el reporte no cuenta sea que apruebe o falle: el run termina como «couldn't reach a verdict», los checks no quedan verificados y qa-N.md lo dice.",
+  "order": 4,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "playtest"
+  ],
+  "test": "oneshot_check, escenario «evaluador sin jugar»: 134/0.",
+  "title": "Controlar al evaluador del One-shot",
+  "updated_at": "2026-10-31T04:37:55.785Z"
+}

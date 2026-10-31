@@ -129,10 +129,15 @@ func start_build() -> void:
 		options.erase("retired"), false, "godot_agent completion index")
 
 
+## Si es > 0, la hora del build sincrónico: sin esto un test cambia de resultado cuando sus archivos
+## envejecen, porque la recencia pesa en el puntaje.
+var fixed_now: float = 0.0
+
+
 ## Build sincrónico (tests y benchmark).
 func build_now() -> void:
 	wait()
-	_publish(ProjectIndex.build({"root": root, "exclude": exclude, "buffers": _buffers.duplicate(true), "previous": index, "extra_corpus": extra_corpus, "now": Time.get_unix_time_from_system()}))
+	_publish(ProjectIndex.build({"root": root, "exclude": exclude, "buffers": _buffers.duplicate(true), "previous": index, "extra_corpus": extra_corpus, "now": fixed_now if fixed_now > 0.0 else Time.get_unix_time_from_system()}))
 	_dirty = false
 
 

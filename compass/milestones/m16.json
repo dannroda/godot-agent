@@ -1,0 +1,11 @@
+{
+  "code": "M14",
+  "done_when": [
+    "run-test y review-test corren en CI; los tests no dependen de la configuración local.",
+    "La suite de playtest se corrió con un agente real y sus resultados están registrados.",
+    "Un playtest que pasó se puede repetir sin agente."
+  ],
+  "goal": "Validar M13 con un agente real y en CI, cerrar lo que aún puede engañar (evaluador sin controlar, breakpoints salteados) y convertir un playtest que pasó en un test de regresión que corre sin agente.",
+  "order": 16,
+  "title": "Playtesting confiable y regresiones"
+}

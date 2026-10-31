@@ -67,6 +67,11 @@ func stutter() -> void:
 	OS.delay_msec(900)
 
 
+## No es un bug: un breakpoint puesto a propósito (m16-05).
+func stop_here() -> void:
+	breakpoint
+
+
 ## Bug plantado: el piso desaparece y el jugador cae sin fin.
 func drop_floor() -> void:
 	_floor.queue_free()

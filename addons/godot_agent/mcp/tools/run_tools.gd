@@ -132,6 +132,11 @@ func _on_session_breaked() -> void:
 			reason = PlaytestDebugger.break_reason()
 			if not reason.is_empty():
 				break
+	# Un breakpoint lo puso alguien para frenar acá: no es un error que se saltea (m16-05).
+	if reason.begins_with("Breakpoint"):
+		_continue_errors = false
+		_flag("breaked")
+		return
 	_continued.append(reason if not reason.is_empty() else "(the debugger gave no reason)")
 	_last_break_ms = Time.get_ticks_msec()
 	debugger.resume()
@@ -225,7 +230,7 @@ func tools() -> Array:
 				"seconds": {"type": "number", "description": "Seconds to wait after the game starts (max. 120)"},
 				"inputs": steps_schema,
 				"record": {"type": "boolean", "description": "Record the run as a video (AVI) under res://.godot_agent/playtests/: evidence for a playtest. While recording the game runs at a fixed %d fps and closes by itself at the end of `seconds`." % RECORD_FPS},
-				"continue_on_error": {"type": "boolean", "description": "Don't stop in the debugger at a script error: the game goes on and every error is listed. For testing a whole game; while building, stopping at the first error is better."},
+				"continue_on_error": {"type": "boolean", "description": "Don't stop in the debugger at a script error: the game goes on and every error is listed (breakpoints still stop it). For testing a whole game; while building, stopping at the first error is better."},
 				"film_fps": {"type": "number", "description": "Keep small frames of the run at this rate (2 to 10 is plenty), to look back with game_frames. The game keeps running and its frame rate is free, unlike `record`."},
 			},
 			["seconds"], _run_scene),

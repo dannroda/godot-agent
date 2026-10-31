@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "14.7",
+  "created_at": "2026-10-31T04:37:56.716Z",
+  "description": "Lo destapó m16-01: con recencia 0.5 + 0.5·exp(-días/7), una línea de una sola aparición en otra carpeta queda bajo el umbral cuando su archivo envejece. D27 dice que una sola aparición alcanza. Decidir si el umbral o el piso de recencia cambian, midiendo con tests/completion_eval.",
+  "milestone": "m16",
+  "notes": "",
+  "order": 7,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "completado"
+  ],
+  "test": "",
+  "title": "Una línea que aparece una vez deja de sugerirse a los ~9 días",
+  "updated_at": "2026-10-31T04:37:56.716Z"
+}

@@ -23,6 +23,7 @@ func _provider() -> LocalProvider:
 	var context := ProjectContext.new()
 	context.root = FIXTURE
 	context.settings_file = FIXTURE + "/project_settings.cfg"
+	context.fixed_now = 1.0  # antes que cualquier mtime: los archivos cuentan como recién editados
 	context.build_now()
 	return LocalProvider.new(context)
 

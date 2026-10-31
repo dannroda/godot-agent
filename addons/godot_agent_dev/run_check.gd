@@ -28,6 +28,7 @@ var _dock: Node
 func run_run(tree: SceneTree) -> PackedStringArray:
 	_tree = tree
 	var model: Object
+	var plugin_config: Object
 	for node: Node in tree.root.find_children("*", "Node", true, false):
 		var script := node.get_script() as Script
 		if script and script.resource_path == SERVER_SCRIPT:
@@ -35,13 +36,21 @@ func run_run(tree: SceneTree) -> PackedStringArray:
 		elif script and script.resource_path == DOCK_SCRIPT:
 			_dock = node
 			model = node.get(&"_model")
+		elif script and script.resource_path == "res://addons/godot_agent/plugin.gd":
+			plugin_config = node.get(&"_project_config")
 	if _server == null or model == null:
 		failures.append("no se encontró el server o el modelo")
 		return failures
 	var previous_args: Variant = ProjectSettings.get_setting(RUN_ARGS_SETTING, "")
 	if not OS.get_environment(RUN_ARGS_ENV).is_empty():
 		ProjectSettings.set_setting(RUN_ARGS_SETTING, OS.get_environment(RUN_ARGS_ENV))
+	# El check de run manual no depende del project_config.tres local de quien lo corre.
+	var manual_runs: bool = plugin_config.get(&"playtest_on_manual_runs") if plugin_config else false
+	if plugin_config:
+		plugin_config.set(&"playtest_on_manual_runs", false)
 	await _check_runs(model)
+	if plugin_config:
+		plugin_config.set(&"playtest_on_manual_runs", manual_runs)
 	ProjectSettings.set_setting(RUN_ARGS_SETTING, previous_args)
 	return failures
 
@@ -269,6 +278,13 @@ func _check_playtest_game() -> void:
 		await _tree.create_timer(0.5).timeout
 		_expect(player.get(&"_index") > 0 and (player.get(&"_picture") as TextureRect).texture != null, "el reproductor avanza y muestra")
 		player.queue_free()
+
+	# Un breakpoint sí frena, aunque el run siga después de los errores (m16-05).
+	var stopped_at: Dictionary = await _call("game_call", {"path": "", "method": "stop_here"})
+	await _tree.create_timer(0.5).timeout
+	_expect(stopped_at.get("isError", false) and _text(stopped_at).contains("debugger"), "un breakpoint frena el run · " + _text(stopped_at))
+	var after_breakpoint: Dictionary = await _call("game_get", {"path": ""})
+	_expect(after_breakpoint.get("isError", false) and _text(after_breakpoint).contains("stopped in the debugger"), "sigue parado en el breakpoint · " + _text(after_breakpoint))
 	await _call_text("stop_scene", {})
 
 

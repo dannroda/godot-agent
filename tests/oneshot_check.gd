@@ -37,6 +37,7 @@ func _initialize() -> void:
 	await _scenario_loop()
 	await _scenario_spec()
 	await _scenario_qa()
+	await _scenario_qa_without_playing()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -450,6 +451,23 @@ func _scenario_qa() -> void:
 	_check(qa_activity.has("QA round 1: doesn't pass · Puntaje, Playability 6/7, Functionality 5/7") and qa_activity.has("bug · El puntaje no sube (score.gd:12)") and qa_activity.any(func(text: String) -> bool: return text.begins_with("QA round 2: passes")), "qa: actividad %s" % [qa_activity])
 	_check(int(run.used.playtests) == 4, "qa: los playtests del evaluador cuentan (%d)" % int(run.used.playtests))
 	_check(run.last_report.get("qa", []).size() == 2 and int(run.last_report.get("events", {}).get("qa_turns", 0)) == 2, "qa: informe")
+	run.controller.stop()
+	run.queue_free()
+
+
+## m16-04: un evaluador que aprueba sin haber jugado no cuenta como aprobación.
+func _scenario_qa_without_playing() -> void:
+	print("— evaluador sin jugar")
+	var run := _make("oneshot_qa_noplay")
+	run.qa_max_rounds = 2
+	run.restart_session = func(_lost_id: String) -> bool:
+		return await run.controller.start(_profile("oneshot_qa_noplay"))
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, false)
+	await _wait(func() -> bool: return run.phase in [OneShotRun.RunPhase.FINISHED, OneShotRun.RunPhase.PAUSED], 15.0)
+	_check(run.finish_reason.contains("couldn't reach a verdict") and not run.finish_reason.contains("passes"), "sin jugar: no aprueba (%s)" % run.finish_reason)
+	_check(run.activity.any(func(item: Dictionary) -> bool: return str(item.get("text", "")).contains("without playing")), "sin jugar: queda en la actividad")
+	_check(run.files.read(run.files.qa_path(1)).contains("never played"), "sin jugar: el informe lo dice")
+	_check(run.checks.all(func(check: Dictionary) -> bool: return not check.get("verified", false)), "sin jugar: sus checks no quedan verificados")
 	run.controller.stop()
 	run.queue_free()
 

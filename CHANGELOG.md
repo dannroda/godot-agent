@@ -4,6 +4,15 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- The One-shot evaluator's verdict doesn't count if it never played the game, and its report lists what may have changed without playing and what the detectors saw.
+
+### Fixed
+
+- `continue_on_error` no longer skips breakpoints.
+- Tool rows no longer show the word "other" when a tool has nothing to show.
+
 ## [0.1.12] - 2026-10-30
 
 ### Added

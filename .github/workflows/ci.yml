@@ -51,6 +51,14 @@ jobs:
           sed -i 's|, "res://addons/scope_compass/plugin.cfg"||' project.godot
           ~/godot/godot --headless --path . --script tests/plugin_cycle_check.gd
 
+      # Con el juego de verdad, en un editor con ventana (m16-02).
+      - name: Editor checks (run, review)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          XRUN_TIMEOUT=280 tests/run_in_xvfb.sh ~/godot/godot --godot-agent-run-test
+          XRUN_TIMEOUT=200 tests/run_in_xvfb.sh ~/godot/godot --godot-agent-review-test
+
   # C# (m14-07): validate_scripts compila con dotnet build; el test compila un proyecto de verdad.
   csharp:
     name: C# (Godot .NET 4.7.2)

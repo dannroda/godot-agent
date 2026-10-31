@@ -1,0 +1,55 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Armo Pong.\n\n"
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "run1",
+      "title": "mcp__godot__run_scene",
+      "kind": "execute",
+      "status": "in_progress",
+      "rawInput": {
+       "scene": "res://main.tscn",
+       "seconds": 3
+      }
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "run1",
+      "status": "completed",
+      "content": [
+       {
+        "type": "content",
+        "content": {
+         "type": "text",
+         "text": "0 errores"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "delay": 0.2
+    },
+    {
+     "chunk": "Listo.\n```json\n{\"checks\": [{\"label\": \"Pong jugable\", \"status\": \"pass\"}, {\"label\": \"Puntaje\", \"status\": \"pass\"}]}\n```"
+    }
+   ]
+  }
+ ],
+ "evaluator_turns": [
+  {
+   "steps": [
+    {
+     "chunk": "Leí el código y parece andar.\n```json\n{\"checks\": [{\"label\": \"Pong jugable\", \"status\": \"pass\"}, {\"label\": \"Puntaje\", \"status\": \"pass\"}], \"scores\": [{\"criterion\": \"playability\", \"score\": 9, \"reason\": \"ok\"}, {\"criterion\": \"functionality\", \"score\": 9, \"reason\": \"ok\"}, {\"criterion\": \"visual\", \"score\": 9, \"reason\": \"ok\"}, {\"criterion\": \"code\", \"score\": 9, \"reason\": \"ok\"}]}\n```"
+    }
+   ]
+  }
+ ]
+}

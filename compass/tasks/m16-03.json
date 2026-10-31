@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "14.3",
+  "created_at": "2026-10-31T04:31:00.236Z",
+  "description": "tests/playtest_suite.json nunca se corrió: manda cada pedido a un agente real y compara con el resultado esperado. Gasta cuota, fuera de CI.",
+  "milestone": "m16",
+  "notes": "",
+  "order": 3,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "playtest"
+  ],
+  "test": "",
+  "title": "Runner de la suite de playtest con un agente real",
+  "updated_at": "2026-10-31T04:31:00.236Z"
+}

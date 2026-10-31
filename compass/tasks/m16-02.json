@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "14.2",
+  "created_at": "2026-10-31T04:30:59.942Z",
+  "description": "Las herramientas de M13 solo corrieron en local con 4.7.2.",
+  "milestone": "m16",
+  "notes": "Paso nuevo en ci.yml con xvfb y mesa.",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "doing",
+  "tags": [
+    "playtest"
+  ],
+  "test": "",
+  "title": "run-test y review-test en CI",
+  "updated_at": "2026-10-31T04:37:55.215Z"
+}

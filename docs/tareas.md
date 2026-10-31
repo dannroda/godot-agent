@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-30
+> Generado: 2026-10-31
 
 ## M0 — Esqueleto y decisiones  (6/6)
 
@@ -4240,3 +4240,62 @@ El AVI solo llega como una ruta y obliga a cerrar el juego. Flipbook (ui/widgets
 **Notas:** ui/flipbook_dialog.gd.
 
 **Bloqueada por:** 13.22 Búfer de frames recientes
+
+## M14 — Playtesting confiable y regresiones  (3/6, 3 en revisión)
+
+Validar M13 con un agente real y en CI, cerrar lo que aún puede engañar (evaluador sin controlar, breakpoints salteados) y convertir un playtest que pasó en un test de regresión que corre sin agente.
+
+**Hecho cuando:**
+- run-test y review-test corren en CI; los tests no dependen de la configuración local.
+- La suite de playtest se corrió con un agente real y sus resultados están registrados.
+- Un playtest que pasó se puede repetir sin agente.
+
+### 14.1 Aislar los tests de la configuración local · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `playtest`
+
+Los 3 checks de run manual de run-test dependen de project_config.tres y test_completion_local falla en una copia con archivos locales.
+
+**Prueba:** run_all 393/0 y run-test 0 fallas en la copia local.
+
+**Notas:** Causa de test_completion_local: la recencia baja el puntaje a medida que los archivos del fixture envejecen (mtime), y a los ~9 días una línea que aparece una sola vez deja de sugerirse; en CI el checkout siempre es nuevo. El test ahora fija la hora (ProjectContext.fixed_now). El comportamiento de producto queda aparte en m16-07.
+
+### 14.2 run-test y review-test en CI · En curso
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `playtest`
+
+Las herramientas de M13 solo corrieron en local con 4.7.2.
+
+**Notas:** Paso nuevo en ci.yml con xvfb y mesa.
+
+### 14.3 Runner de la suite de playtest con un agente real · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `playtest`
+
+tests/playtest_suite.json nunca se corrió: manda cada pedido a un agente real y compara con el resultado esperado. Gasta cuota, fuera de CI.
+
+### 14.4 Controlar al evaluador del One-shot · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `playtest`
+
+El rechazo de veredictos y la lista de cambios directos solo aplican al Playtest: el evaluador puede aprobar sin jugar.
+
+**Prueba:** oneshot_check, escenario «evaluador sin jugar»: 134/0.
+
+**Notas:** Sin jugar, el reporte no cuenta sea que apruebe o falle: el run termina como «couldn't reach a verdict», los checks no quedan verificados y qa-N.md lo dice.
+
+### 14.5 continue_on_error no saltea breakpoints · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `playtest`
+
+Hoy también pasa por encima de los breakpoints del usuario.
+
+**Prueba:** run-test: stop_here frena el run con continue_on_error.
+
+**Notas:** Se distingue por el texto del debugger (empieza con Breakpoint).
+
+### 14.6 Repetir un playtest sin agente · Pendiente
+
+**Prioridad:** alta · **Tamaño:** L · **Etiquetas:** `playtest`
+
+Un playtest que pasó deja su game_script: volver a correrlo sin agente da regresiones sin gastar tokens, también en CI.

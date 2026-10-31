@@ -1125,7 +1125,7 @@ func _evaluate() -> void:
 	var turn := await _run_qa_turn(qa_prompt())
 	if not is_inside_tree():
 		return
-	await _after_qa(str(turn.reason), str(turn.text))
+	await _after_qa(str(turn.reason), str(turn.text), turn.get("audit", ReviewStore.playtest_audit([], false)))
 
 
 func qa_prompt() -> String:
@@ -1146,6 +1146,8 @@ func qa_prompt() -> String:
 		"- Read the code and the scenes, and check godot.get_errors.",
 		"- Do not change anything: edits, project settings and shell commands are denied. Report problems; the builder fixes them.",
 		"- If you found a problem, it fails. Do not talk yourself into approving it.",
+		"- Detector lines in tool results are things the game did wrong while you were not looking: check them.",
+		"- A report without having played does not count.",
 		"- A check you could not test is not a pass: mark it fail and say in its detail that you could not test it.",
 	])
 	lines.append_array(ReviewStore.PLAY_RULES)
@@ -1183,10 +1185,10 @@ func _run_qa_turn(text: String) -> Dictionary:
 	report.observe_turn(turn_started, turn_ms, reason, _turn_tools)
 	var turn_format := I18n.t("QA turn · %s · %d tool") if _turn_tools == 1 else I18n.t("QA turn · %s · %d tools")
 	_add_activity("turn", turn_format % [RunReport.format_ms(turn_ms), _turn_tools])
-	return {"reason": reason, "text": controller.agent_text_since(first_entry)}
+	return {"reason": reason, "text": controller.agent_text_since(first_entry), "audit": ReviewStore.playtest_audit(controller.tool_calls_since(first_entry), false)}
 
 
-func _after_qa(reason: String, text: String) -> void:
+func _after_qa(reason: String, text: String, audit: Dictionary) -> void:
 	if phase != RunPhase.EVALUATING:  # se pausó o se detuvo durante la evaluación
 		_end_qa_role()
 		return
@@ -1203,11 +1205,14 @@ func _after_qa(reason: String, text: String) -> void:
 	var parsed := FindingsParser.parse(text, controller.cwd)
 	var verdict := GameCriteria.verdict(parsed.scores, criteria)
 	var failing_checks: Array = parsed.checks.filter(func(check: Dictionary) -> bool: return check.status != "pass")
-	var conclusive: bool = not parsed.checks.is_empty() or not parsed.scores.is_empty()
+	# Un veredicto sin haber jugado no cuenta (m16-04), pase o falle: el generador no tiene nada que arreglar.
+	var reported: bool = not parsed.checks.is_empty() or not parsed.scores.is_empty()
+	var conclusive: bool = reported and audit.played
 	var passed: bool = conclusive and failing_checks.is_empty() and bool(verdict.passed)
 	var qa_file := files.qa_path(qa_round)
-	files.write(qa_file, "# QA %d\n\n%s\n" % [qa_round, text.strip_edges()])
-	_apply_qa_checks(parsed.checks)
+	files.write(qa_file, "# QA %d\n\n%s\n%s" % [qa_round, text.strip_edges(), _qa_audit_text(audit)])
+	if conclusive:
+		_apply_qa_checks(parsed.checks)
 	var failing_criteria: Array = verdict.failing.map(func(item: Dictionary) -> String: return "%s %s/%d" % [item.name, _score_text(item.score), item.threshold])
 	failing_criteria.append_array(Array(verdict.missing).map(func(id: String) -> String: return "%s (%s)" % [id, I18n.t("no score")]))
 	qa_results.append({
@@ -1216,9 +1221,12 @@ func _after_qa(reason: String, text: String) -> void:
 		"failing_criteria": failing_criteria, "findings": parsed.findings.size(),
 		"file": qa_file.trim_prefix(files.project_root).trim_prefix("/"),
 	})
-	report.observe_checks(parsed.checks)
+	if conclusive:
+		report.observe_checks(parsed.checks)
 	_end_qa_role()
-	if not conclusive:
+	if reported and not conclusive:
+		_add_activity("warning", I18n.t("QA round %d: the evaluator gave a verdict without playing the game") % qa_round)
+	elif not conclusive:
 		_add_activity("warning", I18n.t("QA round %d: the evaluator didn't report checks or scores") % qa_round)
 	elif passed:
 		_add_activity("qa", I18n.t("QA round %d: passes (weighted score %s)") % [qa_round, _score_text(verdict.weighted)])
@@ -1243,6 +1251,22 @@ func _after_qa(reason: String, text: String) -> void:
 		_set_phase(RunPhase.RUNNING)
 		var fix := _fix_prompt(failing_checks, verdict, parsed)
 		_run_turn(_summary_prompt() + "\n\n" + fix if back == "new" else fix)
+
+
+## Lo que el harness vio en el turno del evaluador, para el informe (m16-04).
+static func _qa_audit_text(audit: Dictionary) -> String:
+	var lines: PackedStringArray = []
+	if not audit.played:
+		lines.append("\n## Harness\n\nThe evaluator never played the game: this report doesn't count.")
+	if not (audit.changes as PackedStringArray).is_empty():
+		lines.append("\n## May have changed the game directly, not by playing\n")
+		for change: String in audit.changes:
+			lines.append("- " + change)
+	if not (audit.detectors as Array).is_empty():
+		lines.append("\n## The detectors saw\n")
+		for finding: Dictionary in audit.detectors:
+			lines.append("- " + str(finding.title))
+	return "\n".join(lines) + "\n" if not lines.is_empty() else ""
 
 
 ## Los checks del evaluador mandan: pasan a `verified` y el autorreporte queda en `claimed`.
