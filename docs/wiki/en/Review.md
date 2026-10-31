@@ -23,6 +23,8 @@ The review can be exported to the project's `CLAUDE.md` as conventions, for exam
 
 **Playtest…** in the findings panel asks what to check by playing ("the player can jump onto the second platform"). The agent runs the game, sends input by physics frame so the run is reproducible, reads the live state and captures frames, and answers with a verdict that shows in the chat: **passed**, **failed** with the steps that reproduce it, or **could not test** with the reason, plus what it observed. It does not change the project. With **Record a video of the run**, `run_scene` saves an AVI under `res://.godot_agent/playtests/`: the game runs at a fixed 30 fps while it records and closes by itself at the end.
 
+![A failed Playtest verdict in the chat, with its evidence, what may have changed without playing, what the detectors saw and the steps to reproduce it, and a finding in the panel with Show in the scene, Verify a fix and Not a bug](https://raw.githubusercontent.com/dannroda/godot-agent/main/docs/images/en/playtest.png)
+
 The harness checks the verdict against what the agent did. A passed or failed verdict counts as **could not test** if the agent never played the game, or if the verdict depends on how something looks and it captured no frame. The verdict also lists what may have changed in the running game without playing (`game_set`, `game_call`, `game_script`), what the detectors saw, and why there is no video if you asked for one.
 
 You can ask for three things in the same box: to verify something, to reach a goal, or to explore ("go through this level and tell me what looks wrong", which answers **explored**). A script error doesn't end the playtest: the game goes on and the error is listed.

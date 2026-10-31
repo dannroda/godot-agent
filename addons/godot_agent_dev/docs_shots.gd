@@ -1,7 +1,7 @@
 @tool
 extends RefCounted
 ## Capturas de la guía (m7-41): con el agente falso y la escena de tests/docs_demo/, saca las
-## imágenes del README a `dir` (overview, chat, permission, review, settings y oneshot). Conviene correrlo con
+## imágenes del README a `dir` (overview, chat, permission, review, playtest, settings y oneshot). Conviene correrlo con
 ## el editor en el mismo idioma que GODOT_AGENT_LANGUAGE (un Godot self-contained con
 ## interface/editor/editor_language): ver tests/docs_shots.sh.
 
@@ -25,12 +25,14 @@ const PROMPTS := {
 		"permission": "Now make the asteroids faster with every wave.",
 		"review": "Review the scripts in tests/docs_demo/.",
 		"oneshot": "An asteroid shooter: waves that get faster, a score and a game over screen.",
+		"playtest": "Asteroids get faster with every wave.",
 	},
 	"es": {
 		"build": "Agregá un contador de oleadas al HUD: que diga qué oleada de asteroides se está jugando.",
 		"permission": "Ahora hacé que los asteroides vayan más rápido en cada oleada.",
 		"review": "Revisá los scripts de tests/docs_demo/.",
 		"oneshot": "Un shooter de asteroides: oleadas cada vez más rápidas, puntaje y pantalla de game over.",
+		"playtest": "Los asteroides van más rápido en cada oleada.",
 	},
 }
 
@@ -107,6 +109,23 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 		_hide_bottom_panel.call()
 		await _frames(20)
 		_save(_screen(), dir.path_join("review.png"))
+	_controller.call(&"stop")
+	await _frames(5)
+
+	# Playtest: el veredicto con lo que vieron los detectores y los hallazgos con sus acciones.
+	if not await _start("docs_playtest"):
+		return failures
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.REVIEW)
+	await _frames(5)
+	var panel: Control = _dock.get(&"_review_panel")
+	(panel.get(&"_fold") as FoldableContainer).expand()
+	panel.call(&"_start_playtest", PROMPTS[_language].playtest, false, 15)
+	await _wait_ready()
+	if (_controller.get(&"review").get(&"findings") as Array).is_empty():
+		failures.append("playtest: sin hallazgos en el panel")
+	_hide_bottom_panel.call()
+	await _frames(30)
+	_save(_dock_image(), dir.path_join("playtest.png"))
 	_controller.call(&"stop")
 	await _frames(5)
 

@@ -196,6 +196,12 @@ static func _call_text(call: ToolCall) -> String:
 	return "\n".join(parts)
 
 
+## Una tool con sus argumentos. JSON trae los enteros como float: sin el «.0» se lee como se pidió.
+static func _direct_change_text(tool_name: String, call: ToolCall) -> String:
+	var arguments := RegEx.create_from_string("(\\d)\\.0(?=[,}\\]])").sub(JSON.stringify(call.godot_arguments()), "$1", true)
+	return ("%s %s" % [tool_name, arguments]).left(MAX_DIRECT_TEXT)
+
+
 ## El hallazgo de una línea de detector de run_tools (m15-07), para el panel; {} si no es una.
 static func finding_of_line(line: String) -> Dictionary:
 	var found := RegEx.create_from_string("^Detector (\\S+) ×(\\d+) \\[sig=(.*?)\\]: (.*)$").search(line.get_slice(" | ", 0))
@@ -237,9 +243,9 @@ static func playtest_audit(calls: Array, record_asked: bool) -> Dictionary:
 		if tool_name == "game_script" and call.godot_arguments() is Dictionary:
 			scripts.append(str(call.godot_arguments().get("code", "")))
 		if tool_name == "game_ui_act" and output.contains("not by input"):
-			changes.append(("%s %s" % [tool_name, JSON.stringify(call.godot_arguments())]).left(MAX_DIRECT_TEXT))
+			changes.append(_direct_change_text(tool_name, call))
 		if tool_name in DIRECT_TOOLS:
-			changes.append(("%s %s" % [tool_name, JSON.stringify(call.godot_arguments())]).left(MAX_DIRECT_TEXT))
+			changes.append(_direct_change_text(tool_name, call))
 		if tool_name == "run_scene":
 			# El resultado es el texto de run_tools._finish_recording: no hay otro dato de la grabación.
 			var found := RegEx.create_from_string("Recording: (\\S+)").search(output)

@@ -491,7 +491,7 @@ static func _summary(call: ToolCall) -> String:
 				return str(input[key]).left(SUMMARY_MAX)
 	if not call.locations.is_empty() and call.locations[0] is Dictionary:
 		return str(call.locations[0].get("path", "")).get_file()
-	return call.kind
+	return "" if call.kind == "other" else call.kind
 
 
 static func _format_duration(msec: int) -> String:

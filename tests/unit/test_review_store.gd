@@ -97,12 +97,12 @@ func test_playtest_audit_gates_the_verdict() -> void:
 
 ## m15-03: el aviso muestra lo que se cambió sin jugar, los avisos del agente y el video.
 func test_playtest_audit_in_the_notice() -> void:
-	var audit := ReviewStore.playtest_audit([_call("run_scene", {"record": true}, "completed", "ok\nRecording: res://.godot_agent/playtests/a.avi (9 KB, 30 fps)."), _call("game_set", {"path": "Player", "properties": {"hp": 5}}), _call("game_call", {"path": "Boss", "method": "die"}, "failed")], true)
+	var audit := ReviewStore.playtest_audit([_call("run_scene", {"record": true}, "completed", "ok\nRecording: res://.godot_agent/playtests/a.avi (9 KB, 30 fps)."), _call("game_set", {"path": "Player", "properties": {"hp": 5.0, "speed": 1.5}}), _call("game_call", {"path": "Boss", "method": "die"}, "failed")], true)
 	assert_eq(audit.changes.size(), 1, "solo lo que se aplicó")
 	var playtest := _verdict("pass")
 	playtest.alerts = PackedStringArray(["solo probé el nivel 1"])
 	var text := str(ReviewStore.playtest_notice(ReviewStore.audited_playtest(playtest, audit)).text)
-	assert_true(text.contains("• game_set {") and text.contains("\"hp\":5"), "cambio directo · " + text)
+	assert_true(text.contains("• game_set {") and text.contains("\"hp\":5,") and text.contains("1.5"), "cambio directo · " + text)
 	assert_true(text.contains("• solo probé el nivel 1"), "aviso del agente · " + text)
 	assert_true(text.contains("res://.godot_agent/playtests/a.avi"), "video · " + text)
 	var lost := ReviewStore.playtest_audit([_call("run_scene", {"record": true}, "completed", "The recording was not written (x).")], true)
