@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "15.7",
+  "created_at": "2026-10-31T12:40:17.694Z",
+  "description": "validate_physics y validate_tilemap sin nombre legible en el chat. get_errors muestra el error de ruido de Godot 4.7 (@implicit_new), que el One-shot real citó como errores del harness: run_tools ya lo filtra, get_errors no. i18n-test falla porque no encuentra «Iniciar sesión»: probablemente quedó viejo tras el rediseño del dock, sin confirmar en la interfaz.",
+  "milestone": "m17",
+  "notes": "validate_physics y validate_tilemap ya tienen nombre: «Validate physics/tilemap», en español «Validar física/tilemap». Eran las únicas dos de las 72 tools sin nombre. Un test nuevo lo comprueba leyendo los McpTool.create. El filtro del ruido de 4.7 (@implicit_new) pasó de run_tools a ErrorCollector.is_engine_noise y ahora lo usan get_errors y run_tools. El conteo de get_errors tampoco lo cuenta. Lo de i18n-test era el test, no la UI: el botón dice «Nueva sesión» cuando hay sesiones recientes en el historial. En una copia sin historial el test pasaba y en el repo fallaba. Ahora acepta las dos.",
+  "order": 7,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ui",
+    "tests"
+  ],
+  "test": "run_all 398/0 en 4.7.2, con test_tool_group_view.test_every_godot_tool_has_a_name y test_diagnostic_tools.test_get_errors_hides_engine_noise. i18n-test en Xvfb sobre el repo: 411 textos, PASS.",
+  "title": "Detalles menores de la revisión",
+  "updated_at": "2026-10-31T13:47:27.033Z"
+}

@@ -1,0 +1,10 @@
+config_version=5
+
+[application]
+
+config/name="save-preview-list-erase"
+config/features=PackedStringArray("4.7")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/repro/plugin.cfg")

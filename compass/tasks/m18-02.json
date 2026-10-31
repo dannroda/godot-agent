@@ -1,0 +1,66 @@
+{
+  "assignee": "Daniel",
+  "checklist": [
+    {
+      "done": false,
+      "text": "Instalar el zip del último release en un proyecto de prueba y habilitar el plugin"
+    },
+    {
+      "done": false,
+      "text": "Iniciar sesión y conversar en Preguntar"
+    },
+    {
+      "done": false,
+      "text": "Construir: editar una escena y un script, con Ctrl+Z en cada paso"
+    },
+    {
+      "done": false,
+      "text": "Tarjeta de permiso: permitir una vez, en la sesión y denegar"
+    },
+    {
+      "done": false,
+      "text": "Revisar: hallazgos marcados en el Script Editor"
+    },
+    {
+      "done": false,
+      "text": "Playtest con grabación: veredicto, Reproducir la grabación y Correr regresiones"
+    },
+    {
+      "done": false,
+      "text": "One-shot corto: plan, checkpoints, evaluador y Volver acá"
+    },
+    {
+      "done": false,
+      "text": "Agregarlo desde los agentes sugeridos o el registro ACP"
+    },
+    {
+      "done": false,
+      "text": "Modos del agente: qué ids publica y que Revisar, Construir y Playtest caigan en el correcto"
+    },
+    {
+      "done": false,
+      "text": "Cuota: el anillo y el límite con su /usage"
+    },
+    {
+      "done": false,
+      "text": "Sin skills ni plugins: que Extensions lo diga bien"
+    }
+  ],
+  "code": "16.2",
+  "created_at": "2026-10-31T12:40:21.465Z",
+  "description": "Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux para aislar lo que sea del agente. El Playtest sale del modo plan por su id `default`: comprobar que Antigravity publica ese modo, porque si no se queda en plan.",
+  "milestone": "m18",
+  "notes": "",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "manual",
+    "antigravity"
+  ],
+  "test": "",
+  "title": "Recorrido completo con Antigravity",
+  "updated_at": "2026-10-31T12:40:24.034Z"
+}

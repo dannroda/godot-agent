@@ -3725,8 +3725,14 @@ msgstr "Agregar atlas al tileset"
 msgid "Add tileset scenes"
 msgstr "Agregar escenas al tileset"
 
+msgid "Validate physics"
+msgstr "Validar física"
+
 msgid "Validate scripts"
 msgstr "Validar scripts"
+
+msgid "Validate tilemap"
+msgstr "Validar tilemap"
 
 msgid "No agent"
 msgstr "Sin agente"

@@ -32,7 +32,7 @@ El puerto, el color de acento, la ubicación del dock y el idioma se aplican al 
 **Settings → Agentes**: agregar, editar, quitar y marcar el predeterminado. Cada perfil tiene un comando, sus argumentos (uno por línea) y variables de entorno.
 
 - **Claves**: en el entorno, `NOMBRE=$VARIABLE` toma el valor de `VARIABLE` del entorno del editor al lanzar el agente. Settings no acepta un valor literal en variables con nombre de secreto (`*KEY*`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*`). Ejemplo: `ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY`.
-- No viene ningún agente preconfigurado. Sin ninguno, el dock y esta página sugieren **Claude Code** (`npx -y @agentclientprotocol/claude-agent-acp`), **Codex** y **Google Antigravity** (estos dos del registro de ACP, que da el comando para tu plataforma).
+- No viene ningún agente preconfigurado. Sin ninguno, el dock y esta página sugieren **Claude Code** (`npx -y @agentclientprotocol/claude-agent-acp`), **Codex** y **Google Antigravity** (estos dos del registro de ACP, que da el comando para tu plataforma). Codex y Antigravity todavía no se verificaron con el harness.
 - El agente siempre recibe `GODOT`/`GODOT_BIN` con el binario del editor; un perfil puede pisarlas.
 
 ### Del registro de ACP

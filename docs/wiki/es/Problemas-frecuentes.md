@@ -31,6 +31,7 @@ Claude Code informa la cuota del plan con el primer mensaje de cada sesión, as�
 | Versión | Qué pasa | Cómo lo maneja el addon |
 |---|---|---|
 | 4.7 | `EditorDock` existe, pero la main screen como dock llega en 4.8. | Dock y panel con `EditorDock`; la main screen con la API vieja. |
+| 4.7.2 | Cada guardado con vista previa (Ctrl+S) corrompe una lista del motor (`p_I->data != this` en `list.h`) y a veces el editor se cae un momento después. Pasa también sin el addon. | El addon no lo puede evitar. Si te pasa, usá 4.8. |
 | 4.8 (betas) | `_has_main_screen()` deja un `EditorDock` huérfano al deshabilitar, y cerrar el editor con la pantalla One-shot activa da un error de foco. | Main screen con `add_dock`; antes de cerrar, el editor pasa a la pantalla 2D. |
 
 Quedan dos rastros conocidos e inofensivos en los exports: rutas del addon en `uid_cache.bin` y el plugin en la lista de plugins habilitados de `project.binary`.

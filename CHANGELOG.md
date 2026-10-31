@@ -4,6 +4,15 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- `get_errors` no longer lists the Godot 4.7 `@implicit_new` engine error that appears while the playtest probe starts; agents took it for an error of the harness. Game results already hid it.
+- `validate_physics` and `validate_tilemap` show readable names in the chat ("Validate physics", "Validate tilemap").
+
+### Known issues
+
+- On Godot 4.7.2, saving a scene (Ctrl+S) can crash the editor. It's an engine bug in the save with preview, which also happens without the add-on. If it happens to you, use 4.8.
+
 ## [0.1.14] - 2026-10-31
 
 ### Added

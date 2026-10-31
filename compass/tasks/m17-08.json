@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "15.8",
+  "created_at": "2026-10-31T12:40:17.933Z",
+  "description": "El camino asíncrono de Forward+ y Mobile en playtest/runtime/film.gd nunca se ejecutó: bajo Xvfb solo corre el respaldo con get_image. Correr run_scene con film_fps en una máquina con GPU y mirar los frames.",
+  "milestone": "m17",
+  "notes": "Probado en esta máquina (AMD RX 580, RADV), sin abrir ventanas en el escritorio: gamescope --backend headless corre el editor y el juego en Vulkan sobre la GPU. Xvfb no sirve para Vulkan: «None of the devices supports both graphics and present queues». Hice dos pruebas. (1) Un proyecto aparte usa film.gd tal cual a 10 fps durante 3 s: 28 frames en Forward+ y 28 en Mobile, todos por texture_get_data_async y ninguno por fall_back. Los colores están bien: el fondo 0.3 sale #4D4D4D (sin doble gamma) y la caja se mueve entre frames. (2) run-test entero en gamescope con GODOT_AGENT_TEST_RUN_ARGS=\"--rendering-driver vulkan --display-driver x11 --audio-driver Dummy\": PASS. El juego corrió en Vulkan Forward+ y quedaron 68 JPEG de 640×360 en .godot_agent/playtests/film_*, que se ven bien. En (2) no instrumenté qué camino tomó cada frame; que haya sido el asíncrono sale de (1). Comando: gamescope --backend headless -W 1920 -H 1200 -- godot --display-driver x11 --rendering-driver vulkan --path <copia> -e -- --godot-agent-run-test.",
+  "order": 8,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "playtest"
+  ],
+  "test": "Lo de arriba, en una copia aislada del proyecto con el addon actual. Sin GPU en CI, así que no entra.",
+  "title": "Filmación con GPU real",
+  "updated_at": "2026-10-31T13:50:10.539Z"
+}

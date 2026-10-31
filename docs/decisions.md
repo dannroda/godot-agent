@@ -851,3 +851,20 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   - la API vieja de dock lateral y panel inferior en `EditorSurfaces` (`add_control_to_dock`, `add_control_to_bottom_panel` y sus `remove_*`/`make_*_visible`): 4.7 tiene `EditorDock` con `DOCK_SLOT_BOTTOM`.
 - **Lo que sigue dependiendo de la versión**: la main screen como `EditorDock` llega en 4.8; en 4.7 va con `_has_main_screen()` + `_make_visible()` (D9).
 - **Ahora se puede usar** `Control.custom_maximum_size` (existe desde 4.7).
+
+
+## D60 · Caída de 4.7.2 al guardar con vista previa: bug del motor, documentado y sin issue
+
+- **Qué pasa** (m17-01): en Godot 4.7.2, cada guardado que pasa por `EditorNode::_save_scene_with_preview` deja `ERROR: Condition "p_I->data != this" is true` en `core/templates/list.h:228`. Ese camino lo usan Ctrl+S y `EditorInterface.save_scene()`. Se borra un `List::Element` de una lista que no es la suya. Cuando la memoria de esa lista ya se liberó, el mismo bug termina en SIGSEGV dentro del segundo y medio siguiente, sin rastro de GDScript.
+- **No es del addon**: pasa en un proyecto sin el addon, con una escena `Node2D` vacía y sin cambios en disco. `EditorInterface.save_scene_as(path, false)` no deja el error: sin vista previa no hay miniatura ni `EditorProgress`.
+- **Qué hace más probable la caída**: el error está en todos los guardados, pero la caída necesita el contexto del external-test. Esto se vio en 4.7.2, con 12 corridas por variante:
+  - con `project.godot` escrito desde afuera (aunque sea con el mismo texto), la recarga automática de la escena y unos segundos de espera antes de guardar: 9 caídas en 12;
+  - sin cualquiera de esas tres cosas: 0 en 12;
+  - guardando sin vista previa: 0 en 16.
+  En 4.8-beta2 el error sigue (`p_element->data != this`) y no se cayó en 12 corridas.
+- **Hipótesis sin confirmar**: `ProgressDialog::_reparent_and_show()` pasa el diálogo (un `Control` raíz) a la última ventana exclusiva, y `Control::NOTIFICATION_EXIT_CANVAS` borra `data.RI` de la lista `gui.roots` de otro viewport. Encaja con la caída que arregló 0.1.14 (diálogos del addon abiertos con una barra de progreso del editor). Para confirmarla hace falta un build de 4.7.2 con símbolos.
+- **Decisión del usuario** (2026-10-31): documentarlo, sin abrir un issue en Godot.
+  - El external-test guarda con `save_scene_as(path, false)`: lo que prueba (que un guardado del editor no cuente como cambio del agente) es `scene_saved`, que ese camino también emite. Así corre en CI.
+  - README, CHANGELOG y la wiki (Problemas frecuentes) lo listan como problema conocido de 4.7.2, con 4.8 como salida.
+  - El addon no lo puede evitar: Ctrl+S es del editor.
+- **Repro**: `tests/upstream/save_preview_list_erase/` (abrir con `-- --repro`: tres guardados con vista previa y tres sin; solo los primeros dejan el error). El texto del issue quedó en `tests/upstream/issue_save_preview_list_erase.md`, por si se publica más adelante.

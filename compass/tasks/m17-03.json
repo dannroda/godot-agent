@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "15.3",
+  "created_at": "2026-10-31T12:40:16.720Z",
+  "description": "README.md y PRIVACY.md dicen que nunca hace push, pero existe la opción de Pushear y abrir un PR (apagada por defecto, la inicia el usuario): aclararlo, también en español. El README dice «M0–M8c» y su descripción de CI no incluye run-test, review-test ni regresiones. docs/progress.md no cambia desde el 22/10 y menciona 4.4.1 como mínimo.",
+  "milestone": "m17",
+  "notes": "Push: README, PRIVACY y la wiki (Home/Inicio) ahora dicen que el harness nunca pushea por su cuenta. La única excepción es «Push and open a PR», apagado por defecto (ProjectConfig.github_pull_requests), que el usuario elige al cerrar una copia aparte (plugin.gd _ask_copy_fate, core/github_reviews.gd). El estado del README pasó de «M0–M8c» a M0–M14 implementados (M12–M14 en revisión), con M15 y M16 abiertos. El CI del README suma regresiones por línea de comandos y run-test, review-test y external-test en Xvfb, según ci.yml. En progress.md el mínimo es 4.7, no 4.6: lo subió 9a5e25b (m13-09, D59). Los binarios del encabezado están al día, las menciones a 4.4.1 quedan como historia y hay una sección nueva con un resumen por hito del 22/10 al 31/10. Sumé un problema conocido de 4.7.2 (m17-01) en el README y en Problemas frecuentes.",
+  "order": 3,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "docs"
+  ],
+  "test": "Revisión de texto contra el código: ci.yml, plugin.gd:1171, project_config.gd:54, settings_dialog.gd:501 y es.po:3090-3097. No hay tests que lean estos archivos.",
+  "title": "Textos falsos o viejos en README, privacidad y progreso",
+  "updated_at": "2026-10-31T13:47:19.733Z"
+}

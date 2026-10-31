@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "15.5",
+  "created_at": "2026-10-31T12:40:17.198Z",
+  "description": "En README y wiki: Codex y macOS figuran como soportados sin ninguna prueba real; Ollama y llama.cpp nunca se probaron contra un modelo real. Decirlo. Windows y Antigravity se prueban en M16: actualizar lo que digan los textos según ese resultado.",
+  "milestone": "m17",
+  "notes": "Marcado como sin verificar en el README (intro y requisitos) y en la wiki (Home/Inicio y Settings): Codex, Google Antigravity, macOS y Windows. Windows y Antigravity llevan la nota «se prueban en M16». En Completado: Ollama y llama.cpp, sin verificar contra un modelo real. Cuando se haga M16, actualizar estos textos con el resultado. No marqué Codestral, OpenAI-compatible ni Gemini: no sé si se probaron.",
+  "order": 5,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "docs"
+  ],
+  "test": "Revisión de texto: README.md/README.es.md, docs/wiki/{en,es}/Home|Inicio, Settings e Inline-completion|Completado-inline.",
+  "title": "Marcar lo no probado como sin verificar",
+  "updated_at": "2026-10-31T13:47:19.815Z"
+}

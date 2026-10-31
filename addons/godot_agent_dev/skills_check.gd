@@ -9,6 +9,7 @@ extends RefCounted
 const SkillCatalog := preload("res://addons/godot_agent/extensions/skill_catalog.gd")
 const ProjectConfig := preload("res://addons/godot_agent/config/project_config.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
+const AgentAdapters := preload("res://addons/godot_agent/session/agents/agent_adapters.gd")
 
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const TIMEOUT_MS := 20000
@@ -58,12 +59,17 @@ func run(tree: SceneTree, dock: Control, prefix: String) -> PackedStringArray:
 	if main_plugin == null:
 		failures.append("no encontré el plugin principal")
 	else:
-		# Sin sesión abierta no hay perfil: se usa el de Claude Code por defecto, como al conectar.
+		# Sin sesión abierta no hay perfil ni adaptador: se usan los de Claude Code, como al conectar.
+		# El _meta lo arma el adaptador (m13-04), no el perfil.
 		var controller: Object = main_plugin.get(&"_controller")
 		var previous: Variant = controller.get(&"_profile")
-		controller.set(&"_profile", AgentProfile.from_dict(AgentProfile.CLAUDE_CODE))
+		var previous_adapter: Variant = controller.get(&"adapter")
+		var claude := AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)
+		controller.set(&"_profile", claude)
+		controller.set(&"adapter", AgentAdapters.for_profile(claude.command, claude.args, claude.id))
 		var meta: Dictionary = main_plugin.call(&"_session_meta")
 		controller.set(&"_profile", previous)
+		controller.set(&"adapter", previous_adapter)
 		var expected := settings.duplicate()
 		expected["permissions"] = {"ask": ["Agent"]}
 		if meta != {"claudeCode": {"options": {"settings": expected}}}:

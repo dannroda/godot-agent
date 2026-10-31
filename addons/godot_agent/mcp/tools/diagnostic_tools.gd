@@ -47,7 +47,7 @@ func tools() -> Array:
 
 func _get_errors(args: Dictionary) -> String:
 	var since := McpTool.int_arg(args, "since", 0)
-	var entries := errors.entries_since(since)
+	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return not ErrorCollector.is_engine_noise(entry))
 	var lines: PackedStringArray = []
 	var shown := entries.slice(maxi(entries.size() - ERROR_LIMIT, 0))
 	for entry: Dictionary in shown:

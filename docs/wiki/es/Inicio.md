@@ -2,7 +2,7 @@
 
 [English](../en/Home.md) · **Español**
 
-Godot Agent Harness pone un agente de código adentro del editor de Godot. El agente corre como un proceso aparte (Claude Code, Google Antigravity, Codex…). Anda con proyectos en GDScript y en C#. El harness habla con él, muestra la conversación en un dock y le da herramientas del editor: lee escenas, edita nodos con deshacer, corre el juego y mira frames. Todo cambio pasa por el editor y por una política de permisos.
+Godot Agent Harness pone un agente de código adentro del editor de Godot. El agente corre como un proceso aparte (Claude Code, Google Antigravity, Codex…). Solo Claude Code está probado de punta a punta, y solo en Linux: Codex, Antigravity, macOS y Windows todavía no se verificaron (Windows y Antigravity se prueban en M16). Anda con proyectos en GDScript y en C#. El harness habla con él, muestra la conversación en un dock y le da herramientas del editor: lee escenas, edita nodos con deshacer, corre el juego y mira frames. Todo cambio pasa por el editor y por una política de permisos.
 
 ## Páginas
 
@@ -20,7 +20,7 @@ Godot Agent Harness pone un agente de código adentro del editor de Godot. El ag
 
 ## Reglas de base
 
-- El harness nunca hace merge ni push. El One-shot trabaja en su propia rama y vos decidís qué se mergea.
+- El harness nunca hace merge, y nunca hace push por su cuenta: la única excepción es el opcional [Pushear y abrir un PR](Revisar.md#comentarios-de-un-pull-request-de-github), apagado por defecto. El One-shot trabaja en su propia rama y vos decidís qué se mergea.
 - Nunca guarda API keys: los perfiles nombran variables de entorno.
 - Nunca lee las credenciales del agente ni sus archivos privados.
 - El servidor MCP escucha solo en `127.0.0.1`, con un token que cambia en cada arranque.

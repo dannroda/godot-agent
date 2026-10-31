@@ -62,6 +62,14 @@ func add(kind: String, message: String, file: String = "", line: int = 0, source
 		_entries = _entries.slice(_entries.size() - MAX_ENTRIES)
 
 
+## En 4.7 el debugger atiende mensajes del editor mientras se inicializa el probe y el motor deja este
+## error, que no es del juego (en 4.8 ya no pasa). Los agentes lo citaban en cada veredicto (m16-03)
+## y el One-shot lo tomó por un error del harness desde get_errors (m17-07).
+static func is_engine_noise(entry: Dictionary) -> bool:
+	var text := format_entry(entry)
+	return text.contains("@implicit_new") and text.contains("absolute paths from outside the active scene tree")
+
+
 static func format_entry(entry: Dictionary) -> String:
 	var location := ""
 	if not str(entry.file).is_empty():

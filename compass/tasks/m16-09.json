@@ -6,6 +6,7 @@
     {
       "alternatives": "Pedir `sabotage` en el JSON del agente y verificarlo al guardar; heurística de correr el script sin inputs (falla con invariantes que no necesitan jugar).",
       "at": "2026-10-31T06:38:56.595Z",
+      "review": "ok",
       "text": "El control de \"detecta el bug\" es un sabotaje escrito a mano (suite y fixtures); al agente no se le pide escribir uno",
       "why": "Pedirle al agente el sabotaje suma tokens y cambia el prompt del playtest, que habría que volver a medir; y un sabotaje del agente puede ser tan vacío como su script. La suite mide si sus regresiones discriminan."
     }
@@ -23,5 +24,5 @@
   ],
   "test": "tests/regressions_cli_check.sh (paso nuevo en CI): pass → 0, fail → 1, vacuous (pasa también con el sabotaje) → 1, en 4.7.2 y 4.8-beta2. run-test: con el sabotaje, la de start detecta y la vacía no. test_review_store: detects.",
   "title": "Regresiones por línea de comandos y control de que detectan el bug",
-  "updated_at": "2026-10-31T06:38:56.595Z"
+  "updated_at": "2026-10-31T11:36:12.078Z"
 }

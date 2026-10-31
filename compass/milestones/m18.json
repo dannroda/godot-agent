@@ -1,0 +1,9 @@
+{
+  "code": "M16",
+  "done_when": [
+    "El recorrido se hizo en Windows y con Antigravity, y lo que falló quedó cargado como bug."
+  ],
+  "goal": "Probar en una máquina real lo que el README promete y solo se comprobó en Linux con Claude Code. Las hace Daniel, que tiene con qué probarlas.",
+  "order": 18,
+  "title": "Pruebas manuales: Windows y Antigravity"
+}

@@ -4317,7 +4317,7 @@ Un playtest que pasó deja su game_script: volver a correrlo sin agente da regre
 Lo destapó m16-01: con recencia 0.5 + 0.5·exp(-días/7), una línea de una sola aparición en otra carpeta queda bajo el umbral cuando su archivo envejece. D27 dice que una sola aparición alcanza. Decidir si el umbral o el piso de recencia cambian, midiendo con tests/completion_eval.
 
 **Decisiones:**
-- ! La recencia ya no entra en la evidencia (support); umbral y piso de recencia quedan igual · sin revisar
+- ✓ La recencia ya no entra en la evidencia (support); umbral y piso de recencia quedan igual
   Por qué: La recencia sirve para preferir lo que se está tocando frente a otros candidatos, no para decidir si hay evidencia. Medido: con el proyecto envejecido vuelve a 17/18 sin cambiar nada a 0 días.
   Descartado: Bajar el umbral (sube los falsos positivos en todos los casos); subir el piso de recencia a ~0,7 (la recencia casi deja de distinguir); recencia relativa al archivo más nuevo (un archivo viejo en un proyecto activo sigue sin alcanzar).
 
@@ -4347,10 +4347,158 @@ De paso: look_at fallaba en 4.8 en la copia local porque game.mouse() mandaba el
 Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el probe necesitaba el debugger), y nadie comprobaba que el script del agente detecte el bug (uno mal escrito pasa siempre).
 
 **Decisiones:**
-- ! El control de "detecta el bug" es un sabotaje escrito a mano (suite y fixtures); al agente no se le pide escribir uno · sin revisar
+- ✓ El control de "detecta el bug" es un sabotaje escrito a mano (suite y fixtures); al agente no se le pide escribir uno
   Por qué: Pedirle al agente el sabotaje suma tokens y cambia el prompt del playtest, que habría que volver a medir; y un sabotaje del agente puede ser tan vacío como su script. La suite mide si sus regresiones discriminan.
   Descartado: Pedir `sabotage` en el JSON del agente y verificarlo al guardar; heurística de correr el script sin inputs (falla con invariantes que no necesitan jugar).
 
 **Prueba:** tests/regressions_cli_check.sh (paso nuevo en CI): pass → 0, fail → 1, vacuous (pasa también con el sabotaje) → 1, en 4.7.2 y 4.8-beta2. run-test: con el sabotaje, la de start detecta y la vacía no. test_review_store: detects.
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
+
+## M15 — Revisión de features: lo que no estaba correcto  (8/9, 8 en revisión)
+
+Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
+
+**Hecho cuando:**
+- external-test corre en CI y el editor no se cae al guardar una escena recargada.
+- README, wiki y privacidad dicen lo que el addon hace hoy, y lo no probado figura como sin verificar.
+- Un One-shot real llegó al evaluador con un presupuesto suficiente.
+
+### 15.1 El editor se cae al guardar una escena recargada · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `bug`
+
+En external-test, en el segundo y medio después de EditorInterface.save_scene() sobre una escena recién recargada: SIGSEGV en el motor, sin rastro de GDScript. Pasa en alrededor de 1 de cada 3 corridas en 4.7.2, también en v0.1.13 y en un commit anterior. Sigue pasando con el sondeo de EditorSync apagado en ese tramo, pero no se descartó ni al addon ni a Godot. Impacto probable: aceptar la recarga de una escena que cambió el agente y después Ctrl+S. Reproducir en un proyecto sin el addon para separar causas.
+
+**Decisiones:**
+- ✓ El external-test guarda con save_scene_as(path, false) en lugar de save_scene(); el bug de Godot queda en un borrador de issue sin publicar
+  Por qué: La caída es del motor (camino de guardado con vista previa) y el addon no la puede evitar en Ctrl+S. Lo que prueba E (que un guardado del editor no cuente como cambio del agente) no depende de la vista previa. Publicar el issue es hacia afuera: lo decide el usuario.
+  Descartado: Dejar save_scene() y no sumar el check a CI (fallaría 3 de 4 veces en 4.7.2); sacar 4.7.2 de la matriz; buscar en el addon un workaround para Ctrl+S (no se encontró ninguno: el error sale aun sin el addon).
+  Qué hacer: Usuario (31/10): documentarlo, sin abrir issue en Godot. Queda en D60.
+
+**Prueba:** external-test en Xvfb con el plugin de dev del repo: 16/16 en 4.7.2 y 8/8 en 4.8-beta2, en copias aisladas. Antes del cambio: 9 caídas en 12 en 4.7.2. Repro mínimo: tests/upstream/save_preview_list_erase con -- --repro, 3 errores con vista previa y 0 sin ella.
+
+**Notas:** Es de Godot 4.7.2, no del addon. Todo guardado por _save_scene_with_preview (Ctrl+S, EditorInterface.save_scene()) deja «p_I->data != this» en list.h:228. Pasa en un proyecto sin el addon, con una escena Node2D vacía y sin cambios en disco (tests/upstream/save_preview_list_erase). save_scene_as(path, false), que no hace vista previa ni EditorProgress, no lo deja. El SIGSEGV es el mismo bug cuando la memoria de la lista ya se liberó: con el external-test entero, 9 caídas en 12 corridas guardando con vista previa y 0 en 16 sin vista previa. Hacen falta las fases A (project.godot escrito desde afuera), B (recarga) y algo de tiempo antes del guardado: sin cualquiera de las tres, 0 en 12. Lo que salió en el external-test de 4.7.2: sin el addon, 96 guardados sin caída pero con el error en cada uno. 4.8-beta2 deja el error (p_element->data != this) y no se cayó en 12 corridas. Hipótesis sin confirmar (falta un build con símbolos; compilarlo lo bloqueó el clasificador de permisos): ProgressDialog::_reparent_and_show reparenta un Control raíz y su RI se borra de la lista gui.roots de otro viewport. El external-test ahora guarda sin vista previa: lo que comprueba E es scene_saved, que ese camino también emite. Para el usuario de 4.7.2 queda el riesgo con Ctrl+S, que el addon no puede evitar. Borrador del issue en tests/upstream/issue_save_preview_list_erase.md, sin publicar.
+
+**Bloquea a:** 15.2 external-test en CI
+
+### 15.2 external-test en CI · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `ci`
+
+Ese check no corre en CI y por eso la caída no se veía. Sumarlo al paso de checks del editor, una vez resuelta la caída.
+
+**Prueba:** Falta verlo en CI: no hay push. En local, el mismo comando pasa 16/16 en 4.7.2 y 8/8 en 4.8-beta2.
+
+**Notas:** Sumado al paso «Editor checks (run, review, external)» de ci.yml con XRUN_TIMEOUT=120. Corre después del paso que saca scope_compass de project.godot, igual que en las copias aisladas donde se probó.
+
+**Bloqueada por:** 15.1 El editor se cae al guardar una escena recargada
+
+### 15.3 Textos falsos o viejos en README, privacidad y progreso · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `docs`
+
+README.md y PRIVACY.md dicen que nunca hace push, pero existe la opción de Pushear y abrir un PR (apagada por defecto, la inicia el usuario): aclararlo, también en español. El README dice «M0–M8c» y su descripción de CI no incluye run-test, review-test ni regresiones. docs/progress.md no cambia desde el 22/10 y menciona 4.4.1 como mínimo.
+
+**Prueba:** Revisión de texto contra el código: ci.yml, plugin.gd:1171, project_config.gd:54, settings_dialog.gd:501 y es.po:3090-3097. No hay tests que lean estos archivos.
+
+**Notas:** Push: README, PRIVACY y la wiki (Home/Inicio) ahora dicen que el harness nunca pushea por su cuenta. La única excepción es «Push and open a PR», apagado por defecto (ProjectConfig.github_pull_requests), que el usuario elige al cerrar una copia aparte (plugin.gd _ask_copy_fate, core/github_reviews.gd). El estado del README pasó de «M0–M8c» a M0–M14 implementados (M12–M14 en revisión), con M15 y M16 abiertos. El CI del README suma regresiones por línea de comandos y run-test, review-test y external-test en Xvfb, según ci.yml. En progress.md el mínimo es 4.7, no 4.6: lo subió 9a5e25b (m13-09, D59). Los binarios del encabezado están al día, las menciones a 4.4.1 quedan como historia y hay una sección nueva con un resumen por hito del 22/10 al 31/10. Sumé un problema conocido de 4.7.2 (m17-01) en el README y en Problemas frecuentes.
+
+### 15.4 Huecos en la wiki de tools y One-shot · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `docs`
+
+Editor-tools: run_scene no menciona continue_on_error ni film_fps, y faltan sessions y session_send. One-shot: no dice que un informe del evaluador sin haber jugado no cuenta. En inglés y español.
+
+**Prueba:** Revisión de texto contra run_tools.gd:236-237 y 120-145, session_tools.gd, review_store.gd:47 y oneshot_run.gd:1208-1246.
+
+**Notas:** En Editor-tools y Herramientas-del-editor, la fila de run_scene suma continue_on_error y film_fps. continue_on_error frena igual en un breakpoint y deja de saltear errores después de 30 por run (CONTINUE_MAX). Lo usan los playtests y el evaluador; Construir no. film_fps no fija el framerate como record. Hay una fila nueva «Sessions/Sesiones» con sessions y session_send: mensaje de hasta 4000 caracteres que llega al terminar el turno. En One-shot se agregó que un informe del evaluador sin haber jugado no cuenta: alcanza con cualquier tool de ReviewStore.PLAY_TOOLS en su turno, también de subagentes. Si no hubo ninguna, la vuelta no es concluyente, las verificaciones no se aplican y el run termina con «couldn't reach a verdict» (oneshot_run.gd:1208-1246).
+
+### 15.5 Marcar lo no probado como sin verificar · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `docs`
+
+En README y wiki: Codex y macOS figuran como soportados sin ninguna prueba real; Ollama y llama.cpp nunca se probaron contra un modelo real. Decirlo. Windows y Antigravity se prueban en M16: actualizar lo que digan los textos según ese resultado.
+
+**Prueba:** Revisión de texto: README.md/README.es.md, docs/wiki/{en,es}/Home|Inicio, Settings e Inline-completion|Completado-inline.
+
+**Notas:** Marcado como sin verificar en el README (intro y requisitos) y en la wiki (Home/Inicio y Settings): Codex, Google Antigravity, macOS y Windows. Windows y Antigravity llevan la nota «se prueban en M16». En Completado: Ollama y llama.cpp, sin verificar contra un modelo real. Cuando se haga M16, actualizar estos textos con el resultado. No marqué Codestral, OpenAI-compatible ni Gemini: no sé si se probaron.
+
+### 15.6 One-shot real que llegue al evaluador · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `playtest`, `one-shot`
+
+En la revisión, el One-shot real terminó por el presupuesto de 5 playtests del test, así que el evaluador no corrió y «sin jugar no cuenta» solo está probado con agente falso. Correrlo con más presupuesto. Gastó 245k tokens contra 114k de la versión anterior, sin comparación controlada: medir si el consumo subió por los prompts y tools de M13.
+
+### 15.7 Detalles menores de la revisión · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ui`, `tests`
+
+validate_physics y validate_tilemap sin nombre legible en el chat. get_errors muestra el error de ruido de Godot 4.7 (@implicit_new), que el One-shot real citó como errores del harness: run_tools ya lo filtra, get_errors no. i18n-test falla porque no encuentra «Iniciar sesión»: probablemente quedó viejo tras el rediseño del dock, sin confirmar en la interfaz.
+
+**Prueba:** run_all 398/0 en 4.7.2, con test_tool_group_view.test_every_godot_tool_has_a_name y test_diagnostic_tools.test_get_errors_hides_engine_noise. i18n-test en Xvfb sobre el repo: 411 textos, PASS.
+
+**Notas:** validate_physics y validate_tilemap ya tienen nombre: «Validate physics/tilemap», en español «Validar física/tilemap». Eran las únicas dos de las 72 tools sin nombre. Un test nuevo lo comprueba leyendo los McpTool.create. El filtro del ruido de 4.7 (@implicit_new) pasó de run_tools a ErrorCollector.is_engine_noise y ahora lo usan get_errors y run_tools. El conteo de get_errors tampoco lo cuenta. Lo de i18n-test era el test, no la UI: el botón dice «Nueva sesión» cuando hay sesiones recientes en el historial. En una copia sin historial el test pasaba y en el repo fallaba. Ahora acepta las dos.
+
+### 15.8 Filmación con GPU real · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `playtest`
+
+El camino asíncrono de Forward+ y Mobile en playtest/runtime/film.gd nunca se ejecutó: bajo Xvfb solo corre el respaldo con get_image. Correr run_scene con film_fps en una máquina con GPU y mirar los frames.
+
+**Prueba:** Lo de arriba, en una copia aislada del proyecto con el addon actual. Sin GPU en CI, así que no entra.
+
+**Notas:** Probado en esta máquina (AMD RX 580, RADV), sin abrir ventanas en el escritorio: gamescope --backend headless corre el editor y el juego en Vulkan sobre la GPU. Xvfb no sirve para Vulkan: «None of the devices supports both graphics and present queues». Hice dos pruebas. (1) Un proyecto aparte usa film.gd tal cual a 10 fps durante 3 s: 28 frames en Forward+ y 28 en Mobile, todos por texture_get_data_async y ninguno por fall_back. Los colores están bien: el fondo 0.3 sale #4D4D4D (sin doble gamma) y la caja se mueve entre frames. (2) run-test entero en gamescope con GODOT_AGENT_TEST_RUN_ARGS="--rendering-driver vulkan --display-driver x11 --audio-driver Dummy": PASS. El juego corrió en Vulkan Forward+ y quedaron 68 JPEG de 640×360 en .godot_agent/playtests/film_*, que se ven bien. En (2) no instrumenté qué camino tomó cada frame; que haya sido el asíncrono sale de (1). Comando: gamescope --backend headless -W 1920 -H 1200 -- godot --display-driver x11 --rendering-driver vulkan --path <copia> -e -- --godot-agent-run-test.
+
+### 15.9 Checks que no corrieron en la revisión · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `tests`
+
+Los de assets, skills, sesiones e historial piden argumentos y quedaron afuera de la revisión del 31/10. Correrlos y anotar el resultado.
+
+**Prueba:** Los cuatro corridos de a uno en Xvfb 4.7.2: asset-test ok, historial ok, sessions-test ok, skills-test ok.
+
+**Notas:** Resultados en 4.7.2. asset (tests/asset_check.sh, con red): PASS. history (run_in_xvfb --godot-agent-history-test=<png>): PASS. sessions (--godot-agent-sessions-test=<prefijo>): PASS sobre el repo. En una copia sin git falla con «no se abrió la sesión en una copia», porque la copia de la sesión es un git worktree, así que hay que correrlo sobre un repo. skills (tests/skills_check.sh): fallaba con «_meta de la sesión: {}» y el test estaba viejo: desde m13-04 el _meta lo arma controller.adapter y el test solo ponía _profile. Ahora pone también el adaptador de Claude Code y lo restaura después: PASS. Ojo: corridos en paralelo, xvfb-run a veces devuelve exit 1 aunque el test imprima PASS (kill de un Xvfb que ya terminó); hay que correrlos de a uno.
+
+## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
+
+Probar en una máquina real lo que el README promete y solo se comprobó en Linux con Claude Code. Las hace Daniel, que tiene con qué probarlas.
+
+**Hecho cuando:**
+- El recorrido se hizo en Windows y con Antigravity, y lo que falló quedó cargado como bug.
+
+### 16.1 Recorrido completo en Windows · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Responsable:** Daniel · **Etiquetas:** `manual`, `windows`
+
+CI es solo Linux y una nota del tablero dice «sin probar en Windows». Con Claude Code, para aislar lo que sea de la plataforma.
+
+- [ ] Instalar el zip del último release en un proyecto de prueba y habilitar el plugin
+- [ ] Iniciar sesión y conversar en Preguntar
+- [ ] Construir: editar una escena y un script, con Ctrl+Z en cada paso
+- [ ] Tarjeta de permiso: permitir una vez, en la sesión y denegar
+- [ ] Revisar: hallazgos marcados en el Script Editor
+- [ ] Playtest con grabación: veredicto, Reproducir la grabación y Correr regresiones
+- [ ] One-shot corto: plan, checkpoints, evaluador y Volver acá
+- [ ] Agente con npx: que lo encuentre el editor abierto desde el menú, sin el PATH de la terminal
+- [ ] Cerrar la sesión y el editor: sin procesos colgados ni errores de PeekNamedPipe en Output
+- [ ] Rutas con espacios y acentos en el proyecto
+- [ ] Actualizar el addon desde el aviso del dock
+
+### 16.2 Recorrido completo con Antigravity · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M · **Responsable:** Daniel · **Etiquetas:** `manual`, `antigravity`
+
+Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux para aislar lo que sea del agente. El Playtest sale del modo plan por su id `default`: comprobar que Antigravity publica ese modo, porque si no se queda en plan.
+
+- [ ] Instalar el zip del último release en un proyecto de prueba y habilitar el plugin
+- [ ] Iniciar sesión y conversar en Preguntar
+- [ ] Construir: editar una escena y un script, con Ctrl+Z en cada paso
+- [ ] Tarjeta de permiso: permitir una vez, en la sesión y denegar
+- [ ] Revisar: hallazgos marcados en el Script Editor
+- [ ] Playtest con grabación: veredicto, Reproducir la grabación y Correr regresiones
+- [ ] One-shot corto: plan, checkpoints, evaluador y Volver acá
+- [ ] Agregarlo desde los agentes sugeridos o el registro ACP
+- [ ] Modos del agente: qué ids publica y que Revisar, Construir y Playtest caigan en el correcto
+- [ ] Cuota: el anillo y el límite con su /usage
+- [ ] Sin skills ni plugins: que Extensions lo diga bien

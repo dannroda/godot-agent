@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "15.2",
+  "created_at": "2026-10-31T12:40:16.220Z",
+  "description": "Ese check no corre en CI y por eso la caída no se veía. Sumarlo al paso de checks del editor, una vez resuelta la caída.",
+  "milestone": "m17",
+  "notes": "Sumado al paso «Editor checks (run, review, external)» de ci.yml con XRUN_TIMEOUT=120. Corre después del paso que saca scope_compass de project.godot, igual que en las copias aisladas donde se probó.",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ci"
+  ],
+  "test": "Falta verlo en CI: no hay push. En local, el mismo comando pasa 16/16 en 4.7.2 y 8/8 en 4.8-beta2.",
+  "title": "external-test en CI",
+  "updated_at": "2026-10-31T13:43:27.112Z"
+}

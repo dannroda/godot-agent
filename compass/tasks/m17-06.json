@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "15.6",
+  "created_at": "2026-10-31T12:40:17.459Z",
+  "description": "En la revisión, el One-shot real terminó por el presupuesto de 5 playtests del test, así que el evaluador no corrió y «sin jugar no cuenta» solo está probado con agente falso. Correrlo con más presupuesto. Gastó 245k tokens contra 114k de la versión anterior, sin comparación controlada: medir si el consumo subió por los prompts y tools de M13.",
+  "milestone": "m17",
+  "notes": "",
+  "order": 6,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "playtest",
+    "one-shot"
+  ],
+  "test": "",
+  "title": "One-shot real que llegue al evaluador",
+  "updated_at": "2026-10-31T12:40:17.459Z"
+}

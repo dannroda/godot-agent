@@ -364,7 +364,10 @@ func _run_external_test() -> void:
 	await get_tree().create_timer(1.1).timeout
 	notices.clear()
 	root = EditorInterface.get_edited_scene_root()
-	EditorInterface.save_scene()
+	# Sin vista previa: en 4.7.2 el guardado con vista previa (el de Ctrl+S y save_scene()) deja
+	# «p_I->data != this» en list.h en cada guardado, también sin el addon, y a veces SIGSEGV
+	# (m17-01). Lo que se prueba acá es scene_saved, que este camino también emite.
+	EditorInterface.save_scene_as(EXTERNAL_SCENE, false)
 	await get_tree().create_timer(1.5).timeout
 	if EditorInterface.get_edited_scene_root() != root:
 		failures.append("E: guardar desde el editor recargó la escena")
@@ -1113,8 +1116,9 @@ func _run_i18n_test() -> void:
 			_untranslated(dialog, catalog, "Settings", failures, seen)
 		dialog.hide()
 	EditorInterface.set_main_screen_editor("2D")
-	# Los textos a la vista que sí están en español: si son pocos, el idioma no se aplicó.
-	var spanish := seen.keys().filter(func(text: String) -> bool: return text in ["Iniciar sesión", "Construir", "Presupuestos", "Permisos"])
+	# Los textos a la vista que sí están en español: si son pocos, el idioma no se aplicó. El botón
+	# de arrancar dice «Nueva sesión» cuando hay sesiones recientes en el historial (m17-07).
+	var spanish := seen.keys().filter(func(text: String) -> bool: return text in ["Iniciar sesión", "Nueva sesión", "Construir", "Presupuestos", "Permisos"])
 	if spanish.size() < 4:
 		failures.append("faltan textos en español esperados (vistos: %s)" % [spanish])
 	if failures.is_empty():

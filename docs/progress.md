@@ -2,10 +2,12 @@
 
 El tablero de tareas vive en `compass/` (Scope Compass; ver `compass/AGENTS.md`). Acá queda el resumen por milestone: qué quedó, cómo probarlo y qué falta.
 
-Binarios usados:
-- 4.8-beta1 (desarrollo): `/opt/godot/versions/4.8-beta1/godot`
-- 4.7.2: `godot` en el PATH
-- 4.4.1 (mínimo): bajado solo para verificar
+Binarios usados hoy:
+- 4.7.2 (mínimo desde el 29/10, D59): `godot` en el PATH
+- 4.8-beta2: `/opt/godot/versions/4.8-beta2/godot`, la beta del CI
+- Godot .NET 4.7.2: `/opt/godot/versions/4.7.2-stable-mono/godot`, para C#
+
+El mínimo fue 4.4.1 hasta el 22/10 y 4.6 hasta el 29/10. Las menciones a 4.4.1 de M0–M8c quedan como historia: así se probó entonces.
 
 ---
 
@@ -771,3 +773,20 @@ Sin Ollama ni llama.cpp en esta máquina, no se probó contra un modelo real. Pa
   - hasta 6 imágenes por mensaje, achicadas a 1280 px.
 
   Pruebas: `test_composer` (rutas pegadas, y arrastre real con `force_drag` en el que el texto lo sigue insertando el TextEdit), `--godot-agent-ui-test=ui_demo` (archivo de afuera más imagen pegada, achicada, y que salgan como bloques de imagen) y `--godot-agent-run-test` (captura del juego desde el dock, y el aviso en un run manual).
+
+---
+
+## Del 22/10 al 31/10 · M7 (resto) a M15
+
+Desde acá, el detalle por tarea vive en el tablero ([`docs/tareas.md`](tareas.md) es su export) y lo publicado, en [`CHANGELOG.md`](../CHANGELOG.md) (0.1.1 a 0.1.14). Lo que sigue es el resumen.
+
+- **M4 y M7, lo que faltaba** (22–27/10): tools de API (`class_info`, `search_api`), edición en lote, project settings con deshacer (D49), archivos con referencias al día (D50), recursos (D51), tilemaps (D52), animación (D53), el juego en vivo (`game_*`, D54), evaluador separado del One-shot (D55), tools/list compacto (D56), modo Auto (D57), Remote Control (D58), Asset Store, Extensions, updater, subagentes y varias sesiones a la vez. CI en cada push y workflow de release.
+- **M9 · Ideas de otros harness** (27–28/10), con soporte ACP para más agentes (cancelar requests, terminales del cliente, `session/list`, formularios) y cuota de otros agentes.
+- **M10 · Revisión de UX** (29/10).
+- **M11 · Revisiones de seguridad, patrones y arquitectura** (29/10). Mínimo Godot 4.7 (D59).
+- **M12 · Que el agente se verifique solo** (29/10): input por frame de física, errores nuevos en cada respuesta, Playtest con veredicto desde Revisar, validadores de física y TileMapLayers, C# con `dotnet build` y completado en `.cs`.
+- **M13 · Playtesting con ideas de Autopilot** (30/10): detectores dentro del juego, `game_ui`, `game_script`, pausa con avance por frames, memoria por juego, veredicto que exige haber jugado.
+- **M14 · Playtesting confiable y regresiones** (31/10): playtest con un agente real, regresiones guardadas que se repiten sin agente (también por línea de comandos) y run-test, review-test y regresiones en CI.
+- **M15 · Revisión de features** (31/10, en curso): la caída al guardar una escena es un bug de Godot 4.7.2 en el guardado con vista previa (m17-01); external-test entra en CI; textos al día y lo no probado marcado como sin verificar.
+
+Sin verificar todavía: macOS, Windows (se prueba en M16), Codex, Google Antigravity (se prueba en M16) y el completado con Ollama o llama.cpp contra un modelo real.

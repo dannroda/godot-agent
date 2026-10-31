@@ -53,8 +53,8 @@ Elegí el modo en **Settings → Completado**:
 
 | Perfil | URL por defecto | Notas |
 |---|---|---|
-| Ollama | `http://127.0.0.1:11434` | `ollama pull qwen2.5-coder:1.5b-base` (los modelos `-base` traen FIM). |
-| llama.cpp (`llama-server`) | `http://127.0.0.1:9931` | Endpoint `/infill`; cargá un modelo con FIM. |
+| Ollama | `http://127.0.0.1:11434` | `ollama pull qwen2.5-coder:1.5b-base` (los modelos `-base` traen FIM). Todavía sin verificar contra un modelo real. |
+| llama.cpp (`llama-server`) | `http://127.0.0.1:9931` | Endpoint `/infill`; cargá un modelo con FIM. Todavía sin verificar contra un modelo real. |
 | Codestral | `https://api.mistral.ai` | Key en `MISTRAL_API_KEY`. |
 | OpenAI-compatible (LM Studio, vLLM…) | `http://127.0.0.1:1234` | `/v1/completions` con la plantilla FIM del modelo. |
 | Gemini (experimental) | Google | Key en `GEMINI_API_KEY`; sin FIM, más lento. |

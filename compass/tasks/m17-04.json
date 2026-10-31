@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "15.4",
+  "created_at": "2026-10-31T12:40:16.960Z",
+  "description": "Editor-tools: run_scene no menciona continue_on_error ni film_fps, y faltan sessions y session_send. One-shot: no dice que un informe del evaluador sin haber jugado no cuenta. En inglés y español.",
+  "milestone": "m17",
+  "notes": "En Editor-tools y Herramientas-del-editor, la fila de run_scene suma continue_on_error y film_fps. continue_on_error frena igual en un breakpoint y deja de saltear errores después de 30 por run (CONTINUE_MAX). Lo usan los playtests y el evaluador; Construir no. film_fps no fija el framerate como record. Hay una fila nueva «Sessions/Sesiones» con sessions y session_send: mensaje de hasta 4000 caracteres que llega al terminar el turno. En One-shot se agregó que un informe del evaluador sin haber jugado no cuenta: alcanza con cualquier tool de ReviewStore.PLAY_TOOLS en su turno, también de subagentes. Si no hubo ninguna, la vuelta no es concluyente, las verificaciones no se aplican y el run termina con «couldn't reach a verdict» (oneshot_run.gd:1208-1246).",
+  "order": 4,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "docs"
+  ],
+  "test": "Revisión de texto contra run_tools.gd:236-237 y 120-145, session_tools.gd, review_store.gd:47 y oneshot_run.gd:1208-1246.",
+  "title": "Huecos en la wiki de tools y One-shot",
+  "updated_at": "2026-10-31T13:47:19.772Z"
+}

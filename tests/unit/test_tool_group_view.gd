@@ -70,3 +70,20 @@ func test_short_names_for_people() -> void:
 	assert_eq(ToolGroupView._short_name(call), "Read", "las del agente quedan")
 	call.title = "mcp__godot__set_project_setting_override_feature"
 	assert_true((ToolGroupView._short_name(call) as String).length() <= 22, "con tope y «…»")
+
+
+## Cada tool del editor tiene nombre para personas: validate_physics y validate_tilemap no tenían (m17-07).
+func test_every_godot_tool_has_a_name() -> void:
+	var dir := "res://addons/godot_agent/mcp/tools"
+	var regex := RegEx.create_from_string("McpTool\\.create\\(\"([a-z_0-9]+)\"")
+	var missing: PackedStringArray = []
+	var count := 0
+	for file: String in DirAccess.get_files_at(dir):
+		if not file.ends_with(".gd"):
+			continue
+		for found: RegExMatch in regex.search_all(FileAccess.get_file_as_string(dir.path_join(file))):
+			count += 1
+			if not ToolGroupView.GODOT_TOOL_NAMES.has(found.get_string(1)):
+				missing.append(found.get_string(1))
+	assert_true(count > 50, "encontró las tools (%d)" % count)
+	assert_eq(missing, PackedStringArray(), "tools sin nombre")

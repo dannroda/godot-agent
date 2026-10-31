@@ -590,7 +590,7 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 	for problem: Variant in _state.get("problems", []):
 		lines.append("Probe: %s" % problem)
 
-	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return not is_engine_noise(entry))
+	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return not ErrorCollector.is_engine_noise(entry))
 	if entries.is_empty():
 		lines.append("No errors or warnings.")
 	else:
@@ -604,13 +604,6 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 	lines.append_array(_extra_lines())
 	lines.append("get_errors mark: %d" % errors.mark())
 	return "\n".join(lines)
-
-
-## En 4.7 el debugger atiende mensajes del editor mientras se inicializa el probe y el motor deja este
-## error, que no es del juego (en 4.8 ya no pasa). Los agentes lo citaban en cada veredicto (m16-03).
-static func is_engine_noise(entry: Dictionary) -> bool:
-	var text := ErrorCollector.format_entry(entry)
-	return text.contains("@implicit_new") and text.contains("absolute paths from outside the active scene tree")
 
 
 ## Lo que traen todas las respuestas: errores salteados, hallazgos de los detectores y tiempo restante.
@@ -861,7 +854,7 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 	if _continue_errors:
 		await (Engine.get_main_loop() as SceneTree).process_frame
 	lines.append_array(_extra_lines())
-	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return entry.source == "game" and not is_engine_noise(entry))
+	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return entry.source == "game" and not ErrorCollector.is_engine_noise(entry))
 	if not entries.is_empty():
 		lines.append("Game errors and warnings (%d):" % entries.size())
 		for entry: Dictionary in entries.slice(maxi(entries.size() - ERROR_LIMIT, 0)):

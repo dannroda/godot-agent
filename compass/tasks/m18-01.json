@@ -1,0 +1,66 @@
+{
+  "assignee": "Daniel",
+  "checklist": [
+    {
+      "done": false,
+      "text": "Instalar el zip del último release en un proyecto de prueba y habilitar el plugin"
+    },
+    {
+      "done": false,
+      "text": "Iniciar sesión y conversar en Preguntar"
+    },
+    {
+      "done": false,
+      "text": "Construir: editar una escena y un script, con Ctrl+Z en cada paso"
+    },
+    {
+      "done": false,
+      "text": "Tarjeta de permiso: permitir una vez, en la sesión y denegar"
+    },
+    {
+      "done": false,
+      "text": "Revisar: hallazgos marcados en el Script Editor"
+    },
+    {
+      "done": false,
+      "text": "Playtest con grabación: veredicto, Reproducir la grabación y Correr regresiones"
+    },
+    {
+      "done": false,
+      "text": "One-shot corto: plan, checkpoints, evaluador y Volver acá"
+    },
+    {
+      "done": false,
+      "text": "Agente con npx: que lo encuentre el editor abierto desde el menú, sin el PATH de la terminal"
+    },
+    {
+      "done": false,
+      "text": "Cerrar la sesión y el editor: sin procesos colgados ni errores de PeekNamedPipe en Output"
+    },
+    {
+      "done": false,
+      "text": "Rutas con espacios y acentos en el proyecto"
+    },
+    {
+      "done": false,
+      "text": "Actualizar el addon desde el aviso del dock"
+    }
+  ],
+  "code": "16.1",
+  "created_at": "2026-10-31T12:40:18.641Z",
+  "description": "CI es solo Linux y una nota del tablero dice «sin probar en Windows». Con Claude Code, para aislar lo que sea de la plataforma.",
+  "milestone": "m18",
+  "notes": "",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "manual",
+    "windows"
+  ],
+  "test": "",
+  "title": "Recorrido completo en Windows",
+  "updated_at": "2026-10-31T12:40:21.222Z"
+}

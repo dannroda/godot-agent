@@ -82,3 +82,22 @@ func test_turn_check_sends_fix_or_notice() -> void:
 	model.set_harness_mode(SessionModel.HarnessMode.ASK)
 	await controller.call(&"_verify_turn", 789)
 	assert_eq(calls.size(), 2, "en Preguntar no verifica")
+
+
+## El ruido de 4.7 (@implicit_new) no sale en get_errors: el One-shot lo citó como error del harness (m17-07).
+func test_get_errors_hides_engine_noise() -> void:
+	var collector := OfflineCollector.new()
+	collector.add("error", "Cannot get path of node as it is not in a scene tree. @implicit_new: absolute paths from outside the active scene tree are relative", "", 0, "game")
+	collector.add("error", "de verdad", "res://a.gd", 3, "game")
+	var tools := DiagnosticTools.new()
+	tools.setup(collector, "")
+	var text: String = tools._get_errors({})
+	assert_false(text.contains("@implicit_new"), "sin el ruido del motor")
+	assert_true(text.contains("de verdad"), "el resto sigue")
+	assert_true(text.contains("1 new"), "el conteo no cuenta el ruido")
+
+
+## Sin editor (tests por --script) no hay debugger que leer.
+class OfflineCollector extends ErrorCollector:
+	func collect() -> void:
+		pass

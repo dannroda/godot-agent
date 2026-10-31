@@ -4,7 +4,7 @@
 
 ![El dock Agent al lado de una escena 2D: el agente leyó la escena, editó un script y conectó una señal con las herramientas del editor](docs/images/es/overview.png)
 
-Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
+Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Solo Claude Code está probado de punta a punta; Codex y Antigravity todavía no se verificaron (Antigravity se prueba en M16). Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
 
 - leer escenas y scripts, la selección y los errores;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
@@ -20,11 +20,11 @@ Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construi
 
 - 100 % GDScript con tipos estáticos: sin GDExtension ni dependencias.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
-- El harness nunca hace merge ni push, no guarda claves y no lee las credenciales del agente. No tiene telemetría: lo que compartís va al agente que elegís y a su proveedor. Detalles en [PRIVACY.es.md](PRIVACY.es.md); para reportar una vulnerabilidad, [SECURITY.md](SECURITY.md).
+- El harness nunca hace merge ni push por su cuenta (la única excepción es **Pushear y abrir un PR**, apagado por defecto, que elegís vos al cerrar una copia aparte), no guarda claves y no lee las credenciales del agente. No tiene telemetría: lo que compartís va al agente que elegís y a su proveedor. Detalles en [PRIVACY.es.md](PRIVACY.es.md); para reportar una vulnerabilidad, [SECURITY.md](SECURITY.md).
 - La interfaz está en inglés y en español: sigue el idioma del editor y se cambia en Settings.
 - El chat muestra el Markdown del agente: tablas, listas, citas y bloques de código con resaltado y botón para copiar.
 
-> Estado: los hitos M0–M8c de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) están implementados. El avance y cómo se verificó cada parte: [`docs/progress.md`](docs/progress.md). Las decisiones de diseño: [`docs/decisions.md`](docs/decisions.md).
+> Estado: están implementados los hitos de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) y los que se sumaron después en el tablero de tareas (M9–M14, playtesting incluido); los tres últimos siguen en revisión. Abiertos: M15 (arreglos de una revisión de features) y M16 (pruebas manuales en Windows y con Google Antigravity). El avance y cómo se verificó cada parte: [`docs/progress.md`](docs/progress.md). Las decisiones de diseño: [`docs/decisions.md`](docs/decisions.md).
 
 ## Documentación
 
@@ -43,12 +43,13 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 ## Requisitos
 
 - **Godot 4.7 o más nuevo.** Se prueba en 4.7.2, 4.8-beta2 y Godot .NET 4.7.2.
+  Problema conocido: en Godot 4.7.2, guardar una escena (Ctrl+S) puede cerrar el editor de golpe. Es un bug del motor en el guardado con vista previa y pasa también sin el addon. Si te pasa, usá 4.8.
 - **Para proyectos en C#**, la versión .NET de Godot y el SDK de .NET (`dotnet`).
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`. El perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
   - una cuenta de Claude Code: la que ya usa `claude` en la máquina, una con la que iniciás sesión desde el dock, o una API key en una variable de entorno.
 - **git**, solo para los checkpoints del One-shot.
-- Linux, macOS o Windows.
+- Linux. macOS y Windows deberían andar, pero todavía no se verificaron (Windows se prueba en M16).
 
 ## Instalación
 
@@ -111,7 +112,7 @@ Los textos de la interfaz se escriben en inglés en el código, con `I18n.t("…
 
 ### CI y releases
 
-- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP, el del One-shot y el ciclo de habilitar y deshabilitar el plugin, en Godot 4.7.2 y 4.8-beta2, y los tests de C# en Godot .NET 4.7.2.
+- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP, el del One-shot, las regresiones de playtest guardadas (por línea de comandos) y el ciclo de habilitar y deshabilitar el plugin, en Godot 4.7.2 y 4.8-beta2. En las mismas versiones, un editor en Xvfb corre los checks del juego (`--godot-agent-run-test`), de Revisar (`--godot-agent-review-test`) y de la sincronización editor ↔ disco (`--godot-agent-external-test`). Los tests de C# corren en Godot .NET 4.7.2.
 - **Release** (`.github/workflows/release.yml`): se corre a mano desde **Actions → Release → Run workflow**, eligiendo `patch`, `minor`, `major` o una versión exacta `X.Y.Z`. Corre el CI, sube `version` en `addons/godot_agent/plugin.cfg`, commitea "Release vX.Y.Z" en `main` con el tag `vX.Y.Z` pasa la sección **Unreleased** de [`CHANGELOG.md`](CHANGELOG.md) a la versión nueva y publica un release de GitHub con el zip del addon y esa sección como notas. El changelog y el release van en inglés: con cada cambio, agregá una entrada en **Unreleased** (el release falla si está vacía).
 - La versión vive solo en `plugin.cfg`: el `clientInfo` de ACP y el `serverInfo` del MCP la leen de ahí.
 

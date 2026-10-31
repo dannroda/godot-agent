@@ -1,0 +1,11 @@
+{
+  "code": "M15",
+  "done_when": [
+    "external-test corre en CI y el editor no se cae al guardar una escena recargada.",
+    "README, wiki y privacidad dicen lo que el addon hace hoy, y lo no probado figura como sin verificar.",
+    "Un One-shot real llegó al evaluador con un presupuesto suficiente."
+  ],
+  "goal": "Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.",
+  "order": 17,
+  "title": "Revisión de features: lo que no estaba correcto"
+}

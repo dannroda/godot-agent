@@ -1,0 +1,35 @@
+{
+  "checklist": [],
+  "code": "15.1",
+  "created_at": "2026-10-31T12:40:15.972Z",
+  "decisions": [
+    {
+      "alternatives": "Dejar save_scene() y no sumar el check a CI (fallaría 3 de 4 veces en 4.7.2); sacar 4.7.2 de la matriz; buscar en el addon un workaround para Ctrl+S (no se encontró ninguno: el error sale aun sin el addon).",
+      "at": "2026-10-31T13:43:27.044Z",
+      "reply": "Usuario (31/10): documentarlo, sin abrir issue en Godot. Queda en D60.",
+      "review": "ok",
+      "text": "El external-test guarda con save_scene_as(path, false) en lugar de save_scene(); el bug de Godot queda en un borrador de issue sin publicar",
+      "why": "La caída es del motor (camino de guardado con vista previa) y el addon no la puede evitar en Ctrl+S. Lo que prueba E (que un guardado del editor no cuente como cambio del agente) no depende de la vista previa. Publicar el issue es hacia afuera: lo decide el usuario."
+    }
+  ],
+  "description": "En external-test, en el segundo y medio después de EditorInterface.save_scene() sobre una escena recién recargada: SIGSEGV en el motor, sin rastro de GDScript. Pasa en alrededor de 1 de cada 3 corridas en 4.7.2, también en v0.1.13 y en un commit anterior. Sigue pasando con el sondeo de EditorSync apagado en ese tramo, pero no se descartó ni al addon ni a Godot. Impacto probable: aceptar la recarga de una escena que cambió el agente y después Ctrl+S. Reproducir en un proyecto sin el addon para separar causas.",
+  "links": [
+    {
+      "task": "m17-02",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m17",
+  "notes": "Es de Godot 4.7.2, no del addon. Todo guardado por _save_scene_with_preview (Ctrl+S, EditorInterface.save_scene()) deja «p_I->data != this» en list.h:228. Pasa en un proyecto sin el addon, con una escena Node2D vacía y sin cambios en disco (tests/upstream/save_preview_list_erase). save_scene_as(path, false), que no hace vista previa ni EditorProgress, no lo deja. El SIGSEGV es el mismo bug cuando la memoria de la lista ya se liberó: con el external-test entero, 9 caídas en 12 corridas guardando con vista previa y 0 en 16 sin vista previa. Hacen falta las fases A (project.godot escrito desde afuera), B (recarga) y algo de tiempo antes del guardado: sin cualquiera de las tres, 0 en 12. Lo que salió en el external-test de 4.7.2: sin el addon, 96 guardados sin caída pero con el error en cada uno. 4.8-beta2 deja el error (p_element->data != this) y no se cayó en 12 corridas. Hipótesis sin confirmar (falta un build con símbolos; compilarlo lo bloqueó el clasificador de permisos): ProgressDialog::_reparent_and_show reparenta un Control raíz y su RI se borra de la lista gui.roots de otro viewport. El external-test ahora guarda sin vista previa: lo que comprueba E es scene_saved, que ese camino también emite. Para el usuario de 4.7.2 queda el riesgo con Ctrl+S, que el addon no puede evitar. Borrador del issue en tests/upstream/issue_save_preview_list_erase.md, sin publicar.",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "external-test en Xvfb con el plugin de dev del repo: 16/16 en 4.7.2 y 8/8 en 4.8-beta2, en copias aisladas. Antes del cambio: 9 caídas en 12 en 4.7.2. Repro mínimo: tests/upstream/save_preview_list_erase con -- --repro, 3 errores con vista previa y 0 sin ella.",
+  "title": "El editor se cae al guardar una escena recargada",
+  "updated_at": "2026-10-31T14:01:17.052Z"
+}

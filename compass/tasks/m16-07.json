@@ -6,6 +6,7 @@
     {
       "alternatives": "Bajar el umbral (sube los falsos positivos en todos los casos); subir el piso de recencia a ~0,7 (la recencia casi deja de distinguir); recencia relativa al archivo más nuevo (un archivo viejo en un proyecto activo sigue sin alcanzar).",
       "at": "2026-10-31T06:42:27.780Z",
+      "review": "ok",
       "text": "La recencia ya no entra en la evidencia (support); umbral y piso de recencia quedan igual",
       "why": "La recencia sirve para preferir lo que se está tocando frente a otros candidatos, no para decidir si hay evidencia. Medido: con el proyecto envejecido vuelve a 17/18 sin cambiar nada a 0 días."
     }
@@ -23,5 +24,5 @@
   ],
   "test": "run_all completion: 50 tests 0 fallas; test_completion_local: «una sola aparición en un proyecto viejo alcanza» (falla sin el cambio) y evidence = 6.0 con raw = 5.5; test_completion_eval con edad fija 0. run_completion_eval --age=0/30/365: 17 exactas, 18 correctas, 2 FP en los tres.",
   "title": "Una línea que aparece una vez deja de sugerirse a los ~9 días",
-  "updated_at": "2026-10-31T06:42:27.780Z"
+  "updated_at": "2026-10-31T11:36:10.157Z"
 }
