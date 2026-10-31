@@ -494,6 +494,10 @@ func _play_inputs(steps: Array, settle_frames: int = 0) -> int:
 			EngineDebugger.send_message(PREFIX + ":problem", [event])
 			continue
 		Input.parse_input_event(event)
+		# Input guarda el evento hasta el próximo frame de proceso: a pocos fps entran varios frames de
+		# física antes y el paso `frame` deja de ser exacto (m17-10).
+		if by_frame:
+			Input.flush_buffered_events()
 		played += 1
 	for _frame in maxi(settle_frames, 0):
 		await get_tree().physics_frame

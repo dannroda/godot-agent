@@ -6,6 +6,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Fixed
 
+- `game_input` by physics frame wasn't exact when the game ran slowly: a hold of 11 frames could last 15. Now it's the same at any frame rate, as the tool promises.
 - `get_errors` no longer lists the Godot 4.7 `@implicit_new` engine error that appears while the playtest probe starts; agents took it for an error of the harness. Game results already hid it.
 - `validate_physics` and `validate_tilemap` show readable names in the chat ("Validate physics", "Validate tilemap").
 - The `save_scene` tool, and saving the open scenes before an add-on update, no longer use the editor's save with preview, which on Godot 4.7.2 can print an engine error (see Known issues). The tool now also reports an error if the scene stays unsaved.

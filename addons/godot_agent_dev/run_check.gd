@@ -187,6 +187,11 @@ func _check_live_game() -> void:
 	var by_frame := await _call_text("game_input", {"steps": [{"frame": 5, "action": "ui_accept", "hold_frames": 9, "strength": 0.4}], "settle_frames": 3})
 	_expect(by_frame.contains("Inputs: 2 of 2 played (by physics frame)"), "game_input por frame · " + by_frame)
 	_expect(await _wait_output(["ui_accept sostenido 9 frames", "ui_accept fuerza 0.40"]), "game_input por frame: 9 frames y fuerza 0.4 en el juego")
+	# A pocos fps entran varios frames de física en cada frame: tiene que seguir siendo exacto (m17-10).
+	await _call_text("game_script", {"code": "func run(game):\n\tEngine.max_fps = 8\n\treturn true"})
+	await _call_text("game_input", {"steps": [{"frame": 5, "action": "ui_accept", "hold_frames": 11}], "settle_frames": 3})
+	_expect(await _wait_output(["ui_accept sostenido 11 frames"]), "game_input por frame: exacto también a pocos fps")
+	await _call_text("game_script", {"code": "func run(game):\n\tEngine.max_fps = 0\n\treturn true"})
 
 
 ## El juego con bugs plantados (M13).
