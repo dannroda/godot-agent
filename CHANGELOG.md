@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-10-31
+
 ### Fixed
 
 - `game_input` by physics frame wasn't exact when the game ran slowly: a hold of 11 frames could last 15. Now it's the same at any frame rate, as the tool promises.
