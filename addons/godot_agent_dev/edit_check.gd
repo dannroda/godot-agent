@@ -153,9 +153,27 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 		"create_scene con script y exports (%s)" % boss_text)
 	if boss_root:
 		boss_root.free()
+	# save_scene guarda sin vista previa (m17-01) y su propio guardado no es un cambio del agente:
+	# emite scene_saved y EditorSync no avisa ni recarga.
+	var sync: Node = _plugin.get(&"_sync")
+	sync.call(&"poll_open_scenes")
+	var saved_paths: Array[String] = []
+	var on_saved := func(path: String) -> void: saved_paths.append(path)
+	var scene_notices: Array[String] = []
+	var on_modified := func(path: String) -> void: scene_notices.append(path)
+	_plugin.connect(&"scene_saved", on_saved)
+	sync.connect(&"open_scene_modified", on_modified)
+	await _tree.create_timer(1.1).timeout  # mtime con resolución de 1 s
 	var saved := await _call_text("save_scene", {})
 	var saved_text := FileAccess.get_file_as_string(EDIT_SCENE)
-	_expect(saved.contains("Saved") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios")
+	_expect(saved.contains("Saved") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios · " + saved)
+	_expect(EDIT_SCENE in saved_paths, "save_scene emite scene_saved (%s)" % [saved_paths])
+	_expect(not EDIT_SCENE in EditorInterface.get_unsaved_scenes(), "save_scene deja la escena como guardada")
+	sync.call(&"poll_open_scenes")
+	await _tree.create_timer(0.5).timeout
+	_expect(scene_notices.is_empty() and EditorInterface.get_edited_scene_root() == root, "su propio guardado no es un cambio del agente (%s)" % [scene_notices])
+	_plugin.disconnect(&"scene_saved", on_saved)
+	sync.disconnect(&"open_scene_modified", on_modified)
 
 	# Project settings por el editor (m4-09): cada cambio guarda project.godot y Ctrl+Z lo revierte.
 	# El grupo project se permite en One-shot (D49) y pregunta en Construir.
@@ -402,8 +420,28 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var last_entry: Object = (_model.call(&"entries") as Array).back()
 	_expect(str(last_entry.get(&"text")).contains("changed afterwards"), "avisa por qué no deshizo")
 
-	EditorInterface.save_scene()
+	# El guardado antes de actualizar el addon (m17-11): la escena activa con cambios se guarda sin
+	# vista previa. El guardado con vista previa escribe la miniatura resthumb-<md5>.png en el cache del
+	# editor (EditorNode::_save_scene_with_preview); sin vista previa no se escribe. El error de 4.7.2
+	# no sirve de señal: no sale en todos los guardados con vista previa (en este test no sale).
+	var thumb := _preview_thumbnail(EDIT_SCENE)
+	EditorInterface.save_scene()  # control: con vista previa, la miniatura aparece
+	_expect(FileAccess.file_exists(thumb), "el guardado con vista previa escribe la miniatura (%s)" % thumb)
+	DirAccess.remove_absolute(thumb)
+	EditorInterface.mark_scene_as_unsaved()
+	_plugin.call(&"_save_all_scenes")
+	await _tree.create_timer(0.5).timeout
+	_expect(not EDIT_SCENE in EditorInterface.get_unsaved_scenes(), "_save_all_scenes guarda la escena activa")
+	_expect(not FileAccess.file_exists(thumb), "_save_all_scenes guarda sin vista previa")
+	DirAccess.remove_absolute(thumb)
+	await _call_text("save_scene", {})
+	_expect(not FileAccess.file_exists(thumb), "la tool save_scene guarda sin vista previa")
 	return failures
+
+
+static func _preview_thumbnail(scene_path: String) -> String:
+	var name := "resthumb-%s.png" % ProjectSettings.globalize_path(scene_path).md5_text()
+	return EditorInterface.get_editor_paths().get_cache_dir().path_join(name)
 
 
 ## Guardar los settings reescribe config/features con la versión del editor que corre la prueba.

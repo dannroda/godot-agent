@@ -4355,7 +4355,7 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
 
-## M15 — Revisión de features: lo que no estaba correcto  (9/9, 9 en revisión)
+## M15 — Revisión de features: lo que no estaba correcto  (11/11, 11 en revisión)
 
 Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
 
@@ -4378,7 +4378,9 @@ En external-test, en el segundo y medio después de EditorInterface.save_scene()
 
 **Prueba:** external-test en Xvfb con el plugin de dev del repo: 16/16 en 4.7.2 y 8/8 en 4.8-beta2, en copias aisladas. Antes del cambio: 9 caídas en 12 en 4.7.2. Repro mínimo: tests/upstream/save_preview_list_erase con -- --repro, 3 errores con vista previa y 0 sin ella.
 
-**Notas:** Es de Godot 4.7.2, no del addon. Todo guardado por _save_scene_with_preview (Ctrl+S, EditorInterface.save_scene()) deja «p_I->data != this» en list.h:228. Pasa en un proyecto sin el addon, con una escena Node2D vacía y sin cambios en disco (tests/upstream/save_preview_list_erase). save_scene_as(path, false), que no hace vista previa ni EditorProgress, no lo deja. El SIGSEGV es el mismo bug cuando la memoria de la lista ya se liberó: con el external-test entero, 9 caídas en 12 corridas guardando con vista previa y 0 en 16 sin vista previa. Hacen falta las fases A (project.godot escrito desde afuera), B (recarga) y algo de tiempo antes del guardado: sin cualquiera de las tres, 0 en 12. Lo que salió en el external-test de 4.7.2: sin el addon, 96 guardados sin caída pero con el error en cada uno. 4.8-beta2 deja el error (p_element->data != this) y no se cayó en 12 corridas. Hipótesis sin confirmar (falta un build con símbolos; compilarlo lo bloqueó el clasificador de permisos): ProgressDialog::_reparent_and_show reparenta un Control raíz y su RI se borra de la lista gui.roots de otro viewport. El external-test ahora guarda sin vista previa: lo que comprueba E es scene_saved, que ese camino también emite. Para el usuario de 4.7.2 queda el riesgo con Ctrl+S, que el addon no puede evitar. Borrador del issue en tests/upstream/issue_save_preview_list_erase.md, sin publicar.
+**Notas:** Corrección (revisión de M15, m17-11): lo comprobado sin el addon es el error, no la caída. Sin el addon: 96 guardados con vista previa, el error en cada uno y ninguna caída. Que la caída venga del mismo bug del motor es probable, sin confirmar. La tool save_scene y el guardado antes de actualizar ya no usan la vista previa (m17-11); Ctrl+S del usuario sigue sin poder evitarse.
+
+Todo guardado por _save_scene_with_preview (Ctrl+S, EditorInterface.save_scene()) deja «p_I->data != this» en list.h:228. Pasa en un proyecto sin el addon, con una escena Node2D vacía y sin cambios en disco (tests/upstream/save_preview_list_erase). save_scene_as(path, false), que no hace vista previa ni EditorProgress, no lo deja. Con el external-test entero, 9 caídas en 12 corridas guardando con vista previa y 0 en 16 sin vista previa. Hacen falta las fases A (project.godot escrito desde afuera), B (recarga) y algo de tiempo antes del guardado: sin cualquiera de las tres, 0 en 12. 4.8-beta2 deja el error (p_element->data != this) y no se cayó en 12 corridas. Hipótesis sin confirmar (falta un build con símbolos; compilarlo lo bloqueó el clasificador de permisos): ProgressDialog::_reparent_and_show reparenta un Control raíz y su RI se borra de la lista gui.roots de otro viewport. El external-test guarda sin vista previa: lo que comprueba E es scene_saved, que ese camino también emite. Borrador del issue en tests/upstream/issue_save_preview_list_erase.md, sin publicar (decisión del usuario).
 
 **Bloquea a:** 15.2 external-test en CI
 
@@ -4388,7 +4390,7 @@ En external-test, en el segundo y medio después de EditorInterface.save_scene()
 
 Ese check no corre en CI y por eso la caída no se veía. Sumarlo al paso de checks del editor, una vez resuelta la caída.
 
-**Prueba:** Falta verlo en CI: no hay push. En local, el mismo comando pasa 16/16 en 4.7.2 y 8/8 en 4.8-beta2.
+**Prueba:** En CI, run 41214552472 (push de 3d2dab1): external-test: 0 fallas en Godot 4.7.2 y en 4.8-beta2. En local, el mismo comando pasa 16/16 en 4.7.2 y 8/8 en 4.8-beta2.
 
 **Notas:** Sumado al paso «Editor checks (run, review, external)» de ci.yml con XRUN_TIMEOUT=120. Corre después del paso que saca scope_compass de project.godot, igual que en las copias aisladas donde se probó.
 
@@ -4463,6 +4465,29 @@ Los de assets, skills, sesiones e historial piden argumentos y quedaron afuera d
 **Prueba:** Los cuatro corridos de a uno en Xvfb 4.7.2: asset-test ok, historial ok, sessions-test ok, skills-test ok.
 
 **Notas:** Resultados en 4.7.2. asset (tests/asset_check.sh, con red): PASS. history (run_in_xvfb --godot-agent-history-test=<png>): PASS. sessions (--godot-agent-sessions-test=<prefijo>): PASS sobre el repo. En una copia sin git falla con «no se abrió la sesión en una copia», porque la copia de la sesión es un git worktree, así que hay que correrlo sobre un repo. skills (tests/skills_check.sh): fallaba con «_meta de la sesión: {}» y el test estaba viejo: desde m13-04 el _meta lo arma controller.adapter y el test solo ponía _profile. Ahora pone también el adaptador de Claude Code y lo restaura después: PASS. Ojo: corridos en paralelo, xvfb-run a veces devuelve exit 1 aunque el test imprima PASS (kill de un Xvfb que ya terminó); hay que correrlos de a uno.
+
+### run-test intermitente en CI: «game_input por frame» con 4.8-beta2 · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `playtest`
+
+En el CI del push de M15 (run 41214552472, 4.8-beta2) falló una vez el check «game_input por frame: 9 frames y fuerza 0.4 en el juego» (run_check.gd:191): el input se jugó (el check anterior pasó), pero en 0,3 s no apareció «ui_accept sostenido 9 frames» en el Output. Al relanzar el job pasó. Parece timing del runner: esperar la línea con un plazo en lugar de un timer fijo de 0,3 s.
+
+**Prueba:** XRUN_TIMEOUT=280 tests/run_in_xvfb.sh godot --godot-agent-run-test: PASS, 0 fallas (4.7.2, local). La intermitencia era de CI, así que se ve en CI.
+
+**Notas:** run_check.gd: _wait_output(texts, 5 s) consulta el Output cada 0,1 s hasta que estén todas las líneas o venza el plazo. Lo usan los dos checks de game_input que esperaban 0,5 s y 0,3 s fijos. El input llega bien (el check del texto de la tool pasaba); lo que tarda es la línea del juego en llegar al Output por el debugger.
+
+### Los guardados del addon sin vista previa, y textos de la caída de 4.7.2 sin exagerar · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `bug`
+
+Revisión de M15: la tool save_scene seguía guardando con EditorInterface.save_scene() (con vista previa, el camino que deja «p_I->data != this» en 4.7.2), y lo mismo el save_all_scenes antes de actualizar el addon. Los textos (README, CHANGELOG, wiki, D60, borrador del issue) decían que la caída pasa también sin el addon, cuando sin el addon solo se vio el error; y mencionaban M15/M16, que solo existen en el tablero.
+
+**Prueba:** Unitarias 399/0: test_addon_scripts.test_no_save_with_preview falla con la tool vuelta a save_scene() o a save_scene_as(path) (probado). edit-test en Xvfb (4.7.2): PASS; con la tool y _save_all_scenes saboteados, 2 fallas (probado). Los checks nuevos: save_scene emite scene_saved, deja la escena guardada, EditorSync no avisa ni recarga, y ni la tool ni _save_all_scenes escriben la miniatura resthumb-<md5>.png (el control con save_scene() sí la escribe). Además: acp 162/0, oneshot_check 134/0, plugin_cycle PASS, regressions_cli bien, run/review/external-test PASS.
+
+**Notas:** - Tool save_scene: save_scene_as(path, false). Si la carpeta no existe da error; si después de guardar la escena sigue en get_unsaved_scenes(), también. La escena que nunca se guardó sigue con el mismo error de antes.
+- plugin._save_all_scenes(), antes de instalar una actualización: save_all_scenes() solo usa la vista previa para la escena activa con cambios (EditorNode::_save_all_scenes en 4.7.2). Por eso primero guarda esa sin vista previa y después llama a save_all_scenes(), que guarda las demás sin vista previa y le pide ruta a las que nunca se guardaron.
+- Hallazgo: el error «p_I->data != this» no sale en todos los guardados con vista previa. En el edit-test, un save_scene() no lo dejó, ni en el Output ni en stderr. Los textos ya no dicen «en cada guardado»: dicen que sin el addon salió en cada guardado del proyecto vacío. Por eso el check usa la miniatura y no el error.
+- Textos: README, CHANGELOG, la wiki (Troubleshooting, Problemas frecuentes, Home, Inicio), D60, progress y el borrador del issue. Ahora dicen que la caída solo se vio con un agente cambiando el proyecto y que su origen en el motor es probable, sin confirmar. Sobre 4.8-beta2: el error sigue, sin caída en 12 corridas. M15 y M16 salieron de los textos públicos.
 
 ## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
 

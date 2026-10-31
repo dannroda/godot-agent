@@ -31,7 +31,7 @@ Claude Code reports the plan quota with the first message of each session, so a 
 | Version | What happens | How the addon handles it |
 |---|---|---|
 | 4.7 | `EditorDock` exists, but the main screen as a dock arrives in 4.8. | Dock and panel use `EditorDock`; the main screen uses the old API. |
-| 4.7.2 | Every save with preview (Ctrl+S) corrupts an engine list (`p_I->data != this` in `list.h`), and sometimes the editor crashes a moment later. It happens without the addon too. | Nothing the addon can do. If it happens to you, use 4.8. |
+| 4.7.2 | Saving with preview (Ctrl+S) can print an engine error (`p_I->data != this` in `list.h`); in a project without the addon it appeared on every save. In sessions where an agent was changing the project, the editor sometimes crashed a moment after saving; without the addon that crash was never seen, and that it comes from this error is likely but not confirmed. | The addon's own saves (`save_scene`, and saving before an update) skip the preview. Ctrl+S is the editor's: the addon can't change it. 4.8-beta2 still prints the error but didn't crash in 12 runs. |
 | 4.8 (betas) | `_has_main_screen()` leaves an orphan `EditorDock` when disabling, and closing the editor with the One-shot screen active gives a focus error. | The main screen uses `add_dock`; before closing, the editor switches to the 2D screen. |
 
 Two known, harmless traces remain in exports: addon paths in `uid_cache.bin`, and the plugin in the enabled plugin list of `project.binary`.

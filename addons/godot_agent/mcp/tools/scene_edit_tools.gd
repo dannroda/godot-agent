@@ -499,10 +499,21 @@ func _save_scene(args: Dictionary) -> Dictionary:
 		return McpTool.error("There is no open scene.")
 	if root.scene_file_path.is_empty():
 		return McpTool.error("The current scene was never saved: it has no path. Create one with create_scene.")
-	var error := EditorInterface.save_scene()
-	if error != OK:
-		return McpTool.error("Could not save %s: %s." % [root.scene_file_path, error_string(error)])
-	return McpTool.text("Saved %s." % root.scene_file_path)
+	var scene_path := root.scene_file_path
+	if not DirAccess.dir_exists_absolute(scene_path.get_base_dir()):
+		return McpTool.error("Could not save %s: its folder does not exist." % scene_path)
+	save_without_preview(scene_path)
+	if scene_path in EditorInterface.get_unsaved_scenes():
+		return McpTool.error("Could not save %s (see get_errors)." % scene_path)
+	return McpTool.text("Saved %s." % scene_path)
+
+
+## Guarda la escena editada sin la vista previa. En 4.7.2 el guardado con vista previa (el de Ctrl+S,
+## save_scene() y save_scene_as(path)) puede dejar «p_I->data != this» en list.h (sin el addon, en cada guardado), y en
+## sesiones donde un agente modifica el proyecto el editor se cayó después (m17-01, D60). Este
+## camino emite scene_saved igual, así que EditorSync no lo toma por un cambio del agente.
+static func save_without_preview(scene_path: String) -> void:
+	EditorInterface.save_scene_as(scene_path, false)
 
 
 func _create_scene(args: Dictionary) -> Dictionary:

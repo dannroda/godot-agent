@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-31T23:10:23.918Z",
+  "description": "Revisión de M15: la tool save_scene seguía guardando con EditorInterface.save_scene() (con vista previa, el camino que deja «p_I->data != this» en 4.7.2), y lo mismo el save_all_scenes antes de actualizar el addon. Los textos (README, CHANGELOG, wiki, D60, borrador del issue) decían que la caída pasa también sin el addon, cuando sin el addon solo se vio el error; y mencionaban M15/M16, que solo existen en el tablero.",
+  "milestone": "m17",
+  "notes": "- Tool save_scene: save_scene_as(path, false). Si la carpeta no existe da error; si después de guardar la escena sigue en get_unsaved_scenes(), también. La escena que nunca se guardó sigue con el mismo error de antes.\n- plugin._save_all_scenes(), antes de instalar una actualización: save_all_scenes() solo usa la vista previa para la escena activa con cambios (EditorNode::_save_all_scenes en 4.7.2). Por eso primero guarda esa sin vista previa y después llama a save_all_scenes(), que guarda las demás sin vista previa y le pide ruta a las que nunca se guardaron.\n- Hallazgo: el error «p_I->data != this» no sale en todos los guardados con vista previa. En el edit-test, un save_scene() no lo dejó, ni en el Output ni en stderr. Los textos ya no dicen «en cada guardado»: dicen que sin el addon salió en cada guardado del proyecto vacío. Por eso el check usa la miniatura y no el error.\n- Textos: README, CHANGELOG, la wiki (Troubleshooting, Problemas frecuentes, Home, Inicio), D60, progress y el borrador del issue. Ahora dicen que la caída solo se vio con un agente cambiando el proyecto y que su origen en el motor es probable, sin confirmar. Sobre 4.8-beta2: el error sigue, sin caída en 12 corridas. M15 y M16 salieron de los textos públicos.",
+  "order": 11,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "Unitarias 399/0: test_addon_scripts.test_no_save_with_preview falla con la tool vuelta a save_scene() o a save_scene_as(path) (probado). edit-test en Xvfb (4.7.2): PASS; con la tool y _save_all_scenes saboteados, 2 fallas (probado). Los checks nuevos: save_scene emite scene_saved, deja la escena guardada, EditorSync no avisa ni recarga, y ni la tool ni _save_all_scenes escriben la miniatura resthumb-<md5>.png (el control con save_scene() sí la escribe). Además: acp 162/0, oneshot_check 134/0, plugin_cycle PASS, regressions_cli bien, run/review/external-test PASS.",
+  "title": "Los guardados del addon sin vista previa, y textos de la caída de 4.7.2 sin exagerar",
+  "updated_at": "2026-10-31T23:16:48.483Z"
+}

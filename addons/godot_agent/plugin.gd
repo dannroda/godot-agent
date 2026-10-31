@@ -880,7 +880,7 @@ func _install_update(release: Dictionary) -> void:
 		_update_banner.set_error(staged.error)
 		return
 	_update_banner.set_progress(I18n.t("Installing %s…") % release.version)
-	EditorInterface.save_all_scenes()
+	_save_all_scenes()
 	if _controller:
 		_controller.stop()
 	var backup := ProjectSettings.globalize_path(UPDATE_BACKUP_DIR % AddonVersion.version())
@@ -893,6 +893,18 @@ func _install_update(release: Dictionary) -> void:
 	if not installed.backed_up.is_empty():
 		print("Godot Agent Harness: %s" % (I18n.t("your previous %s were saved in %s") % [", ".join(installed.backed_up), backup]))
 	EditorInterface.restart_editor(false)
+
+
+## save_all_scenes() usa el guardado con vista previa solo para la escena activa y solo si tiene
+## cambios (EditorNode::_save_all_scenes en 4.7.2); las demás van por el camino sin vista previa.
+## Guardar antes la activa sin vista previa la saca de esa lista (m17-01, D60). Las escenas que nunca
+## se guardaron siguen en save_all_scenes, que le pide una ruta al usuario.
+static func _save_all_scenes() -> void:
+	var root := EditorInterface.get_edited_scene_root()
+	var path := root.scene_file_path if root else ""
+	if not path.is_empty() and path in EditorInterface.get_unsaved_scenes() and DirAccess.dir_exists_absolute(path.get_base_dir()):
+		EditorInterface.save_scene_as(path, false)
+	EditorInterface.save_all_scenes()
 
 
 func _open_settings() -> void:

@@ -1,6 +1,6 @@
 ### Tested versions
 
-- Reproducible in: v4.7.2.stable.official [ed1daf0bf] (error on every save, occasional SIGSEGV)
+- Reproducible in: v4.7.2.stable.official [ed1daf0bf] (error on every save in the attached project; a SIGSEGV seen only in a session with an addon, see below)
 - Reproducible in: v4.8.beta2.official (same error, as `p_element->data != this`; no crash seen in 12 runs)
 
 ### System information
@@ -9,7 +9,7 @@ Linux (Arch, kernel 7.2), X11 editor under Xvfb, Compatibility renderer (Mesa ll
 
 ### Issue description
 
-Every save that goes through `EditorNode::_save_scene_with_preview` (Ctrl+S, `EditorInterface.save_scene()`) prints:
+In the attached project, every save that goes through `EditorNode::_save_scene_with_preview` (Ctrl+S, `EditorInterface.save_scene()`) prints the following. It isn't universal: in another session of the same editor version, a save with preview printed nothing.
 
 ```
 ERROR: Condition "p_I->data != this" is true. Returning: false
@@ -18,7 +18,7 @@ ERROR: Condition "p_I->data != this" is true. Returning: false
 
 The scene doesn't matter (an empty `Node2D` is enough), and nothing has to change on disk. Saving the same scene with `EditorInterface.save_scene_as(path, false)`, which skips the preview and the "Saving Scene" `EditorProgress`, prints nothing.
 
-The error means a `List::Element` is being erased from a list it does not belong to. Sometimes it is a use-after-free instead: in a larger editor session (an addon reloading an externally modified scene and an external write to `project.godot` before the save), the editor crashed with signal 11 within 1.5 s after `save_scene()` in about 3 of 4 runs. With the preview-less save, that same session never crashed (0 of 16 runs). Official builds are stripped, so the backtrace only shows the main loop:
+The error means a `List::Element` is being erased from a list it does not belong to. Possibly related, but not confirmed: in a larger editor session (an addon reloading an externally modified scene and an external write to `project.godot` before the save), the editor crashed with signal 11 within 1.5 s after `save_scene()` in about 3 of 4 runs. With the preview-less save, that same session never crashed (0 of 16 runs). Without the addon I never saw the crash (96 saves with preview, the error on every one), so I can't say the crash is this bug and not something the addon contributes. Official builds are stripped, so the backtrace only shows the main loop:
 
 ```
 [1] libc.so.6(+0x3e6f0)

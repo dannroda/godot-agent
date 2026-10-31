@@ -182,13 +182,11 @@ func _check_live_game() -> void:
 	_expect(emitted.contains("'scored' was emitted") and emitted.contains("(7)"), "game_wait: señal con argumentos · " + emitted)
 	var played := await _call_text("game_input", {"steps": [{"action": "ui_accept"}, {"key": "Ctrl+S"}, {"click": [40, 30]}]})
 	_expect(played.contains("Inputs: 7 of 7"), "game_input: todos los eventos · " + played)
-	await _tree.create_timer(0.5).timeout
-	_expect(_output_has("ctrl+s recibido") and _output_has("click 1 en (40.0, 30.0)") and _output_has("ui_accept soltado"), "game_input: el juego recibió tecla, click y acción")
+	_expect(await _wait_output(["ctrl+s recibido", "click 1 en (40.0, 30.0)", "ui_accept soltado"]), "game_input: el juego recibió tecla, click y acción")
 	# Por frame de física (m14-01): sostenida exactamente hold_frames y con la fuerza pedida.
 	var by_frame := await _call_text("game_input", {"steps": [{"frame": 5, "action": "ui_accept", "hold_frames": 9, "strength": 0.4}], "settle_frames": 3})
 	_expect(by_frame.contains("Inputs: 2 of 2 played (by physics frame)"), "game_input por frame · " + by_frame)
-	await _tree.create_timer(0.3).timeout
-	_expect(_output_has("ui_accept sostenido 9 frames") and _output_has("ui_accept fuerza 0.40"), "game_input por frame: 9 frames y fuerza 0.4 en el juego")
+	_expect(await _wait_output(["ui_accept sostenido 9 frames", "ui_accept fuerza 0.40"]), "game_input por frame: 9 frames y fuerza 0.4 en el juego")
 
 
 ## El juego con bugs plantados (M13).
@@ -419,6 +417,19 @@ func _frame_is_red(result: Dictionary) -> bool:
 				return false
 			var pixel := image.get_pixel(image.get_width() / 2, image.get_height() / 2)
 			return pixel.r > 0.9 and pixel.g < 0.1 and pixel.b < 0.1
+	return false
+
+
+## Lo que imprime el juego llega al Output por el debugger con retraso variable: en CI 0,3 s fijos
+## no alcanzaron una vez (m17-10). Espera hasta que estén todas las líneas o venza el plazo.
+func _wait_output(texts: Array, timeout_s: float = 5.0) -> bool:
+	var deadline := Time.get_ticks_msec() + int(timeout_s * 1000)
+	while true:
+		if texts.all(func(text: String) -> bool: return _output_has(text)):
+			return true
+		if Time.get_ticks_msec() >= deadline:
+			return false
+		await _tree.create_timer(0.1).timeout
 	return false
 
 

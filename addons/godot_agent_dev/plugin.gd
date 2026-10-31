@@ -365,7 +365,7 @@ func _run_external_test() -> void:
 	notices.clear()
 	root = EditorInterface.get_edited_scene_root()
 	# Sin vista previa: en 4.7.2 el guardado con vista previa (el de Ctrl+S y save_scene()) deja
-	# «p_I->data != this» en list.h en cada guardado, también sin el addon, y a veces SIGSEGV
+	# «p_I->data != this» en list.h (sin el addon también), y en este test a veces SIGSEGV
 	# (m17-01). Lo que se prueba acá es scene_saved, que este camino también emite.
 	EditorInterface.save_scene_as(EXTERNAL_SCENE, false)
 	await get_tree().create_timer(1.5).timeout

@@ -4,7 +4,7 @@
 
 ![El dock Agent al lado de una escena 2D: el agente leyó la escena, editó un script y conectó una señal con las herramientas del editor](docs/images/es/overview.png)
 
-Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Solo Claude Code está probado de punta a punta; Codex y Antigravity todavía no se verificaron (Antigravity se prueba en M16). Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
+Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Solo Claude Code está probado de punta a punta; Codex y Antigravity todavía no se verificaron. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
 
 - leer escenas y scripts, la selección y los errores;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
@@ -24,7 +24,7 @@ Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construi
 - La interfaz está en inglés y en español: sigue el idioma del editor y se cambia en Settings.
 - El chat muestra el Markdown del agente: tablas, listas, citas y bloques de código con resaltado y botón para copiar.
 
-> Estado: están implementados los hitos de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) y los que se sumaron después en el tablero de tareas (M9–M14, playtesting incluido); los tres últimos siguen en revisión. Abiertos: M15 (arreglos de una revisión de features) y M16 (pruebas manuales en Windows y con Google Antigravity). El avance y cómo se verificó cada parte: [`docs/progress.md`](docs/progress.md). Las decisiones de diseño: [`docs/decisions.md`](docs/decisions.md).
+> Estado: están implementados los hitos de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) y lo que se sumó después (playtesting incluido); lo más nuevo sigue en revisión. Falta probar a mano: Windows y Google Antigravity. El avance y cómo se verificó cada parte: [`docs/progress.md`](docs/progress.md). Las decisiones de diseño: [`docs/decisions.md`](docs/decisions.md).
 
 ## Documentación
 
@@ -43,13 +43,13 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 ## Requisitos
 
 - **Godot 4.7 o más nuevo.** Se prueba en 4.7.2, 4.8-beta2 y Godot .NET 4.7.2.
-  Problema conocido: en Godot 4.7.2, guardar una escena (Ctrl+S) puede cerrar el editor de golpe. Es un bug del motor en el guardado con vista previa y pasa también sin el addon. Si te pasa, usá 4.8.
+  Problema conocido en Godot 4.7.2: el guardado de escenas con vista previa (Ctrl+S) puede hacer que el motor imprima `Condition "p_I->data != this" is true` (`list.h`); en un proyecto sin el addon salió en cada guardado. En sesiones donde un agente estaba cambiando el proyecto, el editor a veces se cerró justo después de uno de esos guardados. Esa caída nunca se vio sin el addon; que venga del mismo error del motor es probable, pero no está confirmado. Los guardados del propio addon no usan la vista previa, pero Ctrl+S es del editor. Godot 4.8-beta2 sigue imprimiendo el error, aunque no se cayó en 12 corridas.
 - **Para proyectos en C#**, la versión .NET de Godot y el SDK de .NET (`dotnet`).
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`. El perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
   - una cuenta de Claude Code: la que ya usa `claude` en la máquina, una con la que iniciás sesión desde el dock, o una API key en una variable de entorno.
 - **git**, solo para los checkpoints del One-shot.
-- Linux. macOS y Windows deberían andar, pero todavía no se verificaron (Windows se prueba en M16).
+- Linux. macOS y Windows deberían andar, pero todavía no se verificaron.
 
 ## Instalación
 

@@ -13,7 +13,7 @@
   "tags": [
     "ci"
   ],
-  "test": "Falta verlo en CI: no hay push. En local, el mismo comando pasa 16/16 en 4.7.2 y 8/8 en 4.8-beta2.",
+  "test": "En CI, run 41214552472 (push de 3d2dab1): external-test: 0 fallas en Godot 4.7.2 y en 4.8-beta2. En local, el mismo comando pasa 16/16 en 4.7.2 y 8/8 en 4.8-beta2.",
   "title": "external-test en CI",
-  "updated_at": "2026-10-31T13:43:27.112Z"
+  "updated_at": "2026-10-31T23:10:23.808Z"
 }

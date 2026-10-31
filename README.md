@@ -4,7 +4,7 @@
 
 ![The Agent dock next to a 2D scene: the agent read the scene, edited a script and connected a signal through the editor tools](docs/images/en/overview.png)
 
-An editor addon for Godot 4 (GDScript and C# projects) that connects a coding agent (Claude Code, Google Antigravity, Codex, or any agent that speaks [ACP](https://agentclientprotocol.com)) to the editor. Only Claude Code has been tested end to end; Codex and Antigravity haven't been verified yet (Antigravity is tested in M16). You chat with the agent in a dock, and it can see and change your project through the editor's own tools:
+An editor addon for Godot 4 (GDScript and C# projects) that connects a coding agent (Claude Code, Google Antigravity, Codex, or any agent that speaks [ACP](https://agentclientprotocol.com)) to the editor. Only Claude Code has been tested end to end; Codex and Antigravity haven't been verified yet. You chat with the agent in a dock, and it can see and change your project through the editor's own tools:
 
 - read scenes and scripts, the selection and the errors;
 - edit nodes and properties, each change one undo step;
@@ -24,7 +24,7 @@ It has five modes: **Ask**, **Review**, **Build**, **Auto** (Build that runs the
 - The interface is in English and Spanish (it follows the editor language; you can change it in Settings).
 - The chat renders the agent's Markdown: tables, lists, quotes, and code blocks with highlighting and a copy button.
 
-> Status: the milestones of [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) and those added later on the task board (M9–M14, playtesting included) are implemented; the last three are still under review. Open: M15 (fixes from a feature review) and M16 (manual tests on Windows and with Google Antigravity). Progress and how each part was verified: [`docs/progress.md`](docs/progress.md). Design decisions: [`docs/decisions.md`](docs/decisions.md). Both are in Spanish.
+> Status: the milestones of [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) and the work added later (playtesting included) are implemented; the newest parts are still under review. Still to verify by hand: Windows and Google Antigravity. Progress and how each part was verified: [`docs/progress.md`](docs/progress.md). Design decisions: [`docs/decisions.md`](docs/decisions.md). Both are in Spanish.
 
 ## Documentation
 
@@ -43,13 +43,13 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
 ## Requirements
 
 - **Godot 4.7 or newer.** Tested on 4.7.2, 4.8-beta2 and Godot .NET 4.7.2.
-  Known issue: on Godot 4.7.2, saving a scene (Ctrl+S) can crash the editor. It's an engine bug in the save with preview and also happens without the addon. If it happens to you, use 4.8.
+  Known issue on Godot 4.7.2: saving a scene with preview (Ctrl+S) can make the engine print `Condition "p_I->data != this" is true` (`list.h`); in a project without the addon it appeared on every save. In sessions where an agent was changing the project, the editor sometimes crashed right after such a save. That crash was never seen without the addon; that it comes from the same engine error is likely but not confirmed. The addon's own saves skip the preview, but Ctrl+S belongs to the editor. Godot 4.8-beta2 still prints the error, though it didn't crash in 12 runs.
 - **For C# projects**, the .NET version of Godot and the .NET SDK (`dotnet`).
 - **An ACP agent.** For Claude Code:
   - Node.js with `npx`. The default profile runs `npx -y @agentclientprotocol/claude-agent-acp`;
   - a Claude Code account: the one `claude` already uses on your machine, one you sign in to from the dock, or an API key in an environment variable.
 - **git**, only for One-shot checkpoints.
-- Linux. macOS and Windows should work but haven't been verified yet (Windows is tested in M16).
+- Linux. macOS and Windows should work but haven't been verified yet.
 
 ## Install
 

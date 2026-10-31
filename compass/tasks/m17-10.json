@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-10-31T15:30:34.696Z",
+  "description": "En el CI del push de M15 (run 41214552472, 4.8-beta2) falló una vez el check «game_input por frame: 9 frames y fuerza 0.4 en el juego» (run_check.gd:191): el input se jugó (el check anterior pasó), pero en 0,3 s no apareció «ui_accept sostenido 9 frames» en el Output. Al relanzar el job pasó. Parece timing del runner: esperar la línea con un plazo en lugar de un timer fijo de 0,3 s.",
+  "milestone": "m17",
+  "notes": "run_check.gd: _wait_output(texts, 5 s) consulta el Output cada 0,1 s hasta que estén todas las líneas o venza el plazo. Lo usan los dos checks de game_input que esperaban 0,5 s y 0,3 s fijos. El input llega bien (el check del texto de la tool pasaba); lo que tarda es la línea del juego en llegar al Output por el debugger.",
+  "order": 10,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "playtest"
+  ],
+  "test": "XRUN_TIMEOUT=280 tests/run_in_xvfb.sh godot --godot-agent-run-test: PASS, 0 fallas (4.7.2, local). La intermitencia era de CI, así que se ve en CI.",
+  "title": "run-test intermitente en CI: «game_input por frame» con 4.8-beta2",
+  "updated_at": "2026-10-31T23:16:48.436Z"
+}

@@ -853,10 +853,10 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Ahora se puede usar** `Control.custom_maximum_size` (existe desde 4.7).
 
 
-## D60 · Caída de 4.7.2 al guardar con vista previa: bug del motor, documentado y sin issue
+## D60 · Error de 4.7.2 al guardar con vista previa: el addon guarda sin vista previa; documentado y sin issue
 
-- **Qué pasa** (m17-01): en Godot 4.7.2, cada guardado que pasa por `EditorNode::_save_scene_with_preview` deja `ERROR: Condition "p_I->data != this" is true` en `core/templates/list.h:228`. Ese camino lo usan Ctrl+S y `EditorInterface.save_scene()`. Se borra un `List::Element` de una lista que no es la suya. Cuando la memoria de esa lista ya se liberó, el mismo bug termina en SIGSEGV dentro del segundo y medio siguiente, sin rastro de GDScript.
-- **No es del addon**: pasa en un proyecto sin el addon, con una escena `Node2D` vacía y sin cambios en disco. `EditorInterface.save_scene_as(path, false)` no deja el error: sin vista previa no hay miniatura ni `EditorProgress`.
+- **Qué pasa** (m17-01): en Godot 4.7.2, los guardados que pasan por `EditorNode::_save_scene_with_preview` pueden dejar `ERROR: Condition "p_I->data != this" is true` en `core/templates/list.h:228`. Ese camino lo usan Ctrl+S y `EditorInterface.save_scene()`. Se borra un `List::Element` de una lista que no es la suya. En sesiones donde un agente modifica el proyecto, el editor a veces se cae con SIGSEGV en el segundo y medio siguiente, sin rastro de GDScript.
+- **El error es del motor; la caída, sin confirmar**: el error sale en un proyecto sin el addon, con una escena `Node2D` vacía y sin cambios en disco, en cada guardado. No sale siempre: en el edit-test (m17-11), un guardado con vista previa no lo dejó. La caída sin el addon nunca se vio: 96 guardados con vista previa, con el error en cada uno y ninguna caída. Que la caída sea el mismo bug (un uso de memoria liberada en esa lista) es probable, no está confirmado. `EditorInterface.save_scene_as(path, false)` no deja el error: sin vista previa no hay miniatura ni `EditorProgress`.
 - **Qué hace más probable la caída**: el error está en todos los guardados, pero la caída necesita el contexto del external-test. Esto se vio en 4.7.2, con 12 corridas por variante:
   - con `project.godot` escrito desde afuera (aunque sea con el mismo texto), la recarga automática de la escena y unos segundos de espera antes de guardar: 9 caídas en 12;
   - sin cualquiera de esas tres cosas: 0 en 12;
@@ -865,6 +865,7 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
 - **Hipótesis sin confirmar**: `ProgressDialog::_reparent_and_show()` pasa el diálogo (un `Control` raíz) a la última ventana exclusiva, y `Control::NOTIFICATION_EXIT_CANVAS` borra `data.RI` de la lista `gui.roots` de otro viewport. Encaja con la caída que arregló 0.1.14 (diálogos del addon abiertos con una barra de progreso del editor). Para confirmarla hace falta un build de 4.7.2 con símbolos.
 - **Decisión del usuario** (2026-10-31): documentarlo, sin abrir un issue en Godot.
   - El external-test guarda con `save_scene_as(path, false)`: lo que prueba (que un guardado del editor no cuente como cambio del agente) es `scene_saved`, que ese camino también emite. Así corre en CI.
-  - README, CHANGELOG y la wiki (Problemas frecuentes) lo listan como problema conocido de 4.7.2, con 4.8 como salida.
-  - El addon no lo puede evitar: Ctrl+S es del editor.
+  - README, CHANGELOG y la wiki (Problemas frecuentes) lo listan como problema conocido de 4.7.2, y dicen que 4.8-beta2 sigue dejando el error, aunque no se cayó en 12 corridas.
+  - Los guardados del addon no usan la vista previa: la tool `save_scene` guarda con `save_scene_as(path, false)`, y antes de instalar una actualización `plugin._save_all_scenes()` guarda primero así la escena activa, porque `save_all_scenes()` solo usa la vista previa para la escena activa con cambios (`EditorNode::_save_all_scenes` en 4.7.2). `test_addon_scripts.test_no_save_with_preview` falla si vuelve un guardado con vista previa al código del addon, y el edit-test comprueba en el editor que ni la tool ni `_save_all_scenes()` escriben la miniatura (`resthumb-<md5>.png` en el cache del editor), que solo escribe el guardado con vista previa.
+  - Lo que el addon no puede evitar es Ctrl+S del usuario: es un atajo del editor.
 - **Repro**: `tests/upstream/save_preview_list_erase/` (abrir con `-- --repro`: tres guardados con vista previa y tres sin; solo los primeros dejan el error). El texto del issue quedó en `tests/upstream/issue_save_preview_list_erase.md`, por si se publica más adelante.
