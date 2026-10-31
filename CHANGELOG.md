@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-10-31
+
 ### Added
 
 - Saved playtest regressions run from the command line, for CI: `godot --headless --path . --script res://addons/godot_agent/playtest/regression_cli.gd`. A regression can carry a `sabotage` script that breaks what it checks; it then has to fail with it, or it counts as not detecting the bug.
