@@ -180,6 +180,8 @@ func _check_live_game() -> void:
 
 ## El juego con bugs plantados (M13).
 func _check_playtest_game() -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://.godot_agent/playtests"))
+	var photos_before := DirAccess.get_files_at("res://.godot_agent/playtests")
 	# Con tope de tiempo, como un Playtest: el segundo run_scene con tope hacía caer el editor (m16-03).
 	RunTools.set_playtest_deadline(Time.get_ticks_msec() + 300000)
 	await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 1, "continue_on_error": true, "film_fps": 5})
@@ -232,8 +234,9 @@ func _check_playtest_game() -> void:
 	_expect(all_findings.contains("[sig=out_of_world:Gate]"), "detector: fuera del mundo · " + all_findings.right(600))
 	_expect(all_findings.contains("Detector hitch"), "detector: frame largo")
 	_expect(not all_findings.contains("nan:Lamp"), "no es un bug: ya no se reporta")
-	var frame_found := RegEx.create_from_string("frame=(res://\\S+\\.png)").search(all_findings)
-	_expect(frame_found != null and FileAccess.file_exists(frame_found.get_string(1)), "la foto del hallazgo queda en disco")
+	# Saca una cada 5 s: puede ser de cualquier hallazgo del run, no siempre de estos.
+	var new_photos := Array(DirAccess.get_files_at("res://.godot_agent/playtests")).filter(func(file: String) -> bool: return file.begins_with("finding_") and file.ends_with(".png") and not file in photos_before)
+	_expect(not new_photos.is_empty(), "la foto del hallazgo queda en disco")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PlaytestMemory.DIR.path_join(PlaytestMemory.NOT_A_BUG_FILE)))
 
 	# Pausa y avance por frames (m15-13)

@@ -155,7 +155,7 @@ func _on_finding_received(finding: Dictionary) -> void:
 
 func _on_finding_frame_received(signature: String, png: PackedByteArray) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(RECORD_DIR))
-	var path := RECORD_DIR.path_join("finding_%s_%d.png" % [signature.md5_text().left(8), Time.get_ticks_msec()])
+	var path := RECORD_DIR.path_join("finding_%012d_%s.png" % [Time.get_ticks_msec(), signature.md5_text().left(8)])
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		return
