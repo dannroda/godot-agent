@@ -4,17 +4,17 @@
   "created_at": "2026-10-31T12:40:17.459Z",
   "description": "En la revisión, el One-shot real terminó por el presupuesto de 5 playtests del test, así que el evaluador no corrió y «sin jugar no cuenta» solo está probado con agente falso. Correrlo con más presupuesto. Gastó 245k tokens contra 114k de la versión anterior, sin comparación controlada: medir si el consumo subió por los prompts y tools de M13.",
   "milestone": "m17",
-  "notes": "",
+  "notes": "One-shot real (Claude Code, Pong, Godot 4.7.2, Xvfb), con presupuesto de 40 min, 3M tokens y 20 playtests: llegó al evaluador dos veces. Cuatro turnos: construir (76 tools), QA 1 (36 tools, no pasa: «Paletas inactivas fuera de juego», paddle.gd:16), arreglo (42 tools) y QA 2 (35 tools, pasa con ponderado 8.7). Total: 12,1 min, 8 playtests, 299.705 tokens, 7 checkpoints. El evaluador jugó: en QA 1 hizo 11 godot.run y 3 capture_game_frame, y no salió el aviso de veredicto sin jugar. «Sin jugar no cuenta» con un agente real que no juega sigue probado solo con el agente falso (oneshot_check «evaluador sin jugar»): forzarlo con uno real no tiene sentido. Consumo: no hay comparación controlada, porque haría falta correr la versión anterior a M13 más de una vez y eso gasta cuota. Lo que se midió sin correr nada, de 1f936eb^ a HEAD: descripciones y esquemas de tools de 18,4k a 22,0k caracteres (de 64 a 72 tools) y system_prompt.md de 6,9k a 7,4k, unos +1k tokens por turno antes de la caché. Los 245k de la revisión no llegaron al QA; estos 300k incluyen dos rondas de QA. Los informes qa-*.md se perdieron con el «Volver acá» final del test (.godot_agent no se versiona, cp7 se descartó); quedan los hallazgos en el log. Cambios al test: CLAUDE_BUDGETS a 40 min y 20 playtests, timeout de 3600 s, check «el evaluador no corrió» e impresión de cada ronda de QA.",
   "order": 6,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "playtest",
     "one-shot"
   ],
-  "test": "",
+  "test": "XRUN_PROJECT=<sandbox de make_sandbox.sh --dev> XRUN_TIMEOUT=3800 tests/run_in_xvfb.sh godot --godot-agent-claude-oneshot-test: PASS, 0 fallas.",
   "title": "One-shot real que llegue al evaluador",
-  "updated_at": "2026-10-31T12:40:17.459Z"
+  "updated_at": "2026-10-31T14:15:20.800Z"
 }

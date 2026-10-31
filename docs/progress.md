@@ -374,7 +374,7 @@ $G --headless --path . --script tests/oneshot_check.gd           # 34 checks: lo
 tests/run_in_xvfb.sh $G --godot-agent-ui-test=ui_quota           # dock: medidor y envío bloqueado en "limitado"
 tests/run_in_xvfb.sh $G --godot-agent-oneshot-test               # pantalla Agent con el agente falso sobre un repo temporal
 tests/make_sandbox.sh /tmp/sandbox --dev
-XRUN_PROJECT=/tmp/sandbox XRUN_TIMEOUT=2900 tests/run_in_xvfb.sh $G --godot-agent-claude-oneshot-test   # Claude Code real (gasta tokens)
+XRUN_PROJECT=/tmp/sandbox XRUN_TIMEOUT=3800 tests/run_in_xvfb.sh $G --godot-agent-claude-oneshot-test   # Claude Code real (gasta tokens)
 ```
 
 `oneshot_check` y `--godot-agent-oneshot-test` usan guiones del agente falso:
@@ -389,7 +389,7 @@ Todo pasa en 4.4.1, 4.7.2 y 4.8-beta1, junto con el cycle test (5 ciclos sin hu�
 
 ### One-shot con Claude Code real
 
-`--godot-agent-claude-oneshot-test` en el sandbox, con 4.8-beta1 y el objetivo "Pong de 2 jugadores con puntaje: paletas con W/S y flechas arriba/abajo, pelota que rebota, puntaje arriba y saque desde el centro después de cada punto". Presupuestos: 25 min, 3M tokens, 5 playtests. La prueba pide un playtest con captura, al menos 3 checkpoints, escenas nuevas y que "Volver acá" al anteúltimo checkpoint deje el proyecto idéntico (sin diff ni archivos sin seguimiento).
+`--godot-agent-claude-oneshot-test` en el sandbox, con 4.8-beta1 y el objetivo "Pong de 2 jugadores con puntaje: paletas con W/S y flechas arriba/abajo, pelota que rebota, puntaje arriba y saque desde el centro después de cada punto". Presupuestos: 25 min, 3M tokens, 5 playtests (desde m17-06: 40 min y 20 playtests, para que llegue al evaluador). La prueba pide un playtest con captura, al menos 3 checkpoints, escenas nuevas y que "Volver acá" al anteúltimo checkpoint deje el proyecto idéntico (sin diff ni archivos sin seguimiento).
 
 | Corrida | Resultado | Playtests | Tokens | Tiempo | Checkpoints |
 |---|---|---|---|---|---|

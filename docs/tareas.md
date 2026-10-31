@@ -4355,7 +4355,7 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
 
-## M15 — Revisión de features: lo que no estaba correcto  (8/9, 8 en revisión)
+## M15 — Revisión de features: lo que no estaba correcto  (9/9, 9 en revisión)
 
 Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
 
@@ -4424,11 +4424,15 @@ En README y wiki: Codex y macOS figuran como soportados sin ninguna prueba real;
 
 **Notas:** Marcado como sin verificar en el README (intro y requisitos) y en la wiki (Home/Inicio y Settings): Codex, Google Antigravity, macOS y Windows. Windows y Antigravity llevan la nota «se prueban en M16». En Completado: Ollama y llama.cpp, sin verificar contra un modelo real. Cuando se haga M16, actualizar estos textos con el resultado. No marqué Codestral, OpenAI-compatible ni Gemini: no sé si se probaron.
 
-### 15.6 One-shot real que llegue al evaluador · Pendiente
+### 15.6 One-shot real que llegue al evaluador · Revisión
 
 **Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `playtest`, `one-shot`
 
 En la revisión, el One-shot real terminó por el presupuesto de 5 playtests del test, así que el evaluador no corrió y «sin jugar no cuenta» solo está probado con agente falso. Correrlo con más presupuesto. Gastó 245k tokens contra 114k de la versión anterior, sin comparación controlada: medir si el consumo subió por los prompts y tools de M13.
+
+**Prueba:** XRUN_PROJECT=<sandbox de make_sandbox.sh --dev> XRUN_TIMEOUT=3800 tests/run_in_xvfb.sh godot --godot-agent-claude-oneshot-test: PASS, 0 fallas.
+
+**Notas:** One-shot real (Claude Code, Pong, Godot 4.7.2, Xvfb), con presupuesto de 40 min, 3M tokens y 20 playtests: llegó al evaluador dos veces. Cuatro turnos: construir (76 tools), QA 1 (36 tools, no pasa: «Paletas inactivas fuera de juego», paddle.gd:16), arreglo (42 tools) y QA 2 (35 tools, pasa con ponderado 8.7). Total: 12,1 min, 8 playtests, 299.705 tokens, 7 checkpoints. El evaluador jugó: en QA 1 hizo 11 godot.run y 3 capture_game_frame, y no salió el aviso de veredicto sin jugar. «Sin jugar no cuenta» con un agente real que no juega sigue probado solo con el agente falso (oneshot_check «evaluador sin jugar»): forzarlo con uno real no tiene sentido. Consumo: no hay comparación controlada, porque haría falta correr la versión anterior a M13 más de una vez y eso gasta cuota. Lo que se midió sin correr nada, de 1f936eb^ a HEAD: descripciones y esquemas de tools de 18,4k a 22,0k caracteres (de 64 a 72 tools) y system_prompt.md de 6,9k a 7,4k, unos +1k tokens por turno antes de la caché. Los 245k de la revisión no llegaron al QA; estos 300k incluyen dos rondas de QA. Los informes qa-*.md se perdieron con el «Volver acá» final del test (.godot_agent no se versiona, cp7 se descartó); quedan los hallazgos en el log. Cambios al test: CLAUDE_BUDGETS a 40 min y 20 playtests, timeout de 3600 s, check «el evaluador no corrió» e impresión de cada ronda de QA.
 
 ### 15.7 Detalles menores de la revisión · Revisión
 

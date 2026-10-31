@@ -21,7 +21,8 @@ const REPO_DIR := "user://oneshot_ui_check"
 const STEP_TIMEOUT_S := 15.0
 const CLAUDE_GOAL := "Pong de 2 jugadores con puntaje: paletas con W/S y flechas arriba/abajo, pelota que rebota, puntaje arriba y saque desde el centro después de cada punto."
 ## Presupuestos del One-shot con Claude real: {time (min), tokens, playtests}.
-const CLAUDE_BUDGETS: Dictionary = {"time": 25, "tokens": 3000000, "playtests": 5}
+## Con 5 playtests el run se cortaba antes de que llegue el evaluador (m17-06).
+const CLAUDE_BUDGETS: Dictionary = {"time": 40, "tokens": 3000000, "playtests": 20}
 
 var failures: PackedStringArray = []
 var _tree: SceneTree
@@ -353,6 +354,9 @@ func run_claude_oneshot(tree: SceneTree, shot_path: String = "") -> PackedString
 	print("[claude-oneshot] fin: %s · playtests %d · tokens %d · %.1f min · checkpoints %s" % [_run.finish_reason, _run.used.playtests, _run.used.tokens, float(_run.used.time) / 60.0, _run.git.checkpoints.map(func(cp: Dictionary) -> String: return cp.name + " " + cp.label)])
 	for check: Dictionary in _run.checks:
 		print("[claude-oneshot] check %s: %s" % [check.status, check.label])
+	for result: Dictionary in _run.qa_results:
+		print("[claude-oneshot] QA %d: %s · ponderado %s · checks que fallan %s · criterios %s · %s" % [result.round, "pasa" if result.passed else "no pasa", result.weighted, result.failing_checks, result.failing_criteria, result.file])
+	_check(not _run.qa_results.is_empty(), "el evaluador no corrió")
 	_check(_run.phase == OneShotRun.RunPhase.FINISHED, "el One-shot no terminó a tiempo (%s)" % _run.phase_label())
 	_check(int(_run.used.playtests) >= 1, "sin playtests")
 	_check(_run.last_capture != null, "sin captura de playtest")
