@@ -126,6 +126,7 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	dock.call(&"_on_profile_selected", 0)
 	second_dock.call(&"_on_profile_selected", 0)
 	var work := ProjectSettings.globalize_path("res://tests/tmp/claude-work")
+	DirAccess.make_dir_recursive_absolute(work)  # una cuenta que no existe no se aplica
 	second_dock.call(&"_on_account_selected", work)
 	var first_profile: AgentProfile = dock.call(&"selected_profile")
 	var second_profile: AgentProfile = second_dock.call(&"selected_profile")
@@ -162,6 +163,7 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	settings.call(&"save_profiles", both)
 	second_dock.call(&"_on_profile_selected", 1)
 	var gemini_work := ProjectSettings.globalize_path("res://tests/tmp/gemini-work")
+	DirAccess.make_dir_recursive_absolute(gemini_work)
 	second_dock.call(&"_on_account_selected", gemini_work)
 	second_profile = second_dock.call(&"selected_profile")
 	if second_profile == null or second_profile.resolved_env().get("GEMINI_HOME") != gemini_work or second_profile.resolved_env().has("CLAUDE_CONFIG_DIR"):

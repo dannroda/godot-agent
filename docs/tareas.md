@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-11-01
+> Generado: 2026-11-02
 
 ## M0 — Esqueleto y decisiones  (6/6)
 
@@ -4511,13 +4511,14 @@ Pedido del usuario (01/11): dos pestañas/sesiones, una con una cuenta de Claude
 
 **Prueba:** En el dock, chip del agente ▾ con Claude Code: «Cuenta de Claude Code» lista personal, ~/.claude, openrouter, trabajo con email. Con Google Antigravity: «Cuenta de Google Antigravity» lista ~/.gemini (y ~/.gemini-profiles/*). Pestaña 1 en Claude personal; + › Nueva pestaña, elegir trabajo (o Antigravity con otra carpeta): las dos sesiones conectan con su cuenta y la pestaña 1 no cambia. Un agente cualquiera con «Variable de la carpeta de cuentas» en su perfil también muestra la sección. Automático: run_all 405/405 (test_agent_accounts), sessions-test en Xvfb con Claude y Antigravity (capturas de los dos menús), settings-shots.
 
-**Notas:** - session/agents/agent_accounts.gd (genérico): cuenta = carpeta de configuración en una variable. Adaptadores: account_variable/default_account_dir/account_email. Claude CLAUDE_CONFIG_DIR ~/.claude (email de .claude.json); Antigravity GEMINI_HOME ~/.gemini (sacado del binario agy_acp_server: GEMINI_HOME o ~/.gemini; el token no trae email); Codex CODEX_HOME ~/.codex. Otro agente: campo account_variable del perfil (Ajustes, opcional).
-- Búsqueda: la carpeta del perfil (su env, la del editor o la por defecto), la por defecto, ~/.<carpeta>-profiles/* y las agregadas con «Otra carpeta…» (agents/accounts, por variable).
-- AgentProfile: account_dir + account_env (runtime, no se guardan); account_variable sí se guarda.
-- agent_dock.gd: _accounts por pestaña {profile_id: carpeta}, copia de agents/last_account al abrir la pestaña; cambiar de agente en la pestaña conserva la cuenta de cada uno.
-- Se detecta agy_acp_server como Antigravity también sin «antigravity» en la ruta.
-- harness_settings: listas como Array de Dictionary (sin cambios desde la versión anterior).
-- Sin probar: dos cuentas reales a la vez (Claude ni Antigravity). openrouter: su env file no se lee.
+**Notas:** - session/agents/agent_accounts.gd (genérico): cuenta = carpeta de configuración en una variable. Adaptadores: account_variable/default_account_dir/account_email. Claude CLAUDE_CONFIG_DIR ~/.claude (email de .claude.json); Antigravity GEMINI_HOME ~/.gemini (del binario agy_acp_server); Codex CODEX_HOME ~/.codex. Otro agente: campo account_variable del perfil.
+- AgentAccounts.apply/choice/menu: la lógica de cuentas salió del dock (que solo arma el menú). apply ignora una carpeta que ya no existe.
+- Búsqueda: la carpeta del perfil, la por defecto, ~/.<carpeta>-profiles/* y las agregadas con «Otra carpeta…» (agents/accounts, por variable).
+- AgentProfile: account_dir + account_env (runtime); account_variable se guarda.
+- Historial: guarda account; una sesión sin el dato (anterior a esto) se reabre con la cuenta del perfil; las que lista el agente traen la cuenta del agente que corre. Borrar solo le pide al agente si es el mismo perfil y la misma cuenta (SessionController.owns_session).
+- Windows: normalize pasa \\ a /; el email de ~/.claude usa USERPROFILE si no hay HOME.
+- Revisión de código (02/11) con godot-code-review: 5 hallazgos, todos arreglados con test (run_all 408/408, sessions-test y settings-shots ok).
+- Sin probar: dos cuentas reales a la vez. openrouter: su env file no se lee.
 
 ## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
 

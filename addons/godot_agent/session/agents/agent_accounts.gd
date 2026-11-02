@@ -6,7 +6,46 @@ extends RefCounted
 ## Se leen del disco al abrir el menú del agente, sin lanzar nada.
 
 const AgentAdapter := preload("agent_adapter.gd")
+const AgentAdapters := preload("agent_adapters.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
+
+
+## La variable de las cuentas del agente del perfil ("" = no se puede elegir cuenta).
+static func variable_of(profile: AgentProfile) -> String:
+	return variable_for(profile, _adapter(profile))
+
+
+## El perfil con la cuenta `dir` aplicada. Sin cuenta, sin variable o con una carpeta que ya no
+## existe, el perfil tal cual: así una cuenta borrada no lanza el agente con una carpeta vacía.
+static func apply(profile: AgentProfile, dir: String) -> AgentProfile:
+	var variable := variable_of(profile)
+	if dir.is_empty() or variable.is_empty() or not DirAccess.dir_exists_absolute(dir):
+		return profile
+	return profile.with_account(dir, variable)
+
+
+## Qué guardar al elegir `dir` para el perfil: "" si es la carpeta que el perfil ya usa sin override.
+static func choice(profile: AgentProfile, dir: String) -> String:
+	var path := normalize(dir)
+	return "" if path == base_dir(profile, _adapter(profile), variable_of(profile)) else path
+
+
+## Lo que muestra el menú del agente: {variable, current, accounts: [{dir, name, email}]}. `extra`,
+## las carpetas agregadas a mano para esa variable. Sin variable, accounts vacío.
+static func menu(profile: AgentProfile, extra: PackedStringArray) -> Dictionary:
+	var variable := variable_of(profile)
+	if variable.is_empty():
+		return {"variable": "", "current": "", "accounts": [] as Array[Dictionary]}
+	var adapter := _adapter(profile)
+	var base := base_dir(profile, adapter, variable)
+	var current := normalize(profile.account_dir) if not profile.account_dir.is_empty() else base
+	var dirs := PackedStringArray(extra)
+	dirs.append(current)
+	return {"variable": variable, "current": current, "accounts": list(base, adapter.default_account_dir(), dirs, adapter)}
+
+
+static func _adapter(profile: AgentProfile) -> AgentAdapter:
+	return AgentAdapters.for_profile(profile.command, profile.args, profile.id)
 
 
 ## La variable de las cuentas del perfil: la que puso el usuario o la que conoce el adaptador.
@@ -26,8 +65,7 @@ static func base_dir(profile: AgentProfile, adapter: AgentAdapter, variable: Str
 
 
 static func home() -> String:
-	var dir := OS.get_environment("HOME")
-	return dir if not dir.is_empty() else OS.get_environment("USERPROFILE")
+	return AgentProfile.home_dir()
 
 
 ## Ruta absoluta sin barra final, con `~/` expandido.
@@ -37,7 +75,7 @@ static func normalize(dir: String) -> String:
 		return ""
 	if path == "~" or path.begins_with("~/"):
 		path = home() + path.substr(1)
-	path = path.simplify_path()
+	path = path.replace("\\", "/").simplify_path()  # Windows: USERPROFILE y los diálogos mezclan barras
 	return path.trim_suffix("/") if path.length() > 1 else path
 
 

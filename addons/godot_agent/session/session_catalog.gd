@@ -101,7 +101,8 @@ static func normalize_agent_session(item: Dictionary, agent_profile: AgentProfil
 		"updated": updated,
 		"turns": 0,
 		"profile_id": agent_profile.id if agent_profile else "",
-		"agent": agent_profile.display_name if agent_profile else "",
+		"account": agent_profile.account_dir if agent_profile else "",
+		"agent": agent_profile.label() if agent_profile else "",
 		"from_agent": true,
 	}
 

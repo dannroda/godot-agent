@@ -40,7 +40,6 @@ const MORE_LOGOUT := 3
 const RECENT_SESSIONS := 5
 const AgentProfile := preload("../../core/agent_profile.gd")
 const AgentAccounts := preload("../../session/agents/agent_accounts.gd")
-const AgentAdapters := preload("../../session/agents/agent_adapters.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const EditorContext := preload("../editor_context.gd")
@@ -433,22 +432,17 @@ func _show_agent_menu() -> void:
 		_agent_menu.add_radio_check_item(_profiles[i].display_name, i)
 		_agent_menu.set_item_checked(_agent_menu.item_count - 1, active != null and _profiles[i].id == active.id)
 		_agent_menu.set_item_tooltip(_agent_menu.item_count - 1, _profiles[i].command_line())
-	_menu_accounts = []
-	var variable := _account_variable(active) if active else ""
+	var menu := AgentAccounts.menu(active, _settings.accounts(AgentAccounts.variable_of(active))) if active else {}
+	_menu_accounts = menu.get("accounts", [] as Array[Dictionary])
+	var variable := str(menu.get("variable", ""))
 	if not variable.is_empty():
 		# Cada pestaña con su cuenta: otra carpeta de configuración, otro login.
-		var adapter := AgentAdapters.for_profile(active.command, active.args, active.id)
-		var base := AgentAccounts.base_dir(active, adapter, variable)
-		var current := AgentAccounts.normalize(active.account_dir) if not active.account_dir.is_empty() else base
-		var extra := _settings.accounts(variable)
-		extra.append(current)
 		_agent_menu.add_separator(I18n.t("%s account") % active.display_name)
-		_menu_accounts = AgentAccounts.list(base, adapter.default_account_dir(), extra, adapter)
 		for i in _menu_accounts.size():
 			var account := _menu_accounts[i]
 			var text := AgentAccounts.label_of(account) if not str(account.dir).is_empty() else I18n.t("The agent's default")
 			_agent_menu.add_radio_check_item(text, AGENT_MENU_ACCOUNT + i)
-			_agent_menu.set_item_checked(_agent_menu.item_count - 1, account.dir == current)
+			_agent_menu.set_item_checked(_agent_menu.item_count - 1, account.dir == menu.current)
 			_agent_menu.set_item_tooltip(_agent_menu.item_count - 1, "%s=%s" % [variable, account.dir] if not str(account.dir).is_empty() else I18n.t("Without %s: the agent uses its own folder.") % variable)
 		_agent_menu.add_item(I18n.t("Other folder…"), AGENT_MENU_ACCOUNT_OTHER)
 		_agent_menu.set_item_tooltip(_agent_menu.item_count - 1, I18n.t("Another configuration folder for this agent (%s). An empty one is a new account: the session asks you to sign in.") % variable)
@@ -576,11 +570,7 @@ func _build_review_panel() -> void:
 ## no, el último elegido en cualquiera.
 func selected_profile() -> AgentProfile:
 	var profile := _base_profile()
-	if profile == null:
-		return null
-	var variable := _account_variable(profile)
-	var dir := str(_accounts.get(profile.id, ""))
-	return profile.with_account(dir, variable) if not dir.is_empty() and not variable.is_empty() else profile
+	return AgentAccounts.apply(profile, str(_accounts.get(profile.id, ""))) if profile else null
 
 
 ## El agente de la pestaña tal como está guardado, sin cuenta elegida.
@@ -589,26 +579,19 @@ func _base_profile() -> AgentProfile:
 	return chosen if chosen else _settings.active_profile()
 
 
-## La variable con la carpeta de las cuentas del agente ("" = no se puede elegir cuenta).
-static func _account_variable(profile: AgentProfile) -> String:
-	return AgentAccounts.variable_for(profile, AgentAdapters.for_profile(profile.command, profile.args, profile.id))
-
-
 ## Elegir la cuenta de esta pestaña: la del perfil queda como "" (sin override).
 func _on_account_selected(dir: String) -> void:
 	var base := _base_profile()
 	if base == null:
 		return
-	var variable := _account_variable(base)
-	var adapter := AgentAdapters.for_profile(base.command, base.args, base.id)
-	var path := AgentAccounts.normalize(dir)
-	var chosen := "" if path == AgentAccounts.base_dir(base, adapter, variable) else path
+	var chosen := AgentAccounts.choice(base, dir)
 	_accounts[base.id] = chosen
 	_settings.set_last_account(base.id, chosen)  # con la que arrancan las pestañas nuevas
 	_refresh_empty_state()
 	_refresh_state()
 	var current := _controller.profile()
 	if current and current.id == base.id and current.account_dir != chosen and _controller.is_connected_to_agent():
+		var path := AgentAccounts.normalize(dir)
 		_model.add_notice(I18n.t("The %s account is used when you press \"New session\".") % (AgentAccounts.name_of(path) if not path.is_empty() else I18n.t("default")))
 
 
@@ -621,7 +604,7 @@ func _pick_account_folder() -> void:
 		_account_dialog.dir_selected.connect(func(dir: String) -> void:
 			var base := _base_profile()
 			if base:
-				_settings.add_account(_account_variable(base), AgentAccounts.normalize(dir))
+				_settings.add_account(AgentAccounts.variable_of(base), AgentAccounts.normalize(dir))
 			_on_account_selected(dir))
 		add_child(_account_dialog)
 	_account_dialog.current_dir = AgentAccounts.home()
@@ -911,9 +894,11 @@ func open_history_session(id: String) -> bool:
 	if profile == null:
 		return false
 	_profile_id = profile.id  # la pestaña sigue con el agente de la sesión que abrió
-	if record.has("account"):  # y con su cuenta: la sesión está guardada en esa carpeta
-		_accounts[profile.id] = str(record.account)
-		profile = profile.with_account(str(record.account), _account_variable(profile))
+	# Y con su cuenta: la sesión está guardada en esa carpeta. Sin el dato (sesiones de antes de las
+	# cuentas por pestaña), la del perfil; las que lista el agente traen la del agente que corre.
+	var account := str(record.get("account", ""))
+	_accounts[profile.id] = account
+	profile = AgentAccounts.apply(profile.with_account("", ""), account)
 	_reload_profiles()
 	return await _controller.start(profile, record)
 
@@ -937,7 +922,7 @@ func _on_history_delete_selected(index: int) -> void:
 	for connection: Dictionary in _delete_session_dialog.confirmed.get_connections():
 		_delete_session_dialog.confirmed.disconnect(connection.callable)
 	_delete_session_dialog.confirmed.connect(func() -> void:
-		_controller.delete_session(id, str(item.get("profile_id", ""))), CONNECT_ONE_SHOT)
+		_controller.delete_session(id, str(item.get("profile_id", "")), str(item.get("account", ""))), CONNECT_ONE_SHOT)
 	_delete_session_dialog.popup_centered()
 
 

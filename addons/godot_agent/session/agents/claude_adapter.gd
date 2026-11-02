@@ -6,6 +6,7 @@ extends "agent_adapter.gd"
 
 const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 const PermissionPolicy := preload("../permission_policy.gd")
+const AgentProfile := preload("../../core/agent_profile.gd")
 
 
 func _init() -> void:
@@ -39,8 +40,9 @@ func default_account_dir() -> String:
 ## El `oauthAccount` de `.claude.json`; para ~/.claude, Claude Code guarda ese archivo en la carpeta
 ## del usuario.
 func account_email(dir: String) -> String:
-	var home := OS.get_environment("HOME")
-	var plain := dir.trim_suffix("/") == home.path_join(".claude")
+	# HOME o, en Windows, USERPROFILE; con las barras normalizadas para comparar.
+	var home := AgentProfile.home_dir().replace("\\", "/").simplify_path()
+	var plain := dir.replace("\\", "/").simplify_path().trim_suffix("/") == home.path_join(".claude")
 	var path := home.path_join(".claude.json") if plain else dir.path_join(".claude.json")
 	if not FileAccess.file_exists(path):
 		return ""

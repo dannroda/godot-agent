@@ -8,6 +8,7 @@ const AgentAdapter := preload("res://addons/godot_agent/session/agents/agent_ada
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings.gd")
 const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
+const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 
 const TMP_HOME := "user://test_agent_accounts_home"
 
@@ -71,6 +72,17 @@ func test_accounts_on_disk() -> void:
 	var own := AgentAccounts.list(AgentAccounts.base_dir(unknown, generic, "MI_AGENTE_HOME"), "", PackedStringArray(["/x/cuenta2"]), generic)
 	assert_eq(own.map(func(a: Dictionary) -> String: return a.dir), ["", "/x/cuenta2"], "sin carpeta por defecto: la del agente (vacía) y las agregadas")
 
+	# Windows: sin HOME, la carpeta del usuario es USERPROFILE y el email de ~/.claude sigue saliendo.
+	var saved_profile := OS.get_environment("USERPROFILE")
+	OS.unset_environment("HOME")
+	OS.set_environment("USERPROFILE", home)
+	assert_eq(adapter.account_email(home.path_join(".claude")), "yo@casa.com", "sin HOME, el email de ~/.claude sale de USERPROFILE")
+	OS.set_environment("HOME", home)
+	if saved_profile.is_empty():
+		OS.unset_environment("USERPROFILE")
+	else:
+		OS.set_environment("USERPROFILE", saved_profile)
+
 	OS.set_environment("CLAUDE_CONFIG_DIR", home.path_join(".claude-profiles/personal"))
 	assert_eq(AgentAccounts.base_dir(claude, adapter, "CLAUDE_CONFIG_DIR"), home.path_join(".claude-profiles/personal"), "con la variable del editor, esa es la del perfil")
 
@@ -80,6 +92,44 @@ func test_accounts_on_disk() -> void:
 	else:
 		OS.set_environment("CLAUDE_CONFIG_DIR", saved_config)
 	_remove_tree(home)
+
+
+## Elegir, aplicar y armar el menú (lo que hace el dock): una carpeta borrada no se aplica y elegir
+## la del perfil no deja override.
+func test_apply_choice_menu() -> void:
+	var dir := ProjectSettings.globalize_path(TMP_HOME + "_work")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var claude: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE.merged({"env": {"CLAUDE_CONFIG_DIR": "/base/claude"}}))
+	assert_eq(AgentAccounts.apply(claude, dir).resolved_env().get("CLAUDE_CONFIG_DIR"), dir, "una carpeta que existe se aplica")
+	assert_eq(AgentAccounts.apply(claude, dir + "-borrada").account_dir, "", "una carpeta borrada no: queda la del perfil")
+	assert_eq(AgentAccounts.apply(AgentProfile.from_dict({"id": "x", "command": "otro"}), dir).account_dir, "", "un agente sin variable no lleva cuenta")
+	assert_eq(AgentAccounts.choice(claude, "/base/claude/"), "", "elegir la del perfil no guarda override")
+	assert_eq(AgentAccounts.choice(claude, dir), dir, "elegir otra la guarda")
+	var menu := AgentAccounts.menu(AgentAccounts.apply(claude, dir), PackedStringArray())
+	assert_eq([menu.variable, menu.current], ["CLAUDE_CONFIG_DIR", dir], "el menú sabe la variable y la cuenta actual")
+	var dirs: Array = (menu.accounts as Array).map(func(a: Dictionary) -> String: return a.dir)
+	assert_true(dirs[0] == "/base/claude" and dirs.has(dir), "la del perfil primero y la actual en la lista: %s" % [dirs])
+	assert_eq(AgentAccounts.menu(AgentProfile.from_dict({"id": "x", "command": "otro"}), PackedStringArray()).variable, "", "sin variable, sin cuentas")
+	assert_eq(AgentAccounts.normalize("C:\\Users\\ana\\.claude\\"), "C:/Users/ana/.claude", "barras de Windows")
+	DirAccess.remove_absolute(dir)
+
+
+## Borrar una sesión del historial: solo se le pide al agente si es suya (mismo perfil y cuenta).
+func test_owns_session() -> void:
+	var claude: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)
+	var work: AgentProfile = claude.with_account("/c/trabajo", "CLAUDE_CONFIG_DIR")
+	assert_true(SessionController.owns_session(claude, "claude-code", ""), "mismo perfil, sin cuenta")
+	assert_true(SessionController.owns_session(work, "claude-code", "/c/trabajo"), "misma cuenta")
+	assert_false(SessionController.owns_session(work, "claude-code", ""), "la sesión es de la cuenta del perfil, el agente corre con otra")
+	assert_false(SessionController.owns_session(claude, "claude-code", "/c/trabajo"), "la sesión es de otra cuenta")
+	assert_false(SessionController.owns_session(claude, "otro", ""), "otro agente")
+
+
+## Las sesiones que lista el agente traen su cuenta, para reabrirlas y borrarlas con la misma.
+func test_agent_listed_session_account() -> void:
+	var work: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE).with_account("/c/trabajo", "CLAUDE_CONFIG_DIR")
+	var item := SessionController.SessionCatalog.normalize_agent_session({"sessionId": "r1", "cwd": "/tmp"}, work)
+	assert_eq([item.account, item.agent], ["/c/trabajo", "Claude Code · trabajo"], "cuenta y nombre con la cuenta")
 
 
 func test_last_account_per_agent() -> void:

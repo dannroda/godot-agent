@@ -1093,9 +1093,16 @@ func close_session(target_session_id: String = "") -> bool:
 
 ## Elimina una sesión del historial local y, si es del perfil conectado y el agente soporta
 ## `session/delete`, también en el agente. Si el agente no la borra, la local queda.
-func delete_session(target_session_id: String, session_profile_id: String = "") -> bool:
-	var same_agent := _profile != null and (session_profile_id.is_empty() or session_profile_id == _profile.id)
+## `session_account`: la cuenta con la que se hizo la sesión. Solo se le pide al agente que la borre
+## si es el mismo agente con la misma cuenta: otra cuenta guarda sus sesiones en otra carpeta.
+func delete_session(target_session_id: String, session_profile_id: String = "", session_account: String = "") -> bool:
+	var same_agent := owns_session(_profile, session_profile_id, session_account)
 	return await sessions.delete(target_session_id, same_agent and _agent_running(), history)
+
+
+## true si el agente lanzado con `profile` guarda la sesión de ese perfil y esa cuenta.
+static func owns_session(profile: AgentProfile, session_profile_id: String, session_account: String) -> bool:
+	return profile != null and (session_profile_id.is_empty() or session_profile_id == profile.id) and session_account == profile.account_dir
 
 
 func _agent_running() -> bool:
