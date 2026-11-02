@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-10-31
+> Generado: 2026-11-01
 
 ## M0 — Esqueleto y decisiones  (6/6)
 
@@ -4355,7 +4355,7 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
 
-## M15 — Revisión de features: lo que no estaba correcto  (11/11, 11 en revisión)
+## M15 — Revisión de features: lo que no estaba correcto  (12/12, 12 en revisión)
 
 Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
 
@@ -4488,6 +4488,36 @@ Revisión de M15: la tool save_scene seguía guardando con EditorInterface.save_
 - plugin._save_all_scenes(), antes de instalar una actualización: save_all_scenes() solo usa la vista previa para la escena activa con cambios (EditorNode::_save_all_scenes en 4.7.2). Por eso primero guarda esa sin vista previa y después llama a save_all_scenes(), que guarda las demás sin vista previa y le pide ruta a las que nunca se guardaron.
 - Hallazgo: el error «p_I->data != this» no sale en todos los guardados con vista previa. En el edit-test, un save_scene() no lo dejó, ni en el Output ni en stderr. Los textos ya no dicen «en cada guardado»: dicen que sin el addon salió en cada guardado del proyecto vacío. Por eso el check usa la miniatura y no el error.
 - Textos: README, CHANGELOG, la wiki (Troubleshooting, Problemas frecuentes, Home, Inicio), D60, progress y el borrador del issue. Ahora dicen que la caída solo se vio con un agente cambiando el proyecto y que su origen en el motor es probable, sin confirmar. Sobre 4.8-beta2: el error sigue, sin caída en 12 corridas. M15 y M16 salieron de los textos públicos.
+
+### Una cuenta por pestaña del dock, para cualquier agente · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
+
+Pedido del usuario (01/11): dos pestañas/sesiones, una con una cuenta de Claude Code y otra con otra, sin pasar por Ajustes del plugin. De paso: agents/profiles en EditorSettings era texto JSON (molesto de editar) y el formulario de Ajustes › Agentes aplastaba los campos en un diálogo angosto.
+
+**Decisiones:**
+- ! Las pestañas nuevas arrancan con el último agente elegido en cualquier pestaña, no con el de la pestaña desde la que se abrieron · sin revisar
+  Por qué: Reusa agents/last_profile, que ya es el del próximo arranque del editor; un solo concepto de «el último».
+  Descartado: Heredar el de la pestaña que abre la nueva; preguntar el agente al abrir la pestaña.
+- ! Las cuentas se descubren solas en ~/.claude, ~/.claude-profiles/* y CLAUDE_CONFIG_DIR del editor; otras se agregan con «Otra carpeta…» · sin revisar
+  Por qué: Es donde ya las tiene el usuario; no hay que configurar nada para elegir entre las existentes.
+  Descartado: Lista manual en Ajustes; crear la carpeta con un nombre desde el dock.
+- ! También mcp/servers y completion/llm/profiles pasan de texto JSON a Array de Dictionary, no solo agents/profiles · sin revisar
+  Por qué: Mismo problema (texto plano molesto en Editor Settings) y mismo código; dejarlos distintos sería inconsistente.
+  Descartado: Convertir solo agents/profiles.
+- ! Cuentas genéricas: cada adaptador dice la variable de su carpeta de configuración; para agentes desconocidos, un campo opcional del perfil. Búsqueda en ~/.<carpeta>-profiles/* para todos · sin revisar
+  Por qué: El usuario pidió que no sea solo para Claude Code; la carpeta de configuración es el mecanismo común (Claude, Antigravity, Codex). La regla -profiles generaliza la convención que ya usa.
+  Descartado: Pisar HOME para cualquier agente (rompe npx, cachés y PATH); conjuntos de variables arbitrarios por cuenta (más UI).
+
+**Prueba:** En el dock, chip del agente ▾ con Claude Code: «Cuenta de Claude Code» lista personal, ~/.claude, openrouter, trabajo con email. Con Google Antigravity: «Cuenta de Google Antigravity» lista ~/.gemini (y ~/.gemini-profiles/*). Pestaña 1 en Claude personal; + › Nueva pestaña, elegir trabajo (o Antigravity con otra carpeta): las dos sesiones conectan con su cuenta y la pestaña 1 no cambia. Un agente cualquiera con «Variable de la carpeta de cuentas» en su perfil también muestra la sección. Automático: run_all 405/405 (test_agent_accounts), sessions-test en Xvfb con Claude y Antigravity (capturas de los dos menús), settings-shots.
+
+**Notas:** - session/agents/agent_accounts.gd (genérico): cuenta = carpeta de configuración en una variable. Adaptadores: account_variable/default_account_dir/account_email. Claude CLAUDE_CONFIG_DIR ~/.claude (email de .claude.json); Antigravity GEMINI_HOME ~/.gemini (sacado del binario agy_acp_server: GEMINI_HOME o ~/.gemini; el token no trae email); Codex CODEX_HOME ~/.codex. Otro agente: campo account_variable del perfil (Ajustes, opcional).
+- Búsqueda: la carpeta del perfil (su env, la del editor o la por defecto), la por defecto, ~/.<carpeta>-profiles/* y las agregadas con «Otra carpeta…» (agents/accounts, por variable).
+- AgentProfile: account_dir + account_env (runtime, no se guardan); account_variable sí se guarda.
+- agent_dock.gd: _accounts por pestaña {profile_id: carpeta}, copia de agents/last_account al abrir la pestaña; cambiar de agente en la pestaña conserva la cuenta de cada uno.
+- Se detecta agy_acp_server como Antigravity también sin «antigravity» en la ruta.
+- harness_settings: listas como Array de Dictionary (sin cambios desde la versión anterior).
+- Sin probar: dos cuentas reales a la vez (Claude ni Antigravity). openrouter: su env file no se lee.
 
 ## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
 

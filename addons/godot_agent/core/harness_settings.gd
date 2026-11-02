@@ -13,6 +13,11 @@ const PREFIX := "godot_agent/"
 const KEY_PROFILES := "agents/profiles"
 const KEY_ACCENT := "ui/accent_color"
 const KEY_LAST_PROFILE := "agents/last_profile"
+## Cuentas de los agentes (carpetas de configuración) que el usuario agregó a mano, por variable
+## ({"CLAUDE_CONFIG_DIR": ["/…/trabajo"]}), y la última elegida por perfil ({"claude-code": "/…"},
+## "" = la del perfil): con ella arrancan las pestañas nuevas.
+const KEY_ACCOUNTS := "agents/accounts"
+const KEY_LAST_ACCOUNT := "agents/last_account"
 ## Ya se quitaron los presets viejos (m12-37).
 const KEY_PRESETS_RETIRED := "agents/presets_retired"
 ## Perfiles que se preseteaban hasta 0.1.7 y ya no sirven: Gemini CLI se discontinuó (lo reemplaza
@@ -23,7 +28,7 @@ const RETIRED_PRESETS: Array[Dictionary] = [
 ]
 ## Puerto del server MCP (0 = aleatorio en cada arranque).
 const KEY_MCP_PORT := "mcp/port"
-## MCP servers de terceros para todos los proyectos del usuario (m7-34), JSON.
+## MCP servers de terceros para todos los proyectos del usuario (m7-34).
 const KEY_MCP_SERVERS := "mcp/servers"
 ## Cuota del plan (spec §10.1, §9.5): umbrales en %, pausa del One-shot y qué hacer al reiniciarse.
 const KEY_QUOTA_WARN := "quota/warn_percent"
@@ -56,7 +61,7 @@ const KEY_COMPLETION_MAX_LINES := "completion/max_lines"
 const KEY_COMPLETION_SOURCE_PREFIX := "completion/sources/"
 const COMPLETION_SOURCES: PackedStringArray = ["rule", "retrieval", "ngram", "history"]
 const KEY_COMPLETION_EXTRA_CORPUS := "completion/extra_corpus"
-## Modo (spec §16.1): solo local, híbrido o solo LLM. Perfiles LLM (JSON, sin keys), el activo y
+## Modo (spec §16.1): solo local, híbrido o solo LLM. Perfiles LLM (sin keys), el activo y
 ## los parámetros del pedido (§16.10). `llm_marker`: matiz para distinguir las sugerencias del LLM.
 ## `log_raw`: el log incluye el código (apagado: nunca se loguea código).
 const KEY_COMPLETION_MODE := "completion/mode"
@@ -73,6 +78,10 @@ const KEY_COMPLETION_LOG_RAW := "completion/log_raw"
 const DOCK_SLOTS: PackedStringArray = ["DOCK_SLOT_RIGHT_UL", "DOCK_SLOT_RIGHT_BL", "DOCK_SLOT_LEFT_UL", "DOCK_SLOT_LEFT_BL"]
 
 const DEFAULT_ACCENT := Color("#f0a85a")
+## Listas guardadas como Array de Dictionary (editables en Editor Settings); hasta 0.1.15 eran texto
+## JSON y se convierten al cargar.
+const LIST_KEYS: PackedStringArray = [KEY_PROFILES, KEY_MCP_SERVERS, KEY_COMPLETION_LLM_PROFILES]
+const DICTIONARY_LIST_HINT := "27:"  # TYPE_DICTIONARY: cada elemento, un Dictionary
 
 var _editor_settings: EditorSettings
 var _memory: Dictionary = {}
@@ -81,12 +90,16 @@ var _memory: Dictionary = {}
 func _init(editor_settings: EditorSettings = null) -> void:
 	_editor_settings = editor_settings
 	if _editor_settings:
+		for key: String in LIST_KEYS:
+			_migrate_json_list(key)
 		_declare(KEY_ACCENT, DEFAULT_ACCENT, TYPE_COLOR)
-		_declare(KEY_PROFILES, "[]", TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
+		_declare(KEY_PROFILES, [], TYPE_ARRAY, PROPERTY_HINT_TYPE_STRING, DICTIONARY_LIST_HINT)
 		_declare(KEY_LAST_PROFILE, "", TYPE_STRING)
+		_declare(KEY_ACCOUNTS, {}, TYPE_DICTIONARY)
+		_declare(KEY_LAST_ACCOUNT, {}, TYPE_DICTIONARY)
 		_declare(KEY_PRESETS_RETIRED, false, TYPE_BOOL)
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
-		_declare(KEY_MCP_SERVERS, "[]", TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
+		_declare(KEY_MCP_SERVERS, [], TYPE_ARRAY, PROPERTY_HINT_TYPE_STRING, DICTIONARY_LIST_HINT)
 		_declare(KEY_QUOTA_WARN, 75, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
@@ -107,7 +120,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 			_declare(KEY_COMPLETION_SOURCE_PREFIX + source, true, TYPE_BOOL)
 		_declare(KEY_COMPLETION_EXTRA_CORPUS, PackedStringArray(), TYPE_PACKED_STRING_ARRAY, PROPERTY_HINT_TYPE_STRING, "%d/%d:" % [TYPE_STRING, PROPERTY_HINT_GLOBAL_DIR])
 		_declare(KEY_COMPLETION_MODE, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Local only,Hybrid,LLM only")
-		_declare(KEY_COMPLETION_LLM_PROFILES, JSON.stringify(LlmProfile.defaults()), TYPE_STRING, PROPERTY_HINT_MULTILINE_TEXT)
+		_declare(KEY_COMPLETION_LLM_PROFILES, LlmProfile.defaults(), TYPE_ARRAY, PROPERTY_HINT_TYPE_STRING, DICTIONARY_LIST_HINT)
 		_declare(KEY_COMPLETION_LLM_ACTIVE, "", TYPE_STRING)
 		_declare(KEY_COMPLETION_LLM_DEBOUNCE, 200, TYPE_INT, PROPERTY_HINT_RANGE, "75,1000,1,suffix:ms")
 		_declare(KEY_COMPLETION_LLM_PREFIX, 4000, TYPE_INT, PROPERTY_HINT_RANGE, "200,32000,100")
@@ -137,10 +150,17 @@ func accent_color() -> Color:
 	return value if value is Color else DEFAULT_ACCENT
 
 
+## Una lista de Dictionary guardada: el Array, o el texto JSON de las versiones viejas. null si no hay.
+func get_list(key: String) -> Variant:
+	var raw: Variant = get_value(key, null)
+	if raw is String:
+		raw = JSON.parse_string(raw) if not raw.is_empty() else null
+	return (raw as Array).duplicate(true) if raw is Array else null
+
+
 func profiles() -> Array[AgentProfile]:
 	var result: Array[AgentProfile] = []
-	var raw: Variant = get_value(KEY_PROFILES, "")
-	var data: Variant = JSON.parse_string(raw) if raw is String and not raw.is_empty() else null
+	var data: Variant = get_list(KEY_PROFILES)
 	if not data is Array:
 		return result
 	for item: Variant in data:
@@ -155,7 +175,7 @@ func save_profiles(list: Array[AgentProfile]) -> void:
 	var data: Array = []
 	for profile: AgentProfile in list:
 		data.append(profile.to_dict())
-	set_value(KEY_PROFILES, JSON.stringify(data, "\t"))
+	set_value(KEY_PROFILES, data)
 
 
 ## Quita una sola vez los presets viejos que siguen tal como venían (uno editado se queda).
@@ -211,17 +231,48 @@ func set_active_profile(id: String) -> void:
 	set_value(KEY_LAST_PROFILE, id)
 
 
+## Carpetas de cuentas agregadas a mano para la variable `variable`.
+func accounts(variable: String) -> PackedStringArray:
+	var all: Variant = get_value(KEY_ACCOUNTS, {})
+	var list: Variant = (all as Dictionary).get(variable, []) if all is Dictionary else []
+	return PackedStringArray(list) if list is PackedStringArray or list is Array else PackedStringArray()
+
+
+func add_account(variable: String, dir: String) -> void:
+	var list := accounts(variable)
+	if variable.is_empty() or dir.is_empty() or list.has(dir):
+		return
+	list.append(dir)
+	var all: Variant = get_value(KEY_ACCOUNTS, {})
+	var data: Dictionary = (all as Dictionary).duplicate() if all is Dictionary else {}
+	data[variable] = list
+	set_value(KEY_ACCOUNTS, data)
+
+
+## La última cuenta elegida para el perfil `profile_id` ("" = la del perfil).
+func last_account(profile_id: String) -> String:
+	var all: Variant = get_value(KEY_LAST_ACCOUNT, {})
+	return str((all as Dictionary).get(profile_id, "")) if all is Dictionary else ""
+
+
+func set_last_account(profile_id: String, dir: String) -> void:
+	var all: Variant = get_value(KEY_LAST_ACCOUNT, {})
+	var data: Dictionary = (all as Dictionary).duplicate() if all is Dictionary else {}
+	data[profile_id] = dir
+	set_value(KEY_LAST_ACCOUNT, data)
+
+
 func mcp_port() -> int:
 	return clampi(int(get_value(KEY_MCP_PORT, 0)), 0, 65535)
 
 
 func mcp_servers() -> Array:
-	var raw: Variant = get_value(KEY_MCP_SERVERS, "")
-	return ExternalMcpServers.normalize_list(JSON.parse_string(raw) if raw is String and not raw.is_empty() else [])
+	var data: Variant = get_list(KEY_MCP_SERVERS)
+	return ExternalMcpServers.normalize_list(data if data is Array else [])
 
 
 func save_mcp_servers(list: Array) -> void:
-	set_value(KEY_MCP_SERVERS, JSON.stringify(list, "\t"))
+	set_value(KEY_MCP_SERVERS, list.duplicate(true))
 
 
 func quota_warn() -> float:
@@ -300,8 +351,7 @@ func completion_mode() -> String:
 
 func llm_profiles() -> Array[LlmProfile]:
 	var result: Array[LlmProfile] = []
-	var raw: Variant = get_value(KEY_COMPLETION_LLM_PROFILES, "")
-	var data: Variant = JSON.parse_string(raw) if raw is String and not raw.is_empty() else null
+	var data: Variant = get_list(KEY_COMPLETION_LLM_PROFILES)
 	if not data is Array:
 		data = LlmProfile.defaults()
 	for item: Variant in data:
@@ -316,7 +366,7 @@ func save_llm_profiles(list: Array[LlmProfile]) -> void:
 	var data: Array = []
 	for profile: LlmProfile in list:
 		data.append(profile.to_dict())
-	set_value(KEY_COMPLETION_LLM_PROFILES, JSON.stringify(data, "\t"))
+	set_value(KEY_COMPLETION_LLM_PROFILES, data)
 
 
 ## El perfil LLM activo (el elegido, o el primero), o null si no hay ninguno.
@@ -351,6 +401,18 @@ func llm_marker() -> bool:
 
 func completion_log_raw() -> bool:
 	return bool(get_value(KEY_COMPLETION_LOG_RAW, false))
+
+
+## El texto JSON de una lista (hasta 0.1.15) pasa a Array. Uno vacío queda vacío; uno que no parsea
+## se deja como está, para no perder lo que el usuario escribió a mano.
+func _migrate_json_list(key: String) -> void:
+	var full := PREFIX + key
+	if not _editor_settings.has_setting(full) or not _editor_settings.get_setting(full) is String:
+		return
+	var text := str(_editor_settings.get_setting(full)).strip_edges()
+	var data: Variant = JSON.parse_string(text) if not text.is_empty() else []
+	if data is Array:
+		_editor_settings.set_setting(full, data)
 
 
 func _declare(key: String, default_value: Variant, type: Variant.Type, hint: PropertyHint = PROPERTY_HINT_NONE, hint_string: String = "") -> void:

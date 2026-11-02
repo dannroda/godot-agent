@@ -54,7 +54,7 @@ static func agent_kind(command: String, args: PackedStringArray, profile_id: Str
 	var bin := command.get_file().get_basename().to_lower()
 	if line.contains("codex-acp") or line.contains("@zed-industries/codex") or bin == "codex" or profile_id.to_lower().begins_with("codex"):
 		return AGENT_CODEX
-	if line.contains("antigravity") or bin == "agy" or bin == "antigravity":
+	if line.contains("antigravity") or bin == "agy" or bin == "antigravity" or bin == "agy_acp_server":
 		return AGENT_ANTIGRAVITY
 	if line.contains("copilot") or bin == "copilot":
 		return AGENT_COPILOT

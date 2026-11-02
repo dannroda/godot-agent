@@ -21,3 +21,13 @@ func read_quota(text: String, quota: RefCounted, _model: RefCounted, model_name:
 
 func model_changed(quota: RefCounted, model_name: String) -> void:
 	quota.call(&"select_antigravity_model", model_name)
+
+
+## antigravity-acp guarda su login (antigravity-acp/acp_token.json) bajo GEMINI_HOME, o ~/.gemini.
+## El token no trae el email.
+func account_variable() -> String:
+	return "GEMINI_HOME"
+
+
+func default_account_dir() -> String:
+	return "~/.gemini"

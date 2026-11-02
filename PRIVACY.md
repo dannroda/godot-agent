@@ -54,7 +54,7 @@ The addon's MCP server listens only on `127.0.0.1`, with a token that changes ev
 
 ## What the harness never does
 
-- It never stores API keys or reads the agent's credential files. To show which account an agent uses, it asks the agent's own CLI (for Claude Code, `claude auth status`); the email appears in the dock but is not written to the log.
+- It never stores API keys or reads the agent's credential files. To show which account an agent uses, it asks the agent's own CLI (for Claude Code, `claude auth status`); the email appears in the dock but is not written to the log. To label the accounts in the agent menu, it reads only the email from Claude Code's `.claude.json` in each configuration folder (never `.credentials.json` or tokens).
 - It never merges in git, and never pushes on its own. The one exception is **Push and open a PR**: off by default (Settings, «Offer to push and open a GitHub pull request when closing a separate copy»), and only when you choose it while closing a separate copy. It pushes that copy's branch to `origin` and opens the pull request with `gh`.
 - It never sends analytics or usage data.
 - Nothing from the addon ends up in an exported game.

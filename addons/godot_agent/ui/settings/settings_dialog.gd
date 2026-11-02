@@ -76,7 +76,7 @@ var _error_label: Label
 var _profiles: Array[AgentProfile] = []
 var _profile_list: VBoxContainer
 var _suggested_box: VBoxContainer
-var _profile_form: GridContainer
+var _profile_form: VBoxContainer
 var _registry_dialog: AcpRegistryDialog
 var _editing: int = -1
 var _form_fields: Dictionary = {}  # nombre -> control
@@ -311,16 +311,18 @@ func _build_agents(page: VBoxContainer) -> void:
 	add_row.add_child(add)
 	add_row.add_child(from_registry)
 	left.add_child(add_row)
-	_profile_form = GridContainer.new()
-	_profile_form.columns = 2
+	# Etiqueta arriba de cada campo: en dos columnas, la etiqueta larga del entorno se comía el ancho
+	# y los campos quedaban de unos pocos caracteres.
+	_profile_form = VBoxContainer.new()
+	_profile_form.add_theme_constant_override(&"separation", AgentTheme.px(4))
 	_profile_form.visible = false
 	_profile_form.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_profile_form.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	split.add_child(_profile_form)
-	for field: Array in [["id", I18n.t("ID")], ["display_name", I18n.t("Name")], ["command", I18n.t("Command")], ["args", I18n.t("Arguments (one per line)")], ["env", I18n.t("Environment (KEY=value or KEY=$VAR)")]]:
+	for field: Array in [["id", I18n.t("ID")], ["display_name", I18n.t("Name")], ["command", I18n.t("Command")], ["args", I18n.t("Arguments (one per line)")], ["env", I18n.t("Environment (KEY=value or KEY=$VAR)")], ["account_variable", I18n.t("Account folder variable (optional)")]]:
 		var label := Label.new()
 		label.text = field[1]
-		label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		_profile_form.add_child(label)
 		var control: Control
 		if field[0] in ["args", "env"]:
@@ -338,10 +340,16 @@ func _build_agents(page: VBoxContainer) -> void:
 			column.add_child(control)
 			column.add_child(_hint(I18n.t("In env, \"$VAR\" takes the value of VAR from the editor's environment when the agent is launched: keys are not saved.")))
 			_profile_form.add_child(column)
+		elif field[0] == "account_variable":
+			var column := VBoxContainer.new()
+			column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			(control as LineEdit).placeholder_text = "CLAUDE_CONFIG_DIR, GEMINI_HOME, CODEX_HOME…"
+			column.add_child(control)
+			column.add_child(_hint(I18n.t("The environment variable with the agent's configuration folder, where it keeps its login. With it, each dock tab can use another account from the agent menu. Claude Code, Antigravity and Codex don't need it.")))
+			_profile_form.add_child(column)
 		else:
 			_profile_form.add_child(control)
 		_form_fields[field[0]] = control
-	_profile_form.add_child(Control.new())
 	var apply := Button.new()
 	apply.text = I18n.t("Done")
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -1017,6 +1025,7 @@ func _edit_profile(index: int) -> void:
 	for key: String in profile.env:
 		env_lines.append("%s=%s" % [key, profile.env[key]])
 	(_form_fields.env as TextEdit).text = "\n".join(env_lines)
+	(_form_fields.account_variable as LineEdit).text = profile.account_variable
 	_profile_form.visible = true
 	_rebuild_profiles()
 
@@ -1030,6 +1039,7 @@ func _apply_profile_form() -> void:
 	profile.display_name = (_form_fields.display_name as LineEdit).text.strip_edges()
 	profile.command = (_form_fields.command as LineEdit).text.strip_edges()
 	profile.args = _lines((_form_fields.args as TextEdit).text)
+	profile.account_variable = (_form_fields.account_variable as LineEdit).text.strip_edges()
 	profile.env = {}
 	for line: String in _lines((_form_fields.env as TextEdit).text):
 		var equals := line.find("=")

@@ -14,13 +14,14 @@ Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agen
 - trabajar en proyectos C# con Godot .NET: compila con `dotnet build` y recibe los errores por archivo y línea, crea scripts `.cs`, y el completado inline también anda en los `.cs`;
 - usar los servidores MCP de otros programas (Blender, una base de datos…), configurados en Settings con sus propios permisos;
 - buscar, instalar y activar addons de Godot del [Asset Store](https://store.godotengine.org) (el agente también los puede sugerir);
-- manejar los plugins, marketplaces, servidores MCP y skills de Claude Code desde la ventana **Extensiones**, con skills de Godot a un clic.
+- manejar los plugins, marketplaces, servidores MCP y skills de Claude Code desde la ventana **Extensiones**, con skills de Godot a un clic;
+- trabajar en varias sesiones a la vez, una por pestaña del dock, cada una con su agente y su cuenta: por ejemplo Claude Code con tu cuenta personal en una pestaña y la del trabajo en otra, o Google Antigravity al lado de Claude Code. Las sesiones no se pisan: un archivo que una está editando en su turno queda fuera del alcance de las demás, y el juego corre para una a la vez.
 
 Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construir que corre sin preguntar los comandos de shell que tus reglas permiten) y **One-shot**. El One-shot persigue un objetivo entero ("Pong de 2 jugadores con puntaje") con plan, presupuestos, checkpoints git y playtests.
 
 - 100 % GDScript con tipos estáticos: sin GDExtension ni dependencias.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
-- El harness nunca hace merge ni push por su cuenta (la única excepción es **Pushear y abrir un PR**, apagado por defecto, que elegís vos al cerrar una copia aparte), no guarda claves y no lee las credenciales del agente. No tiene telemetría: lo que compartís va al agente que elegís y a su proveedor. Detalles en [PRIVACY.es.md](PRIVACY.es.md); para reportar una vulnerabilidad, [SECURITY.md](SECURITY.md).
+- El harness nunca hace merge ni push por su cuenta (la única excepción es **Pushear y abrir un PR**, apagado por defecto, que elegís vos al cerrar una copia aparte), no guarda claves y no lee las credenciales del agente (para nombrar las cuentas lee solo el email que Claude Code guarda en su configuración). No tiene telemetría: lo que compartís va al agente que elegís y a su proveedor. Detalles en [PRIVACY.es.md](PRIVACY.es.md); para reportar una vulnerabilidad, [SECURITY.md](SECURITY.md).
 - La interfaz está en inglés y en español: sigue el idioma del editor y se cambia en Settings.
 - El chat muestra el Markdown del agente: tablas, listas, citas y bloques de código con resaltado y botón para copiar.
 
@@ -37,7 +38,7 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 - [One-shot](docs/wiki/es/One-shot.md): plan, spec, presupuestos, checkpoints, cuota, cambio de cuenta, informe.
 - [Revisar](docs/wiki/es/Revisar.md)
 - [Completado inline](docs/wiki/es/Completado-inline.md), local o con un LLM.
-- [Settings y perfiles](docs/wiki/es/Settings.md): dónde se guarda cada cosa, perfiles de agentes, export y actualizar.
+- [Settings y perfiles](docs/wiki/es/Settings.md): dónde se guarda cada cosa, perfiles de agentes, una cuenta por pestaña, export y actualizar.
 - [Problemas frecuentes](docs/wiki/es/Problemas-frecuentes.md): limitaciones conocidas por versión de Godot.
 
 ## Requisitos
@@ -47,7 +48,7 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 - **Para proyectos en C#**, la versión .NET de Godot y el SDK de .NET (`dotnet`).
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`. El perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
-  - una cuenta de Claude Code: la que ya usa `claude` en la máquina, una con la que iniciás sesión desde el dock, o una API key en una variable de entorno.
+  - una cuenta de Claude Code: la que ya usa `claude` en la máquina, una con la que iniciás sesión desde el dock, o una API key en una variable de entorno. Con varias cuentas (una carpeta de configuración cada una, como `~/.claude-profiles/trabajo`), cada pestaña del dock elige la suya desde el menú del agente.
 - **git**, solo para los checkpoints del One-shot.
 - Linux. macOS y Windows deberían andar, pero todavía no se verificaron.
 

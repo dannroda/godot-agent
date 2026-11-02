@@ -292,7 +292,7 @@ func _llm_step(controller: Object, settings: HarnessSettings, server: Node, shot
 		return
 	_check(indicator.mode_label == "local" and indicator.state == CompletionIndicator.IndicatorState.ACTIVE, "indicador: local y activo (%s, %d)" % [indicator.mode_label, indicator.state])
 	server.set(&"routes", {"/api/generate": {"status": 200, "body": {"response": "ave(3)\n", "done": true}, "delay_ms": 150}})
-	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_PROFILES, JSON.stringify([{"id": "fake", "kind": "ollama", "display_name": "Falso", "url": server.call(&"url"), "model": "fake-coder"}]))
+	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_PROFILES, [{"id": "fake", "kind": "ollama", "display_name": "Falso", "url": server.call(&"url"), "model": "fake-coder"}])
 	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_ACTIVE, "fake")
 	settings.set_value(HarnessSettings.KEY_COMPLETION_LLM_DEBOUNCE, 100)
 	settings.set_value(HarnessSettings.KEY_COMPLETION_MODE, HarnessSettings.COMPLETION_MODES.find("hybrid"))

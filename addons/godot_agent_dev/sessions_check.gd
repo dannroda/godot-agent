@@ -7,6 +7,7 @@ extends RefCounted
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
+const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const SOURCE := "res://tests/tmp/sessions_source.txt"
@@ -112,6 +113,78 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	request.cancel()
 	if bar.get_tab_title(1).begins_with("⚠ "):
 		failures.append("la marca sigue después de responder el permiso")
+
+	# Cada pestaña con su cuenta de Claude Code: elegir otra en la segunda no cambia la de la primera,
+	# y lo que depende del agente (Extensiones, el adaptador) toma la de la pestaña activa.
+	var settings: Object = main_plugin.get(&"_settings")
+	var saved_profiles: Array = settings.call(&"profiles")
+	var saved_last: Variant = settings.call(&"get_value", "agents/last_profile", "")
+	var saved_account: Variant = settings.call(&"get_value", "agents/last_account", {})
+	var saved_accounts: Variant = settings.call(&"get_value", "agents/accounts", {})
+	var claude: Array[AgentProfile] = [AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)]
+	settings.call(&"save_profiles", claude)
+	dock.call(&"_on_profile_selected", 0)
+	second_dock.call(&"_on_profile_selected", 0)
+	var work := ProjectSettings.globalize_path("res://tests/tmp/claude-work")
+	second_dock.call(&"_on_account_selected", work)
+	var first_profile: AgentProfile = dock.call(&"selected_profile")
+	var second_profile: AgentProfile = second_dock.call(&"selected_profile")
+	if first_profile == null or not first_profile.account_dir.is_empty():
+		failures.append("elegir cuenta en la segunda cambió la de la primera: %s" % [first_profile.account_dir if first_profile else "sin perfil"])
+	if second_profile == null or second_profile.resolved_env().get("CLAUDE_CONFIG_DIR") != work:
+		failures.append("la segunda pestaña no lanza con su cuenta: %s" % [second_profile.resolved_env() if second_profile else {}])
+	bar.current_tab = 1
+	var tab_profile: AgentProfile = main_plugin.call(&"_tab_profile")
+	if tab_profile == null or tab_profile.account_dir != work:
+		failures.append("Extensiones no toma la cuenta de la pestaña activa: %s" % [tab_profile.account_dir if tab_profile else ""])
+	bar.current_tab = 0
+	tab_profile = main_plugin.call(&"_tab_profile")
+	if tab_profile == null or not tab_profile.account_dir.is_empty():
+		failures.append("la primera pestaña da la cuenta de la segunda")
+	bar.current_tab = 1
+	second_dock.call(&"_show_agent_menu")
+	var menu: PopupMenu = second_dock.get(&"_agent_menu")
+	var texts: PackedStringArray = []
+	for i in menu.item_count:
+		texts.append(menu.get_item_text(i))
+	if not texts.has("Claude Code account") or not texts.has("Other folder…"):
+		failures.append("el menú del agente no ofrece cuentas: %s" % [texts])
+	await _save_shot(tree, tabs, "%s_accounts.png" % prefix)
+	await tree.process_frame
+	if menu.visible:  # el menú es una ventana aparte: se captura la suya
+		var image := menu.get_texture().get_image() if menu.get_texture() else null
+		if image:
+			image.save_png("%s_accounts_menu.png" % prefix)
+	menu.hide()
+	# Lo mismo con otro agente: Antigravity lleva la cuenta en GEMINI_HOME, y volver a Claude Code en
+	# la pestaña recupera la cuenta que tenía.
+	var both: Array[AgentProfile] = [AgentProfile.from_dict(AgentProfile.CLAUDE_CODE), AgentProfile.from_dict({"id": "antigravity", "display_name": "Google Antigravity", "command": "/x/antigravity-acp/1.4.3/agy_acp_server.par"})]
+	settings.call(&"save_profiles", both)
+	second_dock.call(&"_on_profile_selected", 1)
+	var gemini_work := ProjectSettings.globalize_path("res://tests/tmp/gemini-work")
+	second_dock.call(&"_on_account_selected", gemini_work)
+	second_profile = second_dock.call(&"selected_profile")
+	if second_profile == null or second_profile.resolved_env().get("GEMINI_HOME") != gemini_work or second_profile.resolved_env().has("CLAUDE_CONFIG_DIR"):
+		failures.append("Antigravity no lanza con su cuenta en GEMINI_HOME: %s" % [second_profile.resolved_env() if second_profile else {}])
+	second_dock.call(&"_show_agent_menu")
+	texts = []
+	for i in menu.item_count:
+		texts.append(menu.get_item_text(i))
+	if not texts.has("Google Antigravity account"):
+		failures.append("el menú no ofrece cuentas de Antigravity: %s" % [texts])
+	await tree.process_frame
+	if menu.visible and menu.get_texture():
+		menu.get_texture().get_image().save_png("%s_accounts_menu_antigravity.png" % prefix)
+	menu.hide()
+	second_dock.call(&"_on_profile_selected", 0)
+	second_profile = second_dock.call(&"selected_profile")
+	if second_profile == null or second_profile.resolved_env().get("CLAUDE_CONFIG_DIR") != work:
+		failures.append("volver a Claude Code perdió la cuenta de la pestaña: %s" % [second_profile.resolved_env() if second_profile else {}])
+	bar.current_tab = 0
+	settings.call(&"save_profiles", saved_profiles)
+	settings.call(&"set_active_profile", str(saved_last))
+	settings.call(&"set_value", "agents/last_account", saved_account)
+	settings.call(&"set_value", "agents/accounts", saved_accounts)
 
 	# Cerrar la pestaña: el coordinador y el server MCP la olvidan.
 	bar.tab_button_pressed.emit(1)

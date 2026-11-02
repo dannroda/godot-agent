@@ -54,7 +54,7 @@ El servidor MCP del addon escucha solo en `127.0.0.1`, con un token que cambia c
 
 ## Lo que el harness nunca hace
 
-- Nunca guarda API keys ni lee los archivos de credenciales del agente. Para mostrar qué cuenta usa un agente le pregunta al propio CLI del agente (en Claude Code, `claude auth status`); el email se ve en el dock pero no se escribe en el log.
+- Nunca guarda API keys ni lee los archivos de credenciales del agente. Para mostrar qué cuenta usa un agente le pregunta al propio CLI del agente (en Claude Code, `claude auth status`); el email se ve en el dock pero no se escribe en el log. Para nombrar las cuentas en el menú del agente lee solo el email del `.claude.json` de Claude Code en cada carpeta de configuración (nunca `.credentials.json` ni tokens).
 - Nunca hace merge en git, y nunca hace push por su cuenta. La única excepción es **Pushear y abrir un PR**: apagado por defecto (Settings, «Ofrecer pushear y abrir un pull request de GitHub al cerrar una copia aparte»), y solo si lo elegís al cerrar una copia aparte. Pushea la rama de esa copia a `origin` y abre el pull request con `gh`.
 - Nunca manda estadísticas ni datos de uso.
 - Nada del addon llega a un juego exportado.

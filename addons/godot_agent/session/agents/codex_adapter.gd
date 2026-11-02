@@ -17,6 +17,15 @@ func quota_command(model: RefCounted) -> String:
 	return "/status" if has_status else ""
 
 
+## Codex guarda su configuración y su login (auth.json) en CODEX_HOME, o ~/.codex.
+func account_variable() -> String:
+	return "CODEX_HOME"
+
+
+func default_account_dir() -> String:
+	return "~/.codex"
+
+
 func read_quota(text: String, quota: RefCounted, model: RefCounted, model_name: String) -> void:
 	var groups := QuotaMonitor.parse_codex_status(text, int((quota.get(&"now_provider") as Callable).call()))
 	quota.call(&"observe_windows", QuotaMonitor.codex_windows(groups, model_name), text, groups if groups.size() > 1 else {})

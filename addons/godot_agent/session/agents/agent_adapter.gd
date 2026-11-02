@@ -41,3 +41,19 @@ func session_meta(_disabled_skills: PackedStringArray) -> Dictionary:
 ## Variable del entorno que hace que el agente cobre por API en vez de por la suscripción ("" = no hay).
 func api_key_variable() -> String:
 	return ""
+
+
+## Cuentas (una por pestaña del dock): la variable del entorno con la carpeta de configuración del
+## agente, donde guarda su login ("" = el agente no tiene una conocida; el perfil puede decirla).
+func account_variable() -> String:
+	return ""
+
+
+## La carpeta que usa el agente si la variable no está puesta (con `~/`).
+func default_account_dir() -> String:
+	return ""
+
+
+## Con qué email está logueada la carpeta, si el agente lo deja en un archivo ("" = no se sabe).
+func account_email(_dir: String) -> String:
+	return ""

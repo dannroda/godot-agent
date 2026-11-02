@@ -11,6 +11,7 @@ const AgentMainScreenScene := preload("ui/main_screen/agent_main_screen.tscn")
 const AgentLogPanelScene := preload("ui/log_panel/agent_log_panel.tscn")
 const AgentLog := preload("core/agent_log.gd")
 const HarnessSettings := preload("core/harness_settings.gd")
+const AgentProfile := preload("core/agent_profile.gd")
 const SettingsDialog := preload("ui/settings/settings_dialog.gd")
 const ExtensionsWindow := preload("ui/extensions/extensions_window.gd")
 const ClaudeExtensions := preload("extensions/claude_extensions.gd")
@@ -211,7 +212,8 @@ func _enter_tree() -> void:
 	_oneshot.setup(_controller, EditorContext.project_path())
 	_oneshot.after_restore = _after_oneshot_restore
 	_oneshot.restart_session = func(lost_id: String) -> bool:
-		var profile := _settings.active_profile()
+		# El agente con el que corría el run (otra pestaña puede haber elegido otro).
+		var profile := _controller.profile() if _controller.profile() else _tab_profile(PRIMARY_SESSION)
 		return profile != null and await _controller.reopen(profile, lost_id)
 	_oneshot.resume_auto = _settings.quota_resume_auto()
 	_oneshot.store.dir = ONESHOT_STORE_DIR
@@ -264,7 +266,7 @@ func _enter_tree() -> void:
 	_main_screen.settings_requested.connect(_open_settings)
 	_main_screen.agent_name = func() -> String:
 		# El de la sesión abierta, o el que se va a usar al abrir una.
-		var profile := _controller.profile() if _controller and _controller.profile() else _settings.active_profile()
+		var profile := _controller.profile() if _controller and _controller.profile() else _tab_profile(PRIMARY_SESSION)
 		return profile.display_name if profile else ""
 	_settings.changed.connect(func(key: String) -> void:
 		if _main_screen and key in [HarnessSettings.KEY_PROFILES, HarnessSettings.KEY_LAST_PROFILE]:
@@ -307,12 +309,12 @@ func _enter_tree() -> void:
 	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
 		return _active_adapter().kind == ClaudeExtensions.AGENT_CLAUDE
-	_extensions_window.has_agent_provider = func() -> bool: return _settings.active_profile() != null
+	_extensions_window.has_agent_provider = func() -> bool: return _tab_profile() != null
 	_extensions_window.agents_requested.connect(func() -> void:
 		_extensions_window.hide()
 		_settings_dialog.open(SettingsDialog.SettingsSection.AGENTS))
 	_extensions_window.agent_kind_provider = func() -> String:
-		return _active_adapter().kind if _settings.active_profile() != null else ClaudeExtensions.AGENT_CLAUDE
+		return _active_adapter().kind if _tab_profile() != null else ClaudeExtensions.AGENT_CLAUDE
 	_extensions_window.new_session_requested.connect(func() -> void:
 		if is_instance_valid(dock):
 			dock.new_session())
@@ -812,15 +814,27 @@ func _session_meta(controller: SessionController = null) -> Dictionary:
 	return (controller if controller else _controller).adapter.session_meta(_project_config.disabled_skills)
 
 
-## El adaptador del perfil activo (antes de conectar): qué familia de extensiones mostrar.
+## El agente de una pestaña (por defecto, la activa): el de su sesión si está conectada; si no, el
+## elegido en ella. Cada pestaña puede usar otro perfil, por ejemplo otra cuenta de Claude Code.
+func _tab_profile(id: String = "") -> AgentProfile:
+	if id.is_empty():
+		id = _active_session_id()
+	var controller := _controller_of(id)
+	if controller and controller.profile() and controller.is_connected_to_agent():
+		return controller.profile()
+	var dock := _tabs.dock(id) as AgentDock if _tabs else null
+	return dock.selected_profile() if dock else _settings.active_profile()
+
+
+## El adaptador del agente de la pestaña activa (antes de conectar): qué familia de extensiones mostrar.
 func _active_adapter() -> AgentAdapter:
-	var profile := _settings.active_profile()
+	var profile := _tab_profile()
 	return AgentAdapters.for_profile(profile.command, profile.args, profile.id) if profile else AgentAdapter.new()
 
 
-## El CLI corre con el entorno del perfil activo (CLAUDE_CONFIG_DIR y demás), como el agente.
+## El CLI corre con el entorno del agente de la pestaña activa (CLAUDE_CONFIG_DIR y demás), como el agente.
 func _open_extensions() -> void:
-	var profile := _settings.active_profile()
+	var profile := _tab_profile()
 	_extensions_window.extensions = ClaudeExtensions.new(EditorContext.project_path(), profile.resolved_env() if profile else {})
 	_extensions_window.disabled_skills = _project_config.disabled_skills
 	_extensions_window.open()

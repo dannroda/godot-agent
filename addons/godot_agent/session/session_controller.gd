@@ -377,7 +377,7 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	policy.clear_session()
 	permissions.reset()
 	if history:
-		history.begin(model.session_id, _profile.id, _profile.display_name, cwd)
+		history.begin(model.session_id, _profile.id, _profile.label(), cwd, {}, _profile.account_dir)
 	model.set_state(SessionModel.SessionState.READY)
 	_sync_agent_mode()
 	_refresh_account()
@@ -1043,7 +1043,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		# Sin historial local, dejamos que los updates del replay entren al modelo y al historial.
 		model.session_id = session_id
 		if history and _profile:
-			history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
+			history.begin(session_id, _profile.id, _profile.label(), cwd, record, _profile.account_dir)
 	var mcp_servers: Array = mcp_servers_provider.call() if mcp_servers_provider.is_valid() else []
 	_cancel_abandoned_requests()
 	var req_id := client.next_request_id()
@@ -1066,7 +1066,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	policy.clear_session()
 	permissions.reset()
 	if history and _profile and (has_local_events or method == "session/resume"):
-		history.begin(session_id, _profile.id, _profile.display_name, cwd, record)
+		history.begin(session_id, _profile.id, _profile.label(), cwd, record, _profile.account_dir)
 	model.set_state(SessionModel.SessionState.READY)
 	var resumed_msg := I18n.t("Session resumed: the agent recovered its context with session/resume.") if use_resume else I18n.t("Session resumed: the agent recovered its context with session/load.")
 	model.add_notice(resumed_msg)

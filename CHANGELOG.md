@@ -4,6 +4,18 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- One account per dock tab, for any agent: the agent chip's menu picks the tab's agent and its account, so two sessions can work side by side with different accounts. An account is the agent's configuration folder, passed in its variable: `CLAUDE_CONFIG_DIR` for Claude Code, `GEMINI_HOME` for Google Antigravity, `CODEX_HOME` for Codex; for another agent, its profile can name the variable. The menu finds the default folder and the ones in `~/.<folder>-profiles/` (for example `~/.claude-profiles/work`), shows the email for Claude Code accounts, and **Other folder…** adds any other. The session history remembers each session's account. Extensions follow the active tab's agent and account.
+
+### Changed
+
+- Agent profiles, MCP servers and completion LLM profiles are stored in Editor Settings as arrays of dictionaries instead of JSON text, so they can be edited there. Existing settings are converted on load.
+
+### Fixed
+
+- **Settings → Agents**: the profile form squeezed its fields to a few characters in a narrow dialog. Labels now go above the fields.
+
 ## [0.1.15] - 2026-10-31
 
 ### Fixed

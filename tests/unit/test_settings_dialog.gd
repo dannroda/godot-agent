@@ -95,11 +95,13 @@ func test_profile_form_round_trip() -> void:
 	(fields.command as LineEdit).text = "  npx  "
 	(fields.args as TextEdit).text = "-y\n\n  @agentclientprotocol/claude-agent-acp  \n"
 	(fields.env as TextEdit).text = "ANTHROPIC_API_KEY=$MI_CLAVE\nsin_igual\nDEBUG = 1"
+	(fields.account_variable as LineEdit).text = " MI_AGENTE_HOME "
 	dialog.call(&"_apply_profile_form")
 	var profile: AgentProfile = (dialog.get(&"_profiles") as Array)[0]
 	assert_eq(profile.command, "npx", "recorta el comando")
 	assert_eq(profile.args, PackedStringArray(["-y", "@agentclientprotocol/claude-agent-acp"]), "args: uno por línea, sin vacías")
 	assert_eq(profile.env, {"ANTHROPIC_API_KEY": "$MI_CLAVE", "DEBUG": "1"}, "env: CLAVE=valor, ignora líneas sin =")
+	assert_eq(profile.account_variable, "MI_AGENTE_HOME", "la variable de las cuentas, recortada")
 	assert_false((dialog.get(&"_profile_form") as Control).visible, "cierra el formulario")
 
 	# Quitar un perfil de más arriba mientras se edita otro: el formulario sigue apuntando al mismo.

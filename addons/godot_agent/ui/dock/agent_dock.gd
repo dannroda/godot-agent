@@ -26,6 +26,9 @@ const HarnessSettings := preload("../../core/harness_settings.gd")
 const HISTORY_MENU_SIZE := 30
 ## Ids de los menús del header (m12-14).
 const AGENT_MENU_MANAGE := 1000
+## Cuentas de Claude Code en el menú del agente: AGENT_MENU_ACCOUNT + índice, y «Otra carpeta…».
+const AGENT_MENU_ACCOUNT := 2000
+const AGENT_MENU_ACCOUNT_OTHER := 1999
 const NEW_MENU_SESSION := 0
 const NEW_MENU_TAB := 1
 const NEW_MENU_TAB_COPY := 2
@@ -36,6 +39,8 @@ const MORE_LOGOUT := 3
 ## Sesiones anteriores en el dock vacío (m12-12).
 const RECENT_SESSIONS := 5
 const AgentProfile := preload("../../core/agent_profile.gd")
+const AgentAccounts := preload("../../session/agents/agent_accounts.gd")
+const AgentAdapters := preload("../../session/agents/agent_adapters.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const EditorContext := preload("../editor_context.gd")
@@ -105,6 +110,15 @@ var _oneshot_active := false
 var _controller: SessionController
 var _settings: HarnessSettings
 var _profiles: Array[AgentProfile] = []
+## El agente elegido en esta pestaña: cada pestaña lanza el suyo. Vacío: el último elegido en
+## cualquier pestaña (`HarnessSettings.active_profile`).
+var _profile_id: String = ""
+## La cuenta de cada agente en esta pestaña: id del perfil -> carpeta de configuración ("" = la del
+## perfil). Así dos pestañas usan el mismo agente con cuentas distintas.
+var _accounts: Dictionary = {}
+## Las cuentas que muestra el menú del agente abierto: [{dir, name, email}].
+var _menu_accounts: Array[Dictionary] = []
+var _account_dialog: EditorFileDialog
 var _accent: Color = HarnessSettings.DEFAULT_ACCENT
 var _presets_mtime: int = -1
 var _pending_prompt: String = ""
@@ -175,6 +189,12 @@ func setup(model: SessionModel, controller: SessionController, settings: Harness
 	_controller = controller
 	_settings = settings
 	_accent = settings.accent_color()
+	# La pestaña arranca con el último agente y la última cuenta elegidos, y después se queda con los
+	# suyos aunque otra pestaña elija otros.
+	var active := settings.active_profile()
+	_profile_id = active.id if active else ""
+	var last: Variant = settings.get_value(HarnessSettings.KEY_LAST_ACCOUNT, {})
+	_accounts = (last as Dictionary).duplicate() if last is Dictionary else {}
 
 
 func _ready() -> void:
@@ -347,6 +367,10 @@ func _build_header() -> void:
 	_agent_menu.id_pressed.connect(func(id: int) -> void:
 		if id == AGENT_MENU_MANAGE:
 			settings_requested.emit()
+		elif id == AGENT_MENU_ACCOUNT_OTHER:
+			_pick_account_folder()
+		elif id >= AGENT_MENU_ACCOUNT and id - AGENT_MENU_ACCOUNT < _menu_accounts.size():
+			_on_account_selected(str(_menu_accounts[id - AGENT_MENU_ACCOUNT].dir))
 		elif id >= 0 and id < _profiles.size():
 			_profile_button.select(id)
 			_on_profile_selected(id))
@@ -404,11 +428,30 @@ func _can_logout() -> bool:
 
 func _show_agent_menu() -> void:
 	_agent_menu.clear()
-	var active := _settings.active_profile()
+	var active := selected_profile()
 	for i in _profiles.size():
 		_agent_menu.add_radio_check_item(_profiles[i].display_name, i)
 		_agent_menu.set_item_checked(_agent_menu.item_count - 1, active != null and _profiles[i].id == active.id)
 		_agent_menu.set_item_tooltip(_agent_menu.item_count - 1, _profiles[i].command_line())
+	_menu_accounts = []
+	var variable := _account_variable(active) if active else ""
+	if not variable.is_empty():
+		# Cada pestaña con su cuenta: otra carpeta de configuración, otro login.
+		var adapter := AgentAdapters.for_profile(active.command, active.args, active.id)
+		var base := AgentAccounts.base_dir(active, adapter, variable)
+		var current := AgentAccounts.normalize(active.account_dir) if not active.account_dir.is_empty() else base
+		var extra := _settings.accounts(variable)
+		extra.append(current)
+		_agent_menu.add_separator(I18n.t("%s account") % active.display_name)
+		_menu_accounts = AgentAccounts.list(base, adapter.default_account_dir(), extra, adapter)
+		for i in _menu_accounts.size():
+			var account := _menu_accounts[i]
+			var text := AgentAccounts.label_of(account) if not str(account.dir).is_empty() else I18n.t("The agent's default")
+			_agent_menu.add_radio_check_item(text, AGENT_MENU_ACCOUNT + i)
+			_agent_menu.set_item_checked(_agent_menu.item_count - 1, account.dir == current)
+			_agent_menu.set_item_tooltip(_agent_menu.item_count - 1, "%s=%s" % [variable, account.dir] if not str(account.dir).is_empty() else I18n.t("Without %s: the agent uses its own folder.") % variable)
+		_agent_menu.add_item(I18n.t("Other folder…"), AGENT_MENU_ACCOUNT_OTHER)
+		_agent_menu.set_item_tooltip(_agent_menu.item_count - 1, I18n.t("Another configuration folder for this agent (%s). An empty one is a new account: the session asks you to sign in.") % variable)
 	if not _profiles.is_empty():
 		_agent_menu.add_separator()
 	_agent_menu.add_item(I18n.t("Manage agents…"), AGENT_MENU_MANAGE)
@@ -529,10 +572,66 @@ func _build_review_panel() -> void:
 	move_child(_review_panel, _body.get_index())
 
 
+## El agente que usa esta pestaña al abrir una sesión: el elegido en ella, si sigue existiendo; si
+## no, el último elegido en cualquiera.
+func selected_profile() -> AgentProfile:
+	var profile := _base_profile()
+	if profile == null:
+		return null
+	var variable := _account_variable(profile)
+	var dir := str(_accounts.get(profile.id, ""))
+	return profile.with_account(dir, variable) if not dir.is_empty() and not variable.is_empty() else profile
+
+
+## El agente de la pestaña tal como está guardado, sin cuenta elegida.
+func _base_profile() -> AgentProfile:
+	var chosen := _settings.profile(_profile_id) if not _profile_id.is_empty() else null
+	return chosen if chosen else _settings.active_profile()
+
+
+## La variable con la carpeta de las cuentas del agente ("" = no se puede elegir cuenta).
+static func _account_variable(profile: AgentProfile) -> String:
+	return AgentAccounts.variable_for(profile, AgentAdapters.for_profile(profile.command, profile.args, profile.id))
+
+
+## Elegir la cuenta de esta pestaña: la del perfil queda como "" (sin override).
+func _on_account_selected(dir: String) -> void:
+	var base := _base_profile()
+	if base == null:
+		return
+	var variable := _account_variable(base)
+	var adapter := AgentAdapters.for_profile(base.command, base.args, base.id)
+	var path := AgentAccounts.normalize(dir)
+	var chosen := "" if path == AgentAccounts.base_dir(base, adapter, variable) else path
+	_accounts[base.id] = chosen
+	_settings.set_last_account(base.id, chosen)  # con la que arrancan las pestañas nuevas
+	_refresh_empty_state()
+	_refresh_state()
+	var current := _controller.profile()
+	if current and current.id == base.id and current.account_dir != chosen and _controller.is_connected_to_agent():
+		_model.add_notice(I18n.t("The %s account is used when you press \"New session\".") % (AgentAccounts.name_of(path) if not path.is_empty() else I18n.t("default")))
+
+
+func _pick_account_folder() -> void:
+	if _account_dialog == null:
+		_account_dialog = EditorFileDialog.new()
+		_account_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_DIR
+		_account_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+		_account_dialog.title = I18n.t("Agent configuration folder")
+		_account_dialog.dir_selected.connect(func(dir: String) -> void:
+			var base := _base_profile()
+			if base:
+				_settings.add_account(_account_variable(base), AgentAccounts.normalize(dir))
+			_on_account_selected(dir))
+		add_child(_account_dialog)
+	_account_dialog.current_dir = AgentAccounts.home()
+	_account_dialog.popup_file_dialog()
+
+
 func _reload_profiles() -> void:
 	_profiles = _settings.profiles()
 	_profile_button.clear()
-	var active := _settings.active_profile()
+	var active := selected_profile()
 	for profile: AgentProfile in _profiles:
 		_profile_button.add_item("✦ " + profile.display_name)
 		_profile_button.set_item_tooltip(_profile_button.item_count - 1, profile.command_line())
@@ -544,8 +643,10 @@ func _reload_profiles() -> void:
 func _on_profile_selected(index: int) -> void:
 	if index < 0 or index >= _profiles.size():
 		return
-	_settings.set_active_profile(_profiles[index].id)
+	_profile_id = _profiles[index].id
+	_settings.set_active_profile(_profile_id)  # el de las pestañas nuevas y del próximo arranque
 	_refresh_empty_state()
+	_refresh_state()
 	var current := _controller.profile()
 	if current and current.id != _profiles[index].id and _controller.is_connected_to_agent():
 		_model.add_notice(I18n.t("The %s profile is used when you press \"New session\".") % _profiles[index].display_name)
@@ -602,8 +703,8 @@ static func account_summary(account: Dictionary) -> String:
 
 
 func _refresh_state() -> void:
-	var profile := _controller.profile() if _controller.profile() else _settings.active_profile()
-	var name := profile.display_name if profile else I18n.t("Agent")
+	var profile := _controller.profile() if _controller.profile() else selected_profile()
+	var name := profile.label() if profile else I18n.t("Agent")
 	var text := ""
 	var color := AgentTheme.MUTED
 	match _model.state:
@@ -661,7 +762,7 @@ func _refresh_empty_state() -> void:
 	var idle := _model.state == SessionModel.SessionState.DISCONNECTED or (entries.is_empty() and _model.state == SessionModel.SessionState.FAILED)
 	_empty_state.visible = idle and only_notices
 	_conversation.visible = not entries.is_empty()
-	var profile := _settings.active_profile()
+	var profile := selected_profile()
 	# Primer arranque: no hay agentes preseteados y el botón lleva a elegir uno (Settings → Agentes).
 	# Un One-shot a medias se retoma con el agente del run, aunque no haya perfiles guardados.
 	if _oneshot_active:
@@ -706,8 +807,9 @@ func add_suggested_agent(agent: Dictionary) -> void:
 	var list := _settings.profiles()
 	data["default"] = list.is_empty()
 	list.append(AgentProfile.from_dict(data))
+	_profile_id = str(data.id)
 	_settings.save_profiles(list)
-	_settings.set_active_profile(str(data.id))
+	_settings.set_active_profile(_profile_id)
 
 
 ## Al abrir el editor con «Continuar la última sesión» (m12-12). false si no había ninguna.
@@ -715,7 +817,7 @@ func continue_last_session() -> bool:
 	if _controller.history == null or _model.state != SessionModel.SessionState.DISCONNECTED or _oneshot_active:
 		return false
 	var items: Array[Dictionary] = _controller.history.list(_controller.cwd)
-	if items.is_empty() or _settings.active_profile() == null:
+	if items.is_empty() or selected_profile() == null:
 		return false
 	return await open_history_session(str(items[0].get("id", "")))
 
@@ -732,10 +834,11 @@ func _on_start_pressed() -> void:
 ## Abre una sesión con el agente activo (el botón del dock, «Iniciar sesión» del Alt+I). Sin agentes,
 ## lleva a Ajustes.
 func start_session() -> void:
-	var profile := _settings.active_profile()
+	var profile := selected_profile()
 	if profile == null:
 		settings_requested.emit()
 		return
+	_profile_id = profile.id
 	var started: bool = await _controller.start(profile)
 	if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
 		return
@@ -804,9 +907,14 @@ func open_history_session(id: String) -> bool:
 		return false
 	var profile := _settings.profile(str(record.get("profile_id", "")))
 	if profile == null:
-		profile = _settings.active_profile()
+		profile = selected_profile()
 	if profile == null:
 		return false
+	_profile_id = profile.id  # la pestaña sigue con el agente de la sesión que abrió
+	if record.has("account"):  # y con su cuenta: la sesión está guardada en esa carpeta
+		_accounts[profile.id] = str(record.account)
+		profile = profile.with_account(str(record.account), _account_variable(profile))
+	_reload_profiles()
 	return await _controller.start(profile, record)
 
 
@@ -847,9 +955,9 @@ func _on_history_selected(index: int) -> void:
 
 ## «Nueva sesión»: con el mismo agente conectado, session/new; si no, lo lanza.
 func new_session() -> void:
-	var active := _settings.active_profile()
+	var active := selected_profile()
 	var current := _controller.profile()
-	if _controller.is_connected_to_agent() and current and active and current.id == active.id:
+	if _controller.is_connected_to_agent() and current and active and current.id == active.id and current.account_dir == active.account_dir:
 		_controller.open_session()
 	else:
 		start_session()

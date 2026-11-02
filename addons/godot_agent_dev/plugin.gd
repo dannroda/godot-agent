@@ -1181,6 +1181,14 @@ func _run_settings_shots(prefix: String) -> void:
 		nav.item_selected.emit(i)
 		await get_tree().create_timer(0.4).timeout
 		dialog.get_texture().get_image().save_png("%s_%d.png" % [prefix, i])
+	# El formulario de un agente abierto, al ancho del diálogo (los campos no se achican).
+	if not (dialog.get(&"_profiles") as Array).is_empty():
+		nav.select(0)
+		nav.item_selected.emit(0)
+		dialog.call(&"_edit_profile", 0)
+		await get_tree().create_timer(0.4).timeout
+		dialog.get_texture().get_image().save_png("%s_agent_form.png" % prefix)
+		dialog.call(&"_apply_profile_form")
 	# m7-34/m7-35: un server de terceros en la lista suma su fila a la matriz de permisos.
 	var mcp_page: Object = dialog.get(&"_mcp_servers_page")
 	mcp_page.call(&"import_mcp_json", JSON.stringify({"mcpServers": {"blender": {"command": "uvx", "args": ["blender-mcp"], "env": {"BLENDER_TOKEN": "$BLENDER_TOKEN"}}}}))

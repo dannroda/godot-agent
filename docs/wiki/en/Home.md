@@ -22,7 +22,7 @@ Godot Agent Harness puts a coding agent inside the Godot editor. The agent runs 
 
 - The harness never merges, and never pushes on its own: the one exception is the optional [Push and open a PR](Review.md#comments-from-a-github-pull-request), off by default. One-shot works on its own branch, and you decide what to merge.
 - It never stores API keys: profiles reference environment variables by name.
-- It never reads the agent's credentials or its private files.
+- It never reads the agent's credentials. From its configuration it reads only what it needs: for example the email Claude Code keeps there, to label accounts in the agent menu.
 - The MCP server listens only on `127.0.0.1`, with a token that changes on every start.
 - Nothing from the addon reaches an exported game.
 - No telemetry. What goes to the agent and its provider, what the addon stores and how to delete it: [Privacy and data use](https://github.com/dannroda/godot-agent/blob/main/PRIVACY.md).

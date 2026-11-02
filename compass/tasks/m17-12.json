@@ -1,0 +1,43 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T02:18:29.099Z",
+  "decisions": [
+    {
+      "alternatives": "Heredar el de la pestaña que abre la nueva; preguntar el agente al abrir la pestaña.",
+      "at": "2026-11-02T02:18:38.472Z",
+      "text": "Las pestañas nuevas arrancan con el último agente elegido en cualquier pestaña, no con el de la pestaña desde la que se abrieron",
+      "why": "Reusa agents/last_profile, que ya es el del próximo arranque del editor; un solo concepto de «el último»."
+    },
+    {
+      "alternatives": "Lista manual en Ajustes; crear la carpeta con un nombre desde el dock.",
+      "at": "2026-11-02T02:35:49.472Z",
+      "text": "Las cuentas se descubren solas en ~/.claude, ~/.claude-profiles/* y CLAUDE_CONFIG_DIR del editor; otras se agregan con «Otra carpeta…»",
+      "why": "Es donde ya las tiene el usuario; no hay que configurar nada para elegir entre las existentes."
+    },
+    {
+      "alternatives": "Convertir solo agents/profiles.",
+      "at": "2026-11-02T02:35:49.519Z",
+      "text": "También mcp/servers y completion/llm/profiles pasan de texto JSON a Array de Dictionary, no solo agents/profiles",
+      "why": "Mismo problema (texto plano molesto en Editor Settings) y mismo código; dejarlos distintos sería inconsistente."
+    },
+    {
+      "alternatives": "Pisar HOME para cualquier agente (rompe npx, cachés y PATH); conjuntos de variables arbitrarios por cuenta (más UI).",
+      "at": "2026-11-02T02:47:57.518Z",
+      "text": "Cuentas genéricas: cada adaptador dice la variable de su carpeta de configuración; para agentes desconocidos, un campo opcional del perfil. Búsqueda en ~/.<carpeta>-profiles/* para todos",
+      "why": "El usuario pidió que no sea solo para Claude Code; la carpeta de configuración es el mecanismo común (Claude, Antigravity, Codex). La regla -profiles generaliza la convención que ya usa."
+    }
+  ],
+  "description": "Pedido del usuario (01/11): dos pestañas/sesiones, una con una cuenta de Claude Code y otra con otra, sin pasar por Ajustes del plugin. De paso: agents/profiles en EditorSettings era texto JSON (molesto de editar) y el formulario de Ajustes › Agentes aplastaba los campos en un diálogo angosto.",
+  "milestone": "m17",
+  "notes": "- session/agents/agent_accounts.gd (genérico): cuenta = carpeta de configuración en una variable. Adaptadores: account_variable/default_account_dir/account_email. Claude CLAUDE_CONFIG_DIR ~/.claude (email de .claude.json); Antigravity GEMINI_HOME ~/.gemini (sacado del binario agy_acp_server: GEMINI_HOME o ~/.gemini; el token no trae email); Codex CODEX_HOME ~/.codex. Otro agente: campo account_variable del perfil (Ajustes, opcional).\n- Búsqueda: la carpeta del perfil (su env, la del editor o la por defecto), la por defecto, ~/.<carpeta>-profiles/* y las agregadas con «Otra carpeta…» (agents/accounts, por variable).\n- AgentProfile: account_dir + account_env (runtime, no se guardan); account_variable sí se guarda.\n- agent_dock.gd: _accounts por pestaña {profile_id: carpeta}, copia de agents/last_account al abrir la pestaña; cambiar de agente en la pestaña conserva la cuenta de cada uno.\n- Se detecta agy_acp_server como Antigravity también sin «antigravity» en la ruta.\n- harness_settings: listas como Array de Dictionary (sin cambios desde la versión anterior).\n- Sin probar: dos cuentas reales a la vez (Claude ni Antigravity). openrouter: su env file no se lee.",
+  "order": 12,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "En el dock, chip del agente ▾ con Claude Code: «Cuenta de Claude Code» lista personal, ~/.claude, openrouter, trabajo con email. Con Google Antigravity: «Cuenta de Google Antigravity» lista ~/.gemini (y ~/.gemini-profiles/*). Pestaña 1 en Claude personal; + › Nueva pestaña, elegir trabajo (o Antigravity con otra carpeta): las dos sesiones conectan con su cuenta y la pestaña 1 no cambia. Un agente cualquiera con «Variable de la carpeta de cuentas» en su perfil también muestra la sección. Automático: run_all 405/405 (test_agent_accounts), sessions-test en Xvfb con Claude y Antigravity (capturas de los dos menús), settings-shots.",
+  "title": "Una cuenta por pestaña del dock, para cualquier agente",
+  "updated_at": "2026-11-02T02:47:57.518Z"
+}

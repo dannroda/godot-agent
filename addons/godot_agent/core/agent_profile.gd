@@ -13,6 +13,13 @@ var command: String = ""
 var args: PackedStringArray = []
 var env: Dictionary = {}
 var is_default: bool = false
+## Variable del entorno con la carpeta de configuración del agente, para elegir cuenta por pestaña.
+## Vacía: la que conoce su adaptador (CLAUDE_CONFIG_DIR, GEMINI_HOME, CODEX_HOME).
+var account_variable: String = ""
+## Cuenta elegida en la pestaña: `account_dir` va en la variable `account_env`, por encima del entorno
+## del perfil. No se guardan con el perfil: son de la pestaña y del historial de la sesión.
+var account_dir: String = ""
+var account_env: String = ""
 
 
 static func from_dict(data: Dictionary) -> RefCounted:
@@ -29,6 +36,7 @@ static func from_dict(data: Dictionary) -> RefCounted:
 		for key: Variant in raw_env:
 			profile.env[str(key)] = str(raw_env[key])
 	profile.is_default = bool(data.get("default", false))
+	profile.account_variable = str(data.get("account_variable", ""))
 	return profile
 
 
@@ -40,18 +48,42 @@ func to_dict() -> Dictionary:
 		"args": Array(args),
 		"env": env.duplicate(),
 		"default": is_default,
-	}
+	}.merged({"account_variable": account_variable} if not account_variable.is_empty() else {})
 
 
-## Entorno para el proceso: `$VAR` se reemplaza por el valor de VAR en el entorno del editor.
+## Entorno para el proceso: `$VAR` se reemplaza por el valor de VAR en el entorno del editor y un
+## `~/` al principio, por la carpeta del usuario (el proceso no pasa por un shell que lo expanda).
 func resolved_env() -> Dictionary:
 	var result: Dictionary = {}
 	for key: String in env:
 		var value: String = env[key]
 		if value.begins_with("$") and value.length() > 1:
 			value = OS.get_environment(value.substr(1))
+		elif value == "~" or value.begins_with("~/"):
+			value = home_dir() + value.substr(1)
 		result[key] = value
+	if not account_dir.is_empty() and not account_env.is_empty():
+		result[account_env] = account_dir
 	return result
+
+
+## Copia de este perfil que lanza el agente con otra cuenta: `dir` en la variable `variable` (dir
+## vacío: la del perfil).
+func with_account(dir: String, variable: String) -> RefCounted:
+	var copy: RefCounted = from_dict(to_dict())
+	copy.account_dir = dir
+	copy.account_env = variable if not dir.is_empty() else ""
+	return copy
+
+
+## Nombre para el chip y el historial: con una cuenta elegida, «Claude Code · trabajo».
+func label() -> String:
+	return display_name if account_dir.is_empty() else "%s · %s" % [display_name, account_dir.trim_suffix("/").get_file()]
+
+
+static func home_dir() -> String:
+	var home := OS.get_environment("HOME")
+	return home if not home.is_empty() else OS.get_environment("USERPROFILE")
 
 
 ## Línea de comando legible para la UI.

@@ -14,13 +14,14 @@ An editor addon for Godot 4 (GDScript and C# projects) that connects a coding ag
 - work on C# projects with Godot .NET: it compiles with `dotnet build` and gets the errors by file and line, creates `.cs` scripts, and inline completion works in `.cs` files too;
 - use the MCP servers of other programs (Blender, a database…), set up in Settings with their own permissions;
 - find, install and enable Godot addons from the [Asset Store](https://store.godotengine.org) (the agent can suggest them too);
-- manage Claude Code's plugins, marketplaces, MCP servers and skills from the **Extensions** window, with Godot skills one click away.
+- manage Claude Code's plugins, marketplaces, MCP servers and skills from the **Extensions** window, with Godot skills one click away;
+- work in several sessions at once, one per dock tab, each with its own agent and account: for example Claude Code with your personal account in one tab and your work account in another, or Google Antigravity next to Claude Code. Sessions don't step on each other: a file one is editing in its turn is off limits to the rest, and the game runs for one at a time.
 
 It has five modes: **Ask**, **Review**, **Build**, **Auto** (Build that runs the shell commands your rules allow without asking) and **One-shot**. One-shot pursues a whole goal ("a 2-player Pong with score") with a plan, budgets, git checkpoints and playtests.
 
 - 100 % statically typed GDScript: no GDExtension, no dependencies.
 - Editor-only: nothing from the addon ends up in an exported game.
-- The harness never merges, never pushes on its own (the one exception is **Push and open a PR**, off by default, which you choose when closing a separate copy), never stores keys and never reads the agent's credentials. It has no telemetry: what you share goes to the agent you choose and its provider. Details in [PRIVACY.md](PRIVACY.md); to report a vulnerability, [SECURITY.md](SECURITY.md).
+- The harness never merges, never pushes on its own (the one exception is **Push and open a PR**, off by default, which you choose when closing a separate copy), never stores keys and never reads the agent's credentials (to label accounts it reads only the email Claude Code keeps in its configuration). It has no telemetry: what you share goes to the agent you choose and its provider. Details in [PRIVACY.md](PRIVACY.md); to report a vulnerability, [SECURITY.md](SECURITY.md).
 - The interface is in English and Spanish (it follows the editor language; you can change it in Settings).
 - The chat renders the agent's Markdown: tables, lists, quotes, and code blocks with highlighting and a copy button.
 
@@ -37,7 +38,7 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
 - [One-shot](docs/wiki/en/One-shot.md): plan, spec, budgets, checkpoints, quota, switching accounts, report.
 - [Review](docs/wiki/en/Review.md)
 - [Inline completion](docs/wiki/en/Inline-completion.md), local or with an LLM.
-- [Settings and profiles](docs/wiki/en/Settings.md): where everything is stored, agent profiles, export and updating.
+- [Settings and profiles](docs/wiki/en/Settings.md): where everything is stored, agent profiles, one account per tab, export and updating.
 - [Troubleshooting](docs/wiki/en/Troubleshooting.md): known limitations by Godot version.
 
 ## Requirements
@@ -47,7 +48,7 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
 - **For C# projects**, the .NET version of Godot and the .NET SDK (`dotnet`).
 - **An ACP agent.** For Claude Code:
   - Node.js with `npx`. The default profile runs `npx -y @agentclientprotocol/claude-agent-acp`;
-  - a Claude Code account: the one `claude` already uses on your machine, one you sign in to from the dock, or an API key in an environment variable.
+  - a Claude Code account: the one `claude` already uses on your machine, one you sign in to from the dock, or an API key in an environment variable. With several accounts (one configuration folder each, such as `~/.claude-profiles/work`), each dock tab picks its own from the agent menu.
 - **git**, only for One-shot checkpoints.
 - Linux. macOS and Windows should work but haven't been verified yet.
 

@@ -730,6 +730,36 @@ msgstr "Id"
 msgid "In env, \"$VAR\" takes the value of VAR from the editor's environment when the agent is launched: keys are not saved."
 msgstr "En env, \"$VAR\" toma el valor de VAR del entorno del editor al lanzar el agente: las claves no se guardan."
 
+msgid "Other folder…"
+msgstr "Otra carpeta…"
+
+msgid "%s account"
+msgstr "Cuenta de %s"
+
+msgid "The agent's default"
+msgstr "La del agente"
+
+msgid "Without %s: the agent uses its own folder."
+msgstr "Sin %s: el agente usa su carpeta de siempre."
+
+msgid "Another configuration folder for this agent (%s). An empty one is a new account: the session asks you to sign in."
+msgstr "Otra carpeta de configuración para este agente (%s). Una vacía es una cuenta nueva: la sesión te pide iniciar sesión."
+
+msgid "Agent configuration folder"
+msgstr "Carpeta de configuración del agente"
+
+msgid "default"
+msgstr "por defecto"
+
+msgid "Account folder variable (optional)"
+msgstr "Variable de la carpeta de cuentas (opcional)"
+
+msgid "The environment variable with the agent's configuration folder, where it keeps its login. With it, each dock tab can use another account from the agent menu. Claude Code, Antigravity and Codex don't need it."
+msgstr "La variable del entorno con la carpeta de configuración del agente, donde guarda su login. Con ella, cada pestaña del dock puede usar otra cuenta desde el menú del agente. Claude Code, Antigravity y Codex no la necesitan."
+
+msgid "The %s account is used when you press \"New session\"."
+msgstr "La cuenta %s se usa al tocar «Nueva sesión»."
+
 msgid "Inline completion"
 msgstr "Completado inline"
 

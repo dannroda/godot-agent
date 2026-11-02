@@ -34,7 +34,8 @@ var dir: String = DIR
 ## () -> int: reloj unix (los tests lo fijan).
 var now_provider: Callable = func() -> int: return int(Time.get_unix_time_from_system())
 
-## Sesión que se está grabando ({} si ninguna): {format, id, profile_id, agent, cwd, title, created, updated, turns, events_count, truncated}.
+## Sesión que se está grabando ({} si ninguna): {format, id, profile_id, account, agent, cwd, title, created, updated, turns, events_count, truncated}.
+## `account`: la carpeta de la cuenta de Claude Code elegida en la pestaña ("" si la del perfil).
 var _meta: Dictionary = {}
 ## Eventos todavía no escritos (el turno en curso).
 var _pending: Array[Dictionary] = []
@@ -51,7 +52,7 @@ func current_id() -> String:
 
 
 ## Empieza a grabar una sesión nueva o, si `previous` viene del historial, sigue en su archivo.
-func begin(session_id: String, profile_id: String, agent_name: String, cwd: String, previous: Dictionary = {}) -> void:
+func begin(session_id: String, profile_id: String, agent_name: String, cwd: String, previous: Dictionary = {}, account: String = "") -> void:
 	end()
 	if not _valid_id(session_id):
 		return
@@ -64,10 +65,10 @@ func begin(session_id: String, profile_id: String, agent_name: String, cwd: Stri
 		# Sin entrada en el índice (borrado o de otro formato), el registro trae solo la cabecera; una
 		# sesión que solo lista el agente (session/list, m11-16) no trae ni eso.
 		_meta.merge({"title": "", "turns": 0, "truncated": false, "format": FORMAT, "profile_id": profile_id,
-			"agent": agent_name, "cwd": cwd, "created": now})
+			"agent": agent_name, "cwd": cwd, "created": now, "account": account})
 		_meta.erase("from_agent")
 	else:
-		_meta = {"format": FORMAT, "id": session_id, "profile_id": profile_id, "agent": agent_name, "cwd": cwd,
+		_meta = {"format": FORMAT, "id": session_id, "profile_id": profile_id, "account": account, "agent": agent_name, "cwd": cwd,
 			"title": "", "created": now, "updated": now, "turns": 0, "events_count": 0, "truncated": false}
 	_dirty = false
 
@@ -132,7 +133,7 @@ func save() -> void:
 	if not is_recording() or (not _dirty and _pending.is_empty()):
 		return
 	_meta.updated = now_provider.call()
-	var header := {"format": FORMAT, "id": _meta.id, "profile_id": _meta.profile_id, "agent": _meta.agent, "cwd": _meta.cwd, "created": _meta.created}
+	var header := {"format": FORMAT, "id": _meta.id, "profile_id": _meta.profile_id, "account": _meta.get("account", ""), "agent": _meta.agent, "cwd": _meta.cwd, "created": _meta.created}
 	_enqueue({"kind": "append", "path": _abs_path(current_id()), "header": header, "events": _pending, "summary": summary_of(_meta)})
 	_pending = []  # el worker se queda con el array anterior
 	_dirty = false
@@ -148,7 +149,7 @@ func flush() -> void:
 		WorkerThreadPool.wait_for_task_completion(task)
 
 
-## Sesiones guardadas, la más reciente primero: [{id, title, profile_id, agent, cwd, created, updated, turns, truncated}].
+## Sesiones guardadas, la más reciente primero: [{id, title, profile_id, account, agent, cwd, created, updated, turns, truncated}].
 ## `cwd` filtra por proyecto ("" = todas).
 func list(cwd: String = "") -> Array[Dictionary]:
 	flush()
@@ -213,7 +214,7 @@ static func replay(record: Dictionary, model: SessionModel) -> void:
 
 static func summary_of(meta: Dictionary) -> Dictionary:
 	return {"id": meta.id, "title": meta.get("title", ""), "profile_id": meta.get("profile_id", ""),
-		"agent": meta.get("agent", ""), "cwd": meta.get("cwd", ""), "created": meta.get("created", 0),
+		"account": meta.get("account", ""), "agent": meta.get("agent", ""), "cwd": meta.get("cwd", ""), "created": meta.get("created", 0),
 		"updated": meta.get("updated", 0), "turns": meta.get("turns", 0), "truncated": meta.get("truncated", false)}
 
 

@@ -22,7 +22,7 @@ Godot Agent Harness pone un agente de código adentro del editor de Godot. El ag
 
 - El harness nunca hace merge, y nunca hace push por su cuenta: la única excepción es el opcional [Pushear y abrir un PR](Revisar.md#comentarios-de-un-pull-request-de-github), apagado por defecto. El One-shot trabaja en su propia rama y vos decidís qué se mergea.
 - Nunca guarda API keys: los perfiles nombran variables de entorno.
-- Nunca lee las credenciales del agente ni sus archivos privados.
+- Nunca lee las credenciales del agente. De su configuración lee solo lo que necesita: por ejemplo el email que guarda Claude Code, para nombrar las cuentas en el menú del agente.
 - El servidor MCP escucha solo en `127.0.0.1`, con un token que cambia en cada arranque.
 - Nada del addon llega a un juego exportado.
 - Sin telemetría. Qué le llega al agente y a su proveedor, qué guarda el addon y cómo borrarlo: [Privacidad y uso de datos](https://github.com/dannroda/godot-agent/blob/main/PRIVACY.es.md).

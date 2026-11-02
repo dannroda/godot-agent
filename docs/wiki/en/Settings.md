@@ -19,7 +19,7 @@ Open **Settings** from the dock header's **⋯** menu.
 
 | What | Where | Scope |
 |---|---|---|
-| Agent profiles, MCP port, MCP servers for all your projects, quota, accent color, dock position, language, completion (including LLM profiles, without keys) | `EditorSettings`, prefix `godot_agent/` | you, all projects |
+| Agent profiles, MCP port, MCP servers for all your projects, quota, accent color, dock position, language, completion (including LLM profiles, without keys) | `EditorSettings`, prefix `godot_agent/` (lists such as profiles and servers are arrays of dictionaries; up to 0.1.15 they were JSON text and are converted on load) | you, all projects |
 | Permissions, MCP servers of the project, budgets, checkpoints, loop threshold, criteria, tool limits, extra folders, project completion options | `res://addons/godot_agent/config/project_config.tres` | the project (can be committed) |
 | Session history | `user://godot_agent/sessions/` | you, this project |
 | One-shot runs (state, last capture, reports; the last 20) | `user://godot_agent/oneshot/` | you, this project |
@@ -34,12 +34,7 @@ The port, the accent color, the dock position and the language apply when you re
 - **Keys**: in the environment, `NAME=$VARIABLE` takes the value of `VARIABLE` from the editor's environment when the agent starts. Settings refuses a literal value in variables with a secret-looking name (`*KEY*`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*`). Example: `ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY`.
 - No agent comes preset. With none, the dock and this page suggest **Claude Code** (`npx -y @agentclientprotocol/claude-agent-acp`), **Codex** and **Google Antigravity** (these two from the ACP registry, which gives the command for your platform). Codex and Antigravity haven't been verified with the harness yet.
 - The agent always receives `GODOT`/`GODOT_BIN` with the editor's binary; a profile can override them.
-
-### From the ACP registry
-
-**+ From the ACP registry…** lists the agents of the public [ACP registry](https://agentclientprotocol.com/registry) that Zed and JetBrains use (Claude, Codex, Gemini CLI, Copilot, Cursor, Google Antigravity, Goose, OpenCode…), with a filter. **Add** creates the profile: agents published on npm or PyPI run with `npx` or `uvx`, and the rest download a program for this platform into the editor's data folder (`godot_agent/agents/<id>/<version>/`), shared by all projects. The download is checked against the registry's sha256; when the registry has none, **Add** asks for a second click (**Add without checksum**). Adding the same agent again replaces its profile with the new version. Some agents are big: Google Antigravity's is about 900 MB.
-
-Google Antigravity asks you to sign in the first time (Google account, Gemini Enterprise, a Gemini API key or Agent Platform); the dock offers the methods it publishes.
+- **One account per tab**: the agent chip at the top of each dock tab picks that tab's agent and its account. An account is the agent's configuration folder, where it keeps its login, passed in an environment variable: `CLAUDE_CONFIG_DIR` (Claude Code), `GEMINI_HOME` (Google Antigravity) or `CODEX_HOME` (Codex). For another agent, set **Account folder variable** in its profile. The menu lists the agent's default folder and each folder in `~/.<folder>-profiles/` (for example `~/.claude-profiles/work` or `~/.gemini-profiles/work`), with the email for Claude Code accounts; **Other folder…** adds any other (an empty folder is a new account: the session asks you to sign in). So one tab can work with your personal account and another with your work account at the same time. A new tab starts with the last agent and account you picked, and a session from the history reopens with its account. In a profile's environment, `~/` is your home folder.
 
 ## Other MCP servers
 
