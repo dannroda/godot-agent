@@ -1,0 +1,22 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T22:07:22.816Z",
+  "description": "Una skill en el repo de marketplace dannroda/godot-agent-plugins (no en este repo) con plantillas de godot-cpp y gdext fijadas a 4.7, el .gdextension con compatibility_minimum, el flujo de godot --dump-extension-api desde el binario abierto para que godot-cpp coincida con el editor, y el ciclo build → prueba headless → promover → reiniciar con supervisor.",
+  "links": [
+    {
+      "task": "m19-01",
+      "type": "related"
+    }
+  ],
+  "milestone": "m19",
+  "notes": "La está haciendo otra sesión, en el repo godot-agent-plugins (armando y probando las skills). Lo que queda de este lado: cuando m19-01, m19-02 y m19-03 existan, que la skill use esas tools (build, prueba headless, promover, reinicio con supervisor) en lugar del shell directo.",
+  "order": 4,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "doing",
+  "test": "",
+  "title": "Skill de scaffolding de GDExtension",
+  "updated_at": "2026-11-02T22:07:32.685Z"
+}

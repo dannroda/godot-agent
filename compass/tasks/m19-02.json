@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T22:07:22.372Z",
+  "description": "Un segfault en código nativo mata el proceso que cargó el .so, y si ese proceso es el editor, también se cae la sesión del agente. La prueba tiene que correr en un Godot headless aparte (reusando lo de playtest/headless): carga la build, verifica que las clases aparecen en ClassDB, corre tests o playtest y devuelve el resultado, o el código de salida y el backtrace si crashea. Solo las builds que pasan se instalan en la ruta que lee el editor (\"promover\").",
+  "milestone": "m19",
+  "notes": "",
+  "order": 2,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Probar la extensión en un Godot headless descartable",
+  "updated_at": "2026-11-02T22:07:22.372Z"
+}

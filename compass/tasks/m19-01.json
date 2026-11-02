@@ -1,0 +1,30 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T22:07:21.900Z",
+  "decisions": [
+    {
+      "alternatives": "Meterlas en M12 (m14, «Que el agente se verifique solo») o en M9 (m11, ideas de otros harness).",
+      "at": "2026-11-02T22:07:37.328Z",
+      "text": "Las tareas de GDExtension van en un hito nuevo, M17 (m19), creado a mano en compass/milestones/m19.json",
+      "why": "Ningún hito existente encaja, y scompass no tiene un comando para crear hitos."
+    }
+  ],
+  "description": "Una tool que haga para GDExtension lo que core/csharp_build.gd hace para C#: detectar SConstruct, CMakeLists.txt o Cargo.toml, compilar y devolver {ruta: errores} para que el agente se entere en la misma tool. rustc tiene --message-format=json; gcc/clang tienen un formato de diagnóstico estable. El timeout de 180 s del build de C# no alcanza para la primera compilación de godot-cpp (varios minutos): hay que subirlo o hacerlo incremental. Si falta el toolchain (compilador, scons/cmake, cargo), avisar como se hace hoy con dotnet.",
+  "links": [
+    {
+      "task": "m19-02",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m19",
+  "notes": "",
+  "order": 1,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "test": "",
+  "title": "Build nativo con errores por archivo",
+  "updated_at": "2026-11-02T22:07:37.328Z"
+}

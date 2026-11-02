@@ -1,0 +1,10 @@
+{
+  "code": "M17",
+  "done_when": [
+    "El agente crea una GDExtension (godot-cpp o gdext), la compila con errores por archivo y la prueba en un Godot headless aparte sin cargarla en el editor.",
+    "Una build que crashea el editor al arrancar no lo deja en un loop: el supervisor vuelve a la última build buena, relanza el editor y el agente retoma la sesión con el backtrace."
+  ],
+  "goal": "Que el agente pueda hacer GDExtensions sin poner en riesgo el editor: build con errores parseados, prueba en un proceso descartable, un supervisor fuera del editor para crashes y reinicios, y una skill de scaffolding. No se trae: hot reload dentro del editor ni builds multiplataforma para export (eso es CI).",
+  "order": 19,
+  "title": "GDExtension"
+}
