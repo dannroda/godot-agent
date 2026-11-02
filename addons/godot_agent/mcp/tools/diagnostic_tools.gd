@@ -1,8 +1,8 @@
 @tool
 extends RefCounted
 ## Tools de diagnóstico (spec §6): get_errors, validate_scripts, capture_editor_viewport y
-## build_extension. Los .cs se validan compilando el proyecto con dotnet (m14-07); la GDExtension se
-## compila con build_extension (m19-01).
+## build_extension y test_extension. Los .cs se validan compilando el proyecto con dotnet (m14-07); la GDExtension se
+## compila con build_extension (m19-01) y se prueba en un Godot aparte con test_extension (m19-02).
 
 const McpTool := preload("../mcp_tool.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
@@ -11,6 +11,7 @@ const EditorContext := preload("../../ui/editor_context.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const CsharpBuild := preload("../../core/csharp_build.gd")
 const NativeBuild := preload("../../core/native_build.gd")
+const NativeTest := preload("../../core/native_test.gd")
 
 const CHECKER_SCRIPT := "res://addons/godot_agent/mcp/tools/script_checker.gd"
 const MAX_SCRIPTS := 400
@@ -45,6 +46,15 @@ func tools() -> Array:
 			{"which": {"type": "string", "enum": ["2d", "3d"], "description": "Viewport to capture"}},
 			["which"], _capture_editor_viewport),
 		_build_extension_tool(),
+		McpTool.create("test_extension", PermissionPolicy.GROUP_RUN,
+			"Tests the project's GDExtension in a separate headless Godot, never in this editor: a crash there kills only the test process. Runs the test_*.gd files of `tests` (methods test_*(t) that call t.check(condition, \"what\"), the format of the gdextension-cpp skill) and checks that `classes` are registered. Returns the failed checks, the load errors and, after a crash, the backtrace with the extension's frames turned into functions and lines when the build has debug symbols. The test project is found like build_extension's build system: project/ or demo/ next to the SConstruct, godot/ next to rust/, or this project.",
+			{
+				"project": {"type": "string", "description": "Folder of the Godot project to test with (absolute or res://), when it isn't found by itself"},
+				"tests": {"type": "string", "description": "res:// folder of the test project with the test_*.gd files (default res://tests). Without it, only checks that the extension and `classes` load."},
+				"classes": {"type": "array", "items": {"type": "string"}, "description": "Classes the extension must register"},
+				"timeout_s": {"type": "integer", "description": "Default %d, at most %d" % [NativeTest.DEFAULT_TIMEOUT_S, NativeTest.MAX_TIMEOUT_S]},
+			},
+			[], _test_extension),
 	]
 
 
@@ -76,6 +86,44 @@ func _native_project(args: Dictionary) -> Dictionary:
 	return NativeBuild.detect(ProjectSettings.globalize_path(root).simplify_path())
 
 
+func _test_extension(args: Dictionary) -> Dictionary:
+	var test_dir := ""
+	var requested := str(args.get("project", "")).strip_edges()
+	var native := NativeBuild.find_project(project_path)
+	if requested.is_empty():
+		test_dir = NativeTest.find_test_project(native, project_path)
+	else:
+		test_dir = ProjectSettings.globalize_path(requested).simplify_path()
+		if not FileAccess.file_exists(test_dir.path_join("project.godot")):
+			return McpTool.error("%s has no project.godot." % requested)
+	if test_dir.is_empty():
+		return McpTool.error("No Godot project to test with. Pass `project`.")
+	var classes: PackedStringArray = []
+	if args.get("classes") is Array:
+		for value: Variant in args.classes:
+			classes.append(str(value))
+	var is_open := NativeTest.same_dir(test_dir, project_path)
+	var options := {
+		"tests": McpTool.str_arg(args, "tests") if not McpTool.str_arg(args, "tests").is_empty() else "res://tests",
+		"classes": classes,
+		"timeout_s": McpTool.int_arg(args, "timeout_s", NativeTest.DEFAULT_TIMEOUT_S),
+		# El import escribe .godot/: nunca en el proyecto que tiene abierto el editor.
+		"import": not is_open,
+	}
+	var report: Dictionary = await NativeTest.run(test_dir, options)
+	if not report.error.is_empty():
+		return McpTool.error(report.error)
+	var dirs := PackedStringArray([test_dir])
+	if not native.is_empty():
+		dirs.append(native.root)
+	var text := NativeTest.summarize(report, test_dir, dirs)
+	if is_open and not (report.unregistered as PackedStringArray).is_empty():
+		text += "\nThis is the project open in the editor: the editor registers a new .gdextension, and loads it, when it scans the files. Test new extensions in their own test project."
+	if report.code == 0 and not report.crashed:
+		return McpTool.text(text)
+	return {"content": [{"type": "text", "text": text}], "isError": true}
+
+
 func _native_target(args: Dictionary) -> String:
 	var target := str(args.get("target", "template_debug"))
 	return target if target in NativeBuild.TARGETS else "template_debug"
@@ -103,7 +151,11 @@ func _build_extension(args: Dictionary) -> Dictionary:
 	if not report.error.is_empty() and report.results.is_empty():
 		return McpTool.error("%s\n\n%s" % [header, report.error])
 	if report.results.is_empty():
-		return McpTool.text("%s\nBuilt in %.1f s. Not loaded in this editor: test it in a separate headless Godot." % [header, report.seconds])
+		var built := "%s\nBuilt in %.1f s. Not loaded in this editor: test it with test_extension." % [header, report.seconds]
+		var reloadable := NativeTest.reloadable_extensions(project_path)
+		if not reloadable.is_empty():
+			built += "\nWarning: %s in this project has `reloadable = true`, so this editor reloads its library when it changes, and a crash then takes the editor down. Run test_extension before the user switches back to the editor." % ", ".join(reloadable)
+		return McpTool.text(built)
 	var paths := PackedStringArray(report.results.keys())
 	var lines := failure_lines(paths, report)
 	return McpTool.text("%s\nBuild failed · %d files with errors\n%s" % [header, paths.size(), "\n".join(lines)])

@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Added
 
 - `godot.build_extension` builds the project's GDExtension with SCons or CMake (godot-cpp) or Cargo (gdext) and returns the compiler errors by file and line (gcc, clang, rustc and MSVC). It finds the SConstruct, CMakeLists.txt or Cargo.toml in the project folder, the folder above it or a `rust/` folder, asks like a shell command, and never loads the build into the open editor. In a project with a native build, the agent's instructions say to test new builds in a separate headless Godot and to ask for an editor restart.
+- `godot.test_extension` tests the GDExtension in a separate headless Godot, so a crash kills only the test process and never the editor. It runs the test project's `tests/test_*.gd` files (the format of the gdextension-cpp skill) and checks that the given classes are registered, then returns the failed checks, the extension's load errors and, after a crash, the backtrace with the extension's frames resolved to functions and lines by addr2line (with `debug_symbols=yes`). It finds the test project (`project/` or `demo/` next to the SConstruct, `godot/` next to `rust/`), and imports it first when a `.gdextension` isn't registered yet, never in the project the editor has open. `build_extension` warns when this project has a `.gdextension` with `reloadable = true`, which the editor reloads when the library changes.
 
 ## [0.1.16] - 2026-11-02
 

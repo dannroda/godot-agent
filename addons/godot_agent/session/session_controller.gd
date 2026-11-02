@@ -68,7 +68,8 @@ C# in this project (it has a .csproj):
 const NATIVE_RULES := """
 GDExtension in this project (it has a SConstruct, CMakeLists.txt or Cargo.toml):
 - Build with `godot.build_extension`: it runs SCons, CMake or Cargo and returns the compiler errors by file and line.
-- Never load a new build into this editor: a crash in the extension takes the editor, and you, down with it, and the editor keeps the library it started with. Test a new build in a separate headless Godot, then tell the user to restart the editor to use it."""
+- Test every build with `godot.test_extension`: it runs the extension's tests in a separate headless Godot, so a crash kills only that process, and returns the backtrace.
+- Never load a new build into this editor: a crash in the extension takes the editor, and you, down with it, and the editor keeps the library it started with. After the tests pass, tell the user to restart the editor to use the new build."""
 
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"

@@ -3765,6 +3765,9 @@ msgstr "Validar scripts"
 msgid "Build the GDExtension"
 msgstr "Compilar la GDExtension"
 
+msgid "Test the GDExtension"
+msgstr "Probar la GDExtension"
+
 msgid "Validate tilemap"
 msgstr "Validar tilemap"
 
