@@ -8,6 +8,24 @@
       "at": "2026-11-02T22:07:37.328Z",
       "text": "Las tareas de GDExtension van en un hito nuevo, M17 (m19), creado a mano en compass/milestones/m19.json",
       "why": "Ningún hito existente encaja, y scompass no tiene un comando para crear hitos."
+    },
+    {
+      "alternatives": "El grupo diagnostics (allow en todos los modos), como validate_scripts con dotnet build.",
+      "at": "2026-11-02T23:09:05.225Z",
+      "text": "build_extension pide permiso como la shell (grupo shell), no como diagnóstico",
+      "why": "Un SConstruct es Python y un build.rs es Rust: compilar ejecuta código del proyecto, como un comando de shell."
+    },
+    {
+      "alternatives": "Dejarla en el tools/list compacto, al lado de validate_scripts.",
+      "at": "2026-11-02T23:09:05.287Z",
+      "text": "build_extension es una tool extendida (godot.methods / godot.run), y el contexto del agente explica cómo usarla solo si el proyecto tiene SConstruct, CMakeLists.txt o Cargo.toml",
+      "why": "Solo la usan los proyectos con GDExtension: así no gasta contexto en los demás (D56)."
+    },
+    {
+      "alternatives": "Compilar en verify_changed_scripts, como se hace con C#.",
+      "at": "2026-11-02T23:09:05.347Z",
+      "text": "La verificación al terminar el turno no recompila la extensión cuando cambian .cpp o .rs",
+      "why": "Un build de godot-cpp puede tardar minutos y bloquearía el cierre del turno. El agente la llama cuando hace falta."
     }
   ],
   "description": "Una tool que haga para GDExtension lo que core/csharp_build.gd hace para C#: detectar SConstruct, CMakeLists.txt o Cargo.toml, compilar y devolver {ruta: errores} para que el agente se entere en la misma tool. rustc tiene --message-format=json; gcc/clang tienen un formato de diagnóstico estable. El timeout de 180 s del build de C# no alcanza para la primera compilación de godot-cpp (varios minutos): hay que subirlo o hacerlo incremental. Si falta el toolchain (compilador, scons/cmake, cargo), avisar como se hace hoy con dotnet.",
@@ -18,13 +36,13 @@
     }
   ],
   "milestone": "m19",
-  "notes": "",
+  "notes": "Código en el worktree .claude/worktrees/m19-01, rama m19-01-native-build, sin commitear. core/native_build.gd: find_project mira la carpeta del proyecto, la de arriba y rust/ en cada una; SCons > CMake > Cargo. scons -C raíz target=…; cmake configura siempre (el target es una opción de configuración; -G Ninja solo la primera vez) y después --build; cargo build --manifest-path --message-format=short (--release con template_release). Timeout de 1200 s. Mensajes en inglés y sin color (LC_MESSAGES=C). Si falla sin errores de archivo (por ejemplo, del linker), devuelve las últimas 20 líneas. ~/.cargo/bin se agregó a las carpetas de CommandResolver. Las skills (godot-agent-plugins a11a5d4) dan por sentado el layout de godot-cpp-template con project/, que find_project cubre.",
   "order": 1,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/unit/test_native_build.gd (parser gcc/clang/rustc/MSVC, layouts, comandos, build real con scons+gcc y con cargo) y test_system_prompt (reglas solo con sistema de build): run_all 427 tests, 0 fallos en 4.7.2. --godot-agent-mcp-test en Xvfb: 0 fallas (build_extension fuera del tools/list compacto y listada en methods). De punta a punta contra una copia de godot-cpp-template (layout demo/): detectó el SConstruct desde demo/, compiló en 63 s y, con un error plantado, devolvió register_types.cpp línea 11 en 3,5 s.",
   "title": "Build nativo con errores por archivo",
-  "updated_at": "2026-11-02T22:07:37.328Z"
+  "updated_at": "2026-11-02T23:09:12.825Z"
 }

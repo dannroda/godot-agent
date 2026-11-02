@@ -4865,3 +4865,67 @@ Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux
 - [ ] Modos del agente: qué ids publica y que Revisar, Construir y Playtest caigan en el correcto
 - [ ] Cuota: el anillo y el límite con su /usage
 - [ ] Sin skills ni plugins: que Extensions lo diga bien
+
+## M17 — GDExtension  (1/4, 1 en revisión)
+
+Que el agente pueda hacer GDExtensions sin poner en riesgo el editor: build con errores parseados, prueba en un proceso descartable, un supervisor fuera del editor para crashes y reinicios, y una skill de scaffolding. No se trae: hot reload dentro del editor ni builds multiplataforma para export (eso es CI).
+
+**Hecho cuando:**
+- El agente crea una GDExtension (godot-cpp o gdext), la compila con errores por archivo y la prueba en un Godot headless aparte sin cargarla en el editor.
+- Una build que crashea el editor al arrancar no lo deja en un loop: el supervisor vuelve a la última build buena, relanza el editor y el agente retoma la sesión con el backtrace.
+
+### Build nativo con errores por archivo · Revisión
+
+**Prioridad:** alta · **Tamaño:** M
+
+Una tool que haga para GDExtension lo que core/csharp_build.gd hace para C#: detectar SConstruct, CMakeLists.txt o Cargo.toml, compilar y devolver {ruta: errores} para que el agente se entere en la misma tool. rustc tiene --message-format=json; gcc/clang tienen un formato de diagnóstico estable. El timeout de 180 s del build de C# no alcanza para la primera compilación de godot-cpp (varios minutos): hay que subirlo o hacerlo incremental. Si falta el toolchain (compilador, scons/cmake, cargo), avisar como se hace hoy con dotnet.
+
+**Decisiones:**
+- ! Las tareas de GDExtension van en un hito nuevo, M17 (m19), creado a mano en compass/milestones/m19.json · sin revisar
+  Por qué: Ningún hito existente encaja, y scompass no tiene un comando para crear hitos.
+  Descartado: Meterlas en M12 (m14, «Que el agente se verifique solo») o en M9 (m11, ideas de otros harness).
+- ! build_extension pide permiso como la shell (grupo shell), no como diagnóstico · sin revisar
+  Por qué: Un SConstruct es Python y un build.rs es Rust: compilar ejecuta código del proyecto, como un comando de shell.
+  Descartado: El grupo diagnostics (allow en todos los modos), como validate_scripts con dotnet build.
+- ! build_extension es una tool extendida (godot.methods / godot.run), y el contexto del agente explica cómo usarla solo si el proyecto tiene SConstruct, CMakeLists.txt o Cargo.toml · sin revisar
+  Por qué: Solo la usan los proyectos con GDExtension: así no gasta contexto en los demás (D56).
+  Descartado: Dejarla en el tools/list compacto, al lado de validate_scripts.
+- ! La verificación al terminar el turno no recompila la extensión cuando cambian .cpp o .rs · sin revisar
+  Por qué: Un build de godot-cpp puede tardar minutos y bloquearía el cierre del turno. El agente la llama cuando hace falta.
+  Descartado: Compilar en verify_changed_scripts, como se hace con C#.
+
+**Prueba:** tests/unit/test_native_build.gd (parser gcc/clang/rustc/MSVC, layouts, comandos, build real con scons+gcc y con cargo) y test_system_prompt (reglas solo con sistema de build): run_all 427 tests, 0 fallos en 4.7.2. --godot-agent-mcp-test en Xvfb: 0 fallas (build_extension fuera del tools/list compacto y listada en methods). De punta a punta contra una copia de godot-cpp-template (layout demo/): detectó el SConstruct desde demo/, compiló en 63 s y, con un error plantado, devolvió register_types.cpp línea 11 en 3,5 s.
+
+**Notas:** Código en el worktree .claude/worktrees/m19-01, rama m19-01-native-build, sin commitear. core/native_build.gd: find_project mira la carpeta del proyecto, la de arriba y rust/ en cada una; SCons > CMake > Cargo. scons -C raíz target=…; cmake configura siempre (el target es una opción de configuración; -G Ninja solo la primera vez) y después --build; cargo build --manifest-path --message-format=short (--release con template_release). Timeout de 1200 s. Mensajes en inglés y sin color (LC_MESSAGES=C). Si falla sin errores de archivo (por ejemplo, del linker), devuelve las últimas 20 líneas. ~/.cargo/bin se agregó a las carpetas de CommandResolver. Las skills (godot-agent-plugins a11a5d4) dan por sentado el layout de godot-cpp-template con project/, que find_project cubre.
+
+**Bloquea a:** Probar la extensión en un Godot headless descartable
+
+**Relacionadas:** Skill de scaffolding de GDExtension
+
+### Probar la extensión en un Godot headless descartable · Pendiente
+
+**Prioridad:** alta · **Tamaño:** M
+
+Un segfault en código nativo mata el proceso que cargó el .so, y si ese proceso es el editor, también se cae la sesión del agente. La prueba tiene que correr en un Godot headless aparte (reusando lo de playtest/headless): carga la build, verifica que las clases aparecen en ClassDB, corre tests o playtest y devuelve el resultado, o el código de salida y el backtrace si crashea. Solo las builds que pasan se instalan en la ruta que lee el editor ("promover").
+
+**Bloqueada por:** Build nativo con errores por archivo
+
+**Relacionadas:** Supervisor del editor: rollback de builds que crashean y reinicios
+
+### Supervisor del editor: rollback de builds que crashean y reinicios · Pendiente
+
+**Prioridad:** alta · **Tamaño:** L
+
+Godot carga .godot/extension_list.cfg antes que cualquier plugin. Si una build crashea al cargar, el editor no abre, el addon no corre y el agente (que es hijo del editor) muere: desde adentro no se puede salir del loop. Además, a veces hay que reiniciar para cargar una versión nueva. La solución es un proceso chico fuera del editor (GDScript con godot --headless -s, para seguir 100 % GDScript) que lanza el editor y lo vigila. Guarda la última build buena antes de cargar una nueva, captura el backtrace de stderr y, si el editor murió al arrancar, vuelve a la build buena (o saca la entrada) y lo relanza. Al abrir, el addon retoma con session/load y le pasa al agente qué build crasheó y el backtrace. Los reinicios voluntarios usan EditorInterface.restart_editor(true) y pasan por el mismo camino. No es el harness standalone: el supervisor no sabe nada de ACP ni de MCP.
+
+**Relacionadas:** Probar la extensión en un Godot headless descartable
+
+### Skill de scaffolding de GDExtension · En curso
+
+**Prioridad:** media · **Tamaño:** M
+
+Una skill en el repo de marketplace dannroda/godot-agent-plugins (no en este repo) con plantillas de godot-cpp y gdext fijadas a 4.7, el .gdextension con compatibility_minimum, el flujo de godot --dump-extension-api desde el binario abierto para que godot-cpp coincida con el editor, y el ciclo build → prueba headless → promover → reiniciar con supervisor.
+
+**Notas:** La está haciendo otra sesión, en el repo godot-agent-plugins (armando y probando las skills). Lo que queda de este lado: cuando m19-01, m19-02 y m19-03 existan, que la skill use esas tools (build, prueba headless, promover, reinicio con supervisor) en lugar del shell directo.
+
+**Relacionadas:** Build nativo con errores por archivo
