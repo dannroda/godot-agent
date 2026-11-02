@@ -4355,7 +4355,7 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
 
-## M15 — Revisión de features: lo que no estaba correcto  (12/12, 12 en revisión)
+## M15 — Revisión de features: lo que no estaba correcto  (13/13, 13 en revisión)
 
 Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
 
@@ -4519,6 +4519,24 @@ Pedido del usuario (01/11): dos pestañas/sesiones, una con una cuenta de Claude
 - Windows: normalize pasa \\ a /; el email de ~/.claude usa USERPROFILE si no hay HOME.
 - Revisión de código (02/11) con godot-code-review: 5 hallazgos, todos arreglados con test (run_all 408/408, sessions-test y settings-shots ok).
 - Sin probar: dos cuentas reales a la vez. openrouter: su env file no se lee.
+
+### One-shot con archivos de referencia (GDD, arte…) · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** Claude
+
+Pedido del usuario (02/11): a la pantalla One-shot se le tienen que poder dar archivos, como un GDD, además del objetivo en texto.
+
+**Decisiones:**
+- ! Los archivos de afuera del proyecto se copian a .godot_agent/oneshot/<id>/refs/ en vez de pasarle al agente la ruta original · sin revisar
+  Por qué: El agente trabaja dentro del proyecto (permisos de lectura, worktrees, otra máquina al retomar), y la copia viaja con el run en la rama del agente.
+  Descartado: Pasar la ruta original (puede pedir permiso o no existir al retomar); copiar a una carpeta visible del proyecto (ensucia el FileSystem y el export).
+
+**Prueba:** Pantalla One-shot: «+ Archivos de referencia…» abre un diálogo de archivos (cualquier carpeta); soltar archivos del FileSystem en el formulario también los suma. Cada uno es un chip con ✕. Al iniciar, el primer prompt los lista antes de los pasos; los de afuera del proyecto quedan copiados en .godot_agent/oneshot/<id>/refs/. La barra del run muestra «📎 N» y el tooltip las rutas. Automático: test_oneshot_files.test_add_references, test_oneshot_references, oneshot_check (copia, primer prompt, recuperación y retomar), oneshot-test en Xvfb (formulario, chips, run).
+
+**Notas:** - OneShotFiles.add_references: los del proyecto en su lugar, los de afuera copiados a refs/ (nombre libre si se repite), tope 50 MB por archivo (viajan en la rama del agente con los checkpoints); los que no se pueden usar van como aviso en la actividad.
+- OneShotRun.references: en el prompt inicial (antes de la spec; si chocan con el objetivo gana el objetivo), en el del evaluador de QA y al retomar; se guarda en to_dict.
+- agent_main_screen: botón + chips + drop desde el FileSystem en todo el panel del formulario. No toma archivos soltados desde el sistema operativo (files_dropped es de toda la ventana del editor).
+- Leer PDF o imágenes depende del agente (Claude Code los lee con Read).
 
 ## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
 

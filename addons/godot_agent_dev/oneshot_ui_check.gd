@@ -72,6 +72,16 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(form_panel.size.x >= minf(form.size.x * 0.6, 1300.0) - 2.0 and goal.size.y >= form.size.y * 0.35, "el formulario crece con la pantalla (%s en %s, objetivo %d)" % [form_panel.size, form.size, goal.size.y])
 	goal.text = "Pong de 2 jugadores con puntaje"
 	goal.text_changed.emit()
+	# Archivos de referencia: uno de afuera (por el diálogo) y uno soltado desde el FileSystem.
+	var gdd := ProjectSettings.globalize_path("user://oneshot_ui_gdd.md")
+	var gdd_file := FileAccess.open(gdd, FileAccess.WRITE)
+	gdd_file.store_string("# Pong\n")
+	gdd_file.close()
+	_screen.call(&"add_references", PackedStringArray([gdd]))
+	_screen.call(&"_drop_references", Vector2.ZERO, {"type": "files", "files": PackedStringArray(["res://project.godot", gdd])})
+	_check((_screen.get(&"_references") as PackedStringArray) == PackedStringArray([gdd, "res://project.godot"]), "referencias del formulario, sin repetir: %s" % [_screen.get(&"_references")])
+	_check((_screen.get(&"_references_box") as Control).get_child_count() == 2, "un chip por referencia")
+	await _frames(2)
 	_shot(shot_path, "_form")
 	(_screen.get(&"_checkpoints_check") as CheckBox).button_pressed = true
 	(_screen.get(&"_budget_spins")[OneShotRun.BUDGET_PLAYTESTS] as SpinBox).value = 10
@@ -84,7 +94,9 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	await _frames(3)
 	_check((_screen.get(&"_run_view") as Control).is_visible_in_tree(), "se ve la vista del One-shot")
 	_check(_text(&"_phase_label").begins_with("Paused for quota · task 2 of 3"), "fase: " + _text(&"_phase_label"))
-	_check(_text(&"_goal_label") == "Pong de 2 jugadores con puntaje", "objetivo en la barra")
+	_check(_text(&"_goal_label") == "Pong de 2 jugadores con puntaje  📎 2", "objetivo y referencias en la barra: " + _text(&"_goal_label"))
+	_check(_run.references.size() == 2 and _run.references[1].ends_with("/project.godot") and _run.references[0].contains("/refs/"), "el run recibe las referencias: %s" % [_run.references])
+	_check((_screen.get(&"_references") as PackedStringArray).is_empty(), "el formulario las vacía al iniciar")
 	_check((_screen.get(&"_banner") as Control).visible and _text(&"_banner_label").begins_with("Quota at 91 %:"), "banner de cuota: " + _text(&"_banner_label"))
 	_check(_text(&"_countdown_label").contains("Paused for quota before “Puntaje y saque”"), "cuenta regresiva: " + _text(&"_countdown_label"))
 	_check(_text(&"_rule_label").contains("current task or turn"), "regla de cuota: " + _text(&"_rule_label"))

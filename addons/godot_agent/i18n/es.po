@@ -3934,3 +3934,18 @@ msgstr "Grabar un video del run (en res://.godot_agent/playtests/)"
 
 msgid "Start playtest"
 msgstr "Empezar el playtest"
+
+msgid "Couldn't use these reference files: %s"
+msgstr "No se pudieron usar estos archivos de referencia: %s"
+
+msgid "+ Reference files…"
+msgstr "+ Archivos de referencia…"
+
+msgid "A design document (GDD), concept art, a level sketch…: the agent reads them before writing the spec, and the QA evaluator checks the game against them. Files from outside the project are copied into the run's folder. You can also drop them here from the FileSystem dock."
+msgstr "Un documento de diseño (GDD), arte conceptual, un boceto de nivel…: el agente los lee antes de escribir la spec y el evaluador de QA compara el juego con ellos. Los de afuera del proyecto se copian a la carpeta del run. También podés soltarlos acá desde el FileSystem."
+
+msgid "Reference files"
+msgstr "Archivos de referencia"
+
+msgid "Reference files:"
+msgstr "Archivos de referencia:"

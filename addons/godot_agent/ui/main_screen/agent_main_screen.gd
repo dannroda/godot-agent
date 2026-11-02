@@ -85,6 +85,10 @@ var _banner_label: Label
 # Formulario
 var _form: Control
 var _goal_edit: TextEdit
+## Archivos de referencia para el próximo run (un GDD, arte de referencia…): rutas del sistema o res://.
+var _references: PackedStringArray = []
+var _references_box: HFlowContainer
+var _references_dialog: EditorFileDialog
 var _budget_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
 var _spec_check: CheckBox
@@ -278,6 +282,9 @@ func _build_form() -> void:
 	_goal_edit.custom_minimum_size.y = AgentTheme.px(GOAL_MIN_HEIGHT)
 	_goal_edit.text_changed.connect(_refresh_form)
 	goal_column.add_child(_goal_edit)
+	_build_references(goal_column)
+	# Soltar archivos del FileSystem del editor en cualquier parte del formulario los suma.
+	panel.set_drag_forwarding(Callable(), _can_drop_references, _drop_references)
 	var examples := VBoxContainer.new()
 	examples.add_theme_constant_override(&"separation", AgentTheme.px(4))
 	var examples_label := Label.new()
@@ -865,8 +872,8 @@ func _refresh_top_bar() -> void:
 		OneShotRun.RunPhase.PAUSED, OneShotRun.RunPhase.PAUSED_QUOTA, OneShotRun.RunPhase.WAITING_CONFIRM, OneShotRun.RunPhase.SPEC_REVIEW:
 			phase_color = AgentTheme.WARNING
 	_phase_label.add_theme_color_override(&"font_color", phase_color)
-	_goal_label.text = _run.goal
-	_goal_label.tooltip_text = _run.goal
+	_goal_label.text = _run.goal + ("  📎 %d" % _run.references.size() if not _run.references.is_empty() else "")
+	_goal_label.tooltip_text = _run.goal + ("\n\n" + I18n.t("Reference files:") + "\n" + "\n".join(_run.references) if not _run.references.is_empty() else "")
 
 	var quota := _run.quota
 	var window := quota.utilization(QuotaMonitor.WINDOW_CURRENT)
@@ -1112,6 +1119,66 @@ func _muted_label(text: String) -> Label:
 
 # --- eventos -------------------------------------------------------------------------------------
 
+# --- archivos de referencia ---------------------------------------------------------------------
+
+func _build_references(parent: Control) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	parent.add_child(row)
+	var add := Button.new()
+	add.name = "AddReferencesButton"
+	add.text = I18n.t("+ Reference files…")
+	add.tooltip_text = I18n.t("A design document (GDD), concept art, a level sketch…: the agent reads them before writing the spec, and the QA evaluator checks the game against them. Files from outside the project are copied into the run's folder. You can also drop them here from the FileSystem dock.")
+	add.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	add.pressed.connect(_pick_references)
+	row.add_child(add)
+	_references_box = HFlowContainer.new()
+	_references_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_references_box)
+
+
+func _pick_references() -> void:
+	if _references_dialog == null:
+		_references_dialog = EditorFileDialog.new()
+		_references_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILES
+		_references_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+		_references_dialog.title = I18n.t("Reference files")
+		_references_dialog.files_selected.connect(add_references)
+		add_child(_references_dialog)
+	_references_dialog.popup_file_dialog()
+
+
+## Suma archivos a los de referencia del próximo run, sin repetir.
+func add_references(paths: PackedStringArray) -> void:
+	for path: String in paths:
+		if not path.ends_with("/") and not _references.has(path):
+			_references.append(path)
+	_refresh_references()
+
+
+func _refresh_references() -> void:
+	for child: Node in _references_box.get_children():
+		_references_box.remove_child(child)
+		child.queue_free()
+	for path: String in _references:
+		var chip := Button.new()
+		chip.text = "📎 %s  ✕" % path.get_file()
+		chip.tooltip_text = I18n.t("%s (click to remove it)") % path
+		chip.pressed.connect(func() -> void:
+			_references.erase(path)
+			_refresh_references())
+		_references_box.add_child(chip)
+
+
+func _can_drop_references(_position: Vector2, data: Variant) -> bool:
+	return data is Dictionary and data.get("type") in ["files", "files_and_dirs"] and data.get("files") is PackedStringArray
+
+
+func _drop_references(position: Vector2, data: Variant) -> void:
+	if _can_drop_references(position, data):
+		add_references(data.files)
+
+
 func _on_start_pressed() -> void:
 	if not start_blocker(str(agent_name.call()), _goal_edit.text, _run.is_active()).is_empty():
 		return
@@ -1140,9 +1207,11 @@ func _start_run() -> void:
 	_checks_signature = ""
 	_show_form = false
 	var goal := _goal_edit.text
-	var started: bool = await _run.start(goal, budgets, _checkpoints_check.button_pressed, _spec_check.button_pressed)
+	var started: bool = await _run.start(goal, budgets, _checkpoints_check.button_pressed, _spec_check.button_pressed, _references)
 	if started:
 		_goal_edit.text = ""
+		_references = []
+		_refresh_references()
 	_summary_dirty = true
 	_refresh()
 

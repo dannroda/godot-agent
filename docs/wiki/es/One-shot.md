@@ -16,6 +16,7 @@ El One-shot le da al agente un objetivo entero ("Pong de 2 jugadores con puntaje
 
 1. Elegí **One-shot** en el dock: se abre la pantalla **One-shot**.
 2. Escribí el objetivo. El editor crece con la pantalla, así que entran objetivos largos.
+   - **+ Archivos de referencia…** suma archivos para que el agente siga: un documento de diseño (GDD), arte conceptual, un boceto de nivel… También podés soltarlos en el formulario desde el FileSystem. El agente los lee antes de escribir el spec y el evaluador de QA compara el juego con ellos; donde no coinciden con el objetivo, gana el objetivo. Los del proyecto se leen donde están; el resto se copia a la carpeta del run (`refs/`, hasta 50 MB cada uno).
 3. Revisá los presupuestos (tiempo, tokens, playtests) y las opciones:
    - **Crear un checkpoint git antes de cada tarea de One-shot**: un commit por tarea en una rama del agente;
    - **Revisar el spec antes de construir**: el agente escribe primero el spec y te espera.
@@ -91,7 +92,7 @@ Si vuelve a pasar, el run se pausa y espera que lo guíes. Las repeticiones se a
 
 ## Archivos de spec, progreso y QA
 
-Viven en `.godot_agent/oneshot/<id>/` dentro del proyecto: `spec.md`, `progress.md` y `qa-<n>.md`.
+Viven en `.godot_agent/oneshot/<id>/` dentro del proyecto: `spec.md`, `progress.md`, `qa-<n>.md` y, en `refs/`, las copias de los archivos de referencia.
 
 - **Spec y progreso** los abre en pestañas, con **Mostrar en carpeta** y **Abrir con editor externo**. Tocar su ruta en el chat abre el mismo visor.
 - Si el run tiene que seguir en una sesión nueva, el agente los relee.

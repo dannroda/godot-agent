@@ -12,6 +12,11 @@ const AtomicFile := preload("../core/atomic_file.gd")
 const ROOT_DIR := ".godot_agent"
 const SPEC := "spec.md"
 const PROGRESS := "progress.md"
+## Archivos de referencia que dio el usuario (un GDD, arte de referencia…) y venían de afuera del
+## proyecto: se copian acá, adentro, donde el agente trabaja.
+const REFS_DIR := "refs"
+## Tope por archivo de referencia: la copia viaja en la rama del agente con los checkpoints.
+const MAX_REFERENCE_BYTES := 50 * 1024 * 1024
 
 var project_root: String = ""
 var run_id: String = ""
@@ -24,6 +29,53 @@ func dir() -> String:
 ## Ruta relativa al proyecto, para los prompts y la UI.
 func relative_dir() -> String:
 	return "%s/oneshot/%s" % [ROOT_DIR, run_id]
+
+
+func refs_dir() -> String:
+	return dir().path_join(REFS_DIR)
+
+
+## Deja los archivos de referencia donde el agente los lee: los del proyecto, en su lugar; los de
+## afuera, copiados a refs/. {paths: rutas absolutas para el prompt, skipped: nombres que no se
+## pudieron usar (no existen, son muy grandes o no se copiaron)}.
+func add_references(paths: PackedStringArray) -> Dictionary:
+	var result: PackedStringArray = []
+	var skipped: PackedStringArray = []
+	var root := project_root.simplify_path().trim_suffix("/") + "/"
+	for path: String in paths:
+		var absolute := ProjectSettings.globalize_path(path) if path.begins_with("res://") else path.simplify_path()
+		if not FileAccess.file_exists(absolute):
+			skipped.append(path.get_file())
+			continue
+		if absolute.begins_with(root):
+			if not result.has(absolute):
+				result.append(absolute)
+			continue
+		var file := FileAccess.open(absolute, FileAccess.READ)
+		var too_big := file == null or file.get_length() > MAX_REFERENCE_BYTES
+		if file:
+			file.close()
+		if too_big or DirAccess.make_dir_recursive_absolute(refs_dir()) != OK:
+			skipped.append(path.get_file())
+			continue
+		var target := _free_path(refs_dir(), absolute.get_file())
+		if DirAccess.copy_absolute(absolute, target) != OK:
+			skipped.append(path.get_file())
+			continue
+		result.append(target)
+	return {"paths": result, "skipped": skipped}
+
+
+## `name` en `folder`, o `name-2`, `name-3`… si ya hay uno: dos referencias con el mismo nombre no
+## se pisan.
+static func _free_path(folder: String, name: String) -> String:
+	var target := folder.path_join(name)
+	var n := 2
+	while FileAccess.file_exists(target):
+		var extension := name.get_extension()
+		target = folder.path_join("%s-%d%s" % [name.get_basename(), n, "." + extension if not extension.is_empty() else ""])
+		n += 1
+	return target
 
 
 func spec_path() -> String:

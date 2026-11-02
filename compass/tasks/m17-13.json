@@ -1,0 +1,25 @@
+{
+  "assignee": "Claude",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T05:04:38.845Z",
+  "decisions": [
+    {
+      "alternatives": "Pasar la ruta original (puede pedir permiso o no existir al retomar); copiar a una carpeta visible del proyecto (ensucia el FileSystem y el export).",
+      "at": "2026-11-02T05:04:50.035Z",
+      "text": "Los archivos de afuera del proyecto se copian a .godot_agent/oneshot/<id>/refs/ en vez de pasarle al agente la ruta original",
+      "why": "El agente trabaja dentro del proyecto (permisos de lectura, worktrees, otra máquina al retomar), y la copia viaja con el run en la rama del agente."
+    }
+  ],
+  "description": "Pedido del usuario (02/11): a la pantalla One-shot se le tienen que poder dar archivos, como un GDD, además del objetivo en texto.",
+  "milestone": "m17",
+  "notes": "- OneShotFiles.add_references: los del proyecto en su lugar, los de afuera copiados a refs/ (nombre libre si se repite), tope 50 MB por archivo (viajan en la rama del agente con los checkpoints); los que no se pueden usar van como aviso en la actividad.\n- OneShotRun.references: en el prompt inicial (antes de la spec; si chocan con el objetivo gana el objetivo), en el del evaluador de QA y al retomar; se guarda en to_dict.\n- agent_main_screen: botón + chips + drop desde el FileSystem en todo el panel del formulario. No toma archivos soltados desde el sistema operativo (files_dropped es de toda la ventana del editor).\n- Leer PDF o imágenes depende del agente (Claude Code los lee con Read).",
+  "order": 13,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Pantalla One-shot: «+ Archivos de referencia…» abre un diálogo de archivos (cualquier carpeta); soltar archivos del FileSystem en el formulario también los suma. Cada uno es un chip con ✕. Al iniciar, el primer prompt los lista antes de los pasos; los de afuera del proyecto quedan copiados en .godot_agent/oneshot/<id>/refs/. La barra del run muestra «📎 N» y el tooltip las rutas. Automático: test_oneshot_files.test_add_references, test_oneshot_references, oneshot_check (copia, primer prompt, recuperación y retomar), oneshot-test en Xvfb (formulario, chips, run).",
+  "title": "One-shot con archivos de referencia (GDD, arte…)",
+  "updated_at": "2026-11-02T05:04:50.035Z"
+}

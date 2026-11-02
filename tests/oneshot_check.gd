@@ -87,7 +87,17 @@ func _scenario_recover() -> void:
 	OS.execute("rm", ["-rf", store_dir])
 	var run := _make("oneshot_recover")
 	run.store.dir = store_dir
-	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	# Con un GDD de afuera del proyecto: se copia a refs/ y llega al primer prompt.
+	var gdd := ProjectSettings.globalize_path("user://oneshot_check/gdd.md")
+	DirAccess.make_dir_recursive_absolute(gdd.get_base_dir())
+	var gdd_file := FileAccess.open(gdd, FileAccess.WRITE)
+	gdd_file.store_string("# Pong\nDos paletas, una pelota.\n")
+	gdd_file.close()
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, true, false, PackedStringArray([gdd]))
+	var copied := run.files.refs_dir().path_join("gdd.md")
+	_check(run.references == PackedStringArray([copied]) and FileAccess.file_exists(copied), "referencias: el GDD se copia a refs/ (%s)" % [run.references])
+	await _wait(func() -> bool: return not _user_messages(run.model).is_empty(), 5.0)
+	_check(not _user_messages(run.model).is_empty() and str(_user_messages(run.model)[0]).contains(copied), "referencias: el primer prompt las lista")
 	# El primer turno deja plan, playtest y checks; el editor se cae en el segundo.
 	await _wait(func() -> bool: return run.checks.size() == 2 and _user_messages(run.model).size() == 2 and not run.is_git_busy(), 10.0)
 	await create_timer(2.6).timeout  # un guardado periódico
@@ -105,6 +115,8 @@ func _scenario_recover() -> void:
 	_check(again.restore_interrupted(), "recuperación: carga el run a medias")
 	_check(again.recovered and again.phase == OneShotRun.RunPhase.PAUSED, "recuperación: queda en pausa (%s)" % again.phase_label())
 	_check(again.goal == "Pong con puntaje" and int(again.used.playtests) == 1 and again.checks.size() == 2, "recuperación: objetivo, playtests y checks")
+	_check(again.references.size() == 1 and again.references[0].ends_with("refs/gdd.md"), "recuperación: los archivos de referencia (%s)" % [again.references])
+	_check(again.call(&"_resume_prompt").contains("refs/gdd.md"), "recuperación: retomar recuerda las referencias")
 	_check(_cp_labels(again) == checkpoints and again.checkpoints_enabled, "recuperación: checkpoints %s" % [_cp_labels(again)])
 	_check(again.current_plan().size() == 2 and again.resume_task == "Paletas y pelota", "recuperación: plan guardado y tarea (%s)" % again.resume_task)
 	_check(str(again.activity.back().text).contains("“Resume”"), "recuperación: la actividad lo explica")

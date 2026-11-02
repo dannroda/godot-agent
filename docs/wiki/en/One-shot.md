@@ -16,6 +16,7 @@ One-shot gives the agent a whole goal ("a 2-player Pong with score", "a top-down
 
 1. Pick **One-shot** in the dock: the **One-shot** screen opens.
 2. Write the goal. The editor grows with your screen, so long goals fit.
+   - **+ Reference files…** adds files for the agent to follow: a design document (GDD), concept art, a level sketch… You can also drop them on the form from the FileSystem dock. The agent reads them before writing the spec, and the QA evaluator checks the game against them; where they disagree with the goal, the goal wins. Files from inside the project are read where they are; the rest are copied into the run's folder (`refs/`, up to 50 MB each).
 3. Review the budgets (time, tokens, playtests) and the options:
    - **Create a git checkpoint before each One-shot task**: one commit per task on an agent branch;
    - **Review the spec before building**: the agent writes the spec first and waits for you.
@@ -91,7 +92,7 @@ If it happens again, the run pauses and waits for you to guide it. The number of
 
 ## Spec, progress and QA files
 
-They live in `.godot_agent/oneshot/<id>/` inside the project: `spec.md`, `progress.md` and `qa-<n>.md`.
+They live in `.godot_agent/oneshot/<id>/` inside the project: `spec.md`, `progress.md`, `qa-<n>.md` and, in `refs/`, the copies of the reference files.
 
 - **Spec and progress** opens them in tabs, with **Show in folder** and **Open in external editor**. Clicking their path in the chat opens the same viewer.
 - If the run has to continue in a new session, the agent rereads them.

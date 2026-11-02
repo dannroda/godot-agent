@@ -154,6 +154,8 @@ var qa_results: Array[Dictionary] = []
 
 var phase: RunPhase = RunPhase.IDLE
 var goal: String = ""
+## Archivos de referencia del usuario (un GDD, arte de referencia…), con la ruta que lee el agente.
+var references: PackedStringArray = []
 ## {time: minutos, tokens, playtests}; 0 = sin límite.
 var budgets: Dictionary = {BUDGET_TIME: 45, BUDGET_TOKENS: 1500000, BUDGET_PLAYTESTS: 8}
 var used: Dictionary = {BUDGET_TIME: 0.0, BUDGET_TOKENS: 0, BUDGET_PLAYTESTS: 0}
@@ -293,10 +295,12 @@ func preflight(use_checkpoints: bool) -> Dictionary:
 	return {"ok": true, "needs_wip_confirm": not await git.is_clean(), "warning": ""}
 
 
-func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, review_spec: bool = false) -> bool:
+## `reference_paths`: archivos que el usuario le dio (rutas del sistema o res://).
+func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, review_spec: bool = false, reference_paths: PackedStringArray = []) -> bool:
 	if is_active():
 		return false
 	goal = goal_text.strip_edges()
+	references = PackedStringArray()
 	run_id = OneShotStore.new_id()
 	files.run_id = run_id
 	spec_review = review_spec
@@ -351,6 +355,11 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	# Después de git.start: los archivos nacen en la rama del agente.
 	if not files.prepare():
 		_add_activity("warning", I18n.t("Couldn't create %s: the agent won't have anywhere to write the spec") % files.relative_dir())
+	if not reference_paths.is_empty():
+		var added := files.add_references(reference_paths)
+		references = added.paths
+		if not (added.skipped as PackedStringArray).is_empty():
+			_add_activity("warning", I18n.t("Couldn't use these reference files: %s") % ", ".join(added.skipped))
 	if not controller.is_connected_to_agent() and not await _restart_session(""):
 		_finish(I18n.t("Couldn't open a session with the agent."))
 		return false
@@ -377,8 +386,11 @@ func initial_prompt() -> String:
 	var spec_step := "0. Before anything else, write the game spec in %s: mechanics, game loop (start → play → win or lose → restart), visual direction and what \"done\" means. Ambitious in scope but high level: no technical detail (no nodes, scripts or APIs)." % files.spec_path()
 	if spec_review:
 		spec_step += " Then end the turn without building anything: the user reviews and approves it."
-	return "\n".join([
-		"Goal (One-shot mode): %s" % goal,
+	var lines: PackedStringArray = ["Goal (One-shot mode): %s" % goal]
+	if not references.is_empty():
+		lines.append_array(["", "Reference material from the user: read all of it before writing the spec. The spec and the game follow it; where it disagrees with the goal above, the goal wins."])
+		lines.append_array(_reference_lines())
+	return "\n".join(lines + PackedStringArray([
 		"",
 		"Work autonomously until the goal is met:",
 		spec_step,
@@ -389,7 +401,14 @@ func initial_prompt() -> String:
 		"Don't make commits or switch branches: the harness handles the git checkpoints.",
 		"",
 		GameCriteria.generator_text(criteria),
-	])
+	]))
+
+
+func _reference_lines() -> PackedStringArray:
+	var lines: PackedStringArray = []
+	for path: String in references:
+		lines.append("- %s" % path)
+	return lines
 
 
 # --- controles -----------------------------------------------------------------------------------
@@ -832,6 +851,8 @@ func _resume_prompt() -> String:
 	var last := git.checkpoints.back() if checkpoints_enabled and not git.checkpoints.is_empty() else {}
 	var where := "" if last.is_empty() else "; the state is in checkpoint %s (%s)" % [last.name, last.label]
 	var handoff := " If you're missing context, reread spec.md and progress.md in %s." % files.dir() if files.has_spec() else ""
+	if not references.is_empty():
+		handoff += " The user's reference material: %s." % ", ".join(references)
 	if task.is_empty():
 		return "Continue with the goal from where you left off%s.%s" % [where, handoff]
 	return "Continue with the plan from the task “%s”%s.%s" % [task, where, handoff]
@@ -1135,6 +1156,9 @@ func qa_prompt() -> String:
 		"Another agent built this game and says it is done. You are the QA evaluator: you did not build it, and builders are lenient with their own work. Be skeptical: find what does not work before anyone else does.",
 		"Goal: %s" % goal,
 	]
+	if not references.is_empty():
+		lines.append("The user's reference material, to check the game against (the goal wins where they disagree):")
+		lines.append_array(_reference_lines())
 	if files.has_spec():
 		lines.append("The spec is in %s and the builder's notes in %s: treat the notes as claims to verify, not facts." % [files.spec_path(), files.progress_path()])
 	if qa_round > 1 and FileAccess.file_exists(files.qa_path(qa_round - 1)):
@@ -1379,6 +1403,7 @@ func to_dict() -> Dictionary:
 		"phase_id": RunPhase.keys()[phase],
 		"quota_resume_at": quota_resume_at,
 		"goal": goal,
+		"references": Array(references),
 		"budgets": budgets,
 		"used": used,
 		"checkpoints_enabled": checkpoints_enabled,
@@ -1409,6 +1434,7 @@ func to_dict() -> Dictionary:
 func _apply(data: Dictionary) -> void:
 	run_id = str(data.id)
 	goal = str(data.get("goal", ""))
+	references = PackedStringArray(data.get("references", []))
 	budgets.merge(data.get("budgets", {}) as Dictionary, true)
 	var saved_used: Dictionary = data.get("used", {})
 	used = {BUDGET_TIME: float(saved_used.get(BUDGET_TIME, 0)), BUDGET_TOKENS: int(saved_used.get(BUDGET_TOKENS, 0)), BUDGET_PLAYTESTS: int(saved_used.get(BUDGET_PLAYTESTS, 0))}
