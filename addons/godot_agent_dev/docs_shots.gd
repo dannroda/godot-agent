@@ -174,7 +174,8 @@ func _oneshot_shot(dir: String) -> void:
 	(run.get(&"store") as Object).set(&"dir", repo + "_store")
 	run.set(&"qa_max_rounds", 0)
 	var profile := _profile("docs_oneshot")
-	run.set(&"restart_session", func(_lost_id: String) -> bool: return await controller.call(&"start", profile))
+	# El run se pasa a la sesión de su propia pestaña al empezar (m17-19): se arranca la que tenga.
+	run.set(&"restart_session", func(_lost_id: String) -> bool: return await (run.get(&"controller") as Object).call(&"start", profile))
 	screen.set(&"agent_name", func() -> String: return "Claude Code")
 	EditorInterface.set_main_screen_editor("One-shot")
 	await _frames(10)
@@ -196,6 +197,7 @@ func _oneshot_shot(dir: String) -> void:
 	await _frames(30)
 	_save(_screen().get_region(Rect2i(screen.get_global_rect())), dir.path_join("oneshot.png"))
 	run.call(&"stop")
+	(run.get(&"controller") as Object).call(&"stop")
 	controller.call(&"stop")
 	await _frames(5)
 
