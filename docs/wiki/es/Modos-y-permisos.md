@@ -80,7 +80,7 @@ Cómo se revisa un comando:
 - En un patrón, `*` vale por cualquier texto, y `git log *` también cubre `git log` solo. Un programa con ruta (`/opt/godot/godot`) se compara por su nombre.
 - Escribir archivos del proyecto desde la shell se sigue rechazando, digan lo que digan las listas (ver abajo).
 
-Cuando un comando muestra una tarjeta, la tarjeta propone un patrón, como `npm test` para `npm test`, que se puede editar, por ejemplo a `npm test *`. **Permitir siempre** agrega el patrón a la allowlist y permite este comando. En Auto, la tarjeta de la shell no ofrece «Siempre en esta sesión», así nunca se abre todo el grupo shell de una vez.
+Cuando un comando muestra una tarjeta, la tarjeta propone un patrón, como `npm test` para `npm test`, que se puede editar, por ejemplo a `npm test *`. **Permitir siempre** agrega el patrón a la allowlist y permite este comando. Las tarjetas de la shell nunca ofrecen «Siempre en esta sesión», en ningún modo ni con ningún agente: abriría todos los comandos por el resto de la sesión, también los de «siempre preguntar» y después de pasar a Auto.
 
 **Revisar las listas**: **Settings → Permisos → Modo Auto: comandos de shell** muestra cada regla con su lista, su origen (default, agregada por vos, desde una tarjeta de permiso) y la fecha en que se agregó.
 

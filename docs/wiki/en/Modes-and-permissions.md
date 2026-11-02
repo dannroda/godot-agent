@@ -80,7 +80,7 @@ How a command is checked:
 - In a pattern, `*` matches anything, and `git log *` also matches `git log` alone. A program with a path (`/opt/godot/godot`) is matched by its name.
 - Writing project files from the shell is still rejected, whatever the lists say (see below).
 
-When a command shows a card, the card proposes a pattern, such as `npm test` for `npm test`, which you can edit, for example to `npm test *`. **Always allow** adds the pattern to the allowlist and allows this command. The card doesn't offer "Always allow in this session" for the shell in Auto, so the whole shell group is never opened at once.
+When a command shows a card, the card proposes a pattern, such as `npm test` for `npm test`, which you can edit, for example to `npm test *`. **Always allow** adds the pattern to the allowlist and allows this command. Shell cards never offer "Always allow in this session", in any mode and from any agent: it would open every command for the rest of the session, including those on the "always ask" list and after switching to Auto.
 
 **Reviewing the lists**: **Settings → Permissions → Auto mode: shell commands** shows every rule with its list, its origin (default, added by you, from a permission card) and the date it was added.
 

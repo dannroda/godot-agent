@@ -14,7 +14,7 @@ Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agen
 - trabajar en proyectos C# con Godot .NET: compila con `dotnet build` y recibe los errores por archivo y línea, crea scripts `.cs`, y el completado inline también anda en los `.cs`;
 - usar los servidores MCP de otros programas (Blender, una base de datos…), configurados en Settings con sus propios permisos;
 - buscar, instalar y activar addons de Godot del [Asset Store](https://store.godotengine.org) (el agente también los puede sugerir);
-- manejar los plugins, marketplaces, servidores MCP y skills de Claude Code desde la ventana **Extensiones**, con skills de Godot a un clic;
+- manejar los plugins, marketplaces, servidores MCP y skills de Claude Code desde la ventana **Extensiones**, con skills de Godot a un clic, y compartir una skill con todos los agentes (Google Antigravity, Codex…) con un clic;
 - trabajar en varias sesiones a la vez, una por pestaña del dock, cada una con su agente y su cuenta: por ejemplo Claude Code con tu cuenta personal en una pestaña y la del trabajo en otra, o Google Antigravity al lado de Claude Code. Las sesiones no se pisan: un archivo que una está editando en su turno queda fuera del alcance de las demás, y el juego corre para una a la vez.
 
 Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construir que corre sin preguntar los comandos de shell que tus reglas permiten) y **One-shot**. El One-shot persigue un objetivo entero ("Pong de 2 jugadores con puntaje") con plan, presupuestos, checkpoints git y playtests.
