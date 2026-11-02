@@ -36,6 +36,12 @@ The port, the accent color, the dock position and the language apply when you re
 - The agent always receives `GODOT`/`GODOT_BIN` with the editor's binary; a profile can override them.
 - **One account per tab**: the agent chip at the top of each dock tab picks that tab's agent and its account. An account is the agent's configuration folder, where it keeps its login, passed in an environment variable: `CLAUDE_CONFIG_DIR` (Claude Code), `GEMINI_HOME` (Google Antigravity) or `CODEX_HOME` (Codex). For another agent, set **Account folder variable** in its profile. The menu lists the agent's default folder and each folder in `~/.<folder>-profiles/` (for example `~/.claude-profiles/work` or `~/.gemini-profiles/work`), with the email for Claude Code accounts; **Other folder…** adds any other (an empty folder is a new account: the session asks you to sign in). So one tab can work with your personal account and another with your work account at the same time. A new tab starts with the last agent and account you picked, and a session from the history reopens with its account. In a profile's environment, `~/` is your home folder.
 
+### From the ACP registry
+
+**+ From the ACP registry…** lists the agents of the public [ACP registry](https://agentclientprotocol.com/registry) that Zed and JetBrains use (Claude, Codex, Gemini CLI, Copilot, Cursor, Google Antigravity, Goose, OpenCode…), with a filter. **Add** creates the profile: agents published on npm or PyPI run with `npx` or `uvx`, and the rest download a program for this platform into the editor's data folder (`godot_agent/agents/<id>/<version>/`), shared by all projects. The download is checked against the registry's sha256; when the registry has none, **Add** asks for a second click (**Add without checksum**). Adding the same agent again replaces its profile with the new version. Some agents are big: Google Antigravity's is about 900 MB.
+
+Google Antigravity asks you to sign in the first time (Google account, Gemini Enterprise, a Gemini API key or Agent Platform); the dock offers the methods it publishes.
+
 ## Other MCP servers
 
 **Settings → MCP servers** lists MCP servers of other programs (Blender, a database, a web service…). The addon passes them to the agent when a session opens, next to its own `godot` server, so they work with any ACP agent. Changes apply from the next session.

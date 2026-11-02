@@ -36,6 +36,12 @@ El puerto, el color de acento, la ubicación del dock y el idioma se aplican al 
 - El agente siempre recibe `GODOT`/`GODOT_BIN` con el binario del editor; un perfil puede pisarlas.
 - **Una cuenta por pestaña**: el chip del agente arriba de cada pestaña del dock elige el agente de esa pestaña y su cuenta. Una cuenta es la carpeta de configuración del agente, donde guarda su login, pasada en una variable del entorno: `CLAUDE_CONFIG_DIR` (Claude Code), `GEMINI_HOME` (Google Antigravity) o `CODEX_HOME` (Codex). Para otro agente, completá **Variable de la carpeta de cuentas** en su perfil. El menú lista la carpeta por defecto del agente y cada carpeta de `~/.<carpeta>-profiles/` (por ejemplo `~/.claude-profiles/trabajo` o `~/.gemini-profiles/trabajo`), con el email en las cuentas de Claude Code; **Otra carpeta…** agrega cualquier otra (una carpeta vacía es una cuenta nueva: la sesión te pide iniciar sesión). Así una pestaña trabaja con tu cuenta personal y otra con la del trabajo a la vez. Una pestaña nueva arranca con el último agente y la última cuenta que elegiste, y una sesión del historial se reabre con su cuenta. En el entorno de un perfil, `~/` es tu carpeta de usuario.
 
+### Del registro de ACP
+
+**+ Del registro de ACP…** lista los agentes del [registro de ACP](https://agentclientprotocol.com/registry) público que usan Zed y JetBrains (Claude, Codex, Gemini CLI, Copilot, Cursor, Google Antigravity, Goose, OpenCode…), con un filtro. **Agregar** crea el perfil: los agentes publicados en npm o PyPI corren con `npx` o `uvx`, y los demás bajan un programa para esta plataforma a la carpeta de datos del editor (`godot_agent/agents/<id>/<versión>/`), compartida por todos los proyectos. La descarga se verifica con el sha256 del registro; si el registro no lo trae, **Agregar** pide un segundo clic (**Agregar sin checksum**). Volver a agregar el mismo agente reemplaza su perfil por la versión nueva. Algunos agentes pesan mucho: el de Google Antigravity, unos 900 MB.
+
+Google Antigravity pide iniciar sesión la primera vez (cuenta de Google, Gemini Enterprise, una API key de Gemini o Agent Platform); el dock ofrece los métodos que publica.
+
 ## Otros servidores MCP
 
 **Settings → Servidores MCP** lista servidores MCP de otros programas (Blender, una base de datos, un servicio web…). El addon se los pasa al agente al abrir la sesión, junto a su servidor `godot`, así que sirven con cualquier agente ACP. Los cambios valen desde la próxima sesión.
