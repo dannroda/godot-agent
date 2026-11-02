@@ -33,6 +33,8 @@ extends SceneTree
 ##   {"limit": {"resets_in": 120}}     límite alcanzado como lo manda Claude Code: cuota "rejected",
 ##                                     mensaje "You've hit your limit · resets HH:MM" y error del prompt
 ##   {"exit": true}                    el proceso se mata a sí mismo (simula una caída)
+##   {"hang": true}                    deja el prompt sin responder para siempre, y tampoco contesta
+##                                     el session/cancel (el turno colgado de m17-16)
 ## Un session/cancel corta el turno en curso y responde stopReason "cancelled".
 ## `/remote-control [nombre]` y `/remote-control off` solos en el prompt se contestan como
 ## claude-agent-acp 0.94; al activarlo corren los pasos de "remote_steps" del guion, fuera de un
@@ -248,6 +250,11 @@ func _advance_turn() -> void:
 			var text := "You've hit your limit · resets %s" % reset_time
 			_update({"sessionUpdate": "agent_message_chunk", "messageId": "msg-limit-%d" % _message_counter, "content": {"type": "text", "text": text}})
 			_fail_prompt("Internal error: " + text, {"errorKind": "rate_limit"})
+		elif step.has("hang"):
+			printerr("fake_agent: hang")
+			_steps.clear()
+			_prompt_id = null
+			return
 		elif step.has("exit"):
 			# quit() no termina el proceso mientras el thread lector está bloqueado en stdin:
 			# se simula la caída matando el propio proceso.

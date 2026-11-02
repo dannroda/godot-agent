@@ -1,0 +1,22 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T06:21:31.309Z",
+  "description": "Reporte del usuario (02/11): «las imágenes pegadas no se las da al agente, quedan cargadas y no se usan».\n\nEn agent_dock.gd, las imágenes se juntan en _images y se consumen en _take_context_blocks() cuando el mensaje sale (_send), o pasan a la cola si el agente está ocupado. Estos caminos dejan el chip cargado sin mandar la imagen:\n1. One-shot activo: submit_interceptor → OneShotRun.take_dock_prompt(text) → guide(text) recibe solo el texto (agent_dock.gd ~953, oneshot_run.gd:492). Las imágenes no entran en la guía del run.\n2. Mensajes que empiezan con «/»: van solos a propósito (send_prompt), y los adjuntos quedan para el próximo mensaje sin avisar.\n3. Arranque fallido: en STARTING o DISCONNECTED solo se guarda _pending_prompt (el texto). Si start falla, la imagen queda en el chip.\nFalta confirmar con el usuario en qué caso le pasó.\n\nArreglo:\n- La guía del One-shot acepta bloques (guide(text, blocks)), tanto encolada como enviada ya.\n- Con un comando «/», un aviso: «La imagen va con tu próximo mensaje».\n- Pruebas: oneshot_check con una guía con imagen; test del dock con imagen + comando.",
+  "links": [
+    {
+      "task": "m17-19",
+      "type": "related"
+    }
+  ],
+  "milestone": "m17",
+  "notes": "- OneShotRun.guide(text, blocks) y take_dock_prompt(text, blocks). _guidance_blocks va en paralelo a _guidance (_push_guidance y _pop_guidance devuelven [prompt, blocks]). _run_turn y send_in_mode pasan los bloques a send_prompt.\n- Dock: submit_interceptor(text, take_blocks). El plugin llama a take_blocks (que saca los adjuntos del composer) solo si el One-shot está activo y se queda con el mensaje.\n- Los adjuntos encolados no se guardan con el run: si el editor se cierra, el texto queda y la imagen se pierde.\n- Casos 2 y 3 de la descripción (comando «/», arranque fallido): sin cambios. El usuario confirmó que le pasó con el One-shot.",
+  "order": 18,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Con un One-shot corriendo, pegá una imagen en el chat del dock y escribí algo. El chip se va y el mensaje del run muestra la imagen adjunta. Si el agente estaba en un turno, la actividad dice «queued: … · 📎 1 attachment» y la imagen sale con la guía al terminar el turno. Automático: oneshot_check 140/0 (escenario de presupuestos: la guía encolada con una imagen llega al agente con la imagen), run_all 410/0, oneshot-test en Xvfb PASS.",
+  "title": "Imágenes pegadas en el chat que quedan cargadas y no le llegan al agente",
+  "updated_at": "2026-11-02T07:04:28.313Z"
+}

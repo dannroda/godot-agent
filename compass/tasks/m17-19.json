@@ -1,0 +1,24 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T06:23:16.594Z",
+  "decisions": [
+    {
+      "alternatives": "Reusar la pestaña del run anterior reiniciando su sesión; usar siempre el último agente elegido; preguntar el agente en el formulario del One-shot.",
+      "at": "2026-11-02T07:12:14.298Z",
+      "text": "Cada run abre una pestaña nueva (no reusa la del run anterior), con el agente y la cuenta de la pestaña activa al lanzarlo",
+      "why": "Reusar la pestaña del run anterior seguiría su sesión (start reusa la sesión conectada) y mezclaría dos runs en una conversación. Tomar el agente de la pestaña activa respeta la cuenta elegida por pestaña (m17-12)."
+    }
+  ],
+  "description": "Pedido del usuario (02/11): «el modo debería estar ligado a la sesión, no a todas».\n\nHoy (plugin.gd ~225-245) el One-shot corre en la sesión de la primera pestaña (_model/_controller):\n- submit_interceptor manda todo lo que se escribe ahí a OneShotRun.guide().\n- can_switch_session bloquea abrir otra sesión mientras corre el run.\n- set_oneshot_active cambia el composer.\nMientras dura el run, la primera pestaña deja de ser un chat normal. Las pestañas extra (allow_oneshot = false) no se ven afectadas, pero no es evidente cuál es la del run.\n\nPropuesta:\n- El run abre su propia pestaña, «One-shot · <objetivo>», con su sesión. Esa pestaña lleva el interceptor (con imágenes, ver m17-18), el retry y el composer en modo One-shot.\n- Las demás pestañas, incluida la que estaba abierta, siguen siendo chats normales: pueden cambiar de sesión, abrir el historial y elegir modo.\n- Al terminar o detener el run, su pestaña queda como sesión normal, para leerla o seguir charlando.\n- Retomar un run (recover/resume) reabre su pestaña.\n- El modo del agente (Build/Plan/…) también es por pestaña: confirmar que el run no cambia el de las otras.\n\nPrueba: oneshot-test con dos pestañas. La guía de la pestaña del run llega al run, y la otra manda prompts normales y puede abrir el historial durante el run.",
+  "milestone": "m17",
+  "notes": "- OneShotRun.bind(controller) mueve las conexiones al modelo nuevo y emite controller_changed (la pantalla se reconecta a la cuota y al plan). prepare_session es un hook async que se llama en start() y al retomar un run que vino de disco.\n- plugin: _prepare_oneshot_tab crea la pestaña con _create_session_tab(null, «One-shot · objetivo», for_oneshot = true), copia agente y cuenta de la pestaña activa (AgentDock.copy_agent_from) y hace bind + select. _open_session_tab ahora usa _create_session_tab.\n- _wire_oneshot(dock, id) arma, por id, el interceptor, el retry, can_switch_session, after_login y el modo One-shot del composer, que valen solo si _oneshot.controller es el de esa pestaña (_runs_in). Va en la primera y en todas las pestañas que no son copias. Sin capturar controller ni dock, para no armar ciclos; el listener de changed se desconecta al cerrar.\n- _close_session_tab: con el run activo en esa pestaña no la cierra y avisa. Si el run ya terminó, lo vuelve a la primera sesión.\n- restart_session usa _oneshot.controller y el perfil de su pestaña. agent_name de la pantalla: el del run en curso o el de la pestaña activa.\n- Los tramos viejos del test corren con prepare_session apagado, como antes, en la primera sesión.",
+  "order": 19,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "Con dos pestañas, lanzá un One-shot desde la pantalla One-shot. Aparece una pestaña nueva «One-shot · <objetivo>», ya elegida, con el agente y la cuenta de la pestaña desde la que lo lanzaste. Lo que escribís ahí va al run, y en la primera pestaña podés chatear, cambiar de sesión y abrir el historial como siempre. Cerrar la pestaña del run con el run en curso no se puede (sale un aviso). Al terminar queda como sesión común y se puede cerrar. Retomar un run a medias, después de reabrir el editor, abre su pestaña. Automático: oneshot-test en Xvfb PASS, con el tramo nuevo _check_run_tab (pestaña nueva, el run en su controller, interceptor y can_switch_session por pestaña, composer en modo One-shot solo en la del run, guía que llega, no se cierra en curso, al cerrarla el run vuelve a la primera). run_all 410/0, oneshot_check 140/0, sessions-test PASS.",
+  "title": "One-shot ligado a su sesión: una pestaña propia, sin tomar el dock entero",
+  "updated_at": "2026-11-02T07:12:14.298Z"
+}

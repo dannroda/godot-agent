@@ -192,8 +192,6 @@ msgstr "Se hace un commit final en %s con todo lo que hizo el agente.\nEl harnes
 msgid "a One-shot is running"
 msgstr "hay un One-shot en curso"
 
-msgid "A One-shot is running: stop it before opening another session."
-msgstr "Hay un One-shot en curso: detenelo antes de abrir otra sesión."
 
 msgid "A ready session is needed: open a new one or retry"
 msgstr "Hace falta una sesión lista: abrí una nueva o reintentá"
@@ -973,8 +971,8 @@ msgstr "One-shot · posible loop: %s. Se le pide otro enfoque."
 msgid "One-shot · queued: “%s”. The agent gets it when the current turn ends."
 msgstr "One-shot · en cola: «%s». Le llega al agente al terminar el turno."
 
-msgid "One-shot · the spec is ready for review in the One-shot screen."
-msgstr "One-shot · el spec está listo para revisar en la pantalla One-shot."
+msgid "One-shot · the spec is ready for review in the One-shot screen. To change it, tell the agent here what you want: it updates the spec and waits for your approval again."
+msgstr "One-shot · el spec está listo para revisar en la pantalla One-shot. Para cambiarlo, decile acá al agente qué querés: actualiza el spec y vuelve a esperar tu aprobación."
 
 msgid "One-shot: no task running yet."
 msgstr "One-shot: todavía no hay una tarea en curso."
@@ -1150,8 +1148,8 @@ msgstr "Progreso"
 msgid "Project context (estimated tokens)"
 msgstr "Contexto del proyecto (tokens estimados)"
 
-msgid "Project file…"
-msgstr "Archivo del proyecto…"
+msgid "File…"
+msgstr "Archivo…"
 
 msgid "Project lines"
 msgstr "Líneas del proyecto"
@@ -1892,8 +1890,8 @@ msgstr "No hay ningún juego corriendo."
 msgid "Could not read the image %s."
 msgstr "No se pudo leer la imagen %s."
 
-msgid "Only images and project files can be attached: %s."
-msgstr "Solo se pueden adjuntar imágenes y archivos del proyecto: %s."
+msgid "Could not find: %s."
+msgstr "No se encontró: %s."
 
 msgid "At most %d images per message."
 msgstr "Como mucho %d imágenes por mensaje."
@@ -3949,3 +3947,57 @@ msgstr "Archivos de referencia"
 
 msgid "Reference files:"
 msgstr "Archivos de referencia:"
+
+msgid "The agent didn't confirm the cancellation: the turn was closed here. If it doesn't answer the next message, restart it."
+msgstr "El agente no confirmó la cancelación: el turno se cerró acá. Si no responde el próximo mensaje, reinicialo."
+
+msgid "Restart the agent"
+msgstr "Reiniciar el agente"
+
+msgid "1 attachment"
+msgstr "1 adjunto"
+
+msgid "%d attachments"
+msgstr "%d adjuntos"
+
+msgid "Want changes? Ask for them in the agent's chat: it updates the spec and waits for your approval again. Or edit it yourself with “Edit”."
+msgstr "¿Querés cambios? Pedíselos en el chat del agente: actualiza el spec y vuelve a esperar tu aprobación. O editalo vos con «Editar»."
+
+msgid "One-shot · %s"
+msgstr "One-shot · %s"
+
+msgid "The One-shot runs in this tab: stop it from the One-shot screen before closing it."
+msgstr "El One-shot corre en esta pestaña: detenelo desde la pantalla One-shot antes de cerrarla."
+
+msgid "Opens in a new tab: this one keeps working."
+msgstr "Se abre en una pestaña nueva: esta sigue trabajando."
+
+msgid "This tab is working: the session opens in a new tab"
+msgstr "Esta pestaña está trabajando: la sesión se abre en una nueva"
+
+msgid "The checks the agent reported; the harness reads them for the One-shot"
+msgstr "Las verificaciones que informó el agente; el harness las lee para el One-shot"
+
+msgid "Show JSON"
+msgstr "Ver JSON"
+
+msgid "Checks: %s"
+msgstr "Verificaciones: %s"
+
+msgid "%d unverified"
+msgstr "%d sin verificar"
+
+msgid "1 score"
+msgstr "1 puntaje"
+
+msgid "%d scores"
+msgstr "%d puntajes"
+
+msgid "%d finding"
+msgstr "%d hallazgo"
+
+msgid "%d findings"
+msgstr "%d hallazgos"
+
+msgid "Drag to resize the message box; double-click to fit it to the text"
+msgstr "Arrastrá para cambiar el alto del cuadro; doble clic para que se ajuste al texto"

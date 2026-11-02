@@ -11,6 +11,9 @@ signal settings_requested
 signal registry_requested(query: String)
 ## «+ › Nueva pestaña» (m12-14): otra sesión al lado; `in_copy`, en una copia aparte del proyecto.
 signal new_tab_requested(in_copy: bool)
+## Con esta pestaña trabajando (o con el One-shot en ella), «Nueva sesión» y el historial abren la
+## sesión en otra pestaña con el mismo agente y cuenta (m17-17). `session_id` vacío: una nueva.
+signal open_elsewhere_requested(session_id: String)
 ## Abrir la ventana Extensions: plugins, marketplaces y MCP servers (m7-37).
 signal extensions_requested
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
@@ -90,12 +93,16 @@ const MODE_TOOLTIPS: Dictionary = {
 ## Prompts enviados en este proyecto (flechas en el composer). Datos del usuario, fuera del repo.
 const PROMPT_HISTORY_PATH := "user://godot_agent/prompt_history.json"
 
-## (texto) -> bool: si devuelve true, el texto del composer ya se manejó (p. ej. guía del One-shot).
+## (texto, take_blocks: () -> Array) -> bool: si devuelve true, el texto del composer ya se manejó
+## (p. ej. guía del One-shot); take_blocks entrega los adjuntos y los saca del composer.
 var submit_interceptor: Callable
 ## «Reintentar» de un aviso de error: si devuelve true, otro se ocupó (el One-shot retoma su run).
 var retry_interceptor: Callable
 ## () -> bool: si se puede cambiar de sesión (no con un One-shot en curso). Sin asignar: siempre.
 var can_switch_session: Callable
+## (session_id) -> bool: si esa sesión ya está abierta en otra pestaña, la elige y devuelve true
+## (m17-17); así no queda abierta dos veces.
+var session_focuser: Callable
 ## () -> Variant (async): el frame del juego en ejecución como Image, o el motivo (String) si no hay.
 var game_capture: Callable
 ## `(kind: String, arg: String) -> String`: el texto de una mención especial (m11-08); lo pone el plugin.
@@ -330,7 +337,9 @@ func _build_header() -> void:
 	_new_session_button.icon = AgentTheme.icon(&"Add")
 	_new_session_button.tooltip_text = I18n.t("New session or new tab")
 	_new_session_button.pressed.connect(func() -> void:
-		_new_menu.set_item_disabled(_new_menu.get_item_index(NEW_MENU_SESSION), _new_session_button.disabled)
+		var index := _new_menu.get_item_index(NEW_MENU_SESSION)
+		_new_menu.set_item_disabled(index, _new_session_button.disabled)
+		_new_menu.set_item_tooltip(index, I18n.t("Opens in a new tab: this one keeps working.") if _must_open_elsewhere() else I18n.t("Starts a new conversation in this tab."))
 		var below := _new_session_button.get_screen_position() + Vector2(0, _new_session_button.size.y)
 		_new_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO)))
 	var extensions := Button.new()
@@ -383,7 +392,10 @@ func _build_header() -> void:
 	_new_menu.set_item_tooltip(2, I18n.t("The agent works in a copy of the project on a new branch, outside the project folder, without touching the open editor. When you close its tab you choose whether to apply its changes to the project."))
 	_new_menu.id_pressed.connect(func(id: int) -> void:
 		if id == NEW_MENU_SESSION:
-			new_session()
+			if _must_open_elsewhere():
+				open_elsewhere_requested.emit("")
+			else:
+				new_session()
 		else:
 			new_tab_requested.emit(id == NEW_MENU_TAB_COPY))
 	add_child(_new_menu)
@@ -573,6 +585,19 @@ func selected_profile() -> AgentProfile:
 	return AgentAccounts.apply(profile, str(_accounts.get(profile.id, ""))) if profile else null
 
 
+## Usa el agente y la cuenta elegidos en `other` (la pestaña de un One-shot sale de la que lo
+## lanzó, m17-19). Si `other` ya está conectada, toma la cuenta con la que corre.
+func copy_agent_from(other: Control) -> void:
+	_profile_id = str(other.get(&"_profile_id"))
+	_accounts = (other.get(&"_accounts") as Dictionary).duplicate()
+	var other_controller: SessionController = other.get(&"_controller")
+	var running := other_controller.profile() if other_controller and other_controller.is_connected_to_agent() else null
+	if running:
+		_profile_id = running.id
+		_accounts[running.id] = running.account_dir
+	_reload_profiles()
+
+
 ## El agente de la pestaña tal como está guardado, sin cuenta elegida.
 func _base_profile() -> AgentProfile:
 	var chosen := _settings.profile(_profile_id) if not _profile_id.is_empty() else null
@@ -730,7 +755,7 @@ func _refresh_state() -> void:
 	_composer.set_busy(_model.is_busy())
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
-	_new_session_button.disabled = _model.state == SessionModel.SessionState.STARTING or _model.is_busy()
+	_new_session_button.disabled = _model.state == SessionModel.SessionState.STARTING
 	_refresh_title()
 	_refresh_empty_state()
 
@@ -851,6 +876,9 @@ func _show_history_menu() -> void:
 	_history_items = SessionController.SessionCatalog.merge_session_lists(local_items, _controller.agent_sessions, HISTORY_MENU_SIZE)
 	if _controller.is_connected_to_agent() and _model.supports_list_sessions():
 		_controller.list_agent_sessions(_controller.cwd)
+	if _must_open_elsewhere() and not _history_items.is_empty():
+		# m17-17: con la pestaña ocupada, la sesión elegida se abre en otra.
+		_history_menu.add_separator(I18n.t("This tab is working: the session opens in a new tab"))
 	if _history_items.is_empty():
 		_history_menu.add_item(I18n.t("No saved sessions for this project"))
 		_history_menu.set_item_disabled(0, true)
@@ -870,9 +898,6 @@ func _show_history_menu() -> void:
 	if _history_delete_menu.item_count > 0:
 		_history_menu.add_separator()
 		_history_menu.add_submenu_node_item(I18n.t("Delete session"), _history_delete_menu)
-	var busy := _model.state in [SessionModel.SessionState.STARTING, SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]
-	for i in _history_menu.item_count:
-		_history_menu.set_item_disabled(i, _history_menu.is_item_disabled(i) or busy)
 	var below: Vector2 = _history_button.get_screen_position() + Vector2(0, _history_button.size.y)
 	_history_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO))
 
@@ -929,13 +954,21 @@ func _on_history_delete_selected(index: int) -> void:
 func _on_history_selected(index: int) -> void:
 	if index < 0 or index >= _history_items.size():
 		return
-	# El estado pudo cambiar con el menú abierto.
+	var id := str(_history_items[index].get("id", ""))
+	if session_focuser.is_valid() and session_focuser.call(id):
+		return  # ya estaba abierta en otra pestaña
+	if _must_open_elsewhere():
+		open_elsewhere_requested.emit(id)
+		return
+	open_history_session(id)
+
+
+## Esta pestaña no puede cambiar de sesión ahora: está en un turno (o arrancando) o el One-shot corre
+## en ella. Lo que se pida abrir va a otra pestaña (m17-17).
+func _must_open_elsewhere() -> bool:
 	if _model.state in [SessionModel.SessionState.STARTING, SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
-		return
-	if can_switch_session.is_valid() and not can_switch_session.call():
-		_model.add_notice(I18n.t("A One-shot is running: stop it before opening another session."), ChatEntry.NoticeLevel.WARNING)
-		return
-	open_history_session(str(_history_items[index].get("id", "")))
+		return true
+	return can_switch_session.is_valid() and not can_switch_session.call()
 
 
 ## «Nueva sesión»: con el mismo agente conectado, session/new; si no, lo lanza.
@@ -950,7 +983,8 @@ func new_session() -> void:
 
 func _on_submitted(text: String) -> void:
 	_composer.clear()
-	if submit_interceptor.is_valid() and submit_interceptor.call(text):
+	# El interceptor (One-shot) pide los adjuntos solo si se queda con el mensaje (m17-18).
+	if submit_interceptor.is_valid() and submit_interceptor.call(text, _take_context_blocks):
 		return
 	if _model.is_busy() or (_model.state == SessionModel.SessionState.STARTING and not _pending_prompt.is_empty()):
 		_queue.add(text, _take_context_blocks())
@@ -1100,6 +1134,11 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			if retry_interceptor.is_valid() and retry_interceptor.call():
 				return
 			start_session()
+		SessionController.ACTION_RESTART_AGENT:
+			# Reabre la misma sesión con un proceso nuevo (start detiene el anterior).
+			var id := _model.session_id
+			if id.is_empty() or _model.is_busy() or not await open_history_session(id):
+				start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit(int(payload) if payload is int else 0)
 		SessionController.ACTION_PLAY_FILM:
@@ -1213,11 +1252,12 @@ func _refresh_chips() -> void:
 			"block": {"type": "text", "text": "Selection in the editor (scene %s): %s" % [scene_path, selection]},
 		}
 	chips.merge(_images)
+	# Del proyecto (res://) o de afuera (ruta absoluta, m17-21): el agente los lee por su ruta.
 	for res_path: String in _extra_files:
 		chips[CHIP_FILE_PREFIX + res_path] = {
 			"label": "📄 " + res_path.get_file(),
 			"tooltip": I18n.t("%s (click to remove it)") % res_path,
-			"block": {"type": "resource_link", "uri": EditorContext.file_uri(res_path), "name": res_path.get_file(), "mimeType": "text/plain"},
+			"block": {"type": "resource_link", "uri": EditorContext.file_uri(res_path), "name": res_path.get_file(), "mimeType": _mime_type(res_path)},
 		}
 	if _same_chips(chips) and _composer.has_chips():
 		return
@@ -1262,7 +1302,7 @@ func _on_add_context_pressed() -> void:
 	var script := EditorInterface.get_script_editor().get_current_script()
 	if script and not script.resource_path.is_empty():
 		_add_context_menu.add_item(I18n.t("Current script: %s") % script.resource_path.get_file(), ADD_CONTEXT_SCRIPT)
-	_add_context_menu.add_item(I18n.t("Project file…"), ADD_CONTEXT_FILE)
+	_add_context_menu.add_item(I18n.t("File…"), ADD_CONTEXT_FILE)
 	_add_context_menu.add_item(I18n.t("Viewport screenshot"), ADD_CONTEXT_SCREENSHOT)
 	_add_context_menu.add_item(I18n.t("Game screenshot"), ADD_CONTEXT_GAME)
 	if not EditorInterface.is_playing_scene():
@@ -1282,7 +1322,9 @@ func _on_add_context_selected(id: int) -> void:
 			if _file_dialog == null:
 				_file_dialog = EditorFileDialog.new()
 				_file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILES
-				_file_dialog.access = EditorFileDialog.ACCESS_RESOURCES
+				# Cualquier carpeta (m17-21): arranca en el proyecto y después recuerda la última.
+				_file_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+				_file_dialog.current_dir = ProjectSettings.globalize_path("res://")
 				_file_dialog.title = I18n.t("Add to the context")
 				_file_dialog.files_selected.connect(add_context_files)
 				add_child(_file_dialog)
@@ -1293,10 +1335,10 @@ func _on_add_context_selected(id: int) -> void:
 			_capture_game()
 
 
-## Agrega archivos para el próximo prompt: las imágenes como imagen (de donde sean) y el resto, si
-## es del proyecto, como resource_link.
+## Agrega archivos para el próximo prompt: las imágenes como imagen y el resto como resource_link
+## (res:// si es del proyecto, la ruta absoluta si no), vengan de donde vengan.
 func add_context_files(paths: PackedStringArray) -> void:
-	var outside: PackedStringArray = []
+	var missing: PackedStringArray = []
 	for path: String in paths:
 		if path.get_extension().to_lower() in IMAGE_EXTENSIONS:
 			var image := Image.load_from_file(path)
@@ -1307,12 +1349,28 @@ func add_context_files(paths: PackedStringArray) -> void:
 			continue
 		var res_path := path if path.begins_with("res://") else EditorContext.to_res_path(path)
 		if res_path.is_empty():
-			outside.append(path.get_file())
-		elif not res_path in _extra_files:
+			res_path = path.simplify_path()
+			if not path.is_absolute_path() or not FileAccess.file_exists(res_path):
+				missing.append(path.get_file())
+				continue
+		if not res_path in _extra_files:
 			_extra_files.append(res_path)
-	if not outside.is_empty():
-		_model.add_notice(I18n.t("Only images and project files can be attached: %s.") % ", ".join(outside), ChatEntry.NoticeLevel.WARNING)
+	if not missing.is_empty():
+		_model.add_notice(I18n.t("Could not find: %s.") % ", ".join(missing), ChatEntry.NoticeLevel.WARNING)
 	_refresh_chips()
+
+
+static func _mime_type(path: String) -> String:
+	match path.get_extension().to_lower():
+		"pdf":
+			return "application/pdf"
+		"json":
+			return "application/json"
+		"md", "markdown":
+			return "text/markdown"
+		"html", "htm":
+			return "text/html"
+	return "text/plain"
 
 
 ## Adjunta `image` al próximo prompt (achicada a EditorContext.MAX_IMAGE_SIDE).

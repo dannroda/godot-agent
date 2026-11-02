@@ -4,12 +4,13 @@ extends "entry_view.gd"
 ## (con copiar), entre los tramos de texto. Los thoughts se muestran colapsados, en un solo label.
 ## El streaming refresca muchas veces por segundo: la conversión se agrupa una vez por frame y los
 ## controles de cada tramo se reusan mientras no cambie de tipo. En Revisar, el bloque `findings`
-## que el harness ya leyó va plegado detrás de una línea con la cantidad (m12-38).
+## que el harness ya leyó va plegado detrás de una línea con la cantidad (m12-38). En One-shot, el
+## bloque de checks (y en QA puntajes y hallazgos) se pliega en un resumen legible (m17-20).
 
 const CodeBlockView := preload("../../markdown/code_block_view.gd")
 const FindingsParser := preload("../../../review/findings_parser.gd")
 
-enum SegmentKind { TEXT, CODE, FINDINGS }
+enum SegmentKind { TEXT, CODE, FINDINGS, CHECKS }
 
 var _toggle: Button
 var _label: RichTextLabel  # solo en los thoughts
@@ -67,8 +68,13 @@ func _flush() -> void:
 	for i in blocks.size():
 		var block: Dictionary = blocks[i]
 		var kind := SegmentKind.TEXT
+		var report: Dictionary = {}
 		if block.has("code"):
-			kind = SegmentKind.FINDINGS if entry.findings_count >= 0 and FindingsParser.is_findings_block(block.code) else SegmentKind.CODE
+			if entry.findings_count >= 0 and FindingsParser.is_findings_block(block.code):
+				kind = SegmentKind.FINDINGS
+			else:
+				report = FindingsParser.report_block(block.code)
+				kind = SegmentKind.CODE if report.is_empty() else SegmentKind.CHECKS
 		var child: Control = _segments.get_child(i) if i < _segments.get_child_count() else null
 		if child != null and _kind_of(child) != kind:
 			_segments.remove_child(child)
@@ -80,6 +86,8 @@ func _flush() -> void:
 					child = CodeBlockView.new()
 				SegmentKind.FINDINGS:
 					child = _make_findings_fold()
+				SegmentKind.CHECKS:
+					child = _make_report_fold()
 				_:
 					child = _make_text_label()
 					child.add_theme_stylebox_override(&"normal", StyleBoxEmpty.new())
@@ -90,6 +98,8 @@ func _flush() -> void:
 				(child as CodeBlockView).set_code(block.code, block.language, markdown)
 			SegmentKind.FINDINGS:
 				_update_findings_fold(child, block)
+			SegmentKind.CHECKS:
+				_update_report_fold(child, block, report)
 			_:
 				if (child as RichTextLabel).text != block.bbcode:
 					(child as RichTextLabel).text = block.bbcode
@@ -102,6 +112,8 @@ func _flush() -> void:
 func _kind_of(child: Control) -> SegmentKind:
 	if child.has_meta(&"findings_fold"):
 		return SegmentKind.FINDINGS
+	if child.has_meta(&"report_fold"):
+		return SegmentKind.CHECKS
 	return SegmentKind.CODE if child is CodeBlockView else SegmentKind.TEXT
 
 
@@ -137,6 +149,110 @@ func _findings_fold_text(open: bool) -> String:
 	var count := entry.findings_count
 	var summary := (I18n.t("%d finding · in the Review panel and the Script Editor") if count == 1 else I18n.t("%d findings · in the Review panel and the Script Editor")) % count
 	return ("▾ " if open else "▸ ") + summary
+
+
+## «▸ Checks: 6 ✓ · 1 ✗ · 2 sin verificar»: abre la lista legible; el JSON queda detrás de otro botón.
+func _make_report_fold() -> VBoxContainer:
+	var fold := VBoxContainer.new()
+	fold.set_meta(&"report_fold", true)
+	var toggle := _fold_button()
+	toggle.tooltip_text = I18n.t("The checks the agent reported; the harness reads them for the One-shot")
+	fold.add_child(toggle)
+	var body := VBoxContainer.new()
+	body.visible = false
+	fold.add_child(body)
+	var list := make_rich_label()
+	list.add_theme_stylebox_override(&"normal", StyleBoxEmpty.new())
+	body.add_child(list)
+	var json_toggle := _fold_button()
+	json_toggle.text = "▸ " + I18n.t("Show JSON")
+	body.add_child(json_toggle)
+	var code := CodeBlockView.new()
+	code.visible = false
+	body.add_child(code)
+	toggle.toggled.connect(func(open: bool) -> void:
+		body.visible = open
+		toggle.text = ("▾ " if open else "▸ ") + str(fold.get_meta(&"summary", "")))
+	json_toggle.toggled.connect(func(open: bool) -> void:
+		code.visible = open
+		json_toggle.text = ("▾ " if open else "▸ ") + I18n.t("Show JSON"))
+	return fold
+
+
+func _update_report_fold(fold: Control, block: Dictionary, report: Dictionary) -> void:
+	var toggle := fold.get_child(0) as Button
+	var body := fold.get_child(1) as Control
+	var summary := report_summary(report)
+	fold.set_meta(&"summary", summary)
+	toggle.text = ("▾ " if toggle.button_pressed else "▸ ") + summary
+	var list := body.get_child(0) as RichTextLabel
+	var bbcode := report_bbcode(report)
+	if list.text != bbcode:
+		list.text = bbcode
+	(body.get_child(2) as CodeBlockView).set_code(block.code, block.language, markdown)
+
+
+## «Checks: 6 ✓ · 1 ✗ · 2 sin verificar · 4 puntajes · 3 hallazgos».
+static func report_summary(report: Dictionary) -> String:
+	var counts := {"pass": 0, "fail": 0, "pending": 0}
+	for check: Dictionary in report.checks:
+		counts[check.status] = int(counts.get(check.status, 0)) + 1
+	var parts: PackedStringArray = []
+	if not report.checks.is_empty():
+		parts.append("%d ✓" % counts["pass"])
+		parts.append("%d ✗" % counts["fail"])
+		if counts["pending"] > 0:
+			parts.append(I18n.t("%d unverified") % counts["pending"])
+	if not report.scores.is_empty():
+		parts.append(I18n.t("1 score") if report.scores.size() == 1 else I18n.t("%d scores") % report.scores.size())
+	if not report.findings.is_empty():
+		parts.append((I18n.t("%d finding") if report.findings.size() == 1 else I18n.t("%d findings")) % report.findings.size())
+	return I18n.t("Checks: %s") % " · ".join(parts)
+
+
+## La lista legible: una línea por check (con el detalle atenuado), por puntaje y por hallazgo.
+static func report_bbcode(report: Dictionary) -> String:
+	var muted := AgentTheme.MUTED.to_html(false)
+	var lines: PackedStringArray = []
+	for check: Dictionary in report.checks:
+		var icon: String = {"pass": "[color=#5fb85f]✓[/color]", "fail": "[color=#e06c6c]✗[/color]"}.get(check.status, "[color=#%s]○[/color]" % muted)
+		var line := "%s %s" % [icon, _escape(check.label)]
+		if not str(check.detail).is_empty():
+			line += " [color=#%s]— %s[/color]" % [muted, _escape(check.detail)]
+		lines.append(line)
+	if not report.scores.is_empty():
+		lines.append("")
+		for score: Dictionary in report.scores:
+			var line := "[b]%s[/b] %s/10" % [_escape(score.criterion), String.num(score.score, 1).trim_suffix(".0")]
+			if not str(score.reason).is_empty():
+				line += " [color=#%s]— %s[/color]" % [muted, _escape(score.reason)]
+			lines.append(line)
+	if not report.findings.is_empty():
+		lines.append("")
+		for finding: Dictionary in report.findings:
+			var where := str(finding.get("path", finding.get("node", "")))
+			if int(finding.get("line", 0)) > 0:
+				where += ":%d" % int(finding.line)
+			var line := "• %s" % _escape(finding.title)
+			if not where.is_empty():
+				line += " [color=#%s](%s)[/color]" % [muted, _escape(where)]
+			lines.append(line)
+	return "\n".join(lines)
+
+
+static func _escape(text: String) -> String:
+	return text.replace("[", "[lb]")
+
+
+func _fold_button() -> Button:
+	var button := Button.new()
+	button.flat = true
+	button.toggle_mode = true
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.clip_text = true
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	button.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	return button
 
 
 func _make_text_label() -> RichTextLabel:

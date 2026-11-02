@@ -770,6 +770,41 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	if not chips.has("file:res://project.godot"):
 		_finish(1, "+ contexto no agregó el chip del archivo")
 		return
+	# El cuadro de texto crece con 30 líneas, sin pasar del 40 % del dock ni tapar el chat (m17-22).
+	var text_box: Control = dock.get(&"_composer")
+	var input: Control = text_box.get(&"_input")
+	var rest_height := input.size.y
+	text_box.call(&"insert_text", "\n".join(range(30).map(func(i: int) -> String: return "línea %d" % i)))
+	for i in 3:
+		await get_tree().process_frame
+	var conversation: Control = dock.get(&"_conversation")
+	var grown := input.size.y
+	if grown <= rest_height * 1.5 or grown > dock.size.y * 0.41 or conversation.get_global_rect().end.y > text_box.get_global_rect().position.y + 1:
+		_finish(1, "el composer no creció bien: %.0f → %.0f (dock %.0f), chat hasta %.0f, composer desde %.0f" % [rest_height, grown, dock.size.y, conversation.get_global_rect().end.y, text_box.get_global_rect().position.y])
+		return
+	if not shot_path.is_empty():
+		var shot := get_viewport().get_texture().get_image()
+		shot.save_png(shot_path.get_basename() + "_composer.png")
+	text_box.call(&"clear")
+	for i in 3:
+		await get_tree().process_frame
+	if not is_equal_approx(input.size.y, rest_height):
+		_finish(1, "el composer no volvió al alto de reposo: %.0f" % input.size.y)
+		return
+	# Un texto de afuera del proyecto va como resource_link con su ruta absoluta (m17-21).
+	var outside_md := OS.get_user_data_dir().path_join("ui_test_notes.md")
+	var md_file := FileAccess.open(outside_md, FileAccess.WRITE)
+	md_file.store_string("# notas\n")
+	md_file.close()
+	dock.call(&"add_context_files", PackedStringArray([outside_md, "/no/existe/x.md"]))
+	chips = dock.get(&"_chips")
+	var md_chip: Dictionary = chips.get("file:" + outside_md, {})
+	if md_chip.is_empty() or md_chip.block.type != "resource_link" or md_chip.block.uri != "file://" + outside_md or md_chip.block.mimeType != "text/markdown":
+		_finish(1, "un .md de afuera no quedó como resource_link: %s" % [md_chip])
+		return
+	if chips.has("file:/no/existe/x.md"):
+		_finish(1, "adjuntó un archivo que no existe")
+		return
 	# Imágenes: un archivo de afuera del proyecto (como al pegar archivos copiados) y una pegada,
 	# grande, que se achica.
 	var outside_png := OS.get_user_data_dir().path_join("ui_test_attach.png")
@@ -789,8 +824,10 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		return
 	dock.call(&"_on_submitted", "hola, ¿qué hay que hacer con las oleadas?")
 	chips = dock.get(&"_chips")
-	if chips.has("file:res://project.godot") or chips.keys().any(func(id: String) -> bool: return id.begins_with("image:")):
+	if chips.has("file:res://project.godot") or chips.has("file:" + outside_md) or chips.keys().any(func(id: String) -> bool: return id.begins_with("image:")):
 		_finish(1, "los adjuntos siguieron después de enviar: %s" % [chips.keys()])
+		return
+	if scenario == "ui_quota_busy" and not await _check_ring_tooltip(dock, shot_path):
 		return
 	while int(model.get(&"state")) != 2:  # READY
 		await get_tree().process_frame
@@ -803,8 +840,10 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		var composer: Control = dock.get(&"_composer")
 		var send: Button = composer.get(&"_send_button")
 		var meter: Control = dock.get(&"_quota_ring")
-		if not (send.disabled and send.text.begins_with("⏳") and meter.is_visible_in_tree() and str(meter.get(&"tooltip_text")).contains("\n")):
+		if not (send.disabled and send.text.begins_with("⏳") and meter.is_visible_in_tree() and str(meter.get(&"hint_text")).contains("\n")):
 			_finish(1, "cuota: el envío no quedó bloqueado (%s, disabled=%s) o no se ve el medidor" % [send.text, send.disabled])
+			return
+		if not await _check_ring_tooltip(dock, shot_path):
 			return
 	if scenario == "ui_markdown" and not await _check_markdown_and_viewer(dock, shot_path):
 		return
@@ -813,6 +852,52 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		image.save_png(shot_path)
 	controller.call(&"stop")
 	_finish(0, "ui-test %s" % scenario)
+
+
+## m17-14: el tooltip del anillo de cuota sigue abierto con el mouse encima, aunque el dock lo
+## refresque cada segundo y el turno vaya cambiando el contexto usado.
+func _check_ring_tooltip(dock: Control, shot_path: String = "") -> bool:
+	var ring: Control = dock.get(&"_quota_ring")
+	await get_tree().create_timer(0.5).timeout
+	var hover := InputEventMouseMotion.new()
+	hover.position = ring.get_global_rect().get_center()
+	hover.global_position = hover.position
+	ring.get_viewport().push_input(hover)
+	var seen: Array[bool] = []
+	for i in 8:
+		await get_tree().create_timer(0.5).timeout
+		seen.append(bool(ring.call(&"is_hint_visible")))
+	print("[ui-test] detalle del anillo: %s" % [seen])
+	var panel: Control = ring.get(&"_hint_panel")
+	if not seen.slice(2).all(func(open: bool) -> bool: return open) or panel == null:
+		_finish(1, "cuota: el detalle del anillo no quedó abierto con el mouse encima: %s" % [seen])
+		return false
+	# Arriba del anillo, sin tapar el mouse (lo que cerraba el tooltip de Godot), y adentro de la ventana.
+	var area := ring.get_viewport().get_visible_rect()
+	if panel.get_global_rect().has_point(hover.position) or not area.encloses(panel.get_global_rect()) or panel.get_global_rect().end.y > ring.get_global_rect().position.y:
+		_finish(1, "cuota: el detalle tapa el mouse o se sale de la ventana: %s, anillo %s" % [panel.get_global_rect(), ring.get_global_rect()])
+		return false
+	if not shot_path.is_empty():
+		ring.get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_quota_hint.png")
+	if _tooltip_open(ring.get_viewport()):
+		_finish(1, "cuota: además del panel se abrió el tooltip de Godot")
+		return false
+	var away := InputEventMouseMotion.new()
+	away.position = Vector2(10, 10)
+	away.global_position = away.position
+	ring.get_viewport().push_input(away)
+	await get_tree().create_timer(0.2).timeout
+	if bool(ring.call(&"is_hint_visible")):
+		_finish(1, "cuota: el detalle no se cerró al sacar el mouse")
+		return false
+	return true
+
+
+func _tooltip_open(viewport: Viewport) -> bool:
+	for node: Node in viewport.find_children("*", "Window", true, false):
+		if (node as Window).visible and node.get_class() in ["PopupPanel", "TooltipPanel"]:
+			return true
+	return false
 
 
 ## m7-28/m7-29: el mensaje del agente lleva su bloque de código en una caja aparte, y un clic en la

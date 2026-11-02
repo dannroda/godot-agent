@@ -47,6 +47,8 @@ const I18n := preload("../core/i18n.gd")
 
 ## Turnos seguidos que la verificación al terminar un turno manda para corregir errores (m11-04).
 const MAX_FIX_TURNS := 2
+## Lo que se espera a que el agente confirme un session/cancel antes de cerrar el turno acá (m17-16).
+const CANCEL_TIMEOUT_SEC := 8.0
 const PROTOCOL_VERSION := 1
 const CLIENT_NAME := "godot-agent-harness"
 const CLIENT_TITLE := "Godot Agent Harness"
@@ -73,6 +75,8 @@ const ACTION_TURN_RESTORE := "turn_restore"
 ## Guardar el reporte del turno (m11-06), con la misma `data`.
 const ACTION_TURN_REPORT := "turn_report"
 const ACTION_SHOW_LOG := "show_log"
+## Reinicia el agente y retoma la misma sesión (el agente no respondió a una cancelación, m17-16).
+const ACTION_RESTART_AGENT := "restart_agent"
 ## Errores al lanzar el agente (m12-13): abrir Ajustes › Agentes, o el registro de ACP para
 ## reinstalar un agente que vino de ahí.
 const ACTION_EDIT_AGENT := "edit_agent"
@@ -191,6 +195,9 @@ var _sending_fix: bool = false
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
 var _note_for_agent: String = ""
 var _connect_generation: int = 0
+## Id del session/prompt en vuelo (-1 si no hay): la cancelación sin respuesta lo despierta (m17-16).
+var _prompt_request_id: int = -1
+var _cancel_generation: int = 0
 var _mode_syncs_running: int = 0
 ## El último _load_session falló por el agente (sin loadSession o error), no por una cancelación.
 var _load_failed: bool = false
@@ -447,7 +454,9 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var playtest_minutes := ReviewStore.playtest_minutes(text.strip_edges())
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(Time.get_ticks_msec() + playtest_minutes * 60000)
+	_prompt_request_id = client.next_request_id()
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
+	_prompt_request_id = -1
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(0)
 	if playtest_turn:
@@ -463,6 +472,12 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		var playtest: Dictionary = ReviewStore.FindingsParser.parse(turn_text, cwd).playtest
 		if not playtest.is_empty():
 			_report_playtest(playtest, turn_text, first_new_entry, text)
+	if not result.ok and int(result.error.get("code", 0)) == AcpClient.ERR_REQUEST_CANCELLED:
+		# Lo cerró _watch_cancel: el agente no confirmó la cancelación.
+		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
+			model.finish_turn("cancelled")
+		_record_turn_end("cancelled")
+		return "cancelled"
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
 		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
@@ -482,6 +497,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if result.result is Dictionary:
 		stop_reason = str(result.result.get("stopReason", stop_reason))
 		last_turn_usage = result.result.get("usage", {}) if result.result.get("usage") is Dictionary else {}
+	agent_log.add(AgentLog.CH_ACP, "Turn ended: %s" % stop_reason)
 	if stop_reason == "end_turn" and quota.matching_line(turn_text).is_empty():
 		quota.observe_turn_ok()
 	model.finish_turn(stop_reason)
@@ -685,10 +701,10 @@ func _fold_findings(first_entry: int) -> void:
 
 
 ## Cambia el modo del harness y manda el turno cuando el agente ya está en el modo que corresponde.
-func send_in_mode(mode: SessionModel.HarnessMode, text: String) -> String:
+func send_in_mode(mode: SessionModel.HarnessMode, text: String, extra_blocks: Array = []) -> String:
 	if model.harness_mode != mode:
 		model.set_harness_mode(mode)
-	return await send_prompt(text)
+	return await send_prompt(text, extra_blocks)
 
 
 func cancel() -> void:
@@ -697,6 +713,30 @@ func cancel() -> void:
 	model.set_state(SessionModel.SessionState.CANCELLING)
 	client.notify("session/cancel", {"sessionId": model.session_id})
 	model.cancel_pending_permissions()
+	_cancel_generation += 1
+	_watch_cancel(_cancel_generation, _connect_generation)
+
+
+## Si el agente no confirma la cancelación a tiempo (no tenía un turno abierto, o se colgó), el turno
+## se cierra acá: el chat no queda en «cancelando» para siempre y la cola sigue (m17-16).
+func _watch_cancel(generation: int, connect_generation: int) -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	await tree.create_timer(CANCEL_TIMEOUT_SEC, true, false, true).timeout
+	if generation != _cancel_generation or connect_generation != _connect_generation:
+		return
+	if model.state != SessionModel.SessionState.CANCELLING:
+		return
+	agent_log.add(AgentLog.CH_ACP, "The agent didn't confirm the cancellation in %d s: the turn is closed here." % int(CANCEL_TIMEOUT_SEC))
+	model.add_notice(I18n.t("The agent didn't confirm the cancellation: the turn was closed here. If it doesn't answer the next message, restart it."),
+		ChatEntry.NoticeLevel.WARNING, [{"id": ACTION_RESTART_AGENT, "label": I18n.t("Restart the agent")}, {"id": ACTION_SHOW_LOG, "label": I18n.t("Open the log below"), "data": agent_log.last_seq()}])
+	# Con el prompt todavía en vuelo, despertarlo cierra el turno en send_prompt; si ya no está (la
+	# respuesta llegó y algo cortó antes de cerrar el turno), se cierra acá.
+	if _prompt_request_id >= 0 and client.cancel_request(_prompt_request_id):
+		return
+	model.finish_turn("cancelled")
+	_record_turn_end("cancelled")
 
 
 func set_config_option(id: String, value: String) -> bool:

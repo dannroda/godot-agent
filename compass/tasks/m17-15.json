@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T05:24:43.186Z",
+  "description": "Pregunta del usuario (02/11): con el spec en revisión, ¿se le pueden pedir cambios al agente desde el chat? Sí se puede, pero no está claro.\n\nHoy: en SPEC_REVIEW, lo que se escribe en el chat del dock se manda ya (OneShotRun, oneshot_run.gd:534) y al terminar el turno vuelve a SPEC_REVIEW porque _awaiting_spec sigue en true (línea 756). Problemas:\n1. La pantalla no lo dice: la barra del spec (agent_main_screen.gd ~486) solo tiene «Editar» y «Aprobar spec». Solo lo menciona el aviso de cuando falta spec.md.\n2. El mensaje va crudo: la orden de no construir estaba solo en el prompt inicial, así que «cambiá los controles a WASD» puede hacer que el agente construya antes de la aprobación.\n\nArreglo:\n- Una nota bajo la barra del spec: «¿Querés cambios? Pedíselos en el chat: el agente actualiza el spec y vuelve a esperar tu aprobación». Que el aviso del chat de _enter_spec_review lo diga también.\n- Si phase es SPEC_REVIEW o _awaiting_spec, envolver la guía: «Apply this to spec.md and end the turn without building: the user still has to approve it.» También la que queda en cola.\n- i18n es.po, wiki One-shot en/es y CHANGELOG.\n\nPrueba: oneshot_check con un mensaje en revisión de spec (el prompt sale envuelto y el run vuelve a SPEC_REVIEW) y la nota visible en oneshot-test.",
+  "milestone": "m17",
+  "notes": "- OneShotRun._user_prompt(text): mientras _awaiting_spec, el mensaje del usuario sale como «The user hasn't approved the spec yet and asks for this: … Apply it to <dir>/spec.md (answer in the chat if it's a question) and end the turn without building anything». Vale para el mensaje que sale ya y para el que estaba en cola (_pop_guidance).\n- Pantalla: _plan_note cambia de texto en la revisión (antes se ocultaba). Aviso del chat de _enter_spec_review ampliado. es.po, wiki One-shot en/es y CHANGELOG.",
+  "order": 15,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "One-shot con «Revisar el spec antes de construir». Cuando aparece «Spec para revisar», la columna dice «¿Querés cambios? Pedíselos en el chat del agente…» y el aviso del chat también lo dice. Escribí en el chat «sumá power-ups»: el agente actualiza spec.md, no construye y el run vuelve a «Spec para revisar». Automático: oneshot_check 140/0 (escenario spec: el pedido sale envuelto con la ruta de spec.md y «without building», y el run vuelve a SPEC_REVIEW). oneshot-test en Xvfb PASS.",
+  "title": "One-shot: dejar claro que el spec se puede cambiar desde el chat",
+  "updated_at": "2026-11-02T07:04:28.345Z"
+}

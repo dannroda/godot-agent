@@ -124,6 +124,8 @@ var _regressions_running: bool = false
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 var _review_annotations: ReviewAnnotations
 var _oneshot: OneShotRun
+## La pestaña de sesión del run (m17-19): el One-shot corre en la suya, no en la primera.
+var _oneshot_tab_id: String = ""
 var _settings_dialog: SettingsDialog
 var _extensions_window: ExtensionsWindow
 var _main_screen: Control
@@ -212,9 +214,11 @@ func _enter_tree() -> void:
 	_oneshot.setup(_controller, EditorContext.project_path())
 	_oneshot.after_restore = _after_oneshot_restore
 	_oneshot.restart_session = func(lost_id: String) -> bool:
-		# El agente con el que corría el run (otra pestaña puede haber elegido otro).
-		var profile := _controller.profile() if _controller.profile() else _tab_profile(PRIMARY_SESSION)
-		return profile != null and await _controller.reopen(profile, lost_id)
+		# El agente con el que corría el run, o el elegido en su pestaña.
+		var controller := _oneshot.controller
+		var profile := controller.profile() if controller.profile() else _tab_profile(_session_id_of(controller))
+		return profile != null and await controller.reopen(profile, lost_id)
+	_oneshot.prepare_session = _prepare_oneshot_tab
 	_oneshot.resume_auto = _settings.quota_resume_auto()
 	_oneshot.store.dir = ONESHOT_STORE_DIR
 	_oneshot.loops.repeats = _project_config.loop_repeats
@@ -233,15 +237,10 @@ func _enter_tree() -> void:
 		_settings_dialog.open_registry(query))
 	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
-	dock.submit_interceptor = func(text: String) -> bool: return _oneshot != null and _oneshot.take_dock_prompt(text)
-	dock.retry_interceptor = func() -> bool: return _oneshot != null and _oneshot.take_dock_retry(_model)
-	_controller.after_login = func() -> bool: return _oneshot != null and _oneshot.take_login()
-	dock.can_switch_session = func() -> bool: return not _oneshot.is_active()
 	dock.game_capture = _capture_game_for_dock
 	dock.context_provider = _context_for_mention
-	_oneshot.changed.connect(func() -> void:
-		if is_instance_valid(dock):
-			dock.set_oneshot_active(_oneshot.is_active()))
+	_wire_oneshot(dock, PRIMARY_SESSION)
+	_wire_elsewhere(dock, PRIMARY_SESSION)
 	var log_panel := AgentLogPanelScene.instantiate()
 	_log_panel = log_panel
 	log_panel.setup(_log)
@@ -265,8 +264,9 @@ func _enter_tree() -> void:
 	_main_screen.diff_requested.connect(_diff_dialog.show_diff)
 	_main_screen.settings_requested.connect(_open_settings)
 	_main_screen.agent_name = func() -> String:
-		# El de la sesión abierta, o el que se va a usar al abrir una.
-		var profile := _controller.profile() if _controller and _controller.profile() else _tab_profile(PRIMARY_SESSION)
+		# El del run en curso; si no, el de la pestaña activa, que es el que va a usar el próximo run.
+		var controller := _oneshot.controller if _oneshot else null
+		var profile := controller.profile() if controller and _oneshot.is_active() and controller.profile() else _tab_profile()
 		return profile.display_name if profile else ""
 	_settings.changed.connect(func(key: String) -> void:
 		if _main_screen and key in [HarnessSettings.KEY_PROFILES, HarnessSettings.KEY_LAST_PROFILE]:
@@ -555,7 +555,7 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_remote_activity.undo(int(payload))
 		ACTION_ONESHOT_RESUME:
 			if _oneshot:
-				_oneshot.take_dock_retry(_model)
+				_oneshot.take_dock_retry(_oneshot.model)
 		ACTION_ONESHOT_SHOW:
 			if _surfaces:
 				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
@@ -1127,19 +1127,37 @@ func _open_session_tab(in_copy: bool = false) -> void:
 		if not await copy.create(stamp):
 			EditorInterface.get_editor_toaster().push_toast(I18n.t("Could not create the separate copy: %s") % copy.last_error, EditorToaster.SEVERITY_WARNING)
 			return
+	var id := _create_session_tab(copy)
+	var model := _model_of(id)
+	var controller := _controller_of(id)
+	if copy:
+		model.add_notice(I18n.t("This session works in a separate copy of the project, %s, on the branch %s (from your last commit: uncommitted changes aren't in it). The open editor isn't touched. When you close the tab you choose whether to apply its changes to the project.") % [copy.info.project, copy.info.branch])
+		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
+
+
+## Agrega una pestaña de sesión y devuelve su id. `label` vacío: «Sesión N». `for_oneshot`: la
+## pestaña de un run (m17-19), que puede mostrar el modo One-shot.
+func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_oneshot: bool = false) -> String:
 	_session_serial += 1
 	var id := "s%d" % _session_serial
-	var pattern := I18n.t("Session %d (copy)") if copy else I18n.t("Session %d")
-	var label := pattern % _session_serial
-	while _coordinator.label_taken(label, id):  # alguna otra se renombró así
-		_session_serial += 1
+	if label.is_empty():
+		var pattern := I18n.t("Session %d (copy)") if copy else I18n.t("Session %d")
 		label = pattern % _session_serial
+		while _coordinator.label_taken(label, id):  # alguna otra se renombró así
+			_session_serial += 1
+			label = pattern % _session_serial
+	else:
+		var base := label
+		var n := 2
+		while _coordinator.label_taken(label, id):
+			label = "%s (%d)" % [base, n]
+			n += 1
 	var model := SessionModel.new()
 	var controller := _make_controller(model, id, copy)
 	_extra_sessions[id] = {"model": model, "controller": controller, "copy": copy}
 	_coordinator.register(id, label)
 	var dock := AgentDockScene.instantiate()
-	dock.allow_oneshot = false
+	dock.allow_oneshot = for_oneshot
 	dock.setup(model, controller, _settings)
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
@@ -1148,11 +1166,92 @@ func _open_session_tab(in_copy: bool = false) -> void:
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
 	dock.context_provider = _context_for_mention
+	if copy == null:
+		_wire_oneshot(dock, id)
+	_wire_elsewhere(dock, id)
 	_tabs.add_session(id, dock, model, label)
 	_log.add(AgentLog.CH_ACP, "%s opened" % label)
-	if copy:
-		model.add_notice(I18n.t("This session works in a separate copy of the project, %s, on the branch %s (from your last commit: uncommitted changes aren't in it). The open editor isn't touched. When you close the tab you choose whether to apply its changes to the project.") % [copy.info.project, copy.info.branch])
-		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
+	return id
+
+
+## Lo del One-shot en el dock de la pestaña `id` vale solo si el run corre en esa sesión (m17-19):
+## la guía (con adjuntos), «Reintentar», el login, cambiar de sesión y el composer en modo One-shot.
+## Todo por id: un Callable que capture el controller o el dock armaría ciclos al cerrar la pestaña.
+func _wire_oneshot(dock: AgentDock, id: String) -> void:
+	dock.submit_interceptor = func(text: String, take_blocks: Callable) -> bool:
+		return _runs_in(id) and _oneshot.is_active() and _oneshot.take_dock_prompt(text, take_blocks.call())
+	dock.retry_interceptor = func() -> bool: return _runs_in(id) and _oneshot.take_dock_retry(_model_of(id))
+	dock.can_switch_session = func() -> bool: return not (_runs_in(id) and _oneshot.is_active())
+	_controller_of(id).after_login = func() -> bool: return _runs_in(id) and _oneshot.take_login()
+	var listener := func() -> void:
+		var tab_dock := _tabs.dock(id) as AgentDock if _tabs else dock
+		if is_instance_valid(tab_dock):
+			tab_dock.set_oneshot_active(_runs_in(id) and _oneshot.is_active())
+	_oneshot.changed.connect(listener)
+	if id != PRIMARY_SESSION:
+		_extra_sessions[id]["oneshot_listener"] = listener
+
+
+## m17-17: con la pestaña `id` ocupada, «Nueva sesión» y el historial abren en otra; y una sesión que
+## ya está abierta en otra pestaña se elige en vez de abrirla dos veces.
+func _wire_elsewhere(dock: AgentDock, id: String) -> void:
+	dock.open_elsewhere_requested.connect(func(session_id: String) -> void: _open_elsewhere(id, session_id))
+	dock.session_focuser = func(session_id: String) -> bool: return _focus_session(id, session_id)
+
+
+func _open_elsewhere(from: String, session_id: String) -> void:
+	var id := _create_session_tab()
+	var dock := _tabs.dock(id) as AgentDock
+	var source := _tabs.dock(from) as AgentDock
+	if dock and source:
+		dock.copy_agent_from(source)
+	_tabs.select(id)
+	if session_id.is_empty():
+		dock.start_session()
+	else:
+		dock.open_history_session(session_id)
+
+
+func _focus_session(from: String, session_id: String) -> bool:
+	if session_id.is_empty():
+		return false
+	for id: String in [PRIMARY_SESSION] + _extra_sessions.keys():
+		var model := _model_of(id)
+		if id != from and model and model.session_id == session_id:
+			_tabs.select(id)
+			return true
+	return false
+
+
+## true si el One-shot corre en la sesión de la pestaña `id`.
+func _runs_in(id: String) -> bool:
+	return _oneshot != null and _controller_of(id) != null and _oneshot.controller == _controller_of(id)
+
+
+func _session_id_of(controller: SessionController) -> String:
+	if controller == _controller:
+		return PRIMARY_SESSION
+	for id: String in _extra_sessions:
+		if _extra_sessions[id].controller == controller:
+			return id
+	return PRIMARY_SESSION
+
+
+## Antes de empezar un run (o de retomar uno que vino de disco): una pestaña nueva para él, con el
+## agente y la cuenta de la pestaña desde la que se lanzó (m17-19). Las demás siguen como chats.
+func _prepare_oneshot_tab() -> void:
+	if _oneshot == null or _tabs == null:
+		return
+	var from := _active_session_id()
+	var label := I18n.t("One-shot · %s") % _oneshot.goal.left(24).strip_edges()
+	var id := _create_session_tab(null, label, true)
+	var dock := _tabs.dock(id) as AgentDock
+	var source := _tabs.dock(from) as AgentDock
+	if dock and source and from != id:
+		dock.copy_agent_from(source)
+	_oneshot_tab_id = id
+	_oneshot.bind(_controller_of(id))
+	_tabs.select(id)
 
 
 ## Cerrar una pestaña. Una sesión en una copia (m11-09) primero commitea lo suyo en su rama y, si
@@ -1161,6 +1260,14 @@ func _close_session_tab(id: String, ask: bool = true) -> void:
 	var session: Dictionary = _extra_sessions.get(id, {})
 	if session.is_empty():
 		return
+	if _runs_in(id) and _oneshot.is_active():
+		(session.model as SessionModel).add_notice(I18n.t("The One-shot runs in this tab: stop it from the One-shot screen before closing it."), ChatEntry.NoticeLevel.WARNING)
+		return
+	if _runs_in(id):  # el run terminado vuelve a la primera sesión; la pestaña se va
+		_oneshot.bind(_controller)
+		_oneshot_tab_id = ""
+	if session.has("oneshot_listener") and _oneshot and _oneshot.changed.is_connected(session.oneshot_listener):
+		_oneshot.changed.disconnect(session.oneshot_listener)
 	var copy: WorktreeSession = session.get("copy")
 	if copy and ask and not session.get("resolved", false):
 		(session.controller as SessionController).stop()

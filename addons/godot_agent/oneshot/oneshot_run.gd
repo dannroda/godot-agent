@@ -19,6 +19,8 @@ signal activity_added(entry: Dictionary)
 signal restored
 ## El informe del run terminado está listo (`last_report`).
 signal report_ready
+## El run pasó a otra sesión (bind): la pantalla vuelve a conectarse a su modelo y su cuota.
+signal controller_changed
 
 const SessionController := preload("../session/session_controller.gd")
 const SessionModel := preload("../session/session_model.gd")
@@ -129,6 +131,9 @@ var after_restore: Callable
 ## (id de la sesión perdida, o "") -> bool (await): reabre esa sesión con session/load si se puede;
 ## si no, abre una nueva.
 var restart_session: Callable
+## () -> void (await): antes de empezar un run, o de retomar uno que vino de disco, el plugin le da
+## su propia pestaña de sesión con bind() (m17-19). Sin esto, el run usa el controller de setup().
+var prepare_session: Callable
 ## Retomar solo al reiniciarse la cuota (Settings) o esperar confirmación.
 var resume_auto: bool = true
 ## Dónde se guardan los runs (sin carpeta, no se guardan).
@@ -184,6 +189,9 @@ var _guidance: Array[String] = []
 ## Los textos de _guidance que escribió el usuario (los demás los pone el harness, p. ej. el aviso
 ## de loop): al salir quedan en la actividad como «enviado».
 var _user_guidance: Array[String] = []
+## Adjuntos de cada texto de _guidance (imágenes pegadas en el chat, m17-18), en el mismo orden.
+## Solo en memoria: no se guardan con el run (un run recuperado los pierde).
+var _guidance_blocks: Array[Array] = []
 var _warned: Dictionary = {}
 var _current_task: int = -1
 var _plan_progress: int = 0
@@ -240,10 +248,33 @@ func _ready() -> void:
 	_timer.wait_time = TICK_S
 	_timer.timeout.connect(_tick)
 	add_child(_timer)
-	model.plan_changed.connect(_on_plan_changed)
-	model.tool_call_changed.connect(_on_tool_call_changed)
-	model.permission_requested.connect(_on_permission_requested)
+	_connect_model(true)
 	changed.connect(func() -> void: _dirty = true)
+
+
+## Pasa el run a otra sesión (la pestaña del run, m17-19). Con un turno en curso no se cambia.
+func bind(session_controller: SessionController) -> void:
+	if session_controller == null or session_controller == controller or _turn_running:
+		return
+	if is_inside_tree():
+		_connect_model(false)
+	controller = session_controller
+	model = controller.model
+	quota = controller.quota
+	if is_inside_tree():
+		_connect_model(true)
+	controller_changed.emit()
+	changed.emit()
+
+
+func _connect_model(on: bool) -> void:
+	var pairs := [[model.plan_changed, _on_plan_changed], [model.tool_call_changed, _on_tool_call_changed], [model.permission_requested, _on_permission_requested]]
+	for pair: Array in pairs:
+		var sig: Signal = pair[0]
+		if on and not sig.is_connected(pair[1]):
+			sig.connect(pair[1])
+		elif not on and sig.is_connected(pair[1]):
+			sig.disconnect(pair[1])
 
 
 func is_active() -> bool:
@@ -300,6 +331,8 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	if is_active():
 		return false
 	goal = goal_text.strip_edges()
+	if prepare_session.is_valid():
+		await prepare_session.call()
 	references = PackedStringArray()
 	run_id = OneShotStore.new_id()
 	files.run_id = run_id
@@ -314,6 +347,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	checks.clear()
 	activity.clear()
 	_guidance.clear()
+	_guidance_blocks.clear()
 	_user_guidance.clear()
 	_warned.clear()
 	_counted_playtests.clear()
@@ -443,6 +477,8 @@ func resume() -> void:
 		return
 	# Un run cargado de disco retoma su propia sesión, aunque el dock tenga otra abierta.
 	var from_disk := not _recovered_session_id.is_empty()
+	if from_disk and prepare_session.is_valid():
+		await prepare_session.call()
 	var lost_id := _recovered_session_id if from_disk else model.session_id
 	if not controller.is_connected_to_agent() or (from_disk and model.session_id != lost_id):
 		if not await _restart_session(lost_id):
@@ -489,10 +525,10 @@ func stop() -> void:
 
 
 ## Con el run en curso, lo que se escribe en el dock lo guía (`guide`). true si lo tomó.
-func take_dock_prompt(text: String) -> bool:
+func take_dock_prompt(text: String, blocks: Array = []) -> bool:
 	if not is_active():
 		return false
-	guide(text)
+	guide(text, blocks)
 	return true
 
 
@@ -518,42 +554,70 @@ func take_login() -> bool:
 
 
 ## Lo que el usuario escribe en el chat del dock: se manda al terminar el turno actual (o ya, si no hay turno en curso).
-func guide(text: String) -> void:
+## `blocks`: lo que adjuntó (imágenes, archivos), que viaja con el texto (m17-18).
+func guide(text: String, blocks: Array = []) -> void:
 	text = text.strip_edges()
-	if text.is_empty() or not is_active():
+	if (text.is_empty() and blocks.is_empty()) or not is_active():
 		return
 	report.count("guidance")
 	if not _recovered_session_id.is_empty():  # primero se reabre la sesión del run
-		_queue_guidance(text)
+		_queue_guidance(text, blocks)
 		resume()
 		return
 	if _turn_running or phase in [RunPhase.PREPARING, RunPhase.CLOSING, RunPhase.LIMITED]:
-		_queue_guidance(text)
+		_queue_guidance(text, blocks)
 		changed.emit()
 		return
 	if phase in [RunPhase.PAUSED, RunPhase.PAUSED_QUOTA, RunPhase.WAITING_CONFIRM, RunPhase.SPEC_REVIEW]:
 		pause_note = ""
 		_set_phase(RunPhase.RUNNING)
-	_add_activity("guide", I18n.t("sent: %s") % text)
-	_run_turn(text)
+	_add_activity("guide", I18n.t("sent: %s") % _guidance_label(text, blocks))
+	_run_turn(_user_prompt(text), blocks)
 
 
 ## La guía espera al final del turno: queda en la actividad y en el chat, para que se vea que no
 ## se perdió (m6-14).
-func _queue_guidance(text: String) -> void:
-	_guidance.append(text)
+func _queue_guidance(text: String, blocks: Array = []) -> void:
+	_push_guidance(text, blocks)
 	_user_guidance.append(text)
-	_add_activity("guide", I18n.t("queued: %s") % text)
-	model.add_notice(I18n.t("One-shot · queued: “%s”. The agent gets it when the current turn ends.") % text.left(120), ChatEntry.NoticeLevel.INFO)
+	_add_activity("guide", I18n.t("queued: %s") % _guidance_label(text, blocks))
+	model.add_notice(I18n.t("One-shot · queued: “%s”. The agent gets it when the current turn ends.") % _guidance_label(text, blocks).left(120), ChatEntry.NoticeLevel.INFO)
 
 
-func _pop_guidance() -> String:
+func _push_guidance(text: String, blocks: Array = []) -> void:
+	_guidance.append(text)
+	_guidance_blocks.append(blocks)
+
+
+## Saca la próxima guía: `[prompt, blocks]`. La del usuario sale con _user_prompt (con el spec sin
+## aprobar, el pedido va envuelto para que el agente no construya).
+func _pop_guidance() -> Array:
 	var text: String = _guidance.pop_front()
+	var blocks: Array = _guidance_blocks.pop_front() if not _guidance_blocks.is_empty() else []
 	var index := _user_guidance.find(text)
-	if index >= 0:
-		_user_guidance.remove_at(index)
-		_add_activity("guide", I18n.t("sent: %s") % text)
-	return text
+	if index < 0:
+		return [text, blocks]
+	_user_guidance.remove_at(index)
+	_add_activity("guide", I18n.t("sent: %s") % _guidance_label(text, blocks))
+	return [_user_prompt(text), blocks]
+
+
+## Texto de la guía para la actividad y los avisos: con los adjuntos contados.
+static func _guidance_label(text: String, blocks: Array) -> String:
+	if blocks.is_empty():
+		return text
+	var count := I18n.t("1 attachment") if blocks.size() == 1 else I18n.t("%d attachments") % blocks.size()
+	return ("%s · 📎 %s" % [text, count]) if not text.is_empty() else "📎 " + count
+
+
+## El prompt de un mensaje del usuario. Con el spec sin aprobar, el pedido es un cambio al spec: el
+## agente lo aplica y vuelve a esperar la aprobación en vez de ponerse a construir (m17-15).
+func _user_prompt(text: String) -> String:
+	if not _awaiting_spec:
+		return text
+	var spec := files.relative_dir().path_join(OneShotFiles.SPEC)
+	return ("The user hasn't approved the spec yet and asks for this: %s\n\n" % text) + \
+		("Apply it to %s (answer in the chat if it's a question) and end the turn without building anything: the user reviews the spec again and approves it." % spec)
 
 
 ## Presupuestos nuevos con el run en curso (m6-12); 0 = sin límite. Los avisos del 80 % se rearman
@@ -676,9 +740,9 @@ func changes_summary() -> Dictionary:
 
 # --- turnos --------------------------------------------------------------------------------------
 
-func _run_turn(text: String) -> void:
+func _run_turn(text: String, blocks: Array = []) -> void:
 	if _turn_running:
-		_guidance.append(text)
+		_push_guidance(text, blocks)
 		return
 	_turn_running = true
 	report.count("turns")
@@ -686,7 +750,7 @@ func _run_turn(text: String) -> void:
 	_turn_tools = 0
 	var first_entry := model.entries().size()
 	var progress_before := _progress()
-	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text)
+	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text, blocks)
 	_turn_running = false
 	if not is_instance_valid(self) or not is_inside_tree():
 		return
@@ -746,7 +810,8 @@ func _after_turn(reason: String) -> void:
 		_pause_for_quota(_task_name(_next_pending()))
 		return
 	if not _guidance.is_empty():
-		_run_turn(_pop_guidance())
+		var next := _pop_guidance()
+		_run_turn(next[0], next[1])
 		return
 	if reason == "cancelled":
 		if _continue_after_cancel:
@@ -794,7 +859,7 @@ func _enter_spec_review() -> void:
 		_add_activity("spec", I18n.t("%s/%s is ready: review and approve it so the agent starts building") % [files.relative_dir(), OneShotFiles.SPEC])
 	else:
 		_add_activity("warning", I18n.t("The agent didn't write %s/%s. Ask it in the chat to write it, or approve to continue without a spec.") % [files.relative_dir(), OneShotFiles.SPEC])
-	model.add_notice(I18n.t("One-shot · the spec is ready for review in the One-shot screen."), ChatEntry.NoticeLevel.INFO)
+	model.add_notice(I18n.t("One-shot · the spec is ready for review in the One-shot screen. To change it, tell the agent here what you want: it updates the spec and waits for your approval again."), ChatEntry.NoticeLevel.INFO)
 
 
 func _close() -> void:
@@ -953,7 +1018,7 @@ func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
 		return
 	_add_activity("loop", I18n.t("Possible loop: %s") % finding.label)
 	model.add_notice(I18n.t("One-shot · possible loop: %s. Asking the agent for another approach.") % finding.label, ChatEntry.NoticeLevel.WARNING)
-	_guidance.append("It looks like you're in a loop: %s. Don't repeat it the same way: think about why it doesn't work and try another approach (another solution, another file, or simplify the task). If something can't be solved, note it in the checks block and continue with the rest." % finding.text)
+	_push_guidance("It looks like you're in a loop: %s. Don't repeat it the same way: think about why it doesn't work and try another approach (another solution, another file, or simplify the task). If something can't be solved, note it in the checks block and continue with the rest." % finding.text)
 	if mid_turn and _turn_running:
 		controller.cancel()  # la guía se manda al cortar el turno (_after_turn)
 	changed.emit()
@@ -1450,6 +1515,9 @@ func _apply(data: Dictionary) -> void:
 	_current_task = int(data.get("current_task", -1))
 	resume_task = str(data.get("resume_task", ""))
 	_guidance.assign(data.get("guidance", []))
+	_guidance_blocks.clear()
+	for _i in _guidance.size():
+		_guidance_blocks.append([])
 	_user_guidance.assign(data.get("user_guidance", []))
 	_close_reason = str(data.get("close_reason", ""))
 	_warned = data.get("warned", {}) if data.get("warned") is Dictionary else {}

@@ -34,6 +34,7 @@ func _initialize() -> void:
 	)
 	await _scenario_basic()
 	await _scenario_cancel()
+	await _scenario_hang()
 	await _scenario_crash()
 	await _scenario_permissions_build()
 	await _scenario_permissions_ask()
@@ -152,6 +153,50 @@ func _scenario_cancel() -> void:
 	var second: String = await controller.send_prompt("otra vez")
 	_check(second == "end_turn", "cancel: el turno siguiente funciona")
 	controller.stop()
+
+
+## El agente termina el turno pero nunca responde el prompt ni el cancel (m17-16): Stop no puede
+## quedar en «cancelando» para siempre, y el historial ya tiene el turno aunque no haya terminado.
+func _scenario_hang() -> void:
+	print("— hang")
+	var history := SessionHistory.new()
+	history.dir = "user://acp_check_hang"
+	for file: String in DirAccess.get_files_at(history.dir) if DirAccess.dir_exists_absolute(history.dir) else PackedStringArray():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(history.dir.path_join(file)))
+	var model := SessionModel.new()
+	var log := AgentLog.new()
+	var controller := SessionController.new()
+	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
+	controller.setup(model, log, root)
+	controller.history = history
+	_check(await controller.start(_fake_profile("hang")), "hang: arranca")
+	var result: Array = [""]
+	var run := func() -> void:
+		result[0] = await controller.send_prompt("copiá todo")
+	run.call()
+	await _wait_until(func() -> bool: return _log_has(log, "fake_agent: hang"))
+	history.flush()
+	var saved := history.load_record(model.session_id)
+	var users: Array = saved.get("events", []).filter(func(event: Dictionary) -> bool: return event.type == "user")
+	_check(users.size() == 1 and users[0].text == "copiá todo", "hang: el prompt ya está en el historial sin fin de turno")
+	controller.cancel()
+	_check(model.state == SessionModel.SessionState.CANCELLING, "hang: CANCELLING")
+	var started := Time.get_ticks_msec()
+	await _wait_until(func() -> bool: return result[0] != "")
+	var waited := (Time.get_ticks_msec() - started) / 1000.0
+	_check(result[0] == "cancelled" and waited < SessionController.CANCEL_TIMEOUT_SEC + 2.0, "hang: el turno se cierra solo (%s en %.1f s)" % [result[0], waited])
+	_check(model.state == SessionModel.SessionState.READY, "hang: vuelve a READY")
+	var notice: ChatEntry = null
+	for entry: ChatEntry in model.entries():
+		for action: Dictionary in entry.actions:
+			if action.get("id") == SessionController.ACTION_RESTART_AGENT:
+				notice = entry
+	_check(notice != null, "hang: aviso con «Reiniciar el agente»")
+	_check(_log_has(log, "didn't confirm the cancellation"), "hang: queda en el log")
+	_check(await controller.send_prompt("seguí") == "end_turn", "hang: el turno siguiente funciona")
+	_check(_log_has(log, "Turn ended: end_turn"), "hang: el fin de turno queda en el log")
+	controller.stop()
+	history.flush()  # el escritor es un worker: tiene que terminar antes de salir
 
 
 func _scenario_crash() -> void:

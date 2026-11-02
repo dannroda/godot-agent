@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T06:31:39.248Z",
+  "description": "Reporte del usuario (02/11, Road Fighter 3D, informe de QA ronda 1): «no entiendo ese json largo que largó luego de una sesión de QA».\n\nEl One-shot pide al agente y al evaluador de QA que cierren cada turno con un bloque ```json {\"checks\":[…]}```. El harness lo lee para el estado de los checks, pero el chat lo muestra como un bloque de código largo, aunque no está pensado para que lo lea una persona.\n\nYa hay un mecanismo igual para Revisar: los bloques `findings` se pliegan. SessionController._fold_findings pone entry.findings_count, y agent_message_view.gd (~71, 137) dibuja SegmentKind.FINDINGS como un resumen en lugar del código.\n\nArreglo:\n- Un SegmentKind.CHECKS en agent_message_view, para mensajes del agente con un bloque `{\"checks\": …}` válido. Se dibuja como una línea plegada: «Checks: 6 ✓ · 1 ✗ · 0 sin verificar — ver en One-shot».\n- Al expandirla aparece la lista legible: ícono de estado + label, y el detalle en el tooltip o en una segunda línea. El JSON crudo queda detrás de «ver JSON», para depurar.\n- Lo mismo para los mensajes del evaluador de QA. Revisar si el informe trae otros bloques para la máquina (el veredicto) y plegarlos igual.\n- La detección usa el mismo parser del run (OneShotRun / checks), para no tener dos.\n- Funciona también al reabrir una sesión del historial.\n\nPrueba: test de agent_message_view con un mensaje que trae un bloque de checks → se ve el resumen y no el código. oneshot-test en Xvfb con una captura del chat.",
+  "milestone": "m17",
+  "notes": "FindingsParser.report_block(code) reusa parse() (el mismo parser del run). La vista detecta el bloque por su contenido, no por un flag de la entrada: anda en cualquier modo y al reabrir del historial. Durante el streaming se ve como código hasta que el JSON cierra. En Revisar, un bloque findings leído sigue plegándose como antes (tiene prioridad). No verificado con captura en Xvfb.",
+  "order": 20,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "run_all 412/0. tests/unit/test_agent_message_view.gd: bloque checks+scores+findings → resumen plegado (cuenta ✓/✗/sin verificar, puntajes, hallazgos), lista legible con detalle y BBCode escapado, JSON detrás de «Ver JSON»; un JSON cualquiera o a medio llegar sigue como código.",
+  "title": "El JSON de checks del One-shot sale crudo en el chat: mostrarlo plegado como resumen",
+  "updated_at": "2026-11-02T07:27:56.036Z"
+}

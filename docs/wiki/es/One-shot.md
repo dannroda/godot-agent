@@ -26,7 +26,7 @@ Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para proba
 
 ## Cómo avanza un run
 
-1. **Spec**: el agente escribe `spec.md`, una descripción de alto nivel del juego: mecánicas, loop de juego, dirección visual y qué es "terminado". Con **Revisar el spec antes de construir**, el run espera en "Spec para revisar": la columna del plan muestra el spec, **Editar** lo abre y **Aprobar spec** arranca la construcción. Si en cambio escribís en el chat, el agente lo corrige y vuelve a esperar.
+1. **Spec**: el agente escribe `spec.md`, una descripción de alto nivel del juego: mecánicas, loop de juego, dirección visual y qué es "terminado". Con **Revisar el spec antes de construir**, el run espera en "Spec para revisar": la columna del plan muestra el spec, **Editar** lo abre y **Aprobar spec** arranca la construcción. Para cambiarlo también podés decirle al agente en el chat qué querés: aplica el cambio al spec, sin construir nada, y vuelve a esperar tu aprobación.
 2. **Plan**: el agente convierte el spec en tareas. Podés editar el plan mientras corre; el agente lo relee al terminar el turno. Cada tarea muestra cuánto tardó, y la que está en curso cuenta en vivo.
 3. **Construir y verificar**: en cada tarea, el agente edita, corre el juego (`run_scene`), mira frames (`capture_game_frame`), lee errores y reporta **verificaciones** (`pass`, `fail`, `pending`). Mantiene `progress.md` al día.
 4. **Checkpoints**: cada tarea (o cada playtest, si el agente no informa un plan) es un commit `cpN` en la rama `agent/<fecha>`.
@@ -69,7 +69,7 @@ El agente que construye tiende a ser indulgente con su propio trabajo, así que 
 
 ## Guiar al agente
 
-Con un One-shot en curso, lo que escribís en el chat del dock le llega al agente del run. Si el agente está en medio de un turno, el mensaje espera:
+Cada run abre su propia pestaña en el dock, **One-shot · <objetivo>**, con el agente y la cuenta de la pestaña desde la que lo lanzaste. Lo que escribís en el chat de esa pestaña le llega al agente del run, con las imágenes y archivos que adjuntaste; las demás pestañas siguen siendo chats normales. La pestaña del run no se puede cerrar mientras corre; al terminar queda como una sesión común, para leerla o cerrarla. Si el agente está en medio de un turno, el mensaje espera:
 
 - la actividad muestra **guía · en cola: …** y el chat lo avisa;
 - al terminar el turno sale, y la actividad muestra **guía · enviado: …**.

@@ -26,6 +26,9 @@ const MAX_EVENTS := 20000
 const MAX_TOOL_TEXT := 4000
 const MAX_DIFF_TEXT := 40000
 const TITLE_CHARS := 70
+## Durante un turno largo se guarda cada tanto: un turno que nunca termina (el agente se colgó, el
+## editor se cerró) no se pierde entero (m17-16).
+const SAVE_INTERVAL_MSEC := 15000
 const IMAGE_PLACEHOLDER := "[screenshot: not stored in the history]"
 const SKIPPED_UPDATES: PackedStringArray = ["usage_update", "available_commands_update", "current_mode_update", "config_option_update", "config_options_update"]
 const CHUNK_UPDATES: PackedStringArray = ["agent_message_chunk", "agent_thought_chunk", "user_message_chunk"]
@@ -41,6 +44,7 @@ var _meta: Dictionary = {}
 var _pending: Array[Dictionary] = []
 var _dirty: bool = false
 var _writer := HistoryWriter.new()
+var _last_save_msec: int = 0
 
 
 func is_recording() -> bool:
@@ -71,6 +75,7 @@ func begin(session_id: String, profile_id: String, agent_name: String, cwd: Stri
 		_meta = {"format": FORMAT, "id": session_id, "profile_id": profile_id, "account": account, "agent": agent_name, "cwd": cwd,
 			"title": "", "created": now, "updated": now, "turns": 0, "events_count": 0, "truncated": false}
 	_dirty = false
+	_last_save_msec = Time.get_ticks_msec()
 
 
 func record_prompt(text: String) -> void:
@@ -80,12 +85,19 @@ func record_prompt(text: String) -> void:
 		_meta.title = title_from(text)
 	_meta.turns = int(_meta.turns) + 1
 	_append({"type": "user", "text": text})
+	save()
 
 
 func record_update(update: Dictionary) -> void:
 	var kind := str(update.get("sessionUpdate", ""))
 	if not is_recording() or kind in SKIPPED_UPDATES:
 		return
+	_record_update(update, kind)
+	if Time.get_ticks_msec() - _last_save_msec >= SAVE_INTERVAL_MSEC:
+		save()
+
+
+func _record_update(update: Dictionary, kind: String) -> void:
 	if kind == "session_info_update" and update.get("title") is String and not str(update.title).is_empty():
 		_meta.title = str(update.title)
 		_dirty = true
@@ -132,6 +144,7 @@ func end() -> void:
 func save() -> void:
 	if not is_recording() or (not _dirty and _pending.is_empty()):
 		return
+	_last_save_msec = Time.get_ticks_msec()
 	_meta.updated = now_provider.call()
 	var header := {"format": FORMAT, "id": _meta.id, "profile_id": _meta.profile_id, "account": _meta.get("account", ""), "agent": _meta.agent, "cwd": _meta.cwd, "created": _meta.created}
 	_enqueue({"kind": "append", "path": _abs_path(current_id()), "header": header, "events": _pending, "summary": summary_of(_meta)})

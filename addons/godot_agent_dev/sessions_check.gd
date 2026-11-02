@@ -121,6 +121,11 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	var saved_last: Variant = settings.call(&"get_value", "agents/last_profile", "")
 	var saved_account: Variant = settings.call(&"get_value", "agents/last_account", {})
 	var saved_accounts: Variant = settings.call(&"get_value", "agents/accounts", {})
+	# Sin la cuenta que haya elegido quien corre el test en este editor (se restaura al final).
+	settings.call(&"set_value", "agents/last_account", {})
+	settings.call(&"set_value", "agents/accounts", {})
+	for each_dock: Control in [dock, second_dock]:
+		each_dock.set(&"_accounts", {})
 	var claude: Array[AgentProfile] = [AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)]
 	settings.call(&"save_profiles", claude)
 	dock.call(&"_on_profile_selected", 0)
@@ -187,6 +192,47 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	settings.call(&"set_active_profile", str(saved_last))
 	settings.call(&"set_value", "agents/last_account", saved_account)
 	settings.call(&"set_value", "agents/accounts", saved_accounts)
+
+	# m17-17: con la primera en un turno, «Nueva sesión» y el historial van a otra pestaña, y una
+	# sesión que ya está abierta en otra pestaña se elige en lugar de abrirla dos veces.
+	var first_model := main_plugin.get(&"_model") as SessionModel
+	first_model.set_state(SessionModel.SessionState.PROMPTING)
+	await tree.process_frame
+	var new_button: Button = dock.get(&"_new_session_button")
+	if new_button.disabled or not dock.call(&"_must_open_elsewhere"):
+		failures.append("con un turno en curso, «Nueva sesión» sigue bloqueada")
+	var originals := dock.get_signal_connection_list(&"open_elsewhere_requested")
+	for connection: Dictionary in originals:
+		dock.disconnect(&"open_elsewhere_requested", connection.callable)
+	var asked: Array[String] = []
+	var spy := func(session_id: String) -> void: asked.append(session_id)
+	dock.connect(&"open_elsewhere_requested", spy)
+	(dock.get(&"_new_menu") as PopupMenu).id_pressed.emit(0)  # NEW_MENU_SESSION
+	var items: Array[Dictionary] = [{"id": "otra-sesion"}]
+	dock.set(&"_history_items", items)
+	dock.call(&"_on_history_selected", 0)
+	if asked != ["", "otra-sesion"]:
+		failures.append("con la pestaña ocupada, «Nueva sesión» y el historial no van a otra: %s" % [asked])
+	dock.disconnect(&"open_elsewhere_requested", spy)
+	for connection: Dictionary in originals:
+		dock.connect(&"open_elsewhere_requested", connection.callable)
+	(second_session.model as SessionModel).session_id = "abierta-en-la-segunda"
+	bar.current_tab = 0
+	if not (dock.get(&"session_focuser") as Callable).call("abierta-en-la-segunda") or bar.current_tab != 1:
+		failures.append("una sesión abierta en otra pestaña no se elige: pestaña %d" % bar.current_tab)
+	(second_session.model as SessionModel).session_id = ""
+	bar.current_tab = 0
+	var before_ids := (tabs.call(&"ids") as PackedStringArray).size()
+	main_plugin.call(&"_open_elsewhere", "s1", "no-existe")  # no lanza ningún agente: la sesión no está
+	await tree.process_frame
+	var after_ids: PackedStringArray = tabs.call(&"ids")
+	if after_ids.size() != before_ids + 1 or str(tabs.call(&"active_id")) != after_ids[after_ids.size() - 1]:
+		failures.append("abrir en otra pestaña no creó ni eligió la pestaña: %s" % [after_ids])
+	else:
+		main_plugin.call(&"_close_session_tab", after_ids[after_ids.size() - 1])
+		await tree.process_frame
+	first_model.set_state(SessionModel.SessionState.DISCONNECTED)
+	bar.current_tab = 0
 
 	# Cerrar la pestaña: el coordinador y el server MCP la olvidan.
 	bar.tab_button_pressed.emit(1)

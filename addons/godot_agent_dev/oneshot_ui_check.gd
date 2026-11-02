@@ -46,6 +46,9 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_run = _screen.get(&"_run")
 	var controller: Object = _run.controller
 	controller.call(&"stop")
+	# Los tramos de abajo corren en la primera sesión; la pestaña propia del run (m17-19) se prueba al final.
+	var prepare: Callable = _run.prepare_session
+	_run.prepare_session = Callable()
 	var repo := _make_repo()
 	_run.git.root = repo
 	_run.files.project_root = repo  # el spec y el progreso (D41) van al repo de prueba, no al del addon
@@ -314,7 +317,52 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(RunReport.to_markdown(_run.last_report).contains("| 1 | doesn't pass |"), "qa: el informe tiene las vueltas")
 	_run.qa_max_rounds = qa_rounds
 	controller.call(&"stop")
+	await _check_run_tab(prepare, goal, start)
 	return failures
+
+
+## m17-19: con el plugin, el run abre su propia pestaña con su sesión. La guía de esa pestaña va al
+## run; la primera sigue siendo un chat normal, y la pestaña no se cierra con el run en curso.
+func _check_run_tab(prepare: Callable, goal: TextEdit, start: Button) -> void:
+	var plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	var tabs: Object = plugin.get(&"_tabs")
+	var primary: Object = plugin.get(&"_controller")
+	var sessions: Dictionary = plugin.get(&"_extra_sessions")
+	var before := sessions.size()
+	_run.prepare_session = prepare
+	_run.restart_session = func(_lost_id: String) -> bool: return await _run.controller.call(&"start", _profile("oneshot_spec"))
+	var tab_repo := _make_repo()
+	_run.git.root = tab_repo
+	_run.files.project_root = tab_repo
+	(_screen.get(&"_new_button") as Button).pressed.emit()
+	await _frames(2)
+	(_screen.get(&"_spec_check") as CheckBox).button_pressed = true
+	goal.text = "Pong en su pestaña"
+	start.pressed.emit()
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.SPEC_REVIEW)
+	var id := str(plugin.get(&"_oneshot_tab_id"))
+	_check(sessions.size() == before + 1 and not id.is_empty(), "pestaña del run: se abrió una (%d → %d)" % [before, sessions.size()])
+	_check(_run.controller != primary and _run.controller == plugin.call(&"_controller_of", id), "pestaña del run: el run corre en su sesión, no en la primera")
+	_check(str(tabs.call(&"active_id")) == id, "pestaña del run: queda elegida")
+	_check(str(plugin.get(&"_coordinator").call(&"label", id)).begins_with("One-shot · Pong en su pestaña"), "pestaña del run: nombre «One-shot · …» (%s)" % plugin.get(&"_coordinator").call(&"label", id))
+	var first_dock: Object = tabs.call(&"dock", "s1")
+	var run_dock: Object = tabs.call(&"dock", id)
+	var no_blocks := func() -> Array: return []
+	_check(not (first_dock.get(&"submit_interceptor") as Callable).call("hola", no_blocks), "pestaña del run: lo que se escribe en la primera no va al run")
+	_check((first_dock.get(&"can_switch_session") as Callable).call(), "pestaña del run: la primera puede cambiar de sesión")
+	_check(bool(run_dock.get(&"_oneshot_active")) and not bool(first_dock.get(&"_oneshot_active")), "pestaña del run: solo su composer está en modo One-shot")
+	_check(not (run_dock.get(&"can_switch_session") as Callable).call(), "pestaña del run: la del run no cambia de sesión con el run en curso")
+	_check((run_dock.get(&"submit_interceptor") as Callable).call("Sumá power-ups", no_blocks), "pestaña del run: su chat guía al run")
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.SPEC_REVIEW and _run.model.entries().filter(func(entry: Object) -> bool: return entry.get(&"kind") == 0).size() == 2)
+	_check(_run.model.entries().filter(func(entry: Object) -> bool: return str(entry.get(&"text")).contains("Sumá power-ups")).size() == 1, "pestaña del run: la guía llegó a la sesión del run")
+	plugin.call(&"_close_session_tab", id)
+	await _frames(2)
+	_check(sessions.has(id), "pestaña del run: no se cierra con el run en curso")
+	(_screen.get(&"_stop_button") as Button).pressed.emit()
+	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.FINISHED and not _run.is_git_busy())
+	plugin.call(&"_close_session_tab", id)
+	await _frames(2)
+	_check(not sessions.has(id) and _run.controller == primary, "pestaña del run: terminado, se cierra y el run vuelve a la primera sesión")
 
 
 ## M6 con Claude Code real (gasta tokens) en el sandbox de tests/make_sandbox.sh: el One-shot de

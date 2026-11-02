@@ -1,0 +1,282 @@
+{
+ "turns": [
+  {
+   "steps": [
+    {
+     "quota": {
+      "five_hour": 0.17,
+      "seven_day": 0.3,
+      "status": "allowed",
+      "resets_in": 7800
+     }
+    },
+    {
+     "chunk": "Arranco\u2026"
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 7000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 0"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 14000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 1"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 21000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 2"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 28000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 3"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 35000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 4"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 42000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 5"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 49000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 6"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 56000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 7"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 63000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 8"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 70000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 9"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 77000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 10"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 84000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 11"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 91000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 12"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 98000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 13"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 105000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 14"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 112000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 15"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 119000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 16"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 126000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 17"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 133000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 18"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 140000,
+      "size": 200000
+     }
+    },
+    {
+     "chunk": " paso 19"
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

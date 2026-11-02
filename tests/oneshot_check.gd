@@ -280,7 +280,8 @@ func _scenario_budget() -> void:
 	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 5}, false)
 	_check(not run.checkpoints_enabled, "presupuestos: sin checkpoints")
 	await _wait(func() -> bool: return int(run.used.playtests) >= 1, 5.0)
-	run.guide("Usá paletas blancas y fondo negro.")
+	var image := {"type": "image", "mimeType": "image/png", "data": "iVBORw0KGgo="}
+	run.guide("Usá paletas blancas y fondo negro.", [image])  # con una imagen pegada (m17-18)
 	await _wait(func() -> bool: return int(run.used.playtests) >= 4, 5.0)
 	_check(notices.any(func(text: String) -> bool: return text.contains("Playtests: 80 %")), "presupuestos: aviso al 80 %% (%s)" % [notices])
 	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED, 15.0)
@@ -289,8 +290,10 @@ func _scenario_budget() -> void:
 	if messages.size() == 3:
 		_check(messages[1] == "Usá paletas blancas y fondo negro.", "presupuestos: la guía va al terminar el turno")
 		_check(str(messages[2]).begins_with("The playtests budget ran out.") and str(messages[2]).contains("final report"), "presupuestos: prompt de cierre")
+	var guided: Array = model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER and entry.text.begins_with("Usá paletas"))
+	_check(guided.size() == 1 and guided[0].attachments.size() == 1 and guided[0].attachments[0].get("type") == "image", "presupuestos: la imagen viaja con la guía")
 	var guide_entries: Array = run.activity.filter(func(entry: Dictionary) -> bool: return entry.kind == "guide").map(func(entry: Dictionary) -> String: return entry.text)
-	_check(guide_entries == ["queued: Usá paletas blancas y fondo negro.", "sent: Usá paletas blancas y fondo negro."], "presupuestos: la guía queda en cola y después sale %s" % [guide_entries])
+	_check(guide_entries == ["queued: Usá paletas blancas y fondo negro. · 📎 1 attachment", "sent: Usá paletas blancas y fondo negro. · 📎 1 attachment"], "presupuestos: la guía queda en cola y después sale %s" % [guide_entries])
 	_check(notices.any(func(text: String) -> bool: return text.begins_with("One-shot · queued: “Usá paletas")), "presupuestos: el chat avisa que la guía está en cola")
 	_check(not _agent_text(model).contains("No debería llegar"), "presupuestos: al 100 % corta el turno")
 	_check(run.finish_reason == "The playtests budget ran out.", "presupuestos: motivo (%s)" % run.finish_reason)
@@ -406,6 +409,8 @@ func _scenario_spec() -> void:
 	run.guide("Sumá power-ups")
 	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.SPEC_REVIEW and _user_messages(run.model).size() == 2, 10.0)
 	_check(run.phase == OneShotRun.RunPhase.SPEC_REVIEW, "spec: después de guiar vuelve a esperar (%s)" % run.phase_label())
+	var asked: String = _user_messages(run.model)[1] if _user_messages(run.model).size() > 1 else ""
+	_check(asked.contains("Sumá power-ups") and asked.contains(run.files.relative_dir().path_join("spec.md")) and asked.contains("without building"), "spec: el pedido sale como cambio al spec, sin construir (%s)" % asked)  # m17-15
 	run.approve_spec("# Pong\nDos paletas y power-ups.\n")
 	_check(run.files.read(spec_path).contains("power-ups"), "spec: se guardan los cambios del usuario")
 	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy() and not run.last_report.is_empty(), 10.0)

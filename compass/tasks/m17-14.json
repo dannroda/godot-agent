@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T05:13:38.885Z",
+  "description": "Bug reportado por el usuario (02/11): al pasar el mouse por el anillo de cuota del dock, el tooltip aparece y se esconde al segundo.\n\nCausa probable (sin verificar): AgentDock._on_quota_tick corre cada 1 s con _quota_timer (agent_dock.gd ~515-548) y llama a QuotaRing.refresh(), que hace tooltip_text = describe() (quota_ring.gd:56). El texto incluye la cuenta regresiva del reinicio, que cambia cada segundo, y Godot cierra el tooltip abierto cuando cambia tooltip_text.\n\nArreglo posible: asignar tooltip_text solo si el texto cambió y redondear el reinicio a minutos; o armar el texto en _get_tooltip() para que se calcule al abrir. Revisar también la fila de cuota del One-shot (agent_main_screen.gd:882), que se refresca con quota.changed.\n\nProbar con el editor abierto: el tooltip queda visible mientras el mouse está encima, con y sin límite alcanzado.",
+  "milestone": "m17",
+  "notes": "Causa (la encontró el usuario el 02/11): el anillo está abajo de todo y el tooltip es alto. Godot lo corre hacia arriba para que entre en la pantalla, queda debajo del mouse y se cierra solo. En Xvfb no se veía porque ahí el tooltip entraba.\nArreglo: QuotaRing ya no usa tooltip_text. hint_text guarda el detalle, y un PanelContainer top_level (mouse_filter IGNORE, estilo TooltipPanel del tema) se abre con mouse_entered después de HOVER_DELAY_S, siempre arriba del anillo, centrado y dentro de la ventana (abajo solo si arriba no entra). Se cierra con mouse_exited o al ocultarse. Si el detalle cambia con el panel abierto, se actualiza en el lugar.\nAdemás, el tick de 1 s ya no toca nada si no cambió: refresh compara texto y estado del dibujo, set_context ignora valores iguales y Composer.set_locked ignora el mismo texto.\nTests: test_quota_ring usa hint_text. El dev plugin tiene _check_ring_tooltip y el guion tests/scripts/ui_quota_busy.json.",
+  "order": 14,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "En tu editor, pasá el mouse por el anillo de cuota (abajo del dock): a los 0,35 s se abre el detalle en un panel arriba del anillo y queda abierto mientras el mouse esté encima, también con un turno en curso. Se cierra al sacar el mouse. Automático: tests/run_in_xvfb.sh <godot> -- --godot-agent-ui-test=ui_quota y =ui_quota_busy, en 4.7.2 y 4.8-beta2: PASS. Comprueban el panel abierto 4 s, arriba del anillo, sin tapar el mouse y dentro de la ventana, que no se abra además el tooltip de Godot y que se cierre al salir. Captura <shot>_quota_hint.png. run_all 410/0.",
+  "title": "El tooltip del anillo de cuota se cierra al segundo de aparecer",
+  "updated_at": "2026-11-02T07:23:25.594Z"
+}

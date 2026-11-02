@@ -1,0 +1,22 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T06:20:34.610Z",
+  "description": "Reporte del usuario (02/11): «si una sesión está trabajando, no puedo abrir otra».\n\nHoy, en agent_dock.gd, mientras el turno está en STARTING, PROMPTING o CANCELLING:\n- _new_session_button queda deshabilitado (línea ~733).\n- El menú del historial deshabilita todos sus ítems (~873) y _on_history_selected no hace nada (~933).\nLas dos acciones reemplazan la sesión de la pestaña actual, por eso se bloquean. La única salida es el «+» de las pestañas, y eso no es evidente.\n\nArreglo propuesto:\n- Con la pestaña ocupada, «Nueva sesión» y elegir una sesión del historial abren una pestaña nueva, con el mismo agente y la misma cuenta, en vez de quedar deshabilitados.\n- El tooltip lo dice: «Se abre en otra pestaña: esta sigue trabajando».\n- Una sesión que ya está abierta en otra pestaña enfoca esa pestaña y no se abre dos veces.\n- Se respeta can_switch_session: con One-shot corriendo sigue el aviso.\n\nPrueba: sessions-test en Xvfb con la pestaña 1 en PROMPTING (agente falso). «Nueva sesión» y el historial crean la pestaña 2 y la 1 sigue en su turno.",
+  "links": [
+    {
+      "task": "m17-19",
+      "type": "related"
+    }
+  ],
+  "milestone": "m17",
+  "notes": "- AgentDock: señal open_elsewhere_requested(session_id) y _must_open_elsewhere() (STARTING/PROMPTING/CANCELLING o can_switch_session falso). «Nueva sesión» ya no se deshabilita por estar ocupada, solo en STARTING. El historial ya no deshabilita los ítems: muestra un separador con el aviso. session_focuser(id) evita abrir dos veces la misma sesión, también con la pestaña libre.\n- plugin: _wire_elsewhere en la primera pestaña y en las extra. _open_elsewhere usa _create_session_tab + copy_agent_from + select y después start_session u open_history_session. _focus_session recorre las pestañas por model.session_id.\n- Saqué el aviso «A One-shot is running: stop it before opening another session.»: ahora se abre en otra pestaña.",
+  "order": 17,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Con un turno en curso en una pestaña, tocá «+» › «Nueva sesión»: se abre una pestaña nueva con el mismo agente y cuenta, y arranca una sesión ahí. El tooltip lo avisa. En el historial, arriba aparece «Esta pestaña está trabajando: la sesión se abre en una nueva», y elegir una sesión la abre en otra pestaña. Si esa sesión ya está abierta en otra pestaña, la elige en lugar de abrirla de nuevo. Lo mismo en la pestaña de un One-shot en curso. Automático: sessions-test en Xvfb PASS. Con la primera en PROMPTING comprueba: el botón habilitado, que «Nueva sesión» y el historial emitan open_elsewhere_requested (\"\" y el id), que session_focuser elija la pestaña que tiene la sesión, y que _open_elsewhere cree y elija la pestaña. run_all 410/0.",
+  "title": "Con una sesión trabajando, «Nueva sesión» y el historial la abren en otra pestaña en vez de bloquearse",
+  "updated_at": "2026-11-02T07:20:19.575Z"
+}

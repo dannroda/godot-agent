@@ -1,0 +1,24 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T06:32:22.978Z",
+  "decisions": [
+    {
+      "alternatives": "Embeber como bloque resource/texto si es chico y el agente acepta embeddedContext.",
+      "at": "2026-11-02T07:29:20.978Z",
+      "text": "Archivos de afuera como resource_link con ruta absoluta, sin embeber el texto",
+      "why": "Funciona con cualquier agente y tamaño (PDF incluido) y no depende de embeddedContext; Claude Code lee la ruta absoluta."
+    }
+  ],
+  "description": "Pedido del usuario (02/11): poder darle al agente imágenes de fuera del proyecto.\n\nHoy el diálogo de «+ context › Archivos…» del dock (agent_dock.gd ~1284) usa EditorFileDialog.ACCESS_RESOURCES, así que solo navega res://. add_context_files ya acepta imágenes de cualquier ruta (Image.load_from_file). Los demás archivos de fuera del proyecto se rechazan con «Only images and project files can be attached».\n\nArreglo:\n- El diálogo pasa a ACCESS_FILESYSTEM, abriendo en la carpeta del proyecto y recordando la última carpeta usada.\n- Las imágenes de afuera se adjuntan como ya se hace hoy.\n- Los textos de afuera (.md, .txt, .json, .pdf…): adjuntarlos como resource_link file:// con la ruta absoluta, para que el agente los lea, o como bloque de texto si son chicos. Elegir según lo que acepte el agente (capabilities: embeddedContext). Que no queden rechazados.\n- Opcional: soltar archivos desde el explorador del sistema en el dock. files_dropped es de la ventana; ver si se puede limitar al dock que tiene el mouse encima.\n- i18n y wiki (Chat/Context).\n\nPrueba: un test de add_context_files con una imagen y un .md en tests/tmp fuera de res://. La imagen sale como bloque image y el .md como resource_link o texto en el prompt.",
+  "milestone": "m17",
+  "notes": "Diálogo con ACCESS_FILESYSTEM, abre en la carpeta del proyecto; la misma instancia recuerda la última carpeta mientras el editor está abierto (no se guarda entre sesiones). Fuera del proyecto siempre resource_link (no texto embebido): no dependo de embeddedContext y sirve también para PDF. mimeType según extensión. Menú: «Archivo…» en lugar de «Archivo del proyecto…». No hice el soltar archivos desde el explorador del sistema (era opcional).",
+  "order": 21,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "ui-test ui_quota PASS (Xvfb, 4.7.2): un .md en user:// (fuera de res://) queda como resource_link file://<ruta absoluta> con mimeType text/markdown; una ruta que no existe no se adjunta; el chip se limpia al enviar. Las imágenes de afuera ya estaban cubiertas en el mismo test.",
+  "title": "Chat: adjuntar imágenes y archivos de fuera del proyecto desde «+ context»",
+  "updated_at": "2026-11-02T07:29:20.978Z"
+}

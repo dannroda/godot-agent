@@ -4355,7 +4355,7 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
 
-## M15 — Revisión de features: lo que no estaba correcto  (13/13, 13 en revisión)
+## M15 — Revisión de features: lo que no estaba correcto  (22/22, 22 en revisión)
 
 Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
 
@@ -4537,6 +4537,233 @@ Pedido del usuario (02/11): a la pantalla One-shot se le tienen que poder dar ar
 - OneShotRun.references: en el prompt inicial (antes de la spec; si chocan con el objetivo gana el objetivo), en el del evaluador de QA y al retomar; se guarda en to_dict.
 - agent_main_screen: botón + chips + drop desde el FileSystem en todo el panel del formulario. No toma archivos soltados desde el sistema operativo (files_dropped es de toda la ventana del editor).
 - Leer PDF o imágenes depende del agente (Claude Code los lee con Read).
+
+### El tooltip del anillo de cuota se cierra al segundo de aparecer · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Bug reportado por el usuario (02/11): al pasar el mouse por el anillo de cuota del dock, el tooltip aparece y se esconde al segundo.
+
+Causa probable (sin verificar): AgentDock._on_quota_tick corre cada 1 s con _quota_timer (agent_dock.gd ~515-548) y llama a QuotaRing.refresh(), que hace tooltip_text = describe() (quota_ring.gd:56). El texto incluye la cuenta regresiva del reinicio, que cambia cada segundo, y Godot cierra el tooltip abierto cuando cambia tooltip_text.
+
+Arreglo posible: asignar tooltip_text solo si el texto cambió y redondear el reinicio a minutos; o armar el texto en _get_tooltip() para que se calcule al abrir. Revisar también la fila de cuota del One-shot (agent_main_screen.gd:882), que se refresca con quota.changed.
+
+Probar con el editor abierto: el tooltip queda visible mientras el mouse está encima, con y sin límite alcanzado.
+
+**Prueba:** En tu editor, pasá el mouse por el anillo de cuota (abajo del dock): a los 0,35 s se abre el detalle en un panel arriba del anillo y queda abierto mientras el mouse esté encima, también con un turno en curso. Se cierra al sacar el mouse. Automático: tests/run_in_xvfb.sh <godot> -- --godot-agent-ui-test=ui_quota y =ui_quota_busy, en 4.7.2 y 4.8-beta2: PASS. Comprueban el panel abierto 4 s, arriba del anillo, sin tapar el mouse y dentro de la ventana, que no se abra además el tooltip de Godot y que se cierre al salir. Captura <shot>_quota_hint.png. run_all 410/0.
+
+**Notas:** Causa (la encontró el usuario el 02/11): el anillo está abajo de todo y el tooltip es alto. Godot lo corre hacia arriba para que entre en la pantalla, queda debajo del mouse y se cierra solo. En Xvfb no se veía porque ahí el tooltip entraba.
+Arreglo: QuotaRing ya no usa tooltip_text. hint_text guarda el detalle, y un PanelContainer top_level (mouse_filter IGNORE, estilo TooltipPanel del tema) se abre con mouse_entered después de HOVER_DELAY_S, siempre arriba del anillo, centrado y dentro de la ventana (abajo solo si arriba no entra). Se cierra con mouse_exited o al ocultarse. Si el detalle cambia con el panel abierto, se actualiza en el lugar.
+Además, el tick de 1 s ya no toca nada si no cambió: refresh compara texto y estado del dibujo, set_context ignora valores iguales y Composer.set_locked ignora el mismo texto.
+Tests: test_quota_ring usa hint_text. El dev plugin tiene _check_ring_tooltip y el guion tests/scripts/ui_quota_busy.json.
+
+### One-shot: dejar claro que el spec se puede cambiar desde el chat · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Pregunta del usuario (02/11): con el spec en revisión, ¿se le pueden pedir cambios al agente desde el chat? Sí se puede, pero no está claro.
+
+Hoy: en SPEC_REVIEW, lo que se escribe en el chat del dock se manda ya (OneShotRun, oneshot_run.gd:534) y al terminar el turno vuelve a SPEC_REVIEW porque _awaiting_spec sigue en true (línea 756). Problemas:
+1. La pantalla no lo dice: la barra del spec (agent_main_screen.gd ~486) solo tiene «Editar» y «Aprobar spec». Solo lo menciona el aviso de cuando falta spec.md.
+2. El mensaje va crudo: la orden de no construir estaba solo en el prompt inicial, así que «cambiá los controles a WASD» puede hacer que el agente construya antes de la aprobación.
+
+Arreglo:
+- Una nota bajo la barra del spec: «¿Querés cambios? Pedíselos en el chat: el agente actualiza el spec y vuelve a esperar tu aprobación». Que el aviso del chat de _enter_spec_review lo diga también.
+- Si phase es SPEC_REVIEW o _awaiting_spec, envolver la guía: «Apply this to spec.md and end the turn without building: the user still has to approve it.» También la que queda en cola.
+- i18n es.po, wiki One-shot en/es y CHANGELOG.
+
+Prueba: oneshot_check con un mensaje en revisión de spec (el prompt sale envuelto y el run vuelve a SPEC_REVIEW) y la nota visible en oneshot-test.
+
+**Prueba:** One-shot con «Revisar el spec antes de construir». Cuando aparece «Spec para revisar», la columna dice «¿Querés cambios? Pedíselos en el chat del agente…» y el aviso del chat también lo dice. Escribí en el chat «sumá power-ups»: el agente actualiza spec.md, no construye y el run vuelve a «Spec para revisar». Automático: oneshot_check 140/0 (escenario spec: el pedido sale envuelto con la ruta de spec.md y «without building», y el run vuelve a SPEC_REVIEW). oneshot-test en Xvfb PASS.
+
+**Notas:** - OneShotRun._user_prompt(text): mientras _awaiting_spec, el mensaje del usuario sale como «The user hasn't approved the spec yet and asks for this: … Apply it to <dir>/spec.md (answer in the chat if it's a question) and end the turn without building anything». Vale para el mensaje que sale ya y para el que estaba en cola (_pop_guidance).
+- Pantalla: _plan_note cambia de texto en la revisión (antes se ocultaba). Aviso del chat de _enter_spec_review ampliado. es.po, wiki One-shot en/es y CHANGELOG.
+
+### Turno colgado: el agente terminó pero el dock queda trabajando y Stop se queda en «cancelling» · Revisión
+
+**Prioridad:** alta · **Tamaño:** M
+
+Bug del usuario (02/11, Project Epiphany, Godot 4.8-beta2, Claude Code · personal, modo Build). El agente terminó su respuesta a las 05:30:55 UTC: es el último mensaje del transcript de Claude y el proceso quedó ocioso, sin hijos. El dock siguió en «The agent is working», con un mensaje en cola. Stop lo deja en «cancelling…» para siempre.
+
+Lo que se vio:
+- user://godot_agent/sessions/5ac56c68….jsonl solo tiene el primer turno: el segundo nunca llegó a record_turn_end. O la respuesta de session/prompt no llegó, o send_prompt cortó entre el request y model.finish_turn.
+- SessionController.cancel() pasa a CANCELLING y solo manda la notificación session/cancel. Si el agente no tiene un turno abierto, no contesta nada y no hay ningún tiempo límite.
+- El log del editor no sirve: el godot.log lo pisó la corrida del juego.
+
+Para hacer:
+1. Cancelar sin colgarse: si a los ~5 s de session/cancel no llegó la respuesta del prompt, cerrar el turno local («cancelled»), guardar el historial y avisar en el chat. Si el agente igual no responde, ofrecer reiniciarlo, retomando la sesión.
+2. Encontrar la causa: registrar en AgentLog la llegada de la respuesta de session/prompt (id y stopReason) y cualquier error de script entre el request y finish_turn (send_prompt, session_controller.gd ~450-490). Mirar también la lectura de líneas del ACP client con mensajes grandes.
+3. Que el historial no dependa del fin de turno: hoy save() solo corre en turn_end, así que un turno colgado no deja nada.
+
+Prueba: un agente falso que nunca responde session/prompt y tampoco el cancel → Stop vuelve a idle en ≤5 s y el mensaje en cola sale.
+
+**Prueba:** Con un agente que se cuelgue (o el falso con el paso «hang»), apretá Stop. A los 8 s el turno se cierra solo, sale el mensaje en cola y aparece un aviso con «Reiniciar el agente», que reabre la misma sesión. Automático: el escenario «hang» de tests/acp_session_check.gd (171/0) comprueba que el prompt queda en el historial antes de que termine el turno, el cierre en menos de 10 s, la vuelta a READY, el aviso, el log y que el turno siguiente funcione. run_all 410/0.
+
+**Notas:** - SessionController: _prompt_request_id es el session/prompt en vuelo. cancel() arranca _watch_cancel (CANCEL_TIMEOUT_SEC = 8). Si el estado sigue en CANCELLING, despierta el request con client.cancel_request y send_prompt cierra el turno como «cancelled». Si el request ya no está (llegó la respuesta y algo cortó antes de finish_turn), cierra el turno ahí mismo. Ese caso agrega un aviso con ACTION_RESTART_AGENT y el log.
+- Dock: ACTION_RESTART_AGENT llama a open_history_session(session_id): proceso nuevo y la misma sesión. Si no puede, usa start_session.
+- Log: «Turn ended: <stopReason>» en cada fin de turno, y AcpClient ya registraba «← session/prompt #N ok». Con eso, la próxima vez se ve si la respuesta llegó.
+- SessionHistory: guarda en record_prompt y cada 15 s durante el turno (SAVE_INTERVAL_MSEC), no solo en turn_end.
+- La causa del caso de Epiphany sigue sin confirmar: no quedó log. Elegí 8 s y no 5 para que un cancel real con una tool larga alcance a confirmar.
+
+### Con una sesión trabajando, «Nueva sesión» y el historial la abren en otra pestaña en vez de bloquearse · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Reporte del usuario (02/11): «si una sesión está trabajando, no puedo abrir otra».
+
+Hoy, en agent_dock.gd, mientras el turno está en STARTING, PROMPTING o CANCELLING:
+- _new_session_button queda deshabilitado (línea ~733).
+- El menú del historial deshabilita todos sus ítems (~873) y _on_history_selected no hace nada (~933).
+Las dos acciones reemplazan la sesión de la pestaña actual, por eso se bloquean. La única salida es el «+» de las pestañas, y eso no es evidente.
+
+Arreglo propuesto:
+- Con la pestaña ocupada, «Nueva sesión» y elegir una sesión del historial abren una pestaña nueva, con el mismo agente y la misma cuenta, en vez de quedar deshabilitados.
+- El tooltip lo dice: «Se abre en otra pestaña: esta sigue trabajando».
+- Una sesión que ya está abierta en otra pestaña enfoca esa pestaña y no se abre dos veces.
+- Se respeta can_switch_session: con One-shot corriendo sigue el aviso.
+
+Prueba: sessions-test en Xvfb con la pestaña 1 en PROMPTING (agente falso). «Nueva sesión» y el historial crean la pestaña 2 y la 1 sigue en su turno.
+
+**Prueba:** Con un turno en curso en una pestaña, tocá «+» › «Nueva sesión»: se abre una pestaña nueva con el mismo agente y cuenta, y arranca una sesión ahí. El tooltip lo avisa. En el historial, arriba aparece «Esta pestaña está trabajando: la sesión se abre en una nueva», y elegir una sesión la abre en otra pestaña. Si esa sesión ya está abierta en otra pestaña, la elige en lugar de abrirla de nuevo. Lo mismo en la pestaña de un One-shot en curso. Automático: sessions-test en Xvfb PASS. Con la primera en PROMPTING comprueba: el botón habilitado, que «Nueva sesión» y el historial emitan open_elsewhere_requested ("" y el id), que session_focuser elija la pestaña que tiene la sesión, y que _open_elsewhere cree y elija la pestaña. run_all 410/0.
+
+**Notas:** - AgentDock: señal open_elsewhere_requested(session_id) y _must_open_elsewhere() (STARTING/PROMPTING/CANCELLING o can_switch_session falso). «Nueva sesión» ya no se deshabilita por estar ocupada, solo en STARTING. El historial ya no deshabilita los ítems: muestra un separador con el aviso. session_focuser(id) evita abrir dos veces la misma sesión, también con la pestaña libre.
+- plugin: _wire_elsewhere en la primera pestaña y en las extra. _open_elsewhere usa _create_session_tab + copy_agent_from + select y después start_session u open_history_session. _focus_session recorre las pestañas por model.session_id.
+- Saqué el aviso «A One-shot is running: stop it before opening another session.»: ahora se abre en otra pestaña.
+
+**Relacionadas:** One-shot ligado a su sesión: una pestaña propia, sin tomar el dock entero
+
+### Imágenes pegadas en el chat que quedan cargadas y no le llegan al agente · Revisión
+
+**Prioridad:** alta · **Tamaño:** S
+
+Reporte del usuario (02/11): «las imágenes pegadas no se las da al agente, quedan cargadas y no se usan».
+
+En agent_dock.gd, las imágenes se juntan en _images y se consumen en _take_context_blocks() cuando el mensaje sale (_send), o pasan a la cola si el agente está ocupado. Estos caminos dejan el chip cargado sin mandar la imagen:
+1. One-shot activo: submit_interceptor → OneShotRun.take_dock_prompt(text) → guide(text) recibe solo el texto (agent_dock.gd ~953, oneshot_run.gd:492). Las imágenes no entran en la guía del run.
+2. Mensajes que empiezan con «/»: van solos a propósito (send_prompt), y los adjuntos quedan para el próximo mensaje sin avisar.
+3. Arranque fallido: en STARTING o DISCONNECTED solo se guarda _pending_prompt (el texto). Si start falla, la imagen queda en el chip.
+Falta confirmar con el usuario en qué caso le pasó.
+
+Arreglo:
+- La guía del One-shot acepta bloques (guide(text, blocks)), tanto encolada como enviada ya.
+- Con un comando «/», un aviso: «La imagen va con tu próximo mensaje».
+- Pruebas: oneshot_check con una guía con imagen; test del dock con imagen + comando.
+
+**Prueba:** Con un One-shot corriendo, pegá una imagen en el chat del dock y escribí algo. El chip se va y el mensaje del run muestra la imagen adjunta. Si el agente estaba en un turno, la actividad dice «queued: … · 📎 1 attachment» y la imagen sale con la guía al terminar el turno. Automático: oneshot_check 140/0 (escenario de presupuestos: la guía encolada con una imagen llega al agente con la imagen), run_all 410/0, oneshot-test en Xvfb PASS.
+
+**Notas:** - OneShotRun.guide(text, blocks) y take_dock_prompt(text, blocks). _guidance_blocks va en paralelo a _guidance (_push_guidance y _pop_guidance devuelven [prompt, blocks]). _run_turn y send_in_mode pasan los bloques a send_prompt.
+- Dock: submit_interceptor(text, take_blocks). El plugin llama a take_blocks (que saca los adjuntos del composer) solo si el One-shot está activo y se queda con el mensaje.
+- Los adjuntos encolados no se guardan con el run: si el editor se cierra, el texto queda y la imagen se pierde.
+- Casos 2 y 3 de la descripción (comando «/», arranque fallido): sin cambios. El usuario confirmó que le pasó con el One-shot.
+
+**Relacionadas:** One-shot ligado a su sesión: una pestaña propia, sin tomar el dock entero
+
+### One-shot ligado a su sesión: una pestaña propia, sin tomar el dock entero · Revisión
+
+**Prioridad:** alta · **Tamaño:** M
+
+Pedido del usuario (02/11): «el modo debería estar ligado a la sesión, no a todas».
+
+Hoy (plugin.gd ~225-245) el One-shot corre en la sesión de la primera pestaña (_model/_controller):
+- submit_interceptor manda todo lo que se escribe ahí a OneShotRun.guide().
+- can_switch_session bloquea abrir otra sesión mientras corre el run.
+- set_oneshot_active cambia el composer.
+Mientras dura el run, la primera pestaña deja de ser un chat normal. Las pestañas extra (allow_oneshot = false) no se ven afectadas, pero no es evidente cuál es la del run.
+
+Propuesta:
+- El run abre su propia pestaña, «One-shot · <objetivo>», con su sesión. Esa pestaña lleva el interceptor (con imágenes, ver m17-18), el retry y el composer en modo One-shot.
+- Las demás pestañas, incluida la que estaba abierta, siguen siendo chats normales: pueden cambiar de sesión, abrir el historial y elegir modo.
+- Al terminar o detener el run, su pestaña queda como sesión normal, para leerla o seguir charlando.
+- Retomar un run (recover/resume) reabre su pestaña.
+- El modo del agente (Build/Plan/…) también es por pestaña: confirmar que el run no cambia el de las otras.
+
+Prueba: oneshot-test con dos pestañas. La guía de la pestaña del run llega al run, y la otra manda prompts normales y puede abrir el historial durante el run.
+
+**Decisiones:**
+- ! Cada run abre una pestaña nueva (no reusa la del run anterior), con el agente y la cuenta de la pestaña activa al lanzarlo · sin revisar
+  Por qué: Reusar la pestaña del run anterior seguiría su sesión (start reusa la sesión conectada) y mezclaría dos runs en una conversación. Tomar el agente de la pestaña activa respeta la cuenta elegida por pestaña (m17-12).
+  Descartado: Reusar la pestaña del run anterior reiniciando su sesión; usar siempre el último agente elegido; preguntar el agente en el formulario del One-shot.
+
+**Prueba:** Con dos pestañas, lanzá un One-shot desde la pantalla One-shot. Aparece una pestaña nueva «One-shot · <objetivo>», ya elegida, con el agente y la cuenta de la pestaña desde la que lo lanzaste. Lo que escribís ahí va al run, y en la primera pestaña podés chatear, cambiar de sesión y abrir el historial como siempre. Cerrar la pestaña del run con el run en curso no se puede (sale un aviso). Al terminar queda como sesión común y se puede cerrar. Retomar un run a medias, después de reabrir el editor, abre su pestaña. Automático: oneshot-test en Xvfb PASS, con el tramo nuevo _check_run_tab (pestaña nueva, el run en su controller, interceptor y can_switch_session por pestaña, composer en modo One-shot solo en la del run, guía que llega, no se cierra en curso, al cerrarla el run vuelve a la primera). run_all 410/0, oneshot_check 140/0, sessions-test PASS.
+
+**Notas:** - OneShotRun.bind(controller) mueve las conexiones al modelo nuevo y emite controller_changed (la pantalla se reconecta a la cuota y al plan). prepare_session es un hook async que se llama en start() y al retomar un run que vino de disco.
+- plugin: _prepare_oneshot_tab crea la pestaña con _create_session_tab(null, «One-shot · objetivo», for_oneshot = true), copia agente y cuenta de la pestaña activa (AgentDock.copy_agent_from) y hace bind + select. _open_session_tab ahora usa _create_session_tab.
+- _wire_oneshot(dock, id) arma, por id, el interceptor, el retry, can_switch_session, after_login y el modo One-shot del composer, que valen solo si _oneshot.controller es el de esa pestaña (_runs_in). Va en la primera y en todas las pestañas que no son copias. Sin capturar controller ni dock, para no armar ciclos; el listener de changed se desconecta al cerrar.
+- _close_session_tab: con el run activo en esa pestaña no la cierra y avisa. Si el run ya terminó, lo vuelve a la primera sesión.
+- restart_session usa _oneshot.controller y el perfil de su pestaña. agent_name de la pantalla: el del run en curso o el de la pestaña activa.
+- Los tramos viejos del test corren con prepare_session apagado, como antes, en la primera sesión.
+
+**Relacionadas:** Con una sesión trabajando, «Nueva sesión» y el historial la abren en otra pestaña en vez de bloquearse; Imágenes pegadas en el chat que quedan cargadas y no le llegan al agente
+
+### El JSON de checks del One-shot sale crudo en el chat: mostrarlo plegado como resumen · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Reporte del usuario (02/11, Road Fighter 3D, informe de QA ronda 1): «no entiendo ese json largo que largó luego de una sesión de QA».
+
+El One-shot pide al agente y al evaluador de QA que cierren cada turno con un bloque ```json {"checks":[…]}```. El harness lo lee para el estado de los checks, pero el chat lo muestra como un bloque de código largo, aunque no está pensado para que lo lea una persona.
+
+Ya hay un mecanismo igual para Revisar: los bloques `findings` se pliegan. SessionController._fold_findings pone entry.findings_count, y agent_message_view.gd (~71, 137) dibuja SegmentKind.FINDINGS como un resumen en lugar del código.
+
+Arreglo:
+- Un SegmentKind.CHECKS en agent_message_view, para mensajes del agente con un bloque `{"checks": …}` válido. Se dibuja como una línea plegada: «Checks: 6 ✓ · 1 ✗ · 0 sin verificar — ver en One-shot».
+- Al expandirla aparece la lista legible: ícono de estado + label, y el detalle en el tooltip o en una segunda línea. El JSON crudo queda detrás de «ver JSON», para depurar.
+- Lo mismo para los mensajes del evaluador de QA. Revisar si el informe trae otros bloques para la máquina (el veredicto) y plegarlos igual.
+- La detección usa el mismo parser del run (OneShotRun / checks), para no tener dos.
+- Funciona también al reabrir una sesión del historial.
+
+Prueba: test de agent_message_view con un mensaje que trae un bloque de checks → se ve el resumen y no el código. oneshot-test en Xvfb con una captura del chat.
+
+**Prueba:** run_all 412/0. tests/unit/test_agent_message_view.gd: bloque checks+scores+findings → resumen plegado (cuenta ✓/✗/sin verificar, puntajes, hallazgos), lista legible con detalle y BBCode escapado, JSON detrás de «Ver JSON»; un JSON cualquiera o a medio llegar sigue como código.
+
+**Notas:** FindingsParser.report_block(code) reusa parse() (el mismo parser del run). La vista detecta el bloque por su contenido, no por un flag de la entrada: anda en cualquier modo y al reabrir del historial. Durante el streaming se ve como código hasta que el JSON cierra. En Revisar, un bloque findings leído sigue plegándose como antes (tiene prioridad). No verificado con captura en Xvfb.
+
+### Chat: adjuntar imágenes y archivos de fuera del proyecto desde «+ context» · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Pedido del usuario (02/11): poder darle al agente imágenes de fuera del proyecto.
+
+Hoy el diálogo de «+ context › Archivos…» del dock (agent_dock.gd ~1284) usa EditorFileDialog.ACCESS_RESOURCES, así que solo navega res://. add_context_files ya acepta imágenes de cualquier ruta (Image.load_from_file). Los demás archivos de fuera del proyecto se rechazan con «Only images and project files can be attached».
+
+Arreglo:
+- El diálogo pasa a ACCESS_FILESYSTEM, abriendo en la carpeta del proyecto y recordando la última carpeta usada.
+- Las imágenes de afuera se adjuntan como ya se hace hoy.
+- Los textos de afuera (.md, .txt, .json, .pdf…): adjuntarlos como resource_link file:// con la ruta absoluta, para que el agente los lea, o como bloque de texto si son chicos. Elegir según lo que acepte el agente (capabilities: embeddedContext). Que no queden rechazados.
+- Opcional: soltar archivos desde el explorador del sistema en el dock. files_dropped es de la ventana; ver si se puede limitar al dock que tiene el mouse encima.
+- i18n y wiki (Chat/Context).
+
+Prueba: un test de add_context_files con una imagen y un .md en tests/tmp fuera de res://. La imagen sale como bloque image y el .md como resource_link o texto en el prompt.
+
+**Decisiones:**
+- ! Archivos de afuera como resource_link con ruta absoluta, sin embeber el texto · sin revisar
+  Por qué: Funciona con cualquier agente y tamaño (PDF incluido) y no depende de embeddedContext; Claude Code lee la ruta absoluta.
+  Descartado: Embeber como bloque resource/texto si es chico y el agente acepta embeddedContext.
+
+**Prueba:** ui-test ui_quota PASS (Xvfb, 4.7.2): un .md en user:// (fuera de res://) queda como resource_link file://<ruta absoluta> con mimeType text/markdown; una ruta que no existe no se adjunta; el chip se limpia al enviar. Las imágenes de afuera ya estaban cubiertas en el mismo test.
+
+**Notas:** Diálogo con ACCESS_FILESYSTEM, abre en la carpeta del proyecto; la misma instancia recuerda la última carpeta mientras el editor está abierto (no se guarda entre sesiones). Fuera del proyecto siempre resource_link (no texto embebido): no dependo de embeddedContext y sirve también para PDF. mimeType según extensión. Menú: «Archivo…» en lugar de «Archivo del proyecto…». No hice el soltar archivos desde el explorador del sistema (era opcional).
+
+### Composer del chat: que crezca con el texto y se pueda agrandar a mano · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Pedido del usuario (02/11, captura con un prompt largo pegado): el cuadro donde se escribe queda chico, con unas 3 líneas y una barra de scroll, y no se puede agrandar.
+
+Hoy composer.gd:110-111 fija _input.custom_minimum_size.y = 72 px y scroll_fit_content_height = false: el alto es fijo.
+
+Arreglo:
+- Crecer con el contenido: el alto sigue al texto (scroll_fit_content_height, o la cuenta de líneas visuales con wrap × line height) entre el mínimo actual y un tope de ~40 % del alto del dock. A partir del tope aparece el scroll.
+- Una manija para arrastrar en el borde de arriba del composer, que fija el alto a mano entre el mínimo y ~70 % del dock. Doble clic vuelve al automático. El alto elegido se guarda en EditorSettings (godot_agent/ui/composer_height) y vale para todas las pestañas.
+- Al mandar el mensaje vuelve al alto de reposo, salvo que el alto se haya fijado a mano.
+- Cuidar _fit_row y los chips de contexto de arriba, para que la fila de botones no salte. El historial del chat se achica, no se superpone.
+- Funciona igual en el dock y en el panel inferior.
+
+Prueba: en Xvfb, pegar 30 líneas → el composer crece hasta el tope. Arrastrar la manija → cambia el alto y se guarda. Mandar el mensaje → vuelve al alto de reposo. Captura antes y después.
+
+**Prueba:** run_all 413/0 (test_composer.test_height_follows_text_and_grip: tope 40 %/70 %, mínimo, 30 líneas crecen al tope, clear vuelve al reposo, arrastrar la manija agranda y queda fijado, fijado no sigue al texto, doble clic vuelve a automático). ui-test ui_quota en Xvfb 4.7.2 y 4.8-beta2: 30 líneas → crece >1,5× y ≤41 % del dock, el chat no queda debajo del composer, vuelve al alto de reposo al limpiar; captura <shot>_composer.png revisada (el texto llena el cuadro hasta la última línea).
+
+**Notas:** Manija de 6 px arriba de los chips (cursor VSIZE). Alto fijado en EditorSettings godot_agent/ui/composer_height sin la escala del editor; se aplica a todas las pestañas vía grupo godot_agent_composers. text_changed no sale cuando el texto se pone por código: update_height se llama también en clear, insert_text y al recorrer el historial. Al crecer, el CodeEdit dejaba el scroll del alto viejo (líneas arriba, aire abajo): _fit_scroll en resized lo corrige. El panel inferior usa el mismo composer: no lo probé ahí aparte. De paso, sessions-test fallaba en 4.8 porque dependía de la cuenta guardada en las EditorSettings de quien lo corre: ahora la limpia y la restaura.
 
 ## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
 

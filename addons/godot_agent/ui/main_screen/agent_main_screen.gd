@@ -13,6 +13,7 @@ signal settings_requested
 
 const OneShotRun := preload("../../oneshot/oneshot_run.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
+const SessionModel := preload("../../session/session_model.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
 const ImageViewer := preload("../image_viewer.gd")
@@ -109,6 +110,8 @@ var _budgets_edit: Dictionary = {}
 var _plan_note: Label
 var _spec_view: RichTextLabel
 var _spec_bar: HBoxContainer
+var _bound_quota: QuotaMonitor
+var _bound_model: SessionModel
 var _spec_shown: String = ""
 var _form_rule: Label
 var _form_columns: BoxContainer
@@ -208,8 +211,8 @@ func _ready() -> void:
 	_run.changed.connect(_refresh)
 	_run.activity_added.connect(_on_activity_added)
 	_run.restored.connect(_on_restored)
-	_run.quota.changed.connect(_refresh)
-	_run.model.plan_changed.connect(func(_plan: Array) -> void: _refresh())
+	_connect_session()
+	_run.controller_changed.connect(_connect_session)
 	visibility_changed.connect(func() -> void:
 		if is_visible_in_tree():
 			_summary_dirty = true
@@ -225,6 +228,22 @@ func _build_banner() -> void:
 	_banner_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_banner.add_child(_banner_label)
 	add_child(_banner)
+
+
+## La cuota y el plan son de la sesión del run, que cambia cuando el run pasa a su pestaña (m17-19).
+func _connect_session() -> void:
+	if _bound_quota and _bound_quota.changed.is_connected(_refresh):
+		_bound_quota.changed.disconnect(_refresh)
+	if _bound_model and _bound_model.plan_changed.is_connected(_on_plan_changed):
+		_bound_model.plan_changed.disconnect(_on_plan_changed)
+	_bound_quota = _run.quota
+	_bound_model = _run.model
+	_bound_quota.changed.connect(_refresh)
+	_bound_model.plan_changed.connect(_on_plan_changed)
+
+
+func _on_plan_changed(_plan: Array) -> void:
+	_refresh()
 
 
 func _build_form() -> void:
@@ -928,7 +947,9 @@ func _refresh_plan() -> void:
 	_plan_title.text = I18n.t("Spec").to_upper() if reviewing else I18n.t("Plan").to_upper()
 	(_plan_list.get_parent() as Control).visible = not reviewing and not _plan_edit.visible
 	_plan_edit_button.visible = not reviewing and not _plan_edit.visible
-	_plan_note.visible = not reviewing
+	# En la revisión del spec, la nota dice que los cambios se piden en el chat (m17-15).
+	_plan_note.text = I18n.t("Want changes? Ask for them in the agent's chat: it updates the spec and waits for your approval again. Or edit it yourself with “Edit”.") if reviewing \
+		else I18n.t("You can edit the plan while it runs: the agent rereads it when the turn ends.")
 	_spec_view.visible = reviewing
 	_spec_bar.visible = reviewing
 	if reviewing:

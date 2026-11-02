@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T06:39:26.348Z",
+  "description": "Pedido del usuario (02/11, captura con un prompt largo pegado): el cuadro donde se escribe queda chico, con unas 3 líneas y una barra de scroll, y no se puede agrandar.\n\nHoy composer.gd:110-111 fija _input.custom_minimum_size.y = 72 px y scroll_fit_content_height = false: el alto es fijo.\n\nArreglo:\n- Crecer con el contenido: el alto sigue al texto (scroll_fit_content_height, o la cuenta de líneas visuales con wrap × line height) entre el mínimo actual y un tope de ~40 % del alto del dock. A partir del tope aparece el scroll.\n- Una manija para arrastrar en el borde de arriba del composer, que fija el alto a mano entre el mínimo y ~70 % del dock. Doble clic vuelve al automático. El alto elegido se guarda en EditorSettings (godot_agent/ui/composer_height) y vale para todas las pestañas.\n- Al mandar el mensaje vuelve al alto de reposo, salvo que el alto se haya fijado a mano.\n- Cuidar _fit_row y los chips de contexto de arriba, para que la fila de botones no salte. El historial del chat se achica, no se superpone.\n- Funciona igual en el dock y en el panel inferior.\n\nPrueba: en Xvfb, pegar 30 líneas → el composer crece hasta el tope. Arrastrar la manija → cambia el alto y se guarda. Mandar el mensaje → vuelve al alto de reposo. Captura antes y después.",
+  "milestone": "m17",
+  "notes": "Manija de 6 px arriba de los chips (cursor VSIZE). Alto fijado en EditorSettings godot_agent/ui/composer_height sin la escala del editor; se aplica a todas las pestañas vía grupo godot_agent_composers. text_changed no sale cuando el texto se pone por código: update_height se llama también en clear, insert_text y al recorrer el historial. Al crecer, el CodeEdit dejaba el scroll del alto viejo (líneas arriba, aire abajo): _fit_scroll en resized lo corrige. El panel inferior usa el mismo composer: no lo probé ahí aparte. De paso, sessions-test fallaba en 4.8 porque dependía de la cuenta guardada en las EditorSettings de quien lo corre: ahora la limpia y la restaura.",
+  "order": 22,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "run_all 413/0 (test_composer.test_height_follows_text_and_grip: tope 40 %/70 %, mínimo, 30 líneas crecen al tope, clear vuelve al reposo, arrastrar la manija agranda y queda fijado, fijado no sigue al texto, doble clic vuelve a automático). ui-test ui_quota en Xvfb 4.7.2 y 4.8-beta2: 30 líneas → crece >1,5× y ≤41 % del dock, el chat no queda debajo del composer, vuelve al alto de reposo al limpiar; captura <shot>_composer.png revisada (el texto llena el cuadro hasta la última línea).",
+  "title": "Composer del chat: que crezca con el texto y se pueda agrandar a mano",
+  "updated_at": "2026-11-02T07:46:23.209Z"
+}

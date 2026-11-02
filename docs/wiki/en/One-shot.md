@@ -26,7 +26,7 @@ Never run One-shot on a repository where you don't want new branches. To try it,
 
 ## How a run goes
 
-1. **Spec**: the agent writes `spec.md`, a high-level description of the game: mechanics, game loop, visual direction and what "done" means. With **Review the spec before building**, the run waits in "Spec to review": the plan column shows the spec, **Edit** opens it and **Approve spec** starts the build. If you write in the chat instead, the agent revises it and waits again.
+1. **Spec**: the agent writes `spec.md`, a high-level description of the game: mechanics, game loop, visual direction and what "done" means. With **Review the spec before building**, the run waits in "Spec to review": the plan column shows the spec, **Edit** opens it and **Approve spec** starts the build. To change it, you can also tell the agent in the chat what you want: it applies the change to the spec, without building anything, and waits for your approval again.
 2. **Plan**: the agent turns the spec into tasks. You can edit the plan while it runs; the agent rereads it when its turn ends. Each task shows how long it took, and the current one counts live.
 3. **Build and verify**: for each task, the agent edits, runs the game (`run_scene`), looks at frames (`capture_game_frame`), reads errors and reports **checks** (`pass`, `fail`, `pending`). It keeps `progress.md` up to date.
 4. **Checkpoints**: each task (or each playtest, if the agent doesn't report a plan) is a `cpN` commit on the `agent/<date>` branch.
@@ -69,7 +69,7 @@ The agent that builds tends to be lenient with its own work, so the harness does
 
 ## Guiding the agent
 
-While a One-shot runs, whatever you write in the dock's chat goes to the run's agent. If the agent is in the middle of a turn, the message waits:
+Each run opens its own tab in the dock, **One-shot · <goal>**, with the agent and account of the tab you launched it from. Whatever you write in that tab's chat goes to the run's agent, with the images and files you attached; the other tabs stay normal chats. The run's tab can't be closed while the run is going; once it ends, it stays as a regular session you can read or close. If the agent is in the middle of a turn, the message waits:
 
 - the activity shows **guide · queued: …** and the chat says so;
 - when the turn ends it's sent, and the activity shows **guide · sent: …**.

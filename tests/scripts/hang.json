@@ -1,0 +1,6 @@
+{
+	"turns": [
+		{"steps": [{"chunk": "Listo, terminé."}, {"hang": true}]},
+		{"steps": [{"chunk": "De nuevo acá."}, {"stop": "end_turn"}]}
+	]
+}

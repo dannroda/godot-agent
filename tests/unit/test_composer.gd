@@ -322,3 +322,56 @@ func test_add_menu_and_meter() -> void:
 	composer.free()
 	const QuotaRing := preload("res://addons/godot_agent/ui/dock/quota_ring.gd")
 	assert_eq(QuotaRing.context_line(38000, 200000), "Context: 38k of 200k (19 %)", "el contexto en el tooltip del anillo")
+
+
+func test_height_follows_text_and_grip() -> void:
+	assert_eq(Composer.target_height(10.0, 0.0, 1000.0, 72.0), 72.0, "nunca menos que el mínimo")
+	assert_eq(Composer.target_height(300.0, 0.0, 1000.0, 72.0), 300.0, "sigue al texto")
+	assert_eq(Composer.target_height(900.0, 0.0, 1000.0, 72.0), 400.0, "solo hasta el 40 % del dock")
+	assert_eq(Composer.target_height(900.0, 650.0, 1000.0, 72.0), 650.0, "a mano manda el alto fijado")
+	assert_eq(Composer.target_height(10.0, 900.0, 1000.0, 72.0), 700.0, "a mano, hasta el 70 %")
+	assert_eq(Composer.target_height(10.0, 0.0, 50.0, 72.0), 72.0, "un dock muy chico no baja del mínimo")
+
+	var tree := Engine.get_main_loop() as SceneTree
+	var holder := Control.new()
+	holder.size = Vector2(400, 1000)
+	tree.root.add_child(holder)
+	var composer: VBoxContainer = Composer.new()
+	composer.call(&"setup", Color.ORANGE)
+	holder.add_child(composer)
+	composer.size = Vector2(400, 200)
+	await tree.process_frame
+	composer.call(&"set_manual_height", 0.0)
+	var input: CodeEdit = composer.get(&"_input")
+	var resting := input.custom_minimum_size.y
+	assert_eq(resting, 72.0, "vacío: el alto de reposo")
+	composer.call(&"insert_text", "\n".join(range(30).map(func(i: int) -> String: return "línea %d" % i)))
+	assert_eq(input.custom_minimum_size.y, 400.0, "30 líneas: crece hasta el tope")
+	composer.call(&"clear")
+	assert_eq(input.custom_minimum_size.y, resting, "al mandar vuelve al reposo")
+
+	var grip: Control = composer.get(&"_grip")
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.global_position = Vector2(10, 500)
+	composer.call(&"_on_grip_input", press)
+	var motion := InputEventMouseMotion.new()
+	motion.global_position = Vector2(10, 300)
+	composer.call(&"_on_grip_input", motion)
+	assert_eq(input.custom_minimum_size.y, 272.0, "arrastrar hacia arriba agranda")
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.global_position = motion.global_position
+	composer.call(&"_on_grip_input", release)
+	assert_eq(composer.call(&"manual_height"), 272.0, "queda fijado")
+	composer.call(&"insert_text", "una línea")
+	assert_eq(input.custom_minimum_size.y, 272.0, "fijado a mano no sigue al texto")
+	var double := InputEventMouseButton.new()
+	double.button_index = MOUSE_BUTTON_LEFT
+	double.pressed = true
+	double.double_click = true
+	composer.call(&"_on_grip_input", double)
+	assert_eq(input.custom_minimum_size.y, resting, "doble clic vuelve a seguir al texto")
+	assert_true(grip != null, "hay manija")
+	holder.free()

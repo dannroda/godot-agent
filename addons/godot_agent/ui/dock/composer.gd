@@ -34,6 +34,15 @@ const HISTORY_LIMIT := 100
 const LIST_LIMIT := 200
 ## Más líneas que esto en el portapapeles no es una lista de archivos copiados.
 const PASTED_FILES_LIMIT := 20
+## Alto del texto (m17-22): crece con lo escrito entre el mínimo y AUTO_MAX_RATIO del dock; con la
+## manija se fija a mano hasta MANUAL_MAX_RATIO. El alto fijado vale para todas las pestañas.
+const MIN_INPUT_HEIGHT := 72.0
+const AUTO_MAX_RATIO := 0.4
+const MANUAL_MAX_RATIO := 0.7
+const SETTING_HEIGHT := "godot_agent/ui/composer_height"
+const GROUP := &"godot_agent_composers"
+## Alto fijado con la manija, sin la escala del editor (0 = sigue al texto, -1 = sin leer).
+static var _manual_height: float = -1.0
 
 ## Callable() -> Array[Dictionary] `{label, insert}` para `@`.
 var mention_provider: Callable
@@ -88,6 +97,10 @@ var _spacer: Control
 ## 4 = sin `@`, 5 = sin captura, 6 = el modelo se corta con «…».
 var _compact_level: int = 0
 var _fit_queued: bool = false
+var _grip: Control
+var _dragging: bool = false
+var _drag_from_y: float = 0.0
+var _drag_start_height: float = 0.0
 
 
 func setup(accent: Color) -> void:
@@ -100,6 +113,9 @@ func _ready() -> void:
 	_suggestions = SuggestionList.new()
 	_suggestions.picked.connect(_on_suggestion_picked)
 	add_child(_suggestions)
+	add_to_group(GROUP)
+	_grip = _make_grip()
+	add_child(_grip)
 	_chips = HFlowContainer.new()
 	_chips.visible = false
 	add_child(_chips)
@@ -107,7 +123,7 @@ func _ready() -> void:
 	_input = CodeEdit.new()
 	_input.placeholder_text = I18n.t(PLACEHOLDER)
 	_input.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_input.custom_minimum_size.y = AgentTheme.px(72)
+	_input.custom_minimum_size.y = AgentTheme.px(MIN_INPUT_HEIGHT)
 	_input.scroll_fit_content_height = false
 	_input.gutters_draw_line_numbers = false
 	_input.auto_brace_completion_enabled = false
@@ -119,6 +135,9 @@ func _ready() -> void:
 	_input.caret_blink = true
 	_input.gui_input.connect(_on_input_gui_input)
 	_input.text_changed.connect(_update_send_button)
+	_input.text_changed.connect(update_height)
+	_input.resized.connect(update_height)
+	_input.resized.connect(_fit_scroll)
 	_input.text_changed.connect(_refresh_suggestions)
 	_input.text_changed.connect(func() -> void:
 		if not _recalling:
@@ -209,6 +228,8 @@ func _enter_tree() -> void:
 	var guard := _size_guard()
 	if guard and not guard.resized.is_connected(_queue_fit):
 		guard.resized.connect(_queue_fit)
+	if guard and not guard.resized.is_connected(update_height):
+		guard.resized.connect(update_height)
 	_queue_fit()
 
 
@@ -216,6 +237,119 @@ func _exit_tree() -> void:
 	var guard := _size_guard()
 	if guard and guard.resized.is_connected(_queue_fit):
 		guard.resized.disconnect(_queue_fit)
+	if guard and guard.resized.is_connected(update_height):
+		guard.resized.disconnect(update_height)
+
+
+# --- alto del texto (m17-22) ---------------------------------------------------------------------
+
+## Manija arriba del composer: arrastrar fija el alto, doble clic vuelve a seguir al texto.
+func _make_grip() -> Control:
+	var grip := Control.new()
+	grip.name = "ResizeGrip"
+	grip.custom_minimum_size.y = AgentTheme.px(6)
+	grip.mouse_default_cursor_shape = Control.CURSOR_VSIZE
+	grip.tooltip_text = I18n.t("Drag to resize the message box; double-click to fit it to the text")
+	grip.draw.connect(func() -> void:
+		var center := grip.size / 2.0
+		var half := float(AgentTheme.px(16))
+		var color := Color(AgentTheme.MUTED, 0.8 if _dragging or grip.get_global_rect().has_point(grip.get_global_mouse_position()) else 0.35)
+		grip.draw_line(center - Vector2(half, 0), center + Vector2(half, 0), color, AgentTheme.px(2)))
+	grip.mouse_entered.connect(grip.queue_redraw)
+	grip.mouse_exited.connect(grip.queue_redraw)
+	grip.gui_input.connect(_on_grip_input)
+	return grip
+
+
+func _on_grip_input(event: InputEvent) -> void:
+	var button := event as InputEventMouseButton
+	if button and button.button_index == MOUSE_BUTTON_LEFT:
+		if button.pressed and button.double_click:
+			_dragging = false
+			set_manual_height(0.0)
+		elif button.pressed:
+			_dragging = true
+			_drag_from_y = button.global_position.y
+			_drag_start_height = _input.custom_minimum_size.y
+		elif _dragging:
+			_dragging = false
+			set_manual_height(_manual_height)
+		_grip.queue_redraw()
+		_grip.accept_event()
+	elif event is InputEventMouseMotion and _dragging:
+		var wanted := _drag_start_height + _drag_from_y - (event as InputEventMouseMotion).global_position.y
+		_manual_height = clampf(wanted, AgentTheme.px(MIN_INPUT_HEIGHT), _max_height(MANUAL_MAX_RATIO)) / AgentTheme.editor_scale()
+		update_height()
+		_grip.accept_event()
+
+
+## Fija el alto a mano (0 = que siga al texto), lo guarda y lo aplica en todas las pestañas.
+func set_manual_height(height: float) -> void:
+	_manual_height = maxf(height, 0.0)
+	if AgentTheme.has_editor():
+		EditorInterface.get_editor_settings().set_setting(SETTING_HEIGHT, _manual_height)
+	if is_inside_tree():
+		get_tree().call_group(GROUP, &"update_height")
+	else:
+		update_height()
+
+
+func manual_height() -> float:
+	if _manual_height < 0.0:
+		_manual_height = 0.0
+		if AgentTheme.has_editor() and EditorInterface.get_editor_settings().has_setting(SETTING_HEIGHT):
+			_manual_height = maxf(float(EditorInterface.get_editor_settings().get_setting(SETTING_HEIGHT)), 0.0)
+	return _manual_height
+
+
+func update_height() -> void:
+	if not is_instance_valid(_input):
+		return
+	var target := target_height(_content_height(), manual_height() * AgentTheme.editor_scale(), _reference_height(), AgentTheme.px(MIN_INPUT_HEIGHT))
+	if not is_equal_approx(_input.custom_minimum_size.y, target):
+		_input.custom_minimum_size.y = target
+
+
+## Al crecer, el scroll quedaba como en el alto anterior (las últimas líneas arriba y aire abajo).
+func _fit_scroll() -> void:
+	if not is_instance_valid(_input):
+		return
+	var max_scroll := maxf(0.0, _input.get_total_visible_line_count() - _input.get_visible_line_count())
+	if _input.scroll_vertical > max_scroll:
+		_input.scroll_vertical = max_scroll
+	_input.adjust_viewport_to_caret()
+
+
+## Alto del texto: el fijado a mano (hasta MANUAL_MAX_RATIO de `reference`) o el del contenido
+## (hasta AUTO_MAX_RATIO), nunca menos que `minimum`.
+static func target_height(content: float, manual: float, reference: float, minimum: float) -> float:
+	if manual > 0.0:
+		return clampf(manual, minimum, maxf(minimum, reference * MANUAL_MAX_RATIO))
+	return clampf(content, minimum, maxf(minimum, reference * AUTO_MAX_RATIO))
+
+
+func _content_height() -> float:
+	var lines := 0
+	for line in _input.get_line_count():
+		lines += _input.get_line_wrap_count(line) + 1
+	var style := _input.get_theme_stylebox(&"normal")
+	var margins := style.get_minimum_size().y if style else 0.0
+	return lines * _input.get_line_height() + margins + AgentTheme.px(4)
+
+
+func _max_height(ratio: float) -> float:
+	return maxf(AgentTheme.px(MIN_INPUT_HEIGHT), _reference_height() * ratio)
+
+
+## Alto del dock (o del panel) donde está el composer.
+func _reference_height() -> float:
+	var guard := _size_guard()
+	if guard:
+		return guard.size.y
+	var parent := get_parent_control()
+	while parent != null and parent.get_parent_control() != null:
+		parent = parent.get_parent_control()
+	return parent.size.y if parent else get_viewport_rect().size.y
 
 
 func current_text() -> String:
@@ -225,6 +359,7 @@ func current_text() -> String:
 func clear() -> void:
 	_input.text = ""
 	_update_send_button()
+	update_height()
 
 
 ## Pone `text` en el composer para seguir editándolo (después de lo que ya haya escrito).
@@ -234,6 +369,7 @@ func insert_text(text: String) -> void:
 	_input.set_caret_column(_input.get_line(_input.get_line_count() - 1).length())
 	_input.grab_focus()
 	_update_send_button()
+	update_height()
 
 
 func focus() -> void:
@@ -280,6 +416,8 @@ func set_unavailable(text: String) -> void:
 
 ## Bloquea el envío mientras dure el límite del plan (spec §10.1). `text` va en el botón.
 func set_locked(text: String, tooltip: String = "") -> void:
+	if text == _lock_text and tooltip == _lock_tooltip:
+		return  # el dock la llama cada segundo con lo mismo
 	_lock_text = text
 	_lock_tooltip = tooltip
 	_update_send_button()
@@ -589,6 +727,7 @@ func _recall(direction: int) -> bool:
 	_input.set_caret_line(_input.get_line_count() - 1)
 	_input.set_caret_column(_input.get_line(_input.get_line_count() - 1).length())
 	_update_send_button()
+	update_height()
 	return true
 
 

@@ -115,6 +115,23 @@ static func is_findings_block(code: String) -> bool:
 	return parsed is Array and not parsed.is_empty() and parsed[0] is Dictionary and (parsed[0] as Dictionary).has("line")
 
 
+## El código de un bloque es el informe del One-shot (`checks`, y en QA también `scores` y `findings`):
+## devuelve lo normalizado para mostrarlo plegado en el chat (m17-20), o {} si no lo es.
+static func report_block(code: String) -> Dictionary:
+	if not code.contains("\"checks\"") and not code.contains("\"scores\""):
+		return {}
+	var parsed: Variant = _parse_lenient(code)
+	if not parsed is Dictionary:
+		return {}
+	var data := parsed as Dictionary
+	if not data.get("checks") is Array and not data.get("scores") is Array:
+		return {}
+	var result := parse(code)
+	if result.checks.is_empty() and result.scores.is_empty():
+		return {}
+	return result
+
+
 ## Puntaje de un criterio: {criterion, score (0–10), reason}.
 static func normalize_score(item: Variant) -> Dictionary:
 	if not item is Dictionary:
