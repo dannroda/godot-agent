@@ -145,7 +145,7 @@ static func extract_code(text: String) -> String:
 ## Reemplaza el rango por `code` en un solo paso de deshacer. false si el texto del rango ya no es el
 ## que se le mostró al agente.
 static func apply(code_edit: CodeEdit, span: Dictionary, code: String) -> bool:
-	if _text_in(code_edit, span) != str(span.original):
+	if not _range_exists(code_edit, span) or _text_in(code_edit, span) != str(span.original):
 		return false
 	code_edit.begin_complex_operation()
 	code_edit.remove_text(int(span.from_line), int(span.from_column), int(span.to_line), int(span.to_column))
@@ -156,11 +156,15 @@ static func apply(code_edit: CodeEdit, span: Dictionary, code: String) -> bool:
 	return true
 
 
+## false si el archivo se acortó y las líneas del rango ya no están.
+static func _range_exists(code_edit: CodeEdit, span: Dictionary) -> bool:
+	return int(span.from_line) < code_edit.get_line_count() and int(span.to_line) < code_edit.get_line_count()
+
+
+## El texto del rango (que tiene que existir: ver `_range_exists`).
 static func _text_in(code_edit: CodeEdit, span: Dictionary) -> String:
 	var from_line := int(span.from_line)
 	var to_line := int(span.to_line)
-	if from_line >= code_edit.get_line_count() or to_line >= code_edit.get_line_count():
-		return "\u0000"  # el rango ya no existe
 	if from_line == to_line:
 		return code_edit.get_line(from_line).substr(int(span.from_column), int(span.to_column) - int(span.from_column))
 	var parts: PackedStringArray = [code_edit.get_line(from_line).substr(int(span.from_column))]

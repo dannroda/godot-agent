@@ -35,6 +35,8 @@ func test_apply() -> void:
 	code_edit.set_caret_column(0)
 	var at_caret := InlineEdit.selection_range(code_edit)
 	assert_true(InlineEdit.apply(code_edit, at_caret, "func _ready() -> void:\n\tpass"), "sin selección inserta en el caret")
+	var gone := {"from_line": 99, "from_column": 0, "to_line": 99, "to_column": 0, "original": ""}
+	assert_false(InlineEdit.apply(code_edit, gone, "pass"), "un rango que ya no existe no aplica, aunque sea una inserción")
 	assert_true(code_edit.text.ends_with("func _ready() -> void:\n\tpass"), "insertado: %s" % code_edit.text)
 	code_edit.free()
 	var key := InputEventKey.new()
