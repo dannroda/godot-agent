@@ -62,6 +62,7 @@ const UI_SHOT_ARG := "--godot-agent-ui-shot="
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const SYNC_ARG := "--godot-agent-sync-test"
 const SYNC_SCRIPT := "res://addons/godot_agent/editor/editor_sync.gd"
@@ -773,6 +774,11 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	# El cuadro de texto crece con 30 líneas, sin pasar del 40 % del dock ni tapar el chat (m17-22).
 	var text_box: Control = dock.get(&"_composer")
 	var input: Control = text_box.get(&"_input")
+	# En automático, sin el alto que haya fijado a mano quien corre el test (se restaura después).
+	var saved_height: float = text_box.call(&"manual_height")
+	text_box.call(&"set_manual_height", 0.0)
+	for i in 2:
+		await get_tree().process_frame
 	var rest_height := input.size.y
 	text_box.call(&"insert_text", "\n".join(range(30).map(func(i: int) -> String: return "línea %d" % i)))
 	for i in 3:
@@ -780,6 +786,7 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	var conversation: Control = dock.get(&"_conversation")
 	var grown := input.size.y
 	if grown <= rest_height * 1.5 or grown > dock.size.y * 0.41 or conversation.get_global_rect().end.y > text_box.get_global_rect().position.y + 1:
+		text_box.call(&"set_manual_height", saved_height)
 		_finish(1, "el composer no creció bien: %.0f → %.0f (dock %.0f), chat hasta %.0f, composer desde %.0f" % [rest_height, grown, dock.size.y, conversation.get_global_rect().end.y, text_box.get_global_rect().position.y])
 		return
 	if not shot_path.is_empty():
@@ -788,8 +795,10 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	text_box.call(&"clear")
 	for i in 3:
 		await get_tree().process_frame
-	if not is_equal_approx(input.size.y, rest_height):
-		_finish(1, "el composer no volvió al alto de reposo: %.0f" % input.size.y)
+	var back_height := input.size.y
+	text_box.call(&"set_manual_height", saved_height)
+	if not is_equal_approx(back_height, rest_height):
+		_finish(1, "el composer no volvió al alto de reposo: %.0f" % back_height)
 		return
 	# Un texto de afuera del proyecto va como resource_link con su ruta absoluta (m17-21).
 	var outside_md := OS.get_user_data_dir().path_join("ui_test_notes.md")
@@ -826,6 +835,18 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	chips = dock.get(&"_chips")
 	if chips.has("file:res://project.godot") or chips.has("file:" + outside_md) or chips.keys().any(func(id: String) -> bool: return id.begins_with("image:")):
 		_finish(1, "los adjuntos siguieron después de enviar: %s" % [chips.keys()])
+		return
+	# El estado va en una línea arriba del composer, no en el chip del agente (m17-25).
+	await get_tree().process_frame
+	var state_line: Label = dock.get(&"_state_line")
+	var chip: Button = dock.get(&"_agent_chip")
+	var composer_top: float = (dock.get(&"_composer") as Control).get_global_rect().position.y
+	if not state_line.is_visible_in_tree() or not state_line.text.contains(I18n.t("Working…")) or state_line.get_global_rect().end.y > composer_top + 1 or chip.text.contains("·"):
+		_finish(1, "la línea de estado no quedó arriba del composer: «%s» visible=%s, chip «%s»" % [state_line.text, state_line.is_visible_in_tree(), chip.text])
+		return
+	if not shot_path.is_empty():
+		get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_state.png")
+	if scenario == "ui_long_permission" and not await _check_long_permission(dock, model, shot_path):
 		return
 	if scenario == "ui_quota_busy" and not await _check_ring_tooltip(dock, shot_path):
 		return
@@ -902,6 +923,35 @@ func _tooltip_open(viewport: Viewport) -> bool:
 
 ## m7-28/m7-29: el mensaje del agente lleva su bloque de código en una caja aparte, y un clic en la
 ## captura del tool call abre el visor (captura en <shot>_viewer.png), que se libera al cerrarlo.
+## m17-26: un permiso con un comando de 150 líneas deja los botones a la vista, dentro del dock.
+func _check_long_permission(dock: Control, model: Object, shot_path: String) -> bool:
+	var pending: Array = model.get(&"pending_permissions")
+	var waited := 0.0
+	while pending.is_empty() and waited < 10.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+		pending = model.get(&"pending_permissions")
+	if pending.is_empty():
+		_finish(1, "no llegó el permiso largo")
+		return false
+	for i in 3:
+		await get_tree().process_frame
+	var buttons: Array[Node] = dock.find_children("*", "Button", true, false).filter(func(node: Node) -> bool:
+		return node is Button and (node as Button).is_visible_in_tree() and (node as Button).text == "Allow once")
+	if buttons.is_empty():
+		_finish(1, "el botón «Allow once» no se ve")
+		return false
+	var button := buttons[0] as Button
+	var dock_rect := dock.get_global_rect()
+	if not dock_rect.encloses(button.get_global_rect()):
+		_finish(1, "el botón quedó fuera del dock: %s en %s" % [button.get_global_rect(), dock_rect])
+		return false
+	if not shot_path.is_empty():
+		get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_long_permission.png")
+	button.pressed.emit()
+	return true
+
+
 func _check_markdown_and_viewer(dock: Control, shot_path: String) -> bool:
 	dock.emit_signal(&"show_log_requested")  # el log ocupa lugar: se vuelve a plegar
 	var code_views := dock.find_children("*", "PanelContainer", true, false).filter(func(node: Node) -> bool:

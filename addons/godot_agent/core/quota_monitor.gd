@@ -322,6 +322,12 @@ func describe_groups() -> PackedStringArray:
 	return lines
 
 
+## «en 1 h» hasta el reinicio de una ventana ({utilization, resets_at}), o "" si no lo informa.
+func reset_in(data: Dictionary) -> String:
+	var reset := int(data.get("resets_at", 0))
+	return format_duration(reset - _now()) if reset > 0 else ""
+
+
 func _describe_window_data(window: String, data: Dictionary) -> String:
 	var label := I18n.t(WINDOW_LABELS[window]) if WINDOW_LABELS.has(window) else window
 	var percent := roundi(float(data.get("utilization", 0.0)) * 100.0)

@@ -29,10 +29,11 @@ Otros agentes (Codex, Google Antigravity, el tuyo) se configuran en **Settings �
 
 ## 3. El dock
 
-- **Header**, una fila: el chip del agente con su estado (un clic elige el agente), el título de la sesión, **Historial**, **+** (sesión nueva, o una pestaña nueva al lado de esta) y **⋯** (Extensiones, Settings, Remote Control y cerrar sesión cuando el agente los ofrece). La fila de pestañas aparece cuando hay dos sesiones.
+- **Header**, una fila: el chip del agente (un clic elige el agente; el punto toma el color del estado), el título de la sesión, **Historial**, **+** (sesión nueva, o una pestaña nueva al lado de esta) y **⋯** (Extensiones, Settings, Remote Control y cerrar sesión cuando el agente los ofrece). La fila de pestañas aparece cuando hay dos sesiones.
 - **Modos**: Preguntar · Revisar · Construir · Auto · One-shot (ver [Modos y permisos](Modos-y-permisos.md)).
 - **Conversación**: Markdown (tablas, listas, citas y bloques de código con resaltado y botón para copiar), tool calls agrupados (con su duración), diffs, tarjetas de permiso y el plan del agente. Lo que hace un subagente queda plegado dentro de su tarjeta `Agent`. Un clic en una captura que sacó el agente la abre en grande: rueda para el zoom, arrastrar para moverla y **Guardar PNG…** para quedártela. Los links a archivos los abren en el editor (`archivo.gd#L42` va a la línea) y los links a imágenes, en el mismo visor.
 - **Composer**:
+  - la línea de arriba dice qué está haciendo el agente: **Listo**, **Trabajando…** (con los subagentes en curso), **Te está esperando** cuando una tarjeta pide respuesta, **Cancelando…** o el error;
   - **Enter** envía; **Ctrl+Enter** o **Shift+Enter** bajan de línea; **Esc** detiene el turno;
   - el cuadro de texto crece con lo que escribís, hasta el 40 % del dock. Arrastrando la barrita de arriba fijás el alto a mano (hasta el 70 %; vale para todas las pestañas y se recuerda); doble clic en la barrita vuelve a seguir al texto;
   - con el agente trabajando, Enter deja el mensaje **en cola**, arriba del composer. Cada mensaje en cola se puede editar o quitar. Cuando termina el turno sale el siguiente. Si el turno se cancela o falla, la cola espera **Enviar ahora**;

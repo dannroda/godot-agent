@@ -5,6 +5,7 @@ const PermissionView := preload("res://addons/godot_agent/ui/dock/entries/permis
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ConversationView := preload("res://addons/godot_agent/ui/dock/conversation_view.gd")
+const MarkdownBBCode := preload("res://addons/godot_agent/ui/markdown/markdown_bbcode.gd")
 
 
 func test_sorted_options() -> void:
@@ -52,6 +53,39 @@ func test_pending_permission_goes_to_the_sticky_slot() -> void:
 	assert_true(list.get_child(2) is PermissionView, "el primero vuelve entre los avisos")
 	conversation.free()
 	sticky.free()
+
+
+## m17-26: un comando de cientos de líneas no empuja los botones fuera de la vista.
+func test_long_command_is_folded() -> void:
+	assert_eq(PermissionView.short_text("ls -la"), "ls -la", "corto: igual")
+	assert_eq(PermissionView.short_text("python3 - << 'EOF'\nprint(1)\nEOF"), "python3 - << 'EOF' …", "multilínea: la primera")
+	assert_eq(PermissionView.short_text("x".repeat(300)).length(), PermissionView.TITLE_MAX_CHARS + 1, "larga: cortada con «…»")
+	var tree := Engine.get_main_loop() as SceneTree
+	var model := SessionModel.new()
+	var request := _request()
+	var lines: PackedStringArray = ["python3 - << 'EOF'"]
+	for i in 200:
+		lines.append("content line %d" % i)
+	lines.append("EOF")
+	request.title = "\n".join(lines)
+	request.description = request.title
+	var entry := model.add_permission(request)
+	var view := PermissionView.new()
+	view.setup(entry, Color.ORANGE, MarkdownBBCode.new())
+	view.call(&"_build")
+	view.refresh()
+	var title: Label = view.get(&"_title")
+	assert_eq(title.text.count("\n"), 0, "el título es una línea: %s" % title.text.left(80))
+	assert_true(title.text.contains("python3 - << 'EOF'"), "con el comienzo del comando")
+	var toggle: Button = view.get(&"_full_toggle")
+	var box: Control = view.get(&"_full_box")
+	assert_true(toggle.visible and toggle.text.contains("202"), "ofrece ver todo, con las líneas: %s" % toggle.text)
+	assert_false(box.visible, "el comando entero arranca plegado")
+	assert_true((view.get(&"_buttons") as Control).visible, "los botones están")
+	toggle.button_pressed = true
+	assert_true(box.visible, "se abre con un clic")
+	assert_true(str((view.get(&"_full_text") as Label).text).contains("content line 199"), "con el comando entero")
+	view.free()
 
 
 static func _request() -> PermissionRequest:

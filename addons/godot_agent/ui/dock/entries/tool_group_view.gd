@@ -5,6 +5,7 @@ extends "entry_view.gd"
 ## subagente (Agent/Task) lleva adentro, plegadas, las herramientas que usó y lo que fue escribiendo.
 
 const ToolCall := preload("../../../session/tool_call.gd")
+const ShellCommand := preload("../../../session/shell_command.gd")
 const DiffCard := preload("diff_card.gd")
 const ImageViewer := preload("../../image_viewer.gd")
 
@@ -491,6 +492,9 @@ static func _summary(call: ToolCall) -> String:
 		for key: String in ["file_path", "path", "command", "pattern", "query", "url", "node_path", "scene"]:
 			if input.get(key) is String:
 				return str(input[key]).left(SUMMARY_MAX)
+		var command := ShellCommand.of(input)
+		if not command.is_empty():
+			return command.left(SUMMARY_MAX)
 	if not call.locations.is_empty() and call.locations[0] is Dictionary:
 		return str(call.locations[0].get("path", "")).get_file()
 	return "" if call.kind == "other" else call.kind

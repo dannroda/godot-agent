@@ -12,6 +12,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
+- The session's state (**Ready**, **Working…**, **Waiting for you**, **Cancelling…**, the error) moved from the agent chip in the header to a line right above the composer, where you're looking while you write. The chip keeps the agent's name and the state's color.
+- Permission cards offer **Always allow in this session** even when the agent only offers "once" (Google Antigravity). The harness keeps the choice and answers the agent "once", as with any "always".
 - The chat's text box grows with what you write (up to 40 % of the dock) instead of staying at three lines with a scroll bar. A bar above it sets the height by hand (up to 70 %), for every tab and remembered across sessions; double-clicking it goes back to following the text.
 - **+ context › File…** browses any folder, not just the project. Images from outside go as images, as before; other files (notes, a GDD, a PDF…) go as a link with their full path for the agent to read, instead of being refused.
 - One-shot runs in its own dock tab, **One-shot · <goal>**, with the agent and account of the tab it was launched from. Before, it took over the first tab: the session there was replaced and that tab couldn't switch sessions until the run ended. The other tabs now stay normal chats during a run; a resumed run gets a new tab too.
@@ -26,8 +28,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - A turn that the agent never closed (it finished answering but the dock stayed "working") couldn't be stopped: **Stop** stayed on "cancelling" forever. If the agent doesn't confirm the cancellation within 8 seconds, the turn is now closed in the dock, queued messages go out, and a notice offers **Restart the agent**, which reopens the same session.
 - One-shot: images and files attached in the chat while a run is going were left in the composer and never reached the agent. They now go with your message to the run's agent.
 - One-shot: with the spec waiting for review, a message in the chat is sent as a change to the spec, so the agent updates `spec.md` and waits for approval again instead of starting to build. The spec column and the chat notice now say that changes can be asked for in the chat.
-- The plan quota ring's tooltip closed a second after opening: the ring sits at the bottom of the screen and the tooltip is tall, so Godot moved it up under the mouse pointer, which closed it. The details now open in a panel of their own, always above the ring and never under the pointer.
+- The plan quota ring's tooltip closed a second after opening: the ring sits at the bottom of the screen and the tooltip is tall, so Godot moved it up under the mouse pointer, which closed it. The details now open in a panel of their own, always above the ring and never under the pointer, with a progress bar for the context, each quota window and each model group, in the ring's color and with its reset time.
 - One-shot: the `{"checks": …}` block that the agent and the QA evaluator end their turns with showed in the chat as a long JSON. It now folds into one line ("Checks: 6 ✓ · 1 ✗ · 2 unverified · 4 scores · 3 findings") that opens a readable list, with the raw JSON behind **Show JSON**. It also folds when reopening a session from the history.
+- A permission card for a long command (a script of hundreds of lines) took the whole dock and pushed **Allow once**/**Deny** out of view. The title now shows the first line, and the whole command opens under **Show all (N lines)** in a box with its own scroll.
+- Google Antigravity: shell commands ignored the allowlist in Auto mode (`cat *` still asked) and the card couldn't propose a rule. Antigravity sends the command as `CommandLine`, which the harness didn't read; it now reads it, also for blocking shell writes to scenes and project files.
 - The session history saves during long turns too (on each prompt and every 15 seconds), so a turn that never ends isn't lost from it.
 
 ## [0.1.15] - 2026-10-31

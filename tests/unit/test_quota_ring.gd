@@ -35,3 +35,32 @@ func test_tooltip_and_colors() -> void:
 	monitor.observe_prompt_error({"code": -32603, "message": "rate limited", "data": {"errorKind": "rate_limit"}})
 	assert_true(ring.hint_text.contains("Plan limit reached"), "con el límite: " + ring.hint_text)
 	ring.queue_free()
+
+
+func test_hint_rows_are_bars() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var monitor := QuotaMonitor.new()
+	monitor.setup(AgentLog.new())
+	monitor.now_provider = func() -> int: return NOW
+	var ring := QuotaRing.new()
+	ring.setup(monitor, Color.ORANGE)
+	tree.root.add_child(ring)
+	await tree.process_frame
+	ring.set_context(50000, 200000)
+	monitor.observe_update(_update(0.36, 0.84))
+	var rows: Array[Dictionary] = ring.hint_rows()
+	var bars := rows.filter(func(row: Dictionary) -> bool: return row.kind == "bar")
+	assert_eq(bars.size(), 3, "contexto y las dos ventanas: %s" % [rows])
+	assert_eq(bars[0].label, "Context", "el contexto primero")
+	assert_eq(bars[0].value, 0.25, "contexto 50k de 200k")
+	assert_eq(bars[0].detail, "50k / 200k · 25 %", "detalle del contexto")
+	assert_eq(bars[1].label, "Window · outer ring", "dice qué anillo es")
+	assert_eq(bars[1].value, 0.36, "valor de la ventana")
+	assert_eq(bars[1].detail, "36 % · resets in 1 h", "porcentaje y reinicio")
+	assert_eq(bars[1].color, Color.ORANGE, "color del anillo")
+	assert_eq(bars[2].color, AgentTheme.WARNING, "semana sobre el aviso: amarillo")
+	ring.call(&"_show_hint")
+	assert_true(ring.is_hint_visible(), "el panel se abre")
+	var panel: Control = ring.get(&"_hint_panel")
+	assert_eq(panel.find_children("Bar", "ProgressBar", true, false).size(), 3, "una barra por fila")
+	ring.queue_free()

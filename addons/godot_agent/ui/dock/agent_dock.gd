@@ -150,6 +150,8 @@ var _quota_ring: QuotaRing
 ## Header de una fila (m12-14): el chip del agente con su estado (elige el perfil), el título, el
 ## historial, «+» (sesión o pestaña) y «⋯» (extensiones, ajustes, Remote Control, cerrar sesión).
 var _agent_chip: Button
+## Estado de la sesión (listo, trabajando, esperándote…) arriba del composer (m17-25).
+var _state_line: Label
 var _agent_menu: PopupMenu
 var _new_menu: PopupMenu
 var _more_button: MenuButton
@@ -249,6 +251,12 @@ func _ready() -> void:
 	_queue_view.send_now_requested.connect(_send_next_queued.bind(true))
 	_queue_view.send_item_now_requested.connect(_send_queued_now)
 	composer_column.add_child(_queue_view)
+	_state_line = Label.new()
+	_state_line.name = "StateLine"
+	_state_line.mouse_filter = Control.MOUSE_FILTER_PASS
+	_state_line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_state_line.clip_text = true
+	composer_column.add_child(_state_line)
 	composer_column.add_child(_composer)
 	_build_review_panel()
 	_build_quota_ring()
@@ -660,28 +668,14 @@ func _on_profile_selected(index: int) -> void:
 		_model.add_notice(I18n.t("The %s profile is used when you press \"New session\".") % _profiles[index].display_name)
 
 
-## El chip del agente (m12-14): el nombre en el color del texto, el estado en el punto y el borde, y
-## la palabra del estado solo cuando no está listo.
+## El chip del agente (m12-14): el nombre en el color del texto y el estado en el punto y el borde.
+## La palabra del estado va en la línea de arriba del composer (m17-25).
 func _style_agent_chip(agent: String, color: Color) -> void:
-	var state := ""
-	match _model.state:
-		SessionModel.SessionState.DISCONNECTED:
-			state = I18n.t("not started")
-		SessionModel.SessionState.STARTING:
-			state = I18n.t("connecting…")
-		SessionModel.SessionState.PROMPTING:
-			state = I18n.t("working…")
-		SessionModel.SessionState.CANCELLING:
-			state = I18n.t("cancelling…")
-		SessionModel.SessionState.FAILED:
-			state = I18n.t("sign-in needed") if _model.login_required else I18n.t("error")
-	if not _model.pending_permissions.is_empty() or not _model.pending_elicitations.is_empty():
-		state = I18n.t("waiting for you")
+	if _waiting_for_user():
 		color = _accent
 	if agent.is_empty():  # sin agentes configurados
 		agent = I18n.t("No agent")
-		state = ""
-	_agent_chip.text = agent + ("  ·  " + state if not state.is_empty() else "") + "  ▾"
+	_agent_chip.text = agent + "  ▾"
 	_agent_chip.icon = AgentTheme.dot(color)
 	var border := Color(color, 0.55) if _model.state != SessionModel.SessionState.DISCONNECTED else Color(1, 1, 1, 0.16)
 	_agent_chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(1, 1, 1, 0.04), border, 6, 6))
@@ -690,6 +684,38 @@ func _style_agent_chip(agent: String, color: Color) -> void:
 	_agent_chip.add_theme_stylebox_override(&"focus", AgentTheme.panel(Color.TRANSPARENT, Color(_accent, 0.8), 6, 6))
 	for item: StringName in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
 		_agent_chip.add_theme_color_override(item, AgentTheme.font_color())
+
+
+func _waiting_for_user() -> bool:
+	return not _model.pending_permissions.is_empty() or not _model.pending_elicitations.is_empty()
+
+
+## «● Trabajando… · 2 subagentes» arriba del composer, con el color del estado. Sin sesión no se ve.
+func _refresh_state_line(color: Color) -> void:
+	if _state_line == null:
+		return
+	var text := ""
+	match _model.state:
+		SessionModel.SessionState.STARTING:
+			text = "◌ " + I18n.t("Connecting…")
+		SessionModel.SessionState.READY:
+			text = "● " + I18n.t("Ready")
+		SessionModel.SessionState.PROMPTING:
+			text = "● " + I18n.t("Working…")
+			var subagents := _model.running_subagents()
+			if not subagents.is_empty():
+				text += " · " + (I18n.t("%d subagent") if subagents.size() == 1 else I18n.t("%d subagents")) % subagents.size()
+		SessionModel.SessionState.CANCELLING:
+			text = "● " + I18n.t("Cancelling…")
+		SessionModel.SessionState.FAILED:
+			text = ("○ " + I18n.t("Sign-in needed")) if _model.login_required else ("✗ " + I18n.t("Error"))
+	if _waiting_for_user() and not text.is_empty():
+		text = "● " + I18n.t("Waiting for you")
+		color = _accent
+	_state_line.visible = not text.is_empty()
+	_state_line.text = text
+	_state_line.tooltip_text = _status_label.tooltip_text
+	_state_line.add_theme_color_override(&"font_color", color)
 
 
 func _refresh_title() -> void:
@@ -749,6 +775,7 @@ func _refresh_state() -> void:
 		if not names.is_empty():
 			_status_label.tooltip_text = I18n.t("Subagents running:") + "\n" + "\n".join(names)
 	_status_label.add_theme_color_override(&"font_color", color)
+	_refresh_state_line(color)
 	if _agent_chip:
 		_style_agent_chip(name if profile else "", color)
 		_agent_chip.tooltip_text = (_status_label.tooltip_text + "\n" if not _status_label.tooltip_text.is_empty() else "") + I18n.t("Click to choose the agent")

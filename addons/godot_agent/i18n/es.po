@@ -3552,23 +3552,26 @@ msgstr "Ejemplos:"
 msgid "Use it as the goal"
 msgstr "Usarlo como objetivo"
 
-msgid "not started"
-msgstr "sin iniciar"
+msgid "Connecting…"
+msgstr "Conectando…"
 
-msgid "connecting…"
-msgstr "conectando…"
+msgid "Ready"
+msgstr "Listo"
 
-msgid "working…"
-msgstr "trabajando…"
+msgid "Working…"
+msgstr "Trabajando…"
 
-msgid "cancelling…"
-msgstr "cancelando…"
+msgid "Cancelling…"
+msgstr "Cancelando…"
 
-msgid "sign-in needed"
-msgstr "falta iniciar sesión"
+msgid "Sign-in needed"
+msgstr "Falta iniciar sesión"
 
-msgid "waiting for you"
-msgstr "te espera"
+msgid "Waiting for you"
+msgstr "Te está esperando"
+
+msgid "Error"
+msgstr "Error"
 
 msgid "Add node"
 msgstr "Agregar nodo"
@@ -4001,3 +4004,21 @@ msgstr "%d hallazgos"
 
 msgid "Drag to resize the message box; double-click to fit it to the text"
 msgstr "Arrastrá para cambiar el alto del cuadro; doble clic para que se ajuste al texto"
+
+msgid "Context"
+msgstr "Contexto"
+
+msgid "%s · outer ring"
+msgstr "%s · anillo de afuera"
+
+msgid "%s · inner ring"
+msgstr "%s · anillo de adentro"
+
+msgid "%d %% · resets in %s"
+msgstr "%d %% · reinicia en %s"
+
+msgid "Show all (1 line)"
+msgstr "Ver todo (1 línea)"
+
+msgid "Show all (%d lines)"
+msgstr "Ver todo (%d líneas)"

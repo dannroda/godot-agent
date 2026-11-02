@@ -24,6 +24,13 @@ var _rule_edit: LineEdit
 var _persist: Button
 var _result: Label
 var _focused_once: bool = false
+## Un comando largo (un heredoc de cientos de líneas) dejaba los botones fuera de la vista (m17-26):
+## el título va en una línea y el texto entero, plegado, en una caja con scroll.
+var _full_toggle: Button
+var _full_box: ScrollContainer
+var _full_text: Label
+const TITLE_MAX_CHARS := 140
+const FULL_MAX_HEIGHT_PX := 220
 
 
 func _build() -> void:
@@ -47,6 +54,26 @@ func _build() -> void:
 	_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_description.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	column.add_child(_description)
+	_full_toggle = Button.new()
+	_full_toggle.flat = true
+	_full_toggle.toggle_mode = true
+	_full_toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_full_toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	column.add_child(_full_toggle)
+	_full_box = ScrollContainer.new()
+	_full_box.visible = false
+	_full_box.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_full_box.custom_minimum_size.y = AgentTheme.px(FULL_MAX_HEIGHT_PX)
+	column.add_child(_full_box)
+	_full_text = Label.new()
+	_full_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_full_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_full_text.add_theme_font_override(&"font", AgentTheme.mono_font())
+	_full_text.add_theme_font_size_override(&"font_size", AgentTheme.mono_font_size())
+	_full_box.add_child(_full_text)
+	_full_toggle.toggled.connect(func(open: bool) -> void:
+		_full_box.visible = open
+		_refresh_full_toggle())
 	_diff_slot = VBoxContainer.new()
 	column.add_child(_diff_slot)
 	_buttons = HFlowContainer.new()
@@ -93,6 +120,21 @@ func _build() -> void:
 			_diff_slot.move_child(toggle, 0)
 
 
+## La primera línea, hasta TITLE_MAX_CHARS, con «…» si se cortó.
+static func short_text(text: String) -> String:
+	var clean := text.strip_edges()
+	var first := clean.get_slice("\n", 0)
+	if first.length() > TITLE_MAX_CHARS:
+		return first.left(TITLE_MAX_CHARS).strip_edges() + "…"
+	return first + (" …" if first != clean else "")
+
+
+func _refresh_full_toggle() -> void:
+	var lines := _full_text.text.count("\n") + 1
+	var label := I18n.t("Show all (1 line)") if lines == 1 else I18n.t("Show all (%d lines)") % lines
+	_full_toggle.text = ("▾ " if _full_toggle.button_pressed else "▸ ") + label
+
+
 func refresh() -> void:
 	var request: PermissionRequest = entry.permission
 	var pending := request.is_pending()
@@ -100,10 +142,19 @@ func refresh() -> void:
 		Color(accent, 0.10 if pending else 0.03), Color(accent, 0.8 if pending else 0.25), 6, 8
 	))
 	var group_label := PermissionPolicy.group_label(request.group)
-	_title.text = I18n.t("Permission: %s") % request.title
+	_title.text = I18n.t("Permission: %s") % short_text(request.title)
 	_title.tooltip_text = I18n.t("Group: %s") % group_label
-	_description.text = request.description
+	_description.text = short_text(request.description)
 	_description.visible = not request.description.is_empty() and request.description != request.title
+	# Lo que no entró en el título o la descripción va entero, plegado.
+	var full := request.title if short_text(request.title) != request.title else ""
+	if short_text(request.description) != request.description and request.description != request.title:
+		full = (full + "\n\n" if not full.is_empty() else "") + request.description
+	_full_text.text = full
+	_full_toggle.visible = not full.is_empty()
+	if full.is_empty():
+		_full_box.visible = false
+	_refresh_full_toggle()
 	for child: Node in _buttons.get_children():
 		child.queue_free()
 	_buttons.visible = pending

@@ -26,6 +26,7 @@ const WRITE_APIS: PackedStringArray = [
 const SAFE_TARGETS: PackedStringArray = ["/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"]
 ## Comandos de archivos: para cp solo cuenta el destino (copiar algo del proyecto afuera no lo toca).
 const FILE_COMMANDS: PackedStringArray = ["mv", "cp", "rm", "rmdir", "unlink"]
+const ShellCommand := preload("shell_command.gd")
 const COMMAND_PREFIXES: PackedStringArray = ["sudo", "command", "builtin", "nice", "time"]
 
 
@@ -34,7 +35,7 @@ const COMMAND_PREFIXES: PackedStringArray = ["sudo", "command", "builtin", "nice
 static func blocked_target(tool_call: Dictionary, group: String, project_root: String) -> String:
 	var raw: Dictionary = tool_call.get("rawInput") if tool_call.get("rawInput") is Dictionary else {}
 	if group == PermissionPolicy.GROUP_SHELL:
-		return shell_write_target(str(raw.get("command", "")), project_root)
+		return shell_write_target(ShellCommand.of(raw), project_root)
 	if group == PermissionPolicy.GROUP_EDIT_FILES:
 		for path: String in _edit_paths(tool_call, raw):
 			if is_editor_managed(path) and is_inside(path, project_root):

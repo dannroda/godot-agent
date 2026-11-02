@@ -19,6 +19,9 @@ const PermissionPolicy := preload("permission_policy.gd")
 const PermissionRequest := preload("permission_request.gd")
 const Preauthorizations := preload("preauthorizations.gd")
 const ShellRules := preload("shell_rules.gd")
+const ShellCommand := preload("shell_command.gd")
+## Opción «siempre en esta sesión» que agrega el harness cuando el agente no la ofrece.
+const HARNESS_ALLOW_ALWAYS := "godot_agent_allow_always"
 const ProjectWriteGuard := preload("project_write_guard.gd")
 const GodotWindowGuard := preload("godot_window_guard.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
@@ -122,7 +125,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	# Godot con ventana desde la shell: abre el juego aparte en vez de correrlo en el editor (m7-30).
 	if request.group == PermissionPolicy.GROUP_SHELL and checked.get("rawInput") is Dictionary:
-		var launch := GodotWindowGuard.windowed_launch(str((checked.rawInput as Dictionary).get("command", "")), EditorBinary.path())
+		var launch := GodotWindowGuard.windowed_launch(ShellCommand.of(checked.rawInput), EditorBinary.path())
 		if not launch.is_empty():
 			_log_perm("rejected, opens Godot in its own window: %s" % launch)
 			model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
@@ -137,7 +140,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 	if PermissionPolicy.is_godot_mcp_tool(tool_call):
 		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
 	elif decision == PermissionPolicy.ASK and request.group == PermissionPolicy.GROUP_SHELL and model.harness_mode == SessionModel.HarnessMode.AUTO:
-		var command := str((checked.get("rawInput") as Dictionary).get("command", "")) if checked.get("rawInput") is Dictionary else ""
+		var command := ShellCommand.of(checked.get("rawInput"))
 		var verdict := ShellRules.classify(command, shell_rules)
 		if verdict.decision == ShellRules.ALLOW:
 			_log_perm("allowed by Auto mode, %s: %s" % [verdict.reason, command])
@@ -159,6 +162,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 		PermissionPolicy.DENY:
 			_notify_denied(request.group, request.title)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+	_offer_session_allow(request)
 	var outcome := await _ask_user(request, 0)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)
@@ -178,6 +182,19 @@ func on_request_permission(params: Dictionary) -> Variant:
 		return _selected_or_cancelled(once if not once.is_empty() else str(outcome.optionId))
 	var reject_once := request.option_id_for([PermissionRequest.KIND_REJECT_ONCE])
 	return _selected_or_cancelled(reject_once if not reject_once.is_empty() else str(outcome.optionId))
+
+
+## Algunos agentes (Antigravity) solo ofrecen «una vez»: el harness suma «Siempre en esta sesión»,
+## que guarda él (al agente se le contesta «una vez», como con cualquier «siempre»). La shell en Auto
+## no la lleva: ahí la tarjeta propone una regla para la allowlist (m17-24).
+func _offer_session_allow(request: PermissionRequest) -> void:
+	if request.group == PermissionPolicy.GROUP_SHELL and model.harness_mode == SessionModel.HarnessMode.AUTO:
+		return
+	if request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]).is_empty() or not request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS]).is_empty():
+		return
+	var options := request.options.duplicate()
+	options.append({"optionId": HARNESS_ALLOW_ALWAYS, "name": I18n.t("Always allow in this session"), "kind": PermissionRequest.KIND_ALLOW_ALWAYS})
+	request.options = options
 
 
 func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
@@ -353,8 +370,10 @@ static func _selected_or_cancelled(option_id: String) -> Dictionary:
 
 static func _describe_tool_call(tool_call: Dictionary, call: Variant) -> String:
 	var input: Variant = tool_call.get("rawInput", call.raw_input if call else null)
+	if not ShellCommand.of(input).is_empty():
+		return ShellCommand.of(input)
 	if input is Dictionary:
-		for key: String in ["command", "file_path", "path", "url", "pattern", "description"]:
+		for key: String in ["file_path", "path", "url", "pattern", "description"]:
 			if input.get(key) is String and not str(input[key]).is_empty():
 				return str(input[key])
 	return str(tool_call.get("kind", call.kind if call else ""))

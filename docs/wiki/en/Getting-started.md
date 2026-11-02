@@ -29,10 +29,11 @@ Other agents (Codex, Google Antigravity, your own) are set up in **Settings → 
 
 ## 3. The dock
 
-- **Header**, one row: the agent chip with its state (click it to pick the agent), the session title, **History**, **+** (new session, or a new tab next to this one) and **⋯** (Extensions, Settings, Remote Control and sign out when the agent offers them). The tab row shows up once there are two sessions.
+- **Header**, one row: the agent chip (click it to pick the agent; its dot takes the state's color), the session title, **History**, **+** (new session, or a new tab next to this one) and **⋯** (Extensions, Settings, Remote Control and sign out when the agent offers them). The tab row shows up once there are two sessions.
 - **Modes**: Ask · Review · Build · Auto · One-shot (see [Modes and permissions](Modes-and-permissions.md)).
 - **Conversation**: Markdown (tables, lists, quotes and code blocks with highlighting and a copy button), grouped tool calls (with their duration), diffs, permission cards and the agent's plan. A subagent's work stays folded inside its `Agent` card. Click a screenshot the agent took to see it full size: wheel to zoom, drag to move, **Save PNG…** to keep it. Links to files open them in the editor (`file.gd#L42` goes to the line), and links to images open in the same viewer.
 - **Composer**:
+  - the line above it says what the agent is doing: **Ready**, **Working…** (with the subagents running), **Waiting for you** when a card needs an answer, **Cancelling…** or the error;
   - **Enter** sends; **Ctrl+Enter** or **Shift+Enter** add a line; **Esc** stops the turn;
   - the text box grows with what you write, up to 40 % of the dock. Drag the bar above it to set the height yourself (up to 70 %; it applies to every tab and is remembered); double-click the bar to go back to following the text;
   - while the agent works, Enter **queues** the message above the composer. You can edit or remove each queued message. When the turn ends, the next one goes out. If the turn is cancelled or fails, the queue waits for **Send now**;
