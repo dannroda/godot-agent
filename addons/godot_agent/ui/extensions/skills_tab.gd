@@ -44,6 +44,8 @@ const MENU_OPEN := 0
 const MENU_SHOW := 1
 const MENU_COPY := 2
 const MENU_DELETE := 3
+const MENU_SHARE := 4
+const MENU_UNSHARE := 5
 
 var project_path: String = ""
 var claude_config_dir: String = ""
@@ -211,6 +213,13 @@ func _skill_card(skill: Dictionary) -> Control:
 	popup.add_icon_item(AgentTheme.icon(&"Folder"), I18n.t("Show in the file manager"), MENU_SHOW)
 	if skill.origin == SkillCatalog.ORIGIN_USER:
 		popup.add_icon_item(AgentTheme.icon(&"Duplicate"), I18n.t("Copy to this project"), MENU_COPY)
+	# m17-27: una sola copia para Claude Code y los demás agentes (Antigravity, Codex…).
+	# Solo con Claude Code: el enlace va en la carpeta de su cuenta, que otro agente no conoce.
+	if is_claude and skill.origin != SkillCatalog.ORIGIN_PLUGIN:
+		if bool(skill.get("shared", false)):
+			popup.add_icon_item(AgentTheme.icon(&"Unlinked"), I18n.t("Only for Claude Code"), MENU_UNSHARE)
+		else:
+			popup.add_icon_item(AgentTheme.icon(&"Instance"), I18n.t("Use with all agents"), MENU_SHARE)
 	if skill.origin != SkillCatalog.ORIGIN_PLUGIN:
 		popup.add_separator()
 		popup.add_icon_item(AgentTheme.icon(&"Remove"), I18n.t("Delete…"), MENU_DELETE)
@@ -232,7 +241,15 @@ func _skill_card(skill: Dictionary) -> Control:
 		column.add_child(text)
 	if not str(skill.plugin).is_empty():
 		column.add_child(ExtensionsUi.muted(I18n.t("Plugin %s: it turns on and off with its plugin (Plugins tab).") % skill.plugin))
+	if bool(skill.get("shared", false)):
+		var shared := ExtensionsUi.muted(I18n.t("Shared with all agents: %s") % _shared_label(skill.origin))
+		shared.name = "SharedNote"
+		column.add_child(shared)
 	return card
+
+
+static func _shared_label(origin: String) -> String:
+	return ".agents/skills" if origin == SkillCatalog.ORIGIN_PROJECT else "~/.agents/skills"
 
 
 func _suggested_card() -> Control:
@@ -283,6 +300,10 @@ func _on_skill_action(action: int, skill: Dictionary) -> void:
 			OS.shell_show_in_file_manager(skill_file)
 		MENU_COPY:
 			_copy_to_project(skill)
+		MENU_SHARE:
+			_set_shared(skill, true)
+		MENU_UNSHARE:
+			_ask(I18n.t("Make %s only for Claude Code? The other agents stop seeing it from their next session.") % skill.id, I18n.t("Only for Claude Code"), _set_shared.bind(skill, false))
 		MENU_DELETE:
 			_ask(I18n.t("Move the skill %s to the trash?") % skill.id, I18n.t("Delete"), _delete.bind(skill))
 
@@ -344,8 +365,26 @@ func _copy_to_project(skill: Dictionary) -> void:
 	status_changed.emit(I18n.t("%s copied to %s: commit it so your team gets it too.") % [skill.id, SkillCatalog.project_relative_dir(kind)], AgentTheme.ADDED)
 
 
+## Comparte la skill con todos los agentes, o la vuelve a dejar solo para Claude Code (m17-27).
+func _set_shared(skill: Dictionary, on: bool) -> void:
+	var name := str(skill.path).get_file()
+	var error := SkillCatalog.share(str(skill.path), skill.origin, project_path, claude_config_dir) if on \
+		else SkillCatalog.unshare(name, skill.origin, project_path, claude_config_dir)
+	refresh()
+	if not error.is_empty():
+		status_changed.emit(I18n.t("Could not change %s: %s") % [skill.id, error], AgentTheme.ERROR)
+		return
+	next_session_changed.emit()
+	if on:
+		status_changed.emit(I18n.t("%s is now in %s: Claude Code and the other agents use the same copy.") % [skill.id, _shared_label(skill.origin)], AgentTheme.ADDED)
+	else:
+		status_changed.emit(I18n.t("%s is only for Claude Code again.") % skill.id, AgentTheme.MUTED)
+
+
 func _delete(skill: Dictionary) -> void:
-	var ok := SkillCatalog.remove_skill(str(skill.path))
+	# Compartida: a la papelera va la carpeta de .agents y se saca el enlace, no solo el enlace.
+	var ok := SkillCatalog.remove_shared(str(skill.path).get_file(), skill.origin, project_path, claude_config_dir).is_empty() \
+		if is_claude and bool(skill.get("shared", false)) else SkillCatalog.remove_skill(str(skill.path))
 	refresh()
 	if ok:
 		next_session_changed.emit()

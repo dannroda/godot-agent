@@ -185,16 +185,22 @@ func on_request_permission(params: Dictionary) -> Variant:
 
 
 ## Algunos agentes (Antigravity) solo ofrecen «una vez»: el harness suma «Siempre en esta sesión»,
-## que guarda él (al agente se le contesta «una vez», como con cualquier «siempre»). La shell en Auto
-## no la lleva: ahí la tarjeta propone una regla para la allowlist (m17-24).
+## que guarda él (al agente se le contesta «una vez», como con cualquier «siempre», m17-24).
+## La shell nunca: «siempre» abriría todos los comandos, también los de «siempre preguntar» y en
+## cualquier modo (revisión m17). Ahí la tarjeta sale sin «siempre» y, en Auto, propone una regla.
 func _offer_session_allow(request: PermissionRequest) -> void:
-	if request.group == PermissionPolicy.GROUP_SHELL and model.harness_mode == SessionModel.HarnessMode.AUTO:
+	if request.group == PermissionPolicy.GROUP_SHELL:
+		request.options = without_always(request.options)
 		return
 	if request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE]).is_empty() or not request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS]).is_empty():
 		return
 	var options := request.options.duplicate()
 	options.append({"optionId": HARNESS_ALLOW_ALWAYS, "name": I18n.t("Always allow in this session"), "kind": PermissionRequest.KIND_ALLOW_ALWAYS})
 	request.options = options
+
+
+static func without_always(options: Array) -> Array:
+	return options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
 
 
 func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
@@ -221,7 +227,8 @@ func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 			await next_frame()
 	if acp_id != null and _permissions_by_acp_id.get(acp_id) == request:
 		_permissions_by_acp_id.erase(acp_id)
-	if request.chosen_kind == PermissionRequest.KIND_ALLOW_ALWAYS:
+	# La shell no se abre entera para la sesión (ver _offer_session_allow).
+	if request.chosen_kind == PermissionRequest.KIND_ALLOW_ALWAYS and request.group != PermissionPolicy.GROUP_SHELL:
 		policy.grant_for_session(request.group)
 	_log_perm("%s: %s" % [_outcome_label(request), request.title])
 	return outcome
@@ -293,11 +300,10 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 		request.description = "%s %s" % [" ".join(assignments), command_line]
 	if not working_dir.is_empty() and working_dir.simplify_path().trim_suffix("/") != cwd.simplify_path().trim_suffix("/"):
 		request.description += "\n" + I18n.t("in %s") % working_dir
-	request.options = PermissionRequest.default_options()
-	if model.harness_mode == SessionModel.HarnessMode.AUTO or not env.is_empty():
-		if env.is_empty():  # una regla no ve las variables: con env solo se permite una vez
-			request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
-		request.options = request.options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
+	# Sin «siempre en esta sesión»: abriría toda la shell (revisión m17).
+	request.options = without_always(PermissionRequest.default_options())
+	if model.harness_mode == SessionModel.HarnessMode.AUTO and env.is_empty():  # una regla no ve las variables
+		request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
 	var outcome := await _ask_user(request, 0)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)

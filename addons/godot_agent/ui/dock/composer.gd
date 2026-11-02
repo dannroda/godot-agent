@@ -311,13 +311,13 @@ func update_height() -> void:
 
 
 ## Al crecer, el scroll quedaba como en el alto anterior (las últimas líneas arriba y aire abajo).
+## Solo se recorta el sobrante: si el usuario subió a leer, el scroll no salta al cursor (revisión m17).
 func _fit_scroll() -> void:
 	if not is_instance_valid(_input):
 		return
 	var max_scroll := maxf(0.0, _input.get_total_visible_line_count() - _input.get_visible_line_count())
 	if _input.scroll_vertical > max_scroll:
 		_input.scroll_vertical = max_scroll
-	_input.adjust_viewport_to_caret()
 
 
 ## Alto del texto: el fijado a mano (hasta MANUAL_MAX_RATIO de `reference`) o el del contenido
@@ -329,9 +329,8 @@ static func target_height(content: float, manual: float, reference: float, minim
 
 
 func _content_height() -> float:
-	var lines := 0
-	for line in _input.get_line_count():
-		lines += _input.get_line_wrap_count(line) + 1
+	# Con las líneas cortadas por el ancho, sin recorrerlas una por una en cada tecla (revisión m17).
+	var lines := _input.get_total_visible_line_count()
 	var style := _input.get_theme_stylebox(&"normal")
 	var margins := style.get_minimum_size().y if style else 0.0
 	return lines * _input.get_line_height() + margins + AgentTheme.px(4)

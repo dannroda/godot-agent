@@ -117,6 +117,8 @@ static func scan(claude_config_dir: String, project_path: String, agent_kind: St
 			if not seen_user.has(skill.id):
 				seen_user[skill.id] = true
 				skills.append(skill)
+	for skill: Dictionary in skills:
+		skill["shared"] = is_shared(str(skill.path).get_file(), skill.origin, project_path, claude_config_dir, home_dir)
 	if agent_kind in ["claude", ""]:
 		for plugin: Dictionary in installed_plugins(claude_config_dir):
 			for folder: String in plugin_skill_dirs(plugin, claude_config_dir):
@@ -154,12 +156,22 @@ static func antigravity_plugins(project_path: String, home_dir: String = "") -> 
 			if child.begins_with(".") or seen.has(child):
 				continue
 			var folder := root.path_join(child)
-			var manifest: Variant = _read_json(folder.path_join("plugin.json"))
+			var manifest: Variant = antigravity_manifest(folder)
 			if manifest is Dictionary or DirAccess.dir_exists_absolute(folder.path_join("skills")):
 				var plugin_id := str((manifest as Dictionary).get("name", child)) if manifest is Dictionary else child
 				seen[child] = true
 				plugins.append({"id": plugin_id, "path": folder})
 	return plugins
+
+
+## Manifiesto de un plugin nativo de Antigravity: plugin.json en la raíz, en .antigravity-plugin/ o
+## en .gemini-plugin/ (null si no tiene).
+static func antigravity_manifest(folder: String) -> Variant:
+	for sub: String in ["", ".antigravity-plugin", ".gemini-plugin"]:
+		var manifest: Variant = _read_json(folder.path_join(sub).path_join("plugin.json"))
+		if manifest is Dictionary:
+			return manifest
+	return null
 
 
 ## Plugins instalados según <config>/plugins/installed_plugins.json: [{id, path}].
@@ -182,7 +194,7 @@ static func plugin_skill_dirs(plugin: Dictionary, claude_config_dir: String) -> 
 	var declared: Variant = null
 	var manifest: Variant = _read_json(root.path_join(".claude-plugin").path_join("plugin.json"))
 	if manifest == null:
-		manifest = _read_json(root.path_join("plugin.json"))
+		manifest = antigravity_manifest(root)
 	if manifest is Dictionary:
 		declared = manifest.get("skills")
 	if declared == null:
@@ -214,7 +226,7 @@ static func read_skill(folder: String, origin: String) -> Dictionary:
 	var name := str(meta.get("name", "")).strip_edges()
 	if name.is_empty():
 		name = folder.get_file()
-	return {"name": name, "id": name, "origin": origin, "plugin": "", "path": folder, "description": str(meta.get("description", ""))}
+	return {"name": name, "id": name, "origin": origin, "plugin": "", "path": folder, "description": str(meta.get("description", "")), "shared": false}
 
 
 ## Claves simples del frontmatter YAML (`name`, `description`…), con comillas o en bloque (`>`, `|`).
@@ -285,6 +297,125 @@ static func template(name: String, description: String) -> String:
 	if description.strip_edges().is_empty():
 		description = "Use when …"
 	return "---\nname: %s\ndescription: %s\n---\n\n# %s\n\nWhat the agent should do, step by step. Keep this file short and move long material to files next to it (references/…), linked from here.\n" % [name, JSON.stringify(description.strip_edges()), name.capitalize()]
+
+
+# --- compartidas con todos los agentes (m17-27) --------------------------------------------------
+# Una skill compartida vive en la carpeta que leen todos los agentes (`~/.agents/skills` o
+# `<proyecto>/.agents/skills`) y la de Claude Code tiene un enlace a ella, porque Claude no lee
+# `.agents`. Una sola copia: editarla cambia para todos.
+
+## Carpeta compartida entre agentes para `origin` (usuario o proyecto).
+static func shared_dir(origin: String, project_path: String, home_dir: String = "") -> String:
+	if origin == ORIGIN_PROJECT:
+		return project_path.path_join(".agents").path_join("skills")
+	var home := home_dir if not home_dir.is_empty() else OS.get_environment("HOME")
+	return home.path_join(".agents").path_join("skills")
+
+
+## Carpeta de Claude Code para `origin`.
+static func claude_dir(origin: String, project_path: String, claude_config_dir: String) -> String:
+	return project_dir(project_path, "claude") if origin == ORIGIN_PROJECT else user_dir(claude_config_dir, "claude")
+
+
+## true si la skill `name` está en la carpeta compartida y la de Claude la enlaza.
+static func is_shared(name: String, origin: String, project_path: String, claude_config_dir: String, home_dir: String = "") -> bool:
+	var shared := shared_dir(origin, project_path, home_dir).path_join(name)
+	var link := claude_dir(origin, project_path, claude_config_dir).path_join(name)
+	if not FileAccess.file_exists(shared.path_join(SKILL_FILE)):
+		return false
+	var dir := DirAccess.open(link.get_base_dir())
+	if dir == null or not dir.is_link(link):
+		return false
+	return _resolve(link.get_base_dir(), dir.read_link(link)) == shared.simplify_path()
+
+
+## Pasa la skill de `folder` a la carpeta compartida y deja el enlace en la de Claude. "" o el error.
+static func share(folder: String, origin: String, project_path: String, claude_config_dir: String, home_dir: String = "") -> String:
+	if origin == ORIGIN_PLUGIN:
+		return "skills from plugins are shared with their plugin"
+	var name := folder.get_file()
+	var shared_root := shared_dir(origin, project_path, home_dir)
+	var shared := shared_root.path_join(name)
+	var link := claude_dir(origin, project_path, claude_config_dir).path_join(name)
+	var moved := folder.simplify_path() != shared.simplify_path()
+	if moved and DirAccess.dir_exists_absolute(shared):
+		return "a skill named %s is already shared" % name
+	DirAccess.make_dir_recursive_absolute(link.get_base_dir())
+	var dir := DirAccess.open(link.get_base_dir())
+	if dir == null:
+		return "could not open %s" % link.get_base_dir()
+	var link_is_folder := folder.simplify_path() == link.simplify_path()
+	if not link_is_folder:
+		if dir.is_link(link):
+			dir.remove(link)  # un enlace viejo, también roto (a una skill borrada)
+		elif DirAccess.dir_exists_absolute(link):
+			return "Claude Code already has its own skill named %s" % name
+	if moved:
+		DirAccess.make_dir_recursive_absolute(shared_root)
+		var error := _move_dir(folder, shared)
+		if not error.is_empty():
+			return error
+	# En el proyecto el enlace es relativo: sigue andando en otra máquina que clone el repo.
+	var target := _relative_path(link.get_base_dir(), shared) if origin == ORIGIN_PROJECT else shared
+	if dir.create_link(target, link) != OK:
+		# Sin enlace (Windows sin modo desarrollador, por ejemplo) la skill vuelve a donde estaba.
+		if moved:
+			_move_dir(shared, folder)
+		return "could not link %s from Claude Code's folder (symbolic links may not be allowed here)" % name
+	return ""
+
+
+## Deshace share(): saca el enlace y la skill vuelve a ser solo de Claude Code. "" o el error.
+static func unshare(name: String, origin: String, project_path: String, claude_config_dir: String, home_dir: String = "") -> String:
+	if not is_shared(name, origin, project_path, claude_config_dir, home_dir):
+		return "%s is not shared" % name
+	var link := claude_dir(origin, project_path, claude_config_dir).path_join(name)
+	var dir := DirAccess.open(link.get_base_dir())
+	var target := dir.read_link(link)
+	if DirAccess.remove_absolute(link) != OK:
+		return "could not remove the link %s" % link
+	var error := _move_dir(shared_dir(origin, project_path, home_dir).path_join(name), link)
+	if not error.is_empty():
+		dir.create_link(target, link)  # sigue compartida, como estaba
+	return error
+
+
+## Manda a la papelera una skill compartida: la carpeta de .agents y el enlace de Claude. "" o el error.
+static func remove_shared(name: String, origin: String, project_path: String, claude_config_dir: String, home_dir: String = "") -> String:
+	var link := claude_dir(origin, project_path, claude_config_dir).path_join(name)
+	var dir := DirAccess.open(link.get_base_dir())
+	if dir and dir.is_link(link) and dir.remove(link) != OK:
+		return "could not remove the link %s" % link
+	return "" if remove_skill(shared_dir(origin, project_path, home_dir).path_join(name)) else "could not move %s to the trash" % name
+
+
+static func _move_dir(from: String, to: String) -> String:
+	if DirAccess.rename_absolute(from, to) == OK:
+		return ""
+	# Otro disco: se copia y el original va a la papelera.
+	var error := _copy_dir(from, to)
+	if not error.is_empty():
+		return error
+	return "" if OS.move_to_trash(from) == OK else "copied, but could not remove %s" % from
+
+
+static func _resolve(base: String, target: String) -> String:
+	return (target if target.is_absolute_path() else base.path_join(target)).simplify_path()
+
+
+## `to` relativa a la carpeta `from` (las dos absolutas).
+static func _relative_path(from: String, to: String) -> String:
+	var a := from.simplify_path().split("/", false)
+	var b := to.simplify_path().split("/", false)
+	var common := 0
+	while common < mini(a.size(), b.size()) and a[common] == b[common]:
+		common += 1
+	var parts: PackedStringArray = []
+	for i in a.size() - common:
+		parts.append("..")
+	for i in range(common, b.size()):
+		parts.append(b[i])
+	return "/".join(parts)
 
 
 ## Copia la carpeta de una skill a <dest_dir>/<su nombre>. Devuelve "" o el error.

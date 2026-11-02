@@ -16,6 +16,9 @@ var _toggle: Button
 var _label: RichTextLabel  # solo en los thoughts
 var _segments: VBoxContainer
 var _dirty: bool = false
+## Por bloque de código ya leído: [código, informe de report_block]. El streaming refresca cada frame
+## y el JSON de un bloque cerrado no cambia: no se vuelve a parsear (revisión m17).
+var _reports: Dictionary = {}
 
 
 func _build() -> void:
@@ -73,7 +76,7 @@ func _flush() -> void:
 			if entry.findings_count >= 0 and FindingsParser.is_findings_block(block.code):
 				kind = SegmentKind.FINDINGS
 			else:
-				report = FindingsParser.report_block(block.code)
+				report = _report_for(i, block.code)
 				kind = SegmentKind.CODE if report.is_empty() else SegmentKind.CHECKS
 		var child: Control = _segments.get_child(i) if i < _segments.get_child_count() else null
 		if child != null and _kind_of(child) != kind:
@@ -179,7 +182,19 @@ func _make_report_fold() -> VBoxContainer:
 	return fold
 
 
+func _report_for(index: int, code: String) -> Dictionary:
+	var cached: Array = _reports.get(index, [])
+	if not cached.is_empty() and cached[0] == code:
+		return cached[1]
+	var report := FindingsParser.report_block(code)
+	_reports[index] = [code, report]
+	return report
+
+
 func _update_report_fold(fold: Control, block: Dictionary, report: Dictionary) -> void:
+	if fold.get_meta(&"code", "") == block.code:
+		return  # nada cambió desde el último frame
+	fold.set_meta(&"code", block.code)
 	var toggle := fold.get_child(0) as Button
 	var body := fold.get_child(1) as Control
 	var summary := report_summary(report)

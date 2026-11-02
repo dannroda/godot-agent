@@ -166,3 +166,85 @@ func test_project_dirs_per_agent() -> void:
 	assert_eq(claude_ids, ["mine"], "Claude no ve .agents/skills")
 	var codex_ids := SkillCatalog.scan(_fresh("cfg_codex"), project, "codex", {}, _fresh("home_codex")).map(func(skill: Dictionary) -> String: return skill.id)
 	assert_eq(codex_ids, ["shared"], "Codex no ve .claude/skills")
+
+
+## m17-27: «Usar con todos los agentes» mueve la skill a .agents/skills y deja un enlace en la de Claude.
+func test_share_with_all_agents() -> void:
+	var home := _fresh("share_home")
+	var config := _fresh("share_config")
+	var project := _fresh("share_project")
+	var mine := config.path_join("skills/level-gen")
+	_write(mine.path_join("SKILL.md"), _skill_md("level-gen", "Levels"))
+	_write(mine.path_join("references/r.md"), "r")
+	var origin := SkillCatalog.ORIGIN_USER
+	assert_false(SkillCatalog.is_shared("level-gen", origin, project, config, home), "todavía solo de Claude")
+	assert_eq(SkillCatalog.share(mine, origin, project, config, home), "", "comparte")
+	var shared := home.path_join(".agents/skills/level-gen")
+	assert_true(FileAccess.file_exists(shared.path_join("references/r.md")), "la carpeta se movió con todo")
+	assert_true(DirAccess.open(config.path_join("skills")).is_link(mine), "en la de Claude queda un enlace")
+	assert_true(FileAccess.file_exists(mine.path_join("SKILL.md")), "Claude la sigue leyendo")
+	assert_true(SkillCatalog.is_shared("level-gen", origin, project, config, home), "compartida")
+	var claude_skills := SkillCatalog.scan(config, project, "claude", {}, home).filter(func(s: Dictionary) -> bool: return s.id == "level-gen")
+	assert_eq(claude_skills.size(), 1, "Claude la lista una vez")
+	assert_true(claude_skills[0].shared, "marcada como compartida")
+	var agy := SkillCatalog.scan("", project, "antigravity", {}, home)
+	assert_true(agy.any(func(s: Dictionary) -> bool: return s.id == "level-gen"), "Antigravity la ve")
+
+	_write(config.path_join("skills/other/SKILL.md"), _skill_md("other", "x"))
+	_write(home.path_join(".agents/skills/other/SKILL.md"), _skill_md("other", "y"))
+	assert_true(SkillCatalog.share(config.path_join("skills/other"), origin, project, config, home).contains("already shared"), "no pisa una compartida con el mismo nombre")
+	assert_true(FileAccess.file_exists(config.path_join("skills/other/SKILL.md")), "y deja la de Claude como estaba")
+
+	assert_eq(SkillCatalog.unshare("level-gen", origin, project, config, home), "", "vuelve a ser solo de Claude")
+	assert_false(DirAccess.open(config.path_join("skills")).is_link(mine), "ya no es un enlace")
+	assert_true(FileAccess.file_exists(mine.path_join("references/r.md")), "la carpeta volvió")
+	assert_false(DirAccess.dir_exists_absolute(shared), "y no quedó en .agents")
+	assert_false(SkillCatalog.unshare("level-gen", origin, project, config, home).is_empty(), "no se deshace dos veces")
+
+	# En el proyecto, el enlace es relativo para que ande en otro clon.
+	var project_skill := project.path_join(".claude/skills/combat")
+	_write(project_skill.path_join("SKILL.md"), _skill_md("combat", "Combat"))
+	assert_eq(SkillCatalog.share(project_skill, SkillCatalog.ORIGIN_PROJECT, project, config, home), "", "comparte la del proyecto")
+	assert_eq(DirAccess.open(project.path_join(".claude/skills")).read_link(project_skill), "../../.agents/skills/combat", "enlace relativo")
+	assert_true(FileAccess.file_exists(project.path_join(".agents/skills/combat/SKILL.md")), "en .agents/skills del proyecto")
+	assert_true(SkillCatalog.share(project_skill, SkillCatalog.ORIGIN_PLUGIN, project, config, home).contains("plugin"), "las de plugins no")
+
+## Revisión m17-27: si no se puede enlazar, la skill vuelve a su lugar; un enlace roto no traba.
+func test_share_rollback_and_dangling_link() -> void:
+	var home := _fresh("share_rb_home")
+	var config := _fresh("share_rb_config")
+	var origin := SkillCatalog.ORIGIN_USER
+	# Una skill de Antigravity (en ~/.gemini) cuyo nombre ya ocupa un archivo en la carpeta de Claude:
+	# el enlace no se puede crear.
+	var agy := home.path_join(".gemini/config/skills/blocked")
+	_write(agy.path_join("SKILL.md"), _skill_md("blocked", "x"))
+	_write(config.path_join("skills/blocked"), "a file, not a folder")
+	assert_false(SkillCatalog.share(agy, origin, "", config, home).is_empty(), "no se pudo enlazar")
+	assert_true(FileAccess.file_exists(agy.path_join("SKILL.md")), "la skill volvió a su carpeta")
+	assert_false(DirAccess.dir_exists_absolute(home.path_join(".agents/skills/blocked")), "y no quedó en .agents")
+
+	# Un enlace roto (la compartida se borró desde otro agente) se reemplaza al volver a compartir.
+	var mine := config.path_join("skills/ghost")
+	_write(mine.path_join("SKILL.md"), _skill_md("ghost", "x"))
+	assert_eq(SkillCatalog.share(mine, origin, "", config, home), "", "comparte")
+	DirAccess.remove_absolute(home.path_join(".agents/skills/ghost/SKILL.md"))
+	DirAccess.remove_absolute(home.path_join(".agents/skills/ghost"))
+	var again := home.path_join(".gemini/config/skills/ghost")
+	_write(again.path_join("SKILL.md"), _skill_md("ghost", "y"))
+	assert_eq(SkillCatalog.share(again, origin, "", config, home), "", "el enlace roto no traba")
+	assert_true(FileAccess.file_exists(mine.path_join("SKILL.md")), "Claude la ve otra vez")
+
+
+## Plugins de Antigravity con el manifiesto en .antigravity-plugin/ o .gemini-plugin/.
+func test_antigravity_plugin_manifest_locations() -> void:
+	var home := _fresh("agy_manifest_home")
+	var project := _fresh("agy_manifest_project")
+	var plugins := project.path_join(".agents/plugins")
+	_write(plugins.path_join("gdscript/.antigravity-plugin/plugin.json"), JSON.stringify({"name": "gdscript"}))
+	_write(plugins.path_join("gdscript/skills/godot-patterns/SKILL.md"), _skill_md("godot-patterns", "x"))
+	_write(plugins.path_join("shaders/.gemini-plugin/plugin.json"), JSON.stringify({"name": "shaders", "skills": "./custom"}))
+	_write(plugins.path_join("shaders/custom/godot-shader-techniques/SKILL.md"), _skill_md("godot-shader-techniques", "y"))
+	var found := SkillCatalog.scan("", project, "antigravity", {}, home).filter(func(s: Dictionary) -> bool: return s.origin == SkillCatalog.ORIGIN_PLUGIN)
+	var ids := found.map(func(s: Dictionary) -> String: return s.id)
+	ids.sort()
+	assert_eq(ids, ["gdscript:godot-patterns", "shaders:godot-shader-techniques"], ".antigravity-plugin y .gemini-plugin, con sus skills declaradas")

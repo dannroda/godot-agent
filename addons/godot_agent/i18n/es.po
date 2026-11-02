@@ -4022,3 +4022,24 @@ msgstr "Ver todo (1 línea)"
 
 msgid "Show all (%d lines)"
 msgstr "Ver todo (%d líneas)"
+
+msgid "Use with all agents"
+msgstr "Usar con todos los agentes"
+
+msgid "Only for Claude Code"
+msgstr "Solo para Claude Code"
+
+msgid "Shared with all agents: %s"
+msgstr "Compartida con todos los agentes: %s"
+
+msgid "Make %s only for Claude Code? The other agents stop seeing it from their next session."
+msgstr "¿Dejar %s solo para Claude Code? Los otros agentes dejan de verla desde su próxima sesión."
+
+msgid "Could not change %s: %s"
+msgstr "No se pudo cambiar %s: %s"
+
+msgid "%s is now in %s: Claude Code and the other agents use the same copy."
+msgstr "%s ahora está en %s: Claude Code y los otros agentes usan la misma copia."
+
+msgid "%s is only for Claude Code again."
+msgstr "%s vuelve a ser solo de Claude Code."

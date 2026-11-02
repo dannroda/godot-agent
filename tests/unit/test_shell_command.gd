@@ -50,18 +50,42 @@ func test_antigravity_shell_permissions() -> void:
 	for i in 3:
 		await tree.process_frame
 
-	# Build: pregunta, y la tarjeta trae «siempre en esta sesión» aunque el agente no lo ofrezca.
+	# Build: la shell pregunta sin «siempre», aunque el agente lo ofrezca: abriría todos los comandos
+	# para la sesión, también al pasar a Auto (revisión m17).
 	controller.model.set_harness_mode(SessionModel.HarnessMode.BUILD)
-	var ask_build := func() -> void: answers.append(await _ask(controller, "x4", {"CommandLine": "npm run build"}))
+	var with_always := OPTIONS + [{"optionId": "always", "name": "Always", "kind": "allow_always"}]
+	var ask_build := func() -> void:
+		answers.append(await controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "x4", "kind": "execute", "title": "x", "rawInput": {"CommandLine": "npm run build"}}, "options": with_always}))
 	ask_build.call()
 	assert_eq(controller.model.pending_permissions.size(), 1, "en Build pregunta")
+	request = controller.model.pending_permissions[0]
+	assert_true(request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS]).is_empty(), "la shell no ofrece «siempre»: %s" % [request.options])
+	request.select("allow")
+	for i in 3:
+		await tree.process_frame
+	assert_eq(answers.size(), 2, "las dos tarjetas respondieron")
+	assert_eq(str(answers[1].outcome.get("optionId", "")), "allow", "permitido una vez")
+	controller.model.set_harness_mode(SessionModel.HarnessMode.AUTO)
+	var ask_push := func() -> void: answers.append(await _ask(controller, "x5", {"CommandLine": "git push --force"}))
+	ask_push.call()
+	assert_eq(controller.model.pending_permissions.size(), 1, "en Auto, git push sigue preguntando")
+	controller.model.pending_permissions[0].select("reject")
+	for i in 3:
+		await tree.process_frame
+
+	# Otro grupo (editar archivos) en Build: «siempre en esta sesión» lo suma el harness si el agente
+	# no lo ofrece.
+	controller.model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+	var ask_edit := func() -> void:
+		answers.append(await controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "x6", "kind": "edit", "title": "Edit", "rawInput": {"file_path": "/tmp/project/a.gd"}}, "options": OPTIONS}))
+	ask_edit.call()
+	assert_eq(controller.model.pending_permissions.size(), 1, "editar pregunta en Build")
 	request = controller.model.pending_permissions[0]
 	var always := request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS])
 	assert_false(always.is_empty(), "ofrece recordar: %s" % [request.options])
 	request.select(always)
 	for i in 3:
 		await tree.process_frame
-	assert_eq(answers.size(), 2, "las dos tarjetas respondieron")
-	assert_eq(str(answers[1].outcome.get("optionId", "")), "allow", "al agente se le contesta «una vez»")
-	result = await _ask(controller, "x5", {"CommandLine": "npm run lint"})
+	assert_eq(str(answers.back().outcome.get("optionId", "")), "allow", "al agente se le contesta «una vez»")
+	result = await controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "x7", "kind": "edit", "title": "Edit", "rawInput": {"file_path": "/tmp/project/b.gd"}}, "options": OPTIONS})
 	assert_eq(str(result.outcome.get("optionId", "")), "allow", "el resto de la sesión ya no pregunta")
