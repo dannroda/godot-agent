@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T08:40:29.786Z",
+  "description": "Reporte del usuario (02/11, Antigravity): «me apareció un super coso que no sé cómo aprobar». Antigravity pidió permiso para un `python3 - << 'EOF'` de cientos de líneas (escribía un informe en ~/.gemini). El título de la tarjeta era el comando entero, así que ocupaba todo el dock y Allow once/Deny quedaban muy abajo.",
+  "milestone": "m17",
+  "notes": "PermissionView: título y descripción pasan por short_text (primera línea, hasta TITLE_MAX_CHARS, con «…»); lo que no entra va en un ScrollContainer de 220 px, plegado detrás de «Ver todo (N líneas)», en fuente mono. En el worktree quota-bars, sin commitear.",
+  "order": 26,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "run_all 417/0 (test_permission_view.test_long_command_is_folded: short_text corta a la primera línea / 140 caracteres; con 202 líneas el título es una línea, «Show all (202 lines)» plegado, los botones visibles, al abrir aparece el comando entero). ui-test ui_long_permission (guion nuevo tests/scripts/ui_long_permission.json, 152 líneas con CommandLine) en Xvfb 4.7.2: «Allow once» queda dentro del dock y se aprueba; captura revisada.",
+  "title": "Tarjeta de permiso con un comando largo: los botones quedaban fuera de la vista",
+  "updated_at": "2026-11-02T08:40:34.926Z"
+}

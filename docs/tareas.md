@@ -4355,7 +4355,7 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
 
-## M15 — Revisión de features: lo que no estaba correcto  (22/22, 22 en revisión)
+## M15 — Revisión de features: lo que no estaba correcto  (26/26, 26 en revisión)
 
 Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
 
@@ -4764,6 +4764,48 @@ Prueba: en Xvfb, pegar 30 líneas → el composer crece hasta el tope. Arrastrar
 **Prueba:** run_all 413/0 (test_composer.test_height_follows_text_and_grip: tope 40 %/70 %, mínimo, 30 líneas crecen al tope, clear vuelve al reposo, arrastrar la manija agranda y queda fijado, fijado no sigue al texto, doble clic vuelve a automático). ui-test ui_quota en Xvfb 4.7.2 y 4.8-beta2: 30 líneas → crece >1,5× y ≤41 % del dock, el chat no queda debajo del composer, vuelve al alto de reposo al limpiar; captura <shot>_composer.png revisada (el texto llena el cuadro hasta la última línea).
 
 **Notas:** Manija de 6 px arriba de los chips (cursor VSIZE). Alto fijado en EditorSettings godot_agent/ui/composer_height sin la escala del editor; se aplica a todas las pestañas vía grupo godot_agent_composers. text_changed no sale cuando el texto se pone por código: update_height se llama también en clear, insert_text y al recorrer el historial. Al crecer, el CodeEdit dejaba el scroll del alto viejo (líneas arriba, aire abajo): _fit_scroll en resized lo corrige. El panel inferior usa el mismo composer: no lo probé ahí aparte. De paso, sessions-test fallaba en 4.8 porque dependía de la cuenta guardada en las EditorSettings de quien lo corre: ahora la limpia y la restaura.
+
+### Detalle del anillo de cuota con barras de progreso en lugar de texto · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Pedido del usuario (02/11): el panel que abre el anillo de cuota (m17-14) lista los porcentajes como texto. Tiene que mostrar una barra de progreso por ventana (sesión de 5 h, semanal, grupos por modelo) y para el contexto, con el color del anillo según el uso, y el reinicio al lado. Se trabaja en un worktree porque el usuario tiene el editor abierto con el addon enlazado.
+
+**Prueba:** run_all 414/0 (test_quota_ring.test_hint_rows_are_bars: contexto + 2 ventanas como barras, valores, detalle «36 % · resets in 1 h», color del anillo, 3 ProgressBar en el panel). ui-test ui_quota_busy en Xvfb 4.7.2 y 4.8-beta2: PASS, captura revisada (barras de contexto, ventana y semana arriba del anillo).
+
+**Notas:** Hecho en el worktree .claude/worktrees/quota-bars (rama quota-bars), sin commitear, porque el usuario tiene el editor abierto con el addon enlazado. QuotaRing.hint_rows() da filas title/text/bar; el panel las arma con ProgressBar (fondo TRACK_COLOR, relleno color_for). hint_text sigue siendo el texto (tests, chequeo del límite). Contexto con color propio: acento, amarillo ≥80 %, rojo ≥95 %. QuotaMonitor.reset_in(data). De paso: el chequeo del composer del ui-test fallaba en 4.8 por el alto fijado a mano en las EditorSettings del usuario; ahora lo guarda, prueba en automático y lo restaura.
+
+### Antigravity: la allowlist no se aplica y la tarjeta de permiso no ofrece recordar · Revisión
+
+**Prioridad:** alta · **Tamaño:** S
+
+Reporte del usuario (02/11, Road Fighter 3D con Antigravity): «cat * está en la allowlist pero antigravity pide permiso siempre, y no da opción de recordar el permiso».
+
+Causa: Antigravity manda el comando en rawInput.CommandLine (y command_line en el update), no en rawInput.command. El broker leía command vacío: ShellRules no lo encontraba en la allowlist, no podía proponer regla (por eso sin «recordar» en Auto), y ProjectWriteGuard/GodotWindowGuard tampoco veían el comando. En los otros modos, Antigravity solo ofrece allow_once/reject_once, así que no hay «siempre».
+
+**Prueba:** run_all 416/0. tests/unit/test_shell_command.gd: ShellCommand.of con command/CommandLine/command_line/lista; con el formato de Antigravity, en Auto `cat a b` pasa sin tarjeta, escribir main.tscn por shell se rechaza, `npm test` pregunta y propone la regla «npm test» (sin «siempre en la sesión»); en Build la tarjeta trae «Siempre en esta sesión» aunque el agente solo ofrezca «una vez», al agente se le contesta allow_once y el siguiente comando de la sesión pasa sin preguntar. acp_session_check 171/0. Para probar en tu editor: Antigravity en Auto, pedirle `cat` de dos archivos → no pregunta.
+
+**Notas:** Nuevo session/shell_command.gd (ShellCommand.of): claves command, CommandLine, command_line, commandLine, cmd, o lista. Lo usan PermissionBroker (allowlist, sugerencia de regla, GodotWindowGuard, descripción de la tarjeta), ProjectWriteGuard (bloqueo de escrituras por shell, que con Antigravity tampoco andaba) y el resumen de tool_group_view. PermissionBroker._offer_session_allow suma la opción godot_agent_allow_always cuando el agente no trae allow_always (no en la shell en Auto, donde va la regla). La allowlist sigue siendo solo del modo Auto, como dice la wiki. En el worktree quota-bars, sin commitear.
+
+### El estado de la sesión (listo, trabajando) va abajo, arriba del composer · Revisión
+
+**Prioridad:** media · **Tamaño:** S
+
+Pedido del usuario (02/11): «el indicador de estado (ready, working) debería estar abajo, arriba de donde va el chat». Hoy la palabra del estado va en el chip del agente del header (m12-14), lejos de donde se mira al escribir.
+
+**Prueba:** run_all 416/0. ui-test ui_quota_busy en Xvfb 4.7.2 y 4.8-beta2: con un turno en curso la línea dice «Working…», está visible y termina arriba del composer, y el chip del agente ya no lleva el estado; captura <shot>_state.png revisada. sessions-test y oneshot-test PASS (4.7.2).
+
+**Notas:** AgentDock._state_line (Label en composer_column, justo antes del composer): ◌ Conectando…, ● Listo, ● Trabajando… · N subagentes, ● Cancelando…, ○ Falta iniciar sesión / ✗ Error; con una tarjeta pendiente, «● Te está esperando» en el color de acento. Sin sesión (desconectado) no se ve. Tooltip: el mismo que el estado (cuenta, subagentes, error). El chip queda con el nombre y el punto/borde del color del estado. Strings viejas en minúscula reemplazadas en es.po. En el worktree quota-bars, sin commitear.
+
+### Tarjeta de permiso con un comando largo: los botones quedaban fuera de la vista · Revisión
+
+**Prioridad:** alta · **Tamaño:** S
+
+Reporte del usuario (02/11, Antigravity): «me apareció un super coso que no sé cómo aprobar». Antigravity pidió permiso para un `python3 - << 'EOF'` de cientos de líneas (escribía un informe en ~/.gemini). El título de la tarjeta era el comando entero, así que ocupaba todo el dock y Allow once/Deny quedaban muy abajo.
+
+**Prueba:** run_all 417/0 (test_permission_view.test_long_command_is_folded: short_text corta a la primera línea / 140 caracteres; con 202 líneas el título es una línea, «Show all (202 lines)» plegado, los botones visibles, al abrir aparece el comando entero). ui-test ui_long_permission (guion nuevo tests/scripts/ui_long_permission.json, 152 líneas con CommandLine) en Xvfb 4.7.2: «Allow once» queda dentro del dock y se aprueba; captura revisada.
+
+**Notas:** PermissionView: título y descripción pasan por short_text (primera línea, hasta TITLE_MAX_CHARS, con «…»); lo que no entra va en un ScrollContainer de 220 px, plegado detrás de «Ver todo (N líneas)», en fuente mono. En el worktree quota-bars, sin commitear.
 
 ## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
 

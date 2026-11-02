@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T08:16:02.043Z",
+  "description": "Pedido del usuario (02/11): «el indicador de estado (ready, working) debería estar abajo, arriba de donde va el chat». Hoy la palabra del estado va en el chip del agente del header (m12-14), lejos de donde se mira al escribir.",
+  "milestone": "m17",
+  "notes": "AgentDock._state_line (Label en composer_column, justo antes del composer): ◌ Conectando…, ● Listo, ● Trabajando… · N subagentes, ● Cancelando…, ○ Falta iniciar sesión / ✗ Error; con una tarjeta pendiente, «● Te está esperando» en el color de acento. Sin sesión (desconectado) no se ve. Tooltip: el mismo que el estado (cuenta, subagentes, error). El chip queda con el nombre y el punto/borde del color del estado. Strings viejas en minúscula reemplazadas en es.po. En el worktree quota-bars, sin commitear.",
+  "order": 25,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "run_all 416/0. ui-test ui_quota_busy en Xvfb 4.7.2 y 4.8-beta2: con un turno en curso la línea dice «Working…», está visible y termina arriba del composer, y el chip del agente ya no lleva el estado; captura <shot>_state.png revisada. sessions-test y oneshot-test PASS (4.7.2).",
+  "title": "El estado de la sesión (listo, trabajando) va abajo, arriba del composer",
+  "updated_at": "2026-11-02T08:16:08.263Z"
+}

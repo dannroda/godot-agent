@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T07:57:57.474Z",
+  "description": "Pedido del usuario (02/11): el panel que abre el anillo de cuota (m17-14) lista los porcentajes como texto. Tiene que mostrar una barra de progreso por ventana (sesión de 5 h, semanal, grupos por modelo) y para el contexto, con el color del anillo según el uso, y el reinicio al lado. Se trabaja en un worktree porque el usuario tiene el editor abierto con el addon enlazado.",
+  "milestone": "m17",
+  "notes": "Hecho en el worktree .claude/worktrees/quota-bars (rama quota-bars), sin commitear, porque el usuario tiene el editor abierto con el addon enlazado. QuotaRing.hint_rows() da filas title/text/bar; el panel las arma con ProgressBar (fondo TRACK_COLOR, relleno color_for). hint_text sigue siendo el texto (tests, chequeo del límite). Contexto con color propio: acento, amarillo ≥80 %, rojo ≥95 %. QuotaMonitor.reset_in(data). De paso: el chequeo del composer del ui-test fallaba en 4.8 por el alto fijado a mano en las EditorSettings del usuario; ahora lo guarda, prueba en automático y lo restaura.",
+  "order": 23,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "run_all 414/0 (test_quota_ring.test_hint_rows_are_bars: contexto + 2 ventanas como barras, valores, detalle «36 % · resets in 1 h», color del anillo, 3 ProgressBar en el panel). ui-test ui_quota_busy en Xvfb 4.7.2 y 4.8-beta2: PASS, captura revisada (barras de contexto, ventana y semana arriba del anillo).",
+  "title": "Detalle del anillo de cuota con barras de progreso en lugar de texto",
+  "updated_at": "2026-11-02T08:02:15.234Z"
+}
