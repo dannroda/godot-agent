@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T08:56:59.356Z",
+  "description": "Pedido del usuario (02/11): «no pueden estar las skills para todos los agentes? que no sea exclusivo de claude».\n\nHoy las skills del usuario están solo en la carpeta de Claude (<CLAUDE_CONFIG_DIR>/skills). Antigravity, Codex, opencode, etc. leen el mismo formato (carpeta con SKILL.md) desde sus carpetas (~/.agents/skills compartida, ~/.gemini/config/skills…), que están vacías: Antigravity no tiene ninguna skill.\n\nArreglo: en Extensiones, cada skill de usuario o de proyecto tiene «Para todos los agentes». Mueve la skill a la carpeta compartida (~/.agents/skills o <proyecto>/.agents/skills) y deja un symlink en la de Claude (que no lee .agents). Una sola copia: editarla cambia para todos. Se puede deshacer (vuelve a la carpeta de Claude). La lista muestra si una skill está compartida.\n\nLo del marketplace (publicar las skills de Godot también como plugin de Antigravity) va en el repo godot-agent-plugins, en otra sesión.",
+  "milestone": "m17",
+  "notes": "SkillCatalog.share/unshare/is_shared; scan marca \"shared\". En el proyecto el enlace es relativo (../../.agents/skills/x). No pisa una compartida con el mismo nombre ni una skill propia de Claude. Las de plugins no se comparten. También: manifiesto de plugins de Antigravity en .antigravity-plugin/ y .gemini-plugin/ (docs de Antigravity, aviso de la sesión godot-agent-plugins). En Windows los enlaces de carpeta pueden requerir modo desarrollador: sin probar.",
+  "order": 27,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "run_all 419/0 (test_share_with_all_agents, test_antigravity_plugin_manifest_locations). En el editor: Extensiones › Skills › ⋯ de una skill tuya › «Usar con todos los agentes»: queda en ~/.agents/skills, enlace en la carpeta de Claude, la tarjeta dice «Compartida con todos los agentes». Con Antigravity aparece en Skills. «Solo para Claude Code» la devuelve.",
+  "title": "Skills para todos los agentes: «Para todos los agentes» en Extensiones",
+  "updated_at": "2026-11-02T09:03:28.667Z"
+}

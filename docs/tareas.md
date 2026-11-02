@@ -4355,7 +4355,7 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
 
-## M15 — Revisión de features: lo que no estaba correcto  (26/26, 26 en revisión)
+## M15 — Revisión de features: lo que no estaba correcto  (27/27, 27 en revisión)
 
 Lo que encontró la revisión de features del 31/10 con las pruebas y Claude Code real: una caída del editor sin resolver, textos que dicen algo falso o viejo, y lo que quedó sin verificar.
 
@@ -4806,6 +4806,22 @@ Reporte del usuario (02/11, Antigravity): «me apareció un super coso que no s�
 **Prueba:** run_all 417/0 (test_permission_view.test_long_command_is_folded: short_text corta a la primera línea / 140 caracteres; con 202 líneas el título es una línea, «Show all (202 lines)» plegado, los botones visibles, al abrir aparece el comando entero). ui-test ui_long_permission (guion nuevo tests/scripts/ui_long_permission.json, 152 líneas con CommandLine) en Xvfb 4.7.2: «Allow once» queda dentro del dock y se aprueba; captura revisada.
 
 **Notas:** PermissionView: título y descripción pasan por short_text (primera línea, hasta TITLE_MAX_CHARS, con «…»); lo que no entra va en un ScrollContainer de 220 px, plegado detrás de «Ver todo (N líneas)», en fuente mono. En el worktree quota-bars, sin commitear.
+
+### Skills para todos los agentes: «Para todos los agentes» en Extensiones · Revisión
+
+**Prioridad:** media · **Tamaño:** M
+
+Pedido del usuario (02/11): «no pueden estar las skills para todos los agentes? que no sea exclusivo de claude».
+
+Hoy las skills del usuario están solo en la carpeta de Claude (<CLAUDE_CONFIG_DIR>/skills). Antigravity, Codex, opencode, etc. leen el mismo formato (carpeta con SKILL.md) desde sus carpetas (~/.agents/skills compartida, ~/.gemini/config/skills…), que están vacías: Antigravity no tiene ninguna skill.
+
+Arreglo: en Extensiones, cada skill de usuario o de proyecto tiene «Para todos los agentes». Mueve la skill a la carpeta compartida (~/.agents/skills o <proyecto>/.agents/skills) y deja un symlink en la de Claude (que no lee .agents). Una sola copia: editarla cambia para todos. Se puede deshacer (vuelve a la carpeta de Claude). La lista muestra si una skill está compartida.
+
+Lo del marketplace (publicar las skills de Godot también como plugin de Antigravity) va en el repo godot-agent-plugins, en otra sesión.
+
+**Prueba:** run_all 419/0 (test_share_with_all_agents, test_antigravity_plugin_manifest_locations). En el editor: Extensiones › Skills › ⋯ de una skill tuya › «Usar con todos los agentes»: queda en ~/.agents/skills, enlace en la carpeta de Claude, la tarjeta dice «Compartida con todos los agentes». Con Antigravity aparece en Skills. «Solo para Claude Code» la devuelve.
+
+**Notas:** SkillCatalog.share/unshare/is_shared; scan marca "shared". En el proyecto el enlace es relativo (../../.agents/skills/x). No pisa una compartida con el mismo nombre ni una skill propia de Claude. Las de plugins no se comparten. También: manifiesto de plugins de Antigravity en .antigravity-plugin/ y .gemini-plugin/ (docs de Antigravity, aviso de la sesión godot-agent-plugins). En Windows los enlaces de carpeta pueden requerir modo desarrollador: sin probar.
 
 ## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
 
