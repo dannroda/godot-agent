@@ -36,7 +36,7 @@
     }
   ],
   "milestone": "m19",
-  "notes": "Código en el worktree .claude/worktrees/m19-01, rama m19-01-native-build, sin commitear. core/native_build.gd: find_project mira la carpeta del proyecto, la de arriba y rust/ en cada una; SCons > CMake > Cargo. scons -C raíz target=…; cmake configura siempre (el target es una opción de configuración; -G Ninja solo la primera vez) y después --build; cargo build --manifest-path --message-format=short (--release con template_release). Timeout de 1200 s. Mensajes en inglés y sin color (LC_MESSAGES=C). Si falla sin errores de archivo (por ejemplo, del linker), devuelve las últimas 20 líneas. ~/.cargo/bin se agregó a las carpetas de CommandResolver. Las skills (godot-agent-plugins a11a5d4) dan por sentado el layout de godot-cpp-template con project/, que find_project cubre.",
+  "notes": "En main desde 1e2acdc. core/native_build.gd: find_project mira la carpeta del proyecto, la de arriba y rust/ en cada una; SCons > CMake > Cargo. scons -C raíz target=…; cmake configura siempre (el target es una opción de configuración; -G Ninja solo la primera vez) y después --build; cargo build --manifest-path --message-format=short (--release con template_release). Timeout de 1200 s. Mensajes en inglés y sin color (LC_MESSAGES=C). Si falla sin errores de archivo (por ejemplo, del linker), devuelve las últimas 20 líneas. ~/.cargo/bin se agregó a las carpetas de CommandResolver. Las skills (godot-agent-plugins a11a5d4) dan por sentado el layout de godot-cpp-template con project/, que find_project cubre.",
   "order": 1,
   "priority": "high",
   "refs": [],
@@ -44,5 +44,5 @@
   "status": "review",
   "test": "tests/unit/test_native_build.gd (parser gcc/clang/rustc/MSVC, layouts, comandos, build real con scons+gcc y con cargo) y test_system_prompt (reglas solo con sistema de build): run_all 427 tests, 0 fallos en 4.7.2. --godot-agent-mcp-test en Xvfb: 0 fallas (build_extension fuera del tools/list compacto y listada en methods). De punta a punta contra una copia de godot-cpp-template (layout demo/): detectó el SConstruct desde demo/, compiló en 63 s y, con un error plantado, devolvió register_types.cpp línea 11 en 3,5 s.",
   "title": "Build nativo con errores por archivo",
-  "updated_at": "2026-11-02T23:09:12.825Z"
+  "updated_at": "2026-11-02T23:19:05.791Z"
 }

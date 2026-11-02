@@ -1,0 +1,16 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-02T23:18:54.081Z",
+  "description": "m19-02 prueba la build en el proyecto de prueba de la extensión (project/ o demo/), pero el juego que el usuario tiene abierto la usa como addon (addons/<ext>/ con el .gdextension y bin/). Falta una tool, o un paso documentado, que copie el addon probado al juego solo si test_extension pasó, verifique con check_gdextension.py de la skill y le pida al usuario que reinicie el editor. Esto se cruza con el supervisor (m19-03): la build nueva entra al editor recién en ese reinicio.",
+  "milestone": "m19",
+  "notes": "",
+  "order": 5,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Llevar la extensión probada al juego",
+  "updated_at": "2026-11-02T23:18:54.081Z"
+}

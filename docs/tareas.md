@@ -4866,7 +4866,7 @@ Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux
 - [ ] Cuota: el anillo y el límite con su /usage
 - [ ] Sin skills ni plugins: que Extensions lo diga bien
 
-## M17 — GDExtension  (1/4, 1 en revisión)
+## M17 — GDExtension  (2/5, 2 en revisión)
 
 Que el agente pueda hacer GDExtensions sin poner en riesgo el editor: build con errores parseados, prueba en un proceso descartable, un supervisor fuera del editor para crashes y reinicios, y una skill de scaffolding. No se trae: hot reload dentro del editor ni builds multiplataforma para export (eso es CI).
 
@@ -4896,17 +4896,34 @@ Una tool que haga para GDExtension lo que core/csharp_build.gd hace para C#: det
 
 **Prueba:** tests/unit/test_native_build.gd (parser gcc/clang/rustc/MSVC, layouts, comandos, build real con scons+gcc y con cargo) y test_system_prompt (reglas solo con sistema de build): run_all 427 tests, 0 fallos en 4.7.2. --godot-agent-mcp-test en Xvfb: 0 fallas (build_extension fuera del tools/list compacto y listada en methods). De punta a punta contra una copia de godot-cpp-template (layout demo/): detectó el SConstruct desde demo/, compiló en 63 s y, con un error plantado, devolvió register_types.cpp línea 11 en 3,5 s.
 
-**Notas:** Código en el worktree .claude/worktrees/m19-01, rama m19-01-native-build, sin commitear. core/native_build.gd: find_project mira la carpeta del proyecto, la de arriba y rust/ en cada una; SCons > CMake > Cargo. scons -C raíz target=…; cmake configura siempre (el target es una opción de configuración; -G Ninja solo la primera vez) y después --build; cargo build --manifest-path --message-format=short (--release con template_release). Timeout de 1200 s. Mensajes en inglés y sin color (LC_MESSAGES=C). Si falla sin errores de archivo (por ejemplo, del linker), devuelve las últimas 20 líneas. ~/.cargo/bin se agregó a las carpetas de CommandResolver. Las skills (godot-agent-plugins a11a5d4) dan por sentado el layout de godot-cpp-template con project/, que find_project cubre.
+**Notas:** En main desde 1e2acdc. core/native_build.gd: find_project mira la carpeta del proyecto, la de arriba y rust/ en cada una; SCons > CMake > Cargo. scons -C raíz target=…; cmake configura siempre (el target es una opción de configuración; -G Ninja solo la primera vez) y después --build; cargo build --manifest-path --message-format=short (--release con template_release). Timeout de 1200 s. Mensajes en inglés y sin color (LC_MESSAGES=C). Si falla sin errores de archivo (por ejemplo, del linker), devuelve las últimas 20 líneas. ~/.cargo/bin se agregó a las carpetas de CommandResolver. Las skills (godot-agent-plugins a11a5d4) dan por sentado el layout de godot-cpp-template con project/, que find_project cubre.
 
 **Bloquea a:** Probar la extensión en un Godot headless descartable
 
 **Relacionadas:** Skill de scaffolding de GDExtension
 
-### Probar la extensión en un Godot headless descartable · Pendiente
+### Probar la extensión en un Godot headless descartable · Revisión
 
 **Prioridad:** alta · **Tamaño:** M
 
 Un segfault en código nativo mata el proceso que cargó el .so, y si ese proceso es el editor, también se cae la sesión del agente. La prueba tiene que correr en un Godot headless aparte (reusando lo de playtest/headless): carga la build, verifica que las clases aparecen en ClassDB, corre tests o playtest y devuelve el resultado, o el código de salida y el backtrace si crashea. Solo las builds que pasan se instalan en la ruta que lee el editor ("promover").
+
+**Decisiones:**
+- ! Sin paso de «promover» en m19-02: test_extension prueba la build donde la deja el SConstruct, y llevar la build probada al juego queda para una tarea aparte · sin revisar
+  Por qué: La ruta que carga el editor la definen el SConstruct y el .gdextension, no el harness; moverla implica reescribir el build del usuario. El aislamiento real es que el proyecto de prueba (project/ o demo/) no sea el que tiene abierto el editor, y copiar el addon al juego es el paso «Package as an addon» de la skill.
+  Descartado: Compilar a una carpeta de staging y copiar a bin/ solo si los tests pasan.
+- ! test_extension pide permiso como correr el juego (grupo run), y el runner vive en el addon: se pasa por ruta absoluta, así que el proyecto de prueba no necesita el addon · sin revisar
+  Por qué: Carga y ejecuta código del proyecto en un proceso aparte, como run_scene. Usa el mismo formato de tests que el runner de la skill gdextension-cpp.
+  Descartado: El grupo shell, o exigir que el proyecto de prueba tenga copiado el extension_tests.gd de la skill.
+- ! El backtrace de un crash solo muestra los frames de la extensión (resueltos con addr2line) y el backtrace de GDScript; los del motor y libc se cuentan en una línea · sin revisar
+  Por qué: Son unos 20 frames por crash que no le dicen nada al agente y gastan contexto.
+  Descartado: Mostrar el backtrace completo.
+
+**Prueba:** tests/unit/test_native_test.gd (salida del runner, resumen de un crash, proyecto de prueba en los layouts de godot-cpp y gdext, .gdextension registrados y recargables, corrida real sin extensión → código 2): run_all 432 tests, 0 fallos en 4.7.2. --godot-agent-mcp-test en Xvfb: 0 fallas. De punta a punta contra una copia de godot-cpp-template compilada con debug_symbols=yes: un check que falla a propósito sale como ✗ con código 1; un método C++ que desreferencia null crashea solo el proceso de prueba (signal 11) y el frame queda resuelto a «ExampleClass::crash_now(int) const at src/example_class.cpp:15»; una clase que falta sale con código 2. También probó el import automático del proyecto de prueba.
+
+**Notas:** Código en el worktree .claude/worktrees/m19-02, rama m19-02-extension-test, sin commitear. core/native_test.gd + native/extension_tests.gd (runner; mismo formato que el de la skill: PASS/FAIL/DONE y códigos de salida 0/1/2, y sin carpeta de tests solo chequea la carga). Detecta un crash por «handle_crash:»: el código de salida no sirve (134 con core dump). El import (--headless --import) solo corre si falta registrar un .gdextension, y nunca sobre el proyecto abierto en el editor. Pendiente aparte: llevar la build probada al juego (ver decisión).
+
+**Bloquea a:** Llevar la extensión probada al juego
 
 **Bloqueada por:** Build nativo con errores por archivo
 
@@ -4929,3 +4946,11 @@ Una skill en el repo de marketplace dannroda/godot-agent-plugins (no en este rep
 **Notas:** La está haciendo otra sesión, en el repo godot-agent-plugins (armando y probando las skills). Lo que queda de este lado: cuando m19-01, m19-02 y m19-03 existan, que la skill use esas tools (build, prueba headless, promover, reinicio con supervisor) en lugar del shell directo.
 
 **Relacionadas:** Build nativo con errores por archivo
+
+### Llevar la extensión probada al juego · Pendiente
+
+**Prioridad:** media · **Tamaño:** S
+
+m19-02 prueba la build en el proyecto de prueba de la extensión (project/ o demo/), pero el juego que el usuario tiene abierto la usa como addon (addons/<ext>/ con el .gdextension y bin/). Falta una tool, o un paso documentado, que copie el addon probado al juego solo si test_extension pasó, verifique con check_gdextension.py de la skill y le pida al usuario que reinicie el editor. Esto se cruza con el supervisor (m19-03): la build nueva entra al editor recién en ese reinicio.
+
+**Bloqueada por:** Probar la extensión en un Godot headless descartable
