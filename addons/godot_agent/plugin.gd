@@ -693,6 +693,8 @@ func _start_mcp_server() -> void:
 	_diagnostics = DiagnosticTools.new()
 	_diagnostics.setup(_errors, EditorContext.project_path())
 	registry.register_provider(_diagnostics)
+	# Solo la usa un proyecto con GDExtension (m19-01): no gasta contexto en los demás.
+	registry.mark_extended(PackedStringArray(["build_extension"]))
 	var edit_tools := SceneEditTools.new()
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)

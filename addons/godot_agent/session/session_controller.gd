@@ -27,6 +27,7 @@ const AgentProfile := preload("../core/agent_profile.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
 const CsharpBuild := preload("../core/csharp_build.gd")
+const NativeBuild := preload("../core/native_build.gd")
 const UsageQuery := preload("usage_query.gd")
 const SessionCatalog := preload("session_catalog.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
@@ -63,6 +64,11 @@ C# in this project (it has a .csproj):
 - Exported values: `[Export] public float Speed = 300.0f;`. Signals: `[Signal] public delegate void HitEventHandler(int damage);`, emitted with `EmitSignal(SignalName.Hit, 5)`.
 - Godot's API is PascalCase in C#: `MoveAndSlide()`, `GetNode<Label>("HUD/Score")`, `Input.GetVector(…)`, `GD.Print(…)`.
 - After changing C#, run `godot.validate_scripts`: it compiles with dotnet build and returns the errors by file and line. The game runs the new code only after a build."""
+
+const NATIVE_RULES := """
+GDExtension in this project (it has a SConstruct, CMakeLists.txt or Cargo.toml):
+- Build with `godot.build_extension`: it runs SCons, CMake or Cargo and returns the compiler errors by file and line.
+- Never load a new build into this editor: a crash in the extension takes the editor, and you, down with it, and the editor keeps the library it started with. Test a new build in a separate headless Godot, then tell the user to restart the editor to use it."""
 
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"
@@ -924,6 +930,7 @@ func system_prompt() -> String:
 	variables["godot_bin"] = variables.get("godot_bin", EditorBinary.path())
 	variables["headless_guide"] = variables.get("headless_guide", ProjectSettings.globalize_path(HEADLESS_GUIDE_PATH))
 	variables["csharp_rules"] = CSHARP_RULES if not CsharpBuild.find_project(cwd).is_empty() else ""
+	variables["native_rules"] = NATIVE_RULES if not NativeBuild.find_project(cwd).is_empty() else ""
 	return "<harness_context>\n%s\n</harness_context>" % template.format(variables)
 
 

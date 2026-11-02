@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- `godot.build_extension` builds the project's GDExtension with SCons or CMake (godot-cpp) or Cargo (gdext) and returns the compiler errors by file and line (gcc, clang, rustc and MSVC). It finds the SConstruct, CMakeLists.txt or Cargo.toml in the project folder, the folder above it or a `rust/` folder, asks like a shell command, and never loads the build into the open editor. In a project with a native build, the agent's instructions say to test new builds in a separate headless Godot and to ask for an editor restart.
+
 ## [0.1.16] - 2026-11-02
 
 ### Added

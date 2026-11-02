@@ -8,6 +8,7 @@ const _EXTRA_DIRS_UNIX: PackedStringArray = [
 	"~/.local/share/fnm/aliases/default/bin",
 	"~/.volta/bin",
 	"~/.bun/bin",
+	"~/.cargo/bin",
 	"~/.npm-global/bin",
 	"/usr/local/bin",
 	"/opt/homebrew/bin",

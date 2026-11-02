@@ -443,6 +443,7 @@ const GODOT_TOOL_NAMES := {
 	"tileset_add_scenes": "Add tileset scenes",  # i18n
 	"validate_physics": "Validate physics",  # i18n
 	"validate_scripts": "Validate scripts",  # i18n
+	"build_extension": "Build the GDExtension",  # i18n
 	"validate_tilemap": "Validate tilemap",  # i18n
 }
 

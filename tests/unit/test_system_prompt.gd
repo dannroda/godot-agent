@@ -49,3 +49,19 @@ func test_csharp_rules_only_with_csproj() -> void:
 	assert_true(prompt.contains("C# in this project") and prompt.contains("public partial class"), "con .csproj, las reglas")
 	assert_false(RegEx.create_from_string("\\{[a-z_]+\\}").search(prompt) != null, "sin variables sin reemplazar")
 	DirAccess.remove_absolute(dir.path_join("Game.csproj"))
+
+
+## m19-01: las reglas de GDExtension van solo si hay un SConstruct, CMakeLists.txt o Cargo.toml.
+func test_native_rules_only_with_build_system() -> void:
+	var dir := ProjectSettings.globalize_path(temp_dir("prompt_native"))
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	controller.setup(model, AgentLog.new(), dir)
+	assert_false(controller.system_prompt().contains("GDExtension in this project"), "sin sistema de build, sin reglas")
+	var file := FileAccess.open(dir.path_join("SConstruct"), FileAccess.WRITE)
+	file.store_string("")
+	file.close()
+	var prompt := controller.system_prompt()
+	assert_true(prompt.contains("GDExtension in this project") and prompt.contains("godot.build_extension"), "con SConstruct, las reglas")
+	assert_false(RegEx.create_from_string("\\{[a-z_]+\\}").search(prompt) != null, "sin variables sin reemplazar")
+	DirAccess.remove_absolute(dir.path_join("SConstruct"))

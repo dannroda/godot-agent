@@ -1,7 +1,8 @@
 @tool
 extends RefCounted
-## Tools de diagnóstico (spec §6): get_errors, validate_scripts y capture_editor_viewport. Los .cs
-## se validan compilando el proyecto con dotnet (m14-07).
+## Tools de diagnóstico (spec §6): get_errors, validate_scripts, capture_editor_viewport y
+## build_extension. Los .cs se validan compilando el proyecto con dotnet (m14-07); la GDExtension se
+## compila con build_extension (m19-01).
 
 const McpTool := preload("../mcp_tool.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
@@ -9,6 +10,7 @@ const AgentProcess := preload("../../transport/agent_process.gd")
 const EditorContext := preload("../../ui/editor_context.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const CsharpBuild := preload("../../core/csharp_build.gd")
+const NativeBuild := preload("../../core/native_build.gd")
 
 const CHECKER_SCRIPT := "res://addons/godot_agent/mcp/tools/script_checker.gd"
 const MAX_SCRIPTS := 400
@@ -42,7 +44,69 @@ func tools() -> Array:
 			"Captures the editor's 2D or 3D viewport as a PNG.",
 			{"which": {"type": "string", "enum": ["2d", "3d"], "description": "Viewport to capture"}},
 			["which"], _capture_editor_viewport),
+		_build_extension_tool(),
 	]
+
+
+## Asks like a shell command: SConstruct is Python and build.rs is Rust, so a build runs code.
+func _build_extension_tool() -> McpTool:
+	var tool := McpTool.create("build_extension", PermissionPolicy.GROUP_SHELL,
+		"Builds the project's GDExtension with SCons or CMake (godot-cpp) or Cargo (gdext) and returns the compiler errors by file and line. Looks for SConstruct, CMakeLists.txt or Cargo.toml in the project folder, the folder above it (godot-cpp-template opens `project/`) and a `rust/` folder in either. The first godot-cpp build takes minutes; later ones, seconds. It doesn't load the build: this editor keeps the library it started with, and a crash in a new build would take the editor down with it. Test a new build in a separate headless Godot and tell the user when to restart the editor.",
+		{
+			"target": {"type": "string", "enum": Array(NativeBuild.TARGETS), "description": "godot-cpp target (default template_debug, which the editor and debug exports load). With Cargo, template_release builds with --release."},
+			"args": {"type": "array", "items": {"type": "string"}, "description": "Extra arguments for scons, the CMake configure step or cargo build (for example `platform=windows`, `use_mingw=yes`, `debug_symbols=yes`)"},
+			"root": {"type": "string", "description": "Folder with the SConstruct, CMakeLists.txt or Cargo.toml, absolute or res://, when it isn't found by itself"},
+		},
+		[], _build_extension)
+	tool.describer = func(args: Dictionary) -> String:
+		var project := _native_project(args)
+		if project.is_empty():
+			return "Build the GDExtension (no build system found)"
+		var lines: PackedStringArray = []
+		for step: PackedStringArray in NativeBuild.commands(project, _native_target(args), _native_args(args)):
+			lines.append(" ".join(step))
+		return "\n".join(lines)
+	return tool
+
+
+func _native_project(args: Dictionary) -> Dictionary:
+	var root := str(args.get("root", "")).strip_edges()
+	if root.is_empty():
+		return NativeBuild.find_project(project_path)
+	return NativeBuild.detect(ProjectSettings.globalize_path(root).simplify_path())
+
+
+func _native_target(args: Dictionary) -> String:
+	var target := str(args.get("target", "template_debug"))
+	return target if target in NativeBuild.TARGETS else "template_debug"
+
+
+func _native_args(args: Dictionary) -> PackedStringArray:
+	var extra: PackedStringArray = []
+	if args.get("args") is Array:
+		for value: Variant in args.args:
+			extra.append(str(value))
+	return extra
+
+
+func _build_extension(args: Dictionary) -> Dictionary:
+	var target := str(args.get("target", "template_debug"))
+	if not target in NativeBuild.TARGETS:
+		return McpTool.error("Unknown target '%s': use %s." % [target, ", ".join(NativeBuild.TARGETS)])
+	var project := _native_project(args)
+	if project.is_empty():
+		if not str(args.get("root", "")).strip_edges().is_empty():
+			return McpTool.error("%s has no SConstruct, CMakeLists.txt or Cargo.toml." % args.root)
+		return McpTool.error("No SConstruct, CMakeLists.txt or Cargo.toml in the project folder, the folder above it or a rust/ folder. Pass `root`.")
+	var report: Dictionary = await NativeBuild.build(project, target, _native_args(args))
+	var header := "%s in %s:\n%s" % [project.kind, project.root, "\n".join(report.commands)]
+	if not report.error.is_empty() and report.results.is_empty():
+		return McpTool.error("%s\n\n%s" % [header, report.error])
+	if report.results.is_empty():
+		return McpTool.text("%s\nBuilt in %.1f s. Not loaded in this editor: test it in a separate headless Godot." % [header, report.seconds])
+	var paths := PackedStringArray(report.results.keys())
+	var lines := failure_lines(paths, report)
+	return McpTool.text("%s\nBuild failed · %d files with errors\n%s" % [header, paths.size(), "\n".join(lines)])
 
 
 func _get_errors(args: Dictionary) -> String:
