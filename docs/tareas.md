@@ -4866,7 +4866,7 @@ Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux
 - [ ] Cuota: el anillo y el límite con su /usage
 - [ ] Sin skills ni plugins: que Extensions lo diga bien
 
-## M17 — GDExtension  (2/5, 2 en revisión)
+## M17 — GDExtension  (3/5, 3 en revisión)
 
 Que el agente pueda hacer GDExtensions sin poner en riesgo el editor: build con errores parseados, prueba en un proceso descartable, un supervisor fuera del editor para crashes y reinicios, y una skill de scaffolding. No se trae: hot reload dentro del editor ni builds multiplataforma para export (eso es CI).
 
@@ -4929,11 +4929,29 @@ Un segfault en código nativo mata el proceso que cargó el .so, y si ese proces
 
 **Relacionadas:** Supervisor del editor: rollback de builds que crashean y reinicios
 
-### Supervisor del editor: rollback de builds que crashean y reinicios · Pendiente
+### Supervisor del editor: rollback de builds que crashean y reinicios · Revisión
 
 **Prioridad:** alta · **Tamaño:** L
 
 Godot carga .godot/extension_list.cfg antes que cualquier plugin. Si una build crashea al cargar, el editor no abre, el addon no corre y el agente (que es hijo del editor) muere: desde adentro no se puede salir del loop. Además, a veces hay que reiniciar para cargar una versión nueva. La solución es un proceso chico fuera del editor (GDScript con godot --headless -s, para seguir 100 % GDScript) que lanza el editor y lo vigila. Guarda la última build buena antes de cargar una nueva, captura el backtrace de stderr y, si el editor murió al arrancar, vuelve a la build buena (o saca la entrada) y lo relanza. Al abrir, el addon retoma con session/load y le pasa al agente qué build crasheó y el backtrace. Los reinicios voluntarios usan EditorInterface.restart_editor(true) y pasan por el mismo camino. No es el harness standalone: el supervisor no sabe nada de ACP ni de MCP.
+
+**Decisiones:**
+- ! El supervisor lanza el editor sin pipes, con --log-file, y lo vigila por pid; corre con --path en .godot/agent_supervisor (sin project.godot), así no carga ninguna GDExtension · sin revisar
+  Por qué: Si el editor escribiera a un pipe del supervisor y el supervisor muriera, el editor recibiría SIGPIPE y se caería. Con --log-file igual queda el backtrace del crash (probado).
+  Descartado: Leer stdout y stderr del editor con execute_with_pipe, como AgentProcess.
+- ! «Arranque bueno» quiere decir que el plugin marcó ready y el editor duró 30 s. Un crash antes de eso hace rollback a la última build buena; una extensión sin build buena se desactiva renombrando el .gdextension a .disabled. La build que crasheó queda como *.crashed. Después de 3 crashes en 5 minutos, el supervisor deja de relanzar. · sin revisar
+  Por qué: Una extensión puede crashear al abrir una escena, apenas después de que cargan los plugins; los 30 s cubren eso sin tomar como buena una build que tira abajo el editor enseguida. Sin el tope, una falla que no viene de la extensión quedaría en loop.
+  Descartado: Que la marca ready sola ya cuente como arranque bueno, o no desactivar nunca una extensión nueva.
+- ! Después de un crash o de un reinicio, el plugin retoma la última sesión y le manda al agente un mensaje con lo que pasó y el backtrace, aunque «continuar la última sesión» esté apagado · sin revisar
+  Por qué: Lo pide el criterio del hito: el agente sigue con el backtrace. El evento existe solo si hubo un crash bajo el supervisor o un reinicio pedido con restart_editor.
+  Descartado: Mostrar solo un aviso con un botón «Contarle al agente».
+- ! Para entrar al supervisor hay tres caminos: un aviso en el dock (solo en proyectos con SConstruct, CMakeLists.txt o Cargo.toml) con «Reiniciar bajo el supervisor» y «Copiar el comando», o restart_editor (supervise, por defecto true). Bajo el supervisor, cualquier reinicio del editor (Proyecto › Recargar, el updater) se vuelve un pedido al supervisor. · sin revisar
+  Por qué: El reinicio propio de Godot lanzaría un editor que no es hijo del supervisor y se perdería la supervisión; el plugin cancela set_restart_on_exit al salir y escribe restart.json.
+  Descartado: Una opción en Ajustes, o un lanzador de escritorio (.desktop o .cmd).
+
+**Prueba:** tests/unit/test_editor_supervisor.gd: bibliotecas de los .gdextension, snapshot, cambios y rollback (.crashed y .disabled), backtrace del log, mensajes al agente, drivers que se repiten, y el supervisor de verdad con un editor falso en tres casos: crash al arrancar con rollback, reinicio pedido y corte después de 3 crashes. run_all: 440 tests, 0 fallos. --godot-agent-cycle-test y --godot-agent-mcp-test en Xvfb: PASS. De punta a punta con el editor real (Xvfb, opengl3) y una copia de godot-cpp-template con dos builds reales, una buena y otra que desreferencia null en initialize: (1) un editor sin supervisión hizo el handoff y el editor nuevo quedó supervisado; (2) a los 30 s estable, el supervisor guardó la build buena; (3) se instaló la build que crashea y EditorInterface.restart_editor pasó por el supervisor; (4) el editor crasheó al arrancar (signal 11), volvió la build buena (igual byte a byte), la que crasheó quedó como .crashed, el editor se reabrió y el plugin leyó los eventos (reinicio y startup_crash, con los frames de la extensión); (5) al cerrar normal, el supervisor terminó. Sin probar: que la sesión de un agente real se retome con el mensaje (sin agente en la prueba).
+
+**Notas:** Código en el worktree .claude/worktrees/m19-03, rama m19-03-supervisor, sin commitear. supervisor/: editor_supervisor.gd (SceneTree headless), supervisor_state.gd (archivos en .godot/agent_supervisor), extension_snapshot.gd (good/, rollback), supervisor_client.gd (plugin), restart_guard.gd. Tres cosas que salieron probando: (a) OS.is_process_running solo sirve para procesos hijos, así que la vida del supervisor se mide con un latido en supervisor.json y la espera del editor viejo, con su closed.json; (b) Godot descarga los plugins (_exit_editor) antes de set_restart_on_exit, y el plugin no puede cancelar el reinicio: lo hace restart_guard, un nodo en la raíz que sale al finalizar el árbol; (c) OS.get_cmdline_args no trae --rendering-driver ni --display-driver, así que los drivers se repiten desde lo que está en uso. Límite conocido: el editor relanzado no recibe los otros flags originales (por ejemplo --single-window).
 
 **Relacionadas:** Probar la extensión en un Godot headless descartable
 
