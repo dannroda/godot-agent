@@ -4049,3 +4049,36 @@ msgstr "%s ahora está en %s: Claude Code y los otros agentes usan la misma copi
 
 msgid "%s is only for Claude Code again."
 msgstr "%s vuelve a ser solo de Claude Code."
+
+msgid "Restart the editor"
+msgstr "Reiniciar el editor"
+
+msgid "This project builds a GDExtension. Under the supervisor, a build that crashes the editor while starting is rolled back and the editor reopens, instead of crashing every time you open it."
+msgstr "Este proyecto compila una GDExtension. Bajo el supervisor, si una build hace crashear el editor al arrancar, se vuelve a la anterior y el editor se reabre, en lugar de crashear cada vez que lo abrís."
+
+msgid "Restart under the supervisor"
+msgstr "Reiniciar bajo el supervisor"
+
+msgid "Copy the command"
+msgstr "Copiar el comando"
+
+msgid "Command copied: open the editor with it from a terminal."
+msgstr "Comando copiado: abrí el editor con él desde una terminal."
+
+msgid "The editor restarted and loaded the current builds."
+msgstr "El editor se reinició y cargó las builds actuales."
+
+msgid "The editor crashed and the supervisor reopened it."
+msgstr "El editor crasheó y el supervisor lo reabrió."
+
+msgid "The editor crashed several times in a row and the supervisor stopped reopening it."
+msgstr "El editor crasheó varias veces seguidas y el supervisor dejó de reabrirlo."
+
+msgid "The editor crashed while starting and the supervisor reopened it."
+msgstr "El editor crasheó al arrancar y el supervisor lo reabrió."
+
+msgid "Restored the last good build of: %s."
+msgstr "Volvió a la última build buena de: %s."
+
+msgid "Disabled (renamed to .disabled): %s."
+msgstr "Desactivó (renombrado a .disabled): %s."

@@ -1026,6 +1026,19 @@ func _on_submitted(text: String) -> void:
 			start_session()
 
 
+## Manda un mensaje como si el usuario lo hubiera escrito, sin tocar el composer (lo que el
+## supervisor le cuenta al agente al volver, m19-03).
+func send_text(text: String) -> void:
+	if _model.is_busy():
+		_queue.add(text, [])
+	elif _model.state == SessionModel.SessionState.READY:
+		_send_with_mentions(text, [])
+	else:
+		_pending_prompt = text
+		if _model.state != SessionModel.SessionState.STARTING:
+			start_session()
+
+
 func _send(text: String) -> void:
 	# Un comando con / va solo: los adjuntos quedan para el próximo mensaje (ver send_prompt).
 	if SessionController.is_slash_command(text):

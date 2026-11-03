@@ -12,6 +12,7 @@ const PermissionPolicy := preload("../../session/permission_policy.gd")
 const CsharpBuild := preload("../../core/csharp_build.gd")
 const NativeBuild := preload("../../core/native_build.gd")
 const NativeTest := preload("../../core/native_test.gd")
+const SupervisorClient := preload("../../supervisor/supervisor_client.gd")
 
 const CHECKER_SCRIPT := "res://addons/godot_agent/mcp/tools/script_checker.gd"
 const MAX_SCRIPTS := 400
@@ -22,6 +23,8 @@ const ERROR_LIMIT := 200
 const HARNESS_ADDON := "res://addons/godot_agent"
 
 var errors: ErrorCollector
+## Callable(supervise: bool) -> String: reinicia el editor un momento después (lo pone el plugin).
+var restarter: Callable
 var project_path: String = ""
 
 
@@ -55,6 +58,10 @@ func tools() -> Array:
 				"timeout_s": {"type": "integer", "description": "Default %d, at most %d" % [NativeTest.DEFAULT_TIMEOUT_S, NativeTest.MAX_TIMEOUT_S]},
 			},
 			[], _test_extension),
+		McpTool.create("restart_editor", PermissionPolicy.GROUP_PROJECT,
+			"Saves the scenes and restarts the editor, so it loads the GDExtension libraries that are on disk now. Run test_extension first: a build that crashes takes the editor down with it. Under the crash supervisor (`supervise`, default true), a build that crashes the editor while starting is rolled back to the last one that started fine, the editor reopens and this session continues with a message that says what happened, with the backtrace. Without it, a crashing build leaves the editor down until the user fixes it. Your session ends with the restart and comes back by itself.",
+			{"supervise": {"type": "boolean", "description": "Restart under the crash supervisor (default true). Ignored when the editor already runs under it."}},
+			[], _restart_editor),
 	]
 
 
@@ -122,6 +129,23 @@ func _test_extension(args: Dictionary) -> Dictionary:
 	if report.code == 0 and not report.crashed:
 		return McpTool.text(text)
 	return {"content": [{"type": "text", "text": text}], "isError": true}
+
+
+func _restart_editor(args: Dictionary) -> Dictionary:
+	if not restarter.is_valid():
+		return McpTool.error("The editor can't be restarted from here.")
+	var supervise: bool = args.get("supervise", true)
+	var supervised := SupervisorClient.is_supervised()
+	if supervise and not supervised and SupervisorClient.State.supervisor_running(SupervisorClient.state_dir()):
+		return McpTool.error("A supervisor is already running for this project, but this editor isn't its own. Ask the user to close this editor; the supervisor reopens it.")
+	var error := str(restarter.call(supervise))
+	if not error.is_empty():
+		return McpTool.error(error)
+	if supervised:
+		return McpTool.text("Restarting under the crash supervisor in a second. Your session ends now and resumes when the editor is back.")
+	if supervise:
+		return McpTool.text("Restarting under the crash supervisor in a second (from now on it watches this editor). Your session ends now and resumes when the editor is back.")
+	return McpTool.text("Restarting in a second, without the crash supervisor: if the new build crashes the editor while starting, it stays down. Your session ends now and resumes when the editor is back.")
 
 
 func _native_target(args: Dictionary) -> String:

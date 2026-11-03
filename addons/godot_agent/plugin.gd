@@ -55,6 +55,8 @@ const TilemapTools := preload("mcp/tools/tilemap_tools.gd")
 const ValidateTools := preload("mcp/tools/validate_tools.gd")
 const AnimationTools := preload("mcp/tools/animation_tools.gd")
 const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
+const SupervisorClient := preload("supervisor/supervisor_client.gd")
+const NativeBuild := preload("core/native_build.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
 const PlaytestRegressions := preload("review/playtest_regressions.gd")
@@ -82,6 +84,9 @@ const ACTION_RELOAD_SCENE := "reload_scene"
 const ACTION_UNDO_TOOL_CALL := "undo_tool_call"
 const ACTION_ONESHOT_RESUME := "oneshot_resume"
 const ACTION_ONESHOT_SHOW := "oneshot_show"
+## Reiniciar el editor bajo el supervisor (m19-03) y copiar el comando para abrirlo así.
+const ACTION_SUPERVISE := "supervise"
+const ACTION_COPY_SUPERVISOR_COMMAND := "copy_supervisor_command"
 ## Acciones de edición del server MCP que todavía no se unieron a su tool call (llegan antes).
 const PENDING_UNDO_TTL_MS := 60000
 ## Kinds de tool call que escriben archivos: al completarse se sincroniza el editor.
@@ -148,6 +153,10 @@ var _session_serial: int = 1
 
 func _enter_tree() -> void:
 	PlaytestAutoload.remove_orphan(self)
+	# Las extensiones ya cargaron (Godot las carga antes que los plugins): el arranque fue bueno.
+	SupervisorClient.mark_ready()
+	if SupervisorClient.is_supervised():
+		SupervisorClient.install_restart_guard(get_tree())
 
 	_export_plugin = AgentExportPlugin.new()
 	_export_plugin.setup(_remove_playtest_autoload)
@@ -273,7 +282,7 @@ func _enter_tree() -> void:
 			_main_screen.refresh_agent())
 	_surfaces.add(EditorSurfaces.EditorSurface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", _get_plugin_icon())
 	_restore_oneshot.call_deferred()
-	_continue_last_session.call_deferred(dock)
+	_report_supervisor_events.call_deferred(dock)
 
 	_updater = AddonUpdater.new()
 	add_child(_updater)
@@ -344,6 +353,7 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
+	SupervisorClient.mark_closed()
 	# Antes de liberar dock, main screen y diálogos: el ProgressDialog del editor puede estar adentro (m16-08).
 	EditorWindows.rescue_progress(EditorInterface.get_base_control())
 	if EditorInterface.get_editor_settings().settings_changed.is_connected(_on_editor_settings_changed):
@@ -559,6 +569,13 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 		ACTION_ONESHOT_SHOW:
 			if _surfaces:
 				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
+		ACTION_SUPERVISE:
+			var error := restart_editor(true, "the user asked for the supervisor")
+			if not error.is_empty():
+				_model.add_notice(error, ChatEntry.NoticeLevel.WARNING)
+		ACTION_COPY_SUPERVISOR_COMMAND:
+			DisplayServer.clipboard_set(SupervisorClient.command_line())
+			_model.add_notice(I18n.t("Command copied: open the editor with it from a terminal."), ChatEntry.NoticeLevel.INFO)
 		AgentDock.ACTION_REVIEW_FOCUS:
 			if not _review_annotations.focus_finding(int(payload)):
 				_model.add_notice(I18n.t("Could not open the finding."), ChatEntry.NoticeLevel.WARNING)
@@ -694,7 +711,13 @@ func _start_mcp_server() -> void:
 	_diagnostics.setup(_errors, EditorContext.project_path())
 	registry.register_provider(_diagnostics)
 	# Solo la usa un proyecto con GDExtension (m19-01): no gasta contexto en los demás.
-	registry.mark_extended(PackedStringArray(["build_extension", "test_extension"]))
+	registry.mark_extended(PackedStringArray(["build_extension", "test_extension", "restart_editor"]))
+	_diagnostics.restarter = func(supervise: bool) -> String:
+		var error := _prepare_restart(supervise)
+		if error.is_empty():
+			# Después de devolver el resultado de la tool: el agente lo recibe antes de que se cierre.
+			get_tree().create_timer(1.0).timeout.connect(_restart_now.bind("restart_editor"))
+		return error
 	var edit_tools := SceneEditTools.new()
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)
@@ -987,6 +1010,77 @@ func _continue_last_session(dock: Control) -> void:
 	if not _settings.continue_on_open() or not is_instance_valid(dock) or (_oneshot and _oneshot.is_active()):
 		return
 	dock.continue_last_session()
+
+
+## Al abrir el editor: lo que pasó mientras estuvo cerrado o caído (m19-03). Con un evento del
+## supervisor (crash, rollback, reinicio), retoma la última sesión y se lo cuenta al agente; si no,
+## sigue como siempre («continuar la última sesión», m12-12). En un proyecto que compila una
+## GDExtension y no corre bajo el supervisor, ofrece abrirlo así.
+func _report_supervisor_events(dock: Control) -> void:
+	var events := SupervisorClient.take_events()
+	if not SupervisorClient.is_supervised() and not NativeBuild.find_project(EditorContext.project_path()).is_empty():
+		_model.add_notice(I18n.t("This project builds a GDExtension. Under the supervisor, a build that crashes the editor while starting is rolled back and the editor reopens, instead of crashing every time you open it."), ChatEntry.NoticeLevel.INFO, [
+			{"id": ACTION_SUPERVISE, "label": I18n.t("Restart under the supervisor")},
+			{"id": ACTION_COPY_SUPERVISOR_COMMAND, "label": I18n.t("Copy the command")},
+		])
+	if events.is_empty():
+		_continue_last_session(dock)
+		return
+	var messages: PackedStringArray = []
+	for event: Dictionary in events:
+		messages.append(SupervisorClient.agent_message(event))
+		var level := ChatEntry.NoticeLevel.INFO if event.get("kind") == SupervisorClient.State.EVENT_RESTART else ChatEntry.NoticeLevel.WARNING
+		_model.add_notice(_supervisor_notice(event), level)
+	if not is_instance_valid(dock) or (_oneshot and _oneshot.is_active()):
+		return
+	if await dock.continue_last_session():
+		dock.send_text("\n\n".join(messages))
+
+
+func _supervisor_notice(event: Dictionary) -> String:
+	var restored := ", ".join(PackedStringArray(event.get("restored", [])))
+	var disabled := ", ".join(PackedStringArray(event.get("disabled", [])))
+	match str(event.get("kind", "")):
+		SupervisorClient.State.EVENT_RESTART:
+			return I18n.t("The editor restarted and loaded the current builds.")
+		SupervisorClient.State.EVENT_CRASH:
+			return I18n.t("The editor crashed and the supervisor reopened it.")
+		SupervisorClient.State.EVENT_GAVE_UP:
+			return I18n.t("The editor crashed several times in a row and the supervisor stopped reopening it.")
+	var text := I18n.t("The editor crashed while starting and the supervisor reopened it.")
+	if not restored.is_empty():
+		text += " " + I18n.t("Restored the last good build of: %s.") % restored
+	if not disabled.is_empty():
+		text += " " + I18n.t("Disabled (renamed to .disabled): %s.") % disabled
+	return text
+
+
+## Reinicia el editor para que cargue las bibliotecas nuevas (m19-03). Con `supervise` y sin
+## supervisor, lanza uno que espera a que este editor se cierre y abre el nuevo bajo su vigilancia.
+## Bajo el supervisor, el reinicio pasa por él (SupervisorClient.mark_closed). Devuelve "" o el error.
+func restart_editor(supervise: bool, reason: String) -> String:
+	var error := _prepare_restart(supervise)
+	if error.is_empty():
+		_restart_now(reason)
+	return error
+
+
+func _prepare_restart(supervise: bool) -> String:
+	if supervise and not SupervisorClient.is_supervised():
+		var error := SupervisorClient.launch_supervisor()
+		if not error.is_empty():
+			return error
+		SupervisorClient.handoff = true
+		SupervisorClient.install_restart_guard(get_tree())
+	return ""
+
+
+func _restart_now(reason: String) -> void:
+	if not SupervisorClient.is_supervised() or SupervisorClient.handoff:
+		# El supervisor solo deja eventos de los editores que lanzó: este lo deja el plugin.
+		SupervisorClient.add_local_event({"kind": SupervisorClient.State.EVENT_RESTART, "reason": reason})
+	_save_all_scenes()
+	EditorInterface.restart_editor(true)
 
 
 func _restore_oneshot() -> void:
