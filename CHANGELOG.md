@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-11-03
+
 ### Added
 
 - Crash supervisor for projects that build a GDExtension: a headless Godot outside the editor that opens the editor and watches it. When the editor has run 30 seconds with a build, it keeps a copy of that build. If a new build crashes the editor while starting, the supervisor puts the last good build back (the crashing one stays next to it as `*.crashed`), disables an extension that never started fine (`.gdextension.disabled`) and reopens the editor; after 3 crashes in 5 minutes it stops. The agent's last session resumes with a message that says what happened, with the extension's part of the backtrace. A notice in the dock offers **Restart under the supervisor** and **Copy the command** to start it from a terminal. Under the supervisor, any editor restart (Project › Reload Current Project, the updater) goes through it, so the new editor stays supervised.
