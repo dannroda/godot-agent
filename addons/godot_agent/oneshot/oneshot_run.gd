@@ -599,7 +599,8 @@ func guide(text: String, blocks: Array = []) -> void:
 		_queue_guidance(text, blocks)
 		resume()
 		return
-	if _turn_running or phase in [RunPhase.PREPARING, RunPhase.CLOSING, RunPhase.LIMITED]:
+	# Evaluando, el que construye no tiene sesión abierta: la guía espera a la vuelta de corrección.
+	if _turn_running or phase in [RunPhase.PREPARING, RunPhase.CLOSING, RunPhase.LIMITED, RunPhase.EVALUATING]:
 		_queue_guidance(text, blocks)
 		changed.emit()
 		return
@@ -734,9 +735,11 @@ func edit_plan(lines: PackedStringArray) -> void:
 func restore(checkpoint_entry: Dictionary) -> String:
 	if not checkpoints_enabled:
 		return I18n.t("Checkpoints are turned off.")
-	# Volver a un checkpoint en medio de una vuelta de QA la abandona: «Retomar» sigue construyendo.
+	# Volver a un checkpoint en medio de una vuelta de QA la abandona (m13-15): no cuenta como
+	# vuelta, y el próximo turno vuelve a la sesión del que construye (_run_turn).
 	if phase == RunPhase.EVALUATING:
 		_set_stage(RunStage.BUILDING)
+		qa_round = qa_results.size()
 	if _turn_running:
 		resume_task = str(checkpoint_entry.get("label", ""))
 		_set_phase(RunPhase.PAUSED)
@@ -783,6 +786,19 @@ func _run_turn(text: String, blocks: Array = []) -> void:
 		_push_guidance(text, blocks)
 		return
 	_turn_running = true
+	# Un turno del que construye con la sesión del evaluador abierta (la vuelta de QA se abandonó con
+	# «Volver acá», o se guía con la evaluación en pausa): primero se vuelve a su sesión (m13-15).
+	if not _generator_session_id.is_empty():
+		_end_qa_role()
+		var back := await _back_to_generator()
+		if not is_instance_valid(self) or not is_inside_tree():
+			return
+		if back == "failed":
+			_turn_running = false
+			_finish(I18n.t("Couldn't reopen the session with the agent."))
+			return
+		if back == "new":
+			text = _summary_prompt() if text == _resume_prompt() else _summary_prompt() + "\n\n" + text
 	report.count("turns")
 	var turn_started := _elapsed_ms()
 	_turn_tools = 0
@@ -908,6 +924,8 @@ func _close() -> void:
 
 func _finish(reason: String) -> void:
 	_end_qa_role()
+	if _stage == RunStage.EVALUATION:  # terminado no queda una vuelta para retomar
+		_set_stage(RunStage.BUILDING)
 	finish_reason = reason
 	_timer.stop()
 	_recovered_session_id = ""
@@ -1575,6 +1593,7 @@ func _apply(data: Dictionary) -> void:
 	_idle_continues = 0
 	_suspended = false
 	recovered = true
+	_phase_since_ms = 0  # el tiempo antes de la carga no es espera de la fase cargada
 	# Un run que esperaba la cuota sigue esperándola: retoma solo cuando se reinicia la ventana.
 	quota_resume_at = int(data.get("quota_resume_at", 0))
 	var waiting_quota := str(data.get("phase_id", "")) in ["LIMITED", "PAUSED_QUOTA"]

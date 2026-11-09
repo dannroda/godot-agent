@@ -38,6 +38,7 @@ func _initialize() -> void:
 	await _scenario_spec()
 	await _scenario_qa()
 	await _scenario_qa_without_playing()
+	await _scenario_qa_restore()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -485,6 +486,46 @@ func _scenario_qa_without_playing() -> void:
 	_check(run.activity.any(func(item: Dictionary) -> bool: return str(item.get("text", "")).contains("without playing")), "sin jugar: queda en la actividad")
 	_check(run.files.read(run.files.qa_path(1)).contains("never played"), "sin jugar: el informe lo dice")
 	_check(run.checks.all(func(check: Dictionary) -> bool: return not check.get("verified", false)), "sin jugar: sus checks no quedan verificados")
+	run.controller.stop()
+	run.queue_free()
+
+
+## m13-15: «Volver acá» con el evaluador jugando abandona la vuelta de QA. El evaluador deja sus
+## permisos, la vuelta no cuenta, y «Retomar» vuelve a la sesión del que construye (acá, sin
+## session/load, una nueva con el resumen) en lugar de seguir en la del evaluador.
+func _scenario_qa_restore() -> void:
+	print("— evaluador y volver acá")
+	var run := _make("oneshot_qa")
+	run.qa_max_rounds = 2
+	var starts: Array[int] = [0]
+	var lost_ids: Array[String] = []
+	run.restart_session = func(lost_id: String) -> bool:
+		starts[0] += 1
+		lost_ids.append(lost_id)
+		return await run.controller.start(_profile("oneshot_qa" if starts[0] == 1 else "oneshot_qa_fix"))
+	var sent: Array[String] = []
+	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER:
+			sent.append(entry.text))
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.EVALUATING and sent.size() == 2 and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.RunPhase.EVALUATING and run.qa_round == 1, "qa volver: evaluando la vuelta 1 (%s)" % run.phase_label())
+	var builder_id: String = run.get(&"_generator_session_id")
+	var evaluator_id := run.model.session_id
+	_check(not builder_id.is_empty() and builder_id != evaluator_id, "qa volver: el evaluador tiene su propia sesión")
+	var error: String = await run.restore(run.git.checkpoints[0])
+	_check(error.is_empty(), "qa volver: restaura el checkpoint (%s)" % error)
+	_check(run.phase == OneShotRun.RunPhase.PAUSED and run.stage() == OneShotRun.RunStage.BUILDING, "qa volver: en pausa, construyendo (%s)" % run.phase_label())
+	_check(run.qa_round == 0 and run.qa_results.is_empty(), "qa volver: la vuelta abandonada no cuenta (%d)" % run.qa_round)
+	_check(run.controller.policy.restrictions.is_empty() and run.controller.mode_rules_override.is_empty(), "qa volver: el evaluador deja sus permisos")
+	_check(run.to_dict().session_id == builder_id, "qa volver: se guarda la sesión del que construye")
+	run.resume()
+	await _wait(func() -> bool: return sent.size() >= 3, 10.0)
+	_check(starts[0] == 2 and lost_ids.back() == builder_id, "qa volver: «Retomar» reabre la sesión del que construye (%s)" % [lost_ids])
+	_check(sent.size() >= 3 and sent[2].begins_with("We're resuming a One-shot"), "qa volver: sin session/load, el turno va con el resumen (%s)" % (sent[2].left(60) if sent.size() >= 3 else ""))
+	_check(run.model.session_id != evaluator_id, "qa volver: el turno no va a la sesión del evaluador")
+	_check(run.unexpected_transitions == 0, "qa volver: sin transiciones inesperadas (%s)" % run.last_unexpected_transition)
+	run.stop()
 	run.controller.stop()
 	run.queue_free()
 
