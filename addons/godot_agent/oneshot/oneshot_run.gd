@@ -1382,20 +1382,33 @@ func _after_qa(reason: String, text: String, audit: Dictionary) -> void:
 		for finding: Dictionary in parsed.findings.slice(0, QA_ACTIVITY_FINDINGS):
 			_add_activity("qa", "%s · %s%s" % [finding.severity, finding.title, " (%s:%d)" % [finding.path.get_file(), finding.line] if int(finding.line) > 0 else " (%s)" % finding.path.get_file()])
 	changed.emit()
-	var back := await _back_to_generator()
-	if not is_inside_tree() or phase != RunPhase.EVALUATING:
-		return
+	# Con el veredicto guardado la vuelta terminó: una pausa de acá en adelante no la repite (m13-16).
+	_set_stage(RunStage.BUILDING)
+	var finish_text := ""
 	if not conclusive:
-		_finish(I18n.t("%s The evaluator couldn't reach a verdict (see %s).") % [_done_reason, qa_results.back().file])
+		finish_text = I18n.t("%s The evaluator couldn't reach a verdict (see %s).") % [_done_reason, qa_results.back().file]
 	elif passed:
-		_finish(I18n.t("QA round %d: the game passes.") % qa_round)
-	elif qa_round >= qa_max_rounds or not _budget_left() or back == "failed":
-		_finish(I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file])
-	else:
-		_set_stage(RunStage.BUILDING)
-		_set_phase(RunPhase.RUNNING)
-		var fix := _fix_prompt(failing_checks, verdict, parsed)
-		_run_turn(_summary_prompt() + "\n\n" + fix if back == "new" else fix)
+		finish_text = I18n.t("QA round %d: the game passes.") % qa_round
+	elif qa_round >= qa_max_rounds or not _budget_left():
+		finish_text = I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file]
+	var back := await _back_to_generator()
+	if not is_inside_tree() or not is_active():
+		return
+	if finish_text.is_empty() and back == "failed" and phase == RunPhase.EVALUATING:
+		finish_text = I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file]
+	if not finish_text.is_empty():  # el veredicto cierra el run, aunque se haya pausado mientras volvía
+		_finish(finish_text)
+		return
+	var fix := _fix_prompt(failing_checks, verdict, parsed)
+	if back == "new":
+		fix = _summary_prompt() + "\n\n" + fix
+	if phase != RunPhase.EVALUATING:  # se pausó mientras volvía: la corrección sale al retomar
+		_guidance.push_front(fix)
+		_guidance_blocks.push_front([])
+		_add_activity("qa", I18n.t("QA round %d: the fixes are sent to the builder when the run resumes") % qa_round)
+		return
+	_set_phase(RunPhase.RUNNING)
+	_run_turn(fix)
 
 
 ## Lo que el harness vio en el turno del evaluador, para el informe (m16-04).

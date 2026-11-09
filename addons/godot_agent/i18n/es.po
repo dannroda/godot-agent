@@ -1953,6 +1953,9 @@ msgstr "Vuelta de QA %d: el juego pasa."
 msgid "QA round %d: the game doesn't pass yet (see %s)."
 msgstr "Vuelta de QA %d: el juego todavía no pasa (ver %s)."
 
+msgid "QA round %d: the fixes are sent to the builder when the run resumes"
+msgstr "Vuelta de QA %d: las correcciones le llegan al que construye cuando se retome el run"
+
 msgid "Couldn't go back to the builder's session"
 msgstr "No se pudo volver a la sesión del agente que construye"
 
