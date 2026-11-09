@@ -1278,11 +1278,12 @@ func _wire_oneshot(dock: AgentDock, id: String) -> void:
 		return _runs_in(id) and _oneshot.is_active() and _oneshot.take_dock_prompt(text, take_blocks.call())
 	dock.retry_interceptor = func() -> bool: return _runs_in(id) and _oneshot.take_dock_retry(_model_of(id))
 	dock.can_switch_session = func() -> bool: return not (_runs_in(id) and _oneshot.is_active())
+	dock.oneshot_active = func() -> bool: return _runs_in(id) and _oneshot.is_active()
 	_controller_of(id).after_login = func() -> bool: return _runs_in(id) and _oneshot.take_login()
 	var listener := func() -> void:
 		var tab_dock := _tabs.dock(id) as AgentDock if _tabs else dock
 		if is_instance_valid(tab_dock):
-			tab_dock.set_oneshot_active(_runs_in(id) and _oneshot.is_active())
+			tab_dock.refresh_oneshot()
 	_oneshot.changed.connect(listener)
 	if id != PRIMARY_SESSION:
 		_extra_sessions[id]["oneshot_listener"] = listener

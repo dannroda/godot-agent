@@ -34,8 +34,11 @@ static func composer_fits(dock: Control) -> PackedStringArray:
 		{"value": "opus", "name": "Opus 5.5"},
 		{"value": "sonnet", "name": "Sonnet 5.5"}]})
 	var failures: PackedStringArray = []
+	# El composer lee si hay un turno en curso con `is_busy` (m13-14): acá se le presta uno fijo.
+	var model_busy: Callable = composer.get(&"is_busy")
 	for busy: bool in [false, true]:
-		composer.call(&"set_busy", busy)
+		composer.set(&"is_busy", func() -> bool: return busy)
+		composer.call(&"refresh_state")
 		for i in 4:
 			await tree.process_frame
 		for failure: String in dock_fits(dock):
@@ -43,7 +46,8 @@ static func composer_fits(dock: Control) -> PackedStringArray:
 		for name: StringName in [&"_model_button", &"_send_button"]:
 			if not (composer.get(name) as Control).is_visible_in_tree():
 				failures.append("con sesión, no se ve %s" % name)
-	composer.call(&"set_busy", false)
+	composer.set(&"is_busy", model_busy)
+	composer.call(&"refresh_state")
 	composer.call(&"set_usage", 0, 0)
 	composer.call(&"set_model_option", {})
 	return failures

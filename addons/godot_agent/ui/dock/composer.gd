@@ -78,8 +78,12 @@ var _current_mode: int = -1
 var _model_button: OptionButton
 var _send_button: Button
 var _screenshot_button: Button
-var _busy: bool = false
-var _oneshot_active: bool = false
+## () -> bool: hay un turno en curso (el botón pasa a Detener). El dock le da `model.is_busy`, así el
+## composer lee el estado de la sesión en vez de guardar una copia (m13-14). Sin asignar: nunca.
+var is_busy: Callable
+## () -> bool: hay un One-shot en curso en esta sesión (lo que se escribe guía al agente del run).
+## Sin asignar: nunca.
+var oneshot_active: Callable
 ## Por qué no se puede escribir (sin agentes, m12-15): va de placeholder y apaga el campo.
 var _unavailable_text: String = ""
 var _enabled: bool = true
@@ -375,27 +379,28 @@ func focus() -> void:
 	_input.grab_focus()
 
 
-## `busy`: hay un turno en curso (el botón pasa a Detener).
-func set_busy(busy: bool) -> void:
-	_busy = busy
+## Cambió el estado de la sesión o del One-shot: se vuelven a leer `is_busy` y `oneshot_active`
+## (placeholder, Enviar/Detener y el ancho de la fila).
+func refresh_state() -> void:
 	_update_placeholder()
 	_update_send_button()
 	_queue_fit()
 
 
-## Con un One-shot en curso, lo que se escribe guía al agente del run.
-func set_oneshot_active(active: bool) -> void:
-	if active == _oneshot_active:
-		return
-	_oneshot_active = active
-	_update_placeholder()
+func _is_busy() -> bool:
+	return is_busy.is_valid() and is_busy.call()
+
+
+func _is_oneshot_active() -> bool:
+	return oneshot_active.is_valid() and oneshot_active.call()
 
 
 func _update_placeholder() -> void:
-	if not _unavailable_text.is_empty():
-		_input.placeholder_text = _unavailable_text
-		return
-	_input.placeholder_text = I18n.t(PLACEHOLDER_ONESHOT) if _oneshot_active else (I18n.t(PLACEHOLDER_BUSY) if _busy else I18n.t(PLACEHOLDER))
+	var text := _unavailable_text
+	if text.is_empty():
+		text = I18n.t(PLACEHOLDER_ONESHOT) if _is_oneshot_active() else (I18n.t(PLACEHOLDER_BUSY) if _is_busy() else I18n.t(PLACEHOLDER))
+	if _input.placeholder_text != text:
+		_input.placeholder_text = text
 
 
 func set_enabled(enabled: bool) -> void:
@@ -565,7 +570,7 @@ func _insert_prefix(prefix: String) -> void:
 
 
 func _on_send_pressed() -> void:
-	if _busy:
+	if _is_busy():
 		cancel_requested.emit()
 	else:
 		_submit()
@@ -602,7 +607,7 @@ func _on_input_gui_input(event: InputEvent) -> void:
 			_input.insert_text_at_caret("\n")
 		else:
 			_submit()
-	elif key.keycode == KEY_ESCAPE and _busy:
+	elif key.keycode == KEY_ESCAPE and _is_busy():
 		_input.accept_event()
 		cancel_requested.emit()
 
@@ -836,7 +841,7 @@ func _update_send_button() -> void:
 	if _send_button == null:
 		return
 	var short := _compact_level >= 1
-	if _busy:
+	if _is_busy():
 		_send_button.text = "■" if short else "■ " + I18n.t("Stop")
 		_send_button.tooltip_text = I18n.t("Stop the turn (Esc). Enter queues what you typed.")
 		_send_button.disabled = false
@@ -934,7 +939,7 @@ func _row_width(level: int) -> float:
 ## Ancho de Enviar/Detener con el texto completo o solo el símbolo (el bloqueo no se acorta).
 func _send_width(short: bool) -> float:
 	var text := _lock_text
-	if _busy:
+	if _is_busy():
 		text = "■" if short else "■ " + I18n.t("Stop")
 	elif _lock_text.is_empty():
 		text = "➤" if short else I18n.t("Send") + " ➤"

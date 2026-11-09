@@ -100,6 +100,10 @@ var submit_interceptor: Callable
 var retry_interceptor: Callable
 ## () -> bool: si se puede cambiar de sesión (no con un One-shot en curso). Sin asignar: siempre.
 var can_switch_session: Callable
+## () -> bool: hay un One-shot activo (corriendo o en pausa) en esta sesión: el botón de la vista
+## vacía lo retoma y el composer lo guía. Lo pone el plugin (m17-19); se lee al momento, no se copia
+## (m13-14). Sin asignar: nunca.
+var oneshot_active: Callable
 ## (session_id) -> bool: si esa sesión ya está abierta en otra pestaña, la elige y devuelve true
 ## (m17-17); así no queda abierta dos veces.
 var session_focuser: Callable
@@ -111,8 +115,6 @@ var context_provider: Callable
 var allow_oneshot: bool = true
 
 var _model: SessionModel
-## Hay un One-shot activo (corriendo o en pausa): el botón de la vista vacía lo retoma.
-var _oneshot_active := false
 var _controller: SessionController
 var _settings: HarnessSettings
 var _profiles: Array[AgentProfile] = []
@@ -225,6 +227,8 @@ func _ready() -> void:
 	_body.add_child(_conversation)
 	_composer = Composer.new()
 	_composer.setup(_accent)
+	_composer.is_busy = _model.is_busy
+	_composer.oneshot_active = _is_oneshot_active
 	_composer.history_path = PROMPT_HISTORY_PATH
 	_composer.mention_provider = func() -> Array[Dictionary]:
 		var options := special_mention_options()
@@ -779,7 +783,7 @@ func _refresh_state() -> void:
 	if _agent_chip:
 		_style_agent_chip(name if profile else "", color)
 		_agent_chip.tooltip_text = (_status_label.tooltip_text + "\n" if not _status_label.tooltip_text.is_empty() else "") + I18n.t("Click to choose the agent")
-	_composer.set_busy(_model.is_busy())
+	_composer.refresh_state()
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
 	_new_session_button.disabled = _model.state == SessionModel.SessionState.STARTING
@@ -800,13 +804,13 @@ func _refresh_empty_state() -> void:
 	var profile := selected_profile()
 	# Primer arranque: no hay agentes preseteados y el botón lleva a elegir uno (Settings → Agentes).
 	# Un One-shot a medias se retoma con el agente del run, aunque no haya perfiles guardados.
-	if _oneshot_active:
+	if _is_oneshot_active():
 		_start_button.text = I18n.t("Resume One-shot")
 	elif profile == null:
 		_start_button.text = I18n.t("Other agents…")
 	else:
 		_start_button.text = I18n.t("Start session")
-	var first_run := profile == null and _controller.profile() == null and not _oneshot_active
+	var first_run := profile == null and _controller.profile() == null and not _is_oneshot_active()
 	_suggested_box.visible = first_run
 	_start_button.visible = not first_run
 	_history_button.visible = not first_run
@@ -825,7 +829,7 @@ func _refresh_empty_state() -> void:
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_start_button.disabled = _model.state == SessionModel.SessionState.STARTING
 	var recent: Array[Dictionary] = []
-	if _empty_state.visible and profile != null and not _oneshot_active and _controller.history:
+	if _empty_state.visible and profile != null and not _is_oneshot_active() and _controller.history:
 		recent = _controller.history.list(_controller.cwd).slice(0, RECENT_SESSIONS)
 	if not recent.is_empty() and _start_button.text == I18n.t("Start session"):
 		_start_button.text = I18n.t("New session")
@@ -849,7 +853,7 @@ func add_suggested_agent(agent: Dictionary) -> void:
 
 ## Al abrir el editor con «Continuar la última sesión» (m12-12). false si no había ninguna.
 func continue_last_session() -> bool:
-	if _controller.history == null or _model.state != SessionModel.SessionState.DISCONNECTED or _oneshot_active:
+	if _controller.history == null or _model.state != SessionModel.SessionState.DISCONNECTED or _is_oneshot_active():
 		return false
 	var items: Array[Dictionary] = _controller.history.list(_controller.cwd)
 	if items.is_empty() or selected_profile() == null:
@@ -861,7 +865,7 @@ func continue_last_session() -> bool:
 
 ## Con un One-shot activo, el botón lo retoma en su sesión (como «Reintentar», D45).
 func _on_start_pressed() -> void:
-	if _oneshot_active and retry_interceptor.is_valid() and retry_interceptor.call():
+	if _is_oneshot_active() and retry_interceptor.is_valid() and retry_interceptor.call():
 		return
 	start_session()
 
@@ -1212,15 +1216,20 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			action_forwarded.emit(action, payload)
 
 
-## Un archivo del chat: escenas y scripts en el editor; spec y progreso del One-shot en la pantalla
-## Agent; el resto de los archivos de texto (.md, .txt…), que Godot no carga, con el programa del
-## sistema.
-func set_oneshot_active(active: bool) -> void:
-	_oneshot_active = active
-	_composer.set_oneshot_active(active)
+## Cambió el One-shot (lo avisa el plugin): la vista vacía y el composer vuelven a leer
+## `oneshot_active`.
+func refresh_oneshot() -> void:
+	_composer.refresh_state()
 	_refresh_empty_state()
 
 
+func _is_oneshot_active() -> bool:
+	return oneshot_active.is_valid() and oneshot_active.call()
+
+
+## Un archivo del chat: escenas y scripts en el editor; spec y progreso del One-shot en la pantalla
+## Agent; el resto de los archivos de texto (.md, .txt…), que Godot no carga, con el programa del
+## sistema.
 func _open_path(path: String, line: int) -> void:
 	var absolute := _absolute_path(path)
 	if absolute.contains("/.godot_agent/oneshot/"):
