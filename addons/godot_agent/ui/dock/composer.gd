@@ -80,10 +80,11 @@ var _send_button: Button
 var _screenshot_button: Button
 ## () -> bool: hay un turno en curso (el botón pasa a Detener). El dock le da `model.is_busy`, así el
 ## composer lee el estado de la sesión en vez de guardar una copia (m13-14). Sin asignar: nunca.
-var is_busy: Callable
+## Como `mention_provider`: un Callable, no un método.
+var busy_provider: Callable
 ## () -> bool: hay un One-shot en curso en esta sesión (lo que se escribe guía al agente del run).
 ## Sin asignar: nunca.
-var oneshot_active: Callable
+var oneshot_provider: Callable
 ## Por qué no se puede escribir (sin agentes, m12-15): va de placeholder y apaga el campo.
 var _unavailable_text: String = ""
 var _enabled: bool = true
@@ -379,7 +380,7 @@ func focus() -> void:
 	_input.grab_focus()
 
 
-## Cambió el estado de la sesión o del One-shot: se vuelven a leer `is_busy` y `oneshot_active`
+## Cambió el estado de la sesión o del One-shot: se vuelven a leer `busy_provider` y `oneshot_provider`
 ## (placeholder, Enviar/Detener y el ancho de la fila).
 func refresh_state() -> void:
 	_update_placeholder()
@@ -388,11 +389,11 @@ func refresh_state() -> void:
 
 
 func _is_busy() -> bool:
-	return is_busy.is_valid() and is_busy.call()
+	return busy_provider.is_valid() and busy_provider.call()
 
 
 func _is_oneshot_active() -> bool:
-	return oneshot_active.is_valid() and oneshot_active.call()
+	return oneshot_provider.is_valid() and oneshot_provider.call()
 
 
 func _update_placeholder() -> void:
