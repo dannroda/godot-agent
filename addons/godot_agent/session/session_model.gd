@@ -55,6 +55,7 @@ enum SessionState {
 ## - PROMPTING → READY (fin del turno), CANCELLING (session/cancel); DISCONNECTED y FAILED como READY.
 ## - CANCELLING → READY cuando el agente confirma (o vence el plazo); DISCONNECTED y FAILED como READY.
 ## - FAILED / LOGIN_REQUIRED → STARTING: reintentar, o volver a abrir la sesión después del login.
+## - LOGIN_REQUIRED → FAILED: el proceso del agente sigue vivo esperando el login y se cae solo.
 const SESSION_STATE_TRANSITIONS: Dictionary = {
 	SessionState.DISCONNECTED: [SessionState.STARTING],
 	SessionState.STARTING: [SessionState.READY, SessionState.FAILED, SessionState.LOGIN_REQUIRED, SessionState.DISCONNECTED],
@@ -62,7 +63,7 @@ const SESSION_STATE_TRANSITIONS: Dictionary = {
 	SessionState.PROMPTING: [SessionState.READY, SessionState.CANCELLING, SessionState.DISCONNECTED, SessionState.FAILED],
 	SessionState.CANCELLING: [SessionState.READY, SessionState.DISCONNECTED, SessionState.FAILED],
 	SessionState.FAILED: [SessionState.STARTING],
-	SessionState.LOGIN_REQUIRED: [SessionState.STARTING],
+	SessionState.LOGIN_REQUIRED: [SessionState.STARTING, SessionState.FAILED],
 }
 
 ## Modos del harness (spec §7). Viven del lado del cliente.
