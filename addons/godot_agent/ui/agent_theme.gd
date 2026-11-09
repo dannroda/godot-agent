@@ -12,6 +12,7 @@ const CHANNEL_COLORS: Dictionary = {
 	&"quota": Color("#f2d16b"),
 	&"cmp": Color("#7fd98b"),
 	&"update": Color("#6fd3c8"),
+	&"state": Color("#ff8fb8"),
 }
 const USER_BUBBLE := Color("#33405a")
 const ADDED := Color("#7fd98b")

@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- The Agent Log has a `state` channel. When a One-shot run changes phase in a way it doesn't expect (for example, from preparing straight to paused), the change still happens and a line in this channel names both phases.
+
 ## [0.1.17] - 2026-11-03
 
 ### Added
