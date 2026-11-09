@@ -9,6 +9,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - The Agent Log has a `state` channel. When the agent's session, the game launched by `godot.run_scene` or a One-shot run changes state in a way the harness doesn't expect (for example, a One-shot going from preparing straight to paused), the change still happens and a line in this channel names both states.
 - When `godot.run_scene` is called while another run is in progress, the error says how long that run has been going and what the game is doing (launching, running, stopped in the debugger, ended).
 - If the agent's process ends while it waits for you to sign in, the dock shows the error with **Retry** instead of staying on «Sign-in needed».
+- When the agent's process dies, the error card shows the last lines of its output cut to a readable length, with how many characters each cut line left out: claude-agent-acp prints the whole prompt, system prompt included, and it hid the cause. **Open the log below** still has every line in full.
 
 ## [0.1.17] - 2026-11-03
 

@@ -90,6 +90,9 @@ const ACTION_EDIT_AGENT := "edit_agent"
 const ACTION_REINSTALL_AGENT := "reinstall_agent"
 ## Líneas de stderr del agente que muestra el aviso de error.
 const STDERR_TAIL := 8
+## Largo máximo de cada una en la tarjeta (m13-22): claude-agent-acp vuelca por stderr el prompt
+## entero, con el prompt de sistema en JSON, y tapaba la causa. El resto queda en el Agent Log.
+const STDERR_LINE_CHARS := 160
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
 const ACTION_LOGIN := "login"
@@ -1238,9 +1241,26 @@ func _fail_agent(title: String, cause: String, log_message: String, actions: Arr
 			action["data"] = agent_log.last_seq()
 	var entry := model.add_notice(cause, ChatEntry.NoticeLevel.ERROR, actions)
 	entry.title = title
-	entry.details = "\n".join(_stderr_tail)
+	entry.details = stderr_summary(_stderr_tail)
 	model.notify_entry_changed(entry)
 	model.set_state(SessionModel.SessionState.FAILED)
+
+
+## Las últimas líneas útiles del stderr para la tarjeta (m13-22): sin las vacías, cada una
+## recortada a `max_chars` con cuántos caracteres quedaron afuera (el Agent Log tiene cada línea
+## entera, de _on_stderr), y como mucho `max_lines`.
+static func stderr_summary(lines: PackedStringArray, max_lines: int = STDERR_TAIL, max_chars: int = STDERR_LINE_CHARS) -> String:
+	var kept: PackedStringArray = []
+	for line: String in lines:
+		var text := line.strip_edges()
+		if text.is_empty():
+			continue
+		if text.length() > max_chars:
+			text = text.left(max_chars).strip_edges() + " " + I18n.t("… %d more characters, see the Agent Log") % (text.length() - max_chars)
+		kept.append(text)
+	if kept.size() > max_lines:
+		kept = kept.slice(kept.size() - max_lines)
+	return "\n".join(kept)
 
 
 ## Reintentar primero; un agente del registro (binario bajado por el harness) se puede reinstalar.

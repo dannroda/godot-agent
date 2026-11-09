@@ -4085,3 +4085,6 @@ msgstr "Volvió a la última build buena de: %s."
 
 msgid "Disabled (renamed to .disabled): %s."
 msgstr "Desactivó (renombrado a .disabled): %s."
+
+msgid "… %d more characters, see the Agent Log"
+msgstr "… %d caracteres más, ver el Agent Log"
