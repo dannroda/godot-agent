@@ -227,8 +227,8 @@ func _ready() -> void:
 	_body.add_child(_conversation)
 	_composer = Composer.new()
 	_composer.setup(_accent)
-	_composer.is_busy = _model.is_busy
-	_composer.oneshot_active = _is_oneshot_active
+	_composer.busy_provider = _model.is_busy
+	_composer.oneshot_provider = _is_oneshot_active
 	_composer.history_path = PROMPT_HISTORY_PATH
 	_composer.mention_provider = func() -> Array[Dictionary]:
 		var options := special_mention_options()
