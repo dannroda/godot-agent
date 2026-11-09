@@ -126,8 +126,12 @@ func test_game_run_reached() -> void:
 	for state: int in [RunTools.GameRunState.LAUNCHING, RunTools.GameRunState.STARTED, RunTools.GameRunState.PROBE_READY, RunTools.GameRunState.BREAKED, RunTools.GameRunState.STOPPED]:
 		assert_true(tools.reached(state), "pasó por %s" % RunTools.GameRunState.keys()[state])
 	assert_true(tools._game_halted(), "parado")
-	assert_true(tools.describe_run_state().begins_with("ended for "), "se describe para el agente")
+	assert_true(tools.describe_run_state().begins_with("game: ended ("), "se describe para el agente")
 	tools._set_run_state(RunTools.GameRunState.LAUNCHING)
+	tools._on_session_started()
+	tools._set_run_state(RunTools.GameRunState.LAUNCHING)
+	tools._state["problems"] = ["y"]
+	tools._set_run_state(RunTools.GameRunState.LAUNCHING)  # el anterior nunca arrancó
 	assert_false(tools.reached(RunTools.GameRunState.PROBE_READY), "un run nuevo empieza de cero")
 	assert_false(tools._state.has("problems"), "y sin lo que mandó el anterior")
 	assert_false(tools._game_halted(), "y sin estar parado")

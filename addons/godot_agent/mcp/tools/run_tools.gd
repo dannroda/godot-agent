@@ -27,7 +27,7 @@ enum GameRunState {
 }
 
 const GAME_RUN_STATE_NAMES: Dictionary = {
-	GameRunState.IDLE: "idle",
+	GameRunState.IDLE: "no game launched",
 	GameRunState.LAUNCHING: "launching",
 	GameRunState.STARTED: "started, waiting for the playtest probe",
 	GameRunState.PROBE_READY: "running",
@@ -155,9 +155,9 @@ func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> vo
 
 ## El único lugar que cambia run_state. LAUNCHING empieza un run nuevo: borra lo que mandó el anterior.
 func _set_run_state(value: GameRunState) -> void:
-	if value == run_state:
+	if value == run_state and value != GameRunState.LAUNCHING:
 		return
-	if not value in GAME_RUN_TRANSITIONS.get(run_state, []):
+	if value != run_state and not value in GAME_RUN_TRANSITIONS.get(run_state, []):
 		var message := "game run: unexpected transition %s -> %s" % [GameRunState.keys()[run_state], GameRunState.keys()[value]]
 		if agent_log:
 			agent_log.add(AgentLog.CH_STATE, message)
@@ -176,9 +176,9 @@ func reached(state: GameRunState) -> bool:
 	return _reached_states & (1 << state) != 0
 
 
-## El estado del juego para el agente: «running for 3 s».
+## El estado del juego para el agente: «game: running (3 s)».
 func describe_run_state() -> String:
-	return "%s for %d s" % [GAME_RUN_STATE_NAMES[run_state], (Time.get_ticks_msec() - _run_state_since_ms) / 1000]
+	return "game: %s (%d s)" % [GAME_RUN_STATE_NAMES[run_state], (Time.get_ticks_msec() - _run_state_since_ms) / 1000]
 
 
 func _on_session_started() -> void:
@@ -364,7 +364,7 @@ func tools() -> Array:
 
 func _run_scene(args: Dictionary) -> Dictionary:
 	if _busy and not busy_is_stale(_busy_since_ms, Time.get_ticks_msec()):
-		return McpTool.error("A run_scene is already in progress (started %d s ago; the game is %s): wait for it to finish." % [(Time.get_ticks_msec() - _busy_since_ms) / 1000, describe_run_state()])
+		return McpTool.error("A run_scene is already in progress (started %d s ago; %s): wait for it to finish." % [(Time.get_ticks_msec() - _busy_since_ms) / 1000, describe_run_state()])
 	var scene := McpTool.str_arg(args, "scene")
 	if scene.is_empty():
 		var root := EditorInterface.get_edited_scene_root()
@@ -386,6 +386,10 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	if EditorInterface.is_playing_scene():
 		EditorInterface.stop_playing_scene()
 		await _until(func() -> bool: return not EditorInterface.is_playing_scene(), STOP_TIMEOUT_S)
+		# El session_stopped del juego que se acaba de parar puede llegar después: si llegara con el
+		# run nuevo en LAUNCHING, cortaría la espera de la probe.
+		if run_state in [GameRunState.STARTED, GameRunState.PROBE_READY, GameRunState.BREAKED]:
+			await _until(func() -> bool: return run_state == GameRunState.STOPPED, STOP_TIMEOUT_S)
 	var recording := _start_recording() if args.get("record") == true else {}
 	var since := errors.mark()
 	var output_before := errors.output_text()
