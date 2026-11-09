@@ -80,6 +80,7 @@ El panel inferior muestra todo por canal:
 - `fs`: lecturas y escrituras por el editor;
 - `perm`: las decisiones de permisos;
 - `quota`;
-- `cmp`: las latencias del completado.
+- `cmp`: las latencias del completado;
+- `state`: una sesión, el juego que lanzó `run_scene` o un run del One-shot cambió de estado de una forma que el harness no esperaba. El cambio se aplica igual; la línea dice los dos estados.
 
 Los secretos se enmascaran. Es el primer lugar donde mirar cuando algo no anda: ver [Problemas frecuentes](Problemas-frecuentes.md).

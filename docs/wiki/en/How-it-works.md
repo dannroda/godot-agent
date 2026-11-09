@@ -80,6 +80,7 @@ The bottom panel shows everything by channel:
 - `fs`: file reads and writes through the editor;
 - `perm`: permission decisions;
 - `quota`;
-- `cmp`: completion latencies.
+- `cmp`: completion latencies;
+- `state`: a session, the game launched by `run_scene` or a One-shot run changed state in a way the harness didn't expect. The change still happens; the line names both states.
 
 Secrets are masked. It's the first place to look when something doesn't work: see [Troubleshooting](Troubleshooting.md).
