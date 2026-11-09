@@ -4,6 +4,7 @@ extends SceneTree
 ## toca la configuración del usuario. Necesita `claude` (o el SDK del adaptador en la cache de npx).
 ## Uso: godot --headless --path . --script tests/extensions_cli_check.gd
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const ClaudeExtensions := preload("res://addons/godot_agent/extensions/claude_extensions.gd")
 
 var _checks := 0
@@ -11,6 +12,7 @@ var _failures := 0
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	_run.call_deferred()
 
 

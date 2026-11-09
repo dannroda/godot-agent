@@ -40,6 +40,7 @@ extends SceneTree
 ## claude-agent-acp 0.94; al activarlo corren los pasos de "remote_steps" del guion, fuera de un
 ## prompt, como un turno mandado desde el celular.
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const STDIN_BUFFER := 1 << 20
 
 var _scenario: Dictionary = {}
@@ -60,6 +61,7 @@ var _cancel_at_msec: int = 0
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	var path := ""
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--scenario="):

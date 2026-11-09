@@ -6,10 +6,12 @@ extends SceneTree
 ##   ... -- --cases                       (además, el detalle por caso de cada combinación)
 ##   ... -- --age=30                      (todos los archivos con 30 días desde el más nuevo)
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const Runner := preload("completion_eval_runner.gd")
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	var runner := Runner.new()
 	runner.load_cases()
 	for error: String in runner.errors:

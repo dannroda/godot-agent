@@ -5,6 +5,7 @@ extends SceneTree
 ## Un error de script (índice fuera de rango, llamada inválida…) corta el test sin que el test lo
 ## note: el logger lo cuenta y el test falla (m13-02).
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const UNIT_DIR := "res://tests/unit"
 const BASE_SCRIPT := "test_case.gd"
 
@@ -31,6 +32,7 @@ class ScriptErrors extends Logger:
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	var filter: String = OS.get_cmdline_user_args()[0] if not OS.get_cmdline_user_args().is_empty() else ""
 	var total_tests: int = 0
 	var total_checks: int = 0
