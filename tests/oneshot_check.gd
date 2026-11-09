@@ -503,6 +503,8 @@ func _scenario_qa_restore() -> void:
 	run.restart_session = func(lost_id: String) -> bool:
 		starts[0] += 1
 		lost_ids.append(lost_id)
+		if starts[0] == 2:  # el usuario pausa mientras se vuelve al que construye
+			run.pause()
 		return await run.controller.start(_profile("oneshot_qa" if starts[0] == 1 else "oneshot_qa_fix"))
 	var sent: Array[String] = []
 	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
@@ -521,10 +523,15 @@ func _scenario_qa_restore() -> void:
 	_check(run.controller.policy.restrictions.is_empty() and run.controller.mode_rules_override.is_empty(), "qa volver: el evaluador deja sus permisos")
 	_check(run.to_dict().session_id == builder_id, "qa volver: se guarda la sesión del que construye")
 	run.resume()
-	await _wait(func() -> bool: return sent.size() >= 3, 10.0)
+	await _wait(func() -> bool: return starts[0] == 2 and run.controller.is_connected_to_agent(), 10.0)
+	await create_timer(0.3).timeout
 	_check(starts[0] == 2 and lost_ids.back() == builder_id, "qa volver: «Retomar» reabre la sesión del que construye (%s)" % [lost_ids])
-	_check(sent.size() >= 3 and sent[2].begins_with("We're resuming a One-shot"), "qa volver: sin session/load, el turno va con el resumen (%s)" % (sent[2].left(60) if sent.size() >= 3 else ""))
 	_check(run.model.session_id != evaluator_id, "qa volver: el turno no va a la sesión del evaluador")
+	# Pausado mientras volvía (revisión de a3): el turno no sale y el resumen espera en la cola.
+	_check(run.phase == OneShotRun.RunPhase.PAUSED and sent.size() == 2, "qa volver: pausado mientras volvía, no manda el turno (%d)" % sent.size())
+	run.resume()
+	await _wait(func() -> bool: return sent.size() >= 4, 10.0)
+	_check(sent.slice(2).any(func(text: String) -> bool: return text.begins_with("We're resuming a One-shot")), "qa volver: sin session/load, el que construye recibe el resumen %s" % [sent.slice(2).map(func(text: String) -> String: return text.left(40))])
 	_check(run.unexpected_transitions == 0, "qa volver: sin transiciones inesperadas (%s)" % run.last_unexpected_transition)
 	run.stop()
 	run.controller.stop()

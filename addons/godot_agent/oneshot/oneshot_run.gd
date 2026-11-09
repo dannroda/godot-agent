@@ -790,15 +790,24 @@ func _run_turn(text: String, blocks: Array = []) -> void:
 	# «Volver acá», o se guía con la evaluación en pausa): primero se vuelve a su sesión (m13-15).
 	if not _generator_session_id.is_empty():
 		_end_qa_role()
+		var phase_before := phase
+		var is_resume := text == _resume_prompt()
 		var back := await _back_to_generator()
 		if not is_instance_valid(self) or not is_inside_tree():
+			return
+		if back == "new":
+			text = _summary_prompt() if is_resume else _summary_prompt() + "\n\n" + text
+		# Se pausó o se detuvo mientras volvía: el turno no sale. Lo que no es el prompt de retomar
+		# (una guía, la corrección) queda en la cola para el próximo turno.
+		if phase != phase_before:
+			_turn_running = false
+			if is_active() and (not is_resume or back == "new"):
+				_push_guidance(text, blocks)
 			return
 		if back == "failed":
 			_turn_running = false
 			_finish(I18n.t("Couldn't reopen the session with the agent."))
 			return
-		if back == "new":
-			text = _summary_prompt() if text == _resume_prompt() else _summary_prompt() + "\n\n" + text
 	report.count("turns")
 	var turn_started := _elapsed_ms()
 	_turn_tools = 0
@@ -1249,6 +1258,8 @@ func _evaluate() -> void:
 		_finish(I18n.t("Couldn't open a session with the agent."))
 		return
 	_recovered_session_id = ""
+	if not is_inside_tree() or phase != RunPhase.EVALUATING:  # se pausó mientras abría la sesión
+		return
 	if _generator_session_id.is_empty():
 		_generator_session_id = model.session_id
 	controller.policy.restrictions = QA_RESTRICTIONS.duplicate()
