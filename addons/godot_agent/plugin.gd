@@ -741,6 +741,7 @@ func _start_mcp_server() -> void:
 	_run_tools.setup(_errors, _playtest_debugger)
 	_run_tools.max_image_side = _project_config.max_image_side
 	_run_tools.cleanup = _remove_playtest_autoload
+	_run_tools.agent_log = _log
 	registry.register_provider(_run_tools)
 	registry.mark_extended(RunTools.GAME_TOOLS)
 	var session_tools := SessionTools.new()

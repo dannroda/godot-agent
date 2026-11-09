@@ -14,6 +14,38 @@ const PermissionPolicy := preload("../../session/permission_policy.gd")
 const PlaytestMemory := preload("../../review/playtest_memory.gd")
 const PlaytestRegressions := preload("../../review/playtest_regressions.gd")
 const ProjectTools := preload("project_tools.gd")
+const AgentLog := preload("../../core/agent_log.gd")
+
+## El ciclo de vida del juego que lanza run_scene (m13-11), tal como lo cuenta el debugger.
+enum GameRunState {
+	IDLE,  ## ningún juego desde que arrancó el editor
+	LAUNCHING,  ## run_scene pidió el play y espera que arranque
+	STARTED,  ## el juego abrió su sesión de debugger (la probe todavía no avisó)
+	PROBE_READY,  ## la probe de playtest está lista: inputs, capturas y pedidos
+	BREAKED,  ## parado en el debugger por un error o un breakpoint
+	STOPPED,  ## el juego terminó
+}
+
+const GAME_RUN_STATE_NAMES: Dictionary = {
+	GameRunState.IDLE: "idle",
+	GameRunState.LAUNCHING: "launching",
+	GameRunState.STARTED: "started, waiting for the playtest probe",
+	GameRunState.PROBE_READY: "running",
+	GameRunState.BREAKED: "stopped in the debugger",
+	GameRunState.STOPPED: "ended",
+}
+
+## Transiciones esperadas. Una que no está se avisa en el Agent Log y se aplica igual.
+## LAUNCHING vale desde cualquier estado (un run_scene nuevo reemplaza al anterior) y STARTED desde
+## IDLE o STOPPED (un run manual).
+const GAME_RUN_TRANSITIONS: Dictionary = {
+	GameRunState.IDLE: [GameRunState.LAUNCHING, GameRunState.STARTED],
+	GameRunState.LAUNCHING: [GameRunState.STARTED, GameRunState.STOPPED],
+	GameRunState.STARTED: [GameRunState.LAUNCHING, GameRunState.PROBE_READY, GameRunState.BREAKED, GameRunState.STOPPED],
+	GameRunState.PROBE_READY: [GameRunState.LAUNCHING, GameRunState.BREAKED, GameRunState.STOPPED],
+	GameRunState.BREAKED: [GameRunState.LAUNCHING, GameRunState.STOPPED],
+	GameRunState.STOPPED: [GameRunState.LAUNCHING, GameRunState.STARTED],
+}
 
 ## Las del juego en ejecución: extendidas con tools/list compacto (D56).
 const GAME_TOOLS: PackedStringArray = ["game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_frames"]
@@ -72,8 +104,21 @@ var harness_requested: bool = false
 ## Quita el autoload si el juego no llegó a arrancar (lo inyecta el plugin).
 var cleanup: Callable
 
+## Dónde avisar de una transición del juego que no está en GAME_RUN_TRANSITIONS (la pone el plugin).
+var agent_log: AgentLog
+
+## El juego visto por el debugger desde el último run_scene (m13-11). Lo cambia solo
+## _set_run_state(); los avisos del debugger pueden llegar también de un run manual.
+var run_state: GameRunState = GameRunState.IDLE
+## Hay un run_scene en curso (solo uno a la vez) y desde cuándo. Es aparte de run_state: el juego
+## sigue corriendo después de que run_scene contesta.
 var _busy: bool = false
 var _busy_since_ms: int = 0
+var _run_state_since_ms: int = 0
+## Los estados por los que pasó el run actual (bits 1 << GameRunState): el informe necesita saber
+## si la probe llegó a estar lista aunque el juego ya haya terminado.
+var _reached_states: int = 0
+## Lo que el juego mandó en este run: inputs_done, problems y el último frame.
 var _state: Dictionary = {}
 var _replies: Dictionary = {}
 var _next_request: int = 1
@@ -95,10 +140,10 @@ func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> vo
 	debugger = playtest_debugger
 	# Métodos y no lambdas: una lambda captura a RunTools, el debugger la guarda en su señal y
 	# RunTools guarda al debugger; el ciclo no se libera al deshabilitar el plugin (m13-10).
-	debugger.session_started.connect(_flag.bind("started"))
+	debugger.session_started.connect(_on_session_started)
 	debugger.session_stopped.connect(_on_session_stopped)
 	debugger.session_breaked.connect(_on_session_breaked)
-	debugger.probe_ready.connect(_flag.bind("ready"))
+	debugger.probe_ready.connect(_on_probe_ready)
 	debugger.inputs_done.connect(_on_inputs_done)
 	debugger.problem_reported.connect(_on_problem_reported)
 	debugger.frame_received.connect(_on_frame_received)
@@ -108,13 +153,45 @@ func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> vo
 	debugger.film_frame_received.connect(_on_film_frame_received)
 
 
-func _flag(key: String) -> void:
-	_state[key] = true
+## El único lugar que cambia run_state. LAUNCHING empieza un run nuevo: borra lo que mandó el anterior.
+func _set_run_state(value: GameRunState) -> void:
+	if value == run_state:
+		return
+	if not value in GAME_RUN_TRANSITIONS.get(run_state, []):
+		var message := "game run: unexpected transition %s -> %s" % [GameRunState.keys()[run_state], GameRunState.keys()[value]]
+		if agent_log:
+			agent_log.add(AgentLog.CH_STATE, message)
+		else:
+			push_warning("Godot Agent: " + message)
+	if value == GameRunState.LAUNCHING:
+		_reached_states = 0
+		_state = {}
+	run_state = value
+	_run_state_since_ms = Time.get_ticks_msec()
+	_reached_states |= 1 << value
+
+
+## El run actual pasó por `state` (aunque ya esté en otro).
+func reached(state: GameRunState) -> bool:
+	return _reached_states & (1 << state) != 0
+
+
+## El estado del juego para el agente: «running for 3 s».
+func describe_run_state() -> String:
+	return "%s for %d s" % [GAME_RUN_STATE_NAMES[run_state], (Time.get_ticks_msec() - _run_state_since_ms) / 1000]
+
+
+func _on_session_started() -> void:
+	_set_run_state(GameRunState.STARTED)
+
+
+func _on_probe_ready() -> void:
+	_set_run_state(GameRunState.PROBE_READY)
 
 
 func _on_session_stopped() -> void:
 	_continue_errors = false
-	_flag("stopped")
+	_set_run_state(GameRunState.STOPPED)
 
 
 ## Un error del juego: se saltea si este run lo pidió, guardando el motivo (el panel se llena un
@@ -124,7 +201,7 @@ func _on_session_breaked() -> void:
 		if _continue_errors:
 			_continued.append("Stopped skipping errors after %d in this run: the game is stopped in the debugger." % CONTINUE_MAX)
 			_continue_errors = false
-		_flag("breaked")
+		_set_run_state(GameRunState.BREAKED)
 		return
 	_breaks += 1
 	var tree := Engine.get_main_loop() as SceneTree
@@ -138,7 +215,7 @@ func _on_session_breaked() -> void:
 	# Un breakpoint lo puso alguien para frenar acá: no es un error que se saltea (m16-05).
 	if reason.begins_with("Breakpoint"):
 		_continue_errors = false
-		_flag("breaked")
+		_set_run_state(GameRunState.BREAKED)
 		return
 	_continued.append(reason if not reason.is_empty() else "(the debugger gave no reason)")
 	_last_break_ms = Time.get_ticks_msec()
@@ -287,7 +364,7 @@ func tools() -> Array:
 
 func _run_scene(args: Dictionary) -> Dictionary:
 	if _busy and not busy_is_stale(_busy_since_ms, Time.get_ticks_msec()):
-		return McpTool.error("A run_scene is already in progress: wait for it to finish.")
+		return McpTool.error("A run_scene is already in progress (started %d s ago; the game is %s): wait for it to finish." % [(Time.get_ticks_msec() - _busy_since_ms) / 1000, describe_run_state()])
 	var scene := McpTool.str_arg(args, "scene")
 	if scene.is_empty():
 		var root := EditorInterface.get_edited_scene_root()
@@ -312,7 +389,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	var recording := _start_recording() if args.get("record") == true else {}
 	var since := errors.mark()
 	var output_before := errors.output_text()
-	_state = {}
+	_set_run_state(GameRunState.LAUNCHING)
 	_continue_errors = args.get("continue_on_error") == true
 	_breaks = 0
 	_continued = []
@@ -325,24 +402,25 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	harness_requested = false
 	if not EditorInterface.is_playing_scene():
 		_busy = false
+		_set_run_state(GameRunState.STOPPED)
 		_cleanup()
 		_stop_recording(recording)
 		return McpTool.error("The editor could not launch %s (did a plugin's build fail?). Try get_errors." % scene)
 
-	await _until(func() -> bool: return _state.has("ready") or _state.has("stopped") or _state.has("breaked"), STARTUP_TIMEOUT_S)
+	await _until(func() -> bool: return reached(GameRunState.PROBE_READY) or _game_halted(), STARTUP_TIMEOUT_S)
 	var notes: PackedStringArray = []
-	if _state.has("ready"):
+	if reached(GameRunState.PROBE_READY):
 		if not inputs.is_empty():
 			debugger.send("inputs", [inputs])
 		if float(args.get("film_fps", 0.0)) > 0.0:
 			notes.append(await _start_film(float(args.film_fps)))
-	elif not _state.has("stopped") and not _state.has("breaked"):
+	elif not _game_halted():
 		notes.append("The playtest probe did not respond within %d s: no inputs or captures." % STARTUP_TIMEOUT_S)
-	await _until(func() -> bool: return _state.has("stopped") or _state.has("breaked"), seconds)
+	await _until(_game_halted, seconds)
 	await Engine.get_main_loop().create_timer(SETTLE_S).timeout
 	if not recording.is_empty():
 		notes.append(await _finish_recording(recording))
-	if not _state.has("started"):
+	if not reached(GameRunState.STARTED):
 		_cleanup()
 	if EditorInterface.is_playing_scene() and debugger.has_probe() and not _stopped_in_debugger():
 		var opening := await request("opening", {})
@@ -424,7 +502,7 @@ func capture_frame() -> Variant:
 	debugger.send("capture", [max_image_side])
 	await _until(func() -> bool: return _state.has("frame"), FRAME_TIMEOUT_S)
 	if not _state.has("frame"):
-		var paused := " The game is stopped in the debugger." if _state.has("breaked") else ""
+		var paused := " The game is stopped in the debugger." if run_state == GameRunState.BREAKED else ""
 		return "The game frame did not arrive within %d s.%s" % [FRAME_TIMEOUT_S, paused]
 	var image := Image.new()
 	if image.load_png_from_buffer(_state.frame) != OK:
@@ -573,17 +651,17 @@ static func _event_step(event: InputEvent, step: Dictionary) -> Dictionary:
 
 func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringArray, since: int, output_before: String) -> String:
 	var lines: PackedStringArray = []
-	if _state.has("breaked"):
+	if reached(GameRunState.BREAKED):
 		var reason := PlaytestDebugger.break_reason()
 		lines.append("%s: the game stopped in the debugger because of an error%s. It is still paused: fix it and run again (run_scene restarts it) or use stop_scene." % [scene, ": " + reason if not reason.is_empty() else ""])
-	elif _state.has("stopped"):
+	elif reached(GameRunState.STOPPED):
 		lines.append("%s: the game ended by itself before %.1f s." % [scene, seconds])
 	else:
 		lines.append("%s: ran for %.1f s and is still running (capture_game_frame to see it, stop_scene to close it)." % [scene, seconds])
 	if not inputs.is_empty():
 		if _state.has("inputs_done"):
 			lines.append("Inputs: %d of %d events played." % [_state.inputs_done, inputs.size()])
-		elif _state.has("ready"):
+		elif reached(GameRunState.PROBE_READY):
 			lines.append("Inputs: %d events sent; they did not finish in time." % inputs.size())
 	for note: String in notes:
 		lines.append(note)
@@ -881,6 +959,11 @@ func request(op: String, params: Dictionary, timeout_s: float = REQUEST_TIMEOUT_
 	if not debugger.has_probe():
 		return {"error": "The game closed before answering."}
 	return {"error": "The game did not answer within %d s." % ceili(timeout_s)}
+
+
+## El juego de este run terminó o quedó parado en el debugger.
+func _game_halted() -> bool:
+	return reached(GameRunState.STOPPED) or reached(GameRunState.BREAKED)
 
 
 ## Parado en el debugger sin que este run lo vaya a sacar de ahí.

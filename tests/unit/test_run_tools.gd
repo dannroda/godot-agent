@@ -95,3 +95,39 @@ func test_pick_frames() -> void:
 	var picked := RunTools.pick_frames(frames, 2.0, 3)
 	assert_eq(picked.map(func(frame: Dictionary) -> float: return frame.t), [8.0, 9.0, 10.0], "los últimos 2 s, parejos")
 	assert_eq(RunTools.pick_frames(frames, 1.0, 12).size(), 3, "menos que los pedidos: todos")
+
+
+## m13-11: el ciclo de vida del juego es un enum con su tabla, y solo _set_run_state lo cambia.
+func test_game_run_transitions() -> void:
+	var states: Array = RunTools.GameRunState.values()
+	for state: int in states:
+		assert_true(RunTools.GAME_RUN_TRANSITIONS.has(state), "%s tiene transiciones" % RunTools.GameRunState.keys()[state])
+		assert_true(RunTools.GAME_RUN_STATE_NAMES.has(state), "%s tiene nombre para el agente" % RunTools.GameRunState.keys()[state])
+		for target: int in RunTools.GAME_RUN_TRANSITIONS[state]:
+			assert_true(target in states and target != state, "destino válido desde %s" % RunTools.GameRunState.keys()[state])
+		if state != RunTools.GameRunState.IDLE:
+			assert_true(RunTools.GameRunState.LAUNCHING in RunTools.GAME_RUN_TRANSITIONS[state] or state == RunTools.GameRunState.LAUNCHING, "un run_scene nuevo arranca desde %s" % RunTools.GameRunState.keys()[state])
+	var source := FileAccess.get_file_as_string("res://addons/godot_agent/mcp/tools/run_tools.gd")
+	var writes := RegEx.create_from_string("\\brun_state\\s*=[^=]").search_all(source)
+	assert_eq(writes.size(), 1, "run_state se asigna en un solo lugar (_set_run_state)")
+	assert_false(source.contains("_state.has(\"started\")") or source.contains("_state.has(\"stopped\")") or source.contains("_state.has(\"breaked\")") or source.contains("_state.has(\"ready\")"), "sin claves de ciclo de vida en _state")
+
+
+## m13-11: un run que se cortó en el debugger y después terminó sigue contando que estuvo listo y parado.
+func test_game_run_reached() -> void:
+	var tools := RunTools.new()
+	tools._set_run_state(RunTools.GameRunState.LAUNCHING)
+	tools._state["problems"] = ["x"]
+	tools._on_session_started()
+	tools._on_probe_ready()
+	tools._on_session_breaked()
+	tools._on_session_stopped()
+	assert_eq(tools.run_state, RunTools.GameRunState.STOPPED, "terminó")
+	for state: int in [RunTools.GameRunState.LAUNCHING, RunTools.GameRunState.STARTED, RunTools.GameRunState.PROBE_READY, RunTools.GameRunState.BREAKED, RunTools.GameRunState.STOPPED]:
+		assert_true(tools.reached(state), "pasó por %s" % RunTools.GameRunState.keys()[state])
+	assert_true(tools._game_halted(), "parado")
+	assert_true(tools.describe_run_state().begins_with("ended for "), "se describe para el agente")
+	tools._set_run_state(RunTools.GameRunState.LAUNCHING)
+	assert_false(tools.reached(RunTools.GameRunState.PROBE_READY), "un run nuevo empieza de cero")
+	assert_false(tools._state.has("problems"), "y sin lo que mandó el anterior")
+	assert_false(tools._game_halted(), "y sin estar parado")
