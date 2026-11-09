@@ -7,6 +7,7 @@ extends SceneTree
 
 const TestUserDir := preload("res://tests/test_user_dir.gd")
 const CYCLE_ARG := "--godot-agent-cycle-test"
+const PROJECT_FILE := "res://project.godot"
 const PASS_MARK := "[cycle-test] PASS"
 ## Ruido conocido del motor al cerrar un editor headless; no lo produce el addon.
 const KNOWN_ENGINE_NOISE: PackedStringArray = [
@@ -19,7 +20,11 @@ func _init() -> void:
 	var project_dir := ProjectSettings.globalize_path("res://")
 	var output: Array = []
 	var args: PackedStringArray = ["--headless", "--editor", "--path", project_dir, "--", CYCLE_ARG]
+	# Habilitar y deshabilitar el plugin guarda project.godot (y el editor lo reescribe al arrancar):
+	# al terminar vuelve a quedar como estaba (m13-19).
+	var project_before := FileAccess.get_file_as_string(PROJECT_FILE)
 	var code := OS.execute(OS.get_executable_path(), args, output, true)
+	_restore_project_file(project_before)
 	var text := "\n".join(output)
 
 	var problems: PackedStringArray = []
@@ -42,6 +47,18 @@ func _init() -> void:
 			printerr("plugin_cycle_check: " + p)
 		print("plugin_cycle_check: FAIL (%s)" % Engine.get_version_info().string)
 		quit(1)
+
+
+func _restore_project_file(before: String) -> void:
+	if FileAccess.get_file_as_string(PROJECT_FILE) == before:
+		return
+	var file := FileAccess.open(PROJECT_FILE, FileAccess.WRITE)
+	if file == null:
+		printerr("plugin_cycle_check: no se pudo restaurar project.godot: %s" % error_string(FileAccess.get_open_error()))
+		return
+	file.store_string(before)
+	file.close()
+	print("plugin_cycle_check: project.godot restaurado (el editor lo había reescrito)")
 
 
 func _is_error_line(line: String) -> bool:

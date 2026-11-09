@@ -312,6 +312,12 @@ func _run_external_test() -> void:
 		return
 	EditorInterface.open_scene_from_path(EXTERNAL_SCENE)
 	await get_tree().create_timer(1.0).timeout
+	# El disco tiene que coincidir con la memoria antes de editarlo: al cargar, el editor saca de
+	# `editor_plugins/enabled` los plugins que el checkout no tiene (en un worktree falta el symlink
+	# local de scope_compass) y 4.7 no lo guarda hasta más tarde; si no, EditorSync ve ese cambio
+	# como si fuera del agente. project.godot vuelve a quedar como estaba al salir: lo hace
+	# tests/run_in_xvfb.sh (m13-19).
+	ProjectSettings.save()
 	var project_text := FileAccess.get_file_as_string("res://project.godot")
 	var scene_text := FileAccess.get_file_as_string(EXTERNAL_SCENE)
 	var applied: Array[PackedStringArray] = []
