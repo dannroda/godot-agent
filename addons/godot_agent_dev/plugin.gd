@@ -110,6 +110,7 @@ const LayoutCheck := preload("layout_check.gd")
 const I18N_CATALOG := "res://addons/godot_agent/i18n/es.po"
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
 const LOG_PANEL_SCRIPT := "res://addons/godot_agent/ui/log_panel/agent_log_panel.gd"
+const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 ## Ids que se muestran tal cual aunque coincidan con un msgid (canales del Agent Log).
 const I18N_IDS: Array[String] = ["quota"]
 const CompletionCheck := preload("completion_check.gd")
@@ -400,7 +401,7 @@ func _run_external_test() -> void:
 	_visible_dialogs("fin")
 	for failure: String in failures:
 		print("[external-test] FALLA ", failure)
-	_finish(0 if failures.is_empty() else 1, "external-test: %d fallas" % failures.size())
+	_finish_checking_state(0 if failures.is_empty() else 1, "external-test: %d fallas" % failures.size(), "external-test")
 
 
 func _run_claude_edit_test() -> void:
@@ -500,7 +501,7 @@ func _run_run_test() -> void:
 	var failures := _failures(await RunCheck.new().run_run(get_tree()))
 	for failure: String in failures:
 		print("[run-check] FALLA ", failure)
-	_finish(0 if failures.is_empty() else 1, "run-test: %d fallas" % failures.size())
+	_finish_checking_state(0 if failures.is_empty() else 1, "run-test: %d fallas" % failures.size(), "run-check")
 
 
 func _run_review_test(real_claude: bool) -> void:
@@ -513,7 +514,7 @@ func _run_review_test(real_claude: bool) -> void:
 	var failures := _failures(await ReviewCheck.new().run_review(get_tree(), profile, _arg_value(UI_SHOT_ARG)))
 	for failure: String in failures:
 		print("[review-check] FALLA ", failure)
-	_finish(0 if failures.is_empty() else 1, "review-test%s: %d fallas" % [" (Claude)" if real_claude else "", failures.size()])
+	_finish_checking_state(0 if failures.is_empty() else 1, "review-test%s: %d fallas" % [" (Claude)" if real_claude else "", failures.size()], "review-check")
 
 
 func _run_playtest_suite(only: String) -> void:
@@ -548,7 +549,7 @@ func _run_oneshot_test() -> void:
 	var failures := _failures(await OneShotUiCheck.new().run_oneshot(get_tree(), _arg_value(UI_SHOT_ARG)))
 	for failure: String in failures:
 		print("[oneshot-check] FALLA ", failure)
-	_finish(0 if failures.is_empty() else 1, "oneshot-test: %d fallas" % failures.size())
+	_finish_checking_state(0 if failures.is_empty() else 1, "oneshot-test: %d fallas" % failures.size(), "oneshot-check")
 
 
 func _run_claude_oneshot_test() -> void:
@@ -1103,7 +1104,7 @@ func _run_login_test(shot_path: String) -> void:
 		_finish(1, "la sesión no abrió después del login (%s)" % model.get(&"failure_message"))
 		return
 	controller.call(&"stop")
-	_finish(0, "login: desde el dock, con el código pegado, la sesión abrió")
+	_finish_checking_state(0, "login: desde el dock, con el código pegado, la sesión abrió", "login-test")
 
 
 func _run_queue_test(shot_path: String) -> void:
@@ -1201,7 +1202,7 @@ func _run_queue_test(shot_path: String) -> void:
 		controller.call(&"stop")
 	for failure: String in failures:
 		print("[queue-test] FALLA ", failure)
-	_finish(0 if failures.is_empty() else 1, "queue-test: %d fallas" % failures.size())
+	_finish_checking_state(0 if failures.is_empty() else 1, "queue-test: %d fallas" % failures.size(), "queue-test")
 
 
 func _wait_button(root: Node, text: String) -> Button:
@@ -1719,3 +1720,28 @@ static func _failures(result: Variant) -> PackedStringArray:
 func _finish(code: int, message: String) -> void:
 	print("[cycle-test] %s: %s" % ["PASS" if code == 0 else "FAIL", message])
 	get_tree().quit(code)
+
+
+## Los checks que mueven la sesión, el juego o el One-shot terminan por acá (m13-18): si el flujo
+## dejó una transición fuera de tabla en el canal `state` del Agent Log del plugin (D61), el check
+## falla aunque todo lo demás haya pasado. `tag` es el prefijo de las líneas FALLA de ese check.
+func _finish_checking_state(code: int, message: String, tag: String) -> void:
+	var lines := _state_channel_lines()
+	for line: String in lines:
+		print("[%s] FALLA canal state: %s" % [tag, line])
+	if code == 0 and not lines.is_empty():
+		_finish(1, "%s, %d en el canal state" % [message, lines.size()])
+		return
+	_finish(code, message)
+
+
+func _state_channel_lines() -> PackedStringArray:
+	var main_plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	var log: Object = main_plugin.get(&"_log") if main_plugin else null
+	if log == null:
+		return PackedStringArray(["no se encontró el Agent Log del plugin"])
+	var lines: PackedStringArray = []
+	for entry: Dictionary in log.call(&"entries"):
+		if entry.channel == AgentLog.CH_STATE:
+			lines.append(str(entry.message))
+	return lines

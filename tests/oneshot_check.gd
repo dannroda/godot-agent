@@ -18,6 +18,9 @@ const WATCHDOG_S := 120.0
 
 var _failures: PackedStringArray = []
 var _checks: int = 0
+## Los logs de cada run que armó _make, con su escenario: al final se revisa que ningún flujo haya
+## dejado una transición fuera de tabla (m13-18).
+var _logs: Array[Dictionary] = []
 
 
 func _initialize() -> void:
@@ -42,6 +45,8 @@ func _initialize() -> void:
 	await _scenario_qa_without_playing()
 	await _scenario_qa_restore()
 	await _scenario_qa_pause_after_verdict()
+	for item: Dictionary in _logs:
+		_check_transitions(item.log, item.scenario)
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -75,6 +80,7 @@ func _make(scenario: String, repo: String = "") -> OneShotRun:
 	var model := SessionModel.new()
 	var controller := SessionController.new()
 	controller.setup(model, AgentLog.new(), ProjectSettings.globalize_path("res://").trim_suffix("/"))
+	_logs.append({"scenario": scenario, "log": controller.agent_log})
 	var run := OneShotRun.new()
 	run.setup(controller, repo if not repo.is_empty() else _repo(scenario))
 	run.restart_session = func(_lost_id: String) -> bool: return await controller.start(_profile(scenario))
@@ -596,3 +602,11 @@ func _check(condition: bool, label: String) -> void:
 	_checks += 1
 	if not condition:
 		_failures.append(label)
+
+
+## Un flujo real no deja transiciones fuera de las tablas (D61, m13-18): si el run o su sesión
+## anotaron alguna en el canal `state` del Agent Log, el escenario falla. Se revisa al final sobre
+## el log de cada run, así los escenarios no cambian.
+func _check_transitions(log: AgentLog, scenario: String) -> void:
+	var unexpected: Array = log.entries().filter(func(entry: Dictionary) -> bool: return entry.channel == AgentLog.CH_STATE)
+	_check(unexpected.is_empty(), "%s: sin transiciones fuera de la tabla (%s)" % [scenario, unexpected.map(func(entry: Dictionary) -> String: return str(entry.message))])
