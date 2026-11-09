@@ -350,7 +350,7 @@ func _check_run_tab(prepare: Callable, goal: TextEdit, start: Button) -> void:
 	var no_blocks := func() -> Array: return []
 	_check(not (first_dock.get(&"submit_interceptor") as Callable).call("hola", no_blocks), "pestaña del run: lo que se escribe en la primera no va al run")
 	_check((first_dock.get(&"can_switch_session") as Callable).call(), "pestaña del run: la primera puede cambiar de sesión")
-	_check(bool(run_dock.get(&"_oneshot_active")) and not bool(first_dock.get(&"_oneshot_active")), "pestaña del run: solo su composer está en modo One-shot")
+	_check(bool(run_dock.call(&"_is_oneshot_active")) and not bool(first_dock.call(&"_is_oneshot_active")), "pestaña del run: solo su composer está en modo One-shot")
 	_check(not (run_dock.get(&"can_switch_session") as Callable).call(), "pestaña del run: la del run no cambia de sesión con el run en curso")
 	_check((run_dock.get(&"submit_interceptor") as Callable).call("Sumá power-ups", no_blocks), "pestaña del run: su chat guía al run")
 	await _wait(func() -> bool: return _run.phase == OneShotRun.RunPhase.SPEC_REVIEW and _run.model.entries().filter(func(entry: Object) -> bool: return entry.get(&"kind") == 0).size() == 2)

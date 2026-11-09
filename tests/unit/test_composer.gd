@@ -175,7 +175,9 @@ func test_enter_while_busy_and_insert_text() -> void:
 	var sent: PackedStringArray = []
 	composer.connect(&"submitted", func(text: String) -> void: sent.append(text))
 	var input: CodeEdit = composer.get(&"_input")
-	composer.call(&"set_busy", true)
+	var busy := [true]  # las lambdas capturan por valor: la lista se muta
+	composer.set(&"is_busy", func() -> bool: return busy[0])
+	composer.call(&"refresh_state")
 	assert_true(input.placeholder_text.contains("queue"), "el placeholder avisa que encola")
 	input.grab_focus()
 	input.text = "después"
@@ -186,7 +188,8 @@ func test_enter_while_busy_and_insert_text() -> void:
 	await _press(input, KEY_ENTER, false, false)
 	assert_eq(sent.size(), 1, "con el límite del plan no se entrega")
 	composer.call(&"set_locked", "")
-	composer.call(&"set_busy", false)
+	busy[0] = false
+	composer.call(&"refresh_state")
 	assert_false(input.placeholder_text.contains("queue"), "placeholder normal")
 	input.text = ""
 	composer.call(&"insert_text", "editar esto")
