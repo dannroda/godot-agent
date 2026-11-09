@@ -4,6 +4,8 @@ extends "test_case.gd"
 
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const ADDON_DIR := "res://addons/godot_agent"
+## Los checks del editor comparan con I18n.t() textos del addon (m13-20).
+const DEV_DIR := "res://addons/godot_agent_dev"
 const MARKER := "# i18n"
 
 
@@ -39,6 +41,22 @@ func test_spanish_catalog_is_complete() -> void:
 	assert_eq(missing, PackedStringArray(), "falta la traducción")
 	assert_eq(bad_format, PackedStringArray(), "los %s/%d de la traducción no coinciden")
 	assert_eq(unused, PackedStringArray(), "entradas de es.po que el código ya no usa")
+
+
+## Los checks del dev plugin copian textos del addon con I18n.t("…") (m13-20): cada uno tiene que
+## seguir en es.po, o el check deja de traducirlo y falla recién en Xvfb con la interfaz en español.
+## No cuentan como uso: si el addon deja de usar un texto, también salta como entrada sin usar.
+func test_dev_plugin_texts_are_in_the_catalog() -> void:
+	var catalog := _read_po(I18n.DIR + "es.po")
+	var missing: PackedStringArray = []
+	var checked := 0
+	for path: String in _scripts(DEV_DIR):
+		for msgid: String in msgids_in(FileAccess.get_file_as_string(path)):
+			checked += 1
+			if not catalog.has(msgid) or str(catalog[msgid]).is_empty():
+				missing.append("%s (%s)" % [msgid.c_escape(), path.get_file()])
+	assert_true(checked > 30, "el dev plugin usa textos del addon (%d)" % checked)
+	assert_eq(missing, PackedStringArray(), "textos del dev plugin que no están en es.po")
 
 
 func test_msgids_in() -> void:
