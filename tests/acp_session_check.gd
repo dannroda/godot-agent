@@ -127,6 +127,7 @@ func _scenario_basic() -> void:
 	controller.stop()
 	_check(model.state == SessionModel.SessionState.DISCONNECTED, "basic: DISCONNECTED al detener")
 	_check(pid > 0 and not _pid_alive(pid), "basic: el proceso murió")
+	_check_transitions(controller, "basic")
 
 
 func _scenario_cancel() -> void:
@@ -153,6 +154,7 @@ func _scenario_cancel() -> void:
 	var second: String = await controller.send_prompt("otra vez")
 	_check(second == "end_turn", "cancel: el turno siguiente funciona")
 	controller.stop()
+	_check_transitions(controller, "cancel")
 
 
 ## El agente termina el turno pero nunca responde el prompt ni el cancel (m17-16): Stop no puede
@@ -221,6 +223,7 @@ func _scenario_crash() -> void:
 	var ok: bool = await controller.start(controller.profile())
 	_check(ok and model.state == SessionModel.SessionState.READY, "crash: reintentar")
 	controller.stop()
+	_check_transitions(controller, "crash")
 
 
 func _target_path() -> String:
@@ -603,7 +606,7 @@ func _scenario_login() -> void:
 	var controller := SessionController.new()
 	controller.setup(model, log, ProjectSettings.globalize_path("res://").trim_suffix("/"))
 	var ok: bool = await controller.start(_fake_profile("auth"))
-	_check(not ok and model.state == SessionModel.SessionState.FAILED, "login: sin login la sesión no abre")
+	_check(not ok and model.state == SessionModel.SessionState.LOGIN_REQUIRED, "login: sin login la sesión no abre: LOGIN_REQUIRED")
 	_check(_log_has(log, "\"auth\":{\"terminal\":true}"), "login: initialize declara auth.terminal")
 	var failure: ChatEntry = model.entries().back()
 	var login_actions := failure.actions.filter(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN)
@@ -640,6 +643,7 @@ func _scenario_login() -> void:
 	await _wait_until(func() -> bool: return login_pid > 0 and not _pid_alive(login_pid))
 	_check(login_pid > 0 and not _pid_alive(login_pid), "login: el proceso del login terminó")
 	controller.stop()
+	_check_transitions(controller, "login")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(MARKER))
 
 
@@ -647,6 +651,13 @@ func _check(condition: bool, label: String) -> void:
 	_checks += 1
 	if not condition:
 		_failures.append(label)
+
+
+## Los caminos reales de la sesión están en SessionModel.SESSION_STATE_TRANSITIONS (m13-13): si el
+## controller hizo un cambio fuera de la tabla, quedó en el canal `state` del log.
+func _check_transitions(controller: SessionController, scenario: String) -> void:
+	var unexpected: Array = controller.agent_log.entries().filter(func(entry: Dictionary) -> bool: return entry.channel == AgentLog.CH_STATE)
+	_check(unexpected.is_empty(), "%s: sin transiciones fuera de la tabla (%s)" % [scenario, unexpected.map(func(entry: Dictionary) -> String: return str(entry.message))])
 
 
 func _log_has(log: AgentLog, text: String) -> bool:

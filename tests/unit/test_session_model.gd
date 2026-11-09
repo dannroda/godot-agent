@@ -135,6 +135,8 @@ func test_subagent_history_round_trip() -> void:
 
 func test_cancel_marks_unfinished_tool_calls() -> void:
 	var model := SessionModel.new()
+	model.set_state(SessionModel.SessionState.STARTING)
+	model.set_state(SessionModel.SessionState.READY)
 	model.set_state(SessionModel.SessionState.PROMPTING)
 	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "a", "status": "completed"})
 	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "b", "status": "in_progress"})

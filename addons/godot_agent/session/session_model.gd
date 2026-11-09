@@ -5,6 +5,9 @@ extends RefCounted
 ## No hace IO: el SessionController le aplica lo que llega por ACP.
 
 signal state_changed(state: SessionState)
+## set_state aplicó un cambio que no está en SESSION_STATE_TRANSITIONS (m13-13). El controller lo
+## anota en el Agent Log; sin nadie conectado, se avisa con push_warning.
+signal unexpected_transition(from: SessionState, to: SessionState)
 signal entry_added(entry: ChatEntry)
 signal entry_updated(entry: ChatEntry)
 signal entry_removed(entry: ChatEntry)
@@ -38,6 +41,28 @@ enum SessionState {
 	PROMPTING,  ## turno en curso
 	CANCELLING,  ## session/cancel enviado, esperando el stopReason
 	FAILED,  ## el agente no arrancó o se cayó
+	LOGIN_REQUIRED,  ## la sesión no abrió porque el agente pide iniciar sesión (m12-11): no es un error. Al final para no cambiar los valores.
+}
+
+## Transiciones esperadas entre estados (m13-13). Una que no está acá se aplica igual, pero se
+## anota (`unexpected_transition`): el estado es la fuente de verdad, la tabla documenta los caminos.
+## - DISCONNECTED → STARTING: start(). FAILED y LOGIN_REQUIRED no vuelven a DISCONNECTED con stop():
+##   la tarjeta con la causa y sus acciones se queda a la vista.
+## - STARTING: session/new o session/load terminan en READY, en FAILED (error, el proceso no arrancó
+##   o se cayó) o en LOGIN_REQUIRED (session/new pide autenticarse); stop() lo corta a DISCONNECTED.
+## - READY → PROMPTING (un turno), STARTING (nueva sesión en el mismo proceso), DISCONNECTED (stop)
+##   o FAILED (el proceso se cayó esperando).
+## - PROMPTING → READY (fin del turno), CANCELLING (session/cancel); DISCONNECTED y FAILED como READY.
+## - CANCELLING → READY cuando el agente confirma (o vence el plazo); DISCONNECTED y FAILED como READY.
+## - FAILED / LOGIN_REQUIRED → STARTING: reintentar, o volver a abrir la sesión después del login.
+const SESSION_STATE_TRANSITIONS: Dictionary = {
+	SessionState.DISCONNECTED: [SessionState.STARTING],
+	SessionState.STARTING: [SessionState.READY, SessionState.FAILED, SessionState.LOGIN_REQUIRED, SessionState.DISCONNECTED],
+	SessionState.READY: [SessionState.PROMPTING, SessionState.STARTING, SessionState.DISCONNECTED, SessionState.FAILED],
+	SessionState.PROMPTING: [SessionState.READY, SessionState.CANCELLING, SessionState.DISCONNECTED, SessionState.FAILED],
+	SessionState.CANCELLING: [SessionState.READY, SessionState.DISCONNECTED, SessionState.FAILED],
+	SessionState.FAILED: [SessionState.STARTING],
+	SessionState.LOGIN_REQUIRED: [SessionState.STARTING],
 }
 
 ## Modos del harness (spec §7). Viven del lado del cliente.
@@ -73,8 +98,6 @@ var usage_size: int = 0
 var last_stop_reason: String = ""
 ## Mensaje del último error de conexión (estado FAILED).
 var failure_message: String = ""
-## La sesión no abrió porque el agente pide iniciar sesión (m12-11): el estado no se muestra como error.
-var login_required: bool = false
 ## true mientras se vuelve a armar una conversación del historial: las señales no son eventos nuevos
 ## (nada de sincronizar archivos, checkpoints ni playtests).
 var replaying: bool = false
@@ -125,11 +148,29 @@ func is_busy() -> bool:
 	return state in [SessionState.PROMPTING, SessionState.CANCELLING]
 
 
+## Único lugar que cambia `state`. Un cambio fuera de SESSION_STATE_TRANSITIONS se aplica igual y se
+## anota: no cambia el comportamiento, deja rastro de un camino que la tabla no contempla.
 func set_state(value: SessionState) -> void:
 	if state == value:
 		return
+	var previous := state
+	if not value in SESSION_STATE_TRANSITIONS.get(previous, []):
+		if unexpected_transition.get_connections().is_empty():
+			push_warning("session: unexpected transition %s -> %s" % [state_name(previous), state_name(value)])
+		else:
+			unexpected_transition.emit(previous, value)
 	state = value
 	state_changed.emit(state)
+
+
+## true si la sesión no quedó abierta y el chat muestra por qué (el error, o el pedido de login).
+func has_failed() -> bool:
+	return state in [SessionState.FAILED, SessionState.LOGIN_REQUIRED]
+
+
+## Nombre del estado tal como está en el enum ("READY"), para el log.
+static func state_name(value: SessionState) -> String:
+	return str(SessionState.find_key(value))
 
 
 func set_remote_control(url: String) -> void:

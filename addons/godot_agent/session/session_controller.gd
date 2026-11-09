@@ -221,6 +221,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	model = session_model
 	agent_log = log_sink
 	cwd = working_dir
+	model.unexpected_transition.connect(_on_unexpected_transition)
 	client = AcpClient.new()
 	client.setup(_send_line, agent_log)
 	quota = QuotaMonitor.new()
@@ -278,7 +279,6 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_agent_account = {}  # el proceso nuevo la vuelve a mandar después de initialize
 	model.reset()
 	model.failure_message = ""
-	model.login_required = false
 	_stderr_tail.clear()
 	model.set_state(SessionModel.SessionState.STARTING)
 	agent_log.add(AgentLog.CH_PROC, "Launching %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
@@ -379,8 +379,7 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 			if not login_actions.is_empty():
 				# Pedir el login no es un error (m12-11): tarjeta neutra, sin código ni «Reintentar».
 				agent_log.add(AgentLog.CH_PROC, message)
-				model.login_required = true
-				_fail(I18n.t("Sign in to %s to continue.") % _agent_name(), login_actions, ChatEntry.NoticeLevel.INFO, false)
+				_fail(I18n.t("Sign in to %s to continue.") % _agent_name(), login_actions, ChatEntry.NoticeLevel.INFO, false, SessionModel.SessionState.LOGIN_REQUIRED)
 				return false
 			else:
 				message = I18n.t("Could not open the session: %s. The agent asks for authentication: %s") % [detail, _auth_hint()]
@@ -776,7 +775,7 @@ func stop() -> void:
 	model.cancel_pending_permissions()
 	if history:
 		history.end()
-	if model.state != SessionModel.SessionState.DISCONNECTED and model.state != SessionModel.SessionState.FAILED:
+	if model.state != SessionModel.SessionState.DISCONNECTED and not model.has_failed():
 		model.set_state(SessionModel.SessionState.DISCONNECTED)
 		disconnected.emit()
 
@@ -1185,6 +1184,12 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 	disconnected.emit()
 
 
+## Un cambio de estado fuera de SessionModel.SESSION_STATE_TRANSITIONS (m13-13): se aplicó igual,
+## queda en el log para revisar la tabla o el camino que lo produjo.
+func _on_unexpected_transition(from: SessionModel.SessionState, to: SessionModel.SessionState) -> void:
+	agent_log.add(AgentLog.CH_STATE, "session: unexpected transition %s -> %s" % [SessionModel.state_name(from), SessionModel.state_name(to)])
+
+
 func _on_harness_mode_changed(_mode: SessionModel.HarnessMode) -> void:
 	_system_prompt_sent = false
 	_sync_agent_mode()
@@ -1211,14 +1216,16 @@ func _sync_agent_mode(candidates: Variant = null) -> void:
 			return
 
 
-func _fail(message: String, extra_actions: Array[Dictionary] = [], level := ChatEntry.NoticeLevel.ERROR, with_error_actions := true) -> void:
+## La sesión no quedó abierta: tarjeta con el motivo y `final_state` (FAILED, o LOGIN_REQUIRED cuando
+## lo que falta es iniciar sesión, m12-11).
+func _fail(message: String, extra_actions: Array[Dictionary] = [], level := ChatEntry.NoticeLevel.ERROR, with_error_actions := true, final_state := SessionModel.SessionState.FAILED) -> void:
 	model.failure_message = message
 	agent_log.add(AgentLog.CH_PROC, message)
 	var actions := extra_actions.duplicate()
 	if with_error_actions:
 		actions.append_array(_error_actions())
 	model.add_notice(message, level, actions)
-	model.set_state(SessionModel.SessionState.FAILED)
+	model.set_state(final_state)
 
 
 ## Error al lanzar o mantener el agente (m12-13): título y causa para personas, las últimas líneas

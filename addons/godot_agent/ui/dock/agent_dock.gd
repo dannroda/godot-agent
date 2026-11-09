@@ -211,7 +211,7 @@ func _ready() -> void:
 	_build_header()
 	_recent_box = RecentSessions.new()
 	_recent_box.continue_requested.connect(func(id: String) -> void:
-		if _model.state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]:
+		if _model.state == SessionModel.SessionState.DISCONNECTED or _model.has_failed():
 			open_history_session(id))
 	_empty_state.add_child(_recent_box)
 	_suggested_box = FirstRunGuide.new()
@@ -283,7 +283,7 @@ func _ready() -> void:
 	_model.state_changed.connect(func(state: SessionModel.SessionState) -> void:
 		_refresh_state()
 		_queue_view.set_send_available(state == SessionModel.SessionState.READY)
-		if state in [SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED]:
+		if state == SessionModel.SessionState.DISCONNECTED or _model.has_failed():
 			_queue.pause(I18n.t("the session closed")))
 	_model.turn_finished.connect(_on_turn_finished)
 	# Los subagentes en curso se cuentan en la línea de estado (m7-43).
@@ -712,7 +712,9 @@ func _refresh_state_line(color: Color) -> void:
 		SessionModel.SessionState.CANCELLING:
 			text = "● " + I18n.t("Cancelling…")
 		SessionModel.SessionState.FAILED:
-			text = ("○ " + I18n.t("Sign-in needed")) if _model.login_required else ("✗ " + I18n.t("Error"))
+			text = "✗ " + I18n.t("Error")
+		SessionModel.SessionState.LOGIN_REQUIRED:
+			text = "○ " + I18n.t("Sign-in needed")
 	if _waiting_for_user() and not text.is_empty():
 		text = "● " + I18n.t("Waiting for you")
 		color = _accent
@@ -764,11 +766,10 @@ func _refresh_state() -> void:
 			text = I18n.t("● %s · cancelling…") % name
 			color = AgentTheme.WARNING
 		SessionModel.SessionState.FAILED:
-			if _model.login_required:
-				text = I18n.t("○ %s · sign-in needed") % name
-			else:
-				text = I18n.t("✗ %s · error") % name
-				color = AgentTheme.ERROR
+			text = I18n.t("✗ %s · error") % name
+			color = AgentTheme.ERROR
+		SessionModel.SessionState.LOGIN_REQUIRED:
+			text = I18n.t("○ %s · sign-in needed") % name
 	var email := str(_model.account.get("email", ""))
 	if not email.is_empty() and _model.state != SessionModel.SessionState.DISCONNECTED:
 		text += " · " + email
@@ -798,7 +799,7 @@ func _refresh_empty_state() -> void:
 	var only_notices := entries.all(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.NOTICE)
 	# Sin sesión y con solo avisos (p. ej. el del One-shot a medias al reabrir el editor), el botón
 	# para arrancar sigue a la vista debajo de los avisos.
-	var idle := _model.state == SessionModel.SessionState.DISCONNECTED or (entries.is_empty() and _model.state == SessionModel.SessionState.FAILED)
+	var idle := _model.state == SessionModel.SessionState.DISCONNECTED or (entries.is_empty() and _model.has_failed())
 	_empty_state.visible = idle and only_notices
 	_conversation.visible = not entries.is_empty()
 	var profile := selected_profile()
@@ -1025,7 +1026,7 @@ func _on_submitted(text: String) -> void:
 			_send(text)
 		SessionModel.SessionState.STARTING:
 			_pending_prompt = text
-		SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED:
+		SessionModel.SessionState.DISCONNECTED, SessionModel.SessionState.FAILED, SessionModel.SessionState.LOGIN_REQUIRED:
 			_pending_prompt = text
 			start_session()
 
