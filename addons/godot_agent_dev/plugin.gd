@@ -1081,8 +1081,8 @@ func _run_login_test(shot_path: String) -> void:
 		_finish(1, "el aviso no ofrece iniciar sesión")
 		return
 	login_button.pressed.emit()
-	var code_button := await _wait_button(dock, "Paste code…")
-	if code_button == null or _find_button(dock, "Open link") == null:
+	var code_button := await _wait_button(dock, I18n.t("Paste code…"))
+	if code_button == null or _find_button(dock, I18n.t("Open link")) == null:
 		_finish(1, "no apareció el enlace del login")
 		return
 	await get_tree().create_timer(0.3).timeout
@@ -1155,7 +1155,7 @@ func _run_queue_test(shot_path: String) -> void:
 	await get_tree().create_timer(1.0).timeout
 	if not bool(queue.get(&"paused")) or user_messages.call().size() != 1:
 		failures.append("el cancel no pausó la cola: pausada %s, mensajes %s" % [queue.get(&"paused"), user_messages.call()])
-	var send_now := await _wait_button(dock, "Send now")
+	var send_now := await _wait_button(dock, I18n.t("Send now"))
 	if send_now == null or send_now.disabled:
 		failures.append("no se ofrece «Enviar ahora»")
 	else:
