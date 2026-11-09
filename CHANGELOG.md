@@ -6,8 +6,9 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
-- The Agent Log has a `state` channel. When the game launched by `godot.run_scene` or a One-shot run changes state in a way the harness doesn't expect (for example, a One-shot going from preparing straight to paused), the change still happens and a line in this channel names both states.
+- The Agent Log has a `state` channel. When the agent's session, the game launched by `godot.run_scene` or a One-shot run changes state in a way the harness doesn't expect (for example, a One-shot going from preparing straight to paused), the change still happens and a line in this channel names both states.
 - When `godot.run_scene` is called while another run is in progress, the error says how long that run has been going and what the game is doing (launching, running, stopped in the debugger, ended).
+- If the agent's process ends while it waits for you to sign in, the dock shows the error with **Retry** instead of staying on «Sign-in needed».
 
 ## [0.1.17] - 2026-11-03
 
