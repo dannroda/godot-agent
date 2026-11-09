@@ -1732,7 +1732,7 @@ func stage() -> RunStage:
 ## Un cambio que no está en la tabla: se anota (Agent Log, o un warning sin sesión) y se aplica igual.
 func _note_unexpected_transition(kind: String, from: String, to: String) -> void:
 	unexpected_transitions += 1
-	last_unexpected_transition = "oneshot: unexpected %s transition %s -> %s" % [kind, from, to]
+	last_unexpected_transition = "oneshot %s: unexpected transition %s -> %s" % [kind, from, to]
 	if controller != null and controller.agent_log != null:
 		controller.agent_log.add(AgentLog.CH_STATE, last_unexpected_transition)
 	else:

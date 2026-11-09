@@ -40,7 +40,7 @@ func test_unexpected_phase_transition_is_noted_and_applied() -> void:
 	run._set_phase(OneShotRun.RunPhase.EVALUATING)
 	assert_eq(run.phase, OneShotRun.RunPhase.EVALUATING, "se aplica igual")
 	assert_eq(run.unexpected_transitions, 1, "y se anota")
-	assert_eq(run.last_unexpected_transition, "oneshot: unexpected phase transition IDLE -> EVALUATING")
+	assert_eq(run.last_unexpected_transition, "oneshot phase: unexpected transition IDLE -> EVALUATING")
 	run._set_phase(OneShotRun.RunPhase.EVALUATING)
 	assert_eq(run.unexpected_transitions, 1, "la misma fase no es un cambio")
 	run.free()

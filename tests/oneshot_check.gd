@@ -18,6 +18,8 @@ const WATCHDOG_S := 120.0
 
 var _failures: PackedStringArray = []
 var _checks: int = 0
+## El Agent Log de cada run: al final no puede quedar ninguna transición inesperada (canal state, D61).
+var _logs: Array[AgentLog] = []
 
 
 func _initialize() -> void:
@@ -42,6 +44,9 @@ func _initialize() -> void:
 	await _scenario_qa_without_playing()
 	await _scenario_qa_restore()
 	await _scenario_qa_pause_after_verdict()
+	for log: AgentLog in _logs:
+		var unexpected: Array = log.entries().filter(func(entry: Dictionary) -> bool: return entry.channel == AgentLog.CH_STATE).map(func(entry: Dictionary) -> String: return str(entry.message))
+		_check(unexpected.is_empty(), "state: sin transiciones inesperadas %s" % [unexpected])
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -74,7 +79,9 @@ func _repo(name: String) -> String:
 func _make(scenario: String, repo: String = "") -> OneShotRun:
 	var model := SessionModel.new()
 	var controller := SessionController.new()
-	controller.setup(model, AgentLog.new(), ProjectSettings.globalize_path("res://").trim_suffix("/"))
+	var log := AgentLog.new()
+	_logs.append(log)
+	controller.setup(model, log, ProjectSettings.globalize_path("res://").trim_suffix("/"))
 	var run := OneShotRun.new()
 	run.setup(controller, repo if not repo.is_empty() else _repo(scenario))
 	run.restart_session = func(_lost_id: String) -> bool: return await controller.start(_profile(scenario))
