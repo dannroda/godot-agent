@@ -599,7 +599,8 @@ func guide(text: String, blocks: Array = []) -> void:
 		_queue_guidance(text, blocks)
 		resume()
 		return
-	if _turn_running or phase in [RunPhase.PREPARING, RunPhase.CLOSING, RunPhase.LIMITED]:
+	# Evaluando, el que construye no tiene sesión abierta: la guía espera a la vuelta de corrección.
+	if _turn_running or phase in [RunPhase.PREPARING, RunPhase.CLOSING, RunPhase.LIMITED, RunPhase.EVALUATING]:
 		_queue_guidance(text, blocks)
 		changed.emit()
 		return
@@ -734,9 +735,11 @@ func edit_plan(lines: PackedStringArray) -> void:
 func restore(checkpoint_entry: Dictionary) -> String:
 	if not checkpoints_enabled:
 		return I18n.t("Checkpoints are turned off.")
-	# Volver a un checkpoint en medio de una vuelta de QA la abandona: «Retomar» sigue construyendo.
+	# Volver a un checkpoint en medio de una vuelta de QA la abandona (m13-15): no cuenta como
+	# vuelta, y el próximo turno vuelve a la sesión del que construye (_run_turn).
 	if phase == RunPhase.EVALUATING:
 		_set_stage(RunStage.BUILDING)
+		qa_round = qa_results.size()
 	if _turn_running:
 		resume_task = str(checkpoint_entry.get("label", ""))
 		_set_phase(RunPhase.PAUSED)
@@ -783,6 +786,28 @@ func _run_turn(text: String, blocks: Array = []) -> void:
 		_push_guidance(text, blocks)
 		return
 	_turn_running = true
+	# Un turno del que construye con la sesión del evaluador abierta (la vuelta de QA se abandonó con
+	# «Volver acá», o se guía con la evaluación en pausa): primero se vuelve a su sesión (m13-15).
+	if not _generator_session_id.is_empty():
+		_end_qa_role()
+		var phase_before := phase
+		var is_resume := text == _resume_prompt()
+		var back := await _back_to_generator()
+		if not is_instance_valid(self) or not is_inside_tree():
+			return
+		if back == "new":
+			text = _summary_prompt() if is_resume else _summary_prompt() + "\n\n" + text
+		# Se pausó o se detuvo mientras volvía: el turno no sale. Lo que no es el prompt de retomar
+		# (una guía, la corrección) queda en la cola para el próximo turno.
+		if phase != phase_before:
+			_turn_running = false
+			if is_active() and (not is_resume or back == "new"):
+				_push_guidance(text, blocks)
+			return
+		if back == "failed":
+			_turn_running = false
+			_finish(I18n.t("Couldn't reopen the session with the agent."))
+			return
 	report.count("turns")
 	var turn_started := _elapsed_ms()
 	_turn_tools = 0
@@ -908,6 +933,8 @@ func _close() -> void:
 
 func _finish(reason: String) -> void:
 	_end_qa_role()
+	if _stage == RunStage.EVALUATION:  # terminado no queda una vuelta para retomar
+		_set_stage(RunStage.BUILDING)
 	finish_reason = reason
 	_timer.stop()
 	_recovered_session_id = ""
@@ -1231,6 +1258,8 @@ func _evaluate() -> void:
 		_finish(I18n.t("Couldn't open a session with the agent."))
 		return
 	_recovered_session_id = ""
+	if not is_inside_tree() or phase != RunPhase.EVALUATING:  # se pausó mientras abría la sesión
+		return
 	if _generator_session_id.is_empty():
 		_generator_session_id = model.session_id
 	controller.policy.restrictions = QA_RESTRICTIONS.duplicate()
@@ -1364,20 +1393,33 @@ func _after_qa(reason: String, text: String, audit: Dictionary) -> void:
 		for finding: Dictionary in parsed.findings.slice(0, QA_ACTIVITY_FINDINGS):
 			_add_activity("qa", "%s · %s%s" % [finding.severity, finding.title, " (%s:%d)" % [finding.path.get_file(), finding.line] if int(finding.line) > 0 else " (%s)" % finding.path.get_file()])
 	changed.emit()
-	var back := await _back_to_generator()
-	if not is_inside_tree() or phase != RunPhase.EVALUATING:
-		return
+	# Con el veredicto guardado la vuelta terminó: una pausa de acá en adelante no la repite (m13-16).
+	_set_stage(RunStage.BUILDING)
+	var finish_text := ""
 	if not conclusive:
-		_finish(I18n.t("%s The evaluator couldn't reach a verdict (see %s).") % [_done_reason, qa_results.back().file])
+		finish_text = I18n.t("%s The evaluator couldn't reach a verdict (see %s).") % [_done_reason, qa_results.back().file]
 	elif passed:
-		_finish(I18n.t("QA round %d: the game passes.") % qa_round)
-	elif qa_round >= qa_max_rounds or not _budget_left() or back == "failed":
-		_finish(I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file])
-	else:
-		_set_stage(RunStage.BUILDING)
-		_set_phase(RunPhase.RUNNING)
-		var fix := _fix_prompt(failing_checks, verdict, parsed)
-		_run_turn(_summary_prompt() + "\n\n" + fix if back == "new" else fix)
+		finish_text = I18n.t("QA round %d: the game passes.") % qa_round
+	elif qa_round >= qa_max_rounds or not _budget_left():
+		finish_text = I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file]
+	var back := await _back_to_generator()
+	if not is_inside_tree() or not is_active():
+		return
+	if finish_text.is_empty() and back == "failed" and phase == RunPhase.EVALUATING:
+		finish_text = I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file]
+	if not finish_text.is_empty():  # el veredicto cierra el run, aunque se haya pausado mientras volvía
+		_finish(finish_text)
+		return
+	var fix := _fix_prompt(failing_checks, verdict, parsed)
+	if back == "new":
+		fix = _summary_prompt() + "\n\n" + fix
+	if phase != RunPhase.EVALUATING:  # se pausó mientras volvía: la corrección sale al retomar
+		_guidance.push_front(fix)
+		_guidance_blocks.push_front([])
+		_add_activity("qa", I18n.t("QA round %d: the fixes are sent to the builder when the run resumes") % qa_round)
+		return
+	_set_phase(RunPhase.RUNNING)
+	_run_turn(fix)
 
 
 ## Lo que el harness vio en el turno del evaluador, para el informe (m16-04).
@@ -1575,6 +1617,7 @@ func _apply(data: Dictionary) -> void:
 	_idle_continues = 0
 	_suspended = false
 	recovered = true
+	_phase_since_ms = 0  # el tiempo antes de la carga no es espera de la fase cargada
 	# Un run que esperaba la cuota sigue esperándola: retoma solo cuando se reinicia la ventana.
 	quota_resume_at = int(data.get("quota_resume_at", 0))
 	var waiting_quota := str(data.get("phase_id", "")) in ["LIMITED", "PAUSED_QUOTA"]

@@ -40,6 +40,8 @@ func _initialize() -> void:
 	await _scenario_spec()
 	await _scenario_qa()
 	await _scenario_qa_without_playing()
+	await _scenario_qa_restore()
+	await _scenario_qa_pause_after_verdict()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("oneshot_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -487,6 +489,87 @@ func _scenario_qa_without_playing() -> void:
 	_check(run.activity.any(func(item: Dictionary) -> bool: return str(item.get("text", "")).contains("without playing")), "sin jugar: queda en la actividad")
 	_check(run.files.read(run.files.qa_path(1)).contains("never played"), "sin jugar: el informe lo dice")
 	_check(run.checks.all(func(check: Dictionary) -> bool: return not check.get("verified", false)), "sin jugar: sus checks no quedan verificados")
+	run.controller.stop()
+	run.queue_free()
+
+
+## m13-15: «Volver acá» con el evaluador jugando abandona la vuelta de QA. El evaluador deja sus
+## permisos, la vuelta no cuenta, y «Retomar» vuelve a la sesión del que construye (acá, sin
+## session/load, una nueva con el resumen) en lugar de seguir en la del evaluador.
+func _scenario_qa_restore() -> void:
+	print("— evaluador y volver acá")
+	var run := _make("oneshot_qa")
+	run.qa_max_rounds = 2
+	var starts: Array[int] = [0]
+	var lost_ids: Array[String] = []
+	run.restart_session = func(lost_id: String) -> bool:
+		starts[0] += 1
+		lost_ids.append(lost_id)
+		if starts[0] == 2:  # el usuario pausa mientras se vuelve al que construye
+			run.pause()
+		return await run.controller.start(_profile("oneshot_qa" if starts[0] == 1 else "oneshot_qa_fix"))
+	var sent: Array[String] = []
+	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER:
+			sent.append(entry.text))
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.EVALUATING and sent.size() == 2 and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.RunPhase.EVALUATING and run.qa_round == 1, "qa volver: evaluando la vuelta 1 (%s)" % run.phase_label())
+	var builder_id: String = run.get(&"_generator_session_id")
+	var evaluator_id := run.model.session_id
+	_check(not builder_id.is_empty() and builder_id != evaluator_id, "qa volver: el evaluador tiene su propia sesión")
+	var error: String = await run.restore(run.git.checkpoints[0])
+	_check(error.is_empty(), "qa volver: restaura el checkpoint (%s)" % error)
+	_check(run.phase == OneShotRun.RunPhase.PAUSED and run.stage() == OneShotRun.RunStage.BUILDING, "qa volver: en pausa, construyendo (%s)" % run.phase_label())
+	_check(run.qa_round == 0 and run.qa_results.is_empty(), "qa volver: la vuelta abandonada no cuenta (%d)" % run.qa_round)
+	_check(run.controller.policy.restrictions.is_empty() and run.controller.mode_rules_override.is_empty(), "qa volver: el evaluador deja sus permisos")
+	_check(run.to_dict().session_id == builder_id, "qa volver: se guarda la sesión del que construye")
+	run.resume()
+	await _wait(func() -> bool: return starts[0] == 2 and run.controller.is_connected_to_agent(), 10.0)
+	await create_timer(0.3).timeout
+	_check(starts[0] == 2 and lost_ids.back() == builder_id, "qa volver: «Retomar» reabre la sesión del que construye (%s)" % [lost_ids])
+	_check(run.model.session_id != evaluator_id, "qa volver: el turno no va a la sesión del evaluador")
+	# Pausado mientras volvía (revisión de a3): el turno no sale y el resumen espera en la cola.
+	_check(run.phase == OneShotRun.RunPhase.PAUSED and sent.size() == 2, "qa volver: pausado mientras volvía, no manda el turno (%d)" % sent.size())
+	run.resume()
+	await _wait(func() -> bool: return sent.size() >= 4, 10.0)
+	_check(sent.slice(2).any(func(text: String) -> bool: return text.begins_with("We're resuming a One-shot")), "qa volver: sin session/load, el que construye recibe el resumen %s" % [sent.slice(2).map(func(text: String) -> String: return text.left(40))])
+	_check(run.unexpected_transitions == 0, "qa volver: sin transiciones inesperadas (%s)" % run.last_unexpected_transition)
+	run.stop()
+	run.controller.stop()
+	run.queue_free()
+
+
+## m13-16: con el veredicto de la vuelta 1 ya guardado, el usuario pausa mientras el run vuelve a
+## la sesión del que construye. «Retomar» no repite la vuelta 1: la corrección le llega al que
+## construye y la siguiente evaluación es la vuelta 2.
+func _scenario_qa_pause_after_verdict() -> void:
+	print("— evaluador y pausa después del veredicto")
+	var run := _make("oneshot_qa")
+	run.qa_max_rounds = 2
+	var starts: Array[int] = [0]
+	run.restart_session = func(_lost_id: String) -> bool:
+		starts[0] += 1
+		if starts[0] == 2:  # volviendo al que construye después del veredicto
+			run.pause()
+		return await run.controller.start(_profile("oneshot_qa" if starts[0] == 1 else "oneshot_qa_fix"))
+	var sent: Array[String] = []
+	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER:
+			sent.append(entry.text))
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, false)
+	await _wait(func() -> bool: return starts[0] == 2 and run.phase == OneShotRun.RunPhase.PAUSED and run.controller.is_connected_to_agent(), 15.0)
+	await create_timer(0.3).timeout  # que termine _after_qa
+	_check(run.phase == OneShotRun.RunPhase.PAUSED and run.stage() == OneShotRun.RunStage.BUILDING, "qa pausa: en pausa, construyendo (%s)" % run.phase_label())
+	_check(run.qa_round == 1 and run.qa_results.size() == 1 and not run.qa_results[0].passed, "qa pausa: la vuelta 1 quedó con su veredicto (%s)" % [run.qa_results])
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).contains("when the run resumes")), "qa pausa: la actividad dice que la corrección espera")
+	run.resume()
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.last_report.is_empty(), 20.0)
+	var qa_prompts := sent.filter(func(text: String) -> bool: return text.begins_with(OneShotRun.QA_MARKER))
+	_check(qa_prompts.size() == 2 and str(qa_prompts[1]).contains("round 2 of at most 2"), "qa pausa: no repite la vuelta 1 (%s)" % [qa_prompts.map(func(text: String) -> String: return text.left(50))])
+	_check(sent.any(func(text: String) -> bool: return text.contains("QA round 1: an independent evaluator") and text.contains("El puntaje no sube")), "qa pausa: la corrección le llega al que construye")
+	_check(run.finish_reason == "QA round 2: the game passes.", "qa pausa: termina con la vuelta 2 (%s)" % run.finish_reason)
+	_check(run.unexpected_transitions == 0, "qa pausa: sin transiciones inesperadas (%s)" % run.last_unexpected_transition)
 	run.controller.stop()
 	run.queue_free()
 
