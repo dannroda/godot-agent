@@ -4,6 +4,7 @@ extends SceneTree
 ## turnos cortos): la apagada desaparece y los comandos que trae Claude Code siguen. Uso:
 ##   godot --headless --path <repo> --script tests/skills_session_check.gd [-- <skill de usuario o proyecto a apagar>]
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
@@ -15,6 +16,7 @@ const TIMEOUT_S := 180.0
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	await process_frame
 	create_timer(TIMEOUT_S).timeout.connect(func() -> void:
 		printerr("FAIL skills_session_check: timeout")

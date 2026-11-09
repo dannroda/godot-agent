@@ -4,6 +4,7 @@ extends SceneTree
 ## Escenarios: prompt con streaming, cancelación limpia, caída del agente, permisos, cuota, historial
 ## y login (ACP auth de tipo terminal).
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
@@ -27,6 +28,7 @@ var _checks: int = 0
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	await process_frame
 	create_timer(WATCHDOG_S).timeout.connect(func() -> void:
 		printerr("FAIL acp_session_check: watchdog (%d s)" % WATCHDOG_S)

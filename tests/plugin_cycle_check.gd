@@ -5,6 +5,7 @@ extends SceneTree
 ## Uso: godot --headless --path <repo> --script tests/plugin_cycle_check.gd
 ## El editor que se lanza es el mismo binario que corre este script.
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const PASS_MARK := "[cycle-test] PASS"
 ## Ruido conocido del motor al cerrar un editor headless; no lo produce el addon.
@@ -14,6 +15,7 @@ const KNOWN_ENGINE_NOISE: PackedStringArray = [
 
 
 func _init() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	var project_dir := ProjectSettings.globalize_path("res://")
 	var output: Array = []
 	var args: PackedStringArray = ["--headless", "--editor", "--path", project_dir, "--", CYCLE_ARG]

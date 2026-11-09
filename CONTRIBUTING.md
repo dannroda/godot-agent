@@ -31,7 +31,7 @@ $G --headless --path . --script tests/oneshot_check.gd       # One-shot loop
 tests/run_in_xvfb.sh $G --godot-agent-cycle-test             # editor in Xvfb: enable/disable 5 times without leaks
 ```
 
-The editor checks need `xvfb-run`. The dev plugin has more flags (`--godot-agent-ui-test=`, `--godot-agent-settings-shots=`…), listed at the top of `addons/godot_agent_dev/plugin.gd`. Most of them use the fake agent (`tests/fake_agent.gd` and the scenarios in `tests/scripts/`), so they don't need an account.
+The suites and the editor checks keep their temporary files (fake repos, checkpoints, history) in a `user://` folder of their own per checkout and Godot version (`…/app_userdata/<project>/checkouts/<hash>-<version>/`, see `tests/test_user_dir.gd`), so two checkouts or worktrees can run tests at the same time. The editor checks need `xvfb-run`. The dev plugin has more flags (`--godot-agent-ui-test=`, `--godot-agent-settings-shots=`…), listed at the top of `addons/godot_agent_dev/plugin.gd`. Most of them use the fake agent (`tests/fake_agent.gd` and the scenarios in `tests/scripts/`), so they don't need an account.
 
 To try the addon in a game project, link or copy `addons/godot_agent/` into it. To try One-shot, use a sandbox (`tests/make_sandbox.sh <folder outside the repo>`), never this repository: checkpoints create branches and going back resets the project folder.
 

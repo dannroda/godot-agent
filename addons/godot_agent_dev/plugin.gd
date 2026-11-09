@@ -135,6 +135,8 @@ const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
 const RemoteCheck := preload("remote_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+## user:// propio de cada checkout para los checks (m13-17); vive en tests/, que no viaja con el addon.
+const TEST_USER_DIR_SCRIPT := "res://tests/test_user_dir.gd"
 const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
 const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
@@ -149,6 +151,12 @@ const OBJECT_GROWTH_TOLERANCE := 50
 
 func _enter_tree() -> void:
 	var args := OS.get_cmdline_user_args()
+	# Un check en el editor usa el user:// propio del checkout, como los tests headless (m13-17);
+	# el editor abierto a mano no cambia.
+	for arg: String in args:
+		if arg.begins_with("--godot-agent-") and FileAccess.file_exists(TEST_USER_DIR_SCRIPT):
+			load(TEST_USER_DIR_SCRIPT).call(&"apply")
+			break
 	# tests/tmp no está en git: en un clon o worktree nuevo no existe y los checks no podían escribir.
 	if not args.is_empty():
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/tmp"))

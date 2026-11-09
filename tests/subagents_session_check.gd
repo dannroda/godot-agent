@@ -5,6 +5,7 @@ extends SceneTree
 ## nativos de ACP): sus tool calls dentro de la tarjeta y su estado hasta que termina. Uso:
 ##   godot --headless --path <repo> --script tests/subagents_session_check.gd
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
@@ -18,6 +19,7 @@ const PROMPT := "In a single message, launch two general-purpose subagents in pa
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	await process_frame
 	create_timer(TIMEOUT_S).timeout.connect(func() -> void:
 		printerr("FAIL subagents_session_check: timeout")

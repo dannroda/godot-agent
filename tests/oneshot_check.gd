@@ -4,6 +4,7 @@ extends SceneTree
 ## "Guiar al agente" y el evaluador con su vuelta de corrección (D55).
 ## Uso: godot --headless --path <repo> --script tests/oneshot_check.gd
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
@@ -20,6 +21,7 @@ var _checks: int = 0
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	await process_frame
 	create_timer(WATCHDOG_S).timeout.connect(func() -> void:
 		printerr("FAIL oneshot_check: watchdog (%d s)" % WATCHDOG_S)

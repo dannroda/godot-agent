@@ -3,6 +3,7 @@ extends SceneTree
 ## manda "hola" y muestra la respuesta. Uso:
 ##   godot --headless --path <repo> --script tests/claude_smoke_check.gd [-- "<prompt>"]
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
@@ -13,6 +14,7 @@ const TIMEOUT_S := 180.0
 
 
 func _initialize() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	await process_frame
 	create_timer(TIMEOUT_S).timeout.connect(func() -> void:
 		printerr("FAIL claude_smoke_check: timeout")

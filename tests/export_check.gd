@@ -9,6 +9,7 @@ extends SceneTree
 ## - ninguna clase del addon en global_script_class_cache.cfg.
 ## Advierte (no falla) si uid_cache.bin conserva rutas del addon (4.4, docs/decisions.md D8).
 
+const TestUserDir := preload("res://tests/test_user_dir.gd")
 const ADDON_SRC := "res://addons/godot_agent"
 const WORK_DIR := "user://export_check"
 const PRESET := "ExportCheck"
@@ -31,6 +32,7 @@ const SCENARIOS: Array[Dictionary] = [
 
 
 func _init() -> void:
+	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	var failures: int = 0
 	for scenario: Dictionary in SCENARIOS:
 		if not _run_scenario(scenario):
