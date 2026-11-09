@@ -116,6 +116,8 @@ func _run(shot_path: String) -> void:
 	await _tree.create_timer(0.3).timeout
 	# Con la franja, la tarjeta y el aviso a la vista, el dock entra en su panel (m7-23).
 	failures.append_array(LayoutCheck.dock_fits(_dock))
+	# Y un mensaje corto del usuario entra en una línea (m13-21; queda en la captura).
+	failures.append_array(await LayoutCheck.user_bubble_fits(_dock))
 	if not shot_path.is_empty():
 		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
 	_press(banner, I18n.t("Turn off"))

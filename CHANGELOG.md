@@ -10,6 +10,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - When `godot.run_scene` is called while another run is in progress, the error says how long that run has been going and what the game is doing (launching, running, stopped in the debugger, ended).
 - If the agent's process ends while it waits for you to sign in, the dock shows the error with **Retry** instead of staying on «Sign-in needed».
 
+### Fixed
+
+- A short message of yours no longer shows broken into one or two letters per line in the dock (for example «h / ol / a»).
+
 ## [0.1.17] - 2026-11-03
 
 ### Added
