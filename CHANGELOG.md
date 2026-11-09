@@ -6,7 +6,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
-- `godot.run_scene` tracks the game it launched as one state (launching, started, running, stopped in the debugger, ended). When a run is already in progress, the error says how long it has been going and what the game is doing. A transition the harness doesn't expect shows in the new `state` channel of the Agent Log.
+- The Agent Log has a `state` channel. When the game launched by `godot.run_scene` or a One-shot run changes state in a way the harness doesn't expect (for example, a One-shot going from preparing straight to paused), the change still happens and a line in this channel names both states.
+- When `godot.run_scene` is called while another run is in progress, the error says how long that run has been going and what the game is doing (launching, running, stopped in the debugger, ended).
 
 ## [0.1.17] - 2026-11-03
 

@@ -38,8 +38,41 @@ const GameCriteria := preload("game_criteria.gd")
 const OneShotFiles := preload("oneshot_files.gd")
 const PermissionPolicy := preload("../session/permission_policy.gd")
 const I18n := preload("../core/i18n.gd")
+const AgentLog := preload("../core/agent_log.gd")
 
 enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW, EVALUATING }
+
+## Cambios de fase esperados (m13-12). Todo cambio pasa por _set_phase: uno que no está acá se
+## anota en el Agent Log y se aplica igual (la tabla documenta y avisa, no bloquea).
+## IDLE/FINISHED → PAUSED/PAUSED_QUOTA es la carga de un run guardado (_apply); → PAUSED desde
+## cualquier fase activa incluye «Volver acá» (restore).
+const PHASE_TRANSITIONS: Dictionary = {
+	RunPhase.IDLE: [RunPhase.PREPARING, RunPhase.PAUSED, RunPhase.PAUSED_QUOTA],
+	RunPhase.PREPARING: [RunPhase.RUNNING, RunPhase.FINISHED],
+	RunPhase.RUNNING: [RunPhase.PAUSED, RunPhase.PAUSED_QUOTA, RunPhase.LIMITED, RunPhase.CLOSING, RunPhase.SPEC_REVIEW, RunPhase.EVALUATING, RunPhase.FINISHED],
+	RunPhase.PAUSED: [RunPhase.RUNNING, RunPhase.FINISHED],
+	RunPhase.PAUSED_QUOTA: [RunPhase.RUNNING, RunPhase.WAITING_CONFIRM, RunPhase.PAUSED, RunPhase.FINISHED],
+	RunPhase.LIMITED: [RunPhase.RUNNING, RunPhase.WAITING_CONFIRM, RunPhase.PAUSED, RunPhase.FINISHED],
+	RunPhase.WAITING_CONFIRM: [RunPhase.RUNNING, RunPhase.PAUSED, RunPhase.FINISHED],
+	RunPhase.CLOSING: [RunPhase.FINISHED, RunPhase.RUNNING, RunPhase.PAUSED],
+	RunPhase.FINISHED: [RunPhase.PREPARING, RunPhase.PAUSED, RunPhase.PAUSED_QUOTA],
+	RunPhase.SPEC_REVIEW: [RunPhase.RUNNING, RunPhase.PAUSED, RunPhase.FINISHED],
+	RunPhase.EVALUATING: [RunPhase.RUNNING, RunPhase.PAUSED, RunPhase.LIMITED, RunPhase.FINISHED],
+}
+
+## En qué parte del trabajo está el run, aparte de la fase (que dice si corre, espera o terminó).
+## SPEC_APPROVAL: falta que el usuario apruebe el spec (el próximo fin de turno pasa a SPEC_REVIEW).
+## BUILDING: el agente construye. EVALUATION: una vuelta de QA en curso o cortada; si la fase no es
+## EVALUATING, «Retomar» la vuelve a empezar en la misma vuelta. Se guarda con el run.
+enum RunStage { SPEC_APPROVAL, BUILDING, EVALUATION }
+
+## Cambios de etapa esperados (por _set_stage, como las fases). Un run nuevo o cargado de disco
+## arranca de cero y no se compara con la etapa del anterior.
+const STAGE_TRANSITIONS: Dictionary = {
+	RunStage.SPEC_APPROVAL: [RunStage.BUILDING],
+	RunStage.BUILDING: [RunStage.EVALUATION],
+	RunStage.EVALUATION: [RunStage.BUILDING],
+}
 
 const PHASE_LABELS: Dictionary = {
 	RunPhase.IDLE: "Not started",  # i18n
@@ -157,7 +190,11 @@ var qa_round: int = 0
 ## Resultado de cada vuelta: {round, passed, weighted, failing_checks, failing_criteria, findings, file}.
 var qa_results: Array[Dictionary] = []
 
+## Solo cambia por _set_phase.
 var phase: RunPhase = RunPhase.IDLE
+## Cambios de fase o de etapa que no estaban en las tablas (diagnóstico): cuántos y el último.
+var unexpected_transitions: int = 0
+var last_unexpected_transition: String = ""
 var goal: String = ""
 ## Archivos de referencia del usuario (un GDD, arte de referencia…), con la ruta que lee el agente.
 var references: PackedStringArray = []
@@ -184,6 +221,9 @@ var run_id: String = ""
 var recovered: bool = false
 
 var _started_msec: int = 0
+## Hay un turno del run en vuelo (de _run_turn o _run_qa_turn). No sale del estado de la sesión
+## (PROMPTING): send_prompt espera la cuota, el snapshot y el modo antes de pasar a PROMPTING, y
+## el turno sigue abierto acá hasta que vuelve el await; en ese hueco, otro _run_turn entraría.
 var _turn_running: bool = false
 var _guidance: Array[String] = []
 ## Los textos de _guidance que escribió el usuario (los demás los pone el harness, p. ej. el aviso
@@ -223,14 +263,12 @@ var _capture_dirty: bool = false
 var _last_save_msec: int = 0
 ## El editor se está cerrando: el run quedó guardado tal como estaba y no se vuelve a escribir.
 var _suspended: bool = false
-## Falta que el usuario apruebe el spec: el próximo fin de turno pasa a SPEC_REVIEW.
-var _awaiting_spec: bool = false
+## Etapa del trabajo (spec, construcción o QA); solo cambia por _set_stage.
+var _stage: RunStage = RunStage.BUILDING
 ## Se subió el presupuesto mientras se cortaba el turno por agotarlo: al cortarse, sigue.
 var _continue_after_cancel: bool = false
 ## Sesión del agente que construye mientras evalúa el evaluador: se vuelve a ella después.
 var _generator_session_id: String = ""
-## La evaluación se cortó (pausa, cuota, error): «Retomar» la vuelve a empezar, en la misma vuelta.
-var _resume_qa: bool = false
 ## Por qué terminaba el agente cuando se pidió la evaluación (si el evaluador no llega a decidir).
 var _done_reason: String = ""
 
@@ -337,7 +375,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	run_id = OneShotStore.new_id()
 	files.run_id = run_id
 	spec_review = review_spec
-	_awaiting_spec = review_spec
+	_set_stage(RunStage.SPEC_APPROVAL if review_spec else RunStage.BUILDING, true)
 	recovered = false
 	_recovered_session_id = ""
 	_suspended = false
@@ -365,7 +403,6 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	qa_round = 0
 	qa_results.clear()
 	_generator_session_id = ""
-	_resume_qa = false
 	_done_reason = ""
 	finish_reason = ""
 	resume_task = ""
@@ -450,8 +487,6 @@ func _reference_lines() -> PackedStringArray:
 func pause() -> void:
 	if phase != RunPhase.RUNNING and phase != RunPhase.EVALUATING:
 		return
-	if phase == RunPhase.EVALUATING:
-		_resume_qa = true
 	resume_task = _task_name(_current_task)
 	_set_phase(RunPhase.PAUSED)
 	_add_activity("status", I18n.t("Paused by the user"))
@@ -472,7 +507,7 @@ func resume() -> void:
 	_set_phase(RunPhase.RUNNING)
 	if was_limited:
 		quota.note_retry()
-	if _resume_qa:
+	if _stage == RunStage.EVALUATION:  # la vuelta de QA se cortó: se vuelve a empezar
 		_evaluate()
 		return
 	# Un run cargado de disco retoma su propia sesión, aunque el dock tenga otra abierta.
@@ -613,7 +648,7 @@ static func _guidance_label(text: String, blocks: Array) -> String:
 ## El prompt de un mensaje del usuario. Con el spec sin aprobar, el pedido es un cambio al spec: el
 ## agente lo aplica y vuelve a esperar la aprobación en vez de ponerse a construir (m17-15).
 func _user_prompt(text: String) -> String:
-	if not _awaiting_spec:
+	if _stage != RunStage.SPEC_APPROVAL:
 		return text
 	var spec := files.relative_dir().path_join(OneShotFiles.SPEC)
 	return ("The user hasn't approved the spec yet and asks for this: %s\n\n" % text) + \
@@ -679,7 +714,7 @@ func approve_spec(text: String = "") -> void:
 	var edited := not text.strip_edges().is_empty() and text != files.read(files.spec_path())
 	if edited:
 		files.write(files.spec_path(), text)
-	_awaiting_spec = false
+	_set_stage(RunStage.BUILDING)
 	_add_activity("spec", I18n.t("Spec approved with the user's changes") if edited else I18n.t("Spec approved"))
 	_set_phase(RunPhase.RUNNING)
 	_run_turn("The spec is approved%s. Continue with the rest: make the plan from the spec and build." % (" with changes: reread it before making the plan" if edited else ""))
@@ -699,6 +734,9 @@ func edit_plan(lines: PackedStringArray) -> void:
 func restore(checkpoint_entry: Dictionary) -> String:
 	if not checkpoints_enabled:
 		return I18n.t("Checkpoints are turned off.")
+	# Volver a un checkpoint en medio de una vuelta de QA la abandona: «Retomar» sigue construyendo.
+	if phase == RunPhase.EVALUATING:
+		_set_stage(RunStage.BUILDING)
 	if _turn_running:
 		resume_task = str(checkpoint_entry.get("label", ""))
 		_set_phase(RunPhase.PAUSED)
@@ -818,7 +856,7 @@ func _after_turn(reason: String) -> void:
 			_continue_after_cancel = false
 			_run_turn(_resume_prompt())
 		return
-	if _awaiting_spec:
+	if _stage == RunStage.SPEC_APPROVAL:
 		_enter_spec_review()
 		return
 	if current_plan().is_empty():
@@ -1182,9 +1220,9 @@ func _done(reason: String) -> void:
 ## Una vuelta de QA: sesión nueva del agente (sin el contexto del que construye), con permisos de
 ## solo lectura más correr el juego, y el prompt escéptico con la rúbrica.
 func _evaluate() -> void:
-	if not _resume_qa:
+	if _stage != RunStage.EVALUATION:  # una vuelta cortada se repite con el mismo número
 		qa_round += 1
-	_resume_qa = false
+	_set_stage(RunStage.EVALUATION)
 	_idle_continues = 0
 	pause_note = ""
 	_set_phase(RunPhase.EVALUATING)
@@ -1283,7 +1321,6 @@ func _after_qa(reason: String, text: String, audit: Dictionary) -> void:
 		return
 	if reason != "end_turn":
 		_end_qa_role()
-		_resume_qa = true
 		if quota.is_limited():
 			await _enter_limited()
 			return
@@ -1337,6 +1374,7 @@ func _after_qa(reason: String, text: String, audit: Dictionary) -> void:
 	elif qa_round >= qa_max_rounds or not _budget_left() or back == "failed":
 		_finish(I18n.t("QA round %d: the game doesn't pass yet (see %s).") % [qa_round, qa_results.back().file])
 	else:
+		_set_stage(RunStage.BUILDING)
 		_set_phase(RunPhase.RUNNING)
 		var fix := _fix_prompt(failing_checks, verdict, parsed)
 		_run_turn(_summary_prompt() + "\n\n" + fix if back == "new" else fix)
@@ -1485,10 +1523,9 @@ func to_dict() -> Dictionary:
 		"warned": _warned,
 		"pause_note": pause_note,
 		"spec_review": spec_review,
-		"awaiting_spec": _awaiting_spec,
+		"stage": RunStage.keys()[_stage],
 		"qa_round": qa_round,
 		"qa_results": qa_results,
-		"resume_qa": _resume_qa or phase == RunPhase.EVALUATING,
 		"report": report.to_dict(),
 		"session_id": _saved_session_id(),
 		"elapsed_ms": _elapsed_ms(),
@@ -1524,28 +1561,25 @@ func _apply(data: Dictionary) -> void:
 	pause_note = str(data.get("pause_note", ""))
 	files.run_id = run_id
 	spec_review = bool(data.get("spec_review", false))
-	_awaiting_spec = bool(data.get("awaiting_spec", false))
+	_set_stage(_saved_stage(data), true)
 	qa_round = int(data.get("qa_round", 0))
 	qa_results.assign(data.get("qa_results", []))
-	_resume_qa = bool(data.get("resume_qa", false))
 	_generator_session_id = ""
 	report.apply(data.get("report", {}) if data.get("report") is Dictionary else {})
 	last_report = {}
 	_recovered_session_id = str(data.get("session_id", ""))
 	_started_msec = Time.get_ticks_msec() - int(data.get("elapsed_ms", 0))
-	_phase_since_ms = Time.get_ticks_msec()
 	last_capture = store.load_capture(run_id)
 	last_capture_caption = str(data.get("capture_caption", ""))
 	finish_reason = ""
 	_idle_continues = 0
 	_suspended = false
 	recovered = true
-	phase = RunPhase.PAUSED
 	# Un run que esperaba la cuota sigue esperándola: retoma solo cuando se reinicia la ventana.
 	quota_resume_at = int(data.get("quota_resume_at", 0))
 	var waiting_quota := str(data.get("phase_id", "")) in ["LIMITED", "PAUSED_QUOTA"]
 	if waiting_quota and quota_resume_at > int(Time.get_unix_time_from_system()):
-		phase = RunPhase.PAUSED_QUOTA
+		_set_phase(RunPhase.PAUSED_QUOTA)
 		var at := Time.get_time_string_from_unix_time(quota_resume_at + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5)
 		if resume_task.is_empty():
 			_add_activity("session", I18n.t("The editor closed while the One-shot was waiting for quota: it resumes on its own at %s (“Resume” or “Switch account” to skip the wait).") % at)
@@ -1553,6 +1587,7 @@ func _apply(data: Dictionary) -> void:
 			_add_activity("session", I18n.t("The editor closed while the One-shot was waiting for quota: it resumes on its own at %s and continues from “%s” (“Resume” or “Switch account” to skip the wait).") % [at, resume_task])
 	else:
 		quota_resume_at = 0
+		_set_phase(RunPhase.PAUSED)
 		if resume_task.is_empty():
 			_add_activity("session", I18n.t("The editor closed while the One-shot was running. “Resume” reopens the agent's session."))
 		else:
@@ -1561,6 +1596,19 @@ func _apply(data: Dictionary) -> void:
 	restored.emit()
 	changed.emit()
 	_save()
+
+
+## La etapa de un run guardado. Los guardados de antes de m13-12 no tienen `stage`: sale de
+## `awaiting_spec` y `resume_qa`.
+static func _saved_stage(data: Dictionary) -> RunStage:
+	var saved := str(data.get("stage", ""))
+	if RunStage.has(saved):
+		return RunStage[saved]
+	if bool(data.get("resume_qa", false)):
+		return RunStage.EVALUATION
+	if bool(data.get("awaiting_spec", false)):
+		return RunStage.SPEC_APPROVAL
+	return RunStage.BUILDING
 
 
 func _save() -> void:
@@ -1600,9 +1648,12 @@ func _git(operation: Callable) -> Variant:
 	return result
 
 
+## El único lugar donde cambia `phase`: guarda el run, avisa a la UI y mide las esperas.
 func _set_phase(value: RunPhase) -> void:
 	if phase == value:
 		return
+	if not phase_transition_expected(phase, value):
+		_note_unexpected_transition("phase", RunPhase.keys()[phase], RunPhase.keys()[value])
 	var wait_kind: String = WAIT_KINDS.get(phase, "")
 	if not wait_kind.is_empty() and _phase_since_ms > 0:
 		report.add_wait(wait_kind, Time.get_ticks_msec() - _phase_since_ms)
@@ -1610,6 +1661,39 @@ func _set_phase(value: RunPhase) -> void:
 	phase = value
 	changed.emit()
 	_save()
+
+
+static func phase_transition_expected(from: RunPhase, to: RunPhase) -> bool:
+	return to in (PHASE_TRANSITIONS.get(from, []) as Array)
+
+
+## El único lugar donde cambia `_stage`. `new_run`: empieza o se carga un run, la etapa del
+## anterior no cuenta.
+func _set_stage(value: RunStage, new_run: bool = false) -> void:
+	if _stage == value:
+		return
+	if not new_run and not stage_transition_expected(_stage, value):
+		_note_unexpected_transition("stage", RunStage.keys()[_stage], RunStage.keys()[value])
+	_stage = value
+	_dirty = true
+
+
+static func stage_transition_expected(from: RunStage, to: RunStage) -> bool:
+	return to in (STAGE_TRANSITIONS.get(from, []) as Array)
+
+
+func stage() -> RunStage:
+	return _stage
+
+
+## Un cambio que no está en la tabla: se anota (Agent Log, o un warning sin sesión) y se aplica igual.
+func _note_unexpected_transition(kind: String, from: String, to: String) -> void:
+	unexpected_transitions += 1
+	last_unexpected_transition = "oneshot: unexpected %s transition %s -> %s" % [kind, from, to]
+	if controller != null and controller.agent_log != null:
+		controller.agent_log.add(AgentLog.CH_STATE, last_unexpected_transition)
+	else:
+		push_warning(last_unexpected_transition)
 
 
 func _add_activity(kind: String, text: String) -> void:
