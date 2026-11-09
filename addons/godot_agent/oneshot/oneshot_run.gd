@@ -46,7 +46,7 @@ enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING
 ## anota en el Agent Log y se aplica igual (la tabla documenta y avisa, no bloquea).
 ## IDLE/FINISHED → PAUSED/PAUSED_QUOTA es la carga de un run guardado (_apply); → PAUSED desde
 ## cualquier fase activa incluye «Volver acá» (restore).
-const PHASE_TRANSITIONS: Dictionary = {
+const RUN_PHASE_TRANSITIONS: Dictionary = {
 	RunPhase.IDLE: [RunPhase.PREPARING, RunPhase.PAUSED, RunPhase.PAUSED_QUOTA],
 	RunPhase.PREPARING: [RunPhase.RUNNING, RunPhase.FINISHED],
 	RunPhase.RUNNING: [RunPhase.PAUSED, RunPhase.PAUSED_QUOTA, RunPhase.LIMITED, RunPhase.CLOSING, RunPhase.SPEC_REVIEW, RunPhase.EVALUATING, RunPhase.FINISHED],
@@ -68,7 +68,7 @@ enum RunStage { SPEC_APPROVAL, BUILDING, EVALUATION }
 
 ## Cambios de etapa esperados (por _set_stage, como las fases). Un run nuevo o cargado de disco
 ## arranca de cero y no se compara con la etapa del anterior.
-const STAGE_TRANSITIONS: Dictionary = {
+const RUN_STAGE_TRANSITIONS: Dictionary = {
 	RunStage.SPEC_APPROVAL: [RunStage.BUILDING],
 	RunStage.BUILDING: [RunStage.EVALUATION],
 	RunStage.EVALUATION: [RunStage.BUILDING],
@@ -1707,7 +1707,7 @@ func _set_phase(value: RunPhase) -> void:
 
 
 static func phase_transition_expected(from: RunPhase, to: RunPhase) -> bool:
-	return to in (PHASE_TRANSITIONS.get(from, []) as Array)
+	return to in (RUN_PHASE_TRANSITIONS.get(from, []) as Array)
 
 
 ## El único lugar donde cambia `_stage`. `new_run`: empieza o se carga un run, la etapa del
@@ -1722,7 +1722,7 @@ func _set_stage(value: RunStage, new_run: bool = false) -> void:
 
 
 static func stage_transition_expected(from: RunStage, to: RunStage) -> bool:
-	return to in (STAGE_TRANSITIONS.get(from, []) as Array)
+	return to in (RUN_STAGE_TRANSITIONS.get(from, []) as Array)
 
 
 func stage() -> RunStage:

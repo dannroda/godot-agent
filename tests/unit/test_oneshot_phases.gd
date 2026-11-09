@@ -10,20 +10,20 @@ const SOURCE := "res://addons/godot_agent/oneshot/oneshot_run.gd"
 func test_phase_table_covers_every_phase() -> void:
 	var phases: Array = OneShotRun.RunPhase.values()
 	for from: int in phases:
-		assert_true(OneShotRun.PHASE_TRANSITIONS.has(from), "%s tiene fila en la tabla" % OneShotRun.RunPhase.keys()[from])
-		for to: Variant in OneShotRun.PHASE_TRANSITIONS.get(from, []):
+		assert_true(OneShotRun.RUN_PHASE_TRANSITIONS.has(from), "%s tiene fila en la tabla" % OneShotRun.RunPhase.keys()[from])
+		for to: Variant in OneShotRun.RUN_PHASE_TRANSITIONS.get(from, []):
 			assert_true(int(to) in phases and int(to) != from, "%s → %s es una fase distinta" % [OneShotRun.RunPhase.keys()[from], to])
-	assert_eq(_reachable(OneShotRun.PHASE_TRANSITIONS, OneShotRun.RunPhase.IDLE).size(), phases.size(), "desde IDLE se llega a todas las fases")
+	assert_eq(_reachable(OneShotRun.RUN_PHASE_TRANSITIONS, OneShotRun.RunPhase.IDLE).size(), phases.size(), "desde IDLE se llega a todas las fases")
 	for from: int in phases:
 		if from != OneShotRun.RunPhase.IDLE:
-			assert_true(OneShotRun.RunPhase.FINISHED in _reachable(OneShotRun.PHASE_TRANSITIONS, from), "desde %s se puede terminar" % OneShotRun.RunPhase.keys()[from])
+			assert_true(OneShotRun.RunPhase.FINISHED in _reachable(OneShotRun.RUN_PHASE_TRANSITIONS, from), "desde %s se puede terminar" % OneShotRun.RunPhase.keys()[from])
 
 
 func test_walks_every_phase_transition() -> void:
 	var run := OneShotRun.new()
 	var walked := 0
-	for from: int in OneShotRun.PHASE_TRANSITIONS:
-		for to: int in OneShotRun.PHASE_TRANSITIONS[from]:
+	for from: int in OneShotRun.RUN_PHASE_TRANSITIONS:
+		for to: int in OneShotRun.RUN_PHASE_TRANSITIONS[from]:
 			run.phase = from as OneShotRun.RunPhase
 			run._set_phase(to as OneShotRun.RunPhase)
 			assert_eq(run.phase, to, "%s → %s" % [OneShotRun.RunPhase.keys()[from], OneShotRun.RunPhase.keys()[to]])
@@ -49,8 +49,8 @@ func test_unexpected_phase_transition_is_noted_and_applied() -> void:
 func test_walks_every_stage_transition() -> void:
 	var run := OneShotRun.new()
 	for from: int in OneShotRun.RunStage.values():
-		assert_true(OneShotRun.STAGE_TRANSITIONS.has(from), "%s tiene fila en la tabla" % OneShotRun.RunStage.keys()[from])
-		for to: int in OneShotRun.STAGE_TRANSITIONS.get(from, []):
+		assert_true(OneShotRun.RUN_STAGE_TRANSITIONS.has(from), "%s tiene fila en la tabla" % OneShotRun.RunStage.keys()[from])
+		for to: int in OneShotRun.RUN_STAGE_TRANSITIONS.get(from, []):
 			run._set_stage(from as OneShotRun.RunStage, true)
 			run._set_stage(to as OneShotRun.RunStage)
 			assert_eq(run.stage(), to, "%s → %s" % [OneShotRun.RunStage.keys()[from], OneShotRun.RunStage.keys()[to]])
