@@ -7,14 +7,19 @@
 # project.godot vuelve a quedar como estaba al salir (m13-19): el editor lo reescribe al arrancar
 # (saca de `enabled` los plugins que el checkout no tiene, pone config/features de su versión) y
 # los checks que guardan los ajustes lo dejan en disco. Se restaura también si el check falla o lo
-# corta el timeout.
+# corta el timeout. XRUN_KEEP_PROJECT=1 lo deja como lo dejó el editor: para quien necesita mirar
+# el archivo después (tests/crash_check.sh busca el autoload de playtest que quedó al morir).
 set -e
 G="$1"; shift
 ROOT="${XRUN_PROJECT:-$(cd "$(dirname "$0")/.." && pwd)}"
 PROJECT="$ROOT/project.godot"
-BACKUP="$(mktemp "${TMPDIR:-/tmp}/run_in_xvfb.project.XXXXXX")"
-cp "$PROJECT" "$BACKUP"
+BACKUP=""
+if [ "${XRUN_KEEP_PROJECT:-0}" != 1 ]; then
+	BACKUP="$(mktemp "${TMPDIR:-/tmp}/run_in_xvfb.project.XXXXXX")"
+	cp "$PROJECT" "$BACKUP"
+fi
 restore_project() {
+	[ -n "$BACKUP" ] || return 0
 	if ! cmp -s "$PROJECT" "$BACKUP"; then
 		cp "$BACKUP" "$PROJECT"
 		echo "run_in_xvfb: project.godot restaurado (el editor lo había reescrito)" >&2
