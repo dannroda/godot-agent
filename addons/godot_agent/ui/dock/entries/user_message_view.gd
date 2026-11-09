@@ -41,7 +41,9 @@ func refresh() -> void:
 	_fit_width()
 
 
-## La burbuja se ajusta al texto hasta el 85% del ancho del dock.
+## La burbuja se ajusta al texto hasta el 85% del ancho del dock. Al ancho del texto se suman los
+## márgenes del estilo `normal` del Label (en el tema del editor, 6 px por lado): sin ellos, el
+## texto tenía menos lugar que su ancho y se partía letra por letra (m13-21).
 func _fit_width() -> void:
 	if _label == null or size.x <= 0.0:
 		return
@@ -50,8 +52,10 @@ func _fit_width() -> void:
 	var widest := 0.0
 	for line: String in (entry.text + "\n" + _attachments.text).split("\n"):
 		widest = maxf(widest, font.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
+	var style := _label.get_theme_stylebox(&"normal")
+	var margins := style.get_minimum_size().x if style else 0.0
 	var max_width := size.x * MAX_WIDTH_RATIO - AgentTheme.px(16)
-	_label.custom_minimum_size.x = minf(widest + 2.0, max_width)
+	_label.custom_minimum_size.x = minf(ceilf(widest) + margins + 2.0, max_width)
 
 
 static func _attachment_name(block: Dictionary) -> String:

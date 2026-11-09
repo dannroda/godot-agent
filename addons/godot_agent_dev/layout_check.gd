@@ -53,6 +53,32 @@ static func composer_fits(dock: Control) -> PackedStringArray:
 	return failures
 
 
+## Un mensaje corto del usuario se lee en una línea (m13-21): el globo no colapsa al ancho de una o
+## dos letras («h / ol / a»). Agrega «hola» al chat del dock, mide el globo y lo deja en el chat.
+static func user_bubble_fits(dock: Control) -> PackedStringArray:
+	var failures: PackedStringArray = []
+	var tree := dock.get_tree()
+	var model: Object = dock.get(&"_model")
+	var conversation: Object = dock.get(&"_conversation")
+	var entry: Object = model.call(&"add_user_message", "hola")
+	for i in 6:
+		await tree.process_frame
+	var view: Control = (conversation.get(&"_views") as Dictionary).get(entry.get(&"id"))
+	var label: Label = view.get(&"_label") if view else null
+	if label == null or not label.is_visible_in_tree():
+		failures.append("no se ve el globo de «hola»")
+		return failures
+	var font := label.get_theme_font(&"font")
+	var text_width := font.get_string_size("hola", HORIZONTAL_ALIGNMENT_LEFT, -1, label.get_theme_font_size(&"font_size")).x
+	# El estilo `normal` del Label en el tema del editor tiene márgenes: el texto tiene menos lugar
+	# que el ancho del Label.
+	var style := label.get_theme_stylebox(&"normal")
+	var room := label.size.x - (style.get_minimum_size().x if style else 0.0)
+	if label.get_line_count() != 1 or room + 0.5 < text_width:
+		failures.append("el globo de «hola» se parte en %d líneas (lugar para el texto %d px, el texto pide %d, vista %d)" % [label.get_line_count(), room, text_width, view.size.x])
+	return failures
+
+
 static func _label(button: BaseButton) -> String:
 	if button is Button and not (button as Button).text.is_empty():
 		return (button as Button).text
