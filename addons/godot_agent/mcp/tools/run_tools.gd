@@ -38,7 +38,7 @@ const GAME_RUN_STATE_NAMES: Dictionary = {
 ## Transiciones esperadas. Una que no está se avisa en el Agent Log y se aplica igual.
 ## LAUNCHING vale desde cualquier estado (un run_scene nuevo reemplaza al anterior) y STARTED desde
 ## IDLE o STOPPED (un run manual).
-const GAME_RUN_TRANSITIONS: Dictionary = {
+const GAME_RUN_STATE_TRANSITIONS: Dictionary = {
 	GameRunState.IDLE: [GameRunState.LAUNCHING, GameRunState.STARTED],
 	GameRunState.LAUNCHING: [GameRunState.STARTED, GameRunState.STOPPED],
 	GameRunState.STARTED: [GameRunState.LAUNCHING, GameRunState.PROBE_READY, GameRunState.BREAKED, GameRunState.STOPPED],
@@ -104,7 +104,7 @@ var harness_requested: bool = false
 ## Quita el autoload si el juego no llegó a arrancar (lo inyecta el plugin).
 var cleanup: Callable
 
-## Dónde avisar de una transición del juego que no está en GAME_RUN_TRANSITIONS (la pone el plugin).
+## Dónde avisar de una transición del juego que no está en GAME_RUN_STATE_TRANSITIONS (la pone el plugin).
 var agent_log: AgentLog
 
 ## El juego visto por el debugger desde el último run_scene (m13-11). Lo cambia solo
@@ -157,7 +157,7 @@ func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> vo
 func _set_run_state(value: GameRunState) -> void:
 	if value == run_state and value != GameRunState.LAUNCHING:
 		return
-	if value != run_state and not value in GAME_RUN_TRANSITIONS.get(run_state, []):
+	if value != run_state and not value in GAME_RUN_STATE_TRANSITIONS.get(run_state, []):
 		var message := "game run: unexpected transition %s -> %s" % [GameRunState.keys()[run_state], GameRunState.keys()[value]]
 		if agent_log:
 			agent_log.add(AgentLog.CH_STATE, message)

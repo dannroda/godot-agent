@@ -101,12 +101,12 @@ func test_pick_frames() -> void:
 func test_game_run_transitions() -> void:
 	var states: Array = RunTools.GameRunState.values()
 	for state: int in states:
-		assert_true(RunTools.GAME_RUN_TRANSITIONS.has(state), "%s tiene transiciones" % RunTools.GameRunState.keys()[state])
+		assert_true(RunTools.GAME_RUN_STATE_TRANSITIONS.has(state), "%s tiene transiciones" % RunTools.GameRunState.keys()[state])
 		assert_true(RunTools.GAME_RUN_STATE_NAMES.has(state), "%s tiene nombre para el agente" % RunTools.GameRunState.keys()[state])
-		for target: int in RunTools.GAME_RUN_TRANSITIONS[state]:
+		for target: int in RunTools.GAME_RUN_STATE_TRANSITIONS[state]:
 			assert_true(target in states and target != state, "destino válido desde %s" % RunTools.GameRunState.keys()[state])
 		if state != RunTools.GameRunState.IDLE:
-			assert_true(RunTools.GameRunState.LAUNCHING in RunTools.GAME_RUN_TRANSITIONS[state] or state == RunTools.GameRunState.LAUNCHING, "un run_scene nuevo arranca desde %s" % RunTools.GameRunState.keys()[state])
+			assert_true(RunTools.GameRunState.LAUNCHING in RunTools.GAME_RUN_STATE_TRANSITIONS[state] or state == RunTools.GameRunState.LAUNCHING, "un run_scene nuevo arranca desde %s" % RunTools.GameRunState.keys()[state])
 	var source := FileAccess.get_file_as_string("res://addons/godot_agent/mcp/tools/run_tools.gd")
 	var writes := RegEx.create_from_string("\\brun_state\\s*=[^=]").search_all(source)
 	assert_eq(writes.size(), 1, "run_state se asigna en un solo lugar (_set_run_state)")
