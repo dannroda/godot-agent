@@ -12,6 +12,7 @@ signal error_found(info: Dictionary)
 
 const ErrorCollector := preload("error_collector.gd")
 const I18n := preload("../core/i18n.gd")
+const UntrustedText := preload("../mcp/untrusted_text.gd")
 ## Líneas de error que van al aviso y al prompt; el Agent Log tiene todas.
 const MAX_LINES := 12
 const ERROR_KINDS: PackedStringArray = ["error", "script", "shader"]
@@ -97,17 +98,18 @@ static func notice_details(info: Dictionary) -> String:
 	return "\n".join(parts)
 
 
-## El prompt para el agente (en inglés): qué pasó y qué hacer, con el motivo y los errores.
+## El prompt para el agente (en inglés): qué pasó y qué hacer, con el motivo y los errores. Los
+## mensajes los escribió el juego: van en sobres con nonce, como en los resultados de tools (m11-45).
 static func prompt(info: Dictionary) -> String:
 	var what := "stopped in the debugger with an error" if info.breaked else "ended with errors"
 	var parts: PackedStringArray = ["The user ran the game from the editor by hand (not with godot.run_scene) and it %s. Find the cause and fix it; then run the scene with godot.run_scene to check that it works." % what]
 	if not str(info.reason).is_empty():
-		parts.append("Debugger: " + str(info.reason))
+		parts.append("Debugger: " + UntrustedText.wrap(str(info.reason)))
 	var lines: PackedStringArray = info.lines
 	if not lines.is_empty():
 		parts.append("Errors since the game started (%d%s):" % [int(info.count), ", the last %d" % lines.size() if int(info.count) > lines.size() else ""])
-		parts.append_array(lines)
-	return "\n".join(parts)
+		parts.append(UntrustedText.wrap("\n".join(lines)))
+	return UntrustedText.seal("\n".join(parts), UntrustedText.new_nonce())
 
 
 ## «#3 [game/error] res://a.gd:12 — mensaje» → «mensaje (res://a.gd:12)».

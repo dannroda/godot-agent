@@ -42,20 +42,20 @@ func tools() -> Array:
 		return "%s %s" % ["enable" if args.get("enabled", true) else "disable", McpTool.str_arg(args, "plugin")]
 	return [
 		# Leen la Asset Store por internet (m11-47: openWorldHint).
-		McpTool.with_hints(McpTool.create("asset_search", read,
+		McpTool.enveloped(McpTool.with_hints(McpTool.create("asset_search", read,
 			"Searches the Godot Asset Store (store.godotengine.org) for assets compatible with this Godot version: addons, tools, shaders, art packs… Use it to suggest a plugin before writing one from scratch. Returns ids (publisher/slug) for asset_details and asset_install.",
 			{
 				"query": {"type": "string", "description": "Words to search; empty lists the most relevant"},
 				"page": {"type": "integer", "description": "From 1; 24 per page"},
 				"sort": {"type": "string", "enum": Array(AssetStore.SORTS)},
-			}, [], _search), ONLINE),
-		McpTool.with_hints(McpTool.create("asset_details", read,
+			}, [], _search), ONLINE), McpTool.ENVELOPE_ALL),
+		McpTool.enveloped(McpTool.with_hints(McpTool.create("asset_details", read,
 			"The Asset Store page of an asset: description, license, tags, source repository and the releases that work with this Godot version.",
-			{"asset": {"type": "string", "description": "publisher/slug"}}, ["asset"], _details), ONLINE),
+			{"asset": {"type": "string", "description": "publisher/slug"}}, ["asset"], _details), ONLINE), McpTool.ENVELOPE_ALL),
 		install,
-		McpTool.with_hints(McpTool.create("addons_list", read,
+		McpTool.enveloped(McpTool.with_hints(McpTool.create("addons_list", read,
 			"Lists the editor plugins in the project's addons/ folder with their version and whether they're enabled. With check_updates, also asks the Asset Store for newer releases (for plugins installed by hand it matches the asset by name, so check it with asset_details before updating).",
-			{"check_updates": {"type": "boolean"}}, [], _addons_list), ONLINE),
+			{"check_updates": {"type": "boolean"}}, [], _addons_list), ONLINE), McpTool.ENVELOPE_ALL),
 		enable,
 	]
 

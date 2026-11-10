@@ -17,9 +17,9 @@ const PROPERTIES_HELP := "`properties` uses the Inspector names; vectors as [x, 
 func tools() -> Array:
 	var files := PermissionPolicy.GROUP_EDIT_FILES
 	return [
-		McpTool.create("get_resource", PermissionPolicy.GROUP_READ,
+		McpTool.enveloped(McpTool.create("get_resource", PermissionPolicy.GROUP_READ,
 			"Reads a resource file (.tres/.res): type, script, uid and every saved property that differs from the default, with its sub-resources.",
-			{"path": {"type": "string"}}, ["path"], _get_resource),
+			{"path": {"type": "string"}}, ["path"], _get_resource), McpTool.ENVELOPE_ALL),
 		McpTool.create("create_resource", files,
 			"Creates and saves a resource file (.tres): a Godot Resource class (StyleBoxFlat, LabelSettings, Curve, Gradient…) or a project class_name that extends Resource, with its properties. Never write a .tres by hand: the harness rejects it. Assign it to a node with set_properties using its res:// path. " + PROPERTIES_HELP,
 			{"path": {"type": "string"}, "type": {"type": "string"}, "properties": {"type": "object"}},

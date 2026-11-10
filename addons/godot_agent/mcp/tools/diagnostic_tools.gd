@@ -6,6 +6,7 @@ extends RefCounted
 ## se lleva al juego con install_extension (m19-05), que la deja preparada para el próximo reinicio.
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
 const AgentProcess := preload("../../transport/agent_process.gd")
 const EditorContext := preload("../../ui/editor_context.gd")
@@ -43,10 +44,10 @@ func setup(collector: ErrorCollector, project_dir: String) -> void:
 func tools() -> Array:
 	var diagnostics := PermissionPolicy.GROUP_DIAGNOSTICS
 	return [
-		McpTool.create("get_errors", diagnostics,
+		McpTool.enveloped(McpTool.create("get_errors", diagnostics,
 			"Errors and warnings from the editor (scripts, Output) and from the game (Debugger) since a mark. Returns the current mark: pass it as `since` next time to see only what is new.",
 			{"since": {"type": "integer", "description": "Mark returned by a previous call (default 0: everything stored)"}},
-			[], _get_errors),
+			[], _get_errors), McpTool.ENVELOPE_PARTS),
 		McpTool.create("validate_scripts", diagnostics,
 			"Parses GDScript scripts in a separate process and compiles C# with dotnet build, and returns the errors by file and line. Without `paths`, all the project's .gd files (and its C#, if it has a .csproj).",
 			{"paths": {"type": "array", "items": {"type": "string"}, "description": "res://…gd or res://…cs paths"}},
@@ -308,7 +309,7 @@ func _get_errors(args: Dictionary) -> String:
 		header += " (showing the last %d)" % shown.size()
 	if entries.is_empty():
 		return header + "\nNo new errors or warnings."
-	return header + "\n" + "\n".join(lines)
+	return header + "\n" + UntrustedText.wrap("\n".join(lines))
 
 
 func _validate_scripts(args: Dictionary) -> Dictionary:

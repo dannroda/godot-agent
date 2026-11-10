@@ -187,7 +187,7 @@ func test_new_errors_in_each_response() -> void:
 	entries.append({"seq": 2, "kind": "warning", "message": "unused", "file": "", "line": 0, "source": "editor"})
 	var second: Dictionary = await registry.call_tool("echo", {"text": "b"})
 	var notice: String = second.content.back().text
-	assert_true(notice.contains("1 error, 1 warning") and notice.contains("res://player.gd:12 — Parse Error"), "avisa el error con archivo y línea · " + notice)
+	assert_true(notice.contains("1 error, 1 warning") and notice.contains("res://player.gd:12 — <untrusted nonce=\"") and notice.contains(">Parse Error: Expected end of statement</untrusted"), "avisa el error con archivo y línea, el mensaje en un sobre (m11-45) · " + notice)
 	assert_eq((await registry.call_tool("echo", {"text": "c"})).content.size(), 1, "una sola vez")
 	entries.append({"seq": 3, "kind": "error", "message": "x", "file": "", "line": 0, "source": "game"})
 	assert_eq((await registry.call_tool("echo", {"text": "d"}, "s2")).content.size(), 1, "otra sesión arranca su marca en su primera llamada")

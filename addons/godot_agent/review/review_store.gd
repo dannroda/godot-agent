@@ -13,6 +13,7 @@ const ToolCall := preload("../session/tool_call.gd")
 const PlaytestMemory := preload("playtest_memory.gd")
 const PlaytestRegressions := preload("playtest_regressions.gd")
 const I18n := preload("../core/i18n.gd")
+const UntrustedText := preload("../mcp/untrusted_text.gd")
 
 const SEVERITY_LABELS: Dictionary = {
 	"bug": "bug",  # i18n
@@ -246,7 +247,9 @@ static func playtest_audit(calls: Array, record_asked: bool) -> Dictionary:
 		if tool_name in ["capture_game_frame", "game_frames"]:
 			audit.captured = true
 		var output := _call_text(call)
-		for line: String in output.split("\n"):
+		# Lo de los sobres lo dijo el juego (m11-45): no puede imitar una línea de detector ni de video.
+		var harness_text := UntrustedText.strip(output)
+		for line: String in harness_text.split("\n"):
 			var finding := finding_of_line(line)
 			if not finding.is_empty():
 				detectors[finding.signature] = finding
@@ -258,15 +261,15 @@ static func playtest_audit(calls: Array, record_asked: bool) -> Dictionary:
 			changes.append(_direct_change_text(tool_name, call))
 		if tool_name == "run_scene":
 			# El resultado es el texto de run_tools._finish_recording: no hay otro dato de la grabación.
-			var found := RegEx.create_from_string("Recording: (\\S+)").search(output)
+			var found := RegEx.create_from_string("Recording: (\\S+)").search(harness_text)
 			if found:
 				audit.video = found.get_string(1)
 			if call.godot_arguments() is Dictionary and call.godot_arguments().get("scene") is String:
 				audit.scene = call.godot_arguments().scene
-			var film := RegEx.create_from_string("Filming: (\\S+)").search(output)
+			var film := RegEx.create_from_string("Filming: (\\S+)").search(harness_text)
 			if film:
 				audit.film = film.get_string(1)
-			recording_lost = recording_lost or output.contains("The recording was not written")
+			recording_lost = recording_lost or harness_text.contains("The recording was not written")
 	audit.changes = changes
 	audit.detectors = detectors.values()
 	audit.scripts = scripts
