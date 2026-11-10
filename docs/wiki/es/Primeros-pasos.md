@@ -29,7 +29,7 @@ Otros agentes (Codex, Google Antigravity, el tuyo) se configuran en **Settings �
 
 ## 3. El dock
 
-- **Header**, una fila: el chip del agente (un clic elige el agente; el punto toma el color del estado), el título de la sesión, **Historial**, **+** (sesión nueva, o una pestaña nueva al lado de esta) y **⋯** (Extensiones, Settings, Remote Control y cerrar sesión cuando el agente los ofrece). La fila de pestañas aparece cuando hay dos sesiones.
+- **Header**, una fila: el chip del agente (un clic elige el agente; el punto toma el color del estado, y su tooltip dice qué está haciendo cada parte y desde hace cuánto: la sesión, el juego que lanzó el agente y, durante un One-shot, su fase), el título de la sesión, **Historial**, **+** (sesión nueva, o una pestaña nueva al lado de esta) y **⋯** (Extensiones, Settings, Remote Control y cerrar sesión cuando el agente los ofrece). La fila de pestañas aparece cuando hay dos sesiones.
 - **Modos**: Preguntar · Revisar · Construir · Auto · One-shot (ver [Modos y permisos](Modos-y-permisos.md)).
 - **Conversación**: Markdown (tablas, listas, citas y bloques de código con resaltado y botón para copiar), tool calls agrupados (con su duración), diffs, tarjetas de permiso y el plan del agente. Lo que hace un subagente queda plegado dentro de su tarjeta `Agent`. Un clic en una captura que sacó el agente la abre en grande: rueda para el zoom, arrastrar para moverla y **Guardar PNG…** para quedártela. Los links a archivos los abren en el editor (`archivo.gd#L42` va a la línea) y los links a imágenes, en el mismo visor.
 - **Composer**:
