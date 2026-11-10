@@ -234,6 +234,19 @@ func test_on_open_setting() -> void:
 	dialog.free()
 
 
+## m11-55: ofrecer «Arreglar con el agente» en un run manual con error, prendido por defecto.
+func test_run_error_setting() -> void:
+	var dialog := _dialog()
+	var settings: HarnessSettings = dialog.get(&"_settings")
+	var check: CheckBox = dialog.get(&"_run_error_check")
+	assert_true(settings.offer_fix_on_run_error(), "por defecto ofrece arreglar")
+	assert_true(check.button_pressed, "la casilla lo refleja")
+	settings.set_value(HarnessSettings.KEY_RUN_ERROR_FIX, false)
+	dialog.call(&"_load")
+	assert_false(settings.offer_fix_on_run_error() or check.button_pressed, "apagado: ni el ajuste ni la casilla")
+	dialog.free()
+
+
 ## m12-21: sin agentes, los sugeridos; con agentes, la lista y el formulario al lado, y la estrella.
 func test_agents_page() -> void:
 	var dialog := _dialog(ProjectConfig.new(), false)

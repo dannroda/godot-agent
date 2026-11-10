@@ -24,6 +24,9 @@ extends EditorPlugin
 ##   "↶ undo" (ver edit_check.gd).
 ## - `-- --godot-agent-run-test`: run_scene con inputs, capture_game_frame, stop_scene, script roto y
 ##   ciclo de vida del autoload de playtest (ver run_check.gd). Necesita ventana.
+## - `-- --godot-agent-run-error-test [--godot-agent-ui-shot=<ruta.png>]`: un run manual de un script roto deja en el dock el aviso con
+##   «Arreglar con el agente» una vez por run, el botón manda el prompt etiquetado, y ni un run del
+##   agente ni el ajuste apagado avisan (ver run_error_check.gd, m11-55). Necesita ventana.
 ## - `-- --godot-agent-claude-scene-test`: verificación de M4 con Claude Code real (gasta tokens).
 ##   Pide agregar WaveLabel al HUD y conectar WaveTimer.timeout; Ctrl+Z tiene que deshacerlo en pasos.
 ## - `-- --godot-agent-crash-test=before|during`: mata el editor con el autoload de playtest recién
@@ -92,6 +95,8 @@ const CLAUDE_HUD_FIXTURE := "res://tests/fixtures/hud_fixture.tscn"
 const CLAUDE_HUD_SCENE := "res://tests/tmp/claude_hud.tscn"
 const CRASH_ARG := "--godot-agent-crash-test="
 const REVIEW_ARG := "--godot-agent-review-test"
+const RUN_ERROR_ARG := "--godot-agent-run-error-test"
+const RunErrorCheck := preload("run_error_check.gd")
 const CLAUDE_REVIEW_ARG := "--godot-agent-claude-review-test"
 const ONESHOT_ARG := "--godot-agent-oneshot-test"
 const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
@@ -193,6 +198,8 @@ func _enter_tree() -> void:
 		_run_claude_scene_test.call_deferred()
 	if REVIEW_ARG in args:
 		_run_review_test.call_deferred(false)
+	if RUN_ERROR_ARG in args:
+		_run_run_error_test.call_deferred()
 	if AUTO_ARG in args:
 		_run_auto_test.call_deferred()
 	if REMOTE_ARG in args:
@@ -515,6 +522,15 @@ func _run_edit_test() -> void:
 	for failure: String in failures:
 		print("[edit-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "edit-test: %d fallas" % failures.size())
+
+
+func _run_run_error_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures := _failures(await RunErrorCheck.new().run_run_error(get_tree(), _arg_value(UI_SHOT_ARG)))
+	for failure: String in failures:
+		print("[run-error-check] FALLA ", failure)
+	_finish_checking_state(0 if failures.is_empty() else 1, "run-error-test: %d fallas" % failures.size(), "run-error-check")
 
 
 func _run_run_test() -> void:

@@ -10,6 +10,7 @@ var _label: Label
 ## Las últimas líneas del log (m12-13), con «Copiar».
 var _details: PanelContainer
 var _details_text: Label
+var _details_title: Label
 ## Las líneas del log empiezan plegadas (m13-22): en una caída la causa está en el texto de la
 ## tarjeta, y abiertas ocupaban todo el dock.
 var _details_toggle: Button
@@ -44,11 +45,10 @@ func _build() -> void:
 	_details.add_child(details_column)
 	var details_header := HBoxContainer.new()
 	details_column.add_child(details_header)
-	var details_title := Label.new()
-	details_title.text = I18n.t("Last lines of the log")
-	details_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details_title.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	details_header.add_child(details_title)
+	_details_title = Label.new()
+	_details_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_details_title.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	details_header.add_child(_details_title)
 	_details_toggle = Button.new()
 	_details_toggle.flat = true
 	_details_toggle.pressed.connect(func() -> void:
@@ -93,6 +93,7 @@ func refresh() -> void:
 	_title.visible = not entry.title.is_empty()
 	_title.add_theme_color_override(&"font_color", color)
 	_details_text.text = entry.details
+	_details_title.text = entry.details_title if not entry.details_title.is_empty() else I18n.t("Last lines of the log")
 	_details.visible = not entry.details.is_empty()
 	_refresh_details()
 	_label.text = entry.text
