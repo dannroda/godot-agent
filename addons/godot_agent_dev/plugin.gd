@@ -62,6 +62,7 @@ const UI_SHOT_ARG := "--godot-agent-ui-shot="
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const SYNC_ARG := "--godot-agent-sync-test"
@@ -781,6 +782,9 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 	if not ok:
 		_finish(1, "no arrancó la sesión: %s" % model.get(&"failure_message"))
 		return
+	if scenario == "crash":
+		await _check_crash_card(dock, model, shot_path)
+		return
 	dock.call(&"add_context_files", PackedStringArray(["res://project.godot"]))
 	var chips: Dictionary = dock.get(&"_chips")
 	if not chips.has("file:res://project.godot"):
@@ -888,6 +892,56 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		image.save_png(shot_path)
 	controller.call(&"stop")
 	_finish(0, "ui-test %s" % scenario)
+
+
+## m13-22: el agente se cae en el primer turno y la tarjeta muestra las últimas líneas de su stderr
+## recortadas: el agente falso vuelca el prompt entero (con el prompt de sistema en JSON) por
+## stderr, y eso no puede tapar la causa. El texto completo queda en el Agent Log.
+func _check_crash_card(dock: Control, model: Object, shot_path: String) -> void:
+	dock.call(&"_on_submitted", "caete")
+	var deadline := Time.get_ticks_msec() + 20000
+	while int(model.get(&"state")) != SessionModel.SessionState.FAILED and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.5).timeout
+	if not shot_path.is_empty():
+		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path)
+	if int(model.get(&"state")) != SessionModel.SessionState.FAILED:
+		_finish(1, "crash: la sesión no quedó en FAILED (%d)" % int(model.get(&"state")))
+		return
+	var cards: Array = (model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return not str(entry.get(&"details")).is_empty())
+	if cards.is_empty():
+		_finish(1, "crash: ninguna tarjeta trae las líneas del log")
+		return
+	var details := str(cards.back().get(&"details"))
+	var failures: PackedStringArray = []
+	if details.length() > SessionController.STDERR_TAIL * (SessionController.STDERR_LINE_CHARS + 80):
+		failures.append("los detalles son demasiado largos: %d caracteres" % details.length())
+	for line: String in details.split("\n"):
+		if line.length() > SessionController.STDERR_LINE_CHARS + 80:
+			failures.append("una línea de %d caracteres: %s…" % [line.length(), line.left(60)])
+	if not details.contains(I18n.t("… %d more characters, see the Agent Log").get_slice("%d", 0)):
+		failures.append("la línea del prompt no dice cuánto quedó afuera")
+	if not details.contains("fake_agent: prompt"):
+		failures.append("los detalles no muestran de qué línea se trata: %s" % details.left(120))
+	var main_plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	var log: Object = main_plugin.get(&"_log")
+	var full_in_log := (log.call(&"entries") as Array).any(func(entry: Dictionary) -> bool: return str(entry.message).contains("harness_context"))
+	if not full_in_log:
+		failures.append("el Agent Log no tiene la línea completa")
+	# El agente falso vuelca session/new con el token del server MCP en los headers: redactado.
+	var mcp_server: Object = main_plugin.get(&"_mcp_server")
+	var token := str(mcp_server.get(&"token")) if mcp_server else ""
+	var tail: PackedStringArray = (dock.get(&"_controller") as Object).get(&"_stderr_tail")
+	if not token.is_empty() and (details.contains(token) or details.contains(token.left(8))):
+		failures.append("los detalles traen el token del server MCP")
+	if not token.is_empty() and "\n".join(tail).contains(token):
+		failures.append("la cola de stderr del controller guarda el token sin redactar")
+	if not "\n".join(tail).contains(AgentLog.REDACTED):
+		failures.append("la cola de stderr no tiene la línea de session/new redactada: %s" % ["\n".join(tail).left(300)])
+	print("[ui-test] tarjeta de caída: %d caracteres, %d líneas" % [details.length(), details.split("\n").size()])
+	for failure: String in failures:
+		print("[ui-test] FALLA crash: " + failure)
+	_finish(0 if failures.is_empty() else 1, "ui-test crash: %d fallas" % failures.size())
 
 
 ## m17-14: el tooltip del anillo de cuota sigue abierto con el mouse encima, aunque el dock lo

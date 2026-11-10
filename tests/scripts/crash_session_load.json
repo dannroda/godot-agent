@@ -1,0 +1,8 @@
+{
+ "exit_on": "session/load",
+ "initialize": {
+  "agentCapabilities": {
+   "loadSession": true
+  }
+ }
+}

@@ -90,6 +90,10 @@ const ACTION_EDIT_AGENT := "edit_agent"
 const ACTION_REINSTALL_AGENT := "reinstall_agent"
 ## Líneas de stderr del agente que muestra el aviso de error.
 const STDERR_TAIL := 8
+## Largo máximo de cada una en la tarjeta (m13-22): claude-agent-acp vuelca por stderr el prompt
+## entero, con el prompt de sistema en JSON, y tapaba la causa. El resto queda en el Agent Log.
+## La cola se guarda ya sin los secretos del log (_on_stderr).
+const STDERR_LINE_CHARS := 160
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
 const ACTION_LOGIN := "login"
@@ -305,6 +309,8 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	})
 	if generation != _connect_generation:
 		return false
+	if model.has_failed():  # el agente se cayó esperando la respuesta: la tarjeta ya la puso _fail_agent (m13-26)
+		return false
 	if not init.ok or not init.result is Dictionary:
 		_fail_agent(I18n.t("%s didn't start") % _agent_name(),
 			I18n.t("It didn't answer the first message (initialize): %s") % init.error_message(),
@@ -369,6 +375,8 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	if _session_request_id == req_id:
 		_session_request_id = 0
 	if generation != _connect_generation or result.error.get("code") == AcpClient.ERR_REQUEST_CANCELLED:
+		return false
+	if model.has_failed():  # el agente se cayó esperando la respuesta: la tarjeta ya la puso _fail_agent (m13-26)
 		return false
 	if not result.ok or not result.result is Dictionary or not result.result.get("sessionId") is String:
 		var detail := result.error_message() if not result.ok else "response without sessionId"
@@ -486,7 +494,12 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		return "cancelled"
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
-		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
+		if model.has_failed():
+			# El agente se cayó en el turno (m13-24): la tarjeta ya la puso _fail_agent, con la causa y el
+			# stderr. El turno termina igual (turn_finished) y la sesión queda en FAILED.
+			agent_log.add(AgentLog.CH_ACP, "The turn ended because the session failed: %s" % result.error_message())
+			model.finish_turn("error")
+		elif model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
 			var login_actions: Array[Dictionary] = []
 			if is_auth_required(result.error):
 				login_actions = _login_actions()
@@ -1100,6 +1113,8 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		_session_request_id = 0
 	if generation != _connect_generation or result.error.get("code") == AcpClient.ERR_REQUEST_CANCELLED:
 		return false
+	if model.has_failed():  # el agente se cayó esperando la respuesta: la tarjeta ya la puso _fail_agent (m13-26)
+		return false
 	if not result.ok:
 		_load_failed = true
 		stop()
@@ -1165,7 +1180,11 @@ func _with_meta(params: Dictionary) -> Dictionary:
 
 func _on_stderr(line: String) -> void:
 	agent_log.add(AgentLog.CH_PROC, line)
-	_stderr_tail.append(line)
+	if line.strip_edges().is_empty():  # no ocupa lugar en la cola: la tarjeta no la mostraría
+		return
+	# Redactada al guardarla (m13-22): la tarjeta y su «Copy» no pasan por el log, y el recorte podría
+	# caer en medio del token y dejar su principio a la vista.
+	_stderr_tail.append(agent_log.redact(line))
 	if _stderr_tail.size() > STDERR_TAIL:
 		_stderr_tail.remove_at(0)
 
@@ -1177,10 +1196,12 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 	process.stop()
 	if terminal:
 		terminal.stop_all()
-	client.fail_all_pending("The agent exited (code %d)." % code)
+	# Primero la tarjeta y FAILED, después los requests pendientes (m13-24): el turno que la caída corta
+	# ve la sesión caída y no suma su propia tarjeta de error.
 	_fail_agent(I18n.t("%s stopped") % _agent_name(),
 		I18n.t("The agent's process ended unexpectedly (code %d).") % code,
 		"The agent exited unexpectedly (code %d)." % code, _crash_actions())
+	client.fail_all_pending("The agent exited (code %d)." % code)
 	disconnected.emit()
 
 
@@ -1238,9 +1259,27 @@ func _fail_agent(title: String, cause: String, log_message: String, actions: Arr
 			action["data"] = agent_log.last_seq()
 	var entry := model.add_notice(cause, ChatEntry.NoticeLevel.ERROR, actions)
 	entry.title = title
-	entry.details = "\n".join(_stderr_tail)
+	entry.details = stderr_summary(_stderr_tail)
+	entry.details_full = "\n".join(_stderr_tail)  # ya redactadas (_on_stderr)
 	model.notify_entry_changed(entry)
 	model.set_state(SessionModel.SessionState.FAILED)
+
+
+## Las últimas líneas útiles del stderr para la tarjeta (m13-22): sin las vacías, cada una
+## recortada a `max_chars` con cuántos caracteres quedaron afuera (el Agent Log tiene cada línea
+## entera, de _on_stderr), y como mucho `max_lines`.
+static func stderr_summary(lines: PackedStringArray, max_lines: int = STDERR_TAIL, max_chars: int = STDERR_LINE_CHARS) -> String:
+	var kept: PackedStringArray = []
+	for line: String in lines:
+		var text := line.strip_edges()
+		if text.is_empty():
+			continue
+		if text.length() > max_chars:
+			text = text.left(max_chars).strip_edges() + " " + I18n.t("… %d more characters, see the Agent Log") % (text.length() - max_chars)
+		kept.append(text)
+	if kept.size() > max_lines:
+		kept = kept.slice(kept.size() - max_lines)
+	return "\n".join(kept)
 
 
 ## Reintentar primero; un agente del registro (binario bajado por el harness) se puede reinstalar.

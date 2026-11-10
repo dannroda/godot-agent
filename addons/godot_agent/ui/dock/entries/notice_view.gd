@@ -10,6 +10,10 @@ var _label: Label
 ## Las últimas líneas del log (m12-13), con «Copiar».
 var _details: PanelContainer
 var _details_text: Label
+## Las líneas del log empiezan plegadas (m13-22): en una caída la causa está en el texto de la
+## tarjeta, y abiertas ocupaban todo el dock.
+var _details_toggle: Button
+var _details_open: bool = false
 var _actions: HFlowContainer
 
 
@@ -40,10 +44,16 @@ func _build() -> void:
 	details_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	details_title.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	details_header.add_child(details_title)
+	_details_toggle = Button.new()
+	_details_toggle.flat = true
+	_details_toggle.pressed.connect(func() -> void:
+		_details_open = not _details_open
+		_refresh_details())
+	details_header.add_child(_details_toggle)
 	var copy := Button.new()
 	copy.flat = true
 	copy.text = I18n.t("Copy")
-	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(entry.details))
+	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(details_to_copy()))
 	details_header.add_child(copy)
 	_details_text = Label.new()
 	_details_text.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
@@ -79,6 +89,7 @@ func refresh() -> void:
 	_title.add_theme_color_override(&"font_color", color)
 	_details_text.text = entry.details
 	_details.visible = not entry.details.is_empty()
+	_refresh_details()
 	_label.text = entry.text
 	if asks or not entry.title.is_empty():
 		_label.remove_theme_color_override(&"font_color")
@@ -118,3 +129,15 @@ func refresh() -> void:
 	for more: String in menus:
 		_actions.add_child(menus[more])
 	_actions.visible = not entry.actions.is_empty()
+
+
+func _refresh_details() -> void:
+	if _details_text == null:
+		return
+	_details_text.visible = _details_open
+	_details_toggle.text = I18n.t("Hide") if _details_open else I18n.t("Show")
+
+
+## Lo que copia «Copy»: las líneas enteras si la entrada las tiene, si no las que se ven.
+func details_to_copy() -> String:
+	return entry.details_full if not entry.details_full.is_empty() else entry.details
