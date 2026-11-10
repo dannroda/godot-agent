@@ -4,6 +4,8 @@ extends EditorDebuggerPlugin
 ## Mensajes del juego → señales; `send()` le habla a la sesión donde el probe dijo `ready`.
 
 signal session_started
+## Lo mismo con el id de la sesión que arrancó (godot.profile_run: el profiler va en esa, no en otra).
+signal session_started_id(session_id: int)
 signal session_stopped
 signal session_breaked
 signal probe_ready
@@ -55,7 +57,7 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 
 func _setup_session(session_id: int) -> void:
 	var session := get_session(session_id)
-	session.started.connect(_on_started)
+	session.started.connect(_on_started.bind(session_id))
 	session.stopped.connect(_on_stopped.bind(session_id))
 	session.breaked.connect(_on_breaked)
 
@@ -71,18 +73,6 @@ func has_probe() -> bool:
 ## Si el juego del probe está parado en el debugger (por un error o un breakpoint).
 func is_breaked() -> bool:
 	return has_probe() and get_session(_probe_session).is_breaked()
-
-
-## La sesión del juego en curso: la del probe si ya avisó; si no, la última activa (al arrancar,
-## antes del `ready`). -1 si no hay ninguna.
-func active_session_id() -> int:
-	if has_probe():
-		return _probe_session
-	var sessions := get_sessions()
-	for i in range(sessions.size() - 1, -1, -1):
-		if (sessions[i] as EditorDebuggerSession).is_active():
-			return i
-	return -1
 
 
 func send(message: String, data: Array = []) -> bool:
@@ -126,8 +116,9 @@ static func break_reason() -> String:
 	return ""
 
 
-func _on_started() -> void:
+func _on_started(session_id: int) -> void:
 	session_started.emit()
+	session_started_id.emit(session_id)
 
 
 func _on_stopped(session_id: int) -> void:

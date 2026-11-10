@@ -49,6 +49,35 @@ func test_first_frame_and_impossible_frames_are_discarded() -> void:
 	assert_true(absf(profile.average_frame_ms() - 3.0) < 1e-9, "frame promedio")
 
 
+
+## Revisión de m13-27: una función recursiva tiene un total mayor que el frame (cada nivel cuenta lo
+## anidado) y no por eso el frame es basura; el descarte mira el tiempo propio.
+func test_recursive_function_keeps_its_frames() -> void:
+	var profile := ScriptProfile.new()
+	profile.add_signature(["res://a.gd::3::flood", 0])
+	profile.add_frame([])
+	profile.add_frame(_frame(2, 0.016, 0.004, [[0, 8, 0.004, 0.032]]))
+	assert_eq([profile.frames, profile.discarded], [1, 1], "el frame con la recursiva cuenta")
+
+
+## Revisión de m13-27: después de una pausa del debugger (continue_on_error), el frame que la
+## contiene no se cuenta: la llamada en curso se lleva el tiempo de la pausa.
+func test_frame_after_a_debugger_pause_is_skipped() -> void:
+	var profile := ScriptProfile.new()
+	profile.add_frame([])
+	profile.add_frame(_frame(2, 0.002, 0.0001, [[0, 10, 0.0001, 0.0001]]))
+	profile.skip_next_frame()
+	profile.add_frame(_frame(3, 0.4, 0.38, [[0, 10, 0.38, 0.38]]))
+	profile.add_frame(_frame(4, 0.002, 0.0001, [[0, 10, 0.0001, 0.0001]]))
+	assert_eq([profile.frames, profile.discarded], [2, 2], "el de la pausa se descarta aunque frame_time también sea largo")
+
+
+## Revisión de m13-27: datos mal formados no cuelgan el editor (un conteo negativo dejaba el índice quieto).
+func test_malformed_frames() -> void:
+	assert_eq(ScriptProfile.parse_frame([1, 0.1, 0.1, 0, 0, 0, 1000000000, "s", -2, 0]), {}, "muchos servers y un conteo negativo")
+	assert_eq(ScriptProfile.parse_frame([1, 0.1, 0.1, 0, 0, 0, -1, 0]), {}, "servers negativos")
+	assert_eq(ScriptProfile.parse_frame([1, 0.1, 0.1, 0, 0, 0, 1, "s", -2, 5, 0]), {}, "pares negativos")
+
 func test_top_orders_by_self_time() -> void:
 	var profile := ScriptProfile.new()
 	profile.add_signature(["res://a.gd::10::_hot", 1])
@@ -89,6 +118,10 @@ func test_typed_in_source() -> void:
 		"func f(x) -> int: return g(x)",  # 15
 		"static func s() -> void:",  # 16
 		"\tpass",
+		"func g(opts = {\"a\": 1}, s = \"x:y\"):",  # 18
+		"\tpass",
+		"func h(a: String = \")\", b := \"(,\") -> void:",  # 20
+		"\tpass",
 	])
 	# La firma del profiler trae la primera línea del cuerpo: se busca el func hacia atrás.
 	assert_eq(ScriptProfile.typed_in_source(source, 3, "a"), {"typed": "yes", "line": 2}, "parámetros con tipo, := y retorno; la línea del func")
@@ -100,6 +133,9 @@ func test_typed_in_source() -> void:
 	assert_eq(ScriptProfile.typed_in_source(source, 17, "s"), {"typed": "yes", "line": 16}, "static")
 	assert_eq(ScriptProfile.typed_in_source(source, 5, "a"), {"typed": "", "line": 0}, "no sigue buscando más allá de otra función")
 	assert_eq(ScriptProfile.typed_in_source(source, 99, "a"), {"typed": "", "line": 0}, "fuera del archivo")
+	# Revisión de m13-27: un `:` dentro del default no es un tipo, y los strings no cortan la cabecera.
+	assert_eq(ScriptProfile.typed_in_source(source, 19, "g").typed, "no", "defaults con `:` adentro, sin tipos")
+	assert_eq(ScriptProfile.typed_in_source(source, 21, "h"), {"typed": "yes", "line": 20}, "paréntesis y comas dentro de strings")
 
 
 func test_typed_in_file() -> void:

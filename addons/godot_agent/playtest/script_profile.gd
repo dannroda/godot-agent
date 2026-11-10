@@ -28,6 +28,12 @@ var _frame_time: float = 0.0
 var _script_time: float = 0.0
 
 
+## El próximo frame no se cuenta: el juego estuvo parado en el debugger y la llamada en curso se
+## lleva el tiempo de la pausa (continue_on_error).
+func skip_next_frame() -> void:
+	_skip_next = true
+
+
 func add_signature(data: Array) -> void:
 	if data.size() >= 2:
 		signatures[int(data[1])] = str(data[0])
@@ -42,8 +48,10 @@ func add_frame(data: Array) -> void:
 	if frame.is_empty():
 		discarded += 1
 		return
+	# Con el tiempo propio: el total de una función recursiva cuenta lo anidado una vez por nivel y
+	# puede pasar legítimamente al frame (revisión de m13-27).
 	for function: Dictionary in frame.functions.values():
-		if function.total > frame.frame_time + FRAME_SLACK_S:
+		if function.self > frame.frame_time + FRAME_SLACK_S:
 			discarded += 1
 			return
 	frames += 1
@@ -67,10 +75,16 @@ static func parse_frame(data: Array) -> Dictionary:
 	if data.size() < 8:
 		return {}
 	var idx := 7
-	for i in int(data[6]):
+	var servers := int(data[6])
+	if servers < 0 or 7 + servers * 2 > data.size():
+		return {}
+	for i in servers:
 		if idx + 1 >= data.size():
 			return {}
-		idx += 2 + int(data[idx + 1])
+		var pairs := int(data[idx + 1])
+		if pairs < 0:
+			return {}
+		idx += 2 + pairs
 	if idx >= data.size():
 		return {}
 	var size := int(data[idx])
@@ -104,8 +118,9 @@ func top(count: int) -> Array[Dictionary]:
 		})
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.self_ms > b.self_ms)
 	rows = rows.slice(0, count)
+	var sources := {}  # ruta → texto: cada script se lee una vez por informe
 	for row: Dictionary in rows:
-		var found := typed_in_file(row.path, row.line, row.name)
+		var found := typed_in_file(row.path, row.line, row.name, sources)
 		row["typed"] = found.typed
 		if found.line > 0:
 			row["line"] = found.line
@@ -132,10 +147,12 @@ static func split_signature(signature: String) -> Dictionary:
 ## Si la función de `path` tiene tipos: {typed, line}. `typed`: "yes" (todos los parámetros y el
 ## retorno), "partial", "no" o "" si no se puede leer (built-in, archivo que no está); `line`: la del
 ## `func` (0 si no se encontró).
-static func typed_in_file(path: String, line: int, function_name: String) -> Dictionary:
+static func typed_in_file(path: String, line: int, function_name: String, sources: Dictionary = {}) -> Dictionary:
 	if not path.begins_with("res://") or path.contains("::") or not FileAccess.file_exists(path):
 		return {"typed": "", "line": 0}
-	return typed_in_source(FileAccess.get_file_as_string(path), line, function_name)
+	if not sources.has(path):
+		sources[path] = FileAccess.get_file_as_string(path)
+	return typed_in_source(sources[path], line, function_name)
 
 
 ## La línea de la firma del profiler no es la del `func`: es la primera del cuerpo (4.7/4.8). Se busca
@@ -168,7 +185,7 @@ static func typed_in_source(source: String, line: int, function_name: String) ->
 	var params := _split_params(header.substr(open + 1, close - open - 1))
 	var typed := 0
 	for param: String in params:
-		if param.contains(":"):  # `a: int`, `a: int = 1` y `a := 1`
+		if _param_typed(param):
 			typed += 1
 	var returns := header.substr(close + 1).strip_edges().begins_with("->")
 	var count := typed + (1 if returns else 0)
@@ -176,37 +193,73 @@ static func typed_in_source(source: String, line: int, function_name: String) ->
 	return {"typed": typed_text, "line": start + 1}
 
 
-## El índice del `)` que cierra el `(` de `open`, o -1.
+## El índice del `)` que cierra el `(` de `open`, o -1. Saltea strings (`a: String = ")"`).
 static func _matching_paren(text: String, open: int) -> int:
 	var depth := 0
-	for i in range(open, text.length()):
-		if text[i] == "(":
+	var quote := ""
+	var i := open
+	while i < text.length():
+		var character := text[i]
+		if not quote.is_empty():
+			if character == "\\":
+				i += 1
+			elif character == quote:
+				quote = ""
+		elif character == "\"" or character == "'":
+			quote = character
+		elif character == "(":
 			depth += 1
-		elif text[i] == ")":
+		elif character == ")":
 			depth -= 1
 			if depth == 0:
 				return i
+		i += 1
 	return -1
 
 
-## Parámetros separados por comas de primer nivel (un default puede llevar `Vector2(1, 2)`).
+## Parámetros separados por comas de primer nivel y fuera de strings (un default puede llevar
+## `Vector2(1, 2)`, `{"a": 1}` o `"x,y"`).
 static func _split_params(text: String) -> PackedStringArray:
 	var params: PackedStringArray = []
 	var depth := 0
+	var quote := ""
 	var current := ""
-	for character: String in text:
-		if character in ["(", "[", "{"]:
+	var i := 0
+	while i < text.length():
+		var character := text[i]
+		if not quote.is_empty():
+			if character == "\\" and i + 1 < text.length():
+				current += character
+				i += 1
+				character = text[i]
+			elif character == quote:
+				quote = ""
+		elif character == "\"" or character == "'":
+			quote = character
+		elif character in ["(", "[", "{"]:
 			depth += 1
 		elif character in [")", "]", "}"]:
 			depth -= 1
-		if character == "," and depth == 0:
+		if character == "," and depth == 0 and quote.is_empty():
 			params.append(current.strip_edges())
 			current = ""
 		else:
 			current += character
+		i += 1
 	if not current.strip_edges().is_empty():
 		params.append(current.strip_edges())
 	return params
+
+
+## Si un parámetro tiene tipo: un `:` antes del `=` del default (`a: int`, `a: int = 1`, `a := 1`).
+## Un `:` dentro del default (`a = {"k": 1}`, `a = "x:y"`) no cuenta.
+static func _param_typed(param: String) -> bool:
+	for character: String in param:
+		if character == ":":
+			return true
+		if character == "=":
+			return false
+	return false
 
 
 ## El texto para el agente.
