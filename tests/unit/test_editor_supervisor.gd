@@ -32,7 +32,7 @@ func test_extensions_lists_existing_libraries() -> void:
 func test_snapshot_changes_and_rollback() -> void:
 	var project := _project("sup_rollback")
 	var state := State.state_dir(project)
-	assert_eq(Snapshot.snapshot(project, state), PackedStringArray(["bin/linux/liblab.so", "bin/linux/libdep.so.1"]), "copia las dos")
+	assert_eq(Snapshot.snapshot(project, state), PackedStringArray(["bin/lab.gdextension", "bin/linux/liblab.so", "bin/linux/libdep.so.1"]), "copia el .gdextension y las dos bibliotecas")
 	assert_eq(Snapshot.snapshot(project, state), PackedStringArray(), "sin cambios no copia")
 	_write(project.path_join("bin/linux/liblab.so"), "new build")
 	_write(project.path_join("other/fresh.gdextension"), "[libraries]\nlinux.debug.x86_64 = \"res://other/libfresh.so\"\n")
@@ -140,14 +140,63 @@ func test_real_installs_pending_before_launch() -> void:
 	assert_false(FileAccess.file_exists(state.path_join("pending.json")), "no queda nada preparado (no se reinstala en el relanzamiento)")
 
 
+## m19-05: el rollback también vuelve el .gdextension: una instalación que cambió el .gdextension y
+## apunta a otra biblioteca vuelve al .gdextension bueno y a sus bibliotecas, aunque falten en disco.
+func test_rollback_restores_the_gdextension_text() -> void:
+	var project := _project("sup_rollback_text")
+	var state := State.state_dir(project)
+	Snapshot.snapshot(project, state)
+	assert_eq(Snapshot.restorable(project, state, "bin/lab.gdextension"), "full", "hay copia del .gdextension")
+	_write(project.path_join("bin/lab.gdextension"), GDEXTENSION.replace("./linux/liblab.so", "./linux/liblab2.so"))
+	_write(project.path_join("bin/linux/liblab2.so"), "new build")
+	DirAccess.remove_absolute(project.path_join("bin/linux/liblab.so"))
+	var result := Snapshot.rollback(project, state)
+	assert_eq(result, {"restored": PackedStringArray(["bin/lab.gdextension", "bin/linux/liblab.so"]), "disabled": PackedStringArray()}, "vuelven el .gdextension y la biblioteca que nombra · %s" % [result])
+	assert_eq(FileAccess.get_file_as_string(project.path_join("bin/lab.gdextension")), GDEXTENSION, "el texto bueno")
+	assert_true(FileAccess.get_file_as_string(project.path_join("bin/lab.gdextension.crashed")).contains("liblab2.so"), "el que crasheó queda al lado")
+	assert_eq(FileAccess.get_file_as_string(project.path_join("bin/linux/liblab.so")), "good build", "la biblioteca buena, que ya no estaba")
+	assert_eq(Snapshot.restorable(project, state, "other/none.gdextension"), "none", "sin copia, nada que restaurar")
+
+
+## m19-03 y m19-05: Godot no escanea un proyecto anidado (con su project.godot): el supervisor
+## tampoco copia ni desactiva sus extensiones.
+func test_nested_project_is_not_an_extension_of_the_game() -> void:
+	var project := _project("sup_nested")
+	_write(project.path_join("ext/project/project.godot"), "")
+	_write(project.path_join("ext/project/bin/lab.gdextension"), GDEXTENSION)
+	_write(project.path_join("ext/project/bin/linux/liblab.so"), "test build")
+	assert_eq(Snapshot.extensions(project).map(func(e: Dictionary) -> String: return e.gdextension), [project.path_join("bin/lab.gdextension")], "solo la del juego")
+
+
+## m19-05: si el editor que lanzó al supervisor no se cierra en el tiempo de espera (puede seguir
+## vivo), lo preparado no entra en ese arranque (lo dice el log); entra cuando un editor del
+## supervisor pide reiniciar.
+func test_real_wait_timeout_holds_the_pending_install() -> void:
+	var project := _project("sup_real_wait_timeout")
+	var state := State.state_dir(project)
+	DirAccess.make_dir_recursive_absolute(state.path_join("pending/bin"))
+	_write(state.path_join("pending/bin/readme.txt"), "new file")
+	_write(state.path_join("pending.json"), JSON.stringify({"files": ["bin/readme.txt"]}))
+	_write(project.path_join("plan.json"), JSON.stringify(["close"]))
+	# Un pid que nunca marca closed.json: el del runner de los tests.
+	assert_true(await _supervise(project, ["--wait-pid", str(OS.get_process_id()), "--wait-timeout", "1"]), "terminó")
+	assert_false(FileAccess.file_exists(project.path_join("bin/readme.txt")), "no instaló con el editor viejo quizás vivo")
+	assert_true(FileAccess.file_exists(state.path_join("pending.json")), "sigue preparado")
+	assert_true(FileAccess.get_file_as_string(state.path_join("supervisor.log")).contains("didn't close within 1 s"), "y lo dice el log")
+	DirAccess.remove_absolute(state.path_join("launches.txt"))
+	_write(project.path_join("plan.json"), JSON.stringify(["restart", "close"]))
+	assert_true(await _supervise(project, ["--wait-pid", str(OS.get_process_id()), "--wait-timeout", "1"]), "terminó")
+	assert_eq(FileAccess.get_file_as_string(project.path_join("bin/readme.txt")), "new file", "entró con el reinicio pedido por su editor")
+
+
 ## Corre el supervisor con el editor falso y espera a que termine (60 s como mucho).
-func _supervise(project: String) -> bool:
+func _supervise(project: String, extra: PackedStringArray = []) -> bool:
 	var state := State.state_dir(project)
 	DirAccess.make_dir_recursive_absolute(state)
 	var launch := ",".join(PackedStringArray(["--headless", "--path", project, "--script", ProjectSettings.globalize_path(FAKE_EDITOR)]))
 	var pid := OS.create_process(OS.get_executable_path(), PackedStringArray([
 		"--headless", "--path", state, "--script", ProjectSettings.globalize_path(SUPERVISOR), "--", "--project", project, "--launch", launch,
-	]))
+	]) + extra)
 	var tree := Engine.get_main_loop() as SceneTree
 	var deadline := Time.get_ticks_msec() + 60000
 	while OS.is_process_running(pid) and Time.get_ticks_msec() < deadline:
@@ -185,6 +234,7 @@ func _remove_tree(path: String) -> void:
 
 
 func _write(path: String, text: String) -> void:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(text)
 	file.close()

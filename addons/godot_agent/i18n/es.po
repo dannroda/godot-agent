@@ -4196,3 +4196,6 @@ msgstr "Este editor no es un release oficial de Godot, así que la URL de descar
 
 msgid "There are no saved regressions yet: a playtest that passes saves one. The workflow would fail on every push, so it was not written."
 msgstr "Todavía no hay regresiones guardadas: un playtest que pasa deja una. El workflow fallaría en cada push, así que no se escribió."
+
+msgid "Could not install the staged GDExtension %s: %s. The game keeps the build it had."
+msgstr "No se pudo instalar la GDExtension preparada %s: %s. El juego sigue con la build que tenía."

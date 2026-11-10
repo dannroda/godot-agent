@@ -11,12 +11,13 @@ extends RefCounted
 const McpTool := preload("../mcp_tool.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const FsHandler := preload("../../acp/fs_handler.gd")
+const ProtectedPaths := preload("../../core/protected_paths.gd")
 
 ## Archivos de texto donde se buscan y reescriben referencias.
 const TEXT_EXTENSIONS: PackedStringArray = ["tscn", "tres", "gd", "gdshader", "gdshaderinc", "godot", "cfg", "json", "cs", "gdextension"]
 const SIDECARS: PackedStringArray = ["uid", "import"]
 const REFERENCE_LIST_LIMIT := 20
-const PROTECTED: PackedStringArray = ["res://project.godot", "res://addons/godot_agent", "res://.godot"]
+const PROTECTED: PackedStringArray = ProtectedPaths.PROTECTED
 
 ## Callable(abs_path: String): un archivo del proyecto cambió en disco (para que el editor lo tome).
 var on_file_written: Callable
@@ -327,7 +328,7 @@ static func _collect(dir: String, result: PackedStringArray, text_only: bool) ->
 		if not text_only or file.get_extension().to_lower() in TEXT_EXTENSIONS:
 			result.append(dir.path_join(file))
 	for sub: String in DirAccess.get_directories_at(dir):
-		if not sub.begins_with(".") and not dir.path_join(sub) in PROTECTED:
+		if not sub.begins_with(".") and not ProtectedPaths.is_protected(dir.path_join(sub)):
 			_collect(dir.path_join(sub), result, text_only)
 
 
@@ -344,9 +345,8 @@ static func _normalize(path: String) -> String:
 func _check_target(path: String, must_exist: bool) -> String:
 	if not path.begins_with("res://") or path == "res://":
 		return "%s must be a res:// path inside the project." % path
-	for protected: String in PROTECTED:
-		if path == protected or path.begins_with(protected + "/"):
-			return "%s is managed by the editor or the harness: it is not moved, copied over or deleted." % path
+	if ProtectedPaths.is_protected(path):
+		return "%s is managed by the editor or the harness: it is not moved, copied over or deleted." % path
 	var exists := FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)
 	if must_exist and not exists:
 		return "%s does not exist." % path
