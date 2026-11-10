@@ -4349,3 +4349,6 @@ msgstr "No hay nada bajo ese punto: ni un control, ni un nodo 2D con forma o spr
 
 msgid "Game capture with %s (%s) marked at %d, %d"
 msgstr "Captura del juego con %s (%s) marcado en %d, %d"
+
+msgid "Measure the game's performance"
+msgstr "Medir el rendimiento del juego"

@@ -51,7 +51,7 @@ const GAME_RUN_STATE_TRANSITIONS: Dictionary = {
 }
 
 ## Las del juego en ejecución: extendidas con tools/list compacto (D56).
-const GAME_TOOLS: PackedStringArray = ["game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_frames"]
+const GAME_TOOLS: PackedStringArray = ["game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_frames", "game_monitors"]
 const MAX_SECONDS := 120.0
 const STARTUP_TIMEOUT_S := 20.0
 const FRAME_TIMEOUT_S := 5.0
@@ -81,6 +81,7 @@ const SCRIPT_MAX_S := 60.0
 const REGRESSION_SETTLE_S := 0.5
 const REGRESSION_TIMEOUT_S := 30.0
 const WATCH_MAX_S := 60.0
+const MONITORS_MAX_S := 30.0
 ## Pausas del debugger seguidas que se saltean antes de dejar el juego parado (m15-05): un error por
 ## frame frenaría todo igual.
 const CONTINUE_MAX := 30
@@ -329,6 +330,7 @@ func tools() -> Array:
 				"record": {"type": "boolean", "description": "Record the run as a video (AVI) under res://.godot_agent/playtests/: evidence for a playtest. While recording the game runs at a fixed %d fps and closes by itself at the end of `seconds`." % RECORD_FPS},
 				"continue_on_error": {"type": "boolean", "description": "Don't stop in the debugger at a script error: the game goes on and every error is listed (breakpoints still stop it). For testing a whole game; while building, stopping at the first error is better."},
 				"film_fps": {"type": "number", "description": "Keep small frames of the run at this rate (2 to 10 is plenty), to look back with game_frames. The game keeps running and its frame rate is free, unlike `record`."},
+				"monitors": {"type": "boolean", "description": "Sample the performance monitors (frame time, draw calls, physics, nodes, memory) during the whole run and add a summary with the orphan nodes at the end, like game_monitors (default false)"},
 			},
 			["seconds"], _run_scene),
 		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
@@ -386,6 +388,9 @@ func tools() -> Array:
 		McpTool.create("game_watch", run,
 			"Watches nodes every frame for `seconds` and lists what changed, with times: moved, turned, changed size, shown or hidden, freed, animations that started or ended, and the given properties. Catches what lasts less than a tool call; pass `steps` to play input while watching.",
 			{"paths": {"type": "array", "items": {"type": "string"}, "description": "Node paths"}, "seconds": {"type": "number", "description": "Default 2, max. %d" % WATCH_MAX_S}, "properties": {"type": "array", "items": {"type": "string"}}, "steps": steps_schema}, ["paths"], _game_watch),
+		McpTool.create("game_monitors", read,
+			"Samples the running game's performance monitors every frame for `seconds`: frame time (average, p95, max), the engine's slowest process and physics frame of each second, draw calls, objects and primitives drawn, awake physics bodies and collision pairs, and how nodes, orphan nodes, objects, resources and memory changed from start to end (a count that keeps growing is a leak). Lists the orphan nodes now: nodes created and never added to the tree, or removed without free(). profile_run sees only GDScript time; use this when the game is slow because of rendering or physics, or to find nodes that leak. Pass `steps` to play input while sampling.",
+			{"seconds": {"type": "number", "description": "Default 2, max. %d" % MONITORS_MAX_S}, "orphans": {"type": "boolean", "description": "List the orphan nodes (default true)"}, "steps": steps_schema}, [], _game_monitors),
 		McpTool.create("game_frames", read,
 			"The frames of the last `seconds` of play, with their game times and file paths (a subagent can read those files). Needs a run filmed with run_scene film_fps, or pass `fps` here to start filming.",
 			{"seconds": {"type": "number", "description": "How far back (default 3)"}, "count": {"type": "integer", "description": "How many, evenly spaced (default 6, max. %d)" % FRAMES_MAX_SHOWN}, "fps": {"type": "number", "description": "Start filming at this rate"}}, [], _game_frames),
@@ -448,17 +453,27 @@ func _run_scene(args: Dictionary) -> Dictionary:
 
 	await _until(func() -> bool: return reached(GameRunState.PROBE_READY) or _game_halted(), STARTUP_TIMEOUT_S)
 	var notes: PackedStringArray = []
+	var monitoring := false
 	if reached(GameRunState.PROBE_READY):
 		if not inputs.is_empty():
 			debugger.send("inputs", [inputs])
 		if float(args.get("film_fps", 0.0)) > 0.0:
 			notes.append(await _start_film(float(args.film_fps)))
+		if args.get("monitors") == true:
+			var started := await request("monitors_start", {})
+			monitoring = started.has("text")
 	elif not _game_halted():
 		notes.append("The playtest probe did not respond within %d s: no inputs or captures." % STARTUP_TIMEOUT_S)
 	await _until(_game_halted, seconds)
 	await Engine.get_main_loop().create_timer(SETTLE_S).timeout
 	if not recording.is_empty():
 		notes.append(await _finish_recording(recording))
+	if monitoring:  # m11-43
+		if EditorInterface.is_playing_scene() and debugger.has_probe() and not _stopped_in_debugger():
+			var sampled := await request("monitors_stop", {})
+			notes.append("Performance during the run:\n%s" % str(sampled.get("text", sampled.get("error", ""))))
+		else:
+			notes.append("Performance monitors: the game ended or stopped in the debugger before they could be read; use game_monitors on a running game.")
 	if not reached(GameRunState.STARTED):
 		_cleanup()
 	if EditorInterface.is_playing_scene() and debugger.has_probe() and not _stopped_in_debugger():
@@ -885,6 +900,15 @@ func _game_watch(args: Dictionary) -> Dictionary:
 		return McpTool.error(invalid)
 	var seconds := clampf(float(args.get("seconds", 2.0)), 0.05, WATCH_MAX_S)
 	return await _game_request("watch", {"paths": args.get("paths", []), "seconds": seconds, "properties": args.get("properties", []), "steps": steps}, seconds)
+
+
+func _game_monitors(args: Dictionary) -> Dictionary:
+	var steps: Array = []
+	var invalid := normalize_steps(args.get("steps"), steps)
+	if not invalid.is_empty():
+		return McpTool.error(invalid)
+	var seconds := clampf(float(args.get("seconds", 2.0)), 0.1, MONITORS_MAX_S)
+	return await _game_request("monitors", {"seconds": seconds, "orphans": args.get("orphans", true) != false, "steps": steps}, seconds)
 
 
 func _game_frames(args: Dictionary) -> Dictionary:
