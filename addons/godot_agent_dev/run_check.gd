@@ -10,6 +10,7 @@ extends "mcp_check.gd"
 ## - detectores, UI, game_script, pausa, watch y filmación con un juego con bugs plantados (M13).
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const RUN_SCENE := "res://tests/fixtures/run_fixture.tscn"
@@ -138,7 +139,7 @@ func _check_runs(model: Object) -> void:
 	var entries_before: int = (model.call(&"entries") as Array).size()
 	await _dock.call(&"_capture_game")
 	var entries: Array = model.call(&"entries")
-	_expect((_dock.get(&"_images") as Dictionary).is_empty() and entries.size() == entries_before + 1 and str(entries[-1].text).contains("playtest autoload"),
+	_expect((_dock.get(&"_images") as Dictionary).is_empty() and entries.size() == entries_before + 1 and str(entries[-1].text) == I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server."),
 		"dock: Captura del juego en un run manual avisa que falta el autoload")
 	EditorInterface.stop_playing_scene()
 	await _tree.create_timer(1.0).timeout
@@ -360,9 +361,9 @@ func _check_regressions() -> void:
 	while result.is_empty() and Time.get_ticks_msec() < deadline:
 		await _tree.create_timer(0.2).timeout
 		for entry: Object in model.call(&"entries"):
-			if str(entry.get(&"text")).begins_with("Regressions:"):
+			if str(entry.get(&"text")).begins_with(I18n.t("Regressions: %d of %d fail.").get_slice("%d", 0)):
 				result = str(entry.get(&"text"))
-	_expect(result.contains("1 of 2 fail") and result.contains("basket is full") and not result.contains("start works"), "regresiones: una pasa, una falla, y dice cuál · " + result.left(400))
+	_expect(result.begins_with(I18n.t("Regressions: %d of %d fail.") % [1, 2]) and result.contains("basket is full") and not result.contains("start works"), "regresiones: una pasa, una falla, y dice cuál · " + result.left(400))
 	_expect(not EditorInterface.is_playing_scene(), "regresiones: el juego queda cerrado")
 	for entry: Dictionary in regressions.list():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(entry.file))
