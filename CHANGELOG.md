@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-11-10
+
 ### Added
 
 - `godot.profile_run` runs a scene with Godot's script profiler on and returns the slowest GDScript functions by self time, with `path:line`, calls, self and total ms per frame, share of script time and whether the function is typed. Use it to choose what to optimize and to measure before and after. Compare functions with each other rather than trusting absolute times: the profiler slows every call.
