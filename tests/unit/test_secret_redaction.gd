@@ -216,3 +216,32 @@ func test_agent_file_write_keeps_the_real_value() -> void:
 	assert_true(JSON.stringify(call.content).contains(AgentLog.REDACTED), "sino «secret»")
 	for entry: Dictionary in log.entries():
 		assert_false(str(entry.raw).contains(TOKEN), "el log guarda el request redactado")
+
+
+## m13-25: una key exportada en el entorno del editor le llega al agente aunque el perfil no la nombre
+## (hereda el entorno entero): queda registrada al arrancar y se enmascara en el log y en el chat.
+func test_inherited_api_key_is_registered_on_start() -> void:
+	var key := "sk-inherited-0123456789"
+	OS.set_environment("ANTHROPIC_API_KEY", key)
+	var model := SessionModel.new()
+	var log := AgentLog.new()
+	var controller := SessionController.new()
+	controller.setup(model, log, "/tmp/project")
+	var profile := AgentProfile.from_dict({"id": "claude-code", "display_name": "Claude Code", "command": "/nonexistent/claude-agent-acp", "args": [], "env": {}})
+	var ok: bool = await controller.start(profile)
+	OS.unset_environment("ANTHROPIC_API_KEY")
+	assert_false(ok, "el comando no existe: no arranca")
+	assert_eq(controller.adapter.api_key_variable(), "ANTHROPIC_API_KEY", "el adapter de Claude nombra su API key")
+	assert_eq(log.redact("key " + key), "key " + AgentLog.REDACTED, "la key heredada quedó registrada en el log")
+	var updates: Array = []
+	controller.client.set_notification_handler("session/update", func(params: Dictionary) -> void: updates.append(params))
+	controller.client.receive_line(JSON.stringify({"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "s",
+		"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "mi key es " + key}}}}))
+	assert_eq(updates.size(), 1, "la notificación llegó")
+	assert_eq(str(updates[0].update.content.text), "mi key es " + AgentLog.REDACTED, "lo que el agente dice llega al chat con «secret»")
+	for entry: Dictionary in log.entries():
+		assert_false(str(entry.raw).contains(key) or str(entry.message).contains(key), "el log tampoco la tiene")
+	assert_eq(AgentProfile.inherited_secret_values(PackedStringArray(["", "GODOT_AGENT_NO_SUCH_VARIABLE_FOR_TESTS"])), PackedStringArray(), "sin nombre o sin variable: nada")
+	OS.set_environment("ANTHROPIC_API_KEY", "abc")
+	assert_eq(AgentProfile.inherited_secret_values(PackedStringArray(["ANTHROPIC_API_KEY"])), PackedStringArray(), "un valor corto no cuenta")
+	OS.unset_environment("ANTHROPIC_API_KEY")

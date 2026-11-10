@@ -67,6 +67,18 @@ static func secret_env_values(resolved: Dictionary) -> PackedStringArray:
 	return result
 
 
+## Lo que el agente hereda del entorno del editor sin que el perfil lo nombre (m13-25): el proceso
+## recibe el entorno entero, así que una key exportada en el shell (la API key del adapter) le llega
+## igual. Devuelve los valores de `names` que existen y parecen secretos, con la misma regla que
+## secret_env_values.
+static func inherited_secret_values(names: PackedStringArray) -> PackedStringArray:
+	var found: Dictionary = {}
+	for name: String in names:
+		if not name.is_empty() and OS.has_environment(name):
+			found[name] = OS.get_environment(name)
+	return secret_env_values(found)
+
+
 func resolved_env() -> Dictionary:
 	var result: Dictionary = {}
 	for key: String in env:
