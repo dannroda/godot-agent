@@ -4,8 +4,13 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- The editor's tools tell MCP clients which ones only read (`readOnlyHint`), which ones can overwrite or delete (`destructiveHint`) and which ones reach the internet (`openWorldHint`), based on their permission group. Claude Code runs read-only calls in parallel and can repeat one if the connection drops.
+
 ### Fixed
 
+- With Claude Code, a `godot.*` call that took more than about 60 seconds failed with "The operation timed out": a long `run_scene` or `profile_run` (up to 120 s), a GDExtension build or test, or any call while its permission card waited for you. A call that takes longer than 2 seconds now streams its answer and reports progress every 10 seconds, so it runs to the end.
 - The One-shot form no longer gets clipped on both sides when the dock is wide and the editor's center is narrow: the example goals wrap instead of forcing the form wider than the space it has.
 - The findings panel counts say "1 bug" and "2 bugs", with the category name written out ("2 performance" rather than "2 perf"), and the chips wrap in a narrow dock.
 - Prompts the harness sends for you no longer look like messages you typed. This covers One-shot's turns (the goal, *keep going with the plan*, QA and its fixes, the final report), the check after each turn, Review's questions, fixes and playtests, inline edits, what the crash supervisor saw and messages from other sessions. Each one shows as a dimmed line with a label in the interface language. **Show prompt** opens the text the agent got, which stays in English. Queued prompts show the same label. Sessions reopened from the harness's history keep the labels.

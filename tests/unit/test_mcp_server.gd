@@ -40,16 +40,18 @@ func _request(method: int, path: String, body: String, headers: PackedStringArra
 		await tree.process_frame
 	if not client.has_response():
 		return {"status": 0, "headers": {}, "body": ""}
-	var data := PackedByteArray()
-	while client.get_status() == HTTPClient.STATUS_BODY and Time.get_ticks_msec() < deadline:
-		client.poll()
-		data.append_array(client.read_response_body_chunk())
-		await tree.process_frame
+	# Antes del cuerpo: un stream SSE (m11-47) termina cerrando la conexión, y HTTPClient desconectado
+	# ya no da el código ni los headers.
 	var response_headers: Dictionary = {}
 	var raw_headers := client.get_response_headers_as_dictionary()
 	for key: String in raw_headers:
 		response_headers[key.to_lower()] = raw_headers[key]
 	var status := client.get_response_code()
+	var data := PackedByteArray()
+	while client.get_status() == HTTPClient.STATUS_BODY and Time.get_ticks_msec() < deadline:
+		client.poll()
+		data.append_array(client.read_response_body_chunk())
+		await tree.process_frame
 	client.close()
 	return {"status": status, "headers": response_headers, "body": data.get_string_from_utf8()}
 
@@ -163,3 +165,51 @@ func test_keep_alive_pipelining() -> void:
 	assert_true(received.find("\"id\":1") < received.find("\"id\":2"), "en orden")
 	peer.disconnect_from_host()
 	_stop()
+
+
+## m11-47: un tools/call largo de un cliente que acepta SSE se responde como stream, con
+## notifications/progress con su progressToken y la respuesta al final; uno corto, como JSON.
+func test_long_call_streams_progress() -> void:
+	_start()
+	_server.stream_after_ms = 100
+	_server.progress_every_ms = 150
+	var tree := Engine.get_main_loop() as SceneTree
+	_server.registry.register(McpTool.create("slow", "run", "Tarda", {}, [], func(_args: Dictionary) -> String:
+		await tree.create_timer(0.6).timeout
+		return "slow done"))
+	var sse := PackedStringArray(["Accept: application/json, text/event-stream"])
+	var call := {"name": "slow", "arguments": {}, "_meta": {"progressToken": "tok-1"}}
+	var streamed: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(7, "tools/call", call), _auth(sse))
+	assert_eq(streamed.status, 200, "200")
+	assert_true(str(streamed.headers.get("content-type", "")).begins_with("text/event-stream"), "event stream · %s" % streamed.headers)
+	var events := _sse_data(streamed.body)
+	assert_true(events.size() >= 3, "al menos dos progresos y la respuesta · %s" % streamed.body)
+	var progress: Array = events.filter(func(event: Dictionary) -> bool: return event.get("method") == "notifications/progress")
+	assert_true(progress.size() >= 2, "progresos")
+	assert_eq(progress[0].params.progressToken, "tok-1", "con el token del cliente")
+	assert_true(progress[1].params.progress > progress[0].params.progress, "progress sube")
+	assert_true(str(progress[0].params.message).contains("godot.slow still running"), "mensaje")
+	assert_eq([events[-1].id, events[-1].result.content[0].text], [7.0, "slow done"], "la respuesta es el último evento")
+	# Sin token: comentarios SSE en vez de progreso (la spec no deja progreso sin token).
+	var anonymous: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(8, "tools/call", {"name": "slow", "arguments": {}}), _auth(sse))
+	assert_true(anonymous.body.contains(": godot.slow still running"), "comentario de latido")
+	assert_eq(_sse_data(anonymous.body).size(), 1, "solo la respuesta como evento")
+	# Corta, o sin Accept de SSE: JSON común.
+	var quick: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(9, "tools/call", {"name": "sum", "arguments": {"a": 1, "b": 1}, "_meta": {"progressToken": 3}}), _auth(sse))
+	assert_eq([str(quick.headers.get("content-type", "")), JSON.parse_string(quick.body).result.content[0].text], ["application/json", "2"], "corta → JSON")
+	var plain: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(10, "tools/call", call), _auth())
+	assert_eq([str(plain.headers.get("content-type", "")), JSON.parse_string(plain.body).result.content[0].text], ["application/json", "slow done"], "sin Accept de SSE → JSON")
+	_stop()
+
+
+func test_progress_event_format() -> void:
+	assert_eq(McpServer.progress_event(5.0, 2, "run_scene", 20), "event: message\ndata: %s\n\n" % JSON.stringify({"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progressToken": 5, "progress": 2, "message": "godot.run_scene still running (20 s)"}}), "token entero sin .0")
+	assert_eq(McpServer.progress_event(null, 1, "x", 2), ": godot.x still running (2 s)\n\n", "sin token, comentario")
+
+
+func _sse_data(body: String) -> Array:
+	var events: Array = []
+	for line: String in body.split("\n"):
+		if line.begins_with("data: "):
+			events.append(JSON.parse_string(line.trim_prefix("data: ")))
+	return events

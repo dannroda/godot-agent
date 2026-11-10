@@ -85,21 +85,56 @@ func _post(body: String) -> Array:
 			continue
 		var status := _client.get_response_code()
 		var response_headers := _client.get_response_headers_as_dictionary()
+		var event_stream := false
 		for key: String in response_headers:
 			if key.to_lower() == "mcp-session-id":
 				_session_id = str(response_headers[key])
+			elif key.to_lower() == "content-type":
+				event_stream = str(response_headers[key]).begins_with("text/event-stream")
 		var data := PackedByteArray()
+		var pending := PackedByteArray()
 		while _client.get_status() == HTTPClient.STATUS_BODY and Time.get_ticks_msec() < deadline:
 			_client.poll()
 			var chunk := _client.read_response_body_chunk()
 			if chunk.is_empty():
 				OS.delay_msec(POLL_MS)
+			elif event_stream:
+				# Una tool larga (m11-47): cada evento (progreso y al final la respuesta) sale apenas
+				# llega, y el plazo se cuenta desde el último.
+				deadline = Time.get_ticks_msec() + TIMEOUT_MS
+				pending.append_array(chunk)
+				pending = _print_events(pending)
 			else:
 				data.append_array(chunk)
+		if event_stream:
+			_client = null  # el server cierra la conexión al terminar el stream
+			return [202, ""]
 		if status == 404:
 			_session_id = ""  # el editor reinició el server: el cliente tiene que reinicializar
 		return [status, data.get_string_from_utf8()]
 	return [0, "could not connect to the editor"]
+
+
+## Escribe en stdout el `data` de cada evento SSE completo de `bytes` (los separa una línea vacía;
+## los comentarios no) y devuelve los bytes del evento que todavía no terminó. Se decodifica solo
+## hasta el último evento completo: un chunk puede cortar un carácter UTF-8.
+static func _print_events(bytes: PackedByteArray) -> PackedByteArray:
+	var last := -1
+	for i in range(bytes.size() - 1, 0, -1):
+		if bytes[i] == 10 and (bytes[i - 1] == 10 or (bytes[i - 1] == 13 and i >= 3 and bytes[i - 2] == 10)):
+			last = i
+			break
+	if last < 0:
+		return bytes
+	var text := bytes.slice(0, last + 1).get_string_from_utf8().replace("\r\n", "\n")
+	for event: String in text.split("\n\n", false):
+		var lines: PackedStringArray = []
+		for line: String in event.split("\n"):
+			if line.begins_with("data:"):
+				lines.append(line.trim_prefix("data:").strip_edges(true, false))
+		if not lines.is_empty():
+			print("\n".join(lines))
+	return bytes.slice(last + 1)
 
 
 func _ensure_connected() -> bool:

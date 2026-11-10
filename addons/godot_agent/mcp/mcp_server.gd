@@ -1,7 +1,11 @@
 @tool
 extends Node
 ## Server MCP del addon (spec §5): HTTP/1.1 mínimo sobre TCPServer en 127.0.0.1, token Bearer,
-## `POST /mcp` con JSON-RPC y respuestas JSON (Streamable HTTP sin SSE).
+## `POST /mcp` con JSON-RPC y respuestas JSON (Streamable HTTP). Un tools/call que tarda más de
+## stream_after_ms se responde como SSE (m11-47): los headers salen enseguida y cada
+## progress_every_ms va un notifications/progress con el progressToken del cliente (o un comentario
+## SSE si no mandó). Claude Code corta a los 60 s una llamada HTTP sin ningún byte de respuesta y a
+## los 5 min una sin respuesta ni progreso; así una compilación o un run_scene largos terminan.
 ## La red se atiende con polling no bloqueante en `_process` (D16): cada request corre en el hilo
 ## principal y una conexión procesa sus requests en orden.
 
@@ -39,6 +43,10 @@ var registry: ToolRegistry
 var agent_log: AgentLog
 ## Token Bearer: se genera en cada start().
 var token: String = ""
+## Un tools/call que sigue corriendo después de esto pasa a SSE (si el cliente lo acepta).
+var stream_after_ms: int = 2000
+## Cada cuánto va un notifications/progress mientras corre.
+var progress_every_ms: int = 10000
 
 var _server: TCPServer
 var _port: int = 0
@@ -174,10 +182,11 @@ func _serve(connection: McpConnection) -> void:
 	connection.busy = true
 	while not connection.queue.is_empty() and _connections.has(connection):
 		var request: HttpParser.ParsedRequest = connection.queue.pop_front()
-		var reply: Dictionary = await _handle(request)
+		var reply: Dictionary = await _handle(request, connection)
 		if not _connections.has(connection):
 			break
-		_send(connection, reply.status, reply.get("body", PackedByteArray()), reply.get("headers", {}))
+		if not reply.get("streamed", false):
+			_send(connection, reply.status, reply.get("body", PackedByteArray()), reply.get("headers", {}))
 		if not request.keep_alive() or reply.get("close", false):
 			_close(connection)
 			break
@@ -198,7 +207,7 @@ func _close(connection: McpConnection) -> void:
 # --- HTTP → JSON-RPC -----------------------------------------------------------------------------
 
 ## Devuelve `{status, body?, headers?, close?}`.
-func _handle(request: HttpParser.ParsedRequest) -> Dictionary:
+func _handle(request: HttpParser.ParsedRequest, connection: McpConnection = null) -> Dictionary:
 	var path := request.path.split("?")[0]
 	if not _origin_allowed(request.header("origin")):
 		return {"status": 403, "body": _error_body(-32600, "Origin not allowed"), "close": true}
@@ -228,10 +237,74 @@ func _handle(request: HttpParser.ParsedRequest) -> Dictionary:
 		if replies.is_empty():
 			return {"status": 202, "headers": headers}
 		return {"status": 200, "headers": headers, "body": JSON.stringify(replies).to_utf8_buffer()}
+	if message is Dictionary and message.get("method") == "tools/call" and message.has("id") and request.header("accept").contains("text/event-stream"):
+		return await _handle_tool_call(message, session_id, caller, connection)
 	var single: Variant = await _dispatch(message, headers, session_id, caller)
 	if single == null:
 		return {"status": 202, "headers": headers}
 	return {"status": 200, "headers": headers, "body": JSON.stringify(single).to_utf8_buffer()}
+
+
+## Un tools/call de un cliente que acepta SSE: si termina antes de stream_after_ms es una respuesta
+## JSON común; si no, se abre el stream con un progreso cada progress_every_ms y la respuesta va al
+## final como un evento más. Una conexión que el cliente cerró deja de recibir, pero la tool termina.
+func _handle_tool_call(message: Dictionary, session_id: String, caller: String, connection: McpConnection) -> Dictionary:
+	var call := {"done": false, "reply": null}
+	_dispatch_into(call, message, session_id, caller)
+	var params: Dictionary = message.get("params", {}) if message.get("params") is Dictionary else {}
+	var meta: Dictionary = params.get("_meta", {}) if params.get("_meta") is Dictionary else {}
+	var progress_token: Variant = meta.get("progressToken")
+	var tool_name := str(params.get("name", "?"))
+	var started := Time.get_ticks_msec()
+	var next_beat := started + stream_after_ms
+	var beats := 0
+	var streaming := false
+	while not call.done:
+		await (Engine.get_main_loop() as SceneTree).process_frame
+		if call.done or Time.get_ticks_msec() < next_beat:
+			continue
+		next_beat = Time.get_ticks_msec() + progress_every_ms
+		if connection == null or not _connections.has(connection):
+			continue
+		if not streaming:
+			streaming = true
+			_log("godot.%s is taking long: answering as an event stream" % tool_name)
+			_put(connection, ("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n").to_utf8_buffer())
+		beats += 1
+		_put(connection, progress_event(progress_token, beats, tool_name, (Time.get_ticks_msec() - started) / 1000).to_utf8_buffer())
+	if not streaming:
+		return {"status": 200, "body": JSON.stringify(call.reply).to_utf8_buffer()}
+	if connection != null and _connections.has(connection):
+		_put(connection, sse_event(call.reply).to_utf8_buffer())
+	return {"status": 200, "streamed": true, "close": true}
+
+
+func _dispatch_into(call: Dictionary, message: Dictionary, session_id: String, caller: String) -> void:
+	call.reply = await _dispatch(message, {}, session_id, caller)
+	call.done = true
+
+
+func _put(connection: McpConnection, bytes: PackedByteArray) -> void:
+	if connection.peer.get_status() == StreamPeerTCP.STATUS_CONNECTED:
+		connection.peer.put_data(bytes)
+
+
+## Un mensaje JSON-RPC como evento SSE.
+static func sse_event(message: Variant) -> String:
+	return "event: message\ndata: %s\n\n" % JSON.stringify(message)
+
+
+## El latido de una tool que sigue corriendo: notifications/progress con el token del cliente
+## (progress sube de a uno, sin total), o un comentario SSE si el cliente no mandó token (la spec
+## no deja mandar progreso sin token).
+static func progress_event(progress_token: Variant, beat: int, tool_name: String, seconds: int) -> String:
+	if progress_token == null:
+		return ": godot.%s still running (%d s)\n\n" % [tool_name, seconds]
+	if progress_token is float and is_equal_approx(progress_token, roundf(progress_token)):
+		progress_token = int(progress_token)
+	return sse_event({"jsonrpc": "2.0", "method": "notifications/progress", "params": {
+		"progressToken": progress_token, "progress": beat, "message": "godot.%s still running (%d s)" % [tool_name, seconds],
+	}})
 
 
 ## Un mensaje JSON-RPC → respuesta (Dictionary) o null si era notificación o respuesta.

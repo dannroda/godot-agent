@@ -22,9 +22,11 @@ func tools() -> Array:
 		McpTool.create("sessions", PermissionPolicy.GROUP_READ,
 			"Lists the agent sessions open in this editor besides yours: their name, mode and state, what they're working on, the files each one is editing in its current turn (off limits to you until that turn ends) and which one has the game running.",
 			{}, [], _sessions),
-		McpTool.create("session_send", PermissionPolicy.GROUP_READ,
+		# No pide permiso (read), pero manda un mensaje: no es de solo lectura ni se repite (m11-47).
+		McpTool.with_hints(McpTool.create("session_send", PermissionPolicy.GROUP_READ,
 			"Sends a short message to another agent session open in this editor (`to`: its name from godot.sessions, e.g. \"Session 2\"). It reaches that agent as a prompt when its turn ends, marked as coming from you. Use it to hand off work or agree on who edits what; don't use it for chit-chat.",
 			{"to": {"type": "string"}, "message": {"type": "string"}}, ["to", "message"], _session_send),
+			{"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false}),
 	]
 
 
