@@ -376,7 +376,7 @@ func tools() -> Array:
 
 
 func _run_scene(args: Dictionary) -> Dictionary:
-	if _busy and not busy_is_stale(_busy_since_ms, Time.get_ticks_msec()):
+	if is_busy():
 		return McpTool.error("A run_scene is already in progress (started %d s ago; %s): wait for it to finish." % [(Time.get_ticks_msec() - _busy_since_ms) / 1000, describe_run_state()])
 	var scene := McpTool.str_arg(args, "scene")
 	if scene.is_empty():
@@ -446,6 +446,16 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	var report := _report(scene, seconds, inputs, notes, since, output_before)
 	_busy = false
 	return McpTool.text(report)
+
+
+## run_scene para otra tool (godot.profile_run, m13-27): mismo arranque, espera e informe.
+func run_scene(args: Dictionary) -> Dictionary:
+	return await _run_scene(args)
+
+
+## Hay un run_scene en curso (el de una tool o el de otra sesión).
+func is_busy() -> bool:
+	return _busy and not busy_is_stale(_busy_since_ms, Time.get_ticks_msec())
 
 
 ## Si un run_scene murió por un error interno nadie baja `_busy`: pasado lo máximo que puede durar uno,

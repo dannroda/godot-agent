@@ -60,6 +60,7 @@ const NativeBuild := preload("core/native_build.gd")
 const NativeInstall := preload("core/native_install.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
+const ProfileTools := preload("mcp/tools/profile_tools.gd")
 const PlaytestRegressions := preload("review/playtest_regressions.gd")
 const RegressionsWorkflow := preload("review/regressions_workflow.gd")
 const PlaytestDebugger := preload("playtest/playtest_debugger.gd")
@@ -138,6 +139,7 @@ var _errors: ErrorCollector
 var _diagnostics: DiagnosticTools
 var _playtest_debugger: PlaytestDebugger
 var _run_tools: RunTools
+var _profile_tools: ProfileTools
 var _regressions_running: bool = false
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 var _review_annotations: ReviewAnnotations
@@ -440,6 +442,9 @@ func _exit_tree() -> void:
 	_fs = null
 	_registry = null
 	_diagnostics = null
+	if _profile_tools:
+		_profile_tools.shutdown()
+		_profile_tools = null
 	if _playtest_debugger:
 		remove_debugger_plugin(_playtest_debugger)
 		_playtest_debugger = null
@@ -788,6 +793,10 @@ func _start_mcp_server() -> void:
 	_run_tools.agent_log = _log
 	registry.register_provider(_run_tools)
 	registry.mark_extended(RunTools.GAME_TOOLS)
+	# m13-27: lee el profiler por una API interna del editor; sin ella, la tool contesta por qué no puede.
+	_profile_tools = ProfileTools.new()
+	_profile_tools.setup(_run_tools, _playtest_debugger)
+	registry.register_provider(_profile_tools, true)
 	var session_tools := SessionTools.new()
 	# Por el campo y no por `registry`: el registro guarda la tool y la lambda no puede guardarlo a él.
 	session_tools.caller = func() -> String: return _session_of(_registry.current_caller if _registry else "")

@@ -73,6 +73,18 @@ func is_breaked() -> bool:
 	return has_probe() and get_session(_probe_session).is_breaked()
 
 
+## La sesión del juego en curso: la del probe si ya avisó; si no, la última activa (al arrancar,
+## antes del `ready`). -1 si no hay ninguna.
+func active_session_id() -> int:
+	if has_probe():
+		return _probe_session
+	var sessions := get_sessions()
+	for i in range(sessions.size() - 1, -1, -1):
+		if (sessions[i] as EditorDebuggerSession).is_active():
+			return i
+	return -1
+
+
 func send(message: String, data: Array = []) -> bool:
 	if not has_probe():
 		return false
