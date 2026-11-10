@@ -13,6 +13,8 @@ const SCRIPT_EXT := "gd"
 ## C# (m14-08): solo entra al índice de líneas propio; las reglas y el n-gram son de GDScript.
 const CSHARP_EXT := "cs"
 const SCENE_EXT := "tscn"
+## Recursos de texto: solo con structure_only (sus ext_resource son aristas del mapa).
+const RESOURCE_EXT := "tres"
 ## Extensiones que no son recursos cargables.
 const SKIP_EXT: PackedStringArray = ["import", "uid", "tmp", "translation", "godot"]
 const MAX_FILES := 20000
@@ -44,6 +46,12 @@ var ngram: NGramModel = NGramModel.new()
 ## Scripts de las carpetas de corpus extra (fuera del proyecto): ruta -> {mtime, tokens}. Solo
 ## entrenan el n-gram.
 var extra: Dictionary = {}
+## Solo estructura (m11-26, para godot.project_map): sin índice de líneas ni n-gram, y cada script
+## trae además `refs` (rutas literales de preload/load), `idents` (identificadores con mayúscula) y
+## `decls` ([línea, texto] de class_name, signal, func pública, @export var y enum).
+var structure_only: bool = false
+## Solo con structure_only: .tres de texto -> {mtime, deps}.
+var resource_deps: Dictionary = {}
 var build_usec: int = 0
 var file_count: int = 0
 
@@ -52,10 +60,11 @@ var _re: Dictionary = {}
 
 ## Arma el índice. `options`: {root, exclude: PackedStringArray (prefijos relativos, solo para el
 ## corpus de líneas), buffers: {ruta: {text, skip_line}}, previous: este script o null, now: unix,
-## extra_corpus: PackedStringArray de carpetas absolutas, cancel: [bool]}.
+## extra_corpus: PackedStringArray de carpetas absolutas, cancel: [bool], structure_only: bool}.
 static func build(options: Dictionary) -> RefCounted:
 	var started := Time.get_ticks_usec()
 	var index := new()
+	index.structure_only = bool(options.get("structure_only", false))
 	index._compile()
 	var root: String = options.get("root", "res://")
 	var previous: RefCounted = options.get("previous")
@@ -79,7 +88,7 @@ static func build(options: Dictionary) -> RefCounted:
 			if buffers.has(path):
 				var buffer: Dictionary = buffers[path]
 				index.scripts[path] = index._parse_script(str(buffer.text), -1, int(buffer.get("skip_line", -1)), corpus)
-			elif previous and mtime < fresh_after and previous.scripts.has(path) and int(previous.scripts[path].mtime) == mtime and bool(previous.scripts[path].corpus) == corpus:
+			elif previous and mtime < fresh_after and previous.scripts.has(path) and int(previous.scripts[path].mtime) == mtime and bool(previous.scripts[path].corpus) == corpus and previous.structure_only == index.structure_only:
 				index.scripts[path] = previous.scripts[path]
 			else:
 				index.scripts[path] = index._parse_script(FileAccess.get_file_as_string(path), mtime, -1, corpus)
@@ -96,12 +105,21 @@ static func build(options: Dictionary) -> RefCounted:
 				index.scenes[path] = previous.scenes[path]
 			else:
 				index.scenes[path] = index._parse_scene(FileAccess.get_file_as_string(path), mtime)
+		elif ext == RESOURCE_EXT and index.structure_only:
+			if previous and mtime < fresh_after and previous.resource_deps.has(path) and int(previous.resource_deps[path].mtime) == mtime:
+				index.resource_deps[path] = previous.resource_deps[path]
+			else:
+				index.resource_deps[path] = {"mtime": mtime, "deps": index._parse_scene(FileAccess.get_file_as_string(path), mtime).deps}
 	index.file_count = files.size()
 	# Cancelado (`wait()` al deshabilitar el plugin): el resultado se descarta, y el hilo principal
 	# espera, así que no se arman las líneas ni el n-gram.
 	if cancel[0]:
 		return index
 	index._link(root, exclude)
+	if index.structure_only:
+		index._re.clear()
+		index.build_usec = Time.get_ticks_usec() - started
+		return index
 	var file_lines: Dictionary = {}
 	var mtimes: Dictionary = {}
 	for path: String in index.scripts:
@@ -186,6 +204,8 @@ func _compile() -> void:
 		"attr": "(\\w+)=(\"(?:[^\"\\\\]|\\\\.)*\"|\\[[^\\]]*\\]|\\w+\\([^)]*\\)|[^\\s\\]]+)",
 		"ext_ref": "ExtResource\\(\\s*\"?([^\")]+)\"?\\s*\\)",
 		"string": "\"([^\"]*)\"",
+		"ref": "(?:preload|load|change_scene_to_file|load_threaded_request)\\(\\s*[\"']([^\"']+)[\"']",
+		"ident": "\\b([A-Z][A-Za-z0-9_]*)\\b",
 	}
 	for key: String in patterns:
 		var re := RegEx.new()
@@ -202,9 +222,14 @@ func _parse_script(text: String, mtime: int, skip_line: int, corpus: bool) -> Di
 	var funcs := PackedStringArray()
 	var groups_found := PackedStringArray()
 	var vars := PackedStringArray()
+	var decls: Array = []
+	var number := 0
 	for line: String in text.split("\n"):
+		number += 1
 		if line.is_empty() or line.begins_with("\t") or line.begins_with(" ") or line.begins_with("#"):
 			continue
+		if structure_only and _is_decl(line):
+			decls.append([number, _decl_text(line)])
 		var found: RegExMatch
 		if line.begins_with("func") or line.begins_with("static"):
 			found = (_re.func as RegEx).search(line)
@@ -244,7 +269,42 @@ func _parse_script(text: String, mtime: int, skip_line: int, corpus: bool) -> Di
 	info.funcs = funcs
 	info.groups = groups_found
 	info.vars = vars
+	if structure_only:
+		info.decls = decls
+		var refs := PackedStringArray()
+		for found: RegExMatch in (_re.ref as RegEx).search_all(text):
+			if not found.get_string(1) in refs:
+				refs.append(found.get_string(1))
+		info.refs = refs
+		var idents := {}
+		for found: RegExMatch in (_re.ident as RegEx).search_all(text):
+			idents[found.get_string(1)] = true
+		info.idents = PackedStringArray(idents.keys())
 	return info
+
+
+## Línea de nivel superior que el mapa muestra: class_name, signal, func pública, @export var, enum.
+static func _is_decl(line: String) -> bool:
+	if line.begins_with("class_name") or line.begins_with("signal") or line.begins_with("enum"):
+		return true
+	if line.begins_with("@export") and line.contains("var "):
+		return true
+	var header := line.trim_prefix("static ")
+	return header.begins_with("func ") and not header.trim_prefix("func ").begins_with("_")
+
+
+## La declaración sin el «:» del final ni el cuerpo en la misma línea, hasta 160 caracteres.
+static func _decl_text(line: String) -> String:
+	var text := line.strip_edges()
+	if text.begins_with("func ") or text.begins_with("static func "):
+		var close := text.rfind(")")
+		var arrow := text.find("->", close) if close >= 0 else -1
+		var colon := text.find(":", arrow if arrow >= 0 else maxi(close, 0))
+		if colon > 0:
+			text = text.left(colon)
+	elif text.begins_with("enum"):
+		text = text.get_slice("{", 0)
+	return text.strip_edges().left(160)
 
 
 ## Formato .tscn por líneas: ext_resource, node (con script, unique_name_in_owner y groups) y connection.
@@ -285,7 +345,7 @@ func _parse_scene(text: String, mtime: int) -> Dictionary:
 				current.script = _ext_path(line.substr(9), ext)
 			elif line.begins_with("unique_name_in_owner = true"):
 				current.unique = true
-	return {"mtime": mtime, "nodes": nodes, "connections": connections}
+	return {"mtime": mtime, "nodes": nodes, "connections": connections, "deps": PackedStringArray(ext.values())}
 
 
 func _attrs(text: String) -> Dictionary:
