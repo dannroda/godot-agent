@@ -11,6 +11,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - If the agent's process ends while it waits for you to sign in, the dock shows the error with **Retry** instead of staying on «Sign-in needed».
 - When the agent's process dies, the error card keeps the last lines of its output folded under **Show**, each cut to a readable length with how many characters it left out, and with the harness's secrets (the MCP server token) redacted like in the Agent Log: claude-agent-acp prints the whole prompt, system prompt included, and it hid the cause. **Open the log below** still has every line in full.
 
+### Fixed
+
+- When the agent's process dies during a turn, the chat shows one error card, with the cause and the last lines of the log, instead of two cards that each offered **Retry**.
+
 ## [0.1.17] - 2026-11-03
 
 ### Added

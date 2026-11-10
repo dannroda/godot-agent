@@ -208,12 +208,24 @@ func _scenario_crash() -> void:
 	var made := await _make("crash")
 	var controller: SessionController = made[0]
 	var model: SessionModel = made[1]
+	var turns_finished: Array[String] = []
+	model.turn_finished.connect(func(reason: String) -> void: turns_finished.append(reason))
+	var states: Array[String] = []
+	model.state_changed.connect(func(state: SessionModel.SessionState) -> void: states.append(SessionModel.state_name(state)))
 	var result: String = await controller.send_prompt("caete")
 	_check(result == "error", "crash: el prompt termina con error (%s)" % result)
 	await _wait_until(func() -> bool: return model.state == SessionModel.SessionState.FAILED)
 	_check(model.state == SessionModel.SessionState.FAILED, "crash: FAILED")
 	var notice: ChatEntry = model.entries().back()
 	_check(notice.kind == ChatEntry.EntryKind.NOTICE and notice.level == ChatEntry.NoticeLevel.ERROR, "crash: aviso de error")
+	# m13-24: una sola tarjeta de error, la de la caída. El fin del turno por la caída no suma la suya
+	# («The turn ended with an error: The agent exited…», con otro Retry).
+	var errors: Array = model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.NOTICE and entry.level == ChatEntry.NoticeLevel.ERROR)
+	_check(errors.size() == 1 and errors[0] == notice, "crash: una sola tarjeta de error (%s)" % [errors.map(func(entry: ChatEntry) -> String: return entry.title if not entry.title.is_empty() else entry.text.left(60))])
+	_check(turns_finished == ["error"], "crash: el turno termina una vez, con error (%s)" % [turns_finished])
+	var user_index := model.entries().find_custom(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER)
+	_check(user_index >= 0 and user_index < model.entries().find(notice), "crash: la tarjeta queda después del mensaje del usuario")
+	_check(states.slice(states.find("PROMPTING")) == ["PROMPTING", "FAILED"], "crash: PROMPTING → FAILED, sin pasar por READY (%s)" % [states])
 	_check(notice.actions.size() == 2, "crash: con acciones Reintentar / Ver log")
 	_check(notice.title == "Agente falso stopped" and notice.text.contains("code"), "crash: título y causa para personas (%s · %s)" % [notice.title, notice.text])
 	# m12-36: «Abrir el log» lleva a la línea del error.

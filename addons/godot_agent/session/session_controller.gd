@@ -490,7 +490,12 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		return "cancelled"
 	if not result.ok:
 		quota.observe_prompt_error(result.error)
-		if model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
+		if model.has_failed():
+			# El agente se cayó en el turno (m13-24): la tarjeta ya la puso _fail_agent, con la causa y el
+			# stderr. El turno termina igual (turn_finished) y la sesión queda en FAILED.
+			agent_log.add(AgentLog.CH_ACP, "The turn ended because the session failed: %s" % result.error_message())
+			model.finish_turn("error")
+		elif model.state in [SessionModel.SessionState.PROMPTING, SessionModel.SessionState.CANCELLING]:
 			var login_actions: Array[Dictionary] = []
 			if is_auth_required(result.error):
 				login_actions = _login_actions()
@@ -1185,10 +1190,12 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 	process.stop()
 	if terminal:
 		terminal.stop_all()
-	client.fail_all_pending("The agent exited (code %d)." % code)
+	# Primero la tarjeta y FAILED, después los requests pendientes (m13-24): el turno que la caída corta
+	# ve la sesión caída y no suma su propia tarjeta de error.
 	_fail_agent(I18n.t("%s stopped") % _agent_name(),
 		I18n.t("The agent's process ended unexpectedly (code %d).") % code,
 		"The agent exited unexpectedly (code %d)." % code, _crash_actions())
+	client.fail_all_pending("The agent exited (code %d)." % code)
 	disconnected.emit()
 
 
