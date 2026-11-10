@@ -45,6 +45,7 @@ const ClaudeCli := preload("../extensions/claude_cli.gd")
 const TurnSnapshots := preload("turn_snapshots.gd")
 const TurnReport := preload("turn_report.gd")
 const I18n := preload("../core/i18n.gd")
+const HarnessPrompts := preload("harness_prompts.gd")
 
 ## Turnos seguidos que la verificación al terminar un turno manda para corregir errores (m11-04).
 const MAX_FIX_TURNS := 2
@@ -204,6 +205,8 @@ var _outside_turn_noticed: bool = false
 ## usuario); al llegar a MAX_FIX_TURNS solo se avisa.
 var _fix_turns: int = 0
 var _sending_fix: bool = false
+## Prompts del harness que esperan salir: texto → etiqueta (label_prompt, m12-44).
+var _harness_labels: Dictionary = {}
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
 var _note_for_agent: String = ""
 var _connect_generation: int = 0
@@ -445,10 +448,12 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	for block: Variant in extra_blocks:
 		if block is Dictionary:
 			attachments.append(block)
-	model.add_user_message(text, attachments)
+	var harness_label: String = _harness_labels.get(text, "")
+	_harness_labels.erase(text)
+	model.add_user_message(text, attachments, harness_label)
 	_outside_turn_noticed = false
 	if history:
-		history.record_prompt(text)
+		history.record_prompt(text, harness_label)
 	model.set_state(SessionModel.SessionState.PROMPTING)
 	var first_new_entry := model.entries().size()
 	var turn_start := ""
@@ -634,7 +639,7 @@ func _verify_turn(turn_started: int) -> void:
 		_fix_turns += 1
 		model.add_notice(I18n.t("Check after the turn: some scripts don't parse. The agent gets the errors to fix them (%d of %d).") % [_fix_turns, MAX_FIX_TURNS], ChatEntry.NoticeLevel.WARNING)
 		_sending_fix = true
-		send_prompt("[Automatic check after your turn] These scripts you changed don't parse. Fix them, then check again with godot.validate_scripts:\n" + errors)
+		send_prompt(label_prompt("[Automatic check after your turn] These scripts you changed don't parse. Fix them, then check again with godot.validate_scripts:\n" + errors, HarnessPrompts.TURN_CHECK))
 		_sending_fix = false
 	else:
 		model.add_notice(I18n.t("Check after the turn: some scripts don't parse.") + "\n" + errors, ChatEntry.NoticeLevel.WARNING)
@@ -727,6 +732,20 @@ func _fold_findings(first_entry: int) -> void:
 
 
 ## Cambia el modo del harness y manda el turno cuando el agente ya está en el modo que corresponde.
+## Marca `text` como un prompt del harness (m12-44): cuando salga (ya, o desde la cola del dock), el
+## chat lo muestra con la etiqueta `label` (un msgid de HarnessPrompts) en lugar de como mensaje del
+## usuario. El agente recibe el texto igual. Devuelve `text`.
+func label_prompt(text: String, label: String) -> String:
+	if not label.is_empty():
+		_harness_labels[text] = label
+	return text
+
+
+## La etiqueta con que va a salir `text` ("" = como mensaje del usuario).
+func prompt_label(text: String) -> String:
+	return _harness_labels.get(text, "")
+
+
 func send_in_mode(mode: SessionModel.HarnessMode, text: String, extra_blocks: Array = []) -> String:
 	if model.harness_mode != mode:
 		model.set_harness_mode(mode)

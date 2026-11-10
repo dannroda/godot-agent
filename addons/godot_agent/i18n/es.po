@@ -4208,3 +4208,72 @@ msgstr "Todavía no hay regresiones guardadas: un playtest que pasa deja una. El
 
 msgid "Could not install the staged GDExtension %s: %s. The game keeps the build it had."
 msgstr "No se pudo instalar la GDExtension preparada %s: %s. El juego sigue con la build que tenía."
+
+msgid "One-shot · goal and instructions"
+msgstr "One-shot · objetivo e instrucciones"
+
+msgid "One-shot · resume the run"
+msgstr "One-shot · retomar el run"
+
+msgid "One-shot · summary for the new session"
+msgstr "One-shot · resumen para la sesión nueva"
+
+msgid "One-shot · next task in the plan"
+msgstr "One-shot · siguiente tarea del plan"
+
+msgid "One-shot · keep going with the goal"
+msgstr "One-shot · seguir con el objetivo"
+
+msgid "One-shot · spec approved"
+msgstr "One-shot · spec aprobado"
+
+msgid "One-shot · your message, as a change to the spec"
+msgstr "One-shot · tu mensaje, como cambio al spec"
+
+msgid "One-shot · the plan you edited"
+msgstr "One-shot · el plan que editaste"
+
+msgid "One-shot · final report"
+msgstr "One-shot · informe final"
+
+msgid "One-shot · loop warning"
+msgstr "One-shot · aviso de bucle"
+
+msgid "One-shot · QA evaluation"
+msgstr "One-shot · evaluación de QA"
+
+msgid "One-shot · fixes from QA"
+msgstr "One-shot · correcciones de QA"
+
+msgid "One-shot · turn off Remote Control"
+msgstr "One-shot · apagar Remote Control"
+
+msgid "Automatic check after the turn"
+msgstr "Chequeo automático después del turno"
+
+msgid "Review · question about a finding"
+msgstr "Revisar · pregunta sobre un hallazgo"
+
+msgid "Review · fix the findings"
+msgstr "Revisar · corregir los hallazgos"
+
+msgid "Review · playtest"
+msgstr "Revisar · playtest"
+
+msgid "Inline edit from the Script Editor"
+msgstr "Edición en línea desde el Script Editor"
+
+msgid "What the supervisor saw while the editor was closed"
+msgstr "Lo que vio el supervisor mientras el editor estuvo cerrado"
+
+msgid "Message from another agent session"
+msgstr "Mensaje de otra sesión del agente"
+
+msgid "Show prompt"
+msgstr "Ver prompt"
+
+msgid "Hide prompt"
+msgstr "Ocultar prompt"
+
+msgid "What the harness sent to the agent, as the agent got it"
+msgstr "Lo que el harness le mandó al agente, tal como le llegó"
