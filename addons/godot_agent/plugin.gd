@@ -648,7 +648,7 @@ func _match_pending_undo() -> void:
 	for pending: Dictionary in _pending_undo.duplicate():
 		var call: ToolCall = null
 		for model: SessionModel in _models():
-			call = model.find_godot_tool_call(pending.tool, pending.args)
+			call = model.find_godot_tool_call(pending.tool, pending.args, _log.redact_data)
 			if call:
 				call.undo_info = pending.info
 				model.touch_tool_call(call)

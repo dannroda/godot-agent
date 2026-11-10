@@ -11,6 +11,7 @@ signal saved
 const HarnessSettings := preload("../../core/harness_settings.gd")
 const I18n := preload("../../core/i18n.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
+const SecretNames := preload("../../core/secret_names.gd")
 const AcpRegistryDialog := preload("acp_registry_dialog.gd")
 const ProjectConfig := preload("../../config/project_config.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -64,7 +65,6 @@ var seen_mcp_servers_provider: Callable
 
 var _settings: HarnessSettings
 var _config: ProjectConfig
-var _secret_name := RegEx.create_from_string("(?i)(key|token|secret|password|passwd)")
 
 var _nav: ItemList
 var _pages: Array[Control] = []
@@ -838,7 +838,7 @@ func validate() -> Dictionary:
 		defaults += 1 if profile.is_default else 0
 		for key: String in profile.env:
 			var value: String = profile.env[key]
-			if _secret_name.search(key) and not value.is_empty() and not value.begins_with("$"):
+			if SecretNames.is_secret(key) and not value.is_empty() and not value.begins_with("$"):
 				return {"section": SettingsSection.AGENTS, "message": I18n.t("%s: %s looks like a secret. Use $VARIABLE from the environment: the harness doesn't store keys.") % [profile.display_name, key]}
 	if defaults > 1:
 		return {"section": SettingsSection.AGENTS, "message": I18n.t("Only one agent can be the default.")}

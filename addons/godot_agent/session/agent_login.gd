@@ -11,6 +11,7 @@ signal finished(ok: bool, message: String)
 
 const AgentProcess := preload("../transport/agent_process.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
+const AgentLog := preload("../core/agent_log.gd")
 
 ## Líneas de salida que se guardan para explicar un error.
 const TAIL_LINES := 6
@@ -40,10 +41,16 @@ static func is_terminal(auth_method: Dictionary) -> bool:
 
 ## `{command, args, env}` para correr el login. Con `_meta.terminal-auth` el agente da el comando
 ## exacto; si no, es el del perfil con los `args` y `env` del método.
+## `authMethods` llega redactado (AcpClient, m13-25): si el agente repitió ahí una key de su entorno,
+## el valor dice «secret». Esa variable no se pisa (m13-28): el valor real ya está en el entorno del
+## perfil o en el del editor, que el proceso del login hereda.
 static func command_for(auth_method: Dictionary, profile: AgentProfile) -> Dictionary:
 	var env := profile.resolved_env()
 	if auth_method.get("env") is Dictionary:
-		env.merge(auth_method.env, true)
+		for key: Variant in auth_method.env:
+			var value := str(auth_method.env[key])
+			if not value.contains(AgentLog.REDACTED):
+				env[key] = value
 	var meta: Variant = _terminal_meta(auth_method)
 	if meta is Dictionary and meta.get("command") is String:
 		return {"command": str(meta.command), "args": PackedStringArray(meta.get("args", []) if meta.get("args") is Array else []), "env": env}

@@ -4,6 +4,7 @@ extends "test_case.gd"
 
 const AgentLogin := preload("res://addons/godot_agent/session/agent_login.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
+const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 
 
@@ -37,6 +38,19 @@ func test_command_for() -> void:
 	assert_eq(command.command, "/usr/bin/node", "_meta.terminal-auth manda")
 	assert_eq(command.args, PackedStringArray(["/x/index.js", "--cli", "auth", "login"]), "args del _meta")
 	assert_true(AgentLogin.is_terminal({"id": "x", "_meta": {"terminal-auth": {"command": "a"}}}), "terminal por _meta")
+
+
+
+## m13-28: authMethods llega redactado. Si el agente repitió en su env una key de su entorno, el
+## valor dice «secret»: esa variable no se pisa y el login usa la real del perfil.
+func test_redacted_env_does_not_replace_the_real_key() -> void:
+	var profile := AgentProfile.from_dict({"id": "claude", "display_name": "Claude Code", "command": "npx", "args": [],
+		"env": {"ANTHROPIC_API_KEY": "sk-ant-real-0123456789"}})
+	var method := {"id": "login", "type": "terminal", "env": {"ANTHROPIC_API_KEY": AgentLog.REDACTED, "AUTH_HEADER": "Bearer %s" % AgentLog.REDACTED, "NO_COLOR": "1"}}
+	var command := AgentLogin.command_for(method, profile)
+	assert_eq(command.env.get("ANTHROPIC_API_KEY"), "sk-ant-real-0123456789", "la key real del perfil")
+	assert_false(command.env.has("AUTH_HEADER"), "una variable con «secret» que el perfil no tiene no se pasa")
+	assert_eq(command.env.get("NO_COLOR"), "1", "las demás del método, sí")
 
 
 func test_auth_required_error() -> void:

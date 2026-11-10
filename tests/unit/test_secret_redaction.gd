@@ -183,6 +183,86 @@ func test_old_history_replays_redacted() -> void:
 	assert_false(texts.any(func(text: String) -> bool: return text.contains(TOKEN)), "y sin el token")
 
 
+
+## m13-28: el formulario de elicitation se muestra sin el token (mensaje, títulos, descripciones), pero
+## el default y la opción que vuelven al agente son los reales. Una propiedad que se llama «title» no
+## se redacta entera.
+func test_elicitation_form_shows_a_redacted_copy() -> void:
+	var model := SessionModel.new()
+	var log := _log_with_secret()
+	var controller := SessionController.new()
+	controller.setup(model, log, "/tmp/project")
+	model.session_id = "s"
+	var schema := {"type": "object", "title": "Config %s" % TOKEN, "properties": {
+		"title": {"type": "string", "description": "Header «Bearer %s»" % TOKEN, "default": "Bearer %s" % TOKEN},
+		"scope": {"type": "string", "enum": ["read-%s" % TOKEN, "write"], "enumNames": ["Read %s" % TOKEN, "Write"]},
+	}}
+	var request_line := JSON.stringify({"jsonrpc": "2.0", "id": 21, "method": "elicitation/create", "params": {"sessionId": "s", "mode": "form", "message": "Use the key %s?" % TOKEN, "requestedSchema": schema}})
+	var sent: Array[String] = []
+	controller.client.setup(func(line: String) -> bool:
+		sent.append(line)
+		return true, log)
+	controller.client.receive_line(request_line)
+	await Engine.get_main_loop().process_frame
+	assert_eq(model.pending_elicitations.size(), 1, "el formulario espera al usuario")
+	var request: Object = model.pending_elicitations[0]
+	var shown := str(request.get(&"message")) + JSON.stringify(request.get(&"requested_schema").get("title")) + JSON.stringify(request.get(&"requested_schema").properties.title.description) + JSON.stringify(request.get(&"requested_schema").properties.scope.enumNames)
+	assert_false(shown.contains(TOKEN), "mensaje, títulos, descripciones y enumNames sin el token: %s" % shown)
+	assert_eq(shown.count(AgentLog.REDACTED), 4, "con «secret» en su lugar")
+	var props: Dictionary = request.get(&"requested_schema").properties
+	assert_eq(str(props.title.default), "Bearer %s" % TOKEN, "el default (lo que se manda si no lo cambia) queda real")
+	assert_eq(str(props.scope.enum[0]), "read-%s" % TOKEN, "las opciones que vuelven al agente quedan reales")
+	request.call(&"accept", {"title": props.title.default, "scope": props.scope.enum[0]})
+	for i in 3:
+		await Engine.get_main_loop().process_frame
+	var reply: Array = sent.filter(func(line: String) -> bool: return line.contains("\"id\":21"))
+	assert_eq(reply.size(), 1, "la respuesta salió")
+	assert_true(reply.size() == 1 and reply[0].contains("read-%s" % TOKEN) and reply[0].contains("Bearer %s" % TOKEN), "con los valores reales")
+
+
+
+## m13-28: el tool call de una tool godot.* llega al modelo redactado y el server MCP del harness
+## recibe los args reales: el paso de undo se une igual con su tool call (plugin._match_pending_undo).
+func test_godot_tool_call_matches_with_a_secret_in_its_args() -> void:
+	var model := SessionModel.new()
+	var log := _log_with_secret()
+	var client := AcpClient.new()
+	client.setup(func(_line: String) -> bool: return true, log)
+	client.set_notification_handler("session/update", func(params: Dictionary) -> void: model.apply_update(params.update))
+	model.session_id = "s"
+	var args := {"path": "res://config.gd", "text": "const KEY := \"%s\"" % TOKEN}
+	client.receive_line(JSON.stringify({"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "s", "update": {"sessionUpdate": "tool_call", "toolCallId": "g1", "title": "mcp__godot__write_script", "kind": "edit", "rawInput": args}}}))
+	assert_true(model.tool_call("g1") != null and not JSON.stringify(model.tool_call("g1").raw_input).contains(TOKEN), "el modelo lo tiene redactado")
+	assert_eq(model.find_godot_tool_call("write_script", args), null, "con los args reales, sin redactar, no lo encuentra (el bug)")
+	assert_eq(model.find_godot_tool_call("write_script", args, log.redact_data), model.tool_call("g1"), "redactando los args para comparar, sí")
+
+
+## m13-28: en Auto, la tarjeta no propone una regla de shell que tenga un secreto: la mostraría y
+## Ajustes la guardaría en disco.
+func test_no_shell_rule_with_a_secret() -> void:
+	var controller := SessionController.new()
+	controller.setup(SessionModel.new(), _log_with_secret(), "/tmp/project")
+	controller.model.set_harness_mode(SessionModel.HarnessMode.AUTO)
+	controller.model.session_id = "s"
+	var options := [{"optionId": "allow", "name": "Allow", "kind": "allow_once"}, {"optionId": "reject", "name": "Reject", "kind": "reject_once"}]
+	var ask := func(id: String, command: String) -> void:
+		await controller.permissions.on_request_permission({"sessionId": "s", "toolCall": {"toolCallId": id, "kind": "execute", "title": "x", "rawInput": {"command": command}}, "options": options})
+	ask.call("r1", "npm test")
+	assert_eq(controller.model.pending_permissions.size(), 1, "npm test pregunta")
+	assert_eq(controller.model.pending_permissions[0].rule_pattern, "npm test", "y propone la regla")
+	controller.model.pending_permissions[0].select("reject")
+	for i in 3:
+		await Engine.get_main_loop().process_frame
+	ask.call("r2", "%s --login" % TOKEN)
+	assert_eq(controller.model.pending_permissions.size(), 1, "un comando que empieza con el token pregunta")
+	var request: SessionModel.PermissionRequest = controller.model.pending_permissions[0]
+	assert_eq(request.rule_pattern, "", "sin regla propuesta")
+	assert_false(request.title.contains(TOKEN) or request.description.contains(TOKEN), "y la tarjeta no muestra el token")
+	request.select("reject")
+	for i in 3:
+		await Engine.get_main_loop().process_frame
+
+
 ## De punta a punta con el FsHandler real: el archivo que el agente pide escribir lleva la key tal
 ## cual; lo que se muestra de esa escritura (la notificación del tool call) llega redactado.
 func test_agent_file_write_keeps_the_real_value() -> void:

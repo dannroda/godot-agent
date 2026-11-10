@@ -76,6 +76,33 @@ func redact_data(value: Variant) -> Variant:
 	return value
 
 
+## Como redact_data, pero solo dentro de las claves `fields` (a cualquier profundidad): lo demás
+## queda tal cual. Para lo que mezcla texto que se muestra con valores que se usan (un formulario de
+## elicitation, m13-28: los títulos se redactan, los defaults y las opciones vuelven al agente reales).
+## Los hijos de una clave de `named` son entradas con nombre (las `properties` de un JSON Schema): sus
+## claves son nombres, no campos, así que una propiedad llamada «title» no se redacta entera.
+func redact_fields(value: Variant, fields: PackedStringArray, named: PackedStringArray = ["properties"], _names_level := false) -> Variant:
+	if _secrets.is_empty():
+		return value
+	match typeof(value):
+		TYPE_DICTIONARY:
+			var result: Dictionary = {}
+			for key: Variant in value:
+				if _names_level:
+					result[key] = redact_fields(value[key], fields, named)
+				elif str(key) in fields:
+					result[key] = redact_data(value[key])
+				else:
+					result[key] = redact_fields(value[key], fields, named, str(key) in named)
+			return result
+		TYPE_ARRAY:
+			var items: Array = []
+			for item: Variant in value:
+				items.append(redact_fields(item, fields, named))
+			return items
+	return value
+
+
 func add(channel: StringName, message: String, raw: String = "") -> Dictionary:
 	message = redact(message)
 	raw = redact(raw)

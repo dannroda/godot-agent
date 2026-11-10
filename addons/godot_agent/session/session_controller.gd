@@ -978,6 +978,11 @@ func _on_incoming_cancelled(id: Variant) -> void:
 func _on_create_elicitation(params: Dictionary) -> Variant:
 	var acp_id: Variant = client.handling_id
 	var request := ElicitationRequest.from_params(params)
+	# El formulario se muestra sin los secretos del harness (m13-28), como la tarjeta de permiso: el
+	# mensaje y los títulos y descripciones del schema. Los defaults, las opciones y el enlace son lo
+	# que vuelve al agente o se abre, y quedan reales.
+	request.message = agent_log.redact(request.message)
+	request.requested_schema = agent_log.redact_fields(request.requested_schema, ElicitationRequest.SHOWN_SCHEMA_FIELDS)
 	var invalid: String = request.invalid_reason()
 	if not invalid.is_empty():
 		agent_log.add(AgentLog.CH_PERM, "elicitation rejected: %s" % invalid)

@@ -131,11 +131,14 @@ func tool_call(id: String) -> ToolCall:
 
 ## El tool call godot.* más reciente con ese nombre y esos argumentos que todavía no tiene paso de
 ## undo asociado (para unir la acción del server MCP con el tool call que ve el agente).
-func find_godot_tool_call(tool_name: String, args: Dictionary) -> ToolCall:
+## `redact` (m13-28): los tool calls del modelo llegaron redactados (AcpClient) y el server MCP del
+## harness recibe los args reales; con AgentLog.redact_data se comparan los dos redactados.
+func find_godot_tool_call(tool_name: String, args: Dictionary, redact: Callable = Callable()) -> ToolCall:
 	var found: ToolCall = null
+	var compared: Variant = redact.call(args) if redact.is_valid() else args
 	for id: String in _tool_calls:
 		var call: ToolCall = _tool_calls[id]
-		if call.godot_tool_name() == tool_name and call.undo_info.is_empty() and call.godot_arguments() is Dictionary and call.godot_arguments() == args:
+		if call.godot_tool_name() == tool_name and call.undo_info.is_empty() and call.godot_arguments() is Dictionary and call.godot_arguments() == compared:
 			found = call
 	return found
 

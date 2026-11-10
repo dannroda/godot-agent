@@ -12,6 +12,9 @@ const ACTION_ACCEPT := "accept"
 const ACTION_DECLINE := "decline"
 const ACTION_CANCEL := "cancel"
 
+## Claves del schema que solo se muestran (no vuelven al agente): se redactan (m13-28).
+const SHOWN_SCHEMA_FIELDS: PackedStringArray = ["title", "description", "enumNames"]
+
 var mode: String = MODE_FORM
 var message: String = ""
 var requested_schema: Dictionary = {}

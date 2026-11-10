@@ -8,6 +8,7 @@ extends RefCounted
 ## sesión: los secretos no se guardan.
 
 const I18n := preload("../core/i18n.gd")
+const SecretNames := preload("../core/secret_names.gd")
 
 const TRANSPORT_STDIO := "stdio"
 const TRANSPORT_HTTP := "http"
@@ -18,7 +19,6 @@ const TOOL_PREFIX := "mcp__"
 
 static var _variable := RegEx.create_from_string("\\$(?:\\{([A-Za-z_][A-Za-z0-9_]*)\\}|([A-Za-z_][A-Za-z0-9_]*))")
 static var _valid_name := RegEx.create_from_string("^[A-Za-z0-9_-]+$")
-static var _secret_key := RegEx.create_from_string("(?i)(key|token|secret|password|passwd|authorization|auth)")
 
 
 static func make(name: String, transport: String = TRANSPORT_STDIO) -> Dictionary:
@@ -79,7 +79,7 @@ static func validate(list: Array) -> String:
 		for field: String in ["env", "headers"]:
 			var values: Dictionary = entry.get(field, {})
 			for key: String in values:
-				if _secret_key.search(key) and not str(values[key]).is_empty() and not str(values[key]).contains("$"):
+				if SecretNames.is_secret(key) and not str(values[key]).is_empty() and not str(values[key]).contains("$"):
 					return I18n.t("MCP: «%s» has %s written in. Use $VARIABLE from the environment: the harness doesn't store keys.") % [name, key]
 	return ""
 

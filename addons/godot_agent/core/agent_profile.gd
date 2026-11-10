@@ -4,6 +4,8 @@ extends RefCounted
 ## EditorSettings. `env` guarda valores literales: para secretos, el perfil referencia una
 ## variable del entorno del editor con `$NOMBRE` y se resuelve al lanzar (no se guarda la clave).
 
+const SecretNames := preload("secret_names.gd")
+
 ## Claude Code por ACP, para las pruebas contra el agente real: al usuario no se le presetea ninguno.
 const CLAUDE_CODE := {"id": "claude-code", "display_name": "Claude Code", "command": "npx", "args": ["-y", "@agentclientprotocol/claude-agent-acp"]}
 
@@ -40,8 +42,6 @@ static func from_dict(data: Dictionary) -> RefCounted:
 	return profile
 
 
-## Nombres de variables de entorno cuyo valor es un secreto (misma idea que ExternalMcpServers).
-static var SECRET_ENV_NAME := RegEx.create_from_string("(?i)(key|token|secret|password|passwd|authorization|auth)")
 
 func to_dict() -> Dictionary:
 	return {
@@ -62,7 +62,7 @@ static func secret_env_values(resolved: Dictionary) -> PackedStringArray:
 	var result: PackedStringArray = []
 	for key: String in resolved:
 		var value := str(resolved[key])
-		if SECRET_ENV_NAME.search(key) and value.length() >= 8 and not value in result:
+		if SecretNames.is_secret(key) and value.length() >= 8 and not value in result:
 			result.append(value)
 	return result
 

@@ -153,6 +153,10 @@ func on_request_permission(params: Dictionary) -> Variant:
 		_log_perm("Auto mode asks, %s: %s" % [verdict.reason, command])
 		# En lugar de «siempre en esta sesión» (todo el grupo shell), la tarjeta propone una regla.
 		request.rule_pattern = ShellRules.suggest_pattern(command, shell_rules)
+		if agent_log and agent_log.redact(request.rule_pattern) != request.rule_pattern:
+			# Una regla con un secreto (m13-28): la tarjeta lo mostraría y Ajustes lo guardaría en disco.
+			_log_perm("no rule suggested: the command pattern has a secret")
+			request.rule_pattern = ""
 		request.options = options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
 	if request.group == PermissionPolicy.GROUP_SUBAGENTS and decision != PermissionPolicy.DENY:
 		if _subagent_limit_reached(request.tool_call_id):
