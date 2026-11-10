@@ -1247,6 +1247,7 @@ func _fail_agent(title: String, cause: String, log_message: String, actions: Arr
 	var entry := model.add_notice(cause, ChatEntry.NoticeLevel.ERROR, actions)
 	entry.title = title
 	entry.details = stderr_summary(_stderr_tail)
+	entry.details_full = "\n".join(_stderr_tail)  # ya redactadas (_on_stderr)
 	model.notify_entry_changed(entry)
 	model.set_state(SessionModel.SessionState.FAILED)
 

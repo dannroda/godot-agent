@@ -53,7 +53,7 @@ func _build() -> void:
 	var copy := Button.new()
 	copy.flat = true
 	copy.text = I18n.t("Copy")
-	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(entry.details))
+	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(details_to_copy()))
 	details_header.add_child(copy)
 	_details_text = Label.new()
 	_details_text.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
@@ -136,3 +136,8 @@ func _refresh_details() -> void:
 		return
 	_details_text.visible = _details_open
 	_details_toggle.text = I18n.t("Hide") if _details_open else I18n.t("Show")
+
+
+## Lo que copia «Copy»: las líneas enteras si la entrada las tiene, si no las que se ven.
+func details_to_copy() -> String:
+	return entry.details_full if not entry.details_full.is_empty() else entry.details

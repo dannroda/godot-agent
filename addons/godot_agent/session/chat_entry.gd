@@ -27,6 +27,9 @@ var level: NoticeLevel = NoticeLevel.INFO
 ## debajo (m12-13).
 var title: String = ""
 var details: String = ""
+## Las mismas líneas sin recortar (ya redactadas), para «Copy» (m13-22): un reporte de bug las quiere
+## enteras. Vacío = se copia `details`.
+var details_full: String = ""
 ## NOTICE: pie del turno (m12-20): una línea con los cambios y las acciones como enlaces, sin caja.
 var footer: bool = false
 ## NOTICE: acciones sugeridas (`[{id, label}]`), p. ej. "Reintentar" o "Ver log".

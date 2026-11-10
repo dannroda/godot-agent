@@ -58,6 +58,9 @@ func test_agent_error_card() -> void:
 	assert_eq(toggle.text, "Hide", "y el botón ofrece plegarlas")
 	view.refresh()
 	assert_true((view.get(&"_details_text") as Label).visible, "un refresh no las vuelve a plegar")
+	assert_eq(view.details_to_copy(), entry.details, "sin líneas enteras, Copy copia lo que se ve")
+	entry.details_full = "Error: Cannot find module\n    at node:internal/modules/cjs/loader.js:1000:15 and the rest"
+	assert_eq(view.details_to_copy(), entry.details_full, "con ellas, Copy copia las enteras")
 	entry.details = ""
 	entry.title = ""
 	view.refresh()

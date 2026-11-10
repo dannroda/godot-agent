@@ -57,6 +57,8 @@ func test_crash_card_is_short_and_the_log_keeps_everything() -> void:
 	assert_eq(details_lines[2], "Segmentation fault", "la causa se ve")
 	var full: Array = log.entries().filter(func(entry: Dictionary) -> bool: return str(entry.message).contains("END_MARKER"))
 	assert_eq(full.size(), 1, "el Agent Log tiene la línea entera")
+	assert_true(card.details_full.contains("END_MARKER"), "details_full (lo que copia Copy) trae la línea entera")
+	assert_eq(card.details_full.split("\n").size(), 3, "las mismas tres líneas, sin recortar")
 	assert_eq(model.state, SessionModel.SessionState.FAILED, "FAILED")
 
 
@@ -78,6 +80,8 @@ func test_secrets_never_reach_the_card() -> void:
 	assert_false(card.details.contains(token), "el token entero no está")
 	assert_false(card.details.contains(token.left(8)), "ni su principio")
 	assert_eq(card.details.count(AgentLog.REDACTED), 2, "las dos veces redactado (%s)" % card.details)
+	assert_false(card.details_full.contains(token), "lo que copia Copy tampoco trae el token")
+	assert_true(card.details_full.contains(AgentLog.REDACTED), "sino «secret»")
 	assert_true(card.details.contains("Authorization"), "el resto de la línea sigue")
 	var tail: PackedStringArray = controller.get(&"_stderr_tail")
 	assert_false("\n".join(tail).contains(token), "la cola del controller tampoco lo guarda")
