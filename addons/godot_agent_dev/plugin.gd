@@ -55,7 +55,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla One-shot,
 ##   el Agent Log y cada página de Settings: ningún texto visible que tenga traducción queda en inglés.
 ## - `-- --godot-agent-profile-test`: m13-27, lee el profiler de scripts de un run desde un plugin por
-##   la señal interna debug_data de ScriptEditorDebugger y mide el overhead (ver profile_check.gd).
+##   la señal interna debug_data de ScriptEditorDebugger y mide el overhead (ver profile_check.gd);
+##   después, godot.profile_run por HTTP real (profile_tool_check.gd).
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -140,6 +141,7 @@ const REMOTE_ARG := "--godot-agent-remote-test"
 const RemoteCheck := preload("remote_check.gd")
 const PROFILE_ARG := "--godot-agent-profile-test"
 const ProfileCheck := preload("profile_check.gd")
+const ProfileToolCheck := preload("profile_tool_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 ## user:// propio de cada checkout para los checks (m13-17); vive en tests/, que no viaja con el addon.
 const TEST_USER_DIR_SCRIPT := "res://tests/test_user_dir.gd"
@@ -560,6 +562,7 @@ func _run_profile_test() -> void:
 	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
 	var failures := _failures(await ProfileCheck.new().run(get_tree(), self))
+	failures.append_array(_failures(await ProfileToolCheck.new().run_profile_tool(get_tree())))
 	for failure: String in failures:
 		print("[profile-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "profile-test: %d fallas" % failures.size())

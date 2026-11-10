@@ -415,6 +415,7 @@ const GODOT_TOOL_NAMES := {
 	"move_file": "Move file",  # i18n
 	"open_scene": "Open scene",  # i18n
 	"plugin_enable": "Enable plugin",  # i18n
+	"profile_run": "Profile the game",  # i18n
 	"project_info": "Project info",  # i18n
 	"project_settings": "Project settings",  # i18n
 	"remove_autoload": "Remove autoload",  # i18n

@@ -209,7 +209,7 @@ static func _with_new_errors(result: Dictionary, entries: Array) -> Dictionary:
 
 func _methods_tool() -> McpTool:
 	return McpTool.create(METHODS_TOOL, "read",
-		"Lists the extra godot methods that are not in your tool list (tilemaps, animation, resources, moving files, project settings and input actions, Godot API docs, the running game…): one line each. Call them with godot.run. Pass `method` to see its full description and parameters, or `query` to filter.",
+		"Lists the extra godot methods that are not in your tool list (tilemaps, animation, resources, moving files, project settings and input actions, Godot API docs, the running game, script profiling…): one line each. Call them with godot.run. Pass `method` to see its full description and parameters, or `query` to filter.",
 		{"method": {"type": "string"}, "query": {"type": "string"}}, [], Callable()) as McpTool
 
 

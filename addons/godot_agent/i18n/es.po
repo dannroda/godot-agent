@@ -3897,6 +3897,9 @@ msgstr "Buscar en el juego"
 msgid "Look back at the game"
 msgstr "Volver a ver el juego"
 
+msgid "Profile the game"
+msgstr "Perfilar el juego"
+
 msgid "Pause the game"
 msgstr "Pausar el juego"
 
