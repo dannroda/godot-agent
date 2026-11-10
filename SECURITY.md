@@ -24,6 +24,6 @@ Only the latest release gets security fixes.
 
 ## Advisories
 
-- **Up to 0.1.17**: when the agent's process died, the error card in the dock showed the last lines of its output without masking, and **Copy** copied them; with claude-agent-acp those lines include the editor's MCP server token (valid only on `127.0.0.1`, and only until the editor restarts). What the agent sent back (a tool result, an error quoting the MCP configuration) also reached the chat and the saved session history unmasked. Fixed in the next release: see [PRIVACY.md › Secrets](PRIVACY.md#secrets). If you shared a crash card or a session history from those versions, restart the editor to get a new token.
+- **Up to 0.1.17**: when the agent's process died, the error card in the dock showed the last lines of its output without masking, and **Copy** copied them: if those lines included the editor's MCP server token (valid only on `127.0.0.1`, and only until the editor restarts or you regenerate it) or another registered secret, the card showed it. What the agent sent back (a tool result, an error quoting the MCP configuration) also reached the chat and the saved session history unmasked, with any secret it carried. Fixed in the next release: see [PRIVACY.md › Secrets](PRIVACY.md#secrets). If you shared a crash card or a session history from those versions, press **Regenerate token** in Settings or restart the editor, and rotate any key that showed.
 
 What data goes where: [PRIVACY.md](PRIVACY.md).
