@@ -319,7 +319,10 @@ static func remember_playtest(playtest: Dictionary, audit: Dictionary, memory: P
 				memory.save_script(code)
 
 
-## El aviso del chat con un veredicto de playtest: nivel y texto.
+## El aviso del chat con un veredicto de playtest (m12-42): `title` con el resultado y el motivo,
+## `text` con lo que hay que leer antes de confiar (y el video), y `sections` plegables
+## (`[{title, text}]`) con la evidencia, los cambios directos, lo que vieron los detectores y los
+## pasos para reproducir; antes iba todo en el texto, en rojo y con el mismo peso.
 static func playtest_notice(playtest: Dictionary) -> Dictionary:
 	var titles := {
 		"pass": "Playtest: passed",  # i18n
@@ -327,36 +330,54 @@ static func playtest_notice(playtest: Dictionary) -> Dictionary:
 		"blocked": "Playtest: could not test",  # i18n
 		"explored": "Playtest: explored",  # i18n
 	}
-	var lines: PackedStringArray = [I18n.t(titles[playtest.verdict]) + (" — " + str(playtest.summary) if not str(playtest.summary).is_empty() else "")]
+	var title := I18n.t(titles[playtest.verdict]) + (" · " + str(playtest.summary) if not str(playtest.summary).is_empty() else "")
+	var lines: PackedStringArray = []
 	var alerts: PackedStringArray = playtest.get("alerts", PackedStringArray())
 	if not alerts.is_empty():
 		lines.append(I18n.t("Before you trust this:"))
 		for item: String in alerts:
 			lines.append("• " + item)
-	if not (playtest.evidence as PackedStringArray).is_empty():
-		lines.append(I18n.t("Evidence:"))
-		for item: String in playtest.evidence:
-			lines.append("• " + item)
+	var sections: Array[Dictionary] = []
+	var evidence: PackedStringArray = playtest.evidence
+	if not evidence.is_empty():
+		sections.append(_notice_section(I18n.t("Evidence"), evidence, "• "))
 	var changes: PackedStringArray = playtest.get("changes", PackedStringArray())
 	if not changes.is_empty():
-		lines.append(I18n.t("May have changed the game directly, not by playing:"))
-		for item: String in changes.slice(0, MAX_DIRECT_SHOWN):
-			lines.append("• " + item)
+		var shown := changes.slice(0, MAX_DIRECT_SHOWN)
 		if changes.size() > MAX_DIRECT_SHOWN:
-			lines.append("• … +%d" % (changes.size() - MAX_DIRECT_SHOWN))
+			shown.append("… +%d" % (changes.size() - MAX_DIRECT_SHOWN))
+		sections.append(_notice_section(I18n.t("May have changed the game directly, not by playing"), shown, "• ", changes.size()))
 	var detected: PackedStringArray = playtest.get("detectors", PackedStringArray())
 	if not detected.is_empty():
-		lines.append(I18n.t("The detectors saw:"))
-		for item: String in detected:
-			lines.append("• " + item)
-	if not (playtest.repro as PackedStringArray).is_empty():
-		lines.append(I18n.t("To reproduce:"))
-		for i in (playtest.repro as PackedStringArray).size():
-			lines.append("%d. %s" % [i + 1, playtest.repro[i]])
+		sections.append(_notice_section(I18n.t("The detectors saw"), detected, "• "))
+	var repro: PackedStringArray = playtest.repro
+	if not repro.is_empty():
+		var steps: PackedStringArray = []
+		for i in repro.size():
+			steps.append("%d. %s" % [i + 1, repro[i]])
+		sections.append(_notice_section(I18n.t("To reproduce"), steps, ""))
 	if not str(playtest.get("video", "")).is_empty():
 		lines.append(I18n.t("Video: %s") % playtest.video)
 	var level := ChatEntry.NoticeLevel.INFO if playtest.verdict in ["pass", "explored"] else (ChatEntry.NoticeLevel.ERROR if playtest.verdict == "fail" else ChatEntry.NoticeLevel.WARNING)
-	return {"text": "\n".join(lines), "level": level}
+	return {"title": title, "text": "\n".join(lines), "sections": sections, "level": level}
+
+
+## Una sección del aviso: el título lleva la cantidad («Evidence · 3»).
+static func _notice_section(title: String, items: PackedStringArray, bullet: String, count: int = -1) -> Dictionary:
+	var lines: PackedStringArray = []
+	for item: String in items:
+		lines.append(bullet + item)
+	return {"title": "%s · %d" % [title, count if count >= 0 else items.size()], "text": "\n".join(lines)}
+
+
+## Todo el aviso en texto plano, en el orden en que se muestra (para el log y las pruebas).
+static func playtest_notice_plain(notice: Dictionary) -> String:
+	var parts: PackedStringArray = [str(notice.get("title", ""))]
+	if not str(notice.get("text", "")).is_empty():
+		parts.append(str(notice.text))
+	for section: Dictionary in notice.get("sections", []):
+		parts.append(str(section.title) + "\n" + str(section.text))
+	return "\n".join(parts)
 
 
 static func question_prompt(finding: Dictionary) -> String:

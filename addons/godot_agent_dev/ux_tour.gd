@@ -79,6 +79,7 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	_show(dock)
 	await _frames(10)
 	var docs := DocsShots.new()
+	docs.playtest_narrow_path = dir.path_join("guia/playtest_angosto.png")
 	failures.append_array(await docs.run(_tree, dir.path_join("guia"), hide_bottom_panel))
 	_show(dock)
 	await _frames(20)

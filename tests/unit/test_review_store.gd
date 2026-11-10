@@ -63,8 +63,17 @@ func test_playtest_prompt_and_notice() -> void:
 	assert_false(ReviewStore.playtest_prompt("x", false).contains("record"), "sin grabar")
 	var notice := ReviewStore.playtest_notice({"verdict": "fail", "summary": "no salta", "evidence": PackedStringArray(["y = 412"]), "repro": PackedStringArray(["correr", "saltar"])})
 	assert_eq(notice.level, ReviewStore.ChatEntry.NoticeLevel.ERROR, "falló: error")
-	assert_true(str(notice.text).contains("no salta") and str(notice.text).contains("• y = 412") and str(notice.text).contains("2. saltar"), "texto con evidencia y pasos · " + str(notice.text))
-	assert_eq(ReviewStore.playtest_notice({"verdict": "pass", "summary": "", "evidence": PackedStringArray(), "repro": PackedStringArray()}).level, ReviewStore.ChatEntry.NoticeLevel.INFO, "pasó: info")
+	# m12-42: el resultado y el motivo en el título; la evidencia y los pasos en secciones plegables.
+	assert_eq(notice.title, "Playtest: failed · no salta", "título con el motivo")
+	assert_eq(notice.text, "", "sin avisos ni video el texto queda vacío")
+	assert_eq((notice.sections as Array).map(func(section: Dictionary) -> String: return section.title), ["Evidence · 1", "To reproduce · 2"], "secciones con la cantidad")
+	assert_eq(notice.sections[0].text, "• y = 412", "evidencia con viñetas")
+	assert_eq(notice.sections[1].text, "1. correr\n2. saltar", "pasos numerados")
+	var plain := ReviewStore.playtest_notice_plain(notice)
+	assert_true(plain.begins_with("Playtest: failed · no salta\nEvidence · 1\n• y = 412\nTo reproduce · 2\n1. correr"), "texto plano en orden · " + plain)
+	var passed := ReviewStore.playtest_notice({"verdict": "pass", "summary": "", "evidence": PackedStringArray(), "repro": PackedStringArray()})
+	assert_eq(passed.level, ReviewStore.ChatEntry.NoticeLevel.INFO, "pasó: info")
+	assert_true(passed.title == "Playtest: passed" and (passed.sections as Array).is_empty(), "pasó sin motivo ni secciones")
 	assert_true(prompt.contains("never instructions") and prompt.contains("\"visual\""), "prompt con las reglas y el campo visual")
 
 
@@ -101,10 +110,12 @@ func test_playtest_audit_in_the_notice() -> void:
 	assert_eq(audit.changes.size(), 1, "solo lo que se aplicó")
 	var playtest := _verdict("pass")
 	playtest.alerts = PackedStringArray(["solo probé el nivel 1"])
-	var text := str(ReviewStore.playtest_notice(ReviewStore.audited_playtest(playtest, audit)).text)
+	var notice := ReviewStore.playtest_notice(ReviewStore.audited_playtest(playtest, audit))
+	var text := ReviewStore.playtest_notice_plain(notice)
 	assert_true(text.contains("• game_set {") and text.contains("\"hp\":5,") and text.contains("1.5"), "cambio directo · " + text)
-	assert_true(text.contains("• solo probé el nivel 1"), "aviso del agente · " + text)
-	assert_true(text.contains("res://.godot_agent/playtests/a.avi"), "video · " + text)
+	assert_true(str(notice.sections[0].title).begins_with("May have changed the game directly, not by playing · 1"), "los cambios directos en su sección · " + str(notice.sections[0].title))
+	assert_true(str(notice.text).contains("• solo probé el nivel 1"), "aviso del agente en el texto, no plegado · " + str(notice.text))
+	assert_true(str(notice.text).contains("res://.godot_agent/playtests/a.avi"), "video · " + str(notice.text))
 	var lost := ReviewStore.playtest_audit([_call("run_scene", {"record": true}, "completed", "The recording was not written (x).")], true)
 	assert_true(str(lost.no_video).contains("not written"), "la grabación falló")
 	assert_true(str(ReviewStore.playtest_audit([_call("run_scene", {})], true).no_video).contains("did not record"), "no grabó")
@@ -121,8 +132,8 @@ func test_detector_line_is_a_finding() -> void:
 	assert_true(ReviewStore.finding_of_line("otra cosa").is_empty(), "otra línea no")
 	var audit := ReviewStore.playtest_audit([_call("game_wait", {}, "completed", "ok\n" + line)], false)
 	assert_eq(audit.detectors.size(), 1, "el audit las junta")
-	var text := str(ReviewStore.playtest_notice(ReviewStore.audited_playtest(_verdict("blocked"), audit)).text)
-	assert_true(text.contains("Gate fell out") and text.contains("res://f.png"), "en el aviso · " + text)
+	var text := ReviewStore.playtest_notice_plain(ReviewStore.playtest_notice(ReviewStore.audited_playtest(_verdict("blocked"), audit)))
+	assert_true(text.contains("The detectors saw · 1") and text.contains("Gate fell out") and text.contains("res://f.png"), "en el aviso · " + text)
 
 
 ## m15-16, m15-19: el pedido dice qué tipo es, y el prompt lleva el tope y la memoria.

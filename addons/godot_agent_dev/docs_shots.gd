@@ -8,6 +8,7 @@ extends RefCounted
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
@@ -17,6 +18,8 @@ const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_
 ## Repo y store del One-shot de la captura: aparte, para no dejar ramas ni runs en el proyecto.
 const ONESHOT_REPO := "user://docs_oneshot"
 const DOCK_WIDTH := 480
+## Dock angosto para la captura extra del veredicto (m12-42), si la pide `playtest_narrow_path`.
+const NARROW_DOCK_WIDTH := 320
 const TURN_TIMEOUT_S := 30.0
 ## Prompts por idioma (GODOT_AGENT_LANGUAGE); los escenarios en español terminan en _es.
 const PROMPTS := {
@@ -37,6 +40,8 @@ const PROMPTS := {
 }
 
 var failures: PackedStringArray = []
+## Si no está vacío, el veredicto del playtest se captura también con el dock angosto en esta ruta (el tour de UX).
+var playtest_narrow_path: String = ""
 var _tree: SceneTree
 var _dock: Control
 var _model: Object
@@ -126,6 +131,13 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	_hide_bottom_panel.call()
 	await _frames(30)
 	_save(_dock_image(), dir.path_join("playtest.png"))
+	_check_verdict_card()
+	if not playtest_narrow_path.is_empty():
+		await _widen_dock(NARROW_DOCK_WIDTH)
+		await _frames(20)
+		_save(_dock_image(), playtest_narrow_path)
+		_check_verdict_card()
+		await _widen_dock()
 	_controller.call(&"stop")
 	await _frames(5)
 
@@ -254,7 +266,7 @@ func _show_dock() -> void:
 
 ## Ensancha la columna del dock moviendo el divisor que la separa del centro, en el SplitContainer
 ## horizontal que la contiene (en 4.6+ tiene varios hijos y un offset por divisor: split_offsets).
-func _widen_dock() -> void:
+func _widen_dock(width: int = DOCK_WIDTH) -> void:
 	await _frames(5)
 	var node: Node = _dock
 	while node and node != EditorInterface.get_base_control():
@@ -269,7 +281,7 @@ func _widen_dock() -> void:
 				if child is Control and (child as Control).visible:
 					divider += 1
 			for attempt in 4:
-				var missing := DOCK_WIDTH - _dock.size.x
+				var missing := width - _dock.size.x
 				if absf(missing) < 4.0:
 					return
 				var offsets: Variant = split.get(&"split_offsets")
@@ -280,7 +292,7 @@ func _widen_dock() -> void:
 				else:
 					split.split_offset -= int(missing)
 				await _frames(5)
-			if absf(DOCK_WIDTH - _dock.size.x) >= 4.0:
+			if absf(width - _dock.size.x) >= 4.0:
 				failures.append("no se pudo ensanchar el dock (%d px)" % _dock.size.x)
 			return
 		node = parent
@@ -291,6 +303,33 @@ func _center_2d_view() -> void:
 	# alcanza con el zoom que deja ver los 1152x648 del juego.
 	var selection := EditorInterface.get_selection()
 	selection.clear()
+
+
+## El veredicto del playtest es una tarjeta con jerarquía (m12-42): el título lleva el resultado y
+## el motivo, y la evidencia y los pasos van en secciones plegables que entran en el dock.
+func _check_verdict_card() -> void:
+	var verdict: Object = null
+	for entry: Object in _model.call(&"entries"):
+		if entry.get(&"kind") == ChatEntry.EntryKind.NOTICE and str(entry.get(&"title")).begins_with(I18n.t("Playtest: failed")):
+			verdict = entry
+	if verdict == null:
+		failures.append("playtest: no hay aviso con título «Playtest: failed»")
+		return
+	var sections: Array = verdict.get(&"sections")
+	var titles := sections.map(func(section: Dictionary) -> String: return str(section.title).get_slice(" · ", 0))
+	if not (I18n.t("Evidence") in titles and I18n.t("To reproduce") in titles):
+		failures.append("playtest: faltan las secciones de evidencia y pasos (%s)" % [titles])
+	var conversation: Object = _dock.get(&"_conversation")
+	var view: Control = (conversation.get(&"_views") as Dictionary).get(verdict.get(&"id"))
+	var folds: Array = view.find_children("*", "FoldableContainer", true, false) if view else []
+	if folds.size() != sections.size():
+		failures.append("playtest: %d secciones plegables en la tarjeta, %d en el aviso" % [folds.size(), sections.size()])
+	var dock_rect := (_dock.get_parent() as Control).get_global_rect()
+	for fold: FoldableContainer in folds:
+		if not fold.folded:
+			failures.append("playtest: la sección «%s» empieza abierta" % fold.title)
+		if fold.get_global_rect().end.x > dock_rect.end.x + 1.0:
+			failures.append("playtest: la sección «%s» sale del dock (%d > %d)" % [fold.title, fold.get_global_rect().end.x, dock_rect.end.x])
 
 
 func _screen() -> Image:

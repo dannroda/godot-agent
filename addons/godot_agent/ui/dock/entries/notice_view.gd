@@ -14,6 +14,8 @@ var _details_text: Label
 ## tarjeta, y abiertas ocupaban todo el dock.
 var _details_toggle: Button
 var _details_open: bool = false
+## Secciones plegables (m12-42): un FoldableContainer por `entry.sections`, plegados.
+var _sections: VBoxContainer
 var _actions: HFlowContainer
 
 
@@ -32,6 +34,9 @@ func _build() -> void:
 	_label = Label.new()
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_label)
+	_sections = VBoxContainer.new()
+	_sections.add_theme_constant_override(&"separation", AgentTheme.px(2))
+	column.add_child(_sections)
 	_details = PanelContainer.new()
 	_details.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(0, 0, 0, 0.25), Color.TRANSPARENT, 4, 6))
 	column.add_child(_details)
@@ -91,6 +96,21 @@ func refresh() -> void:
 	_details.visible = not entry.details.is_empty()
 	_refresh_details()
 	_label.text = entry.text
+	_label.visible = not entry.text.is_empty()
+	for child: Node in _sections.get_children():
+		_sections.remove_child(child)
+		child.queue_free()
+	for section: Dictionary in entry.sections:
+		var fold := FoldableContainer.new()
+		fold.title = str(section.title)
+		fold.folded = true
+		fold.title_text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		var body := Label.new()
+		body.text = str(section.text)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fold.add_child(body)
+		_sections.add_child(fold)
+	_sections.visible = not entry.sections.is_empty()
 	if asks or not entry.title.is_empty():
 		_label.remove_theme_color_override(&"font_color")
 	else:

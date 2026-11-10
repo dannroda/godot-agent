@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- A playtest verdict is now a card with a hierarchy instead of a block of red text: the result and the reason are the title, what to read before trusting it stays in the body, and the evidence, the direct changes, what the detectors saw and the steps to reproduce are collapsible sections with their counts. It fits a narrow dock.
+
 ## [0.1.19] - 2026-11-10
 
 ### Added
