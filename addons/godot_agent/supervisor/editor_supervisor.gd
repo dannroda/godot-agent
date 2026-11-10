@@ -14,6 +14,7 @@ extends SceneTree
 ## - Crash antes de eso: vuelve a la versión buena (o desactiva una extensión nueva), deja el evento
 ##   para el agente y relanza. Crash después: deja el evento y relanza.
 ## - Cierre normal: termina, salvo que el plugin haya pedido reiniciar (restart.json).
+## - Antes de cada lanzamiento mueve al proyecto lo que dejó preparado install_extension (pending/).
 ## - MAX_CRASHES crashes en LOOP_WINDOW_S: deja de relanzar.
 ##
 ## Opciones: `--wait-pid N` espera a que se cierre ese editor (el que lo lanzó, que marca closed.json)
@@ -22,6 +23,7 @@ extends SceneTree
 
 const State := preload("supervisor_state.gd")
 const Snapshot := preload("extension_snapshot.gd")
+const NativeInstall := preload("../core/native_install.gd")
 
 const STABLE_S := 30
 const LOOP_WINDOW_S := 300
@@ -99,6 +101,11 @@ func _process(_delta: float) -> bool:
 
 
 func _launch() -> bool:
+	# Lo que preparó install_extension (m19-05) entra con el editor cerrado; si crashea al arrancar,
+	# el rollback vuelve a la build buena (o desactiva una extensión nueva).
+	var installed := NativeInstall.apply_pending(project, state_dir)
+	if not (installed.applied as PackedStringArray).is_empty() or not (installed.failed as PackedStringArray).is_empty():
+		_log("installed staged files: %s%s" % [", ".join(installed.applied), "; failed: " + ", ".join(installed.failed) if not installed.failed.is_empty() else ""])
 	State.remove(state_dir, State.READY)
 	State.remove(state_dir, State.CLOSED)
 	var log_path := state_dir.path_join(State.LOG)

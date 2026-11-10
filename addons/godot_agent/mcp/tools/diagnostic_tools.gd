@@ -1,8 +1,9 @@
 @tool
 extends RefCounted
 ## Tools de diagnóstico (spec §6): get_errors, validate_scripts, capture_editor_viewport y
-## build_extension y test_extension. Los .cs se validan compilando el proyecto con dotnet (m14-07); la GDExtension se
-## compila con build_extension (m19-01) y se prueba en un Godot aparte con test_extension (m19-02).
+## build_extension, test_extension, install_extension y restart_editor. Los .cs se validan compilando el proyecto con dotnet (m14-07); la GDExtension se
+## compila con build_extension (m19-01), se prueba en un Godot aparte con test_extension (m19-02) y
+## se lleva al juego con install_extension (m19-05), que la deja preparada para el próximo reinicio.
 
 const McpTool := preload("../mcp_tool.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
@@ -13,6 +14,7 @@ const CsharpBuild := preload("../../core/csharp_build.gd")
 const NativeBuild := preload("../../core/native_build.gd")
 const NativeTest := preload("../../core/native_test.gd")
 const SupervisorClient := preload("../../supervisor/supervisor_client.gd")
+const NativeInstall := preload("../../core/native_install.gd")
 
 const CHECKER_SCRIPT := "res://addons/godot_agent/mcp/tools/script_checker.gd"
 const MAX_SCRIPTS := 400
@@ -21,11 +23,15 @@ const CHECK_TIMEOUT_S := 60.0
 const STDERR_GRACE_S := 0.3
 const ERROR_LIMIT := 200
 const HARNESS_ADDON := "res://addons/godot_agent"
+## Plataformas sin compilar que nombra install_extension (godot-cpp-template trae 20).
+const NOT_BUILT_SHOWN := 6
 
 var errors: ErrorCollector
 ## Callable(supervise: bool) -> String: reinicia el editor un momento después (lo pone el plugin).
 var restarter: Callable
 var project_path: String = ""
+## `(test_dir, options) -> Dictionary` con el reporte de NativeTest.run (los tests lo reemplazan).
+var extension_tester: Callable = NativeTest.run
 
 
 func setup(collector: ErrorCollector, project_dir: String) -> void:
@@ -58,8 +64,19 @@ func tools() -> Array:
 				"timeout_s": {"type": "integer", "description": "Default %d, at most %d" % [NativeTest.DEFAULT_TIMEOUT_S, NativeTest.MAX_TIMEOUT_S]},
 			},
 			[], _test_extension),
+		McpTool.create("install_extension", PermissionPolicy.GROUP_PROJECT,
+			"Brings the tested GDExtension from its test project into this game as an addon (res://addons/<name>/ by default, or where the game already has a .gdextension with that name). Runs the same tests as test_extension first and installs only if they pass, rewrites the res:// paths of the .gdextension to the new folder and checks it against the libraries (entry_symbol, compatibility_minimum, a debug library this editor can load, missing files). Nothing changes in the open editor: the files are staged and enter the game when the editor restarts, so call restart_editor next.",
+			{
+				"project": {"type": "string", "description": "Folder of the test project (absolute or res://), when it isn't found by itself"},
+				"gdextension": {"type": "string", "description": "res:// path of the .gdextension in the test project, when it has more than one"},
+				"target": {"type": "string", "description": "res:// folder of this game to install into (default res://addons/<name>/, or the folder that already has it)"},
+				"tests": {"type": "string", "description": "Like test_extension's `tests` (default res://tests)"},
+				"classes": {"type": "array", "items": {"type": "string"}, "description": "Classes the extension must register"},
+				"timeout_s": {"type": "integer", "description": "Default %d, at most %d" % [NativeTest.DEFAULT_TIMEOUT_S, NativeTest.MAX_TIMEOUT_S]},
+			},
+			[], _install_extension),
 		McpTool.create("restart_editor", PermissionPolicy.GROUP_PROJECT,
-			"Saves the scenes and restarts the editor, so it loads the GDExtension libraries that are on disk now. Run test_extension first: a build that crashes takes the editor down with it. Under the crash supervisor (`supervise`, default true), a build that crashes the editor while starting is rolled back to the last one that started fine, the editor reopens and this session continues with a message that says what happened, with the backtrace. Without it, a crashing build leaves the editor down until the user fixes it. Your session ends with the restart and comes back by itself.",
+			"Saves the scenes and restarts the editor, so it loads the GDExtension libraries that are on disk now and the ones install_extension staged. Run test_extension first: a build that crashes takes the editor down with it. Under the crash supervisor (`supervise`, default true), a build that crashes the editor while starting is rolled back to the last one that started fine, the editor reopens and this session continues with a message that says what happened, with the backtrace. Without it, a crashing build leaves the editor down until the user fixes it. Your session ends with the restart and comes back by itself.",
 			{"supervise": {"type": "boolean", "description": "Restart under the crash supervisor (default true). Ignored when the editor already runs under it."}},
 			[], _restart_editor),
 	]
@@ -93,42 +110,106 @@ func _native_project(args: Dictionary) -> Dictionary:
 	return NativeBuild.detect(ProjectSettings.globalize_path(root).simplify_path())
 
 
-func _test_extension(args: Dictionary) -> Dictionary:
-	var test_dir := ""
+## El proyecto de prueba: `project` o el que se encuentra solo. `{dir}` o `{error}`.
+func _test_project(args: Dictionary) -> Dictionary:
 	var requested := str(args.get("project", "")).strip_edges()
-	var native := NativeBuild.find_project(project_path)
 	if requested.is_empty():
-		test_dir = NativeTest.find_test_project(native, project_path)
-	else:
-		test_dir = ProjectSettings.globalize_path(requested).simplify_path()
-		if not FileAccess.file_exists(test_dir.path_join("project.godot")):
-			return McpTool.error("%s has no project.godot." % requested)
-	if test_dir.is_empty():
-		return McpTool.error("No Godot project to test with. Pass `project`.")
+		var found := NativeTest.find_test_project(NativeBuild.find_project(project_path), project_path)
+		return {"dir": found} if not found.is_empty() else {"error": "No Godot project to test with. Pass `project`."}
+	var dir := ProjectSettings.globalize_path(requested).simplify_path()
+	if not FileAccess.file_exists(dir.path_join("project.godot")):
+		return {"error": "%s has no project.godot." % requested}
+	return {"dir": dir}
+
+
+func _test_options(args: Dictionary, test_dir: String) -> Dictionary:
 	var classes: PackedStringArray = []
 	if args.get("classes") is Array:
 		for value: Variant in args.classes:
 			classes.append(str(value))
-	var is_open := NativeTest.same_dir(test_dir, project_path)
-	var options := {
+	return {
 		"tests": McpTool.str_arg(args, "tests") if not McpTool.str_arg(args, "tests").is_empty() else "res://tests",
 		"classes": classes,
 		"timeout_s": McpTool.int_arg(args, "timeout_s", NativeTest.DEFAULT_TIMEOUT_S),
 		# El import escribe .godot/: nunca en el proyecto que tiene abierto el editor.
-		"import": not is_open,
+		"import": not NativeTest.same_dir(test_dir, project_path),
 	}
-	var report: Dictionary = await NativeTest.run(test_dir, options)
-	if not report.error.is_empty():
-		return McpTool.error(report.error)
+
+
+func _summary_dirs(test_dir: String) -> PackedStringArray:
 	var dirs := PackedStringArray([test_dir])
+	var native := NativeBuild.find_project(project_path)
 	if not native.is_empty():
 		dirs.append(native.root)
-	var text := NativeTest.summarize(report, test_dir, dirs)
+	return dirs
+
+
+func _test_extension(args: Dictionary) -> Dictionary:
+	var found := _test_project(args)
+	if found.has("error"):
+		return McpTool.error(found.error)
+	var test_dir: String = found.dir
+	var is_open := NativeTest.same_dir(test_dir, project_path)
+	var report: Dictionary = await extension_tester.call(test_dir, _test_options(args, test_dir))
+	if not report.error.is_empty():
+		return McpTool.error(report.error)
+	var text := NativeTest.summarize(report, test_dir, _summary_dirs(test_dir))
 	if is_open and not (report.unregistered as PackedStringArray).is_empty():
 		text += "\nThis is the project open in the editor: the editor registers a new .gdextension, and loads it, when it scans the files. Test new extensions in their own test project."
 	if report.code == 0 and not report.crashed:
 		return McpTool.text(text)
 	return {"content": [{"type": "text", "text": text}], "isError": true}
+
+
+func _install_extension(args: Dictionary) -> Dictionary:
+	var found := _test_project(args)
+	if found.has("error"):
+		return McpTool.error(found.error)
+	var test_dir: String = found.dir
+	if NativeTest.same_dir(test_dir, project_path):
+		return McpTool.error("The test project is this project, so the extension is already here: there is nothing to install. Pass `project` with the extension's own test project (project/ or demo/ next to the SConstruct).")
+	var gdextension := McpTool.str_arg(args, "gdextension")
+	if gdextension.is_empty():
+		var candidates := NativeInstall.test_extensions(test_dir)
+		if candidates.size() != 1:
+			return McpTool.error("%s has %s. Pass `gdextension`." % [test_dir, "no .gdextension" if candidates.is_empty() else "several .gdextension files: " + ", ".join(candidates)])
+		gdextension = candidates[0]
+	var planned := NativeInstall.plan(test_dir, gdextension, project_path, McpTool.str_arg(args, "target"))
+	if not str(planned.error).is_empty():
+		return McpTool.error(planned.error)
+	var report: Dictionary = await extension_tester.call(test_dir, _test_options(args, test_dir))
+	if not report.error.is_empty():
+		return McpTool.error("Not installed: the tests could not run. %s" % report.error)
+	var summary := NativeTest.summarize(report, test_dir, _summary_dirs(test_dir))
+	if report.code != 0 or report.crashed or report.timed_out:
+		return {"content": [{"type": "text", "text": "Not installed: the tests didn't pass.\n" + summary}], "isError": true}
+	var state_dir := SupervisorClient.State.state_dir(project_path)
+	var staged := NativeInstall.stage(planned, state_dir)
+	if not staged.is_empty():
+		return McpTool.error("Not installed: %s" % staged)
+	var checked := NativeInstall.check_staged(planned, state_dir)
+	var lines: PackedStringArray = [summary, ""]
+	if not (checked.problems as PackedStringArray).is_empty():
+		NativeInstall.discard_pending(state_dir)
+		lines.append("Not installed: the .gdextension as it would be in %s has problems:" % planned.target)
+		for problem: String in checked.problems:
+			lines.append("✗ " + problem)
+		return {"content": [{"type": "text", "text": "\n".join(lines)}], "isError": true}
+	lines.append("Staged %d files from %s (test project) for %s:" % [planned.files.size(), planned.source, planned.target])
+	for file: Dictionary in planned.files:
+		lines.append("  res://" + str(file.to))
+	if not (checked.warnings as PackedStringArray).is_empty():
+		lines.append("To fix before shipping (the editor loads it anyway):")
+		for warning: String in checked.warnings:
+			lines.append("  ! " + warning)
+	if not (checked.not_built as PackedStringArray).is_empty():
+		var not_built: PackedStringArray = checked.not_built
+		var listed := ", ".join(not_built.slice(0, NOT_BUILT_SHOWN)) + (" and %d more" % (not_built.size() - NOT_BUILT_SHOWN) if not_built.size() > NOT_BUILT_SHOWN else "")
+		lines.append("Not built yet (no library for any of their keys, so they don't load there): %s." % listed)
+	if planned.new_extension:
+		lines.append("The game doesn't have this extension yet: after the restart the editor registers and loads it.")
+	lines.append("Nothing changed in the open editor. The files enter the game when the editor restarts: call restart_editor. Under the crash supervisor, a build that crashes the editor while starting is rolled back (a new extension is disabled).")
+	return McpTool.text("\n".join(lines))
 
 
 func _restart_editor(args: Dictionary) -> Dictionary:
@@ -141,6 +222,16 @@ func _restart_editor(args: Dictionary) -> Dictionary:
 	var error := str(restarter.call(supervise))
 	if not error.is_empty():
 		return McpTool.error(error)
+	var staged: Array = NativeInstall.pending(SupervisorClient.State.state_dir(project_path)).get("files", [])
+	if not staged.is_empty():
+		var note := "The %d files staged by install_extension enter the game with this restart." % staged.size()
+		var result: Dictionary = _restart_result(supervise, supervised)
+		result.content[0].text += " " + note
+		return result
+	return _restart_result(supervise, supervised)
+
+
+func _restart_result(supervise: bool, supervised: bool) -> Dictionary:
 	if supervised:
 		return McpTool.text("Restarting under the crash supervisor in a second. Your session ends now and resumes when the editor is back.")
 	if supervise:

@@ -3771,6 +3771,9 @@ msgstr "Compilar la GDExtension"
 msgid "Test the GDExtension"
 msgstr "Probar la GDExtension"
 
+msgid "Install the GDExtension in the game"
+msgstr "Instalar la GDExtension en el juego"
+
 msgid "Validate tilemap"
 msgstr "Validar tilemap"
 

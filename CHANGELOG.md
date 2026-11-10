@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- `godot.install_extension` brings the tested GDExtension from its test project (`project/`, `demo/`) into the game as an addon: `res://addons/<name>/` by default, or the folder where the game already has that `.gdextension`. It runs the same tests as `godot.test_extension` first and installs only if they pass. It takes the `.gdextension` with the libraries and icons it names (or the whole `addons/<name>/` folder when the test project already has it there), rewrites its `res://` paths to the new folder and checks it the way the gdextension-build skill's `check_gdextension.py` does: `entry_symbol` present and found in the libraries, `compatibility_minimum` not newer than this Godot, a debug library this editor can load, debug and release keys and files that match. Platforms with no library yet are listed, not reported. Nothing changes in the open editor, which would load a new extension, or reload a `reloadable` one, as soon as it saw the files. The files wait in `.godot/agent_supervisor/pending/` and enter the game with the next `godot.restart_editor`: the supervisor moves them in before it opens the new editor, so a build that crashes the editor while starting is rolled back. Without the supervisor, the plugin moves them in just before the restart.
+
 ## [0.1.18] - 2026-11-10
 
 ### Changed
