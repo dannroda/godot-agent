@@ -3720,6 +3720,9 @@ msgstr "Guardar escena"
 msgid "Scene tree"
 msgstr "Árbol de escena"
 
+msgid "Project map"
+msgstr "Mapa del proyecto"
+
 msgid "Search the API"
 msgstr "Buscar en la API"
 

@@ -46,6 +46,7 @@ const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
+const MapTools := preload("mcp/tools/map_tools.gd")
 const ApiTools := preload("mcp/tools/api_tools.gd")
 const ProjectTools := preload("mcp/tools/project_tools.gd")
 const AssetTools := preload("mcp/tools/asset_tools.gd")
@@ -795,6 +796,9 @@ func _start_mcp_server() -> void:
 	registry.error_mark = _errors.mark
 	registry.errors_since = _errors.entries_since
 	registry.register_provider(ReadTools.new())
+	var map_tools := MapTools.new()
+	map_tools.editor_focus = _editor_focus
+	registry.register_provider(map_tools)
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
 	registry.register_provider(api_tools, true)
@@ -1245,6 +1249,19 @@ func _after_oneshot_restore(paths: PackedStringArray) -> void:
 		elif FileAccess.file_exists(res_path):
 			_sync.sync_path(res_path)
 	EditorInterface.get_resource_filesystem().scan()
+
+
+## Lo abierto en el editor, el foco de godot.project_map sin `focus` (m11-26): la escena actual y
+## el script del editor de scripts.
+func _editor_focus() -> PackedStringArray:
+	var focus := PackedStringArray()
+	var scene := EditorInterface.get_edited_scene_root()
+	if scene and not scene.scene_file_path.is_empty():
+		focus.append(scene.scene_file_path)
+	var script := EditorInterface.get_script_editor().get_current_script()
+	if script and script.resource_path.begins_with("res://") and not script.resource_path in focus:
+		focus.append(script.resource_path)
+	return focus
 
 
 ## El texto de una mención especial del composer (m11-08): las mismas tools que usa el agente, sin

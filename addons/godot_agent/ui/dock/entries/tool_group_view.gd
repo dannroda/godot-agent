@@ -419,6 +419,7 @@ const GODOT_TOOL_NAMES := {
 	"project_info": "Project info",  # i18n
 	"project_settings": "Project settings",  # i18n
 	"remove_autoload": "Remove autoload",  # i18n
+	"project_map": "Project map",  # i18n
 	"remove_input_action": "Remove input action",  # i18n
 	"remove_node": "Remove node",  # i18n
 	"rename_node": "Rename node",  # i18n

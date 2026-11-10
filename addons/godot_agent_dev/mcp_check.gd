@@ -44,7 +44,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	for tool: Dictionary in list.get("result", {}).get("tools", []):
 		names.append(tool.name)
 	print("[mcp-check] tools: ", ", ".join(names))
-	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "get_errors", "validate_scripts", "capture_editor_viewport", "add_nodes", "run_scene", "methods", "run"]:
+	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "get_errors", "validate_scripts", "capture_editor_viewport", "add_nodes", "run_scene", "project_map", "methods", "run"]:
 		_expect(expected in names, "tools/list incluye %s" % expected)
 	# Compacto por defecto (D56): las extendidas se descubren con methods y se llaman con run.
 	for extended: String in ["class_info", "search_api", "tilemap_set_cells", "animation_create", "create_resource", "move_file", "set_input_action", "game_get", "build_extension", "test_extension", "install_extension", "restart_editor"]:
@@ -81,6 +81,11 @@ func run(tree: SceneTree) -> PackedStringArray:
 	_expect(missing.get("isError", false) and _text(missing).contains("Player"), "get_node inexistente: error con sugerencias")
 	var state := await _call_text("editor_state", {})
 	_expect(state.contains("main_fixture.tscn") and state.contains("Player (CharacterBody2D)"), "editor_state: escena y selección")
+	# m11-26: sin focus rankea hacia lo abierto en el editor; el índice se arma en un worker.
+	var map_started := Time.get_ticks_msec()
+	var map_text := await _call_text("project_map", {"max_tokens": 800})
+	print("[mcp-check] project_map (%d ms):\n" % (Time.get_ticks_msec() - map_started), map_text.left(1500))
+	_expect(map_text.contains("Ranked toward what is open in the editor: %s" % FIXTURE_SCENE) and map_text.contains("res://tests/fixtures/fixture_player.gd · script"), "project_map: hacia la escena abierta, con el script de su jugador")
 	var timer_api := await _call_text("class_info", {"class": "Timer"})
 	_expect(timer_api.contains("start(time_sec: float = -1") and timer_api.contains("A countdown timer."), "class_info: firma y descripción del caché del editor")
 	var script_api := await _call_text("class_info", {"class": "Status"})
