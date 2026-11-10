@@ -54,6 +54,8 @@ extends EditorPlugin
 ##   «Apagar» y el botón escondido en One-shot.
 ## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla One-shot,
 ##   el Agent Log y cada página de Settings: ningún texto visible que tenga traducción queda en inglés.
+## - `-- --godot-agent-profile-test`: m13-27, lee el profiler de scripts de un run desde un plugin por
+##   la señal interna debug_data de ScriptEditorDebugger y mide el overhead (ver profile_check.gd).
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -136,6 +138,8 @@ const AUTO_ARG := "--godot-agent-auto-test"
 const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
 const RemoteCheck := preload("remote_check.gd")
+const PROFILE_ARG := "--godot-agent-profile-test"
+const ProfileCheck := preload("profile_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 ## user:// propio de cada checkout para los checks (m13-17); vive en tests/, que no viaja con el addon.
 const TEST_USER_DIR_SCRIPT := "res://tests/test_user_dir.gd"
@@ -186,6 +190,8 @@ func _enter_tree() -> void:
 		_run_auto_test.call_deferred()
 	if REMOTE_ARG in args:
 		_run_remote_test.call_deferred()
+	if PROFILE_ARG in args:
+		_run_profile_test.call_deferred()
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
 	for arg: String in args:
@@ -548,6 +554,15 @@ func _run_remote_test() -> void:
 	for failure: String in failures:
 		print("[remote-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "remote-test: %d fallas" % failures.size())
+
+
+func _run_profile_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures := _failures(await ProfileCheck.new().run(get_tree(), self))
+	for failure: String in failures:
+		print("[profile-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "profile-test: %d fallas" % failures.size())
 
 
 func _run_oneshot_test() -> void:
