@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Fixed
 
 - The One-shot form no longer gets clipped on both sides when the dock is wide and the editor's center is narrow: the example goals wrap instead of forcing the form wider than the space it has.
+- The findings panel counts say "1 bug" and "2 bugs", with the category name written out ("2 performance" rather than "2 perf"), and the chips wrap in a narrow dock.
 
 ## [0.1.19] - 2026-11-10
 

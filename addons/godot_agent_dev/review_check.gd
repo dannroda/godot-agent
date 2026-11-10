@@ -84,6 +84,13 @@ func run_review(tree: SceneTree, profile: AgentProfile, shot_path: String = "") 
 		_expect(store.scope_label() == "tests/fixtures/review/", "alcance: %s" % store.scope_label())
 	var fold: FoldableContainer = panel.get(&"_fold")
 	_expect(fold.title.begins_with(I18n.t("Review of %s · %d files").get_slice("%s", 0) + "tests/fixtures/review/"), "título del panel: %s" % fold.title)
+	# Los contadores dicen el plural (m12-43): «3 bugs», y los chips lo mismo que el título.
+	var counts: Dictionary = store.counts()
+	var chips: Array = (panel.get(&"_counters") as Control).get_children().map(func(chip: Label) -> String: return chip.text)
+	for severity: String in counts:
+		var expected: String = panel.call(&"counter_label", severity, counts[severity])
+		_expect(expected in chips, "chip «%s» (%s)" % [expected, chips])
+		_expect(counts[severity] == 0 or fold.title.contains(expected), "el título cuenta «%s»: %s" % [expected, fold.title])
 	if not shot_path.is_empty() and not seeded_ids.is_empty():
 		_annotations.focus_finding(seeded_ids[0])
 		await _frames(10)

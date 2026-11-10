@@ -30,17 +30,25 @@ const LIST_MAX_HEIGHT := 180
 const PLAYTEST_MINUTES_KEY := "playtest_minutes"
 const PLAYTEST_MINUTES_DEFAULT := 15
 const PLAYTEST_MINUTES_MAX := 600
-const COUNTER_LABELS: Dictionary = {
-	"bug": "bug",  # i18n
-	"order": "order",  # i18n
-	"perf": "perf",  # i18n
-	"style": "style",  # i18n
+## Contadores por categoría, con el número adentro para que cada idioma lo ordene; singular y plural
+## como «%d file» / «%d files» (m12-43: antes decía «2 bug», y «rend» en español no se entendía).
+const COUNTER_ONE: Dictionary = {
+	"bug": "%d bug",  # i18n
+	"order": "%d order",  # i18n
+	"perf": "%d performance",  # i18n
+	"style": "%d style",  # i18n
+}
+const COUNTER_MANY: Dictionary = {
+	"bug": "%d bugs",  # i18n
+	"order": "%d order",  # i18n
+	"perf": "%d performance",  # i18n
+	"style": "%d style",  # i18n
 }
 
 var _store: ReviewStore
 var _accent: Color
 var _fold: FoldableContainer
-var _counters: HBoxContainer
+var _counters: HFlowContainer
 var _list: VBoxContainer
 var _scroll: ScrollContainer
 var _empty: Label
@@ -77,8 +85,9 @@ func _ready() -> void:
 	notice.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
 	column.add_child(notice)
 
-	_counters = HBoxContainer.new()
-	_counters.add_theme_constant_override(&"separation", AgentTheme.px(4))
+	_counters = HFlowContainer.new()  # en un dock angosto los chips bajan de línea
+	_counters.add_theme_constant_override(&"h_separation", AgentTheme.px(4))
+	_counters.add_theme_constant_override(&"v_separation", AgentTheme.px(4))
 	column.add_child(_counters)
 
 	_empty = Label.new()
@@ -154,6 +163,11 @@ func _ready() -> void:
 	refresh()
 
 
+## «1 bug», «2 bugs», «0 style»: el texto de un contador, traducido.
+static func counter_label(severity: String, count: int) -> String:
+	return I18n.t(COUNTER_ONE[severity] if count == 1 else COUNTER_MANY[severity]) % count
+
+
 func refresh() -> void:
 	var findings := _store.findings
 	var files := _store.paths().size()
@@ -164,11 +178,11 @@ func refresh() -> void:
 		child.queue_free()
 	var counts := _store.counts()
 	var summary: PackedStringArray = []
-	for severity: String in COUNTER_LABELS:
+	for severity: String in COUNTER_ONE:
 		if counts[severity] > 0:
-			summary.append("%d %s" % [counts[severity], I18n.t(COUNTER_LABELS[severity])])
+			summary.append(counter_label(severity, counts[severity]))
 		var chip := Label.new()
-		chip.text = "%d %s" % [counts[severity], I18n.t(COUNTER_LABELS[severity])]
+		chip.text = counter_label(severity, counts[severity])
 		chip.tooltip_text = I18n.t(ReviewStore.SEVERITY_LABELS[severity])
 		chip.mouse_filter = Control.MOUSE_FILTER_PASS
 		chip.add_theme_font_size_override(&"font_size", AgentTheme.px(11))

@@ -14,6 +14,12 @@ msgstr "Log \"raw\": incluir el código de las sugerencias en el Agent Log"
 msgid "### Files (%d · +%d −%d)"
 msgstr "### Archivos (%d · +%d −%d)"
 
+msgid "%d bug"
+msgstr "%d bug"
+
+msgid "%d bugs"
+msgstr "%d bugs"
+
 msgid "%d days"
 msgstr "%d días"
 
@@ -26,6 +32,12 @@ msgstr "%d archivos cambiados"
 msgid "%d more lines"
 msgstr "%d líneas más"
 
+msgid "%d order"
+msgstr "%d de orden"
+
+msgid "%d performance"
+msgstr "%d de rendimiento"
+
 msgid "%d scene"
 msgstr "%d escena"
 
@@ -37,6 +49,9 @@ msgstr "%d script"
 
 msgid "%d scripts"
 msgstr "%d scripts"
+
+msgid "%d style"
+msgstr "%d de estilo"
 
 msgid "%d subagent tool"
 msgstr "%d herramienta del subagente"
@@ -1001,9 +1016,6 @@ msgstr "Compatible con OpenAI (/v1/completions)"
 msgid "ORDER"
 msgstr "ORDEN"
 
-msgid "order"
-msgstr "orden"
-
 msgid "Other"
 msgstr "Otras"
 
@@ -1057,9 +1069,6 @@ msgstr "Se pausa al %d %%, al terminar la tarea o el turno en curso"
 
 msgid "PERF"
 msgstr "REND"
-
-msgid "perf"
-msgstr "rend"
 
 msgid "performance"
 msgstr "rendimiento"
