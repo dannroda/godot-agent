@@ -3822,20 +3822,20 @@ msgstr "Playtest: falló"
 msgid "Playtest: could not test"
 msgstr "Playtest: no se pudo probar"
 
-msgid "Evidence:"
-msgstr "Evidencia:"
+msgid "Evidence"
+msgstr "Evidencia"
 
-msgid "To reproduce:"
-msgstr "Para reproducirlo:"
+msgid "To reproduce"
+msgstr "Para reproducirlo"
 
 msgid "Before you trust this:"
 msgstr "Antes de confiar en esto:"
 
-msgid "May have changed the game directly, not by playing:"
-msgstr "Puede haber cambiado el juego directo, sin jugar:"
+msgid "May have changed the game directly, not by playing"
+msgstr "Puede haber cambiado el juego directo, sin jugar"
 
-msgid "The detectors saw:"
-msgstr "Los detectores vieron:"
+msgid "The detectors saw"
+msgstr "Los detectores vieron"
 
 msgid "Playtest: explored"
 msgstr "Playtest: explorado"

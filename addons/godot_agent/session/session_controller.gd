@@ -692,7 +692,10 @@ func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int,
 	var actions: Array[Dictionary] = []
 	if not str(audited.film).is_empty():
 		actions.append({"id": ACTION_PLAY_FILM, "label": I18n.t("Play the recording"), "data": audited.film})
-	model.add_notice(notice.text, notice.level, actions)
+	var entry := model.add_notice(notice.text, notice.level, actions)
+	entry.title = notice.title
+	entry.sections = notice.sections
+	model.notify_entry_changed(entry)
 	ReviewStore.remember_playtest(playtest, audit, PlaytestMemory.new())
 	if model.harness_mode != SessionModel.HarnessMode.REVIEW:
 		return

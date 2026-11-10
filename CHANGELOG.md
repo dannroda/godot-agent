@@ -9,6 +9,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - The One-shot form no longer gets clipped on both sides when the dock is wide and the editor's center is narrow: the example goals wrap instead of forcing the form wider than the space it has.
 - The findings panel counts say "1 bug" and "2 bugs", with the category name written out ("2 performance" rather than "2 perf"), and the chips wrap in a narrow dock.
 - Prompts the harness sends for you no longer look like messages you typed. This covers One-shot's turns (the goal, *keep going with the plan*, QA and its fixes, the final report), the check after each turn, Review's questions, fixes and playtests, inline edits, what the crash supervisor saw and messages from other sessions. Each one shows as a dimmed line with a label in the interface language. **Show prompt** opens the text the agent got, which stays in English. Queued prompts show the same label. Sessions reopened from the harness's history keep the labels.
+- A playtest verdict is now a card with a hierarchy instead of a block of red text: the result and the reason are the title, what to read before trusting it stays in the body, and the evidence, the direct changes, what the detectors saw and the steps to reproduce are collapsible sections with their counts. It fits a narrow dock.
 
 ## [0.1.19] - 2026-11-10
 
