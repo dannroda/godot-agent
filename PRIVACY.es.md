@@ -33,7 +33,13 @@ El completado inline local (el que viene por defecto) nunca sale del editor.
 
 ## El servidor MCP del editor
 
-El servidor MCP del addon escucha solo en `127.0.0.1`, con un token que cambia cada vez que arranca el editor, así que otras computadoras no llegan. El token no se muestra en el Agent Log. Un programa chico para los agentes que usan MCP por stdio vive en `user://godot_agent_mcp_shim/`.
+El servidor MCP del addon escucha solo en `127.0.0.1`, con un token que cambia cada vez que arranca el editor, así que otras computadoras no llegan. El token se enmascara en todos los lugares donde podría verse (ver [Secretos](#secretos)). Un programa chico para los agentes que usan MCP por stdio vive en `user://godot_agent_mcp_shim/`; el agente recibe el token por ese programa o en la configuración MCP de la sesión, porque lo necesita para llamar al editor.
+
+## Secretos
+
+El harness trata como secretos estos valores (de 8 caracteres o más): el token del servidor MCP (y el que recibe cada pestaña del dock); en el perfil del agente, las variables de entorno cuyo nombre parece un secreto (`key`, `token`, `secret`, `password`, `passwd`, `auth`…), escritas o tomadas de una `$VARIABLE`; la variable de API key del agente (`ANTHROPIC_API_KEY` en Claude Code) cuando está en el entorno del editor, porque el agente hereda ese entorno; y, en los servidores MCP que agregás, todo valor de entorno o de header tomado de una `$VARIABLE`, se llame como se llame. Donde uno de ellos podría verse aparece `«secret»` en su lugar: en el Agent Log, en el chat (lo que dice el agente, los resultados de sus herramientas, los diffs y comandos de las tarjetas de permiso), en las tarjetas de error y el tooltip del estado, en el historial de sesiones en disco, y en la actividad, el informe y los runs guardados del One-shot. Una sesión guardada antes de registrar un secreto se enmascara al reabrirla.
+
+Dos cosas no se enmascaran, a propósito. Lo que el agente escribe o ejecuta lleva el valor real: un archivo que escribe o un comando que lanza se romperían con `«secret»` adentro (lo que de esa escritura o ese comando se ve en el chat sí va enmascarado). Y los formularios y enlaces de login que el agente manda como pedidos para que respondas quedan como están, porque tienen que seguir funcionando (un enlace dentro de un mensaje del agente se enmascara como el resto del mensaje). El agente recibe el token y las claves, y lo que hace con ellos es cosa suya: mirá su documentación. Lo que escribís vos queda como lo escribiste, en el chat y en el historial de sesiones: no pegues claves en el chat.
 
 ## Lo que queda en tu computadora
 
@@ -41,9 +47,9 @@ El servidor MCP del addon escucha solo en `127.0.0.1`, con un token que cambia c
 
 | Qué | Dónde | Notas |
 |---|---|---|
-| Historial de sesiones (las conversaciones, para reabrirlas) | `user://godot_agent/sessions/` | Las últimas 100 sesiones. Las capturas no se guardan; los textos largos se recortan. |
+| Historial de sesiones (las conversaciones, para reabrirlas) | `user://godot_agent/sessions/` | Las últimas 100 sesiones. Las capturas no se guardan; los textos largos se recortan; los secretos se enmascaran antes de escribir. |
 | Prompts que mandaste (↑ en el composer) | `user://godot_agent/prompt_history.json` | |
-| Runs del One-shot | `user://godot_agent/oneshot/` | Los últimos 20. |
+| Runs del One-shot | `user://godot_agent/oneshot/` | Los últimos 20. Los secretos se enmascaran. |
 | Actualizaciones del addon y descargas del Asset Store en curso | `user://godot_agent/update/`, `user://godot_agent/assets/` | En `update/` quedan copias de la versión anterior del addon. |
 | Perfiles de agentes, ajustes de MCP, del completado e idioma | Ajustes del editor, prefijo `godot_agent/` | Los perfiles nombran variables de entorno, nunca sus valores (Ajustes rechaza un valor literal en una variable con nombre de secreto). |
 | Agentes bajados del registro de ACP | La carpeta de datos del editor, `godot_agent/agents/` | Compartidos por todos los proyectos. |

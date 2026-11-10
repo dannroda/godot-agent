@@ -83,4 +83,4 @@ The bottom panel shows everything by channel:
 - `cmp`: completion latencies;
 - `state`: a session, the game launched by `run_scene` or a One-shot run changed state in a way the harness didn't expect. The change still happens; the line names both states.
 
-Secrets are masked. It's the first place to look when something doesn't work: see [Troubleshooting](Troubleshooting.md).
+Secrets (the MCP server's token, the keys the agent and the MCP servers take from the environment) are masked here, and also in the chat, on the permission and error cards, in the saved session history and in the One-shot report; what the agent writes or runs keeps the real value. It's the first place to look when something doesn't work: see [Troubleshooting](Troubleshooting.md).
