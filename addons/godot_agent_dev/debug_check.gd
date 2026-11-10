@@ -15,6 +15,7 @@ const MAIN_PLUGIN := "res://addons/godot_agent/plugin.gd"
 const SCENE := "res://tests/fixtures/debug_fixture.tscn"
 const SCRIPT := "res://tests/fixtures/debug_fixture.gd"
 const BREAK_LINE := 21
+const LATE_LINE := 28
 const RUN_ARGS_ENV := "GODOT_AGENT_TEST_RUN_ARGS"
 const RUN_ARGS_SETTING := "editor/run/main_run_args"
 
@@ -107,6 +108,16 @@ func _check(model: Object) -> void:
 	_expect((_plugin.get(&"_debug_tools").get(&"breakpoints") as Dictionary).is_empty(), "y su breakpoint se fue")
 	await _tree.create_timer(0.5).timeout
 	_expect(not bool(_debugger.call(&"is_breaked")), "no vuelve a parar")
+	await _call_text("stop_scene", {})
+
+	# Revisión de next2 #10: run_scene con monitors que termina parado en un breakpoint igual los lee
+	# (el probe contesta desde el bucle del debugger) y los apaga.
+	await _call_text("game_breakpoint", {"action": "set", "file": SCRIPT, "line": LATE_LINE})
+	var late := await _call_text("run_scene", {"scene": SCENE, "seconds": 5, "monitors": true})
+	report.late = late.left(300)
+	_expect(late.contains("stopped at a breakpoint") and late.contains("%s:%d" % [SCRIPT, LATE_LINE]), "para en el breakpoint de más tarde · " + late.left(400))
+	_expect(late.contains("Performance during the run:\nSampled "), "parado ahí, igual lee los monitores · " + late.right(600))
+	await _call_text("game_breakpoint", {"action": "clear", "file": SCRIPT, "line": LATE_LINE})
 	await _call_text("stop_scene", {})
 
 

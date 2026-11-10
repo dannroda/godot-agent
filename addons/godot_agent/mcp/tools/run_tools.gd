@@ -224,6 +224,9 @@ func _on_session_stopped() -> void:
 ## Un error del juego: se saltea si este run lo pidió, guardando el motivo (el panel se llena un
 ## momento después de la pausa).
 func _on_session_breaked() -> void:
+	# Los monitores del probe no cuentan la pausa como un frame lento (revisión de next2 #11). El
+	# mensaje lo atiende el bucle del debugger, con el juego parado.
+	debugger.send("paused")
 	if not _continue_errors or _breaks >= CONTINUE_MAX:
 		if _continue_errors:
 			_continued.append("Stopped skipping errors after %d in this run: the game is stopped in the debugger." % CONTINUE_MAX)
@@ -478,11 +481,13 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	if not recording.is_empty():
 		notes.append(await _finish_recording(recording))
 	if monitoring:  # m11-43
-		if EditorInterface.is_playing_scene() and debugger.has_probe() and not _stopped_in_debugger():
-			var sampled := await request("monitors_stop", {})
+		# También parado en el debugger: el probe contesta desde su bucle y deja de muestrear; si no, los
+		# monitores siguen hasta su tope (revisión de next2 #10).
+		if EditorInterface.is_playing_scene() and debugger.has_probe():
+			var sampled := await request("monitors_stop", {}, REQUEST_TIMEOUT_S, true)
 			notes.append("Performance during the run:\n%s" % str(sampled.get("text", sampled.get("error", ""))))
 		else:
-			notes.append("Performance monitors: the game ended or stopped in the debugger before they could be read; use game_monitors on a running game.")
+			notes.append("Performance monitors: the game ended before they could be read; use game_monitors on a running game.")
 	if not reached(GameRunState.STARTED):
 		_cleanup()
 	if EditorInterface.is_playing_scene() and debugger.has_probe() and not _stopped_in_debugger():

@@ -32,6 +32,10 @@ const COUNTS: Array = [
 
 var _started_usec := 0
 var _last_usec := 0
+## El próximo tick cae después de una pausa del debugger (revisión de next2 #11): ese hueco no es un
+## frame del juego y no se cuenta (ni en los frames ni en los segundos).
+var _skip_gap := false
+var _paused_usec := 0
 ## Duración de cada frame (ms), medida entre frames: el FPS de Performance es un promedio por segundo.
 var _frame_ms: PackedFloat64Array = []
 ## TIME_PROCESS y TIME_PHYSICS_PROCESS (ms): Godot los actualiza una vez por segundo con el máximo de ese segundo.
@@ -46,6 +50,8 @@ var _last: Dictionary = {}
 func start() -> void:
 	_started_usec = Time.get_ticks_usec()
 	_last_usec = _started_usec
+	_skip_gap = false
+	_paused_usec = 0
 	_frame_ms.clear()
 	_process_ms.clear()
 	_physics_ms.clear()
@@ -61,9 +67,24 @@ func is_running() -> bool:
 	return _started_usec > 0
 
 
+## El juego estuvo parado en el debugger desde el último tick: el próximo no mide ese hueco.
+func skip_gap() -> void:
+	_skip_gap = true
+
+
+## Segundos muestreados, sin las pausas del debugger.
+func seconds() -> float:
+	return (_last_usec - _started_usec - _paused_usec) / 1000000.0
+
+
 ## Una muestra; se llama una vez por frame.
 func tick() -> void:
 	var now := Time.get_ticks_usec()
+	if _skip_gap:
+		_skip_gap = false
+		_paused_usec += now - _last_usec
+		_last_usec = now
+		return
 	_frame_ms.append((now - _last_usec) / 1000.0)
 	_last_usec = now
 	_process_ms.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
@@ -82,11 +103,12 @@ func frames() -> int:
 func report(orphans: bool = true) -> String:
 	if _frame_ms.is_empty():
 		return "No frames were sampled (the game was paused or ended)."
-	var seconds := (_last_usec - _started_usec) / 1000000.0
+	var sampled := seconds()
 	var lines: PackedStringArray = []
 	var frame := stats(_frame_ms)
-	lines.append("Sampled %d frames over %.2f s." % [_frame_ms.size(), seconds])
-	lines.append("Frame time: avg %.1f ms, p95 %.1f ms, max %.1f ms (%.0f fps on average)." % [frame.avg, frame.p95, frame.max, _frame_ms.size() / seconds if seconds > 0.0 else 0.0])
+	var paused := " (%.1f s stopped in the debugger not counted)" % (_paused_usec / 1000000.0) if _paused_usec > 0 else ""
+	lines.append("Sampled %d frames over %.2f s%s." % [_frame_ms.size(), sampled, paused])
+	lines.append("Frame time: avg %.1f ms, p95 %.1f ms, max %.1f ms (%.0f fps on average)." % [frame.avg, frame.p95, frame.max, _frame_ms.size() / sampled if sampled > 0.0 else 0.0])
 	# Godot actualiza estos dos una vez por segundo con el frame más lento de ese segundo: el promedio no
 	# dice nada, el máximo sí.
 	lines.append("Slowest frame of each second, as the engine measures it: process up to %.2f ms, physics up to %.2f ms." % [stats(_process_ms).max, stats(_physics_ms).max])
