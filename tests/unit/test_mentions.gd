@@ -6,6 +6,11 @@ const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
 const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
 
 
+## m13-29: la línea de una máquina en el tooltip del encabezado.
+func test_machine_line() -> void:
+	assert_eq(AgentDock.machine_line("Game", "running", 12), "Game: running · 12 s", "máquina, estado y antigüedad")
+
+
 func test_special_mentions_in() -> void:
 	var found := AgentDock.special_mentions_in("why @errors? see @game and @docs:CharacterBody2D, again @errors")
 	assert_eq(found.map(func(m: Dictionary) -> String: return "%s|%s|%s" % [m.token, m.kind, m.arg]),

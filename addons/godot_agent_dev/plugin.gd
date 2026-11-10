@@ -865,6 +865,8 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		return
 	if not shot_path.is_empty():
 		get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_state.png")
+	if not await _check_header_tooltip(dock, chip, shot_path):
+		return
 	if scenario == "ui_long_permission" and not await _check_long_permission(dock, model, shot_path):
 		return
 	if scenario == "ui_quota_busy" and not await _check_ring_tooltip(dock, shot_path):
@@ -944,6 +946,39 @@ func _check_crash_card(dock: Control, model: Object, shot_path: String) -> void:
 	_finish(0 if failures.is_empty() else 1, "ui-test crash: %d fallas" % failures.size())
 
 
+## m13-29: el tooltip del chip del agente dice el estado de cada máquina con su antigüedad (la
+## sesión trabajando, el juego de run_scene), leído al momento. Con captura, se abre de verdad.
+func _check_header_tooltip(dock: Control, chip: Button, shot_path: String) -> bool:
+	var tooltip := chip.tooltip_text
+	var session_line := I18n.t("Session") + ": " + I18n.t("working")
+	var game_line := I18n.t("Game") + ": "
+	if not tooltip.begins_with(session_line) or not tooltip.contains(game_line) or not tooltip.contains(" s\n"):
+		_finish(1, "el tooltip del encabezado no dice el estado de las máquinas: «%s»" % tooltip.replace("\n", " | "))
+		return false
+	if not shot_path.is_empty():
+		var hover := InputEventMouseMotion.new()
+		hover.position = chip.get_global_rect().get_center()
+		hover.global_position = hover.position
+		chip.get_viewport().push_input(hover)
+		await get_tree().create_timer(1.5).timeout
+		if not _tooltip_open(chip.get_viewport()):
+			_finish(1, "el tooltip del encabezado no se abrió con el mouse encima")
+			return false
+		# El tooltip es una ventana aparte: la textura del editor no lo trae, se compone encima.
+		var shot := get_viewport().get_texture().get_image()
+		for window: Window in _tooltip_windows(chip.get_viewport()):
+			var tip := window.get_texture().get_image()
+			tip.convert(shot.get_format())
+			shot.blit_rect(tip, Rect2i(Vector2i.ZERO, tip.get_size()), window.position - get_window().position)
+		shot.save_png(shot_path.get_basename() + "_header_tooltip.png")
+		var away := InputEventMouseMotion.new()
+		away.position = Vector2(4, dock.get_global_rect().end.y - 4)
+		away.global_position = away.position
+		chip.get_viewport().push_input(away)
+		await get_tree().create_timer(0.5).timeout
+	return true
+
+
 ## m17-14: el tooltip del anillo de cuota sigue abierto con el mouse encima, aunque el dock lo
 ## refresque cada segundo y el turno vaya cambiando el contexto usado.
 func _check_ring_tooltip(dock: Control, shot_path: String = "") -> bool:
@@ -984,10 +1019,16 @@ func _check_ring_tooltip(dock: Control, shot_path: String = "") -> bool:
 
 
 func _tooltip_open(viewport: Viewport) -> bool:
+	return not _tooltip_windows(viewport).is_empty()
+
+
+## Los tooltips de Godot abiertos bajo `viewport` (ventanas propias, no se ven en su textura).
+func _tooltip_windows(viewport: Viewport) -> Array[Window]:
+	var windows: Array[Window] = []
 	for node: Node in viewport.find_children("*", "Window", true, false):
 		if (node as Window).visible and node.get_class() in ["PopupPanel", "TooltipPanel"]:
-			return true
-	return false
+			windows.append(node)
+	return windows
 
 
 ## m7-28/m7-29: el mensaje del agente lleva su bloque de código en una caja aparte, y un clic en la

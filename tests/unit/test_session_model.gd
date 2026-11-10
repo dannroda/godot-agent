@@ -133,6 +133,18 @@ func test_subagent_history_round_trip() -> void:
 	assert_eq(model.tool_call("agent").child_ids, PackedStringArray(["r1"]), "hijo")
 
 
+## m13-29: cada estado tiene su nombre para el usuario, y el modelo dice hace cuánto está así.
+func test_state_labels_and_age() -> void:
+	var model := SessionModel.new()
+	for state: int in SessionModel.SessionState.values():
+		assert_true(SessionModel.SESSION_STATE_LABELS.has(state), "%s tiene etiqueta" % SessionModel.state_name(state))
+	assert_true(model.state_age_seconds() >= 0, "edad desde que existe")
+	model.set_state(SessionModel.SessionState.STARTING)
+	model.set_state(SessionModel.SessionState.READY)
+	assert_eq(model.describe_state(), "session: ready (%d s)" % model.state_age_seconds(), "descripción para el agente")
+	assert_true(model.state_age_seconds() < 5, "recién cambió")
+
+
 func test_cancel_marks_unfinished_tool_calls() -> void:
 	var model := SessionModel.new()
 	model.set_state(SessionModel.SessionState.STARTING)

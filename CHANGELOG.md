@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- The agent chip's tooltip in the dock header says what each part of the harness is doing and for how long: the session (ready, working, error…), the game launched by `godot.run_scene` (launching, running, stopped in the debugger…) and, during a One-shot, its phase and stage. Read live from each state machine, never a copy.
+
 ## [0.1.18] - 2026-11-10
 
 ### Changed

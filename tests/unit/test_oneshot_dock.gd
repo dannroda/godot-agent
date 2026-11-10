@@ -5,6 +5,16 @@ const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 
 
+## m13-29: fase y etapa para el agente, con su antigüedad.
+func test_describe_phase() -> void:
+	var run := OneShotRun.new()
+	for stage: int in OneShotRun.RunStage.values():
+		assert_true(OneShotRun.STAGE_LABELS.has(stage), "etapa %d con etiqueta" % stage)
+	assert_eq(run.describe_phase(), "one-shot: idle, building (0 s)", "sin arrancar")
+	assert_eq(run.phase_age_seconds(), 0, "sin cambios de fase, 0 s")
+	run.free()
+
+
 func test_takes_only_while_running() -> void:
 	var run := OneShotRun.new()
 	var dock_model := SessionModel.new()
