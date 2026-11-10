@@ -51,4 +51,4 @@ The extra ones are API docs (`class_info`, `search_api`), project settings, the 
 - **Open scenes**: the agent is told to edit open scenes through these tools, never on disk.
 - **Playtests**: `run_scene` adds a temporary autoload that captures errors, frames and simulated input, and removes it as soon as the game starts. If the editor dies mid-playtest, the next start cleans it up. The export never includes it.
 - **Limits**: **Settings → MCP server** sets the characters per result and the maximum image side, plus extra folders outside the project that the agent may read and write.
-- **Security**: the server only listens on `127.0.0.1`, requires a token that changes on every start (**Regenerate token** in Settings), and the log masks it.
+- **Security**: the server only listens on `127.0.0.1`, requires a token that changes on every start (**Regenerate token** in Settings), and the token is masked wherever it could show: the log, the chat, the cards, the saved history.

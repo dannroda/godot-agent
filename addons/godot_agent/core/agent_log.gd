@@ -49,6 +49,33 @@ func redact(text: String) -> String:
 	return text
 
 
+## `value` con los secretos redactados en todas sus cadenas, anidadas en diccionarios y arrays
+## (los mensajes JSON-RPC del agente al entrar, un registro del historial al reproducirlo). Devuelve
+## una copia; sin secretos registrados, el mismo valor.
+func redact_data(value: Variant) -> Variant:
+	if _secrets.is_empty():
+		return value
+	match typeof(value):
+		TYPE_STRING:
+			return redact(value)
+		TYPE_DICTIONARY:
+			var result: Dictionary = {}
+			for key: Variant in value:
+				result[key] = redact_data(value[key])
+			return result
+		TYPE_ARRAY:
+			var items: Array = []
+			for item: Variant in value:
+				items.append(redact_data(item))
+			return items
+		TYPE_PACKED_STRING_ARRAY:
+			var strings: PackedStringArray = []
+			for item: String in value:
+				strings.append(redact(item))
+			return strings
+	return value
+
+
 func add(channel: StringName, message: String, raw: String = "") -> Dictionary:
 	message = redact(message)
 	raw = redact(raw)

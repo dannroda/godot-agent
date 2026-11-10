@@ -51,4 +51,4 @@ Las extra son la documentación de la API (`class_info`, `search_api`), los sett
 - **Escenas abiertas**: al agente se le indica que edite las escenas abiertas con estas tools, nunca en disco.
 - **Playtests**: `run_scene` agrega un autoload temporal que captura errores, frames e inputs simulados, y lo quita en cuanto arranca el juego. Si el editor se cae a mitad de un playtest, el próximo arranque lo limpia. El export nunca lo incluye.
 - **Límites**: **Settings → Servidor MCP** fija los caracteres por resultado, el lado máximo de las imágenes y las carpetas fuera del proyecto que el agente puede leer y escribir.
-- **Seguridad**: el servidor escucha solo en `127.0.0.1`, pide un token que cambia en cada arranque (**Regenerar token** en Settings), y el log lo enmascara.
+- **Seguridad**: el servidor escucha solo en `127.0.0.1`, pide un token que cambia en cada arranque (**Regenerar token** en Settings), y el token se enmascara donde podría verse: el log, el chat, las tarjetas, el historial guardado.

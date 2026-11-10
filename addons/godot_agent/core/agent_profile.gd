@@ -40,6 +40,9 @@ static func from_dict(data: Dictionary) -> RefCounted:
 	return profile
 
 
+## Nombres de variables de entorno cuyo valor es un secreto (misma idea que ExternalMcpServers).
+static var SECRET_ENV_NAME := RegEx.create_from_string("(?i)(key|token|secret|password|passwd|authorization|auth)")
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,
@@ -53,6 +56,29 @@ func to_dict() -> Dictionary:
 
 ## Entorno para el proceso: `$VAR` se reemplaza por el valor de VAR en el entorno del editor y un
 ## `~/` al principio, por la carpeta del usuario (el proceso no pasa por un shell que lo expanda).
+## Valores del entorno que parecen secretos por el nombre de su variable (API keys, tokens…), para
+## registrarlos en el Agent Log (m13-25): el agente puede repetirlos en su stderr o en un error.
+static func secret_env_values(resolved: Dictionary) -> PackedStringArray:
+	var result: PackedStringArray = []
+	for key: String in resolved:
+		var value := str(resolved[key])
+		if SECRET_ENV_NAME.search(key) and value.length() >= 8 and not value in result:
+			result.append(value)
+	return result
+
+
+## Lo que el agente hereda del entorno del editor sin que el perfil lo nombre (m13-25): el proceso
+## recibe el entorno entero, así que una key exportada en el shell (la API key del adapter) le llega
+## igual. Devuelve los valores de `names` que existen y parecen secretos, con la misma regla que
+## secret_env_values.
+static func inherited_secret_values(names: PackedStringArray) -> PackedStringArray:
+	var found: Dictionary = {}
+	for name: String in names:
+		if not name.is_empty() and OS.has_environment(name):
+			found[name] = OS.get_environment(name)
+	return secret_env_values(found)
+
+
 func resolved_env() -> Dictionary:
 	var result: Dictionary = {}
 	for key: String in env:

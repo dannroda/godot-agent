@@ -33,7 +33,13 @@ The local inline completion (the default) never leaves the editor.
 
 ## The editor's MCP server
 
-The addon's MCP server listens only on `127.0.0.1`, with a token that changes every time the editor starts, so other computers can't reach it. The token is hidden in the Agent Log. A small shim for agents that use MCP over stdio lives in `user://godot_agent_mcp_shim/`.
+The addon's MCP server listens only on `127.0.0.1`, with a token that changes every time the editor starts, so other computers can't reach it. The token is masked wherever it could show (see [Secrets](#secrets)). A small shim for agents that use MCP over stdio lives in `user://godot_agent_mcp_shim/`; the agent gets the token through that shim or in the session's MCP configuration, because it needs it to call the editor.
+
+## Secrets
+
+The harness treats these values as secrets (8 characters or more): the MCP server's token (and the one each dock tab gets); in the agent's profile, the environment variables whose name looks like a secret (`key`, `token`, `secret`, `password`, `passwd`, `auth`…), whether written in or taken from a `$VARIABLE`; the agent's API key variable (`ANTHROPIC_API_KEY` for Claude Code) when it is set in the editor's environment, since the agent inherits that environment (other variables of your shell that the agent inherits are not known to the harness, so they are not masked); and, for the MCP servers you add, every environment or header value taken from a `$VARIABLE`, whatever its name. Wherever one of them could show, `«secret»` appears instead: in the Agent Log, in the chat (what the agent says, its tool results, the diffs and commands on the permission cards), on the error cards and the status tooltip, in the session history on disk, and in the One-shot activity, report and saved runs. A session saved before a secret was registered is masked when you reopen it.
+
+Two things are not masked, on purpose. What the agent writes or runs carries the real value: a file it writes or a command it starts would break with `«secret»` in it (what shows of that write or command in the chat is masked anyway). And the forms and sign-in links the agent sends as requests for you to answer stay as they are, because they have to keep working (a link inside a message of the agent is masked like the rest of the message). The agent itself receives the token and the keys, and what it does with them is its own business: see its documentation. What you type yourself is kept as you typed it, in the chat and in the session history: don't paste keys into the chat.
 
 ## What is stored on your computer
 
@@ -41,9 +47,9 @@ The addon's MCP server listens only on `127.0.0.1`, with a token that changes ev
 
 | What | Where | Notes |
 |---|---|---|
-| Session history (the conversations, to reopen them) | `user://godot_agent/sessions/` | The last 100 sessions. Captures are not saved; long texts are trimmed. |
+| Session history (the conversations, to reopen them) | `user://godot_agent/sessions/` | The last 100 sessions. Captures are not saved; long texts are trimmed; secrets are masked before writing. |
 | Prompts you sent (↑ in the composer) | `user://godot_agent/prompt_history.json` | |
-| One-shot runs | `user://godot_agent/oneshot/` | The last 20. |
+| One-shot runs | `user://godot_agent/oneshot/` | The last 20. Secrets are masked. |
 | Addon updates and Asset Store downloads in progress | `user://godot_agent/update/`, `user://godot_agent/assets/` | Backups of the previous addon version stay in `update/`. |
 | Agent profiles, MCP settings, completion settings, language | Editor settings, prefix `godot_agent/` | Profiles name environment variables, never their values (Settings rejects a literal value in a variable named like a secret). |
 | Agents downloaded from the ACP registry | The editor's data folder, `godot_agent/agents/` | Shared by all projects. |
