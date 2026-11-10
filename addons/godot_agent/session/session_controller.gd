@@ -205,6 +205,9 @@ var _outside_turn_noticed: bool = false
 ## usuario); al llegar a MAX_FIX_TURNS solo se avisa.
 var _fix_turns: int = 0
 var _sending_fix: bool = false
+## El prompt que falló porque el agente pidió iniciar sesión (m12-49): se vuelve a mandar solo
+## después del login, así el primer uso no obliga a escribirlo dos veces. {text, blocks}.
+var _prompt_after_login: Dictionary = {}
 ## Prompts del harness que esperan salir: texto → etiqueta (label_prompt, m12-44).
 var _harness_labels: Dictionary = {}
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
@@ -517,7 +520,8 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 				login_actions = _login_actions()
 			if not login_actions.is_empty():
 				agent_log.add(AgentLog.CH_PROC, "The turn ended with an error: %s" % result.error_message())
-				model.add_notice(I18n.t("Sign in to %s again to continue.") % _agent_name(), ChatEntry.NoticeLevel.INFO, login_actions)
+				_prompt_after_login = {"text": text, "blocks": extra_blocks}
+				model.add_notice(I18n.t("Sign in to %s to continue: your message is sent again afterwards.") % _agent_name(), ChatEntry.NoticeLevel.INFO, login_actions)
 			else:
 				agent_log.add(AgentLog.CH_ACP, "The turn ended with an error: %s" % result.error_message())
 				model.add_notice(I18n.t("The turn ended with an error: %s") % result.error_message(), ChatEntry.NoticeLevel.ERROR, _error_actions())
@@ -922,7 +926,13 @@ func _on_login_finished(ok: bool, message: String) -> void:
 		model.add_notice(I18n.t("Signed in."))
 		return
 	if _profile and await start(_profile):
-		model.add_notice(I18n.t("Signed in."))
+		var pending := _prompt_after_login
+		_prompt_after_login = {}
+		if pending.is_empty():
+			model.add_notice(I18n.t("Signed in."))
+		else:
+			model.add_notice(I18n.t("Signed in. Sending your message again."))
+			send_prompt(str(pending.text), pending.blocks)
 
 
 func _set_login_notice(text: String, level: ChatEntry.NoticeLevel, actions: Array[Dictionary]) -> void:

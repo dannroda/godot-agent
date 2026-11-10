@@ -15,7 +15,7 @@ Requirements: Godot 4.7+, and for Claude Code, Node.js with `npx`. C# projects w
 
 ## 2. Start a session
 
-The first time there are no agents: the dock suggests Claude Code, Codex and Google Antigravity, each with what it needs. **Add** on Claude Code sets up its profile (`npx -y @agentclientprotocol/claude-agent-acp`; the first time, `npx` downloads it); the others open the ACP registry. Then click **Start session**. Once there are sessions, the dock lists the project's previous ones with **Continue** (Settings → Interface can continue the last one when the editor opens).
+The first time there are no agents: the dock suggests Claude Code, Codex and Google Antigravity, each with what it needs. **Add** on Claude Code sets up its profile (`npx -y @agentclientprotocol/claude-agent-acp`) and starts the session on its own (the first time, `npx` downloads it, which can take a minute). If it needs an account, the chat shows a sign-in card (with Claude Code, at your first message; after signing in, the message is sent again). The others open the ACP registry. Once there are sessions, the dock lists the project's previous ones with **Continue** (Settings → Interface can continue the last one when the editor opens).
 
 If the agent isn't signed in, a card asks you to sign in, with the agent's main method as a button and the rest under **Other ways to sign in**. With Claude Code these are **Claude Subscription** and **Anthropic Console**:
 

@@ -43,6 +43,8 @@ const MORE_SETTINGS := 1
 const MORE_REMOTE := 2
 const MORE_LOGOUT := 3
 const MORE_TOOLS := 4
+## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
+const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
 const RECENT_SESSIONS := 5
 const AgentProfile := preload("../../core/agent_profile.gd")
@@ -746,6 +748,8 @@ func _refresh_state_line(color: Color) -> void:
 	match _model.state:
 		SessionModel.SessionState.STARTING:
 			text = "◌ " + I18n.t("Connecting…")
+			if _model.state_age_seconds() >= CONNECTING_HINT_AFTER_S:  # la primera vez npx descarga el agente (m12-49)
+				text += " " + I18n.t("(the first time, the agent is downloaded: it can take a minute)")
 		SessionModel.SessionState.READY:
 			text = "● " + I18n.t("Ready")
 		SessionModel.SessionState.PROMPTING:
@@ -775,6 +779,8 @@ func _refresh_state_line(color: Color) -> void:
 func _refresh_machine_chips() -> void:
 	if _machine_chips == null or not is_inside_tree():
 		return
+	if _model.state == SessionModel.SessionState.STARTING:
+		_refresh_state_line(_accent)  # la pista de la descarga aparece pasados unos segundos
 	var chips := machine_chips(machine_states.call() if machine_states.is_valid() else [])
 	while _machine_chips.get_child_count() > chips.size():
 		var extra := _machine_chips.get_child(_machine_chips.get_child_count() - 1)
@@ -957,6 +963,9 @@ func add_suggested_agent(agent: Dictionary) -> void:
 	_profile_id = str(data.id)
 	_settings.save_profiles(list)
 	_settings.set_active_profile(_profile_id)
+	# La sesión arranca sola (m12-49): antes había que apretar «Iniciar sesión» después de «Agregar».
+	# La descarga de npx y el pedido de login llegan como estado y tarjeta, sin otro clic.
+	start_session()
 
 
 ## Al abrir el editor con «Continuar la última sesión» (m12-12). false si no había ninguna.

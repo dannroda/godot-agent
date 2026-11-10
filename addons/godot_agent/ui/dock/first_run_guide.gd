@@ -38,7 +38,7 @@ func setup(accent: Color) -> void:
 	steps.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	steps.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	steps.text = "\n".join([
-		"1. " + I18n.t("Add an agent. If it has to be downloaded, the progress shows here."),
+		"1. " + I18n.t("Add an agent: the session starts on its own (the first time it is downloaded, which can take a minute)."),
 		"2. " + I18n.t("Sign in with the account it asks for, from the browser."),
 		"3. " + I18n.t("Ask it something, with @ to name nodes and files."),
 	])
