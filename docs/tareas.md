@@ -4866,7 +4866,7 @@ Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux
 - [ ] Cuota: el anillo y el límite con su /usage
 - [ ] Sin skills ni plugins: que Extensions lo diga bien
 
-## M17 — GDExtension  (3/5, 3 en revisión)
+## M17 — GDExtension  (4/5, 4 en revisión)
 
 Que el agente pueda hacer GDExtensions sin poner en riesgo el editor: build con errores parseados, prueba en un proceso descartable, un supervisor fuera del editor para crashes y reinicios, y una skill de scaffolding. No se trae: hot reload dentro del editor ni builds multiplataforma para export (eso es CI).
 
@@ -4955,13 +4955,15 @@ Godot carga .godot/extension_list.cfg antes que cualquier plugin. Si una build c
 
 **Relacionadas:** Probar la extensión en un Godot headless descartable
 
-### Skill de scaffolding de GDExtension · En curso
+### Skill de scaffolding de GDExtension · Revisión
 
 **Prioridad:** media · **Tamaño:** M
 
 Una skill en el repo de marketplace dannroda/godot-agent-plugins (no en este repo) con plantillas de godot-cpp y gdext fijadas a 4.7, el .gdextension con compatibility_minimum, el flujo de godot --dump-extension-api desde el binario abierto para que godot-cpp coincida con el editor, y el ciclo build → prueba headless → promover → reiniciar con supervisor.
 
-**Notas:** La está haciendo otra sesión, en el repo godot-agent-plugins (armando y probando las skills). Lo que queda de este lado: cuando m19-01, m19-02 y m19-03 existan, que la skill use esas tools (build, prueba headless, promover, reinicio con supervisor) en lugar del shell directo.
+**Prueba:** Revisado el commit 3286997 de godot-agent-plugins (gdextension 0.1.1): gdextension-cpp, gdextension-build y gdextension-debug explican cómo encontrar las tools (godot.methods / godot.run), el ciclo build_extension → test_extension → restart_editor y los archivos .crashed y .gdextension.disabled del supervisor, y sin las tools siguen con la shell. La otra sesión no corrió las tools desde la skill.
+
+**Notas:** Las skills: a11a5d4 (versión inicial) y 3286997 (usan las tools de la v0.1.17), en godot-agent-plugins. 3286997 está commiteado pero sin push: ese push lo confirma el usuario. Hay una diferencia entre los runners: sin carpeta de tests, el de test_extension solo comprueba la carga y sale con 0, mientras que el de la skill sale con 2 si no corrió ningún test. Se dejó así a propósito: test_extension también sirve para comprobar solo que una extensión carga.
 
 **Relacionadas:** Build nativo con errores por archivo
 

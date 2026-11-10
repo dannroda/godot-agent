@@ -10,13 +10,13 @@
     }
   ],
   "milestone": "m19",
-  "notes": "La está haciendo otra sesión, en el repo godot-agent-plugins (armando y probando las skills). Lo que queda de este lado: cuando m19-01, m19-02 y m19-03 existan, que la skill use esas tools (build, prueba headless, promover, reinicio con supervisor) en lugar del shell directo.",
+  "notes": "Las skills: a11a5d4 (versión inicial) y 3286997 (usan las tools de la v0.1.17), las dos en origin/main de godot-agent-plugins. Hay una diferencia entre los runners: sin carpeta de tests, el de test_extension solo comprueba la carga y sale con 0, mientras que el de la skill sale con 2 si no corrió ningún test. Se dejó así a propósito: test_extension también sirve para comprobar solo que una extensión carga.",
   "order": 4,
   "priority": "medium",
   "refs": [],
   "size": "m",
-  "status": "doing",
-  "test": "",
+  "status": "review",
+  "test": "Revisado el commit 3286997 de godot-agent-plugins (gdextension 0.1.1): gdextension-cpp, gdextension-build y gdextension-debug explican cómo encontrar las tools (godot.methods / godot.run), el ciclo build_extension → test_extension → restart_editor y los archivos .crashed y .gdextension.disabled del supervisor, y sin las tools siguen con la shell. La otra sesión no corrió las tools desde la skill.",
   "title": "Skill de scaffolding de GDExtension",
-  "updated_at": "2026-11-02T22:07:32.685Z"
+  "updated_at": "2026-11-03T00:33:06.726Z"
 }
