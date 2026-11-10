@@ -99,6 +99,10 @@ const STDERR_LINE_CHARS := 160
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
 const ACTION_LOGIN := "login"
+## Las regresiones desde el aviso de un playtest que pasó (m12-48); el dock las reenvía al plugin
+## (AgentDock usa estos mismos ids).
+const ACTION_RUN_REGRESSIONS := "run_regressions"
+const ACTION_REGRESSIONS_WORKFLOW := "regressions_workflow"
 const ACTION_LOGIN_CODE := "login_code"
 const ACTION_LOGIN_CANCEL := "login_cancel"
 ## Error de ACP cuando el agente necesita que el usuario inicie sesión (`authRequired`). El mismo
@@ -205,6 +209,8 @@ var _outside_turn_noticed: bool = false
 ## usuario); al llegar a MAX_FIX_TURNS solo se avisa.
 var _fix_turns: int = 0
 var _sending_fix: bool = false
+## Dónde se guardan las regresiones de playtest (los tests usan una carpeta temporal).
+var regressions_dir: String = ReviewStore.PlaytestRegressions.DIR
 ## Prompts del harness que esperan salir: texto → etiqueta (label_prompt, m12-44).
 var _harness_labels: Dictionary = {}
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
@@ -680,22 +686,41 @@ func agent_text_since(first_entry: int) -> String:
 	return "\n".join(parts)
 
 
+## Lo que el aviso de un playtest que pasó suma al dejar una regresión (m12-48): la línea y las
+## acciones «Run regressions (N)» y «CI workflow…».
+static func regression_notice_parts(saved: int) -> Dictionary:
+	var actions: Array[Dictionary] = [
+		{"id": ACTION_RUN_REGRESSIONS, "label": I18n.t("Run regressions (%d)") % saved, "data": 1, "tooltip": I18n.t("Repeats the playtests that passed, without the agent and without using tokens.")},
+		{"id": ACTION_REGRESSIONS_WORKFLOW, "label": I18n.t("CI workflow…"), "tooltip": I18n.t("Writes a GitHub Actions workflow that runs the saved regressions on every push, with this editor's Godot version.")},
+	]
+	return {"text": I18n.t("Saved as a regression: the harness can replay it without the agent."), "actions": actions}
+
+
 ## El veredicto contrastado con el turno como aviso; los hallazgos y lo detectado van al panel de
 ## Revisar, y lo aprendido a la memoria del juego (m15-15 a m15-18).
 func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int, prompt: String) -> void:
 	var audit := ReviewStore.playtest_audit(tool_calls_since(first_entry), prompt.contains(ReviewStore.RECORD_HINT))
 	var audited := ReviewStore.audited_playtest(playtest, audit)
 	var notice := ReviewStore.playtest_notice(audited)
-	if ReviewStore.keep_regression(ReviewStore.playtest_goal(prompt), audited, audit, ReviewStore.PlaytestRegressions.new()):
-		notice.text += "\n" + I18n.t("Saved: «Run regressions» in the findings panel repeats it without the agent.")
-		review.changed.emit()
 	var actions: Array[Dictionary] = []
+	var regressions := ReviewStore.PlaytestRegressions.new(regressions_dir)
+	var first_regression := false
+	if ReviewStore.keep_regression(ReviewStore.playtest_goal(prompt), audited, audit, regressions):
+		# El aviso dice que dejó una regresión y ofrece correrlas y el workflow de CI (m12-48).
+		var saved := regressions.list().size()
+		first_regression = saved == 1
+		var parts := regression_notice_parts(saved)
+		notice.text += ("\n" if not str(notice.text).is_empty() else "") + str(parts.text)
+		actions.append_array(parts.actions)
+		review.changed.emit()
 	if not str(audited.film).is_empty():
 		actions.append({"id": ACTION_PLAY_FILM, "label": I18n.t("Play the recording"), "data": audited.film})
 	var entry := model.add_notice(notice.text, notice.level, actions)
 	entry.title = notice.title
 	entry.sections = notice.sections
 	model.notify_entry_changed(entry)
+	if first_regression:
+		model.add_notice(I18n.t("First regression saved. A playtest that passes leaves a script the harness can replay without the agent and without tokens: «Run regressions» in the findings panel, and «CI workflow…» writes a GitHub Actions workflow that runs them on every push. They live in %s.") % regressions_dir.trim_prefix("res://"), ChatEntry.NoticeLevel.INFO)
 	ReviewStore.remember_playtest(playtest, audit, PlaytestMemory.new())
 	if model.harness_mode != SessionModel.HarnessMode.REVIEW:
 		return
