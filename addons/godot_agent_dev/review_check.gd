@@ -83,7 +83,7 @@ func run_review(tree: SceneTree, profile: AgentProfile, shot_path: String = "") 
 		_expect(store.findings.size() == 3, "exactamente 3 hallazgos (%d)" % store.findings.size())
 		_expect(store.scope_label() == "tests/fixtures/review/", "alcance: %s" % store.scope_label())
 	var fold: FoldableContainer = panel.get(&"_fold")
-	_expect(fold.title.begins_with("Review of tests/fixtures/review/"), "título del panel: %s" % fold.title)
+	_expect(fold.title.begins_with(I18n.t("Review of %s · %d files").get_slice("%s", 0) + "tests/fixtures/review/"), "título del panel: %s" % fold.title)
 	if not shot_path.is_empty() and not seeded_ids.is_empty():
 		_annotations.focus_finding(seeded_ids[0])
 		await _frames(10)
@@ -112,14 +112,14 @@ func _check_annotation(finding: Dictionary) -> void:
 		_expect(code_edit.get_caret_line() == int(finding.line) - 1, "cursor en la línea de %s" % ReviewStore.location(finding))
 	_expect(has_gutter, "gutter de la revisión en %s" % finding.path.get_file())
 	var band := _annotations.band_for(finding.path)
-	_expect(band != null and band.is_visible_in_tree() and band.text.contains("Agent review · read-only"), "banda de revisión en %s" % finding.path.get_file())
+	_expect(band != null and band.is_visible_in_tree() and band.text.contains(I18n.t("Agent review · read-only · %d findings").get_slice("%d", 0).strip_edges().trim_suffix("·").strip_edges()), "banda de revisión en %s" % finding.path.get_file())
 	_expect(band != null and band.get_parent() is HBoxContainer, "la banda va en la barra de estado")
 	var card := _annotations.card_for(finding.path)
 	_expect(card != null and card.visible, "tarjeta visible para %s" % ReviewStore.location(finding))
 	if card:
 		var texts := _texts(card)
 		_expect(finding.title in texts, "la tarjeta muestra el título de %s" % ReviewStore.location(finding))
-		for label: String in ["Apply fix", "Ask", "Dismiss"]:
+		for label: String in [I18n.t("Apply fix"), I18n.t("Ask"), I18n.t("Dismiss")]:
 			_expect(label in texts, "botón %s en la tarjeta" % label)
 
 
@@ -128,7 +128,7 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_annotations.focus_finding(ids[2])
 	await _frames(6)
 	var hud_path: String = store.get_finding(ids[2]).path
-	_press(_annotations.card_for(hud_path), "Dismiss")
+	_press(_annotations.card_for(hud_path), I18n.t("Dismiss"))
 	await _frames(3)
 	_expect(store.get_finding(ids[2]).is_empty() and store.findings.size() == 2, "Descartar saca el hallazgo")
 	_expect(_annotations.annotated_lines(hud_path).is_empty(), "sin marcas en el archivo descartado")
@@ -138,7 +138,7 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_annotations.focus_finding(ids[0])
 	await _frames(6)
 	var player_path: String = store.get_finding(ids[0]).path
-	_press(_annotations.card_for(player_path), "Ask")
+	_press(_annotations.card_for(player_path), I18n.t("Ask"))
 	await _wait_turn()
 	_expect(store.findings.size() == 2, "Preguntar no reemplaza la revisión (%d)" % store.findings.size())
 	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.REVIEW, "Preguntar no cambia el modo")
@@ -152,7 +152,7 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	(review_panel.get(&"_export_dialog") as ConfirmationDialog).hide()
 
 	# Aplicar arreglo: pasa a Construir y, al terminar bien el turno, el hallazgo sale.
-	_press(_annotations.card_for(player_path), "Apply fix")
+	_press(_annotations.card_for(player_path), I18n.t("Apply fix"))
 	await _frames(2)
 	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "Aplicar arreglo pasa a Construir")
 	await _wait_turn()
@@ -171,7 +171,7 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	var panel: Control = _dock.get(&"_review_panel")
 	(panel.get(&"_fold") as FoldableContainer).expand()  # plegado desde m12-03: las acciones no se ven
 	await _frames(2)
-	_press(panel, "Fix in Build mode")
+	_press(panel, I18n.t("Fix in Build mode"))
 	await _frames(2)
 	await _wait_turn()
 	await _frames(2)
@@ -195,12 +195,12 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	# Hallazgos del playtest en el panel (m15-17, m15-18): sin archivo, con sus acciones.
 	await _frames(2)
 	_expect(store.findings.size() == 2 and store.findings.any(func(finding: Dictionary) -> bool: return finding.get("signature") == "hitch"), "playtest: los hallazgos y los detectores van al panel (%d)" % store.findings.size())
-	_press(panel, "Show in the scene")
+	_press(panel, I18n.t("Show in the scene"))
 	await _frames(4)
 	var located := (_model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return str(entry.get(&"text")).begins_with(I18n.t("Showing %s.").get_slice("%s", 0)) or str(entry.get(&"text")).begins_with(I18n.t("Open the scene to show this finding in it.")) or str(entry.get(&"text")).begins_with(I18n.t("Nothing in the open scene matches this finding.")))
 	_expect(located.size() == 1, "Show in the scene contesta en el chat")
 	var before := store.findings.size()
-	_press(panel, "Not a bug")
+	_press(panel, I18n.t("Not a bug"))
 	await _frames(2)
 	_expect(store.findings.size() == before - 1, "Not a bug saca el hallazgo")
 	var memory := preload("res://addons/godot_agent/review/playtest_memory.gd").new()
