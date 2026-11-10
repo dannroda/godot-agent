@@ -39,12 +39,14 @@ func test_groups_permissions_and_filter() -> void:
 	assert_eq(tab.tool_count(), 4, "cuenta las tools")
 	var tree: Tree = tab.get(&"_tree")
 	var categories := tree.get_root().get_children().map(func(item: TreeItem) -> String: return item.get_text(0))
-	assert_eq(categories, ["Read the project (1)", "Run and play the game (1)", "TileMaps (1)", "Mystery (1)"], "categorías en orden, las desconocidas al final · %s" % [categories])
+	assert_eq(categories, ["Read the project (1)", "Run the game (1)", "TileMaps (1)", "Mystery (1)"], "categorías en orden, las desconocidas al final · %s" % [categories])
 	assert_false(tree.get_root().get_first_child().collapsed, "la primera abierta")
 	assert_true(tree.get_root().get_first_child().get_next().collapsed, "las demás plegadas")
 	var rows := _rows(tab)
 	var run: TreeItem = rows["godot.run_scene"]
-	assert_eq(run.get_text(ToolsTab.COLUMN_SUMMARY), "Runs a scene.", "la primera oración")
+	assert_eq(run.get_text(ToolsTab.COLUMN_SUMMARY), "Runs a scene and returns the game's errors and Output", "la línea para las personas (ToolSummaries)")
+	assert_true(run.get_tooltip_text(ToolsTab.COLUMN_SUMMARY).ends_with("Runs a scene. Captures a frame."), "la descripción del agente en el tooltip")
+	assert_eq(rows["godot.odd"].get_text(ToolsTab.COLUMN_SUMMARY), "Odd.", "sin línea propia, la primera oración")
 	assert_eq(run.get_text(ToolsTab.COLUMN_GROUP), "Run the game", "el grupo de permisos")
 	# run: Preguntar ✗, Revisar ✓ (solo lectura del juego), Construir ✓, Auto ✓, One-shot ✓ según la spec §7.
 	var expected := PackedStringArray()

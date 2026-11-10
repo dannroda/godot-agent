@@ -9,23 +9,24 @@ const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SessionModel := preload("../../session/session_model.gd")
+const ToolSummaries := preload("../../mcp/tool_summaries.gd")
 
 ## Nombre del proveedor (ToolRegistry.category_of) → título del grupo, en el orden en que se muestran.
 const CATEGORY_LABELS: Dictionary = {
 	"read": "Read the project",  # i18n
 	"scene_edit": "Edit scenes",  # i18n
 	"file": "Files",  # i18n
-	"run": "Run and play the game",  # i18n
+	"run": "Run the game",  # i18n
 	"diagnostic": "Diagnostics",  # i18n
 	"validate": "Validation",  # i18n
-	"project": "Project settings",  # i18n
+	"project": "Project",  # i18n
 	"resource": "Resources",  # i18n
 	"tilemap": "TileMaps",  # i18n
 	"animation": "Animation",  # i18n
-	"api": "Godot API docs",  # i18n
+	"api": "Godot API",  # i18n
 	"asset": "Asset Store",  # i18n
 	"profile": "Profiler",  # i18n
-	"session": "Sessions and subagents",  # i18n
+	"session": "Sessions",  # i18n
 }
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
 const COLUMN_NAME := 0
@@ -76,11 +77,15 @@ func _init() -> void:
 	_tree.set_column_title(COLUMN_NAME, I18n.t("Tool"))
 	_tree.set_column_title(COLUMN_SUMMARY, I18n.t("What it does"))
 	_tree.set_column_title(COLUMN_GROUP, I18n.t("Permission"))
-	_tree.set_column_expand(COLUMN_NAME, false)
-	_tree.set_column_custom_minimum_width(COLUMN_NAME, AgentTheme.px(180))
+	# Tool y Qué hace se reparten el ancho; el mínimo de Tool deja entera la categoría más larga.
+	_tree.set_column_expand(COLUMN_NAME, true)
+	_tree.set_column_expand_ratio(COLUMN_NAME, 2)
+	_tree.set_column_custom_minimum_width(COLUMN_NAME, AgentTheme.px(172))
 	_tree.set_column_expand(COLUMN_SUMMARY, true)
+	_tree.set_column_expand_ratio(COLUMN_SUMMARY, 3)
+	_tree.set_column_custom_minimum_width(COLUMN_SUMMARY, AgentTheme.px(120))
 	_tree.set_column_expand(COLUMN_GROUP, false)
-	_tree.set_column_custom_minimum_width(COLUMN_GROUP, AgentTheme.px(84))
+	_tree.set_column_custom_minimum_width(COLUMN_GROUP, AgentTheme.px(78))
 	_tree.set_column_title(COLUMN_MODES, I18n.t("By mode"))
 	_tree.set_column_expand(COLUMN_MODES, false)
 	_tree.set_column_custom_minimum_width(COLUMN_MODES, AgentTheme.px(104))
@@ -128,8 +133,10 @@ func _rebuild() -> void:
 				hidden_by_compact += 1
 			item.set_text(COLUMN_NAME, "godot.%s%s" % [tool.name, " ⋯" if via_methods else ""])
 			item.set_tooltip_text(COLUMN_NAME, str(tool.description) + ("\n\n" + I18n.t("With the compact tool list on, the agent reaches it through godot.methods and godot.run.") if via_methods else ""))
-			item.set_text(COLUMN_SUMMARY, str(tool.summary))
-			item.set_tooltip_text(COLUMN_SUMMARY, str(tool.description))
+			# La línea para las personas, traducida (ToolSummaries); la descripción del agente en el tooltip.
+			var summary := ToolSummaries.summary(str(tool.name))
+			item.set_text(COLUMN_SUMMARY, summary if not summary.is_empty() else str(tool.summary))
+			item.set_tooltip_text(COLUMN_SUMMARY, I18n.t("What the agent reads:") + "\n" + str(tool.description))
 			item.set_text_overrun_behavior(COLUMN_SUMMARY, TextServer.OVERRUN_TRIM_ELLIPSIS)
 			item.set_text(COLUMN_GROUP, PermissionPolicy.group_label(str(tool.group)))
 			item.set_text(COLUMN_MODES, mode_marks(policy, str(tool.group)))

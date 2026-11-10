@@ -4359,8 +4359,8 @@ msgstr "Medir el rendimiento del juego"
 msgid "Read the project"
 msgstr "Leer el proyecto"
 
-msgid "Run and play the game"
-msgstr "Correr y jugar el juego"
+msgid "Run the game"
+msgstr "Correr el juego"
 
 msgid "Validation"
 msgstr "Validación"
@@ -4368,14 +4368,12 @@ msgstr "Validación"
 msgid "TileMaps"
 msgstr "TileMaps"
 
-msgid "Godot API docs"
-msgstr "Documentación de la API de Godot"
+msgid "Godot API"
+msgstr "API de Godot"
 
 msgid "Profiler"
 msgstr "Profiler"
 
-msgid "Sessions and subagents"
-msgstr "Sesiones y subagentes"
 
 msgid "Everything the agent can do in the editor through the addon's MCP server, by function. The last column says what each tool asks for in each mode, in this order: Ask, Review, Build, Auto, One-shot (✓ without asking · ? asks you · ✗ not allowed); change it in Settings → Permissions."
 msgstr "Todo lo que el agente puede hacer en el editor por el server MCP del addon, por función. La última columna dice qué pide cada tool en cada modo, en este orden: Preguntar, Revisar, Construir, Auto, One-shot (✓ sin preguntar · ? te pregunta · ✗ no se permite); se cambia en Ajustes → Permisos."
@@ -4439,3 +4437,252 @@ msgstr "Animación"
 
 msgid "Asset Store"
 msgstr "Asset Store"
+
+msgid "Project data: Godot version, main scene, autoloads, input actions, plugins"
+msgstr "Datos del proyecto: versión de Godot, escena principal, autoloads, acciones de input, plugins"
+
+msgid "Lists the project's files with their resource type"
+msgstr "Lista los archivos del proyecto con su tipo de recurso"
+
+msgid "The node tree of a scene with types, scripts and changed properties"
+msgstr "El árbol de nodos de una escena con tipos, scripts y propiedades cambiadas"
+
+msgid "Everything about one node: properties, script, groups, connections"
+msgstr "Todo sobre un nodo: propiedades, script, grupos, conexiones"
+
+msgid "What is open in the editor: scene, scripts, selection, running game"
+msgstr "Qué hay abierto en el editor: escena, scripts, selección, juego corriendo"
+
+msgid "A ranked map of the project around a topic, to get oriented"
+msgstr "Un mapa del proyecto ordenado alrededor de un tema, para orientarse"
+
+msgid "Reads a .tres/.res resource file"
+msgstr "Lee un archivo de recurso .tres/.res"
+
+msgid "Reads project settings with their value and default"
+msgstr "Lee ajustes del proyecto con su valor y su valor por defecto"
+
+msgid "Adds a node to the open scene"
+msgstr "Agrega un nodo a la escena abierta"
+
+msgid "Builds a whole subtree of nodes in one step"
+msgstr "Arma un subárbol entero de nodos en un paso"
+
+msgid "Duplicates a node with its children"
+msgstr "Duplica un nodo con sus hijos"
+
+msgid "Changes properties of a node"
+msgstr "Cambia propiedades de un nodo"
+
+msgid "Deletes a node and its children"
+msgstr "Borra un nodo y sus hijos"
+
+msgid "Moves a node under another parent"
+msgstr "Mueve un nodo debajo de otro padre"
+
+msgid "Renames a node"
+msgstr "Renombra un nodo"
+
+msgid "Connects a signal in the scene"
+msgstr "Conecta una señal en la escena"
+
+msgid "Instances a .tscn scene under a parent"
+msgstr "Instancia una escena .tscn debajo de un padre"
+
+msgid "Opens a scene in the editor"
+msgstr "Abre una escena en el editor"
+
+msgid "Saves the current scene"
+msgstr "Guarda la escena actual"
+
+msgid "Creates a new .tscn with a root node and optionally its script"
+msgstr "Crea un .tscn nuevo con un nodo raíz y, si se pide, su script"
+
+msgid "Attaches a script to a node"
+msgstr "Adjunta un script a un nodo"
+
+msgid "Copies a file or folder into the project"
+msgstr "Copia un archivo o carpeta dentro del proyecto"
+
+msgid "Moves or renames a file or folder, keeping references"
+msgstr "Mueve o renombra un archivo o carpeta, conservando las referencias"
+
+msgid "Deletes a file or folder of the project"
+msgstr "Borra un archivo o carpeta del proyecto"
+
+msgid "Runs a scene and returns the game's errors and Output"
+msgstr "Corre una escena y devuelve los errores y el Output del juego"
+
+msgid "Stops the running game"
+msgstr "Para el juego que corre"
+
+msgid "Captures the current frame of the running game"
+msgstr "Captura el frame actual del juego que corre"
+
+msgid "Repeats the saved playtest regressions without the agent"
+msgstr "Repite las regresiones de playtest guardadas sin el agente"
+
+msgid "Writes a GitHub Actions workflow that runs the regressions on every push"
+msgstr "Escribe un workflow de GitHub Actions que corre las regresiones en cada push"
+
+msgid "The live node tree of the running game"
+msgstr "El árbol de nodos en vivo del juego que corre"
+
+msgid "Reads properties of a node in the running game"
+msgstr "Lee propiedades de un nodo del juego que corre"
+
+msgid "Changes properties of a node in the running game, live"
+msgstr "Cambia propiedades de un nodo del juego que corre, en vivo"
+
+msgid "Calls a method on a node in the running game"
+msgstr "Llama a un método de un nodo del juego que corre"
+
+msgid "Waits in the running game until a condition is true"
+msgstr "Espera en el juego que corre hasta que una condición se cumpla"
+
+msgid "Sends keys, actions, mouse and joypad input to the running game"
+msgstr "Manda teclas, acciones, mouse y joypad al juego que corre"
+
+msgid "Finds nodes in the running game by class, group or name"
+msgstr "Busca nodos en el juego que corre por clase, grupo o nombre"
+
+msgid "What a player sees of the game's UI: texts and controls"
+msgstr "Lo que un jugador ve de la UI del juego: textos y controles"
+
+msgid "Clicks or fills a control of the game's UI"
+msgstr "Aprieta o completa un control de la UI del juego"
+
+msgid "Runs a short script inside the running game"
+msgstr "Corre un script corto dentro del juego que corre"
+
+msgid "Pauses or resumes the running game"
+msgstr "Pausa o reanuda el juego que corre"
+
+msgid "Advances the paused game a few frames, playing inputs meanwhile"
+msgstr "Avanza el juego pausado unos frames, mandando inputs mientras tanto"
+
+msgid "Watches nodes of the running game and lists what changed"
+msgstr "Observa nodos del juego que corre y lista qué cambió"
+
+msgid "Samples the running game's performance monitors"
+msgstr "Muestrea los monitores de rendimiento del juego que corre"
+
+msgid "The frames of the last seconds of play, as files"
+msgstr "Los frames de los últimos segundos de juego, como archivos"
+
+msgid "Runs a scene with the script profiler on and returns the slowest functions"
+msgstr "Corre una escena con el profiler de scripts y devuelve las funciones más lentas"
+
+msgid "Tests the project's GDExtension in a separate headless Godot"
+msgstr "Prueba la GDExtension del proyecto en un Godot headless aparte"
+
+msgid "Errors and warnings from the editor and the game since a mark"
+msgstr "Errores y warnings del editor y del juego desde una marca"
+
+msgid "Parses GDScript and compiles C#, and returns the errors"
+msgstr "Parsea GDScript y compila C#, y devuelve los errores"
+
+msgid "Captures the editor's 2D or 3D viewport"
+msgstr "Captura el viewport 2D o 3D del editor"
+
+msgid "Checks bodies, shapes and collision layers of a scene"
+msgstr "Revisa cuerpos, formas y capas de colisión de una escena"
+
+msgid "Checks the TileMapLayers of a scene"
+msgstr "Revisa las TileMapLayers de una escena"
+
+msgid "Changes a project setting and saves project.godot"
+msgstr "Cambia un ajuste del proyecto y guarda project.godot"
+
+msgid "Creates or replaces an input action"
+msgstr "Crea o reemplaza una acción de input"
+
+msgid "Deletes an input action"
+msgstr "Borra una acción de input"
+
+msgid "Adds or changes an autoload"
+msgstr "Agrega o cambia un autoload"
+
+msgid "Removes an autoload"
+msgstr "Quita un autoload"
+
+msgid "Enables or disables an editor plugin of the project"
+msgstr "Activa o desactiva un plugin del editor del proyecto"
+
+msgid "Brings a tested GDExtension into the game as an addon"
+msgstr "Trae una GDExtension probada al juego como addon"
+
+msgid "Saves the scenes and restarts the editor"
+msgstr "Guarda las escenas y reinicia el editor"
+
+msgid "Builds the project's GDExtension and returns the compiler errors"
+msgstr "Compila la GDExtension del proyecto y devuelve los errores del compilador"
+
+msgid "Creates and saves a .tres resource file"
+msgstr "Crea y guarda un archivo de recurso .tres"
+
+msgid "Changes properties of a resource file and saves it"
+msgstr "Cambia propiedades de un archivo de recurso y lo guarda"
+
+msgid "Reads a TileMapLayer: its TileSet and a map of the cells"
+msgstr "Lee una TileMapLayer: su TileSet y un mapa de las celdas"
+
+msgid "Adds a texture as an atlas source to a TileSet"
+msgstr "Agrega una textura como fuente atlas a un TileSet"
+
+msgid "Adds scenes as tiles to a TileSet"
+msgstr "Agrega escenas como tiles a un TileSet"
+
+msgid "Places tiles on a TileMapLayer"
+msgstr "Pone tiles en una TileMapLayer"
+
+msgid "Paints cells with a terrain (autotiling)"
+msgstr "Pinta celdas con un terreno (autotiling)"
+
+msgid "Empties every cell of a TileMapLayer"
+msgstr "Vacía todas las celdas de una TileMapLayer"
+
+msgid "Reads an AnimationPlayer or the frames of an AnimatedSprite"
+msgstr "Lee un AnimationPlayer o los frames de un AnimatedSprite"
+
+msgid "Creates an animation in an AnimationPlayer"
+msgstr "Crea una animación en un AnimationPlayer"
+
+msgid "Adds or replaces a track of an animation"
+msgstr "Agrega o reemplaza una pista de una animación"
+
+msgid "Deletes an animation or one of its tracks"
+msgstr "Borra una animación o una de sus pistas"
+
+msgid "Sets the frames of an AnimatedSprite animation"
+msgstr "Define los frames de una animación de AnimatedSprite"
+
+msgid "The API of a class in this editor's Godot version"
+msgstr "La API de una clase en la versión de Godot de este editor"
+
+msgid "Searches this editor's Godot API by name or capability"
+msgstr "Busca en la API de Godot de este editor por nombre o capacidad"
+
+msgid "Searches the Godot Asset Store"
+msgstr "Busca en el Asset Store de Godot"
+
+msgid "The Asset Store page of an asset"
+msgstr "La página del Asset Store de un asset"
+
+msgid "Downloads and installs an asset from the Asset Store (always asks)"
+msgstr "Baja e instala un asset del Asset Store (siempre pregunta)"
+
+msgid "Lists the editor plugins in addons/ and whether they're enabled"
+msgstr "Lista los plugins del editor en addons/ y si están activos"
+
+msgid "Lists the other agent sessions open in this editor"
+msgstr "Lista las otras sesiones de agente abiertas en este editor"
+
+msgid "Sends a short message to another agent session"
+msgstr "Manda un mensaje corto a otra sesión de agente"
+
+msgid "What the agent reads:"
+msgstr "Lo que lee el agente:"
+
+msgid "Project"
+msgstr "Proyecto"
