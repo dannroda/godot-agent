@@ -104,7 +104,8 @@ func _profile_run(args: Dictionary) -> Dictionary:
 	_profile = ScriptProfile.new()
 	_options = [max_functions, false]
 	_session_id = -1
-	debugger.session_started.connect(_on_session_started)
+	debugger.session_started_id.connect(_on_session_started)
+	debugger.session_breaked.connect(_on_session_breaked)
 	var seconds := clampf(float(args.get("seconds", 5.0)), 0.1, RunTools.MAX_SECONDS)
 	var safety := (Engine.get_main_loop() as SceneTree).create_timer(seconds + RunTools.STARTUP_TIMEOUT_S + RunTools.STOP_TIMEOUT_S + SAFETY_MARGIN_S)
 	safety.timeout.connect(_on_safety_timeout.bind(_run_id))
@@ -116,20 +117,22 @@ func _profile_run(args: Dictionary) -> Dictionary:
 	var run_text := "\n".join((ran.get("content", []) as Array).map(func(block: Dictionary) -> String: return str(block.get("text", ""))))
 	if ran.get("isError", false):
 		return McpTool.error(run_text)
-	if not armed or profile == null:
+	if profile == null:
+		return McpTool.error("The profiler was stopped by its safety timer before the run finished: no profile.\n\nRun:\n" + run_text)
+	if not armed:
 		return McpTool.error("The profiler could not be started: the game's debugger session did not show up.\n\nRun:\n" + run_text)
 	return McpTool.text(profile.report(top) + "\n\nRun:\n" + run_text)
 
 
 ## El juego que lanzó run_scene abrió su sesión: se escuchan sus mensajes y se prende el profiler.
 ## Un juego que arranca sin que run_scene lo haya lanzado (un run manual) no se toca.
-func _on_session_started() -> void:
+## `session_id`: la sesión que emitió `started` (revisión de m13-27: no la del probe de otro juego).
+func _on_session_started(session_id: int) -> void:
 	if not _profiling or _session_id >= 0 or run_tools.run_state != RunTools.GameRunState.STARTED or not run_tools.is_busy():
 		return
-	var session_id := debugger.active_session_id()
-	if session_id < 0:
-		return
 	var session := debugger.get_session(session_id)
+	if session == null or not session.is_active():
+		return
 	if session.has_signal(DATA_SIGNAL):
 		_listen(session)
 	else:
@@ -143,6 +146,13 @@ func _on_session_started() -> void:
 		return
 	_session_id = session_id
 	session.toggle_profiler(PROFILER, true, _options)
+
+
+## Una pausa del debugger (un error con continue_on_error, que RunTools saltea): la llamada en curso se
+## lleva el tiempo de la pausa, así que el frame que la contiene no se cuenta.
+func _on_session_breaked() -> void:
+	if _profile and _session_id >= 0:
+		_profile.skip_next_frame()
 
 
 func _listen(source: Object) -> void:
@@ -171,8 +181,10 @@ func _finish_profiling() -> void:
 	if not _profiling:
 		return
 	_profiling = false
-	if debugger and debugger.session_started.is_connected(_on_session_started):
-		debugger.session_started.disconnect(_on_session_started)
+	if debugger and debugger.session_started_id.is_connected(_on_session_started):
+		debugger.session_started_id.disconnect(_on_session_started)
+	if debugger and debugger.session_breaked.is_connected(_on_session_breaked):
+		debugger.session_breaked.disconnect(_on_session_breaked)
 	if _session_id >= 0 and debugger:
 		var session := debugger.get_session(_session_id)
 		if session and session.is_active():
