@@ -71,6 +71,9 @@ const ADD_CONTEXT_SCRIPT := 0
 const ADD_CONTEXT_FILE := 1
 const ADD_CONTEXT_SCREENSHOT := 2
 const ADD_CONTEXT_GAME := 3
+const ADD_CONTEXT_POINT := 4
+## Radio del círculo que marca lo señalado en la captura adjunta (m11-37).
+const POINT_MARK_RADIUS := 12
 ## Menciones que se convierten en contexto al enviar (m11-08): `@errors`, `@output`, `@game` y
 ## `@docs:Clase`. El texto lo trae `context_provider`.
 const SPECIAL_MENTIONS: PackedStringArray = ["errors", "output", "game", "docs:"]
@@ -116,6 +119,9 @@ var machine_states: Callable
 var session_focuser: Callable
 ## () -> Variant (async): el frame del juego en ejecución como Image, o el motivo (String) si no hay.
 var game_capture: Callable
+## El nodo del juego bajo un punto de la captura (m11-37): `func(uv: Vector2) -> Dictionary`, como
+## RunTools.point_at. Lo pone el plugin.
+var game_point: Callable
 ## `(kind: String, arg: String) -> String`: el texto de una mención especial (m11-08); lo pone el plugin.
 var context_provider: Callable
 ## false en las sesiones extra (m7-44): el One-shot corre solo en la primera.
@@ -1394,6 +1400,11 @@ func _on_add_context_pressed() -> void:
 	if not EditorInterface.is_playing_scene():
 		_add_context_menu.set_item_disabled(-1, true)
 		_add_context_menu.set_item_tooltip(-1, I18n.t("No game is running."))
+	_add_context_menu.add_item(I18n.t("Point at something in the game…"), ADD_CONTEXT_POINT)
+	_add_context_menu.set_item_tooltip(-1, I18n.t("Opens the game capture: click on a node and it goes to the message as @path, with the capture marked."))
+	if not EditorInterface.is_playing_scene():
+		_add_context_menu.set_item_disabled(-1, true)
+		_add_context_menu.set_item_tooltip(-1, I18n.t("No game is running."))
 	_add_context_menu.reset_size()
 	_add_context_menu.popup(Rect2i(Vector2i(get_screen_position() + get_local_mouse_position()), Vector2i.ZERO))
 
@@ -1419,6 +1430,8 @@ func _on_add_context_selected(id: int) -> void:
 			_on_screenshot_requested()
 		ADD_CONTEXT_GAME:
 			_capture_game()
+		ADD_CONTEXT_POINT:
+			_point_in_game()
 
 
 ## Agrega archivos para el próximo prompt: las imágenes como imagen y el resto como resource_link
@@ -1487,6 +1500,56 @@ func _capture_game() -> void:
 		attach_image(frame, I18n.t("game"))
 	else:
 		_model.add_notice(str(frame), ChatEntry.NoticeLevel.WARNING)
+
+
+## «Señalar en el juego…» (m11-37): la captura en vivo se abre para hacer clic; el probe dice qué
+## nodo hay debajo y queda como @ruta en el composer, con la captura marcada adjunta.
+func _point_in_game() -> void:
+	if not game_capture.is_valid():
+		return
+	var frame: Variant = await game_capture.call()
+	if not is_inside_tree():
+		return
+	if not frame is Image:
+		_model.add_notice(str(frame), ChatEntry.NoticeLevel.WARNING)
+		return
+	ImageViewer.pick(frame, I18n.t("Point at something in the game"), self, func(uv: Vector2) -> void: _on_game_point_picked(frame, uv))
+
+
+func _on_game_point_picked(frame: Image, uv: Vector2) -> void:
+	if not game_point.is_valid():
+		return
+	var result: Dictionary = await game_point.call(uv)
+	if not is_inside_tree():
+		return
+	var node: Dictionary = result.get("node", {})
+	if node.is_empty():
+		_model.add_notice(str(result.get("error", I18n.t("Nothing under that point: no control, 2D node with a shape or sprite, or 3D body."))), ChatEntry.NoticeLevel.WARNING)
+		return
+	_composer.insert_mention(str(node.path))
+	attach_image(mark_point(frame, uv, _accent), "%s · %s" % [I18n.t("game"), str(node.path)], I18n.t("Game capture with %s (%s) marked at %d, %d") % [node.path, node.get("class", ""), int((node.point as Array)[0]), int((node.point as Array)[1])])
+
+
+## La captura con un círculo en el punto señalado, para que el agente vea a qué se apunta.
+static func mark_point(frame: Image, uv: Vector2, color: Color) -> Image:
+	var image := frame.duplicate() as Image
+	if image.get_format() != Image.FORMAT_RGBA8:
+		image.convert(Image.FORMAT_RGBA8)
+	var center := Vector2i(roundi(uv.x * image.get_width()), roundi(uv.y * image.get_height()))
+	for dy in range(-POINT_MARK_RADIUS - 2, POINT_MARK_RADIUS + 3):
+		for dx in range(-POINT_MARK_RADIUS - 2, POINT_MARK_RADIUS + 3):
+			var distance := Vector2(dx, dy).length()
+			var x := center.x + dx
+			var y := center.y + dy
+			if x < 0 or y < 0 or x >= image.get_width() or y >= image.get_height():
+				continue
+			if absf(distance - POINT_MARK_RADIUS) <= 1.5:
+				image.set_pixel(x, y, color)
+			elif absf(distance - POINT_MARK_RADIUS) <= 3.0:
+				image.set_pixel(x, y, Color.WHITE)
+			elif distance <= 2.0:
+				image.set_pixel(x, y, color)
+	return image
 
 
 func _context_blocks() -> Array:

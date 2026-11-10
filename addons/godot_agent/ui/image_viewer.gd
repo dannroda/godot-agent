@@ -26,6 +26,10 @@ var _offset: Vector2 = Vector2.ZERO
 var _fit: bool = true
 var _dragging: bool = false
 var _save_dialog: FileDialog
+## Modo señalar (m11-37): un clic sin arrastre llama a esto con el punto en [0, 1] y cierra.
+var _on_pick: Callable
+var _press_at: Vector2 = Vector2.ZERO
+var _hint: Label
 
 
 static func open(image: Image, title_text: String, near: Node) -> void:
@@ -50,11 +54,22 @@ static func attach(rect: TextureRect, get_image: Callable) -> void:
 	)
 
 
+## Abre la imagen para señalar algo en ella (m11-37): un clic llama a `on_pick(uv)` con el punto en
+## [0, 1] (origen arriba a la izquierda) y cierra el visor; arrastrar y la rueda siguen funcionando.
+static func pick(image: Image, title_text: String, near: Node, on_pick: Callable) -> void:
+	var viewer: AcceptDialog = new()
+	viewer.set(&"_on_pick", on_pick)
+	viewer.show_image(image, title_text, near)
+
+
 func show_image(image: Image, title_text: String, near: Node) -> void:
 	_image = image
 	_texture = ImageTexture.create_from_image(image)
 	title = "%s · %d×%d" % [title_text, image.get_width(), image.get_height()]
-	ok_button_text = I18n.t("Close")
+	ok_button_text = I18n.t("Cancel") if _on_pick.is_valid() else I18n.t("Close")
+	if _on_pick.is_valid():
+		_hint.text = I18n.t("Click on what you want to point at · wheel: zoom · drag: move")
+		_canvas.mouse_default_cursor_shape = Control.CURSOR_CROSS
 	var host: Node = EditorInterface.get_base_control() if AgentTheme.has_editor() else near.get_tree().root
 	host.add_child(self)
 	popup_centered_ratio(0.85)
@@ -85,13 +100,13 @@ func _init() -> void:
 	_zoom_label = Label.new()
 	_zoom_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	toolbar.add_child(_zoom_label)
-	var hint := Label.new()
-	hint.text = I18n.t("Wheel: zoom · drag: move")
-	hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hint.clip_text = true
-	toolbar.add_child(hint)
+	_hint = Label.new()
+	_hint.text = I18n.t("Wheel: zoom · drag: move")
+	_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_hint.clip_text = true
+	toolbar.add_child(_hint)
 	var save_button := Button.new()
 	save_button.text = I18n.t("Save PNG…")
 	save_button.pressed.connect(_ask_save)
@@ -163,8 +178,11 @@ func _on_canvas_input(event: InputEvent) -> void:
 						_fit_to_view()
 				else:
 					_dragging = true
+					_press_at = button.position
 	elif button and button.button_index == MOUSE_BUTTON_LEFT:
 		_dragging = false
+		if _on_pick.is_valid() and button.position.distance_to(_press_at) < 4.0:
+			_pick_at(button.position)
 	var motion := event as InputEventMouseMotion
 	if motion and _dragging:
 		_offset += motion.relative
@@ -181,6 +199,16 @@ func _on_canvas_input(event: InputEvent) -> void:
 				_fit_to_view()
 			KEY_1, KEY_KP_1:
 				_set_zoom(1.0, _canvas.size / 2.0)
+
+
+## Un clic en el canvas, en modo señalar: el punto de la imagen en [0, 1], si cae adentro.
+func _pick_at(canvas_point: Vector2) -> void:
+	var uv := (canvas_point - _offset) / (Vector2(_image.get_size()) * _zoom)
+	if uv.x < 0.0 or uv.y < 0.0 or uv.x > 1.0 or uv.y > 1.0:
+		return
+	var callback := _on_pick
+	hide()
+	callback.call(uv)
 
 
 func _ask_save() -> void:

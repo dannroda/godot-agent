@@ -16,6 +16,7 @@ const GameWorld := preload("game_world.gd")
 const ScriptKit := preload("script_kit.gd")
 const Watcher := preload("watcher.gd")
 const Film := preload("film.gd")
+const PointPick := preload("point_pick.gd")
 
 const PREFIX := "godot_agent"
 const PROTOCOL := 3
@@ -169,6 +170,11 @@ func _answer(id: int, op: String, params: Dictionary) -> void:
 			result = _film_op(params)
 		"opening":
 			result = {"text": _opening()}
+		"point":
+			# Qué nodo hay bajo un punto de la captura (m11-37): {u, v} en [0, 1].
+			result = PointPick.at(get_viewport(), get_tree().current_scene, Vector2(float(params.get("u", 0.0)), float(params.get("v", 0.0))))
+			if result.is_empty():
+				result = {"text": "Nothing under that point."}
 		_:
 			result = {"error": "Unknown request '%s'." % op}
 	if result.has("text"):

@@ -146,6 +146,35 @@ func _check_runs(model: Object) -> void:
 	_check_autoload_gone("después del run manual")
 
 
+## Con playtest_game corriendo: el botón Start del HUD por su rect, el piso por el raycast de la
+## cámara, y el camino del dock (la @mención en el composer y la captura marcada adjunta).
+func _check_point_in_game() -> void:
+	var size := Vector2(1152, 648)  # el tamaño por defecto de la ventana del juego
+	var start: Dictionary = await _run_tools.call(&"point_at", Vector2(60, 92) / size)  # HUD/Menu en (10, 80), el botón arriba
+	var start_node: Dictionary = start.get("node", {})
+	_expect(start_node.get("path") == "HUD/Menu/Start" and start_node.get("kind") == "control", "point_at: el botón Start bajo el punto · %s" % [start])
+	var floor_hit: Dictionary = await _run_tools.call(&"point_at", Vector2(0.5, 0.92))
+	var floor_node: Dictionary = floor_hit.get("node", {})
+	_expect(floor_node.get("kind") == "3d" and str(floor_node.get("path", "")).begins_with("Floor"), "point_at: el piso por el raycast de la cámara · %s" % [floor_hit])
+	var sky: Dictionary = await _run_tools.call(&"point_at", Vector2(0.95, 0.02))
+	_expect(not sky.has("node") and str(sky.get("text", "")).contains("Nothing"), "point_at: el cielo no es nada · %s" % [sky])
+	# El dock: la mención y la captura marcada.
+	var composer: Object = _dock.get(&"_composer")
+	var input: TextEdit = composer.get(&"_input")
+	var images: Dictionary = _dock.get(&"_images")
+	var before := images.size()
+	input.text = ""
+	var frame := Image.create_empty(int(size.x), int(size.y), false, Image.FORMAT_RGB8)
+	await _dock.call(&"_on_game_point_picked", frame, Vector2(60, 92) / size)
+	_expect(input.text.contains("@HUD/Menu/Start "), "dock: la @mención en el composer · " + input.text)
+	_expect(images.size() == before + 1 and str(images.values()[-1].label).contains("HUD/Menu/Start"), "dock: la captura marcada adjunta (%d → %d)" % [before, images.size()])
+	var marked := _dock.call(&"mark_point", frame, Vector2(60, 92) / size, Color.ORANGE) as Image
+	_expect(marked.get_pixel(60, 92 + 12).is_equal_approx(Color.ORANGE) and marked.get_pixel(60, 92).is_equal_approx(Color.ORANGE) and not marked.get_pixel(60, 92 + 6).is_equal_approx(Color.ORANGE), "la marca es un círculo con un punto en el centro")
+	input.text = ""
+	images.clear()
+	_dock.call(&"_refresh_chips")
+
+
 ## Con run_fixture corriendo: leer, cambiar, llamar, esperar y mandar inputs en vivo.
 func _check_live_game() -> void:
 	var tree := await _call_text("game_tree", {})
@@ -211,6 +240,9 @@ func _check_playtest_game() -> void:
 	_expect(found.contains("/root/PlaytestGame/Player"), "game_find por clase · " + found)
 	_expect((await _call_text("game_find", {"class": "group:player"})).contains("Player"), "game_find por grupo")
 	_expect((await _call_text("game_find", {"name": "gat"})).contains("Gate"), "game_find por nombre")
+
+	# Señalar en el juego (m11-37): el nodo bajo un punto de la captura, por el probe y por el dock.
+	await _check_point_in_game()
 
 	# UI (m15-09)
 	var ui := await _call_text("game_ui", {})
