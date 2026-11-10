@@ -92,6 +92,7 @@ const ACTION_REINSTALL_AGENT := "reinstall_agent"
 const STDERR_TAIL := 8
 ## Largo máximo de cada una en la tarjeta (m13-22): claude-agent-acp vuelca por stderr el prompt
 ## entero, con el prompt de sistema en JSON, y tapaba la causa. El resto queda en el Agent Log.
+## La cola se guarda ya sin los secretos del log (_on_stderr).
 const STDERR_LINE_CHARS := 160
 ## Login con un método de auth del agente (payload: id del método), pegar el código que da la
 ## página de login y cancelarlo.
@@ -1168,7 +1169,11 @@ func _with_meta(params: Dictionary) -> Dictionary:
 
 func _on_stderr(line: String) -> void:
 	agent_log.add(AgentLog.CH_PROC, line)
-	_stderr_tail.append(line)
+	if line.strip_edges().is_empty():  # no ocupa lugar en la cola: la tarjeta no la mostraría
+		return
+	# Redactada al guardarla (m13-22): la tarjeta y su «Copy» no pasan por el log, y el recorte podría
+	# caer en medio del token y dejar su principio a la vista.
+	_stderr_tail.append(agent_log.redact(line))
 	if _stderr_tail.size() > STDERR_TAIL:
 		_stderr_tail.remove_at(0)
 

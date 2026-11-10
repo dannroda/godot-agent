@@ -917,10 +917,21 @@ func _check_crash_card(dock: Control, model: Object, shot_path: String) -> void:
 		failures.append("la línea del prompt no dice cuánto quedó afuera")
 	if not details.contains("fake_agent: prompt"):
 		failures.append("los detalles no muestran de qué línea se trata: %s" % details.left(120))
-	var log: Object = _find_by_script(MAIN_PLUGIN_SCRIPT).get(&"_log")
+	var main_plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	var log: Object = main_plugin.get(&"_log")
 	var full_in_log := (log.call(&"entries") as Array).any(func(entry: Dictionary) -> bool: return str(entry.message).contains("harness_context"))
 	if not full_in_log:
 		failures.append("el Agent Log no tiene la línea completa")
+	# El agente falso vuelca session/new con el token del server MCP en los headers: redactado.
+	var mcp_server: Object = main_plugin.get(&"_mcp_server")
+	var token := str(mcp_server.get(&"token")) if mcp_server else ""
+	var tail: PackedStringArray = (dock.get(&"_controller") as Object).get(&"_stderr_tail")
+	if not token.is_empty() and (details.contains(token) or details.contains(token.left(8))):
+		failures.append("los detalles traen el token del server MCP")
+	if not token.is_empty() and "\n".join(tail).contains(token):
+		failures.append("la cola de stderr del controller guarda el token sin redactar")
+	if not "\n".join(tail).contains(AgentLog.REDACTED):
+		failures.append("la cola de stderr no tiene la línea de session/new redactada: %s" % ["\n".join(tail).left(300)])
 	print("[ui-test] tarjeta de caída: %d caracteres, %d líneas" % [details.length(), details.split("\n").size()])
 	for failure: String in failures:
 		print("[ui-test] FALLA crash: " + failure)

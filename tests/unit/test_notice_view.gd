@@ -49,6 +49,15 @@ func test_agent_error_card() -> void:
 	assert_true((view.get(&"_title") as Label).visible, "título a la vista")
 	assert_true((view.get(&"_details") as Control).visible, "las líneas del log")
 	assert_eq((view.get(&"_details_text") as Label).text, entry.details, "tal cual")
+	# m13-22: plegadas al principio, la causa queda a la vista; «Show» las abre y pasa a «Hide».
+	var toggle: Button = view.get(&"_details_toggle")
+	assert_false((view.get(&"_details_text") as Label).visible, "las líneas empiezan plegadas")
+	assert_eq(toggle.text, "Show", "el botón ofrece abrirlas")
+	toggle.pressed.emit()
+	assert_true((view.get(&"_details_text") as Label).visible, "abiertas")
+	assert_eq(toggle.text, "Hide", "y el botón ofrece plegarlas")
+	view.refresh()
+	assert_true((view.get(&"_details_text") as Label).visible, "un refresh no las vuelve a plegar")
 	entry.details = ""
 	entry.title = ""
 	view.refresh()

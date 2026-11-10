@@ -41,10 +41,17 @@ func remove_secret(secret: String) -> void:
 		_secrets.remove_at(index)
 
 
-func add(channel: StringName, message: String, raw: String = "") -> Dictionary:
+## `text` sin los secretos registrados (el token del server MCP…). add() lo aplica a cada entrada;
+## lo que se muestra sin pasar por el log (la tarjeta de caída, m13-22) lo llama antes.
+func redact(text: String) -> String:
 	for secret: String in _secrets:
-		message = message.replace(secret, REDACTED)
-		raw = raw.replace(secret, REDACTED)
+		text = text.replace(secret, REDACTED)
+	return text
+
+
+func add(channel: StringName, message: String, raw: String = "") -> Dictionary:
+	message = redact(message)
+	raw = redact(raw)
 	var entry := {
 		"seq": _next_seq,
 		"time": Time.get_time_string_from_system(),

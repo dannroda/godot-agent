@@ -58,3 +58,40 @@ func test_crash_card_is_short_and_the_log_keeps_everything() -> void:
 	var full: Array = log.entries().filter(func(entry: Dictionary) -> bool: return str(entry.message).contains("END_MARKER"))
 	assert_eq(full.size(), 1, "el Agent Log tiene la línea entera")
 	assert_eq(model.state, SessionModel.SessionState.FAILED, "FAILED")
+
+
+## El token del server MCP va en los headers de session/new que el agente vuelca por stderr: la
+## tarjeta no puede mostrarlo, ni entero ni el pedazo que quedaría si el recorte cae en el medio.
+func test_secrets_never_reach_the_card() -> void:
+	var model := SessionModel.new()
+	var log := AgentLog.new()
+	var controller := SessionController.new()
+	controller.setup(model, log, "/tmp/project")
+	var token := "tok_" + "s3cr3t".repeat(6)
+	log.add_secret(token)
+	controller.call(&"_on_stderr", 'fake_agent: session/new {"mcpServers":[{"headers":[{"name":"Authorization","value":"Bearer %s"}]}]}' % token)
+	# El token empieza en la posición 150: el recorte a 160 caería en el medio.
+	var prefix := "x".repeat(150)
+	controller.call(&"_on_stderr", prefix + token + " and then a long tail " + "y".repeat(200))
+	controller.call(&"_fail_agent", "Fake stopped", "The agent's process ended unexpectedly (code 1).", "The agent exited unexpectedly (code 1).", [] as Array[Dictionary])
+	var card: ChatEntry = model.entries().back()
+	assert_false(card.details.contains(token), "el token entero no está")
+	assert_false(card.details.contains(token.left(8)), "ni su principio")
+	assert_eq(card.details.count(AgentLog.REDACTED), 2, "las dos veces redactado (%s)" % card.details)
+	assert_true(card.details.contains("Authorization"), "el resto de la línea sigue")
+	var tail: PackedStringArray = controller.get(&"_stderr_tail")
+	assert_false("\n".join(tail).contains(token), "la cola del controller tampoco lo guarda")
+	assert_false(log.entries().any(func(entry: Dictionary) -> bool: return str(entry.message).contains(token)), "el log tampoco")
+
+
+func test_empty_lines_do_not_take_room_in_the_tail() -> void:
+	var controller := SessionController.new()
+	controller.setup(SessionModel.new(), AgentLog.new(), "/tmp/project")
+	for i in 20:
+		controller.call(&"_on_stderr", "")
+		controller.call(&"_on_stderr", "   ")
+	for i in 8:
+		controller.call(&"_on_stderr", "useful %d" % i)
+	var tail: PackedStringArray = controller.get(&"_stderr_tail")
+	assert_eq(tail.size(), SessionController.STDERR_TAIL, "la cola llena de líneas útiles")
+	assert_eq(tail[0], "useful 0", "ninguna vacía ocupó lugar")

@@ -4088,3 +4088,9 @@ msgstr "Desactivó (renombrado a .disabled): %s."
 
 msgid "… %d more characters, see the Agent Log"
 msgstr "… %d caracteres más, ver el Agent Log"
+
+msgid "Show"
+msgstr "Mostrar"
+
+msgid "Hide"
+msgstr "Ocultar"
