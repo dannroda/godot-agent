@@ -12,6 +12,7 @@ const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
+const RunReport := preload("res://addons/godot_agent/oneshot/run_report.gd")
 const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
 
 const WATCHDOG_S := 120.0
@@ -45,6 +46,7 @@ func _initialize() -> void:
 	await _scenario_qa_without_playing()
 	await _scenario_qa_restore()
 	await _scenario_qa_pause_after_verdict()
+	await _scenario_secrets()
 	for item: Dictionary in _logs:
 		_check_transitions(item.log, item.scenario)
 	for failure: String in _failures:
@@ -549,6 +551,43 @@ func _scenario_qa_restore() -> void:
 ## m13-16: con el veredicto de la vuelta 1 ya guardado, el usuario pausa mientras el run vuelve a
 ## la sesión del que construye. «Retomar» no repite la vuelta 1: la corrección le llega al que
 ## construye y la siguiente evaluación es la vuelta 2.
+## m13-25: con un secreto registrado en el log, un run cuyo agente lo repite en texto, en un tool
+## result y en el nombre de una tarea del plan no lo deja en el run guardado, el informe, los mensajes
+## de commit de los checkpoints, los archivos del run ni el chat.
+func _scenario_secrets() -> void:
+	print("— secretos")
+	var secret := "FAKESECRET-0123456789"
+	var run := _make("oneshot_secret")
+	run.controller.agent_log.add_secret(secret)
+	var store_dir := ProjectSettings.globalize_path("user://oneshot_check/store_secret")
+	OS.execute("rm", ["-rf", store_dir])
+	run.store.dir = store_dir
+	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy(), 15.0)
+	_check(run.phase == OneShotRun.RunPhase.FINISHED, "secretos: terminó (%s)" % run.phase_label())
+	var labels := _cp_labels(run)
+	_check(labels.size() >= 2 and not str(labels).contains(secret) and str(labels).contains(AgentLog.REDACTED), "secretos: etiquetas de los checkpoints %s" % [labels])
+	var log: Dictionary = await run.git.run(["log", "--all", "--format=%s%n%b"])
+	_check(not str(log.output).contains(secret) and str(log.output).contains(AgentLog.REDACTED), "secretos: mensajes de commit")
+	var saved := ""
+	for file: String in DirAccess.get_files_at(store_dir):
+		if file.ends_with(".json"):
+			saved += FileAccess.get_file_as_string(store_dir.path_join(file))
+	_check(saved.length() > 100 and not saved.contains(secret), "secretos: run e informe guardados sin el secreto (%d bytes)" % saved.length())
+	_check(saved.contains(AgentLog.REDACTED), "secretos: lo guardado lleva «secret» en su lugar")
+	_check(not RunReport.to_markdown(run.last_report).contains(secret), "secretos: informe en Markdown")
+	var activity := JSON.stringify(run.activity)
+	_check(not activity.contains(secret) and activity.contains(AgentLog.REDACTED), "secretos: actividad")
+	var files_text := ""
+	if DirAccess.dir_exists_absolute(run.files.dir()):
+		for file: String in DirAccess.get_files_at(run.files.dir()):
+			files_text += FileAccess.get_file_as_string(run.files.dir().path_join(file))
+	_check(not files_text.contains(secret), "secretos: archivos del run (spec, progreso, QA)")
+	_check(not _agent_text(run.model).contains(secret), "secretos: chat del run")
+	run.controller.stop()
+	run.queue_free()
+
+
 func _scenario_qa_pause_after_verdict() -> void:
 	print("— evaluador y pausa después del veredicto")
 	var run := _make("oneshot_qa")
