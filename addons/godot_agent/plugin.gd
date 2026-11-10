@@ -1296,7 +1296,7 @@ func _wire_oneshot(dock: AgentDock, id: String) -> void:
 func _machine_states(id: String) -> Array[Dictionary]:
 	var states: Array[Dictionary] = []
 	if _run_tools:
-		states.append({"machine": I18n.t("Game"), "label": I18n.t(RunTools.GAME_RUN_STATE_NAMES[_run_tools.run_state]), "age": _run_tools.run_state_age_seconds()})
+		states.append({"machine": I18n.t("Game"), "label": I18n.t(RunTools.GAME_RUN_STATE_NAMES[_run_tools.run_state]), "age": -1 if _run_tools.run_state == RunTools.GameRunState.IDLE else _run_tools.run_state_age_seconds()})  # sin juego, la antigüedad no dice nada
 	if _oneshot and _runs_in(id) and _oneshot.is_active():
 		var label := "%s · %s" % [_oneshot.phase_label(), I18n.t(OneShotRun.STAGE_LABELS[_oneshot.stage()])]
 		states.append({"machine": I18n.t("One-shot"), "label": label, "age": _oneshot.phase_age_seconds()})

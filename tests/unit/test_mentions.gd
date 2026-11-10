@@ -9,6 +9,7 @@ const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
 ## m13-29: la línea de una máquina en el tooltip del encabezado.
 func test_machine_line() -> void:
 	assert_eq(AgentDock.machine_line("Game", "running", 12), "Game: running · 12 s", "máquina, estado y antigüedad")
+	assert_eq(AgentDock.machine_line("Game", "no game launched", -1), "Game: no game launched", "sin antigüedad")
 
 
 func test_special_mentions_in() -> void:

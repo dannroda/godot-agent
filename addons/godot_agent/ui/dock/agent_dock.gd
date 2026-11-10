@@ -749,8 +749,10 @@ func header_tooltip() -> String:
 	return "\n".join(lines)
 
 
-## «Game: running · 12 s».
+## «Game: running · 12 s»; con `age_seconds` negativo, sin la antigüedad («Game: no game launched»).
 static func machine_line(machine: String, label: String, age_seconds: int) -> String:
+	if age_seconds < 0:
+		return "%s: %s" % [machine, label]
 	return "%s: %s · %d s" % [machine, label, age_seconds]
 
 
