@@ -5,6 +5,8 @@ extends "entry_view.gd"
 ## su etiqueta en el idioma de la interfaz y «Ver prompt» para leer lo que recibió el agente (m12-44).
 
 const MAX_WIDTH_RATIO := 0.85
+## Líneas de la etiqueta de un prompt del harness, plegado.
+const CAPTION_LINES := 2
 
 var _row: HBoxContainer
 var _spacer: Control
@@ -14,6 +16,8 @@ var _attachments: Label
 var _header: HBoxContainer
 var _caption: Label
 var _toggle: Button
+## Fila de «Ver prompt» cuando no entra al lado de la etiqueta.
+var _toggle_row: HBoxContainer
 var _expanded: bool = false
 
 
@@ -33,7 +37,10 @@ func _build() -> void:
 	_caption = Label.new()
 	_caption.name = "HarnessCaption"
 	_caption.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	# Una línea: si el dock es angosto, se corta con «…» y la etiqueta entera va en el tooltip.
+	# Hasta dos líneas: lo que identifica el mensaje no se pierde en el ancho común del dock. Más
+	# largo se corta con «…» y la etiqueta entera va en el tooltip.
+	_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_caption.max_lines_visible = CAPTION_LINES
 	_caption.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_caption.mouse_filter = Control.MOUSE_FILTER_PASS
 	_caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -45,6 +52,9 @@ func _build() -> void:
 	_toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_toggle.pressed.connect(_on_toggle)
 	_header.add_child(_toggle)
+	_toggle_row = HBoxContainer.new()
+	_toggle_row.alignment = BoxContainer.ALIGNMENT_END
+	column.add_child(_toggle_row)
 	_label = Label.new()
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_label)
@@ -66,6 +76,7 @@ func is_expanded() -> bool:
 func refresh() -> void:
 	var harness := is_harness()
 	_header.visible = harness
+	_toggle_row.visible = harness and _toggle.get_parent() == _toggle_row
 	if harness:
 		_caption.text = "⚙ " + I18n.t(entry.harness_label)
 		_caption.tooltip_text = I18n.t(entry.harness_label)
@@ -90,6 +101,22 @@ func refresh() -> void:
 	_fit_width()
 
 
+## «Ver prompt» va al lado de la etiqueta si entra en una línea con ella; si no, abajo a la derecha,
+## y la etiqueta usa todo el ancho.
+func _place_toggle() -> void:
+	var font := _caption.get_theme_font(&"font")
+	var font_size := _caption.get_theme_font_size(&"font_size")
+	var style := _caption.get_theme_stylebox(&"normal")
+	var margins := style.get_minimum_size().x if style else 0.0
+	var text_width := font.get_string_size(_caption.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x + margins
+	var inner := size.x - AgentTheme.px(12)  # el relleno de la burbuja
+	var beside := text_width + _toggle.get_combined_minimum_size().x + _header.get_theme_constant(&"separation") <= inner
+	var target: Container = _header if beside else _toggle_row
+	if _toggle.get_parent() != target:
+		_toggle.reparent(target, false)
+	_toggle_row.visible = not beside
+
+
 func _on_toggle() -> void:
 	_expanded = not _expanded
 	refresh()
@@ -103,6 +130,7 @@ func _fit_width() -> void:
 		return
 	if is_harness():  # a todo el ancho: el texto desplegado se parte en el ancho del chat
 		_label.custom_minimum_size.x = 0.0
+		_place_toggle()
 		return
 	var font := _label.get_theme_font(&"font")
 	var font_size := _label.get_theme_font_size(&"font_size")

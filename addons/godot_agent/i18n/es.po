@@ -4249,7 +4249,7 @@ msgid "One-shot · turn off Remote Control"
 msgstr "One-shot · apagar Remote Control"
 
 msgid "Automatic check after the turn"
-msgstr "Chequeo automático después del turno"
+msgstr "Chequeo automático tras el turno"
 
 msgid "Review · question about a finding"
 msgstr "Revisar · pregunta sobre un hallazgo"
@@ -4261,10 +4261,10 @@ msgid "Review · playtest"
 msgstr "Revisar · playtest"
 
 msgid "Inline edit from the Script Editor"
-msgstr "Edición en línea desde el Script Editor"
+msgstr "Edición en línea del Script Editor"
 
 msgid "What the supervisor saw while the editor was closed"
-msgstr "Lo que vio el supervisor mientras el editor estuvo cerrado"
+msgstr "Lo que vio el supervisor con el editor cerrado"
 
 msgid "Message from another agent session"
 msgstr "Mensaje de otra sesión del agente"
