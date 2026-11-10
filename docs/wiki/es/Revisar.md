@@ -39,6 +39,8 @@ Los **hallazgos** del playtest y de los detectores van al panel de hallazgos, do
 godot --headless --path . --script res://addons/godot_agent/playtest/regression_cli.gd
 ```
 
+**Workflow de CI…**, al lado, escribe `.github/workflows/godot-agent-regressions.yml`: un workflow de GitHub Actions que instala la versión de Godot de este editor, importa el proyecto y corre ese comando en cada push y pull request, y sube el informe y las capturas como artifacts cuando una regresión falla. Nunca reemplaza un archivo que exista sin preguntar. El agente tiene lo mismo en `godot.write_regressions_workflow` (con `render: true` para regresiones que necesitan el juego dibujado, bajo Xvfb).
+
 Sale con 0 si pasan todas, 1 si falla alguna y 2 si no hay ninguna; después de `--` toma otros `.json` o carpetas. El juego corre sin el editor, así que un error del juego no lo frena. Una regresión puede llevar un `sabotage`, un script que rompe en el juego lo que comprueba: entonces corre una segunda vez con él y tiene que fallar; si no, no detecta el bug y cuenta como fallada.
 
 **Memoria**: los playtests guardan lo que verificaron de tu juego (controles, mecánicas, trampas) y los scripts que sirvieron en `res://.godot_agent/playtests/`, y al siguiente se le dice qué archivos cambiaron desde entonces, para que vuelva a comprobar lo que puede haber quedado viejo. Borrá esa carpeta para empezar de cero.

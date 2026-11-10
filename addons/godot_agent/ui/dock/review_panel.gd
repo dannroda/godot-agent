@@ -10,6 +10,8 @@ signal fix_all_requested
 signal notice_requested(text: String, level: ChatEntry.NoticeLevel)
 ## Repetir los playtests guardados, sin agente (m16-06).
 signal regressions_requested
+## El usuario quiere el workflow de CI que corre las regresiones (m16-10).
+signal ci_workflow_requested
 ## Un prompt para mandar al agente (el de un playtest, m14-03).
 signal prompt_requested(text: String)
 
@@ -48,6 +50,7 @@ var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
 var _run_again: Button
 var _regressions_button: Button
+var _ci_button: Button
 ## El último playtest pedido, para repetirlo tal cual (m15-17): {goal, record, minutes}.
 var _last_playtest: Dictionary = {}
 
@@ -128,6 +131,11 @@ func _ready() -> void:
 	_regressions_button.tooltip_text = I18n.t("Repeats the playtests that passed, without the agent and without using tokens.")
 	_regressions_button.pressed.connect(regressions_requested.emit)
 	actions.add_child(_regressions_button)
+	_ci_button = Button.new()
+	_ci_button.text = I18n.t("CI workflow…")
+	_ci_button.tooltip_text = I18n.t("Writes a GitHub Actions workflow that runs the saved regressions on every push, with this editor's Godot version.")
+	_ci_button.pressed.connect(ci_workflow_requested.emit)
+	actions.add_child(_ci_button)
 	column.add_child(actions)
 
 	_export_dialog = ConfirmationDialog.new()
@@ -186,6 +194,7 @@ func refresh() -> void:
 	var saved := PlaytestRegressions.new().list().size()
 	_regressions_button.visible = saved > 0
 	_regressions_button.text = I18n.t("Run regressions (%d)") % saved
+	_ci_button.visible = saved > 0
 
 
 ## Un hallazgo: su fila y, si salió de un playtest, qué hacer con él (m15-17, m15-18).

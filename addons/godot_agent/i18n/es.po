@@ -4094,3 +4094,24 @@ msgstr "Mostrar"
 
 msgid "Hide"
 msgstr "Ocultar"
+
+msgid "CI workflow…"
+msgstr "Workflow de CI…"
+
+msgid "Writes a GitHub Actions workflow that runs the saved regressions on every push, with this editor's Godot version."
+msgstr "Escribe un workflow de GitHub Actions que corre las regresiones guardadas en cada push, con la versión de Godot de este editor."
+
+msgid "Workflow written: %s, for Godot %s. Commit it and push: GitHub Actions will run the saved regressions on every push and pull request."
+msgstr "Workflow escrito: %s, para Godot %s. Commitealo y pusheá: GitHub Actions va a correr las regresiones guardadas en cada push y pull request."
+
+msgid "%s already exists. Overwrite it with the harness's workflow?"
+msgstr "%s ya existe. ¿Lo piso con el workflow del harness?"
+
+msgid "Overwrite"
+msgstr "Pisar"
+
+msgid "Could not write the workflow: %s"
+msgstr "No se pudo escribir el workflow: %s"
+
+msgid "Write the regressions CI workflow"
+msgstr "Escribir el workflow de CI de las regresiones"

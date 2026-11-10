@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **CI workflow…** in the findings panel (and `godot.write_regressions_workflow` for the agent) writes `.github/workflows/godot-agent-regressions.yml`: a GitHub Actions workflow that installs this editor's Godot version, imports the project and runs the saved playtest regressions on every push and pull request, uploading the report and the captures as artifacts when one fails. It asks before replacing an existing file; `render: true` runs them under Xvfb for checks that need the game drawn.
+
 ## [0.1.18] - 2026-11-10
 
 ### Changed

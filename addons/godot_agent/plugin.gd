@@ -60,6 +60,7 @@ const NativeBuild := preload("core/native_build.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
 const PlaytestRegressions := preload("review/playtest_regressions.gd")
+const RegressionsWorkflow := preload("review/regressions_workflow.gd")
 const PlaytestDebugger := preload("playtest/playtest_debugger.gd")
 const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
@@ -87,6 +88,8 @@ const ACTION_ONESHOT_SHOW := "oneshot_show"
 ## Reiniciar el editor bajo el supervisor (m19-03) y copiar el comando para abrirlo así.
 const ACTION_SUPERVISE := "supervise"
 const ACTION_COPY_SUPERVISOR_COMMAND := "copy_supervisor_command"
+## «Overwrite» del aviso cuando el workflow de regresiones ya existe (m16-10).
+const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
 ## Acciones de edición del server MCP que todavía no se unieron a su tool call (llegan antes).
 const PENDING_UNDO_TTL_MS := 60000
 ## Kinds de tool call que escriben archivos: al completarse se sincroniza el editor.
@@ -583,6 +586,10 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_fix_review_findings(_controller.review.findings.duplicate())
 		AgentDock.ACTION_RUN_REGRESSIONS:
 			_run_regressions()
+		AgentDock.ACTION_REGRESSIONS_WORKFLOW:
+			_write_regressions_workflow(false)
+		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
+			_write_regressions_workflow(true)
 		AgentDock.ACTION_OPEN_RUN_FILE:
 			if _surfaces:
 				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
@@ -605,6 +612,21 @@ func _run_regressions() -> void:
 		_model.add_notice(I18n.t("Regressions: all %d pass.") % results.size(), ChatEntry.NoticeLevel.INFO)
 	else:
 		_model.add_notice("%s\n%s" % [I18n.t("Regressions: %d of %d fail.") % [summary.failed, results.size()], summary.details], ChatEntry.NoticeLevel.ERROR)
+
+
+## El workflow de CI que corre las regresiones grabadas (m16-10). Uno que ya existe no se pisa:
+## el aviso ofrece «Overwrite».
+func _write_regressions_workflow(overwrite: bool) -> void:
+	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
+	var written := RegressionsWorkflow.write(root, false, overwrite)
+	if written.ok:
+		_model.add_notice(I18n.t("Workflow written: %s, for Godot %s. Commit it and push: GitHub Actions will run the saved regressions on every push and pull request.") % [written.path, RegressionsWorkflow.editor_version()], ChatEntry.NoticeLevel.INFO)
+		EditorInterface.get_resource_filesystem().scan()
+	elif written.existed:
+		_model.add_notice(I18n.t("%s already exists. Overwrite it with the harness's workflow?") % written.path, ChatEntry.NoticeLevel.WARNING,
+			[{"id": ACTION_OVERWRITE_REGRESSIONS_WORKFLOW, "label": I18n.t("Overwrite"), "primary": true}])
+	else:
+		_model.add_notice(I18n.t("Could not write the workflow: %s") % written.error, ChatEntry.NoticeLevel.ERROR)
 
 
 ## Botones de la tarjeta de un hallazgo en el Script Editor (spec §9.4).
