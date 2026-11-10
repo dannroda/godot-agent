@@ -1280,6 +1280,7 @@ func _wire_oneshot(dock: AgentDock, id: String) -> void:
 	dock.retry_interceptor = func() -> bool: return _runs_in(id) and _oneshot.take_dock_retry(_model_of(id))
 	dock.can_switch_session = func() -> bool: return not (_runs_in(id) and _oneshot.is_active())
 	dock.oneshot_active = func() -> bool: return _runs_in(id) and _oneshot.is_active()
+	dock.machine_states = func() -> Array[Dictionary]: return _machine_states(id)
 	_controller_of(id).after_login = func() -> bool: return _runs_in(id) and _oneshot.take_login()
 	var listener := func() -> void:
 		var tab_dock := _tabs.dock(id) as AgentDock if _tabs else dock
@@ -1288,6 +1289,18 @@ func _wire_oneshot(dock: AgentDock, id: String) -> void:
 	_oneshot.changed.connect(listener)
 	if id != PRIMARY_SESSION:
 		_extra_sessions[id]["oneshot_listener"] = listener
+
+
+## El estado del juego de run_scene y del One-shot de la pestaña `id`, para el tooltip del
+## encabezado del dock (m13-29): leído al momento de las máquinas de D61, sin copias.
+func _machine_states(id: String) -> Array[Dictionary]:
+	var states: Array[Dictionary] = []
+	if _run_tools:
+		states.append({"machine": I18n.t("Game"), "label": I18n.t(RunTools.GAME_RUN_STATE_NAMES[_run_tools.run_state]), "age": _run_tools.run_state_age_seconds()})
+	if _oneshot and _runs_in(id) and _oneshot.is_active():
+		var label := "%s · %s" % [_oneshot.phase_label(), I18n.t(OneShotRun.STAGE_LABELS[_oneshot.stage()])]
+		states.append({"machine": I18n.t("One-shot"), "label": label, "age": _oneshot.phase_age_seconds()})
+	return states
 
 
 ## m17-17: con la pestaña `id` ocupada, «Nueva sesión» y el historial abren en otra; y una sesión que

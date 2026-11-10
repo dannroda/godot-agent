@@ -66,6 +66,13 @@ const RUN_PHASE_TRANSITIONS: Dictionary = {
 ## EVALUATING, «Retomar» la vuelve a empezar en la misma vuelta. Se guarda con el run.
 enum RunStage { SPEC_APPROVAL, BUILDING, EVALUATION }
 
+## Cómo se llama cada etapa para el usuario (tooltip del encabezado, m13-29).
+const STAGE_LABELS: Dictionary = {
+	RunStage.SPEC_APPROVAL: "spec approval",  # i18n
+	RunStage.BUILDING: "building",  # i18n
+	RunStage.EVALUATION: "evaluation",  # i18n
+}
+
 ## Cambios de etapa esperados (por _set_stage, como las fases). Un run nuevo o cargado de disco
 ## arranca de cero y no se compara con la etapa del anterior.
 const RUN_STAGE_TRANSITIONS: Dictionary = {
@@ -328,6 +335,16 @@ func phase_label() -> String:
 	if phase == RunPhase.EVALUATING:
 		return I18n.t("Evaluating · QA round %d") % qa_round
 	return I18n.t(PHASE_LABELS[phase])
+
+
+## Segundos desde el último cambio de fase (0 si el run se cargó de disco y todavía no cambió).
+func phase_age_seconds() -> int:
+	return (Time.get_ticks_msec() - _phase_since_ms) / 1000 if _phase_since_ms > 0 else 0
+
+
+## La fase y la etapa para el agente, como describe_run_state(): «one-shot: evaluating, evaluation (40 s)».
+func describe_phase() -> String:
+	return "one-shot: %s, %s (%d s)" % [RunPhase.keys()[phase].to_lower().replace("_", " "), STAGE_LABELS[_stage], phase_age_seconds()]
 
 
 ## Fase "n de m" según el plan, o "".

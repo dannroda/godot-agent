@@ -26,13 +26,14 @@ enum GameRunState {
 	STOPPED,  ## el juego terminó
 }
 
+## Para el agente tal cual (describe_run_state) y para el usuario con I18n.t() (tooltip, m13-29).
 const GAME_RUN_STATE_NAMES: Dictionary = {
-	GameRunState.IDLE: "no game launched",
-	GameRunState.LAUNCHING: "launching",
-	GameRunState.STARTED: "started, waiting for the playtest probe",
-	GameRunState.PROBE_READY: "running",
-	GameRunState.BREAKED: "stopped in the debugger",
-	GameRunState.STOPPED: "ended",
+	GameRunState.IDLE: "no game launched",  # i18n
+	GameRunState.LAUNCHING: "launching",  # i18n
+	GameRunState.STARTED: "started, waiting for the playtest probe",  # i18n
+	GameRunState.PROBE_READY: "running",  # i18n
+	GameRunState.BREAKED: "stopped in the debugger",  # i18n
+	GameRunState.STOPPED: "ended",  # i18n
 }
 
 ## Transiciones esperadas. Una que no está se avisa en el Agent Log y se aplica igual.
@@ -176,9 +177,14 @@ func reached(state: GameRunState) -> bool:
 	return _reached_states & (1 << state) != 0
 
 
+## Segundos desde el último cambio de estado del juego.
+func run_state_age_seconds() -> int:
+	return (Time.get_ticks_msec() - _run_state_since_ms) / 1000
+
+
 ## El estado del juego para el agente: «game: running (3 s)».
 func describe_run_state() -> String:
-	return "game: %s (%d s)" % [GAME_RUN_STATE_NAMES[run_state], (Time.get_ticks_msec() - _run_state_since_ms) / 1000]
+	return "game: %s (%d s)" % [GAME_RUN_STATE_NAMES[run_state], run_state_age_seconds()]
 
 
 func _on_session_started() -> void:

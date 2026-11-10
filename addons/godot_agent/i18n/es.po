@@ -4094,3 +4094,54 @@ msgstr "Mostrar"
 
 msgid "Hide"
 msgstr "Ocultar"
+
+msgid "not started"
+msgstr "sin iniciar"
+
+msgid "connecting"
+msgstr "conectando"
+
+msgid "ready"
+msgstr "lista"
+
+msgid "working"
+msgstr "trabajando"
+
+msgid "cancelling"
+msgstr "cancelando"
+
+msgid "sign-in needed"
+msgstr "falta iniciar sesión"
+
+msgid "no game launched"
+msgstr "ningún juego lanzado"
+
+msgid "launching"
+msgstr "lanzando"
+
+msgid "started, waiting for the playtest probe"
+msgstr "arrancó, esperando la sonda de playtest"
+
+msgid "running"
+msgstr "corriendo"
+
+msgid "stopped in the debugger"
+msgstr "parado en el depurador"
+
+msgid "ended"
+msgstr "terminó"
+
+msgid "spec approval"
+msgstr "aprobación del spec"
+
+msgid "building"
+msgstr "construcción"
+
+msgid "evaluation"
+msgstr "evaluación"
+
+msgid "Game"
+msgstr "Juego"
+
+msgid "Session"
+msgstr "Sesión"

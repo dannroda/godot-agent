@@ -104,6 +104,11 @@ var can_switch_session: Callable
 ## vacía lo retoma y el composer lo guía. Lo pone el plugin (m17-19); se lee al momento, no se copia
 ## (m13-14). Sin asignar: nunca.
 var oneshot_active: Callable
+## () -> Array[Dictionary]: el estado de las otras máquinas de D61 para el tooltip del encabezado
+## (m13-29), cada una {"machine": nombre traducido, "label": estado traducido, "age": segundos}. El
+## juego de run_scene y el One-shot viven en el plugin: se leen al momento, sin copias. Sin asignar:
+## solo la sesión.
+var machine_states: Callable
 ## (session_id) -> bool: si esa sesión ya está abierta en otra pestaña, la elige y devuelve true
 ## (m17-17); así no queda abierta dos veces.
 var session_focuser: Callable
@@ -570,6 +575,8 @@ func _on_quota_changed() -> void:
 func _on_quota_tick() -> void:
 	var quota := _controller.quota
 	_quota_ring.refresh()
+	if _agent_chip:
+		_agent_chip.tooltip_text = header_tooltip()  # la antigüedad de cada estado corre
 	if quota.is_limited() and quota.seconds_until_retry() > 0:
 		_composer.set_locked("⏳ %s" % QuotaMonitor.format_duration(quota.seconds_until_retry()), I18n.t("Plan limit reached: you can send again when the window resets"))
 	else:
@@ -729,6 +736,24 @@ func _refresh_title() -> void:
 	_title_label.tooltip_text = _title_label.text
 
 
+## Tooltip del encabezado (m13-29): el estado de cada máquina de D61 con su antigüedad (la sesión,
+## y lo que diga `machine_states`: el juego de run_scene, el One-shot), el error o la cuenta, y la ayuda.
+func header_tooltip() -> String:
+	var lines: PackedStringArray = [machine_line(I18n.t("Session"), I18n.t(SessionModel.SESSION_STATE_LABELS[_model.state]), _model.state_age_seconds())]
+	if machine_states.is_valid():
+		for machine: Dictionary in machine_states.call():
+			lines.append(machine_line(str(machine.get("machine", "")), str(machine.get("label", "")), int(machine.get("age", 0))))
+	if not _status_label.tooltip_text.is_empty():
+		lines.append(_status_label.tooltip_text)
+	lines.append(I18n.t("Click to choose the agent"))
+	return "\n".join(lines)
+
+
+## «Game: running · 12 s».
+static func machine_line(machine: String, label: String, age_seconds: int) -> String:
+	return "%s: %s · %d s" % [machine, label, age_seconds]
+
+
 ## Tooltip de la cuenta: «Account: email», la organización y el plan.
 static func account_summary(account: Dictionary) -> String:
 	if str(account.get("email", "")).is_empty():
@@ -783,7 +808,7 @@ func _refresh_state() -> void:
 	_refresh_state_line(color)
 	if _agent_chip:
 		_style_agent_chip(name if profile else "", color)
-		_agent_chip.tooltip_text = (_status_label.tooltip_text + "\n" if not _status_label.tooltip_text.is_empty() else "") + I18n.t("Click to choose the agent")
+		_agent_chip.tooltip_text = header_tooltip()
 	_composer.refresh_state()
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())

@@ -56,6 +56,17 @@ enum SessionState {
 ## - CANCELLING → READY cuando el agente confirma (o vence el plazo); DISCONNECTED y FAILED como READY.
 ## - FAILED / LOGIN_REQUIRED → STARTING: reintentar, o volver a abrir la sesión después del login.
 ## - LOGIN_REQUIRED → FAILED: el proceso del agente sigue vivo esperando el login y se cae solo.
+## Cómo se llama cada estado para el usuario (tooltip del encabezado, m13-29).
+const SESSION_STATE_LABELS: Dictionary = {
+	SessionState.DISCONNECTED: "not started",  # i18n
+	SessionState.STARTING: "connecting",  # i18n
+	SessionState.READY: "ready",  # i18n
+	SessionState.PROMPTING: "working",  # i18n
+	SessionState.CANCELLING: "cancelling",  # i18n
+	SessionState.FAILED: "error",  # i18n
+	SessionState.LOGIN_REQUIRED: "sign-in needed",  # i18n
+}
+
 const SESSION_STATE_TRANSITIONS: Dictionary = {
 	SessionState.DISCONNECTED: [SessionState.STARTING],
 	SessionState.STARTING: [SessionState.READY, SessionState.FAILED, SessionState.LOGIN_REQUIRED, SessionState.DISCONNECTED],
@@ -79,6 +90,8 @@ const HARNESS_MODE_LABELS: Dictionary = {
 }
 
 var state: SessionState = SessionState.DISCONNECTED
+## Cuándo cambió `state` por última vez (ticks), para decir hace cuánto está así (m13-29).
+var _state_since_ms: int = 0
 var session_id: String = ""
 var title: String = ""
 var harness_mode: HarnessMode = HarnessMode.BUILD
@@ -164,7 +177,18 @@ func set_state(value: SessionState) -> void:
 		else:
 			unexpected_transition.emit(previous, value)
 	state = value
+	_state_since_ms = Time.get_ticks_msec()
 	state_changed.emit(state)
+
+
+## Segundos desde el último cambio de estado (desde que existe el modelo, si no cambió).
+func state_age_seconds() -> int:
+	return (Time.get_ticks_msec() - _state_since_ms) / 1000
+
+
+## El estado de la sesión para el agente, como describe_run_state(): «session: ready (12 s)».
+func describe_state() -> String:
+	return "session: %s (%d s)" % [SESSION_STATE_LABELS[state], state_age_seconds()]
 
 
 ## true si la sesión no quedó abierta y el chat muestra por qué (el error, o el pedido de login).
