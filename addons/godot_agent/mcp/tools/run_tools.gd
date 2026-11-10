@@ -323,9 +323,8 @@ func tools() -> Array:
 			["seconds"], _run_scene),
 		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
 		McpTool.create("write_regressions_workflow", PermissionPolicy.GROUP_EDIT_FILES,
-			"Writes %s: a GitHub Actions workflow that runs the saved playtest regressions (%s/) on every push and pull request with this editor's Godot version, and uploads the report and captures when they fail. Refuses to overwrite an existing file unless `overwrite` is true." % [RegressionsWorkflow.PATH.trim_prefix("res://"), RegressionsWorkflow.REGRESSIONS_DIR],
+			"Writes %s: a GitHub Actions workflow that runs the saved playtest regressions (%s/) on every push and pull request with this editor's Godot version, and uploads the report and captures when they fail. Never replaces an existing file (only the user can, from the findings panel) and does nothing while there are no saved regressions." % [RegressionsWorkflow.PATH.trim_prefix("res://"), RegressionsWorkflow.REGRESSIONS_DIR],
 			{
-				"overwrite": {"type": "boolean", "description": "Replace the workflow if it already exists (default false)"},
 				"render": {"type": "boolean", "description": "Run the regressions under Xvfb with software OpenGL instead of headless, for checks that need the game drawn (default false)"},
 			}, [], _write_regressions_workflow),
 		McpTool.create("capture_game_frame", run, "Captures the current frame of the running game (launched with run_scene) as a PNG.", {}, [], _capture_game_frame),
@@ -895,15 +894,21 @@ func run_regression(entry: Dictionary, setup: String = "") -> Dictionary:
 	return result
 
 
-## El workflow de CI de las regresiones (m16-10), en la carpeta del proyecto abierto.
+## El workflow de CI de las regresiones (m16-10), en la raíz del repo del proyecto abierto. La tool
+## nunca pisa uno que exista (en Auto, edit_files no pide tarjeta y el workflow puede ser del
+## usuario): reemplazarlo es cosa del botón del panel, que confirma. Sin regresiones grabadas no
+## escribe: el CI fallaría en cada push sin nada que correr.
 func _write_regressions_workflow(args: Dictionary) -> Dictionary:
+	var saved := PlaytestRegressions.new().list().size()
+	if saved == 0:
+		return McpTool.error("There are no saved regressions in %s/: a playtest that passes saves one. Without them the workflow would fail on every push, so nothing was written." % RegressionsWorkflow.REGRESSIONS_DIR)
 	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
-	var written := RegressionsWorkflow.write(root, bool(args.get("render", false)), bool(args.get("overwrite", false)))
+	var written := RegressionsWorkflow.write(root, bool(args.get("render", false)), false)
 	if not written.ok:
 		if written.existed:
-			return McpTool.error("%s. Pass overwrite: true to replace it." % written.error)
+			return McpTool.error("%s and this tool never replaces it. If the user wants the harness's version, they can press «CI workflow…» in the findings panel, which asks before overwriting." % written.error)
 		return McpTool.error(written.error)
-	var lines: PackedStringArray = ["Wrote %s (repository root: %s) for Godot %s. Commit it and push: GitHub Actions runs the %d saved regressions on every push and pull request." % [written.path, written.root, RegressionsWorkflow.editor_version(), PlaytestRegressions.new().list().size()]]
+	var lines: PackedStringArray = ["Wrote %s (repository root: %s) for Godot %s%s. Commit it and push: GitHub Actions runs the %d saved regressions on every push and pull request." % [written.path, written.root, RegressionsWorkflow.editor_version(), " (.NET)" if RegressionsWorkflow.is_dotnet_editor() else "", saved]]
 	if not str(written.project_dir).is_empty():
 		lines.append("The project is in %s/ inside the repository: the workflow runs Godot with --path %s." % [written.project_dir, written.project_dir])
 	for warning: String in written.warnings:

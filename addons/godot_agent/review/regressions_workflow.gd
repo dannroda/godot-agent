@@ -15,7 +15,10 @@ const REPORT := "regressions-report.txt"
 const WARN_NO_GIT := "no_git"
 const WARN_IGNORED_REGRESSIONS := "ignored_regressions"
 const WARN_IGNORED_ADDON := "ignored_addon"
+## El editor no es un release oficial (custom_build, dev): la URL de descarga del yml es una suposición.
+const WARN_CUSTOM_BUILD := "custom_build"
 const WARNING_TEXTS: Dictionary = {
+	WARN_CUSTOM_BUILD: "This editor is not an official Godot release, so the download URL in the workflow probably does not exist: point the Install Godot step to a build you host, or to the official release closest to this version.",
 	WARN_NO_GIT: "The project is not in a git repository: the workflow was written in the project folder. GitHub only reads .github/workflows/ at the root of the repository, so move it there and adjust --path if the project is in a subfolder.",
 	WARN_IGNORED_REGRESSIONS: ".godot_agent/ is ignored by git: the saved regressions won't be in the repository, so the CI will find none. Un-ignore .godot_agent/playtests/regressions/ (or commit it with git add -f).",
 	WARN_IGNORED_ADDON: "addons/godot_agent/ is ignored by git: the CI needs the addon to run the regressions. Commit it or install it in the workflow.",
@@ -29,10 +32,26 @@ static func editor_version() -> String:
 	return "%d.%d%s-%s" % [int(info.major), int(info.minor), patch, str(info.status)]
 
 
-## Las estables salen de godotengine/godot; betas, rc y dev de godotengine/godot-builds.
-static func download_url(version: String) -> String:
+## true si este editor es la versión .NET (los scripts C# del juego necesitan el build mono y dotnet).
+static func is_dotnet_editor() -> bool:
+	return ClassDB.class_exists("CSharpScript")
+
+
+## true si el editor es un release oficial de Godot (build "official"); un custom_build no está en
+## los releases y la URL de descarga sería una suposición.
+static func is_official_build() -> bool:
+	return str(Engine.get_version_info().get("build", "")) == "official"
+
+
+## Las estables salen de godotengine/godot; betas, rc y dev de godotengine/godot-builds. Con
+## `dotnet`, el zip mono (trae el binario y GodotSharp/ en una carpeta).
+static func download_url(version: String, dotnet: bool = false) -> String:
 	var repo := "godotengine/godot" if version.ends_with("-stable") else "godotengine/godot-builds"
-	return "https://github.com/%s/releases/download/%s/Godot_v%s_linux.x86_64.zip" % [repo, version, version]
+	return "https://github.com/%s/releases/download/%s/%s.zip" % [repo, version, zip_name(version, dotnet)]
+
+
+static func zip_name(version: String, dotnet: bool) -> String:
+	return "Godot_v%s_mono_linux_x86_64" % version if dotnet else "Godot_v%s_linux.x86_64" % version
 
 
 ## Dónde está el proyecto respecto del repo git: {toplevel: raíz absoluta ("" sin git),
@@ -56,8 +75,9 @@ static func repo_info(project_root: String) -> Dictionary:
 
 ## El texto del workflow. `render`: las regresiones corren bajo Xvfb con OpenGL por software, para
 ## las que necesitan dibujar (capturas, shaders); si no, headless. `project_dir`: el proyecto
-## relativo a la raíz del repo ("" si es la raíz): --path y las capturas salen de ahí.
-static func workflow_text(version: String, render: bool, project_dir: String = "") -> String:
+## relativo a la raíz del repo ("" si es la raíz): --path y las capturas salen de ahí. `dotnet`: el
+## build mono de Godot más el SDK de .NET y un `dotnet build` del proyecto antes de correr.
+static func workflow_text(version: String, render: bool, project_dir: String = "", dotnet: bool = false) -> String:
 	var godot := "\"$RUNNER_TEMP/godot/godot\""
 	var project := "\"%s\"" % project_dir if not project_dir.is_empty() else "."
 	var captures := project_dir.path_join(".godot_agent/playtests") if not project_dir.is_empty() else ".godot_agent/playtests"
@@ -81,14 +101,28 @@ static func workflow_text(version: String, render: bool, project_dir: String = "
 		"    steps:",
 		"      - uses: actions/checkout@v4",
 		"",
-		"      - name: Install Godot %s" % version,
+		"      - name: Install Godot %s%s" % [version, " (.NET)" if dotnet else ""],
 		"        run: |",
-		"          curl -fsSL -o \"$RUNNER_TEMP/godot.zip\" \"%s\"" % download_url(version),
+		"          curl -fsSL -o \"$RUNNER_TEMP/godot.zip\" \"%s\"" % download_url(version, dotnet),
 		"          mkdir -p \"$RUNNER_TEMP/godot\"",
 		"          unzip -oq \"$RUNNER_TEMP/godot.zip\" -d \"$RUNNER_TEMP/godot\"",
-		"          mv \"$RUNNER_TEMP/godot/Godot_v%s_linux.x86_64\" \"$RUNNER_TEMP/godot/godot\"" % version,
-		"          %s --version" % godot,
 	]
+	if dotnet:
+		# El zip mono trae una carpeta con el binario y GodotSharp/: van juntos.
+		lines.append_array([
+			"          mv \"$RUNNER_TEMP/godot/%s\"/* \"$RUNNER_TEMP/godot/\"" % zip_name(version, true),
+			"          ln -sf \"Godot_v%s_mono_linux.x86_64\" \"$RUNNER_TEMP/godot/godot\"" % version,
+		])
+	else:
+		lines.append("          mv \"$RUNNER_TEMP/godot/%s\" \"$RUNNER_TEMP/godot/godot\"" % zip_name(version, false))
+	lines.append("          %s --version" % godot)
+	if dotnet:
+		lines.append_array([
+			"",
+			"      - uses: actions/setup-dotnet@v4",
+			"        with:",
+			"          dotnet-version: 8.0.x",
+		])
 	if render:
 		lines.append_array([
 			"",
@@ -102,6 +136,14 @@ static func workflow_text(version: String, render: bool, project_dir: String = "
 		"      - name: Import the project",
 		"        run: |",  # el comando empieza con comillas: en una sola línea sería un escalar YAML inválido
 		"          %s --headless --path %s --import" % [godot, project],
+	])
+	if dotnet:
+		lines.append_array([
+			"",
+			"      - name: Build the C# project",
+			"        run: dotnet build %s" % project,
+		])
+	lines.append_array([
 		"",
 		"      - name: Run the regressions",
 		"        run: |",
@@ -125,8 +167,11 @@ static func workflow_text(version: String, render: bool, project_dir: String = "
 
 ## Escribe el workflow en la raíz del repo git que contiene `project_root` (la carpeta del proyecto,
 ## absoluta); sin git, en el proyecto, con el aviso WARN_NO_GIT. Sin `overwrite` no pisa uno que
-## exista. Devuelve {ok, path, existed, error, root, project_dir, warnings}: `path` relativo a `root`.
-static func write(project_root: String, render: bool, overwrite: bool, version: String = "") -> Dictionary:
+## exista. `dotnet` y `official`: null = los de este editor (los tests los fijan). Devuelve
+## {ok, path, existed, error, root, project_dir, warnings}: `path` relativo a `root`.
+static func write(project_root: String, render: bool, overwrite: bool, version: String = "", dotnet: Variant = null, official: Variant = null) -> Dictionary:
+	var use_dotnet: bool = dotnet if dotnet is bool else is_dotnet_editor()
+	var is_official: bool = official if official is bool else is_official_build()
 	var repo := repo_info(project_root)
 	var root: String = repo.toplevel if not str(repo.toplevel).is_empty() else project_root
 	var relative := PATH.trim_prefix("res://")
@@ -138,6 +183,8 @@ static func write(project_root: String, render: bool, overwrite: bool, version: 
 		warnings.append(WARN_IGNORED_REGRESSIONS)
 	if "addons/godot_agent" in repo.ignored:
 		warnings.append(WARN_IGNORED_ADDON)
+	if not is_official:
+		warnings.append(WARN_CUSTOM_BUILD)
 	var result := {"ok": false, "path": relative, "existed": FileAccess.file_exists(absolute), "error": "", "root": root, "project_dir": repo.project_dir, "warnings": warnings}
 	if result.existed and not overwrite:
 		result.error = "%s already exists" % relative
@@ -149,7 +196,7 @@ static func write(project_root: String, render: bool, overwrite: bool, version: 
 	if file == null:
 		result.error = "could not write %s: %s" % [relative, error_string(FileAccess.get_open_error())]
 		return result
-	file.store_string(workflow_text(version if not version.is_empty() else editor_version(), render, repo.project_dir))
+	file.store_string(workflow_text(version if not version.is_empty() else editor_version(), render, repo.project_dir, use_dotnet))
 	file.close()
 	result.ok = true
 	return result
