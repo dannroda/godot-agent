@@ -171,3 +171,26 @@ func test_describe() -> void:
 	assert_eq(DebugStack.describe(node), "<Freed Object>", "liberado")
 	assert_eq(DebugStack.describe(null), "<null>", "null")
 	assert_eq(DebugStack.describe(load(SCRIPT)), "GDScript " + SCRIPT, "recurso con su ruta")
+
+
+## Revisión de next2 #4: un array que se contiene a sí mismo desbordaba la pila dentro del bucle del
+## debugger, y datos anidados que reusan arrays tardaban segundos (7 niveles × 8 items: 5,9 s).
+func test_describe_cycles_and_nesting_are_bounded() -> void:
+	var loop: Array = [1]
+	loop.append(loop)
+	assert_eq(DebugStack.describe(loop), "Array(2) [1, Array(2) [1, Array(2)]]", "un ciclo se corta a MAX_DEPTH niveles")
+	var own := {}
+	own["self"] = own
+	assert_eq(DebugStack.describe(own), "Dictionary(1) {\"self\": Dictionary(1) {\"self\": Dictionary(1)}}", "un diccionario que se contiene")
+	var nested: Array = [0, 1, 2, 3, 4, 5, 6, 7]
+	for level in 7:
+		var wider: Array = []
+		for i in 8:
+			wider.append(nested)
+		nested = wider
+	var started := Time.get_ticks_msec()
+	var text := DebugStack.describe(nested)
+	assert_true(Time.get_ticks_msec() - started < 100, "7 niveles × 8 items en menos de 0,1 s (%d ms)" % (Time.get_ticks_msec() - started))
+	assert_true(text.length() <= DebugStack.MAX_VALUE + 1, "acotado")
+	loop.clear()  # corta el ciclo para que se libere
+	own.clear()

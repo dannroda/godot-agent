@@ -10,6 +10,10 @@ const MAX_FRAMES := 32
 const MAX_VARIABLES := 40
 const MAX_VALUE := 200
 const MAX_ITEMS := 8
+## Niveles de colecciones que se abren: más adentro solo el tipo y el tamaño. Sin esto un array que
+## se contiene a sí mismo desborda la pila dentro del bucle del debugger, y datos anidados tardan
+## segundos (más que lo que espera el editor) aunque el texto se corte después.
+const MAX_DEPTH := 2
 
 
 ## `params`: {frame: int (0 = donde paró), variables: bool}. Devuelve {text} o {error}.
@@ -62,8 +66,8 @@ static func _section(trace: ScriptBacktrace, level: int, members: bool) -> Packe
 
 
 ## Un valor en una línea, acotado: los nodos con su ruta, las colecciones con su tamaño y los
-## primeros elementos.
-static func describe(value: Variant) -> String:
+## primeros elementos (hasta MAX_DEPTH niveles adentro).
+static func describe(value: Variant, depth: int = 0) -> String:
 	var text := ""
 	if typeof(value) == TYPE_OBJECT:
 		if not is_instance_valid(value):
@@ -75,20 +79,22 @@ static func describe(value: Variant) -> String:
 			text = "%s %s" % [object.get_class(), (object as Resource).resource_path]
 		else:
 			text = "%s#%d" % [object.get_class(), object.get_instance_id()]
+	elif (value is Array or value is Dictionary) and depth >= MAX_DEPTH:
+		text = "%s(%d)" % [type_string(typeof(value)), value.size()]
 	elif value is Array:
 		var items: PackedStringArray = []
 		for item: Variant in (value as Array).slice(0, MAX_ITEMS):
-			items.append(describe(item))
+			items.append(describe(item, depth + 1))
 		text = "Array(%d) [%s%s]" % [(value as Array).size(), ", ".join(items), ", …" if (value as Array).size() > MAX_ITEMS else ""]
 	elif value is Dictionary:
 		var pairs: PackedStringArray = []
 		for key: Variant in (value as Dictionary).keys().slice(0, MAX_ITEMS):
-			pairs.append("%s: %s" % [describe(key), describe(value[key])])
+			pairs.append("%s: %s" % [describe(key, depth + 1), describe(value[key], depth + 1)])
 		text = "Dictionary(%d) {%s%s}" % [(value as Dictionary).size(), ", ".join(pairs), ", …" if (value as Dictionary).size() > MAX_ITEMS else ""]
 	elif typeof(value) >= TYPE_PACKED_BYTE_ARRAY and typeof(value) <= TYPE_PACKED_VECTOR4_ARRAY:
 		var head: PackedStringArray = []
 		for item: Variant in value.slice(0, MAX_ITEMS):
-			head.append(describe(item))
+			head.append(describe(item, depth + 1))
 		text = "%s(%d) [%s%s]" % [type_string(typeof(value)), value.size(), ", ".join(head), ", …" if value.size() > MAX_ITEMS else ""]
 	elif value is String or value is StringName:
 		text = "\"%s\"" % str(value).c_escape()
