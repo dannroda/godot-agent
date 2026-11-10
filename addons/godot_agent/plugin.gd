@@ -138,6 +138,8 @@ var _model: SessionModel
 var _controller: SessionController
 ## Breakpoints, pila y pasos del debugger (m11-56).
 var _debug_tools: DebugTools
+## godot.project_map: su worker se espera en _exit_tree.
+var _map_tools: MapTools
 var _project_config: ProjectConfig
 var _sync: EditorSync
 var _remote_activity: RemoteActivity
@@ -459,6 +461,10 @@ func _exit_tree() -> void:
 		_extensions_window = null
 	_main_screen = null
 	_fs = null
+	# El índice del mapa se arma en un worker: cortarlo y esperarlo antes de que se descargue el addon.
+	if _map_tools:
+		_map_tools.wait()
+		_map_tools = null
 	_registry = null
 	_diagnostics = null
 	if _profile_tools:
@@ -814,9 +820,9 @@ func _start_mcp_server() -> void:
 	registry.error_mark = _errors.mark
 	registry.errors_since = _errors.entries_since
 	registry.register_provider(ReadTools.new())
-	var map_tools := MapTools.new()
-	map_tools.editor_focus = _editor_focus
-	registry.register_provider(map_tools)
+	_map_tools = MapTools.new()
+	_map_tools.editor_focus = _editor_focus
+	registry.register_provider(_map_tools)
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
 	registry.register_provider(api_tools, true)
@@ -1282,8 +1288,10 @@ func _editor_focus() -> PackedStringArray:
 	if scene and not scene.scene_file_path.is_empty():
 		focus.append(scene.scene_file_path)
 	var script := EditorInterface.get_script_editor().get_current_script()
-	if script and script.resource_path.begins_with("res://") and not script.resource_path in focus:
-		focus.append(script.resource_path)
+	# Un script integrado («res://x.tscn::GDScript_ab») no es un archivo: su escena sí.
+	var script_path := script.resource_path.get_slice("::", 0) if script else ""
+	if script_path.begins_with("res://") and not script_path in focus:
+		focus.append(script_path)
 	return focus
 
 

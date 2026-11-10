@@ -30,6 +30,10 @@ const DECLS_SHOWN := 24
 const RELATED_DECLS_SHOWN := 8
 const PLACES_SHOWN := 3
 const SHOWN_EXT: PackedStringArray = ["gd", "tscn", "tres", "cs"]
+## Los plugins (este addon incluido) no son el juego: quedan afuera salvo que el foco esté ahí.
+const ADDONS := "res://addons/"
+## Parte del presupuesto que puede ocupar la línea de autoloads.
+const AUTOLOADS_SHARE := 0.25
 
 var index: ProjectIndex
 ## Raíz del índice ("res://", u otra carpeta en los tests y la medición: ver _res_view).
@@ -42,6 +46,8 @@ var class_paths: Dictionary = {}
 var edges: Dictionary = {}
 ## "escena>script" de los scripts de sus nodos.
 var attached: Dictionary = {}
+## Con foco en res://addons/: los archivos de los plugins entran al ranking.
+var include_addons: bool = false
 var _known: Dictionary = {}
 
 
@@ -97,6 +103,7 @@ static func _to_res(path: String, index_root: String) -> String:
 func _build() -> void:
 	for path: String in index.resources:
 		_known[path] = true
+	_resolve_uid_autoloads()
 	for path: String in index.scripts:
 		var name: String = index.scripts[path].class_name
 		if not name.is_empty():
@@ -156,6 +163,37 @@ func _build() -> void:
 				_edge(user, member, 0.3)
 
 
+## Los autoloads guardados como «uid://…» (Godot 4.4+) que no llegaron resueltos: el .uid al lado del
+## script, o el uid del encabezado de la escena.
+func _resolve_uid_autoloads() -> void:
+	var pending := {}
+	for name: String in autoloads:
+		if str(autoloads[name]).begins_with("uid://"):
+			pending[str(autoloads[name])] = name
+	if pending.is_empty():
+		return
+	for path: String in index.scripts:
+		var uid := FileAccess.get_file_as_string(_disk_path(path) + ".uid").strip_edges()
+		if pending.has(uid):
+			autoloads[pending[uid]] = path
+	for path: String in index.scenes:
+		var file := FileAccess.open(_disk_path(path), FileAccess.READ)
+		if file == null:
+			continue
+		var found := RegEx.create_from_string("uid=\"(uid://[^\"]+)\"").search(file.get_line())
+		if found and pending.has(found.get_string(1)):
+			autoloads[pending[found.get_string(1)]] = path
+
+
+## La ruta en disco de una clave res:// del índice (otra raíz en los tests).
+func _disk_path(path: String) -> String:
+	return path if root == "res://" else root.path_join(path.trim_prefix("res://"))
+
+
+func _shown(path: String) -> bool:
+	return path.get_extension() in SHOWN_EXT and (include_addons or not path.begins_with(ADDONS))
+
+
 func _edge(from: String, to: String, weight: float) -> void:
 	if from == to or to.is_empty() or not _known.has(to):
 		return
@@ -206,21 +244,30 @@ func resolve_focus(items: PackedStringArray) -> Dictionary:
 func rank(focus: PackedStringArray) -> Dictionary:
 	var nodes := {}
 	for path: String in _known:
-		if path.get_extension() in SHOWN_EXT:
+		if _shown(path):
 			nodes[path] = true
+	var hidden := func(path: String) -> bool: return not include_addons and path.begins_with(ADDONS)
 	for from: String in edges:
+		if hidden.call(from):
+			continue
 		nodes[from] = true
 		for to: String in edges[from]:
-			nodes[to] = true
+			if not hidden.call(to):
+				nodes[to] = true
 	# Lo que usa medio proyecto (el estado global, el jugador) recibe menos por cada uso: si no, tapa
 	# a los vecinos del foco. Una escena y los scripts de sus nodos van juntos en los dos sentidos.
 	var users := {}
 	for from: String in edges:
 		for to: String in edges[from]:
-			users[to] = int(users.get(to, 0)) + 1
+			if nodes.has(from) and nodes.has(to):
+				users[to] = int(users.get(to, 0)) + 1
 	var out := {}
 	for from: String in edges:
+		if not nodes.has(from):
+			continue
 		for to: String in edges[from]:
+			if not nodes.has(to):
+				continue
 			var weight: float = float(edges[from][to]) / sqrt(float(users[to]))
 			var back := weight if attached.has(from + ">" + to) else weight * REVERSE_WEIGHT
 			(out.get_or_add(from, {}) as Dictionary)[to] = float((out.get(from, {}) as Dictionary).get(to, 0.0)) + weight
@@ -266,7 +313,11 @@ func rank(focus: PackedStringArray) -> Dictionary:
 func render(focus: PackedStringArray, max_tokens: int, focus_label: String) -> String:
 	var budget := clampi(max_tokens, MIN_TOKENS, MAX_TOKENS) * CHARS_PER_TOKEN
 	var scores := rank(focus)
-	var ranked: Array = scores.keys().filter(func(path: String) -> bool: return path.get_extension() in SHOWN_EXT)
+	var ranked: Array = scores.keys().filter(_shown)
+	# Un foco que no es un archivo del mapa (un .png, algo sin relaciones mostrables): el ranking es el
+	# de todo el proyecto, y el encabezado lo dice.
+	if not focus.is_empty() and not Array(focus).any(func(path: String) -> bool: return scores.has(path)):
+		focus_label = "the whole project (%s is not linked to the files in the map)" % focus_label
 	# A igual puntaje, el foco primero y después por ruta: así el resultado es estable.
 	ranked.sort_custom(func(a: String, b: String) -> bool:
 		if not is_equal_approx(float(scores[a]), float(scores[b])):
@@ -276,11 +327,32 @@ func render(focus: PackedStringArray, max_tokens: int, focus_label: String) -> S
 		if focus[i] in ranked:
 			ranked.erase(focus[i])
 			ranked.push_front(focus[i])
-	var lines: PackedStringArray = ["Project map: %d scripts, %d scenes, %d resources. Ranked toward %s." % [index.scripts.size(), index.scenes.size(), index.resource_deps.size(), focus_label]]
+	# Lo que cuenta el encabezado es lo del juego; los plugins que quedan afuera se cuentan aparte.
+	var counts: Array[int] = []
+	var left_out := 0
+	for group: Dictionary in [index.scripts, index.scenes, index.resource_deps]:
+		var count := 0
+		for path: String in group:
+			if include_addons or not path.begins_with(ADDONS):
+				count += 1
+			else:
+				left_out += 1
+		counts.append(count)
+	var header := "Project map: %d scripts, %d scenes, %d resources. Ranked toward %s." % [counts[0], counts[1], counts[2], focus_label]
+	if left_out > 0:
+		header += " %d files in %s (plugins) are left out: put one of them in focus to include them." % [left_out, ADDONS]
+	var lines: PackedStringArray = [header.left(budget / 2)]
 	if not autoloads.is_empty():
 		var names: PackedStringArray = []
+		var room := int(budget * AUTOLOADS_SHARE)
+		var names_used := 0
 		for name: String in autoloads:
-			names.append("%s (%s)" % [name, autoloads[name]])
+			var entry := "%s (%s)" % [name, autoloads[name]]
+			if names_used + entry.length() + 2 > room:
+				names.append("+%d more" % (autoloads.size() - names.size()))
+				break
+			names.append(entry)
+			names_used += entry.length() + 2
 		lines.append("Autoloads: " + ", ".join(names))
 	lines.append("")
 	var used := "\n".join(lines).length()

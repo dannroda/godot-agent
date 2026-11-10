@@ -46,8 +46,9 @@ var ngram: NGramModel = NGramModel.new()
 ## Scripts de las carpetas de corpus extra (fuera del proyecto): ruta -> {mtime, tokens}. Solo
 ## entrenan el n-gram.
 var extra: Dictionary = {}
-## Solo estructura (m11-26, para godot.project_map): sin índice de líneas ni n-gram, y cada script
-## trae además `refs` (rutas literales de preload/load), `idents` (identificadores con mayúscula) y
+## Solo estructura (m11-26, para godot.project_map): sin índice de líneas, tokens ni n-gram, y cada
+## script trae además `refs` (rutas literales de preload/load), `idents` (identificadores con
+## mayúscula y los que van antes de un punto, para autoloads en minúscula) y
 ## `decls` ([línea, texto] de class_name, signal, func pública, @export var y enum).
 var structure_only: bool = false
 ## Solo con structure_only: .tres de texto -> {mtime, deps}.
@@ -206,6 +207,7 @@ func _compile() -> void:
 		"string": "\"([^\"]*)\"",
 		"ref": "(?:preload|load|change_scene_to_file|load_threaded_request)\\(\\s*[\"']([^\"']+)[\"']",
 		"ident": "\\b([A-Z][A-Za-z0-9_]*)\\b",
+		"dotted": "(?<![\\w.])([a-z_][A-Za-z0-9_]*)\\s*\\.(?=\\s*[A-Za-z_])",
 	}
 	for key: String in patterns:
 		var re := RegEx.new()
@@ -260,8 +262,11 @@ func _parse_script(text: String, mtime: int, skip_line: int, corpus: bool) -> Di
 				if not found.get_string(2).is_empty() and str(info.extends).is_empty():
 					info.extends = found.get_string(2).trim_prefix("\"").trim_suffix("\"")
 	if corpus:
-		info.lines = LineIndex.lines_of(text, skip_line)
-		info.tokens = GdLexer.tokenize(text, skip_line)
+		# El mapa (structure_only) no usa el índice de líneas ni los tokens del n-gram: son lo más caro
+		# del build (fix-a #7); los grupos y las conexiones sí.
+		if not structure_only:
+			info.lines = LineIndex.lines_of(text, skip_line)
+			info.tokens = GdLexer.tokenize(text, skip_line)
 		for found: RegExMatch in (_re.group as RegEx).search_all(text):
 			groups_found.append(found.get_string(1))
 		for found: RegExMatch in (_re.connect as RegEx).search_all(text):
@@ -278,6 +283,9 @@ func _parse_script(text: String, mtime: int, skip_line: int, corpus: bool) -> Di
 		info.refs = refs
 		var idents := {}
 		for found: RegExMatch in (_re.ident as RegEx).search_all(text):
+			idents[found.get_string(1)] = true
+		# Autoloads con nombre en minúscula (`game_state.add()`): el identificador antes de un punto.
+		for found: RegExMatch in (_re.dotted as RegEx).search_all(text):
 			idents[found.get_string(1)] = true
 		info.idents = PackedStringArray(idents.keys())
 	return info
