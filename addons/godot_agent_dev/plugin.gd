@@ -1135,10 +1135,16 @@ func _check_harness_prompts(dock: Control, model: Object, controller: Object, sh
 	await get_tree().create_timer(0.3).timeout
 	if not shot_path.is_empty():
 		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_harness.png")
-	var header: Control = first.get(&"_header")
-	if header.size.y > toggle.size.y + 4 or first.size.y > toggle.size.y * 2.5:
-		_finish(1, "harness: plegado no ocupa una línea (encabezado %.0f px, entrada %.0f px, botón %.0f px)" % [header.size.y, first.size.y, toggle.size.y])
-		return false
+	# La etiqueta entera en hasta dos líneas, sin «…», en los dos prompts y con el ancho del dock.
+	for view: Control in views:
+		var label: Label = view.get(&"_caption")
+		if label.get_line_count() > label.max_lines_visible or label.get_line_count() < 1:
+			_finish(1, "harness: «%s» no entra en %d líneas (%d, %.0f px de ancho)" % [label.text, label.max_lines_visible, label.get_line_count(), label.size.x])
+			return false
+		var button: Button = view.get(&"_toggle")
+		if not button.is_visible_in_tree() or button.get_global_rect().end.x > conversation.get_global_rect().end.x + 1:
+			_finish(1, "harness: «%s» no se ve entero" % button.text)
+			return false
 	toggle.pressed.emit()
 	await get_tree().create_timer(0.3).timeout
 	if not prompt.is_visible_in_tree() or prompt.text != check or toggle.text != I18n.t("Hide prompt"):
