@@ -82,10 +82,12 @@ func authorize(group: String, title: String, description: String, diff: Dictiona
 		_notify_denied(group, title)
 		return false
 	var request := PermissionRequest.new()
-	request.title = title
-	request.description = description
+	# La tarjeta es solo para mirar (la respuesta es sí o no): sin los secretos del harness (m13-25).
+	# Lo que se autoriza (el archivo, el comando) sigue siendo el original de quien llamó.
+	request.title = agent_log.redact(title) if agent_log else title
+	request.description = agent_log.redact(description) if agent_log else description
 	request.group = group
-	request.diff = diff
+	request.diff = agent_log.redact_data(diff) if agent_log else diff
 	request.options = PermissionRequest.default_options()
 	var outcome := await _ask_user(request, timeout_s)
 	return outcome.get("outcome") == "selected" and request.was_allowed()
@@ -95,8 +97,11 @@ func on_request_permission(params: Dictionary) -> Variant:
 	var acp_id: Variant = client.handling_id
 	var tool_call: Dictionary = params.get("toolCall", {}) if params.get("toolCall") is Dictionary else {}
 	var options: Array = params.get("options", []) if params.get("options") is Array else []
+	# Lo que se muestra (el tool call del modelo, el título, la descripción, el diff) sin los secretos
+	# del harness (m13-25); los chequeos de abajo y la respuesta al agente usan el original.
+	var shown: Dictionary = agent_log.redact_data(tool_call) if agent_log else tool_call
 	if tool_call.get("toolCallId") is String:
-		var update := tool_call.duplicate()
+		var update: Dictionary = shown.duplicate()
 		update["sessionUpdate"] = "tool_call_update"
 		var session_id := str(params.get("sessionId", ""))
 		if session_id == model.session_id or not model.apply_child_update(session_id, update):
@@ -108,12 +113,12 @@ func on_request_permission(params: Dictionary) -> Variant:
 	var call := model.tool_call(request.tool_call_id)
 	if call and call.tool_name in ToolCall.SUBAGENT_TOOLS:
 		request.group = PermissionPolicy.GROUP_SUBAGENTS
-	request.title = call.display_name() if call else str(tool_call.get("title", I18n.t("Agent tool")))
+	request.title = call.display_name() if call else str(shown.get("title", I18n.t("Agent tool")))
 	var subagent: ToolCall = model.tool_call(call.parent_id) if call and not call.parent_id.is_empty() else null
 	if subagent:
 		request.title = I18n.t("%s · subagent «%s»") % [request.title, subagent.display_name()]
-	request.description = _describe_tool_call(tool_call, call)
-	request.diff = _first_diff(tool_call, call)
+	request.description = _describe_tool_call(shown, call)
+	request.diff = _first_diff(shown, call)
 
 	# Escribir el proyecto por fuera del editor (shell, escenas a mano) se rechaza en todo modo (D48).
 	var checked := tool_call.duplicate()

@@ -165,9 +165,15 @@ func receive_line(line: String) -> void:
 		_log_line(AgentLog.CH_ACP, "← line ignored (not JSON-RPC): %s" % text.left(200), text)
 		invalid_line.emit(text, "not a JSON object")
 		return
-	# Con los secretos del harness redactados (m13-25): lo que el agente devuelve o repite (un error
-	# que cita los mcpServers, la salida de un comando) llega al modelo, al historial y a la UI sin ellos.
-	var message: Dictionary = _log.redact_data(json.data) if _log else json.data
+	# Notificaciones y respuestas entran con los secretos del harness redactados (m13-25): lo que el
+	# agente cuenta o repite (un error que cita los mcpServers, la salida de un comando) llega al
+	# modelo, al historial y a la UI sin ellos. Los requests del agente al cliente, nunca: lo que pide
+	# hacer se ejecuta tal cual (escribir un .env con la key del usuario, correr un comando con ella) y
+	# cambiárselo lo rompería sin avisar; si algo de un request se muestra (la tarjeta de permiso), se
+	# redacta la copia que se muestra, no el valor que se ejecuta (PermissionBroker).
+	var message: Dictionary = json.data
+	if _log and not is_incoming_request(message):
+		message = _log.redact_data(message)
 	var has_method := message.get("method") is String
 	var id: Variant = _normalize_id(message.get("id"))
 
@@ -276,6 +282,12 @@ static func _normalize_id(id: Variant) -> Variant:
 	if id is int or id is String:
 		return id
 	return null
+
+
+## true si el mensaje es un request del agente al cliente (fs/*, terminal/*, session/request_permission,
+## elicitation/create…): sus params no se redactan ni se tocan.
+static func is_incoming_request(message: Dictionary) -> bool:
+	return message.get("id") != null and message.get("method") is String
 
 
 static func _params(message: Dictionary) -> Dictionary:

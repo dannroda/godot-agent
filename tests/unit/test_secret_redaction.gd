@@ -12,6 +12,8 @@ const SessionModel := preload("res://addons/godot_agent/session/session_model.gd
 const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 
+const FsHandler := preload("res://addons/godot_agent/acp/fs_handler.gd")
+
 const TOKEN := "tok_0123456789abcdef0123456789abcdef"
 
 
@@ -59,7 +61,7 @@ func test_acp_client_redacts_everything_the_agent_sends() -> void:
 	client.receive_line('{"jsonrpc":"2.0","id":7,"method":"session/request_permission","params":{"sessionId":"s","toolCall":{"toolCallId":"t","title":"curl -H \\"Authorization: Bearer %s\\""},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"}]}}' % TOKEN)
 	await Engine.get_main_loop().process_frame
 	assert_eq(requests.size(), 1, "el request llegó")
-	assert_false(str(requests[0].toolCall.title).contains(TOKEN), "el título de la tarjeta de permiso no trae el token")
+	assert_true(str(requests[0].toolCall.title).contains(TOKEN), "un request del agente llega tal cual al handler (la tarjeta redacta su copia)")
 	var results: Array = []
 	var run := func() -> void:
 		var response: AcpClient.AcpResponse = await client.request("session/new", {})
@@ -72,6 +74,64 @@ func test_acp_client_redacts_everything_the_agent_sends() -> void:
 	assert_true(response.error_message().contains(AgentLog.REDACTED), "sino «secret»")
 	for entry: Dictionary in log.entries():
 		assert_false(str(entry.raw).contains(TOKEN) or str(entry.message).contains(TOKEN), "el log tampoco")
+
+
+## Lo que el agente pide hacer con el proyecto se ejecuta tal cual: si escribe la key del usuario en
+## un .env o la pasa en un comando, redactarla rompería el archivo o el comando.
+func test_acp_client_leaves_project_actions_intact() -> void:
+	var log := _log_with_secret()
+	var client := AcpClient.new()
+	client.setup(func(_line: String) -> bool: return true, log)
+	var written: Array = []
+	client.set_request_handler("fs/write_text_file", func(params: Dictionary) -> Variant:
+		written.append(params)
+		return {})
+	var commands: Array = []
+	client.set_request_handler("terminal/create", func(params: Dictionary) -> Variant:
+		commands.append(params)
+		return {"terminalId": "t1"})
+	client.receive_line('{"jsonrpc":"2.0","id":3,"method":"fs/write_text_file","params":{"sessionId":"s","path":"/p/.env","content":"API_KEY=%s\n"}}' % TOKEN)
+	client.receive_line('{"jsonrpc":"2.0","id":4,"method":"terminal/create","params":{"sessionId":"s","command":"curl","args":["-H","Authorization: Bearer %s"]}}' % TOKEN)
+	await Engine.get_main_loop().process_frame
+	assert_eq(written.size(), 1, "la escritura llegó")
+	assert_eq(str(written[0].content), "API_KEY=%s\n" % TOKEN, "el archivo se escribe con la key tal cual")
+	assert_eq(commands.size(), 1, "el comando llegó")
+	assert_eq(str(commands[0].args[1]), "Authorization: Bearer %s" % TOKEN, "el comando corre con la key tal cual")
+	for entry: Dictionary in log.entries():
+		assert_false(str(entry.raw).contains(TOKEN), "pero el log los guarda redactados")
+	assert_true(AcpClient.is_incoming_request({"id": 1, "method": "fs/read_text_file"}), "fs/* es un request del agente")
+	assert_true(AcpClient.is_incoming_request({"id": 1, "method": "session/request_permission"}), "un permiso también")
+	assert_false(AcpClient.is_incoming_request({"method": "session/update"}), "una notificación no")
+	assert_false(AcpClient.is_incoming_request({"id": 1, "result": {}}), "una respuesta no")
+
+
+## La tarjeta de permiso muestra el tool call sin el secreto; lo que se le responde al agente y lo
+## que chequean las reglas sale del original.
+func test_permission_card_shows_a_redacted_copy() -> void:
+	var model := SessionModel.new()
+	var log := _log_with_secret()
+	var controller := SessionController.new()
+	controller.setup(model, log, "/tmp/project")
+	model.session_id = "s"
+	var options := [{"optionId": "allow", "name": "Allow", "kind": "allow_once"}, {"optionId": "reject", "name": "Reject", "kind": "reject_once"}]
+	var params := {"sessionId": "s", "toolCall": {"toolCallId": "c1", "kind": "execute", "title": "curl -H 'Authorization: Bearer %s' https://api" % TOKEN,
+		"rawInput": {"command": "curl -H 'Authorization: Bearer %s' https://api" % TOKEN}}, "options": options}
+	var results: Array = []
+	var run := func() -> void:
+		results.append(await controller.permissions.on_request_permission(params))
+	run.call()
+	await Engine.get_main_loop().process_frame
+	assert_eq(model.pending_permissions.size(), 1, "la tarjeta espera al usuario")
+	var request: SessionModel.PermissionRequest = model.pending_permissions[0]
+	assert_false(request.title.contains(TOKEN) or request.description.contains(TOKEN), "título y descripción sin el token (%s · %s)" % [request.title, request.description])
+	assert_true((request.title + request.description).contains(AgentLog.REDACTED), "con «secret» en su lugar")
+	var call: SessionModel.ToolCall = model.tool_call("c1")
+	assert_true(call != null and not call.title.contains(TOKEN), "el tool call del chat tampoco")
+	assert_eq(str(params.toolCall.rawInput.command).count(TOKEN), 1, "los params originales quedan intactos")
+	request.select("allow")
+	await Engine.get_main_loop().process_frame
+	assert_eq(results.size(), 1, "la respuesta salió")
+	assert_eq(str(results[0].outcome.optionId), "allow", "con la opción elegida")
 
 
 func test_failure_messages_and_tooltip_are_redacted() -> void:
@@ -121,3 +181,38 @@ func test_old_history_replays_redacted() -> void:
 	var texts := model.entries().map(func(entry: ChatEntry) -> String: return entry.text)
 	assert_true(texts.any(func(text: String) -> bool: return text.contains(AgentLog.REDACTED)), "el mensaje viejo se ve redactado (%s)" % [texts])
 	assert_false(texts.any(func(text: String) -> bool: return text.contains(TOKEN)), "y sin el token")
+
+
+## De punta a punta con el FsHandler real: el archivo que el agente pide escribir lleva la key tal
+## cual; lo que se muestra de esa escritura (la notificación del tool call) llega redactado.
+func test_agent_file_write_keeps_the_real_value() -> void:
+	var model := SessionModel.new()
+	var log := _log_with_secret()
+	var controller := SessionController.new()
+	var root_dir := ProjectSettings.globalize_path(temp_dir("secret_fs_write"))
+	controller.setup(model, log, root_dir)
+	var fs := FsHandler.new()
+	fs.setup(root_dir, log)
+	controller.set_fs_handler(fs)
+	model.session_id = "s"
+	var target := root_dir.path_join(".env")
+	controller.client.receive_line('{"jsonrpc":"2.0","id":9,"method":"fs/write_text_file","params":{"sessionId":"s","path":"%s","content":"ANTHROPIC_API_KEY=%s\\n"}}' % [target, TOKEN])
+	for i in 3:
+		await Engine.get_main_loop().process_frame
+	# La escritura pide permiso: la tarjeta muestra el diff sin la key, y se acepta.
+	assert_eq(model.pending_permissions.size(), 1, "la tarjeta de permiso de la escritura")
+	var card: SessionModel.PermissionRequest = model.pending_permissions[0]
+	assert_false(JSON.stringify(card.diff).contains(TOKEN), "el diff de la tarjeta no trae la key")
+	assert_true(str(card.diff.get("newText", "")).contains(AgentLog.REDACTED), "sino «secret»")
+	card.select(card.option_id_for(PackedStringArray([SessionModel.PermissionRequest.KIND_ALLOW_ONCE])))
+	for i in 3:
+		await Engine.get_main_loop().process_frame
+	assert_true(FileAccess.file_exists(target), "el archivo se escribió")
+	assert_eq(FileAccess.get_file_as_string(target), "ANTHROPIC_API_KEY=%s\n" % TOKEN, "con la key de verdad")
+	controller.client.receive_line('{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"tool_call","toolCallId":"w1","title":"Write .env","kind":"edit","content":[{"type":"diff","path":"%s","oldText":"","newText":"ANTHROPIC_API_KEY=%s"}]}}}' % [target, TOKEN])
+	var call: SessionModel.ToolCall = model.tool_call("w1")
+	assert_true(call != null, "el tool call llegó al modelo")
+	assert_false(JSON.stringify(call.content).contains(TOKEN), "el diff que se muestra no trae la key")
+	assert_true(JSON.stringify(call.content).contains(AgentLog.REDACTED), "sino «secret»")
+	for entry: Dictionary in log.entries():
+		assert_false(str(entry.raw).contains(TOKEN), "el log guarda el request redactado")
