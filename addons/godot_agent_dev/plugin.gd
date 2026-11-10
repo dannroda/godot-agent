@@ -917,6 +917,8 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_state.png")
 	if not await _check_header_tooltip(dock, chip, shot_path):
 		return
+	if scenario == "ui_markdown" and not await _check_machine_chips(dock, shot_path):
+		return
 	if scenario == "ui_long_permission" and not await _check_long_permission(dock, model, shot_path):
 		return
 	if scenario == "ui_quota_busy" and not await _check_ring_tooltip(dock, shot_path):
@@ -1029,6 +1031,59 @@ func _check_header_tooltip(dock: Control, chip: Button, shot_path: String) -> bo
 		chip.get_viewport().push_input(away)
 		await get_tree().create_timer(0.5).timeout
 	return true
+
+
+## m12-47: con un juego en marcha, un chip junto al estado dice qué hace (sin pasar el mouse); sin
+## juego no hay chip. Corre un run manual (el debugger lo ve igual que run_scene) y lo para.
+func _check_machine_chips(dock: Control, shot_path: String) -> bool:
+	var chips: Control = dock.get(&"_machine_chips")
+	var deadline := Time.get_ticks_msec() + 5000
+	while chips.is_visible_in_tree() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame  # el run_scene del guion ya terminó: el chip se va solo
+	if chips.is_visible_in_tree():
+		_finish(1, "sin juego en marcha sigue habiendo un chip: «%s»" % (chips.get_child(0) as Label).text)
+		return false
+	EditorInterface.play_custom_scene("res://tests/fixtures/run_fixture.tscn")
+	deadline = Time.get_ticks_msec() + 15000
+	while not chips.is_visible_in_tree() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if not chips.is_visible_in_tree() or chips.get_child_count() != 1:
+		EditorInterface.stop_playing_scene()
+		_finish(1, "con el juego corriendo no apareció el chip del juego (%d chips)" % chips.get_child_count())
+		return false
+	var label := chips.get_child(0) as Label
+	if not label.text.begins_with(I18n.t("Game") + " · ") or not label.text.contains(" s") or label.tooltip_text != dock.call(&"header_tooltip"):
+		EditorInterface.stop_playing_scene()
+		_finish(1, "el chip del juego no dice el estado con su antigüedad o no lleva el tooltip del encabezado: «%s»" % label.text)
+		return false
+	for failure: String in LayoutCheck.dock_fits(dock):
+		EditorInterface.stop_playing_scene()
+		_finish(1, "con el chip del juego: " + failure)
+		return false
+	if not shot_path.is_empty():
+		await get_tree().create_timer(0.5).timeout
+		_save_dock_shot(dock, shot_path.get_basename() + "_game_chip.png")
+		await LayoutCheck.set_dock_width(dock, 300)
+		await get_tree().create_timer(0.5).timeout
+		for failure: String in LayoutCheck.dock_fits(dock):
+			EditorInterface.stop_playing_scene()
+			_finish(1, "con el chip del juego y el dock angosto: " + failure)
+			return false
+		_save_dock_shot(dock, shot_path.get_basename() + "_game_chip_narrow.png")
+		await LayoutCheck.set_dock_width(dock, 480)
+	EditorInterface.stop_playing_scene()
+	deadline = Time.get_ticks_msec() + 10000
+	while chips.is_visible_in_tree() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if chips.is_visible_in_tree():
+		_finish(1, "el chip del juego quedó después de pararlo: «%s»" % label.text)
+		return false
+	return true
+
+
+func _save_dock_shot(dock: Control, path: String) -> void:
+	var image := get_viewport().get_texture().get_image()
+	image.get_region(Rect2i((dock.get_parent() as Control).get_global_rect())).save_png(path)
 
 
 ## m17-14: el tooltip del anillo de cuota sigue abierto con el mouse encima, aunque el dock lo
