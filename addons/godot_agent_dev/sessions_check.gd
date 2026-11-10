@@ -8,6 +8,7 @@ extends RefCounted
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const SOURCE := "res://tests/tmp/sessions_source.txt"
@@ -66,13 +67,14 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	if first.isError:
 		failures.append("la primera sesión no pudo copiar: %s" % first.content[0].text)
 	var blocked: Dictionary = await registry.call(&"call_tool", "delete_file", {"path": TARGET}, second)
-	if not blocked.isError or not str(blocked.content[0].text).contains("being edited by «Session 1»"):
+	var first_name := I18n.t("Session %d") % 1
+	if not blocked.isError or not str(blocked.content[0].text).contains("being edited by «%s»" % first_name):
 		failures.append("la segunda tocó un archivo de la primera: %s" % blocked.content[0].text)
 	var listing: Dictionary = await registry.call(&"call_tool", "sessions", {}, second)
 	var text := str(listing.content[0].text)
-	if not text.contains("«Session 1»") or not text.contains(TARGET):
+	if not text.contains("«%s»" % first_name) or not text.contains(TARGET):
 		failures.append("godot.sessions no muestra lo que edita la otra: %s" % text)
-	var message: Dictionary = await registry.call(&"call_tool", "session_send", {"to": "Session 1", "message": "hi"}, second)
+	var message: Dictionary = await registry.call(&"call_tool", "session_send", {"to": first_name, "message": "hi"}, second)
 	if not message.isError or not str(message.content[0].text).contains("not connected"):
 		failures.append("un mensaje a una sesión sin agente no avisa: %s" % message.content[0].text)
 	(main_plugin.get(&"_model") as SessionModel).turn_finished.emit("end_turn")
@@ -85,7 +87,8 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	tabs.call(&"start_rename", second)
 	var popup: PopupPanel = tabs.get(&"_rename_popup")
 	var edit: LineEdit = tabs.get(&"_rename_edit")
-	if not popup.visible or edit.text != "Session 2":
+	var second_name := I18n.t("Session %d") % 2
+	if not popup.visible or edit.text != second_name:
 		failures.append("renombrar no abrió el campo con el nombre actual")
 	await _save_shot(tree, tabs, "%s_rename.png" % prefix)
 	edit.text_submitted.emit("  Level design ")
@@ -95,12 +98,12 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	var renamed: Dictionary = await registry.call(&"call_tool", "sessions", {}, "")
 	if not str(renamed.content[0].text).contains("«Level design»"):
 		failures.append("godot.sessions no usa el nombre nuevo: %s" % renamed.content[0].text)
-	tabs.rename_requested.emit(second, "session 1")
+	tabs.rename_requested.emit(second, (I18n.t("Session %d") % 1).to_lower())
 	if coordinator.call(&"label", second) != "Level design":
 		failures.append("se aceptó un nombre repetido")
 	tabs.rename_requested.emit(second, "")
-	if bar.get_tab_title(1) != "Session 2":
-		failures.append("un nombre vacío no volvió a «Session 2»: %s" % bar.get_tab_title(1))
+	if bar.get_tab_title(1) != second_name:
+		failures.append("un nombre vacío no volvió a «%s»: %s" % [second_name, bar.get_tab_title(1)])
 
 	# m11-03: un permiso en la sesión que no está a la vista marca su pestaña hasta que se responde.
 	bar.current_tab = 0
@@ -153,7 +156,7 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	var texts: PackedStringArray = []
 	for i in menu.item_count:
 		texts.append(menu.get_item_text(i))
-	if not texts.has("Claude Code account") or not texts.has("Other folder…"):
+	if not texts.has(I18n.t("%s account") % "Claude Code") or not texts.has(I18n.t("Other folder…")):
 		failures.append("el menú del agente no ofrece cuentas: %s" % [texts])
 	await _save_shot(tree, tabs, "%s_accounts.png" % prefix)
 	await tree.process_frame
@@ -177,7 +180,7 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	texts = []
 	for i in menu.item_count:
 		texts.append(menu.get_item_text(i))
-	if not texts.has("Google Antigravity account"):
+	if not texts.has(I18n.t("%s account") % "Google Antigravity"):
 		failures.append("el menú no ofrece cuentas de Antigravity: %s" % [texts])
 	await tree.process_frame
 	if menu.visible and menu.get_texture():
@@ -261,7 +264,7 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	var copy_session: Dictionary = (main_plugin.get(&"_extra_sessions") as Dictionary).get(copy_id, {})
 	var copy: Object = copy_session.get("copy")
 	var copy_dir: String = copy.get(&"info").dir if copy else ""
-	if copy == null or not DirAccess.dir_exists_absolute(copy_dir) or not str(coordinator.call(&"label", copy_id)).ends_with("(copy)"):
+	if copy == null or not DirAccess.dir_exists_absolute(copy_dir) or not str(coordinator.call(&"label", copy_id)).ends_with(I18n.t("Session %d (copy)").get_slice("%d", 1)):
 		failures.append("la copia no quedó armada: %s" % copy_dir)
 	if (copy_session.controller as Object).get(&"cwd") == ProjectSettings.globalize_path("res://").trim_suffix("/"):
 		failures.append("la sesión en una copia trabaja en el proyecto")

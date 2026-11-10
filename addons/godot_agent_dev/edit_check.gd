@@ -8,6 +8,7 @@ extends "mcp_check.gd"
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const EDIT_SCENE := "res://tests/tmp/edit_fixture.tscn"
@@ -418,7 +419,9 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var stale_call: Object = _model.call(&"tool_call", "edit-check-2")
 	_expect(root.has_node("Stale") and not stale_call.get(&"undo_done"), "↶ undo no deshace si hubo cambios posteriores")
 	var last_entry: Object = (_model.call(&"entries") as Array).back()
-	_expect(str(last_entry.get(&"text")).contains("changed afterwards"), "avisa por qué no deshizo")
+	var afterwards := I18n.t("The editor changed afterwards: undo with Ctrl+Z.")
+	var scene_afterwards := I18n.t("%s changed afterwards: undo with Ctrl+Z in the editor.").get_slice("%s", 1)
+	_expect(str(last_entry.get(&"text")).contains(afterwards) or str(last_entry.get(&"text")).contains(scene_afterwards), "avisa por qué no deshizo")
 
 	# El guardado antes de actualizar el addon (m17-11): la escena activa con cambios se guarda sin
 	# vista previa. El guardado con vista previa escribe la miniatura resthumb-<md5>.png en el cache del

@@ -1080,9 +1080,9 @@ func _check_long_permission(dock: Control, model: Object, shot_path: String) -> 
 	for i in 3:
 		await get_tree().process_frame
 	var buttons: Array[Node] = dock.find_children("*", "Button", true, false).filter(func(node: Node) -> bool:
-		return node is Button and (node as Button).is_visible_in_tree() and (node as Button).text == "Allow once")
+		return node is Button and (node as Button).is_visible_in_tree() and (node as Button).text == I18n.t("Allow once"))
 	if buttons.is_empty():
-		_finish(1, "el botón «Allow once» no se ve")
+		_finish(1, "el botón «%s» no se ve" % I18n.t("Allow once"))
 		return false
 	var button := buttons[0] as Button
 	var dock_rect := dock.get_global_rect()
