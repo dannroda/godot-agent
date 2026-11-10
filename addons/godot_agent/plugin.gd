@@ -89,6 +89,9 @@ const ACTION_ONESHOT_SHOW := "oneshot_show"
 ## Reiniciar el editor bajo el supervisor (m19-03) y copiar el comando para abrirlo así.
 const ACTION_SUPERVISE := "supervise"
 const ACTION_COPY_SUPERVISOR_COMMAND := "copy_supervisor_command"
+## Lo que preparó install_extension y no entró (m19-05): reiniciar para instalarlo o descartarlo.
+const ACTION_PENDING_INSTALL_RESTART := "pending_install_restart"
+const ACTION_PENDING_INSTALL_DISCARD := "pending_install_discard"
 ## «Overwrite» del aviso cuando el workflow de regresiones ya existe (m16-10).
 const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
 ## Avisos de RegressionsWorkflow.write() para el usuario.
@@ -583,6 +586,16 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			var error := restart_editor(true, "the user asked for the supervisor")
 			if not error.is_empty():
 				_model.add_notice(error, ChatEntry.NoticeLevel.WARNING)
+		ACTION_PENDING_INSTALL_RESTART:
+			if NativeInstall.pending_info(SupervisorClient.state_dir()).is_empty():
+				_model.add_notice(I18n.t("There is nothing staged to install anymore."), ChatEntry.NoticeLevel.INFO)
+			else:
+				_restart_now("the user restarted to install the staged GDExtension")
+		ACTION_PENDING_INSTALL_DISCARD:
+			var info := NativeInstall.pending_info(SupervisorClient.state_dir())
+			NativeInstall.discard_pending(SupervisorClient.state_dir())
+			if not info.is_empty():
+				_model.add_notice(I18n.t("Discarded the staged install of %s. The game keeps the build it has.") % NativeInstall.pending_names(info), ChatEntry.NoticeLevel.INFO)
 		ACTION_COPY_SUPERVISOR_COMMAND:
 			DisplayServer.clipboard_set(SupervisorClient.command_line())
 			_model.add_notice(I18n.t("Command copied: open the editor with it from a terminal."), ChatEntry.NoticeLevel.INFO)
@@ -1050,6 +1063,7 @@ func _continue_last_session(dock: Control) -> void:
 ## GDExtension y no corre bajo el supervisor, ofrece abrirlo así.
 func _report_supervisor_events(dock: Control) -> void:
 	var events := SupervisorClient.take_events()
+	_report_pending_install()
 	if not SupervisorClient.is_supervised() and not NativeBuild.find_project(EditorContext.project_path()).is_empty():
 		_model.add_notice(I18n.t("This project builds a GDExtension. Under the supervisor, a build that crashes the editor while starting is rolled back and the editor reopens, instead of crashing every time you open it."), ChatEntry.NoticeLevel.INFO, [
 			{"id": ACTION_SUPERVISE, "label": I18n.t("Restart under the supervisor")},
@@ -1067,6 +1081,19 @@ func _report_supervisor_events(dock: Control) -> void:
 		return
 	if await dock.continue_last_session():
 		dock.send_text("\n\n".join(messages))
+
+
+## Lo que preparó install_extension y todavía no entró (m19-05): el editor se cerró sin pasar por
+## restart_editor (o se abrió de nuevo a mano). Sin este aviso quedaba en pending/ sin que nadie lo
+## supiera.
+func _report_pending_install() -> void:
+	var info := NativeInstall.pending_info(SupervisorClient.state_dir())
+	if info.is_empty():
+		return
+	_model.add_notice(I18n.t("The GDExtension %s is ready to install in %s, tested by the agent: restart the editor to load it.") % [NativeInstall.pending_names(info), info.target], ChatEntry.NoticeLevel.INFO, [
+		{"id": ACTION_PENDING_INSTALL_RESTART, "label": I18n.t("Restart"), "primary": true},
+		{"id": ACTION_PENDING_INSTALL_DISCARD, "label": I18n.t("Discard")},
+	])
 
 
 func _supervisor_notice(event: Dictionary) -> String:

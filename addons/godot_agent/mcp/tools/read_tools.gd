@@ -6,10 +6,16 @@ extends RefCounted
 const McpTool := preload("../mcp_tool.gd")
 const SceneAccess := preload("scene_access.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
+const NativeInstall := preload("../../core/native_install.gd")
+const SupervisorState := preload("../../supervisor/supervisor_state.gd")
 
 const LIST_FILES_LIMIT := 2000
 const SCENE_TREE_NODE_LIMIT := 600
 const DEFAULT_DEPTH := 12
+
+## Carpeta de estado del supervisor (donde install_extension deja lo preparado); "" = la del
+## proyecto abierto. Los tests la cambian.
+var supervisor_state_dir: String = ""
 
 
 func tools() -> Array:
@@ -74,6 +80,9 @@ func _project_info(_args: Dictionary) -> String:
 		lines.append("  " + action)
 	var plugins: PackedStringArray = ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray())
 	lines.append("Enabled plugins: %s" % (", ".join(plugins) if not plugins.is_empty() else "(none)"))
+	var staged := NativeInstall.pending_line(supervisor_state_dir if not supervisor_state_dir.is_empty() else SupervisorState.state_dir(ProjectSettings.globalize_path("res://")))
+	if not staged.is_empty():
+		lines.append(staged)
 	return "\n".join(lines)
 
 

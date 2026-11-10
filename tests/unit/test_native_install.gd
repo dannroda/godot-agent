@@ -6,6 +6,7 @@ extends "test_case.gd"
 const NativeInstall := preload("res://addons/godot_agent/core/native_install.gd")
 const DiagnosticTools := preload("res://addons/godot_agent/mcp/tools/diagnostic_tools.gd")
 const SupervisorState := preload("res://addons/godot_agent/supervisor/supervisor_state.gd")
+const ReadTools := preload("res://addons/godot_agent/mcp/tools/read_tools.gd")
 
 const SYMBOL := "lab_library_init"
 const GDEXT := """[configuration]
@@ -149,6 +150,30 @@ func test_tool_installs_only_after_the_tests_pass() -> void:
 	var same: Dictionary = await tools._install_extension({"project": game})
 	assert_true(same.isError and same.content[0].text.contains("nothing to install"), "el proyecto de prueba no puede ser el juego")
 	NativeInstall.discard_pending(state)
+
+
+## Lo preparado que no entró (el editor se cerró sin restart_editor): se describe para el aviso del
+## dock y godot.project_info lo nombra; descartarlo no deja nada.
+func test_pending_is_reported_until_discarded() -> void:
+	var base := _layout("native_install_pending")
+	var game := base.path_join("game")
+	var state := SupervisorState.state_dir(game)
+	var reader := ReadTools.new()
+	reader.supervisor_state_dir = state
+	assert_true(NativeInstall.pending_info(state).is_empty() and NativeInstall.pending_line(state).is_empty(), "sin nada preparado no hay aviso")
+	assert_false(reader._project_info({}).contains("Staged GDExtension"), "ni en project_info")
+	var planned := NativeInstall.plan(base.path_join("ext/project"), "res://bin/lab.gdextension", game)
+	assert_eq(NativeInstall.stage(planned, state), "", "preparado")
+	var info := NativeInstall.pending_info(state)
+	assert_eq([info.extensions, info.target, info.files], [PackedStringArray(["res://addons/lab/lab.gdextension"]), "res://addons/lab", 4], "qué está preparado")
+	assert_eq(NativeInstall.pending_names(info), "lab", "el nombre para el aviso")
+	var line := NativeInstall.pending_line(state)
+	assert_true(line.contains("4 files for res://addons/lab/lab.gdextension") and line.contains("godot.restart_editor"), "la línea para el agente · %s" % line)
+	assert_true(reader._project_info({}).contains(line), "project_info la incluye")
+	NativeInstall.discard_pending(state)
+	assert_true(NativeInstall.pending_info(state).is_empty() and not DirAccess.dir_exists_absolute(state.path_join("pending")), "descartado no queda nada")
+	assert_false(reader._project_info({}).contains("Staged GDExtension"), "y project_info ya no lo nombra")
+	assert_false(FileAccess.file_exists(game.path_join("addons/lab/lab.gdextension")), "el juego no cambió")
 
 
 ## ext/project (godot-cpp-template) con bin/lab.gdextension y la build de linux; game/ vacío.

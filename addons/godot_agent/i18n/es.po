@@ -4175,3 +4175,15 @@ msgstr ".godot_agent/ está ignorado por git: las regresiones guardadas no van a
 
 msgid "addons/godot_agent/ is ignored by git: the CI needs the addon to run the regressions. Commit it or install it in the workflow."
 msgstr "addons/godot_agent/ está ignorado por git: el CI necesita el addon para correr las regresiones. Commitealo o instalalo en el workflow."
+
+msgid "The GDExtension %s is ready to install in %s, tested by the agent: restart the editor to load it."
+msgstr "La GDExtension %s está lista para instalar en %s, probada por el agente: reiniciá el editor para cargarla."
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Discarded the staged install of %s. The game keeps the build it has."
+msgstr "Se descartó la instalación preparada de %s. El juego sigue con la build que tiene."
+
+msgid "There is nothing staged to install anymore."
+msgstr "Ya no hay nada preparado para instalar."

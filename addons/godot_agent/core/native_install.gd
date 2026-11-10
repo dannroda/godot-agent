@@ -300,6 +300,36 @@ static func apply_pending(project_dir: String, state_dir: String) -> Dictionary:
 	return {"applied": applied, "failed": failed}
 
 
+## Lo preparado, para avisar (m19-05): `{extensions: [res:// de los .gdextension], target, files,
+## time}`, o {} si no hay nada.
+static func pending_info(state_dir: String) -> Dictionary:
+	var manifest := pending(state_dir)
+	var files: Array = manifest.get("files", [])
+	if files.is_empty():
+		return {}
+	var extensions: PackedStringArray = []
+	for file: Variant in files:
+		if str(file).get_extension() == "gdextension":
+			extensions.append("res://" + str(file))
+	return {"extensions": extensions, "target": str(manifest.get("target", "")), "files": files.size(), "time": str(manifest.get("time", ""))}
+
+
+## Los nombres de las extensiones preparadas (el nombre del .gdextension sin extensión).
+static func pending_names(info: Dictionary) -> String:
+	var names: PackedStringArray = []
+	for path: String in info.get("extensions", PackedStringArray()):
+		names.append(path.get_file().get_basename())
+	return ", ".join(names) if not names.is_empty() else str(info.get("target", ""))
+
+
+## Línea para el agente (godot.project_info), o "" si no hay nada preparado.
+static func pending_line(state_dir: String) -> String:
+	var info := pending_info(state_dir)
+	if info.is_empty():
+		return ""
+	return "Staged GDExtension install (install_extension, %s): %d files for %s, not in the project yet. They enter it with godot.restart_editor; the user can also restart or discard it from the dock." % [info.time if not str(info.time).is_empty() else "time unknown", info.files, ", ".join(info.extensions) if not (info.extensions as PackedStringArray).is_empty() else info.target]
+
+
 static func discard_pending(state_dir: String) -> void:
 	_remove_tree(state_dir.path_join(PENDING_DIR))
 	DirAccess.remove_absolute(state_dir.path_join(PENDING_MANIFEST))
