@@ -14,6 +14,8 @@ extends RefCounted
 ## - `supervisor.json`: el pid del supervisor y su latido (`beat`, cada segundo), para saber si sigue vivo.
 ## - `editor.log`: la salida del editor (`--log-file`), de donde sale el backtrace.
 ## - `good/`: copia de las bibliotecas con las que el editor arrancó bien por última vez.
+## - `pending/` y `pending.json`: el addon de la extensión que preparó install_extension (m19-05),
+##   que entra al proyecto en el próximo reinicio (core/native_install.gd).
 
 ## Variable de entorno que el supervisor le pasa al editor: la carpeta de estado.
 const ENV_VAR := "GODOT_AGENT_SUPERVISOR"

@@ -57,6 +57,7 @@ const AnimationTools := preload("mcp/tools/animation_tools.gd")
 const DiagnosticTools := preload("mcp/tools/diagnostic_tools.gd")
 const SupervisorClient := preload("supervisor/supervisor_client.gd")
 const NativeBuild := preload("core/native_build.gd")
+const NativeInstall := preload("core/native_install.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
 const PlaytestRegressions := preload("review/playtest_regressions.gd")
@@ -741,7 +742,7 @@ func _start_mcp_server() -> void:
 	_diagnostics.setup(_errors, EditorContext.project_path())
 	registry.register_provider(_diagnostics)
 	# Solo la usa un proyecto con GDExtension (m19-01): no gasta contexto en los demás.
-	registry.mark_extended(PackedStringArray(["build_extension", "test_extension", "restart_editor"]))
+	registry.mark_extended(PackedStringArray(["build_extension", "test_extension", "install_extension", "restart_editor"]))
 	_diagnostics.restarter = func(supervise: bool) -> String:
 		var error := _prepare_restart(supervise)
 		if error.is_empty():
@@ -1111,6 +1112,13 @@ func _restart_now(reason: String) -> void:
 		# El supervisor solo deja eventos de los editores que lanzó: este lo deja el plugin.
 		SupervisorClient.add_local_event({"kind": SupervisorClient.State.EVENT_RESTART, "reason": reason})
 	_save_all_scenes()
+	if not SupervisorClient.is_supervised() and not SupervisorClient.handoff:
+		# Sin supervisor, lo que preparó install_extension (m19-05) entra ahora, justo antes de
+		# cerrar: por rename, así este editor sigue con las bibliotecas que tiene mapeadas. Con
+		# supervisor lo mueve él antes de abrir el editor nuevo.
+		var installed := NativeInstall.apply_pending(ProjectSettings.globalize_path("res://"), SupervisorClient.state_dir())
+		if not (installed.applied as PackedStringArray).is_empty() or not (installed.failed as PackedStringArray).is_empty():
+			_log.add(AgentLog.CH_PROC, "install_extension: moved %d staged files into the game%s" % [installed.applied.size(), "; failed: " + ", ".join(installed.failed) if not installed.failed.is_empty() else ""])
 	EditorInterface.restart_editor(true)
 
 

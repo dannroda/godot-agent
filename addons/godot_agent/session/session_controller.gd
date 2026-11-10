@@ -69,7 +69,8 @@ const NATIVE_RULES := """
 GDExtension in this project (it has a SConstruct, CMakeLists.txt or Cargo.toml):
 - Build with `godot.build_extension`: it runs SCons, CMake or Cargo and returns the compiler errors by file and line.
 - Test every build with `godot.test_extension`: it runs the extension's tests in a separate headless Godot, so a crash kills only that process, and returns the backtrace.
-- Never load a new build into this editor: a crash in the extension takes the editor, and you, down with it, and the editor keeps the library it started with. After the tests pass, load the new build with `godot.restart_editor`: under the crash supervisor, a build that crashes the editor while starting is rolled back, and your session continues with the backtrace."""
+- Never load a new build into this editor: a crash in the extension takes the editor, and you, down with it, and the editor keeps the library it started with. After the tests pass, load the new build with `godot.restart_editor`: under the crash supervisor, a build that crashes the editor while starting is rolled back, and your session continues with the backtrace.
+- When the game uses the extension as an addon (res://addons/<name>/) and it is tested in its own project (project/, demo/), bring it over with `godot.install_extension`, not by copying files: it installs only a build whose tests pass, fixes the res:// paths and stages the files for `godot.restart_editor`."""
 
 ## Acciones que ofrecen los avisos de error (spec §15).
 const ACTION_RETRY := "retry"

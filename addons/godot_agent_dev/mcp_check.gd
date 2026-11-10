@@ -47,11 +47,15 @@ func run(tree: SceneTree) -> PackedStringArray:
 	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "get_errors", "validate_scripts", "capture_editor_viewport", "add_nodes", "run_scene", "methods", "run"]:
 		_expect(expected in names, "tools/list incluye %s" % expected)
 	# Compacto por defecto (D56): las extendidas se descubren con methods y se llaman con run.
-	for extended: String in ["class_info", "search_api", "tilemap_set_cells", "animation_create", "create_resource", "move_file", "set_input_action", "game_get", "build_extension", "test_extension", "restart_editor"]:
+	for extended: String in ["class_info", "search_api", "tilemap_set_cells", "animation_create", "create_resource", "move_file", "set_input_action", "game_get", "build_extension", "test_extension", "install_extension", "restart_editor"]:
 		_expect(not extended in names, "tools/list compacto no trae %s" % extended)
 	print("[mcp-check] tools/list: %d tools, %d chars" % [names.size(), JSON.stringify(list.get("result", {}).get("tools", [])).length()])
 	var methods := await _call_text("methods", {})
-	_expect(methods.contains("- class_info(") and methods.contains("- tilemap_set_cells(") and methods.contains("- game_wait(") and methods.contains("- build_extension(") and methods.contains("- test_extension("), "methods lista las extendidas")
+	_expect(methods.contains("- class_info(") and methods.contains("- tilemap_set_cells(") and methods.contains("- game_wait(") and methods.contains("- build_extension(") and methods.contains("- test_extension(") and methods.contains("- install_extension("), "methods lista las extendidas")
+	# Pide permiso como project (no se llama: nadie contesta la tarjeta acá); el caso sin proyecto de
+	# prueba aparte está en test_native_install.
+	var install := await _call_text("methods", {"method": "install_extension"})
+	_expect(install.contains("permission group project") and install.contains("\"gdextension\""), "install_extension: grupo project y su schema · " + install.left(200))
 	var detail := await _call_text("methods", {"method": "search_api"})
 	_expect(detail.contains("\"query\"") and detail.contains("read"), "methods con method: schema y grupo")
 	var via_run := await _call_text("run", {"method": "class_info", "params": {"class": "Timer", "member": "one_shot"}})

@@ -122,6 +122,24 @@ func test_real_gives_up() -> void:
 	assert_eq(events.map(func(event: Dictionary) -> String: return event.kind), [State.EVENT_STARTUP_CRASH, State.EVENT_STARTUP_CRASH, State.EVENT_GAVE_UP], "dos crashes y el último")
 
 
+## Lo que preparó install_extension (m19-05) entra antes de abrir el editor; si esa build crashea al
+## arrancar, el rollback vuelve a la buena igual que con una build copiada a mano.
+func test_real_installs_pending_before_launch() -> void:
+	var project := _project("sup_real_pending")
+	var state := State.state_dir(project)
+	Snapshot.snapshot(project, state)
+	DirAccess.make_dir_recursive_absolute(state.path_join("pending/bin/linux"))
+	_write(state.path_join("pending/bin/linux/liblab.so"), "crashing build")
+	_write(state.path_join("pending/bin/readme.txt"), "new file")
+	_write(state.path_join("pending.json"), JSON.stringify({"files": ["bin/linux/liblab.so", "bin/readme.txt"]}))
+	_write(project.path_join("plan.json"), JSON.stringify(["crash_start", "close"]))
+	assert_true(await _supervise(project), "terminó")
+	assert_eq(FileAccess.get_file_as_string(project.path_join("bin/readme.txt")), "new file", "lo preparado entró")
+	assert_eq(FileAccess.get_file_as_string(project.path_join("bin/linux/liblab.so.crashed")), "crashing build", "la build instalada crasheó y quedó como .crashed")
+	assert_eq(FileAccess.get_file_as_string(project.path_join("bin/linux/liblab.so")), "good build", "volvió la buena")
+	assert_false(FileAccess.file_exists(state.path_join("pending.json")), "no queda nada preparado (no se reinstala en el relanzamiento)")
+
+
 ## Corre el supervisor con el editor falso y espera a que termine (60 s como mucho).
 func _supervise(project: String) -> bool:
 	var state := State.state_dir(project)
