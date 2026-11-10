@@ -7,6 +7,8 @@ const DIR := "res://.godot_agent/playtests/regressions"
 const PASS_MARK := "run() returned: true"
 ## Cuántas veces se puede repetir cada regresión de una tanda.
 const MAX_REPEAT := 20
+## Corridas de una marcada inestable que falla con `repeat` 1 (retry_marked).
+const MARKED_TRIES := 3
 const FLAKY := "flaky"  # i18n
 const PASSED_OF := "passed %d of %d"  # i18n
 ## APIs que game_script no puede usar: el evaluador del One-shot y el Playtest no tocan el proyecto (m15-12).
@@ -66,8 +68,7 @@ static func detects(output_with_sabotage: String) -> bool:
 
 
 ## Una regresión corrida `runs` veces (m11-42): {goal, passed, output, passes, runs, flaky, file}.
-## Pasa solo si pasaron todas (pass^k). Inestable: pasó algunas y falló otras, o falló la única vez
-## que corrió pero la última repetición la había marcado así (`entry.runs`). El texto es el de la
+## Pasa solo si pasaron todas (pass^k). Inestable: pasó algunas y falló otras. El texto es el de la
 ## primera que falló.
 static func tally(entry: Dictionary, results: Array) -> Dictionary:
 	var passes := results.filter(func(result: Dictionary) -> bool: return result.passed).size()
@@ -75,10 +76,14 @@ static func tally(entry: Dictionary, results: Array) -> Dictionary:
 	var tallied := {"goal": str(entry.get("goal", "")), "file": str(entry.get("file", "")), "passes": passes, "runs": results.size(),
 		"passed": not results.is_empty() and passes == results.size(), "output": str(failing[0].output) if not failing.is_empty() else ""}
 	tallied.flaky = passes > 0 and passes < results.size()
-	if results.size() == 1 and passes == 0 and is_flaky(entry):
-		tallied.flaky = true
-		tallied.output = "Marked flaky: it passed %d of %d the last time it was repeated.\n%s" % [int(entry.runs.passed), int(entry.runs.total), tallied.output]
 	return tallied
+
+
+## Corriendo una vez (`repeat` 1), una marcada inestable que falla se reintenta hasta MARKED_TRIES
+## corridas en total, hasta que pase una: si pasa alguna es inestable, y si fallan todas, falla. Así
+## una inestable que se rompió de verdad no queda tapada por la marca. true si hay que correrla otra vez.
+static func retry_marked(entry: Dictionary, runs: Array, repeat: int) -> bool:
+	return repeat == 1 and is_flaky(entry) and runs.size() < MARKED_TRIES and runs.all(func(result: Dictionary) -> bool: return not result.passed)
 
 
 ## La última repetición de varias corridas la dejó como inestable.

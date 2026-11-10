@@ -5,9 +5,9 @@ extends SceneTree
 ## Uso: godot --headless --path <proyecto> --script res://addons/godot_agent/playtest/regression_cli.gd [-- [--repeat=N] [--fail-on-flaky] <archivo.json o carpeta>...]
 ## Sin rutas, las de res://.godot_agent/playtests/regressions. Una regresión con `sabotage` corre otra
 ## vez con el sabotaje puesto y tiene que fallar. `--repeat=N` corre cada una N veces (m11-42): pasa si
-## pasaron todas; si pasó algunas es inestable (FLAKY, con cuántas de N), y también lo es una que falla
-## la única vez que corre si la última repetición en el editor la marcó así. Una inestable no hace
-## fallar la corrida salvo con `--fail-on-flaky`. Sale con 0 si pasan todas, 1 si falla alguna y 2 si
+## pasaron todas; si pasó algunas es inestable (FLAKY, con cuántas de N). Sin --repeat, una que la
+## última repetición en el editor marcó inestable y falla se reintenta hasta 3 veces: inestable si
+## pasa alguna, falla si no. Una inestable no hace fallar la corrida salvo con `--fail-on-flaky`. Sale con 0 si pasan todas, 1 si falla alguna y 2 si
 ## no hay ninguna (o una opción está mal).
 
 const PlaytestRegressions := preload("res://addons/godot_agent/review/playtest_regressions.gd")
@@ -36,6 +36,8 @@ func _run() -> void:
 	for entry: Dictionary in entries:
 		var runs: Array = []
 		for i in int(options.repeat):
+			runs.append(await run_one(entry))
+		while PlaytestRegressions.retry_marked(entry, runs, int(options.repeat)):
 			runs.append(await run_one(entry))
 		var result := PlaytestRegressions.tally(entry, runs)
 		# El sabotaje se prueba una vez, con una que pasó alguna corrida: si pasa también con él, no detecta nada.

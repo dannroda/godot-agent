@@ -28,13 +28,23 @@ func test_tally_is_pass_to_the_k() -> void:
 	assert_false(once.flaky, "una corrida que falla, sin marca, falla")
 
 
-func test_marked_flaky_single_failure() -> void:
+func test_marked_flaky_is_retried_not_masked() -> void:
 	var entry := {"goal": "Salta", "runs": {"passed": 2, "total": 3, "at": 0}}
 	assert_true(PlaytestRegressions.is_flaky(entry), "marcada")
-	var once := PlaytestRegressions.tally(entry, [_run(false)])
-	assert_true(once.flaky and once.output.begins_with("Marked flaky: it passed 2 of 3"), "falla una vez pero la marca dice que es inestable")
 	assert_false(PlaytestRegressions.is_flaky({"runs": {"passed": 3, "total": 3}}), "pasó todas: estable")
 	assert_false(PlaytestRegressions.is_flaky({"runs": {"passed": 0, "total": 3}}), "falló todas: no es inestable")
+	# Con una corrida, la marcada que falla se reintenta hasta 3 en total, hasta que pase una.
+	assert_true(PlaytestRegressions.retry_marked(entry, [_run(false)], 1), "falló la primera: otra")
+	assert_true(PlaytestRegressions.retry_marked(entry, [_run(false), _run(false)], 1), "falló dos: otra")
+	assert_false(PlaytestRegressions.retry_marked(entry, [_run(false), _run(false), _run(false)], 1), "con tres alcanza")
+	assert_false(PlaytestRegressions.retry_marked(entry, [_run(false), _run(true)], 1), "pasó una: no hace falta más")
+	assert_false(PlaytestRegressions.retry_marked(entry, [_run(true)], 1), "pasó: nada")
+	assert_false(PlaytestRegressions.retry_marked(entry, [_run(false)], 3), "con repeat ya se corre varias veces")
+	assert_false(PlaytestRegressions.retry_marked({"goal": "x"}, [_run(false)], 1), "sin marca no se reintenta")
+	var broken := PlaytestRegressions.tally(entry, [_run(false), _run(false), _run(false)])
+	assert_true(not broken.passed and not broken.flaky, "falla las 3: falla, la marca no la tapa")
+	var recovered := PlaytestRegressions.tally(entry, [_run(false), _run(true)])
+	assert_true(recovered.flaky and not recovered.passed, "falla y después pasa: inestable")
 
 
 func test_summary_counts_flaky_apart() -> void:
