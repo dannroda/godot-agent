@@ -229,6 +229,14 @@ func test_stdio_shim_prints_sse_events() -> void:
 	var rest := McpStdioShim._print_events(cut)
 	assert_true(rest.get_string_from_utf8().begins_with("event: message\ndata: {\"b\""), "el evento sin terminar queda")
 	assert_eq(McpStdioShim._print_events("x\r\n\r\n".to_utf8_buffer()).size(), 0, "CRLF también separa")
+	# fix-a #8: el shim sabe si salió la respuesta o solo progreso (si el stream se corta, contesta un error).
+	var answered: Array = [false]
+	McpStdioShim._print_events(("data: %s\n\n" % JSON.stringify({"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progress": 1}})).to_utf8_buffer(), answered)
+	assert_false(answered[0], "el progreso no es la respuesta")
+	McpStdioShim._print_events(("data: %s\n\n" % JSON.stringify({"jsonrpc": "2.0", "id": 5, "result": {}})).to_utf8_buffer(), answered)
+	assert_true(answered[0], "la respuesta con id sí")
+	assert_eq(JSON.stringify({"id": McpStdioShim.json_id(JSON.parse_string("{\"id\": 5}").id)}), "{\"id\":5}", "el id del error sale entero")
+	assert_eq(McpStdioShim.json_id("abc"), "abc", "un id de texto queda igual")
 
 
 ## m12-46: el catálogo para la lista de tools: categoría del proveedor, resumen y si está extendida.
