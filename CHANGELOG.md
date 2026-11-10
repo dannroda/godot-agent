@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- The secrets the harness knows (its MCP server token, and the keys the agent and the MCP servers take from `$VARIABLE`s) are redacted everywhere they could show, not only in the Agent Log: the error cards and the status tooltip, everything the agent sends back (a message, a tool result, an error that quotes the MCP configuration), the session history on disk and the conversations resumed from it. Keys in the agent's environment whose variable name says key, token, secret or password count as secrets too.
+
 ### Changed
 
 - The Agent Log has a `state` channel. When the agent's session, the game launched by `godot.run_scene` or a One-shot run changes state in a way the harness doesn't expect (for example, a One-shot going from preparing straight to paused), the change still happens and a line in this channel names both states.

@@ -165,7 +165,9 @@ func receive_line(line: String) -> void:
 		_log_line(AgentLog.CH_ACP, "← line ignored (not JSON-RPC): %s" % text.left(200), text)
 		invalid_line.emit(text, "not a JSON object")
 		return
-	var message: Dictionary = json.data
+	# Con los secretos del harness redactados (m13-25): lo que el agente devuelve o repite (un error
+	# que cita los mcpServers, la salida de un comando) llega al modelo, al historial y a la UI sin ellos.
+	var message: Dictionary = _log.redact_data(json.data) if _log else json.data
 	var has_method := message.get("method") is String
 	var id: Variant = _normalize_id(message.get("id"))
 
