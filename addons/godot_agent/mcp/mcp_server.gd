@@ -2,9 +2,10 @@
 extends Node
 ## Server MCP del addon (spec §5): HTTP/1.1 mínimo sobre TCPServer en 127.0.0.1, token Bearer,
 ## `POST /mcp` con JSON-RPC y respuestas JSON (Streamable HTTP). Un tools/call que tarda más de
-## stream_after_ms se responde como SSE (m11-47): los headers salen enseguida y cada
-## progress_every_ms va un notifications/progress con el progressToken del cliente (o un comentario
-## SSE si no mandó). Claude Code corta a los 60 s una llamada HTTP sin ningún byte de respuesta y a
+## stream_after_ms se responde como SSE (m11-47) si el cliente acepta SSE y mandó progressToken: los
+## headers salen enseguida y cada progress_every_ms va un notifications/progress con su token. Sin
+## token sigue en JSON: no hay progreso que mandar y así un cliente que anuncia SSE pero no lo lee
+## bien no se rompe. Claude Code corta a los 60 s una llamada HTTP sin ningún byte de respuesta y a
 ## los 5 min una sin respuesta ni progreso; así una compilación o un run_scene largos terminan.
 ## La red se atiende con polling no bloqueante en `_process` (D16): cada request corre en el hilo
 ## principal y una conexión procesa sus requests en orden.
@@ -237,7 +238,7 @@ func _handle(request: HttpParser.ParsedRequest, connection: McpConnection = null
 		if replies.is_empty():
 			return {"status": 202, "headers": headers}
 		return {"status": 200, "headers": headers, "body": JSON.stringify(replies).to_utf8_buffer()}
-	if message is Dictionary and message.get("method") == "tools/call" and message.has("id") and request.header("accept").contains("text/event-stream"):
+	if message is Dictionary and message.get("method") == "tools/call" and message.has("id") and request.header("accept").contains("text/event-stream") and progress_token_of(message) != null:
 		return await _handle_tool_call(message, session_id, caller, connection)
 	var single: Variant = await _dispatch(message, headers, session_id, caller)
 	if single == null:
@@ -245,15 +246,21 @@ func _handle(request: HttpParser.ParsedRequest, connection: McpConnection = null
 	return {"status": 200, "headers": headers, "body": JSON.stringify(single).to_utf8_buffer()}
 
 
-## Un tools/call de un cliente que acepta SSE: si termina antes de stream_after_ms es una respuesta
+## El progressToken de un request (params._meta.progressToken), o null.
+static func progress_token_of(message: Dictionary) -> Variant:
+	var params: Variant = message.get("params")
+	var meta: Variant = params.get("_meta") if params is Dictionary else null
+	return meta.get("progressToken") if meta is Dictionary else null
+
+
+## Un tools/call de un cliente que acepta SSE y mandó progressToken: si termina antes de stream_after_ms es una respuesta
 ## JSON común; si no, se abre el stream con un progreso cada progress_every_ms y la respuesta va al
 ## final como un evento más. Una conexión que el cliente cerró deja de recibir, pero la tool termina.
 func _handle_tool_call(message: Dictionary, session_id: String, caller: String, connection: McpConnection) -> Dictionary:
 	var call := {"done": false, "reply": null}
 	_dispatch_into(call, message, session_id, caller)
 	var params: Dictionary = message.get("params", {}) if message.get("params") is Dictionary else {}
-	var meta: Dictionary = params.get("_meta", {}) if params.get("_meta") is Dictionary else {}
-	var progress_token: Variant = meta.get("progressToken")
+	var progress_token: Variant = progress_token_of(message)
 	var tool_name := str(params.get("name", "?"))
 	var started := Time.get_ticks_msec()
 	var next_beat := started + stream_after_ms
@@ -295,11 +302,8 @@ static func sse_event(message: Variant) -> String:
 
 
 ## El latido de una tool que sigue corriendo: notifications/progress con el token del cliente
-## (progress sube de a uno, sin total), o un comentario SSE si el cliente no mandó token (la spec
-## no deja mandar progreso sin token).
+## (progress sube de a uno, sin total).
 static func progress_event(progress_token: Variant, beat: int, tool_name: String, seconds: int) -> String:
-	if progress_token == null:
-		return ": godot.%s still running (%d s)\n\n" % [tool_name, seconds]
 	if progress_token is float and is_equal_approx(progress_token, roundf(progress_token)):
 		progress_token = int(progress_token)
 	return sse_event({"jsonrpc": "2.0", "method": "notifications/progress", "params": {

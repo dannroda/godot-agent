@@ -167,7 +167,7 @@ func test_keep_alive_pipelining() -> void:
 	_stop()
 
 
-## m11-47: un tools/call largo de un cliente que acepta SSE se responde como stream, con
+## m11-47: un tools/call largo de un cliente que acepta SSE y manda progressToken se responde como stream, con
 ## notifications/progress con su progressToken y la respuesta al final; uno corto, como JSON.
 func test_long_call_streams_progress() -> void:
 	_start()
@@ -190,10 +190,9 @@ func test_long_call_streams_progress() -> void:
 	assert_true(progress[1].params.progress > progress[0].params.progress, "progress sube")
 	assert_true(str(progress[0].params.message).contains("godot.slow still running"), "mensaje")
 	assert_eq([events[-1].id, events[-1].result.content[0].text], [7.0, "slow done"], "la respuesta es el último evento")
-	# Sin token: comentarios SSE en vez de progreso (la spec no deja progreso sin token).
+	# Sin token no hay progreso que mandar: JSON común, aunque acepte SSE.
 	var anonymous: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(8, "tools/call", {"name": "slow", "arguments": {}}), _auth(sse))
-	assert_true(anonymous.body.contains(": godot.slow still running"), "comentario de latido")
-	assert_eq(_sse_data(anonymous.body).size(), 1, "solo la respuesta como evento")
+	assert_eq([str(anonymous.headers.get("content-type", "")), JSON.parse_string(anonymous.body).result.content[0].text], ["application/json", "slow done"], "sin token → JSON")
 	# Corta, o sin Accept de SSE: JSON común.
 	var quick: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(9, "tools/call", {"name": "sum", "arguments": {"a": 1, "b": 1}, "_meta": {"progressToken": 3}}), _auth(sse))
 	assert_eq([str(quick.headers.get("content-type", "")), JSON.parse_string(quick.body).result.content[0].text], ["application/json", "2"], "corta → JSON")
@@ -204,7 +203,8 @@ func test_long_call_streams_progress() -> void:
 
 func test_progress_event_format() -> void:
 	assert_eq(McpServer.progress_event(5.0, 2, "run_scene", 20), "event: message\ndata: %s\n\n" % JSON.stringify({"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progressToken": 5, "progress": 2, "message": "godot.run_scene still running (20 s)"}}), "token entero sin .0")
-	assert_eq(McpServer.progress_event(null, 1, "x", 2), ": godot.x still running (2 s)\n\n", "sin token, comentario")
+	assert_eq(McpServer.progress_token_of({"params": {"_meta": {"progressToken": "a"}}}), "a", "token")
+	assert_eq([McpServer.progress_token_of({"params": {}}), McpServer.progress_token_of({})], [null, null], "sin token")
 
 
 func _sse_data(body: String) -> Array:
