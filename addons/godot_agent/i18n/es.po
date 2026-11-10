@@ -4187,3 +4187,6 @@ msgstr "Se descartó la instalación preparada de %s. El juego sigue con la buil
 
 msgid "There is nothing staged to install anymore."
 msgstr "Ya no hay nada preparado para instalar."
+
+msgid "Could not install the staged GDExtension %s: %s. The game keeps the build it had."
+msgstr "No se pudo instalar la GDExtension preparada %s: %s. El juego sigue con la build que tenía."

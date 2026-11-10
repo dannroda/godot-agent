@@ -19,7 +19,8 @@ extends SceneTree
 ##
 ## Opciones: `--wait-pid N` espera a que se cierre ese editor (el que lo lanzó, que marca closed.json)
 ## antes de abrir uno; `--editor-args a,b` agrega flags al editor (los del que lo lanzó: drivers de video, pantalla,
-## audio); `--launch a,b,c` reemplaza los argumentos del editor (tests).
+## audio); `--launch a,b,c` reemplaza los argumentos del editor (tests); `--wait-timeout S`, los
+## WAIT_PID_TIMEOUT_S de `--wait-pid` (tests).
 
 const State := preload("supervisor_state.gd")
 const Snapshot := preload("extension_snapshot.gd")
@@ -46,6 +47,11 @@ var _crashes: Array[int] = []
 var _started := ""
 var _last_beat_ms := 0
 var _wait_deadline_ms := 0
+var _wait_timeout_s := WAIT_PID_TIMEOUT_S
+## El editor que lanzó al supervisor no marcó closed.json en WAIT_PID_TIMEOUT_S: puede seguir vivo
+## (no es hijo nuestro, no se puede preguntar), así que lo preparado por install_extension no entra
+## hasta que un editor de este supervisor pida reiniciar.
+var _pending_blocked := false
 
 
 func _initialize() -> void:
@@ -58,6 +64,8 @@ func _initialize() -> void:
 				_wait_pid = int(args[i + 1]) if i + 1 < args.size() else 0
 			"--editor-args":
 				_editor_args = args[i + 1].split(",", false) if i + 1 < args.size() else PackedStringArray()
+			"--wait-timeout":
+				_wait_timeout_s = maxi(int(args[i + 1]), 1) if i + 1 < args.size() else WAIT_PID_TIMEOUT_S
 			"--launch":
 				_launch_override = args[i + 1].split(",", false) if i + 1 < args.size() else PackedStringArray()
 	if project.ends_with("/"):
@@ -74,7 +82,7 @@ func _initialize() -> void:
 		return
 	_started = Time.get_datetime_string_from_system()
 	_beat()
-	_wait_deadline_ms = Time.get_ticks_msec() + WAIT_PID_TIMEOUT_S * 1000
+	_wait_deadline_ms = Time.get_ticks_msec() + _wait_timeout_s * 1000
 	_log("started for %s" % project)
 
 
@@ -83,9 +91,13 @@ func _process(_delta: float) -> bool:
 		_beat()
 	if _wait_pid > 0:
 		# No es hijo nuestro (OS.is_process_running no sirve): su plugin marca closed al salir.
-		if not State.marked_by(state_dir, State.CLOSED, _wait_pid) and Time.get_ticks_msec() < _wait_deadline_ms:
+		var closed := State.marked_by(state_dir, State.CLOSED, _wait_pid)
+		if not closed and Time.get_ticks_msec() < _wait_deadline_ms:
 			OS.delay_msec(POLL_MS)
 			return false
+		if not closed:
+			_pending_blocked = true
+			_log("editor pid %d didn't close within %d s: launching anyway, without installing the staged GDExtension files (they stay staged)" % [_wait_pid, _wait_timeout_s])
 		_wait_pid = 0
 		# Que termine de cerrarse antes de abrir otro editor sobre el mismo proyecto.
 		OS.delay_msec(WAIT_PID_GRACE_MS)
@@ -103,9 +115,15 @@ func _process(_delta: float) -> bool:
 func _launch() -> bool:
 	# Lo que preparó install_extension (m19-05) entra con el editor cerrado; si crashea al arrancar,
 	# el rollback vuelve a la build buena (o desactiva una extensión nueva).
-	var installed := NativeInstall.apply_pending(project, state_dir)
-	if not (installed.applied as PackedStringArray).is_empty() or not (installed.failed as PackedStringArray).is_empty():
-		_log("installed staged files: %s%s" % [", ".join(installed.applied), "; failed: " + ", ".join(installed.failed) if not installed.failed.is_empty() else ""])
+	if _pending_blocked:
+		if not NativeInstall.pending(state_dir).is_empty():
+			_log("staged GDExtension files not installed: the previous editor may still be running")
+	else:
+		var installed := NativeInstall.apply_pending(project, state_dir)
+		if not str(installed.error).is_empty():
+			_log("could not install the staged files, the game keeps its build and they stay staged: %s" % installed.error)
+		elif not (installed.applied as PackedStringArray).is_empty():
+			_log("installed staged files: %s" % ", ".join(installed.applied))
 	State.remove(state_dir, State.READY)
 	State.remove(state_dir, State.CLOSED)
 	var log_path := state_dir.path_join(State.LOG)
@@ -144,6 +162,8 @@ func _on_exit() -> bool:
 	if not crashed:
 		if int(restart.get("pid", 0)) == dead:
 			_log("restart requested by editor pid %d" % dead)
+			# Ese editor es nuestro y ya terminó: lo preparado puede entrar.
+			_pending_blocked = false
 			_add_event({"kind": State.EVENT_RESTART, "reason": str(restart.get("reason", ""))})
 			return false
 		return _finish("editor closed")

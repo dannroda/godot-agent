@@ -590,7 +590,10 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			if NativeInstall.pending_info(SupervisorClient.state_dir()).is_empty():
 				_model.add_notice(I18n.t("There is nothing staged to install anymore."), ChatEntry.NoticeLevel.INFO)
 			else:
-				_restart_now("the user restarted to install the staged GDExtension")
+				# Como restart_editor: bajo el supervisor, que vuelve atrás si la build crashea al arrancar.
+				var error := restart_editor(true, "the user restarted to install the staged GDExtension")
+				if not error.is_empty():
+					_model.add_notice(error, ChatEntry.NoticeLevel.WARNING)
 		ACTION_PENDING_INSTALL_DISCARD:
 			var info := NativeInstall.pending_info(SupervisorClient.state_dir())
 			NativeInstall.discard_pending(SupervisorClient.state_dir())
@@ -1087,6 +1090,9 @@ func _report_supervisor_events(dock: Control) -> void:
 ## restart_editor (o se abrió de nuevo a mano). Sin este aviso quedaba en pending/ sin que nadie lo
 ## supiera.
 func _report_pending_install() -> void:
+	var failure := NativeInstall.take_install_failure(SupervisorClient.state_dir())
+	if not failure.is_empty():
+		_model.add_notice(I18n.t("Could not install the staged GDExtension %s: %s. The game keeps the build it had.") % [", ".join(PackedStringArray(failure.get("extensions", []))), str(failure.get("error", ""))], ChatEntry.NoticeLevel.WARNING)
 	var info := NativeInstall.pending_info(SupervisorClient.state_dir())
 	if info.is_empty():
 		return
@@ -1114,10 +1120,17 @@ func _supervisor_notice(event: Dictionary) -> String:
 	return text
 
 
+## Reemplaza restart_editor() en las verificaciones del editor (pending_check): Callable(supervise,
+## reason) -> String. Sin él, reinicia de verdad.
+var restart_override: Callable
+
+
 ## Reinicia el editor para que cargue las bibliotecas nuevas (m19-03). Con `supervise` y sin
 ## supervisor, lanza uno que espera a que este editor se cierre y abre el nuevo bajo su vigilancia.
 ## Bajo el supervisor, el reinicio pasa por él (SupervisorClient.mark_closed). Devuelve "" o el error.
 func restart_editor(supervise: bool, reason: String) -> String:
+	if restart_override.is_valid():
+		return restart_override.call(supervise, reason)
 	var error := _prepare_restart(supervise)
 	if error.is_empty():
 		_restart_now(reason)
@@ -1144,8 +1157,11 @@ func _restart_now(reason: String) -> void:
 		# cerrar: por rename, así este editor sigue con las bibliotecas que tiene mapeadas. Con
 		# supervisor lo mueve él antes de abrir el editor nuevo.
 		var installed := NativeInstall.apply_pending(ProjectSettings.globalize_path("res://"), SupervisorClient.state_dir())
-		if not (installed.applied as PackedStringArray).is_empty() or not (installed.failed as PackedStringArray).is_empty():
-			_log.add(AgentLog.CH_PROC, "install_extension: moved %d staged files into the game%s" % [installed.applied.size(), "; failed: " + ", ".join(installed.failed) if not installed.failed.is_empty() else ""])
+		if not str(installed.error).is_empty():
+			# Queda en last_install.json: el editor nuevo lo avisa en el dock.
+			_log.add(AgentLog.CH_PROC, "install_extension: could not install the staged files (they stay staged): %s" % installed.error)
+		elif not (installed.applied as PackedStringArray).is_empty():
+			_log.add(AgentLog.CH_PROC, "install_extension: moved %d staged files into the game" % installed.applied.size())
 	EditorInterface.restart_editor(true)
 
 

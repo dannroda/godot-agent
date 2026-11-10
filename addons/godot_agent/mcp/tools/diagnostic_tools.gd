@@ -15,6 +15,7 @@ const NativeBuild := preload("../../core/native_build.gd")
 const NativeTest := preload("../../core/native_test.gd")
 const SupervisorClient := preload("../../supervisor/supervisor_client.gd")
 const NativeInstall := preload("../../core/native_install.gd")
+const ExtensionSnapshot := preload("../../supervisor/extension_snapshot.gd")
 
 const CHECKER_SCRIPT := "res://addons/godot_agent/mcp/tools/script_checker.gd"
 const MAX_SCRIPTS := 400
@@ -76,7 +77,7 @@ func tools() -> Array:
 			},
 			[], _install_extension),
 		McpTool.create("restart_editor", PermissionPolicy.GROUP_PROJECT,
-			"Saves the scenes and restarts the editor, so it loads the GDExtension libraries that are on disk now and the ones install_extension staged. Run test_extension first: a build that crashes takes the editor down with it. Under the crash supervisor (`supervise`, default true), a build that crashes the editor while starting is rolled back to the last one that started fine, the editor reopens and this session continues with a message that says what happened, with the backtrace. Without it, a crashing build leaves the editor down until the user fixes it. Your session ends with the restart and comes back by itself.",
+			"Saves the scenes and restarts the editor, so it loads the GDExtension libraries that are on disk now and the ones install_extension staged. Run test_extension first: a build that crashes takes the editor down with it. Under the crash supervisor (`supervise`, default true), a build that crashes the editor while starting is rolled back to the last one that started fine (or disabled, when it has none), the editor reopens and this session continues with a message that says what happened, with the backtrace. Without it, a crashing build leaves the editor down until the user fixes it. Your session ends with the restart and comes back by itself.",
 			{"supervise": {"type": "boolean", "description": "Restart under the crash supervisor (default true). Ignored when the editor already runs under it."}},
 			[], _restart_editor),
 	]
@@ -170,10 +171,10 @@ func _install_extension(args: Dictionary) -> Dictionary:
 		return McpTool.error("The test project is this project, so the extension is already here: there is nothing to install. Pass `project` with the extension's own test project (project/ or demo/ next to the SConstruct).")
 	var gdextension := McpTool.str_arg(args, "gdextension")
 	if gdextension.is_empty():
-		var candidates := NativeInstall.test_extensions(test_dir)
-		if candidates.size() != 1:
-			return McpTool.error("%s has %s. Pass `gdextension`." % [test_dir, "no .gdextension" if candidates.is_empty() else "several .gdextension files: " + ", ".join(candidates)])
-		gdextension = candidates[0]
+		var picked := NativeInstall.pick_gdextension(test_dir)
+		if not str(picked.error).is_empty():
+			return McpTool.error(picked.error)
+		gdextension = picked.path
 	var planned := NativeInstall.plan(test_dir, gdextension, project_path, McpTool.str_arg(args, "target"))
 	if not str(planned.error).is_empty():
 		return McpTool.error(planned.error)
@@ -184,6 +185,7 @@ func _install_extension(args: Dictionary) -> Dictionary:
 	if report.code != 0 or report.crashed or report.timed_out:
 		return {"content": [{"type": "text", "text": "Not installed: the tests didn't pass.\n" + summary}], "isError": true}
 	var state_dir := SupervisorClient.State.state_dir(project_path)
+	var previous := NativeInstall.pending_info(state_dir)
 	var staged := NativeInstall.stage(planned, state_dir)
 	if not staged.is_empty():
 		return McpTool.error("Not installed: %s" % staged)
@@ -196,6 +198,8 @@ func _install_extension(args: Dictionary) -> Dictionary:
 			lines.append("✗ " + problem)
 		return {"content": [{"type": "text", "text": "\n".join(lines)}], "isError": true}
 	lines.append("Staged %d files from %s (test project) for %s:" % [planned.files.size(), planned.source, planned.target])
+	if not previous.is_empty():
+		lines.append("(This replaces the install staged before, of %s: only one is staged at a time.)" % NativeInstall.pending_names(previous))
 	for file: Dictionary in planned.files:
 		lines.append("  res://" + str(file.to))
 	if not (checked.warnings as PackedStringArray).is_empty():
@@ -208,8 +212,24 @@ func _install_extension(args: Dictionary) -> Dictionary:
 		lines.append("Not built yet (no library for any of their keys, so they don't load there): %s." % listed)
 	if planned.new_extension:
 		lines.append("The game doesn't have this extension yet: after the restart the editor registers and loads it.")
-	lines.append("Nothing changed in the open editor. The files enter the game when the editor restarts: call restart_editor. Under the crash supervisor, a build that crashes the editor while starting is rolled back (a new extension is disabled).")
+	else:
+		lines.append("It replaces the copy the game has at %s." % planned.replaces)
+	lines.append("Nothing changed in the open editor. The files enter the game when the editor restarts: call restart_editor. " + _crash_note(planned, state_dir))
 	return McpTool.text("\n".join(lines))
+
+
+## Qué pasa si la build instalada crashea el editor al arrancar, según lo que el supervisor tiene
+## guardado (good/): no promete volver atrás si no hay a qué.
+func _crash_note(planned: Dictionary, state_dir: String) -> String:
+	var unsupervised := "Without it, a crash while starting leaves the editor down until the user fixes it."
+	if planned.new_extension:
+		return "If it crashes the editor while starting under the crash supervisor, the supervisor disables it (renames its .gdextension to .gdextension.disabled) and reopens the editor. " + unsupervised
+	match ExtensionSnapshot.restorable(project_path, state_dir, str(planned.replaces).trim_prefix("res://")):
+		"full":
+			return "If it crashes the editor while starting under the crash supervisor, the supervisor goes back to the .gdextension and libraries that last started fine. " + unsupervised
+		"libraries":
+			return "If it crashes the editor while starting under the crash supervisor, the supervisor puts back the libraries that last started fine, but not the .gdextension (it has no copy of it yet: it saves one each time the editor starts fine under it). " + unsupervised
+	return "The crash supervisor has no copy of the build the game has now (it saves one each time the editor starts fine under it), so if this one crashes the editor while starting it can't go back: it disables the extension (renames its .gdextension to .gdextension.disabled) and reopens the editor. " + unsupervised
 
 
 func _restart_editor(args: Dictionary) -> Dictionary:
