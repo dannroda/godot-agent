@@ -3858,8 +3858,8 @@ msgstr "Reproducir"
 msgid "QA round %d: the evaluator gave a verdict without playing the game"
 msgstr "Vuelta de QA %d: el evaluador dio un veredicto sin jugar el juego"
 
-msgid "Saved: «Run regressions» in the findings panel repeats it without the agent."
-msgstr "Guardado: «Correr regresiones» en el panel de hallazgos lo repite sin el agente."
+msgid "Saved as a regression: the harness can replay it without the agent."
+msgstr "Guardado como regresión: el harness puede repetirlo sin el agente."
 
 msgid "Repeats the playtests that passed, without the agent and without using tokens."
 msgstr "Repite los playtests que pasaron, sin el agente y sin gastar tokens."
@@ -4692,3 +4692,6 @@ msgstr "Lo que lee el agente:"
 
 msgid "Project"
 msgstr "Proyecto"
+
+msgid "First regression saved. A playtest that passes leaves a script the harness can replay without the agent and without tokens: «Run regressions» in the findings panel, and «CI workflow…» writes a GitHub Actions workflow that runs them on every push. They live in %s."
+msgstr "Primera regresión guardada. Un playtest que pasa deja un script que el harness puede repetir sin el agente y sin tokens: «Correr regresiones» en el panel de hallazgos, y «CI workflow…» escribe un workflow de GitHub Actions que las corre en cada push. Viven en %s."
