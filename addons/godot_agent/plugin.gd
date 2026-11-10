@@ -141,7 +141,6 @@ var _diagnostics: DiagnosticTools
 var _playtest_debugger: PlaytestDebugger
 var _run_tools: RunTools
 var _profile_tools: ProfileTools
-var _regressions_running: bool = false
 var _pending_undo: Array[Dictionary] = []  # {tool, args, info, time}
 var _review_annotations: ReviewAnnotations
 var _oneshot: OneShotRun
@@ -614,7 +613,7 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 		AgentDock.ACTION_REVIEW_FIX_ALL:
 			_fix_review_findings(_controller.review.findings.duplicate())
 		AgentDock.ACTION_RUN_REGRESSIONS:
-			_run_regressions()
+			_run_regressions(int(payload) if payload is int else 1)
 		AgentDock.ACTION_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(false)
 		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
@@ -625,22 +624,24 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_main_screen.call(&"show_run_file", path)
 
 
-## Repite los playtests guardados sin agente (m16-06) y deja el resultado en el chat.
-func _run_regressions() -> void:
-	if _regressions_running or _run_tools == null:
+## Repite los playtests guardados sin agente (m16-06), `repeat` veces cada uno (m11-42), y deja el
+## resultado en el chat. Con varias corridas, las inestables quedan marcadas en el panel.
+func _run_regressions(repeat: int = 1) -> void:
+	if _run_tools == null or _run_tools.regressions_running:
 		return
-	_regressions_running = true
 	var entries := PlaytestRegressions.new().list()
-	_model.add_notice(I18n.t("Running %d regressions, without the agent…") % entries.size(), ChatEntry.NoticeLevel.INFO)
-	var results: Array = []
-	for entry: Dictionary in entries:
-		results.append(await _run_tools.run_regression(entry))
-	_regressions_running = false
-	var summary := PlaytestRegressions.summary(results)
-	if summary.ok:
-		_model.add_notice(I18n.t("Regressions: all %d pass.") % results.size(), ChatEntry.NoticeLevel.INFO)
+	repeat = clampi(repeat, 1, PlaytestRegressions.MAX_REPEAT)
+	_model.add_notice((I18n.t("Running %d regressions, without the agent…") % entries.size()) if repeat == 1 else I18n.t("Running %d regressions %d times each, without the agent…") % [entries.size(), repeat], ChatEntry.NoticeLevel.INFO)
+	var results := await _run_tools.run_saved_regressions(entries, repeat)
+	_controller.review.changed.emit()  # el panel muestra cuántas quedaron inestables
+	var summary := PlaytestRegressions.summary(results, false, Callable(I18n, &"t"))
+	if summary.failed == 0 and summary.flaky == 0:
+		_model.add_notice(I18n.t("Regressions: all %d pass.") % results.size() if repeat == 1 else I18n.t("Regressions: all %d pass, %d times each.") % [results.size(), repeat], ChatEntry.NoticeLevel.INFO)
+	elif summary.failed == 0:
+		_model.add_notice("%s\n%s" % [I18n.t("Regressions: none of %d fail, %d flaky.") % [results.size(), summary.flaky], summary.details], ChatEntry.NoticeLevel.WARNING)
 	else:
-		_model.add_notice("%s\n%s" % [I18n.t("Regressions: %d of %d fail.") % [summary.failed, results.size()], summary.details], ChatEntry.NoticeLevel.ERROR)
+		var head := I18n.t("Regressions: %d of %d fail.") % [summary.failed, results.size()] if summary.flaky == 0 else I18n.t("Regressions: %d of %d fail, %d flaky.") % [summary.failed, results.size(), summary.flaky]
+		_model.add_notice("%s\n%s" % [head, summary.details], ChatEntry.NoticeLevel.ERROR)
 
 
 ## El workflow de CI que corre las regresiones grabadas (m16-10). Uno que ya existe no se pisa:

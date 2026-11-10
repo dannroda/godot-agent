@@ -4199,3 +4199,33 @@ msgstr "Todavía no hay regresiones guardadas: un playtest que pasa deja una. El
 
 msgid "Could not install the staged GDExtension %s: %s. The game keeps the build it had."
 msgstr "No se pudo instalar la GDExtension preparada %s: %s. El juego sigue con la build que tenía."
+
+msgid "flaky"
+msgstr "inestable"
+
+msgid "passed %d of %d"
+msgstr "pasó %d de %d"
+
+msgid "Runs of each regression. With 2 or more, one that passes some runs and fails others is marked flaky, with how many passed."
+msgstr "Corridas de cada regresión. Con 2 o más, una que pasa algunas y falla otras queda marcada como inestable, con cuántas pasaron."
+
+msgid "Run regressions (%d · %d flaky)"
+msgstr "Correr regresiones (%d · %d inestables)"
+
+msgid "Flaky: %s"
+msgstr "Inestables: %s"
+
+msgid "Running %d regressions %d times each, without the agent…"
+msgstr "Corriendo %d regresiones %d veces cada una, sin el agente…"
+
+msgid "Regressions: all %d pass, %d times each."
+msgstr "Regresiones: pasan las %d, %d veces cada una."
+
+msgid "Regressions: none of %d fail, %d flaky."
+msgstr "Regresiones: no falla ninguna de %d, %d inestables."
+
+msgid "Regressions: %d of %d fail, %d flaky."
+msgstr "Regresiones: fallan %d de %d, %d inestables."
+
+msgid "Run the regressions"
+msgstr "Correr las regresiones"

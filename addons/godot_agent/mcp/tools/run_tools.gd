@@ -105,6 +105,8 @@ var max_image_side: int = 1280
 var harness_requested: bool = false
 ## Quita el autoload si el juego no llegó a arrancar (lo inyecta el plugin).
 var cleanup: Callable
+## Hay una tanda de regresiones corriendo (run_saved_regressions).
+var regressions_running: bool = false
 
 ## Dónde avisar de una transición del juego que no está en GAME_RUN_STATE_TRANSITIONS (la pone el plugin).
 var agent_log: AgentLog
@@ -322,10 +324,18 @@ func tools() -> Array:
 			},
 			["seconds"], _run_scene),
 		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
+		McpTool.create("run_regressions", run,
+			"Runs the saved playtest regressions (%s/) in the editor, without an agent turn, `repeat` times each, and reports how many runs of each passed. A regression passes only if every run passes; one that passes some runs and fails others is flaky, and the count is saved with it so the findings panel and the CI workflow can tell. Use repeat 3 or more to check that a regression is stable before relying on it." % RegressionsWorkflow.REGRESSIONS_DIR,
+			{
+				"repeat": {"type": "integer", "description": "Runs of each regression (1 to %d, default 1)" % PlaytestRegressions.MAX_REPEAT},
+				"goal": {"type": "string", "description": "Run only the regressions whose goal contains this text (default: all)"},
+			}, [], _run_regressions),
 		McpTool.create("write_regressions_workflow", PermissionPolicy.GROUP_EDIT_FILES,
 			"Writes %s: a GitHub Actions workflow that runs the saved playtest regressions (%s/) on every push and pull request with this editor's Godot version, and uploads the report and captures when they fail. Never replaces an existing file (only the user can, from the findings panel) and does nothing while there are no saved regressions." % [RegressionsWorkflow.PATH.trim_prefix("res://"), RegressionsWorkflow.REGRESSIONS_DIR],
 			{
 				"render": {"type": "boolean", "description": "Run the regressions under Xvfb with software OpenGL instead of headless, for checks that need the game drawn (default false)"},
+				"repeat": {"type": "integer", "description": "Runs of each regression in CI (1 to %d, default 1). A regression that passes some runs and fails others is reported as flaky" % PlaytestRegressions.MAX_REPEAT},
+				"fail_on_flaky": {"type": "boolean", "description": "A flaky regression fails the CI run too (default false: it is reported and the run passes)"},
 			}, [], _write_regressions_workflow),
 		McpTool.create("capture_game_frame", run, "Captures the current frame of the running game (launched with run_scene) as a PNG.", {}, [], _capture_game_frame),
 		McpTool.create("game_tree", read,
@@ -894,6 +904,50 @@ func run_regression(entry: Dictionary, setup: String = "") -> Dictionary:
 	return result
 
 
+## Las regresiones guardadas, `repeat` veces cada una (m11-42): los resultados de PlaytestRegressions.tally.
+## Con 2 o más corridas guarda en cada una cuántas pasaron. `regressions_running` la deja de a una (el
+## botón del panel y la tool corren el mismo juego).
+func run_saved_regressions(entries: Array[Dictionary], repeat: int) -> Array:
+	repeat = clampi(repeat, 1, PlaytestRegressions.MAX_REPEAT)
+	regressions_running = true
+	var results: Array = []
+	for entry: Dictionary in entries:
+		var runs: Array = []
+		for i in repeat:
+			runs.append(await run_regression(entry))
+		var tallied := PlaytestRegressions.tally(entry, runs)
+		PlaytestRegressions.record_runs(tallied)
+		results.append(tallied)
+	regressions_running = false
+	return results
+
+
+func _run_regressions(args: Dictionary) -> Dictionary:
+	if regressions_running:
+		return McpTool.error("The regressions are already running (from the findings panel or another call): wait for them to finish.")
+	if EditorInterface.is_playing_scene():
+		return McpTool.error("A game is running: stop it with stop_scene first; the regressions launch their own scenes.")
+	var goal := str(args.get("goal", "")).strip_edges()
+	var entries := PlaytestRegressions.new().list().filter(func(entry: Dictionary) -> bool: return goal.is_empty() or str(entry.goal).containsn(goal))
+	if entries.is_empty():
+		return McpTool.error("There are no saved regressions%s in %s/: a playtest that passes saves one." % [" matching «%s»" % goal if not goal.is_empty() else "", RegressionsWorkflow.REGRESSIONS_DIR])
+	var typed: Array[Dictionary] = []
+	typed.assign(entries)
+	var repeat := clampi(McpTool.int_arg(args, "repeat", 1), 1, PlaytestRegressions.MAX_REPEAT)
+	var results := await run_saved_regressions(typed, repeat)
+	var summary := PlaytestRegressions.summary(results)
+	var lines: PackedStringArray = []
+	for result: Dictionary in results:
+		var state := "FLAKY" if result.flaky else ("PASS" if result.passed else "FAIL")
+		var count := PlaytestRegressions.count_text(result)
+		lines.append("%s %s%s" % [state, result.goal, " (%s)" % count if not count.is_empty() else ""])
+	var head := "All %d pass" % results.size() if summary.failed == 0 and summary.flaky == 0 else "%d of %d fail, %d flaky" % [summary.failed, results.size(), summary.flaky]
+	var text := "%s (%d run%s each).\n%s" % [head, repeat, "" if repeat == 1 else "s", "\n".join(lines)]
+	if not str(summary.details).is_empty():
+		text += "\n\n" + summary.details
+	return McpTool.text(text) if summary.failed == 0 else McpTool.error(text)
+
+
 ## El workflow de CI de las regresiones (m16-10), en la raíz del repo del proyecto abierto. La tool
 ## nunca pisa uno que exista (en Auto, edit_files no pide tarjeta y el workflow puede ser del
 ## usuario): reemplazarlo es cosa del botón del panel, que confirma. Sin regresiones grabadas no
@@ -903,12 +957,16 @@ func _write_regressions_workflow(args: Dictionary) -> Dictionary:
 	if saved == 0:
 		return McpTool.error("There are no saved regressions in %s/: a playtest that passes saves one. Without them the workflow would fail on every push, so nothing was written." % RegressionsWorkflow.REGRESSIONS_DIR)
 	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
-	var written := RegressionsWorkflow.write(root, bool(args.get("render", false)), false)
+	var repeat := clampi(McpTool.int_arg(args, "repeat", 1), 1, PlaytestRegressions.MAX_REPEAT)
+	var written := RegressionsWorkflow.write(root, bool(args.get("render", false)), false, "", null, null, repeat, bool(args.get("fail_on_flaky", false)))
 	if not written.ok:
 		if written.existed:
 			return McpTool.error("%s and this tool never replaces it. If the user wants the harness's version, they can press «CI workflow…» in the findings panel, which asks before overwriting." % written.error)
 		return McpTool.error(written.error)
-	var lines: PackedStringArray = ["Wrote %s (repository root: %s) for Godot %s%s. Commit it and push: GitHub Actions runs the %d saved regressions on every push and pull request." % [written.path, written.root, RegressionsWorkflow.editor_version(), " (.NET)" if RegressionsWorkflow.is_dotnet_editor() else "", saved]]
+	var lines: PackedStringArray = ["Wrote %s (repository root: %s) for Godot %s%s. Commit it and push: GitHub Actions runs the %d saved regressions on every push and pull request%s." % [written.path, written.root, RegressionsWorkflow.editor_version(), " (.NET)" if RegressionsWorkflow.is_dotnet_editor() else "", saved,
+		", %d times each" % repeat if repeat > 1 else ""]]
+	if repeat > 1:
+		lines.append("A flaky regression (it passes some runs and fails others) %s." % ("fails the CI run" if bool(args.get("fail_on_flaky", false)) else "is reported but doesn't fail the CI run; one that fails every run does"))
 	if not str(written.project_dir).is_empty():
 		lines.append("The project is in %s/ inside the repository: the workflow runs Godot with --path %s." % [written.project_dir, written.project_dir])
 	for warning: String in written.warnings:

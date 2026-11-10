@@ -9,7 +9,8 @@ signal fix_all_requested
 ## Un aviso para el chat (exportar a CLAUDE.md, importar de GitHub).
 signal notice_requested(text: String, level: ChatEntry.NoticeLevel)
 ## Repetir los playtests guardados, sin agente (m16-06).
-signal regressions_requested
+## `repeat`: corridas de cada una (m11-42).
+signal regressions_requested(repeat: int)
 ## El usuario quiere el workflow de CI que corre las regresiones (m16-10).
 signal ci_workflow_requested
 ## Un prompt para mandar al agente (el de un playtest, m14-03).
@@ -50,6 +51,9 @@ var _export_dialog: ConfirmationDialog
 var _export_preview: TextEdit
 var _run_again: Button
 var _regressions_button: Button
+## Cuántas veces corre cada regresión «Correr regresiones» (m11-42).
+var _repeat: SpinBox
+var _regressions_row: HBoxContainer
 var _ci_button: Button
 ## El último playtest pedido, para repetirlo tal cual (m15-17): {goal, record, minutes}.
 var _last_playtest: Dictionary = {}
@@ -126,11 +130,22 @@ func _ready() -> void:
 	_run_again.visible = false
 	_run_again.pressed.connect(func() -> void: _start_playtest(_last_playtest.goal, _last_playtest.record, _last_playtest.minutes))
 	actions.add_child(_run_again)
+	_regressions_row = HBoxContainer.new()
+	_regressions_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_regressions_button = Button.new()
 	_regressions_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_regressions_button.tooltip_text = I18n.t("Repeats the playtests that passed, without the agent and without using tokens.")
-	_regressions_button.pressed.connect(regressions_requested.emit)
-	actions.add_child(_regressions_button)
+	_regressions_button.pressed.connect(func() -> void: regressions_requested.emit(int(_repeat.value)))
+	_regressions_row.add_child(_regressions_button)
+	_repeat = SpinBox.new()
+	_repeat.min_value = 1
+	_repeat.max_value = PlaytestRegressions.MAX_REPEAT
+	_repeat.value = 1
+	_repeat.prefix = "×"
+	_repeat.select_all_on_focus = true
+	_repeat.tooltip_text = I18n.t("Runs of each regression. With 2 or more, one that passes some runs and fails others is marked flaky, with how many passed.")
+	_regressions_row.add_child(_repeat)
+	actions.add_child(_regressions_row)
 	_ci_button = Button.new()
 	_ci_button.text = I18n.t("CI workflow…")
 	_ci_button.tooltip_text = I18n.t("Writes a GitHub Actions workflow that runs the saved regressions on every push, with this editor's Godot version.")
@@ -191,9 +206,14 @@ func refresh() -> void:
 	_scroll.custom_minimum_size.y = minf(AgentTheme.px(LIST_MAX_HEIGHT), findings.size() * row_height)
 	_export_button.disabled = findings.is_empty()
 	_fix_button.disabled = findings.is_empty()
-	var saved := PlaytestRegressions.new().list().size()
-	_regressions_button.visible = saved > 0
-	_regressions_button.text = I18n.t("Run regressions (%d)") % saved
+	var regressions := PlaytestRegressions.new().list()
+	var saved := regressions.size()
+	var flaky := PlaytestRegressions.flaky_count(regressions)
+	_regressions_row.visible = saved > 0
+	_regressions_button.text = I18n.t("Run regressions (%d)") % saved if flaky == 0 else I18n.t("Run regressions (%d · %d flaky)") % [saved, flaky]
+	_regressions_button.tooltip_text = I18n.t("Repeats the playtests that passed, without the agent and without using tokens.") + \
+		("" if flaky == 0 else "\n" + I18n.t("Flaky: %s") % ", ".join(regressions.filter(func(entry: Dictionary) -> bool: return PlaytestRegressions.is_flaky(entry)).map(
+			func(entry: Dictionary) -> String: return "«%s» (%s)" % [entry.goal, I18n.t(PlaytestRegressions.PASSED_OF) % [int(entry.runs.passed), int(entry.runs.total)]])))
 	_ci_button.visible = saved > 0
 
 
