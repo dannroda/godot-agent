@@ -48,6 +48,7 @@ func _initialize() -> void:
 	await _scenario_quota()
 	await _scenario_history()
 	await _scenario_login()
+	await _scenario_secrets()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
 	print("acp_session_check: %d checks, %d fallos (%s)" % [_checks, _failures.size(), Engine.get_version_info().string])
@@ -683,6 +684,57 @@ func _scenario_login() -> void:
 	controller.stop()
 	_check_transitions(controller, "login")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(MARKER))
+
+
+## m13-25: un secreto registrado en el log (el token MCP, una API key) no llega al disco aunque el
+## agente lo repita en texto, tool calls, plan y título: el historial (.jsonl e index), lo que se
+## vuelve a cargar de él y el modelo salen con «secret» en su lugar.
+func _scenario_secrets() -> void:
+	print("— secrets")
+	var secret := "FAKESECRET-0123456789"
+	var history := SessionHistory.new()
+	history.dir = "user://acp_check_secrets"
+	for file: String in DirAccess.get_files_at(history.dir) if DirAccess.dir_exists_absolute(history.dir) else PackedStringArray():
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(history.dir.path_join(file)))
+	var model := SessionModel.new()
+	var log := AgentLog.new()
+	log.add_secret(secret)
+	var controller := SessionController.new()
+	controller.setup(model, log, ProjectSettings.globalize_path("res://").trim_suffix("/"))
+	controller.history = history
+	_check(await controller.start(_fake_profile("secret_echo")), "secrets: arranca")
+	_check(await controller.send_prompt("¿cuál es tu token?") == "end_turn", "secrets: turno")
+	var in_model: PackedStringArray = [model.title, JSON.stringify(model.plan)]
+	for entry: ChatEntry in model.entries():
+		in_model.append(entry.text)
+		for id: String in entry.tool_call_ids:
+			var call := model.tool_call(id)
+			if call:
+				in_model.append(call.title)
+				in_model.append(JSON.stringify(call.content))
+				in_model.append(JSON.stringify(call.raw_input))
+	var model_text := "\n".join(in_model)
+	_check(not model_text.contains(secret), "secrets: el modelo no tiene el secreto")
+	_check(model_text.contains(AgentLog.REDACTED), "secrets: el modelo lleva «secret» en su lugar")
+	var session_id := model.session_id
+	controller.stop()
+	history.flush()
+	var on_disk := ""
+	for file: String in DirAccess.get_files_at(history.dir):
+		on_disk += FileAccess.get_file_as_string(history.dir.path_join(file))
+	_check(on_disk.length() > 100 and not on_disk.contains(secret), "secrets: el historial en disco no tiene el secreto (%d bytes)" % on_disk.length())
+	_check(on_disk.contains(AgentLog.REDACTED), "secrets: el historial guarda «secret» en su lugar")
+	var replayed := SessionModel.new()
+	SessionHistory.replay(history.load_record(session_id), replayed)
+	var replayed_text := JSON.stringify(replayed.plan) + replayed.title
+	for entry: ChatEntry in replayed.entries():
+		replayed_text += entry.text
+	_check(not replayed_text.is_empty() and not replayed_text.contains(secret), "secrets: lo que se recarga del historial tampoco")
+	var log_text := ""
+	for entry: Dictionary in log.entries():
+		log_text += str(entry.message) + str(entry.raw)
+	_check(not log_text.contains(secret), "secrets: el Agent Log tampoco")
+	_check_transitions(controller, "secrets")
 
 
 func _check(condition: bool, label: String) -> void:
