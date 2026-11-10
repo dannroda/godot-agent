@@ -54,6 +54,9 @@ const SUMMARIES: Dictionary = {
 	"game_step": "Advances the paused game a few frames, playing inputs meanwhile",  # i18n
 	"game_watch": "Watches nodes of the running game and lists what changed",  # i18n
 	"game_monitors": "Samples the running game's performance monitors",  # i18n
+	"game_breakpoint": "Sets or removes the agent's breakpoints in the game's scripts",  # i18n
+	"game_stack": "Reads the stack and variables where the game stopped",  # i18n
+	"game_debug": "Continues or steps the game stopped in the debugger",  # i18n
 	"game_frames": "The frames of the last seconds of play, as files",  # i18n
 	"profile_run": "Runs a scene with the script profiler on and returns the slowest functions",  # i18n
 	"test_extension": "Tests the project's GDExtension in a separate headless Godot",  # i18n

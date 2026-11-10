@@ -4695,3 +4695,12 @@ msgstr "Proyecto"
 
 msgid "First regression saved. A playtest that passes leaves a script the harness can replay without the agent and without tokens: «Run regressions» in the findings panel, and «CI workflow…» writes a GitHub Actions workflow that runs them on every push. They live in %s."
 msgstr "Primera regresión guardada. Un playtest que pasa deja un script que el harness puede repetir sin el agente y sin tokens: «Correr regresiones» en el panel de hallazgos, y «CI workflow…» escribe un workflow de GitHub Actions que las corre en cada push. Viven en %s."
+
+msgid "Sets or removes the agent's breakpoints in the game's scripts"
+msgstr "Pone o saca los breakpoints del agente en los scripts del juego"
+
+msgid "Reads the stack and variables where the game stopped"
+msgstr "Lee la pila y las variables donde paró el juego"
+
+msgid "Continues or steps the game stopped in the debugger"
+msgstr "Hace seguir o avanzar paso a paso el juego parado en el debugger"
