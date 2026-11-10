@@ -48,6 +48,7 @@ func _initialize() -> void:
 	await _scenario_quota()
 	await _scenario_history()
 	await _scenario_login()
+	await _scenario_login_at_prompt()
 	await _scenario_secrets()
 	for failure: String in _failures:
 		printerr("FAIL " + failure)
@@ -683,6 +684,35 @@ func _scenario_login() -> void:
 	_check(login_pid > 0 and not _pid_alive(login_pid), "login: el proceso del login terminó")
 	controller.stop()
 	_check_transitions(controller, "login")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MARKER))
+
+
+## m12-49: como claude-agent-acp sin credenciales, la sesión abre y es el primer turno el que pide
+## login; después del login el prompt que falló se manda solo.
+func _scenario_login_at_prompt() -> void:
+	print("— login at prompt")
+	const MARKER := "user://fake_login_turn_ok"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(MARKER))
+	var made := await _make("auth_turn")
+	var controller: SessionController = made[0]
+	var model: SessionModel = made[1]
+	_check(model.state == SessionModel.SessionState.READY, "login en el turno: la sesión abre sin login")
+	var outcome: String = await controller.send_prompt("hola")
+	_check(outcome == "error" and model.state == SessionModel.SessionState.READY, "login en el turno: el primer turno falla y la sesión sigue (%s, %d)" % [outcome, model.state])
+	var notice: ChatEntry = model.entries().back()
+	_check(notice.kind == ChatEntry.EntryKind.NOTICE and notice.text == "Sign in to Agente falso to continue: your message is sent again afterwards." and notice.actions.any(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN), "login en el turno: la tarjeta de login dice que el mensaje se reenvía (%s)" % notice.text)
+	var link_shown := func() -> bool: return model.entries().any(func(entry: ChatEntry) -> bool: return entry.actions.any(func(action: Dictionary) -> bool: return action.id == SessionController.ACTION_LOGIN_CODE))
+	controller.login("fake-login")
+	await _wait_until(link_shown)
+	_check(controller.send_login_code("CODE123"), "login en el turno: manda el código")
+	await _wait_until(func() -> bool: return model.entries().any(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.AGENT and str(entry.text).contains("hola de vuelta")))
+	var texts := model.entries().map(func(entry: ChatEntry) -> String: return str(entry.text))
+	_check("Signed in. Sending your message again." in texts, "login en el turno: avisa que reenvía (%s)" % [texts])
+	_check(model.entries().any(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER and entry.text == "hola"), "login en el turno: el prompt volvió a salir como del usuario")
+	_check(model.entries().any(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.AGENT and str(entry.text).contains("hola de vuelta")), "login en el turno: el agente contestó")
+	await _wait_until(func() -> bool: return model.state == SessionModel.SessionState.READY)
+	controller.stop()
+	_check_transitions(controller, "login en el turno")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(MARKER))
 
 

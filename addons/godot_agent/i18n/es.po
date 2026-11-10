@@ -3272,8 +3272,8 @@ msgstr "%d s"
 msgid "Sign in to %s to continue."
 msgstr "Iniciá sesión en %s para seguir."
 
-msgid "Sign in to %s again to continue."
-msgstr "Volvé a iniciar sesión en %s para seguir."
+msgid "Sign in to %s to continue: your message is sent again afterwards."
+msgstr "Iniciá sesión en %s para seguir: después tu mensaje se manda de nuevo."
 
 msgid "Other ways to sign in"
 msgstr "Otras formas de entrar"
@@ -3807,8 +3807,8 @@ msgstr "Elegí con qué agente trabajar"
 msgid "The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents."
 msgstr "El agente ve y cambia el proyecto con las herramientas del editor. Podés sumar otros después en Ajustes → Agentes."
 
-msgid "Add an agent. If it has to be downloaded, the progress shows here."
-msgstr "Agregás un agente. Si hay que descargarlo, ves el progreso acá."
+msgid "Add an agent: the session starts on its own (the first time it is downloaded, which can take a minute)."
+msgstr "Agregás un agente: la sesión arranca sola (la primera vez se descarga, puede tardar un minuto)."
 
 msgid "Sign in with the account it asks for, from the browser."
 msgstr "Iniciás sesión con la cuenta que pida, desde el navegador."
@@ -4704,3 +4704,9 @@ msgstr "Lee la pila y las variables donde paró el juego"
 
 msgid "Continues or steps the game stopped in the debugger"
 msgstr "Hace seguir o avanzar paso a paso el juego parado en el debugger"
+
+msgid "Signed in. Sending your message again."
+msgstr "Sesión iniciada. Tu mensaje se manda de nuevo."
+
+msgid "(the first time, the agent is downloaded: it can take a minute)"
+msgstr "(la primera vez se descarga el agente: puede tardar un minuto)"

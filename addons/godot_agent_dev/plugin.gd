@@ -27,6 +27,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-run-error-test [--godot-agent-ui-shot=<ruta.png>]`: un run manual de un script roto deja en el dock el aviso con
 ##   «Arreglar con el agente» una vez por run, el botón manda el prompt etiquetado, y ni un run del
 ##   agente ni el ajuste apagado avisan (ver run_error_check.gd, m11-55). Necesita ventana.
+## - `-- --godot-agent-first-run-test=<prefijo>`: el primer uso en vivo sin tokens (ver
+##   tests/first_run_check.sh): «Add» arranca la sesión sola y, sin credenciales, llega al login.
 ## - `-- --godot-agent-claude-scene-test`: verificación de M4 con Claude Code real (gasta tokens).
 ##   Pide agregar WaveLabel al HUD y conectar WaveTimer.timeout; Ctrl+Z tiene que deshacerlo en pasos.
 ## - `-- --godot-agent-crash-test=before|during`: mata el editor con el autoload de playtest recién
@@ -138,6 +140,9 @@ const UxTour := preload("ux_tour.gd")
 ## m7-39: instala un plugin del Asset Store desde Extensions y prueba las tools (red; correr con
 ## tests/asset_check.sh, que usa una copia del proyecto).
 const ASSET_ARG := "--godot-agent-asset-test="
+## m12-49: el primer uso en vivo (tests/first_run_check.sh): «Agregar» arranca la sesión y llega al login.
+const FIRST_RUN_ARG := "--godot-agent-first-run-test="
+const FIRST_RUN_TIMEOUT_S := 400.0
 const AssetCheck := preload("asset_check.gd")
 ## m7-36: la pestaña Skills de Extensions (correr con tests/skills_check.sh: copia del proyecto y
 ## un CLAUDE_CONFIG_DIR de prueba).
@@ -252,6 +257,8 @@ func _enter_tree() -> void:
 			_run_ux_tour.call_deferred(arg.trim_prefix(UX_TOUR_ARG))
 		if arg.begins_with(ASSET_ARG):
 			_run_asset_test.call_deferred(arg.trim_prefix(ASSET_ARG))
+		if arg.begins_with(FIRST_RUN_ARG):
+			_run_first_run_test.call_deferred(arg.trim_prefix(FIRST_RUN_ARG))
 		if arg.begins_with(SKILLS_ARG):
 			_run_skills_test.call_deferred(arg.trim_prefix(SKILLS_ARG))
 		if arg.begins_with(SESSIONS_ARG):
@@ -1757,6 +1764,101 @@ func _run_skills_test(prefix: String) -> void:
 		return
 	var failures := await SkillsCheck.new().run(get_tree(), dock, prefix)
 	_finish(0 if failures.is_empty() else 1, "skills-test: %s" % ("ok" if failures.is_empty() else "; ".join(failures)))
+
+
+## m12-49: en un editor sin agentes (tests/first_run_check.sh: self-contained, CLAUDE_CONFIG_DIR vacío,
+## sin API key), «Agregar» en Claude Code arranca la sesión sola; npx baja el adaptador y, sin
+## credenciales, la sesión termina en la tarjeta de login con su botón. Cuenta las interacciones del
+## camino mínimo y guarda <prefijo>_01_sin_agentes.png, _02_conectando.png y _03_login.png.
+func _run_first_run_test(prefix: String) -> void:
+	get_tree().create_timer(FIRST_RUN_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var model: Object = dock.get(&"_model")
+	var controller: Object = dock.get(&"_controller")
+	var settings: Object = dock.get(&"_settings")
+	if not (settings.call(&"profiles") as Array).is_empty():
+		_finish(1, "el check necesita un editor sin agentes: corré tests/first_run_check.sh")
+		return
+	var guide: Control = dock.get(&"_suggested_box")
+	if guide == null or not guide.is_visible_in_tree():
+		_finish(1, "no se ve la guía del primer arranque")
+		return
+	_save_dock_shot(dock, prefix + "_01_sin_agentes.png")
+	var add := _find_button(guide, I18n.t("Add"))
+	if add == null:
+		_finish(1, "no hay botón «Add» en los sugeridos")
+		return
+	var started_at := Time.get_ticks_msec()
+	add.pressed.emit()  # interacción 1 en el dock
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if (settings.call(&"profiles") as Array).is_empty():
+		_finish(1, "«Add» no guardó el perfil de Claude Code")
+		return
+	if int(model.get(&"state")) != SessionModel.SessionState.STARTING:
+		_finish(1, "«Add» no arrancó la sesión sola (estado %d)" % int(model.get(&"state")))
+		return
+	await get_tree().create_timer(0.5).timeout
+	_save_dock_shot(dock, prefix + "_02_conectando.png")
+	var deadline := Time.get_ticks_msec() + int((FIRST_RUN_TIMEOUT_S - 30.0) * 1000)
+	while int(model.get(&"state")) == SessionModel.SessionState.STARTING and Time.get_ticks_msec() < deadline:
+		await get_tree().create_timer(0.2).timeout
+	var seconds := (Time.get_ticks_msec() - started_at) / 1000
+	var state_line: Label = dock.get(&"_state_line")
+	var connecting_line := state_line.text
+	match int(model.get(&"state")):
+		SessionModel.SessionState.LOGIN_REQUIRED:
+			pass
+		SessionModel.SessionState.READY:
+			# claude-agent-acp abre la sesión sin credenciales y es el primer turno el que pide login:
+			# un mensaje corto no gasta tokens porque el turno falla antes de llegar al modelo.
+			if not str((model.get(&"account") as Dictionary).get("email", "")).is_empty():
+				_finish(1, "abrió con una cuenta (%s): el entorno tiene credenciales" % (model.get(&"account") as Dictionary).get("email"))
+				return
+			dock.call(&"send_text", "hi")  # interacción 2 en el dock: el primer mensaje
+			var prompt_deadline := Time.get_ticks_msec() + 90000
+			while Time.get_ticks_msec() < prompt_deadline and not _has_login_notice(model):
+				await get_tree().create_timer(0.2).timeout
+			if not _has_login_notice(model):
+				_finish(1, "el primer mensaje no pidió login en 90 s (estado %d): revisá que el entorno no tenga credenciales" % int(model.get(&"state")))
+				return
+		SessionModel.SessionState.FAILED:
+			_finish(1, "la sesión falló (¿sin red para npx?): %s" % model.get(&"failure_message"))
+			return
+		_:
+			_finish(1, "la sesión no llegó al login en %d s (estado %d)" % [seconds, int(model.get(&"state"))])
+			return
+	var login: Object = _login_notice(model)
+	if login == null:
+		_finish(1, "pidió login pero no hay tarjeta con el botón de iniciar sesión")
+		return
+	var primary: Array = (login.get(&"actions") as Array).filter(func(action: Dictionary) -> bool: return bool(action.get("primary", false)))
+	if primary.is_empty() or _find_button(dock, str(primary[0].label)) == null:
+		_finish(1, "la tarjeta de login no tiene el botón principal a la vista (%s)" % [login.get(&"actions")])
+		return
+	await get_tree().create_timer(0.5).timeout
+	_save_dock_shot(dock, prefix + "_03_login.png")
+	var at_prompt := int(model.get(&"state")) != SessionModel.SessionState.LOGIN_REQUIRED
+	print("[first-run-check] «Add» arrancó la sesión sola (%d s hasta conectar; línea de estado: «%s»); el login lo pidió %s con «%s». Camino mínimo: activar el plugin, Add, %s«%s» (navegador), pegar el código%s: 5 interacciones (4 en el dock)." % [seconds, connecting_line, "el primer mensaje" if at_prompt else "la sesión al abrir", primary[0].label, "escribir el primer mensaje, " if at_prompt else "", primary[0].label, "" if at_prompt else ", escribir el primer mensaje"])
+	controller.call(&"stop")
+	await get_tree().process_frame
+	_finish(0, "first-run-test: ok (%d s hasta conectar, login %s)" % [seconds, "en el primer mensaje" if at_prompt else "al abrir"])
+
+
+func _has_login_notice(model: Object) -> bool:
+	return _login_notice(model) != null
+
+
+func _login_notice(model: Object) -> Object:
+	var login: Object = null
+	for entry: Object in model.call(&"entries"):
+		if entry.get(&"kind") == 7 and (entry.get(&"actions") as Array).any(func(action: Dictionary) -> bool: return str(action.id) == "login"):  # NOTICE
+			login = entry
+	return login
 
 
 func _run_asset_test(prefix: String) -> void:

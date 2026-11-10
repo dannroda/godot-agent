@@ -15,7 +15,7 @@ Requisitos: Godot 4.7 o más nuevo y, para Claude Code, Node.js con `npx`. Los p
 
 ## 2. Abrir una sesión
 
-La primera vez no hay agentes: el dock sugiere Claude Code, Codex y Google Antigravity, cada uno con lo que pide. **Agregar** en Claude Code arma su perfil (`npx -y @agentclientprotocol/claude-agent-acp`; la primera vez, `npx` lo descarga); los otros abren el registro de ACP. Después tocá **Iniciar sesión**. Cuando ya hay sesiones, el dock lista las anteriores del proyecto con **Continuar** (Settings → Interfaz puede continuar la última al abrir el editor).
+La primera vez no hay agentes: el dock sugiere Claude Code, Codex y Google Antigravity, cada uno con lo que pide. **Agregar** en Claude Code arma su perfil (`npx -y @agentclientprotocol/claude-agent-acp`) y arranca la sesión solo (la primera vez `npx` lo descarga, puede tardar un minuto). Si necesita una cuenta, el chat muestra la tarjeta para iniciar sesión (con Claude Code, en tu primer mensaje; después del login el mensaje se manda de nuevo). Los otros abren el registro de ACP. Cuando ya hay sesiones, el dock lista las anteriores del proyecto con **Continuar** (Settings → Interfaz puede continuar la última al abrir el editor).
 
 Si el agente no tiene una cuenta con sesión iniciada, una tarjeta te pide iniciar sesión, con el método principal del agente como botón y los demás en **Otras formas de entrar**. Con Claude Code son **Claude Subscription** y **Anthropic Console**:
 

@@ -13,7 +13,8 @@ extends SceneTree
 ##                              propio índice; las demás siguen con `turns`
 ##     "exit_on": "initialize"  el proceso se mata al recibir ese request (session/new, session/load…),
 ##                              sin responderlo: una caída mientras el harness arranca (m13-26)
-##     "auth": {"marker": "user://…", "code": "…"}   session/new responde authRequired (-32000)
+##     "auth": {"marker": "user://…", "code": "…", "at": "new"|"prompt"}   session/new (o, con
+##                              "at": "prompt", el primer session/prompt) responde authRequired (-32000)
 ##                              mientras no exista `marker`. Con `--login` en los args (el método
 ##                              `terminal` del guion) el proceso hace de login: imprime el enlace
 ##                              como Claude Code, espera el código por stdin y, si es `code`, crea
@@ -145,7 +146,7 @@ func _handle_line(line: String) -> void:
 			_reply(id, result)
 		"session/new":
 			var auth: Dictionary = _scenario.get("auth", {})
-			if not auth.is_empty() and not FileAccess.file_exists(str(auth.get("marker", ""))):
+			if not auth.is_empty() and str(auth.get("at", "new")) == "new" and not FileAccess.file_exists(str(auth.get("marker", ""))):
 				printerr("fake_agent: session/new sin login")
 				_send({"jsonrpc": "2.0", "id": id, "error": {"code": -32000, "message": "Authentication required"}})
 				return
@@ -166,6 +167,12 @@ func _handle_line(line: String) -> void:
 		"session/prompt":
 			var prompt_text := JSON.stringify(message.get("params", {}).get("prompt", []))
 			printerr("fake_agent: prompt %s" % prompt_text)
+			# Como claude-agent-acp sin credenciales (m12-49): la sesión abre y el primer turno pide login.
+			var prompt_auth: Dictionary = _scenario.get("auth", {})
+			if str(prompt_auth.get("at", "new")) == "prompt" and not FileAccess.file_exists(str(prompt_auth.get("marker", ""))):
+				printerr("fake_agent: prompt sin login")
+				_send({"jsonrpc": "2.0", "id": id, "error": {"code": -32000, "message": "Authentication required"}})
+				return
 			var prompt_session := str(message.get("params", {}).get("sessionId", ""))
 			var prompt: Array = message.get("params", {}).get("prompt", [])
 			if prompt.size() == 1 and str(prompt[0].get("text", "")).strip_edges().begins_with("/remote-control"):
