@@ -11,6 +11,8 @@ extends SceneTree
 ##     "evaluator_turns": [ … ]  turnos de las sesiones del evaluador del One-shot (D55): una sesión
 ##                              cuyo prompt trae "QA evaluation (One-shot)" usa esta lista, con su
 ##                              propio índice; las demás siguen con `turns`
+##     "exit_on": "initialize"  el proceso se mata al recibir ese request (session/new, session/load…),
+##                              sin responderlo: una caída mientras el harness arranca (m13-26)
 ##     "auth": {"marker": "user://…", "code": "…"}   session/new responde authRequired (-32000)
 ##                              mientras no exista `marker`. Con `--login` en los args (el método
 ##                              `terminal` del guion) el proceso hace de login: imprime el enlace
@@ -120,6 +122,10 @@ func _handle_line(line: String) -> void:
 		if id != null and int(id) == _waiting_request_id:
 			printerr("fake_agent: respuesta %s" % JSON.stringify(message.get("result", message.get("error"))))
 			_waiting_request_id = -1
+		return
+	if str(method) == str(_scenario.get("exit_on", "")):
+		printerr("fake_agent: me caigo en %s" % method)
+		OS.kill(OS.get_process_id())  # como el paso "exit": quit() no termina con el lector de stdin bloqueado
 		return
 	match str(method):
 		"initialize":

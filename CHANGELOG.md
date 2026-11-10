@@ -13,7 +13,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Fixed
 
-- When the agent's process dies during a turn, the chat shows one error card, with the cause and the last lines of the log, instead of two cards that each offered **Retry**.
+- When the agent's process dies during a turn or while the session starts, the chat shows one error card, with the cause and the last lines of the log, instead of two cards that each offered **Retry**.
 
 ## [0.1.17] - 2026-11-03
 

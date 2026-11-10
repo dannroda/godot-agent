@@ -38,6 +38,7 @@ func _initialize() -> void:
 	await _scenario_cancel()
 	await _scenario_hang()
 	await _scenario_crash()
+	await _scenario_crash_starting()
 	await _scenario_permissions_build()
 	await _scenario_permissions_ask()
 	await _scenario_mcp_external()
@@ -259,6 +260,29 @@ func _agent_responses(log: AgentLog) -> PackedStringArray:
 		if message.begins_with("fake_agent: respuesta "):
 			result.append(message.trim_prefix("fake_agent: respuesta "))
 	return result
+
+
+
+## m13-26: el agente se cae mientras el harness arranca (en initialize, session/new o session/load).
+## Una sola tarjeta, la de la caída: el request que la caída corta no suma la suya («didn't start»,
+## «Could not open the session…», «Could not resume…»), y la sesión queda en FAILED con su motivo.
+func _scenario_crash_starting() -> void:
+	for step: Array in [["crash_initialize", {}], ["crash_session_new", {}], ["crash_session_load", {"id": "fake-old-session"}]]:
+		var scenario: String = step[0]
+		print("— " + scenario)
+		var model := SessionModel.new()
+		var controller := SessionController.new()
+		controller.setup(model, AgentLog.new(), ProjectSettings.globalize_path("res://").trim_suffix("/"))
+		var states: Array[String] = []
+		model.state_changed.connect(func(state: SessionModel.SessionState) -> void: states.append(SessionModel.state_name(state)))
+		var ok: bool = await controller.start(_fake_profile(scenario), step[1])
+		_check(not ok, "%s: start() devuelve false" % scenario)
+		_check(model.state == SessionModel.SessionState.FAILED and not model.failure_message.is_empty(), "%s: FAILED con su motivo al volver de start() (%s, «%s»)" % [scenario, SessionModel.state_name(model.state), model.failure_message])
+		var cards: Array = model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.NOTICE and entry.level != ChatEntry.NoticeLevel.INFO)
+		_check(cards.size() == 1 and cards[0].title == "Agente falso stopped", "%s: una sola tarjeta, la de la caída (%s)" % [scenario, cards.map(func(entry: ChatEntry) -> String: return entry.title if not entry.title.is_empty() else entry.text.left(60))])
+		_check(not states.is_empty() and states.back() == "FAILED", "%s: termina en FAILED (%s)" % [scenario, states])
+		_check_transitions(controller, scenario)
+		controller.stop()
 
 
 func _scenario_permissions_build() -> void:

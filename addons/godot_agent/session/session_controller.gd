@@ -309,6 +309,8 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	})
 	if generation != _connect_generation:
 		return false
+	if model.has_failed():  # el agente se cayó esperando la respuesta: la tarjeta ya la puso _fail_agent (m13-26)
+		return false
 	if not init.ok or not init.result is Dictionary:
 		_fail_agent(I18n.t("%s didn't start") % _agent_name(),
 			I18n.t("It didn't answer the first message (initialize): %s") % init.error_message(),
@@ -373,6 +375,8 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	if _session_request_id == req_id:
 		_session_request_id = 0
 	if generation != _connect_generation or result.error.get("code") == AcpClient.ERR_REQUEST_CANCELLED:
+		return false
+	if model.has_failed():  # el agente se cayó esperando la respuesta: la tarjeta ya la puso _fail_agent (m13-26)
 		return false
 	if not result.ok or not result.result is Dictionary or not result.result.get("sessionId") is String:
 		var detail := result.error_message() if not result.ok else "response without sessionId"
@@ -1108,6 +1112,8 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	if _session_request_id == req_id:
 		_session_request_id = 0
 	if generation != _connect_generation or result.error.get("code") == AcpClient.ERR_REQUEST_CANCELLED:
+		return false
+	if model.has_failed():  # el agente se cayó esperando la respuesta: la tarjeta ya la puso _fail_agent (m13-26)
 		return false
 	if not result.ok:
 		_load_failed = true
