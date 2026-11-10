@@ -78,13 +78,16 @@ func begin(session_id: String, profile_id: String, agent_name: String, cwd: Stri
 	_last_save_msec = Time.get_ticks_msec()
 
 
-func record_prompt(text: String) -> void:
+func record_prompt(text: String, harness_label: String = "") -> void:
 	if text.strip_edges().is_empty() or not is_recording():
 		return
 	if str(_meta.title).is_empty():
 		_meta.title = title_from(text)
 	_meta.turns = int(_meta.turns) + 1
-	_append({"type": "user", "text": text})
+	var event := {"type": "user", "text": text}
+	if not harness_label.is_empty():
+		event.harness = harness_label
+	_append(event)
 	save()
 
 
@@ -213,7 +216,7 @@ static func replay(record: Dictionary, model: SessionModel) -> void:
 			continue
 		match str(event.get("type", "")):
 			"user":
-				model.add_user_message(str(event.get("text", "")))
+				model.add_user_message(str(event.get("text", "")), [], str(event.get("harness", "")))
 			"update":
 				if event.get("update") is Dictionary:
 					model.apply_update(event.update)

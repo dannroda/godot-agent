@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- Prompts the harness sends for you no longer look like messages you typed. This covers One-shot's turns (the goal, *keep going with the plan*, QA and its fixes, the final report), the check after each turn, Review's questions, fixes and playtests, inline edits, what the crash supervisor saw and messages from other sessions. Each one shows as a dimmed line with a label in the interface language. **Show prompt** opens the text the agent got, which stays in English. Queued prompts show the same label. Sessions reopened from the harness's history keep the labels.
+
 ## [0.1.19] - 2026-11-10
 
 ### Added

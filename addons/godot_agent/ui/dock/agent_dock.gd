@@ -24,6 +24,7 @@ const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const FirstRunGuide := preload("first_run_guide.gd")
 const RecentSessions := preload("recent_sessions.gd")
 const SessionController := preload("../../session/session_controller.gd")
+const HarnessPrompts := preload("../../session/harness_prompts.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
 const HISTORY_MENU_SIZE := 30
@@ -257,6 +258,7 @@ func _ready() -> void:
 	_conversation.sticky_slot = sticky
 	_queue_view = PromptQueueView.new()
 	_queue_view.setup(_queue)
+	_queue_view.harness_label_of = func(text: String) -> String: return _controller.prompt_label(text) if _controller else ""
 	_queue_view.edit_requested.connect(_composer.insert_text)
 	_queue_view.send_now_requested.connect(_send_next_queued.bind(true))
 	_queue_view.send_item_now_requested.connect(_send_queued_now)
@@ -596,7 +598,7 @@ func _build_review_panel() -> void:
 	_review_panel.regressions_requested.connect(func() -> void: action_forwarded.emit(ACTION_RUN_REGRESSIONS, null))
 	_review_panel.ci_workflow_requested.connect(func() -> void: action_forwarded.emit(ACTION_REGRESSIONS_WORKFLOW, null))
 	_review_panel.notice_requested.connect(func(text: String, level: ChatEntry.NoticeLevel) -> void: _model.add_notice(text, level))
-	_review_panel.prompt_requested.connect(_on_submitted)
+	_review_panel.prompt_requested.connect(func(text: String) -> void: _on_submitted(_controller.label_prompt(text, HarnessPrompts.REVIEW_PLAYTEST)))
 	add_child(_review_panel)
 	move_child(_review_panel, _body.get_index())
 
@@ -1063,8 +1065,10 @@ func _on_submitted(text: String) -> void:
 
 
 ## Manda un mensaje como si el usuario lo hubiera escrito, sin tocar el composer (lo que el
-## supervisor le cuenta al agente al volver, m19-03).
-func send_text(text: String) -> void:
+## supervisor le cuenta al agente al volver, m19-03). `harness_label`: en el chat sale como prompt del
+## harness con esa etiqueta (ver HarnessPrompts, m12-44).
+func send_text(text: String, harness_label: String = "") -> void:
+	_controller.label_prompt(text, harness_label)
 	if _model.is_busy():
 		_queue.add(text, [])
 	elif _model.state == SessionModel.SessionState.READY:
@@ -1193,6 +1197,7 @@ func _send_queued_now(index: int) -> void:
 func deliver_message(text: String) -> bool:
 	if not _controller.is_connected_to_agent():
 		return false
+	_controller.label_prompt(text, HarnessPrompts.OTHER_SESSION)
 	if _model.state == SessionModel.SessionState.READY and _queue.is_empty():
 		_controller.send_prompt(text)
 	else:

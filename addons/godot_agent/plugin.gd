@@ -69,6 +69,7 @@ const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
 const ErrorCollector := preload("editor/error_collector.gd")
 const ReviewAnnotations := preload("review/review_annotations.gd")
 const ReviewStore := preload("review/review_store.gd")
+const HarnessPrompts := preload("session/harness_prompts.gd")
 const AgentDock := preload("ui/dock/agent_dock.gd")
 const OneShotRun := preload("oneshot/oneshot_run.gd")
 const GameCriteria := preload("oneshot/game_criteria.gd")
@@ -670,7 +671,7 @@ func _on_review_action(action: String, finding: Dictionary) -> void:
 			_controller.review.dismiss(int(finding.id))
 		ReviewAnnotations.ACTION_ASK:
 			if _can_send():
-				_controller.send_prompt(ReviewStore.question_prompt(finding), [], false)
+				_controller.send_prompt(_controller.label_prompt(ReviewStore.question_prompt(finding), HarnessPrompts.REVIEW_QUESTION), [], false)
 		ReviewAnnotations.ACTION_APPLY:
 			var list: Array[Dictionary] = [finding]
 			_fix_review_findings(list)
@@ -680,7 +681,7 @@ func _on_review_action(action: String, finding: Dictionary) -> void:
 func _fix_review_findings(list: Array[Dictionary]) -> void:
 	if list.is_empty() or not _can_send():
 		return
-	var stop_reason := await _controller.send_in_mode(SessionModel.HarnessMode.BUILD, ReviewStore.fix_prompt(list))
+	var stop_reason := await _controller.send_in_mode(SessionModel.HarnessMode.BUILD, _controller.label_prompt(ReviewStore.fix_prompt(list), HarnessPrompts.REVIEW_FIX))
 	if stop_reason == "end_turn" and _controller:
 		for finding: Dictionary in list:
 			_controller.review.dismiss(int(finding.id))
@@ -1096,7 +1097,7 @@ func _report_supervisor_events(dock: Control) -> void:
 	if not is_instance_valid(dock) or (_oneshot and _oneshot.is_active()):
 		return
 	if await dock.continue_last_session():
-		dock.send_text("\n\n".join(messages))
+		dock.send_text("\n\n".join(messages), HarnessPrompts.SUPERVISOR)
 
 
 ## Lo que preparó install_extension y todavía no entró (m19-05): el editor se cerró sin pasar por
@@ -1235,7 +1236,7 @@ func _ask_inline(prompt: String) -> Dictionary:
 	if model.state != SessionModel.SessionState.READY:
 		return {"text": "", "error": I18n.t("The agent is busy: try again when its turn ends.")}
 	var first := model.entries().size()
-	var reason: String = await controller.send_prompt(prompt)
+	var reason: String = await controller.send_prompt(controller.label_prompt(prompt, HarnessPrompts.INLINE_EDIT))
 	return {"text": controller.agent_text_since(first), "error": "" if reason == "end_turn" else I18n.t("The turn ended with «%s».") % reason}
 
 

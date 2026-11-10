@@ -1,0 +1,7 @@
+{
+	"turns": [
+		{"steps": [{"chunk": "Las oleadas salen de `wave_spawner.gd`: cada 20 s suma un enemigo."}]},
+		{"steps": [{"chunk": "Arreglé el `:` que faltaba en `player.gd:12`; `godot.validate_scripts` ya no da errores."}]},
+		{"steps": [{"chunk": "Visto: el juego se cerró en `boss.gd:40`. Lo reviso."}]}
+	]
+}

@@ -69,6 +69,7 @@ const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
+const HarnessPrompts := preload("res://addons/godot_agent/session/harness_prompts.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const SYNC_ARG := "--godot-agent-sync-test"
 const SYNC_SCRIPT := "res://addons/godot_agent/editor/editor_sync.gd"
@@ -922,6 +923,8 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 			return
 	if scenario == "ui_markdown" and not await _check_markdown_and_viewer(dock, shot_path):
 		return
+	if scenario == "ui_harness_prompt" and not await _check_harness_prompts(dock, model, controller, shot_path):
+		return
 	if not shot_path.is_empty():
 		var image := EditorInterface.get_base_control().get_viewport().get_texture().get_image()
 		image.save_png(shot_path)
@@ -1092,6 +1095,63 @@ func _check_long_permission(dock: Control, model: Object, shot_path: String) -> 
 	if not shot_path.is_empty():
 		get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_long_permission.png")
 	button.pressed.emit()
+	return true
+
+
+## m12-44: lo que manda el harness (el chequeo después del turno, lo que vio el supervisor) sale
+## atenuado y plegado, con la etiqueta en el idioma de la interfaz; «Ver prompt» muestra lo que le
+## llegó al agente, en inglés.
+func _check_harness_prompts(dock: Control, model: Object, controller: Object, shot_path: String) -> bool:
+	var check := "[Automatic check after your turn] These scripts you changed don't parse. Fix them, then check again with godot.validate_scripts:\nres://player.gd:12 - Parse Error: Expected end of statement after expression."
+	await controller.call(&"send_prompt", controller.call(&"label_prompt", check, HarnessPrompts.TURN_CHECK))
+	var supervisor := "The editor crashed while the game was running (res://boss.gd:40). The supervisor reopened it."
+	dock.call(&"send_text", supervisor, HarnessPrompts.SUPERVISOR)
+	var users := func() -> Array: return (model.call(&"entries") as Array).filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER)
+	var deadline := Time.get_ticks_msec() + 15000
+	while (users.call().size() < 3 or int(model.get(&"state")) != 2) and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	var labels: Array = users.call().map(func(entry: ChatEntry) -> String: return entry.harness_label)
+	if labels != ["", HarnessPrompts.TURN_CHECK, HarnessPrompts.SUPERVISOR]:
+		_finish(1, "harness: etiquetas de los prompts %s" % [labels])
+		return false
+	if users.call()[1].text != check or users.call()[2].text != supervisor:
+		_finish(1, "harness: el texto que recibe el agente cambió")
+		return false
+	await get_tree().create_timer(0.5).timeout
+	var conversation: Control = dock.get(&"_conversation")
+	var views: Array = (conversation.get(&"_views") as Dictionary).values().filter(func(view: Node) -> bool: return view.has_method(&"is_harness") and view.call(&"is_harness"))
+	if views.size() != 2:
+		_finish(1, "harness: %d vistas del harness (2 esperadas)" % views.size())
+		return false
+	var first: Control = views[0]
+	var caption: Label = first.get(&"_caption")
+	var prompt: Label = first.get(&"_label")
+	var toggle: Button = first.get(&"_toggle")
+	var expected := "⚙ " + I18n.t(HarnessPrompts.TURN_CHECK)
+	if caption.text != expected or not caption.is_visible_in_tree() or prompt.visible or toggle.text != I18n.t("Show prompt"):
+		_finish(1, "harness: plegado «%s» (esperado «%s»), prompt visible=%s, botón «%s»" % [caption.text, expected, prompt.visible, toggle.text])
+		return false
+	conversation.call(&"_scroll_to_bottom")
+	await get_tree().create_timer(0.3).timeout
+	if not shot_path.is_empty():
+		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_harness.png")
+	var header: Control = first.get(&"_header")
+	if header.size.y > toggle.size.y + 4 or first.size.y > toggle.size.y * 2.5:
+		_finish(1, "harness: plegado no ocupa una línea (encabezado %.0f px, entrada %.0f px, botón %.0f px)" % [header.size.y, first.size.y, toggle.size.y])
+		return false
+	toggle.pressed.emit()
+	await get_tree().create_timer(0.3).timeout
+	if not prompt.is_visible_in_tree() or prompt.text != check or toggle.text != I18n.t("Hide prompt"):
+		_finish(1, "harness: «Ver prompt» no mostró el prompt (visible=%s, botón «%s»)" % [prompt.is_visible_in_tree(), toggle.text])
+		return false
+	if prompt.get_global_rect().end.x > conversation.get_global_rect().end.x + 1:
+		_finish(1, "harness: el prompt desplegado se sale del chat")
+		return false
+	conversation.call(&"_scroll_to_bottom")
+	await get_tree().create_timer(0.3).timeout
+	if not shot_path.is_empty():
+		EditorInterface.get_base_control().get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_harness_open.png")
+	print("[ui-test] harness: %s plegado y desplegado" % caption.text)
 	return true
 
 

@@ -14,6 +14,7 @@ const QuotaMonitor := preload("res://addons/godot_agent/core/quota_monitor.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
 const RunReport := preload("res://addons/godot_agent/oneshot/run_report.gd")
 const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
+const HarnessPrompts := preload("res://addons/godot_agent/session/harness_prompts.gd")
 
 const WATCHDOG_S := 120.0
 
@@ -302,6 +303,9 @@ func _scenario_budget() -> void:
 	if messages.size() == 3:
 		_check(messages[1] == "Usá paletas blancas y fondo negro.", "presupuestos: la guía va al terminar el turno")
 		_check(str(messages[2]).begins_with("The playtests budget ran out.") and str(messages[2]).contains("final report"), "presupuestos: prompt de cierre")
+	# m12-44: lo que armó el harness sale con su etiqueta; lo que escribió el usuario, sin.
+	var labels := _harness_labels(model)
+	_check(labels == [HarnessPrompts.ONESHOT_START, "", HarnessPrompts.ONESHOT_FINAL_REPORT], "presupuestos: etiquetas del harness %s" % [labels])
 	var guided: Array = model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER and entry.text.begins_with("Usá paletas"))
 	_check(guided.size() == 1 and guided[0].attachments.size() == 1 and guided[0].attachments[0].get("type") == "image", "presupuestos: la imagen viaja con la guía")
 	var guide_entries: Array = run.activity.filter(func(entry: Dictionary) -> bool: return entry.kind == "guide").map(func(entry: Dictionary) -> String: return entry.text)
@@ -423,11 +427,13 @@ func _scenario_spec() -> void:
 	_check(run.phase == OneShotRun.RunPhase.SPEC_REVIEW, "spec: después de guiar vuelve a esperar (%s)" % run.phase_label())
 	var asked: String = _user_messages(run.model)[1] if _user_messages(run.model).size() > 1 else ""
 	_check(asked.contains("Sumá power-ups") and asked.contains(run.files.relative_dir().path_join("spec.md")) and asked.contains("without building"), "spec: el pedido sale como cambio al spec, sin construir (%s)" % asked)  # m17-15
+	_check(_harness_labels(run.model) == [HarnessPrompts.ONESHOT_START, HarnessPrompts.ONESHOT_SPEC_CHANGE], "spec: el pedido envuelto sale como del harness %s" % [_harness_labels(run.model)])
 	run.approve_spec("# Pong\nDos paletas y power-ups.\n")
 	_check(run.files.read(spec_path).contains("power-ups"), "spec: se guardan los cambios del usuario")
 	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy() and not run.last_report.is_empty(), 10.0)
 	var messages := _user_messages(run.model)
 	_check(messages.size() == 3 and str(messages[2]).begins_with("The spec is approved with changes"), "spec: aprobar sigue construyendo %s" % [messages])
+	_check(_harness_labels(run.model).slice(2) == [HarnessPrompts.ONESHOT_SPEC_APPROVED], "spec: etiqueta de la aprobación %s" % [_harness_labels(run.model)])
 	_check(run.finish_reason == "The agent finished: all checks pass.", "spec: terminó (%s)" % run.finish_reason)
 	var tracked := []
 	OS.execute("git", ["-C", run.git.root, "ls-files", ".godot_agent"], tracked)
@@ -451,9 +457,11 @@ func _scenario_qa() -> void:
 		starts[0] += 1
 		return await run.controller.start(_profile("oneshot_qa" if starts[0] == 1 else "oneshot_qa_fix"))
 	var sent: Array[String] = []  # los prompts de todas las sesiones (cada sesión nueva limpia el modelo)
+	var sent_labels: Array[String] = []
 	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
 		if entry.kind == ChatEntry.EntryKind.USER:
-			sent.append(entry.text))
+			sent.append(entry.text)
+			sent_labels.append(entry.harness_label))
 	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, false)
 	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.EVALUATING and sent.size() == 2, 10.0)
 	var policy := run.controller.policy
@@ -466,6 +474,7 @@ func _scenario_qa() -> void:
 	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.last_report.is_empty(), 20.0)
 	_check(run.finish_reason == "QA round 2: the game passes.", "qa: termina con la segunda vuelta (%s)" % run.finish_reason)
 	_check(sent.size() == 4, "qa: inicial, QA 1, corrección y QA 2 (%d)" % sent.size())
+	_check(sent_labels == [HarnessPrompts.ONESHOT_START, HarnessPrompts.ONESHOT_QA, HarnessPrompts.ONESHOT_QA_FIX, HarnessPrompts.ONESHOT_QA], "qa: etiquetas del harness %s" % [sent_labels])
 	if sent.size() == 4:
 		_check(sent[2].contains("QA round 1: an independent evaluator") and sent[2].contains("Puntaje: el puntaje no sube") and sent[2].contains("[bug] El puntaje no sube (res://score.gd:12)") and sent[2].contains("5 of 7. el puntaje no sube"), "qa: los hallazgos vuelven al que construye · " + sent[2].right(600))
 		_check(sent[2].begins_with("We're resuming a One-shot"), "qa: sin session/load, la corrección va con el resumen")
@@ -621,6 +630,10 @@ func _scenario_qa_pause_after_verdict() -> void:
 
 func _user_messages(model: SessionModel) -> Array:
 	return model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER).map(func(entry: ChatEntry) -> String: return entry.text)
+
+
+func _harness_labels(model: SessionModel) -> Array:
+	return model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.USER).map(func(entry: ChatEntry) -> String: return entry.harness_label)
 
 
 func _agent_text(model: SessionModel) -> String:

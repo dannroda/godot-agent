@@ -334,10 +334,12 @@ func set_config_value(id: String, value: String) -> void:
 
 # --- entradas ------------------------------------------------------------------------------------
 
-func add_user_message(text: String, attachments: Array[Dictionary] = []) -> ChatEntry:
+## `harness_label`: el prompt lo armó el harness (ver HarnessPrompts); el chat lo muestra plegado.
+func add_user_message(text: String, attachments: Array[Dictionary] = [], harness_label: String = "") -> ChatEntry:
 	var entry := _new_entry(ChatEntry.EntryKind.USER)
 	entry.text = text
 	entry.attachments = attachments
+	entry.harness_label = harness_label
 	return _push(entry)
 
 

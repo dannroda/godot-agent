@@ -38,6 +38,7 @@ const GameCriteria := preload("game_criteria.gd")
 const OneShotFiles := preload("oneshot_files.gd")
 const PermissionPolicy := preload("../session/permission_policy.gd")
 const I18n := preload("../core/i18n.gd")
+const HarnessPrompts := preload("../session/harness_prompts.gd")
 const AgentLog := preload("../core/agent_log.gd")
 
 enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW, EVALUATING }
@@ -458,11 +459,11 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	# romperían los presupuestos y el conteo de checks. Se apaga antes de empezar.
 	if not model.remote_control_url.is_empty():
 		_add_activity("warning", I18n.t("Remote Control turned off: One-shot runs on its own."))
-		await controller.send_prompt(controller.remote_control_command(false))
+		await controller.send_prompt(_harness(controller.remote_control_command(false), HarnessPrompts.ONESHOT_REMOTE_OFF))
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
 	_set_phase(RunPhase.RUNNING)
 	_timer.start()
-	_run_turn(initial_prompt())
+	_run_turn(_harness(initial_prompt(), HarnessPrompts.ONESHOT_START))
 	return true
 
 
@@ -546,13 +547,13 @@ func resume() -> void:
 		_reopen_reason = ""
 		if not lost_id.is_empty() and model.session_id == lost_id:
 			_add_activity("session", I18n.t(REOPEN_LOADED[why]))
-			_run_turn(_resume_prompt())
+			_run_turn(_harness(_resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
 		else:
 			_add_activity("session", I18n.t(REOPEN_NEW[why]))
-			_run_turn(_summary_prompt())
+			_run_turn(_harness(_summary_prompt(), HarnessPrompts.ONESHOT_SUMMARY))
 		return
 	_recovered_session_id = ""
-	_run_turn(_resume_prompt())
+	_run_turn(_harness(_resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
 
 
 ## Cambio de cuenta (m6-15): la cuota medida era de la cuenta anterior. Se relanza el proceso del
@@ -672,8 +673,15 @@ func _user_prompt(text: String) -> String:
 	if _stage != RunStage.SPEC_APPROVAL:
 		return text
 	var spec := files.relative_dir().path_join(OneShotFiles.SPEC)
-	return ("The user hasn't approved the spec yet and asks for this: %s\n\n" % text) + \
-		("Apply it to %s (answer in the chat if it's a question) and end the turn without building anything: the user reviews the spec again and approves it." % spec)
+	return _harness(("The user hasn't approved the spec yet and asks for this: %s\n\n" % text) + \
+		("Apply it to %s (answer in the chat if it's a question) and end the turn without building anything: the user reviews the spec again and approves it." % spec),
+		HarnessPrompts.ONESHOT_SPEC_CHANGE)
+
+
+## Marca `text` como prompt del harness (m12-44): en el chat sale plegado con `label`, no como
+## mensaje del usuario. Devuelve `text`.
+func _harness(text: String, label: String) -> String:
+	return controller.label_prompt(text, label) if controller else text
 
 
 ## Presupuestos nuevos con el run en curso (m6-12); 0 = sin límite. Los avisos del 80 % se rearman
@@ -699,7 +707,7 @@ func set_budgets(values: Dictionary) -> void:
 			if _turn_running:
 				_continue_after_cancel = true
 			else:
-				_run_turn(_resume_prompt())
+				_run_turn(_harness(_resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
 	_check_budgets()
 	changed.emit()
 
@@ -738,7 +746,7 @@ func approve_spec(text: String = "") -> void:
 	_set_stage(RunStage.BUILDING)
 	_add_activity("spec", I18n.t("Spec approved with the user's changes") if edited else I18n.t("Spec approved"))
 	_set_phase(RunPhase.RUNNING)
-	_run_turn("The spec is approved%s. Continue with the rest: make the plan from the spec and build." % (" with changes: reread it before making the plan" if edited else ""))
+	_run_turn(_harness("The spec is approved%s. Continue with the rest: make the plan from the spec and build." % (" with changes: reread it before making the plan" if edited else ""), HarnessPrompts.ONESHOT_SPEC_APPROVED))
 
 
 ## El usuario editó el plan: se manda como guía.
@@ -748,7 +756,7 @@ func edit_plan(lines: PackedStringArray) -> void:
 		if not lines[i].strip_edges().is_empty():
 			items.append("%d. %s" % [items.size() + 1, lines[i].strip_edges()])
 	if not items.is_empty():
-		guide("I updated the plan; continue with this one (reread it and update your plan tool):\n" + "\n".join(items))
+		guide(_harness("I updated the plan; continue with this one (reread it and update your plan tool):\n" + "\n".join(items), HarnessPrompts.ONESHOT_PLAN_EDIT))
 
 
 ## "Volver acá": pausa, restaura el checkpoint y recarga el editor. Devuelve "" o el error.
@@ -816,7 +824,10 @@ func _run_turn(text: String, blocks: Array = []) -> void:
 		if not is_instance_valid(self) or not is_inside_tree():
 			return
 		if back == "new":
+			# El resumen va delante: el prompt cambia, la etiqueta sigue (o es la del resumen).
+			var label := controller.prompt_label(text)
 			text = _summary_prompt() if is_resume else _summary_prompt() + "\n\n" + text
+			_harness(text, HarnessPrompts.ONESHOT_SUMMARY if is_resume or label.is_empty() else label)
 		# Se pausó o se detuvo mientras volvía: el turno no sale. Lo que no es el prompt de retomar
 		# (una guía, la corrección) queda en la cola para el próximo turno.
 		if phase != phase_before:
@@ -899,7 +910,7 @@ func _after_turn(reason: String) -> void:
 	if reason == "cancelled":
 		if _continue_after_cancel:
 			_continue_after_cancel = false
-			_run_turn(_resume_prompt())
+			_run_turn(_harness(_resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
 		return
 	if _stage == RunStage.SPEC_APPROVAL:
 		_enter_spec_review()
@@ -909,7 +920,7 @@ func _after_turn(reason: String) -> void:
 		return
 	if _plan_pending() and _idle_continues < MAX_IDLE_CONTINUES:
 		_idle_continues += 1
-		_run_turn("Keep going with the plan: the next pending task is “%s”. Verify with run_scene, capture_game_frame and get_errors, and report the checks block." % _task_name(_next_pending()))
+		_run_turn(_harness("Keep going with the plan: the next pending task is “%s”. Verify with run_scene, capture_game_frame and get_errors, and report the checks block." % _task_name(_next_pending()), HarnessPrompts.ONESHOT_NEXT_TASK))
 		return
 	_done(I18n.t("The agent finished the plan.") if not _plan_pending() else I18n.t("The agent stopped making progress on the plan."))
 
@@ -931,9 +942,9 @@ func _after_turn_without_plan() -> void:
 		return
 	_idle_continues += 1
 	if open.is_empty():
-		_run_turn("If anything in the goal is missing, keep going. If it's done, verify it with run_scene and capture_game_frame and report the checks block.")
+		_run_turn(_harness("If anything in the goal is missing, keep going. If it's done, verify it with run_scene and capture_game_frame and report the checks block.", HarnessPrompts.ONESHOT_KEEP_GOING))
 	else:
-		_run_turn("Keep going with the goal: some checks still don't pass: %s. Verify with run_scene, capture_game_frame and get_errors, and report the checks block." % ", ".join(open))
+		_run_turn(_harness("Keep going with the goal: some checks still don't pass: %s. Verify with run_scene, capture_game_frame and get_errors, and report the checks block." % ", ".join(open), HarnessPrompts.ONESHOT_KEEP_GOING))
 
 
 func _enter_spec_review() -> void:
@@ -948,7 +959,7 @@ func _enter_spec_review() -> void:
 func _close() -> void:
 	_set_phase(RunPhase.CLOSING)
 	_add_activity("budget", _close_reason_text())
-	_run_turn("%s Don't continue with the plan: write the final report (what got done, what's missing and how to test it) and the checks block." % _close_reason)
+	_run_turn(_harness("%s Don't continue with the plan: write the final report (what got done, what's missing and how to test it) and the checks block." % _close_reason, HarnessPrompts.ONESHOT_FINAL_REPORT))
 
 
 func _finish(reason: String) -> void:
@@ -1103,7 +1114,7 @@ func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
 		return
 	_add_activity("loop", I18n.t("Possible loop: %s") % finding.label)
 	model.add_notice(I18n.t("One-shot · possible loop: %s. Asking the agent for another approach.") % finding.label, ChatEntry.NoticeLevel.WARNING)
-	_push_guidance("It looks like you're in a loop: %s. Don't repeat it the same way: think about why it doesn't work and try another approach (another solution, another file, or simplify the task). If something can't be solved, note it in the checks block and continue with the rest." % finding.text)
+	_push_guidance(_harness("It looks like you're in a loop: %s. Don't repeat it the same way: think about why it doesn't work and try another approach (another solution, another file, or simplify the task). If something can't be solved, note it in the checks block and continue with the rest." % finding.text, HarnessPrompts.ONESHOT_LOOP))
 	if mid_turn and _turn_running:
 		controller.cancel()  # la guía se manda al cortar el turno (_after_turn)
 	changed.emit()
@@ -1295,7 +1306,7 @@ func _evaluate() -> void:
 		await _back_to_generator()
 		_finish(_done_reason)
 		return
-	var turn := await _run_qa_turn(qa_prompt())
+	var turn := await _run_qa_turn(_harness(qa_prompt(), HarnessPrompts.ONESHOT_QA))
 	if not is_inside_tree():
 		return
 	await _after_qa(str(turn.reason), str(turn.text), turn.get("audit", ReviewStore.playtest_audit([], false)))
@@ -1433,6 +1444,7 @@ func _after_qa(reason: String, text: String, audit: Dictionary) -> void:
 	var fix := _fix_prompt(failing_checks, verdict, parsed)
 	if back == "new":
 		fix = _summary_prompt() + "\n\n" + fix
+	_harness(fix, HarnessPrompts.ONESHOT_QA_FIX)
 	if phase != RunPhase.EVALUATING:  # se pausó mientras volvía: la corrección sale al retomar
 		_guidance.push_front(fix)
 		_guidance_blocks.push_front([])
@@ -1618,6 +1630,10 @@ func _apply(data: Dictionary) -> void:
 	for _i in _guidance.size():
 		_guidance_blocks.append([])
 	_user_guidance.assign(data.get("user_guidance", []))
+	# Lo que no escribió el usuario lo puso el harness: al reabrir no se sabe qué era (m12-44).
+	for text: String in _guidance:
+		if not _user_guidance.has(text):
+			_harness(text, HarnessPrompts.ONESHOT)
 	_close_reason = str(data.get("close_reason", ""))
 	_warned = data.get("warned", {}) if data.get("warned") is Dictionary else {}
 	pause_note = str(data.get("pause_note", ""))

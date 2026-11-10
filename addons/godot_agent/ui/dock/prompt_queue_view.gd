@@ -17,6 +17,8 @@ const I18n := preload("../../core/i18n.gd")
 ## Caracteres de cada fila (el texto completo va en el tooltip).
 const ROW_CHARS := 120
 
+## Callable(text: String) -> String: la etiqueta de un prompt del harness ("" = del usuario, m12-44).
+var harness_label_of: Callable
 var _queue: PromptQueue
 var _title: Label
 var _reason: Label
@@ -79,8 +81,9 @@ func _refresh() -> void:
 		var text := str(_queue.items[i].text)
 		var row := HBoxContainer.new()
 		_rows.add_child(row)
-		var label := _row_label(AgentTheme.font_color())
-		label.text = text.replace("\n", " ⏎ ").left(ROW_CHARS)
+		var harness: String = harness_label_of.call(text) if harness_label_of.is_valid() else ""
+		var label := _row_label(AgentTheme.MUTED if not harness.is_empty() else AgentTheme.font_color())
+		label.text = "⚙ " + I18n.t(harness) if not harness.is_empty() else text.replace("\n", " ⏎ ").left(ROW_CHARS)
 		label.tooltip_text = text
 		label.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(label)

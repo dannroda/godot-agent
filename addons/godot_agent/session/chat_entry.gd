@@ -40,3 +40,6 @@ var created_unix: float = 0.0
 var findings_count: int = -1
 ## Imágenes u otros bloques no textuales adjuntos (USER).
 var attachments: Array[Dictionary] = []
+## USER que mandó el harness, no el usuario (m12-44): el msgid en inglés de su etiqueta (ver
+## HarnessPrompts). Vacío = lo escribió el usuario.
+var harness_label: String = ""
