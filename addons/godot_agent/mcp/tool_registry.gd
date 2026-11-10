@@ -51,6 +51,9 @@ var _order: PackedStringArray = []
 ## Objetos dueños de los handlers: un Callable no mantiene vivo a su RefCounted.
 var _providers: Array = []
 var _extended: Dictionary = {}  # name -> true
+## name -> categoría: el proveedor que la registró («read», «scene_edit», «run»…), para la lista
+## de tools de Extensiones (m12-46).
+var _categories: Dictionary = {}
 
 
 func register(tool: McpTool) -> void:
@@ -64,10 +67,35 @@ func register(tool: McpTool) -> void:
 func register_provider(provider: Object, extended: bool = false) -> void:
 	if not provider in _providers:
 		_providers.append(provider)
+	var category := provider_category(provider)
 	for tool: McpTool in provider.call(&"tools"):
 		register(tool)
+		_categories[tool.name] = category
 		if extended:
 			_extended[tool.name] = true
+
+
+## «read_tools.gd» → «read», «scene_edit_tools.gd» → «scene_edit»; sin script, «».
+static func provider_category(provider: Object) -> String:
+	var script := provider.get_script() as Script
+	if script == null or script.resource_path.is_empty():
+		return ""
+	return script.resource_path.get_file().get_basename().trim_suffix("_tools")
+
+
+## La categoría (el proveedor) de una tool, o «» si no vino de uno.
+func category_of(tool_name: String) -> String:
+	return str(_categories.get(tool_name, ""))
+
+
+## Todas las tools para mostrárselas al usuario (m12-46), en orden de registro:
+## `{name, category, group, summary, description, extended}`; `summary` es la primera oración.
+func catalog() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for tool_name: String in _order:
+		var tool: McpTool = _tools[tool_name]
+		result.append({"name": tool_name, "category": category_of(tool_name), "group": tool.group, "summary": _first_sentence(tool.description), "description": tool.description, "extended": _extended.has(tool_name)})
+	return result
 
 
 ## Tools sueltas que pasan a extendidas (las de un proveedor que es núcleo en parte).

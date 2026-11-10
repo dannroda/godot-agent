@@ -61,6 +61,12 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 			ext.call(&"open", tab)
 			await _frames(40)
 			_save(ext.get_texture().get_image(), "2%d_extensiones_%d" % [tab, tab])
+		# La lista de tools (m12-46) con la ventana en su tamaño mínimo.
+		ext.call(&"open", ExtensionsWindow.ExtensionsTab.TOOLS)
+		await _frames(10)
+		ext.size = ext.min_size
+		await _frames(30)
+		_save(ext.get_texture().get_image(), "27_extensiones_tools_angosto")
 		ext.hide()
 
 	EditorInterface.set_main_screen_editor("One-shot")

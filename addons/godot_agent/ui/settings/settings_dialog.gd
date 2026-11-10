@@ -99,6 +99,7 @@ var _verify_check: CheckBox
 var _snapshots_check: CheckBox
 var _github_pr_check: CheckBox
 var _compact_tools_check: CheckBox
+var _tools_button: Button
 var _mcp_servers_page: McpServersPage
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
@@ -125,6 +126,8 @@ var _update_button: Button
 ## «Buscar ahora» (m7-38): el plugin busca un release nuevo (y si hay, muestra el aviso en el dock);
 ## devuelve el texto para mostrar acá. Corrutina: `func() -> String`.
 var update_checker: Callable
+## () -> void: abre la lista de tools del agente (Extensiones › Tools, m12-46).
+var show_tools: Callable
 var _export_label: Label
 var _export_button: Button
 var _export_confirm: ConfirmationDialog
@@ -498,6 +501,20 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_run_error_check.text = I18n.t("When a game you run by hand stops with an error, offer «Fix with the agent» in the dock")
 	_run_error_check.tooltip_text = I18n.t("The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors.")
 	page.add_child(_run_error_check)
+	var tools_row := HBoxContainer.new()
+	var tools_label := Label.new()
+	tools_label.text = I18n.t("What the agent can do with these tools, by function and with its permissions:")
+	tools_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tools_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tools_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	tools_row.add_child(tools_label)
+	_tools_button = Button.new()
+	_tools_button.text = I18n.t("See the tools list…")
+	_tools_button.pressed.connect(func() -> void:
+		if show_tools.is_valid():
+			show_tools.call())
+	tools_row.add_child(_tools_button)
+	page.add_child(tools_row)
 	_compact_tools_check = CheckBox.new()
 	_compact_tools_check.text = I18n.t("Compact tool list: the agent finds the extra godot tools with godot.methods")
 	_compact_tools_check.tooltip_text = I18n.t("The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session.")

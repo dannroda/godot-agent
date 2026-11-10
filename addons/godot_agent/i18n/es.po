@@ -4355,3 +4355,87 @@ msgstr "Captura del juego con %s (%s) marcado en %d, %d"
 
 msgid "Measure the game's performance"
 msgstr "Medir el rendimiento del juego"
+
+msgid "Read the project"
+msgstr "Leer el proyecto"
+
+msgid "Run and play the game"
+msgstr "Correr y jugar el juego"
+
+msgid "Validation"
+msgstr "Validación"
+
+msgid "TileMaps"
+msgstr "TileMaps"
+
+msgid "Godot API docs"
+msgstr "Documentación de la API de Godot"
+
+msgid "Profiler"
+msgstr "Profiler"
+
+msgid "Sessions and subagents"
+msgstr "Sesiones y subagentes"
+
+msgid "Everything the agent can do in the editor through the addon's MCP server, by function. The last column says what each tool asks for in each mode, in this order: Ask, Review, Build, Auto, One-shot (✓ without asking · ? asks you · ✗ not allowed); change it in Settings → Permissions."
+msgstr "Todo lo que el agente puede hacer en el editor por el server MCP del addon, por función. La última columna dice qué pide cada tool en cada modo, en este orden: Preguntar, Revisar, Construir, Auto, One-shot (✓ sin preguntar · ? te pregunta · ✗ no se permite); se cambia en Ajustes → Permisos."
+
+msgid "By mode"
+msgstr "Por modo"
+
+msgid "Search tools…"
+msgstr "Buscar tools…"
+
+msgid "Tool"
+msgstr "Tool"
+
+msgid "What it does"
+msgstr "Qué hace"
+
+msgid "Permission"
+msgstr "Permiso"
+
+msgid "With the compact tool list on, the agent reaches it through godot.methods and godot.run."
+msgstr "Con la lista compacta de tools, el agente llega a ella por godot.methods y godot.run."
+
+msgid "%d of %d tools"
+msgstr "%d de %d tools"
+
+msgid "⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → Editor tools)."
+msgstr "⋯ %d tools quedan detrás de godot.methods / godot.run porque la lista compacta está activa (Ajustes → Herramientas del editor)."
+
+msgid "Runs without asking"
+msgstr "Corre sin preguntar"
+
+msgid "Asks you before running"
+msgstr "Te pregunta antes de correr"
+
+msgid "Not allowed in this mode"
+msgstr "No se permite en este modo"
+
+msgid "Tools (%d)"
+msgstr "Tools (%d)"
+
+msgid "What the agent can do (tools)…"
+msgstr "Qué puede hacer el agente (tools)…"
+
+msgid "The editor tools the agent has, by function, with what each asks for in each mode."
+msgstr "Las herramientas del editor que tiene el agente, por función, con lo que pide cada una en cada modo."
+
+msgid "What the agent can do with these tools, by function and with its permissions:"
+msgstr "Qué puede hacer el agente con estas herramientas, por función y con sus permisos:"
+
+msgid "See the tools list…"
+msgstr "Ver la lista de tools…"
+
+msgid "Files"
+msgstr "Archivos"
+
+msgid "Resources"
+msgstr "Recursos"
+
+msgid "Animation"
+msgstr "Animación"
+
+msgid "Asset Store"
+msgstr "Asset Store"
