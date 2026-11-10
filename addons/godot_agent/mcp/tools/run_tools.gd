@@ -112,6 +112,9 @@ var agent_log: AgentLog
 ## El juego visto por el debugger desde el último run_scene (m13-11). Lo cambia solo
 ## _set_run_state(); los avisos del debugger pueden llegar también de un run manual.
 var run_state: GameRunState = GameRunState.IDLE
+## El run en curso lo lanzó run_scene (true) o el usuario a mano (false): se decide al arrancar la
+## sesión de debug, según venga de LAUNCHING o no (m11-55).
+var harness_run: bool = false
 ## Hay un run_scene en curso (solo uno a la vez) y desde cuándo. Es aparte de run_state: el juego
 ## sigue corriendo después de que run_scene contesta.
 var _busy: bool = false
@@ -168,6 +171,8 @@ func _set_run_state(value: GameRunState) -> void:
 	if value == GameRunState.LAUNCHING:
 		_reached_states = 0
 		_state = {}
+	if value == GameRunState.STARTED:
+		harness_run = run_state == GameRunState.LAUNCHING
 	run_state = value
 	_run_state_since_ms = Time.get_ticks_msec()
 	_reached_states |= 1 << value

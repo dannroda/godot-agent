@@ -47,6 +47,8 @@ const KEY_LANGUAGE := "ui/language"
 ## Actualizaciones del addon (m7-38): buscar al abrir el editor (una vez por día), cuándo se buscó
 ## por última vez (unix) y la versión a la que se le dijo «Después».
 const KEY_UPDATE_CHECK := "update/check_on_start"
+## Un run manual del juego que para con un error ofrece «Arreglar con el agente» en el dock (m11-55).
+const KEY_RUN_ERROR_FIX := "runs/offer_fix_on_error"
 const KEY_UPDATE_LAST_CHECK := "update/last_check"
 const KEY_UPDATE_DISMISSED := "update/dismissed_version"
 ## Completado predictivo (spec §16.10): on/off global, debounce local y umbral/margen del ranker.
@@ -106,6 +108,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Resume automatically,Wait for confirmation")
 		_declare(KEY_LANGUAGE, "auto", TYPE_STRING, PROPERTY_HINT_ENUM, "auto,en,es")
 		_declare(KEY_UPDATE_CHECK, true, TYPE_BOOL)
+		_declare(KEY_RUN_ERROR_FIX, true, TYPE_BOOL)
 		_declare(KEY_UPDATE_LAST_CHECK, 0, TYPE_INT)
 		_declare(KEY_UPDATE_DISMISSED, "", TYPE_STRING)
 		_declare(KEY_DOCK_SLOT, 0, TYPE_INT, PROPERTY_HINT_ENUM, "Right top,Right bottom,Left top,Left bottom")
@@ -298,6 +301,10 @@ func language() -> String:
 
 func update_check_on_start() -> bool:
 	return bool(get_value(KEY_UPDATE_CHECK, true))
+
+
+func offer_fix_on_run_error() -> bool:
+	return bool(get_value(KEY_RUN_ERROR_FIX, true))
 
 
 func continue_on_open() -> bool:

@@ -67,6 +67,7 @@ const PlaytestDebugger := preload("playtest/playtest_debugger.gd")
 const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
 const ErrorCollector := preload("editor/error_collector.gd")
+const RunErrorWatcher := preload("editor/run_error_watcher.gd")
 const ReviewAnnotations := preload("review/review_annotations.gd")
 const ReviewStore := preload("review/review_store.gd")
 const HarnessPrompts := preload("session/harness_prompts.gd")
@@ -96,6 +97,10 @@ const ACTION_PENDING_INSTALL_RESTART := "pending_install_restart"
 const ACTION_PENDING_INSTALL_DISCARD := "pending_install_discard"
 ## «Overwrite» del aviso cuando el workflow de regresiones ya existe (m16-10).
 const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
+## «Arreglar con el agente» del aviso de un run manual con error (m11-55): el payload es el prompt.
+const ACTION_FIX_RUN_ERROR := "fix_run_error"
+## El panel Stack Trace del debugger se llena un momento después de la pausa.
+const BREAK_READ_DELAY_S := 0.5
 ## Avisos de RegressionsWorkflow.write() para el usuario.
 const REGRESSIONS_WORKFLOW_WARNINGS: Dictionary = {
 	RegressionsWorkflow.WARN_NO_GIT: "The project is not in a git repository: the workflow was written in the project folder. GitHub only reads .github/workflows/ at the root of the repository, so move it there (and adjust --path if the project is in a subfolder).",  # i18n
@@ -138,6 +143,8 @@ var _turn_changes: TurnChanges
 var _turn_snapshots: TurnSnapshots
 var _mcp_server: McpServer
 var _errors: ErrorCollector
+## Errores de un run manual del juego → aviso con «Arreglar con el agente» (m11-55).
+var _run_errors: RunErrorWatcher
 var _diagnostics: DiagnosticTools
 var _playtest_debugger: PlaytestDebugger
 var _run_tools: RunTools
@@ -451,6 +458,7 @@ func _exit_tree() -> void:
 		remove_debugger_plugin(_playtest_debugger)
 		_playtest_debugger = null
 	_run_tools = null
+	_run_errors = null
 	PlaytestAutoload.unregister(self)
 
 	if _export_plugin:
@@ -460,6 +468,26 @@ func _exit_tree() -> void:
 	if _surfaces:
 		_surfaces.remove_all()
 		_surfaces = null
+
+
+func _on_game_breaked() -> void:
+	await get_tree().create_timer(BREAK_READ_DELAY_S).timeout
+	if _run_errors:
+		_run_errors.on_game_breaked()
+
+
+## Un run manual paró con un error (m11-55): aviso en la pestaña activa con el error, la pila plegada
+## y «Arreglar con el agente». Nada se manda hasta que el usuario lo aprieta.
+func _on_run_error(info: Dictionary) -> void:
+	var model := _model_of(_tabs.active_id()) if _tabs else _model
+	if model == null:
+		return
+	var actions: Array[Dictionary] = [{"id": ACTION_FIX_RUN_ERROR, "label": I18n.t("Fix with the agent"), "primary": true, "data": RunErrorWatcher.prompt(info)}]
+	var entry := model.add_notice(RunErrorWatcher.notice_text(info), ChatEntry.NoticeLevel.WARNING, actions)
+	entry.title = RunErrorWatcher.notice_title(info)
+	entry.details = RunErrorWatcher.notice_details(info)
+	entry.details_title = I18n.t("Errors and stack")
+	model.notify_entry_changed(entry)
 
 
 ## «+ contexto → Captura del juego»: el frame como Image, o el motivo (traducido) si no se puede.
@@ -620,6 +648,10 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_write_regressions_workflow(false)
 		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(true)
+		ACTION_FIX_RUN_ERROR:
+			var dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
+			if dock:
+				dock.send_text(str(payload), HarnessPrompts.RUN_ERROR)
 		AgentDock.ACTION_OPEN_RUN_FILE:
 			if _surfaces:
 				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
@@ -800,6 +832,16 @@ func _start_mcp_server() -> void:
 	_run_tools.cleanup = _remove_playtest_autoload
 	_run_tools.agent_log = _log
 	registry.register_provider(_run_tools)
+	_run_errors = RunErrorWatcher.new()
+	_run_errors.errors = _errors
+	_run_errors.launched_by_harness = func() -> bool: return _run_tools != null and _run_tools.harness_run
+	_run_errors.break_reason = PlaytestDebugger.break_reason
+	_run_errors.enabled = func() -> bool: return _settings != null and _settings.offer_fix_on_run_error()
+	_run_errors.error_found.connect(_on_run_error)
+	# Después de run_tools.setup: cuando llega la señal, run_tools ya decidió quién lanzó el run.
+	_playtest_debugger.session_started.connect(_run_errors.on_game_started)
+	_playtest_debugger.session_breaked.connect(_on_game_breaked)
+	_playtest_debugger.session_stopped.connect(_run_errors.on_game_stopped)
 	registry.mark_extended(RunTools.GAME_TOOLS)
 	# m13-27: lee el profiler por una API interna del editor; sin ella, la tool contesta por qué no puede.
 	_profile_tools = ProfileTools.new()

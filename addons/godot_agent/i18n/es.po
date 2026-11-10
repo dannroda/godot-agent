@@ -4277,3 +4277,27 @@ msgstr "Ocultar prompt"
 
 msgid "What the harness sent to the agent, as the agent got it"
 msgstr "Lo que el harness le mandó al agente, tal como le llegó"
+
+msgid "The game stopped in the debugger with an error"
+msgstr "El juego paró en el debugger con un error"
+
+msgid "The game ended with errors"
+msgstr "El juego terminó con errores"
+
+msgid "%d errors in total; they are in the details."
+msgstr "%d errores en total; están en los detalles."
+
+msgid "Errors and stack"
+msgstr "Errores y pila"
+
+msgid "Fix with the agent"
+msgstr "Arreglar con el agente"
+
+msgid "Fix the error of the game you ran"
+msgstr "Arreglar el error del juego que corriste"
+
+msgid "When a game you run by hand stops with an error, offer «Fix with the agent» in the dock"
+msgstr "Si un juego que corrés a mano para con un error, ofrecer «Arreglar con el agente» en el dock"
+
+msgid "The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors."
+msgstr "El aviso muestra el error y la pila, una vez por run; nada le llega al agente hasta que apretás el botón. Los runs que lanza el agente no lo muestran: el agente ya recibe sus errores."

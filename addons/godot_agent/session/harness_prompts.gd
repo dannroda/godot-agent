@@ -28,3 +28,5 @@ const REVIEW_PLAYTEST := "Review · playtest"  # i18n
 const INLINE_EDIT := "Inline edit from the Script Editor"  # i18n
 const SUPERVISOR := "What the supervisor saw while the editor was closed"  # i18n
 const OTHER_SESSION := "Message from another agent session"  # i18n
+## «Arreglar con el agente» en el aviso de un run manual que paró con un error (m11-55).
+const RUN_ERROR := "Fix the error of the game you ran"  # i18n

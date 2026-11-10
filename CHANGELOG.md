@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- When a game you run by hand (F5/F6, not through the agent) stops in the debugger with an error or ends with errors, the dock shows a notice with the error, the stack folded under **Errors and stack**, and **Fix with the agent**. The button sends the error and the stack to the active session as a harness prompt; nothing goes out on its own. One notice per run; runs started by the agent don't show it. Turn it off in Settings → Editor tools.
+
 ### Fixed
 
 - The One-shot form no longer gets clipped on both sides when the dock is wide and the editor's center is narrow: the example goals wrap instead of forcing the form wider than the space it has.

@@ -27,6 +27,8 @@ var level: NoticeLevel = NoticeLevel.INFO
 ## debajo (m12-13).
 var title: String = ""
 var details: String = ""
+## NOTICE: el título del pliegue de `details`; vacío = «Last lines of the log» (m11-55: «Errors and stack»).
+var details_title: String = ""
 ## Las mismas líneas sin recortar (ya redactadas), para «Copy» (m13-22): un reporte de bug las quiere
 ## enteras. Vacío = se copia `details`.
 var details_full: String = ""

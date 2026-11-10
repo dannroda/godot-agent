@@ -94,6 +94,7 @@ var _roots_edit: TextEdit
 var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
+var _run_error_check: CheckBox
 var _verify_check: CheckBox
 var _snapshots_check: CheckBox
 var _github_pr_check: CheckBox
@@ -493,6 +494,10 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_manual_runs_check = CheckBox.new()
 	_manual_runs_check.text = I18n.t("Use the playtest autoload also when running the game manually")
 	page.add_child(_manual_runs_check)
+	_run_error_check = CheckBox.new()
+	_run_error_check.text = I18n.t("When a game you run by hand stops with an error, offer «Fix with the agent» in the dock")
+	_run_error_check.tooltip_text = I18n.t("The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors.")
+	page.add_child(_run_error_check)
 	_compact_tools_check = CheckBox.new()
 	_compact_tools_check.text = I18n.t("Compact tool list: the agent finds the extra godot tools with godot.methods")
 	_compact_tools_check.tooltip_text = I18n.t("The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session.")
@@ -704,6 +709,7 @@ func _load() -> void:
 	_max_output_spin.value = _config.max_output_chars
 	_max_image_spin.value = _config.max_image_side
 	_manual_runs_check.button_pressed = _config.playtest_on_manual_runs
+	_run_error_check.button_pressed = _settings.offer_fix_on_run_error()
 	_compact_tools_check.button_pressed = _config.compact_tools
 	_verify_check.button_pressed = _config.verify_after_turn
 	_snapshots_check.button_pressed = _config.turn_snapshots
@@ -785,6 +791,7 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_DOCK_SLOT, _dock_option.selected)
 	_settings.set_value(HarnessSettings.KEY_LANGUAGE, I18n.LANGUAGES[_language_option.selected].code)
 	_settings.set_value(HarnessSettings.KEY_UPDATE_CHECK, _update_check.button_pressed)
+	_settings.set_value(HarnessSettings.KEY_RUN_ERROR_FIX, _run_error_check.button_pressed)
 	_settings.set_value(HarnessSettings.KEY_ON_OPEN, _on_open_option.get_selected_id())
 	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
