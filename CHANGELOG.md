@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Added
 
 - The agent chip's tooltip in the dock header says what each part of the harness is doing and for how long: the session (ready, working, error…), the game launched by `godot.run_scene` (launching, running, stopped in the debugger…) and, during a One-shot, its phase and stage. Read live from each state machine, never a copy.
+- **CI workflow…** in the findings panel (and `godot.write_regressions_workflow` for the agent) writes `.github/workflows/godot-agent-regressions.yml`: a GitHub Actions workflow that installs this editor's Godot version, imports the project and runs the saved playtest regressions on every push and pull request, uploading the report and the captures as artifacts when one fails. It asks before replacing an existing file; `render: true` runs them under Xvfb for checks that need the game drawn.
 
 ### Fixed
 

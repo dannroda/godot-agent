@@ -11,6 +11,7 @@ const McpTool := preload("../mcp_tool.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
 const PlaytestDebugger := preload("../../playtest/playtest_debugger.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
+const RegressionsWorkflow := preload("../../review/regressions_workflow.gd")
 const PlaytestMemory := preload("../../review/playtest_memory.gd")
 const PlaytestRegressions := preload("../../review/playtest_regressions.gd")
 const ProjectTools := preload("project_tools.gd")
@@ -321,6 +322,12 @@ func tools() -> Array:
 			},
 			["seconds"], _run_scene),
 		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
+		McpTool.create("write_regressions_workflow", PermissionPolicy.GROUP_EDIT_FILES,
+			"Writes %s: a GitHub Actions workflow that runs the saved playtest regressions (%s/) on every push and pull request with this editor's Godot version, and uploads the report and captures when they fail. Refuses to overwrite an existing file unless `overwrite` is true." % [RegressionsWorkflow.PATH.trim_prefix("res://"), RegressionsWorkflow.REGRESSIONS_DIR],
+			{
+				"overwrite": {"type": "boolean", "description": "Replace the workflow if it already exists (default false)"},
+				"render": {"type": "boolean", "description": "Run the regressions under Xvfb with software OpenGL instead of headless, for checks that need the game drawn (default false)"},
+			}, [], _write_regressions_workflow),
 		McpTool.create("capture_game_frame", run, "Captures the current frame of the running game (launched with run_scene) as a PNG.", {}, [], _capture_game_frame),
 		McpTool.create("game_tree", read,
 			"The live node tree of the running game (nodes spawned at runtime included), with types, scripts, positions and texts.",
@@ -876,6 +883,22 @@ func run_regression(entry: Dictionary, setup: String = "") -> Dictionary:
 	result.passed = not played.get("isError", false) and PlaytestRegressions.passed(result.output)
 	await _stop_scene({})
 	return result
+
+
+## El workflow de CI de las regresiones (m16-10), en la carpeta del proyecto abierto.
+func _write_regressions_workflow(args: Dictionary) -> Dictionary:
+	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
+	var written := RegressionsWorkflow.write(root, bool(args.get("render", false)), bool(args.get("overwrite", false)))
+	if not written.ok:
+		if written.existed:
+			return McpTool.error("%s. Pass overwrite: true to replace it." % written.error)
+		return McpTool.error(written.error)
+	var lines: PackedStringArray = ["Wrote %s (repository root: %s) for Godot %s. Commit it and push: GitHub Actions runs the %d saved regressions on every push and pull request." % [written.path, written.root, RegressionsWorkflow.editor_version(), PlaytestRegressions.new().list().size()]]
+	if not str(written.project_dir).is_empty():
+		lines.append("The project is in %s/ inside the repository: the workflow runs Godot with --path %s." % [written.project_dir, written.project_dir])
+	for warning: String in written.warnings:
+		lines.append("Warning: " + RegressionsWorkflow.WARNING_TEXTS[warning])
+	return McpTool.text("\n".join(lines))
 
 
 ## `count` frames repartidos en los últimos `seconds` de la lista.

@@ -39,6 +39,8 @@ You can ask for three things in the same box: to verify something, to reach a go
 godot --headless --path . --script res://addons/godot_agent/playtest/regression_cli.gd
 ```
 
+**CI workflow…** next to it writes `.github/workflows/godot-agent-regressions.yml`: a GitHub Actions workflow that installs this editor's Godot version, imports the project and runs that command on every push and pull request, uploading the report and the captures as artifacts when a regression fails. The file goes to the root of the git repository even when the project lives in a subfolder (GitHub reads no other `.github/`), and the workflow warns if the project isn't in git or if `.godot_agent/` or `addons/godot_agent/` are ignored, because then the CI would have no regressions or no addon to run them. It never replaces an existing file without asking. The agent has the same as `godot.write_regressions_workflow` (with `render: true` for regressions that need the game drawn, under Xvfb).
+
 It exits with 0 if they all pass, 1 if one fails and 2 if there are none; after `--` it takes other `.json` files or folders. The game runs without the editor, so a game error doesn't stop it. A regression can carry a `sabotage`, a script that breaks in the game what it checks: then it runs a second time with it and has to fail, otherwise it doesn't detect the bug and counts as failed.
 
 **Memory**: playtests keep what they verified about your game (controls, mechanics, pitfalls) and the scripts that worked in `res://.godot_agent/playtests/`, and the next one is told which files changed since, so it rechecks what may be out of date. Delete that folder to start over.

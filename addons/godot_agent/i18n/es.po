@@ -3975,9 +3975,6 @@ msgstr "%d adjuntos"
 msgid "Want changes? Ask for them in the agent's chat: it updates the spec and waits for your approval again. Or edit it yourself with “Edit”."
 msgstr "¿Querés cambios? Pedíselos en el chat del agente: actualiza el spec y vuelve a esperar tu aprobación. O editalo vos con «Editar»."
 
-msgid "One-shot · %s"
-msgstr "One-shot · %s"
-
 msgid "The One-shot runs in this tab: stop it from the One-shot screen before closing it."
 msgstr "El One-shot corre en esta pestaña: detenelo desde la pantalla One-shot antes de cerrarla."
 
@@ -4145,3 +4142,33 @@ msgstr "Juego"
 
 msgid "Session"
 msgstr "Sesión"
+
+msgid "CI workflow…"
+msgstr "Workflow de CI…"
+
+msgid "Writes a GitHub Actions workflow that runs the saved regressions on every push, with this editor's Godot version."
+msgstr "Escribe un workflow de GitHub Actions que corre las regresiones guardadas en cada push, con la versión de Godot de este editor."
+
+msgid "Workflow written: %s, for Godot %s. Commit it and push: GitHub Actions will run the saved regressions on every push and pull request."
+msgstr "Workflow escrito: %s, para Godot %s. Commitealo y pusheá: GitHub Actions va a correr las regresiones guardadas en cada push y pull request."
+
+msgid "%s already exists. Overwrite it with the harness's workflow?"
+msgstr "%s ya existe. ¿Lo piso con el workflow del harness?"
+
+msgid "Overwrite"
+msgstr "Pisar"
+
+msgid "Could not write the workflow: %s"
+msgstr "No se pudo escribir el workflow: %s"
+
+msgid "Write the regressions CI workflow"
+msgstr "Escribir el workflow de CI de las regresiones"
+
+msgid "The project is not in a git repository: the workflow was written in the project folder. GitHub only reads .github/workflows/ at the root of the repository, so move it there (and adjust --path if the project is in a subfolder)."
+msgstr "El proyecto no está en un repositorio git: el workflow quedó en la carpeta del proyecto. GitHub solo lee .github/workflows/ en la raíz del repositorio, así que movelo ahí (y ajustá --path si el proyecto está en una subcarpeta)."
+
+msgid ".godot_agent/ is ignored by git: the saved regressions won't be in the repository, so the CI will find none. Un-ignore .godot_agent/playtests/regressions/ or commit it with git add -f."
+msgstr ".godot_agent/ está ignorado por git: las regresiones guardadas no van a estar en el repositorio y el CI no va a encontrar ninguna. Sacá .godot_agent/playtests/regressions/ del .gitignore o commitealo con git add -f."
+
+msgid "addons/godot_agent/ is ignored by git: the CI needs the addon to run the regressions. Commit it or install it in the workflow."
+msgstr "addons/godot_agent/ está ignorado por git: el CI necesita el addon para correr las regresiones. Commitealo o instalalo en el workflow."
