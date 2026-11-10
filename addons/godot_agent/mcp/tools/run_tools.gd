@@ -8,6 +8,7 @@ extends RefCounted
 ## run lo pidió el harness (`harness_requested`) y de baja cuando el juego ya leyó project.godot.
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
 const PlaytestDebugger := preload("../../playtest/playtest_debugger.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -95,6 +96,8 @@ const FINDING_FRAMES_KEPT := 50
 ## GDScript, que en el editor lo marca como editado; el play siguiente guarda los recursos editados,
 ## reescribe este archivo y lo recarga con _run_scene a mitad de camino, y el editor se cae (m16-03, m16-08).
 const DEADLINE_META := &"godot_agent_playtest_deadline_ms"
+## Las tools que traen texto del juego en sobres (m11-45).
+const ENVELOPED: PackedStringArray = ["run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch"]
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP server)."
 const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"}, {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
@@ -316,7 +319,7 @@ func tools() -> Array:
 		"look": {"type": "array", "items": {"type": "number"}}, "text": {"type": "string"},
 		"frame": {"type": "integer"}, "hold_frames": {"type": "integer"}, "strength": {"type": "number"}}}}
 	var path_schema := {"type": "string", "description": "Node path in the running game: relative to the current scene (\"Player\", \"HUD/Score\"), \"\" for the scene itself, or absolute (\"/root/GameState\" for an autoload)"}
-	return [
+	var list: Array = [
 		McpTool.create("run_scene", run,
 			"Runs a scene (default: the open one), waits `seconds` or until it ends, and returns the game's errors and Output. The game keeps running afterwards: capture_game_frame to see it, stop_scene to close it. Saves the scenes before running.",
 			{
@@ -387,6 +390,11 @@ func tools() -> Array:
 			"The frames of the last `seconds` of play, with their game times and file paths (a subagent can read those files). Needs a run filmed with run_scene film_fps, or pass `fps` here to start filming.",
 			{"seconds": {"type": "number", "description": "How far back (default 3)"}, "count": {"type": "integer", "description": "How many, evenly spaced (default 6, max. %d)" % FRAMES_MAX_SHOWN}, "fps": {"type": "number", "description": "Start filming at this rate"}}, [], _game_frames),
 	]
+	# El juego habla en estos resultados (m11-45): su Output, sus errores y lo que devuelve el probe.
+	for tool: McpTool in list:
+		if tool.name in ENVELOPED:
+			tool.envelope = McpTool.ENVELOPE_PARTS
+	return list
 
 
 func _run_scene(args: Dictionary) -> Dictionary:
@@ -714,12 +722,11 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 		lines.append("No errors or warnings.")
 	else:
 		lines.append("Errors and warnings (%d):" % entries.size())
-		for entry: Dictionary in entries.slice(maxi(entries.size() - ERROR_LIMIT, 0)):
-			lines.append("  " + ErrorCollector.format_entry(entry))
+		lines.append(UntrustedText.wrap(_entry_lines(entries)))
 	var output := _output_delta(output_before, errors.output_text())
 	if not output.is_empty():
 		lines.append("Output:")
-		lines.append(output)
+		lines.append(UntrustedText.wrap(output))
 	lines.append_array(_extra_lines())
 	lines.append("get_errors mark: %d" % errors.mark())
 	return "\n".join(lines)
@@ -730,8 +737,10 @@ func _extra_lines() -> PackedStringArray:
 	var lines: PackedStringArray = []
 	if not _continued.is_empty():
 		lines.append("Script errors the game went past (%d):" % _continued.size())
+		var reasons: PackedStringArray = []
 		for reason: String in _continued:
-			lines.append("  " + reason)
+			reasons.append("  " + reason)
+		lines.append(UntrustedText.wrap("\n".join(reasons)))
 		_continued = []
 	var silenced := PlaytestMemory.new().not_a_bug()
 	for signature: String in _findings_new:
@@ -742,6 +751,14 @@ func _extra_lines() -> PackedStringArray:
 		var left: float = (int(Engine.get_meta(DEADLINE_META)) - Time.get_ticks_msec()) / 60000.0
 		lines.append("Playtest time left: %.1f min." % left if left > 0.0 else "The playtest's time is up: answer now with what you have.")
 	return lines
+
+
+## Las últimas ERROR_LIMIT entradas del ErrorCollector, una por línea con sangría.
+static func _entry_lines(entries: Array) -> String:
+	var lines: PackedStringArray = []
+	for entry: Dictionary in entries.slice(maxi(entries.size() - ERROR_LIMIT, 0)):
+		lines.append("  " + ErrorCollector.format_entry(entry))
+	return "\n".join(lines)
 
 
 ## `ms`: en Time.get_ticks_msec; 0 = sin tope.
@@ -1040,7 +1057,7 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 		return McpTool.error("The game is stopped in the debugger (%s): fix the error and run it again, or continue it from the Debugger." % PlaytestDebugger.break_reason())
 	var since := errors.mark()
 	var reply := await request(op, params, duration_s + REQUEST_TIMEOUT_S)
-	var lines: PackedStringArray = [str(reply.get("text", ""))] if not reply.has("error") else []
+	var lines: PackedStringArray = [UntrustedText.wrap(str(reply.get("text", "")))] if not reply.has("error") else []
 	# Los errores de la pausa se anotan unos frames después de que llega la respuesta.
 	if _continue_errors:
 		await (Engine.get_main_loop() as SceneTree).process_frame
@@ -1048,10 +1065,9 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return entry.source == "game" and not ErrorCollector.is_engine_noise(entry))
 	if not entries.is_empty():
 		lines.append("Game errors and warnings (%d):" % entries.size())
-		for entry: Dictionary in entries.slice(maxi(entries.size() - ERROR_LIMIT, 0)):
-			lines.append("  " + ErrorCollector.format_entry(entry))
+		lines.append(UntrustedText.wrap(_entry_lines(entries)))
 	if reply.has("error"):
-		lines.insert(0, str(reply.error))
+		lines.insert(0, UntrustedText.wrap(str(reply.error)))
 		return McpTool.error("\n".join(lines))
 	return McpTool.text("\n".join(lines))
 

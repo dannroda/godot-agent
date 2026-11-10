@@ -30,9 +30,9 @@ var on_action: Callable
 func tools() -> Array:
 	var scene := PermissionPolicy.GROUP_EDIT_SCENE
 	return [
-		McpTool.create("animation_get", PermissionPolicy.GROUP_READ,
+		McpTool.enveloped(McpTool.create("animation_get", PermissionPolicy.GROUP_READ,
 			"Reads an AnimationPlayer (libraries, animations with length, loop and tracks) or an AnimatedSprite2D/3D (SpriteFrames animations). With `animation`, every key of that animation.",
-			{"node_path": {"type": "string"}, "animation": {"type": "string"}, "scene": SCENE_ARG}, ["node_path"], _animation_get),
+			{"node_path": {"type": "string"}, "animation": {"type": "string"}, "scene": SCENE_ARG}, ["node_path"], _animation_get), McpTool.ENVELOPE_ALL),
 		McpTool.create("animation_create", scene,
 			"Creates an animation in an AnimationPlayer (or changes the length/loop of an existing one), with undo. `name` may be \"library/anim\"; without a library it goes to the default one. `autoplay`=true plays it when the scene starts.",
 			{

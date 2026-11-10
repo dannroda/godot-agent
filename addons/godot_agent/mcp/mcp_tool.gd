@@ -9,6 +9,14 @@ extends RefCounted
 
 const PermissionPolicy := preload("../session/permission_policy.gd")
 
+const UntrustedText := preload("untrusted_text.gd")
+
+## Sobres de texto no confiable (m11-45): la tool envuelve partes de su resultado, o el registry
+## envuelve todo el texto de un resultado bueno. Las dos suman UntrustedText.NOTE a la descripción.
+const ENVELOPE_NONE := 0
+const ENVELOPE_PARTS := 1
+const ENVELOPE_ALL := 2
+
 ## Tope de la descripción por defecto (la de la tarjeta de permiso).
 const DESCRIBE_MAX_LINES := 8
 const DESCRIBE_MAX_VALUE := 120
@@ -44,6 +52,7 @@ var group_resolver: Callable
 ## Anotaciones MCP que esta tool cambia respecto de las de su grupo (GROUP_HINTS): una tool del grupo
 ## read que manda un mensaje no es de solo lectura, una que consulta internet es openWorldHint.
 var hints: Dictionary = {}
+var envelope: int = ENVELOPE_NONE
 
 
 static func create(tool_name: String, tool_group: String, tool_description: String, properties: Dictionary, required: PackedStringArray, tool_handler: Callable) -> RefCounted:
@@ -72,8 +81,14 @@ func group_of(args: Dictionary) -> String:
 	return group
 
 
+## La tool con sobres para lo que devuelve (ENVELOPE_PARTS o ENVELOPE_ALL); para encadenar.
+static func enveloped(tool: RefCounted, mode: int) -> RefCounted:
+	tool.envelope = mode
+	return tool
+
+
 func to_mcp() -> Dictionary:
-	var entry := {"name": name, "description": description, "inputSchema": input_schema}
+	var entry := {"name": name, "description": full_description(), "inputSchema": input_schema}
 	var tool_annotations := annotations()
 	if not tool_annotations.is_empty():
 		entry["annotations"] = tool_annotations
@@ -89,6 +104,10 @@ func annotations() -> Dictionary:
 		result["openWorldHint"] = false
 	result.merge(hints, true)
 	return result
+
+
+func full_description() -> String:
+	return description + (UntrustedText.NOTE if envelope != ENVELOPE_NONE else "")
 
 
 func describe(args: Dictionary) -> String:

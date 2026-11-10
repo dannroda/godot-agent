@@ -7,6 +7,7 @@ extends RefCounted
 ## su permiso. Llamarlas por su nombre sigue funcionando.
 
 const McpTool := preload("mcp_tool.gd")
+const UntrustedText := preload("untrusted_text.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const EditorContext := preload("../ui/editor_context.gd")
 
@@ -116,7 +117,7 @@ func run_for_user(tool_name: String, args: Dictionary) -> String:
 	var tool: McpTool = _tools.get(tool_name)
 	if tool == null or not tool.handler.is_valid():
 		return ""
-	var result := _limit(_normalize(await tool.handler.call(args)))
+	var result := _limit(sealed(_normalize(await tool.handler.call(args)), tool))
 	var texts: PackedStringArray = []
 	for block: Variant in result.content:
 		if block is Dictionary and block.get("type") == "text":
@@ -174,7 +175,7 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 		if not tool_name in REPORTS_ERRORS:
 			result = _with_new_errors(result, errors_since.call(error_mark_before))
 		_error_marks[caller] = error_mark.call()
-	result = _limit(result)
+	result = _limit(sealed(result, tool))
 	_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
 	return result
 
@@ -195,7 +196,7 @@ static func _with_new_errors(result: Dictionary, entries: Array) -> Dictionary:
 	for entry: Dictionary in found.slice(0, NEW_ERRORS_SHOWN):
 		var file := str(entry.get("file", ""))
 		var location := ("%s:%d" % [file, int(entry.line)] if int(entry.get("line", 0)) > 0 else file) if not file.is_empty() else str(entry.get("source", ""))
-		lines.append("- %s — %s" % [location, str(entry.get("message", "")).strip_edges().left(300)])
+		lines.append("- %s — %s" % [location, UntrustedText.wrap(str(entry.get("message", "")).strip_edges().left(300))])
 	if found.size() > NEW_ERRORS_SHOWN:
 		lines.append("- … and %d more" % (found.size() - NEW_ERRORS_SHOWN))
 	var with_notice := result.duplicate()
@@ -228,7 +229,7 @@ func _methods(args: Dictionary) -> Dictionary:
 		var tool: McpTool = _tools.get(wanted)
 		if tool == null:
 			return McpTool.error("There is no method '%s'. godot.methods without arguments lists them." % wanted)
-		var lines: PackedStringArray = ["%s (permission group %s)" % [tool.name, tool.group], tool.description, "Parameters (JSON schema):", JSON.stringify(tool.input_schema)]
+		var lines: PackedStringArray = ["%s (permission group %s)" % [tool.name, tool.group], tool.full_description(), "Parameters (JSON schema):", JSON.stringify(tool.input_schema)]
 		lines.append("Call: godot.run with {\"method\": \"%s\", \"params\": {…}}." % tool.name)
 		return McpTool.text("\n".join(lines))
 	var query := (str(args.get("query", "")) if args.get("query") != null else "").to_lower()
@@ -279,6 +280,27 @@ func _normalize(value: Variant) -> Dictionary:
 	return McpTool.error("The tool failed without a result (internal harness error). Check the editor's Output panel.")
 
 
+## Los sobres de un resultado (m11-45): con ENVELOPE_ALL envuelve el texto de un resultado bueno, y
+## pone un nonce nuevo, el de esta llamada, en todos los sobres que trae.
+static func sealed(result: Dictionary, tool: McpTool) -> Dictionary:
+	var wrap_all: bool = tool != null and tool.envelope == McpTool.ENVELOPE_ALL and not result.get("isError", false)
+	var nonce := UntrustedText.new_nonce()
+	var content: Array = []
+	for block: Variant in result.get("content", []):
+		if block is Dictionary and block.get("type") == "text":
+			var text := str(block.get("text", ""))
+			var item: Dictionary = (block as Dictionary).duplicate()
+			# Un bloque que ya trae sobres es del harness (el aviso de errores nuevos): queda como está.
+			var whole: bool = wrap_all and not text.contains(UntrustedText.pending_nonce())
+			item["text"] = UntrustedText.seal(UntrustedText.wrap(text) if whole else text, nonce)
+			content.append(item)
+		else:
+			content.append(block)
+	var out := result.duplicate()
+	out["content"] = content
+	return out
+
+
 ## Recorta el texto total a `max_output_chars` y reescala imágenes a `max_image_side`.
 func _limit(result: Dictionary) -> Dictionary:
 	var remaining := max_output_chars
@@ -292,7 +314,7 @@ func _limit(result: Dictionary) -> Dictionary:
 				var text := str(item.get("text", ""))
 				if text.length() > remaining:
 					var cut := maxi(remaining, 0)
-					text = text.left(cut) + "\n…[output truncated: %d of %d characters. Request less (depth, path, pattern) to see the rest]" % [cut, text.length()]
+					text = UntrustedText.close_cut(text.left(cut)) + "\n…[output truncated: %d of %d characters. Request less (depth, path, pattern) to see the rest]" % [cut, text.length()]
 				remaining -= text.length()
 				content.append({"type": "text", "text": text})
 			"image":

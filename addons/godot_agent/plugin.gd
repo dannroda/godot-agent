@@ -44,6 +44,7 @@ const GithubReviews := preload("core/github_reviews.gd")
 const InlineEditMenu := preload("editor/inline_edit_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
+const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
 const ApiTools := preload("mcp/tools/api_tools.gd")
 const ProjectTools := preload("mcp/tools/project_tools.gd")
@@ -1256,7 +1257,8 @@ func _context_for_mention(kind: String, arg: String) -> String:
 			return await _registry.run_for_user("get_errors", {"since": 0})
 		"output":
 			var text := _errors.output_text() if _errors else ""
-			return text.right(OUTPUT_MENTION_CHARS).strip_edges()
+			# Lo imprime el juego: va en un sobre como en los resultados de las tools (m11-45).
+			return UntrustedText.seal(UntrustedText.wrap(text.right(OUTPUT_MENTION_CHARS).strip_edges()), UntrustedText.new_nonce())
 		"game":
 			return await _registry.run_for_user("game_tree", {})
 		"docs":
