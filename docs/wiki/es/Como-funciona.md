@@ -83,4 +83,4 @@ El panel inferior muestra todo por canal:
 - `cmp`: las latencias del completado;
 - `state`: una sesión, el juego que lanzó `run_scene` o un run del One-shot cambió de estado de una forma que el harness no esperaba. El cambio se aplica igual; la línea dice los dos estados.
 
-Los secretos se enmascaran. Es el primer lugar donde mirar cuando algo no anda: ver [Problemas frecuentes](Problemas-frecuentes.md).
+Los secretos (el token del servidor MCP, las claves que el agente y los servidores MCP toman del entorno) se enmascaran acá, y también en el chat, en las tarjetas de permiso y de error, en el historial de sesiones guardado y en el informe del One-shot; lo que el agente escribe o ejecuta conserva el valor real. Es el primer lugar donde mirar cuando algo no anda: ver [Problemas frecuentes](Problemas-frecuentes.md).
