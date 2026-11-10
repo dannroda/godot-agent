@@ -22,9 +22,11 @@ const ExtensionsUi := preload("extensions_ui.gd")
 const GodotAddonsTab := preload("godot_addons_tab.gd")
 const SkillsTab := preload("skills_tab.gd")
 const InstructionsTab := preload("instructions_tab.gd")
+const ToolsTab := preload("tools_tab.gd")
+const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 
-enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS }
+enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS, TOOLS }
 const AVAILABLE_LIMIT := 30
 const MCP_ORIGIN_ORDER: PackedStringArray = ["addon", "user", "project", "local", "claude.ai", "plugin", "other"]
 const MCP_ORIGIN_LABELS: Dictionary = {
@@ -64,6 +66,11 @@ var agent_kind_provider: Callable
 var asset_store: Node
 ## Skills apagadas en el proyecto (ProjectConfig.disabled_skills), para la pestaña Skills.
 var disabled_skills: PackedStringArray = []
+## Para la pestaña Tools (m12-46): () -> Array[Dictionary] (ToolRegistry.catalog()),
+## () -> PermissionPolicy (la del proyecto) y () -> bool (lista compacta).
+var tools_catalog_provider: Callable
+var tools_policy_provider: Callable
+var tools_compact_provider: Callable
 
 var _tabs: TabContainer
 ## Las secciones a la izquierda, como en Ajustes: seis pestañas no entraban en la ventana (m12-04).
@@ -80,6 +87,7 @@ var _mcp_box: VBoxContainer
 var _addons_tab: GodotAddonsTab
 var _skills_tab: SkillsTab
 var _instructions_tab: InstructionsTab
+var _tools_tab: ToolsTab
 var _confirm: ConfirmationDialog
 var _confirm_action: Callable
 
@@ -164,6 +172,11 @@ func _build() -> void:
 	_instructions_tab = InstructionsTab.new()
 	_instructions_tab.status_changed.connect(_set_status)
 	_tabs.add_child(_instructions_tab)
+	_tools_tab = ToolsTab.new()
+	_tools_tab.catalog_provider = func() -> Array[Dictionary]: return tools_catalog_provider.call() if tools_catalog_provider.is_valid() else ([] as Array[Dictionary])
+	_tools_tab.policy_provider = func() -> PermissionPolicy: return tools_policy_provider.call() if tools_policy_provider.is_valid() else PermissionPolicy.new()
+	_tools_tab.compact_provider = func() -> bool: return bool(tools_compact_provider.call()) if tools_compact_provider.is_valid() else false
+	_tabs.add_child(_tools_tab)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -190,6 +203,8 @@ func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 func refresh() -> void:
 	_addons_tab.store = asset_store
 	_addons_tab.refresh()
+	_tools_tab.refresh()
+	_update_tab_titles()
 	_instructions_tab.agent_kind = _agent_kind()
 	if extensions and not extensions.cli.cwd.is_empty():
 		_instructions_tab.project_path = extensions.cli.cwd
@@ -648,6 +663,7 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.SKILLS, I18n.t("Skills"))
 	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Project addons"))
 	_tabs.set_tab_title(ExtensionsTab.INSTRUCTIONS, I18n.t("Instructions"))
+	_tabs.set_tab_title(ExtensionsTab.TOOLS, I18n.t("Tools (%d)") % _tools_tab.tool_count())
 	if _nav.item_count != _tabs.get_tab_count():
 		_nav.clear()
 		for i in _tabs.get_tab_count():

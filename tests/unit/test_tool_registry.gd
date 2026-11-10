@@ -229,3 +229,19 @@ func test_stdio_shim_prints_sse_events() -> void:
 	var rest := McpStdioShim._print_events(cut)
 	assert_true(rest.get_string_from_utf8().begins_with("event: message\ndata: {\"b\""), "el evento sin terminar queda")
 	assert_eq(McpStdioShim._print_events("x\r\n\r\n".to_utf8_buffer()).size(), 0, "CRLF también separa")
+
+
+## m12-46: el catálogo para la lista de tools: categoría del proveedor, resumen y si está extendida.
+func test_catalog() -> void:
+	var registry := _compact_registry()
+	registry.register_provider(AssetTools.new(), true)
+	var catalog := registry.catalog()
+	assert_eq(catalog[0].name, "echo", "en orden de registro")
+	assert_eq(catalog[0].category, "", "una tool suelta no tiene proveedor")
+	assert_true(catalog[0].summary == "Repite" and catalog[0].group == "read" and not catalog[0].extended, "resumen, grupo y no extendida · %s" % [catalog[0]])
+	var paint: Dictionary = catalog.filter(func(tool: Dictionary) -> bool: return tool.name == "paint")[0]
+	assert_true(paint.summary == "Pinta celdas." and paint.description.contains("Detalle largo") and paint.extended, "la primera oración como resumen; extendida · %s" % [paint])
+	var assets: Array = catalog.filter(func(tool: Dictionary) -> bool: return tool.category == "asset")
+	assert_true(assets.size() >= 1 and registry.category_of(assets[0].name) == "asset", "las de un proveedor llevan su categoría (asset_tools.gd → asset)")
+	assert_eq(ToolRegistry.provider_category(AssetTools.new()), "asset", "provider_category")
+	assert_eq(registry.category_of("nope"), "", "desconocida: vacío")

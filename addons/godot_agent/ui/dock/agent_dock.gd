@@ -16,6 +16,8 @@ signal new_tab_requested(in_copy: bool)
 signal open_elsewhere_requested(session_id: String)
 ## Abrir la ventana Extensions: plugins, marketplaces y MCP servers (m7-37).
 signal extensions_requested
+## Abrir la lista de tools del agente (Extensiones › Tools, m12-46).
+signal tools_requested
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
 signal action_forwarded(action: String, payload: Variant)
 
@@ -40,6 +42,7 @@ const MORE_EXTENSIONS := 0
 const MORE_SETTINGS := 1
 const MORE_REMOTE := 2
 const MORE_LOGOUT := 3
+const MORE_TOOLS := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
 const RECENT_SESSIONS := 5
 const AgentProfile := preload("../../core/agent_profile.gd")
@@ -498,6 +501,8 @@ func _fill_more_menu() -> void:
 	popup.clear()
 	popup.add_icon_item(AgentTheme.icon(&"EditorPlugin"), I18n.t("Extensions…"), MORE_EXTENSIONS)
 	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
+	popup.add_icon_item(AgentTheme.icon(&"Help"), I18n.t("What the agent can do (tools)…"), MORE_TOOLS)
+	popup.set_item_tooltip(popup.item_count - 1, I18n.t("The editor tools the agent has, by function, with what each asks for in each mode."))
 	var ready := _model.state == SessionModel.SessionState.READY
 	if _remote_banner.can_turn_on() or _can_logout():
 		popup.add_separator()
@@ -517,6 +522,8 @@ func _on_more_selected(id: int) -> void:
 			extensions_requested.emit()
 		MORE_SETTINGS:
 			settings_requested.emit()
+		MORE_TOOLS:
+			tools_requested.emit()
 		MORE_REMOTE:
 			_remote_banner.turn_on()
 		MORE_LOGOUT:

@@ -268,7 +268,8 @@ func _enter_tree() -> void:
 	dock.registry_requested.connect(func(query: String) -> void:
 		_settings_dialog.open()
 		_settings_dialog.open_registry(query))
-	dock.extensions_requested.connect(_open_extensions)
+	dock.extensions_requested.connect(func() -> void: _open_extensions())
+	dock.tools_requested.connect(func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS))
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
 	dock.game_point = _point_game_for_dock
@@ -340,6 +341,10 @@ func _enter_tree() -> void:
 	_extensions_window = ExtensionsWindow.new()
 	_extensions_window.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_extensions_window.addon_servers_provider = _external_mcp_servers
+	_extensions_window.tools_catalog_provider = func() -> Array[Dictionary]: return _registry.catalog() if _registry else ([] as Array[Dictionary])
+	_extensions_window.tools_policy_provider = func() -> PermissionPolicy: return PermissionPolicy.new(_project_config.permissions if _project_config else {})
+	_extensions_window.tools_compact_provider = func() -> bool: return _project_config != null and _project_config.compact_tools
+	_settings_dialog.show_tools = func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS)
 	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
 		return _active_adapter().kind == ClaudeExtensions.AGENT_CLAUDE
@@ -974,11 +979,11 @@ func _active_adapter() -> AgentAdapter:
 
 
 ## El CLI corre con el entorno del agente de la pestaña activa (CLAUDE_CONFIG_DIR y demás), como el agente.
-func _open_extensions() -> void:
+func _open_extensions(tab: ExtensionsWindow.ExtensionsTab = ExtensionsWindow.ExtensionsTab.PLUGINS) -> void:
 	var profile := _tab_profile()
 	_extensions_window.extensions = ClaudeExtensions.new(EditorContext.project_path(), profile.resolved_env() if profile else {})
 	_extensions_window.disabled_skills = _project_config.disabled_skills
-	_extensions_window.open()
+	_extensions_window.open(tab)
 
 
 ## Busca un release nuevo (m7-38) y, si hay, muestra el aviso en el dock. Al abrir el editor
@@ -1409,7 +1414,8 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
 	dock.new_tab_requested.connect(_open_session_tab)
-	dock.extensions_requested.connect(_open_extensions)
+	dock.extensions_requested.connect(func() -> void: _open_extensions())
+	dock.tools_requested.connect(func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS))
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
 	dock.game_point = _point_game_for_dock
