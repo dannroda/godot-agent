@@ -286,6 +286,10 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_stderr_tail.clear()
 	for secret: String in AgentProfile.secret_env_values(agent_profile.resolved_env()):
 		agent_log.add_secret(secret)  # el agente puede repetirlos (m13-25)
+	# La API key exportada en el shell le llega al agente aunque el perfil no la nombre (hereda el
+	# entorno del editor, como avisa _warn_api_key): también cuenta como secreto.
+	for secret: String in AgentProfile.inherited_secret_values(PackedStringArray([adapter.api_key_variable()])):
+		agent_log.add_secret(secret)
 	model.set_state(SessionModel.SessionState.STARTING)
 	agent_log.add(AgentLog.CH_PROC, "Launching %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
 
