@@ -62,6 +62,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-profile-test`: m13-27, lee el profiler de scripts de un run desde un plugin por
 ##   la señal interna debug_data de ScriptEditorDebugger y mide el overhead (ver profile_check.gd);
 ##   después, godot.profile_run por HTTP real (profile_tool_check.gd).
+## - `-- --godot-agent-debug-test`: m11-56, game_breakpoint, game_stack y game_debug sobre un juego
+##   parado en un breakpoint del agente; al cerrarse la sesión, el juego sigue (debug_check.gd).
 
 const CYCLE_ARG := "--godot-agent-cycle-test"
 const SCREENSHOT_ARG := "--godot-agent-screenshot="
@@ -152,6 +154,8 @@ const RemoteCheck := preload("remote_check.gd")
 const PROFILE_ARG := "--godot-agent-profile-test"
 const ProfileCheck := preload("profile_check.gd")
 const ProfileToolCheck := preload("profile_tool_check.gd")
+const DEBUG_ARG := "--godot-agent-debug-test"
+const DebugCheck := preload("debug_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 ## user:// propio de cada checkout para los checks (m13-17); vive en tests/, que no viaja con el addon.
 const TEST_USER_DIR_SCRIPT := "res://tests/test_user_dir.gd"
@@ -206,6 +210,8 @@ func _enter_tree() -> void:
 		_run_remote_test.call_deferred()
 	if PROFILE_ARG in args:
 		_run_profile_test.call_deferred()
+	if DEBUG_ARG in args:
+		_run_debug_test.call_deferred()
 	if PENDING_ARG in args:
 		_run_pending_test.call_deferred()
 	if CLAUDE_REVIEW_ARG in args:
@@ -589,6 +595,15 @@ func _run_profile_test() -> void:
 	for failure: String in failures:
 		print("[profile-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "profile-test: %d fallas" % failures.size())
+
+
+func _run_debug_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var failures := _failures(await DebugCheck.new().run_debug(get_tree()))
+	for failure: String in failures:
+		print("[debug-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "debug-test: %d fallas" % failures.size())
 
 
 func _run_pending_test() -> void:

@@ -41,6 +41,10 @@ func on_game_started() -> void:
 	_harness_run = bool(launched_by_harness.call())
 
 
+## Motivo con el que el debugger para en un breakpoint o en la palabra `breakpoint`.
+const BREAKPOINT_REASON := "Breakpoint"
+
+
 ## El debugger pausó el juego (por un error, normalmente).
 func on_game_breaked() -> void:
 	_report(true)
@@ -56,6 +60,10 @@ func _report(breaked: bool) -> void:
 	if not _running or _notified or _harness_run or not bool(enabled.call()):
 		return
 	var reason := str(break_reason.call()) if breaked else ""
+	# Una pausa en un breakpoint (del usuario o del agente, m11-56) no es un error: si hubo errores,
+	# se avisa al terminar el juego.
+	if reason.begins_with(BREAKPOINT_REASON):
+		return
 	var found: Array[Dictionary] = []
 	if errors:
 		for entry: Dictionary in errors.entries_since(_mark):

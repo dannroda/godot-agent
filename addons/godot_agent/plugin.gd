@@ -47,6 +47,7 @@ const ToolRegistry := preload("mcp/tool_registry.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
 const MapTools := preload("mcp/tools/map_tools.gd")
+const DebugTools := preload("mcp/tools/debug_tools.gd")
 const ApiTools := preload("mcp/tools/api_tools.gd")
 const ProjectTools := preload("mcp/tools/project_tools.gd")
 const AssetTools := preload("mcp/tools/asset_tools.gd")
@@ -135,6 +136,8 @@ var _log: AgentLog
 var _log_panel: Control
 var _model: SessionModel
 var _controller: SessionController
+## Breakpoints, pila y pasos del debugger (m11-56).
+var _debug_tools: DebugTools
 var _project_config: ProjectConfig
 var _sync: EditorSync
 var _remote_activity: RemoteActivity
@@ -858,6 +861,11 @@ func _start_mcp_server() -> void:
 	_playtest_debugger.session_started.connect(_run_errors.on_game_started)
 	_playtest_debugger.session_breaked.connect(_on_game_breaked)
 	_playtest_debugger.session_stopped.connect(_run_errors.on_game_stopped)
+	_debug_tools = DebugTools.new()
+	_debug_tools.setup(_run_tools, _playtest_debugger)
+	_debug_tools.caller = func() -> String: return _registry.current_caller if _registry else ""
+	_debug_tools.user_breakpoints = func() -> PackedStringArray: return EditorInterface.get_script_editor().get_breakpoints()
+	registry.register_provider(_debug_tools)
 	registry.mark_extended(RunTools.GAME_TOOLS)
 	# m13-27: lee el profiler por una API interna del editor; sin ella, la tool contesta por qué no puede.
 	_profile_tools = ProfileTools.new()
@@ -1344,6 +1352,7 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	controller.policy.subagent_limits = _project_config.subagent_limits
 	controller.shell_rules = _project_config.auto_shell_rules
 	controller.shell_rules_changed.connect(_save_project_config)
+	controller.disconnected.connect(_on_agent_disconnected.bind(id))
 	controller.permissions_changed.connect(func() -> void: _on_permissions_changed(_controller_of(id)))
 	controller.external_mcp_names = _external_mcp_names()
 	controller.quota.configure(_settings.quota_warn(), _settings.quota_pause(), _settings.quota_pause_enabled())
@@ -1640,6 +1649,14 @@ func _rename_session(id: String, name: String) -> void:
 
 
 ## La sesión de quien llama a una tool godot.*: el token principal ("") es el de la primera.
+## Una sesión que se cierra no deja breakpoints suyos ni el juego parado por ellos (m11-56).
+func _on_agent_disconnected(id: String) -> void:
+	if _debug_tools:
+		var released: PackedStringArray = await _debug_tools.release_session("" if id == PRIMARY_SESSION else id)
+		if not released.is_empty():
+			_log.add(AgentLog.CH_STATE, "session %s closed: cleared its breakpoints %s" % [id, ", ".join(released)])
+
+
 func _session_of(caller: String) -> String:
 	return PRIMARY_SESSION if caller.is_empty() else caller
 

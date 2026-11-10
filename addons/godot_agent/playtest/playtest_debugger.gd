@@ -8,6 +8,8 @@ signal session_started
 signal session_started_id(session_id: int)
 signal session_stopped
 signal session_breaked
+## El juego salió de una pausa del debugger (continue o step del agente, del usuario o del harness).
+signal session_continued
 signal probe_ready
 signal frame_received(png: PackedByteArray, width: int, height: int)
 signal inputs_done(count: int)
@@ -60,6 +62,7 @@ func _setup_session(session_id: int) -> void:
 	session.started.connect(_on_started.bind(session_id))
 	session.stopped.connect(_on_stopped.bind(session_id))
 	session.breaked.connect(_on_breaked)
+	session.continued.connect(_on_continued)
 
 
 ## Si hay un probe conectado y su sesión sigue activa.
@@ -79,6 +82,29 @@ func send(message: String, data: Array = []) -> bool:
 	if not has_probe():
 		return false
 	get_session(_probe_session).send_message(PREFIX + ":" + message, data)
+	return true
+
+
+## Un breakpoint en todas las sesiones activas (m11-56). `line` empieza en 1, como en el editor.
+func set_breakpoint(path: String, line: int, enabled: bool) -> void:
+	for session_id in get_sessions().size():
+		var session := get_session(session_id)
+		if session and session.is_active():
+			session.set_breakpoint(path, line, enabled)
+
+
+## Un breakpoint en una sesión (la que acaba de arrancar).
+func set_session_breakpoint(session_id: int, path: String, line: int) -> void:
+	var session := get_session(session_id)
+	if session and session.is_active():
+		session.set_breakpoint(path, line, true)
+
+
+## continue, step, next u out a la sesión del probe parada en el debugger (m11-56).
+func debug_command(command: String) -> bool:
+	if not is_breaked():
+		return false
+	get_session(_probe_session).send_message(command, [])
 	return true
 
 
@@ -129,3 +155,7 @@ func _on_stopped(session_id: int) -> void:
 
 func _on_breaked(_can_debug: bool) -> void:
 	session_breaked.emit()
+
+
+func _on_continued() -> void:
+	session_continued.emit()

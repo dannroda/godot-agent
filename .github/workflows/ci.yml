@@ -63,6 +63,7 @@ jobs:
           XRUN_TIMEOUT=280 tests/run_in_xvfb.sh ~/godot/godot --godot-agent-run-test
           XRUN_TIMEOUT=200 tests/run_in_xvfb.sh ~/godot/godot --godot-agent-review-test
           XRUN_TIMEOUT=150 tests/run_in_xvfb.sh ~/godot/godot --godot-agent-run-error-test
+          XRUN_TIMEOUT=150 tests/run_in_xvfb.sh ~/godot/godot --godot-agent-debug-test
           XRUN_TIMEOUT=120 tests/run_in_xvfb.sh ~/godot/godot --godot-agent-external-test
 
   # C# (m14-07): validate_scripts compila con dotnet build; el test compila un proyecto de verdad.

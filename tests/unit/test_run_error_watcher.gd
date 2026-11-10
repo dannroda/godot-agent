@@ -77,6 +77,21 @@ func test_clean_harness_and_disabled_runs_stay_quiet() -> void:
 	assert_eq(found.size(), 0, "sin run en curso, nada")
 
 
+## m11-56: parar en un breakpoint no es un error; los errores de ese run se avisan al terminar.
+func test_breakpoint_pause_is_not_an_error() -> void:
+	var errors := FakeErrors.new()
+	var watcher := _watcher(errors)
+	var found := _collect(watcher)
+	watcher.on_game_started()
+	errors.add("error", "algo falló antes", "res://a.gd", 3, "game")
+	watcher.break_reason = func() -> String: return "Breakpoint (0 - res://player.gd:12 - at function: _process)"
+	watcher.on_game_breaked()
+	assert_eq(found.size(), 0, "la pausa en un breakpoint no avisa")
+	watcher.on_game_stopped()
+	assert_eq(found.size(), 1, "los errores se avisan al terminar")
+	assert_true(not found[0].breaked and str(found[0].lines[0]).contains("algo falló antes"), "sin la pausa · %s" % [found[0]])
+
+
 func test_notice_and_prompt_texts() -> void:
 	var entries: Array[Dictionary] = []
 	for i in 14:
