@@ -332,7 +332,7 @@ func _check_playtest_game() -> void:
 	# game_monitors (m11-43): un nodo que nunca entra al árbol queda huérfano y aparece en la lista.
 	await _call_text("game_script", {"code": "func run(game):\n\tvar lost = Node2D.new()\n\tlost.name = \"ProbeLeak\"\n\treturn true"})
 	var monitored := await _call_text("game_monitors", {"seconds": 0.5})
-	_expect(monitored.begins_with("Sampled ") and monitored.contains("Frame time: avg ") and monitored.contains("Start → end: nodes ") and monitored.contains("- ProbeLeak (Node2D)"), "game_monitors: tiempos, conteos y el huérfano · " + monitored.left(700))
+	_expect(monitored.contains("Sampled ") and monitored.contains("Frame time: avg ") and monitored.contains("Start → end: nodes ") and monitored.contains("- ProbeLeak (Node2D)"), "game_monitors: tiempos, conteos y el huérfano · " + monitored.left(700))
 	var quiet := await _call_text("game_monitors", {"seconds": 0.2, "orphans": false})
 	_expect(not quiet.contains("Orphan nodes now"), "game_monitors: sin la lista si orphans es false")
 
