@@ -100,6 +100,7 @@ const REGRESSIONS_WORKFLOW_WARNINGS: Dictionary = {
 	RegressionsWorkflow.WARN_NO_GIT: "The project is not in a git repository: the workflow was written in the project folder. GitHub only reads .github/workflows/ at the root of the repository, so move it there (and adjust --path if the project is in a subfolder).",  # i18n
 	RegressionsWorkflow.WARN_IGNORED_REGRESSIONS: ".godot_agent/ is ignored by git: the saved regressions won't be in the repository, so the CI will find none. Un-ignore .godot_agent/playtests/regressions/ or commit it with git add -f.",  # i18n
 	RegressionsWorkflow.WARN_IGNORED_ADDON: "addons/godot_agent/ is ignored by git: the CI needs the addon to run the regressions. Commit it or install it in the workflow.",  # i18n
+	RegressionsWorkflow.WARN_CUSTOM_BUILD: "This editor is not an official Godot release, so the download URL in the workflow probably does not exist: point the Install Godot step to a build you host, or to the official release closest to this version.",  # i18n
 }
 ## Acciones de edición del server MCP que todavía no se unieron a su tool call (llegan antes).
 const PENDING_UNDO_TTL_MS := 60000
@@ -642,6 +643,9 @@ func _run_regressions() -> void:
 ## El workflow de CI que corre las regresiones grabadas (m16-10). Uno que ya existe no se pisa:
 ## el aviso ofrece «Overwrite».
 func _write_regressions_workflow(overwrite: bool) -> void:
+	if PlaytestRegressions.new().list().is_empty():
+		_model.add_notice(I18n.t("There are no saved regressions yet: a playtest that passes saves one. The workflow would fail on every push, so it was not written."), ChatEntry.NoticeLevel.WARNING)
+		return
 	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
 	var written := RegressionsWorkflow.write(root, false, overwrite)
 	if written.ok:

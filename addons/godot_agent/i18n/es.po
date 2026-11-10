@@ -4190,3 +4190,9 @@ msgstr "Se descartó la instalación preparada de %s. El juego sigue con la buil
 
 msgid "There is nothing staged to install anymore."
 msgstr "Ya no hay nada preparado para instalar."
+
+msgid "This editor is not an official Godot release, so the download URL in the workflow probably does not exist: point the Install Godot step to a build you host, or to the official release closest to this version."
+msgstr "Este editor no es un release oficial de Godot, así que la URL de descarga del workflow probablemente no exista: apuntá el paso Install Godot a un build que alojes vos, o al release oficial más cercano a esta versión."
+
+msgid "There are no saved regressions yet: a playtest that passes saves one. The workflow would fail on every push, so it was not written."
+msgstr "Todavía no hay regresiones guardadas: un playtest que pasa deja una. El workflow fallaría en cada push, así que no se escribió."

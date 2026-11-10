@@ -13,6 +13,9 @@ func test_editor_version_names_the_release() -> void:
 	assert_true(version.ends_with("-" + str(info.status)), "termina con el status (%s)" % version)
 	assert_eq(RegressionsWorkflow.download_url("4.7.2-stable"), "https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip", "las estables salen de godotengine/godot")
 	assert_eq(RegressionsWorkflow.download_url("4.8-beta2"), "https://github.com/godotengine/godot-builds/releases/download/4.8-beta2/Godot_v4.8-beta2_linux.x86_64.zip", "las betas de godot-builds")
+	assert_eq(RegressionsWorkflow.download_url("4.7.2-stable", true), "https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_mono_linux_x86_64.zip", "el zip mono para .NET")
+	assert_eq(RegressionsWorkflow.is_dotnet_editor(), ClassDB.class_exists("CSharpScript"), "detecta el editor .NET")
+	assert_eq(RegressionsWorkflow.is_official_build(), str(Engine.get_version_info().build) == "official", "detecta el build oficial")
 
 
 func test_workflow_text_headless_and_render() -> void:
@@ -29,6 +32,13 @@ func test_workflow_text_headless_and_render() -> void:
 	assert_true(render.contains("godot-builds/releases/download/4.8-beta2/"), "una beta baja de godot-builds")
 	_assert_yaml_shape(text, "headless")
 	_assert_yaml_shape(render, "render")
+	var dotnet := RegressionsWorkflow.workflow_text("4.7.2-stable", false, "", true)
+	assert_true(dotnet.contains("Godot_v4.7.2-stable_mono_linux_x86_64.zip") and dotnet.contains("ln -sf \"Godot_v4.7.2-stable_mono_linux.x86_64\""), ".NET: baja el build mono y enlaza el binario")
+	assert_true(dotnet.contains("actions/setup-dotnet@v4") and dotnet.contains("dotnet-version: 8.0.x"), ".NET: instala el SDK")
+	assert_true(dotnet.contains("- name: Build the C# project") and dotnet.contains("run: dotnet build ."), ".NET: compila el proyecto antes de correr")
+	assert_true(dotnet.find("Build the C# project") > dotnet.find("Import the project") and dotnet.find("Build the C# project") < dotnet.find("Run the regressions"), ".NET: el build va entre importar y correr")
+	assert_false(text.contains("dotnet"), "sin .NET no hay dotnet")
+	_assert_yaml_shape(dotnet, "dotnet")
 
 
 func test_write_does_not_overwrite_without_asking() -> void:
@@ -49,6 +59,11 @@ func test_write_does_not_overwrite_without_asking() -> void:
 	var replaced := RegressionsWorkflow.write(root, true, true, "4.7.2-stable")
 	assert_true(replaced.ok and replaced.existed, "con overwrite lo reemplaza")
 	assert_true(FileAccess.get_file_as_string(root.path_join(first.path)).contains("xvfb-run"), "con el contenido nuevo")
+	var custom := RegressionsWorkflow.write(root, false, true, "4.7.2-stable", false, false)
+	assert_true(custom.ok and RegressionsWorkflow.WARN_CUSTOM_BUILD in custom.warnings, "un build no oficial avisa que la URL es una suposición (%s)" % [custom.warnings])
+	assert_true(RegressionsWorkflow.WARNING_TEXTS.has(RegressionsWorkflow.WARN_CUSTOM_BUILD), "con texto para el agente")
+	var mono := RegressionsWorkflow.write(root, false, true, "4.7.2-stable", true, true)
+	assert_true(mono.ok and not RegressionsWorkflow.WARN_CUSTOM_BUILD in mono.warnings and FileAccess.get_file_as_string(root.path_join(mono.path)).contains("setup-dotnet"), "con .NET escribe el workflow .NET")
 
 
 ## El juego vive en una subcarpeta del repo: el yml va a la raíz (GitHub no lee otro .github/) con
@@ -87,7 +102,7 @@ func test_without_git_it_warns() -> void:
 	var project := ProjectSettings.globalize_path(temp_dir("regressions_workflow_nogit"))
 	var info := RegressionsWorkflow.repo_info("/")  # fuera de cualquier repo
 	assert_eq(info.toplevel, "", "sin repo, sin raíz")
-	assert_eq(RegressionsWorkflow.WARNING_TEXTS.size(), 3, "cada aviso tiene texto para el agente")
+	assert_eq(RegressionsWorkflow.WARNING_TEXTS.size(), 4, "cada aviso tiene texto para el agente")
 	# El temp vive dentro de user://, que puede estar en un repo o no: solo el texto del aviso se prueba acá.
 	assert_true(RegressionsWorkflow.WARNING_TEXTS[RegressionsWorkflow.WARN_NO_GIT].contains("root of the repository"), "el aviso dice dónde va")
 	assert_true(DirAccess.dir_exists_absolute(project), "carpeta temporal")
@@ -100,7 +115,8 @@ func test_tool_is_registered_for_the_agent() -> void:
 	for tool: RefCounted in tools.tools():
 		if tool.name == "write_regressions_workflow":
 			assert_eq(tool.group, "edit_files", "pide permiso como una edición de archivos")
-			assert_true(tool.input_schema.properties.has("overwrite") and tool.input_schema.properties.has("render"), "con overwrite y render")
+			assert_true(tool.input_schema.properties.has("render") and not tool.input_schema.properties.has("overwrite"), "con render y sin overwrite: la tool nunca pisa")
+			assert_true(tool.description.contains("Never replaces an existing file"), "y lo dice")
 
 
 ## Sin un parser YAML a mano: cada línea con contenido tiene sangría par y las claves del workflow
