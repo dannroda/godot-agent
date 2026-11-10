@@ -981,8 +981,9 @@ func _on_create_elicitation(params: Dictionary) -> Variant:
 	var request := ElicitationRequest.from_params(params)
 	# El formulario se muestra sin los secretos del harness (m13-28), como la tarjeta de permiso: el
 	# mensaje y los títulos y descripciones del schema. Los defaults, las opciones y el enlace son lo
-	# que vuelve al agente o se abre, y quedan reales.
+	# que vuelve al agente o se abre, y quedan reales: la tarjeta los muestra con `redact` (#18).
 	request.message = agent_log.redact(request.message)
+	request.redact = agent_log.redact
 	request.requested_schema = agent_log.redact_fields(request.requested_schema, ElicitationRequest.SHOWN_SCHEMA_FIELDS)
 	var invalid: String = request.invalid_reason()
 	if not invalid.is_empty():

@@ -15,7 +15,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Fixed
 
 - A variable whose name only contains a secret-like word, such as `GIT_AUTHOR_NAME` or `KEYBOARD_LAYOUT`, no longer counts as a secret: its value (your name, for example) was hidden as «secret» everywhere in the chat, and Settings and MCP servers refused to save it as a key written in. Secret names are now matched by word: a word such as `KEY`, `TOKEN` or `PASSWORD`, or one that ends like a secret (`ANTHROPIC_API_KEY`, `X-Api-Key`, `authToken`, `PGPASSWORD`, `HFToken`).
-- Forms the agent asks you to fill in hide the harness's secrets in their text, like permission cards; the values you send back stay real.
+- Forms the agent asks you to fill in hide the harness's secrets, like permission cards: in their text, in a pre-filled value and in the options. A field you don't change sends back the real value; one you edit sends what you wrote.
 - **↶ undo** shows up again for a `godot.*` edit whose arguments contain a secret, and in Auto mode a permission card no longer suggests a shell rule that contains one.
 - Signing in through the agent's terminal login keeps your real key when the agent repeats it in the sign-in method's environment.
 

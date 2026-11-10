@@ -29,6 +29,9 @@ var response: Dictionary = {}
 var completed_by_agent: bool = false
 ## El agente retiró el pedido con `$/cancel_request`.
 var withdrawn: bool = false
+## Redacta un texto que se muestra (AgentLog.redact; lo pone el controller). Los valores que vuelven
+## al agente (defaults, opciones) quedan reales en el schema y solo se redactan al mostrarlos (m13-28).
+var redact: Callable
 
 
 static func from_params(params: Dictionary) -> RefCounted:
@@ -65,6 +68,12 @@ func invalid_reason() -> String:
 static func is_web_url(text: String) -> bool:
 	var lower := text.strip_edges().to_lower()
 	return (lower.begins_with("https://") or lower.begins_with("http://")) and lower.length() > lower.find("//") + 2
+
+
+## `value` como se muestra en el formulario: sin los secretos del harness.
+func shown_text(value: Variant) -> String:
+	var text := str(value)
+	return str(redact.call(text)) if redact.is_valid() else text
 
 
 func is_pending() -> bool:

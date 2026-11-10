@@ -137,7 +137,7 @@ func _build_fields() -> void:
 				var check_items: Array[Dictionary] = []
 				for choice: Dictionary in choices:
 					var item_check := CheckBox.new()
-					item_check.text = str(choice.label)
+					item_check.text = request.shown_text(choice.label)
 					item_check.tooltip_text = str(choice.description)
 					item_check.button_pressed = choice.value in initial
 					checks_box.add_child(item_check)
@@ -159,7 +159,7 @@ func _build_fields() -> void:
 					for choice: Dictionary in choices:
 						var radio := CheckBox.new()
 						radio.button_group = group
-						radio.text = str(choice.label)
+						radio.text = request.shown_text(choice.label)
 						radio.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 						radio.button_pressed = str(choice.value) == def_choice
 						row.add_child(radio)
@@ -188,7 +188,7 @@ func _build_fields() -> void:
 					var selected_idx := 0
 					for choice: Dictionary in choices:
 						var idx := option_btn.item_count
-						option_btn.add_item(str(choice.label))
+						option_btn.add_item(request.shown_text(choice.label))
 						if not str(choice.description).is_empty():
 							option_btn.set_item_tooltip(idx, str(choice.description))
 						values_list.append(str(choice.value))
@@ -201,10 +201,13 @@ func _build_fields() -> void:
 						return values_list[idx] if idx >= 0 and idx < values_list.size() else ""
 				else:
 					var edit := LineEdit.new()
-					edit.text = str(defaults.get(name, ""))
+					# El default se muestra redactado (#18); si el texto sigue siendo ese, vuelve el real.
+					var real_default := str(defaults.get(name, ""))
+					var shown_default := request.shown_text(real_default)
+					edit.text = shown_default
 					edit.placeholder_text = "" if not desc_text.is_empty() else label_text  # la ayuda ya va arriba
 					row.add_child(edit)
-					_field_readers[name] = func() -> Variant: return edit.text
+					_field_readers[name] = func() -> Variant: return real_default if edit.text == shown_default else edit.text
 
 
 func collect_values() -> Dictionary:

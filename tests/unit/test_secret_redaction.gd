@@ -4,6 +4,8 @@ extends "test_case.gd"
 ## de fallo y el tooltip del estado se redactan, el entorno del agente registra sus keys al arrancar
 ## y un historial viejo se reproduce sin ellos.
 
+const MarkdownBBCode := preload("res://addons/godot_agent/ui/markdown/markdown_bbcode.gd")
+const ElicitationView := preload("res://addons/godot_agent/ui/dock/entries/elicitation_view.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const AcpClient := preload("res://addons/godot_agent/acp/acp_client.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
@@ -219,6 +221,47 @@ func test_elicitation_form_shows_a_redacted_copy() -> void:
 	assert_eq(reply.size(), 1, "la respuesta salió")
 	assert_true(reply.size() == 1 and reply[0].contains("read-%s" % TOKEN) and reply[0].contains("Bearer %s" % TOKEN), "con los valores reales")
 
+
+
+## #18 (revisión de 4b): la tarjeta muestra el default de texto y las opciones sin el token; si el
+## usuario no toca el campo vuelve el valor real, y si lo edita, lo que escribió.
+func test_elicitation_form_fields_show_redacted_defaults() -> void:
+	var model := SessionModel.new()
+	var log := _log_with_secret()
+	var controller := SessionController.new()
+	controller.setup(model, log, "/tmp/project")
+	model.session_id = "s"
+	var schema := {"type": "object", "required": ["header", "env"], "properties": {
+		"header": {"type": "string", "default": "Bearer %s" % TOKEN},
+		"note": {"type": "string", "default": "plain"},
+		"env": {"type": "string", "enum": ["key-%s" % TOKEN, "none"], "default": "key-%s" % TOKEN},
+	}}
+	controller.client.setup(func(_line: String) -> bool: return true, log)
+	controller.client.receive_line(JSON.stringify({"jsonrpc": "2.0", "id": 22, "method": "elicitation/create", "params": {"sessionId": "s", "mode": "form", "message": "Configure", "requestedSchema": schema}}))
+	await Engine.get_main_loop().process_frame
+	assert_eq(model.pending_elicitations.size(), 1, "el formulario espera al usuario")
+	var entry := ChatEntry.new()
+	entry.id = 1
+	entry.kind = ChatEntry.EntryKind.ELICITATION
+	entry.elicitation = model.pending_elicitations[0]
+	var view := ElicitationView.new()
+	view.setup(entry, Color.CORNFLOWER_BLUE, MarkdownBBCode.new())
+	view._ready()
+	var edits := view.find_children("*", "LineEdit", true, false)
+	var shown: PackedStringArray = []
+	for node: Node in view.find_children("*", "", true, false):
+		if node is LineEdit:
+			shown.append((node as LineEdit).text)
+		elif node is Button:
+			shown.append((node as Button).text)
+	assert_false(" ".join(shown).contains(TOKEN), "ni el default ni las opciones muestran el token: %s" % " ".join(shown))
+	assert_true((edits[0] as LineEdit).text.contains(AgentLog.REDACTED), "el default se ve con «secret»")
+	assert_eq((edits[1] as LineEdit).text, "plain", "un default sin secreto, tal cual")
+	assert_eq(view.collect_values(), {"header": "Bearer %s" % TOKEN, "note": "plain", "env": "key-%s" % TOKEN}, "sin tocarlo, vuelven los valores reales")
+	(edits[0] as LineEdit).text = "Bearer otra"
+	assert_eq(view.collect_values().get("header"), "Bearer otra", "editado, va lo que escribió")
+	entry.elicitation.call(&"cancel")
+	view.free()
 
 
 ## m13-28: el tool call de una tool godot.* llega al modelo redactado y el server MCP del harness
