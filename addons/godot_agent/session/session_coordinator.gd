@@ -157,7 +157,7 @@ func claim_label(session: String, paths: PackedStringArray) -> String:
 func guard_tool(caller: String, tool_name: String, group: String, args: Dictionary, edited_scene: String) -> String:
 	if not is_shared():
 		return ""
-	if tool_name == "run_scene":
+	if tool_name == "run_scene" or tool_name == "run_regressions":  # las regresiones lanzan el juego una y otra vez
 		var holder: String = await acquire_game(caller)
 		if not holder.is_empty():
 			return "The game is in use by «%s»: it launched it and it's still running. Try again when it stops (godot.sessions shows it), or work on something else meanwhile." % label(holder)

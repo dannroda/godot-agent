@@ -595,7 +595,7 @@ func _build_review_panel() -> void:
 	_review_panel.setup(_controller.review, _accent)
 	_review_panel.finding_selected.connect(func(id: int) -> void: action_forwarded.emit(ACTION_REVIEW_FOCUS, id))
 	_review_panel.fix_all_requested.connect(func() -> void: action_forwarded.emit(ACTION_REVIEW_FIX_ALL, null))
-	_review_panel.regressions_requested.connect(func() -> void: action_forwarded.emit(ACTION_RUN_REGRESSIONS, null))
+	_review_panel.regressions_requested.connect(func(repeat: int) -> void: action_forwarded.emit(ACTION_RUN_REGRESSIONS, repeat))
 	_review_panel.ci_workflow_requested.connect(func() -> void: action_forwarded.emit(ACTION_REGRESSIONS_WORKFLOW, null))
 	_review_panel.notice_requested.connect(func(text: String, level: ChatEntry.NoticeLevel) -> void: _model.add_notice(text, level))
 	_review_panel.prompt_requested.connect(func(text: String) -> void: _on_submitted(_controller.label_prompt(text, HarnessPrompts.REVIEW_PLAYTEST)))

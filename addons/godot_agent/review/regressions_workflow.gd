@@ -26,6 +26,16 @@ const WARNING_TEXTS: Dictionary = {
 
 
 ## La versión del editor como la nombran los releases de Godot: «4.7.2-stable», «4.8-beta2».
+## Las opciones de regression_cli.gd para `repeat` y `fail_on_flaky` (vacío con los valores por defecto).
+static func cli_options(repeat: int, fail_on_flaky: bool) -> PackedStringArray:
+	var options: PackedStringArray = []
+	if repeat > 1:
+		options.append("--repeat=%d" % repeat)
+	if fail_on_flaky:
+		options.append("--fail-on-flaky")
+	return options
+
+
 static func editor_version() -> String:
 	var info: Dictionary = Engine.get_version_info()
 	var patch := ".%d" % int(info.patch) if int(info.patch) > 0 else ""
@@ -77,13 +87,17 @@ static func repo_info(project_root: String) -> Dictionary:
 ## las que necesitan dibujar (capturas, shaders); si no, headless. `project_dir`: el proyecto
 ## relativo a la raíz del repo ("" si es la raíz): --path y las capturas salen de ahí. `dotnet`: el
 ## build mono de Godot más el SDK de .NET y un `dotnet build` del proyecto antes de correr.
-static func workflow_text(version: String, render: bool, project_dir: String = "", dotnet: bool = false) -> String:
+## `repeat`: corridas de cada regresión (m11-42); `fail_on_flaky`: una inestable también hace fallar el CI.
+static func workflow_text(version: String, render: bool, project_dir: String = "", dotnet: bool = false, repeat: int = 1, fail_on_flaky: bool = false) -> String:
 	var godot := "\"$RUNNER_TEMP/godot/godot\""
 	var project := "\"%s\"" % project_dir if not project_dir.is_empty() else "."
 	var captures := project_dir.path_join(".godot_agent/playtests") if not project_dir.is_empty() else ".godot_agent/playtests"
 	var run_line := "%s --headless --path %s --script %s" % [godot, project, CLI]
 	if render:
 		run_line = "xvfb-run -a -s \"-screen 0 1280x720x24\" %s --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy --path %s --script %s" % [godot, project, CLI]
+	var cli_args := cli_options(repeat, fail_on_flaky)
+	if not cli_args.is_empty():
+		run_line += " -- " + " ".join(cli_args)
 	var lines: PackedStringArray = [
 		"# Written by Godot Agent Harness: runs the playtest regressions saved in %s/ on every push." % REGRESSIONS_DIR,
 		"# Edit it freely; the harness won't overwrite it unless you ask.",
@@ -169,7 +183,7 @@ static func workflow_text(version: String, render: bool, project_dir: String = "
 ## absoluta); sin git, en el proyecto, con el aviso WARN_NO_GIT. Sin `overwrite` no pisa uno que
 ## exista. `dotnet` y `official`: null = los de este editor (los tests los fijan). Devuelve
 ## {ok, path, existed, error, root, project_dir, warnings}: `path` relativo a `root`.
-static func write(project_root: String, render: bool, overwrite: bool, version: String = "", dotnet: Variant = null, official: Variant = null) -> Dictionary:
+static func write(project_root: String, render: bool, overwrite: bool, version: String = "", dotnet: Variant = null, official: Variant = null, repeat: int = 1, fail_on_flaky: bool = false) -> Dictionary:
 	var use_dotnet: bool = dotnet if dotnet is bool else is_dotnet_editor()
 	var is_official: bool = official if official is bool else is_official_build()
 	var repo := repo_info(project_root)
@@ -196,7 +210,7 @@ static func write(project_root: String, render: bool, overwrite: bool, version: 
 	if file == null:
 		result.error = "could not write %s: %s" % [relative, error_string(FileAccess.get_open_error())]
 		return result
-	file.store_string(workflow_text(version if not version.is_empty() else editor_version(), render, repo.project_dir, use_dotnet))
+	file.store_string(workflow_text(version if not version.is_empty() else editor_version(), render, repo.project_dir, use_dotnet, repeat, fail_on_flaky))
 	file.close()
 	result.ok = true
 	return result

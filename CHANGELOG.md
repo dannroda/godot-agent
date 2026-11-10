@@ -7,6 +7,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Added
 
 - The editor's tools tell MCP clients which ones only read (`readOnlyHint`), which ones can overwrite or delete (`destructiveHint`) and which ones reach the internet (`openWorldHint`), based on their permission group. Claude Code runs read-only calls in parallel and can repeat one if the connection drops.
+- Regressions can run several times each, to find the ones that depend on frame rate or chance. Set the **×** box next to **Run regressions** in the findings panel, or pass `repeat` to the agent's new `godot.run_regressions` tool. A regression passes only if every run passes. One that passes some runs and fails others is marked flaky with its count («passed 2 of 3»), and the button shows how many are flaky. See [Review](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Review.md#playtest).
+- `regression_cli.gd` takes `--repeat=N`, and the CI workflow can pass it (`repeat` in `godot.write_regressions_workflow`). A flaky regression is reported as `FLAKY` but doesn't fail the run unless you add `--fail-on-flaky`. A regression that fails every run still fails it.
 
 ### Fixed
 

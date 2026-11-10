@@ -1,0 +1,5 @@
+{
+	"goal": "Alternates between passing and failing",
+	"scene": "res://tests/fixtures/playtest_game/playtest_game.tscn",
+	"code": "func run(game):\n\tvar n = Engine.get_meta(\"m11_42_runs\", 0) + 1\n\tEngine.set_meta(\"m11_42_runs\", n)\n\treturn n % 2 == 1"
+}

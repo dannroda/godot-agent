@@ -365,6 +365,25 @@ func _check_regressions() -> void:
 				result = str(entry.get(&"text"))
 	_expect(result.begins_with(I18n.t("Regressions: %d of %d fail.") % [1, 2]) and result.contains("basket is full") and not result.contains("start works"), "regresiones: una pasa, una falla, y dice cuál · " + result.left(400))
 	_expect(not EditorInterface.is_playing_scene(), "regresiones: el juego queda cerrado")
+	# Repetir (m11-42): ×2 desde el panel cuenta cuántas pasaron y lo guarda en cada una; la tool, igual.
+	var before: int = (model.call(&"entries") as Array).size()
+	_dock.emit_signal(&"action_forwarded", "run_regressions", 2)
+	result = ""
+	deadline = Time.get_ticks_msec() + 80000
+	while result.is_empty() and Time.get_ticks_msec() < deadline:
+		await _tree.create_timer(0.2).timeout
+		var entries: Array = model.call(&"entries")
+		for i in range(before, entries.size()):
+			if str(entries[i].get(&"text")).begins_with(I18n.t("Regressions: %d of %d fail.").get_slice("%d", 0)):
+				result = str(entries[i].get(&"text"))
+	var none_of_two := I18n.t(PlaytestRegressions.PASSED_OF) % [0, 2]
+	_expect(result.begins_with(I18n.t("Regressions: %d of %d fail.") % [1, 2]) and result.contains("basket is full (%s)" % none_of_two), "regresiones ×2: la que falla dice cuántas pasaron · " + result.left(400))
+	var counted := regressions.list().map(func(entry: Dictionary) -> Array: return [entry.goal, int(entry.get("runs", {}).get("passed", -1)), int(entry.get("runs", {}).get("total", -1))])
+	counted.sort()
+	_expect(counted == [["basket is full", 0, 2], ["start works", 2, 2]], "regresiones ×2: cada una guarda sus corridas %s" % [counted])
+	var tool_text := await _call_text("run_regressions", {"repeat": 2, "goal": "START"})
+	_expect(tool_text.begins_with("All 1 pass (2 runs each).") and tool_text.contains("PASS start works (passed 2 of 2)") and not tool_text.contains("basket"), "tool run_regressions: repite y filtra por objetivo · " + tool_text.left(300))
+	_expect(not EditorInterface.is_playing_scene(), "regresiones ×2: el juego queda cerrado")
 	for entry: Dictionary in regressions.list():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(entry.file))
 	for name: String in DirAccess.get_files_at(stash):
