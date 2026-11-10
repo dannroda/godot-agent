@@ -167,6 +167,11 @@ var _quota_ring: QuotaRing
 var _agent_chip: Button
 ## Estado de la sesión (listo, trabajando, esperándote…) arriba del composer (m17-25).
 var _state_line: Label
+## La línea de estado y, a su lado, un chip por máquina en marcha (m12-47): el juego de run_scene y
+## el One-shot, leídos de `machine_states` como el tooltip del encabezado.
+var _state_row: HFlowContainer
+var _machine_chips: HBoxContainer
+var _machines_timer: Timer
 var _agent_menu: PopupMenu
 var _new_menu: PopupMenu
 var _more_button: MenuButton
@@ -269,12 +274,25 @@ func _ready() -> void:
 	_queue_view.send_now_requested.connect(_send_next_queued.bind(true))
 	_queue_view.send_item_now_requested.connect(_send_queued_now)
 	composer_column.add_child(_queue_view)
+	_state_row = HFlowContainer.new()  # en un dock angosto los chips bajan de línea
+	_state_row.add_theme_constant_override(&"h_separation", AgentTheme.px(8))
+	_state_row.add_theme_constant_override(&"v_separation", AgentTheme.px(2))
+	composer_column.add_child(_state_row)
 	_state_line = Label.new()
 	_state_line.name = "StateLine"
 	_state_line.mouse_filter = Control.MOUSE_FILTER_PASS
 	_state_line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_state_line.clip_text = true
-	composer_column.add_child(_state_line)
+	_state_row.add_child(_state_line)
+	_machine_chips = HBoxContainer.new()
+	_machine_chips.name = "MachineChips"
+	_machine_chips.add_theme_constant_override(&"separation", AgentTheme.px(4))
+	_state_row.add_child(_machine_chips)
+	_machines_timer = Timer.new()
+	_machines_timer.wait_time = 1.0
+	_machines_timer.timeout.connect(_refresh_machine_chips)
+	add_child(_machines_timer)
+	_machines_timer.start()
 	composer_column.add_child(_composer)
 	_build_review_panel()
 	_build_quota_ring()
@@ -741,6 +759,49 @@ func _refresh_state_line(color: Color) -> void:
 	_state_line.text = text
 	_state_line.tooltip_text = _status_label.tooltip_text
 	_state_line.add_theme_color_override(&"font_color", color)
+	_refresh_machine_chips()
+
+
+## Un chip por máquina en marcha junto al estado (m12-47): «Game · running · 12 s»; en ámbar
+## cuando pide atención (el juego parado en el debugger, el One-shot esperando). El tooltip es el
+## mismo del encabezado. Sin máquinas en marcha no hay chips, y la fila se oculta si tampoco hay estado.
+func _refresh_machine_chips() -> void:
+	if _machine_chips == null or not is_inside_tree():
+		return
+	var chips := machine_chips(machine_states.call() if machine_states.is_valid() else [])
+	while _machine_chips.get_child_count() > chips.size():
+		var extra := _machine_chips.get_child(_machine_chips.get_child_count() - 1)
+		_machine_chips.remove_child(extra)
+		extra.queue_free()
+	while _machine_chips.get_child_count() < chips.size():
+		var chip := Label.new()
+		chip.mouse_filter = Control.MOUSE_FILTER_PASS
+		chip.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+		_machine_chips.add_child(chip)
+	for i in chips.size():
+		var chip := _machine_chips.get_child(i) as Label
+		var color: Color = AgentTheme.WARNING if chips[i].alert else AgentTheme.MUTED
+		chip.text = str(chips[i].text)
+		chip.tooltip_text = header_tooltip()
+		chip.add_theme_color_override(&"font_color", color)
+		chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(color, 0.12), Color(color, 0.35), 10, 3))
+	_machine_chips.visible = not chips.is_empty()
+	if _state_row:
+		_state_row.visible = _state_line.visible or _machine_chips.visible
+
+
+## Los chips que salen de `machine_states`: solo las máquinas `live`, como `[{text, alert}]`.
+static func machine_chips(states: Array) -> Array[Dictionary]:
+	var chips: Array[Dictionary] = []
+	for machine: Dictionary in states:
+		if not bool(machine.get("live", false)):
+			continue
+		var age := int(machine.get("age", -1))
+		var text := "%s · %s" % [machine.get("machine", ""), machine.get("label", "")]
+		if age >= 0:
+			text += " · %d s" % age
+		chips.append({"text": text, "alert": bool(machine.get("alert", false))})
+	return chips
 
 
 func _refresh_title() -> void:
