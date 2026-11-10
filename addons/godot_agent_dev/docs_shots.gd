@@ -326,8 +326,9 @@ func _check_verdict_card() -> void:
 		failures.append("playtest: %d secciones plegables en la tarjeta, %d en el aviso" % [folds.size(), sections.size()])
 	var dock_rect := (_dock.get_parent() as Control).get_global_rect()
 	for fold: FoldableContainer in folds:
-		if not fold.folded:
-			failures.append("playtest: la sección «%s» empieza abierta" % fold.title)
+		var trust := fold.title.begins_with(I18n.t("May have changed the game directly, not by playing"))
+		if fold.folded == trust:
+			failures.append("playtest: la sección «%s» empieza %s" % [fold.title, "plegada" if trust else "abierta"])
 		if fold.get_global_rect().end.x > dock_rect.end.x + 1.0:
 			failures.append("playtest: la sección «%s» sale del dock (%d > %d)" % [fold.title, fold.get_global_rect().end.x, dock_rect.end.x])
 

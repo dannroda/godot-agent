@@ -346,7 +346,10 @@ static func playtest_notice(playtest: Dictionary) -> Dictionary:
 		var shown := changes.slice(0, MAX_DIRECT_SHOWN)
 		if changes.size() > MAX_DIRECT_SHOWN:
 			shown.append("… +%d" % (changes.size() - MAX_DIRECT_SHOWN))
-		sections.append(_notice_section(I18n.t("May have changed the game directly, not by playing"), shown, "• ", changes.size()))
+		# Es la advertencia de confianza (m15-03): un veredicto no vale sin jugar; va desplegada.
+		var changed := _notice_section(I18n.t("May have changed the game directly, not by playing"), shown, "• ", changes.size())
+		changed.open = true
+		sections.append(changed)
 	var detected: PackedStringArray = playtest.get("detectors", PackedStringArray())
 	if not detected.is_empty():
 		sections.append(_notice_section(I18n.t("The detectors saw"), detected, "• "))
@@ -362,7 +365,7 @@ static func playtest_notice(playtest: Dictionary) -> Dictionary:
 	return {"title": title, "text": "\n".join(lines), "sections": sections, "level": level}
 
 
-## Una sección del aviso: el título lleva la cantidad («Evidence · 3»).
+## Una sección del aviso: el título lleva la cantidad («Evidence · 3»). Plegada, salvo `open`.
 static func _notice_section(title: String, items: PackedStringArray, bullet: String, count: int = -1) -> Dictionary:
 	var lines: PackedStringArray = []
 	for item: String in items:

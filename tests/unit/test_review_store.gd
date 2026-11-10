@@ -114,6 +114,8 @@ func test_playtest_audit_in_the_notice() -> void:
 	var text := ReviewStore.playtest_notice_plain(notice)
 	assert_true(text.contains("• game_set {") and text.contains("\"hp\":5,") and text.contains("1.5"), "cambio directo · " + text)
 	assert_true(str(notice.sections[0].title).begins_with("May have changed the game directly, not by playing · 1"), "los cambios directos en su sección · " + str(notice.sections[0].title))
+	assert_true(bool(notice.sections[0].get("open", false)), "y esa sección arranca desplegada: es la advertencia de confianza")
+	assert_false(bool(notice.sections[-1].get("open", false)) if notice.sections.size() > 1 else false, "las demás plegadas")
 	assert_true(str(notice.text).contains("• solo probé el nivel 1"), "aviso del agente en el texto, no plegado · " + str(notice.text))
 	assert_true(str(notice.text).contains("res://.godot_agent/playtests/a.avi"), "video · " + str(notice.text))
 	var lost := ReviewStore.playtest_audit([_call("run_scene", {"record": true}, "completed", "The recording was not written (x).")], true)
