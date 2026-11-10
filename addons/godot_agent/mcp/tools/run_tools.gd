@@ -915,6 +915,8 @@ func run_saved_regressions(entries: Array[Dictionary], repeat: int) -> Array:
 		var runs: Array = []
 		for i in repeat:
 			runs.append(await run_regression(entry))
+		while PlaytestRegressions.retry_marked(entry, runs, repeat):
+			runs.append(await run_regression(entry))
 		var tallied := PlaytestRegressions.tally(entry, runs)
 		PlaytestRegressions.record_runs(tallied)
 		results.append(tallied)
