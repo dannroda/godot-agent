@@ -310,14 +310,21 @@ func _build_form() -> void:
 	examples_label.text = I18n.t("Examples:")
 	examples_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	examples.add_child(examples_label)
-	for example: String in GOAL_EXAMPLES:
-		var link := LinkButton.new()
-		link.text = "· " + I18n.t(example)
-		link.tooltip_text = I18n.t("Use it as the goal")
-		link.pressed.connect(func() -> void:
-			_goal_edit.text = I18n.t(example)
-			_refresh_form())
-		examples.add_child(link)
+	# Un RichTextLabel con un enlace por ejemplo, no LinkButtons (m12-41): un LinkButton no parte el
+	# texto y su ancho era el mínimo del formulario, que con el centro angosto se cortaba por los bordes.
+	var links := RichTextLabel.new()
+	links.bbcode_enabled = true
+	links.fit_content = true
+	links.scroll_active = false
+	links.tooltip_text = I18n.t("Use it as the goal")
+	var lines: PackedStringArray = []
+	for i in GOAL_EXAMPLES.size():
+		lines.append("[url=%d]· %s[/url]" % [i, I18n.t(GOAL_EXAMPLES[i]).xml_escape()])
+	links.text = "\n".join(lines)
+	links.meta_clicked.connect(func(meta: Variant) -> void:
+		_goal_edit.text = I18n.t(GOAL_EXAMPLES[int(meta)])
+		_refresh_form())
+	examples.add_child(links)
 	goal_column.add_child(examples)
 	_side_column.add_child(_heading(I18n.t("Budgets (0 = unlimited)")))
 	# Etiqueta y valor en dos columnas (m12-34): antes eran tres columnas de 290 px para valores como «8».

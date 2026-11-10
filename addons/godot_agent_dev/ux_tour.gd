@@ -5,6 +5,7 @@ extends RefCounted
 ## ancho y angosto, Agent Log, y las conversaciones de la guía (DocsShots). Ver tests/ux_tour.sh.
 
 const DocsShots := preload("docs_shots.gd")
+const LayoutCheck := preload("layout_check.gd")
 const SettingsDialog := preload("res://addons/godot_agent/ui/settings/settings_dialog.gd")
 const ExtensionsWindow := preload("res://addons/godot_agent/ui/extensions/extensions_window.gd")
 const RegistryDialog := preload("res://addons/godot_agent/ui/settings/acp_registry_dialog.gd")
@@ -25,7 +26,7 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	if dock == null:
 		failures.append("no se encontró el dock")
 		return failures
-	await _set_dock_width(dock, 480)
+	await LayoutCheck.set_dock_width(dock, 480)
 	_show(dock)
 	await _frames(20)
 	_save_rect(dock, "01_dock_sin_agentes")
@@ -65,10 +66,10 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	EditorInterface.set_main_screen_editor("One-shot")
 	await _frames(30)
 	_save(_screen(), "30_oneshot")
-	await _set_dock_width(dock, 1230)
+	await LayoutCheck.set_dock_width(dock, 1230)
 	await _frames(30)
 	_save(_screen(), "31_oneshot_angosto")
-	await _set_dock_width(dock, 480)
+	await LayoutCheck.set_dock_width(dock, 480)
 	EditorInterface.set_main_screen_editor("2D")
 	var log_panel := _by_script("res://addons/godot_agent/ui/log_panel/agent_log_panel.gd")
 	if log_panel:
@@ -108,36 +109,6 @@ func _show(control: Node) -> void:
 			(node as TabContainer).current_tab = child.get_index()
 		child = node
 		node = node.get_parent()
-
-
-## Como DocsShots._widen_dock, con el ancho que se pida.
-func _set_dock_width(dock: Control, width: int) -> void:
-	await _frames(5)
-	var node: Node = dock
-	while node and node != EditorInterface.get_base_control():
-		var parent := node.get_parent()
-		if parent is SplitContainer and not (parent as SplitContainer).vertical and node.get_index() > 0:
-			var split := parent as SplitContainer
-			var divider := -1
-			for child: Node in split.get_children():
-				if child == node:
-					break
-				if child is Control and (child as Control).visible:
-					divider += 1
-			for attempt in 4:
-				var missing := width - dock.size.x
-				if absf(missing) < 4.0:
-					return
-				var offsets: Variant = split.get(&"split_offsets")
-				if offsets is PackedInt32Array and divider >= 0 and divider < (offsets as PackedInt32Array).size():
-					var list := offsets as PackedInt32Array
-					list[divider] -= int(missing)
-					split.set(&"split_offsets", list)
-				else:
-					split.split_offset -= int(missing)
-				await _frames(5)
-			return
-		node = parent
 
 
 func _screen() -> Image:

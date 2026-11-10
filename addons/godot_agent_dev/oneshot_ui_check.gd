@@ -15,6 +15,11 @@ const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
 const RunReport := preload("res://addons/godot_agent/oneshot/run_report.gd")
+const LayoutCheck := preload("layout_check.gd")
+## Centro angosto (m12-41): con el dock ancho el centro del editor queda en unos 380 px en el tour de
+## UX (31_oneshot_angosto.png, con la escala por defecto del editor); acá el dock se ensancha hasta
+## dejarlo en 340, para que el caso valga también con una fuente más chica.
+const NARROW_CENTER_WIDTH := 340
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
@@ -75,6 +80,19 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	var goal: TextEdit = _screen.get(&"_goal_edit")
 	var form_panel: Control = form.get_child(0)
 	_check(form_panel.size.x >= minf(form.size.x * 0.6, 1300.0) - 2.0 and goal.size.y >= form.size.y * 0.35, "el formulario crece con la pantalla (%s en %s, objetivo %d)" % [form_panel.size, form.size, goal.size.y])
+	for failure: String in LayoutCheck.form_fits(form):
+		_check(false, "centro ancho: " + failure)
+	# Con el dock ancho el centro se angosta: el formulario se apila y nada se corta (m12-41).
+	var dock_for_width := _find_by_script(DOCK_SCRIPT) as Control
+	var dock_width := int(dock_for_width.size.x)
+	await LayoutCheck.set_dock_width(dock_for_width, dock_width + int(form.size.x) - NARROW_CENTER_WIDTH)
+	await _frames(10)
+	_check(form.size.x <= NARROW_CENTER_WIDTH + 8, "el centro no baja a %d px: queda en %d (el formulario pide %d, dock %d)" % [NARROW_CENTER_WIDTH, form.size.x, (form.get_child(0) as Control).get_combined_minimum_size().x, dock_for_width.size.x])
+	_shot(shot_path, "_form_narrow")
+	for failure: String in LayoutCheck.form_fits(form):
+		_check(false, "centro angosto (%d px): %s" % [form.size.x, failure])
+	await LayoutCheck.set_dock_width(dock_for_width, dock_width)
+	await _frames(5)
 	goal.text = "Pong de 2 jugadores con puntaje"
 	goal.text_changed.emit()
 	# Archivos de referencia: uno de afuera (por el diálogo) y uno soltado desde el FileSystem.

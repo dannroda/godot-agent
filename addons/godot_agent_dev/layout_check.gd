@@ -79,6 +79,69 @@ static func user_bubble_fits(dock: Control) -> PackedStringArray:
 	return failures
 
 
+## El formulario del One-shot entra en el centro del editor (m12-41, reabre m12-09): con el dock
+## ancho el centro queda en ~380 px y nada se corta por los bordes. `form` es el ScrollContainer de
+## la pantalla: el panel no pide más ancho que el área y ningún control visible sale de ella.
+static func form_fits(form: Control) -> PackedStringArray:
+	var failures: PackedStringArray = []
+	var area := form.get_global_rect()
+	var panel := form.get_child(0).get_child(0) as Control
+	if panel.get_combined_minimum_size().x > area.size.x + 1.0:
+		failures.append("el formulario pide %d px y el centro tiene %d" % [panel.get_combined_minimum_size().x, area.size.x])
+	for node: Node in panel.find_children("*", "Control", true, false):
+		var control := node as Control
+		if control.get_child_count() > 0 or not control.is_visible_in_tree():
+			continue
+		var rect := control.get_global_rect()
+		if rect.position.x < area.position.x - 1.0 or rect.end.x > area.end.x + 1.0:
+			failures.append("«%s» sale del centro (%d..%d, centro %d..%d)" % [_name(control), rect.position.x, rect.end.x, area.position.x, area.end.x])
+	return failures
+
+
+## Lleva el dock al ancho pedido moviendo el divisor del SplitContainer que lo contiene (como
+## DocsShots._widen_dock). El tour de UX y el check del One-shot lo usan para el centro angosto.
+static func set_dock_width(dock: Control, width: int) -> void:
+	var tree := dock.get_tree()
+	for i in 5:
+		await tree.process_frame
+	var node: Node = dock
+	while node and node != EditorInterface.get_base_control():
+		var parent := node.get_parent()
+		if parent is SplitContainer and not (parent as SplitContainer).vertical and node.get_index() > 0:
+			var split := parent as SplitContainer
+			var divider := -1
+			for child: Node in split.get_children():
+				if child == node:
+					break
+				if child is Control and (child as Control).visible:
+					divider += 1
+			for attempt in 4:
+				var missing := width - dock.size.x
+				if absf(missing) < 4.0:
+					return
+				var offsets: Variant = split.get(&"split_offsets")
+				if offsets is PackedInt32Array and divider >= 0 and divider < (offsets as PackedInt32Array).size():
+					var list := offsets as PackedInt32Array
+					list[divider] -= int(missing)
+					split.set(&"split_offsets", list)
+				else:
+					split.split_offset -= int(missing)
+				for i in 5:
+					await tree.process_frame
+			return
+		node = parent
+
+
+static func _name(control: Control) -> String:
+	if control is BaseButton:
+		return _label(control as BaseButton)
+	if control is Label:
+		return (control as Label).text.left(40)
+	if control is RichTextLabel:
+		return (control as RichTextLabel).get_parsed_text().left(40)
+	return str(control.name)
+
+
 static func _label(button: BaseButton) -> String:
 	if button is Button and not (button as Button).text.is_empty():
 		return (button as Button).text
