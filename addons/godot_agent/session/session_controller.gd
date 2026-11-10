@@ -284,6 +284,8 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	model.reset()
 	model.failure_message = ""
 	_stderr_tail.clear()
+	for secret: String in AgentProfile.secret_env_values(agent_profile.resolved_env()):
+		agent_log.add_secret(secret)  # el agente puede repetirlos (m13-25)
 	model.set_state(SessionModel.SessionState.STARTING)
 	agent_log.add(AgentLog.CH_PROC, "Launching %s: %s" % [agent_profile.display_name, agent_profile.command_line()])
 
@@ -1091,7 +1093,9 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	var session_id := str(record.get("id", ""))
 	var has_local_events := record.get("events") is Array and not (record.events as Array).is_empty()
 	if has_local_events:
-		SessionHistory.replay(record, model)
+		# Un historial grabado antes de registrar un secreto (o por una versión que no redactaba) no lo
+		# vuelve a mostrar (m13-25).
+		SessionHistory.replay(agent_log.redact_data(record), model)
 	if not model.can_resume_sessions():
 		_load_failed = true
 		stop()
@@ -1240,6 +1244,7 @@ func _sync_agent_mode(candidates: Variant = null) -> void:
 ## La sesión no quedó abierta: tarjeta con el motivo y `final_state` (FAILED, o LOGIN_REQUIRED cuando
 ## lo que falta es iniciar sesión, m12-11).
 func _fail(message: String, extra_actions: Array[Dictionary] = [], level := ChatEntry.NoticeLevel.ERROR, with_error_actions := true, final_state := SessionModel.SessionState.FAILED) -> void:
+	message = agent_log.redact(message)  # va a la tarjeta y al tooltip del estado, no solo al log
 	model.failure_message = message
 	agent_log.add(AgentLog.CH_PROC, message)
 	var actions := extra_actions.duplicate()
@@ -1252,6 +1257,8 @@ func _fail(message: String, extra_actions: Array[Dictionary] = [], level := Chat
 ## Error al lanzar o mantener el agente (m12-13): título y causa para personas, las últimas líneas
 ## de su stderr y la acción que lo arregla. `log_message` va al log y al tooltip del estado.
 func _fail_agent(title: String, cause: String, log_message: String, actions: Array[Dictionary]) -> void:
+	cause = agent_log.redact(cause)
+	log_message = agent_log.redact(log_message)
 	model.failure_message = log_message
 	agent_log.add(AgentLog.CH_PROC, log_message)
 	for action: Dictionary in actions:
