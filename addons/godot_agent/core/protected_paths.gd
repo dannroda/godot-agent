@@ -6,6 +6,8 @@ extends RefCounted
 ## es la misma carpeta, así que la comparación tampoco.
 
 const PROTECTED: PackedStringArray = ["res://project.godot", "res://addons/godot_agent", "res://.godot"]
+## Enlaces simbólicos seguidos al resolver una ruta; más que esto es un ciclo.
+const MAX_LINK_HOPS := 16
 
 
 static func case_insensitive() -> bool:
@@ -23,15 +25,23 @@ static func is_protected(res_path: String, ignore_case: bool = case_insensitive(
 
 
 ## Una ruta relativa a la raíz del proyecto, como la escribió alguien («res:///addons//x/»,
-## «addons\\x», «/x»): sin res://, con barras normales, simplificada y sin barras al principio ni al
-## final. Devuelve `{rel, error}`: error si sale del proyecto (`..`, una unidad de Windows, una ruta
-## absoluta que no es la del proyecto).
-static func normalize_relative(path: String) -> Dictionary:
+## «addons\\x»): sin res://, con barras normales, simplificada y sin barras al principio ni al final.
+## Una ruta absoluta («/home/…/juego/x», «C:/…») vale solo si está bajo `root` (la carpeta del
+## proyecto, absoluta) y se convierte; sin `root`, ninguna (m19-06: antes «/tmp/x» pasaba a
+## res://tmp/x). «/x» no es sinónimo de res://x: file_tools tampoco lo toma así. Devuelve
+## `{rel, error}`: error si sale del proyecto (`..`, una ruta absoluta de otro lado).
+static func normalize_relative(path: String, root: String = "", ignore_case: bool = case_insensitive()) -> Dictionary:
 	var clean := path.strip_edges().replace("\\", "/")
 	if clean.begins_with("res://"):
 		clean = clean.trim_prefix("res://")
-	elif clean.length() >= 2 and clean[1] == ":":
-		return {"rel": "", "error": "%s is outside the project." % path}
+	elif clean.begins_with("/") or (clean.length() >= 2 and clean[1] == ":"):
+		var base := root.replace("\\", "/").simplify_path().trim_suffix("/")
+		var absolute := clean.simplify_path()
+		var compare := absolute.to_lower() if ignore_case else absolute
+		var against := base.to_lower() if ignore_case else base
+		if base.is_empty() or not (compare == against or compare.begins_with(against + "/")):
+			return {"rel": "", "error": "%s is outside the project (an absolute path must be inside %s)." % [path, base if not base.is_empty() else "the project folder"]}
+		clean = absolute.substr(base.length())
 	while clean.begins_with("/"):
 		clean = clean.substr(1)
 	clean = clean.simplify_path()
@@ -55,6 +65,8 @@ static func write_error(rel: String, root: String, ignore_case: bool = case_inse
 		return "res://%s is in a hidden folder, which Godot doesn't scan" % rel
 	var real_root := resolve_links(root)
 	var real := resolve_links(root.path_join(rel))
+	if real_root.is_empty() or real.is_empty():
+		return "res://%s goes through a loop of symbolic links (or more than %d in a row)" % [rel, MAX_LINK_HOPS]
 	var inside := real.to_lower().begins_with(real_root.to_lower() + "/") if ignore_case else real.begins_with(real_root + "/")
 	if not inside:
 		return "res://%s leads outside the project through a symbolic link (%s)" % [rel, real]
@@ -65,7 +77,8 @@ static func write_error(rel: String, root: String, ignore_case: bool = case_inse
 
 
 ## `path` (absoluta) con los enlaces simbólicos resueltos, carpeta por carpeta; lo que no existe queda
-## como está. Hasta 16 saltos (un ciclo no cuelga).
+## como está. "" si hay más de MAX_LINK_HOPS saltos: un ciclo (m19-06: antes quedaba la ruta a medio
+## resolver, se aceptaba y después fallaba el mkdir).
 static func resolve_links(path: String, depth: int = 0) -> String:
 	var clean := path.simplify_path()
 	var parts := clean.split("/", false)
@@ -74,7 +87,9 @@ static func resolve_links(path: String, depth: int = 0) -> String:
 		var next := current.path_join(parts[i]) if not current.is_empty() else parts[i]
 		var base := next.get_base_dir()
 		var dir := DirAccess.open(base) if not base.is_empty() else null
-		if depth < 16 and dir != null and dir.is_link(parts[i]):
+		if dir != null and dir.is_link(parts[i]):
+			if depth >= MAX_LINK_HOPS:
+				return ""
 			var target := dir.read_link(parts[i])
 			var linked := target if target.is_absolute_path() else base.path_join(target)
 			var rest := "/".join(parts.slice(i + 1))

@@ -64,23 +64,29 @@ func test_plan_into_existing_folder_and_errors() -> void:
 
 
 ## m19-05 #1: el target pasa por la misma lista de file_tools (ProtectedPaths), normalizado: res:///,
-## barras dobles, barra inicial, contrabarras, `..`, carpetas ocultas y unidades de Windows.
+## barras dobles, contrabarras, `..`, carpetas ocultas, unidades de Windows y rutas absolutas (m19-06).
 func test_target_guard_variants() -> void:
 	var base := _layout("native_install_guard")
 	var test_project := base.path_join("ext/project")
 	var game := base.path_join("game")
-	for target: String in ["res://addons/godot_agent", "res:///addons/godot_agent", "addons//godot_agent", "/addons/godot_agent/", "addons\\godot_agent", "res://addons/x/../godot_agent", "res://addons/godot_agent/lab", "/.godot", "res://.godot/x", "project.godot", "res://project.godot", ".git/lab", "res://bin/.hidden"]:
+	for target: String in ["res://addons/godot_agent", "res:///addons/godot_agent", "addons//godot_agent", "addons\\godot_agent", "res://addons/x/../godot_agent", "res://addons/godot_agent/lab", "res://.godot/x", game.path_join("addons/godot_agent/lab"), "project.godot", "res://project.godot", ".git/lab", "res://bin/.hidden"]:
 		var planned := NativeInstall.plan(test_project, "res://bin/lab.gdextension", game, target)
 		assert_true(str(planned.error).begins_with("Can't install into"), "%s se rechaza · %s" % [target, planned.error])
 		assert_eq(planned.files, [], "%s no arma archivos" % target)
-	for target: String in ["../outside", "res://../outside", "res://a/../../outside", "C:/lab", "c:\\lab"]:
+	# m19-06: una barra inicial no es res://. Una ruta absoluta sirve solo si es del juego.
+	for target: String in ["../outside", "res://../outside", "res://a/../../outside", "C:/lab", "c:\\lab", "/", "/tmp/evil", "/addons/godot_agent/", "/.godot", game + "_other/lab", game.path_join("../outside")]:
 		var planned := NativeInstall.plan(test_project, "res://bin/lab.gdextension", game, target)
 		assert_true(str(planned.error).contains("is outside the project"), "%s está fuera del juego · %s" % [target, planned.error])
-	for target: String in ["res://", "/", "res://.", "addons/.."]:
+	for target: String in ["res://", "res://.", "addons/..", game, game + "/"]:
 		assert_true(str(NativeInstall.plan(test_project, "res://bin/lab.gdextension", game, target).error).contains("root of the game"), "%s es la raíz" % target)
 	var normal := NativeInstall.plan(test_project, "res://bin/lab.gdextension", game, "res:///native//lab/")
 	assert_eq([normal.error, normal.target], ["", "res://native/lab"], "una ruta válida con barras de más se normaliza")
 	assert_true(Array(normal.files).all(func(file: Dictionary) -> bool: return str(file.to).begins_with("native/lab/")), "y los destinos también")
+	var absolute := NativeInstall.plan(test_project, "res://bin/lab.gdextension", game, game.path_join("native//lab/"))
+	assert_eq([absolute.error, absolute.target], ["", "res://native/lab"], "una ruta absoluta dentro del juego se convierte · %s" % absolute.error)
+	assert_eq(ProtectedPaths.normalize_relative("/native/lab"), {"rel": "", "error": "/native/lab is outside the project (an absolute path must be inside the project folder)."}, "sin raíz, ninguna absoluta")
+	assert_eq(ProtectedPaths.normalize_relative("/Game/Native", "/game", true).rel, "Native", "sin distinguir mayúsculas en Windows y macOS")
+	assert_true(str(ProtectedPaths.normalize_relative("/Game/Native", "/game", false).error).contains("outside"), "en Linux es otra carpeta")
 	# Windows y macOS no distinguen mayúsculas: Addons/Godot_Agent es el harness.
 	assert_true(ProtectedPaths.is_protected("res://Addons/Godot_Agent/x", true) and ProtectedPaths.is_protected("res://PROJECT.godot", true), "sin distinguir mayúsculas")
 	assert_false(ProtectedPaths.is_protected("res://Addons/Godot_Agent/x", false), "en Linux es otra carpeta")
@@ -101,6 +107,13 @@ func test_target_guard_symlinks() -> void:
 		assert_true(str(NativeInstall.plan(base.path_join("ext/project"), "res://bin/lab.gdextension", game, target).error).contains("leads to res://addons/godot_agent"), "%s lleva al harness" % target)
 	assert_true(str(NativeInstall.plan(base.path_join("ext/project"), "res://bin/lab.gdextension", game, "res://away/lab").error).contains("leads outside the project"), "fuera del juego por un enlace")
 	assert_eq(NativeInstall.plan(base.path_join("ext/project"), "res://bin/lab.gdextension", game, "res://plugins/lab").error, "", "un enlace a una carpeta del juego sirve")
+	# m19-06: un ciclo de enlaces se rechaza con un error claro (antes se aceptaba tras 16 saltos).
+	assert_eq(dir.create_link(game.path_join("loop_b"), game.path_join("loop_a")), OK, "loop_a → loop_b")
+	assert_eq(dir.create_link(game.path_join("loop_a"), game.path_join("loop_b")), OK, "loop_b → loop_a")
+	for target: String in ["res://loop_a", "res://loop_b/lab"]:
+		var looped := NativeInstall.plan(base.path_join("ext/project"), "res://bin/lab.gdextension", game, target)
+		assert_true(str(looped.error).contains("loop of symbolic links"), "%s es un ciclo · %s" % [target, looped.error])
+	assert_eq(ProtectedPaths.resolve_links(game.path_join("loop_a/x")), "", "resolve_links devuelve vacío en un ciclo")
 
 
 ## m19-05 #2: un addon con el .gdextension en una subcarpeta (addons/foo/bin/foo.gdextension) se

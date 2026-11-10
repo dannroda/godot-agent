@@ -105,7 +105,7 @@ static func plan(test_dir: String, gdextension: String, game_dir: String, target
 			result.error = "The game already has %s at res://%s, but this addon keeps it at <folder>/%s: installing it would leave two copies. Move or remove res://%s first, or pass `target`." % [gdext_rel.get_file(), existing[0], gdext_sub, existing[0]]
 			return result
 	else:
-		var normalized := ProtectedPaths.normalize_relative(target)
+		var normalized := ProtectedPaths.normalize_relative(target, game_root)
 		if not str(normalized.error).is_empty():
 			result.error = "Can't install into %s." % normalized.error
 			return result
