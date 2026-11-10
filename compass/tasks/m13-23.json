@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T23:48:01.810Z",
+  "decisions": [
+    {
+      "alternatives": "Que los checks importen las constantes del addon en vez de copiar textos (no hay constantes: son literales en I18n.t); un test aparte en el dev plugin (los unit tests no corren el dev plugin).",
+      "at": "2026-11-10T00:23:10.846Z",
+      "text": "test_i18n recorre también addons/godot_agent_dev: cada I18n.t() del dev plugin tiene que estar en es.po, pero no cuenta como uso para la regla de entradas sin usar, y el test exige más de 30 llamadas para no pasar vacío (registrado por a3 en el cierre del tablero, a partir de las notas de d5)",
+      "why": "Desde m13-20 los checks comparan con copias de textos del addon; si el addon cambia uno, la copia quedaba desfasada y el check fallaba recién en Xvfb. Que el dev plugin no cuente como uso evita que un texto que el addon dejó de usar sobreviva en es.po solo porque un check lo nombra. El mínimo de 30 detecta un barrido vacío (ruta mal escrita). No compara formatos porque el test del addon ya lo hace sobre la misma entrada."
+    }
+  ],
+  "description": "Desde m13-20 los checks del dev plugin (addons/godot_agent_dev) comparan con I18n.t(\"…\") textos copiados del addon. test_i18n solo recorre addons/godot_agent, así que si el addon cambia un texto, la copia del check queda desfasada sin que ningún unit test lo vea (el check falla recién en Xvfb). Hacer que test_i18n recorra también addons/godot_agent_dev y exija que cada msgid usado con I18n.t() exista en es.po, sin pedir traducción para lo que el dev plugin no muestra. Lo propuso 3c en la revisión de m13-20.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-23, commit 27b1c0b (base 650e2ef). Solo tests/unit/test_i18n.gd: DEV_DIR = addons/godot_agent_dev; cada msgid de I18n.t(\"…\") del dev plugin tiene que estar en es.po con traducción. No cuentan como uso para la regla de entradas sin usar: si el addon deja de usar un texto, salta igual como sin usar. Hoy el dev plugin usa 60 llamadas (auto, review, oneshot_ui, remote, plugin); el test exige más de 30 para no pasar vacío. No compara formatos (eso ya lo hace el test del addon sobre la misma entrada).",
+  "order": 23,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "run_all 458 tests/3354 checks 0 fallos (test nuevo test_i18n.test_dev_plugin_texts_are_in_the_catalog). Prueba de desfase: con I18n.t(\"Review the spec\") en oneshot_ui_check.gd el test falla y nombra el texto y el archivo; revertido. acp_session_check 175/0, oneshot_check 176/0.",
+  "title": "test_i18n también revisa los textos del dev plugin",
+  "updated_at": "2026-11-10T00:23:10.846Z"
+}

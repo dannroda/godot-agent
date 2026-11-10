@@ -1,0 +1,31 @@
+{
+  "assignee": "agent-harness-3c",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T22:29:48.681Z",
+  "decisions": [
+    {
+      "alternatives": "Darle al composer una referencia al SessionModel y que se suscriba a state_changed (más acoplado, y el One-shot igual necesita un Callable); conservar los bools y sincronizarlos mejor (seguían siendo copias).",
+      "at": "2026-11-09T22:37:02.550Z",
+      "text": "El composer y el dock leen el estado por Callables (`is_busy` = model.is_busy, `oneshot_active` = run activo en esa pestaña); set_busy/set_oneshot_active pasan a refresh_state()/refresh_oneshot(), que solo invalidan",
+      "why": "Mismo patrón que can_switch_session y retry_interceptor: el run del One-shot vive en el plugin y se consulta por id de pestaña para no capturar el dock ni el controller (ciclos al cerrar). El composer sigue sin conocer SessionModel y los tests le prestan un Callable fijo."
+    }
+  ],
+  "description": "composer.gd guarda `_busy` y `_oneshot_active` y agent_dock.gd `_oneshot_active`: copias empujadas del estado de la sesión y del One-shot (set_busy, set_oneshot_active). Esc, el placeholder y el estado vacío dependen de que estén sincronizadas. Hacer que lean el estado real (model.is_busy(), el run del One-shot) o una sola fuente, sin cambiar lo que ve el usuario. Test de UI del dev plugin si existe para el composer; unit tests y checks tienen que pasar.",
+  "links": [
+    {
+      "task": "m13-13",
+      "type": "related"
+    }
+  ],
+  "milestone": "m13",
+  "notes": "composer.gd: fuera _busy y _oneshot_active; entran `busy_provider: Callable` y `oneshot_provider: Callable` (el dock le da model.is_busy y su _is_oneshot_active; nombres como mention_provider, por revisión de a3, commit cea9a51) y refresh_state() en lugar de set_busy/set_oneshot_active. _update_placeholder solo escribe si cambia el texto (refresh_oneshot llega con cada `changed` del run). agent_dock.gd: fuera _oneshot_active; entra `oneshot_active: Callable` que pone el plugin en _wire_oneshot (por id, como can_switch_session), _is_oneshot_active() y refresh_oneshot() (el listener de _oneshot.changed lo llama). Commits: 415ca35 + cea9a51 en worktree-m13-14; revisada por a3 (aprobada). Quedan como copias empujadas, fuera de alcance: set_enabled (STARTING), set_unavailable, set_locked y set_screenshot_available del composer; y can_switch_session en el plugin es el complemento de oneshot_active (podrían unificarse). No toca oneshot_run.gd ni las líneas de FAILED/login_required del dock.",
+  "order": 14,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "Rama worktree-m13-14. Headless 4.7.2: run_all 440 tests/2949 checks, acp_session_check 171, oneshot_check 140, 0 fallos. Xvfb: --godot-agent-oneshot-test (dock en modo run, «Resume One-shot», solo la pestaña del run en modo One-shot), --godot-agent-i18n-test con es (LayoutCheck.composer_fits con y sin turno en curso) y --godot-agent-queue-test (composer con turno largo, Esc/cancel), todos PASS. test_composer.test_enter_while_busy_and_insert_text le presta un Callable al composer.",
+  "title": "UI: composer y dock leen el estado del modelo en vez de copias",
+  "updated_at": "2026-11-09T23:06:13.697Z"
+}

@@ -1,0 +1,25 @@
+{
+  "assignee": "agent-harness-a3",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T22:29:48.620Z",
+  "decisions": [
+    {
+      "alternatives": "Darle al modelo una referencia al AgentLog y loguear desde set_state (más simple, pero el modelo pasa a conocer el log). Mantener `login_required` como getter de compatibilidad: descartado, la tarea busca sacar el estado escondido. Convertir `replaying` y `_closing_previous` en estados del enum: fuera del alcance. Loguear en el canal proc en lugar de uno nuevo: descartado, f3 y d5 ya usan `state`.",
+      "at": "2026-11-09T22:40:42.578Z",
+      "text": "Transiciones inesperadas: señal del modelo que el controller anota en el canal `state` del Agent Log; `login_required` desaparece (LOGIN_REQUIRED + has_failed()); `replaying` y `_closing_previous` siguen como flags",
+      "why": "SessionModel no hace IO: en vez de darle el AgentLog, set_state emite `unexpected_transition(from, to)` y el SessionController lo anota en el canal nuevo `state` del Agent Log con el formato común acordado con f3/d5 («session: unexpected transition READY -> CANCELLING»); si nadie escucha (tests sueltos), push_warning. El flag `login_required` desaparece: LOGIN_REQUIRED es un estado y `has_failed()` agrupa FAILED y LOGIN_REQUIRED para los lectores que trataban a los dos igual (stop() los conserva, el dock reabre la sesión desde ambos). `replaying` y `_closing_previous` quedan como flags: son ortogonales al estado (replaying pasa en DISCONNECTED o READY; _closing_previous vive dentro de STARTING) y convertirlos en estados cambiaría los lectores del historial y del One-shot sin que la tarea lo pida."
+    }
+  ],
+  "description": "session_model.gd SessionState (DISCONNECTED, STARTING, READY, PROMPTING, CANCELLING, FAILED) acepta cualquier transición, y hay estado escondido en flags: `FAILED + login_required` es en realidad «falta iniciar sesión»; `replaying` y `_closing_previous` (session_controller) son subestados. Hacer: tabla de transiciones permitidas, set_state loguea una transición ilegal en el Agent Log sin bloquearla, y LOGIN_REQUIRED como estado propio (agregado al final del enum para no cambiar valores) sin cambiar lo que ve el usuario. Revisar a todos los que leen `login_required` y `SessionState.FAILED` (dock, oneshot, tests). Test unitario que recorre la tabla; acp_session_check.gd tiene que seguir pasando.",
+  "milestone": "m13",
+  "notes": "Rama worktree-m13-13, commit af98a6c (sin push, sin merge). LOGIN_REQUIRED al final del enum (FAILED sigue en 5); SESSION_STATE_TRANSITIONS junto al enum con los caminos documentados; set_state único setter, emite unexpected_transition y aplica igual; SessionController lo loguea como «session: unexpected transition A -> B» en el canal nuevo `state` (CH_STATE + color en AgentTheme, convención común con f3/d5). Flag login_required eliminado: dock (línea de estado, chip, cola, historial, enviar sin sesión) y controller leen el estado; has_failed() agrupa FAILED y LOGIN_REQUIRED; stop() conserva los dos. _fail() recibe el estado final. Lo que ve el usuario no cambia (mismos textos, sin CHANGELOG). merge-tree contra worktree-m13-14 sin conflictos.",
+  "order": 13,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "tests/unit/test_session_state.gd (tabla completa y sin huérfanos; todo par se aplica y los que no están en la tabla se anotan; el controller lo manda al canal `state` del log; nadie asigna `state` fuera de set_state, escaneando addons/). run_all 445 tests/0 fallos; acp_session_check 175 checks/0 fallos (ahora también verifica que basic, cancel, crash y login no salen de la tabla, y que el login termina en LOGIN_REQUIRED); oneshot_check 140 checks/0 fallos. Godot 4.7.2.",
+  "title": "Sesión: LOGIN_REQUIRED como estado y tabla de transiciones",
+  "updated_at": "2026-11-09T22:41:09.067Z"
+}

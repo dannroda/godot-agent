@@ -1,0 +1,43 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T22:29:48.553Z",
+  "decisions": [
+    {
+      "alternatives": "Dejar los dos bools con invariantes documentadas; fases nuevas (PAUSED_QA, SPEC_WRITING…)",
+      "at": "2026-11-09T22:35:45.338Z",
+      "text": "_awaiting_spec y _resume_qa pasan a un enum RunStage {SPEC_APPROVAL, BUILDING, EVALUATION} con setter, STAGE_TRANSITIONS y \"stage\" en el guardado (los guardados viejos se leen con awaiting_spec/resume_qa)",
+      "why": "Son excluyentes (la QA solo llega después de aprobar el spec) y describen en qué parte del trabajo está el run, no si corre o espera: como fases nuevas multiplicarían PAUSED/LIMITED por etapa. Un solo valor persistido evita combinaciones incoherentes."
+    },
+    {
+      "alternatives": "Derivarlo de model.state == PROMPTING/CANCELLING",
+      "at": "2026-11-09T22:35:45.396Z",
+      "text": "_turn_running se queda como flag propio (documentado), no se deriva de SessionState.PROMPTING",
+      "why": "send_prompt espera cuota, snapshot y modo antes de pasar a PROMPTING y el run sigue en el turno hasta que vuelve el await; derivarlo abriría un hueco donde entra un segundo _run_turn. Además m13-13 cambia SessionState en paralelo."
+    },
+    {
+      "alternatives": "Convertirlos en fases o en otra etapa",
+      "at": "2026-11-09T22:35:45.456Z",
+      "text": "_continue_after_cancel, _quota_checkpoint_done, _suspended y _generator_session_id quedan como flags: no son fases",
+      "why": "Son datos de un paso puntual (seguir tras el corte del turno, un solo cpN-quota por límite, no escribir mientras el editor cierra, a qué sesión volver tras la QA), no un estado en el que el run espera o corre."
+    },
+    {
+      "alternatives": "push_warning solo; reusar CH_ACP",
+      "at": "2026-11-09T22:35:45.508Z",
+      "text": "Las transiciones inesperadas van a un canal nuevo `state` del Agent Log (acordado con f3 para las 4 tareas; color #ff8fb8)",
+      "why": "Ningún canal existente encaja (acp/proc son del proceso del agente); el mismo canal y las mismas líneas en las 4 ramas se juntan sin conflicto."
+    }
+  ],
+  "description": "oneshot_run.gd tiene RunPhase (11 fases) pero el estado real se reparte en flags: `_awaiting_spec`, `_resume_qa`, `_continue_after_cancel`, `_suspended`, `_generator_session_id` (evaluador activo), `_quota_checkpoint_done`, y `_turn_running` duplica el PROMPTING de la sesión. Cargar un run guardado asigna `phase` directo (línea ~1543) sin pasar por `_set_phase` (no guarda ni emite). Hacer: tabla de transiciones permitidas junto al enum, `_set_phase` loguea una transición ilegal en el Agent Log sin bloquearla, la carga pasa por el setter, `_awaiting_spec` y `_resume_qa` como estado persistido coherente, `_turn_running` derivado de la sesión si es posible sin romper. Test unitario que recorre la tabla; oneshot_check.gd tiene que seguir pasando.",
+  "milestone": "m13",
+  "notes": "- PHASE_TRANSITIONS junto a RunPhase; las transiciones fuera de la tabla van al canal nuevo `state` del Agent Log (CH_STATE en agent_log.gd + color en agent_theme.gd, mismas líneas en las 4 ramas m13-11..14), o push_warning sin controller. Contadores unexpected_transitions/last_unexpected_transition para diagnóstico.\n- _apply (carga) pasa por _set_phase: IDLE/FINISHED → PAUSED/PAUSED_QUOTA están en la tabla.\n- _awaiting_spec + _resume_qa → RunStage {SPEC_APPROVAL, BUILDING, EVALUATION} con _set_stage y STAGE_TRANSITIONS; se guarda como \"stage\"; _saved_stage lee los guardados viejos (awaiting_spec/resume_qa).\n- Comportamiento igual al anterior, incluso en restore() durante una evaluación (deja la etapa en BUILDING, como antes quedaba _resume_qa en false).\n- Hallazgo previo, no arreglado (fuera de alcance): restore() en medio de una evaluación no vuelve a la sesión del que construye (_after_qa sale sin _back_to_generator); al retomar, el turno de construcción va a la sesión del evaluador. Igual si se pausa durante _back_to_generator después de un veredicto: «Retomar» repite la vuelta de QA. Merece su propia tarea.\n- _turn_running, _continue_after_cancel, _quota_checkpoint_done, _suspended y _generator_session_id quedan como flags (ver decisiones).",
+  "order": 12,
+  "priority": "high",
+  "refs": [],
+  "size": "l",
+  "status": "review",
+  "test": "En el worktree (rama sm/m13-12, 39e42a6): godot --headless --import; tests/run_all.gd 446 tests/3072 checks 0 fallos (incluye tests/unit/test_oneshot_phases.gd: recorre PHASE_TRANSITIONS y STAGE_TRANSITIONS, un cambio fuera de tabla se anota y se aplica, y un escaneo del código verifica que phase y _stage solo se asignan en _set_phase/_set_stage); acp_session_check 171/0; oneshot_check 140/0 y ninguna transición inesperada en su log (la tabla coincide con los flujos reales).",
+  "title": "One-shot: tabla de transiciones de RunPhase y flags que son fases",
+  "updated_at": "2026-11-09T22:37:30.372Z"
+}

@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-a3",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T23:26:14.445Z",
+  "decisions": [
+    {
+      "alternatives": "Solo el dev plugin (lo que pedía la tarea): insuficiente en 4.8. Dev plugin + lanzador: dos mecanismos para lo mismo, y el del plugin daría un mensaje engañoso en 4.8. git checkout en el lanzador: ata los checks a git y pisaría cambios locales no commiteados. Quitar scope_compass de project.godot: es del test bed del usuario, no de los checks.",
+      "at": "2026-11-09T23:41:12.959Z",
+      "text": "Restaurar project.godot desde el lanzador (tests/run_in_xvfb.sh y plugin_cycle_check.gd), no desde el dev plugin; external-test guarda los ajustes antes de leer project.godot",
+      "why": "Probé primero guardar el texto en _enter_tree del dev plugin y reponerlo en _finish/_exit_tree: en 4.7.2 funciona, pero en 4.8 el editor guarda project.godot (config/features \"4.8\") antes de cargar los plugins, así que la foto ya está cambiada y queda el archivo sucio. El lanzador corre antes y después del editor, cubre todas las escrituras (arranque, checks que guardan, cierre) y también el timeout o un fallo, con trap EXIT. Además, con el archivo siempre restaurado apareció un fallo preexistente en 4.7.2: external-test leía project.godot con un plugin que el checkout no tiene (en los worktrees falta el symlink de scope_compass) mientras la memoria ya no lo tenía, y EditorSync aplicaba también editor_plugins/enabled; antes pasaba porque la primera corrida dejaba el disco \"arreglado\". Un ProjectSettings.save() antes de leer lo sincroniza."
+    }
+  ],
+  "description": "Correr los checks de Xvfb (run-test y otros) reescribe project.godot del checkout: saca scope_compass de editor_plugins/enabled y, en 4.8, cambia config/features a \"4.8\". Pasa en 4.7.2 y en 4.8-beta2; cada sesión lo tenía que restaurar a mano con git checkout, y es fácil commitearlo sin querer (me pasó en la integración). Hacer que el dev plugin guarde el contenido de project.godot al empezar un check y lo restaure al terminar (también si falla), sin tocar el autoload temporal de playtest ni el override de user:// de m13-17.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-19 (base bd54ee1), commit 5519a22. tests/run_in_xvfb.sh copia project.godot antes de abrir el editor y lo repone con trap EXIT si cambió (también por fallo o timeout; sin exec, conserva el código de salida); plugin_cycle_check.gd hace lo mismo alrededor del editor que lanza; el dev plugin solo suma un ProjectSettings.save() en _run_external_test antes de leer project.godot. No va en el dev plugin como pedía la descripción: en 4.8 el editor guarda config/features antes de cargar los plugins (ver la decisión). No toca el autoload de playtest ni el user:// de m13-17 (son ajustes en memoria). Sin CHANGELOG: solo tests.",
+  "order": 19,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "Con el commit, cada check seguido de `git status` sin cambios en project.godot: 4.8-beta2 external-test PASS y run-test PASS; 4.7.2 external-test PASS, run-test PASS y plugin_cycle_check PASS (5 ciclos sin huérfanos); run_all -- addon_scripts 0 fallos. Control: sin el ProjectSettings.save() de external-test, el check falla en 4.7.2 de forma determinista sobre bd54ee1 («tenía que aplicar solo lo que cambió», con editor_plugins/enabled de más).",
+  "title": "Los checks del editor dejan project.godot como estaba",
+  "updated_at": "2026-11-09T23:41:30.047Z"
+}

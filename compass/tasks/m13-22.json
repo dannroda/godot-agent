@@ -1,0 +1,34 @@
+{
+  "assignee": "agent-harness-a3",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T23:29:16.919Z",
+  "decisions": [
+    {
+      "alternatives": "Plegar las líneas JSON largas con un botón «ver más» en la tarjeta; descartar las líneas que parecen JSON; mostrar solo la última línea; un flag --godot-agent-crash-card-test aparte.",
+      "at": "2026-11-09T23:52:07.754Z",
+      "text": "Recortar cada línea del stderr a 160 caracteres (principio de la línea + «… N more characters, see the Agent Log»), sin plegado ni filtro por contenido; ui-test=crash con rama propia en vez de un check nuevo",
+      "why": "El principio de una línea larga es lo que dice qué es («fake_agent: prompt {…», «initialize {…»); plegar/desplegar en la tarjeta exigiría UI nueva para un caso raro, y la línea entera ya está en el Agent Log a un clic («Open the log below»). Filtrar por «parece JSON» se rompe con stack traces largos o líneas de log con JSON útil; el recorte por largo vale para todas. 160 caracteres son dos o tres renglones de monoespaciada en el dock. El ui-test genérico esperaba una respuesta del agente y con el guion crash cortaba por timeout: una rama al principio para ese guion (prompt → FAILED → captura → verificación) es más chica que otro flag del plugin de dev."
+    },
+    {
+      "alternatives": "Redactar solo en la tarjeta al mostrar (dejaba _stderr_tail con el token); menos líneas y más cortas (4 de 100) en vez del plegado; un campo details_full en ChatEntry para que Copy copie las líneas enteras redactadas.",
+      "at": "2026-11-10T00:01:26.395Z",
+      "text": "Revisión de d5: la cola de stderr se guarda ya redactada (AgentLog.redact(), el mismo reemplazo que add()) y sin líneas vacías; las líneas del log en la tarjeta empiezan plegadas con Show/Hide; Copy copia lo que se ve (recortado)",
+      "why": "Redactar al guardar en _on_stderr deja un solo lugar sin secretos (tarjeta, Copy y cualquier uso futuro de _stderr_tail) y evita el caso en que el recorte a 160 caiga en medio del token y deje su principio a la vista; redactar después de recortar no lo cubriría. Plegado por defecto (preferencia de d5 y f3): en una caída real la causa va en el texto de la tarjeta (Segmentation fault, Cannot find module) y cuatro líneas recortadas seguían ocupando unas 25 filas en el dock angosto; Show las abre sin salir del chat. Copy copia el texto recortado y redactado: la línea entera está en el Agent Log a un clic y guardar una copia sin recortar en ChatEntry duplicaría estado por una comodidad menor."
+    }
+  ],
+  "description": "Cuando el agente se cae, la tarjeta muestra la cola de su stderr (_stderr_tail en session_controller), y con claude-agent-acp eso incluye el prompt de sistema entero en JSON: es demasiado largo para una tarjeta de error y tapa la causa. Lo vio d5 en el tour de UX de M13 (d5_02, igual en main). Recortar los detalles a las últimas líneas útiles, o plegar las líneas JSON largas, y dejar el texto completo en el Agent Log.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-22 (base bd54ee1), commits 70384a4 + c467b69 (revisión de d5). SessionController.stderr_summary() estática y STDERR_LINE_CHARS = 160; _on_stderr guarda la cola ya redactada con AgentLog.redact() (lo mismo que aplica add()) y sin líneas vacías; _fail_agent usa el resumen en entry.details. NoticeView: «Last lines of the log» plegadas por defecto con botón Show/Hide (msgids Show/Hide nuevos en es.po); Copy copia lo que se ve. ui-test=crash: rama al principio de _run_ui_test (_check_crash_card), antes cortaba por timeout. CHANGELOG (Unreleased › Changed). Fuera de alcance, visto por d5: en la misma caída salen dos tarjetas («The turn ended with an error … (-32000)» y «<agente> stopped»); viene de antes.",
+  "order": 22,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "tests/unit/test_agent_crash_card.gd (6 tests): recorte de una línea JSON de 3000 caracteres con el principio y «… N more characters, see the Agent Log»; las cortas tal cual y las vacías fuera; solo las últimas STDERR_TAIL; por _fail_agent la tarjeta tiene 3 líneas con la causa visible y el Agent Log conserva la línea entera; un token registrado con add_secret no aparece en la tarjeta ni entero ni su principio (caso con el token cruzando el corte en la posición 150), ni en _stderr_tail ni en el log; las líneas vacías no ocupan lugar en la cola. test_notice_view: las líneas empiezan plegadas, Show las abre y pasa a Hide, un refresh no las vuelve a plegar. run_all 463 tests/3382 checks 0 fallos; acp_session_check 175/0; test_i18n ok. Xvfb 4.7.2: --godot-agent-ui-test=crash PASS (717 caracteres, 4 líneas; verifica además que ni la tarjeta ni la cola del controller tienen el token del server MCP y que la cola tiene la línea de session/new redactada). Capturas en el scratchpad de la sesión a3 (/tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/): m13-22_before.png (la tarjeta ocupa el dock con el JSON del prompt), m13-22_after.png (recorte sin plegar, versión 70384a4) y m13-22_after_v2.png (plegada: título, causa, «Last lines of the log · Show · Copy» y las acciones). Se regeneran con tests/run_in_xvfb.sh godot --godot-agent-ui-test=crash --godot-agent-ui-shot=<ruta.png>.",
+  "title": "La tarjeta de crash del agente vuelca el prompt de sistema entero",
+  "updated_at": "2026-11-10T00:01:59.161Z"
+}

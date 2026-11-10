@@ -1,0 +1,25 @@
+{
+  "assignee": "agent-harness-f3",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T22:29:48.475Z",
+  "decisions": [
+    {
+      "alternatives": "Quitar busy_is_stale al tener la tabla (descartado: es la red si un estado no llega); mantener el Dictionary y solo arreglar el caso del run muerto.",
+      "at": "2026-11-10T00:23:10.731Z",
+      "text": "GameRunState con tabla de transiciones; busy_is_stale se conserva como red de seguridad; un LAUNCHING nuevo siempre reinicia el run y espera el stop del juego anterior (registrado por a3 en el cierre del tablero, a partir de las notas de f3 y la revisión de 3c)",
+      "why": "El ciclo de vida del run vivía en _busy más claves sueltas de un Dictionary, y si un run moría nadie bajaba _busy: el agente quedaba bloqueado con «already in progress». Un enum con su tabla hace explícito cada paso y el canal state del Agent Log deja rastro de lo que no estaba previsto. busy_is_stale queda igual: si algo se pierde, el escape por tiempo sigue destrabando. La revisión de 3c sumó que un LAUNCHING nuevo reinicie siempre y espere el session_stopped del juego anterior (una carrera que ya existía), y que el texto al agente diga el estado y el tiempo («game: running (3 s)»)."
+    }
+  ],
+  "description": "run_tools.gd lleva el ciclo de vida de un run_scene en `_busy` + claves de un Dictionary (`started`, `ready`, `stopped`, `breaked`) y un escape por tiempo (`busy_is_stale`) porque si un run muere nadie baja `_busy`: el agente queda bloqueado minutos con «already in progress». Hacer un enum GameRunState (IDLE, LAUNCHING, RUNNING, BREAKED, STOPPED…) con un solo setter, tabla de transiciones permitidas (una transición ilegal se loguea en el Agent Log, no se bloquea), `_busy` derivado del estado y bajado siempre al salir de _run_scene. El error de run_scene dice el estado y hace cuánto («launching, 3 s»). busy_is_stale queda como red. Test unitario que recorre la tabla. Sin cambio de comportamiento para lo que ya anda.",
+  "milestone": "m13",
+  "notes": "Rama worktree-m13-11 (392f20e) + 55c41e6 en sm/integration con la revisión de 3c: un LAUNCHING nuevo siempre reinicia el run, run_scene espera el session_stopped del juego que paró antes de pasar a LAUNCHING (había una carrera que ya existía antes), y el texto para el agente es «game: running (3 s)». busy_is_stale queda como red. Se agregó el canal state del Agent Log (CH_STATE, color #ff8fb8), que comparten m13-12 y m13-13. Hallazgo de infraestructura: user:// es el mismo para todos los worktrees, así que los checks se pisan en paralelo → m13-17.",
+  "order": 11,
+  "priority": "high",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "test": "tests/unit/test_run_tools.gd: test_game_run_transitions (la tabla cubre cada estado, run_state se asigna en un solo lugar, sin claves de ciclo de vida en _state) y test_game_run_reached. En sm/integration con flock: run_all 453/3336, acp_session_check 175, oneshot_check 140, y en Xvfb run-test, review-test, external-test, oneshot-test, queue-test, login-test e i18n-test (es): todos PASS. run-test sin transiciones inesperadas en el canal state.",
+  "title": "Máquina de estados explícita del run del juego (run_tools)",
+  "updated_at": "2026-11-10T00:23:10.731Z"
+}

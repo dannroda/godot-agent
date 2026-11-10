@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T00:37:47.964Z",
+  "description": "No bloqueantes, de la revisión de d5 de m13-25.\n1) SECRET_ENV_NAME (agent_profile.gd) busca «key|auth|…» sin límites de palabra: GIT_AUTHOR_NAME o KEYBOARD_* en el env del perfil registran su valor como secreto, y p. ej. el nombre del usuario se taparía en todo el chat. Usar límites (^|_)(KEY|TOKEN|…)($|_) o una lista.\n2) elicitation/create es un request y no se redacta (bien para lo que se ejecuta), pero su formulario se muestra tal cual. Redactar la copia que se muestra, como en la tarjeta de permiso.\n3) Los session/update entran redactados, pero el MCP del harness recibe los args reales. find_godot_tool_call(tool_name, args) puede no emparejar una tool call cuyos args tengan un secreto. Revisar también que una regla «permitir siempre» no se guarde con «secret» (sale del ToolCall redactado del modelo) y después no coincida con el comando real.\n4) authMethods de la respuesta de initialize (args/env del login por terminal) entra redactado y se usa para ejecutar el login: confirmar que no puede llevar un secreto registrado.",
+  "milestone": "m13",
+  "notes": "",
+  "order": 28,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "security"
+  ],
+  "test": "",
+  "title": "Redacción de secretos: detalles que quedaron de m13-25",
+  "updated_at": "2026-11-10T00:37:47.964Z"
+}

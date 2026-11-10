@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T23:56:16.942Z",
+  "decisions": [
+    {
+      "alternatives": "Un flag «ya se avisó la caída» consultado en send_prompt (descartado por f3: estado escondido); suprimir la tarjeta del proceso y dejar la del turno (pierde el stderr y el título con la causa).",
+      "at": "2026-11-10T00:23:10.876Z",
+      "text": "Sin flag: _on_process_exited pone FAILED con la tarjeta antes de fallar los requests pendientes, y send_prompt, si model.has_failed(), solo anota el turno cortado y llama a finish_turn(\"error\") sin cambiar el estado (PROMPTING → FAILED, sin READY intermedio) (registrado por a3 en el cierre del tablero, a partir de las notas de d5; «sin flag» lo pidió f3)",
+      "why": "La misma caída producía dos tarjetas con dos Retry: la del turno cortado y la del proceso. Ordenar las cosas (primero el estado y la tarjeta de la caída, después los requests) deja que quien recibe el error pregunte por el estado en vez de llevar un flag más, que es justo el tipo de estado escondido que M13 saca. Evitar el READY intermedio mantiene la máquina de estados fiel a lo que pasó."
+    }
+  ],
+  "description": "Cuando el proceso del agente se cae en medio de un turno, el chat muestra dos tarjetas: «The turn ended with an error: The agent exited (code 9). (-32000)» con Retry/Open the log, y «<agente> stopped» con el stderr, Retry y Open the log. Es la misma causa dicha dos veces, con dos Retry. Pasa igual en main. Dejar una sola (la del crash, que tiene la causa y el log) y que el fin del turno por la caída no agregue la suya. Test en acp_session_check (escenario crash) contando las tarjetas de error. Lo vio d5 revisando m13-22; va encima de m13-22 porque toca session_controller.gd.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-24, commit 76ca585 (rebasada sobre 64ed939, el m13-22 final de a3). _on_process_exited llama a _fail_agent (FAILED y la tarjeta) antes de client.fail_all_pending. En send_prompt, si model.has_failed(), el turno cortado solo se anota en el log y llama a finish_turn(\"error\"), que emite turn_finished y no cambia el estado. Sin flag (lo pidió f3). La caída durante initialize va en m13-26. Línea en CHANGELOG (Fixed).",
+  "order": 24,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "acp_session_check 179/0: el escenario crash exige una sola tarjeta de error (la de la caída), turn_finished una vez con \"error\", la tarjeta después del mensaje del usuario y los estados PROMPTING → FAILED sin READY. Sin el arreglo falla con las dos tarjetas. run_all 463/3382/0, oneshot_check 176/0, ui-test=crash PASS en en y es (captura: una sola tarjeta, plegada).",
+  "title": "Una caída del agente muestra dos tarjetas de error",
+  "updated_at": "2026-11-10T00:23:10.876Z"
+}

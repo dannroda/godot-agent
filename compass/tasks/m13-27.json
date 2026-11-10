@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T00:35:56.384Z",
+  "description": "Idea a partir de github.com/DasDarki/grit (AOT de GDScript a C++): darle al agente las funciones más calientes de un run (tiempo propio y total, llamadas, y si están tipadas), para que proponga tipos o mover loops a APIs del motor con medición antes y después. Investigación de 3c en 4.7.2 y 4.8-beta2: hoy no se puede. ScriptEditorDebugger consume servers:profile_frame y no lo pasa a EditorDebuggerPlugin._capture, EditorDebuggerSession no tiene señal con esos datos, y desde el juego GDScript no puede leer los tiempos del ScriptsProfiler. El profiler duplica el costo de cada llamada (~95→190 ns). Caminos: (i) PR a Godot para que EditorDebuggerSession emita los frames del profiler, o que los plugins capturen mensajes ya manejados (primer paso recomendado); (ii) leer el Tree del panel Profiler: frágil, no; (iii) servidor de debug propio con --remote-debug: otra arquitectura de run_scene, no por ahora. Si está tipada se deduce leyendo el script (res://ruta.gd::línea::nombre). Integrar Grit mismo: no por ahora (motor parcheado, muy experimental).",
+  "milestone": "m13",
+  "notes": "",
+  "order": 27,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "paused",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "godot.profile_run: las funciones de GDScript más calientes de un run (bloqueada por el editor)",
+  "updated_at": "2026-11-10T00:35:56.384Z"
+}

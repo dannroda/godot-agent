@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-11-02
+> Generado: 2026-11-09
 
 ## M0 — Esqueleto y decisiones  (6/6)
 
@@ -3763,7 +3763,7 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
 
 **Notas:** TabContainer con tabs_visible = false y un ItemList a la izquierda (como Ajustes) que lo maneja; los títulos con contadores se copian a la lista. Ventana de 820 × 760 (mínimo 720 × 600). Los contadores siguen mostrando (0) mientras carga.
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (10/10, 1 en revisión)
+## M11 — Revisiones de seguridad, patrones y arquitectura  (26/28, 17 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -3891,6 +3891,290 @@ tests/plugin_cycle_check.gd (habilita y deshabilita el plugin 5 veces en un edit
 **Prueba:** plugin_cycle_check pasa en 4.7.2 (antes: 3 resources still in use); run-test en Xvfb 0 fallas; run_all 372 (solo test_completion_local)
 
 **Notas:** Causa: RunTools conectaba las señales del PlaytestDebugger a lambdas que lo capturan; el debugger guardaba las lambdas y RunTools al debugger, y el ciclo no se liberaba (se veía en 4.7.2; 4.8-beta1 no lo reportaba). Arreglo: métodos en lugar de lambdas. El ciclo del plugin entra al CI.
+
+### Máquina de estados explícita del run del juego (run_tools) · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Responsable:** agent-harness-f3
+
+run_tools.gd lleva el ciclo de vida de un run_scene en `_busy` + claves de un Dictionary (`started`, `ready`, `stopped`, `breaked`) y un escape por tiempo (`busy_is_stale`) porque si un run muere nadie baja `_busy`: el agente queda bloqueado minutos con «already in progress». Hacer un enum GameRunState (IDLE, LAUNCHING, RUNNING, BREAKED, STOPPED…) con un solo setter, tabla de transiciones permitidas (una transición ilegal se loguea en el Agent Log, no se bloquea), `_busy` derivado del estado y bajado siempre al salir de _run_scene. El error de run_scene dice el estado y hace cuánto («launching, 3 s»). busy_is_stale queda como red. Test unitario que recorre la tabla. Sin cambio de comportamiento para lo que ya anda.
+
+**Decisiones:**
+- ! GameRunState con tabla de transiciones; busy_is_stale se conserva como red de seguridad; un LAUNCHING nuevo siempre reinicia el run y espera el stop del juego anterior (registrado por a3 en el cierre del tablero, a partir de las notas de f3 y la revisión de 3c) · sin revisar
+  Por qué: El ciclo de vida del run vivía en _busy más claves sueltas de un Dictionary, y si un run moría nadie bajaba _busy: el agente quedaba bloqueado con «already in progress». Un enum con su tabla hace explícito cada paso y el canal state del Agent Log deja rastro de lo que no estaba previsto. busy_is_stale queda igual: si algo se pierde, el escape por tiempo sigue destrabando. La revisión de 3c sumó que un LAUNCHING nuevo reinicie siempre y espere el session_stopped del juego anterior (una carrera que ya existía), y que el texto al agente diga el estado y el tiempo («game: running (3 s)»).
+  Descartado: Quitar busy_is_stale al tener la tabla (descartado: es la red si un estado no llega); mantener el Dictionary y solo arreglar el caso del run muerto.
+
+**Prueba:** tests/unit/test_run_tools.gd: test_game_run_transitions (la tabla cubre cada estado, run_state se asigna en un solo lugar, sin claves de ciclo de vida en _state) y test_game_run_reached. En sm/integration con flock: run_all 453/3336, acp_session_check 175, oneshot_check 140, y en Xvfb run-test, review-test, external-test, oneshot-test, queue-test, login-test e i18n-test (es): todos PASS. run-test sin transiciones inesperadas en el canal state.
+
+**Notas:** Rama worktree-m13-11 (392f20e) + 55c41e6 en sm/integration con la revisión de 3c: un LAUNCHING nuevo siempre reinicia el run, run_scene espera el session_stopped del juego que paró antes de pasar a LAUNCHING (había una carrera que ya existía antes), y el texto para el agente es «game: running (3 s)». busy_is_stale queda como red. Se agregó el canal state del Agent Log (CH_STATE, color #ff8fb8), que comparten m13-12 y m13-13. Hallazgo de infraestructura: user:// es el mismo para todos los worktrees, así que los checks se pisan en paralelo → m13-17.
+
+### One-shot: tabla de transiciones de RunPhase y flags que son fases · Revisión
+
+**Prioridad:** alta · **Tamaño:** L · **Responsable:** agent-harness-d5
+
+oneshot_run.gd tiene RunPhase (11 fases) pero el estado real se reparte en flags: `_awaiting_spec`, `_resume_qa`, `_continue_after_cancel`, `_suspended`, `_generator_session_id` (evaluador activo), `_quota_checkpoint_done`, y `_turn_running` duplica el PROMPTING de la sesión. Cargar un run guardado asigna `phase` directo (línea ~1543) sin pasar por `_set_phase` (no guarda ni emite). Hacer: tabla de transiciones permitidas junto al enum, `_set_phase` loguea una transición ilegal en el Agent Log sin bloquearla, la carga pasa por el setter, `_awaiting_spec` y `_resume_qa` como estado persistido coherente, `_turn_running` derivado de la sesión si es posible sin romper. Test unitario que recorre la tabla; oneshot_check.gd tiene que seguir pasando.
+
+**Decisiones:**
+- ! _awaiting_spec y _resume_qa pasan a un enum RunStage {SPEC_APPROVAL, BUILDING, EVALUATION} con setter, STAGE_TRANSITIONS y "stage" en el guardado (los guardados viejos se leen con awaiting_spec/resume_qa) · sin revisar
+  Por qué: Son excluyentes (la QA solo llega después de aprobar el spec) y describen en qué parte del trabajo está el run, no si corre o espera: como fases nuevas multiplicarían PAUSED/LIMITED por etapa. Un solo valor persistido evita combinaciones incoherentes.
+  Descartado: Dejar los dos bools con invariantes documentadas; fases nuevas (PAUSED_QA, SPEC_WRITING…)
+- ! _turn_running se queda como flag propio (documentado), no se deriva de SessionState.PROMPTING · sin revisar
+  Por qué: send_prompt espera cuota, snapshot y modo antes de pasar a PROMPTING y el run sigue en el turno hasta que vuelve el await; derivarlo abriría un hueco donde entra un segundo _run_turn. Además m13-13 cambia SessionState en paralelo.
+  Descartado: Derivarlo de model.state == PROMPTING/CANCELLING
+- ! _continue_after_cancel, _quota_checkpoint_done, _suspended y _generator_session_id quedan como flags: no son fases · sin revisar
+  Por qué: Son datos de un paso puntual (seguir tras el corte del turno, un solo cpN-quota por límite, no escribir mientras el editor cierra, a qué sesión volver tras la QA), no un estado en el que el run espera o corre.
+  Descartado: Convertirlos en fases o en otra etapa
+- ! Las transiciones inesperadas van a un canal nuevo `state` del Agent Log (acordado con f3 para las 4 tareas; color #ff8fb8) · sin revisar
+  Por qué: Ningún canal existente encaja (acp/proc son del proceso del agente); el mismo canal y las mismas líneas en las 4 ramas se juntan sin conflicto.
+  Descartado: push_warning solo; reusar CH_ACP
+
+**Prueba:** En el worktree (rama sm/m13-12, 39e42a6): godot --headless --import; tests/run_all.gd 446 tests/3072 checks 0 fallos (incluye tests/unit/test_oneshot_phases.gd: recorre PHASE_TRANSITIONS y STAGE_TRANSITIONS, un cambio fuera de tabla se anota y se aplica, y un escaneo del código verifica que phase y _stage solo se asignan en _set_phase/_set_stage); acp_session_check 171/0; oneshot_check 140/0 y ninguna transición inesperada en su log (la tabla coincide con los flujos reales).
+
+**Notas:** - PHASE_TRANSITIONS junto a RunPhase; las transiciones fuera de la tabla van al canal nuevo `state` del Agent Log (CH_STATE en agent_log.gd + color en agent_theme.gd, mismas líneas en las 4 ramas m13-11..14), o push_warning sin controller. Contadores unexpected_transitions/last_unexpected_transition para diagnóstico.
+- _apply (carga) pasa por _set_phase: IDLE/FINISHED → PAUSED/PAUSED_QUOTA están en la tabla.
+- _awaiting_spec + _resume_qa → RunStage {SPEC_APPROVAL, BUILDING, EVALUATION} con _set_stage y STAGE_TRANSITIONS; se guarda como "stage"; _saved_stage lee los guardados viejos (awaiting_spec/resume_qa).
+- Comportamiento igual al anterior, incluso en restore() durante una evaluación (deja la etapa en BUILDING, como antes quedaba _resume_qa en false).
+- Hallazgo previo, no arreglado (fuera de alcance): restore() en medio de una evaluación no vuelve a la sesión del que construye (_after_qa sale sin _back_to_generator); al retomar, el turno de construcción va a la sesión del evaluador. Igual si se pausa durante _back_to_generator después de un veredicto: «Retomar» repite la vuelta de QA. Merece su propia tarea.
+- _turn_running, _continue_after_cancel, _quota_checkpoint_done, _suspended y _generator_session_id quedan como flags (ver decisiones).
+
+### Sesión: LOGIN_REQUIRED como estado y tabla de transiciones · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Responsable:** agent-harness-a3
+
+session_model.gd SessionState (DISCONNECTED, STARTING, READY, PROMPTING, CANCELLING, FAILED) acepta cualquier transición, y hay estado escondido en flags: `FAILED + login_required` es en realidad «falta iniciar sesión»; `replaying` y `_closing_previous` (session_controller) son subestados. Hacer: tabla de transiciones permitidas, set_state loguea una transición ilegal en el Agent Log sin bloquearla, y LOGIN_REQUIRED como estado propio (agregado al final del enum para no cambiar valores) sin cambiar lo que ve el usuario. Revisar a todos los que leen `login_required` y `SessionState.FAILED` (dock, oneshot, tests). Test unitario que recorre la tabla; acp_session_check.gd tiene que seguir pasando.
+
+**Decisiones:**
+- ! Transiciones inesperadas: señal del modelo que el controller anota en el canal `state` del Agent Log; `login_required` desaparece (LOGIN_REQUIRED + has_failed()); `replaying` y `_closing_previous` siguen como flags · sin revisar
+  Por qué: SessionModel no hace IO: en vez de darle el AgentLog, set_state emite `unexpected_transition(from, to)` y el SessionController lo anota en el canal nuevo `state` del Agent Log con el formato común acordado con f3/d5 («session: unexpected transition READY -> CANCELLING»); si nadie escucha (tests sueltos), push_warning. El flag `login_required` desaparece: LOGIN_REQUIRED es un estado y `has_failed()` agrupa FAILED y LOGIN_REQUIRED para los lectores que trataban a los dos igual (stop() los conserva, el dock reabre la sesión desde ambos). `replaying` y `_closing_previous` quedan como flags: son ortogonales al estado (replaying pasa en DISCONNECTED o READY; _closing_previous vive dentro de STARTING) y convertirlos en estados cambiaría los lectores del historial y del One-shot sin que la tarea lo pida.
+  Descartado: Darle al modelo una referencia al AgentLog y loguear desde set_state (más simple, pero el modelo pasa a conocer el log). Mantener `login_required` como getter de compatibilidad: descartado, la tarea busca sacar el estado escondido. Convertir `replaying` y `_closing_previous` en estados del enum: fuera del alcance. Loguear en el canal proc en lugar de uno nuevo: descartado, f3 y d5 ya usan `state`.
+
+**Prueba:** tests/unit/test_session_state.gd (tabla completa y sin huérfanos; todo par se aplica y los que no están en la tabla se anotan; el controller lo manda al canal `state` del log; nadie asigna `state` fuera de set_state, escaneando addons/). run_all 445 tests/0 fallos; acp_session_check 175 checks/0 fallos (ahora también verifica que basic, cancel, crash y login no salen de la tabla, y que el login termina en LOGIN_REQUIRED); oneshot_check 140 checks/0 fallos. Godot 4.7.2.
+
+**Notas:** Rama worktree-m13-13, commit af98a6c (sin push, sin merge). LOGIN_REQUIRED al final del enum (FAILED sigue en 5); SESSION_STATE_TRANSITIONS junto al enum con los caminos documentados; set_state único setter, emite unexpected_transition y aplica igual; SessionController lo loguea como «session: unexpected transition A -> B» en el canal nuevo `state` (CH_STATE + color en AgentTheme, convención común con f3/d5). Flag login_required eliminado: dock (línea de estado, chip, cola, historial, enviar sin sesión) y controller leen el estado; has_failed() agrupa FAILED y LOGIN_REQUIRED; stop() conserva los dos. _fail() recibe el estado final. Lo que ve el usuario no cambia (mismos textos, sin CHANGELOG). merge-tree contra worktree-m13-14 sin conflictos.
+
+**Relacionadas:** UI: composer y dock leen el estado del modelo en vez de copias
+
+### UI: composer y dock leen el estado del modelo en vez de copias · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Responsable:** agent-harness-3c
+
+composer.gd guarda `_busy` y `_oneshot_active` y agent_dock.gd `_oneshot_active`: copias empujadas del estado de la sesión y del One-shot (set_busy, set_oneshot_active). Esc, el placeholder y el estado vacío dependen de que estén sincronizadas. Hacer que lean el estado real (model.is_busy(), el run del One-shot) o una sola fuente, sin cambiar lo que ve el usuario. Test de UI del dev plugin si existe para el composer; unit tests y checks tienen que pasar.
+
+**Decisiones:**
+- ! El composer y el dock leen el estado por Callables (`is_busy` = model.is_busy, `oneshot_active` = run activo en esa pestaña); set_busy/set_oneshot_active pasan a refresh_state()/refresh_oneshot(), que solo invalidan · sin revisar
+  Por qué: Mismo patrón que can_switch_session y retry_interceptor: el run del One-shot vive en el plugin y se consulta por id de pestaña para no capturar el dock ni el controller (ciclos al cerrar). El composer sigue sin conocer SessionModel y los tests le prestan un Callable fijo.
+  Descartado: Darle al composer una referencia al SessionModel y que se suscriba a state_changed (más acoplado, y el One-shot igual necesita un Callable); conservar los bools y sincronizarlos mejor (seguían siendo copias).
+
+**Prueba:** Rama worktree-m13-14. Headless 4.7.2: run_all 440 tests/2949 checks, acp_session_check 171, oneshot_check 140, 0 fallos. Xvfb: --godot-agent-oneshot-test (dock en modo run, «Resume One-shot», solo la pestaña del run en modo One-shot), --godot-agent-i18n-test con es (LayoutCheck.composer_fits con y sin turno en curso) y --godot-agent-queue-test (composer con turno largo, Esc/cancel), todos PASS. test_composer.test_enter_while_busy_and_insert_text le presta un Callable al composer.
+
+**Notas:** composer.gd: fuera _busy y _oneshot_active; entran `busy_provider: Callable` y `oneshot_provider: Callable` (el dock le da model.is_busy y su _is_oneshot_active; nombres como mention_provider, por revisión de a3, commit cea9a51) y refresh_state() en lugar de set_busy/set_oneshot_active. _update_placeholder solo escribe si cambia el texto (refresh_oneshot llega con cada `changed` del run). agent_dock.gd: fuera _oneshot_active; entra `oneshot_active: Callable` que pone el plugin en _wire_oneshot (por id, como can_switch_session), _is_oneshot_active() y refresh_oneshot() (el listener de _oneshot.changed lo llama). Commits: 415ca35 + cea9a51 en worktree-m13-14; revisada por a3 (aprobada). Quedan como copias empujadas, fuera de alcance: set_enabled (STARTING), set_unavailable, set_locked y set_screenshot_available del composer; y can_switch_session en el plugin es el complemento de oneshot_active (podrían unificarse). No toca oneshot_run.gd ni las líneas de FAILED/login_required del dock.
+
+**Relacionadas:** Sesión: LOGIN_REQUIRED como estado y tabla de transiciones
+
+### One-shot: restore() durante una evaluación no vuelve a la sesión del que construye · Revisión
+
+**Prioridad:** alta · **Tamaño:** S · **Responsable:** agent-harness-d5
+
+Lo encontró d5 mientras hacía m13-12: si se hace «Volver acá» (restore) con el evaluador corriendo, el run no vuelve a la sesión del generador (`_generator_session_id`) y queda en la sesión del evaluador. Arreglarlo sobre sm/m13-12 (RunStage ya hace explícita la evaluación), con test en oneshot_check.gd o unitario.
+
+**Decisiones:**
+- ! La vuelta a la sesión del que construye se hace al empezar el próximo turno del que construye (_run_turn), no dentro de restore(); la vuelta de QA abandonada no cuenta (qa_round = vueltas con resultado), y la guía espera mientras se evalúa · sin revisar
+  Por qué: restore() puede caer mientras _evaluate abre la sesión del evaluador: cambiar de sesión ahí competiría con esa apertura. En _run_turn cubre «Retomar», guiar y aprobar por un solo lugar, y también guiar con la QA en pausa. Una vuelta sin veredicto no debería gastar una de las qa_max_rounds.
+  Descartado: Volver al generador dentro de restore(); reabrir como run de disco (_recovered_session_id), que crea otra pestaña con prepare_session; contar la vuelta abandonada
+
+**Prueba:** Rama sm/m13-12, commit 447c521 (encima de 39e42a6). Escenario nuevo «evaluador y volver acá» en tests/oneshot_check.gd: restore() con el evaluador jugando → PAUSED + BUILDING, la vuelta no cuenta, el evaluador deja sus permisos, se guarda la sesión del que construye; «Retomar» reabre esa sesión (sin session/load, con el resumen) y no le habla al evaluador. Sin el arreglo fallan 4 de esos checks. import ok; run_all 446/3072 0 fallos; acp_session_check 171/0; oneshot_check 151/0 (dos corridas solas; una corrida en paralelo con sm/integration dio fallos falsos por user:// compartido, ver la regla de flock de f3).
+
+**Notas:** - La vuelta al generador va en _run_turn (un solo lugar para Retomar, guiar y aprobar), no en restore(): restore puede caer mientras _evaluate abre la sesión del evaluador.
+- restore() en EVALUATING: etapa BUILDING y qa_round = qa_results.size().
+- guide() en EVALUATING encola (antes, sin turno en vuelo, mandaba el texto del usuario a la sesión del evaluador).
+- También van las dos notas de la revisión de f3 a m13-12: _finish → etapa BUILDING; _apply → _phase_since_ms = 0.
+- Sigue abierto, no arreglado: pausar durante _back_to_generator después de un veredicto deja la etapa en EVALUATION, y «Retomar» repite la vuelta (el veredicto ya está en qa_results). Lo mismo si se pausa mientras _run_turn vuelve al generador: el turno se manda igual.
+
+### One-shot: pausar mientras _after_qa vuelve al generador repite la vuelta de QA · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** agent-harness-d5
+
+Lo dejó abierto d5 en m13-15: si el usuario pausa justo cuando _after_qa ya tiene el veredicto y está volviendo a la sesión del que construye, «Retomar» repite la vuelta de QA en vez de seguir construyendo con el veredicto. Arreglarlo sobre sm/m13-12 con un escenario en oneshot_check.gd.
+
+**Decisiones:**
+- ! Con el veredicto guardado, la etapa vuelve a BUILDING antes de volver al que construye. Si se pausa en ese momento, la corrección queda primera en la cola de guía (sale después del turno de «Retomar»); si el veredicto cierra el run (pasa, sin vueltas o sin presupuesto), termina igual aunque se haya pausado · sin revisar
+  Por qué: La vuelta ya tiene resultado en qa_results: repetirla gasta una vuelta y tokens. La cola de guía ya se guarda con el run y es como salen los otros avisos del harness después de una pausa; un campo nuevo para la corrección pendiente sería otro flag.
+  Descartado: Guardar la corrección pendiente en un campo propio y mandarla como prompt de «Retomar»; quedar en pausa también cuando el veredicto cierra el run
+
+**Prueba:** Rama sm/m13-12, commit 23726ee (encima de 447c521). Escenario nuevo «evaluador y pausa después del veredicto» en tests/oneshot_check.gd: se pausa mientras se vuelve al que construye con la vuelta 1 ya decidida → PAUSED + BUILDING, la vuelta 1 tiene su veredicto; «Retomar» manda la corrección y la siguiente evaluación es la vuelta 2 (sin repetir la 1), termina «QA round 2: the game passes.». Sin el arreglo fallan 5 checks (se repite la vuelta 1). Con flock: import ok; run_all 446/3072 0 fallos; acp 171/0; oneshot_check 158/0 (159 con el commit 9c67aa0 de la revisión de a3 a m13-15).
+
+**Notas:** - Con el veredicto en qa_results, la etapa pasa a BUILDING antes de _back_to_generator.
+- Pausado mientras volvía: la corrección (con el resumen si la sesión es nueva) queda primera en la cola de guía; sale después del turno de «Retomar». Si el veredicto cierra el run, termina igual.
+- String nuevo con su traducción en es.po: "QA round %d: the fixes are sent to the builder when the run resumes".
+- Aparte, 9c67aa0 aplica la revisión de a3 a m13-15: _run_turn no manda el turno si se pausó o se detuvo mientras volvía al que construye, y _evaluate no abre la sesión del evaluador si se pausó mientras reabría la del agente.
+
+### Tests: cada checkout usa su propia carpeta en user:// · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** agent-harness-a3 · **Etiquetas:** `tests`
+
+user:// es la misma carpeta para todos los worktrees del proyecto (~/.local/share/godot/app_userdata/<nombre>), así que oneshot_check, acp_session_check, los unit tests (temp_dir) y los checks del dev plugin se pisan cuando dos copias corren a la vez: dieron entre 2 y 17 fallos falsos de cuota, checkpoints y recuperación. Hacer que cada checkout use una subcarpeta propia (p. ej. user://<carpeta>/<md5 de res://>/…) con un helper común, sin cambiar lo que prueban. Mientras tanto se corre con `flock /run/user/1000/agent-harness-tests.lock`.
+
+**Decisiones:**
+- ! Redirigir user:// de todo el proceso con use_custom_user_dir en tiempo de ejecución (helper tests/test_user_dir.gd llamado por cada punto de entrada) en lugar de cambiar cada ruta user:// de los tests · sin revisar
+  Por qué: Godot lee use_custom_user_dir/custom_user_dir_name en cada resolución de user:// (comprobado en 4.7.2 y 4.8-beta2), así que un set_setting al arrancar basta y cubre también lo que el addon escribe en user:// (historial, store del One-shot, shim) y las carpetas de los 30 tests sin tocarlos. La carpeta es <por defecto>/checkouts/<md5 de res://>-<major.minor>: la misma para los procesos hijos del checkout (agente falso, login), y distinta por versión de Godot. set_initial_value evita que ProjectSettings.save() (autoload de playtest, run_check) escriba el override en project.godot; test_user_dir lo vigila. En el editor lo aplica el plugin de dev solo con argumentos --godot-agent-*, cargando el helper por ruta (sin dependencia dura de tests/), así el editor abierto a mano no cambia.
+  Descartado: Helper que devuelve user://<hash>/… y reemplazar las ~35 rutas en tests y checks (más diff, se olvida fácil en tests nuevos y no cubre lo que escribe el addon). Reordenar los plugins para aplicar antes en el editor: toca project.godot del test bed, y no hace falta porque las rutas del addon se resuelven al usarlas (el shim en cada session/new). Mantener el flock: mitiga pero no aísla.
+
+**Prueba:** tests/unit/test_user_dir.gd: user:// termina en checkouts/<md5>-<major.minor> bajo la carpeta por defecto del proyecto, lo escrito cae adentro, apply() es idempotente, y ProjectSettings.save_custom() no guarda el override. Las tres suites a la vez y SIN flock, en el worktree: run_all 457 tests/3348 checks 0 fallos; acp_session_check 175/0; oneshot_check 140/0 (4.7.2). test_user_dir también en 4.8-beta2 (4/13, 0 fallos). Editor en Xvfb: --godot-agent-login-test PASS (el editor y el agente falso comparten el marcador user://fake_login_ok en la carpeta nueva). Carpeta creada: ~/.local/share/godot/app_userdata/Godot Agent Harness (dev)/checkouts/8277b675-4.7/.
+
+**Notas:** Rama sm/m13-17 (base sm/integration 55c41e6), commit 9125c7a. Helper tests/test_user_dir.gd (apply() y checkout_tag()); lo llaman run_all, acp_session_check, oneshot_check (solo la const y la primera línea de _initialize, avisado a d5), fake_agent, claude_smoke_check, extensions_cli_check, skills_session_check, subagents_session_check, run_completion_eval, plugin_cycle_check y export_check; el plugin de dev lo carga por ruta en _enter_tree cuando hay un argumento --godot-agent-*. Sin cambios en lo que prueban: las rutas user:// de los tests quedan como estaban. CONTRIBUTING.md lo explica en el párrafo de los checks. Sin CHANGELOG (no cambia nada para el usuario). Después de integrar, el flock deja de hacer falta.
+
+### oneshot_check y los checks de Xvfb fallan si queda algo en el canal state · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** agent-harness-3c · **Etiquetas:** `tests`
+
+Hoy solo acp_session_check (por escenario) y los unit tests comprueban que un flujo real no deje transiciones inesperadas en el canal `state` del Agent Log. Agregar el mismo _check_transitions a oneshot_check.gd (por escenario) y a los checks del dev plugin que corren en CI o tocan las máquinas (run-test, review-test, external-test, oneshot-test, login-test, queue-test), para que una tabla incompleta salga en CI y no en el uso real. Lo encontró 3c escribiendo D61.
+
+**Decisiones:**
+- ! _check_transitions por run en oneshot_check (desde _make, al final de la corrida) y _finish_checking_state solo en los checks del dev plugin que mueven las máquinas (run, review, external, oneshot, login, queue); los demás siguen con _finish (registrado por a3 en el cierre del tablero, a partir de las notas de 3c) · sin revisar
+  Por qué: Guardar {scenario, log} en _make cubre cualquier escenario nuevo sin tocarlo; el AgentLog es RefCounted y sobrevive al run. En el editor, el chequeo lee el log acumulado de toda la corrida, así que se aplica solo donde el flujo mueve sesión, juego o One-shot; i18n, sessions, history, crash y cycle no mueven las máquinas o producen transiciones a propósito y fallarían sin motivo.
+  Descartado: Chequear dentro de cada escenario (se olvida en los nuevos); aplicar _finish_checking_state a todos los checks del dev plugin (falsos positivos en los que fuerzan transiciones).
+
+**Prueba:** Rama sm/m13-18 (b286b54, rebaseada sobre sm/integration 3c7efe3). Headless 4.7.2: oneshot_check 176 checks, 0 fallos (17 nuevos: uno por run que arma _make, incluidos los escenarios de m13-15/16). Xvfb: run-test, review-test, external-test, oneshot-test, login-test y queue-test PASS, ninguno dejó líneas en el canal state. Para ver que falla: una transición fuera de tabla en cualquiera de esos flujos imprime "[<tag>] FALLA canal state: <máquina>: unexpected transition A -> B" y el check sale con 1.
+
+**Notas:** oneshot_check.gd: _make guarda {scenario, log} de cada run en _logs (el AgentLog es RefCounted y sobrevive al run) y _initialize, después del último escenario, llama _check_transitions(log, scenario) por cada uno, con el mismo label que acp_session_check. Nada cambia dentro de los escenarios: cualquier escenario nuevo que use _make queda cubierto. Si un escenario armara su propio SessionController sin _make, no se revisa. Dev plugin: _finish_checking_state(code, message, tag) lee _log del plugin principal (MAIN_PLUGIN_SCRIPT) y, si hay entradas en CH_STATE, las imprime con el tag del check y termina con 1 aunque el resto haya pasado; reemplaza el _finish final de run, review, external, oneshot, login y queue. Los demás checks (i18n, sessions, history, crash, cycle…) siguen con _finish a secas: no mueven las máquinas o producen transiciones a propósito. Lee el log acumulado de toda la corrida del editor, así que una transición inesperada de otro flujo anterior en el mismo editor también cuenta (en estos checks es el único flujo).
+
+### Los checks del editor dejan project.godot como estaba · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Responsable:** agent-harness-a3 · **Etiquetas:** `tests`
+
+Correr los checks de Xvfb (run-test y otros) reescribe project.godot del checkout: saca scope_compass de editor_plugins/enabled y, en 4.8, cambia config/features a "4.8". Pasa en 4.7.2 y en 4.8-beta2; cada sesión lo tenía que restaurar a mano con git checkout, y es fácil commitearlo sin querer (me pasó en la integración). Hacer que el dev plugin guarde el contenido de project.godot al empezar un check y lo restaure al terminar (también si falla), sin tocar el autoload temporal de playtest ni el override de user:// de m13-17.
+
+**Decisiones:**
+- ! Restaurar project.godot desde el lanzador (tests/run_in_xvfb.sh y plugin_cycle_check.gd), no desde el dev plugin; external-test guarda los ajustes antes de leer project.godot · sin revisar
+  Por qué: Probé primero guardar el texto en _enter_tree del dev plugin y reponerlo en _finish/_exit_tree: en 4.7.2 funciona, pero en 4.8 el editor guarda project.godot (config/features "4.8") antes de cargar los plugins, así que la foto ya está cambiada y queda el archivo sucio. El lanzador corre antes y después del editor, cubre todas las escrituras (arranque, checks que guardan, cierre) y también el timeout o un fallo, con trap EXIT. Además, con el archivo siempre restaurado apareció un fallo preexistente en 4.7.2: external-test leía project.godot con un plugin que el checkout no tiene (en los worktrees falta el symlink de scope_compass) mientras la memoria ya no lo tenía, y EditorSync aplicaba también editor_plugins/enabled; antes pasaba porque la primera corrida dejaba el disco "arreglado". Un ProjectSettings.save() antes de leer lo sincroniza.
+  Descartado: Solo el dev plugin (lo que pedía la tarea): insuficiente en 4.8. Dev plugin + lanzador: dos mecanismos para lo mismo, y el del plugin daría un mensaje engañoso en 4.8. git checkout en el lanzador: ata los checks a git y pisaría cambios locales no commiteados. Quitar scope_compass de project.godot: es del test bed del usuario, no de los checks.
+
+**Prueba:** Con el commit, cada check seguido de `git status` sin cambios en project.godot: 4.8-beta2 external-test PASS y run-test PASS; 4.7.2 external-test PASS, run-test PASS y plugin_cycle_check PASS (5 ciclos sin huérfanos); run_all -- addon_scripts 0 fallos. Control: sin el ProjectSettings.save() de external-test, el check falla en 4.7.2 de forma determinista sobre bd54ee1 («tenía que aplicar solo lo que cambió», con editor_plugins/enabled de más).
+
+**Notas:** Rama sm/m13-19 (base bd54ee1), commit 5519a22. tests/run_in_xvfb.sh copia project.godot antes de abrir el editor y lo repone con trap EXIT si cambió (también por fallo o timeout; sin exec, conserva el código de salida); plugin_cycle_check.gd hace lo mismo alrededor del editor que lanza; el dev plugin solo suma un ProjectSettings.save() en _run_external_test antes de leer project.godot. No va en el dev plugin como pedía la descripción: en 4.8 el editor guarda config/features antes de cargar los plugins (ver la decisión). No toca el autoload de playtest ni el user:// de m13-17 (son ajustes en memoria). Sin CHANGELOG: solo tests.
+
+### queue-test y login-test fallan con GODOT_AGENT_LANGUAGE=es · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Responsable:** agent-harness-d5 · **Etiquetas:** `tests`
+
+Los dos checks del dev plugin buscan botones por su texto en inglés, así que con la interfaz en español fallan (igual en main que en sm/integration: no es regresión de M13). Por eso esas pantallas no tienen captura en español en el tour de UX. Buscar los botones por nombre de nodo o por el msgid traducido con I18n.t(), para que los dos checks corran en ambos idiomas. Lo encontró 3c en el tour de UX de M13.
+
+**Decisiones:**
+- ! Los checks del dev plugin buscan los botones por I18n.t() del msgid del addon, no por nombre de nodo; «Cuenta falsa» (nombre del método de auth falso) no se traduce (registrado por a3 en el cierre del tablero, a partir de las notas de d5) · sin revisar
+  Por qué: Comparar con I18n.t() del mismo msgid que usa el addon hace que el check pase en cualquier idioma sin cambiar la UI ni agregar nombres de nodo solo para tests; si el addon cambia el texto, la copia del check queda desfasada, y para eso m13-23 hace que test_i18n lo detecte en los unit tests. «Cuenta falsa» es un dato del agente falso, no un texto del addon.
+  Descartado: Nombrar los nodos de los botones para buscarlos por nombre (toca la UI por los tests); forzar GODOT_AGENT_LANGUAGE=en en esos checks (dejaba la UI en español sin cobertura).
+
+**Prueba:** Xvfb con GODOT_AGENT_LANGUAGE=en y =es: login-test, queue-test y oneshot-test PASS en los dos. run_all 457 tests/3352 checks 0 fallos, acp_session_check 175/0, oneshot_check 176/0.
+
+**Notas:** Rama sm/m13-20, commit fd18a55 (base bd54ee1). plugin.gd: 3 líneas con I18n.t ("Paste code…", "Open link", "Send now"); "Cuenta falsa" es el nombre del método de auth falso y no se traduce. oneshot_ui_check.gd: 35 comparaciones con I18n.t (formatos con % args o el prefijo antes de %s). Banner y regla de cuota ahora se comparan enteros (antes, prefijo).
+
+### El globo del usuario se parte letra por letra en el dock · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** agent-harness-d5 · **Etiquetas:** `ux`
+
+En las capturas del tour de UX de M13 (d5), el globo del mensaje del usuario con «hola» se muestra partido («h / ol / a»): el ancho del globo colapsa. Pasa igual en main (074267d) y en sm/integration, así que es anterior a M13. Capturas: scratchpad de d5, ux/out/{main,int}/{en,es}/d5_03..05 y d5_08. Reproducir con el agente falso, encontrar por qué el ancho mínimo del globo es casi cero y arreglarlo, con un chequeo en layout_check.
+
+**Decisiones:**
+- ! El ancho mínimo del globo del usuario suma get_minimum_size().x del stylebox del Label; LayoutCheck.user_bubble_fits lo verifica en i18n-test y remote-test (registrado por a3 en el cierre del tablero, a partir de las notas de d5) · sin revisar
+  Por qué: _fit_width ponía el mínimo en ancho del texto + 2 px, pero el estilo `normal` del Label en el tema del editor tiene 6 px de margen por lado: el texto quedaba con ~11 px y WORD_SMART lo partía letra por letra. En headless (tema por defecto, sin márgenes) no se reproduce, por eso el chequeo va en los checks de Xvfb y no en un unit test.
+  Descartado: Un margen fijo mayor (se rompe con otro tema); desactivar el autowrap en globos cortos (cambia el comportamiento de los largos).
+
+**Prueba:** Xvfb: remote-test en/es PASS e i18n-test (es) PASS con el chequeo nuevo LayoutCheck.user_bubble_fits; sin el arreglo, remote-test/en falla: "3 líneas (lugar para el texto 11 px, el texto pide 21)". run_all 457/3352 0 fallos, acp_session_check 175/0, oneshot_check 176/0. Capturas antes/después: scratchpad d5 m1321_antes_despues.png.
+
+**Notas:** Rama sm/m13-21, commit 2bcd174 (base bd54ee1). Causa: _fit_width de user_message_view ponía el mínimo del Label en ancho del texto + 2 px, pero el estilo `normal` del Label en el tema del editor tiene 6 px de margen por lado; el texto quedaba con ~11 px y WORD_SMART lo partía. En headless (tema por defecto, sin márgenes) no se reproduce. Arreglo: sumar get_minimum_size().x del stylebox. Línea en CHANGELOG (Fixed).
+
+### La tarjeta de crash del agente vuelca el prompt de sistema entero · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Responsable:** agent-harness-a3 · **Etiquetas:** `ux`
+
+Cuando el agente se cae, la tarjeta muestra la cola de su stderr (_stderr_tail en session_controller), y con claude-agent-acp eso incluye el prompt de sistema entero en JSON: es demasiado largo para una tarjeta de error y tapa la causa. Lo vio d5 en el tour de UX de M13 (d5_02, igual en main). Recortar los detalles a las últimas líneas útiles, o plegar las líneas JSON largas, y dejar el texto completo en el Agent Log.
+
+**Decisiones:**
+- ! Recortar cada línea del stderr a 160 caracteres (principio de la línea + «… N more characters, see the Agent Log»), sin plegado ni filtro por contenido; ui-test=crash con rama propia en vez de un check nuevo · sin revisar
+  Por qué: El principio de una línea larga es lo que dice qué es («fake_agent: prompt {…», «initialize {…»); plegar/desplegar en la tarjeta exigiría UI nueva para un caso raro, y la línea entera ya está en el Agent Log a un clic («Open the log below»). Filtrar por «parece JSON» se rompe con stack traces largos o líneas de log con JSON útil; el recorte por largo vale para todas. 160 caracteres son dos o tres renglones de monoespaciada en el dock. El ui-test genérico esperaba una respuesta del agente y con el guion crash cortaba por timeout: una rama al principio para ese guion (prompt → FAILED → captura → verificación) es más chica que otro flag del plugin de dev.
+  Descartado: Plegar las líneas JSON largas con un botón «ver más» en la tarjeta; descartar las líneas que parecen JSON; mostrar solo la última línea; un flag --godot-agent-crash-card-test aparte.
+- ! Revisión de d5: la cola de stderr se guarda ya redactada (AgentLog.redact(), el mismo reemplazo que add()) y sin líneas vacías; las líneas del log en la tarjeta empiezan plegadas con Show/Hide; Copy copia lo que se ve (recortado) · sin revisar
+  Por qué: Redactar al guardar en _on_stderr deja un solo lugar sin secretos (tarjeta, Copy y cualquier uso futuro de _stderr_tail) y evita el caso en que el recorte a 160 caiga en medio del token y deje su principio a la vista; redactar después de recortar no lo cubriría. Plegado por defecto (preferencia de d5 y f3): en una caída real la causa va en el texto de la tarjeta (Segmentation fault, Cannot find module) y cuatro líneas recortadas seguían ocupando unas 25 filas en el dock angosto; Show las abre sin salir del chat. Copy copia el texto recortado y redactado: la línea entera está en el Agent Log a un clic y guardar una copia sin recortar en ChatEntry duplicaría estado por una comodidad menor.
+  Descartado: Redactar solo en la tarjeta al mostrar (dejaba _stderr_tail con el token); menos líneas y más cortas (4 de 100) en vez del plegado; un campo details_full en ChatEntry para que Copy copie las líneas enteras redactadas.
+
+**Prueba:** tests/unit/test_agent_crash_card.gd (6 tests): recorte de una línea JSON de 3000 caracteres con el principio y «… N more characters, see the Agent Log»; las cortas tal cual y las vacías fuera; solo las últimas STDERR_TAIL; por _fail_agent la tarjeta tiene 3 líneas con la causa visible y el Agent Log conserva la línea entera; un token registrado con add_secret no aparece en la tarjeta ni entero ni su principio (caso con el token cruzando el corte en la posición 150), ni en _stderr_tail ni en el log; las líneas vacías no ocupan lugar en la cola. test_notice_view: las líneas empiezan plegadas, Show las abre y pasa a Hide, un refresh no las vuelve a plegar. run_all 463 tests/3382 checks 0 fallos; acp_session_check 175/0; test_i18n ok. Xvfb 4.7.2: --godot-agent-ui-test=crash PASS (717 caracteres, 4 líneas; verifica además que ni la tarjeta ni la cola del controller tienen el token del server MCP y que la cola tiene la línea de session/new redactada). Capturas en el scratchpad de la sesión a3 (/tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/): m13-22_before.png (la tarjeta ocupa el dock con el JSON del prompt), m13-22_after.png (recorte sin plegar, versión 70384a4) y m13-22_after_v2.png (plegada: título, causa, «Last lines of the log · Show · Copy» y las acciones). Se regeneran con tests/run_in_xvfb.sh godot --godot-agent-ui-test=crash --godot-agent-ui-shot=<ruta.png>.
+
+**Notas:** Rama sm/m13-22 (base bd54ee1), commits 70384a4 + c467b69 (revisión de d5). SessionController.stderr_summary() estática y STDERR_LINE_CHARS = 160; _on_stderr guarda la cola ya redactada con AgentLog.redact() (lo mismo que aplica add()) y sin líneas vacías; _fail_agent usa el resumen en entry.details. NoticeView: «Last lines of the log» plegadas por defecto con botón Show/Hide (msgids Show/Hide nuevos en es.po); Copy copia lo que se ve. ui-test=crash: rama al principio de _run_ui_test (_check_crash_card), antes cortaba por timeout. CHANGELOG (Unreleased › Changed). Fuera de alcance, visto por d5: en la misma caída salen dos tarjetas («The turn ended with an error … (-32000)» y «<agente> stopped»); viene de antes.
+
+### test_i18n también revisa los textos del dev plugin · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Responsable:** agent-harness-d5 · **Etiquetas:** `tests`
+
+Desde m13-20 los checks del dev plugin (addons/godot_agent_dev) comparan con I18n.t("…") textos copiados del addon. test_i18n solo recorre addons/godot_agent, así que si el addon cambia un texto, la copia del check queda desfasada sin que ningún unit test lo vea (el check falla recién en Xvfb). Hacer que test_i18n recorra también addons/godot_agent_dev y exija que cada msgid usado con I18n.t() exista en es.po, sin pedir traducción para lo que el dev plugin no muestra. Lo propuso 3c en la revisión de m13-20.
+
+**Decisiones:**
+- ! test_i18n recorre también addons/godot_agent_dev: cada I18n.t() del dev plugin tiene que estar en es.po, pero no cuenta como uso para la regla de entradas sin usar, y el test exige más de 30 llamadas para no pasar vacío (registrado por a3 en el cierre del tablero, a partir de las notas de d5) · sin revisar
+  Por qué: Desde m13-20 los checks comparan con copias de textos del addon; si el addon cambia uno, la copia quedaba desfasada y el check fallaba recién en Xvfb. Que el dev plugin no cuente como uso evita que un texto que el addon dejó de usar sobreviva en es.po solo porque un check lo nombra. El mínimo de 30 detecta un barrido vacío (ruta mal escrita). No compara formatos porque el test del addon ya lo hace sobre la misma entrada.
+  Descartado: Que los checks importen las constantes del addon en vez de copiar textos (no hay constantes: son literales en I18n.t); un test aparte en el dev plugin (los unit tests no corren el dev plugin).
+
+**Prueba:** run_all 458 tests/3354 checks 0 fallos (test nuevo test_i18n.test_dev_plugin_texts_are_in_the_catalog). Prueba de desfase: con I18n.t("Review the spec") en oneshot_ui_check.gd el test falla y nombra el texto y el archivo; revertido. acp_session_check 175/0, oneshot_check 176/0.
+
+**Notas:** Rama sm/m13-23, commit 27b1c0b (base 650e2ef). Solo tests/unit/test_i18n.gd: DEV_DIR = addons/godot_agent_dev; cada msgid de I18n.t("…") del dev plugin tiene que estar en es.po con traducción. No cuentan como uso para la regla de entradas sin usar: si el addon deja de usar un texto, salta igual como sin usar. Hoy el dev plugin usa 60 llamadas (auto, review, oneshot_ui, remote, plugin); el test exige más de 30 para no pasar vacío. No compara formatos (eso ya lo hace el test del addon sobre la misma entrada).
+
+### Una caída del agente muestra dos tarjetas de error · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Responsable:** agent-harness-d5 · **Etiquetas:** `ux`
+
+Cuando el proceso del agente se cae en medio de un turno, el chat muestra dos tarjetas: «The turn ended with an error: The agent exited (code 9). (-32000)» con Retry/Open the log, y «<agente> stopped» con el stderr, Retry y Open the log. Es la misma causa dicha dos veces, con dos Retry. Pasa igual en main. Dejar una sola (la del crash, que tiene la causa y el log) y que el fin del turno por la caída no agregue la suya. Test en acp_session_check (escenario crash) contando las tarjetas de error. Lo vio d5 revisando m13-22; va encima de m13-22 porque toca session_controller.gd.
+
+**Decisiones:**
+- ! Sin flag: _on_process_exited pone FAILED con la tarjeta antes de fallar los requests pendientes, y send_prompt, si model.has_failed(), solo anota el turno cortado y llama a finish_turn("error") sin cambiar el estado (PROMPTING → FAILED, sin READY intermedio) (registrado por a3 en el cierre del tablero, a partir de las notas de d5; «sin flag» lo pidió f3) · sin revisar
+  Por qué: La misma caída producía dos tarjetas con dos Retry: la del turno cortado y la del proceso. Ordenar las cosas (primero el estado y la tarjeta de la caída, después los requests) deja que quien recibe el error pregunte por el estado en vez de llevar un flag más, que es justo el tipo de estado escondido que M13 saca. Evitar el READY intermedio mantiene la máquina de estados fiel a lo que pasó.
+  Descartado: Un flag «ya se avisó la caída» consultado en send_prompt (descartado por f3: estado escondido); suprimir la tarjeta del proceso y dejar la del turno (pierde el stderr y el título con la causa).
+
+**Prueba:** acp_session_check 179/0: el escenario crash exige una sola tarjeta de error (la de la caída), turn_finished una vez con "error", la tarjeta después del mensaje del usuario y los estados PROMPTING → FAILED sin READY. Sin el arreglo falla con las dos tarjetas. run_all 463/3382/0, oneshot_check 176/0, ui-test=crash PASS en en y es (captura: una sola tarjeta, plegada).
+
+**Notas:** Rama sm/m13-24, commit 76ca585 (rebasada sobre 64ed939, el m13-22 final de a3). _on_process_exited llama a _fail_agent (FAILED y la tarjeta) antes de client.fail_all_pending. En send_prompt, si model.has_failed(), el turno cortado solo se anota en el log y llama a finish_turn("error"), que emite turn_finished y no cambia el estado. Sin flag (lo pidió f3). La caída durante initialize va en m13-26. Línea en CHANGELOG (Fixed).
+
+### Barrido: ¿por dónde más puede salir un secreto sin redactar? · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Responsable:** agent-harness-a3 · **Etiquetas:** `security`
+
+La tarjeta de crash mostraba el stderr del agente sin pasar por la redacción del Agent Log, y podía exponer el token del servidor MCP (con botón Copy). Pasaba en v0.1.17 publicada; m13-22 lo arregla con AgentLog.redact(). Revisar el resto de los caminos por donde texto del agente, de su proceso o del harness llega a la UI, al portapapeles o al disco sin redactar: failure_message y su tooltip, el historial de sesiones (session_history), los informes y la actividad del One-shot, el export de Settings, los avisos y las notices con details, el Copy de los bloques, los logs de los checkpoints o de git. Por cada camino: redactar con AgentLog.redact() o justificar por qué no hace falta, con un test por cada arreglo. Si algo es grave, avisar antes de seguir.
+
+**Decisiones:**
+- ! Redactar en un solo punto de entrada (AcpClient) las notificaciones y respuestas del agente, nunca los params de sus requests; lo que de un request se muestra se redacta en la copia (PermissionBroker); los mensajes de fallo y el historial reproducido se redactan en destino; las keys del entorno del perfil se registran como secretos · sin revisar
+  Por qué: Lo que el agente cuenta o repite (chunks, tool results, errores que citan la configuración) llega por JSON-RPC a muchos destinos (modelo/UI, historial en disco, One-shot, tarjetas); redactarlo al entrar cubre todos con un cambio. Pero un request del agente al cliente (fs/write_text_file, terminal/create, elicitation) es una acción: redactar sus params habría escrito «secret» en un .env con la key del usuario o corrido un comando alterado (bloqueante de f3, señalado también por 3c). Por eso los requests entran intactos y solo se redacta su copia visible (tool call del modelo, título, descripción y diff de la tarjeta de permiso; también en authorize(), que es la tarjeta de las escrituras del fs y de los comandos). failure_message/_fail/_fail_agent no vienen todos del agente (error del proceso, stderr): se redactan ahí. Un historial grabado antes se reproduce redactado. Las variables de entorno del perfil (API keys resueltas de $VAR) no eran secretos registrados: se registran al arrancar si el nombre dice key/token/secret/password/auth y el valor tiene ≥ 8 caracteres. Las tools MCP (godot.*) entran por mcp_server.gd y escriben el proyecto por diseño, igual que fs/write_text_file: no se redactan; sus resultados al log sí (add). El export de Settings no es un volcado de ajustes y los perfiles guardan nombres de variables, no valores; git no imprime credenciales en lo que leemos; el shim y session/new llevan el token al agente por diseño.
+  Descartado: Redactar todo mensaje al entrar, requests incluidos (descartado: rompe trabajo legítimo). Redactar en cada destino por separado (modelo, historial, One-shot, informe…): más lugares que olvidar. Redactar el contenido de fs/write_text_file (descartado: corrompe el archivo sin avisar). No registrar las keys del entorno del perfil (descartado: el agente las repite en stderr y en errores).
+
+**Prueba:** tests/unit/test_secret_redaction.gd (9 tests): redact_data recorre diccionarios, arrays y PackedStringArray sin tocar el original; AcpClient redacta una notificación (tool result con el token), una respuesta de error que lo cita y el log, y deja intactos los requests (fs/write_text_file, terminal/create, request_permission); _fail y _fail_agent redactan tarjeta y failure_message; start() registra las keys del entorno del perfil (≥ 8, nombre con key/token/secret/password/auth) y no las cortas ni las que no parecen secretas; un historial viejo se reproduce redactado; la tarjeta de permiso de session/request_permission muestra «secret» y responde con la opción elegida con los params originales intactos; de punta a punta con el FsHandler real: la tarjeta de la escritura muestra el diff redactado, el .env queda con la key de verdad y la notificación del tool call llega redactada. run_all 471 tests/3453 checks 0 fallos; acp_session_check 175/0; oneshot_check 176/0 (4.7.2). La verificación de los escritores de disco (historial .jsonl, store e informe del One-shot, commits de checkpoints) la hace 3c con tests en sm/m13-25-disk sobre esta rama.
+
+**Notas:** Rama sm/m13-25 sobre 64ed939 (m13-22): 76f8b1c + 5b1546e. Docs en sm/m13-25-docs (72b654e): PRIVACY en/es (sección Secretos), wiki How-it-works/Editor-tools en/es, SECURITY (aviso ≤ 0.1.17). Verificación de disco de 3c en sm/m13-25-disk (0cdbfa3, solo tests): escenarios «secrets» en acp_session_check (9 checks: modelo, .jsonl e index del historial, replay, Agent Log) y «secretos» en oneshot_check (10: etiquetas y git log de checkpoints, JSON del store e informe, RunReport.to_markdown, actividad, archivos del run, chat); sobre c467b69 fallaban 5 y 7 aserciones, sobre 5b1546e 0. Hallazgo real abierto en v0.1.17: todo lo que el agente mandaba por JSON-RPC (un error que cita los mcpServers con el header Authorization, un tool result que muestra GODOT_AGENT_MCP_TOKEN del shim, texto que repite una key) llegaba sin redactar al modelo/UI, al historial en disco, al One-shot (actividad, informe, run guardado) y a las tarjetas. Arreglo: AgentLog.redact_data() y AcpClient.receive_line la aplica a notificaciones y respuestas; los params de los requests del agente nunca se tocan (bloqueante de f3: escribir «secret» en un .env o correr un comando alterado); la copia visible de un request se redacta en PermissionBroker (on_request_permission y authorize()). _fail/_fail_agent redactan; reopen() reproduce el historial con redact_data(); AgentProfile.secret_env_values registra las keys del entorno del perfil al arrancar. Justificados sin cambio: Agent Log y sus Copy, Copy de la tarjeta de caída (m13-22), export de Settings (no es un volcado; los perfiles guardan nombres de variables), checkpoints/git, shim stdio y session/new (llevan el token al agente por diseño), tools MCP godot.* (escriben el proyecto por diseño, resultados al log redactados), elicitation (el enlace tiene que seguir sirviendo). Nota de 3c, a propósito: record_prompt guarda el texto del usuario tal cual (si pega su propia key en el chat queda en el .jsonl: es su texto; PRIVACY lo dice). CHANGELOG: Unreleased › Fixed.
+
+### Una caída del agente durante initialize muestra dos tarjetas de error · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Responsable:** agent-harness-d5 · **Etiquetas:** `ux`
+
+Si el proceso del agente termina mientras el harness espera la respuesta de initialize, _on_process_exited falla el request pendiente y start() suma «<agente> didn't start», además de la tarjeta «<agente> stopped» de _fail_agent. Es la misma causa dos veces. Con m13-24, _fail_agent ya va antes de fail_all_pending, así que start() puede preguntar model.has_failed() y no sumar la suya. Pero hay que revisar qué ven quienes llaman a start() (failure_message, el estado). Hace falta un paso en fake_agent para caerse en initialize (p. ej. "initialize": {"exit": true}) y un escenario en acp_session_check que cuente las tarjetas. Lo encontró d5 en m13-24. Va encima de m13-24 porque toca session_controller.gd.
+
+**Decisiones:**
+- ! start(), open_session() y _load_session() preguntan model.has_failed() después del chequeo de generación y devuelven false sin sumar su tarjeta; _load_session evita el stop() que pasaba la sesión caída a DISCONNECTED; fake_agent con "exit_on": "<método>" (registrado por a3 en el cierre del tablero, a partir de las notas de d5) · sin revisar
+  Por qué: Con el orden de m13-24, cuando el request cortado vuelve, _fail_agent ya puso FAILED y la tarjeta: alcanza con preguntar por el estado en los tres puntos donde un request de arranque puede fallar por la caída, sin flag. El stop() de _load_session borraba el motivo (DISCONNECTED sin tarjeta); conservar FAILED deja Retry a la vista. "exit_on" en el agente falso reproduce la caída en initialize, session/new y session/load con un guion cada uno.
+  Descartado: Un flag compartido con m13-24 (descartado: estado escondido); filtrar la segunda tarjeta en el modelo al agregarla (esconde el problema en vez de evitarlo).
+
+**Prueba:** acp_session_check 194/0. Escenario nuevo crash_starting: el agente falso se cae en initialize, session/new y session/load (exit_on). En los tres, start() devuelve false con la sesión en FAILED y su failure_message, hay una sola tarjeta (la de la caída) y ninguna transición fuera de la tabla. Sin el arreglo fallan los tres con una segunda tarjeta («didn't start», «Could not open the session…», «Could not resume…»). run_all 463/3388/0, oneshot_check 176/0, ui-test=crash PASS en en y es (pila m13-22 + m13-24 + m13-26).
+
+**Notas:** Rama sm/m13-26, commit af34a03, encima de sm/m13-24 (76ca585), que a su vez va sobre 64ed939 (m13-22 final). Sin flag: con el orden de m13-24, _fail_agent ya puso FAILED y la tarjeta cuando el request cortado vuelve, así que start(), open_session() y _load_session() preguntan model.has_failed() después del chequeo de generación y devuelven false sin sumar su tarjeta. En _load_session, además, evita el stop() que pasaba la sesión caída a DISCONNECTED y borraba el motivo. fake_agent: clave "exit_on": "<método>" y tres guiones crash_*.json. Amplié la línea de CHANGELOG de m13-24 («during a turn or while the session starts»).
+
+### godot.profile_run: las funciones de GDScript más calientes de un run (bloqueada por el editor) · Pausado
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea a partir de github.com/DasDarki/grit (AOT de GDScript a C++): darle al agente las funciones más calientes de un run (tiempo propio y total, llamadas, y si están tipadas), para que proponga tipos o mover loops a APIs del motor con medición antes y después. Investigación de 3c en 4.7.2 y 4.8-beta2: hoy no se puede. ScriptEditorDebugger consume servers:profile_frame y no lo pasa a EditorDebuggerPlugin._capture, EditorDebuggerSession no tiene señal con esos datos, y desde el juego GDScript no puede leer los tiempos del ScriptsProfiler. El profiler duplica el costo de cada llamada (~95→190 ns). Caminos: (i) PR a Godot para que EditorDebuggerSession emita los frames del profiler, o que los plugins capturen mensajes ya manejados (primer paso recomendado); (ii) leer el Tree del panel Profiler: frágil, no; (iii) servidor de debug propio con --remote-debug: otra arquitectura de run_scene, no por ahora. Si está tipada se deduce leyendo el script (res://ruta.gd::línea::nombre). Integrar Grit mismo: no por ahora (motor parcheado, muy experimental).
+
+### Redacción de secretos: detalles que quedaron de m13-25 · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `security`
+
+No bloqueantes, de la revisión de d5 de m13-25.
+1) SECRET_ENV_NAME (agent_profile.gd) busca «key|auth|…» sin límites de palabra: GIT_AUTHOR_NAME o KEYBOARD_* en el env del perfil registran su valor como secreto, y p. ej. el nombre del usuario se taparía en todo el chat. Usar límites (^|_)(KEY|TOKEN|…)($|_) o una lista.
+2) elicitation/create es un request y no se redacta (bien para lo que se ejecuta), pero su formulario se muestra tal cual. Redactar la copia que se muestra, como en la tarjeta de permiso.
+3) Los session/update entran redactados, pero el MCP del harness recibe los args reales. find_godot_tool_call(tool_name, args) puede no emparejar una tool call cuyos args tengan un secreto. Revisar también que una regla «permitir siempre» no se guarde con «secret» (sale del ToolCall redactado del modelo) y después no coincida con el comando real.
+4) authMethods de la respuesta de initialize (args/env del login por terminal) entra redactado y se usa para ejecutar el login: confirmar que no puede llevar un secreto registrado.
 
 ## M12 — Que el agente se verifique solo  (8/8, 8 en revisión)
 
@@ -4963,7 +5247,7 @@ Una skill en el repo de marketplace dannroda/godot-agent-plugins (no en este rep
 
 **Prueba:** Revisado el commit 3286997 de godot-agent-plugins (gdextension 0.1.1): gdextension-cpp, gdextension-build y gdextension-debug explican cómo encontrar las tools (godot.methods / godot.run), el ciclo build_extension → test_extension → restart_editor y los archivos .crashed y .gdextension.disabled del supervisor, y sin las tools siguen con la shell. La otra sesión no corrió las tools desde la skill.
 
-**Notas:** Las skills: a11a5d4 (versión inicial) y 3286997 (usan las tools de la v0.1.17), en godot-agent-plugins. 3286997 está commiteado pero sin push: ese push lo confirma el usuario. Hay una diferencia entre los runners: sin carpeta de tests, el de test_extension solo comprueba la carga y sale con 0, mientras que el de la skill sale con 2 si no corrió ningún test. Se dejó así a propósito: test_extension también sirve para comprobar solo que una extensión carga.
+**Notas:** Las skills: a11a5d4 (versión inicial) y 3286997 (usan las tools de la v0.1.17), las dos en origin/main de godot-agent-plugins. Hay una diferencia entre los runners: sin carpeta de tests, el de test_extension solo comprueba la carga y sale con 0, mientras que el de la skill sale con 2 si no corrió ningún test. Se dejó así a propósito: test_extension también sirve para comprobar solo que una extensión carga.
 
 **Relacionadas:** Build nativo con errores por archivo
 

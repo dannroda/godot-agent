@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T23:27:10.710Z",
+  "decisions": [
+    {
+      "alternatives": "Nombrar los nodos de los botones para buscarlos por nombre (toca la UI por los tests); forzar GODOT_AGENT_LANGUAGE=en en esos checks (dejaba la UI en español sin cobertura).",
+      "at": "2026-11-10T00:23:10.791Z",
+      "text": "Los checks del dev plugin buscan los botones por I18n.t() del msgid del addon, no por nombre de nodo; «Cuenta falsa» (nombre del método de auth falso) no se traduce (registrado por a3 en el cierre del tablero, a partir de las notas de d5)",
+      "why": "Comparar con I18n.t() del mismo msgid que usa el addon hace que el check pase en cualquier idioma sin cambiar la UI ni agregar nombres de nodo solo para tests; si el addon cambia el texto, la copia del check queda desfasada, y para eso m13-23 hace que test_i18n lo detecte en los unit tests. «Cuenta falsa» es un dato del agente falso, no un texto del addon."
+    }
+  ],
+  "description": "Los dos checks del dev plugin buscan botones por su texto en inglés, así que con la interfaz en español fallan (igual en main que en sm/integration: no es regresión de M13). Por eso esas pantallas no tienen captura en español en el tour de UX. Buscar los botones por nombre de nodo o por el msgid traducido con I18n.t(), para que los dos checks corran en ambos idiomas. Lo encontró 3c en el tour de UX de M13.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-20, commit fd18a55 (base bd54ee1). plugin.gd: 3 líneas con I18n.t (\"Paste code…\", \"Open link\", \"Send now\"); \"Cuenta falsa\" es el nombre del método de auth falso y no se traduce. oneshot_ui_check.gd: 35 comparaciones con I18n.t (formatos con % args o el prefijo antes de %s). Banner y regla de cuota ahora se comparan enteros (antes, prefijo).",
+  "order": 20,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "Xvfb con GODOT_AGENT_LANGUAGE=en y =es: login-test, queue-test y oneshot-test PASS en los dos. run_all 457 tests/3352 checks 0 fallos, acp_session_check 175/0, oneshot_check 176/0.",
+  "title": "queue-test y login-test fallan con GODOT_AGENT_LANGUAGE=es",
+  "updated_at": "2026-11-10T00:23:10.791Z"
+}

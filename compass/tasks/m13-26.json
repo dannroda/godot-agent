@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T00:03:38.640Z",
+  "decisions": [
+    {
+      "alternatives": "Un flag compartido con m13-24 (descartado: estado escondido); filtrar la segunda tarjeta en el modelo al agregarla (esconde el problema en vez de evitarlo).",
+      "at": "2026-11-10T00:23:10.901Z",
+      "text": "start(), open_session() y _load_session() preguntan model.has_failed() después del chequeo de generación y devuelven false sin sumar su tarjeta; _load_session evita el stop() que pasaba la sesión caída a DISCONNECTED; fake_agent con \"exit_on\": \"<método>\" (registrado por a3 en el cierre del tablero, a partir de las notas de d5)",
+      "why": "Con el orden de m13-24, cuando el request cortado vuelve, _fail_agent ya puso FAILED y la tarjeta: alcanza con preguntar por el estado en los tres puntos donde un request de arranque puede fallar por la caída, sin flag. El stop() de _load_session borraba el motivo (DISCONNECTED sin tarjeta); conservar FAILED deja Retry a la vista. \"exit_on\" en el agente falso reproduce la caída en initialize, session/new y session/load con un guion cada uno."
+    }
+  ],
+  "description": "Si el proceso del agente termina mientras el harness espera la respuesta de initialize, _on_process_exited falla el request pendiente y start() suma «<agente> didn't start», además de la tarjeta «<agente> stopped» de _fail_agent. Es la misma causa dos veces. Con m13-24, _fail_agent ya va antes de fail_all_pending, así que start() puede preguntar model.has_failed() y no sumar la suya. Pero hay que revisar qué ven quienes llaman a start() (failure_message, el estado). Hace falta un paso en fake_agent para caerse en initialize (p. ej. \"initialize\": {\"exit\": true}) y un escenario en acp_session_check que cuente las tarjetas. Lo encontró d5 en m13-24. Va encima de m13-24 porque toca session_controller.gd.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-26, commit af34a03, encima de sm/m13-24 (76ca585), que a su vez va sobre 64ed939 (m13-22 final). Sin flag: con el orden de m13-24, _fail_agent ya puso FAILED y la tarjeta cuando el request cortado vuelve, así que start(), open_session() y _load_session() preguntan model.has_failed() después del chequeo de generación y devuelven false sin sumar su tarjeta. En _load_session, además, evita el stop() que pasaba la sesión caída a DISCONNECTED y borraba el motivo. fake_agent: clave \"exit_on\": \"<método>\" y tres guiones crash_*.json. Amplié la línea de CHANGELOG de m13-24 («during a turn or while the session starts»).",
+  "order": 26,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "acp_session_check 194/0. Escenario nuevo crash_starting: el agente falso se cae en initialize, session/new y session/load (exit_on). En los tres, start() devuelve false con la sesión en FAILED y su failure_message, hay una sola tarjeta (la de la caída) y ninguna transición fuera de la tabla. Sin el arreglo fallan los tres con una segunda tarjeta («didn't start», «Could not open the session…», «Could not resume…»). run_all 463/3388/0, oneshot_check 176/0, ui-test=crash PASS en en y es (pila m13-22 + m13-24 + m13-26).",
+  "title": "Una caída del agente durante initialize muestra dos tarjetas de error",
+  "updated_at": "2026-11-10T00:23:27.305Z"
+}

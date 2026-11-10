@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-3c",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T23:09:27.191Z",
+  "decisions": [
+    {
+      "alternatives": "Chequear dentro de cada escenario (se olvida en los nuevos); aplicar _finish_checking_state a todos los checks del dev plugin (falsos positivos en los que fuerzan transiciones).",
+      "at": "2026-11-10T00:23:10.762Z",
+      "text": "_check_transitions por run en oneshot_check (desde _make, al final de la corrida) y _finish_checking_state solo en los checks del dev plugin que mueven las máquinas (run, review, external, oneshot, login, queue); los demás siguen con _finish (registrado por a3 en el cierre del tablero, a partir de las notas de 3c)",
+      "why": "Guardar {scenario, log} en _make cubre cualquier escenario nuevo sin tocarlo; el AgentLog es RefCounted y sobrevive al run. En el editor, el chequeo lee el log acumulado de toda la corrida, así que se aplica solo donde el flujo mueve sesión, juego o One-shot; i18n, sessions, history, crash y cycle no mueven las máquinas o producen transiciones a propósito y fallarían sin motivo."
+    }
+  ],
+  "description": "Hoy solo acp_session_check (por escenario) y los unit tests comprueban que un flujo real no deje transiciones inesperadas en el canal `state` del Agent Log. Agregar el mismo _check_transitions a oneshot_check.gd (por escenario) y a los checks del dev plugin que corren en CI o tocan las máquinas (run-test, review-test, external-test, oneshot-test, login-test, queue-test), para que una tabla incompleta salga en CI y no en el uso real. Lo encontró 3c escribiendo D61.",
+  "milestone": "m13",
+  "notes": "oneshot_check.gd: _make guarda {scenario, log} de cada run en _logs (el AgentLog es RefCounted y sobrevive al run) y _initialize, después del último escenario, llama _check_transitions(log, scenario) por cada uno, con el mismo label que acp_session_check. Nada cambia dentro de los escenarios: cualquier escenario nuevo que use _make queda cubierto. Si un escenario armara su propio SessionController sin _make, no se revisa. Dev plugin: _finish_checking_state(code, message, tag) lee _log del plugin principal (MAIN_PLUGIN_SCRIPT) y, si hay entradas en CH_STATE, las imprime con el tag del check y termina con 1 aunque el resto haya pasado; reemplaza el _finish final de run, review, external, oneshot, login y queue. Los demás checks (i18n, sessions, history, crash, cycle…) siguen con _finish a secas: no mueven las máquinas o producen transiciones a propósito. Lee el log acumulado de toda la corrida del editor, así que una transición inesperada de otro flujo anterior en el mismo editor también cuenta (en estos checks es el único flujo).",
+  "order": 18,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "Rama sm/m13-18 (b286b54, rebaseada sobre sm/integration 3c7efe3). Headless 4.7.2: oneshot_check 176 checks, 0 fallos (17 nuevos: uno por run que arma _make, incluidos los escenarios de m13-15/16). Xvfb: run-test, review-test, external-test, oneshot-test, login-test y queue-test PASS, ninguno dejó líneas en el canal state. Para ver que falla: una transición fuera de tabla en cualquiera de esos flujos imprime \"[<tag>] FALLA canal state: <máquina>: unexpected transition A -> B\" y el check sale con 1.",
+  "title": "oneshot_check y los checks de Xvfb fallan si queda algo en el canal state",
+  "updated_at": "2026-11-10T00:23:10.762Z"
+}

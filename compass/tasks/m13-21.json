@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T23:29:16.870Z",
+  "decisions": [
+    {
+      "alternatives": "Un margen fijo mayor (se rompe con otro tema); desactivar el autowrap en globos cortos (cambia el comportamiento de los largos).",
+      "at": "2026-11-10T00:23:10.818Z",
+      "text": "El ancho mínimo del globo del usuario suma get_minimum_size().x del stylebox del Label; LayoutCheck.user_bubble_fits lo verifica en i18n-test y remote-test (registrado por a3 en el cierre del tablero, a partir de las notas de d5)",
+      "why": "_fit_width ponía el mínimo en ancho del texto + 2 px, pero el estilo `normal` del Label en el tema del editor tiene 6 px de margen por lado: el texto quedaba con ~11 px y WORD_SMART lo partía letra por letra. En headless (tema por defecto, sin márgenes) no se reproduce, por eso el chequeo va en los checks de Xvfb y no en un unit test."
+    }
+  ],
+  "description": "En las capturas del tour de UX de M13 (d5), el globo del mensaje del usuario con «hola» se muestra partido («h / ol / a»): el ancho del globo colapsa. Pasa igual en main (074267d) y en sm/integration, así que es anterior a M13. Capturas: scratchpad de d5, ux/out/{main,int}/{en,es}/d5_03..05 y d5_08. Reproducir con el agente falso, encontrar por qué el ancho mínimo del globo es casi cero y arreglarlo, con un chequeo en layout_check.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-21, commit 2bcd174 (base bd54ee1). Causa: _fit_width de user_message_view ponía el mínimo del Label en ancho del texto + 2 px, pero el estilo `normal` del Label en el tema del editor tiene 6 px de margen por lado; el texto quedaba con ~11 px y WORD_SMART lo partía. En headless (tema por defecto, sin márgenes) no se reproduce. Arreglo: sumar get_minimum_size().x del stylebox. Línea en CHANGELOG (Fixed).",
+  "order": 21,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "Xvfb: remote-test en/es PASS e i18n-test (es) PASS con el chequeo nuevo LayoutCheck.user_bubble_fits; sin el arreglo, remote-test/en falla: \"3 líneas (lugar para el texto 11 px, el texto pide 21)\". run_all 457/3352 0 fallos, acp_session_check 175/0, oneshot_check 176/0. Capturas antes/después: scratchpad d5 m1321_antes_despues.png.",
+  "title": "El globo del usuario se parte letra por letra en el dock",
+  "updated_at": "2026-11-10T00:23:10.818Z"
+}

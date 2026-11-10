@@ -1,0 +1,25 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T22:38:48.369Z",
+  "decisions": [
+    {
+      "alternatives": "Volver al generador dentro de restore(); reabrir como run de disco (_recovered_session_id), que crea otra pestaña con prepare_session; contar la vuelta abandonada",
+      "at": "2026-11-09T22:42:57.835Z",
+      "text": "La vuelta a la sesión del que construye se hace al empezar el próximo turno del que construye (_run_turn), no dentro de restore(); la vuelta de QA abandonada no cuenta (qa_round = vueltas con resultado), y la guía espera mientras se evalúa",
+      "why": "restore() puede caer mientras _evaluate abre la sesión del evaluador: cambiar de sesión ahí competiría con esa apertura. En _run_turn cubre «Retomar», guiar y aprobar por un solo lugar, y también guiar con la QA en pausa. Una vuelta sin veredicto no debería gastar una de las qa_max_rounds."
+    }
+  ],
+  "description": "Lo encontró d5 mientras hacía m13-12: si se hace «Volver acá» (restore) con el evaluador corriendo, el run no vuelve a la sesión del generador (`_generator_session_id`) y queda en la sesión del evaluador. Arreglarlo sobre sm/m13-12 (RunStage ya hace explícita la evaluación), con test en oneshot_check.gd o unitario.",
+  "milestone": "m13",
+  "notes": "- La vuelta al generador va en _run_turn (un solo lugar para Retomar, guiar y aprobar), no en restore(): restore puede caer mientras _evaluate abre la sesión del evaluador.\n- restore() en EVALUATING: etapa BUILDING y qa_round = qa_results.size().\n- guide() en EVALUATING encola (antes, sin turno en vuelo, mandaba el texto del usuario a la sesión del evaluador).\n- También van las dos notas de la revisión de f3 a m13-12: _finish → etapa BUILDING; _apply → _phase_since_ms = 0.\n- Sigue abierto, no arreglado: pausar durante _back_to_generator después de un veredicto deja la etapa en EVALUATION, y «Retomar» repite la vuelta (el veredicto ya está en qa_results). Lo mismo si se pausa mientras _run_turn vuelve al generador: el turno se manda igual.",
+  "order": 15,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Rama sm/m13-12, commit 447c521 (encima de 39e42a6). Escenario nuevo «evaluador y volver acá» en tests/oneshot_check.gd: restore() con el evaluador jugando → PAUSED + BUILDING, la vuelta no cuenta, el evaluador deja sus permisos, se guarda la sesión del que construye; «Retomar» reabre esa sesión (sin session/load, con el resumen) y no le habla al evaluador. Sin el arreglo fallan 4 de esos checks. import ok; run_all 446/3072 0 fallos; acp_session_check 171/0; oneshot_check 151/0 (dos corridas solas; una corrida en paralelo con sm/integration dio fallos falsos por user:// compartido, ver la regla de flock de f3).",
+  "title": "One-shot: restore() durante una evaluación no vuelve a la sesión del que construye",
+  "updated_at": "2026-11-09T22:47:03.927Z"
+}

@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-a3",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T22:49:55.753Z",
+  "decisions": [
+    {
+      "alternatives": "Helper que devuelve user://<hash>/… y reemplazar las ~35 rutas en tests y checks (más diff, se olvida fácil en tests nuevos y no cubre lo que escribe el addon). Reordenar los plugins para aplicar antes en el editor: toca project.godot del test bed, y no hace falta porque las rutas del addon se resuelven al usarlas (el shim en cada session/new). Mantener el flock: mitiga pero no aísla.",
+      "at": "2026-11-09T23:07:41.658Z",
+      "text": "Redirigir user:// de todo el proceso con use_custom_user_dir en tiempo de ejecución (helper tests/test_user_dir.gd llamado por cada punto de entrada) en lugar de cambiar cada ruta user:// de los tests",
+      "why": "Godot lee use_custom_user_dir/custom_user_dir_name en cada resolución de user:// (comprobado en 4.7.2 y 4.8-beta2), así que un set_setting al arrancar basta y cubre también lo que el addon escribe en user:// (historial, store del One-shot, shim) y las carpetas de los 30 tests sin tocarlos. La carpeta es <por defecto>/checkouts/<md5 de res://>-<major.minor>: la misma para los procesos hijos del checkout (agente falso, login), y distinta por versión de Godot. set_initial_value evita que ProjectSettings.save() (autoload de playtest, run_check) escriba el override en project.godot; test_user_dir lo vigila. En el editor lo aplica el plugin de dev solo con argumentos --godot-agent-*, cargando el helper por ruta (sin dependencia dura de tests/), así el editor abierto a mano no cambia."
+    }
+  ],
+  "description": "user:// es la misma carpeta para todos los worktrees del proyecto (~/.local/share/godot/app_userdata/<nombre>), así que oneshot_check, acp_session_check, los unit tests (temp_dir) y los checks del dev plugin se pisan cuando dos copias corren a la vez: dieron entre 2 y 17 fallos falsos de cuota, checkpoints y recuperación. Hacer que cada checkout use una subcarpeta propia (p. ej. user://<carpeta>/<md5 de res://>/…) con un helper común, sin cambiar lo que prueban. Mientras tanto se corre con `flock /run/user/1000/agent-harness-tests.lock`.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-17 (base sm/integration 55c41e6), commit 9125c7a. Helper tests/test_user_dir.gd (apply() y checkout_tag()); lo llaman run_all, acp_session_check, oneshot_check (solo la const y la primera línea de _initialize, avisado a d5), fake_agent, claude_smoke_check, extensions_cli_check, skills_session_check, subagents_session_check, run_completion_eval, plugin_cycle_check y export_check; el plugin de dev lo carga por ruta en _enter_tree cuando hay un argumento --godot-agent-*. Sin cambios en lo que prueban: las rutas user:// de los tests quedan como estaban. CONTRIBUTING.md lo explica en el párrafo de los checks. Sin CHANGELOG (no cambia nada para el usuario). Después de integrar, el flock deja de hacer falta.",
+  "order": 17,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "tests/unit/test_user_dir.gd: user:// termina en checkouts/<md5>-<major.minor> bajo la carpeta por defecto del proyecto, lo escrito cae adentro, apply() es idempotente, y ProjectSettings.save_custom() no guarda el override. Las tres suites a la vez y SIN flock, en el worktree: run_all 457 tests/3348 checks 0 fallos; acp_session_check 175/0; oneshot_check 140/0 (4.7.2). test_user_dir también en 4.8-beta2 (4/13, 0 fallos). Editor en Xvfb: --godot-agent-login-test PASS (el editor y el agente falso comparten el marcador user://fake_login_ok en la carpeta nueva). Carpeta creada: ~/.local/share/godot/app_userdata/Godot Agent Harness (dev)/checkouts/8277b675-4.7/.",
+  "title": "Tests: cada checkout usa su propia carpeta en user://",
+  "updated_at": "2026-11-09T23:08:23.478Z"
+}

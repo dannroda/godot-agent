@@ -1,0 +1,25 @@
+{
+  "assignee": "agent-harness-d5",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-09T22:49:55.696Z",
+  "decisions": [
+    {
+      "alternatives": "Guardar la corrección pendiente en un campo propio y mandarla como prompt de «Retomar»; quedar en pausa también cuando el veredicto cierra el run",
+      "at": "2026-11-09T22:54:37.172Z",
+      "text": "Con el veredicto guardado, la etapa vuelve a BUILDING antes de volver al que construye. Si se pausa en ese momento, la corrección queda primera en la cola de guía (sale después del turno de «Retomar»); si el veredicto cierra el run (pasa, sin vueltas o sin presupuesto), termina igual aunque se haya pausado",
+      "why": "La vuelta ya tiene resultado en qa_results: repetirla gasta una vuelta y tokens. La cola de guía ya se guarda con el run y es como salen los otros avisos del harness después de una pausa; un campo nuevo para la corrección pendiente sería otro flag."
+    }
+  ],
+  "description": "Lo dejó abierto d5 en m13-15: si el usuario pausa justo cuando _after_qa ya tiene el veredicto y está volviendo a la sesión del que construye, «Retomar» repite la vuelta de QA en vez de seguir construyendo con el veredicto. Arreglarlo sobre sm/m13-12 con un escenario en oneshot_check.gd.",
+  "milestone": "m13",
+  "notes": "- Con el veredicto en qa_results, la etapa pasa a BUILDING antes de _back_to_generator.\n- Pausado mientras volvía: la corrección (con el resumen si la sesión es nueva) queda primera en la cola de guía; sale después del turno de «Retomar». Si el veredicto cierra el run, termina igual.\n- String nuevo con su traducción en es.po: \"QA round %d: the fixes are sent to the builder when the run resumes\".\n- Aparte, 9c67aa0 aplica la revisión de a3 a m13-15: _run_turn no manda el turno si se pausó o se detuvo mientras volvía al que construye, y _evaluate no abre la sesión del evaluador si se pausó mientras reabría la del agente.",
+  "order": 16,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "Rama sm/m13-12, commit 23726ee (encima de 447c521). Escenario nuevo «evaluador y pausa después del veredicto» en tests/oneshot_check.gd: se pausa mientras se vuelve al que construye con la vuelta 1 ya decidida → PAUSED + BUILDING, la vuelta 1 tiene su veredicto; «Retomar» manda la corrección y la siguiente evaluación es la vuelta 2 (sin repetir la 1), termina «QA round 2: the game passes.». Sin el arreglo fallan 5 checks (se repite la vuelta 1). Con flock: import ok; run_all 446/3072 0 fallos; acp 171/0; oneshot_check 158/0 (159 con el commit 9c67aa0 de la revisión de a3 a m13-15).",
+  "title": "One-shot: pausar mientras _after_qa vuelve al generador repite la vuelta de QA",
+  "updated_at": "2026-11-09T23:11:35.164Z"
+}
