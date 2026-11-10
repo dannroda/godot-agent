@@ -101,6 +101,11 @@ func _check_runs(model: Object) -> void:
 	_expect(stopped.contains("stopped") and not EditorInterface.is_playing_scene(), "stop_scene")
 
 	# Grabación (m14-03): el juego cierra solo, el video queda y el Movie Maker vuelve a como estaba.
+	# run_scene con monitors (m11-43): el resumen de toda la corrida va al final del informe.
+	var measured := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "monitors": true})
+	_expect(measured.contains("Performance during the run:\nSampled ") and measured.contains("Frame time: avg "), "run_scene monitors: resumen de la corrida · " + measured.left(600))
+	var quitting := await _call_text("run_scene", {"scene": QUITS_SCENE, "seconds": 3, "monitors": true})
+	_expect(quitting.contains("Performance monitors: the game ended"), "run_scene monitors: si el juego terminó, lo dice · " + quitting.left(600))
 	var recorded := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "record": true})
 	var video := RegEx.create_from_string("Recording: (res://\\S+\\.avi)").search(recorded)
 	_expect(video != null and FileAccess.file_exists(video.get_string(1)) and not EditorInterface.is_playing_scene(), "run_scene con record: video y juego cerrado · " + recorded.right(300))
@@ -291,6 +296,13 @@ func _check_playtest_game() -> void:
 	# game_watch (m15-20)
 	var watched := await _call_text("game_watch", {"paths": ["HUD/Flash", ""], "seconds": 0.6, "properties": ["ticks"], "steps": [{"action": "ui_accept"}]})
 	_expect(watched.contains("Flash was hidden") and watched.contains("Flash was shown"), "game_watch: ve lo que dura 0,2 s · " + watched.left(500))
+
+	# game_monitors (m11-43): un nodo que nunca entra al árbol queda huérfano y aparece en la lista.
+	await _call_text("game_script", {"code": "func run(game):\n\tvar lost = Node2D.new()\n\tlost.name = \"ProbeLeak\"\n\treturn true"})
+	var monitored := await _call_text("game_monitors", {"seconds": 0.5})
+	_expect(monitored.begins_with("Sampled ") and monitored.contains("Frame time: avg ") and monitored.contains("Start → end: nodes ") and monitored.contains("- ProbeLeak (Node2D)"), "game_monitors: tiempos, conteos y el huérfano · " + monitored.left(700))
+	var quiet := await _call_text("game_monitors", {"seconds": 0.2, "orphans": false})
+	_expect(not quiet.contains("Orphan nodes now"), "game_monitors: sin la lista si orphans es false")
 
 	# Filmación (m15-22, m15-23)
 	await _tree.create_timer(0.6).timeout

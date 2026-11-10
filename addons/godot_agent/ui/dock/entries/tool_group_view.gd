@@ -396,6 +396,7 @@ const GODOT_TOOL_NAMES := {
 	"game_call": "Call in the game",  # i18n
 	"game_find": "Find in the game",  # i18n
 	"game_frames": "Look back at the game",  # i18n
+	"game_monitors": "Measure the game's performance",  # i18n
 	"game_get": "Read from the game",  # i18n
 	"game_input": "Input to the game",  # i18n
 	"game_pause": "Pause the game",  # i18n

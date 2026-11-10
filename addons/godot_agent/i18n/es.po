@@ -4199,3 +4199,6 @@ msgstr "Todavía no hay regresiones guardadas: un playtest que pasa deja una. El
 
 msgid "Could not install the staged GDExtension %s: %s. The game keeps the build it had."
 msgstr "No se pudo instalar la GDExtension preparada %s: %s. El juego sigue con la build que tenía."
+
+msgid "Measure the game's performance"
+msgstr "Medir el rendimiento del juego"

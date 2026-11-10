@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- `godot.game_monitors` measures the running game for a few seconds: frame time (average, p95, max), draw calls, physics, and how nodes, objects and memory grew. It also lists the orphan nodes, grouped by name, class and script: nodes created and never added to the tree, or removed without `free()`. `godot.profile_run` only sees GDScript, so this is for a game that is slow because of rendering or physics, or that leaks nodes. `godot.run_scene` takes `monitors: true` to add the same summary for the whole run.
+
 ## [0.1.19] - 2026-11-10
 
 ### Added

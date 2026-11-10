@@ -7,8 +7,8 @@ extends Node
 ##   `reply` [id, {text} o {error}], `finding` [{detector, summary, signature, …}] y `finding_frame`
 ##   [firma, png] (m15-07, m15-08), `film_frame` [n, t, jpeg] (m15-22).
 ## - editor → juego: `capture` [lado máximo], `inputs` [[paso, …]], `request` [id, op, params]
-##   con op tree, get, set, call, wait, input, find, ui, ui_act, script, pause, step, watch, film u
-##   opening, y `quit` (cierra el juego por su cuenta: así el Movie Maker termina de escribir el video).
+##   con op tree, get, set, call, wait, input, find, ui, ui_act, script, pause, step, watch, film,
+##   opening, monitors, monitors_start o monitors_stop (m11-43), y `quit` (cierra el juego por su cuenta: así el Movie Maker termina de escribir el video).
 
 const Detectors := preload("detectors.gd")
 const GameUi := preload("game_ui.gd")
@@ -16,6 +16,7 @@ const GameWorld := preload("game_world.gd")
 const ScriptKit := preload("script_kit.gd")
 const Watcher := preload("watcher.gd")
 const Film := preload("film.gd")
+const Monitors := preload("monitors.gd")
 
 const PREFIX := "godot_agent"
 const PROTOCOL := 3
@@ -25,6 +26,7 @@ const VALUE_LIMIT := 300
 const WAIT_MAX_S := 60.0
 const SCRIPT_MAX_S := 60.0
 const WATCH_MAX_S := 60.0
+const MONITORS_MAX_S := 30.0
 const STEP_MAX_FRAMES := 60 * 60
 const FINDING_FRAME_SIDE := 640
 ## Entre dos capturas automáticas de un hallazgo (m15-08).
@@ -37,6 +39,8 @@ var _signal_hits: Dictionary = {}
 var _next_wait: int = 0
 var _detectors := Detectors.new()
 var _film: Film
+## Los monitores que run_scene muestrea durante toda la corrida (monitors_start/monitors_stop).
+var _run_monitors: Monitors
 var _ui: GameUi
 var _last_frame_ms: int = 0
 var _finding_frame_at: int = -FINDING_FRAME_GAP_MS
@@ -165,6 +169,19 @@ func _answer(id: int, op: String, params: Dictionary) -> void:
 			result = await _step(params)
 		"watch":
 			result = await _watch(params)
+		"monitors":
+			result = await _monitors(params)
+		"monitors_start":
+			_run_monitors = Monitors.new()
+			_run_monitors.start()
+			if not get_tree().process_frame.is_connected(_tick_run_monitors):
+				get_tree().process_frame.connect(_tick_run_monitors)
+			result = {"text": "Sampling the performance monitors."}
+		"monitors_stop":
+			if get_tree().process_frame.is_connected(_tick_run_monitors):
+				get_tree().process_frame.disconnect(_tick_run_monitors)
+			result = {"text": _run_monitors.report(params.get("orphans", true) == true)} if _run_monitors else {"error": "The monitors were not started."}
+			_run_monitors = null
 		"film":
 			result = _film_op(params)
 		"opening":
@@ -285,6 +302,27 @@ func _watch(params: Dictionary) -> Dictionary:
 		await get_tree().process_frame
 		watcher.tick()
 	return {"text": watcher.report()}
+
+
+## Los monitores de Performance cada frame durante `seconds`, con inputs en el medio si se pasan (m11-43).
+func _monitors(params: Dictionary) -> Dictionary:
+	var seconds := clampf(float(params.get("seconds", 2.0)), 0.1, MONITORS_MAX_S)
+	var monitors := Monitors.new()
+	await get_tree().process_frame  # el primer frame mediría desde el pedido, no un frame
+	monitors.start()
+	var steps: Variant = params.get("steps")
+	if steps is Array and not (steps as Array).is_empty():
+		_play_inputs(steps)
+	var deadline := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+		monitors.tick()
+	return {"text": monitors.report(params.get("orphans", true) == true)}
+
+
+func _tick_run_monitors() -> void:
+	if _run_monitors:
+		_run_monitors.tick()
 
 
 func _film_op(params: Dictionary) -> Dictionary:
