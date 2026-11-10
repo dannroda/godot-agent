@@ -19,7 +19,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Security
 
 - The agent's error card showed the last lines of its process output without redacting the harness's secrets: if those lines included the MCP server token or another registered secret, the card showed it and **Copy** copied it. It now redacts them like the Agent Log does.
-- The same secrets are now redacted everywhere else they could show, not only in the Agent Log: what the agent sends back (a message, a tool result, an error that quotes the MCP configuration), the permission cards, the status tooltip, the session history on disk and the conversations resumed from it, and the One-shot activity and reports. What the agent writes or runs keeps the real value. The keys the agent's profile takes from the environment (variables named like a secret) count as secrets too. Details in [PRIVACY.md › Secrets](PRIVACY.md#secrets).
+- The same secrets are now redacted everywhere else they could show, not only in the Agent Log: what the agent sends back (a message, a tool result, an error that quotes the MCP configuration), the permission cards, the status tooltip, the session history on disk and the conversations resumed from it, and the One-shot activity and reports. What the agent writes or runs keeps the real value. The keys named in the agent's profile (variables named like a secret) and the agent's API key variable exported in the editor's environment count as secrets too. Details in [PRIVACY.md › Secrets](PRIVACY.md#secrets).
 
 ## [0.1.17] - 2026-11-03
 
