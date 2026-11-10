@@ -103,7 +103,7 @@ func refresh() -> void:
 	for section: Dictionary in entry.sections:
 		var fold := FoldableContainer.new()
 		fold.title = str(section.title)
-		fold.folded = true
+		fold.folded = not bool(section.get("open", false))
 		fold.title_text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		var body := Label.new()
 		body.text = str(section.text)
