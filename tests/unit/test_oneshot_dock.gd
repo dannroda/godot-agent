@@ -10,8 +10,8 @@ func test_describe_phase() -> void:
 	var run := OneShotRun.new()
 	for stage: int in OneShotRun.RunStage.values():
 		assert_true(OneShotRun.STAGE_LABELS.has(stage), "etapa %d con etiqueta" % stage)
-	assert_eq(run.describe_phase(), "one-shot: idle, building (0 s)", "sin arrancar")
-	assert_eq(run.phase_age_seconds(), 0, "sin cambios de fase, 0 s")
+	assert_eq(run.describe_phase(), "one-shot: idle, building", "sin arrancar: sin antigüedad")
+	assert_eq(run.phase_age_seconds(), -1, "sin cambios de fase, no se sabe")
 	run.free()
 
 

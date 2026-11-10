@@ -91,7 +91,7 @@ const HARNESS_MODE_LABELS: Dictionary = {
 
 var state: SessionState = SessionState.DISCONNECTED
 ## Cuándo cambió `state` por última vez (ticks), para decir hace cuánto está así (m13-29).
-var _state_since_ms: int = 0
+var _state_since_ms: int = Time.get_ticks_msec()  # desde que existe el modelo, no desde que abrió el editor
 var session_id: String = ""
 var title: String = ""
 var harness_mode: HarnessMode = HarnessMode.BUILD

@@ -7,18 +7,19 @@ const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_s
 
 
 func test_secret_names() -> void:
-	for name: String in ["ANTHROPIC_API_KEY", "OPENAI_APIKEY", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "DB_PASSWORD", "MYSQL_PASSWD", "AWS_SECRET_ACCESS_KEY", "AUTH", "Authorization", "X-Api-Key", "x-auth-token", "authToken", "apiKey", "GOOGLE_APPLICATION_CREDENTIALS", "session.cookie"]:
+	for name: String in ["ANTHROPIC_API_KEY", "OPENAI_APIKEY", "GITHUB_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "DB_PASSWORD", "MYSQL_PASSWD", "AWS_SECRET_ACCESS_KEY", "AUTH", "Authorization", "X-Api-Key", "x-auth-token", "authToken", "apiKey", "GOOGLE_APPLICATION_CREDENTIALS", "session.cookie", "PGPASSWORD", "API_KEYS", "SECRETS", "DB_PASSWORDS", "ACCESSKEY", "PRIVATEKEY", "SESSIONTOKEN", "HFToken", "GHToken", "OpenAIAPIKey"]:
 		assert_true(SecretNames.is_secret(name), "%s es de un secreto" % name)
 
 
 func test_names_that_only_contain_the_word() -> void:
-	for name: String in ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "KEYBOARD_LAYOUT", "XKB_DEFAULT_KEYMAP", "MONKEY_PATCH", "TOKENIZERS_PARALLELISM", "OAUTHLIB_INSECURE_TRANSPORT", "SECRETARY", "PWD", "PATH", "Author"]:
+	for name: String in ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "KEYBOARD_LAYOUT", "XKB_DEFAULT_KEYMAP", "MONKEY_PATCH", "TOKENIZERS_PARALLELISM", "OAUTHLIB_INSECURE_TRANSPORT", "SECRETARY", "PWD", "PATH", "Author", "TURKEY_MODE", "DONKEY", "HOCKEY_TEAM"]:
 		assert_false(SecretNames.is_secret(name), "%s no es de un secreto" % name)
 
 
 func test_words() -> void:
 	assert_eq(SecretNames.words("X-Api-Key"), PackedStringArray(["X", "API", "KEY"]), "headers con guiones")
 	assert_eq(SecretNames.words("authToken"), PackedStringArray(["AUTH", "TOKEN"]), "camelCase")
+	assert_eq(SecretNames.words("HFToken"), PackedStringArray(["HF", "TOKEN"]), "sigla seguida de palabra")
 	assert_eq(SecretNames.words("GIT_AUTHOR_NAME"), PackedStringArray(["GIT", "AUTHOR", "NAME"]), "snake_case")
 
 

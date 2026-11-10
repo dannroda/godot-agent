@@ -388,6 +388,8 @@ func _build_header() -> void:
 	_agent_chip.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_agent_chip.add_theme_constant_override(&"h_separation", AgentTheme.px(6))
 	_agent_chip.pressed.connect(_show_agent_menu)
+	# El tooltip se arma al pasar el mouse: el tick de la cuota no corre sin datos de cuota (m13-29).
+	_agent_chip.mouse_entered.connect(func() -> void: _agent_chip.tooltip_text = header_tooltip())
 	_profile_button.add_sibling(_agent_chip)
 	_agent_menu = PopupMenu.new()
 	_agent_menu.id_pressed.connect(func(id: int) -> void:

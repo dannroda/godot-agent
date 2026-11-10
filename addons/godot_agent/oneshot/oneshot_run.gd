@@ -338,13 +338,16 @@ func phase_label() -> String:
 
 
 ## Segundos desde el último cambio de fase (0 si el run se cargó de disco y todavía no cambió).
+## Segundos en la fase actual; -1 si no se sabe (un run cargado de disco antes de su primer cambio de fase).
 func phase_age_seconds() -> int:
-	return (Time.get_ticks_msec() - _phase_since_ms) / 1000 if _phase_since_ms > 0 else 0
+	return (Time.get_ticks_msec() - _phase_since_ms) / 1000 if _phase_since_ms > 0 else -1
 
 
 ## La fase y la etapa para el agente, como describe_run_state(): «one-shot: evaluating, evaluation (40 s)».
 func describe_phase() -> String:
-	return "one-shot: %s, %s (%d s)" % [RunPhase.keys()[phase].to_lower().replace("_", " "), STAGE_LABELS[_stage], phase_age_seconds()]
+	var text := "one-shot: %s, %s" % [RunPhase.keys()[phase].to_lower().replace("_", " "), STAGE_LABELS[_stage]]
+	var age := phase_age_seconds()
+	return text if age < 0 else "%s (%d s)" % [text, age]
 
 
 ## Fase "n de m" según el plan, o "".
