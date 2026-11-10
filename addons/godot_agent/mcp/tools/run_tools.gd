@@ -1072,6 +1072,14 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 	return McpTool.text("\n".join(lines))
 
 
+## El nodo del juego bajo un punto de la captura (m11-37): `uv` en [0, 1]. {node: {path, class,
+## kind, point}}, {text} si no hay nada, o {error}.
+func point_at(uv: Vector2) -> Dictionary:
+	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
+		return {"error": NO_PROBE}
+	return await request("point", {"u": uv.x, "v": uv.y})
+
+
 ## Pedido al probe: {text} o {error}.
 func request(op: String, params: Dictionary, timeout_s: float = REQUEST_TIMEOUT_S) -> Dictionary:
 	var id := _next_request

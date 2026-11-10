@@ -691,6 +691,14 @@ func _drop_files(position: Vector2, data: Variant) -> void:
 		files_attached.emit(paths)
 
 
+## Escribe «@ruta » donde está el caret (m11-37: lo señalado en el juego).
+func insert_mention(path: String) -> void:
+	_input.insert_text_at_caret("@%s " % path)
+	_input.grab_focus()
+	_update_send_button()
+	update_height()
+
+
 ## Nodos arrastrados desde el Scene Tree (m11-08): se escriben como @ruta relativa a la escena.
 func _insert_node_mentions(nodes: Array) -> void:
 	var root := EditorInterface.get_edited_scene_root() if Engine.is_editor_hint() else null

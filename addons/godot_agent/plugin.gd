@@ -271,6 +271,7 @@ func _enter_tree() -> void:
 	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
+	dock.game_point = _point_game_for_dock
 	dock.context_provider = _context_for_mention
 	_wire_oneshot(dock, PRIMARY_SESSION)
 	_wire_elsewhere(dock, PRIMARY_SESSION)
@@ -488,6 +489,15 @@ func _on_run_error(info: Dictionary) -> void:
 	entry.details = RunErrorWatcher.notice_details(info)
 	entry.details_title = I18n.t("Errors and stack")
 	model.notify_entry_changed(entry)
+
+
+## «+ contexto → Señalar en el juego…» (m11-37): el nodo bajo el punto `uv` de la captura, por el probe.
+func _point_game_for_dock(uv: Vector2) -> Dictionary:
+	if not EditorInterface.is_playing_scene():
+		return {"error": I18n.t("No game is running.")}
+	if _run_tools == null or not _playtest_debugger.has_probe():
+		return {"error": I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server.")}
+	return await _run_tools.point_at(uv)
 
 
 ## «+ contexto → Captura del juego»: el frame como Image, o el motivo (traducido) si no se puede.
@@ -1402,6 +1412,7 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	dock.extensions_requested.connect(_open_extensions)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
+	dock.game_point = _point_game_for_dock
 	dock.context_provider = _context_for_mention
 	if copy == null:
 		_wire_oneshot(dock, id)
