@@ -214,9 +214,12 @@ func _methods_tool() -> McpTool:
 
 
 func _run_tool() -> McpTool:
-	return McpTool.create(RUN_TOOL, "read",
+	# Corre cualquier método, también los que escriben: sin readOnlyHint, aunque el permiso sea el del
+	# método (m11-47).
+	return McpTool.with_hints(McpTool.create(RUN_TOOL, "read",
 		"Runs an extra godot method (see godot.methods): `method` is its name and `params` its arguments object. The method's own permissions apply.",
-		{"method": {"type": "string"}, "params": {"type": "object"}}, ["method"], Callable()) as McpTool
+		{"method": {"type": "string"}, "params": {"type": "object"}}, ["method"], Callable()),
+		{"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false}) as McpTool
 
 
 func _methods(args: Dictionary) -> Dictionary:

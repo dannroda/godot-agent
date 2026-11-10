@@ -7,9 +7,29 @@ extends RefCounted
 ## - un resultado MCP `{content: [...], isError: bool}` (ver `text`, `error`, `image`);
 ## - un String (se envuelve como texto) o una Image (se envuelve como imagen).
 
+const PermissionPolicy := preload("../session/permission_policy.gd")
+
 ## Tope de la descripción por defecto (la de la tarjeta de permiso).
 const DESCRIBE_MAX_LINES := 8
 const DESCRIBE_MAX_VALUE := 120
+
+## Anotaciones MCP (spec 2025-06-18, ToolAnnotations) según el grupo de permisos (m11-47): salen
+## del mismo dato que decide qué se pregunta, así no se desincronizan. Claude Code corre en paralelo
+## las tools readOnlyHint y repite una vez, si se cortó la conexión, las readOnlyHint o
+## idempotentHint. Un grupo que no está acá (other, mcp:…) no lleva anotaciones: los defaults de la
+## spec son los prudentes (puede escribir y borrar). openWorldHint es false salvo en addons (baja
+## código de internet); `hints` lo cambia en una tool.
+const GROUP_HINTS: Dictionary = {
+	PermissionPolicy.GROUP_READ: {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true},
+	PermissionPolicy.GROUP_DIAGNOSTICS: {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true},
+	PermissionPolicy.GROUP_EDIT_SCENE: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
+	PermissionPolicy.GROUP_EDIT_FILES: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
+	PermissionPolicy.GROUP_PROJECT: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
+	# Corre el juego y lo cambia en vivo; los archivos del proyecto no.
+	PermissionPolicy.GROUP_RUN: {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false},
+	PermissionPolicy.GROUP_SHELL: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
+	PermissionPolicy.GROUP_ADDONS: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true},
+}
 
 var name: String = ""
 var description: String = ""
@@ -21,6 +41,9 @@ var describer: Callable
 ## Callable(args) -> String: el grupo de permiso de una llamada cuando depende de los argumentos
 ## (copiar desde fuera del proyecto pide como un comando de shell). Sin él, `group`.
 var group_resolver: Callable
+## Anotaciones MCP que esta tool cambia respecto de las de su grupo (GROUP_HINTS): una tool del grupo
+## read que manda un mensaje no es de solo lectura, una que consulta internet es openWorldHint.
+var hints: Dictionary = {}
 
 
 static func create(tool_name: String, tool_group: String, tool_description: String, properties: Dictionary, required: PackedStringArray, tool_handler: Callable) -> RefCounted:
@@ -35,6 +58,12 @@ static func create(tool_name: String, tool_group: String, tool_description: Stri
 	return tool
 
 
+## `tool` con `tool_hints` encima de las anotaciones de su grupo (para armarla en una expresión).
+static func with_hints(tool: RefCounted, tool_hints: Dictionary) -> RefCounted:
+	tool.hints = tool_hints
+	return tool
+
+
 func group_of(args: Dictionary) -> String:
 	if group_resolver.is_valid():
 		var resolved := str(group_resolver.call(args))
@@ -44,7 +73,22 @@ func group_of(args: Dictionary) -> String:
 
 
 func to_mcp() -> Dictionary:
-	return {"name": name, "description": description, "inputSchema": input_schema}
+	var entry := {"name": name, "description": description, "inputSchema": input_schema}
+	var tool_annotations := annotations()
+	if not tool_annotations.is_empty():
+		entry["annotations"] = tool_annotations
+	return entry
+
+
+## Las anotaciones MCP de la tool: las de su grupo con `hints` encima. Vacío si el grupo no tiene.
+func annotations() -> Dictionary:
+	if not GROUP_HINTS.has(group) and hints.is_empty():
+		return {}
+	var result: Dictionary = (GROUP_HINTS.get(group, {}) as Dictionary).duplicate()
+	if not result.has("openWorldHint"):
+		result["openWorldHint"] = false
+	result.merge(hints, true)
+	return result
 
 
 func describe(args: Dictionary) -> String:

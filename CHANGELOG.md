@@ -4,6 +4,14 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- With Claude Code, a `godot.*` call that took more than about 60 seconds failed with "The operation timed out": a long `run_scene` or `profile_run` (up to 120 s), a GDExtension build or test, or any call while its permission card waited for you. A call that takes longer than 2 seconds now streams its answer and reports progress every 10 seconds, so it runs to the end.
+
+### Added
+
+- The editor's tools tell MCP clients which ones only read (`readOnlyHint`), which ones can overwrite or delete (`destructiveHint`) and which ones reach the internet (`openWorldHint`), based on their permission group. Claude Code runs read-only calls in parallel and can repeat one if the connection drops.
+
 ## [0.1.19] - 2026-11-10
 
 ### Added

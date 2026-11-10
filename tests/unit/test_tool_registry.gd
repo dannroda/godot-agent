@@ -4,6 +4,10 @@ extends "test_case.gd"
 const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
 const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
+const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
+const AssetTools := preload("res://addons/godot_agent/mcp/tools/asset_tools.gd")
+const SessionTools := preload("res://addons/godot_agent/mcp/tools/session_tools.gd")
+const McpStdioShim := preload("res://addons/godot_agent/mcp/mcp_stdio_shim.gd")
 
 
 func _registry() -> ToolRegistry:
@@ -188,3 +192,40 @@ func test_new_errors_in_each_response() -> void:
 	entries.append({"seq": 3, "kind": "error", "message": "x", "file": "", "line": 0, "source": "game"})
 	assert_eq((await registry.call_tool("echo", {"text": "d"}, "s2")).content.size(), 1, "otra sesión arranca su marca en su primera llamada")
 	assert_true((await registry.call_tool("echo", {"text": "e"})).content.back().text.contains("1 error"), "la primera sesión lo ve en su próxima llamada")
+
+
+## m11-47: las anotaciones MCP salen del grupo de permisos, con `hints` encima donde el grupo no alcanza.
+func test_annotations_from_group() -> void:
+	var registry := _registry()
+	registry.register(McpTool.create("write", PermissionPolicy.GROUP_EDIT_FILES, "Escribe", {}, [], Callable()))
+	registry.register(McpTool.create("unknown", "other", "Sin grupo conocido", {}, [], Callable()))
+	registry.register_provider(SessionTools.new())
+	registry.register_provider(AssetTools.new())
+	var by_name := {}
+	for entry: Dictionary in registry.list():
+		by_name[entry.name] = entry
+	assert_eq(by_name.echo.annotations, {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}, "read")
+	assert_eq(by_name.write.annotations.readOnlyHint, false, "edit_files escribe")
+	assert_eq(by_name.write.annotations.destructiveHint, true, "y puede pisar")
+	assert_false(by_name.unknown.has("annotations"), "sin grupo conocido, los defaults prudentes de la spec")
+	assert_eq([by_name.session_send.annotations.readOnlyHint, by_name.session_send.annotations.idempotentHint], [false, false], "session_send manda un mensaje: no se corre en paralelo ni se repite")
+	assert_eq(by_name.sessions.annotations.readOnlyHint, true, "sessions sí es de lectura")
+	assert_eq([by_name.asset_search.annotations.openWorldHint, by_name.asset_search.annotations.readOnlyHint], [true, true], "la Asset Store es internet")
+	assert_eq([by_name.asset_install.annotations.openWorldHint, by_name.asset_install.annotations.destructiveHint], [true, true], "asset_install, grupo addons")
+	registry.compact = true
+	registry.mark_extended(["echo"])
+	var run: Dictionary = registry.list().filter(func(entry: Dictionary) -> bool: return entry.name == "run")[0]
+	assert_eq(run.annotations.readOnlyHint, false, "godot.run corre métodos que escriben")
+	# Cada grupo de permisos de las tools tiene anotaciones: uno nuevo sin ellas falla acá.
+	for group: String in PermissionPolicy.GROUPS:
+		if group != PermissionPolicy.GROUP_SUBAGENTS:
+			assert_true(McpTool.GROUP_HINTS.has(group), "anotaciones para el grupo %s" % group)
+
+
+## m11-47: el shim stdio escribe cada evento SSE apenas llega; un carácter cortado espera al resto.
+func test_stdio_shim_prints_sse_events() -> void:
+	var bytes := "event: message\ndata: {\"a\":1}\n\n: comentario\n\nevent: message\ndata: {\"b\":\"ñ".to_utf8_buffer()
+	var cut := bytes.slice(0, bytes.size() - 1)  # el último byte de la ñ todavía no llegó
+	var rest := McpStdioShim._print_events(cut)
+	assert_true(rest.get_string_from_utf8().begins_with("event: message\ndata: {\"b\""), "el evento sin terminar queda")
+	assert_eq(McpStdioShim._print_events("x\r\n\r\n".to_utf8_buffer()).size(), 0, "CRLF también separa")
