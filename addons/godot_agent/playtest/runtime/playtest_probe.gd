@@ -18,6 +18,7 @@ const Watcher := preload("watcher.gd")
 const Film := preload("film.gd")
 const PointPick := preload("point_pick.gd")
 const Monitors := preload("monitors.gd")
+const DebugStack := preload("debug_stack.gd")
 
 const PREFIX := "godot_agent"
 const PROTOCOL := 3
@@ -157,6 +158,10 @@ func _answer(id: int, op: String, params: Dictionary) -> void:
 			result = {"text": "Inputs: %d of %d played%s." % [played, steps.size(), " (by physics frame)" if _by_frame(steps) else ""]}
 		"find":
 			result = _find(params)
+		# m11-56: con el juego parado en el debugger esto corre dentro de su bucle, encima de la función
+		# que paró; sin await, para contestar antes de volver a ese bucle.
+		"stack":
+			result = DebugStack.snapshot(params)
 		"ui":
 			result = {"text": _ui_text()}
 		"ui_act":

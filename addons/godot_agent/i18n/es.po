@@ -4439,3 +4439,12 @@ msgstr "Animación"
 
 msgid "Asset Store"
 msgstr "Asset Store"
+
+msgid "Breakpoint in the game"
+msgstr "Breakpoint en el juego"
+
+msgid "Step through the game"
+msgstr "Avanzar el juego paso a paso"
+
+msgid "Read the game's call stack"
+msgstr "Leer la pila del juego"

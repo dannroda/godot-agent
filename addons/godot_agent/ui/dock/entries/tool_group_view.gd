@@ -393,10 +393,13 @@ const GODOT_TOOL_NAMES := {
 	"delete_file": "Delete file",  # i18n
 	"duplicate_node": "Duplicate node",  # i18n
 	"editor_state": "Editor state",  # i18n
+	"game_breakpoint": "Breakpoint in the game",  # i18n
 	"game_call": "Call in the game",  # i18n
+	"game_debug": "Step through the game",  # i18n
 	"game_find": "Find in the game",  # i18n
 	"game_frames": "Look back at the game",  # i18n
 	"game_monitors": "Measure the game's performance",  # i18n
+	"game_stack": "Read the game's call stack",  # i18n
 	"game_get": "Read from the game",  # i18n
 	"game_input": "Input to the game",  # i18n
 	"game_pause": "Pause the game",  # i18n

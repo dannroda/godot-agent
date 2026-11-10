@@ -29,6 +29,8 @@ enum GameRunState {
 }
 
 ## Para el agente tal cual (describe_run_state) y para el usuario con I18n.t() (tooltip, m13-29).
+## Motivo con el que el debugger para en un breakpoint (m11-56).
+const BREAKPOINT_REASON := "Breakpoint"
 const GAME_RUN_STATE_NAMES: Dictionary = {
 	GameRunState.IDLE: "no game launched",  # i18n
 	GameRunState.LAUNCHING: "launching",  # i18n
@@ -46,12 +48,12 @@ const GAME_RUN_STATE_TRANSITIONS: Dictionary = {
 	GameRunState.LAUNCHING: [GameRunState.STARTED, GameRunState.STOPPED],
 	GameRunState.STARTED: [GameRunState.LAUNCHING, GameRunState.PROBE_READY, GameRunState.BREAKED, GameRunState.STOPPED],
 	GameRunState.PROBE_READY: [GameRunState.LAUNCHING, GameRunState.BREAKED, GameRunState.STOPPED],
-	GameRunState.BREAKED: [GameRunState.LAUNCHING, GameRunState.STOPPED],
+	GameRunState.BREAKED: [GameRunState.LAUNCHING, GameRunState.PROBE_READY, GameRunState.STOPPED],
 	GameRunState.STOPPED: [GameRunState.LAUNCHING, GameRunState.STARTED],
 }
 
 ## Las del juego en ejecución: extendidas con tools/list compacto (D56).
-const GAME_TOOLS: PackedStringArray = ["game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_frames", "game_monitors"]
+const GAME_TOOLS: PackedStringArray = ["game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_frames", "game_monitors", "game_breakpoint", "game_stack", "game_debug"]
 const MAX_SECONDS := 120.0
 const STARTUP_TIMEOUT_S := 20.0
 const FRAME_TIMEOUT_S := 5.0
@@ -155,6 +157,7 @@ func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> vo
 	debugger.session_stopped.connect(_on_session_stopped)
 	debugger.session_breaked.connect(_on_session_breaked)
 	debugger.probe_ready.connect(_on_probe_ready)
+	debugger.session_continued.connect(_on_session_continued)
 	debugger.inputs_done.connect(_on_inputs_done)
 	debugger.problem_reported.connect(_on_problem_reported)
 	debugger.frame_received.connect(_on_frame_received)
@@ -207,6 +210,12 @@ func _on_probe_ready() -> void:
 	_set_run_state(GameRunState.PROBE_READY)
 
 
+## Salió de la pausa del debugger (m11-56: game_debug, o el usuario desde el panel): vuelve a correr.
+func _on_session_continued() -> void:
+	if run_state == GameRunState.BREAKED and debugger.has_probe():
+		_set_run_state(GameRunState.PROBE_READY)
+
+
 func _on_session_stopped() -> void:
 	_continue_errors = false
 	_set_run_state(GameRunState.STOPPED)
@@ -231,7 +240,7 @@ func _on_session_breaked() -> void:
 			if not reason.is_empty():
 				break
 	# Un breakpoint lo puso alguien para frenar acá: no es un error que se saltea (m16-05).
-	if reason.begins_with("Breakpoint"):
+	if reason.begins_with(BREAKPOINT_REASON):
 		_continue_errors = false
 		_set_run_state(GameRunState.BREAKED)
 		return
@@ -715,8 +724,11 @@ static func _event_step(event: InputEvent, step: Dictionary) -> Dictionary:
 
 func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringArray, since: int, output_before: String) -> String:
 	var lines: PackedStringArray = []
-	if reached(GameRunState.BREAKED):
-		var reason := PlaytestDebugger.break_reason()
+	var reason := PlaytestDebugger.break_reason() if reached(GameRunState.BREAKED) else ""
+	if run_state == GameRunState.BREAKED and reason.begins_with(BREAKPOINT_REASON):
+		# m11-56: un breakpoint (del agente o del usuario) no es un error.
+		lines.append("%s: the game stopped at a breakpoint: %s. It is paused: game_stack shows where and the variables, game_debug continues or steps, stop_scene closes it." % [scene, reason])
+	elif reached(GameRunState.BREAKED):
 		lines.append("%s: the game stopped in the debugger because of an error%s. It is still paused: fix it and run again (run_scene restarts it) or use stop_scene." % [scene, ": " + reason if not reason.is_empty() else ""])
 	elif reached(GameRunState.STOPPED):
 		lines.append("%s: the game ended by itself before %.1f s." % [scene, seconds])
@@ -1104,18 +1116,19 @@ func point_at(uv: Vector2) -> Dictionary:
 	return await request("point", {"u": uv.x, "v": uv.y})
 
 
-## Pedido al probe: {text} o {error}.
-func request(op: String, params: Dictionary, timeout_s: float = REQUEST_TIMEOUT_S) -> Dictionary:
+## Pedido al probe: {text} o {error}. `while_breaked`: el pedido es para el juego parado en el
+## debugger (game_stack, m11-56): no se corta por la pausa.
+func request(op: String, params: Dictionary, timeout_s: float = REQUEST_TIMEOUT_S, while_breaked: bool = false) -> Dictionary:
 	var id := _next_request
 	_next_request += 1
 	if not debugger.send("request", [id, op, params]):
 		return {"error": NO_PROBE}
-	await _until(func() -> bool: return _replies.has(id) or not debugger.has_probe() or _stopped_in_debugger(), timeout_s)
+	await _until(func() -> bool: return _replies.has(id) or not debugger.has_probe() or (_stopped_in_debugger() and not while_breaked), timeout_s)
 	if _replies.has(id):
 		var reply: Dictionary = _replies[id]
 		_replies.erase(id)
 		return reply
-	if _stopped_in_debugger():
+	if _stopped_in_debugger() and not while_breaked:
 		return {"error": "The game stopped in the debugger before answering: %s" % PlaytestDebugger.break_reason()}
 	if not debugger.has_probe():
 		return {"error": "The game closed before answering."}
