@@ -90,6 +90,12 @@ const ACTION_SUPERVISE := "supervise"
 const ACTION_COPY_SUPERVISOR_COMMAND := "copy_supervisor_command"
 ## «Overwrite» del aviso cuando el workflow de regresiones ya existe (m16-10).
 const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
+## Avisos de RegressionsWorkflow.write() para el usuario.
+const REGRESSIONS_WORKFLOW_WARNINGS: Dictionary = {
+	RegressionsWorkflow.WARN_NO_GIT: "The project is not in a git repository: the workflow was written in the project folder. GitHub only reads .github/workflows/ at the root of the repository, so move it there (and adjust --path if the project is in a subfolder).",  # i18n
+	RegressionsWorkflow.WARN_IGNORED_REGRESSIONS: ".godot_agent/ is ignored by git: the saved regressions won't be in the repository, so the CI will find none. Un-ignore .godot_agent/playtests/regressions/ or commit it with git add -f.",  # i18n
+	RegressionsWorkflow.WARN_IGNORED_ADDON: "addons/godot_agent/ is ignored by git: the CI needs the addon to run the regressions. Commit it or install it in the workflow.",  # i18n
+}
 ## Acciones de edición del server MCP que todavía no se unieron a su tool call (llegan antes).
 const PENDING_UNDO_TTL_MS := 60000
 ## Kinds de tool call que escriben archivos: al completarse se sincroniza el editor.
@@ -620,7 +626,9 @@ func _write_regressions_workflow(overwrite: bool) -> void:
 	var root := ProjectSettings.globalize_path("res://").trim_suffix("/")
 	var written := RegressionsWorkflow.write(root, false, overwrite)
 	if written.ok:
-		_model.add_notice(I18n.t("Workflow written: %s, for Godot %s. Commit it and push: GitHub Actions will run the saved regressions on every push and pull request.") % [written.path, RegressionsWorkflow.editor_version()], ChatEntry.NoticeLevel.INFO)
+		_model.add_notice(I18n.t("Workflow written: %s, for Godot %s. Commit it and push: GitHub Actions will run the saved regressions on every push and pull request.") % [written.root.path_join(written.path), RegressionsWorkflow.editor_version()], ChatEntry.NoticeLevel.INFO)
+		for warning: String in written.warnings:
+			_model.add_notice(I18n.t(REGRESSIONS_WORKFLOW_WARNINGS[warning]), ChatEntry.NoticeLevel.WARNING)
 		EditorInterface.get_resource_filesystem().scan()
 	elif written.existed:
 		_model.add_notice(I18n.t("%s already exists. Overwrite it with the harness's workflow?") % written.path, ChatEntry.NoticeLevel.WARNING,

@@ -10,6 +10,16 @@ const PATH := "res://.github/workflows/godot-agent-regressions.yml"
 const CLI := "res://addons/godot_agent/playtest/regression_cli.gd"
 const REGRESSIONS_DIR := ".godot_agent/playtests/regressions"
 const REPORT := "regressions-report.txt"
+## Avisos de write(): sin repo git (el yml queda en el proyecto y hay que llevarlo a la raíz del
+## repo), o una carpeta que el CI necesita está en .gitignore.
+const WARN_NO_GIT := "no_git"
+const WARN_IGNORED_REGRESSIONS := "ignored_regressions"
+const WARN_IGNORED_ADDON := "ignored_addon"
+const WARNING_TEXTS: Dictionary = {
+	WARN_NO_GIT: "The project is not in a git repository: the workflow was written in the project folder. GitHub only reads .github/workflows/ at the root of the repository, so move it there and adjust --path if the project is in a subfolder.",
+	WARN_IGNORED_REGRESSIONS: ".godot_agent/ is ignored by git: the saved regressions won't be in the repository, so the CI will find none. Un-ignore .godot_agent/playtests/regressions/ (or commit it with git add -f).",
+	WARN_IGNORED_ADDON: "addons/godot_agent/ is ignored by git: the CI needs the addon to run the regressions. Commit it or install it in the workflow.",
+}
 
 
 ## La versión del editor como la nombran los releases de Godot: «4.7.2-stable», «4.8-beta2».
@@ -25,13 +35,35 @@ static func download_url(version: String) -> String:
 	return "https://github.com/%s/releases/download/%s/Godot_v%s_linux.x86_64.zip" % [repo, version, version]
 
 
+## Dónde está el proyecto respecto del repo git: {toplevel: raíz absoluta ("" sin git),
+## project_dir: ruta del proyecto relativa a la raíz ("" si es la raíz), ignored: carpetas que el
+## CI necesita y están en .gitignore}. git con OS.execute y argumentos en array, como los checkpoints.
+static func repo_info(project_root: String) -> Dictionary:
+	var info := {"toplevel": "", "project_dir": "", "ignored": PackedStringArray()}
+	var output: Array = []
+	if OS.execute("git", ["-C", project_root, "rev-parse", "--show-toplevel"], output, true) != 0 or output.is_empty():
+		return info
+	info.toplevel = str(output[0]).strip_edges()
+	output = []
+	if OS.execute("git", ["-C", project_root, "rev-parse", "--show-prefix"], output, true) == 0 and not output.is_empty():
+		info.project_dir = str(output[0]).strip_edges().trim_suffix("/")
+	for folder: String in [".godot_agent", "addons/godot_agent"]:
+		# check-ignore sale con 0 si la ruta está ignorada, 1 si no (exista o no).
+		if OS.execute("git", ["-C", project_root, "check-ignore", "-q", folder + "/"], [], true) == 0:  # con la barra: cuenta como carpeta aunque no exista
+			info.ignored.append(folder)
+	return info
+
+
 ## El texto del workflow. `render`: las regresiones corren bajo Xvfb con OpenGL por software, para
-## las que necesitan dibujar (capturas, shaders); si no, headless.
-static func workflow_text(version: String, render: bool) -> String:
+## las que necesitan dibujar (capturas, shaders); si no, headless. `project_dir`: el proyecto
+## relativo a la raíz del repo ("" si es la raíz): --path y las capturas salen de ahí.
+static func workflow_text(version: String, render: bool, project_dir: String = "") -> String:
 	var godot := "\"$RUNNER_TEMP/godot/godot\""
-	var run_line := "%s --headless --path . --script %s" % [godot, CLI]
+	var project := "\"%s\"" % project_dir if not project_dir.is_empty() else "."
+	var captures := project_dir.path_join(".godot_agent/playtests") if not project_dir.is_empty() else ".godot_agent/playtests"
+	var run_line := "%s --headless --path %s --script %s" % [godot, project, CLI]
 	if render:
-		run_line = "xvfb-run -a -s \"-screen 0 1280x720x24\" %s --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy --path . --script %s" % [godot, CLI]
+		run_line = "xvfb-run -a -s \"-screen 0 1280x720x24\" %s --display-driver x11 --rendering-driver opengl3 --audio-driver Dummy --path %s --script %s" % [godot, project, CLI]
 	var lines: PackedStringArray = [
 		"# Written by Godot Agent Harness: runs the playtest regressions saved in %s/ on every push." % REGRESSIONS_DIR,
 		"# Edit it freely; the harness won't overwrite it unless you ask.",
@@ -69,7 +101,7 @@ static func workflow_text(version: String, render: bool) -> String:
 		"",
 		"      - name: Import the project",
 		"        run: |",  # el comando empieza con comillas: en una sola línea sería un escalar YAML inválido
-		"          %s --headless --path . --import" % godot,
+		"          %s --headless --path %s --import" % [godot, project],
 		"",
 		"      - name: Run the regressions",
 		"        run: |",
@@ -83,20 +115,30 @@ static func workflow_text(version: String, render: bool) -> String:
 		"          name: playtest-regressions",
 		"          path: |",
 		"            %s" % REPORT,
-		"            .godot_agent/playtests/**/*.png",
-		"            .godot_agent/playtests/**/*.jpg",
+		"            %s/**/*.png" % captures,
+		"            %s/**/*.jpg" % captures,
 		"          if-no-files-found: ignore",
 		"",
 	])
 	return "\n".join(lines)
 
 
-## Escribe el workflow en `project_root` (la carpeta del proyecto, absoluta). Sin `overwrite` no pisa
-## uno que exista. Devuelve {ok, path, existed, error}: `path` relativo al proyecto.
+## Escribe el workflow en la raíz del repo git que contiene `project_root` (la carpeta del proyecto,
+## absoluta); sin git, en el proyecto, con el aviso WARN_NO_GIT. Sin `overwrite` no pisa uno que
+## exista. Devuelve {ok, path, existed, error, root, project_dir, warnings}: `path` relativo a `root`.
 static func write(project_root: String, render: bool, overwrite: bool, version: String = "") -> Dictionary:
+	var repo := repo_info(project_root)
+	var root: String = repo.toplevel if not str(repo.toplevel).is_empty() else project_root
 	var relative := PATH.trim_prefix("res://")
-	var absolute := project_root.path_join(relative)
-	var result := {"ok": false, "path": relative, "existed": FileAccess.file_exists(absolute), "error": ""}
+	var absolute := root.path_join(relative)
+	var warnings: PackedStringArray = []
+	if str(repo.toplevel).is_empty():
+		warnings.append(WARN_NO_GIT)
+	if ".godot_agent" in repo.ignored:
+		warnings.append(WARN_IGNORED_REGRESSIONS)
+	if "addons/godot_agent" in repo.ignored:
+		warnings.append(WARN_IGNORED_ADDON)
+	var result := {"ok": false, "path": relative, "existed": FileAccess.file_exists(absolute), "error": "", "root": root, "project_dir": repo.project_dir, "warnings": warnings}
 	if result.existed and not overwrite:
 		result.error = "%s already exists" % relative
 		return result
@@ -107,11 +149,18 @@ static func write(project_root: String, render: bool, overwrite: bool, version: 
 	if file == null:
 		result.error = "could not write %s: %s" % [relative, error_string(FileAccess.get_open_error())]
 		return result
-	file.store_string(workflow_text(version if not version.is_empty() else editor_version(), render))
+	file.store_string(workflow_text(version if not version.is_empty() else editor_version(), render, repo.project_dir))
 	file.close()
 	result.ok = true
 	return result
 
 
+## Dónde se escribiría el workflow para `project_root` (la raíz del repo, o el proyecto sin git).
+static func target_path(project_root: String) -> String:
+	var repo := repo_info(project_root)
+	var root: String = repo.toplevel if not str(repo.toplevel).is_empty() else project_root
+	return root.path_join(PATH.trim_prefix("res://"))
+
+
 static func exists(project_root: String) -> bool:
-	return FileAccess.file_exists(project_root.path_join(PATH.trim_prefix("res://")))
+	return FileAccess.file_exists(target_path(project_root))

@@ -51,6 +51,48 @@ func test_write_does_not_overwrite_without_asking() -> void:
 	assert_true(FileAccess.get_file_as_string(root.path_join(first.path)).contains("xvfb-run"), "con el contenido nuevo")
 
 
+## El juego vive en una subcarpeta del repo: el yml va a la raíz (GitHub no lee otro .github/) con
+## --path y las capturas relativos a la raíz; y una carpeta ignorada se avisa.
+func test_project_in_a_subfolder_of_the_repo() -> void:
+	var repo := ProjectSettings.globalize_path(temp_dir("regressions_workflow_repo"))
+	OS.execute("rm", ["-rf", repo.path_join(".git"), repo.path_join(".github"), repo.path_join("game")])
+	OS.execute("git", ["-c", "init.defaultBranch=main", "init", "-q", repo])
+	DirAccess.make_dir_recursive_absolute(repo.path_join("game/addons/godot_agent"))
+	var ignore := FileAccess.open(repo.path_join(".gitignore"), FileAccess.WRITE)
+	ignore.store_string(".godot_agent/\n")
+	ignore.close()
+	var project := repo.path_join("game")
+	var info := RegressionsWorkflow.repo_info(project)
+	assert_eq(info.toplevel, repo, "la raíz del repo")
+	assert_eq(info.project_dir, "game", "el proyecto relativo a la raíz")
+	assert_eq(info.ignored, PackedStringArray([".godot_agent"]), "la carpeta ignorada")
+	var written := RegressionsWorkflow.write(project, false, false, "4.7.2-stable")
+	assert_true(written.ok, "se escribe (%s)" % written.error)
+	assert_eq(written.root, repo, "en la raíz del repo")
+	assert_true(FileAccess.file_exists(repo.path_join(".github/workflows/godot-agent-regressions.yml")), "el yml está en <repo>/.github/workflows")
+	assert_false(FileAccess.file_exists(project.path_join(".github/workflows/godot-agent-regressions.yml")), "y no en el proyecto")
+	var text := FileAccess.get_file_as_string(repo.path_join(written.path))
+	assert_true(text.contains("--path \"game\" --import") and text.contains("--path \"game\" --script"), "Godot corre con --path game")
+	assert_true(text.contains("            game/.godot_agent/playtests/**/*.png"), "las capturas relativas a la raíz")
+	assert_eq(written.warnings, PackedStringArray([RegressionsWorkflow.WARN_IGNORED_REGRESSIONS]), "avisa que .godot_agent está ignorado")
+	assert_true(RegressionsWorkflow.exists(project), "exists() mira la raíz del repo")
+	# En la raíz del repo: sin subcarpeta, --path . y sin avisos de carpetas.
+	OS.execute("rm", ["-f", repo.path_join(".gitignore"), repo.path_join(".github/workflows/godot-agent-regressions.yml")])
+	var at_root := RegressionsWorkflow.write(repo, false, false, "4.7.2-stable")
+	assert_true(at_root.ok and str(at_root.project_dir).is_empty() and at_root.warnings.is_empty(), "en la raíz: sin subcarpeta ni avisos (%s)" % [at_root])
+	assert_true(FileAccess.get_file_as_string(repo.path_join(at_root.path)).contains("--path . --import"), "--path .")
+
+
+func test_without_git_it_warns() -> void:
+	var project := ProjectSettings.globalize_path(temp_dir("regressions_workflow_nogit"))
+	var info := RegressionsWorkflow.repo_info("/")  # fuera de cualquier repo
+	assert_eq(info.toplevel, "", "sin repo, sin raíz")
+	assert_eq(RegressionsWorkflow.WARNING_TEXTS.size(), 3, "cada aviso tiene texto para el agente")
+	# El temp vive dentro de user://, que puede estar en un repo o no: solo el texto del aviso se prueba acá.
+	assert_true(RegressionsWorkflow.WARNING_TEXTS[RegressionsWorkflow.WARN_NO_GIT].contains("root of the repository"), "el aviso dice dónde va")
+	assert_true(DirAccess.dir_exists_absolute(project), "carpeta temporal")
+
+
 func test_tool_is_registered_for_the_agent() -> void:
 	var tools := RunTools.new()
 	var names := tools.tools().map(func(tool: RefCounted) -> String: return tool.name)

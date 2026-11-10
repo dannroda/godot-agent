@@ -887,7 +887,12 @@ func _write_regressions_workflow(args: Dictionary) -> Dictionary:
 		if written.existed:
 			return McpTool.error("%s. Pass overwrite: true to replace it." % written.error)
 		return McpTool.error(written.error)
-	return McpTool.text("Wrote %s for Godot %s. Commit it and push: GitHub Actions runs the %d saved regressions on every push and pull request." % [written.path, RegressionsWorkflow.editor_version(), PlaytestRegressions.new().list().size()])
+	var lines: PackedStringArray = ["Wrote %s (repository root: %s) for Godot %s. Commit it and push: GitHub Actions runs the %d saved regressions on every push and pull request." % [written.path, written.root, RegressionsWorkflow.editor_version(), PlaytestRegressions.new().list().size()]]
+	if not str(written.project_dir).is_empty():
+		lines.append("The project is in %s/ inside the repository: the workflow runs Godot with --path %s." % [written.project_dir, written.project_dir])
+	for warning: String in written.warnings:
+		lines.append("Warning: " + RegressionsWorkflow.WARNING_TEXTS[warning])
+	return McpTool.text("\n".join(lines))
 
 
 ## `count` frames repartidos en los últimos `seconds` de la lista.

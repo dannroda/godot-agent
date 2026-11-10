@@ -4115,3 +4115,12 @@ msgstr "No se pudo escribir el workflow: %s"
 
 msgid "Write the regressions CI workflow"
 msgstr "Escribir el workflow de CI de las regresiones"
+
+msgid "The project is not in a git repository: the workflow was written in the project folder. GitHub only reads .github/workflows/ at the root of the repository, so move it there (and adjust --path if the project is in a subfolder)."
+msgstr "El proyecto no está en un repositorio git: el workflow quedó en la carpeta del proyecto. GitHub solo lee .github/workflows/ en la raíz del repositorio, así que movelo ahí (y ajustá --path si el proyecto está en una subcarpeta)."
+
+msgid ".godot_agent/ is ignored by git: the saved regressions won't be in the repository, so the CI will find none. Un-ignore .godot_agent/playtests/regressions/ or commit it with git add -f."
+msgstr ".godot_agent/ está ignorado por git: las regresiones guardadas no van a estar en el repositorio y el CI no va a encontrar ninguna. Sacá .godot_agent/playtests/regressions/ del .gitignore o commitealo con git add -f."
+
+msgid "addons/godot_agent/ is ignored by git: the CI needs the addon to run the regressions. Commit it or install it in the workflow."
+msgstr "addons/godot_agent/ está ignorado por git: el CI necesita el addon para correr las regresiones. Commitealo o instalalo en el workflow."
