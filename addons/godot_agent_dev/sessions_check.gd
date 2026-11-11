@@ -9,6 +9,7 @@ const SessionModel := preload("res://addons/godot_agent/session/session_model.gd
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
+const ToolCall := preload("res://addons/godot_agent/session/tool_call.gd")
 
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
 const SOURCE := "res://tests/tmp/sessions_source.txt"
@@ -237,6 +238,8 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	first_model.set_state(SessionModel.SessionState.DISCONNECTED)
 	bar.current_tab = 0
 
+	failures.append_array(await _check_follow(tree, main_plugin, tabs, first_model, second_session.model, second_dock))
+
 	# Cerrar la pestaña: el coordinador y el server MCP la olvidan.
 	bar.tab_button_pressed.emit(1)
 	await tree.process_frame
@@ -290,3 +293,67 @@ func _save_shot(tree: SceneTree, control: Control, path: String) -> void:
 	var rect := Rect2i(control.get_global_rect())
 	if rect.size.x > 0 and rect.size.y > 0:
 		image.get_region(rect).save_png(path)
+
+
+## m11-33: con «Seguir al agente» prendido en la pestaña activa, el editor abre la escena y selecciona
+## el nodo que tocó; la otra pestaña no mueve nada; mientras el usuario trabaja, espera; apagado, nada.
+func _check_follow(tree: SceneTree, main_plugin: Object, tabs: Control, first_model: SessionModel, second_model: SessionModel, second_dock: Control) -> PackedStringArray:
+	var failures: PackedStringArray = []
+	var scene_path := "res://tests/tmp/follow.tscn"
+	var built := Node2D.new()
+	built.name = "FollowRoot"
+	var child := Node2D.new()
+	child.name = "Target"
+	built.add_child(child)
+	child.owner = built
+	var packed := PackedScene.new()
+	packed.pack(built)
+	ResourceSaver.save(packed, scene_path)
+	built.free()
+	var follower: Node = main_plugin.get(&"_follower")
+	var bar: TabBar = tabs.get(&"_bar")
+	bar.current_tab = 1
+	second_dock.call(&"set_follow", true)
+	follower.set(&"_last_outside_input_ms", -100000)
+	var edit := func(node_path: String) -> ToolCall:
+		var call := ToolCall.new()
+		call.title = "mcp__godot__set_properties"
+		call.status = ToolCall.STATUS_COMPLETED
+		call.raw_input = {"scene": scene_path, "node_path": node_path}
+		return call
+	var selected := func() -> String:
+		var nodes := EditorInterface.get_selection().get_selected_nodes()
+		return str(nodes[0].name) if nodes.size() == 1 else ""
+	var edited := func() -> String:
+		var root := EditorInterface.get_edited_scene_root()
+		return root.scene_file_path if root else ""
+	first_model.tool_call_changed.emit(edit.call("Target"), null)
+	await tree.process_frame
+	if edited.call() == scene_path:
+		failures.append("seguir: una pestaña que no es la activa movió el editor")
+	second_model.tool_call_changed.emit(edit.call("Target"), null)
+	await tree.process_frame
+	if edited.call() != scene_path or selected.call() != "Target":
+		failures.append("seguir: no abrió la escena con el nodo seleccionado (%s, «%s»)" % [edited.call(), selected.call()])
+	follower.set(&"_last_outside_input_ms", Time.get_ticks_msec())
+	second_model.tool_call_changed.emit(edit.call("."), null)
+	await tree.process_frame
+	if selected.call() != "Target" or (follower.get(&"_pending") as Dictionary).is_empty():
+		failures.append("seguir: saltó con el usuario trabajando en el editor (selección «%s»)" % selected.call())
+	var deadline := Time.get_ticks_msec() + 6000
+	while selected.call() != "FollowRoot" and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	if selected.call() != "FollowRoot":
+		failures.append("seguir: lo pendiente no saltó cuando el usuario paró (selección «%s»)" % selected.call())
+	second_dock.call(&"set_follow", false)
+	second_model.tool_call_changed.emit(edit.call("Target"), null)
+	await tree.process_frame
+	if selected.call() != "FollowRoot":
+		failures.append("seguir: apagado, igual movió la selección")
+	EditorInterface.get_selection().clear()
+	if edited.call() == scene_path:
+		EditorInterface.close_scene()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene_path))
+	bar.current_tab = 0
+	await tree.process_frame
+	return failures

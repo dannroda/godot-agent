@@ -18,6 +18,8 @@ signal open_elsewhere_requested(session_id: String)
 signal extensions_requested
 ## Abrir la lista de tools del agente (Extensiones › Tools, m12-46).
 signal tools_requested
+## Se prendió o apagó «Seguir al agente» en esta pestaña (m11-33).
+signal follow_toggled(enabled: bool)
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
 signal action_forwarded(action: String, payload: Variant)
 
@@ -114,6 +116,10 @@ var can_switch_session: Callable
 ## vacía lo retoma y el composer lo guía. Lo pone el plugin (m17-19); se lee al momento, no se copia
 ## (m13-14). Sin asignar: nunca.
 var oneshot_active: Callable
+## «Seguir al agente» (m11-33): el editor salta a lo que edita el agente de esta pestaña. Por pestaña,
+## apagado al abrirla; lo lee el plugin, que solo sigue a la pestaña activa.
+var follow_enabled: bool = false
+var _follow_button: Button
 ## () -> Array[Dictionary]: el estado de las otras máquinas de D61 para el tooltip del encabezado
 ## (m13-29), cada una {"machine": nombre traducido, "label": estado traducido, "age": segundos}. El
 ## juego de run_scene y el One-shot viven en el plugin: se leen al momento, sin copias. Sin asignar:
@@ -363,6 +369,16 @@ func _ready() -> void:
 
 # --- header y modos ------------------------------------------------------------------------------
 
+## Prende o apaga «Seguir al agente» en esta pestaña.
+func set_follow(enabled: bool) -> void:
+	if follow_enabled == enabled:
+		return
+	follow_enabled = enabled
+	if _follow_button and _follow_button.button_pressed != enabled:
+		_follow_button.set_pressed_no_signal(enabled)
+	follow_toggled.emit(enabled)
+
+
 ## Los textos del .tscn están en inglés: el dock no usa la traducción automática del editor.
 func _translate_scene_texts() -> void:
 	_profile_button.tooltip_text = I18n.t("Agent profile")
@@ -377,6 +393,17 @@ func _translate_scene_texts() -> void:
 
 
 func _build_header() -> void:
+	_follow_button = Button.new()
+	_follow_button.name = "FollowButton"
+	_follow_button.flat = true
+	_follow_button.toggle_mode = true
+	_follow_button.icon = AgentTheme.icon(&"CenterView")
+	if _follow_button.icon == null:
+		_follow_button.text = "◎"
+	_follow_button.tooltip_text = I18n.t("Follow the agent: the editor jumps to each script and node it edits. Only the active tab is followed, and never while you're typing or working in the editor: it waits until you stop.")
+	_follow_button.toggled.connect(set_follow)
+	_history_button.get_parent().add_child(_follow_button)
+	_history_button.get_parent().move_child(_follow_button, _history_button.get_index())
 	_history_button.icon = AgentTheme.icon(&"History")
 	_history_button.tooltip_text = I18n.t("Session history")
 	_history_menu = PopupMenu.new()

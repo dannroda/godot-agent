@@ -1346,6 +1346,9 @@ msgstr "enviado: %s"
 msgid "session"
 msgstr "sesión"
 
+msgid "Follow the agent: the editor jumps to each script and node it edits. Only the active tab is followed, and never while you're typing or working in the editor: it waits until you stop."
+msgstr "Seguir al agente: el editor salta a cada script y nodo que edita. Solo se sigue a la pestaña activa, y nunca mientras escribís o trabajás en el editor: espera a que pares."
+
 msgid "Session history"
 msgstr "Historial de sesiones"
 

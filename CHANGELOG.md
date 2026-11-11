@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Follow the agent**: a toggle in the dock header (off by default, per tab) makes the editor jump to what the agent edits, like following a collaborator: the script at the changed line, or the scene with the node it added, changed, renamed or moved selected. Only the active tab is followed, and it never jumps while you're clicking, dragging or typing in the editor: it waits until you stop and goes to the latest change. See [Getting started](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Getting-started.md).
+
 ## [0.1.20] - 2026-11-11
 
 ### Added
