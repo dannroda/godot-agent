@@ -2,7 +2,7 @@ name: Nightly suite
 
 # Todo lo que no gasta tokens ni usa red (tests/suite.sh full): lo del CI y además los checks del editor
 # que tardan más o miran pantallas enteras (One-shot, sesiones, i18n, completado, caídas…).
-# A mano desde Actions, o cada noche sobre main.
+# A mano desde Actions o cada noche, siempre sobre main.
 on:
   schedule:
     - cron: "17 5 * * *"
@@ -11,6 +11,8 @@ on:
 jobs:
   suite:
     name: Full suite (Godot ${{ matrix.godot }})
+    # Solo main, también a mano: las ramas sm/* corren el CI (ci.yml) al pushearlas.
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

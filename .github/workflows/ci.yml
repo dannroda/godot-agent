@@ -2,9 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # sm/**: las ramas de trabajo de las sesiones, para que el CI las vea antes de llegar a main (m16-12).
+    branches: [main, 'sm/**']
   pull_request:
   workflow_call:
+
+# Un grupo por workflow y ref: una rama sm/* nunca cancela ni hace esperar a main, y el CI que llama el
+# release (workflow_call, con el nombre del release) no comparte grupo con el push a main. Un push nuevo
+# a la misma rama o PR cancela la corrida vieja; en main no se cancela nada.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   test:
