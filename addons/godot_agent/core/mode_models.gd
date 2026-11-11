@@ -9,7 +9,7 @@ extends RefCounted
 ## En HarnessSettings, KEY: `{profile_id: {mode_key: {"value": String, "name": String}}}`; `name` es el
 ## nombre que mostraba el agente al elegirlo, para Settings (sin sesión no se sabe qué ofrece).
 
-const KEY := "agents/models_by_mode"
+const KEY := "agents/models_by_mode"  # HarnessSettings.KEY_MODE_MODELS
 ## Las claves de modo: las de PermissionPolicy.MODE_KEYS, en el orden de SessionModel.HarnessMode.
 const MODE_KEYS: PackedStringArray = ["ask", "review", "build", "oneshot", "auto"]
 

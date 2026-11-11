@@ -310,3 +310,28 @@ func test_dirty_sections() -> void:
 	dialog.call(&"_refresh_dirty")
 	assert_false(nav.get_item_text(interface).begins_with("•"), "de vuelta como estaba")
 	dialog.free()
+
+
+## El modelo de cada modo del perfil (m11-38): se lista con «Olvidar», que se aplica al guardar.
+func test_mode_models() -> void:
+	var dialog := _dialog()
+	var settings: HarnessSettings = dialog.get(&"_settings")
+	var store := preload("res://addons/godot_agent/core/mode_models.gd").new(settings)
+	store.remember("claude-code", SessionModel.HarnessMode.ASK, "opus", "Opus")
+	store.remember("claude-code", SessionModel.HarnessMode.ONESHOT, "haiku", "Haiku")
+	dialog.call(&"_edit_profile", 0)
+	var box: VBoxContainer = dialog.get(&"_mode_models_box")
+	var rows := box.get_children().filter(func(c: Node) -> bool: return c is HBoxContainer and not c.is_queued_for_deletion())
+	assert_eq(rows.size(), 2, "una fila por modo recordado (One-shot también)")
+	assert_eq((rows[0].get_child(0) as Label).text, "Ask: Opus", "modo y nombre")
+	(rows[0].get_child(1) as Button).pressed.emit()
+	rows = box.get_children().filter(func(c: Node) -> bool: return c is HBoxContainer and not c.is_queued_for_deletion())
+	assert_eq(rows.size(), 1, "olvidado en el formulario")
+	assert_eq(str(store.get_model("claude-code", SessionModel.HarnessMode.ASK).get("value", "")), "opus", "todavía no en la tienda")
+	dialog.call(&"_apply_model_forgets")  # lo que hace _on_save (que además escribe project_config.tres)
+	assert_eq(store.get_model("claude-code", SessionModel.HarnessMode.ASK), {}, "al guardar, olvidado")
+	assert_eq(str(store.get_model("claude-code", SessionModel.HarnessMode.ONESHOT).value), "haiku", "el resto sigue")
+	dialog.call(&"_edit_profile", 1)
+	var hints := box.get_children().filter(func(c: Node) -> bool: return c is Label and not c.is_queued_for_deletion())
+	assert_true(hints.size() == 1 and (hints[0] as Label).text.contains("composer"), "sin nada recordado, explica cómo se elige")
+	dialog.free()

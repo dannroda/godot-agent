@@ -835,10 +835,7 @@ func _on_save() -> void:
 	for property: String in CONFIG_PROPERTIES:
 		before[property] = _config.get(property)
 	_settings.save_profiles(_profiles)
-	var mode_models := ModeModels.new(_settings)
-	for pair: Array in _forget_models:
-		mode_models.forget(str(pair[0]), int(pair[1]))
-	_forget_models = []
+	_apply_model_forgets()
 	_settings.set_value(HarnessSettings.KEY_MCP_PORT, int(_port_spin.value))
 	_settings.save_mcp_servers(_mcp_servers_page.user_servers())
 	_settings.set_value(HarnessSettings.KEY_QUOTA_WARN, int(_warn_spin.value))
@@ -1144,6 +1141,14 @@ func _fill_mode_models(profile_id: String) -> void:
 	var hint := _hint(I18n.t("The model you pick in the dock's composer is remembered for the mode that tab is in, and switching to that mode picks it again (plan in Ask with one model, build with another). It is yours, not the project's. Agents that don't offer a model choice don't show the selector.") if not remembered
 		else I18n.t("Pick another one in the composer while in that mode to change it."))
 	_mode_models_box.add_child(hint)
+
+
+## Los «Olvidar» del modelo por modo, al guardar (m11-38).
+func _apply_model_forgets() -> void:
+	var mode_models := ModeModels.new(_settings)
+	for pair: Array in _forget_models:
+		mode_models.forget(str(pair[0]), int(pair[1]))
+	_forget_models = []
 
 
 func _apply_profile_form() -> void:
