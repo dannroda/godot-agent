@@ -41,22 +41,24 @@ func _init(project_root: String = "") -> void:
 
 
 ## {code, output}. Corre en un Thread y espera frames hasta que termine.
-func run(args: PackedStringArray) -> Dictionary:
+## `strip`: false deja la salida tal cual (un diff necesita sus espacios y saltos del final).
+func run(args: PackedStringArray, strip: bool = true) -> Dictionary:
 	var thread := Thread.new()
-	thread.start(_execute.bind(args))
+	thread.start(_execute.bind(args, strip))
 	var tree := Engine.get_main_loop() as SceneTree
 	while thread.is_alive():
 		await tree.process_frame
 	return thread.wait_to_finish()
 
 
-func _execute(args: PackedStringArray) -> Dictionary:
+func _execute(args: PackedStringArray, strip: bool = true) -> Dictionary:
 	var output: Array = []
 	var full: PackedStringArray = ["-C", root]
 	full.append_array(_identity)
 	full.append_array(args)
 	var code := OS.execute(git_path, full, output, true)
-	return {"code": code, "output": "".join(output).strip_edges()}
+	var text := "".join(output)
+	return {"code": code, "output": text.strip_edges() if strip else text}
 
 
 ## git instalado y el proyecto dentro de un repo con al menos un commit. Si no, last_error dice por qué.
