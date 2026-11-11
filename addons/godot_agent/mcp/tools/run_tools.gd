@@ -427,7 +427,7 @@ func tools() -> Array:
 			"Acts on a control listed by game_ui. A click goes through the viewport as a real mouse click does, so something on top of the control blocks it: that comes back as an error, because a player could not press it either. `set` and choosing an option change the value directly (not by input), and say so. To type: action focus, then game_input {text}.",
 			{"id": {"type": "string"}, "action": {"type": "string", "enum": ["click", "right_click", "double_click", "focus", "set"]}, "value": {"description": "For set: the value. For click on a list: the option's text."}}, ["id"], _game_ui_act),
 		McpTool.create("game_script", run,
-			"Runs a short GDScript inside the running game, so it can react in the same frame and do many reads and inputs in one call. The code needs `func run(game):` and runs as a coroutine; what it returns and what it says with game.say(...) come back. `game` has: say(...), node(path), player(), tree(), movement() (speed, jump and gravity read from the player's script); await press(name), hold(name), release(name), mouse(dx, dy), await wait(seconds), await wait_frames(n), await until(callable, timeout), await look_at(node_or_point, tolerance) (3D). press, until and look_at return {ok, why, data}: read `why` before you blame the game. Example: func run(game):\n\tawait game.press(\"jump\")\n\treturn game.player().velocity.y\nAt `timeout` it stops, the keys it held are let go and the game is paused. It can't use files or start processes.",
+			"Runs a short GDScript inside the running game, so it can react in the same frame and do many reads and inputs in one call. The code needs `func run(game):` and runs as a coroutine; what it returns and what it says with game.say(...) come back. `game` has: say(...), node(path), player(), tree(), movement() (speed, jump and gravity read from the player's script); await press(name), hold(name), release(name), mouse(dx, dy), await wait(seconds), await wait_frames(n), await until(callable, timeout), await look_at(node_or_point, tolerance) (3D). press, until and look_at return {ok, why, data}: read `why` before you blame the game. For a regression worth saving, also invariant(name, check, value) (check returns true while things are right; it runs on every physics frame until run() returns, and a break fails the run with the frame and the value) and budget(metric, limit) with frame_ms_p95, physics_ms_p95, draw_calls_max, nodes_max or orphans_end (over `limit` fails; without a limit it compares with this machine's baseline, which a passing saved regression records: counts fail above it, times only warn), e.g. game.invariant(\"player stays in the level\", func(): return game.player().global_position.y > -50, func(): return game.player().global_position). Example: func run(game):\n\tawait game.press(\"jump\")\n\treturn game.player().velocity.y\nAt `timeout` it stops, the keys it held are let go and the game is paused. It can't use files or start processes.",
 			{"code": {"type": "string"}, "timeout": {"type": "number", "description": "Seconds (default 10, max. %d)" % SCRIPT_MAX_S}}, ["code"], _game_script),
 		McpTool.create("game_pause", run,
 			"Pauses or resumes the running game, so nothing happens while you think. While paused, advance it with game_step. Reads and captures still work. Code that measures real time (Time.get_ticks_*) keeps counting.",
@@ -1009,7 +1009,11 @@ func _game_script(args: Dictionary) -> Dictionary:
 	# Un error en el script del agente no tiene que frenar el juego en el debugger.
 	var before := _continue_errors
 	_continue_errors = true
-	var result := await _game_request("script", {"code": code, "timeout": timeout}, timeout)
+	var params := {"code": code, "timeout": timeout}
+	# Las bases de los presupuestos de una regresión guardada (m11-44); el agente no las pasa.
+	if args.get("baselines") is Dictionary:
+		params.baselines = args.baselines
+	var result := await _game_request("script", params, timeout)
 	_continue_errors = before
 	return result
 
@@ -1087,12 +1091,14 @@ func run_regression(entry: Dictionary, setup: String = "") -> Dictionary:
 		return result
 	if not setup.is_empty():
 		await _game_script({"code": setup, "timeout": REGRESSION_TIMEOUT_S})
-	var played: Dictionary = await _game_script({"code": str(entry.get("code", "")), "timeout": REGRESSION_TIMEOUT_S})
+	var played: Dictionary = await _game_script({"code": str(entry.get("code", "")), "timeout": REGRESSION_TIMEOUT_S, "baselines": entry.get("baselines", {})})
 	var parts: PackedStringArray = []
 	for block: Dictionary in played.get("content", []):
 		parts.append(str(block.get("text", "")))
 	result.output = "\n".join(parts)
 	result.passed = not played.get("isError", false) and PlaytestRegressions.passed(result.output)
+	if result.passed and setup.is_empty():
+		PlaytestRegressions.record_baselines(str(entry.get("file", "")), result.output)
 	await _stop_scene({})
 	return result
 

@@ -284,6 +284,9 @@ func _run_script(params: Dictionary) -> Dictionary:
 		OS.remove_logger(errors)
 		return {"error": "The script needs a `func run(game):`."}
 	var kit := ScriptKit.new(self)
+	if params.get("baselines") is Dictionary:
+		kit.checks.baselines = params.baselines
+	kit.checks.time_budgets_warn = params.get("time_budgets_warn", false) == true
 	var state := {"done": false, "value": null}
 	_drive_script(instance, kit, state)
 	var deadline := Time.get_ticks_msec() + int(timeout * 1000.0)
@@ -291,9 +294,11 @@ func _run_script(params: Dictionary) -> Dictionary:
 		await get_tree().process_frame
 	kit.aborted = not state.done
 	kit.release_all()
+	var checked := kit.checks.finish()
 	OS.remove_logger(errors)
 	var lines := kit.lines
 	lines.append_array(errors.lines)
+	lines.append_array(checked.lines)
 	if errors.fatal:
 		lines.append("The script stopped on an error; the keys it held were let go.")
 	elif not state.done:
@@ -302,7 +307,9 @@ func _run_script(params: Dictionary) -> Dictionary:
 		lines.append("The game was paused where it stood: game_pause to let it run.")
 	else:
 		lines.append("run() returned: %s" % _format(state.value))
-	return {"text": "\n".join(lines)}
+		if not (checked.violations as Array).is_empty():
+			lines.append("The regression fails anyway: %d invariant or budget broke (above)." % (checked.violations as Array).size())
+	return {"text": "\n".join(lines), "violations": checked.violations}
 
 
 func _drive_script(instance: Variant, kit: ScriptKit, state: Dictionary) -> void:

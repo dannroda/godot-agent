@@ -10,6 +10,10 @@ extends RefCounted
 const GDScriptMutator := preload("gdscript_mutator.gd")
 const CLI := "res://addons/godot_agent/playtest/regression_cli.gd"
 const RESULT_FILE := "res://.godot_agent/playtests/mutation.json"
+const RegressionChecks := preload("../runtime/regression_checks.gd")
+const KILLED_BY_SCRIPT := "script"
+const KILLED_BY_INVARIANT := "invariant"
+const KILLED_BY_BUDGET := "budget"
 const DEFAULT_COUNT := 20
 const POLL_S := 0.1
 ## Un mutante tiene hasta TIMEOUT_FACTOR veces lo que tardó la corrida sin mutar, más el arranque.
@@ -133,9 +137,20 @@ func run(entries: Array[Dictionary], count: int = DEFAULT_COUNT) -> Dictionary:
 
 ## {killed, survived, invalid, timeouts, errors, measured, percent, by_regression: {archivo: atrapados}}.
 ## Un timeout cuenta como detectado; los no válidos y los errores no cuentan.
+## Qué la hizo fallar (m11-44): KILLED_BY_INVARIANT, KILLED_BY_BUDGET o KILLED_BY_SCRIPT.
+static func kill_reason(output: String) -> String:
+	if output.contains(RegressionChecks.BROKEN):
+		return KILLED_BY_INVARIANT
+	if output.contains(RegressionChecks.OVER):
+		return KILLED_BY_BUDGET
+	return KILLED_BY_SCRIPT
+
+
 static func score(mutants: Array) -> Dictionary:
 	var counts := {STATUS_KILLED: 0, STATUS_SURVIVED: 0, STATUS_INVALID: 0, STATUS_TIMEOUT: 0, STATUS_ERROR: 0}
 	var by_regression: Dictionary = {}
+	## archivo → atrapados por un invariante o un presupuesto (m11-44).
+	var by_checks: Dictionary = {}
 	for mutant: Dictionary in mutants:
 		var status := str(mutant.get("status", STATUS_ERROR))
 		counts[status] = int(counts.get(status, 0)) + 1
@@ -143,13 +158,16 @@ static func score(mutants: Array) -> Dictionary:
 			if not by_regression.has(file):
 				by_regression[file] = 0
 		if status == STATUS_KILLED and mutant.get("killed_by") is Array:
+			var how: Dictionary = mutant.get("killed_how", {}) if mutant.get("killed_how") is Dictionary else {}
 			for file: String in mutant.killed_by:
 				by_regression[file] = int(by_regression.get(file, 0)) + 1
+				if how.get(file, KILLED_BY_SCRIPT) != KILLED_BY_SCRIPT:
+					by_checks[file] = int(by_checks.get(file, 0)) + 1
 	var detected: int = counts[STATUS_KILLED] + counts[STATUS_TIMEOUT]
 	var measured: int = detected + counts[STATUS_SURVIVED]
 	return {"killed": counts[STATUS_KILLED], "survived": counts[STATUS_SURVIVED], "invalid": counts[STATUS_INVALID],
 		"timeouts": counts[STATUS_TIMEOUT], "errors": counts[STATUS_ERROR], "detected": detected, "measured": measured,
-		"percent": roundi(100.0 * detected / measured) if measured > 0 else 0, "by_regression": by_regression}
+		"percent": roundi(100.0 * detected / measured) if measured > 0 else 0, "by_regression": by_regression, "by_checks": by_checks}
 
 
 ## Un Godot headless con regression_cli; con `mutant`, en modo mutante. {code, timed_out, report}.
@@ -157,7 +175,7 @@ func _process(files: PackedStringArray, mutant: Dictionary, timeout_s: float) ->
 	DirAccess.make_dir_recursive_absolute(scratch)
 	var result_path := scratch.path_join("mutant.json")
 	DirAccess.remove_absolute(result_path)
-	var args := PackedStringArray(["--headless", "--quiet", "--path", project, "--script", CLI, "--"])
+	var args := PackedStringArray(["--headless", "--quiet", "--path", project, "--script", CLI, "--", "--no-baselines"])
 	if not mutant.is_empty():
 		var sent := {"path": mutant.path, "line": mutant.line, "col": mutant.col, "before": mutant.before, "after": mutant.after, "op": mutant.op}
 		args.append("--mutant=" + Marshalls.utf8_to_base64(JSON.stringify(sent)))
@@ -210,7 +228,9 @@ static func notice(result: Dictionary, goals: Dictionary, t: Callable) -> Dictio
 		var goal := str(goals.get(file, file.get_file()))
 		var nothing: String = t.call("detects nothing")  # i18n
 		var caught: String = t.call("caught %d")  # i18n
-		by.append("«%s»: %s" % [goal, nothing if int(by_regression[file]) == 0 else caught % int(by_regression[file])])
+		var by_invariants: String = t.call("%d by invariants or budgets")  # i18n
+		var checks := int(result.get("by_checks", {}).get(file, 0))
+		by.append("«%s»: %s" % [goal, nothing if int(by_regression[file]) == 0 else caught % int(by_regression[file]) + (" (%s)" % (by_invariants % checks) if checks > 0 else "")])
 	if not by.is_empty():
 		var by_title: String = t.call("By regression")  # i18n
 		sections.append({"title": by_title, "text": "\n".join(by)})

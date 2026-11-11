@@ -71,5 +71,37 @@ if [ "$GOT" != 4 ] || [ -e "$ROOT/tests/tmp/mutation_saved.tres" ] || ! printf '
 	FAILED=1
 fi
 rm -f "$ROOT/tests/tmp/mutation_saved.tres"
+
+# m11-44: el invariante de la regresión atrapa al mutante que saca al mover de la pantalla (run() da
+# true igual), y el resultado dice que lo atrapó un invariante.
+CLI=res://addons/godot_agent/playtest/regression_cli.gd
+if ! "$G" --headless --path "$ROOT" --script "$CLI" -- --no-baselines res://tests/fixtures/regressions/invariants >/dev/null 2>&1; then
+	echo "FALLA: la regresión con invariante tendría que pasar sin mutantes"
+	FAILED=1
+fi
+MUTANT="$(printf '%s' '{"path":"res://tests/fixtures/invariants/mover.gd","line":9,"col":29,"before":" + ","after":" - ","op":"arithmetic"}' | base64 | tr -d '\n')"
+rm -f "$ROOT/tests/tmp/invariant_mutant.json"
+OUT="$("$G" --headless --path "$ROOT" --script "$CLI" -- "--mutant=$MUTANT" --mutant-result=res://tests/tmp/invariant_mutant.json res://tests/fixtures/regressions/invariants 2>&1)"
+GOT=$?
+if [ "$GOT" != 1 ] || ! grep -q '"invariant"' "$ROOT/tests/tmp/invariant_mutant.json" 2>/dev/null; then
+	echo "FALLA: el invariante tendría que matar al mutante (salió con $GOT)"
+	printf '%s\n' "$OUT" | tail -5
+	FAILED=1
+fi
+
+# La base de un presupuesto sin límite se guarda en el primer run verde, y no con --no-baselines.
+mkdir -p "$ROOT/tests/tmp/baselines"
+sed 's/game.budget(\\"nodes_max\\", 1000)/game.budget(\\"nodes_max\\")/' "$ROOT/tests/fixtures/regressions/invariants/mover.json" > "$ROOT/tests/tmp/baselines/mover.json"
+"$G" --headless --path "$ROOT" --script "$CLI" -- --no-baselines res://tests/tmp/baselines/mover.json >/dev/null 2>&1
+if grep -q '"baselines"' "$ROOT/tests/tmp/baselines/mover.json"; then
+	echo "FALLA: con --no-baselines no se guarda la base"
+	FAILED=1
+fi
+"$G" --headless --path "$ROOT" --script "$CLI" -- res://tests/tmp/baselines/mover.json >/dev/null 2>&1
+if ! grep -q '"nodes_max"' "$ROOT/tests/tmp/baselines/mover.json" || ! grep -q '"baselines"' "$ROOT/tests/tmp/baselines/mover.json"; then
+	echo "FALLA: el primer run verde tendría que guardar la base de nodes_max"
+	FAILED=1
+fi
+rm -rf "$ROOT/tests/tmp/baselines" "$ROOT/tests/tmp/invariant_mutant.json"
 [ "$FAILED" = 0 ] && echo "regressions-cli: bien"
 exit "$FAILED"

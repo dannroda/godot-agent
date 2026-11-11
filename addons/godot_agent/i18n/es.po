@@ -5606,3 +5606,6 @@ msgstr "atrapó %d"
 
 msgid "By regression"
 msgstr "Por regresión"
+
+msgid "%d by invariants or budgets"
+msgstr "%d por invariantes o presupuestos"

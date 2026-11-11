@@ -24,6 +24,13 @@ const SETTLE_S := 0.5
 const SCRIPT_TIMEOUT_S := 30.0
 
 
+## Guardar la base de los presupuestos en el primer run que pasa (m11-44). No bajo un mutante ni con
+## --no-baselines (la medición de mutación corre sin tocar los JSON).
+var record_baselines := true
+## Bajo un mutante los presupuestos de tiempo no hacen fallar: entre procesos hay ruido.
+var under_mutant := false
+
+
 func _initialize() -> void:
 	_run.call_deferred()
 
@@ -44,7 +51,10 @@ func _run() -> void:
 		print("regressions: none found")
 		quit(2)
 		return
+	record_baselines = not options.no_baselines
 	if not (options.mutant as Dictionary).is_empty():
+		record_baselines = false
+		under_mutant = true
 		quit(await _run_mutant(options.mutant, entries, str(options.mutant_result)))
 		return
 	if int(options.mutate) > 0:
@@ -83,7 +93,7 @@ func _run() -> void:
 
 ## {paths, repeat, fail_on_flaky, error}: las opciones van antes o entre las rutas.
 static func parse_args(args: PackedStringArray) -> Dictionary:
-	var options := {"paths": PackedStringArray(), "repeat": 1, "fail_on_flaky": false, "error": "", "mutant": {}, "mutant_result": "", "mutate": 0, "min_score": -1}
+	var options := {"paths": PackedStringArray(), "repeat": 1, "fail_on_flaky": false, "error": "", "mutant": {}, "mutant_result": "", "mutate": 0, "min_score": -1, "no_baselines": false}
 	for arg: String in args:
 		if arg.begins_with("--mutant="):
 			var parsed: Variant = JSON.parse_string(Marshalls.base64_to_utf8(arg.trim_prefix("--mutant=")))
@@ -115,8 +125,10 @@ static func parse_args(args: PackedStringArray) -> Dictionary:
 			options.repeat = int(value)
 		elif arg == "--fail-on-flaky":
 			options.fail_on_flaky = true
+		elif arg == "--no-baselines":
+			options.no_baselines = true
 		elif arg.begins_with("--"):
-			options.error = "unknown option %s (use --repeat=N, --fail-on-flaky and --mutant=…)" % arg
+			options.error = "unknown option %s (use --repeat=N, --fail-on-flaky, --no-baselines, --mutate[=N] and --min-score=P)" % arg
 			return options
 		else:
 			options.paths.append(arg)
@@ -167,13 +179,16 @@ func _run_mutant(mutant: Dictionary, entries: Array[Dictionary], result_path: St
 		else:
 			report.status = "survived"
 			report.killed_by = []
+			report.killed_how = {}
 			code = 0
 			# Todas, no solo hasta la primera: el puntaje por regresión dice cuáles lo detectan de verdad.
 			for entry: Dictionary in entries:
 				var result := await run_one(entry)
 				if not result.passed:
 					report.status = "killed"
-					(report.killed_by as Array).append(str(entry.get("file", entry.get("goal", ""))))
+					var file := str(entry.get("file", entry.get("goal", "")))
+					(report.killed_by as Array).append(file)
+					report.killed_how[file] = MutationTesting.kill_reason(str(result.output))
 					if str(report.output).is_empty():
 						report.output = str(result.output).left(500)
 					code = 1
@@ -211,9 +226,13 @@ func run_one(entry: Dictionary, setup: String = "") -> Dictionary:
 	root.add_child(probe)
 	if not setup.is_empty():
 		await probe.call(&"_run_script", {"code": setup, "timeout": SCRIPT_TIMEOUT_S})
-	var played: Dictionary = await probe.call(&"_run_script", {"code": str(entry.get("code", "")), "timeout": SCRIPT_TIMEOUT_S})
+	var played: Dictionary = await probe.call(&"_run_script", {"code": str(entry.get("code", "")), "timeout": SCRIPT_TIMEOUT_S,
+		"baselines": entry.get("baselines", {}), "time_budgets_warn": under_mutant})
 	result.output = str(played.get("error", played.get("text", "")))
 	result.passed = not played.has("error") and PlaytestRegressions.passed(result.output)
+	result.violations = played.get("violations", [])
+	if result.passed and record_baselines and setup.is_empty():
+		PlaytestRegressions.record_baselines(str(entry.get("file", "")), result.output)
 	probe.queue_free()
 	unload_current_scene()
 	await process_frame

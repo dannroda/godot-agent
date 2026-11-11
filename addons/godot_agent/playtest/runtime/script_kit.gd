@@ -6,6 +6,7 @@ extends RefCounted
 
 const GameWorld := preload("game_world.gd")
 const GameUi := preload("game_ui.gd")
+const RegressionChecks := preload("regression_checks.gd")
 
 const TAP_FRAMES := 6
 const TURN_GAIN := 0.8
@@ -41,6 +42,9 @@ signal _never
 var aborted := false
 var lines: PackedStringArray = []
 
+## Los invariantes y presupuestos que declara el script (m11-44); la probe los cierra al terminar.
+var checks: RegressionChecks
+
 var _host: Node
 var _held: Dictionary = {}
 var _degrees_per_count := Vector2.ZERO
@@ -48,6 +52,7 @@ var _degrees_per_count := Vector2.ZERO
 
 func _init(host: Node) -> void:
 	_host = host
+	checks = RegressionChecks.new(host.get_tree())
 
 
 # --- resultados -------------------------------------------------------------------------------------
@@ -149,6 +154,25 @@ func _event(name: String, pressed: bool, strength: float) -> InputEvent:
 	key.physical_keycode = keycode
 	key.pressed = pressed
 	return key
+
+
+# --- invariantes y presupuestos (m11-44) ------------------------------------------------------------
+
+## `check` da true mientras todo está bien; se evalúa en cada physics frame hasta que run() vuelve. Si se
+## rompe, la regresión falla con el frame y el valor (`value`, si se pasa; si no, lo que dio `check`).
+func invariant(name: String, check: Callable, value: Callable = Callable()) -> Dictionary:
+	if not check.is_valid():
+		return fail("the check of «%s» is not a valid Callable" % name)
+	checks.invariant(name, check, value)
+	return ok("checking «%s» on every physics frame" % name)
+
+
+## frame_ms_p95, physics_ms_p95, draw_calls_max, nodes_max u orphans_end, medidos desde acá hasta que
+## run() vuelve. Con `limit`, pasarlo hace fallar la regresión; sin límite se compara con la base de esta
+## máquina (la guarda el primer run que pasa): los conteos fallan por encima, los tiempos solo avisan.
+func budget(metric: String, limit: Variant = null) -> Dictionary:
+	var why := checks.budget(metric, limit)
+	return ok("measuring %s" % metric) if why.is_empty() else fail(why)
 
 
 # --- esperar ------------------------------------------------------------------------------------------

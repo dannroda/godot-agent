@@ -1,0 +1,5 @@
+{
+	"goal": "The mover stays on screen",
+	"scene": "res://tests/fixtures/invariants/mover.tscn",
+	"code": "func run(game):\n\tvar mover: Node2D = game.tree().current_scene\n\tgame.invariant(\"the mover stays on screen\", func(): return mover.position.x >= 0.0 and mover.position.x <= 100.0, func(): return mover.position.x)\n\tgame.budget(\"nodes_max\", 1000)\n\tawait game.wait(0.5)\n\treturn true"
+}

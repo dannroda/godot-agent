@@ -4,6 +4,7 @@ extends RefCounted
 ## veredicto, en res://.godot_agent/playtests/regressions/. Un archivo JSON por pedido.
 
 const UntrustedText := preload("../mcp/untrusted_text.gd")
+const RegressionChecks := preload("../playtest/runtime/regression_checks.gd")
 
 const DIR := "res://.godot_agent/playtests/regressions"
 const PASS_MARK := "run() returned: true"
@@ -60,8 +61,10 @@ static func blocked_api(code: String) -> String:
 
 
 ## Solo pasa si el script devolvió true: sin errores ni vencimiento, que también dejan otro texto.
+## Un invariante roto o un presupuesto pasado (m11-44) la hacen fallar aunque run() devuelva true.
 static func passed(output: String) -> bool:
-	return output.contains(PASS_MARK) and not output.contains("Script error") and not output.contains("timed out")
+	return output.contains(PASS_MARK) and not output.contains("Script error") and not output.contains("timed out") \
+		and not output.contains(RegressionChecks.BROKEN) and not output.contains(RegressionChecks.OVER)
 
 
 ## Con el sabotaje puesto (`sabotage`: código que rompe en el juego lo que la regresión prueba) tiene
@@ -121,6 +124,35 @@ static func record_runs(tallied: Dictionary) -> void:
 	if file:
 		file.store_string(JSON.stringify(parsed, "\t"))
 		file.close()
+
+
+## Las bases de los presupuestos (m11-44): lo que midió un run que pasó, para la máquina donde corrió, si
+## esa máquina todavía no tenía. Una vez guardadas no se pisan: la base es la de cuando andaba.
+static func record_baselines(path: String, output: String) -> bool:
+	var measured := RegressionChecks.measured_in(output)
+	if measured.is_empty() or path.is_empty() or not FileAccess.file_exists(path):
+		return false
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not parsed is Dictionary:
+		return false
+	var baselines: Dictionary = parsed.get("baselines", {}) if parsed.get("baselines") is Dictionary else {}
+	var machine: String = measured.keys()[0]
+	var here: Dictionary = baselines.get(machine, {}) if baselines.get(machine) is Dictionary else {}
+	var changed := false
+	for metric: String in measured[machine]:
+		if not here.has(metric):
+			here[metric] = measured[machine][metric]
+			changed = true
+	if not changed:
+		return false
+	baselines[machine] = here
+	parsed["baselines"] = baselines
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if not file:
+		return false
+	file.store_string(JSON.stringify(parsed, "\t"))
+	file.close()
+	return true
 
 
 ## Cuántas de `entries` quedaron marcadas como inestables.
