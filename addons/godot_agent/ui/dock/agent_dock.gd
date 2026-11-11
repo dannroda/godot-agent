@@ -207,6 +207,9 @@ var _handoff_banner_label: Label
 var _handoff_running: bool = false
 ## Los tool calls de compactación ya avisados (tool_call_changed llega varias veces por cada uno).
 var _compactions_noticed: Dictionary = {}
+## Filas de compactación que esperan el fin del turno para ofrecer el traspaso (m11-60): una
+## compactación que el agente hace en medio de un turno no corta el flujo.
+var _compaction_offers: Array[ChatEntry] = []
 var _handoff_offer: HFlowContainer
 var _handoff_offer_label: Label
 var _handoff_others: MenuButton
@@ -410,8 +413,11 @@ func _ready() -> void:
 	_model.state_changed.connect(func(_state: SessionModel.SessionState) -> void: _refresh_handoff_banner())
 	_model.entries_cleared.connect(func() -> void:
 		_context_watch.reset()
-		_compactions_noticed.clear())
+		_compactions_noticed.clear()
+		_compaction_offers.clear())
 	_model.tool_call_changed.connect(_on_tool_call_for_compaction)
+	_model.compaction_changed.connect(_on_compaction_changed)
+	_model.turn_finished.connect(func(_reason: String) -> void: _offer_handoff_after_compaction())
 	_model.usage_changed.connect(func(used: int, total: int) -> void:
 		if _quota_ring:
 			_quota_ring.set_context(used, total))
@@ -2115,9 +2121,33 @@ func _on_tool_call_for_compaction(call: SessionModel.ToolCall, _group: ChatEntry
 	if _compactions_noticed.has(call.id) or not call.parent_id.is_empty() or not ContextWatch.is_compaction_call(call.title, call.tool_name):
 		return
 	_compactions_noticed[call.id] = true
-	var entry := _model.add_notice(I18n.t("The agent compacted the conversation: from here on it works with a summary and may forget details. You can continue in a new session with a summary written now."))
-	entry.actions = [{"id": ACTION_HANDOFF, "label": I18n.t("New session with a summary")}]
-	_model.notify_entry_changed(entry)
+	_queue_compaction_offer(_model.add_notice(I18n.t("The agent compacted the conversation: from here on it works with a summary and may forget details. You can continue in a new session with a summary written now.")))
+
+
+## compaction_update (m11-60): la fila la arma el modelo; acá solo se ofrece el traspaso cuando terminó.
+## Al reabrir del historial no se ofrece: es una compactación vieja.
+func _on_compaction_changed(entry: ChatEntry, status: String) -> void:
+	if status == "completed" and not _model.replaying:
+		_queue_compaction_offer(entry)
+
+
+## La acción va recién al terminar el turno; fuera de un turno (el adapter compacta solo cuando la
+## sesión está quieta), enseguida.
+func _queue_compaction_offer(entry: ChatEntry) -> void:
+	if not entry in _compaction_offers:
+		_compaction_offers.append(entry)
+	if not _model.is_busy():
+		_offer_handoff_after_compaction()
+
+
+func _offer_handoff_after_compaction() -> void:
+	if _model.replaying:
+		return
+	for entry: ChatEntry in _compaction_offers:
+		if entry.actions.is_empty():
+			entry.actions = [{"id": ACTION_HANDOFF, "label": I18n.t("New session with a summary")}]
+			_model.notify_entry_changed(entry)
+	_compaction_offers.clear()
 
 
 func _build_handoff_offer() -> void:

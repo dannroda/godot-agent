@@ -5,6 +5,7 @@ extends RefCounted
 
 const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const UntrustedText := preload("res://addons/godot_agent/mcp/untrusted_text.gd")
 const Handoff := preload("res://addons/godot_agent/session/handoff.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
@@ -93,12 +94,31 @@ func _check_handoff(plugin: Object, dock: Control, shot_path: String) -> void:
 	var project := ProjectSettings.globalize_path("res://")
 	var before := Handoff.list(project).size()
 	dock.call(&"_on_submitted", "Seguí con el menú")
+	# m11-60: la compactación en medio del turno es una fila con el resumen plegado, entre los mensajes,
+	# y no ofrece el traspaso hasta que el turno termina.
+	var compaction_row := func() -> ChatEntry:
+		for entry: ChatEntry in model.entries():
+			if entry.details.contains("Menú de pausa con Esc."):
+				return entry
+		return null
+	await _wait(func() -> bool: return compaction_row.call() != null)
+	var row: ChatEntry = compaction_row.call()
+	_expect(row != null and model.is_busy(), "la compactación llega en medio del turno")
+	if row:
+		_expect(row.text.begins_with("Conversation compacted") and row.details_title == "Summary the agent kept", "una fila propia con el resumen plegado: %s" % row.text)
+		_expect(row.actions.is_empty(), "sin «Nueva sesión con resumen» mientras el turno sigue")
+		var index := model.entries().find(row)
+		_expect(index > 0 and model.entries()[index - 1].kind == ChatEntry.EntryKind.AGENT and model.entries()[index - 1].text.contains("Reviso el menú"), "queda después del mensaje donde llegó")
 	await _wait(func() -> bool: return model.state == SessionModel.SessionState.READY and model.usage_used == 180000)
 	await _tree.process_frame
+	if row:
+		_expect(not row.actions.is_empty() and row.actions[0].get("id") == "handoff", "al terminar el turno la fila ofrece el traspaso")
+		var after := model.entries().find(row)
+		_expect(after < model.entries().size() - 1 and model.entries().back().text.contains("Sigo con el menú"), "el turno siguió debajo de la fila")
 	var banner: Control = dock.find_child("HandoffBanner", true, false)
 	_expect(banner != null and banner.visible, "con el contexto al 90 %% y fuera del turno se ve el aviso (uso %d)" % model.usage_used)
 	var notices := model.entries().filter(func(e: Variant) -> bool: return not (e.get(&"actions") as Array).is_empty() and (e.get(&"actions") as Array)[0].get("id") == "handoff")
-	_expect(notices.size() == 1, "la compactación deja un aviso con «Nueva sesión con resumen»")
+	_expect(notices.size() == 2, "las dos compactaciones (compaction_update y la tool call de un adapter sin la capacidad) ofrecen «Nueva sesión con resumen»: %d" % notices.size())
 	if not shot_path.is_empty():
 		dock.get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_handoff_banner.png")
 	var count := (tabs.call(&"ids") as PackedStringArray).size()

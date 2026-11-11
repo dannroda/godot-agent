@@ -5459,3 +5459,18 @@ msgstr "Correr un comando"
 
 msgid "Run a godot.* tool"
 msgstr "Correr una tool godot.*"
+
+msgid "Compacting the conversation…"
+msgstr "Compactando la conversación…"
+
+msgid "The agent couldn't compact the conversation."
+msgstr "El agente no pudo compactar la conversación."
+
+msgid "Compaction cancelled."
+msgstr "Compactación cancelada."
+
+msgid "Conversation compacted: from here on the agent works with a summary and may forget details."
+msgstr "Conversación compactada: desde acá el agente trabaja con un resumen y puede olvidar detalles."
+
+msgid "Summary the agent kept"
+msgstr "Resumen que guardó el agente"

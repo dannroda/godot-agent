@@ -1062,6 +1062,9 @@ func client_capabilities() -> Dictionary:
 		# Subagentes nativos (RFD de ACP, m7-43): el agente anuncia cada subagente con su sesión y su
 		# estado, que sigue después del tool call que lo lanzó si corre en segundo plano.
 		"subagents": {},
+		# La compactación como estado propio (m11-60): claude-agent-acp manda compaction_update con el
+		# resumen en lugar de una tool call «Compact conversation».
+		"session": {"compaction": {}},
 	}
 	if client.has_request_handler("elicitation/create"):
 		capabilities["elicitation"] = {"form": {}, "url": {}}
