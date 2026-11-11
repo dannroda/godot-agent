@@ -119,6 +119,7 @@ const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
 const ACTION_RUN_REGRESSIONS := SessionController.ACTION_RUN_REGRESSIONS
 const ACTION_REGRESSIONS_WORKFLOW := SessionController.ACTION_REGRESSIONS_WORKFLOW
+const ACTION_MEASURE_REGRESSIONS := "measure_regressions"
 ## Un link a .godot_agent/oneshot/… (spec, progreso, QA): lo muestra la pantalla One-shot.
 const ACTION_OPEN_RUN_FILE := "open_run_file"
 ## Tooltips de los botones de modo (las reglas que lee el agente están en SessionController.MODE_RULES).
@@ -779,6 +780,7 @@ func _build_review_panel() -> void:
 	_review_panel.fix_all_requested.connect(func() -> void: action_forwarded.emit(ACTION_REVIEW_FIX_ALL, null))
 	_review_panel.regressions_requested.connect(func(repeat: int) -> void: action_forwarded.emit(ACTION_RUN_REGRESSIONS, repeat))
 	_review_panel.ci_workflow_requested.connect(func() -> void: action_forwarded.emit(ACTION_REGRESSIONS_WORKFLOW, null))
+	_review_panel.measure_requested.connect(func() -> void: action_forwarded.emit(ACTION_MEASURE_REGRESSIONS, null))
 	_review_panel.notice_requested.connect(func(text: String, level: ChatEntry.NoticeLevel) -> void: _model.add_notice(text, level))
 	_review_panel.prompt_requested.connect(func(text: String) -> void: _on_submitted(_controller.label_prompt(text, HarnessPrompts.REVIEW_PLAYTEST)))
 	add_child(_review_panel)

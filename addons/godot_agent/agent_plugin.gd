@@ -112,6 +112,9 @@ const ACTION_PENDING_INSTALL_DISCARD := "pending_install_discard"
 const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
 ## «Arreglar con el agente» del aviso de un run manual con error (m11-55): el payload es el prompt.
 const ACTION_FIX_RUN_ERROR := "fix_run_error"
+const ACTION_CANCEL_MUTATION := "cancel_mutation"
+const ACTION_OPEN_MUTANT := "open_mutant"
+const MutationTesting := preload("playtest/mutation/mutation_testing.gd")
 ## «Send to the agent» del aviso de un hook de prompt (m11-24); `data` es el prompt.
 const ACTION_SEND_HOOK_PROMPT := "send_hook_prompt"
 ## El panel Stack Trace del debugger se llena un momento después de la pausa.
@@ -141,6 +144,8 @@ const PRIMARY_SESSION := "s1"
 ## Cuánto espera una tool que escribe a que el editor termine de importar (m14-02).
 const IMPORT_WAIT_S := 8
 
+## La medición de regresiones con mutantes en curso (m11-41), o null.
+var _mutation: MutationTesting = null
 var _export_plugin: AgentExportPlugin
 var _surfaces: EditorSurfaces
 var _settings: HarnessSettings
@@ -836,6 +841,14 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_run_regressions(int(payload) if payload is int else 1)
 		AgentDock.ACTION_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(false)
+		AgentDock.ACTION_MEASURE_REGRESSIONS:
+			_measure_regressions()
+		ACTION_CANCEL_MUTATION:
+			if _mutation:
+				_mutation.cancel()
+		ACTION_OPEN_MUTANT:
+			var where := str(payload)
+			EditorContext.open_location(where.get_slice("#", 0), where.get_slice("#", 1).to_int())
 		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(true)
 		ACTION_SEND_HOOK_PROMPT:
@@ -874,6 +887,45 @@ func _run_regressions(repeat: int = 1) -> void:
 	else:
 		var head := I18n.t("Regressions: %d of %d fail.") % [summary.failed, results.size()] if summary.flaky == 0 else I18n.t("Regressions: %d of %d fail, %d flaky.") % [summary.failed, results.size(), summary.flaky]
 		_model.add_notice("%s\n%s" % [head, summary.details], ChatEntry.NoticeLevel.ERROR)
+
+
+## «Medir regresiones» (m11-41): mutantes del código del juego, cada uno en un Godot headless aparte y
+## solo en su memoria. El progreso va en un aviso con «Cancelar» y el resultado, con el puntaje, los
+## que no se detectaron (con «Abrir») y cuántos atrapó cada regresión, en otro; queda en mutation.json.
+func _measure_regressions() -> void:
+	if _mutation:
+		_model.add_notice(I18n.t("The regressions are already being measured."), ChatEntry.NoticeLevel.INFO)
+		return
+	var entries := PlaytestRegressions.new().list()
+	var progress := _model.add_notice(I18n.t("Measuring the regressions: first they run without mutants…"), ChatEntry.NoticeLevel.INFO,
+		[{"id": ACTION_CANCEL_MUTATION, "label": I18n.t("Cancel")}])
+	_mutation = MutationTesting.new()
+	_mutation.on_progress = func(done: int, total: int, _mutant: Dictionary) -> void:
+		progress.text = I18n.t("Measuring the regressions: mutant %d of %d…") % [done, total]
+		_model.notify_entry_changed(progress)
+	var result := await _mutation.run(entries)
+	_mutation = null
+	progress.actions = []
+	if not result.ok:
+		progress.text = I18n.t(str(result.error))
+		progress.level = ChatEntry.NoticeLevel.INFO if result.get("cancelled", false) else ChatEntry.NoticeLevel.WARNING
+		_model.notify_entry_changed(progress)
+		return
+	var file := FileAccess.open(MutationTesting.RESULT_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(result, "\t"))
+		file.close()
+	var goals := {}
+	for entry: Dictionary in entries:
+		goals[str(entry.get("file", ""))] = str(entry.get("goal", ""))
+	var notice := MutationTesting.notice(result, goals, Callable(I18n, &"t"))
+	for survivor: Dictionary in notice.survivors:
+		progress.actions.append({"id": ACTION_OPEN_MUTANT, "label": I18n.t("Open %s:%d") % [str(survivor.path).get_file(), int(survivor.line)], "data": "%s#%d" % [survivor.path, int(survivor.line)]})
+	progress.title = notice.title
+	progress.text = notice.text
+	progress.sections.assign(notice.sections)
+	progress.level = ChatEntry.NoticeLevel.WARNING if notice.level_warning else ChatEntry.NoticeLevel.INFO
+	_model.notify_entry_changed(progress)
 
 
 ## El workflow de CI que corre las regresiones grabadas (m16-10). Uno que ya existe no se pisa:

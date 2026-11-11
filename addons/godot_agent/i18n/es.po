@@ -5549,3 +5549,60 @@ msgstr "No se pudo guardar el export en %s."
 
 msgid "Session exported to %s."
 msgstr "Sesión exportada en %s."
+
+msgid "Measure regressions"
+msgstr "Medir regresiones"
+
+msgid "Changes the game's code a little at a time, only in memory in a separate Godot, and runs the regressions against each change: the score says how many changes they notice. Takes a minute or a few; the project's files are not touched."
+msgstr "Cambia el código del juego de a poco, solo en memoria en otro Godot, y corre las regresiones contra cada cambio: el puntaje dice cuántos cambios notan. Tarda uno o unos pocos minutos; los archivos del proyecto no se tocan."
+
+msgid "The regressions are already being measured."
+msgstr "Las regresiones ya se están midiendo."
+
+msgid "Measuring the regressions: first they run without mutants…"
+msgstr "Midiendo las regresiones: primero corren sin mutantes…"
+
+msgid "Measuring the regressions: mutant %d of %d…"
+msgstr "Midiendo las regresiones: mutante %d de %d…"
+
+msgid "Open %s:%d"
+msgstr "Abrir %s:%d"
+
+msgid "There are no saved regressions yet: a playtest that passes saves one."
+msgstr "Todavía no hay regresiones guardadas: un playtest que pasa guarda una."
+
+msgid "The regressions fail without mutants: fix them first, then measure."
+msgstr "Las regresiones fallan sin mutantes: arreglalas primero y después medí."
+
+msgid "The regressions could not run in a separate Godot."
+msgstr "Las regresiones no pudieron correr en otro Godot."
+
+msgid "Measuring the regressions was cancelled."
+msgstr "Se canceló la medición de las regresiones."
+
+msgid "Regressions: mutation score %d/%d (%d %%)"
+msgstr "Regresiones: puntaje de mutación %d/%d (%d %%)"
+
+msgid "Each mutant is one small change to the game's code, made only in the memory of a separate Godot: the project's files are not touched. A mutant no regression notices is a bug they would let through."
+msgstr "Cada mutante es un cambio chico en el código del juego, hecho solo en la memoria de otro Godot: los archivos del proyecto no se tocan. Un mutante que ninguna regresión nota es un bug que dejarían pasar."
+
+msgid "%d hung the game (counted as detected)"
+msgstr "%d colgaron el juego (cuentan como detectados)"
+
+msgid "%d did not compile (not counted)"
+msgstr "%d no compilaron (no cuentan)"
+
+msgid "%d could not run (not counted)"
+msgstr "%d no pudieron correr (no cuentan)"
+
+msgid "Not detected"
+msgstr "No detectados"
+
+msgid "detects nothing"
+msgstr "no detecta nada"
+
+msgid "caught %d"
+msgstr "atrapó %d"
+
+msgid "By regression"
+msgstr "Por regresión"
