@@ -24,6 +24,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - The One-shot screen could get stuck too wide when you made the dock wider: the form's scroll area asked for the width of the form, which was computed from that same area. The form now scrolls sideways when needed, and the area keeps a fixed minimum width.
 - In a narrow dock with several tabs: with no session, the empty state names the agent and leaves the command line to the tooltip; sessions in a separate copy of the project are named «Session N» with a copy icon (the branch is in the tooltip) instead of a cut-off «(copy)», and the copy's notice is a card with the folder under a collapsible block with **Copy**.
 - A permission or question card left unanswered kept its session's chat model alive after the session was gone.
+- Disabling the addon right after enabling it, while it was still checking git, printed "A Thread object is being destroyed without its completion having been realized" in the Output. The git command now finishes and closes its thread on its own.
 
 ### Changed
 
