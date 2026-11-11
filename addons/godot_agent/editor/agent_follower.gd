@@ -11,6 +11,10 @@ const EditorContext := preload("../ui/editor_context.gd")
 
 ## Segundos sin input del usuario fuera del dock antes de saltar.
 const IDLE_S := 2.5
+## Con el foco en un texto fuera del dock (a mitad de escribir algo), hasta cuánto espera. El foco
+## solo no alcanza: el Script Editor se queda con él aunque nadie lo toque (y al arrancar el editor
+## lo toma el script que reabre), y el seguimiento no saltaría nunca.
+const WRITING_IDLE_S := 15.0
 const WRITING_KINDS: PackedStringArray = ["edit", "delete", "move"]
 ## Tools de escena de godot.*: qué argumento nombra el nodo que tocaron.
 const NODE_ARG: Dictionary = {
@@ -72,10 +76,14 @@ func cancel() -> void:
 	set_process(false)
 
 
-## El usuario está trabajando fuera del dock: tocó algo hace poco o tiene el foco en un texto.
+## El usuario está trabajando fuera del dock: tocó algo hace poco, o hace no tanto y tiene el foco en
+## un texto (pensando a mitad de escribir).
 func user_busy() -> bool:
-	if now_ms.call() - _last_outside_input_ms < int(IDLE_S * 1000.0):
+	var idle: int = now_ms.call() - _last_outside_input_ms
+	if idle < int(IDLE_S * 1000.0):
 		return true
+	if idle >= int(WRITING_IDLE_S * 1000.0):
+		return false
 	var focus := _focus_owner()
 	return focus != null and not _focus_in_dock() and (focus is TextEdit or focus is LineEdit)
 

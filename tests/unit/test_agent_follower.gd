@@ -77,6 +77,13 @@ func test_agent_edits_jump_to_changed_line() -> void:
 	assert_eq(AgentFollower.target_of(removed), {}, "un archivo borrado no se abre")
 
 
+## Un follower con el foco en un texto fuera del dock.
+class TypingFollower extends AgentFollower:
+	var field := TextEdit.new()
+	func _focus_owner() -> Control:
+		return field
+
+
 func test_waits_while_user_busy() -> void:
 	var follower := AgentFollower.new()
 	var clock := [10000]
@@ -95,3 +102,13 @@ func test_waits_while_user_busy() -> void:
 	follower.cancel()
 	assert_eq(follower.get(&"_pending"), {}, "cancel descarta lo pendiente")
 	follower.free()
+	# Con el foco en un texto fuera del dock: espera hasta WRITING_IDLE_S, no para siempre.
+	var writing := TypingFollower.new()
+	writing.now_ms = func() -> int: return clock[0]
+	writing._input(key)
+	clock[0] += int(AgentFollower.IDLE_S * 1000.0) + 1
+	assert_true(writing.user_busy(), "parado a mitad de escribir: espera")
+	clock[0] = writing.get(&"_last_outside_input_ms") + int(AgentFollower.WRITING_IDLE_S * 1000.0)
+	assert_false(writing.user_busy(), "un foco que quedó en un texto sin que nadie lo toque no frena para siempre")
+	writing.field.free()
+	writing.free()
