@@ -1,0 +1,87 @@
+{
+	"_about": "m11-58 plan-test (block part): an agent without a plan mode (no session modes) presents the plan in a ```plan block at the end of its turn. The fake agent doesn't branch: each turn plays what follows the check's answer.",
+	"turns": [
+		{
+			"steps": [
+				{
+					"chunk": "I read player.gd and the HUD scene.\n\n```plan\n# Plan: Coin counter\n\n## Criteria\n- WHEN the player touches a coin, THE GAME SHALL add one to the counter.\n\n## Design\n- `coin.tscn`: Area2D with a `collected` signal.\n\n## Tasks\n1. Add `coins` to player.gd.\n2. Show it in the HUD.\n```\n"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "Updated with your edit.\n\n```plan\n# Plan: Coin counter\n\n## Criteria\n- WHEN the player touches a coin, THE GAME SHALL add one to the counter.\n\n## Design\n- `coin.tscn`: Area2D with a `collected` signal.\n\n## Tasks\n1. Add `coins` to player.gd.\n2. Show it in the HUD, top right.\n```\n"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "Now with a CanvasLayer.\n\n```plan\n# Plan: Coin counter\n\n## Criteria\n- WHEN the player touches a coin, THE GAME SHALL add one to the counter.\n\n## Design\n- `coin.tscn`: Area2D with a `collected` signal.\n\n## Tasks\n1. Add `coins` to player.gd.\n2. Show it in the HUD, top right.\n3. Use a CanvasLayer for the HUD.\n```\n"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "plan",
+						"entries": [
+							{
+								"content": "Add `coins` to player.gd.",
+								"priority": "medium",
+								"status": "in_progress"
+							},
+							{
+								"content": "Show it in the HUD, top right.",
+								"priority": "medium",
+								"status": "pending"
+							},
+							{
+								"content": "Use a CanvasLayer for the HUD.",
+								"priority": "medium",
+								"status": "pending"
+							}
+						]
+					}
+				},
+				{
+					"chunk": "Building the plan: task 1 first."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "A plan for lives.\n\n```plan\n# Plan: Lives\n\n## Tasks\n1. Add `lives` to player.gd.\n```\n"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "Okay, forgetting about lives."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

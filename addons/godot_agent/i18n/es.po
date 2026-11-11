@@ -4806,3 +4806,24 @@ msgstr "no aprobado"
 
 msgid "waiting for you"
 msgstr "te espera"
+
+msgid "Plan · what to plan"
+msgstr "Plan · qué planear"
+
+msgid "Plan · approved, build it"
+msgstr "Plan · aprobado, a construir"
+
+msgid "Plan presented · in the card below"
+msgstr "Plan presentado · en la tarjeta de abajo"
+
+msgid "Edited (+%d −%d): sent to the agent"
+msgstr "Editado (+%d −%d): enviado al agente"
+
+msgid "Plan before building: the agent writes a plan that you approve, edit or send back (/plan). What you wrote here is what it plans."
+msgstr "Planificar antes de construir: el agente escribe un plan que aprobás, editás o le devolvés (/plan). Planea lo que hayas escrito acá."
+
+msgid "Ask for a plan to approve before building (harness)"
+msgstr "Pedir un plan para aprobar antes de construir (harness)"
+
+msgid "Plan before building (/plan)"
+msgstr "Planificar antes de construir (/plan)"

@@ -166,6 +166,8 @@ const PENDING_ARG := "--godot-agent-pending-test"
 const PLAN_ARG := "--godot-agent-plan-test"
 ## Gasta tokens: Claude Code real con la tarjeta del plan (plan_check.gd run_claude).
 const CLAUDE_PLAN_ARG := "--godot-agent-claude-plan-test"
+## m11-58 con Antigravity real (sin modo plan; gasta tokens).
+const AGY_PLAN_ARG := "--godot-agent-antigravity-plan-test"
 const RemoteCheck := preload("remote_check.gd")
 const PROFILE_ARG := "--godot-agent-profile-test"
 const ProfileCheck := preload("profile_check.gd")
@@ -246,6 +248,8 @@ func _enter_tree() -> void:
 		_run_plan_test.call_deferred()
 	if CLAUDE_PLAN_ARG in args:
 		_run_plan_test.call_deferred(true)
+	if AGY_PLAN_ARG in args:
+		_run_plan_test.call_deferred(true, true)
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
 	for arg: String in args:
@@ -649,7 +653,7 @@ func _run_pending_test() -> void:
 	_finish(0 if failures.is_empty() else 1, "pending-test: %d fallas" % failures.size())
 
 
-func _run_plan_test(real_claude: bool = false) -> void:
+func _run_plan_test(real_claude: bool = false, antigravity: bool = false) -> void:
 	get_tree().create_timer(CLAUDE_TIMEOUT_S * 3 if real_claude else SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
 	var dock := _find_dock()
@@ -658,7 +662,9 @@ func _run_plan_test(real_claude: bool = false) -> void:
 		return
 	var check := PlanCheck.new()
 	var result: Variant
-	if real_claude:
+	if antigravity:
+		result = await check.run_antigravity(get_tree(), dock, _arg_value(UI_SHOT_ARG))
+	elif real_claude:
 		result = await check.run_claude(get_tree(), dock, _arg_value(UI_SHOT_ARG))
 	else:
 		result = await check.run(get_tree(), dock, _arg_value(UI_SHOT_ARG))

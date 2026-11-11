@@ -247,6 +247,8 @@ static func result_text(req: PermissionRequest) -> String:
 		return "✓ " + (I18n.t("Approved · building in Build mode") if req.plan_approved else I18n.t("Approved"))
 	if not req.edited_plan.is_empty():
 		var counts := PlanApproval.change_counts(req.plan_text, req.edited_plan)
+		if req.from_block:
+			return "✎ " + I18n.t("Edited (+%d −%d): sent to the agent") % [counts.added, counts.removed]
 		return "✎ " + I18n.t("Edited (+%d −%d): the agent gets your changes when this turn ends") % [counts.added, counts.removed]
 	if not req.deny_reason.is_empty():
 		return "↺ " + I18n.t("Keep planning: %s") % req.deny_reason

@@ -24,6 +24,15 @@ In Ask or Review, an agent with a plan mode (Claude Code) can finish planning by
 
 What goes back to the agent shows in the chat as a dimmed harness line (**Plan · the changes you made**, **Plan · keep planning**). If you press **Stop** right after, it stays paused in the queue instead of going out. The plan card waits for you: it has no timeout.
 
+#### Asking for a plan: Plan and /plan
+
+To get a plan before the agent touches anything, from any mode except One-shot, write what you want in the composer and press the **Plan** icon next to the mode selector (it's also in the **+** menu). You can also type `/plan <what you want>`. The session switches to Ask and the agent is asked for a plan with playable criteria ("WHEN the player touches an enemy, THE GAME SHALL take one life away"), the design in Godot terms (scenes and nodes, scripts, signals, autoloads, input map actions, collision layers) and numbered tasks.
+
+- An agent with a plan mode (Claude Code) presents it with the card above.
+- An agent without one (Codex, Gemini and others over ACP) is asked to end its answer with the plan in a ` ```plan ` block. The harness turns that block into the same card, and the message shows a single line, **Plan presented · in the card below**. Edits and reasons go to the agent right away, because its turn has already ended. **Approve and build** saves the plan, switches to Build and asks the agent to implement it, keeping the numbered tasks as its plan so the dock ticks them off. If you send another message while the card is waiting, the card is cancelled.
+
+`/plan` is handled by the harness and never reaches the agent.
+
 ### Check after each turn
 
 In Build and Auto, when a turn ends the harness validates the `.gd` scripts that changed during it, whichever way the agent wrote them. If one doesn't parse, the agent gets the errors in a new turn to fix them, up to two turns in a row; after that, or if you already queued a message, they stay as a notice in the chat. Turn it off in Settings → MCP servers (**Check the scripts after each turn**).

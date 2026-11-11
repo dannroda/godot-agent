@@ -33,5 +33,8 @@ const RUN_ERROR := "Fix the error of the game you ran"  # i18n
 ## La tarjeta del plan (m11-22): lo que el usuario cambió con «Editar», o «Seguir planeando…».
 const PLAN_EDIT := "Plan · the changes you made"  # i18n
 const PLAN_KEEP_PLANNING := "Plan · keep planning"  # i18n
+## «Planificar» / `/plan` (m11-58): el pedido del plan, y la aprobación de un plan presentado en bloque.
+const PLAN_REQUEST := "Plan · what to plan"  # i18n
+const PLAN_APPROVED := "Plan · approved, build it"  # i18n
 ## «Denegar con motivo» en una tarjeta de permiso.
 const DENY_REASON := "Denied with a reason"  # i18n

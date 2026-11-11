@@ -263,6 +263,10 @@ func apply_session(new_session_id: String, result: Dictionary) -> void:
 	session_id = new_session_id
 	if result.get("modes") is Dictionary:
 		_apply_modes(result.modes.get("currentModeId", ""), result.modes.get("availableModes", []))
+	elif not agent_modes.is_empty() or not current_agent_mode.is_empty():
+		# Un agente sin modos después de otro que los tenía (otro perfil en la misma pestaña): no le
+		# quedan los del anterior, que el harness le pediría con set_mode (m11-58).
+		_apply_modes("", [])
 	if result.get("configOptions") is Array:
 		config_options = result.configOptions
 		config_options_changed.emit(config_options)

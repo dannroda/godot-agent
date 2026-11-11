@@ -24,6 +24,24 @@ En Preguntar o Revisar, un agente con modo plan (Claude Code) puede terminar de 
 
 Lo que vuelve al agente se ve en el chat como una línea atenuada del harness (**Plan · los cambios que hiciste**, **Plan · seguir planeando**). Si apretás **Detener** justo después, queda en pausa en la cola en lugar de salir. La tarjeta del plan te espera: no vence.
 
+#### Pedir un plan: Planificar y /plan
+
+Para tener un plan antes de que el agente toque nada, desde cualquier modo salvo One-shot, escribí lo que querés en el composer y apretá el ícono **Planificar** al lado del selector de modo (también está en el menú **+**). También podés escribir `/plan <lo que querés>`. La sesión pasa a Preguntar y al agente se le pide un plan con:
+
+- criterios jugables («CUANDO el jugador toca un enemigo, EL JUEGO DEBE restarle una vida»);
+- el diseño en términos de Godot: escenas y nodos, scripts, señales, autoloads, acciones del input map y capas de colisión;
+- tareas numeradas.
+
+Lo que pasa después depende del agente:
+
+- Un agente con modo plan (Claude Code) lo presenta con la tarjeta de arriba.
+- A un agente sin modo plan (Codex, Gemini y otros por ACP) se le pide que termine la respuesta con el plan en un bloque ` ```plan `. El harness convierte ese bloque en la misma tarjeta, y en el mensaje queda una sola línea: **Plan presentado · en la tarjeta de abajo**.
+  - Lo editado y los motivos le llegan al agente enseguida, porque su turno ya terminó.
+  - **Aprobar y construir** guarda el plan, pasa a Construir y le pide al agente que lo implemente. Las tareas numeradas pasan a ser su plan, y el dock las va tildando.
+  - Si mandás otro mensaje mientras la tarjeta espera, la tarjeta se cancela.
+
+`/plan` lo resuelve el harness: nunca le llega al agente.
+
 ### Verificación al terminar cada turno
 
 En Construir y Auto, al terminar un turno el harness valida los scripts `.gd` que cambiaron, los haya escrito el agente como sea. Si alguno no parsea, el agente recibe los errores en un turno nuevo para corregirlos, hasta dos turnos seguidos; después de eso, o si ya encolaste un mensaje, quedan como aviso en el chat. Se apaga en Settings → Servidores MCP (**Verificar los scripts al terminar cada turno**).

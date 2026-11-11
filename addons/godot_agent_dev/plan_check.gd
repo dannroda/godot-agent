@@ -10,6 +10,13 @@ extends RefCounted
 ##    .godot_agent/plans y la primera edición del agente pide permiso (no se deniega).
 ## 4. «Denegar con motivo…» en una tarjeta de shell: el motivo sale con el turno siguiente (DENY_REASON).
 ## 5. Rechazo editado y después Detener: lo editado queda en la cola, en pausa; no sale solo.
+## Después, m11-58 con un agente sin modo plan (tests/scripts/plan_block.json):
+## 6. «Planificar» con el pedido en el composer: pasa a Preguntar y el pedido sale como PLAN_REQUEST
+##    pidiendo el bloque ```plan (no ExitPlanMode).
+## 7. El bloque del final del turno se vuelve la tarjeta del plan, y el mensaje lo muestra en una línea.
+## 8. Editar y «Seguir planeando…» salen enseguida (el turno ya terminó) pidiendo de nuevo el bloque.
+## 9. Aprobar: guarda el plan, pasa a Construir y manda PLAN_APPROVED con la ruta.
+## 10. /plan en el composer pide otro plan; otro mensaje con la tarjeta pendiente la cancela.
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
@@ -19,6 +26,7 @@ const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const PLAN_VIEW_SCRIPT := "res://addons/godot_agent/ui/dock/entries/plan_approval_view.gd"
 const PERMISSION_VIEW_SCRIPT := "res://addons/godot_agent/ui/dock/entries/permission_view.gd"
 const SCENARIO := "res://tests/scripts/plan_mode.json"
+const BLOCK_SCENARIO := "res://tests/scripts/plan_block.json"
 ## Corrida corta con Claude Code real (gasta tokens): una copia del jugador de tests/docs_demo.
 const CLAUDE_TARGET := "res://tests/tmp/plan_demo/player.gd"
 const CLAUDE_WAIT_MS := 240000
@@ -41,6 +49,8 @@ func run(tree: SceneTree, dock: Control, shot_prefix: String = "") -> PackedStri
 	var plans_dir := ProjectSettings.globalize_path("res://").path_join(PlanStore.DIR)
 	var before := _plan_files(plans_dir)
 	await _run()
+	if failures.is_empty():
+		await _run_block()
 	for file: String in _plan_files(plans_dir):
 		if not file in before:
 			DirAccess.remove_absolute(plans_dir.path_join(file))
@@ -155,6 +165,119 @@ func _run() -> void:
 	queue.call(&"clear")
 
 
+func _run_block() -> void:
+	var profile := AgentProfile.from_dict({
+		"id": "fake-block", "display_name": "Agente falso sin modo plan", "command": OS.get_executable_path(),
+		"args": ["--headless", "--no-header", "--path", ProjectSettings.globalize_path("res://"),
+			"--script", "res://tests/fake_agent.gd", "--", "--scenario=" + BLOCK_SCENARIO],
+	})
+	if not await _controller.call(&"start", profile):
+		failures.append("bloque: no arrancó la sesión (%s)" % _model.get(&"failure_message"))
+		return
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
+	await _tree.process_frame
+	var plans_dir := ProjectSettings.globalize_path("res://").path_join(PlanStore.DIR)
+	var plans_before := _plan_files(plans_dir).size()
+	var composer: Control = _dock.get(&"_composer")
+	var plan_button: Button = composer.find_child("PlanButton", true, false)
+	_expect(plan_button != null and plan_button.is_visible_in_tree(), "bloque: «Planificar» está en la fila del composer con la sesión libre")
+	if plan_button == null:
+		return
+
+	# 6. Planificar con el pedido escrito.
+	composer.call(&"insert_text", "add a coin counter")
+	await _shot("block_composer")
+	plan_button.pressed.emit()
+	_expect(_model.get(&"agent_modes").is_empty(), "bloque: el agente nuevo no hereda los modos del anterior · %s" % [_model.get(&"agent_modes")])
+	var request_entry: Object = await _wait_user_entry(HarnessPrompts.PLAN_REQUEST)
+	_expect(request_entry != null, "bloque: el pedido salió como prompt del harness (PLAN_REQUEST)")
+	if request_entry:
+		var text := str(request_entry.get(&"text"))
+		_expect(text.contains("add a coin counter") and text.contains("```plan") and not text.contains("ExitPlanMode"), "bloque: pide el bloque ```plan, no ExitPlanMode")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.ASK, "bloque: «Planificar» pasa a Preguntar")
+	_expect(str(composer.call(&"current_text")).is_empty(), "bloque: el composer quedó vacío")
+	_expect(not plan_button.is_visible_in_tree(), "bloque: «Planificar» se oculta con el agente trabajando")
+
+	# 7. La tarjeta.
+	var view: Control = await _wait_view(PLAN_VIEW_SCRIPT, 1)
+	if view == null:
+		failures.append("bloque: el bloque ```plan no se volvió la tarjeta del plan")
+		return
+	var request: Object = view.get(&"entry").get(&"permission")
+	_expect(bool(request.get(&"from_block")) and str(request.get(&"plan_text")).begins_with("# Plan: Coin counter"), "bloque: la tarjeta tiene el plan del bloque")
+	_expect(_plan_lines() == 1, "bloque: el mensaje muestra el bloque como una línea (%d)" % _plan_lines())
+	_expect(not _code_blocks_with("WHEN the player touches a coin"), "bloque: el plan no se repite en el mensaje")
+	await _shot("block_card")
+
+	# 8. Editar → sale enseguida.
+	_button(view, I18n.t("Edit")).pressed.emit()
+	await _tree.process_frame
+	var editor: CodeEdit = view.get(&"_editor")
+	editor.text = editor.text.replace("2. Show it in the HUD.", "2. Show it in the HUD, top right.")
+	editor.text_changed.emit()
+	(view.get(&"_send_edit") as Button).pressed.emit()
+	var edit_entry: Object = await _wait_user_entry(HarnessPrompts.PLAN_EDIT)
+	_expect(edit_entry != null and str(edit_entry.get(&"text")).contains("+ 2. Show it in the HUD, top right.") and str(edit_entry.get(&"text")).contains("```plan block"), "bloque: lo editado salió enseguida, pidiendo de nuevo el bloque")
+	view = await _wait_view(PLAN_VIEW_SCRIPT, 1)  # contestada vuelve al chat: puede ser otra vista
+	_expect(view != null and str(view.get(&"_result").text).contains(I18n.t("Edited (+%d −%d): sent to the agent") % [1, 1]), "bloque: la tarjeta dice que se mandó · %s" % (view.get(&"_result").text if view else ""))
+	view = await _wait_view(PLAN_VIEW_SCRIPT, 2)
+	if view == null:
+		failures.append("bloque: no apareció el plan corregido")
+		return
+	_button(view, I18n.t("Keep planning…")).pressed.emit()
+	await _tree.process_frame
+	var reason: LineEdit = view.get(&"_reason_edit")
+	reason.text = "use a CanvasLayer for the HUD"
+	reason.text_submitted.emit(reason.text)
+	var keep_entry: Object = await _wait_user_entry(HarnessPrompts.PLAN_KEEP_PLANNING)
+	_expect(keep_entry != null and str(keep_entry.get(&"text")).ends_with("use a CanvasLayer for the HUD"), "bloque: el motivo salió enseguida")
+
+	# 9. Aprobar.
+	view = await _wait_view(PLAN_VIEW_SCRIPT, 3)
+	if view == null:
+		failures.append("bloque: no apareció el tercer plan")
+		return
+	_button(view, I18n.t("Approve and build")).pressed.emit()
+	var approved_entry: Object = await _wait_user_entry(HarnessPrompts.PLAN_APPROVED)
+	_expect(approved_entry != null and str(approved_entry.get(&"text")).contains(PlanStore.DIR), "bloque: aprobar manda PLAN_APPROVED con la ruta del plan")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "bloque: aprobar pasa a Construir")
+	_expect(_plan_files(plans_dir).size() == plans_before + 1, "bloque: el plan aprobado quedó en .godot_agent/plans")
+	view = await _wait_view(PLAN_VIEW_SCRIPT, 3)
+	_expect(view != null and str(view.get(&"_result").text).contains("✓"), "bloque: la tarjeta queda aprobada")
+	await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "bloque: el turno de construir no terminó")
+	_expect((_model.get(&"plan") as Array).size() == 3, "bloque: el agente lleva las tareas como su plan")
+	await _shot("block_approved")
+
+	# 10. /plan y otro mensaje con la tarjeta pendiente.
+	composer.call(&"insert_text", "/plan add lives")
+	composer.call(&"_submit")
+	await _until(func() -> bool: return (_model.call(&"entries") as Array).filter(func(e: Object) -> bool: return int(e.get(&"kind")) == 0 and str(e.get(&"harness_label")) == HarnessPrompts.PLAN_REQUEST).size() == 2, "bloque: /plan no pidió otro plan")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.ASK, "bloque: /plan pasa a Preguntar")
+	view = await _wait_view(PLAN_VIEW_SCRIPT, 4)
+	if view == null:
+		failures.append("bloque: no apareció el plan de /plan")
+		return
+	await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "bloque: el turno de /plan no terminó")
+	var pending: Object = view.get(&"entry").get(&"permission")
+	_dock.call(&"send_text", "never mind")
+	await _until(func() -> bool: return not bool(pending.call(&"is_pending")), "bloque: otro mensaje no canceló la tarjeta")
+	await _tree.process_frame
+	view = await _wait_view(PLAN_VIEW_SCRIPT, 4)
+	_expect(view != null and str(view.get(&"_result").text).begins_with("⊘"), "bloque: la tarjeta queda cancelada · %s" % (view.get(&"_result").text if view else ""))
+
+
+## Las líneas «Plan presentado» en los mensajes del agente.
+func _plan_lines() -> int:
+	return _dock.find_children("*", "Label", true, false).filter(func(l: Label) -> bool: return l.has_meta(&"plan_line") and l.is_visible_in_tree()).size()
+
+
+func _code_blocks_with(text: String) -> bool:
+	for node: Node in _dock.find_children("*", "", true, false):
+		if node.get_script() != null and str(node.get_script().resource_path).ends_with("code_block_view.gd") and str(node.get(&"_code")).contains(text):
+			return true
+	return false
+
+
 ## Con Claude Code real (m11-22): Preguntar → plan chico → Editar una línea → plan nuevo → Aprobar →
 ## el agente pasa solo a default (sin set_mode) → su primera edición pide permiso con la matriz de
 ## Construir → Denegar con motivo → el motivo sale y el agente sigue. Corta apenas lo ve.
@@ -243,6 +366,104 @@ func _run_claude(source: String) -> void:
 	_dump()
 	if bool(_model.call(&"is_busy")):
 		_controller.call(&"cancel")  # cortar apenas se vio, para no gastar
+
+
+## m11-58 con Antigravity (antigravity-acp del registro de ACP, sin modo plan; gasta tokens):
+## Planificar con un pedido chico → el agente termina con un bloque ```plan → tarjeta → Aprobar →
+## pasa a Construir y sale PLAN_APPROVED. Corta apenas el agente empieza a construir.
+func run_antigravity(tree: SceneTree, dock: Control, shot_prefix: String = "") -> PackedStringArray:
+	_tree = tree
+	_dock = dock
+	_shot_prefix = shot_prefix
+	_model = dock.get(&"_model")
+	_controller = dock.get(&"_controller")
+	var command := _antigravity_command()
+	if command.is_empty():
+		return PackedStringArray(["antigravity-acp no está instalado (registro de ACP)"])
+	var plans_dir := ProjectSettings.globalize_path("res://").path_join(PlanStore.DIR)
+	var before := _plan_files(plans_dir)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(CLAUDE_TARGET.get_base_dir()))
+	var source := FileAccess.get_file_as_string("res://tests/docs_demo/player.gd")
+	var file := FileAccess.open(CLAUDE_TARGET, FileAccess.WRITE)
+	file.store_string(source)
+	file.close()
+	await _run_antigravity(command, source)
+	for name: String in _plan_files(plans_dir):
+		if not name in before:
+			print("[agy-plan] plan guardado: %s" % name)
+			DirAccess.remove_absolute(plans_dir.path_join(name))
+	_controller.call(&"stop")
+	return failures
+
+
+## El servidor ACP de la versión más nueva que bajó el registro, o "".
+static func _antigravity_command() -> String:
+	var root := EditorInterface.get_editor_paths().get_data_dir().path_join("godot_agent/agents/antigravity-acp")
+	var versions := Array(DirAccess.get_directories_at(root))
+	versions.sort_custom(func(a: String, b: String) -> bool: return a.naturalnocasecmp_to(b) < 0)
+	if versions.is_empty():
+		return ""
+	var command := root.path_join(versions[-1]).path_join("agy_acp_server.par")
+	return command if FileAccess.file_exists(command) else ""
+
+
+func _run_antigravity(command: String, source: String) -> void:
+	var profile := AgentProfile.from_dict({"id": "antigravity-acp", "display_name": "Google Antigravity", "command": command, "args": []})
+	if not await _controller.call(&"start", profile):
+		failures.append("no arrancó Antigravity: %s" % _model.get(&"failure_message"))
+		return
+	var modes: Array = (_model.get(&"agent_modes") as Array).map(func(m: Variant) -> String: return str(m.get("id", "")) if m is Dictionary else "")
+	print("[agy-plan] modos del agente: %s · modo plan propio: %s" % [modes, _controller.call(&"agent_has_plan_mode")])
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
+	await _tree.process_frame
+	var composer: Control = _dock.get(&"_composer")
+	var plan_button: Button = composer.find_child("PlanButton", true, false)
+	if plan_button == null or not plan_button.is_visible_in_tree():
+		failures.append("«Planificar» no está visible con la sesión libre")
+		return
+	var path := ProjectSettings.globalize_path(CLAUDE_TARGET)
+	composer.call(&"insert_text", "add a jump counter to the ship in %s (count each press of ui_accept in a `jumps` variable and print it). Read only that file, nothing else. Keep the plan short: 3 tasks at most." % path)
+	var requests: Array = []
+	_model.connect(&"permission_requested", func(r: Object) -> void:
+		requests.append(r)
+		print("[agy-plan] tarjeta: %s · grupo %s · plan %s" % [r.get(&"title"), r.get(&"group"), r.call(&"is_plan")]))
+	plan_button.pressed.emit()
+	var view: Control = await _wait_view_for(PLAN_VIEW_SCRIPT, 1, CLAUDE_WAIT_MS)
+	if view == null:
+		failures.append("Antigravity no dejó un bloque ```plan que se volviera tarjeta en %d s (stop %s)" % [CLAUDE_WAIT_MS / 1000, _model.get(&"last_stop_reason")])
+		_dump_as("agy-plan")
+		return
+	var request: Object = view.get(&"entry").get(&"permission")
+	print("[agy-plan] tarjeta del plan: bloque %s · %d líneas · línea plegada en el mensaje %d" % [request.get(&"from_block"), str(request.get(&"plan_text")).count("\n") + 1, _plan_lines()])
+	print("[agy-plan] plan:\n" + str(request.get(&"plan_text")))
+	_expect(bool(request.get(&"from_block")), "la tarjeta viene del bloque ```plan")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.ASK, "planeó en Preguntar")
+	_expect(FileAccess.get_file_as_string(CLAUDE_TARGET) == source, "no tocó el archivo mientras planeaba")
+	await _shot("agy_card")
+	_button(view, I18n.t("Approve and build")).pressed.emit()
+	var approved: Object = await _wait_user_entry(HarnessPrompts.PLAN_APPROVED)
+	_expect(approved != null, "aprobar mandó PLAN_APPROVED")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "aprobar pasó a Construir")
+	var cards_before := requests.size()
+	var agent_before := _agent_texts().size()
+	await _until_for(func() -> bool: return requests.size() > cards_before or (_model.get(&"plan") as Array).size() > 0 or not bool(_model.call(&"is_busy")), "Antigravity no empezó a construir", CLAUDE_WAIT_MS)
+	print("[agy-plan] al construir: tarjetas nuevas %d · tareas en su plan %d · ocupado %s" % [requests.size() - cards_before, (_model.get(&"plan") as Array).size(), _model.call(&"is_busy")])
+	if requests.size() > cards_before:
+		var edit: Object = requests[-1]
+		print("[agy-plan] primera tarjeta al construir: %s · grupo %s" % [edit.get(&"title"), edit.get(&"group")])
+		if edit.call(&"is_pending"):
+			edit.call(&"select", edit.call(&"option_id_for", PackedStringArray(["reject_once", "reject_always"])))
+	_dump_as("agy-plan")
+	if bool(_model.call(&"is_busy")):
+		_controller.call(&"cancel")  # cortar apenas se vio, para no gastar
+		await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "no se cortó el turno")
+
+
+func _dump_as(tag: String) -> void:
+	for entry: Object in _model.call(&"entries"):
+		var kind := int(entry.get(&"kind"))
+		if kind in [0, 1, 7]:
+			print("[%s] %s: %s" % [tag, {0: "user", 1: "agent", 7: "notice"}[kind], str(entry.get(&"harness_label")) + " " + str(entry.get(&"text")).left(400).replace("\n", " ")])
 
 
 func _dump() -> void:
