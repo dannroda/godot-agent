@@ -73,6 +73,24 @@ timeout_of() {
 	done
 }
 
+# Corre el comando y además falla si Godot avisó fugas al salir: objetos, RIDs o recursos que
+# quedaron vivos (m16-14). run_all terminaba con 46 objetos y 11 recursos sin que nada fallara, y un
+# ciclo de referencias nuevo pasaba desapercibido. Con --verbose, Godot dice cuáles son.
+without_leaks() {
+	out="$(mktemp "${TMPDIR:-/tmp}/suite_leaks.XXXXXX")"
+	"$@" > "$out" 2>&1
+	code=$?
+	cat "$out"
+	leaks="$(grep -E "leaked at exit|were leaked|resources still in use at exit" "$out")"
+	rm -f "$out"
+	if [ -n "$leaks" ]; then
+		echo "suite: quedaron fugas al salir (correlo con --verbose para ver cuáles):"
+		echo "$leaks"
+		[ "$code" = 0 ] && code=1
+	fi
+	return "$code"
+}
+
 # Corre un check con el binario $G; el código de salida es el del check.
 run_check() {
 	name="$1"
@@ -85,7 +103,7 @@ run_check() {
 	headless() { timeout "$limit" "$G" --headless --path . --script "$@"; }
 	shots="${SUITE_LOGS:-${TMPDIR:-/tmp}}"
 	case "$name" in
-		run_all) headless tests/run_all.gd ;;
+		run_all) without_leaks headless tests/run_all.gd ;;
 		acp) headless tests/acp_session_check.gd ;;
 		oneshot_loop) headless tests/oneshot_check.gd ;;
 		regressions) timeout "$limit" sh tests/regressions_cli_check.sh "$G" ;;

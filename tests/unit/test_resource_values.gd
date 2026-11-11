@@ -13,10 +13,12 @@ func test_inline_resource() -> void:
 		var box: StyleBoxFlat = result.value
 		assert_eq(box.bg_color, Color.html("#202040"), "propiedad suelta")
 		assert_eq(box.corner_radius_top_left, 6, "propiedad en properties")
-	var wrong := ValueCoercion.coerce(Sprite2D.new(), "texture", {"type": "StyleBoxFlat"})
+	var sprite := Sprite2D.new()
+	var wrong := ValueCoercion.coerce(sprite, "texture", {"type": "StyleBoxFlat"})
 	assert_false(wrong.ok, "tipo que no cumple el hint → error")
 	assert_true(wrong.error.contains("Texture2D"), "dice el tipo esperado: " + wrong.error)
-	assert_false(ValueCoercion.coerce(Sprite2D.new(), "texture", {"type": "Nada"}).ok, "clase inexistente")
+	assert_false(ValueCoercion.coerce(sprite, "texture", {"type": "Nada"}).ok, "clase inexistente")
+	sprite.free()
 	panel.free()
 
 

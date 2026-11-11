@@ -50,6 +50,10 @@ func _initialize() -> void:
 		if not file.begins_with("test_") or not file.ends_with(".gd") or file == BASE_SCRIPT:
 			continue
 		var script: GDScript = load(UNIT_DIR + "/" + file)
+		if script == null or not script.can_instantiate():
+			# Un archivo que no compila se salteaba sin fallar: con un filtro daba «0 tests» (m16-14).
+			failures.append("%s › no se pudo cargar (error de parseo)" % file.get_basename())
+			continue
 		for method: Dictionary in script.get_script_method_list():
 			var name: String = method.name
 			if not name.begins_with("test_") or (filter != "" and not ("%s.%s" % [file, name]).contains(filter)):

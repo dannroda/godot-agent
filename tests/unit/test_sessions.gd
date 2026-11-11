@@ -96,8 +96,9 @@ func test_game_waits_for_owner() -> void:
 func test_registry_guard_and_caller() -> void:
 	var registry := ToolRegistry.new()
 	var seen: Array[String] = []
+	var ref: WeakRef = weakref(registry)  # el handler queda en el registry: con `registry` capturado era un ciclo
 	registry.register(McpTool.create("write", "edit_files", "Escribe", {"path": {"type": "string"}}, ["path"], func(_args: Dictionary) -> String:
-		seen.append(registry.current_caller)
+		seen.append(ref.get_ref().current_caller)
 		return "ok"))
 	registry.guard = func(caller: String, tool_name: String, args: Dictionary) -> String:
 		return "taken by Session 1" if caller == "s2" and tool_name == "write" and args.path == "res://a.gd" else ""

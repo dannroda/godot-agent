@@ -163,10 +163,12 @@ func test_cancel_request_both_directions() -> void:
 func test_incoming_cancel_mark_survives_await() -> void:
 	var client := _make_client()
 	var seen: Array = []
+	# Por weakref: el handler queda guardado en el client y con `client` capturado era un ciclo (fuga).
+	var ref: WeakRef = weakref(client)
 	client.set_request_handler("terminal/create", func(_params: Dictionary) -> Variant:
-		var my_id: Variant = client.handling_id
+		var my_id: Variant = ref.get_ref().handling_id
 		await Engine.get_main_loop().process_frame
-		seen.append(client.is_incoming_cancelled(my_id))
+		seen.append(ref.get_ref().is_incoming_cancelled(my_id))
 		return {"terminalId": "t"}
 	)
 	client.receive_line('{"jsonrpc":"2.0","id":7,"method":"terminal/create","params":{}}')

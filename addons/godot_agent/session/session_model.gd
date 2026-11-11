@@ -370,10 +370,7 @@ func add_permission(request: PermissionRequest) -> ChatEntry:
 	entry.permission = request
 	entry.text = request.title
 	pending_permissions.append(request)
-	request.resolved.connect(func(_outcome: Dictionary) -> void:
-		pending_permissions.erase(request)
-		entry_updated.emit(entry)
-	, CONNECT_ONE_SHOT)
+	request.resolved.connect(_on_request_resolved.bind(entry.id), CONNECT_ONE_SHOT)
 	_push(entry)
 	permission_requested.emit(request)
 	return entry
@@ -386,10 +383,7 @@ func add_elicitation(request: ElicitationRequest) -> ChatEntry:
 	entry.text = request.message
 	pending_elicitations.append(request)
 	_hide_question_call(request)
-	request.resolved.connect(func(_response: Dictionary) -> void:
-		pending_elicitations.erase(request)
-		entry_updated.emit(entry)
-	, CONNECT_ONE_SHOT)
+	request.resolved.connect(_on_request_resolved.bind(entry.id), CONNECT_ONE_SHOT)
 	_push(entry)
 	elicitation_requested.emit(request)
 	return entry
@@ -437,6 +431,22 @@ func complete_elicitation(elicitation_id: String) -> void:
 
 
 ## Al cancelar el turno, los permisos y formularios pendientes se responden como cancelados (spec §4.1).
+## Un permiso o una pregunta se resolvió: sale de los pendientes y su tarjeta se actualiza. Va por
+## método con el id de la entrada: una lambda con el pedido, la entrada y el modelo capturados era un
+## ciclo mientras el pedido seguía pendiente, y el modelo no se liberaba nunca (m16-14).
+func _on_request_resolved(_result: Variant, entry_id: int) -> void:
+	for request: PermissionRequest in pending_permissions.duplicate():
+		if not request.is_pending():
+			pending_permissions.erase(request)
+	for request: ElicitationRequest in pending_elicitations.duplicate():
+		if not request.is_pending():
+			pending_elicitations.erase(request)
+	for i in range(_entries.size() - 1, -1, -1):
+		if _entries[i].id == entry_id:
+			entry_updated.emit(_entries[i])
+			return
+
+
 func cancel_pending_permissions() -> void:
 	for request: PermissionRequest in pending_permissions.duplicate():
 		request.cancel()
