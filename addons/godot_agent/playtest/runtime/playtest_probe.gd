@@ -8,7 +8,7 @@ extends Node
 ##   [firma, png] (m15-07, m15-08), `film_frame` [n, t, jpeg] (m15-22).
 ## - editor → juego: `capture` [lado máximo], `inputs` [[paso, …]], `request` [id, op, params]
 ##   con op tree, get, set, call, wait, input, find, ui, ui_act, script, pause, step, watch, film,
-##   opening, monitors, monitors_start o monitors_stop (m11-43), y `quit` (cierra el juego por su cuenta: así el Movie Maker termina de escribir el video).
+##   opening, device (m11-51), monitors, monitors_start o monitors_stop (m11-43), y `quit` (cierra el juego por su cuenta: así el Movie Maker termina de escribir el video).
 
 const Detectors := preload("detectors.gd")
 const GameUi := preload("game_ui.gd")
@@ -19,6 +19,7 @@ const Film := preload("film.gd")
 const PointPick := preload("point_pick.gd")
 const Monitors := preload("monitors.gd")
 const DebugStack := preload("debug_stack.gd")
+const DeviceSim := preload("device_sim.gd")
 
 const PREFIX := "godot_agent"
 const PROTOCOL := 3
@@ -54,6 +55,11 @@ var _finding_frame_at: int = -FINDING_FRAME_GAP_MS
 var _mouse_at := Vector2.ZERO
 ## Sin editor ni debugger: lo usa regression_cli.gd solo para correr game_scripts (m16-09).
 var standalone: bool = false
+## El dispositivo simulado que pidió run_scene (m11-51), o {}.
+var _device: Dictionary = {}
+## El tamaño simulado ya quedó (o se dejó de intentar): recién entonces se informa.
+var _device_settled: bool = true
+const DEVICE_SETTLE_FRAMES := 10
 
 
 func _ready() -> void:
@@ -66,11 +72,27 @@ func _ready() -> void:
 		queue_free()
 		return
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Antes que el _ready de la escena principal (los autoloads van primero): su layout y sus textos ya
+	# ven el tamaño y el idioma simulados (m11-51).
+	_device = DeviceSim.from_env()
+	if not _device.is_empty():
+		DeviceSim.apply(get_window(), _device)
+		_settle_device()
 	_film = Film.new(self)
 	_ui = GameUi.new(self)
 	_last_frame_ms = Time.get_ticks_msec()
 	EngineDebugger.register_message_capture(PREFIX, _on_message)
 	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL])
+
+
+## La ventana vuelve al tamaño del proyecto después del _ready: se repite hasta que quede.
+func _settle_device() -> void:
+	_device_settled = false
+	for i in DEVICE_SETTLE_FRAMES:
+		await get_tree().process_frame
+		if DeviceSim.apply_size(get_window(), _device) and i >= 1:
+			break
+	_device_settled = true
 
 
 func _exit_tree() -> void:
@@ -200,6 +222,10 @@ func _answer(id: int, op: String, params: Dictionary) -> void:
 			result = _film_op(params)
 		"opening":
 			result = {"text": _opening()}
+		"device":
+			while not _device_settled:
+				await get_tree().process_frame
+			result = {"text": DeviceSim.report(get_window(), _device)}
 		"point":
 			# Qué nodo hay bajo un punto de la captura (m11-37): {u, v} en [0, 1].
 			result = PointPick.at(get_viewport(), get_tree().current_scene, Vector2(float(params.get("u", 0.0)), float(params.get("v", 0.0))))

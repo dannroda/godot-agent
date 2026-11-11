@@ -9,6 +9,7 @@ extends "mcp_check.gd"
 ## - game_tree, game_get, game_set, game_call, game_wait y game_input con el juego vivo (m4-07);
 ## - detectores, UI, game_script, pausa, watch y filmación con un juego con bugs plantados (M13).
 
+const GameEmbedding := preload("res://addons/godot_agent/playtest/game_embedding.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
@@ -106,6 +107,19 @@ func _check_runs(model: Object) -> void:
 	# run_scene con monitors (m11-43): el resumen de toda la corrida va al final del informe.
 	var measured := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "monitors": true})
 	_expect(measured.contains("Performance during the run:\n<untrusted nonce=\"") and measured.contains("\">Sampled ") and measured.contains("Frame time: avg "), "run_scene monitors: resumen de la corrida, en sobre · " + measured.left(600))
+	# Dispositivo simulado (m11-51): la ventana del juego toma el tamaño, el táctil y el idioma se
+	# informan (el fixture no tiene traducciones), y el entorno del editor queda limpio.
+	var bad_device: Dictionary = await _call("run_scene", {"scene": RUN_SCENE, "seconds": 1, "device": {"preset": "watch"}})
+	_expect(bad_device.isError and str(bad_device.content[0].text).contains("Unknown device preset"), "run_scene device: preset desconocido · %s" % bad_device.content[0].text)
+	# Embebido en la vista Game (lo normal desde 4.4) el editor pone el tamaño: run_scene lo apaga
+	# para ese lanzamiento y lo deja como estaba.
+	var embed_before := GameEmbedding.is_on()
+	var device_run := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "device": {"size": [480, 800], "touch": true, "locale": "xx"}})
+	_expect(GameEmbedding.is_on() == embed_before, "run_scene device: «Embed Game on Next Play» queda como estaba (%s)" % embed_before)
+	_expect(device_run.contains("Simulated device: 480×800, touch from the mouse, locale xx.") and device_run.contains("Window 480×800;") and device_run.contains("touch events") and device_run.contains("no translation for it"), "run_scene device: ventana, táctil e idioma · " + device_run.left(900))
+	_expect(not OS.has_environment("GODOT_AGENT_DEVICE"), "run_scene device: el entorno del editor queda sin la variable")
+	var after_device := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1})
+	_expect(not after_device.contains("Simulated device"), "run_scene device: el run siguiente no lo hereda")
 	var quitting := await _call_text("run_scene", {"scene": QUITS_SCENE, "seconds": 3, "monitors": true})
 	_expect(quitting.contains("Performance monitors: the game ended"), "run_scene monitors: si el juego terminó, lo dice · " + quitting.left(600))
 	var recorded := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "record": true})

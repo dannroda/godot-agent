@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- `godot.run_scene` can simulate another device for one run with `device`: a preset (phone, tablet, Steam Deck, 1080p, 4K) or a window size, orientation, scale, touch from the mouse and locale, without touching `project.godot`. The agent can then check a HUD or translated texts in another aspect with `capture_game_frame` and `game_ui`. The report says what was applied, including when the project has no translation for the locale. When the game would run embedded in the Game view, that run opens in its own window and the embed option is left as it was.
+
 ## [0.1.20] - 2026-11-11
 
 ### Added
