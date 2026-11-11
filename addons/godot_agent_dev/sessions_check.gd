@@ -11,7 +11,7 @@ const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const ToolCall := preload("res://addons/godot_agent/session/tool_call.gd")
 
-const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const SOURCE := "res://tests/tmp/sessions_source.txt"
 const TARGET := "res://tests/tmp/sessions_target.txt"
 

@@ -17,6 +17,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Changed
 
 - Inline completion builds its project index the first time you open a script in the Script Editor, not when the editor starts or the addon is enabled. With no script open, nothing is indexed and file changes don't trigger a rebuild; on a large project this saves a background thread a few seconds of work at startup. If a script is already open when the editor starts, the index builds right away, as before.
+- Enabling the addon in Project Settings › Plugins blocks the editor for about 75 ms instead of about 430 ms. The Settings and Extensions windows are now built the first time you open them, so the first open takes about 0.15 s longer.
 
 ### Fixed
 
@@ -24,6 +25,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - The One-shot screen could get stuck too wide when you made the dock wider: the form's scroll area asked for the width of the form, which was computed from that same area. The form now scrolls sideways when needed, and the area keeps a fixed minimum width.
 - In a narrow dock with several tabs: with no session, the empty state names the agent and leaves the command line to the tooltip; sessions in a separate copy of the project are named «Session N» with a copy icon (the branch is in the tooltip) instead of a cut-off «(copy)», and the copy's notice is a card with the folder under a collapsible block with **Copy**.
 - A permission or question card left unanswered kept its session's chat model alive after the session was gone.
+- Disabling the addon right after enabling it, while it was still checking git, printed "A Thread object is being destroyed without its completion having been realized" in the Output. The git command now finishes and closes its thread on its own.
 
 ### Changed
 

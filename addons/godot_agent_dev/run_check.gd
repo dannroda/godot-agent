@@ -44,7 +44,7 @@ func run_run(tree: SceneTree) -> PackedStringArray:
 		elif script and script.resource_path == DOCK_SCRIPT:
 			_dock = node
 			model = node.get(&"_model")
-		elif script and script.resource_path == "res://addons/godot_agent/plugin.gd":
+		elif script and script.resource_path == "res://addons/godot_agent/agent_plugin.gd":
 			plugin_config = node.get(&"_project_config")
 			_run_tools = node.get(&"_run_tools")
 	if _server == null or model == null:

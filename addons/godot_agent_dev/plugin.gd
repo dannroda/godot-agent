@@ -180,7 +180,7 @@ const ProfileCheck := preload("profile_check.gd")
 const ProfileToolCheck := preload("profile_tool_check.gd")
 const DEBUG_ARG := "--godot-agent-debug-test"
 const DebugCheck := preload("debug_check.gd")
-const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 ## user:// propio de cada checkout para los checks (m13-17); vive en tests/, que no viaja con el addon.
 const TEST_USER_DIR_SCRIPT := "res://tests/test_user_dir.gd"
 const RUN_FIXTURE := "res://tests/fixtures/run_fixture.tscn"
@@ -808,7 +808,7 @@ func _run_crash_test(when: String) -> void:
 			await get_tree().process_frame
 		await get_tree().create_timer(1.0).timeout
 	else:
-		PlaytestAutoload.register(main_plugin)
+		PlaytestAutoload.register(main_plugin.get(&"_plugin"))
 	var on_disk := FileAccess.get_file_as_string("res://project.godot").contains(PlaytestAutoload.NAME)
 	print("[crash-test] %s: autoload en project.godot al matar: %s" % [when, on_disk])
 	OS.kill(OS.get_process_id())

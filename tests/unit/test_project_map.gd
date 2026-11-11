@@ -190,7 +190,7 @@ func test_wait_cancels_the_worker() -> void:
 	assert_true(later.get("isError", false), "después de wait() no arma más")
 	var cut: ProjectIndex = ProjectIndex.build({"root": FIXTURE, "structure_only": true, "cancel": [true]})
 	assert_true(cut.scripts.is_empty(), "el build cortado no lee archivos")
-	var plugin := FileAccess.get_file_as_string("res://addons/godot_agent/plugin.gd")
+	var plugin := FileAccess.get_file_as_string("res://addons/godot_agent/agent_plugin.gd")
 	var exit_tree := plugin.substr(plugin.find("func _exit_tree"), 6000)
 	assert_true(exit_tree.contains("_map_tools.wait()"), "el plugin lo espera al deshabilitarse")
 

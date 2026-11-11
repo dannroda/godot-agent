@@ -32,7 +32,7 @@ func test_no_save_with_preview() -> void:
 			var code := line.get_slice("#", 0)
 			var bad := code.contains(".save_scene()") or (code.contains("save_scene_as(") and not code.contains(", false)"))
 			if code.contains("EditorInterface.save_all_scenes()"):
-				if path.ends_with("/godot_agent/plugin.gd") and function == "_save_all_scenes":
+				if path.ends_with("/godot_agent/agent_plugin.gd") and function == "_save_all_scenes":
 					allowed_save_all += 1
 				else:
 					bad = true
