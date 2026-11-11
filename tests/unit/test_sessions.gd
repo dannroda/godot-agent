@@ -175,3 +175,18 @@ func test_notice_for_work_outside_a_turn() -> void:
 	model.set_state(SessionModel.SessionState.PROMPTING)
 	chunk.call("agent_message_chunk", "in a turn")
 	assert_eq(notices.call(), 1, "dentro de un turno pedido, sin aviso")
+
+
+## m12-45: una sesión en una copia aparte se nombra «Session N» (sin «(copy)», que se cortaba en un
+## dock angosto) y godot.sessions dice que está en una copia aunque la renombren.
+func test_copy_sessions_are_marked() -> void:
+	var coordinator := _coordinator()
+	coordinator.mark_copy("s2", "agent/copy-20261110-163522")
+	coordinator.register("s2", "Pong")  # el usuario la renombró
+	var models := {"s1": SessionModel.new(), "s2": SessionModel.new()}
+	var text := coordinator.describe("s1", func(id: String) -> SessionModel: return models[id])
+	assert_true(text.contains("- «Pong» ·"), "con el nombre nuevo · " + text)
+	assert_true(text.contains("in a separate copy of the project (branch agent/copy-20261110-163522)"), "y dice que es una copia · " + text)
+	assert_false(coordinator.describe("s2", func(id: String) -> SessionModel: return models[id]).contains("separate copy"), "la principal no es una copia")
+	coordinator.unregister("s2")
+	assert_false(coordinator.is_copy("s2"), "al cerrarla se olvida")

@@ -958,7 +958,11 @@ func _refresh_empty_state() -> void:
 		title.add_theme_font_size_override(&"font_size", AgentTheme.px(19))
 	else:
 		title.remove_theme_font_size_override(&"font_size")
-	_empty_command.text = I18n.t("The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents.") if first_run else profile.command_line() if profile else ""
+	# Sin sesión, el nombre del agente; la línea de comando (un dato técnico que en un dock angosto
+	# ocupaba tres líneas) queda en el tooltip (m12-45).
+	_empty_command.text = I18n.t("The agent sees and changes the project with the editor tools. You can add others later in Settings → Agents.") if first_run else profile.display_name if profile else ""
+	_empty_command.tooltip_text = profile.command_line() if profile and not first_run else ""
+	_empty_command.mouse_filter = Control.MOUSE_FILTER_PASS if not _empty_command.tooltip_text.is_empty() else Control.MOUSE_FILTER_IGNORE
 	for label: Label in [title, _empty_command]:
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if first_run else HORIZONTAL_ALIGNMENT_CENTER
 	_empty_state.alignment = BoxContainer.ALIGNMENT_BEGIN if first_run else BoxContainer.ALIGNMENT_CENTER

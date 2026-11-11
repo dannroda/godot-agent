@@ -264,8 +264,25 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	var copy_session: Dictionary = (main_plugin.get(&"_extra_sessions") as Dictionary).get(copy_id, {})
 	var copy: Object = copy_session.get("copy")
 	var copy_dir: String = copy.get(&"info").dir if copy else ""
-	if copy == null or not DirAccess.dir_exists_absolute(copy_dir) or not str(coordinator.call(&"label", copy_id)).ends_with(I18n.t("Session %d (copy)").get_slice("%d", 1)):
+	if copy == null or not DirAccess.dir_exists_absolute(copy_dir):
 		failures.append("la copia no quedó armada: %s" % copy_dir)
+	# m12-45: la copia se marca con un ícono en la pestaña y en godot.sessions, no con «(copy)» en el
+	# nombre (en un dock angosto era lo que se cortaba); el aviso es una tarjeta con la carpeta plegada.
+	var copy_branch: String = copy.get(&"info").branch if copy else ""
+	var copy_index := (tabs.call(&"ids") as PackedStringArray).find(copy_id)
+	if str(coordinator.call(&"label", copy_id)).contains("(") or not tabs.call(&"is_copy", copy_id) or bar.get_tab_icon(copy_index) == null or not bar.get_tab_tooltip(copy_index).contains(copy_branch):
+		failures.append("la pestaña de la copia: «%s», ícono %s, tooltip «%s»" % [coordinator.call(&"label", copy_id), bar.get_tab_icon(copy_index), bar.get_tab_tooltip(copy_index)])
+	if not str(coordinator.call(&"describe", "", Callable(main_plugin, &"_model_of"))).contains("separate copy of the project (branch %s)" % copy_branch):
+		failures.append("godot.sessions no dice que la sesión está en una copia: %s" % coordinator.call(&"describe", "", Callable(main_plugin, &"_model_of")))
+	var copy_dock: Object = (tabs.get(&"_docks") as Dictionary).get(copy_id)
+	var copy_profile: Object = copy_dock.call(&"selected_profile") if copy_dock else null
+	var empty_command: Label = copy_dock.get(&"_empty_command") if copy_dock else null
+	if copy_profile and empty_command and (empty_command.text != str(copy_profile.get(&"display_name")) or empty_command.tooltip_text != str(copy_profile.call(&"command_line"))):
+		failures.append("sin sesión se ve la línea de comando y no el nombre del agente: «%s» (tooltip «%s»)" % [empty_command.text, empty_command.tooltip_text])
+	var copy_model: Object = copy_session.get("model")
+	var copy_notices: Array = (copy_model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return entry.get(&"title") == I18n.t("Works in a separate copy"))
+	if copy_notices.size() != 1 or str(copy_notices[0].get(&"details")) != str(copy.get(&"info").project) or str(copy_notices[0].get(&"text")).contains(str(copy.get(&"info").project)):
+		failures.append("el aviso de la copia no es la tarjeta con la carpeta plegada: %s" % [copy_notices.map(func(entry: Object) -> String: return "%s | %s | %s" % [entry.get(&"title"), entry.get(&"text"), entry.get(&"details")])])
 	if (copy_session.controller as Object).get(&"cwd") == ProjectSettings.globalize_path("res://").trim_suffix("/"):
 		failures.append("la sesión en una copia trabaja en el proyecto")
 	var edit_in_copy: Dictionary = await registry.call(&"call_tool", "delete_file", {"path": TARGET}, copy_id)

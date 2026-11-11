@@ -3058,11 +3058,17 @@ msgstr "El agente trabaja en una copia del proyecto en una rama nueva, fuera de 
 msgid "Could not create the separate copy: %s"
 msgstr "No se pudo crear la copia aparte: %s"
 
-msgid "Session %d (copy)"
-msgstr "Sesión %d (copia)"
+msgid "Works in a separate copy"
+msgstr "Trabaja en una copia aparte"
 
-msgid "This session works in a separate copy of the project, %s, on the branch %s (from your last commit: uncommitted changes aren't in it). The open editor isn't touched. When you close the tab you choose whether to apply its changes to the project."
-msgstr "Esta sesión trabaja en una copia aparte del proyecto, %s, en la rama %s (desde tu último commit: los cambios sin commitear no están). El editor abierto no se toca. Al cerrar la pestaña elegís si aplicar sus cambios al proyecto."
+msgid "Branch %s, from your last commit: uncommitted changes aren't in it. When you close the tab you choose whether to apply its changes to the project."
+msgstr "Rama %s, desde tu último commit: los cambios sin commitear no están. Al cerrar la pestaña elegís si aplicar sus cambios al proyecto."
+
+msgid "Folder of the copy"
+msgstr "Carpeta de la copia"
+
+msgid "Works in a separate copy of the project · branch %s"
+msgstr "Trabaja en una copia aparte del proyecto · rama %s"
 
 msgid "Changes of the separate copy"
 msgstr "Cambios de la copia aparte"
