@@ -5096,3 +5096,12 @@ msgstr "Eso cambió en la escena después del turno: usá «Volver atrás» para
 
 msgid "This kind of scene change can't be rejected on its own yet: use «Go back» for the whole file."
 msgstr "Este tipo de cambio de escena todavía no se puede rechazar solo: usá «Volver atrás» para el archivo entero."
+
+msgid "1 file"
+msgstr "1 archivo"
+
+msgid "%d files"
+msgstr "%d archivos"
+
+msgid "What the agent changed so far in this turn. Click to see it; you can keep or reject changes when the turn ends."
+msgstr "Lo que el agente cambió hasta ahora en este turno. Un clic lo muestra; los cambios se conservan o rechazan cuando termina el turno."

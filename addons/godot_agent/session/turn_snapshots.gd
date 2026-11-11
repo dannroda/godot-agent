@@ -25,6 +25,8 @@ var _prefix: String = ""
 ## Lo que usa git con el index propio o escribe en el proyecto va de a uno (m11-34): un peek() del
 ## contador no puede correr a la vez que un take() o un rechazo.
 var _busy: bool = false
+## sesión -> {sha, msec} del último take() (el contador vivo busca ahí el principio del turno).
+var _latest: Dictionary = {}
 
 
 func _init(project_root: String = "") -> void:
@@ -61,7 +63,15 @@ func take(session: String) -> String:
 	await _lock()
 	var sha := await _take(session)
 	_unlock()
+	if not sha.is_empty():
+		_latest[session] = {"sha": sha, "msec": Time.get_ticks_msec()}
 	return sha
+
+
+## El último snapshot de `session` si se tomó en `since_msec` o después; si no, "".
+func latest_take(session: String, since_msec: int) -> String:
+	var taken: Dictionary = _latest.get(session, {})
+	return str(taken.sha) if not taken.is_empty() and int(taken.msec) >= since_msec else ""
 
 
 func _take(session: String) -> String:
@@ -135,7 +145,7 @@ func _restore(session: String, sha: String, paths: PackedStringArray) -> Diction
 
 ## Lo que cambió desde `from` hasta ahora, sin guardar un snapshot (el contador vivo, m11-34): arma
 ## el árbol con otro index propio (el de take() no se toca) y no deja commit ni ref. Mismo formato que
-## diff(); {} si no se pudo.
+## diff(), más `tree` (el árbol de ahora); {} si no se pudo.
 func peek(session: String, from: String) -> Dictionary:
 	if not available or from.is_empty():
 		return {}
@@ -149,6 +159,7 @@ func peek(session: String, from: String) -> Dictionary:
 	var result := {}
 	if not tree.is_empty():
 		result = await diff(from, tree)
+		result["tree"] = tree  # para ver los trozos hasta ahora (git diff acepta un árbol)
 	_unlock()
 	return result
 

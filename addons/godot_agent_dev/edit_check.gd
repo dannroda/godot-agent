@@ -445,6 +445,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	await _call_text("save_scene", {})
 	_expect(not FileAccess.file_exists(thumb), "la tool save_scene guarda sin vista previa")
 	await _check_hunk_guards()
+	await _check_scene_reject_reload()
 	return failures
 
 
@@ -533,3 +534,73 @@ func _check_hunk_guards() -> void:
 	_expect(changes.get(&"unsaved_of").call(EDIT_SCENE), "una escena abierta sin guardar bloquea")
 	EditorInterface.save_scene()
 	_expect(not changes.get(&"unsaved_of").call(EDIT_SCENE), "guardada, ya no")
+
+
+## m11-34: rechazar una propiedad de una escena abierta en el editor. La escena vive en una carpeta
+## que los snapshots ven (tests/tmp está en .gitignore) y se borra al terminar. El agente la cambia
+## con sus tools y la guarda; rechazar la propiedad deja el árbol abierto con el valor de antes, sin
+## diálogo de «cambió en disco» ni la escena marcada sin guardar, y Deshacer lo vuelve.
+func _check_scene_reject_reload() -> void:
+	var folder := "res://tests/m11_34_fixture"
+	var scene_path := folder + "/reject_scene.tscn"
+	var rel := scene_path.trim_prefix("res://")
+	var snapshots: Object = _plugin.get(&"_turn_snapshots")
+	var changes: Object = _plugin.get(&"_turn_changes")
+	if snapshots == null or not snapshots.get(&"available"):
+		failures.append("sin snapshots de git en el proyecto: no se puede probar el rechazo por nodo")
+		return
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
+	var file := FileAccess.open(scene_path, FileAccess.WRITE)
+	file.store_string("[gd_scene format=3]\n\n[node name=\"Root\" type=\"Node2D\" unique_id=1]\n\n[node name=\"Box\" type=\"Node2D\" parent=\".\" unique_id=2]\nposition = Vector2(1, 2)\n")
+	file.close()
+	EditorInterface.get_resource_filesystem().update_file(scene_path)
+	await _tree.create_timer(0.5).timeout
+	EditorInterface.open_scene_from_path(scene_path)
+	await _tree.process_frame
+	var session := "s1"
+	var start: String = await snapshots.call(&"take", session)
+	await _call_text("set_properties", {"node_path": "Box", "properties": {"position": [5, 2]}})
+	await _call_text("save_scene", {})
+	var end: String = await snapshots.call(&"take", session)
+	var data := {"session": session, "start": start, "end": end, "files": [{"path": rel, "status": "M", "added": 1, "removed": 1}]}
+	var items: Array = await changes.call(&"file_hunks", data, rel)
+	var index := -1
+	for item: Dictionary in items:
+		if str(item.scene.label) == "~ Box · position":
+			index = int(item.index)
+	_expect(index >= 0, "el cambio de posición está en la lista por nodo: %s" % [items.map(func(i: Dictionary) -> String: return str(i.scene.label))])
+	if index >= 0:
+		var error: String = await changes.call(&"reject_hunk", data, rel, index)
+		_expect(error.is_empty(), "rechazar la posición: %s" % error)
+		await _tree.process_frame
+		await _tree.process_frame
+		var root := EditorInterface.get_edited_scene_root()
+		var box := root.get_node_or_null("Box") as Node2D if root and root.scene_file_path == scene_path else null
+		_expect(box != null and box.position == Vector2(1, 2), "el árbol abierto muestra el valor de antes: %s" % [box.position if box else "sin Box"])
+		_expect(not scene_path in EditorInterface.get_unsaved_scenes(), "la escena no queda marcada sin guardar")
+		_expect(_disk_dialogs().is_empty(), "sin diálogo de «cambió en disco»: %s" % [_disk_dialogs()])
+		var payload := {"data": data, "path": rel, "index": index}
+		await changes.call(&"undo_hunk", payload)
+		await _tree.process_frame
+		await _tree.process_frame
+		root = EditorInterface.get_edited_scene_root()
+		box = root.get_node_or_null("Box") as Node2D if root and root.scene_file_path == scene_path else null
+		_expect(box != null and box.position == Vector2(5, 2), "Deshacer vuelve a la posición del turno: %s" % [box.position if box else "sin Box"])
+		_expect(_disk_dialogs().is_empty(), "tampoco al deshacer")
+	if EditorInterface.get_edited_scene_root() and EditorInterface.get_edited_scene_root().scene_file_path == scene_path:
+		EditorInterface.close_scene()
+	await _tree.process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene_path + ".uid"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(folder))
+	EditorInterface.get_resource_filesystem().scan()
+
+
+## Los diálogos visibles del editor que hablan de archivos cambiados en disco.
+func _disk_dialogs() -> Array[String]:
+	var found: Array[String] = []
+	for node: Node in EditorInterface.get_base_control().find_children("*", "AcceptDialog", true, false):
+		var dialog := node as AcceptDialog
+		if dialog.visible and (dialog.dialog_text.to_lower().contains("disk") or dialog.title.to_lower().contains("disk")):
+			found.append(dialog.title + ": " + dialog.dialog_text.left(80))
+	return found

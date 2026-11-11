@@ -35,6 +35,7 @@ const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
 const TurnChangesDialog := preload("ui/turn_changes_dialog.gd")
 const TurnChanges := preload("ui/turn_changes.gd")
+const TurnCounter := preload("ui/turn_counter.gd")
 const TurnSnapshots := preload("session/turn_snapshots.gd")
 const InlineEdit := preload("editor/inline_edit.gd")
 ## Lo que trae @output: el final del panel Output.
@@ -149,6 +150,8 @@ var _remote_activity: RemoteActivity
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
 var _turn_changes: TurnChanges
+## El contador vivo de cambios del turno arriba del composer (m11-34).
+var _turn_counter: TurnCounter
 ## Snapshots por turno de todas las sesiones (m11-01); `available` queda en false sin git.
 var _turn_snapshots: TurnSnapshots
 var _mcp_server: McpServer
@@ -246,6 +249,12 @@ func _enter_tree() -> void:
 	_turn_dialog.hunks_requested.connect(_turn_changes.show_hunks)
 	_turn_dialog.hunk_action.connect(_turn_changes.on_hunk_action)
 	_turn_dialog.reject_file_requested.connect(_turn_changes.on_reject_file)
+	_turn_counter = TurnCounter.new()
+	_turn_counter.snapshots_of = _turn_changes._snapshots_of
+	_turn_counter.model_of = _model_of
+	_turn_counter.dock_of = func(id: String) -> Object: return _tabs.dock(id) if _tabs else null
+	_turn_counter.open_dialog = _turn_dialog.show_turn
+	add_child(_turn_counter)
 	# m11-34: un archivo con cambios sin guardar o que otra sesión edita no se toca por trozo.
 	_turn_changes.unsaved_of = func(res_path: String) -> bool:
 		return (_sync and _sync.buffer_text(ProjectSettings.globalize_path(res_path)) != null) or res_path in EditorInterface.get_unsaved_scenes()
@@ -305,6 +314,9 @@ func _enter_tree() -> void:
 	_tabs.new_session_requested.connect(_open_session_tab)
 	_tabs.active_changed.connect(func(_id: String) -> void: _follower.cancel())
 	dock.follow_toggled.connect(_on_follow_toggled)
+	dock.turn_changes_requested.connect(func() -> void:
+		if _turn_counter:
+			_turn_counter.open(_session_of_dock(dock)))
 	_tabs.close_requested.connect(_close_session_tab)
 	_tabs.rename_requested.connect(_rename_session)
 	# Los textos ya vienen traducidos por I18n: que el editor no los vuelva a traducir con los suyos.
@@ -460,6 +472,9 @@ func _exit_tree() -> void:
 	if _follower:
 		_follower.queue_free()
 		_follower = null
+	if _turn_counter:
+		_turn_counter.queue_free()
+		_turn_counter = null
 	if _review_annotations:
 		remove_child(_review_annotations)
 		_review_annotations.queue_free()
@@ -1488,6 +1503,14 @@ func _turn_checks_info() -> Dictionary:
 
 
 func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:
+	# El contador vivo (m11-34): el turno empieza al pasar a PROMPTING y cada tool call terminada
+	# pide recalcular.
+	model.state_changed.connect(func(state: SessionModel.SessionState) -> void:
+		if _turn_counter:
+			_turn_counter.on_state(id, state))
+	model.tool_call_changed.connect(func(call: ToolCall, _group: ChatEntry) -> void:
+		if _turn_counter and call.status == ToolCall.STATUS_COMPLETED:
+			_turn_counter.note_activity(id))
 	model.tool_call_changed.connect(func(call: ToolCall, group: ChatEntry) -> void: _on_tool_call_changed(call, group, _model_of(id)))
 	model.turn_finished.connect(func(_stop_reason: String) -> void:
 		if _coordinator:
@@ -1560,6 +1583,9 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 		_wire_oneshot(dock, id)
 	_wire_elsewhere(dock, id)
 	dock.follow_toggled.connect(_on_follow_toggled)
+	dock.turn_changes_requested.connect(func() -> void:
+		if _turn_counter:
+			_turn_counter.open(_session_of_dock(dock)))
 	_tabs.add_session(id, dock, model, label)
 	if copy:
 		_tabs.set_copy(id, I18n.t("Works in a separate copy of the project · branch %s") % copy.info.branch)
@@ -1789,6 +1815,15 @@ func _controller_of(id: String) -> SessionController:
 		return _controller
 	var session: Dictionary = _extra_sessions.get(id, {})
 	return session.get("controller")
+
+
+## El id de la pestaña de un dock.
+func _session_of_dock(dock: Control) -> String:
+	if _tabs:
+		for id: String in _tabs.ids():
+			if _tabs.dock(id) == dock:
+				return id
+	return PRIMARY_SESSION
 
 
 func _model_of(id: String) -> SessionModel:

@@ -18,6 +18,8 @@ signal open_elsewhere_requested(session_id: String)
 signal extensions_requested
 ## Abrir la lista de tools del agente (Extensiones › Tools, m12-46).
 signal tools_requested
+## Clic en el contador de cambios del turno (m11-34): ver lo que cambió hasta ahora.
+signal turn_changes_requested
 ## Se prendió o apagó «Seguir al agente» en esta pestaña (m11-33).
 signal follow_toggled(enabled: bool)
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
@@ -191,6 +193,8 @@ var _state_line: Label
 ## el One-shot, leídos de `machine_states` como el tooltip del encabezado.
 var _state_row: HFlowContainer
 var _machine_chips: HBoxContainer
+## «3 files · +42 −7» mientras corre el turno (m11-34); lo actualiza el plugin con set_turn_changes().
+var _changes_button: Button
 var _machines_timer: Timer
 var _agent_menu: PopupMenu
 var _new_menu: PopupMenu
@@ -314,6 +318,14 @@ func _ready() -> void:
 	_machine_chips.name = "MachineChips"
 	_machine_chips.add_theme_constant_override(&"separation", AgentTheme.px(4))
 	_state_row.add_child(_machine_chips)
+	_changes_button = Button.new()
+	_changes_button.name = "TurnChangesButton"
+	_changes_button.flat = true
+	_changes_button.visible = false
+	_changes_button.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+	_changes_button.tooltip_text = I18n.t("What the agent changed so far in this turn. Click to see it; you can keep or reject changes when the turn ends.")
+	_changes_button.pressed.connect(func() -> void: turn_changes_requested.emit())
+	_state_row.add_child(_changes_button)
 	_machines_timer = Timer.new()
 	_machines_timer.wait_time = 1.0
 	_machines_timer.timeout.connect(_on_machines_tick)
@@ -861,7 +873,21 @@ func _refresh_machine_chips() -> void:
 		chip.custom_minimum_size.x = minf(ceilf(full) + 1.0, AgentTheme.px(MAX_CHIP_WIDTH))
 	_machine_chips.visible = not chips.is_empty()
 	if _state_row:
-		_state_row.visible = _state_line.visible or _machine_chips.visible
+		_state_row.visible = _state_line.visible or _machine_chips.visible or (_changes_button and _changes_button.visible)
+
+
+## El contador de cambios del turno: {files, added, removed} de TurnSnapshots.peek(), o {} para
+## ocultarlo.
+func set_turn_changes(summary: Dictionary) -> void:
+	if _changes_button == null:
+		return
+	var files: Array = summary.get("files", [])
+	_changes_button.visible = not files.is_empty()
+	if not files.is_empty():
+		var count := I18n.t("1 file") if files.size() == 1 else I18n.t("%d files") % files.size()
+		_changes_button.text = "%s · +%d −%d" % [count, int(summary.get("added", 0)), int(summary.get("removed", 0))]
+	if _state_row:
+		_state_row.visible = _state_line.visible or _machine_chips.visible or _changes_button.visible
 
 
 ## Los chips que salen de `machine_states`: solo las máquinas `live`, como `[{text, alert}]`.
