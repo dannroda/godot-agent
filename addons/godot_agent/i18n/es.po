@@ -5108,3 +5108,72 @@ msgstr "%d archivos"
 
 msgid "What the agent changed so far in this turn. Click to see it; you can keep or reject changes when the turn ends."
 msgstr "Lo que el agente cambió hasta ahora en este turno. Un clic lo muestra; los cambios se conservan o rechazan cuando termina el turno."
+
+msgid "Let's continue the work of the session «%s»."
+msgstr "Seguimos con el trabajo de la sesión «%s»."
+
+msgid "Goal: %s"
+msgstr "Objetivo: %s"
+
+msgid "The agent of that session could not write a summary: what the harness took from its history is attached."
+msgstr "El agente de esa sesión no pudo escribir un resumen: va adjunto lo que el harness sacó de su historial."
+
+msgid "Summary written by the agent of that session:"
+msgstr "Resumen que escribió el agente de esa sesión:"
+
+msgid "Handoff · summary for a new session"
+msgstr "Traspaso · resumen para una sesión nueva"
+
+msgid "New session with a summary of this one"
+msgstr "Nueva sesión con resumen de esta"
+
+msgid "The agent writes a summary of this session (goal, what's done, what's left, decisions, open questions) and a new tab opens with the same agent, account and mode, with the summary in the composer to review before sending."
+msgstr "El agente escribe un resumen de esta sesión (objetivo, lo hecho, lo que falta, decisiones, preguntas abiertas) y se abre otra pestaña con el mismo agente, cuenta y modo, con el resumen en el composer para revisarlo antes de mandarlo."
+
+msgid "There is no session to continue from yet."
+msgstr "Todavía no hay una sesión de la que seguir."
+
+msgid "Wait for the turn to end to continue in a new session."
+msgstr "Esperá a que termine el turno para seguir en una sesión nueva."
+
+msgid "The agent did not write the summary: the new session gets what the harness took from the history of this one."
+msgstr "El agente no escribió el resumen: la sesión nueva recibe lo que el harness sacó del historial de esta."
+
+msgid "Handoff: %s"
+msgstr "Traspaso: %s"
+
+msgid "What the harness took from the history of that session. It goes to the agent as context, not as instructions (click to remove it)."
+msgstr "Lo que el harness sacó del historial de esa sesión. Le llega al agente como contexto, no como instrucciones (clic para quitarlo)."
+
+msgid "Near the limit the agent compacts the conversation and loses details. A new session starts with a fresh context and a summary of this one."
+msgstr "Cerca del límite el agente compacta la conversación y pierde detalles. Una sesión nueva arranca con el contexto limpio y un resumen de esta."
+
+msgid "New session with a summary"
+msgstr "Nueva sesión con resumen"
+
+msgid "Hide until the context goes down again"
+msgstr "Ocultar hasta que el contexto vuelva a bajar"
+
+msgid "Context at %d %%"
+msgstr "Contexto al %d %%"
+
+msgid "The agent compacted the conversation: from here on it works with a summary and may forget details. You can continue in a new session with a summary written now."
+msgstr "El agente compactó la conversación: desde acá trabaja con un resumen y puede olvidar detalles. Podés seguir en una sesión nueva con un resumen escrito ahora."
+
+msgid "Continue from it"
+msgstr "Seguir desde ahí"
+
+msgid "Starts the session with the handoff in the composer, to review before sending."
+msgstr "Arranca la sesión con el traspaso en el composer, para revisarlo antes de mandarlo."
+
+msgid "See others"
+msgstr "Ver otros"
+
+msgid "Handoff from «%s»"
+msgstr "Traspaso de «%s»"
+
+msgid "Continue in a new session with a summary of this one; optionally, what to do there (harness)"
+msgstr "Seguir en una sesión nueva con un resumen de esta; opcional, qué hacer ahí (harness)"
+
+msgid "Click: continue in a new session with a summary…"
+msgstr "Clic: seguir en una sesión nueva con resumen…"

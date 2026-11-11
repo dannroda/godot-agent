@@ -1,0 +1,24 @@
+{
+	"turns": [
+		{
+			"steps": [
+				{"chunk": "Seguí con lo de esa sesión."},
+				{"stop": "end_turn"}
+			]
+		},
+		{
+			"steps": [
+				{"update": {"sessionUpdate": "tool_call", "toolCallId": "compact-1", "title": "Compact conversation", "kind": "think", "status": "completed", "_meta": {"claudeCode": {"toolName": "compact"}}}},
+				{"update": {"sessionUpdate": "usage_update", "used": 180000, "size": 200000}},
+				{"chunk": "Sigo con el menú."},
+				{"stop": "end_turn"}
+			]
+		},
+		{
+			"steps": [
+				{"chunk": "## Objetivo\nMenú de pausa con Esc.\n\n## Hecho\nui/pause_menu.gd armado.\n\n## Falta\nConectar Esc en player.gd.\n\n## Decisiones y restricciones\n—\n\n## Preguntas abiertas\n—"},
+				{"stop": "end_turn"}
+			]
+		}
+	]
+}

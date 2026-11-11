@@ -18,6 +18,8 @@ func test_special_mentions_in() -> void:
 		["errors|errors|", "game|game|", "docs:CharacterBody2D|docs|CharacterBody2D"], "sin repetir, con la clase")
 	assert_eq(AgentDock.special_mentions_in("mail me@errors.com, @Player/errors, @output_node"), [], "ni un mail ni un nodo que se llama parecido")
 	assert_eq(AgentDock.special_mentions_in("@output").size(), 1, "al principio")
+	var session := AgentDock.special_mentions_in("seguí lo de @session:3f2a91bc y @session:3f2a91bc")
+	assert_eq(session.map(func(m: Dictionary) -> String: return "%s|%s|%s" % [m.token, m.kind, m.arg]), ["session:3f2a91bc|session|3f2a91bc"], "m11-29: @session:<id>, sin repetir")
 	assert_eq(AgentDock.special_mention_options().map(func(o: Dictionary) -> String: return o.insert), ["errors", "output", "game", "docs:"], "en el menú de @")
 
 

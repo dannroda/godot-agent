@@ -52,6 +52,7 @@ ui-long-permission:full:120
 ui-quota:full:120
 ui-quota-busy:full:120
 ui-harness-prompt:full:120
+ui-handoff:full:120
 crash:full:400
 "
 
