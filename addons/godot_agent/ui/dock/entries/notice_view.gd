@@ -116,7 +116,8 @@ func refresh() -> void:
 		_label.remove_theme_color_override(&"font_color")
 	else:
 		_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.NoticeLevel.INFO else AgentTheme.MUTED)
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO and not asks and not entry.footer else HORIZONTAL_ALIGNMENT_LEFT
+	# Con título, el texto va debajo alineado como el título (m12-45: centrado parecía un párrafo suelto).
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO and not asks and not entry.footer and entry.title.is_empty() else HORIZONTAL_ALIGNMENT_LEFT
 	_actions.alignment = FlowContainer.ALIGNMENT_BEGIN if asks or entry.footer else FlowContainer.ALIGNMENT_END
 	for child: Node in _actions.get_children():
 		child.queue_free()

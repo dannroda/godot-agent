@@ -23,6 +23,9 @@ var _labels: Dictionary = {}
 ## ruta normalizada -> id de la sesión que la está editando.
 var _claims: Dictionary = {}
 var _game_owner: String = ""
+## Las sesiones que trabajan en una copia aparte (m11-09): godot.sessions lo dice aunque el usuario
+## les cambie el nombre (antes solo lo decía el sufijo «(copy)» del nombre por defecto; m12-45).
+var _copies: Dictionary = {}  # id -> rama
 ## Si el juego sigue corriendo; lo reemplazan las pruebas.
 var is_game_running: Callable = func() -> bool: return EditorInterface.is_playing_scene()
 
@@ -32,8 +35,19 @@ func register(session: String, label: String) -> void:
 	changed.emit()
 
 
+## `session` trabaja en una copia aparte en la rama `branch`.
+func mark_copy(session: String, branch: String) -> void:
+	_copies[session] = branch
+	changed.emit()
+
+
+func is_copy(session: String) -> bool:
+	return _copies.has(session)
+
+
 func unregister(session: String) -> void:
 	_labels.erase(session)
+	_copies.erase(session)
 	release_files(session)
 	if _game_owner == session:
 		_game_owner = ""
@@ -192,6 +206,8 @@ func describe(caller: String, model_of: Callable) -> String:
 		var model: SessionModel = model_of.call(id)
 		var state := "working" if model.is_busy() else ("idle" if model.state == SessionModel.SessionState.READY else "not connected")
 		var line := "- «%s» · %s mode · %s" % [label(id), SessionModel.HARNESS_MODE_LABELS[model.harness_mode], state]
+		if _copies.has(id):
+			line += " · in a separate copy of the project (branch %s)" % _copies[id]
 		if not model.title.strip_edges().is_empty():
 			line += " · on: " + model.title.strip_edges()
 		var files := files_of(id)

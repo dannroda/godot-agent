@@ -1441,8 +1441,19 @@ func _open_session_tab(in_copy: bool = false) -> void:
 	var model := _model_of(id)
 	var controller := _controller_of(id)
 	if copy:
-		model.add_notice(I18n.t("This session works in a separate copy of the project, %s, on the branch %s (from your last commit: uncommitted changes aren't in it). The open editor isn't touched. When you close the tab you choose whether to apply its changes to the project.") % [copy.info.project, copy.info.branch])
+		copy_notice(model, copy.info.project, copy.info.branch)
 		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
+
+
+## El aviso de una sesión en una copia aparte (m12-45): una tarjeta corta con título; la carpeta va
+## plegada con «Copiar» (antes era un párrafo centrado de 8 líneas con la ruta entera en el dock angosto).
+static func copy_notice(model: SessionModel, folder: String, branch: String) -> ChatEntry:
+	var entry := model.add_notice(I18n.t("Branch %s, from your last commit: uncommitted changes aren't in it. When you close the tab you choose whether to apply its changes to the project.") % branch)
+	entry.title = I18n.t("Works in a separate copy")
+	entry.details_title = I18n.t("Folder of the copy")
+	entry.details = folder
+	model.notify_entry_changed(entry)
+	return entry
 
 
 ## Agrega una pestaña de sesión y devuelve su id. `label` vacío: «Sesión N». `for_oneshot`: la
@@ -1451,7 +1462,8 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	_session_serial += 1
 	var id := "s%d" % _session_serial
 	if label.is_empty():
-		var pattern := I18n.t("Session %d (copy)") if copy else I18n.t("Session %d")
+		# Una copia lleva ícono en la pestaña, no el sufijo «(copy)» que se cortaba (m12-45).
+		var pattern := I18n.t("Session %d")
 		label = pattern % _session_serial
 		while _coordinator.label_taken(label, id):  # alguna otra se renombró así
 			_session_serial += 1
@@ -1482,6 +1494,9 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 		_wire_oneshot(dock, id)
 	_wire_elsewhere(dock, id)
 	_tabs.add_session(id, dock, model, label)
+	if copy:
+		_tabs.set_copy(id, I18n.t("Works in a separate copy of the project · branch %s") % copy.info.branch)
+		_coordinator.mark_copy(id, copy.info.branch)
 	_log.add(AgentLog.CH_ACP, "%s opened" % label)
 	return id
 

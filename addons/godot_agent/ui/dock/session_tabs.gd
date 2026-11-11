@@ -12,6 +12,8 @@ signal active_changed(id: String)
 signal rename_requested(id: String, name: String)
 
 const NAME_MAX := 40
+## Ícono del editor de la pestaña de una copia aparte (sin él, «⎘» delante del nombre).
+const COPY_ICON := &"Duplicate"
 
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
@@ -32,6 +34,9 @@ var _docks: Dictionary = {}  # id -> dock
 var _models: Dictionary = {}  # id -> SessionModel
 var _labels: Dictionary = {}  # id -> nombre de la sesión («Session 2» o el que le puso el usuario)
 var _defaults: Dictionary = {}  # id -> nombre por defecto («Session 2»)
+## Las sesiones en una copia aparte: ícono en la pestaña y una línea en el tooltip (m12-45). Antes
+## era el sufijo «(copy)», que en un dock angosto era lo primero que se cortaba.
+var _copies: Dictionary = {}  # id -> línea del tooltip
 ## Sesiones que ya avisaron con un toast y siguen esperando: no se apila otro hasta que respondas.
 var _toasted: Dictionary = {}  # id -> true
 var _rename_popup: PopupPanel
@@ -127,6 +132,7 @@ func remove_session(id: String) -> void:
 	_docks.erase(id)
 	_models.erase(id)
 	_labels.erase(id)
+	_copies.erase(id)
 	_defaults.erase(id)
 	_toasted.erase(id)
 	_bar.remove_tab(index)
@@ -193,6 +199,16 @@ func _on_bar_input(event: InputEvent) -> void:
 			start_rename(_ids[index])
 
 
+## Marca la pestaña de `id` como una copia aparte; `tooltip`: la línea que suma al tooltip.
+func set_copy(id: String, tooltip: String) -> void:
+	_copies[id] = tooltip
+	_refresh_tab(id)
+
+
+func is_copy(id: String) -> bool:
+	return _copies.has(id)
+
+
 ## Nombre visible de la sesión: el título que le puso el agente o «Session N».
 func label(id: String) -> String:
 	var model: SessionModel = _models.get(id)
@@ -211,8 +227,13 @@ func _refresh_tab(id: String) -> void:
 	if not waiting:
 		_toasted.erase(id)
 	var mark := "⚠ " if waiting else ("● " if model.is_busy() else "")
-	_bar.set_tab_title(index, mark + str(_labels[id]))
-	_bar.set_tab_tooltip(index, label(id) + "\n" + I18n.t("Double-click to rename"))
+	var copy_icon := AgentTheme.icon(COPY_ICON) if _copies.has(id) else null
+	_bar.set_tab_icon(index, copy_icon)
+	if copy_icon:
+		_bar.set_tab_icon_max_width(index, AgentTheme.px(16))
+	_bar.set_tab_title(index, mark + ("⎘ " if _copies.has(id) and copy_icon == null else "") + str(_labels[id]))
+	var tooltip := label(id) + ("\n" + str(_copies[id]) if _copies.has(id) else "")
+	_bar.set_tab_tooltip(index, tooltip + "\n" + I18n.t("Double-click to rename"))
 
 
 ## Un pedido de permiso (o un formulario del agente) de una sesión que no está a la vista (otra pestaña, o el dock tapado por
