@@ -9,7 +9,7 @@ extends "mcp_check.gd"
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
-const PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+const PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const EDIT_SCENE := "res://tests/tmp/edit_fixture.tscn"
 const NEW_SCENE := "res://tests/tmp/edit_new_scene.tscn"
@@ -162,7 +162,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var on_saved := func(path: String) -> void: saved_paths.append(path)
 	var scene_notices: Array[String] = []
 	var on_modified := func(path: String) -> void: scene_notices.append(path)
-	_plugin.connect(&"scene_saved", on_saved)
+	(_plugin.get(&"_plugin") as Object).connect(&"scene_saved", on_saved)
 	sync.connect(&"open_scene_modified", on_modified)
 	await _tree.create_timer(1.1).timeout  # mtime con resolución de 1 s
 	var saved := await _call_text("save_scene", {})
@@ -173,7 +173,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	sync.call(&"poll_open_scenes")
 	await _tree.create_timer(0.5).timeout
 	_expect(scene_notices.is_empty() and EditorInterface.get_edited_scene_root() == root, "su propio guardado no es un cambio del agente (%s)" % [scene_notices])
-	_plugin.disconnect(&"scene_saved", on_saved)
+	(_plugin.get(&"_plugin") as Object).disconnect(&"scene_saved", on_saved)
 	sync.disconnect(&"open_scene_modified", on_modified)
 
 	# Project settings por el editor (m4-09): cada cambio guarda project.godot y Ctrl+Z lo revierte.

@@ -11,7 +11,7 @@ extends "mcp_check.gd"
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const ScriptProfile := preload("res://addons/godot_agent/playtest/script_profile.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
-const MAIN_PLUGIN := "res://addons/godot_agent/plugin.gd"
+const MAIN_PLUGIN := "res://addons/godot_agent/agent_plugin.gd"
 const SCENE := "res://tests/fixtures/profile_fixture.tscn"
 const FIXTURE_SCRIPT := "res://tests/fixtures/profile_fixture.gd"
 const BROKEN_SCENE := "res://tests/fixtures/run_broken.tscn"

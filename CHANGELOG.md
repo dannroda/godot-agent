@@ -13,6 +13,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Changed
 
 - Inline completion builds its project index the first time you open a script in the Script Editor, not when the editor starts or the addon is enabled. With no script open, nothing is indexed and file changes don't trigger a rebuild; on a large project this saves a background thread a few seconds of work at startup. If a script is already open when the editor starts, the index builds right away, as before.
+- Enabling the addon in Project Settings › Plugins blocks the editor for about 75 ms instead of about 430 ms. The Settings and Extensions windows are now built the first time you open them, so the first open takes about 0.15 s longer.
 
 ## [0.1.20] - 2026-11-11
 
