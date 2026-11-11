@@ -39,16 +39,19 @@ const GAME_RUN_STATE_NAMES: Dictionary = {
 	GameRunState.BREAKED: "stopped in the debugger",  # i18n
 	GameRunState.STOPPED: "ended",  # i18n
 }
+## STARTED en un run manual: no espera nada, la probe llega solo con el ajuste de runs manuales (y
+## entonces pasa enseguida a PROBE_READY). Revisión next2 #12.
+const MANUAL_STARTED_NAME := "running, started by hand without the playtest probe"  # i18n
 
 ## Transiciones esperadas. Una que no está se avisa en el Agent Log y se aplica igual.
 ## LAUNCHING vale desde cualquier estado (un run_scene nuevo reemplaza al anterior) y STARTED desde
-## IDLE o STOPPED (un run manual).
+## IDLE o STOPPED (un run manual) y desde BREAKED (se continuó un juego sin probe).
 const GAME_RUN_STATE_TRANSITIONS: Dictionary = {
 	GameRunState.IDLE: [GameRunState.LAUNCHING, GameRunState.STARTED],
 	GameRunState.LAUNCHING: [GameRunState.STARTED, GameRunState.STOPPED],
 	GameRunState.STARTED: [GameRunState.LAUNCHING, GameRunState.PROBE_READY, GameRunState.BREAKED, GameRunState.STOPPED],
 	GameRunState.PROBE_READY: [GameRunState.LAUNCHING, GameRunState.BREAKED, GameRunState.STOPPED],
-	GameRunState.BREAKED: [GameRunState.LAUNCHING, GameRunState.PROBE_READY, GameRunState.STOPPED],
+	GameRunState.BREAKED: [GameRunState.LAUNCHING, GameRunState.STARTED, GameRunState.PROBE_READY, GameRunState.STOPPED],
 	GameRunState.STOPPED: [GameRunState.LAUNCHING, GameRunState.STARTED],
 }
 
@@ -101,7 +104,7 @@ const FINDING_FRAMES_KEPT := 50
 const DEADLINE_META := &"godot_agent_playtest_deadline_ms"
 ## Las tools que traen texto del juego en sobres (m11-45).
 const ENVELOPED: PackedStringArray = ["run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch"]
-const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP server)."
+const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced)."
 const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"}, {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
 var errors: ErrorCollector
@@ -197,9 +200,16 @@ func run_state_age_seconds() -> int:
 	return (Time.get_ticks_msec() - _run_state_since_ms) / 1000
 
 
+## El nombre del estado actual, en inglés (para el usuario va por I18n.t()).
+func run_state_name() -> String:
+	if run_state == GameRunState.STARTED and not harness_run:
+		return MANUAL_STARTED_NAME
+	return GAME_RUN_STATE_NAMES[run_state]
+
+
 ## El estado del juego para el agente: «game: running (3 s)».
 func describe_run_state() -> String:
-	return "game: %s (%d s)" % [GAME_RUN_STATE_NAMES[run_state], run_state_age_seconds()]
+	return "game: %s (%d s)" % [run_state_name(), run_state_age_seconds()]
 
 
 func _on_session_started() -> void:
@@ -210,10 +220,11 @@ func _on_probe_ready() -> void:
 	_set_run_state(GameRunState.PROBE_READY)
 
 
-## Salió de la pausa del debugger (m11-56: game_debug, o el usuario desde el panel): vuelve a correr.
+## Salió de la pausa del debugger (m11-56: game_debug, o el usuario desde el panel): vuelve a correr,
+## con la probe o sin ella (un run manual sin el autoload; revisión next2 #12).
 func _on_session_continued() -> void:
-	if run_state == GameRunState.BREAKED and debugger.has_probe():
-		_set_run_state(GameRunState.PROBE_READY)
+	if run_state == GameRunState.BREAKED:
+		_set_run_state(GameRunState.PROBE_READY if debugger and debugger.has_probe() else GameRunState.STARTED)
 
 
 func _on_session_stopped() -> void:

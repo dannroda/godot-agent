@@ -29,6 +29,13 @@ var _save_dialog: FileDialog
 ## Modo señalar (m11-37): un clic sin arrastre llama a esto con el punto en [0, 1] y cierra.
 var _on_pick: Callable
 var _press_at: Vector2 = Vector2.ZERO
+## El botón se apretó acá con un clic simple (no el segundo de un doble clic, ni un press que empezó
+## antes de abrir el visor) y lo que se arrastró desde entonces: un clic que arrastró, aunque vuelva
+## cerca del punto de partida, no señala.
+var _pick_press: bool = false
+var _dragged: float = 0.0
+## Cuánto puede moverse un clic y seguir contando como clic.
+const PICK_SLOP_PX := 4.0
 var _hint: Label
 
 
@@ -172,6 +179,7 @@ func _on_canvas_input(event: InputEvent) -> void:
 				_canvas.accept_event()
 			MOUSE_BUTTON_LEFT:
 				if button.double_click:
+					_pick_press = false  # el doble clic cambia el zoom; no señala al soltar
 					if _fit:
 						_set_zoom(1.0, button.position)
 					else:
@@ -179,15 +187,27 @@ func _on_canvas_input(event: InputEvent) -> void:
 				else:
 					_dragging = true
 					_press_at = button.position
+					_pick_press = true
+					_dragged = 0.0
 	elif button and button.button_index == MOUSE_BUTTON_LEFT:
 		_dragging = false
-		if _on_pick.is_valid() and button.position.distance_to(_press_at) < 4.0:
+		var was_click := _pick_press and _dragged < PICK_SLOP_PX and button.position.distance_to(_press_at) < PICK_SLOP_PX
+		_pick_press = false
+		if _on_pick.is_valid() and was_click:
 			_pick_at(button.position)
 	var motion := event as InputEventMouseMotion
 	if motion and _dragging:
-		_offset += motion.relative
-		_fit = false
-		_canvas.queue_redraw()
+		var before := _dragged
+		_dragged += motion.relative.length()
+		# Al señalar, el temblor de un clic no mueve la imagen: arrastra recién pasado el margen, y
+		# entonces con todo lo acumulado desde el press.
+		if not _on_pick.is_valid() or before >= PICK_SLOP_PX:
+			_offset += motion.relative
+		elif _dragged >= PICK_SLOP_PX:
+			_offset += motion.position - _press_at
+		if not _on_pick.is_valid() or _dragged >= PICK_SLOP_PX:
+			_fit = false
+			_canvas.queue_redraw()
 	var key := event as InputEventKey
 	if key and key.pressed:
 		match key.keycode:

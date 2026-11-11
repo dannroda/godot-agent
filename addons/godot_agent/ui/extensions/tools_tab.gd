@@ -143,7 +143,7 @@ func _rebuild() -> void:
 			item.set_text_alignment(COLUMN_MODES, HORIZONTAL_ALIGNMENT_CENTER)
 			item.set_tooltip_text(COLUMN_MODES, mode_tooltip(policy, str(tool.group)))
 	_count.text = I18n.t("%d of %d tools") % [shown, _catalog.size()] if not query.is_empty() else I18n.t("%d tools") % _catalog.size()
-	_note.text = I18n.t("⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → Editor tools).") % hidden_by_compact if hidden_by_compact > 0 else ""
+	_note.text = I18n.t("⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → MCP servers → Advanced).") % hidden_by_compact if hidden_by_compact > 0 else ""
 	_note.visible = not _note.text.is_empty()
 
 
