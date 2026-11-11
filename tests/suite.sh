@@ -29,6 +29,7 @@ debug:ci:150
 external:ci:120
 edit:ci:150
 mcp:ci:120
+plan:ci:150
 sync:full:120
 oneshot:full:150
 long:full:120

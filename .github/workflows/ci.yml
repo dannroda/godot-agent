@@ -83,6 +83,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: sh tests/suite.sh run run ~/godot/godot
 
+      - name: Editor check (plan)
+        if: ${{ !cancelled() }}
+        run: sh tests/suite.sh run plan ~/godot/godot
+
       - name: Editor check (review)
         if: ${{ !cancelled() }}
         run: sh tests/suite.sh run review ~/godot/godot
