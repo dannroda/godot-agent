@@ -893,6 +893,7 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		return
 	# Un texto de afuera del proyecto va como resource_link con su ruta absoluta (m17-21).
 	var outside_md := OS.get_user_data_dir().path_join("ui_test_notes.md")
+	DirAccess.make_dir_recursive_absolute(OS.get_user_data_dir())  # un worktree nuevo todavía no la tiene
 	var md_file := FileAccess.open(outside_md, FileAccess.WRITE)
 	md_file.store_string("# notas\n")
 	md_file.close()

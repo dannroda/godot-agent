@@ -786,6 +786,10 @@ func _on_machines_tick() -> void:
 		_refresh_machine_chips()
 
 
+## Ancho máximo de un chip de máquina, sin escalar.
+const MAX_CHIP_WIDTH := 170
+
+
 ## Un chip por máquina en marcha junto al estado (m12-47): «Game · running · 12 s»; en ámbar
 ## cuando pide atención (el juego parado en el debugger, el One-shot esperando). El tooltip es el
 ## mismo del encabezado. Sin máquinas en marcha no hay chips, y la fila se oculta si tampoco hay estado.
@@ -800,6 +804,10 @@ func _refresh_machine_chips() -> void:
 	while _machine_chips.get_child_count() < chips.size():
 		var chip := Label.new()
 		chip.mouse_filter = Control.MOUSE_FILTER_PASS
+		# Un chip largo («running, started by hand without the playtest probe») no ensancha el dock:
+		# se corta con «…» en MAX_CHIP_WIDTH y el tooltip tiene el estado entero.
+		chip.clip_text = true
+		chip.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		chip.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
 		_machine_chips.add_child(chip)
 	for i in chips.size():
@@ -809,6 +817,9 @@ func _refresh_machine_chips() -> void:
 		chip.tooltip_text = header_tooltip()
 		chip.add_theme_color_override(&"font_color", color)
 		chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(color, 0.12), Color(color, 0.35), 10, 3))
+		var full := chip.get_theme_font(&"font").get_string_size(chip.text, HORIZONTAL_ALIGNMENT_LEFT, -1, chip.get_theme_font_size(&"font_size")).x
+		full += chip.get_theme_stylebox(&"normal").get_minimum_size().x
+		chip.custom_minimum_size.x = minf(ceilf(full) + 1.0, AgentTheme.px(MAX_CHIP_WIDTH))
 	_machine_chips.visible = not chips.is_empty()
 	if _state_row:
 		_state_row.visible = _state_line.visible or _machine_chips.visible
