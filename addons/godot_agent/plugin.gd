@@ -967,8 +967,12 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 				_log.add(AgentLog.CH_MCP, "could not prepare the stdio shim in user://: the agent will not have the godot.* tools")
 			else:
 				result.append(entry)
+	var held: Array = []
 	for server: Dictionary in _external_mcp_servers():
 		if not bool(server.enabled):
+			continue
+		if bool(server.get("held", false)):
+			held.append({"name": server.name, "command": ExternalMcpServers.approval_description(server), "key": server.approval_key})
 			continue
 		var entry := ExternalMcpServers.to_acp(server, model.supports_http_mcp())
 		if entry.is_empty():
@@ -978,18 +982,32 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 		for secret: String in ExternalMcpServers.secret_values(server):
 			_log.add_secret(secret)
 		result.append(entry)
+	if not held.is_empty():
+		# m13-31: un server del proyecto sin aprobar no corre, y no en silencio: la primera vez el aviso
+		# explica el cambio (un proyecto que ya los usaba los pierde al actualizar).
+		var explain := not bool(_settings.get_value(HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, false))
+		_settings.set_value(HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, true)
+		var notice := SessionController.held_servers_notice(held, explain)
+		_log.add(AgentLog.CH_MCP, "project MCP servers not approved on this machine, left out: %s" % ", ".join(PackedStringArray(held.map(func(item: Dictionary) -> String: return item.name))))
+		model.add_notice(notice.text, ChatEntry.NoticeLevel.WARNING, notice.actions)
 	return result
 
 
-## Servers de terceros del usuario y del proyecto (si se llaman igual, gana el del proyecto).
+## Servers de terceros del usuario y del proyecto (si se llaman igual, gana el del proyecto). Uno del
+## proyecto que no está aprobado en esta máquina (m13-31) viene con `held` y su `approval_key`.
 func _external_mcp_servers() -> Array:
-	return ExternalMcpServers.merge(_settings.mcp_servers(), ExternalMcpServers.normalize_list(_project_config.mcp_servers))
+	var project_dir := ProjectSettings.globalize_path("res://")
+	var project: Array = ExternalMcpServers.normalize_list(_project_config.mcp_servers)
+	for server: Dictionary in project:
+		server["approval_key"] = ExternalMcpServers.approval_key(project_dir, server)
+		server["held"] = not _settings.is_command_approved(server.approval_key)
+	return ExternalMcpServers.merge(_settings.mcp_servers(), project)
 
 
 func _external_mcp_names() -> PackedStringArray:
 	var names: PackedStringArray = []
 	for server: Dictionary in _external_mcp_servers():
-		if bool(server.enabled):
+		if bool(server.enabled) and not bool(server.get("held", false)):
 			names.append(server.name)
 	return names
 
@@ -1447,7 +1465,16 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 		if _diagnostics == null or not _project_config.verify_after_turn:
 			return ""
 		return await _diagnostics.verify_changed_scripts(since_unix)
+	controller.turn_checks_provider = _turn_checks_info
+	controller.is_command_approved = _settings.is_command_approved
+	controller.approve_command = _settings.approve_command
 	return _finish_controller(controller, model, id)
+
+
+## Los checks del proyecto (m11-31) y la tienda de aprobaciones de esta máquina.
+func _turn_checks_info() -> Dictionary:
+	return {"checks": _project_config.turn_checks if _project_config else [], "godot": OS.get_executable_path(),
+		"project": ProjectSettings.globalize_path("res://")}
 
 
 func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:

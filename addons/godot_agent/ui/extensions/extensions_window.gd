@@ -492,7 +492,9 @@ func _rebuild_mcp() -> void:
 	var groups: Dictionary = {}
 	var addon: Array = addon_servers_provider.call() if addon_servers_provider.is_valid() else []
 	for server: Dictionary in addon:
-		var entry := {"name": server.name, "target": "", "status": "addon_on" if server.get("enabled", true) else "addon_off", "detail": "", "origin": "addon"}
+		var held := bool(server.get("held", false))  # del proyecto, sin aprobar en esta máquina (m13-31)
+		var entry := {"name": server.name, "target": "", "status": "addon_on" if server.get("enabled", true) and not held else "addon_off",
+			"detail": I18n.t("not approved on this machine") if held else "", "origin": "addon"}
 		groups.get_or_add("addon", []).append(entry)
 	for server: Dictionary in _mcp:
 		groups.get_or_add(server.origin, []).append(server)

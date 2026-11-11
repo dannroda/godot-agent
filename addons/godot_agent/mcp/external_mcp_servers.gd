@@ -9,6 +9,7 @@ extends RefCounted
 
 const I18n := preload("../core/i18n.gd")
 const SecretNames := preload("../core/secret_names.gd")
+const MachineApproval := preload("../core/machine_approval.gd")
 
 const TRANSPORT_STDIO := "stdio"
 const TRANSPORT_HTTP := "http"
@@ -182,6 +183,29 @@ static func short_tool_name(name: String) -> String:
 	if separator <= 0 or separator + 2 >= rest.length():
 		return name
 	return "%s.%s" % [rest.left(separator), rest.substr(separator + 2)]
+
+
+## Lo que se aprueba de un server del proyecto (m13-31): lo que decide qué corre o adónde va, sin el
+## nombre ni el interruptor. Las variables quedan como `$VAR`, sin su valor.
+static func approval_text(entry: Dictionary) -> String:
+	var definition := {}
+	for field: String in ["transport", "command", "args", "env", "url", "headers"]:
+		definition[field] = entry.get(field, "")
+	return "mcp-server " + JSON.stringify(definition, "", true)
+
+
+static func approval_key(project_dir: String, entry: Dictionary) -> String:
+	return MachineApproval.key(project_dir, approval_text(entry))
+
+
+## La definición para el diálogo de «Aprobar…»: el comando o la URL y, abajo, env o headers.
+static func approval_description(entry: Dictionary) -> String:
+	var lines: PackedStringArray = [describe(entry)]
+	var field := "headers" if entry.get("transport") == TRANSPORT_HTTP else "env"
+	var values: Dictionary = entry.get(field, {})
+	for key: String in values:
+		lines.append(("%s: %s" if field == "headers" else "%s=%s") % [key, values[key]])
+	return "\n".join(lines)
 
 
 ## Línea legible para la lista de Settings.

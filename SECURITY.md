@@ -14,6 +14,7 @@ Only the latest release gets security fixes.
 - **The permission policy** decides, per mode, what the agent may do in the editor and on the shell (Settings → Permissions). Some writes are rejected in every mode, such as writing scenes or `project.godot` by hand from the shell, or launching Godot with a window.
 - **Keys** are never stored: agent profiles name environment variables.
 - **Secrets are masked** wherever they could show (the Agent Log, the chat, the cards, the saved history, the One-shot report): the MCP server's token and the keys taken from the environment for the agent and for MCP servers. What the agent writes or runs keeps the real value. Details in [PRIVACY.md › Secrets](PRIVACY.md#secrets).
+- **Commands that come with a project**: the project's MCP servers and its checks after each turn live in `project_config.tres`, which travels with the project. Each one only runs on a machine where its exact definition was approved, so a cloned project can't start programs through the harness without asking. Approvals are kept per user, in the editor settings. Opening a Godot project you don't trust already runs its code (`@tool` scripts, editor plugins), so this is defense in depth, not a sandbox.
 - **Downloads** of agents from the ACP registry are checked against the registry's sha256 when it provides one.
 
 ## What it does not protect against
