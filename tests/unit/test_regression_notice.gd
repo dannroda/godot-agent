@@ -38,6 +38,7 @@ func test_passing_playtest_announces_the_regression() -> void:
 	var verdict: ChatEntry = notices[0]
 	assert_eq(verdict.title, "Playtest: passed · jumps", "el veredicto")
 	assert_true(verdict.text.contains("Saved as a regression"), "dice que la guardó · " + verdict.text)
+	assert_true(verdict.text.begins_with("Saved as a regression"), "sin alertas, sin línea vacía antes (revisión next2 #27) · %s" % [verdict.text.c_escape()])
 	var ids := verdict.actions.map(func(action: Dictionary) -> String: return str(action.id))
 	assert_eq(ids, [SessionController.ACTION_RUN_REGRESSIONS, SessionController.ACTION_REGRESSIONS_WORKFLOW], "con las acciones")
 	assert_eq(verdict.actions[0].label, "Run regressions (1)", "cuenta la guardada")

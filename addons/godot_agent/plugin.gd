@@ -505,7 +505,7 @@ func _point_game_for_dock(uv: Vector2) -> Dictionary:
 	if not EditorInterface.is_playing_scene():
 		return {"error": I18n.t("No game is running.")}
 	if _run_tools == null or not _playtest_debugger.has_probe():
-		return {"error": I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server.")}
+		return {"error": I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced.")}
 	return await _run_tools.point_at(uv)
 
 
@@ -514,7 +514,7 @@ func _capture_game_for_dock() -> Variant:
 	if not EditorInterface.is_playing_scene():
 		return I18n.t("No game is running.")
 	if _run_tools == null or not _playtest_debugger.has_probe():
-		return I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server.")
+		return I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced.")
 	var frame: Variant = await _run_tools.capture_frame()
 	return frame if frame is Image else I18n.t("Could not capture the game frame.")
 
@@ -1481,7 +1481,7 @@ func _machine_states(id: String) -> Array[Dictionary]:
 	if _run_tools:
 		var game_state := _run_tools.run_state
 		# `live`: se muestra como chip junto al estado (m12-47); `alert`: en ámbar (parado en el debugger).
-		states.append({"machine": I18n.t("Game"), "label": I18n.t(RunTools.GAME_RUN_STATE_NAMES[game_state]), "age": -1 if game_state == RunTools.GameRunState.IDLE else _run_tools.run_state_age_seconds(),
+		states.append({"machine": I18n.t("Game"), "label": I18n.t(_run_tools.run_state_name()), "age": -1 if game_state == RunTools.GameRunState.IDLE else _run_tools.run_state_age_seconds(),
 			"live": game_state in [RunTools.GameRunState.LAUNCHING, RunTools.GameRunState.STARTED, RunTools.GameRunState.PROBE_READY, RunTools.GameRunState.BREAKED], "alert": game_state == RunTools.GameRunState.BREAKED})  # sin juego, la antigüedad no dice nada
 	if _oneshot and _runs_in(id) and _oneshot.is_active():
 		var label := "%s · %s" % [_oneshot.phase_label(), I18n.t(OneShotRun.STAGE_LABELS[_oneshot.stage()])]

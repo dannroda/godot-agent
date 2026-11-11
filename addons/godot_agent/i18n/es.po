@@ -1911,8 +1911,8 @@ msgstr "juego"
 msgid "viewport"
 msgstr "viewport"
 
-msgid "This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server."
-msgstr "Este run no tiene el autoload de playtest, así que no se puede capturar. Correlo desde el agente, o activá «Usar el autoload de playtest también al correr el juego a mano» en Settings → Servidor MCP."
+msgid "This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced."
+msgstr "Este run no tiene el autoload de playtest, así que no se puede capturar. Correlo desde el agente, o activá «Usar el autoload de playtest también al correr el juego a mano» en Settings → Servidores MCP → Avanzado."
 
 msgid "Could not capture the game frame."
 msgstr "No se pudo capturar el frame del juego."
@@ -4137,6 +4137,9 @@ msgstr "lanzando"
 msgid "started, waiting for the playtest probe"
 msgstr "arrancó, esperando la sonda de playtest"
 
+msgid "running, started by hand without the playtest probe"
+msgstr "corriendo, lanzado a mano sin la sonda de playtest"
+
 msgid "running"
 msgstr "corriendo"
 
@@ -4396,8 +4399,8 @@ msgstr "Con la lista compacta de tools, el agente llega a ella por godot.methods
 msgid "%d of %d tools"
 msgstr "%d de %d tools"
 
-msgid "⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → Editor tools)."
-msgstr "⋯ %d tools quedan detrás de godot.methods / godot.run porque la lista compacta está activa (Ajustes → Herramientas del editor)."
+msgid "⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → MCP servers → Advanced)."
+msgstr "⋯ %d tools quedan detrás de godot.methods / godot.run porque la lista compacta está activa (Settings → Servidores MCP → Avanzado)."
 
 msgid "Runs without asking"
 msgstr "Corre sin preguntar"

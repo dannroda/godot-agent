@@ -144,7 +144,7 @@ func _check_runs(model: Object) -> void:
 	var entries_before: int = (model.call(&"entries") as Array).size()
 	await _dock.call(&"_capture_game")
 	var entries: Array = model.call(&"entries")
-	_expect((_dock.get(&"_images") as Dictionary).is_empty() and entries.size() == entries_before + 1 and str(entries[-1].text) == I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP server."),
+	_expect((_dock.get(&"_images") as Dictionary).is_empty() and entries.size() == entries_before + 1 and str(entries[-1].text) == I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced."),
 		"dock: Captura del juego en un run manual avisa que falta el autoload")
 	EditorInterface.stop_playing_scene()
 	await _tree.create_timer(1.0).timeout

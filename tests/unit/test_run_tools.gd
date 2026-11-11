@@ -2,6 +2,8 @@ extends "test_case.gd"
 ## Partes puras de run_scene (spec §6): normalización de los pasos de input y Output nuevo del panel.
 
 const RunTools := preload("res://addons/godot_agent/mcp/tools/run_tools.gd")
+const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 
 
 func test_normalize_steps() -> void:
@@ -135,3 +137,28 @@ func test_game_run_reached() -> void:
 	assert_false(tools.reached(RunTools.GameRunState.PROBE_READY), "un run nuevo empieza de cero")
 	assert_false(tools._state.has("problems"), "y sin lo que mandó el anterior")
 	assert_false(tools._game_halted(), "y sin estar parado")
+
+
+## Revisión next2 #12: un run manual sin probe que se continúa en el debugger vuelve a STARTED (no se
+## queda en BREAKED), sin avisar de una transición inesperada, y su nombre no dice que espera la probe.
+func test_manual_run_without_probe_continues() -> void:
+	var tools := RunTools.new()
+	tools.agent_log = AgentLog.new()
+	tools._on_session_started()
+	assert_false(tools.harness_run, "lo lanzó el usuario")
+	assert_eq(tools.run_state_name(), RunTools.MANUAL_STARTED_NAME, "no dice que espera la probe")
+	assert_true(tools.describe_run_state().begins_with("game: " + RunTools.MANUAL_STARTED_NAME), "al agente tampoco · " + tools.describe_run_state())
+	tools._on_session_breaked()
+	assert_eq(tools.run_state, RunTools.GameRunState.BREAKED, "parado por un error")
+	tools._on_session_continued()
+	assert_eq(tools.run_state, RunTools.GameRunState.STARTED, "continuado sin probe: corre otra vez")
+	assert_eq(tools.run_state_name(), RunTools.MANUAL_STARTED_NAME, "y sigue siendo un run manual")
+	var logged := tools.agent_log.entries().filter(func(entry: Variant) -> bool: return str(entry).contains("unexpected transition"))
+	assert_true(logged.is_empty(), "BREAKED → STARTED es una transición esperada · %s" % [logged])
+	tools._set_run_state(RunTools.GameRunState.LAUNCHING)
+	tools._on_session_started()
+	assert_true(tools.harness_run and tools.run_state_name() == RunTools.GAME_RUN_STATE_NAMES[RunTools.GameRunState.STARTED], "lanzado por run_scene sí espera la probe")
+	I18n.set_locale("es")
+	assert_eq(I18n.t(RunTools.MANUAL_STARTED_NAME), "corriendo, lanzado a mano sin la sonda de playtest", "traducido")
+	I18n.set_locale("en")
+
