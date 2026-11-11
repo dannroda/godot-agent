@@ -116,6 +116,12 @@ func _check_runs(model: Object) -> void:
 	var embed_before := GameEmbedding.is_on()
 	var device_run := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "device": {"size": [480, 800], "touch": true, "locale": "xx"}})
 	_expect(GameEmbedding.is_on() == embed_before, "run_scene device: «Embed Game on Next Play» queda como estaba (%s)" % embed_before)
+	# Si el usuario lo tenía destildado, run_scene no lo toca (y no lo prende al terminar).
+	var user_off := GameEmbedding.disable()
+	if user_off or not GameEmbedding.is_on():
+		await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 0.5, "device": {"size": [400, 300]}})
+		_expect(not GameEmbedding.is_on(), "run_scene device: con el embebido apagado por el usuario, queda apagado")
+		GameEmbedding.restore(user_off)
 	_expect(device_run.contains("Simulated device: 480×800, touch from the mouse, locale xx.") and device_run.contains("Window 480×800;") and device_run.contains("touch events") and device_run.contains("no translation for it"), "run_scene device: ventana, táctil e idioma · " + device_run.left(900))
 	_expect(not OS.has_environment("GODOT_AGENT_DEVICE"), "run_scene device: el entorno del editor queda sin la variable")
 	var after_device := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1})
