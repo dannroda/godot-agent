@@ -46,6 +46,7 @@ const TurnReport := preload("session/turn_report.gd")
 const WorktreeSession := preload("session/worktree_session.gd")
 const GithubReviews := preload("core/github_reviews.gd")
 const InlineEditMenu := preload("editor/inline_edit_menu.gd")
+const AskAgentMenu := preload("editor/ask_agent_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
@@ -178,6 +179,8 @@ var _completion: CompletionService
 ## Chat en línea en el Script Editor (m11-05).
 var _inline_edit: InlineEdit
 var _inline_menu: InlineEditMenu
+## «Preguntar al agente» en los menús contextuales (m11-54), uno por slot.
+var _ask_menus: Array[EditorContextMenuPlugin] = []
 var _updater: AddonUpdater
 var _store: AssetStore
 var _update_banner: UpdateBanner
@@ -382,6 +385,11 @@ func _enter_tree() -> void:
 	_inline_menu = InlineEditMenu.new()
 	_inline_menu.inline_edit = _inline_edit
 	_plugin.add_context_menu_plugin(EditorContextMenuPlugin.CONTEXT_SLOT_SCRIPT_EDITOR_CODE, _inline_menu)
+	for slot in [EditorContextMenuPlugin.CONTEXT_SLOT_FILESYSTEM, EditorContextMenuPlugin.CONTEXT_SLOT_SCENE_TREE, EditorContextMenuPlugin.CONTEXT_SLOT_SCRIPT_EDITOR_CODE]:
+		var menu := AskAgentMenu.new(slot)
+		menu.ask = _ask_agent
+		_plugin.add_context_menu_plugin(slot, menu)
+		_ask_menus.append(menu)
 
 
 func _exit_tree() -> void:
@@ -397,6 +405,9 @@ func _exit_tree() -> void:
 	if _inline_menu:
 		_plugin.remove_context_menu_plugin(_inline_menu)
 		_inline_menu = null
+	for menu in _ask_menus:
+		_plugin.remove_context_menu_plugin(menu)
+	_ask_menus.clear()
 	if _inline_edit:
 		remove_child(_inline_edit)
 		_inline_edit.queue_free()
@@ -1466,6 +1477,15 @@ func _start_inline_session() -> bool:
 	await dock.start_session()
 	var controller := _controller_of(id)
 	return controller != null and controller.is_connected_to_agent()
+
+
+## «Preguntar al agente» (m11-54): lo elegido va al composer de la pestaña activa, sin mandarlo.
+func _ask_agent(text: String) -> void:
+	var dock := _tabs.dock(_active_session_id()) as AgentDock if _tabs else null
+	if dock == null:
+		return
+	_surfaces.make_visible(EditorSurfaces.EditorSurface.SIDE)
+	dock.add_to_composer(text)
 
 
 func _remove_playtest_autoload() -> void:

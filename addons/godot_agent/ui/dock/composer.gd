@@ -745,6 +745,17 @@ func _drop_files(position: Vector2, data: Variant) -> void:
 		files_attached.emit(paths)
 
 
+## Escribe `text` donde está el caret, en una línea nueva si es un bloque y el caret no está al
+## principio de una línea.
+func insert_at_caret(text: String) -> void:
+	if text.contains("\n") and _input.get_caret_column() > 0:
+		text = "\n" + text
+	_input.insert_text_at_caret(text)
+	_input.grab_focus()
+	_update_send_button()
+	update_height()
+
+
 ## Escribe «@ruta » donde está el caret (m11-37: lo señalado en el juego).
 func insert_mention(path: String) -> void:
 	_input.insert_text_at_caret("@%s " % path)

@@ -5339,3 +5339,6 @@ msgstr "La ventana del editor pide atención y, donde se puede, aparece una noti
 
 msgid "«%s» finished its turn."
 msgstr "«%s» terminó su turno."
+
+msgid "Ask the agent"
+msgstr "Preguntar al agente"

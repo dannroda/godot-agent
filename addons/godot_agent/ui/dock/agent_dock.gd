@@ -1852,6 +1852,11 @@ static func _mime_type(path: String) -> String:
 
 
 ## Adjunta `image` al próximo prompt (achicada a EditorContext.MAX_IMAGE_SIDE).
+## Pone `text` donde está el caret del composer, para seguir escribiendo (m11-54: «Preguntar al agente»).
+func add_to_composer(text: String) -> void:
+	_composer.insert_at_caret(text)
+
+
 func attach_image(image: Image, label: String, tooltip: String = "") -> void:
 	if not (_model.session_id.is_empty() or _model.supports_image()):
 		_model.add_notice(I18n.t("The agent does not accept images"), ChatEntry.NoticeLevel.WARNING)
