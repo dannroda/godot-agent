@@ -34,5 +34,42 @@ for CASE in "pass:0:all 2 pass:" "fail:1:FAIL:" "vacuous:1:does not detect:" "bl
 		FAILED=1
 	fi
 done
+# Mutantes (m11-41). --mutate sobre las que pasan: un puntaje, sobrevivientes, y ni un .gd ni un .tscn
+# del proyecto cambia (hash de todos antes y después). --mutant con un juego que guarda un recurso:
+# el SaveGuard se niega, el proceso sale con 4 y el archivo no existe.
+project_hash() {
+	find "$ROOT" -path "$ROOT/.godot" -prune -o -path "$ROOT/.git" -prune -o -path "$ROOT/tests/tmp" -prune -o \( -name '*.gd' -o -name '*.tscn' \) -type f -print | sort | xargs sha256sum | sha256sum
+}
+BEFORE="$(project_hash)"
+OUT="$("$G" --headless --path "$ROOT" --script res://addons/godot_agent/playtest/regression_cli.gd -- --mutate=6 res://tests/fixtures/regressions/pass 2>&1)"
+GOT=$?
+printf '%s\n' "$OUT" | grep '^regressions: mutation\|^  survived'
+if [ "$GOT" != 0 ] || ! printf '%s\n' "$OUT" | grep -q '^regressions: mutation score [1-9][0-9]*/6'; then
+	echo "FALLA --mutate=6: salió con $GOT o sin puntaje con alguno detectado"
+	FAILED=1
+fi
+if ! printf '%s\n' "$OUT" | grep -q '^  survived '; then
+	echo "FALLA --mutate=6: ningún sobreviviente (el fixture no prueba el mouse: alguno tiene que sobrevivir)"
+	FAILED=1
+fi
+OUT="$("$G" --headless --path "$ROOT" --script res://addons/godot_agent/playtest/regression_cli.gd -- --mutate=6 --min-score=100 res://tests/fixtures/regressions/pass 2>&1)"
+if [ $? != 1 ]; then
+	echo "FALLA --min-score=100 con sobrevivientes tendría que salir con 1"
+	FAILED=1
+fi
+if [ "$(project_hash)" != "$BEFORE" ]; then
+	echo "FALLA: una corrida con mutantes cambió archivos .gd o .tscn del proyecto"
+	git -C "$ROOT" status --short -- '*.gd' '*.tscn'
+	FAILED=1
+fi
+rm -f "$ROOT/tests/tmp/mutation_saved.tres"
+MUTANT="$(printf '%s' '{"path":"res://tests/fixtures/mutation/saver.gd","line":5,"col":15,"before":"3","after":"0","op":"number"}' | base64 | tr -d '\n')"
+OUT="$("$G" --headless --path "$ROOT" --script res://addons/godot_agent/playtest/regression_cli.gd -- "--mutant=$MUTANT" res://tests/fixtures/regressions/mutation_saver 2>&1)"
+GOT=$?
+if [ "$GOT" != 4 ] || [ -e "$ROOT/tests/tmp/mutation_saved.tres" ] || ! printf '%s\n' "$OUT" | grep -q "tried to save"; then
+	echo "FALLA: un mutante que guarda tendría que salir con 4 sin escribir nada (salió con $GOT)"
+	FAILED=1
+fi
+rm -f "$ROOT/tests/tmp/mutation_saved.tres"
 [ "$FAILED" = 0 ] && echo "regressions-cli: bien"
 exit "$FAILED"
