@@ -58,6 +58,8 @@ const ACCOUNT_ALREADY_SWITCHED := 1000
 const FORM_MIN_WIDTH := 640
 ## Ancho al que se achica el formulario cuando el centro es angosto.
 const FORM_NARROW_WIDTH := 280
+## Lo que el área del formulario deja a los costados del panel (la barra vertical entra ahí).
+const FORM_AREA_MARGIN := 32
 const FORM_MAX_WIDTH := 1400
 const FORM_WIDTH_RATIO := 0.62
 const GOAL_MIN_HEIGHT := 110
@@ -248,9 +250,14 @@ func _on_plan_changed(_plan: Array) -> void:
 
 func _build_form() -> void:
 	# Con el centro angosto (dock ancho) el formulario se achica y scrollea en vez de cortarse (m12-09).
+	# En horizontal, AUTO y no DISABLED: con DISABLED el área pide como mínimo el ancho del panel, que
+	# _fit_form saca del ancho del área; al agrandar el dock el centro quedaba trabado en un punto fijo
+	# (área 478 → panel 454 → mínimo del área 478). El mínimo del área es fijo: el formulario más
+	# angosto (FORM_NARROW_WIDTH) con su margen, para que el centro no se achique hasta cortarlo.
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.custom_minimum_size.x = AgentTheme.px(FORM_NARROW_WIDTH + FORM_AREA_MARGIN)
 	add_child(scroll)
 	_form = scroll
 	var center := CenterContainer.new()
@@ -765,7 +772,7 @@ func _column(ratio: float) -> VBoxContainer:
 func _fit_form(area: Control, panel: Control) -> void:
 	var width := clampf(area.size.x * FORM_WIDTH_RATIO, AgentTheme.px(FORM_MIN_WIDTH), maxf(AgentTheme.px(FORM_MAX_WIDTH), AgentTheme.px(FORM_MIN_WIDTH)))
 	# Nunca más ancho que el área: angosto, el formulario se achica hasta FORM_NARROW_WIDTH.
-	panel.custom_minimum_size.x = clampf(width, AgentTheme.px(FORM_NARROW_WIDTH), maxf(area.size.x - AgentTheme.px(32), AgentTheme.px(FORM_NARROW_WIDTH)))
+	panel.custom_minimum_size.x = clampf(width, AgentTheme.px(FORM_NARROW_WIDTH), maxf(area.size.x - AgentTheme.px(FORM_AREA_MARGIN), AgentTheme.px(FORM_NARROW_WIDTH)))
 	var columns := panel.custom_minimum_size.x >= AgentTheme.px(FORM_COLUMNS_MIN_WIDTH)
 	_form_columns.vertical = not columns
 	_side_column.custom_minimum_size.x = AgentTheme.px(SIDE_COLUMN_WIDTH) if columns else 0.0

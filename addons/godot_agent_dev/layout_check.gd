@@ -119,15 +119,19 @@ static func set_dock_width(dock: Control, width: int) -> void:
 				var missing := width - dock.size.x
 				if absf(missing) < 4.0:
 					return
-				var offsets: Variant = split.get(&"split_offsets")
-				if offsets is PackedInt32Array and divider >= 0 and divider < (offsets as PackedInt32Array).size():
-					var list := offsets as PackedInt32Array
-					list[divider] -= int(missing)
-					split.set(&"split_offsets", list)
-				else:
-					split.split_offset -= int(missing)
+				var before := dock.size.x
+				_move_divider(split, divider, -int(missing))
 				for i in 5:
 					await tree.process_frame
+				var unmet := int(missing - (dock.size.x - before))
+				if absi(unmet) >= 2:
+					# Un mínimo frenó al split: se deshace lo que no se movió. Si no, el offset guardado
+					# se aleja en cada intento y queda en el layout del editor para el próximo run, que
+					# arranca de otro lugar (dock_hsplit_3=-6328 tras varios oneshot-test).
+					_move_divider(split, divider, unmet)
+					for i in 2:
+						await tree.process_frame
+					return
 			return
 		node = parent
 
@@ -146,3 +150,14 @@ static func _label(button: BaseButton) -> String:
 	if button is Button and not (button as Button).text.is_empty():
 		return (button as Button).text
 	return button.tooltip_text if not button.tooltip_text.is_empty() else str(button.name)
+
+
+## Mueve el divisor `divider` de `split` `delta` px (split_offsets en 4.6+, split_offset antes).
+static func _move_divider(split: SplitContainer, divider: int, delta: int) -> void:
+	var offsets: Variant = split.get(&"split_offsets")
+	if offsets is PackedInt32Array and divider >= 0 and divider < (offsets as PackedInt32Array).size():
+		var list := offsets as PackedInt32Array
+		list[divider] += delta
+		split.set(&"split_offsets", list)
+	else:
+		split.split_offset += delta
