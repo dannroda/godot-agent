@@ -31,6 +31,7 @@ edit:ci:150
 mcp:ci:120
 plan:ci:150
 checks:ci:150
+ask-menu:full:120
 sync:full:120
 oneshot:full:150
 long:full:120

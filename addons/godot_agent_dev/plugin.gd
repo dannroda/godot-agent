@@ -65,6 +65,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-checks-test`: m11-31 con el agente falso en Auto: el check del proyecto que
 ##   falla vuelve al agente, uno sin aprobar ofrece «Aprobar…» y el turno de arreglo pasa
 ##   (turn_checks_check.gd).
+## - `-- --godot-agent-ask-menu-test`: m11-54: «Ask the agent» de los menús contextuales de FileSystem,
+##   dock Escena y Script Editor, abiertos como los abre el editor (ask_menu_check.gd).
 ## - `-- --godot-agent-claude-plan-test [--godot-agent-ui-shot=<prefijo>]`: lo mismo con Claude Code real
 ##   (gasta tokens): plan → Editar → Aprobar → primera edición en Construir → Denegar con motivo.
 ## - `-- --godot-agent-pending-test`: con algo preparado por install_extension (m19-05), habilitar el
@@ -105,6 +107,7 @@ const HandoffCheck := preload("handoff_check.gd")
 const MemoryCheck := preload("memory_check.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
 const TurnChecksCheck := preload("turn_checks_check.gd")
+const AskMenuCheck := preload("ask_menu_check.gd")
 const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
 const EDIT_ARG := "--godot-agent-edit-test"
 const EditCheck := preload("edit_check.gd")
@@ -173,6 +176,7 @@ const REMOTE_ARG := "--godot-agent-remote-test"
 const PENDING_ARG := "--godot-agent-pending-test"
 const PLAN_ARG := "--godot-agent-plan-test"
 const CHECKS_ARG := "--godot-agent-checks-test"
+const ASK_MENU_ARG := "--godot-agent-ask-menu-test"
 ## Gasta tokens: Claude Code real con la tarjeta del plan (plan_check.gd run_claude).
 const CLAUDE_PLAN_ARG := "--godot-agent-claude-plan-test"
 ## m11-58 con Antigravity real (sin modo plan; gasta tokens).
@@ -257,6 +261,8 @@ func _enter_tree() -> void:
 		_run_plan_test.call_deferred()
 	if CHECKS_ARG in args:
 		_run_checks_test.call_deferred()
+	if ASK_MENU_ARG in args:
+		_run_ask_menu_test.call_deferred()
 	if CLAUDE_PLAN_ARG in args:
 		_run_plan_test.call_deferred(true)
 	if AGY_PLAN_ARG in args:
@@ -675,6 +681,19 @@ func _run_checks_test() -> void:
 	for failure: String in failures:
 		print("[checks-check] FALLA ", failure)
 	_finish_checking_state(0 if failures.is_empty() else 1, "checks-test: %d fallas" % failures.size(), "checks-test")
+
+
+func _run_ask_menu_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := _failures(await AskMenuCheck.new().run(get_tree(), dock))
+	for failure: String in failures:
+		print("[ask-menu-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "ask-menu-test: %d fallas" % failures.size())
 
 
 func _run_plan_test(real_claude: bool = false, antigravity: bool = false) -> void:

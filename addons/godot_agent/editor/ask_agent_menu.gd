@@ -37,7 +37,11 @@ func _popup_menu(paths: PackedStringArray) -> void:
 			var code := editor.get_base_editor() as CodeEdit if editor else null
 			if code == null or not code.has_selection():
 				return
-			var path := paths[0]
+			# En este slot `paths` trae la ruta del nodo CodeEdit, no la del script.
+			var script := EditorInterface.get_script_editor().get_current_script()
+			var path := script.resource_path if script else ""
+			if path.is_empty() or not path.begins_with("res://"):
+				return
 			add_context_menu_item(label, func(code_edit: Variant) -> void:
 				if code_edit is CodeEdit:
 					_ask(selection_text(path, code_edit as CodeEdit)), icon)
