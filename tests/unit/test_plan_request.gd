@@ -83,6 +83,7 @@ func test_request_prompt_depends_on_plan_mode() -> void:
 		assert_true(text.contains("WHEN the player touches an enemy, THE GAME SHALL"), "criterios jugables")
 		assert_true(text.contains("signals, autoloads, input map actions and collision layers"), "diseño en términos de Godot")
 		assert_true(text.contains("Numbered tasks"), "tareas numeradas")
+		assert_true(text.contains("`# Plan: <short title>`"), "un título, para el nombre del archivo")
 	assert_true(with_mode.contains("ExitPlanMode") and not with_mode.contains("```plan"), "con modo plan: su herramienta, sin bloque")
 	assert_true(without.contains("```plan") and not without.contains("ExitPlanMode"), "sin modo plan: el bloque, sin ExitPlanMode")
 

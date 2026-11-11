@@ -106,7 +106,7 @@ static func request_prompt(what: String, agent_has_plan_mode: bool) -> String:
 	var how := ("When it's ready, present it for my approval with your plan tool (ExitPlanMode)." if agent_has_plan_mode
 		else "When it's ready, end your answer with the whole plan, in Markdown, inside a single fenced block whose language is `plan` (```plan … ```). Write nothing after that block; I approve or edit the plan from there.")
 	return ("Plan this before building it, and don't change any file yet: %s\n\n"
-		+ "Read what you need from the project first. The plan should have:\n"
+		+ "Read what you need from the project first. Start the plan with a `# Plan: <short title>` heading; then it should have:\n"
 		+ "1. What has to happen in the game, as playable criteria (\"WHEN the player touches an enemy, THE GAME SHALL take one life away\").\n"
 		+ "2. The design in Godot terms: new or changed scenes and nodes, scripts, signals, autoloads, input map actions and collision layers.\n"
 		+ "3. Numbered tasks, small enough to check one by one.\n\n%s") % [what.strip_edges(), how]

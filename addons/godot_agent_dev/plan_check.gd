@@ -368,6 +368,104 @@ func _run_claude(source: String) -> void:
 		_controller.call(&"cancel")  # cortar apenas se vio, para no gastar
 
 
+## m11-58 con Antigravity (antigravity-acp del registro de ACP, sin modo plan; gasta tokens):
+## Planificar con un pedido chico → el agente termina con un bloque ```plan → tarjeta → Aprobar →
+## pasa a Construir y sale PLAN_APPROVED. Corta apenas el agente empieza a construir.
+func run_antigravity(tree: SceneTree, dock: Control, shot_prefix: String = "") -> PackedStringArray:
+	_tree = tree
+	_dock = dock
+	_shot_prefix = shot_prefix
+	_model = dock.get(&"_model")
+	_controller = dock.get(&"_controller")
+	var command := _antigravity_command()
+	if command.is_empty():
+		return PackedStringArray(["antigravity-acp no está instalado (registro de ACP)"])
+	var plans_dir := ProjectSettings.globalize_path("res://").path_join(PlanStore.DIR)
+	var before := _plan_files(plans_dir)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(CLAUDE_TARGET.get_base_dir()))
+	var source := FileAccess.get_file_as_string("res://tests/docs_demo/player.gd")
+	var file := FileAccess.open(CLAUDE_TARGET, FileAccess.WRITE)
+	file.store_string(source)
+	file.close()
+	await _run_antigravity(command, source)
+	for name: String in _plan_files(plans_dir):
+		if not name in before:
+			print("[agy-plan] plan guardado: %s" % name)
+			DirAccess.remove_absolute(plans_dir.path_join(name))
+	_controller.call(&"stop")
+	return failures
+
+
+## El servidor ACP de la versión más nueva que bajó el registro, o "".
+static func _antigravity_command() -> String:
+	var root := EditorInterface.get_editor_paths().get_data_dir().path_join("godot_agent/agents/antigravity-acp")
+	var versions := Array(DirAccess.get_directories_at(root))
+	versions.sort_custom(func(a: String, b: String) -> bool: return a.naturalnocasecmp_to(b) < 0)
+	if versions.is_empty():
+		return ""
+	var command := root.path_join(versions[-1]).path_join("agy_acp_server.par")
+	return command if FileAccess.file_exists(command) else ""
+
+
+func _run_antigravity(command: String, source: String) -> void:
+	var profile := AgentProfile.from_dict({"id": "antigravity-acp", "display_name": "Google Antigravity", "command": command, "args": []})
+	if not await _controller.call(&"start", profile):
+		failures.append("no arrancó Antigravity: %s" % _model.get(&"failure_message"))
+		return
+	var modes: Array = (_model.get(&"agent_modes") as Array).map(func(m: Variant) -> String: return str(m.get("id", "")) if m is Dictionary else "")
+	print("[agy-plan] modos del agente: %s · modo plan propio: %s" % [modes, _controller.call(&"agent_has_plan_mode")])
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
+	await _tree.process_frame
+	var composer: Control = _dock.get(&"_composer")
+	var plan_button: Button = composer.find_child("PlanButton", true, false)
+	if plan_button == null or not plan_button.is_visible_in_tree():
+		failures.append("«Planificar» no está visible con la sesión libre")
+		return
+	var path := ProjectSettings.globalize_path(CLAUDE_TARGET)
+	composer.call(&"insert_text", "add a jump counter to the ship in %s (count each press of ui_accept in a `jumps` variable and print it). Read only that file, nothing else. Keep the plan short: 3 tasks at most." % path)
+	var requests: Array = []
+	_model.connect(&"permission_requested", func(r: Object) -> void:
+		requests.append(r)
+		print("[agy-plan] tarjeta: %s · grupo %s · plan %s" % [r.get(&"title"), r.get(&"group"), r.call(&"is_plan")]))
+	plan_button.pressed.emit()
+	var view: Control = await _wait_view_for(PLAN_VIEW_SCRIPT, 1, CLAUDE_WAIT_MS)
+	if view == null:
+		failures.append("Antigravity no dejó un bloque ```plan que se volviera tarjeta en %d s (stop %s)" % [CLAUDE_WAIT_MS / 1000, _model.get(&"last_stop_reason")])
+		_dump_as("agy-plan")
+		return
+	var request: Object = view.get(&"entry").get(&"permission")
+	print("[agy-plan] tarjeta del plan: bloque %s · %d líneas · línea plegada en el mensaje %d" % [request.get(&"from_block"), str(request.get(&"plan_text")).count("\n") + 1, _plan_lines()])
+	print("[agy-plan] plan:\n" + str(request.get(&"plan_text")))
+	_expect(bool(request.get(&"from_block")), "la tarjeta viene del bloque ```plan")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.ASK, "planeó en Preguntar")
+	_expect(FileAccess.get_file_as_string(CLAUDE_TARGET) == source, "no tocó el archivo mientras planeaba")
+	await _shot("agy_card")
+	_button(view, I18n.t("Approve and build")).pressed.emit()
+	var approved: Object = await _wait_user_entry(HarnessPrompts.PLAN_APPROVED)
+	_expect(approved != null, "aprobar mandó PLAN_APPROVED")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "aprobar pasó a Construir")
+	var cards_before := requests.size()
+	var agent_before := _agent_texts().size()
+	await _until_for(func() -> bool: return requests.size() > cards_before or (_model.get(&"plan") as Array).size() > 0 or not bool(_model.call(&"is_busy")), "Antigravity no empezó a construir", CLAUDE_WAIT_MS)
+	print("[agy-plan] al construir: tarjetas nuevas %d · tareas en su plan %d · ocupado %s" % [requests.size() - cards_before, (_model.get(&"plan") as Array).size(), _model.call(&"is_busy")])
+	if requests.size() > cards_before:
+		var edit: Object = requests[-1]
+		print("[agy-plan] primera tarjeta al construir: %s · grupo %s" % [edit.get(&"title"), edit.get(&"group")])
+		if edit.call(&"is_pending"):
+			edit.call(&"select", edit.call(&"option_id_for", PackedStringArray(["reject_once", "reject_always"])))
+	_dump_as("agy-plan")
+	if bool(_model.call(&"is_busy")):
+		_controller.call(&"cancel")  # cortar apenas se vio, para no gastar
+		await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "no se cortó el turno")
+
+
+func _dump_as(tag: String) -> void:
+	for entry: Object in _model.call(&"entries"):
+		var kind := int(entry.get(&"kind"))
+		if kind in [0, 1, 7]:
+			print("[%s] %s: %s" % [tag, {0: "user", 1: "agent", 7: "notice"}[kind], str(entry.get(&"harness_label")) + " " + str(entry.get(&"text")).left(400).replace("\n", " ")])
+
+
 func _dump() -> void:
 	for entry: Object in _model.call(&"entries"):
 		var kind := int(entry.get(&"kind"))
