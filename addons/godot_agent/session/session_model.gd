@@ -36,6 +36,7 @@ const ToolCall := preload("tool_call.gd")
 const PermissionRequest := preload("permission_request.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
 const I18n := preload("../core/i18n.gd")
+const ModeModels := preload("../core/mode_models.gd")
 
 enum SessionState {
 	DISCONNECTED,  ## sin proceso
@@ -333,6 +334,11 @@ func config_option(id: String) -> Dictionary:
 		if option is Dictionary and option.get("id") == id:
 			return option
 	return {}
+
+
+## La opción del modelo: la de category "model" o la de id "model" ({} si el agente no deja elegir).
+func model_option() -> Dictionary:
+	return ModeModels.model_option(config_options)
 
 
 func set_config_value(id: String, value: String) -> void:

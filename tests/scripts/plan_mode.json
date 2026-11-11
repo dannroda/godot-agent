@@ -1,5 +1,5 @@
 {
-	"_about": "m11-22 plan-test: ExitPlanMode as claude-agent-acp 0.105 sends it (tests/fixtures/acp/exit_plan_mode_0105.json). The fake agent doesn't branch on the answer: each turn plays what follows the answer the check gives.",
+	"_about": "m11-22 plan-test: ExitPlanMode as claude-agent-acp 0.105 sends it (tests/fixtures/acp/exit_plan_mode_0105.json). The fake agent doesn't branch on the answer: each turn plays what follows the answer the check gives. configOptions model as in 0.106 (m11-38: the model of each mode).",
 	"session": {
 		"modes": {
 			"currentModeId": "default",
@@ -17,7 +17,36 @@
 					"name": "Plan Mode"
 				}
 			]
-		}
+		},
+		"configOptions": [
+			{
+				"id": "model",
+				"name": "Model",
+				"description": "AI model to use",
+				"category": "model",
+				"type": "select",
+				"currentValue": "default",
+				"options": [
+					{
+						"value": "default",
+						"name": "Default (recommended)",
+						"description": "Opus 5.5"
+					},
+					{
+						"value": "opus",
+						"name": "Opus"
+					},
+					{
+						"value": "sonnet",
+						"name": "Sonnet"
+					},
+					{
+						"value": "haiku",
+						"name": "Haiku"
+					}
+				]
+			}
+		]
 	},
 	"turns": [
 		{

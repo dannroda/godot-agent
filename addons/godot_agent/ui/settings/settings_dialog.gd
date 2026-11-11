@@ -9,6 +9,7 @@ extends ConfirmationDialog
 signal saved
 
 const HarnessSettings := preload("../../core/harness_settings.gd")
+const ModeModels := preload("../../core/mode_models.gd")
 const I18n := preload("../../core/i18n.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
 const SecretNames := preload("../../core/secret_names.gd")
@@ -67,6 +68,9 @@ var completion_metrics_reset: Callable
 var seen_mcp_servers_provider: Callable
 
 var _settings: HarnessSettings
+## El modelo de cada modo del perfil que se edita (m11-38), y los que se olvidan al guardar: [profile_id, mode].
+var _mode_models_box: VBoxContainer
+var _forget_models: Array = []
 var _config: ProjectConfig
 
 var _nav: ItemList
@@ -361,6 +365,13 @@ func _build_agents(page: VBoxContainer) -> void:
 		else:
 			_profile_form.add_child(control)
 		_form_fields[field[0]] = control
+	var models_label := Label.new()
+	models_label.text = I18n.t("Model by mode")
+	models_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_profile_form.add_child(models_label)
+	_mode_models_box = VBoxContainer.new()
+	_mode_models_box.name = "ModeModels"
+	_profile_form.add_child(_mode_models_box)
 	var apply := Button.new()
 	apply.text = I18n.t("Done")
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -733,6 +744,7 @@ func _load() -> void:
 	_build()
 	_error_label.text = ""
 	_profiles = _settings.profiles()
+	_forget_models = []
 	_editing = -1
 	_profile_form.visible = false
 	_rebuild_profiles()
@@ -823,6 +835,7 @@ func _on_save() -> void:
 	for property: String in CONFIG_PROPERTIES:
 		before[property] = _config.get(property)
 	_settings.save_profiles(_profiles)
+	_apply_model_forgets()
 	_settings.set_value(HarnessSettings.KEY_MCP_PORT, int(_port_spin.value))
 	_settings.save_mcp_servers(_mcp_servers_page.user_servers())
 	_settings.set_value(HarnessSettings.KEY_QUOTA_WARN, int(_warn_spin.value))
@@ -1091,8 +1104,51 @@ func _edit_profile(index: int) -> void:
 		env_lines.append("%s=%s" % [key, profile.env[key]])
 	(_form_fields.env as TextEdit).text = "\n".join(env_lines)
 	(_form_fields.account_variable as LineEdit).text = profile.account_variable
+	_fill_mode_models(profile.id)
 	_profile_form.visible = true
 	_rebuild_profiles()
+
+
+## Los modelos recordados por modo para el perfil (m11-38), con «Olvidar» en cada uno. Sin selector:
+## sin sesión no se sabe qué modelos ofrece el agente; se eligen en el composer.
+func _fill_mode_models(profile_id: String) -> void:
+	for child: Node in _mode_models_box.get_children():
+		child.queue_free()
+	var store := ModeModels.new(_settings)
+	var remembered := false
+	for mode: SessionModel.HarnessMode in MODES:
+		if [profile_id, mode] in _forget_models:
+			continue
+		var entry := store.get_model(profile_id, mode)
+		if entry.is_empty():
+			continue
+		remembered = true
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = "%s: %s" % [I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), str(entry.get("name", entry.value))]
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.tooltip_text = str(entry.value)
+		label.mouse_filter = Control.MOUSE_FILTER_PASS
+		row.add_child(label)
+		var forget := Button.new()
+		forget.text = I18n.t("Forget")
+		forget.tooltip_text = I18n.t("Switching to this mode won't change the model any more (applies when you save).")
+		forget.pressed.connect(func() -> void:
+			_forget_models.append([profile_id, mode])
+			_fill_mode_models(profile_id))
+		row.add_child(forget)
+		_mode_models_box.add_child(row)
+	var hint := _hint(I18n.t("The model you pick in the dock's composer is remembered for the mode that tab is in, and switching to that mode picks it again (plan in Ask with one model, build with another). It is yours, not the project's. Agents that don't offer a model choice don't show the selector.") if not remembered
+		else I18n.t("Pick another one in the composer while in that mode to change it."))
+	_mode_models_box.add_child(hint)
+
+
+## Los «Olvidar» del modelo por modo, al guardar (m11-38).
+func _apply_model_forgets() -> void:
+	var mode_models := ModeModels.new(_settings)
+	for pair: Array in _forget_models:
+		mode_models.forget(str(pair[0]), int(pair[1]))
+	_forget_models = []
 
 
 func _apply_profile_form() -> void:

@@ -50,6 +50,7 @@ const InlineEditMenu := preload("editor/inline_edit_menu.gd")
 const AskAgentMenu := preload("editor/ask_agent_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
+const ModeModels := preload("core/mode_models.gd")
 const ProjectToolLoader := preload("mcp/project_tool_loader.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
@@ -1774,6 +1775,7 @@ func _turn_checks_info() -> Dictionary:
 
 
 func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:
+	controller.mode_models = ModeModels.new(_settings)  # el modelo de cada modo, por perfil (m11-38)
 	# Un mensaje del usuario (sin etiqueta del harness) vuelve a habilitar los prompts de hooks (m11-24).
 	model.entry_added.connect(func(entry: ChatEntry) -> void:
 		if entry.kind == ChatEntry.EntryKind.USER and entry.harness_label.is_empty():

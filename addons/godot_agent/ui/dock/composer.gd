@@ -546,8 +546,10 @@ func choose_mode(mode: int) -> void:
 		_mode_button.item_selected.emit(index)
 
 
-## `option` es la configOption "model" del agente (o {} para ocultar el selector).
-func set_model_option(option: Dictionary) -> void:
+## `option` es la configOption "model" del agente (o {} para ocultar el selector). `tooltip`, si no está
+## vacío, dice para qué modo se recuerda lo que se elija (m11-38).
+func set_model_option(option: Dictionary, tooltip: String = "") -> void:
+	_model_button.tooltip_text = tooltip if not tooltip.is_empty() else I18n.t("Model")
 	_model_button.clear()
 	_model_values.clear()
 	var options: Variant = option.get("options", [])
@@ -569,6 +571,12 @@ func set_model_option(option: Dictionary) -> void:
 			_model_button.select(_model_button.item_count - 1)
 	_model_button.visible = true
 	_queue_fit()
+
+
+## Abre la lista del selector de modelo («Cambiar» en el aviso del modelo de un modo, m11-38).
+func open_model_selector() -> void:
+	if _model_button.visible:
+		_model_button.show_popup()
 
 
 ## Nombre de una opción del selector. La opción "default" de Claude Code se llama «Default
@@ -936,6 +944,13 @@ func _update_send_button() -> void:
 		_send_button.disabled = not _input.editable or _input.text.strip_edges().is_empty()
 
 
+## El último cambio de compactación (de, a, cuándo): ver _fit_row.
+const FIT_SETTLE_MS := 250
+var _last_fit_from: int = -1
+var _last_fit_to: int = -1
+var _last_fit_msec: int = 0
+
+
 func _queue_fit() -> void:
 	if _fit_queued or _row == null:
 		return
@@ -961,6 +976,16 @@ func _fit_row() -> void:
 		level += 1
 	if level == _compact_level:
 		return
+	# Sin vaivén: en 4.8 el ancho disponible se mide antes de que la fila se reacomode, así que
+	# compactar hace que la medida siguiente diga que entra, descompactar que no entra, y así sin fin
+	# (llena la cola de mensajes y el editor se cae). Deshacer el último cambio enseguida no se hace;
+	# un cambio de ancho de verdad (mover el divisor) vuelve a pedir el ajuste después.
+	var now := Time.get_ticks_msec()
+	if level == _last_fit_from and _compact_level == _last_fit_to and now - _last_fit_msec < FIT_SETTLE_MS:
+		return
+	_last_fit_from = _compact_level
+	_last_fit_to = level
+	_last_fit_msec = now
 	_compact_level = level
 	_meter.visible = level < 2
 	_plan_button.visible = _plan_available and level < 3

@@ -5609,3 +5609,36 @@ msgstr "Por regresión"
 
 msgid "%d by invariants or budgets"
 msgstr "%d por invariantes o presupuestos"
+
+msgid "Change"
+msgstr "Cambiar"
+
+msgid "Choose another model for %s: the one you pick is remembered for this mode."
+msgstr "Elegir otro modelo para %s: el que elijas queda recordado para este modo."
+
+msgid "Forget"
+msgstr "Olvidar"
+
+msgid "Model by mode"
+msgstr "Modelo por modo"
+
+msgid "Model. Remembered for %s: the one you pick is used every time you switch to %s."
+msgstr "Modelo. Recordado para %s: el que elijas se usa cada vez que pasás a %s."
+
+msgid "Model. The one you pick is remembered for %s."
+msgstr "Modelo. El que elijas queda recordado para %s."
+
+msgid "Pick another one in the composer while in that mode to change it."
+msgstr "Para cambiarlo, elegí otro en el composer estando en ese modo."
+
+msgid "%s remembers the model «%s», but %s doesn't offer it now (another account?). The model wasn't changed."
+msgstr "%s recuerda el modelo «%s», pero %s no lo ofrece ahora (¿otra cuenta?). El modelo no se cambió."
+
+msgid "%s uses %s."
+msgstr "%s usa %s."
+
+msgid "Switching to this mode won't change the model any more (applies when you save)."
+msgstr "Pasar a este modo ya no va a cambiar el modelo (se aplica al guardar)."
+
+msgid "The model you pick in the dock's composer is remembered for the mode that tab is in, and switching to that mode picks it again (plan in Ask with one model, build with another). It is yours, not the project's. Agents that don't offer a model choice don't show the selector."
+msgstr "El modelo que elegís en el composer del dock queda recordado para el modo en que está esa pestaña, y pasar a ese modo lo vuelve a elegir (planificar en Preguntar con un modelo y construir con otro). Es tuyo, no del proyecto. Los agentes que no dejan elegir modelo no muestran el selector."

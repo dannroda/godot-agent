@@ -321,7 +321,9 @@ func _ready() -> void:
 	_composer.remember_available = true
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_controller.reject_feedback.connect(_on_reject_feedback)
-	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
+	_composer.model_selected.connect(func(value: String) -> void:
+		await _controller.choose_model(value)
+		_refresh_model_option())  # ya recordado: el tooltip lo dice
 	_build_mode_selector()
 	_composer.screenshot_requested.connect(_on_screenshot_requested)
 	_composer.image_pasted.connect(func(image: Image) -> void: attach_image(image, I18n.t("pasted image")))
@@ -425,8 +427,10 @@ func _ready() -> void:
 		if _quota_ring:
 			_quota_ring.set_context(used, total))
 	_model.commands_changed.connect(_composer.set_commands)
-	_model.config_options_changed.connect(func(_options: Array) -> void: _composer.set_model_option(_model.config_option("model")))
-	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_modes())
+	_model.config_options_changed.connect(func(_options: Array) -> void: _refresh_model_option())
+	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void:
+		_refresh_modes()
+		_refresh_model_option())
 	_model.entries_cleared.connect(_refresh_state)
 	_model.entries_cleared.connect(func() -> void: _queue.pause(I18n.t("another session started")))
 	_model.entry_added.connect(func(_entry: ChatEntry) -> void: _refresh_empty_state())
@@ -437,7 +441,7 @@ func _ready() -> void:
 	_refresh_title()
 	_composer.set_usage(_model.usage_used, _model.usage_size)
 	_quota_ring.set_context(_model.usage_used, _model.usage_size)
-	_composer.set_model_option(_model.config_option("model"))
+	_refresh_model_option()
 	_refresh_chips()
 	refresh_export_banner()
 
@@ -1609,6 +1613,11 @@ func confirm_on_machine(data: Dictionary) -> void:
 	_confirm_on_machine(data)
 
 
+## El selector de modelo con el tooltip del modo para el que se recuerda (m11-38).
+func _refresh_model_option() -> void:
+	_composer.set_model_option(_model.model_option(), _controller.model_tooltip())
+
+
 func _confirm_on_machine(data: Dictionary) -> void:
 	var items: Array = data.get("items", [])
 	if items.is_empty():
@@ -1669,6 +1678,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 				start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit(int(payload) if payload is int else 0)
+		SessionController.ACTION_CHOOSE_MODEL:
+			_composer.open_model_selector()
 		SessionController.ACTION_PLAY_FILM:
 			if not FlipbookDialog.open(str(payload), self):
 				_model.add_notice(I18n.t("The recording isn't there any more."), ChatEntry.NoticeLevel.WARNING)
