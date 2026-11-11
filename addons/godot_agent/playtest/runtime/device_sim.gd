@@ -143,6 +143,13 @@ static func embedded() -> bool:
 	return Engine.has_method(&"is_embedded_in_editor") and bool(Engine.call(&"is_embedded_in_editor"))
 
 
+## Cómo correr el juego en su propia ventana: en 4.8 el menú de la vista Game cambió por tres botones.
+static func _own_window_hint() -> String:
+	if Engine.get_version_info().hex >= 0x040800:
+		return "the user can pick «Run the game in a floating window without the toolbar» in the Game view's toolbar."
+	return "the user can turn off «Embed Game on Next Play» in the Game view's menu."
+
+
 ## Dentro del juego: lo que quedó aplicado, para el informe (pedido «device» del probe).
 static func report(window: Window, device: Dictionary) -> String:
 	if device.is_empty():
@@ -152,7 +159,7 @@ static func report(window: Window, device: Dictionary) -> String:
 	if size.size() == 2:
 		var asked := Vector2i(int(size[0]), int(size[1]))
 		if embedded():
-			lines.append("The game runs embedded in the editor's Game view, which sets its window size (%d×%d), so the size was not simulated: the user can turn off «Embed Game on Next Play» in the Game view's menu." % [window.size.x, window.size.y])
+			lines.append("The game runs embedded in the editor's Game view, which sets its window size (%d×%d), so the size was not simulated: %s" % [window.size.x, window.size.y, _own_window_hint()])
 		elif window.size != asked:
 			lines.append("The window got %d×%d, not %d×%d (the screen or the window manager limits it): check the layout at that size." % [window.size.x, window.size.y, asked.x, asked.y])
 		else:

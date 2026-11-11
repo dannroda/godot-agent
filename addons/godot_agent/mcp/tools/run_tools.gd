@@ -486,7 +486,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	var device_env: Variant = DeviceSim.set_env(device.device) if device.has("device") else null
 	# Con un tamaño, el juego va en su propia ventana: embebido en la vista Game (lo normal desde 4.4)
 	# el tamaño lo pone el editor. Se apaga solo para este lanzamiento, como el Movie Maker de `record`.
-	var embed: PopupMenu = GameEmbedding.disable() if device.has("device") and not (device.device.size as Array).is_empty() else null
+	var embed: Object = GameEmbedding.disable() if device.has("device") and not (device.device.size as Array).is_empty() else null
 	EditorInterface.play_custom_scene(scene)  # llama a _build() y lanza el proceso en el momento
 	if device.has("device"):
 		DeviceSim.restore_env(device_env)

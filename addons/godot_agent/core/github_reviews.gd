@@ -5,6 +5,7 @@ extends RefCounted
 ## pushea: solo si el proyecto lo permite, ver ProjectConfig.github_pull_requests).
 
 const I18n := preload("i18n.gd")
+const GitCheckpoints := preload("../oneshot/git_checkpoints.gd")
 
 var project_root: String = ""
 var gh_path: String = "gh"
@@ -89,14 +90,6 @@ func _repo() -> String:
 	return repo_from_remote(remote.output) if remote.code == 0 else ""
 
 
-## `{code, output}` en un Thread, esperando frames (como GitCheckpoints.run).
+## `{code, output}` en un Thread, esperando frames (GitCheckpoints.execute).
 func _run(program: String, args: PackedStringArray) -> Dictionary:
-	var thread := Thread.new()
-	thread.start(func() -> Dictionary:
-		var output: Array = []
-		var code := OS.execute(program, args, output, true)
-		return {"code": code, "output": "".join(output).strip_edges()})
-	var tree := Engine.get_main_loop() as SceneTree
-	while thread.is_alive():
-		await tree.process_frame
-	return thread.wait_to_finish()
+	return await GitCheckpoints.execute(program, args)

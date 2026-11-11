@@ -11,7 +11,7 @@ const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
-const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const ANNOTATIONS_SCRIPT := "res://addons/godot_agent/review/review_annotations.gd"
 const DEMO_SCENE := "res://tests/docs_demo/main.tscn"
 const MAIN_SCREEN_SCRIPT := "res://addons/godot_agent/ui/main_screen/agent_main_screen.gd"
@@ -251,7 +251,7 @@ func _has_permission_entry() -> bool:
 func _show_dock() -> void:
 	# Con un layout limpio (tests/docs_shots.sh) el dock arranca en una pestaña detrás del Inspector:
 	# se trae al frente como lo hace el addon, con sus EditorSurfaces.
-	for node: Node in _dock.get_tree().root.find_children("*", "EditorPlugin", true, false):
+	for node: Node in _dock.get_tree().root.find_children("*", "Node", true, false):
 		var script := node.get_script() as Script
 		if script and script.resource_path == MAIN_PLUGIN_SCRIPT and node.get(&"_surfaces") != null:
 			(node.get(&"_surfaces") as Object).call(&"make_visible", 0)  # EditorSurface.SIDE

@@ -73,9 +73,9 @@ func run(tree: SceneTree, profile: AgentProfile, only: String) -> PackedStringAr
 ## y fallar con el sabotaje del pedido, o no detecta el bug (m16-09).
 func _replay(tree: SceneTree, results: Array[Dictionary], items: Array) -> void:
 	var run_tools: Object = null
-	for node: Node in tree.root.find_children("*", "EditorPlugin", true, false):
+	for node: Node in tree.root.find_children("*", "Node", true, false):
 		var script := node.get_script() as Script
-		if script and script.resource_path == "res://addons/godot_agent/plugin.gd":
+		if script and script.resource_path == "res://addons/godot_agent/agent_plugin.gd":
 			run_tools = node.get(&"_run_tools")
 	var saved := Regressions.new().list()
 	var passed_runs := results.filter(func(result: Dictionary) -> bool: return result.got == "pass").size()

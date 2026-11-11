@@ -9,7 +9,7 @@ extends RefCounted
 const NativeInstall := preload("res://addons/godot_agent/core/native_install.gd")
 const SupervisorState := preload("res://addons/godot_agent/supervisor/supervisor_state.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
-const PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+const PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const TARGET_PLUGIN := "godot_agent"
 const NAME := "pending_check_ext"
 const TARGET := "addons/" + NAME

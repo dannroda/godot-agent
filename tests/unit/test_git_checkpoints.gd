@@ -137,3 +137,19 @@ func test_start_failure_restores_branch() -> void:
 	var branches := await git.run(["branch", "--format=%(refname:short)"])
 	assert_eq(branches.output, "main", "sin rama del agente")
 	assert_eq(_read(project + "/player.gd"), "extends Node\n# cambio\n", "los cambios siguen")
+
+
+## Deshabilitar el plugin con un git en curso (m16-17): quien lo pidió se libera, pero la espera sigue
+## y cierra el Thread con wait_to_finish. Antes Godot descartaba la espera con el Thread adentro.
+func test_run_outlives_its_owner() -> void:
+	var dir := ProjectSettings.globalize_path(temp_dir("git_owner"))
+	var before := GitCheckpoints.pending()
+	var git := GitCheckpoints.new(dir)
+	git.run(["-c", "alias.slow=!sleep 0.3", "slow"])
+	assert_eq(GitCheckpoints.pending(), before + 1, "el git corre")
+	git = null
+	var tree := Engine.get_main_loop() as SceneTree
+	var deadline := Time.get_ticks_msec() + 5000
+	while GitCheckpoints.pending() > before and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	assert_eq(GitCheckpoints.pending(), before, "el Thread se cerró aunque se liberó el GitCheckpoints")

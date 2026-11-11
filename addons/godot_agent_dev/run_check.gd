@@ -44,7 +44,7 @@ func run_run(tree: SceneTree) -> PackedStringArray:
 		elif script and script.resource_path == DOCK_SCRIPT:
 			_dock = node
 			model = node.get(&"_model")
-		elif script and script.resource_path == "res://addons/godot_agent/plugin.gd":
+		elif script and script.resource_path == "res://addons/godot_agent/agent_plugin.gd":
 			plugin_config = node.get(&"_project_config")
 			_run_tools = node.get(&"_run_tools")
 	if _server == null or model == null:
@@ -115,7 +115,7 @@ func _check_runs(model: Object) -> void:
 	# para ese lanzamiento y lo deja como estaba.
 	var embed_before := GameEmbedding.is_on()
 	var device_run := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "device": {"size": [480, 800], "touch": true, "locale": "xx"}})
-	_expect(GameEmbedding.is_on() == embed_before, "run_scene device: «Embed Game on Next Play» queda como estaba (%s)" % embed_before)
+	_expect(GameEmbedding.is_on() == embed_before, "run_scene device: el embebido de la vista Game queda como estaba (%s)" % embed_before)
 	# Si el usuario lo tenía destildado, run_scene no lo toca (y no lo prende al terminar).
 	var user_off := GameEmbedding.disable()
 	if user_off or not GameEmbedding.is_on():

@@ -11,7 +11,7 @@ const ProjectConfig := preload("res://addons/godot_agent/config/project_config.g
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const AgentAdapters := preload("res://addons/godot_agent/session/agents/agent_adapters.gd")
 
-const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/plugin.gd"
+const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const TIMEOUT_MS := 20000
 
 var _tree: SceneTree

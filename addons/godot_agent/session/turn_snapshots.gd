@@ -295,7 +295,7 @@ func _prune(session: String) -> void:
 
 
 ## Un comando de git con el index propio. OS.execute no recibe variables de entorno, así que pasa
-## por `env` (o `cmd /c set` en Windows) en un Thread, como GitCheckpoints.run.
+## por `env` (o `cmd /c set` en Windows), con GitCheckpoints.execute.
 func _run_with_index(index: String, args: PackedStringArray) -> Dictionary:
 	var full := PackedStringArray(["-C", git.root])
 	full.append_array(git.get(&"_identity"))
@@ -306,15 +306,7 @@ func _run_with_index(index: String, args: PackedStringArray) -> Dictionary:
 		program = "cmd.exe"
 		var quoted := Array(full).map(func(arg: String) -> String: return "\"%s\"" % arg.replace("\"", "\\\""))
 		program_args = PackedStringArray(["/d", "/c", "set \"GIT_INDEX_FILE=%s\" && \"%s\" %s" % [index, git.git_path, " ".join(quoted)]])
-	var thread := Thread.new()
-	thread.start(func() -> Dictionary:
-		var output: Array = []
-		var code := OS.execute(program, program_args, output, true)
-		return {"code": code, "output": "".join(output).strip_edges()})
-	var tree := Engine.get_main_loop() as SceneTree
-	while thread.is_alive():
-		await tree.process_frame
-	return thread.wait_to_finish()
+	return await GitCheckpoints.execute(program, program_args)
 
 
 func _absolute(path: String) -> String:
