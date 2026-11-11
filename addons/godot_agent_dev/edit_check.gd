@@ -551,7 +551,11 @@ func _check_scene_reject_reload() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
 	var file := FileAccess.open(scene_path, FileAccess.WRITE)
-	file.store_string("[gd_scene format=3]\n\n[node name=\"Root\" type=\"Node2D\" unique_id=1]\n\n[node name=\"Box\" type=\"Node2D\" parent=\".\" unique_id=2]\nposition = Vector2(1, 2)\n")
+	# m11-59: Coin tiene una textura (sub_resource) con un gradiente de un archivo (ext_resource).
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color.RED)
+	ResourceSaver.save(gradient, folder + "/gradient.tres")
+	file.store_string("[gd_scene format=3]\n\n[ext_resource type=\"Gradient\" path=\"%s\" id=\"1_g\"]\n\n[sub_resource type=\"GradientTexture1D\" id=\"GradientTexture1D_c\"]\ngradient = ExtResource(\"1_g\")\n\n[node name=\"Root\" type=\"Node2D\" unique_id=1]\n\n[node name=\"Box\" type=\"Node2D\" parent=\".\" unique_id=2]\nposition = Vector2(1, 2)\n\n[node name=\"Coin\" type=\"Sprite2D\" parent=\".\" unique_id=3]\ntexture = SubResource(\"GradientTexture1D_c\")\n\n[node name=\"End\" type=\"Node\" parent=\".\" unique_id=4]\n" % (folder + "/gradient.tres"))
 	file.close()
 	EditorInterface.get_resource_filesystem().update_file(scene_path)
 	await _tree.create_timer(0.5).timeout
@@ -587,13 +591,52 @@ func _check_scene_reject_reload() -> void:
 		box = root.get_node_or_null("Box") as Node2D if root and root.scene_file_path == scene_path else null
 		_expect(box != null and box.position == Vector2(5, 2), "Deshacer vuelve a la posición del turno: %s" % [box.position if box else "sin Box"])
 		_expect(_disk_dialogs().is_empty(), "tampoco al deshacer")
+	await _check_removed_node_back(snapshots, changes, scene_path, rel)
 	if EditorInterface.get_edited_scene_root() and EditorInterface.get_edited_scene_root().scene_file_path == scene_path:
 		EditorInterface.close_scene()
 	await _tree.process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene_path))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(scene_path + ".uid"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(folder + "/gradient.tres"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(folder))
 	EditorInterface.get_resource_filesystem().scan()
+
+
+## m11-59: el turno borra Coin (Godot se lleva su textura y el gradiente del archivo); rechazarlo lo
+## devuelve entre Box y End con su textura y su gradiente, recargado sin diálogos; deshacer lo saca.
+func _check_removed_node_back(snapshots: Object, changes: Object, scene_path: String, rel: String) -> void:
+	var session := "s1"
+	var start: String = await snapshots.call(&"take", session)
+	await _call_text("remove_node", {"node_path": "Coin"})
+	await _call_text("save_scene", {})
+	var end: String = await snapshots.call(&"take", session)
+	_expect(not FileAccess.get_file_as_string(scene_path).contains("ext_resource"), "al borrar Coin, Godot no guarda el gradiente")
+	var data := {"session": session, "start": start, "end": end, "files": [{"path": rel, "status": "M", "added": 0, "removed": 8}]}
+	var items: Array = await changes.call(&"file_hunks", data, rel)
+	var index := -1
+	for item: Dictionary in items:
+		if str(item.scene.label) == "− Coin" and item.scene.rejectable and not item.stale:
+			index = int(item.index)
+	_expect(index >= 0, "el nodo borrado se puede rechazar: %s" % [items.map(func(i: Dictionary) -> String: return str(i.scene.label))])
+	if index < 0:
+		return
+	var error: String = await changes.call(&"reject_hunk", data, rel, index)
+	_expect(error.is_empty(), "rechazar el borrado: %s" % error)
+	await _tree.process_frame
+	await _tree.process_frame
+	var root := EditorInterface.get_edited_scene_root()
+	var coin := root.get_node_or_null("Coin") as Sprite2D if root and root.scene_file_path == scene_path else null
+	_expect(coin != null and coin.get_index() == 1, "Coin vuelve entre Box y End: %s" % [coin.get_index() if coin else "sin Coin"])
+	var texture := coin.texture as GradientTexture1D if coin else null
+	_expect(texture != null and texture.gradient != null and texture.gradient.get_color(0) == Color.RED, "con su textura y su gradiente")
+	_expect(not scene_path in EditorInterface.get_unsaved_scenes(), "la escena no queda sin guardar")
+	_expect(_disk_dialogs().is_empty(), "sin diálogo de «cambió en disco»: %s" % [_disk_dialogs()])
+	await changes.call(&"undo_hunk", {"data": data, "path": rel, "index": index})
+	await _tree.process_frame
+	await _tree.process_frame
+	root = EditorInterface.get_edited_scene_root()
+	_expect(root != null and root.get_node_or_null("Coin") == null, "Deshacer lo vuelve a sacar")
+	_expect(not FileAccess.get_file_as_string(scene_path).contains("ext_resource"), "y se lleva los recursos que trajo")
 
 
 ## Los diálogos visibles del editor que hablan de archivos cambiados en disco.
