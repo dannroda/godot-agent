@@ -170,6 +170,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(saved.contains("Saved") and saved_text.contains("name=\"Copy\"") and saved_text.contains("edit_enemies.gd"), "save_scene guarda los cambios · " + saved)
 	_expect(EDIT_SCENE in saved_paths, "save_scene emite scene_saved (%s)" % [saved_paths])
 	_expect(not EDIT_SCENE in EditorInterface.get_unsaved_scenes(), "save_scene deja la escena como guardada")
+	_check_scene_diff("\n".join(lines), saved_text)
 	sync.call(&"poll_open_scenes")
 	await _tree.create_timer(0.5).timeout
 	_expect(scene_notices.is_empty() and EditorInterface.get_edited_scene_root() == root, "su propio guardado no es un cambio del agente (%s)" % [scene_notices])
@@ -484,3 +485,23 @@ static func _remove_tree(absolute: String) -> void:
 	for sub: String in DirAccess.get_directories_at(absolute):
 		_remove_tree(absolute.path_join(sub))
 	DirAccess.remove_absolute(absolute)
+
+
+## m11-57: el diálogo de diffs muestra dos .tscn por nodos (lo que guardó el editor después de las
+## tools contra la copia del fixture), con «Ver crudo» para el diff de texto y vuelta.
+func _check_scene_diff(before: String, after: String) -> void:
+	var dialog: AcceptDialog = _plugin.get(&"_diff_dialog")
+	dialog.call(&"show_diff", "edit_fixture.tscn", "before", before, "now", after)
+	var shown: String = dialog.call(&"shown_text")
+	var raw_button: Button = dialog.get(&"_raw_button")
+	_expect(shown.contains("Copy") and shown.contains("edit_enemies.gd") and not shown.contains("[gd_scene"),
+		"el diff de una escena se ve por nodos: %s" % shown.left(400))
+	_expect(raw_button.visible, "una escena ofrece «Ver crudo»")
+	dialog.custom_action.emit(&"raw")
+	var raw: String = dialog.call(&"shown_text")
+	_expect(raw.contains("gd_scene") and raw != shown, "«Ver crudo» muestra el diff de texto")
+	dialog.custom_action.emit(&"raw")
+	_expect(dialog.call(&"shown_text") == shown, "y vuelve a la vista por nodos")
+	dialog.call(&"show_diff", "a.gd", "before", "func a():\n\tpass\n", "now", "func b():\n\tpass\n")
+	_expect(not raw_button.visible and str(dialog.call(&"shown_text")).contains("func b"), "un script sigue con el diff de texto, sin «Ver crudo»")
+	dialog.hide()

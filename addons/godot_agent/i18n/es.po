@@ -4958,3 +4958,60 @@ msgstr "No está aprobado en esta máquina: el agente no lo recibe hasta que lo 
 
 msgid "The server came with the project. Allow it only if you trust what it runs; if it changes, it asks again."
 msgstr "El server vino con el proyecto. Permitilo solo si confiás en lo que corre; si cambia, vuelve a preguntar."
+
+msgid "View raw"
+msgstr "Ver crudo"
+
+msgid "View by nodes"
+msgstr "Ver por nodos"
+
+msgid "1 node added"
+msgstr "1 nodo agregado"
+
+msgid "%d nodes added"
+msgstr "%d nodos agregados"
+
+msgid "1 node removed"
+msgstr "1 nodo borrado"
+
+msgid "%d nodes removed"
+msgstr "%d nodos borrados"
+
+msgid "1 moved or renamed"
+msgstr "1 movido o renombrado"
+
+msgid "1 property changed"
+msgstr "1 propiedad cambiada"
+
+msgid "1 connection"
+msgstr "1 conexión"
+
+msgid "with 1 node below"
+msgstr "con 1 nodo abajo"
+
+msgid "instance of %s"
+msgstr "instancia de %s"
+
+msgid "%d moved or renamed"
+msgstr "%d movidos o renombrados"
+
+msgid "%d properties changed"
+msgstr "%d propiedades cambiadas"
+
+msgid "%d connections"
+msgstr "%d conexiones"
+
+msgid "%d nodes → %d"
+msgstr "%d nodos → %d"
+
+msgid "No node, property or connection changed."
+msgstr "No cambió ningún nodo, propiedad ni conexión."
+
+msgid "… and %d more lines: «View raw» has the whole text diff."
+msgstr "… y %d líneas más: «Ver crudo» tiene el diff de texto entero."
+
+msgid "(root)"
+msgstr "(raíz)"
+
+msgid "with %d nodes below"
+msgstr "con %d nodos abajo"
