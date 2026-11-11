@@ -19,6 +19,10 @@ const MachineApproval := preload("../core/machine_approval.gd")
 const PermissionPolicy := preload("../session/permission_policy.gd")
 const AgentToolContext := preload("../api/agent_tool_context.gd")
 
+## refresh() vio algo distinto (una tool nueva, editada, borrada o aprobada): por acá el plugin avisa
+## de las frenadas también cuando las encuentra una llamada y no el filesystem.
+signal changed
+
 const DEFAULT_DIR := "res://agent_tools"
 const STATE_READY := "ready"
 const STATE_HELD := "held"
@@ -38,8 +42,12 @@ var undo_redo: EditorUndoRedoManager
 ## `(text)`: una línea en el log del harness.
 var log_line: Callable
 
-## nombre → `{name, path, key, state, error, description, tool, source}`.
+## nombre → `{name, path, key, state, error, description, tool, runner, source}`.
 var _entries: Dictionary = {}
+## Los helpers cambiaron desde la última carga: se recargan antes de cargar la próxima tool aprobada
+## (la aprobación de una tool cubre los helpers de ese momento).
+var _pending_helpers: PackedStringArray = []
+var _helpers_loaded := ""
 
 
 ## La carpeta de Settings, o la de siempre si está vacía o no sirve (ver normalize_dir).
@@ -72,6 +80,8 @@ func refresh() -> bool:
 	var before := _signature()
 	var files := _scan()
 	var helpers := _helpers_hash(files.helpers)
+	if helpers != _helpers_loaded:
+		_pending_helpers = files.helpers
 	var seen: Dictionary = {}
 	for path: String in files.tools:
 		var tool_name := path.get_file().get_basename()
@@ -86,10 +96,12 @@ func refresh() -> bool:
 	for tool_name: String in _entries.keys():
 		if not seen.has(tool_name):
 			_entries.erase(tool_name)
-	var changed := _signature() != before
-	if changed and log_line.is_valid():
-		log_line.call("project tools: %s" % _signature())
-	return changed
+	var is_changed := _signature() != before
+	if is_changed:
+		if log_line.is_valid():
+			log_line.call("project tools: %s" % _signature())
+		changed.emit()
+	return is_changed
 
 
 ## Las tools cargadas y listas.
@@ -130,7 +142,7 @@ static func preview(path: String, source: String) -> String:
 
 
 func _entry(tool_name: String, path: String, source: String, key: String, approved: bool) -> Dictionary:
-	var entry := {"name": tool_name, "path": path, "key": key, "state": STATE_HELD, "error": "", "description": "", "tool": null, "source": source}
+	var entry := {"name": tool_name, "path": path, "key": key, "state": STATE_HELD, "error": "", "description": "", "tool": null, "runner": null, "source": source}
 	if not RegEx.create_from_string(NAME_PATTERN).search(tool_name):
 		entry.state = STATE_ERROR
 		entry.error = "The file name is the tool name: use lowercase letters, digits and _ (build_level.gd)."
@@ -141,6 +153,7 @@ func _entry(tool_name: String, path: String, source: String, key: String, approv
 		return entry
 	if not approved:
 		return entry
+	_reload_helpers()
 	var loaded := _load(tool_name, path)
 	if loaded.has("error"):
 		entry.state = STATE_ERROR
@@ -148,14 +161,15 @@ func _entry(tool_name: String, path: String, source: String, key: String, approv
 		return entry
 	entry.state = STATE_READY
 	entry.tool = loaded.tool
+	entry.runner = loaded.runner
 	entry.description = (loaded.tool as McpTool).description
 	return entry
 
 
-## Carga una tool aprobada, sin caché (CACHE_MODE_IGNORE_DEEP también recarga sus helpers).
-## `{tool}` o `{error}`.
+## Carga una tool aprobada, sin caché. Sus helpers se recargan en la caché (_reload_helpers) y no con
+## CACHE_MODE_IGNORE_DEEP, que en cada carga recompila también la base del addon. `{tool}` o `{error}`.
 func _load(tool_name: String, path: String) -> Dictionary:
-	var script := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE_DEEP) as GDScript
+	var script := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GDScript
 	if script == null or not script.can_instantiate():
 		return {"error": "The script doesn't compile: open it in the Script Editor to see the error."}
 	if not script.is_tool():
@@ -176,15 +190,31 @@ func _load(tool_name: String, path: String) -> Dictionary:
 	var required := PackedStringArray((parameters as Dictionary).get("required", []))
 	var tool: McpTool = McpTool.create(tool_name, PermissionPolicy.GROUP_PROJECT_TOOLS,
 		"%s (Project tool %s.)" % [description, path], properties, required, Callable())
-	var ctx := AgentToolContext.new()
-	ctx.undo_redo = undo_redo
-	ctx.project_dir = project_dir
-	ctx.tool_name = tool_name
-	ctx._log = log_line
-	tool.handler = _handler(instance, ctx)
-	tool.describer = _describer(path, McpTool.create(tool_name, "", "", properties, required, Callable()) as McpTool)
+	var runner := ToolRunner.new()
+	runner.instance = instance
+	runner.undo_redo = undo_redo
+	runner.project_dir = project_dir
+	runner.tool_name = tool_name
+	runner.log_line = log_line
+	runner.path = path
+	runner.plain = McpTool.create(tool_name, "", "", properties, required, Callable()) as McpTool
+	# Callables de método: no retienen al runner; lo guarda la entrada (sin lambdas que capturen, que con
+	# una tool recargada dejaban vivo el contexto al salir).
+	tool.handler = runner.run
+	tool.describer = runner.describe
 	McpTool.enveloped(tool, McpTool.ENVELOPE_ALL)
-	return {"tool": tool}
+	return {"tool": tool, "runner": runner}
+
+
+## Recarga en la caché los helpers que cambiaron, para que la tool que los precarga use los nuevos.
+func _reload_helpers() -> void:
+	if _pending_helpers.is_empty():
+		return
+	for helper: String in _pending_helpers:
+		if ResourceLoader.has_cached(helper):
+			ResourceLoader.load(helper, "", ResourceLoader.CACHE_MODE_REPLACE)
+	_helpers_loaded = _helpers_hash(_pending_helpers)
+	_pending_helpers = []
 
 
 ## El primer problema del schema que devolvió _parameters(), o "".
@@ -206,28 +236,10 @@ static func _schema_error(parameters: Variant) -> String:
 	return ""
 
 
-## Static: el lambda no captura al loader (la tool lo guardaría y el loader guarda la tool).
-static func _handler(instance: Object, ctx: RefCounted) -> Callable:
-	return func(args: Dictionary) -> Variant:
-		return result_of(await instance.call(&"_run", args, ctx))
-
-
-static func _describer(path: String, plain: McpTool) -> Callable:
-	return func(args: Dictionary) -> String:
-		var text := plain.describe(args)
-		return path + ("\n" + text if not text.is_empty() else "")
-
-
 ## Lo que devolvió _run() → lo que entiende el registro. null (un error de script, o un _run sin
 ## return) queda null: el registro lo da como error.
 static func result_of(value: Variant) -> Variant:
-	if value == null or value is String or value is Image:
-		return value
-	if value is Dictionary and (value as Dictionary).get("content") is Array:
-		return value
-	if value is Dictionary or value is Array:
-		return JSON.stringify(value, "  ")
-	return str(value)
+	return ToolRunner._result_of(value)
 
 
 ## Los .gd de la carpeta: las tools (arriba, sin `_` adelante) y los helpers (todos los demás).
@@ -277,3 +289,36 @@ func _signature() -> String:
 		parts.append("%s=%s" % [tool_name, _entries[tool_name].state])
 		parts.append(str(_entries[tool_name].key).left(8))
 	return " ".join(parts)
+
+
+## Corre una tool cargada: un contexto nuevo por llamada.
+class ToolRunner extends RefCounted:
+	var instance: Object
+	var undo_redo: EditorUndoRedoManager
+	var project_dir := ""
+	var tool_name := ""
+	var log_line: Callable
+	var path := ""
+	## La misma tool sin describer, para la descripción por defecto de los argumentos.
+	var plain: RefCounted
+
+	func run(args: Dictionary) -> Variant:
+		var ctx := AgentToolContext.new()
+		ctx.undo_redo = undo_redo
+		ctx.project_dir = project_dir
+		ctx.tool_name = tool_name
+		ctx._log = log_line
+		return _result_of(await instance.call(&"_run", args, ctx))
+
+	func describe(args: Dictionary) -> String:
+		var text := str(plain.call(&"describe", args))
+		return path + ("\n" + text if not text.is_empty() else "")
+
+	static func _result_of(value: Variant) -> Variant:
+		if value == null or value is String or value is Image:
+			return value
+		if value is Dictionary and (value as Dictionary).get("content") is Array:
+			return value
+		if value is Dictionary or value is Array:
+			return JSON.stringify(value, "  ")
+		return str(value)

@@ -52,6 +52,41 @@ Las extra son la documentación de la API (`class_info`, `search_api`), los sett
 | GDExtension | `build_extension`, `test_extension`, `install_extension`, `restart_editor` | Para proyectos con una extensión nativa (godot-cpp con SCons o CMake, o gdext con Cargo). `build_extension` la compila y devuelve los errores del compilador por archivo y línea; nunca carga el build en el editor abierto. `test_extension` la prueba en un Godot headless aparte, así un crash mata solo ese proceso, y devuelve los checks que fallaron y, después de un crash, el backtrace. `install_extension` trae la extensión probada desde su proyecto de prueba al juego como addon, solo si los tests pasan. Nada cambia en el editor abierto: los archivos esperan al próximo reinicio. `restart_editor` guarda las escenas y reinicia el editor para que cargue el build nuevo, con el supervisor de crashes por defecto; la sesión del agente sigue después. Probado en Linux; Windows y macOS todavía sin verificar. |
 | Sesiones | `sessions`, `session_send` (lectura) | Con varias sesiones del agente abiertas en el editor: listar las otras (nombre, modo, estado, en qué está cada una, los archivos que edita en su turno actual, cuál tiene el juego corriendo) y mandarle a una un mensaje corto (hasta 4.000 caracteres). El mensaje le llega a ese agente como prompt cuando termina su turno actual, marcado como de quien lo mandó. |
 
+## Herramientas del proyecto
+
+Un proyecto puede sumar herramientas propias en GDScript, para las operaciones de ese juego que al agente le llevarían muchas llamadas (armar un nivel desde una tabla, poblar una base de items, preparar un enemigo). Cada archivo `.gd` de `res://agent_tools/` (la carpeta está en **Settings → Servidores MCP → Avanzado**) es una herramienta que se llama como el archivo: `build_level.gd` es `godot.build_level`.
+
+```gdscript
+@tool
+extends "res://addons/godot_agent/api/agent_tool.gd"
+
+func _description() -> String:
+	return "Places a row of crates in the open scene."
+
+func _parameters() -> Dictionary:
+	return {"properties": {"count": {"type": "integer"}}, "required": ["count"]}
+
+func _run(args: Dictionary, ctx) -> Variant:
+	var parent := EditorInterface.get_edited_scene_root()
+	ctx.undo_redo.create_action("Place crates")
+	for i in args.count:
+		var crate := preload("res://props/crate.tscn").instantiate()
+		crate.position = Vector2(i * 32, 0)
+		ctx.undo_redo.add_do_method(parent, "add_child", crate)
+		ctx.undo_redo.add_do_method(crate, "set_owner", parent)
+		ctx.undo_redo.add_do_reference(crate)
+		ctx.undo_redo.add_undo_method(parent, "remove_child", crate)
+	ctx.undo_redo.commit_action()
+	return "Placed %d crates." % args.count
+```
+
+- El archivo empieza con `@tool` (no se hereda) y no lleva `class_name`. `_parameters()` es un JSON schema; los argumentos se validan contra él antes de `_run`. `_run` puede usar `await` y devuelve texto, una `Image`, un `Dictionary` o `Array` (van como JSON) o `error("por qué")` para una falla que el agente pueda corregir. `ctx` trae `undo_redo` (lo que cambies por ahí se deshace con Ctrl+Z), `project_dir` y `note(texto)` para el log del harness.
+- El agente las encuentra con `godot.methods` (marcadas `[project tool]`) y las llama con `godot.run`; no ocupan lugar en la lista de tools, tampoco con la lista compacta apagada. Una herramienta editada se usa desde la llamada siguiente, sin reiniciar la sesión.
+- **Aprobación en cada máquina**: una herramienta es código que corre dentro del editor, y viene con el proyecto. Solo se carga en una máquina donde se aprobó su código: un aviso nombra las que no, con **Aprobar «nombre»…** (y **Aprobar todas…**), y el diálogo muestra el código antes de permitirlo. La aprobación cubre el archivo de la herramienta y todos los demás `.gd` de la carpeta (los archivos que empiezan con `_` y las subcarpetas son helpers, no herramientas), así que si cambia cualquiera, también cuando lo escribe el agente, vuelve a preguntar. Una herramienta sin aprobar nunca se carga, ni para leer su descripción. La pestaña **Tools** de Extensiones las lista en **Herramientas del proyecto**, con las que no están aprobadas o tienen un error (un nombre de archivo inválido, sin `@tool`, un schema mal armado) y qué arreglar.
+- **Permiso**: cada llamada pasa por el grupo **Herramientas del proyecto**: pregunta en Construir, One-shot y Auto, y se deniega en Preguntar y Revisar, hasta que lo cambies en la matriz. La tarjeta muestra el archivo de la herramienta y sus argumentos.
+- Una herramienta corre en el hilo principal del editor con todo lo que puede un script `@tool`; no hay sandbox ni límite de tiempo (un bucle infinito congela el editor). Los scripts del juego que una herramienta carga desde fuera de su carpeta no entran en la aprobación.
+- El export deja la carpeta afuera (las herramientas extienden un script del addon, que no se exporta), y **Agregar a los presets** la suma al filtro de exclusión de los presets.
+
 ## Detalles
 
 - **Deshacer**: cada edición de escena es un paso del deshacer del editor. La tarjeta de la tool en el chat tiene **↶ deshacer** mientras nadie haya tocado la escena después.

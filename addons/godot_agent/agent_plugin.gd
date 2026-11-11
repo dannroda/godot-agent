@@ -953,6 +953,7 @@ func _start_mcp_server() -> void:
 	_project_tools.log_line = func(text: String) -> void: _log.add(AgentLog.CH_MCP, text)
 	_project_tools.undo_redo = EditorInterface.get_editor_undo_redo()
 	registry.project_tools = _project_tools
+	_project_tools.changed.connect(_on_project_tools_changed)
 	var filesystem := EditorInterface.get_resource_filesystem()
 	if not filesystem.filesystem_changed.is_connected(_on_project_tools_changed):
 		filesystem.filesystem_changed.connect(_on_project_tools_changed)

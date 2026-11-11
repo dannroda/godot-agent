@@ -12,6 +12,11 @@ extends RefCounted
 ## 5. Dos MCP servers del proyecto sin aprobar no van en mcpServers: el aviso (el largo, la primera
 ##    vez) los nombra con «Aprobar…» para cada uno y «Approve all (2)…»; el diálogo muestra los dos
 ##    comandos y aprobar los guarda. No salen en external_mcp_names (la matriz de permisos).
+## m11-46, en la misma sesión:
+## 6. El agente escribe una tool del proyecto (en tests/tmp/agent_tools, la carpeta del loader para el
+##    check): queda frenada, con su aviso y «Aprobar…»; godot.run no la conoce. El diálogo muestra el
+##    código; aprobada, godot.run la corre con el permiso de project_tools (ask en Auto). Editada,
+##    vuelve a quedar frenada sin correr, y sale un aviso nuevo.
 ## La aprobación va a una tienda en memoria (los checks del Xvfb usan los EditorSettings del usuario) y
 ## los checks y servers del proyecto se ponen en memoria y se restauran: no se guarda nada (el aviso
 ## largo de m13-31 vuelve a quedar como estaba).
@@ -23,6 +28,8 @@ const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings
 const TurnChecks := preload("res://addons/godot_agent/core/turn_checks.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
+const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
+const TOOLS_DIR := "res://tests/tmp/agent_tools"
 const SCENARIO := "res://tests/scripts/turn_checks.json"
 const WORK_DIR := "res://tests/tmp/turn_checks"
 const WAIT_MS := 30000
@@ -49,6 +56,8 @@ func run(tree: SceneTree, dock: Control) -> PackedStringArray:
 	var saved := {"checks": config.get(&"turn_checks"), "servers": config.get(&"mcp_servers"),
 		"explained": settings.call(&"get_value", HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, false),
 		"provider": provider, "is_approved": _controller.get(&"is_command_approved"), "approve": _controller.get(&"approve_command")}
+	var loader: Object = plugin.get(&"_project_tools")
+	var saved_tools := {"dir": loader.get(&"dir"), "is_approved": loader.get(&"is_approved")}
 	await _run(plugin, config)
 	_controller.call(&"stop")
 	config.set(&"turn_checks", saved.checks)
@@ -57,6 +66,14 @@ func run(tree: SceneTree, dock: Control) -> PackedStringArray:
 	_controller.set(&"turn_checks_provider", saved.provider)
 	_controller.set(&"is_command_approved", saved.is_approved)
 	_controller.set(&"approve_command", saved.approve)
+	(_controller.get(&"policy") as Object).call(&"clear_session")
+	loader.set(&"dir", saved_tools.dir)
+	loader.set(&"is_approved", saved_tools.is_approved)
+	var tools_dir := ProjectSettings.globalize_path(TOOLS_DIR)
+	DirAccess.remove_absolute(tools_dir.path_join("echo_probe.gd"))
+	DirAccess.remove_absolute(tools_dir.path_join("echo_probe.gd.uid"))
+	DirAccess.remove_absolute(tools_dir)
+	loader.call(&"refresh")
 	return failures
 
 
@@ -176,6 +193,55 @@ func _run(plugin: Object, config: Object) -> void:
 		all_dialog.hide()
 	for server: Dictionary in servers:
 		_expect(store.is_command_approved(ExternalMcpServers.approval_key(project, ExternalMcpServers.normalize(server))), "«%s» quedó aprobado" % server.name)
+
+	# 6. Una tool del proyecto que escribe el agente (m11-46).
+	await _project_tool(plugin, config, store)
+
+
+func _project_tool(plugin: Object, config: Object, store: Object) -> void:
+	config.set(&"turn_checks", [])  # sin checks: el turno de la tool no dispara otro arreglo
+	var loader: Object = plugin.get(&"_project_tools")
+	var registry: Object = plugin.get(&"_registry")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(TOOLS_DIR))
+	loader.set(&"dir", TOOLS_DIR)
+	loader.set(&"is_approved", store.is_command_approved)
+	var call := {"method": "echo_probe", "params": {"text": "hi"}}
+	_dock.call(&"send_text", "write a project tool")
+	if not await _until(func() -> bool: return _notice_with("«echo_probe»") != null, "la tool que escribió el agente no avisó que está frenada"):
+		_dump()
+		return
+	var notice: Object = _notice_with("«echo_probe»")
+	_expect(str(notice.get(&"text")).contains("not approved on this machine"), "el aviso dice por qué · %s" % notice.get(&"text"))
+	var held: Dictionary = await registry.call(&"call_tool", "run", call)
+	_expect(bool(held.isError) and str(held.content[0].text).contains("no method"), "sin aprobar, godot.run no la conoce · %s" % held.content[0].text)
+	var row := (registry.call(&"catalog") as Array).filter(func(entry: Dictionary) -> bool: return entry.name == "echo_probe")
+	_expect(row.size() == 1 and row[0].has("held"), "la pestaña Tools la muestra frenada · %s" % [row])
+	var actions: Array = notice.get(&"actions")
+	_expect(actions.size() == 1, "un «Aprobar…» · %s" % [actions.map(func(a: Dictionary) -> String: return a.label)])
+	if actions.is_empty():
+		return
+	_dock.call(&"_on_action_requested", str(actions[0].id), actions[0].data)
+	await _tree.process_frame
+	var dialog: ConfirmationDialog = null
+	for child: Node in _dock.get_children():
+		if child is ConfirmationDialog and (child as ConfirmationDialog).visible:
+			dialog = child
+	var code := dialog.find_child("Code", true, false) as TextEdit if dialog else null
+	_expect(code != null and code.text.contains("echo_probe.gd") and code.text.contains("return \"echo: \""), "el diálogo muestra la ruta y el código · %s" % (code.text.left(200) if code else "sin diálogo"))
+	if dialog:
+		dialog.confirmed.emit()
+		dialog.hide()
+	var policy: Object = _controller.get(&"policy")
+	_expect(policy.call(&"decide", PermissionPolicy.GROUP_PROJECT_TOOLS, SessionModel.HarnessMode.AUTO) == PermissionPolicy.ASK, "en Auto, project_tools pregunta")
+	policy.call(&"grant_for_session", PermissionPolicy.GROUP_PROJECT_TOOLS)  # la tarjeta, contestada «para la sesión»
+	var result: Dictionary = await registry.call(&"call_tool", "run", call)
+	_expect(not bool(result.isError) and str(result.content[0].text).contains("echo: hi"), "aprobada, godot.run la corre · %s" % [result.content])
+	var path := ProjectSettings.globalize_path(TOOLS_DIR).path_join("echo_probe.gd")
+	_write(path, FileAccess.get_file_as_string(path).replace("echo: ", "changed: "))
+	var edited: Dictionary = await registry.call(&"call_tool", "run", call)
+	_expect(bool(edited.isError), "editada, no corre ni la versión vieja ni la nueva · %s" % [edited.content])
+	var notices := (_model.call(&"entries") as Array).filter(func(e: Object) -> bool: return int(e.get(&"kind")) == 7 and str(e.get(&"text")).contains("«echo_probe»") and str(e.get(&"text")).contains("not approved"))
+	_expect(notices.size() == 2, "y avisa de nuevo · %d avisos" % notices.size())
 
 
 func _write(path: String, text: String) -> void:

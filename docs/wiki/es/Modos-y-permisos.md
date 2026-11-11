@@ -81,6 +81,7 @@ Valores por defecto:
 | Shell / comandos | Denegar | Denegar | Preguntar | Preguntar¹ | Preguntar |
 | Project settings, export y addons | Denegar | Denegar | Preguntar | Permitir | Permitir |
 | Instalar desde el Asset Store | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
+| Herramientas del proyecto | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Subagentes | Permitir | Permitir | Permitir | Permitir | Permitir |
 
 ¹ En Auto, primero deciden las [listas del modo Auto](#modo-auto); solo lo que no permiten muestra una tarjeta.

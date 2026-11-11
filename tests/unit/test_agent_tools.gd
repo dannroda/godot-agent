@@ -165,6 +165,9 @@ func test_registry() -> void:
 	var names := PackedStringArray(registry.list().map(func(entry: Dictionary) -> String: return entry.name))
 	assert_true("methods" in names and "run" in names and not "echo" in names, "tools/list no la trae, pero sí methods y run aunque no sea compacta: %s" % names)
 	var result: Dictionary = await registry.call_tool("run", {"method": "echo", "params": {"text": "hi"}})
+	# La tool esperó un frame: este test sigue adentro de la emisión que la reanudó. Un frame más deja
+	# terminar esa corrutina; si no, su contexto queda vivo cuando run_all sale (falsa fuga).
+	await Engine.get_main_loop().process_frame
 	assert_false(result.isError, "corre: %s" % result.content)
 	assert_true(str(result.content[0].text).contains("echo: hi"), "con await y el resultado: %s" % result.content[0].text)
 	assert_eq(asked[0][0], PermissionPolicy.GROUP_PROJECT_TOOLS, "pide el permiso del grupo project_tools")
@@ -181,6 +184,21 @@ func test_registry() -> void:
 	_approve_all(loader)
 	var reloaded: Dictionary = await registry.call_tool("run", {"method": "echo", "params": {"text": "hi"}})
 	assert_true(str(reloaded.content[0].text).contains("ECHO"), "aprobada de nuevo, corre la versión nueva: %s" % reloaded.content[0].text)
+
+
+func test_helpers_reload() -> void:
+	var dir := _clean("project_tools_helpers")
+	_write(dir.path_join("_helpers/words.gd"), "extends RefCounted\nconst WORD := \"first\"\n")
+	_write(dir.path_join("word.gd"), _tool_source("Says the word.", "\treturn preload(\"%s\").WORD" % dir.path_join("_helpers/words.gd"), "{}"))
+	var loader := _loader(dir)
+	loader.refresh()
+	_approve_all(loader)
+	assert_eq(await (loader.tools()[0] as McpTool).handler.call({}), "first", "usa el helper")
+	_write(dir.path_join("_helpers/words.gd"), "extends RefCounted\nconst WORD := \"second\"\n")
+	loader.refresh()
+	assert_eq(loader.tools().size(), 0, "con el helper cambiado, frenada")
+	_approve_all(loader)
+	assert_eq(await (loader.tools()[0] as McpTool).handler.call({}), "second", "aprobada de nuevo, con el helper nuevo")
 
 
 func test_permission_group() -> void:

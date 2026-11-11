@@ -1,5 +1,5 @@
 {
-	"_about": "m11-31 checks-test: in Auto the agent leaves target.gd 'broken'; the project's Lint check fails and its output comes back as a TURN_CHECK prompt; the second turn fixes the file and the checks pass.",
+	"_about": "m11-31 checks-test: in Auto the agent leaves target.gd 'broken'; the project's Lint check fails and its output comes back as a TURN_CHECK prompt; the second turn fixes the file and the checks pass. m11-46: the third turn writes a project tool, which stays held until it is approved.",
 	"turns": [
 		{"steps": [
 			{"chunk": "Writing the target."},
@@ -10,6 +10,11 @@
 			{"delay": 3},
 			{"chunk": "Fixed what Lint reported."},
 			{"request": {"method": "fs/write_text_file", "params": {"path": "{project}/tests/tmp/turn_checks/target.gd", "content": "extends Node\nvar state := \"fine\"\n"}}},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Writing a project tool."},
+			{"request": {"method": "fs/write_text_file", "params": {"path": "{project}/tests/tmp/agent_tools/echo_probe.gd", "content": "@tool\nextends \"res://addons/godot_agent/api/agent_tool.gd\"\n\nfunc _description() -> String:\n\treturn \"Echoes the text back. For the checks-test.\"\n\nfunc _parameters() -> Dictionary:\n\treturn {\"properties\": {\"text\": {\"type\": \"string\"}}, \"required\": [\"text\"]}\n\nfunc _run(args: Dictionary, ctx: RefCounted) -> Variant:\n\treturn \"echo: \" + str(args.text)\n"}}},
 			{"stop": "end_turn"}
 		]}
 	]
