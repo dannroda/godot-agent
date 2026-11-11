@@ -944,6 +944,13 @@ func _update_send_button() -> void:
 		_send_button.disabled = not _input.editable or _input.text.strip_edges().is_empty()
 
 
+## El último cambio de compactación (de, a, cuándo): ver _fit_row.
+const FIT_SETTLE_MS := 250
+var _last_fit_from: int = -1
+var _last_fit_to: int = -1
+var _last_fit_msec: int = 0
+
+
 func _queue_fit() -> void:
 	if _fit_queued or _row == null:
 		return
@@ -969,6 +976,16 @@ func _fit_row() -> void:
 		level += 1
 	if level == _compact_level:
 		return
+	# Sin vaivén: en 4.8 el ancho disponible se mide antes de que la fila se reacomode, así que
+	# compactar hace que la medida siguiente diga que entra, descompactar que no entra, y así sin fin
+	# (llena la cola de mensajes y el editor se cae). Deshacer el último cambio enseguida no se hace;
+	# un cambio de ancho de verdad (mover el divisor) vuelve a pedir el ajuste después.
+	var now := Time.get_ticks_msec()
+	if level == _last_fit_from and _compact_level == _last_fit_to and now - _last_fit_msec < FIT_SETTLE_MS:
+		return
+	_last_fit_from = _compact_level
+	_last_fit_to = level
+	_last_fit_msec = now
 	_compact_level = level
 	_meter.visible = level < 2
 	_plan_button.visible = _plan_available and level < 3
