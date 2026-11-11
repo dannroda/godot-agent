@@ -686,6 +686,13 @@ func note_for_agent(text: String) -> void:
 	_note_for_agent = text if _note_for_agent.is_empty() else _note_for_agent + "\n" + text
 
 
+## Saca una nota que todavía no salió («Deshacer» de /remember, m11-36).
+func drop_note_for_agent(text: String) -> void:
+	if text.is_empty():
+		return
+	_note_for_agent = _note_for_agent.replace("\n" + text, "").replace(text + "\n", "").replace(text, "")
+
+
 ## Después de un turno de Construir o Auto, valida los scripts que cambiaron. Si alguno no parsea,
 ## se lo devuelve al agente en un turno nuevo (hasta MAX_FIX_TURNS seguidos) o, si no se puede
 ## (tope, cola del usuario esperando, otro turno en curso), lo deja como aviso en el chat.

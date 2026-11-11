@@ -53,9 +53,14 @@ func update_notes(added: PackedStringArray, stale: PackedStringArray) -> void:
 		var line := note.replace("\n", " ").strip_edges()
 		if not line.is_empty() and not line in kept:
 			kept.append(line)
+	set_notes(kept)
+
+
+## Reescribe las notas (la pestaña Memoria las edita y borra una por una, m11-36).
+func set_notes(kept: PackedStringArray) -> void:
 	var text := "# What playtests verified about this game\n\n"
 	for note: String in kept:
-		text += "- %s\n" % note
+		text += "- %s\n" % note.replace("\n", " ").strip_edges()
 	_write(NOTES_FILE, text)
 
 
@@ -74,6 +79,15 @@ func mark_not_a_bug(signature: String) -> void:
 		_write(NOT_A_BUG_FILE, JSON.stringify(list, "\t"))
 
 
+## Vuelve a mostrar ese hallazgo (la pestaña Memoria, m11-36).
+func unmark_not_a_bug(signature: String) -> void:
+	var list := not_a_bug()
+	var at := list.find(signature)
+	if at >= 0:
+		list.remove_at(at)
+		_write(NOT_A_BUG_FILE, JSON.stringify(list, "\t"))
+
+
 # --- scripts que sirvieron ----------------------------------------------------------------------------
 
 func save_script(code: String) -> void:
@@ -88,6 +102,21 @@ func save_script(code: String) -> void:
 	files.sort_custom(func(a: String, b: String) -> bool: return FileAccess.get_modified_time(dir.path_join(a)) > FileAccess.get_modified_time(dir.path_join(b)))
 	for old: String in files.slice(SCRIPTS_KEPT):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(dir.path_join(old)))
+
+
+## Los scripts guardados, el más nuevo primero (rutas res://).
+func scripts() -> PackedStringArray:
+	var dir := base.path_join(SCRIPTS_DIR)
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(dir)):
+		return PackedStringArray()
+	var files := Array(DirAccess.get_files_at(dir))
+	files.sort_custom(func(a: String, b: String) -> bool: return FileAccess.get_modified_time(dir.path_join(a)) > FileAccess.get_modified_time(dir.path_join(b)))
+	return PackedStringArray(files.map(func(f: String) -> String: return dir.path_join(f)))
+
+
+func remove_script(path: String) -> void:
+	if path.get_base_dir() == base.path_join(SCRIPTS_DIR):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 # --- qué cambió -------------------------------------------------------------------------------------

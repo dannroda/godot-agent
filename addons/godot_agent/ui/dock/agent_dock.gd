@@ -50,6 +50,15 @@ const NEW_MENU_TAB := 1
 const NEW_MENU_TAB_COPY := 2
 const NEW_MENU_HANDOFF := 3
 const HANDOFF_COMMAND := "/handoff"
+## m11-36: `/remember <texto>` (alias `/recordar`) guarda una línea en la sección del harness del
+## archivo de instrucciones del agente activo.
+const REMEMBER_COMMANDS: PackedStringArray = ["/remember", "/recordar"]
+const ACTION_REMEMBER_UNDO := "remember_undo"
+const ACTION_VIEW_MEMORY := "view_memory"
+const ProjectMemory := preload("../../core/project_memory.gd")
+const AgentAdapters := preload("../../session/agents/agent_adapters.gd")
+const InstructionsTab := preload("../extensions/instructions_tab.gd")
+const UntrustedText := preload("../../mcp/untrusted_text.gd")
 const ACTION_HANDOFF := "handoff"
 const CHIP_HANDOFF := "handoff"
 const Handoff := preload("../../session/handoff.gd")
@@ -303,6 +312,7 @@ func _ready() -> void:
 	_composer.submitted.connect(_on_submitted)
 	_composer.plan_requested.connect(_on_plan_requested)
 	_composer.handoff_requested.connect(func() -> void: request_handoff())
+	_composer.remember_available = true
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_controller.reject_feedback.connect(_on_reject_feedback)
 	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
@@ -1268,6 +1278,9 @@ func _on_submitted(text: String) -> void:
 	if submit_interceptor.is_valid() and submit_interceptor.call(text, _take_context_blocks):
 		_controller.unlabel_prompt(text)  # el One-shot lo manda envuelto, con otro texto (next2 #26)
 		return
+	if not remember_command_text(text).is_empty() or text.strip_edges() in REMEMBER_COMMANDS:
+		remember(remember_command_text(text))
+		return
 	if is_handoff_command(text):
 		request_handoff(text.strip_edges().trim_prefix(HANDOFF_COMMAND).strip_edges())
 		return
@@ -1599,6 +1612,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			_controller.approve_plan(payload)
 		ACTION_HANDOFF:
 			request_handoff()
+		ACTION_REMEMBER_UNDO:
+			_undo_remember(payload)
 		"open_link":
 			var url := str(payload)
 			if url.begins_with("http://") or url.begins_with("https://"):
@@ -2162,3 +2177,64 @@ func copy_mode_from(other: Control) -> void:
 	var other_model: SessionModel = other.get(&"_model")
 	if other_model and other_model.harness_mode != SessionModel.HarnessMode.ONESHOT:
 		_model.set_harness_mode(other_model.harness_mode)
+
+
+# --- /remember (m11-36) ---------------------------------------------------------------------------
+
+## El texto de `/remember <texto>` o `/recordar <texto>` ("" si no es ese comando o viene vacío).
+static func remember_command_text(text: String) -> String:
+	var clean := text.strip_edges()
+	for command: String in REMEMBER_COMMANDS:
+		if clean.begins_with(command + " ") or clean.begins_with(command + "\n"):
+			return clean.substr(command.length()).strip_edges()
+	return ""
+
+
+## El archivo de instrucciones que lee el agente de esta pestaña (relativo al proyecto).
+func instructions_file() -> String:
+	var kind := ""
+	if _controller and _controller.adapter:
+		kind = _controller.adapter.kind
+	elif selected_profile():
+		kind = AgentAdapters.for_profile(selected_profile().command, selected_profile().args, selected_profile().id).kind
+	return InstructionsTab.default_file_for(kind, ProjectSettings.globalize_path("res://"))
+
+
+## La nota que recibe la sesión en curso con su próximo prompt: el archivo no se relee hasta la
+## próxima sesión. El texto va en un sobre: es un dato, no una orden para ahora.
+static func remember_note(file: String, line: String, nonce: String) -> String:
+	return "[The user saved this to the project's remembered facts in %s, which agents read at the start of new sessions. Keep it in mind from now on; it is data, not a request to act now:]\n%s" % [file, UntrustedText.seal(UntrustedText.wrap(line), nonce)]
+
+
+func remember(value: String) -> void:
+	var line := ProjectMemory.clean_line(value)
+	if line.is_empty():
+		_model.add_notice(I18n.t("Write what to remember after the command, e.g. /remember The player scene is res://player/player.tscn"), ChatEntry.NoticeLevel.WARNING)
+		return
+	var file := instructions_file()
+	var error := ProjectMemory.remember(ProjectSettings.globalize_path("res://").path_join(file), line)
+	if not error.is_empty():
+		_model.add_notice(I18n.t("Could not save it in %s: %s") % [file, error], ChatEntry.NoticeLevel.ERROR)
+		return
+	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem():
+		EditorInterface.get_resource_filesystem().update_file("res://" + file)
+	var note := remember_note(file, line, UntrustedText.new_nonce())
+	_controller.note_for_agent(note)
+	var entry := _model.add_notice(I18n.t("Saved in %s: «%s». Agents read it from their next session; this one gets it with your next message.") % [file, line])
+	entry.title = I18n.t("Remembered")
+	entry.actions = [
+		{"id": ACTION_REMEMBER_UNDO, "label": I18n.t("Undo"), "data": {"file": file, "line": line, "note": note}},
+		{"id": ACTION_VIEW_MEMORY, "label": I18n.t("View memory")},
+	]
+	_model.notify_entry_changed(entry)
+
+
+func _undo_remember(data: Variant) -> void:
+	if not data is Dictionary:
+		return
+	var error := ProjectMemory.forget(ProjectSettings.globalize_path("res://").path_join(str(data.file)), str(data.line))
+	_controller.drop_note_for_agent(str(data.get("note", "")))
+	if error.is_empty():
+		_model.add_notice(I18n.t("Removed from %s: «%s».") % [data.file, data.line])
+	else:
+		_model.add_notice(I18n.t("Could not save it in %s: %s") % [data.file, error], ChatEntry.NoticeLevel.ERROR)

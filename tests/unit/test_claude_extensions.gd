@@ -149,7 +149,8 @@ func test_window_builds_offline() -> void:
 	window.addon_servers_provider = func() -> Array: return [{"name": "db", "enabled": true}]
 	window.call(&"_rebuild_all")
 	var tabs: TabContainer = window.get(&"_tabs")
-	assert_eq(tabs.get_tab_count(), 7, "siete pestañas (con Instructions y Tools)")
+	assert_eq(tabs.get_tab_count(), 8, "ocho pestañas (con Instructions, Tools y Memory)")
+	assert_eq(tabs.get_tab_title(7), "Memory", "la de memoria (m11-36), al final")
 	assert_eq(tabs.get_tab_title(3), "Skills", "la de skills")
 	assert_eq(tabs.get_tab_title(4), "Project addons", "la de los addons del proyecto")
 	assert_eq(tabs.get_tab_title(0), "Plugins (1)", "cuenta en el título")

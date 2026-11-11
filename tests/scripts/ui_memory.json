@@ -1,0 +1,10 @@
+{
+	"turns": [
+		{
+			"steps": [
+				{"chunk": "Lo tengo en cuenta."},
+				{"stop": "end_turn"}
+			]
+		}
+	]
+}
