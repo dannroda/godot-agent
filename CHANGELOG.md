@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-11-11
+
 ### Added
 
 - A playtest that passes now says it was **saved as a regression** and offers **Run regressions (N)** and **CI workflow…** right in the verdict; the first time, a short notice explains what regressions are, where they live and that the CI workflow runs them on every push.
