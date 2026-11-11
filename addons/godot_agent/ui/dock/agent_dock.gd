@@ -28,6 +28,7 @@ signal action_forwarded(action: String, payload: Variant)
 ## borrador en su composer. `handoff` como Handoff.build (más `path` si se guardó).
 signal handoff_ready(handoff: Dictionary)
 
+const SessionExportDialog := preload("session_export_dialog.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const FirstRunGuide := preload("first_run_guide.gd")
@@ -68,6 +69,7 @@ const MORE_SETTINGS := 1
 const MORE_REMOTE := 2
 const MORE_LOGOUT := 3
 const MORE_TOOLS := 4
+const MORE_EXPORT := 5
 ## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
 const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
@@ -631,6 +633,9 @@ func _fill_more_menu() -> void:
 	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
 	popup.add_icon_item(AgentTheme.icon(&"Help"), I18n.t("What the agent can do (tools)…"), MORE_TOOLS)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("The editor tools the agent has, by function, with what each asks for in each mode."))
+	popup.add_icon_item(AgentTheme.icon(&"Save"), I18n.t("Export session…"), MORE_EXPORT)
+	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Saves this conversation as Markdown with its game captures, to share. You see a preview and choose what to take out first."))
+	popup.set_item_disabled(popup.item_count - 1, _model.entries().is_empty())
 	var ready := _model.state == SessionModel.SessionState.READY
 	if _remote_banner.can_turn_on() or _can_logout():
 		popup.add_separator()
@@ -656,6 +661,41 @@ func _on_more_selected(id: int) -> void:
 			_remote_banner.turn_on()
 		MORE_LOGOUT:
 			_confirm_logout()
+		MORE_EXPORT:
+			open_export_dialog()
+
+
+## «Export session…» (m11-32): la vista previa con qué sacar; al guardar, avisa y abre la carpeta.
+func open_export_dialog() -> SessionExportDialog:
+	var dialog := SessionExportDialog.new()
+	add_child(dialog)
+	dialog.setup(_model, export_context())
+	dialog.saved.connect(func(path: String) -> void:
+		if path.is_empty():
+			_model.add_notice(I18n.t("Could not save the export in %s.") % SessionExportDialog.SessionExport.DIR, ChatEntry.NoticeLevel.ERROR)
+			return
+		_model.add_notice(I18n.t("Session exported to %s.") % path.get_base_dir())
+		if not DisplayServer.get_name() == "headless":
+			OS.shell_show_in_file_manager(ProjectSettings.globalize_path(path)))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free())
+	dialog.popup_centered()
+	return dialog
+
+
+## Lo que el export necesita para sacar datos personales: rutas del proyecto y de la carpeta
+## personal, el email de la cuenta y los secretos del Agent Log.
+func export_context() -> Dictionary:
+	var project := str(ProjectSettings.get_setting("application/config/name", "")).strip_edges()
+	var title := _model.title if not _model.title.is_empty() else I18n.t("(untitled)")
+	var home := OS.get_environment("HOME") if OS.has_environment("HOME") else OS.get_environment("USERPROFILE")
+	var emails := PackedStringArray()
+	if not str(_model.account.get("email", "")).is_empty():
+		emails.append(str(_model.account.email))
+	return {"title": "%s · %s · %s" % [title, project if not project.is_empty() else "Godot", Time.get_date_string_from_system()],
+		"project": ProjectSettings.globalize_path("res://"), "home": home, "emails": emails,
+		"redact": _controller.agent_log.redact if _controller and _controller.agent_log else Callable()}
 
 
 func _confirm_logout() -> void:

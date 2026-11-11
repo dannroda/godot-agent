@@ -21,7 +21,30 @@ func run(tree: SceneTree, plugin: Object, dock: Control, shot_path: String) -> A
 		failures.append("no se encontró el plugin principal")
 		return failures
 	await _check_handoff(plugin, dock, shot_path)
+	await _check_export(dock, shot_path)
 	return failures
+
+
+## m11-32: «Export session…» de la pestaña con la conversación de este check: la vista previa trae
+## los pedidos y no la ruta absoluta del proyecto; guardar deja session.md en .godot_agent/reports.
+func _check_export(dock: Control, shot_path: String) -> void:
+	var dialog: Window = dock.call(&"open_export_dialog")
+	await _tree.process_frame
+	var preview := str(dialog.call(&"preview_text"))
+	_expect(dialog.visible and preview.contains("## You") and preview.contains("Seguí con el menú"), "export: la vista previa trae la conversación: %s" % preview.left(200))
+	_expect(not preview.contains(ProjectSettings.globalize_path("res://")), "export: sin la ruta absoluta del proyecto")
+	if not shot_path.is_empty():
+		dock.get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_export.png")
+	var saved: Array[String] = []
+	dialog.connect(&"saved", func(path: String) -> void: saved.append(path))
+	dialog.call(&"save")
+	dialog.hide()
+	_expect(saved.size() == 1 and FileAccess.get_file_as_string(saved[0]) == preview, "export: guarda lo que mostró · %s" % [saved])
+	if saved.size() == 1:
+		var dir := saved[0].get_base_dir()
+		for file: String in DirAccess.get_files_at(dir):
+			DirAccess.remove_absolute(dir.path_join(file))
+		DirAccess.remove_absolute(dir)
 
 
 func _expect(ok: bool, message: String) -> void:

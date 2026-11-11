@@ -5480,3 +5480,36 @@ msgstr "se cortó: el agente repetía %s sin avanzar"
 
 msgid "The agent made the same calls %d times in a row and the game answered the same every time, so the harness stopped the playtest."
 msgstr "El agente hizo las mismas llamadas %d veces seguidas y el juego respondió lo mismo cada vez, así que el harness cortó el playtest."
+
+msgid "Export session"
+msgstr "Exportar sesión"
+
+msgid "Export session…"
+msgstr "Exportar sesión…"
+
+msgid "Saves this conversation as Markdown with its game captures, to share. You see a preview and choose what to take out first."
+msgstr "Guarda esta conversación como Markdown con sus capturas del juego, para compartirla. Antes ves una vista previa y elegís qué sacar."
+
+msgid "A Markdown file with the requests, the answers, the tool calls and the game captures, to share. Check what to take out; the preview shows what will be saved. Secrets such as the MCP token are always removed."
+msgstr "Un archivo Markdown con los pedidos, las respuestas, las tool calls y las capturas del juego, para compartir. Marcá qué sacar; la vista previa muestra lo que se va a guardar. Los secretos, como el token del server MCP, salen siempre."
+
+msgid "Remove absolute paths (%d)"
+msgstr "Sacar las rutas absolutas (%d)"
+
+msgid "Remove email addresses (%d)"
+msgstr "Sacar los emails (%d)"
+
+msgid "Remove content from outside the project: game, scenes, web (%d)"
+msgstr "Sacar el contenido de afuera del proyecto: juego, escenas, web (%d)"
+
+msgid "What tools brought from the game, the project's scenes or the internet. It can carry names and text you didn't write."
+msgstr "Lo que las tools trajeron del juego, de las escenas del proyecto o de internet. Puede traer nombres y texto que no escribiste."
+
+msgid "Remove the captures (%d)"
+msgstr "Sacar las capturas (%d)"
+
+msgid "Could not save the export in %s."
+msgstr "No se pudo guardar el export en %s."
+
+msgid "Session exported to %s."
+msgstr "Sesión exportada en %s."
