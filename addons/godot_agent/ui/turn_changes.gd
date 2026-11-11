@@ -161,10 +161,14 @@ func reject_hunk(data: Dictionary, path: String, index: int, undo: bool = false)
 			return I18n.t("That change is no longer there.")
 		var change: Dictionary = changes[index]
 		if not change.rejectable:
-			return I18n.t("This kind of scene change can't be rejected on its own yet: use «Go back» for the whole file.")
+			return I18n.t("This scene change can't be rejected on its own (it is in a resource that other nodes use too): use «Go back» for the whole file.")
 		var done := SceneRevert.apply(_read(snapshots, path), change, undo)
 		if not done.ok:
 			return I18n.t("That changed in the scene after the turn: use «Go back» for the whole file.")
+		# Red de seguridad (m11-59): lo que queda tiene que cargar como escena, con el nodo donde va.
+		var problem := SceneRevert.validate(done.text, done.expect)
+		if not problem.is_empty():
+			return I18n.t("Could not revert: the scene would not load that way (%s). Nothing was written.") % problem
 		var file := FileAccess.open(snapshots.git.root.path_join(path), FileAccess.WRITE)
 		if file == null:
 			return I18n.t("Could not write %s.") % path

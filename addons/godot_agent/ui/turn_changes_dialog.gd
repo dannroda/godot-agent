@@ -231,7 +231,7 @@ func _hunk_card(path: String, item: Dictionary, enabled: bool) -> VBoxContainer:
 	reject.disabled = not enabled or item.stale or not rejectable
 	reject.tooltip_text = I18n.t("Put this change back in the file.") if rejected else I18n.t("Undo this change in the file. What changed elsewhere in the file stays.")
 	if not rejectable:
-		reject.tooltip_text = I18n.t("This kind of scene change can't be rejected on its own yet: use «Go back» for the whole file.")
+		reject.tooltip_text = I18n.t("This scene change can't be rejected on its own (it is in a resource that other nodes use too): use «Go back» for the whole file.")
 	reject.pressed.connect(func() -> void:
 		reject.disabled = true
 		hunk_action.emit(_data, path, index, "undo" if rejected else "reject"))
@@ -268,11 +268,11 @@ static func scene_bbcode(change: Dictionary) -> String:
 	var added := AgentTheme.color_hex(AgentTheme.ADDED)
 	if change.has("shown_before") or change.has("shown_after"):
 		return "[color=%s]%s[/color] → [color=%s]%s[/color]" % [removed, _value(change.get("shown_before")), added, _value(change.get("shown_after"))]
-	if change.get("kind") == "added":
+	if change.get("kind") in ["added", "removed"]:
 		var type := MarkdownBBCode.escape(str(change.get("type", "")))
 		var children := int(change.get("children", 0))
 		var below := "" if children == 0 else " · " + (I18n.t("with 1 node below") if children == 1 else I18n.t("with %d nodes below") % children)
-		return "[color=%s]%s%s[/color]" % [added, type, below]
+		return "[color=%s]%s%s[/color]" % [added if change.kind == "added" else removed, type, below]
 	return ""
 
 

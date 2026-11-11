@@ -5094,8 +5094,11 @@ msgstr "Solo con «Volver atrás»"
 msgid "That changed in the scene after the turn: use «Go back» for the whole file."
 msgstr "Eso cambió en la escena después del turno: usá «Volver atrás» para el archivo entero."
 
-msgid "This kind of scene change can't be rejected on its own yet: use «Go back» for the whole file."
-msgstr "Este tipo de cambio de escena todavía no se puede rechazar solo: usá «Volver atrás» para el archivo entero."
+msgid "This scene change can't be rejected on its own (it is in a resource that other nodes use too): use «Go back» for the whole file."
+msgstr "Este cambio de escena no se puede rechazar solo (está en un recurso que usan otros nodos): usá «Volver atrás» para el archivo entero."
+
+msgid "Could not revert: the scene would not load that way (%s). Nothing was written."
+msgstr "No se pudo revertir: así la escena no cargaría (%s). No se escribió nada."
 
 msgid "1 file"
 msgstr "1 archivo"
