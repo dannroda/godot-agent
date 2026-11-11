@@ -310,7 +310,15 @@ func test_add_menu_and_meter() -> void:
 	tree.root.add_child(composer)
 	await tree.process_frame
 	var menu: MenuButton = composer.get(&"_add_menu")
-	assert_eq(menu.get_popup().item_count, 3, "nodo o archivo, imagen y comando")
+	assert_eq(menu.get_popup().item_count, 4, "nodo o archivo, imagen, comando y planificar (m11-58)")
+	var plan_index := menu.get_popup().get_item_index(3)
+	assert_true(menu.get_popup().is_item_disabled(plan_index), "«Planificar» apagado sin sesión libre")
+	assert_false((composer.get(&"_plan_button") as Control).visible, "y sin el ícono")
+	composer.call(&"set_plan_available", true)
+	assert_false(menu.get_popup().is_item_disabled(plan_index), "con la sesión libre se ofrece")
+	await tree.process_frame
+	assert_true((composer.get(&"_plan_button") as Control).visible, "con su ícono al lado del modo")
+	composer.call(&"set_plan_available", false)
 	assert_false((composer.get(&"_mention_button") as Control).visible, "sin el @ suelto")
 	var input: CodeEdit = composer.get(&"_input")
 	menu.get_popup().id_pressed.emit(0)

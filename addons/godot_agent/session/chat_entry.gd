@@ -44,6 +44,8 @@ var created_unix: float = 0.0
 ## AGENT: el harness ya leyó su bloque `findings` (modo Revisar) y el chat lo muestra plegado con
 ## esta cantidad de hallazgos (m12-38); -1 = no hubo bloque leído.
 var findings_count: int = -1
+## AGENT: su bloque ```plan ya es una tarjeta de plan (m11-58): el mensaje lo muestra como una línea.
+var plan_folded: bool = false
 ## Imágenes u otros bloques no textuales adjuntos (USER).
 var attachments: Array[Dictionary] = []
 ## USER que mandó el harness, no el usuario (m12-44): el msgid en inglés de su etiqueta (ver

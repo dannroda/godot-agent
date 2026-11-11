@@ -41,6 +41,9 @@ var edited_plan: String = ""
 var deny_reason: String = ""
 ## El plan se aprobó con «Aprobar y construir» (el harness pasó a Construir).
 var plan_approved: bool = false
+## El plan vino en un bloque ```plan al final del turno (m11-58): la tarjeta es del harness y no
+## contesta ningún pedido del agente.
+var from_block: bool = false
 
 
 func is_plan() -> bool:

@@ -9,8 +9,9 @@ extends "entry_view.gd"
 
 const CodeBlockView := preload("../../markdown/code_block_view.gd")
 const FindingsParser := preload("../../../review/findings_parser.gd")
+const PlanApproval := preload("../../../session/plan_approval.gd")
 
-enum SegmentKind { TEXT, CODE, FINDINGS, CHECKS }
+enum SegmentKind { TEXT, CODE, FINDINGS, CHECKS, PLAN }
 
 var _toggle: Button
 var _label: RichTextLabel  # solo en los thoughts
@@ -75,6 +76,8 @@ func _flush() -> void:
 		if block.has("code"):
 			if entry.findings_count >= 0 and FindingsParser.is_findings_block(block.code):
 				kind = SegmentKind.FINDINGS
+			elif entry.plan_folded and str(block.get("language", "")) == PlanApproval.BLOCK_LANGUAGE:
+				kind = SegmentKind.PLAN
 			else:
 				report = _report_for(i, block.code)
 				kind = SegmentKind.CODE if report.is_empty() else SegmentKind.CHECKS
@@ -91,6 +94,8 @@ func _flush() -> void:
 					child = _make_findings_fold()
 				SegmentKind.CHECKS:
 					child = _make_report_fold()
+				SegmentKind.PLAN:
+					child = _make_plan_line()
 				_:
 					child = _make_text_label()
 					child.add_theme_stylebox_override(&"normal", StyleBoxEmpty.new())
@@ -103,6 +108,8 @@ func _flush() -> void:
 				_update_findings_fold(child, block)
 			SegmentKind.CHECKS:
 				_update_report_fold(child, block, report)
+			SegmentKind.PLAN:
+				pass
 			_:
 				if (child as RichTextLabel).text != block.bbcode:
 					(child as RichTextLabel).text = block.bbcode
@@ -117,7 +124,19 @@ func _kind_of(child: Control) -> SegmentKind:
 		return SegmentKind.FINDINGS
 	if child.has_meta(&"report_fold"):
 		return SegmentKind.CHECKS
+	if child.has_meta(&"plan_line"):
+		return SegmentKind.PLAN
 	return SegmentKind.CODE if child is CodeBlockView else SegmentKind.TEXT
+
+
+## El bloque ```plan que ya es una tarjeta de plan (m11-58): el plan sale una sola vez, en la tarjeta.
+func _make_plan_line() -> Label:
+	var line := Label.new()
+	line.set_meta(&"plan_line", true)
+	line.text = "▸ " + I18n.t("Plan presented · in the card below")
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	line.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	return line
 
 
 ## Una línea «▸ 2 findings · …» que abre el JSON en su caja de código.

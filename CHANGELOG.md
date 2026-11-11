@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Added
 
 - When the agent presents a plan from its plan mode (Claude Code's ExitPlanMode, in Ask or Review), the dock shows it as a plan card instead of a generic permission. **Approve and build** switches to Build mode and lets the agent start; its edits still ask for permission as in Build, and the agent's auto, bypass and *clear context* options are not offered. **Edit** lets you change the plan, with a live +N −M count, and sends the agent your changed lines and the whole plan so it presents it again. **Keep planning…** sends it a reason instead. Approved plans are saved in `.godot_agent/plans/`. The plan card doesn't time out. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#approving-the-agents-plan).
+- **Plan** (an icon next to the mode selector, also in the **+** menu) and `/plan <request>` ask the agent for a plan before building. The plan has playable criteria, the design in Godot terms and numbered tasks. The session switches to Ask. Claude Code presents the plan with the plan card. Agents without a plan mode end their answer with a ` ```plan ` block, and the harness turns it into the same card: edit it, send it back with a reason, or approve it to build in Build mode, with the plan saved in `.godot_agent/plans/`. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#asking-for-a-plan-plan-and-plan).
 - **Deny with reason…** on every permission card: it denies, stops the agent's turn and sends it your reason right away, shown as a dimmed harness line. Without it the agent only learns it was denied, and Claude Code keeps trying in the same turn.
 
 ## [0.1.20] - 2026-11-11
@@ -29,6 +30,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Fixed
 
+- Starting a session with an agent that has no modes, after one that had them in the same tab, kept the previous agent's modes, and the harness kept asking the new agent to switch to them.
 - With Claude Code, a `godot.*` call that took more than about 60 seconds failed with "The operation timed out": a long `run_scene` or `profile_run` (up to 120 s), a GDExtension build or test, or any call while its permission card waited for you. A call that takes longer than 2 seconds now streams its answer and reports progress every 10 seconds, so it runs to the end. A call still running after 30 minutes answers with an error instead.
 - The One-shot form no longer gets clipped on both sides when the dock is wide and the editor's center is narrow: the example goals wrap instead of forcing the form wider than the space it has.
 - The findings panel counts say "1 bug" and "2 bugs", with the category name written out ("2 performance" rather than "2 perf"), and the chips wrap in a narrow dock.

@@ -18,6 +18,8 @@ signal context_chip_removed(chip_id: String)
 signal image_pasted(image: Image)
 ## Rutas absolutas o res:// pegadas o arrastradas.
 signal files_attached(paths: PackedStringArray)
+## «Planificar» (m11-58): el dock pide el plan con lo que haya escrito.
+signal plan_requested
 
 const AgentTheme := preload("../agent_theme.gd")
 const SuggestionList := preload("suggestion_list.gd")
@@ -70,6 +72,14 @@ var _add_menu: MenuButton
 const ADD_MENTION := 0
 const ADD_IMAGE := 1
 const ADD_COMMAND := 2
+const ADD_PLAN := 3
+const PLAN_TOOLTIP := "Plan before building: the agent writes a plan that you approve, edit or send back (/plan). What you wrote here is what it plans."  # i18n
+## Los comandos que resuelve el harness (no van al agente): primeros en el menú de /.
+const HARNESS_COMMANDS: Array[Dictionary] = [
+	{"name": "plan", "description": "Ask for a plan to approve before building (harness)"},  # i18n
+]
+var _plan_button: Button
+var _plan_available: bool = false
 ## Desde este uso del contexto, el porcentaje de la fila se pinta de advertencia.
 const METER_SHOW_RATIO := 0.8
 var _mode_button: OptionButton
@@ -180,9 +190,14 @@ func _ready() -> void:
 	add_popup.add_item(I18n.t("Image of the game"), ADD_IMAGE)
 	add_popup.set_item_tooltip(1, I18n.t(SCREENSHOT_TOOLTIP))
 	add_popup.add_item(I18n.t("Agent command (/)"), ADD_COMMAND)
+	add_popup.add_item(I18n.t("Plan before building (/plan)"), ADD_PLAN)
+	add_popup.set_item_tooltip(add_popup.get_item_index(ADD_PLAN), I18n.t(PLAN_TOOLTIP))
+	add_popup.set_item_disabled(add_popup.get_item_index(ADD_PLAN), true)
 	add_popup.id_pressed.connect(func(id: int) -> void:
 		if id == ADD_IMAGE:
 			screenshot_requested.emit()
+		elif id == ADD_PLAN:
+			plan_requested.emit()
 		else:
 			_insert_prefix("@" if id == ADD_MENTION else "/"))
 	row.add_child(_add_menu)
@@ -194,6 +209,13 @@ func _ready() -> void:
 	_meter.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_meter.tooltip_text = I18n.t("Context used")
 	row.add_child(_meter)
+	_plan_button = _icon_button("", I18n.t(PLAN_TOOLTIP), func() -> void: plan_requested.emit())
+	_plan_button.name = "PlanButton"
+	_plan_button.icon = AgentTheme.icon(&"FileList")
+	if _plan_button.icon == null:
+		_plan_button.text = "☰"
+	_plan_button.visible = false
+	row.add_child(_plan_button)
 	_mode_button = OptionButton.new()
 	_mode_button.flat = true
 	_mode_button.fit_to_longest_item = false
@@ -434,6 +456,19 @@ func add_status_control(control: Control) -> void:
 	_meter.get_parent().add_child(control)
 	_meter.get_parent().move_child(control, _meter.get_index())
 	control.visibility_changed.connect(_queue_fit)
+	_queue_fit()
+
+
+## «Planificar» se ofrece (sesión libre, fuera del One-shot): el ícono al lado del modo y el ítem del «+».
+func set_plan_available(available: bool) -> void:
+	if _plan_button == null:
+		return
+	var popup := _add_menu.get_popup()
+	popup.set_item_disabled(popup.get_item_index(ADD_PLAN), not available)
+	if available == _plan_available:
+		return
+	_plan_available = available
+	_plan_button.visible = available and _compact_level < 3
 	_queue_fit()
 
 
@@ -789,9 +824,13 @@ func _refresh_suggestions() -> void:
 	var query := text.substr(1).to_lower()
 	if is_command:
 		var items: Array[Dictionary] = []
+		for command: Dictionary in HARNESS_COMMANDS if _plan_available else []:
+			items.append({"label": "/" + str(command.name), "detail": I18n.t(str(command.description)), "insert": "/" + str(command.name), "key": str(command.name)})
 		for command: Variant in _commands:
 			if command is Dictionary:
 				var name := str(command.get("name", ""))
+				if name == "plan":
+					continue  # /plan lo resuelve el harness (m11-58): el del agente no llega
 				items.append({"label": "/" + name, "detail": str(command.get("description", "")), "insert": "/" + name, "key": name.to_lower()})
 		_suggestions.show_items(I18n.t("Commands"), _filter(items, query),
 			"" if not _commands.is_empty() else I18n.t("The agent publishes its commands when the session starts."))
@@ -891,6 +930,7 @@ func _fit_row() -> void:
 		return
 	_compact_level = level
 	_meter.visible = level < 2
+	_plan_button.visible = _plan_available and level < 3
 	# Con overrun el texto deja de contar en el mínimo del botón: solo en el último nivel.
 	_model_button.clip_text = level >= 6
 	_model_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 6 else TextServer.OVERRUN_NO_TRIMMING
@@ -921,6 +961,7 @@ func _row_width(level: int) -> float:
 		hidden.append(_meter)
 	if level >= 3:
 		hidden.append(_commands_button)
+		hidden.append(_plan_button)
 	if level >= 4:
 		hidden.append(_mention_button)
 	if level >= 5:
@@ -931,7 +972,9 @@ func _row_width(level: int) -> float:
 	var count := 0
 	for child: Node in _row.get_children():
 		var control := child as Control
-		if control == null or control in hidden or (not control.visible and not control in compactable):
+		if control == _plan_button and not _plan_available:
+			continue
+		if control == null or control in hidden or (not control.visible and not control in compactable and control != _plan_button):
 			continue
 		if control == _meter and _meter.text.is_empty():
 			continue

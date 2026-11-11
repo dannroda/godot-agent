@@ -23,6 +23,7 @@ const AddonVersion := preload("../core/addon_version.gd")
 const AcpClient := preload("../acp/acp_client.gd")
 const SessionModel := preload("session_model.gd")
 const PlanStore := preload("plan_store.gd")
+const PlanApproval := preload("plan_approval.gd")
 const PermissionRequest := preload("permission_request.gd")
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
@@ -126,6 +127,9 @@ const MODE_RULES: Dictionary = {
 	SessionModel.HarnessMode.ONESHOT: "Work autonomously until the goal is met; verify with run_scene, capture_game_frame and get_errors after each task.",
 }
 ## Modo del agente (si los publica) que corresponde a cada modo del harness.
+## Turnos que mandó el harness para planear (m11-58): al terminar, un bloque ```plan del agente se
+## vuelve la tarjeta del plan.
+const PLAN_TURN_LABELS: Array[String] = [HarnessPrompts.PLAN_REQUEST, HarnessPrompts.PLAN_EDIT, HarnessPrompts.PLAN_KEEP_PLANNING]
 const AGENT_MODE_FOR: Dictionary = {
 	SessionModel.HarnessMode.ASK: ["plan"],
 	SessionModel.HarnessMode.REVIEW: ["plan"],
@@ -233,6 +237,8 @@ var _mode_syncs_running: int = 0
 ## approve_plan pasa el harness a Construir sin session/set_mode: el adapter cambia solo de modo al
 ## aprobar, y un set_mode con ExitPlanMode pendiente no hace falta (m11-22).
 var _skip_mode_sync: bool = false
+## La tarjeta de un plan presentado en bloque ```plan, mientras está pendiente (m11-58).
+var _block_plan: PermissionRequest
 ## El último _load_session falló por el agente (sin loadSession o error), no por una cancelación.
 var _load_failed: bool = false
 var _login: AgentLogin
@@ -469,6 +475,9 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		if block is Dictionary:
 			attachments.append(block)
 	var harness_label := _take_label(text)
+	# Otro mensaje con la tarjeta de un plan en bloque pendiente: ya no es lo que se aprueba (m11-58).
+	_cancel_block_plan()
+	var plan_turn := harness_label in PLAN_TURN_LABELS
 	model.add_user_message(text, attachments, harness_label)
 	_outside_turn_noticed = false
 	if history:
@@ -551,6 +560,8 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	agent_log.add(AgentLog.CH_ACP, "Turn ended: %s" % stop_reason)
 	if stop_reason == "end_turn" and quota.matching_line(turn_text).is_empty():
 		quota.observe_turn_ok()
+	if plan_turn and stop_reason == "end_turn":
+		_offer_block_plan(first_new_entry)
 	model.finish_turn(stop_reason)
 	_record_turn_end(stop_reason)
 	if not is_command and model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
@@ -1328,6 +1339,8 @@ func approve_plan(request: PermissionRequest) -> String:
 	var allow := request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS])
 	if allow.is_empty():
 		return ""
+	if request.from_block:
+		return _approve_block_plan(request, allow)
 	if model.harness_mode != SessionModel.HarnessMode.BUILD:
 		_skip_mode_sync = true
 		model.set_harness_mode(SessionModel.HarnessMode.BUILD)
@@ -1342,6 +1355,82 @@ func approve_plan(request: PermissionRequest) -> String:
 		agent_log.add(AgentLog.CH_PERM, "approved plan saved: %s" % path)
 	request.plan_approved = true
 	request.select(allow)
+	return path
+
+
+## true si el agente tiene un modo plan propio (Claude Code): ahí presenta el plan con ExitPlanMode.
+func agent_has_plan_mode() -> bool:
+	for mode: Variant in model.agent_modes:
+		if mode is Dictionary and str(mode.get("id", "")) in AGENT_MODE_FOR[SessionModel.HarnessMode.ASK]:
+			return true
+	return false
+
+
+## «Planificar» / `/plan` (m11-58): pasa a Preguntar y le pide el plan al agente, marcado como prompt
+## del harness. Con modo plan propio, el agente lo presenta con ExitPlanMode (tarjeta de m11-22); sin
+## él, en un bloque ```plan que se vuelve la misma tarjeta al terminar el turno.
+func request_plan(what: String, extra_blocks: Array = []) -> String:
+	if what.strip_edges().is_empty() or model.state != SessionModel.SessionState.READY:
+		return ""
+	var text := label_prompt(PlanApproval.request_prompt(what, agent_has_plan_mode()), HarnessPrompts.PLAN_REQUEST)
+	return await send_in_mode(SessionModel.HarnessMode.ASK, text, extra_blocks)
+
+
+## Al terminar un turno de plan sin tarjeta de ExitPlanMode: el último bloque ```plan del agente se
+## muestra en la tarjeta del plan y en el mensaje queda una línea.
+func _offer_block_plan(first_entry: int) -> void:
+	for call: ToolCall in tool_calls_since(first_entry):
+		if call.plan_card:
+			return
+	var entries := model.entries()
+	for i in range(entries.size() - 1, first_entry - 1, -1):
+		var entry: ChatEntry = entries[i]
+		if entry.kind != ChatEntry.EntryKind.AGENT:
+			continue
+		var plan := PlanApproval.plan_block(entry.text)
+		if plan.is_empty():
+			continue
+		entry.plan_folded = true
+		model.entry_updated.emit(entry)
+		_block_plan = PlanApproval.block_request(plan)
+		_block_plan.resolved.connect(_on_block_plan_resolved, CONNECT_ONE_SHOT)
+		model.add_permission(_block_plan)
+		agent_log.add(AgentLog.CH_PERM, "plan presented in a ```plan block (%d lines)" % (plan.count("\n") + 1))
+		return
+	agent_log.add(AgentLog.CH_PERM, "plan turn ended without a ```plan block or an ExitPlanMode card")
+
+
+func _cancel_block_plan() -> void:
+	if _block_plan != null and _block_plan.is_pending():
+		_block_plan.cancel()
+	_block_plan = null
+
+
+## Editar o «Seguir planeando…» en la tarjeta de un plan en bloque: el agente ya terminó su turno,
+## así que lo editado o el motivo salen enseguida, pidiendo de nuevo el bloque. Aprobar lo maneja
+## approve_plan; cancelada (otro mensaje, sesión nueva), no sale nada.
+func _on_block_plan_resolved(_outcome: Dictionary) -> void:
+	var request := _block_plan
+	_block_plan = null
+	if request == null or request.was_allowed():
+		return
+	if not request.edited_plan.is_empty():
+		_on_reject_feedback(PlanApproval.edit_feedback(request.plan_text, request.edited_plan, true), HarnessPrompts.PLAN_EDIT)
+	elif not request.deny_reason.is_empty():
+		_on_reject_feedback(PlanApproval.keep_planning_feedback(request.deny_reason, true), HarnessPrompts.PLAN_KEEP_PLANNING)
+
+
+## Un plan en bloque aprobado: se guarda, la tarjeta queda aprobada y el pedido de construirlo sale en
+## Construir (con set_mode: este agente no sale solo de ningún modo plan).
+func _approve_block_plan(request: PermissionRequest, allow: String) -> String:
+	if model.state != SessionModel.SessionState.READY:
+		return ""
+	var path := PlanStore.save_approved(cwd, request.edited_plan if not request.edited_plan.is_empty() else request.plan_text)
+	agent_log.add(AgentLog.CH_PERM, "approved plan saved: %s" % path if not path.is_empty() else "could not save the approved plan in %s" % cwd.path_join(PlanStore.DIR))
+	request.plan_approved = true
+	request.select(allow)
+	var relative := path.trim_prefix(cwd).trim_prefix("/") if not path.is_empty() else ""
+	send_in_mode(SessionModel.HarnessMode.BUILD, label_prompt(PlanApproval.approved_prompt(relative), HarnessPrompts.PLAN_APPROVED))
 	return path
 
 

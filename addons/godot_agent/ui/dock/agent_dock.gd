@@ -26,6 +26,8 @@ const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const FirstRunGuide := preload("first_run_guide.gd")
 const RecentSessions := preload("recent_sessions.gd")
 const SessionController := preload("../../session/session_controller.gd")
+## El comando del harness para pedir un plan a aprobar (m11-58).
+const PLAN_COMMAND := "/plan"
 const HarnessPrompts := preload("../../session/harness_prompts.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
@@ -264,6 +266,7 @@ func _ready() -> void:
 		options.append_array(EditorContext.mention_options())
 		return options
 	_composer.submitted.connect(_on_submitted)
+	_composer.plan_requested.connect(_on_plan_requested)
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_controller.reject_feedback.connect(_on_reject_feedback)
 	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
@@ -580,6 +583,7 @@ func _confirm_logout() -> void:
 func _refresh_modes() -> void:
 	if _composer:
 		_composer.set_current_mode(_model.harness_mode)
+		_refresh_plan_button()
 	if _review_panel:
 		_review_panel.visible = _model.harness_mode == SessionModel.HarnessMode.REVIEW
 
@@ -927,6 +931,7 @@ func _refresh_state() -> void:
 		_style_agent_chip(name if profile else "", color)
 		_agent_chip.tooltip_text = header_tooltip()
 	_composer.refresh_state()
+	_refresh_plan_button()
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)
 	_composer.set_screenshot_available(_model.session_id.is_empty() or _model.supports_image())
 	_new_session_button.disabled = _model.state == SessionModel.SessionState.STARTING
@@ -1193,6 +1198,9 @@ func send_text(text: String, harness_label: String = "") -> void:
 
 
 func _send(text: String) -> void:
+	if is_plan_command(text):
+		_start_plan(plan_command_request(text), _take_context_blocks())
+		return
 	# Un comando con / va solo: los adjuntos quedan para el próximo mensaje (ver send_prompt).
 	if SessionController.is_slash_command(text):
 		_controller.send_prompt(text)
@@ -1299,8 +1307,53 @@ func _send_next_queued(resume: bool = false) -> void:
 		_queue.pause(I18n.t("plan limit"))
 		return
 	var item := _queue.take_next()
-	if not item.is_empty():
+	if item.is_empty():
+		return
+	if is_plan_command(str(item.text)):
+		_start_plan(plan_command_request(str(item.text)), item.blocks)
+	else:
 		_send_with_mentions(str(item.text), item.blocks)
+
+
+## «Planificar» solo con la sesión libre y fuera del One-shot.
+func _refresh_plan_button() -> void:
+	_composer.set_plan_available(_model.state == SessionModel.SessionState.READY
+		and _model.harness_mode != SessionModel.HarnessMode.ONESHOT and not _is_oneshot_active())
+
+
+## `/plan <pedido>` (m11-58): lo resuelve el harness, no va al agente.
+static func is_plan_command(text: String) -> bool:
+	return RegEx.create_from_string("^/plan(\\s|$)").search(text.strip_edges()) != null
+
+
+static func plan_command_request(text: String) -> String:
+	return text.strip_edges().trim_prefix(PLAN_COMMAND).strip_edges()
+
+
+## «Planificar» en la fila del composer: lo que haya escrito es el pedido. Vacío, deja «/plan » para
+## que lo escriba.
+func _on_plan_requested() -> void:
+	var text := _composer.current_text().strip_edges()
+	if is_plan_command(text):
+		text = plan_command_request(text)
+	if text.is_empty():
+		_composer.clear()
+		_composer.insert_text(PLAN_COMMAND + " ")
+		return
+	_composer.clear()
+	_start_plan(text, _take_context_blocks())
+
+
+## Pasa a Preguntar y le pide el plan al agente (ver SessionController.request_plan). Sin pedido,
+## «/plan » vuelve al composer.
+func _start_plan(what: String, blocks: Array) -> void:
+	if what.is_empty():
+		_composer.insert_text(PLAN_COMMAND + " ")
+		return
+	if _model.state != SessionModel.SessionState.READY:
+		_queue.add(PLAN_COMMAND + " " + what, blocks)
+		return
+	_controller.request_plan(what, blocks)
 
 
 ## «Enviar ahora» de un prompt de la cola: pasa al frente y, si el agente está trabajando, se
