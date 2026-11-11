@@ -8,6 +8,7 @@ extends RefCounted
 ## exacto en esta máquina (HarnessSettings.is_command_approved): el archivo viaja con el proyecto.
 
 const AgentProcess := preload("../transport/agent_process.gd")
+const MachineApproval := preload("machine_approval.gd")
 
 const KIND_REGRESSIONS := "regressions"
 const KIND_COMMAND := "command"
@@ -184,7 +185,7 @@ static func changed_since(project_dir: String, since_unix: int, max_files: int =
 
 ## La clave con que se aprueba un comando en esta máquina: el proyecto y el texto exacto.
 static func approval_key(project_dir: String, command: String) -> String:
-	return (project_dir.simplify_path() + "\n" + command.strip_edges()).sha256_text()
+	return MachineApproval.key(project_dir, command)
 
 
 ## Corre un check ya decidido (aplica y, si es un comando, está aprobado). Devuelve

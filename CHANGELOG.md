@@ -11,6 +11,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - **Project checks after each turn** in Settings → MCP servers → Advanced: the saved playtest regressions, GUT or gdUnit4 tests, or any command, optionally only when files matching some patterns change. In Build and Auto they run after a turn that changes files; a failure goes back to the agent with its output to fix it (sharing the two-turn limit of the script check), and the footer notice shows ✓/✗ for each. They are saved with the project, so a command only runs on a machine where its exact text was approved: one you write in Settings is approved on save, and one that came with the project offers **Approve…** with the command shown first. Commands run without a shell. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#project-checks-after-each-turn).
 - **Deny with reason…** on every permission card: it denies, stops the agent's turn and sends it your reason right away, shown as a dimmed harness line. Without it the agent only learns it was denied, and Claude Code keeps trying in the same turn.
 
+### Changed
+
+- **Project MCP servers now need approval on each machine.** A server saved in *This project* comes with `project_config.tres`, so a cloned project could start any program when a session opens. Now it only starts on a machine where its definition (command, arguments, environment, URL and headers) was approved. If your project already uses project servers, after updating they are left out until you approve them: when a session starts, a notice names them and says why, with **Approve «name»…** for each and **Approve all…**, showing what each one runs first. They start from the next session. Servers you add or edit in Settings are approved when you save; ones imported from `.mcp.json` are not. *All my projects* servers don't change. See [Settings](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Settings.md#other-mcp-servers).
+
 ## [0.1.20] - 2026-11-11
 
 ### Added

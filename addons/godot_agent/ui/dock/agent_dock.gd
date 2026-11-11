@@ -26,6 +26,7 @@ const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const FirstRunGuide := preload("first_run_guide.gd")
 const RecentSessions := preload("recent_sessions.gd")
 const SessionController := preload("../../session/session_controller.gd")
+const MachineApproval := preload("../../core/machine_approval.gd")
 ## El comando del harness para pedir un plan a aprobar (m11-58).
 const PLAN_COMMAND := "/plan"
 const HarnessPrompts := preload("../../session/harness_prompts.gd")
@@ -1410,15 +1411,27 @@ func _on_reject_feedback(text: String) -> void:
 		_queue.add(text, [])
 
 
-## «Aprobar…» de un check del proyecto (m11-31): muestra el comando exacto antes de permitirlo.
-func _confirm_turn_check(data: Dictionary) -> void:
+## «Aprobar…» de lo que trae el proyecto (m11-31 checks, m13-31 MCP servers): muestra cada comando
+## exacto antes de permitirlo en esta máquina. Un solo diálogo para los dos.
+func _confirm_on_machine(data: Dictionary) -> void:
+	var items: Array = data.get("items", [])
+	if items.is_empty():
+		return
+	var blocks: PackedStringArray = []
+	for item: Dictionary in items:
+		blocks.append("%s\n%s" % [item.get("name", ""), item.get("command", "")])
+	var listing := "\n\n".join(blocks)
 	var dialog := ConfirmationDialog.new()
-	dialog.title = I18n.t("Approve a project check")
 	dialog.ok_button_text = I18n.t("Allow on this machine")
 	dialog.dialog_autowrap = true
-	dialog.dialog_text = I18n.t("«%s» comes with the project's settings (addons/godot_agent/config/project_config.tres). After each Build or Auto turn that changes files, it runs this program on this computer, without a shell:\n\n%s\n\nAllow it only if you trust the command. If the command changes, it asks again.") % [str(data.get("name", "")), str(data.get("command", ""))]
+	if data.get("kind") == MachineApproval.KIND_MCP:
+		dialog.title = I18n.t("Approve project MCP servers")
+		dialog.dialog_text = I18n.t("These MCP servers come with the project's settings (addons/godot_agent/config/project_config.tres). When a session starts, the agent launches each command on this computer (or connects to the URL):\n\n%s\n\nAllow them only if you trust them. If one changes, it asks again.") % listing
+	else:
+		dialog.title = I18n.t("Approve a project check")
+		dialog.dialog_text = I18n.t("This check comes with the project's settings (addons/godot_agent/config/project_config.tres). After each Build or Auto turn that changes files, it runs this program on this computer, without a shell:\n\n%s\n\nAllow it only if you trust the command. If the command changes, it asks again.") % listing
 	dialog.min_size = Vector2i(AgentTheme.px(460), 0)
-	dialog.confirmed.connect(func() -> void: _controller.approve_turn_check(data))
+	dialog.confirmed.connect(func() -> void: _controller.approve_on_machine(data))
 	dialog.visibility_changed.connect(func() -> void:
 		if not dialog.visible:
 			dialog.queue_free())
@@ -1450,8 +1463,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			_ask_login_code()
 		SessionController.ACTION_LOGIN_CANCEL:
 			_controller.cancel_login()
-		SessionController.ACTION_APPROVE_CHECK:
-			_confirm_turn_check(payload)
+		SessionController.ACTION_APPROVE_ON_MACHINE:
+			_confirm_on_machine(payload)
 		PlanApprovalView.ACTION_APPROVE_PLAN:
 			_controller.approve_plan(payload)
 		"open_link":

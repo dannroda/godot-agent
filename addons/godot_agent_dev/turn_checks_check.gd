@@ -8,8 +8,13 @@ extends RefCounted
 ## 3. El check Script no está aprobado: no corre, el aviso ofrece «Aprobar…», el diálogo muestra el
 ##    comando y «Allow on this machine» lo aprueba.
 ## 4. El turno de arreglo: los dos checks corren y pasan; no sale otro prompt.
+## m13-31, en la misma sesión:
+## 5. Dos MCP servers del proyecto sin aprobar no van en mcpServers: el aviso (el largo, la primera
+##    vez) los nombra con «Aprobar…» para cada uno y «Approve all (2)…»; el diálogo muestra los dos
+##    comandos y aprobar los guarda. No salen en external_mcp_names (la matriz de permisos).
 ## La aprobación va a una tienda en memoria (los checks del Xvfb usan los EditorSettings del usuario) y
-## los checks del proyecto se ponen en memoria y se restauran: no se guarda nada.
+## los checks y servers del proyecto se ponen en memoria y se restauran: no se guarda nada (el aviso
+## largo de m13-31 vuelve a quedar como estaba).
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
@@ -17,6 +22,7 @@ const HarnessPrompts := preload("res://addons/godot_agent/session/harness_prompt
 const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings.gd")
 const TurnChecks := preload("res://addons/godot_agent/core/turn_checks.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
+const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
 const SCENARIO := "res://tests/scripts/turn_checks.json"
 const WORK_DIR := "res://tests/tmp/turn_checks"
 const WAIT_MS := 30000
@@ -39,10 +45,18 @@ func run(tree: SceneTree, dock: Control) -> PackedStringArray:
 		failures.append("el controller no tiene turn_checks_provider")
 		return failures
 	var config: Object = plugin.get(&"_project_config")
-	var saved_checks: Array = config.get(&"turn_checks")
+	var settings: Object = plugin.get(&"_settings")
+	var saved := {"checks": config.get(&"turn_checks"), "servers": config.get(&"mcp_servers"),
+		"explained": settings.call(&"get_value", HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, false),
+		"provider": provider, "is_approved": _controller.get(&"is_command_approved"), "approve": _controller.get(&"approve_command")}
 	await _run(plugin, config)
-	config.set(&"turn_checks", saved_checks)
 	_controller.call(&"stop")
+	config.set(&"turn_checks", saved.checks)
+	config.set(&"mcp_servers", saved.servers)
+	settings.call(&"set_value", HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, saved.explained)
+	_controller.set(&"turn_checks_provider", saved.provider)
+	_controller.set(&"is_command_approved", saved.is_approved)
+	_controller.set(&"approve_command", saved.approve)
 	return failures
 
 
@@ -66,12 +80,20 @@ func _run(plugin: Object, config: Object) -> void:
 	_expect(str(info.godot) == OS.get_executable_path(), "con el binario del editor")
 	_expect(str(info.project) == ProjectSettings.globalize_path("res://"), "con la carpeta del proyecto")
 	var settings: Object = plugin.get(&"_settings")
-	_expect((info.is_approved as Callable).get_object() == settings and (info.approve as Callable).get_object() == settings, "y la tienda de HarnessSettings")
+	_expect((_controller.get(&"is_command_approved") as Callable).get_object() == settings and (_controller.get(&"approve_command") as Callable).get_object() == settings, "el controller usa la tienda de HarnessSettings")
 	var store := HarnessSettings.new()
 	store.approve_command(TurnChecks.approval_key(str(info.project), lint))
 	var project := str(info.project)
-	_controller.set(&"turn_checks_provider", func() -> Dictionary:
-		return {"checks": config.get(&"turn_checks"), "godot": OS.get_executable_path(), "project": project, "is_approved": store.is_command_approved, "approve": store.approve_command})
+	_controller.set(&"is_command_approved", store.is_command_approved)
+	_controller.set(&"approve_command", store.approve_command)
+	# m13-31: dos servers del proyecto que esta máquina no aprobó (el texto es único: nadie lo aprobó).
+	var tag := str(Time.get_ticks_usec())
+	var servers := [
+		{"name": "held-a", "transport": "stdio", "command": "godot-agent-test-%s" % tag, "args": ["a"], "env": {}, "url": "", "headers": {}, "enabled": true},
+		{"name": "held-b", "transport": "stdio", "command": "godot-agent-test-%s" % tag, "args": ["b"], "env": {"MODE": "$HOME"}, "url": "", "headers": {}, "enabled": true},
+	]
+	config.set(&"mcp_servers", servers)
+	settings.call(&"set_value", HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, false)
 
 	var profile := AgentProfile.from_dict({
 		"id": "fake", "display_name": "Agente falso", "command": OS.get_executable_path(),
@@ -102,7 +124,7 @@ func _run(plugin: Object, config: Object) -> void:
 
 	# 3. «Aprobar…» de Script.
 	var actions: Array = report.get(&"actions")
-	_expect(actions.size() == 1 and str(actions[0].id) == SessionController.ACTION_APPROVE_CHECK, "una acción «Aprobar…» · %s" % [actions])
+	_expect(actions.size() == 1 and str(actions[0].id) == SessionController.ACTION_APPROVE_ON_MACHINE, "una acción «Aprobar…» · %s" % [actions])
 	if actions.is_empty():
 		return
 	_dock.call(&"_on_action_requested", str(actions[0].id), actions[0].data)
@@ -127,6 +149,33 @@ func _run(plugin: Object, config: Object) -> void:
 	_expect(check_prompts.size() == 1, "un solo prompt de arreglo · %d" % check_prompts.size())
 	for file: String in ["target.gd", "lint.gd", "ok.gd"]:
 		DirAccess.remove_absolute(dir.path_join(file))
+
+	# 5. Los MCP servers del proyecto sin aprobar.
+	var held: Object = _notice_with("«held-a»")
+	_expect(held != null, "un aviso nombra los servers frenados")
+	if held == null:
+		_dump()
+		return
+	var held_text := str(held.get(&"text"))
+	_expect(held_text.contains("«held-b»") and held_text.contains("project_config.tres") and held_text.contains("approved"), "el aviso largo dice cuáles y por qué · %s" % held_text)
+	var names: PackedStringArray = _controller.get(&"external_mcp_names")
+	_expect(not "held-a" in names and not "held-b" in names, "no entran en la matriz de permisos · %s" % names)
+	var held_actions: Array = held.get(&"actions")
+	_expect(held_actions.size() == 3, "«Aprobar…» por server y para todos · %s" % [held_actions.map(func(a: Dictionary) -> String: return a.label)])
+	if held_actions.size() != 3:
+		return
+	_dock.call(&"_on_action_requested", str(held_actions[2].id), held_actions[2].data)
+	await _tree.process_frame
+	var all_dialog: ConfirmationDialog = null
+	for child: Node in _dock.get_children():
+		if child is ConfirmationDialog and (child as ConfirmationDialog).visible:
+			all_dialog = child
+	_expect(all_dialog != null and all_dialog.dialog_text.contains("godot-agent-test-%s a" % tag) and all_dialog.dialog_text.contains("MODE=$HOME"), "el diálogo muestra los dos comandos · %s" % (all_dialog.dialog_text if all_dialog else ""))
+	if all_dialog:
+		all_dialog.confirmed.emit()
+		all_dialog.hide()
+	for server: Dictionary in servers:
+		_expect(store.is_command_approved(ExternalMcpServers.approval_key(project, ExternalMcpServers.normalize(server))), "«%s» quedó aprobado" % server.name)
 
 
 func _write(path: String, text: String) -> void:

@@ -33,6 +33,8 @@ const KEY_MCP_SERVERS := "mcp/servers"
 ## Comandos que vienen en un proyecto (checks del fin de turno, m11-31) aprobados en esta máquina:
 ## `{clave: fecha}`, con la clave de TurnChecks.approval_key (proyecto + texto exacto).
 const KEY_APPROVED_COMMANDS := "security/approved_commands"
+## Ya se mostró el aviso largo de los MCP servers del proyecto frenados por no estar aprobados (m13-31).
+const KEY_MCP_APPROVAL_EXPLAINED := "security/mcp_approval_explained"
 ## Cuota del plan (spec §10.1, §9.5): umbrales en %, pausa del One-shot y qué hacer al reiniciarse.
 const KEY_QUOTA_WARN := "quota/warn_percent"
 const KEY_QUOTA_PAUSE := "quota/pause_percent"
@@ -106,6 +108,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
 		_declare(KEY_MCP_SERVERS, [], TYPE_ARRAY, PROPERTY_HINT_TYPE_STRING, DICTIONARY_LIST_HINT)
 		_declare(KEY_APPROVED_COMMANDS, {}, TYPE_DICTIONARY)
+		_declare(KEY_MCP_APPROVAL_EXPLAINED, false, TYPE_BOOL)
 		_declare(KEY_QUOTA_WARN, 75, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)

@@ -102,6 +102,7 @@ const McpCheck := preload("mcp_check.gd")
 const PendingCheck := preload("pending_check.gd")
 const PlanCheck := preload("plan_check.gd")
 const TurnChecksCheck := preload("turn_checks_check.gd")
+const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
 const EDIT_ARG := "--godot-agent-edit-test"
 const EditCheck := preload("edit_check.gd")
 const RUN_ARG := "--godot-agent-run-test"
@@ -1742,7 +1743,17 @@ func _run_settings_shots(prefix: String) -> void:
 	var config_before := FileAccess.get_file_as_string(config_path) if had_config else ""
 	var option: OptionButton = matrix["read"][0]  # Lectura · Preguntar
 	option.select(2)  # no
+	# m13-31: importado de .mcp.json no queda aprobado; «Allow on this machine» sí (se borra al final:
+	# estos checks usan los EditorSettings del usuario).
+	var blender: Dictionary = (mcp_page.get(&"_servers") as Array).filter(func(e: Dictionary) -> bool: return e.name == "blender")[0]
+	var held_before_save: bool = mcp_page.call(&"needs_approval", blender)
+	blender["_allow"] = true
+	var blender_key: String = ExternalMcpServers.approval_key(ProjectSettings.globalize_path("res://"), blender)
+	var user_settings: Object = dialog.get(&"_settings")
+	var approved_before: Dictionary = (user_settings.call(&"get_value", "security/approved_commands", {}) as Dictionary).duplicate()
 	dialog.call(&"_on_save")
+	var approved_by_save: bool = user_settings.call(&"is_command_approved", blender_key)
+	user_settings.call(&"set_value", "security/approved_commands", approved_before)
 	var controller: Object = dock.get(&"_controller")
 	var policy: Object = controller.get(&"policy")
 	var saved_ok: bool = not dialog.visible and policy.call(&"matrix_value", "read", 0) == "deny" and FileAccess.file_exists(config_path)
@@ -1759,6 +1770,9 @@ func _run_settings_shots(prefix: String) -> void:
 	controller.set(&"external_mcp_names", PackedStringArray())
 	if not saved_ok:
 		_finish(1, "settings: guardar no aplicó la matriz (visible=%s, read/ask=%s)" % [dialog.visible, policy.call(&"matrix_value", "read", 0)])
+		return
+	if not held_before_save or not approved_by_save:
+		_finish(1, "settings: el server importado no pidió aprobación o «Allow on this machine» no lo aprobó (held=%s, approved=%s)" % [held_before_save, approved_by_save])
 		return
 	if not mcp_ok or names != PackedStringArray(["blender"]) or not saved_text.contains("blender-mcp"):
 		_finish(1, "settings: el server MCP no quedó guardado o permitido (oneshot=%s, nombres=%s)" % [mcp_ok, names])

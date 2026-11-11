@@ -719,7 +719,7 @@ func _load() -> void:
 	_editing = -1
 	_profile_form.visible = false
 	_rebuild_profiles()
-	_mcp_servers_page.load_from(_settings.mcp_servers(), _config.mcp_servers)
+	_mcp_servers_page.load_from(_settings.mcp_servers(), _config.mcp_servers, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_rebuild_mcp_matrix(_config.permissions)
 	_load_matrix(_config.permissions)
 	_load_subagent_limits(_config.subagent_limits)
@@ -851,7 +851,7 @@ func _on_save() -> void:
 		_error_label.text = I18n.t("Could not save %s: %s") % [ProjectConfig.PATH, error_string(result)]
 		return
 	# Lo que se escribió o se permitió acá queda aprobado en esta máquina (m11-31).
-	for key: String in _turn_checks_editor.keys_to_approve():
+	for key: String in _turn_checks_editor.keys_to_approve() + _mcp_servers_page.keys_to_approve():
 		_settings.approve_command(key)
 	hide()
 	saved.emit()

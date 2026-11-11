@@ -43,6 +43,7 @@ const TerminalHandler := preload("../acp/terminal_handler.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
 const ReviewStore := preload("../review/review_store.gd")
 const TurnChecks := preload("../core/turn_checks.gd")
+const MachineApproval := preload("../core/machine_approval.gd")
 const UntrustedText := preload("../mcp/untrusted_text.gd")
 const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
@@ -111,9 +112,10 @@ const ACTION_LOGIN := "login"
 ## Las regresiones desde el aviso de un playtest que pasó (m12-48); el dock las reenvía al plugin
 ## (AgentDock usa estos mismos ids).
 const ACTION_RUN_REGRESSIONS := "run_regressions"
-## «Aprobar…» de un check del proyecto que no está aprobado en esta máquina (m11-31): `data` es
-## `{name, command, key}`; el dock muestra el comando y llama approve_turn_check.
-const ACTION_APPROVE_CHECK := "approve_turn_check"
+## «Aprobar…» de lo que trae el proyecto y no está aprobado en esta máquina: un check del fin de
+## turno (m11-31) o un MCP server del proyecto (m13-31). `data` es MachineApproval.request; el dock
+## muestra los comandos y llama approve_on_machine.
+const ACTION_APPROVE_ON_MACHINE := "approve_on_machine"
 const ACTION_REGRESSIONS_WORKFLOW := "regressions_workflow"
 const ACTION_LOGIN_CODE := "login_code"
 const ACTION_LOGIN_CANCEL := "login_cancel"
@@ -206,8 +208,11 @@ var file_guard: Callable:
 ## se verifica.
 var turn_verifier: Callable
 ## Checks del proyecto al terminar el turno (m11-31): `() -> {checks: Array, godot: String,
-## is_approved: Callable(key) -> bool, approve: Callable(key)}`. Sin asignar, no corren.
+## project: String}` (project: la carpeta del editor, para la clave). Sin asignar, no corren.
 var turn_checks_provider: Callable
+## La tienda de aprobaciones por máquina (HarnessSettings): `(key) -> bool` y `(key) -> void`.
+var is_command_approved: Callable
+var approve_command: Callable
 ## Snapshots por turno de Construir o Auto (m11-01); compartidos por las sesiones, cada una con su
 ## `session_key`. Sin asignar o sin git, no se guardan.
 var snapshots: TurnSnapshots
@@ -703,13 +708,12 @@ func _run_turn_checks(turn_started: int) -> void:
 	var notice := model.add_notice(I18n.t("Project checks after the turn: running %s…") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
 	notice.footer = true
 	model.notify_entry_changed(notice)
-	var is_approved: Callable = info.get("is_approved", Callable())
 	# La aprobación es del proyecto (la carpeta del editor), también en una copia aparte.
 	var project := str(info.get("project", cwd))
 	var results: Array[Dictionary] = []
 	for check: Dictionary in checks:
 		var key := TurnChecks.approval_key(project, str(check.command))
-		if check.kind == TurnChecks.KIND_COMMAND and not (is_approved.is_valid() and is_approved.call(key)):
+		if check.kind == TurnChecks.KIND_COMMAND and not (is_command_approved.is_valid() and is_command_approved.call(key)):
 			results.append({"name": check.name, "status": TurnChecks.UNAPPROVED, "command": check.command, "key": key})
 			continue
 		agent_log.add(AgentLog.CH_PROC, "Project check «%s»: running" % check.name)
@@ -746,7 +750,8 @@ static func turn_checks_report(results: Array[Dictionary]) -> Dictionary:
 			TurnChecks.UNAPPROVED:
 				unapproved += 1
 				lines.append("⊘ %s: %s" % [result.name, I18n.t("not approved on this machine, so it didn't run")])
-				actions.append({"id": ACTION_APPROVE_CHECK, "label": I18n.t("Approve «%s»…") % result.name, "data": {"name": result.name, "command": result.command, "key": result.key},
+				actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve «%s»…") % result.name,
+					"data": MachineApproval.request(MachineApproval.KIND_CHECK, [{"name": result.name, "command": result.command, "key": result.key}]),
 					"tooltip": I18n.t("The check comes with the project. See the command and allow it to run on this machine.")})
 			_:
 				failed += 1
@@ -767,16 +772,41 @@ static func turn_checks_prompt(results: Array[Dictionary]) -> String:
 	return UntrustedText.seal("\n".join(parts), UntrustedText.new_nonce())
 
 
-## «Aprobar…» confirmado en el dock: el comando corre desde el próximo turno.
-func approve_turn_check(data: Dictionary) -> void:
-	if not turn_checks_provider.is_valid():
+## «Aprobar…» confirmado en el dock: un check corre desde el próximo turno; un MCP server, desde la
+## próxima sesión (mcpServers va en session/new).
+func approve_on_machine(data: Dictionary) -> void:
+	if not approve_command.is_valid():
 		return
-	var approve: Callable = turn_checks_provider.call().get("approve", Callable())
-	if not approve.is_valid() or str(data.get("key", "")).is_empty():
+	var names: PackedStringArray = []
+	for item: Dictionary in data.get("items", []):
+		if str(item.get("key", "")).is_empty():
+			continue
+		approve_command.call(str(item.key))
+		names.append("«%s»" % item.get("name", ""))
+		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % ["MCP server" if data.get("kind") == MachineApproval.KIND_MCP else "Project check", item.get("name", ""), item.get("command", "")])
+	if names.is_empty():
 		return
-	approve.call(str(data.key))
-	agent_log.add(AgentLog.CH_PERM, "Project check «%s» approved on this machine: %s" % [data.get("name", ""), data.get("command", "")])
-	model.add_notice(I18n.t("«%s» is approved on this machine: it runs after the next turn that changes files.") % str(data.get("name", "")), ChatEntry.NoticeLevel.INFO)
+	if data.get("kind") == MachineApproval.KIND_MCP:
+		model.add_notice(I18n.t("Approved on this machine: %s. The agent gets them from the next session (a new one, or this one reopened from History).") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+	else:
+		model.add_notice(I18n.t("Approved on this machine: %s. It runs after the next turn that changes files.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+
+
+## El aviso de los MCP servers del proyecto que no se pasaron porque no están aprobados (m13-31):
+## `held` es `[{name, command, key}]`. La primera vez (`explain`) dice por qué cambió; las
+## siguientes, una línea. «Aprobar…» por server y, con más de uno, para todos.
+static func held_servers_notice(held: Array, explain: bool) -> Dictionary:
+	var names := PackedStringArray(held.map(func(item: Dictionary) -> String: return "«%s»" % item.name))
+	var text := I18n.t("Project MCP servers not started: %s. They come with the project's settings (addons/godot_agent/config/project_config.tres), and a project server now only starts on a machine where its command was approved, so a cloned project can't launch programs without asking. The agent doesn't get their tools in this session; approve them and they start with the next session.") % ", ".join(names) if explain \
+		else I18n.t("Project MCP servers not approved on this machine, left out: %s.") % ", ".join(names)
+	var actions: Array[Dictionary] = []
+	for item: Dictionary in held:
+		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve «%s»…") % item.name, "data": MachineApproval.request(MachineApproval.KIND_MCP, [item]),
+			"tooltip": I18n.t("See what the server runs and allow it on this machine.")})
+	if held.size() > 1:
+		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve all (%d)…") % held.size(), "data": MachineApproval.request(MachineApproval.KIND_MCP, held),
+			"tooltip": I18n.t("See what each server runs and allow them all on this machine.")})
+	return {"text": text, "actions": actions}
 
 
 ## Lo que contestó el adapter a `/remote-control` (claude-agent-acp 0.94, runRemoteControlCommand):

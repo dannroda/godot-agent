@@ -98,8 +98,8 @@ func test_report_and_prompt() -> void:
 	assert_eq([report.failed, report.unapproved], [2, 1], "cuenta fallas y sin aprobar")
 	assert_true(str(report.text).contains("✓ GUT") and str(report.text).contains("✗ Lint") and str(report.text).contains("⊘ Script"), report.text)
 	assert_eq(report.actions.size(), 1, "un «Aprobar…» por comando sin aprobar")
-	assert_eq(report.actions[0].id, SessionController.ACTION_APPROVE_CHECK, "la acción")
-	assert_eq(report.actions[0].data, {"name": "Script", "command": "./x.sh", "key": "k1"}, "lleva el comando y la clave")
+	assert_eq(report.actions[0].id, SessionController.ACTION_APPROVE_ON_MACHINE, "la acción")
+	assert_eq(report.actions[0].data, {"kind": "check", "items": [{"name": "Script", "command": "./x.sh", "key": "k1"}]}, "lleva el comando y la clave")
 	var prompt := SessionController.turn_checks_prompt(results)
 	assert_true(prompt.begins_with("[Automatic check after your turn]"), "mismo encabezado que validate_scripts")
 	assert_true(prompt.contains("### Lint (exit code 3)") and prompt.contains("### Slow (stopped after the time limit)"), prompt)
@@ -152,7 +152,9 @@ func test_controller_flow() -> void:
 		sent.append(JSON.parse_string(line))
 		return true, controller.agent_log)
 	controller.turn_checks_provider = func() -> Dictionary:
-		return {"checks": checks, "godot": godot, "project": dir, "is_approved": settings.is_command_approved, "approve": settings.approve_command}
+		return {"checks": checks, "godot": godot, "project": dir}
+	controller.is_command_approved = settings.is_command_approved
+	controller.approve_command = settings.approve_command
 	# La sesión trabaja en una copia aparte: los cambios se miran ahí y la aprobación es del proyecto.
 	DirAccess.make_dir_recursive_absolute(dir.path_join("copy"))
 	FileAccess.open(dir.path_join("copy/player.gd"), FileAccess.WRITE).store_string("x")
@@ -169,7 +171,7 @@ func test_controller_flow() -> void:
 	assert_true(str(prompts[0].params.prompt).contains("### Lint (exit code 1)"), "con el check que falló")
 	assert_eq(controller.get(&"_fix_turns"), 1, "comparte el tope de turnos de arreglo")
 
-	controller.approve_turn_check(report.actions[0].data)
+	controller.approve_on_machine(report.actions[0].data)
 	assert_true(settings.is_command_approved(TurnChecks.approval_key(dir, unapproved)), "«Aprobar…» lo guarda en la tienda")
 	controller.client.fail_all_pending("end of test")
 	await _frames()
