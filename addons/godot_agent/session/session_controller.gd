@@ -13,11 +13,17 @@ signal shell_rules_changed
 ## El usuario permitió un MCP server de terceros desde una tarjeta, para el modo y el proyecto: hay
 ## que guardar la matriz de la config (m7-35).
 signal permissions_changed
+## Un rechazo con algo para el agente (m11-22: el plan editado, «Seguir planeando…», «Denegar con
+## motivo»). `text` ya va marcado como prompt del harness: el dock lo pone primero en la cola y lo
+## manda al terminar el turno, aunque termine cancelled (el rechazo de ExitPlanMode lo corta).
+signal reject_feedback(text: String)
 
 const AgentProcess := preload("../transport/agent_process.gd")
 const AddonVersion := preload("../core/addon_version.gd")
 const AcpClient := preload("../acp/acp_client.gd")
 const SessionModel := preload("session_model.gd")
+const PlanStore := preload("plan_store.gd")
+const PermissionRequest := preload("permission_request.gd")
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
 const PlaytestMemory := preload("../review/playtest_memory.gd")
@@ -224,6 +230,9 @@ var _connect_generation: int = 0
 var _prompt_request_id: int = -1
 var _cancel_generation: int = 0
 var _mode_syncs_running: int = 0
+## approve_plan pasa el harness a Construir sin session/set_mode: el adapter cambia solo de modo al
+## aprobar, y un set_mode con ExitPlanMode pendiente no hace falta (m11-22).
+var _skip_mode_sync: bool = false
 ## El último _load_session falló por el agente (sin loadSession o error), no por una cancelación.
 var _load_failed: bool = false
 var _login: AgentLogin
@@ -253,6 +262,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	permissions.setup(model, client, agent_log, cwd)
 	permissions.shell_rules_changed.connect(shell_rules_changed.emit)
 	permissions.permissions_changed.connect(permissions_changed.emit)
+	permissions.reject_feedback.connect(func(text: String, label: String) -> void: reject_feedback.emit(label_prompt(text, label)))
 	client.set_request_handler("session/request_permission", permissions.on_request_permission)
 	client.set_request_handler("elicitation/create", _on_create_elicitation)
 	client.set_notification_handler("elicitation/complete", _on_complete_elicitation)
@@ -1303,7 +1313,41 @@ func _on_unexpected_transition(from: SessionModel.SessionState, to: SessionModel
 
 func _on_harness_mode_changed(_mode: SessionModel.HarnessMode) -> void:
 	_system_prompt_sent = false
-	_sync_agent_mode()
+	if not _skip_mode_sync:
+		_sync_agent_mode()
+
+
+## «Aprobar y construir» en la tarjeta del plan (m11-22). Orden: el harness pasa a Construir (sin
+## set_mode), el plan se guarda en .godot_agent/plans y recién ahí se contesta «aprobar». El agente
+## pasa solo a su modo default y sigue en el mismo turno pidiendo editar: esas tarjetas ya caen en la
+## matriz de Construir. Si el agente no cambió de modo al terminar el turno, se sincroniza entonces.
+## Devuelve la ruta del plan guardado ("" si no se pudo guardar).
+func approve_plan(request: PermissionRequest) -> String:
+	if not request.is_pending() or not request.is_plan():
+		return ""
+	var allow := request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS])
+	if allow.is_empty():
+		return ""
+	if model.harness_mode != SessionModel.HarnessMode.BUILD:
+		_skip_mode_sync = true
+		model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+		_skip_mode_sync = false
+		agent_log.add(AgentLog.CH_PERM, "plan approved: harness mode Build, the agent leaves plan mode by itself")
+		model.turn_finished.connect(func(_reason: String) -> void: _sync_agent_mode_if_off(), CONNECT_ONE_SHOT)
+	var path := PlanStore.save_approved(cwd, request.edited_plan if not request.edited_plan.is_empty() else request.plan_text)
+	if path.is_empty():
+		agent_log.add(AgentLog.CH_PERM, "could not save the approved plan in %s" % cwd.path_join(PlanStore.DIR))
+	else:
+		agent_log.add(AgentLog.CH_PERM, "approved plan saved: %s" % path)
+	request.plan_approved = true
+	request.select(allow)
+	return path
+
+
+## El agente no siguió al harness (otro agente, o 0.105 cambió): se le manda el modo que corresponde.
+func _sync_agent_mode_if_off() -> void:
+	if not model.current_agent_mode in AGENT_MODE_FOR[model.harness_mode]:
+		_sync_agent_mode()
 
 
 ## Si el agente publica modos, se elige el que corresponde al modo del harness.

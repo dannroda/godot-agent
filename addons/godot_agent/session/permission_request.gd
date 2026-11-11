@@ -33,6 +33,34 @@ var rule_to_add: Dictionary = {}
 var persist_label: String = ""
 ## El usuario eligió permitir el grupo en este modo, guardado en la matriz del proyecto.
 var persist_allow: bool = false
+## Plan a aprobar (m11-22, ExitPlanMode): el texto que presentó el agente ("" = tarjeta común).
+var plan_text: String = ""
+## El plan como lo dejó el usuario con «Editar» ("" = no lo editó).
+var edited_plan: String = ""
+## «Denegar con motivo» / «Seguir planeando…»: lo que escribió el usuario ("" = sin motivo).
+var deny_reason: String = ""
+## El plan se aprobó con «Aprobar y construir» (el harness pasó a Construir).
+var plan_approved: bool = false
+
+
+func is_plan() -> bool:
+	return not plan_text.is_empty()
+
+
+## Rechaza con el motivo del usuario: la tarjeta lo muestra y sale como prompt al terminar el turno.
+func deny_with_reason(reason: String) -> void:
+	if not is_pending() or reason.strip_edges().is_empty():
+		return
+	deny_reason = reason.strip_edges()
+	select(option_id_for([KIND_REJECT_ONCE, KIND_REJECT_ALWAYS]))
+
+
+## Rechaza el plan con la versión editada: el agente recibe el diff y lo vuelve a presentar.
+func submit_edited_plan(text: String) -> void:
+	if not is_pending() or not is_plan() or text.strip_edges() == plan_text.strip_edges():
+		return
+	edited_plan = text
+	select(option_id_for([KIND_REJECT_ONCE, KIND_REJECT_ALWAYS]))
 
 
 func is_pending() -> bool:
