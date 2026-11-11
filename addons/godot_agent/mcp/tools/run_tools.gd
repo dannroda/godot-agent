@@ -20,6 +20,7 @@ const PlaytestMemory := preload("../../review/playtest_memory.gd")
 const PlaytestRegressions := preload("../../review/playtest_regressions.gd")
 const RealGamepads := preload("../../playtest/real_gamepads.gd")
 const DeviceSim := preload("../../playtest/runtime/device_sim.gd")
+const PlaytestLoopGuard := preload("playtest_loop_guard.gd")
 const GameEmbedding := preload("../../playtest/game_embedding.gd")
 const ProjectTools := preload("project_tools.gd")
 const AgentLog := preload("../../core/agent_log.gd")
@@ -108,12 +109,23 @@ const FINDING_FRAMES_KEPT := 50
 ## GDScript, que en el editor lo marca como editado; el play siguiente guarda los recursos editados,
 ## reescribe este archivo y lo recarga con _run_scene a mitad de camino, y el editor se cae (m16-03, m16-08).
 const DEADLINE_META := &"godot_agent_playtest_deadline_ms"
+## m11-49: quién recibe el corte de un playtest en loop (Callable(seen: Dictionary)), puesto por la
+## sesión que corre el playtest; meta de Engine por lo mismo que DEADLINE_META. Sin él, no se vigila.
+const LOOP_HANDLER_META := &"godot_agent_playtest_loop_handler"
+const LOOP_SERIAL_META := &"godot_agent_playtest_loop_serial"
+## Las tools del juego que mira el detector de loops (m11-49).
+const LOOP_GUARDED: PackedStringArray = ["capture_game_frame", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_step", "game_watch"]
+const LOOP_WARNING := "You made the same call%s %d times in a row and the game answered the same every time: it is not changing. Try something different (other input, wait, read the tree or the UI) or answer with verdict blocked and why. If you repeat it once more, the harness stops the playtest as could not test."
+const LOOP_STOPPED := "Stopped: you made the same call%s %d times in a row with the same result. The harness ended the playtest as could not test; do not call more tools."
 ## Las tools que traen texto del juego en sobres (m11-45).
 const ENVELOPED: PackedStringArray = ["run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_monitors", "run_regressions"]
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced)."
 const REGRESSIONS_BUSY := "The saved regressions are running (from the findings panel or a run_regressions call) and the game is theirs: wait for them to finish."
 const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"}, {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
+## El detector de loops del playtest en curso (m11-49) y el número del playtest que mira.
+var _loop_guard := PlaytestLoopGuard.new()
+var _loop_serial: int = -1
 var errors: ErrorCollector
 var debugger: PlaytestDebugger
 var max_image_side: int = 1280
@@ -437,7 +449,47 @@ func tools() -> Array:
 	for tool: McpTool in list:
 		if tool.name in ENVELOPED:
 			tool.envelope = McpTool.ENVELOPE_PARTS
+		if tool.name in LOOP_GUARDED:
+			var tool_name := tool.name
+			var inner := tool.handler
+			tool.handler = func(args: Dictionary) -> Dictionary: return await _loop_guarded(tool_name, args, inner)
 	return list
+
+
+## Pone (o con un Callable vacío, quita) quién recibe el corte de un playtest en loop (m11-49). Cada
+## playtest empieza con el historial vacío.
+static func set_playtest_loop_handler(handler: Callable) -> void:
+	if handler.is_valid():
+		Engine.set_meta(LOOP_HANDLER_META, handler)
+		Engine.set_meta(LOOP_SERIAL_META, int(Engine.get_meta(LOOP_SERIAL_META, 0)) + 1)
+	elif Engine.has_meta(LOOP_HANDLER_META):
+		Engine.remove_meta(LOOP_HANDLER_META)
+
+
+## Corre la tool y, en un playtest, anota la llamada en el detector de loops: con WARN_REPEATS vueltas
+## sin progreso el resultado lo avisa; con CUT_REPEATS la llamada no devuelve el juego, el playtest se
+## corta y la sesión lo cierra como «could not test» con la evidencia.
+func _loop_guarded(tool_name: String, args: Dictionary, inner: Callable) -> Dictionary:
+	var result: Dictionary = await inner.call(args)
+	if not Engine.has_meta(LOOP_HANDLER_META):
+		return result
+	var serial := int(Engine.get_meta(LOOP_SERIAL_META, 0))
+	if serial != _loop_serial:
+		_loop_serial = serial
+		_loop_guard.reset()
+	var seen := _loop_guard.observe(tool_name, args, result)
+	var plural := "s" if int(seen.period) > 1 else ""
+	if seen.cut:
+		var handler: Callable = Engine.get_meta(LOOP_HANDLER_META)
+		Engine.remove_meta(LOOP_HANDLER_META)
+		if handler.is_valid():
+			handler.call(seen)
+		return McpTool.error(LOOP_STOPPED % [plural, seen.repeats])
+	if int(seen.repeats) >= PlaytestLoopGuard.WARN_REPEATS:
+		var warned := result.duplicate(true)
+		(warned.content as Array).append({"type": "text", "text": LOOP_WARNING % [plural, seen.repeats]})
+		return warned
+	return result
 
 
 func _run_scene(args: Dictionary) -> Dictionary:

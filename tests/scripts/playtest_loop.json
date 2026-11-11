@@ -1,0 +1,84 @@
+{
+	"turns": [
+		{
+			"steps": [
+				{
+					"mcp": {
+						"name": "run_scene",
+						"arguments": {
+							"scene": "res://tests/fixtures/hud_fixture.tscn",
+							"seconds": 1,
+							"continue_on_error": true
+						}
+					}
+				},
+				{
+					"mcp": {
+						"name": "game_input",
+						"arguments": {
+							"steps": [
+								{
+									"key": "Space"
+								}
+							]
+						}
+					}
+				},
+				{
+					"mcp": {
+						"name": "game_input",
+						"arguments": {
+							"steps": [
+								{
+									"key": "Space"
+								}
+							]
+						}
+					}
+				},
+				{
+					"mcp": {
+						"name": "game_input",
+						"arguments": {
+							"steps": [
+								{
+									"key": "Space"
+								}
+							]
+						}
+					}
+				},
+				{
+					"mcp": {
+						"name": "game_input",
+						"arguments": {
+							"steps": [
+								{
+									"key": "Space"
+								}
+							]
+						}
+					}
+				},
+				{
+					"mcp": {
+						"name": "game_input",
+						"arguments": {
+							"steps": [
+								{
+									"key": "Space"
+								}
+							]
+						}
+					}
+				},
+				{
+					"chunk": "```json\n{\"playtest\": {\"verdict\": \"pass\", \"summary\": \"Anda\", \"evidence\": [\"nada\"]}}\n```"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

@@ -310,6 +310,15 @@ static func audited_playtest(playtest: Dictionary, audit: Dictionary) -> Diction
 	return result
 
 
+## El veredicto de un playtest que el harness cortó porque el agente entró en loop (m11-49): `seen`
+## es lo que devolvió PlaytestLoopGuard.observe (las tools del ciclo, las vueltas y la evidencia).
+static func loop_playtest(seen: Dictionary) -> Dictionary:
+	return {"verdict": "blocked", "summary": I18n.t("stopped: the agent kept repeating %s with no progress") % str(seen.get("tools", "")),
+		"evidence": PackedStringArray(seen.get("evidence", PackedStringArray())), "repro": PackedStringArray(), "kind": "", "visual": false,
+		"alerts": PackedStringArray([I18n.t("The agent made the same calls %d times in a row and the game answered the same every time, so the harness stopped the playtest.") % int(seen.get("repeats", 0))]),
+		"notes": PackedStringArray(), "stale_notes": PackedStringArray(), "regression": ""}
+
+
 ## Guarda el script de un playtest que pasó para repetirlo sin agente (m16-06). true si lo guardó.
 static func keep_regression(goal: String, audited: Dictionary, audit: Dictionary, regressions: PlaytestRegressions) -> bool:
 	var code := str(audited.get("regression", ""))

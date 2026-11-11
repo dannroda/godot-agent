@@ -145,6 +145,8 @@ const AGENT_MODE_FOR: Dictionary = {
 	SessionModel.HarnessMode.AUTO: ["default"],
 }
 
+## Lo que vio el detector de loops cuando cortó el playtest de este turno ({} si no cortó, m11-49).
+var _playtest_loop: Dictionary = {}
 var model: SessionModel
 var client: AcpClient
 ## Los permisos de la sesión (m13-05): política, reglas de shell, tarjetas y autorizadores.
@@ -538,11 +540,16 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var playtest_minutes := ReviewStore.playtest_minutes(text.strip_edges())
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(Time.get_ticks_msec() + playtest_minutes * 60000)
+	_playtest_loop = {}
+	if playtest_turn:
+		RunTools.set_playtest_loop_handler(_on_playtest_loop)
 	_prompt_request_id = client.next_request_id()
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
 	_prompt_request_id = -1
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(0)
+	if playtest_turn:
+		RunTools.set_playtest_loop_handler(Callable())
 	if playtest_turn:
 		_sync_agent_mode()
 	var turn_text := agent_text_since(first_new_entry)
@@ -552,7 +559,11 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
 		if review.ingest_turn_text(turn_text, cwd):
 			_fold_findings(first_new_entry)
-	if turn_text.contains("\"playtest\""):
+	if not _playtest_loop.is_empty():
+		# El harness cortó el playtest (m11-49): el veredicto es suyo, con lo que repetía el agente.
+		_report_playtest(ReviewStore.loop_playtest(_playtest_loop), turn_text, first_new_entry, text)
+		_playtest_loop = {}
+	elif turn_text.contains("\"playtest\""):
 		var playtest: Dictionary = ReviewStore.FindingsParser.parse(turn_text, cwd).playtest
 		if not playtest.is_empty():
 			_report_playtest(playtest, turn_text, first_new_entry, text)
@@ -980,6 +991,14 @@ func send_in_mode(mode: SessionModel.HarnessMode, text: String, extra_blocks: Ar
 	if model.harness_mode != mode:
 		model.set_harness_mode(mode)
 	return await send_prompt(text, extra_blocks)
+
+
+## El detector de loops cortó el playtest en curso (m11-49): se cancela el turno y, al volver
+## session/prompt, el veredicto queda «could not test» con la evidencia.
+func _on_playtest_loop(seen: Dictionary) -> void:
+	_playtest_loop = seen
+	agent_log.add(AgentLog.CH_ACP, "Playtest stopped: the agent repeated %s %d times with the same result" % [seen.get("tools", ""), int(seen.get("repeats", 0))])
+	cancel()
 
 
 func cancel() -> void:

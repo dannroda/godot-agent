@@ -5474,3 +5474,9 @@ msgstr "Conversación compactada: desde acá el agente trabaja con un resumen y 
 
 msgid "Summary the agent kept"
 msgstr "Resumen que guardó el agente"
+
+msgid "stopped: the agent kept repeating %s with no progress"
+msgstr "se cortó: el agente repetía %s sin avanzar"
+
+msgid "The agent made the same calls %d times in a row and the game answered the same every time, so the harness stopped the playtest."
+msgstr "El agente hizo las mismas llamadas %d veces seguidas y el juego respondió lo mismo cada vez, así que el harness cortó el playtest."
