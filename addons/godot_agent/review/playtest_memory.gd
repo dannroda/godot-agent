@@ -5,6 +5,8 @@ extends RefCounted
 ## archivos había la última vez, para avisar qué cambió y que una nota vieja hay que volver a comprobarla.
 ## Idea de memory.py y codex.py de Autopilot (ramenvr/autopilot, Apache 2.0).
 
+const UntrustedText := preload("../mcp/untrusted_text.gd")
+
 const DIR := "res://.godot_agent/playtests"
 const NOTES_FILE := "notes.md"
 const NOT_A_BUG_FILE := "not_a_bug.json"
@@ -142,7 +144,9 @@ func brief(root: String = "res://") -> String:
 			lines.append("Changed since the last playtest (a note about this code may be out of date: check it before you rely on it):\n%s%s" % ["\n".join(shown), "\n… +%d" % (changed.size() - CHANGED_SHOWN) if changed.size() > CHANGED_SHOWN else ""])
 	var dismissed := not_a_bug()
 	if not dismissed.is_empty():
-		lines.append("The user marked these as not a bug, don't report them: %s" % ", ".join(dismissed))
+		# Las firmas traen nombres de nodos y títulos del juego: en sobre, una por línea (m15-24).
+		var signatures := "\n".join(Array(dismissed).map(func(signature: String) -> String: return "- " + UntrustedText.wrap(signature)))
+		lines.append(UntrustedText.seal("The user marked these as not a bug, don't report them:\n" + signatures, UntrustedText.new_nonce()))
 	var dir := base.path_join(SCRIPTS_DIR)
 	if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(dir)) and not DirAccess.get_files_at(dir).is_empty():
 		lines.append("game_script code that worked before is in %s." % dir)
