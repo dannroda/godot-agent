@@ -195,6 +195,24 @@ static func _hunk_from_header(line: String, index: int, path: String) -> Diction
 	}
 
 
+## Las líneas que cambia un trozo, sin el contexto: {old_line (la primera que cambia en el archivo de
+## antes), new_first y new_last (las que quedaron en el de después; new_last < new_first si solo
+## borra)}.
+static func changed_lines(hunk: Dictionary) -> Dictionary:
+	var lead := 0
+	for line: String in hunk.lines:
+		if not line.begins_with(" "):
+			break
+		lead += 1
+	var added := 0
+	for line: String in hunk.lines:
+		if line.begins_with("+"):
+			added += 1
+	var old_line := int(hunk.old_start) + lead if int(hunk.old_count) > 0 else int(hunk.old_start) + 1
+	var new_first := int(hunk.new_start) + lead if int(hunk.new_count) > 0 else int(hunk.new_start) + 1
+	return {"old_line": maxi(old_line, 1), "new_first": maxi(new_first, 1), "new_last": maxi(new_first, 1) + added - 1}
+
+
 ## true si el trozo se puede rechazar ahora (deshacerlo sobre el archivo actual) sin pisar nada: con
 ## `undo`, si se puede volver a aplicar.
 func can_apply(hunk: Dictionary, undo: bool = false) -> bool:

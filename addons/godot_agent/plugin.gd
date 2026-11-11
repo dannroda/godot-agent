@@ -243,6 +243,14 @@ func _enter_tree() -> void:
 	_turn_changes.after_restore = _after_oneshot_restore
 	_turn_dialog.diff_requested.connect(_turn_changes.show_diff)
 	_turn_dialog.revert_requested.connect(func(data: Dictionary, path: String) -> void: _turn_changes.restore(data, PackedStringArray([path])))
+	_turn_dialog.hunks_requested.connect(_turn_changes.show_hunks)
+	_turn_dialog.hunk_action.connect(_turn_changes.on_hunk_action)
+	_turn_dialog.reject_file_requested.connect(_turn_changes.on_reject_file)
+	# m11-34: un archivo con cambios sin guardar o que otra sesión edita no se toca por trozo.
+	_turn_changes.unsaved_of = func(res_path: String) -> bool:
+		return (_sync and _sync.buffer_text(ProjectSettings.globalize_path(res_path)) != null) or res_path in EditorInterface.get_unsaved_scenes()
+	_turn_changes.holder_of = func(session: String, res_path: String) -> String:
+		return _coordinator.holder_label(session, res_path) if _coordinator else ""
 	_playtest_debugger = PlaytestDebugger.new()
 	# El juego ya leyó project.godot cuando su sesión de debug arranca: el autoload se quita ahí.
 	_playtest_debugger.session_started.connect(_remove_playtest_autoload)
@@ -676,6 +684,8 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_turn_dialog.show_turn(payload)
 		SessionController.ACTION_TURN_RESTORE:
 			_turn_changes.confirm_restore(payload)
+		TurnChanges.ACTION_HUNK_UNDO:
+			_turn_changes.undo_hunk(payload)
 		SessionController.ACTION_TURN_REPORT:
 			_turn_changes.save_report(payload)
 		RemoteActivity.ACTION_DIFF:

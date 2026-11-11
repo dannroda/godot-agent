@@ -127,3 +127,12 @@ func _write(path: String, text: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(text)
 	file.close()
+
+
+func test_changed_lines() -> void:
+	var hunk := TurnSnapshots.parse_hunks("@@ -9,4 +9,4 @@\n \n \n func c():\n-\treturn 3\n+\treturn 30\n")[0]
+	assert_eq(TurnSnapshots.changed_lines(hunk), {"old_line": 12, "new_first": 12, "new_last": 12}, "sin las líneas de contexto")
+	var removed := TurnSnapshots.parse_hunks("@@ -4,3 +4,2 @@\n a\n-b\n c\n")[0]
+	assert_eq(TurnSnapshots.changed_lines(removed), {"old_line": 5, "new_first": 5, "new_last": 4}, "solo borra")
+	var created := TurnSnapshots.parse_hunks("@@ -0,0 +1,2 @@\n+x\n+y\n")[0]
+	assert_eq(TurnSnapshots.changed_lines(created), {"old_line": 1, "new_first": 1, "new_last": 2}, "archivo nuevo")

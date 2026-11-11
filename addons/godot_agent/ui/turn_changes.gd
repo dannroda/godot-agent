@@ -3,6 +3,12 @@ extends RefCounted
 ## Lo que cambió un turno (m11-01, m11-02, m11-06): ver el diff de un archivo, volver atrás todo el
 ## turno o un archivo (con confirmación y «Deshacer»), y guardar el reporte. Lo arma el plugin, que
 ## le pasa los diálogos y cómo encontrar la sesión de cada aviso (`data.session`).
+##
+## Por trozo (m11-34): cada trozo del diff del turno (del snapshot del principio al del final) se
+## conserva (una marca) o se rechaza (git apply -R sobre el archivo actual, ver TurnSnapshots). Un
+## trozo cuyas líneas cambiaron después queda «cambió después del turno» y no se toca. Tampoco un
+## archivo con cambios sin guardar en el editor ni uno que otra sesión está editando en su turno. El
+## estado de los trozos queda en `data.hunk_state` ({ruta: {"índice": "kept" o "rejected"}}).
 
 const SessionModel := preload("../session/session_model.gd")
 const SessionController := preload("../session/session_controller.gd")
@@ -15,6 +21,11 @@ const TurnChangesDialog := preload("turn_changes_dialog.gd")
 const EditorContext := preload("editor_context.gd")
 const I18n := preload("../core/i18n.gd")
 
+## Acción del aviso de un trozo rechazado: lo vuelve a aplicar.
+const ACTION_HUNK_UNDO := "turn_hunk_undo"
+const KEPT := "kept"
+const REJECTED := "rejected"
+
 ## Los snapshots del proyecto abierto; una sesión en una copia (m11-09) tiene los suyos.
 var project_snapshots: TurnSnapshots
 var diff_dialog: DiffDialog
@@ -26,6 +37,160 @@ var controller_of: Callable
 var model_of: Callable
 ## `(paths: PackedStringArray) -> void`: el editor relee lo que volvió atrás.
 var after_restore: Callable
+## `(res_path: String) -> bool`: el archivo está abierto en el editor con cambios sin guardar.
+var unsaved_of: Callable = func(_res_path: String) -> bool: return false
+## `(session: String, res_path: String) -> String`: el nombre de otra sesión que lo está editando, o "".
+var holder_of: Callable = func(_session: String, _res_path: String) -> String: return ""
+
+
+## Los trozos de un archivo del turno con lo que se puede hacer con cada uno: [{hunk, state ("",
+## "kept", "rejected"), stale (sus líneas cambiaron después), blocked (por qué no se puede tocar
+## ahora, o "")}]. Durante el turno (`data.live`) se ven, pero no se tocan.
+func file_hunks(data: Dictionary, path: String) -> Array[Dictionary]:
+	var session := str(data.get("session", primary_session))
+	var snapshots := _snapshots_of(session)
+	var result: Array[Dictionary] = []
+	if snapshots == null or not data.has("end"):
+		return result
+	var blocked := _blocked_reason(data, path)
+	var states: Dictionary = data.get("hunk_state", {}).get(path, {})
+	for hunk: Dictionary in await snapshots.hunks(str(data.start), str(data.end), path):
+		var state := str(states.get(str(hunk.index), ""))  # claves de texto: el aviso se guarda en JSON
+		var possible := await snapshots.can_apply(hunk, state == REJECTED)
+		result.append({"hunk": hunk, "state": state, "stale": not possible, "blocked": blocked})
+	return result
+
+
+## El diálogo pidió los trozos de un archivo.
+func show_hunks(data: Dictionary, path: String) -> void:
+	var items := await file_hunks(data, path)
+	if dialog:
+		dialog.set_hunks(data, path, items)
+
+
+## Una acción del diálogo sobre un trozo.
+func on_hunk_action(data: Dictionary, path: String, index: int, action: String) -> void:
+	var error := ""
+	match action:
+		"keep", "unkeep":
+			keep_hunk(data, path, index, action == "keep")
+			if dialog:
+				dialog.refresh_file(data, path)
+		"reject", "undo":
+			error = await reject_hunk(data, path, index, action == "undo")
+			if not error.is_empty() and dialog:
+				dialog.refresh_file(data, path)
+	if dialog:
+		dialog.set_error(data, path, error)
+
+
+## «Rechazar todo» de un archivo en el diálogo.
+func on_reject_file(data: Dictionary, path: String) -> void:
+	var counts := await reject_file(data, path)
+	if dialog:
+		dialog.refresh_file(data, path)
+		var skipped: int = counts.skipped
+		var message := ""
+		if skipped == 1:
+			message = I18n.t("1 change could not be rejected: its lines changed after the turn, or the file can't be touched now.")
+		elif skipped > 1:
+			message = I18n.t("%d changes could not be rejected: their lines changed after the turn, or the file can't be touched now.") % skipped
+		dialog.set_error(data, path, message)
+
+
+## Por qué no se puede tocar ahora un archivo del turno, o "".
+func _blocked_reason(data: Dictionary, path: String) -> String:
+	if data.get("live", false):
+		return I18n.t("The turn is still running.")
+	var session := str(data.get("session", primary_session))
+	if _snapshots_of(session) != project_snapshots:
+		return ""  # una copia aparte: nada abierto en el editor ni reclamado acá
+	var res_path := "res://" + path
+	if unsaved_of.call(res_path):
+		return I18n.t("It has unsaved changes in the editor: save or discard them first.")
+	var holder: String = holder_of.call(session, res_path)
+	if not holder.is_empty():
+		return I18n.t("«%s» is editing it in its turn.") % holder
+	return ""
+
+
+## Marca un trozo como revisado sin cambiar el archivo (o le saca la marca).
+func keep_hunk(data: Dictionary, path: String, index: int, kept: bool = true) -> void:
+	_set_state(data, path, index, KEPT if kept else "")
+
+
+## Rechaza un trozo (o, con `undo`, vuelve a aplicar uno rechazado). Devuelve "" o el motivo por el
+## que no se pudo; en ese caso no escribió nada.
+func reject_hunk(data: Dictionary, path: String, index: int, undo: bool = false) -> String:
+	var blocked := _blocked_reason(data, path)
+	if not blocked.is_empty():
+		return blocked
+	var session := str(data.get("session", primary_session))
+	var snapshots := _snapshots_of(session)
+	var hunks := await snapshots.hunks(str(data.start), str(data.end), path)
+	if index < 0 or index >= hunks.size():
+		return I18n.t("That change is no longer there.")
+	var applied: Dictionary = await snapshots.apply_hunk(hunks[index], undo)
+	if not applied.ok:
+		return I18n.t("Those lines changed after the turn: use «Go back» for the whole file.")
+	_set_state(data, path, index, "" if undo else REJECTED)
+	if snapshots == project_snapshots:
+		after_restore.call(PackedStringArray([path]))
+	var model: SessionModel = model_of.call(session)
+	var hunk: Dictionary = hunks[index]
+	var line: int = TurnSnapshots.changed_lines(hunk).old_line
+	var where := "%s:%d" % [path, line]
+	if model and not undo:
+		var payload := {"data": data, "path": path, "index": index}
+		model.add_notice(I18n.t("Rejected a change in %s.") % where, ChatEntry.NoticeLevel.INFO, [{"id": ACTION_HUNK_UNDO, "label": I18n.t("Undo"), "data": payload}])
+	var controller: SessionController = controller_of.call(session)
+	if controller:
+		if undo:
+			controller.note_for_agent("[The user re-applied one of your changes in %s that they had rejected. Re-read the file before editing it again.]" % path)
+		else:
+			controller.note_for_agent("[The user rejected one of your changes in %s (around line %d of the file before your turn). Re-read the file before editing it again.]" % [path, line])
+	if dialog:
+		dialog.refresh_file(data, path)
+	return ""
+
+
+## «Deshacer» del aviso de un trozo rechazado.
+func undo_hunk(payload: Dictionary) -> void:
+	var data: Dictionary = payload.data
+	var error := await reject_hunk(data, str(payload.path), int(payload.index), true)
+	if not error.is_empty():
+		var model: SessionModel = model_of.call(str(data.get("session", primary_session)))
+		if model:
+			model.add_notice(I18n.t("Could not undo: %s") % error, ChatEntry.NoticeLevel.WARNING)
+
+
+## Rechaza todos los trozos de un archivo que se pueden rechazar. Devuelve {rejected, skipped}.
+func reject_file(data: Dictionary, path: String) -> Dictionary:
+	var counts := {"rejected": 0, "skipped": 0}
+	var items := await file_hunks(data, path)
+	items.reverse()  # de abajo hacia arriba
+	for item: Dictionary in items:
+		if item.state == REJECTED:
+			continue
+		if item.stale or not str(item.blocked).is_empty():
+			counts.skipped += 1
+			continue
+		if (await reject_hunk(data, path, int(item.hunk.index))).is_empty():
+			counts.rejected += 1
+		else:
+			counts.skipped += 1
+	return counts
+
+
+func _set_state(data: Dictionary, path: String, index: int, state: String) -> void:
+	if not data.has("hunk_state"):
+		data["hunk_state"] = {}
+	var states: Dictionary = data.hunk_state.get(path, {})
+	if state.is_empty():
+		states.erase(str(index))
+	else:
+		states[str(index)] = state
+	data.hunk_state[path] = states
 
 
 func show_diff(data: Dictionary, path: String) -> void:

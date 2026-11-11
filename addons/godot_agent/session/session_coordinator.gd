@@ -89,6 +89,15 @@ func claim_files(session: String, paths: PackedStringArray) -> Dictionary:
 	return taken
 
 
+## El nombre de otra sesión (no `session`) que está editando `path` en su turno, o "". Solo mira: no
+## reclama nada (m11-34: rechazar un trozo de un archivo que otra sesión está editando se bloquea).
+func holder_label(session: String, path: String) -> String:
+	var owner := str(_claims.get(normalize(path), ""))
+	if owner.is_empty() or owner == session or not _labels.has(owner):
+		return ""
+	return label(owner)
+
+
 ## Archivos que tiene `session`, como rutas normalizadas.
 func files_of(session: String) -> PackedStringArray:
 	var result: PackedStringArray = []

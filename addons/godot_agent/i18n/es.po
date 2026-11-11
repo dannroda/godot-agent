@@ -2926,9 +2926,6 @@ msgstr "Verificando y descomprimiendo…"
 msgid "Changes of the turn"
 msgstr "Cambios del turno"
 
-msgid "What the agent changed in the project during that turn. «Go back» leaves a file as it was before the turn."
-msgstr "Lo que el agente cambió en el proyecto durante ese turno. «Volver atrás» deja un archivo como estaba antes del turno."
-
 msgid "Diff"
 msgstr "Diff"
 
@@ -5015,3 +5012,75 @@ msgstr "(raíz)"
 
 msgid "with %d nodes below"
 msgstr "con %d nodos abajo"
+
+msgid "What the agent changed in the project during that turn. Open a file to keep or reject each change; «Go back» leaves the whole file as it was before the turn."
+msgstr "Lo que el agente cambió en el proyecto en ese turno. Abrí un archivo para conservar o rechazar cada cambio; «Volver atrás» deja el archivo entero como estaba antes del turno."
+
+msgid "… %d more lines in «Diff»"
+msgstr "… %d líneas más en «Diff»"
+
+msgid "Changed after the turn"
+msgstr "Cambió después del turno"
+
+msgid "Could not undo: %s"
+msgstr "No se pudo deshacer: %s"
+
+msgid "%d changes could not be rejected: their lines changed after the turn, or the file can't be touched now."
+msgstr "%d cambios no se pudieron rechazar: sus líneas cambiaron después del turno, o el archivo no se puede tocar ahora."
+
+msgid "It has unsaved changes in the editor: save or discard them first."
+msgstr "Tiene cambios sin guardar en el editor: guardalos o descartalos primero."
+
+msgid "Keep"
+msgstr "Conservar"
+
+msgid "Kept"
+msgstr "Conservado"
+
+msgid "Kept · changed afterwards"
+msgstr "Conservado · cambió después"
+
+msgid "Line %d"
+msgstr "Línea %d"
+
+msgid "Lines %d–%d"
+msgstr "Líneas %d–%d"
+
+msgid "Put this change back in the file."
+msgstr "Volver a poner este cambio en el archivo."
+
+msgid "Reject all in this file"
+msgstr "Rechazar todo en este archivo"
+
+msgid "Rejected"
+msgstr "Rechazado"
+
+msgid "Rejected · changed afterwards"
+msgstr "Rechazado · cambió después"
+
+msgid "Rejected a change in %s."
+msgstr "Se rechazó un cambio en %s."
+
+msgid "Removed at line %d"
+msgstr "Borrado en la línea %d"
+
+msgid "«%s» is editing it in its turn."
+msgstr "«%s» lo está editando en su turno."
+
+msgid "Show its changes one by one"
+msgstr "Ver sus cambios uno por uno"
+
+msgid "That change is no longer there."
+msgstr "Ese cambio ya no está."
+
+msgid "The turn is still running."
+msgstr "El turno sigue en curso."
+
+msgid "Those lines changed after the turn: use «Go back» for the whole file."
+msgstr "Esas líneas cambiaron después del turno: usá «Volver atrás» para el archivo entero."
+
+msgid "Undo this change in the file. What changed elsewhere in the file stays."
+msgstr "Deshacer este cambio en el archivo. Lo que cambió en otras partes del archivo queda."
+
+msgid "1 change could not be rejected: its lines changed after the turn, or the file can't be touched now."
+msgstr "1 cambio no se pudo rechazar: sus líneas cambiaron después del turno, o el archivo no se puede tocar ahora."

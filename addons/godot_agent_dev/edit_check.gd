@@ -444,6 +444,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	DirAccess.remove_absolute(thumb)
 	await _call_text("save_scene", {})
 	_expect(not FileAccess.file_exists(thumb), "la tool save_scene guarda sin vista previa")
+	await _check_hunk_guards()
 	return failures
 
 
@@ -505,3 +506,30 @@ func _check_scene_diff(before: String, after: String) -> void:
 	dialog.call(&"show_diff", "a.gd", "before", "func a():\n\tpass\n", "now", "func b():\n\tpass\n")
 	_expect(not raw_button.visible and str(dialog.call(&"shown_text")).contains("func b"), "un script sigue con el diff de texto, sin «Ver crudo»")
 	dialog.hide()
+
+
+
+## m11-34: rechazar un trozo no toca un script con cambios sin guardar en el Script Editor ni una
+## escena abierta sin guardar; lo mira con lo que tiene el editor de verdad.
+func _check_hunk_guards() -> void:
+	var changes: Object = _plugin.get(&"_turn_changes")
+	var data := {"session": "s1", "start": "x", "end": "y"}
+	var rel := BATCH_SCRIPT.trim_prefix("res://")
+	EditorInterface.edit_script(load(BATCH_SCRIPT))
+	await _tree.process_frame
+	await _tree.process_frame
+	var code := EditorInterface.get_script_editor().get_current_editor().get_base_editor() as CodeEdit
+	_expect(not changes.get(&"unsaved_of").call(BATCH_SCRIPT), "un script abierto sin cambios no bloquea")
+	_expect(str(changes.call(&"_blocked_reason", data, rel)).is_empty(), "sin motivo para bloquear")
+	code.insert_text_at_caret("# sin guardar\n")
+	_expect(changes.get(&"unsaved_of").call(BATCH_SCRIPT), "un script con cambios sin guardar bloquea")
+	_expect(str(changes.call(&"_blocked_reason", data, rel)).contains("unsaved changes"), "con el motivo")
+	code.undo()
+	if code.get_version() != code.get_saved_version():
+		code.tag_saved_version()
+	_expect(not changes.get(&"unsaved_of").call(BATCH_SCRIPT), "deshecho, ya no bloquea")
+	EditorInterface.open_scene_from_path(EDIT_SCENE)
+	EditorInterface.mark_scene_as_unsaved()
+	_expect(changes.get(&"unsaved_of").call(EDIT_SCENE), "una escena abierta sin guardar bloquea")
+	EditorInterface.save_scene()
+	_expect(not changes.get(&"unsaved_of").call(EDIT_SCENE), "guardada, ya no")
