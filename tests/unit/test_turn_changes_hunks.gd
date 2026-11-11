@@ -124,6 +124,39 @@ func test_copy_session_uses_its_own_snapshots() -> void:
 	_holders.clear()
 
 
+func test_scene_by_node() -> void:
+	if OS.execute("git", ["--version"]) != 0:
+		return
+	var setup := await _turn("turn_changes_scene")
+	var changes: TurnChanges = setup.changes
+	var data: Dictionary = setup.data
+	var scene_before := "[gd_scene format=3]\n\n[node name=\"Main\" type=\"Node2D\" unique_id=1]\n\n[node name=\"Player\" type=\"Node2D\" parent=\".\" unique_id=2]\nposition = Vector2(1, 2)\n"
+	var scene_after := "[gd_scene format=3]\n\n[node name=\"Main\" type=\"Node2D\" unique_id=1]\n\n[node name=\"Player\" type=\"Node2D\" parent=\".\" unique_id=2]\nposition = Vector2(5, 2)\n\n[node name=\"Coin\" type=\"Area2D\" parent=\".\" unique_id=3]\n"
+	# Otro turno, ahora con la escena.
+	_write("main.tscn", scene_before)
+	var snapshots: TurnSnapshots = changes.project_snapshots
+	data.start = await snapshots.take("s1")
+	_write("main.tscn", scene_after)
+	data.end = await snapshots.take("s1")
+	var items := await changes.file_hunks(data, "main.tscn")
+	assert_eq(items.map(func(item: Dictionary) -> String: return str(item.scene.label)), ["+ Coin", "~ Player · position"], "por nodo")
+	assert_eq(await changes.reject_hunk(data, "main.tscn", 1), "", "rechazar la posición")
+	assert_true(_read("main.tscn").contains("Vector2(1, 2)") and _read("main.tscn").contains("Coin"), "solo la posición")
+	assert_true(str(_model.entries()[-1].text).contains("main.tscn (Player · position)"), str(_model.entries()[-1].text))
+	assert_eq(await changes.reject_hunk(data, "main.tscn", 0), "", "rechazar el nodo agregado")
+	assert_false(_read("main.tscn").contains("Coin"), "Coin se fue")
+	await changes.undo_hunk(_model.entries()[-1].actions[0].data)
+	assert_true(_read("main.tscn").contains("Coin"), "deshacer lo devuelve")
+	# Stale y sin guardar.
+	_write("main.tscn", _read("main.tscn").replace("Vector2(1, 2)", "Vector2(9, 9)"))
+	items = await changes.file_hunks(data, "main.tscn")
+	assert_true(items[1].stale and items[1].state == "rejected", "deshacer la posición ya no se puede: cambió después")
+	assert_true((await changes.reject_hunk(data, "main.tscn", 1, true)).contains("changed in the scene after the turn"))
+	_unsaved["res://main.tscn"] = true
+	assert_true((await changes.reject_hunk(data, "main.tscn", 0)).contains("unsaved changes"), "una escena abierta sin guardar no se toca")
+	_unsaved.clear()
+
+
 ## Un repo temporal con un turno que cambió p.gd, y un TurnChanges para él.
 func _turn(name: String) -> Dictionary:
 	_root = ProjectSettings.globalize_path("user://unit_tests/" + name)

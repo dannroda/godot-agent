@@ -218,7 +218,7 @@ static func _nodes(scene: Dictionary) -> Dictionary:
 		_flatten(section.props, scene, "", 0, props)
 		if attrs.has("groups"):
 			props["groups"] = str(attrs.groups)
-		var node := {"path": path, "name": name, "parent": parent if attrs.has("parent") else "", "type": type, "uid": str(attrs.get("unique_id", "")), "props": props}
+		var node := {"path": path, "name": name, "parent": parent if attrs.has("parent") else "", "type": type, "uid": str(attrs.get("unique_id", "")), "props": props, "raw": section.props}
 		by_path[path] = list.size()
 		if not node.uid.is_empty():
 			by_uid[node.uid] = list.size()

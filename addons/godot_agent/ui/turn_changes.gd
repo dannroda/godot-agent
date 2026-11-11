@@ -20,6 +20,7 @@ const DiffDialog := preload("diff_dialog.gd")
 const TurnChangesDialog := preload("turn_changes_dialog.gd")
 const EditorContext := preload("editor_context.gd")
 const I18n := preload("../core/i18n.gd")
+const SceneRevert := preload("../core/scene_revert.gd")
 
 ## Acción del aviso de un trozo rechazado: lo vuelve a aplicar.
 const ACTION_HUNK_UNDO := "turn_hunk_undo"
@@ -54,11 +55,36 @@ func file_hunks(data: Dictionary, path: String) -> Array[Dictionary]:
 		return result
 	var blocked := _blocked_reason(data, path)
 	var states: Dictionary = data.get("hunk_state", {}).get(path, {})
+	if is_scene(path):
+		var current := _read(snapshots, path)
+		var index := 0
+		for change: Dictionary in await _scene_changes(snapshots, data, path):
+			var state := str(states.get(str(index), ""))
+			var possible: bool = change.rejectable and SceneRevert.apply(current, change, state == REJECTED).ok
+			result.append({"index": index, "scene": change, "state": state, "stale": change.rejectable and not possible, "blocked": blocked})
+			index += 1
+		return result
 	for hunk: Dictionary in await snapshots.hunks(str(data.start), str(data.end), path):
 		var state := str(states.get(str(hunk.index), ""))  # claves de texto: el aviso se guarda en JSON
 		var possible := await snapshots.can_apply(hunk, state == REJECTED)
-		result.append({"hunk": hunk, "state": state, "stale": not possible, "blocked": blocked})
+		result.append({"index": hunk.index, "hunk": hunk, "state": state, "stale": not possible, "blocked": blocked})
 	return result
+
+
+## Una escena de texto: sus cambios se revisan por nodo (SceneRevert), no por trozo.
+static func is_scene(path: String) -> bool:
+	return path.get_extension().to_lower() == "tscn"
+
+
+func _scene_changes(snapshots: TurnSnapshots, data: Dictionary, path: String) -> Array[Dictionary]:
+	var before := await snapshots.text_at(str(data.start), path)
+	var after := await snapshots.text_at(str(data.end), path)
+	return SceneRevert.changes(before, after)
+
+
+func _read(snapshots: TurnSnapshots, path: String) -> String:
+	var full := snapshots.git.root.path_join(path)
+	return FileAccess.get_file_as_string(full) if FileAccess.file_exists(full) else ""
 
 
 ## El diálogo pidió los trozos de un archivo.
@@ -127,19 +153,37 @@ func reject_hunk(data: Dictionary, path: String, index: int, undo: bool = false)
 		return blocked
 	var session := str(data.get("session", primary_session))
 	var snapshots := _snapshots_of(session)
-	var hunks := await snapshots.hunks(str(data.start), str(data.end), path)
-	if index < 0 or index >= hunks.size():
-		return I18n.t("That change is no longer there.")
-	var applied: Dictionary = await snapshots.apply_hunk(hunks[index], undo)
-	if not applied.ok:
-		return I18n.t("Those lines changed after the turn: use «Go back» for the whole file.")
+	var where := ""
+	var line := 0
+	if is_scene(path):
+		var changes := await _scene_changes(snapshots, data, path)
+		if index < 0 or index >= changes.size():
+			return I18n.t("That change is no longer there.")
+		var change: Dictionary = changes[index]
+		if not change.rejectable:
+			return I18n.t("This kind of scene change can't be rejected on its own yet: use «Go back» for the whole file.")
+		var done := SceneRevert.apply(_read(snapshots, path), change, undo)
+		if not done.ok:
+			return I18n.t("That changed in the scene after the turn: use «Go back» for the whole file.")
+		var file := FileAccess.open(snapshots.git.root.path_join(path), FileAccess.WRITE)
+		if file == null:
+			return I18n.t("Could not write %s.") % path
+		file.store_string(done.text)
+		file.close()
+		where = "%s (%s)" % [path, str(change.label).substr(2)]
+	else:
+		var hunks := await snapshots.hunks(str(data.start), str(data.end), path)
+		if index < 0 or index >= hunks.size():
+			return I18n.t("That change is no longer there.")
+		var applied: Dictionary = await snapshots.apply_hunk(hunks[index], undo)
+		if not applied.ok:
+			return I18n.t("Those lines changed after the turn: use «Go back» for the whole file.")
+		line = TurnSnapshots.changed_lines(hunks[index]).old_line
+		where = "%s:%d" % [path, line]
 	_set_state(data, path, index, "" if undo else REJECTED)
 	if snapshots == project_snapshots:
 		after_restore.call(PackedStringArray([path]))
 	var model: SessionModel = model_of.call(session)
-	var hunk: Dictionary = hunks[index]
-	var line: int = TurnSnapshots.changed_lines(hunk).old_line
-	var where := "%s:%d" % [path, line]
 	if model and not undo:
 		var payload := {"data": data, "path": path, "index": index}
 		model.add_notice(I18n.t("Rejected a change in %s.") % where, ChatEntry.NoticeLevel.INFO, [{"id": ACTION_HUNK_UNDO, "label": I18n.t("Undo"), "data": payload}])
@@ -148,7 +192,7 @@ func reject_hunk(data: Dictionary, path: String, index: int, undo: bool = false)
 		if undo:
 			controller.note_for_agent("[The user re-applied one of your changes in %s that they had rejected. Re-read the file before editing it again.]" % path)
 		else:
-			controller.note_for_agent("[The user rejected one of your changes in %s (around line %d of the file before your turn). Re-read the file before editing it again.]" % [path, line])
+			controller.note_for_agent("[The user rejected one of your changes in %s. Re-read the file before editing it again.]" % (where if line == 0 else "%s (around line %d of the file before your turn)" % [path, line]))
 	if dialog:
 		dialog.refresh_file(data, path)
 	return ""
@@ -175,7 +219,10 @@ func reject_file(data: Dictionary, path: String) -> Dictionary:
 		if item.stale or not str(item.blocked).is_empty():
 			counts.skipped += 1
 			continue
-		if (await reject_hunk(data, path, int(item.hunk.index))).is_empty():
+		if item.has("scene") and not item.scene.rejectable:
+			counts.skipped += 1
+			continue
+		if (await reject_hunk(data, path, int(item.index))).is_empty():
 			counts.rejected += 1
 		else:
 			counts.skipped += 1

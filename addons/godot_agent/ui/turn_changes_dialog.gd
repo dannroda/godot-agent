@@ -23,9 +23,9 @@ const TurnSnapshots := preload("../session/turn_snapshots.gd")
 
 ## Líneas de un trozo que se muestran; las demás, en el diff completo.
 const HUNK_MAX_LINES := 40
-## Por ahora las escenas se revisan con el diff por nodos y «Volver atrás» (m11-59 y la fase 1 de
-## m11-34 las abren por nodo); los binarios no tienen trozos.
-const NO_HUNKS_EXTENSIONS: PackedStringArray = ["tscn", "scn", "res", "png", "jpg", "jpeg", "webp", "svg", "wav", "ogg", "mp3", "glb", "ttf", "otf"]
+## Los binarios no tienen trozos. Una .tscn se abre por nodo (SceneRevert).
+const NO_HUNKS_EXTENSIONS: PackedStringArray = ["scn", "res", "png", "jpg", "jpeg", "webp", "svg", "wav", "ogg", "mp3", "glb", "ttf", "otf"]
+const MAX_VALUE := 80
 
 var _box: VBoxContainer
 var _data: Dictionary = {}
@@ -169,7 +169,7 @@ func _hunks_box(path: String, items: Array) -> MarginContainer:
 		box.add_child(reason)
 	var pending := 0
 	for item: Dictionary in items:
-		if item.state != "rejected" and not item.stale:
+		if item.state != "rejected" and not item.stale and (not item.has("scene") or item.scene.rejectable):
 			pending += 1
 		if box.get_child_count() > 0 and box.get_child(-1).name.begins_with("Hunk"):
 			box.add_child(HSeparator.new())
@@ -187,20 +187,27 @@ func _hunks_box(path: String, items: Array) -> MarginContainer:
 
 
 func _hunk_card(path: String, item: Dictionary, enabled: bool) -> VBoxContainer:
-	var hunk: Dictionary = item.hunk
-	var index := int(hunk.index)
+	var index := int(item.index)
+	var scene: Dictionary = item.get("scene", {})
+	var rejectable: bool = scene.is_empty() or scene.rejectable
 	var card := VBoxContainer.new()
 	card.name = "Hunk%d" % index
 	var head := HBoxContainer.new()
 	card.add_child(head)
 	var where := Label.new()
-	var changed := TurnSnapshots.changed_lines(hunk)
-	var first: int = changed.new_first
-	var last: int = changed.new_last
-	if last < first:
-		where.text = I18n.t("Removed at line %d") % first
+	if not scene.is_empty():
+		where.text = str(scene.label)
+		where.clip_text = true
+		where.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		where.tooltip_text = str(scene.label)
 	else:
-		where.text = I18n.t("Line %d") % first if last == first else I18n.t("Lines %d–%d") % [first, last]
+		var changed := TurnSnapshots.changed_lines(item.hunk)
+		var first: int = changed.new_first
+		var last: int = changed.new_last
+		if last < first:
+			where.text = I18n.t("Removed at line %d") % first
+		else:
+			where.text = I18n.t("Line %d") % first if last == first else I18n.t("Lines %d–%d") % [first, last]
 	where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(where)
 	var state := ExtensionsUi.muted(_state_text(item))
@@ -221,8 +228,10 @@ func _hunk_card(path: String, item: Dictionary, enabled: bool) -> VBoxContainer:
 	reject.flat = true
 	var rejected: bool = item.state == "rejected"
 	reject.text = I18n.t("Undo") if rejected else I18n.t("Reject")
-	reject.disabled = not enabled or item.stale
+	reject.disabled = not enabled or item.stale or not rejectable
 	reject.tooltip_text = I18n.t("Put this change back in the file.") if rejected else I18n.t("Undo this change in the file. What changed elsewhere in the file stays.")
+	if not rejectable:
+		reject.tooltip_text = I18n.t("This kind of scene change can't be rejected on its own yet: use «Go back» for the whole file.")
 	reject.pressed.connect(func() -> void:
 		reject.disabled = true
 		hunk_action.emit(_data, path, index, "undo" if rejected else "reject"))
@@ -235,7 +244,7 @@ func _hunk_card(path: String, item: Dictionary, enabled: bool) -> VBoxContainer:
 	text.selection_enabled = true
 	text.add_theme_font_override(&"normal_font", AgentTheme.mono_font())
 	text.add_theme_font_size_override(&"normal_font_size", AgentTheme.mono_font_size())
-	text.text = hunk_bbcode(hunk)
+	text.text = hunk_bbcode(item.hunk) if scene.is_empty() else scene_bbcode(scene)
 	if rejected:
 		text.modulate.a = 0.5
 	card.add_child(text)
@@ -248,7 +257,32 @@ func _state_text(item: Dictionary) -> String:
 			return I18n.t("Rejected") if not item.stale else I18n.t("Rejected · changed afterwards")
 		"kept":
 			return I18n.t("Kept") if not item.stale else I18n.t("Kept · changed afterwards")
+	if item.has("scene") and not item.scene.rejectable:
+		return I18n.t("Only with «Go back»")
 	return I18n.t("Changed after the turn") if item.stale else ""
+
+
+## Un cambio de escena: antes → después de una propiedad, o qué trae un nodo agregado.
+static func scene_bbcode(change: Dictionary) -> String:
+	var removed := AgentTheme.color_hex(AgentTheme.REMOVED)
+	var added := AgentTheme.color_hex(AgentTheme.ADDED)
+	if change.has("shown_before") or change.has("shown_after"):
+		return "[color=%s]%s[/color] → [color=%s]%s[/color]" % [removed, _value(change.get("shown_before")), added, _value(change.get("shown_after"))]
+	if change.get("kind") == "added":
+		var type := MarkdownBBCode.escape(str(change.get("type", "")))
+		var children := int(change.get("children", 0))
+		var below := "" if children == 0 else " · " + (I18n.t("with 1 node below") if children == 1 else I18n.t("with %d nodes below") % children)
+		return "[color=%s]%s%s[/color]" % [added, type, below]
+	return ""
+
+
+static func _value(value: Variant) -> String:
+	if value == null:
+		return "[i]%s[/i]" % I18n.t("default")
+	var text := str(value).replace("\n", " ")
+	if text.length() > MAX_VALUE:
+		text = text.substr(0, MAX_VALUE) + "…"
+	return MarkdownBBCode.escape(text)
 
 
 ## Sin las líneas de contexto vacías del principio y del final (solo para mostrar; el parche las usa).
