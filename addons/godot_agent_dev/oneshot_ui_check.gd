@@ -93,11 +93,16 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	panel.custom_minimum_size = panel_min
 	await _frames(2)
 	# Con el dock ancho el centro se angosta: el formulario se apila y nada se corta (m12-41).
+	# El panel de abajo comparte la columna del centro y su mínimo depende de la pestaña del editor que
+	# quedó abierta (Animation pide 472 px con la escala 0,75 y frenaba el centro en 497): se esconde.
+	var editor_plugin: EditorPlugin = _find_by_script(MAIN_PLUGIN_SCRIPT).get(&"_plugin")
+	editor_plugin.hide_bottom_panel()
+	await _frames(2)
 	var dock_for_width := _find_by_script(DOCK_SCRIPT) as Control
 	var dock_width := int(dock_for_width.size.x)
 	await LayoutCheck.set_dock_width(dock_for_width, dock_width + int(form.size.x) - NARROW_CENTER_WIDTH)
 	await _frames(10)
-	_check(form.size.x <= NARROW_CENTER_WIDTH + 8, "el centro no baja a %d px: queda en %d (el formulario pide %d, dock %d)" % [NARROW_CENTER_WIDTH, form.size.x, (form.get_child(0) as Control).get_combined_minimum_size().x, dock_for_width.size.x])
+	_check(form.size.x <= NARROW_CENTER_WIDTH + 8, "el centro no baja a %d px: queda en %d (el formulario pide %d, el centro %d, dock %d)" % [NARROW_CENTER_WIDTH, form.size.x, (form.get_child(0) as Control).get_combined_minimum_size().x, _center_min_width(form), dock_for_width.size.x])
 	_shot(shot_path, "_form_narrow")
 	for failure: String in LayoutCheck.form_fits(form):
 		_check(false, "centro angosto (%d px): %s" % [form.size.x, failure])
@@ -483,6 +488,14 @@ static func _visible_within(node: Node, root: Node) -> bool:
 			return false
 		node = node.get_parent()
 	return node == root
+
+
+## El mínimo de la columna del centro (con el panel de abajo): el hijo del split horizontal de los docks.
+func _center_min_width(form: Control) -> int:
+	var node: Node = form
+	while node and not (node.get_parent() is SplitContainer and not (node.get_parent() as SplitContainer).vertical):
+		node = node.get_parent()
+	return int(node.get_combined_minimum_size().x) if node else -1
 
 
 func _find_by_script(path: String) -> Node:
