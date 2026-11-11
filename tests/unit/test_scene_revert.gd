@@ -65,7 +65,7 @@ func test_changes_list() -> void:
 		"+ HUD true",
 		"~ Player · position true", "~ Player · editor_description true", "~ Player · speed true",
 		"~ Timer · one_shot true",
-		"+ resized: HUD/Label → Player._on_resized() false",
+		"+ resized: HUD/Label → Player._on_resized() true",
 	])
 
 
@@ -78,7 +78,7 @@ func test_reject_and_undo_each() -> void:
 		var rejected := SceneRevert.apply(AFTER, change)
 		assert_true(rejected.ok, "%s: %s" % [change.label, rejected.error])
 		var left := SceneDiff.diff(BEFORE, rejected.text)
-		assert_eq(SceneDiff.count(left), SceneDiff.count(SceneDiff.diff(BEFORE, AFTER)) - (1 if change.kind == SceneRevert.PROP else 2),
+		assert_eq(SceneDiff.count(left), SceneDiff.count(SceneDiff.diff(BEFORE, AFTER)) - (2 if change.kind == SceneRevert.ADDED else 1),
 			"%s: queda todo lo demás (un nodo agregado se lleva su conexión)" % change.label)
 		assert_eq(SceneDiff.parse(rejected.text).nodes.size() > 0, true)
 		var undone := SceneRevert.apply(rejected.text, change, true)
@@ -92,8 +92,10 @@ func test_reject_all_gives_before() -> void:
 	for change: Dictionary in SceneRevert.changes(BEFORE, AFTER):
 		if change.rejectable:
 			var result := SceneRevert.apply(text, change)
-			assert_true(result.ok, change.label)
-			text = result.text
+			if result.ok:
+				text = result.text
+			else:  # la conexión del nodo agregado ya se fue con él
+				assert_eq([change.kind, result.error], [SceneRevert.CONNECTION, "the connection is not there"], change.label)
 	assert_eq(SceneDiff.count(SceneDiff.diff(BEFORE, text)), 0, "todo rechazado = la escena de antes: %s" % text)
 	assert_false(text.contains("\n\n\n"), "sin líneas vacías de más")
 
