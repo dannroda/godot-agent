@@ -119,6 +119,11 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run mcp ~/godot/godot
 
+      # Que el menú contextual «Ask the agent» deja el contexto en el composer (m11-54).
+      - name: Editor check (ask-menu)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run ask-menu ~/godot/godot
+
       - name: Every ci check of the suite runs here
         if: ${{ !cancelled() }}
         run: sh tests/suite.sh check-ci
