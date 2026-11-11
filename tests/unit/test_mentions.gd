@@ -21,6 +21,21 @@ func test_special_mentions_in() -> void:
 	assert_eq(AgentDock.special_mention_options().map(func(o: Dictionary) -> String: return o.insert), ["errors", "output", "game", "docs:"], "en el menú de @")
 
 
+## Revisión m13-12-26 (#30): el prompt de «Fix with the agent» trae el error del juego tal cual; si el
+## error dice «@game» no tiene que ir a buscar el árbol del juego como si lo hubiera pedido el usuario.
+func test_harness_prompts_are_not_expanded() -> void:
+	var run_error_watcher: GDScript = load("res://addons/godot_agent/editor/run_error_watcher.gd")
+	var harness_prompts: GDScript = load("res://addons/godot_agent/session/harness_prompts.gd")
+	var label: String = harness_prompts.RUN_ERROR
+	var text: String = run_error_watcher.prompt({"breaked": true, "reason": "Invalid call on @game and @errors", "lines": PackedStringArray(["#1 [game/error] res://a.gd:3 — see @output"]), "count": 1})
+	assert_true(text.contains("@game") and AgentDock.special_mentions_in(text).size() == 3, "el error trae las menciones · " + text)
+	assert_eq(AgentDock.mentions_to_expand(text, label), [], "con la etiqueta del harness, ninguna se expande")
+	assert_eq(AgentDock.mentions_to_expand("look at @game", "").size(), 1, "lo que escribió el usuario sí")
+	var controller: Object = (load("res://addons/godot_agent/session/session_controller.gd") as GDScript).new()
+	controller.label_prompt(text, label)
+	assert_eq(AgentDock.mentions_to_expand(text, controller.prompt_label(text)), [], "la etiqueta sale del controller, como en _send_with_mentions")
+
+
 func test_run_for_user() -> void:
 	var registry := ToolRegistry.new()
 	var tool := McpTool.create("probe", "diagnostics", "probe", {}, [], func(_args: Dictionary) -> String: return "3 errors")

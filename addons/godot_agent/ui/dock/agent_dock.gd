@@ -1164,12 +1164,21 @@ func _send(text: String) -> void:
 ## Manda el prompt con el contexto de sus menciones especiales (@errors, @game…) agregado.
 func _send_with_mentions(text: String, blocks: Array) -> void:
 	var expanded := blocks.duplicate()
-	for mention: Dictionary in special_mentions_in(text):
+	for mention: Dictionary in mentions_to_expand(text, _controller.prompt_label(text)):
 		var found: String = await context_provider.call(mention.kind, mention.arg) if context_provider.is_valid() else ""
 		if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
 			return
 		expanded.append({"type": "text", "text": "Context the user attached with @%s:\n%s" % [mention.token, found if not found.strip_edges().is_empty() else "(nothing)"]})
 	_controller.send_prompt(text, expanded)
+
+
+## Las menciones especiales que se expanden al mandar `text`. Un prompt del harness (`harness_label` no
+## vacío) no se expande: lo escribió el harness y puede traer texto del juego o del agente (un error
+## que dice «@game») que no es un pedido de contexto del usuario (revisión m13-12-26).
+static func mentions_to_expand(text: String, harness_label: String) -> Array[Dictionary]:
+	if not harness_label.is_empty():
+		return []
+	return special_mentions_in(text)
 
 
 ## Las menciones especiales de `text`, sin repetir: `[{token, kind, arg}]` (`arg`: la clase de @docs:).
