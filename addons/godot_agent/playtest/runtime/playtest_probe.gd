@@ -29,6 +29,8 @@ const WAIT_MAX_S := 60.0
 const SCRIPT_MAX_S := 60.0
 const WATCH_MAX_S := 60.0
 const MONITORS_MAX_S := 30.0
+## Tope de los monitores de un run_scene (dura hasta 120 s): pasado esto dejan de muestrear solos.
+const RUN_MONITORS_MAX_S := 150.0
 const STEP_MAX_FRAMES := 60 * 60
 const FINDING_FRAME_SIDE := 640
 ## Entre dos capturas automáticas de un hallazgo (m15-08).
@@ -43,6 +45,8 @@ var _detectors := Detectors.new()
 var _film: Film
 ## Los monitores que run_scene muestrea durante toda la corrida (monitors_start/monitors_stop).
 var _run_monitors: Monitors
+## Los de game_monitors en curso: una pausa del debugger se descuenta en todos (revisión de next2 #11).
+var _window_monitors: Array[Monitors] = []
 var _ui: GameUi
 var _last_frame_ms: int = 0
 var _finding_frame_at: int = -FINDING_FRAME_GAP_MS
@@ -114,6 +118,10 @@ func _on_message(message: String, data: Array) -> bool:
 			_send_frame(int(data[0]) if not data.is_empty() else 1280)
 		"inputs":
 			_play_and_report(data[0] if not data.is_empty() and data[0] is Array else [])
+		"paused":
+			# El editor lo manda cuando el juego para en el debugger: el hueco hasta que siga no es un frame.
+			for monitors: Monitors in _window_monitors + ([_run_monitors] if _run_monitors else []):
+				monitors.skip_gap()
 		"request":
 			if data.size() >= 3:
 				_answer(int(data[0]), str(data[1]), data[2] if data[2] is Dictionary else {})
@@ -321,19 +329,24 @@ func _monitors(params: Dictionary) -> Dictionary:
 	var monitors := Monitors.new()
 	await get_tree().process_frame  # el primer frame mediría desde el pedido, no un frame
 	monitors.start()
+	_window_monitors.append(monitors)
 	var steps: Variant = params.get("steps")
 	if steps is Array and not (steps as Array).is_empty():
 		_play_inputs(steps)
-	var deadline := Time.get_ticks_msec() + int(seconds * 1000.0)
-	while Time.get_ticks_msec() < deadline:
+	while monitors.seconds() < seconds:
 		await get_tree().process_frame
 		monitors.tick()
+	_window_monitors.erase(monitors)
 	return {"text": monitors.report(params.get("orphans", true) == true)}
 
 
 func _tick_run_monitors() -> void:
 	if _run_monitors:
 		_run_monitors.tick()
+		# Si el editor no llegó a mandar monitors_stop (el juego quedó parado, el pedido venció), no
+		# muestrea para siempre: un run dura como mucho RUN_MONITORS_MAX_S (revisión de next2 #10).
+		if _run_monitors.seconds() > RUN_MONITORS_MAX_S:
+			get_tree().process_frame.disconnect(_tick_run_monitors)
 
 
 func _film_op(params: Dictionary) -> Dictionary:

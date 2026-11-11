@@ -6,6 +6,9 @@ extends RefCounted
 ## (escena, selección, captura) tal como estaba al encolarlo.
 
 signal changed
+## Un prompt salió de la cola sin mandarse (quitado, a editar, o la cola vaciada): el dock le saca la
+## etiqueta de prompt del harness (revisión de next2 #26).
+signal discarded(text: String)
 
 ## `[{text, blocks}]`, en orden de envío.
 var items: Array[Dictionary] = []
@@ -38,6 +41,14 @@ func remove_at(index: int) -> Dictionary:
 	return item
 
 
+## Saca el item `index` sin mandarlo (lo quitó el usuario o lo pasa al composer) y lo devuelve.
+func discard_at(index: int) -> Dictionary:
+	var item := remove_at(index)
+	if not item.is_empty():
+		discarded.emit(str(item.text))
+	return item
+
+
 ## Pasa el item `index` al principio (lo próximo que sale).
 func move_to_front(index: int) -> void:
 	if index <= 0 or index >= items.size():
@@ -58,7 +69,10 @@ func take_next() -> Dictionary:
 func clear() -> void:
 	if items.is_empty() and not paused:
 		return
+	var dropped := items.duplicate()
 	items.clear()
+	for item: Dictionary in dropped:
+		discarded.emit(str(item.text))
 	_unpause()
 	changed.emit()
 

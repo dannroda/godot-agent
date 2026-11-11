@@ -359,7 +359,7 @@ func _check_playtest_game() -> void:
 	await _tree.create_timer(0.5).timeout
 	_expect(stopped_at.get("isError", false) and _text(stopped_at).contains("debugger"), "un breakpoint frena el run · " + _text(stopped_at))
 	var after_breakpoint: Dictionary = await _call("game_get", {"path": ""})
-	_expect(after_breakpoint.get("isError", false) and _text(after_breakpoint).contains("stopped in the debugger"), "sigue parado en el breakpoint · " + _text(after_breakpoint))
+	_expect(after_breakpoint.get("isError", false) and _text(after_breakpoint).contains("stopped at a breakpoint") and _text(after_breakpoint).contains("game_debug"), "sigue parado en el breakpoint y lo dice como breakpoint (revisión de next2 #21) · " + _text(after_breakpoint))
 	await _call_text("stop_scene", {})
 
 
@@ -409,7 +409,7 @@ func _check_regressions() -> void:
 				result = str(entry.get(&"text"))
 	_expect(result.begins_with(I18n.t("Regressions: %d of %d fail.") % [1, 2]) and result.contains("basket is full") and not result.contains("start works"), "regresiones: una pasa, una falla, y dice cuál · " + result.left(400))
 	_expect(not EditorInterface.is_playing_scene(), "regresiones: el juego queda cerrado")
-	# Repetir (m11-42): ×2 desde el panel cuenta cuántas pasaron y lo guarda en cada una; la tool, igual.
+	# Repetir (m11-42): ×2 desde el panel cuenta cuántas pasaron; la tool, igual.
 	var before: int = (model.call(&"entries") as Array).size()
 	_dock.emit_signal(&"action_forwarded", "run_regressions", 2)
 	result = ""
@@ -424,7 +424,9 @@ func _check_regressions() -> void:
 	_expect(result.begins_with(I18n.t("Regressions: %d of %d fail.") % [1, 2]) and result.contains("basket is full (%s)" % none_of_two), "regresiones ×2: la que falla dice cuántas pasaron · " + result.left(400))
 	var counted := regressions.list().map(func(entry: Dictionary) -> Array: return [entry.goal, int(entry.get("runs", {}).get("passed", -1)), int(entry.get("runs", {}).get("total", -1))])
 	counted.sort()
-	_expect(counted == [["basket is full", 0, 2], ["start works", 2, 2]], "regresiones ×2: cada una guarda sus corridas %s" % [counted])
+	# Revisión de next2 #15: el archivo se versiona; solo una inestable guarda sus corridas (pasar o
+	# fallar todas no la marca ni reescribe el archivo).
+	_expect(counted == [["basket is full", -1, -1], ["start works", -1, -1]], "regresiones ×2: ninguna inestable, ninguna guarda corridas %s" % [counted])
 	var tool_text := await _call_text("run_regressions", {"repeat": 2, "goal": "START"})
 	_expect(tool_text.begins_with("All 1 pass (2 runs each).") and tool_text.contains("PASS start works (passed 2 of 2)") and not tool_text.contains("basket"), "tool run_regressions: repite y filtra por objetivo · " + tool_text.left(300))
 	_expect(not EditorInterface.is_playing_scene(), "regresiones ×2: el juego queda cerrado")

@@ -464,6 +464,10 @@ func _exit_tree() -> void:
 	if _profile_tools:
 		_profile_tools.shutdown()
 		_profile_tools = null
+	var debugger_node := _editor_debugger_node()
+	if debugger_node and debugger_node.is_connected(&"breakpoint_toggled", _on_editor_breakpoint_toggled):
+		debugger_node.disconnect(&"breakpoint_toggled", _on_editor_breakpoint_toggled)
+	_debug_tools = null
 	if _playtest_debugger:
 		remove_debugger_plugin(_playtest_debugger)
 		_playtest_debugger = null
@@ -478,6 +482,18 @@ func _exit_tree() -> void:
 	if _surfaces:
 		_surfaces.remove_all()
 		_surfaces = null
+
+
+## El EditorDebuggerNode del editor (clase interna, sin API): emite breakpoint_toggled(path, line, enabled)
+## cuando el usuario prende o apaga una línea del margen, después de mandarla a los juegos.
+static func _editor_debugger_node() -> Node:
+	var found := EditorInterface.get_base_control().find_children("*", "EditorDebuggerNode", true, false)
+	return found[0] if not found.is_empty() and found[0].has_signal(&"breakpoint_toggled") else null
+
+
+func _on_editor_breakpoint_toggled(path: String, line: int, enabled: bool) -> void:
+	if _debug_tools:
+		_debug_tools.on_user_breakpoint_toggled(path, line, enabled)
 
 
 func _on_game_breaked() -> void:
@@ -506,6 +522,8 @@ func _point_game_for_dock(uv: Vector2) -> Dictionary:
 		return {"error": I18n.t("No game is running.")}
 	if _run_tools == null or not _playtest_debugger.has_probe():
 		return {"error": I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced.")}
+	if _playtest_debugger.any_breaked():
+		return {"error": I18n.t("The game is stopped in the debugger: continue it first.")}
 	return await _run_tools.point_at(uv)
 
 
@@ -684,12 +702,12 @@ func _run_regressions(repeat: int = 1) -> void:
 		return
 	var entries := PlaytestRegressions.new().list()
 	repeat = clampi(repeat, 1, PlaytestRegressions.MAX_REPEAT)
-	_model.add_notice((I18n.t("Running %d regressions, without the agent…") % entries.size()) if repeat == 1 else I18n.t("Running %d regressions %d times each, without the agent…") % [entries.size(), repeat], ChatEntry.NoticeLevel.INFO)
+	_model.add_notice((I18n.t("Running the saved regressions (%d) without the agent…") % entries.size()) if repeat == 1 else I18n.t("Running the saved regressions (%d), %d times each, without the agent…") % [entries.size(), repeat], ChatEntry.NoticeLevel.INFO)
 	var results := await _run_tools.run_saved_regressions(entries, repeat)
 	_controller.review.changed.emit()  # el panel muestra cuántas quedaron inestables
 	var summary := PlaytestRegressions.summary(results, false, Callable(I18n, &"t"))
 	if summary.failed == 0 and summary.flaky == 0:
-		_model.add_notice(I18n.t("Regressions: all %d pass.") % results.size() if repeat == 1 else I18n.t("Regressions: all %d pass, %d times each.") % [results.size(), repeat], ChatEntry.NoticeLevel.INFO)
+		_model.add_notice(I18n.t("Regressions: none fail (%d).") % results.size() if repeat == 1 else I18n.t("Regressions: none fail (%d, %d times each).") % [results.size(), repeat], ChatEntry.NoticeLevel.INFO)
 	elif summary.failed == 0:
 		_model.add_notice("%s\n%s" % [I18n.t("Regressions: none of %d fail, %d flaky.") % [results.size(), summary.flaky], summary.details], ChatEntry.NoticeLevel.WARNING)
 	else:
@@ -860,6 +878,7 @@ func _start_mcp_server() -> void:
 	_run_errors.errors = _errors
 	_run_errors.launched_by_harness = func() -> bool: return _run_tools != null and _run_tools.harness_run
 	_run_errors.break_reason = PlaytestDebugger.break_reason
+	_run_errors.still_breaked = func() -> bool: return _playtest_debugger != null and _playtest_debugger.any_breaked()
 	_run_errors.enabled = func() -> bool: return _settings != null and _settings.offer_fix_on_run_error()
 	_run_errors.error_found.connect(_on_run_error)
 	# Después de run_tools.setup: cuando llega la señal, run_tools ya decidió quién lanzó el run.
@@ -870,6 +889,9 @@ func _start_mcp_server() -> void:
 	_debug_tools.setup(_run_tools, _playtest_debugger)
 	_debug_tools.caller = func() -> String: return _registry.current_caller if _registry else ""
 	_debug_tools.user_breakpoints = func() -> PackedStringArray: return EditorInterface.get_script_editor().get_breakpoints()
+	var debugger_node := _editor_debugger_node()
+	if debugger_node:
+		debugger_node.connect(&"breakpoint_toggled", _on_editor_breakpoint_toggled)
 	registry.register_provider(_debug_tools)
 	registry.mark_extended(RunTools.GAME_TOOLS)
 	# m13-27: lee el profiler por una API interna del editor; sin ella, la tool contesta por qué no puede.

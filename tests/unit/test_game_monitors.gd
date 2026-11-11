@@ -57,3 +57,24 @@ func test_change_format() -> void:
 	assert_eq(Monitors._change("nodes", 9, 9, false), "nodes 9 → 9", "sin cambio, sin paréntesis")
 	assert_eq(Monitors._change("orphan nodes", 3, 1, false), "orphan nodes 3 → 1 (-2)", "lo que bajó")
 	assert_eq(Monitors._change("static memory", 50.0 * Monitors.MB, 51.5 * Monitors.MB, true), "static memory 50.0 → 51.5 MB (+1.5)", "memoria en MB")
+
+
+## Revisión de next2 #11: una pausa del debugger (un error salteado, un breakpoint) no es un frame lento.
+func test_debugger_pause_is_not_a_frame() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var monitors := Monitors.new()
+	monitors.start()
+	await tree.process_frame
+	monitors.tick()
+	OS.delay_msec(300)  # el juego parado en el debugger: ni un process_frame en el medio
+	monitors.skip_gap()
+	await tree.process_frame
+	monitors.tick()
+	await tree.process_frame
+	monitors.tick()
+	assert_eq(monitors.frames(), 2, "el hueco de la pausa no es una muestra")
+	var text := monitors.report(false)
+	var slowest := RegEx.create_from_string("max (\\d+\\.\\d) ms").search(text)
+	assert_true(slowest != null and float(slowest.get_string(1)) < 250.0, "el máximo no es la pausa (%s)" % text.get_slice("\n", 1))
+	assert_true(monitors.seconds() < 0.25, "los segundos tampoco la cuentan (%.2f)" % monitors.seconds())
+	assert_true(text.contains(" s stopped in the debugger not counted)"), "y el informe lo dice (%s)" % text.get_slice("\n", 0))

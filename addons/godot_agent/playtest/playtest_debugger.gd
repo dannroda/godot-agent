@@ -7,6 +7,8 @@ signal session_started
 ## Lo mismo con el id de la sesión que arrancó (godot.profile_run: el profiler va en esa, no en otra).
 signal session_started_id(session_id: int)
 signal session_stopped
+## Lo mismo con el id de la sesión que terminó (DebugTools lleva las sesiones que lanzó el harness).
+signal session_stopped_id(session_id: int)
 signal session_breaked
 ## El juego salió de una pausa del debugger (continue o step del agente, del usuario o del harness).
 signal session_continued
@@ -93,18 +95,46 @@ func set_breakpoint(path: String, line: int, enabled: bool) -> void:
 			session.set_breakpoint(path, line, enabled)
 
 
-## Un breakpoint en una sesión (la que acaba de arrancar).
-func set_session_breakpoint(session_id: int, path: String, line: int) -> void:
+## Un breakpoint en una sesión (DebugTools: solo en las que lanzó el harness).
+func set_session_breakpoint(session_id: int, path: String, line: int, enabled: bool = true) -> void:
 	var session := get_session(session_id)
 	if session and session.is_active():
-		session.set_breakpoint(path, line, true)
+		session.set_breakpoint(path, line, enabled)
 
 
-## continue, step, next u out a la sesión del probe parada en el debugger (m11-56).
+## Hay algún juego corriendo (con el probe o sin él).
+func has_game() -> bool:
+	for session_id in get_sessions().size():
+		var session := get_session(session_id)
+		if session and session.is_active():
+			return true
+	return false
+
+
+## La sesión parada en el debugger: la del probe si es ella; si no, la primera que lo esté (un juego
+## sin probe, o parado antes de que el probe cargue, que es el último autoload). -1 = ninguna.
+func breaked_session() -> int:
+	if is_breaked():
+		return _probe_session
+	for session_id in get_sessions().size():
+		var session := get_session(session_id)
+		if session and session.is_active() and session.is_breaked():
+			return session_id
+	return -1
+
+
+## Algún juego está parado en el debugger, tenga o no el probe (game_debug no lo necesita).
+func any_breaked() -> bool:
+	return breaked_session() >= 0
+
+
+## continue, step, next u out al juego parado en el debugger (m11-56). Va al hilo principal: uno
+## parado en otro hilo (Thread, WorkerThreadPool) solo se maneja desde el panel del Debugger.
 func debug_command(command: String) -> bool:
-	if not is_breaked():
+	var session_id := breaked_session()
+	if session_id < 0:
 		return false
-	get_session(_probe_session).send_message(command, [])
+	get_session(session_id).send_message(command, [])
 	return true
 
 
@@ -151,6 +181,7 @@ func _on_stopped(session_id: int) -> void:
 	if session_id == _probe_session:
 		_probe_session = -1
 	session_stopped.emit()
+	session_stopped_id.emit(session_id)
 
 
 func _on_breaked(_can_debug: bool) -> void:

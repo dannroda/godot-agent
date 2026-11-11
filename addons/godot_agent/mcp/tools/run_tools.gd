@@ -105,6 +105,7 @@ const DEADLINE_META := &"godot_agent_playtest_deadline_ms"
 ## Las tools que traen texto del juego en sobres (m11-45).
 const ENVELOPED: PackedStringArray = ["run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch"]
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced)."
+const REGRESSIONS_BUSY := "The saved regressions are running (from the findings panel or a run_regressions call) and the game is theirs: wait for them to finish."
 const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"}, {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
 var errors: ErrorCollector
@@ -137,6 +138,9 @@ var _reached_states: int = 0
 ## Lo que el juego mandó en este run: inputs_done, problems y el último frame.
 var _state: Dictionary = {}
 var _replies: Dictionary = {}
+## Ids de los pedidos que esperan respuesta: una que llega tarde (después del timeout o de la pausa
+## del debugger) se descarta en vez de quedar en _replies (revisión de next2 #23).
+var _waiting: Dictionary = {}
 var _next_request: int = 1
 ## Saltear las pausas del debugger por errores (m15-05): solo en el run que lo pidió y en game_script.
 var _continue_errors: bool = false
@@ -235,6 +239,10 @@ func _on_session_stopped() -> void:
 ## Un error del juego: se saltea si este run lo pidió, guardando el motivo (el panel se llena un
 ## momento después de la pausa).
 func _on_session_breaked() -> void:
+	# Los monitores del probe no cuentan la pausa como un frame lento (revisión de next2 #11). El
+	# mensaje lo atiende el bucle del debugger, con el juego parado.
+	if debugger:
+		debugger.send("paused")
 	if not _continue_errors or _breaks >= CONTINUE_MAX:
 		if _continue_errors:
 			_continued.append("Stopped skipping errors after %d in this run: the game is stopped in the debugger." % CONTINUE_MAX)
@@ -327,7 +335,8 @@ func _on_frame_received(png: PackedByteArray, _width: int, _height: int) -> void
 
 
 func _on_reply_received(id: int, result: Dictionary) -> void:
-	_replies[id] = result
+	if _waiting.has(id):
+		_replies[id] = result
 
 
 func tools() -> Array:
@@ -352,8 +361,8 @@ func tools() -> Array:
 				"film_fps": {"type": "number", "description": "Keep small frames of the run at this rate (2 to 10 is plenty), to look back with game_frames. The game keeps running and its frame rate is free, unlike `record`."},
 				"monitors": {"type": "boolean", "description": "Sample the performance monitors (frame time, draw calls, physics, nodes, memory) during the whole run and add a summary with the orphan nodes at the end, like game_monitors (default false)"},
 			},
-			["seconds"], _run_scene),
-		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
+			["seconds"], _run_scene_tool),
+		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene_tool),
 		McpTool.create("run_regressions", run,
 			"Runs the saved playtest regressions (%s/) in the editor, without an agent turn, `repeat` times each, and reports how many runs of each passed. A regression passes only if every run passes; one that passes some runs and fails others is flaky, and the count is saved with it so the findings panel and the CI workflow can tell. Use repeat 3 or more to check that a regression is stable before relying on it." % RegressionsWorkflow.REGRESSIONS_DIR,
 			{
@@ -489,11 +498,13 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	if not recording.is_empty():
 		notes.append(await _finish_recording(recording))
 	if monitoring:  # m11-43
-		if EditorInterface.is_playing_scene() and debugger.has_probe() and not _stopped_in_debugger():
-			var sampled := await request("monitors_stop", {})
+		# También parado en el debugger: el probe contesta desde su bucle y deja de muestrear; si no, los
+		# monitores siguen hasta su tope (revisión de next2 #10).
+		if EditorInterface.is_playing_scene() and debugger.has_probe():
+			var sampled := await request("monitors_stop", {}, REQUEST_TIMEOUT_S, true)
 			notes.append("Performance during the run:\n%s" % str(sampled.get("text", sampled.get("error", ""))))
 		else:
-			notes.append("Performance monitors: the game ended or stopped in the debugger before they could be read; use game_monitors on a running game.")
+			notes.append("Performance monitors: the game ended before they could be read; use game_monitors on a running game.")
 	if not reached(GameRunState.STARTED):
 		_cleanup()
 	if EditorInterface.is_playing_scene() and debugger.has_probe() and not _stopped_in_debugger():
@@ -507,7 +518,21 @@ func _run_scene(args: Dictionary) -> Dictionary:
 
 ## run_scene para otra tool (godot.profile_run, m13-27): mismo arranque, espera e informe.
 func run_scene(args: Dictionary) -> Dictionary:
+	return await _run_scene_tool(args)
+
+
+## Mientras corren las regresiones el juego es de ellas: lanzar o parar otro cortaría la corrida en
+## curso, que fallaría y quedaría guardada como inestable (revisión de next2 #15).
+func _run_scene_tool(args: Dictionary) -> Dictionary:
+	if regressions_running:
+		return McpTool.error(REGRESSIONS_BUSY)
 	return await _run_scene(args)
+
+
+func _stop_scene_tool(args: Dictionary) -> Dictionary:
+	if regressions_running:
+		return McpTool.error(REGRESSIONS_BUSY)
+	return await _stop_scene(args)
 
 
 ## Hay un run_scene en curso (el de una tool o el de otra sesión).
@@ -738,7 +763,14 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 	var reason := PlaytestDebugger.break_reason() if reached(GameRunState.BREAKED) else ""
 	if run_state == GameRunState.BREAKED and reason.begins_with(BREAKPOINT_REASON):
 		# m11-56: un breakpoint (del agente o del usuario) no es un error.
-		lines.append("%s: the game stopped at a breakpoint: %s. It is paused: game_stack shows where and the variables, game_debug continues or steps, stop_scene closes it." % [scene, reason])
+		if debugger.is_breaked():
+			lines.append("%s: the game stopped at a breakpoint: %s. It is paused: game_stack shows where and the variables, game_debug continues or steps, stop_scene closes it." % [scene, reason])
+		else:
+			# Paró antes de que cargue el probe (es el último autoload): game_stack no puede (#14c).
+			lines.append("%s: the game stopped at a breakpoint before the playtest probe loaded: %s. It is paused: game_debug continues or steps (game_stack needs the probe), stop_scene closes it." % [scene, reason])
+	elif reached(GameRunState.BREAKED) and run_state != GameRunState.BREAKED and not reached(GameRunState.STOPPED):
+		# Lo continuaron (el usuario o game_debug) mientras se esperaba: ya no está parado (#21).
+		lines.append("%s: the game stopped in the debugger%s and was continued: it is running again." % [scene, ": " + reason if not reason.is_empty() else ""])
 	elif reached(GameRunState.BREAKED):
 		lines.append("%s: the game stopped in the debugger because of an error%s. It is still paused: fix it and run again (run_scene restarts it) or use stop_scene." % [scene, ": " + reason if not reason.is_empty() else ""])
 	elif reached(GameRunState.STOPPED):
@@ -995,7 +1027,7 @@ func run_saved_regressions(entries: Array[Dictionary], repeat: int) -> Array:
 
 func _run_regressions(args: Dictionary) -> Dictionary:
 	if regressions_running:
-		return McpTool.error("The regressions are already running (from the findings panel or another call): wait for them to finish.")
+		return McpTool.error(REGRESSIONS_BUSY)
 	if EditorInterface.is_playing_scene():
 		return McpTool.error("A game is running: stop it with stop_scene first; the regressions launch their own scenes.")
 	var goal := str(args.get("goal", "")).strip_edges()
@@ -1101,7 +1133,10 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
 		return McpTool.error(NO_PROBE)
 	if _stopped_in_debugger():
-		return McpTool.error("The game is stopped in the debugger (%s): fix the error and run it again, or continue it from the Debugger." % PlaytestDebugger.break_reason())
+		var reason := PlaytestDebugger.break_reason()
+		if reason.begins_with(BREAKPOINT_REASON):
+			return McpTool.error("The game is stopped at a breakpoint (%s): game_stack shows where and the variables, game_debug continues or steps it." % reason)
+		return McpTool.error("The game is stopped in the debugger (%s): fix the error and run it again, or continue it with game_debug or from the Debugger." % reason)
 	var since := errors.mark()
 	var reply := await request(op, params, duration_s + REQUEST_TIMEOUT_S)
 	var lines: PackedStringArray = [UntrustedText.wrap(str(reply.get("text", "")))] if not reply.has("error") else []
@@ -1124,6 +1159,10 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 func point_at(uv: Vector2) -> Dictionary:
 	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
 		return {"error": NO_PROBE}
+	# Parado en el debugger el probe igual correría el pedido dentro del bucle del debugger, quizás
+	# con la física bloqueada (revisión de next2 #23).
+	if _stopped_in_debugger():
+		return {"error": "The game is stopped in the debugger: continue it first."}
 	return await request("point", {"u": uv.x, "v": uv.y})
 
 
@@ -1134,7 +1173,9 @@ func request(op: String, params: Dictionary, timeout_s: float = REQUEST_TIMEOUT_
 	_next_request += 1
 	if not debugger.send("request", [id, op, params]):
 		return {"error": NO_PROBE}
+	_waiting[id] = true
 	await _until(func() -> bool: return _replies.has(id) or not debugger.has_probe() or (_stopped_in_debugger() and not while_breaked), timeout_s)
+	_waiting.erase(id)
 	if _replies.has(id):
 		var reply: Dictionary = _replies[id]
 		_replies.erase(id)

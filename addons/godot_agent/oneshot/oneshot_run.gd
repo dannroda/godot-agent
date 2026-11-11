@@ -826,6 +826,7 @@ func _run_turn(text: String, blocks: Array = []) -> void:
 		if back == "new":
 			# El resumen va delante: el prompt cambia, la etiqueta sigue (o es la del resumen).
 			var label := controller.prompt_label(text)
+			controller.unlabel_prompt(text)  # sale con el resumen delante: otro texto (next2 #26)
 			text = _summary_prompt() if is_resume else _summary_prompt() + "\n\n" + text
 			_harness(text, HarnessPrompts.ONESHOT_SUMMARY if is_resume or label.is_empty() else label)
 		# Se pausó o se detuvo mientras volvía: el turno no sale. Lo que no es el prompt de retomar

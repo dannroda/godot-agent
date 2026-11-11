@@ -92,8 +92,9 @@ static func is_flaky(entry: Dictionary) -> bool:
 	return runs is Dictionary and int(runs.get("passed", 0)) > 0 and int(runs.get("passed", 0)) < int(runs.get("total", 0))
 
 
-## Guarda en la regresión cuántas pasaron de cuántas (solo con 2 o más corridas: con una no se sabe
-## si es inestable). Una que después pasa todas deja de estar marcada.
+## Guarda en la regresión que es inestable y cuántas pasaron de cuántas (solo con 2 o más corridas:
+## con una no se sabe). Una que después pasa todas, o falla todas, deja de estar marcada. El archivo se
+## versiona: se reescribe solo si la marca cambia (revisión de next2 #15).
 static func record_runs(tallied: Dictionary) -> void:
 	var path := str(tallied.get("file", ""))
 	if int(tallied.runs) < 2 or path.is_empty() or not FileAccess.file_exists(path):
@@ -101,7 +102,17 @@ static func record_runs(tallied: Dictionary) -> void:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if not parsed is Dictionary:
 		return
-	parsed.runs = {"passed": int(tallied.passes), "total": int(tallied.runs), "at": int(Time.get_unix_time_from_system())}
+	var passes := int(tallied.passes)
+	var total := int(tallied.runs)
+	var before: Variant = parsed.get("runs")
+	if passes == 0 or passes == total:
+		if before == null:
+			return
+		parsed.erase("runs")
+	elif before is Dictionary and int(before.get("passed", -1)) == passes and int(before.get("total", -1)) == total:
+		return
+	else:
+		parsed.runs = {"passed": passes, "total": total, "at": int(Time.get_unix_time_from_system())}
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(parsed, "\t"))

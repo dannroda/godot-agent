@@ -114,3 +114,19 @@ func test_notice_and_prompt_texts() -> void:
 	assert_eq(RunErrorWatcher.notice_title(single), "El juego paró en el debugger con un error", "título en español")
 	assert_true(RunErrorWatcher.prompt(single).begins_with("The user ran"), "el prompt sigue en inglés")
 	I18n.set_locale("en")
+
+
+## Revisión de next2 #22: el motivo se lee 0,5 s después; si el usuario ya continuó o hizo un paso, el
+## panel no lo dice y podía ser un breakpoint: no se avisa la pausa, los errores salen al terminar.
+func test_pause_already_over_is_not_reported() -> void:
+	var errors := FakeErrors.new()
+	var watcher := _watcher(errors)
+	var found := _collect(watcher)
+	watcher.on_game_started()
+	errors.add("error", "algo falló antes", "res://a.gd", 3, "game")
+	watcher.still_breaked = func() -> bool: return false
+	watcher.on_game_breaked()
+	assert_eq(found.size(), 0, "la pausa ya terminó: no avisa")
+	watcher.on_game_stopped()
+	assert_eq(found.size(), 1, "los errores se avisan al terminar")
+	assert_false(found[0].breaked, "sin la pausa")

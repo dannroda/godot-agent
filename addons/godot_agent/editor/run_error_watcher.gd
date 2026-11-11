@@ -22,6 +22,8 @@ var errors: ErrorCollector
 var launched_by_harness: Callable = func() -> bool: return false
 ## El motivo de la pausa del debugger (PlaytestDebugger.break_reason), leído un momento después.
 var break_reason: Callable = func() -> String: return ""
+## Si el juego sigue parado en el debugger cuando se lee el motivo (PlaytestDebugger.any_breaked).
+var still_breaked: Callable = func() -> bool: return true
 ## El ajuste: avisar o no.
 var enabled: Callable = func() -> bool: return true
 
@@ -45,8 +47,12 @@ func on_game_started() -> void:
 const BREAKPOINT_REASON := "Breakpoint"
 
 
-## El debugger pausó el juego (por un error, normalmente).
+## El debugger pausó el juego (por un error, normalmente). Se llama un momento después de la pausa:
+## si el usuario ya la continuó o hizo un paso, el panel no dice el motivo y podía ser un breakpoint;
+## los errores del run se avisan al terminar el juego (revisión de next2 #22).
 func on_game_breaked() -> void:
+	if not bool(still_breaked.call()):
+		return
 	_report(true)
 
 
