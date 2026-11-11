@@ -76,6 +76,13 @@ func _project_map(args: Dictionary) -> Dictionary:
 	return McpTool.text(str(result.get("text", "")))
 
 
+## El foco que da el script abierto en el editor: su archivo, o su escena si es un script integrado
+## («res://x.tscn::GDScript_ab» no es un archivo); "" si no está en res://.
+static func focus_of_script(resource_path: String) -> String:
+	var path := resource_path.get_slice("::", 0)
+	return path if path.begins_with("res://") else ""
+
+
 ## Corta el build en curso y lo espera (el plugin al deshabilitarse). Después no arma más.
 func wait() -> void:
 	_cancel[0] = true

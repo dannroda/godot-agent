@@ -193,3 +193,12 @@ func test_wait_cancels_the_worker() -> void:
 	var plugin := FileAccess.get_file_as_string("res://addons/godot_agent/plugin.gd")
 	var exit_tree := plugin.substr(plugin.find("func _exit_tree"), 6000)
 	assert_true(exit_tree.contains("_map_tools.wait()"), "el plugin lo espera al deshabilitarse")
+
+
+## Revisión de next2 #24: el foco del editor con un script integrado es su escena, no
+## «res://x.tscn::GDScript_ab» (que no es un archivo y no rankeaba nada).
+func test_builtin_script_focus_is_its_scene() -> void:
+	assert_eq(MapTools.focus_of_script("res://levels/x.tscn::GDScript_ab12"), "res://levels/x.tscn", "integrado → su escena")
+	assert_eq(MapTools.focus_of_script("res://player.gd"), "res://player.gd", "un archivo queda igual")
+	assert_eq(MapTools.focus_of_script(""), "", "sin ruta, sin foco")
+	assert_eq(MapTools.focus_of_script("/tmp/outside.gd"), "", "afuera de res:// no")

@@ -4,6 +4,8 @@ extends "test_case.gd"
 const McpServer := preload("res://addons/godot_agent/mcp/mcp_server.gd")
 const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
 const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
+const StdioShimInstaller := preload("res://addons/godot_agent/mcp/stdio_shim_installer.gd")
+const AgentProcess := preload("res://addons/godot_agent/transport/agent_process.gd")
 const TIMEOUT_MS := 5000
 
 var _server: McpServer
@@ -274,3 +276,51 @@ func _sse_data(body: String) -> Array:
 		if line.begins_with("data: "):
 			events.append(JSON.parse_string(line.trim_prefix("data: ")))
 	return events
+
+
+## fix-a #8 (revisión de next2): el shim stdio de verdad, en su proceso. El editor corta el stream de
+## un tools/call antes de la respuesta (se cerró o recargó el addon): el cliente recibe un error -32603
+## con el id entero, en vez de esperar esa respuesta para siempre.
+func test_stdio_shim_answers_a_cut_stream() -> void:
+	_start()
+	_server.stream_after_ms = 50
+	_server.progress_every_ms = 100
+	var tree := Engine.get_main_loop() as SceneTree
+	var released: Array = [false]
+	_server.registry.register(McpTool.create("hang", "run", "No termina", {}, [], func(_args: Dictionary) -> String:
+		while not released[0]:
+			await tree.process_frame
+		return "late"))
+	var entry := StdioShimInstaller.server_entry("godot", _server.url(), _server.token)
+	assert_false(entry.is_empty(), "shim instalado")
+	var env: Dictionary = {}
+	for item: Dictionary in entry.env:
+		env[item.name] = item.value
+	var process := AgentProcess.new()
+	var lines: Array[String] = []
+	process.line_received.connect(func(line: String) -> void: lines.append(line))
+	assert_true(process.start(entry.command, PackedStringArray(entry.args), env), "el shim arranca")
+	process.send_line(JSON.stringify({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "cut-test", "version": "1"}}}))
+	process.send_line(JSON.stringify({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+	process.send_line(JSON.stringify({"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "hang", "arguments": {}, "_meta": {"progressToken": "p"}}}))
+	var progressed := func() -> bool: return lines.any(func(line: String) -> bool: return line.contains("notifications/progress"))
+	var deadline := Time.get_ticks_msec() + 20000
+	while not progressed.call() and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	assert_true(progressed.call(), "el stream empezó (progreso) · %s" % [lines])
+	_server.stop()  # como el editor que se cierra a mitad de la llamada
+	var answer: Array = [null]
+	deadline = Time.get_ticks_msec() + 10000
+	while answer[0] == null and Time.get_ticks_msec() < deadline:
+		for line: String in lines:
+			var parsed: Variant = JSON.parse_string(line)
+			if parsed is Dictionary and parsed.get("id") is float and int(parsed.id) == 7:
+				answer[0] = line
+		await tree.process_frame
+	process.stop()
+	released[0] = true
+	await tree.process_frame
+	assert_true(answer[0] != null, "el shim contesta el id 7 · %s" % [lines])
+	if answer[0] != null:
+		assert_true(str(answer[0]).contains("\"id\":7,") and str(answer[0]).contains("\"code\":-32603"), "error -32603 con el id entero · " + str(answer[0]))
+	_server.queue_free()

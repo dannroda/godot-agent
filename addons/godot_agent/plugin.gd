@@ -1291,9 +1291,8 @@ func _editor_focus() -> PackedStringArray:
 	if scene and not scene.scene_file_path.is_empty():
 		focus.append(scene.scene_file_path)
 	var script := EditorInterface.get_script_editor().get_current_script()
-	# Un script integrado («res://x.tscn::GDScript_ab») no es un archivo: su escena sí.
-	var script_path := script.resource_path.get_slice("::", 0) if script else ""
-	if script_path.begins_with("res://") and not script_path in focus:
+	var script_path := MapTools.focus_of_script(script.resource_path) if script else ""
+	if not script_path.is_empty() and not script_path in focus:
 		focus.append(script_path)
 	return focus
 
