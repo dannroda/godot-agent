@@ -5369,3 +5369,93 @@ msgstr "Hook del proyecto"
 
 msgid "Not sent on its own: hooks already sent %d prompts in a row without a message from you."
 msgstr "No se mandó solo: los hooks ya mandaron %d prompts seguidos sin un mensaje tuyo."
+
+msgid "Project hooks"
+msgstr "Hooks del proyecto"
+
+msgid "Things to do on their own when something happens in the editor that the agent doesn't see: a scene saved, a game that ends, regressions that finish, an export. They never stop or change what happened. To check the agent's changes at the end of each turn, use the project checks above. Hooks live in the project's settings; one only runs on a machine where it was approved."
+msgstr "Cosas para hacer solas cuando pasa algo en el editor que el agente no ve: una escena guardada, un juego que termina, regresiones que terminan, un export. Nunca frenan ni cambian lo que pasó. Para revisar los cambios del agente al final de cada turno, usá los checks del proyecto de arriba. Los hooks viven en la configuración del proyecto; uno solo corre en una máquina donde se aprobó."
+
+msgid "+ Add hook"
+msgstr "+ Agregar hook"
+
+msgid "Project hook «%s»: %s"
+msgstr "Hook del proyecto «%s»: %s"
+
+msgid "Project hook «%s»: write the name of the tool."
+msgstr "Hook del proyecto «%s»: escribí el nombre de la tool."
+
+msgid "Project hook «%s»: the arguments must be a JSON object."
+msgstr "Hook del proyecto «%s»: los argumentos tienen que ser un objeto JSON."
+
+msgid "Project hook «%s»: write what to ask the agent."
+msgstr "Hook del proyecto «%s»: escribí qué pedirle al agente."
+
+msgid "When"
+msgstr "Cuándo"
+
+msgid "Who"
+msgstr "Quién"
+
+msgid "Who saved the file or launched the game or the regressions. «By the agent» includes what its file tools write."
+msgstr "Quién guardó el archivo o lanzó el juego o las regresiones. «Por el agente» incluye lo que escriben sus file tools."
+
+msgid "any file"
+msgstr "cualquier archivo"
+
+msgid "Only for these files, separated by commas (res://levels/**, *.gd). Empty: any."
+msgstr "Solo para estos archivos, separados por comas (res://levels/**, *.gd). Vacío: cualquiera."
+
+msgid "Only if there were errors (or failed regressions)"
+msgstr "Solo si hubo errores (o regresiones que fallaron)"
+
+msgid "Do"
+msgstr "Hacer"
+
+msgid "A program and its arguments, without a shell. {godot} is this editor's binary, {project} the project folder, {path} the saved file and {event} the event; the program also gets them in GODOT_AGENT_* environment variables."
+msgstr "Un programa y sus argumentos, sin shell. {godot} es el binario de este editor, {project} la carpeta del proyecto, {path} el archivo guardado y {event} el evento; el programa también los recibe en variables de entorno GODOT_AGENT_*."
+
+msgid "A tool of the harness that reads, checks or runs the game (validate_scripts, run_regressions…). It runs without asking, so tools that edit or use the shell are not allowed."
+msgstr "Una tool del harness que lee, revisa o corre el juego (validate_scripts, run_regressions…). Corre sin preguntar, así que no se permiten tools que editan o usan la shell."
+
+msgid "Arguments"
+msgstr "Argumentos"
+
+msgid "Review the level I just saved."
+msgstr "Revisá el nivel que acabo de guardar."
+
+msgid "Send it on its own"
+msgstr "Mandarlo solo"
+
+msgid "Off: the chat shows a notice with «Send to the agent», and nothing is sent until you press it. On: the prompt goes to the agent of the active tab right away and spends tokens without asking, up to %d hook prompts in a row without a message from you; after that it's a notice again. Never in One-shot."
+msgstr "Apagado: el chat muestra un aviso con «Mandar al agente» y no se manda nada hasta que lo apretás. Prendido: el prompt va enseguida al agente de la pestaña activa y gasta tokens sin preguntar, hasta %d prompts de hooks seguidos sin un mensaje tuyo; después vuelve a ser un aviso. Nunca en One-shot."
+
+msgid "The hook came with the project. Allow it only if you trust it; if it changes, it asks again."
+msgstr "El hook vino con el proyecto. Permitilo solo si confiás en él; si cambia, vuelve a preguntar."
+
+msgid "A scene or script is saved"
+msgstr "Se guarda una escena o un script"
+
+msgid "A game ends"
+msgstr "Termina un juego"
+
+msgid "Playtest regressions finish"
+msgstr "Terminan las regresiones de playtest"
+
+msgid "An export starts"
+msgstr "Empieza un export"
+
+msgid "by you"
+msgstr "por vos"
+
+msgid "by the agent"
+msgstr "por el agente"
+
+msgid "by anyone"
+msgstr "por cualquiera"
+
+msgid "Run a command"
+msgstr "Correr un comando"
+
+msgid "Run a godot.* tool"
+msgstr "Correr una tool godot.*"
