@@ -4,6 +4,11 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- When the agent presents a plan from its plan mode (Claude Code's ExitPlanMode, in Ask or Review), the dock shows it as a plan card instead of a generic permission. **Approve and build** switches to Build mode and lets the agent start; its edits still ask for permission as in Build, and the agent's auto, bypass and *clear context* options are not offered. **Edit** lets you change the plan, with a live +N −M count, and sends the agent your changed lines and the whole plan so it presents it again. **Keep planning…** sends it a reason instead. Approved plans are saved in `.godot_agent/plans/`. The plan card doesn't time out. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#approving-the-agents-plan).
+- **Deny with reason…** on every permission card: it denies, and your reason goes to the agent as a message when the turn ends, shown as a dimmed harness line.
+
 ## [0.1.20] - 2026-11-11
 
 ### Added

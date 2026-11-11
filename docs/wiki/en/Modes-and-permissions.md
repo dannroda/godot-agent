@@ -14,6 +14,16 @@
 
 Switching mode also switches the agent's own mode when it publishes one: Ask and Review use `plan`; Build, Auto and One-shot use `default`.
 
+### Approving the agent's plan
+
+In Ask or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:
+
+- **Approve and build** switches the session to Build and lets the agent start. Its edits still ask for permission as usual in Build. The card doesn't offer the agent's auto, bypass or *clear context* options. The approved plan is saved in `.godot_agent/plans/<date>-<title>.md`, so you can bring it back in another session with `@`.
+- **Edit** opens the plan as text, with a live count of the lines you changed. **Send changes** declines the plan, and when the turn ends the agent gets the changed lines and the whole plan, and presents it again.
+- **Keep planning…** declines with a reason that the agent gets when the turn ends.
+
+What goes back to the agent shows in the chat as a dimmed harness line (**Plan · the changes you made**, **Plan · keep planning**). If you press **Stop** right after, it stays paused in the queue instead of going out. The plan card waits for you: it has no timeout.
+
 ### Check after each turn
 
 In Build and Auto, when a turn ends the harness validates the `.gd` scripts that changed during it, whichever way the agent wrote them. If one doesn't parse, the agent gets the errors in a new turn to fix them, up to two turns in a row; after that, or if you already queued a message, they stay as a notice in the chat. Turn it off in Settings → MCP servers (**Check the scripts after each turn**).
@@ -32,6 +42,8 @@ Every action belongs to a group, and each group has a decision per mode: **Allow
 
 - **Ask** (the decision, not the mode) shows a card in the chat with what the agent wants to do (and the diff, for edits). If nobody answers in 5 minutes (configurable), it's denied.
 - **Deny** denies without asking and tells the agent why.
+
+Every card also has **Deny with reason…**: it denies, and the reason you type goes to the agent as a message when the turn ends (a dimmed **Denied with a reason** line in the chat). The agent itself only learns that it was denied, so this is how it finds out why.
 
 Defaults:
 

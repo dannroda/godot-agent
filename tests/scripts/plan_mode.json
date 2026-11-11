@@ -1,0 +1,479 @@
+{
+	"_about": "m11-22 plan-test: ExitPlanMode as claude-agent-acp 0.105 sends it (tests/fixtures/acp/exit_plan_mode_0105.json). The fake agent doesn't branch on the answer: each turn plays what follows the answer the check gives.",
+	"session": {
+		"modes": {
+			"currentModeId": "default",
+			"availableModes": [
+				{
+					"id": "default",
+					"name": "Default"
+				},
+				{
+					"id": "acceptEdits",
+					"name": "Accept Edits"
+				},
+				{
+					"id": "plan",
+					"name": "Plan Mode"
+				}
+			]
+		}
+	},
+	"turns": [
+		{
+			"steps": [
+				{
+					"chunk": "Here is my plan."
+				},
+				{
+					"update": {
+						"toolCallId": "p1",
+						"name": "ExitPlanMode",
+						"status": "pending",
+						"rawInput": {
+							"plan": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n",
+							"planFilePath": "~/.claude/plans/plan-0001.md"
+						},
+						"title": "Approve Plan",
+						"kind": "switch_mode",
+						"content": [
+							{
+								"type": "content",
+								"content": {
+									"type": "text",
+									"text": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n"
+								}
+							}
+						],
+						"sessionUpdate": "tool_call",
+						"_meta": {
+							"claudeCode": {
+								"toolName": "ExitPlanMode"
+							}
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "p1",
+								"name": "ExitPlanMode",
+								"status": "pending",
+								"rawInput": {
+									"plan": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n",
+									"planFilePath": "~/.claude/plans/plan-0001.md"
+								},
+								"title": "Approve Plan",
+								"kind": "switch_mode",
+								"content": [
+									{
+										"type": "content",
+										"content": {
+											"type": "text",
+											"text": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n"
+										}
+									}
+								]
+							},
+							"options": [
+								{
+									"optionId": "exit-plan-default",
+									"name": "Yes, manually approve edits",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "exit-plan-clear-auto",
+									"name": "Yes, clear context (13% used) and use auto mode",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "exit-plan-auto",
+									"name": "Yes, and use auto mode",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "exit-plan-bypass",
+									"name": "Yes, and bypass permissions",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "No, keep planning",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call_update",
+						"toolCallId": "p1",
+						"status": "failed",
+						"_meta": {
+							"claudeCode": {
+								"toolName": "ExitPlanMode",
+								"nonExecutionKind": "user-rejected"
+							}
+						},
+						"rawOutput": "The user doesn't want to proceed with this tool use."
+					}
+				},
+				{
+					"stop": "cancelled"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "I added your change."
+				},
+				{
+					"update": {
+						"toolCallId": "p2",
+						"name": "ExitPlanMode",
+						"status": "pending",
+						"rawInput": {
+							"plan": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n3. Double jump once in the air.\n\n## Verification\nRun the scene: the player falls and jumps.\n",
+							"planFilePath": "~/.claude/plans/plan-0001.md"
+						},
+						"title": "Approve Plan",
+						"kind": "switch_mode",
+						"content": [
+							{
+								"type": "content",
+								"content": {
+									"type": "text",
+									"text": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n3. Double jump once in the air.\n\n## Verification\nRun the scene: the player falls and jumps.\n"
+								}
+							}
+						],
+						"sessionUpdate": "tool_call",
+						"_meta": {
+							"claudeCode": {
+								"toolName": "ExitPlanMode"
+							}
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "p2",
+								"name": "ExitPlanMode",
+								"status": "pending",
+								"rawInput": {
+									"plan": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n3. Double jump once in the air.\n\n## Verification\nRun the scene: the player falls and jumps.\n",
+									"planFilePath": "~/.claude/plans/plan-0001.md"
+								},
+								"title": "Approve Plan",
+								"kind": "switch_mode",
+								"content": [
+									{
+										"type": "content",
+										"content": {
+											"type": "text",
+											"text": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n3. Double jump once in the air.\n\n## Verification\nRun the scene: the player falls and jumps.\n"
+										}
+									}
+								]
+							},
+							"options": [
+								{
+									"optionId": "exit-plan-default",
+									"name": "Yes, manually approve edits",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "exit-plan-clear-auto",
+									"name": "Yes, clear context (13% used) and use auto mode",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "exit-plan-auto",
+									"name": "Yes, and use auto mode",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "exit-plan-bypass",
+									"name": "Yes, and bypass permissions",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "No, keep planning",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "current_mode_update",
+						"currentModeId": "default"
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call_update",
+						"toolCallId": "p2",
+						"status": "completed",
+						"title": "Exited Plan Mode",
+						"_meta": {
+							"claudeCode": {
+								"toolName": "ExitPlanMode"
+							}
+						},
+						"rawOutput": "User has approved your plan. You can now start coding."
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "w1",
+						"title": "Write player.gd",
+						"kind": "edit",
+						"status": "pending",
+						"rawInput": {
+							"file_path": "{project}/tests/tmp/plan_player.gd"
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "w1",
+								"title": "Write player.gd",
+								"kind": "edit",
+								"rawInput": {
+									"file_path": "{project}/tests/tmp/plan_player.gd"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call_update",
+						"toolCallId": "w1",
+						"status": "completed"
+					}
+				},
+				{
+					"chunk": "Done."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "x1",
+						"title": "git push",
+						"kind": "execute",
+						"status": "pending",
+						"rawInput": {
+							"command": "git push origin main"
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "x1",
+								"title": "git push",
+								"kind": "execute",
+								"rawInput": {
+									"command": "git push origin main"
+								}
+							},
+							"options": [
+								{
+									"optionId": "allow",
+									"name": "Allow",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "reject",
+									"name": "Reject",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call_update",
+						"toolCallId": "x1",
+						"status": "failed"
+					}
+				},
+				{
+					"chunk": "Understood, I won't push."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "Got your reason."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "Another plan."
+				},
+				{
+					"update": {
+						"toolCallId": "p3",
+						"name": "ExitPlanMode",
+						"status": "pending",
+						"rawInput": {
+							"plan": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n",
+							"planFilePath": "~/.claude/plans/plan-0001.md"
+						},
+						"title": "Approve Plan",
+						"kind": "switch_mode",
+						"content": [
+							{
+								"type": "content",
+								"content": {
+									"type": "text",
+									"text": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n"
+								}
+							}
+						],
+						"sessionUpdate": "tool_call",
+						"_meta": {
+							"claudeCode": {
+								"toolName": "ExitPlanMode"
+							}
+						}
+					}
+				},
+				{
+					"request": {
+						"method": "session/request_permission",
+						"params": {
+							"toolCall": {
+								"toolCallId": "p3",
+								"name": "ExitPlanMode",
+								"status": "pending",
+								"rawInput": {
+									"plan": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n",
+									"planFilePath": "~/.claude/plans/plan-0001.md"
+								},
+								"title": "Approve Plan",
+								"kind": "switch_mode",
+								"content": [
+									{
+										"type": "content",
+										"content": {
+											"type": "text",
+											"text": "# Plan: Jump in player.gd\n\n## Steps\n1. Add gravity in `_physics_process`.\n2. Jump with `ui_accept` on the floor.\n\n## Verification\nRun the scene: the player falls and jumps.\n"
+										}
+									}
+								]
+							},
+							"options": [
+								{
+									"optionId": "exit-plan-default",
+									"name": "Yes, manually approve edits",
+									"kind": "allow_once"
+								},
+								{
+									"optionId": "exit-plan-clear-auto",
+									"name": "Yes, clear context (13% used) and use auto mode",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "exit-plan-auto",
+									"name": "Yes, and use auto mode",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "exit-plan-bypass",
+									"name": "Yes, and bypass permissions",
+									"kind": "allow_always"
+								},
+								{
+									"optionId": "reject",
+									"name": "No, keep planning",
+									"kind": "reject_once"
+								}
+							]
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call_update",
+						"toolCallId": "p3",
+						"status": "failed",
+						"_meta": {
+							"claudeCode": {
+								"toolName": "ExitPlanMode",
+								"nonExecutionKind": "user-rejected"
+							}
+						},
+						"rawOutput": "The user doesn't want to proceed with this tool use."
+					}
+				},
+				{
+					"delay": 30
+				},
+				{
+					"chunk": "should not arrive"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"chunk": "Hola."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

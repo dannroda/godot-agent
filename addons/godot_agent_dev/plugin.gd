@@ -57,6 +57,9 @@ extends EditorPlugin
 ## - `-- --godot-agent-remote-test [--godot-agent-ui-shot=<ruta.png>]`: Remote Control (m7-21) con el
 ##   agente falso: botón del encabezado, franja con el link, tarjeta contestada desde el celular,
 ##   «Apagar» y el botón escondido en One-shot.
+## - `-- --godot-agent-plan-test [--godot-agent-ui-shot=<prefijo>]`: m11-22 con el agente falso: la
+##   tarjeta del plan de ExitPlanMode, Editar con el diff de vuelta, Aprobar y construir sin set_mode,
+##   «Denegar con motivo» y Detener después de un rechazo (plan_check.gd).
 ## - `-- --godot-agent-pending-test`: con algo preparado por install_extension (m19-05), habilitar el
 ##   plugin muestra el aviso con Reiniciar y Descartar, y Descartar lo borra (pending_check.gd).
 ## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla One-shot,
@@ -90,6 +93,7 @@ const MCP_ARG := "--godot-agent-mcp-test"
 const CLAUDE_MCP_ARG := "--godot-agent-claude-mcp-test"
 const McpCheck := preload("mcp_check.gd")
 const PendingCheck := preload("pending_check.gd")
+const PlanCheck := preload("plan_check.gd")
 const EDIT_ARG := "--godot-agent-edit-test"
 const EditCheck := preload("edit_check.gd")
 const RUN_ARG := "--godot-agent-run-test"
@@ -155,6 +159,7 @@ const AUTO_ARG := "--godot-agent-auto-test"
 const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
 const PENDING_ARG := "--godot-agent-pending-test"
+const PLAN_ARG := "--godot-agent-plan-test"
 const RemoteCheck := preload("remote_check.gd")
 const PROFILE_ARG := "--godot-agent-profile-test"
 const ProfileCheck := preload("profile_check.gd")
@@ -219,6 +224,8 @@ func _enter_tree() -> void:
 		_run_debug_test.call_deferred()
 	if PENDING_ARG in args:
 		_run_pending_test.call_deferred()
+	if PLAN_ARG in args:
+		_run_plan_test.call_deferred()
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
 	for arg: String in args:
@@ -620,6 +627,19 @@ func _run_pending_test() -> void:
 	for failure: String in failures:
 		print("[pending-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "pending-test: %d fallas" % failures.size())
+
+
+func _run_plan_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := _failures(await PlanCheck.new().run(get_tree(), dock, _arg_value(UI_SHOT_ARG)))
+	for failure: String in failures:
+		print("[plan-check] FALLA ", failure)
+	_finish_checking_state(0 if failures.is_empty() else 1, "plan-test: %d fallas" % failures.size(), "plan-test")
 
 
 func _run_oneshot_test() -> void:
