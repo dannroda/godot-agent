@@ -33,6 +33,8 @@ var undo_info: Dictionary = {}
 var undo_done: bool = false
 ## Nombre de la tool del lado del agente (`_meta.claudeCode.toolName`: Agent, Bash…), si lo manda.
 var tool_name: String = ""
+## El plan de esta tool (ExitPlanMode) se muestra en su tarjeta de aprobación (m11-22): la fila no lo repite.
+var plan_card: bool = false
 ## Tool call del subagente que hizo este (`_meta.claudeCode.parentToolUseId`), o "".
 var parent_id: String = ""
 ## Tool calls que hizo el subagente de este tool call, en orden.

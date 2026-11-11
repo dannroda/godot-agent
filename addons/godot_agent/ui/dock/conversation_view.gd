@@ -20,6 +20,7 @@ const NoticeView := preload("entries/notice_view.gd")
 const ToolGroupView := preload("entries/tool_group_view.gd")
 const PlanView := preload("entries/plan_view.gd")
 const PermissionView := preload("entries/permission_view.gd")
+const PlanApprovalView := preload("entries/plan_approval_view.gd")
 const ElicitationView := preload("entries/elicitation_view.gd")
 
 ## Vistas vivas como máximo; las más viejas se descartan (siguen en el modelo).
@@ -196,6 +197,8 @@ func _make_view(entry: ChatEntry) -> EntryView:
 			view = group
 		ChatEntry.EntryKind.PLAN:
 			view = PlanView.new()
+		ChatEntry.EntryKind.PERMISSION when entry.permission and entry.permission.is_plan():
+			view = PlanApprovalView.new()
 		ChatEntry.EntryKind.PERMISSION:
 			var permission := PermissionView.new()
 			permission.tool_call_lookup = _model.tool_call

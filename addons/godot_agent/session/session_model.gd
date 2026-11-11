@@ -771,6 +771,15 @@ func _append_subagent_text(parent: String, update: Dictionary) -> void:
 	_emit_tool_call_changed(call)
 
 
+## El plan del tool call `id` tiene tarjeta de aprobación (m11-22): su fila muestra una línea corta.
+func mark_plan_card(id: String) -> void:
+	var call: ToolCall = _tool_calls.get(id)
+	if call == null or call.plan_card:
+		return
+	call.plan_card = true
+	_emit_tool_call_changed(call)
+
+
 func _emit_tool_call_changed(call: ToolCall) -> void:
 	var owner_group: ChatEntry = _group_of_call.get(call.id)
 	tool_call_changed.emit(call, owner_group)

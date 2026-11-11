@@ -14,6 +14,16 @@
 
 Cambiar de modo cambia también el modo del agente, si lo publica: Preguntar y Revisar usan `plan`; Construir, Auto y One-shot usan `default`.
 
+### Aprobar el plan del agente
+
+En Preguntar o Revisar, un agente con modo plan (Claude Code) puede terminar de planear presentando un plan para aprobar. El dock lo muestra en una tarjeta con el plan en Markdown y tres botones:
+
+- **Aprobar y construir** pasa la sesión a Construir y deja que el agente empiece. Sus ediciones siguen pidiendo permiso como siempre en Construir. La tarjeta no ofrece las opciones auto, bypass ni *clear context* del agente. El plan aprobado queda en `.godot_agent/plans/<fecha>-<título>.md`, para traerlo en otra sesión con `@`.
+- **Editar** abre el plan como texto, con un contador en vivo de las líneas que cambiaste. **Enviar cambios** no aprueba el plan, y al terminar el turno el agente recibe las líneas cambiadas y el plan entero, y lo vuelve a presentar.
+- **Seguir planeando…** no aprueba, con un motivo que el agente recibe al terminar el turno.
+
+Lo que vuelve al agente se ve en el chat como una línea atenuada del harness (**Plan · los cambios que hiciste**, **Plan · seguir planeando**). Si apretás **Detener** justo después, queda en pausa en la cola en lugar de salir. La tarjeta del plan te espera: no vence.
+
 ### Verificación al terminar cada turno
 
 En Construir y Auto, al terminar un turno el harness valida los scripts `.gd` que cambiaron, los haya escrito el agente como sea. Si alguno no parsea, el agente recibe los errores en un turno nuevo para corregirlos, hasta dos turnos seguidos; después de eso, o si ya encolaste un mensaje, quedan como aviso en el chat. Se apaga en Settings → Servidores MCP (**Verificar los scripts al terminar cada turno**).
@@ -32,6 +42,8 @@ Cada acción cae en un grupo, y cada grupo tiene una decisión por modo: **Permi
 
 - **Preguntar** (la decisión, no el modo) muestra una tarjeta en el chat con lo que quiere hacer el agente (y el diff, si es una edición). Si nadie contesta en 5 minutos (configurable), se deniega.
 - **Denegar** deniega sin preguntar y le dice al agente por qué.
+
+Toda tarjeta tiene también **Denegar con motivo…**: deniega, corta el turno del agente y le manda enseguida el motivo que escribiste, como una línea atenuada **Denegado con motivo** en el chat. Si no, el agente solo se entera de que se le denegó y puede seguir intentando en el mismo turno.
 
 Valores por defecto:
 

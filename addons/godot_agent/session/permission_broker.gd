@@ -9,6 +9,9 @@ extends RefCounted
 signal shell_rules_changed
 ## El usuario permitió un MCP server de terceros desde una tarjeta, para el modo y el proyecto.
 signal permissions_changed
+## Un rechazo con algo para decirle al agente (m11-22): un motivo o el plan editado. `text` sale como
+## prompt del harness con la etiqueta `label` apenas termine el turno, aunque termine cancelled.
+signal reject_feedback(text: String, label: String)
 
 const AcpClient := preload("../acp/acp_client.gd")
 const SessionModel := preload("session_model.gd")
@@ -28,6 +31,8 @@ const TerminalHandler := preload("../acp/terminal_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
 const EditorBinary := preload("../transport/editor_binary.gd")
 const I18n := preload("../core/i18n.gd")
+const PlanApproval := preload("plan_approval.gd")
+const HarnessPrompts := preload("harness_prompts.gd")
 
 var policy: PermissionPolicy = PermissionPolicy.new()
 ## Reglas de shell del modo Auto (D57): el array de project_config, que se modifica en el lugar.
@@ -90,6 +95,7 @@ func authorize(group: String, title: String, description: String, diff: Dictiona
 	request.diff = agent_log.redact_data(diff) if agent_log else diff
 	request.options = PermissionRequest.default_options()
 	var outcome := await _ask_user(request, timeout_s)
+	_emit_feedback(request)
 	return outcome.get("outcome") == "selected" and request.was_allowed()
 
 
@@ -119,6 +125,8 @@ func on_request_permission(params: Dictionary) -> Variant:
 		request.title = I18n.t("%s · subagent «%s»") % [request.title, subagent.display_name()]
 	request.description = _describe_tool_call(shown, call)
 	request.diff = _first_diff(shown, call)
+	if PlanApproval.is_plan_request(shown, call.tool_name if call else ""):
+		return await _ask_plan(request, shown, options)
 
 	# Escribir el proyecto por fuera del editor (shell, escenas a mano) se rechaza en todo modo (D48).
 	var checked := tool_call.duplicate()
@@ -173,6 +181,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	_offer_session_allow(request)
 	var outcome := await _ask_user(request, 0)
+	_emit_feedback(request)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)
 	if request.persist_allow and request.was_allowed():
@@ -191,6 +200,40 @@ func on_request_permission(params: Dictionary) -> Variant:
 		return _selected_or_cancelled(once if not once.is_empty() else str(outcome.optionId))
 	var reject_once := request.option_id_for([PermissionRequest.KIND_REJECT_ONCE])
 	return _selected_or_cancelled(reject_once if not reject_once.is_empty() else str(outcome.optionId))
+
+
+## El plan del modo plan del agente (m11-22): siempre se pregunta, en todo modo y sin timeout (lo
+## decidió el usuario: editar un plan largo lleva tiempo). Solo «aprobar» y «rechazar»; aprobar lo
+## contesta SessionController.approve_plan, que antes pasa el harness a Construir.
+func _ask_plan(request: PermissionRequest, shown: Dictionary, options: Array) -> Dictionary:
+	request.plan_text = PlanApproval.plan_text(shown)
+	if request.plan_text.is_empty():
+		request.plan_text = request.title  # sin texto no hay qué editar, pero sigue siendo el plan
+	request.title = I18n.t("Plan ready to build")
+	request.description = ""
+	request.group = PermissionPolicy.GROUP_OTHER
+	request.options = PlanApproval.filter_options(options)
+	if not request.tool_call_id.is_empty():
+		model.mark_plan_card(request.tool_call_id)
+	var known := PackedStringArray(options.map(func(option: Variant) -> String: return str(option.get("optionId", "")) if option is Dictionary else ""))
+	_log_perm("plan to approve (%d lines); options offered %s of %s" % [request.plan_text.count("\n") + 1, request.options.map(func(o: Dictionary) -> String: return str(o.get("optionId", ""))), known])
+	var outcome := await _ask_user(request, 0)
+	_emit_feedback(request)
+	if outcome.get("outcome") != "selected":
+		return {"outcome": {"outcome": "cancelled"}}
+	return _selected_or_cancelled(str(outcome.optionId))
+
+
+## Después de un rechazo con motivo o con el plan editado, el texto para el agente (ver reject_feedback).
+func _emit_feedback(request: PermissionRequest) -> void:
+	if request.outcome.get("outcome") != "selected" or request.was_allowed():
+		return
+	if request.is_plan() and not request.edited_plan.is_empty():
+		reject_feedback.emit(PlanApproval.edit_feedback(request.plan_text, request.edited_plan), HarnessPrompts.PLAN_EDIT)
+	elif request.is_plan() and not request.deny_reason.is_empty():
+		reject_feedback.emit(PlanApproval.keep_planning_feedback(request.deny_reason), HarnessPrompts.PLAN_KEEP_PLANNING)
+	elif not request.deny_reason.is_empty():
+		reject_feedback.emit(PlanApproval.deny_feedback(request.title, request.deny_reason), HarnessPrompts.DENY_REASON)
 
 
 ## Algunos agentes (Antigravity) solo ofrecen «una vez»: el harness suma «Siempre en esta sesión»,
@@ -314,6 +357,7 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 	if model.harness_mode == SessionModel.HarnessMode.AUTO and env.is_empty():  # una regla no ve las variables
 		request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
 	var outcome := await _ask_user(request, 0)
+	_emit_feedback(request)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)
 	if outcome.get("outcome") == "selected" and request.was_allowed():

@@ -30,3 +30,8 @@ const SUPERVISOR := "What the supervisor saw while the editor was closed"  # i18
 const OTHER_SESSION := "Message from another agent session"  # i18n
 ## «Arreglar con el agente» en el aviso de un run manual que paró con un error (m11-55).
 const RUN_ERROR := "Fix the error of the game you ran"  # i18n
+## La tarjeta del plan (m11-22): lo que el usuario cambió con «Editar», o «Seguir planeando…».
+const PLAN_EDIT := "Plan · the changes you made"  # i18n
+const PLAN_KEEP_PLANNING := "Plan · keep planning"  # i18n
+## «Denegar con motivo» en una tarjeta de permiso.
+const DENY_REASON := "Denied with a reason"  # i18n

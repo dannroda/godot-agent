@@ -24,6 +24,9 @@ var _rule_edit: LineEdit
 var _persist: Button
 var _result: Label
 var _focused_once: bool = false
+## «Denegar con motivo…» (m11-48 (2), en m11-22): el motivo sale como prompt al terminar el turno.
+var _reason_row: HBoxContainer
+var _reason_edit: LineEdit
 ## Un comando largo (un heredoc de cientos de líneas) dejaba los botones fuera de la vista (m17-26):
 ## el título va en una línea y el texto entero, plegado, en una caja con scroll.
 var _full_toggle: Button
@@ -95,6 +98,23 @@ func _build() -> void:
 	_persist.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_persist.pressed.connect(_on_persist_allow)
 	column.add_child(_persist)
+	_reason_row = HBoxContainer.new()
+	_reason_row.visible = false
+	column.add_child(_reason_row)
+	_reason_edit = LineEdit.new()
+	_reason_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_reason_edit.placeholder_text = I18n.t("Why? The agent gets it right away")
+	_reason_edit.text_submitted.connect(func(_text: String) -> void: _on_send_reason())
+	_reason_edit.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+			_close_reason()
+			_reason_edit.accept_event())
+	_reason_row.add_child(_reason_edit)
+	var send_reason := Button.new()
+	send_reason.text = I18n.t("Deny")
+	send_reason.add_theme_color_override(&"font_color", AgentTheme.ERROR)
+	send_reason.pressed.connect(_on_send_reason)
+	_reason_row.add_child(send_reason)
 	_result = Label.new()
 	_result.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -157,7 +177,9 @@ func refresh() -> void:
 	_refresh_full_toggle()
 	for child: Node in _buttons.get_children():
 		child.queue_free()
-	_buttons.visible = pending
+	_buttons.visible = pending and not _reason_row.visible
+	if not pending:
+		_reason_row.visible = false
 	_rule_row.visible = pending and not request.rule_pattern.is_empty()
 	_persist.visible = pending and not request.persist_label.is_empty()
 	_persist.text = request.persist_label
@@ -168,7 +190,30 @@ func refresh() -> void:
 		return
 	for option: Dictionary in sorted_options(request.options):
 		_buttons.add_child(_option_button(request, option))
+	if not request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]).is_empty():
+		var with_reason := Button.new()
+		with_reason.text = I18n.t("Deny with reason…")
+		with_reason.tooltip_text = I18n.t("Deny and tell the agent why: the turn stops and your reason is sent right away.")
+		with_reason.flat = true
+		with_reason.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+		with_reason.pressed.connect(_open_reason)
+		_buttons.add_child(with_reason)
 	_focus_primary.call_deferred()
+
+
+func _open_reason() -> void:
+	_buttons.visible = false
+	_reason_row.visible = true
+	_reason_edit.grab_focus()
+
+
+func _close_reason() -> void:
+	_reason_row.visible = false
+	_buttons.visible = (entry.permission as PermissionRequest).is_pending()
+
+
+func _on_send_reason() -> void:
+	(entry.permission as PermissionRequest).deny_with_reason(_reason_edit.text)
 
 
 ## Las opciones en KIND_ORDER; las de kind desconocido, al final en el orden del agente.
@@ -270,4 +315,6 @@ static func _result_text(request: PermissionRequest) -> String:
 			return "✓ " + I18n.t("Allowed once")
 		PermissionRequest.KIND_ALLOW_ALWAYS:
 			return "✓ " + I18n.t("Allowed in this session")
+	if not request.deny_reason.is_empty():
+		return "✗ " + I18n.t("Denied: %s") % request.deny_reason
 	return "✗ " + I18n.t("Denied")

@@ -4716,3 +4716,93 @@ msgstr "(la primera vez se descarga el agente: puede tardar un minuto)"
 
 msgid "The game is stopped in the debugger: continue it first."
 msgstr "El juego está parado en el debugger: primero hacelo seguir."
+
+msgid "Plan ready to build"
+msgstr "Plan listo para construir"
+
+msgid "Send changes"
+msgstr "Enviar cambios"
+
+msgid "The agent gets the changed lines and the whole plan, and presents it again."
+msgstr "El agente recibe las líneas cambiadas y el plan entero, y lo vuelve a presentar."
+
+msgid "What should change in the plan?"
+msgstr "¿Qué tiene que cambiar en el plan?"
+
+msgid "Approve and build"
+msgstr "Aprobar y construir"
+
+msgid "Switches to Build mode: the agent starts implementing, and its edits ask for permission as usual in Build."
+msgstr "Pasa al modo Construir: el agente empieza a implementar y sus ediciones piden permiso como siempre en Construir."
+
+msgid "Change the plan yourself; the agent gets your changes and presents it again."
+msgstr "Cambiá el plan vos; el agente recibe tus cambios y lo vuelve a presentar."
+
+msgid "Keep planning…"
+msgstr "Seguir planeando…"
+
+msgid "Don't approve: tell the agent what to change, and it keeps planning."
+msgstr "No aprobar: decile al agente qué cambiar y sigue planeando."
+
+msgid "Show less"
+msgstr "Ver menos"
+
+msgid "Hide the plan"
+msgstr "Ocultar el plan"
+
+msgid "Show the plan (%d lines)"
+msgstr "Ver el plan (%d líneas)"
+
+msgid "Your changes: +%d −%d"
+msgstr "Tus cambios: +%d −%d"
+
+msgid "No changes yet"
+msgstr "Todavía sin cambios"
+
+msgid "Approved · building in Build mode"
+msgstr "Aprobado · construyendo en modo Construir"
+
+msgid "Approved"
+msgstr "Aprobado"
+
+msgid "Edited (+%d −%d): the agent gets your changes when this turn ends"
+msgstr "Editado (+%d −%d): el agente recibe tus cambios al terminar este turno"
+
+msgid "Keep planning: %s"
+msgstr "Seguir planeando: %s"
+
+msgid "Not approved"
+msgstr "No aprobado"
+
+msgid "Why? The agent gets it right away"
+msgstr "¿Por qué? El agente lo recibe enseguida"
+
+msgid "Deny with reason…"
+msgstr "Denegar con motivo…"
+
+msgid "Deny and tell the agent why: the turn stops and your reason is sent right away."
+msgstr "Denegar y decirle al agente por qué: el turno se corta y el motivo sale enseguida."
+
+msgid "Denied: %s"
+msgstr "Denegado: %s"
+
+msgid "Plan · the changes you made"
+msgstr "Plan · los cambios que hiciste"
+
+msgid "Plan · keep planning"
+msgstr "Plan · seguir planeando"
+
+msgid "Denied with a reason"
+msgstr "Denegado con motivo"
+
+msgid "Plan presented"
+msgstr "Plan presentado"
+
+msgid "approved"
+msgstr "aprobado"
+
+msgid "not approved"
+msgstr "no aprobado"
+
+msgid "waiting for you"
+msgstr "te espera"
