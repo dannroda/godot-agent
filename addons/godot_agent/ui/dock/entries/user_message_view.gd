@@ -5,6 +5,7 @@ extends "entry_view.gd"
 ## su etiqueta en el idioma de la interfaz y «Ver prompt» para leer lo que recibió el agente (m12-44).
 
 const MAX_WIDTH_RATIO := 0.85
+const UntrustedText := preload("../../../mcp/untrusted_text.gd")
 ## Líneas de la etiqueta de un prompt del harness, plegado.
 const CAPTION_LINES := 2
 
@@ -13,6 +14,8 @@ var _spacer: Control
 var _bubble: PanelContainer
 var _label: Label
 var _attachments: Label
+## Hasta cuánto del contexto adjunto muestra el tooltip.
+const TOOLTIP_CHARS := 2000
 var _header: HBoxContainer
 var _caption: Label
 var _toggle: Button
@@ -94,8 +97,15 @@ func refresh() -> void:
 	_spacer.visible = not harness
 	_bubble.size_flags_horizontal = Control.SIZE_EXPAND_FILL if harness else Control.SIZE_FILL
 	var names: PackedStringArray = []
+	var texts: PackedStringArray = []
 	for block: Dictionary in entry.attachments:
 		names.append(_attachment_name(block))
+		if block.get("type") == "text":
+			texts.append(str(block.get("text", "")))
+	# Lo que se mandó con cada mención, para verlo (m11-29).
+	var shown := UntrustedText.unwrap("\n\n".join(texts))
+	_attachments.tooltip_text = shown if shown.length() <= TOOLTIP_CHARS else shown.left(TOOLTIP_CHARS) + "…"
+	_attachments.mouse_filter = Control.MOUSE_FILTER_PASS if not texts.is_empty() else Control.MOUSE_FILTER_IGNORE
 	_attachments.text = "📎 " + " · ".join(names) if not names.is_empty() else ""
 	_attachments.visible = not names.is_empty()
 	_fit_width()
@@ -152,4 +162,10 @@ static func _attachment_name(block: Dictionary) -> String:
 		"resource":
 			var resource: Variant = block.get("resource")
 			return str(resource.get("uri", I18n.t("resource"))).get_file() if resource is Dictionary else I18n.t("resource")
+		"text":
+			# Una mención especial expandida (@errors, @session:…, m11-08 y m11-29): su nombre.
+			var found := RegEx.create_from_string("^Context the user attached with (@\\S+):").search(str(block.get("text", "")))
+			if found:
+				var title := RegEx.create_from_string("Session «([^»\\n]*)»").search(str(block.text))
+				return found.get_string(1) + (" · " + title.get_string(1) if found.get_string(1).begins_with("@session:") and title else "")
 	return str(block.get("type", "?"))

@@ -60,6 +60,7 @@ const EditorContext := preload("../editor_context.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
 const PlanApprovalView := preload("entries/plan_approval_view.gd")
+const SessionDigest := preload("../../session/session_digest.gd")
 const Composer := preload("composer.gd")
 const PromptQueue := preload("../../session/prompt_queue.gd")
 const PromptQueueView := preload("prompt_queue_view.gd")
@@ -270,6 +271,7 @@ func _ready() -> void:
 	_composer.history_path = PROMPT_HISTORY_PATH
 	_composer.mention_provider = func() -> Array[Dictionary]:
 		var options := special_mention_options()
+		options.append_array(_session_mention_options())
 		options.append_array(EditorContext.mention_options())
 		return options
 	_composer.submitted.connect(_on_submitted)
@@ -1244,7 +1246,11 @@ func _send(text: String) -> void:
 func _send_with_mentions(text: String, blocks: Array) -> void:
 	var expanded := blocks.duplicate()
 	for mention: Dictionary in mentions_to_expand(text, _controller.prompt_label(text)):
-		var found: String = await context_provider.call(mention.kind, mention.arg) if context_provider.is_valid() else ""
+		var found := ""
+		if mention.kind == "session":
+			found = _session_context(str(mention.arg))
+		elif context_provider.is_valid():
+			found = await context_provider.call(mention.kind, mention.arg)
 		if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
 			return
 		expanded.append({"type": "text", "text": "Context the user attached with @%s:\n%s" % [mention.token, found if not found.strip_edges().is_empty() else "(nothing)"]})
@@ -1263,13 +1269,16 @@ static func mentions_to_expand(text: String, harness_label: String) -> Array[Dic
 ## Las menciones especiales de `text`, sin repetir: `[{token, kind, arg}]` (`arg`: la clase de @docs:).
 static func special_mentions_in(text: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	var regex := RegEx.create_from_string("(?<![\\w@])@(errors|output|game|docs:([A-Za-z_@][A-Za-z0-9_]*))(?![\\w:])")
+	var regex := RegEx.create_from_string("(?<![\\w@])@(errors|output|game|docs:([A-Za-z_@][A-Za-z0-9_]*)|session:([0-9A-Za-z_-]+))(?![\\w:])")
 	var seen := {}
 	for found: RegExMatch in regex.search_all(text):
 		var token := found.get_string(1)
 		if seen.has(token):
 			continue
 		seen[token] = true
+		if token.begins_with("session:"):
+			result.append({"token": token, "kind": "session", "arg": found.get_string(3)})
+			continue
 		result.append({"token": token, "kind": "docs" if token.begins_with("docs:") else token, "arg": found.get_string(2)})
 	return result
 
@@ -1282,6 +1291,31 @@ static func special_mention_options() -> Array[Dictionary]:
 		{"label": "@game · " + I18n.t("the running game's node tree"), "insert": "game"},
 		{"label": "@docs:Class · " + I18n.t("the API reference of a class"), "insert": "docs:"},
 	]
+
+
+## Las otras sesiones del historial del proyecto para el menú de @ (m11-29): `@session:<id corto>`.
+func _session_mention_options() -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
+	if _controller.history == null:
+		return options
+	for item: Dictionary in _controller.history.list(_controller.cwd):
+		var id := str(item.get("id", ""))
+		if id.is_empty() or id == _model.session_id:
+			continue
+		var when := Time.get_datetime_string_from_unix_time(int(item.get("updated", 0)), true).left(16)
+		options.append({"label": "@session:%s · %s (%s, %s)" % [SessionDigest.short_id(id), str(item.get("title", "")), str(item.get("agent", "")), when],
+			"insert": "session:" + SessionDigest.short_id(id)})
+	return options
+
+
+## El bloque de contexto de `@session:<short>`: lo arma el harness desde el historial (SessionDigest).
+func _session_context(short: String) -> String:
+	if _controller.history == null:
+		return ""
+	var item := SessionDigest.find(_controller.history.list(_controller.cwd), short)
+	if item.is_empty():
+		return "(no session of this project's history starts with %s)" % short
+	return SessionDigest.block(_controller.history.load_record(str(item.id)), _controller.cwd)
 
 
 ## El contexto adjunto para un prompt; la captura y los archivos agregados se usan una sola vez.
