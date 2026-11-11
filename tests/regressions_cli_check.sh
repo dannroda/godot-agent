@@ -80,6 +80,7 @@ if ! "$G" --headless --path "$ROOT" --script "$CLI" -- --no-baselines res://test
 	FAILED=1
 fi
 MUTANT="$(printf '%s' '{"path":"res://tests/fixtures/invariants/mover.gd","line":9,"col":29,"before":" + ","after":" - ","op":"arithmetic"}' | base64 | tr -d '\n')"
+mkdir -p "$ROOT/tests/tmp"
 rm -f "$ROOT/tests/tmp/invariant_mutant.json"
 OUT="$("$G" --headless --path "$ROOT" --script "$CLI" -- "--mutant=$MUTANT" --mutant-result=res://tests/tmp/invariant_mutant.json res://tests/fixtures/regressions/invariants 2>&1)"
 GOT=$?
