@@ -320,6 +320,7 @@ func _enter_tree() -> void:
 	_tabs = SessionTabs.new()
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
+	_tabs.notify_outside_enabled = _settings.notify_when_unfocused
 	_tabs.new_session_requested.connect(_open_session_tab)
 	_tabs.active_changed.connect(func(_id: String) -> void: _follower.cancel())
 	dock.follow_toggled.connect(_on_follow_toggled)

@@ -96,6 +96,7 @@ var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
 var _run_error_check: CheckBox
+var _notify_check: CheckBox
 var _verify_check: CheckBox
 var _turn_checks_editor: TurnChecksEditor
 var _snapshots_check: CheckBox
@@ -503,6 +504,10 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_run_error_check.text = I18n.t("When a game you run by hand stops with an error, offer «Fix with the agent» in the dock")
 	_run_error_check.tooltip_text = I18n.t("The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors.")
 	page.add_child(_run_error_check)
+	_notify_check = CheckBox.new()
+	_notify_check.text = I18n.t("When the editor is in the background, notify me when the agent finishes or waits for me")
+	_notify_check.tooltip_text = I18n.t("The editor window asks for attention and, where available, a desktop notification appears (notify-send on Linux, the notification center on macOS).")
+	page.add_child(_notify_check)
 	var tools_row := HBoxContainer.new()
 	var tools_label := Label.new()
 	tools_label.text = I18n.t("What the agent can do with these tools, by function and with its permissions:")
@@ -731,6 +736,7 @@ func _load() -> void:
 	_max_image_spin.value = _config.max_image_side
 	_manual_runs_check.button_pressed = _config.playtest_on_manual_runs
 	_run_error_check.button_pressed = _settings.offer_fix_on_run_error()
+	_notify_check.button_pressed = _settings.notify_when_unfocused()
 	_compact_tools_check.button_pressed = _config.compact_tools
 	_verify_check.button_pressed = _config.verify_after_turn
 	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
@@ -814,6 +820,7 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_LANGUAGE, I18n.LANGUAGES[_language_option.selected].code)
 	_settings.set_value(HarnessSettings.KEY_UPDATE_CHECK, _update_check.button_pressed)
 	_settings.set_value(HarnessSettings.KEY_RUN_ERROR_FIX, _run_error_check.button_pressed)
+	_settings.set_value(HarnessSettings.KEY_NOTIFY_UNFOCUSED, _notify_check.button_pressed)
 	_settings.set_value(HarnessSettings.KEY_ON_OPEN, _on_open_option.get_selected_id())
 	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.

@@ -5330,3 +5330,12 @@ msgstr "Mandado a la papelera: %s."
 
 msgid "Could not save: %s"
 msgstr "No se pudo guardar: %s"
+
+msgid "When the editor is in the background, notify me when the agent finishes or waits for me"
+msgstr "Con el editor en segundo plano, avisarme cuando el agente termina o me espera"
+
+msgid "The editor window asks for attention and, where available, a desktop notification appears (notify-send on Linux, the notification center on macOS)."
+msgstr "La ventana del editor pide atención y, donde se puede, aparece una notificación del sistema (notify-send en Linux, el centro de notificaciones en macOS)."
+
+msgid "«%s» finished its turn."
+msgstr "«%s» terminó su turno."
