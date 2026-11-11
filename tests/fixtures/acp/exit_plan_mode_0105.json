@@ -1,0 +1,183 @@
+{
+	"_about": "Captured from claude-agent-acp 0.105.0 (Claude Code) on 2026-11-11 with a plan-mode session: the ExitPlanMode request_permission, what follows answering reject, and what follows answering exit-plan-default. Usage, cost and message chunks removed; the session id, tool call ids and plan file name replaced with stable placeholders (session-0001, toolu_plan_0001/0002, plan-0001.md).",
+	"request": {
+		"toolCall": {
+			"toolCallId": "toolu_plan_0001",
+			"name": "ExitPlanMode",
+			"status": "pending",
+			"rawInput": {
+				"plan": "# Plan: Jump with gravity in player.gd\n\n## Context\n`player.gd` is a bare `CharacterBody2D` that only calls `move_and_slide()`. It has no gravity and no input. We want a jump action so the player falls and can jump off the floor. There is no `project.godot` in this folder, so the input action can't be checked here.\n\n## Steps\n1. **Add gravity and a jump velocity.** Add `@export var jump_velocity: float = -400.0` and read gravity from project settings with `var gravity: float = ProjectSettings.get_setting(\"physics/2d/default_gravity\")`.\n2. **Apply them in `_physics_process(delta: float)`.** Before `move_and_slide()`, add gravity when the player is in the air (`if not is_on_floor(): velocity.y += gravity * delta`). Then jump when the action is pressed on the floor (`if Input.is_action_just_pressed(\"jump\") and is_on_floor(): velocity.y = jump_velocity`).\n3. **Add a `jump` input action.** Add it in Project Settings → Input Map, bound to Space. Using the built-in `ui_accept` instead would mean no setup.\n\n## Verification\nRun the scene with the player over a floor (a StaticBody2D with a collision shape). The player should fall and land. Pressing Space on the floor should make it jump. Pressing Space in mid-air should do nothing.\n",
+				"planFilePath": "~/.claude/plans/plan-0001.md"
+			},
+			"title": "Approve Plan",
+			"kind": "switch_mode",
+			"content": [
+				{
+					"type": "content",
+					"content": {
+						"type": "text",
+						"text": "# Plan: Jump with gravity in player.gd\n\n## Context\n`player.gd` is a bare `CharacterBody2D` that only calls `move_and_slide()`. It has no gravity and no input. We want a jump action so the player falls and can jump off the floor. There is no `project.godot` in this folder, so the input action can't be checked here.\n\n## Steps\n1. **Add gravity and a jump velocity.** Add `@export var jump_velocity: float = -400.0` and read gravity from project settings with `var gravity: float = ProjectSettings.get_setting(\"physics/2d/default_gravity\")`.\n2. **Apply them in `_physics_process(delta: float)`.** Before `move_and_slide()`, add gravity when the player is in the air (`if not is_on_floor(): velocity.y += gravity * delta`). Then jump when the action is pressed on the floor (`if Input.is_action_just_pressed(\"jump\") and is_on_floor(): velocity.y = jump_velocity`).\n3. **Add a `jump` input action.** Add it in Project Settings → Input Map, bound to Space. Using the built-in `ui_accept` instead would mean no setup.\n\n## Verification\nRun the scene with the player over a floor (a StaticBody2D with a collision shape). The player should fall and land. Pressing Space on the floor should make it jump. Pressing Space in mid-air should do nothing.\n"
+					}
+				}
+			]
+		},
+		"options": [
+			{
+				"optionId": "exit-plan-default",
+				"name": "Yes, manually approve edits",
+				"kind": "allow_once"
+			},
+			{
+				"optionId": "exit-plan-clear-auto",
+				"name": "Yes, clear context (13% used) and use auto mode",
+				"kind": "allow_always"
+			},
+			{
+				"optionId": "exit-plan-auto",
+				"name": "Yes, and use auto mode",
+				"kind": "allow_always"
+			},
+			{
+				"optionId": "exit-plan-bypass",
+				"name": "Yes, and bypass permissions",
+				"kind": "allow_always"
+			},
+			{
+				"optionId": "reject",
+				"name": "No, keep planning",
+				"kind": "reject_once"
+			}
+		],
+		"sessionId": "session-0001"
+	},
+	"client_answer_reject": {
+		"outcome": {
+			"outcome": "selected",
+			"optionId": "reject"
+		}
+	},
+	"after_reject": [
+		{
+			"_meta": {
+				"claudeCode": {
+					"toolName": "ExitPlanMode",
+					"nonExecutionKind": "user-rejected"
+				}
+			},
+			"toolCallId": "toolu_plan_0001",
+			"sessionUpdate": "tool_call_update",
+			"status": "failed",
+			"rawOutput": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
+			"content": [
+				{
+					"type": "content",
+					"content": {
+						"type": "text",
+						"text": "```\nThe user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.\n```"
+					}
+				}
+			]
+		},
+		{
+			"prompt_result": {
+				"stopReason": "cancelled"
+			}
+		}
+	],
+	"request_after_edit": {
+		"toolCall": {
+			"toolCallId": "toolu_plan_0002",
+			"name": "ExitPlanMode",
+			"status": "pending",
+			"rawInput": {
+				"plan": "# Plan: Jump with gravity in player.gd\n\n## Context\n`player.gd` is a bare `CharacterBody2D` that only calls `move_and_slide()`. It has no gravity and no input. We want a jump action so the player falls and can jump off the floor. There is no `project.godot` in this folder, so the input action can't be checked here.\n\n## Steps\n1. **Add gravity.** Read gravity from project settings with `var gravity: float = ProjectSettings.get_setting(\"physics/2d/default_gravity\")`.\n2. **Apply gravity and jump in `_physics_process(delta: float)`.** Add `const JUMP_VELOCITY = -400.0` at the top of the script. Before `move_and_slide()`, add gravity when the player is in the air (`if not is_on_floor(): velocity.y += gravity * delta`). Then jump when the action is pressed on the floor (`if Input.is_action_just_pressed(\"jump\") and is_on_floor(): velocity.y = JUMP_VELOCITY`).\n3. **Add a `jump` input action.** Add it in Project Settings → Input Map, bound to Space. Using the built-in `ui_accept` instead would mean no setup.\n\n## Verification\nRun the scene with the player over a floor (a StaticBody2D with a collision shape). The player should fall and land. Pressing Space on the floor should make it jump. Pressing Space in mid-air should do nothing.\n",
+				"planFilePath": "~/.claude/plans/plan-0001.md"
+			},
+			"title": "Approve Plan",
+			"kind": "switch_mode",
+			"content": [
+				{
+					"type": "content",
+					"content": {
+						"type": "text",
+						"text": "# Plan: Jump with gravity in player.gd\n\n## Context\n`player.gd` is a bare `CharacterBody2D` that only calls `move_and_slide()`. It has no gravity and no input. We want a jump action so the player falls and can jump off the floor. There is no `project.godot` in this folder, so the input action can't be checked here.\n\n## Steps\n1. **Add gravity.** Read gravity from project settings with `var gravity: float = ProjectSettings.get_setting(\"physics/2d/default_gravity\")`.\n2. **Apply gravity and jump in `_physics_process(delta: float)`.** Add `const JUMP_VELOCITY = -400.0` at the top of the script. Before `move_and_slide()`, add gravity when the player is in the air (`if not is_on_floor(): velocity.y += gravity * delta`). Then jump when the action is pressed on the floor (`if Input.is_action_just_pressed(\"jump\") and is_on_floor(): velocity.y = JUMP_VELOCITY`).\n3. **Add a `jump` input action.** Add it in Project Settings → Input Map, bound to Space. Using the built-in `ui_accept` instead would mean no setup.\n\n## Verification\nRun the scene with the player over a floor (a StaticBody2D with a collision shape). The player should fall and land. Pressing Space on the floor should make it jump. Pressing Space in mid-air should do nothing.\n"
+					}
+				}
+			]
+		},
+		"options": [
+			{
+				"optionId": "exit-plan-default",
+				"name": "Yes, manually approve edits",
+				"kind": "allow_once"
+			},
+			{
+				"optionId": "exit-plan-clear-auto",
+				"name": "Yes, clear context (5% used) and use auto mode",
+				"kind": "allow_always"
+			},
+			{
+				"optionId": "exit-plan-auto",
+				"name": "Yes, and use auto mode",
+				"kind": "allow_always"
+			},
+			{
+				"optionId": "exit-plan-bypass",
+				"name": "Yes, and bypass permissions",
+				"kind": "allow_always"
+			},
+			{
+				"optionId": "reject",
+				"name": "No, keep planning",
+				"kind": "reject_once"
+			}
+		],
+		"sessionId": "session-0001"
+	},
+	"client_answer_allow": {
+		"outcome": {
+			"outcome": "selected",
+			"optionId": "exit-plan-default"
+		}
+	},
+	"after_allow": [
+		{
+			"sessionUpdate": "current_mode_update",
+			"currentModeId": "default"
+		},
+		{
+			"_meta": {
+				"claudeCode": {
+					"toolResponse": {
+						"plan": "# Plan: Jump with gravity in player.gd\n\n## Context\n`player.gd` is a bare `CharacterBody2D` that only calls `move_and_slide()`. It has no gravity and no input. We want a jump action so the player falls and can jump off the floor. There is no `project.godot` in this folder, so the input action can't be checked here.\n\n## Steps\n1. **Add gravity.** Read gravity from project settings with `var gravity: float = ProjectSettings.get_setting(\"physics/2d/default_gravity\")`.\n2. **Apply gravity and jump in `_physics_process(delta: float)`.** Add `const JUMP_VELOCITY = -400.0` at the top of the script. Before `move_and_slide()`, add gravity when the player is in the air (`if not is_on_floor(): velocity.y += gravity * delta`). Then jump when the action is pressed on the floor (`if Input.is_action_just_pressed(\"jump\") and is_on_floor(): velocity.y = JUMP_VELOCITY`).\n3. **Add a `jump` input action.** Add it in Project Settings → Input Map, bound to Space. Using the built-in `ui_accept` instead would mean no setup.\n\n## Verification\nRun the scene with the player over a floor (a StaticBody2D with a collision shape). The player should fall and land. Pressing Space on the floor should make it jump. Pressing Space in mid-air should do nothing.\n",
+						"isAgent": false,
+						"filePath": "~/.claude/plans/plan-0001.md"
+					},
+					"toolName": "ExitPlanMode"
+				}
+			},
+			"toolCallId": "toolu_plan_0002",
+			"sessionUpdate": "tool_call_update"
+		},
+		{
+			"_meta": {
+				"claudeCode": {
+					"toolName": "ExitPlanMode"
+				}
+			},
+			"toolCallId": "toolu_plan_0002",
+			"sessionUpdate": "tool_call_update",
+			"status": "completed",
+			"rawOutput": "User has approved your plan. You can now start coding. Start with updating your todo list if applicable\n\nYour plan has been saved to: ~/.claude/plans/plan-0001.md\nYou can refer back to it if needed during implementation.\n\n## Approved Plan:\n# Plan: Jump with gravity in player.gd\n\n## Context\n`player.gd` is a bare `CharacterBody2D` that only calls `move_and_slide()`. It has no gravity and no input. We want a jump action so the player falls and can jump off the floor. There is no `project.godot` in this folder, so the input action can't be checked here.\n\n## Steps\n1. **Add gravity.** Read gravity from project settings with `var gravity: float = ProjectSettings.get_setting(\"physics/2d/default_gravity\")`.\n2. **Apply gravity and jump in `_physics_process(delta: float)`.** Add `const JUMP_VELOCITY = -400.0` at the top of the script. Before `move_and_slide()`, add gravity when the player is in the air (`if not is_on_floor(): velocity.y += gravity * delta`). Then jump when the action is pressed on the floor (`if Input.is_action_just_pressed(\"jump\") and is_on_floor(): velocity.y = JUMP_VELOCITY`).\n3. **Add a `jump` input action.** Add it in Project Settings → Input Map, bound to Space. Using the built-in `ui_accept` instead would mean no setup.\n\n## Verification\nRun the scene with the player over a floor (a StaticBody2D with a collision shape). The player should fall and land. Pressing Space on the floor should make it jump. Pressing Space in mid-air should do nothing.\n",
+			"title": "Exited Plan Mode"
+		},
+		{
+			"next_permission_title": "Write player.gd"
+		},
+		{
+			"prompt_result": {
+				"stopReason": "end_turn"
+			}
+		}
+	]
+}
