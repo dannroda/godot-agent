@@ -274,6 +274,10 @@ func _ready() -> void:
 	_queue_view.setup(_queue)
 	_queue_view.harness_label_of = func(text: String) -> String: return _controller.prompt_label(text) if _controller else ""
 	_queue_view.edit_requested.connect(_composer.insert_text)
+	# Lo que sale de la cola sin mandarse deja de ser un prompt del harness (revisión de next2 #26).
+	_queue.discarded.connect(func(text: String) -> void:
+		if _controller:
+			_controller.unlabel_prompt(text))
 	_queue_view.send_now_requested.connect(_send_next_queued.bind(true))
 	_queue_view.send_item_now_requested.connect(_send_queued_now)
 	composer_column.add_child(_queue_view)
@@ -1124,6 +1128,7 @@ func _on_submitted(text: String) -> void:
 	_composer.clear()
 	# El interceptor (One-shot) pide los adjuntos solo si se queda con el mensaje (m17-18).
 	if submit_interceptor.is_valid() and submit_interceptor.call(text, _take_context_blocks):
+		_controller.unlabel_prompt(text)  # el One-shot lo manda envuelto, con otro texto (next2 #26)
 		return
 	if _model.is_busy() or (_model.state == SessionModel.SessionState.STARTING and not _pending_prompt.is_empty()):
 		_queue.add(text, _take_context_blocks())

@@ -117,3 +117,29 @@ func test_queue_row_shows_the_label() -> void:
 		assert_eq((rows[0].get_child(0) as Label).text, "⚙ What the supervisor saw while the editor was closed", "la del harness, con su etiqueta")
 		assert_eq((rows[1].get_child(0) as Label).text, "Hacé el puntaje", "la del usuario, con su texto")
 	view.queue_free()
+
+
+## Revisión de next2 #26: una etiqueta por cada vez que se marca el texto, y se suelta cuando el
+## prompt no sale (quitado o editado desde la cola, vaciada la cola, o tomado por el One-shot).
+func test_labels_are_counted_and_released() -> void:
+	var controller := SessionController.new()
+	controller.label_prompt(PROMPT, HarnessPrompts.RUN_ERROR)
+	controller.label_prompt(PROMPT, HarnessPrompts.RUN_ERROR)
+	assert_eq(controller.call(&"_take_label", PROMPT), HarnessPrompts.RUN_ERROR, "el primer envío sale plegado")
+	assert_eq(controller.call(&"_take_label", PROMPT), HarnessPrompts.RUN_ERROR, "el segundo también («Arreglar» dos veces)")
+	assert_eq(controller.prompt_label(PROMPT), "", "y después es del usuario")
+	controller.label_prompt(PROMPT, HarnessPrompts.SUPERVISOR)
+	controller.unlabel_prompt(PROMPT)
+	assert_eq(controller.prompt_label(PROMPT), "", "soltada: el usuario que manda el mismo texto lo ve como suyo")
+	controller.unlabel_prompt(PROMPT)  # sin etiqueta: nada
+	var queue := PromptQueue.new()
+	queue.discarded.connect(controller.unlabel_prompt)
+	for text: String in ["a", "b", "c"]:
+		controller.label_prompt(text, HarnessPrompts.SUPERVISOR)
+		queue.add(text)
+	queue.take_next()
+	assert_eq(controller.prompt_label("a"), HarnessPrompts.SUPERVISOR, "la que se manda la consume el envío, no la cola")
+	queue.discard_at(0)
+	assert_eq(controller.prompt_label("b"), "", "quitada o pasada al composer: se suelta")
+	queue.clear()
+	assert_eq(controller.prompt_label("c"), "", "vaciar la cola también")

@@ -96,12 +96,12 @@ func _refresh() -> void:
 		edit.pressed.connect(_on_edit.bind(i))
 		row.add_child(edit)
 		var remove := _small_button("✕", I18n.t("Remove from the queue"))
-		remove.pressed.connect(func() -> void: _queue.remove_at(i))
+		remove.pressed.connect(func() -> void: _queue.discard_at(i))
 		row.add_child(remove)
 
 
 func _on_edit(index: int) -> void:
-	var item := _queue.remove_at(index)
+	var item := _queue.discard_at(index)
 	if not item.is_empty():
 		edit_requested.emit(str(item.text))
 

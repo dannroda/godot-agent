@@ -211,7 +211,8 @@ var _fix_turns: int = 0
 var _sending_fix: bool = false
 ## Dónde se guardan las regresiones de playtest (los tests usan una carpeta temporal).
 var regressions_dir: String = ReviewStore.PlaytestRegressions.DIR
-## Prompts del harness que esperan salir: texto → etiqueta (label_prompt, m12-44).
+## Prompts del harness que esperan salir: texto → Array de etiquetas, una por cada vez que se marcó
+## (label_prompt, m12-44): el mismo texto encolado dos veces sale dos veces plegado.
 var _harness_labels: Dictionary = {}
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
 var _note_for_agent: String = ""
@@ -454,8 +455,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	for block: Variant in extra_blocks:
 		if block is Dictionary:
 			attachments.append(block)
-	var harness_label: String = _harness_labels.get(text, "")
-	_harness_labels.erase(text)
+	var harness_label := _take_label(text)
 	model.add_user_message(text, attachments, harness_label)
 	_outside_turn_noticed = false
 	if history:
@@ -765,13 +765,31 @@ func _fold_findings(first_entry: int) -> void:
 ## usuario. El agente recibe el texto igual. Devuelve `text`.
 func label_prompt(text: String, label: String) -> String:
 	if not label.is_empty():
-		_harness_labels[text] = label
+		(_harness_labels.get_or_add(text, []) as Array).append(label)
 	return text
 
 
 ## La etiqueta con que va a salir `text` ("" = como mensaje del usuario).
 func prompt_label(text: String) -> String:
-	return _harness_labels.get(text, "")
+	var labels: Array = _harness_labels.get(text, [])
+	return str(labels[0]) if not labels.is_empty() else ""
+
+
+## `text` marcado ya no va a salir como prompt del harness: lo quitaron de la cola, lo pasaron al
+## composer para editarlo, se lo quedó el One-shot o salió con otro texto (revisión de next2 #26).
+## Si no, su etiqueta quedaba y el usuario que mandaba después ese mismo texto lo veía plegado.
+func unlabel_prompt(text: String) -> void:
+	_take_label(text)
+
+
+func _take_label(text: String) -> String:
+	var labels: Array = _harness_labels.get(text, [])
+	if labels.is_empty():
+		return ""
+	var label := str(labels.pop_front())
+	if labels.is_empty():
+		_harness_labels.erase(text)
+	return label
 
 
 func send_in_mode(mode: SessionModel.HarnessMode, text: String, extra_blocks: Array = []) -> String:
