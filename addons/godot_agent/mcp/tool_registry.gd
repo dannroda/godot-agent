@@ -7,6 +7,7 @@ extends RefCounted
 ## su permiso. Llamarlas por su nombre sigue funcionando.
 
 const McpTool := preload("mcp_tool.gd")
+const PermissionPolicy := preload("../session/permission_policy.gd")
 const UntrustedText := preload("untrusted_text.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const EditorContext := preload("../ui/editor_context.gd")
@@ -20,6 +21,8 @@ const NEW_ERRORS_SHOWN := 5
 const ENVELOPED_BLOCK := "_enveloped"
 const METHODS_TOOL := "methods"
 const RUN_TOOL := "run"
+## Categoría de las tools propias del proyecto (m11-46) en el catálogo.
+const PROJECT_CATEGORY := "agent_tools"
 
 var agent_log: AgentLog
 ## Callable(group: String, title: String, description: String) -> bool (se espera con await).
@@ -56,6 +59,10 @@ var _extended: Dictionary = {}  # name -> true
 ## name -> categoría: el proveedor que la registró («read», «scene_edit», «run»…), para la lista
 ## de tools de Extensiones (m12-46).
 var _categories: Dictionary = {}
+## Las tools propias del proyecto (m11-46): un ProjectToolLoader. Se sincronizan antes de cada
+## godot.methods, godot.run, catálogo y tools/list, así una tool nueva o editada entra sin reiniciar.
+var project_tools: RefCounted
+var _project_names: PackedStringArray = []
 
 
 func register(tool: McpTool) -> void:
@@ -93,10 +100,24 @@ func category_of(tool_name: String) -> String:
 ## Todas las tools para mostrárselas al usuario (m12-46), en orden de registro:
 ## `{name, category, group, summary, description, extended}`; `summary` es la primera oración.
 func catalog() -> Array[Dictionary]:
+	sync_project_tools()
 	var result: Array[Dictionary] = []
 	for tool_name: String in _order:
 		var tool: McpTool = _tools[tool_name]
 		result.append({"name": tool_name, "category": category_of(tool_name), "group": tool.group, "summary": _first_sentence(tool.description), "description": tool.description, "extended": _extended.has(tool_name)})
+	# Las del proyecto que no cargaron (frenadas o con un error) también, para verlas y aprobarlas
+	# (m11-46): `state` y, las frenadas, `held` con lo que pide «Aprobar…».
+	if project_tools != null:
+		var held_items := {}
+		for item: Dictionary in project_tools.call(&"held"):
+			held_items[item.name] = item
+		for entry: Dictionary in project_tools.call(&"entries"):
+			if entry.state == "ready":
+				continue
+			var row := {"name": entry.name, "category": PROJECT_CATEGORY, "group": PermissionPolicy.GROUP_PROJECT_TOOLS, "summary": entry.error, "description": "%s\n%s" % [entry.path, entry.error], "extended": true, "state": entry.state}
+			if held_items.has(entry.name):
+				row["held"] = held_items[entry.name]
+			result.append(row)
 	return result
 
 
@@ -124,11 +145,14 @@ func names() -> PackedStringArray:
 
 ## Resultado de tools/list.
 func list() -> Array:
+	sync_project_tools()
 	var result: Array = []
 	for tool_name: String in _order:
-		if not (compact and _extended.has(tool_name)):
+		if not (compact and _extended.has(tool_name)) and not tool_name in _project_names:
 			result.append((_tools[tool_name] as McpTool).to_mcp())
-	if compact and not _extended.is_empty():
+	# Sin la lista compacta, godot.methods/godot.run van igual si hay tools del proyecto: es por donde
+	# llegan (m11-46).
+	if (compact and not _extended.is_empty()) or not _project_names.is_empty():
 		result.append(_methods_tool().to_mcp())
 		result.append(_run_tool().to_mcp())
 	return result
@@ -159,6 +183,8 @@ func run_for_user(tool_name: String, args: Dictionary) -> String:
 func call_tool(tool_name: String, args: Variant, caller: String = "") -> Dictionary:
 	var started := Time.get_ticks_msec()
 	var result: Dictionary
+	if tool_name in [METHODS_TOOL, RUN_TOOL] or not _tools.has(tool_name):
+		sync_project_tools()
 	var error_mark_before: int = _error_marks.get(caller, error_mark.call()) if error_mark.is_valid() else -1
 	if tool_name == METHODS_TOOL and not _tools.has(METHODS_TOOL):
 		result = _limit(_methods(args if args is Dictionary else {}))
@@ -236,6 +262,33 @@ static func _with_new_errors(result: Dictionary, entries: Array) -> Dictionary:
 	return with_notice
 
 
+## Vuelve a mirar las tools del proyecto y deja en el registro las cargadas, como extendidas.
+func sync_project_tools() -> void:
+	if project_tools == null:
+		return
+	project_tools.call(&"refresh")
+	for tool_name: String in _project_names:
+		_tools.erase(tool_name)
+		_extended.erase(tool_name)
+		_categories.erase(tool_name)
+		var index := _order.find(tool_name)
+		if index >= 0:
+			_order.remove_at(index)
+	_project_names = []
+	for tool: McpTool in project_tools.call(&"tools"):
+		if _tools.has(tool.name):
+			continue
+		register(tool)
+		_extended[tool.name] = true
+		_categories[tool.name] = PROJECT_CATEGORY
+		_project_names.append(tool.name)
+
+
+## true si `tool_name` lo usa el addon (no una tool del proyecto).
+func is_builtin(tool_name: String) -> bool:
+	return tool_name in [METHODS_TOOL, RUN_TOOL] or (_tools.has(tool_name) and not tool_name in _project_names)
+
+
 # --- descubrimiento (m3-09) --------------------------------------------------------------------------
 
 func _methods_tool() -> McpTool:
@@ -274,7 +327,8 @@ func _methods(args: Dictionary) -> Dictionary:
 		var required: Array = tool.input_schema.get("required", [])
 		for param: String in (tool.input_schema.get("properties", {}) as Dictionary):
 			params.append(param if param in required else param + "?")
-		lines.append("- %s(%s): %s" % [tool_name, ", ".join(params), _first_sentence(tool.description)])
+		var mark := " [project tool]" if tool_name in _project_names else ""
+		lines.append("- %s(%s)%s: %s" % [tool_name, ", ".join(params), mark, _first_sentence(tool.description)])
 	if lines.is_empty():
 		return McpTool.text("No method matches '%s'." % query)
 	lines.insert(0, "Extra methods (call with godot.run {method, params}; godot.methods {method} shows the details):")

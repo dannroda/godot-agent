@@ -81,3 +81,17 @@ func test_patch_presets() -> void:
 
 func test_missing_file() -> void:
 	assert_eq(Patcher.presets_missing_filter("user://no_existe/export_presets.cfg"), PackedStringArray(), "sin archivo")
+
+
+## m11-46: con tools del proyecto, cada preset excluye también su carpeta.
+func test_project_tools_filter() -> void:
+	var wanted := PackedStringArray([Patcher.FILTER, "agent_tools/*"])
+	assert_eq(Patcher.add_filter("res://addons/godot_agent/**", wanted), "res://addons/godot_agent/**, agent_tools/*", "agrega la carpeta aunque ya excluya el addon")
+	assert_eq(Patcher.add_filter("res://agent_tools/**, addons/godot_agent/*", wanted), "res://agent_tools/**, addons/godot_agent/*", "con res:// y ** ya cuenta")
+	var path := _write_presets()
+	assert_eq(Patcher.presets_missing_filter(path, wanted), PackedStringArray(["Linux", "Web", "Windows"]), "a los tres les falta la carpeta")
+	assert_eq(Patcher.patch_presets(path, wanted).size(), 3, "parchea los tres")
+	assert_eq(Patcher.presets_missing_filter(path, wanted), PackedStringArray(), "ya no falta nada")
+	var cfg := ConfigFile.new()
+	cfg.load(path)
+	assert_eq(cfg.get_value("preset.0", "exclude_filter"), "addons/godot_agent/*, agent_tools/*", "vacío: los dos")

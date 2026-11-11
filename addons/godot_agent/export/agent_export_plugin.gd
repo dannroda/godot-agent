@@ -1,13 +1,20 @@
 @tool
 extends EditorExportPlugin
-## Garantiza que nada del addon llegue a un juego exportado (spec §2).
+## Garantiza que nada del addon llegue a un juego exportado (spec §2), ni las tools del proyecto que
+## lo usan (m11-46).
 
 const PlaytestAutoload := preload("../playtest/playtest_autoload.gd")
 const ExportPresetsPatcher := preload("export_presets_patcher.gd")
+const ProjectConfig := preload("../config/project_config.gd")
+const ProjectToolLoader := preload("../mcp/project_tool_loader.gd")
 
 const ADDON_DIR := "res://addons/godot_agent/"
 ## Spec, progreso e informes del One-shot (D41). Su .gdignore ya los deja afuera; esto es por las dudas.
 const ONESHOT_FILES_DIR := "res://.godot_agent/"
+
+## Las tools propias del proyecto (m11-46): extienden un script del addon, así que tampoco van. Se lee
+## de la config al empezar cada export ("res://agent_tools/").
+var _tools_prefix := ProjectToolLoader.DEFAULT_DIR + "/"
 
 ## Quita el autoload de playtest; lo inyecta el plugin (remove_autoload_singleton es de EditorPlugin).
 var _remove_playtest_autoload: Callable
@@ -25,6 +32,7 @@ func _get_name() -> String:
 
 
 func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String, _flags: int) -> void:
+	_tools_prefix = ProjectToolLoader.resolve_dir(str(ProjectConfig.load_or_default().get(&"project_tools_dir"))) + "/"
 	if PlaytestAutoload.is_registered():
 		push_error(
 			"Godot Agent: the playtest autoload '%s' was still registered at export time (was a playtest left open?). It was removed before generating the export."
@@ -36,10 +44,10 @@ func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String,
 	if not missing.is_empty():
 		push_warning(
 			"Godot Agent: the presets %s do not exclude '%s'. If you export with the plugin disabled, the addon would be included. Use \"Add to the presets\" in the Agent dock."
-			% [", ".join(missing), ExportPresetsPatcher.FILTER]
+			% [", ".join(missing), ExportPresetsPatcher.filters_text()]
 		)
 
 
 func _export_file(path: String, _type: String, _features: PackedStringArray) -> void:
-	if path.begins_with(ADDON_DIR) or path.begins_with(ONESHOT_FILES_DIR):
+	if path.begins_with(ADDON_DIR) or path.begins_with(ONESHOT_FILES_DIR) or path.begins_with(_tools_prefix):
 		skip()

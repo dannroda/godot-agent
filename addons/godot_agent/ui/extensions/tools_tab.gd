@@ -10,6 +10,7 @@ const AgentTheme := preload("../agent_theme.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const ToolSummaries := preload("../../mcp/tool_summaries.gd")
+const MachineApproval := preload("../../core/machine_approval.gd")
 
 ## Nombre del proveedor (ToolRegistry.category_of) → título del grupo, en el orden en que se muestran.
 const CATEGORY_LABELS: Dictionary = {
@@ -27,6 +28,7 @@ const CATEGORY_LABELS: Dictionary = {
 	"asset": "Asset Store",  # i18n
 	"profile": "Profiler",  # i18n
 	"session": "Sessions",  # i18n
+	"agent_tools": "Project tools",  # i18n
 }
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
 const COLUMN_NAME := 0
@@ -41,12 +43,15 @@ var catalog_provider: Callable
 var policy_provider: Callable
 ## () -> bool: la lista compacta está activa (Ajustes).
 var compact_provider: Callable
+## (data) -> void: abre «Aprobar…» de una tool del proyecto frenada (m11-46).
+var approve: Callable
 
 var _filter: LineEdit
 var _tree: Tree
 var _count: Label
 var _note: Label
 var _catalog: Array = []
+var _allow: Button
 
 
 func _init() -> void:
@@ -90,7 +95,18 @@ func _init() -> void:
 	_tree.set_column_expand(COLUMN_MODES, false)
 	_tree.set_column_custom_minimum_width(COLUMN_MODES, AgentTheme.px(104))
 	_tree.set_column_title_alignment(COLUMN_MODES, HORIZONTAL_ALIGNMENT_CENTER)
+	_tree.item_selected.connect(_on_selected)
 	add_child(_tree)
+	# Una tool del proyecto sin aprobar en esta máquina (m11-46): seleccionada, este botón.
+	_allow = Button.new()
+	_allow.name = "AllowTool"
+	_allow.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_allow.visible = false
+	_allow.pressed.connect(func() -> void:
+		var item := _tree.get_selected()
+		if item and approve.is_valid() and item.get_metadata(COLUMN_NAME) is Dictionary:
+			approve.call(MachineApproval.request(MachineApproval.KIND_TOOL, [item.get_metadata(COLUMN_NAME)])))
+	add_child(_allow)
 	_note = Label.new()
 	_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_note.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -142,9 +158,25 @@ func _rebuild() -> void:
 			item.set_text(COLUMN_MODES, mode_marks(policy, str(tool.group)))
 			item.set_text_alignment(COLUMN_MODES, HORIZONTAL_ALIGNMENT_CENTER)
 			item.set_tooltip_text(COLUMN_MODES, mode_tooltip(policy, str(tool.group)))
+			if tool.has("state"):
+				# Del proyecto, sin cargar: frenada (sin aprobar) o con un error que dice qué arreglar.
+				item.set_text(COLUMN_SUMMARY, I18n.t("Not approved on this machine") if tool.has("held") else str(tool.summary))
+				item.set_custom_color(COLUMN_NAME, AgentTheme.WARNING)
+				item.set_custom_color(COLUMN_SUMMARY, AgentTheme.WARNING)
+				if tool.has("held"):
+					item.set_metadata(COLUMN_NAME, tool.held)
 	_count.text = I18n.t("%d of %d tools") % [shown, _catalog.size()] if not query.is_empty() else I18n.t("%d tools") % _catalog.size()
 	_note.text = I18n.t("⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → MCP servers → Advanced).") % hidden_by_compact if hidden_by_compact > 0 else ""
 	_note.visible = not _note.text.is_empty()
+	_on_selected()
+
+
+func _on_selected() -> void:
+	var item := _tree.get_selected()
+	var held: Variant = item.get_metadata(COLUMN_NAME) if item else null
+	_allow.visible = held is Dictionary
+	if held is Dictionary:
+		_allow.text = I18n.t("Review and allow «%s» on this machine…") % held.name
 
 
 ## «✓ ✓ ? ✓ ✗»: una marca por modo (Preguntar, Revisar, Construir, Auto, One-shot) para `group`.

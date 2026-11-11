@@ -48,6 +48,7 @@ const GithubReviews := preload("core/github_reviews.gd")
 const InlineEditMenu := preload("editor/inline_edit_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
+const ProjectToolLoader := preload("mcp/project_tool_loader.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
 const MapTools := preload("mcp/tools/map_tools.gd")
@@ -174,6 +175,9 @@ var _extensions_window: ExtensionsWindow
 var _main_screen: Control
 var _fs: FsHandler
 var _registry: ToolRegistry
+## Las tools propias del proyecto (m11-46) y las claves de las frenadas que ya se avisaron.
+var _project_tools: ProjectToolLoader
+var _tools_announced: Dictionary = {}
 var _completion: CompletionService
 ## Chat en línea en el Script Editor (m11-05).
 var _inline_edit: InlineEdit
@@ -467,6 +471,10 @@ func _exit_tree() -> void:
 		_map_tools.wait()
 		_map_tools = null
 	_registry = null
+	_project_tools = null
+	var filesystem := EditorInterface.get_resource_filesystem()
+	if filesystem and filesystem.filesystem_changed.is_connected(_on_project_tools_changed):
+		filesystem.filesystem_changed.disconnect(_on_project_tools_changed)
 	_diagnostics = null
 	if _profile_tools:
 		_profile_tools.shutdown()
@@ -935,6 +943,19 @@ func _start_mcp_server() -> void:
 	session_tools.describe = _describe_sessions
 	session_tools.send = _send_to_session
 	registry.register_provider(session_tools, true)
+	_project_tools = ProjectToolLoader.new()
+	_project_tools.dir = ProjectToolLoader.resolve_dir(_project_config.project_tools_dir)
+	# La carpeta del proyecto del editor, no la de una copia aparte: la clave es la misma en las dos.
+	_project_tools.project_dir = ProjectSettings.globalize_path("res://")
+	_project_tools.is_approved = _settings.is_command_approved
+	# Lambdas que capturan el plugin, no el registro: el registro guarda el loader.
+	_project_tools.reserved = func(tool_name: String) -> bool: return _registry != null and _registry.is_builtin(tool_name)
+	_project_tools.log_line = func(text: String) -> void: _log.add(AgentLog.CH_MCP, text)
+	_project_tools.undo_redo = EditorInterface.get_editor_undo_redo()
+	registry.project_tools = _project_tools
+	var filesystem := EditorInterface.get_resource_filesystem()
+	if not filesystem.filesystem_changed.is_connected(_on_project_tools_changed):
+		filesystem.filesystem_changed.connect(_on_project_tools_changed)
 	_mcp_server = McpServer.new()
 	_mcp_server.registry = registry
 	_mcp_server.agent_log = _log
@@ -975,6 +996,7 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 		for secret: String in ExternalMcpServers.secret_values(server):
 			_log.add_secret(secret)
 		result.append(entry)
+	_announce_held_tools([model], true)
 	if not held.is_empty():
 		# m13-31: un server del proyecto sin aprobar no corre, y no en silencio: la primera vez el aviso
 		# explica el cambio (un proyecto que ya los usaba los pierde al actualizar).
@@ -984,6 +1006,30 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 		_log.add(AgentLog.CH_MCP, "project MCP servers not approved on this machine, left out: %s" % ", ".join(PackedStringArray(held.map(func(item: Dictionary) -> String: return item.name))))
 		model.add_notice(notice.text, ChatEntry.NoticeLevel.WARNING, notice.actions)
 	return result
+
+
+## Algo cambió en el filesystem: una tool del proyecto nueva o editada (también por el agente) queda
+## frenada, y se avisa una vez en todas las pestañas (m11-46).
+func _on_project_tools_changed() -> void:
+	if _project_tools != null:
+		_announce_held_tools(_models(), false)
+
+
+## El aviso de las tools del proyecto sin aprobar. `all`: todas (al empezar una sesión); si no, solo
+## las que no se avisaron todavía.
+func _announce_held_tools(models: Array, all: bool) -> void:
+	if _project_tools == null:
+		return
+	_project_tools.refresh()
+	var held: Array = _project_tools.held().filter(func(item: Dictionary) -> bool: return all or not _tools_announced.has(item.key))
+	if held.is_empty():
+		return
+	for item: Dictionary in held:
+		_tools_announced[item.key] = true
+	_log.add(AgentLog.CH_MCP, "project tools not approved on this machine: %s" % ", ".join(PackedStringArray(held.map(func(item: Dictionary) -> String: return item.name))))
+	var notice := SessionController.held_tools_notice(held)
+	for model: SessionModel in models:
+		model.add_notice(notice.text, ChatEntry.NoticeLevel.WARNING, notice.actions)
 
 
 ## Servers de terceros del usuario y del proyecto (si se llaman igual, gana el del proyecto). Uno del
@@ -1010,6 +1056,7 @@ func _prompt_variables() -> Dictionary:
 		"project_name": str(ProjectSettings.get_setting("application/config/name", "")),
 		"project_path": EditorContext.project_path(),
 		"godot_version": Engine.get_version_info().string,
+		"project_tools_dir": ProjectToolLoader.resolve_dir(_project_config.project_tools_dir),
 	}
 
 
@@ -1190,6 +1237,10 @@ func _get_extensions_window() -> ExtensionsWindow:
 	_extensions_window.tools_catalog_provider = func() -> Array[Dictionary]: return _registry.catalog() if _registry else ([] as Array[Dictionary])
 	_extensions_window.tools_policy_provider = func() -> PermissionPolicy: return PermissionPolicy.new(_project_config.permissions if _project_config else {})
 	_extensions_window.tools_compact_provider = func() -> bool: return _project_config != null and _project_config.compact_tools
+	_extensions_window.tools_approve = func(data: Dictionary) -> void:
+		var dock: Control = _tabs.dock(PRIMARY_SESSION) if _tabs else null
+		if is_instance_valid(dock):
+			(dock as AgentDock).confirm_on_machine(data)
 	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
 		return _active_adapter().kind == ClaudeExtensions.AGENT_CLAUDE
@@ -1224,6 +1275,7 @@ func _on_settings_saved() -> void:
 	_registry.max_output_chars = _project_config.max_output_chars
 	_registry.max_image_side = _project_config.max_image_side
 	_registry.compact = _project_config.compact_tools
+	_project_tools.dir = ProjectToolLoader.resolve_dir(_project_config.project_tools_dir)
 	_run_tools.max_image_side = _project_config.max_image_side
 	_main_screen.call(&"set_defaults", _oneshot_defaults())
 	_oneshot.loops.repeats = _project_config.loop_repeats

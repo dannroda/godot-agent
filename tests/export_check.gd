@@ -6,7 +6,9 @@ extends SceneTree
 ## --export-pack (mismo binario que corre este script), abre el .zip con ZIPReader y revisa:
 ## - ningún archivo bajo addons/godot_agent/,
 ## - el autoload de playtest no está en project.binary,
-## - ninguna clase del addon en global_script_class_cache.cfg.
+## - ninguna clase del addon en global_script_class_cache.cfg,
+## - ninguna tool del proyecto (m11-46): res://agent_tools/ o la carpeta de la config extienden un
+##   script del addon, así que tampoco van.
 ## Advierte (no falla) si uid_cache.bin conserva rutas del addon (4.4, docs/decisions.md D8).
 
 const TestUserDir := preload("res://tests/test_user_dir.gd")
@@ -18,6 +20,8 @@ const AUTOLOAD_NAME := "GodotAgentPlaytest"
 const AUTOLOAD_SCRIPT := "res://addons/godot_agent/playtest/runtime/playtest_probe.gd"
 const PLUGIN_CFG := "res://addons/godot_agent/plugin.cfg"
 const FILTER := "addons/godot_agent/*"
+const TOOL_SOURCE := "@tool\nextends \"res://addons/godot_agent/api/agent_tool.gd\"\n\nfunc _description() -> String:\n\treturn \"Export check.\"\n"
+const CONFIG_TRES := "[gd_resource type=\"Resource\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://addons/godot_agent/config/project_config.gd\" id=\"1\"]\n\n[resource]\nscript = ExtResource(\"1\")\nproject_tools_dir = \"res://%s\"\n"
 const KEEP_ORPHAN_ENV := "GODOT_AGENT_TEST_KEEP_ORPHAN_AUTOLOAD"
 const ORPHAN_ERROR_MARK := "was still registered at export time"
 
@@ -26,6 +30,8 @@ const SCENARIOS: Array[Dictionary] = [
 	{ "name": "plugin_on_sin_filtro", "plugin": true, "filter": false, "orphan": false, "expect_clean": true },
 	{ "name": "plugin_off_con_filtro", "plugin": false, "filter": true, "orphan": false, "expect_clean": true },
 	{ "name": "plugin_on_autoload_huerfano", "plugin": true, "filter": false, "orphan": true, "expect_clean": true },
+	# La carpeta de las tools del proyecto sale de la config (m11-46).
+	{ "name": "plugin_on_tools_en_otra_carpeta", "plugin": true, "filter": false, "orphan": false, "expect_clean": true, "tools_dir": "tools/agent" },
 	# Control: sin plugin ni filtro el addon TIENE que aparecer; si no, el detector no sirve.
 	{ "name": "control_plugin_off_sin_filtro", "plugin": false, "filter": false, "orphan": false, "expect_clean": false },
 ]
@@ -56,6 +62,13 @@ func _run_scenario(scenario: Dictionary) -> bool:
 	_write(project_dir + "/project.godot", _project_godot(scenario, false))
 	_write(project_dir + "/export_presets.cfg", _export_presets(scenario))
 	_write(project_dir + "/main.tscn", '[gd_scene format=3]\n\n[node name="Main" type="Node"]\n')
+	# Una tool del proyecto con un helper (m11-46), en la carpeta de siempre o en la de la config.
+	var tools_dir: String = scenario.get("tools_dir", "agent_tools")
+	if scenario.has("tools_dir"):
+		_write(project_dir + "/addons/godot_agent/config/project_config.tres", CONFIG_TRES % tools_dir)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(project_dir + "/" + tools_dir + "/_helpers"))
+	_write(project_dir + "/" + tools_dir + "/export_probe.gd", TOOL_SOURCE)
+	_write(project_dir + "/" + tools_dir + "/_helpers/probe_helper.gd", "extends RefCounted\n")
 
 	var zip_path := abs_dir + "/export.zip"
 	_godot(["--headless", "--path", abs_dir, "--import"])
@@ -73,7 +86,7 @@ func _run_scenario(scenario: Dictionary) -> bool:
 	if not FileAccess.file_exists(zip_path):
 		print("[%s] FAIL: no se generó %s\n%s" % [name, zip_path, export_output])
 		return false
-	_inspect_zip(zip_path, leaks, warnings)
+	_inspect_zip(zip_path, leaks, warnings, tools_dir + "/")
 
 	var ok: bool
 	if scenario.expect_clean:
@@ -94,7 +107,7 @@ func _run_scenario(scenario: Dictionary) -> bool:
 	return ok
 
 
-func _inspect_zip(zip_path: String, leaks: PackedStringArray, warnings: PackedStringArray) -> void:
+func _inspect_zip(zip_path: String, leaks: PackedStringArray, warnings: PackedStringArray, tools_mark: String) -> void:
 	var zip := ZIPReader.new()
 	if zip.open(zip_path) != OK:
 		leaks.append("no se pudo abrir el zip")
@@ -102,7 +115,13 @@ func _inspect_zip(zip_path: String, leaks: PackedStringArray, warnings: PackedSt
 	for file: String in zip.get_files():
 		if file.contains(ADDON_PATH_MARK):
 			leaks.append("archivo exportado: " + file)
+		if file.contains(tools_mark):
+			leaks.append("tool del proyecto exportada: " + file)
 		var data := zip.read_file(file)
+		if file.ends_with(".remap") and _bytes_contain(data, tools_mark):
+			leaks.append("remap apunta a una tool del proyecto: " + file)
+		if file.ends_with("global_script_class_cache.cfg") and _bytes_contain(data, tools_mark):
+			leaks.append("tool del proyecto en global_script_class_cache.cfg")
 		if file.ends_with("project.binary"):
 			if _bytes_contain(data, AUTOLOAD_NAME) or _bytes_contain(data, AUTOLOAD_SCRIPT):
 				leaks.append("autoload de playtest en project.binary")
@@ -131,7 +150,7 @@ func _project_godot(scenario: Dictionary, with_orphan: bool) -> String:
 func _export_presets(scenario: Dictionary) -> String:
 	return (
 		'[preset.0]\n\nname="%s"\nplatform="Linux"\nrunnable=true\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter="%s"\nexport_path=""\n\n[preset.0.options]\n\nbinary_format/embed_pck=false\n'
-		% [PRESET, FILTER if scenario.filter else ""]
+		% [PRESET, (FILTER + ", " + str(scenario.get("tools_dir", "agent_tools")) + "/*") if scenario.filter else ""]
 	)
 
 

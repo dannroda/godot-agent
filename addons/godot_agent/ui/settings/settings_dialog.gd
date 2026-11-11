@@ -22,6 +22,7 @@ const CompletionSettingsPage := preload("completion_settings_page.gd")
 const AutoRulesPage := preload("auto_rules_page.gd")
 const McpServersPage := preload("mcp_servers_page.gd")
 const TurnChecksEditor := preload("turn_checks_editor.gd")
+const ProjectToolLoader := preload("../../mcp/project_tool_loader.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 const AddonVersion := preload("../../core/addon_version.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
@@ -46,7 +47,7 @@ const DECISION_LABELS: Dictionary = {
 ## Celdas de la matriz (m12-22): un ícono y un color por decisión.
 const DECISION_MARKS: Dictionary = {PermissionPolicy.ALLOW: "✓", PermissionPolicy.ASK: "?", PermissionPolicy.DENY: "✕"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "project_tools_dir", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -92,6 +93,7 @@ var _mcp_grid: GridContainer
 var _port_spin: SpinBox
 var _url_label: Label
 var _roots_edit: TextEdit
+var _project_tools_edit: LineEdit
 var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
@@ -535,6 +537,12 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_github_pr_check.text = I18n.t("Offer to push and open a GitHub pull request when closing a separate copy")
 	_github_pr_check.tooltip_text = I18n.t("Uses git push and the gh CLI. Off by default: otherwise the harness never pushes.")
 	page.add_child(_github_pr_check)
+	page.add_child(_title(I18n.t("Project tools")))
+	page.add_child(_hint(I18n.t("Each .gd file in this folder is a tool the agent calls with godot.run (build_level.gd is godot.build_level). They run inside the editor, so each one only loads on a machine where its code was approved, and every call asks the Project tools permission. The folder is left out of exports.")))
+	_project_tools_edit = LineEdit.new()
+	_project_tools_edit.name = "ProjectToolsDir"
+	_project_tools_edit.placeholder_text = ProjectToolLoader.DEFAULT_DIR
+	page.add_child(_project_tools_edit)
 	page.add_child(_title(I18n.t("Folders outside the project")))
 	page.add_child(_hint(I18n.t("The agent's fs/* can read and write in these folders besides the project (absolute paths, one per line).")))
 	_roots_edit = TextEdit.new()
@@ -737,6 +745,7 @@ func _load() -> void:
 	_snapshots_check.button_pressed = _config.turn_snapshots
 	_github_pr_check.button_pressed = _config.github_pull_requests
 	_roots_edit.text = "\n".join(_config.extra_fs_roots)
+	_project_tools_edit.text = _config.project_tools_dir
 	_budget_spins.minutes.value = _config.budget_minutes
 	_budget_spins.tokens.value = _config.budget_tokens
 	_budget_spins.playtests.value = _config.budget_playtests
@@ -830,6 +839,7 @@ func _on_save() -> void:
 	_config.turn_snapshots = _snapshots_check.button_pressed
 	_config.github_pull_requests = _github_pr_check.button_pressed
 	_config.extra_fs_roots = _lines(_roots_edit.text)
+	_config.project_tools_dir = ProjectToolLoader.resolve_dir(_project_tools_edit.text)
 	_config.mcp_servers = _mcp_servers_page.project_servers()
 	_config.budget_minutes = int(_budget_spins.minutes.value)
 	_config.budget_tokens = int(_budget_spins.tokens.value)
@@ -880,6 +890,9 @@ func validate() -> Dictionary:
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
 			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
+	var tools_dir := _project_tools_edit.text.strip_edges()
+	if not tools_dir.is_empty() and ProjectToolLoader.normalize_dir(tools_dir).is_empty():
+		return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" can't hold the project tools: use a folder inside the project, outside addons/godot_agent.") % tools_dir}
 	var checks_error := _turn_checks_editor.validate()
 	if not checks_error.is_empty():
 		return {"section": SettingsSection.MCP, "message": checks_error}

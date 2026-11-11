@@ -5177,3 +5177,39 @@ msgstr "Seguir en una sesión nueva con un resumen de esta; opcional, qué hacer
 
 msgid "Click: continue in a new session with a summary…"
 msgstr "Clic: seguir en una sesión nueva con resumen…"
+
+msgid "Project tools"
+msgstr "Herramientas del proyecto"
+
+msgid "Approved on this machine: %s. The agent can use them now, with godot.run."
+msgstr "Aprobadas en esta máquina: %s. El agente ya puede usarlas, con godot.run."
+
+msgid "Project tools not approved on this machine: %s. They are GDScript in the project that runs inside the editor when the agent calls it, so each one only loads where someone approved its code; if the code changes (also when the agent writes it), it asks again. Until then the agent can't call them."
+msgstr "Herramientas del proyecto sin aprobar en esta máquina: %s. Son GDScript del proyecto que corre dentro del editor cuando el agente lo llama, así que cada una se carga solo donde alguien aprobó su código; si el código cambia (también cuando lo escribe el agente), vuelve a preguntar. Hasta entonces el agente no puede llamarlas."
+
+msgid "See the tool's code and allow it on this machine."
+msgstr "Ver el código de la herramienta y permitirla en esta máquina."
+
+msgid "See the code of each tool and allow them all on this machine."
+msgstr "Ver el código de cada herramienta y permitirlas todas en esta máquina."
+
+msgid "Approve all the tools (%d)…"
+msgstr "Aprobar todas (%d)…"
+
+msgid "Approve project tools"
+msgstr "Aprobar herramientas del proyecto"
+
+msgid "These tools are GDScript files in the project. When the agent calls one (asking first, by the Project tools permission), its code runs inside this editor with full access to the project and the computer. Allow them only if you trust the code below; if a tool or a script next to it changes, it asks again."
+msgstr "Estas herramientas son archivos GDScript del proyecto. Cuando el agente llama a una (preguntando antes, según el permiso Herramientas del proyecto), su código corre dentro de este editor con acceso completo al proyecto y a la computadora. Permitilas solo si confiás en el código de abajo; si cambia una herramienta o un script al lado, vuelve a preguntar."
+
+msgid "Not approved on this machine"
+msgstr "Sin aprobar en esta máquina"
+
+msgid "Review and allow «%s» on this machine…"
+msgstr "Revisar y permitir «%s» en esta máquina…"
+
+msgid "Each .gd file in this folder is a tool the agent calls with godot.run (build_level.gd is godot.build_level). They run inside the editor, so each one only loads on a machine where its code was approved, and every call asks the Project tools permission. The folder is left out of exports."
+msgstr "Cada archivo .gd de esta carpeta es una herramienta que el agente llama con godot.run (build_level.gd es godot.build_level). Corren dentro del editor, así que cada una se carga solo en una máquina donde se aprobó su código, y cada llamada pide el permiso Herramientas del proyecto. La carpeta queda fuera de los exports."
+
+msgid "\"%s\" can't hold the project tools: use a folder inside the project, outside addons/godot_agent."
+msgstr "\"%s\" no sirve para las herramientas del proyecto: usá una carpeta dentro del proyecto, fuera de addons/godot_agent."
