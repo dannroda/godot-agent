@@ -218,20 +218,24 @@ static func _nodes(scene: Dictionary) -> Dictionary:
 		_flatten(section.props, scene, "", 0, props)
 		if attrs.has("groups"):
 			props["groups"] = str(attrs.groups)
-		var node := {"path": path, "name": name, "parent": parent if attrs.has("parent") else "", "type": type, "uid": str(attrs.get("unique_id", "")), "props": props}
+		var node := {"path": path, "name": name, "parent": parent if attrs.has("parent") else "", "type": type, "uid": str(attrs.get("unique_id", "")), "props": props, "raw": section.props}
 		by_path[path] = list.size()
 		if not node.uid.is_empty():
 			by_uid[node.uid] = list.size()
 		list.append(node)
 	var connections: PackedStringArray = []
 	for section: Dictionary in scene.connections:
-		var attrs: Dictionary = section.attrs
-		var line := "%s: %s → %s.%s()" % [attrs.get("signal", ""), attrs.get("from", ""), attrs.get("to", ""), attrs.get("method", "")]
-		for extra: String in ["flags", "binds", "unbinds"]:
-			if attrs.has(extra):
-				line += " %s=%s" % [extra, attrs[extra]]
-		connections.append(line)
+		connections.append(connection_line(section.attrs))
 	return {"list": list, "by_path": by_path, "by_uid": by_uid, "connections": connections}
+
+
+## Una conexión para mostrar y comparar: «señal: desde → hasta.método()» y lo que tenga de más.
+static func connection_line(attrs: Dictionary) -> String:
+	var line := "%s: %s → %s.%s()" % [attrs.get("signal", ""), attrs.get("from", ""), attrs.get("to", ""), attrs.get("method", "")]
+	for extra: String in ["flags", "binds", "unbinds"]:
+		if attrs.has(extra):
+			line += " %s=%s" % [extra, attrs[extra]]
+	return line
 
 
 ## Propiedades comparables: un ExtResource por su ruta, un SubResource abierto en `prop.sub`.

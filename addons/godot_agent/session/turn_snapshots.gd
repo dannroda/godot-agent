@@ -19,6 +19,14 @@ var git: GitCheckpoints
 ## false si no hay git, el proyecto no está en un repo o el repo no tiene commits (ver setup()).
 var available: bool = false
 var _git_dir: String = ""
+## La carpeta del proyecto dentro del repo ("" si es la raíz, si no "sub/carpeta/"): un parche armado
+## con --relative se aplica con --directory.
+var _prefix: String = ""
+## Lo que usa git con el index propio o escribe en el proyecto va de a uno (m11-34): un peek() del
+## contador no puede correr a la vez que un take() o un rechazo.
+var _busy: bool = false
+## sesión -> {sha, msec} del último take() (el contador vivo busca ahí el principio del turno).
+var _latest: Dictionary = {}
 
 
 func _init(project_root: String = "") -> void:
@@ -32,13 +40,41 @@ func setup() -> bool:
 		return false
 	await git.ensure_identity()
 	_git_dir = _absolute((await git.run(["rev-parse", "--git-dir"])).output)
+	_prefix = (await git.run(["rev-parse", "--show-prefix"])).output
 	return true
+
+
+## Espera su turno para usar git (ver _busy). Siempre con _unlock() después.
+func _lock() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	while _busy:
+		await tree.process_frame
+	_busy = true
+
+
+func _unlock() -> void:
+	_busy = false
 
 
 ## Commit con el estado actual de la carpeta del proyecto; "" si no se pudo.
 func take(session: String) -> String:
 	if not available:
 		return ""
+	await _lock()
+	var sha := await _take(session)
+	_unlock()
+	if not sha.is_empty():
+		_latest[session] = {"sha": sha, "msec": Time.get_ticks_msec()}
+	return sha
+
+
+## El último snapshot de `session` si se tomó en `since_msec` o después; si no, "".
+func latest_take(session: String, since_msec: int) -> String:
+	var taken: Dictionary = _latest.get(session, {})
+	return str(taken.sha) if not taken.is_empty() and int(taken.msec) >= since_msec else ""
+
+
+func _take(session: String) -> String:
 	var index := _git_dir.path_join("godot-agent-index-%s" % session.validate_filename())
 	# El index propio se arma una vez desde HEAD y después se reusa: lo escribe siempre git, así su
 	# fecha sirve para detectar archivos cambiados en el mismo segundo («racy git»). Copiar el index
@@ -78,7 +114,16 @@ func text_at(sha: String, path: String) -> String:
 ## `{changed, before}`: las rutas (relativas al proyecto) que tocó, para recargarlas en el editor, y
 ## el snapshot de cómo estaba todo antes de restaurar (para deshacerlo); {} si no se pudo.
 func restore(session: String, sha: String, paths: PackedStringArray = []) -> Dictionary:
-	var now := await take(session)
+	if not available:
+		return {}
+	await _lock()
+	var result := await _restore(session, sha, paths)
+	_unlock()
+	return result
+
+
+func _restore(session: String, sha: String, paths: PackedStringArray) -> Dictionary:
+	var now := await _take(session)
 	if now.is_empty():
 		return {}
 	var changed: PackedStringArray = []
@@ -96,6 +141,127 @@ func restore(session: String, sha: String, paths: PackedStringArray = []) -> Dic
 		if restored.code != 0:
 			return {}
 	return {"changed": changed, "before": now}
+
+
+## Lo que cambió desde `from` hasta ahora, sin guardar un snapshot (el contador vivo, m11-34): arma
+## el árbol con otro index propio (el de take() no se toca) y no deja commit ni ref. Mismo formato que
+## diff(), más `tree` (el árbol de ahora); {} si no se pudo.
+func peek(session: String, from: String) -> Dictionary:
+	if not available or from.is_empty():
+		return {}
+	await _lock()
+	var index := _git_dir.path_join("godot-agent-peek-%s" % session.validate_filename())
+	var tree := ""
+	if FileAccess.file_exists(index) or (await _run_with_index(index, PackedStringArray(["read-tree", "HEAD"]))).code == 0:
+		if (await _run_with_index(index, PackedStringArray(["add", "-A"]) + await git.add_pathspec())).code == 0:
+			var written := await _run_with_index(index, PackedStringArray(["write-tree"]))
+			tree = written.output if written.code == 0 else ""
+	var result := {}
+	if not tree.is_empty():
+		result = await diff(from, tree)
+		result["tree"] = tree  # para ver los trozos hasta ahora (git diff acepta un árbol)
+	_unlock()
+	return result
+
+
+## Los trozos de lo que cambió `path` (relativo al proyecto) entre dos snapshots: cada uno
+## {index, path, patch (el parche de ese trozo solo, con su encabezado), old_start, old_count,
+## new_start, new_count, lines}. Vacío si no cambió, o si es binario (no tiene trozos).
+func hunks(from: String, to: String, path: String) -> Array[Dictionary]:
+	var shown := await git.run(PackedStringArray(["diff", "--no-renames", "--no-color", "-U3", "--relative", from, to, "--", path]), false)
+	return parse_hunks(shown.output if shown.code == 0 else "", path)
+
+
+## Los trozos de la salida de `git diff` de un archivo (ver hunks()).
+static func parse_hunks(diff_text: String, path: String = "") -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var header: PackedStringArray = []
+	var current: Dictionary = {}
+	var lines := diff_text.split("\n")
+	if not lines.is_empty() and lines[lines.size() - 1].is_empty():
+		lines.resize(lines.size() - 1)
+	for line: String in lines:
+		if line.begins_with("@@ "):
+			current = _hunk_from_header(line, result.size(), path)
+			current.header = header
+			result.append(current)
+		elif current.is_empty():
+			header.append(line)
+		else:
+			current.lines.append(line)
+	for hunk: Dictionary in result:
+		hunk.patch = "\n".join(hunk.header) + "\n" + hunk.at + "\n" + "\n".join(hunk.lines) + "\n"
+		hunk.erase("header")
+	return result
+
+
+static func _hunk_from_header(line: String, index: int, path: String) -> Dictionary:
+	var ranges := line.get_slice("@@", 1).strip_edges().split(" ")
+	var old := ranges[0].trim_prefix("-").split(",")
+	var new := ranges[1].trim_prefix("+").split(",") if ranges.size() > 1 else PackedStringArray(["0"])
+	return {
+		"index": index, "path": path, "at": line, "lines": PackedStringArray(),
+		"old_start": int(old[0]), "old_count": int(old[1]) if old.size() > 1 else 1,
+		"new_start": int(new[0]), "new_count": int(new[1]) if new.size() > 1 else 1,
+	}
+
+
+## Las líneas que cambia un trozo, sin el contexto: {old_line (la primera que cambia en el archivo de
+## antes), new_first y new_last (las que quedaron en el de después; new_last < new_first si solo
+## borra)}.
+static func changed_lines(hunk: Dictionary) -> Dictionary:
+	var lead := 0
+	for line: String in hunk.lines:
+		if not line.begins_with(" "):
+			break
+		lead += 1
+	var added := 0
+	for line: String in hunk.lines:
+		if line.begins_with("+"):
+			added += 1
+	var old_line := int(hunk.old_start) + lead if int(hunk.old_count) > 0 else int(hunk.old_start) + 1
+	var new_first := int(hunk.new_start) + lead if int(hunk.new_count) > 0 else int(hunk.new_start) + 1
+	return {"old_line": maxi(old_line, 1), "new_first": maxi(new_first, 1), "new_last": maxi(new_first, 1) + added - 1}
+
+
+## true si el trozo se puede rechazar ahora (deshacerlo sobre el archivo actual) sin pisar nada: con
+## `undo`, si se puede volver a aplicar.
+func can_apply(hunk: Dictionary, undo: bool = false) -> bool:
+	await _lock()
+	var ok: bool = (await _apply(hunk, not undo, true)).code == 0
+	_unlock()
+	return ok
+
+
+## Rechaza un trozo (lo deshace en el archivo actual) o, con `undo`, lo vuelve a aplicar. Si esas
+## líneas cambiaron después, no escribe nada. Devuelve {ok, error}.
+func apply_hunk(hunk: Dictionary, undo: bool = false) -> Dictionary:
+	await _lock()
+	var checked := await _apply(hunk, not undo, true)
+	var result := {"ok": false, "error": checked.output}
+	if checked.code == 0:
+		var applied := await _apply(hunk, not undo, false)
+		result = {"ok": applied.code == 0, "error": applied.output if applied.code != 0 else ""}
+	_unlock()
+	return result
+
+
+func _apply(hunk: Dictionary, reverse: bool, check_only: bool) -> Dictionary:
+	var patch_path := _git_dir.path_join("godot-agent-hunk.patch")
+	var file := FileAccess.open(patch_path, FileAccess.WRITE)
+	if file == null:
+		return {"code": 1, "output": "could not write the patch"}
+	file.store_string(str(hunk.patch))
+	file.close()
+	var args := PackedStringArray(["apply", "--whitespace=nowarn"])
+	if reverse:
+		args.append("-R")
+	if check_only:
+		args.append("--check")
+	if not _prefix.is_empty():
+		args.append("--directory=" + _prefix.trim_suffix("/"))
+	args.append(patch_path)
+	return await git.run(args)
 
 
 ## `--numstat` y `--name-status` de git diff juntos (ver diff()).

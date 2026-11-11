@@ -42,24 +42,26 @@ func _init(project_root: String = "") -> void:
 
 
 ## {code, output}. Corre en un Thread y espera frames hasta que termine.
-func run(args: PackedStringArray) -> Dictionary:
+## `strip`: false deja la salida tal cual (un diff necesita sus espacios y saltos del final; m11-34).
+func run(args: PackedStringArray, strip: bool = true) -> Dictionary:
 	var full: PackedStringArray = ["-C", root]
 	full.append_array(_identity)
 	full.append_array(args)
-	return await execute(git_path, full)
+	return await execute(git_path, full, strip)
 
 
 ## OS.execute en un Thread, esperando frames hasta que termine: {code, output}. Es estática para que la
 ## espera no dependa de quien la pidió: si se libera antes (deshabilitar el plugin con un git en curso),
 ## la espera sigue y cierra el Thread con wait_to_finish (m16-17). En una función de instancia, Godot
 ## descartaba la espera con el Thread adentro («destroyed without its completion having been realized»).
-static func execute(program: String, args: PackedStringArray) -> Dictionary:
+static func execute(program: String, args: PackedStringArray, strip: bool = true) -> Dictionary:
 	_pending += 1
 	var thread := Thread.new()
 	thread.start(func() -> Dictionary:
 		var output: Array = []
 		var code := OS.execute(program, args, output, true)
-		return {"code": code, "output": "".join(output).strip_edges()})
+		var text := "".join(output)
+		return {"code": code, "output": text.strip_edges() if strip else text})
 	var tree := Engine.get_main_loop() as SceneTree
 	while thread.is_alive():
 		await tree.process_frame
