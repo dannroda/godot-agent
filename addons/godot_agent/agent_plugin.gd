@@ -110,6 +110,8 @@ const ACTION_PENDING_INSTALL_DISCARD := "pending_install_discard"
 const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
 ## «Arreglar con el agente» del aviso de un run manual con error (m11-55): el payload es el prompt.
 const ACTION_FIX_RUN_ERROR := "fix_run_error"
+## «Send to the agent» del aviso de un hook de prompt (m11-24); `data` es el prompt.
+const ACTION_SEND_HOOK_PROMPT := "send_hook_prompt"
 ## El panel Stack Trace del debugger se llena un momento después de la pausa.
 const BREAK_READ_DELAY_S := 0.5
 ## Avisos de RegressionsWorkflow.write() para el usuario.
@@ -155,6 +157,8 @@ var _follower: AgentFollower
 var _remote_activity: RemoteActivity
 ## Hooks del proyecto en eventos del editor (m11-24).
 var _hooks: HookRunner
+## Prompts de hooks mandados solos (auto_send) desde el último mensaje del usuario.
+var _hook_prompts_in_row: int = 0
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
 var _turn_changes: TurnChanges
@@ -212,6 +216,9 @@ func _enter_tree() -> void:
 
 	_export_plugin = AgentExportPlugin.new()
 	_export_plugin.setup(_remove_playtest_autoload)
+	_export_plugin.on_export_begin = func(path: String) -> void:
+		if _hooks:
+			_hooks.fire({"event": ProjectHooks.EVENT_EXPORT, "path": path, "by": ProjectHooks.BY_USER})
 	_plugin.add_export_plugin(_export_plugin)
 
 	_settings = HarnessSettings.new(EditorInterface.get_editor_settings())
@@ -250,6 +257,7 @@ func _enter_tree() -> void:
 	_hooks.is_approved = _settings.is_command_approved
 	_hooks.held = _on_hook_held
 	_hooks.failed = _on_hook_failed
+	_hooks.run_action = _run_hook_action
 	_hooks.log_line = func(text: String) -> void:
 		if _log:
 			_log.add(AgentLog.CH_PROC, text)
@@ -569,6 +577,47 @@ func _on_hook_held(hook: Dictionary, key: String) -> void:
 			"data": MachineApproval.request(MachineApproval.KIND_HOOK, [item]), "tooltip": I18n.t("See what the hook runs and allow it on this machine.")}])
 
 
+## Las acciones de un hook que no son un comando (m11-24): `{ok, output}` para el log.
+func _run_hook_action(hook: Dictionary, event: Dictionary) -> Dictionary:
+	match str(hook.action):
+		ProjectHooks.ACTION_TOOL:
+			var args: Dictionary = hook.args
+			var group := _registry.tool_group(str(hook.tool), args) if _registry else ""
+			if group.is_empty():
+				return {"ok": false, "output": "There is no tool godot.%s." % hook.tool}
+			if not group in ProjectHooks.TOOL_GROUPS:
+				return {"ok": false, "output": "godot.%s is in the «%s» group: a hook only runs tools that read, check or run the game (%s)." % [hook.tool, group, ", ".join(ProjectHooks.TOOL_GROUPS)]}
+			var text: String = await _registry.run_for_user(str(hook.tool), args)
+			return {"ok": true, "output": text}
+		ProjectHooks.ACTION_PROMPT:
+			return _hook_prompt(hook, event)
+	return {"ok": false, "output": "Unknown action."}
+
+
+## Un hook de prompt: por defecto, un aviso con «Send to the agent»; con auto_send, se manda solo hasta
+## MAX_AUTO_PROMPTS seguidos sin un mensaje del usuario. Nunca en One-shot.
+func _hook_prompt(hook: Dictionary, event: Dictionary) -> Dictionary:
+	var dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
+	var model := _model_of(_tabs.active_id()) if _tabs else null
+	if dock == null or model == null:
+		return {"ok": false, "output": "No session tab."}
+	if model.harness_mode == SessionModel.HarnessMode.ONESHOT:
+		return {"ok": false, "output": "Not sent: the active tab is in One-shot."}
+	var text := ProjectHooks.prompt_text(hook, event)
+	if bool(hook.auto_send) and _hook_prompts_in_row < ProjectHooks.MAX_AUTO_PROMPTS:
+		_hook_prompts_in_row += 1
+		dock.send_text(text, HarnessPrompts.HOOK)
+		return {"ok": true, "output": "Sent to the agent."}
+	var capped := bool(hook.auto_send)
+	var body := str(hook.prompt) + ("\n" + str(event.path) if not str(event.get("path", "")).is_empty() else "")
+	if capped:
+		body += "\n\n" + I18n.t("Not sent on its own: hooks already sent %d prompts in a row without a message from you.") % ProjectHooks.MAX_AUTO_PROMPTS
+	var entry := model.add_notice(body, ChatEntry.NoticeLevel.INFO, [{"id": ACTION_SEND_HOOK_PROMPT, "label": I18n.t("Send to the agent"), "primary": true, "data": text}])
+	entry.title = I18n.t("Project hook «%s»") % hook.name
+	model.notify_entry_changed(entry)
+	return {"ok": true, "output": "Notice with «Send to the agent»%s." % (" (auto_send capped)" if capped else "")}
+
+
 func _on_hook_failed(hook: Dictionary, _result: Dictionary) -> void:
 	EditorInterface.get_editor_toaster().push_toast(I18n.t("Project hook «%s» failed. Its output is in the Agent Log.") % hook.name, EditorToaster.SEVERITY_WARNING)
 
@@ -777,6 +826,11 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_write_regressions_workflow(false)
 		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(true)
+		ACTION_SEND_HOOK_PROMPT:
+			var hook_dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
+			if hook_dock:
+				_hook_prompts_in_row = 0
+				hook_dock.send_text(str(payload), HarnessPrompts.HOOK)
 		ACTION_FIX_RUN_ERROR:
 			var dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
 			if dock:
@@ -976,6 +1030,12 @@ func _start_mcp_server() -> void:
 	_run_errors.still_breaked = func() -> bool: return _playtest_debugger != null and _playtest_debugger.any_breaked()
 	_run_errors.enabled = func() -> bool: return _settings != null and _settings.offer_fix_on_run_error()
 	_run_errors.error_found.connect(_on_run_error)
+	_run_tools.regressions_finished.connect(func(results: Array) -> void:
+		if _hooks:
+			var failed := results.filter(func(result: Dictionary) -> bool: return not result.passed and not result.get("flaky", false))
+			var lines := PackedStringArray(failed.map(func(result: Dictionary) -> String: return "✗ " + str(result.get("goal", ""))))
+			_hooks.fire({"event": ProjectHooks.EVENT_REGRESSIONS, "path": "", "by": ProjectHooks.BY_AGENT if _registry and _registry.running_calls > 0 else ProjectHooks.BY_USER,
+				"errors": failed.size(), "lines": lines}))
 	_run_errors.game_ended.connect(func(info: Dictionary) -> void:
 		if _hooks:
 			_hooks.fire({"event": ProjectHooks.EVENT_GAME_STOPPED, "path": "", "by": info.by, "errors": info.count, "lines": info.lines}))
@@ -1605,6 +1665,10 @@ func _turn_checks_info() -> Dictionary:
 
 
 func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:
+	# Un mensaje del usuario (sin etiqueta del harness) vuelve a habilitar los prompts de hooks (m11-24).
+	model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER and entry.harness_label.is_empty():
+			_hook_prompts_in_row = 0)
 	# El contador vivo (m11-34): el turno empieza al pasar a PROMPTING y cada tool call terminada
 	# pide recalcular.
 	model.state_changed.connect(func(state: SessionModel.SessionState) -> void:

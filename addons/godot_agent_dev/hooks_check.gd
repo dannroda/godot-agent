@@ -5,6 +5,9 @@ extends RefCounted
 ##    avisa con «Aprobar…»; el diálogo muestra lo que corre y «Allow on this machine» lo aprueba.
 ## 2. Aprobado, el próximo guardado del usuario lo corre (un comando sin shell que deja una marca).
 ## 3. Lo que escribe el agente es un guardado by=agent: corre el hook by=agent y no el by=user.
+## 4. Un hook de prompt deja un aviso con «Send to the agent» y no manda nada; con auto_send y el tope de
+##    prompts seguidos alcanzado, también queda en aviso y lo dice.
+## 5. Un hook de tool corre godot.validate_scripts (diagnostics) y no corre godot.delete_file (edit_files).
 ## La aprobación va a una tienda en memoria y los hooks del proyecto se ponen en memoria y se
 ## restauran: no se guarda nada.
 
@@ -115,12 +118,49 @@ func _run(runner: Node, config: Object, controller: Object) -> void:
 	await _until(func() -> bool: return FileAccess.file_exists(work.path_join("agent.marker")))
 	_expect(FileAccess.file_exists(work.path_join("agent.marker")), "lo que escribe el agente corre el hook by=agent")
 	_expect(not FileAccess.file_exists(work.path_join("user.marker")), "y no el by=user")
+	await _idle(runner)
+
+	# 4. Prompt: aviso con «Send to the agent», sin turno; con auto_send y el tope alcanzado, también.
+	var prompt_hook := {"name": "Review level", "event": "saved", "paths": [WORK_DIR + "/**"], "action": "prompt", "prompt": "Review the level I just saved."}
+	var capped_hook := {"name": "Auto review", "event": "saved", "paths": [WORK_DIR + "/**"], "action": "prompt", "prompt": "Auto review.", "auto_send": true}
+	var tool_ok := {"name": "Validate", "event": "saved", "paths": [WORK_DIR + "/**"], "action": "tool", "tool": "godot.validate_scripts"}
+	var tool_denied := {"name": "Delete", "event": "saved", "paths": [WORK_DIR + "/**"], "action": "tool", "tool": "delete_file", "args": {"path": SCENE}}
+	config.set(&"hooks", [prompt_hook, capped_hook, tool_ok, tool_denied])
+	for hook: Dictionary in [prompt_hook, capped_hook, tool_ok, tool_denied]:
+		store.approve_command(ProjectHooks.approval_key(project, ProjectHooks.normalize(hook)))
+	var plugin_node: Object = runner.get_parent()
+	plugin_node.set(&"_hook_prompts_in_row", ProjectHooks.MAX_AUTO_PROMPTS)
+	var results := {}
+	var on_finished := func(hook: Dictionary, result: Dictionary) -> void: results[hook.name] = result
+	runner.connect(&"finished", on_finished)
+	var before: int = (model.call(&"entries") as Array).size()
+	EditorInterface.mark_scene_as_unsaved()
+	EditorInterface.save_scene()
+	await _until(func() -> bool: return results.size() >= 4)
+	runner.disconnect(&"finished", on_finished)
+	var notices := {}
+	for entry: Object in (model.call(&"entries") as Array).slice(before):
+		notices[str(entry.get(&"title"))] = entry
+	var review: Object = notices.get("Project hook «Review level»")
+	_expect(review != null and (review.get(&"actions") as Array).size() == 1 and str((review.get(&"actions") as Array)[0].label) == "Send to the agent", "el hook de prompt deja un aviso con «Send to the agent» · %s" % [notices.keys()])
+	var capped: Object = notices.get("Project hook «Auto review»")
+	_expect(capped != null and str(capped.get(&"text")).contains("Not sent on its own"), "auto_send con el tope alcanzado queda en aviso y lo dice")
+	_expect(not bool(model.call(&"is_busy")), "no se mandó ningún turno")
+	_expect(results.has("Validate") and bool(results.Validate.ok), "godot.validate_scripts corre · %s" % [results.get("Validate")])
+	_expect(results.has("Delete") and not bool(results.Delete.ok) and str(results.Delete.output).contains("edit_files"), "godot.delete_file no corre: no es de leer, revisar ni correr · %s" % [results.get("Delete")])
+	_expect(FileAccess.file_exists(SCENE), "y la escena sigue ahí")
+	plugin_node.set(&"_hook_prompts_in_row", 0)
+
 	# Que termine la corrida (espera la salida un momento después de que sale el proceso): si el editor
 	# se cierra antes, el proceso queda vivo hasta el final.
-	var deadline_idle := Time.get_ticks_msec() + WAIT_MS
-	while Time.get_ticks_msec() < deadline_idle and (not (runner.get(&"_running") as Dictionary).is_empty() or not (runner.get(&"_pending") as Dictionary).is_empty()):
-		await _tree.process_frame
+	await _idle(runner)
 	EditorInterface.close_scene()
+
+
+func _idle(runner: Node) -> void:
+	var deadline := Time.get_ticks_msec() + WAIT_MS
+	while Time.get_ticks_msec() < deadline and (not (runner.get(&"_running") as Dictionary).is_empty() or not (runner.get(&"_pending") as Dictionary).is_empty()):
+		await _tree.process_frame
 
 
 func _until(done: Callable) -> void:

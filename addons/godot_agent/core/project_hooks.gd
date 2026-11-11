@@ -14,6 +14,9 @@ extends RefCounted
 ##   "any".
 ## - event "game_stopped": terminó un juego. `by`: "user" (F5/F6) o "agent" (run_scene). `only_errors`
 ##   (por defecto true): solo si dejó errores.
+## - event "regressions_finished": terminó una tanda de regresiones de playtest (del panel, by "user", o
+##   de godot.run_regressions, by "agent"); `errors` son las que fallaron y `only_errors` vale igual.
+## - event "export_started": empieza un export; `path` es el archivo de salida. Solo avisa: no lo frena.
 ## - action "command": un programa con argumentos, sin shell (TurnChecks.parse_command). Además de
 ##   {godot} y {project}, {path} y {event} se reemplazan dentro de cada argumento ya separado, y el
 ##   evento llega en variables de entorno GODOT_AGENT_*.
@@ -21,10 +24,13 @@ extends RefCounted
 
 const MachineApproval := preload("machine_approval.gd")
 const TurnChecks := preload("turn_checks.gd")
+const UntrustedText := preload("../mcp/untrusted_text.gd")
 
 const EVENT_SAVED := "saved"
 const EVENT_GAME_STOPPED := "game_stopped"
-const EVENTS: PackedStringArray = [EVENT_SAVED, EVENT_GAME_STOPPED]
+const EVENT_REGRESSIONS := "regressions_finished"
+const EVENT_EXPORT := "export_started"
+const EVENTS: PackedStringArray = [EVENT_SAVED, EVENT_GAME_STOPPED, EVENT_REGRESSIONS, EVENT_EXPORT]
 const ACTION_COMMAND := "command"
 const ACTION_TOOL := "tool"
 const ACTION_PROMPT := "prompt"
@@ -35,6 +41,11 @@ const BY_ANY := "any"
 const BYS: PackedStringArray = [BY_USER, BY_AGENT, BY_ANY]
 const DEFAULT_TIMEOUT_S := 60
 const MAX_TIMEOUT_S := 600
+## Los grupos de permisos de las tools que puede correr un hook: leer, diagnosticar y correr el juego o
+## las regresiones. Un hook corre sin pasar por el modo, así que nada que edite ni la shell.
+const TOOL_GROUPS: PackedStringArray = ["read", "diagnostics", "run"]
+## Prompts de hooks seguidos sin un mensaje del usuario, con auto_send (como los turnos de m11-04).
+const MAX_AUTO_PROMPTS := 2
 const PATH_PLACEHOLDER := "{path}"
 const EVENT_PLACEHOLDER := "{event}"
 
@@ -101,7 +112,7 @@ static func matches(hook: Dictionary, event: Dictionary) -> bool:
 		return false
 	if str(hook.by) != BY_ANY and str(hook.by) != str(event.get("by", BY_USER)):
 		return false
-	if str(hook.event) == EVENT_GAME_STOPPED and bool(hook.only_errors) and int(event.get("errors", 0)) <= 0:
+	if str(hook.event) in [EVENT_GAME_STOPPED, EVENT_REGRESSIONS] and bool(hook.only_errors) and int(event.get("errors", 0)) <= 0:
 		return false
 	var globs: PackedStringArray = hook.paths
 	if globs.is_empty():
@@ -137,3 +148,23 @@ static func environment(hook: Dictionary, event: Dictionary) -> Dictionary:
 	return {"GODOT_AGENT_HOOK": str(hook.name), "GODOT_AGENT_EVENT": str(event.get("event", "")),
 		"GODOT_AGENT_PATH": str(event.get("path", "")), "GODOT_AGENT_BY": str(event.get("by", "")),
 		"GODOT_AGENT_ERRORS": str(int(event.get("errors", 0)))}
+
+
+## El prompt de un hook para el agente: la instrucción del hook (la aprobó el usuario en esta máquina) y
+## el evento, que trae texto de afuera (rutas, errores del juego), en sobre.
+static func prompt_text(hook: Dictionary, event: Dictionary) -> String:
+	var parts: PackedStringArray = ["A project hook («%s») fired on the editor event «%s». Its instruction, from the project's settings and approved by the user on this machine:" % [hook.name, event.get("event", "")], str(hook.prompt)]
+	var facts: PackedStringArray = []
+	if not str(event.get("path", "")).is_empty():
+		facts.append("path: " + str(event.path))
+	if event.has("by"):
+		facts.append("by: " + str(event.by))
+	if event.has("errors"):
+		facts.append("game errors: %d" % int(event.errors))
+	var lines: PackedStringArray = event.get("lines", PackedStringArray())
+	if not lines.is_empty():
+		facts.append("\n".join(lines))
+	if not facts.is_empty():
+		parts.append("Event details:")
+		parts.append(UntrustedText.wrap("\n".join(facts)))
+	return UntrustedText.seal("\n".join(parts), UntrustedText.new_nonce())

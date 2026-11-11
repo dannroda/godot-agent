@@ -145,6 +145,12 @@ func group_of(tool_name: String) -> String:
 ## Corre una tool para lo que pide el usuario desde la UI (las menciones @errors, @game… del
 ## composer, m11-08): sin permiso ni guard, porque no la llama el agente. Devuelve el texto del
 ## resultado (con el tope de max_output_chars) o "" si no existe.
+## El grupo de permisos de `tool_name` con `args` ("" si no existe). Lo usan los hooks (m11-24).
+func tool_group(tool_name: String, args: Dictionary) -> String:
+	var tool: McpTool = _tools.get(tool_name)
+	return tool.group_of(args) if tool else ""
+
+
 func run_for_user(tool_name: String, args: Dictionary) -> String:
 	var tool: McpTool = _tools.get(tool_name)
 	if tool == null or not tool.handler.is_valid():

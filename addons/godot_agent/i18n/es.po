@@ -5360,3 +5360,12 @@ msgstr "Aprobar un hook del proyecto"
 
 msgid "This hook comes with the project's settings (addons/godot_agent/config/project_config.tres). It runs on its own, on this computer, every time its event happens:\n\n%s\n\nAllow it only if you trust it. If the hook changes, it asks again."
 msgstr "Este hook viene con la configuración del proyecto (addons/godot_agent/config/project_config.tres). Corre solo, en esta computadora, cada vez que pasa su evento:\n\n%s\n\nPermitilo solo si confiás en él. Si el hook cambia, vuelve a preguntar."
+
+msgid "Project hook «%s»"
+msgstr "Hook del proyecto «%s»"
+
+msgid "Project hook"
+msgstr "Hook del proyecto"
+
+msgid "Not sent on its own: hooks already sent %d prompts in a row without a message from you."
+msgstr "No se mandó solo: los hooks ya mandaron %d prompts seguidos sin un mensaje tuyo."

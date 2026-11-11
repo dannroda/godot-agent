@@ -24,7 +24,13 @@ func _get_name() -> String:
 	return "!GodotAgentExcludeAddon"
 
 
+## Callable(path: String): empieza un export (m11-24, el evento export_started de los hooks).
+var on_export_begin: Callable
+
+
 func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String, _flags: int) -> void:
+	if on_export_begin.is_valid():
+		on_export_begin.call(_path)
 	if PlaytestAutoload.is_registered():
 		push_error(
 			"Godot Agent: the playtest autoload '%s' was still registered at export time (was a playtest left open?). It was removed before generating the export."

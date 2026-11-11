@@ -7,6 +7,9 @@ extends RefCounted
 ## inputs y contesta pedidos (`request` → `reply` con id) por el canal del debugger. El autoload se da de alta en EditorPlugin._build() solo si el
 ## run lo pidió el harness (`harness_requested`) y de baja cuando el juego ya leyó project.godot.
 
+## Terminó una tanda de regresiones (del panel o de godot.run_regressions): los resultados de tally (m11-24).
+signal regressions_finished(results: Array)
+
 const McpTool := preload("../mcp_tool.gd")
 const UntrustedText := preload("../untrusted_text.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
@@ -1059,6 +1062,7 @@ func run_saved_regressions(entries: Array[Dictionary], repeat: int) -> Array:
 		PlaytestRegressions.record_runs(tallied)
 		results.append(tallied)
 	regressions_running = false
+	regressions_finished.emit(results)
 	return results
 
 
