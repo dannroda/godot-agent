@@ -299,7 +299,7 @@ func _ready() -> void:
 	_state_row.add_child(_machine_chips)
 	_machines_timer = Timer.new()
 	_machines_timer.wait_time = 1.0
-	_machines_timer.timeout.connect(_refresh_machine_chips)
+	_machines_timer.timeout.connect(_on_machines_tick)
 	add_child(_machines_timer)
 	_machines_timer.start()
 	composer_column.add_child(_composer)
@@ -777,14 +777,21 @@ func _refresh_state_line(color: Color) -> void:
 	_refresh_machine_chips()
 
 
+## Cada segundo: los chips, y mientras conecta también la línea de estado, que pasados unos segundos
+## suma la pista de la descarga (m12-49). La línea refresca los chips, así que no se llaman dos veces.
+func _on_machines_tick() -> void:
+	if _model.state == SessionModel.SessionState.STARTING:
+		_refresh_state_line(_accent)
+	else:
+		_refresh_machine_chips()
+
+
 ## Un chip por máquina en marcha junto al estado (m12-47): «Game · running · 12 s»; en ámbar
 ## cuando pide atención (el juego parado en el debugger, el One-shot esperando). El tooltip es el
 ## mismo del encabezado. Sin máquinas en marcha no hay chips, y la fila se oculta si tampoco hay estado.
 func _refresh_machine_chips() -> void:
 	if _machine_chips == null or not is_inside_tree():
 		return
-	if _model.state == SessionModel.SessionState.STARTING:
-		_refresh_state_line(_accent)  # la pista de la descarga aparece pasados unos segundos
 	var chips := machine_chips(machine_states.call() if machine_states.is_valid() else [])
 	while _machine_chips.get_child_count() > chips.size():
 		var extra := _machine_chips.get_child(_machine_chips.get_child_count() - 1)

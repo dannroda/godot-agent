@@ -141,10 +141,12 @@ func _run_one(tree: SceneTree, dock: Node, controller: Object, model: Object, pr
 		controller.call(&"cancel")
 	for entry: ChatEntry in model.call(&"entries"):
 		if entry.kind == ChatEntry.EntryKind.NOTICE:
+			# El veredicto va en el título y la evidencia en secciones (m12-42).
+			var plain := ReviewStore.playtest_notice_plain({"title": entry.title, "text": entry.text, "sections": entry.sections})
 			for title: String in VERDICTS:
-				if entry.text.begins_with(title):
+				if entry.title.begins_with(title):
 					result.got = VERDICTS[title]
-					result.notice = entry.text
+					result.notice = plain
 		elif entry.kind == ChatEntry.EntryKind.TOOL_GROUP:
 			for id: String in entry.tool_call_ids:
 				var call: Object = model.call(&"tool_call", id)

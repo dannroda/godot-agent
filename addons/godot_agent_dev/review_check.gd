@@ -194,10 +194,12 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	await _wait_turn()
 	await _frames(5)
 	_expect(_model.get(&"current_agent_mode") == "plan", "playtest: al terminar vuelve a plan (%s)" % _model.get(&"current_agent_mode"))
-	var verdicts := (_model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return str(entry.get(&"text")).begins_with(I18n.t("Playtest: failed")))
-	_expect(verdicts.size() == 1 and str(verdicts[0].get(&"text")).contains("score = 0") and str(verdicts[0].get(&"text")).contains("2. "), "playtest: el veredicto queda como aviso con evidencia y pasos")
-	_expect(verdicts.size() == 1 and str(verdicts[0].get(&"text")).contains("game_set"), "playtest: el aviso lista lo que se cambió sin jugar")
-	_expect(verdicts.size() == 1 and str(verdicts[0].get(&"text")).contains("A frame took 1.00 s"), "playtest: el aviso lista lo que vieron los detectores")
+	# El veredicto va en el título y la evidencia en secciones plegables (m12-42): se mira el aviso entero.
+	var verdicts := (_model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return str(entry.get(&"title")).begins_with(I18n.t("Playtest: failed")))
+	var verdict_text := "" if verdicts.size() != 1 else ReviewStore.playtest_notice_plain({"title": verdicts[0].get(&"title"), "text": verdicts[0].get(&"text"), "sections": verdicts[0].get(&"sections")})
+	_expect(verdicts.size() == 1 and verdict_text.contains("score = 0") and verdict_text.contains("2. "), "playtest: el veredicto queda como aviso con evidencia y pasos")
+	_expect(verdicts.size() == 1 and verdict_text.contains("game_set"), "playtest: el aviso lista lo que se cambió sin jugar")
+	_expect(verdicts.size() == 1 and verdict_text.contains("A frame took 1.00 s"), "playtest: el aviso lista lo que vieron los detectores")
 	_expect(verdicts.size() == 1 and (verdicts[0].get(&"actions") as Array).any(func(action: Dictionary) -> bool: return action.id == "play_film"), "playtest: el aviso ofrece la grabación")
 	# Hallazgos del playtest en el panel (m15-17, m15-18): sin archivo, con sus acciones.
 	await _frames(2)
