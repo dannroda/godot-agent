@@ -111,6 +111,7 @@ const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoint
 const TurnChecksCheck := preload("turn_checks_check.gd")
 const AskMenuCheck := preload("ask_menu_check.gd")
 const HooksCheck := preload("hooks_check.gd")
+const QuitCheck := preload("quit_check.gd")
 const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
 const EDIT_ARG := "--godot-agent-edit-test"
 const EditCheck := preload("edit_check.gd")
@@ -180,6 +181,8 @@ const PENDING_ARG := "--godot-agent-pending-test"
 const PLAN_ARG := "--godot-agent-plan-test"
 const CHECKS_ARG := "--godot-agent-checks-test"
 const ASK_MENU_ARG := "--godot-agent-ask-menu-test"
+## Cerrar el editor no deja procesos del agente (tests/quit_check.sh).
+const QUIT_ARG := "--godot-agent-quit-test"
 const HOOKS_ARG := "--godot-agent-hooks-test"
 ## Gasta tokens: Claude Code real con la tarjeta del plan (plan_check.gd run_claude).
 const CLAUDE_PLAN_ARG := "--godot-agent-claude-plan-test"
@@ -269,6 +272,8 @@ func _enter_tree() -> void:
 		_run_ask_menu_test.call_deferred()
 	if HOOKS_ARG in args:
 		_run_hooks_test.call_deferred()
+	if QUIT_ARG in args:
+		_run_quit_test.call_deferred()
 	if CLAUDE_PLAN_ARG in args:
 		_run_plan_test.call_deferred(true)
 	if AGY_PLAN_ARG in args:
@@ -713,6 +718,27 @@ func _run_hooks_test() -> void:
 	for failure: String in failures:
 		print("[hooks-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "hooks-test: %d fallas" % failures.size())
+
+
+func _run_quit_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := _failures(await QuitCheck.new().run(get_tree(), dock, self))
+	for failure: String in failures:
+		print("[quit-check] FALLA ", failure)
+	if not failures.is_empty():
+		_finish(1, "quit-test: %d fallas" % failures.size())
+		return
+	# Como la X de la ventana: el editor sale por su camino de siempre (los plugins se van al final).
+	print("[quit-check] cerrando el editor")
+	get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST)
+	await get_tree().create_timer(20.0).timeout
+	print("[quit-check] el editor no se cerró con WM_CLOSE_REQUEST")
+	get_tree().quit(1)
 
 
 func _run_plan_test(real_claude: bool = false, antigravity: bool = false) -> void:

@@ -7,6 +7,7 @@ extends Node
 const AgentExportPlugin := preload("export/agent_export_plugin.gd")
 const PlaytestAutoload := preload("playtest/playtest_autoload.gd")
 const EditorSurfaces := preload("ui/editor_surfaces.gd")
+const AgentProcess := preload("transport/agent_process.gd")
 const EditorWindows := preload("ui/editor_windows.gd")
 const AgentDockScene := preload("ui/dock/agent_dock.tscn")
 const AgentMainScreenScene := preload("ui/main_screen/agent_main_screen.tscn")
@@ -527,6 +528,9 @@ func _exit_tree() -> void:
 	if _surfaces:
 		_surfaces.remove_all()
 		_surfaces = null
+	# Lo que siga vivo de cualquier dueño (una terminal, un hook, un build, un objeto que se libera
+	# recién en el cierre): sin esto quedaban huérfanos el agente y sus hijos (npx → node).
+	AgentProcess.stop_all()
 
 
 ## El EditorDebuggerNode del editor (clase interna, sin API): emite breakpoint_toggled(path, line, enabled)

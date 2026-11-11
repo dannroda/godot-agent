@@ -1,0 +1,5 @@
+{
+	"ignore_eof": true,
+	"spawn_child": true,
+	"turns": [{"steps": [{"chunk": "ok"}]}]
+}

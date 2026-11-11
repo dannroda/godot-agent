@@ -129,6 +129,10 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run hooks ~/godot/godot
 
+      - name: Closing the editor leaves no agent processes
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run quit ~/godot/godot
+
       - name: Every ci check of the suite runs here
         if: ${{ !cancelled() }}
         run: sh tests/suite.sh check-ci

@@ -15,6 +15,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - **New session with a summary**: near the context limit (85 %), a strip above the composer offers to continue in a new session; it also shows in the **+** menu, as `/handoff [what to do next]`, when you click the context percentage once it turns yellow, and in a notice when the agent compacts the conversation. The agent writes a short handoff (goal, done, remaining, decisions, open questions) and a new tab opens with the same agent, account and mode, with that summary in the composer to review before sending. What the harness takes from the session history (requests, last plan, files touched) goes as an attachment marked as context, not instructions. If the agent can't answer, the new session gets only that. Each handoff is saved in `.godot_agent/handoffs/<date>-<session>.md`, and an empty session offers the latest one (**See others** lists the rest).
 - `@session:<id>` in the composer brings another session of this project into the message: the `@` menu lists the sessions in the history, and when you send, the harness puts together its requests, last plan, files its tools touched and the agent's last message (up to 3000 characters), marked as context and not as instructions. It works with closed sessions and sessions of another agent. The chat shows it as an attachment with the session's title.
 
+### Fixed
+
+- Closing the editor or disabling the plugin now ends every process the harness started, with its children (like `node` under `npx`). A process whose owner was only freed during shutdown, such as an agent terminal or a hook command, could keep running.
+
 ## [0.1.21] - 2026-11-11
 
 ### Added

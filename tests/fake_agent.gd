@@ -19,6 +19,9 @@ extends SceneTree
 ##                              `terminal` del guion) el proceso hace de login: imprime el enlace
 ##                              como Claude Code, espera el código por stdin y, si es `code`, crea
 ##                              `marker` y sale con 0 (si no, con 1).
+##   "ignore_eof": true       no sale cuando se cierra stdin: un agente que no se entera de que el
+##                              editor se fue (tests/quit_check.sh)
+##   "spawn_child": true      lanza un hijo de larga vida al arrancar, como node bajo npx
 ##   }
 ## Pasos:
 ##   {"chunk": "texto"}                agent_message_chunk
@@ -78,6 +81,8 @@ func _initialize() -> void:
 	if "--login" in OS.get_cmdline_user_args():
 		_run_login()
 		return
+	if _scenario.get("spawn_child", false):
+		OS.create_process("sleep", ["600"])
 	_reader = Thread.new()
 	_reader.start(_read_stdin)
 
@@ -90,6 +95,8 @@ func _process(_delta: float) -> bool:
 	for line: String in lines:
 		if line.is_empty():
 			_reader.wait_to_finish()
+			if _scenario.get("ignore_eof", false):
+				continue
 			return true
 		_handle_line(line)
 	_advance_turn()

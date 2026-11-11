@@ -33,6 +33,7 @@ plan:ci:150
 checks:ci:150
 ask-menu:ci:120
 hooks:ci:120
+quit:ci:150
 sync:full:120
 oneshot:full:150
 long:full:120
@@ -122,6 +123,7 @@ run_check() {
 			case "$scenario" in basic|crash) ;; *) scenario="ui_$scenario" ;; esac
 			xvfb "--godot-agent-ui-test=$scenario" ;;
 		crash) timeout "$limit" sh tests/crash_check.sh "$G" ;;
+		quit) XRUN_TIMEOUT="$limit" timeout "$((limit + 30))" sh tests/quit_check.sh "$G" ;;
 		*) xvfb "--godot-agent-$name-test" ;;
 	esac
 }
