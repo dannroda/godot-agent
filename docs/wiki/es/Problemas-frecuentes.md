@@ -40,6 +40,10 @@ Las escenas abiertas sin cambios sin guardar se recargan solas. Una escena con c
 
 Claude Code informa la cuota del plan con el primer mensaje de cada sesión, así que una sesión nueva muestra los anillos grises hasta que mandás algo. Lo que se manda desde Remote Control no la informa al dock: esos turnos no pasan por ACP. Otros agentes pueden no informarla nunca. El harness nunca la estima, así que sin ese dato el One-shot no pausa por cuota.
 
+## Apareció una carpeta `skills/system/` en el proyecto
+
+Antigravity (antigravity-acp) escribe su propia skill de `run_workflow` en `skills/system/run-workflow/SKILL.md` en la carpeta del proyecto cada vez que se abre una sesión, antes de que mandes nada. El adapter no tiene ninguna opción para dejarla en otro lado, así que podés borrarla, pero vuelve. El dock te avisa la primera vez en cada proyecto. Sumá `skills/system/` a tu `.gitignore` para no commitearla. Godot no la exporta: no es un recurso.
+
 ## Limitaciones por versión de Godot
 
 | Versión | Qué pasa | Cómo lo maneja el addon |

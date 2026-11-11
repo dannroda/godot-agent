@@ -145,6 +145,8 @@ const AGENT_MODE_FOR: Dictionary = {
 	SessionModel.HarnessMode.AUTO: ["default"],
 }
 
+## Lo que vio el detector de loops cuando cortó el playtest de este turno ({} si no cortó, m11-49).
+var _playtest_loop: Dictionary = {}
 var model: SessionModel
 var client: AcpClient
 ## Los permisos de la sesión (m13-05): política, reglas de shell, tarjetas y autorizadores.
@@ -212,6 +214,10 @@ var turn_verifier: Callable
 var turn_checks_provider: Callable
 ## La tienda de aprobaciones por máquina (HarnessSettings): `(key) -> bool` y `(key) -> void`.
 var is_command_approved: Callable
+## Callable(key: String) -> bool: true si el aviso `key` ya se mostró en este proyecto, y lo marca
+## (adapter.notice_after_session). Sin él, una vez por controlador.
+var notice_seen: Callable
+var _notices_shown: Dictionary = {}
 var approve_command: Callable
 ## Snapshots por turno de Construir o Auto (m11-01); compartidos por las sesiones, cada una con su
 ## `session_key`. Sin asignar o sin git, no se guardan.
@@ -449,10 +455,23 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.label(), cwd, {}, _profile.account_dir)
 	model.set_state(SessionModel.SessionState.READY)
+	_notice_after_session()
 	_sync_agent_mode()
 	_refresh_account()
 	connected.emit()
 	return true
+
+
+## Lo que el agente dejó en el proyecto al abrir la sesión (m18-03), una vez por proyecto.
+func _notice_after_session() -> void:
+	var text := adapter.notice_after_session(cwd)
+	if text.is_empty():
+		return
+	var key := "%s/after_session" % adapter.kind
+	var seen: bool = notice_seen.call(key) if notice_seen.is_valid() else _notices_shown.has(key)
+	_notices_shown[key] = true
+	if not seen:
+		model.add_notice(text, ChatEntry.NoticeLevel.WARNING)
 
 
 ## Manda un turno. `extra_blocks` son ContentBlocks de contexto (escena, selección, imagen…).
@@ -521,11 +540,16 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var playtest_minutes := ReviewStore.playtest_minutes(text.strip_edges())
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(Time.get_ticks_msec() + playtest_minutes * 60000)
+	_playtest_loop = {}
+	if playtest_turn:
+		RunTools.set_playtest_loop_handler(_on_playtest_loop)
 	_prompt_request_id = client.next_request_id()
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
 	_prompt_request_id = -1
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(0)
+	if playtest_turn:
+		RunTools.set_playtest_loop_handler(Callable())
 	if playtest_turn:
 		_sync_agent_mode()
 	var turn_text := agent_text_since(first_new_entry)
@@ -535,7 +559,11 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
 		if review.ingest_turn_text(turn_text, cwd):
 			_fold_findings(first_new_entry)
-	if turn_text.contains("\"playtest\""):
+	if not _playtest_loop.is_empty():
+		# El harness cortó el playtest (m11-49): el veredicto es suyo, con lo que repetía el agente.
+		_report_playtest(ReviewStore.loop_playtest(_playtest_loop), turn_text, first_new_entry, text)
+		_playtest_loop = {}
+	elif turn_text.contains("\"playtest\""):
 		var playtest: Dictionary = ReviewStore.FindingsParser.parse(turn_text, cwd).playtest
 		if not playtest.is_empty():
 			_report_playtest(playtest, turn_text, first_new_entry, text)
@@ -669,6 +697,13 @@ func note_for_agent(text: String) -> void:
 	_note_for_agent = text if _note_for_agent.is_empty() else _note_for_agent + "\n" + text
 
 
+## Saca una nota que todavía no salió («Deshacer» de /remember, m11-36).
+func drop_note_for_agent(text: String) -> void:
+	if text.is_empty():
+		return
+	_note_for_agent = _note_for_agent.replace("\n" + text, "").replace(text + "\n", "").replace(text, "")
+
+
 ## Después de un turno de Construir o Auto, valida los scripts que cambiaron. Si alguno no parsea,
 ## se lo devuelve al agente en un turno nuevo (hasta MAX_FIX_TURNS seguidos) o, si no se puede
 ## (tope, cola del usuario esperando, otro turno en curso), lo deja como aviso en el chat.
@@ -783,12 +818,14 @@ func approve_on_machine(data: Dictionary) -> void:
 			continue
 		approve_command.call(str(item.key))
 		names.append("«%s»" % item.get("name", ""))
-		var what: String = {MachineApproval.KIND_MCP: "MCP server", MachineApproval.KIND_TOOL: "Project tool"}.get(data.get("kind"), "Project check")
+		var what: String = {MachineApproval.KIND_MCP: "MCP server", MachineApproval.KIND_TOOL: "Project tool", MachineApproval.KIND_HOOK: "Project hook"}.get(data.get("kind"), "Project check")
 		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % [what, item.get("name", ""), str(item.get("command", "")).get_slice("\n", 0)])
 	if names.is_empty():
 		return
 	if data.get("kind") == MachineApproval.KIND_TOOL:
 		model.add_notice(I18n.t("Approved on this machine: %s. The agent can use them now, with godot.run.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+	elif data.get("kind") == MachineApproval.KIND_HOOK:
+		model.add_notice(I18n.t("Approved on this machine: %s. It runs the next time its event happens.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
 	elif data.get("kind") == MachineApproval.KIND_MCP:
 		model.add_notice(I18n.t("Approved on this machine: %s. The agent gets them from the next session (a new one, or this one reopened from History).") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
 	else:
@@ -974,6 +1011,14 @@ func send_in_mode(mode: SessionModel.HarnessMode, text: String, extra_blocks: Ar
 	return await send_prompt(text, extra_blocks)
 
 
+## El detector de loops cortó el playtest en curso (m11-49): se cancela el turno y, al volver
+## session/prompt, el veredicto queda «could not test» con la evidencia.
+func _on_playtest_loop(seen: Dictionary) -> void:
+	_playtest_loop = seen
+	agent_log.add(AgentLog.CH_ACP, "Playtest stopped: the agent repeated %s %d times with the same result" % [seen.get("tools", ""), int(seen.get("repeats", 0))])
+	cancel()
+
+
 func cancel() -> void:
 	if model.state != SessionModel.SessionState.PROMPTING:
 		return
@@ -1054,6 +1099,9 @@ func client_capabilities() -> Dictionary:
 		# Subagentes nativos (RFD de ACP, m7-43): el agente anuncia cada subagente con su sesión y su
 		# estado, que sigue después del tool call que lo lanzó si corre en segundo plano.
 		"subagents": {},
+		# La compactación como estado propio (m11-60): claude-agent-acp manda compaction_update con el
+		# resumen en lugar de una tool call «Compact conversation».
+		"session": {"compaction": {}},
 	}
 	if client.has_request_handler("elicitation/create"):
 		capabilities["elicitation"] = {"form": {}, "url": {}}

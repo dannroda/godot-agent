@@ -43,3 +43,33 @@ func test_antigravity_reads_quota() -> void:
 	AgentAdapters.for_session("", PackedStringArray(), "", {"name": "antigravity-acp"}).read_quota(text, quota, SessionModel.new(), "Gemini 3.8 Flash")
 	assert_true(quota.has_data(), "ventanas leídas")
 	assert_true(absf(quota.utilization(QuotaMonitor.WINDOW_WEEKLY) - 0.2) < 0.001, "semana: 20 % usado")
+
+
+## Antigravity escribe su skill de run_workflow en <cwd>/skills/ en cada session/new (m18-03): el
+## harness avisa una vez por proyecto, y nada si no está o con otro agente.
+func test_antigravity_skills_notice_once() -> void:
+	const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
+	const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
+	var dir := ProjectSettings.globalize_path(temp_dir("agy_skills"))
+	OS.execute("rm", ["-rf", dir.path_join("skills")])
+	var antigravity := AgentAdapters.for_profile("/agents/agy_acp_server.par", PackedStringArray(), "antigravity-acp")
+	assert_eq(antigravity.notice_after_session(dir), "", "sin la skill, nada")
+	DirAccess.make_dir_recursive_absolute(dir.path_join("skills/system/run-workflow"))
+	FileAccess.open(dir.path_join("skills/system/run-workflow/SKILL.md"), FileAccess.WRITE).store_string("---\nname: run-workflow\n---\n")
+	assert_true(antigravity.notice_after_session(dir).contains("skills/system/run-workflow/SKILL.md"), "con la skill, el aviso la nombra")
+	assert_eq(AgentAdapters.for_profile("npx", PackedStringArray(["-y", "@agentclientprotocol/claude-agent-acp"])).notice_after_session(dir), "", "otro agente: nada")
+	var model := SessionModel.new()
+	var controller := SessionController.new()
+	controller.setup(model, AgentLog.new(), dir)
+	controller.adapter = antigravity
+	var seen := {}
+	controller.notice_seen = func(key: String) -> bool:
+		var was := seen.has(key)
+		seen[key] = true
+		return was
+	controller.call(&"_notice_after_session")
+	controller.call(&"_notice_after_session")
+	var notices := model.entries().filter(func(entry: ChatEntry) -> bool: return entry.kind == ChatEntry.EntryKind.NOTICE and entry.text.contains("run_workflow"))
+	assert_eq(notices.size(), 1, "una sola vez por proyecto")
+	assert_eq((notices[0] as ChatEntry).level, ChatEntry.NoticeLevel.WARNING, "como advertencia")
+	OS.execute("rm", ["-rf", dir.path_join("skills")])

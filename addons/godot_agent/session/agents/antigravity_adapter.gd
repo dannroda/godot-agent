@@ -4,6 +4,11 @@ extends "agent_adapter.gd"
 ## grupo de modelos, sin gastar tokens (m11-13).
 
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
+const I18n := preload("../../core/i18n.gd")
+## Su skill de run_workflow: el harness de antigravity-acp (1.4.3) la escribe en <cwd>/skills/ en cada
+## session/new. No se puede evitar desde afuera: el adapter no pasa materialized_skills_dir y no hay
+## opción ni variable para eso, y el cwd de la sesión tiene que ser el proyecto (m18-03).
+const SYSTEM_SKILL := "skills/system/run-workflow/SKILL.md"
 
 
 func _init() -> void:
@@ -31,3 +36,9 @@ func account_variable() -> String:
 
 func default_account_dir() -> String:
 	return "~/.gemini"
+
+
+func notice_after_session(cwd: String) -> String:
+	if not FileAccess.file_exists(cwd.path_join(SYSTEM_SKILL)):
+		return ""
+	return I18n.t("Antigravity wrote %s in the project when the session opened: it is its own run_workflow skill, and it writes it again in every session. You can delete it, but it comes back. Add skills/system/ to .gitignore so it is not committed. See Troubleshooting in the wiki.") % SYSTEM_SKILL

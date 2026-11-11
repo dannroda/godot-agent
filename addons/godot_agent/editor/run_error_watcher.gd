@@ -9,6 +9,9 @@ extends RefCounted
 ## `{breaked, reason, count, lines}`: si paró en el debugger, el motivo de la pausa, cuántos errores
 ## del juego hubo y las últimas líneas formateadas.
 signal error_found(info: Dictionary)
+## Terminó un juego (cualquiera, con o sin errores, avise o no lo de arriba; m11-24, hooks):
+## `{by: "user"|"agent", count, lines}`.
+signal game_ended(info: Dictionary)
 
 const ErrorCollector := preload("error_collector.gd")
 const I18n := preload("../core/i18n.gd")
@@ -59,7 +62,20 @@ func on_game_breaked() -> void:
 ## El juego terminó: si dejó errores y no se avisó todavía, se avisa ahora.
 func on_game_stopped() -> void:
 	_report(false)
+	if _running:
+		var info := summary(false, "", _game_errors())
+		info["by"] = "agent" if _harness_run else "user"
+		game_ended.emit(info)
 	_running = false
+
+
+func _game_errors() -> Array[Dictionary]:
+	var found: Array[Dictionary] = []
+	if errors:
+		for entry: Dictionary in errors.entries_since(_mark):
+			if str(entry.source) == "game" and str(entry.kind) in ERROR_KINDS and not ErrorCollector.is_engine_noise(entry):
+				found.append(entry)
+	return found
 
 
 func _report(breaked: bool) -> void:
@@ -70,11 +86,7 @@ func _report(breaked: bool) -> void:
 	# se avisa al terminar el juego.
 	if reason.begins_with(BREAKPOINT_REASON):
 		return
-	var found: Array[Dictionary] = []
-	if errors:
-		for entry: Dictionary in errors.entries_since(_mark):
-			if str(entry.source) == "game" and str(entry.kind) in ERROR_KINDS and not ErrorCollector.is_engine_noise(entry):
-				found.append(entry)
+	var found := _game_errors()
 	if found.is_empty() and reason.is_empty():
 		return
 	_notified = true

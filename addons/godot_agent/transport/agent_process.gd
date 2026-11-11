@@ -50,6 +50,10 @@ var _dead_since_ms: int = -1
 ## Descendientes vistos por última vez: si el proceso principal muere, sus hijos quedan
 ## huérfanos (ya no cuelgan de él) y pueden seguir vivos con los pipes abiertos.
 var _known_children: PackedInt32Array = []
+## Procesos lanzados que siguen vivos, de cualquier dueño (sesiones, terminales, hooks, builds): pid
+## → weakref. stop_all() los termina al cerrarse el plugin, aunque quien los lanzó no llegue a
+## llamar a stop() (un dueño que se libera recién en el cierre del editor, cuando ya es tarde).
+static var _live: Dictionary = {}
 
 
 ## Lanza `command` con `args`. `env` se aplica al entorno del hijo (se hereda del editor: se
@@ -79,6 +83,7 @@ func start(command: String, args: PackedStringArray, env: Dictionary = {}) -> bo
 	_stdio = info.stdio
 	_stderr = info.stderr
 	_pid = info.pid
+	_live[_pid] = weakref(self)
 	_stdout_rest.clear()
 	_stderr_rest.clear()
 	_lines.clear()
@@ -116,6 +121,7 @@ func send_line(line: String) -> bool:
 func stop() -> void:
 	_generation += 1
 	_set_polling(false)
+	_live.erase(_pid)
 	if _pid > 0 and OS.is_process_running(_pid):
 		ProcessTree.kill_tree(_pid)
 	_kill_known_children()
@@ -129,9 +135,30 @@ func stop() -> void:
 
 
 func _notification(what: int) -> void:
-	# Red de seguridad: si se pierde la última referencia sin stop(), no quedan procesos.
-	if what == NOTIFICATION_PREDELETE and (_pid > 0 or _stdio != null):
-		stop()
+	# Red de seguridad: si se pierde la última referencia sin stop(), no quedan procesos. Solo con
+	# OS: en el cierre del editor, llamar a stop() desde acá fallaba («stop» en «null instance»).
+	if what == NOTIFICATION_PREDELETE and _pid > 0:
+		_live.erase(_pid)
+		for child: int in _known_children:
+			OS.kill(child)
+		OS.kill(_pid)
+
+
+## Termina todos los procesos lanzados que siguen vivos, con sus descendientes. Lo llama el plugin
+## al salir del árbol: al cerrar el editor o al desactivarlo no queda ningún agente, terminal ni hook.
+static func stop_all() -> void:
+	for pid: int in _live.keys():
+		var process: Variant = (_live[pid] as WeakRef).get_ref()
+		if process != null:
+			process.stop()
+		else:
+			ProcessTree.kill_tree(pid)
+	_live.clear()
+
+
+## Cuántos procesos lanzados siguen registrados como vivos (para los tests).
+static func live_count() -> int:
+	return _live.size()
 
 
 func _set_polling(enabled: bool) -> void:
@@ -177,6 +204,7 @@ func _poll() -> void:
 
 func _finish() -> void:
 	_set_polling(false)
+	_live.erase(_pid)
 	_kill_known_children()
 	var generation := _generation
 	var rest := _stderr_rest.get_string_from_utf8().strip_edges(false, true)

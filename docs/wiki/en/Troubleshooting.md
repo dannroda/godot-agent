@@ -40,6 +40,10 @@ Open scenes without unsaved changes reload by themselves. A scene with unsaved c
 
 Claude Code reports the plan quota with the first message of each session, so a new session shows grey rings until you send something. Sessions driven from Remote Control don't report it to the dock: their turns don't go through ACP. Other agents may never report it. The harness never estimates it, so without that information One-shot won't pause for quota.
 
+## A `skills/system/` folder appeared in the project
+
+Antigravity (antigravity-acp) writes its own `run_workflow` skill to `skills/system/run-workflow/SKILL.md` in the project folder every time a session opens, before you send anything. The adapter has no option to put it elsewhere, so you can delete it, but it comes back. The dock warns you the first time in each project. Add `skills/system/` to your `.gitignore` so it isn't committed. Godot doesn't export it: it is not a resource.
+
 ## Limitations by Godot version
 
 | Version | What happens | How the addon handles it |

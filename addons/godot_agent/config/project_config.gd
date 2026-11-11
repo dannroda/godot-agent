@@ -51,6 +51,9 @@ const ShellRules := preload("../session/shell_rules.gd")
 ## Checks del proyecto al terminar un turno de Construir o Auto con cambios (m11-31): regresiones o
 ## comandos (ver core/turn_checks.gd). Un comando corre solo si se aprobó en esta máquina.
 @export var turn_checks: Array = []
+## Hooks del proyecto en eventos del editor (m11-24): una escena o un script guardados, un juego que
+## termina (ver core/project_hooks.gd). Un hook corre solo si se aprobó su definición en esta máquina.
+@export var hooks: Array = []
 ## Guardar un snapshot de git del proyecto al empezar y al terminar cada turno de Construir o Auto,
 ## para ver qué cambió y volver atrás (m11-01). Sin git, no hace nada.
 @export var turn_snapshots: bool = true

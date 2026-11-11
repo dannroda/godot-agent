@@ -9,6 +9,7 @@ const KIND_CHECK := "check"
 const KIND_MCP := "mcp"
 ## Una tool propia del proyecto (m11-46): `command` es la ruta y el código.
 const KIND_TOOL := "tool"
+const KIND_HOOK := "hook"
 
 
 ## La clave de `text` (un comando, una definición) en el proyecto `project_dir`.

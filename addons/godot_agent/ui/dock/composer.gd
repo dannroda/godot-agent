@@ -81,11 +81,14 @@ const PLAN_TOOLTIP := "Plan before building: the agent writes a plan that you ap
 const HARNESS_COMMANDS: Array[Dictionary] = [
 	{"name": "plan", "needs": "plan", "description": "Ask for a plan to approve before building (harness)"},  # i18n
 	{"name": "handoff", "needs": "handoff", "description": "Continue in a new session with a summary of this one; optionally, what to do there (harness)"},  # i18n
+	{"name": "remember", "needs": "remember", "description": "Save a fact about the project in the agent's instructions file (harness; also /recordar)"},  # i18n
 ]
 var _plan_button: Button
 var _plan_available: bool = false
 ## /handoff en el menú de /: hay una sesión de la que seguir (m11-35).
 var handoff_available: bool = false
+## /remember en el menú de / (m11-36): lo prende el dock.
+var remember_available: bool = false
 ## Desde este uso del contexto, el porcentaje de la fila se pinta de advertencia.
 const METER_SHOW_RATIO := 0.8
 var _mode_button: OptionButton
@@ -742,6 +745,17 @@ func _drop_files(position: Vector2, data: Variant) -> void:
 		files_attached.emit(paths)
 
 
+## Escribe `text` donde está el caret, en una línea nueva si es un bloque y el caret no está al
+## principio de una línea.
+func insert_at_caret(text: String) -> void:
+	if text.contains("\n") and _input.get_caret_column() > 0:
+		text = "\n" + text
+	_input.insert_text_at_caret(text)
+	_input.grab_focus()
+	_update_send_button()
+	update_height()
+
+
 ## Escribe «@ruta » donde está el caret (m11-37: lo señalado en el juego).
 func insert_mention(path: String) -> void:
 	_input.insert_text_at_caret("@%s " % path)
@@ -841,13 +855,14 @@ func _refresh_suggestions() -> void:
 	if is_command:
 		var items: Array[Dictionary] = []
 		for command: Dictionary in HARNESS_COMMANDS:
-			if not (_plan_available if command.needs == "plan" else handoff_available):
+			var available := {"plan": _plan_available, "handoff": handoff_available, "remember": remember_available}
+			if not available.get(command.needs, true):
 				continue
 			items.append({"label": "/" + str(command.name), "detail": I18n.t(str(command.description)), "insert": "/" + str(command.name), "key": str(command.name)})
 		for command: Variant in _commands:
 			if command is Dictionary:
 				var name := str(command.get("name", ""))
-				if name in ["plan", "handoff"]:
+				if name in ["plan", "handoff", "remember", "recordar"]:
 					continue  # /plan lo resuelve el harness (m11-58): el del agente no llega
 				items.append({"label": "/" + name, "detail": str(command.get("description", "")), "insert": "/" + name, "key": name.to_lower()})
 		_suggestions.show_items(I18n.t("Commands"), _filter(items, query),

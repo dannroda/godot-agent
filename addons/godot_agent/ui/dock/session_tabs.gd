@@ -19,6 +19,7 @@ const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
 const EditorWindows := preload("../editor_windows.gd")
 const SessionModel := preload("../../session/session_model.gd")
+const DesktopNotifier := preload("../../editor/desktop_notifier.gd")
 
 var _bar: TabBar
 ## La fila de pestañas: solo con dos sesiones o más (m12-14); con una, el «+» del dock abre otra.
@@ -39,6 +40,10 @@ var _defaults: Dictionary = {}  # id -> nombre por defecto («Session 2»)
 var _copies: Dictionary = {}  # id -> línea del tooltip
 ## Sesiones que ya avisaron con un toast y siguen esperando: no se apila otro hasta que respondas.
 var _toasted: Dictionary = {}  # id -> true
+## Si se avisa fuera del editor (m11-40), Callable() -> bool; sin asignar, no se avisa.
+var notify_outside_enabled: Callable
+## Sesiones que ya avisaron fuera del editor que esperan: uno por espera.
+var _outside_notified: Dictionary = {}  # id -> true
 var _rename_popup: PopupPanel
 var _rename_edit: LineEdit
 var _renaming: String = ""
@@ -114,11 +119,16 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 	model.permission_requested.connect(func(request: RefCounted) -> void:
 		request.resolved.connect(func(_outcome: Dictionary) -> void: _refresh_tab(id), CONNECT_ONE_SHOT)
 		_refresh_tab(id)
-		_notify_waiting(id))
+		_notify_waiting(id)
+		_notify_outside(id, I18n.t("«%s» is waiting for your permission."), true))
 	model.elicitation_requested.connect(func(request: RefCounted) -> void:
 		request.resolved.connect(func(_response: Dictionary) -> void: _refresh_tab(id), CONNECT_ONE_SHOT)
 		_refresh_tab(id)
-		_notify_waiting(id, I18n.t("«%s» is waiting for your answer.")))
+		_notify_waiting(id, I18n.t("«%s» is waiting for your answer."))
+		_notify_outside(id, I18n.t("«%s» is waiting for your answer."), true))
+	model.turn_finished.connect(func(stop_reason: String) -> void:
+		if stop_reason != "cancelled":
+			_notify_outside(id, I18n.t("«%s» finished its turn.")))
 	_refresh_tab(id)
 	select(id)
 
@@ -135,6 +145,7 @@ func remove_session(id: String) -> void:
 	_copies.erase(id)
 	_defaults.erase(id)
 	_toasted.erase(id)
+	_outside_notified.erase(id)
 	_bar.remove_tab(index)
 	_row.visible = _ids.size() > 1
 	EditorWindows.rescue_progress(dock)
@@ -226,6 +237,7 @@ func _refresh_tab(id: String) -> void:
 	var waiting := not model.pending_permissions.is_empty() or not model.pending_elicitations.is_empty()
 	if not waiting:
 		_toasted.erase(id)
+		_outside_notified.erase(id)
 	var mark := "⚠ " if waiting else ("● " if model.is_busy() else "")
 	var copy_icon := AgentTheme.icon(COPY_ICON) if _copies.has(id) else null
 	_bar.set_tab_icon(index, copy_icon)
@@ -245,6 +257,17 @@ func _notify_waiting(id: String, message: String = "") -> void:
 		return
 	var text := message if not message.is_empty() else I18n.t("«%s» is waiting for your permission.")
 	EditorInterface.get_editor_toaster().push_toast(text % _labels[id], EditorToaster.SEVERITY_WARNING)
+
+
+## Con la ventana del editor sin foco, avisa fuera del editor (m11-40). `waiting`: una espera, que
+## avisa una vez hasta que se responde.
+func _notify_outside(id: String, message: String, waiting: bool = false) -> void:
+	if not notify_outside_enabled.is_valid() or not bool(notify_outside_enabled.call()):
+		return
+	if waiting and _outside_notified.has(id):
+		return
+	if DesktopNotifier.notify("Godot Agent", message % _labels[id]) and waiting:
+		_outside_notified[id] = true
 
 
 ## true si la sesión todavía no avisó desde que empezó a esperar (y lo marca).

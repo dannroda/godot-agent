@@ -22,11 +22,12 @@ const ExtensionsUi := preload("extensions_ui.gd")
 const GodotAddonsTab := preload("godot_addons_tab.gd")
 const SkillsTab := preload("skills_tab.gd")
 const InstructionsTab := preload("instructions_tab.gd")
+const MemoryTab := preload("memory_tab.gd")
 const ToolsTab := preload("tools_tab.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 
-enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS, TOOLS }
+enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS, TOOLS, MEMORY }
 const AVAILABLE_LIMIT := 30
 const MCP_ORIGIN_ORDER: PackedStringArray = ["addon", "user", "project", "local", "claude.ai", "plugin", "other"]
 const MCP_ORIGIN_LABELS: Dictionary = {
@@ -89,6 +90,7 @@ var _mcp_box: VBoxContainer
 var _addons_tab: GodotAddonsTab
 var _skills_tab: SkillsTab
 var _instructions_tab: InstructionsTab
+var _memory_tab: MemoryTab
 var _tools_tab: ToolsTab
 var _confirm: ConfirmationDialog
 var _confirm_action: Callable
@@ -155,6 +157,8 @@ func _build() -> void:
 	_tabs.tab_changed.connect(func(tab: int) -> void:
 		if tab < _nav.item_count:  # al agregar la primera pestaña la lista todavía está vacía
 			_nav.select(tab)
+		if tab == ExtensionsTab.MEMORY and _memory_tab:
+			_refresh_memory()
 		ExtensionsUi.refit_dialog(self))
 	split.add_child(_tabs)
 	_tabs.add_child(_build_plugins_tab())
@@ -182,6 +186,9 @@ func _build() -> void:
 		if tools_approve.is_valid():
 			tools_approve.call(data)
 	_tabs.add_child(_tools_tab)
+	_memory_tab = MemoryTab.new()
+	_memory_tab.status_changed.connect(_set_status)
+	_tabs.add_child(_memory_tab)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -214,6 +221,8 @@ func refresh() -> void:
 	if extensions and not extensions.cli.cwd.is_empty():
 		_instructions_tab.project_path = extensions.cli.cwd
 	_instructions_tab.refresh()
+	if _tabs.current_tab == ExtensionsTab.MEMORY:
+		_refresh_memory()
 	_refresh_skills()
 	if not _is_claude():
 		_mcp_error = ""
@@ -671,6 +680,7 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.GODOT_ADDONS, I18n.t("Project addons"))
 	_tabs.set_tab_title(ExtensionsTab.INSTRUCTIONS, I18n.t("Instructions"))
 	_tabs.set_tab_title(ExtensionsTab.TOOLS, I18n.t("Tools (%d)") % _tools_tab.tool_count())
+	_tabs.set_tab_title(ExtensionsTab.MEMORY, I18n.t("Memory"))
 	if _nav.item_count != _tabs.get_tab_count():
 		_nav.clear()
 		for i in _tabs.get_tab_count():
@@ -748,3 +758,13 @@ static func _short_count(count: int) -> String:
 	if count >= 1000:
 		return "%.1fk" % (count / 1000.0)
 	return str(count)
+
+
+## La pestaña Memoria lee del disco (las memorias de Claude Code de la cuenta, m11-36) solo cuando
+## está a la vista: al elegirla o al abrir la ventana en ella.
+func _refresh_memory() -> void:
+	_memory_tab.agent_kind = _agent_kind()
+	_memory_tab.agent_env = extensions.cli.env if extensions else {}
+	if extensions and not extensions.cli.cwd.is_empty():
+		_memory_tab.project_path = extensions.cli.cwd
+	_memory_tab.refresh()
