@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.21] - 2026-11-11
+
 ### Added
 
 - A scene's diff in **View changes** (and in the One-shot's and conflict diffs) is shown by node instead of as `.tscn` text: nodes added, removed, moved or renamed, properties changed with their value before → after, and signal connections. It compares the two scene files directly, so resource ids that Godot renumbers on save don't show up as changes, and a sub-resource is compared by its content (`shape.size`). **View raw** shows the text diff. Large changes are cut to 200 lines. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md).
