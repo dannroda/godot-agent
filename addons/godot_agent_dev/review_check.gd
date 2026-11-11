@@ -214,6 +214,9 @@ func _check_actions(store: ReviewStore, ids: Array[int]) -> void:
 	_expect(store.findings.size() == before - 1, "Not a bug saca el hallazgo")
 	var memory := preload("res://addons/godot_agent/review/playtest_memory.gd").new()
 	_expect(not memory.not_a_bug().is_empty(), "Not a bug queda en la memoria del juego")
+	# m15-24: el próximo prompt de playtest la lleva en sobre (trae nombres de nodos del juego).
+	var brief: String = memory.brief()
+	_expect(not memory.not_a_bug().is_empty() and brief.contains("- <untrusted nonce=\"") and brief.contains("\">%s</untrusted nonce=\"" % memory.not_a_bug()[0]), "Not a bug: el brief del playtest la lleva en sobre · " + brief.right(300))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(memory.DIR.path_join(memory.NOT_A_BUG_FILE)))
 
 
