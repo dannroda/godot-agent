@@ -82,6 +82,16 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	_check(form_panel.size.x >= minf(form.size.x * 0.6, 1300.0) - 2.0 and goal.size.y >= form.size.y * 0.35, "el formulario crece con la pantalla (%s en %s, objetivo %d)" % [form_panel.size, form.size, goal.size.y])
 	for failure: String in LayoutCheck.form_fits(form):
 		_check(false, "centro ancho: " + failure)
+	# El ancho del formulario sale del ancho del área (_fit_form): si el área además pidiera ese ancho
+	# como mínimo, el centro quedaba trabado en un punto fijo al agrandar el dock (área 478 → panel 454
+	# → mínimo del área 478), según en qué tamaños cayera el split (oneshot-test inestable). Con un
+	# panel enorme, el mínimo del área no lo sigue.
+	var panel := form_panel.get_child(0) as Control
+	var panel_min := panel.custom_minimum_size
+	panel.custom_minimum_size.x = 3000.0
+	_check(form.get_combined_minimum_size().x < 1000.0, "el mínimo del área del formulario no sigue al panel (%d con el panel en 3000)" % form.get_combined_minimum_size().x)
+	panel.custom_minimum_size = panel_min
+	await _frames(2)
 	# Con el dock ancho el centro se angosta: el formulario se apila y nada se corta (m12-41).
 	var dock_for_width := _find_by_script(DOCK_SCRIPT) as Control
 	var dock_width := int(dock_for_width.size.x)
@@ -554,3 +564,4 @@ func _wait(condition: Callable) -> void:
 func _check(condition: bool, label: String) -> void:
 	if not condition:
 		failures.append(label)
+
