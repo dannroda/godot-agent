@@ -5177,3 +5177,6 @@ msgstr "Seguir en una sesión nueva con un resumen de esta; opcional, qué hacer
 
 msgid "Click: continue in a new session with a summary…"
 msgstr "Clic: seguir en una sesión nueva con resumen…"
+
+msgid "Antigravity wrote %s in the project when the session opened: it is its own run_workflow skill, and it writes it again in every session. You can delete it, but it comes back. Add skills/system/ to .gitignore so it is not committed. See Troubleshooting in the wiki."
+msgstr "Antigravity escribió %s en el proyecto al abrir la sesión: es su propia skill de run_workflow, y la vuelve a escribir en cada sesión. Podés borrarla, pero vuelve. Sumá skills/system/ al .gitignore para no commitearla. Ver Problemas frecuentes en la wiki."

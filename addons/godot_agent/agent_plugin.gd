@@ -1517,6 +1517,7 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 		return await _diagnostics.verify_changed_scripts(since_unix)
 	controller.turn_checks_provider = _turn_checks_info
 	controller.is_command_approved = _settings.is_command_approved
+	controller.notice_seen = _notice_seen
 	controller.approve_command = _settings.approve_command
 	return _finish_controller(controller, model, id)
 
@@ -1951,3 +1952,15 @@ func _send_to_session(caller: String, to: String, message: String) -> String:
 	_model_of(target).add_notice(I18n.t("Message from «%s»: %s") % [_coordinator.label(caller), message.left(200)])
 	_log.add(AgentLog.CH_MCP, "message %s → %s (%d characters)" % [_coordinator.label(caller), _coordinator.label(target), message.length()])
 	return ""
+
+
+## Avisos de una vez por proyecto (adapter.notice_after_session, m18-03): en los metadatos del
+## proyecto del editor (.godot/, no se commitea).
+func _notice_seen(key: String) -> bool:
+	var settings := EditorInterface.get_editor_settings()
+	var seen: Array = settings.get_project_metadata("godot_agent", "notices_seen", [])
+	if key in seen:
+		return true
+	seen.append(key)
+	settings.set_project_metadata("godot_agent", "notices_seen", seen)
+	return false

@@ -57,3 +57,9 @@ func default_account_dir() -> String:
 ## Con qué email está logueada la carpeta, si el agente lo deja en un archivo ("" = no se sabe).
 func account_email(_dir: String) -> String:
 	return ""
+
+
+## Un aviso para el chat después de abrir la sesión, sobre algo que el agente hizo en el proyecto
+## (m18-03). "" = nada. El controlador lo muestra una sola vez por proyecto.
+func notice_after_session(_cwd: String) -> String:
+	return ""

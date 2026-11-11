@@ -212,6 +212,10 @@ var turn_verifier: Callable
 var turn_checks_provider: Callable
 ## La tienda de aprobaciones por máquina (HarnessSettings): `(key) -> bool` y `(key) -> void`.
 var is_command_approved: Callable
+## Callable(key: String) -> bool: true si el aviso `key` ya se mostró en este proyecto, y lo marca
+## (adapter.notice_after_session). Sin él, una vez por controlador.
+var notice_seen: Callable
+var _notices_shown: Dictionary = {}
 var approve_command: Callable
 ## Snapshots por turno de Construir o Auto (m11-01); compartidos por las sesiones, cada una con su
 ## `session_key`. Sin asignar o sin git, no se guardan.
@@ -449,10 +453,23 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.label(), cwd, {}, _profile.account_dir)
 	model.set_state(SessionModel.SessionState.READY)
+	_notice_after_session()
 	_sync_agent_mode()
 	_refresh_account()
 	connected.emit()
 	return true
+
+
+## Lo que el agente dejó en el proyecto al abrir la sesión (m18-03), una vez por proyecto.
+func _notice_after_session() -> void:
+	var text := adapter.notice_after_session(cwd)
+	if text.is_empty():
+		return
+	var key := "%s/after_session" % adapter.kind
+	var seen: bool = notice_seen.call(key) if notice_seen.is_valid() else _notices_shown.has(key)
+	_notices_shown[key] = true
+	if not seen:
+		model.add_notice(text, ChatEntry.NoticeLevel.WARNING)
 
 
 ## Manda un turno. `extra_blocks` son ContentBlocks de contexto (escena, selección, imagen…).
