@@ -5330,3 +5330,69 @@ msgstr "Mandado a la papelera: %s."
 
 msgid "Could not save: %s"
 msgstr "No se pudo guardar: %s"
+
+msgid "Recipe · check failed"
+msgstr "Receta · falló un check"
+
+msgid "Recipe «%s»: some of its checks aren't approved on this machine, so the result wasn't checked."
+msgstr "Receta «%s»: algunos de sus checks no están aprobados en esta máquina, así que el resultado no se comprobó."
+
+msgid "Recipe «%s»: checks passed (attempt %d)."
+msgstr "Receta «%s»: los checks pasaron (intento %d)."
+
+msgid "Recipe «%s»: checks still fail after %d attempts."
+msgstr "Receta «%s»: los checks siguen fallando después de %d intentos."
+
+msgid "Checks after the turn (recipe «%s»):"
+msgstr "Checks después del turno (receta «%s»):"
+
+msgid "Recipes aren't available during a One-shot run."
+msgstr "Las recetas no están disponibles durante un One-shot."
+
+msgid "This project has no recipes yet. A recipe is a .json file in %s (the folder can be changed in Settings → MCP servers)."
+msgstr "Este proyecto todavía no tiene recetas. Una receta es un archivo .json en %s (la carpeta se cambia en Settings → MCP servers)."
+
+msgid "This recipe has errors: %s"
+msgstr "Esta receta tiene errores: %s"
+
+msgid "There's no recipe «%s» in %s."
+msgstr "No hay una receta «%s» en %s."
+
+msgid "The recipe «%s» has errors and can't be used:"
+msgstr "La receta «%s» tiene errores y no se puede usar:"
+
+msgid "Recipe: %s · checks: %s"
+msgstr "Receta: %s · checks: %s"
+
+msgid "After each turn: %s, up to %d retries. Click to send the message without them."
+msgstr "Después de cada turno: %s, hasta %d reintentos. Clic para mandar el mensaje sin ellos."
+
+msgid "Fill in a recipe of the project: a reusable request with parameters and checks (harness)"
+msgstr "Completar una receta del proyecto: un pedido reutilizable con parámetros y checks (harness)"
+
+msgid "Recipe…"
+msgstr "Receta…"
+
+msgid "A reusable request of the project, with parameters and checks (/recipe)"
+msgstr "Un pedido reutilizable del proyecto, con parámetros y checks (/recipe)"
+
+msgid "Recipes"
+msgstr "Recetas"
+
+msgid "Use"
+msgstr "Usar"
+
+msgid "Recipe: %s"
+msgstr "Receta: %s"
+
+msgid "After each turn: %s (up to %d retries)."
+msgstr "Después de cada turno: %s (hasta %d reintentos)."
+
+msgid "Pick a file of the project"
+msgstr "Elegir un archivo del proyecto"
+
+msgid "Reusable requests with parameters and checks, one .json per recipe in this project folder (shared through git). Launch them from the composer's + or with /recipe."
+msgstr "Pedidos reutilizables con parámetros y checks, un .json por receta en esta carpeta del proyecto (se comparten por git). Se lanzan desde el + del composer o con /recipe."
+
+msgid "The recipes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_recipes)."
+msgstr "La carpeta de recetas tiene que ser una carpeta visible dentro del proyecto, fuera de addons/godot_agent (como res://agent_recipes)."

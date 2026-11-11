@@ -103,6 +103,7 @@ const PendingCheck := preload("pending_check.gd")
 const PlanCheck := preload("plan_check.gd")
 const HandoffCheck := preload("handoff_check.gd")
 const MemoryCheck := preload("memory_check.gd")
+const RecipeCheck := preload("recipe_check.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
 const TurnChecksCheck := preload("turn_checks_check.gd")
 const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
@@ -938,6 +939,12 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		for failure: String in memory_failures:
 			print("[memory-check] FALLA ", failure)
 		_finish(0 if memory_failures.is_empty() else 1, "ui-memory: %d fallas" % memory_failures.size())
+		return
+	if scenario == "ui_recipe":
+		var recipe_failures: Array = await RecipeCheck.new().run(get_tree(), dock, shot_path)
+		for failure: String in recipe_failures:
+			print("[recipe-check] FALLA ", failure)
+		_finish(0 if recipe_failures.is_empty() else 1, "ui-recipe: %d fallas" % recipe_failures.size())
 		return
 	if scenario == "ui_handoff":
 		var handoff_failures: Array = await HandoffCheck.new().run(get_tree(), _find_by_script(HandoffCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)

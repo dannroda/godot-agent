@@ -63,6 +63,13 @@ const ACTION_HANDOFF := "handoff"
 const CHIP_HANDOFF := "handoff"
 const Handoff := preload("../../session/handoff.gd")
 const ContextWatch := preload("../../session/context_watch.gd")
+const Recipes := preload("../../core/recipes.gd")
+const RecipeForm := preload("recipe_form.gd")
+const ProjectConfig := preload("../../config/project_config.gd")
+## El chip de la receta lanzada (m11-30): lleva sus checks hasta que sale el mensaje.
+const CHIP_RECIPE := "recipe"
+const RECIPE_COMMAND := "/recipe"
+const RECIPE_MODES := {"build": SessionModel.HarnessMode.BUILD, "auto": SessionModel.HarnessMode.AUTO, "ask": SessionModel.HarnessMode.ASK}
 const MORE_EXTENSIONS := 0
 const MORE_SETTINGS := 1
 const MORE_REMOTE := 2
@@ -201,6 +208,12 @@ var _image_serial: int = 0
 var _extra_files: PackedStringArray = []
 ## El chip de los hechos de un traspaso (m11-35): {label, tooltip, block}, o {}.
 var _handoff_context: Dictionary = {}
+## La receta del formulario usado (m11-30): {label, tooltip, spec}; {} sin receta.
+var _recipe_chip: Dictionary = {}
+var _recipe_form: RecipeForm
+var _recipe_menu: PopupMenu
+## La carpeta de recetas; vacía, la de project_config (las pruebas la cambian).
+var recipes_dir: String = ""
 var _context_watch := ContextWatch.new()
 var _handoff_banner: PanelContainer
 var _handoff_banner_label: Label
@@ -311,6 +324,10 @@ func _ready() -> void:
 		return options
 	_composer.submitted.connect(_on_submitted)
 	_composer.plan_requested.connect(_on_plan_requested)
+	_composer.recipe_requested.connect(open_recipe_picker)
+	load_recipes.call_deferred()
+	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem():
+		EditorInterface.get_resource_filesystem().filesystem_changed.connect(load_recipes)
 	_composer.handoff_requested.connect(func() -> void: request_handoff())
 	_composer.remember_available = true
 	_composer.cancel_requested.connect(_on_cancel_requested)
@@ -1284,6 +1301,10 @@ func _on_submitted(text: String) -> void:
 	if is_handoff_command(text):
 		request_handoff(text.strip_edges().trim_prefix(HANDOFF_COMMAND).strip_edges())
 		return
+	if is_recipe_command(text):
+		open_recipe(text.strip_edges().trim_prefix(RECIPE_COMMAND).strip_edges())
+		return
+	_arm_recipe(text)
 	if _model.is_busy() or (_model.state == SessionModel.SessionState.STARTING and not _pending_prompt.is_empty()):
 		_queue.add(text, _take_context_blocks())
 		return
@@ -1721,6 +1742,8 @@ func _refresh_chips() -> void:
 	chips.merge(_images)
 	if not _handoff_context.is_empty():
 		chips[CHIP_HANDOFF] = _handoff_context
+	if not _recipe_chip.is_empty():
+		chips[CHIP_RECIPE] = _recipe_chip
 	# Del proyecto (res://) o de afuera (ruta absoluta, m17-21): el agente los lee por su ruta.
 	for res_path: String in _extra_files:
 		chips[CHIP_FILE_PREFIX + res_path] = {
@@ -1754,6 +1777,8 @@ func _on_chip_removed(chip_id: String) -> void:
 			_dismissed_chips[CHIP_SELECTION + "|" + EditorContext.selection_description()] = true
 		CHIP_HANDOFF:
 			_handoff_context = {}
+		CHIP_RECIPE:
+			_recipe_chip = {}
 		_ when chip_id.begins_with(CHIP_IMAGE_PREFIX):
 			_images.erase(chip_id)
 		_:
@@ -1934,7 +1959,8 @@ static func mark_point(frame: Image, uv: Vector2, color: Color) -> Image:
 func _context_blocks() -> Array:
 	var blocks: Array = []
 	for id: String in _chips:
-		blocks.append(_chips[id].block)
+		if _chips[id].has("block"):  # el de la receta no va al agente
+			blocks.append(_chips[id].block)
 	return blocks
 
 
@@ -2238,3 +2264,133 @@ func _undo_remember(data: Variant) -> void:
 		_model.add_notice(I18n.t("Removed from %s: «%s».") % [data.file, data.line])
 	else:
 		_model.add_notice(I18n.t("Could not save it in %s: %s") % [data.file, error], ChatEntry.NoticeLevel.ERROR)
+
+
+# --- recetas (m11-30) -----------------------------------------------------------------------------
+
+static func is_recipe_command(text: String) -> bool:
+	var clean := text.strip_edges()
+	return clean == RECIPE_COMMAND or clean.begins_with(RECIPE_COMMAND + " ")
+
+
+func _recipes_dir() -> String:
+	if not recipes_dir.is_empty():
+		return recipes_dir
+	return Recipes.resolve_dir(str(ProjectConfig.load_or_default().get(&"recipes_dir")))
+
+
+## Las recetas de la carpeta del proyecto (`[{recipe, errors}]`), y el composer se entera de cuáles
+## se pueden lanzar (para /recipe).
+func load_recipes() -> Array[Dictionary]:
+	var loaded := Recipes.load_dir(_recipes_dir())
+	var names: PackedStringArray = []
+	for item: Dictionary in loaded:
+		if (item.errors as PackedStringArray).is_empty():
+			names.append(str(item.recipe.slug))
+	_composer.recipe_names = names
+	return loaded
+
+
+## «+ → Receta…» o `/recipe` solo: la lista de recetas; una rota sale apagada, con el error.
+func open_recipe_picker() -> void:
+	if _is_oneshot_active():
+		_model.add_notice(I18n.t("Recipes aren't available during a One-shot run."), ChatEntry.NoticeLevel.WARNING)
+		return
+	var loaded := load_recipes()
+	if loaded.is_empty():
+		_model.add_notice(I18n.t("This project has no recipes yet. A recipe is a .json file in %s (the folder can be changed in Settings → MCP servers).") % _recipes_dir(), ChatEntry.NoticeLevel.INFO)
+		return
+	if _recipe_menu == null:
+		_recipe_menu = PopupMenu.new()
+		_recipe_menu.name = "RecipeMenu"
+		_recipe_menu.id_pressed.connect(func(id: int) -> void:
+			var items: Array = _recipe_menu.get_meta(&"items", [])
+			if id >= 0 and id < items.size():
+				_open_recipe_form(items[id].recipe))
+		add_child(_recipe_menu)
+	_recipe_menu.clear()
+	_recipe_menu.set_meta(&"items", loaded)
+	for i in loaded.size():
+		var item: Dictionary = loaded[i]
+		var recipe: Dictionary = item.recipe
+		var title := str(recipe.title) if not str(recipe.title).is_empty() else str(recipe.slug)
+		_recipe_menu.add_item(title, i)
+		var errors: PackedStringArray = item.errors
+		if not errors.is_empty():
+			_recipe_menu.set_item_disabled(i, true)
+			_recipe_menu.set_item_tooltip(i, I18n.t("This recipe has errors: %s") % "\n".join(errors))
+		else:
+			_recipe_menu.set_item_tooltip(i, str(recipe.description))
+	_recipe_menu.reset_size()
+	_recipe_menu.popup(Rect2i(Vector2i(get_screen_position() + _composer.get_global_rect().position - get_global_rect().position), Vector2i.ZERO))
+
+
+## `/recipe <nombre>`: el formulario de esa receta (por archivo o título); sin nombre, la lista.
+func open_recipe(name: String) -> void:
+	if name.is_empty():
+		open_recipe_picker()
+		return
+	if _is_oneshot_active():
+		_model.add_notice(I18n.t("Recipes aren't available during a One-shot run."), ChatEntry.NoticeLevel.WARNING)
+		return
+	var item := Recipes.find(load_recipes(), name)
+	if item.is_empty():
+		_model.add_notice(I18n.t("There's no recipe «%s» in %s.") % [name, _recipes_dir()], ChatEntry.NoticeLevel.WARNING)
+		return
+	if not (item.errors as PackedStringArray).is_empty():
+		_model.add_notice(I18n.t("The recipe «%s» has errors and can't be used:") % name + "\n" + "\n".join(item.errors), ChatEntry.NoticeLevel.WARNING)
+		return
+	_open_recipe_form(item.recipe)
+
+
+func _open_recipe_form(recipe: Dictionary) -> void:
+	if _recipe_form == null:
+		_recipe_form = RecipeForm.new()
+		_recipe_form.name = "RecipeForm"
+		_recipe_form.node_options = func() -> PackedStringArray:
+			var nodes: PackedStringArray = []
+			if Engine.is_editor_hint() and EditorContext.scene_root():
+				for option: Dictionary in EditorContext.mention_options():
+					if not str(option.insert).begins_with("res://"):
+						nodes.append(str(option.insert))
+			return nodes
+		_recipe_form.used.connect(use_recipe)
+		add_child(_recipe_form)
+	_recipe_form.open_recipe(recipe)
+	_recipe_form.reset_size()
+	_recipe_form.popup_centered()
+
+
+## «Usar» en el formulario: el prompt expandido va al composer (editable, no sale solo) en el modo
+## de la receta, con un chip que lleva sus checks hasta que el usuario lo mande.
+func use_recipe(recipe: Dictionary, values: Dictionary) -> void:
+	var mode: int = RECIPE_MODES.get(str(recipe.mode), SessionModel.HarnessMode.BUILD)
+	if _model.harness_mode != SessionModel.HarnessMode.ONESHOT and _model.harness_mode != mode:
+		_model.set_harness_mode(mode as SessionModel.HarnessMode)
+	_composer.clear()
+	_composer.insert_text(Recipes.expand(recipe, values))
+	var checks: Array = recipe.checks
+	if checks.is_empty():
+		_recipe_chip = {}
+	else:
+		_recipe_chip = {
+			"label": I18n.t("Recipe: %s · checks: %s") % [recipe.title, ", ".join(PackedStringArray(checks.map(func(c: Dictionary) -> String: return str(c.name)))).left(40)],
+			"tooltip": I18n.t("After each turn: %s, up to %d retries. Click to send the message without them.") % [", ".join(PackedStringArray(checks.map(func(c: Dictionary) -> String: return str(c.name)))), int(recipe.max_retries)],
+			"spec": Recipes.run_spec(recipe),
+		}
+	_refresh_chips()
+
+
+## Al mandar con el chip de una receta: la corrida (sus checks y reintentos) arranca cuando sale este
+## texto, ya o desde la cola. Un comando con / no la lleva.
+func _arm_recipe(text: String) -> void:
+	if _recipe_chip.is_empty() or SessionController.is_slash_command(text) or text.strip_edges().is_empty():
+		return
+	_controller.arm_recipe_run(text, _recipe_chip.spec)
+	_recipe_chip = {}
+	_refresh_chips()
+
+
+## La receta que lleva el composer ({} sin chip), para las pruebas.
+func recipe_chip() -> Dictionary:
+	return _recipe_chip

@@ -1,0 +1,16 @@
+{
+	"_about": "m11-30 ui-recipe: the recipe's Lint check fails after the first turn (target.gd 'broken'), its output comes back as a RECIPE_CHECK prompt, and the second turn fixes it.",
+	"turns": [
+		{"steps": [
+			{"chunk": "Writing the target."},
+			{"request": {"method": "fs/write_text_file", "params": {"path": "{project}/tests/tmp/recipe/target.gd", "content": "extends Node\nvar state := \"broken\"\n"}}},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"delay": 1},
+			{"chunk": "Fixed what Lint reported."},
+			{"request": {"method": "fs/write_text_file", "params": {"path": "{project}/tests/tmp/recipe/target.gd", "content": "extends Node\nvar state := \"fine\"\n"}}},
+			{"stop": "end_turn"}
+		]}
+	]
+}
