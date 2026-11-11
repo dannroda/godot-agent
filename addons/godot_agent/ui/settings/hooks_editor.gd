@@ -162,7 +162,7 @@ func _add_row(hook: Dictionary, loaded: bool) -> void:
 	row.tool = LineEdit.new()
 	(row.tool as LineEdit).text = str(hook.tool)
 	(row.tool as LineEdit).placeholder_text = "validate_scripts"
-	(row.tool as LineEdit).tooltip_text = I18n.t("A tool of the harness that reads, checks or runs the game (validate_scripts, run_regressions…). It runs without asking, so tools that edit or use the shell are not allowed.")
+	(row.tool as LineEdit).tooltip_text = I18n.t("A tool of the harness that reads, checks or runs the game (validate_scripts, run_regressions…), or one of the project tools approved on this machine. It runs without asking, so other tools that edit or use the shell are not allowed.")
 	row.tool_label = _label(I18n.t("Tool"))
 	grid.add_child(row.tool_label)
 	grid.add_child(row.tool)

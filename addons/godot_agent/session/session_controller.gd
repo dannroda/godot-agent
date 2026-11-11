@@ -808,7 +808,7 @@ static func turn_checks_prompt(results: Array[Dictionary]) -> String:
 
 
 ## «Aprobar…» confirmado en el dock: un check corre desde el próximo turno; un MCP server, desde la
-## próxima sesión (mcpServers va en session/new).
+## próxima sesión (mcpServers va en session/new); una tool del proyecto, desde ya (m11-46).
 func approve_on_machine(data: Dictionary) -> void:
 	if not approve_command.is_valid():
 		return
@@ -818,10 +818,13 @@ func approve_on_machine(data: Dictionary) -> void:
 			continue
 		approve_command.call(str(item.key))
 		names.append("«%s»" % item.get("name", ""))
-		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % [{MachineApproval.KIND_MCP: "MCP server", MachineApproval.KIND_HOOK: "Project hook"}.get(data.get("kind"), "Project check"), item.get("name", ""), item.get("command", "")])
+		var what: String = {MachineApproval.KIND_MCP: "MCP server", MachineApproval.KIND_TOOL: "Project tool", MachineApproval.KIND_HOOK: "Project hook"}.get(data.get("kind"), "Project check")
+		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % [what, item.get("name", ""), str(item.get("command", "")).get_slice("\n", 0)])
 	if names.is_empty():
 		return
-	if data.get("kind") == MachineApproval.KIND_HOOK:
+	if data.get("kind") == MachineApproval.KIND_TOOL:
+		model.add_notice(I18n.t("Approved on this machine: %s. The agent can use them now, with godot.run.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+	elif data.get("kind") == MachineApproval.KIND_HOOK:
 		model.add_notice(I18n.t("Approved on this machine: %s. It runs the next time its event happens.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
 	elif data.get("kind") == MachineApproval.KIND_MCP:
 		model.add_notice(I18n.t("Approved on this machine: %s. The agent gets them from the next session (a new one, or this one reopened from History).") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
@@ -843,6 +846,21 @@ static func held_servers_notice(held: Array, explain: bool) -> Dictionary:
 	if held.size() > 1:
 		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve all (%d)…") % held.size(), "data": MachineApproval.request(MachineApproval.KIND_MCP, held),
 			"tooltip": I18n.t("See what each server runs and allow them all on this machine.")})
+	return {"text": text, "actions": actions}
+
+
+## El aviso de las tools del proyecto frenadas (m11-46): `held` es `[{name, command, key}]`, con la
+## ruta y el código en `command`. «Aprobar…» por tool y, con más de una, para todas.
+static func held_tools_notice(held: Array) -> Dictionary:
+	var names := PackedStringArray(held.map(func(item: Dictionary) -> String: return "«%s»" % item.name))
+	var text := I18n.t("Project tools not approved on this machine: %s. They are GDScript in the project that runs inside the editor when the agent calls it, so each one only loads where someone approved its code; if the code changes (also when the agent writes it), it asks again. Until then the agent can't call them.") % ", ".join(names)
+	var actions: Array[Dictionary] = []
+	for item: Dictionary in held:
+		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve «%s»…") % item.name, "data": MachineApproval.request(MachineApproval.KIND_TOOL, [item]),
+			"tooltip": I18n.t("See the tool's code and allow it on this machine.")})
+	if held.size() > 1:
+		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve all the tools (%d)…") % held.size(), "data": MachineApproval.request(MachineApproval.KIND_TOOL, held),
+			"tooltip": I18n.t("See the code of each tool and allow them all on this machine.")})
 	return {"text": text, "actions": actions}
 
 
@@ -1224,6 +1242,7 @@ func system_prompt() -> String:
 	variables["project_path"] = variables.get("project_path", cwd)
 	variables["project_name"] = variables.get("project_name", cwd.get_file())
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)
+	variables["project_tools_dir"] = variables.get("project_tools_dir", "res://agent_tools")
 	variables["godot_bin"] = variables.get("godot_bin", EditorBinary.path())
 	variables["headless_guide"] = variables.get("headless_guide", ProjectSettings.globalize_path(HEADLESS_GUIDE_PATH))
 	variables["csharp_rules"] = CSHARP_RULES if not CsharpBuild.find_project(cwd).is_empty() else ""

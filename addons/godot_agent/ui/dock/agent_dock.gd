@@ -1602,6 +1602,11 @@ func _on_reject_feedback(text: String) -> void:
 
 ## «Aprobar…» de lo que trae el proyecto (m11-31 checks, m13-31 MCP servers): muestra cada comando
 ## exacto antes de permitirlo en esta máquina. Un solo diálogo para los dos.
+## «Aprobar…» desde fuera del chat (la pestaña Tools de Extensiones, m11-46).
+func confirm_on_machine(data: Dictionary) -> void:
+	_confirm_on_machine(data)
+
+
 func _confirm_on_machine(data: Dictionary) -> void:
 	var items: Array = data.get("items", [])
 	if items.is_empty():
@@ -1613,7 +1618,25 @@ func _confirm_on_machine(data: Dictionary) -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.ok_button_text = I18n.t("Allow on this machine")
 	dialog.dialog_autowrap = true
-	if data.get("kind") == MachineApproval.KIND_HOOK:
+	if data.get("kind") == MachineApproval.KIND_TOOL:
+		dialog.title = I18n.t("Approve project tools")
+		# El texto y el código en un cuadro con scroll: en dialog_text, 40 líneas por tool lo sacan de la
+		# pantalla (y un hijo del diálogo se superpone a su label, así que va todo en el hijo).
+		var box := VBoxContainer.new()
+		var intro := Label.new()
+		intro.text = I18n.t("These tools are GDScript files in the project. When the agent calls one (asking first, by the Project tools permission), its code runs inside this editor with full access to the project and the computer. Allow them only if you trust the code below; if a tool or a script next to it changes, it asks again.")
+		intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(intro)
+		var code := TextEdit.new()
+		code.name = "Code"
+		code.text = listing
+		code.editable = false
+		code.add_theme_font_override(&"font", AgentTheme.mono_font())
+		code.custom_minimum_size = Vector2(AgentTheme.px(560), AgentTheme.px(260))
+		code.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		box.add_child(code)
+		dialog.add_child(box)
+	elif data.get("kind") == MachineApproval.KIND_HOOK:
 		dialog.title = I18n.t("Approve a project hook")
 		dialog.dialog_text = I18n.t("This hook comes with the project's settings (addons/godot_agent/config/project_config.tres). It runs on its own, on this computer, every time its event happens:\n\n%s\n\nAllow it only if you trust it. If the hook changes, it asks again.") % listing
 	elif data.get("kind") == MachineApproval.KIND_MCP:
@@ -2016,7 +2039,7 @@ func refresh_export_banner() -> void:
 	if _export_banner.visible:
 		_export_banner_label.text = (
 			I18n.t("The export presets %s do not exclude '%s'. If you export with the plugin disabled, the addon ends up in the game.")
-			% [", ".join(missing), ExportPresetsPatcher.FILTER]
+			% [", ".join(missing), ExportPresetsPatcher.filters_text()]
 		)
 
 
@@ -2035,7 +2058,7 @@ func _on_add_filter_pressed() -> void:
 	var missing := ExportPresetsPatcher.presets_missing_filter()
 	_confirm_dialog.dialog_text = (
 		I18n.t("'%s' will be added to the exclude filter of these presets:\n\n• %s\n\nThis modifies %s.")
-		% [ExportPresetsPatcher.FILTER, "\n• ".join(missing), ExportPresetsPatcher.PRESETS_PATH]
+		% [ExportPresetsPatcher.filters_text(), "\n• ".join(missing), ExportPresetsPatcher.PRESETS_PATH]
 	)
 	_confirm_dialog.popup_centered()
 

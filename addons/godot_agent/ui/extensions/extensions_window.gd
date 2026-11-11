@@ -72,6 +72,8 @@ var disabled_skills: PackedStringArray = []
 var tools_catalog_provider: Callable
 var tools_policy_provider: Callable
 var tools_compact_provider: Callable
+## (data) -> void: «Aprobar…» de una tool del proyecto (m11-46).
+var tools_approve: Callable
 
 var _tabs: TabContainer
 ## Las secciones a la izquierda, como en Ajustes: seis pestañas no entraban en la ventana (m12-04).
@@ -180,6 +182,9 @@ func _build() -> void:
 	_tools_tab.catalog_provider = func() -> Array[Dictionary]: return tools_catalog_provider.call() if tools_catalog_provider.is_valid() else ([] as Array[Dictionary])
 	_tools_tab.policy_provider = func() -> PermissionPolicy: return tools_policy_provider.call() if tools_policy_provider.is_valid() else PermissionPolicy.new()
 	_tools_tab.compact_provider = func() -> bool: return bool(tools_compact_provider.call()) if tools_compact_provider.is_valid() else false
+	_tools_tab.approve = func(data: Dictionary) -> void:
+		if tools_approve.is_valid():
+			tools_approve.call(data)
 	_tabs.add_child(_tools_tab)
 	_memory_tab = MemoryTab.new()
 	_memory_tab.status_changed.connect(_set_status)

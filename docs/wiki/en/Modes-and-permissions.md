@@ -53,7 +53,7 @@ Hooks react to things that happen in the editor and that no agent sees. You set 
 
 For a game or regressions, **Only if there were errors** is on by default. A hook does one of three things:
 - **Run a command**: a program with its arguments, without a shell, like the project checks. Besides `{godot}` and `{project}`, `{path}` is the saved file (or the export's output) and `{event}` the event. The program also gets them in the `GODOT_AGENT_EVENT`, `GODOT_AGENT_PATH`, `GODOT_AGENT_BY`, `GODOT_AGENT_ERRORS` and `GODOT_AGENT_HOOK` environment variables. The time limit is 60 seconds by default and 600 at most.
-- **Run a godot.\* tool**, for example `validate_scripts` or `run_regressions`, with JSON arguments. It runs without asking, so only tools that read, check or run the game are allowed.
+- **Run a godot.\* tool**, for example `validate_scripts` or `run_regressions`, with JSON arguments. It runs without asking, so only tools that read, check or run the game are allowed, plus the [project tools](Editor-tools.md#project-tools) approved on this machine.
 - **Ask the agent**: by default the chat of the active tab shows a notice with **Send to the agent**, and nothing is sent until you press it. With **Send it on its own**, the prompt goes to the agent right away and spends tokens without asking, up to 2 hook prompts in a row without a message from you; after that it's a notice again. Never in One-shot. What comes from the event (paths, the game's errors) goes to the agent inside an untrusted-text envelope.
 
 Hooks never stop or change what happened: they run afterwards, in the background. A hook that is already running runs once more when it ends, and saves that come together count once. Each run goes to the Agent Log with ✓ or ✗, the time and the end of the output, and a failure shows a toast.
@@ -91,6 +91,7 @@ Defaults:
 | Shell / commands | Deny | Deny | Ask | Ask¹ | Ask |
 | Project settings, export and addons | Deny | Deny | Ask | Allow | Allow |
 | Install from the Asset Store | Deny | Deny | Ask | Ask | Ask |
+| Project tools | Deny | Deny | Ask | Ask | Ask |
 | Subagents | Allow | Allow | Allow | Allow | Allow |
 
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.

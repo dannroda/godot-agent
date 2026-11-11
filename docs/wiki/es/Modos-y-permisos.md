@@ -62,7 +62,7 @@ Los hooks reaccionan a cosas que pasan en el editor y que ningún agente ve. Se 
 
 Para un juego o las regresiones, **Solo si hubo errores** viene prendido. Un hook hace una de tres cosas:
 - **Correr un comando**: un programa con sus argumentos, sin shell, como los checks del proyecto. Además de `{godot}` y `{project}`, `{path}` es el archivo guardado (o la salida del export) y `{event}` el evento. El programa también los recibe en las variables de entorno `GODOT_AGENT_EVENT`, `GODOT_AGENT_PATH`, `GODOT_AGENT_BY`, `GODOT_AGENT_ERRORS` y `GODOT_AGENT_HOOK`. El tiempo límite es de 60 segundos por defecto y 600 como máximo.
-- **Correr una tool godot.\***, por ejemplo `validate_scripts` o `run_regressions`, con argumentos en JSON. Corre sin preguntar, así que solo se permiten tools que leen, revisan o corren el juego.
+- **Correr una tool godot.\***, por ejemplo `validate_scripts` o `run_regressions`, con argumentos en JSON. Corre sin preguntar, así que solo se permiten tools que leen, revisan o corren el juego, y las [herramientas del proyecto](Herramientas-del-editor.md#herramientas-del-proyecto) aprobadas en esta máquina.
 - **Preguntar al agente**: por defecto el chat de la pestaña activa muestra un aviso con **Mandar al agente**, y no se manda nada hasta que lo apretás. Con **Mandarlo solo**, el prompt va enseguida al agente y gasta tokens sin preguntar, hasta 2 prompts de hooks seguidos sin un mensaje tuyo; después vuelve a ser un aviso. Nunca en One-shot. Lo que viene del evento (rutas, los errores del juego) le llega al agente en un sobre de texto no confiable.
 
 Los hooks nunca frenan ni cambian lo que pasó: corren después, en segundo plano. Un hook que ya está corriendo corre una vez más cuando termina, y guardados que llegan juntos cuentan una vez. Cada corrida va al Agent Log con ✓ o ✗, el tiempo y el final de la salida, y una falla muestra un toast.
@@ -100,6 +100,7 @@ Valores por defecto:
 | Shell / comandos | Denegar | Denegar | Preguntar | Preguntar¹ | Preguntar |
 | Project settings, export y addons | Denegar | Denegar | Preguntar | Permitir | Permitir |
 | Instalar desde el Asset Store | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
+| Herramientas del proyecto | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Subagentes | Permitir | Permitir | Permitir | Permitir | Permitir |
 
 ¹ En Auto, primero deciden las [listas del modo Auto](#modo-auto); solo lo que no permiten muestra una tarjeta.

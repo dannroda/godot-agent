@@ -8,6 +8,8 @@ extends RefCounted
 ## 4. Un hook de prompt deja un aviso con «Send to the agent» y no manda nada; con auto_send y el tope de
 ##    prompts seguidos alcanzado, también queda en aviso y lo dice.
 ## 5. Un hook de tool corre godot.validate_scripts (diagnostics) y no corre godot.delete_file (edit_files).
+## 6. Un hook de tool que nombra una tool del proyecto (m11-46): sin aprobar el código de la tool no hay
+##    tool; aprobado, el hook la corre con sus argumentos.
 ## La aprobación va a una tienda en memoria y los hooks del proyecto se ponen en memoria y se
 ## restauran: no se guarda nada.
 
@@ -17,6 +19,22 @@ const SessionController := preload("res://addons/godot_agent/session/session_con
 const PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const WORK_DIR := "res://tests/tmp/hooks"
 const SCENE := WORK_DIR + "/level.tscn"
+const TOOLS_DIR := WORK_DIR + "/agent_tools"
+const PROBE_TOOL := """@tool
+extends "res://addons/godot_agent/api/agent_tool.gd"
+
+func _description() -> String:
+	return "Writes a marker file for hooks_check."
+
+func _parameters() -> Dictionary:
+	return {"properties": {"path": {"type": "string"}, "text": {"type": "string"}}, "required": ["path", "text"]}
+
+func _run(args: Dictionary, _ctx: RefCounted) -> Variant:
+	var file := FileAccess.open(args.path, FileAccess.WRITE)
+	file.store_string(args.text)
+	file.close()
+	return "marked"
+"""
 ## Un tool hook corre godot.validate_scripts sobre todo el proyecto: en CI puede pasar de 8 s.
 const WAIT_MS := 30000
 
@@ -39,7 +57,15 @@ func run(tree: SceneTree, dock: Control) -> PackedStringArray:
 	var config: Object = plugin.get(&"_project_config")
 	var controller: Object = dock.get(&"_controller")
 	var saved := {"hooks": config.get(&"hooks"), "approved": runner.get(&"is_approved"), "approve": controller.get(&"approve_command"), "debounce": runner.get(&"debounce_s")}
+	var loader: Object = plugin.get(&"_project_tools")
+	var saved_tools := {"dir": loader.get(&"dir"), "approved": loader.get(&"is_approved")} if loader else {}
 	await _run(runner, config, controller)
+	if loader:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TOOLS_DIR).path_join("hook_probe.gd"))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TOOLS_DIR))
+		loader.set(&"dir", saved_tools.dir)
+		loader.set(&"is_approved", saved_tools.approved)
+		loader.call(&"refresh")
 	config.set(&"hooks", saved.hooks)
 	runner.set(&"is_approved", saved.approved)
 	runner.set(&"debounce_s", saved.debounce)
@@ -151,6 +177,46 @@ func _run(runner: Node, config: Object, controller: Object) -> void:
 	_expect(results.has("Delete") and not bool(results.Delete.ok) and str(results.Delete.output).contains("edit_files"), "godot.delete_file no corre: no es de leer, revisar ni correr · %s" % [results.get("Delete")])
 	_expect(FileAccess.file_exists(SCENE), "y la escena sigue ahí")
 	plugin_node.set(&"_hook_prompts_in_row", 0)
+	await _idle(runner)
+
+	# 6. Una tool del proyecto desde un hook: sin aprobar su código no existe; aprobada, corre.
+	var loader: Object = plugin_node.get(&"_project_tools")
+	_expect(loader != null, "el plugin tiene el loader de tools del proyecto")
+	if loader:
+		var tools_dir := ProjectSettings.globalize_path(TOOLS_DIR)
+		DirAccess.make_dir_recursive_absolute(tools_dir)
+		var file := FileAccess.open(tools_dir.path_join("hook_probe.gd"), FileAccess.WRITE)
+		file.store_string(PROBE_TOOL)
+		file.close()
+		loader.set(&"dir", TOOLS_DIR)
+		loader.set(&"is_approved", store.is_command_approved)
+		loader.call(&"refresh")
+		var marker := work.path_join("tool.marker")
+		DirAccess.remove_absolute(marker)
+		var tool_hook := {"name": "Project tool", "event": "saved", "paths": [WORK_DIR + "/*.tscn"], "action": "tool", "tool": "godot.hook_probe", "args": {"path": marker, "text": "from hook"}}
+		config.set(&"hooks", [tool_hook])
+		store.approve_command(ProjectHooks.approval_key(project, ProjectHooks.normalize(tool_hook)))
+		results.clear()
+		runner.connect(&"finished", on_finished)
+		EditorInterface.mark_scene_as_unsaved()
+		EditorInterface.save_scene()
+		await _until(func() -> bool: return results.has("Project tool"))
+		_expect(results.has("Project tool") and not bool(results["Project tool"].ok) and str(results["Project tool"].output).contains("no tool"), "con el código sin aprobar, el hook no encuentra la tool · %s" % [results.get("Project tool")])
+		_expect(not FileAccess.file_exists(marker), "y no corrió")
+		var held: Array = loader.call(&"held")
+		_expect(held.size() == 1, "la tool queda frenada · %s" % [held])
+		if held.size() == 1:
+			store.approve_command(str(held[0].key))
+			loader.call(&"refresh")
+			results.clear()
+			await _idle(runner)
+			EditorInterface.mark_scene_as_unsaved()
+			EditorInterface.save_scene()
+			await _until(func() -> bool: return results.has("Project tool"))
+			_expect(results.has("Project tool") and bool(results["Project tool"].ok) and str(results["Project tool"].output).contains("marked"), "aprobada, el hook corre la tool del proyecto · %s" % [results.get("Project tool")])
+			_expect(FileAccess.get_file_as_string(marker) == "from hook", "con los argumentos del hook")
+		runner.disconnect(&"finished", on_finished)
+		DirAccess.remove_absolute(marker)
 
 	# Que termine la corrida (espera la salida un momento después de que sale el proceso): si el editor
 	# se cierra antes, el proceso queda vivo hasta el final.

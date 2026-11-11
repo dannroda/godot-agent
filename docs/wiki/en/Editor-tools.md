@@ -52,6 +52,41 @@ The extra ones are API docs (`class_info`, `search_api`), project settings, the 
 | GDExtension | `build_extension`, `test_extension`, `install_extension`, `restart_editor` | For projects with a native extension (godot-cpp with SCons or CMake, or gdext with Cargo). `build_extension` builds it and returns the compiler errors by file and line; it never loads the build into the open editor. `test_extension` tests it in a separate headless Godot, so a crash kills only that process, and returns the failed checks and, after a crash, the backtrace. `install_extension` brings the tested extension from its test project into the game as an addon, only if the tests pass. Nothing changes in the open editor: the files wait until the next restart. `restart_editor` saves the scenes and restarts the editor so it loads the new build, under the crash supervisor by default; the agent's session resumes afterwards. Tested on Linux; Windows and macOS are not verified yet. |
 | Sessions | `sessions`, `session_send` (read) | With several agent sessions open in the editor: list the others (name, mode, state, what each is working on, the files it's editing in its current turn, which one has the game running), and send one a short message (up to 4,000 characters). The message reaches that agent as a prompt when its current turn ends, marked as coming from the sender. |
 
+## Project tools
+
+A project can add its own tools in GDScript, for the operations of that game that would otherwise take the agent many calls (building a level from a table, filling an item database, setting up an enemy). Each `.gd` file in `res://agent_tools/` (the folder is in **Settings → MCP servers → Advanced**) is a tool named like the file: `build_level.gd` is `godot.build_level`.
+
+```gdscript
+@tool
+extends "res://addons/godot_agent/api/agent_tool.gd"
+
+func _description() -> String:
+	return "Places a row of crates in the open scene."
+
+func _parameters() -> Dictionary:
+	return {"properties": {"count": {"type": "integer"}}, "required": ["count"]}
+
+func _run(args: Dictionary, ctx) -> Variant:
+	var parent := EditorInterface.get_edited_scene_root()
+	ctx.undo_redo.create_action("Place crates")
+	for i in args.count:
+		var crate := preload("res://props/crate.tscn").instantiate()
+		crate.position = Vector2(i * 32, 0)
+		ctx.undo_redo.add_do_method(parent, "add_child", crate)
+		ctx.undo_redo.add_do_method(crate, "set_owner", parent)
+		ctx.undo_redo.add_do_reference(crate)
+		ctx.undo_redo.add_undo_method(parent, "remove_child", crate)
+	ctx.undo_redo.commit_action()
+	return "Placed %d crates." % args.count
+```
+
+- The file starts with `@tool` (it isn't inherited) and has no `class_name`. `_parameters()` is a JSON schema; the arguments are checked against it before `_run`. `_run` can use `await` and returns text, an `Image`, a `Dictionary` or `Array` (sent as JSON) or `error("why")` for a failure the agent can fix. `ctx` has `undo_redo` (changes made through it undo with Ctrl+Z), `project_dir` and `note(text)` for the harness log.
+- The agent finds them with `godot.methods` (marked `[project tool]`) and calls them with `godot.run`; they don't take room in the tool list, also with the compact list off. A tool you edit is used from the next call, without restarting the session.
+- **Approval on each machine**: a tool is code that runs inside the editor, and it comes with the project. It only loads on a machine where its code was approved: a notice names the tools that aren't, with **Approve «name»…** (and **Approve all the tools…**), and the dialog shows the code before you allow it. The approval covers the tool's file and every other `.gd` in the folder (files starting with `_` and subfolders are helpers, not tools), so if any of them changes, also when the agent writes it, it asks again. An unapproved tool is never loaded, not even to read its description. The **Tools** tab of Extensions lists them under **Project tools**, with the ones not approved or with an error (a wrong file name, a missing `@tool`, a bad schema) and what to fix.
+- **Permission**: every call goes through the **Project tools** group: it asks in Build, One-shot and Auto, and is denied in Ask and Review, until you change it in the matrix. The card shows the tool's file and its arguments.
+- A tool runs on the editor's main thread with everything a `@tool` script can do; there is no sandbox and no time limit (an endless loop freezes the editor). Scripts of the game that a tool loads from outside its folder are not part of the approval.
+- The export leaves the folder out (the tools extend a script of the addon, which isn't exported), and **Add to the presets** adds it to the presets' exclude filter.
+
 ## Details
 
 - **Undo**: each scene edit is one step of the editor's undo. The tool card in the chat has **↶ undo** while nobody has touched the scene afterwards.

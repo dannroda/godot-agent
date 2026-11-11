@@ -42,8 +42,10 @@ const BYS: PackedStringArray = [BY_USER, BY_AGENT, BY_ANY]
 const DEFAULT_TIMEOUT_S := 60
 const MAX_TIMEOUT_S := 600
 ## Los grupos de permisos de las tools que puede correr un hook: leer, diagnosticar y correr el juego o
-## las regresiones. Un hook corre sin pasar por el modo, así que nada que edite ni la shell.
-const TOOL_GROUPS: PackedStringArray = ["read", "diagnostics", "run"]
+## las regresiones. Un hook corre sin pasar por el modo, así que nada que edite ni la shell. Las tools
+## del proyecto (m11-46) sí: su código está aprobado en esta máquina igual que el hook que las nombra,
+## y un hook de comando ya corre cualquier programa.
+const TOOL_GROUPS: PackedStringArray = ["read", "diagnostics", "run", "project_tools"]
 ## Prompts de hooks seguidos sin un mensaje del usuario, con auto_send (como los turnos de m11-04).
 const MAX_AUTO_PROMPTS := 2
 const PATH_PLACEHOLDER := "{path}"
