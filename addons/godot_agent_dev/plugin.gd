@@ -102,6 +102,7 @@ const McpCheck := preload("mcp_check.gd")
 const PendingCheck := preload("pending_check.gd")
 const PlanCheck := preload("plan_check.gd")
 const HandoffCheck := preload("handoff_check.gd")
+const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
 const TurnChecksCheck := preload("turn_checks_check.gd")
 const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
 const EDIT_ARG := "--godot-agent-edit-test"
@@ -932,7 +933,7 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		await _check_crash_card(dock, model, shot_path)
 		return
 	if scenario == "ui_handoff":
-		var handoff_failures: Array = await HandoffCheck.new().run(get_tree(), self, dock, shot_path)
+		var handoff_failures: Array = await HandoffCheck.new().run(get_tree(), _find_by_script(HandoffCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)
 		for failure: String in handoff_failures:
 			print("[handoff-check] FALLA ", failure)
 		_finish(0 if handoff_failures.is_empty() else 1, "ui-handoff: %d fallas" % handoff_failures.size())
@@ -2276,6 +2277,11 @@ static func _failures(result: Variant) -> PackedStringArray:
 
 func _finish(code: int, message: String) -> void:
 	print("[cycle-test] %s: %s" % ["PASS" if code == 0 else "FAIL", message])
+	# Un git de los checkpoints en curso (el snapshot de un turno): salir con su Thread vivo aborta el
+	# editor («Thread object is being destroyed…») y el check sale con 134 aunque haya pasado.
+	var deadline := Time.get_ticks_msec() + 10000
+	while GitCheckpoints.pending() > 0 and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
 	get_tree().quit(code)
 
 

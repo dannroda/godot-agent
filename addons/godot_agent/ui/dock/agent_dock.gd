@@ -22,6 +22,9 @@ signal tools_requested
 signal follow_toggled(enabled: bool)
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
 signal action_forwarded(action: String, payload: Variant)
+## Traspaso listo (m11-35): el plugin abre otra pestaña con el mismo agente, cuenta y modo, y el
+## borrador en su composer. `handoff` como Handoff.build (más `path` si se guardó).
+signal handoff_ready(handoff: Dictionary)
 
 const SessionModel := preload("../../session/session_model.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
@@ -43,6 +46,12 @@ const AGENT_MENU_ACCOUNT_OTHER := 1999
 const NEW_MENU_SESSION := 0
 const NEW_MENU_TAB := 1
 const NEW_MENU_TAB_COPY := 2
+const NEW_MENU_HANDOFF := 3
+const HANDOFF_COMMAND := "/handoff"
+const ACTION_HANDOFF := "handoff"
+const CHIP_HANDOFF := "handoff"
+const Handoff := preload("../../session/handoff.gd")
+const ContextWatch := preload("../../session/context_watch.gd")
 const MORE_EXTENSIONS := 0
 const MORE_SETTINGS := 1
 const MORE_REMOTE := 2
@@ -179,6 +188,18 @@ var _images: Dictionary = {}
 var _image_serial: int = 0
 ## Archivos agregados con "+ contexto" para el próximo prompt (res_path, en orden).
 var _extra_files: PackedStringArray = []
+## El chip de los hechos de un traspaso (m11-35): {label, tooltip, block}, o {}.
+var _handoff_context: Dictionary = {}
+var _context_watch := ContextWatch.new()
+var _handoff_banner: PanelContainer
+var _handoff_banner_label: Label
+var _handoff_running: bool = false
+## Los tool calls de compactación ya avisados (tool_call_changed llega varias veces por cada uno).
+var _compactions_noticed: Dictionary = {}
+var _handoff_offer: HFlowContainer
+var _handoff_offer_label: Label
+var _handoff_others: MenuButton
+var _handoff_items: Array[Dictionary] = []
 var _add_context_menu: PopupMenu
 var _file_dialog: EditorFileDialog
 var _review_panel: ReviewPanel
@@ -253,6 +274,7 @@ func _ready() -> void:
 		if _model.state == SessionModel.SessionState.DISCONNECTED or _model.has_failed():
 			open_history_session(id))
 	_empty_state.add_child(_recent_box)
+	_build_handoff_offer()
 	_suggested_box = FirstRunGuide.new()
 	_suggested_box.setup(_accent)
 	_suggested_box.add_requested.connect(add_suggested_agent)
@@ -276,6 +298,7 @@ func _ready() -> void:
 		return options
 	_composer.submitted.connect(_on_submitted)
 	_composer.plan_requested.connect(_on_plan_requested)
+	_composer.handoff_requested.connect(func() -> void: request_handoff())
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_controller.reject_feedback.connect(_on_reject_feedback)
 	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
@@ -321,6 +344,7 @@ func _ready() -> void:
 	_machines_timer.timeout.connect(_on_machines_tick)
 	add_child(_machines_timer)
 	_machines_timer.start()
+	_build_handoff_banner(composer_column)
 	composer_column.add_child(_composer)
 	_build_review_panel()
 	_build_quota_ring()
@@ -359,6 +383,13 @@ func _ready() -> void:
 		if entry.kind in [ChatEntry.EntryKind.PERMISSION, ChatEntry.EntryKind.ELICITATION]:
 			_refresh_state())
 	_model.usage_changed.connect(_composer.set_usage)
+	_model.usage_changed.connect(func(used: int, total: int) -> void: _context_watch.update(used, total))
+	_context_watch.changed.connect(_refresh_handoff_banner)
+	_model.state_changed.connect(func(_state: SessionModel.SessionState) -> void: _refresh_handoff_banner())
+	_model.entries_cleared.connect(func() -> void:
+		_context_watch.reset()
+		_compactions_noticed.clear())
+	_model.tool_call_changed.connect(_on_tool_call_for_compaction)
 	_model.usage_changed.connect(func(used: int, total: int) -> void:
 		if _quota_ring:
 			_quota_ring.set_context(used, total))
@@ -433,6 +464,7 @@ func _build_header() -> void:
 		var index := _new_menu.get_item_index(NEW_MENU_SESSION)
 		_new_menu.set_item_disabled(index, _new_session_button.disabled)
 		_new_menu.set_item_tooltip(index, I18n.t("Opens in a new tab: this one keeps working.") if _must_open_elsewhere() else I18n.t("Starts a new conversation in this tab."))
+		_new_menu.set_item_disabled(_new_menu.get_item_index(NEW_MENU_HANDOFF), not can_handoff())
 		var below := _new_session_button.get_screen_position() + Vector2(0, _new_session_button.size.y)
 		_new_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO)))
 	var extensions := Button.new()
@@ -485,8 +517,12 @@ func _build_header() -> void:
 	_new_menu.set_item_tooltip(1, I18n.t("Open another agent session alongside this one. Sessions don't step on each other: a file one is editing in its turn is off limits to the rest, and the game runs for one at a time."))
 	_new_menu.add_item(I18n.t("New tab in a separate copy (git worktree)"), NEW_MENU_TAB_COPY)
 	_new_menu.set_item_tooltip(2, I18n.t("The agent works in a copy of the project on a new branch, outside the project folder, without touching the open editor. When you close its tab you choose whether to apply its changes to the project."))
+	_new_menu.add_item(I18n.t("New session with a summary of this one"), NEW_MENU_HANDOFF)
+	_new_menu.set_item_tooltip(3, I18n.t("The agent writes a summary of this session (goal, what's done, what's left, decisions, open questions) and a new tab opens with the same agent, account and mode, with the summary in the composer to review before sending."))
 	_new_menu.id_pressed.connect(func(id: int) -> void:
-		if id == NEW_MENU_SESSION:
+		if id == NEW_MENU_HANDOFF:
+			request_handoff()
+		elif id == NEW_MENU_SESSION:
 			if _must_open_elsewhere():
 				open_elsewhere_requested.emit("")
 			else:
@@ -1016,6 +1052,7 @@ func _refresh_empty_state() -> void:
 	if not recent.is_empty() and _start_button.text == I18n.t("Start session"):
 		_start_button.text = I18n.t("New session")
 	_recent_box.show_items(recent)
+	_refresh_handoff_offer(_empty_state.visible and profile != null and not first_run and not _is_oneshot_active())
 
 
 ## «Agregar» en un sugerido (m12-15): Claude Code se guarda directo; los demás abren el registro de
@@ -1057,8 +1094,10 @@ func _on_start_pressed() -> void:
 
 ## Abre una sesión con el agente activo (el botón del dock, «Iniciar sesión» del Alt+I). Sin agentes,
 ## lleva a Ajustes.
-func start_session() -> void:
-	var profile := selected_profile()
+## `profile`: ese en vez del elegido (el traspaso arranca con el que corre en la otra pestaña, m11-35).
+func start_session(profile: AgentProfile = null) -> void:
+	if profile == null:
+		profile = selected_profile()
 	if profile == null:
 		settings_requested.emit()
 		return
@@ -1203,6 +1242,9 @@ func _on_submitted(text: String) -> void:
 	if submit_interceptor.is_valid() and submit_interceptor.call(text, _take_context_blocks):
 		_controller.unlabel_prompt(text)  # el One-shot lo manda envuelto, con otro texto (next2 #26)
 		return
+	if is_handoff_command(text):
+		request_handoff(text.strip_edges().trim_prefix(HANDOFF_COMMAND).strip_edges())
+		return
 	if _model.is_busy() or (_model.state == SessionModel.SessionState.STARTING and not _pending_prompt.is_empty()):
 		_queue.add(text, _take_context_blocks())
 		return
@@ -1323,6 +1365,7 @@ func _take_context_blocks() -> Array:
 	var blocks := _context_blocks()
 	_images.clear()
 	_extra_files.clear()
+	_handoff_context = {}
 	_refresh_chips()
 	return blocks
 
@@ -1528,6 +1571,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			_confirm_on_machine(payload)
 		PlanApprovalView.ACTION_APPROVE_PLAN:
 			_controller.approve_plan(payload)
+		ACTION_HANDOFF:
+			request_handoff()
 		"open_link":
 			var url := str(payload)
 			if url.begins_with("http://") or url.begins_with("https://"):
@@ -1633,6 +1678,8 @@ func _refresh_chips() -> void:
 			"block": {"type": "text", "text": "Selection in the editor (scene %s): %s" % [scene_path, selection]},
 		}
 	chips.merge(_images)
+	if not _handoff_context.is_empty():
+		chips[CHIP_HANDOFF] = _handoff_context
 	# Del proyecto (res://) o de afuera (ruta absoluta, m17-21): el agente los lee por su ruta.
 	for res_path: String in _extra_files:
 		chips[CHIP_FILE_PREFIX + res_path] = {
@@ -1664,6 +1711,8 @@ func _on_chip_removed(chip_id: String) -> void:
 			_dismissed_chips[CHIP_SCENE + "|" + EditorContext.current_scene_path()] = true
 		CHIP_SELECTION:
 			_dismissed_chips[CHIP_SELECTION + "|" + EditorContext.selection_description()] = true
+		CHIP_HANDOFF:
+			_handoff_context = {}
 		_ when chip_id.begins_with(CHIP_IMAGE_PREFIX):
 			_images.erase(chip_id)
 		_:
@@ -1907,3 +1956,183 @@ func _on_patch_confirmed() -> void:
 			% ", ".join(patched)
 		)
 	_result_dialog.popup_centered()
+
+
+# --- traspaso a una sesión nueva (m11-35) ---------------------------------------------------------
+
+## true si `text` es el comando del harness `/handoff [objetivo]`.
+static func is_handoff_command(text: String) -> bool:
+	var clean := text.strip_edges()
+	return clean == HANDOFF_COMMAND or clean.begins_with(HANDOFF_COMMAND + " ") or clean.begins_with(HANDOFF_COMMAND + "\n")
+
+
+## Hay algo que traspasar: una sesión con id (abierta o cerrada) y ningún turno ni traspaso en curso.
+func can_handoff() -> bool:
+	return not _model.session_id.is_empty() and not _model.is_busy() and not _handoff_running and not _is_oneshot_active()
+
+
+## El agente escribe el resumen (si puede) y el harness arma el traspaso: lo guarda en
+## .godot_agent/handoffs y emite handoff_ready. Sin agente que conteste, solo los hechos del historial.
+func request_handoff(goal: String = "") -> void:
+	if _handoff_running:
+		return
+	if _model.session_id.is_empty():
+		_model.add_notice(I18n.t("There is no session to continue from yet."), ChatEntry.NoticeLevel.WARNING)
+		return
+	if _model.is_busy():
+		_model.add_notice(I18n.t("Wait for the turn to end to continue in a new session."), ChatEntry.NoticeLevel.WARNING)
+		return
+	_handoff_running = true
+	_context_watch.dismiss()
+	_refresh_handoff_banner()
+	var session_id := _model.session_id
+	var agent_text := ""
+	if _model.state == SessionModel.SessionState.READY:
+		var first := _model.entries().size()
+		await _controller.send_prompt(_controller.label_prompt(Handoff.prompt(goal), HarnessPrompts.HANDOFF), [], false)
+		if not is_inside_tree():
+			return
+		agent_text = _controller.agent_text_since(first)
+	var record: Dictionary = _controller.history.load_record(session_id) if _controller.history else {}
+	var handoff := Handoff.build(record, _controller.cwd, goal, agent_text)
+	if handoff.title.is_empty():
+		handoff.title = _model.title
+	handoff.session_id = session_id
+	handoff.text = Handoff.composer_text(handoff.title, goal, handoff.summary)
+	handoff["path"] = Handoff.save(ProjectSettings.globalize_path("res://"), handoff)
+	_handoff_running = false
+	_refresh_handoff_banner()
+	if handoff.summary.is_empty():
+		_model.add_notice(I18n.t("The agent did not write the summary: the new session gets what the harness took from the history of this one."), ChatEntry.NoticeLevel.WARNING)
+	handoff_ready.emit(handoff)
+
+
+## Pone un traspaso en el composer sin mandarlo: el texto, editable, y los hechos como chip.
+func use_handoff(handoff: Dictionary) -> void:
+	_composer.clear()
+	_composer.insert_text(str(handoff.get("text", "")))
+	var facts := str(handoff.get("facts", ""))
+	if not facts.is_empty():
+		var title := str(handoff.get("title", ""))
+		_handoff_context = {
+			"label": I18n.t("Handoff: %s") % (title if not title.is_empty() else I18n.t("(untitled)")),
+			"tooltip": facts.left(2000) + "\n\n" + I18n.t("What the harness took from the history of that session. It goes to the agent as context, not as instructions (click to remove it)."),
+			"block": {"type": "text", "text": Handoff.facts_block(facts)},
+		}
+	_refresh_chips()
+	_composer.focus()
+
+
+func _build_handoff_banner(column: VBoxContainer) -> void:
+	_handoff_banner = PanelContainer.new()
+	_handoff_banner.name = "HandoffBanner"
+	_handoff_banner.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(AgentTheme.WARNING, 0.12), Color(AgentTheme.WARNING, 0.5), 6, 4))
+	# En flujo: en un dock angosto el botón baja de línea en vez de comerse el texto.
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override(&"h_separation", AgentTheme.px(6))
+	row.add_theme_constant_override(&"v_separation", AgentTheme.px(2))
+	_handoff_banner.add_child(row)
+	_handoff_banner_label = Label.new()
+	_handoff_banner_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_handoff_banner_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	_handoff_banner_label.tooltip_text = I18n.t("Near the limit the agent compacts the conversation and loses details. A new session starts with a fresh context and a summary of this one.")
+	row.add_child(_handoff_banner_label)
+	var go := Button.new()
+	go.name = "HandoffButton"
+	go.text = I18n.t("New session with a summary")
+	go.tooltip_text = _new_menu.get_item_tooltip(_new_menu.get_item_index(NEW_MENU_HANDOFF)) if _new_menu else ""
+	go.pressed.connect(func() -> void: request_handoff())
+	row.add_child(go)
+	var close := Button.new()
+	close.flat = true
+	close.text = "✕"
+	close.tooltip_text = I18n.t("Hide until the context goes down again")
+	close.pressed.connect(_context_watch.dismiss)
+	row.add_child(close)
+	_handoff_banner.visible = false
+	column.add_child(_handoff_banner)
+
+
+## A la vista con el aviso del contexto, fuera de los turnos.
+func _refresh_handoff_banner() -> void:
+	if _handoff_banner == null:
+		return
+	_handoff_banner_label.text = I18n.t("Context at %d %%") % _context_watch.percent()
+	_composer.handoff_available = not _model.session_id.is_empty()
+	_handoff_banner.visible = _context_watch.warning and _model.state == SessionModel.SessionState.READY and not _handoff_running and not _is_oneshot_active()
+
+
+func _on_tool_call_for_compaction(call: SessionModel.ToolCall, _group: ChatEntry) -> void:
+	if _compactions_noticed.has(call.id) or not call.parent_id.is_empty() or not ContextWatch.is_compaction_call(call.title, call.tool_name):
+		return
+	_compactions_noticed[call.id] = true
+	var entry := _model.add_notice(I18n.t("The agent compacted the conversation: from here on it works with a summary and may forget details. You can continue in a new session with a summary written now."))
+	entry.actions = [{"id": ACTION_HANDOFF, "label": I18n.t("New session with a summary")}]
+	_model.notify_entry_changed(entry)
+
+
+func _build_handoff_offer() -> void:
+	_handoff_offer = HFlowContainer.new()
+	_handoff_offer.name = "HandoffOffer"
+	_handoff_offer.alignment = FlowContainer.ALIGNMENT_CENTER
+	_handoff_offer.add_theme_constant_override(&"h_separation", AgentTheme.px(6))
+	_handoff_offer_label = Label.new()
+	_handoff_offer_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_handoff_offer_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	_handoff_offer.add_child(_handoff_offer_label)
+	var use := Button.new()
+	use.name = "UseHandoffButton"
+	use.text = I18n.t("Continue from it")
+	use.tooltip_text = I18n.t("Starts the session with the handoff in the composer, to review before sending.")
+	use.pressed.connect(func() -> void:
+		if not _handoff_items.is_empty():
+			_start_from_handoff(_handoff_items[0]))
+	_handoff_offer.add_child(use)
+	_handoff_others = MenuButton.new()
+	_handoff_others.name = "OtherHandoffsButton"
+	_handoff_others.text = I18n.t("See others")
+	_handoff_others.flat = false
+	_handoff_others.get_popup().id_pressed.connect(func(index: int) -> void:
+		if index < _handoff_items.size():
+			_start_from_handoff(_handoff_items[index]))
+	_handoff_offer.add_child(_handoff_others)
+	_handoff_offer.visible = false
+	_empty_state.add_child(_handoff_offer)
+
+
+func _refresh_handoff_offer(available: bool) -> void:
+	if _handoff_offer == null:
+		return
+	_handoff_items.clear()
+	if available:
+		_handoff_items = Handoff.list(ProjectSettings.globalize_path("res://"))
+	_handoff_offer.visible = not _handoff_items.is_empty()
+	if _handoff_items.is_empty():
+		return
+	var latest := _handoff_items[0]
+	_handoff_offer_label.text = I18n.t("Handoff from «%s»") % _handoff_title(latest)
+	_handoff_offer_label.tooltip_text = "%s\n%s" % [str(latest.get("date", "")).replace("T", " "), str(latest.get("path", ""))]
+	var popup := _handoff_others.get_popup()
+	popup.clear()
+	for i in _handoff_items.size():
+		var item := _handoff_items[i]
+		popup.add_item("%s · %s" % [str(item.get("date", "")).replace("T", " ").left(16), _handoff_title(item)], i)
+	_handoff_others.visible = _handoff_items.size() > 1
+
+
+static func _handoff_title(item: Dictionary) -> String:
+	var title := str(item.get("title", ""))
+	return title if not title.is_empty() else I18n.t("(untitled)")
+
+
+func _start_from_handoff(item: Dictionary) -> void:
+	use_handoff(item)
+	if _model.state == SessionModel.SessionState.DISCONNECTED or _model.has_failed():
+		start_session()
+
+
+## La pestaña nueva de un traspaso sale en el modo de la que lo pidió (salvo One-shot, que es de un run).
+func copy_mode_from(other: Control) -> void:
+	var other_model: SessionModel = other.get(&"_model")
+	if other_model and other_model.harness_mode != SessionModel.HarnessMode.ONESHOT:
+		_model.set_harness_mode(other_model.harness_mode)

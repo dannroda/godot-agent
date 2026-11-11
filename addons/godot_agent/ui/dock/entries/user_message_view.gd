@@ -167,5 +167,5 @@ static func _attachment_name(block: Dictionary) -> String:
 			var found := RegEx.create_from_string("^Context the user attached with (@\\S+):").search(str(block.get("text", "")))
 			if found:
 				var title := RegEx.create_from_string("Session «([^»\\n]*)»").search(str(block.text))
-				return found.get_string(1) + (" · " + title.get_string(1) if found.get_string(1).begins_with("@session:") and title else "")
+				return found.get_string(1) + (" · " + title.get_string(1) if (found.get_string(1).begins_with("@session:") or found.get_string(1) == "@handoff") and title else "")
 	return str(block.get("type", "?"))

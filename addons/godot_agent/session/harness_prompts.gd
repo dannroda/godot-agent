@@ -38,3 +38,5 @@ const PLAN_REQUEST := "Plan · what to plan"  # i18n
 const PLAN_APPROVED := "Plan · approved, build it"  # i18n
 ## «Denegar con motivo» en una tarjeta de permiso.
 const DENY_REASON := "Denied with a reason"  # i18n
+## «Nueva sesión con resumen» (m11-35): el pedido del resumen para la sesión nueva.
+const HANDOFF := "Handoff · summary for a new session"  # i18n

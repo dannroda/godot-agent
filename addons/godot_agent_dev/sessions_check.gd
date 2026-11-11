@@ -332,6 +332,12 @@ func _check_follow(tree: SceneTree, main_plugin: Object, tabs: Control, first_mo
 	bar.current_tab = 1
 	second_dock.call(&"set_follow", true)
 	follower.set(&"_last_outside_input_ms", -100000)
+	# El Script Editor se queda con el foco si al arrancar reabrió un script (depende del layout que
+	# dejó la corrida anterior en .godot/): con el foco en un texto, el seguimiento espera
+	# WRITING_IDLE_S (15 s) y no los 6 s de este check. El check prueba la pausa por actividad, no esa.
+	var focused := tree.root.gui_get_focus_owner()
+	if focused is TextEdit or focused is LineEdit:
+		focused.release_focus()
 	var edit := func(node_path: String) -> ToolCall:
 		var call := ToolCall.new()
 		call.title = "mcp__godot__set_properties"

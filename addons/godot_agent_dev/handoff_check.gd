@@ -6,14 +6,20 @@ extends RefCounted
 const SessionHistory := preload("res://addons/godot_agent/session/session_history.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const UntrustedText := preload("res://addons/godot_agent/mcp/untrusted_text.gd")
+const Handoff := preload("res://addons/godot_agent/session/handoff.gd")
+const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 
 var failures: Array[String] = []
 var _tree: SceneTree
 
 
-func run(tree: SceneTree, _plugin: Object, dock: Control, shot_path: String) -> Array[String]:
+func run(tree: SceneTree, plugin: Object, dock: Control, shot_path: String) -> Array[String]:
 	_tree = tree
 	await _check_session_mention(dock, shot_path)
+	if plugin == null:
+		failures.append("no se encontró el plugin principal")
+		return failures
+	await _check_handoff(plugin, dock, shot_path)
 	return failures
 
 
@@ -65,4 +71,73 @@ func _check_session_mention(dock: Control, shot_path: String) -> void:
 	_expect(not labels_in_chat.is_empty(), "el chat muestra el adjunto con el título de la sesión")
 	if not shot_path.is_empty():
 		dock.get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_session_mention.png")
-	SessionHistory.new().remove("c10sed00-handoff-check")
+	# Con flush: una tarea del escritor sin esperar al salir del editor lo hace abortar (exit 134).
+	var cleanup := SessionHistory.new()
+	cleanup.remove("c10sed00-handoff-check")
+	cleanup.flush()
+
+
+func _wait(condition: Callable, seconds: float = 20.0) -> bool:
+	var deadline := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while not condition.call() and Time.get_ticks_msec() < deadline:
+		await _tree.process_frame
+	return condition.call()
+
+
+## m11-35: el contexto al 90 % y una compactación avisan; «Nueva sesión con resumen» pide el resumen
+## (prompt del harness con etiqueta), lo guarda en .godot_agent/handoffs y abre otra pestaña con el
+## borrador sin mandar y los hechos del historial como chip, en un sobre.
+func _check_handoff(plugin: Object, dock: Control, shot_path: String) -> void:
+	var model: SessionModel = dock.get(&"_model")
+	var tabs: Control = plugin.get(&"_tabs")
+	var project := ProjectSettings.globalize_path("res://")
+	var before := Handoff.list(project).size()
+	dock.call(&"_on_submitted", "Seguí con el menú")
+	await _wait(func() -> bool: return model.state == SessionModel.SessionState.READY and model.usage_used == 180000)
+	await _tree.process_frame
+	var banner: Control = dock.find_child("HandoffBanner", true, false)
+	_expect(banner != null and banner.visible, "con el contexto al 90 %% y fuera del turno se ve el aviso (uso %d)" % model.usage_used)
+	var notices := model.entries().filter(func(e: Variant) -> bool: return not (e.get(&"actions") as Array).is_empty() and (e.get(&"actions") as Array)[0].get("id") == "handoff")
+	_expect(notices.size() == 1, "la compactación deja un aviso con «Nueva sesión con resumen»")
+	if not shot_path.is_empty():
+		dock.get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_handoff_banner.png")
+	var count := (tabs.call(&"ids") as PackedStringArray).size()
+	(banner.find_child("HandoffButton", true, false) as Button).pressed.emit()
+	_expect(await _wait(func() -> bool: return (tabs.call(&"ids") as PackedStringArray).size() == count + 1), "se abre otra pestaña")
+	var sent := model.entries().filter(func(e: Variant) -> bool: return e.get(&"kind") == 0 and str(e.get(&"harness_label")) == "Handoff · summary for a new session")
+	_expect(sent.size() == 1, "el pedido del resumen va como prompt del harness con su etiqueta")
+	var ids: PackedStringArray = tabs.call(&"ids")
+	if ids.size() != count + 1:
+		return
+	var new_dock: Control = tabs.call(&"dock", ids[ids.size() - 1])
+	var new_model: SessionModel = new_dock.get(&"_model")
+	_expect(tabs.call(&"active_id") == ids[ids.size() - 1], "la pestaña nueva queda elegida")
+	_expect(new_model.harness_mode == model.harness_mode, "en el mismo modo")
+	var new_controller: Object = new_dock.get(&"_controller")
+	var text := str(new_dock.get(&"_composer").call(&"current_text"))
+	_expect(text.contains("Conectar Esc en player.gd") and text.contains("«"), "el composer tiene el resumen sin mandar: %s" % text.left(200))
+	await _wait(func() -> bool: return new_model.state == SessionModel.SessionState.READY)
+	var running: Object = new_controller.call(&"profile")
+	_expect(running != null and str(running.get(&"id")) == str(dock.get(&"_controller").call(&"profile").get(&"id")), "con el mismo agente que la pestaña de origen, aunque no esté guardado en Ajustes")
+	_expect(new_model.entries().filter(func(e: Variant) -> bool: return e.get(&"kind") == 0).is_empty(), "nada se mandó en la sesión nueva")
+	var chips: Dictionary = new_dock.get(&"_chips")
+	_expect(chips.has("handoff"), "los hechos del historial van como chip: %s" % [chips.keys()])
+	if chips.has("handoff"):
+		var block := str(chips.handoff.block.text)
+		_expect(UntrustedText.unwrap(block).contains("Seguí con el menú") and not UntrustedText.strip(block).contains("Seguí con el menú"), "dentro del sobre")
+	var items := Handoff.list(project)
+	_expect(items.size() == before + 1 and str(items[0].get("session_id")) == model.session_id, "el traspaso quedó en .godot_agent/handoffs con el id de la sesión")
+	if not shot_path.is_empty():
+		new_dock.get_viewport().get_texture().get_image().save_png(shot_path.get_basename() + "_handoff_tab.png")
+	# La pestaña nueva, vacía de nuevo: la vista vacía ofrece el traspaso más reciente.
+	plugin.call(&"_close_session_tab", ids[ids.size() - 1], false)
+	(tabs.find_child("NewSessionTabButton", true, false) as Button).pressed.emit()
+	(tabs.get(&"_new_menu") as PopupMenu).id_pressed.emit(0)
+	await _tree.process_frame
+	await _tree.process_frame
+	var empty_dock: Control = tabs.call(&"dock", tabs.call(&"active_id"))
+	var offer: Control = empty_dock.find_child("HandoffOffer", true, false)
+	_expect(offer != null and offer.is_visible_in_tree(), "una sesión vacía ofrece el traspaso más reciente")
+	if items.size() > 0:
+		DirAccess.remove_absolute(str(items[0].path))
+	plugin.call(&"_close_session_tab", tabs.call(&"active_id"), false)

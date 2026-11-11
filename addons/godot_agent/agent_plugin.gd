@@ -1622,7 +1622,28 @@ func _machine_states(id: String) -> Array[Dictionary]:
 ## ya está abierta en otra pestaña se elige en vez de abrirla dos veces.
 func _wire_elsewhere(dock: AgentDock, id: String) -> void:
 	dock.open_elsewhere_requested.connect(func(session_id: String) -> void: _open_elsewhere(id, session_id))
+	dock.handoff_ready.connect(func(handoff: Dictionary) -> void: _open_handoff(id, handoff))
 	dock.session_focuser = func(session_id: String) -> bool: return _focus_session(id, session_id)
+
+
+## Traspaso (m11-35): otra pestaña con el agente, la cuenta y el modo de `from`, la sesión arrancada
+## y el borrador en el composer, sin mandar.
+func _open_handoff(from: String, handoff: Dictionary) -> void:
+	var id := _create_session_tab()
+	var dock := _tabs.dock(id) as AgentDock
+	var source := _tabs.dock(from) as AgentDock
+	if dock == null:
+		return
+	var running: AgentProfile = null
+	if source:
+		dock.copy_agent_from(source)
+		dock.copy_mode_from(source)
+		var source_controller := _controller_of(from)
+		running = source_controller.profile() if source_controller and source_controller.is_connected_to_agent() else null
+	_tabs.select(id)
+	dock.use_handoff(handoff)
+	# Con el perfil que corre allá (cuenta incluida), aunque no esté guardado en Ajustes.
+	dock.start_session(running)
 
 
 func _open_elsewhere(from: String, session_id: String) -> void:

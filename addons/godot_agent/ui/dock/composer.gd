@@ -20,6 +20,8 @@ signal image_pasted(image: Image)
 signal files_attached(paths: PackedStringArray)
 ## «Planificar» (m11-58): el dock pide el plan con lo que haya escrito.
 signal plan_requested
+## Clic en el porcentaje del contexto cuando está alto (m11-35): seguir en una sesión nueva con resumen.
+signal handoff_requested
 
 const AgentTheme := preload("../agent_theme.gd")
 const SuggestionList := preload("suggestion_list.gd")
@@ -75,11 +77,15 @@ const ADD_COMMAND := 2
 const ADD_PLAN := 3
 const PLAN_TOOLTIP := "Plan before building: the agent writes a plan that you approve, edit or send back (/plan). What you wrote here is what it plans."  # i18n
 ## Los comandos que resuelve el harness (no van al agente): primeros en el menú de /.
+## `plan`: solo si se puede planificar con el agente de la sesión.
 const HARNESS_COMMANDS: Array[Dictionary] = [
-	{"name": "plan", "description": "Ask for a plan to approve before building (harness)"},  # i18n
+	{"name": "plan", "needs": "plan", "description": "Ask for a plan to approve before building (harness)"},  # i18n
+	{"name": "handoff", "needs": "handoff", "description": "Continue in a new session with a summary of this one; optionally, what to do there (harness)"},  # i18n
 ]
 var _plan_button: Button
 var _plan_available: bool = false
+## /handoff en el menú de /: hay una sesión de la que seguir (m11-35).
+var handoff_available: bool = false
 ## Desde este uso del contexto, el porcentaje de la fila se pinta de advertencia.
 const METER_SHOW_RATIO := 0.8
 var _mode_button: OptionButton
@@ -208,6 +214,10 @@ func _ready() -> void:
 	_meter = Label.new()
 	_meter.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_meter.tooltip_text = I18n.t("Context used")
+	_meter.gui_input.connect(func(event: InputEvent) -> void:
+		var click := event as InputEventMouseButton
+		if click and click.pressed and click.button_index == MOUSE_BUTTON_LEFT and _meter.mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND:
+			handoff_requested.emit())
 	row.add_child(_meter)
 	_plan_button = _icon_button("", I18n.t(PLAN_TOOLTIP), func() -> void: plan_requested.emit())
 	_plan_button.name = "PlanButton"
@@ -493,7 +503,13 @@ func set_usage(used: int, total: int) -> void:
 	# El porcentaje siempre al lado del anillo (m12-18); los tokens, en el tooltip.
 	_meter.text = "%d %%" % int(ratio * 100.0)
 	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0) + " · %s / %s" % [_short_number(used), _short_number(total)]
-	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if ratio >= METER_SHOW_RATIO else AgentTheme.MUTED)
+	var high := ratio >= METER_SHOW_RATIO
+	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if high else AgentTheme.MUTED)
+	# Alto, el porcentaje lleva a seguir en una sesión nueva (m11-35).
+	if high:
+		_meter.tooltip_text += "\n" + I18n.t("Click: continue in a new session with a summary…")
+	_meter.mouse_filter = Control.MOUSE_FILTER_STOP if high else Control.MOUSE_FILTER_PASS
+	_meter.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if high else Control.CURSOR_ARROW
 
 
 ## Los modos del harness, en orden: `{id, label, tooltip}` (ya traducidos).
@@ -824,12 +840,14 @@ func _refresh_suggestions() -> void:
 	var query := text.substr(1).to_lower()
 	if is_command:
 		var items: Array[Dictionary] = []
-		for command: Dictionary in HARNESS_COMMANDS if _plan_available else []:
+		for command: Dictionary in HARNESS_COMMANDS:
+			if not (_plan_available if command.needs == "plan" else handoff_available):
+				continue
 			items.append({"label": "/" + str(command.name), "detail": I18n.t(str(command.description)), "insert": "/" + str(command.name), "key": str(command.name)})
 		for command: Variant in _commands:
 			if command is Dictionary:
 				var name := str(command.get("name", ""))
-				if name == "plan":
+				if name in ["plan", "handoff"]:
 					continue  # /plan lo resuelve el harness (m11-58): el del agente no llega
 				items.append({"label": "/" + name, "detail": str(command.get("description", "")), "insert": "/" + name, "key": name.to_lower()})
 		_suggestions.show_items(I18n.t("Commands"), _filter(items, query),
