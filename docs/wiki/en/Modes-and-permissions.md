@@ -14,6 +14,12 @@
 
 Switching mode also switches the agent's own mode when it publishes one: Ask and Review use `plan`; Build, Auto and One-shot use `default`.
 
+### A model for each mode
+
+The model you pick in the composer's model selector is remembered for the mode the tab is in, for that agent profile. Switching back to that mode picks that model again, so you can plan in Ask with a strong model and build with a fast one, the planner/editor pair of other harnesses but without two requests per change. **Approve and build** also switches to Build's model, and the agent keeps going with it in the same turn. A mode with nothing remembered doesn't change the model, and One-shot is one more mode. The first time a mode switch changes the model, the chat says so in one line (**Build uses Sonnet**, with **Change**); the selector's tooltip says which mode it's remembered for.
+
+It's a setting of yours, not of the project, because the models depend on your account. **Settings → Agents** lists what each profile remembers, with **Forget**. If the agent no longer offers a remembered model (another account, for instance), the model isn't changed and the chat says so once. It works with agents that publish the model as a session option (Claude Code does); with others the selector doesn't show. Claude Code's own `opusplan` alias, if your account lists it, does something similar without the harness.
+
 ### Approving the agent's plan
 
 In Ask or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:
@@ -42,6 +48,25 @@ In Build and Auto, when a turn ends the harness validates the `.gd` scripts that
 The project can add its own checks in Settings → MCP servers → Advanced → **Project checks after each turn**: the saved playtest regressions, GUT or gdUnit4 tests, or any command. In Build and Auto, after a turn that changes files (and once the scripts parse), the harness runs each check whose patterns match a changed file. A check with no patterns runs after any change. The footer notice shows ✓ or ✗ for each one. If a check fails, the agent gets its exit code and the end of its output in a new turn to fix it, inside an untrusted-text envelope. This shares the two-turn limit with the script check.
 
 The checks are saved in `addons/godot_agent/config/project_config.tres`, so they travel with the project. A command runs as a program with its arguments, without a shell (no `|`, `&&`, `;` or redirections; put those in a script and run the script). `{godot}` stands for this editor's binary and `{project}` for the project folder. Because the file can come from someone else's repository, a command only runs on a machine where that exact text was approved. A command you write or change in Settings is approved when you save. One that came with the project shows **Not approved on this machine**; it is skipped, and the notice offers **Approve «name»…**, which shows the exact command before allowing it. If the command changes, it asks again. Approvals are kept per user, in the editor settings, not in the project. The playtest regressions check needs no approval: it runs the addon's own `regression_cli.gd`.
+
+### Project hooks
+
+Hooks react to things that happen in the editor and that no agent sees. You set them in Settings → MCP servers → Advanced → **Project hooks**, under the project checks. Each hook has an event:
+- **A scene or script is saved**, with optional file patterns (`res://levels/**`) and who saved it: **by you** (the default), **by the agent** (during one of its tools, or written by its file tools) or **by anyone**;
+- **A game ends**, run by you (F5/F6) or by the agent;
+- **Playtest regressions finish**, from the Regressions tab or from `godot.run_regressions`;
+- **An export starts**.
+
+For a game or regressions, **Only if there were errors** is on by default. A hook does one of three things:
+- **Run a command**: a program with its arguments, without a shell, like the project checks. Besides `{godot}` and `{project}`, `{path}` is the saved file (or the export's output) and `{event}` the event. The program also gets them in the `GODOT_AGENT_EVENT`, `GODOT_AGENT_PATH`, `GODOT_AGENT_BY`, `GODOT_AGENT_ERRORS` and `GODOT_AGENT_HOOK` environment variables. The time limit is 60 seconds by default and 600 at most.
+- **Run a godot.\* tool**, for example `validate_scripts` or `run_regressions`, with JSON arguments. It runs without asking, so only tools that read, check or run the game are allowed, plus the [project tools](Editor-tools.md#project-tools) approved on this machine.
+- **Ask the agent**: by default the chat of the active tab shows a notice with **Send to the agent**, and nothing is sent until you press it. With **Send it on its own**, the prompt goes to the agent right away and spends tokens without asking, up to 2 hook prompts in a row without a message from you; after that it's a notice again. Never in One-shot. What comes from the event (paths, the game's errors) goes to the agent inside an untrusted-text envelope.
+
+Hooks never stop or change what happened: they run afterwards, in the background. A hook that is already running runs once more when it ends, and saves that come together count once. Each run goes to the Agent Log with ✓ or ✗, the time and the end of the output, and a failure shows a toast.
+
+Hooks are saved in `addons/godot_agent/config/project_config.tres`, which the agent's file tools can't write. They still travel with the project, so a hook only runs on a machine where its whole definition was approved. A hook you add or change in Settings is approved when you save. One that came with the project doesn't run and shows a notice with **Approve «name»…**. Any change, including turning on **Send it on its own**, asks again.
+
+Hooks are not the place for checks at the end of each turn: those are the [project checks](#project-checks-after-each-turn), whose failures go back to the agent.
 
 ### Changes of each turn
 
@@ -72,6 +97,7 @@ Defaults:
 | Shell / commands | Deny | Deny | Ask | Ask¹ | Ask |
 | Project settings, export and addons | Deny | Deny | Ask | Allow | Allow |
 | Install from the Asset Store | Deny | Deny | Ask | Ask | Ask |
+| Project tools | Deny | Deny | Ask | Ask | Ask |
 | Subagents | Allow | Allow | Allow | Allow | Allow |
 
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.

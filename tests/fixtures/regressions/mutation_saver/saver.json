@@ -1,0 +1,5 @@
+{
+	"goal": "The saver starts",
+	"scene": "res://tests/fixtures/mutation/saver.tscn",
+	"code": "func run(game):\n\treturn true"
+}

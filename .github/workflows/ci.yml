@@ -16,13 +16,16 @@ concurrency:
 
 jobs:
   test:
-    name: Tests (Godot ${{ matrix.godot }})
+    name: Tests (Godot ${{ matrix.godot }} · ${{ matrix.group }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         # La mínima soportada, la estable actual y la beta en la que se desarrolla.
         godot: [4.7.2-stable, 4.8-beta2]
+        # Los checks en tres grupos que corren a la vez, de ~3,5 min cada uno en 4.7.2 (corridos uno tras
+        # otro en un solo job eran ~10 min). Cada step corre solo en su grupo; los demás lo saltean.
+        group: [unit, game, editor]
     steps:
       - uses: actions/checkout@v7
 
@@ -47,73 +50,93 @@ jobs:
       # su propio step: uno que falla no esconde a los siguientes. El último step comprueba que este
       # archivo corre todos los checks de ci de la suite.
       - name: Unit tests
+        if: ${{ !cancelled() && matrix.group == 'unit' }}
         run: sh tests/suite.sh run run_all ~/godot/godot
 
       - name: ACP against the fake agent
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'unit' }}
         run: sh tests/suite.sh run acp ~/godot/godot
 
       - name: One-shot loop
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'game' }}
         run: sh tests/suite.sh run oneshot_loop ~/godot/godot
 
       # Playtests guardados, repetidos sin el editor ni el agente (m16-09).
       - name: Regressions from the command line
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'game' }}
         run: sh tests/suite.sh run regressions ~/godot/godot
 
       # Nada del addon llega a un export (M0).
       - name: Export check
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'game' }}
         run: sh tests/suite.sh run export ~/godot/godot
 
       # Habilitar y deshabilitar el plugin 5 veces sin huérfanos ni recursos colgados (m13-10).
       - name: Plugin enable/disable cycle
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'unit' }}
         run: sh tests/suite.sh run plugin_cycle ~/godot/godot
 
       # Con el juego de verdad, en un editor con ventana (m16-02).
       - name: Install Xvfb
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group != 'unit' }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb libgl1-mesa-dri
 
       - name: Editor check (run)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'game' }}
         run: sh tests/suite.sh run run ~/godot/godot
 
       - name: Editor check (plan)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run plan ~/godot/godot
 
       - name: Editor check (project checks after the turn)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run checks ~/godot/godot
 
       - name: Editor check (review)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run review ~/godot/godot
 
       - name: Editor check (run-error)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run run-error ~/godot/godot
 
       - name: Editor check (debug)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run debug ~/godot/godot
 
       - name: Editor check (external)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run external ~/godot/godot
 
       - name: Editor check (edit)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run edit ~/godot/godot
 
       - name: Editor check (mcp)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run mcp ~/godot/godot
+
+      # Que el menú contextual «Ask the agent» deja el contexto en el composer (m11-54).
+      - name: Editor check (ask-menu)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run ask-menu ~/godot/godot
+
+      # Hooks del proyecto con guardados de verdad y la aprobación por máquina (m11-24).
+      - name: Editor check (hooks)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run hooks ~/godot/godot
+
+      # Un playtest con el agente en loop se corta como «could not test» (m11-49).
+      - name: Editor check (playtest-loop)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run playtest-loop ~/godot/godot
+
+      - name: Closing the editor leaves no agent processes
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run quit ~/godot/godot
 
       - name: Every ci check of the suite runs here
         if: ${{ !cancelled() }}

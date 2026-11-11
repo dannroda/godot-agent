@@ -25,6 +25,9 @@ signal remote_control_changed(url: String)
 ## La cuenta del agente cambió (ver `account`).
 signal account_changed
 signal turn_finished(stop_reason: String)
+## Una compactación de la conversación (compaction_update, m11-60) cambió de estado: `entry` es su
+## fila en el chat. `status`: in_progress, completed, cancelled o failed.
+signal compaction_changed(entry: ChatEntry, status: String)
 signal permission_requested(request: PermissionRequest)
 signal elicitation_requested(request: ElicitationRequest)
 
@@ -33,6 +36,7 @@ const ToolCall := preload("tool_call.gd")
 const PermissionRequest := preload("permission_request.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
 const I18n := preload("../core/i18n.gd")
+const ModeModels := preload("../core/mode_models.gd")
 
 enum SessionState {
 	DISCONNECTED,  ## sin proceso
@@ -115,6 +119,8 @@ var failure_message: String = ""
 ## true mientras se vuelve a armar una conversación del historial: las señales no son eventos nuevos
 ## (nada de sincronizar archivos, checkpoints ni playtests).
 var replaying: bool = false
+## Filas de las compactaciones por compactionId (m11-60).
+var _compactions: Dictionary = {}
 
 var pending_permissions: Array[PermissionRequest] = []
 var pending_elicitations: Array[ElicitationRequest] = []
@@ -242,6 +248,7 @@ func reset() -> void:
 	_subagent_sessions.clear()
 	_terminal_outputs.clear()
 	_plan_entry = null
+	_compactions.clear()
 	cancel_pending_permissions()
 	set_remote_control("")
 	entries_cleared.emit()
@@ -329,6 +336,11 @@ func config_option(id: String) -> Dictionary:
 	return {}
 
 
+## La opción del modelo: la de category "model" o la de id "model" ({} si el agente no deja elegir).
+func model_option() -> Dictionary:
+	return ModeModels.model_option(config_options)
+
+
 func set_config_value(id: String, value: String) -> void:
 	for option: Variant in config_options:
 		if option is Dictionary and option.get("id") == id:
@@ -353,6 +365,52 @@ func add_notice(text: String, level: ChatEntry.NoticeLevel = ChatEntry.NoticeLev
 	entry.level = level
 	entry.actions = actions
 	return _push(entry)
+
+
+## compaction_update (m11-60): una fila por compactionId que cambia con el estado, entre los mensajes
+## donde llegó. claude-agent-acp manda el completed dos veces (la segunda sin summary): el resumen
+## que ya está no se borra.
+func _apply_compaction(update: Dictionary) -> void:
+	var id := str(update.get("compactionId", ""))
+	var status := str(update.get("status", "completed"))
+	var entry: ChatEntry = _compactions.get(id)
+	var created := entry == null
+	if created:
+		entry = _new_entry(ChatEntry.EntryKind.NOTICE)
+		if not id.is_empty():
+			_compactions[id] = entry
+	entry.level = ChatEntry.NoticeLevel.INFO
+	match status:
+		"in_progress":
+			entry.text = I18n.t("Compacting the conversation…")
+		"failed":
+			entry.text = I18n.t("The agent couldn't compact the conversation.")
+			entry.level = ChatEntry.NoticeLevel.WARNING
+		"cancelled":
+			entry.text = I18n.t("Compaction cancelled.")
+		_:
+			entry.text = I18n.t("Conversation compacted: from here on the agent works with a summary and may forget details.")
+	var summary := compaction_summary(update.get("summary"))
+	if not summary.is_empty():
+		entry.details_title = I18n.t("Summary the agent kept")
+		entry.details = summary
+	if created:
+		_push(entry)
+	else:
+		notify_entry_changed(entry)
+	compaction_changed.emit(entry, status)
+
+
+## El texto del `summary` de un compaction_update: bloques de contenido (solo los de texto).
+static func compaction_summary(summary: Variant) -> String:
+	if summary is String:
+		return summary.strip_edges()
+	var parts: PackedStringArray = []
+	if summary is Array:
+		for block: Variant in summary:
+			if block is Dictionary and block.get("type") == "text" and block.get("text") is String:
+				parts.append(block.text)
+	return "\n\n".join(parts).strip_edges()
 
 
 ## Agrega una entrada ya armada (p. ej. una tarjeta de permiso, M2).
@@ -513,6 +571,8 @@ func apply_update(update: Dictionary) -> bool:
 			_apply_subagent_update(update)
 		"session_message":
 			_link_subagent(update)
+		"compaction_update":
+			_apply_compaction(update)
 		_:
 			return false
 	return true

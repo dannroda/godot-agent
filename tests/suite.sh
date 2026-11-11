@@ -31,6 +31,10 @@ edit:ci:150
 mcp:ci:120
 plan:ci:150
 checks:ci:150
+ask-menu:ci:120
+hooks:ci:120
+playtest-loop:ci:150
+quit:ci:150
 sync:full:120
 oneshot:full:150
 long:full:120
@@ -121,6 +125,7 @@ run_check() {
 			case "$scenario" in basic|crash) ;; *) scenario="ui_$scenario" ;; esac
 			xvfb "--godot-agent-ui-test=$scenario" ;;
 		crash) timeout "$limit" sh tests/crash_check.sh "$G" ;;
+		quit) XRUN_TIMEOUT="$limit" timeout "$((limit + 30))" sh tests/quit_check.sh "$G" ;;
 		*) xvfb "--godot-agent-$name-test" ;;
 	esac
 }
@@ -132,14 +137,35 @@ case "$1" in
 		names "$2"
 		;;
 	check-ci)
+		# ci.yml reparte los checks en grupos del matrix (unit, game, editor) que corren a la vez: cada
+		# step `suite.sh run <check>` tiene un if con un grupo que existe, y cada check de ci está en
+		# exactamente un step. Un grupo mal escrito haría que el step no corra nunca, sin fallar.
+		steps="$(awk '
+			/^        group: \[/ { gsub(/.*\[|\].*| /, ""); print "GROUPS " $0 }
+			/^      - / { group = "" }
+			/matrix\.group == / { match($0, /matrix\.group == \x27[^\x27]*\x27/); group = substr($0, RSTART + 17, RLENGTH - 18) }
+			/tests\/suite\.sh run / { n = split($0, w, " "); for (i = 1; i < n - 1; i++) if (w[i] == "tests/suite.sh" && w[i + 1] == "run") print "STEP " w[i + 2] " " (group == "" ? "-" : group) }
+		' .github/workflows/ci.yml)"
+		groups=",$(echo "$steps" | awk '/^GROUPS / { print $2 }'),"
 		missing=0
 		for name in $(names ci); do
-			if ! grep -Eq "tests/suite\.sh run $name( |\$)" .github/workflows/ci.yml; then
+			count=$(echo "$steps" | awk -v n="$name" '$1 == "STEP" && $2 == n' | wc -l)
+			if [ "$count" = 0 ]; then
 				echo "suite: ci.yml no corre \"$name\" (falta un step con tests/suite.sh run $name)"
+				missing=1
+			elif [ "$count" -gt 1 ]; then
+				echo "suite: ci.yml corre \"$name\" en $count steps (tiene que estar en un solo grupo)"
 				missing=1
 			fi
 		done
-		[ "$missing" = 0 ] && echo "suite: ci.yml corre los $(names ci | wc -l) checks de ci"
+		for step in $(echo "$steps" | awk '$1 == "STEP" { print $2 ":" $3 }'); do
+			group="${step#*:}"
+			case "$groups" in
+				*",$group,"*) ;;
+				*) echo "suite: el step de \"${step%%:*}\" en ci.yml no tiene un grupo del matrix ($group; hay $(echo "$groups" | sed "s/^,//; s/,$//")): no correría nunca"; missing=1 ;;
+			esac
+		done
+		[ "$missing" = 0 ] && echo "suite: ci.yml corre los $(names ci | wc -l) checks de ci, cada uno en un grupo del matrix"
 		exit "$missing"
 		;;
 	run)

@@ -14,6 +14,12 @@
 
 Cambiar de modo cambia también el modo del agente, si lo publica: Preguntar y Revisar usan `plan`; Construir, Auto y One-shot usan `default`.
 
+### Un modelo para cada modo
+
+El modelo que elegís en el selector de modelo del composer queda recordado para el modo en que está la pestaña, con ese perfil de agente. Volver a ese modo vuelve a elegir ese modelo: así podés planificar en Preguntar con un modelo fuerte y construir con uno rápido, el par planificador/editor de otros harness pero sin dos pedidos por cambio. **Aprobar y construir** también pasa al modelo de Construir, y el agente sigue con él en el mismo turno. Un modo sin nada recordado no cambia el modelo, y One-shot es un modo más. La primera vez que un cambio de modo cambia el modelo, el chat lo dice en una línea (**Construir usa Sonnet**, con **Cambiar**); el tooltip del selector dice para qué modo se recuerda.
+
+Es un ajuste tuyo, no del proyecto, porque los modelos dependen de tu cuenta. **Ajustes → Agentes** muestra lo que recuerda cada perfil, con **Olvidar**. Si el agente ya no ofrece un modelo recordado (otra cuenta, por ejemplo), el modelo no se cambia y el chat lo dice una vez. Funciona con los agentes que publican el modelo como opción de la sesión (Claude Code lo hace); con los demás el selector no aparece. El alias `opusplan` de Claude Code, si tu cuenta lo lista, hace algo parecido sin el harness.
+
 ### Aprobar el plan del agente
 
 En Preguntar o Revisar, un agente con modo plan (Claude Code) puede terminar de planear presentando un plan para aprobar. El dock lo muestra en una tarjeta con el plan en Markdown y tres botones:
@@ -52,6 +58,25 @@ El proyecto puede sumar sus propios checks en Settings → Servidores MCP → Av
 
 Los checks se guardan en `addons/godot_agent/config/project_config.tres`, así que viajan con el proyecto. Un comando corre como un programa con sus argumentos, sin shell (sin `|`, `&&`, `;` ni redirecciones; ponelos en un script y corré el script). `{godot}` es el binario de este editor y `{project}` la carpeta del proyecto. Como el archivo puede venir del repositorio de otra persona, un comando corre solo en una máquina donde se aprobó ese texto exacto. Un comando que escribís o cambiás en Settings queda aprobado al guardar. Uno que vino con el proyecto muestra **No está aprobado en esta máquina**; no corre, y el aviso ofrece **Aprobar «nombre»…**, que muestra el comando exacto antes de permitirlo. Si el comando cambia, vuelve a preguntar. Las aprobaciones son por usuario, en los ajustes del editor, no en el proyecto. El check de regresiones de playtest no necesita aprobación: corre el `regression_cli.gd` del propio addon.
 
+### Hooks del proyecto
+
+Los hooks reaccionan a cosas que pasan en el editor y que ningún agente ve. Se configuran en Ajustes → MCP servers → Avanzado → **Hooks del proyecto**, debajo de los checks del proyecto. Cada hook tiene un evento:
+- **Se guarda una escena o un script**, con patrones de archivos opcionales (`res://levels/**`) y quién guardó: **por vos** (el valor por defecto), **por el agente** (durante una de sus tools, o escrito por sus file tools) o **por cualquiera**;
+- **Termina un juego**, lanzado por vos (F5/F6) o por el agente;
+- **Terminan las regresiones de playtest**, desde la pestaña Regresiones o con `godot.run_regressions`;
+- **Empieza un export**.
+
+Para un juego o las regresiones, **Solo si hubo errores** viene prendido. Un hook hace una de tres cosas:
+- **Correr un comando**: un programa con sus argumentos, sin shell, como los checks del proyecto. Además de `{godot}` y `{project}`, `{path}` es el archivo guardado (o la salida del export) y `{event}` el evento. El programa también los recibe en las variables de entorno `GODOT_AGENT_EVENT`, `GODOT_AGENT_PATH`, `GODOT_AGENT_BY`, `GODOT_AGENT_ERRORS` y `GODOT_AGENT_HOOK`. El tiempo límite es de 60 segundos por defecto y 600 como máximo.
+- **Correr una tool godot.\***, por ejemplo `validate_scripts` o `run_regressions`, con argumentos en JSON. Corre sin preguntar, así que solo se permiten tools que leen, revisan o corren el juego, y las [herramientas del proyecto](Herramientas-del-editor.md#herramientas-del-proyecto) aprobadas en esta máquina.
+- **Preguntar al agente**: por defecto el chat de la pestaña activa muestra un aviso con **Mandar al agente**, y no se manda nada hasta que lo apretás. Con **Mandarlo solo**, el prompt va enseguida al agente y gasta tokens sin preguntar, hasta 2 prompts de hooks seguidos sin un mensaje tuyo; después vuelve a ser un aviso. Nunca en One-shot. Lo que viene del evento (rutas, los errores del juego) le llega al agente en un sobre de texto no confiable.
+
+Los hooks nunca frenan ni cambian lo que pasó: corren después, en segundo plano. Un hook que ya está corriendo corre una vez más cuando termina, y guardados que llegan juntos cuentan una vez. Cada corrida va al Agent Log con ✓ o ✗, el tiempo y el final de la salida, y una falla muestra un toast.
+
+Los hooks se guardan en `addons/godot_agent/config/project_config.tres`, que las file tools del agente no pueden escribir. Igual viajan con el proyecto, así que un hook solo corre en una máquina donde se aprobó su definición entera. Un hook que agregás o cambiás en Ajustes queda aprobado al guardar. Uno que vino con el proyecto no corre y muestra un aviso con **Aprobar «nombre»…**. Cualquier cambio, también prender **Mandarlo solo**, vuelve a preguntar.
+
+Los hooks no son para revisar al final de cada turno: eso son los [checks del proyecto](#checks-del-proyecto-al-terminar-cada-turno), cuyas fallas vuelven al agente.
+
 ### Cambios de cada turno
 
 Mientras el agente trabaja en Construir o Auto, un contador arriba del composer muestra lo que cambió hasta ahora en el turno (**3 archivos · +42 −7**); un clic muestra esos cambios (se conservan o rechazan cuando termina el turno). En Construir y Auto, si el proyecto está en un repo de git, un turno que cambió archivos termina con un pie: cuántos archivos, líneas agregadas y quitadas, y dos acciones. **Ver cambios** lista los archivos, cada uno con su diff y **Volver atrás** (ese archivo vuelve a como estaba antes del turno). Abrí un script o un archivo de texto con **▸** para revisar sus cambios uno por uno: **Conservar** marca un cambio como revisado, y **Rechazar** deshace solo ese cambio en el archivo, aunque hayas editado otras partes después del turno. **Deshacer**, en el diálogo o en el aviso del chat, lo vuelve a poner. Si esas mismas líneas cambiaron después del turno, el cambio dice **Cambió después del turno** y no se puede rechazar (no se pisa nada); para eso está **Volver atrás** del archivo entero. No se toca nada mientras el archivo tiene cambios sin guardar en el editor, mientras otra sesión lo está editando en su turno, ni mientras el turno sigue en curso. **Rechazar todo en este archivo** rechaza los cambios que se puede y dice cuántos no. Una escena se abre por nodo y cada cambio se puede rechazar solo: una propiedad cambiada vuelve a su valor de antes del turno, un nodo agregado se va con los nodos de abajo y sus conexiones de señales, uno borrado vuelve al mismo lugar entre sus hermanos, uno movido o renombrado vuelve a donde estaba, y lo mismo con el nombre de la raíz, el tipo o la escena instanciada de un nodo, sus grupos y cada conexión de señal. Lo que vuelve trae los recursos que usaba, sin chocar con los que tiene la escena ahora. Antes de escribir, la escena se carga para ver que sigue cargando; si no cargaría, no se escribe nada. Un cambio dentro de un recurso que comparten otros nodos solo se deshace con **Volver atrás**. El agente se entera de qué cambios rechazaste. El diff de una escena se ve por nodos: nodos agregados (con cuántos vinieron abajo), borrados, movidos o renombrados, propiedades cambiadas con su valor antes → después (el `shape.size` de una forma, un script por su ruta) y conexiones de señales. Los ids de recursos que Godot renumera al guardar no son cambios. **Ver crudo** muestra el diff de texto. Un cambio grande muestra sus primeras 200 líneas y dice cuántas quedaron afuera. **Deshacer el turno** vuelve a antes del turno con todos, incluido lo que cambió después del turno, y pregunta antes; después el chat ofrece **Deshacer**. Antes de su próximo turno, el agente se entera de qué archivos se volvieron atrás.
@@ -81,6 +106,7 @@ Valores por defecto:
 | Shell / comandos | Denegar | Denegar | Preguntar | Preguntar¹ | Preguntar |
 | Project settings, export y addons | Denegar | Denegar | Preguntar | Permitir | Permitir |
 | Instalar desde el Asset Store | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
+| Herramientas del proyecto | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Subagentes | Permitir | Permitir | Permitir | Permitir | Permitir |
 
 ¹ En Auto, primero deciden las [listas del modo Auto](#modo-auto); solo lo que no permiten muestra una tarjeta.

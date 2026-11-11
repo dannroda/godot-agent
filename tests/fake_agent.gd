@@ -19,6 +19,9 @@ extends SceneTree
 ##                              `terminal` del guion) el proceso hace de login: imprime el enlace
 ##                              como Claude Code, espera el código por stdin y, si es `code`, crea
 ##                              `marker` y sale con 0 (si no, con 1).
+##   "ignore_eof": true       no sale cuando se cierra stdin: un agente que no se entera de que el
+##                              editor se fue (tests/quit_check.sh)
+##   "spawn_child": true      lanza un hijo de larga vida al arrancar, como node bajo npx
 ##   }
 ## Pasos:
 ##   {"chunk": "texto"}                agent_message_chunk
@@ -36,6 +39,10 @@ extends SceneTree
 ##   {"limit": {"resets_in": 120}}     límite alcanzado como lo manda Claude Code: cuota "rejected",
 ##                                     mensaje "You've hit your limit · resets HH:MM" y error del prompt
 ##   {"exit": true}                    el proceso se mata a sí mismo (simula una caída)
+##   {"mcp": {"name": "game_input", "arguments": {...}}}
+##                                     llama a una tool del server MCP del harness (el http que vino en
+##                                     session/new) de verdad, por HTTP, y deja el tool call en el chat con
+##                                     lo que devolvió; un session/cancel se atiende entre una llamada y otra
 ##   {"hang": true}                    deja el prompt sin responder para siempre, y tampoco contesta
 ##                                     el session/cancel (el turno colgado de m17-16)
 ## Un session/cancel corta el turno en curso y responde stopReason "cancelled".
@@ -61,6 +68,10 @@ var _waiting_request_id: int = -1
 var _next_request_id: int = 1000
 var _message_counter: int = 0
 var _cancel_at_msec: int = 0
+## El server MCP http de session/new ({url, headers}) y la sesión MCP abierta con él.
+var _mcp_server: Dictionary = {}
+var _mcp_session: String = ""
+var _mcp_calls: int = 0
 
 
 func _initialize() -> void:
@@ -78,6 +89,8 @@ func _initialize() -> void:
 	if "--login" in OS.get_cmdline_user_args():
 		_run_login()
 		return
+	if _scenario.get("spawn_child", false):
+		OS.create_process("sleep", ["600"])
 	_reader = Thread.new()
 	_reader.start(_read_stdin)
 
@@ -90,6 +103,8 @@ func _process(_delta: float) -> bool:
 	for line: String in lines:
 		if line.is_empty():
 			_reader.wait_to_finish()
+			if _scenario.get("ignore_eof", false):
+				continue
 			return true
 		_handle_line(line)
 	_advance_turn()
@@ -154,6 +169,9 @@ func _handle_line(line: String) -> void:
 			var result := {"sessionId": _session_id}
 			result.merge(_scenario.get("session", {}), true)
 			printerr("fake_agent: session/new %s" % JSON.stringify(message.get("params", {})))
+			for server: Variant in message.get("params", {}).get("mcpServers", []):
+				if server is Dictionary and server.get("type") == "http" and _mcp_server.is_empty():
+					_mcp_server = server
 			_reply(id, result)
 			if _scenario.get("on_new_session") is Array:
 				_steps = (_scenario.on_new_session as Array).duplicate(true)
@@ -250,6 +268,9 @@ func _advance_turn() -> void:
 			if step.has("cancel_after"):
 				_cancel_at_msec = Time.get_ticks_msec() + int(float(step.cancel_after) * 1000.0)
 			_send({"jsonrpc": "2.0", "id": _waiting_request_id, "method": step.request.method, "params": params})
+		elif step.has("mcp"):
+			_call_mcp(step.mcp)
+			return  # lo que llegó mientras tanto (un session/cancel) se atiende antes del paso siguiente
 		elif step.has("garbage"):
 			print(step.garbage)
 		elif step.has("stop"):
@@ -363,3 +384,67 @@ func _run_login() -> void:
 		printerr("Invalid code")
 	quit(0 if ok else 1)
 
+
+## Un tools/call al server MCP del harness, bloqueante (el agente falso no hace otra cosa mientras).
+func _call_mcp(call: Dictionary) -> void:
+	_mcp_calls += 1
+	var tool_call_id := "mcp-%d" % _mcp_calls
+	var title := "mcp__godot__" + str(call.get("name", ""))
+	_update({"sessionUpdate": "tool_call", "toolCallId": tool_call_id, "title": title, "kind": "other", "status": "in_progress", "rawInput": call.get("arguments", {})})
+	if _mcp_session.is_empty():
+		_mcp_post({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "fake_agent", "version": "1"}}})
+		_mcp_post({"jsonrpc": "2.0", "method": "notifications/initialized"})
+	var reply := _mcp_post({"jsonrpc": "2.0", "id": 100 + _mcp_calls, "method": "tools/call", "params": {"name": call.get("name", ""), "arguments": call.get("arguments", {})}})
+	var result: Dictionary = reply.get("result", {}) if reply.get("result") is Dictionary else {}
+	var texts: PackedStringArray = []
+	for block: Variant in result.get("content", []):
+		if block is Dictionary and block.get("type") == "text":
+			texts.append(str(block.text))
+	var text := "\n".join(texts) if not texts.is_empty() else JSON.stringify(reply.get("error", reply))
+	printerr("fake_agent: mcp %s → %s" % [call.get("name", ""), text.replace("\n", " ").left(300)])
+	_update({"sessionUpdate": "tool_call_update", "toolCallId": tool_call_id, "status": "failed" if result.get("isError", false) or reply.has("error") else "completed",
+		"rawOutput": text, "content": [{"type": "content", "content": {"type": "text", "text": text}}]})
+
+
+## POST de un mensaje JSON-RPC; devuelve la respuesta (de JSON o del último evento SSE con id).
+func _mcp_post(message: Dictionary) -> Dictionary:
+	var url := str(_mcp_server.get("url", ""))
+	var parts := RegEx.create_from_string("^http://([^:/]+):(\\d+)(/.*)$").search(url)
+	if parts == null:
+		printerr("fake_agent: sin server MCP http (%s)" % url)
+		return {}
+	var client := HTTPClient.new()
+	client.connect_to_host(parts.get_string(1), parts.get_string(2).to_int())
+	var deadline := Time.get_ticks_msec() + 120000
+	while client.get_status() in [HTTPClient.STATUS_CONNECTING, HTTPClient.STATUS_RESOLVING] and Time.get_ticks_msec() < deadline:
+		client.poll()
+		OS.delay_msec(5)
+	var headers: PackedStringArray = ["Content-Type: application/json", "Accept: application/json, text/event-stream"]
+	for header: Variant in _mcp_server.get("headers", []):
+		if header is Dictionary:
+			headers.append("%s: %s" % [header.get("name", ""), header.get("value", "")])
+	if not _mcp_session.is_empty():
+		headers.append("Mcp-Session-Id: " + _mcp_session)
+	client.request(HTTPClient.METHOD_POST, parts.get_string(3), headers, JSON.stringify(message))
+	while client.get_status() == HTTPClient.STATUS_REQUESTING and Time.get_ticks_msec() < deadline:
+		client.poll()
+		OS.delay_msec(5)
+	var response_headers := client.get_response_headers_as_dictionary()
+	for key: String in response_headers:
+		if key.to_lower() == "mcp-session-id":
+			_mcp_session = str(response_headers[key])
+	var body := PackedByteArray()
+	while client.get_status() == HTTPClient.STATUS_BODY and Time.get_ticks_msec() < deadline:
+		client.poll()
+		var chunk := client.read_response_body_chunk()
+		if chunk.is_empty():
+			OS.delay_msec(5)
+		body.append_array(chunk)
+	client.close()
+	var text := body.get_string_from_utf8()
+	var found: Dictionary = {}
+	for line: String in text.split("\n"):
+		var json: Variant = JSON.parse_string(line.trim_prefix("data:").strip_edges()) if not line.strip_edges().is_empty() else null
+		if json is Dictionary and json.has("id"):
+			found = json
+	return found

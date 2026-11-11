@@ -77,15 +77,16 @@ func seconds() -> float:
 	return (_last_usec - _started_usec - _paused_usec) / 1000000.0
 
 
-## Una muestra; se llama una vez por frame.
-func tick() -> void:
+## Una muestra; se llama una vez por frame. `exclude_ms`: tiempo de ese frame que no es del juego (los
+## invariantes de una regresión, m11-44) y no se cuenta en su duración.
+func tick(exclude_ms: float = 0.0) -> void:
 	var now := Time.get_ticks_usec()
 	if _skip_gap:
 		_skip_gap = false
 		_paused_usec += now - _last_usec
 		_last_usec = now
 		return
-	_frame_ms.append((now - _last_usec) / 1000.0)
+	_frame_ms.append(maxf((now - _last_usec) / 1000.0 - exclude_ms, 0.0))
 	_last_usec = now
 	_process_ms.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
 	_physics_ms.append(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0)
@@ -97,6 +98,14 @@ func tick() -> void:
 
 func frames() -> int:
 	return _frame_ms.size()
+
+
+## Las métricas de los presupuestos de una regresión (m11-44): frame_ms_p95, physics_ms_p95 y
+## draw_calls_max. Sin render (headless) no hay draw calls: null, no un 0 que pasaría en falso.
+func measure() -> Dictionary:
+	var draws: float = stats(_load.get("draw calls", PackedFloat64Array())).max
+	return {"frame_ms_p95": stats(_frame_ms).p95, "physics_ms_p95": stats(_physics_ms).p95,
+		"draw_calls_max": null if DisplayServer.get_name() == "headless" else draws}
 
 
 ## El resumen para el agente, en inglés. `orphans`: listar los nodos huérfanos de ahora.

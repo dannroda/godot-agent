@@ -13,6 +13,8 @@ signal notice_requested(text: String, level: ChatEntry.NoticeLevel)
 signal regressions_requested(repeat: int)
 ## El usuario quiere el workflow de CI que corre las regresiones (m16-10).
 signal ci_workflow_requested
+## «Medir regresiones» (m11-41): mutantes del código del juego, en memoria, para ver qué detectan.
+signal measure_requested
 ## Un prompt para mandar al agente (el de un playtest, m14-03).
 signal prompt_requested(text: String)
 
@@ -63,6 +65,7 @@ var _regressions_button: Button
 var _repeat: SpinBox
 var _regressions_row: HBoxContainer
 var _ci_button: Button
+var _measure_button: Button
 ## El último playtest pedido, para repetirlo tal cual (m15-17): {goal, record, minutes}.
 var _last_playtest: Dictionary = {}
 
@@ -155,6 +158,12 @@ func _ready() -> void:
 	_repeat.tooltip_text = I18n.t("Runs of each regression. With 2 or more, one that passes some runs and fails others is marked flaky, with how many passed.")
 	_regressions_row.add_child(_repeat)
 	actions.add_child(_regressions_row)
+	_measure_button = Button.new()
+	_measure_button.name = "MeasureRegressionsButton"
+	_measure_button.text = I18n.t("Measure regressions")
+	_measure_button.tooltip_text = I18n.t("Changes the game's code a little at a time, only in memory in a separate Godot, and runs the regressions against each change: the score says how many changes they notice. Takes a minute or a few; the project's files are not touched.")
+	_measure_button.pressed.connect(measure_requested.emit)
+	actions.add_child(_measure_button)
 	_ci_button = Button.new()
 	_ci_button.text = I18n.t("CI workflow…")
 	_ci_button.tooltip_text = I18n.t("Writes a GitHub Actions workflow that runs the saved regressions on every push, with this editor's Godot version.")
@@ -229,6 +238,7 @@ func refresh() -> void:
 		("" if flaky == 0 else "\n" + I18n.t("Flaky: %s") % ", ".join(regressions.filter(func(entry: Dictionary) -> bool: return PlaytestRegressions.is_flaky(entry)).map(
 			func(entry: Dictionary) -> String: return "«%s» (%s)" % [entry.goal, I18n.t(PlaytestRegressions.PASSED_OF) % [int(entry.runs.passed), int(entry.runs.total)]])))
 	_ci_button.visible = saved > 0
+	_measure_button.visible = saved > 0
 
 
 ## Un hallazgo: su fila y, si salió de un playtest, qué hacer con él (m15-17, m15-18).

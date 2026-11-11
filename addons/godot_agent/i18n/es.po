@@ -5178,6 +5178,42 @@ msgstr "Seguir en una sesión nueva con un resumen de esta; opcional, qué hacer
 msgid "Click: continue in a new session with a summary…"
 msgstr "Clic: seguir en una sesión nueva con resumen…"
 
+msgid "Project tools"
+msgstr "Herramientas del proyecto"
+
+msgid "Approved on this machine: %s. The agent can use them now, with godot.run."
+msgstr "Aprobadas en esta máquina: %s. El agente ya puede usarlas, con godot.run."
+
+msgid "Project tools not approved on this machine: %s. They are GDScript in the project that runs inside the editor when the agent calls it, so each one only loads where someone approved its code; if the code changes (also when the agent writes it), it asks again. Until then the agent can't call them."
+msgstr "Herramientas del proyecto sin aprobar en esta máquina: %s. Son GDScript del proyecto que corre dentro del editor cuando el agente lo llama, así que cada una se carga solo donde alguien aprobó su código; si el código cambia (también cuando lo escribe el agente), vuelve a preguntar. Hasta entonces el agente no puede llamarlas."
+
+msgid "See the tool's code and allow it on this machine."
+msgstr "Ver el código de la herramienta y permitirla en esta máquina."
+
+msgid "See the code of each tool and allow them all on this machine."
+msgstr "Ver el código de cada herramienta y permitirlas todas en esta máquina."
+
+msgid "Approve all the tools (%d)…"
+msgstr "Aprobar todas (%d)…"
+
+msgid "Approve project tools"
+msgstr "Aprobar herramientas del proyecto"
+
+msgid "These tools are GDScript files in the project. When the agent calls one (asking first, by the Project tools permission), its code runs inside this editor with full access to the project and the computer. Allow them only if you trust the code below; if a tool or a script next to it changes, it asks again."
+msgstr "Estas herramientas son archivos GDScript del proyecto. Cuando el agente llama a una (preguntando antes, según el permiso Herramientas del proyecto), su código corre dentro de este editor con acceso completo al proyecto y a la computadora. Permitilas solo si confiás en el código de abajo; si cambia una herramienta o un script al lado, vuelve a preguntar."
+
+msgid "Not approved on this machine"
+msgstr "Sin aprobar en esta máquina"
+
+msgid "Review and allow «%s» on this machine…"
+msgstr "Revisar y permitir «%s» en esta máquina…"
+
+msgid "Each .gd file in this folder is a tool the agent calls with godot.run (build_level.gd is godot.build_level). They run inside the editor, so each one only loads on a machine where its code was approved, and every call asks the Project tools permission. The folder is left out of exports."
+msgstr "Cada archivo .gd de esta carpeta es una herramienta que el agente llama con godot.run (build_level.gd es godot.build_level). Corren dentro del editor, así que cada una se carga solo en una máquina donde se aprobó su código, y cada llamada pide el permiso Herramientas del proyecto. La carpeta queda fuera de los exports."
+
+msgid "\"%s\" can't hold the project tools: use a folder inside the project, outside addons/godot_agent."
+msgstr "\"%s\" no sirve para las herramientas del proyecto: usá una carpeta dentro del proyecto, fuera de addons/godot_agent."
+
 msgid "Antigravity wrote %s in the project when the session opened: it is its own run_workflow skill, and it writes it again in every session. You can delete it, but it comes back. Add skills/system/ to .gitignore so it is not committed. See Troubleshooting in the wiki."
 msgstr "Antigravity escribió %s en el proyecto al abrir la sesión: es su propia skill de run_workflow, y la vuelve a escribir en cada sesión. Podés borrarla, pero vuelve. Sumá skills/system/ al .gitignore para no commitearla. Ver Problemas frecuentes en la wiki."
 
@@ -5396,3 +5432,278 @@ msgstr "Pedidos reutilizables con parámetros y checks, un .json por receta en e
 
 msgid "The recipes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_recipes)."
 msgstr "La carpeta de recetas tiene que ser una carpeta visible dentro del proyecto, fuera de addons/godot_agent (como res://agent_recipes)."
+msgid "When the editor is in the background, notify me when the agent finishes or waits for me"
+msgstr "Con el editor en segundo plano, avisarme cuando el agente termina o me espera"
+
+msgid "The editor window asks for attention and, where available, a desktop notification appears (notify-send on Linux, the notification center on macOS)."
+msgstr "La ventana del editor pide atención y, donde se puede, aparece una notificación del sistema (notify-send en Linux, el centro de notificaciones en macOS)."
+
+msgid "«%s» finished its turn."
+msgstr "«%s» terminó su turno."
+
+msgid "Ask the agent"
+msgstr "Preguntar al agente"
+
+msgid "Project hook «%s» is not approved on this machine, so it didn't run. It comes with the project's settings and runs on its own when its event happens."
+msgstr "El hook del proyecto «%s» no está aprobado en esta máquina, así que no corrió. Viene con la configuración del proyecto y corre solo cuando pasa su evento."
+
+msgid "See what the hook runs and allow it on this machine."
+msgstr "Ver qué corre el hook y permitirlo en esta máquina."
+
+msgid "Project hook «%s» failed. Its output is in the Agent Log."
+msgstr "Falló el hook del proyecto «%s». Su salida está en el Agent Log."
+
+msgid "Approved on this machine: %s. It runs the next time its event happens."
+msgstr "Aprobado en esta máquina: %s. Corre la próxima vez que pase su evento."
+
+msgid "Approve a project hook"
+msgstr "Aprobar un hook del proyecto"
+
+msgid "This hook comes with the project's settings (addons/godot_agent/config/project_config.tres). It runs on its own, on this computer, every time its event happens:\n\n%s\n\nAllow it only if you trust it. If the hook changes, it asks again."
+msgstr "Este hook viene con la configuración del proyecto (addons/godot_agent/config/project_config.tres). Corre solo, en esta computadora, cada vez que pasa su evento:\n\n%s\n\nPermitilo solo si confiás en él. Si el hook cambia, vuelve a preguntar."
+
+msgid "Project hook «%s»"
+msgstr "Hook del proyecto «%s»"
+
+msgid "Project hook"
+msgstr "Hook del proyecto"
+
+msgid "Not sent on its own: hooks already sent %d prompts in a row without a message from you."
+msgstr "No se mandó solo: los hooks ya mandaron %d prompts seguidos sin un mensaje tuyo."
+
+msgid "Project hooks"
+msgstr "Hooks del proyecto"
+
+msgid "Things to do on their own when something happens in the editor that the agent doesn't see: a scene saved, a game that ends, regressions that finish, an export. They never stop or change what happened. To check the agent's changes at the end of each turn, use the project checks above. Hooks live in the project's settings; one only runs on a machine where it was approved."
+msgstr "Cosas para hacer solas cuando pasa algo en el editor que el agente no ve: una escena guardada, un juego que termina, regresiones que terminan, un export. Nunca frenan ni cambian lo que pasó. Para revisar los cambios del agente al final de cada turno, usá los checks del proyecto de arriba. Los hooks viven en la configuración del proyecto; uno solo corre en una máquina donde se aprobó."
+
+msgid "+ Add hook"
+msgstr "+ Agregar hook"
+
+msgid "Project hook «%s»: %s"
+msgstr "Hook del proyecto «%s»: %s"
+
+msgid "Project hook «%s»: write the name of the tool."
+msgstr "Hook del proyecto «%s»: escribí el nombre de la tool."
+
+msgid "Project hook «%s»: the arguments must be a JSON object."
+msgstr "Hook del proyecto «%s»: los argumentos tienen que ser un objeto JSON."
+
+msgid "Project hook «%s»: write what to ask the agent."
+msgstr "Hook del proyecto «%s»: escribí qué pedirle al agente."
+
+msgid "When"
+msgstr "Cuándo"
+
+msgid "Who"
+msgstr "Quién"
+
+msgid "Who saved the file or launched the game or the regressions. «By the agent» includes what its file tools write."
+msgstr "Quién guardó el archivo o lanzó el juego o las regresiones. «Por el agente» incluye lo que escriben sus file tools."
+
+msgid "any file"
+msgstr "cualquier archivo"
+
+msgid "Only for these files, separated by commas (res://levels/**, *.gd). Empty: any."
+msgstr "Solo para estos archivos, separados por comas (res://levels/**, *.gd). Vacío: cualquiera."
+
+msgid "Only if there were errors (or failed regressions)"
+msgstr "Solo si hubo errores (o regresiones que fallaron)"
+
+msgid "Do"
+msgstr "Hacer"
+
+msgid "A program and its arguments, without a shell. {godot} is this editor's binary, {project} the project folder, {path} the saved file and {event} the event; the program also gets them in GODOT_AGENT_* environment variables."
+msgstr "Un programa y sus argumentos, sin shell. {godot} es el binario de este editor, {project} la carpeta del proyecto, {path} el archivo guardado y {event} el evento; el programa también los recibe en variables de entorno GODOT_AGENT_*."
+
+msgid "A tool of the harness that reads, checks or runs the game (validate_scripts, run_regressions…), or one of the project tools approved on this machine. It runs without asking, so other tools that edit or use the shell are not allowed."
+msgstr "Una tool del harness que lee, revisa o corre el juego (validate_scripts, run_regressions…), o una de las herramientas del proyecto aprobadas en esta máquina. Corre sin preguntar, así que no se permiten otras tools que editan o usan la shell."
+
+msgid "Arguments"
+msgstr "Argumentos"
+
+msgid "Review the level I just saved."
+msgstr "Revisá el nivel que acabo de guardar."
+
+msgid "Send it on its own"
+msgstr "Mandarlo solo"
+
+msgid "Off: the chat shows a notice with «Send to the agent», and nothing is sent until you press it. On: the prompt goes to the agent of the active tab right away and spends tokens without asking, up to %d hook prompts in a row without a message from you; after that it's a notice again. Never in One-shot."
+msgstr "Apagado: el chat muestra un aviso con «Mandar al agente» y no se manda nada hasta que lo apretás. Prendido: el prompt va enseguida al agente de la pestaña activa y gasta tokens sin preguntar, hasta %d prompts de hooks seguidos sin un mensaje tuyo; después vuelve a ser un aviso. Nunca en One-shot."
+
+msgid "The hook came with the project. Allow it only if you trust it; if it changes, it asks again."
+msgstr "El hook vino con el proyecto. Permitilo solo si confiás en él; si cambia, vuelve a preguntar."
+
+msgid "A scene or script is saved"
+msgstr "Se guarda una escena o un script"
+
+msgid "A game ends"
+msgstr "Termina un juego"
+
+msgid "Playtest regressions finish"
+msgstr "Terminan las regresiones de playtest"
+
+msgid "An export starts"
+msgstr "Empieza un export"
+
+msgid "by you"
+msgstr "por vos"
+
+msgid "by the agent"
+msgstr "por el agente"
+
+msgid "by anyone"
+msgstr "por cualquiera"
+
+msgid "Run a command"
+msgstr "Correr un comando"
+
+msgid "Run a godot.* tool"
+msgstr "Correr una tool godot.*"
+
+msgid "Compacting the conversation…"
+msgstr "Compactando la conversación…"
+
+msgid "The agent couldn't compact the conversation."
+msgstr "El agente no pudo compactar la conversación."
+
+msgid "Compaction cancelled."
+msgstr "Compactación cancelada."
+
+msgid "Conversation compacted: from here on the agent works with a summary and may forget details."
+msgstr "Conversación compactada: desde acá el agente trabaja con un resumen y puede olvidar detalles."
+
+msgid "Summary the agent kept"
+msgstr "Resumen que guardó el agente"
+
+msgid "stopped: the agent kept repeating %s with no progress"
+msgstr "se cortó: el agente repetía %s sin avanzar"
+
+msgid "The agent made the same calls %d times in a row and the game answered the same every time, so the harness stopped the playtest."
+msgstr "El agente hizo las mismas llamadas %d veces seguidas y el juego respondió lo mismo cada vez, así que el harness cortó el playtest."
+
+msgid "Export session"
+msgstr "Exportar sesión"
+
+msgid "Export session…"
+msgstr "Exportar sesión…"
+
+msgid "Saves this conversation as Markdown with its game captures, to share. You see a preview and choose what to take out first."
+msgstr "Guarda esta conversación como Markdown con sus capturas del juego, para compartirla. Antes ves una vista previa y elegís qué sacar."
+
+msgid "A Markdown file with the requests, the answers, the tool calls and the game captures, to share. Check what to take out; the preview shows what will be saved. Secrets such as the MCP token are always removed."
+msgstr "Un archivo Markdown con los pedidos, las respuestas, las tool calls y las capturas del juego, para compartir. Marcá qué sacar; la vista previa muestra lo que se va a guardar. Los secretos, como el token del server MCP, salen siempre."
+
+msgid "Remove absolute paths (%d)"
+msgstr "Sacar las rutas absolutas (%d)"
+
+msgid "Remove email addresses (%d)"
+msgstr "Sacar los emails (%d)"
+
+msgid "Remove content from outside the project: game, scenes, web (%d)"
+msgstr "Sacar el contenido de afuera del proyecto: juego, escenas, web (%d)"
+
+msgid "What tools brought from the game, the project's scenes or the internet. It can carry names and text you didn't write."
+msgstr "Lo que las tools trajeron del juego, de las escenas del proyecto o de internet. Puede traer nombres y texto que no escribiste."
+
+msgid "Remove the captures (%d)"
+msgstr "Sacar las capturas (%d)"
+
+msgid "Could not save the export in %s."
+msgstr "No se pudo guardar el export en %s."
+
+msgid "Session exported to %s."
+msgstr "Sesión exportada en %s."
+
+msgid "Measure regressions"
+msgstr "Medir regresiones"
+
+msgid "Changes the game's code a little at a time, only in memory in a separate Godot, and runs the regressions against each change: the score says how many changes they notice. Takes a minute or a few; the project's files are not touched."
+msgstr "Cambia el código del juego de a poco, solo en memoria en otro Godot, y corre las regresiones contra cada cambio: el puntaje dice cuántos cambios notan. Tarda uno o unos pocos minutos; los archivos del proyecto no se tocan."
+
+msgid "The regressions are already being measured."
+msgstr "Las regresiones ya se están midiendo."
+
+msgid "Measuring the regressions: first they run without mutants…"
+msgstr "Midiendo las regresiones: primero corren sin mutantes…"
+
+msgid "Measuring the regressions: mutant %d of %d…"
+msgstr "Midiendo las regresiones: mutante %d de %d…"
+
+msgid "Open %s:%d"
+msgstr "Abrir %s:%d"
+
+msgid "There are no saved regressions yet: a playtest that passes saves one."
+msgstr "Todavía no hay regresiones guardadas: un playtest que pasa guarda una."
+
+msgid "The regressions fail without mutants: fix them first, then measure."
+msgstr "Las regresiones fallan sin mutantes: arreglalas primero y después medí."
+
+msgid "The regressions could not run in a separate Godot."
+msgstr "Las regresiones no pudieron correr en otro Godot."
+
+msgid "Measuring the regressions was cancelled."
+msgstr "Se canceló la medición de las regresiones."
+
+msgid "Regressions: mutation score %d/%d (%d %%)"
+msgstr "Regresiones: puntaje de mutación %d/%d (%d %%)"
+
+msgid "Each mutant is one small change to the game's code, made only in the memory of a separate Godot: the project's files are not touched. A mutant no regression notices is a bug they would let through."
+msgstr "Cada mutante es un cambio chico en el código del juego, hecho solo en la memoria de otro Godot: los archivos del proyecto no se tocan. Un mutante que ninguna regresión nota es un bug que dejarían pasar."
+
+msgid "%d hung the game (counted as detected)"
+msgstr "%d colgaron el juego (cuentan como detectados)"
+
+msgid "%d did not compile (not counted)"
+msgstr "%d no compilaron (no cuentan)"
+
+msgid "%d could not run (not counted)"
+msgstr "%d no pudieron correr (no cuentan)"
+
+msgid "Not detected"
+msgstr "No detectados"
+
+msgid "detects nothing"
+msgstr "no detecta nada"
+
+msgid "caught %d"
+msgstr "atrapó %d"
+
+msgid "By regression"
+msgstr "Por regresión"
+
+msgid "%d by invariants or budgets"
+msgstr "%d por invariantes o presupuestos"
+
+msgid "Change"
+msgstr "Cambiar"
+
+msgid "Choose another model for %s: the one you pick is remembered for this mode."
+msgstr "Elegir otro modelo para %s: el que elijas queda recordado para este modo."
+
+msgid "Forget"
+msgstr "Olvidar"
+
+msgid "Model by mode"
+msgstr "Modelo por modo"
+
+msgid "Model. Remembered for %s: the one you pick is used every time you switch to %s."
+msgstr "Modelo. Recordado para %s: el que elijas se usa cada vez que pasás a %s."
+
+msgid "Model. The one you pick is remembered for %s."
+msgstr "Modelo. El que elijas queda recordado para %s."
+
+msgid "Pick another one in the composer while in that mode to change it."
+msgstr "Para cambiarlo, elegí otro en el composer estando en ese modo."
+
+msgid "%s remembers the model «%s», but %s doesn't offer it now (another account?). The model wasn't changed."
+msgstr "%s recuerda el modelo «%s», pero %s no lo ofrece ahora (¿otra cuenta?). El modelo no se cambió."
+
+msgid "%s uses %s."
+msgstr "%s usa %s."
+
+msgid "Switching to this mode won't change the model any more (applies when you save)."
+msgstr "Pasar a este modo ya no va a cambiar el modelo (se aplica al guardar)."
+
+msgid "The model you pick in the dock's composer is remembered for the mode that tab is in, and switching to that mode picks it again (plan in Ask with one model, build with another). It is yours, not the project's. Agents that don't offer a model choice don't show the selector."
+msgstr "El modelo que elegís en el composer del dock queda recordado para el modo en que está esa pestaña, y pasar a ese modo lo vuelve a elegir (planificar en Preguntar con un modelo y construir con otro). Es tuyo, no del proyecto. Los agentes que no dejan elegir modelo no muestran el selector."

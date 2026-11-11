@@ -7,6 +7,7 @@ extends Node
 const AgentExportPlugin := preload("export/agent_export_plugin.gd")
 const PlaytestAutoload := preload("playtest/playtest_autoload.gd")
 const EditorSurfaces := preload("ui/editor_surfaces.gd")
+const AgentProcess := preload("transport/agent_process.gd")
 const EditorWindows := preload("ui/editor_windows.gd")
 const AgentDockScene := preload("ui/dock/agent_dock.tscn")
 const AgentMainScreenScene := preload("ui/main_screen/agent_main_screen.tscn")
@@ -46,8 +47,11 @@ const TurnReport := preload("session/turn_report.gd")
 const WorktreeSession := preload("session/worktree_session.gd")
 const GithubReviews := preload("core/github_reviews.gd")
 const InlineEditMenu := preload("editor/inline_edit_menu.gd")
+const AskAgentMenu := preload("editor/ask_agent_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
+const ModeModels := preload("core/mode_models.gd")
+const ProjectToolLoader := preload("mcp/project_tool_loader.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
 const MapTools := preload("mcp/tools/map_tools.gd")
@@ -75,6 +79,9 @@ const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
 const ErrorCollector := preload("editor/error_collector.gd")
 const RunErrorWatcher := preload("editor/run_error_watcher.gd")
+const HookRunner := preload("editor/hook_runner.gd")
+const ProjectHooks := preload("core/project_hooks.gd")
+const MachineApproval := preload("core/machine_approval.gd")
 const ReviewAnnotations := preload("review/review_annotations.gd")
 const ReviewStore := preload("review/review_store.gd")
 const HarnessPrompts := preload("session/harness_prompts.gd")
@@ -106,6 +113,11 @@ const ACTION_PENDING_INSTALL_DISCARD := "pending_install_discard"
 const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
 ## «Arreglar con el agente» del aviso de un run manual con error (m11-55): el payload es el prompt.
 const ACTION_FIX_RUN_ERROR := "fix_run_error"
+const ACTION_CANCEL_MUTATION := "cancel_mutation"
+const ACTION_OPEN_MUTANT := "open_mutant"
+const MutationTesting := preload("playtest/mutation/mutation_testing.gd")
+## «Send to the agent» del aviso de un hook de prompt (m11-24); `data` es el prompt.
+const ACTION_SEND_HOOK_PROMPT := "send_hook_prompt"
 ## El panel Stack Trace del debugger se llena un momento después de la pausa.
 const BREAK_READ_DELAY_S := 0.5
 ## Avisos de RegressionsWorkflow.write() para el usuario.
@@ -133,6 +145,8 @@ const PRIMARY_SESSION := "s1"
 ## Cuánto espera una tool que escribe a que el editor termine de importar (m14-02).
 const IMPORT_WAIT_S := 8
 
+## La medición de regresiones con mutantes en curso (m11-41), o null.
+var _mutation: MutationTesting = null
 var _export_plugin: AgentExportPlugin
 var _surfaces: EditorSurfaces
 var _settings: HarnessSettings
@@ -149,6 +163,10 @@ var _sync: EditorSync
 ## Seguir al agente (m11-33): salta a lo que edita la pestaña activa, si tiene el botón prendido.
 var _follower: AgentFollower
 var _remote_activity: RemoteActivity
+## Hooks del proyecto en eventos del editor (m11-24).
+var _hooks: HookRunner
+## Prompts de hooks mandados solos (auto_send) desde el último mensaje del usuario.
+var _hook_prompts_in_row: int = 0
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
 var _turn_changes: TurnChanges
@@ -174,10 +192,15 @@ var _extensions_window: ExtensionsWindow
 var _main_screen: Control
 var _fs: FsHandler
 var _registry: ToolRegistry
+## Las tools propias del proyecto (m11-46) y las claves de las frenadas que ya se avisaron.
+var _project_tools: ProjectToolLoader
+var _tools_announced: Dictionary = {}
 var _completion: CompletionService
 ## Chat en línea en el Script Editor (m11-05).
 var _inline_edit: InlineEdit
 var _inline_menu: InlineEditMenu
+## «Preguntar al agente» en los menús contextuales (m11-54), uno por slot.
+var _ask_menus: Array[EditorContextMenuPlugin] = []
 var _updater: AddonUpdater
 var _store: AssetStore
 var _update_banner: UpdateBanner
@@ -204,6 +227,9 @@ func _enter_tree() -> void:
 
 	_export_plugin = AgentExportPlugin.new()
 	_export_plugin.setup(_remove_playtest_autoload)
+	_export_plugin.on_export_begin = func(path: String) -> void:
+		if _hooks:
+			_hooks.fire({"event": ProjectHooks.EVENT_EXPORT, "path": path, "by": ProjectHooks.BY_USER})
 	_plugin.add_export_plugin(_export_plugin)
 
 	_settings = HarnessSettings.new(EditorInterface.get_editor_settings())
@@ -235,6 +261,20 @@ func _enter_tree() -> void:
 	_remote_activity.after_restore = _sync.after_agent_write
 	add_child(_remote_activity)
 	_plugin.scene_saved.connect(_remote_activity.note_saved)
+	_hooks = HookRunner.new()
+	_hooks.name = "ProjectHooks"
+	_hooks.provider = func() -> Dictionary:
+		return {"hooks": _project_config.hooks if _project_config else [], "godot": OS.get_executable_path(), "project": ProjectSettings.globalize_path("res://")}
+	_hooks.is_approved = _settings.is_command_approved
+	_hooks.held = _on_hook_held
+	_hooks.failed = _on_hook_failed
+	_hooks.run_action = _run_hook_action
+	_hooks.log_line = func(text: String) -> void:
+		if _log:
+			_log.add(AgentLog.CH_PROC, text)
+	add_child(_hooks)
+	_plugin.scene_saved.connect(_on_saved_for_hooks)
+	_plugin.resource_saved.connect(func(resource: Resource) -> void: _on_saved_for_hooks(resource.resource_path))
 	_plugin.resource_saved.connect(func(resource: Resource) -> void:
 		if _remote_activity:
 			_remote_activity.note_saved(resource.resource_path))
@@ -320,6 +360,7 @@ func _enter_tree() -> void:
 	_tabs = SessionTabs.new()
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
+	_tabs.notify_outside_enabled = _settings.notify_when_unfocused
 	_tabs.new_session_requested.connect(_open_session_tab)
 	_tabs.active_changed.connect(func(_id: String) -> void: _follower.cancel())
 	dock.follow_toggled.connect(_on_follow_toggled)
@@ -381,6 +422,11 @@ func _enter_tree() -> void:
 	_inline_menu = InlineEditMenu.new()
 	_inline_menu.inline_edit = _inline_edit
 	_plugin.add_context_menu_plugin(EditorContextMenuPlugin.CONTEXT_SLOT_SCRIPT_EDITOR_CODE, _inline_menu)
+	for slot in [EditorContextMenuPlugin.CONTEXT_SLOT_FILESYSTEM, EditorContextMenuPlugin.CONTEXT_SLOT_SCENE_TREE, EditorContextMenuPlugin.CONTEXT_SLOT_SCRIPT_EDITOR_CODE]:
+		var menu := AskAgentMenu.new(slot)
+		menu.ask = _ask_agent
+		_plugin.add_context_menu_plugin(slot, menu)
+		_ask_menus.append(menu)
 
 
 func _exit_tree() -> void:
@@ -396,6 +442,9 @@ func _exit_tree() -> void:
 	if _inline_menu:
 		_plugin.remove_context_menu_plugin(_inline_menu)
 		_inline_menu = null
+	for menu in _ask_menus:
+		_plugin.remove_context_menu_plugin(menu)
+	_ask_menus.clear()
 	if _inline_edit:
 		remove_child(_inline_edit)
 		_inline_edit.queue_free()
@@ -467,6 +516,10 @@ func _exit_tree() -> void:
 		_map_tools.wait()
 		_map_tools = null
 	_registry = null
+	_project_tools = null
+	var filesystem := EditorInterface.get_resource_filesystem()
+	if filesystem and filesystem.filesystem_changed.is_connected(_on_project_tools_changed):
+		filesystem.filesystem_changed.disconnect(_on_project_tools_changed)
 	_diagnostics = null
 	if _profile_tools:
 		_profile_tools.shutdown()
@@ -489,6 +542,9 @@ func _exit_tree() -> void:
 	if _surfaces:
 		_surfaces.remove_all()
 		_surfaces = null
+	# Lo que siga vivo de cualquier dueño (una terminal, un hook, un build, un objeto que se libera
+	# recién en el cierre): sin esto quedaban huérfanos el agente y sus hijos (npx → node).
+	AgentProcess.stop_all()
 
 
 ## El EditorDebuggerNode del editor (clase interna, sin API): emite breakpoint_toggled(path, line, enabled)
@@ -511,6 +567,79 @@ func _on_game_breaked() -> void:
 
 ## Un run manual paró con un error (m11-55): aviso en la pestaña activa con el error, la pila plegada
 ## y «Arreglar con el agente». Nada se manda hasta que el usuario lo aprieta.
+## Un guardado del editor (m11-24): es del agente si una tool suya está corriendo.
+func _on_saved_for_hooks(res_path: String) -> void:
+	if _hooks and res_path.begins_with("res://"):
+		var by := ProjectHooks.BY_AGENT if _registry and _registry.running_calls > 0 else ProjectHooks.BY_USER
+		_hooks.fire({"event": ProjectHooks.EVENT_SAVED, "path": res_path, "by": by})
+
+
+## Lo que escriben las file tools y fs/write del agente: el editor lo relee, y para los hooks es un
+## guardado del agente.
+func _after_agent_write(abs_path: String, old_text: String = "", new_text: String = "") -> void:
+	if _sync:
+		_sync.after_agent_write(abs_path, old_text, new_text)
+	var res_path := EditorContext.to_res_path(abs_path)
+	if _hooks and not res_path.is_empty() and res_path.get_extension() in ["tscn", "scn", "gd", "cs", "gdshader", "tres", "res"]:
+		_hooks.fire({"event": ProjectHooks.EVENT_SAVED, "path": res_path, "by": ProjectHooks.BY_AGENT})
+
+
+## Un hook del proyecto sin aprobar en esta máquina (m11-24): aviso en la pestaña activa con «Aprobar…».
+func _on_hook_held(hook: Dictionary, key: String) -> void:
+	var model := _model_of(_active_session_id())
+	if model == null:
+		return
+	var item := {"name": str(hook.name), "command": "%s → %s: %s" % [hook.event, hook.action, ProjectHooks.describe_action(hook)], "key": key}
+	model.add_notice(I18n.t("Project hook «%s» is not approved on this machine, so it didn't run. It comes with the project's settings and runs on its own when its event happens.") % hook.name,
+		ChatEntry.NoticeLevel.WARNING, [{"id": SessionController.ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve «%s»…") % hook.name,
+			"data": MachineApproval.request(MachineApproval.KIND_HOOK, [item]), "tooltip": I18n.t("See what the hook runs and allow it on this machine.")}])
+
+
+## Las acciones de un hook que no son un comando (m11-24): `{ok, output}` para el log.
+func _run_hook_action(hook: Dictionary, event: Dictionary) -> Dictionary:
+	match str(hook.action):
+		ProjectHooks.ACTION_TOOL:
+			var args: Dictionary = hook.args
+			var group := _registry.tool_group(str(hook.tool), args) if _registry else ""
+			if group.is_empty():
+				return {"ok": false, "output": "There is no tool godot.%s." % hook.tool}
+			if not group in ProjectHooks.TOOL_GROUPS:
+				return {"ok": false, "output": "godot.%s is in the «%s» group: a hook only runs tools that read, check or run the game (%s)." % [hook.tool, group, ", ".join(ProjectHooks.TOOL_GROUPS)]}
+			var text: String = await _registry.run_for_user(str(hook.tool), args)
+			return {"ok": true, "output": text}
+		ProjectHooks.ACTION_PROMPT:
+			return _hook_prompt(hook, event)
+	return {"ok": false, "output": "Unknown action."}
+
+
+## Un hook de prompt: por defecto, un aviso con «Send to the agent»; con auto_send, se manda solo hasta
+## MAX_AUTO_PROMPTS seguidos sin un mensaje del usuario. Nunca en One-shot.
+func _hook_prompt(hook: Dictionary, event: Dictionary) -> Dictionary:
+	var dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
+	var model := _model_of(_tabs.active_id()) if _tabs else null
+	if dock == null or model == null:
+		return {"ok": false, "output": "No session tab."}
+	if model.harness_mode == SessionModel.HarnessMode.ONESHOT:
+		return {"ok": false, "output": "Not sent: the active tab is in One-shot."}
+	var text := ProjectHooks.prompt_text(hook, event)
+	if bool(hook.auto_send) and _hook_prompts_in_row < ProjectHooks.MAX_AUTO_PROMPTS:
+		_hook_prompts_in_row += 1
+		dock.send_text(text, HarnessPrompts.HOOK)
+		return {"ok": true, "output": "Sent to the agent."}
+	var capped := bool(hook.auto_send)
+	var body := str(hook.prompt) + ("\n" + str(event.path) if not str(event.get("path", "")).is_empty() else "")
+	if capped:
+		body += "\n\n" + I18n.t("Not sent on its own: hooks already sent %d prompts in a row without a message from you.") % ProjectHooks.MAX_AUTO_PROMPTS
+	var entry := model.add_notice(body, ChatEntry.NoticeLevel.INFO, [{"id": ACTION_SEND_HOOK_PROMPT, "label": I18n.t("Send to the agent"), "primary": true, "data": text}])
+	entry.title = I18n.t("Project hook «%s»") % hook.name
+	model.notify_entry_changed(entry)
+	return {"ok": true, "output": "Notice with «Send to the agent»%s." % (" (auto_send capped)" if capped else "")}
+
+
+func _on_hook_failed(hook: Dictionary, _result: Dictionary) -> void:
+	EditorInterface.get_editor_toaster().push_toast(I18n.t("Project hook «%s» failed. Its output is in the Agent Log.") % hook.name, EditorToaster.SEVERITY_WARNING)
+
+
 func _on_run_error(info: Dictionary) -> void:
 	var model := _model_of(_tabs.active_id()) if _tabs else _model
 	if model == null:
@@ -713,8 +842,21 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_run_regressions(int(payload) if payload is int else 1)
 		AgentDock.ACTION_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(false)
+		AgentDock.ACTION_MEASURE_REGRESSIONS:
+			_measure_regressions()
+		ACTION_CANCEL_MUTATION:
+			if _mutation:
+				_mutation.cancel()
+		ACTION_OPEN_MUTANT:
+			var where := str(payload)
+			EditorContext.open_location(where.get_slice("#", 0), where.get_slice("#", 1).to_int())
 		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(true)
+		ACTION_SEND_HOOK_PROMPT:
+			var hook_dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
+			if hook_dock:
+				_hook_prompts_in_row = 0
+				hook_dock.send_text(str(payload), HarnessPrompts.HOOK)
 		ACTION_FIX_RUN_ERROR:
 			var dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
 			if dock:
@@ -746,6 +888,45 @@ func _run_regressions(repeat: int = 1) -> void:
 	else:
 		var head := I18n.t("Regressions: %d of %d fail.") % [summary.failed, results.size()] if summary.flaky == 0 else I18n.t("Regressions: %d of %d fail, %d flaky.") % [summary.failed, results.size(), summary.flaky]
 		_model.add_notice("%s\n%s" % [head, summary.details], ChatEntry.NoticeLevel.ERROR)
+
+
+## «Medir regresiones» (m11-41): mutantes del código del juego, cada uno en un Godot headless aparte y
+## solo en su memoria. El progreso va en un aviso con «Cancelar» y el resultado, con el puntaje, los
+## que no se detectaron (con «Abrir») y cuántos atrapó cada regresión, en otro; queda en mutation.json.
+func _measure_regressions() -> void:
+	if _mutation:
+		_model.add_notice(I18n.t("The regressions are already being measured."), ChatEntry.NoticeLevel.INFO)
+		return
+	var entries := PlaytestRegressions.new().list()
+	var progress := _model.add_notice(I18n.t("Measuring the regressions: first they run without mutants…"), ChatEntry.NoticeLevel.INFO,
+		[{"id": ACTION_CANCEL_MUTATION, "label": I18n.t("Cancel")}])
+	_mutation = MutationTesting.new()
+	_mutation.on_progress = func(done: int, total: int, _mutant: Dictionary) -> void:
+		progress.text = I18n.t("Measuring the regressions: mutant %d of %d…") % [done, total]
+		_model.notify_entry_changed(progress)
+	var result := await _mutation.run(entries)
+	_mutation = null
+	progress.actions = []
+	if not result.ok:
+		progress.text = I18n.t(str(result.error))
+		progress.level = ChatEntry.NoticeLevel.INFO if result.get("cancelled", false) else ChatEntry.NoticeLevel.WARNING
+		_model.notify_entry_changed(progress)
+		return
+	var file := FileAccess.open(MutationTesting.RESULT_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(result, "\t"))
+		file.close()
+	var goals := {}
+	for entry: Dictionary in entries:
+		goals[str(entry.get("file", ""))] = str(entry.get("goal", ""))
+	var notice := MutationTesting.notice(result, goals, Callable(I18n, &"t"))
+	for survivor: Dictionary in notice.survivors:
+		progress.actions.append({"id": ACTION_OPEN_MUTANT, "label": I18n.t("Open %s:%d") % [str(survivor.path).get_file(), int(survivor.line)], "data": "%s#%d" % [survivor.path, int(survivor.line)]})
+	progress.title = notice.title
+	progress.text = notice.text
+	progress.sections.assign(notice.sections)
+	progress.level = ChatEntry.NoticeLevel.WARNING if notice.level_warning else ChatEntry.NoticeLevel.INFO
+	_model.notify_entry_changed(progress)
 
 
 ## El workflow de CI que corre las regresiones grabadas (m16-10). Uno que ya existe no se pisa:
@@ -890,7 +1071,7 @@ func _start_mcp_server() -> void:
 	asset_tools.store = _asset_store()
 	registry.register_provider(asset_tools, true)
 	var file_tools := FileTools.new()
-	file_tools.on_file_written = _sync.after_agent_write
+	file_tools.on_file_written = _after_agent_write
 	file_tools.unsaved_buffer = _sync.buffer_text
 	registry.register_provider(file_tools, true)
 	registry.register_provider(ResourceTools.new(), true)
@@ -914,6 +1095,15 @@ func _start_mcp_server() -> void:
 	_run_errors.still_breaked = func() -> bool: return _playtest_debugger != null and _playtest_debugger.any_breaked()
 	_run_errors.enabled = func() -> bool: return _settings != null and _settings.offer_fix_on_run_error()
 	_run_errors.error_found.connect(_on_run_error)
+	_run_tools.regressions_finished.connect(func(results: Array) -> void:
+		if _hooks:
+			var failed := results.filter(func(result: Dictionary) -> bool: return not result.passed and not result.get("flaky", false))
+			var lines := PackedStringArray(failed.map(func(result: Dictionary) -> String: return "✗ " + str(result.get("goal", ""))))
+			_hooks.fire({"event": ProjectHooks.EVENT_REGRESSIONS, "path": "", "by": ProjectHooks.BY_AGENT if _registry and _registry.running_calls > 0 else ProjectHooks.BY_USER,
+				"errors": failed.size(), "lines": lines}))
+	_run_errors.game_ended.connect(func(info: Dictionary) -> void:
+		if _hooks:
+			_hooks.fire({"event": ProjectHooks.EVENT_GAME_STOPPED, "path": "", "by": info.by, "errors": info.count, "lines": info.lines}))
 	# Después de run_tools.setup: cuando llega la señal, run_tools ya decidió quién lanzó el run.
 	_playtest_debugger.session_started.connect(_run_errors.on_game_started)
 	_playtest_debugger.session_breaked.connect(_on_game_breaked)
@@ -937,6 +1127,20 @@ func _start_mcp_server() -> void:
 	session_tools.describe = _describe_sessions
 	session_tools.send = _send_to_session
 	registry.register_provider(session_tools, true)
+	_project_tools = ProjectToolLoader.new()
+	_project_tools.dir = ProjectToolLoader.resolve_dir(_project_config.project_tools_dir)
+	# La carpeta del proyecto del editor, no la de una copia aparte: la clave es la misma en las dos.
+	_project_tools.project_dir = ProjectSettings.globalize_path("res://")
+	_project_tools.is_approved = _settings.is_command_approved
+	# Lambdas que capturan el plugin, no el registro: el registro guarda el loader.
+	_project_tools.reserved = func(tool_name: String) -> bool: return _registry != null and _registry.is_builtin(tool_name)
+	_project_tools.log_line = func(text: String) -> void: _log.add(AgentLog.CH_MCP, text)
+	_project_tools.undo_redo = EditorInterface.get_editor_undo_redo()
+	registry.project_tools = _project_tools
+	_project_tools.changed.connect(_on_project_tools_changed)
+	var filesystem := EditorInterface.get_resource_filesystem()
+	if not filesystem.filesystem_changed.is_connected(_on_project_tools_changed):
+		filesystem.filesystem_changed.connect(_on_project_tools_changed)
 	_mcp_server = McpServer.new()
 	_mcp_server.registry = registry
 	_mcp_server.agent_log = _log
@@ -977,6 +1181,7 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 		for secret: String in ExternalMcpServers.secret_values(server):
 			_log.add_secret(secret)
 		result.append(entry)
+	_announce_held_tools([model], true)
 	if not held.is_empty():
 		# m13-31: un server del proyecto sin aprobar no corre, y no en silencio: la primera vez el aviso
 		# explica el cambio (un proyecto que ya los usaba los pierde al actualizar).
@@ -986,6 +1191,30 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 		_log.add(AgentLog.CH_MCP, "project MCP servers not approved on this machine, left out: %s" % ", ".join(PackedStringArray(held.map(func(item: Dictionary) -> String: return item.name))))
 		model.add_notice(notice.text, ChatEntry.NoticeLevel.WARNING, notice.actions)
 	return result
+
+
+## Algo cambió en el filesystem: una tool del proyecto nueva o editada (también por el agente) queda
+## frenada, y se avisa una vez en todas las pestañas (m11-46).
+func _on_project_tools_changed() -> void:
+	if _project_tools != null:
+		_announce_held_tools(_models(), false)
+
+
+## El aviso de las tools del proyecto sin aprobar. `all`: todas (al empezar una sesión); si no, solo
+## las que no se avisaron todavía.
+func _announce_held_tools(models: Array, all: bool) -> void:
+	if _project_tools == null:
+		return
+	_project_tools.refresh()
+	var held: Array = _project_tools.held().filter(func(item: Dictionary) -> bool: return all or not _tools_announced.has(item.key))
+	if held.is_empty():
+		return
+	for item: Dictionary in held:
+		_tools_announced[item.key] = true
+	_log.add(AgentLog.CH_MCP, "project tools not approved on this machine: %s" % ", ".join(PackedStringArray(held.map(func(item: Dictionary) -> String: return item.name))))
+	var notice := SessionController.held_tools_notice(held)
+	for model: SessionModel in models:
+		model.add_notice(notice.text, ChatEntry.NoticeLevel.WARNING, notice.actions)
 
 
 ## Servers de terceros del usuario y del proyecto (si se llaman igual, gana el del proyecto). Uno del
@@ -1012,6 +1241,7 @@ func _prompt_variables() -> Dictionary:
 		"project_name": str(ProjectSettings.get_setting("application/config/name", "")),
 		"project_path": EditorContext.project_path(),
 		"godot_version": Engine.get_version_info().string,
+		"project_tools_dir": ProjectToolLoader.resolve_dir(_project_config.project_tools_dir),
 	}
 
 
@@ -1192,6 +1422,10 @@ func _get_extensions_window() -> ExtensionsWindow:
 	_extensions_window.tools_catalog_provider = func() -> Array[Dictionary]: return _registry.catalog() if _registry else ([] as Array[Dictionary])
 	_extensions_window.tools_policy_provider = func() -> PermissionPolicy: return PermissionPolicy.new(_project_config.permissions if _project_config else {})
 	_extensions_window.tools_compact_provider = func() -> bool: return _project_config != null and _project_config.compact_tools
+	_extensions_window.tools_approve = func(data: Dictionary) -> void:
+		var dock: Control = _tabs.dock(PRIMARY_SESSION) if _tabs else null
+		if is_instance_valid(dock):
+			(dock as AgentDock).confirm_on_machine(data)
 	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
 		return _active_adapter().kind == ClaudeExtensions.AGENT_CLAUDE
@@ -1226,6 +1460,7 @@ func _on_settings_saved() -> void:
 	_registry.max_output_chars = _project_config.max_output_chars
 	_registry.max_image_side = _project_config.max_image_side
 	_registry.compact = _project_config.compact_tools
+	_project_tools.dir = ProjectToolLoader.resolve_dir(_project_config.project_tools_dir)
 	_run_tools.max_image_side = _project_config.max_image_side
 	_main_screen.call(&"set_defaults", _oneshot_defaults())
 	_oneshot.loops.repeats = _project_config.loop_repeats
@@ -1467,6 +1702,15 @@ func _start_inline_session() -> bool:
 	return controller != null and controller.is_connected_to_agent()
 
 
+## «Preguntar al agente» (m11-54): lo elegido va al composer de la pestaña activa, sin mandarlo.
+func _ask_agent(text: String) -> void:
+	var dock := _tabs.dock(_active_session_id()) as AgentDock if _tabs else null
+	if dock == null:
+		return
+	_surfaces.make_visible(EditorSurfaces.EditorSurface.SIDE)
+	dock.add_to_composer(text)
+
+
 func _remove_playtest_autoload() -> void:
 	PlaytestAutoload.unregister(_plugin)
 
@@ -1497,7 +1741,7 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	fs.extra_roots = _project_config.extra_fs_roots
 	if copy == null:  # en una copia (m11-09) no hay buffers del editor que sincronizar
 		fs.buffer_reader = _sync.buffer_text
-		fs.after_write = _sync.after_agent_write
+		fs.after_write = _after_agent_write
 	controller.set_fs_handler(fs)
 	var terminal := TerminalHandler.new()
 	terminal.setup(root, _log)
@@ -1531,6 +1775,11 @@ func _turn_checks_info() -> Dictionary:
 
 
 func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:
+	controller.mode_models = ModeModels.new(_settings)  # el modelo de cada modo, por perfil (m11-38)
+	# Un mensaje del usuario (sin etiqueta del harness) vuelve a habilitar los prompts de hooks (m11-24).
+	model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER and entry.harness_label.is_empty():
+			_hook_prompts_in_row = 0)
 	# El contador vivo (m11-34): el turno empieza al pasar a PROMPTING y cada tool call terminada
 	# pide recalcular.
 	model.state_changed.connect(func(state: SessionModel.SessionState) -> void:

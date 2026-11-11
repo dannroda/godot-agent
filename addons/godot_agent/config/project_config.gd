@@ -36,6 +36,8 @@ const ShellRules := preload("../session/shell_rules.gd")
 ## MCP servers de terceros para el agente en este proyecto (m7-34): ver mcp/external_mcp_servers.gd.
 ## Los secretos van como $VARIABLE del entorno.
 @export var mcp_servers: Array = []
+## Carpeta de las tools propias del proyecto (m11-46): cada <nombre>.gd es godot.<nombre>.
+@export var project_tools_dir: String = "res://agent_tools"
 @export_range(1000, 200000, 1000) var max_output_chars: int = 20000
 @export_range(256, 4096, 16, "suffix:px") var max_image_side: int = 1280
 ## Correr el autoload de playtest también en los runs manuales del usuario.
@@ -51,6 +53,9 @@ const ShellRules := preload("../session/shell_rules.gd")
 @export var turn_checks: Array = []
 ## Carpeta de las recetas del proyecto (m11-30): un .json por receta, versionable. Ver core/recipes.gd.
 @export var recipes_dir: String = "res://agent_recipes"
+## Hooks del proyecto en eventos del editor (m11-24): una escena o un script guardados, un juego que
+## termina (ver core/project_hooks.gd). Un hook corre solo si se aprobó su definición en esta máquina.
+@export var hooks: Array = []
 ## Guardar un snapshot de git del proyecto al empezar y al terminar cada turno de Construir o Auto,
 ## para ver qué cambió y volver atrás (m11-01). Sin git, no hace nada.
 @export var turn_snapshots: bool = true

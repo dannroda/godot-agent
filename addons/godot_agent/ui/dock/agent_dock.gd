@@ -28,6 +28,7 @@ signal action_forwarded(action: String, payload: Variant)
 ## borrador en su composer. `handoff` como Handoff.build (más `path` si se guardó).
 signal handoff_ready(handoff: Dictionary)
 
+const SessionExportDialog := preload("session_export_dialog.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const FirstRunGuide := preload("first_run_guide.gd")
@@ -75,6 +76,7 @@ const MORE_SETTINGS := 1
 const MORE_REMOTE := 2
 const MORE_LOGOUT := 3
 const MORE_TOOLS := 4
+const MORE_EXPORT := 5
 ## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
 const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
@@ -124,6 +126,7 @@ const ACTION_REVIEW_FOCUS := "review_focus"
 const ACTION_REVIEW_FIX_ALL := "review_fix_all"
 const ACTION_RUN_REGRESSIONS := SessionController.ACTION_RUN_REGRESSIONS
 const ACTION_REGRESSIONS_WORKFLOW := SessionController.ACTION_REGRESSIONS_WORKFLOW
+const ACTION_MEASURE_REGRESSIONS := "measure_regressions"
 ## Un link a .godot_agent/oneshot/… (spec, progreso, QA): lo muestra la pantalla One-shot.
 const ACTION_OPEN_RUN_FILE := "open_run_file"
 ## Tooltips de los botones de modo (las reglas que lee el agente están en SessionController.MODE_RULES).
@@ -220,6 +223,9 @@ var _handoff_banner_label: Label
 var _handoff_running: bool = false
 ## Los tool calls de compactación ya avisados (tool_call_changed llega varias veces por cada uno).
 var _compactions_noticed: Dictionary = {}
+## Filas de compactación que esperan el fin del turno para ofrecer el traspaso (m11-60): una
+## compactación que el agente hace en medio de un turno no corta el flujo.
+var _compaction_offers: Array[ChatEntry] = []
 var _handoff_offer: HFlowContainer
 var _handoff_offer_label: Label
 var _handoff_others: MenuButton
@@ -332,7 +338,9 @@ func _ready() -> void:
 	_composer.remember_available = true
 	_composer.cancel_requested.connect(_on_cancel_requested)
 	_controller.reject_feedback.connect(_on_reject_feedback)
-	_composer.model_selected.connect(func(value: String) -> void: _controller.set_config_option("model", value))
+	_composer.model_selected.connect(func(value: String) -> void:
+		await _controller.choose_model(value)
+		_refresh_model_option())  # ya recordado: el tooltip lo dice
 	_build_mode_selector()
 	_composer.screenshot_requested.connect(_on_screenshot_requested)
 	_composer.image_pasted.connect(func(image: Image) -> void: attach_image(image, I18n.t("pasted image")))
@@ -427,14 +435,19 @@ func _ready() -> void:
 	_model.state_changed.connect(func(_state: SessionModel.SessionState) -> void: _refresh_handoff_banner())
 	_model.entries_cleared.connect(func() -> void:
 		_context_watch.reset()
-		_compactions_noticed.clear())
+		_compactions_noticed.clear()
+		_compaction_offers.clear())
 	_model.tool_call_changed.connect(_on_tool_call_for_compaction)
+	_model.compaction_changed.connect(_on_compaction_changed)
+	_model.turn_finished.connect(func(_reason: String) -> void: _offer_handoff_after_compaction())
 	_model.usage_changed.connect(func(used: int, total: int) -> void:
 		if _quota_ring:
 			_quota_ring.set_context(used, total))
 	_model.commands_changed.connect(_composer.set_commands)
-	_model.config_options_changed.connect(func(_options: Array) -> void: _composer.set_model_option(_model.config_option("model")))
-	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void: _refresh_modes())
+	_model.config_options_changed.connect(func(_options: Array) -> void: _refresh_model_option())
+	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void:
+		_refresh_modes()
+		_refresh_model_option())
 	_model.entries_cleared.connect(_refresh_state)
 	_model.entries_cleared.connect(func() -> void: _queue.pause(I18n.t("another session started")))
 	_model.entry_added.connect(func(_entry: ChatEntry) -> void: _refresh_empty_state())
@@ -445,7 +458,7 @@ func _ready() -> void:
 	_refresh_title()
 	_composer.set_usage(_model.usage_used, _model.usage_size)
 	_quota_ring.set_context(_model.usage_used, _model.usage_size)
-	_composer.set_model_option(_model.config_option("model"))
+	_refresh_model_option()
 	_refresh_chips()
 	refresh_export_banner()
 
@@ -642,6 +655,9 @@ func _fill_more_menu() -> void:
 	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
 	popup.add_icon_item(AgentTheme.icon(&"Help"), I18n.t("What the agent can do (tools)…"), MORE_TOOLS)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("The editor tools the agent has, by function, with what each asks for in each mode."))
+	popup.add_icon_item(AgentTheme.icon(&"Save"), I18n.t("Export session…"), MORE_EXPORT)
+	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Saves this conversation as Markdown with its game captures, to share. You see a preview and choose what to take out first."))
+	popup.set_item_disabled(popup.item_count - 1, _model.entries().is_empty())
 	var ready := _model.state == SessionModel.SessionState.READY
 	if _remote_banner.can_turn_on() or _can_logout():
 		popup.add_separator()
@@ -667,6 +683,41 @@ func _on_more_selected(id: int) -> void:
 			_remote_banner.turn_on()
 		MORE_LOGOUT:
 			_confirm_logout()
+		MORE_EXPORT:
+			open_export_dialog()
+
+
+## «Export session…» (m11-32): la vista previa con qué sacar; al guardar, avisa y abre la carpeta.
+func open_export_dialog() -> SessionExportDialog:
+	var dialog := SessionExportDialog.new()
+	add_child(dialog)
+	dialog.setup(_model, export_context())
+	dialog.saved.connect(func(path: String) -> void:
+		if path.is_empty():
+			_model.add_notice(I18n.t("Could not save the export in %s.") % SessionExportDialog.SessionExport.DIR, ChatEntry.NoticeLevel.ERROR)
+			return
+		_model.add_notice(I18n.t("Session exported to %s.") % path.get_base_dir())
+		if not DisplayServer.get_name() == "headless":
+			OS.shell_show_in_file_manager(ProjectSettings.globalize_path(path)))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free())
+	dialog.popup_centered()
+	return dialog
+
+
+## Lo que el export necesita para sacar datos personales: rutas del proyecto y de la carpeta
+## personal, el email de la cuenta y los secretos del Agent Log.
+func export_context() -> Dictionary:
+	var project := str(ProjectSettings.get_setting("application/config/name", "")).strip_edges()
+	var title := _model.title if not _model.title.is_empty() else I18n.t("(untitled)")
+	var home := OS.get_environment("HOME") if OS.has_environment("HOME") else OS.get_environment("USERPROFILE")
+	var emails := PackedStringArray()
+	if not str(_model.account.get("email", "")).is_empty():
+		emails.append(str(_model.account.email))
+	return {"title": "%s · %s · %s" % [title, project if not project.is_empty() else "Godot", Time.get_date_string_from_system()],
+		"project": ProjectSettings.globalize_path("res://"), "home": home, "emails": emails,
+		"redact": _controller.agent_log.redact if _controller and _controller.agent_log else Callable()}
 
 
 func _confirm_logout() -> void:
@@ -750,6 +801,7 @@ func _build_review_panel() -> void:
 	_review_panel.fix_all_requested.connect(func() -> void: action_forwarded.emit(ACTION_REVIEW_FIX_ALL, null))
 	_review_panel.regressions_requested.connect(func(repeat: int) -> void: action_forwarded.emit(ACTION_RUN_REGRESSIONS, repeat))
 	_review_panel.ci_workflow_requested.connect(func() -> void: action_forwarded.emit(ACTION_REGRESSIONS_WORKFLOW, null))
+	_review_panel.measure_requested.connect(func() -> void: action_forwarded.emit(ACTION_MEASURE_REGRESSIONS, null))
 	_review_panel.notice_requested.connect(func(text: String, level: ChatEntry.NoticeLevel) -> void: _model.add_notice(text, level))
 	_review_panel.prompt_requested.connect(func(text: String) -> void: _on_submitted(_controller.label_prompt(text, HarnessPrompts.REVIEW_PLAYTEST)))
 	add_child(_review_panel)
@@ -1577,6 +1629,16 @@ func _on_reject_feedback(text: String) -> void:
 
 ## «Aprobar…» de lo que trae el proyecto (m11-31 checks, m13-31 MCP servers): muestra cada comando
 ## exacto antes de permitirlo en esta máquina. Un solo diálogo para los dos.
+## «Aprobar…» desde fuera del chat (la pestaña Tools de Extensiones, m11-46).
+func confirm_on_machine(data: Dictionary) -> void:
+	_confirm_on_machine(data)
+
+
+## El selector de modelo con el tooltip del modo para el que se recuerda (m11-38).
+func _refresh_model_option() -> void:
+	_composer.set_model_option(_model.model_option(), _controller.model_tooltip())
+
+
 func _confirm_on_machine(data: Dictionary) -> void:
 	var items: Array = data.get("items", [])
 	if items.is_empty():
@@ -1588,7 +1650,28 @@ func _confirm_on_machine(data: Dictionary) -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.ok_button_text = I18n.t("Allow on this machine")
 	dialog.dialog_autowrap = true
-	if data.get("kind") == MachineApproval.KIND_MCP:
+	if data.get("kind") == MachineApproval.KIND_TOOL:
+		dialog.title = I18n.t("Approve project tools")
+		# El texto y el código en un cuadro con scroll: en dialog_text, 40 líneas por tool lo sacan de la
+		# pantalla (y un hijo del diálogo se superpone a su label, así que va todo en el hijo).
+		var box := VBoxContainer.new()
+		var intro := Label.new()
+		intro.text = I18n.t("These tools are GDScript files in the project. When the agent calls one (asking first, by the Project tools permission), its code runs inside this editor with full access to the project and the computer. Allow them only if you trust the code below; if a tool or a script next to it changes, it asks again.")
+		intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(intro)
+		var code := TextEdit.new()
+		code.name = "Code"
+		code.text = listing
+		code.editable = false
+		code.add_theme_font_override(&"font", AgentTheme.mono_font())
+		code.custom_minimum_size = Vector2(AgentTheme.px(560), AgentTheme.px(260))
+		code.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		box.add_child(code)
+		dialog.add_child(box)
+	elif data.get("kind") == MachineApproval.KIND_HOOK:
+		dialog.title = I18n.t("Approve a project hook")
+		dialog.dialog_text = I18n.t("This hook comes with the project's settings (addons/godot_agent/config/project_config.tres). It runs on its own, on this computer, every time its event happens:\n\n%s\n\nAllow it only if you trust it. If the hook changes, it asks again.") % listing
+	elif data.get("kind") == MachineApproval.KIND_MCP:
 		dialog.title = I18n.t("Approve project MCP servers")
 		dialog.dialog_text = I18n.t("These MCP servers come with the project's settings (addons/godot_agent/config/project_config.tres). When a session starts, the agent launches each command on this computer (or connects to the URL):\n\n%s\n\nAllow them only if you trust them. If one changes, it asks again.") % listing
 	else:
@@ -1616,6 +1699,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 				start_session()
 		SessionController.ACTION_SHOW_LOG:
 			show_log_requested.emit(int(payload) if payload is int else 0)
+		SessionController.ACTION_CHOOSE_MODEL:
+			_composer.open_model_selector()
 		SessionController.ACTION_PLAY_FILM:
 			if not FlipbookDialog.open(str(payload), self):
 				_model.add_notice(I18n.t("The recording isn't there any more."), ChatEntry.NoticeLevel.WARNING)
@@ -1877,6 +1962,11 @@ static func _mime_type(path: String) -> String:
 
 
 ## Adjunta `image` al próximo prompt (achicada a EditorContext.MAX_IMAGE_SIDE).
+## Pone `text` donde está el caret del composer, para seguir escribiendo (m11-54: «Preguntar al agente»).
+func add_to_composer(text: String) -> void:
+	_composer.insert_at_caret(text)
+
+
 func attach_image(image: Image, label: String, tooltip: String = "") -> void:
 	if not (_model.session_id.is_empty() or _model.supports_image()):
 		_model.add_notice(I18n.t("The agent does not accept images"), ChatEntry.NoticeLevel.WARNING)
@@ -1988,7 +2078,7 @@ func refresh_export_banner() -> void:
 	if _export_banner.visible:
 		_export_banner_label.text = (
 			I18n.t("The export presets %s do not exclude '%s'. If you export with the plugin disabled, the addon ends up in the game.")
-			% [", ".join(missing), ExportPresetsPatcher.FILTER]
+			% [", ".join(missing), ExportPresetsPatcher.filters_text()]
 		)
 
 
@@ -2007,7 +2097,7 @@ func _on_add_filter_pressed() -> void:
 	var missing := ExportPresetsPatcher.presets_missing_filter()
 	_confirm_dialog.dialog_text = (
 		I18n.t("'%s' will be added to the exclude filter of these presets:\n\n• %s\n\nThis modifies %s.")
-		% [ExportPresetsPatcher.FILTER, "\n• ".join(missing), ExportPresetsPatcher.PRESETS_PATH]
+		% [ExportPresetsPatcher.filters_text(), "\n• ".join(missing), ExportPresetsPatcher.PRESETS_PATH]
 	)
 	_confirm_dialog.popup_centered()
 
@@ -2133,9 +2223,33 @@ func _on_tool_call_for_compaction(call: SessionModel.ToolCall, _group: ChatEntry
 	if _compactions_noticed.has(call.id) or not call.parent_id.is_empty() or not ContextWatch.is_compaction_call(call.title, call.tool_name):
 		return
 	_compactions_noticed[call.id] = true
-	var entry := _model.add_notice(I18n.t("The agent compacted the conversation: from here on it works with a summary and may forget details. You can continue in a new session with a summary written now."))
-	entry.actions = [{"id": ACTION_HANDOFF, "label": I18n.t("New session with a summary")}]
-	_model.notify_entry_changed(entry)
+	_queue_compaction_offer(_model.add_notice(I18n.t("The agent compacted the conversation: from here on it works with a summary and may forget details. You can continue in a new session with a summary written now.")))
+
+
+## compaction_update (m11-60): la fila la arma el modelo; acá solo se ofrece el traspaso cuando terminó.
+## Al reabrir del historial no se ofrece: es una compactación vieja.
+func _on_compaction_changed(entry: ChatEntry, status: String) -> void:
+	if status == "completed" and not _model.replaying:
+		_queue_compaction_offer(entry)
+
+
+## La acción va recién al terminar el turno; fuera de un turno (el adapter compacta solo cuando la
+## sesión está quieta), enseguida.
+func _queue_compaction_offer(entry: ChatEntry) -> void:
+	if not entry in _compaction_offers:
+		_compaction_offers.append(entry)
+	if not _model.is_busy():
+		_offer_handoff_after_compaction()
+
+
+func _offer_handoff_after_compaction() -> void:
+	if _model.replaying:
+		return
+	for entry: ChatEntry in _compaction_offers:
+		if entry.actions.is_empty():
+			entry.actions = [{"id": ACTION_HANDOFF, "label": I18n.t("New session with a summary")}]
+			_model.notify_entry_changed(entry)
+	_compaction_offers.clear()
 
 
 func _build_handoff_offer() -> void:

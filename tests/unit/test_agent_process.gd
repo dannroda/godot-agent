@@ -3,6 +3,7 @@ extends "test_case.gd"
 ## línea, y que recargar el script con el proceso corriendo no tire el editor (D35: sin threads).
 
 const AgentProcess := preload("res://addons/godot_agent/transport/agent_process.gd")
+const ProcessTree := preload("res://addons/godot_agent/transport/process_tree.gd")
 const SCRIPT_PATH := "res://addons/godot_agent/transport/agent_process.gd"
 const TIMEOUT_MS := 8000
 
@@ -57,6 +58,30 @@ func test_send_line_and_stop() -> void:
 	for i in 5:
 		await _tree().process_frame
 	assert_eq(exits, [] as Array[int], "stop no emite exited")
+
+
+## Al cerrar el editor, el plugin termina con stop_all() lo que sigue vivo de cualquier dueño, con
+## sus hijos (npx → node); un proceso que terminó solo o que se liberó ya no está en la lista.
+func test_stop_all() -> void:
+	var before := AgentProcess.live_count()
+	var held := AgentProcess.new()
+	assert_true(held.start("sh", ["-c", "sleep 60 & wait"]), "arranca con un hijo")
+	var pid := held.pid()
+	assert_true(await _wait_until(func() -> bool: return not ProcessTree.descendants(pid).is_empty()), "el hijo arrancó")
+	var child := ProcessTree.descendants(pid)[0]
+	var done := AgentProcess.new()
+	assert_true(done.start("sh", ["-c", "exit 0"]), "arranca uno que termina solo")
+	var dropped := AgentProcess.new()
+	assert_true(dropped.start("sleep", ["60"]), "arranca uno que se suelta")
+	var dropped_pid := dropped.pid()
+	assert_eq(AgentProcess.live_count(), before + 3, "los tres registrados")
+	dropped = null
+	assert_false(ProcessTree.is_alive(dropped_pid) and OS.is_process_running(dropped_pid), "soltarlo lo mata")
+	assert_true(await _wait_until(func() -> bool: return AgentProcess.live_count() == before + 1), "el que terminó y el soltado salen de la lista")
+	AgentProcess.stop_all()
+	assert_false(held.is_running(), "stop_all mata al que sigue vivo")
+	assert_true(await _wait_until(func() -> bool: return not ProcessTree.is_alive(child)), "y a su hijo")
+	assert_eq(AgentProcess.live_count(), 0, "la lista queda vacía")
 
 
 ## Lo que tiró el editor (2026-10-22): un script del addon cambió en disco con el agente corriendo

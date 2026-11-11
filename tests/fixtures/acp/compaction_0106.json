@@ -1,0 +1,91 @@
+{
+	"_about": "Captured from claude-agent-acp 0.106.0 (Claude Code, haiku) on 2026-11-11 with a small ACP probe (m11-60): a client that announces clientCapabilities.session.compaction, one short turn, then the prompt \"/compact\". `live` is every compaction_update during that prompt, in order (in_progress, completed with the summary, then completed again without it); `compact_prompt_result` is the answer to the /compact prompt (usage, without _meta). `load_replay` is what session/load replays later, in order, without available_commands_update: the /compact prompt is not replayed, and the compaction comes back once, completed with the summary and a different compactionId. Session, compaction and message ids replaced with placeholders.",
+	"client_capabilities": {
+		"fs": {
+			"readTextFile": false,
+			"writeTextFile": false
+		},
+		"terminal": false,
+		"session": {
+			"compaction": {}
+		}
+	},
+	"live": [
+		{
+			"sessionUpdate": "compaction_update",
+			"compactionId": "compaction-0001",
+			"status": "in_progress"
+		},
+		{
+			"sessionUpdate": "compaction_update",
+			"compactionId": "compaction-0001",
+			"status": "completed",
+			"summary": [
+				{
+					"type": "text",
+					"text": "1. Primary Request and Intent:\n   The user asked me to reply with only \"ok\" and to remember the word \"lantern.\" Both were done. No further task was requested.\n\n2. Key Technical Concepts:\n   - None. No technical work has been performed.\n\n3. Files and Code Sections:\n   - None read, created, or modified.\n\n4. Errors and fixes:\n   - None.\n\n5. Problem Solving:\n   - Nothing to solve. The session is idle.\n\n6. All user messages:\n    - \"Reply with just: ok. Remember the word: lantern.\"\n\n7. Pending Tasks:\n   - None.\n\n8. Current Work:\n   - None in progress. The last exchange was my reply \"ok,\" which fulfilled the request.\n\n9. Optional Next Step:\n   - None. Wait for the user's next instruction. The word \"lantern\" is retained in context for recall if asked."
+				}
+			]
+		},
+		{
+			"sessionUpdate": "compaction_update",
+			"compactionId": "compaction-0001",
+			"status": "completed"
+		}
+	],
+	"compact_prompt_result": {
+		"stopReason": "end_turn",
+		"usage": {
+			"inputTokens": 0,
+			"outputTokens": 0,
+			"cachedReadTokens": 0,
+			"cachedWriteTokens": 0,
+			"totalTokens": 0
+		}
+	},
+	"load_replay": [
+		{
+			"sessionUpdate": "user_message_chunk",
+			"content": {
+				"type": "text",
+				"text": "Reply with just: ok. Remember the word: lantern."
+			},
+			"messageId": "message-0001"
+		},
+		{
+			"sessionUpdate": "agent_message_chunk",
+			"content": {
+				"type": "text",
+				"text": "ok"
+			},
+			"messageId": "message-0002"
+		},
+		{
+			"sessionUpdate": "compaction_update",
+			"compactionId": "compaction-0002",
+			"status": "completed",
+			"summary": [
+				{
+					"type": "text",
+					"text": "1. Primary Request and Intent:\n   The user asked me to reply with only \"ok\" and to remember the word \"lantern.\" Both were done. No further task was requested.\n\n2. Key Technical Concepts:\n   - None. No technical work has been performed.\n\n3. Files and Code Sections:\n   - None read, created, or modified.\n\n4. Errors and fixes:\n   - None.\n\n5. Problem Solving:\n   - Nothing to solve. The session is idle.\n\n6. All user messages:\n    - \"Reply with just: ok. Remember the word: lantern.\"\n\n7. Pending Tasks:\n   - None.\n\n8. Current Work:\n   - None in progress. The last exchange was my reply \"ok,\" which fulfilled the request.\n\n9. Optional Next Step:\n   - None. Wait for the user's next instruction. The word \"lantern\" is retained in context for recall if asked."
+				}
+			]
+		},
+		{
+			"sessionUpdate": "user_message_chunk",
+			"content": {
+				"type": "text",
+				"text": "Which word did I ask you to remember? One word."
+			},
+			"messageId": "message-0003"
+		},
+		{
+			"sessionUpdate": "agent_message_chunk",
+			"content": {
+				"type": "text",
+				"text": "lantern"
+			},
+			"messageId": "message-0004"
+		}
+	]
+}

@@ -196,6 +196,24 @@ static func run(check: Dictionary, godot_path: String, project_dir: String) -> D
 	if not str(how.error).is_empty():
 		result.output = how.error
 		return result
+	var ran: Dictionary = await run_process(how, int(check.timeout_s))
+	result.output = ran.output
+	result.timed_out = ran.timed_out
+	if not ran.launched or ran.timed_out:
+		return result
+	result.code = int(ran.code)
+	if check.kind == KIND_REGRESSIONS and result.code == REGRESSIONS_NONE_CODE and result.output.contains("none found"):
+		result.status = SKIPPED
+	else:
+		result.status = PASSED if result.code == 0 else FAILED
+	return result
+
+
+## Corre `how` (`{program, args}`) hasta `timeout_s` y devuelve `{launched, code, output, timed_out}`;
+## la salida es la cola (tail) de stdout y stderr juntos. También lo usan los hooks (m11-24), que
+## reciben el proceso en `on_started` para pararlo si el plugin se cierra antes de que termine.
+static func run_process(how: Dictionary, timeout_s: int, env: Dictionary = {}, on_started: Callable = Callable()) -> Dictionary:
+	var result := {"launched": false, "code": -1, "output": "", "timed_out": false}
 	var process := AgentProcess.new()
 	var lines: PackedStringArray = []
 	var state := {"exited": false, "code": 0}
@@ -204,26 +222,25 @@ static func run(check: Dictionary, godot_path: String, project_dir: String) -> D
 	process.exited.connect(func(code: int) -> void:
 		state.exited = true
 		state.code = code)
-	if not process.start(str(how.program), how.args):
+	if not process.start(str(how.program), how.args, env):
 		result.output = "Could not launch %s: %s" % [how.program, process.last_error()]
 		return result
+	result.launched = true
+	if on_started.is_valid():
+		on_started.call(process)
 	var tree := Engine.get_main_loop() as SceneTree
-	var deadline := Time.get_ticks_msec() + int(check.timeout_s) * 1000
+	var deadline := Time.get_ticks_msec() + timeout_s * 1000
 	while not state.exited and Time.get_ticks_msec() < deadline:
 		await tree.process_frame
 	if not state.exited:
 		process.stop()
 		result.timed_out = true
-		result.output = tail(lines) + "\n(stopped after %d s)" % int(check.timeout_s)
+		result.output = tail(lines) + "\n(stopped after %d s)" % timeout_s
 		return result
 	await tree.create_timer(OUTPUT_GRACE_S).timeout
 	process.stop()
 	result.code = int(state.code)
 	result.output = tail(lines)
-	if check.kind == KIND_REGRESSIONS and result.code == REGRESSIONS_NONE_CODE and result.output.contains("none found"):
-		result.status = SKIPPED
-	else:
-		result.status = PASSED if result.code == 0 else FAILED
 	return result
 
 

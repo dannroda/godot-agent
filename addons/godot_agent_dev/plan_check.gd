@@ -10,6 +10,12 @@ extends RefCounted
 ##    .godot_agent/plans y la primera edición del agente pide permiso (no se deniega).
 ## 4. «Denegar con motivo…» en una tarjeta de shell: el motivo sale con el turno siguiente (DENY_REASON).
 ## 5. Rechazo editado y después Detener: lo editado queda en la cola, en pausa; no sale solo.
+## m11-38 (modelo por modo) en la misma corrida, con la configOption model de 0.106 en el escenario y
+## una tienda en memoria (no se toca EditorSettings): Construir recuerda Sonnet y Preguntar Opus.
+## a. Al abrir la sesión en Construir pide Sonnet, con el aviso de una línea y su «Change».
+## b. Pasar a Preguntar pide Opus antes del set_mode plan, y el tooltip del selector lo dice.
+## c. «Aprobar y construir» pide Sonnet en medio del turno, sin set_mode.
+## d. Elegir Haiku en el selector del composer lo recuerda para Construir.
 ## Después, m11-58 con un agente sin modo plan (tests/scripts/plan_block.json):
 ## 6. «Planificar» con el pedido en el composer: pasa a Preguntar y el pedido sale como PLAN_REQUEST
 ##    pidiendo el bloque ```plan (no ExitPlanMode).
@@ -19,6 +25,9 @@ extends RefCounted
 ## 10. /plan en el composer pide otro plan; otro mensaje con la tarjeta pendiente la cancela.
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
+const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
+const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings.gd")
+const ModeModels := preload("res://addons/godot_agent/core/mode_models.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const HarnessPrompts := preload("res://addons/godot_agent/session/harness_prompts.gd")
 const PlanStore := preload("res://addons/godot_agent/session/plan_store.gd")
@@ -38,6 +47,7 @@ var _dock: Control
 var _model: Object
 var _controller: Object
 var _shot_prefix: String = ""
+var _models: Object
 
 
 func run(tree: SceneTree, dock: Control, shot_prefix: String = "") -> PackedStringArray:
@@ -48,7 +58,17 @@ func run(tree: SceneTree, dock: Control, shot_prefix: String = "") -> PackedStri
 	_controller = dock.get(&"_controller")
 	var plans_dir := ProjectSettings.globalize_path("res://").path_join(PlanStore.DIR)
 	var before := _plan_files(plans_dir)
+	var saved_models: Object = _controller.get(&"mode_models")
+	var saved_mode: int = _model.get(&"harness_mode")
+	_models = ModeModels.new(HarnessSettings.new())  # en memoria: el check no toca EditorSettings
+	_models.remember("fake", SessionModel.HarnessMode.BUILD, "sonnet", "Sonnet")
+	_models.remember("fake", SessionModel.HarnessMode.ASK, "opus", "Opus")
+	_controller.set(&"mode_models", _models)
+	_controller.set(&"_mode_model_noticed", false)
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
 	await _run()
+	_controller.set(&"mode_models", saved_models)
+	_model.call(&"set_harness_mode", saved_mode)
 	if failures.is_empty():
 		await _run_block()
 	for file: String in _plan_files(plans_dir):
@@ -67,8 +87,31 @@ func _run() -> void:
 	if not await _controller.call(&"start", profile):
 		failures.append("no arrancó la sesión (%s)" % _model.get(&"failure_message"))
 		return
+	# a. Al abrir en Construir, el modelo recordado ahí.
+	_expect(_current_model() == "sonnet", "al abrir en Construir pide Sonnet · %s" % _current_model())
+	_expect(_log_count("fake_agent: set_config_option") == 1 and _log_count("fake_agent: set_config_option") == _fake_count("sonnet"), "con session/set_config_option · %d" % _log_count("fake_agent: set_config_option"))
+	var uses := _notice_with("Build uses Sonnet")
+	_expect(uses != null, "aviso de una línea «Build uses Sonnet»")
+	if uses:
+		var actions: Array = uses.get(&"actions")
+		_expect(actions.size() == 1 and str(actions[0].id) == SessionController.ACTION_CHOOSE_MODEL, "con «Change» · %s" % [actions])
+		var model_button: OptionButton = _dock.get(&"_composer").get(&"_model_button")
+		_dock.call(&"_on_action_requested", SessionController.ACTION_CHOOSE_MODEL, null)
+		await _tree.process_frame
+		_expect(model_button.get_popup().visible, "«Change» abre el selector")
+		model_button.get_popup().hide()
+
+	# b. Preguntar: Opus antes del set_mode plan.
+	var log_before: int = (_controller.get(&"agent_log").call(&"entries") as Array).size()
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
 	await _until(func() -> bool: return str(_model.get(&"current_agent_mode")) == "plan", "el agente no pasó a plan al elegir Preguntar")
+	_expect(_current_model() == "opus", "Preguntar pide Opus · %s" % _current_model())
+	var order := (_controller.get(&"agent_log").call(&"entries") as Array).slice(log_before).map(func(e: Dictionary) -> String: return str(e.message)) \
+		.filter(func(m: String) -> bool: return m.contains("fake_agent: set_"))
+	_expect(order.size() >= 2 and order[0].contains("set_config_option") and order[0].contains("opus") and order[1].contains("set_mode plan"), "el modelo antes que el modo · %s" % [order])
+	var tooltip := str((_dock.get(&"_composer").get(&"_model_button") as OptionButton).tooltip_text)
+	_expect(tooltip.contains("Remembered for Ask"), "el tooltip del selector dice que se recuerda para Preguntar · %s" % tooltip)
+	_expect(_notice_with("Ask uses Opus") == null, "el aviso, una vez por pestaña")
 	var plans_dir := ProjectSettings.globalize_path("res://").path_join(PlanStore.DIR)
 	var plans_before := _plan_files(plans_dir).size()
 
@@ -106,9 +149,12 @@ func _run() -> void:
 		failures.append("no apareció el plan corregido")
 		return
 	var set_mode_default_before := _log_count("set_mode default")
+	var sonnet_before := _fake_count("sonnet")
 	_button(view, I18n.t("Approve and build")).pressed.emit()
 	await _tree.process_frame
 	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "aprobar pasa a Construir")
+	await _until(func() -> bool: return _current_model() == "sonnet", "c. «Aprobar y construir» no pidió el modelo de Construir")
+	_expect(_fake_count("sonnet") == sonnet_before + 1, "c. Sonnet en medio del turno")
 	var write_card: Control = await _wait_view(PERMISSION_VIEW_SCRIPT, 1)
 	_expect(write_card != null, "la primera edición pide permiso en Construir (no se deniega)")
 	_expect(str(_model.get(&"current_agent_mode")) == "default", "el agente pasó solo a default")
@@ -121,6 +167,19 @@ func _run() -> void:
 	if write_card:
 		_button(write_card, I18n.t("Allow once")).pressed.emit()
 	await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "el turno aprobado no terminó")
+
+	# d. Elegir en el selector lo recuerda para el modo actual (Construir).
+	var button: OptionButton = _dock.get(&"_composer").get(&"_model_button")
+	var haiku := -1
+	for i: int in button.item_count:
+		if button.get_item_text(i) == "Haiku":
+			haiku = i
+	_expect(haiku >= 0, "d. el selector lista Haiku")
+	if haiku >= 0:
+		button.select(haiku)
+		button.item_selected.emit(haiku)
+		await _until(func() -> bool: return str(_models.call(&"get_model", "fake", SessionModel.HarnessMode.BUILD).get("value", "")) == "haiku", "d. elegir Haiku no quedó recordado para Construir")
+		_expect(_current_model() == "haiku", "d. y se pidió · %s" % _current_model())
 
 	# 4. Denegar con motivo en una tarjeta de shell.
 	_dock.call(&"send_text", "push it")
@@ -575,6 +634,24 @@ func _wait_user_entry(label: String) -> Object:
 			return entry
 		await _tree.process_frame
 	return null
+
+
+func _current_model() -> String:
+	return str((_model.call(&"model_option") as Dictionary).get("currentValue", ""))
+
+
+func _notice_with(text: String) -> Object:
+	for entry: Object in _model.call(&"entries"):
+		if int(entry.get(&"kind")) == 7 and str(entry.get(&"text")).contains(text):
+			return entry
+	return null
+
+
+## Los set_config_option que recibió el agente falso con ese modelo.
+func _fake_count(value: String) -> int:
+	var log: Object = _controller.get(&"agent_log")
+	return (log.call(&"entries") as Array).filter(func(entry: Dictionary) -> bool:
+		return str(entry.message).contains("fake_agent: set_config_option") and str(entry.message).contains("\"value\":\"%s\"" % value)).size()
 
 
 func _log_count(text: String) -> int:

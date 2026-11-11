@@ -8,6 +8,11 @@
 		},
 		{
 			"steps": [
+				{"chunk": "Reviso el menú."},
+				{"update": {"sessionUpdate": "compaction_update", "compactionId": "compaction-0001", "status": "in_progress"}},
+				{"update": {"sessionUpdate": "compaction_update", "compactionId": "compaction-0001", "status": "completed", "summary": [{"type": "text", "text": "1. Primary Request and Intent:\n   Menú de pausa con Esc."}]}},
+				{"update": {"sessionUpdate": "compaction_update", "compactionId": "compaction-0001", "status": "completed"}},
+				{"delay": 1.5},
 				{"update": {"sessionUpdate": "tool_call", "toolCallId": "compact-1", "title": "Compact conversation", "kind": "think", "status": "completed", "_meta": {"claudeCode": {"toolName": "compact"}}}},
 				{"update": {"sessionUpdate": "usage_update", "used": 180000, "size": 200000}},
 				{"chunk": "Sigo con el menú."},

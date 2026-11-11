@@ -31,6 +31,7 @@ const PlaytestMemory := preload("../review/playtest_memory.gd")
 const RunTools := preload("../mcp/tools/run_tools.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
+const ModeModels := preload("../core/mode_models.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
 const CsharpBuild := preload("../core/csharp_build.gd")
@@ -116,6 +117,8 @@ const ACTION_RUN_REGRESSIONS := "run_regressions"
 ## turno (m11-31) o un MCP server del proyecto (m13-31). `data` es MachineApproval.request; el dock
 ## muestra los comandos y llama approve_on_machine.
 const ACTION_APPROVE_ON_MACHINE := "approve_on_machine"
+## «Cambiar» en el aviso del modelo de un modo (m11-38): abre el selector del composer.
+const ACTION_CHOOSE_MODEL := "choose_model"
 const ACTION_REGRESSIONS_WORKFLOW := "regressions_workflow"
 const ACTION_LOGIN_CODE := "login_code"
 const ACTION_LOGIN_CANCEL := "login_cancel"
@@ -145,6 +148,8 @@ const AGENT_MODE_FOR: Dictionary = {
 	SessionModel.HarnessMode.AUTO: ["default"],
 }
 
+## Lo que vio el detector de loops cuando cortó el playtest de este turno ({} si no cortó, m11-49).
+var _playtest_loop: Dictionary = {}
 var model: SessionModel
 var client: AcpClient
 ## Los permisos de la sesión (m13-05): política, reglas de shell, tarjetas y autorizadores.
@@ -217,6 +222,12 @@ var is_command_approved: Callable
 var notice_seen: Callable
 var _notices_shown: Dictionary = {}
 var approve_command: Callable
+## El modelo de cada modo del harness, por perfil (m11-38). Sin asignar, cambiar de modo no toca el modelo.
+var mode_models: ModeModels
+## Ya se avisó en esta pestaña que un cambio de modo cambió el modelo (después, solo el log).
+var _mode_model_noticed: bool = false
+## Valores recordados que el agente ya no ofrece, ya avisados en esta pestaña.
+var _missing_models_noticed: Dictionary = {}
 ## Snapshots por turno de Construir o Auto (m11-01); compartidos por las sesiones, cada una con su
 ## `session_key`. Sin asignar o sin git, no se guardan.
 var snapshots: TurnSnapshots
@@ -459,6 +470,9 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	permissions.reset()
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.label(), cwd, {}, _profile.account_dir)
+	await _sync_mode_model()  # antes del primer prompt (m11-38)
+	if generation != _connect_generation:
+		return false
 	model.set_state(SessionModel.SessionState.READY)
 	_notice_after_session()
 	_sync_agent_mode()
@@ -546,11 +560,16 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var playtest_minutes := ReviewStore.playtest_minutes(text.strip_edges())
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(Time.get_ticks_msec() + playtest_minutes * 60000)
+	_playtest_loop = {}
+	if playtest_turn:
+		RunTools.set_playtest_loop_handler(_on_playtest_loop)
 	_prompt_request_id = client.next_request_id()
 	var result := await client.request("session/prompt", {"sessionId": model.session_id, "prompt": blocks})
 	_prompt_request_id = -1
 	if playtest_minutes > 0:
 		RunTools.set_playtest_deadline(0)
+	if playtest_turn:
+		RunTools.set_playtest_loop_handler(Callable())
 	if playtest_turn:
 		_sync_agent_mode()
 	var turn_text := agent_text_since(first_new_entry)
@@ -560,7 +579,11 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
 		if review.ingest_turn_text(turn_text, cwd):
 			_fold_findings(first_new_entry)
-	if turn_text.contains("\"playtest\""):
+	if not _playtest_loop.is_empty():
+		# El harness cortó el playtest (m11-49): el veredicto es suyo, con lo que repetía el agente.
+		_report_playtest(ReviewStore.loop_playtest(_playtest_loop), turn_text, first_new_entry, text)
+		_playtest_loop = {}
+	elif turn_text.contains("\"playtest\""):
 		var playtest: Dictionary = ReviewStore.FindingsParser.parse(turn_text, cwd).playtest
 		if not playtest.is_empty():
 			_report_playtest(playtest, turn_text, first_new_entry, text)
@@ -630,7 +653,7 @@ func _cancel_abandoned_requests() -> void:
 		_session_request_id = 0
 		client.cancel_request(sid)
 func _current_model_name() -> String:
-	var option := model.config_option("model")
+	var option := model.model_option()
 	var value := str(option.get("currentValue", ""))
 	for item: Variant in option.get("options", []):
 		if item is Dictionary and str(item.get("value", "")) == value:
@@ -876,7 +899,7 @@ static func turn_checks_prompt(results: Array[Dictionary]) -> String:
 
 
 ## «Aprobar…» confirmado en el dock: un check corre desde el próximo turno; un MCP server, desde la
-## próxima sesión (mcpServers va en session/new).
+## próxima sesión (mcpServers va en session/new); una tool del proyecto, desde ya (m11-46).
 func approve_on_machine(data: Dictionary) -> void:
 	if not approve_command.is_valid():
 		return
@@ -886,10 +909,15 @@ func approve_on_machine(data: Dictionary) -> void:
 			continue
 		approve_command.call(str(item.key))
 		names.append("«%s»" % item.get("name", ""))
-		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % ["MCP server" if data.get("kind") == MachineApproval.KIND_MCP else "Project check", item.get("name", ""), item.get("command", "")])
+		var what: String = {MachineApproval.KIND_MCP: "MCP server", MachineApproval.KIND_TOOL: "Project tool", MachineApproval.KIND_HOOK: "Project hook"}.get(data.get("kind"), "Project check")
+		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % [what, item.get("name", ""), str(item.get("command", "")).get_slice("\n", 0)])
 	if names.is_empty():
 		return
-	if data.get("kind") == MachineApproval.KIND_MCP:
+	if data.get("kind") == MachineApproval.KIND_TOOL:
+		model.add_notice(I18n.t("Approved on this machine: %s. The agent can use them now, with godot.run.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+	elif data.get("kind") == MachineApproval.KIND_HOOK:
+		model.add_notice(I18n.t("Approved on this machine: %s. It runs the next time its event happens.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+	elif data.get("kind") == MachineApproval.KIND_MCP:
 		model.add_notice(I18n.t("Approved on this machine: %s. The agent gets them from the next session (a new one, or this one reopened from History).") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
 	else:
 		model.add_notice(I18n.t("Approved on this machine: %s. It runs after the next turn that changes files.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
@@ -909,6 +937,21 @@ static func held_servers_notice(held: Array, explain: bool) -> Dictionary:
 	if held.size() > 1:
 		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve all (%d)…") % held.size(), "data": MachineApproval.request(MachineApproval.KIND_MCP, held),
 			"tooltip": I18n.t("See what each server runs and allow them all on this machine.")})
+	return {"text": text, "actions": actions}
+
+
+## El aviso de las tools del proyecto frenadas (m11-46): `held` es `[{name, command, key}]`, con la
+## ruta y el código en `command`. «Aprobar…» por tool y, con más de una, para todas.
+static func held_tools_notice(held: Array) -> Dictionary:
+	var names := PackedStringArray(held.map(func(item: Dictionary) -> String: return "«%s»" % item.name))
+	var text := I18n.t("Project tools not approved on this machine: %s. They are GDScript in the project that runs inside the editor when the agent calls it, so each one only loads where someone approved its code; if the code changes (also when the agent writes it), it asks again. Until then the agent can't call them.") % ", ".join(names)
+	var actions: Array[Dictionary] = []
+	for item: Dictionary in held:
+		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve «%s»…") % item.name, "data": MachineApproval.request(MachineApproval.KIND_TOOL, [item]),
+			"tooltip": I18n.t("See the tool's code and allow it on this machine.")})
+	if held.size() > 1:
+		actions.append({"id": ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve all the tools (%d)…") % held.size(), "data": MachineApproval.request(MachineApproval.KIND_TOOL, held),
+			"tooltip": I18n.t("See the code of each tool and allow them all on this machine.")})
 	return {"text": text, "actions": actions}
 
 
@@ -1059,6 +1102,14 @@ func send_in_mode(mode: SessionModel.HarnessMode, text: String, extra_blocks: Ar
 	return await send_prompt(text, extra_blocks)
 
 
+## El detector de loops cortó el playtest en curso (m11-49): se cancela el turno y, al volver
+## session/prompt, el veredicto queda «could not test» con la evidencia.
+func _on_playtest_loop(seen: Dictionary) -> void:
+	_playtest_loop = seen
+	agent_log.add(AgentLog.CH_ACP, "Playtest stopped: the agent repeated %s %d times with the same result" % [seen.get("tools", ""), int(seen.get("repeats", 0))])
+	cancel()
+
+
 func cancel() -> void:
 	if model.state != SessionModel.SessionState.PROMPTING:
 		return
@@ -1089,6 +1140,66 @@ func _watch_cancel(generation: int, connect_generation: int) -> void:
 		return
 	model.finish_turn("cancelled")
 	_record_turn_end("cancelled")
+
+
+## El usuario eligió un modelo en el selector (m11-38): se manda y queda recordado para el modo actual
+## de esta pestaña, con este perfil.
+func choose_model(value: String) -> bool:
+	var option := model.model_option()
+	if option.is_empty():
+		return false
+	if not await set_config_option(str(option.get("id", "model")), value):
+		return false
+	if mode_models and _profile:
+		mode_models.remember(_profile.id, model.harness_mode, value, ModeModels.option_name(option, value))
+		agent_log.add(AgentLog.CH_ACP, "Model %s remembered for %s" % [value, SessionModel.HARNESS_MODE_LABELS[model.harness_mode]])
+	return true
+
+
+## El tooltip del selector de modelo (m11-38): para qué modo se recuerda lo que se elija, y si el que
+## está es el recordado. "" si no hay modelo por modo (sin tienda, sin perfil o sin la opción).
+func model_tooltip() -> String:
+	var option := model.model_option()
+	if mode_models == null or _profile == null or option.is_empty():
+		return ""
+	var mode_label := I18n.t(SessionModel.HARNESS_MODE_LABELS[model.harness_mode])
+	var wanted := mode_models.get_model(_profile.id, model.harness_mode)
+	if not wanted.is_empty() and str(wanted.value) == str(option.get("currentValue", "")):
+		return I18n.t("Model. Remembered for %s: the one you pick is used every time you switch to %s.") % [mode_label, mode_label]
+	return I18n.t("Model. The one you pick is remembered for %s.") % mode_label
+
+
+## Pide el modelo recordado para el modo actual, si hay uno y no es el que está (m11-38). Cuenta como
+## un sync de modo: el próximo prompt lo espera.
+func _sync_mode_model() -> void:
+	if mode_models == null or _profile == null or model.session_id.is_empty():
+		return
+	var option := model.model_option()
+	var wanted := mode_models.get_model(_profile.id, model.harness_mode)
+	if option.is_empty() or wanted.is_empty():
+		return
+	var value := str(wanted.value)
+	if value == str(option.get("currentValue", "")):
+		return
+	var mode_label := I18n.t(SessionModel.HARNESS_MODE_LABELS[model.harness_mode])
+	if not ModeModels.offers(option, value):
+		agent_log.add(AgentLog.CH_ACP, "The model remembered for %s (%s) is not offered by the agent: left as is" % [SessionModel.HARNESS_MODE_LABELS[model.harness_mode], value])
+		var key := "%s/%s" % [model.harness_mode, value]
+		if not _missing_models_noticed.has(key):
+			_missing_models_noticed[key] = true
+			model.add_notice(I18n.t("%s remembers the model «%s», but %s doesn't offer it now (another account?). The model wasn't changed.") % [mode_label, str(wanted.get("name", value)), _agent_name()], ChatEntry.NoticeLevel.WARNING)
+		return
+	_mode_syncs_running += 1
+	var ok := await set_config_option(str(option.get("id", "model")), value)
+	_mode_syncs_running -= 1
+	if ok:
+		var name := ModeModels.option_name(model.model_option(), value)
+		agent_log.add(AgentLog.CH_ACP, "%s uses %s (remembered for this mode)" % [SessionModel.HARNESS_MODE_LABELS[model.harness_mode], value])
+		if not _mode_model_noticed:
+			_mode_model_noticed = true
+			model.add_notice(I18n.t("%s uses %s.") % [mode_label, name], ChatEntry.NoticeLevel.INFO,
+				[{"id": ACTION_CHOOSE_MODEL, "label": I18n.t("Change"), "tooltip": I18n.t("Choose another model for %s: the one you pick is remembered for this mode.") % mode_label}])
+	agent_mode_synced.emit()
 
 
 func set_config_option(id: String, value: String) -> bool:
@@ -1139,6 +1250,9 @@ func client_capabilities() -> Dictionary:
 		# Subagentes nativos (RFD de ACP, m7-43): el agente anuncia cada subagente con su sesión y su
 		# estado, que sigue después del tool call que lo lanzó si corre en segundo plano.
 		"subagents": {},
+		# La compactación como estado propio (m11-60): claude-agent-acp manda compaction_update con el
+		# resumen en lugar de una tool call «Compact conversation».
+		"session": {"compaction": {}},
 	}
 	if client.has_request_handler("elicitation/create"):
 		capabilities["elicitation"] = {"form": {}, "url": {}}
@@ -1279,6 +1393,7 @@ func system_prompt() -> String:
 	variables["project_path"] = variables.get("project_path", cwd)
 	variables["project_name"] = variables.get("project_name", cwd.get_file())
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)
+	variables["project_tools_dir"] = variables.get("project_tools_dir", "res://agent_tools")
 	variables["godot_bin"] = variables.get("godot_bin", EditorBinary.path())
 	variables["headless_guide"] = variables.get("headless_guide", ProjectSettings.globalize_path(HEADLESS_GUIDE_PATH))
 	variables["csharp_rules"] = CSHARP_RULES if not CsharpBuild.find_project(cwd).is_empty() else ""
@@ -1476,6 +1591,9 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	permissions.reset()
 	if history and _profile and (has_local_events or method == "session/resume"):
 		history.begin(session_id, _profile.id, _profile.label(), cwd, record, _profile.account_dir)
+	await _sync_mode_model()  # antes del primer prompt (m11-38)
+	if generation != _connect_generation:
+		return false
 	model.set_state(SessionModel.SessionState.READY)
 	var resumed_msg := I18n.t("Session resumed: the agent recovered its context with session/resume.") if use_resume else I18n.t("Session resumed: the agent recovered its context with session/load.")
 	model.add_notice(resumed_msg)
@@ -1560,6 +1678,10 @@ func _on_unexpected_transition(from: SessionModel.SessionState, to: SessionModel
 
 func _on_harness_mode_changed(_mode: SessionModel.HarnessMode) -> void:
 	_system_prompt_sent = false
+	# El modelo primero (m11-38): cambiarlo puede bajar de modo en el adapter. Con «Aprobar y construir»
+	# (_skip_mode_sync) el agente sale solo de plan, pero el modelo de Construir se pide igual: el
+	# adapter lo acepta en medio del turno y el resto del turno ya va con ese modelo.
+	_sync_mode_model()
 	if not _skip_mode_sync:
 		_sync_agent_mode()
 

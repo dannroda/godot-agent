@@ -9,6 +9,7 @@ extends ConfirmationDialog
 signal saved
 
 const HarnessSettings := preload("../../core/harness_settings.gd")
+const ModeModels := preload("../../core/mode_models.gd")
 const I18n := preload("../../core/i18n.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
 const SecretNames := preload("../../core/secret_names.gd")
@@ -24,6 +25,8 @@ const McpServersPage := preload("mcp_servers_page.gd")
 const TurnChecksEditor := preload("turn_checks_editor.gd")
 const ProjectDirs := preload("../../core/project_dirs.gd")
 const Recipes := preload("../../core/recipes.gd")
+const ProjectToolLoader := preload("../../mcp/project_tool_loader.gd")
+const HooksEditor := preload("hooks_editor.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 const AddonVersion := preload("../../core/addon_version.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
@@ -48,7 +51,7 @@ const DECISION_LABELS: Dictionary = {
 ## Celdas de la matriz (m12-22): un ícono y un color por decisión.
 const DECISION_MARKS: Dictionary = {PermissionPolicy.ALLOW: "✓", PermissionPolicy.ASK: "?", PermissionPolicy.DENY: "✕"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "recipes_dir", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "recipes_dir", "hooks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "project_tools_dir", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -67,6 +70,9 @@ var completion_metrics_reset: Callable
 var seen_mcp_servers_provider: Callable
 
 var _settings: HarnessSettings
+## El modelo de cada modo del perfil que se edita (m11-38), y los que se olvidan al guardar: [profile_id, mode].
+var _mode_models_box: VBoxContainer
+var _forget_models: Array = []
 var _config: ProjectConfig
 
 var _nav: ItemList
@@ -94,13 +100,16 @@ var _mcp_grid: GridContainer
 var _port_spin: SpinBox
 var _url_label: Label
 var _roots_edit: TextEdit
+var _project_tools_edit: LineEdit
 var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
 var _run_error_check: CheckBox
+var _notify_check: CheckBox
 var _verify_check: CheckBox
 var _turn_checks_editor: TurnChecksEditor
 var _recipes_dir_edit: LineEdit
+var _hooks_editor: HooksEditor
 var _snapshots_check: CheckBox
 var _github_pr_check: CheckBox
 var _compact_tools_check: CheckBox
@@ -359,6 +368,13 @@ func _build_agents(page: VBoxContainer) -> void:
 		else:
 			_profile_form.add_child(control)
 		_form_fields[field[0]] = control
+	var models_label := Label.new()
+	models_label.text = I18n.t("Model by mode")
+	models_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_profile_form.add_child(models_label)
+	_mode_models_box = VBoxContainer.new()
+	_mode_models_box.name = "ModeModels"
+	_profile_form.add_child(_mode_models_box)
 	var apply := Button.new()
 	apply.text = I18n.t("Done")
 	apply.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -506,6 +522,10 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_run_error_check.text = I18n.t("When a game you run by hand stops with an error, offer «Fix with the agent» in the dock")
 	_run_error_check.tooltip_text = I18n.t("The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors.")
 	page.add_child(_run_error_check)
+	_notify_check = CheckBox.new()
+	_notify_check.text = I18n.t("When the editor is in the background, notify me when the agent finishes or waits for me")
+	_notify_check.tooltip_text = I18n.t("The editor window asks for attention and, where available, a desktop notification appears (notify-send on Linux, the notification center on macOS).")
+	page.add_child(_notify_check)
 	var tools_row := HBoxContainer.new()
 	var tools_label := Label.new()
 	tools_label.text = I18n.t("What the agent can do with these tools, by function and with its permissions:")
@@ -536,6 +556,8 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_recipes_dir_edit.name = "RecipesDir"
 	_recipes_dir_edit.placeholder_text = Recipes.DEFAULT_DIR
 	page.add_child(_recipes_dir_edit)
+	_hooks_editor = HooksEditor.new()
+	page.add_child(_hooks_editor)
 	_snapshots_check = CheckBox.new()
 	_snapshots_check.text = I18n.t("Keep a snapshot of the project on each turn (git)")
 	_snapshots_check.tooltip_text = I18n.t("In Build and Auto, each turn ends with a notice of the files it changed, to see their diff and go back. The snapshots are git commits outside your branches (refs/godot-agent/turns); your branch, index and stash are not touched.")
@@ -544,6 +566,12 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_github_pr_check.text = I18n.t("Offer to push and open a GitHub pull request when closing a separate copy")
 	_github_pr_check.tooltip_text = I18n.t("Uses git push and the gh CLI. Off by default: otherwise the harness never pushes.")
 	page.add_child(_github_pr_check)
+	page.add_child(_title(I18n.t("Project tools")))
+	page.add_child(_hint(I18n.t("Each .gd file in this folder is a tool the agent calls with godot.run (build_level.gd is godot.build_level). They run inside the editor, so each one only loads on a machine where its code was approved, and every call asks the Project tools permission. The folder is left out of exports.")))
+	_project_tools_edit = LineEdit.new()
+	_project_tools_edit.name = "ProjectToolsDir"
+	_project_tools_edit.placeholder_text = ProjectToolLoader.DEFAULT_DIR
+	page.add_child(_project_tools_edit)
 	page.add_child(_title(I18n.t("Folders outside the project")))
 	page.add_child(_hint(I18n.t("The agent's fs/* can read and write in these folders besides the project (absolute paths, one per line).")))
 	_roots_edit = TextEdit.new()
@@ -725,6 +753,7 @@ func _load() -> void:
 	_build()
 	_error_label.text = ""
 	_profiles = _settings.profiles()
+	_forget_models = []
 	_editing = -1
 	_profile_form.visible = false
 	_rebuild_profiles()
@@ -740,13 +769,16 @@ func _load() -> void:
 	_max_image_spin.value = _config.max_image_side
 	_manual_runs_check.button_pressed = _config.playtest_on_manual_runs
 	_run_error_check.button_pressed = _settings.offer_fix_on_run_error()
+	_notify_check.button_pressed = _settings.notify_when_unfocused()
 	_compact_tools_check.button_pressed = _config.compact_tools
 	_verify_check.button_pressed = _config.verify_after_turn
 	_recipes_dir_edit.text = _config.recipes_dir
 	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
+	_hooks_editor.load_from(_config.hooks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_snapshots_check.button_pressed = _config.turn_snapshots
 	_github_pr_check.button_pressed = _config.github_pull_requests
 	_roots_edit.text = "\n".join(_config.extra_fs_roots)
+	_project_tools_edit.text = _config.project_tools_dir
 	_budget_spins.minutes.value = _config.budget_minutes
 	_budget_spins.tokens.value = _config.budget_tokens
 	_budget_spins.playtests.value = _config.budget_playtests
@@ -813,6 +845,7 @@ func _on_save() -> void:
 	for property: String in CONFIG_PROPERTIES:
 		before[property] = _config.get(property)
 	_settings.save_profiles(_profiles)
+	_apply_model_forgets()
 	_settings.set_value(HarnessSettings.KEY_MCP_PORT, int(_port_spin.value))
 	_settings.save_mcp_servers(_mcp_servers_page.user_servers())
 	_settings.set_value(HarnessSettings.KEY_QUOTA_WARN, int(_warn_spin.value))
@@ -824,6 +857,7 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_LANGUAGE, I18n.LANGUAGES[_language_option.selected].code)
 	_settings.set_value(HarnessSettings.KEY_UPDATE_CHECK, _update_check.button_pressed)
 	_settings.set_value(HarnessSettings.KEY_RUN_ERROR_FIX, _run_error_check.button_pressed)
+	_settings.set_value(HarnessSettings.KEY_NOTIFY_UNFOCUSED, _notify_check.button_pressed)
 	_settings.set_value(HarnessSettings.KEY_ON_OPEN, _on_open_option.get_selected_id())
 	_completion_page.save_to(_settings, _config)
 	# La config es la que usa el plugin: si no se puede guardar, vuelve a como estaba.
@@ -838,9 +872,11 @@ func _on_save() -> void:
 	_config.verify_after_turn = _verify_check.button_pressed
 	_config.turn_checks = _turn_checks_editor.checks()
 	_config.recipes_dir = Recipes.resolve_dir(_recipes_dir_edit.text)
+	_config.hooks = _hooks_editor.hooks()
 	_config.turn_snapshots = _snapshots_check.button_pressed
 	_config.github_pull_requests = _github_pr_check.button_pressed
 	_config.extra_fs_roots = _lines(_roots_edit.text)
+	_config.project_tools_dir = ProjectToolLoader.resolve_dir(_project_tools_edit.text)
 	_config.mcp_servers = _mcp_servers_page.project_servers()
 	_config.budget_minutes = int(_budget_spins.minutes.value)
 	_config.budget_tokens = int(_budget_spins.tokens.value)
@@ -862,7 +898,7 @@ func _on_save() -> void:
 		_error_label.text = I18n.t("Could not save %s: %s") % [ProjectConfig.PATH, error_string(result)]
 		return
 	# Lo que se escribió o se permitió acá queda aprobado en esta máquina (m11-31).
-	for key: String in _turn_checks_editor.keys_to_approve() + _mcp_servers_page.keys_to_approve():
+	for key: String in _turn_checks_editor.keys_to_approve() + _hooks_editor.keys_to_approve() + _mcp_servers_page.keys_to_approve():
 		_settings.approve_command(key)
 	hide()
 	saved.emit()
@@ -893,9 +929,15 @@ func validate() -> Dictionary:
 			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
 	if not _recipes_dir_edit.text.strip_edges().is_empty() and ProjectDirs.normalize(_recipes_dir_edit.text).is_empty():
 		return {"section": SettingsSection.MCP, "message": I18n.t("The recipes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_recipes).")}
+	var tools_dir := _project_tools_edit.text.strip_edges()
+	if not tools_dir.is_empty() and ProjectToolLoader.normalize_dir(tools_dir).is_empty():
+		return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" can't hold the project tools: use a folder inside the project, outside addons/godot_agent.") % tools_dir}
 	var checks_error := _turn_checks_editor.validate()
 	if not checks_error.is_empty():
 		return {"section": SettingsSection.MCP, "message": checks_error}
+	var hooks_error := _hooks_editor.validate()
+	if not hooks_error.is_empty():
+		return {"section": SettingsSection.MCP, "message": hooks_error}
 	var mcp_error := _mcp_servers_page.validate()
 	if not mcp_error.is_empty():
 		return {"section": SettingsSection.MCP, "message": mcp_error}
@@ -1075,8 +1117,51 @@ func _edit_profile(index: int) -> void:
 		env_lines.append("%s=%s" % [key, profile.env[key]])
 	(_form_fields.env as TextEdit).text = "\n".join(env_lines)
 	(_form_fields.account_variable as LineEdit).text = profile.account_variable
+	_fill_mode_models(profile.id)
 	_profile_form.visible = true
 	_rebuild_profiles()
+
+
+## Los modelos recordados por modo para el perfil (m11-38), con «Olvidar» en cada uno. Sin selector:
+## sin sesión no se sabe qué modelos ofrece el agente; se eligen en el composer.
+func _fill_mode_models(profile_id: String) -> void:
+	for child: Node in _mode_models_box.get_children():
+		child.queue_free()
+	var store := ModeModels.new(_settings)
+	var remembered := false
+	for mode: SessionModel.HarnessMode in MODES:
+		if [profile_id, mode] in _forget_models:
+			continue
+		var entry := store.get_model(profile_id, mode)
+		if entry.is_empty():
+			continue
+		remembered = true
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = "%s: %s" % [I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), str(entry.get("name", entry.value))]
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.tooltip_text = str(entry.value)
+		label.mouse_filter = Control.MOUSE_FILTER_PASS
+		row.add_child(label)
+		var forget := Button.new()
+		forget.text = I18n.t("Forget")
+		forget.tooltip_text = I18n.t("Switching to this mode won't change the model any more (applies when you save).")
+		forget.pressed.connect(func() -> void:
+			_forget_models.append([profile_id, mode])
+			_fill_mode_models(profile_id))
+		row.add_child(forget)
+		_mode_models_box.add_child(row)
+	var hint := _hint(I18n.t("The model you pick in the dock's composer is remembered for the mode that tab is in, and switching to that mode picks it again (plan in Ask with one model, build with another). It is yours, not the project's. Agents that don't offer a model choice don't show the selector.") if not remembered
+		else I18n.t("Pick another one in the composer while in that mode to change it."))
+	_mode_models_box.add_child(hint)
+
+
+## Los «Olvidar» del modelo por modo, al guardar (m11-38).
+func _apply_model_forgets() -> void:
+	var mode_models := ModeModels.new(_settings)
+	for pair: Array in _forget_models:
+		mode_models.forget(str(pair[0]), int(pair[1]))
+	_forget_models = []
 
 
 func _apply_profile_form() -> void:

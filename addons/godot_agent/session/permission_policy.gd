@@ -24,6 +24,9 @@ const GROUP_ADDONS := "addons"
 ## Subagentes de Claude Code (tool Agent, m7-43). La sesión pide permiso para cada uno
 ## (SUBAGENT_ASK_RULES); acá se permiten o no por modo, y subagent_limits los cuenta.
 const GROUP_SUBAGENTS := "subagents"
+## Las tools propias del proyecto (m11-46): código del proyecto que corre en el editor. La aprobación
+## por máquina es sobre ese código; este grupo, sobre cada llamada.
+const GROUP_PROJECT_TOOLS := "project_tools"
 ## Sin grupo conocido: siempre se pregunta (spec §7, "el resto → ask").
 const GROUP_OTHER := "other"
 ## Un grupo por MCP server de terceros (m7-35): `mcp:blender`. Sin override, ask en todos los modos.
@@ -31,7 +34,7 @@ const GROUP_MCP_PREFIX := "mcp:"
 
 const GROUPS: PackedStringArray = [
 	GROUP_READ, GROUP_DIAGNOSTICS, GROUP_EDIT_SCENE, GROUP_EDIT_FILES, GROUP_RUN, GROUP_SHELL, GROUP_PROJECT, GROUP_ADDONS,
-	GROUP_SUBAGENTS,
+	GROUP_PROJECT_TOOLS, GROUP_SUBAGENTS,
 ]
 const GROUP_LABELS: Dictionary = {
 	GROUP_READ: "Read",  # i18n
@@ -42,6 +45,7 @@ const GROUP_LABELS: Dictionary = {
 	GROUP_SHELL: "Shell / commands",  # i18n
 	GROUP_PROJECT: "Project settings, export and addons",  # i18n
 	GROUP_ADDONS: "Install from the Asset Store",  # i18n
+	GROUP_PROJECT_TOOLS: "Project tools",  # i18n
 	GROUP_SUBAGENTS: "Subagents",  # i18n
 	GROUP_OTHER: "Other",  # i18n
 }
@@ -66,6 +70,8 @@ const DEFAULTS: Dictionary = {
 	GROUP_PROJECT: [DENY, DENY, ASK, ALLOW, ALLOW],
 	# Ask también en One-shot y Auto: baja código de terceros al proyecto (m7-39).
 	GROUP_ADDONS: [DENY, DENY, ASK, ASK, ASK],
+	# Ask también en One-shot y Auto, como addons: el usuario lo cambia en la matriz (m11-46).
+	GROUP_PROJECT_TOOLS: [DENY, DENY, ASK, ASK, ASK],
 	# Como antes de m7-43: Claude Code los lanzaba sin preguntar.
 	GROUP_SUBAGENTS: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
 }

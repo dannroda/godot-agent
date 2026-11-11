@@ -45,6 +45,8 @@ var _pending: Array[Dictionary] = []
 var _dirty: bool = false
 var _writer := HistoryWriter.new()
 var _last_save_msec: int = 0
+## compactionId ya grabados en esta sesión (m11-60): de cada compactación queda solo su estado final.
+var _compactions_recorded: Dictionary = {}
 
 
 func is_recording() -> bool:
@@ -75,6 +77,7 @@ func begin(session_id: String, profile_id: String, agent_name: String, cwd: Stri
 		_meta = {"format": FORMAT, "id": session_id, "profile_id": profile_id, "account": account, "agent": agent_name, "cwd": cwd,
 			"title": "", "created": now, "updated": now, "turns": 0, "events_count": 0, "truncated": false}
 	_dirty = false
+	_compactions_recorded.clear()
 	_last_save_msec = Time.get_ticks_msec()
 
 
@@ -101,6 +104,12 @@ func record_update(update: Dictionary) -> void:
 
 
 func _record_update(update: Dictionary, kind: String) -> void:
+	if kind == "compaction_update":
+		# Solo el estado final, una vez: sin in_progress ni el completed repetido sin summary.
+		var id := str(update.get("compactionId", ""))
+		if str(update.get("status", "")) == "in_progress" or _compactions_recorded.has(id):
+			return
+		_compactions_recorded[id] = true
 	if kind == "session_info_update" and update.get("title") is String and not str(update.title).is_empty():
 		_meta.title = str(update.title)
 		_dirty = true
