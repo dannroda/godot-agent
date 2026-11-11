@@ -90,7 +90,10 @@ func _exit_tree() -> void:
 ## Los controllers de CodeEdits liberados (pestaña cerrada) se sueltan acá: `tree_exiting` también
 ## llega cuando el Script Editor se hace flotante y el CodeEdit solo cambia de padre.
 func _process(_delta: float) -> void:
-	context.poll()
+	# Sin scripts abiertos los cambios de archivos solo marcan el índice como viejo: se reconstruye
+	# cuando vuelva a hacer falta. Un build en curso igual se publica.
+	if needs_index() or context.is_building():
+		context.poll()
 	var now := Time.get_ticks_msec()
 	for code_edit: Variant in _controllers.keys():
 		var controller: CompletionController = _controllers[code_edit]
@@ -108,6 +111,11 @@ func _input(event: InputEvent) -> void:
 	if key and key.pressed and not key.echo and key.keycode == KEY_BACKSLASH and key.alt_pressed and key.shift_pressed and not (key.ctrl_pressed or key.meta_pressed):
 		get_viewport().set_input_as_handled()
 		toggle_enabled()
+
+
+## El índice hace falta: el completado está prendido y hay al menos un script abierto con su controller.
+func needs_index() -> bool:
+	return is_enabled() and not _controllers.is_empty()
 
 
 func toggle_enabled() -> void:
@@ -141,11 +149,13 @@ func apply_settings() -> void:
 	if _config and context.exclude != _config.completion_exclude:
 		context.exclude = _config.completion_exclude
 		context.request_refresh()
-	# Apagado no indexa; al prenderlo arranca el primer build. Tampoco hace falta el _process de
-	# cada frame (m13-02): los controllers de pestañas cerradas se sueltan al volver a prenderlo.
+	# Apagado no indexa. Tampoco hace falta el _process de cada frame (m13-02): los controllers de
+	# pestañas cerradas se sueltan al volver a prenderlo. Prendido, el primer build arranca con el
+	# primer script abierto, no al habilitar el plugin (m16-13): sin scripts no hace falta, y el
+	# build cuesta un worker unos segundos en un proyecto grande.
 	_indexing = enabled
 	set_process(enabled)
-	if enabled and not context.has_built() and not context.is_building():
+	if needs_index() and not context.has_built() and not context.is_building():
 		context.start_build()
 	var color := Color(EditorInterface.get_editor_settings().get_setting(COMMENT_COLOR_SETTING))
 	var mode := _settings.completion_mode() if _settings else CompletionController.MODE_LOCAL

@@ -10,6 +10,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - **Plan** (an icon next to the mode selector, also in the **+** menu) and `/plan <request>` ask the agent for a plan before building. The plan has playable criteria, the design in Godot terms and numbered tasks. The session switches to Ask. Claude Code presents the plan with the plan card. Agents without a plan mode end their answer with a ` ```plan ` block, and the harness turns it into the same card: edit it, send it back with a reason, or approve it to build in Build mode, with the plan saved in `.godot_agent/plans/`. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#asking-for-a-plan-plan-and-plan).
 - **Deny with reason…** on every permission card: it denies, stops the agent's turn and sends it your reason right away, shown as a dimmed harness line. Without it the agent only learns it was denied, and Claude Code keeps trying in the same turn.
 
+### Changed
+
+- Inline completion builds its project index the first time you open a script in the Script Editor, not when the editor starts or the addon is enabled. With no script open, nothing is indexed and file changes don't trigger a rebuild; on a large project this saves a background thread a few seconds of work at startup. If a script is already open when the editor starts, the index builds right away, as before.
+
 ## [0.1.20] - 2026-11-11
 
 ### Added
