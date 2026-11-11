@@ -1418,7 +1418,14 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 		if _diagnostics == null or not _project_config.verify_after_turn:
 			return ""
 		return await _diagnostics.verify_changed_scripts(since_unix)
+	controller.turn_checks_provider = _turn_checks_info
 	return _finish_controller(controller, model, id)
+
+
+## Los checks del proyecto (m11-31) y la tienda de aprobaciones de esta máquina.
+func _turn_checks_info() -> Dictionary:
+	return {"checks": _project_config.turn_checks if _project_config else [], "godot": OS.get_executable_path(),
+		"project": ProjectSettings.globalize_path("res://"), "is_approved": _settings.is_command_approved, "approve": _settings.approve_command}
 
 
 func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:

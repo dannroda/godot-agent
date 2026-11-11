@@ -30,6 +30,9 @@ const RETIRED_PRESETS: Array[Dictionary] = [
 const KEY_MCP_PORT := "mcp/port"
 ## MCP servers de terceros para todos los proyectos del usuario (m7-34).
 const KEY_MCP_SERVERS := "mcp/servers"
+## Comandos que vienen en un proyecto (checks del fin de turno, m11-31) aprobados en esta máquina:
+## `{clave: fecha}`, con la clave de TurnChecks.approval_key (proyecto + texto exacto).
+const KEY_APPROVED_COMMANDS := "security/approved_commands"
 ## Cuota del plan (spec §10.1, §9.5): umbrales en %, pausa del One-shot y qué hacer al reiniciarse.
 const KEY_QUOTA_WARN := "quota/warn_percent"
 const KEY_QUOTA_PAUSE := "quota/pause_percent"
@@ -102,6 +105,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_PRESETS_RETIRED, false, TYPE_BOOL)
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
 		_declare(KEY_MCP_SERVERS, [], TYPE_ARRAY, PROPERTY_HINT_TYPE_STRING, DICTIONARY_LIST_HINT)
+		_declare(KEY_APPROVED_COMMANDS, {}, TYPE_DICTIONARY)
 		_declare(KEY_QUOTA_WARN, 75, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
@@ -272,6 +276,19 @@ func mcp_port() -> int:
 func mcp_servers() -> Array:
 	var data: Variant = get_list(KEY_MCP_SERVERS)
 	return ExternalMcpServers.normalize_list(data if data is Array else [])
+
+
+## Si el comando con esta clave (TurnChecks.approval_key) se aprobó en esta máquina.
+func is_command_approved(key: String) -> bool:
+	var approved: Variant = get_value(KEY_APPROVED_COMMANDS, {})
+	return approved is Dictionary and (approved as Dictionary).has(key)
+
+
+func approve_command(key: String) -> void:
+	var approved: Variant = get_value(KEY_APPROVED_COMMANDS, {})
+	var data: Dictionary = (approved as Dictionary).duplicate() if approved is Dictionary else {}
+	data[key] = Time.get_date_string_from_system()
+	set_value(KEY_APPROVED_COMMANDS, data)
 
 
 func save_mcp_servers(list: Array) -> void:

@@ -1410,6 +1410,22 @@ func _on_reject_feedback(text: String) -> void:
 		_queue.add(text, [])
 
 
+## «Aprobar…» de un check del proyecto (m11-31): muestra el comando exacto antes de permitirlo.
+func _confirm_turn_check(data: Dictionary) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = I18n.t("Approve a project check")
+	dialog.ok_button_text = I18n.t("Allow on this machine")
+	dialog.dialog_autowrap = true
+	dialog.dialog_text = I18n.t("«%s» comes with the project's settings (addons/godot_agent/config/project_config.tres). After each Build or Auto turn that changes files, it runs this program on this computer, without a shell:\n\n%s\n\nAllow it only if you trust the command. If the command changes, it asks again.") % [str(data.get("name", "")), str(data.get("command", ""))]
+	dialog.min_size = Vector2i(AgentTheme.px(460), 0)
+	dialog.confirmed.connect(func() -> void: _controller.approve_turn_check(data))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free())
+	add_child(dialog)
+	dialog.popup_centered()
+
+
 func _on_action_requested(action: String, payload: Variant) -> void:
 	match action:
 		SessionController.ACTION_RETRY:
@@ -1434,6 +1450,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			_ask_login_code()
 		SessionController.ACTION_LOGIN_CANCEL:
 			_controller.cancel_login()
+		SessionController.ACTION_APPROVE_CHECK:
+			_confirm_turn_check(payload)
 		PlanApprovalView.ACTION_APPROVE_PLAN:
 			_controller.approve_plan(payload)
 		"open_link":

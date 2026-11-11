@@ -4833,3 +4833,90 @@ msgstr "Pedir un plan para aprobar antes de construir (harness)"
 
 msgid "Plan before building (/plan)"
 msgstr "Planificar antes de construir (/plan)"
+
+msgid "Saved playtest regressions"
+msgstr "Regresiones de playtest guardadas"
+
+msgid "GUT tests"
+msgstr "Tests de GUT"
+
+msgid "gdUnit4 tests"
+msgstr "Tests de gdUnit4"
+
+msgid "Project checks after the turn: running %s…"
+msgstr "Checks del proyecto al terminar el turno: corriendo %s…"
+
+msgid "Project checks failed. The agent gets what they reported to fix it (%d of %d)."
+msgstr "Fallaron checks del proyecto. El agente recibe lo que informaron para arreglarlo (%d de %d)."
+
+msgid "Project checks after the turn:"
+msgstr "Checks del proyecto al terminar el turno:"
+
+msgid "nothing to run"
+msgstr "nada que correr"
+
+msgid "not approved on this machine, so it didn't run"
+msgstr "no está aprobado en esta máquina, así que no corrió"
+
+msgid "Approve «%s»…"
+msgstr "Aprobar «%s»…"
+
+msgid "The check comes with the project. See the command and allow it to run on this machine."
+msgstr "El check viene con el proyecto. Mirá el comando y permití que corra en esta máquina."
+
+msgid "stopped after the time limit"
+msgstr "se cortó al llegar al tiempo límite"
+
+msgid "exit code %d"
+msgstr "código de salida %d"
+
+msgid "«%s» is approved on this machine: it runs after the next turn that changes files."
+msgstr "«%s» quedó aprobado en esta máquina: corre después del próximo turno que cambie archivos."
+
+msgid "Approve a project check"
+msgstr "Aprobar un check del proyecto"
+
+msgid "Allow on this machine"
+msgstr "Permitir en esta máquina"
+
+msgid "«%s» comes with the project's settings (addons/godot_agent/config/project_config.tres). After each Build or Auto turn that changes files, it runs this program on this computer, without a shell:\n\n%s\n\nAllow it only if you trust the command. If the command changes, it asks again."
+msgstr "«%s» viene con la configuración del proyecto (addons/godot_agent/config/project_config.tres). Después de cada turno de Construir o Auto que cambie archivos, corre este programa en esta computadora, sin shell:\n\n%s\n\nPermitilo solo si confiás en el comando. Si el comando cambia, vuelve a preguntar."
+
+msgid "Project checks after each turn"
+msgstr "Checks del proyecto al terminar cada turno"
+
+msgid "In Build and Auto, after a turn that changes files the harness runs these checks. If one fails, the agent gets its output to fix it (sharing the 2-turn limit of the script check). They live in the project's settings, so they travel with the project; a command only runs on a machine where it was approved."
+msgstr "En Construir y Auto, después de un turno que cambia archivos el harness corre estos checks. Si uno falla, el agente recibe su salida para arreglarlo (comparte el tope de 2 turnos del chequeo de scripts). Viven en la configuración del proyecto, así que viajan con él; un comando corre solo en una máquina donde se aprobó."
+
+msgid "+ Add check"
+msgstr "+ Agregar check"
+
+msgid "Project check «%s»: %s"
+msgstr "Check del proyecto «%s»: %s"
+
+msgid "On"
+msgstr "Activo"
+
+msgid "The playtest regressions saved in the project (Regressions tab)"
+msgstr "Las regresiones de playtest guardadas en el proyecto (pestaña Regresiones)"
+
+msgid "A program and its arguments, without a shell (no |, &&, ; or redirections). {godot} is this editor's binary and {project} the project folder."
+msgstr "Un programa y sus argumentos, sin shell (sin |, &&, ; ni redirecciones). {godot} es el binario de este editor y {project} la carpeta del proyecto."
+
+msgid "any change"
+msgstr "cualquier cambio"
+
+msgid "Runs only when the turn changed a file matching one of these patterns, separated by commas (res://scripts/**, *.gd). Empty: after any change."
+msgstr "Corre solo si el turno cambió un archivo que coincide con alguno de estos patrones, separados por comas (res://scripts/**, *.gd). Vacío: después de cualquier cambio."
+
+msgid "When these change"
+msgstr "Cuando cambian"
+
+msgid "Time limit"
+msgstr "Tiempo límite"
+
+msgid "Not approved on this machine: it doesn't run until you allow it."
+msgstr "No está aprobado en esta máquina: no corre hasta que lo permitas."
+
+msgid "The command came with the project. Allow it only if you trust it; if it changes, it asks again."
+msgstr "El comando vino con el proyecto. Permitilo solo si confiás en él; si cambia, vuelve a preguntar."

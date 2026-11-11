@@ -42,6 +42,8 @@ const FsHandler := preload("../acp/fs_handler.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
 const ReviewStore := preload("../review/review_store.gd")
+const TurnChecks := preload("../core/turn_checks.gd")
+const UntrustedText := preload("../mcp/untrusted_text.gd")
 const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
 const EditorBinary := preload("../transport/editor_binary.gd")
@@ -109,6 +111,9 @@ const ACTION_LOGIN := "login"
 ## Las regresiones desde el aviso de un playtest que pasó (m12-48); el dock las reenvía al plugin
 ## (AgentDock usa estos mismos ids).
 const ACTION_RUN_REGRESSIONS := "run_regressions"
+## «Aprobar…» de un check del proyecto que no está aprobado en esta máquina (m11-31): `data` es
+## `{name, command, key}`; el dock muestra el comando y llama approve_turn_check.
+const ACTION_APPROVE_CHECK := "approve_turn_check"
 const ACTION_REGRESSIONS_WORKFLOW := "regressions_workflow"
 const ACTION_LOGIN_CODE := "login_code"
 const ACTION_LOGIN_CANCEL := "login_cancel"
@@ -200,6 +205,9 @@ var file_guard: Callable:
 ## los errores de los scripts que cambiaron en el turno o "". Se espera con await. Sin asignar, no
 ## se verifica.
 var turn_verifier: Callable
+## Checks del proyecto al terminar el turno (m11-31): `() -> {checks: Array, godot: String,
+## is_approved: Callable(key) -> bool, approve: Callable(key)}`. Sin asignar, no corren.
+var turn_checks_provider: Callable
 ## Snapshots por turno de Construir o Auto (m11-01); compartidos por las sesiones, cada una con su
 ## `session_key`. Sin asignar o sin git, no se guardan.
 var snapshots: TurnSnapshots
@@ -664,6 +672,7 @@ func _verify_turn(turn_started: int) -> void:
 		return
 	var errors: String = await turn_verifier.call(turn_started)
 	if errors.is_empty():
+		await _run_turn_checks(turn_started)
 		return
 	agent_log.add(AgentLog.CH_PROC, "Check after the turn: scripts with errors\n%s" % errors)
 	if _fix_turns < MAX_FIX_TURNS and model.state == SessionModel.SessionState.READY:
@@ -674,6 +683,100 @@ func _verify_turn(turn_started: int) -> void:
 		_sending_fix = false
 	else:
 		model.add_notice(I18n.t("Check after the turn: some scripts don't parse.") + "\n" + errors, ChatEntry.NoticeLevel.WARNING)
+
+
+## Los checks del proyecto que tocan este turno (m11-31), en orden: un aviso con ✓/✗ por check y, si
+## alguno falló, su salida vuelve al agente con el mismo tope que validate_scripts. Un comando sin
+## aprobar en esta máquina no corre: el aviso ofrece aprobarlo.
+func _run_turn_checks(turn_started: int) -> void:
+	if not turn_checks_provider.is_valid() or not model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
+		return
+	var info: Dictionary = turn_checks_provider.call()
+	var checks: Array = TurnChecks.normalize_list(info.get("checks", [])).filter(func(check: Dictionary) -> bool: return check.enabled)
+	if checks.is_empty():
+		return
+	var changed := TurnChecks.changed_since(cwd, turn_started)
+	checks = checks.filter(func(check: Dictionary) -> bool: return TurnChecks.applies(check, changed))
+	if checks.is_empty():
+		return
+	var names := PackedStringArray(checks.map(func(check: Dictionary) -> String: return str(check.name)))
+	var notice := model.add_notice(I18n.t("Project checks after the turn: running %s…") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+	notice.footer = true
+	model.notify_entry_changed(notice)
+	var is_approved: Callable = info.get("is_approved", Callable())
+	# La aprobación es del proyecto (la carpeta del editor), también en una copia aparte.
+	var project := str(info.get("project", cwd))
+	var results: Array[Dictionary] = []
+	for check: Dictionary in checks:
+		var key := TurnChecks.approval_key(project, str(check.command))
+		if check.kind == TurnChecks.KIND_COMMAND and not (is_approved.is_valid() and is_approved.call(key)):
+			results.append({"name": check.name, "status": TurnChecks.UNAPPROVED, "command": check.command, "key": key})
+			continue
+		agent_log.add(AgentLog.CH_PROC, "Project check «%s»: running" % check.name)
+		var result: Dictionary = await TurnChecks.run(check, str(info.get("godot", OS.get_executable_path())), cwd)
+		agent_log.add(AgentLog.CH_PROC, "Project check «%s»: %s (code %d)\n%s" % [check.name, result.status, result.code, result.output])
+		results.append(result)
+	var report := turn_checks_report(results)
+	notice.text = report.text
+	notice.level = ChatEntry.NoticeLevel.WARNING if report.failed > 0 or report.unapproved > 0 else ChatEntry.NoticeLevel.INFO
+	notice.actions.assign(report.actions)
+	model.notify_entry_changed(notice)
+	if report.failed == 0:
+		return
+	if _fix_turns < MAX_FIX_TURNS and model.state == SessionModel.SessionState.READY:
+		_fix_turns += 1
+		model.add_notice(I18n.t("Project checks failed. The agent gets what they reported to fix it (%d of %d).") % [_fix_turns, MAX_FIX_TURNS], ChatEntry.NoticeLevel.WARNING)
+		_sending_fix = true
+		send_prompt(label_prompt(turn_checks_prompt(results), HarnessPrompts.TURN_CHECK))
+		_sending_fix = false
+
+
+## El aviso de los checks: una línea por check y «Aprobar…» por cada comando sin aprobar.
+static func turn_checks_report(results: Array[Dictionary]) -> Dictionary:
+	var lines: PackedStringArray = [I18n.t("Project checks after the turn:")]
+	var actions: Array[Dictionary] = []
+	var failed := 0
+	var unapproved := 0
+	for result: Dictionary in results:
+		match str(result.status):
+			TurnChecks.PASSED:
+				lines.append("✓ " + str(result.name))
+			TurnChecks.SKIPPED:
+				lines.append("– %s: %s" % [result.name, I18n.t("nothing to run")])
+			TurnChecks.UNAPPROVED:
+				unapproved += 1
+				lines.append("⊘ %s: %s" % [result.name, I18n.t("not approved on this machine, so it didn't run")])
+				actions.append({"id": ACTION_APPROVE_CHECK, "label": I18n.t("Approve «%s»…") % result.name, "data": {"name": result.name, "command": result.command, "key": result.key},
+					"tooltip": I18n.t("The check comes with the project. See the command and allow it to run on this machine.")})
+			_:
+				failed += 1
+				var why := I18n.t("stopped after the time limit") if bool(result.get("timed_out", false)) else I18n.t("exit code %d") % int(result.get("code", -1))
+				lines.append("✗ %s (%s)" % [result.name, why])
+	return {"text": "\n".join(lines), "actions": actions, "failed": failed, "unapproved": unapproved}
+
+
+## Lo que recibe el agente cuando fallan checks: el nombre, el código y el final de la salida de cada
+## uno, en sobres de texto no confiable (la salida puede traer texto del juego o del agente).
+static func turn_checks_prompt(results: Array[Dictionary]) -> String:
+	var parts: PackedStringArray = ["[Automatic check after your turn] These project checks failed. Fix what they report, then make sure they pass (they run again after your next turn):"]
+	for result: Dictionary in results:
+		if str(result.status) != TurnChecks.FAILED:
+			continue
+		var why := "stopped after the time limit" if bool(result.get("timed_out", false)) else "exit code %d" % int(result.get("code", -1))
+		parts.append("\n### %s (%s)\n%s" % [result.name, why, UntrustedText.wrap(str(result.output)) if not str(result.output).is_empty() else "(no output)"])
+	return UntrustedText.seal("\n".join(parts), UntrustedText.new_nonce())
+
+
+## «Aprobar…» confirmado en el dock: el comando corre desde el próximo turno.
+func approve_turn_check(data: Dictionary) -> void:
+	if not turn_checks_provider.is_valid():
+		return
+	var approve: Callable = turn_checks_provider.call().get("approve", Callable())
+	if not approve.is_valid() or str(data.get("key", "")).is_empty():
+		return
+	approve.call(str(data.key))
+	agent_log.add(AgentLog.CH_PERM, "Project check «%s» approved on this machine: %s" % [data.get("name", ""), data.get("command", "")])
+	model.add_notice(I18n.t("«%s» is approved on this machine: it runs after the next turn that changes files.") % str(data.get("name", "")), ChatEntry.NoticeLevel.INFO)
 
 
 ## Lo que contestó el adapter a `/remote-control` (claude-agent-acp 0.94, runRemoteControlCommand):

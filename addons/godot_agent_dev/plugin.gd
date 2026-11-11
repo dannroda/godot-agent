@@ -62,6 +62,9 @@ extends EditorPlugin
 ## - `-- --godot-agent-plan-test [--godot-agent-ui-shot=<prefijo>]`: m11-22 con el agente falso: la
 ##   tarjeta del plan de ExitPlanMode, Editar con el diff de vuelta, Aprobar y construir sin set_mode,
 ##   «Denegar con motivo» y Detener después de un rechazo (plan_check.gd).
+## - `-- --godot-agent-checks-test`: m11-31 con el agente falso en Auto: el check del proyecto que
+##   falla vuelve al agente, uno sin aprobar ofrece «Aprobar…» y el turno de arreglo pasa
+##   (turn_checks_check.gd).
 ## - `-- --godot-agent-claude-plan-test [--godot-agent-ui-shot=<prefijo>]`: lo mismo con Claude Code real
 ##   (gasta tokens): plan → Editar → Aprobar → primera edición en Construir → Denegar con motivo.
 ## - `-- --godot-agent-pending-test`: con algo preparado por install_extension (m19-05), habilitar el
@@ -98,6 +101,7 @@ const CLAUDE_MCP_ARG := "--godot-agent-claude-mcp-test"
 const McpCheck := preload("mcp_check.gd")
 const PendingCheck := preload("pending_check.gd")
 const PlanCheck := preload("plan_check.gd")
+const TurnChecksCheck := preload("turn_checks_check.gd")
 const EDIT_ARG := "--godot-agent-edit-test"
 const EditCheck := preload("edit_check.gd")
 const RUN_ARG := "--godot-agent-run-test"
@@ -164,6 +168,7 @@ const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
 const PENDING_ARG := "--godot-agent-pending-test"
 const PLAN_ARG := "--godot-agent-plan-test"
+const CHECKS_ARG := "--godot-agent-checks-test"
 ## Gasta tokens: Claude Code real con la tarjeta del plan (plan_check.gd run_claude).
 const CLAUDE_PLAN_ARG := "--godot-agent-claude-plan-test"
 ## m11-58 con Antigravity real (sin modo plan; gasta tokens).
@@ -246,6 +251,8 @@ func _enter_tree() -> void:
 		_run_pending_test.call_deferred()
 	if PLAN_ARG in args:
 		_run_plan_test.call_deferred()
+	if CHECKS_ARG in args:
+		_run_checks_test.call_deferred()
 	if CLAUDE_PLAN_ARG in args:
 		_run_plan_test.call_deferred(true)
 	if AGY_PLAN_ARG in args:
@@ -651,6 +658,19 @@ func _run_pending_test() -> void:
 	for failure: String in failures:
 		print("[pending-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "pending-test: %d fallas" % failures.size())
+
+
+func _run_checks_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := _failures(await TurnChecksCheck.new().run(get_tree(), dock))
+	for failure: String in failures:
+		print("[checks-check] FALLA ", failure)
+	_finish_checking_state(0 if failures.is_empty() else 1, "checks-test: %d fallas" % failures.size(), "checks-test")
 
 
 func _run_plan_test(real_claude: bool = false, antigravity: bool = false) -> void:
@@ -1689,6 +1709,24 @@ func _run_settings_shots(prefix: String) -> void:
 	nav.item_selected.emit(2)
 	await get_tree().create_timer(0.4).timeout
 	dialog.get_texture().get_image().save_png("%s_mcp_servers.png" % prefix)
+	# m11-31: la lista de checks con uno que vino en el archivo sin aprobar y un preset agregado. Se
+	# vuelve a cargar la del proyecto antes de guardar: no aprueba nada en los EditorSettings.
+	var checks_editor: Control = dialog.get(&"_turn_checks_editor")
+	checks_editor.call(&"load_from", [{"name": "Lint", "command": "{godot} --headless --path {project} -s res://tests/lint.gd", "paths": ["res://scripts/**"]}], func(_key: String) -> bool: return false, ProjectSettings.globalize_path("res://"))
+	checks_editor.call(&"_on_preset", 1)
+	await get_tree().process_frame
+	var scroll := checks_editor.get_parent()
+	while scroll and not scroll is ScrollContainer:
+		if scroll is FoldableContainer:
+			(scroll as FoldableContainer).folded = false
+		scroll = scroll.get_parent()
+	await get_tree().process_frame
+	if scroll:
+		(scroll as ScrollContainer).ensure_control_visible(checks_editor.get_child(checks_editor.get_child_count() - 1))
+	await get_tree().create_timer(0.4).timeout
+	dialog.get_texture().get_image().save_png("%s_turn_checks.png" % prefix)
+	var project_config: Object = dialog.get(&"_config")
+	checks_editor.call(&"load_from", project_config.get(&"turn_checks"), func(_key: String) -> bool: return false, ProjectSettings.globalize_path("res://"))
 	nav.select(1)
 	nav.item_selected.emit(1)
 	await get_tree().create_timer(0.4).timeout

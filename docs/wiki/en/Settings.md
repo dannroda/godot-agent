@@ -9,7 +9,7 @@ Open **Settings** from the dock header's **⋯** menu.
 | **Agents** | Agent profiles (see below). |
 | **Completion** | [Inline completion](Inline-completion.md). |
 | **Permissions** | The [permission matrix](Modes-and-permissions.md#permissions) per mode, the timeout to answer, and the [Auto mode](Modes-and-permissions.md#auto-mode) lists of shell commands. |
-| **MCP servers** | [Other MCP servers](#other-mcp-servers) for the agent; for the addon's own server: port, **Regenerate token**, result limits, compact tool list, checking the scripts after each turn, a snapshot of the project on each turn, extra folders. |
+| **MCP servers** | [Other MCP servers](#other-mcp-servers) for the agent; for the addon's own server: port, **Regenerate token**, result limits, compact tool list, checking the scripts after each turn, the project's own checks after each turn, a snapshot of the project on each turn, extra folders. |
 | **One-shot** | The starting values of each One-shot (budgets, checkpoints, spec review), loop repeats, QA rounds, game criteria (weight and minimum). |
 | **Plan quota** | Quota warning and pause thresholds, what to do when the quota resets. |
 | **Interface** | Accent color, dock position, language, [updates](#updating-the-addon). |
@@ -51,7 +51,7 @@ Google Antigravity asks you to sign in the first time (Google account, Gemini En
 - **Keys**: in arguments, environment and headers, `$VARIABLE` or `${VARIABLE}` takes the value from the editor's environment when the session opens, for example `Authorization: Bearer $SENTRY_TOKEN`. Values with a secret-looking name must use a variable, and the Agent Log hides the resolved values.
 - **Import .mcp.json** adds the servers of the project's `.mcp.json` that aren't on the list yet.
 - The checkbox turns a server off without removing it.
-- **Advanced**, folded at the bottom of the page: the editor's own MCP server (port, token, limits), the checks after each turn and the folders outside the project. It also has **Use the playtest autoload also when running the game manually**, the switch for the notice with **Fix with the agent** when a game you run by hand stops with an error (on by default; see [Getting started](Getting-started.md#3-the-dock)), the compact tool list and **See the tools list…**, which opens the **Tools** tab of [Extensions](#extensions).
+- **Advanced**, folded at the bottom of the page: the editor's own MCP server (port, token, limits), the checks after each turn (the script check and the [project's own checks](Modes-and-permissions.md#project-checks-after-each-turn)) and the folders outside the project. It also has **Use the playtest autoload also when running the game manually**, the switch for the notice with **Fix with the agent** when a game you run by hand stops with an error (on by default; see [Getting started](Getting-started.md#3-the-dock)), the compact tool list and **See the tools list…**, which opens the **Tools** tab of [Extensions](#extensions).
 
 Claude Code also loads the servers of its own configuration (`claude mcp add`, `.mcp.json`, `~/.claude.json`). Type `/mcp` in the chat to see their status, reconnect them or turn them off.
 

@@ -37,6 +37,12 @@ To get a plan before the agent touches anything, from any mode except One-shot, 
 
 In Build and Auto, when a turn ends the harness validates the `.gd` scripts that changed during it, whichever way the agent wrote them. If one doesn't parse, the agent gets the errors in a new turn to fix them, up to two turns in a row; after that, or if you already queued a message, they stay as a notice in the chat. Turn it off in Settings → MCP servers (**Check the scripts after each turn**).
 
+### Project checks after each turn
+
+The project can add its own checks in Settings → MCP servers → Advanced → **Project checks after each turn**: the saved playtest regressions, GUT or gdUnit4 tests, or any command. In Build and Auto, after a turn that changes files (and once the scripts parse), the harness runs each check whose patterns match a changed file. A check with no patterns runs after any change. The footer notice shows ✓ or ✗ for each one. If a check fails, the agent gets its exit code and the end of its output in a new turn to fix it, inside an untrusted-text envelope. This shares the two-turn limit with the script check.
+
+The checks are saved in `addons/godot_agent/config/project_config.tres`, so they travel with the project. A command runs as a program with its arguments, without a shell (no `|`, `&&`, `;` or redirections; put those in a script and run the script). `{godot}` stands for this editor's binary and `{project}` for the project folder. Because the file can come from someone else's repository, a command only runs on a machine where that exact text was approved. A command you write or change in Settings is approved when you save. One that came with the project shows **Not approved on this machine**; it is skipped, and the notice offers **Approve «name»…**, which shows the exact command before allowing it. If the command changes, it asks again. Approvals are kept per user, in the editor settings, not in the project. The playtest regressions check needs no approval: it runs the addon's own `regression_cli.gd`.
+
 ### Changes of each turn
 
 In Build and Auto, when the project is in a git repo, a turn that changed files ends with a footer line: how many files, lines added and removed, and two actions. **View changes** lists the files, each with its diff and **Go back** (that file returns to how it was before the turn). **Undo turn** goes back to before the turn for every file, including what changed after the turn, and asks first; the chat then offers **Undo**. The agent is told which files were reverted before its next turn.
