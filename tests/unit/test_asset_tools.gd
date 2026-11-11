@@ -3,6 +3,7 @@ extends "test_case.gd"
 ## el informe de asset_install y los permisos.
 
 const AssetTools := preload("res://addons/godot_agent/mcp/tools/asset_tools.gd")
+const UntrustedText := preload("res://addons/godot_agent/mcp/untrusted_text.gd")
 const AddonUpdater := preload("res://addons/godot_agent/core/addon_updater.gd")
 const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
@@ -49,7 +50,10 @@ func test_install_report_and_summary() -> void:
 		"conflicts": ["res://addons/thing/old.gd"], "other": ["res://README.md"],
 		"plugins": ["res://addons/thing/plugin.cfg", "res://addons/thing/sub/plugin.cfg"],
 	}
-	var report := AssetTools.install_report("me/thing", {"version": "v1.0"}, plan, {"written": 2, "enabled": ["res://addons/thing/plugin.cfg"]})
+	# La versión y las rutas vienen del asset: en sobres (revisión next2 #18); acá se leen sin ellos.
+	var raw := AssetTools.install_report("me/thing", {"version": "v1.0"}, plan, {"written": 2, "enabled": ["res://addons/thing/plugin.cfg"]})
+	assert_eq(UntrustedText.strip(raw).count("res://"), 0, "nada del zip afuera de un sobre · " + raw)
+	var report := UntrustedText.unwrap(raw)
 	assert_true(report.begins_with("Installed me/thing v1.0: 2 files."), "encabezado: %s" % report)
 	assert_true(report.contains("Where: addons/thing"), "dónde")
 	assert_true(report.contains("Not overwritten (already existed): res://addons/thing/old.gd"), "conflictos")
@@ -82,7 +86,7 @@ func test_update_summary() -> void:
 	assert_true(summary.begins_with("Update Thing to v2.0?"), "título: %s" % summary)
 	assert_true(summary.contains("1 replace the installed version"), "reemplazos")
 	assert_true(summary.contains("1 files of the old version are removed"), "lo que se borra")
-	var report := AssetTools.install_report("me/thing", {"version": "v2.0"}, plan, {"written": 2, "removed": 1, "enabled": ["res://addons/thing/plugin.cfg"]})
+	var report := UntrustedText.unwrap(AssetTools.install_report("me/thing", {"version": "v2.0"}, plan, {"written": 2, "removed": 1, "enabled": ["res://addons/thing/plugin.cfg"]}))
 	assert_true(report.begins_with("Updated me/thing v2.0: 2 files (1 replaced, 1 old ones removed)."), "informe: %s" % report)
 
 

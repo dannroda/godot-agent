@@ -1,0 +1,7 @@
+config_version=5
+
+[autoload]
+
+State="*uid://cmapfixstate01"
+tracker="*res://tracker.gd"
+Menu="*uid://cmapfixmenu001"

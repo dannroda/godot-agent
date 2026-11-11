@@ -138,6 +138,8 @@ var _model: SessionModel
 var _controller: SessionController
 ## Breakpoints, pila y pasos del debugger (m11-56).
 var _debug_tools: DebugTools
+## godot.project_map: su worker se espera en _exit_tree.
+var _map_tools: MapTools
 var _project_config: ProjectConfig
 var _sync: EditorSync
 var _remote_activity: RemoteActivity
@@ -459,6 +461,10 @@ func _exit_tree() -> void:
 		_extensions_window = null
 	_main_screen = null
 	_fs = null
+	# El índice del mapa se arma en un worker: cortarlo y esperarlo antes de que se descargue el addon.
+	if _map_tools:
+		_map_tools.wait()
+		_map_tools = null
 	_registry = null
 	_diagnostics = null
 	if _profile_tools:
@@ -706,6 +712,9 @@ func _run_regressions(repeat: int = 1) -> void:
 	var results := await _run_tools.run_saved_regressions(entries, repeat)
 	_controller.review.changed.emit()  # el panel muestra cuántas quedaron inestables
 	var summary := PlaytestRegressions.summary(results, false, Callable(I18n, &"t"))
+	# La salida trae los textos del juego en sobres con el marcador del proceso: sin sellar, el marcador
+	# queda a la vista en el chat y en lo que se copie de ahí (m11-45).
+	summary.details = UntrustedText.seal(str(summary.details), UntrustedText.new_nonce())
 	if summary.failed == 0 and summary.flaky == 0:
 		_model.add_notice(I18n.t("Regressions: none fail (%d).") % results.size() if repeat == 1 else I18n.t("Regressions: none fail (%d, %d times each).") % [results.size(), repeat], ChatEntry.NoticeLevel.INFO)
 	elif summary.failed == 0:
@@ -832,9 +841,9 @@ func _start_mcp_server() -> void:
 	registry.error_mark = _errors.mark
 	registry.errors_since = _errors.entries_since
 	registry.register_provider(ReadTools.new())
-	var map_tools := MapTools.new()
-	map_tools.editor_focus = _editor_focus
-	registry.register_provider(map_tools)
+	_map_tools = MapTools.new()
+	_map_tools.editor_focus = _editor_focus
+	registry.register_provider(_map_tools)
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
 	registry.register_provider(api_tools, true)
@@ -1304,8 +1313,9 @@ func _editor_focus() -> PackedStringArray:
 	if scene and not scene.scene_file_path.is_empty():
 		focus.append(scene.scene_file_path)
 	var script := EditorInterface.get_script_editor().get_current_script()
-	if script and script.resource_path.begins_with("res://") and not script.resource_path in focus:
-		focus.append(script.resource_path)
+	var script_path := MapTools.focus_of_script(script.resource_path) if script else ""
+	if not script_path.is_empty() and not script_path in focus:
+		focus.append(script_path)
 	return focus
 
 

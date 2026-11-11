@@ -3,6 +3,8 @@ extends RefCounted
 ## Un playtest que pasó, para repetirlo sin agente (m16-06): el game_script que el agente deja con su
 ## veredicto, en res://.godot_agent/playtests/regressions/. Un archivo JSON por pedido.
 
+const UntrustedText := preload("../mcp/untrusted_text.gd")
+
 const DIR := "res://.godot_agent/playtests/regressions"
 const PASS_MARK := "run() returned: true"
 ## Cuántas veces se puede repetir cada regresión de una tanda.
@@ -11,6 +13,8 @@ const MAX_REPEAT := 20
 const MARKED_TRIES := 3
 const FLAKY := "flaky"  # i18n
 const PASSED_OF := "passed %d of %d"  # i18n
+## Cuánto de la salida de cada regresión que falla muestra el aviso.
+const DETAILS_CHARS := 400
 ## APIs que game_script no puede usar: el evaluador del One-shot y el Playtest no tocan el proyecto (m15-12).
 ## shortcut: una lista de nombres frena un descuido, no a alguien que quiera esquivarla; si eso importa, hace falta correr el juego en un sandbox.
 const SCRIPT_BLOCKED := "\\b(FileAccess|DirAccess|ResourceSaver|ConfigFile|ZIPPacker|OS\\s*\\.\\s*(execute|execute_with_pipe|create_process|create_instance|shell_open|shell_show_in_file_manager|move_to_trash|kill)|ProjectSettings\\s*\\.\\s*save)\\b|\\.save_(png|jpg|webp|exr)\\s*\\("
@@ -133,12 +137,18 @@ static func summary(results: Array, fail_on_flaky: bool = false, translate: Call
 	var lines: PackedStringArray = []
 	for result: Dictionary in failed:
 		var count := count_text(result, translate)
-		lines.append("• %s%s\n  %s" % [result.goal, " (%s)" % count if not count.is_empty() else "", str(result.output).strip_edges().left(400)])
+		lines.append("• %s%s\n  %s" % [result.goal, " (%s)" % count if not count.is_empty() else "", _short_output(result.output)])
 	for result: Dictionary in flaky:
 		var count := count_text(result, translate)
 		var flaky_word: String = translate.call(FLAKY) if translate.is_valid() else FLAKY
-		lines.append("• %s (%s)\n  %s" % [result.goal, flaky_word + (": " + count if not count.is_empty() else ""), str(result.output).strip_edges().left(400)])
+		lines.append("• %s (%s)\n  %s" % [result.goal, flaky_word + (": " + count if not count.is_empty() else ""), _short_output(result.output)])
 	return {"ok": failed.is_empty() and (flaky.is_empty() or not fail_on_flaky), "failed": failed.size(), "flaky": flaky.size(), "details": "\n".join(lines)}
+
+
+## La salida de una regresión para el aviso: los primeros DETAILS_CHARS caracteres, con el sobre que
+## el corte deja abierto cerrado (la salida de game_script trae los textos del juego en sobres).
+static func _short_output(output: Variant) -> String:
+	return UntrustedText.close_cut(str(output).strip_edges().left(DETAILS_CHARS))
 
 
 ## «passed 2 of 3» con varias corridas; "" con una.

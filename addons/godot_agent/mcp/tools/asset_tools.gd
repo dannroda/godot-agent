@@ -6,6 +6,7 @@ extends RefCounted
 ## plugin_enable (grupo project). addons_list con `check_updates` avisa de versiones nuevas.
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const AssetStore := preload("../../core/asset_store.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 
@@ -32,6 +33,8 @@ func tools() -> Array:
 			"include_other_files": {"type": "boolean"},
 			"enable_plugins": {"type": "boolean", "description": "Default true"},
 		}, ["asset"], _install)
+	# La versión y las rutas salen del zip y de la página del asset: en sobres (m11-45).
+	install.envelope = McpTool.ENVELOPE_PARTS
 	install.describer = func(args: Dictionary) -> String:
 		var version := McpTool.str_arg(args, "version")
 		return "%s%s%s" % ["update " if args.get("update", false) else "", McpTool.str_arg(args, "asset"), " " + version if not version.is_empty() else ""]
@@ -143,21 +146,21 @@ func _install(args: Dictionary) -> Dictionary:
 
 static func install_report(asset_id: String, release: Dictionary, plan: Dictionary, done: Dictionary) -> String:
 	var replaced: int = plan.files.filter(func(entry: Dictionary) -> bool: return entry.get("replaces", false)).size()
-	var lines: PackedStringArray = ["%s %s %s: %d files%s." % ["Updated" if replaced > 0 else "Installed", asset_id, release.version, done.written,
+	var lines: PackedStringArray = ["%s %s %s: %d files%s." % ["Updated" if replaced > 0 else "Installed", asset_id, UntrustedText.wrap(str(release.version)), done.written,
 		" (%d replaced, %d old ones removed)" % [replaced, int(done.get("removed", 0))] if replaced > 0 else ""]]
 	var folders := {}
 	for entry: Dictionary in plan.files:
 		var target: String = entry.target
 		folders["/".join(target.trim_prefix("res://").split("/").slice(0, 2))] = true
-	lines.append("Where: %s" % ", ".join(PackedStringArray(folders.keys())))
+	lines.append("Where: %s" % UntrustedText.wrap(", ".join(PackedStringArray(folders.keys()))))
 	if not plan.conflicts.is_empty():
-		lines.append("Not overwritten (already existed): %s" % _short_list(plan.conflicts))
+		lines.append("Not overwritten (already existed): %s" % UntrustedText.wrap(_short_list(plan.conflicts)))
 	if not plan.other.is_empty():
-		lines.append("Left out (outside addons/; include_other_files installs them): %s" % _short_list(plan.other))
+		lines.append("Left out (outside addons/; include_other_files installs them): %s" % UntrustedText.wrap(_short_list(plan.other)))
 	if not plan.plugins.is_empty():
 		var enabled: Array = Array(done.enabled)
 		for path: String in plan.plugins:
-			lines.append("Plugin %s: %s" % [path, "enabled" if path in enabled else "not enabled (plugin_enable enables it)"])
+			lines.append("Plugin %s: %s" % [UntrustedText.wrap(path), "enabled" if path in enabled else "not enabled (plugin_enable enables it)"])
 	return "\n".join(lines)
 
 

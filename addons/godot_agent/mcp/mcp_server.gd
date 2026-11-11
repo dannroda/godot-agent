@@ -48,6 +48,10 @@ var token: String = ""
 var stream_after_ms: int = 2000
 ## Cada cuánto va un notifications/progress mientras corre.
 var progress_every_ms: int = 10000
+## Tope de un stream (fix-a #9): una tool que no termina en este tiempo (un await que nunca vuelve)
+## contesta con un error en vez de mandar progreso para siempre, que mantiene vivo al cliente y
+## ocupa la conexión. La tool puede seguir corriendo en el editor; su respuesta se descarta.
+var stream_max_ms: int = 30 * 60 * 1000
 
 var _server: TCPServer
 var _port: int = 0
@@ -219,7 +223,7 @@ func _handle(request: HttpParser.ParsedRequest, connection: McpConnection = null
 		_log("request rejected: invalid token")
 		return {"status": 401, "headers": {"WWW-Authenticate": "Bearer"}, "body": _error_body(-32600, "Invalid token")}
 	if request.method != "POST":
-		# Sin SSE en v1: GET (stream) y DELETE (fin de sesión) no se soportan.
+		# Sin stream por GET ni DELETE (fin de sesión): el SSE va solo en la respuesta de un tools/call largo.
 		return {"status": 405, "headers": {"Allow": "POST"}}
 	var session_id := request.header("mcp-session-id")
 	if not session_id.is_empty() and not _sessions.has(session_id):
@@ -256,6 +260,8 @@ static func progress_token_of(message: Dictionary) -> Variant:
 ## Un tools/call de un cliente que acepta SSE y mandó progressToken: si termina antes de stream_after_ms es una respuesta
 ## JSON común; si no, se abre el stream con un progreso cada progress_every_ms y la respuesta va al
 ## final como un evento más. Una conexión que el cliente cerró deja de recibir, pero la tool termina.
+## El stream va en chunks (Transfer-Encoding: chunked), así la conexión sigue viva y los requests que
+## el cliente mandó detrás se atienden (fix-a #25). Pasado stream_max_ms contesta un error.
 func _handle_tool_call(message: Dictionary, session_id: String, caller: String, connection: McpConnection) -> Dictionary:
 	var call := {"done": false, "reply": null}
 	_dispatch_into(call, message, session_id, caller)
@@ -266,8 +272,12 @@ func _handle_tool_call(message: Dictionary, session_id: String, caller: String, 
 	var next_beat := started + stream_after_ms
 	var beats := 0
 	var streaming := false
+	var timed_out := false
 	while not call.done:
 		await (Engine.get_main_loop() as SceneTree).process_frame
+		if not call.done and Time.get_ticks_msec() - started >= stream_max_ms:
+			timed_out = true
+			break
 		if call.done or Time.get_ticks_msec() < next_beat:
 			continue
 		next_beat = Time.get_ticks_msec() + progress_every_ms
@@ -276,19 +286,34 @@ func _handle_tool_call(message: Dictionary, session_id: String, caller: String, 
 		if not streaming:
 			streaming = true
 			_log("godot.%s is taking long: answering as an event stream" % tool_name)
-			_put(connection, ("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n").to_utf8_buffer())
+			_put(connection, ("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nTransfer-Encoding: chunked\r\n\r\n").to_utf8_buffer())
 		beats += 1
-		_put(connection, progress_event(progress_token, beats, tool_name, (Time.get_ticks_msec() - started) / 1000).to_utf8_buffer())
+		_put_chunk(connection, progress_event(progress_token, beats, tool_name, (Time.get_ticks_msec() - started) / 1000))
+	var reply: Variant = call.reply
+	if timed_out:
+		_log("godot.%s did not finish within %d min: answered with an error" % [tool_name, stream_max_ms / 60000])
+		reply = {"jsonrpc": "2.0", "id": message.get("id"), "error": {"code": -32603,
+			"message": "godot.%s did not finish within %d minutes. It may still be running in the editor: check the editor before calling it again." % [tool_name, stream_max_ms / 60000]}}
 	if not streaming:
-		return {"status": 200, "body": JSON.stringify(call.reply).to_utf8_buffer()}
+		return {"status": 200, "body": JSON.stringify(reply).to_utf8_buffer()}
 	if connection != null and _connections.has(connection):
-		_put(connection, sse_event(call.reply).to_utf8_buffer())
-	return {"status": 200, "streamed": true, "close": true}
+		_put_chunk(connection, sse_event(reply))
+		_put(connection, "0\r\n\r\n".to_utf8_buffer())
+	return {"status": 200, "streamed": true}
 
 
 func _dispatch_into(call: Dictionary, message: Dictionary, session_id: String, caller: String) -> void:
 	call.reply = await _dispatch(message, {}, session_id, caller)
 	call.done = true
+
+
+## Un chunk de Transfer-Encoding: chunked con `text`.
+func _put_chunk(connection: McpConnection, text: String) -> void:
+	var bytes := text.to_utf8_buffer()
+	var chunk := ("%x\r\n" % bytes.size()).to_utf8_buffer()
+	chunk.append_array(bytes)
+	chunk.append_array("\r\n".to_utf8_buffer())
+	_put(connection, chunk)
 
 
 func _put(connection: McpConnection, bytes: PackedByteArray) -> void:

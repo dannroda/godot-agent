@@ -8,6 +8,7 @@ extends SceneTree
 const STDIN_BUFFER := 1 << 20
 const TIMEOUT_MS := 600000  # una tool puede esperar un permiso del usuario
 const POLL_MS := 5
+const STREAM_CUT := "the editor closed the event stream before the tool answered (the editor or the addon restarted, or it took too long)"
 
 var _thread: Thread
 var _done: bool = false
@@ -58,7 +59,14 @@ func _pump() -> void:
 			print(body)
 		elif status != 202 and message is Dictionary and message.has("id"):
 			var error := {"code": -32603, "message": "Editor MCP server: HTTP %d %s" % [status, body.left(200)]}
-			print(JSON.stringify({"jsonrpc": "2.0", "id": message.id, "error": error}))
+			print(JSON.stringify({"jsonrpc": "2.0", "id": json_id(message.id), "error": error}))
+
+
+## El id como vino: JSON.parse_string da float, y «5.0» no es el id 5 para un cliente que los tipa.
+static func json_id(id: Variant) -> Variant:
+	if id is float and is_equal_approx(id, roundf(id)):
+		return int(id)
+	return id
 
 
 ## Devuelve [status, body]. status 0 si no se pudo conectar.
@@ -93,6 +101,7 @@ func _post(body: String) -> Array:
 				event_stream = str(response_headers[key]).begins_with("text/event-stream")
 		var data := PackedByteArray()
 		var pending := PackedByteArray()
+		var answered: Array = [false]
 		while _client.get_status() == HTTPClient.STATUS_BODY and Time.get_ticks_msec() < deadline:
 			_client.poll()
 			var chunk := _client.read_response_body_chunk()
@@ -103,11 +112,15 @@ func _post(body: String) -> Array:
 				# llega, y el plazo se cuenta desde el último.
 				deadline = Time.get_ticks_msec() + TIMEOUT_MS
 				pending.append_array(chunk)
-				pending = _print_events(pending)
+				pending = _print_events(pending, answered)
 			else:
 				data.append_array(chunk)
 		if event_stream:
-			_client = null  # el server cierra la conexión al terminar el stream
+			_client = null
+			# El stream se cortó antes de la respuesta (el editor se cerró o recargó el addon, o venció
+			# el plazo): el cliente recibe un error para ese id en vez de esperarlo para siempre.
+			if not answered[0]:
+				return [0, STREAM_CUT]
 			return [202, ""]
 		if status == 404:
 			_session_id = ""  # el editor reinició el server: el cliente tiene que reinicializar
@@ -117,8 +130,9 @@ func _post(body: String) -> Array:
 
 ## Escribe en stdout el `data` de cada evento SSE completo de `bytes` (los separa una línea vacía;
 ## los comentarios no) y devuelve los bytes del evento que todavía no terminó. Se decodifica solo
-## hasta el último evento completo: un chunk puede cortar un carácter UTF-8.
-static func _print_events(bytes: PackedByteArray) -> PackedByteArray:
+## hasta el último evento completo: un chunk puede cortar un carácter UTF-8. `answered[0]` pasa a
+## true cuando sale la respuesta (un mensaje con id y result o error), no solo progreso.
+static func _print_events(bytes: PackedByteArray, answered: Array = [false]) -> PackedByteArray:
 	var last := -1
 	for i in range(bytes.size() - 1, 0, -1):
 		if bytes[i] == 10 and (bytes[i - 1] == 10 or (bytes[i - 1] == 13 and i >= 3 and bytes[i - 2] == 10)):
@@ -133,7 +147,11 @@ static func _print_events(bytes: PackedByteArray) -> PackedByteArray:
 			if line.begins_with("data:"):
 				lines.append(line.trim_prefix("data:").strip_edges(true, false))
 		if not lines.is_empty():
-			print("\n".join(lines))
+			var data := "\n".join(lines)
+			var parsed: Variant = JSON.parse_string(data)
+			if parsed is Dictionary and parsed.has("id") and (parsed.has("result") or parsed.has("error")):
+				answered[0] = true
+			print(data)
 	return bytes.slice(last + 1)
 
 

@@ -7,6 +7,7 @@ extends RefCounted
 ## original en su AnimationLibrary (y al revés). SpriteFrames se restaura cuadro por cuadro.
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const SceneAccess := preload("scene_access.gd")
 const ValueCoercion := preload("value_coercion.gd")
 const EditorUndo := preload("../../editor/editor_undo.gd")
@@ -123,7 +124,7 @@ func _animation_set_track(args: Dictionary) -> Dictionary:
 	var names := _split_name(str(args.animation))
 	var existing := _animation(player, names)
 	if existing == null:
-		return McpTool.error("There is no animation %s in %s. Create it with animation_create. Animations: %s." % [args.animation, player.name, ", ".join(player.get_animation_list())])
+		return McpTool.error("There is no animation %s in %s. Create it with animation_create. Animations: %s." % [args.animation, UntrustedText.wrap(player.name), UntrustedText.wrap(", ".join(player.get_animation_list()))])
 	var is_method: bool = args.get("type") == "method"
 	var track_path := NodePath(str(args.track))
 	if is_method and track_path.get_subname_count() > 0:
@@ -198,7 +199,7 @@ func _animation_remove(args: Dictionary) -> Dictionary:
 	var names := _split_name(str(args.animation))
 	var existing := _animation(player, names)
 	if existing == null:
-		return McpTool.error("There is no animation %s. Animations: %s." % [args.animation, ", ".join(player.get_animation_list())])
+		return McpTool.error("There is no animation %s. Animations: %s." % [args.animation, UntrustedText.wrap(", ".join(player.get_animation_list()))])
 	var library := player.get_animation_library(names.library)
 	var track_text := McpTool.str_arg(args, "track")
 	var action: String
@@ -311,7 +312,7 @@ func _node(args: Dictionary, classes: Array) -> Dictionary:
 	for type: String in classes:
 		if node.is_class(type):
 			return {"node": node, "root": root}
-	return {"error": "%s is %s; expected %s." % [node.name, node.get_class(), " or ".join(PackedStringArray(classes))]}
+	return {"error": "%s is %s; expected %s." % [UntrustedText.wrap(node.name), node.get_class(), " or ".join(PackedStringArray(classes))]}
 
 
 static func _split_name(text: String) -> Dictionary:

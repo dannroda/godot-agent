@@ -4,6 +4,8 @@ extends "test_case.gd"
 const McpServer := preload("res://addons/godot_agent/mcp/mcp_server.gd")
 const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
 const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
+const StdioShimInstaller := preload("res://addons/godot_agent/mcp/stdio_shim_installer.gd")
+const AgentProcess := preload("res://addons/godot_agent/transport/agent_process.gd")
 const TIMEOUT_MS := 5000
 
 var _server: McpServer
@@ -207,9 +209,118 @@ func test_progress_event_format() -> void:
 	assert_eq([McpServer.progress_token_of({"params": {}}), McpServer.progress_token_of({})], [null, null], "sin token")
 
 
+## fix-a #9: una tool que no termina no manda progreso para siempre: pasado stream_max_ms contesta un
+## error con su id y la conexión queda libre.
+func test_stream_has_a_cap() -> void:
+	_start()
+	_server.stream_after_ms = 50
+	_server.progress_every_ms = 50
+	_server.stream_max_ms = 400
+	var never := Object.new()
+	never.add_user_signal("never")
+	_server.registry.register(McpTool.create("stuck", "run", "No vuelve", {}, [], func(_args: Dictionary) -> String:
+		await Signal(never, "never")
+		return "unreachable"))
+	var sse := PackedStringArray(["Accept: application/json, text/event-stream"])
+	var started := Time.get_ticks_msec()
+	var streamed: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(11, "tools/call", {"name": "stuck", "arguments": {}, "_meta": {"progressToken": 1}}), _auth(sse))
+	var events := _sse_data(streamed.body)
+	assert_true(Time.get_ticks_msec() - started < 3000, "contestó al llegar al tope")
+	assert_true(events.size() >= 2 and events[0].get("method") == "notifications/progress", "con progreso antes · %s" % streamed.body)
+	assert_eq(events[-1].id, 11.0, "la respuesta lleva el id")
+	assert_true(str(events[-1].error.message).begins_with("godot.stuck did not finish within"), "es un error · %s" % [events[-1]])
+	var after: Dictionary = await _request(HTTPClient.METHOD_POST, "/mcp", _rpc(12, "ping"), _auth())
+	assert_eq(after.status, 200, "el server sigue atendiendo")
+	never.free()
+	_stop()
+
+
+## fix-a #25: el stream va en chunks y la conexión sigue viva: un request mandado detrás de un
+## tools/call largo en la misma conexión tiene su respuesta.
+func test_pipelined_request_after_a_stream() -> void:
+	_start()
+	_server.stream_after_ms = 50
+	_server.progress_every_ms = 100
+	var tree := Engine.get_main_loop() as SceneTree
+	_server.registry.register(McpTool.create("slow", "run", "Tarda", {}, [], func(_args: Dictionary) -> String:
+		await tree.create_timer(0.4).timeout
+		return "slow done"))
+	var peer := StreamPeerTCP.new()
+	peer.connect_to_host(McpServer.HOST, _server.port())
+	var deadline := Time.get_ticks_msec() + TIMEOUT_MS
+	while peer.get_status() == StreamPeerTCP.STATUS_CONNECTING and Time.get_ticks_msec() < deadline:
+		peer.poll()
+		await tree.process_frame
+	var slow := _rpc(1, "tools/call", {"name": "slow", "arguments": {}, "_meta": {"progressToken": "t"}})
+	var ping := _rpc(2, "ping")
+	var raw := "POST /mcp HTTP/1.1\r\nHost: x\r\nAccept: application/json, text/event-stream\r\nAuthorization: Bearer %s\r\nContent-Length: %d\r\n\r\n%s" % [_server.token, slow.length(), slow]
+	raw += "POST /mcp HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer %s\r\nContent-Length: %d\r\n\r\n%s" % [_server.token, ping.length(), ping]
+	peer.put_data(raw.to_utf8_buffer())
+	var received := ""
+	while not received.contains("\"id\":2") and Time.get_ticks_msec() < deadline and peer.get_status() == StreamPeerTCP.STATUS_CONNECTED:
+		peer.poll()
+		var available := peer.get_available_bytes()
+		if available > 0:
+			received += (peer.get_data(available)[1] as PackedByteArray).get_string_from_utf8()
+		await tree.process_frame
+	assert_true(received.contains("Transfer-Encoding: chunked") and not received.contains("Connection: close"), "stream en chunks · " + received.left(200))
+	assert_true(received.contains("slow done") and received.contains("\r\n0\r\n\r\n"), "la respuesta y el chunk final · " + received)
+	assert_true(received.contains("\"id\":2") and received.find("slow done") < received.find("\"id\":2"), "el ping de atrás contestado, en orden · " + received.right(300))
+	peer.disconnect_from_host()
+	_stop()
+
+
 func _sse_data(body: String) -> Array:
 	var events: Array = []
 	for line: String in body.split("\n"):
 		if line.begins_with("data: "):
 			events.append(JSON.parse_string(line.trim_prefix("data: ")))
 	return events
+
+
+## fix-a #8 (revisión de next2): el shim stdio de verdad, en su proceso. El editor corta el stream de
+## un tools/call antes de la respuesta (se cerró o recargó el addon): el cliente recibe un error -32603
+## con el id entero, en vez de esperar esa respuesta para siempre.
+func test_stdio_shim_answers_a_cut_stream() -> void:
+	_start()
+	_server.stream_after_ms = 50
+	_server.progress_every_ms = 100
+	var tree := Engine.get_main_loop() as SceneTree
+	var released: Array = [false]
+	_server.registry.register(McpTool.create("hang", "run", "No termina", {}, [], func(_args: Dictionary) -> String:
+		while not released[0]:
+			await tree.process_frame
+		return "late"))
+	var entry := StdioShimInstaller.server_entry("godot", _server.url(), _server.token)
+	assert_false(entry.is_empty(), "shim instalado")
+	var env: Dictionary = {}
+	for item: Dictionary in entry.env:
+		env[item.name] = item.value
+	var process := AgentProcess.new()
+	var lines: Array[String] = []
+	process.line_received.connect(func(line: String) -> void: lines.append(line))
+	assert_true(process.start(entry.command, PackedStringArray(entry.args), env), "el shim arranca")
+	process.send_line(JSON.stringify({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "cut-test", "version": "1"}}}))
+	process.send_line(JSON.stringify({"jsonrpc": "2.0", "method": "notifications/initialized"}))
+	process.send_line(JSON.stringify({"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "hang", "arguments": {}, "_meta": {"progressToken": "p"}}}))
+	var progressed := func() -> bool: return lines.any(func(line: String) -> bool: return line.contains("notifications/progress"))
+	var deadline := Time.get_ticks_msec() + 20000
+	while not progressed.call() and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	assert_true(progressed.call(), "el stream empezó (progreso) · %s" % [lines])
+	_server.stop()  # como el editor que se cierra a mitad de la llamada
+	var answer: Array = [null]
+	deadline = Time.get_ticks_msec() + 10000
+	while answer[0] == null and Time.get_ticks_msec() < deadline:
+		for line: String in lines:
+			var parsed: Variant = JSON.parse_string(line)
+			if parsed is Dictionary and parsed.get("id") is float and int(parsed.id) == 7:
+				answer[0] = line
+		await tree.process_frame
+	process.stop()
+	released[0] = true
+	await tree.process_frame
+	assert_true(answer[0] != null, "el shim contesta el id 7 · %s" % [lines])
+	if answer[0] != null:
+		assert_true(str(answer[0]).contains("\"id\":7,") and str(answer[0]).contains("\"code\":-32603"), "error -32603 con el id entero · " + str(answer[0]))
+	_server.queue_free()

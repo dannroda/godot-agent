@@ -8,6 +8,7 @@ extends RefCounted
 ## "tile_size": [16, 16]} o una ruta .tres).
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const SceneAccess := preload("scene_access.gd")
 const EditorUndo := preload("../../editor/editor_undo.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -29,9 +30,10 @@ var on_action: Callable
 func tools() -> Array:
 	var scene := PermissionPolicy.GROUP_EDIT_SCENE
 	return [
-		McpTool.create("tilemap_get", PermissionPolicy.GROUP_READ,
+		# Lee la escena y su TileSet: en un sobre como scene_tree (m11-45).
+		McpTool.enveloped(McpTool.create("tilemap_get", PermissionPolicy.GROUP_READ,
 			"Reads a TileMapLayer: its TileSet (sources with their tiles, physics layers, terrain sets) and an ASCII map of the cells with a legend. Use `rect` for big maps.",
-			{"node_path": NODE_ARG, "rect": RECT_ARG, "scene": SCENE_ARG}, ["node_path"], _tilemap_get),
+			{"node_path": NODE_ARG, "rect": RECT_ARG, "scene": SCENE_ARG}, ["node_path"], _tilemap_get), McpTool.ENVELOPE_ALL),
 		McpTool.create("tileset_add_atlas", scene,
 			"Adds a texture as an atlas source to the TileSet of a TileMapLayer (with undo). Creates a tile for every grid cell that is not fully transparent. `collision`=true gives each tile a full-square collision shape (a physics layer is added if there is none).",
 			{
@@ -323,7 +325,7 @@ func _layer(args: Dictionary) -> Dictionary:
 		return {"error": "There is no node '%s' in %s. Use scene_tree." % [args.node_path, root.scene_file_path.get_file()]}
 	if not node is TileMapLayer:
 		var hint := " (the old TileMap node is deprecated: use TileMapLayer)" if node.get_class() == "TileMap" else ""
-		return {"error": "%s is %s, not a TileMapLayer%s." % [node.name, node.get_class(), hint]}
+		return {"error": "%s is %s, not a TileMapLayer%s." % [UntrustedText.wrap(node.name), node.get_class(), hint]}
 	return {"layer": node, "root": root}
 
 
