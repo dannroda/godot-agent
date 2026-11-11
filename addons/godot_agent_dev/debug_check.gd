@@ -132,7 +132,7 @@ func _check(model: Object) -> void:
 	var late := await _call_text("run_scene", {"scene": SCENE, "seconds": 5, "monitors": true})
 	report.late = late.left(300)
 	_expect(late.contains("stopped at a breakpoint") and late.contains("%s:%d" % [SCRIPT, LATE_LINE]), "para en el breakpoint de más tarde · " + late.left(400))
-	_expect(late.contains("Performance during the run:\nSampled "), "parado ahí, igual lee los monitores · " + late.right(600))
+	_expect(late.contains("Performance during the run:\n<untrusted nonce=") and late.contains("Sampled "), "parado ahí, igual lee los monitores · " + late.right(600))
 	await _call_text("game_breakpoint", {"action": "clear", "file": SCRIPT, "line": LATE_LINE})
 	await _call_text("stop_scene", {})
 
