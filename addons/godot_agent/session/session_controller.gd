@@ -31,6 +31,7 @@ const PlaytestMemory := preload("../review/playtest_memory.gd")
 const RunTools := preload("../mcp/tools/run_tools.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
+const ModeModels := preload("../core/mode_models.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
 const CsharpBuild := preload("../core/csharp_build.gd")
@@ -116,6 +117,8 @@ const ACTION_RUN_REGRESSIONS := "run_regressions"
 ## turno (m11-31) o un MCP server del proyecto (m13-31). `data` es MachineApproval.request; el dock
 ## muestra los comandos y llama approve_on_machine.
 const ACTION_APPROVE_ON_MACHINE := "approve_on_machine"
+## «Cambiar» en el aviso del modelo de un modo (m11-38): abre el selector del composer.
+const ACTION_CHOOSE_MODEL := "choose_model"
 const ACTION_REGRESSIONS_WORKFLOW := "regressions_workflow"
 const ACTION_LOGIN_CODE := "login_code"
 const ACTION_LOGIN_CANCEL := "login_cancel"
@@ -219,6 +222,12 @@ var is_command_approved: Callable
 var notice_seen: Callable
 var _notices_shown: Dictionary = {}
 var approve_command: Callable
+## El modelo de cada modo del harness, por perfil (m11-38). Sin asignar, cambiar de modo no toca el modelo.
+var mode_models: ModeModels
+## Ya se avisó en esta pestaña que un cambio de modo cambió el modelo (después, solo el log).
+var _mode_model_noticed: bool = false
+## Valores recordados que el agente ya no ofrece, ya avisados en esta pestaña.
+var _missing_models_noticed: Dictionary = {}
 ## Snapshots por turno de Construir o Auto (m11-01); compartidos por las sesiones, cada una con su
 ## `session_key`. Sin asignar o sin git, no se guardan.
 var snapshots: TurnSnapshots
@@ -454,6 +463,9 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 	permissions.reset()
 	if history:
 		history.begin(model.session_id, _profile.id, _profile.label(), cwd, {}, _profile.account_dir)
+	await _sync_mode_model()  # antes del primer prompt (m11-38)
+	if generation != _connect_generation:
+		return false
 	model.set_state(SessionModel.SessionState.READY)
 	_notice_after_session()
 	_sync_agent_mode()
@@ -633,7 +645,7 @@ func _cancel_abandoned_requests() -> void:
 		_session_request_id = 0
 		client.cancel_request(sid)
 func _current_model_name() -> String:
-	var option := model.config_option("model")
+	var option := model.model_option()
 	var value := str(option.get("currentValue", ""))
 	for item: Variant in option.get("options", []):
 		if item is Dictionary and str(item.get("value", "")) == value:
@@ -1051,6 +1063,66 @@ func _watch_cancel(generation: int, connect_generation: int) -> void:
 	_record_turn_end("cancelled")
 
 
+## El usuario eligió un modelo en el selector (m11-38): se manda y queda recordado para el modo actual
+## de esta pestaña, con este perfil.
+func choose_model(value: String) -> bool:
+	var option := model.model_option()
+	if option.is_empty():
+		return false
+	if not await set_config_option(str(option.get("id", "model")), value):
+		return false
+	if mode_models and _profile:
+		mode_models.remember(_profile.id, model.harness_mode, value, ModeModels.option_name(option, value))
+		agent_log.add(AgentLog.CH_ACP, "Model %s remembered for %s" % [value, SessionModel.HARNESS_MODE_LABELS[model.harness_mode]])
+	return true
+
+
+## El tooltip del selector de modelo (m11-38): para qué modo se recuerda lo que se elija, y si el que
+## está es el recordado. "" si no hay modelo por modo (sin tienda, sin perfil o sin la opción).
+func model_tooltip() -> String:
+	var option := model.model_option()
+	if mode_models == null or _profile == null or option.is_empty():
+		return ""
+	var mode_label := I18n.t(SessionModel.HARNESS_MODE_LABELS[model.harness_mode])
+	var wanted := mode_models.get_model(_profile.id, model.harness_mode)
+	if not wanted.is_empty() and str(wanted.value) == str(option.get("currentValue", "")):
+		return I18n.t("Model. Remembered for %s: the one you pick is used every time you switch to %s.") % [mode_label, mode_label]
+	return I18n.t("Model. The one you pick is remembered for %s.") % mode_label
+
+
+## Pide el modelo recordado para el modo actual, si hay uno y no es el que está (m11-38). Cuenta como
+## un sync de modo: el próximo prompt lo espera.
+func _sync_mode_model() -> void:
+	if mode_models == null or _profile == null or model.session_id.is_empty():
+		return
+	var option := model.model_option()
+	var wanted := mode_models.get_model(_profile.id, model.harness_mode)
+	if option.is_empty() or wanted.is_empty():
+		return
+	var value := str(wanted.value)
+	if value == str(option.get("currentValue", "")):
+		return
+	var mode_label := I18n.t(SessionModel.HARNESS_MODE_LABELS[model.harness_mode])
+	if not ModeModels.offers(option, value):
+		agent_log.add(AgentLog.CH_ACP, "The model remembered for %s (%s) is not offered by the agent: left as is" % [SessionModel.HARNESS_MODE_LABELS[model.harness_mode], value])
+		var key := "%s/%s" % [model.harness_mode, value]
+		if not _missing_models_noticed.has(key):
+			_missing_models_noticed[key] = true
+			model.add_notice(I18n.t("%s remembers the model «%s», but %s doesn't offer it now (another account?). The model wasn't changed.") % [mode_label, str(wanted.get("name", value)), _agent_name()], ChatEntry.NoticeLevel.WARNING)
+		return
+	_mode_syncs_running += 1
+	var ok := await set_config_option(str(option.get("id", "model")), value)
+	_mode_syncs_running -= 1
+	if ok:
+		var name := ModeModels.option_name(model.model_option(), value)
+		agent_log.add(AgentLog.CH_ACP, "%s uses %s (remembered for this mode)" % [SessionModel.HARNESS_MODE_LABELS[model.harness_mode], value])
+		if not _mode_model_noticed:
+			_mode_model_noticed = true
+			model.add_notice(I18n.t("%s uses %s.") % [mode_label, name], ChatEntry.NoticeLevel.INFO,
+				[{"id": ACTION_CHOOSE_MODEL, "label": I18n.t("Change"), "tooltip": I18n.t("Choose another model for %s: the one you pick is remembered for this mode.") % mode_label}])
+	agent_mode_synced.emit()
+
+
 func set_config_option(id: String, value: String) -> bool:
 	if model.session_id.is_empty():
 		return false
@@ -1440,6 +1512,9 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 	permissions.reset()
 	if history and _profile and (has_local_events or method == "session/resume"):
 		history.begin(session_id, _profile.id, _profile.label(), cwd, record, _profile.account_dir)
+	await _sync_mode_model()  # antes del primer prompt (m11-38)
+	if generation != _connect_generation:
+		return false
 	model.set_state(SessionModel.SessionState.READY)
 	var resumed_msg := I18n.t("Session resumed: the agent recovered its context with session/resume.") if use_resume else I18n.t("Session resumed: the agent recovered its context with session/load.")
 	model.add_notice(resumed_msg)
@@ -1524,6 +1599,10 @@ func _on_unexpected_transition(from: SessionModel.SessionState, to: SessionModel
 
 func _on_harness_mode_changed(_mode: SessionModel.HarnessMode) -> void:
 	_system_prompt_sent = false
+	# El modelo primero (m11-38): cambiarlo puede bajar de modo en el adapter. Con «Aprobar y construir»
+	# (_skip_mode_sync) el agente sale solo de plan, pero el modelo de Construir se pide igual: el
+	# adapter lo acepta en medio del turno y el resto del turno ya va con ese modelo.
+	_sync_mode_model()
 	if not _skip_mode_sync:
 		_sync_agent_mode()
 

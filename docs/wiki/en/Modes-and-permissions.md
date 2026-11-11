@@ -14,6 +14,12 @@
 
 Switching mode also switches the agent's own mode when it publishes one: Ask and Review use `plan`; Build, Auto and One-shot use `default`.
 
+### A model for each mode
+
+The model you pick in the composer's model selector is remembered for the mode the tab is in, for that agent profile. Switching back to that mode picks that model again, so you can plan in Ask with a strong model and build with a fast one, the planner/editor pair of other harnesses but without two requests per change. **Approve and build** also switches to Build's model, and the agent keeps going with it in the same turn. A mode with nothing remembered doesn't change the model, and One-shot is one more mode. The first time a mode switch changes the model, the chat says so in one line (**Build uses Sonnet**, with **Change**); the selector's tooltip says which mode it's remembered for.
+
+It's a setting of yours, not of the project, because the models depend on your account. **Settings → Agents** lists what each profile remembers, with **Forget**. If the agent no longer offers a remembered model (another account, for instance), the model isn't changed and the chat says so once. It works with agents that publish the model as a session option (Claude Code does); with others the selector doesn't show. Claude Code's own `opusplan` alias, if your account lists it, does something similar without the harness.
+
 ### Approving the agent's plan
 
 In Ask or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:

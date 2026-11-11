@@ -546,8 +546,10 @@ func choose_mode(mode: int) -> void:
 		_mode_button.item_selected.emit(index)
 
 
-## `option` es la configOption "model" del agente (o {} para ocultar el selector).
-func set_model_option(option: Dictionary) -> void:
+## `option` es la configOption "model" del agente (o {} para ocultar el selector). `tooltip`, si no está
+## vacío, dice para qué modo se recuerda lo que se elija (m11-38).
+func set_model_option(option: Dictionary, tooltip: String = "") -> void:
+	_model_button.tooltip_text = tooltip if not tooltip.is_empty() else I18n.t("Model")
 	_model_button.clear()
 	_model_values.clear()
 	var options: Variant = option.get("options", [])
@@ -569,6 +571,12 @@ func set_model_option(option: Dictionary) -> void:
 			_model_button.select(_model_button.item_count - 1)
 	_model_button.visible = true
 	_queue_fit()
+
+
+## Abre la lista del selector de modelo («Cambiar» en el aviso del modelo de un modo, m11-38).
+func open_model_selector() -> void:
+	if _model_button.visible:
+		_model_button.show_popup()
 
 
 ## Nombre de una opción del selector. La opción "default" de Claude Code se llama «Default
