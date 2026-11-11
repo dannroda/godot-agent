@@ -38,18 +38,17 @@ func run(tree: SceneTree, shot_prefix: String) -> PackedStringArray:
 	if _service == null:
 		failures.append("no se encontró CompletionService")
 		return failures
+	var context: Object = _service.get(&"context")
+	# m16-13: sin scripts abiertos el índice no se construye (el editor puede haber restaurado alguno).
+	var no_script_open: bool = (_service.get(&"_controllers") as Dictionary).is_empty()
+	if no_script_open and (context.call(&"has_built") or context.call(&"is_building")):
+		failures.append("el índice se construyó sin ningún script abierto")
 	_write_fixture()
 	var fs := EditorInterface.get_resource_filesystem()
 	fs.scan()
-	var waited := 0.0
-	var context: Object = _service.get(&"context")
-	while waited < INDEX_TIMEOUT_S and not ((context.get(&"index") as Object).get(&"script_nodes") as Dictionary).has(TARGET):
-		await tree.create_timer(0.25).timeout
-		waited += 0.25
-	if not ((context.get(&"index") as Object).get(&"script_nodes") as Dictionary).has(TARGET):
-		failures.append("el índice no vio la escena nueva en %.0f s" % INDEX_TIMEOUT_S)
-		return failures
-	report.append("índice listo en %.1f s" % waited)
+	await tree.create_timer(1.0).timeout
+	if no_script_open and (context.call(&"has_built") or context.call(&"is_building")):
+		failures.append("un cambio de archivos construyó el índice sin ningún script abierto")
 
 	EditorInterface.set_main_screen_editor("Script")
 	EditorInterface.edit_script(load(TARGET), 9, 0)
@@ -58,6 +57,14 @@ func run(tree: SceneTree, shot_prefix: String) -> PackedStringArray:
 	if _code_edit == null:
 		failures.append("no se abrió el script")
 		return failures
+	var waited := 0.0
+	while waited < INDEX_TIMEOUT_S and not ((context.get(&"index") as Object).get(&"script_nodes") as Dictionary).has(TARGET):
+		await tree.create_timer(0.25).timeout
+		waited += 0.25
+	if not ((context.get(&"index") as Object).get(&"script_nodes") as Dictionary).has(TARGET):
+		failures.append("el índice no vio la escena nueva en %.0f s" % INDEX_TIMEOUT_S)
+		return failures
+	report.append("índice listo en %.1f s después de abrir el script%s" % [waited, "" if no_script_open else " (había scripts abiertos al arrancar)"])
 	_code_edit.grab_focus()
 	await tree.process_frame
 	if not _code_edit.is_visible_in_tree() or not _code_edit.has_focus():
