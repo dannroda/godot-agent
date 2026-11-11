@@ -284,8 +284,10 @@ func _run_script(params: Dictionary) -> Dictionary:
 		OS.remove_logger(errors)
 		return {"error": "The script needs a `func run(game):`."}
 	var kit := ScriptKit.new(self)
-	if params.get("baselines") is Dictionary:
-		kit.checks.baselines = params.baselines
+	var baselines: Variant = params.get("baselines")
+	if baselines is Dictionary:
+		kit.checks.baselines = baselines.get("counts", {}) if baselines.get("counts") is Dictionary else {}
+		kit.checks.time_baselines = baselines.get("times", {}) if baselines.get("times") is Dictionary else {}
 	kit.checks.time_budgets_warn = params.get("time_budgets_warn", false) == true
 	var state := {"done": false, "value": null}
 	_drive_script(instance, kit, state)

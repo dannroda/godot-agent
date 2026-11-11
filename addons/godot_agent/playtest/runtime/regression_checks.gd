@@ -6,8 +6,9 @@ extends RefCounted
 ## baselines) y v1.16 (invariantes en cada physics frame).
 ##
 ## Qué hace fallar: un invariante roto, un presupuesto con límite escrito, o uno de conteo por encima
-## de la base de esta máquina. Un presupuesto de tiempo sin límite solo avisa: la base se toma en una
-## máquina y la regresión corre en otra (CI, otra PC), y fallar por eso daría rojos falsos.
+## de su base. Las bases de conteo son deterministas: una sola, compartida, en el JSON de la regresión.
+## Las de tiempo son de cada máquina y viven fuera del repo (PlaytestRegressions.TIME_BASELINES); un
+## presupuesto de tiempo sin límite solo avisa, porque la regresión corre en otras máquinas (CI, otra PC).
 
 const Monitors := preload("monitors.gd")
 
@@ -25,8 +26,10 @@ const COUNT_TOLERANCE := 1.25
 ## Por encima de esto, los invariantes son caros y el reporte lo dice.
 const SLOW_CHECKS_MS := 1.0
 
-## Bases de la regresión: {máquina: {métrica: valor}} (el campo `baselines` de su JSON).
+## Bases de conteo, {métrica: valor} (el campo `baselines` del JSON de la regresión).
 var baselines: Dictionary = {}
+## Bases de tiempo de esta máquina, {runner: {métrica: valor}}: la probe se queda con la de su runner.
+var time_baselines: Dictionary = {}
 ## Bajo un mutante (m11-41) un presupuesto de tiempo no hace fallar: entre procesos hay ruido.
 var time_budgets_warn := false
 
@@ -45,9 +48,9 @@ func _init(tree: SceneTree) -> void:
 	_tree = tree
 
 
-## La máquina de las bases: con o sin ventana (headless no dibuja y corre otro ritmo) y el procesador.
-static func machine() -> String:
-	return "%s · %s" % ["headless" if DisplayServer.get_name() == "headless" else "window", OS.get_processor_name().strip_edges()]
+## Con o sin ventana: headless no dibuja y corre a otro ritmo, así que sus tiempos tienen otra base.
+static func runner() -> String:
+	return "headless" if DisplayServer.get_name() == "headless" else "window"
 
 
 func invariant(name: String, check: Callable, value: Callable = Callable()) -> void:
@@ -126,9 +129,10 @@ func finish() -> Dictionary:
 		lines.append("Invariants: %d of %d held over %d physics frames (%.3f ms per frame%s)." % [_invariants.size() - violations.size(), _invariants.size(), _frames, per_frame,
 			", slow: keep the checks cheap; this time is not counted in frame_ms" if per_frame > SLOW_CHECKS_MS else ""])
 	var measured := measure()
-	var here: Dictionary = baselines.get(machine(), {})
+	var times: Dictionary = time_baselines.get(runner(), {}) if time_baselines.get(runner()) is Dictionary else {}
 	for declared: Dictionary in _budgets:
-		var verdict := judge(declared.metric, measured.get(declared.metric), declared.limit, here.get(declared.metric), time_budgets_warn)
+		var base: Variant = times.get(declared.metric) if declared.metric in TIME_METRICS else baselines.get(declared.metric)
+		var verdict := judge(declared.metric, measured.get(declared.metric), declared.limit, base, time_budgets_warn)
 		lines.append(verdict.line)
 		if verdict.failed:
 			violations.append({"kind": "budget", "name": declared.metric, "value": measured.get(declared.metric), "limit": verdict.limit})
@@ -138,11 +142,11 @@ func finish() -> Dictionary:
 		if declared.limit == null and measured.get(declared.metric) != null:
 			shown[declared.metric] = snappedf(float(measured[declared.metric]), 0.01)
 	if not shown.is_empty():
-		lines.append("%s (%s): %s" % [MEASURED, machine(), JSON.stringify(shown)])
+		lines.append("%s (%s): %s" % [MEASURED, runner(), JSON.stringify(shown)])
 	return {"lines": lines, "violations": violations}
 
 
-## Un presupuesto: {line, failed, limit}. `base`: la de esta máquina, o null.
+## Un presupuesto: {line, failed, limit}. `base`: la compartida (conteos) o la de esta máquina (tiempos), o null.
 static func judge(metric: String, value: Variant, limit: Variant, base: Variant, time_warn: bool = false) -> Dictionary:
 	var timed := metric in TIME_METRICS
 	var unit := " ms" if timed else ""
@@ -156,10 +160,11 @@ static func judge(metric: String, value: Variant, limit: Variant, base: Variant,
 			return {"line": "%s %s %s%s > %s (time budgets do not fail under a mutant)." % [WARNING, metric, _number(got), unit, _number(float(limit))], "failed": false, "limit": limit}
 		return {"line": "%s %s %s%s > %s." % [OVER, metric, _number(got), unit, _number(float(limit))], "failed": true, "limit": limit}
 	if base == null:
-		return {"line": "Budget %s: %s%s (no baseline on this machine yet: a passing run records it)." % [metric, _number(got), unit], "failed": false, "limit": null}
+		return {"line": "Budget %s: %s%s (no baseline%s yet: a passing run records it)." % [metric, _number(got), unit, " on this machine" if timed else ""], "failed": false, "limit": null}
 	var base_value := float(base)
 	var allowed := base_value * TIME_TOLERANCE if timed else float(ceili(base_value * COUNT_TOLERANCE))
-	var ratio := "%.1f× this machine's baseline (%s%s)" % [got / base_value, _number(base_value), unit] if base_value > 0.0 else "this machine's baseline is %s" % _number(base_value)
+	var whose := "this machine's baseline" if timed else "the baseline"
+	var ratio := "%.1f× %s (%s%s)" % [got / base_value, whose, _number(base_value), unit] if base_value > 0.0 else "%s is %s" % [whose, _number(base_value)]
 	if got <= allowed:
 		return {"line": "Budget %s: %s%s, %s." % [metric, _number(got), unit, ratio], "failed": false, "limit": allowed}
 	if timed:
@@ -167,13 +172,13 @@ static func judge(metric: String, value: Variant, limit: Variant, base: Variant,
 	return {"line": "%s %s %s, %s." % [OVER, metric, _number(got), ratio], "failed": true, "limit": allowed}
 
 
-## Las bases que trae una salida: {máquina: {métrica: valor}}, o {}.
+## Lo medido para las bases en una salida: {runner, values: {métrica: valor}}, o {}.
 static func measured_in(output: String) -> Dictionary:
 	var found := RegEx.create_from_string("(?m)^%s \\((.+)\\): (\\{.*\\})$" % MEASURED).search(output)
 	if not found:
 		return {}
 	var parsed: Variant = JSON.parse_string(found.get_string(2))
-	return {found.get_string(1): parsed} if parsed is Dictionary else {}
+	return {"runner": found.get_string(1), "values": parsed} if parsed is Dictionary else {}
 
 
 static func _number(value: float) -> String:

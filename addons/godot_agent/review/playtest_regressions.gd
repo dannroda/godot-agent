@@ -5,6 +5,9 @@ extends RefCounted
 
 const UntrustedText := preload("../mcp/untrusted_text.gd")
 const RegressionChecks := preload("../playtest/runtime/regression_checks.gd")
+## Bases de tiempo de esta máquina (m11-44): {"<regresión>|<runner>": {métrica: valor}}. Fuera del repo.
+const TIME_BASELINES := "user://godot_agent/regression_time_baselines.json"
+const TIME_KEY_SEPARATOR := "|"
 
 const DIR := "res://.godot_agent/playtests/regressions"
 const PASS_MARK := "run() returned: true"
@@ -126,31 +129,65 @@ static func record_runs(tallied: Dictionary) -> void:
 		file.close()
 
 
-## Las bases de los presupuestos (m11-44): lo que midió un run que pasó, para la máquina donde corrió, si
-## esa máquina todavía no tenía. Una vez guardadas no se pisan: la base es la de cuando andaba.
-static func record_baselines(path: String, output: String) -> bool:
+## Las bases de los presupuestos (m11-44) que se pasan a la probe: {counts: {métrica: valor}, times:
+## {runner: {métrica: valor}}}. Las de conteo, del JSON de la regresión; las de tiempo, de esta máquina.
+static func baselines_for(entry: Dictionary, times_file: String = TIME_BASELINES) -> Dictionary:
+	var counts: Variant = entry.get("baselines", {})
+	var times := {}
+	var file := str(entry.get("file", ""))
+	var stored := _read_json(times_file)
+	for key: String in stored:
+		if key.begins_with(file + TIME_KEY_SEPARATOR) and stored[key] is Dictionary:
+			times[key.trim_prefix(file + TIME_KEY_SEPARATOR)] = stored[key]
+	return {"counts": counts if counts is Dictionary else {}, "times": times}
+
+
+## Guarda lo que midió un run que pasó, donde no había base: los conteos en el JSON de la regresión (una
+## base compartida, determinista) y los tiempos en el user dir del proyecto, por regresión y runner (son
+## de esta máquina y no van al repo). Una base guardada no se pisa: es la de cuando andaba.
+static func record_baselines(path: String, output: String, times_file: String = TIME_BASELINES) -> bool:
 	var measured := RegressionChecks.measured_in(output)
 	if measured.is_empty() or path.is_empty() or not FileAccess.file_exists(path):
 		return false
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not parsed is Dictionary:
-		return false
-	var baselines: Dictionary = parsed.get("baselines", {}) if parsed.get("baselines") is Dictionary else {}
-	var machine: String = measured.keys()[0]
-	var here: Dictionary = baselines.get(machine, {}) if baselines.get(machine) is Dictionary else {}
 	var changed := false
-	for metric: String in measured[machine]:
-		if not here.has(metric):
-			here[metric] = measured[machine][metric]
-			changed = true
-	if not changed:
-		return false
-	baselines[machine] = here
-	parsed["baselines"] = baselines
+	var parsed: Variant = _read_json(path)
+	var counts: Dictionary = parsed.get("baselines", {}) if parsed is Dictionary and parsed.get("baselines") is Dictionary else {}
+	var times_all := _read_json(times_file)
+	var key := path + TIME_KEY_SEPARATOR + str(measured.runner)
+	var times: Dictionary = times_all.get(key, {}) if times_all.get(key) is Dictionary else {}
+	var counts_changed := false
+	var times_changed := false
+	for metric: String in measured.values:
+		var target := times if metric in RegressionChecks.TIME_METRICS else counts
+		if target.has(metric):
+			continue
+		target[metric] = measured.values[metric]
+		if metric in RegressionChecks.TIME_METRICS:
+			times_changed = true
+		else:
+			counts_changed = true
+	if counts_changed and parsed is Dictionary and not parsed.is_empty():
+		parsed["baselines"] = counts
+		changed = _write_json(path, parsed) or changed
+	if times_changed:
+		times_all[key] = times
+		DirAccess.make_dir_recursive_absolute(times_file.get_base_dir())
+		changed = _write_json(times_file, times_all) or changed
+	return changed
+
+
+static func _read_json(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return parsed if parsed is Dictionary else {}
+
+
+static func _write_json(path: String, data: Dictionary) -> bool:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if not file:
 		return false
-	file.store_string(JSON.stringify(parsed, "\t"))
+	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
 	return true
 

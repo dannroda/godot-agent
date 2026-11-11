@@ -53,6 +53,7 @@ func test_judge() -> void:
 	assert_false(RegressionChecks.judge("frame_ms_p95", 12.0, null, 9.1).line.begins_with(RegressionChecks.WARNING), "dentro de la tolerancia no avisa")
 	var nodes := RegressionChecks.judge("nodes_max", 70, null, 50)
 	assert_true(nodes.failed and nodes.line.begins_with(RegressionChecks.OVER), "un conteo sobre la base falla: %s" % nodes.line)
+	assert_true(nodes.line.contains("1.4× the baseline") and not nodes.line.contains("machine"), "la de conteo es compartida: %s" % nodes.line)
 	assert_false(RegressionChecks.judge("nodes_max", 62, null, 50).failed, "dentro del 25 %")
 	assert_true(RegressionChecks.judge("orphans_end", 1, null, 0).failed, "con base 0, un huérfano ya falla")
 	var first := RegressionChecks.judge("nodes_max", 70, null, null)
@@ -72,9 +73,9 @@ func test_budget_declaration() -> void:
 	var result := checks.finish()
 	assert_true((result.violations as Array).is_empty(), "nada roto: %s" % "\n".join(result.lines))
 	var measured := RegressionChecks.measured_in("\n".join(result.lines))
-	assert_true(measured.has(RegressionChecks.machine()), "la línea de lo medido se lee con la máquina")
-	assert_true((measured[RegressionChecks.machine()] as Dictionary).has("frame_ms_p95"), "con las que van contra la base")
-	assert_false((measured[RegressionChecks.machine()] as Dictionary).has("nodes_max"), "no las que tienen límite escrito")
+	assert_eq(measured.get("runner"), "headless", "la línea de lo medido dice el runner, no la máquina")
+	assert_true((measured.values as Dictionary).has("frame_ms_p95"), "con las que van contra la base")
+	assert_false((measured.values as Dictionary).has("nodes_max"), "no las que tienen límite escrito")
 
 
 func test_passed_and_baselines() -> void:
@@ -83,21 +84,30 @@ func test_passed_and_baselines() -> void:
 	assert_false(PlaytestRegressions.passed(RegressionChecks.BROKEN + " «x» at physics frame 3\n" + ok), "un invariante roto la hace fallar")
 	assert_false(PlaytestRegressions.passed(RegressionChecks.OVER + " nodes_max 9 > 5.\n" + ok), "un presupuesto pasado la hace fallar")
 	assert_true(PlaytestRegressions.passed(RegressionChecks.WARNING + " frame_ms_p95 19 ms\n" + ok), "un aviso no")
-	var path := temp_dir("baselines").path_join("r.json")
+	var dir := temp_dir("baselines")
+	var path := dir.path_join("r.json")
+	var times_file := dir.path_join("times.json")
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(JSON.stringify({"goal": "g", "scene": "res://x.tscn", "code": "func run(game):\n\treturn true"}))
 	file.close()
-	var output := "%s (headless · CPU): {\"nodes_max\": 40, \"frame_ms_p95\": 2.5}\n%s" % [RegressionChecks.MEASURED, ok]
-	assert_true(PlaytestRegressions.record_baselines(path, output), "el primer run verde guarda la base")
+	var output := "%s (headless): {\"nodes_max\": 40, \"frame_ms_p95\": 2.5}\n%s" % [RegressionChecks.MEASURED, ok]
+	assert_true(PlaytestRegressions.record_baselines(path, output, times_file), "el primer run verde guarda las bases")
 	var saved: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
-	assert_eq(float(saved.baselines["headless · CPU"].nodes_max), 40.0, "por máquina")
+	assert_eq(saved.baselines, {"nodes_max": 40.0}, "en el JSON versionado, solo los conteos y sin máquina")
 	assert_eq(saved.code, "func run(game):\n\treturn true", "el resto queda igual")
-	var later := "%s (headless · CPU): {\"nodes_max\": 60}" % RegressionChecks.MEASURED
-	assert_false(PlaytestRegressions.record_baselines(path, later), "una base guardada no se pisa")
-	var other := "%s (window · GPU box): {\"nodes_max\": 45}" % RegressionChecks.MEASURED
-	assert_true(PlaytestRegressions.record_baselines(path, other), "otra máquina suma la suya")
+	var times: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(times_file))
+	assert_eq(times, {path + "|headless": {"frame_ms_p95": 2.5}}, "los tiempos fuera del repo, por regresión y runner")
+	var later := "%s (headless): {\"nodes_max\": 60, \"frame_ms_p95\": 9}" % RegressionChecks.MEASURED
+	assert_false(PlaytestRegressions.record_baselines(path, later, times_file), "una base guardada no se pisa")
+	var window := "%s (window): {\"nodes_max\": 45, \"frame_ms_p95\": 7}" % RegressionChecks.MEASURED
+	assert_true(PlaytestRegressions.record_baselines(path, window, times_file), "otro runner suma su tiempo")
 	saved = JSON.parse_string(FileAccess.get_file_as_string(path))
-	assert_eq((saved.baselines as Dictionary).size(), 2, "una por máquina")
+	assert_eq(saved.baselines, {"nodes_max": 40.0}, "el conteo sigue siendo uno")
+	var entry := saved.duplicate()
+	entry.file = path
+	var given := PlaytestRegressions.baselines_for(entry, times_file)
+	assert_eq(given.counts, {"nodes_max": 40.0}, "a la probe: los conteos")
+	assert_eq(given.times, {"headless": {"frame_ms_p95": 2.5}, "window": {"frame_ms_p95": 7.0}}, "y los tiempos de esta máquina por runner")
 
 
 func test_mutation_counts_kills_by_checks() -> void:

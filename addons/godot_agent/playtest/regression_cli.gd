@@ -227,7 +227,7 @@ func run_one(entry: Dictionary, setup: String = "") -> Dictionary:
 	if not setup.is_empty():
 		await probe.call(&"_run_script", {"code": setup, "timeout": SCRIPT_TIMEOUT_S})
 	var played: Dictionary = await probe.call(&"_run_script", {"code": str(entry.get("code", "")), "timeout": SCRIPT_TIMEOUT_S,
-		"baselines": entry.get("baselines", {}), "time_budgets_warn": under_mutant})
+		"baselines": PlaytestRegressions.baselines_for(entry), "time_budgets_warn": under_mutant})
 	result.output = str(played.get("error", played.get("text", "")))
 	result.passed = not played.has("error") and PlaytestRegressions.passed(result.output)
 	result.violations = played.get("violations", [])
