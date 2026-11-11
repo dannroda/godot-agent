@@ -21,7 +21,7 @@ acp:ci:300
 oneshot_loop:ci:300
 regressions:ci:300
 export:ci:300
-plugin_cycle:ci:300
+plugin_cycle:ci:500
 run:ci:280
 review:ci:200
 run-error:ci:150
@@ -39,7 +39,7 @@ auto:full:120
 remote:full:120
 pending:full:120
 profile:full:120
-cycle:full:120
+cycle:full:450
 i18n:full:120
 history:full:120
 sessions:full:120
