@@ -1,0 +1,57 @@
+name: Nightly suite
+
+# Todo lo que no gasta tokens ni usa red (tests/suite.sh full): lo del CI y además los checks del editor
+# que tardan más o miran pantallas enteras (One-shot, sesiones, i18n, completado, caídas…).
+# A mano desde Actions o cada noche, siempre sobre main.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  suite:
+    name: Full suite (Godot ${{ matrix.godot }})
+    # Solo main, también a mano: las ramas sm/* corren el CI (ci.yml) al pushearlas.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: [4.7.2-stable, 4.8-beta2]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/godot
+          key: godot-${{ matrix.godot }}
+
+      - name: Install Godot
+        run: sh .github/scripts/install-godot.sh ~/godot ${{ matrix.godot }}
+
+      - name: Import
+        run: ~/godot/godot --headless --path . --import
+
+      # Los checkpoints del One-shot hacen commits en un repo de prueba.
+      - name: Git identity
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@users.noreply.github.com"
+
+      - name: Install Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+
+      # Sigue aunque falle uno y termina con la tabla de PASS/FAIL y los segundos de cada check.
+      - name: tests/suite.sh full
+        env:
+          SUITE_LOGS: ${{ runner.temp }}/suite
+        run: sh tests/suite.sh full ~/godot/godot
+
+      - name: Logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-logs-${{ matrix.godot }}
+          path: ${{ runner.temp }}/suite

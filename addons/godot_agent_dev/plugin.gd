@@ -1,8 +1,10 @@
 @tool
 extends EditorPlugin
 ## Herramientas de test que necesitan el editor. No hace nada salvo que se lance con:
-## - `-- --godot-agent-cycle-test`: alterna el plugin godot_agent N veces y sale.
-##   Código de salida: 0 bien, 1 si quedan nodos huérfanos u objetos que crecen ciclo a ciclo.
+## - `-- --godot-agent-cycle-test [--godot-agent-cycle-target=<plugin o ruta al plugin.cfg>]`: alterna
+##   el plugin godot_agent (u otro) 9 veces, intercalado con un plugin vacío de control, y sale.
+##   Código de salida: 0 bien, 1 si quedan nodos huérfanos o si pierde objetos ciclo a ciclo más que el
+##   control (tests/fixtures/cycle_plugins/leaky lo tiene que hacer fallar).
 ## - `-- --godot-agent-screenshot=<ruta.png>`: abre la main screen "One-shot", guarda una captura
 ##   del editor y sale (necesita ventana, no headless).
 ## - `-- --godot-agent-ui-test=<guion> --godot-agent-ui-shot=<ruta.png>`: conecta el dock al agente
@@ -169,11 +171,23 @@ const EditorUndo := preload("res://addons/godot_agent/editor/editor_undo.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
 const MAIN_SCREEN_NAME := "One-shot"
 const TARGET_PLUGIN := "godot_agent"
-const CYCLES := 5
+## Check de ciclos (m16-12): el plugin que se cicla (por defecto godot_agent; el self-test pasa el que
+## pierde objetos) y el control, un plugin vacío que se cicla intercalado en la misma corrida.
+const CYCLE_TARGET_ARG := "--godot-agent-cycle-target="
+const CYCLE_CONTROL := "res://tests/fixtures/cycle_plugins/empty/plugin.cfg"
+const CYCLE_ROUNDS := 9
+## Asentado: primero una espera fija (lo que crea el addon al habilitarse vive hasta ~1,3 s y en ese
+## rato el conteo puede quedarse quieto) y después el conteo sin cambios en tantos frames seguidos,
+## con un tope en ms.
+const CYCLE_MIN_WAIT_MS := 2500
+const CYCLE_STABLE_FRAMES := 30
+const CYCLE_SETTLE_MAX_MS := 8000
+## Falla si la mediana del crecimiento por ciclo del plugin supera la del control en esto o más.
+const CYCLE_LEAK_PER_CYCLE := 1
+## Tarda ~70 s en 4.7.2 (cada ciclo espera a que se asienten los objetos).
+const CYCLE_SAFETY_TIMEOUT_S := 400.0
 const SETTLE_FRAMES := 5
 const SAFETY_TIMEOUT_S := 120.0
-## Margen de objetos que se toleran entre el primer y el último ciclo (cachés del editor, tooltips…).
-const OBJECT_GROWTH_TOLERANCE := 50
 
 
 func _enter_tree() -> void:
@@ -1950,7 +1964,7 @@ func _take_screenshot(path: String) -> void:
 
 
 func _run_cycle_test() -> void:
-	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	get_tree().create_timer(CYCLE_SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await _settle()
 	# Si el editor está escaneando (p. ej. después de abrir el proyecto con otra versión), los
 	# objetos crecen solos: se espera a que termine.
@@ -1961,33 +1975,54 @@ func _run_cycle_test() -> void:
 	if not EditorInterface.is_plugin_enabled(TARGET_PLUGIN):
 		EditorInterface.set_plugin_enabled(TARGET_PLUGIN, true)
 		await _settle()
+	var target := _arg_value(CYCLE_TARGET_ARG)
+	if target.is_empty():
+		target = TARGET_PLUGIN
 
-	# La línea base se toma después del primer ciclo: el editor termina de restaurar su estado
-	# (pestañas de scripts, escenas abiertas) recién en los primeros frames y crea nodos sueltos
-	# propios que no son del addon.
-	var orphans_before: int = -1
-	var orphan_ids_before: Array = []
-	var objects_after_first: int = -1
-	for i: int in CYCLES:
-		EditorInterface.set_plugin_enabled(TARGET_PLUGIN, false)
-		await _settle()
-		if EditorInterface.is_plugin_enabled(TARGET_PLUGIN):
-			_finish(1, "cycle %d: el plugin no se deshabilitó" % (i + 1))
+	# Cada ciclo se mide con los objetos ya asentados: al habilitarse, el addon crea objetos que viven
+	# hasta ~1,3 s (trabajo asíncrono), y medir a los pocos frames los contaba como fuga según el
+	# timing (m16-12). Se compara contra un plugin vacío ciclado intercalado en la misma corrida, que se
+	# lleva lo que el editor crece por su cuenta, por la mediana: un salto de caché aislado no la mueve
+	# y una fuga de un objeto por ciclo sí.
+	# Un ciclo de cada uno sin medir antes: el primero carga scripts y llena cachés.
+	for plugin: String in [target, CYCLE_CONTROL]:
+		var warm_error: String = await _cycle_plugin(plugin)
+		if not warm_error.is_empty():
+			_finish(1, "calentamiento: " + warm_error)
 			return
-		EditorInterface.set_plugin_enabled(TARGET_PLUGIN, true)
-		await _settle()
-		if not EditorInterface.is_plugin_enabled(TARGET_PLUGIN):
-			_finish(1, "cycle %d: el plugin no se habilitó" % (i + 1))
-			return
-		var objects: int = _objects()
-		if i == 0:
-			objects_after_first = objects
-			orphans_before = _orphans()
-			orphan_ids_before = _orphan_ids()
-		print("[cycle-test] cycle %d ok · objects=%d orphan_nodes=%d" % [i + 1, objects, _orphans()])
+	# La línea base de huérfanos se toma después de ese primer ciclo: el editor termina de restaurar su
+	# estado (pestañas de scripts, escenas abiertas) en los primeros frames y crea nodos sueltos propios.
+	var orphans_before: int = _orphans()
+	var orphan_ids_before: Array = _orphan_ids()
+	var rounds: PackedStringArray = []
+	var target_growth: Array[int] = []
+	var control_growth: Array[int] = []
+	var last: int = await _settled_objects()
+	if last < 0:
+		_finish(1, "los objetos no se asientan en %d ms" % CYCLE_SETTLE_MAX_MS)
+		return
+	for i: int in CYCLE_ROUNDS:
+		for plugin: String in [target, CYCLE_CONTROL]:
+			var error: String = await _cycle_plugin(plugin)
+			if not error.is_empty():
+				_finish(1, "ronda %d: %s" % [i + 1, error])
+				return
+			var now: int = await _settled_objects()
+			if now < 0:
+				_finish(1, "ronda %d: los objetos no se asientan en %d ms después de ciclar %s" % [i + 1, CYCLE_SETTLE_MAX_MS, plugin])
+				return
+			(target_growth if plugin == target else control_growth).append(now - last)
+			last = now
+		# Se imprime al final: cada línea del Output del editor es un objeto que queda, y en medio de las
+		# rondas sumaba uno a la medición siguiente.
+		rounds.append("[cycle-test] round %d ok · objects=%d nodes=%d resources=%d orphan_nodes=%d" % [i + 1, last, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)), _orphans()])
 
+	for line: String in rounds:
+		print(line)
+	var target_median := _median(target_growth)
+	var control_median := _median(control_growth)
+	print("[cycle-test] objetos por ciclo: %s %s (mediana %d) · plugin vacío %s (mediana %d)" % [target, target_growth, target_median, control_growth, control_median])
 	var orphans_after: int = _orphans()
-	var growth: int = _objects() - objects_after_first
 	var addon_orphans := _addon_orphans()
 	var layout_problems: PackedStringArray = await _layout_problems()
 	if not layout_problems.is_empty():
@@ -1997,10 +2032,45 @@ func _run_cycle_test() -> void:
 	elif orphans_after > orphans_before:
 		_print_new_orphans(orphan_ids_before)
 		_finish(1, "quedaron %d nodos huérfanos nuevos" % (orphans_after - orphans_before))
-	elif growth > OBJECT_GROWTH_TOLERANCE:
-		_finish(1, "los objetos crecieron %d entre el ciclo 1 y el %d" % [growth, CYCLES])
+	elif target_median - control_median >= CYCLE_LEAK_PER_CYCLE:
+		_finish(1, "%s pierde objetos: %d por ciclo de mediana contra %d del plugin vacío (%d ciclos)" % [target, target_median, control_median, CYCLE_ROUNDS])
 	else:
-		_finish(0, "%d ciclos sin huérfanos (crecimiento de objetos: %d)" % [CYCLES, growth])
+		_finish(0, "%d ciclos sin huérfanos ni fugas (objetos por ciclo: %d, plugin vacío: %d)" % [CYCLE_ROUNDS, target_median, control_median])
+
+
+## Deshabilita y vuelve a habilitar `plugin`, o al revés si estaba deshabilitado: queda como estaba.
+## "" si anduvo; si no, qué falló.
+func _cycle_plugin(plugin: String) -> String:
+	var was_enabled := EditorInterface.is_plugin_enabled(plugin)
+	for enabled: bool in [not was_enabled, was_enabled]:
+		EditorInterface.set_plugin_enabled(plugin, enabled)
+		await _settle()
+		if EditorInterface.is_plugin_enabled(plugin) != enabled:
+			return "%s no se %s" % [plugin, "habilitó" if enabled else "deshabilitó"]
+	return ""
+
+
+## Los objetos vivos pasados CYCLE_MIN_WAIT_MS, cuando el conteo no cambia en CYCLE_STABLE_FRAMES
+## frames; -1 si no se asienta en CYCLE_SETTLE_MAX_MS.
+func _settled_objects() -> int:
+	var deadline := Time.get_ticks_msec() + CYCLE_SETTLE_MAX_MS
+	await get_tree().create_timer(CYCLE_MIN_WAIT_MS / 1000.0).timeout
+	var last := _objects()
+	var stable := 0
+	while stable < CYCLE_STABLE_FRAMES:
+		if Time.get_ticks_msec() > deadline:
+			return -1
+		await get_tree().process_frame
+		var now := _objects()
+		stable = stable + 1 if now == last else 0
+		last = now
+	return last
+
+
+static func _median(values: Array[int]) -> int:
+	var sorted := values.duplicate()
+	sorted.sort()
+	return sorted[sorted.size() / 2] if not sorted.is_empty() else 0
 
 
 ## Labels con autowrap que quedaron del ancho de una letra (piden miles de píxeles de alto) y un

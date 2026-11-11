@@ -452,8 +452,21 @@ static func _preview_thumbnail(scene_path: String) -> String:
 
 
 ## Guardar los settings reescribe config/features con la versión del editor que corre la prueba.
+## project.godot sin lo que el editor reescribe por su cuenta: config/features (la versión) y, en
+## [editor_plugins] enabled, los plugins que no están en el checkout. El editor los saca al arrancar y
+## el archivo cambia en el primer guardado; pasa en CI y en los worktrees, donde addons/scope_compass
+## (el tablero, que no está en el repo) no existe.
 static func _without_features(text: String) -> String:
-	return RegEx.create_from_string("config/features=.*\n").sub(text, "")
+	text = RegEx.create_from_string("config/features=.*\n").sub(text, "")
+	var enabled := RegEx.create_from_string("(?m)^enabled=PackedStringArray\\((.*)\\)$").search(text)
+	if enabled == null:
+		return text
+	var kept: PackedStringArray = []
+	for item: String in enabled.get_string(1).split(",", false):
+		var path := item.strip_edges().trim_prefix("\"").trim_suffix("\"")
+		if FileAccess.file_exists(path):
+			kept.append("\"%s\"" % path)
+	return text.replace(enabled.get_string(), "enabled=PackedStringArray(%s)" % ", ".join(kept))
 
 
 static func _write(path: String, text: String) -> void:
