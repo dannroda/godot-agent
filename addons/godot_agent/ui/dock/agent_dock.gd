@@ -159,6 +159,8 @@ var _interrupt_for_queue: bool = false
 ## Lo primero de la cola es lo que el usuario le contestó al agente al rechazar (el plan editado, un
 ## motivo, m11-22): sale al terminar el turno aunque termine cancelled, salvo que el usuario lo corte.
 var _send_after_reject: bool = false
+## Segundos entre el rechazo con motivo y el corte del turno (que la respuesta salga antes).
+const REJECT_CANCEL_DELAY_S := 0.3
 ## Chips de contexto actuales: id -> {label, tooltip, block}
 var _chips: Dictionary = {}
 var _dismissed_chips: Dictionary = {}  # "id|valor" -> true
@@ -1331,13 +1333,20 @@ func _on_cancel_requested() -> void:
 	_controller.cancel()
 
 
-## Respuesta a un rechazo (ya marcada como prompt del harness por el controller): primera en la cola,
-## sale apenas termine el turno que cortó el rechazo. Con el agente libre, sale ya.
+## Respuesta a un rechazo (ya marcada como prompt del harness por el controller): primera en la cola.
+## Claude Code sigue el turno después de un rechazo común (otro intento, otra tarjeta): el motivo no
+## llegaría hasta que termine. Por eso, apenas el agente recibió el rechazo, el turno se corta (como
+## «Enviar ahora») y el motivo sale cuando el agente confirma. El rechazo de un plan ya lo corta.
+## Con el agente libre, sale ya.
 func _on_reject_feedback(text: String) -> void:
 	if _model.is_busy():
 		_queue.add(text, [])
 		_queue.move_to_front(_queue.size() - 1)
 		_send_after_reject = true
+		# El broker contesta el rechazo en el frame siguiente: el corte va después de esa respuesta.
+		await get_tree().create_timer(REJECT_CANCEL_DELAY_S).timeout
+		if is_inside_tree() and _send_after_reject and _model.state == SessionModel.SessionState.PROMPTING:
+			_controller.cancel()
 	elif _model.state == SessionModel.SessionState.READY:
 		_send_with_mentions(text, [])
 	else:

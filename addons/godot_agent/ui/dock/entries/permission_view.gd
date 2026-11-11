@@ -103,7 +103,7 @@ func _build() -> void:
 	column.add_child(_reason_row)
 	_reason_edit = LineEdit.new()
 	_reason_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_reason_edit.placeholder_text = I18n.t("Why? The agent gets it when this turn ends")
+	_reason_edit.placeholder_text = I18n.t("Why? The agent gets it right away")
 	_reason_edit.text_submitted.connect(func(_text: String) -> void: _on_send_reason())
 	_reason_edit.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
@@ -193,7 +193,7 @@ func refresh() -> void:
 	if not request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]).is_empty():
 		var with_reason := Button.new()
 		with_reason.text = I18n.t("Deny with reason…")
-		with_reason.tooltip_text = I18n.t("Deny and tell the agent why: your reason is sent as a message when this turn ends.")
+		with_reason.tooltip_text = I18n.t("Deny and tell the agent why: the turn stops and your reason is sent right away.")
 		with_reason.flat = true
 		with_reason.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		with_reason.pressed.connect(_open_reason)

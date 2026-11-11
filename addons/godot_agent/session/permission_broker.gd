@@ -95,6 +95,7 @@ func authorize(group: String, title: String, description: String, diff: Dictiona
 	request.diff = agent_log.redact_data(diff) if agent_log else diff
 	request.options = PermissionRequest.default_options()
 	var outcome := await _ask_user(request, timeout_s)
+	_emit_feedback(request)
 	return outcome.get("outcome") == "selected" and request.was_allowed()
 
 
@@ -356,6 +357,7 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 	if model.harness_mode == SessionModel.HarnessMode.AUTO and env.is_empty():  # una regla no ve las variables
 		request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
 	var outcome := await _ask_user(request, 0)
+	_emit_feedback(request)
 	if not request.rule_to_add.is_empty():
 		_add_shell_rule(request.rule_to_add)
 	if outcome.get("outcome") == "selected" and request.was_allowed():

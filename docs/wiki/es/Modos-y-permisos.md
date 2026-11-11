@@ -43,7 +43,7 @@ Cada acción cae en un grupo, y cada grupo tiene una decisión por modo: **Permi
 - **Preguntar** (la decisión, no el modo) muestra una tarjeta en el chat con lo que quiere hacer el agente (y el diff, si es una edición). Si nadie contesta en 5 minutos (configurable), se deniega.
 - **Denegar** deniega sin preguntar y le dice al agente por qué.
 
-Toda tarjeta tiene también **Denegar con motivo…**: deniega, y el motivo que escribís le llega al agente como mensaje al terminar el turno (una línea atenuada **Denegado con motivo** en el chat). El agente por sí solo solo se entera de que se le denegó; así sabe por qué.
+Toda tarjeta tiene también **Denegar con motivo…**: deniega, corta el turno del agente y le manda enseguida el motivo que escribiste, como una línea atenuada **Denegado con motivo** en el chat. Si no, el agente solo se entera de que se le denegó y puede seguir intentando en el mismo turno.
 
 Valores por defecto:
 

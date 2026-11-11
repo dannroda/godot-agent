@@ -4774,14 +4774,14 @@ msgstr "Seguir planeando: %s"
 msgid "Not approved"
 msgstr "No aprobado"
 
-msgid "Why? The agent gets it when this turn ends"
-msgstr "¿Por qué? El agente lo recibe al terminar este turno"
+msgid "Why? The agent gets it right away"
+msgstr "¿Por qué? El agente lo recibe enseguida"
 
 msgid "Deny with reason…"
 msgstr "Denegar con motivo…"
 
-msgid "Deny and tell the agent why: your reason is sent as a message when this turn ends."
-msgstr "Denegar y decirle al agente por qué: el motivo sale como mensaje al terminar este turno."
+msgid "Deny and tell the agent why: the turn stops and your reason is sent right away."
+msgstr "Denegar y decirle al agente por qué: el turno se corta y el motivo sale enseguida."
 
 msgid "Denied: %s"
 msgstr "Denegado: %s"

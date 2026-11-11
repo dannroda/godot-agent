@@ -329,6 +329,9 @@
 					}
 				},
 				{
+					"delay": 5
+				},
+				{
 					"update": {
 						"sessionUpdate": "tool_call_update",
 						"toolCallId": "x1",

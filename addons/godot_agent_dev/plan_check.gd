@@ -19,6 +19,9 @@ const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const PLAN_VIEW_SCRIPT := "res://addons/godot_agent/ui/dock/entries/plan_approval_view.gd"
 const PERMISSION_VIEW_SCRIPT := "res://addons/godot_agent/ui/dock/entries/permission_view.gd"
 const SCENARIO := "res://tests/scripts/plan_mode.json"
+## Corrida corta con Claude Code real (gasta tokens): una copia del jugador de tests/docs_demo.
+const CLAUDE_TARGET := "res://tests/tmp/plan_demo/player.gd"
+const CLAUDE_WAIT_MS := 240000
 const WAIT_MS := 15000
 
 var failures: PackedStringArray = []
@@ -124,6 +127,7 @@ func _run() -> void:
 	reason.text_submitted.emit(reason.text)
 	var reason_entry: Object = await _wait_user_entry(HarnessPrompts.DENY_REASON)
 	_expect(reason_entry != null and str(reason_entry.get(&"text")).contains("I review before pushing"), "el motivo salió con el turno siguiente (DENY_REASON)")
+	_expect(not _agent_texts().any(func(e: Object) -> bool: return str(e.get(&"text")).contains("I won't push")), "el turno del rechazo se cortó: el agente no siguió sin el motivo")
 	shell_card = await _wait_view(PERMISSION_VIEW_SCRIPT, 2)
 	_expect(shell_card != null and str(shell_card.get(&"_result").text).contains("I review before pushing"), "la tarjeta muestra el motivo")
 	await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "el turno del motivo no terminó")
@@ -140,14 +144,147 @@ func _run() -> void:
 	var keep_reason: LineEdit = view.get(&"_reason_edit")
 	keep_reason.text = "smaller steps"
 	keep_reason.text_submitted.emit(keep_reason.text)
-	await _tree.create_timer(0.5).timeout
-	_dock.call(&"_on_cancel_requested")
+	await _tree.process_frame
+	await _tree.process_frame
+	_dock.call(&"_on_cancel_requested")  # antes del corte automático (REJECT_CANCEL_DELAY_S)
 	await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "el turno no se canceló")
 	await _tree.create_timer(1.0).timeout
 	var queue: Object = _dock.get(&"_queue")
 	_expect(int(queue.call(&"size")) == 1 and bool(queue.get(&"paused")), "con Detener, el motivo queda en la cola en pausa (cola %d, pausada %s)" % [queue.call(&"size"), queue.get(&"paused")])
 	_expect(_user_entry(HarnessPrompts.PLAN_KEEP_PLANNING) == null, "y no sale solo")
 	queue.call(&"clear")
+
+
+## Con Claude Code real (m11-22): Preguntar → plan chico → Editar una línea → plan nuevo → Aprobar →
+## el agente pasa solo a default (sin set_mode) → su primera edición pide permiso con la matriz de
+## Construir → Denegar con motivo → el motivo sale y el agente sigue. Corta apenas lo ve.
+func run_claude(tree: SceneTree, dock: Control, shot_prefix: String = "") -> PackedStringArray:
+	_tree = tree
+	_dock = dock
+	_shot_prefix = shot_prefix
+	_model = dock.get(&"_model")
+	_controller = dock.get(&"_controller")
+	var plans_dir := ProjectSettings.globalize_path("res://").path_join(PlanStore.DIR)
+	var before := _plan_files(plans_dir)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(CLAUDE_TARGET.get_base_dir()))
+	var source := FileAccess.get_file_as_string("res://tests/docs_demo/player.gd")
+	var file := FileAccess.open(CLAUDE_TARGET, FileAccess.WRITE)
+	file.store_string(source)
+	file.close()
+	await _run_claude(source)
+	for name: String in _plan_files(plans_dir):
+		if not name in before:
+			print("[claude-plan] plan guardado: %s" % name)
+			DirAccess.remove_absolute(plans_dir.path_join(name))
+	_controller.call(&"stop")
+	return failures
+
+
+func _run_claude(source: String) -> void:
+	var profile := AgentProfile.from_dict(AgentProfile.CLAUDE_CODE)
+	if not await _controller.call(&"start", profile):
+		failures.append("no arrancó Claude: %s" % _model.get(&"failure_message"))
+		return
+	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
+	await _until(func() -> bool: return str(_model.get(&"current_agent_mode")) == "plan", "Claude no pasó a plan al elegir Preguntar")
+	var path := ProjectSettings.globalize_path(CLAUDE_TARGET)
+	_dock.call(&"send_text", "Plan this small change, don't implement it yet: add a jump counter to the ship in %s (count each press of ui_accept in a `jumps` variable and print it). Read only that file, nothing else. Keep the plan to 3 short steps, then present it for approval." % path)
+	var view: Control = await _wait_view_for(PLAN_VIEW_SCRIPT, 1, CLAUDE_WAIT_MS)
+	if view == null:
+		failures.append("Claude no presentó un plan con su tarjeta en %d s" % (CLAUDE_WAIT_MS / 1000))
+		_dump()
+		return
+	var request: Object = view.get(&"entry").get(&"permission")
+	print("[claude-plan] plan 1 (%d líneas), opciones %s" % [str(request.get(&"plan_text")).count("\n") + 1, (request.get(&"options") as Array).map(func(o: Dictionary) -> String: return o.optionId)])
+	await _shot("claude_card")
+	_button(view, I18n.t("Edit")).pressed.emit()
+	await _tree.process_frame
+	var editor: CodeEdit = view.get(&"_editor")
+	editor.text = editor.text.strip_edges() + "\n\nAlso: reset `jumps` to 0 when the ship wraps around the screen edge."
+	editor.text_changed.emit()
+	(view.get(&"_send_edit") as Button).pressed.emit()
+	var edit_entry: Object = await _wait_user_entry_for(HarnessPrompts.PLAN_EDIT, CLAUDE_WAIT_MS)
+	_expect(edit_entry != null, "lo editado salió como prompt PLAN_EDIT tras el turno cancelled (stop %s)" % _model.get(&"last_stop_reason"))
+	view = await _wait_view_for(PLAN_VIEW_SCRIPT, 2, CLAUDE_WAIT_MS)
+	if view == null:
+		failures.append("Claude no volvió a presentar el plan")
+		_dump()
+		return
+	request = view.get(&"entry").get(&"permission")
+	_expect(str(request.get(&"plan_text")).to_lower().contains("wrap"), "el plan nuevo incluye el cambio editado")
+	var set_modes_before := _log_count("session/set_mode")
+	var requests: Array = []
+	_model.connect(&"permission_requested", func(r: Object) -> void: requests.append(r))
+	_button(view, I18n.t("Approve and build")).pressed.emit()
+	await _tree.process_frame
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "aprobar pasa a Construir")
+	await _until_for(func() -> bool: return not requests.is_empty() or not bool(_model.call(&"is_busy")), "Claude no pidió editar después de aprobar", CLAUDE_WAIT_MS)
+	print("[claude-plan] modo del agente: %s · set_mode desde que se aprobó: %d" % [_model.get(&"current_agent_mode"), _log_count("session/set_mode") - set_modes_before])
+	_expect(str(_model.get(&"current_agent_mode")) == "default", "Claude quedó en default (%s)" % _model.get(&"current_agent_mode"))
+	_expect(_log_count("session/set_mode") == set_modes_before, "sin session/set_mode al aprobar")
+	if requests.is_empty():
+		failures.append("no hubo pedido de edición (¿escribió sin preguntar?): archivo cambiado %s" % (FileAccess.get_file_as_string(CLAUDE_TARGET) != source))
+		_dump()
+		return
+	var edit: Object = requests[0]
+	print("[claude-plan] primera tarjeta: %s · grupo %s" % [edit.get(&"title"), edit.get(&"group")])
+	_expect(str(edit.get(&"group")) == "edit_files", "la primera edición es del grupo edit_files (%s)" % edit.get(&"group"))
+	_expect(_log_count("denied in") == 0, "nada se denegó por la matriz")
+	await _shot("claude_edit_card")
+	edit.call(&"deny_with_reason", "call the variable jump_count instead of jumps")
+	var reason_entry: Object = await _wait_user_entry_for(HarnessPrompts.DENY_REASON, CLAUDE_WAIT_MS)
+	_expect(reason_entry != null, "el motivo salió como prompt DENY_REASON (stop %s)" % _model.get(&"last_stop_reason"))
+	var agent_before := _agent_texts().size()
+	var cards_before := requests.size()
+	await _until_for(func() -> bool: return requests.size() > cards_before or _agent_texts().size() > agent_before, "Claude no siguió después del motivo", CLAUDE_WAIT_MS)
+	if requests.size() > cards_before:
+		print("[claude-plan] siguió con: %s" % requests[-1].get(&"title"))
+	_expect(FileAccess.get_file_as_string(CLAUDE_TARGET) == source, "nada se escribió sin permiso")
+	_dump()
+	if bool(_model.call(&"is_busy")):
+		_controller.call(&"cancel")  # cortar apenas se vio, para no gastar
+
+
+func _dump() -> void:
+	for entry: Object in _model.call(&"entries"):
+		var kind := int(entry.get(&"kind"))
+		if kind in [0, 1, 7]:
+			print("[claude-plan] %s: %s" % [{0: "user", 1: "agent", 7: "notice"}[kind], str(entry.get(&"harness_label")) + " " + str(entry.get(&"text")).left(240).replace("\n", " ")])
+
+
+func _agent_texts() -> Array:
+	return (_model.call(&"entries") as Array).filter(func(e: Object) -> bool: return int(e.get(&"kind")) == 1)
+
+
+func _until_for(condition: Callable, failure: String, wait_ms: int) -> bool:
+	var deadline := Time.get_ticks_msec() + wait_ms
+	while not condition.call() and Time.get_ticks_msec() < deadline:
+		await _tree.process_frame
+	if not condition.call():
+		failures.append(failure)
+		return false
+	return true
+
+
+func _wait_view_for(script_path: String, n: int, wait_ms: int) -> Control:
+	var deadline := Time.get_ticks_msec() + wait_ms
+	while Time.get_ticks_msec() < deadline:
+		var found := _views(script_path)
+		if found.size() >= n:
+			await _tree.process_frame
+			return found[n - 1]
+		await _tree.create_timer(0.2).timeout
+	return null
+
+
+func _wait_user_entry_for(label: String, wait_ms: int) -> Object:
+	var deadline := Time.get_ticks_msec() + wait_ms
+	while Time.get_ticks_msec() < deadline:
+		var entry := _user_entry(label)
+		if entry:
+			return entry
+		await _tree.create_timer(0.2).timeout
+	return null
 
 
 func _expect(ok: bool, label: String) -> void:

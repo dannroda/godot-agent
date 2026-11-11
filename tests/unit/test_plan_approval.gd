@@ -247,3 +247,22 @@ func test_tool_row_does_not_repeat_the_plan() -> void:
 	assert_eq(extra.get_child_count(), 0, "sin el plan plegado debajo")
 	extra.free()
 	view.free()
+
+
+func test_deny_with_reason_on_harness_cards() -> void:
+	var controller := _controller(M.BUILD, [])
+	var feedback: Array = []
+	controller.reject_feedback.connect(func(text: String) -> void: feedback.append(text))
+	var results: Array = []
+	var run := func() -> void: results.append(await controller.permissions.authorize_fs_write("/tmp/project/player.gd", "a\n", "b\n"))
+	run.call()
+	(controller.model.pending_permissions[0] as PermissionRequest).deny_with_reason("not this file")
+	await _frames()
+	assert_eq(results, [false], "fs/write denegado")
+	var run_shell := func() -> void: results.append(await controller.permissions.authorize_terminal_command("git push", "/tmp/project"))
+	run_shell.call()
+	(controller.model.pending_permissions[0] as PermissionRequest).deny_with_reason("no pushing")
+	await _frames()
+	assert_true(str(results[1]).begins_with("Permission denied"), "terminal denegado")
+	assert_eq(feedback.size(), 2, "los dos motivos salen")
+	assert_true(feedback[0].contains("not this file") and feedback[1].contains("no pushing"), str(feedback))

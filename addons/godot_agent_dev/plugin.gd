@@ -60,6 +60,8 @@ extends EditorPlugin
 ## - `-- --godot-agent-plan-test [--godot-agent-ui-shot=<prefijo>]`: m11-22 con el agente falso: la
 ##   tarjeta del plan de ExitPlanMode, Editar con el diff de vuelta, Aprobar y construir sin set_mode,
 ##   «Denegar con motivo» y Detener después de un rechazo (plan_check.gd).
+## - `-- --godot-agent-claude-plan-test [--godot-agent-ui-shot=<prefijo>]`: lo mismo con Claude Code real
+##   (gasta tokens): plan → Editar → Aprobar → primera edición en Construir → Denegar con motivo.
 ## - `-- --godot-agent-pending-test`: con algo preparado por install_extension (m19-05), habilitar el
 ##   plugin muestra el aviso con Reiniciar y Descartar, y Descartar lo borra (pending_check.gd).
 ## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla One-shot,
@@ -160,6 +162,8 @@ const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
 const PENDING_ARG := "--godot-agent-pending-test"
 const PLAN_ARG := "--godot-agent-plan-test"
+## Gasta tokens: Claude Code real con la tarjeta del plan (plan_check.gd run_claude).
+const CLAUDE_PLAN_ARG := "--godot-agent-claude-plan-test"
 const RemoteCheck := preload("remote_check.gd")
 const PROFILE_ARG := "--godot-agent-profile-test"
 const ProfileCheck := preload("profile_check.gd")
@@ -226,6 +230,8 @@ func _enter_tree() -> void:
 		_run_pending_test.call_deferred()
 	if PLAN_ARG in args:
 		_run_plan_test.call_deferred()
+	if CLAUDE_PLAN_ARG in args:
+		_run_plan_test.call_deferred(true)
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
 	for arg: String in args:
@@ -629,14 +635,20 @@ func _run_pending_test() -> void:
 	_finish(0 if failures.is_empty() else 1, "pending-test: %d fallas" % failures.size())
 
 
-func _run_plan_test() -> void:
-	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+func _run_plan_test(real_claude: bool = false) -> void:
+	get_tree().create_timer(CLAUDE_TIMEOUT_S * 3 if real_claude else SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
 	await get_tree().create_timer(2.0).timeout
 	var dock := _find_dock()
 	if dock == null:
 		_finish(1, "no se encontró el dock")
 		return
-	var failures := _failures(await PlanCheck.new().run(get_tree(), dock, _arg_value(UI_SHOT_ARG)))
+	var check := PlanCheck.new()
+	var result: Variant
+	if real_claude:
+		result = await check.run_claude(get_tree(), dock, _arg_value(UI_SHOT_ARG))
+	else:
+		result = await check.run(get_tree(), dock, _arg_value(UI_SHOT_ARG))
+	var failures := _failures(result)
 	for failure: String in failures:
 		print("[plan-check] FALLA ", failure)
 	_finish_checking_state(0 if failures.is_empty() else 1, "plan-test: %d fallas" % failures.size(), "plan-test")

@@ -43,7 +43,7 @@ Every action belongs to a group, and each group has a decision per mode: **Allow
 - **Ask** (the decision, not the mode) shows a card in the chat with what the agent wants to do (and the diff, for edits). If nobody answers in 5 minutes (configurable), it's denied.
 - **Deny** denies without asking and tells the agent why.
 
-Every card also has **Deny with reason…**: it denies, and the reason you type goes to the agent as a message when the turn ends (a dimmed **Denied with a reason** line in the chat). The agent itself only learns that it was denied, so this is how it finds out why.
+Every card also has **Deny with reason…**: it denies, stops the agent's turn and sends it the reason you typed right away, as a dimmed **Denied with a reason** line in the chat. Otherwise the agent only learns that it was denied, and may keep trying in the same turn.
 
 Defaults:
 
