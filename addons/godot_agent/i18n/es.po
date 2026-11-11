@@ -4704,3 +4704,6 @@ msgstr "Lee la pila y las variables donde paró el juego"
 
 msgid "Continues or steps the game stopped in the debugger"
 msgstr "Hace seguir o avanzar paso a paso el juego parado en el debugger"
+
+msgid "The game is stopped in the debugger: continue it first."
+msgstr "El juego está parado en el debugger: primero hacelo seguir."

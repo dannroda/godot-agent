@@ -359,7 +359,7 @@ func _check_playtest_game() -> void:
 	await _tree.create_timer(0.5).timeout
 	_expect(stopped_at.get("isError", false) and _text(stopped_at).contains("debugger"), "un breakpoint frena el run · " + _text(stopped_at))
 	var after_breakpoint: Dictionary = await _call("game_get", {"path": ""})
-	_expect(after_breakpoint.get("isError", false) and _text(after_breakpoint).contains("stopped in the debugger"), "sigue parado en el breakpoint · " + _text(after_breakpoint))
+	_expect(after_breakpoint.get("isError", false) and _text(after_breakpoint).contains("stopped at a breakpoint") and _text(after_breakpoint).contains("game_debug"), "sigue parado en el breakpoint y lo dice como breakpoint (revisión de next2 #21) · " + _text(after_breakpoint))
 	await _call_text("stop_scene", {})
 
 

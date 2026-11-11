@@ -135,3 +135,14 @@ func test_game_run_reached() -> void:
 	assert_false(tools.reached(RunTools.GameRunState.PROBE_READY), "un run nuevo empieza de cero")
 	assert_false(tools._state.has("problems"), "y sin lo que mandó el anterior")
 	assert_false(tools._game_halted(), "y sin estar parado")
+
+
+## Revisión de next2 #23: una respuesta del probe que llega después del timeout (o de la pausa del
+## debugger) se descarta; antes quedaba en _replies para siempre.
+func test_late_replies_are_dropped() -> void:
+	var tools := RunTools.new()
+	tools._on_reply_received(7, {"text": "tarde"})
+	assert_false(tools._replies.has(7), "nadie la espera: se descarta")
+	tools._waiting[8] = true
+	tools._on_reply_received(8, {"text": "a tiempo"})
+	assert_eq(tools._replies.get(8), {"text": "a tiempo"}, "la que se espera queda")

@@ -65,14 +65,18 @@ func _check(model: Object) -> void:
 	_expect(methods.contains("game_breakpoint"), "godot.methods lista game_breakpoint · " + methods.left(300))
 
 	var idle: Dictionary = await _call("game_stack", {})
-	_expect(idle.get("isError", false) and _text(idle).contains("run_scene"), "sin juego: no hay probe · " + _text(idle).left(200))
+	_expect(idle.get("isError", false) and _text(idle).begins_with("No game is running."), "sin juego: lo dice · " + _text(idle).left(200))
 	var set := await _call_text("game_breakpoint", {"action": "set", "file": SCRIPT, "line": BREAK_LINE})
-	_expect(set.contains("when it starts"), "antes del juego: llega al arrancar · " + set)
+	_expect(set.contains("reaches the next one run_scene launches"), "antes del juego: llega al próximo run_scene · " + set)
+	_expect(_plugin.call(&"_editor_debugger_node") != null, "el EditorDebuggerNode tiene breakpoint_toggled (los del usuario que el agente también tiene, revisión de next2 #19)")
 
 	var ran := await _call_text("run_scene", {"scene": SCENE, "seconds": 3})
 	report.run = ran.left(400)
 	_expect(ran.contains("stopped at a breakpoint") and ran.contains("%s:%d" % [SCRIPT, BREAK_LINE]), "run_scene para en el breakpoint y lo dice · " + ran.left(400))
 	_expect(_run_state().contains("stopped in the debugger"), "BREAKED · " + _run_state())
+	# Revisión de next2 #21: otra tool del juego con la pausa en un breakpoint lo dice así, no como error.
+	var blocked: Dictionary = await _call("game_tree", {})
+	_expect(blocked.get("isError", false) and _text(blocked).contains("stopped at a breakpoint") and _text(blocked).contains("game_debug"), "parado en un breakpoint: las tools del juego lo dicen · " + _text(blocked).left(300))
 
 	var stack := await _call_text("game_stack", {})
 	report.stack = stack.left(900)
@@ -109,6 +113,18 @@ func _check(model: Object) -> void:
 	await _tree.create_timer(0.5).timeout
 	_expect(not bool(_debugger.call(&"is_breaked")), "no vuelve a parar")
 	await _call_text("stop_scene", {})
+
+	# Revisión de next2 #14b: un juego que corre el usuario (F5/F6) no recibe los breakpoints del agente.
+	await _call_text("game_breakpoint", {"action": "set", "file": SCRIPT, "line": BREAK_LINE})
+	EditorInterface.play_custom_scene(SCENE)
+	var launched := Time.get_ticks_msec()
+	while not EditorInterface.is_playing_scene() and Time.get_ticks_msec() - launched < 10000:
+		await _tree.process_frame
+	await _tree.create_timer(2.0).timeout
+	_expect(EditorInterface.is_playing_scene() and not bool(_debugger.call(&"any_breaked")), "un run manual no para en el breakpoint del agente")
+	EditorInterface.stop_playing_scene()
+	await _tree.create_timer(0.5).timeout
+	await _call_text("game_breakpoint", {"action": "clear_all"})
 
 	# Revisión de next2 #10: run_scene con monitors que termina parado en un breakpoint igual los lee
 	# (el probe contesta desde el bucle del debugger) y los apaga.

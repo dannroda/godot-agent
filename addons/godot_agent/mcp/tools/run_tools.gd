@@ -135,6 +135,9 @@ var _reached_states: int = 0
 ## Lo que el juego mandó en este run: inputs_done, problems y el último frame.
 var _state: Dictionary = {}
 var _replies: Dictionary = {}
+## Ids de los pedidos que esperan respuesta: una que llega tarde (después del timeout o de la pausa
+## del debugger) se descarta en vez de quedar en _replies (revisión de next2 #23).
+var _waiting: Dictionary = {}
 var _next_request: int = 1
 ## Saltear las pausas del debugger por errores (m15-05): solo en el run que lo pidió y en game_script.
 var _continue_errors: bool = false
@@ -321,7 +324,8 @@ func _on_frame_received(png: PackedByteArray, _width: int, _height: int) -> void
 
 
 func _on_reply_received(id: int, result: Dictionary) -> void:
-	_replies[id] = result
+	if _waiting.has(id):
+		_replies[id] = result
 
 
 func tools() -> Array:
@@ -748,7 +752,14 @@ func _report(scene: String, seconds: float, inputs: Array, notes: PackedStringAr
 	var reason := PlaytestDebugger.break_reason() if reached(GameRunState.BREAKED) else ""
 	if run_state == GameRunState.BREAKED and reason.begins_with(BREAKPOINT_REASON):
 		# m11-56: un breakpoint (del agente o del usuario) no es un error.
-		lines.append("%s: the game stopped at a breakpoint: %s. It is paused: game_stack shows where and the variables, game_debug continues or steps, stop_scene closes it." % [scene, reason])
+		if debugger.is_breaked():
+			lines.append("%s: the game stopped at a breakpoint: %s. It is paused: game_stack shows where and the variables, game_debug continues or steps, stop_scene closes it." % [scene, reason])
+		else:
+			# Paró antes de que cargue el probe (es el último autoload): game_stack no puede (#14c).
+			lines.append("%s: the game stopped at a breakpoint before the playtest probe loaded: %s. It is paused: game_debug continues or steps (game_stack needs the probe), stop_scene closes it." % [scene, reason])
+	elif reached(GameRunState.BREAKED) and run_state != GameRunState.BREAKED and not reached(GameRunState.STOPPED):
+		# Lo continuaron (el usuario o game_debug) mientras se esperaba: ya no está parado (#21).
+		lines.append("%s: the game stopped in the debugger%s and was continued: it is running again." % [scene, ": " + reason if not reason.is_empty() else ""])
 	elif reached(GameRunState.BREAKED):
 		lines.append("%s: the game stopped in the debugger because of an error%s. It is still paused: fix it and run again (run_scene restarts it) or use stop_scene." % [scene, ": " + reason if not reason.is_empty() else ""])
 	elif reached(GameRunState.STOPPED):
@@ -1111,7 +1122,10 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
 		return McpTool.error(NO_PROBE)
 	if _stopped_in_debugger():
-		return McpTool.error("The game is stopped in the debugger (%s): fix the error and run it again, or continue it from the Debugger." % PlaytestDebugger.break_reason())
+		var reason := PlaytestDebugger.break_reason()
+		if reason.begins_with(BREAKPOINT_REASON):
+			return McpTool.error("The game is stopped at a breakpoint (%s): game_stack shows where and the variables, game_debug continues or steps it." % reason)
+		return McpTool.error("The game is stopped in the debugger (%s): fix the error and run it again, or continue it with game_debug or from the Debugger." % reason)
 	var since := errors.mark()
 	var reply := await request(op, params, duration_s + REQUEST_TIMEOUT_S)
 	var lines: PackedStringArray = [UntrustedText.wrap(str(reply.get("text", "")))] if not reply.has("error") else []
@@ -1134,6 +1148,10 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 func point_at(uv: Vector2) -> Dictionary:
 	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
 		return {"error": NO_PROBE}
+	# Parado en el debugger el probe igual correría el pedido dentro del bucle del debugger, quizás
+	# con la física bloqueada (revisión de next2 #23).
+	if _stopped_in_debugger():
+		return {"error": "The game is stopped in the debugger: continue it first."}
 	return await request("point", {"u": uv.x, "v": uv.y})
 
 
@@ -1144,7 +1162,9 @@ func request(op: String, params: Dictionary, timeout_s: float = REQUEST_TIMEOUT_
 	_next_request += 1
 	if not debugger.send("request", [id, op, params]):
 		return {"error": NO_PROBE}
+	_waiting[id] = true
 	await _until(func() -> bool: return _replies.has(id) or not debugger.has_probe() or (_stopped_in_debugger() and not while_breaked), timeout_s)
+	_waiting.erase(id)
 	if _replies.has(id):
 		var reply: Dictionary = _replies[id]
 		_replies.erase(id)
