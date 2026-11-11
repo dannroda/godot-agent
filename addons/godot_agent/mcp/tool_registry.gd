@@ -16,6 +16,8 @@ const LOG_SUMMARY_CHARS := 120
 const REPORTS_ERRORS: PackedStringArray = ["get_errors", "validate_scripts", "run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch"]
 ## Errores que se listan en el aviso; los demás se cuentan.
 const NEW_ERRORS_SHOWN := 5
+## La marca de un bloque de texto que ya trae sus sobres (ver `sealed`); no sale en el resultado.
+const ENVELOPED_BLOCK := "_enveloped"
 const METHODS_TOOL := "methods"
 const RUN_TOOL := "run"
 
@@ -229,7 +231,7 @@ static func _with_new_errors(result: Dictionary, entries: Array) -> Dictionary:
 		lines.append("- … and %d more" % (found.size() - NEW_ERRORS_SHOWN))
 	var with_notice := result.duplicate()
 	var content: Array = (result.get("content", []) as Array).duplicate()
-	content.append({"type": "text", "text": "\n".join(lines)})
+	content.append({"type": "text", "text": "\n".join(lines), ENVELOPED_BLOCK: true})
 	with_notice["content"] = content
 	return with_notice
 
@@ -318,8 +320,11 @@ static func sealed(result: Dictionary, tool: McpTool) -> Dictionary:
 		if block is Dictionary and block.get("type") == "text":
 			var text := str(block.get("text", ""))
 			var item: Dictionary = (block as Dictionary).duplicate()
-			# Un bloque que ya trae sobres es del harness (el aviso de errores nuevos): queda como está.
-			var whole: bool = wrap_all and not text.contains(UntrustedText.pending_nonce())
+			# Un bloque que el harness marcó con sus sobres ya puestos (el aviso de errores nuevos) queda
+			# como está. La marca es del bloque y no del texto: un texto que trae el marcador del nonce
+			# igual va en un sobre, y `wrap` le borra el marcador.
+			var whole: bool = wrap_all and not item.get(ENVELOPED_BLOCK, false)
+			item.erase(ENVELOPED_BLOCK)
 			item["text"] = UntrustedText.seal(UntrustedText.wrap(text) if whole else text, nonce)
 			content.append(item)
 		else:

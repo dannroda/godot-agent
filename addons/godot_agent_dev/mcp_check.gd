@@ -79,8 +79,10 @@ func run(tree: SceneTree) -> PackedStringArray:
 	_expect(node.contains("timeout → Player::_on_timer_timeout") and node.contains("wait_time = 2"), "get_node: conexión y propiedades")
 	var missing: Dictionary = await _call("get_node", {"node_path": "Nope"})
 	_expect(missing.get("isError", false) and _text(missing).contains("Player"), "get_node inexistente: error con sugerencias")
+	_expect(_text(missing).contains("children of the root: <untrusted nonce=\""), "get_node inexistente: los nombres en sobre (revisión next2 #18) · " + _text(missing))
 	var state := await _call_text("editor_state", {})
 	_expect(state.contains("main_fixture.tscn") and state.contains("Player (CharacterBody2D)"), "editor_state: escena y selección")
+	_expect(state.begins_with("<untrusted nonce=\""), "editor_state en sobre (revisión next2 #18) · " + state.left(80))
 	# m11-26: sin focus rankea hacia lo abierto en el editor; el índice se arma en un worker.
 	var map_started := Time.get_ticks_msec()
 	var map_text := await _call_text("project_map", {"max_tokens": 800})
@@ -115,6 +117,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	# Validadores (m14-04), por godot.run como los demás métodos extendidos.
 	var physics := await _call_text("run", {"method": "validate_physics", "params": {"scene": FIXTURE_SCENE}})
 	_expect(physics.contains(FIXTURE_SCENE) and physics.contains("bodies/areas"), "validate_physics · " + physics.left(300))
+	_expect(RegEx.create_from_string("\\d+ problems?:").search(physics) == null or physics.contains(":\n<untrusted nonce=\""), "validate_physics: la lista de problemas en sobre (revisión next2 #18) · " + physics.left(300))
 	var tilemap := await _call_text("run", {"method": "validate_tilemap", "params": {}})
 	_expect(tilemap.contains("TileMapLayer"), "validate_tilemap · " + tilemap.left(300))
 

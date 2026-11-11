@@ -4,6 +4,7 @@ extends RefCounted
 ## editor_state. Devuelven texto compacto pensado para el modelo, no JSON crudo.
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const SceneAccess := preload("scene_access.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const NativeInstall := preload("../../core/native_install.gd")
@@ -43,9 +44,10 @@ func tools() -> Array:
 				"scene": {"type": "string", "description": "res://…tscn path (default: the open one)"},
 				"node_path": {"type": "string", "description": "NodePath relative to the root (\".\" = root)"},
 			}, ["node_path"], _get_node), McpTool.ENVELOPE_ALL),
-		McpTool.create("editor_state", read,
+		# Nombres de nodos y rutas del proyecto, como scene_tree: en un sobre (m11-45).
+		McpTool.enveloped(McpTool.create("editor_state", read,
 			"Editor state: current scene, open scenes, selection, open script with the caret line, and whether a game is running.",
-			{}, [], _editor_state),
+			{}, [], _editor_state), McpTool.ENVELOPE_ALL),
 	]
 
 
@@ -172,7 +174,8 @@ func _get_node(args: Dictionary) -> Dictionary:
 		for child: Node in SceneAccess.scene_children(resolved.root, resolved.root):
 			children.append(String(child.name))
 		resolved.release()
-		return McpTool.error("There is no node '%s'. Paths are relative to the root; children of the root: %s. Use scene_tree to see the tree." % [node_path, ", ".join(children)])
+		# Los nombres de los hijos son texto de la escena: los errores no van en sobre entero (m11-45).
+		return McpTool.error("There is no node '%s'. Paths are relative to the root; children of the root: %s. Use scene_tree to see the tree." % [node_path, UntrustedText.wrap(", ".join(children))])
 	var root := resolved.root
 	var lines: PackedStringArray = []
 	lines.append("%s (%s) · path %s" % [node.name, node.get_class(), SceneAccess.relative_path(root, node)])

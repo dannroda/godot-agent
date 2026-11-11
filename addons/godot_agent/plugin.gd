@@ -694,6 +694,9 @@ func _run_regressions(repeat: int = 1) -> void:
 	var results := await _run_tools.run_saved_regressions(entries, repeat)
 	_controller.review.changed.emit()  # el panel muestra cuántas quedaron inestables
 	var summary := PlaytestRegressions.summary(results, false, Callable(I18n, &"t"))
+	# La salida trae los textos del juego en sobres con el marcador del proceso: sin sellar, el marcador
+	# queda a la vista en el chat y en lo que se copie de ahí (m11-45).
+	summary.details = UntrustedText.seal(str(summary.details), UntrustedText.new_nonce())
 	if summary.failed == 0 and summary.flaky == 0:
 		_model.add_notice(I18n.t("Regressions: all %d pass.") % results.size() if repeat == 1 else I18n.t("Regressions: all %d pass, %d times each.") % [results.size(), repeat], ChatEntry.NoticeLevel.INFO)
 	elif summary.failed == 0:

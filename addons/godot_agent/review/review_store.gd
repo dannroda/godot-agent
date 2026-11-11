@@ -214,14 +214,20 @@ static func _direct_change_text(tool_name: String, call: ToolCall) -> String:
 
 
 ## El hallazgo de una línea de detector de run_tools (m15-07), para el panel; {} si no es una.
+## Los campos con nombres del juego vienen en sobres (m11-45): la línea se parte sin mirar adentro de
+## ellos y cada valor sale sin las etiquetas.
 static func finding_of_line(line: String) -> Dictionary:
-	var found := RegEx.create_from_string("^Detector (\\S+) ×(\\d+) \\[sig=(.*?)\\]: (.*)$").search(line.get_slice(" | ", 0))
+	var masked := UntrustedText.mask(line)
+	var envelopes: PackedStringArray = masked.envelopes
+	var fields := (masked.text as String).split(" | ")
+	var found := RegEx.create_from_string("^Detector (\\S+) ×(\\d+) \\[sig=(.*?)\\]: (.*)$").search(fields[0])
 	if not found:
 		return {}
-	var finding := {"path": "", "line": 0, "severity": "bug" if found.get_string(1) != "hitch" else "perf", "title": found.get_string(4), "body": "Detector %s, seen %s times." % [found.get_string(1), found.get_string(2)], "suggestion": "", "signature": found.get_string(3)}
-	for part: String in line.split(" | ").slice(1):
+	var value_of := func(value: String) -> String: return UntrustedText.unwrap(UntrustedText.unmask(value, envelopes))
+	var finding := {"path": "", "line": 0, "severity": "bug" if found.get_string(1) != "hitch" else "perf", "title": value_of.call(found.get_string(4)), "body": "Detector %s, seen %s times." % [found.get_string(1), found.get_string(2)], "suggestion": "", "signature": value_of.call(found.get_string(3))}
+	for part: String in fields.slice(1):
 		var key := part.get_slice("=", 0)
-		var value := part.substr(key.length() + 1)
+		var value: String = value_of.call(part.substr(key.length() + 1))
 		if key == "where":
 			finding[key] = JSON.parse_string(value)
 		else:
@@ -249,7 +255,7 @@ static func playtest_audit(calls: Array, record_asked: bool) -> Dictionary:
 		var output := _call_text(call)
 		# Lo de los sobres lo dijo el juego (m11-45): no puede imitar una línea de detector ni de video.
 		var harness_text := UntrustedText.strip(output)
-		for line: String in harness_text.split("\n"):
+		for line: String in UntrustedText.harness_lines(output):
 			var finding := finding_of_line(line)
 			if not finding.is_empty():
 				detectors[finding.signature] = finding

@@ -103,7 +103,7 @@ func _check_runs(model: Object) -> void:
 	# Grabación (m14-03): el juego cierra solo, el video queda y el Movie Maker vuelve a como estaba.
 	# run_scene con monitors (m11-43): el resumen de toda la corrida va al final del informe.
 	var measured := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "monitors": true})
-	_expect(measured.contains("Performance during the run:\nSampled ") and measured.contains("Frame time: avg "), "run_scene monitors: resumen de la corrida · " + measured.left(600))
+	_expect(measured.contains("Performance during the run:\n<untrusted nonce=\"") and measured.contains("\">Sampled ") and measured.contains("Frame time: avg "), "run_scene monitors: resumen de la corrida, en sobre · " + measured.left(600))
 	var quitting := await _call_text("run_scene", {"scene": QUITS_SCENE, "seconds": 3, "monitors": true})
 	_expect(quitting.contains("Performance monitors: the game ended"), "run_scene monitors: si el juego terminó, lo dice · " + quitting.left(600))
 	var recorded := await _call_text("run_scene", {"scene": RUN_SCENE, "seconds": 1, "record": true})
@@ -118,6 +118,7 @@ func _check_runs(model: Object) -> void:
 	# Script roto: el debugger pausa el juego y run_scene devuelve el error real.
 	var broken := await _call_text("run_scene", {"scene": BROKEN_SCENE, "seconds": 5})
 	_expect(broken.contains("stopped in the debugger") and broken.contains("queue_free"), "run_scene: error real del script roto · " + broken.left(400))
+	_expect(broken.contains("because of an error: <untrusted nonce=\""), "run_scene: el motivo de la pausa va en sobre (m11-45) · " + broken.left(400))
 	_expect(broken.contains("run_broken.gd"), "run_scene: ubicación del error")
 	await _call_text("stop_scene", {})
 
@@ -241,6 +242,7 @@ func _check_playtest_game() -> void:
 	_expect(ran.contains("Playtest time left"), "run_scene: dice cuánto queda · " + ran.right(200))
 	RunTools.set_playtest_deadline(0)
 	_expect(ran.contains("Now in the game") and ran.contains("Player: /root/PlaytestGame/Player") and ran.contains("HUD.Basket") and ran.contains("Filming: res://"), "run_scene: foto de lo que hay · " + ran.left(900))
+	_expect(ran.contains("Now in the game:\n<untrusted nonce=\""), "run_scene: la foto del juego va en sobre (m11-45) · " + ran.left(900))
 	var found := await _call_text("game_find", {"class": "CharacterBody3D"})
 	_expect(found.contains("/root/PlaytestGame/Player"), "game_find por clase · " + found)
 	_expect((await _call_text("game_find", {"class": "group:player"})).contains("Player"), "game_find por grupo")
@@ -285,8 +287,9 @@ func _check_playtest_game() -> void:
 	var deadline := Time.get_ticks_msec() + 3000
 	while Time.get_ticks_msec() < deadline:
 		all_findings += await _call_text("game_wait", {"timeout": 0.3})
-	_expect(all_findings.contains("[sig=hud_fraction:HUD.Basket]"), "detector: HUD por encima del máximo · " + all_findings.left(700))
-	_expect(all_findings.contains("[sig=out_of_world:Gate]"), "detector: fuera del mundo · " + all_findings.right(600))
+	# La firma y el resumen traen nombres del juego: van en sobres (m11-45).
+	_expect(RegEx.create_from_string("\\[sig=<untrusted nonce=\"(\\w+)\">hud_fraction:HUD\\.Basket</untrusted nonce=\"\\1\">\\]").search(all_findings) != null, "detector: HUD por encima del máximo · " + all_findings.left(700))
+	_expect(RegEx.create_from_string("\\[sig=<untrusted nonce=\"(\\w+)\">out_of_world:Gate</untrusted nonce=\"\\1\">\\]").search(all_findings) != null, "detector: fuera del mundo · " + all_findings.right(600))
 	_expect(all_findings.contains("Detector hitch"), "detector: frame largo")
 	_expect(not all_findings.contains("nan:Lamp"), "no es un bug: ya no se reporta")
 	# Saca una cada 5 s: puede ser de cualquier hallazgo del run, no siempre de estos.

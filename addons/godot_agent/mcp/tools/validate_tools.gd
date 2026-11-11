@@ -5,6 +5,7 @@ extends RefCounted
 ## tiles sin colisión). El agente los corre después de tocar física o mapas para verificarse.
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SceneAccess := preload("scene_access.gd")
 
@@ -17,12 +18,12 @@ const CELLS_SHOWN := 8
 func tools() -> Array:
 	var group := PermissionPolicy.GROUP_DIAGNOSTICS
 	return [
-		McpTool.create("validate_physics", group,
+		McpTool.enveloped(McpTool.create("validate_physics", group,
 			"Checks the physics setup of a scene: bodies and areas without a collision shape, shapes with no shape resource or outside a body, and collision layers and masks that match nothing in the scene. Run it after adding or changing physics.",
-			{"scene": SCENE_ARG, "node_path": NODE_ARG}, [], _validate_physics),
-		McpTool.create("validate_tilemap", group,
+			{"scene": SCENE_ARG, "node_path": NODE_ARG}, [], _validate_physics), McpTool.ENVELOPE_PARTS),
+		McpTool.enveloped(McpTool.create("validate_tilemap", group,
 			"Checks the TileMapLayers of a scene: missing TileSet, cells whose source or atlas tile the TileSet doesn't have, and placed tiles without collision when the TileSet has physics layers. Run it after painting or changing a map.",
-			{"scene": SCENE_ARG, "node_path": NODE_ARG}, [], _validate_tilemap),
+			{"scene": SCENE_ARG, "node_path": NODE_ARG}, [], _validate_tilemap), McpTool.ENVELOPE_PARTS),
 	]
 
 
@@ -49,7 +50,8 @@ func _run(args: Dictionary, check: Callable, what: String) -> Dictionary:
 	var header := "%s · %s" % [resolved.path if not resolved.path.is_empty() else "(unsaved scene)", report.summary]
 	if issues.is_empty():
 		return McpTool.text("%s · no %s problems found." % [header, what])
-	return McpTool.text("%s · %d problem%s:\n- %s" % [header, issues.size(), "" if issues.size() == 1 else "s", "\n- ".join(issues)])
+	# Cada problema nombra nodos de la escena: la lista va en un sobre (m11-45).
+	return McpTool.text("%s · %d problem%s:\n%s" % [header, issues.size(), "" if issues.size() == 1 else "s", UntrustedText.wrap("- " + "\n- ".join(issues))])
 
 
 # --- física ------------------------------------------------------------------------------------------

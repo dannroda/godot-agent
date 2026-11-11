@@ -324,6 +324,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(bad_tile.get("isError", false) and _text(bad_tile).contains("no tile at atlas"), "tile inexistente → error")
 	var map_text := await _call_text("tilemap_get", {"node_path": "Ground"})
 	_expect(map_text.contains("12 cells") and map_text.contains("   3 aaaaaaaaaa") and map_text.contains("b = 0:(1,0)") and map_text.contains("Physics layers: 1"), "tilemap_get con mapa y leyenda (%s)" % map_text)
+	_expect(map_text.begins_with("<untrusted nonce=\""), "tilemap_get en sobre (revisión next2 #18) · " + map_text.left(80))
 	EditorUndo._trigger_editor_undo()
 	_expect(ground.get_used_cells().size() == 10, "Ctrl+Z deshace las celdas sueltas")
 	await _call_text("tilemap_set_cells", {"node_path": "Ground", "rect": [0, 3, 2, 1], "erase": true})
@@ -348,6 +349,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(ground.get_cell_source_id(Vector2i(11, 1)) == 0 and ground.get_cell_atlas_coords(Vector2i(11, 1)) == Vector2i(0, 0) and painted.contains("grass"), "tilemap_paint_terrain por nombre (%s)" % painted)
 	var not_layer: Dictionary = await _call("tilemap_get", {"node_path": "Timer"})
 	_expect(not_layer.get("isError", false) and _text(not_layer).contains("not a TileMapLayer"), "tilemap_get sobre otro nodo → error")
+	_expect(_text(not_layer).begins_with("<untrusted nonce=\""), "el nombre del nodo del error en sobre · " + _text(not_layer))
 
 	# Animación (m4-12): animaciones, pistas de valor y de método, borrar, SpriteFrames; todo con undo.
 	await _call_text("add_nodes", {"parent": ".", "nodes": [{"name": "Anim", "type": "AnimationPlayer"}, {"name": "Coin", "type": "AnimatedSprite2D"}]})
@@ -365,6 +367,8 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(late_key.get("isError", false) and _text(late_key).contains("outside"), "key fuera del largo → error")
 	var bad_property: Dictionary = await _call("animation_set_track", {"node_path": "Anim", "animation": "bob", "track": "Player:colour", "keys": [{"time": 0, "value": 1}]})
 	_expect(bad_property.get("isError", false), "propiedad inexistente → error")
+	var no_anim: Dictionary = await _call("animation_set_track", {"node_path": "Anim", "animation": "nope", "track": "Player:position", "keys": []})
+	_expect(no_anim.get("isError", false) and _text(no_anim).contains("Animations: <untrusted nonce=\"") and _text(no_anim).contains("bob</untrusted"), "animación inexistente: la lista en sobre (revisión next2 #18) · " + _text(no_anim))
 	var anim_text := await _call_text("animation_get", {"node_path": "Anim", "animation": "bob"})
 	_expect(anim_text.contains("Player:position [value] 3 keys") and anim_text.contains("0.5s Vector2(100, 40)") and anim_text.contains("_on_timer_timeout()"), "animation_get (%s)" % anim_text)
 	EditorUndo._trigger_editor_undo()
