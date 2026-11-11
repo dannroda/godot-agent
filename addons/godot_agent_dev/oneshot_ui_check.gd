@@ -93,12 +93,19 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	panel.custom_minimum_size = panel_min
 	await _frames(2)
 	# Con el dock ancho el centro se angosta: el formulario se apila y nada se corta (m12-41).
+	# El dock al frente de su pestaña: con un layout nuevo la pestaña activa de su slot es el Inspector,
+	# y una pestaña escondida no sigue el ancho de la columna. Su tamaño quedaba en 220 aunque el split
+	# se moviera, así que set_dock_width deshacía el movimiento (o calculaba el objetivo con un ancho viejo).
+	var agent_plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	(agent_plugin.get(&"_surfaces") as Object).call(&"make_visible", 0)  # EditorSurface.SIDE
+	await _frames(5)
+	var dock_for_width := _find_by_script(DOCK_SCRIPT) as Control
+	_check(dock_for_width.is_visible_in_tree(), "el dock está al frente antes de ensancharlo")
 	# El panel de abajo comparte la columna del centro y su mínimo depende de la pestaña del editor que
 	# quedó abierta (Animation pide 472 px con la escala 0,75 y frenaba el centro en 497): se esconde.
-	var editor_plugin: EditorPlugin = _find_by_script(MAIN_PLUGIN_SCRIPT).get(&"_plugin")
+	var editor_plugin: EditorPlugin = agent_plugin.get(&"_plugin")
 	editor_plugin.hide_bottom_panel()
 	await _frames(2)
-	var dock_for_width := _find_by_script(DOCK_SCRIPT) as Control
 	var dock_width := int(dock_for_width.size.x)
 	await LayoutCheck.set_dock_width(dock_for_width, dock_width + int(form.size.x) - NARROW_CENTER_WIDTH)
 	await _frames(10)

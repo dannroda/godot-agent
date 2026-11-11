@@ -115,6 +115,10 @@ static func set_dock_width(dock: Control, width: int) -> void:
 					break
 				if child is Control and (child as Control).visible:
 					divider += 1
+			# El offset guardado puede no ser el que el split aplica: con el layout por defecto el del dock
+			# derecho es -210 pero su mínimo es 229, así que mover el divisor desde ahí rendía 19 px menos y
+			# eso se tomaba como un mínimo que lo frenaba (el centro quedaba en 378 y no en 340).
+			split.clamp_split_offset(divider)
 			for attempt in 4:
 				var missing := width - dock.size.x
 				if absf(missing) < 4.0:
