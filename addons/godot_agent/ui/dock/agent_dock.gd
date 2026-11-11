@@ -18,6 +18,8 @@ signal open_elsewhere_requested(session_id: String)
 signal extensions_requested
 ## Abrir la lista de tools del agente (Extensiones › Tools, m12-46).
 signal tools_requested
+## Se prendió o apagó «Seguir al agente» en esta pestaña (m11-33).
+signal follow_toggled(enabled: bool)
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
 signal action_forwarded(action: String, payload: Variant)
 
@@ -26,6 +28,7 @@ const SuggestedAgents := preload("../../core/suggested_agents.gd")
 const FirstRunGuide := preload("first_run_guide.gd")
 const RecentSessions := preload("recent_sessions.gd")
 const SessionController := preload("../../session/session_controller.gd")
+const MachineApproval := preload("../../core/machine_approval.gd")
 ## El comando del harness para pedir un plan a aprobar (m11-58).
 const PLAN_COMMAND := "/plan"
 const HarnessPrompts := preload("../../session/harness_prompts.gd")
@@ -117,6 +120,10 @@ var can_switch_session: Callable
 ## vacía lo retoma y el composer lo guía. Lo pone el plugin (m17-19); se lee al momento, no se copia
 ## (m13-14). Sin asignar: nunca.
 var oneshot_active: Callable
+## «Seguir al agente» (m11-33): el editor salta a lo que edita el agente de esta pestaña. Por pestaña,
+## apagado al abrirla; lo lee el plugin, que solo sigue a la pestaña activa.
+var follow_enabled: bool = false
+var _follow_button: Button
 ## () -> Array[Dictionary]: el estado de las otras máquinas de D61 para el tooltip del encabezado
 ## (m13-29), cada una {"machine": nombre traducido, "label": estado traducido, "age": segundos}. El
 ## juego de run_scene y el One-shot viven en el plugin: se leen al momento, sin copias. Sin asignar:
@@ -373,6 +380,16 @@ func _ready() -> void:
 
 # --- header y modos ------------------------------------------------------------------------------
 
+## Prende o apaga «Seguir al agente» en esta pestaña.
+func set_follow(enabled: bool) -> void:
+	if follow_enabled == enabled:
+		return
+	follow_enabled = enabled
+	if _follow_button and _follow_button.button_pressed != enabled:
+		_follow_button.set_pressed_no_signal(enabled)
+	follow_toggled.emit(enabled)
+
+
 ## Los textos del .tscn están en inglés: el dock no usa la traducción automática del editor.
 func _translate_scene_texts() -> void:
 	_profile_button.tooltip_text = I18n.t("Agent profile")
@@ -387,6 +404,17 @@ func _translate_scene_texts() -> void:
 
 
 func _build_header() -> void:
+	_follow_button = Button.new()
+	_follow_button.name = "FollowButton"
+	_follow_button.flat = true
+	_follow_button.toggle_mode = true
+	_follow_button.icon = AgentTheme.icon(&"CenterView")
+	if _follow_button.icon == null:
+		_follow_button.text = "◎"
+	_follow_button.tooltip_text = I18n.t("Follow the agent: the editor jumps to each script and node it edits. Only the active tab is followed, and never while you're typing or working in the editor: it waits until you stop.")
+	_follow_button.toggled.connect(set_follow)
+	_history_button.get_parent().add_child(_follow_button)
+	_history_button.get_parent().move_child(_follow_button, _history_button.get_index())
 	_history_button.icon = AgentTheme.icon(&"History")
 	_history_button.tooltip_text = I18n.t("Session history")
 	_history_menu = PopupMenu.new()
@@ -1410,6 +1438,34 @@ func _on_reject_feedback(text: String) -> void:
 		_queue.add(text, [])
 
 
+## «Aprobar…» de lo que trae el proyecto (m11-31 checks, m13-31 MCP servers): muestra cada comando
+## exacto antes de permitirlo en esta máquina. Un solo diálogo para los dos.
+func _confirm_on_machine(data: Dictionary) -> void:
+	var items: Array = data.get("items", [])
+	if items.is_empty():
+		return
+	var blocks: PackedStringArray = []
+	for item: Dictionary in items:
+		blocks.append("%s\n%s" % [item.get("name", ""), item.get("command", "")])
+	var listing := "\n\n".join(blocks)
+	var dialog := ConfirmationDialog.new()
+	dialog.ok_button_text = I18n.t("Allow on this machine")
+	dialog.dialog_autowrap = true
+	if data.get("kind") == MachineApproval.KIND_MCP:
+		dialog.title = I18n.t("Approve project MCP servers")
+		dialog.dialog_text = I18n.t("These MCP servers come with the project's settings (addons/godot_agent/config/project_config.tres). When a session starts, the agent launches each command on this computer (or connects to the URL):\n\n%s\n\nAllow them only if you trust them. If one changes, it asks again.") % listing
+	else:
+		dialog.title = I18n.t("Approve a project check")
+		dialog.dialog_text = I18n.t("This check comes with the project's settings (addons/godot_agent/config/project_config.tres). After each Build or Auto turn that changes files, it runs this program on this computer, without a shell:\n\n%s\n\nAllow it only if you trust the command. If the command changes, it asks again.") % listing
+	dialog.min_size = Vector2i(AgentTheme.px(460), 0)
+	dialog.confirmed.connect(func() -> void: _controller.approve_on_machine(data))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free())
+	add_child(dialog)
+	dialog.popup_centered()
+
+
 func _on_action_requested(action: String, payload: Variant) -> void:
 	match action:
 		SessionController.ACTION_RETRY:
@@ -1434,6 +1490,8 @@ func _on_action_requested(action: String, payload: Variant) -> void:
 			_ask_login_code()
 		SessionController.ACTION_LOGIN_CANCEL:
 			_controller.cancel_login()
+		SessionController.ACTION_APPROVE_ON_MACHINE:
+			_confirm_on_machine(payload)
 		PlanApprovalView.ACTION_APPROVE_PLAN:
 			_controller.approve_plan(payload)
 		"open_link":

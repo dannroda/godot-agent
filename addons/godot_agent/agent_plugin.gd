@@ -25,6 +25,7 @@ const SessionModel := preload("session/session_model.gd")
 const SessionController := preload("session/session_controller.gd")
 const EditorContext := preload("ui/editor_context.gd")
 const EditorSync := preload("editor/editor_sync.gd")
+const AgentFollower := preload("editor/agent_follower.gd")
 const RemoteActivity := preload("session/remote_activity.gd")
 const FsHandler := preload("acp/fs_handler.gd")
 const TerminalHandler := preload("acp/terminal_handler.gd")
@@ -144,6 +145,8 @@ var _debug_tools: DebugTools
 var _map_tools: MapTools
 var _project_config: ProjectConfig
 var _sync: EditorSync
+## Seguir al agente (m11-33): salta a lo que edita la pestaña activa, si tiene el botón prendido.
+var _follower: AgentFollower
 var _remote_activity: RemoteActivity
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
@@ -214,6 +217,9 @@ func _enter_tree() -> void:
 	_sync.open_scene_modified.connect(_on_open_scene_modified)
 	add_child(_sync)
 	_plugin.scene_saved.connect(_sync.note_scene_saved)
+	_follower = AgentFollower.new()
+	_follower.dock = func() -> Control: return _tabs
+	add_child(_follower)
 	_turn_snapshots = TurnSnapshots.new(EditorContext.project_path())
 	_turn_snapshots.setup()
 	_controller = _make_controller(_model, PRIMARY_SESSION)
@@ -298,6 +304,8 @@ func _enter_tree() -> void:
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
 	_tabs.new_session_requested.connect(_open_session_tab)
+	_tabs.active_changed.connect(func(_id: String) -> void: _follower.cancel())
+	dock.follow_toggled.connect(_on_follow_toggled)
 	_tabs.close_requested.connect(_close_session_tab)
 	_tabs.rename_requested.connect(_rename_session)
 	# Los textos ya vienen traducidos por I18n: que el editor no los vuelva a traducir con los suyos.
@@ -408,6 +416,9 @@ func _exit_tree() -> void:
 	if _sync:
 		_sync.queue_free()
 		_sync = null
+	if _follower:
+		_follower.queue_free()
+		_follower = null
 	if _review_annotations:
 		remove_child(_review_annotations)
 		_review_annotations.queue_free()
@@ -553,10 +564,28 @@ func _show_log(seq: int = 0) -> void:
 		_log_panel.focus_entry.call_deferred(seq)
 
 
+## Seguir al agente (m11-33): solo la pestaña activa, y solo si ese dock tiene el botón prendido.
+func _follow_call(call: ToolCall, model: SessionModel) -> void:
+	if _follower == null or _tabs == null:
+		return
+	var id := _tabs.active_id()
+	if _model_of(id) != model:
+		return
+	var dock := _tabs.dock(id) as AgentDock
+	if dock and dock.follow_enabled:
+		_follower.follow(call)
+
+
+func _on_follow_toggled(enabled: bool) -> void:
+	if not enabled and _follower:
+		_follower.cancel()
+
+
 ## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).
 func _on_tool_call_changed(call: ToolCall, _group: ChatEntry, model: SessionModel = null) -> void:
 	if (model if model else _model).replaying:
 		return
+	_follow_call(call, model if model else _model)
 	if not _pending_undo.is_empty() and call.undo_info.is_empty() and not call.godot_tool_name().is_empty():
 		_match_pending_undo()
 	if call.status != ToolCall.STATUS_COMPLETED or not call.kind in WRITING_KINDS:
@@ -906,8 +935,12 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 				_log.add(AgentLog.CH_MCP, "could not prepare the stdio shim in user://: the agent will not have the godot.* tools")
 			else:
 				result.append(entry)
+	var held: Array = []
 	for server: Dictionary in _external_mcp_servers():
 		if not bool(server.enabled):
+			continue
+		if bool(server.get("held", false)):
+			held.append({"name": server.name, "command": ExternalMcpServers.approval_description(server), "key": server.approval_key})
 			continue
 		var entry := ExternalMcpServers.to_acp(server, model.supports_http_mcp())
 		if entry.is_empty():
@@ -917,18 +950,32 @@ func _mcp_servers(session: String = PRIMARY_SESSION, model: SessionModel = null)
 		for secret: String in ExternalMcpServers.secret_values(server):
 			_log.add_secret(secret)
 		result.append(entry)
+	if not held.is_empty():
+		# m13-31: un server del proyecto sin aprobar no corre, y no en silencio: la primera vez el aviso
+		# explica el cambio (un proyecto que ya los usaba los pierde al actualizar).
+		var explain := not bool(_settings.get_value(HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, false))
+		_settings.set_value(HarnessSettings.KEY_MCP_APPROVAL_EXPLAINED, true)
+		var notice := SessionController.held_servers_notice(held, explain)
+		_log.add(AgentLog.CH_MCP, "project MCP servers not approved on this machine, left out: %s" % ", ".join(PackedStringArray(held.map(func(item: Dictionary) -> String: return item.name))))
+		model.add_notice(notice.text, ChatEntry.NoticeLevel.WARNING, notice.actions)
 	return result
 
 
-## Servers de terceros del usuario y del proyecto (si se llaman igual, gana el del proyecto).
+## Servers de terceros del usuario y del proyecto (si se llaman igual, gana el del proyecto). Uno del
+## proyecto que no está aprobado en esta máquina (m13-31) viene con `held` y su `approval_key`.
 func _external_mcp_servers() -> Array:
-	return ExternalMcpServers.merge(_settings.mcp_servers(), ExternalMcpServers.normalize_list(_project_config.mcp_servers))
+	var project_dir := ProjectSettings.globalize_path("res://")
+	var project: Array = ExternalMcpServers.normalize_list(_project_config.mcp_servers)
+	for server: Dictionary in project:
+		server["approval_key"] = ExternalMcpServers.approval_key(project_dir, server)
+		server["held"] = not _settings.is_command_approved(server.approval_key)
+	return ExternalMcpServers.merge(_settings.mcp_servers(), project)
 
 
 func _external_mcp_names() -> PackedStringArray:
 	var names: PackedStringArray = []
 	for server: Dictionary in _external_mcp_servers():
-		if bool(server.enabled):
+		if bool(server.enabled) and not bool(server.get("held", false)):
 			names.append(server.name)
 	return names
 
@@ -1443,7 +1490,16 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 		if _diagnostics == null or not _project_config.verify_after_turn:
 			return ""
 		return await _diagnostics.verify_changed_scripts(since_unix)
+	controller.turn_checks_provider = _turn_checks_info
+	controller.is_command_approved = _settings.is_command_approved
+	controller.approve_command = _settings.approve_command
 	return _finish_controller(controller, model, id)
+
+
+## Los checks del proyecto (m11-31) y la tienda de aprobaciones de esta máquina.
+func _turn_checks_info() -> Dictionary:
+	return {"checks": _project_config.turn_checks if _project_config else [], "godot": OS.get_executable_path(),
+		"project": ProjectSettings.globalize_path("res://")}
 
 
 func _finish_controller(controller: SessionController, model: SessionModel, id: String) -> SessionController:
@@ -1518,6 +1574,7 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	if copy == null:
 		_wire_oneshot(dock, id)
 	_wire_elsewhere(dock, id)
+	dock.follow_toggled.connect(_on_follow_toggled)
 	_tabs.add_session(id, dock, model, label)
 	if copy:
 		_tabs.set_copy(id, I18n.t("Works in a separate copy of the project · branch %s") % copy.info.branch)

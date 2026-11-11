@@ -21,6 +21,7 @@ const AgentTheme := preload("../agent_theme.gd")
 const CompletionSettingsPage := preload("completion_settings_page.gd")
 const AutoRulesPage := preload("auto_rules_page.gd")
 const McpServersPage := preload("mcp_servers_page.gd")
+const TurnChecksEditor := preload("turn_checks_editor.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 const AddonVersion := preload("../../core/addon_version.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
@@ -45,7 +46,7 @@ const DECISION_LABELS: Dictionary = {
 ## Celdas de la matriz (m12-22): un ícono y un color por decisión.
 const DECISION_MARKS: Dictionary = {PermissionPolicy.ALLOW: "✓", PermissionPolicy.ASK: "?", PermissionPolicy.DENY: "✕"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -96,6 +97,7 @@ var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
 var _run_error_check: CheckBox
 var _verify_check: CheckBox
+var _turn_checks_editor: TurnChecksEditor
 var _snapshots_check: CheckBox
 var _github_pr_check: CheckBox
 var _compact_tools_check: CheckBox
@@ -523,6 +525,8 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_verify_check.text = I18n.t("Check the scripts after each turn")
 	_verify_check.tooltip_text = I18n.t("In Build and Auto, when a turn ends the harness validates the scripts that changed. If one doesn't parse, the agent gets the errors to fix them (up to 2 turns in a row); then they stay as a notice in the chat.")
 	page.add_child(_verify_check)
+	_turn_checks_editor = TurnChecksEditor.new()
+	page.add_child(_turn_checks_editor)
 	_snapshots_check = CheckBox.new()
 	_snapshots_check.text = I18n.t("Keep a snapshot of the project on each turn (git)")
 	_snapshots_check.tooltip_text = I18n.t("In Build and Auto, each turn ends with a notice of the files it changed, to see their diff and go back. The snapshots are git commits outside your branches (refs/godot-agent/turns); your branch, index and stash are not touched.")
@@ -715,7 +719,7 @@ func _load() -> void:
 	_editing = -1
 	_profile_form.visible = false
 	_rebuild_profiles()
-	_mcp_servers_page.load_from(_settings.mcp_servers(), _config.mcp_servers)
+	_mcp_servers_page.load_from(_settings.mcp_servers(), _config.mcp_servers, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_rebuild_mcp_matrix(_config.permissions)
 	_load_matrix(_config.permissions)
 	_load_subagent_limits(_config.subagent_limits)
@@ -729,6 +733,7 @@ func _load() -> void:
 	_run_error_check.button_pressed = _settings.offer_fix_on_run_error()
 	_compact_tools_check.button_pressed = _config.compact_tools
 	_verify_check.button_pressed = _config.verify_after_turn
+	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_snapshots_check.button_pressed = _config.turn_snapshots
 	_github_pr_check.button_pressed = _config.github_pull_requests
 	_roots_edit.text = "\n".join(_config.extra_fs_roots)
@@ -821,6 +826,7 @@ func _on_save() -> void:
 	_config.playtest_on_manual_runs = _manual_runs_check.button_pressed
 	_config.compact_tools = _compact_tools_check.button_pressed
 	_config.verify_after_turn = _verify_check.button_pressed
+	_config.turn_checks = _turn_checks_editor.checks()
 	_config.turn_snapshots = _snapshots_check.button_pressed
 	_config.github_pull_requests = _github_pr_check.button_pressed
 	_config.extra_fs_roots = _lines(_roots_edit.text)
@@ -844,6 +850,9 @@ func _on_save() -> void:
 			_config.set(property, before[property])
 		_error_label.text = I18n.t("Could not save %s: %s") % [ProjectConfig.PATH, error_string(result)]
 		return
+	# Lo que se escribió o se permitió acá queda aprobado en esta máquina (m11-31).
+	for key: String in _turn_checks_editor.keys_to_approve() + _mcp_servers_page.keys_to_approve():
+		_settings.approve_command(key)
 	hide()
 	saved.emit()
 
@@ -871,6 +880,9 @@ func validate() -> Dictionary:
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
 			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
+	var checks_error := _turn_checks_editor.validate()
+	if not checks_error.is_empty():
+		return {"section": SettingsSection.MCP, "message": checks_error}
 	var mcp_error := _mcp_servers_page.validate()
 	if not mcp_error.is_empty():
 		return {"section": SettingsSection.MCP, "message": mcp_error}

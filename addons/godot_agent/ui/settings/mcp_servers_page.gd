@@ -32,6 +32,11 @@ var _import_result: Label
 ## Copia en edición: los servers con `scope` (SCOPE_PROJECT o SCOPE_USER).
 var _servers: Array = []
 var _editing: int = -1
+## Aprobación por máquina de los servers del proyecto (m13-31): la tienda, la carpeta para la clave y
+## las definiciones que vinieron de un archivo (project_config o .mcp.json) y no se escribieron acá.
+var _is_approved: Callable
+var _project_dir := ""
+var _from_file: Dictionary = {}
 
 
 func _init() -> void:
@@ -103,12 +108,19 @@ func _init() -> void:
 	_form.add_child(done)
 
 
-func load_from(user_list: Array, project_list: Array) -> void:
+## `is_approved(key) -> bool` es la tienda de esta máquina (m13-31); sin ella, ningún server del
+## proyecto muestra el aviso.
+func load_from(user_list: Array, project_list: Array, is_approved: Callable = Callable(), project_dir: String = "") -> void:
 	_servers = []
+	_is_approved = is_approved
+	_project_dir = project_dir
+	_from_file = {}
 	for pair: Array in [[project_list, SCOPE_PROJECT], [user_list, SCOPE_USER]]:
 		for entry: Dictionary in ExternalMcpServers.normalize_list(pair[0]):
 			entry["scope"] = pair[1]
 			_servers.append(entry)
+			if pair[1] == SCOPE_PROJECT:
+				_from_file[ExternalMcpServers.approval_text(entry)] = true
 	_editing = -1
 	_form.visible = false
 	_import_result.visible = false
@@ -128,6 +140,22 @@ func project_servers() -> Array:
 
 func user_servers() -> Array:
 	return _of_scope(SCOPE_USER)
+
+
+## Las claves que deja aprobadas este guardado: los servers del proyecto escritos o cambiados acá y
+## los que se marcaron «Allow on this machine». Uno que vino del archivo sin tocar no se aprueba solo.
+func keys_to_approve() -> PackedStringArray:
+	var keys := PackedStringArray()
+	for entry: Dictionary in _servers:
+		if entry.scope == SCOPE_PROJECT and (not _from_file.has(ExternalMcpServers.approval_text(entry)) or bool(entry.get("_allow", false))):
+			keys.append(ExternalMcpServers.approval_key(_project_dir, entry))
+	return keys
+
+
+## Un server del proyecto que vino del archivo, sin cambios y sin aprobar en esta máquina.
+func needs_approval(entry: Dictionary) -> bool:
+	return entry.scope == SCOPE_PROJECT and _is_approved.is_valid() and _from_file.has(ExternalMcpServers.approval_text(entry)) \
+		and not _is_approved.call(ExternalMcpServers.approval_key(_project_dir, entry))
 
 
 ## Nombres de todos los servers de la lista (para las filas de la matriz de permisos).
@@ -156,6 +184,7 @@ func import_mcp_json(text: String) -> int:
 			continue
 		entry["scope"] = SCOPE_PROJECT
 		_servers.append(entry)
+		_from_file[ExternalMcpServers.approval_text(entry)] = true  # viene de un archivo del repo: se aprueba aparte
 		added += 1
 	_rebuild()
 	return added
@@ -199,6 +228,19 @@ func _rebuild() -> void:
 		command.add_theme_font_override(&"font", AgentTheme.mono_font())
 		command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		info.add_child(command)
+		if needs_approval(entry):
+			var badge := HBoxContainer.new()
+			var warning := _hint(I18n.t("Not approved on this machine: the agent doesn't get it until you allow it."))
+			warning.add_theme_color_override(&"font_color", AgentTheme.WARNING)
+			warning.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			badge.add_child(warning)
+			var allow := CheckBox.new()
+			allow.text = I18n.t("Allow on this machine")
+			allow.tooltip_text = I18n.t("The server came with the project. Allow it only if you trust what it runs; if it changes, it asks again.")
+			allow.button_pressed = bool(entry.get("_allow", false))
+			allow.toggled.connect(func(on: bool) -> void: _servers[i]["_allow"] = on)
+			badge.add_child(allow)
+			info.add_child(badge)
 		for action: Array in [[I18n.t("Edit"), _edit], [I18n.t("Remove"), _remove]]:
 			var button := Button.new()
 			button.text = action[0]
@@ -270,6 +312,7 @@ func _of_scope(scope: String) -> Array:
 		if entry.scope == scope:
 			var copy := entry.duplicate(true)
 			copy.erase("scope")
+			copy.erase("_allow")
 			result.append(copy)
 	return result
 
