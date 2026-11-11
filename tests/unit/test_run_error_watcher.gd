@@ -130,3 +130,25 @@ func test_pause_already_over_is_not_reported() -> void:
 	watcher.on_game_stopped()
 	assert_eq(found.size(), 1, "los errores se avisan al terminar")
 	assert_false(found[0].breaked, "sin la pausa")
+
+
+## m11-24: game_ended sale con cada run (para los hooks), con quién lo lanzó y los errores del juego,
+## aunque el aviso de m11-55 esté apagado o el run sea del agente.
+func test_game_ended_for_hooks() -> void:
+	var errors := FakeErrors.new()
+	var watcher := _watcher(errors)
+	var ended: Array = []
+	watcher.game_ended.connect(func(info: Dictionary) -> void: ended.append(info))
+	watcher.on_game_started()
+	watcher.on_game_stopped()
+	assert_eq(ended.size(), 1, "un run limpio también")
+	assert_eq([ended[0].by, ended[0].count], ["user", 0], "del usuario, sin errores")
+	watcher.on_game_stopped()
+	assert_eq(ended.size(), 1, "un stop sin run no repite")
+	watcher.launched_by_harness = func() -> bool: return true
+	watcher.enabled = func() -> bool: return false
+	watcher.on_game_started()
+	errors.add("error", "del agente", "res://a.gd", 1, "game")
+	errors.add("error", "del editor", "res://b.gd", 2, "editor")
+	watcher.on_game_stopped()
+	assert_eq([ended[1].by, ended[1].count], ["agent", 1], "del agente, con el error del juego y no el del editor")

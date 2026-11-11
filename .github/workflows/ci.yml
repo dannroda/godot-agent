@@ -124,6 +124,11 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run ask-menu ~/godot/godot
 
+      # Hooks del proyecto con guardados de verdad y la aprobación por máquina (m11-24).
+      - name: Editor check (hooks)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run hooks ~/godot/godot
+
       - name: Every ci check of the suite runs here
         if: ${{ !cancelled() }}
         run: sh tests/suite.sh check-ci

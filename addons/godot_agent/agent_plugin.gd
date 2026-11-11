@@ -76,6 +76,9 @@ const EditorUndo := preload("editor/editor_undo.gd")
 const StdioShimInstaller := preload("mcp/stdio_shim_installer.gd")
 const ErrorCollector := preload("editor/error_collector.gd")
 const RunErrorWatcher := preload("editor/run_error_watcher.gd")
+const HookRunner := preload("editor/hook_runner.gd")
+const ProjectHooks := preload("core/project_hooks.gd")
+const MachineApproval := preload("core/machine_approval.gd")
 const ReviewAnnotations := preload("review/review_annotations.gd")
 const ReviewStore := preload("review/review_store.gd")
 const HarnessPrompts := preload("session/harness_prompts.gd")
@@ -150,6 +153,8 @@ var _sync: EditorSync
 ## Seguir al agente (m11-33): salta a lo que edita la pestaña activa, si tiene el botón prendido.
 var _follower: AgentFollower
 var _remote_activity: RemoteActivity
+## Hooks del proyecto en eventos del editor (m11-24).
+var _hooks: HookRunner
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
 var _turn_changes: TurnChanges
@@ -238,6 +243,19 @@ func _enter_tree() -> void:
 	_remote_activity.after_restore = _sync.after_agent_write
 	add_child(_remote_activity)
 	_plugin.scene_saved.connect(_remote_activity.note_saved)
+	_hooks = HookRunner.new()
+	_hooks.name = "ProjectHooks"
+	_hooks.provider = func() -> Dictionary:
+		return {"hooks": _project_config.hooks if _project_config else [], "godot": OS.get_executable_path(), "project": ProjectSettings.globalize_path("res://")}
+	_hooks.is_approved = _settings.is_command_approved
+	_hooks.held = _on_hook_held
+	_hooks.failed = _on_hook_failed
+	_hooks.log_line = func(text: String) -> void:
+		if _log:
+			_log.add(AgentLog.CH_PROC, text)
+	add_child(_hooks)
+	_plugin.scene_saved.connect(_on_saved_for_hooks)
+	_plugin.resource_saved.connect(func(resource: Resource) -> void: _on_saved_for_hooks(resource.resource_path))
 	_plugin.resource_saved.connect(func(resource: Resource) -> void:
 		if _remote_activity:
 			_remote_activity.note_saved(resource.resource_path))
@@ -523,6 +541,38 @@ func _on_game_breaked() -> void:
 
 ## Un run manual paró con un error (m11-55): aviso en la pestaña activa con el error, la pila plegada
 ## y «Arreglar con el agente». Nada se manda hasta que el usuario lo aprieta.
+## Un guardado del editor (m11-24): es del agente si una tool suya está corriendo.
+func _on_saved_for_hooks(res_path: String) -> void:
+	if _hooks and res_path.begins_with("res://"):
+		var by := ProjectHooks.BY_AGENT if _registry and _registry.running_calls > 0 else ProjectHooks.BY_USER
+		_hooks.fire({"event": ProjectHooks.EVENT_SAVED, "path": res_path, "by": by})
+
+
+## Lo que escriben las file tools y fs/write del agente: el editor lo relee, y para los hooks es un
+## guardado del agente.
+func _after_agent_write(abs_path: String, old_text: String = "", new_text: String = "") -> void:
+	if _sync:
+		_sync.after_agent_write(abs_path, old_text, new_text)
+	var res_path := EditorContext.to_res_path(abs_path)
+	if _hooks and not res_path.is_empty() and res_path.get_extension() in ["tscn", "scn", "gd", "cs", "gdshader", "tres", "res"]:
+		_hooks.fire({"event": ProjectHooks.EVENT_SAVED, "path": res_path, "by": ProjectHooks.BY_AGENT})
+
+
+## Un hook del proyecto sin aprobar en esta máquina (m11-24): aviso en la pestaña activa con «Aprobar…».
+func _on_hook_held(hook: Dictionary, key: String) -> void:
+	var model := _model_of(_active_session_id())
+	if model == null:
+		return
+	var item := {"name": str(hook.name), "command": "%s → %s: %s" % [hook.event, hook.action, ProjectHooks.describe_action(hook)], "key": key}
+	model.add_notice(I18n.t("Project hook «%s» is not approved on this machine, so it didn't run. It comes with the project's settings and runs on its own when its event happens.") % hook.name,
+		ChatEntry.NoticeLevel.WARNING, [{"id": SessionController.ACTION_APPROVE_ON_MACHINE, "label": I18n.t("Approve «%s»…") % hook.name,
+			"data": MachineApproval.request(MachineApproval.KIND_HOOK, [item]), "tooltip": I18n.t("See what the hook runs and allow it on this machine.")}])
+
+
+func _on_hook_failed(hook: Dictionary, _result: Dictionary) -> void:
+	EditorInterface.get_editor_toaster().push_toast(I18n.t("Project hook «%s» failed. Its output is in the Agent Log.") % hook.name, EditorToaster.SEVERITY_WARNING)
+
+
 func _on_run_error(info: Dictionary) -> void:
 	var model := _model_of(_tabs.active_id()) if _tabs else _model
 	if model == null:
@@ -902,7 +952,7 @@ func _start_mcp_server() -> void:
 	asset_tools.store = _asset_store()
 	registry.register_provider(asset_tools, true)
 	var file_tools := FileTools.new()
-	file_tools.on_file_written = _sync.after_agent_write
+	file_tools.on_file_written = _after_agent_write
 	file_tools.unsaved_buffer = _sync.buffer_text
 	registry.register_provider(file_tools, true)
 	registry.register_provider(ResourceTools.new(), true)
@@ -926,6 +976,9 @@ func _start_mcp_server() -> void:
 	_run_errors.still_breaked = func() -> bool: return _playtest_debugger != null and _playtest_debugger.any_breaked()
 	_run_errors.enabled = func() -> bool: return _settings != null and _settings.offer_fix_on_run_error()
 	_run_errors.error_found.connect(_on_run_error)
+	_run_errors.game_ended.connect(func(info: Dictionary) -> void:
+		if _hooks:
+			_hooks.fire({"event": ProjectHooks.EVENT_GAME_STOPPED, "path": "", "by": info.by, "errors": info.count, "lines": info.lines}))
 	# Después de run_tools.setup: cuando llega la señal, run_tools ya decidió quién lanzó el run.
 	_playtest_debugger.session_started.connect(_run_errors.on_game_started)
 	_playtest_debugger.session_breaked.connect(_on_game_breaked)
@@ -1518,7 +1571,7 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	fs.extra_roots = _project_config.extra_fs_roots
 	if copy == null:  # en una copia (m11-09) no hay buffers del editor que sincronizar
 		fs.buffer_reader = _sync.buffer_text
-		fs.after_write = _sync.after_agent_write
+		fs.after_write = _after_agent_write
 	controller.set_fs_handler(fs)
 	var terminal := TerminalHandler.new()
 	terminal.setup(root, _log)

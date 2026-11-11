@@ -5342,3 +5342,21 @@ msgstr "«%s» terminó su turno."
 
 msgid "Ask the agent"
 msgstr "Preguntar al agente"
+
+msgid "Project hook «%s» is not approved on this machine, so it didn't run. It comes with the project's settings and runs on its own when its event happens."
+msgstr "El hook del proyecto «%s» no está aprobado en esta máquina, así que no corrió. Viene con la configuración del proyecto y corre solo cuando pasa su evento."
+
+msgid "See what the hook runs and allow it on this machine."
+msgstr "Ver qué corre el hook y permitirlo en esta máquina."
+
+msgid "Project hook «%s» failed. Its output is in the Agent Log."
+msgstr "Falló el hook del proyecto «%s». Su salida está en el Agent Log."
+
+msgid "Approved on this machine: %s. It runs the next time its event happens."
+msgstr "Aprobado en esta máquina: %s. Corre la próxima vez que pase su evento."
+
+msgid "Approve a project hook"
+msgstr "Aprobar un hook del proyecto"
+
+msgid "This hook comes with the project's settings (addons/godot_agent/config/project_config.tres). It runs on its own, on this computer, every time its event happens:\n\n%s\n\nAllow it only if you trust it. If the hook changes, it asks again."
+msgstr "Este hook viene con la configuración del proyecto (addons/godot_agent/config/project_config.tres). Corre solo, en esta computadora, cada vez que pasa su evento:\n\n%s\n\nPermitilo solo si confiás en él. Si el hook cambia, vuelve a preguntar."

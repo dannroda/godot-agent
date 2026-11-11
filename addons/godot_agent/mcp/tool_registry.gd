@@ -38,6 +38,8 @@ var precheck: Callable
 ## La sesión que llama a la tool en curso, para los handlers que la necesitan (godot.sessions):
 ## vale al empezar el handler, antes de su primer await.
 var current_caller: String = ""
+## Tools del agente corriendo ahora (m11-24: un guardado durante una es del agente, no del usuario).
+var running_calls: int = 0
 var max_output_chars: int = 20000
 var max_image_side: int = 1280
 ## tools/list solo con el núcleo, más `methods` y `run` para las extendidas.
@@ -198,7 +200,9 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 			var blocked: String = await guard.call(caller, tool.name, arguments) if guard.is_valid() else ""
 			if blocked.is_empty():
 				current_caller = caller
+				running_calls += 1
 				result = _normalize(await tool.handler.call(arguments))
+				running_calls -= 1
 			else:
 				result = McpTool.error(blocked)
 	if error_mark.is_valid():

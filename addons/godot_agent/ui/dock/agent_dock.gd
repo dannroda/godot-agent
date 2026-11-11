@@ -1567,7 +1567,10 @@ func _confirm_on_machine(data: Dictionary) -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.ok_button_text = I18n.t("Allow on this machine")
 	dialog.dialog_autowrap = true
-	if data.get("kind") == MachineApproval.KIND_MCP:
+	if data.get("kind") == MachineApproval.KIND_HOOK:
+		dialog.title = I18n.t("Approve a project hook")
+		dialog.dialog_text = I18n.t("This hook comes with the project's settings (addons/godot_agent/config/project_config.tres). It runs on its own, on this computer, every time its event happens:\n\n%s\n\nAllow it only if you trust it. If the hook changes, it asks again.") % listing
+	elif data.get("kind") == MachineApproval.KIND_MCP:
 		dialog.title = I18n.t("Approve project MCP servers")
 		dialog.dialog_text = I18n.t("These MCP servers come with the project's settings (addons/godot_agent/config/project_config.tres). When a session starts, the agent launches each command on this computer (or connects to the URL):\n\n%s\n\nAllow them only if you trust them. If one changes, it asks again.") % listing
 	else:

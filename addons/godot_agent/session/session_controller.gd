@@ -807,10 +807,12 @@ func approve_on_machine(data: Dictionary) -> void:
 			continue
 		approve_command.call(str(item.key))
 		names.append("«%s»" % item.get("name", ""))
-		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % ["MCP server" if data.get("kind") == MachineApproval.KIND_MCP else "Project check", item.get("name", ""), item.get("command", "")])
+		agent_log.add(AgentLog.CH_PERM, "%s «%s» approved on this machine: %s" % [{MachineApproval.KIND_MCP: "MCP server", MachineApproval.KIND_HOOK: "Project hook"}.get(data.get("kind"), "Project check"), item.get("name", ""), item.get("command", "")])
 	if names.is_empty():
 		return
-	if data.get("kind") == MachineApproval.KIND_MCP:
+	if data.get("kind") == MachineApproval.KIND_HOOK:
+		model.add_notice(I18n.t("Approved on this machine: %s. It runs the next time its event happens.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
+	elif data.get("kind") == MachineApproval.KIND_MCP:
 		model.add_notice(I18n.t("Approved on this machine: %s. The agent gets them from the next session (a new one, or this one reopened from History).") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
 	else:
 		model.add_notice(I18n.t("Approved on this machine: %s. It runs after the next turn that changes files.") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
