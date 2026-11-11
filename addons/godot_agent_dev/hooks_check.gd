@@ -17,7 +17,8 @@ const SessionController := preload("res://addons/godot_agent/session/session_con
 const PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const WORK_DIR := "res://tests/tmp/hooks"
 const SCENE := WORK_DIR + "/level.tscn"
-const WAIT_MS := 8000
+## Un tool hook corre godot.validate_scripts sobre todo el proyecto: en CI puede pasar de 8 s.
+const WAIT_MS := 30000
 
 var failures: PackedStringArray = []
 var _tree: SceneTree
