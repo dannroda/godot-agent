@@ -23,6 +23,7 @@ const SessionModel := preload("session/session_model.gd")
 const SessionController := preload("session/session_controller.gd")
 const EditorContext := preload("ui/editor_context.gd")
 const EditorSync := preload("editor/editor_sync.gd")
+const AgentFollower := preload("editor/agent_follower.gd")
 const RemoteActivity := preload("session/remote_activity.gd")
 const FsHandler := preload("acp/fs_handler.gd")
 const TerminalHandler := preload("acp/terminal_handler.gd")
@@ -142,6 +143,8 @@ var _debug_tools: DebugTools
 var _map_tools: MapTools
 var _project_config: ProjectConfig
 var _sync: EditorSync
+## Seguir al agente (m11-33): salta a lo que edita la pestaña activa, si tiene el botón prendido.
+var _follower: AgentFollower
 var _remote_activity: RemoteActivity
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
@@ -206,6 +209,9 @@ func _enter_tree() -> void:
 	_sync.open_scene_modified.connect(_on_open_scene_modified)
 	add_child(_sync)
 	scene_saved.connect(_sync.note_scene_saved)
+	_follower = AgentFollower.new()
+	_follower.dock = func() -> Control: return _tabs
+	add_child(_follower)
 	_turn_snapshots = TurnSnapshots.new(EditorContext.project_path())
 	_turn_snapshots.setup()
 	_controller = _make_controller(_model, PRIMARY_SESSION)
@@ -289,6 +295,8 @@ func _enter_tree() -> void:
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
 	_tabs.new_session_requested.connect(_open_session_tab)
+	_tabs.active_changed.connect(func(_id: String) -> void: _follower.cancel())
+	dock.follow_toggled.connect(_on_follow_toggled)
 	_tabs.close_requested.connect(_close_session_tab)
 	_tabs.rename_requested.connect(_rename_session)
 	# Los textos ya vienen traducidos por I18n: que el editor no los vuelva a traducir con los suyos.
@@ -441,6 +449,9 @@ func _exit_tree() -> void:
 	if _sync:
 		_sync.queue_free()
 		_sync = null
+	if _follower:
+		_follower.queue_free()
+		_follower = null
 	if _review_annotations:
 		remove_child(_review_annotations)
 		_review_annotations.queue_free()
@@ -586,10 +597,28 @@ func _show_log(seq: int = 0) -> void:
 		_log_panel.focus_entry.call_deferred(seq)
 
 
+## Seguir al agente (m11-33): solo la pestaña activa, y solo si ese dock tiene el botón prendido.
+func _follow_call(call: ToolCall, model: SessionModel) -> void:
+	if _follower == null or _tabs == null:
+		return
+	var id := _tabs.active_id()
+	if _model_of(id) != model:
+		return
+	var dock := _tabs.dock(id) as AgentDock
+	if dock and dock.follow_enabled:
+		_follower.follow(call)
+
+
+func _on_follow_toggled(enabled: bool) -> void:
+	if not enabled and _follower:
+		_follower.cancel()
+
+
 ## Un tool call que escribió archivos terminó: el editor se pone al día (spec §8.1).
 func _on_tool_call_changed(call: ToolCall, _group: ChatEntry, model: SessionModel = null) -> void:
 	if (model if model else _model).replaying:
 		return
+	_follow_call(call, model if model else _model)
 	if not _pending_undo.is_empty() and call.undo_info.is_empty() and not call.godot_tool_name().is_empty():
 		_match_pending_undo()
 	if call.status != ToolCall.STATUS_COMPLETED or not call.kind in WRITING_KINDS:
@@ -1493,6 +1522,7 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	if copy == null:
 		_wire_oneshot(dock, id)
 	_wire_elsewhere(dock, id)
+	dock.follow_toggled.connect(_on_follow_toggled)
 	_tabs.add_session(id, dock, model, label)
 	if copy:
 		_tabs.set_copy(id, I18n.t("Works in a separate copy of the project · branch %s") % copy.info.branch)
