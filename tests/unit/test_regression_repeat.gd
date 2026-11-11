@@ -2,6 +2,7 @@ extends "test_case.gd"
 ## m11-42: repetir las regresiones N veces, pass^k, marcar las inestables y que una inestable no
 ## rompa el CI salvo que se pida.
 
+const RunTools := preload("res://addons/godot_agent/mcp/tools/run_tools.gd")
 const PlaytestRegressions := preload("res://addons/godot_agent/review/playtest_regressions.gd")
 const RegressionsWorkflow := preload("res://addons/godot_agent/review/regressions_workflow.gd")
 const RegressionCli := preload("res://addons/godot_agent/playtest/regression_cli.gd")
@@ -78,8 +79,16 @@ func test_record_runs_marks_and_clears() -> void:
 	assert_eq([int(marked.runs.passed), int(marked.runs.total)], [2, 3], "guarda cuántas pasaron")
 	assert_eq(PlaytestRegressions.flaky_count(store.list()), 1, "cuenta como inestable")
 	assert_eq(marked.code, "func run(game):\n\treturn true", "el resto queda igual")
+	# Revisión de next2 #15: la carpeta se versiona; el mismo conteo no reescribe el archivo.
+	var stamped := FileAccess.get_file_as_string(path)
+	PlaytestRegressions.record_runs(PlaytestRegressions.tally(marked, [_run(false), _run(true), _run(true)]))
+	assert_eq(FileAccess.get_file_as_string(path), stamped, "2 de 3 otra vez: el archivo no cambia")
 	PlaytestRegressions.record_runs(PlaytestRegressions.tally(marked, [_run(true), _run(true), _run(true)]))
 	assert_eq(PlaytestRegressions.flaky_count(store.list()), 0, "pasar todas la desmarca")
+	assert_false(store.list()[0].has("runs"), "y saca la marca del archivo")
+	var clean := FileAccess.get_file_as_string(path)
+	PlaytestRegressions.record_runs(PlaytestRegressions.tally(store.list()[0], [_run(true), _run(true)]))
+	assert_eq(FileAccess.get_file_as_string(path), clean, "una estable que pasa todas no se reescribe")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
 
@@ -133,3 +142,12 @@ func test_panel_counts_flaky_and_sends_repeat() -> void:
 	panel.queue_free()
 	for path: String in saved:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+## Revisión de next2 #15: con las regresiones corriendo, run_scene, stop_scene y profile_run no les
+## cortan el juego (la corrida fallaría y quedaría guardada como inestable).
+func test_regressions_own_the_game() -> void:
+	var tools := RunTools.new()
+	tools.regressions_running = true
+	for result: Dictionary in [await tools.call(&"_run_scene_tool", {"scene": "res://x.tscn", "seconds": 1}), await tools.call(&"_stop_scene_tool", {}), await tools.run_scene({"seconds": 1})]:
+		assert_true(result.get("isError", false) and str(result.content[0].text).contains("regressions are running"), "lo rechaza · %s" % result)

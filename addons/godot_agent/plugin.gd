@@ -684,12 +684,12 @@ func _run_regressions(repeat: int = 1) -> void:
 		return
 	var entries := PlaytestRegressions.new().list()
 	repeat = clampi(repeat, 1, PlaytestRegressions.MAX_REPEAT)
-	_model.add_notice((I18n.t("Running %d regressions, without the agent…") % entries.size()) if repeat == 1 else I18n.t("Running %d regressions %d times each, without the agent…") % [entries.size(), repeat], ChatEntry.NoticeLevel.INFO)
+	_model.add_notice((I18n.t("Running the saved regressions (%d) without the agent…") % entries.size()) if repeat == 1 else I18n.t("Running the saved regressions (%d), %d times each, without the agent…") % [entries.size(), repeat], ChatEntry.NoticeLevel.INFO)
 	var results := await _run_tools.run_saved_regressions(entries, repeat)
 	_controller.review.changed.emit()  # el panel muestra cuántas quedaron inestables
 	var summary := PlaytestRegressions.summary(results, false, Callable(I18n, &"t"))
 	if summary.failed == 0 and summary.flaky == 0:
-		_model.add_notice(I18n.t("Regressions: all %d pass.") % results.size() if repeat == 1 else I18n.t("Regressions: all %d pass, %d times each.") % [results.size(), repeat], ChatEntry.NoticeLevel.INFO)
+		_model.add_notice(I18n.t("Regressions: none fail (%d).") % results.size() if repeat == 1 else I18n.t("Regressions: none fail (%d, %d times each).") % [results.size(), repeat], ChatEntry.NoticeLevel.INFO)
 	elif summary.failed == 0:
 		_model.add_notice("%s\n%s" % [I18n.t("Regressions: none of %d fail, %d flaky.") % [results.size(), summary.flaky], summary.details], ChatEntry.NoticeLevel.WARNING)
 	else:

@@ -102,6 +102,7 @@ const DEADLINE_META := &"godot_agent_playtest_deadline_ms"
 ## Las tools que traen texto del juego en sobres (m11-45).
 const ENVELOPED: PackedStringArray = ["run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch"]
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP server)."
+const REGRESSIONS_BUSY := "The saved regressions are running (from the findings panel or a run_regressions call) and the game is theirs: wait for them to finish."
 const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"}, {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
 var errors: ErrorCollector
@@ -226,7 +227,8 @@ func _on_session_stopped() -> void:
 func _on_session_breaked() -> void:
 	# Los monitores del probe no cuentan la pausa como un frame lento (revisión de next2 #11). El
 	# mensaje lo atiende el bucle del debugger, con el juego parado.
-	debugger.send("paused")
+	if debugger:
+		debugger.send("paused")
 	if not _continue_errors or _breaks >= CONTINUE_MAX:
 		if _continue_errors:
 			_continued.append("Stopped skipping errors after %d in this run: the game is stopped in the debugger." % CONTINUE_MAX)
@@ -344,8 +346,8 @@ func tools() -> Array:
 				"film_fps": {"type": "number", "description": "Keep small frames of the run at this rate (2 to 10 is plenty), to look back with game_frames. The game keeps running and its frame rate is free, unlike `record`."},
 				"monitors": {"type": "boolean", "description": "Sample the performance monitors (frame time, draw calls, physics, nodes, memory) during the whole run and add a summary with the orphan nodes at the end, like game_monitors (default false)"},
 			},
-			["seconds"], _run_scene),
-		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
+			["seconds"], _run_scene_tool),
+		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene_tool),
 		McpTool.create("run_regressions", run,
 			"Runs the saved playtest regressions (%s/) in the editor, without an agent turn, `repeat` times each, and reports how many runs of each passed. A regression passes only if every run passes; one that passes some runs and fails others is flaky, and the count is saved with it so the findings panel and the CI workflow can tell. Use repeat 3 or more to check that a regression is stable before relying on it." % RegressionsWorkflow.REGRESSIONS_DIR,
 			{
@@ -501,7 +503,21 @@ func _run_scene(args: Dictionary) -> Dictionary:
 
 ## run_scene para otra tool (godot.profile_run, m13-27): mismo arranque, espera e informe.
 func run_scene(args: Dictionary) -> Dictionary:
+	return await _run_scene_tool(args)
+
+
+## Mientras corren las regresiones el juego es de ellas: lanzar o parar otro cortaría la corrida en
+## curso, que fallaría y quedaría guardada como inestable (revisión de next2 #15).
+func _run_scene_tool(args: Dictionary) -> Dictionary:
+	if regressions_running:
+		return McpTool.error(REGRESSIONS_BUSY)
 	return await _run_scene(args)
+
+
+func _stop_scene_tool(args: Dictionary) -> Dictionary:
+	if regressions_running:
+		return McpTool.error(REGRESSIONS_BUSY)
+	return await _stop_scene(args)
 
 
 ## Hay un run_scene en curso (el de una tool o el de otra sesión).
@@ -989,7 +1005,7 @@ func run_saved_regressions(entries: Array[Dictionary], repeat: int) -> Array:
 
 func _run_regressions(args: Dictionary) -> Dictionary:
 	if regressions_running:
-		return McpTool.error("The regressions are already running (from the findings panel or another call): wait for them to finish.")
+		return McpTool.error(REGRESSIONS_BUSY)
 	if EditorInterface.is_playing_scene():
 		return McpTool.error("A game is running: stop it with stop_scene first; the regressions launch their own scenes.")
 	var goal := str(args.get("goal", "")).strip_edges()
