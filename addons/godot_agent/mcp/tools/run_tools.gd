@@ -16,6 +16,8 @@ const RegressionsWorkflow := preload("../../review/regressions_workflow.gd")
 const PlaytestMemory := preload("../../review/playtest_memory.gd")
 const PlaytestRegressions := preload("../../review/playtest_regressions.gd")
 const RealGamepads := preload("../../playtest/real_gamepads.gd")
+const DeviceSim := preload("../../playtest/runtime/device_sim.gd")
+const GameEmbedding := preload("../../playtest/game_embedding.gd")
 const ProjectTools := preload("project_tools.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 
@@ -361,6 +363,8 @@ func tools() -> Array:
 				"continue_on_error": {"type": "boolean", "description": "Don't stop in the debugger at a script error: the game goes on and every error is listed (breakpoints still stop it). For testing a whole game; while building, stopping at the first error is better."},
 				"film_fps": {"type": "number", "description": "Keep small frames of the run at this rate (2 to 10 is plenty), to look back with game_frames. The game keeps running and its frame rate is free, unlike `record`."},
 				"monitors": {"type": "boolean", "description": "Sample the performance monitors (frame time, draw calls, physics, nodes, memory) during the whole run and add a summary with the orphan nodes at the end, like game_monitors (default false)"},
+				"device": {"type": "object", "description": "Simulate another device for this run, without touching project.godot: {preset: %s, size: [w, h] (window pixels; overrides the preset's), orientation: portrait|landscape, scale (content scale factor, e.g. 2 for a high-DPI screen), touch: true (mouse clicks also arrive as touch events), locale: \"es\" (TranslationServer)}. Phone and tablet turn on touch. Then capture_game_frame and game_ui show the layout at that size; run again with another device to compare aspects." % "|".join(DeviceSim.PRESETS.keys()),
+					"properties": {"preset": {"type": "string", "enum": DeviceSim.PRESETS.keys()}, "size": {"type": "array", "items": {"type": "integer"}}, "orientation": {"type": "string", "enum": ["portrait", "landscape"]}, "scale": {"type": "number"}, "touch": {"type": "boolean"}, "locale": {"type": "string"}}},
 				"real_gamepads": {"type": "boolean", "description": "Let the gamepads connected to this computer reach the game, for the user to play along (default false: they are ignored, so a resting or drifting stick does not move the player or the UI focus while you drive the game; joypad events you send in steps always work)"},
 			},
 			["seconds"], _run_scene_tool),
@@ -451,6 +455,9 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	var invalid := normalize_steps(args.get("inputs", []), inputs)
 	if not invalid.is_empty():
 		return McpTool.error(invalid)
+	var device := DeviceSim.normalize(args.get("device"))
+	if device.has("error"):
+		return McpTool.error(str(device.error))
 
 	_busy = true
 	_busy_since_ms = Time.get_ticks_msec()
@@ -475,7 +482,15 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	harness_requested = true
 	# El juego hereda el entorno del editor: sin la variable, SDL abre los gamepads reales (m16-11).
 	var gamepads: Variant = null if args.get("real_gamepads") == true else RealGamepads.ignore_in_children()
+	# El dispositivo simulado (m11-51) va por el entorno, como los gamepads: solo para este proceso.
+	var device_env: Variant = DeviceSim.set_env(device.device) if device.has("device") else null
+	# Con un tamaño, el juego va en su propia ventana: embebido en la vista Game (lo normal desde 4.4)
+	# el tamaño lo pone el editor. Se apaga solo para este lanzamiento, como el Movie Maker de `record`.
+	var embed: PopupMenu = GameEmbedding.disable() if device.has("device") and not (device.device.size as Array).is_empty() else null
 	EditorInterface.play_custom_scene(scene)  # llama a _build() y lanza el proceso en el momento
+	if device.has("device"):
+		DeviceSim.restore_env(device_env)
+		GameEmbedding.restore(embed)
 	if args.get("real_gamepads") != true:
 		RealGamepads.restore(gamepads)
 	harness_requested = false
@@ -490,6 +505,9 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	var notes: PackedStringArray = []
 	var monitoring := false
 	if reached(GameRunState.PROBE_READY):
+		if device.has("device"):
+			var applied := await request("device", {})
+			notes.append(str(applied.get("text", applied.get("error", ""))))
 		if not inputs.is_empty():
 			debugger.send("inputs", [inputs])
 		if float(args.get("film_fps", 0.0)) > 0.0:
@@ -499,6 +517,8 @@ func _run_scene(args: Dictionary) -> Dictionary:
 			monitoring = started.has("text")
 	elif not _game_halted():
 		notes.append("The playtest probe did not respond within %d s: no inputs or captures." % STARTUP_TIMEOUT_S)
+		if device.has("device"):
+			notes.append("The simulated device (%s) is applied by the probe, so it may not have taken effect." % DeviceSim.describe(device.device))
 	await _until(_game_halted, seconds)
 	await Engine.get_main_loop().create_timer(SETTLE_S).timeout
 	if not recording.is_empty():
