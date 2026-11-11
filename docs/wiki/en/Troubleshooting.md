@@ -8,7 +8,7 @@ Look at the **Agent Log** first: the `proc` channel shows the command that start
 
 - **"Command '…' not found"**: the editor started from the desktop doesn't inherit your shell's PATH (fnm, nvm, volta…). The harness also looks in the usual folders (`~/.local/bin`, `~/.nvm/…`, `/usr/local/bin`, `/opt/homebrew/bin`…). If your `npx` is elsewhere, put its absolute path in the profile's command.
 - **"The agent asks for authentication"**: use the sign-in buttons on the notice (see [Getting started](Getting-started.md#2-start-a-session)), or sign in with `claude` in a terminal and click **Retry**.
-- **The first start takes long**: `npx` is downloading the adapter.
+- **The first start takes long**: `npx` is downloading the adapter. The line above the composer says **Connecting…** meanwhile, and after a few seconds that the first time can take a minute.
 
 ## The agent runs another Godot version
 
@@ -17,6 +17,20 @@ The agent gets the path of the running editor's binary in `$GODOT`, in its instr
 ## "Plan limit reached"
 
 You hit your plan's window. Wait for the reset (the countdown shows when), or use **Switch account** in the One-shot screen during a One-shot (see [One-shot → switching accounts](One-shot.md#switching-accounts)). Outside One-shot, sign in with another account and start a new session or resume it from **History**.
+
+## A `godot.*` call fails with "The operation timed out"
+
+Claude Code stops waiting for an HTTP tool after 60 seconds with no response. A call that takes longer than 2 seconds (a long `run_scene` or `profile_run`, a GDExtension build or test, or any call while its permission card waits for you) now answers as a stream with progress every 10 seconds, so it runs to the end. If you still see the error:
+
+- you set a total limit with `MCP_TOOL_TIMEOUT` or a `timeout` on the server: progress doesn't reset it, so keep it above 120 seconds, the longest `run_scene`;
+- the client doesn't ask for progress: it gets a plain answer, and its own limit applies;
+- the call ran for more than 30 minutes: it answers with an error, and the tool may still be running in the editor.
+
+See [Editor tools → Details](Editor-tools.md#details).
+
+## The player moves on its own, or the agent's input fails at random
+
+Godot reads every gamepad connected to the computer, even when another window has the focus, so a stick left tilted or drifting keeps the arrow actions pressed: the player walks, the UI focus jumps to another control, and a text field that got the focus doesn't take typing. Games the agent launches (`run_scene`, `profile_run`, the regressions, `regression_cli.gd`) ignore real gamepads; the gamepad events the agent sends still work. To play along with yours in a run the agent launches, ask it to pass `real_gamepads: true`. Games you run with F5/F6 still read your gamepads: unplug or recalibrate the one that drifts.
 
 ## A scene didn't update after the agent changed it
 

@@ -8,7 +8,7 @@ Lo primero es mirar el **Agent Log**: el canal `proc` muestra el comando con el 
 
 - **"Command '…' not found"** (el error del proceso, en inglés): el editor lanzado desde el escritorio no hereda el PATH de tu shell (fnm, nvm, volta…). El harness busca además en las carpetas habituales (`~/.local/bin`, `~/.nvm/…`, `/usr/local/bin`, `/opt/homebrew/bin`…). Si tu `npx` está en otro lado, poné su ruta absoluta en el comando del perfil.
 - **"El agente pide autenticarse"**: usá los botones de login del aviso (ver [Primeros pasos](Primeros-pasos.md#2-abrir-una-sesión)), o iniciá sesión con `claude` en una terminal y tocá **Reintentar**.
-- **El primer arranque tarda**: `npx` está descargando el adapter.
+- **El primer arranque tarda**: `npx` está descargando el adapter. Mientras tanto, la línea de arriba del composer dice **Conectando…**, y a los pocos segundos que la primera vez puede tardar un minuto.
 
 ## El agente corre otra versión de Godot
 
@@ -17,6 +17,20 @@ El agente recibe la ruta del binario del editor abierto en `$GODOT`, en sus inst
 ## "Límite del plan alcanzado"
 
 Llegaste al límite de la ventana de tu plan. Esperá el reinicio (la cuenta regresiva dice cuándo), o usá **Cambiar de cuenta** en la pantalla One-shot durante un One-shot (ver [One-shot → cambiar de cuenta](One-shot.md#cambiar-de-cuenta)). Fuera del One-shot, iniciá sesión con otra cuenta y abrí una sesión nueva o retomala desde **Historial**.
+
+## Una llamada `godot.*` falla con "The operation timed out"
+
+Claude Code deja de esperar una tool HTTP a los 60 segundos sin respuesta. Una llamada que tarda más de 2 segundos (un `run_scene` o `profile_run` largo, un build o test de GDExtension, o cualquier llamada mientras su tarjeta de permiso te espera) ahora responde como un stream con progreso cada 10 segundos, así que llega hasta el final. Si igual ves el error:
+
+- pusiste un límite total con `MCP_TOOL_TIMEOUT` o un `timeout` en el server: el progreso no lo reinicia, así que dejalo por encima de 120 segundos, el `run_scene` más largo;
+- el cliente no pide progreso: recibe una respuesta común y vale su propio límite;
+- la llamada pasó los 30 minutos: contesta con un error, y la tool puede seguir corriendo en el editor.
+
+Ver [Herramientas del editor → Detalles](Herramientas-del-editor.md#detalles).
+
+## El personaje se mueve solo, o el input del agente falla al azar
+
+Godot lee todos los gamepads conectados a la computadora, aunque otra ventana tenga el foco, así que un stick torcido o con drift deja apretadas las acciones de las flechas: el personaje camina, el foco de la UI salta a otro control y un campo de texto que tomó el foco no recibe lo que se tipea. Los juegos que lanza el agente (`run_scene`, `profile_run`, las regresiones, `regression_cli.gd`) ignoran los gamepads reales; los eventos de gamepad que manda el agente siguen andando. Para jugar a la par con el tuyo en un run que lanza el agente, pedile que pase `real_gamepads: true`. Los juegos que corrés con F5/F6 siguen leyendo tus gamepads: desconectá o recalibrá el que tiene drift.
 
 ## Una escena no se actualizó después de que el agente la cambió
 

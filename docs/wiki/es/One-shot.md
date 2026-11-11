@@ -38,6 +38,8 @@ Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para proba
    - **Aceptar todo** hace un commit final en `agent/<fecha>`. El merge lo hacés vos;
    - **Informe** muestra lo que midió el harness (ver abajo).
 
+Los prompts que el harness le manda al agente durante un run (el objetivo, la siguiente tarea, *seguir con el objetivo*, la evaluación de QA y sus correcciones, el informe final) aparecen en el chat como líneas atenuadas con una etiqueta, por ejemplo *One-shot · siguiente tarea del plan*, no como mensajes que escribiste vos. **Ver prompt** abre el texto que recibió el agente.
+
 ## La pantalla One-shot
 
 - **Barra de arriba**:

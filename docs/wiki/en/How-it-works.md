@@ -33,7 +33,7 @@ The agent also gets the path of the running editor's binary, in `$GODOT` and in 
 
 The harness starts an MCP server on `127.0.0.1`, never on another interface, with a Bearer token that changes on every start. It passes the server to the agent when the session opens. If an agent can't do MCP over HTTP, a stdio bridge run by the same Godot binary relays it.
 
-Through it the agent calls the `godot.*` tools: read the scene tree, edit nodes, run the game, capture frames, read errors. See [Editor tools](Editor-tools.md). Each call passes through the permission policy first.
+Through it the agent calls the `godot.*` tools: read the scene tree, edit nodes, run the game, capture frames, read errors. See [Editor tools](Editor-tools.md). Each call passes through the permission policy first. Each tool also tells the client whether it only reads, can overwrite or delete, or reaches the internet; text from outside the harness (the game's output, scene texts, Asset Store pages) comes back inside an untrusted envelope; and a call longer than 2 seconds reports progress so the client keeps waiting. See [Editor tools → Details](Editor-tools.md#details).
 
 ## Keeping the editor in sync
 

@@ -6,11 +6,12 @@
 
 An editor addon for Godot 4 (GDScript and C# projects) that connects a coding agent (Claude Code, Google Antigravity, Codex, or any agent that speaks [ACP](https://agentclientprotocol.com)) to the editor. Only Claude Code has been tested end to end; Codex and Antigravity haven't been verified yet. You chat with the agent in a dock, and it can see and change your project through the editor's own tools:
 
-- read scenes and scripts, the selection and the errors;
+- read scenes and scripts, the selection and the errors, and get a ranked map of the files related to what it's working on;
 - edit nodes and properties, each change one undo step;
 - run the game with simulated input, by time or by physics frame so a test plays the same every time, and look at captured frames (click one in the chat to see it full size);
-- check its own work: each tool result brings the editor errors that appeared since the last call, validators check physics and TileMaps, and a **Playtest** answers passed, failed or could not test, with evidence the harness checks against what the agent really did (and a video if you want). A playtest that passes leaves a regression you can rerun without the agent, and a generated GitHub Actions workflow runs them on every push. In-game detectors catch NaN transforms, bodies out of the world, long falls, long frames and a HUD past its maximum, and the agent can use the game's menus, play turn by turn or run a script inside the game to react in the same frame;
-- find the hottest GDScript functions of a run (calls, times, and whether they're typed) to pick what to optimize and measure the change. Godot doesn't give this data to plugins, so it's read through an internal editor API that a future Godot version may change (the tool then says so). The profiler also slows every call, so the times are for comparing functions with each other;
+- check its own work: each tool result brings the editor errors that appeared since the last call, validators check physics and TileMaps, and a **Playtest** answers passed, failed or could not test, with evidence the harness checks against what the agent really did (and a video if you want). A playtest that passes leaves a regression you can rerun without the agent (several times each, to catch flaky ones), and a generated GitHub Actions workflow runs them on every push. In-game detectors catch NaN transforms, bodies out of the world, long falls, long frames and a HUD past its maximum, and the agent can use the game's menus, play turn by turn or run a script inside the game to react in the same frame;
+- find the hottest GDScript functions of a run (calls, times, and whether they're typed) to pick what to optimize and measure the change. Godot doesn't give this data to plugins, so it's read through an internal editor API that a future Godot version may change (the tool then says so). The profiler also slows every call, so the times are for comparing functions with each other. For a game that is slow because of rendering or physics, or that leaks nodes, it measures frame time, draw calls, physics and orphan nodes instead;
+- debug the game with the script debugger: set breakpoints, read the call stack and variables where it stopped, and step;
 - review code and leave findings in the Script Editor;
 - work on C# projects with Godot .NET: it compiles with `dotnet build` and gets the errors by file and line, creates `.cs` scripts, and inline completion works in `.cs` files too;
 - build, test and install a project's GDExtension (godot-cpp or gdext): new builds are tested in a separate headless Godot, so a crash doesn't take the editor down, and are loaded with an editor restart under a crash supervisor that rolls back a build that crashes on start. Tested on Linux; Windows and macOS are not verified yet;
@@ -23,7 +24,7 @@ It has five modes: **Ask**, **Review**, **Build**, **Auto** (Build that runs the
 
 - 100 % statically typed GDScript: no GDExtension, no dependencies.
 - Editor-only: nothing from the addon ends up in an exported game.
-- The harness never merges, never pushes on its own (the one exception is **Push and open a PR**, off by default, which you choose when closing a separate copy), never stores keys and never reads the agent's credentials (to label accounts it reads only the email Claude Code keeps in its configuration). It has no telemetry: what you share goes to the agent you choose and its provider. Details in [PRIVACY.md](PRIVACY.md); to report a vulnerability, [SECURITY.md](SECURITY.md).
+- The harness never merges, never pushes on its own (the one exception is **Push and open a PR**, off by default, which you choose when closing a separate copy), never stores keys and never reads the agent's credentials (to label accounts it reads only the email Claude Code keeps in its configuration). It has no telemetry: what you share goes to the agent you choose and its provider. Text from outside the harness (the game's output, scene texts, Asset Store pages) reaches the agent in an envelope marked as untrusted data, not instructions. Details in [PRIVACY.md](PRIVACY.md); to report a vulnerability, [SECURITY.md](SECURITY.md).
 - The interface is in English and Spanish (it follows the editor language; you can change it in Settings).
 - The chat renders the agent's Markdown: tables, lists, quotes, and code blocks with highlighting and a copy button.
 
@@ -62,7 +63,7 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
    - the **Agent** dock (right side);
    - the **Agent Log** bottom panel;
    - the **One-shot** screen (top bar, next to 2D/3D/Script).
-4. In the dock, **Add** one of the suggested agents (or set one up in Settings → Agents) and click **Start session**. With Claude Code, `npx` downloads the adapter the first time.
+4. In the dock, **Add** one of the suggested agents: with Claude Code, that starts the session (the first time, `npx` downloads the adapter, which can take a minute). Or set one up in Settings → Agents and click **Start session**.
 
 New versions show up as a notice in the dock, with **Update** (see [Updating the addon](docs/wiki/en/Settings.md#updating-the-addon)).
 
@@ -70,7 +71,7 @@ The addon writes nothing to `project.godot`. The one exception is a temporary pl
 
 ## Quick start
 
-Open the **Agent** dock, click **Start session** and pick a mode in the composer (bottom right of the dock).
+Open the **Agent** dock (the session starts after **Add**, or with **Start session** once you have an agent) and pick a mode in the composer (bottom right of the dock).
 
 ### Ask and Build
 
@@ -115,7 +116,7 @@ The interface text is written in English in the code, wrapped in `I18n.t("…")`
 
 ### CI and releases
 
-- **CI** (`.github/workflows/ci.yml`): on every push to `main` and every pull request, the unit tests, the ACP check, the One-shot check, the saved playtest regressions (from the command line) and the plugin enable/disable cycle run headless on Godot 4.7.2 and 4.8-beta2. On the same versions, an editor under Xvfb runs the game checks (`--godot-agent-run-test`), Review (`--godot-agent-review-test`) and editor ↔ disk sync (`--godot-agent-external-test`). The C# tests run on Godot .NET 4.7.2.
+- **CI** (`.github/workflows/ci.yml`): on every push to `main` and every pull request, the unit tests, the ACP check, the One-shot check, the saved playtest regressions (from the command line) and the plugin enable/disable cycle run headless on Godot 4.7.2 and 4.8-beta2. On the same versions, an editor under Xvfb runs the game checks (`--godot-agent-run-test`), Review (`--godot-agent-review-test`), the notice for an error in a game you run by hand (`--godot-agent-run-error-test`), the script debugger tools (`--godot-agent-debug-test`) and editor ↔ disk sync (`--godot-agent-external-test`). The C# tests run on Godot .NET 4.7.2.
 - **Release** (`.github/workflows/release.yml`): run it by hand from **Actions → Release → Run workflow**, choosing `patch`, `minor`, `major` or an exact `X.Y.Z`. It runs the CI, bumps `version` in `addons/godot_agent/plugin.cfg`, commits "Release vX.Y.Z" to `main` with the tag `vX.Y.Z`, moves the **Unreleased** section of [`CHANGELOG.md`](CHANGELOG.md) under the new version, and publishes a GitHub release with the zip of the addon and that section as notes. The changelog and the release are in English: add an entry under **Unreleased** with each change (the release fails if it's empty).
 - The version lives only in `plugin.cfg`: the ACP `clientInfo` and the MCP `serverInfo` read it from there.
 

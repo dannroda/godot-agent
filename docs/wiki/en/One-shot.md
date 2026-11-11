@@ -38,6 +38,8 @@ Never run One-shot on a repository where you don't want new branches. To try it,
    - **Accept all** makes a final commit on `agent/<date>`. You do the merge;
    - **Report** shows what the harness measured (see below).
 
+The prompts the harness sends the agent during a run (the goal, the next task, *keep going with the goal*, the QA evaluation and its fixes, the final report) show in the chat as dimmed lines with a label, such as *One-shot · next task in the plan*, not as messages you typed. **Show prompt** opens the text the agent got.
+
 ## The One-shot screen
 
 - **Top bar**:

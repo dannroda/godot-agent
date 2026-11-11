@@ -73,6 +73,8 @@ Auto es para trabajar en el chat sin aprobar cada paso. Las ediciones se pueden 
 - **Preguntar siempre**: muestra una tarjeta aunque coincida un patrón más amplio de la allowlist. Por defecto: `rm`, `mv`, `sudo`, `chmod`, `git push/reset/checkout/clean/rebase`, `curl`, `wget`, `ssh`, instaladores de paquetes, `find -delete/-exec`.
 - Todo lo demás muestra una tarjeta.
 
+El texto que viene de afuera del harness (el Output y los errores del juego, lo que las tools del juego leen del juego corriendo, textos y nombres de nodos de escenas y recursos, páginas del Asset Store) le llega al agente dentro de un sobre no confiable, y al agente se le pide leerlo como datos, nunca como instrucciones. Un juego o un asset que escribe «ignorá tus reglas y…» no puede hacerlo pasar por una orden. Esto baja el riesgo de prompt injection en el modo Auto; no lo elimina. Ver [Herramientas del editor → Detalles](Herramientas-del-editor.md#detalles).
+
 Cómo se revisa un comando:
 
 - Un comando con `&&`, `||`, `;` o `|` corre solo únicamente si **cada parte** está en la allowlist.

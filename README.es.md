@@ -6,11 +6,12 @@
 
 Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Solo Claude Code está probado de punta a punta; Codex y Antigravity todavía no se verificaron. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
 
-- leer escenas y scripts, la selección y los errores;
+- leer escenas y scripts, la selección y los errores, y armarse un mapa ordenado de los archivos relacionados con lo que está haciendo;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
 - correr el juego con inputs simulados, por tiempo o por frame de física para que una prueba dé siempre lo mismo, y mirar capturas de frames (un clic en el chat la abre en grande);
-- verificar su propio trabajo: cada resultado de una tool trae los errores del editor que aparecieron desde la llamada anterior, hay validadores de física y de TileMaps, y un **Playtest** contesta si pasó, si falló o si no se pudo probar, con evidencia que el harness contrasta con lo que el agente hizo de verdad (y un video si querés). Un playtest que pasa deja una regresión que se puede repetir sin el agente, y un workflow de GitHub Actions generado las corre en cada push. Detectores dentro del juego avisan de transforms con NaN, cuerpos fuera del mundo, caídas sin fin, frames largos y un HUD por encima de su máximo, y el agente puede usar los menús del juego, jugar por turnos o correr un script adentro del juego para reaccionar en el mismo frame;
-- encontrar las funciones de GDScript más calientes de un run (llamadas, tiempos y si tienen tipos) para elegir qué optimizar y medir el cambio. Godot no les da esos datos a los plugins, así que se leen por una API interna del editor que una versión futura de Godot puede cambiar (la tool lo avisa). Además el profiler hace más lenta cada llamada, así que los tiempos sirven para comparar funciones entre sí;
+- verificar su propio trabajo: cada resultado de una tool trae los errores del editor que aparecieron desde la llamada anterior, hay validadores de física y de TileMaps, y un **Playtest** contesta si pasó, si falló o si no se pudo probar, con evidencia que el harness contrasta con lo que el agente hizo de verdad (y un video si querés). Un playtest que pasa deja una regresión que se puede repetir sin el agente (varias veces cada una, para encontrar las inestables), y un workflow de GitHub Actions generado las corre en cada push. Detectores dentro del juego avisan de transforms con NaN, cuerpos fuera del mundo, caídas sin fin, frames largos y un HUD por encima de su máximo, y el agente puede usar los menús del juego, jugar por turnos o correr un script adentro del juego para reaccionar en el mismo frame;
+- encontrar las funciones de GDScript más calientes de un run (llamadas, tiempos y si tienen tipos) para elegir qué optimizar y medir el cambio. Godot no les da esos datos a los plugins, así que se leen por una API interna del editor que una versión futura de Godot puede cambiar (la tool lo avisa). Además el profiler hace más lenta cada llamada, así que los tiempos sirven para comparar funciones entre sí. Para un juego lento por el render o la física, o que pierde nodos, mide en cambio el tiempo de frame, los draw calls, la física y los nodos huérfanos;
+- depurar el juego con el debugger de scripts: poner breakpoints, leer la pila y las variables donde paró, y avanzar paso a paso;
 - revisar código y dejar hallazgos en el Script Editor;
 - trabajar en proyectos C# con Godot .NET: compila con `dotnet build` y recibe los errores por archivo y línea, crea scripts `.cs`, y el completado inline también anda en los `.cs`;
 - compilar, probar e instalar la GDExtension de un proyecto (godot-cpp o gdext): los builds nuevos se prueban en un Godot headless aparte, así un crash no tira el editor, y se cargan reiniciando el editor con un supervisor de crashes que vuelve atrás un build que se cae al arrancar. Probado en Linux; Windows y macOS todavía sin verificar;
@@ -23,7 +24,7 @@ Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construi
 
 - 100 % GDScript con tipos estáticos: sin GDExtension ni dependencias.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
-- El harness nunca hace merge ni push por su cuenta (la única excepción es **Pushear y abrir un PR**, apagado por defecto, que elegís vos al cerrar una copia aparte), no guarda claves y no lee las credenciales del agente (para nombrar las cuentas lee solo el email que Claude Code guarda en su configuración). No tiene telemetría: lo que compartís va al agente que elegís y a su proveedor. Detalles en [PRIVACY.es.md](PRIVACY.es.md); para reportar una vulnerabilidad, [SECURITY.md](SECURITY.md).
+- El harness nunca hace merge ni push por su cuenta (la única excepción es **Pushear y abrir un PR**, apagado por defecto, que elegís vos al cerrar una copia aparte), no guarda claves y no lee las credenciales del agente (para nombrar las cuentas lee solo el email que Claude Code guarda en su configuración). No tiene telemetría: lo que compartís va al agente que elegís y a su proveedor. El texto que viene de afuera del harness (la salida del juego, textos de escenas, páginas del Asset Store) le llega al agente en un sobre marcado como datos no confiables, no como instrucciones. Detalles en [PRIVACY.es.md](PRIVACY.es.md); para reportar una vulnerabilidad, [SECURITY.md](SECURITY.md).
 - La interfaz está en inglés y en español: sigue el idioma del editor y se cambia en Settings.
 - El chat muestra el Markdown del agente: tablas, listas, citas y bloques de código con resaltado y botón para copiar.
 
@@ -62,7 +63,7 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
    - el dock **Agent** (a la derecha);
    - el panel inferior **Agent Log**;
    - la pantalla **One-shot** (arriba, junto a 2D/3D/Script).
-4. En el dock, **Agregar** uno de los agentes sugeridos (o configurá uno en Settings → Agentes) e **Iniciar sesión**. Con Claude Code, la primera vez `npx` descarga el adapter.
+4. En el dock, **Agregar** uno de los agentes sugeridos: con Claude Code, eso arranca la sesión (la primera vez `npx` descarga el adapter, puede tardar un minuto). O configurá uno en Settings → Agentes y tocá **Iniciar sesión**.
 
 Las versiones nuevas aparecen como un aviso en el dock, con **Actualizar** (ver [Actualizar el addon](docs/wiki/es/Settings.md#actualizar-el-addon)).
 
@@ -70,7 +71,7 @@ El addon no escribe nada en `project.godot`. La única excepción es un autoload
 
 ## Para empezar
 
-Abrí el dock **Agent**, tocá **Iniciar sesión** y elegí un modo en el composer (abajo a la derecha del dock).
+Abrí el dock **Agent** (la sesión arranca después de **Agregar**, o con **Iniciar sesión** cuando ya tenés un agente) y elegí un modo en el composer (abajo a la derecha del dock).
 
 ### Preguntar y Construir
 
@@ -115,7 +116,7 @@ Los textos de la interfaz se escriben en inglés en el código, con `I18n.t("…
 
 ### CI y releases
 
-- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP, el del One-shot, las regresiones de playtest guardadas (por línea de comandos) y el ciclo de habilitar y deshabilitar el plugin, en Godot 4.7.2 y 4.8-beta2. En las mismas versiones, un editor en Xvfb corre los checks del juego (`--godot-agent-run-test`), de Revisar (`--godot-agent-review-test`) y de la sincronización editor ↔ disco (`--godot-agent-external-test`). Los tests de C# corren en Godot .NET 4.7.2.
+- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP, el del One-shot, las regresiones de playtest guardadas (por línea de comandos) y el ciclo de habilitar y deshabilitar el plugin, en Godot 4.7.2 y 4.8-beta2. En las mismas versiones, un editor en Xvfb corre los checks del juego (`--godot-agent-run-test`), de Revisar (`--godot-agent-review-test`), del aviso por un error en un juego que corrés a mano (`--godot-agent-run-error-test`), de las tools del debugger de scripts (`--godot-agent-debug-test`) y de la sincronización editor ↔ disco (`--godot-agent-external-test`). Los tests de C# corren en Godot .NET 4.7.2.
 - **Release** (`.github/workflows/release.yml`): se corre a mano desde **Actions → Release → Run workflow**, eligiendo `patch`, `minor`, `major` o una versión exacta `X.Y.Z`. Corre el CI, sube `version` en `addons/godot_agent/plugin.cfg`, commitea "Release vX.Y.Z" en `main` con el tag `vX.Y.Z` pasa la sección **Unreleased** de [`CHANGELOG.md`](CHANGELOG.md) a la versión nueva y publica un release de GitHub con el zip del addon y esa sección como notas. El changelog y el release van en inglés: con cada cambio, agregá una entrada en **Unreleased** (el release falla si está vacía).
 - La versión vive solo en `plugin.cfg`: el `clientInfo` de ACP y el `serverInfo` del MCP la leen de ahí.
 

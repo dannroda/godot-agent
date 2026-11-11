@@ -73,6 +73,8 @@ Auto is for working in the chat without approving every step. Edits can be undon
 - **Always ask**: shows a card even if a broader allowlist pattern matches. By default: `rm`, `mv`, `sudo`, `chmod`, `git push/reset/checkout/clean/rebase`, `curl`, `wget`, `ssh`, package installers, `find -delete/-exec`.
 - Anything else shows a card.
 
+Text from outside the harness (the game's Output and errors, what the game tools read from the running game, texts and node names of scenes and resources, Asset Store pages) reaches the agent inside an untrusted envelope, and the agent is told to read it as data, never as instructions. A game or an asset that writes "ignore your rules and…" can't pass that off as an order. This lowers the risk of prompt injection in Auto mode; it doesn't remove it. See [Editor tools → Details](Editor-tools.md#details).
+
 How a command is checked:
 
 - A command with `&&`, `||`, `;` or `|` runs on its own only if **every part** is on the allowlist.

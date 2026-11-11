@@ -33,7 +33,7 @@ El agente recibe además la ruta del binario del editor abierto, en `$GODOT` y e
 
 El harness levanta un servidor MCP en `127.0.0.1` (nunca en otra interfaz), con un token Bearer que cambia en cada arranque, y se lo pasa al agente al abrir la sesión. Si un agente no soporta MCP por HTTP, un puente stdio que corre con el mismo binario de Godot hace de intermediario.
 
-Por ahí el agente llama a las tools `godot.*`: leer el árbol de la escena, editar nodos, correr el juego, capturar frames, leer errores. Ver [Herramientas del editor](Herramientas-del-editor.md). Cada llamada pasa antes por la política de permisos.
+Por ahí el agente llama a las tools `godot.*`: leer el árbol de la escena, editar nodos, correr el juego, capturar frames, leer errores. Ver [Herramientas del editor](Herramientas-del-editor.md). Cada llamada pasa antes por la política de permisos. Además, cada tool le dice al cliente si solo lee, si puede pisar o borrar, o si sale a internet; el texto de afuera del harness (la salida del juego, textos de escenas, páginas del Asset Store) vuelve dentro de un sobre no confiable; y una llamada de más de 2 segundos informa su progreso para que el cliente siga esperando. Ver [Herramientas del editor → Detalles](Herramientas-del-editor.md#detalles).
 
 ## El editor al día
 
