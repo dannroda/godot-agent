@@ -648,6 +648,8 @@ func _on_open_scene_modified(res_path: String) -> void:
 func _on_dock_action(action: String, payload: Variant) -> void:
 	var path := str(payload.get("path", "")) if payload is Dictionary else ""
 	match action:
+		AgentDock.ACTION_VIEW_MEMORY:
+			_open_extensions(ExtensionsWindow.ExtensionsTab.MEMORY)
 		SessionController.ACTION_REINSTALL_AGENT:
 			var settings := _get_settings_dialog()
 			settings.open()

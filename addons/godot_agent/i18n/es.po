@@ -5177,3 +5177,153 @@ msgstr "Seguir en una sesión nueva con un resumen de esta; opcional, qué hacer
 
 msgid "Click: continue in a new session with a summary…"
 msgstr "Clic: seguir en una sesión nueva con resumen…"
+
+msgid "Write what to remember after the command, e.g. /remember The player scene is res://player/player.tscn"
+msgstr "Escribí qué recordar después del comando, por ejemplo /remember La escena del jugador es res://player/player.tscn"
+
+msgid "Could not save it in %s: %s"
+msgstr "No se pudo guardar en %s: %s"
+
+msgid "Saved in %s: «%s». Agents read it from their next session; this one gets it with your next message."
+msgstr "Guardado en %s: «%s». Los agentes lo leen desde su próxima sesión; esta lo recibe con tu próximo mensaje."
+
+msgid "Remembered"
+msgstr "Recordado"
+
+msgid "View memory"
+msgstr "Ver memoria"
+
+msgid "Removed from %s: «%s»."
+msgstr "Quitado de %s: «%s»."
+
+msgid "Save a fact about the project in the agent's instructions file (harness; also /recordar)"
+msgstr "Guardar un dato del proyecto en el archivo de instrucciones del agente (harness; también /recordar)"
+
+msgid "Memory"
+msgstr "Memoria"
+
+msgid "What is remembered about this project: what you saved with /remember, what playtests learned, handoffs and plans, and the agent's own memory. Edit or delete each entry."
+msgstr "Lo que se recuerda de este proyecto: lo que guardaste con /remember, lo que aprendieron los playtests, traspasos y planes, y la memoria propia del agente. Cada entrada se edita o se borra."
+
+msgid "Something to remember…"
+msgstr "Algo para recordar…"
+
+msgid "Remember"
+msgstr "Recordar"
+
+msgid "Adds it to the harness section of the agent's instructions file, like /remember in the composer."
+msgstr "Lo agrega a la sección del harness en el archivo de instrucciones del agente, como /remember en el composer."
+
+msgid "Delete memory"
+msgstr "Borrar memoria"
+
+msgid "Move to trash"
+msgstr "Mandar a la papelera"
+
+msgid "Remembered · %s"
+msgstr "Recordado · %s"
+
+msgid "Read by %s at the start of each session."
+msgstr "Lo lee %s al empezar cada sesión."
+
+msgid "Nothing yet: use /remember in the composer or the field below."
+msgstr "Nada todavía: usá /remember en el composer o el campo de abajo."
+
+msgid "What playtests learned"
+msgstr "Lo que aprendieron los playtests"
+
+msgid "Facts the agent verified while playing; it reads them before each playtest."
+msgstr "Hechos que el agente comprobó jugando; los lee antes de cada playtest."
+
+msgid "Not a bug: %s"
+msgstr "No es un bug: %s"
+
+msgid "Script: %s"
+msgstr "Script: %s"
+
+msgid "No playtests yet."
+msgstr "Todavía no hay playtests."
+
+msgid "Handoffs and plans"
+msgstr "Traspasos y planes"
+
+msgid "Handoffs between sessions and approved plans, in .godot_agent/."
+msgstr "Traspasos entre sesiones y planes aprobados, en .godot_agent/."
+
+msgid "Handoff · %s"
+msgstr "Traspaso · %s"
+
+msgid "Plan · %s"
+msgstr "Plan · %s"
+
+msgid "None yet."
+msgstr "Ninguno todavía."
+
+msgid "The agent's own memory"
+msgstr "La memoria propia del agente"
+
+msgid "The harness can't read this agent's own memory."
+msgstr "El harness no puede leer la memoria propia de este agente."
+
+msgid "Claude Code's memory"
+msgstr "La memoria de Claude Code"
+
+msgid "Read only from %s, when this tab is shown."
+msgstr "Se lee solo de %s, cuando esta pestaña está a la vista."
+
+msgid "Index (MEMORY.md)"
+msgstr "Índice (MEMORY.md)"
+
+msgid "Claude Code hasn't saved memories for this project with this account."
+msgstr "Claude Code no guardó memorias de este proyecto con esta cuenta."
+
+msgid "Move to trash…"
+msgstr "Mandar a la papelera…"
+
+msgid "In %s, between the harness markers. Edit the line or delete it."
+msgstr "En %s, entre las marcas del harness. Editá la línea o borrala."
+
+msgid "Playtest note (.godot_agent/playtests/notes.md)."
+msgstr "Nota de playtest (.godot_agent/playtests/notes.md)."
+
+msgid "A finding marked «not a bug»: neither the detectors nor the agent bring it up again. Delete it to see it again."
+msgstr "Un hallazgo marcado «no es un bug»: ni los detectores ni el agente lo vuelven a traer. Borralo para volver a verlo."
+
+msgid "Claude Code keeps it up to date: the index can't be deleted from here."
+msgstr "Claude Code lo mantiene al día: el índice no se borra desde acá."
+
+msgid "Claude Code keeps it up to date: it can't be edited from here, only moved to the trash."
+msgstr "Claude Code la mantiene al día: no se edita desde acá, solo se manda a la papelera."
+
+msgid "Choose an entry on the left."
+msgstr "Elegí una entrada a la izquierda."
+
+msgid "Saved in %s."
+msgstr "Guardado en %s."
+
+msgid "Playtest note saved."
+msgstr "Nota de playtest guardada."
+
+msgid "Removed from %s."
+msgstr "Quitado de %s."
+
+msgid "Playtest note deleted."
+msgstr "Nota de playtest borrada."
+
+msgid "The finding can show up again."
+msgstr "El hallazgo puede volver a aparecer."
+
+msgid "Script deleted."
+msgstr "Script borrado."
+
+msgid "Deleted %s."
+msgstr "Borrado %s."
+
+msgid "Move «%s» to the trash? Claude Code stops reading it from its next session, and its line leaves MEMORY.md. You can restore it from the trash."
+msgstr "¿Mandar «%s» a la papelera? Claude Code deja de leerla desde su próxima sesión y su línea sale de MEMORY.md. Se puede recuperar de la papelera."
+
+msgid "Moved to the trash: %s."
+msgstr "Mandado a la papelera: %s."
+
+msgid "Could not save: %s"
+msgstr "No se pudo guardar: %s"
