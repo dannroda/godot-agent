@@ -74,7 +74,7 @@ func refresh() -> void:
 		_refresh_row(call, _body)
 		running = running or not call.is_finished() or (call.is_subagent() and call.is_working())
 		total_msec += call.duration_msec()
-		if call.status == ToolCall.STATUS_FAILED:
+		if call.status == ToolCall.STATUS_FAILED and not call.plan_card:  # un plan no aprobado no es un error
 			failed += 1
 	_align_rows()
 	var count := (I18n.t("%d tool") if calls.size() == 1 else I18n.t("%d tools")) % calls.size()
@@ -118,6 +118,9 @@ func _refresh_row(call: ToolCall, container: VBoxContainer) -> void:
 			status_color = AgentTheme.ERROR
 		ToolCall.STATUS_IN_PROGRESS:
 			status_color = accent
+	if call.plan_card and call.status == ToolCall.STATUS_FAILED:  # no aprobado: se sigue planeando, no falló
+		status_label.text = "↺"
+		status_color = AgentTheme.MUTED
 	status_label.add_theme_color_override(&"font_color", status_color)
 	var name_label: Label = parts.name
 	name_label.text = _short_name(call)
@@ -221,12 +224,14 @@ func _refresh_subagent(call: ToolCall, parts: Dictionary) -> void:
 
 ## Contenido del tool call: diffs como tarjetas, texto breve, salida de terminal, ubicaciones.
 func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
-	var signature := "%s|%d|%d" % [call.status, str(call.content).hash(), call.locations.size()]
+	var signature := "%s|%d|%d|%s" % [call.status, str(call.content).hash(), call.locations.size(), call.plan_card]
 	if extra.get_meta(&"signature", "") == signature:
 		return
 	extra.set_meta(&"signature", signature)
 	for child: Node in extra.get_children():
 		child.queue_free()
+	if call.plan_card:
+		return  # ni el plan ni el «User has approved your plan…»: ya están en la tarjeta
 	for block: Variant in call.content:
 		if not block is Dictionary:
 			continue
@@ -462,6 +467,8 @@ const GODOT_TOOL_NAMES := {
 ## Las tools del editor con nombre para personas («godot.connect_signal» → «Connect signal»); el
 ## nombre técnico queda en el tooltip. Las del agente (Read, Bash…) ya son cortas.
 static func _short_name(call: ToolCall) -> String:
+	if call.plan_card:
+		return _cap_name(I18n.t("Plan presented"))
 	var godot_name := call.godot_tool_name()
 	if not godot_name.is_empty():
 		if GODOT_TOOL_NAMES.has(godot_name):
@@ -493,6 +500,13 @@ func _align_rows() -> void:
 
 
 static func _summary(call: ToolCall) -> String:
+	if call.plan_card:  # el plan está en su tarjeta: acá solo cómo terminó
+		match call.status:
+			ToolCall.STATUS_COMPLETED:
+				return I18n.t("approved")
+			ToolCall.STATUS_FAILED:
+				return I18n.t("not approved")
+		return I18n.t("waiting for you")
 	if call.is_subagent():
 		var agent_type := ""
 		if call.raw_input is Dictionary:

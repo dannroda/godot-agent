@@ -4794,3 +4794,15 @@ msgstr "Plan · seguir planeando"
 
 msgid "Denied with a reason"
 msgstr "Denegado con motivo"
+
+msgid "Plan presented"
+msgstr "Plan presentado"
+
+msgid "approved"
+msgstr "aprobado"
+
+msgid "not approved"
+msgstr "no aprobado"
+
+msgid "waiting for you"
+msgstr "te espera"

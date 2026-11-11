@@ -87,6 +87,8 @@ func test_plan_card_in_ask_mode_and_approve_builds() -> void:
 	assert_eq(controller.model.pending_permissions.size(), 1, "una tarjeta")
 	var request: PermissionRequest = controller.model.pending_permissions[0]
 	assert_true(request.is_plan(), "es la tarjeta del plan")
+	var call = controller.model.tool_call(request.tool_call_id)
+	assert_true(call != null and call.plan_card, "la fila de la tool sabe que el plan está en la tarjeta")
 	assert_eq(request.plan_text, _fixture().request.toolCall.rawInput.plan, "con el plan")
 	assert_eq(request.options.size(), 2, "aprobar y rechazar")
 	assert_eq(PermissionPolicy.new().decide(PermissionPolicy.GROUP_EDIT_FILES, M.ASK), PermissionPolicy.DENY, "(en Preguntar las ediciones se deniegan)")
@@ -223,3 +225,25 @@ func test_plan_store_slug_and_no_overwrite() -> void:
 	assert_eq(second.get_file(), "2026-11-11-a-2.md", "no pisa el anterior")
 	assert_true(FileAccess.get_file_as_string(first).contains("body"), "el primero sigue")
 	assert_eq(PlanStore.save_approved("", "x"), "", "sin proyecto no guarda")
+
+
+## Historial viejo (sin tarjeta): la fila sigue mostrando el plan plegado; con tarjeta, una línea corta.
+func test_tool_row_does_not_repeat_the_plan() -> void:
+	var view_script := preload("res://addons/godot_agent/ui/dock/entries/tool_group_view.gd")
+	var model := SessionModel.new()
+	var update: Dictionary = _fixture().request.toolCall.duplicate(true)
+	update["sessionUpdate"] = "tool_call"
+	model.apply_update(update)
+	var call = model.tool_call(update.toolCallId)
+	assert_eq(view_script._summary(call), "switch_mode", "sin tarjeta, como siempre")
+	model.mark_plan_card(update.toolCallId)
+	assert_eq(view_script._short_name(call), "Plan presented", "con tarjeta: «Plan presentado»")
+	assert_eq(view_script._summary(call), "waiting for you", "esperando")
+	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": update.toolCallId, "status": "completed"})
+	assert_eq(view_script._summary(call), "approved", "y cómo terminó")
+	var view = view_script.new()
+	var extra := VBoxContainer.new()
+	view.call(&"_refresh_extra", call, extra)
+	assert_eq(extra.get_child_count(), 0, "sin el plan plegado debajo")
+	extra.free()
+	view.free()

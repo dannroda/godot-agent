@@ -212,6 +212,8 @@ func _ask_plan(request: PermissionRequest, shown: Dictionary, options: Array) ->
 	request.description = ""
 	request.group = PermissionPolicy.GROUP_OTHER
 	request.options = PlanApproval.filter_options(options)
+	if not request.tool_call_id.is_empty():
+		model.mark_plan_card(request.tool_call_id)
 	var known := PackedStringArray(options.map(func(option: Variant) -> String: return str(option.get("optionId", "")) if option is Dictionary else ""))
 	_log_perm("plan to approve (%d lines); options offered %s of %s" % [request.plan_text.count("\n") + 1, request.options.map(func(o: Dictionary) -> String: return str(o.get("optionId", ""))), known])
 	var outcome := await _ask_user(request, 0)
