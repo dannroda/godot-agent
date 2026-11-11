@@ -12,6 +12,7 @@ extends SceneTree
 
 const PlaytestRegressions := preload("res://addons/godot_agent/review/playtest_regressions.gd")
 const PlaytestProbe := preload("res://addons/godot_agent/playtest/runtime/playtest_probe.gd")
+const RealGamepads := preload("res://addons/godot_agent/playtest/real_gamepads.gd")
 
 const SETTLE_S := 0.5
 const SCRIPT_TIMEOUT_S := 30.0
@@ -22,6 +23,11 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	# Un gamepad real con el stick corrido juega por su cuenta (m16-11).
+	var relaunched: int = await RealGamepads.relaunch_without(self, get_script().resource_path)
+	if relaunched >= 0:
+		quit(relaunched)
+		return
 	var options := parse_args(OS.get_cmdline_user_args())
 	if not str(options.error).is_empty():
 		print("regressions: " + options.error)

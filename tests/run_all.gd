@@ -6,6 +6,7 @@ extends SceneTree
 ## note: el logger lo cuenta y el test falla (m13-02).
 
 const TestUserDir := preload("res://tests/test_user_dir.gd")
+const RealGamepads := preload("res://addons/godot_agent/playtest/real_gamepads.gd")
 const UNIT_DIR := "res://tests/unit"
 const BASE_SCRIPT := "test_case.gd"
 
@@ -32,6 +33,11 @@ class ScriptErrors extends Logger:
 
 
 func _initialize() -> void:
+	# Un gamepad real con el stick corrido mueve el foco de los controles de los tests (m16-11).
+	var relaunched: int = await RealGamepads.relaunch_without(self, "res://tests/run_all.gd")
+	if relaunched >= 0:
+		quit(relaunched)
+		return
 	TestUserDir.apply()  # user:// propio de este checkout (m13-17)
 	var filter: String = OS.get_cmdline_user_args()[0] if not OS.get_cmdline_user_args().is_empty() else ""
 	var total_tests: int = 0

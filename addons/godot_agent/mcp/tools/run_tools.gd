@@ -15,6 +15,7 @@ const PermissionPolicy := preload("../../session/permission_policy.gd")
 const RegressionsWorkflow := preload("../../review/regressions_workflow.gd")
 const PlaytestMemory := preload("../../review/playtest_memory.gd")
 const PlaytestRegressions := preload("../../review/playtest_regressions.gd")
+const RealGamepads := preload("../../playtest/real_gamepads.gd")
 const ProjectTools := preload("project_tools.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 
@@ -331,6 +332,7 @@ func tools() -> Array:
 				"continue_on_error": {"type": "boolean", "description": "Don't stop in the debugger at a script error: the game goes on and every error is listed (breakpoints still stop it). For testing a whole game; while building, stopping at the first error is better."},
 				"film_fps": {"type": "number", "description": "Keep small frames of the run at this rate (2 to 10 is plenty), to look back with game_frames. The game keeps running and its frame rate is free, unlike `record`."},
 				"monitors": {"type": "boolean", "description": "Sample the performance monitors (frame time, draw calls, physics, nodes, memory) during the whole run and add a summary with the orphan nodes at the end, like game_monitors (default false)"},
+				"real_gamepads": {"type": "boolean", "description": "Let the gamepads connected to this computer reach the game, for the user to play along (default false: they are ignored, so a resting or drifting stick does not move the player or the UI focus while you drive the game; joypad events you send in steps always work)"},
 			},
 			["seconds"], _run_scene),
 		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene),
@@ -442,7 +444,11 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	_film_dir = ""
 	_film_frames = []
 	harness_requested = true
-	EditorInterface.play_custom_scene(scene)  # llama a _build() en el momento
+	# El juego hereda el entorno del editor: sin la variable, SDL abre los gamepads reales (m16-11).
+	var gamepads: Variant = null if args.get("real_gamepads") == true else RealGamepads.ignore_in_children()
+	EditorInterface.play_custom_scene(scene)  # llama a _build() y lanza el proceso en el momento
+	if args.get("real_gamepads") != true:
+		RealGamepads.restore(gamepads)
 	harness_requested = false
 	if not EditorInterface.is_playing_scene():
 		_busy = false

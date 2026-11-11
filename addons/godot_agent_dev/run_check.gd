@@ -22,12 +22,14 @@ const FlipbookDialog := preload("res://addons/godot_agent/ui/flipbook_dialog.gd"
 const EditorWindows := preload("res://addons/godot_agent/ui/editor_windows.gd")
 const RunTools := preload("res://addons/godot_agent/mcp/tools/run_tools.gd")
 const PlaytestRegressions := preload("res://addons/godot_agent/review/playtest_regressions.gd")
+const RealGamepads := preload("res://addons/godot_agent/playtest/real_gamepads.gd")
 ## Argumentos extra para el juego (p. ej. "--rendering-driver opengl3" bajo Xvfb, sin GPU).
 const RUN_ARGS_ENV := "GODOT_AGENT_TEST_RUN_ARGS"
 const RUN_ARGS_SETTING := "editor/run/main_run_args"
 
 var _dock: Node
 var _run_tools: Object
+var _env_before_run := ""
 
 
 func run_run(tree: SceneTree) -> PackedStringArray:
@@ -237,10 +239,15 @@ func _check_playtest_game() -> void:
 	# Con tope de tiempo, como un Playtest: el segundo run_scene con tope hacía caer el editor (m16-03).
 	RunTools.set_playtest_deadline(Time.get_ticks_msec() + 300000)
 	await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 1, "continue_on_error": true, "film_fps": 5})
+	_env_before_run = OS.get_environment(RealGamepads.ENV)
 	var ran := await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 3.5, "continue_on_error": true, "film_fps": 5})
 	_expect(ran.contains("Playtest time left"), "run_scene: dice cuánto queda · " + ran.right(200))
 	RunTools.set_playtest_deadline(0)
 	_expect(ran.contains("Now in the game") and ran.contains("Player: /root/PlaytestGame/Player") and ran.contains("HUD.Basket") and ran.contains("Filming: res://"), "run_scene: foto de lo que hay · " + ran.left(900))
+	# Gamepads reales (m16-11): el juego que lanza el agente no abre ninguno; el editor queda como estaba.
+	var pads := await _call_text("game_script", {"code": "func run(_game):\n\treturn [OS.get_environment(\"%s\"), Input.get_connected_joypads().size()]" % RealGamepads.ENV})
+	_expect(pads.contains("[\"%s\", 0]" % RealGamepads.NONE), "run_scene: sin los gamepads reales · " + pads)
+	_expect(OS.get_environment(RealGamepads.ENV) == _env_before_run, "run_scene: el entorno del editor vuelve a como estaba · " + OS.get_environment(RealGamepads.ENV))
 	var found := await _call_text("game_find", {"class": "CharacterBody3D"})
 	_expect(found.contains("/root/PlaytestGame/Player"), "game_find por clase · " + found)
 	_expect((await _call_text("game_find", {"class": "group:player"})).contains("Player"), "game_find por grupo")
