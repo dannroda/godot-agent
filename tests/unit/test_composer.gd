@@ -341,6 +341,11 @@ func test_add_menu_and_meter() -> void:
 	assert_true((composer.get(&"_meter") as Label).tooltip_text.contains("170k / 200k"), "los tokens en el tooltip")
 	# El ancho del medidor no cambia con el porcentaje (m12-51): si cambiaba, la fila se recompactaba
 	# con cada usage_update y todo se corría bajo el mouse (el tooltip abierto se cerraba).
+	# Con márgenes en el estilo, como el tema del editor (m12-53: crecía 7 px igual en 4.8-beta3).
+	var padded := StyleBoxFlat.new()
+	padded.content_margin_left = 6
+	padded.content_margin_right = 6
+	(composer.get(&"_meter") as Label).add_theme_stylebox_override(&"normal", padded)
 	var widths: Array[float] = []
 	for used: int in [2000, 20000, 200000]:
 		composer.call(&"set_usage", used, 200000)

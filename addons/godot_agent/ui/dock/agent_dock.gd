@@ -1062,7 +1062,9 @@ func _refresh_machine_chips() -> void:
 		HoverTooltip.set_text(chip, (str(chips[i].detail) + "\n\n" if not str(chips[i].get("detail", "")).is_empty() else "") + header_tooltip())
 		chip.add_theme_color_override(&"font_color", color)
 		chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(color, 0.12), Color(color, 0.35), 10, 3))
-		var full := chip.get_theme_font(&"font").get_string_size(chip.text, HORIZONTAL_ALIGNMENT_LEFT, -1, chip.get_theme_font_size(&"font_size")).x
+		# Con el ancho de la antigüedad más larga (m12-53): si no, el chip crecía cada segundo y corría
+		# a los de al lado bajo el mouse, que cerraba su tooltip.
+		var full := chip.get_theme_font(&"font").get_string_size(str(chips[i].get("reserve", chip.text)), HORIZONTAL_ALIGNMENT_LEFT, -1, chip.get_theme_font_size(&"font_size")).x
 		full += chip.get_theme_stylebox(&"normal").get_minimum_size().x
 		chip.custom_minimum_size.x = minf(ceilf(full) + 1.0, AgentTheme.px(MAX_CHIP_WIDTH))
 	_machine_chips.visible = not chips.is_empty()
@@ -1092,9 +1094,12 @@ static func machine_chips(states: Array) -> Array[Dictionary]:
 			continue
 		var age := int(machine.get("age", -1))
 		var text := "%s · %s" % [machine.get("machine", ""), machine.get("label", "")]
+		var reserve := text
 		if age >= 0:
 			text += " · %d s" % age
-		chips.append({"text": text, "alert": bool(machine.get("alert", false)), "detail": str(machine.get("detail", ""))})
+			# «8888 s»: el ancho de la antigüedad no cambia hasta pasadas casi tres horas.
+			reserve += " · %s s" % "8".repeat(maxi(4, str(age).length()))
+		chips.append({"text": text, "reserve": reserve, "alert": bool(machine.get("alert", false)), "detail": str(machine.get("detail", ""))})
 	return chips
 
 

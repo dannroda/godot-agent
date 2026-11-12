@@ -13,6 +13,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Fixed
 
 - **The mode switch card** (`godot.request_mode`) showed **Allow once** and **Deny** instead of **Switch to …** and **Stay in …**, and folded the **More permissions** warning under **Show all**. It now shows its own buttons and the whole text, and the result says what you chose. With **Deny with reason…**, the agent gets your reason.
+- **Tooltips in the composer bar** could still close right away with some editor themes (seen on Godot 4.8-beta3): the context percentage kept changing width. It now keeps the width of "100 %" measured with the editor's style, and the machine chips next to the state keep the width of their longest age, so nothing moves under the mouse while the agent works.
 
 ## [0.1.25] - 2026-11-12
 
