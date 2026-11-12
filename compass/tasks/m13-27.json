@@ -2,18 +2,32 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-11-10T00:35:56.384Z",
+  "decisions": [
+    {
+      "alternatives": "Cerrar el juego al final (lo que decía el diseño de las notes)",
+      "at": "2026-11-10T04:32:49.754Z",
+      "text": "profile_run deja el juego corriendo al terminar (como run_scene), con el profiler apagado",
+      "why": "Coherente con run_scene: el agente puede seguir con capture_game_frame/game_* o stop_scene, y el profiler apagado no le cobra overhead"
+    },
+    {
+      "alternatives": "include_native como arg (internal_time por función); no registrar la tool si falta ScriptEditorDebugger al habilitar",
+      "at": "2026-11-10T04:32:49.792Z",
+      "text": "Sin parámetro include_native en profile_run por ahora; la tool siempre registrada (error claro sin la API) en vez de no registrarla",
+      "why": "include_native no lo pedía el pedido y suma overhead y ruido; registrarla siempre deja que el agente sepa por qué no puede perfilar en vez de no encontrar la tool"
+    }
+  ],
   "description": "Idea a partir de github.com/DasDarki/grit (AOT de GDScript a C++): darle al agente las funciones más calientes de un run (tiempo propio y total, llamadas, y si están tipadas), para que proponga tipos o mover loops a APIs del motor con medición antes y después. Investigación de 3c en 4.7.2 y 4.8-beta2: hoy no se puede. ScriptEditorDebugger consume servers:profile_frame y no lo pasa a EditorDebuggerPlugin._capture, EditorDebuggerSession no tiene señal con esos datos, y desde el juego GDScript no puede leer los tiempos del ScriptsProfiler. El profiler duplica el costo de cada llamada (~95→190 ns). Caminos: (i) PR a Godot para que EditorDebuggerSession emita los frames del profiler, o que los plugins capturen mensajes ya manejados (primer paso recomendado); (ii) leer el Tree del panel Profiler: frágil, no; (iii) servidor de debug propio con --remote-debug: otra arquitectura de run_scene, no por ahora. Si está tipada se deduce leyendo el script (res://ruta.gd::línea::nombre). Integrar Grit mismo: no por ahora (motor parcheado, muy experimental).",
   "milestone": "m13",
-  "notes": "",
+  "notes": "IMPLEMENTADA (d5, rama sm/m13-27-tool desde sm/next 8511d2a, commit ad0241b, sin push).\n\n- addons/godot_agent/playtest/script_profile.gd (parte pura): parsea ServersProfilerFrame. Descarta el primer frame después del toggle y cualquier frame donde una función dure más que frame_time + 10 ms. Agrega solo desde frames (nunca desde profile_total). Arma el top por tiempo propio (llamadas por frame, ms propios y totales, % del script_time) y el tipado leído del .gd: yes/partial/no, o \"\" si es built-in o el archivo no está. OJO: la línea de la firma del profiler es la primera del cuerpo, no la del func (::28::_hot, cuando el func está en la 27). Se busca la declaración hacia atrás, sin pasar de otra func, y al agente se le da la línea del func.\n- addons/godot_agent/mcp/tools/profile_tools.gd: tool profile_run (grupo run, extendida, así que aparece en godot.methods). Args: scene, seconds, inputs y continue_on_error (los de run_scene), top (20, máx. 100), max_functions (128, 16–512).\n  - Orden de chequeos: otro profile_run en curso; run_tools.is_busy() (el error dice el GameRunState); fuente de datos (EditorDebuggerSession.debug_data si existe, si no ScriptEditorDebugger.debug_data, si no error claro). La detección es por llamada: la tool siempre está registrada y sin la API contesta por qué no puede, sin romper nada.\n  - Prende el profiler solo en el session_started del juego que lanzó run_scene (run_state == STARTED y run_tools busy); un run manual no se toca.\n  - Lo apaga al final pase lo que pase. Hay un timer de seguridad atado a un contador de runs (uno viejo no apaga uno nuevo), y shutdown() se llama en _exit_tree del plugin.\n- RunTools: run_scene() e is_busy() públicos. PlaytestDebugger: active_session_id().\n- El juego sigue corriendo después, como con run_scene (el diseño decía stop; cambié para ser coherente con run_scene). Quedó afuera include_native (no lo pedía el pedido; se puede sumar).\n- Tests: tests/unit/test_script_profile.gd (8 tests: parseo, descartes, top, firmas, tipado con cabeceras multilínea, de una línea y static, informe, rechazo con run_scene en curso). addons/godot_agent_dev/profile_tool_check.gd por HTTP real, verifica:\n  - _step en :32 con 2000.0 calls, typed: yes;\n  - _hot en :27;\n  - la nota del overhead;\n  - 0 frames después de apagar con el juego vivo;\n  - el rechazo con run_scene de fondo;\n  - un juego frenado en el debugger contesta \"No usable profiler frames\" y no queda perfilando.\n  Pasa en 4.7.2 y 4.8-beta2.\n- Wiki en/es (Herramientas del editor), CHANGELOG Added (aclara la API interna), etiqueta \"Profile the game\" con su traducción en es.po.\n- Borrador de issue upstream: tests/upstream/issue_profiler_inflight_calls_first_frame.md. Causa: gdscript_vm.cpp mira el flag profiling por separado al entrar y al salir, y line_poll() atiende el toggle cada 2048 líneas. Fix sugerido: flag local profile_this_call. No había issue (búsqueda del 2026-11-10). No publicado.\n\nSin verificar: que el botón del panel Profiler no refleje que un plugin lo prendió. Si el usuario tenía el Profiler del editor corriendo, profile_run lo apaga al terminar (no se detecta).\n\n---\nINVESTIGACIÓN PREVIA (resumen). El editor no pasa servers:profile_frame a EditorDebuggerPlugin._capture, porque tiene handler propio en ScriptEditorDebugger::_parse_message. Ese nodo interno emite debug_data(msg, data) para todo mensaje antes de manejarlo (4.7.2 y master). El profiler se prende con la API pública session.toggle_profiler(\"servers\", true, [max_funcs, include_native]). Proposal upstream (tests/upstream/proposal_debugger_session_debug_data.md): que EditorDebuggerSession reenvíe debug_data, unas 8 líneas.\n\nOverhead medido con profile_check: 4.7.2 ×1.64–1.74 (78–101 ns por llamada); 4.8-beta2 ×1.82–1.95 (83–98 ns).\n\nFormato de profile_frame: [frame, frame_time, process, physics, physics_frame, script_time, n_servers, (nombre, 2n, (fn, t)…)…, 5n, (sig_id, calls, self, total, internal)…], en segundos. Relacionados: godot#96210, #102972, PR #66938, #86721, proposals #13631 y #8777.",
   "order": 27,
   "priority": "low",
   "refs": [],
   "size": "m",
-  "status": "paused",
+  "status": "review",
   "tags": [
     "idea"
   ],
-  "test": "",
-  "title": "godot.profile_run: las funciones de GDScript más calientes de un run (bloqueada por el editor)",
-  "updated_at": "2026-11-10T00:35:56.384Z"
+  "test": "4.7.2: run_all (505 tests, 0 fallos, incluye tests/unit/test_script_profile.gd), acp_session_check y oneshot_check en 0 fallos. Xvfb: tests/run_in_xvfb.sh <godot> --godot-agent-profile-test en 4.7.2 y 4.8-beta2 (profile_check.gd: workaround y overhead; profile_tool_check.gd: la tool por HTTP real), más cycle-test, run-test y mcp-test en 4.7.2.",
+  "title": "godot.profile_run: las funciones de GDScript más calientes de un run (API interna del editor)",
+  "updated_at": "2026-11-10T04:32:49.792Z"
 }

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.588Z",
+  "description": "De dónde: Bezi hornea NavMesh, luces y oclusión y arma builds (https://docs.bezi.com/get-started/changelog); manage_build de MCP for Unity (https://coplaydev.github.io/unity-mcp/reference/tools); export_project y deploy_to_android de Godot MCP Pro (https://godot-mcp.abyo.net/changelog/). Cómo se adapta: tools bake_navigation (NavigationRegion2D/3D.bake_navigation_polygon/mesh), bake_lightmaps (LightmapGI, solo editor), bake_occluders; y export_project que corre en otro proceso `godot --headless --export-debug|--export-release <preset>` con los presets de export_presets.cfg y devuelve errores y tamaño (sin tocar export_presets.cfg; error claro si faltan las plantillas). Hoy no hay nada de esto (grep sin resultados). Por qué: después de editar un nivel con add_nodes la navegación queda vieja y el agente no puede regenerarla; y «¿exporta?» es la última verificación de un One-shot.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 33,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Horneado (navmesh, lightmaps, oclusión) y export por preset",
+  "updated_at": "2026-11-10T19:40:21.588Z"
+}

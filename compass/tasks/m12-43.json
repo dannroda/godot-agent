@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.554Z",
+  "decisions": [
+    {
+      "alternatives": "Ocultar los chips en cero (se pierde la leyenda); solo tooltip con el nombre entero (ya existía y no alcanzaba); «orden de ejecución» completo (demasiado largo para la fila).",
+      "at": "2026-11-10T19:52:53.274Z",
+      "text": "Contadores con el número adentro y dos msgids por categoría (COUNTER_ONE / COUNTER_MANY, como «%d file» / «%d files»): «1 bug» / «2 bugs», «2 order», «2 performance», «2 style»; en español «2 bugs», «2 de orden», «2 de rendimiento», «2 de estilo». Los chips van en un HFlowContainer para que bajen de línea en un dock angosto.",
+      "why": "I18n solo tiene t(); el patrón del proyecto para plurales son msgids separados. Nombres enteros en vez de «rend»/«perf» porque los chips se leen sin pasar el mouse; «de orden» en lugar de «orden de ejecución» para que los cuatro chips entren en una fila en un dock de 480 px."
+    }
+  ],
+  "description": "Tour de UX de v0.1.19: el título del panel dice «Review of tests/docs_demo/ · 1 file · 2 bug» / «2 bug» en español (review_panel.gd arma el título con la etiqueta de la categoría sin pluralizar), y los chips de categoría dicen «0 orden · 0 rend · 0 estilo»: «rend» no se entiende y «orden» tampoco sin contexto. Propuesta: plural por cantidad («2 bugs», «1 bug») con msgids separados como en «%d file»/«%d files», y nombres completos en los chips («rendimiento», «orden del código») o un tooltip con la definición. Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/es/guia/playtest.png.",
+  "milestone": "m12",
+  "notes": "Rama sm/m12-41, commit 1162f74. COUNTER_ONE/COUNTER_MANY con «%d …» por categoría y counter_label(severity, count) estática; _counters es HFlowContainer. es.po: «%d bug(s)», «%d de orden/rendimiento/estilo»; borrados «order» y «perf». CHANGELOG Unreleased › Fixed.",
+  "order": 7,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "tests/unit/test_review_panel.gd: counter_label en en («1 bug», «2 bugs», «0 bugs», «3 performance») y es («2 bugs», «0 de rendimiento», «1 de orden», «4 de estilo»); test_i18n sigue verde (es.po sin «order»/«perf» sueltos). review-test en Xvfb en y es 0 fallas (los chips coinciden con counter_label y el título cuenta los que no son cero). Captura después: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m12-41/after/tour_es/guia/playtest.png («2 bugs · 0 de orden · 0 de rendimiento · 0 de estilo»); antes …/scratchpad/ux/es/guia/playtest.png.",
+  "title": "Panel de Revisar: «2 bug» sin plural y chips abreviados («rend», «orden»)",
+  "updated_at": "2026-11-10T19:54:21.243Z"
+}

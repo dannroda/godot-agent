@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T02:29:05.866Z",
+  "description": "Visto en m18-02 (antigravity-acp 1.4.3): en un turno con dos ediciones, se permite la primera (aplicada vía fs/write_text_file) y se deniega la segunda; Antigravity manda tool_call_update failed también para la primera («denied by pre-tool hook: Denied by user»). El dock la muestra fallida aunque el archivo cambió. Ver si el harness puede no degradar a failed un tool call cuyo fs/write_text_file ya se aplicó, o al menos avisarlo; si no, reportarlo a Antigravity.",
+  "milestone": "m18",
+  "notes": "",
+  "order": 4,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "antigravity"
+  ],
+  "test": "",
+  "title": "Antigravity: edición aplicada que queda marcada como fallida tras un deny",
+  "updated_at": "2026-11-12T02:29:05.866Z"
+}

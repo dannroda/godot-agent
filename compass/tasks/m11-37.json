@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:38:40.568Z",
+  "decisions": [
+    {
+      "alternatives": "Clic directo sobre las miniaturas del chat (ambiguo cuando el juego cambió); una tool MCP para el agente (no la necesita: ya tiene game_find y game_ui); picking de MeshInstance3D sin colisión (caro para el mínimo).",
+      "at": "2026-11-10T20:30:51.453Z",
+      "text": "Alcance mínimo: «Señalar en el juego…» en el menú «+ contexto» del composer (con el juego corriendo con el probe). Abre la captura en vivo en el ImageViewer en modo señalar (clic sin arrastre → punto en [0,1]); el probe contesta con el op nuevo «point» (PointPick: Control visible que contiene el punto salvo que cubra ≥90 % de la pantalla; después mundo 2D por física (intersect_point) y, si no, Sprite2D/AnimatedSprite2D/Polygon2D/TileMapLayer por sus rects; después 3D por raycast de la cámara activa, solo con colisión; al final el Control de fondo). El dock escribe «@ruta » (relativa a la escena en marcha) en el caret y adjunta la captura con un círculo en el punto. Sin clic sobre las capturas viejas del chat ni sobre el viewport del editor (m11-54).",
+      "why": "Lo útil es señalar lo que se ve ahora; una captura vieja del chat puede no coincidir con el juego en marcha, y el viewport del editor ya tiene el arrastre del Scene Tree. La captura marcada le da al agente el contexto visual además de la ruta. MeshInstance3D sin colisión no se resuelve (haría falta un raycast por triángulos): se documenta."
+    }
+  ],
+  "description": "Idea de la investigación de UX (2026-11-10). Windsurf/Devin Previews: «click on the \"Send element\" button on the bottom right and then proceed to select the element you want to send. The selected element will be inserted into your current agent prompt as an @ mention», también para errores de consola (https://docs.devin.ai/desktop/previews, antes docs.windsurf.com/windsurf/previews). El harness ya muestra el juego corriendo en el chat (capturas de run_scene y capture_game_frame) y tiene @menciones de nodos; falta unir las dos cosas. Propuesta: un clic sobre una captura del juego (o un botón «Señalar» en la tarjeta) pide al probe de playtest el nodo visible en esa posición (CanvasItem/Control bajo el punto, o el Node3D por raycast) y escribe «@Path/Del/Nodo» en el composer con la captura y las coordenadas; igual en el viewport del editor con el nodo seleccionado (ya existe arrastrar desde el Scene Tree). Diferencial frente a todos los harness: señalar algo en el juego en marcha.",
+  "milestone": "m11",
+  "notes": "Rama sm/m11-37 desde sm/next2 (322ebb2), commit ver git log (m11-37). playtest/runtime/point_pick.gd (lado del juego, sin EditorInterface): Control visible que contiene el punto (último en orden de dibujo, salvo fondos ≥ 90 % del viewport) → 2D por intersect_point y, si no, Sprite2D/AnimatedSprite2D/Polygon2D/TileMapLayer por sus rects con get_global_transform_with_canvas → 3D por intersect_ray desde la cámara activa → el fondo. Probe: op «point» {u, v}. RunTools.point_at(uv). ImageViewer.pick(image, title, near, on_pick): modo señalar (cursor cruz, clic sin arrastre → uv, Cancelar). Composer.insert_mention(path). AgentDock: ADD_CONTEXT_POINT «Señalar en el juego…» (deshabilitado sin juego), _point_in_game/_on_game_point_picked, mark_point (círculo del acento). plugin: dock.game_point = _point_game_for_dock (pide el probe como la captura). es.po y CHANGELOG Added. Fuera de alcance (documentado en la decisión): clic sobre capturas viejas del chat, viewport del editor (m11-54), MeshInstance3D sin colisión.",
+  "order": 17,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "run_all 547 tests 0 fallos (test_point_pick: botón bajo el punto, botón oculto no se señala, el fondo a pantalla completa no tapa un Sprite2D, Polygon2D por su polígono, vacío → fondo, con Camera2D el centro es el sprite). acp_session_check 203/0. En Xvfb, run-test 0 fallas con los checks nuevos sobre playtest_game: point_at en el botón Start del HUD → HUD/Menu/Start (control), en el 92 % de alto del centro → Floor (3d, raycast), en el cielo → «Nothing under that point»; y el camino del dock: _on_game_point_picked deja «@HUD/Menu/Start » en el composer y adjunta la captura marcada (círculo con punto central). Una corrida con acp_session_check en paralelo falló en un check viejo de game_script (soltar ui_right tras un timeout): repetida sola, verde.",
+  "title": "Señalar con un clic en la captura del juego: el nodo bajo el cursor como @mención (como Send element de Windsurf)",
+  "updated_at": "2026-11-10T20:33:36.744Z"
+}

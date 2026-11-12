@@ -1,0 +1,18 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T03:26:19.185Z",
+  "description": "run_all en main (46dc03e) termina con 2 RIDs de CanvasItem leaked, 46 ObjectDB instances leaked y «11 resources still in use». No hace fallar nada, así que una fuga nueva (por ejemplo, un ciclo de referencias en el controller) pasa desapercibida.\n\nQué hacer:\n- Encontrar con --verbose, bisecando por archivo de test, qué las deja.\n- Arreglar las del addon en el código y las del test en el test. Anotar las del motor.\n- Que run_all falle si quedan fugas, y sumarlo a suite.sh cuando sm/suite esté en main.\n\nPedido de agent-harness-81, 2026-11-11.",
+  "milestone": "m16",
+  "notes": "Rama sm/run-all-leaks (a40da1a), desde origin/sm/next3.\n\nBisectado por archivo y por test. En main quedaba esto: 2 RIDs de CanvasItem, 46 ObjectDB y 11 resources still in use.\n\nDel addon:\n- SessionModel.add_permission y add_elicitation: una lambda capturaba el pedido, la entrada y el modelo. Mientras el pedido estaba pendiente era un ciclo, y aparecía en test_elicitation, test_permission_view y test_subagents.\n- En producción, stop() cancela los pendientes, así que el impacto era menor: lo que no pasa por stop() queda.\n\nDe los tests:\n- test_acp_client y test_sessions: un handler que capturaba a su dueño.\n- test_resource_values: dos Sprite2D sin liberar; eran los 2 RIDs.\n\nDel motor: ninguna.\n\nDe paso:\n- run_all salteaba en silencio un archivo de test que no compila.\n- suite.sh: without_leaks() en el check run_all.",
+  "order": 14,
+  "priority": "medium",
+  "refs": [],
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "- suite.sh ci 14/14, con el gate de fugas en run_all.\n- run_all: 639 tests, sin avisos de fugas al salir.\n- test_model_lifetime.gd: falla con el session_model anterior.\n- El gate se probó con un test que deja un Node (exit 1) y con un archivo que no compila (FAIL «no se pudo cargar»).\n- ui_long_permission, remote y queue: PASS.",
+  "title": "run_all sin fugas al salir, y un check que falle si aparecen",
+  "updated_at": "2026-11-11T03:52:25.290Z"
+}

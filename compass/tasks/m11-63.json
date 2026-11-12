@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T00:18:11.328Z",
+  "decisions": [
+    {
+      "alternatives": "Editar _bundled de un duplicado del PackedScene y instanciar ese (lo que proponía la tarea); dejar el sabotaje después del settle (m11-62).",
+      "at": "2026-11-12T02:12:16.706Z",
+      "text": "El sabotaje se pone sobre la instancia recién creada con PackedScene.instantiate(), antes de que entre al árbol (change_scene_to_node), y no se reescribe el SceneState.",
+      "why": "SceneState es de solo lectura. Modificarlo exige reescribir a mano el diccionario _bundled del PackedScene (índices de nombres y variants, contadores de propiedades y conexiones, escenas instanciadas por dentro), que es frágil y depende del formato interno. Al salir de instantiate() la instancia ya tiene los valores del .tscn y las conexiones persistentes, y todavía no corrieron _enter_tree ni _ready. Por eso el resultado es el mismo que con el .tscn cambiado, también para los nodos de escenas instanciadas por dentro, sin tocar el PackedScene del caché."
+    }
+  ],
+  "description": "Seguimiento de m11-62, pedido por agent-harness-81. Hoy los sabotajes de escena se aplican sobre la escena ya asentada, después de _ready. Por eso un valor que solo se lee en _ready (por ejemplo, la vida inicial) no se ve afectado. Propuesta: en el modo --mutant, cargar el PackedScene, modificar su SceneState en memoria (override de la propiedad o conexión sacada) e instanciar esa versión, sin guardar nunca y con la misma guarda de guardado. Por qué: es más fiel para los valores que se leen al arrancar. Sigue sin cubrir las conexiones hechas por código.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 43,
+  "priority": "low",
+  "refs": [],
+  "status": "doing",
+  "tags": [
+    "idea",
+    "playtest"
+  ],
+  "test": "",
+  "title": "Regresiones: sabotajes de escena antes de _ready (PackedScene modificado en memoria)",
+  "updated_at": "2026-11-12T02:12:16.706Z"
+}

@@ -1,0 +1,69 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.681Z",
+  "decisions": [
+    {
+      "alternatives": "Pegados a project_tools_dir / «Project tools», como se había propuesto: daba conflicto textual en el merge.",
+      "at": "2026-11-11T20:01:53.568Z",
+      "text": "recipes_dir va después de turn_checks en project_config y el bloque «Recipes» de Settings va después de la lista de checks del proyecto, no pegados a lo de m11-46",
+      "why": "Así sm/m11-30 y sm/m11-46 no tocan las mismas líneas (project_tools_dir va debajo de mcp_servers y «Project tools» antes de «Folders outside the project»), y el merge sale sin conflictos. Además, recetas y checks quedan juntos."
+    },
+    {
+      "alternatives": "Los mismos criterios que los checks del proyecto (solo con cambios).",
+      "at": "2026-11-11T20:01:53.604Z",
+      "text": "Los checks de una receta corren después de cada turno aunque el turno no haya cambiado archivos (salvo que tengan paths); una receta sin checks no arma corrida",
+      "why": "Los checks de la receta dicen si el pedido está hecho, no solo si se rompió algo. Sin checks no hay nada que reintentar ni que avisar."
+    },
+    {
+      "alternatives": "Traducirlos ya: unas 25 entradas más en es.po que el hito 2 probablemente reescribe.",
+      "at": "2026-11-11T20:01:53.637Z",
+      "text": "Hito 1: los mensajes de validación de una receta (campo desconocido, {{x}} sin parámetro…) quedan en inglés; los checks de tipo playtest se rechazan como «unknown kind» hasta el hito 2",
+      "why": "Hoy solo aparecen en el tooltip de una receta rota y en el aviso de /recipe. Se traducen en el hito 2 junto con el editor con validación en vivo, que es donde se leen. El check playtest es parte del hito 2 según el plan."
+    },
+    {
+      "alternatives": "Dejar la corrida abierta hasta que se apruebe.",
+      "at": "2026-11-11T20:01:53.667Z",
+      "text": "Si un check de comando de la receta no está aprobado en esta máquina, no corre y la corrida termina con un aviso («el resultado no se comprobó») en vez de reintentar",
+      "why": "Sin aprobar no se sabe si el pedido pasa, y mandarle reintentos al agente no lo resuelve. El aviso de los checks ya ofrece «Aprobar…». Una receta clonada no corre nada sin preguntar."
+    },
+    {
+      "alternatives": "Playtest en paralelo con los otros; blocked contado como fail y reintentado",
+      "at": "2026-11-12T00:11:39.675Z",
+      "text": "Check playtest: corre solo cuando los otros checks de la receta pasan, como un turno en Revisar (prompt del harness «Recipe · playtest»); pass termina, fail vuelve como corrección dentro de max_retries, blocked/sin veredicto termina la corrida con aviso",
+      "why": "Jugar cuesta tokens y tiempo: no tiene sentido si Lint/tests fallan. Un «could not test» no se arregla con otro turno de código."
+    },
+    {
+      "alternatives": "Tras aprobar, pasar al modo de la receta (Auto); un flujo de plan propio de recetas",
+      "at": "2026-11-12T00:11:39.712Z",
+      "text": "«Plan first»: casilla en el formulario (default = \"plan\" de la receta); el composer queda con /plan <pedido> y la corrida arranca en «Aprobar y construir», en Construir (no en el modo de la receta)",
+      "why": "Reusa el flujo /plan de m11-22/m11-58 tal cual; aprobar el plan pasa a Construir por diseño."
+    },
+    {
+      "alternatives": "Botón Borrar con confirmación; bloquear el guardado con errores; traducir solo en la pestaña",
+      "at": "2026-11-12T00:11:39.751Z",
+      "text": "Pestaña Recipes sin «Borrar» (se borra desde el FileSystem); guardar con errores se permite, «Use in the dock» exige receta válida y guardada. Validación traducida en la fuente (recipes.gd), así también el dock la muestra en español. La carpeta de recetas se excluye de los exports",
+      "why": "Alcance acotado; guardar a medias es útil al editar; los .json se exportarían como recursos sin servir al juego."
+    }
+  ],
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Goose.\n- Una recipe (YAML o JSON) tiene:\n  - title y description;\n  - instructions y/o prompt con plantillas;\n  - parameters (key, input_type, requirement, default, options);\n  - extensions (MCP);\n  - settings (proveedor, modelo, max_turns);\n  - response.json_schema para salida estructurada;\n  - retry con checks de shell que tienen que salir con 0 (si fallan, resetea la historia y reintenta hasta max_retries);\n  - sub_recipes.\n\n  https://goose-docs.ai/docs/guides/recipes/recipe-reference/\n- Se comparten como archivo o deeplink («Each recipient gets their own private session») y se corren con `goose run --recipe` (también por cron). https://goose-docs.ai/docs/guides/recipes/session-recipes/\n\nQué existe:\n- Las skills y slash commands de cada agente se ven en Extensions, pero son del agente, sin formulario de parámetros ni checks.\n- El One-shot tiene su formulario y sus checks, pero para un juego entero.\n\nAdaptación a Godot y al harness:\n- `.godot_agent/recipes/*.json`, versionables, con una pestaña en Extensions.\n- Cada receta tiene título, modo del harness, prompt con `{{param}}` y parámetros con tipos propios de Godot: escena, nodo, recurso, acción de input, ruta res://.\n- Los checks pueden ser:\n  - validate_scripts;\n  - regresiones de playtest;\n  - un playtest con veredicto;\n  - un comando.\n- Con tope de reintentos.\n- Ejemplos de juego: «Agregar enemigo {escena base} con comportamiento {texto}», «Pantalla de opciones con {ajustes}», «Portar {script} a C#».\n- Se lanzan desde el dock (menú de recetas, formulario generado) y el resultado lo dice el aviso de fin de turno.\n\nPor qué: los pedidos de un juego se repiten (enemigos, niveles, menús), y una receta con checks hace el resultado más predecible, para cualquier agente. El equipo la comparte por git. Ver la idea de checks del proyecto, que es la mitad de esto.",
+  "links": [
+    {
+      "task": "m11-31",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "Hito 1 (f014d21) y hito 2 (10f4806) en sm/m11-30, con origin/sm/next4 mergeado.\n- Recetas en res://agent_recipes/*.json (Settings → MCP servers → Advanced → Recipes); core/recipes.gd (formato, validación traducida, expand, run_spec), core/recipe_templates.gd (3 plantillas), core/project_dirs.gd.\n- Dock: /recipe y + → Receta…, formulario recipe_form.gd, chip con los checks. Controller: corrida con max_retries, check playtest (turno en Revisar después de los otros; pass/fail/blocked), «Plan first» vía /plan y arranque en approve_plan; los prompts con etiqueta del harness no cortan la corrida.\n- Extensiones → Recipes (recipes_tab.gd): lista con estado, editor JSON con validación en vivo, New desde plantilla, Use in the dock.\n- Comandos de checks: misma aprobación por máquina que los checks del proyecto. Carpeta excluida del export.\n- Docs: wiki en/es (Modes and permissions › Recipes, Settings), CHANGELOG, SECURITY.",
+  "order": 10,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "tests/unit/test_recipes.gd (parse/validación con playtest, valores y expand, load_dir/find, formulario, corrida con reintentos, playtest pass/fail/blocked, «Plan first» arranca con Aprobar y construir, plantillas y pestaña Recipes); test_claude_extensions (9 pestañas); editor check ui-recipe (formulario → composer → Lint falla → reintento → pasa; pestaña Recipes lista la receta válida, «Use in the dock» abre el formulario, «Plan first» deja /plan en el composer). suite.sh ci verde.",
+  "title": "Recetas: pedidos reutilizables con parámetros y checks",
+  "updated_at": "2026-11-12T00:35:30.746Z"
+}

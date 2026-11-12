@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:38:40.686Z",
+  "description": "Idea de la investigación de UX (2026-11-10). Roo Code: modos personalizados globales o del proyecto (.roomodes, YAML) con slug, name, roleDefinition («placed at the start of the system prompt»), whenToUse, customInstructions, groups (read/edit/command/mcp) y fileRegex en edit para «restrict which files the mode can edit», reglas por modo en .roo/rules-{slug}/, exportar/importar en un YAML, y el agente puede proponer cambiar de modo con switch_mode guiado por whenToUse (https://roocodeinc.github.io/Roo-Code/features/custom-modes). El harness tiene cinco modos fijos con la matriz de permisos y las reglas de shell. Propuesta: modos del proyecto en project_config.tres: nombre, modo base (de dónde salen los permisos), instrucciones propias (van al system prompt), patrones de archivos que puede editar (p. ej. solo res://levels/**), modelo, y una línea «cuándo usarlo»; aparecen en el selector de modo del composer y en One-shot. Casos: «Diseño de niveles» (solo escenas de niveles), «Shaders», «Solo tests». Segunda parte: tool godot.request_mode para que el agente proponga el cambio con una tarjeta, como «Arreglar en modo Construir».",
+  "milestone": "m11",
+  "notes": "",
+  "order": 19,
+  "priority": "medium",
+  "refs": [],
+  "size": "l",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Modos personalizados del proyecto: rol, permisos, archivos permitidos e instrucciones (como Roo Code)",
+  "updated_at": "2026-11-10T19:38:40.686Z"
+}

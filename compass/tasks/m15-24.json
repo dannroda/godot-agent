@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T01:02:22.312Z",
+  "description": "Quedó afuera de los arreglos de sobres <untrusted> de la revisión de sm/next2 (fix-a, puntos #2/#16–#18).\n- PlaytestMemory.brief() arma la parte del prompt de playtest con las firmas marcadas como not-a-bug. Esas firmas traen nombres de nodos del juego, y van sin sobre.\n- Un nodo con un nombre armado puede meter texto que el agente lee como instrucciones del harness.\n- Arreglo: envolver con UntrustedText (wrap/close_cut) lo que viene del juego en brief(), como run_scene y format_finding.\n- Test: una firma con un nombre de nodo malicioso sale dentro de un sobre en el prompt, y ReviewStore/la memoria la siguen leyendo bien.",
+  "milestone": "m15",
+  "notes": "Commit en la rama sm/m15-24 (desde sm/next2 1a8be90), sin mergear: entra en el release siguiente.\n- PlaytestMemory.brief() pone cada firma not-a-bug en su línea dentro de un sobre (UntrustedText.wrap) y sella el bloque con un nonce nuevo (seal + new_nonce), como run_error_watcher y el aviso de regresiones. El prompt no es resultado de una tool, así que el registry no lo sella. Las instrucciones del servidor MCP ya explican los sobres.\n- not_a_bug.json guarda las firmas tal cual, y run_scene las silencia por igualdad, igual que antes.\n- Las notas de playtests anteriores quedaron sin sobre: las escribe el agente como hechos verificados, no vienen directo del juego.\n- Al probarlo apareció un bug ajeno en sm/next2 (avisado a agent-harness-81): _refresh_machine_chips ↔ _refresh_state_line se llaman sin fin mientras la sesión está en STARTING (e6d6eed, m12-49). Da stack overflow y 4 fallas en review-test.",
+  "order": 24,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "security"
+  ],
+  "test": "- `godot --headless --script res://tests/run_all.gd -- review_store`: test_playtest_memory_not_a_bug_in_envelope pasa. Sin el arreglo falla («las firmas van en sobre»).\n- run_all completo en 4.7.2 (613 tests): 0 fallos. En un worktree recién creado, test_resource_values falla hasta que el editor importa el proyecto, porque no hay clases globales todavía.\n- review-test: el check «Not a bug: el brief del playtest la lleva en sobre» pasa. El review-test da 4 fallas más, que también salen en sm/next2 sin este cambio (recursión infinita de m12-49 en agent_dock).",
+  "title": "PlaytestMemory.brief() mete firmas not-a-bug con nombres de nodos en el prompt de playtest sin sobre",
+  "updated_at": "2026-11-11T01:07:02.041Z"
+}

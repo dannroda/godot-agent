@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-a3",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T03:46:57.945Z",
+  "decisions": [
+    {
+      "alternatives": "Que el dock conozca RunTools y OneShotRun y lea sus estados directo (acopla el dock a cosas del plugin); un segundo diccionario de nombres del juego solo para la UI; un timer propio para el tooltip; recalcular el tooltip en _make_custom_tooltip (más código para el mismo resultado).",
+      "at": "2026-11-10T03:55:16.257Z",
+      "text": "Un provider `machine_states` por pestaña (el plugin devuelve {machine, label, age} del juego y del One-shot) y el dock arma el tooltip con la sesión; etiquetas traducibles en cada máquina (SESSION_STATE_LABELS, GAME_RUN_STATE_NAMES con # i18n, STAGE_LABELS); el tooltip se refresca con el tick de la cuota",
+      "why": "D61: el dock no copia el estado del juego ni del One-shot, que viven en el plugin; un Callable que se lee al armar el tooltip es el mismo patrón que oneshot_active y can_switch_session. Los nombres del juego para el agente (describe_run_state) y para el usuario son los mismos textos, así que se traducen con I18n.t() en vez de duplicar un diccionario; la sesión y la etapa no tenían etiquetas y se agregan. La antigüedad cambia con el tiempo y el tooltip de Godot lee tooltip_text al mostrarse: se recalcula en el tick de un segundo que ya existe para la cuota, sin un timer nuevo. describe_state() y describe_phase() quedan en inglés para el agente, como describe_run_state()."
+    }
+  ],
+  "description": "Las máquinas de D61 (sesión, game run, fase y etapa del One-shot) ya tienen nombres de estado, pero el usuario y el agente solo ven el canal state cuando algo sale mal. Mostrar en el tooltip del encabezado del dock el estado actual de cada una con su antigüedad (p. ej. «juego: corriendo 12 s · One-shot: evaluando vuelta 1»), leído por providers y sin copias del estado (D61). Igual que describe_run_state() en run_tools.gd. Traducir EN/ES.",
+  "milestone": "m13",
+  "notes": "Rama sm/m13-29 (base main 9501d7f), commit a9cadea, en el worktree m13-17. SessionModel: SESSION_STATE_LABELS (# i18n), _state_since_ms en set_state, state_age_seconds(), describe_state() para el agente. RunTools: GAME_RUN_STATE_NAMES con # i18n (el mismo texto para el agente y traducido para el usuario), run_state_age_seconds(). OneShotRun: STAGE_LABELS (# i18n), phase_age_seconds() (0 si el run se cargó de disco y no cambió), describe_phase() para el agente. AgentDock: provider machine_states (() -> Array[Dictionary] {machine, label, age}), header_tooltip() (sesión + máquinas + error o cuenta + ayuda), machine_line() estática, refresco en _on_quota_tick. plugin.gd: _machine_states(id) en _wire_oneshot: el juego (si hay _run_tools) y el One-shot de esa pestaña (si _runs_in(id) y activo), con phase_label() y la etapa. 17 msgids nuevos en es.po. CHANGELOG: Unreleased › Added. Dev plugin: _check_header_tooltip en _run_ui_test (todos los guiones salvo crash) y _tooltip_windows para componer la ventana del tooltip sobre la captura. La ventana del tooltip sale en la captura algo desplazada respecto del chip (coordenadas de ventana nativa bajo Xvfb); el texto se lee entero.",
+  "order": 29,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "Unit (4.7.2): test_session_model.test_state_labels_and_age (etiqueta por estado, describe_state «session: ready (N s)», edad), test_oneshot_dock.test_describe_phase («one-shot: idle, building (0 s)», etiquetas por etapa), test_mentions.test_machine_line («Game: running · 12 s»); test_i18n cubre las etiquetas nuevas (# i18n) con traducción. run_all 476 tests/3481 checks 0 fallos; acp_session_check 203/0; oneshot_check 186/0. Xvfb: tests/run_in_xvfb.sh godot --godot-agent-ui-test=basic PASS en inglés y en español (GODOT_AGENT_LANGUAGE=es); el check nuevo _check_header_tooltip exige que el tooltip del chip empiece con «Session: working», tenga la línea «Game: …» y la antigüedad en segundos, y con --godot-agent-ui-shot abre el tooltip de verdad con el mouse encima. Capturas (scratchpad de a3): /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m13-29_en_header_tooltip.png (muestra «Session: ready · 0 s / Game: no game launched · 6 s / Click to choose the agent») y m13-29_es_header_tooltip.png.",
+  "title": "Tooltip del encabezado con el estado de cada máquina",
+  "updated_at": "2026-11-10T03:55:50.090Z"
+}

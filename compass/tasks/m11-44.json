@@ -1,0 +1,35 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:20.682Z",
+  "decisions": [
+    {
+      "alternatives": "Una sola base compartida (comparaciones entre máquinas distintas); guardar todas las métricas medidas; actualizar la base en cada run verde (la deriva se volvería invisible).",
+      "at": "2026-11-11T23:32:38.531Z",
+      "text": "La base de los presupuestos va por máquina (runner + procesador) dentro del JSON de la regresión, solo para métricas sin límite escrito, y no se pisa una vez guardada.",
+      "why": "Así «2.1× la base de esta máquina» es literal: cada PC o CI compara contra la suya. Con límite escrito no hace falta base y no se ensucia el JSON versionado. No pisarla mantiene la base de cuando andaba bien."
+    },
+    {
+      "alternatives": "Base por máquina dentro del JSON (lo que había antes).",
+      "at": "2026-11-11T23:50:09.751Z",
+      "text": "Revisión del coordinador: base de conteo única en el JSON de la regresión; base de tiempo por máquina en user://godot_agent/regression_time_baselines.json («regresión|runner»). Reemplaza la base por máquina en el JSON.",
+      "why": "El JSON se versiona: con una base por máquina, cada PC sumaba su entrada (ruido y conflictos en git) y el nombre del procesador quedaba en el repo. Los conteos son deterministas; los tiempos solo avisan, así que perderlos en un CI limpio no importa."
+    }
+  ],
+  "description": "De dónde: Beckett v1.9 (perf asserts y baselines, p. ej. frame_ms_p95 max 16.7: https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1585432/godot-mcp-beckett-v19-the-ai-measures-your-game-perf-asserts-baselines-and-a-locked-down-channel) y v1.16 (invariantes «checked on every physics frame»: https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1695575/beckett-v1160-strict-at-the-door-honest-in-the-answer). Cómo se adapta: una regresión guardada suma `invariants` (expresiones que el probe evalúa en cada physics frame, fallan con el frame y el valor) y `budgets` (frame_ms p95, draw calls, nodos huérfanos al final) con una línea base que se guarda en el primer run verde y se compara con tolerancia; usa game_monitors. Por qué: las regresiones de hoy solo miden el final del script; un objeto que atraviesa una pared un frame o un juego que se volvió el doble de lento pasan.",
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-44 (d62bd54 + 475f15d + ff5376c). Con el plan aprobado: un presupuesto de tiempo sin límite solo avisa. Hacen fallar los invariantes, cualquier presupuesto con límite escrito, y los de conteo (nodes_max, orphans_end, draw_calls_max) por encima de su base ×1.25.\nBases, según la revisión:\n- Conteo: una sola base compartida, en el campo `baselines` del JSON de la regresión ({métrica: valor}).\n- Tiempo: base de esta máquina en user://godot_agent/regression_time_baselines.json, con clave «<archivo>|<runner>» (headless/window). Queda fuera del repo y sin el nombre del procesador.\n- Ninguna se pisa.\n- A la probe le llegan {counts, times: {runner: {...}}} vía PlaytestRegressions.baselines_for.\nLa lógica está en playtest/runtime/regression_checks.gd y ScriptKit delega. Bajo --mutant los presupuestos de tiempo avisan y no matan, y la medición pasa --no-baselines. Mutación: killed_how y by_checks. Docs en la descripción de game_script.",
+  "order": 24,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea",
+    "playtest",
+    "performance"
+  ],
+  "test": "tests/unit/test_regression_checks.gd (invariante roto una vez con frame y valor, null cuenta como roto, finish desconecta; judge: límite, mutante, base de tiempo solo avisa con «2.1× this machine's baseline», conteo sobre base falla, base 0, sin base, headless; declaración y línea de medido; passed() con violaciones; record_baselines por máquina sin pisar; kill_reason y «caught 2 (1 by invariants or budgets)»). tests/regressions_cli_check.sh: la regresión del fixture invariants pasa, el mutante « + »→« - » de mover.gd la hace fallar con killed_how invariant, y la base de nodes_max se guarda en el primer run verde y no con --no-baselines. Commit d62bd54.",
+  "title": "Invariantes por frame y presupuestos de rendimiento en las regresiones",
+  "updated_at": "2026-11-11T23:50:09.751Z"
+}

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T03:26:10.522Z",
+  "description": "Visto el 2026-11-11 con antigravity-acp 1.4.3 (corrida de m11-58). Al abrir una sesión (session/new con cwd = el proyecto), antigravity-acp crea skills/system/run-workflow/SKILL.md dentro de esa carpeta: es una skill genérica suya, de run_workflow. A cualquier usuario le queda una carpeta skills/ suelta en el proyecto, que puede terminar commiteada o exportada. En el repo ya se coló una vez en un commit.\n\nQué hacer:\n- Ver si se puede evitar: otro cwd (¿respeta las rutas absolutas de fs/* y MCP si el cwd no es el proyecto?), una opción o variable del adapter, o su _meta en session/new.\n- Si no se puede, avisarlo: un aviso la primera vez, o sumar skills/system/ al filtro de export o al .gitignore sugerido.\n- Documentarlo en Troubleshooting (wiki en/es).\n\nPor qué: le pasa a todo el que use Antigravity y no lo pidió.",
+  "milestone": "m18",
+  "notes": "sm/m18-03 b98be91 (desde origin/sm/next4). Lo escribe el Materializer de skills de localharness_external (antigravity-acp 1.4.3) en session/new, sin prompt, en <cwd de la sesión>/skills/system/run-workflow/SKILL.md; no depende del cwd del proceso. SkillsConfig.materialized_skills_dir existe en el proto pero el servidor ACP nunca lo setea; no hay opción, variable de entorno ni _meta. No se puede evitar sin romper Antigravity (la sesión tiene que tener el proyecto como cwd). Arreglo: hook AgentAdapter.notice_after_session; el controlador avisa una vez por proyecto (metadato del proyecto godot_agent/notices_seen); Troubleshooting/Problemas-frecuentes con la sección y .gitignore; CHANGELOG Added.",
+  "order": 3,
+  "priority": "medium",
+  "refs": [],
+  "status": "review",
+  "tags": [
+    "bug",
+    "antigravity"
+  ],
+  "test": "test_agent_adapters::test_antigravity_skills_notice_once (aviso solo si existe el archivo, una vez, WARNING; Claude no avisa). suite.sh ci PASS en 4.7.2; CI verde en 4.7.2, 4.8-beta2 y C# (run 43086848249).",
+  "title": "Antigravity escribe skills/ en la carpeta del proyecto",
+  "updated_at": "2026-11-11T19:34:10.161Z"
+}

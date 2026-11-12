@@ -1,0 +1,28 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.354Z",
+  "decisions": [
+    {
+      "alternatives": "Solo K llamadas idénticas sin mirar el resultado (cortaría un agente que avanza apretando la misma tecla). Mirar también el estado del probe aparte (ya va en el texto del resultado). Incluir el evaluador del One-shot.",
+      "at": "2026-11-11T22:36:28.964Z",
+      "text": "«Sin progreso» = el mismo ciclo de 1 a 3 llamadas a tools del juego (misma tool y argumentos) con el mismo resultado: texto del probe sin nonce, reloj ni tiempo restante, más los bytes de la captura. Aviso a la 3.ª vuelta y corte a la 4.ª. El One-shot queda fuera.",
+      "why": "El ciclo cubre el patrón real (tecla → captura igual), no solo llamadas idénticas seguidas. Con el resultado en la huella, repetir algo que hace avanzar el juego no se corta: es mejor no cortar que cortar de más. El evaluador del One-shot no corre como turno de playtest, así que no tiene el handler."
+    }
+  ],
+  "description": "De dónde: el Playtest Agent de Roblox corta a los 50 turnos y termina antes si ve varias llamadas idénticas seguidas; veredictos Pass/Fail/Inconclusive/Error; y avisa que puede dar falsos pass (https://devforum.roblox.com/t/studio-beta-studio-assistant-mcp-playtest-agent/4566767). Cómo se adapta: ya hay blocked (m15-02) y tope blando de tiempo (m15-19). Falta el detector: K llamadas godot.* iguales (misma tool y argumentos) seguidas en un playtest o en el evaluador del One-shot → aviso al agente en el resultado de la tool («estás repitiendo la misma llamada») y, a la siguiente, cancelar el turno y dejar el veredicto blocked con el motivo. Por qué: un agente trabado en un menú quema el tope de tiempo entero repitiendo el mismo clic.",
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-49 (f9b914e).\n- mcp/tools/playtest_loop_guard.gd: huella por llamada (tool+args, resultado normalizado + bytes de imagen), ciclos de periodo 1–3, WARN 3 / CUT 4.\n- RunTools envuelve las tools game_* y capture_game_frame (LOOP_GUARDED). Solo vigila con LOOP_HANDLER_META puesto. SessionController lo pone en los turnos de playtest; al cortar cancela, y al volver session/prompt manda ReviewStore.loop_playtest al _report_playtest.\n- Hallazgo del check: cada resultado del juego trae un nonce nuevo en el sobre y el reloj «[game time…, physics frame…]»; sin normalizarlos nunca hay dos resultados iguales.\n- fake_agent: paso «mcp» que llama de verdad al server MCP del harness (HTTP, JSON o SSE).\n- Fuera de alcance: el evaluador del One-shot (no corre como turno de playtest).",
+  "order": 29,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea",
+    "playtest"
+  ],
+  "test": "Headless: tests/run_all.gd -- test_playtest_loop_guard (la misma llamada con el mismo resultado, con nonce, reloj y tiempo restante distintos: aviso a la 3.ª y corte a la 4.ª; un cambio o una llamada distinta lo resetea; ciclo input → captura igual corta y con la captura cambiando no; el mismo error; reset; veredicto y aviso). Editor: tests/suite.sh run playtest-loop (ci, editor): el agente falso llama de verdad por MCP a run_scene y 5 veces game_input; el 3.er resultado avisa, el 4.º es «Stopped», el turno se cancela, no hay 5.º y el veredicto es «could not test · stopped: the agent kept repeating game_input…» con la evidencia; el «pass» del agente no cuenta.",
+  "title": "Playtest: cortar al detectar el agente en loop",
+  "updated_at": "2026-11-11T22:36:28.964Z"
+}

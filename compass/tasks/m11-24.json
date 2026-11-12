@@ -1,0 +1,39 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.310Z",
+  "decisions": [
+    {
+      "alternatives": ".godot_agent/hooks.json; prompt que siempre se manda solo; by=any.",
+      "at": "2026-11-11T21:10:20.786Z",
+      "text": "Hooks en project_config.tres (`hooks`). La acción prompt por defecto es un aviso con «Send to the agent» (como m11-55); `auto_send: true` la manda sola con tope de 2 seguidos, el editor lo explica al prenderlo, y como cambia el JSON pide aprobar de nuevo. saved con by=user por defecto.",
+      "why": "Respuestas de agent-harness-81 al plan: ProtectedPaths no deja al agente escribir project_config; el harness nunca le manda algo al agente por su cuenta, y un guardado no debe gastar tokens sin que el usuario lo pida."
+    },
+    {
+      "alternatives": "Pestaña Hooks en Extensions con su propio guardado; tools de cualquier grupo; columna con el último resultado.",
+      "at": "2026-11-11T21:55:18.470Z",
+      "text": "Los hooks se editan en Ajustes › MCP servers › Avanzado, debajo de los checks del turno (HooksEditor), no en una pestaña de Extensions como decía el plan. Las tools de un hook solo pueden ser de los grupos read, diagnostics y run. Sin el último resultado en la lista: está en el Agent Log.",
+      "why": "Los dos son entradas de project_config.tres con aprobación por máquina, y Ajustes ya los guarda y aprueba al guardar (keys_to_approve), así que comparten el flujo y no hace falta otro guardado de la config en Extensions. Una tool de hook corre sin pasar por el modo (run_for_user): nada que edite ni la shell. El último resultado necesitaba cablear el runner a Ajustes y el log ya lo tiene."
+    }
+  ],
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Kiro.\n- Agent hooks: archivos JSON en `.kiro/hooks/<id>.json` con trigger, matcher (regex de la ruta), acción `command` (shell, recibe el contexto por STDIN) o `agent` (inyecta un prompt en la conversación), timeout y enabled. https://kiro.dev/docs/hooks/\n- Triggers: Prompt Submit, Agent Stop, Session Start/End, Pre/Post Compaction, Pre/Post Tool Use, File Create/Save/Delete y Pre/Post Task Execution de un spec. https://kiro.dev/docs/hooks/types/\n- File Save dispara con lo que guarda el agente («when the agent saves or modifies files»), no el usuario.\n\nQué existe: la verificación al terminar el turno (m11-04) es un hook fijo. Claude Code tiene sus hooks propios, pero no ven eventos del editor de Godot.\n\nAdaptación a Godot y al harness:\n- `.godot_agent/hooks.json` (versionable), con una pestaña en Extensions.\n- Disparadores que solo ve el editor:\n  - el usuario guarda un script o una escena (resource_saved y scene_saved, que el plugin ya escucha);\n  - un run_scene o un juego lanzado a mano termina con errores;\n  - un import falla;\n  - terminó un playtest;\n  - antes de exportar.\n- Acciones:\n  - prompt a una sesión (por ejemplo «revisá este cambio» en Revisar, o «arreglá estos errores» en Construir, con tope de turnos como m11-04);\n  - una tool godot.* (validate_scripts, las regresiones);\n  - un comando, pasando por las reglas de shell y los permisos del modo.\n- Con matcher por ruta (`res://enemies/**/*.gd`).\n\nPor qué: lo que ningún agente externo puede ver son los eventos del editor y del juego. «Al guardar una escena de nivel, correr la regresión de ese nivel» o «si el juego crashea, mandarle el backtrace a la sesión» son flujos de Godot que hoy el usuario hace a mano.",
+  "links": [
+    {
+      "task": "m11-55",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "HECHO (sm/m11-24: b534c8d fase 1, 00add70 fases 2-3, bdf4c3c fase 4), según el plan aprobado con estos cambios:\n- Eventos: saved, game_stopped, regressions_finished (el «playtest_finished» del plan: lo que hay son tandas de regresiones; RunTools.regressions_finished) y export_started (AgentExportPlugin.on_export_begin, `path` = salida).\n- by=agent: un guardado del editor mientras corre una tool del agente (ToolRegistry.running_calls) o lo que escriben sus file tools y fs/write (_after_agent_write).\n- Variables: GODOT_AGENT_HOOK, _EVENT, _PATH, _BY, _ERRORS (sin HOOK_JSON).\n- Tool: solo grupos read, diagnostics, run (ProjectHooks.TOOL_GROUPS) vía ToolRegistry.tool_group/run_for_user. Las tools de m11-46 entran solas cuando estén en el registry (mismo nombre godot.<x>), con su propia aprobación.\n- Prompt: aviso con «Send to the agent» (ACTION_SEND_HOOK_PROMPT) salvo auto_send, tope MAX_AUTO_PROMPTS=2 que se reinicia con un mensaje del usuario sin etiqueta o al apretar el botón; etiqueta HarnessPrompts.HOOK. La protección de bucles es el tope (no hay regla aparte para guardados del agente en un turno de hook).\n- Editor en Ajustes (decisión 2), sin columna de último resultado (está en el Agent Log).\n- Robustez: HookRunner para sus procesos en _exit_tree (la red de AgentProcess en PREDELETE falla al cerrar el editor: «stop on null instance», ya conocido).\n- TurnChecks.run_process compartido con los checks del turno.",
+  "order": 4,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "Unit: test_project_hooks (7: definición y rechazos, filtros, clave que sigue a la definición menos enabled, placeholders sin shell, runner con aprobación/debounce/env/timeout/falla una vez, procesos parados al salir del árbol, prompt con el evento en sobre), test_hooks_editor (aviso de sin aprobar, keys_to_approve al editar o con Allow, campos por acción, explicación de auto_send, validación), test_run_error_watcher.test_game_ended_for_hooks. Editor (Xvfb, ci grupo editor): hooks_check — guardado sin aprobar avisa y no corre; Aprobar… con el comando en el diálogo; aprobado corre con el próximo guardado; by=agent con lo que escriben las file tools; prompt deja aviso con Send to the agent y no manda; auto_send con tope queda en aviso; tool validate_scripts corre y delete_file (edit_files) no. suite.sh ci 17/17 PASS y i18n PASS en 4.7.2; CI verde en las tres fases (43103212734, 43105120678, 43107251241).",
+  "title": "Hooks del proyecto en eventos del editor",
+  "updated_at": "2026-11-11T22:00:03.060Z"
+}

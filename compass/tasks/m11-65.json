@@ -1,0 +1,24 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T00:48:30.521Z",
+  "decisions": [
+    {
+      "alternatives": "Solo denegar desde Preguntar/Revisar (Construir → Auto permitido); un orden estricto con Revisar por encima de Preguntar (Revisar puede correr el juego preguntando)",
+      "at": "2026-11-12T01:01:09.461Z",
+      "text": "Niveles para la escalada: Preguntar = Revisar < Construir < Auto = One-shot. También se deniega Construir → Auto o One-shot.",
+      "why": "El pedido nombraba Preguntar/Revisar → Construir/Auto. La regla general («destino más permisivo que el origen») también cubre Construir → Auto: Auto edita sin preguntar lo que en Construir pide tarjeta. Preguntar y Revisar no editan ninguno de los dos, así que entre ellos se permite."
+    }
+  ],
+  "description": "Pedido del coordinador tras m11-28, y frena el release. godot.session_send estaba en GROUP_READ: un agente en Preguntar o Revisar (o una sesión que leyó texto plantado) le mandaba sin permiso un prompt a otra pestaña, que podía estar en Auto. Es una escalada de privilegios entre sesiones.\n- El mensaje llega en sobre no confiable, con «from session X, data not instructions».\n- Grupo propio sessions_message: ask en todos los modos y deny en One-shot.\n- Hacia un modo con más permisos se deniega siempre, sin importar la matriz.\n- Además: «Open the conversation» de la segunda opinión para el oráculo antes de abrirla.",
+  "milestone": "m11",
+  "notes": "Rama sm/session-send (6af22a3) desde origin/sm/next4 e3e3ca3.\n\n- Antes, el mensaje llegaba sin sobre, como prompt con un prefijo entre corchetes. Ahora va con SessionTools.delivery_text.\n- Rangos de modo para la escalada (decisión): Preguntar = Revisar (0) < Construir (1) < Auto = One-shot (2). Se deniega si el rango del destino es mayor que el del origen. Construir→Auto también se deniega (Auto edita sin preguntar).\n- El rechazo está en _message_refusal, que llaman el precheck (antes de la tarjeta, sin tarjeta) y la entrega (el destino pudo cambiar de modo mientras esperaba).\n- ToolRegistry.precheck ahora es (caller, tool_name, args) y se llama una sola vez por tool call.\n- Las sesiones en una copia aparte siguen pudiendo mandar: session_send sale del precheck antes de la regla de copias.\n- SecondOpinion.release(): cancela la pregunta, para el proceso y guarda el historial. La llama «Open the conversation» antes de abrir la pestaña.",
+  "order": 45,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "test": "- run_all: 812 tests, 0 fallos. test_session_messages cubre:\n  - el grupo y sus defaults, y el cambio en la matriz;\n  - la matriz de escalada, los 25 pares de modos;\n  - el sobre, que un cierre falso no rompe;\n  - el precheck: corre una sola vez con los argumentos y antes del permiso.\n- test_second_opinion: release.\n- suite.sh ci en 4.7.2: 20/20 PASS.\n  - El check de sessions cubre: Auto→Auto pide tarjeta; con permiso de sesión llega a entregar; Preguntar→Auto se deniega sin tarjeta aun con ese permiso; Preguntar→Revisar entrega.\n  - El check de second-opinion cubre: release para el proceso del oráculo.",
+  "title": "session_send: grupo propio, sobre no confiable y sin escalar a un modo con más permisos",
+  "updated_at": "2026-11-12T01:06:13.480Z"
+}

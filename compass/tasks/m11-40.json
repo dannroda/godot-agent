@@ -1,0 +1,33 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:38:40.738Z",
+  "decisions": [
+    {
+      "alternatives": "Apagado por defecto; un sonido propio (.wav en el addon); toast de PowerShell en Windows; marcar el título de la ventana; avisar también con el editor enfocado.",
+      "at": "2026-11-11T19:36:41.210Z",
+      "text": "Aviso fuera del editor prendido por defecto (ajuste de usuario ui/notify_when_unfocused). Solo con la ventana del editor sin foco, al terminar un turno (no si se canceló) y al esperar un permiso o una respuesta (una vez por espera): DisplayServer.window_request_attention() siempre, más una notificación del sistema con notify-send en Linux (si está en PATH) y osascript en macOS. En Windows solo la atención de la ventana. Sin sonido propio, sin «● Agent» en el título y sin «Steer» en esta tarea.",
+      "why": "Solo actúa cuando el editor está en segundo plano, que es justamente cuando un turno largo o una tarjeta de permiso pasan desapercibidos; apagado por defecto nadie lo descubriría. Godot no trae sonidos del editor y agregar un .wav sería un asset nuevo; notify-send suele sonar con el tema del escritorio. Un toast de PowerShell en Windows es frágil (AppID, políticas). El título de la ventana lo maneja el editor y lo pisa. Steer no lo pidió el coordinador: queda para otra tarea."
+    }
+  ],
+  "description": "Idea de la investigación de UX (2026-11-10). Zed: «If you put Zed in the background after sending a prompt, you can get a desktop notification or a sound when generation finishes» (agent.notify_when_agent_waiting, agent.play_sound_when_agent_done), y los mensajes enviados durante un turno se encolan; «Toggle \"Steer\" on a queued message to interrupt the Zed Agent at its next step», o «Send Now» para interrumpir ya (https://zed.dev/docs/ai/agent-panel). El harness ya encola con Enter y tiene «Enviar ahora» y toasts dentro del editor (m11-03), pero con el editor en segundo plano un turno largo o una tarjeta de permiso pasan desapercibidos. Propuesta: ajuste «Avisar cuando el editor no tiene el foco»: un sonido corto del editor al terminar el turno o al pedir permiso, y el título de la ventana con «● Agent» mientras espera (Godot no tiene notificaciones nativas del sistema; evaluar notify-send/osascript/PowerShell como opcional). «Steer»: un mensaje en cola marcado para cortar en el próximo tool call (cancel + reenvío con el texto, dejando claro al agente que es una corrección, no un turno nuevo).",
+  "links": [
+    {
+      "task": "m11-03",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "sm/m11-40 cc42f95 (desde origin/sm/next4). editor/desktop_notifier.gd (DisplayServer.window_is_focused + window_request_attention; notify-send buscado en PATH una vez; osascript en macOS). Lo llama SessionTabs (turn_finished, permission_requested, elicitation_requested) con notify_outside_enabled = HarnessSettings.notify_when_unfocused. Casilla en Ajustes › avanzado, junto a «Arreglar con el agente»; documentado en Settings en/es y CHANGELOG. Queda afuera: «Steer» de la cola, sonido propio y el título de la ventana (ver decisión 1).",
+  "order": 20,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "test_session_tabs::test_notifies_outside_when_unfocused (fin de turno avisa; cancelado no; espera una vez; con foco o ajuste apagado nada; comando de macOS con comillas escapadas, Windows sin comando). suite.sh ci PASS en 4.7.2; CI verde en 4.7.2, 4.8-beta2 y C# (run 43090229553).",
+  "title": "Avisar fuera del editor cuando el agente termina o espera (sonido o notificación), y «Steer» para la cola (como Zed)",
+  "updated_at": "2026-11-11T19:56:50.269Z"
+}

@@ -48,19 +48,27 @@
   ],
   "code": "16.2",
   "created_at": "2026-10-31T12:40:21.465Z",
+  "decisions": [
+    {
+      "alternatives": "Reconocer por prefijo de título godot_ (falsos positivos con tools de otros); dejar la tarjeta extra",
+      "at": "2026-11-12T02:29:05.944Z",
+      "text": "Las tools MCP con _meta.mcp.server == \"godot\" cuentan como propias del harness (permiso lo decide el server MCP) y se muestran como server.tool",
+      "why": "Antigravity titula godot_run_scene y solo _meta.mcp dice el server; por título sin _meta no se asume (un godot_algo cualquiera no se trata como propio)"
+    }
+  ],
   "description": "Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux para aislar lo que sea del agente. El Playtest sale del modo plan por su id `default`: comprobar que Antigravity publica ese modo, porque si no se queda en plan.",
   "milestone": "m18",
-  "notes": "",
+  "notes": "Run with the probe (dev check agy_tour_check.gd) and a wrapper that logs ACP in both directions and proxies MCP over HTTP (rewrites the url in mcpServers of session/new and session/load). Small requests on tests/docs_demo/player.gd (a copy in tests/tmp).\n\nWORKS\n- Start: 4.9 s. Capabilities: loadSession, sessionCapabilities list+resume, mcp http+sse, image/audio/embeddedContext.\n- Agent modes: default, auto_edit, yolo; the current one is default. There's no plan mode of its own, so the harness uses its ```plan block. Playtest lands in `default` (the id exists, so it doesn't get stuck in plan).\n- Ask: 12.6 s. It reads with client_view_file (ACP fs/read_text_file), doesn't edit, stop end_turn.\n- Build: each edit asks with the card \"Run client_edit_file?\" (group edit_files, options allow_once/reject_once/allow_always). Allow once applies the edit through fs/write_text_file; deny blocks it. It also used godot.validate_scripts on its own.\n- Plan (m11-58): Plan mode → a ```plan block (15 lines, WHEN/SHALL criteria) → \"Plan ready to build\" card → saved to .godot_agent/plans → building asks for the first edit_files card.\n- Short playtest (Review, from the panel): 82 s, verdict pass in JSON. It uses godot.run_scene, capture_game_frame, game_input, game_script and stop_scene; each asks for the MCP server's card in group run (Review = ask), as with Claude Code.\n- Cancel mid-turn: free in 72 ms, stop cancelled.\n- History: session/list includes the current session. Resume in a new process with session/load: 6 s, notice \"Session resumed… session/load\", and the agent remembers what it did (first edit applied, second denied).\n- Quota: usage_update arrives (46k / 1,048,576 at the end).\n\nDIDN'T WORK (fixed in sm/m18-02, 49a9e49)\n- The harness's MCP tools reached Antigravity as `godot_run_scene` with `_meta.mcp.server = \"godot\"`. PermissionPolicy didn't recognise them as its own, so every godot tool raised an extra card in group \"other\", and a playtest waited until someone answered it. Now is_godot_mcp_tool and mcp_server_of read _meta.mcp. Tools from other servers fall in their server's group, and the chat shows them as godot.run_scene.\n\nDIFFERENCES FROM CLAUDE CODE\n- Its own titles: \"Run client_edit_file?\" / \"Running client_view_file\" instead of Edit/Read, with no diff in the permission card's title.\n- After a deny, Antigravity marks the earlier edit, which was applied, as failed (\"denied by pre-tool hook\"). The dock shows it as failed → m18 task.\n- When building a plan it doesn't send ACP `plan` updates (0 tasks): the plan card doesn't follow progress the way it does with Claude Code's TodoWrite.\n- The playtest message carries the open scene's path at the start (attached context), same as with other agents.\n\nNOT COVERED (manual, still in the checklist)\n- release zip install, Ctrl+Z, \"for the session\" permission, Review markers in the Script Editor, recording / Replay / regressions, one-shot, adding it from the registry, Extensions without skills, quota ring + /usage limit (only usage_update was seen).\n- Antigravity leaves skills/system/run-workflow/SKILL.md in the cwd (deleted, not committed).",
   "order": 2,
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "todo",
+  "status": "doing",
   "tags": [
     "manual",
     "antigravity"
   ],
-  "test": "",
+  "test": "Automated tour against the real agent: `AGY_TOUR_WRAP=<agy_wrap.py> AGY_TOUR_LOG=<log> tests/run_in_xvfb.sh godot --godot-agent-antigravity-tour` (Linux, 4.7.2, antigravity-acp 1.4.3), plus `--godot-agent-antigravity-plan-test` for the ```plan block. Both give 0 failures. Unit tests: run_all 832/0, including test_permission_policy (Antigravity cases).",
   "title": "Recorrido completo con Antigravity",
-  "updated_at": "2026-10-31T12:40:24.034Z"
+  "updated_at": "2026-11-12T02:29:05.944Z"
 }

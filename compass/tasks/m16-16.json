@@ -1,0 +1,18 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T04:45:10.561Z",
+  "description": "Visto en m16-15: oneshot-check falla igual en fc2514f (sin el cambio de enable). Es un número distinto del flake que arregló agent-harness-41 en sm/oneshot-flake (c189254: mínimo fijo del área + scroll horizontal AUTO); puede ser una regresión de ese arreglo con el dock angosto. Encontrar la causa, arreglarla con test y avisarle a agent-harness-41.",
+  "milestone": "m16",
+  "notes": "54b7ed4 en sm/enable-time. Causa: EditorBottomPanel comparte la columna del centro. Con Animation abierta y un AnimationPlayer editado pide ~457–472 px (escala 0,75) y frena el centro en ~464–497. No es c189254: el área del One-shot pide 234. Fix: hide_bottom_panel() antes de angostar, y el mensaje de falla dice el mínimo de la columna del centro. La variante «1471, dock 220» no se reprodujo; un layout con dock_hsplit_3=-6328 pasa porque el editor clampa al cargar, así que no agregué clamp_split_offset. Avisado a agent-harness-41.",
+  "order": 16,
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "oneshot-test pasa 3 de 3 en 4.7.2 y en 4.8-beta2. Forzando la pestaña Animation con un AnimationPlayer editado, sin hide falla («queda en 464… el centro 463») y con hide pasa (mínimo de la columna 234).",
+  "title": "oneshot-check: «el centro no baja a 340 px: queda en 1471 (el formulario pide 912, dock 220)»",
+  "updated_at": "2026-11-11T05:05:12.345Z"
+}

@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T20:28:00.655Z",
+  "decisions": [
+    {
+      "alternatives": "(a) Solo avisar en las respuestas del probe que hay un gamepad real mandando input: no lo arregla. (b) Un ajuste en Settings: más UI para un caso raro, y el parámetro de la tool alcanza. (c) input_devices/joypads/ignore_joypad_on_unfocused_application: no sirve, porque el juego lanzado sí tiene el foco. (d) Sacar los eventos de joypad del InputMap en el probe: cambia el juego y rompe los eventos de joy que manda el agente.",
+      "at": "2026-11-10T21:09:33.018Z",
+      "text": "Los juegos que lanza run_scene (y profile_run y las regresiones, que pasan por él) ignoran los gamepads reales con SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=0x0000/0x0000, que el juego hereda del editor. Hay una opción real_gamepads:true para jugar a la par. run_all y regression_cli se relanzan sin ellos si detectan uno.",
+      "why": "Los tres flakes de m16-11 tenían la misma causa: el Pro Controller conectado del usuario tenía el stick izquierdo en ±1. SDL lo lee en todo proceso de Godot, también headless y sin foco, y deja ui_up/ui_left… apretados. Pasan dos cosas. Un LineEdit que toma el foco con una flecha apretada no entra a editar, y el texto se pierde. El movimiento del joystick mueve el foco de la UI, que es lo que pasaba con el CodeEdit del composer. Un agente real lo sufre: ve que su input falla al azar."
+    }
+  ],
+  "description": "agent-harness-57 lo vio fallar una vez en Xvfb (2026-11-10, sm/m11-42 sobre 4.7.2) con last_text vacío, y pasar en las dos repeticiones siguientes. No tiene relación con m11-42. Probable carrera: el texto se manda antes de que el LineEdit tenga foco o antes de un frame de proceso. Reproducir corriendo run-test 20 veces, encontrar la espera que falta (en el check o en game_input si es del addon) y arreglarla; si es del addon, un agente real también lo sufriría.",
+  "milestone": "m16",
+  "notes": "Causa: el Pro Controller del usuario estaba conectado con el stick izquierdo en ±1. SDL lee los gamepads de todo el sistema en cada proceso de Godot, también en headless y sin foco, así que ui_up/ui_left… quedaban apretados. Eso explica los tres flakes:\n- game_input: un LineEdit que toma el foco con una flecha apretada no entra a editar, y el texto se pierde.\n- test_composer: el joystick mueve el foco fuera del CodeEdit y lo demás falla en cascada.\n- game_script/ui_right: con el eje X en ±1, la acción sigue apretada después de soltar el hold.\n\nArreglo (commit 889266d en sm/m16-11, integrado en sm/next2):\n- RealGamepads (playtest/real_gamepads.gd) pone SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=0x0000/0x0000 justo antes de play_custom_scene y restaura el valor anterior. El juego lo hereda; el editor no cambia.\n- Cubre run_scene, profile_run y las regresiones del editor, que pasan por run_scene.\n- `real_gamepads: true` deja pasar los gamepads reales.\n- run_all.gd y regression_cli.gd se relanzan sin ellos si detectan uno.\n\nPrueba (2026-11-10): el Pro Controller ya no estaba, así que creé un gamepad virtual por uinput (045e:028e, stick centrado; programa C en el scratchpad de la sesión).\n- Godot 4.7.2 headless: get_connected_joypads()=[0] sin la variable, [] con ella.\n- Con el gamepad virtual conectado pasaron run_all (relanzado), run-test con 0 fallas y regressions_cli_check.sh.\n- run_all completo: 563 tests, 0 fallos.\n- run-test 10 veces seguidas después del arreglo: 10/10 con 0 fallas.\n\nLo que no se reprodujo:\n- No hubo corridas de «antes»: sin el stick corrido no hay causa que reproducir.\n- No incliné el stick virtual, porque uinput afecta a todo el sistema y movería el foco del editor abierto del usuario.\n- Que el stick explique los flakes de test_composer y game_script sale del mecanismo, no de verlos fallar con él.\n\nm13-30 es la misma falla, duplicada de esta.",
+  "order": 11,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "test"
+  ],
+  "test": "Con un gamepad conectado (real o virtual por uinput):\n- `godot --headless --script res://tests/run_all.gd` dice «relaunched without the real gamepads» y test_real_gamepads pasa.\n- run-test (`tests/run_in_xvfb.sh godot --godot-agent-run-test`) da 0 fallas. El check de game_script ve, dentro del juego, la variable puesta y 0 joypads, y el entorno del editor vuelve a como estaba.\n- `tests/regressions_cli_check.sh godot` pasa: el relanzamiento conserva el código de salida y la salida.\n- Sin gamepad, run_all y run-test pasan igual.",
+  "title": "run-test inestable: «game_input text: escribe en el LineEdit»",
+  "updated_at": "2026-11-11T01:02:22.260Z"
+}

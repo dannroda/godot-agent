@@ -1,0 +1,37 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:38:40.629Z",
+  "decisions": [
+    {
+      "alternatives": "project_config.tres (lo que decía la tarea); un modelo para el evaluador y otro para el constructor de One-shot (queda para después)",
+      "at": "2026-11-11T23:09:34.342Z",
+      "text": "El modelo por modo es un ajuste del usuario por perfil de agente (agents/models_by_mode), no del proyecto",
+      "why": "Los modelos dependen de la cuenta y del plan de cada uno: un proyecto compartido no puede imponer modelos que tu cuenta quizás no tiene. Aprobado por el coordinador. One-shot es un modo más de la tabla."
+    }
+  ],
+  "description": "Idea de la investigación de UX (2026-11-10). Cline: «Enable \"Use different models for Plan and Act\"… switching modes automatically switches to that mode's model» y recomienda un modelo de razonamiento para planear y uno rápido para implementar (https://docs.cline.bot/core-workflows/plan-and-act). Roo: cada modo tiene «Sticky Models», recuerda el último modelo usado con ese modo y vuelve a él al cambiar (https://roocodeinc.github.io/Roo-Code/features/custom-modes). El harness tiene Preguntar/Revisar/Construir/One-shot/Auto y un selector de modelo por sesión, pero cambiar de modo no cambia el modelo. Propuesta: recordar el modelo elegido por modo y por agente (ajuste del proyecto): al pasar a Preguntar o Revisar se elige el que se usó la última vez ahí (p. ej. Opus) y al volver a Construir el rápido; un aviso de una línea la primera vez («Construir usa Sonnet · cambiar»).",
+  "links": [
+    {
+      "task": "m11-27",
+      "type": "related"
+    },
+    {
+      "task": "m11-39",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "Absorbe m11-27 (architect/editor de Aider: planear con un modelo y construir con otro; acá sale de recordar el modelo por modo, sin dos pedidos por cambio). Relacionada con m11-39: un modo personalizado lleva su modelo, que usa este mismo mecanismo.\n\nCÓMO QUEDÓ (sm/m11-27: 6f3f82c núcleo, af9dc60 check de editor). Plan aprobado: ajuste del usuario por perfil (decisión registrada) y One-shot es un modo más.\n\nACP\n- claude-agent-acp 0.106: el modelo es la configOption {id:\"model\", category:\"model\"} y se cambia con session/set_config_option. No tiene session/set_model. ModeModels.model_option busca por category \"model\" y si no hay, por id \"model\"; SessionModel.model_option() la usa, y también el dock y _current_model_name.\n- Probe ACP contra 0.106 (scratchpad, sin fixture): set_config_option model en medio de un turno → ok, y el prompt siguiente corrió con claude-haiku-5-5. Por eso «Aprobar y construir» pide el modelo de Construir enseguida y no al terminar el turno.\n\nTienda\n- core/mode_models.gd. HarnessSettings agents/models_by_mode = {perfil: {ask|review|build|oneshot|auto: {value, name}}}. name es el nombre que mostraba el agente, para Settings.\n\nController\n- choose_model(value): lo que el dock manda desde el selector; se aplica y se recuerda para el modo actual y el perfil.\n- _sync_mode_model(): pide el recordado si hay uno, el agente lo ofrece y no es el actual. Suma a _mode_syncs_running, así el prompt lo espera igual que a un set_mode.\n  - _on_harness_mode_changed lo llama antes de _sync_agent_mode, y también con _skip_mode_sync («Aprobar y construir»).\n  - _open_session y _load_session lo esperan antes de READY.\n- Un valor que el agente ya no ofrece no se manda: aviso WARNING una vez por pestaña y valor; queda guardado.\n- El cambio automático no se recuerda. El aviso «<Modo> uses <Modelo>.» con «Change» (ACTION_CHOOSE_MODEL abre el selector) sale una vez por pestaña; después solo el log.\n- model_tooltip(): «Remembered for X…» si el actual es el recordado, si no «The one you pick is remembered for X».\n\nUI\n- Composer: set_model_option(option, tooltip) y open_model_selector().\n- Settings › Agentes: en el formulario del perfil, «Model by mode» con una fila por modo recordado y «Forget», que se aplica al guardar (_apply_model_forgets). Sin nada recordado, un hint que explica que se elige en el composer.\n\nCambio respecto del plan: Settings no dice «este agente no deja elegir el modelo», porque sin sesión no se sabe. El hint dice que los agentes sin selector no lo muestran; en el dock, sin la opción no hay selector ni se manda nada.\n\nNo se recuerda un /model escrito como prompt (el adapter lo informa con config_option_update): solo cuenta la elección en el selector.\n\nQueda para después (coordinador): modelos distintos para el evaluador y el constructor de One-shot.",
+  "order": 18,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "- Unit: tests/unit/test_mode_models.gd (7 tests). Cubren la tienda (por perfil y por modo, One-shot incluido, olvidar), la opción por category o id, que el modelo sale antes que el modo, que elegir recuerda y el cambio automático no, el aviso una vez, el valor que ya no está, el agente sin la opción y «Aprobar y construir» sin set_mode. test_settings_dialog.test_mode_models cubre las filas, «Olvidar» y el hint.\n- Editor (Xvfb): check plan con la configOption model en plan_mode.json y una tienda en memoria. Al abrir en Construir pide Sonnet, con el aviso y «Change», que abre el selector. Preguntar pide Opus antes del set_mode plan y lo dice el tooltip. «Aprobar y construir» pide Sonnet en medio del turno. Elegir Haiku en el selector queda recordado.\n- Probe ACP contra claude-agent-acp 0.106: el modelo cambia en medio de un turno.\n- Hallazgo en 4.8-beta2: con el selector visible, cambiar de modo dejaba _fit_row del composer alternando entre los niveles 0 y 6 sin fin (el ancho se mide antes de que la fila se reacomode). La cola de mensajes se llenaba y el editor se caía. Arreglado en 046f195: no se deshace el último cambio de compactación dentro de 250 ms. plan, remote y ui-basic pasan en 4.7.2 y 4.8-beta2.\n- tests/suite.sh ci: 19/19 PASS en 4.7.2. CI 43122914975 en verde (4.7.2 y 4.8-beta2).",
+  "title": "Modelo por modo del harness (sticky), como Plan/Act de Cline y los modos de Roo",
+  "updated_at": "2026-11-11T23:55:51.441Z"
+}

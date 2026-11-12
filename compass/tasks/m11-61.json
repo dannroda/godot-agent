@@ -1,0 +1,22 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T22:08:13.675Z",
+  "decisions": [
+    {
+      "alternatives": "Escuchar NOTIFICATION_WM_CLOSE_REQUEST solo para el cierre (deja huérfanos al desactivar); mantener solo el PREDELETE (no corre o falla en el cierre).",
+      "at": "2026-11-11T22:08:20.492Z",
+      "text": "stop_all() también corre al desactivar el plugin, no solo al cerrar el editor",
+      "why": "Va en _exit_tree del plugin, que es el único punto confiable en los dos casos; con el plugin desactivado no queda nadie que lea esos procesos."
+    }
+  ],
+  "description": "Hallazgo de m11-24: el PREDELETE de AgentProcess fallaba en el cierre («stop» en «null instance»). Comprobar si cerrar el editor deja procesos (npx, claude-agent-acp, node) y arreglarlo en AgentProcess para todos los que lo usan, con un check que cierre el editor y verifique que no quedan hijos.",
+  "milestone": "m11",
+  "notes": "Reproducido antes del arreglo: las dos sesiones se limpiaban (el plugin las para en _exit_tree); el AgentProcess suelto, cuyo dueño se libera recién en el cierre, quedaba vivo con su hijo (sleep). Arreglo: lista estática de procesos vivos en AgentProcess (pid → weakref), stop_all() al final de agent_plugin._exit_tree; PREDELETE mata solo con OS, sin llamar a stop(). Rama sm/agent-process-quit, 5f576a7.",
+  "order": 41,
+  "refs": [],
+  "status": "review",
+  "test": "tests/suite.sh run quit (ci, grupo editor): agentes falsos con ignore_eof+spawn_child en la sesión principal, una pestaña y un AgentProcess suelto; cierra el editor con WM_CLOSE_REQUEST y mira con kill -0 que no quede ninguno de los 6 pids. test_agent_process.test_stop_all.",
+  "title": "Cerrar el editor no deja procesos del agente",
+  "updated_at": "2026-11-11T22:08:20.492Z"
+}

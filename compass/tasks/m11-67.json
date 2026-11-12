@@ -1,0 +1,23 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T02:07:21.377Z",
+  "decisions": [
+    {
+      "alternatives": "Otro atajo (Ctrl+Shift+Enter) manteniendo Ctrl+Enter como salto de línea; dejar el seguimiento prendido hasta que el usuario lo apague",
+      "at": "2026-11-12T02:21:54.988Z",
+      "text": "Ctrl+Enter deja de bajar de línea (queda solo Shift+Enter) y prende el seguimiento solo para ese pedido: se apaga al terminar ese turno y la cola, salvo que el usuario toque la mira",
+      "why": "81 pidió Ctrl+Enter para mandar y seguir; Shift+Enter ya baja de línea. «Para ese pedido» evita que un atajo deje prendido algo que mueve el editor en los turnos siguientes."
+    }
+  ],
+  "description": "Seguimiento de m11-33. Ctrl+Enter en el composer manda el mensaje y prende «Seguir al agente» para ese turno (como Zed), sin tener que tocar el botón de la mira. Pedido por agent-harness-81, rama desde origin/sm/next5, con su check.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 47,
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "test": "",
+  "title": "Ctrl+Enter: mandar y seguir al agente",
+  "updated_at": "2026-11-12T02:21:54.988Z"
+}

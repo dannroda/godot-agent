@@ -1,0 +1,39 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.689Z",
+  "decisions": [
+    {
+      "alternatives": "Badge de texto en la pestaña (ocupa más que un ícono); dejar el sufijo y solo achicarlo; nombre de las copias «Copy N»",
+      "at": "2026-11-11T02:38:04.916Z",
+      "text": "Las copias se llaman «Session N» (sin «(copy)») y se marcan con el ícono Duplicate en la pestaña, la rama en el tooltip y una marca en godot.sessions (SessionCoordinator.mark_copy) que sobrevive al renombrar",
+      "why": "El sufijo era lo primero que se cortaba en un dock angosto y además se perdía al renombrar; los agentes que se mandan mensajes por nombre siguen viendo cuál es una copia en godot.sessions"
+    },
+    {
+      "alternatives": "Botón «Copiar ruta» como acción del aviso (necesita un id de acción y su manejo en el plugin); la ruta solo en tooltip (no se puede copiar); texto centrado como antes",
+      "at": "2026-11-11T02:38:04.950Z",
+      "text": "Aviso de la copia: título «Works in a separate copy», la rama y qué pasa al cerrar en el texto, y la carpeta en el bloque plegado de la tarjeta (details) con su botón «Copiar»; los avisos INFO con título alinean el texto a la izquierda",
+      "why": "Reusa lo que NoticeView ya tiene (título, details plegado con Copiar) sin un botón nuevo; centrado bajo un título alineado a la izquierda parecía un párrafo suelto. Cambia también la alineación del texto de otros avisos INFO con título (veredicto de playtest que pasó)"
+    },
+    {
+      "alternatives": "Ocultar la línea del todo (el chip ya dice el agente); «Con Claude Code»",
+      "at": "2026-11-11T02:38:04.985Z",
+      "text": "Sin sesión, el texto bajo «No session» es el nombre del agente (display_name), con la línea de comando en el tooltip",
+      "why": "Lo pedía la tarea; la línea de comando es un dato técnico que no ayuda a decidir. Repite el nombre del chip del agente que está arriba"
+    }
+  ],
+  "description": "Capturas del sessions-test con el dock a ~220 px (varias pestañas en un monitor chico): (1) el estado «Sin sesión» muestra «npx -y @agentclientprotocol/claude-agent-acp» partido en tres líneas, un dato técnico que no ayuda a decidir nada; (2) la pestaña de la copia queda «Session 4 (co…» y se pierde justo lo que la distingue; (3) el aviso de la copia aparte es un párrafo centrado de 8 líneas con la ruta absoluta entera. Propuesta: en el estado vacío solo el nombre del agente (la línea de comando al tooltip); las copias con un ícono o badge en la pestaña en vez del sufijo; el aviso como tarjeta corta («Trabaja en una copia aparte · carpeta · rama agent/copy-…») con la ruta en un botón «Copiar ruta» o tooltip. Capturas: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/tabs/s_two_tabs.png y s_copy.png.",
+  "milestone": "m12",
+  "notes": "Las copias se llaman «Session N»: el sufijo «(copy)» se sacó (y su msgid de es.po). SessionCoordinator.mark_copy/is_copy y SessionTabs.set_copy/is_copy. PluginMain.copy_notice arma la tarjeta. NoticeView: los avisos INFO con título alinean el texto a la izquierda (afecta también al veredicto de playtest que pasó). No toca permission_broker, permission_view ni session_controller.",
+  "order": 9,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "Rama sm/m12-45 (c9599b1). test_sessions (copia marcada tras renombrar), test_session_tabs (ícono y tooltip), sessions-test en Xvfb (pestaña con ícono y rama en el tooltip, godot.sessions dice la copia, aviso como tarjeta con la carpeta plegada, estado vacío con el nombre del agente y el comando en el tooltip; capturas revisadas). suite.sh ci en 4.7.2: 13/13 PASS.",
+  "title": "Dock angosto con pestañas: la línea de comando en el estado vacío, «(copy)» cortado y el aviso de la copia como párrafo",
+  "updated_at": "2026-11-11T03:04:55.872Z"
+}

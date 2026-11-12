@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T02:29:05.913Z",
+  "description": "Visto en m18-02: al construir un plan aprobado, Antigravity no manda session/update plan (0 tareas), así que la tarjeta del plan no marca el avance como con el TodoWrite de Claude Code. Opciones: pedirle en el mensaje de construir que marque las tareas en texto (- [x]) y leerlas, o dejarlo así.",
+  "milestone": "m18",
+  "notes": "",
+  "order": 5,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "antigravity"
+  ],
+  "test": "",
+  "title": "Antigravity: seguir el avance del plan aprobado sin updates ACP plan",
+  "updated_at": "2026-11-12T02:29:05.913Z"
+}

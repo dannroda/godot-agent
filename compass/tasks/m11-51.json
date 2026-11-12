@@ -1,0 +1,40 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.475Z",
+  "decisions": [
+    {
+      "alternatives": "editor/run/main_run_args con «-- --godot-agent-device=…» (ajuste del proyecto, choca con los del usuario); mandarlo por el debugger después de PROBE_READY (la escena ya hizo su _ready con el tamaño y el idioma de siempre)",
+      "at": "2026-11-11T03:04:55.774Z",
+      "text": "El dispositivo va al juego por la variable de entorno GODOT_AGENT_DEVICE (JSON), puesta solo alrededor de play_custom_scene, en vez de argumentos de línea de comandos",
+      "why": "El juego hereda el entorno del editor (como RealGamepads); los argumentos solo se pueden pasar con editor/run/main_run_args, que es un ajuste del proyecto y se mezcla con los argumentos del usuario. Así no se toca project.godot y el run siguiente no lo hereda"
+    },
+    {
+      "alternatives": "Solo avisar que hay que apagar el embebido (el caso por defecto quedaría sin funcionar); cambiar run/window_placement/game_embed_mode (no tiene efecto hasta reabrir el editor); buscar el ítem por id (implícito en un enum, cambia entre versiones)",
+      "at": "2026-11-11T03:04:55.810Z",
+      "text": "Con un tamaño pedido, run_scene destilda «Embed Game on Next Play» en el menú de la vista Game para ese lanzamiento y lo vuelve a tildar; el ítem se busca por texto (inglés o traducido con el dominio godot.editor) dentro del nodo GameView",
+      "why": "Embebido (lo normal desde 4.4) el tamaño de la ventana lo pone el editor. Leí game_view_plugin.cpp: embed_on_play solo se lee en NOTIFICATION_READY y solo lo cambia ese menú; probé game_embed_mode=-1 (con mark_setting_changed y settings_changed) y el metadato embed_on_play, y ninguno cambia un lanzamiento con el editor abierto. Si el menú no aparece (otra versión), el informe dice que el tamaño no se simuló y cómo apagarlo"
+    },
+    {
+      "alternatives": "Presets por modelo (iPhone 15, Pixel…); phone-portrait y phone-landscape como presets separados",
+      "at": "2026-11-11T03:04:55.842Z",
+      "text": "Presets: phone 1080×2400 y tablet 2048×1536 (con táctil), steam-deck 1280×800, 1080p y 4k; `orientation` da vuelta el tamaño. El táctil es emulate_touch_from_mouse: DisplayServer.is_touchscreen_available() sigue en false y el informe lo dice",
+      "why": "Cubren los aspectos de la descripción con pocos nombres; orientación aparte en vez de phone-portrait/phone-landscape. No hay forma de que el juego crea que hay pantalla táctil sin un dispositivo de verdad"
+    }
+  ],
+  "description": "De dónde: StudioDeviceSimulatorService de Roblox (resolución, DPI, orientación y perfiles de dispositivo, para revisar layouts con capturas: https://devforum.roblox.com/t/new-studio-testing-apis-and-assistant-improvements/4657854). Cómo se adapta: run_scene con `device` ({size: [w,h], orientation, scale, touch: true, locale}) o presets (phone-portrait 1080x2400, tablet, 4k, steam deck): se pasa por argumentos de línea de comandos y el probe (DisplayServer.window_set_size, emulate_touch_from_mouse, TranslationServer.set_locale), sin tocar project.godot. Así el agente revisa un HUD en varios aspectos con capture_game_frame y game_ui. Por qué: los bugs de UI anclada y de textos traducidos que no entran aparecen recién en otro dispositivo, y hoy cada prueba corre en la ventana del editor.",
+  "milestone": "m11",
+  "notes": "DeviceSim (playtest/runtime/device_sim.gd) valida y pasa el dispositivo por el entorno; el probe lo aplica en _ready y lo repite en los primeros frames (en el _ready de un autoload la ventana vuelve al tamaño del proyecto) y contesta el pedido «device». GameEmbedding (playtest/game_embedding.gd) destilda «Embed Game on Next Play» para ese lanzamiento: la vista Game lee el embebido solo al arrancar el editor (game_view_plugin.cpp), así que ni game_embed_mode ni el metadato embed_on_play sirven en caliente. Busca el ítem por texto dentro de GameView: si una versión de Godot lo cambia, el informe lo dice y el tamaño no se simula. Sin probar: dispositivos más grandes que la pantalla (el informe dice el tamaño real que tomó la ventana) y Wayland.",
+  "order": 31,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea",
+    "playtest"
+  ],
+  "test": "Rama sm/m11-51 (0ab8433). test_device_sim (presets, orientación, validación, entorno, informe sin traducción). run-test en Xvfb en 4.7.2 y 4.8-beta2: preset desconocido rechazado; device {size 480×800, touch, locale xx} → ventana 480×800, táctil e idioma sin traducción informados, el entorno del editor queda sin GODOT_AGENT_DEVICE, el run siguiente no lo hereda y «Embed Game on Next Play» queda como estaba. run_all 617/4809/0. suite.sh ci en 4.7.2: 13/13 PASS.",
+  "title": "run_scene con dispositivo simulado: resolución, aspecto, táctil e idioma",
+  "updated_at": "2026-11-11T03:11:40.675Z"
+}

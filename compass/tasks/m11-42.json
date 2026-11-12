@@ -1,0 +1,52 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:20.530Z",
+  "decisions": [
+    {
+      "alternatives": "Correrla 3 veces antes de aceptarla, como proponía la descripción",
+      "at": "2026-11-10T20:16:32.667Z",
+      "text": "No se corre automáticamente 3 veces cada regresión que guarda un playtest del agente; las inestables se detectan al repetir a mano (×N en el panel, godot.run_regressions con repeat)",
+      "why": "Correr el juego 3 veces en el editor justo después de cada playtest ocupa el editor (y el juego) del usuario sin que lo pida; el agente puede llamar run_regressions con repeat cuando quiera confirmar que una es estable"
+    },
+    {
+      "alternatives": "Excluir las inestables del workflow hasta confirmar (como decía la descripción); que fallen siempre",
+      "at": "2026-11-10T20:16:32.759Z",
+      "text": "Una inestable no hace fallar la corrida del CLI (ni la del workflow) salvo con --fail-on-flaky; una marcada inestable en el editor que falla la única vez que corre también cuenta como inestable. La que falla todas las corridas sí falla",
+      "why": "Pedido: que una inestable no rompa el CI salvo que se pida. Con la marca guardada, el CI de una sola corrida no se rompe en cada push por una que ya se sabe inestable"
+    },
+    {
+      "alternatives": "Guardarla en la memoria de playtest o en la config del editor (el CI no la vería)",
+      "at": "2026-11-10T20:16:32.826Z",
+      "text": "La cuenta (pasó k de N) se guarda en el JSON de la regresión (campo runs) solo con 2 o más corridas; pasar todas en una repetición posterior la desmarca",
+      "why": "Con una corrida no se sabe si es inestable; el JSON ya es lo que comparten el panel, la tool, el CLI y el CI"
+    },
+    {
+      "alternatives": "Botón «Correr ×3»; menú con 3/5/10; un ajuste en Settings",
+      "at": "2026-11-10T20:16:32.887Z",
+      "text": "«Correr regresiones» tiene al lado una casilla ×N (1 a 20, empieza en 1) en lugar de un botón aparte para repetir",
+      "why": "Un solo botón y un número; el máximo de 20 evita dejar el editor ocupado por accidente"
+    },
+    {
+      "alternatives": "Contar la marcada que falla como inestable (la versión de 4c22155); ignorar la marca",
+      "at": "2026-11-10T20:25:58.546Z",
+      "text": "Reemplaza la segunda decisión (revisión de agent-harness-50): con una sola corrida, una marcada inestable que falla se reintenta hasta 3 veces en total; es inestable si pasa alguna y falla si fallan las 3",
+      "why": "Contarla como inestable solo por la marca dejaba tapada para siempre, con el CI por defecto (una corrida), una inestable que se rompió de verdad"
+    }
+  ],
+  "description": "De dónde: Beckett v1.16, op=repeat corre una suite n veces, informa pass^k (true solo si pasaron todas) y ordena los pasos que cambiaron entre corridas (https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1695575/beckett-v1160-strict-at-the-door-honest-in-the-answer). Cómo se adapta: `repeat` en run_regression y en regression_cli (--repeat=N), y al guardar una regresión del agente correrla 3 veces antes de aceptarla; una que alterna pass/fail se marca «inestable» en el panel y no se escribe al workflow de CI sin confirmar. Por qué: una regresión que depende del framerate o del azar rompe el CI del usuario sin bug real; hoy no hay forma de verlo.",
+  "milestone": "m11",
+  "notes": "Commits 4c22155 y 6d14a4b en sm/m11-42 (desde cd5901d). PlaytestRegressions: tally (pass^k, inestable, primera salida que falló), is_flaky, retry_marked, record_runs (campo runs {passed, total, at} en el JSON, solo con 2 o más corridas), flaky_count, y summary(results, fail_on_flaky, translate). retry_marked (6d14a4b): con repeat 1, una marcada inestable que falla se reintenta hasta 3 corridas; es inestable si pasa alguna y falla si no. RunTools.run_saved_regressions es el lazo que comparten el panel y la tool nueva godot.run_regressions (repeat de 1 a 20, goal para filtrar). La tool corre de a una: regressions_running reemplaza el flag que tenía el plugin. Con un juego en marcha da error, y entre sesiones pasa por la cola del juego como run_scene. Panel: casilla ×N al lado de «Correr regresiones» y «(N · K inestables)» con las inestables en el tooltip. regression_cli.gd: --repeat=N y --fail-on-flaky; el sabotaje se prueba una vez. RegressionsWorkflow.write/workflow_text aceptan repeat y fail_on_flaky (la tool write_regressions_workflow también). El botón «Workflow de CI…» del panel escribe como antes (sin repetir). Wiki en y es (Review/Revisar, Editor tools/Herramientas del editor) y CHANGELOG › Added. Lo que queda afuera está en las decisiones: no se corre 3 veces al guardar una regresión del agente.",
+  "order": 22,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea",
+    "playtest"
+  ],
+  "test": "Sobre cd5901d, en 4.7.2: run_all 530/0, con el test nuevo test_regression_repeat: pass^k; inestable con su cuenta; una marcada que falla se reintenta hasta 3 y no queda tapada (retry_marked); resumen con fail_on_flaky y traducido; record_runs marca y desmarca en el JSON; opciones del CLI; workflow con --repeat/--fail-on-flaky; el panel muestra «(2 · 1 flaky)», las nombra en el tooltip y manda el ×N. tests/regressions_cli_check.sh bien: además de los 4 casos de antes, pass con --repeat=3 (passed 3 of 3); flaky (fixture que alterna con Engine meta) da FLAKY 2 de 3 y sale con 0, y con 1 si se agrega --fail-on-flaky; marked (marcada, falla siempre) da FAIL 0 de 3 y sale con 1; recovers (marcada, falla la primera y después pasa) da FLAKY 1 de 2 y sale con 0; --repeat=0 sale con 2. run-test en Xvfb pasa en en y es: desde el panel, ×2 dice «basket is full (pasó 0 de 2)» y guarda en cada JSON 0/2 y 2/2; godot.run_regressions con repeat 2 y goal «START» da «PASS start works (passed 2 of 2)» sin la otra, y el juego queda cerrado. Después de 6d14a4b, una corrida falló una vez en otro check (game_input text en el LineEdit) y pasó en las 2 siguientes: parece inestable y ajeno a esta tarea.",
+  "title": "Regresiones: repetir N veces y marcar las inestables",
+  "updated_at": "2026-11-10T20:26:09.352Z"
+}

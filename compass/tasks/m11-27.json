@@ -1,0 +1,25 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.498Z",
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Aider.\n- El modo architect usa dos modelos: «An architect model will propose changes and an editor model will translate that proposal into specific file edits» (`--editor-model`). La contra: dos pedidos por cambio, más tiempo y costo. https://aider.chat/docs/usage/modes.html\n- En su benchmark (2024-09-26), varios modelos mejoraron emparejados consigo mismos (Sonnet 3.5 de 77,4 a 80,5 %), y el mejor resultado salió de un razonador con un editor barato. https://aider.chat/2024/09/26/architect.html. Los números son de modelos viejos.\n\nQué existe: el modo del harness cambia el modo del agente (Preguntar y Revisar → plan; Construir, Auto y One-shot → default), pero el modelo es uno por sesión, salvo que el usuario lo cambie a mano.\n\nAdaptación a Godot y al harness:\n- En Settings → Agentes, un modelo opcional por modo del harness, entre los que anuncia el agente (configOption model).\n- Al cambiar de modo, el harness manda session/set_config_option con ese modelo y lo muestra en el chip.\n- Junto con el plan aprobable: planificar en Preguntar con el modelo fuerte y «Aprobar y construir» en Construir con el rápido.\n- La edición la sigue haciendo el agente: el formato de edits de Aider no aplica.\n\nPor qué: con la cuota del plan (anillos) como límite real, gastar el modelo caro solo en decidir y el barato en escribir es lo que hace el par architect/editor, y acá sale casi gratis porque ACP ya expone el modelo como opción.",
+  "links": [
+    {
+      "task": "m11-22",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "",
+  "order": 7,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "todo",
+  "tags": [
+    "idea"
+  ],
+  "test": "",
+  "title": "Modelo por modo: planificar con uno y construir con otro",
+  "updated_at": "2026-11-10T19:36:56.066Z"
+}

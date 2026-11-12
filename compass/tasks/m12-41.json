@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.399Z",
+  "decisions": [
+    {
+      "alternatives": "Botones planos con autowrap (sin subrayado de enlace); un ScrollContainer horizontal (el usuario pidió nunca recortar y scrollear de lado es peor); bajar FORM_NARROW_WIDTH (no arregla el mínimo real).",
+      "at": "2026-11-10T19:52:53.204Z",
+      "text": "Los ejemplos de objetivo pasan de tres LinkButton a un RichTextLabel con un [url] por ejemplo: el LinkButton no parte el texto y su ancho (unos 440 px con la escala por defecto) era el mínimo del formulario, que con el centro a ~380 px se centraba desbordando por los dos lados.",
+      "why": "Es la única pieza del formulario sin ajuste de línea; con RichTextLabel el formulario baja de verdad hasta FORM_NARROW_WIDTH (280 px) y nada se recorta. El check del One-shot ahora angosta el centro a 340 px (no fija el ancho del dock: el centro resultante depende del dock izquierdo y de la escala) y mide con LayoutCheck.form_fits."
+    }
+  ],
+  "description": "Tour de UX de v0.1.19 (cd5901d): con el dock del ancho por defecto del tour, la pantalla principal One-shot queda con ~370 px y se corta por los dos lados: «‑shot», «gent makes a plan…», los ejemplos, «Configurar un agen…» y el aviso de agente. m12-09 está en done pero el caso sigue. Propuesta: debajo de un ancho mínimo, la columna del One-shot entra en un ScrollContainer horizontal o colapsa a una sola columna con márgenes chicos; nunca recortar texto. Capturas: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/31_oneshot_angosto.png y es/31_oneshot_angosto.png.",
+  "milestone": "m12",
+  "notes": "Rama sm/m12-41, commit b580527. Los ejemplos de objetivo pasan a un RichTextLabel con [url] por ejemplo (meta_clicked pone el objetivo); los LinkButton no parten texto y su ancho era el mínimo real del formulario. LayoutCheck gana form_fits(form) y set_dock_width(dock, px) (antes era privado de ux_tour); oneshot_ui_check mide el formulario con el centro normal y angostado a 340 px (NARROW_CENTER_WIDTH, no un ancho fijo del dock: el centro depende del dock izquierdo y de la escala) y guarda <shot>_form_narrow.png. CHANGELOG Unreleased › Fixed.",
+  "order": 5,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "Antes: con --godot-agent-oneshot-test angostando el centro a 340 px el dock no podía ensancharse (el formulario pedía 368 px por los LinkButton). Después: oneshot-test en Xvfb 0 fallas en en y es con el centro a 340 px (LayoutCheck.form_fits: el panel no pide más que el área y ningún control sale de ella); tests/ux_tour.sh en y es 0 fallas; run_all 524 tests 0 fallos; acp_session_check 203/0; oneshot_check 186/0. Capturas: antes /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/es/31_oneshot_angosto.png; después …/scratchpad/m12-41/after/tour_es/31_oneshot_angosto.png y …/m12-41/after/oneshot_form_narrow.png (centro a 340 px).",
+  "title": "One-shot: la pantalla se sigue cortando con el dock ancho (reabre m12-09)",
+  "updated_at": "2026-11-10T19:54:21.192Z"
+}

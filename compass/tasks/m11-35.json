@@ -1,0 +1,51 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:38:40.448Z",
+  "decisions": [
+    {
+      "alternatives": "Un handoff.md único (se pisan); el bloque como texto plano.",
+      "at": "2026-11-11T18:01:47.641Z",
+      "text": "Los traspasos se guardan en .godot_agent/handoffs/<fecha>-<sesión>.md, uno por traspaso, en lugar de un único handoff.md. La sesión vacía ofrece el más reciente, con «Ver otros» si hay más. El bloque de @session y la parte del traspaso que sale del historial van en un sobre no confiable (UntrustedText), marcados como contexto y no como instrucciones.",
+      "why": "Lo pidió agent-harness-81 al aprobar el plan. Con varias sesiones haciendo traspasos, un solo archivo se pisa. El último mensaje de otra sesión puede traer texto del juego o de una página."
+    },
+    {
+      "alternatives": "Todo en el composer con el sobre en el texto. El resumen del agente también en sobre.",
+      "at": "2026-11-11T18:43:38.167Z",
+      "text": "El borrador se divide en dos: en el composer, editable, va el objetivo y el resumen del agente; los hechos del historial (SessionDigest: pedidos, último plan, archivos de las tool calls) van como chip de contexto «Traspaso: título» en un sobre UntrustedText y se ven en el chat como adjunto «@handoff · título».",
+      "why": "El usuario revisa el resumen antes de mandarlo, así que pasa a ser su mensaje. Los hechos salen del historial y tienen que ir marcados como contexto; con los marcadores del sobre metidos en el texto editable, el usuario podría romperlos sin darse cuenta."
+    },
+    {
+      "alternatives": "Un diálogo con el objetivo antes de pedir el resumen. Archivos cambiados según los snapshots de git.",
+      "at": "2026-11-11T18:43:38.198Z",
+      "text": "Sin campo chico para el objetivo: el aviso, el «+» del dock, el clic en el porcentaje y el aviso de compactación piden el traspaso directamente. El objetivo opcional se escribe con /handoff &lt;objetivo&gt;. Los hechos del harness salen del historial (SessionDigest), no de TurnSnapshots/PlanStore. El porcentaje sigue en amarillo desde el 80 % (METER_SHOW_RATIO, como antes) y el aviso aparece al 85 %.",
+      "why": "Un clic menos en el caso común. El borrador es editable, así que el objetivo se puede agregar ahí. El historial existe para cualquier agente y para sesiones sin git, y reusa lo de @session."
+    },
+    {
+      "alternatives": "Pestaña sin arrancar hasta mandar. Heredar la copia. Agregarlo también al «+» de pestañas.",
+      "at": "2026-11-11T18:43:38.225Z",
+      "text": "La pestaña nueva del traspaso arranca la sesión enseguida, con el perfil que corre en la pestaña de origen (cuenta incluida, aunque no esté guardado en Ajustes) y su modo (salvo One-shot). Si el origen es una copia (worktree), la nueva abre en el proyecto del editor. «Nueva sesión con resumen de esta» va en el «+» del encabezado del dock, no en el «+» de la barra de pestañas.",
+      "why": "Queda lista para mandar el borrador. Antes se elegía el perfil por id, y con uno no guardado (el agente falso del check) arrancaba Claude Code de verdad. El «+» del dock ya tiene las opciones de sesión y pestaña."
+    }
+  ],
+  "description": "Idea de la investigación de UX (2026-11-10). Zed: «New From Summary» en el menú de nuevo hilo «starts a fresh Zed Agent thread seeded with a summary of the current conversation», y un banner ofrece «Start New Thread» al acercarse al límite (https://zed.dev/docs/ai/agent-panel). Cline: el memory bank son archivos markdown del proyecto (projectbrief, activeContext, progress…) que el agente mantiene; antes de que el contexto se llene se pide «update memory bank», se abre otra conversación y se le dice «follow your custom instructions» (https://docs.cline.bot/best-practices/memory-bank). El harness ya tiene el anillo de contexto y, en One-shot, spec.md/progress.md con el prompt de resumen al reabrir; el chat normal no. Propuesta: cuando el anillo pasa un umbral (85 %), un aviso «El contexto se está llenando · Nueva sesión con resumen»: el harness pide al agente un traspaso corto (qué se hizo, qué falta, archivos tocados) y abre una sesión nueva con ese texto en el primer prompt; el mismo traspaso se guarda en .godot_agent/handoff.md y lo lee la próxima sesión del proyecto. Comando /handoff para hacerlo a mano.",
+  "links": [
+    {
+      "task": "m11-29",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-35 (653f149 @session de m11-29; 0608d63 el traspaso). session/handoff.gd (prompt, build, save/list/parse), session/context_watch.gd, agent_dock (franja, aviso de compactación, oferta en la vista vacía, /handoff, chip CHIP_HANDOFF, request_handoff → handoff_ready), agent_plugin._open_handoff, composer (/handoff en el menú de / con sesión, clic en el porcentaje alto). Ver decisiones de la tarea (borrador partido en composer + chip; sin campo de objetivo; perfil que corre; «+» del dock).\nArreglos de tests en el camino: handoff_check espera al escritor del historial (el editor abortaba con 134 al salir, ya en el hito 1); sessions_check suelta el foco de un TextEdit antes de probar seguir (si el editor reabre un script, el Script Editor queda con foco y seguir espera 15 s); dev plugin _finish espera GitCheckpoints.pending().\nQueda en m11-60: anunciar session.compaction y manejar compaction_update (is_compaction ya lo reconoce). Agentes sin usage_update (Antigravity) solo tienen la acción manual.",
+  "order": 15,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "Headless: tests/run_all.gd -- handoff (test_handoff: prompt, borrador con y sin agente, sobre, nombres de archivo sin pisarse, guardar/listar el más nuevo primero, ContextWatch 85/60/✕/reset, detección de compactación, /handoff y el adjunto «@handoff · título»). Editor: tests/suite.sh run ui-handoff godot (agente falso: uso al 90 % → franja; tool call «Compact conversation» → aviso con acción; «Nueva sesión con resumen» → prompt etiquetado, pestaña nueva elegida, mismo agente y modo, resumen en el composer sin mandar, chip con los hechos en sobre, archivo en .godot_agent/handoffs; pestaña vacía ofrece el traspaso). Suite ci entera PASS (4.7.2).",
+  "title": "Traspaso entre sesiones: «Nueva sesión con resumen» cerca del límite de contexto y un archivo de traspaso (Zed + memory bank de Cline)",
+  "updated_at": "2026-11-11T18:52:15.422Z"
+}

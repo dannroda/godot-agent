@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.488Z",
+  "decisions": [
+    {
+      "alternatives": "Evidencia abierta por defecto solo en «falló» (más alto en el dock, se descartó por consistencia); una sola sección «Detalles» (mezcla cosas de distinto peso); mantener todo en texto con colores (Label no mezcla estilos).",
+      "at": "2026-11-10T20:02:24.039Z",
+      "text": "El veredicto se arma como ChatEntry NOTICE con title (resultado · motivo), text (solo «Antes de confiar en esto» y el video) y sections [{title, text}] nuevas en ChatEntry, que NoticeView dibuja como FoldableContainers plegados con la cantidad en el título («Evidencia · 3»); el mismo molde para pasó/explorado/no se pudo probar.",
+      "why": "Reusa la tarjeta con título de m12-13 y el plegado del panel de Revisar; las secciones plegadas dejan el dock legible (en 320 px la tarjeta entra entera) y lo importante para decidir (resultado, motivo, avisos) queda a la vista. ReviewStore.playtest_notice_plain() conserva el texto plano en orden para el log y las pruebas."
+    }
+  ],
+  "description": "Tour de UX de v0.1.19: el aviso «Playtest: failed — …» muestra evidencia, cambios directos, detectores y pasos para reproducir todo en rojo y con el mismo peso (guia/playtest.png en y es). Es el caso que m12-13 arregló para los errores del agente, sin aplicar a los veredictos. Propuesta: tarjeta con título rojo («Playtest: falló · Los asteroides dejan de acelerar…»), cuerpo en color normal con secciones plegables (Evidencia, Detectores, Para reproducir) y las acciones (Reproducir la grabación, Ver hallazgo) abajo; el mismo molde para «Playtest: pasó» con «Guardada como regresión». Capturas: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/guia/playtest.png y es/guia/playtest.png.",
+  "milestone": "m12",
+  "notes": "Rama sm/m12-42 desde cd5901d, commit 6cdbf8c. ChatEntry.sections [{title, text}]; ReviewStore.playtest_notice devuelve {title, text, sections, level} y playtest_notice_plain(); SessionController._report_playtest pone title/sections y notify_entry_changed; NoticeView dibuja las secciones como FoldableContainers plegados y oculta el Label si el texto está vacío. es.po: los títulos de sección sin los dos puntos. DocsShots: _check_verdict_card y playtest_narrow_path (el tour guarda guia/playtest_angosto.png); _widen_dock(width). CHANGELOG Unreleased › Fixed. Independiente de sm/m12-41.",
+  "order": 6,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "run_all 523 tests 0 fallos (test_review_store: título «Playtest: failed · no salta», texto vacío sin avisos, secciones «Evidence · 1» / «To reproduce · 2», cambios directos y detectores en su sección, avisos del agente y video en el texto). acp_session_check 203/0. tests/docs_shots.sh en y es 0 fallas, con el check nuevo de DocsShots (_check_verdict_card: la tarjeta tiene título «Playtest: failed», las secciones de evidencia y pasos, un FoldableContainer por sección, plegados, y ninguno sale del dock) en ancho (480) y angosto (320). tests/ux_tour.sh es 0 fallas. Capturas: antes …/scratchpad/m12-42/before_es_playtest.png (= docs/images/es/playtest.png en cd5901d); después docs/images/{en,es}/playtest.png (commiteadas), …/scratchpad/m12-42/tour_es/guia/playtest.png (ancho) y …/tour_es/guia/playtest_angosto.png (320 px). Base: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95",
+  "title": "El veredicto de un playtest fallido es un bloque rojo de 15 líneas",
+  "updated_at": "2026-11-10T20:03:00.088Z"
+}

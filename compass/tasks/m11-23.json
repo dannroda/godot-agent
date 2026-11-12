@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.246Z",
+  "decisions": [
+    {
+      "alternatives": "Un playtest para todos con un veredicto por criterio en el JSON; apagado por defecto; tope fijo",
+      "at": "2026-11-12T01:27:54.204Z",
+      "text": "Un playtest por criterio (no uno solo con veredictos por criterio); la verificación viene prendida por defecto; tope de 6 por corrida, configurable en el mismo setting; la tarjeta aclara que cada criterio es un playtest",
+      "why": "Uno por criterio deja veredicto, evidencia y regresión atados a cada criterio. Prendido por defecto: según agent-harness-81, lo decidió el usuario (no me lo confirmó a mí directamente). La línea del costo y el tope configurable los pidió 81."
+    }
+  ],
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Kiro.\n- Correctness (solo IDE) convierte los requisitos EARS en propiedades, las vincula a su requisito y su tarea, y genera cientos de entradas al azar para romperlas, con shrinking. Si falla, muestra el escenario y se decide en el chat si se arregla el código, el test o el requisito. https://kiro.dev/docs/specs/correctness/\n- La misma página aclara que es evidencia y no prueba formal, y que lo no determinista necesita otros tests.\n\nAdaptación a Godot y al harness:\n- Sin un framework de property-based testing para GDScript, lo que se traslada es el vínculo requisito → verificación.\n- Cada criterio jugable del plan (ver la idea del plan aprobable) se convierte en un pedido de playtest con veredicto (m14-03 / m15). El resultado vuelve al plan como ✓ / ✗ / blocked con su evidencia (captura, números del juego).\n- Los que pasan se pueden guardar como regresión (el CI workflow de v0.1.19 ya las corre).\n- Las variaciones al azar (posiciones, inputs con semilla) quedan para después, con input por frame (m14-01).\n\nPor qué: hoy los playtests responden a lo que el agente decide probar. Atarlos a criterios aprobados por el usuario cierra el loop pedido → plan → juego verificado, y el One-shot ya tiene un evaluador que lo aprovecharía. Depende del plan aprobable y de los playtests con veredicto.",
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-23 (d37eaf4, desde 9a600eb), sin pushear.\n- PlanApproval.criteria/plan_title; la corrida de receta ganó `criteria` (origen \"plan\" o receta con «Planificar primero»: sus playtests van como criterios primero).\n- Un playtest por criterio en Revisar; fail → un turno de corrección con todos los que fallaron (PLAN_CRITERIA_FIX), después se re-juegan solo esos; blocked → ⊘; tope de reintentos 2.\n- Tarjeta: casilla «Verify the criteria by playing (N)» + línea del costo (cada criterio es un playtest, tope N, se cambia en Settings); estado por criterio con evidencia en el tooltip. PermissionRequest.verify_criteria (-1/0/1), criteria_max, criteria_results, señal changed.\n- Settings → MCP servers → Advanced: verify_plan_criteria (true) y verify_plan_criteria_max (6).\n- «Verificar el resto» juega los que pasaron el tope sin turno de corrección.\n- Fuera: One-shot (tiene su QA), variaciones al azar, ⊘ «no hay escena» (lo decide el playtest con blocked).",
+  "order": 3,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "tests/run_all.gd -- plan_criteria (6 tests: criteria(), casilla/setting, corrida con pass/fail/blocked y re-prueba solo del que falló, tope y «Verificar el resto», reintentos y mensaje del usuario, sección ## Verification, tarjeta). Editor check ui-plan-criteria (suite full) con el agente falso: 2 criterios, el 2 falla, se corrige, se re-juega solo ese y pasa → «2 ✓ · 0 ✗». suite.sh ci en verde (4.7.2).",
+  "title": "Criterios de aceptación del plan verificados jugando",
+  "updated_at": "2026-11-12T01:52:06.158Z"
+}

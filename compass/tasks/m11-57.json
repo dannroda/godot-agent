@@ -1,0 +1,40 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.890Z",
+  "decisions": [
+    {
+      "alternatives": "Comparar los SceneState de los dos PackedScene, como proponía la descripción de la tarea",
+      "at": "2026-11-11T04:35:23.451Z",
+      "text": "El diff sale del texto de los dos .tscn, con un parser propio (core/scene_diff.gd), y no de los SceneState de dos PackedScene cargados",
+      "why": "Lo pidió el coordinador: parseado y sin depender de git. Además, cargar la escena de antes implica escribirla a un archivo temporal y que el loader resuelva sus recursos, que pueden ya no existir o estar renombrados; el parser no carga nada y anda headless y con escenas rotas. Los valores se muestran como están en el archivo."
+    },
+    {
+      "alternatives": "Emparejar solo por ruta; comparar los SubResource por id",
+      "at": "2026-11-11T04:35:23.484Z",
+      "text": "Los nodos se emparejan por unique_id (4.6+); sin él, por ruta, y si no, por nombre y tipo cuando es único. Los ExtResource se comparan por su ruta y los SubResource por su contenido, abiertos como prop.sub hasta 2 niveles",
+      "why": "Así un movido o renombrado no aparece como borrado más agregado, y los ids que Godot renumera al guardar no salen como cambios. Se probó con las 41 escenas del repo, cada una contra sí misma y contra una versión con los ids renumerados: 0 cambios en todas."
+    },
+    {
+      "alternatives": "Vista por nodos solo en Cambios del turno; agregar la tool godot.scene_diff ahora",
+      "at": "2026-11-11T04:35:23.517Z",
+      "text": "La vista por nodos la elige DiffDialog solo, cuando los dos textos son escenas, con «Ver crudo» para el diff de texto; así vale también para el One-shot y los conflictos. Por ahora no hay tool scene_diff para el agente",
+      "why": "Un solo lugar y sin tocar a los que llaman. Para acotar: 200 líneas como máximo, valores cortados a 100 caracteres, un subárbol agregado o borrado en una sola línea con cuántos nodos tiene abajo, y el diff crudo armado recién al pedirlo. Con 5 MB y 5000 nodos, unos 0,3 s. La tool para el agente y el evaluador no la pidió el coordinador: queda como seguimiento."
+    }
+  ],
+  "description": "De dónde: Godot MCP Toolkit lista «diff scenes» entre sus tools, sin detalle de cómo (https://github.com/NPGameDev/godot-mcp-toolkit); Bezi muestra diffs lado a lado y un cajón de cambios pendientes y aceptados (https://docs.bezi.com/get-started/changelog). Cómo se adapta: en el diálogo de cambios del turno (m11-02) un .tscn hoy se ve como diff de texto (ids de ext_resource, unique_id, orden). Un diff semántico: nodos agregados, quitados, movidos o renombrados y propiedades cambiadas (valor antes → después), armado comparando los dos SceneState (PackedScene del snapshot y el actual); el diff de texto queda como «ver crudo». También como tool scene_diff para el agente y el evaluador. Por qué: el cambio más común del agente es en escenas y es el que menos se puede revisar hoy.",
+  "milestone": "m11",
+  "notes": "Rama sm/m11-57, commit f8b3205, rebasada sobre origin/sm/next3 435856f.\n- Código nuevo en core/scene_diff.gd. diff_dialog.gd tiene scene_bbcode y el botón «Ver crudo».\n- La vista por nodos se elige sola cuando los dos textos son .tscn, o cuando uno está vacío porque el archivo es nuevo o se borró. Por eso también se aplica a los diffs del One-shot y de los conflictos.\n- Seguimientos posibles:\n  - una tool godot.scene_diff para el agente y el evaluador;\n  - el resumen por nodos en la fila del diálogo de cambios, en lugar de +N −N líneas;\n  - el orden de los hijos (index) no se compara.",
+  "order": 37,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea",
+    "ui"
+  ],
+  "test": "- tests/unit/test_scene_diff.gd (9 tests, 35 checks):\n  - parseo de valores multilínea;\n  - nodos agregados y borrados con su subárbol;\n  - movidos y renombrados;\n  - ids renumerados no cuentan como cambios;\n  - escenas sin unique_id;\n  - escena nueva y escena borrada;\n  - raíz renombrada e instancias;\n  - SubResource anidados;\n  - el texto que se muestra y su cota.\n- edit-test: la escena que guarda el editor después de las tools se ve por nodos, «Ver crudo» va y vuelve, y un script sigue mostrándose como texto.\n- Las 41 escenas del repo, comparadas contra sí mismas y contra una versión con los ids renumerados, dan 0 cambios.\n- Escena sintética de 5 MB y 5000 nodos: unos 0,3 s.\n- suite.sh ci 15/15 en 4.7.2, sobre next3 435856f.",
+  "title": "Diff por nodos de las escenas en los cambios del turno",
+  "updated_at": "2026-11-11T04:55:07.346Z"
+}
