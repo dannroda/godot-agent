@@ -135,9 +135,12 @@ Defaults:
 | Install from the Asset Store | Deny | Deny | Ask | Ask | Ask |
 | Project tools | Deny | Deny | Ask | Ask | Ask |
 | Second opinion | Ask | Ask | Ask | Ask | Deny |
+| Messages to other sessions | Ask | Ask | Ask | Ask² | Deny |
 | Subagents | Allow | Allow | Allow | Allow | Allow |
 
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.
+
+² Whatever the matrix says, a message to a session in a mode with more permissions is always denied: see [Messages between sessions](#messages-between-sessions).
 
 ### Subagents
 
@@ -146,6 +149,12 @@ With Claude Code, launching a subagent (its **Agent** tool) goes through the **S
 - **Subagents at once**, in the matrix of **Settings → Permissions**, caps how many run at the same time in each mode (0 = no limit). One more is rejected with a notice in the chat, and the agent is told why.
 - A subagent's card in the chat shows its prompt, the tools it runs and what it writes as it works, and its report at the end. One that runs in the background stays in progress until it ends, even after the tool call that launched it.
 - While the agent works, the agent chip in the header counts the subagents running; its tooltip lists them.
+
+### Messages between sessions
+
+With several tabs open, an agent can leave a message for another with `godot.session_send`. It goes through the **Messages to other sessions** group: **Ask** in every mode, denied in One-shot. The message reaches the other agent when its turn ends, inside an untrusted envelope with the name of the session that sent it, as data and not as instructions: the sender may have read planted text in the project, the game or the internet.
+
+A message toward a mode with more permissions is always denied, whatever the matrix or a permission granted for the session: from Ask or Review to Build, Auto or One-shot, and from Build to Auto or One-shot. Otherwise an agent that can't edit could get another tab to do it. The agent is told why, and no card shows. Ask and Review count as the same level, as do Auto and One-shot.
 
 ### Second opinion
 

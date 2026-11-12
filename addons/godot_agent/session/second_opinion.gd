@@ -181,6 +181,18 @@ func _watch_timeout(generation: int) -> void:
 		cancel()
 
 
+## Suelta la sesión (para abrirla en una pestaña): corta la pregunta en curso, para el proceso y
+## guarda el historial. La próxima pregunta arranca una sesión nueva.
+func release() -> void:
+	cancel()
+	if controller == null:
+		return
+	if controller.is_connected_to_agent():
+		controller.stop()
+	if controller.history:
+		controller.history.flush()
+
+
 ## Corta la pregunta en curso.
 func cancel() -> void:
 	if not _busy:
