@@ -1,0 +1,100 @@
+{
+	"_about": "m11-23 ui-plan-criteria: a plan with 2 acceptance criteria is approved from its card. Turn 1 builds; the harness plays criterion 1 (pass) and criterion 2 (fail) one per turn; the failure goes back as a fix turn; criterion 2 is played again and passes.",
+	"turns": [
+		{
+			"steps": [
+				{
+					"chunk": "Building the lives system."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "c1",
+						"title": "mcp__godot__run_scene",
+						"kind": "execute",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://main.tscn",
+							"seconds": 3
+						},
+						"rawOutput": "ok"
+					}
+				},
+				{
+					"chunk": "I played the scene.\n```json\n{\"playtest\": {\"verdict\": \"pass\", \"summary\": \"Touching the enemy takes one life away\", \"evidence\": [\"lives 3 -> 2\"], \"repro\": [\"start the game\", \"touch the enemy\"]}}\n```"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "c2",
+						"title": "mcp__godot__run_scene",
+						"kind": "execute",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://main.tscn",
+							"seconds": 3
+						},
+						"rawOutput": "ok"
+					}
+				},
+				{
+					"chunk": "I played the scene.\n```json\n{\"playtest\": {\"verdict\": \"fail\", \"summary\": \"Lives reach 0 but the game over screen never shows\", \"evidence\": [\"lives = 0, scene still main.tscn\"], \"repro\": [\"start the game\", \"touch the enemy\"]}}\n```"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"delay": 1
+				},
+				{
+					"chunk": "Fixed: the game over screen now opens when lives reach 0."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "c3",
+						"title": "mcp__godot__run_scene",
+						"kind": "execute",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://main.tscn",
+							"seconds": 3
+						},
+						"rawOutput": "ok"
+					}
+				},
+				{
+					"chunk": "I played the scene.\n```json\n{\"playtest\": {\"verdict\": \"pass\", \"summary\": \"The game over screen shows when lives reach 0\", \"evidence\": [\"scene game_over.tscn\"], \"repro\": [\"start the game\", \"touch the enemy\"]}}\n```"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

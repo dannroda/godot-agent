@@ -48,6 +48,18 @@ Lo que pasa después depende del agente:
 
 `/plan` lo resuelve el harness: nunca le llega al agente.
 
+#### Verificar los criterios jugando
+
+Si el plan tiene criterios de aceptación escritos como «WHEN …, THE GAME SHALL …» (o «CUANDO …, EL JUEGO DEBE …»), la tarjeta muestra **Verificar los criterios jugando (N)**, marcada por defecto, con una línea que dice que cada criterio es un playtest. Marcada, **Aprobar y construir** también arranca una corrida de verificación:
+
+- Después del turno que construye, cuando los scripts parsean y los checks del proyecto pasan, un agente juega una vez por criterio, un turno en Revisar cada uno, sin cambiar el proyecto. Cada playtest se ve en el chat como una línea atenuada del harness (**Plan · playtest de un criterio**).
+- Un criterio que pasa queda ✓, y su playtest se guarda como regresión, como cualquier otro.
+- Los criterios que fallan vuelven juntos al agente, con lo que vio cada playtest en un sobre de texto no confiable (**Plan · corregir los criterios que fallaron**). Después del arreglo se vuelven a jugar solo esos. Esto pasa hasta dos veces.
+- Un criterio que el playtest no pudo comprobar queda ⊘ y no se reintenta.
+- Si mandás un mensaje tuyo, la corrida termina.
+
+La tarjeta muestra el estado de cada criterio, con lo que vio el playtest en su tooltip. Un aviso final lo resume (por ejemplo **4 ✓ · 1 ✗ · 1 ⊘**), y el plan guardado suma una sección `## Verification` con el resultado. Una corrida juega hasta 6 criterios. El número, y si se verifica por defecto, se cambian en Settings → Servidores MCP → Avanzado (**Verificar jugando los criterios de aceptación de un plan**). Los que pasan el tope no se juegan; el aviso final ofrece **Verificar el resto**, que los juega sin turno de corrección. Si una receta con **Planificar primero** espera el plan, sus playtests y los criterios del plan van en la misma verificación.
+
 ### Verificación al terminar cada turno
 
 En Construir y Auto, al terminar un turno el harness valida los scripts `.gd` que cambiaron, los haya escrito el agente como sea. Si alguno no parsea, el agente recibe los errores en un turno nuevo para corregirlos, hasta dos turnos seguidos; después de eso, o si ya encolaste un mensaje, quedan como aviso en el chat. Se apaga en Settings → Servidores MCP (**Verificar los scripts al terminar cada turno**).

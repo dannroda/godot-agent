@@ -39,6 +39,18 @@ To get a plan before the agent touches anything, from any mode except One-shot, 
 
 `/plan` is handled by the harness and never reaches the agent.
 
+#### Verifying the criteria by playing
+
+When the plan has acceptance criteria written as "WHEN …, THE GAME SHALL …" (or "CUANDO …, EL JUEGO DEBE …"), the card shows **Verify the criteria by playing (N)**, checked by default, with a line saying that each criterion is one playtest. With it checked, **Approve and build** also starts a verification run:
+
+- After the build turn, once the scripts parse and the project checks pass, an agent plays the game once per criterion, one turn in Review each, without changing the project. Each playtest shows in the chat as a dimmed harness line (**Plan · playtest of a criterion**).
+- A criterion that passes is marked ✓, and its playtest is saved as a regression like any other.
+- The criteria that fail go back to the agent together, with what each playtest saw inside an untrusted-text envelope (**Plan · fix the criteria that failed**). After the fix, only those are played again. This happens up to two times.
+- A criterion the playtest couldn't check is marked ⊘ and isn't retried.
+- Sending your own message ends the run.
+
+The card shows each criterion's state, with what the playtest saw in its tooltip. A final notice sums it up (for example **4 ✓ · 1 ✗ · 1 ⊘**), and the saved plan gets a `## Verification` section with the result. A run plays up to 6 criteria. Change the number, or turn verification off by default, in Settings → MCP servers → Advanced (**Verify a plan's acceptance criteria by playing**). The criteria past the limit aren't played; the final notice offers **Verify the rest**, which plays them without a fix turn. If a recipe with **Plan first** is waiting for the plan, its playtests and the plan's criteria run in the same verification.
+
 ### Check after each turn
 
 In Build and Auto, when a turn ends the harness validates the `.gd` scripts that changed during it, whichever way the agent wrote them. If one doesn't parse, the agent gets the errors in a new turn to fix them, up to two turns in a row; after that, or if you already queued a message, they stay as a notice in the chat. Turn it off in Settings → MCP servers (**Check the scripts after each turn**).

@@ -861,6 +861,8 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_fix_review_findings(_controller.review.findings.duplicate())
 		AgentDock.ACTION_RUN_REGRESSIONS:
 			_run_regressions(int(payload) if payload is int else 1)
+		SessionController.ACTION_VERIFY_REST:
+			_controller.verify_rest(payload)
 		AgentDock.ACTION_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(false)
 		AgentDock.ACTION_MEASURE_REGRESSIONS:
@@ -1784,6 +1786,8 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	controller.mcp_servers_provider = _mcp_servers.bind(id, model)
 	controller.session_key = id
 	controller.path_rules_on = func() -> bool: return _project_config == null or _project_config.path_rules
+	controller.plan_criteria_settings = func() -> Dictionary:
+		return {} if _project_config == null else {"on": _project_config.verify_plan_criteria, "max": _project_config.verify_plan_criteria_max}
 	controller.context_paths_provider = EditorContext.current_script_paths
 	if copy:
 		# Sus archivos no son los del editor: sin locks ni verificación por res://, y snapshots propios.

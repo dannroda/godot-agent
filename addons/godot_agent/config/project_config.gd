@@ -52,6 +52,11 @@ const ShellRules := preload("../session/shell_rules.gd")
 ## de .agents/rules, .claude/rules o .cursor/rules, mandarla en el próximo prompt a un agente que no la
 ## carga solo. Ver core/path_rules.gd.
 @export var path_rules: bool = true
+## Verificar jugando los criterios de un plan aprobado (m11-23): un playtest por criterio «WHEN …, THE
+## GAME SHALL …», después de los checks del turno. La tarjeta del plan lo puede apagar para ese plan.
+@export var verify_plan_criteria: bool = true
+## Cuántos criterios juega una corrida como mucho; el resto queda para «Verificar el resto».
+@export_range(1, 30) var verify_plan_criteria_max: int = 6
 ## Checks del proyecto al terminar un turno de Construir o Auto con cambios (m11-31): regresiones o
 ## comandos (ver core/turn_checks.gd). Un comando corre solo si se aprobó en esta máquina.
 @export var turn_checks: Array = []

@@ -4,6 +4,8 @@ extends "entry_view.gd"
 ## markdown y «Aprobar y construir» · «Editar» · «Seguir planeando…». Editar cambia la vista por el
 ## texto con un contador +N −M en vivo; lo editado y el motivo vuelven al agente al terminar el turno.
 ## No vence. Contestada, queda plegada con el resultado y el plan a pedido.
+## Con criterios «WHEN …, THE GAME SHALL …» (m11-23), una casilla para verificarlos jugando al aprobar
+## (un playtest por criterio) y, después, el estado de cada uno con lo que vio el playtest.
 
 const PermissionRequest := preload("../../../session/permission_request.gd")
 const PlanApproval := preload("../../../session/plan_approval.gd")
@@ -28,6 +30,10 @@ var _send_edit: Button
 var _reason_row: HBoxContainer
 var _reason_edit: LineEdit
 var _result: Label
+var _verify_box: VBoxContainer
+var _verify_check: CheckBox
+var _verify_cost: Label
+var _criteria_box: VBoxContainer
 var _expanded: bool = false
 var _rendered_plan: String = ""
 var _focused_once: bool = false
@@ -112,6 +118,26 @@ func _build() -> void:
 	send_reason.pressed.connect(_on_send_reason)
 	_reason_row.add_child(send_reason)
 
+	_verify_box = VBoxContainer.new()
+	_verify_box.add_theme_constant_override(&"separation", 0)
+	column.add_child(_verify_box)
+	_verify_check = CheckBox.new()
+	_verify_check.name = "VerifyCriteria"
+	_verify_check.toggled.connect(func(on: bool) -> void:
+		if request().is_pending():
+			request().verify_criteria = 1 if on else 0
+			_refresh_cost())
+	_verify_box.add_child(_verify_check)
+	_verify_cost = Label.new()
+	_verify_cost.name = "VerifyCost"
+	_verify_cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_verify_cost.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_verify_box.add_child(_verify_cost)
+	_criteria_box = VBoxContainer.new()
+	_criteria_box.name = "CriteriaResults"
+	_criteria_box.add_theme_constant_override(&"separation", AgentTheme.px(2))
+	column.add_child(_criteria_box)
+
 	_buttons = HFlowContainer.new()
 	column.add_child(_buttons)
 	_approve = Button.new()
@@ -156,6 +182,79 @@ func request() -> PermissionRequest:
 	return entry.permission
 
 
+func _ready() -> void:
+	super()
+	if not request().changed.is_connected(refresh):
+		request().changed.connect(refresh)
+
+
+## Los criterios jugables del plan como se ve en la tarjeta.
+func criteria() -> PackedStringArray:
+	var req := request()
+	return PlanApproval.criteria(req.edited_plan if not req.edited_plan.is_empty() else req.plan_text)
+
+
+func _refresh_cost() -> void:
+	var count := criteria().size()
+	var limit := maxi(1, request().criteria_max)
+	var played := mini(count, limit)
+	var text := I18n.t("Each criterion is one playtest: after the build, an agent plays the game %d times.") % played if _verify_check.button_pressed else I18n.t("Each criterion would be one playtest after the build.")
+	if count > limit:
+		text += " " + I18n.t("Up to %d per plan (change it in Settings); the rest can be verified later.") % limit
+	else:
+		text += " " + I18n.t("Up to %d per plan; change it in Settings.") % limit
+	_verify_cost.text = text
+
+
+## Una línea por criterio verificado: marca, número y texto; lo que vio el playtest en el tooltip.
+func _refresh_criteria() -> void:
+	var results: Array = request().criteria_results
+	_criteria_box.visible = not results.is_empty()
+	while _criteria_box.get_child_count() < results.size():
+		var label := Label.new()
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.mouse_filter = Control.MOUSE_FILTER_PASS
+		_criteria_box.add_child(label)
+	var number := 0
+	for i: int in _criteria_box.get_child_count():
+		var label: Label = _criteria_box.get_child(i)
+		label.visible = i < results.size()
+		if not label.visible:
+			continue
+		var item: Dictionary = results[i]
+		var status := str(item.status)
+		var name := I18n.t(str(item.name))
+		if str(item.name).begins_with("Criterion "):
+			number += 1
+			name = I18n.t("Criterion %d") % number
+		var state := criterion_state(status)
+		label.text = "%s %s · %s%s" % [criterion_mark(status), name, item.goal, (" — " + state) if not state.is_empty() else ""]
+		label.add_theme_color_override(&"font_color", {"pass": AgentTheme.ADDED, "fail": AgentTheme.REMOVED, "retest": AgentTheme.REMOVED}.get(status, AgentTheme.MUTED))
+		var tip: PackedStringArray = []
+		if not str(item.summary).is_empty():
+			tip.append(str(item.summary))
+		for evidence: Variant in item.get("evidence", []):
+			tip.append("• " + str(evidence))
+		label.tooltip_text = "\n".join(tip)
+
+
+static func criterion_mark(status: String) -> String:
+	return {"pass": "✓", "fail": "✗", "retest": "✗", "pending": "…", "skipped": "·"}.get(status, "⊘")
+
+
+static func criterion_state(status: String) -> String:
+	match status:
+		"pending":
+			return I18n.t("waiting to be played")
+		"retest":
+			return I18n.t("failed, being fixed and played again")
+		"blocked":
+			return I18n.t("couldn't be tested")
+		"skipped":
+			return I18n.t("not played (over the limit)")
+	return ""
+
+
 func refresh() -> void:
 	var req := request()
 	var pending := req.is_pending()
@@ -166,6 +265,14 @@ func refresh() -> void:
 	if shown != _rendered_plan:
 		_rendered_plan = shown
 		_plan_label.text = markdown.convert(shown) if markdown else shown
+	var count := criteria().size()
+	_verify_box.visible = pending and count > 0
+	if _verify_box.visible:
+		_verify_check.text = I18n.t("Verify the criteria by playing (%d)") % count
+		_verify_check.set_pressed_no_signal(req.verify_criteria != 0)
+		_verify_check.tooltip_text = I18n.t("After the build, an agent plays the game once per acceptance criterion («WHEN …, THE GAME SHALL …»). What fails goes back to the agent to fix, and is played again.")
+		_refresh_cost()
+	_refresh_criteria()
 	if not pending:
 		_edit_box.visible = false
 		_reason_row.visible = false

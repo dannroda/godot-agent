@@ -4,6 +4,8 @@ extends RefCounted
 ## La UI lo resuelve eligiendo una opción; cancelar o el timeout lo resuelven como cancelado.
 
 signal resolved(outcome: Dictionary)
+## Cambió algo que la tarjeta muestra (los criterios verificados de un plan, m11-23).
+signal changed
 
 const KIND_ALLOW_ONCE := "allow_once"
 const KIND_ALLOW_ALWAYS := "allow_always"
@@ -44,6 +46,13 @@ var plan_approved: bool = false
 ## El plan vino en un bloque ```plan al final del turno (m11-58): la tarjeta es del harness y no
 ## contesta ningún pedido del agente.
 var from_block: bool = false
+## Si se verifican jugando los criterios del plan al aprobarlo (m11-23): la casilla de la tarjeta.
+## -1 = el usuario no la tocó y vale el setting del proyecto; 0 no; 1 sí.
+var verify_criteria: int = -1
+## Cuántos criterios juega una corrida (el setting), para que la tarjeta diga el costo.
+var criteria_max: int = 6
+## Lo que salió de verificar cada criterio: [{name, goal, status, summary, evidence}] (la tarjeta lo muestra).
+var criteria_results: Array = []
 
 
 func is_plan() -> bool:
