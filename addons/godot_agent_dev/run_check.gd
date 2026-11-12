@@ -18,7 +18,6 @@ const RUN_SCENE := "res://tests/fixtures/run_fixture.tscn"
 const BROKEN_SCENE := "res://tests/fixtures/run_broken.tscn"
 const QUITS_SCENE := "res://tests/fixtures/run_quits.tscn"
 const GAME_SCENE := "res://tests/fixtures/playtest_game/playtest_game.tscn"
-const VIEWS_SCENE := "res://tests/fixtures/camera_views.tscn"
 const PlaytestMemory := preload("res://addons/godot_agent/review/playtest_memory.gd")
 const FlipbookDialog := preload("res://addons/godot_agent/ui/flipbook_dialog.gd")
 const EditorWindows := preload("res://addons/godot_agent/ui/editor_windows.gd")
@@ -529,21 +528,6 @@ func _check_camera_views() -> void:
 	var too_many: Dictionary = await _call("capture_game_frame", {"angles": 9})
 	_expect(too_many.get("isError", false) and _text(too_many).contains("from 1 to 8"), "capture_game_frame angles fuera de rango → error")
 	await _call_text("stop_scene", {})
-
-
-## El color del centro de cada imagen de un resultado: "red", "green" u "other".
-func _center_colors(result: Dictionary) -> Array:
-	var colors: Array = []
-	for block: Dictionary in result.get("content", []):
-		if block.get("type") != "image":
-			continue
-		var image := Image.new()
-		if image.load_png_from_buffer(Marshalls.base64_to_raw(block.data)) != OK:
-			colors.append("corrupt")
-			continue
-		var pixel := image.get_pixel(image.get_width() / 2, image.get_height() / 2)
-		colors.append("red" if pixel.r > 0.9 and pixel.g < 0.1 and pixel.b < 0.1 else ("green" if pixel.g > 0.9 and pixel.r < 0.1 and pixel.b < 0.1 else "other %s" % pixel))
-	return colors
 
 
 func _frame_is_red(result: Dictionary) -> bool:

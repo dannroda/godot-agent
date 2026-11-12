@@ -1,5 +1,5 @@
 extends RefCounted
-## capture_game_frame desde otra cámara (m11-52): una cámara del juego elegida, una posición y un punto
+## capture_game_frame y capture_editor_viewport (m11-64) desde otra cámara (m11-52): una cámara del juego elegida, una posición y un punto
 ## (look_from/look_at), o varios ángulos alrededor de un punto. Renderiza en un SubViewport fuera de
 ## pantalla que comparte el mundo del juego, con una cámara temporal: la cámara del jugador no se mueve
 ## y el juego no se ve distinto. Ideas de screen_capture del MCP de Roblox Studio (cámara y objetivo) y
@@ -10,6 +10,8 @@ const ELEVATION_DEG := 30.0
 const MIN_DISTANCE := 4.0
 ## Distancia al centro, en radios del contenido, cuando no se pasa `distance`.
 const RADII := 2.5
+## Plazo para que se dibuje una vista.
+const DRAW_TIMEOUT_S := 10.0
 
 
 ## Si hay algo para elegir la vista: camera, look_from, look_at o angles.
@@ -28,6 +30,9 @@ static func plan(root: Node, viewport: Viewport, params: Dictionary) -> Dictiona
 		if not (source is Camera3D or source is Camera2D):
 			return {"error": "camera «%s» is not a Camera3D or Camera2D in the running scene (a node path from the scene root, or a name)." % path}
 	var three_d: bool = source is Camera3D if source else (viewport.get_camera_3d() != null or not root.find_children("*", "VisualInstance3D", true, false).is_empty())
+	# El editor dice cuál de sus vistas (capture_editor_viewport `which`, m11-64).
+	if source == null and params.get("view_3d") is bool:
+		three_d = params.view_3d
 	var look_from: Variant = _vector(params.get("look_from"), three_d)
 	var look_at: Variant = _vector(params.get("look_at"), three_d)
 	if params.has("look_from") and look_from == null or params.has("look_at") and look_at == null:
@@ -118,9 +123,11 @@ static func _vector(value: Variant, three_d: bool) -> Variant:
 	return Vector3(value[0], value[1], value[2]) if three_d else Vector2(value[0], value[1])
 
 
-## Renderiza las vistas de `plan` del tamaño del viewport del juego. [{label, png}] o {error}.
-static func render(host: Node, planned: Dictionary, max_side: int) -> Variant:
-	var viewport := host.get_viewport()
+## Renderiza las vistas de `plan` del tamaño de `viewport` (por defecto el del juego), con su mundo.
+## [{label, png}] o {error}.
+static func render(host: Node, planned: Dictionary, max_side: int, viewport: Viewport = null) -> Variant:
+	if viewport == null:
+		viewport = host.get_viewport()
 	var size := Vector2i(viewport.get_visible_rect().size)
 	var sub := SubViewport.new()
 	sub.size = size
@@ -130,6 +137,10 @@ static func render(host: Node, planned: Dictionary, max_side: int) -> Variant:
 	else:
 		sub.world_2d = viewport.find_world_2d()
 	host.add_child(sub)
+	# El editor duerme entre redibujos (low processor mode): sin esto frame_post_draw puede tardar
+	# hasta que algo más pida dibujar (m11-64, se colgaba en CI con 4.7.2). En el juego no cambia nada.
+	var low_processor := OS.low_processor_usage_mode
+	OS.low_processor_usage_mode = false
 	var shots: Array[Dictionary] = []
 	for view: Dictionary in planned.views:
 		var camera: Node = _camera(view, planned.three_d)
@@ -139,12 +150,17 @@ static func render(host: Node, planned: Dictionary, max_side: int) -> Variant:
 		else:
 			(camera as Camera2D).make_current()
 		sub.render_target_update_mode = SubViewport.UPDATE_ONCE
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
+		var drawn: bool = await _drawn(host.get_tree()) and await _drawn(host.get_tree())
+		if not drawn:
+			camera.queue_free()
+			sub.queue_free()
+			OS.low_processor_usage_mode = low_processor
+			return {"error": "The view did not render within %d s (is the window minimized?)." % int(DRAW_TIMEOUT_S)}
 		var image := sub.get_texture().get_image()
 		camera.queue_free()
 		if image == null or image.is_empty():
 			sub.queue_free()
+			OS.low_processor_usage_mode = low_processor
 			return {"error": "Could not read the rendered view."}
 		var longest := maxi(image.get_width(), image.get_height())
 		if max_side > 0 and longest > max_side:
@@ -152,7 +168,21 @@ static func render(host: Node, planned: Dictionary, max_side: int) -> Variant:
 			image.resize(maxi(1, roundi(image.get_width() * scale)), maxi(1, roundi(image.get_height() * scale)), Image.INTERPOLATE_BILINEAR)
 		shots.append({"label": view.label, "png": image.save_png_to_buffer()})
 	sub.queue_free()
+	OS.low_processor_usage_mode = low_processor
 	return shots
+
+
+## Espera a que termine de dibujarse un frame, con plazo: una ventana que no dibuja no cuelga la tool.
+static func _drawn(tree: SceneTree) -> bool:
+	var state := {"done": false}
+	var on_draw := func() -> void: state.done = true
+	RenderingServer.frame_post_draw.connect(on_draw, CONNECT_ONE_SHOT)
+	var deadline := Time.get_ticks_msec() + int(DRAW_TIMEOUT_S * 1000.0)
+	while not state.done and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	if RenderingServer.frame_post_draw.is_connected(on_draw):
+		RenderingServer.frame_post_draw.disconnect(on_draw)
+	return state.done
 
 
 ## La cámara temporal: copia lente y entorno de la de referencia (la elegida o la del juego).
