@@ -29,7 +29,7 @@ It works in GDScript and in C#. Godot .NET opens `.cs` files in its own Script E
 
 Multi-line suggestions show the first line in place and the rest in a box below. When two options are too close, nothing is shown.
 
-The project index builds in the background and leaves `addons/` out of the suggested lines.
+The project index builds in the background the first time you open a script in the Script Editor (not when the editor starts), and leaves `addons/` out of the suggested lines.
 
 ## Settings
 

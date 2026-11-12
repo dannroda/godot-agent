@@ -29,7 +29,7 @@ Anda en GDScript y en C#. Godot .NET abre los `.cs` en su propio Script Editor c
 
 Las sugerencias de varias líneas muestran la primera en el lugar y el resto en una caja debajo. Si dos opciones están demasiado cerca, no se muestra nada.
 
-El índice del proyecto se arma en segundo plano y deja `addons/` fuera de las líneas sugeridas.
+El índice del proyecto se arma en segundo plano la primera vez que abrís un script en el Script Editor (no al arrancar el editor), y deja `addons/` fuera de las líneas sugeridas.
 
 ## Settings
 

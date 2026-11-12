@@ -8,11 +8,13 @@ Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agen
 
 - leer escenas y scripts, la selección y los errores, y armarse un mapa ordenado de los archivos relacionados con lo que está haciendo;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
-- correr el juego con inputs simulados, por tiempo o por frame de física para que una prueba dé siempre lo mismo, y mirar capturas de frames (un clic en el chat la abre en grande);
-- verificar su propio trabajo: cada resultado de una tool trae los errores del editor que aparecieron desde la llamada anterior, hay validadores de física y de TileMaps, y un **Playtest** contesta si pasó, si falló o si no se pudo probar, con evidencia que el harness contrasta con lo que el agente hizo de verdad (y un video si querés). Un playtest que pasa deja una regresión que se puede repetir sin el agente (varias veces cada una, para encontrar las inestables), y un workflow de GitHub Actions generado las corre en cada push. Detectores dentro del juego avisan de transforms con NaN, cuerpos fuera del mundo, caídas sin fin, frames largos y un HUD por encima de su máximo, y el agente puede usar los menús del juego, jugar por turnos o correr un script adentro del juego para reaccionar en el mismo frame;
+- correr el juego con inputs simulados, por tiempo o por frame de física para que una prueba dé siempre lo mismo, en un dispositivo simulado (un teléfono, una Steam Deck, otro idioma) o como varias instancias a la vez para multijugador, y mirar capturas de frames, también desde otra cámara o ángulo (un clic en el chat la abre en grande);
+- hacer el bake de navegación, lightmaps y oclusores, y exportar con los presets del proyecto en un Godot headless aparte;
+- verificar su propio trabajo: cada resultado de una tool trae los errores del editor que aparecieron desde la llamada anterior, hay validadores de física y de TileMaps, y un **Playtest** contesta si pasó, si falló o si no se pudo probar, con evidencia que el harness contrasta con lo que el agente hizo de verdad (y un video si querés). Un playtest que pasa deja una regresión que se puede repetir sin el agente (varias veces cada una, para encontrar las inestables), con invariantes comprobados en cada frame y presupuestos de rendimiento; **Medir regresiones** dice cuántos bugs chicos atraparían, y un workflow de GitHub Actions generado las corre en cada push. Detectores dentro del juego avisan de transforms con NaN, cuerpos fuera del mundo, caídas sin fin, frames largos y un HUD por encima de su máximo, y el agente puede usar los menús del juego, jugar por turnos o correr un script adentro del juego para reaccionar en el mismo frame;
 - encontrar las funciones de GDScript más calientes de un run (llamadas, tiempos y si tienen tipos) para elegir qué optimizar y medir el cambio. Godot no les da esos datos a los plugins, así que se leen por una API interna del editor que una versión futura de Godot puede cambiar (la tool lo avisa). Además el profiler hace más lenta cada llamada, así que los tiempos sirven para comparar funciones entre sí. Para un juego lento por el render o la física, o que pierde nodos, mide en cambio el tiempo de frame, los draw calls, la física y los nodos huérfanos;
 - depurar el juego con el debugger de scripts: poner breakpoints, leer la pila y las variables donde paró, y avanzar paso a paso;
-- revisar código y dejar hallazgos en el Script Editor;
+- revisar código y dejar hallazgos en el Script Editor, y pedirle a otro agente una segunda opinión de solo lectura sobre un turno o un plan;
+- seguir la forma de trabajar de cada proyecto: modos del proyecto que limitan lo que el agente puede escribir, recetas, checks al terminar cada turno, hooks, reglas por archivo y herramientas propias en GDScript, todo compartido por git y aprobado en cada máquina antes de que corra nada;
 - trabajar en proyectos C# con Godot .NET: compila con `dotnet build` y recibe los errores por archivo y línea, crea scripts `.cs`, y el completado inline también anda en los `.cs`;
 - compilar, probar e instalar la GDExtension de un proyecto (godot-cpp o gdext): los builds nuevos se prueban en un Godot headless aparte, así un crash no tira el editor, y se cargan reiniciando el editor con un supervisor de crashes que vuelve atrás un build que se cae al arrancar. Probado en Linux; Windows y macOS todavía sin verificar;
 - usar los servidores MCP de otros programas (Blender, una base de datos…), configurados en Settings con sus propios permisos;
@@ -20,7 +22,7 @@ Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agen
 - manejar los plugins, marketplaces, servidores MCP y skills de Claude Code desde la ventana **Extensiones**, con skills de Godot a un clic, y compartir una skill con todos los agentes (Google Antigravity, Codex…) con un clic;
 - trabajar en varias sesiones a la vez, una por pestaña del dock, cada una con su agente y su cuenta: por ejemplo Claude Code con tu cuenta personal en una pestaña y la del trabajo en otra, o Google Antigravity al lado de Claude Code. Las sesiones no se pisan: un archivo que una está editando en su turno queda fuera del alcance de las demás, y el juego corre para una a la vez.
 
-Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construir que corre sin preguntar los comandos de shell que tus reglas permiten) y **One-shot**. El One-shot persigue un objetivo entero ("Pong de 2 jugadores con puntaje") con plan, presupuestos, checkpoints git y playtests.
+Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construir que corre sin preguntar los comandos de shell que tus reglas permiten) y **One-shot**, más los [modos del proyecto](docs/wiki/es/Modos-y-permisos.md#modos-del-proyecto) que defina cada proyecto. El One-shot persigue un objetivo entero ("Pong de 2 jugadores con puntaje") con plan, presupuestos, checkpoints git y playtests.
 
 - 100 % GDScript con tipos estáticos: sin GDExtension ni dependencias.
 - Solo vive en el editor: nada del addon llega a un juego exportado.
@@ -36,10 +38,10 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 
 - [Primeros pasos](docs/wiki/es/Primeros-pasos.md): instalar, iniciar sesión, primera conversación.
 - [Cómo funciona](docs/wiki/es/Como-funciona.md): el proceso del agente, ACP, el servidor MCP y cómo el editor se mantiene al día.
-- [Modos y permisos](docs/wiki/es/Modos-y-permisos.md)
-- [Herramientas del editor (MCP)](docs/wiki/es/Herramientas-del-editor.md)
+- [Modos y permisos](docs/wiki/es/Modos-y-permisos.md): los modos y los modos del proyecto, planes, checks, hooks, recetas, reglas por archivo, los cambios de un turno, la matriz de permisos.
+- [Herramientas del editor (MCP)](docs/wiki/es/Herramientas-del-editor.md): cada tool `godot.*` y las herramientas propias del proyecto.
 - [One-shot](docs/wiki/es/One-shot.md): plan, spec, presupuestos, checkpoints, cuota, cambio de cuenta, informe.
-- [Revisar](docs/wiki/es/Revisar.md)
+- [Revisar](docs/wiki/es/Revisar.md): hallazgos, playtests y regresiones.
 - [Completado inline](docs/wiki/es/Completado-inline.md), local o con un LLM.
 - [Settings y perfiles](docs/wiki/es/Settings.md): dónde se guarda cada cosa, perfiles de agentes, una cuenta por pestaña, export y actualizar.
 - [Problemas frecuentes](docs/wiki/es/Problemas-frecuentes.md): limitaciones conocidas por versión de Godot.

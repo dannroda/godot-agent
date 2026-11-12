@@ -2,20 +2,20 @@
 
 **English** · [Español](../es/Inicio.md)
 
-Godot Agent Harness puts a coding agent inside the Godot editor. The agent runs as a separate process (Claude Code, Google Antigravity, Codex…). Only Claude Code has been tested end to end, and only on Linux: Codex, Antigravity, macOS and Windows haven't been verified yet. GDScript and C# projects both work. The harness talks to it, shows the conversation in a dock, and gives it editor tools: it reads scenes, edits nodes with undo, runs the game and looks at frames. Every change goes through the editor and through a permission policy.
+Godot Agent Harness puts a coding agent inside the Godot editor. The agent runs as a separate process (Claude Code, Google Antigravity, Codex…). Claude Code is tested end to end and Google Antigravity with a real session walkthrough, both on Linux; Codex, macOS and Windows haven't been verified yet. GDScript and C# projects both work. The harness talks to it, shows the conversation in a dock, and gives it editor tools: it reads scenes, edits nodes with undo, runs the game and looks at frames. Every change goes through the editor and through a permission policy.
 
 ## Pages
 
 | Page | What it covers |
 |---|---|
-| [Getting started](Getting-started.md) | Install, sign in, the dock, your first prompts, the interface language. |
+| [Getting started](Getting-started.md) | Install from the release zip, sign in, the dock, your first prompts, the interface language. |
 | [How it works](How-it-works.md) | The pieces: agent process, ACP, MCP server, editor sync, sessions. |
-| [Modes and permissions](Modes-and-permissions.md) | Ask, Review, Build, Auto and One-shot, the permission matrix and Remote Control. |
-| [Editor tools](Editor-tools.md) | The `godot.*` tools the agent can call, and what each one does. |
+| [Modes and permissions](Modes-and-permissions.md) | Ask, Review, Build, Auto and One-shot, project modes, plans with playable criteria, the checks after each turn, hooks, recipes, rules by file, a turn's changes, the permission matrix, second opinion, messages between sessions and Remote Control. |
+| [Editor tools](Editor-tools.md) | The `godot.*` tools the agent can call, what each one does, and the project's own tools. |
 | [One-shot](One-shot.md) | Building a whole goal: spec, plan, budgets, checkpoints, quota, switching accounts, report. |
-| [Review](Review.md) | Code review with findings in the Script Editor. |
+| [Review](Review.md) | Code review with findings in the Script Editor, playtests, regressions and how well they catch bugs. |
 | [Inline completion](Inline-completion.md) | Grey suggestions while you type, local or with an LLM. |
-| [Settings](Settings.md) | Where every setting lives, agent profiles, export, updating the addon. |
+| [Settings](Settings.md) | Where every setting lives, agent profiles, one account per tab, other MCP servers, Extensions, export, updating the addon. |
 | [Troubleshooting](Troubleshooting.md) | Common problems and limitations by Godot version. |
 
 ## Ground rules
