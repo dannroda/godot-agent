@@ -355,7 +355,10 @@ func _check_follow(tree: SceneTree, main_plugin: Object, tabs: Control, first_mo
 	var follower: Node = main_plugin.get(&"_follower")
 	var bar: TabBar = tabs.get(&"_bar")
 	bar.current_tab = 1
-	second_dock.call(&"set_follow", true)
+	# Ctrl+Enter en el composer (m11-67): el dock prende el seguimiento para lo que se pide así.
+	(second_dock.get(&"_composer") as Object).emit_signal(&"follow_requested")
+	if not second_dock.get(&"follow_enabled") or not (second_dock.get(&"_follow_button") as Button).button_pressed:
+		failures.append("Ctrl+Enter: no prendió «Seguir al agente»")
 	follower.set(&"_last_outside_input_ms", -100000)
 	# El Script Editor se queda con el foco si al arrancar reabrió un script (depende del layout que
 	# dejó la corrida anterior en .godot/): con el foco en un texto, el seguimiento espera
@@ -393,6 +396,18 @@ func _check_follow(tree: SceneTree, main_plugin: Object, tabs: Control, first_mo
 		await tree.process_frame
 	if selected.call() != "FollowRoot":
 		failures.append("seguir: lo pendiente no saltó cuando el usuario paró (selección «%s»)" % selected.call())
+	# Terminado el turno pedido con Ctrl+Enter, sin nada en la cola, deja de seguir solo.
+	second_model.turn_finished.emit("end_turn")
+	await tree.process_frame
+	await tree.process_frame
+	if second_dock.get(&"follow_enabled"):
+		failures.append("Ctrl+Enter: el seguimiento no se apagó al terminar el turno")
+	second_dock.call(&"set_follow", true)
+	second_model.turn_finished.emit("end_turn")
+	await tree.process_frame
+	await tree.process_frame
+	if not second_dock.get(&"follow_enabled"):
+		failures.append("seguir: prendido a mano, se apagó al terminar un turno")
 	second_dock.call(&"set_follow", false)
 	second_model.tool_call_changed.emit(edit.call("Target"), null)
 	await tree.process_frame

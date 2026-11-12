@@ -156,6 +156,9 @@ var oneshot_active: Callable
 ## «Seguir al agente» (m11-33): el editor salta a lo que edita el agente de esta pestaña. Por pestaña,
 ## apagado al abrirla; lo lee el plugin, que solo sigue a la pestaña activa.
 var follow_enabled: bool = false
+## «Seguir al agente» lo prendió Ctrl+Enter (m11-67): se apaga solo cuando termina lo que se pidió así
+## (el turno y lo que quedó en la cola). Tocar la mira lo deja como el usuario lo puso.
+var _follow_until_done: bool = false
 var _follow_button: Button
 ## () -> Array[Dictionary]: el estado de las otras máquinas de D61 para el tooltip del encabezado
 ## (m13-29), cada una {"machine": nombre traducido, "label": estado traducido, "age": segundos}. El
@@ -330,6 +333,7 @@ func _ready() -> void:
 		options.append_array(_session_mention_options())
 		options.append_array(EditorContext.mention_options())
 		return options
+	_composer.follow_requested.connect(_on_follow_requested)
 	_composer.submitted.connect(_on_submitted)
 	_composer.plan_requested.connect(_on_plan_requested)
 	_composer.recipe_requested.connect(open_recipe_picker)
@@ -499,7 +503,9 @@ func _build_header() -> void:
 	if _follow_button.icon == null:
 		_follow_button.text = "◎"
 	_follow_button.tooltip_text = I18n.t("Follow the agent: the editor jumps to each script and node it edits. Only the active tab is followed, and never while you're typing or working in the editor: it waits until you stop.")
-	_follow_button.toggled.connect(set_follow)
+	_follow_button.toggled.connect(func(on: bool) -> void:
+		_follow_until_done = false
+		set_follow(on))
 	_history_button.get_parent().add_child(_follow_button)
 	_history_button.get_parent().move_child(_follow_button, _history_button.get_index())
 	_history_button.icon = AgentTheme.icon(&"History")
@@ -1496,6 +1502,8 @@ func _take_context_blocks() -> Array:
 ## Con end_turn sale el próximo de la cola; si el turno terminó de otra forma, la cola espera al
 ## usuario (lo que había pedido puede ya no tener sentido).
 func _on_turn_finished(stop_reason: String) -> void:
+	if _follow_until_done:
+		_stop_follow_when_done.call_deferred()
 	var interrupted := _interrupt_for_queue or _send_after_reject
 	_interrupt_for_queue = false
 	_send_after_reject = false
@@ -1507,6 +1515,22 @@ func _on_turn_finished(stop_reason: String) -> void:
 		_send_next_queued.call_deferred()
 	else:
 		_queue.pause(_pause_reason(stop_reason))
+
+
+## Ctrl+Enter: el pedido sale siguiendo al agente. Si ya se seguía, no cambia nada.
+func _on_follow_requested() -> void:
+	if follow_enabled:
+		return
+	set_follow(true)
+	_follow_until_done = true
+
+
+## Terminó un turno pedido con Ctrl+Enter: si no queda nada por salir de la cola, se deja de seguir.
+func _stop_follow_when_done() -> void:
+	if not _follow_until_done or _model.is_busy() or (not _queue.is_empty() and not _queue.paused):
+		return
+	_follow_until_done = false
+	set_follow(false)
 
 
 static func _pause_reason(stop_reason: String) -> String:

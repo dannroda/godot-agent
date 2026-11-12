@@ -1331,8 +1331,8 @@ msgstr "Selección: %s"
 msgid "Send"
 msgstr "Enviar"
 
-msgid "Send (Enter; Ctrl+Enter adds a new line)"
-msgstr "Enviar (Enter; Ctrl+Enter baja de línea)"
+msgid "Send (Enter). Ctrl+Enter sends and follows the agent; Shift+Enter adds a new line."
+msgstr "Enviar (Enter). Ctrl+Enter envía y sigue al agente; Shift+Enter baja de línea."
 
 msgid "Send now"
 msgstr "Enviar ahora"
