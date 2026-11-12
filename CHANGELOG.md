@@ -10,6 +10,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
+- **The main session's tab shows that it stays**: with more than one tab, the first one (which has no close button) shows a pin, and its tooltip says why: Review marks and Remote Control use it. To start over, use **+ → New session**.
 - Tested on Godot 4.8-beta3 (was 4.8-beta2), besides 4.7.2 and Godot .NET 4.7.2. 4.8-beta3 still prints the `list.h` error when saving with preview.
 
 ## [0.1.24] - 2026-11-12

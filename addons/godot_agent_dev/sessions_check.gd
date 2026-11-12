@@ -52,6 +52,15 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 				token = str(variable.value)
 	if token.is_empty() or token == server.get(&"token"):
 		failures.append("la segunda sesión no tiene token propio del server MCP: %s" % [entries])
+	# m12-50: con dos, la principal (sin X) lleva el pin del editor, de 16 px como mucho, y su tooltip.
+	if bar.get_tab_icon(0) == null or bar.get_tab_icon(0) != EditorInterface.get_editor_theme().get_icon(&"Pin", &"EditorIcons"):
+		failures.append("la pestaña principal no lleva el pin del editor")
+	elif bar.get_tab_icon_max_width(0) <= 0 or bar.get_tab_icon_max_width(0) > 16 * EditorInterface.get_editor_scale():
+		failures.append("el pin de la principal no está acotado: %d px" % bar.get_tab_icon_max_width(0))
+	if not bar.get_tab_tooltip(0).contains(I18n.t("Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session.")):
+		failures.append("la pestaña principal no dice que es fija: %s" % bar.get_tab_tooltip(0))
+	if bar.get_tab_icon(1) != null:
+		failures.append("la segunda pestaña lleva un ícono")
 	await _save_shot(tree, tabs, "%s_two_tabs.png" % prefix)
 
 	# Las dos en Auto: escribir archivos se permite sin tarjeta.
