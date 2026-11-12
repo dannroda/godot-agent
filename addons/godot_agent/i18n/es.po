@@ -5956,3 +5956,6 @@ msgstr "Se creó %s a partir de una plantilla. Ajustala y guardala."
 
 msgid "Save a valid recipe first."
 msgstr "Primero guardá una receta válida."
+
+msgid "Messages to other sessions"
+msgstr "Mensajes a otras sesiones"

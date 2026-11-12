@@ -25,6 +25,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 - A playtest stops when the agent is stuck in a loop: the same game calls (the same keys, the same capture, the same error) several times in a row with the game answering the same every time. On the third time the tool result tells the agent; on the fourth the harness ends the turn and the verdict is **could not test**, saying what the agent was repeating, with the calls and what the game answered as evidence.
 - **Export session…** in the dock's **⋯** menu saves the conversation as Markdown, with the game captures as PNG files next to it, in `.godot_agent/reports/<date>-session/`. Tool calls and diffs are folded. Before saving you see a preview and choose what to take out: absolute paths (the project's become relative and your home folder becomes `~`), email addresses, and content that came from the game, the project's scenes or the internet. Each option says how many it found. Secrets such as the MCP token are always removed.
 
+### Security
+
+- **Messages between sessions** (`godot.session_send`) could reach another tab without permission and as a plain prompt: an agent in Ask or Review (or one that had read planted text) could get a tab in Auto to act for it. Now each message asks for permission in its own **Messages to other sessions** group (Ask, denied in One-shot), reaches the other agent inside an untrusted envelope as data from that session, not as instructions, and a message to a session in a mode with more permissions is always denied, whatever the matrix says. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#messages-between-sessions).
+
 ### Fixed
 
 - Closing the editor or disabling the plugin now ends every process the harness started, with its children (like `node` under `npx`). A process whose owner was only freed during shutdown, such as an agent terminal or a hook command, could keep running.

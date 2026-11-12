@@ -116,3 +116,13 @@ func test_ask_without_profile() -> void:
 	assert_false(result.ok, "sin perfil no pregunta")
 	assert_true(str(result.error).contains("Settings › Agents › Second opinion"), "y dice dónde elegirlo")
 	assert_false(oracle.is_busy(), "no queda ocupado")
+
+
+func test_release_frees_the_session() -> void:
+	var controller := SessionController.new()
+	var model := SessionModel.new()
+	controller.setup(model, AgentLog.new(), "/tmp/project")
+	var oracle := SecondOpinion.new(controller, model)
+	oracle.release()  # sin proceso: no hace nada y no falla
+	assert_false(oracle.is_busy(), "libre")
+	assert_false(controller.is_connected_to_agent(), "sin proceso")

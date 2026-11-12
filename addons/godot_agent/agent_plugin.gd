@@ -812,6 +812,10 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			if _second_opinion:
 				_second_opinion.cancel()
 		SessionController.ACTION_SECOND_OPINION_OPEN:
+			# Sin dos procesos con la misma sesión: el oráculo la suelta antes de que la abra una pestaña;
+			# la próxima pregunta arranca otra.
+			if _second_opinion:
+				_second_opinion.release()
 			_open_elsewhere(str(payload.get("session", PRIMARY_SESSION)), str(payload.get("session_id", "")))
 		SessionController.ACTION_TURN_RESTORE:
 			_turn_changes.confirm_restore(payload)
@@ -2268,7 +2272,9 @@ func _models() -> Array[SessionModel]:
 ## en cola) y los archivos que otra está editando, fuera de alcance.
 ## Una sesión en una copia aparte (m11-09) no puede usar las tools que editan o corren el proyecto
 ## del editor: se rechazan antes de pedir permiso.
-func _precheck_tool(mcp_caller: String, tool_name: String) -> String:
+func _precheck_tool(mcp_caller: String, tool_name: String, args: Dictionary = {}) -> String:
+	if tool_name == "session_send":
+		return _message_refusal(_session_of(mcp_caller), str(args.get("to", "")).strip_edges())
 	var copy: WorktreeSession = _extra_sessions.get(_session_of(mcp_caller), {}).get("copy")
 	if copy and (_registry.group_of(tool_name) != PermissionPolicy.GROUP_READ or tool_name in RunTools.GAME_TOOLS):
 		return "You work in a separate copy at %s: godot.%s acts on the project open in the editor, not on your copy. Edit the files in your copy and check them with Godot headless (\"$GODOT\" --headless --path %s --quit)." % [copy.info.project, tool_name, copy.info.project]
@@ -2305,9 +2311,10 @@ func _describe_sessions(caller: String) -> String:
 	return _coordinator.describe(caller, _model_of)
 
 
-func _send_to_session(caller: String, to: String, message: String) -> String:
-	# El oráculo lee el proyecto (texto que puede traer instrucciones plantadas) y session_send es del
-	# grupo read: sin esto le escribiría al agente de una pestaña sin sobre ni permiso (m11-28).
+## Por qué no puede salir un mensaje de `caller` a la sesión `to`, o "". Lo mira el precheck (antes de
+## la tarjeta) y otra vez la entrega: el destino pudo pasar a Auto mientras la tarjeta esperaba.
+func _message_refusal(caller: String, to: String) -> String:
+	# El oráculo lee el proyecto (texto que puede traer instrucciones plantadas): no le escribe a nadie (m11-28).
 	if caller == SecondOpinion.SESSION_ID:
 		return "The second opinion is read only: it can't send messages to other sessions."
 	if _coordinator == null:
@@ -2315,8 +2322,22 @@ func _send_to_session(caller: String, to: String, message: String) -> String:
 	var target := _coordinator.find_by_label(to, caller)
 	if target.is_empty():
 		return "There is no other session called «%s»: godot.sessions lists them." % to
+	var from_model := _model_of(caller)
+	var to_model := _model_of(target)
+	if from_model == null or to_model == null:
+		return ""
+	return SessionTools.escalation_error(from_model.harness_mode, to_model.harness_mode, _coordinator.label(target), SessionModel.HARNESS_MODE_LABELS)
+
+
+func _send_to_session(caller: String, to: String, message: String) -> String:
+	var refusal := _message_refusal(caller, to)
+	if not refusal.is_empty():
+		if refusal.contains("always denied"):
+			_log.add(AgentLog.CH_PERM, "message %s → %s denied: the target's mode has more permissions" % [_coordinator.label(caller), to])
+		return refusal
+	var target := _coordinator.find_by_label(to, caller)
 	var dock: Control = _tabs.dock(target) if _tabs else null
-	var text := "[Message from «%s», another agent session open in this editor]\n%s" % [_coordinator.label(caller), message]
+	var text := SessionTools.delivery_text(_coordinator.label(caller), message)
 	if dock == null or not dock.call(&"deliver_message", text):
 		return "«%s» is not connected to its agent: the message was not delivered." % to
 	_model_of(target).add_notice(I18n.t("Message from «%s»: %s") % [_coordinator.label(caller), message.left(200)])

@@ -144,9 +144,12 @@ Valores por defecto:
 | Instalar desde el Asset Store | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Herramientas del proyecto | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Segunda opinión | Preguntar | Preguntar | Preguntar | Preguntar | Denegar |
+| Mensajes a otras sesiones | Preguntar | Preguntar | Preguntar | Preguntar² | Denegar |
 | Subagentes | Permitir | Permitir | Permitir | Permitir | Permitir |
 
 ¹ En Auto, primero deciden las [listas del modo Auto](#modo-auto); solo lo que no permiten muestra una tarjeta.
+
+² Diga lo que diga la matriz, un mensaje a una sesión en un modo con más permisos se deniega siempre: ver [Mensajes entre sesiones](#mensajes-entre-sesiones).
 
 ### Subagentes
 
@@ -155,6 +158,12 @@ Con Claude Code, lanzar un subagente (su tool **Agent**) pasa por el grupo **Sub
 - **Subagentes a la vez**, en la matriz de **Ajustes → Permisos**, limita cuántos corren al mismo tiempo en cada modo (0 = sin límite). Uno más se rechaza con un aviso en el chat, y al agente se le dice por qué.
 - La tarjeta de un subagente en el chat muestra su prompt, las tools que corre y lo que va escribiendo, y al final su informe. Uno que corre en segundo plano sigue en curso hasta que termina, aunque ya haya terminado el tool call que lo lanzó.
 - Mientras el agente trabaja, el chip del agente en el header cuenta los subagentes en curso; su tooltip los lista.
+
+### Mensajes entre sesiones
+
+Con varias pestañas abiertas, un agente le puede dejar un mensaje a otro con `godot.session_send`. Pasa por el grupo **Mensajes a otras sesiones**: **Preguntar** en todos los modos, denegado en One-shot. El mensaje le llega al otro agente cuando termina su turno, en un sobre no confiable con el nombre de la sesión que lo mandó, como datos y no como instrucciones: quien lo manda pudo leer texto plantado en el proyecto, el juego o internet.
+
+Un mensaje hacia un modo con más permisos se deniega siempre, diga lo que diga la matriz o un permiso concedido para la sesión: de Preguntar o Revisar a Construir, Auto o One-shot, y de Construir a Auto o One-shot. Si no, un agente que no puede editar le haría editar a otra pestaña. Al agente se le dice por qué, y no sale ninguna tarjeta. Preguntar y Revisar cuentan como el mismo nivel, igual que Auto y One-shot.
 
 ### Segunda opinión
 

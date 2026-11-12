@@ -155,6 +155,14 @@ func _run() -> void:
 	_expect(str(asking.get(&"text")) == I18n.t("The second opinion was cancelled."), "dice que se canceló · %s" % asking.get(&"text"))
 	_expect(not _plugin.get(&"_second_opinion").call(&"is_busy"), "el oráculo quedó libre")
 
+	# 6. «Open the conversation» primero suelta la sesión: el proceso del oráculo se para (sin dos
+	# procesos con la misma sesión) y la próxima pregunta arranca otra.
+	var oracle: Object = _plugin.get(&"_second_opinion")
+	var oracle_controller: Object = oracle.get(&"controller")
+	_expect(oracle_controller.call(&"is_connected_to_agent"), "antes de abrirla, el oráculo sigue conectado")
+	oracle.call(&"release")
+	await _until(func() -> bool: return not oracle_controller.call(&"is_connected_to_agent"), "release no paró el proceso del oráculo")
+
 
 func _profile(id: String, label: String, scenario: String) -> AgentProfile:
 	return AgentProfile.from_dict({

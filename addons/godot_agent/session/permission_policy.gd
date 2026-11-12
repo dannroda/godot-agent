@@ -29,6 +29,8 @@ const GROUP_SUBAGENTS := "subagents"
 const GROUP_PROJECT_TOOLS := "project_tools"
 ## godot.ask_second_opinion (m11-28): gasta la cuota de otro agente.
 const GROUP_SECOND_OPINION := "second_opinion"
+## godot.session_send: un prompt a otra pestaña, que puede estar en un modo con más permisos.
+const GROUP_SESSIONS_MESSAGE := "sessions_message"
 ## Sin grupo conocido: siempre se pregunta (spec §7, "el resto → ask").
 const GROUP_OTHER := "other"
 ## Un grupo por MCP server de terceros (m7-35): `mcp:blender`. Sin override, ask en todos los modos.
@@ -36,7 +38,7 @@ const GROUP_MCP_PREFIX := "mcp:"
 
 const GROUPS: PackedStringArray = [
 	GROUP_READ, GROUP_DIAGNOSTICS, GROUP_EDIT_SCENE, GROUP_EDIT_FILES, GROUP_RUN, GROUP_SHELL, GROUP_PROJECT, GROUP_ADDONS,
-	GROUP_PROJECT_TOOLS, GROUP_SECOND_OPINION, GROUP_SUBAGENTS,
+	GROUP_PROJECT_TOOLS, GROUP_SECOND_OPINION, GROUP_SESSIONS_MESSAGE, GROUP_SUBAGENTS,
 ]
 const GROUP_LABELS: Dictionary = {
 	GROUP_READ: "Read",  # i18n
@@ -49,6 +51,7 @@ const GROUP_LABELS: Dictionary = {
 	GROUP_ADDONS: "Install from the Asset Store",  # i18n
 	GROUP_PROJECT_TOOLS: "Project tools",  # i18n
 	GROUP_SECOND_OPINION: "Second opinion",  # i18n
+	GROUP_SESSIONS_MESSAGE: "Messages to other sessions",  # i18n
 	GROUP_SUBAGENTS: "Subagents",  # i18n
 	GROUP_OTHER: "Other",  # i18n
 }
@@ -77,6 +80,10 @@ const DEFAULTS: Dictionary = {
 	GROUP_PROJECT_TOOLS: [DENY, DENY, ASK, ASK, ASK],
 	# Gasta la cuota de otro agente (m11-28): pregunta en todos los modos; el One-shot tiene su evaluador.
 	GROUP_SECOND_OPINION: [ASK, ASK, ASK, DENY, ASK],
+	# Un mensaje le llega como prompt a otra pestaña: sin preguntar, un agente (o un texto plantado que
+	# leyó) haría actuar a otra sesión con sus permisos. Además, nunca hacia un modo con más permisos
+	# (message_escalates), sea cual sea la matriz.
+	GROUP_SESSIONS_MESSAGE: [ASK, ASK, ASK, DENY, ASK],
 	# Como antes de m7-43: Claude Code los lanzaba sin preguntar.
 	GROUP_SUBAGENTS: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
 }
@@ -90,6 +97,16 @@ const KIND_GROUPS: Dictionary = {
 	"delete": GROUP_EDIT_FILES,
 	"move": GROUP_EDIT_FILES,
 	"execute": GROUP_SHELL,
+}
+
+## Cuánto puede hacer un modo sin preguntar, para los mensajes entre sesiones: Preguntar y Revisar no
+## editan (0), Construir edita preguntando (1), Auto y One-shot editan solos (2).
+const MODE_RANKS: Dictionary = {
+	SessionModel.HarnessMode.ASK: 0,
+	SessionModel.HarnessMode.REVIEW: 0,
+	SessionModel.HarnessMode.BUILD: 1,
+	SessionModel.HarnessMode.ONESHOT: 2,
+	SessionModel.HarnessMode.AUTO: 2,
 }
 
 ## Overrides por proyecto: grupo -> { mode_key -> decisión }.
@@ -189,3 +206,9 @@ static func group_label(group: String) -> String:
 static func is_godot_mcp_tool(tool_call: Dictionary) -> bool:
 	var title := str(tool_call.get("title", ""))
 	return title.begins_with("mcp__godot__") or title.begins_with("godot.")
+
+
+## Un mensaje de una sesión en `from_mode` a otra en `to_mode` le daría más permisos de los que tiene
+## (Preguntar → Auto): se deniega siempre, sin importar la matriz ni lo concedido en la sesión.
+static func message_escalates(from_mode: int, to_mode: int) -> bool:
+	return int(MODE_RANKS.get(to_mode, 2)) > int(MODE_RANKS.get(from_mode, 0))

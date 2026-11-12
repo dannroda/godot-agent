@@ -58,7 +58,7 @@ Every session is saved in `user://godot_agent/sessions/` once per turn, without 
 
 - **Files**: a file one session writes in its turn (with the agent's own edit tools or with the `godot.*` tools) is off limits to the others until that turn ends. Another session that tries is rejected, with the name of the session that holds it.
 - **The game**: the session that ran the game keeps it until it stops. Another session's `run_scene` waits in line (up to a minute and a half), and the `godot.game_*` tools can't touch a game that isn't theirs.
-- **A channel between them**: `godot.sessions` shows each agent the other sessions, what they're doing, the files they hold and who has the game. `godot.session_send` leaves a message for another session, which reaches its agent as a prompt when its turn ends.
+- **A channel between them**: `godot.sessions` shows each agent the other sessions, what they're doing, the files they hold and who has the game. `godot.session_send` leaves a message for another session, which reaches its agent when its turn ends, as data and not as instructions; you approve each one, and never toward a session with more permissions.
 
 The first tab is the one that runs One-shot, Review annotations and Remote Control; the others have the Ask, Review, Build and Auto modes. Closing a tab ends its session.
 

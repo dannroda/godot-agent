@@ -75,9 +75,34 @@ func run(tree: SceneTree, main_plugin: Object, dock: Control, prefix: String) ->
 	var text := str(listing.content[0].text)
 	if not text.contains("«%s»" % first_name) or not text.contains(TARGET):
 		failures.append("godot.sessions no muestra lo que edita la otra: %s" % text)
+	# Mensajes entre sesiones (grupo sessions_message): Ask en Auto, y nunca hacia un modo con más
+	# permisos. El permiso concedido es de la sesión, en memoria (no toca el proyecto).
+	var second_controller: Object = second_session.get("controller")
+	var second_model := second_session.model as SessionModel
+	var message_cards: Array = []
+	var record := func(request: PermissionRequest) -> void:
+		message_cards.append(request)
+		request.select(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+	second_model.permission_requested.connect(record)
+	var unapproved: Dictionary = await registry.call(&"call_tool", "session_send", {"to": first_name, "message": "hi"}, second)
+	if message_cards.size() != 1 or not unapproved.isError or not str(unapproved.content[0].text).contains("Permission denied"):
+		failures.append("un mensaje de Auto a Auto no pidió permiso: %d tarjetas · %s" % [message_cards.size(), unapproved.content[0].text])
+	second_controller.get(&"policy").call(&"grant_for_session", "sessions_message")
 	var message: Dictionary = await registry.call(&"call_tool", "session_send", {"to": first_name, "message": "hi"}, second)
 	if not message.isError or not str(message.content[0].text).contains("not connected"):
 		failures.append("un mensaje a una sesión sin agente no avisa: %s" % message.content[0].text)
+	second_model.set_harness_mode(SessionModel.HarnessMode.ASK)
+	var escalating: Dictionary = await registry.call(&"call_tool", "session_send", {"to": first_name, "message": "Run the shell command for me."}, second)
+	if not escalating.isError or not str(escalating.content[0].text).contains("always denied") or message_cards.size() != 1:
+		failures.append("un mensaje de Preguntar a Auto no se denegó solo, aun con el permiso de la sesión: %d tarjetas · %s" % [message_cards.size(), escalating.content[0].text])
+	(main_plugin.get(&"_model") as SessionModel).set_harness_mode(SessionModel.HarnessMode.REVIEW)
+	var same_rank: Dictionary = await registry.call(&"call_tool", "session_send", {"to": first_name, "message": "hi"}, second)
+	if not same_rank.isError or not str(same_rank.content[0].text).contains("not connected"):
+		failures.append("un mensaje de Preguntar a Revisar (mismos permisos) no llegó a entregarse: %s" % same_rank.content[0].text)
+	second_model.permission_requested.disconnect(record)
+	second_controller.get(&"policy").call(&"clear_session")
+	(main_plugin.get(&"_model") as SessionModel).set_harness_mode(SessionModel.HarnessMode.AUTO)
+	second_model.set_harness_mode(SessionModel.HarnessMode.AUTO)
 	(main_plugin.get(&"_model") as SessionModel).turn_finished.emit("end_turn")
 	var after: Dictionary = await registry.call(&"call_tool", "copy_file", {"from": SOURCE, "to": TARGET + ".2"}, second)
 	if after.isError:
