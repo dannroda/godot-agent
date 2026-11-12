@@ -129,6 +129,11 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run hooks ~/godot/godot
 
+      # Los trozos del último turno con ✓ y ✗ en el Script Editor, con snapshots de git (m11-66).
+      - name: Editor check (turn-marks)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run turn-marks ~/godot/godot
+
       # Segunda opinión de otro agente, de solo lectura, con dos agentes falsos (m11-28).
       - name: Editor check (second-opinion)
         if: ${{ !cancelled() && matrix.group == 'editor' }}
