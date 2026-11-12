@@ -22,6 +22,8 @@ var buffer_reader: Callable
 var write_authorizer: Callable
 ## Callable(abs_path: String, old_text: String, new_text: String) -> void, tras escribir a disco.
 var after_write: Callable
+## Se escribió un archivo del agente (después de after_write): el controller marca su edición (m18-04).
+signal written(path: String)
 
 
 func setup(root: String, log_sink: AgentLog) -> void:
@@ -81,6 +83,7 @@ func write_text_file(params: Dictionary) -> Variant:
 	_log("write %s (%d characters)" % [_short(path), new_text.length()])
 	if after_write.is_valid():
 		after_write.call(path, old_text, new_text)
+	written.emit(path)
 	return {}
 
 

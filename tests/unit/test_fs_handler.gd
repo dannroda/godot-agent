@@ -35,6 +35,11 @@ func test_write_read_and_buffer() -> void:
 	var result: Variant = await fs.write_text_file({"path": path, "content": "uno\ndos\ntres\n"})
 	assert_eq(result, {}, "write ok")
 	assert_eq(written.size(), 1, "after_write llamado")
+	var signalled: Array[String] = []
+	fs.written.connect(func(p: String) -> void: signalled.append(p))
+	await fs.write_text_file({"path": path, "content": "uno\ndos\ntres\n"})
+	assert_eq(signalled, [path], "written avisa la ruta escrita (m18-04)")
+	written.clear()
 	assert_eq(fs.read_text_file({"path": path}), {"content": "uno\ndos\ntres\n"}, "lee todo")
 	assert_eq(fs.read_text_file({"path": path, "line": 2, "limit": 2}), {"content": "dos\ntres"}, "line + limit")
 	fs.buffer_reader = func(_p: String) -> Variant: return "buffer sin guardar"
@@ -45,7 +50,10 @@ func test_write_denied() -> void:
 	var root := ProjectSettings.globalize_path(temp_dir("fs_denied"))
 	var fs := _handler(root)
 	fs.write_authorizer = func(_p: String, _o: String, _n: String) -> bool: return false
+	var signalled: Array[String] = []
+	fs.written.connect(func(p: String) -> void: signalled.append(p))
 	var result: Variant = await fs.write_text_file({"path": root + "/b.gd", "content": "x"})
+	assert_eq(signalled.size(), 0, "sin written si se denegó")
 	assert_true(result is AcpClient.AcpResponse and not result.ok, "denegado")
 	assert_false(FileAccess.file_exists(root + "/b.gd"), "no se escribió")
 

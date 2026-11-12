@@ -144,6 +144,25 @@ func entries() -> Array[ChatEntry]:
 	return _entries
 
 
+## El harness escribió `path` por fs/write_text_file (m18-04): la edición sin terminar más reciente que
+## lo toca queda marcada como aplicada, y un «failed» posterior del agente no la muestra fallida.
+## Devuelve esa llamada, o null.
+func mark_write_applied(path: String) -> ToolCall:
+	var ids := _tool_calls.keys()
+	ids.reverse()
+	var target := path.simplify_path()
+	for id: Variant in ids:
+		var call: ToolCall = _tool_calls[id]
+		if call.is_finished() or not call.write_applied.is_empty():
+			continue
+		for touched: String in call.touched_paths():
+			if touched.simplify_path() == target:
+				call.write_applied = target
+				_emit_tool_call_changed(call)
+				return call
+	return null
+
+
 func tool_call(id: String) -> ToolCall:
 	return _tool_calls.get(id)
 

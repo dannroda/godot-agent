@@ -20,6 +20,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Fixed
 
 - **Antigravity**: the plugin's own tools (`godot.run_scene`, `godot.add_node`…) no longer ask for a second permission. Antigravity names them `godot_run_scene`, and the dock didn't recognize them as its own: each one showed an extra card under Other, and a playtest stopped until someone answered it. They also show as `godot.run_scene` in the chat now, and tools from other MCP servers fall in their server's permission group, as with Claude Code.
+- **Antigravity**: an edit you allowed no longer shows as failed when you deny the next one in the same turn. Antigravity then reports the edit it already applied as failed too ("denied by pre-tool hook"), even though the file was written. Now an edit whose file the dock already wrote stays completed, with a note that says what the agent reported.
 
 ## [0.1.22] - 2026-11-12
 
