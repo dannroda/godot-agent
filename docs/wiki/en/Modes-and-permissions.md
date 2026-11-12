@@ -51,6 +51,10 @@ The **Modes** tab of [Extensions](Settings.md#extensions) lists the project's mo
 
 In [One-shot](One-shot.md#starting-a-run), a project mode can be picked for the builder. Nobody answers cards in a run, so what the mode would make ask (shell commands, project tools, other MCP servers) is denied instead, and the report lists each denial. The `godot.*` tools that verify the game (running scenes, playtests, captures) keep working.
 
+#### The agent asks to switch modes
+
+When the task needs another mode (you're in Ask and ask for a change, or a project mode fits better), the agent can propose the switch with `godot.request_mode`. A card shows where it would go, from which mode, what the target edits and the agent's reason, with **Switch to …** and **Stay in …**. It shows in every mode, Auto included, and has no "always": nothing switches by itself. If the target can do more without asking (Ask → Build, Build → Auto, a project mode that limits files → a mode that doesn't, a mode without shell → one with it), the card says so with ⚠ **More permissions**. On **Switch**, the agent gets the new mode's rules in the same turn. In One-shot it is denied, since nobody answers cards in a run, and the second opinion can't use it. The system prompt lists the fixed modes and the project's modes with their "when to use" line.
+
 ### Approving the agent's plan
 
 In Ask or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:

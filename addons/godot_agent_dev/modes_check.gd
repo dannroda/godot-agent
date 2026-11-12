@@ -10,6 +10,8 @@ extends RefCounted
 ##    falla con el motivo; godot.asset_install (no dice qué escribe) se rechaza; `ls` (en la allowlist de
 ##    Auto) pregunta igual, sin «siempre» ni regla.
 ## 3. Elegir Construir en el selector saca la capa.
+## 3b. godot.request_mode (m11-68), segundo turno: desde Construir pide Auto (tarjeta con el aviso de
+##    más permisos, aunque sea read; se acepta y pasa a Auto) y después Revisar (se queda en Auto).
 ## 4. Extensiones › Modes lista los dos (el roto con sus problemas) y «Use» pone el modo en el dock.
 ## 5. One-shot: el selector «Builder's project mode» ofrece Levels y, elegido, avisa en una línea qué
 ##    queda negado (shell, project tools, MCP de terceros).
@@ -44,6 +46,7 @@ func run(tree: SceneTree, plugin: Object, dock: Control, shot_path: String) -> A
 	dock.set(&"modes_dir", WORK_DIR + "/modes")
 	dock.call(&"load_project_modes")
 	await _check(dock, controller, shot_path)
+	await _check_request_mode(dock)
 	if plugin:
 		_check_extensions(plugin)
 		_check_oneshot(plugin)
@@ -119,6 +122,50 @@ func _check(dock: Control, controller: Object, shot_path: String) -> void:
 	# 3. Un modo fijo saca la capa.
 	composer.call(&"choose_mode", SessionModel.HarnessMode.BUILD)
 	_expect(_model.project_mode.is_empty() and _model.harness_mode == SessionModel.HarnessMode.BUILD, "elegir Construir saca el modo del proyecto")
+
+
+func _check_request_mode(dock: Control) -> void:
+	_model.set_project_mode({})
+	_model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+	dock.call(&"_on_submitted", "Fix the level scripts.")
+	var request := await _next_card()
+	_expect(request != null and request.title == "Switch to Auto", "request_mode muestra la tarjeta · %s" % (request.title if request else "sin tarjeta"))
+	if request == null:
+		return
+	_expect(request.description.contains("From Build to Auto.") and request.description.contains("More permissions") and request.description.contains("Many small edits"), "con de dónde a dónde, el aviso y el porqué · %s" % request.description)
+	_expect(request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS]).is_empty(), "sin «siempre»")
+	request.select("switch")
+	request = await _next_card()
+	_expect(_model.harness_mode == SessionModel.HarnessMode.AUTO, "aceptada, pasa a Auto")
+	_expect(request != null and request.title == "Switch to Review", "la segunda pide Revisar, también con tarjeta en Auto")
+	if request:
+		_expect(not request.description.contains("More permissions"), "Revisar tiene menos: sin aviso")
+		request.select("stay")
+	var deadline := Time.get_ticks_msec() + WAIT_MS
+	while _model.is_busy() and Time.get_ticks_msec() < deadline:
+		await _tree.process_frame
+	_expect(_model.harness_mode == SessionModel.HarnessMode.AUTO, "«Quedarse» deja Auto")
+	var results: Array = []
+	for index in range(1, 12):
+		var call: Object = _model.tool_call("mcp-%d" % index)
+		var raw := str(call.raw_output) if call else ""
+		if raw.contains("switched this session to Auto") or raw.contains("chose to stay in Auto"):
+			results.append(raw)
+	_expect(results.size() == 2, "el agente recibe las dos respuestas · %d" % results.size())
+	_model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+
+
+## La próxima tarjeta pendiente (o null si el turno termina antes).
+func _next_card() -> PermissionRequest:
+	var deadline := Time.get_ticks_msec() + WAIT_MS
+	while Time.get_ticks_msec() < deadline:
+		for pending: PermissionRequest in _model.pending_permissions:
+			if pending.is_pending():
+				return pending
+		if not _model.is_busy():
+			return null
+		await _tree.process_frame
+	return null
 
 
 func _check_extensions(plugin: Object) -> void:

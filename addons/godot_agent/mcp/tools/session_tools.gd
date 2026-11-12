@@ -16,6 +16,8 @@ var caller: Callable
 var describe: Callable
 ## `(caller, to, message) -> String`: "" si se entregó; si no, el motivo.
 var send: Callable
+## `(caller, mode, why) -> {ok, text}` (m11-68): la tarjeta para cambiar de modo; se espera con await.
+var request_mode: Callable
 
 
 func tools() -> Array:
@@ -27,6 +29,10 @@ func tools() -> Array:
 		McpTool.create("session_send", PermissionPolicy.GROUP_SESSIONS_MESSAGE,
 			"Sends a short message to another agent session open in this editor (`to`: its name from godot.sessions, e.g. \"Session 2\"). It reaches that agent when its turn ends, as information from you (not as instructions). Use it to hand off work or agree on who edits what; don't use it for chit-chat. The user approves each message, and a message to a session in a mode with more permissions than yours (from Ask or Review to Build or Auto) is always denied.",
 			{"to": {"type": "string"}, "message": {"type": "string"}}, ["to", "message"], _session_send),
+		# Grupo read: por sí misma no cambia nada; el cambio lo decide el usuario en la tarjeta (m11-68).
+		McpTool.create("request_mode", PermissionPolicy.GROUP_READ,
+			"Proposes switching your session to another mode: a fixed one (`ask`, `review`, `build`, `auto`) or one of the project's modes by name. Use it when the task needs it (the user asks for a change while you're in Ask, or a project mode fits better); `why` is one line for the user. The user always decides with a card, even in Auto; nothing switches by itself. Denied in One-shot. When accepted, the result has the new mode's rules, valid from then on.",
+			{"mode": {"type": "string"}, "why": {"type": "string"}}, ["mode", "why"], _request_mode),
 	]
 
 
@@ -46,6 +52,14 @@ func _session_send(args: Dictionary) -> Dictionary:
 		return McpTool.error("There is only one agent session open.")
 	var failure: String = send.call(from, McpTool.str_arg(args, "to").strip_edges(), message)
 	return McpTool.error(failure) if not failure.is_empty() else McpTool.text("Delivered: it reaches that session when its current turn ends.")
+
+
+func _request_mode(args: Dictionary) -> Dictionary:
+	if not request_mode.is_valid():
+		return McpTool.error("Switching modes isn't available here.")
+	var from := str(caller.call()) if caller.is_valid() else ""
+	var result: Dictionary = await request_mode.call(from, McpTool.str_arg(args, "mode"), McpTool.str_arg(args, "why"))
+	return McpTool.text(str(result.text)) if result.get("ok", false) else McpTool.error(str(result.text))
 
 
 ## Lo que recibe el agente de destino: quién lo manda y el mensaje en sobre no confiable. Otra sesión

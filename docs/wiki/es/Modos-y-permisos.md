@@ -51,6 +51,10 @@ La pestaña **Modos** de [Extensiones](Settings.md#extensiones) lista los modos 
 
 En [One-shot](One-shot.md#arrancar-un-run) se puede elegir un modo del proyecto para el constructor. En un run nadie contesta tarjetas, así que lo que el modo haría preguntar (comandos de shell, tools del proyecto, otros servidores MCP) se deniega, y el informe lista cada negación. Las tools `godot.*` que verifican el juego (correr escenas, playtests, capturas) siguen andando.
 
+#### El agente pide cambiar de modo
+
+Cuando la tarea necesita otro modo (estás en Preguntar y pedís un cambio, o un modo del proyecto le queda mejor), el agente puede proponer el cambio con `godot.request_mode`. Una tarjeta muestra adónde pasaría, desde qué modo, qué edita el destino y el porqué del agente, con **Pasar a …** y **Quedarse en …**. Sale en todos los modos, también en Auto, y no tiene «siempre»: nada cambia solo. Si el destino puede hacer más sin preguntar (Preguntar → Construir, Construir → Auto, un modo del proyecto que limita archivos → uno que no, un modo sin shell → uno con shell), la tarjeta lo dice con ⚠ **Más permisos**. Con **Pasar**, el agente recibe las reglas del modo nuevo en el mismo turno. En One-shot se deniega, porque en un run nadie contesta tarjetas, y la segunda opinión no la puede usar. El system prompt lista los modos fijos y los del proyecto con su línea de «cuándo usarlo».
+
 ### Aprobar el plan del agente
 
 En Preguntar o Revisar, un agente con modo plan (Claude Code) puede terminar de planear presentando un plan para aprobar. El dock lo muestra en una tarjeta con el plan en Markdown y tres botones:

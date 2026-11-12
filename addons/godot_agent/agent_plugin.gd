@@ -1178,6 +1178,7 @@ func _start_mcp_server() -> void:
 	session_tools.caller = func() -> String: return _session_of(_registry.current_caller if _registry else "")
 	session_tools.describe = _describe_sessions
 	session_tools.send = _send_to_session
+	session_tools.request_mode = _request_mode
 	registry.register_provider(session_tools, true)
 	var second_opinion_tools := SecondOpinionTools.new()
 	second_opinion_tools.caller = func() -> String: return _session_of(_registry.current_caller if _registry else "")
@@ -1805,6 +1806,7 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	var root: String = copy.info.project if copy else EditorContext.project_path()
 	controller.setup(model, _log, root)
 	controller.prompt_variables_provider = _prompt_variables
+	controller.project_modes_provider = _usable_project_modes
 	# Lo que guarda el controller o el modelo se refiere a la sesión por id: un Callable que los
 	# capture armaría un ciclo de referencias y no se liberarían al cerrar.
 	controller.session_meta_provider = func() -> Dictionary: return _session_meta(_controller_of(id))
@@ -2338,6 +2340,9 @@ func _models() -> Array[SessionModel]:
 func _precheck_tool(mcp_caller: String, tool_name: String, args: Dictionary = {}) -> String:
 	if tool_name == "session_send":
 		return _message_refusal(_session_of(mcp_caller), str(args.get("to", "")).strip_edges())
+	# El oráculo lee el proyecto con texto que puede traer instrucciones plantadas: no cambia de modo (m11-68).
+	if tool_name == "request_mode" and _session_of(mcp_caller) == SecondOpinion.SESSION_ID:
+		return "The second opinion is read only: it can't switch modes."
 	var refused_by_mode := _project_mode_refusal(_session_of(mcp_caller), tool_name, args)
 	if not refused_by_mode.is_empty():
 		return refused_by_mode
@@ -2386,6 +2391,19 @@ func _project_mode_refusal(id: String, tool_name: String, args: Dictionary) -> S
 	if refused.is_empty():
 		return ""
 	return controller.permissions.notify_mode_refusal("godot.%s" % tool_name, refused)
+
+
+## Los modos del proyecto que se pueden elegir, leídos de nuevo (godot.request_mode y el system prompt).
+func _usable_project_modes() -> Array[Dictionary]:
+	return ProjectModes.usable(ProjectModes.load_dir(_modes_dir()))
+
+
+## godot.request_mode (m11-68): la tarjeta en la sesión que llama.
+func _request_mode(caller: String, mode: String, why: String) -> Dictionary:
+	var controller := _controller_of(caller)
+	if controller == null:
+		return {"ok": false, "text": "There is no agent session to switch."}
+	return await controller.request_mode(mode, why, _project_config.permission_timeout_s)
 
 
 func _modes_dir() -> String:

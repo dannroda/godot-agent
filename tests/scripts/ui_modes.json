@@ -1,5 +1,5 @@
 {
-	"_about": "m11-39 ui-modes: in the project mode «Levels» (base Auto, edits only tests/tmp/modes/levels/**) writes inside pass, writes outside are rejected without a card (the agent's Edit, fs/write_text_file, godot.create_scene), a tool that doesn't say what it writes is rejected (godot.asset_install), and an allowlisted shell command still asks.",
+	"_about": "m11-39 ui-modes: in the project mode «Levels» (base Auto, edits only tests/tmp/modes/levels/**) writes inside pass, writes outside are rejected without a card (the agent's Edit, fs/write_text_file, godot.create_scene), a tool that doesn't say what it writes is rejected (godot.asset_install), and an allowlisted shell command still asks. Second turn (m11-68): godot.request_mode to Auto (card with the warning, accepted) and to Review (card, the user stays).",
 	"turns": [
 		{"steps": [
 			{"chunk": "Working on the level."},
@@ -27,6 +27,12 @@
 					{"optionId": "always", "name": "Always allow", "kind": "allow_always"},
 					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
 				]}}},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "This needs edits."},
+			{"mcp": {"name": "request_mode", "arguments": {"mode": "auto", "why": "Many small edits to the level scripts."}}},
+			{"mcp": {"name": "request_mode", "arguments": {"mode": "review", "why": "Check the result."}}},
 			{"stop": "end_turn"}
 		]}
 	]

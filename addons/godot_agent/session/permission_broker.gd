@@ -325,6 +325,12 @@ static func without_always(options: Array) -> Array:
 	return options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
 
 
+## Una tarjeta que no sale de la política (el cambio de modo de godot.request_mode, m11-68): se muestra
+## siempre, con las opciones que trae `request`.
+func ask(request: PermissionRequest, timeout_s: int = 0) -> Dictionary:
+	return await _ask_user(request, timeout_s)
+
+
 func _ask_user(request: PermissionRequest, timeout_s: int) -> Dictionary:
 	var acp_id: Variant = client.handling_id
 	if acp_id != null:

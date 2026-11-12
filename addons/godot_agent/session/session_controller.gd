@@ -33,6 +33,7 @@ const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const ModeModels := preload("../core/mode_models.gd")
 const ProjectModes := preload("../core/project_modes.gd")
+const ModeRequests := preload("mode_requests.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
 const CsharpBuild := preload("../core/csharp_build.gd")
@@ -221,6 +222,8 @@ var mcp_servers_provider: Callable
 var session_meta_provider: Callable
 ## Callable() -> Dictionary: variables para el prompt de sistema ({project_name}, …).
 var prompt_variables_provider: Callable
+## Los modos del proyecto que el agente puede pedir con godot.request_mode (m11-68): () -> Array[Dictionary].
+var project_modes_provider: Callable
 ## Reglas del modo para el prompt de sistema en lugar de las de MODE_RULES ("" = las del modo).
 ## Las usa el evaluador del One-shot (D55), que corre en modo One-shot pero solo prueba.
 var mode_rules_override: String = ""
@@ -1929,6 +1932,9 @@ func system_prompt() -> String:
 		# Un modo del proyecto (m11-39): su nombre, y sus archivos e instrucciones después de las reglas del base.
 		variables["mode"] = "%s (a project mode based on %s)" % [model.project_mode.name, variables["mode"]]
 		variables["mode_rules"] = ProjectModes.prompt_rules(model.project_mode, str(variables["mode_rules"]))
+	# Va con las reglas del modo y no como variable propia: un system_prompt.md editado la sigue teniendo.
+	if model.harness_mode != SessionModel.HarnessMode.ONESHOT and mode_rules_override.is_empty():
+		variables["mode_rules"] = str(variables["mode_rules"]) + ModeRequests.prompt_line(_project_modes())
 	variables["project_path"] = variables.get("project_path", cwd)
 	variables["project_name"] = variables.get("project_name", cwd.get_file())
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)
@@ -1943,6 +1949,53 @@ func system_prompt() -> String:
 ## Pide permiso según la política del modo actual (ver PermissionBroker.authorize).
 func authorize(group: String, title: String, description: String, diff: Dictionary = {}, timeout_s: int = 0) -> bool:
 	return await permissions.authorize(group, title, description, diff, timeout_s)
+
+
+## godot.request_mode (m11-68): el agente propone pasar a `target` (un modo fijo o del proyecto) y el
+## usuario decide con una tarjeta, siempre, también en Auto: sin «siempre» ni reglas que la contesten.
+## En One-shot se deniega (nadie contesta). `{ok: bool, text: String}` para el agente.
+func request_mode(target: String, why: String, timeout_s: int = 0) -> Dictionary:
+	if model.harness_mode == SessionModel.HarnessMode.ONESHOT:
+		agent_log.add(AgentLog.CH_PERM, "mode switch denied in One-shot: %s" % target)
+		return {"ok": false, "text": "This is a One-shot run: nobody is there to answer a mode switch, so it is denied. Keep working in this mode."}
+	if why.strip_edges().is_empty():
+		return {"ok": false, "text": "`why` is empty: say in one line why the task needs that mode."}
+	var resolved := ModeRequests.resolve(target, _project_modes())
+	if not str(resolved.error).is_empty():
+		return {"ok": false, "text": resolved.error}
+	var mode: int = resolved.mode
+	var layer: Dictionary = resolved.project_mode
+	if ModeRequests.is_current(model, mode, layer):
+		return {"ok": true, "text": "You are already in %s." % ModeRequests.label(mode, layer)}
+	var request := PermissionRequest.new()
+	request.title = agent_log.redact(I18n.t("Switch to %s") % ModeRequests.label(mode, layer))
+	request.description = agent_log.redact(ModeRequests.card_description(model, mode, layer, why))
+	request.options = ModeRequests.card_options(model, mode, layer)
+	var staying := model.mode_display()
+	await permissions.ask(request, timeout_s)
+	if not request.was_allowed():
+		var answered := not request.chosen_kind.is_empty()
+		return {"ok": false, "text": ("The user chose to stay in %s. Keep working within its rules, or tell the user what you would need." if answered else "No answer: the session stays in %s. Keep working within its rules.") % staying}
+	# Mientras la tarjeta esperaba pudo empezar un One-shot o cambiar el modo: se aplica igual lo elegido.
+	if model.harness_mode == SessionModel.HarnessMode.ONESHOT:
+		return {"ok": false, "text": "The session moved to One-shot while waiting: the switch was not applied."}
+	if layer.is_empty():
+		model.set_project_mode({})
+		model.set_harness_mode(mode as SessionModel.HarnessMode)
+	else:
+		model.set_project_mode(layer)
+	var rules: String = MODE_RULES[mode]
+	if not layer.is_empty():
+		rules = ProjectModes.prompt_rules(layer, rules)
+	agent_log.add(AgentLog.CH_PERM, "mode switched by request: %s" % model.mode_display())
+	return {"ok": true, "text": ModeRequests.switched_text(mode, layer, rules)}
+
+
+func _project_modes() -> Array[Dictionary]:
+	var modes: Array[Dictionary] = []
+	if project_modes_provider.is_valid():
+		modes.assign(project_modes_provider.call())
+	return modes
 
 
 ## MCP servers de terceros (configurados o ya vistos) que en `mode` preguntan o se niegan.

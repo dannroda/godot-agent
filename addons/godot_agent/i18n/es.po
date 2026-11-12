@@ -6231,3 +6231,39 @@ msgstr "%s (modo del proyecto)"
 
 msgid "Progress not tracked: the agent didn't send its task list while building."
 msgstr "Avance sin seguimiento: el agente no mandó su lista de tareas mientras construía."
+
+msgid "Ask to switch modes"
+msgstr "Pedir cambiar de modo"
+
+msgid "Proposes switching the session to another mode, with a card for the user"
+msgstr "Propone pasar la sesión a otro modo, con una tarjeta para el usuario"
+
+msgid "edits without asking"
+msgstr "edita sin preguntar"
+
+msgid "can edit files"
+msgstr "puede editar archivos"
+
+msgid "isn't limited to some files"
+msgstr "no está limitado a algunos archivos"
+
+msgid "can run shell commands"
+msgstr "puede correr comandos de shell"
+
+msgid "runs allowed shell commands without asking"
+msgstr "corre sin preguntar los comandos de shell permitidos"
+
+msgid "From %s to %s."
+msgstr "De %s a %s."
+
+msgid "⚠ More permissions: %s %s."
+msgstr "⚠ Más permisos: %s %s."
+
+msgid "The agent says: «%s»"
+msgstr "El agente dice: «%s»"
+
+msgid "Switch to %s"
+msgstr "Pasar a %s"
+
+msgid "Stay in %s"
+msgstr "Quedarse en %s"
