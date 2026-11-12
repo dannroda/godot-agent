@@ -67,6 +67,8 @@ extends EditorPlugin
 ##   (turn_checks_check.gd).
 ## - `-- --godot-agent-ask-menu-test`: m11-54: «Ask the agent» de los menús contextuales de FileSystem,
 ##   dock Escena y Script Editor, abiertos como los abre el editor (ask_menu_check.gd).
+## - `-- --godot-agent-turn-marks-test`: m11-66: los trozos del último turno con ✓ y ✗ en el Script
+##   Editor, con snapshots de git de verdad (turn_marks_check.gd).
 ## - `-- --godot-agent-hooks-test`: m11-24: hooks del proyecto con guardados de verdad, aprobación por
 ##   máquina desde el aviso y la diferencia entre lo que guarda el usuario y el agente (hooks_check.gd).
 ## - `-- --godot-agent-second-opinion-test`: m11-28 con dos agentes falsos: el botón del aviso del turno,
@@ -120,6 +122,7 @@ const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoint
 const TurnChecksCheck := preload("turn_checks_check.gd")
 const AskMenuCheck := preload("ask_menu_check.gd")
 const HooksCheck := preload("hooks_check.gd")
+const TurnMarksCheck := preload("turn_marks_check.gd")
 const SecondOpinionCheck := preload("second_opinion_check.gd")
 const InstancesCheck := preload("instances_check.gd")
 const PlaytestLoopCheck := preload("playtest_loop_check.gd")
@@ -198,6 +201,7 @@ const PLAYTEST_LOOP_ARG := "--godot-agent-playtest-loop-test"
 ## Cerrar el editor no deja procesos del agente (tests/quit_check.sh).
 const QUIT_ARG := "--godot-agent-quit-test"
 const HOOKS_ARG := "--godot-agent-hooks-test"
+const TURN_MARKS_ARG := "--godot-agent-turn-marks-test"
 const SECOND_OPINION_ARG := "--godot-agent-second-opinion-test"
 const INSTANCES_ARG := "--godot-agent-instances-test"
 ## Gasta tokens: Claude Code real con la tarjeta del plan (plan_check.gd run_claude).
@@ -290,6 +294,8 @@ func _enter_tree() -> void:
 		_run_ask_menu_test.call_deferred()
 	if HOOKS_ARG in args:
 		_run_hooks_test.call_deferred()
+	if TURN_MARKS_ARG in args:
+		_run_turn_marks_test.call_deferred()
 	if SECOND_OPINION_ARG in args:
 		_run_second_opinion_test.call_deferred()
 	if INSTANCES_ARG in args:
@@ -744,6 +750,20 @@ func _run_hooks_test() -> void:
 	for failure: String in failures:
 		print("[hooks-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "hooks-test: %d fallas" % failures.size())
+
+
+## m11-66: los trozos del último turno con ✓ y ✗ en el Script Editor (turn_marks_check.gd).
+func _run_turn_marks_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := _failures(await TurnMarksCheck.new().run(get_tree(), dock))
+	for failure: String in failures:
+		print("[turn-marks-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "turn-marks-test: %d fallas" % failures.size())
 
 
 func _run_second_opinion_test() -> void:
