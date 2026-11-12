@@ -224,7 +224,7 @@ func _refresh_subagent(call: ToolCall, parts: Dictionary) -> void:
 
 ## Contenido del tool call: diffs como tarjetas, texto breve, salida de terminal, ubicaciones.
 func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
-	var signature := "%s|%d|%d|%s" % [call.status, str(call.content).hash(), call.locations.size(), call.plan_card]
+	var signature := "%s|%d|%d|%s|%s" % [call.status, str(call.content).hash(), call.locations.size(), call.plan_card, call.failure_after_write]
 	if extra.get_meta(&"signature", "") == signature:
 		return
 	extra.set_meta(&"signature", signature)
@@ -265,6 +265,9 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 					"resource":
 						var resource: Variant = inner.get("resource")
 						extra.add_child(_muted_label("📎 " + (str(resource.get("uri", "")) if resource is Dictionary else I18n.t("resource"))))
+	if not call.failure_after_write.is_empty():
+		# El archivo ya se escribió: un «failed» posterior del agente no la deshace (m18-04).
+		extra.add_child(_muted_label(I18n.t("The agent then reported this edit as failed, but the file was already written: %s") % call.failure_after_write.left(300), AgentTheme.WARNING))
 	var links := HFlowContainer.new()
 	for location: Variant in call.locations:
 		if location is Dictionary and location.get("path") is String:

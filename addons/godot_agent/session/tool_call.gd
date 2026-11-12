@@ -26,6 +26,11 @@ var content: Array = []
 var locations: Array = []
 var raw_input: Variant = null
 var raw_output: Variant = null
+## El harness ya escribió el archivo de esta edición por fs/write_text_file (m18-04): la ruta, o "".
+var write_applied: String = ""
+## Lo que dijo el agente al marcar la edición fallida después de escribirla (Antigravity lo hace con
+## una edición ya aplicada cuando el usuario deniega la siguiente): la llamada queda completada.
+var failure_after_write: String = ""
 var started_msec: int = 0
 var finished_msec: int = 0
 ## Paso de undo de una tool godot.* de edición (EditorUndo.record), o {}.
@@ -79,6 +84,9 @@ func apply(data: Dictionary) -> void:
 		raw_input = data.rawInput
 	if data.has("rawOutput"):
 		raw_output = data.rawOutput
+	if status == STATUS_FAILED and not write_applied.is_empty():
+		failure_after_write = str(raw_output) if raw_output != null and not str(raw_output).is_empty() else STATUS_FAILED
+		set_status(STATUS_COMPLETED)
 	var meta: Variant = data.get("_meta")
 	if meta is Dictionary and meta.get("claudeCode") is Dictionary and meta.claudeCode.get("toolName") is String:
 		tool_name = meta.claudeCode.toolName
@@ -106,6 +114,18 @@ func duration_msec() -> int:
 	if started_msec == 0:
 		return 0
 	return (finished_msec if finished_msec > 0 else Time.get_ticks_msec()) - started_msec
+
+
+## Las rutas de archivo que toca: las de sus bloques diff y sus ubicaciones.
+func touched_paths() -> PackedStringArray:
+	var paths: PackedStringArray = []
+	for block: Dictionary in diffs():
+		if block.get("path") is String and not block.path in paths:
+			paths.append(block.path)
+	for location: Variant in locations:
+		if location is Dictionary and location.get("path") is String and not location.path in paths:
+			paths.append(location.path)
+	return paths
 
 
 ## Bloques `diff` del content: `{path, oldText, newText}`.

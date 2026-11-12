@@ -349,7 +349,15 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 func set_fs_handler(handler: FsHandler) -> void:
 	fs = handler
 	fs.write_authorizer = permissions.authorize_fs_write
+	fs.written.connect(_on_fs_written)
 	fs.register(client)
+
+
+## Un archivo que el agente escribió por fs/*: su edición queda marcada como aplicada (m18-04).
+func _on_fs_written(path: String) -> void:
+	var call := model.mark_write_applied(path)
+	if call:
+		agent_log.add(AgentLog.CH_ACP, "write applied for tool call %s (%s)" % [call.id, path.get_file()])
 
 
 ## terminal/* (m11-15). Los comandos pasan por las guardas del proyecto y la política (shell).

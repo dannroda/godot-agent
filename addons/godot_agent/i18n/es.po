@@ -6081,3 +6081,6 @@ msgstr "Instancias del juego"
 
 msgid "Agent's last turn: %d to review · %d kept · %d rejected · ✓ keep, ✗ reject"
 msgstr "Último turno del agente: %d por revisar · %d conservados · %d rechazados · ✓ conservar, ✗ rechazar"
+
+msgid "The agent then reported this edit as failed, but the file was already written: %s"
+msgstr "Después el agente informó esta edición como fallida, pero el archivo ya se había escrito: %s"

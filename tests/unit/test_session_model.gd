@@ -279,3 +279,41 @@ func test_history_begin_from_agent_listing() -> void:
 	for key: String in ["format", "id", "profile_id", "agent", "cwd", "created"]:
 		assert_true(meta.has(key), "cabecera con %s" % key)
 	assert_false(meta.has("from_agent"), "sin la marca del menú")
+
+
+## m18-04: Antigravity marca fallida una edición ya escrita por fs/write_text_file cuando el usuario
+## deniega la siguiente. La traza real: A in_progress con su diff, write de A, B denegada, A failed.
+func test_failed_after_write_stays_completed() -> void:
+	var model := SessionModel.new()
+	var path := "/p/scripts/player.gd"
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "a", "title": "Running client_edit_file", "kind": "edit",
+		"status": "in_progress", "locations": [{"path": path}],
+		"content": [{"type": "diff", "path": path, "oldText": "a", "newText": "b", "_meta": {"kind": "modify"}}]})
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "z", "title": "Read", "kind": "read", "status": "in_progress",
+		"locations": [{"path": "/p/other.gd"}]})
+	var changed: Array[String] = []
+	model.tool_call_changed.connect(func(call: ToolCall, _group: ChatEntry) -> void: changed.append(call.id))
+	var marked := model.mark_write_applied(path)
+	assert_true(marked != null and marked.id == "a", "marca la edición que toca la ruta")
+	assert_eq(changed, ["a"], "avisa el cambio")
+	assert_eq(model.mark_write_applied("/p/nada.gd"), null, "otra ruta no marca nada")
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "b", "title": "Running client_edit_file", "kind": "edit",
+		"status": "pending", "locations": [{"path": path}]})
+	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "b", "status": "failed", "rawOutput": "Rejected by user"})
+	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "a", "status": "failed",
+		"rawOutput": "Denied by user (*). (\"denied by pre-tool hook: Denied by user (*).\")"})
+	var a := model.tool_call("a")
+	assert_eq(a.status, ToolCall.STATUS_COMPLETED, "la edición escrita queda completada")
+	assert_true(a.failure_after_write.contains("pre-tool hook"), "guarda lo que dijo el agente")
+	assert_eq(model.tool_call("b").status, ToolCall.STATUS_FAILED, "la denegada sí queda fallida")
+	assert_eq(model.tool_call("b").failure_after_write, "", "sin aviso en la denegada")
+	# Un write marca la más reciente sin terminar; las terminadas no.
+	assert_eq(model.mark_write_applied(path), null, "a y b ya terminaron")
+
+
+func test_failed_without_write_stays_failed() -> void:
+	var model := SessionModel.new()
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "a", "kind": "edit", "status": "in_progress",
+		"content": [{"type": "diff", "path": "/p/x.gd", "oldText": "a", "newText": "b"}]})
+	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "a", "status": "failed"})
+	assert_eq(model.tool_call("a").status, ToolCall.STATUS_FAILED, "sin write aplicado sigue fallida")
