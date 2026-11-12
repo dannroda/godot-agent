@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.23] - 2026-11-12
+
 ### Added
 
 - **Ctrl+Enter** in the composer sends and follows the agent: the editor jumps to what it edits during that request, and following turns off by itself when that turn and anything queued after it end. Touching the crosshair keeps your choice; if following was already on, it stays on. **Shift+Enter** still adds a line (Ctrl+Enter no longer does). See [Getting started](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Getting-started.md#3-the-dock).
