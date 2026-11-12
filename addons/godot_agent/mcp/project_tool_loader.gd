@@ -16,6 +16,7 @@ extends RefCounted
 
 const McpTool := preload("mcp_tool.gd")
 const MachineApproval := preload("../core/machine_approval.gd")
+const ProjectDirs := preload("../core/project_dirs.gd")
 const PermissionPolicy := preload("../session/permission_policy.gd")
 const AgentToolContext := preload("../api/agent_tool_context.gd")
 
@@ -50,19 +51,15 @@ var _pending_helpers: PackedStringArray = []
 var _helpers_loaded := ""
 
 
-## La carpeta de Settings, o la de siempre si está vacía o no sirve (ver normalize_dir).
+## La carpeta de Settings, o la de siempre si está vacía o no sirve (las reglas de ProjectDirs).
 static func resolve_dir(configured: String) -> String:
-	var value := normalize_dir(configured)
-	return value if not value.is_empty() else DEFAULT_DIR
+	return ProjectDirs.resolve(configured, DEFAULT_DIR)
 
 
-## `configured` como ruta res:// ("tools/agent/" → "res://tools/agent"), o "" si está vacía o apunta
-## adonde no puede: la raíz del proyecto, fuera de él, el addon o una carpeta con punto (.godot).
+## `configured` como ruta res:// ("tools/agent/" → "res://tools/agent"), o "" si no sirve: ver
+## ProjectDirs.normalize, la misma regla que la carpeta de recetas.
 static func normalize_dir(configured: String) -> String:
-	var value := configured.strip_edges().trim_prefix("res://").trim_prefix("/").trim_suffix("/")
-	if value.is_empty() or ".." in value.split("/") or value.begins_with(".") or value.begins_with("addons/godot_agent"):
-		return ""
-	return ("res://" + value).simplify_path()
+	return ProjectDirs.normalize(configured)
 
 
 ## El texto aprobado de una tool: su ruta, su código y el de los helpers de la carpeta.

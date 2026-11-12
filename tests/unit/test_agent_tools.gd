@@ -3,6 +3,7 @@ extends "test_case.gd"
 ## una tool mal armada, lo que devuelve _run y cómo entran al registro (godot.methods / godot.run).
 
 const ProjectToolLoader := preload("res://addons/godot_agent/mcp/project_tool_loader.gd")
+const ProjectDirs := preload("res://addons/godot_agent/core/project_dirs.gd")
 const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
 const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
 const PermissionPolicy := preload("res://addons/godot_agent/session/permission_policy.gd")
@@ -66,6 +67,10 @@ func test_resolve_dir() -> void:
 	assert_eq(ProjectToolLoader.normalize_dir("res://../outside"), "", "fuera del proyecto, no")
 	assert_eq(ProjectToolLoader.normalize_dir(".godot/x"), "", "carpetas con punto, no")
 	assert_eq(ProjectToolLoader.normalize_dir("res://agent_tools/"), "res://agent_tools", "la de siempre, escrita entera")
+	# La misma regla que la carpeta de recetas (core/project_dirs.gd).
+	for value: String in ["  //tools/agent// ", "a/./b", "addons/godot_agent", "res://.hidden", "x/../y"]:
+		assert_eq(ProjectToolLoader.normalize_dir(value), ProjectDirs.normalize(value), "como las recetas: «%s»" % value)
+	assert_eq(ProjectToolLoader.normalize_dir("  //tools/agent// "), "res://tools/agent", "espacios y barras de más")
 	assert_eq(ProjectToolLoader.export_filter("res://tools/agent"), "tools/agent/*", "el filtro del preset")
 
 
