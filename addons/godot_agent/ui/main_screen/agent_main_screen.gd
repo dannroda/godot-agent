@@ -15,6 +15,7 @@ const OneShotRun := preload("../../oneshot/oneshot_run.gd")
 const QuotaMonitor := preload("../../core/quota_monitor.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const AgentTheme := preload("../agent_theme.gd")
+const HoverTooltip := preload("../hover_tooltip.gd")
 const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
 const ImageViewer := preload("../image_viewer.gd")
 const RunReport := preload("../../oneshot/run_report.gd")
@@ -941,10 +942,10 @@ func _refresh_top_bar() -> void:
 	var window := quota.utilization(QuotaMonitor.WINDOW_CURRENT)
 	if window >= 0.0:
 		_set_bar(_quota_row, "%d %%" % roundi(window * 100.0), window, _quota_color(window))
-		(_quota_row.label as Label).tooltip_text = quota.describe_window(QuotaMonitor.WINDOW_CURRENT)
+		HoverTooltip.set_text(_quota_row.label as Label, quota.describe_window(QuotaMonitor.WINDOW_CURRENT))  # «resets in» corre (m12-51)
 	else:
 		_set_bar(_quota_row, "—", 0.0, _accent)
-		(_quota_row.label as Label).tooltip_text = I18n.t("The agent doesn't report the plan quota.")
+		HoverTooltip.set_text(_quota_row.label as Label, I18n.t("The agent doesn't report the plan quota."))
 	for key: String in BUDGET_KEYS:
 		var ratio := _run.budget_ratio(key)
 		var color := AgentTheme.ERROR if ratio >= 1.0 else (AgentTheme.WARNING if ratio >= OneShotRun.WARN_RATIO else _accent)

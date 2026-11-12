@@ -1,0 +1,2617 @@
+{
+ "_about": "m12-51 ui-tooltips: a long turn (~65 s) that sends usage_update every 0.3 s and the plan quota every 1.5 s, like Claude Code while it works, so the composer bar and the header refresh while tests/…/tooltips_check.gd holds the mouse over each control. Generated (215 × usage_update + delay 0.3, quota every 5th, a chunk every 10th).",
+ "session": {
+  "modes": {
+   "currentModeId": "default",
+   "availableModes": [
+    {
+     "id": "default",
+     "name": "Default"
+    },
+    {
+     "id": "plan",
+     "name": "Plan"
+    }
+   ]
+  },
+  "configOptions": [
+   {
+    "id": "model",
+    "name": "Model",
+    "type": "select",
+    "currentValue": "fake-large",
+    "options": [
+     {
+      "value": "fake-large",
+      "name": "Grande"
+     },
+     {
+      "value": "fake-small",
+      "name": "Chico"
+     }
+    ]
+   }
+  ]
+ },
+ "turns": [
+  {
+   "steps": [
+    {
+     "update": {
+      "sessionUpdate": "plan",
+      "entries": [
+       {
+        "content": "Paso uno",
+        "priority": "medium",
+        "status": "in_progress"
+       }
+      ]
+     }
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 12600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.3,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3600
+     }
+    },
+    {
+     "chunk": "Trabajando 0. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 13200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 13800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 14400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 15000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 15600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.305,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3595
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 16200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 16800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 17400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 18000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 18600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.31,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3590
+     }
+    },
+    {
+     "chunk": "Trabajando 10. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 19200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 19800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 20400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 21000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 21600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.315,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3585
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 22200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 22800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 23400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 24000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 24600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.32,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3580
+     }
+    },
+    {
+     "chunk": "Trabajando 20. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 25200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 25800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 26400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 27000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 27600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.325,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3575
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 28200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 28800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 29400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 30000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 30600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.33,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3570
+     }
+    },
+    {
+     "chunk": "Trabajando 30. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 31200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 31800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 32400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 33000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 33600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.335,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3565
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 34200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 34800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 35400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 36000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 36600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.34,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3560
+     }
+    },
+    {
+     "chunk": "Trabajando 40. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 37200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 37800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 38400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 39000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 39600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.345,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3555
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 40200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 40800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 41400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 42000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 42600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.35,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3550
+     }
+    },
+    {
+     "chunk": "Trabajando 50. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 43200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 43800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 44400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 45000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 45600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.355,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3545
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 46200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 46800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 47400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 48000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 48600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.36,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3540
+     }
+    },
+    {
+     "chunk": "Trabajando 60. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 49200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 49800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 50400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 51000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 51600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.365,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3535
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 52200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 52800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 53400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 54000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 54600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.37,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3530
+     }
+    },
+    {
+     "chunk": "Trabajando 70. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 55200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 55800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 56400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 57000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 57600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.375,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3525
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 58200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 58800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 59400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 60000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 60600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.38,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3520
+     }
+    },
+    {
+     "chunk": "Trabajando 80. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 61200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 61800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 62400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 63000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 63600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.385,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3515
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 64200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 64800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 65400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 66000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 66600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.39,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3510
+     }
+    },
+    {
+     "chunk": "Trabajando 90. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 67200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 67800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 68400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 69000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 69600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.395,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3505
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 70200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 70800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 71400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 72000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 72600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.4,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3500
+     }
+    },
+    {
+     "chunk": "Trabajando 100. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 73200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 73800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 74400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 75000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 75600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.405,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3495
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 76200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 76800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 77400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 78000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 78600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.41,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3490
+     }
+    },
+    {
+     "chunk": "Trabajando 110. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 79200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 79800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 80400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 81000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 81600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.415,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3485
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 82200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 82800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 83400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 84000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 84600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.42,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3480
+     }
+    },
+    {
+     "chunk": "Trabajando 120. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 85200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 85800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 86400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 87000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 87600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.425,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3475
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 88200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 88800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 89400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 90000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 90600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.43,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3470
+     }
+    },
+    {
+     "chunk": "Trabajando 130. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 91200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 91800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 92400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 93000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 93600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.435,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3465
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 94200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 94800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 95400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 96000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 96600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.44,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3460
+     }
+    },
+    {
+     "chunk": "Trabajando 140. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 97200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 97800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 98400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 99000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 99600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.445,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3455
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 100200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 100800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 101400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 102000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 102600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.45,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3450
+     }
+    },
+    {
+     "chunk": "Trabajando 150. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 103200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 103800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 104400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 105000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 105600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.455,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3445
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 106200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 106800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 107400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 108000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 108600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.46,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3440
+     }
+    },
+    {
+     "chunk": "Trabajando 160. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 109200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 109800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 110400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 111000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 111600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.465,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3435
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 112200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 112800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 113400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 114000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 114600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.47,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3430
+     }
+    },
+    {
+     "chunk": "Trabajando 170. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 115200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 115800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 116400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 117000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 117600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.475,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3425
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 118200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 118800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 119400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 120000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 120600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.48,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3420
+     }
+    },
+    {
+     "chunk": "Trabajando 180. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 121200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 121800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 122400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 123000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 123600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.485,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3415
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 124200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 124800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 125400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 126000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 126600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.49,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3410
+     }
+    },
+    {
+     "chunk": "Trabajando 190. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 127200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 127800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 128400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 129000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 129600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.495,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3405
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 130200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 130800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 131400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 132000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 132600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.5,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3400
+     }
+    },
+    {
+     "chunk": "Trabajando 200. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 133200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 133800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 134400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 135000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 135600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.505,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3395
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 136200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 136800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 137400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 138000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 138600,
+      "size": 200000
+     }
+    },
+    {
+     "quota": {
+      "five_hour": 0.51,
+      "seven_day": 0.2,
+      "status": "allowed",
+      "resets_in": 3390
+     }
+    },
+    {
+     "chunk": "Trabajando 210. "
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 139200,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 139800,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 140400,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "update": {
+      "sessionUpdate": "usage_update",
+      "used": 141000,
+      "size": 200000
+     }
+    },
+    {
+     "delay": 0.3
+    },
+    {
+     "stop": "end_turn"
+    }
+   ]
+  }
+ ]
+}

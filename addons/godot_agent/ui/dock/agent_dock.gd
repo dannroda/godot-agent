@@ -88,6 +88,7 @@ const AgentProfile := preload("../../core/agent_profile.gd")
 const AgentAccounts := preload("../../session/agents/agent_accounts.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
+const HoverTooltip := preload("../hover_tooltip.gd")
 const EditorContext := preload("../editor_context.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
@@ -860,7 +861,7 @@ func _on_quota_tick() -> void:
 	var quota := _controller.quota
 	_quota_ring.refresh()
 	if _agent_chip:
-		_agent_chip.tooltip_text = header_tooltip()  # la antigüedad de cada estado corre
+		HoverTooltip.set_text(_agent_chip, header_tooltip())  # la antigüedad de cada estado corre
 	if quota.is_limited() and quota.seconds_until_retry() > 0:
 		_composer.set_locked("⏳ %s" % QuotaMonitor.format_duration(quota.seconds_until_retry()), I18n.t("Plan limit reached: you can send again when the window resets"))
 	else:
@@ -1015,7 +1016,7 @@ func _refresh_state_line(color: Color) -> void:
 		color = _accent
 	_state_line.visible = not text.is_empty()
 	_state_line.text = text
-	_state_line.tooltip_text = _status_label.tooltip_text
+	HoverTooltip.set_text(_state_line, HoverTooltip.text_of(_status_label))
 	_state_line.add_theme_color_override(&"font_color", color)
 	_refresh_machine_chips()
 
@@ -1058,7 +1059,7 @@ func _refresh_machine_chips() -> void:
 		var color: Color = AgentTheme.WARNING if chips[i].alert else AgentTheme.MUTED
 		chip.text = str(chips[i].text)
 		# El detalle de la máquina primero (la segunda opinión: el agente y el modelo, m11-28).
-		chip.tooltip_text = (str(chips[i].detail) + "\n\n" if not str(chips[i].get("detail", "")).is_empty() else "") + header_tooltip()
+		HoverTooltip.set_text(chip, (str(chips[i].detail) + "\n\n" if not str(chips[i].get("detail", "")).is_empty() else "") + header_tooltip())
 		chip.add_theme_color_override(&"font_color", color)
 		chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(color, 0.12), Color(color, 0.35), 10, 3))
 		var full := chip.get_theme_font(&"font").get_string_size(chip.text, HORIZONTAL_ALIGNMENT_LEFT, -1, chip.get_theme_font_size(&"font_size")).x
@@ -1099,7 +1100,7 @@ static func machine_chips(states: Array) -> Array[Dictionary]:
 
 func _refresh_title() -> void:
 	_title_label.text = _model.title if not _model.title.is_empty() else (I18n.t("New session") if not _model.session_id.is_empty() else "")
-	_title_label.tooltip_text = _title_label.text
+	HoverTooltip.set_text(_title_label, _title_label.text)
 
 
 ## Tooltip del encabezado (m13-29): el estado de cada máquina de D61 con su antigüedad (la sesión,
@@ -1109,8 +1110,9 @@ func header_tooltip() -> String:
 	if machine_states.is_valid():
 		for machine: Dictionary in machine_states.call():
 			lines.append(machine_line(str(machine.get("machine", "")), str(machine.get("label", "")), int(machine.get("age", 0))))
-	if not _status_label.tooltip_text.is_empty():
-		lines.append(_status_label.tooltip_text)
+	var status_tooltip := HoverTooltip.text_of(_status_label)
+	if not status_tooltip.is_empty():
+		lines.append(status_tooltip)
 	lines.append(I18n.t("Click to choose the agent"))
 	return "\n".join(lines)
 
@@ -1167,16 +1169,17 @@ func _refresh_state() -> void:
 	if not email.is_empty() and _model.state != SessionModel.SessionState.DISCONNECTED:
 		text += " · " + email
 	_status_label.text = text
-	_status_label.tooltip_text = _model.failure_message if not _model.failure_message.is_empty() else account_summary(_model.account)
+	var status_tooltip := _model.failure_message if not _model.failure_message.is_empty() else account_summary(_model.account)
 	if _model.state == SessionModel.SessionState.PROMPTING:
 		var names := _model.running_subagents().map(func(call: SessionModel.ToolCall) -> String: return "• " + call.display_name())
 		if not names.is_empty():
-			_status_label.tooltip_text = I18n.t("Subagents running:") + "\n" + "\n".join(names)
+			status_tooltip = I18n.t("Subagents running:") + "\n" + "\n".join(names)
+	HoverTooltip.set_text(_status_label, status_tooltip)
 	_status_label.add_theme_color_override(&"font_color", color)
 	_refresh_state_line(color)
 	if _agent_chip:
 		_style_agent_chip(name if profile else "", color)
-		_agent_chip.tooltip_text = header_tooltip()
+		HoverTooltip.set_text(_agent_chip, header_tooltip())
 	_composer.refresh_state()
 	_refresh_plan_button()
 	_composer.set_enabled(_model.state != SessionModel.SessionState.STARTING)

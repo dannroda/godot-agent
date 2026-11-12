@@ -12,6 +12,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 - Tested on Godot 4.8-beta3 (was 4.8-beta2), besides 4.7.2 and Godot .NET 4.7.2. 4.8-beta3 still prints the `list.h` error when saving with preview.
 
+### Fixed
+
+- **Tooltips in the composer bar and the dock header no longer close right after opening** while the agent works. Context, plan list, mode, model, Send/Stop, the plan quota, the agent chip and the machine chips all stay open. The context percentage no longer changes width with every update, so the bar stays still under the mouse. Tooltips whose text keeps updating (context, the age of each state) show what they had when you hovered; hover again for the latest.
+
 ## [0.1.24] - 2026-11-12
 
 ### Added

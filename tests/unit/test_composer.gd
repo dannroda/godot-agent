@@ -339,6 +339,14 @@ func test_add_menu_and_meter() -> void:
 	composer.call(&"set_usage", 170000, 200000)
 	assert_eq((composer.get(&"_meter") as Label).text, "85 %", "85 %")
 	assert_true((composer.get(&"_meter") as Label).tooltip_text.contains("170k / 200k"), "los tokens en el tooltip")
+	# El ancho del medidor no cambia con el porcentaje (m12-51): si cambiaba, la fila se recompactaba
+	# con cada usage_update y todo se corría bajo el mouse (el tooltip abierto se cerraba).
+	var widths: Array[float] = []
+	for used: int in [2000, 20000, 200000]:
+		composer.call(&"set_usage", used, 200000)
+		widths.append((composer.get(&"_meter") as Label).get_combined_minimum_size().x)
+	assert_eq(widths[0], widths[2], "«1 %» pide lo mismo que «100 %»: " + str(widths))
+	assert_eq(widths[1], widths[2], "y «10 %» también")
 	composer.call(&"set_screenshot_available", false)
 	assert_true(menu.get_popup().is_item_disabled(1), "sin imágenes, la imagen apagada")
 	composer.free()

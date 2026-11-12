@@ -67,6 +67,7 @@ ui-memory:full:120
 ui-recipe:full:120
 ui-path-rules:full:120
 ui-plan-criteria:full:150
+ui-tooltips:ci:150
 crash:full:400
 "
 

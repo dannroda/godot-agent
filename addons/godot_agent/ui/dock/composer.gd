@@ -28,6 +28,7 @@ signal recipe_requested
 signal handoff_requested
 
 const AgentTheme := preload("../agent_theme.gd")
+const HoverTooltip := preload("../hover_tooltip.gd")
 const SuggestionList := preload("suggestion_list.gd")
 const I18n := preload("../../core/i18n.gd")
 const AtomicFile := preload("../../core/atomic_file.gd")
@@ -522,12 +523,18 @@ func set_usage(used: int, total: int) -> void:
 	var ratio := float(used) / float(total)
 	# El porcentaje siempre al lado del anillo (m12-18); los tokens, en el tooltip.
 	_meter.text = "%d %%" % int(ratio * 100.0)
-	_meter.tooltip_text = I18n.t("Context used: %d%%") % int(ratio * 100.0) + " · %s / %s" % [_short_number(used), _short_number(total)]
+	# Siempre el ancho de «100 %» (m12-51): si no, cada usage_update cambiaba el ancho de la fila; con
+	# el dock justo la compactación iba y venía (el medidor aparecía y desaparecía) y todo se corría
+	# bajo el mouse, que cerraba el tooltip del anillo, el plan, el modo, el modelo y Enviar.
+	_meter.custom_minimum_size.x = ceilf(_meter.get_theme_font(&"font").get_string_size("100 %", HORIZONTAL_ALIGNMENT_LEFT, -1, _meter.get_theme_font_size(&"font_size")).x)
+	var tooltip := I18n.t("Context used: %d%%") % int(ratio * 100.0) + " · %s / %s" % [_short_number(used), _short_number(total)]
 	var high := ratio >= METER_SHOW_RATIO
 	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if high else AgentTheme.MUTED)
 	# Alto, el porcentaje lleva a seguir en una sesión nueva (m11-35).
 	if high:
-		_meter.tooltip_text += "\n" + I18n.t("Click: continue in a new session with a summary…")
+		tooltip += "\n" + I18n.t("Click: continue in a new session with a summary…")
+	# Llega con cada usage_update: con el mouse encima, el tooltip abierto no se cierra (m12-51).
+	HoverTooltip.set_text(_meter, tooltip)
 	_meter.mouse_filter = Control.MOUSE_FILTER_STOP if high else Control.MOUSE_FILTER_PASS
 	_meter.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if high else Control.CURSOR_ARROW
 

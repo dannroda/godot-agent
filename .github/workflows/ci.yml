@@ -141,6 +141,12 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run ui-modes ~/godot/godot
 
+      # Tooltips que no se cierran solos (m12-51): con un turno que manda usage_update y la cuota, el
+      # tooltip de cada control de la barra del composer y del encabezado sigue abierto 3 s.
+      - name: Editor check (ui-tooltips)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run ui-tooltips ~/godot/godot
+
       - name: Editor check (second-opinion)
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run second-opinion ~/godot/godot
