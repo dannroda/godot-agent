@@ -37,6 +37,7 @@ const SUMMARIES: Dictionary = {
 	# Correr y jugar el juego
 	"run_scene": "Runs a scene and returns the game's errors and Output",  # i18n
 	"stop_scene": "Stops the running game",  # i18n
+	"game_instance": "Lists, adds or stops instances of the running game",  # i18n
 	"capture_game_frame": "Captures the current frame of the running game",  # i18n
 	"run_regressions": "Repeats the saved playtest regressions without the agent",  # i18n
 	"write_regressions_workflow": "Writes a GitHub Actions workflow that runs the regressions on every push",  # i18n

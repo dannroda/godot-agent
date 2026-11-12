@@ -5959,3 +5959,9 @@ msgstr "Primero guardá una receta válida."
 
 msgid "Messages to other sessions"
 msgstr "Mensajes a otras sesiones"
+
+msgid "Lists, adds or stops instances of the running game"
+msgstr "Lista, suma o corta instancias del juego que corre"
+
+msgid "Game instances"
+msgstr "Instancias del juego"

@@ -73,7 +73,7 @@ func _game_errors() -> Array[Dictionary]:
 	var found: Array[Dictionary] = []
 	if errors:
 		for entry: Dictionary in errors.entries_since(_mark):
-			if str(entry.source) == "game" and str(entry.kind) in ERROR_KINDS and not ErrorCollector.is_engine_noise(entry):
+			if str(entry.source).begins_with("game") and str(entry.kind) in ERROR_KINDS and not ErrorCollector.is_engine_noise(entry):
 				found.append(entry)
 	return found
 

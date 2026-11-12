@@ -148,12 +148,23 @@ func _notification(what: int) -> void:
 ## al salir del árbol: al cerrar el editor o al desactivarlo no queda ningún agente, terminal ni hook.
 static func stop_all() -> void:
 	for pid: int in _live.keys():
-		var process: Variant = (_live[pid] as WeakRef).get_ref()
+		var process: Variant = (_live[pid] as WeakRef).get_ref() if _live[pid] is WeakRef else null
 		if process != null:
 			process.stop()
 		else:
 			ProcessTree.kill_tree(pid)
 	_live.clear()
+
+
+## Un proceso lanzado por otro camino (las instancias extra del juego, m11-50) que stop_all() también
+## tiene que terminar, con sus descendientes.
+static func track_pid(pid: int) -> void:
+	if pid > 0:
+		_live[pid] = null
+
+
+static func untrack_pid(pid: int) -> void:
+	_live.erase(pid)
 
 
 ## Cuántos procesos lanzados siguen registrados como vivos (para los tests).
