@@ -36,6 +36,7 @@ hooks:ci:120
 turn-marks:ci:120
 second-opinion:ci:120
 instances:ci:150
+bake:ci:150
 playtest-loop:ci:150
 quit:ci:150
 sync:full:120
@@ -48,6 +49,7 @@ auto:full:120
 remote:full:120
 pending:full:120
 profile:full:120
+bake-lightmaps:full:300
 cycle:full:450
 i18n:full:120
 history:full:120
@@ -146,6 +148,8 @@ time.sleep(int(sys.argv[1]))' "$limit" &
 			code=$?
 			kill "$holder" 2>/dev/null
 			return "$code" ;;
+		# Compatibility (opengl3, el de los demás checks) no hornea lightmaps: este va con Vulkan.
+		bake-lightmaps) XRUN_RENDERING_DRIVER=vulkan xvfb --godot-agent-bake-test --godot-agent-bake-lightmaps ;;
 		crash) timeout "$limit" sh tests/crash_check.sh "$G" ;;
 		quit) XRUN_TIMEOUT="$limit" timeout "$((limit + 30))" sh tests/quit_check.sh "$G" ;;
 		*) xvfb "--godot-agent-$name-test" ;;

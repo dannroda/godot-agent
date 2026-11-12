@@ -144,6 +144,13 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run instances ~/godot/godot
 
+      # godot.bake (navegación con deshacer, occluders con el botón del editor, lightmaps con Compatibility
+      # da error) y export_project (pack, sin plantillas) (m11-53). Hornear lightmaps necesita Vulkan:
+      # bake-lightmaps va en la suite full.
+      - name: Editor check (bake)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run bake ~/godot/godot
+
       # Un playtest con el agente en loop se corta como «could not test» (m11-49).
       - name: Editor check (playtest-loop)
         if: ${{ !cancelled() && matrix.group == 'editor' }}

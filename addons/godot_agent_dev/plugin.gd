@@ -76,6 +76,9 @@ extends EditorPlugin
 ##   con permiso y Cancel (second_opinion_check.gd).
 ## - `-- --godot-agent-instances-test`: m11-50: run_scene con dos instancias de un juego ENet, `instance`
 ##   en las tools, game_instance list/stop/add y que no quede ningún proceso (instances_check.gd).
+## - `-- --godot-agent-bake-test [--godot-agent-bake-lightmaps]`: m11-53: godot.bake (navegación 2D/3D con
+##   deshacer, occluders con el botón del editor, lightmaps con la opción) y export_project (sin plantillas,
+##   pack, export_presets.cfg intacto) (bake_check.gd).
 ## - `-- --godot-agent-claude-plan-test [--godot-agent-ui-shot=<prefijo>]`: lo mismo con Claude Code real
 ##   (gasta tokens): plan → Editar → Aprobar → primera edición en Construir → Denegar con motivo.
 ## - `-- --godot-agent-pending-test`: con algo preparado por install_extension (m19-05), habilitar el
@@ -125,6 +128,7 @@ const HooksCheck := preload("hooks_check.gd")
 const TurnMarksCheck := preload("turn_marks_check.gd")
 const SecondOpinionCheck := preload("second_opinion_check.gd")
 const InstancesCheck := preload("instances_check.gd")
+const BakeCheck := preload("bake_check.gd")
 const PlaytestLoopCheck := preload("playtest_loop_check.gd")
 const QuitCheck := preload("quit_check.gd")
 const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_servers.gd")
@@ -204,6 +208,9 @@ const HOOKS_ARG := "--godot-agent-hooks-test"
 const TURN_MARKS_ARG := "--godot-agent-turn-marks-test"
 const SECOND_OPINION_ARG := "--godot-agent-second-opinion-test"
 const INSTANCES_ARG := "--godot-agent-instances-test"
+const BAKE_ARG := "--godot-agent-bake-test"
+## Con BAKE_ARG: hornea también los lightmaps (lento con llvmpipe: va en la suite full).
+const BAKE_LIGHTMAPS_ARG := "--godot-agent-bake-lightmaps"
 ## Gasta tokens: Claude Code real con la tarjeta del plan (plan_check.gd run_claude).
 const CLAUDE_PLAN_ARG := "--godot-agent-claude-plan-test"
 ## m11-58 con Antigravity real (sin modo plan; gasta tokens).
@@ -300,6 +307,8 @@ func _enter_tree() -> void:
 		_run_second_opinion_test.call_deferred()
 	if INSTANCES_ARG in args:
 		_run_instances_test.call_deferred()
+	if BAKE_ARG in args:
+		_run_bake_test.call_deferred(BAKE_LIGHTMAPS_ARG in args)
 	if PLAYTEST_LOOP_ARG in args:
 		_run_playtest_loop_test.call_deferred()
 	if QUIT_ARG in args:
@@ -777,6 +786,17 @@ func _run_second_opinion_test() -> void:
 	for failure: String in failures:
 		print("[second-opinion-check] FALLA ", failure)
 	_finish_checking_state(0 if failures.is_empty() else 1, "second-opinion-test: %d fallas" % failures.size(), "second-opinion-check")
+
+
+func _run_bake_test(lightmaps: bool) -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var check := BakeCheck.new()
+	check.lightmaps = lightmaps
+	var failures := _failures(await check.run(get_tree()))
+	for failure: String in failures:
+		print("[bake-check] FALLA ", failure)
+	_finish_checking_state(0 if failures.is_empty() else 1, "bake-test: %d fallas" % failures.size(), "bake-check")
 
 
 func _run_instances_test() -> void:
