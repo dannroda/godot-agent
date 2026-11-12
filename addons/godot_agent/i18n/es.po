@@ -6096,3 +6096,6 @@ msgstr "Último turno del agente: %d por revisar · %d conservados · %d rechaza
 
 msgid "The agent then reported this edit as failed, but the file was already written: %s"
 msgstr "Después el agente informó esta edición como fallida, pero el archivo ya se había escrito: %s"
+
+msgid "Progress not tracked: the agent didn't send its task list while building."
+msgstr "Avance sin seguimiento: el agente no mandó su lista de tareas mientras construía."

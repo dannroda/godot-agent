@@ -43,6 +43,13 @@ var edited_plan: String = ""
 var deny_reason: String = ""
 ## El plan se aprobó con «Aprobar y construir» (el harness pasó a Construir).
 var plan_approved: bool = false
+## Si el agente lleva el avance del plan aprobado (m18-05): PLAN_PROGRESS_*, "" = no se mira.
+var plan_progress: String = ""
+const PLAN_PROGRESS_WAITING := "waiting"
+## Mandó su lista de tareas (ACP plan) mientras construía: plan_view la tilda.
+const PLAN_PROGRESS_AGENT := "agent"
+## Terminó el turno de construir sin mandarla (Antigravity): la tarjeta dice que no hay seguimiento.
+const PLAN_PROGRESS_NONE := "none"
 ## El plan vino en un bloque ```plan al final del turno (m11-58): la tarjeta es del harness y no
 ## contesta ningún pedido del agente.
 var from_block: bool = false

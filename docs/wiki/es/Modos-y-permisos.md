@@ -43,7 +43,7 @@ Lo que pasa después depende del agente:
 - Un agente con modo plan (Claude Code) lo presenta con la tarjeta de arriba.
 - A un agente sin modo plan (Codex, Gemini y otros por ACP) se le pide que termine la respuesta con el plan en un bloque ` ```plan `. El harness convierte ese bloque en la misma tarjeta, y en el mensaje queda una sola línea: **Plan presentado · en la tarjeta de abajo**.
   - Lo editado y los motivos le llegan al agente enseguida, porque su turno ya terminó.
-  - **Aprobar y construir** guarda el plan, pasa a Construir y le pide al agente que lo implemente. Las tareas numeradas pasan a ser su plan, y el dock las va tildando.
+  - **Aprobar y construir** guarda el plan, pasa a Construir y le pide al agente que lo implemente. Las tareas numeradas pasan a ser su plan, y el dock las va tildando. Algunos agentes (Antigravity) no mandan esa lista: si el turno de construir termina sin ella, la tarjeta dice **Avance sin seguimiento** en vez de adivinarlo por los archivos que editó.
   - Si mandás otro mensaje mientras la tarjeta espera, la tarjeta se cancela.
 
 `/plan` lo resuelve el harness: nunca le llega al agente.

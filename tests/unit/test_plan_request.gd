@@ -11,6 +11,7 @@ const PermissionRequest := preload("res://addons/godot_agent/session/permission_
 const PlanApproval := preload("res://addons/godot_agent/session/plan_approval.gd")
 const HarnessPrompts := preload("res://addons/godot_agent/session/harness_prompts.gd")
 const AgentDock := preload("res://addons/godot_agent/ui/dock/agent_dock.gd")
+const PlanApprovalView := preload("res://addons/godot_agent/ui/dock/entries/plan_approval_view.gd")
 
 const M := SessionModel.HarnessMode
 const PLAN := "# Plan: Coin counter\n\n## Criteria\n- WHEN the player touches a coin, THE GAME SHALL add one to the counter.\n\n## Tasks\n1. Add `coins` to player.gd.\n2. Show it in the HUD.\n"
@@ -192,3 +193,43 @@ func test_plan_turn_labels() -> void:
 	for label: String in [HarnessPrompts.PLAN_REQUEST, HarnessPrompts.PLAN_EDIT, HarnessPrompts.PLAN_KEEP_PLANNING]:
 		assert_true(label in SessionController.PLAN_TURN_LABELS, label)
 	assert_false(HarnessPrompts.PLAN_APPROVED in SessionController.PLAN_TURN_LABELS, "el turno de construir no busca planes")
+
+
+## m18-05: Antigravity construye el plan aprobado sin mandar su lista de tareas (ACP plan). Al
+## terminar el turno de construir sin ella, la tarjeta dice que no hay seguimiento; con ella, no.
+func test_build_without_task_list_says_progress_not_tracked() -> void:
+	var sent: Array = []
+	var controller := _controller(M.ASK, sent, _project_dir("progress_none"), [{"id": "default"}])
+	controller.model.current_agent_mode = "default"
+	_plan_turn(controller, "```plan\n%s```" % PLAN)
+	var request: PermissionRequest = controller.model.pending_permissions[0]
+	var changes: Array[int] = []
+	request.changed.connect(func() -> void: changes.append(1))
+	controller.approve_plan(request)
+	assert_eq(request.plan_progress, PermissionRequest.PLAN_PROGRESS_WAITING, "mira el avance desde que se aprueba")
+	assert_false(PlanApprovalView.result_text(request).contains("not tracked"), "mientras construye no dice nada")
+	controller.model.turn_finished.emit("cancelled")
+	assert_eq(request.plan_progress, PermissionRequest.PLAN_PROGRESS_WAITING, "un turno cancelado no cuenta")
+	changes.clear()
+	controller.model.turn_finished.emit("end_turn")
+	assert_eq(request.plan_progress, PermissionRequest.PLAN_PROGRESS_NONE, "terminó sin lista de tareas")
+	assert_eq(changes.size(), 1, "la tarjeta se refresca")
+	assert_true(PlanApprovalView.result_text(request).contains("Progress not tracked"), "y lo dice")
+	# Ya no mira: un plan que llega después no lo cambia.
+	controller.model.apply_update({"sessionUpdate": "plan", "entries": [{"content": "Add coins", "status": "completed", "priority": "medium"}]})
+	assert_eq(request.plan_progress, PermissionRequest.PLAN_PROGRESS_NONE, "deja de mirar")
+	await _end_turns(controller)
+
+
+func test_build_with_task_list_is_tracked_by_the_agent() -> void:
+	var controller := _controller(M.ASK, [], _project_dir("progress_agent"), [{"id": "default"}])
+	controller.model.current_agent_mode = "default"
+	_plan_turn(controller, "```plan\n%s```" % PLAN)
+	var request: PermissionRequest = controller.model.pending_permissions[0]
+	controller.approve_plan(request)
+	controller.model.apply_update({"sessionUpdate": "plan", "entries": [{"content": "Add coins", "status": "in_progress", "priority": "medium"}]})
+	assert_eq(request.plan_progress, PermissionRequest.PLAN_PROGRESS_AGENT, "la lista del agente lleva el avance")
+	controller.model.turn_finished.emit("end_turn")
+	assert_eq(request.plan_progress, PermissionRequest.PLAN_PROGRESS_AGENT, "el fin del turno no lo cambia")
+	assert_false(PlanApprovalView.result_text(request).contains("not tracked"), "sin aviso")
+	await _end_turns(controller)

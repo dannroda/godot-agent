@@ -362,7 +362,10 @@ static func result_text(req: PermissionRequest) -> String:
 	if req.outcome.get("outcome") != "selected":
 		return "⊘ " + I18n.t("Cancelled")
 	if req.was_allowed():
-		return "✓ " + (I18n.t("Approved · building in Build mode") if req.plan_approved else I18n.t("Approved"))
+		var approved := "✓ " + (I18n.t("Approved · building in Build mode") if req.plan_approved else I18n.t("Approved"))
+		if req.plan_progress == PermissionRequest.PLAN_PROGRESS_NONE:
+			approved += "\n" + I18n.t("Progress not tracked: the agent didn't send its task list while building.")
+		return approved
 	if not req.edited_plan.is_empty():
 		var counts := PlanApproval.change_counts(req.plan_text, req.edited_plan)
 		if req.from_block:

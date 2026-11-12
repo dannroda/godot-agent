@@ -15,6 +15,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
+- **Plans built by an agent that doesn't send its task list** (Antigravity): the plan card now says **Progress not tracked** when the build turn ends without one. Before, it looked as if nothing had been done. The dock doesn't guess progress from the files the agent edited, since several tasks often touch the same file.
 - **Measure regressions** now puts each scene sabotage in place before the scene starts: the scene is instantiated with its `.tscn` values and connections, the sabotage goes on that copy, and only then does it enter the game. A value the game only reads in `_ready`, like a starting health, is now broken too, as if the `.tscn` had the change. Nothing is saved: the `.tscn` and the loaded scene stay as they were. Connections made by code are still not sabotaged.
 
 ### Fixed
