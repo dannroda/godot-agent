@@ -6,11 +6,13 @@ extends RefCounted
 ## 2. game_get en la 1 ve al cliente conectado y en la 2 ve que se conectó; cada una con su user://.
 ## 3. capture_game_frame de la 2 da su ventana (640×360).
 ## 4. game_instance list las muestra; stop 2 → el server ve la desconexión; add vuelve a entrar.
+## 0. suite.sh deja el puerto 6007 tomado, como otro editor abierto: las extra van al de este editor.
 ## 5. Una instancia que no corre da error. Stop corta todas: ningún proceso queda vivo, y el autoload
 ##    de playtest no queda en project.godot.
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PlaytestAutoload := preload("res://addons/godot_agent/playtest/playtest_autoload.gd")
+const GameInstances := preload("res://addons/godot_agent/playtest/game_instances.gd")
 const PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const SCENE := "res://tests/fixtures/instances/main.tscn"
 const WAIT_MS := 20000
@@ -50,6 +52,11 @@ func _run() -> void:
 	_expect(report.contains("Instance 2 is running"), "la instancia 2 no arrancó · %s" % report.replace("\n", " ¶ ").left(3000))
 	_expect(report.contains("[game#2/error]") and report.contains("fixture client error"), "el error de la 2 no sale como game#2 · %s" % report.right(600))
 	_expect(not PlaytestAutoload.is_registered(), "el autoload quedó en project.godot con el juego corriendo")
+	# suite.sh toma el 6007: el debugger de este editor está en otro puerto, y la 2 tiene que haber ido ahí.
+	var game_pid := int(_plugin.get(&"_run_tools").get(&"debugger").get(&"editor_game_pid"))
+	var editor_uri := GameInstances.editor_debugger_uri(game_pid)
+	print("[instances-check] el juego del editor (PID %d) usa el debugger en %s" % [game_pid, editor_uri])
+	_expect(editor_uri.begins_with("tcp://"), "no se supo adónde se conectó el juego del editor (PID %d) · «%s»" % [game_pid, editor_uri])
 	if not report.contains("Instance 2 is running"):
 		return
 

@@ -698,10 +698,10 @@ func _add_instance(entry: Dictionary, real_gamepads: bool) -> String:
 	if number < 0:
 		return "Instance not added: %d instances already run (the most at once)." % GameInstances.MAX_INSTANCES
 	var settings := EditorInterface.get_editor_settings()
-	var host := str(settings.get_setting("network/debug/remote_host"))
-	var port := int(settings.get_setting("network/debug/remote_port"))
+	var uri := GameInstances.debugger_uri(GameInstances.editor_debugger_uri(debugger.editor_game_pid), str(settings.get_setting("network/debug/remote_host")),
+		int(settings.get_setting("network/debug/remote_port")))
 	var screen := DisplayServer.window_get_current_screen()
-	var args := GameInstances.launch_args(ProjectSettings.globalize_path("res://"), _run_scene_path, host if not host.is_empty() else "127.0.0.1", port, entry, number,
+	var args := GameInstances.launch_args(ProjectSettings.globalize_path("res://"), _run_scene_path, uri, entry, number,
 		DisplayServer.screen_get_usable_rect(screen))
 	if register_autoload.is_valid():
 		register_autoload.call(true)

@@ -68,10 +68,74 @@ static func normalize_entry(item: Variant) -> Dictionary:
 	return {"args": args, "headless": spec.get("headless") == true, "device": device.get("device", {}), "inputs": inputs, "shared_user_dir": spec.get("shared_user_dir") == true}
 
 
+## Adonde se conecta una instancia extra: al debugger que usa el juego del editor (`reported`). Sin eso,
+## el de los settings, que falla si otro editor tenía el puerto.
+static func debugger_uri(reported: String, host: String, port: int) -> String:
+	if reported.begins_with("tcp://"):
+		return reported
+	return "tcp://%s:%d" % [host if not host.is_empty() else "127.0.0.1", port]
+
+
+## La dirección del debugger con que el editor lanzó el juego `pid` (`--remote-debug tcp://127.0.0.1:6008`),
+## o "". Es la que vale: si otro editor ya tenía network/debug/remote_port, este escucha en el siguiente,
+## y eso no lo dicen los settings ni ninguna API (el juego tampoco lo ve: Godot saca --remote-debug de
+## OS.get_cmdline_args()). Solo lo sabe la línea de comandos del juego.
+static func editor_debugger_uri(pid: int) -> String:
+	return remote_debug_arg(command_line(pid)) if pid > 0 else ""
+
+
+## El valor de --remote-debug en una línea de comandos, o "".
+static func remote_debug_arg(args: PackedStringArray) -> String:
+	for i in args.size():
+		if args[i] == "--remote-debug" and i + 1 < args.size():
+			return args[i + 1]
+		if args[i].begins_with("--remote-debug="):
+			return args[i].trim_prefix("--remote-debug=")
+	return ""
+
+
+## La línea de comandos del proceso `pid`. Linux: /proc, sin lanzar nada. macOS y los BSD: ps.
+## Windows: Get-CimInstance. Partida por espacios fuera de Linux: alcanza para --remote-debug, que no
+## lleva espacios.
+static func command_line(pid: int) -> PackedStringArray:
+	var proc := "/proc/%d/cmdline" % pid
+	if FileAccess.file_exists(proc):
+		var file := FileAccess.open(proc, FileAccess.READ)
+		if file == null:
+			return PackedStringArray()
+		# /proc reporta largo 0: se lee por bloques hasta que no viene más.
+		var bytes := PackedByteArray()
+		while true:
+			var chunk := file.get_buffer(4096)
+			bytes.append_array(chunk)
+			if chunk.size() < 4096:
+				break
+		# Separados por NUL, que get_string_from_utf8 toma como el final.
+		var args := PackedStringArray()
+		var start := 0
+		for i in bytes.size():
+			if bytes[i] == 0:
+				if i > start:
+					args.append(bytes.slice(start, i).get_string_from_utf8())
+				start = i + 1
+		if start < bytes.size():
+			args.append(bytes.slice(start).get_string_from_utf8())
+		return args
+	var output: Array = []
+	var code := -1
+	if OS.get_name() == "Windows":
+		code = OS.execute("powershell", ["-NoProfile", "-Command", "(Get-CimInstance Win32_Process -Filter 'ProcessId=%d').CommandLine" % pid], output)
+	else:
+		code = OS.execute("ps", ["-ww", "-o", "command=", "-p", str(pid)], output)
+	if code != 0 or output.is_empty():
+		return PackedStringArray()
+	return str(output[0]).strip_edges().replace("\"", "").split(" ", false)
+
+
 ## Los argumentos del proceso de la instancia `number`. Los del juego van después de `--`, donde los
 ## lee OS.get_cmdline_user_args().
-static func launch_args(project: String, scene: String, host: String, port: int, entry: Dictionary, number: int, area: Rect2i) -> PackedStringArray:
-	var args := PackedStringArray(["--path", project, "--remote-debug", "tcp://%s:%d" % [host, port]])
+static func launch_args(project: String, scene: String, uri: String, entry: Dictionary, number: int, area: Rect2i) -> PackedStringArray:
+	var args := PackedStringArray(["--path", project, "--remote-debug", uri])
 	if bool(entry.get("headless", false)):
 		args.append("--headless")
 	else:

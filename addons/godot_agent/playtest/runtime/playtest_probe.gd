@@ -3,7 +3,7 @@ extends Node
 ## Aislado a propósito: sin class_name y sin referencias a scripts @tool del addon, para que cargarlo
 ## no arrastre código de editor (spec §6, punto 5). Solo precarga los scripts de esta carpeta.
 ## Habla con el editor por el canal del debugger, prefijo `godot_agent:`:
-## - juego → editor: `ready` [versión], `frame` [png], `inputs_done` [cantidad], `problem` [texto],
+## - juego → editor: `ready` [versión, instancia, PID], `frame` [png], `inputs_done` [cantidad], `problem` [texto],
 ##   `reply` [id, {text} o {error}], `finding` [{detector, summary, signature, …}] y `finding_frame`
 ##   [firma, png] (m15-07, m15-08), `film_frame` [n, t, jpeg] (m15-22).
 ## - editor → juego: `capture` [lado máximo], `inputs` [[paso, …]], `request` [id, op, params]
@@ -91,7 +91,7 @@ func _ready() -> void:
 	_ui = GameUi.new(self)
 	_last_frame_ms = Time.get_ticks_msec()
 	EngineDebugger.register_message_capture(PREFIX, _on_message)
-	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL, InstanceEnv.number()])
+	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL, InstanceEnv.number(), OS.get_process_id()])
 
 
 ## La ventana vuelve al tamaño del proyecto después del _ready: se repite hasta que quede.

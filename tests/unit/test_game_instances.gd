@@ -30,15 +30,28 @@ func test_normalize_and_limit() -> void:
 
 func test_launch_args() -> void:
 	var entry: Dictionary = GameInstances.normalize_entry({"args": ["--client", "127.0.0.1:7000"]})
-	var args := GameInstances.launch_args("/p", "res://main.tscn", "127.0.0.1", 6007, entry, 2, AREA)
+	var args := GameInstances.launch_args("/p", "res://main.tscn", "tcp://127.0.0.1:6007", entry, 2, AREA)
 	assert_eq(args.slice(0, 4), PackedStringArray(["--path", "/p", "--remote-debug", "tcp://127.0.0.1:6007"]), "al debugger del editor")
 	assert_true("--resolution" in args and args[args.find("--resolution") + 1] == "640x360", "ventana del tamaño por defecto · %s" % [args])
 	var scene_at := args.find("res://main.tscn")
 	assert_true(scene_at > 0 and args[scene_at + 1] == "--" and args.slice(scene_at + 2) == PackedStringArray(["--client", "127.0.0.1:7000"]), "los del juego después de -- · %s" % [args])
-	var server := GameInstances.launch_args("/p", "res://main.tscn", "127.0.0.1", 6007, GameInstances.normalize_entry({"headless": true}), 3, AREA)
+	var server := GameInstances.launch_args("/p", "res://main.tscn", "tcp://127.0.0.1:6007", GameInstances.normalize_entry({"headless": true}), 3, AREA)
 	assert_true("--headless" in server and not "--position" in server and not "--" in server, "headless: sin ventana · %s" % [server])
 	var phone := GameInstances.normalize_entry({"device": "phone"})
 	assert_eq(GameInstances.window_size(phone), Vector2i(phone.device.size[0], phone.device.size[1]), "la ventana del dispositivo")
+
+
+## Con el puerto de los settings tomado por otro editor, este escucha en el siguiente: las instancias
+## extra van adonde se conectó el juego del editor, no a remote_port.
+func test_debugger_uri() -> void:
+	assert_eq(GameInstances.remote_debug_arg(PackedStringArray(["godot", "--path", "/p", "--remote-debug", "tcp://127.0.0.1:6008", "res://main.tscn"])), "tcp://127.0.0.1:6008", "lo que recibió el juego")
+	assert_eq(GameInstances.remote_debug_arg(PackedStringArray(["--remote-debug=tcp://10.0.0.2:6010"])), "tcp://10.0.0.2:6010", "con =")
+	assert_eq(GameInstances.remote_debug_arg(PackedStringArray(["--path", "/p"])), "", "sin debugger")
+	var own := GameInstances.command_line(OS.get_process_id())
+	assert_true(own.size() > 1 and Array(OS.get_cmdline_user_args()).all(func(arg: String) -> bool: return arg in own), "la línea de comandos de este proceso · %s" % [own])
+	assert_eq(GameInstances.editor_debugger_uri(0), "", "sin PID, nada")
+	assert_eq(GameInstances.debugger_uri("tcp://127.0.0.1:6008", "127.0.0.1", 6007), "tcp://127.0.0.1:6008", "el del juego del editor gana")
+	assert_eq(GameInstances.debugger_uri("", "", 6007), "tcp://127.0.0.1:6007", "sin él, los settings")
 
 
 func test_tiles_dont_overlap() -> void:
