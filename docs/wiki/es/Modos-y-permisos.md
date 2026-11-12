@@ -107,6 +107,7 @@ Valores por defecto:
 | Project settings, export y addons | Denegar | Denegar | Preguntar | Permitir | Permitir |
 | Instalar desde el Asset Store | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Herramientas del proyecto | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
+| Segunda opinión | Preguntar | Preguntar | Preguntar | Preguntar | Denegar |
 | Subagentes | Permitir | Permitir | Permitir | Permitir | Permitir |
 
 ¹ En Auto, primero deciden las [listas del modo Auto](#modo-auto); solo lo que no permiten muestra una tarjeta.
@@ -118,6 +119,19 @@ Con Claude Code, lanzar un subagente (su tool **Agent**) pasa por el grupo **Sub
 - **Subagentes a la vez**, en la matriz de **Ajustes → Permisos**, limita cuántos corren al mismo tiempo en cada modo (0 = sin límite). Uno más se rechaza con un aviso en el chat, y al agente se le dice por qué.
 - La tarjeta de un subagente en el chat muestra su prompt, las tools que corre y lo que va escribiendo, y al final su informe. Uno que corre en segundo plano sigue en curso hasta que termina, aunque ya haya terminado el tool call que lo lanzó.
 - Mientras el agente trabaja, el chip del agente en el header cuenta los subagentes en curso; su tooltip los lista.
+
+### Segunda opinión
+
+Otro agente puede revisar el trabajo de solo lectura, sin esta conversación: un modelo de otra familia suele ver lo que el primero no ve. Se elige en **Settings → Agentes → Segunda opinión** (cualquier perfil; **Ninguno** la apaga). Se pide desde cuatro lugares:
+
+- **Segunda opinión** en el pie de un turno de Construir o Auto que cambió archivos: recibe el diff de ese turno (cortado en 30.000 caracteres, con la lista de archivos para leer el resto).
+- **Segunda opinión…** en la tarjeta del plan: recibe el plan; la tarjeta sigue esperándote.
+- `/second-opinion [pregunta]` en el composer: tu pregunta y los cambios del último turno.
+- El agente mismo, con `godot.ask_second_opinion` (pregunta, el diff de su turno y archivos para mirar). Pasa por el grupo **Segunda opinión**: **Preguntar** en todos los modos menos One-shot, donde se deniega.
+
+El otro agente corre en su propia sesión, sin pestaña, arrancada con la primera pregunta y reusada (una pregunta a la vez, hasta 5 minutos cada una). Puede leer el proyecto y usar los diagnósticos; todo lo demás se deniega sea cual sea el modo (ediciones, el juego, comandos, ajustes del proyecto, otros servidores MCP, mensajes a otras sesiones), y una tarjeta que levantara se deniega sola. Mientras trabaja, un chip **Second opinion · thinking · 12 s** se ve junto al estado de la pestaña, con el agente y el modelo en su tooltip.
+
+La respuesta que pediste sale como un aviso plegado con sus tokens, y al agente de esta pestaña no le llega nada hasta que aprietes **Mandar al agente**. **Abrir la conversación** abre la sesión del otro agente desde el historial. La respuesta le llega al agente siempre como datos de otro agente, en un sobre no confiable, nunca como instrucciones: el otro agente leyó código y textos del proyecto, y pueden traer instrucciones plantadas. Lo mismo vale para el resultado de `godot.ask_second_opinion`. Cada pregunta gasta la cuota del otro agente.
 
 ### Servidores MCP de otros programas
 

@@ -5642,3 +5642,63 @@ msgstr "Pasar a este modo ya no va a cambiar el modelo (se aplica al guardar)."
 
 msgid "The model you pick in the dock's composer is remembered for the mode that tab is in, and switching to that mode picks it again (plan in Ask with one model, build with another). It is yours, not the project's. Agents that don't offer a model choice don't show the selector."
 msgstr "El modelo que elegís en el composer del dock queda recordado para el modo en que está esa pestaña, y pasar a ese modo lo vuelve a elegir (planificar en Preguntar con un modelo y construir con otro). Es tuyo, no del proyecto. Los agentes que no dejan elegir modelo no muestran el selector."
+
+msgid "Second opinion"
+msgstr "Segunda opinión"
+
+msgid "No agent is chosen for second opinions: pick one in Settings › Agents › Second opinion."
+msgstr "No hay un agente elegido para segundas opiniones: elegí uno en Settings › Agentes › Segunda opinión."
+
+msgid "Open Settings"
+msgstr "Abrir Settings"
+
+msgid "Asking %s for a second opinion…"
+msgstr "Pidiéndole una segunda opinión a %s…"
+
+msgid "Second opinion from another agent"
+msgstr "Segunda opinión de otro agente"
+
+msgid "Could not start %s for the second opinion: %s"
+msgstr "No se pudo arrancar %s para la segunda opinión: %s"
+
+msgid "The second opinion was cancelled."
+msgstr "La segunda opinión se canceló."
+
+msgid "%s didn't answer (%s)."
+msgstr "%s no contestó (%s)."
+
+msgid "Second opinion · %s"
+msgstr "Segunda opinión · %s"
+
+msgid "%d tokens. Nothing was sent to the agent of this tab."
+msgstr "%d tokens. No se le mandó nada al agente de esta pestaña."
+
+msgid "Answer"
+msgstr "Respuesta"
+
+msgid "The agent of this tab gets the answer as information from another agent, not as instructions."
+msgstr "El agente de esta pestaña recibe la respuesta como información de otro agente, no como instrucciones."
+
+msgid "Open the conversation"
+msgstr "Abrir la conversación"
+
+msgid "Another agent (Settings › Agents › Second opinion) reviews this turn's changes, read only and without this conversation."
+msgstr "Otro agente (Settings › Agentes › Segunda opinión) revisa los cambios de este turno, de solo lectura y sin esta conversación."
+
+msgid "Ask another agent for a read-only opinion on your question and the last turn's changes (harness)"
+msgstr "Pedirle a otro agente una opinión de solo lectura sobre tu pregunta y los cambios del último turno (harness)"
+
+msgid "Second opinion…"
+msgstr "Segunda opinión…"
+
+msgid "Another agent reviews this plan, read only and without this conversation. The card keeps waiting."
+msgstr "Otro agente revisa este plan, de solo lectura y sin esta conversación. La tarjeta sigue esperando."
+
+msgid "The agent that gives a second opinion, read only, when you or the agent ask for one. Another model family sees what the first one misses. It runs in its own session and spends that agent's quota."
+msgstr "El agente que da una segunda opinión, de solo lectura, cuando vos o el agente la piden. Otra familia de modelos ve lo que la primera no ve. Corre en su propia sesión y gasta la cuota de ese agente."
+
+msgid "None"
+msgstr "Ninguno"
+
+msgid "Asks another agent for a read-only second opinion"
+msgstr "Le pide a otro agente una segunda opinión de solo lectura"

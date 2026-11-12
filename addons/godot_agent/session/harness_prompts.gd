@@ -28,6 +28,8 @@ const REVIEW_PLAYTEST := "Review · playtest"  # i18n
 const INLINE_EDIT := "Inline edit from the Script Editor"  # i18n
 const SUPERVISOR := "What the supervisor saw while the editor was closed"  # i18n
 const OTHER_SESSION := "Message from another agent session"  # i18n
+## La respuesta de la segunda opinión que el usuario le manda al agente (m11-28), en sobre no confiable.
+const SECOND_OPINION := "Second opinion from another agent"  # i18n
 ## «Arreglar con el agente» en el aviso de un run manual que paró con un error (m11-55).
 const RUN_ERROR := "Fix the error of the game you ran"  # i18n
 const HOOK := "Project hook"  # i18n

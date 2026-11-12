@@ -75,7 +75,8 @@ func test_snapshots_in_a_repo() -> void:
 	await controller.call(&"_report_turn_changes", turn_start)
 	var notice: Variant = controller.model.entries()[-1]
 	assert_true(str(notice.text).contains("c.gd"), "aviso con el archivo: %s" % notice.text)
-	assert_eq(notice.actions.map(func(action: Dictionary) -> String: return action.id), [SessionController.ACTION_TURN_CHANGES, SessionController.ACTION_TURN_RESTORE], "ver cambios y volver atrás")
+	assert_eq(notice.actions.map(func(action: Dictionary) -> String: return action.id), [SessionController.ACTION_TURN_CHANGES, SessionController.ACTION_TURN_RESTORE, SessionController.ACTION_SECOND_OPINION], "ver cambios, volver atrás y segunda opinión (m11-28)")
+	assert_eq(notice.actions[2].data, {"session": "s2", "diff": true}, "la segunda opinión con el diff de esa pestaña")
 	assert_eq([notice.actions[0].data.session, notice.actions[0].data.start], ["s2", turn_start], "con la sesión y el snapshot del inicio")
 	var count := controller.model.entries().size()
 	await controller.call(&"_report_turn_changes", await snapshots.take("s2"))

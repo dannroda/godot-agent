@@ -104,6 +104,7 @@ const SUMMARIES: Dictionary = {
 	# Sesiones y subagentes
 	"sessions": "Lists the other agent sessions open in this editor",  # i18n
 	"session_send": "Sends a short message to another agent session",  # i18n
+	"ask_second_opinion": "Asks another agent for a read-only second opinion",  # i18n
 }
 
 

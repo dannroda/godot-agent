@@ -103,6 +103,12 @@ func diff(from: String, to: String) -> Dictionary:
 	return parse_diff(numstat.output, statuses.output)
 
 
+## El diff unificado entre dos snapshots (o un árbol de peek), en la carpeta del proyecto (m11-28).
+func patch(from: String, to: String) -> String:
+	var shown := await git.run(PackedStringArray(["diff", "--no-renames", "--no-color", "-U3", "--relative", from, to]) + PATHSPEC, false)
+	return shown.output if shown.code == 0 else ""
+
+
 ## El contenido de un archivo (relativo al proyecto) en un snapshot; "" si no estaba.
 func text_at(sha: String, path: String) -> String:
 	var shown := await git.run(["show", "%s:./%s" % [sha, path]])

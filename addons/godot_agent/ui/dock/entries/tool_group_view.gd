@@ -438,6 +438,7 @@ const GODOT_TOOL_NAMES := {
 	"scene_tree": "Scene tree",  # i18n
 	"search_api": "Search the API",  # i18n
 	"session_send": "Send to a session",  # i18n
+	"ask_second_opinion": "Second opinion",  # i18n
 	"sessions": "Sessions",  # i18n
 	"set_autoload": "Set autoload",  # i18n
 	"set_input_action": "Set input action",  # i18n

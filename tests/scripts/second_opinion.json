@@ -1,0 +1,27 @@
+{
+	"session": {
+		"modes": {
+			"currentModeId": "default",
+			"availableModes": [
+				{"id": "default", "name": "Default"},
+				{"id": "plan", "name": "Plan"}
+			]
+		}
+	},
+	"turns": [
+		{"steps": [
+			{"chunk": "Changing the player's jump."},
+			{"delay": 2.5},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"mcp": {"name": "ask_second_opinion", "arguments": {"question": "Is the jump right?", "paths": ["tests/m11_28_fixture/player.gd"]}}},
+			{"chunk": "I asked for a second opinion."},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Noted."},
+			{"stop": "end_turn"}
+		]}
+	]
+}

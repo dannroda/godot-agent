@@ -119,6 +119,12 @@ const ACTION_RUN_REGRESSIONS := "run_regressions"
 const ACTION_APPROVE_ON_MACHINE := "approve_on_machine"
 ## «Cambiar» en el aviso del modelo de un modo (m11-38): abre el selector del composer.
 const ACTION_CHOOSE_MODEL := "choose_model"
+## Segunda opinión (m11-28): pedirla ({session, question?, plan?, diff?}), cortarla, abrir la conversación
+## del oráculo ({session, session_id}) y mandarle la respuesta al agente de la pestaña (el texto).
+const ACTION_SECOND_OPINION := "second_opinion"
+const ACTION_SECOND_OPINION_CANCEL := "second_opinion_cancel"
+const ACTION_SECOND_OPINION_OPEN := "second_opinion_open"
+const ACTION_SEND_SECOND_OPINION := "send_second_opinion"
 const ACTION_REGRESSIONS_WORKFLOW := "regressions_workflow"
 const ACTION_LOGIN_CODE := "login_code"
 const ACTION_LOGIN_CANCEL := "login_cancel"
@@ -188,6 +194,10 @@ var agent_sessions: Array[Dictionary]:
 	get: return sessions.agent_sessions
 ## `usage` del último session/prompt (tokens del turno: inputTokens, outputTokens, cachedReadTokens…).
 var last_turn_usage: Dictionary = {}
+## El snapshot del principio del turno en curso ("" sin turno o sin snapshots) y lo que dejó el último
+## turno con cambios ({session, start, end, files}): de ahí sale el diff de la segunda opinión (m11-28).
+var current_turn_start: String = ""
+var last_turn_changes: Dictionary = {}
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
 var cwd: String = ""
 ## Callable() -> Array: entradas `mcpServers` para session/new (el server del addon, M3).
@@ -531,6 +541,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var turn_start := ""
 	if not is_command and snapshots and snapshots.available and model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
 		turn_start = await snapshots.take(session_key)
+	current_turn_start = turn_start
 	# Un playtest en Revisar tiene que jugar: en plan el agente no corre nada y se queda esperando que
 	# aprueben un plan (m16-03). Lo que no puede hacer lo sigue frenando la matriz de permisos de Revisar.
 	var playtest_turn: bool = model.harness_mode == SessionModel.HarnessMode.REVIEW and ReviewStore.is_playtest_prompt(text.strip_edges())
@@ -615,6 +626,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		quota.observe_turn_ok()
 	if plan_turn and stop_reason == "end_turn":
 		_offer_block_plan(first_new_entry)
+	current_turn_start = ""
 	model.finish_turn(stop_reason)
 	_record_turn_end(stop_reason)
 	if not is_command and model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
@@ -685,6 +697,7 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 			var changes: Dictionary = await snapshots.diff(turn_start, data.end)
 			data.files = changes.files
 			if not changes.files.is_empty():
+				last_turn_changes = data
 				var names := PackedStringArray(changes.files.slice(0, 4).map(func(file: Dictionary) -> String: return str(file.path).get_file()))
 				if changes.files.size() > 4:
 					names.append("…")
@@ -692,6 +705,8 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 				parts.append(summary)
 				actions.append({"id": ACTION_TURN_CHANGES, "label": I18n.t("View changes"), "data": data})
 				actions.append({"id": ACTION_TURN_RESTORE, "label": I18n.t("Undo turn"), "data": data, "tooltip": I18n.t("Go back to before this turn")})
+				actions.append({"id": ACTION_SECOND_OPINION, "label": I18n.t("Second opinion"), "data": {"session": session_key, "diff": true},
+					"tooltip": I18n.t("Another agent (Settings › Agents › Second opinion) reviews this turn's changes, read only and without this conversation.")})
 	var captures: int = TurnReport.collect(model, first_entry).images.size() if first_entry >= 0 else 0
 	if captures > 0:
 		parts.append(I18n.t("%d captures of the game or the editor.") % captures)

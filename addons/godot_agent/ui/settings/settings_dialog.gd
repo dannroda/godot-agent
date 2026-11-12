@@ -70,6 +70,9 @@ var seen_mcp_servers_provider: Callable
 var _settings: HarnessSettings
 ## El modelo de cada modo del perfil que se edita (m11-38), y los que se olvidan al guardar: [profile_id, mode].
 var _mode_models_box: VBoxContainer
+## El agente de la segunda opinión (m11-28): «None» y los perfiles; el id elegido sobrevive a editarlos.
+var _second_opinion_option: OptionButton
+var _second_opinion_id: String = ""
 var _forget_models: Array = []
 var _config: ProjectConfig
 
@@ -326,6 +329,15 @@ func _build_agents(page: VBoxContainer) -> void:
 	add_row.add_child(add)
 	add_row.add_child(from_registry)
 	left.add_child(add_row)
+	var second_label := Label.new()
+	second_label.text = I18n.t("Second opinion")
+	second_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	left.add_child(second_label)
+	_second_opinion_option = OptionButton.new()
+	_second_opinion_option.name = "SecondOpinionAgent"
+	_second_opinion_option.tooltip_text = I18n.t("The agent that gives a second opinion, read only, when you or the agent ask for one. Another model family sees what the first one misses. It runs in its own session and spends that agent's quota.")
+	_second_opinion_option.item_selected.connect(func(index: int) -> void: _second_opinion_id = str(_second_opinion_option.get_item_metadata(index)))
+	left.add_child(_second_opinion_option)
 	# Etiqueta arriba de cada campo: en dos columnas, la etiqueta larga del entorno se comía el ancho
 	# y los campos quedaban de unos pocos caracteres.
 	_profile_form = VBoxContainer.new()
@@ -745,6 +757,7 @@ func _load() -> void:
 	_error_label.text = ""
 	_profiles = _settings.profiles()
 	_forget_models = []
+	_second_opinion_id = str(_settings.get_value(HarnessSettings.KEY_SECOND_OPINION, ""))
 	_editing = -1
 	_profile_form.visible = false
 	_rebuild_profiles()
@@ -836,6 +849,7 @@ func _on_save() -> void:
 		before[property] = _config.get(property)
 	_settings.save_profiles(_profiles)
 	_apply_model_forgets()
+	_settings.set_value(HarnessSettings.KEY_SECOND_OPINION, _second_opinion_id)
 	_settings.set_value(HarnessSettings.KEY_MCP_PORT, int(_port_spin.value))
 	_settings.save_mcp_servers(_mcp_servers_page.user_servers())
 	_settings.set_value(HarnessSettings.KEY_QUOTA_WARN, int(_warn_spin.value))
@@ -1027,6 +1041,7 @@ func matrix_overrides() -> Dictionary:
 
 func _rebuild_profiles() -> void:
 	_suggested_box.visible = _profiles.is_empty()
+	_fill_second_opinion()
 	for child: Node in _profile_list.get_children():
 		_profile_list.remove_child(child)
 		child.queue_free()
@@ -1107,6 +1122,23 @@ func _edit_profile(index: int) -> void:
 	_fill_mode_models(profile.id)
 	_profile_form.visible = true
 	_rebuild_profiles()
+
+
+func _fill_second_opinion() -> void:
+	if _second_opinion_option == null:
+		return
+	_second_opinion_option.clear()
+	_second_opinion_option.add_item(I18n.t("None"))
+	_second_opinion_option.set_item_metadata(0, "")
+	for profile: AgentProfile in _profiles:
+		_second_opinion_option.add_item(profile.label())
+		_second_opinion_option.set_item_metadata(_second_opinion_option.item_count - 1, profile.id)
+		if profile.id == _second_opinion_id:
+			_second_opinion_option.select(_second_opinion_option.item_count - 1)
+	if _second_opinion_option.selected <= 0:
+		_second_opinion_option.select(0)
+		if not _profiles.any(func(p: AgentProfile) -> bool: return p.id == _second_opinion_id):
+			_second_opinion_id = ""
 
 
 ## Los modelos recordados por modo para el perfil (m11-38), con «Olvidar» en cada uno. Sin selector:

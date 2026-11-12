@@ -95,6 +95,8 @@ const UpdateBanner := preload("ui/dock/update_banner.gd")
 const SessionCoordinator := preload("session/session_coordinator.gd")
 const SessionTabs := preload("ui/dock/session_tabs.gd")
 const SessionTools := preload("mcp/tools/session_tools.gd")
+const SecondOpinion := preload("session/second_opinion.gd")
+const SecondOpinionTools := preload("mcp/tools/second_opinion_tools.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -192,6 +194,8 @@ var _extensions_window: ExtensionsWindow
 var _main_screen: Control
 var _fs: FsHandler
 var _registry: ToolRegistry
+## El oráculo de la segunda opinión (m11-28): sin pestaña, se arma con la primera pregunta.
+var _second_opinion: SecondOpinion
 ## Las tools propias del proyecto (m11-46) y las claves de las frenadas que ya se avisaron.
 var _project_tools: ProjectToolLoader
 var _tools_announced: Dictionary = {}
@@ -466,6 +470,11 @@ func _exit_tree() -> void:
 	for id: String in _extra_sessions.keys():
 		_close_session_tab(id, false)
 	_tabs = null
+	if _second_opinion:
+		_second_opinion.controller.stop()  # su proceso; AgentProcess.stop_all cubre lo que quede
+		if _second_opinion.controller.history:
+			_second_opinion.controller.history.flush()
+		_second_opinion = null
 	if _controller:
 		_controller.stop()
 		if _controller.history:
@@ -796,6 +805,13 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			_undo_tool_call(str(payload))
 		SessionController.ACTION_TURN_CHANGES:
 			_turn_dialog.show_turn(payload)
+		SessionController.ACTION_SECOND_OPINION:
+			_second_opinion_for_user(payload)
+		SessionController.ACTION_SECOND_OPINION_CANCEL:
+			if _second_opinion:
+				_second_opinion.cancel()
+		SessionController.ACTION_SECOND_OPINION_OPEN:
+			_open_elsewhere(str(payload.get("session", PRIMARY_SESSION)), str(payload.get("session_id", "")))
 		SessionController.ACTION_TURN_RESTORE:
 			_turn_changes.confirm_restore(payload)
 		TurnChanges.ACTION_HUNK_UNDO:
@@ -1127,6 +1143,10 @@ func _start_mcp_server() -> void:
 	session_tools.describe = _describe_sessions
 	session_tools.send = _send_to_session
 	registry.register_provider(session_tools, true)
+	var second_opinion_tools := SecondOpinionTools.new()
+	second_opinion_tools.caller = func() -> String: return _session_of(_registry.current_caller if _registry else "")
+	second_opinion_tools.ask = _ask_second_opinion_tool
+	registry.register_provider(second_opinion_tools, true)
 	_project_tools = ProjectToolLoader.new()
 	_project_tools.dir = ProjectToolLoader.resolve_dir(_project_config.project_tools_dir)
 	# La carpeta del proyecto del editor, no la de una copia aparte: la clave es la misma en las dos.
@@ -1900,6 +1920,9 @@ func _machine_states(id: String) -> Array[Dictionary]:
 		# `live`: se muestra como chip junto al estado (m12-47); `alert`: en ámbar (parado en el debugger).
 		states.append({"machine": I18n.t("Game"), "label": I18n.t(_run_tools.run_state_name()), "age": -1 if game_state == RunTools.GameRunState.IDLE else _run_tools.run_state_age_seconds(),
 			"live": game_state in [RunTools.GameRunState.LAUNCHING, RunTools.GameRunState.STARTED, RunTools.GameRunState.PROBE_READY, RunTools.GameRunState.BREAKED], "alert": game_state == RunTools.GameRunState.BREAKED})  # sin juego, la antigüedad no dice nada
+	if _second_opinion and _second_opinion.is_busy() and _second_opinion.requested_by == id:
+		states.append({"machine": I18n.t("Second opinion"), "label": I18n.t("thinking"), "age": _second_opinion.age_seconds(), "live": true, "alert": false,
+			"detail": _second_opinion.agent_label()})
 	if _oneshot and _runs_in(id) and _oneshot.is_active():
 		var label := "%s · %s" % [_oneshot.phase_label(), I18n.t(OneShotRun.STAGE_LABELS[_oneshot.stage()])]
 		states.append({"machine": I18n.t("One-shot"), "label": label, "age": _oneshot.phase_age_seconds(), "live": true, "alert": _oneshot.phase in [OneShotRun.RunPhase.PAUSED_QUOTA, OneShotRun.RunPhase.LIMITED, OneShotRun.RunPhase.WAITING_CONFIRM]})
@@ -2104,6 +2127,87 @@ func _on_agent_disconnected(id: String) -> void:
 			_log.add(AgentLog.CH_STATE, "session %s closed: cleared its breakpoints %s" % [id, ", ".join(released)])
 
 
+## El oráculo, armado la primera vez (m11-28): su controller es como el de una pestaña, con el id
+## SecondOpinion.SESSION_ID para el server MCP; el historial guarda su conversación.
+func _oracle() -> SecondOpinion:
+	if _second_opinion == null:
+		var model := SessionModel.new()
+		var controller := _make_controller(model, SecondOpinion.SESSION_ID)
+		_second_opinion = SecondOpinion.new(controller, model)
+	return _second_opinion
+
+
+## Reemplaza el perfil de Settings › Agentes › Segunda opinión en las verificaciones del editor
+## (second_opinion_check): un agente falso sin tocar EditorSettings. Sin él, el de Settings.
+var second_opinion_profile_override: AgentProfile
+
+
+func _second_opinion_profile() -> AgentProfile:
+	return second_opinion_profile_override if second_opinion_profile_override else _settings.second_opinion_profile()
+
+
+## El contexto del diff para la segunda opinión: el turno en curso de `session` hasta ahora, o si no
+## hay, el último turno con cambios. {diff, files} o {} sin snapshots.
+func _turn_diff(session: String) -> Dictionary:
+	var controller := _controller_of(session)
+	if controller == null or controller.snapshots == null or not controller.snapshots.available:
+		return {}
+	var from := controller.current_turn_start
+	var to := ""
+	var files: PackedStringArray = []
+	if not from.is_empty():
+		var peeked: Dictionary = await controller.snapshots.peek(controller.session_key, from)
+		to = str(peeked.get("tree", ""))
+		for file: Dictionary in peeked.get("files", []):
+			files.append(str(file.path))
+	if to.is_empty() or files.is_empty():
+		var last := controller.last_turn_changes
+		from = str(last.get("start", ""))
+		to = str(last.get("end", ""))
+		files = PackedStringArray((last.get("files", []) as Array).map(func(file: Dictionary) -> String: return str(file.path)))
+	if from.is_empty() or to.is_empty() or files.is_empty():
+		return {}
+	return {"diff": await controller.snapshots.patch(from, to), "files": files}
+
+
+## godot.ask_second_opinion: la pregunta del agente de la pestaña `caller`.
+func _ask_second_opinion_tool(caller: String, question: String, include_diff: bool, paths: Array) -> Dictionary:
+	if caller == SecondOpinion.SESSION_ID:
+		return {"ok": false, "error": "The second opinion can't ask for another one."}
+	var context := {"paths": paths}
+	if include_diff:
+		context.merge(await _turn_diff(caller))
+	return await _oracle().ask(question, context, _second_opinion_profile(), caller)
+
+
+## Lo pide el usuario (aviso del fin de turno, tarjeta del plan, /second-opinion): `payload`
+## {session, question?, plan?, diff?: bool}. La respuesta vuelve como aviso en esa pestaña, con
+## «Send to the agent» y «Open the conversation»; no le llega sola al agente principal.
+func _second_opinion_for_user(payload: Variant) -> void:
+	var data: Dictionary = payload if payload is Dictionary else {}
+	var session := str(data.get("session", PRIMARY_SESSION))
+	var model := _model_of(session)
+	if model == null:
+		return
+	var profile := _second_opinion_profile()
+	if profile == null:
+		model.add_notice(I18n.t("No agent is chosen for second opinions: pick one in Settings › Agents › Second opinion."), ChatEntry.NoticeLevel.WARNING,
+			[{"id": SessionController.ACTION_EDIT_AGENT, "label": I18n.t("Open Settings")}])
+		return
+	var context := {"plan": str(data.get("plan", ""))}
+	if bool(data.get("diff", false)):
+		context.merge(await _turn_diff(session))
+	var oracle := _oracle()
+	var waiting: ChatEntry = model.add_notice(I18n.t("Asking %s for a second opinion…") % profile.label(), ChatEntry.NoticeLevel.INFO,
+		[{"id": SessionController.ACTION_SECOND_OPINION_CANCEL, "label": I18n.t("Cancel")}])
+	var result: Dictionary = await oracle.ask(str(data.get("question", "")), context, profile, session)
+	model = _model_of(session)  # la pestaña pudo cerrarse mientras tanto
+	if model == null:
+		return
+	SecondOpinion.fill_notice(waiting, result, session)
+	model.notify_entry_changed(waiting)
+
+
 func _session_of(caller: String) -> String:
 	return PRIMARY_SESSION if caller.is_empty() else caller
 
@@ -2111,6 +2215,8 @@ func _session_of(caller: String) -> String:
 func _controller_of(id: String) -> SessionController:
 	if id == PRIMARY_SESSION:
 		return _controller
+	if id == SecondOpinion.SESSION_ID:  # sin pestaña: el server MCP lo autoriza con su política de solo lectura
+		return _second_opinion.controller if _second_opinion else null
 	var session: Dictionary = _extra_sessions.get(id, {})
 	return session.get("controller")
 
@@ -2127,6 +2233,8 @@ func _session_of_dock(dock: Control) -> String:
 func _model_of(id: String) -> SessionModel:
 	if id == PRIMARY_SESSION:
 		return _model
+	if id == SecondOpinion.SESSION_ID:
+		return _second_opinion.model if _second_opinion else null
 	var session: Dictionary = _extra_sessions.get(id, {})
 	return session.get("model")
 
@@ -2191,6 +2299,10 @@ func _describe_sessions(caller: String) -> String:
 
 
 func _send_to_session(caller: String, to: String, message: String) -> String:
+	# El oráculo lee el proyecto (texto que puede traer instrucciones plantadas) y session_send es del
+	# grupo read: sin esto le escribiría al agente de una pestaña sin sobre ni permiso (m11-28).
+	if caller == SecondOpinion.SESSION_ID:
+		return "The second opinion is read only: it can't send messages to other sessions."
 	if _coordinator == null:
 		return "There is only one agent session open."
 	var target := _coordinator.find_by_label(to, caller)
