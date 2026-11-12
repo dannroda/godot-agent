@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-11-12
+
 ### Changed
 
 - New screenshots in the README and the wiki: the project modes in the mode selector, the mode switch card, a plan with playable criteria before and after they're verified, and the ✓/✗ marks of the last turn in the Script Editor. The dock overview shows the session tabs. All of them come from `tests/docs_shots.sh` with the demo project.
