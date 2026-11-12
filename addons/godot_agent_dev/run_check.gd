@@ -18,6 +18,7 @@ const RUN_SCENE := "res://tests/fixtures/run_fixture.tscn"
 const BROKEN_SCENE := "res://tests/fixtures/run_broken.tscn"
 const QUITS_SCENE := "res://tests/fixtures/run_quits.tscn"
 const GAME_SCENE := "res://tests/fixtures/playtest_game/playtest_game.tscn"
+const VIEWS_SCENE := "res://tests/fixtures/camera_views.tscn"
 const PlaytestMemory := preload("res://addons/godot_agent/review/playtest_memory.gd")
 const FlipbookDialog := preload("res://addons/godot_agent/ui/flipbook_dialog.gd")
 const EditorWindows := preload("res://addons/godot_agent/ui/editor_windows.gd")
@@ -102,6 +103,7 @@ func _check_runs(model: Object) -> void:
 	await _check_live_game()
 	var stopped := await _call_text("stop_scene", {})
 	_expect(stopped.contains("stopped") and not EditorInterface.is_playing_scene(), "stop_scene")
+	await _check_camera_views()
 
 	# Grabación (m14-03): el juego cierra solo, el video queda y el Movie Maker vuelve a como estaba.
 	# run_scene con monitors (m11-43): el resumen de toda la corrida va al final del informe.
@@ -508,6 +510,40 @@ func _check_autoload_gone(label: String) -> void:
 	var config := ConfigFile.new()
 	config.load("res://project.godot")
 	_expect(not config.has_section_key("autoload", PlaytestAutoload.NAME), "autoload en project.godot " + label)
+
+
+## capture_game_frame desde otra cámara (m11-52): la cámara del juego mira la caja roja; «Side», a 40 m,
+## la verde. Las vistas se renderizan aparte: la cámara del jugador no se mueve.
+func _check_camera_views() -> void:
+	await _call_text("run_scene", {"scene": VIEWS_SCENE, "seconds": 0.5})
+	_expect(_center_colors(await _call("capture_game_frame", {})) == ["red"], "capture_game_frame: la cámara del juego ve la caja roja")
+	var side: Dictionary = await _call("capture_game_frame", {"camera": "Side"})
+	_expect(_center_colors(side) == ["green"] and _text(side).contains("camera Side"), "capture_game_frame camera: la verde desde «Side» · %s" % _text(side))
+	var looking: Dictionary = await _call("capture_game_frame", {"look_from": [40, 0, 3], "look_at": [40, 0, 0]})
+	_expect(_center_colors(looking) == ["green"], "capture_game_frame look_from/look_at: la verde · %s" % _text(looking))
+	var around: Dictionary = await _call("capture_game_frame", {"angles": 4, "look_at": [0, 0, 0], "distance": 4})
+	_expect(_center_colors(around) == ["red", "red", "red", "red"] and _text(around).contains("angle 4 of 4"), "capture_game_frame angles: 4 vistas de la roja · %s" % str(_center_colors(around)))
+	_expect(_center_colors(await _call("capture_game_frame", {})) == ["red"], "la cámara del juego no se movió")
+	var unknown: Dictionary = await _call("capture_game_frame", {"camera": "Nope"})
+	_expect(unknown.get("isError", false) and _text(unknown).contains("not a Camera3D"), "capture_game_frame camera inexistente → error")
+	var too_many: Dictionary = await _call("capture_game_frame", {"angles": 9})
+	_expect(too_many.get("isError", false) and _text(too_many).contains("from 1 to 8"), "capture_game_frame angles fuera de rango → error")
+	await _call_text("stop_scene", {})
+
+
+## El color del centro de cada imagen de un resultado: "red", "green" u "other".
+func _center_colors(result: Dictionary) -> Array:
+	var colors: Array = []
+	for block: Dictionary in result.get("content", []):
+		if block.get("type") != "image":
+			continue
+		var image := Image.new()
+		if image.load_png_from_buffer(Marshalls.base64_to_raw(block.data)) != OK:
+			colors.append("corrupt")
+			continue
+		var pixel := image.get_pixel(image.get_width() / 2, image.get_height() / 2)
+		colors.append("red" if pixel.r > 0.9 and pixel.g < 0.1 and pixel.b < 0.1 else ("green" if pixel.g > 0.9 and pixel.r < 0.1 and pixel.b < 0.1 else "other %s" % pixel))
+	return colors
 
 
 func _frame_is_red(result: Dictionary) -> bool:

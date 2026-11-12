@@ -18,6 +18,7 @@ const Watcher := preload("watcher.gd")
 const Film := preload("film.gd")
 const PointPick := preload("point_pick.gd")
 const Monitors := preload("monitors.gd")
+const CameraViews := preload("camera_views.gd")
 const DebugStack := preload("debug_stack.gd")
 const DeviceSim := preload("device_sim.gd")
 
@@ -226,6 +227,14 @@ func _answer(id: int, op: String, params: Dictionary) -> void:
 			while not _device_settled:
 				await get_tree().process_frame
 			result = {"text": DeviceSim.report(get_window(), _device)}
+		"views":
+			# capture_game_frame desde otra cámara o varios ángulos (m11-52): {views: [{label, png}]}.
+			var planned := CameraViews.plan(get_tree().current_scene, get_viewport(), params)
+			if planned.has("error"):
+				result = planned
+			else:
+				var shots: Variant = await CameraViews.render(self, planned, int(params.get("max_side", 1280)))
+				result = shots if shots is Dictionary else {"views": shots}
 		"point":
 			# Qué nodo hay bajo un punto de la captura (m11-37): {u, v} en [0, 1].
 			result = PointPick.at(get_viewport(), get_tree().current_scene, Vector2(float(params.get("u", 0.0)), float(params.get("v", 0.0))))

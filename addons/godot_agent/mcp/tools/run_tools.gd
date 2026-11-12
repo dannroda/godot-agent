@@ -11,6 +11,7 @@ extends RefCounted
 signal regressions_finished(results: Array)
 
 const McpTool := preload("../mcp_tool.gd")
+const CameraViews := preload("../../playtest/runtime/camera_views.gd")
 const UntrustedText := preload("../untrusted_text.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
 const PlaytestDebugger := preload("../../playtest/playtest_debugger.gd")
@@ -397,7 +398,13 @@ func tools() -> Array:
 				"repeat": {"type": "integer", "description": "Runs of each regression in CI (1 to %d, default 1). A regression that passes some runs and fails others is reported as flaky" % PlaytestRegressions.MAX_REPEAT},
 				"fail_on_flaky": {"type": "boolean", "description": "A flaky regression fails the CI run too (default false: it is reported and the run passes)"},
 			}, [], _write_regressions_workflow),
-		McpTool.create("capture_game_frame", run, "Captures the current frame of the running game (launched with run_scene) as a PNG.", {}, [], _capture_game_frame),
+		McpTool.create("capture_game_frame", run, "Captures the current frame of the running game (launched with run_scene) as a PNG. To see the world from somewhere else without moving the player's camera (it renders off screen): `camera` (a Camera3D or Camera2D of the game, by path from the scene root or name), `look_from` and/or `look_at` ([x, y, z] in 3D; in 2D `look_at` [x, y] and `zoom`), or `angles` (1-8 views orbiting `look_at` or the center of what is drawn, 30° up, at `distance` or far enough to fit it). Those views show the world without the game's UI layers.", {
+			"camera": {"type": "string", "description": "A camera of the running game to render from."},
+			"look_from": {"type": "array", "items": {"type": "number"}, "description": "Where the temporary camera stands (3D)."},
+			"look_at": {"type": "array", "items": {"type": "number"}, "description": "What it looks at; with angles, the point it orbits."},
+			"angles": {"type": "integer", "minimum": 1, "maximum": 8, "description": "How many views around the point (3D)."},
+			"distance": {"type": "number", "description": "Orbit distance for angles."},
+			"zoom": {"type": "number", "description": "2D zoom (1 = the game's scale)."}}, [], _capture_game_frame),
 		McpTool.create("game_tree", read,
 			"The live node tree of the running game (nodes spawned at runtime included), with types, scripts, positions and texts.",
 			{"path": path_schema, "depth": {"type": "integer", "description": "Levels below `path` (default 4)"}}, [], _game_tree),
@@ -682,14 +689,39 @@ func _stop_scene(_args: Dictionary) -> Dictionary:
 	return McpTool.text("Game stopped.")
 
 
-func _capture_game_frame(_args: Dictionary) -> Dictionary:
+func _capture_game_frame(args: Dictionary) -> Dictionary:
 	if not EditorInterface.is_playing_scene() or not debugger.has_probe():
 		return McpTool.error("No game is running with the playtest probe: launch it with run_scene (manual runs do not have it).")
+	if CameraViews.wants_view(args):
+		return await _capture_views(args)
 	var frame: Variant = await capture_frame()
 	if frame is String:
 		return McpTool.error(frame)
 	var image: Image = frame
 	return McpTool.image(image, "Game frame (%dx%d)" % [image.get_width(), image.get_height()])
+
+
+## Vistas desde otra cámara (m11-52): las renderiza la probe fuera de pantalla, una imagen por vista.
+func _capture_views(args: Dictionary) -> Dictionary:
+	if _stopped_in_debugger():
+		return McpTool.error("The game is stopped in the debugger: continue it with game_debug before capturing other views.")
+	var params := {"max_side": max_image_side}
+	for key: String in ["camera", "look_from", "look_at", "angles", "distance", "zoom"]:
+		if args.has(key):
+			params[key] = args[key]
+	var reply := await request("views", params, REQUEST_TIMEOUT_S + FRAME_TIMEOUT_S)
+	if reply.has("error"):
+		return McpTool.error(UntrustedText.wrap(str(reply.error)))
+	var content: Array = []
+	for view: Dictionary in reply.get("views", []):
+		var image := Image.new()
+		if not view.get("png") is PackedByteArray or image.load_png_from_buffer(view.png) != OK:
+			return McpTool.error("A rendered view arrived corrupted.")
+		content.append({"type": "text", "text": "%s (%dx%d)" % [view.get("label", ""), image.get_width(), image.get_height()]})
+		content.append({"type": "image", "mimeType": "image/png", "data": Marshalls.raw_to_base64(view.png)})
+	if content.is_empty():
+		return McpTool.error("No view came back.")
+	return {"content": content, "isError": false}
 
 
 ## El frame actual del juego (que tiene que tener la probe) como Image, o el error en inglés.

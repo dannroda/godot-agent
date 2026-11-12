@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="StandardMaterial3D" id="red"]
+shading_mode = 0
+albedo_color = Color(1, 0, 0, 1)
+
+[sub_resource type="StandardMaterial3D" id="green"]
+shading_mode = 0
+albedo_color = Color(0, 1, 0, 1)
+
+[sub_resource type="BoxMesh" id="red_box"]
+material = SubResource("red")
+
+[sub_resource type="BoxMesh" id="green_box"]
+material = SubResource("green")
+
+[node name="CameraViews" type="Node3D"]
+
+[node name="Main" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+current = true
+
+[node name="Red" type="MeshInstance3D" parent="."]
+mesh = SubResource("red_box")
+
+[node name="Side" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, 4)
+
+[node name="Green" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, 0)
+mesh = SubResource("green_box")
