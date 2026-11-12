@@ -5630,8 +5630,8 @@ msgstr "Midiendo las regresiones: primero corren sin mutantes…"
 msgid "Measuring the regressions: mutant %d of %d…"
 msgstr "Midiendo las regresiones: mutante %d de %d…"
 
-msgid "Open %s:%d"
-msgstr "Abrir %s:%d"
+msgid "Open %s"
+msgstr "Abrir %s"
 
 msgid "There are no saved regressions yet: a playtest that passes saves one."
 msgstr "Todavía no hay regresiones guardadas: un playtest que pasa guarda una."
