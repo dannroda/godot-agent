@@ -10,6 +10,8 @@ const ELEVATION_DEG := 30.0
 const MIN_DISTANCE := 4.0
 ## Distancia al centro, en radios del contenido, cuando no se pasa `distance`.
 const RADII := 2.5
+## Plazo para que se dibuje una vista.
+const DRAW_TIMEOUT_S := 10.0
 
 
 ## Si hay algo para elegir la vista: camera, look_from, look_at o angles.
@@ -135,6 +137,10 @@ static func render(host: Node, planned: Dictionary, max_side: int, viewport: Vie
 	else:
 		sub.world_2d = viewport.find_world_2d()
 	host.add_child(sub)
+	# El editor duerme entre redibujos (low processor mode): sin esto frame_post_draw puede tardar
+	# hasta que algo más pida dibujar (m11-64, se colgaba en CI con 4.7.2). En el juego no cambia nada.
+	var low_processor := OS.low_processor_usage_mode
+	OS.low_processor_usage_mode = false
 	var shots: Array[Dictionary] = []
 	for view: Dictionary in planned.views:
 		var camera: Node = _camera(view, planned.three_d)
@@ -144,12 +150,17 @@ static func render(host: Node, planned: Dictionary, max_side: int, viewport: Vie
 		else:
 			(camera as Camera2D).make_current()
 		sub.render_target_update_mode = SubViewport.UPDATE_ONCE
-		await RenderingServer.frame_post_draw
-		await RenderingServer.frame_post_draw
+		var drawn: bool = await _drawn(host.get_tree()) and await _drawn(host.get_tree())
+		if not drawn:
+			camera.queue_free()
+			sub.queue_free()
+			OS.low_processor_usage_mode = low_processor
+			return {"error": "The view did not render within %d s (is the window minimized?)." % int(DRAW_TIMEOUT_S)}
 		var image := sub.get_texture().get_image()
 		camera.queue_free()
 		if image == null or image.is_empty():
 			sub.queue_free()
+			OS.low_processor_usage_mode = low_processor
 			return {"error": "Could not read the rendered view."}
 		var longest := maxi(image.get_width(), image.get_height())
 		if max_side > 0 and longest > max_side:
@@ -157,7 +168,21 @@ static func render(host: Node, planned: Dictionary, max_side: int, viewport: Vie
 			image.resize(maxi(1, roundi(image.get_width() * scale)), maxi(1, roundi(image.get_height() * scale)), Image.INTERPOLATE_BILINEAR)
 		shots.append({"label": view.label, "png": image.save_png_to_buffer()})
 	sub.queue_free()
+	OS.low_processor_usage_mode = low_processor
 	return shots
+
+
+## Espera a que termine de dibujarse un frame, con plazo: una ventana que no dibuja no cuelga la tool.
+static func _drawn(tree: SceneTree) -> bool:
+	var state := {"done": false}
+	var on_draw := func() -> void: state.done = true
+	RenderingServer.frame_post_draw.connect(on_draw, CONNECT_ONE_SHOT)
+	var deadline := Time.get_ticks_msec() + int(DRAW_TIMEOUT_S * 1000.0)
+	while not state.done and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	if RenderingServer.frame_post_draw.is_connected(on_draw):
+		RenderingServer.frame_post_draw.disconnect(on_draw)
+	return state.done
 
 
 ## La cámara temporal: copia lente y entorno de la de referencia (la elegida o la del juego).
