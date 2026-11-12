@@ -42,6 +42,9 @@ var _last_precheck: String = ""
 ## La sesión que llama a la tool en curso, para los handlers que la necesitan (godot.sessions):
 ## vale al empezar el handler, antes de su primer await.
 var current_caller: String = ""
+## (caller, tool_name, args) -> String: texto del harness que va al final del resultado de una tool que
+## salió bien, fuera de los sobres (m11-25: las reglas del proyecto para los archivos que tocó). "" nada.
+var result_note: Callable
 ## Tools del agente corriendo ahora (m11-24: un guardado durante una es del agente, no del usuario).
 var running_calls: int = 0
 var max_output_chars: int = 20000
@@ -217,12 +220,14 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 		tool_name = str(args.method)
 		args = args.get("params", {}) if args.get("params") != null else {}
 	var tool: McpTool = _tools.get(tool_name)
+	var note_args: Dictionary = {}
 	if tool == null:
 		result = McpTool.error("There is no tool '%s'. Available: %s." % [tool_name, ", ".join(_order)])
 	elif not (args is Dictionary or args == null):
 		result = McpTool.error("The arguments must be a JSON object.")
 	else:
 		var arguments: Dictionary = args if args is Dictionary else {}
+		note_args = arguments
 		var invalid := tool.validate(arguments)
 		if not invalid.is_empty():
 			result = McpTool.error(invalid)
@@ -248,6 +253,11 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 			result = _with_new_errors(result, errors_since.call(error_mark_before))
 		_error_marks[caller] = error_mark.call()
 	result = _limit(sealed(result, tool))
+	if result_note.is_valid() and tool != null and not result.get("isError", false):
+		var note := str(result_note.call(caller, tool.name, note_args))
+		if not note.is_empty():
+			result = result.duplicate()
+			result["content"] = (result.get("content", []) as Array) + [{"type": "text", "text": note}]
 	_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
 	return result
 

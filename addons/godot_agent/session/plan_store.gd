@@ -56,3 +56,33 @@ static func slug(text: String) -> String:
 			dash = true
 	out = out.left(SLUG_MAX).trim_suffix("-")
 	return out if not out.is_empty() else "plan"
+
+
+## Suma al plan guardado la sección «## Verification» con lo que salió de jugar sus criterios (m11-23):
+## el resumen y una línea por criterio con lo que vio el playtest. Si ya tenía una, la reemplaza.
+static func append_verification(path: String, criteria: Array, summary: String, when: String = "") -> bool:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return false
+	if when.is_empty():
+		when = Time.get_datetime_string_from_system(false, true)
+	var text := FileAccess.get_file_as_string(path)
+	var start := text.find("\n## Verification\n")
+	if start >= 0:
+		text = text.left(start)
+	var lines: PackedStringArray = ["", "## Verification", "", "Checked by playing (%s): %s" % [when, summary], ""]
+	for item: Dictionary in criteria:
+		if str(item.status) == "skipped":
+			lines.append("- · %s (not played)" % item.goal)
+			continue
+		var mark := {"pass": "✓", "fail": "✗", "retest": "✗"}.get(str(item.status), "⊘") as String
+		lines.append("- %s %s" % [mark, item.goal])
+		if not str(item.summary).is_empty():
+			lines.append("  - %s" % str(item.summary).replace("\n", " "))
+		for evidence: Variant in item.get("evidence", []):
+			lines.append("  - %s" % str(evidence).replace("\n", " "))
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(text.strip_edges(false, true) + "\n" + "\n".join(lines) + "\n")
+	file.close()
+	return true

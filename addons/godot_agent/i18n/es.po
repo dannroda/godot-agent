@@ -5957,5 +5957,118 @@ msgstr "Se creó %s a partir de una plantilla. Ajustala y guardala."
 msgid "Save a valid recipe first."
 msgstr "Primero guardá una receta válida."
 
+msgid "rules: %s"
+msgstr "reglas: %s"
+
+msgid "Test"
+msgstr "Probar"
+
+msgid "Which rules by file apply to this path, and who applies each one."
+msgstr "Qué reglas por archivo valen para esta ruta, y quién aplica cada una."
+
+msgid "For files matching %s. %s loads it on its own; the harness sends it to other agents when a turn touches one of those files."
+msgstr "Para los archivos que coinciden con %s. %s la carga sola; el harness se la manda a los otros agentes cuando un turno toca uno de esos archivos."
+
+msgid "Enter a path inside the project."
+msgstr "Escribí una ruta del proyecto."
+
+msgid "No rule by file applies to %s."
+msgstr "Ninguna regla por archivo vale para %s."
+
+msgid "Rules for %s: %s"
+msgstr "Reglas para %s: %s"
+
+msgid "A rule for some files: change the patterns, write the rule and save."
+msgstr "Una regla para algunos archivos: cambiá los patrones, escribí la regla y guardá."
+
+msgid "Apply the project's rules by file"
+msgstr "Aplicar las reglas por archivo del proyecto"
+
+msgid "When a turn touches a file that matches a rule in .agents/rules, .claude/rules or .cursor/rules, the next prompt carries that rule, once per session. Rules the active agent already loads on its own aren't sent again."
+msgstr "Cuando un turno toca un archivo que coincide con una regla de .agents/rules, .claude/rules o .cursor/rules, el próximo prompt lleva esa regla, una vez por sesión. Las reglas que el agente activo ya carga solo no se mandan de nuevo."
 msgid "Messages to other sessions"
 msgstr "Mensajes a otras sesiones"
+
+msgid "Plan · playtest of a criterion"
+msgstr "Plan · playtest de un criterio"
+
+msgid "Plan · fix the criteria that failed"
+msgstr "Plan · corregir los criterios que fallaron"
+
+msgid "approved plan"
+msgstr "plan aprobado"
+
+msgid "%s: an agent plays the game to check %s of %d: %s"
+msgstr "%s: un agente juega para comprobar el %s de %d: %s"
+
+msgid "criterion %d"
+msgstr "criterio %d"
+
+msgid "%s: %d of the criteria failed. The agent gets what was seen to fix them, then they're played again (%d of %d)."
+msgstr "%s: fallaron %d de los criterios. El agente recibe lo que se vio para corregirlos y después se vuelven a jugar (%d de %d)."
+
+msgid "%s: acceptance criteria checked by playing: %s"
+msgstr "%s: criterios de aceptación comprobados jugando: %s"
+
+msgid "Criterion %d"
+msgstr "Criterio %d"
+
+msgid "%d more criteria weren't played (the limit per run is in Settings)."
+msgstr "%d criterios más no se jugaron (el tope por corrida está en Ajustes)."
+
+msgid "Verify the rest (%d)"
+msgstr "Verificar el resto (%d)"
+
+msgid "Plays the criteria that were left out, one playtest each, without changing the game."
+msgstr "Juega los criterios que quedaron afuera, un playtest cada uno, sin cambiar el juego."
+
+msgid "the rest of the criteria"
+msgstr "el resto de los criterios"
+
+msgid "Plan «%s»"
+msgstr "Plan «%s»"
+
+msgid "Recipe «%s»"
+msgstr "Receta «%s»"
+
+msgid "Each criterion is one playtest: after the build, an agent plays the game %d times."
+msgstr "Cada criterio es un playtest: después de construir, un agente juega %d veces."
+
+msgid "Each criterion would be one playtest after the build."
+msgstr "Cada criterio sería un playtest después de construir."
+
+msgid "Up to %d per plan (change it in Settings); the rest can be verified later."
+msgstr "Hasta %d por plan (se cambia en Ajustes); el resto se puede verificar después."
+
+msgid "Up to %d per plan; change it in Settings."
+msgstr "Hasta %d por plan; se cambia en Ajustes."
+
+msgid "waiting to be played"
+msgstr "esperando para jugarse"
+
+msgid "failed, being fixed and played again"
+msgstr "falló, se corrige y se vuelve a jugar"
+
+msgid "couldn't be tested"
+msgstr "no se pudo probar"
+
+msgid "not played (over the limit)"
+msgstr "no se jugó (pasa el tope)"
+
+msgid "Verify the criteria by playing (%d)"
+msgstr "Verificar los criterios jugando (%d)"
+
+msgid "After the build, an agent plays the game once per acceptance criterion («WHEN …, THE GAME SHALL …»). What fails goes back to the agent to fix, and is played again."
+msgstr "Después de construir, un agente juega una vez por cada criterio de aceptación («WHEN …, THE GAME SHALL …»). Lo que falla vuelve al agente para corregirlo y se juega de nuevo."
+
+msgid "Verify a plan's acceptance criteria by playing"
+msgstr "Verificar jugando los criterios de aceptación de un plan"
+
+msgid "When you approve a plan with criteria like «WHEN …, THE GAME SHALL …», after the build an agent plays the game once per criterion. A criterion that fails goes back to the agent to fix and is played again. Each criterion is one playtest. The plan card can turn it off for that plan."
+msgstr "Al aprobar un plan con criterios como «WHEN …, THE GAME SHALL …», después de construir un agente juega una vez por criterio. Un criterio que falla vuelve al agente para corregirlo y se juega de nuevo. Cada criterio es un playtest. La tarjeta del plan lo puede apagar para ese plan."
+
+msgid "Criteria played per plan, at most"
+msgstr "Criterios que se juegan por plan, como mucho"
+
+msgid "The rest stay unplayed; the final notice offers to verify them."
+msgstr "El resto queda sin jugar; el aviso final ofrece verificarlos."

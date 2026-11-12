@@ -12,6 +12,7 @@ const AgentTheme := preload("../agent_theme.gd")
 const ProjectFacts := preload("../../core/project_facts.gd")
 const ExtensionsUi := preload("extensions_ui.gd")
 const AtomicFile := preload("../../core/atomic_file.gd")
+const PathRules := preload("../../core/path_rules.gd")
 
 const FILES: PackedStringArray = [
 	"CLAUDE.md",
@@ -44,6 +45,14 @@ const NEW_RULE_DIRS: Array[Dictionary] = [
 	{"dir": ".cursor/rules", "ext": ".mdc", "label": "Cursor rule (.cursor/rules/*.mdc)"},  # i18n
 ]
 
+## El comienzo de una regla nueva por carpeta (m11-25): una regla por archivo en el formato de cada una.
+const RULE_TEMPLATES := {
+	".agents/rules": "---\ntrigger: glob\nglobs: \"**/*.gdshader\"\ndescription: \n---\n\n",
+	".claude/rules": "---\npaths:\n  - \"**/*.gdshader\"\n---\n\n",
+	".cursor/rules": "---\ndescription: \nglobs: \"**/*.gdshader\"\nalwaysApply: false\n---\n\n",
+}
+const NATIVE_NAMES := {"claude": "Claude Code", "antigravity": "Google Antigravity", "cursor": "Cursor"}
+
 var project_path: String = ""
 var agent_kind: String = "claude"
 ## Los archivos a la izquierda con quién lee cada uno (m12-32); el editor del elegido a la derecha.
@@ -56,6 +65,7 @@ var _new_kind: OptionButton
 var _new_name: LineEdit
 var _listed_files: PackedStringArray = []
 var _current: String = ""
+var _test_path: LineEdit
 var _saved_text: String = ""
 
 
@@ -90,6 +100,20 @@ func _init() -> void:
 	add.tooltip_text = I18n.t("New rule or workflow file")
 	add.pressed.connect(_open_new_dialog)
 	left.add_child(add)
+	# Qué reglas por archivo valen para una ruta (m11-25).
+	var test_row := HBoxContainer.new()
+	left.add_child(test_row)
+	_test_path = LineEdit.new()
+	_test_path.name = "RuleTestPath"
+	_test_path.placeholder_text = "res://…"
+	_test_path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_test_path.text_submitted.connect(func(_text: String) -> void: test_rules(_test_path.text))
+	test_row.add_child(_test_path)
+	var test := Button.new()
+	test.text = I18n.t("Test")
+	test.tooltip_text = I18n.t("Which rules by file apply to this path, and who applies each one.")
+	test.pressed.connect(func() -> void: test_rules(_test_path.text))
+	test_row.add_child(test)
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.add_child(right)
@@ -158,6 +182,35 @@ static func discover_extra_files(root_path: String) -> PackedStringArray:
 	return found
 
 
+## Para una regla por archivo: sus patrones y quién la aplica (el agente que la lee solo, el harness para
+## los demás). "" si `file` no es una regla por archivo.
+static func rule_summary(file: String, text: String) -> String:
+	for source: Dictionary in PathRules.SOURCES:
+		if not file.begins_with(str(source.dir) + "/"):
+			continue
+		var rule := PathRules.parse_rule(text, str(source.format))
+		if rule.is_empty():
+			return ""
+		return I18n.t("For files matching %s. %s loads it on its own; the harness sends it to other agents when a turn touches one of those files.") % [", ".join(rule.globs), NATIVE_NAMES.get(source.native, str(source.native))]
+	return ""
+
+
+## «Test»: las reglas por archivo que valen para `path`, y quién aplica cada una.
+func test_rules(path: String) -> PackedStringArray:
+	var relative := PathRules.relative(path if path.begins_with("res://") or path.begins_with("/") else "res://" + path, project_path)
+	var found: PackedStringArray = []
+	for rule: Dictionary in PathRules.load_rules(project_path):
+		if PathRules.matches(rule, relative):
+			found.append("%s (%s)" % [rule.file, NATIVE_NAMES.get(rule.native, rule.native)])
+	if relative.is_empty():
+		status_changed.emit(I18n.t("Enter a path inside the project."), AgentTheme.WARNING)
+	elif found.is_empty():
+		status_changed.emit(I18n.t("No rule by file applies to %s.") % relative, AgentTheme.MUTED)
+	else:
+		status_changed.emit(I18n.t("Rules for %s: %s") % [relative, ", ".join(found)], AgentTheme.ADDED)
+	return found
+
+
 ## Quién lee un archivo de instrucciones, regla o workflow.
 static func reader_of(file: String) -> String:
 	if READERS.has(file):
@@ -222,6 +275,9 @@ func _fill_options() -> void:
 			item.select(0)
 	_filling = false
 	_readers.text = "%s · %s" % [_current, I18n.t("Read by %s.") % reader_of(_current)]
+	var by_file := rule_summary(_current, FileAccess.get_file_as_string(project_path.path_join(_current)) if FileAccess.file_exists(project_path.path_join(_current)) else "")
+	if not by_file.is_empty():
+		_readers.text += "\n" + by_file
 
 
 func _load(file: String) -> void:
@@ -261,6 +317,9 @@ func _create_rule_file() -> void:
 	var spec: Dictionary = NEW_RULE_DIRS[clampi(_new_kind.selected, 0, NEW_RULE_DIRS.size() - 1)]
 	var rel := "%s/%s%s" % [spec.dir, slug, spec.ext]
 	_switch_to(rel)
+	if _editor.text.is_empty() and RULE_TEMPLATES.has(spec.dir):
+		_editor.text = RULE_TEMPLATES[spec.dir]
+		status_changed.emit(I18n.t("A rule for some files: change the patterns, write the rule and save."), AgentTheme.MUTED)
 
 
 func _add_facts() -> void:

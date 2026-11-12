@@ -111,6 +111,8 @@ const PlanCheck := preload("plan_check.gd")
 const HandoffCheck := preload("handoff_check.gd")
 const MemoryCheck := preload("memory_check.gd")
 const RecipeCheck := preload("recipe_check.gd")
+const PathRulesCheck := preload("path_rules_check.gd")
+const PlanCriteriaCheck := preload("plan_criteria_check.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
 const TurnChecksCheck := preload("turn_checks_check.gd")
 const AskMenuCheck := preload("ask_menu_check.gd")
@@ -1047,6 +1049,18 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		for failure: String in recipe_failures:
 			print("[recipe-check] FALLA ", failure)
 		_finish(0 if recipe_failures.is_empty() else 1, "ui-recipe: %d fallas" % recipe_failures.size())
+		return
+	if scenario == "ui_plan_criteria":
+		var criteria_failures: Array = await PlanCriteriaCheck.new().run(get_tree(), _find_by_script(PlanCriteriaCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)
+		for failure: String in criteria_failures:
+			print("[plan-criteria-check] FALLA ", failure)
+		_finish(0 if criteria_failures.is_empty() else 1, "ui-plan-criteria: %d fallas" % criteria_failures.size())
+		return
+	if scenario == "ui_path_rules":
+		var rules_failures: Array = await PathRulesCheck.new().run(get_tree(), _find_by_script(PathRulesCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)
+		for failure: String in rules_failures:
+			print("[path-rules-check] FALLA ", failure)
+		_finish(0 if rules_failures.is_empty() else 1, "ui-path-rules: %d fallas" % rules_failures.size())
 		return
 	if scenario == "ui_handoff":
 		var handoff_failures: Array = await HandoffCheck.new().run(get_tree(), _find_by_script(HandoffCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)

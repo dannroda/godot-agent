@@ -20,6 +20,17 @@ static func scene_root() -> Node:
 	return EditorInterface.get_edited_scene_root()
 
 
+## El script abierto en el Script Editor, si está a la vista (m11-25: sus reglas por archivo).
+static func current_script_paths() -> PackedStringArray:
+	if not Engine.is_editor_hint():
+		return PackedStringArray()
+	var editor := EditorInterface.get_script_editor()
+	if editor == null or not editor.is_visible_in_tree():
+		return PackedStringArray()
+	var script := editor.get_current_script()
+	return PackedStringArray([script.resource_path]) if script and script.resource_path.begins_with("res://") else PackedStringArray()
+
+
 static func current_scene_path() -> String:
 	var root := scene_root()
 	return root.scene_file_path if root else ""

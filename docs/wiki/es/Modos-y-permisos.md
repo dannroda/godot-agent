@@ -48,6 +48,18 @@ Lo que pasa después depende del agente:
 
 `/plan` lo resuelve el harness: nunca le llega al agente.
 
+#### Verificar los criterios jugando
+
+Si el plan tiene criterios de aceptación escritos como «WHEN …, THE GAME SHALL …» (o «CUANDO …, EL JUEGO DEBE …»), la tarjeta muestra **Verificar los criterios jugando (N)**, marcada por defecto, con una línea que dice que cada criterio es un playtest. Marcada, **Aprobar y construir** también arranca una corrida de verificación:
+
+- Después del turno que construye, cuando los scripts parsean y los checks del proyecto pasan, un agente juega una vez por criterio, un turno en Revisar cada uno, sin cambiar el proyecto. Cada playtest se ve en el chat como una línea atenuada del harness (**Plan · playtest de un criterio**).
+- Un criterio que pasa queda ✓, y su playtest se guarda como regresión, como cualquier otro.
+- Los criterios que fallan vuelven juntos al agente, con lo que vio cada playtest en un sobre de texto no confiable (**Plan · corregir los criterios que fallaron**). Después del arreglo se vuelven a jugar solo esos. Esto pasa hasta dos veces.
+- Un criterio que el playtest no pudo comprobar queda ⊘ y no se reintenta.
+- Si mandás un mensaje tuyo, la corrida termina.
+
+La tarjeta muestra el estado de cada criterio, con lo que vio el playtest en su tooltip. Un aviso final lo resume (por ejemplo **4 ✓ · 1 ✗ · 1 ⊘**), y el plan guardado suma una sección `## Verification` con el resultado. Una corrida juega hasta 6 criterios. El número, y si se verifica por defecto, se cambian en Settings → Servidores MCP → Avanzado (**Verificar jugando los criterios de aceptación de un plan**). Los que pasan el tope no se juegan; el aviso final ofrece **Verificar el resto**, que los juega sin turno de corrección. Si una receta con **Planificar primero** espera el plan, sus playtests y los criterios del plan van en la misma verificación.
+
 ### Verificación al terminar cada turno
 
 En Construir y Auto, al terminar un turno el harness valida los scripts `.gd` que cambiaron, los haya escrito el agente como sea. Si alguno no parsea, el agente recibe los errores en un turno nuevo para corregirlos, hasta dos turnos seguidos; después de eso, o si ya encolaste un mensaje, quedan como aviso en el chat. Se apaga en Settings → Servidores MCP (**Verificar los scripts al terminar cada turno**).
@@ -112,6 +124,17 @@ El formato:
 ```
 
 `mode` es `build`, `auto` o `ask`. El `type` de un parámetro es `text`, `multiline`, `choice` (con `options`), `number`, `bool`, `scene`, `script`, `resource`, `path`, `node` o `input_action`; `required` es true por defecto, `default` llena el formulario y `filter` limita un archivo a algunas extensiones. Un archivo o un nodo va al pedido como mención (`@res://…`), como lo hace el composer. Las recetas no están disponibles durante una corrida One-shot.
+
+### Reglas por archivo
+
+Algunas instrucciones valen solo para una parte del juego: cómo escribir shaders, cómo se arman las escenas de UI, las convenciones de C# en un proyecto mixto. En lugar de agrandar `AGENTS.md`, ponelas en una regla que vale para algunos archivos, en cualquiera de los formatos que ya usan los agentes:
+- `.agents/rules/*.md` con `trigger: glob` y `globs: "**/*.gdshader, shaders/**"` (el formato de Google Antigravity; el que sugiere el harness);
+- `.claude/rules/**/*.md` con una lista `paths:` (Claude Code);
+- `.cursor/rules/**/*.mdc` con `globs:` y sin `alwaysApply: true` (Cursor).
+
+Un patrón sin `/` (`*.gdshader`) coincide en cualquier carpeta; `**` vale por cualquier cantidad de carpetas y `{gd,cs}` por cualquiera de las dos. Cuando un turno toca un archivo que coincide (una tool del agente lo lee o lo edita, una tool `godot.*` lo nombra, o tu mensaje lo menciona, lo adjunta o el Script Editor lo muestra), el harness le manda la regla al agente: al final del resultado de esa tool `godot.*`, en el mismo turno, o con tu próximo mensaje. Cada regla va una vez por sesión, y de nuevo si cambia. Va como una instrucción del proyecto, igual que `CLAUDE.md`, con sus patrones y su archivo; hasta unos 4000 caracteres por mensaje, y las que no entran quedan nombradas. El chat muestra **reglas: shaders.md** debajo de tu mensaje.
+
+Las reglas que el agente activo ya carga solo no se mandan de nuevo: Claude Code lee `.claude/rules` y Antigravity lee `.agents/rules`. Codex, Copilot, OpenCode y los demás las reciben todas del harness. Las reglas que valen siempre, o que el agente aplica cuando lo decide, quedan a cargo de cada agente. Se apaga en Settings → Servidores MCP → Avanzado (**Aplicar las reglas por archivo del proyecto**). La pestaña **Instrucciones** de [Extensiones](Settings.md#extensiones) muestra los patrones de cada regla y quién la aplica, crea una regla en cada formato, y **Probar** dice qué reglas valen para una ruta.
 
 ### Cambios de cada turno
 

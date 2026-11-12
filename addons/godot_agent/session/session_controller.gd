@@ -46,6 +46,8 @@ const ReviewStore := preload("../review/review_store.gd")
 const TurnChecks := preload("../core/turn_checks.gd")
 const MachineApproval := preload("../core/machine_approval.gd")
 const UntrustedText := preload("../mcp/untrusted_text.gd")
+const PathRules := preload("../core/path_rules.gd")
+const SessionCoordinator := preload("session_coordinator.gd")
 const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
 const EditorBinary := preload("../transport/editor_binary.gd")
@@ -113,6 +115,11 @@ const ACTION_LOGIN := "login"
 ## Las regresiones desde el aviso de un playtest que pasó (m12-48); el dock las reenvía al plugin
 ## (AgentDock usa estos mismos ids).
 const ACTION_RUN_REGRESSIONS := "run_regressions"
+## «Verificar el resto» en el aviso final de los criterios de un plan (m11-23): data = los criterios.
+const ACTION_VERIFY_REST := "verify_rest_criteria"
+## Criterios de un plan que juega una corrida si Settings no dice otra cosa, y sus reintentos.
+const DEFAULT_CRITERIA_MAX := 6
+const CRITERIA_RETRIES := 2
 ## «Aprobar…» de lo que trae el proyecto y no está aprobado en esta máquina: un check del fin de
 ## turno (m11-31) o un MCP server del proyecto (m13-31). `data` es MachineApproval.request; el dock
 ## muestra los comandos y llama approve_on_machine.
@@ -266,6 +273,9 @@ var _recipe_armed: Dictionary = {}
 var _recipe_run: Dictionary = {}
 ## La corrida de una receta con «Planificar primero», hasta «Aprobar y construir».
 var _recipe_after_plan: Dictionary = {}
+## () -> {on: bool, max: int}: si se verifican jugando los criterios de un plan aprobado y cuántos
+## como mucho (m11-23, Settings). Sin provider, sí y DEFAULT_CRITERIA_MAX.
+var plan_criteria_settings: Callable
 ## Dónde se guardan las regresiones de playtest (los tests usan una carpeta temporal).
 var regressions_dir: String = ReviewStore.PlaytestRegressions.DIR
 ## El prompt que falló porque el agente pidió iniciar sesión (m12-49): se vuelve a mandar solo
@@ -276,6 +286,14 @@ var _prompt_after_login: Dictionary = {}
 var _harness_labels: Dictionary = {}
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
 var _note_for_agent: String = ""
+## Reglas por archivo (m11-25): si se aplican, las ya mandadas en esta sesión (file -> hash) y desde qué
+## entrada del chat se buscan los archivos que tocó el agente.
+## () -> bool: si se aplican (Settings); sin provider, sí.
+var path_rules_on: Callable
+## () -> PackedStringArray: archivos del editor que acompañan el prompt (el script abierto).
+var context_paths_provider: Callable
+var _rules_sent: Dictionary = {}
+var _rules_scan_from: int = 0
 var _connect_generation: int = 0
 ## Id del session/prompt en vuelo (-1 si no hay): la cancelación sin respuesta lo despierta (m17-16).
 var _prompt_request_id: int = -1
@@ -302,6 +320,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	agent_log = log_sink
 	cwd = working_dir
 	model.unexpected_transition.connect(_on_unexpected_transition)
+	model.permission_requested.connect(_on_permission_requested)
 	client = AcpClient.new()
 	client.setup(_send_line, agent_log)
 	quota = QuotaMonitor.new()
@@ -478,6 +497,7 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 		return false
 	model.apply_session(result.result.sessionId, result.result)
 	_system_prompt_sent = false
+	_reset_path_rules()
 	policy.clear_session()
 	permissions.reset()
 	if history:
@@ -534,10 +554,15 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 			_note_for_agent = ""
 		blocks.append_array(extra_blocks)
 		blocks.append({"type": "text", "text": text})
+	var rules_block: Dictionary = {} if is_command else path_rules_block(text, extra_blocks)
+	if not rules_block.is_empty():
+		blocks.insert(blocks.size() - 1, rules_block)
 	var attachments: Array[Dictionary] = []
 	for block: Variant in extra_blocks:
 		if block is Dictionary:
 			attachments.append(block)
+	if not rules_block.is_empty():
+		attachments.append(rules_block)
 	var harness_label := _take_label(text)
 	# Otro mensaje con la tarjeta de un plan en bloque pendiente: ya no es lo que se aprueba (m11-58).
 	_cancel_block_plan()
@@ -731,6 +756,90 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 	model.notify_entry_changed(entry)
 
 
+# --- reglas por archivo (m11-25) -------------------------------------------------------------------
+
+func _reset_path_rules() -> void:
+	_rules_sent.clear()
+	_rules_scan_from = model.entries().size()
+
+
+## El bloque de reglas del proyecto para este prompt ({} si no hay): las que coinciden con lo que tocó
+## el agente desde el prompt anterior o con lo que trae este (rutas en el texto, archivos adjuntos, el
+## script abierto), sin las que el agente ya carga solo ni las ya mandadas en la sesión.
+func path_rules_block(text: String, extra_blocks: Array = []) -> Dictionary:
+	var from := _rules_scan_from
+	_rules_scan_from = model.entries().size()
+	if (path_rules_on.is_valid() and not path_rules_on.call()) or cwd.is_empty():
+		return {}
+	var paths := touched_paths(from)
+	var candidates: Array = Array(PathRules.paths_in_text(text))
+	for block: Variant in extra_blocks:
+		if block is Dictionary and str(block.get("uri", "")) != "":
+			candidates.append(str(block.uri))
+	if context_paths_provider.is_valid():
+		candidates.append_array(Array(context_paths_provider.call()))
+	for path: Variant in candidates:
+		var relative := PathRules.relative(str(path), cwd)
+		if not relative.is_empty() and not relative in paths:
+			paths.append(relative)
+	if paths.is_empty():
+		return {}
+	var pending := PathRules.pending(PathRules.load_rules(cwd), paths, adapter.kind, _rules_sent)
+	if pending.is_empty():
+		return {}
+	var built := PathRules.block(pending)
+	for rule: Dictionary in built.sent:
+		_rules_sent[rule.file] = rule.hash
+		agent_log.add(AgentLog.CH_PROC, "Project rule %s sent for %s" % [rule.file, ", ".join(rule.paths)])
+	return {"type": "text", "text": built.text}
+
+
+## Las reglas para los archivos que nombra una tool godot.* de esta sesión, para el final de su resultado
+## (en el mismo turno). Quedan como mandadas: el próximo prompt no las repite. "" si no hay.
+func path_rules_for_tool(args: Dictionary) -> String:
+	if (path_rules_on.is_valid() and not path_rules_on.call()) or cwd.is_empty():
+		return ""
+	var paths: PackedStringArray = []
+	for path: String in SessionCoordinator.paths_in_args(args):
+		var relative := PathRules.relative(path, cwd)
+		if not relative.is_empty():
+			paths.append(relative)
+	if paths.is_empty():
+		return ""
+	var pending := PathRules.pending(PathRules.load_rules(cwd), paths, adapter.kind, _rules_sent)
+	if pending.is_empty():
+		return ""
+	var built := PathRules.block(pending)
+	for rule: Dictionary in built.sent:
+		_rules_sent[rule.file] = rule.hash
+		agent_log.add(AgentLog.CH_PROC, "Project rule %s sent in a tool result for %s" % [rule.file, ", ".join(rule.paths)])
+	return built.text
+
+
+## Los archivos (relativos al proyecto) que tocaron las tools del agente desde la entrada `from`: las
+## ubicaciones y diffs de cada tool call, y las rutas de sus argumentos (las tools godot.* reciben res://).
+func touched_paths(from: int) -> PackedStringArray:
+	var result: PackedStringArray = []
+	for call: ToolCall in tool_calls_since(from):
+		var found: Array = []
+		for location: Variant in call.locations:
+			if location is Dictionary:
+				found.append(str(location.get("path", "")))
+		for item: Variant in call.content:
+			if item is Dictionary and item.get("type") == "diff":
+				found.append(str(item.get("path", "")))
+		if call.raw_input is Dictionary:
+			for value: Variant in (call.raw_input as Dictionary).values():
+				for single: Variant in (value if value is Array else [value]):
+					if single is String:
+						found.append(single)
+		for path: Variant in found:
+			var relative := PathRules.relative(str(path), cwd) if str(path).begins_with("res://") or str(path).begins_with("/") or str(path).begins_with("file://") else ""
+			if not relative.is_empty() and not relative in result:
+				result.append(relative)
+	return result
+
+
 ## Para el próximo prompt: el agente se entera de que el usuario volvió archivos atrás.
 func note_for_agent(text: String) -> void:
 	_note_for_agent = text if _note_for_agent.is_empty() else _note_for_agent + "\n" + text
@@ -841,6 +950,9 @@ func _run_turn_checks(turn_started: int) -> void:
 ## Los checks de la receta pasaron: si tiene playtests, un agente juega (un turno en Revisar, prompt
 ## del harness); si no, la corrida terminó bien.
 func _recipe_checks_passed() -> void:
+	if _recipe_run.has("criteria"):
+		_play_next_criterion()
+		return
 	var playtests: Array = _recipe_run.get("playtests", [])
 	if playtests.is_empty() or model.state != SessionModel.SessionState.READY:
 		_finish_recipe_run(playtests.is_empty())
@@ -867,6 +979,10 @@ func _after_recipe_playtest() -> void:
 		return
 	_recipe_run.playtest_pending = false
 	var verdict: Dictionary = _recipe_run.get("playtest_verdict", {})
+	if _recipe_run.has("criteria"):
+		_record_criterion(verdict)
+		_play_next_criterion()
+		return
 	var back: SessionModel.HarnessMode = _recipe_run.get("mode_back", SessionModel.HarnessMode.BUILD)
 	if model.harness_mode != back:
 		model.set_harness_mode(back)
@@ -908,7 +1024,9 @@ func _fix_limit() -> int:
 
 
 func _fix_label() -> String:
-	return HarnessPrompts.RECIPE_CHECK if not _recipe_run.is_empty() else HarnessPrompts.TURN_CHECK
+	if _recipe_run.is_empty():
+		return HarnessPrompts.TURN_CHECK
+	return HarnessPrompts.PLAN_CRITERIA_FIX if _recipe_run.get("origin") == "plan" else HarnessPrompts.RECIPE_CHECK
 
 
 ## Arma una corrida de receta para cuando salga `text` (el prompt expandido; ver Recipes.run_spec).
@@ -937,7 +1055,8 @@ func _start_or_end_recipe_run(text: String) -> void:
 		_recipe_armed.erase(text)
 		agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: run started (%d checks, up to %d retries)" % [_recipe_run.title, (_recipe_run.checks as Array).size(), _recipe_run.max_retries])
 	elif not _recipe_run.is_empty():
-		agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: run ended, the user sent another message" % _recipe_run.title)
+		agent_log.add(AgentLog.CH_PROC, "%s: run ended, the user sent another message" % _run_log_name())
+		_end_criteria_card()
 		_recipe_run = {}
 	if not _recipe_after_plan.is_empty():
 		agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: dropped before its plan was approved, the user sent another message" % _recipe_after_plan.title)
@@ -955,9 +1074,13 @@ func _start_planned_recipe_run() -> void:
 	agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: plan approved, run started (%d checks, %d playtests, up to %d retries)" % [_recipe_run.title, (_recipe_run.checks as Array).size(), (_recipe_run.get("playtests", []) as Array).size(), _recipe_run.max_retries])
 
 
-## El aviso final de la corrida: ✓ en N intentos o ✗ después de N.
+## El aviso final de la corrida: ✓ en N intentos o ✗ después de N. Con criterios de un plan, el
+## resumen por criterio.
 func _finish_recipe_run(passed: bool) -> void:
 	if _recipe_run.is_empty():
+		return
+	if _recipe_run.has("criteria"):
+		_finish_criteria_run()
 		return
 	var attempts := maxi(1, int(_recipe_run.attempts))
 	if passed:
@@ -966,6 +1089,268 @@ func _finish_recipe_run(passed: bool) -> void:
 		model.add_notice(I18n.t("Recipe «%s»: checks still fail after %d attempts.") % [_recipe_run.title, attempts], ChatEntry.NoticeLevel.WARNING)
 	agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: run ended, %s after %d attempts" % [_recipe_run.title, "passed" if passed else "failed", attempts])
 	_recipe_run = {}
+
+
+## La tarjeta de un plan arranca con la casilla de los criterios como dice el setting.
+func _on_permission_requested(request: PermissionRequest) -> void:
+	if not request.is_plan() or request.verify_criteria != -1:
+		return
+	var settings := criteria_settings()
+	request.verify_criteria = 1 if settings.on else 0
+	request.criteria_max = int(settings.max)
+	request.changed.emit()
+
+
+## Si se verifican los criterios de los planes y cuántos por corrida (Settings).
+func criteria_settings() -> Dictionary:
+	var info: Dictionary = plan_criteria_settings.call() if plan_criteria_settings.is_valid() else {}
+	return {"on": bool(info.get("on", true)), "max": maxi(1, int(info.get("max", DEFAULT_CRITERIA_MAX)))}
+
+
+## Los criterios jugables del plan de una tarjeta, como quedó con «Editar».
+static func plan_criteria(request: PermissionRequest) -> PackedStringArray:
+	return PlanApproval.criteria(request.edited_plan if not request.edited_plan.is_empty() else request.plan_text)
+
+
+## Si «Aprobar y construir» en esta tarjeta verifica sus criterios: la casilla, o el setting si no se tocó.
+func verifies_criteria(request: PermissionRequest) -> bool:
+	if plan_criteria(request).is_empty():
+		return false
+	return request.verify_criteria == 1 if request.verify_criteria != -1 else bool(criteria_settings().on)
+
+
+## El plan se aprobó con criterios para verificar (m11-23): la corrida arranca con el turno que
+## construye. Con una receta esperando su plan, los criterios se suman a su corrida.
+func _start_criteria_run(request: PermissionRequest) -> void:
+	if not verifies_criteria(request):
+		return
+	var plan := request.edited_plan if not request.edited_plan.is_empty() else request.plan_text
+	var items := criteria_items(plan_criteria(request), int(criteria_settings().max))
+	if _recipe_run.is_empty():
+		var title := PlanApproval.plan_title(plan)
+		_recipe_run = {"title": title if not title.is_empty() else I18n.t("approved plan"), "slug": "", "origin": "plan",
+			"checks": [], "playtests": [], "max_retries": CRITERIA_RETRIES, "attempts": 0}
+		_fix_turns = 0
+	else:
+		# Los playtests de la receta van primero, como un criterio más cada uno.
+		var recipe_items: Array = []
+		for playtest: Dictionary in _recipe_run.get("playtests", []):
+			recipe_items.append(_criterion(str(playtest.name), str(playtest.goal), "pending", int(playtest.minutes)))
+		recipe_items.append_array(items)
+		items = recipe_items
+		_recipe_run.playtests = []
+	_recipe_run.criteria = items
+	_recipe_run.current = -1
+	_recipe_run.card = request
+	request.criteria_results = items
+	request.changed.emit()
+	agent_log.add(AgentLog.CH_PROC, "%s: plan approved, %d criteria to check by playing (up to %d retries)" % [_run_log_name(), items.filter(func(i: Dictionary) -> bool: return i.status == "pending").size(), int(_recipe_run.max_retries)])
+
+
+## Los criterios como los lleva la corrida: los primeros `limit` para jugar, el resto «skipped».
+static func criteria_items(criteria: PackedStringArray, limit: int) -> Array:
+	var items: Array = []
+	for i: int in criteria.size():
+		items.append(_criterion("Criterion %d" % (i + 1), criteria[i], "pending" if i < limit else "skipped"))
+	return items
+
+
+static func _criterion(name: String, goal: String, status: String, minutes: int = 0) -> Dictionary:
+	return {"name": name, "goal": goal, "status": status, "minutes": minutes, "summary": "", "evidence": [], "repro": [], "tries": 0}
+
+
+## El próximo criterio por jugar (pendiente o a volver a probar) en un turno de Revisar; si no queda
+## ninguno, termina la vuelta.
+func _play_next_criterion() -> void:
+	var criteria: Array = _recipe_run.criteria
+	var next := -1
+	for i: int in criteria.size():
+		if criteria[i].status in ["pending", "retest"]:
+			next = i
+			break
+	if next < 0 or model.state != SessionModel.SessionState.READY:
+		_end_criteria_round()
+		return
+	var item: Dictionary = criteria[next]
+	var playable := criteria.filter(func(i: Dictionary) -> bool: return i.status != "skipped").size()
+	_recipe_run.current = next
+	_recipe_run.playtest_pending = true
+	_recipe_run.playtest_verdict = {}
+	if model.harness_mode != SessionModel.HarnessMode.REVIEW:
+		_recipe_run.mode_back = model.harness_mode
+	model.add_notice(I18n.t("%s: an agent plays the game to check %s of %d: %s") % [_run_name(), I18n.t(item.name) if not item.name.begins_with("Criterion ") else I18n.t("criterion %d") % (next + 1 - _recipe_criteria_offset()), playable, item.goal], ChatEntry.NoticeLevel.INFO)
+	agent_log.add(AgentLog.CH_PROC, "%s: playtest of %s (%s)" % [_run_log_name(), item.name, item.goal])
+	_sending_fix = true
+	send_in_mode(SessionModel.HarnessMode.REVIEW, label_prompt(ReviewStore.playtest_prompt(criterion_goal(item.goal), false, int(item.minutes), PlaytestMemory.new().brief()), HarnessPrompts.PLAN_CRITERION))
+	_sending_fix = false
+
+
+## Cuántos de los criterios de la corrida son playtests de la receta (van antes de los del plan).
+func _recipe_criteria_offset() -> int:
+	return (_recipe_run.criteria as Array).filter(func(i: Dictionary) -> bool: return not str(i.name).begins_with("Criterion ")).size()
+
+
+## El objetivo del playtest de un criterio del plan.
+static func criterion_goal(criterion: String) -> String:
+	return "check this acceptance criterion of the approved plan: %s" % criterion
+
+
+## El veredicto del playtest en el criterio que se jugó: pass ✓, fail ✗ (se vuelve a probar después
+## de corregirlo), sin veredicto o «could not test» ⊘ (no se reintenta).
+func _record_criterion(verdict: Dictionary) -> void:
+	var index := int(_recipe_run.get("current", -1))
+	_recipe_run.current = -1
+	if index < 0 or index >= (_recipe_run.criteria as Array).size():
+		return
+	var item: Dictionary = _recipe_run.criteria[index]
+	item.tries = int(item.tries) + 1
+	match str(verdict.get("verdict", "")):
+		"pass":
+			item.status = "pass"
+		"fail":
+			item.status = "fail"
+		_:
+			item.status = "blocked"
+	item.summary = str(verdict.get("summary", ""))
+	for key: String in ["evidence", "repro"]:
+		var values: Variant = verdict.get(key, [])
+		item[key] = Array(values).map(func(v: Variant) -> String: return str(v)) if values is Array else []
+	agent_log.add(AgentLog.CH_PROC, "%s: %s %s" % [_run_log_name(), item.name, item.status])
+	_criteria_changed()
+
+
+## Se jugaron todos: si alguno falló y quedan reintentos, el agente recibe lo que se vio (en el modo de
+## la corrida) y después se vuelven a jugar solo los que fallaron.
+func _end_criteria_round() -> void:
+	var back: SessionModel.HarnessMode = _recipe_run.get("mode_back", model.harness_mode)
+	if model.harness_mode != back:
+		model.set_harness_mode(back)
+	var failed: Array = (_recipe_run.criteria as Array).filter(func(i: Dictionary) -> bool: return i.status == "fail")
+	if failed.is_empty() or not _recipe_run.get("build", true):
+		_finish_criteria_run()
+		return
+	if _fix_turns < _fix_limit() and model.state == SessionModel.SessionState.READY:
+		_fix_turns += 1
+		for item: Dictionary in failed:
+			item.status = "retest"
+		_criteria_changed()
+		model.add_notice(I18n.t("%s: %d of the criteria failed. The agent gets what was seen to fix them, then they're played again (%d of %d).") % [_run_name(), failed.size(), _fix_turns, _fix_limit()], ChatEntry.NoticeLevel.WARNING)
+		_sending_fix = true
+		send_prompt(label_prompt(criteria_fix_prompt(failed), HarnessPrompts.PLAN_CRITERIA_FIX))
+		_sending_fix = false
+	else:
+		_finish_criteria_run()
+
+
+## Lo que recibe el agente cuando fallan criterios: cada uno con lo que vio el playtest, en sobres de
+## texto no confiable (lo escribió otro turno mirando el juego).
+static func criteria_fix_prompt(failed: Array) -> String:
+	var parts: PackedStringArray = []
+	for item: Dictionary in failed:
+		var lines: PackedStringArray = [str(item.summary)]
+		for key: String in ["repro", "evidence"]:
+			if not (item[key] as Array).is_empty():
+				lines.append("%s:\n- %s" % [key.capitalize(), "\n- ".join(PackedStringArray(item[key]))])
+		parts.append("Criterion: %s\nWhat the playtest saw:\n%s" % [item.goal, UntrustedText.wrap("\n".join(lines).strip_edges())])
+	var text := "[Automatic check after your turn] Playtests of the approved plan's acceptance criteria failed. Fix what they report; those criteria are played again after your next turn.\n\n" + "\n\n".join(parts)
+	return UntrustedText.seal(text, UntrustedText.new_nonce())
+
+
+## El resumen final «4 ✓ · 1 ✗ · 1 ⊘», una línea por criterio y «Verificar el resto» si quedaron
+## criterios sin jugar por el tope.
+func _finish_criteria_run() -> void:
+	var criteria: Array = _recipe_run.criteria
+	var summary := criteria_summary(criteria)
+	var lines: PackedStringArray = [I18n.t("%s: acceptance criteria checked by playing: %s") % [_run_name(), summary.text]]
+	var offset := _recipe_criteria_offset()
+	for i: int in criteria.size():
+		var item: Dictionary = criteria[i]
+		if item.status == "skipped":
+			continue
+		var name: String = I18n.t("Criterion %d") % (i + 1 - offset) if str(item.name).begins_with("Criterion ") else I18n.t(item.name)
+		lines.append("%s %s: %s" % [criterion_mark(item.status), name, item.goal])
+	var actions: Array[Dictionary] = []
+	var rest: PackedStringArray = PackedStringArray(criteria.filter(func(i: Dictionary) -> bool: return i.status == "skipped").map(func(i: Dictionary) -> String: return str(i.goal)))
+	if not rest.is_empty():
+		lines.append(I18n.t("%d more criteria weren't played (the limit per run is in Settings).") % rest.size())
+		actions.append({"id": ACTION_VERIFY_REST, "label": I18n.t("Verify the rest (%d)") % rest.size(), "data": rest,
+			"tooltip": I18n.t("Plays the criteria that were left out, one playtest each, without changing the game.")})
+	model.add_notice("\n".join(lines), ChatEntry.NoticeLevel.INFO if summary.failed == 0 and summary.blocked == 0 else ChatEntry.NoticeLevel.WARNING, actions)
+	agent_log.add(AgentLog.CH_PROC, "%s: run ended, %s" % [_run_log_name(), summary.text])
+	if PlanStore.append_verification(str(_recipe_run.get("plan_path", "")), criteria, summary.text):
+		agent_log.add(AgentLog.CH_PROC, "%s: verification written to %s" % [_run_log_name(), _recipe_run.plan_path])
+	_end_criteria_card()
+	_recipe_run = {}
+
+
+## Cuántos pasaron, fallaron y no se pudieron probar: {passed, failed, blocked, skipped, text}.
+static func criteria_summary(criteria: Array) -> Dictionary:
+	var counts := {"pass": 0, "fail": 0, "blocked": 0, "skipped": 0}
+	for item: Dictionary in criteria:
+		match str(item.status):
+			"pass":
+				counts.pass += 1
+			"fail", "retest":
+				counts.fail += 1
+			"skipped":
+				counts.skipped += 1
+			_:
+				counts.blocked += 1
+	var parts: PackedStringArray = ["%d ✓" % counts.pass, "%d ✗" % counts.fail]
+	if counts.blocked > 0:
+		parts.append("%d ⊘" % counts.blocked)
+	return {"passed": counts.pass, "failed": counts.fail, "blocked": counts.blocked, "skipped": counts.skipped, "text": " · ".join(parts)}
+
+
+static func criterion_mark(status: String) -> String:
+	match status:
+		"pass":
+			return "✓"
+		"fail", "retest":
+			return "✗"
+		"skipped":
+			return "·"
+		"pending":
+			return "…"
+	return "⊘"
+
+
+## «Verificar el resto»: juega los criterios que quedaron afuera, sin turno de construir antes y sin
+## corregir (lo que falla queda ✗ para que el usuario decida).
+func verify_rest(criteria: Variant) -> void:
+	var goals := PackedStringArray(criteria) if criteria is Array or criteria is PackedStringArray else PackedStringArray()
+	if goals.is_empty() or not _recipe_run.is_empty() or model.state != SessionModel.SessionState.READY:
+		return
+	_recipe_run = {"title": I18n.t("the rest of the criteria"), "slug": "", "origin": "plan", "checks": [], "playtests": [],
+		"max_retries": 0, "attempts": 0, "build": false, "current": -1, "criteria": criteria_items(goals, goals.size())}
+	agent_log.add(AgentLog.CH_PROC, "%s: %d criteria to check by playing" % [_run_log_name(), goals.size()])
+	_play_next_criterion()
+
+
+## Cómo se nombra la corrida en los avisos: «Receta «x»» o «Plan «x»».
+func _run_name() -> String:
+	return (I18n.t("Plan «%s»") if _recipe_run.get("origin") == "plan" else I18n.t("Recipe «%s»")) % str(_recipe_run.get("title", ""))
+
+
+func _run_log_name() -> String:
+	return "%s «%s»" % ["Plan" if _recipe_run.get("origin") == "plan" else "Recipe", _recipe_run.get("title", "")]
+
+
+## La tarjeta del plan muestra el estado de cada criterio.
+func _criteria_changed() -> void:
+	var card: Variant = _recipe_run.get("card")
+	if card is PermissionRequest:
+		(card as PermissionRequest).changed.emit()
+
+
+## La corrida terminó: los criterios que no llegaron a jugarse quedan como no probados en la tarjeta.
+func _end_criteria_card() -> void:
+	if not _recipe_run.has("criteria"):
+		return
+	for item: Dictionary in _recipe_run.criteria:
+		if item.status == "pending":
+			item.status = "blocked"
+	_criteria_changed()
 
 
 ## El aviso de los checks: una línea por check y «Aprobar…» por cada comando sin aprobar.
@@ -1692,6 +2077,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		model.add_notice(I18n.t("Could not resume the session: %s. The history stays read-only.") % result.error_message(), ChatEntry.NoticeLevel.WARNING)
 		return false
 	model.apply_session(session_id, result.result if result.result is Dictionary else {})
+	_reset_path_rules()  # lo mandado antes quedó en el contexto recuperado, pero no sabemos qué: de nuevo
 	var remote_title := str(record.get("title", ""))
 	if not remote_title.is_empty() and model.title.is_empty():
 		model.apply_update({"sessionUpdate": "session_info_update", "title": remote_title})
@@ -1807,8 +2193,12 @@ func approve_plan(request: PermissionRequest) -> String:
 	if allow.is_empty():
 		return ""
 	_start_planned_recipe_run()
+	_start_criteria_run(request)
 	if request.from_block:
-		return _approve_block_plan(request, allow)
+		var saved := _approve_block_plan(request, allow)
+		if _recipe_run.get("card") == request:
+			_recipe_run.plan_path = saved
+		return saved
 	if model.harness_mode != SessionModel.HarnessMode.BUILD:
 		_skip_mode_sync = true
 		model.set_harness_mode(SessionModel.HarnessMode.BUILD)
@@ -1821,6 +2211,8 @@ func approve_plan(request: PermissionRequest) -> String:
 		agent_log.add(AgentLog.CH_PERM, "could not save the approved plan in %s" % cwd.path_join(PlanStore.DIR))
 	else:
 		agent_log.add(AgentLog.CH_PERM, "approved plan saved: %s" % path)
+	if _recipe_run.get("card") == request:
+		_recipe_run.plan_path = path
 	request.plan_approved = true
 	request.select(allow)
 	return path

@@ -130,6 +130,41 @@ static func plan_block(text: String) -> String:
 	return found[-1].get_string(1).strip_edges()
 
 
+## Los criterios jugables de un plan (m11-23), en orden: los renglones «WHEN|WHILE|IF … SHALL …» (o
+## «CUANDO|MIENTRAS|SI … DEBE …»), con o sin viñeta o número, sin negritas ni comillas. Un criterio que
+## sigue en el renglón de abajo (sin viñeta nueva) se une.
+static func criteria(plan: String) -> PackedStringArray:
+	var items: PackedStringArray = []
+	var bullet := RegEx.create_from_string("^\\s*(?:[-*+]|\\d+[.)])\\s+")
+	for raw: String in plan.replace("\r\n", "\n").split("\n"):
+		var line := raw.strip_edges()
+		if line.is_empty() or line.begins_with("#") or line.begins_with("```"):
+			items.append("")
+			continue
+		if bullet.search(raw) or items.is_empty() or items[-1].is_empty():
+			items.append(bullet.sub(raw, "").strip_edges())
+		else:
+			items[-1] += " " + line
+	var criterion := RegEx.create_from_string("(?i)^(?:WHEN|WHILE|IF|WHERE|CUANDO|MIENTRAS|SI)\\b.*\\b(?:SHALL|DEBE|DEBER[ÁA])\\b")
+	var result: PackedStringArray = []
+	for item: String in items:
+		var clean := item.replace("**", "").replace("__", "").strip_edges()
+		for quote: String in ["\"", "“", "«"]:
+			clean = clean.trim_prefix(quote)
+		for quote: String in ["\"", "”", "»"]:
+			clean = clean.trim_suffix(quote)
+		clean = clean.strip_edges()
+		if criterion.search(clean) and not clean in result:
+			result.append(clean)
+	return result
+
+
+## El título de un plan (`# Plan: <título>`); "" si no lo tiene.
+static func plan_title(plan: String) -> String:
+	var found := RegEx.create_from_string("(?m)^#\\s*Plan:\\s*(.+?)\\s*$").search(plan)
+	return found.get_string(1) if found else ""
+
+
 ## La tarjeta para un plan presentado en bloque: el mismo PermissionRequest que la de ExitPlanMode,
 ## pero propio del harness (no hay pedido ACP que contestar).
 static func block_request(plan: String) -> PermissionRequest:

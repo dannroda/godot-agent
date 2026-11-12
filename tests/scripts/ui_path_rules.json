@@ -1,0 +1,18 @@
+{
+	"_about": "m11-25 ui-path-rules: the agent edits a shader with its own tool (a tool_call with locations); the next prompt carries the project's rule for *.gdshader once, and the one after doesn't.",
+	"turns": [
+		{"steps": [
+			{"chunk": "Editing the water shader."},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "edit-water", "title": "Edit water.gdshader", "kind": "edit", "status": "completed", "locations": [{"path": "{project}/tests/tmp/path_rules/water.gdshader"}]}},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Done with the uniforms."},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Nothing else."},
+			{"stop": "end_turn"}
+		]}
+	]
+}

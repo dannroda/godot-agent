@@ -46,3 +46,7 @@ const HANDOFF := "Handoff · summary for a new session"  # i18n
 ## Un check de una receta falló (m11-30): su salida vuelve al agente, hasta el tope de la receta.
 const RECIPE_CHECK := "Recipe · check failed"  # i18n
 const RECIPE_PLAYTEST := "Recipe · playtest"  # i18n
+## Verificación de los criterios de un plan aprobado (m11-23): el playtest de un criterio y la corrección
+## de los que fallaron.
+const PLAN_CRITERION := "Plan · playtest of a criterion"  # i18n
+const PLAN_CRITERIA_FIX := "Plan · fix the criteria that failed"  # i18n
