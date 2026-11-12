@@ -1,5 +1,5 @@
 extends "test_case.gd"
-## Composer del dock: Enter envía; Ctrl+Enter y Shift+Enter bajan de línea; tipear / o @ abre la
+## Composer del dock: Enter envía; Ctrl+Enter envía y pide seguir al agente; Shift+Enter baja de línea; tipear / o @ abre la
 ## lista propia (filtra, flechas, Enter/Tab eligen, Esc cierra).
 
 const Composer := preload("res://addons/godot_agent/ui/dock/composer.gd")
@@ -13,22 +13,33 @@ func test_enter_sends_and_ctrl_enter_breaks_line() -> void:
 	await tree.process_frame
 	var sent: PackedStringArray = []
 	composer.connect(&"submitted", func(text: String) -> void: sent.append(text))
+	var follows: Array = []
+	composer.connect(&"follow_requested", func() -> void: follows.append(sent.size()))
 	var input: CodeEdit = composer.get(&"_input")
 	input.grab_focus()
 	input.text = "hola"
 	input.set_caret_column(4)
 
+	# Ctrl+Enter envía y pide seguir al agente, antes de enviar (m11-67).
 	await _press(input, KEY_ENTER, true, false)
-	assert_eq(input.text, "hola\n", "Ctrl+Enter baja de línea")
+	assert_eq(sent, PackedStringArray(["hola"]), "Ctrl+Enter envía")
+	assert_eq(follows, [0], "y pide seguir al agente antes de enviar")
+	input.text = ""
+	await _press(input, KEY_ENTER, true, false)
+	assert_eq(follows.size(), 1, "Ctrl+Enter sin texto no hace nada")
+	sent.clear()
+	input.text = "hola"
+	input.set_caret_column(4)
+	await _press(input, KEY_ENTER, false, true)
+	assert_eq(input.text, "hola\n", "Shift+Enter baja de línea")
 	assert_eq(sent.size(), 0, "y no envía")
 	input.insert_text_at_caret("mundo")
-	await _press(input, KEY_ENTER, false, true)
-	assert_eq(input.text, "hola\nmundo\n", "Shift+Enter también baja de línea")
 	input.text = "hola\nmundo"
 	input.set_caret_line(1)
 	input.set_caret_column(5)
 	await _press(input, KEY_ENTER, false, false)
 	assert_eq(sent, PackedStringArray(["hola\nmundo"]), "Enter envía el texto")
+	assert_eq(follows.size(), 1, "Enter solo no pide seguir")
 	assert_eq(input.text, "hola\nmundo", "sin agregar un salto")
 	await _press(input, KEY_KP_ENTER, false, false)
 	assert_eq(sent.size(), 2, "el Enter del teclado numérico también")

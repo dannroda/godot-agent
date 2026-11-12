@@ -2,13 +2,15 @@
 extends VBoxContainer
 ## Composer del dock: chips de contexto, texto con autocompletado (`/` comandos del agente,
 ## `@` archivos y nodos), medidor de contexto, selectores de modo y de modelo y enviar/detener.
-## Enter envía (con un turno en curso, el dock lo deja en cola), Ctrl+Enter o Shift+Enter bajan de
-## línea y Esc cancela el turno. Flecha arriba en la primera línea y abajo en la última recorren los
+## Enter envía (con un turno en curso, el dock lo deja en cola), Ctrl+Enter envía y sigue al agente
+## (m11-67), Shift+Enter baja de línea y Esc cancela el turno. Flecha arriba en la primera línea y abajo en la última recorren los
 ## prompts enviados, como en una terminal. Ctrl+V con una imagen (o archivos copiados) en el
 ## portapapeles la adjunta en lugar de pegar texto; los archivos arrastrados desde el FileSystem
 ## también se adjuntan.
 
 signal submitted(text: String)
+## Ctrl+Enter (m11-67): justo antes de `submitted`, el dock prende «Seguir al agente» para ese pedido.
+signal follow_requested
 signal cancel_requested
 signal model_selected(value: String)
 ## Un HarnessMode elegido en el selector de modo.
@@ -654,11 +656,13 @@ func _on_send_pressed() -> void:
 		_submit()
 
 
-func _submit() -> void:
+func _submit(follow: bool = false) -> void:
 	var value := _input.text.strip_edges()
 	if value.is_empty() or not _lock_text.is_empty():
 		return
 	_remember(value)
+	if follow:
+		follow_requested.emit()
 	submitted.emit(value)
 
 
@@ -681,10 +685,10 @@ func _on_input_gui_input(event: InputEvent) -> void:
 		return
 	if key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
 		_input.accept_event()
-		if key.is_command_or_control_pressed() or key.shift_pressed:
+		if key.shift_pressed:
 			_input.insert_text_at_caret("\n")
 		else:
-			_submit()
+			_submit(key.is_command_or_control_pressed())
 	elif key.keycode == KEY_ESCAPE and _is_busy():
 		_input.accept_event()
 		cancel_requested.emit()
@@ -964,7 +968,7 @@ func _update_send_button() -> void:
 		_send_button.disabled = true
 	else:
 		_send_button.text = "➤" if short else I18n.t("Send") + " ➤"
-		_send_button.tooltip_text = I18n.t("Send (Enter; Ctrl+Enter adds a new line)")
+		_send_button.tooltip_text = I18n.t("Send (Enter). Ctrl+Enter sends and follows the agent; Shift+Enter adds a new line.")
 		_send_button.disabled = not _input.editable or _input.text.strip_edges().is_empty()
 
 
