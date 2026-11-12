@@ -23,6 +23,8 @@ const CompletionSettingsPage := preload("completion_settings_page.gd")
 const AutoRulesPage := preload("auto_rules_page.gd")
 const McpServersPage := preload("mcp_servers_page.gd")
 const TurnChecksEditor := preload("turn_checks_editor.gd")
+const ProjectDirs := preload("../../core/project_dirs.gd")
+const Recipes := preload("../../core/recipes.gd")
 const ProjectToolLoader := preload("../../mcp/project_tool_loader.gd")
 const HooksEditor := preload("hooks_editor.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
@@ -49,7 +51,7 @@ const DECISION_LABELS: Dictionary = {
 ## Celdas de la matriz (m12-22): un ícono y un color por decisión.
 const DECISION_MARKS: Dictionary = {PermissionPolicy.ALLOW: "✓", PermissionPolicy.ASK: "?", PermissionPolicy.DENY: "✕"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "hooks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "project_tools_dir", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "recipes_dir", "hooks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "project_tools_dir", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -109,6 +111,7 @@ var _run_error_check: CheckBox
 var _notify_check: CheckBox
 var _verify_check: CheckBox
 var _turn_checks_editor: TurnChecksEditor
+var _recipes_dir_edit: LineEdit
 var _hooks_editor: HooksEditor
 var _snapshots_check: CheckBox
 var _github_pr_check: CheckBox
@@ -559,6 +562,12 @@ func _build_mcp(page: VBoxContainer) -> void:
 	page.add_child(_verify_check)
 	_turn_checks_editor = TurnChecksEditor.new()
 	page.add_child(_turn_checks_editor)
+	page.add_child(_title(I18n.t("Recipes")))
+	page.add_child(_hint(I18n.t("Reusable requests with parameters and checks, one .json per recipe in this project folder (shared through git). Launch them from the composer's + or with /recipe.")))
+	_recipes_dir_edit = LineEdit.new()
+	_recipes_dir_edit.name = "RecipesDir"
+	_recipes_dir_edit.placeholder_text = Recipes.DEFAULT_DIR
+	page.add_child(_recipes_dir_edit)
 	_hooks_editor = HooksEditor.new()
 	page.add_child(_hooks_editor)
 	_snapshots_check = CheckBox.new()
@@ -776,6 +785,7 @@ func _load() -> void:
 	_notify_check.button_pressed = _settings.notify_when_unfocused()
 	_compact_tools_check.button_pressed = _config.compact_tools
 	_verify_check.button_pressed = _config.verify_after_turn
+	_recipes_dir_edit.text = _config.recipes_dir
 	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_hooks_editor.load_from(_config.hooks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_snapshots_check.button_pressed = _config.turn_snapshots
@@ -875,6 +885,7 @@ func _on_save() -> void:
 	_config.compact_tools = _compact_tools_check.button_pressed
 	_config.verify_after_turn = _verify_check.button_pressed
 	_config.turn_checks = _turn_checks_editor.checks()
+	_config.recipes_dir = Recipes.resolve_dir(_recipes_dir_edit.text)
 	_config.hooks = _hooks_editor.hooks()
 	_config.turn_snapshots = _snapshots_check.button_pressed
 	_config.github_pull_requests = _github_pr_check.button_pressed
@@ -930,6 +941,8 @@ func validate() -> Dictionary:
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
 			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
+	if not _recipes_dir_edit.text.strip_edges().is_empty() and ProjectDirs.normalize(_recipes_dir_edit.text).is_empty():
+		return {"section": SettingsSection.MCP, "message": I18n.t("The recipes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_recipes).")}
 	var tools_dir := _project_tools_edit.text.strip_edges()
 	if not tools_dir.is_empty() and ProjectToolLoader.normalize_dir(tools_dir).is_empty():
 		return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" can't hold the project tools: use a folder inside the project, outside addons/godot_agent.") % tools_dir}

@@ -43,3 +43,6 @@ const PLAN_APPROVED := "Plan · approved, build it"  # i18n
 const DENY_REASON := "Denied with a reason"  # i18n
 ## «Nueva sesión con resumen» (m11-35): el pedido del resumen para la sesión nueva.
 const HANDOFF := "Handoff · summary for a new session"  # i18n
+## Un check de una receta falló (m11-30): su salida vuelve al agente, hasta el tope de la receta.
+const RECIPE_CHECK := "Recipe · check failed"  # i18n
+const RECIPE_PLAYTEST := "Recipe · playtest"  # i18n

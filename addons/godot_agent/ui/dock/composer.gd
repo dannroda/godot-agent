@@ -20,6 +20,8 @@ signal image_pasted(image: Image)
 signal files_attached(paths: PackedStringArray)
 ## «Planificar» (m11-58): el dock pide el plan con lo que haya escrito.
 signal plan_requested
+## «+ → Receta…» (m11-30): el dock abre la lista de recetas.
+signal recipe_requested
 ## Clic en el porcentaje del contexto cuando está alto (m11-35): seguir en una sesión nueva con resumen.
 signal handoff_requested
 
@@ -75,6 +77,8 @@ const ADD_MENTION := 0
 const ADD_IMAGE := 1
 const ADD_COMMAND := 2
 const ADD_PLAN := 3
+const ADD_RECIPE := 4
+const RECIPE_COMMAND := "/recipe"
 const PLAN_TOOLTIP := "Plan before building: the agent writes a plan that you approve, edit or send back (/plan). What you wrote here is what it plans."  # i18n
 ## Los comandos que resuelve el harness (no van al agente): primeros en el menú de /.
 ## `plan`: solo si se puede planificar con el agente de la sesión.
@@ -83,6 +87,7 @@ const HARNESS_COMMANDS: Array[Dictionary] = [
 	{"name": "handoff", "needs": "handoff", "description": "Continue in a new session with a summary of this one; optionally, what to do there (harness)"},  # i18n
 	{"name": "remember", "needs": "remember", "description": "Save a fact about the project in the agent's instructions file (harness; also /recordar)"},  # i18n
 	{"name": "second-opinion", "needs": "second_opinion", "description": "Ask another agent for a read-only opinion on your question and the last turn's changes (harness)"},  # i18n
+	{"name": "recipe", "needs": "recipe", "description": "Fill in a recipe of the project: a reusable request with parameters and checks (harness)"},  # i18n
 ]
 var _plan_button: Button
 var _plan_available: bool = false
@@ -92,6 +97,9 @@ var handoff_available: bool = false
 var remember_available: bool = false
 ## /second-opinion en el menú de / (m11-28): con una sesión abierta (el oráculo mira su proyecto).
 var second_opinion_available: bool = false
+## /recipe en el menú de / (m11-30): los nombres (slug) de las recetas que se pueden lanzar, para
+## autocompletar `/recipe <nombre>`. Vacío: no hay recetas y /recipe no se ofrece.
+var recipe_names: PackedStringArray = []
 ## Desde este uso del contexto, el porcentaje de la fila se pinta de advertencia.
 const METER_SHOW_RATIO := 0.8
 var _mode_button: OptionButton
@@ -205,11 +213,15 @@ func _ready() -> void:
 	add_popup.add_item(I18n.t("Plan before building (/plan)"), ADD_PLAN)
 	add_popup.set_item_tooltip(add_popup.get_item_index(ADD_PLAN), I18n.t(PLAN_TOOLTIP))
 	add_popup.set_item_disabled(add_popup.get_item_index(ADD_PLAN), true)
+	add_popup.add_item(I18n.t("Recipe…"), ADD_RECIPE)
+	add_popup.set_item_tooltip(add_popup.get_item_index(ADD_RECIPE), I18n.t("A reusable request of the project, with parameters and checks (/recipe)"))
 	add_popup.id_pressed.connect(func(id: int) -> void:
 		if id == ADD_IMAGE:
 			screenshot_requested.emit()
 		elif id == ADD_PLAN:
 			plan_requested.emit()
+		elif id == ADD_RECIPE:
+			recipe_requested.emit()
 		else:
 			_insert_prefix("@" if id == ADD_MENTION else "/"))
 	row.add_child(_add_menu)
@@ -856,6 +868,15 @@ func _refresh_suggestions() -> void:
 	var text: String = word.text
 	var is_command: bool = text.begins_with("/") and word.start == 0 and _input.get_caret_line() == 0
 	var is_mention := text.begins_with("@")
+	var line_text := _input.get_line(0)
+	var is_recipe: bool = not recipe_names.is_empty() and _input.get_caret_line() == 0 and int(word.start) == RECIPE_COMMAND.length() + 1 \
+		and line_text.begins_with(RECIPE_COMMAND + " ")
+	if is_recipe and _input.has_focus() and int(word.start) != _dismissed_at:
+		var recipes: Array[Dictionary] = []
+		for name: String in recipe_names:
+			recipes.append({"label": name, "insert": name, "key": name.to_lower()})
+		_suggestions.show_items(I18n.t("Recipes"), _filter(recipes, text.to_lower()))
+		return
 	if not (is_command or is_mention) or not _input.has_focus():
 		_dismissed_at = -1
 		_close_suggestions()
@@ -866,14 +887,14 @@ func _refresh_suggestions() -> void:
 	if is_command:
 		var items: Array[Dictionary] = []
 		for command: Dictionary in HARNESS_COMMANDS:
-			var available := {"plan": _plan_available, "handoff": handoff_available, "remember": remember_available, "second_opinion": second_opinion_available}
+			var available := {"plan": _plan_available, "handoff": handoff_available, "remember": remember_available, "second_opinion": second_opinion_available, "recipe": not recipe_names.is_empty()}
 			if not available.get(command.needs, true):
 				continue
 			items.append({"label": "/" + str(command.name), "detail": I18n.t(str(command.description)), "insert": "/" + str(command.name), "key": str(command.name)})
 		for command: Variant in _commands:
 			if command is Dictionary:
 				var name := str(command.get("name", ""))
-				if name in ["plan", "handoff", "remember", "recordar"]:
+				if name in ["plan", "handoff", "remember", "recordar", "recipe"]:
 					continue  # /plan lo resuelve el harness (m11-58): el del agente no llega
 				items.append({"label": "/" + name, "detail": str(command.get("description", "")), "insert": "/" + name, "key": name.to_lower()})
 		_suggestions.show_items(I18n.t("Commands"), _filter(items, query),

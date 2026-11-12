@@ -257,6 +257,15 @@ var _outside_turn_noticed: bool = false
 ## usuario); al llegar a MAX_FIX_TURNS solo se avisa.
 var _fix_turns: int = 0
 var _sending_fix: bool = false
+## Corridas de receta armadas (m11-30): el texto del prompt → Recipes.run_spec. Arranca cuando ese
+## texto sale (ya o desde la cola del dock), como las etiquetas de label_prompt.
+var _recipe_armed: Dictionary = {}
+## La corrida en curso: run_spec + {attempts}. Después de cada turno de Construir o Auto corren sus
+## checks con los del proyecto; termina cuando pasan, cuando se agotan los reintentos
+## (`max_retries` en lugar de MAX_FIX_TURNS) o cuando el usuario manda otro mensaje.
+var _recipe_run: Dictionary = {}
+## La corrida de una receta con «Planificar primero», hasta «Aprobar y construir».
+var _recipe_after_plan: Dictionary = {}
 ## Dónde se guardan las regresiones de playtest (los tests usan una carpeta temporal).
 var regressions_dir: String = ReviewStore.PlaytestRegressions.DIR
 ## El prompt que falló porque el agente pidió iniciar sesión (m12-49): se vuelve a mandar solo
@@ -507,6 +516,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	var turn_started := int(Time.get_unix_time_from_system())
 	if not _sending_fix:
 		_fix_turns = 0
+		_start_or_end_recipe_run(text)
 	var blocks: Array = []
 	# Un comando (`/remote-control`, `/compact`, una skill) va solo, sin el contexto del harness ni
 	# los adjuntos: el agente solo lo reconoce si el prompt empieza con él, y el adapter de Claude
@@ -633,6 +643,8 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		_report_turn_changes.call_deferred(turn_start, first_new_entry)
 	if stop_reason == "end_turn" and not is_command:
 		_verify_turn.call_deferred(turn_started)
+	if not _recipe_run.is_empty() and _recipe_run.get("playtest_pending", false) and not _sending_fix:
+		_after_recipe_playtest.call_deferred()
 	_query_agent_usage()
 	return stop_reason
 
@@ -742,29 +754,46 @@ func _verify_turn(turn_started: int) -> void:
 		await _run_turn_checks(turn_started)
 		return
 	agent_log.add(AgentLog.CH_PROC, "Check after the turn: scripts with errors\n%s" % errors)
-	if _fix_turns < MAX_FIX_TURNS and model.state == SessionModel.SessionState.READY:
+	if not _recipe_run.is_empty():
+		_recipe_run.attempts = int(_recipe_run.attempts) + 1
+	if _fix_turns < _fix_limit() and model.state == SessionModel.SessionState.READY:
 		_fix_turns += 1
-		model.add_notice(I18n.t("Check after the turn: some scripts don't parse. The agent gets the errors to fix them (%d of %d).") % [_fix_turns, MAX_FIX_TURNS], ChatEntry.NoticeLevel.WARNING)
+		model.add_notice(I18n.t("Check after the turn: some scripts don't parse. The agent gets the errors to fix them (%d of %d).") % [_fix_turns, _fix_limit()], ChatEntry.NoticeLevel.WARNING)
 		_sending_fix = true
-		send_prompt(label_prompt("[Automatic check after your turn] These scripts you changed don't parse. Fix them, then check again with godot.validate_scripts:\n" + errors, HarnessPrompts.TURN_CHECK))
+		send_prompt(label_prompt("[Automatic check after your turn] These scripts you changed don't parse. Fix them, then check again with godot.validate_scripts:\n" + errors, _fix_label()))
 		_sending_fix = false
 	else:
 		model.add_notice(I18n.t("Check after the turn: some scripts don't parse.") + "\n" + errors, ChatEntry.NoticeLevel.WARNING)
+		_finish_recipe_run(false)
 
 
-## Los checks del proyecto que tocan este turno (m11-31), en orden: un aviso con ✓/✗ por check y, si
-## alguno falló, su salida vuelve al agente con el mismo tope que validate_scripts. Un comando sin
-## aprobar en esta máquina no corre: el aviso ofrece aprobarlo.
+## Los checks del proyecto que tocan este turno (m11-31), y los de la receta en curso (m11-30), en
+## orden: un aviso con ✓/✗ por check y, si alguno falló, su salida vuelve al agente con el mismo tope
+## que validate_scripts (el de la receta, si hay una corrida). Un comando sin aprobar en esta máquina
+## no corre: el aviso ofrece aprobarlo.
 func _run_turn_checks(turn_started: int) -> void:
-	if not turn_checks_provider.is_valid() or not model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
+	if not model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
 		return
-	var info: Dictionary = turn_checks_provider.call()
+	var info: Dictionary = turn_checks_provider.call() if turn_checks_provider.is_valid() else {}
 	var checks: Array = TurnChecks.normalize_list(info.get("checks", [])).filter(func(check: Dictionary) -> bool: return check.enabled)
-	if checks.is_empty():
+	if checks.is_empty() and _recipe_run.is_empty():
+		return
+	if not _recipe_run.is_empty() and _recipe_run.get("playtest_pending", false):
 		return
 	var changed := TurnChecks.changed_since(cwd, turn_started)
 	checks = checks.filter(func(check: Dictionary) -> bool: return TurnChecks.applies(check, changed))
+	# Los de la receta corren aunque el turno no haya cambiado nada: dicen si el pedido está hecho.
+	var recipe_checks: Array = []
+	if not _recipe_run.is_empty():
+		recipe_checks = TurnChecks.normalize_list(_recipe_run.checks).filter(func(check: Dictionary) -> bool:
+			return check.enabled and ((check.paths as PackedStringArray).is_empty() or TurnChecks.applies(check, changed)))
+		for check: Dictionary in recipe_checks:
+			check.recipe = true
+	checks.append_array(recipe_checks)
 	if checks.is_empty():
+		if not _recipe_run.is_empty():
+			_recipe_run.attempts = int(_recipe_run.attempts) + 1
+			_recipe_checks_passed()
 		return
 	var names := PackedStringArray(checks.map(func(check: Dictionary) -> String: return str(check.name)))
 	var notice := model.add_notice(I18n.t("Project checks after the turn: running %s…") % ", ".join(names), ChatEntry.NoticeLevel.INFO)
@@ -776,30 +805,172 @@ func _run_turn_checks(turn_started: int) -> void:
 	for check: Dictionary in checks:
 		var key := TurnChecks.approval_key(project, str(check.command))
 		if check.kind == TurnChecks.KIND_COMMAND and not (is_command_approved.is_valid() and is_command_approved.call(key)):
-			results.append({"name": check.name, "status": TurnChecks.UNAPPROVED, "command": check.command, "key": key})
+			results.append({"name": check.name, "status": TurnChecks.UNAPPROVED, "command": check.command, "key": key, "recipe": check.get("recipe", false)})
 			continue
-		agent_log.add(AgentLog.CH_PROC, "Project check «%s»: running" % check.name)
+		agent_log.add(AgentLog.CH_PROC, "%s check «%s»: running" % ["Recipe" if check.get("recipe", false) else "Project", check.name])
 		var result: Dictionary = await TurnChecks.run(check, str(info.get("godot", OS.get_executable_path())), cwd)
-		agent_log.add(AgentLog.CH_PROC, "Project check «%s»: %s (code %d)\n%s" % [check.name, result.status, result.code, result.output])
+		result.recipe = check.get("recipe", false)
+		agent_log.add(AgentLog.CH_PROC, "%s check «%s»: %s (code %d)\n%s" % ["Recipe" if result.recipe else "Project", check.name, result.status, result.code, result.output])
 		results.append(result)
-	var report := turn_checks_report(results)
+	var report := turn_checks_report(results, str(_recipe_run.get("title", "")))
 	notice.text = report.text
 	notice.level = ChatEntry.NoticeLevel.WARNING if report.failed > 0 or report.unapproved > 0 else ChatEntry.NoticeLevel.INFO
 	notice.actions.assign(report.actions)
 	model.notify_entry_changed(notice)
+	if not _recipe_run.is_empty():
+		_recipe_run.attempts = int(_recipe_run.attempts) + 1
 	if report.failed == 0:
+		if not _recipe_run.is_empty():
+			var held := results.filter(func(result: Dictionary) -> bool: return result.recipe and result.status == TurnChecks.UNAPPROVED)
+			if held.is_empty():
+				_recipe_checks_passed()
+			else:
+				model.add_notice(I18n.t("Recipe «%s»: some of its checks aren't approved on this machine, so the result wasn't checked.") % _recipe_run.title, ChatEntry.NoticeLevel.WARNING)
+				_recipe_run = {}
 		return
-	if _fix_turns < MAX_FIX_TURNS and model.state == SessionModel.SessionState.READY:
+	if _fix_turns < _fix_limit() and model.state == SessionModel.SessionState.READY:
 		_fix_turns += 1
-		model.add_notice(I18n.t("Project checks failed. The agent gets what they reported to fix it (%d of %d).") % [_fix_turns, MAX_FIX_TURNS], ChatEntry.NoticeLevel.WARNING)
+		model.add_notice(I18n.t("Project checks failed. The agent gets what they reported to fix it (%d of %d).") % [_fix_turns, _fix_limit()], ChatEntry.NoticeLevel.WARNING)
 		_sending_fix = true
-		send_prompt(label_prompt(turn_checks_prompt(results), HarnessPrompts.TURN_CHECK))
+		send_prompt(label_prompt(turn_checks_prompt(results), _fix_label()))
 		_sending_fix = false
+	else:
+		_finish_recipe_run(false)
+
+
+## Los checks de la receta pasaron: si tiene playtests, un agente juega (un turno en Revisar, prompt
+## del harness); si no, la corrida terminó bien.
+func _recipe_checks_passed() -> void:
+	var playtests: Array = _recipe_run.get("playtests", [])
+	if playtests.is_empty() or model.state != SessionModel.SessionState.READY:
+		_finish_recipe_run(playtests.is_empty())
+		return
+	var goals := PackedStringArray(playtests.map(func(p: Dictionary) -> String: return str(p.goal)))
+	var minutes := 0
+	for playtest: Dictionary in playtests:
+		minutes += int(playtest.minutes)
+	_recipe_run.playtest_pending = true
+	_recipe_run.playtest_verdict = {}
+	_recipe_run.mode_back = model.harness_mode
+	model.add_notice(I18n.t("Recipe «%s»: checks passed. Now an agent plays the game to check it: %s") % [_recipe_run.title, "; ".join(goals)], ChatEntry.NoticeLevel.INFO)
+	agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: playtest started (%s)" % [_recipe_run.title, "; ".join(goals)])
+	_sending_fix = true
+	send_in_mode(SessionModel.HarnessMode.REVIEW, label_prompt(ReviewStore.playtest_prompt("; ".join(goals), false, minutes, PlaytestMemory.new().brief()), HarnessPrompts.RECIPE_PLAYTEST))
+	_sending_fix = false
+
+
+## El turno del playtest de la receta terminó: con «pass» la corrida terminó bien; con «fail», lo que
+## vio el agente vuelve como corrección (en el modo de la receta) mientras queden reintentos; sin
+## veredicto o «could not test», la corrida termina con un aviso.
+func _after_recipe_playtest() -> void:
+	if _recipe_run.is_empty() or not _recipe_run.get("playtest_pending", false):
+		return
+	_recipe_run.playtest_pending = false
+	var verdict: Dictionary = _recipe_run.get("playtest_verdict", {})
+	var back: SessionModel.HarnessMode = _recipe_run.get("mode_back", SessionModel.HarnessMode.BUILD)
+	if model.harness_mode != back:
+		model.set_harness_mode(back)
+	match str(verdict.get("verdict", "")):
+		"pass":
+			_finish_recipe_run(true)
+		"fail":
+			if _fix_turns < _fix_limit() and model.state == SessionModel.SessionState.READY:
+				_fix_turns += 1
+				model.add_notice(I18n.t("Recipe «%s»: the playtest failed. The agent gets what was seen to fix it (%d of %d).") % [_recipe_run.title, _fix_turns, _fix_limit()], ChatEntry.NoticeLevel.WARNING)
+				_sending_fix = true
+				send_prompt(label_prompt(recipe_playtest_prompt(verdict), HarnessPrompts.RECIPE_CHECK))
+				_sending_fix = false
+			else:
+				_finish_recipe_run(false)
+		_:
+			model.add_notice(I18n.t("Recipe «%s»: the playtest couldn't check the result, so the run ends here.") % _recipe_run.title, ChatEntry.NoticeLevel.WARNING)
+			agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: run ended, playtest verdict «%s»" % [_recipe_run.title, verdict.get("verdict", "none")])
+			_recipe_run = {}
+
+
+## Lo que recibe el agente cuando el playtest de la receta falla: el resumen, los pasos y lo observado,
+## en sobres de texto no confiable (lo escribió otro turno mirando el juego).
+static func recipe_playtest_prompt(verdict: Dictionary) -> String:
+	var lines: PackedStringArray = []
+	lines.append(str(verdict.get("summary", "")))
+	for key: String in ["repro", "evidence"]:
+		var items: Variant = verdict.get(key, [])
+		if items is Array and not (items as Array).is_empty():
+			lines.append("%s:\n- %s" % [key.capitalize(), "\n- ".join(PackedStringArray((items as Array).map(func(i: Variant) -> String: return str(i))))])
+	var text := "[Automatic check after your turn] A playtest of what you built failed. Fix what it reports (it plays again after your next turn):\n" + UntrustedText.wrap("\n".join(lines).strip_edges())
+	return UntrustedText.seal(text, UntrustedText.new_nonce())
+
+
+## Cuántos turnos seguidos de corrección manda el harness: los reintentos de la receta en curso o
+## MAX_FIX_TURNS.
+func _fix_limit() -> int:
+	return int(_recipe_run.max_retries) if not _recipe_run.is_empty() else MAX_FIX_TURNS
+
+
+func _fix_label() -> String:
+	return HarnessPrompts.RECIPE_CHECK if not _recipe_run.is_empty() else HarnessPrompts.TURN_CHECK
+
+
+## Arma una corrida de receta para cuando salga `text` (el prompt expandido; ver Recipes.run_spec).
+func arm_recipe_run(text: String, spec: Dictionary) -> void:
+	_recipe_armed[text] = spec
+
+
+## La corrida de receta en curso ({} si no hay).
+func recipe_run() -> Dictionary:
+	return _recipe_run
+
+
+## Arma una corrida que arranca recién con «Aprobar y construir» del plan (receta con «Planificar
+## primero»): el pedido del plan sale con /plan.
+func arm_recipe_after_plan(spec: Dictionary) -> void:
+	_recipe_after_plan = spec.duplicate(true)
+
+
+func _start_or_end_recipe_run(text: String) -> void:
+	# Lo que manda el harness (el pedido del plan, «Aprobar y construir», un playtest) no la corta.
+	if not prompt_label(text).is_empty():
+		return
+	if _recipe_armed.has(text):
+		_recipe_run = (_recipe_armed[text] as Dictionary).duplicate(true)
+		_recipe_run.attempts = 0
+		_recipe_armed.erase(text)
+		agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: run started (%d checks, up to %d retries)" % [_recipe_run.title, (_recipe_run.checks as Array).size(), _recipe_run.max_retries])
+	elif not _recipe_run.is_empty():
+		agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: run ended, the user sent another message" % _recipe_run.title)
+		_recipe_run = {}
+	if not _recipe_after_plan.is_empty():
+		agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: dropped before its plan was approved, the user sent another message" % _recipe_after_plan.title)
+		_recipe_after_plan = {}
+
+
+## «Aprobar y construir» con una receta esperando su plan: la corrida arranca con el turno que construye.
+func _start_planned_recipe_run() -> void:
+	if _recipe_after_plan.is_empty():
+		return
+	_recipe_run = _recipe_after_plan
+	_recipe_run.attempts = 0
+	_recipe_after_plan = {}
+	_fix_turns = 0
+	agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: plan approved, run started (%d checks, %d playtests, up to %d retries)" % [_recipe_run.title, (_recipe_run.checks as Array).size(), (_recipe_run.get("playtests", []) as Array).size(), _recipe_run.max_retries])
+
+
+## El aviso final de la corrida: ✓ en N intentos o ✗ después de N.
+func _finish_recipe_run(passed: bool) -> void:
+	if _recipe_run.is_empty():
+		return
+	var attempts := maxi(1, int(_recipe_run.attempts))
+	if passed:
+		model.add_notice(I18n.t("Recipe «%s»: checks passed (attempt %d).") % [_recipe_run.title, attempts], ChatEntry.NoticeLevel.INFO)
+	else:
+		model.add_notice(I18n.t("Recipe «%s»: checks still fail after %d attempts.") % [_recipe_run.title, attempts], ChatEntry.NoticeLevel.WARNING)
+	agent_log.add(AgentLog.CH_PROC, "Recipe «%s»: run ended, %s after %d attempts" % [_recipe_run.title, "passed" if passed else "failed", attempts])
+	_recipe_run = {}
 
 
 ## El aviso de los checks: una línea por check y «Aprobar…» por cada comando sin aprobar.
-static func turn_checks_report(results: Array[Dictionary]) -> Dictionary:
-	var lines: PackedStringArray = [I18n.t("Project checks after the turn:")]
+static func turn_checks_report(results: Array[Dictionary], recipe_title: String = "") -> Dictionary:
+	var lines: PackedStringArray = [I18n.t("Project checks after the turn:") if recipe_title.is_empty() else I18n.t("Checks after the turn (recipe «%s»):") % recipe_title]
 	var actions: Array[Dictionary] = []
 	var failed := 0
 	var unapproved := 0
@@ -941,6 +1112,8 @@ static func regression_notice_parts(saved: int) -> Dictionary:
 func _report_playtest(playtest: Dictionary, turn_text: String, first_entry: int, prompt: String) -> void:
 	var audit := ReviewStore.playtest_audit(tool_calls_since(first_entry), prompt.contains(ReviewStore.RECORD_HINT))
 	var audited := ReviewStore.audited_playtest(playtest, audit)
+	if not _recipe_run.is_empty() and _recipe_run.get("playtest_pending", false):
+		_recipe_run.playtest_verdict = audited
 	var notice := ReviewStore.playtest_notice(audited)
 	var actions: Array[Dictionary] = []
 	var regressions := ReviewStore.PlaytestRegressions.new(regressions_dir)
@@ -1633,6 +1806,7 @@ func approve_plan(request: PermissionRequest) -> String:
 	var allow := request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS])
 	if allow.is_empty():
 		return ""
+	_start_planned_recipe_run()
 	if request.from_block:
 		return _approve_block_plan(request, allow)
 	if model.harness_mode != SessionModel.HarnessMode.BUILD:

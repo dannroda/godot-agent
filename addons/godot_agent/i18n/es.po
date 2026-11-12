@@ -5367,6 +5367,71 @@ msgstr "Mandado a la papelera: %s."
 msgid "Could not save: %s"
 msgstr "No se pudo guardar: %s"
 
+msgid "Recipe · check failed"
+msgstr "Receta · falló un check"
+
+msgid "Recipe «%s»: some of its checks aren't approved on this machine, so the result wasn't checked."
+msgstr "Receta «%s»: algunos de sus checks no están aprobados en esta máquina, así que el resultado no se comprobó."
+
+msgid "Recipe «%s»: checks passed (attempt %d)."
+msgstr "Receta «%s»: los checks pasaron (intento %d)."
+
+msgid "Recipe «%s»: checks still fail after %d attempts."
+msgstr "Receta «%s»: los checks siguen fallando después de %d intentos."
+
+msgid "Checks after the turn (recipe «%s»):"
+msgstr "Checks después del turno (receta «%s»):"
+
+msgid "Recipes aren't available during a One-shot run."
+msgstr "Las recetas no están disponibles durante un One-shot."
+
+msgid "This project has no recipes yet. A recipe is a .json file in %s (the folder can be changed in Settings → MCP servers)."
+msgstr "Este proyecto todavía no tiene recetas. Una receta es un archivo .json en %s (la carpeta se cambia en Settings → MCP servers)."
+
+msgid "This recipe has errors: %s"
+msgstr "Esta receta tiene errores: %s"
+
+msgid "There's no recipe «%s» in %s."
+msgstr "No hay una receta «%s» en %s."
+
+msgid "The recipe «%s» has errors and can't be used:"
+msgstr "La receta «%s» tiene errores y no se puede usar:"
+
+msgid "Recipe: %s · checks: %s"
+msgstr "Receta: %s · checks: %s"
+
+msgid "After each turn: %s, up to %d retries. Click to send the message without them."
+msgstr "Después de cada turno: %s, hasta %d reintentos. Clic para mandar el mensaje sin ellos."
+
+msgid "Fill in a recipe of the project: a reusable request with parameters and checks (harness)"
+msgstr "Completar una receta del proyecto: un pedido reutilizable con parámetros y checks (harness)"
+
+msgid "Recipe…"
+msgstr "Receta…"
+
+msgid "A reusable request of the project, with parameters and checks (/recipe)"
+msgstr "Un pedido reutilizable del proyecto, con parámetros y checks (/recipe)"
+
+msgid "Recipes"
+msgstr "Recetas"
+
+msgid "Use"
+msgstr "Usar"
+
+msgid "Recipe: %s"
+msgstr "Receta: %s"
+
+msgid "After each turn: %s (up to %d retries)."
+msgstr "Después de cada turno: %s (hasta %d reintentos)."
+
+msgid "Pick a file of the project"
+msgstr "Elegir un archivo del proyecto"
+
+msgid "Reusable requests with parameters and checks, one .json per recipe in this project folder (shared through git). Launch them from the composer's + or with /recipe."
+msgstr "Pedidos reutilizables con parámetros y checks, un .json por receta en esta carpeta del proyecto (se comparten por git). Se lanzan desde el + del composer o con /recipe."
+
+msgid "The recipes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_recipes)."
+msgstr "La carpeta de recetas tiene que ser una carpeta visible dentro del proyecto, fuera de addons/godot_agent (como res://agent_recipes)."
 msgid "When the editor is in the background, notify me when the agent finishes or waits for me"
 msgstr "Con el editor en segundo plano, avisarme cuando el agente termina o me espera"
 
@@ -5702,3 +5767,192 @@ msgstr "Ninguno"
 
 msgid "Asks another agent for a read-only second opinion"
 msgstr "Le pide a otro agente una segunda opinión de solo lectura"
+
+msgid "Enemy from a base scene"
+msgstr "Enemigo a partir de una escena base"
+
+msgid "Options screen"
+msgstr "Pantalla de opciones"
+
+msgid "Port a script to C#"
+msgstr "Portar un script a C#"
+
+msgid "Not valid JSON (line %d): %s"
+msgstr "No es un JSON válido (línea %d): %s"
+
+msgid "The recipe must be a JSON object."
+msgstr "La receta tiene que ser un objeto JSON."
+
+msgid "Unknown field «%s»."
+msgstr "Campo desconocido «%s»."
+
+msgid "«version» must be a number."
+msgstr "«version» tiene que ser un número."
+
+msgid "Made for a newer version of the harness (version %d)."
+msgstr "Hecha para una versión más nueva del harness (versión %d)."
+
+msgid "«title» is missing."
+msgstr "Falta «title»."
+
+msgid "«prompt» is missing."
+msgstr "Falta «prompt»."
+
+msgid "«mode» must be one of: %s."
+msgstr "«mode» tiene que ser uno de: %s."
+
+msgid "«plan» must be true or false."
+msgstr "«plan» tiene que ser true o false."
+
+msgid "«max_retries» must be a number."
+msgstr "«max_retries» tiene que ser un número."
+
+msgid "«max_retries» must be between 0 and %d."
+msgstr "«max_retries» tiene que estar entre 0 y %d."
+
+msgid "«parameters» must be a list."
+msgstr "«parameters» tiene que ser una lista."
+
+msgid "Parameter «%s» appears twice."
+msgstr "El parámetro «%s» aparece dos veces."
+
+msgid "The prompt uses {{%s}}, which isn't a parameter."
+msgstr "El prompt usa {{%s}}, que no es un parámetro."
+
+msgid "«checks» must be a list."
+msgstr "«checks» tiene que ser una lista."
+
+msgid "Parameter %d must be an object."
+msgstr "El parámetro %d tiene que ser un objeto."
+
+msgid "Parameter %d: unknown field «%s»."
+msgstr "Parámetro %d: campo desconocido «%s»."
+
+msgid "Parameter %d: «key» must be a name (letters, digits and _)."
+msgstr "Parámetro %d: «key» tiene que ser un nombre (letras, dígitos y _)."
+
+msgid "Parameter «%s»: unknown type «%s» (one of: %s)."
+msgstr "Parámetro «%s»: tipo desconocido «%s» (uno de: %s)."
+
+msgid "Parameter «%s»: «options» must be a list."
+msgstr "Parámetro «%s»: «options» tiene que ser una lista."
+
+msgid "Parameter «%s»: a choice needs «options»."
+msgstr "Parámetro «%s»: una elección necesita «options»."
+
+msgid "Parameter «%s»: «filter» must be a list of extensions."
+msgstr "Parámetro «%s»: «filter» tiene que ser una lista de extensiones."
+
+msgid "Parameter «%s»: the default %s"
+msgstr "Parámetro «%s»: el valor por defecto %s"
+
+msgid "Check %d must be an object."
+msgstr "El check %d tiene que ser un objeto."
+
+msgid "Check %d: unknown field «%s»."
+msgstr "Check %d: campo desconocido «%s»."
+
+msgid "Check %d: unknown kind «%s» (one of: %s)."
+msgstr "Check %d: tipo desconocido «%s» (uno de: %s)."
+
+msgid "Check «%s»: %s"
+msgstr "Check «%s»: %s"
+
+msgid "Check %d: a playtest needs a «goal» (what the agent checks by playing)."
+msgstr "Check %d: un playtest necesita un «goal» (lo que el agente comprueba jugando)."
+
+msgid "Check %d: «minutes» must be between 0 and %d."
+msgstr "Check %d: «minutes» tiene que estar entre 0 y %d."
+
+msgid "«%s» must be text."
+msgstr "«%s» tiene que ser texto."
+
+msgid "Can't read the file: %s"
+msgstr "No se puede leer el archivo: %s"
+
+msgid "The file is too big for a recipe (more than %d KB)."
+msgstr "El archivo es demasiado grande para una receta (más de %d KB)."
+
+msgid "must be one of: %s."
+msgstr "tiene que ser uno de: %s."
+
+msgid "must be a number."
+msgstr "tiene que ser un número."
+
+msgid "must be true or false."
+msgstr "tiene que ser true o false."
+
+msgid "must be a res:// path in the project."
+msgstr "tiene que ser una ruta res:// del proyecto."
+
+msgid "must be a %s file."
+msgstr "tiene que ser un archivo %s."
+
+msgid "required"
+msgstr "obligatorio"
+
+msgid "Recipe · playtest"
+msgstr "Receta · playtest"
+
+msgid "Recipe «%s»: checks passed. Now an agent plays the game to check it: %s"
+msgstr "Receta «%s»: los checks pasaron. Ahora un agente juega para comprobarlo: %s"
+
+msgid "Recipe «%s»: the playtest failed. The agent gets what was seen to fix it (%d of %d)."
+msgstr "Receta «%s»: el playtest falló. El agente recibe lo que se vio para arreglarlo (%d de %d)."
+
+msgid "Recipe «%s»: the playtest couldn't check the result, so the run ends here."
+msgstr "Receta «%s»: el playtest no pudo comprobar el resultado, así que la corrida termina acá."
+
+msgid "Recipe: %s · plan first · checks: %s"
+msgstr "Receta: %s · planificar primero · checks: %s"
+
+msgid "Plan first"
+msgstr "Planificar primero"
+
+msgid "The agent writes a plan in Ask mode and waits for «Approve and build». The checks start with the turn that builds."
+msgstr "El agente escribe un plan en modo Preguntar y espera «Aprobar y construir». Los checks arrancan con el turno que construye."
+
+msgid "Recipes (%d)"
+msgstr "Recetas (%d)"
+
+msgid "Reusable requests with parameters and checks the result must pass. One .json per recipe in the project's recipes folder, shared through git. Launch them from the composer's + or with /recipe. A check's command runs only after you approve it on this machine."
+msgstr "Pedidos reutilizables con parámetros y checks que el resultado tiene que pasar. Un .json por receta en la carpeta de recetas del proyecto, compartida por git. Se lanzan desde el + del composer o con /recipe. El comando de un check corre recién cuando lo aprobás en esta máquina."
+
+msgid "New"
+msgstr "Nueva"
+
+msgid "A new recipe from a template, saved in the recipes folder."
+msgstr "Una receta nueva a partir de una plantilla, guardada en la carpeta de recetas."
+
+msgid "Reload"
+msgstr "Recargar"
+
+msgid "Revert"
+msgstr "Revertir"
+
+msgid "Use in the dock"
+msgstr "Usar en el dock"
+
+msgid "Open the recipe's form in the agent dock."
+msgstr "Abre el formulario de la receta en el dock del agente."
+
+msgid "%d problems"
+msgstr "%d problemas"
+
+msgid "No recipes in %s yet. «New» copies a template there."
+msgstr "Todavía no hay recetas en %s. «Nueva» copia ahí una plantilla."
+
+msgid "Save or revert «%s» before opening another recipe."
+msgstr "Guardá o revertí «%s» antes de abrir otra receta."
+
+msgid "✓ The recipe is valid."
+msgstr "✓ La receta es válida."
+
+msgid "Saved %s."
+msgstr "Se guardó %s."
+
+msgid "Created %s from a template. Adjust it and save."
+msgstr "Se creó %s a partir de una plantilla. Ajustala y guardala."
+
+msgid "Save a valid recipe first."
+msgstr "Primero guardá una receta válida."

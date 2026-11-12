@@ -77,6 +77,42 @@ Los hooks se guardan en `addons/godot_agent/config/project_config.tres`, que las
 
 Los hooks no son para revisar al final de cada turno: eso son los [checks del proyecto](#checks-del-proyecto-al-terminar-cada-turno), cuyas fallas vuelven al agente.
 
+### Recetas
+
+Una receta es un pedido que se repite (un enemigo nuevo a partir de una escena base, una pantalla de opciones, portar un script a C#) guardado con parámetros tipados y checks que el resultado tiene que pasar. Cada receta es un `.json` en la carpeta de recetas del proyecto, `res://agent_recipes/` por defecto (Settings → Servidores MCP → Avanzado → **Recetas**), así que se comparte por git como el resto del proyecto.
+
+- **Lanzarla**: desde el **+** del composer → **Receta…** o con `/recipe <nombre>`. Un formulario pide sus parámetros, con un control por tipo: texto, texto de varias líneas, una elección, un número, sí/no, una escena, un script, un recurso o cualquier archivo del proyecto (con selector), un nodo de la escena abierta y una acción de input. **Usar** escribe el pedido ya armado en el composer, en el modo de la receta, sin mandarlo: editalo si querés y mandalo. Un chip arriba del composer nombra los checks de la receta; sacá el chip para mandarlo sin ellos.
+- **Checks**: después de cada turno de la corrida corren los checks de la receta, aunque el turno no haya cambiado nada: las regresiones de playtest guardadas, un comando (como los [checks del proyecto](#checks-del-proyecto-al-terminar-cada-turno)) o un **playtest** con un objetivo. El check de playtest corre cuando los otros pasan: un agente juega en modo Revisar para comprobar el objetivo, y el check pasa si el veredicto es **pass**. Si un check falla, el agente recibe lo que reportó y lo intenta de nuevo, hasta los `max_retries` de la receta (2 por defecto, 5 como máximo). La corrida termina con **checks passed (attempt N)** o **still fail after N attempts**. Un mensaje tuyo termina la corrida. Un playtest que no pudo probar la termina con un aviso.
+- **Planificar primero** (marcado si la receta dice `"plan": true`) manda el pedido como `/plan`: el agente planifica en Preguntar y la corrida arranca con **Aprobar y construir**.
+- **Una receta no puede correr nada sola.** El comando de un check corre solo en una máquina donde se aprobó ese comando exacto, la misma aprobación que los checks del proyecto: una receta que vino del repositorio de otro muestra **Aprobar «nombre»…** y no corre nada hasta que la apruebes.
+- La pestaña **Recetas** de [Extensiones](Settings.md#extensiones) lista las recetas del proyecto con ✓ o cuántos problemas tiene cada una, y abre el `.json` en un editor que lo valida mientras escribís. **Nueva** copia una de tres plantillas (un enemigo a partir de una escena base, una pantalla de opciones, portar un script a C#); **Usar en el dock** abre el formulario de la receta.
+
+El formato:
+
+```json
+{
+  "version": 1,
+  "title": "New enemy",
+  "description": "A new enemy that inherits a base scene.",
+  "mode": "build",
+  "plan": false,
+  "prompt": "Create {{name}} as an inherited scene of {{base}}. It should {{behavior}}.",
+  "parameters": [
+    {"key": "name", "type": "text", "label": "Name"},
+    {"key": "base", "type": "scene", "label": "Base scene"},
+    {"key": "behavior", "type": "choice", "options": ["patrol", "chase the player"]}
+  ],
+  "checks": [
+    {"kind": "regressions"},
+    {"kind": "command", "name": "Tests", "command": "{godot} --headless --script res://tests/run.gd"},
+    {"kind": "playtest", "goal": "the new enemy patrols and hurts the player on contact", "minutes": 5}
+  ],
+  "max_retries": 2
+}
+```
+
+`mode` es `build`, `auto` o `ask`. El `type` de un parámetro es `text`, `multiline`, `choice` (con `options`), `number`, `bool`, `scene`, `script`, `resource`, `path`, `node` o `input_action`; `required` es true por defecto, `default` llena el formulario y `filter` limita un archivo a algunas extensiones. Un archivo o un nodo va al pedido como mención (`@res://…`), como lo hace el composer. Las recetas no están disponibles durante una corrida One-shot.
+
 ### Cambios de cada turno
 
 Mientras el agente trabaja en Construir o Auto, un contador arriba del composer muestra lo que cambió hasta ahora en el turno (**3 archivos · +42 −7**); un clic muestra esos cambios (se conservan o rechazan cuando termina el turno). En Construir y Auto, si el proyecto está en un repo de git, un turno que cambió archivos termina con un pie: cuántos archivos, líneas agregadas y quitadas, y dos acciones. **Ver cambios** lista los archivos, cada uno con su diff y **Volver atrás** (ese archivo vuelve a como estaba antes del turno). Abrí un script o un archivo de texto con **▸** para revisar sus cambios uno por uno: **Conservar** marca un cambio como revisado, y **Rechazar** deshace solo ese cambio en el archivo, aunque hayas editado otras partes después del turno. **Deshacer**, en el diálogo o en el aviso del chat, lo vuelve a poner. Si esas mismas líneas cambiaron después del turno, el cambio dice **Cambió después del turno** y no se puede rechazar (no se pisa nada); para eso está **Volver atrás** del archivo entero. No se toca nada mientras el archivo tiene cambios sin guardar en el editor, mientras otra sesión lo está editando en su turno, ni mientras el turno sigue en curso. **Rechazar todo en este archivo** rechaza los cambios que se puede y dice cuántos no. Una escena se abre por nodo y cada cambio se puede rechazar solo: una propiedad cambiada vuelve a su valor de antes del turno, un nodo agregado se va con los nodos de abajo y sus conexiones de señales, uno borrado vuelve al mismo lugar entre sus hermanos, uno movido o renombrado vuelve a donde estaba, y lo mismo con el nombre de la raíz, el tipo o la escena instanciada de un nodo, sus grupos y cada conexión de señal. Lo que vuelve trae los recursos que usaba, sin chocar con los que tiene la escena ahora. Antes de escribir, la escena se carga para ver que sigue cargando; si no cargaría, no se escribe nada. Un cambio dentro de un recurso que comparten otros nodos solo se deshace con **Volver atrás**. El agente se entera de qué cambios rechazaste. El diff de una escena se ve por nodos: nodos agregados (con cuántos vinieron abajo), borrados, movidos o renombrados, propiedades cambiadas con su valor antes → después (el `shape.size` de una forma, un script por su ruta) y conexiones de señales. Los ids de recursos que Godot renumera al guardar no son cambios. **Ver crudo** muestra el diff de texto. Un cambio grande muestra sus primeras 200 líneas y dice cuántas quedaron afuera. **Deshacer el turno** vuelve a antes del turno con todos, incluido lo que cambió después del turno, y pregunta antes; después el chat ofrece **Deshacer**. Antes de su próximo turno, el agente se entera de qué archivos se volvieron atrás.

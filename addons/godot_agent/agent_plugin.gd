@@ -32,6 +32,7 @@ const FsHandler := preload("acp/fs_handler.gd")
 const TerminalHandler := preload("acp/terminal_handler.gd")
 const PermissionPolicy := preload("session/permission_policy.gd")
 const ProjectConfig := preload("config/project_config.gd")
+const Recipes := preload("core/recipes.gd")
 const ExternalMcpServers := preload("mcp/external_mcp_servers.gd")
 const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
@@ -1446,6 +1447,12 @@ func _get_extensions_window() -> ExtensionsWindow:
 		var dock: Control = _tabs.dock(PRIMARY_SESSION) if _tabs else null
 		if is_instance_valid(dock):
 			(dock as AgentDock).confirm_on_machine(data)
+	_extensions_window.recipes_dir_provider = func() -> String: return Recipes.resolve_dir(_project_config.recipes_dir if _project_config else "")
+	_extensions_window.recipe_use_requested.connect(func(slug: String) -> void:
+		var dock: Control = _tabs.dock(PRIMARY_SESSION) if _tabs else null
+		if is_instance_valid(dock):
+			_extensions_window.hide()
+			(dock as AgentDock).open_recipe(slug))
 	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
 		return _active_adapter().kind == ClaudeExtensions.AGENT_CLAUDE
