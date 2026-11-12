@@ -1,6 +1,7 @@
 extends "test_case.gd"
 ## Pestañas de sesión (m7-44): marcas y avisos de las sesiones que esperan al usuario.
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
 const SessionTabs := preload("res://addons/godot_agent/ui/dock/session_tabs.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
@@ -34,9 +35,37 @@ func test_copy_tab_is_marked() -> void:
 	assert_true(bar.get_tab_icon(1) != null or bar.get_tab_title(1).begins_with("⎘ "), "marcada · %s" % bar.get_tab_title(1))
 	assert_true(bar.get_tab_title(1).ends_with("Session 2"), "el nombre entero, sin sufijo")
 	assert_true(bar.get_tab_tooltip(1).contains("branch agent/copy-1"), "la rama en el tooltip · " + bar.get_tab_tooltip(1))
-	assert_true(bar.get_tab_icon(0) == null and bar.get_tab_title(0) == "Session 1", "la otra no")
+	assert_true(not tabs.is_copy("s1") and bar.get_tab_title(0) == "Session 1", "la otra no (lleva el pin de la principal, no la copia)")
 	tabs.remove_session("s2")
 	assert_false(tabs.is_copy("s2"), "al cerrarla se olvida")
+	tabs.free()
+
+
+## m12-50: la principal no tiene X (m7-44); con otra pestaña al lado lleva el pin del editor y un
+## tooltip que dice por qué y cómo empezar de cero. Sola, nada (la fila de pestañas ni se ve).
+func test_main_tab_is_pinned() -> void:
+	var tabs := SessionTabs.new()
+	tabs.add_session("s1", Control.new(), SessionModel.new(), "Session 1")
+	var bar: TabBar = tabs.get(&"_bar")
+	assert_false(tabs.is_pinned("s1"), "sola no se marca")
+	assert_false(bar.get_tab_tooltip(0).contains("Main session"), "ni en el tooltip")
+	tabs.add_session("s2", Control.new(), SessionModel.new(), "Session 2")
+	assert_true(tabs.is_pinned("s1") and not tabs.is_pinned("s2"), "con dos, solo la principal")
+	assert_true(bar.get_tab_icon(0) == AgentTheme.icon(SessionTabs.PIN_ICON), "el pin del editor (null sin su tema)")
+	assert_eq(bar.get_tab_title(0), "Session 1", "el nombre entero: el pin no ocupa texto")
+	var tip := bar.get_tab_tooltip(0)
+	assert_true(tip.contains("Main session: it can't be closed.") and tip.contains("+ → New session"), "tooltip · " + tip)
+	assert_true(tip.contains("Double-click to rename"), "sigue diciendo cómo renombrarla")
+	assert_false(bar.get_tab_tooltip(1).contains("Main session"), "la otra no")
+	# Una espera de permiso suma «⚠» al título sin sacar el pin.
+	var model: SessionModel = tabs.get(&"_models")["s1"]
+	var request := PermissionRequest.new()
+	model.add_permission(request)
+	assert_true(bar.get_tab_title(0).begins_with("⚠ ") and tabs.is_pinned("s1"), "⚠ y pin · " + bar.get_tab_title(0))
+	request.cancel()
+	tabs.remove_session("s2")
+	assert_false(tabs.is_pinned("s1"), "sola otra vez, sin pin")
+	assert_true(bar.get_tab_icon(0) == null and not bar.get_tab_tooltip(0).contains("Main session"), "y sin tooltip de principal")
 	tabs.free()
 
 

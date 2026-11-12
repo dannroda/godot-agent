@@ -14,6 +14,8 @@ signal rename_requested(id: String, name: String)
 const NAME_MAX := 40
 ## Ícono del editor de la pestaña de una copia aparte (sin él, «⎘» delante del nombre).
 const COPY_ICON := &"Duplicate"
+## Ícono de la pestaña de la sesión principal, que no se cierra (m12-50).
+const PIN_ICON := &"Pin"
 
 const AgentTheme := preload("../agent_theme.gd")
 const I18n := preload("../../core/i18n.gd")
@@ -114,6 +116,7 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 	_row.visible = _ids.size() > 1
 	if _ids.size() > 1:
 		_bar.set_tab_button_icon(_ids.size() - 1, AgentTheme.icon(&"Close"))
+		_refresh_tab(_ids[0])  # con la segunda pestaña, la principal muestra que es fija
 	model.title_changed.connect(func(_title: String) -> void: _refresh_tab(id))
 	model.state_changed.connect(func(_state: SessionModel.SessionState) -> void: _refresh_tab(id))
 	model.permission_requested.connect(func(request: RefCounted) -> void:
@@ -148,6 +151,7 @@ func remove_session(id: String) -> void:
 	_outside_notified.erase(id)
 	_bar.remove_tab(index)
 	_row.visible = _ids.size() > 1
+	_refresh_tab(_ids[0])
 	EditorWindows.rescue_progress(dock)
 	_stack.remove_child(dock)
 	dock.queue_free()
@@ -216,6 +220,11 @@ func set_copy(id: String, tooltip: String) -> void:
 	_refresh_tab(id)
 
 
+## La pestaña de la sesión principal se muestra fija (pin y tooltip) cuando hay más de una.
+func is_pinned(id: String) -> bool:
+	return _ids.size() > 1 and _ids.find(id) == 0
+
+
 func is_copy(id: String) -> bool:
 	return _copies.has(id)
 
@@ -239,12 +248,17 @@ func _refresh_tab(id: String) -> void:
 		_toasted.erase(id)
 		_outside_notified.erase(id)
 	var mark := "⚠ " if waiting else ("● " if model.is_busy() else "")
-	var copy_icon := AgentTheme.icon(COPY_ICON) if _copies.has(id) else null
-	_bar.set_tab_icon(index, copy_icon)
-	if copy_icon:
+	# La principal (sin X, m7-44) lleva un pin con otra pestaña al lado (m12-50); nunca es una copia.
+	var pinned := is_pinned(id)
+	var tab_icon := AgentTheme.icon(PIN_ICON) if pinned else (AgentTheme.icon(COPY_ICON) if _copies.has(id) else null)
+	_bar.set_tab_icon(index, tab_icon)
+	if tab_icon:
 		_bar.set_tab_icon_max_width(index, AgentTheme.px(16))
-	_bar.set_tab_title(index, mark + ("⎘ " if _copies.has(id) and copy_icon == null else "") + str(_labels[id]))
+	# Sin el ícono (fuera del editor), la copia conserva su «⎘»; el pin no tiene glifo: el tooltip alcanza.
+	_bar.set_tab_title(index, mark + ("⎘ " if _copies.has(id) and tab_icon == null else "") + str(_labels[id]))
 	var tooltip := label(id) + ("\n" + str(_copies[id]) if _copies.has(id) else "")
+	if pinned:
+		tooltip += "\n" + I18n.t("Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session.")
 	_bar.set_tab_tooltip(index, tooltip + "\n" + I18n.t("Double-click to rename"))
 
 

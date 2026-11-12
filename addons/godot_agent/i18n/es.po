@@ -6267,3 +6267,6 @@ msgstr "Pasar a %s"
 
 msgid "Stay in %s"
 msgstr "Quedarse en %s"
+
+msgid "Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session."
+msgstr "Sesión principal: no se puede cerrar. La usan las marcas de Revisar y Remote Control. Para empezar de cero: + → Nueva sesión."
