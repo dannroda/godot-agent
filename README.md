@@ -4,7 +4,7 @@
 
 ![The Agent dock next to a 2D scene: the agent read the scene, edited a script and connected a signal through the editor tools](docs/images/en/overview.png)
 
-An editor addon for Godot 4 (GDScript and C# projects) that connects a coding agent (Claude Code, Google Antigravity, Codex, or any agent that speaks [ACP](https://agentclientprotocol.com)) to the editor. Only Claude Code has been tested end to end; Codex and Antigravity haven't been verified yet. You chat with the agent in a dock, and it can see and change your project through the editor's own tools:
+An editor addon for Godot 4 (GDScript and C# projects) that connects a coding agent (Claude Code, Google Antigravity, Codex, or any agent that speaks [ACP](https://agentclientprotocol.com)) to the editor. Claude Code is tested end to end and Google Antigravity with a real session walkthrough; Codex hasn't been verified yet. You chat with the agent in a dock, and it can see and change your project through the editor's own tools:
 
 - read scenes and scripts, the selection and the errors, and get a ranked map of the files related to what it's working on;
 - edit nodes and properties, each change one undo step;
@@ -28,7 +28,7 @@ It has five modes: **Ask**, **Review**, **Build**, **Auto** (Build that runs the
 - The interface is in English and Spanish (it follows the editor language; you can change it in Settings).
 - The chat renders the agent's Markdown: tables, lists, quotes, and code blocks with highlighting and a copy button.
 
-> Status: the milestones of [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) and the work added later (playtesting included) are implemented; the newest parts are still under review. Still to verify by hand: Windows and Google Antigravity. Progress and how each part was verified: [`docs/progress.md`](docs/progress.md). Design decisions: [`docs/decisions.md`](docs/decisions.md). Both are in Spanish.
+> Status: the milestones of [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) and the work added later (playtesting included) are implemented; the newest parts are still under review. Still to verify by hand: Windows, macOS and a few Antigravity details. Progress and how each part was verified: [`docs/progress.md`](docs/progress.md). Design decisions: [`docs/decisions.md`](docs/decisions.md). Both are in Spanish.
 
 ## Documentation
 

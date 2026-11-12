@@ -4,7 +4,7 @@
 
 ![El dock Agent al lado de una escena 2D: el agente leyó la escena, editó un script y conectó una señal con las herramientas del editor](docs/images/es/overview.png)
 
-Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Solo Claude Code está probado de punta a punta; Codex y Antigravity todavía no se verificaron. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
+Addon de editor para Godot 4 (proyectos en GDScript y en C#) que conecta un agente de código (Claude Code, Google Antigravity, Codex o cualquier agente que hable [ACP](https://agentclientprotocol.com)) con el editor. Claude Code está probado de punta a punta y Google Antigravity con un recorrido real de una sesión; Codex todavía no se verificó. Conversás con el agente en un dock, y el agente puede ver y cambiar el proyecto con las herramientas del propio editor:
 
 - leer escenas y scripts, la selección y los errores, y armarse un mapa ordenado de los archivos relacionados con lo que está haciendo;
 - editar nodos y propiedades, cada cambio un paso de deshacer;
@@ -28,7 +28,7 @@ Tiene cinco modos: **Preguntar**, **Revisar**, **Construir**, **Auto** (Construi
 - La interfaz está en inglés y en español: sigue el idioma del editor y se cambia en Settings.
 - El chat muestra el Markdown del agente: tablas, listas, citas y bloques de código con resaltado y botón para copiar.
 
-> Estado: están implementados los hitos de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) y lo que se sumó después (playtesting incluido); lo más nuevo sigue en revisión. Falta probar a mano: Windows y Google Antigravity. El avance y cómo se verificó cada parte: [`docs/progress.md`](docs/progress.md). Las decisiones de diseño: [`docs/decisions.md`](docs/decisions.md).
+> Estado: están implementados los hitos de [`GODOT_AGENT_HARNESS_SPEC.md`](GODOT_AGENT_HARNESS_SPEC.md) (M0–M8c) y lo que se sumó después (playtesting incluido); lo más nuevo sigue en revisión. Falta probar a mano: Windows, macOS y algunos detalles de Antigravity. El avance y cómo se verificó cada parte: [`docs/progress.md`](docs/progress.md). Las decisiones de diseño: [`docs/decisions.md`](docs/decisions.md).
 
 ## Documentación
 
