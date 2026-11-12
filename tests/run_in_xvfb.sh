@@ -4,6 +4,7 @@
 # (una vez quedó texto tipeado en un fixture).
 # Uso: tests/run_in_xvfb.sh <binario de godot> --godot-agent-run-test
 # XRUN_PROJECT=<carpeta> abre otro proyecto (p. ej. el sandbox de tests/make_sandbox.sh).
+# XRUN_RENDERING_DRIVER=vulkan cambia el driver (opengl3 por defecto): hornear lightmaps lo necesita.
 # project.godot vuelve a quedar como estaba al salir (m13-19): el editor lo reescribe al arrancar
 # (saca de `enabled` los plugins que el checkout no tiene, pone config/features de su versión) y
 # los checks que guardan los ajustes lo dejan en disco. Se restaura también si el check falla o lo
@@ -30,7 +31,7 @@ trap restore_project EXIT
 status=0
 timeout "${XRUN_TIMEOUT:-300}" env -u WAYLAND_DISPLAY \
 	GODOT_AGENT_LANGUAGE="${GODOT_AGENT_LANGUAGE:-en}" \
-	GODOT_AGENT_TEST_RUN_ARGS="--rendering-driver opengl3 --display-driver x11 --audio-driver Dummy" \
+	GODOT_AGENT_TEST_RUN_ARGS="--rendering-driver ${XRUN_RENDERING_DRIVER:-opengl3} --display-driver x11 --audio-driver Dummy" \
 	xvfb-run -a -s "-screen 0 1920x1200x24" \
-	"$G" --display-driver x11 --rendering-driver opengl3 --path "$ROOT" -e -- "$@" || status=$?
+	"$G" --display-driver x11 --rendering-driver "${XRUN_RENDERING_DRIVER:-opengl3}" --path "$ROOT" -e -- "$@" || status=$?
 exit $status

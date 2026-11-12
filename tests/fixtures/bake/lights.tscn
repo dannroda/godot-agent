@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[sub_resource type="BoxMesh" id="BoxMesh_7r124"]
+lightmap_size_hint = Vector2i(14, 21)
+add_uv2 = true
+
+[node name="Lit" type="Node3D" unique_id=2118160347]
+
+[node name="LightmapGI" type="LightmapGI" parent="." unique_id=1314659290]
+quality = 0
+bounces = 1
+use_denoiser = false
+texel_scale = 0.5
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=26597572]
+transform = Transform3D(0.8660254, -0.35355338, 0.35355338, 0, 0.70710677, 0.70710677, -0.5, -0.6123724, 0.6123724, 0, 0, 0)
+
+[node name="Box" type="MeshInstance3D" parent="." unique_id=1976700015]
+mesh = SubResource("BoxMesh_7r124")

@@ -6076,6 +6076,18 @@ msgstr "El resto queda sin jugar; el aviso final ofrece verificarlos."
 msgid "Lists, adds or stops instances of the running game"
 msgstr "Lista, suma o corta instancias del juego que corre"
 
+msgid "Bakes the navigation, lightmaps or occluders of the open scene"
+msgstr "Hornea la navegación, los lightmaps o los occluders de la escena abierta"
+
+msgid "Exports the project with one of its presets, in a separate Godot"
+msgstr "Exporta el proyecto con uno de sus presets, en otro Godot"
+
+msgid "Bake"
+msgstr "Hornear"
+
+msgid "Export the project"
+msgstr "Exportar el proyecto"
+
 msgid "Game instances"
 msgstr "Instancias del juego"
 

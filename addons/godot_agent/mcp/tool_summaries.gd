@@ -28,6 +28,7 @@ const SUMMARIES: Dictionary = {
 	"instantiate_scene": "Instances a .tscn scene under a parent",  # i18n
 	"open_scene": "Opens a scene in the editor",  # i18n
 	"save_scene": "Saves the current scene",  # i18n
+	"bake": "Bakes the navigation, lightmaps or occluders of the open scene",  # i18n
 	"create_scene": "Creates a new .tscn with a root node and optionally its script",  # i18n
 	"attach_script": "Attaches a script to a node",  # i18n
 	# Archivos
@@ -70,6 +71,7 @@ const SUMMARIES: Dictionary = {
 	"validate_tilemap": "Checks the TileMapLayers of a scene",  # i18n
 	# Ajustes del proyecto
 	"set_project_setting": "Changes a project setting and saves project.godot",  # i18n
+	"export_project": "Exports the project with one of its presets, in a separate Godot",  # i18n
 	"set_input_action": "Creates or replaces an input action",  # i18n
 	"remove_input_action": "Deletes an input action",  # i18n
 	"set_autoload": "Adds or changes an autoload",  # i18n

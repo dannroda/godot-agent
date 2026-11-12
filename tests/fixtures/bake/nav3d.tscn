@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_afntr"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_wvmth"]
+size = Vector2(10, 10)
+
+[node name="Level3D" type="Node3D" unique_id=774313525]
+
+[node name="Region" type="NavigationRegion3D" parent="." unique_id=1455597486]
+navigation_mesh = SubResource("NavigationMesh_afntr")
+
+[node name="Floor" type="MeshInstance3D" parent="Region" unique_id=1208766126]
+mesh = SubResource("PlaneMesh_wvmth")

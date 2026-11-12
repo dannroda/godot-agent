@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[sub_resource type="NavigationPolygon" id="NavigationPolygon_jmdm3"]
+outlines = Array[PackedVector2Array]([PackedVector2Array(0, 0, 400, 0, 400, 300, 0, 300)])
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_qqvl5"]
+size = Vector2(60, 60)
+
+[node name="Level2D" type="Node2D" unique_id=653647540]
+
+[node name="Region" type="NavigationRegion2D" parent="." unique_id=1127834103]
+navigation_polygon = SubResource("NavigationPolygon_jmdm3")
+
+[node name="Wall" type="StaticBody2D" parent="Region" unique_id=623327714]
+position = Vector2(200, 150)
+
+[node name="Shape" type="CollisionShape2D" parent="Region/Wall" unique_id=92568048]
+shape = SubResource("RectangleShape2D_qqvl5")
