@@ -134,6 +134,11 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run second-opinion ~/godot/godot
 
+      # run_scene con varias instancias (server y cliente ENet) y game_instance (m11-50).
+      - name: Editor check (instances)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run instances ~/godot/godot
+
       # Un playtest con el agente en loop se corta como «could not test» (m11-49).
       - name: Editor check (playtest-loop)
         if: ${{ !cancelled() && matrix.group == 'editor' }}

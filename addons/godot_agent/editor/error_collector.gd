@@ -17,6 +17,9 @@ var _next_seq: int = 1
 var _logger: EditorLogger
 var _debugger_seen: Dictionary = {}
 var _time_regex := RegEx.create_from_string(TIME_PATTERN)
+## `(session_id) -> int`: la instancia del juego de una sesión del debugger (m11-50). Los errores de la
+## instancia 2 en adelante salen con fuente «game#N».
+var instance_of: Callable
 
 
 func start() -> void:
@@ -110,7 +113,11 @@ static func _parse_location(text: String) -> Array:
 
 func _collect_debugger() -> void:
 	var base := EditorInterface.get_base_control()
+	var session_id := -1
 	for debugger: Node in base.find_children("*", "ScriptEditorDebugger", true, false):
+		session_id += 1  # una pestaña por sesión, en el orden de las sesiones
+		var instance := int(instance_of.call(session_id)) if instance_of.is_valid() else 1
+		var source := "game" if instance <= 1 else "game#%d" % instance
 		for tree_node: Node in debugger.find_children("*", "Tree", true, false):
 			var tree := tree_node as Tree
 			if tree.columns != 2 or not tree.hide_root or tree.get_root() == null:
@@ -137,7 +144,7 @@ func _collect_debugger() -> void:
 				if not details.is_empty():
 					message += " (%s)" % "; ".join(details)
 				var kind := "warning" if item.get_icon(0) == _warning_icon() else "error"
-				add(kind, message, file, line, "game")
+				add(kind, message, file, line, source)
 
 
 static func _warning_icon() -> Texture2D:

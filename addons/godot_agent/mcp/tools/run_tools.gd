@@ -23,6 +23,7 @@ const RealGamepads := preload("../../playtest/real_gamepads.gd")
 const DeviceSim := preload("../../playtest/runtime/device_sim.gd")
 const PlaytestLoopGuard := preload("playtest_loop_guard.gd")
 const GameEmbedding := preload("../../playtest/game_embedding.gd")
+const GameInstances := preload("../../playtest/game_instances.gd")
 const ProjectTools := preload("project_tools.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 
@@ -119,6 +120,9 @@ const LOOP_GUARDED: PackedStringArray = ["capture_game_frame", "game_tree", "gam
 const LOOP_WARNING := "You made the same call%s %d times in a row and the game answered the same every time: it is not changing. Try something different (other input, wait, read the tree or the UI) or answer with verdict blocked and why. If you repeat it once more, the harness stops the playtest as could not test."
 const LOOP_STOPPED := "Stopped: you made the same call%s %d times in a row with the same result. The harness ended the playtest as could not test; do not call more tools."
 ## Las tools que traen texto del juego en sobres (m11-45).
+## Las tools que eligen la instancia del juego con `instance` (m11-50): las game_* de este archivo y la captura.
+const INSTANCE_TOOLS: PackedStringArray = ["capture_game_frame", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_monitors"]
+const INSTANCE_SCHEMA := {"type": "integer", "description": "Which game instance (run_scene `instances`, game_instance list): 1 is the one the editor launched (default)."}
 const ENVELOPED: PackedStringArray = ["run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_monitors", "run_regressions"]
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced)."
 const REGRESSIONS_BUSY := "The saved regressions are running (from the findings panel or a run_regressions call) and the game is theirs: wait for them to finish."
@@ -169,6 +173,14 @@ var _continued: PackedStringArray = []
 ## firma → hallazgo de los detectores (m15-07); `_findings_new`: firmas sin reportar todavía.
 var _findings: Dictionary = {}
 var _findings_new: PackedStringArray = []
+## Las instancias extra del juego (m11-50) y la escena del run, para game_instance add.
+var instances := GameInstances.new()
+var _run_scene_path: String = ""
+## Tool calls en curso hacia debugger.target_instance: otra instancia espera a que terminen.
+var _target_calls: int = 0
+## `(first: bool) -> void`: registra el autoload de playtest antes de lanzar una instancia extra (lo
+## pone el plugin; se saca en el session_started de esa instancia, como el del editor).
+var register_autoload: Callable
 ## Carpeta y frames ({number, t, path}) de la filmación del run (m15-22).
 var _film_dir: String = ""
 var _film_frames: Array[Dictionary] = []
@@ -191,6 +203,9 @@ func setup(collector: ErrorCollector, playtest_debugger: PlaytestDebugger) -> vo
 	debugger.finding_received.connect(_on_finding_received)
 	debugger.finding_frame_received.connect(_on_finding_frame_received)
 	debugger.film_frame_received.connect(_on_film_frame_received)
+	debugger.instance_event.connect(_on_instance_event)
+	if collector:
+		collector.instance_of = debugger.instance_of
 
 
 ## El único lugar que cambia run_state. LAUNCHING empieza un run nuevo: borra lo que mandó el anterior.
@@ -253,6 +268,13 @@ func _on_session_continued() -> void:
 func _on_session_stopped() -> void:
 	_continue_errors = false
 	_set_run_state(GameRunState.STOPPED)
+	instances.stop_all()  # el juego del editor terminó (o Stop): las demás instancias también
+
+
+## Una instancia extra que termina sola (se cerró o se cayó) deja de contar.
+func _on_instance_event(instance: int, event: String) -> void:
+	if event == "stopped":
+		instances.stop(instance)
 
 
 ## Un error del juego: se saltea si este run lo pidió, guardando el motivo (el panel se llena un
@@ -261,7 +283,7 @@ func _on_session_breaked() -> void:
 	# Los monitores del probe no cuentan la pausa como un frame lento (revisión de next2 #11). El
 	# mensaje lo atiende el bucle del debugger, con el juego parado.
 	if debugger:
-		debugger.send("paused")
+		debugger.send("paused", [], 1)
 	if not _continue_errors or _breaks >= CONTINUE_MAX:
 		if _continue_errors:
 			_continued.append("Stopped skipping errors after %d in this run: the game is stopped in the debugger." % CONTINUE_MAX)
@@ -382,9 +404,16 @@ func tools() -> Array:
 				"device": {"type": "object", "description": "Simulate another device for this run, without touching project.godot: {preset: %s, size: [w, h] (window pixels; overrides the preset's), orientation: portrait|landscape, scale (content scale factor, e.g. 2 for a high-DPI screen), touch: true (mouse clicks also arrive as touch events), locale: \"es\" (TranslationServer)}. Phone and tablet turn on touch. Then capture_game_frame and game_ui show the layout at that size; run again with another device to compare aspects." % "|".join(DeviceSim.PRESETS.keys()),
 					"properties": {"preset": {"type": "string", "enum": DeviceSim.PRESETS.keys()}, "size": {"type": "array", "items": {"type": "integer"}}, "orientation": {"type": "string", "enum": ["portrait", "landscape"]}, "scale": {"type": "number"}, "touch": {"type": "boolean"}, "locale": {"type": "string"}}},
 				"real_gamepads": {"type": "boolean", "description": "Let the gamepads connected to this computer reach the game, for the user to play along (default false: they are ignored, so a resting or drifting stick does not move the player or the UI focus while you drive the game; joypad events you send in steps always work)"},
+				"instances": {"type": "array", "description": "More instances of the same scene at the same time (multiplayer: a server and clients; or parallel cases), up to %d in total. The editor's game is instance 1; each entry here adds the next one, in its own window (or headless), with its own user:// folder: {args: [..] (the game reads them with OS.get_cmdline_user_args(), e.g. [\"--client\", \"127.0.0.1:7000\"]), headless: true (a dedicated server, no window or captures), device (like `device`), inputs (steps, like `inputs`), shared_user_dir: true (use instance 1's user://)}. Then pass `instance` to the game_* tools and capture_game_frame, and use game_instance to list, add or stop (disconnect) one." % GameInstances.MAX_INSTANCES,
+					"items": {"type": "object", "properties": {"args": {"type": "array", "items": {"type": "string"}}, "headless": {"type": "boolean"}, "device": {"type": "object"}, "inputs": steps_schema, "shared_user_dir": {"type": "boolean"}}}},
 			},
 			["seconds"], _run_scene_tool),
-		McpTool.create("stop_scene", run, "Stops the running game.", {}, [], _stop_scene_tool),
+		McpTool.create("stop_scene", run, "Stops the running game, with all its instances. `instance` (2 or more) stops only that one, like game_instance stop.", {"instance": INSTANCE_SCHEMA}, [], _stop_scene_tool),
+		McpTool.create("game_instance", run,
+			"The instances of the running game (run_scene `instances`; instance 1 is the editor's). action `list`: each one with its args, window or headless, and whether its probe answers. `add`: one more instance of the same scene while the game runs (a player joining), with `args`, `headless`, `device`, `inputs` and `shared_user_dir` like run_scene `instances`. `stop`: kills instance `instance` (2 or more) without warning: for the others it is a dropped connection. At most %d instances in total." % GameInstances.MAX_INSTANCES,
+			{"action": {"type": "string", "enum": ["list", "add", "stop"]}, "instance": {"type": "integer"}, "args": {"type": "array", "items": {"type": "string"}}, "headless": {"type": "boolean"},
+				"device": {"type": "object"}, "inputs": steps_schema, "shared_user_dir": {"type": "boolean"}},
+			["action"], _game_instance),
 		McpTool.create("run_regressions", run,
 			"Runs the saved playtest regressions (%s/) in the editor, without an agent turn, `repeat` times each, and reports how many runs of each passed. A regression passes only if every run passes; one that passes some runs and fails others is flaky, and the count is saved with it so the findings panel and the CI workflow can tell. Use repeat 3 or more to check that a regression is stable before relying on it." % RegressionsWorkflow.REGRESSIONS_DIR,
 			{
@@ -454,6 +483,10 @@ func tools() -> Array:
 	]
 	# El juego habla en estos resultados (m11-45): su Output, sus errores y lo que devuelve el probe.
 	for tool: McpTool in list:
+		if tool.name in INSTANCE_TOOLS:
+			tool.input_schema.properties["instance"] = INSTANCE_SCHEMA
+			var targeted := tool.handler
+			tool.handler = func(args: Dictionary) -> Dictionary: return await _with_instance(args, targeted)
 		if tool.name in ENVELOPED:
 			tool.envelope = McpTool.ENVELOPE_PARTS
 		if tool.name in LOOP_GUARDED:
@@ -520,8 +553,18 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	var device := DeviceSim.normalize(args.get("device"))
 	if device.has("error"):
 		return McpTool.error(str(device.error))
+	var extra := GameInstances.normalize(args.get("instances"))
+	if extra.has("error"):
+		return McpTool.error(str(extra.error))
+	for entry: Dictionary in extra.instances:
+		var entry_inputs: Array = []
+		var invalid_entry := normalize_steps(entry.inputs, entry_inputs)
+		if not invalid_entry.is_empty():
+			return McpTool.error("instances: " + invalid_entry)
+		entry.inputs = entry_inputs
 
 	_busy = true
+	instances.stop_all()
 	_busy_since_ms = Time.get_ticks_msec()
 	if EditorInterface.is_playing_scene():
 		EditorInterface.stop_playing_scene()
@@ -549,6 +592,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	# Con un tamaño, el juego va en su propia ventana: embebido en la vista Game (lo normal desde 4.4)
 	# el tamaño lo pone el editor. Se apaga solo para este lanzamiento, como el Movie Maker de `record`.
 	var embed: Object = GameEmbedding.disable() if device.has("device") and not (device.device.size as Array).is_empty() else null
+	_run_scene_path = scene
 	EditorInterface.play_custom_scene(scene)  # llama a _build() y lanza el proceso en el momento
 	if device.has("device"):
 		DeviceSim.restore_env(device_env)
@@ -577,7 +621,10 @@ func _run_scene(args: Dictionary) -> Dictionary:
 		if args.get("monitors") == true:
 			var started := await request("monitors_start", {})
 			monitoring = started.has("text")
-	elif not _game_halted():
+	if not extra.instances.is_empty() and EditorInterface.is_playing_scene():
+		for entry: Dictionary in extra.instances:
+			notes.append(await _add_instance(entry, args.get("real_gamepads") == true))
+	if not reached(GameRunState.PROBE_READY) and not _game_halted():
 		notes.append("The playtest probe did not respond within %d s: no inputs or captures." % STARTUP_TIMEOUT_S)
 		if device.has("device"):
 			notes.append("The simulated device (%s) is applied by the probe, so it may not have taken effect." % DeviceSim.describe(device.device))
@@ -622,6 +669,102 @@ func _run_scene_tool(args: Dictionary) -> Dictionary:
 	if regressions_running:
 		return McpTool.error(REGRESSIONS_BUSY)
 	return await _run_scene(args)
+
+
+## Corre `handler` contra la instancia `args.instance` (m11-50). Las llamadas a una misma instancia van
+## a la vez; una a otra instancia espera a que terminen (el debugger tiene un solo destino).
+func _with_instance(args: Dictionary, handler: Callable) -> Dictionary:
+	var raw: Variant = args.get("instance")
+	var instance := int(raw) if raw is float or raw is int else 1
+	if instance < 1 or instance > GameInstances.MAX_INSTANCES:
+		return McpTool.error("`instance` goes from 1 (the editor's game) to %d." % GameInstances.MAX_INSTANCES)
+	if instance >= 2 and not debugger.has_probe(instance):
+		return McpTool.error("Instance %d is not running with the playtest probe (game_instance list shows the running ones)." % instance)
+	var tree := Engine.get_main_loop() as SceneTree
+	while _target_calls > 0 and debugger.target_instance != instance:
+		await tree.process_frame
+	debugger.target_instance = instance
+	_target_calls += 1
+	var result: Dictionary = await handler.call(args)
+	_target_calls -= 1
+	if _target_calls == 0:
+		debugger.target_instance = 1
+	return result
+
+
+## Lanza una instancia extra de la escena del run y espera su probe. Devuelve la nota para el informe.
+func _add_instance(entry: Dictionary, real_gamepads: bool) -> String:
+	var number := instances.free_number()
+	if number < 0:
+		return "Instance not added: %d instances already run (the most at once)." % GameInstances.MAX_INSTANCES
+	var settings := EditorInterface.get_editor_settings()
+	var host := str(settings.get_setting("network/debug/remote_host"))
+	var port := int(settings.get_setting("network/debug/remote_port"))
+	var screen := DisplayServer.window_get_current_screen()
+	var args := GameInstances.launch_args(ProjectSettings.globalize_path("res://"), _run_scene_path, host if not host.is_empty() else "127.0.0.1", port, entry, number,
+		DisplayServer.screen_get_usable_rect(screen))
+	if register_autoload.is_valid():
+		register_autoload.call(true)
+	debugger.expect_instance(number)
+	var pid := instances.launch(number, args, entry, real_gamepads)
+	if pid <= 0:
+		debugger.expect_instance(0)
+		_cleanup()
+		return "Instance %d could not be launched." % number
+	await _until(func() -> bool: return debugger.instance_session(number) >= 0 or not OS.is_process_running(pid), STARTUP_TIMEOUT_S)
+	if debugger.instance_session(number) < 0:
+		debugger.expect_instance(0)
+		_cleanup()
+		instances.stop(number)
+		return "Instance %d did not connect to the editor's debugger within %d s; it was stopped." % [number, STARTUP_TIMEOUT_S]
+	await _until(func() -> bool: return debugger.has_probe(number) or debugger.instance_session(number) < 0, STARTUP_TIMEOUT_S)
+	var what := "headless" if entry.headless else "%dx%d window" % [GameInstances.window_size(entry).x, GameInstances.window_size(entry).y]
+	var given := " ".join(entry.args) if not (entry.args as PackedStringArray).is_empty() else "no args"
+	if not debugger.has_probe(number):
+		return "Instance %d (%s, %s) started but its playtest probe did not answer: the game_* tools can't reach it." % [number, what, given]
+	if not (entry.inputs as Array).is_empty():
+		debugger.send("inputs", [entry.inputs], number)
+	var user_dir := "instance 1's user://" if entry.shared_user_dir else "its own user://"
+	return "Instance %d is running (%s, %s, %s): pass instance: %d to the game_* tools." % [number, what, given, user_dir, number]
+
+
+func _game_instance(args: Dictionary) -> Dictionary:
+	var action := McpTool.str_arg(args, "action")
+	if action == "list":
+		return McpTool.text(_describe_instances())
+	if not EditorInterface.is_playing_scene():
+		return McpTool.error("No game is running: start it with run_scene (its `instances` launches several at once).")
+	if action == "stop":
+		var raw: Variant = args.get("instance")
+		var instance := int(raw) if raw is float or raw is int else 0
+		if instance < 2:
+			return McpTool.error("`instance` must be 2 or more: instance 1 is the editor's game (stop_scene stops it with all the others).")
+		return McpTool.text("Instance %d stopped: for the other instances it is a dropped connection." % instance) if instances.stop(instance) else McpTool.error("There is no instance %d running." % instance)
+	if action == "add":
+		var entry := GameInstances.normalize_entry(args)
+		if entry.has("error"):
+			return McpTool.error(str(entry.error))
+		var entry_inputs: Array = []
+		var invalid := normalize_steps(entry.inputs, entry_inputs)
+		if not invalid.is_empty():
+			return McpTool.error(invalid)
+		entry.inputs = entry_inputs
+		if instances.free_number() < 0:
+			return McpTool.error("At most %d instances run at once." % GameInstances.MAX_INSTANCES)
+		return McpTool.text(await _add_instance(entry, false))
+	return McpTool.error("`action` is list, add or stop.")
+
+
+func _describe_instances() -> String:
+	if not EditorInterface.is_playing_scene():
+		return "No game is running."
+	var lines := PackedStringArray(["Instance 1: the editor's game (%s), probe %s." % [_run_scene_path, "answering" if debugger.has_probe(1) else "not answering"]])
+	for number: int in instances.running():
+		var entry: Dictionary = instances.entries[number]
+		var what := "headless" if entry.headless else "own window"
+		var given := " ".join(entry.args) if not (entry.args as PackedStringArray).is_empty() else "no args"
+		lines.append("Instance %d: %s, %s, %s, probe %s." % [number, what, given, "shared user://" if entry.shared_user_dir else "own user://", "answering" if debugger.has_probe(number) else "not answering"])
+	return "\n".join(lines)
 
 
 func _stop_scene_tool(args: Dictionary) -> Dictionary:
@@ -680,8 +823,12 @@ static func _stop_recording(recording: Dictionary) -> void:
 	ProjectSettings.set_setting(MOVIE_FPS_SETTING, recording.fps)
 
 
-func _stop_scene(_args: Dictionary) -> Dictionary:
+func _stop_scene(args: Dictionary) -> Dictionary:
+	var instance := int(args.get("instance", 1)) if args.get("instance") is float or args.get("instance") is int else 1
+	if instance >= 2:
+		return McpTool.text("Instance %d stopped." % instance) if instances.stop(instance) else McpTool.error("There is no instance %d running (game_instance list)." % instance)
 	if not EditorInterface.is_playing_scene():
+		instances.stop_all()
 		return McpTool.text("No game is running.")
 	EditorInterface.stop_playing_scene()
 	await _until(func() -> bool: return not EditorInterface.is_playing_scene(), STOP_TIMEOUT_S)
@@ -1275,7 +1422,7 @@ func _game_request(op: String, params: Dictionary, duration_s: float = 0.0) -> D
 	if _continue_errors:
 		await (Engine.get_main_loop() as SceneTree).process_frame
 	lines.append_array(_extra_lines())
-	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return entry.source == "game" and not ErrorCollector.is_engine_noise(entry))
+	var entries := errors.entries_since(since).filter(func(entry: Dictionary) -> bool: return str(entry.source).begins_with("game") and not ErrorCollector.is_engine_noise(entry))
 	if not entries.is_empty():
 		lines.append("Game errors and warnings (%d):" % entries.size())
 		lines.append(UntrustedText.wrap(_entry_lines(entries)))

@@ -21,6 +21,7 @@ const Monitors := preload("monitors.gd")
 const CameraViews := preload("camera_views.gd")
 const DebugStack := preload("debug_stack.gd")
 const DeviceSim := preload("device_sim.gd")
+const InstanceEnv := preload("instance_env.gd")
 
 const PREFIX := "godot_agent"
 const PROTOCOL := 3
@@ -63,6 +64,13 @@ var _device_settled: bool = true
 const DEVICE_SETTLE_FRAMES := 10
 
 
+## Antes que los autoloads del juego (en una corrida con varias instancias este va primero): la
+## instancia 2 en adelante usa su propio user:// (m11-50).
+func _init() -> void:
+	if not standalone and OS.has_feature("editor_runtime"):
+		InstanceEnv.apply()
+
+
 func _ready() -> void:
 	if standalone:
 		process_mode = Node.PROCESS_MODE_ALWAYS
@@ -83,7 +91,7 @@ func _ready() -> void:
 	_ui = GameUi.new(self)
 	_last_frame_ms = Time.get_ticks_msec()
 	EngineDebugger.register_message_capture(PREFIX, _on_message)
-	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL])
+	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL, InstanceEnv.number()])
 
 
 ## La ventana vuelve al tamaño del proyecto después del _ready: se repite hasta que quede.

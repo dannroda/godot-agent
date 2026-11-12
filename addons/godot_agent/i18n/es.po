@@ -6072,3 +6072,9 @@ msgstr "Criterios que se juegan por plan, como mucho"
 
 msgid "The rest stay unplayed; the final notice offers to verify them."
 msgstr "El resto queda sin jugar; el aviso final ofrece verificarlos."
+
+msgid "Lists, adds or stops instances of the running game"
+msgstr "Lista, suma o corta instancias del juego que corre"
+
+msgid "Game instances"
+msgstr "Instancias del juego"

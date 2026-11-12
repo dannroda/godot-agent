@@ -317,6 +317,8 @@ func _enter_tree() -> void:
 	# El juego ya leyó project.godot cuando su sesión de debug arranca: el autoload se quita ahí.
 	_playtest_debugger.session_started.connect(_remove_playtest_autoload)
 	_playtest_debugger.session_stopped.connect(_remove_playtest_autoload)
+	# Las instancias extra de run_scene (m11-50) lo registran otra vez justo antes de lanzarse.
+	_playtest_debugger.instance_event.connect(_on_playtest_instance_event)
 	_plugin.add_debugger_plugin(_playtest_debugger)
 	_start_mcp_server()
 
@@ -1112,6 +1114,7 @@ func _start_mcp_server() -> void:
 	_run_tools.setup(_errors, _playtest_debugger)
 	_run_tools.max_image_side = _project_config.max_image_side
 	_run_tools.cleanup = _remove_playtest_autoload
+	_run_tools.register_autoload = _register_playtest_autoload
 	_run_tools.agent_log = _log
 	registry.register_provider(_run_tools)
 	_run_errors = RunErrorWatcher.new()
@@ -1749,6 +1752,17 @@ func _ask_agent(text: String) -> void:
 
 func _remove_playtest_autoload() -> void:
 	PlaytestAutoload.unregister(_plugin)
+
+
+## Para una instancia extra (m11-50): primero en la lista, así su _init redirige user:// antes que los
+## autoloads del juego. Se saca cuando arranca su sesión, o si no llega a arrancar.
+func _register_playtest_autoload(first: bool) -> void:
+	PlaytestAutoload.register(_plugin, first)
+
+
+func _on_playtest_instance_event(_instance: int, event: String) -> void:
+	if event in ["started", "stopped"]:
+		_remove_playtest_autoload()
 
 
 # --- varias sesiones (m7-44) ----------------------------------------------------------------------
