@@ -1060,6 +1060,9 @@ func _start_mcp_server() -> void:
 		return controller != null and await controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
 	registry.guard = _guard_tool
 	registry.precheck = _precheck_tool
+	registry.result_note = func(caller: String, _tool_name: String, args: Dictionary) -> String:
+		var controller := _controller_of(_session_of(caller))
+		return controller.path_rules_for_tool(args) if controller else ""
 	registry.error_mark = _errors.mark
 	registry.errors_since = _errors.entries_since
 	registry.register_provider(ReadTools.new())
@@ -1776,6 +1779,8 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	controller.set_terminal_handler(terminal)
 	controller.mcp_servers_provider = _mcp_servers.bind(id, model)
 	controller.session_key = id
+	controller.path_rules_on = func() -> bool: return _project_config == null or _project_config.path_rules
+	controller.context_paths_provider = EditorContext.current_script_paths
 	if copy:
 		# Sus archivos no son los del editor: sin locks ni verificación por res://, y snapshots propios.
 		var snapshots := TurnSnapshots.new(root)

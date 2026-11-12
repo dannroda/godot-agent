@@ -46,6 +46,8 @@ const ReviewStore := preload("../review/review_store.gd")
 const TurnChecks := preload("../core/turn_checks.gd")
 const MachineApproval := preload("../core/machine_approval.gd")
 const UntrustedText := preload("../mcp/untrusted_text.gd")
+const PathRules := preload("../core/path_rules.gd")
+const SessionCoordinator := preload("session_coordinator.gd")
 const SessionHistory := preload("session_history.gd")
 const AgentLogin := preload("agent_login.gd")
 const EditorBinary := preload("../transport/editor_binary.gd")
@@ -276,6 +278,14 @@ var _prompt_after_login: Dictionary = {}
 var _harness_labels: Dictionary = {}
 ## Algo que el agente tiene que saber antes de su próximo turno (el usuario volvió archivos atrás).
 var _note_for_agent: String = ""
+## Reglas por archivo (m11-25): si se aplican, las ya mandadas en esta sesión (file -> hash) y desde qué
+## entrada del chat se buscan los archivos que tocó el agente.
+## () -> bool: si se aplican (Settings); sin provider, sí.
+var path_rules_on: Callable
+## () -> PackedStringArray: archivos del editor que acompañan el prompt (el script abierto).
+var context_paths_provider: Callable
+var _rules_sent: Dictionary = {}
+var _rules_scan_from: int = 0
 var _connect_generation: int = 0
 ## Id del session/prompt en vuelo (-1 si no hay): la cancelación sin respuesta lo despierta (m17-16).
 var _prompt_request_id: int = -1
@@ -478,6 +488,7 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 		return false
 	model.apply_session(result.result.sessionId, result.result)
 	_system_prompt_sent = false
+	_reset_path_rules()
 	policy.clear_session()
 	permissions.reset()
 	if history:
@@ -534,10 +545,15 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 			_note_for_agent = ""
 		blocks.append_array(extra_blocks)
 		blocks.append({"type": "text", "text": text})
+	var rules_block: Dictionary = {} if is_command else path_rules_block(text, extra_blocks)
+	if not rules_block.is_empty():
+		blocks.insert(blocks.size() - 1, rules_block)
 	var attachments: Array[Dictionary] = []
 	for block: Variant in extra_blocks:
 		if block is Dictionary:
 			attachments.append(block)
+	if not rules_block.is_empty():
+		attachments.append(rules_block)
 	var harness_label := _take_label(text)
 	# Otro mensaje con la tarjeta de un plan en bloque pendiente: ya no es lo que se aprueba (m11-58).
 	_cancel_block_plan()
@@ -729,6 +745,90 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 	var entry := model.add_notice(" ".join(parts), ChatEntry.NoticeLevel.INFO, actions)
 	entry.footer = true
 	model.notify_entry_changed(entry)
+
+
+# --- reglas por archivo (m11-25) -------------------------------------------------------------------
+
+func _reset_path_rules() -> void:
+	_rules_sent.clear()
+	_rules_scan_from = model.entries().size()
+
+
+## El bloque de reglas del proyecto para este prompt ({} si no hay): las que coinciden con lo que tocó
+## el agente desde el prompt anterior o con lo que trae este (rutas en el texto, archivos adjuntos, el
+## script abierto), sin las que el agente ya carga solo ni las ya mandadas en la sesión.
+func path_rules_block(text: String, extra_blocks: Array = []) -> Dictionary:
+	var from := _rules_scan_from
+	_rules_scan_from = model.entries().size()
+	if (path_rules_on.is_valid() and not path_rules_on.call()) or cwd.is_empty():
+		return {}
+	var paths := touched_paths(from)
+	var candidates: Array = Array(PathRules.paths_in_text(text))
+	for block: Variant in extra_blocks:
+		if block is Dictionary and str(block.get("uri", "")) != "":
+			candidates.append(str(block.uri))
+	if context_paths_provider.is_valid():
+		candidates.append_array(Array(context_paths_provider.call()))
+	for path: Variant in candidates:
+		var relative := PathRules.relative(str(path), cwd)
+		if not relative.is_empty() and not relative in paths:
+			paths.append(relative)
+	if paths.is_empty():
+		return {}
+	var pending := PathRules.pending(PathRules.load_rules(cwd), paths, adapter.kind, _rules_sent)
+	if pending.is_empty():
+		return {}
+	var built := PathRules.block(pending)
+	for rule: Dictionary in built.sent:
+		_rules_sent[rule.file] = rule.hash
+		agent_log.add(AgentLog.CH_PROC, "Project rule %s sent for %s" % [rule.file, ", ".join(rule.paths)])
+	return {"type": "text", "text": built.text}
+
+
+## Las reglas para los archivos que nombra una tool godot.* de esta sesión, para el final de su resultado
+## (en el mismo turno). Quedan como mandadas: el próximo prompt no las repite. "" si no hay.
+func path_rules_for_tool(args: Dictionary) -> String:
+	if (path_rules_on.is_valid() and not path_rules_on.call()) or cwd.is_empty():
+		return ""
+	var paths: PackedStringArray = []
+	for path: String in SessionCoordinator.paths_in_args(args):
+		var relative := PathRules.relative(path, cwd)
+		if not relative.is_empty():
+			paths.append(relative)
+	if paths.is_empty():
+		return ""
+	var pending := PathRules.pending(PathRules.load_rules(cwd), paths, adapter.kind, _rules_sent)
+	if pending.is_empty():
+		return ""
+	var built := PathRules.block(pending)
+	for rule: Dictionary in built.sent:
+		_rules_sent[rule.file] = rule.hash
+		agent_log.add(AgentLog.CH_PROC, "Project rule %s sent in a tool result for %s" % [rule.file, ", ".join(rule.paths)])
+	return built.text
+
+
+## Los archivos (relativos al proyecto) que tocaron las tools del agente desde la entrada `from`: las
+## ubicaciones y diffs de cada tool call, y las rutas de sus argumentos (las tools godot.* reciben res://).
+func touched_paths(from: int) -> PackedStringArray:
+	var result: PackedStringArray = []
+	for call: ToolCall in tool_calls_since(from):
+		var found: Array = []
+		for location: Variant in call.locations:
+			if location is Dictionary:
+				found.append(str(location.get("path", "")))
+		for item: Variant in call.content:
+			if item is Dictionary and item.get("type") == "diff":
+				found.append(str(item.get("path", "")))
+		if call.raw_input is Dictionary:
+			for value: Variant in (call.raw_input as Dictionary).values():
+				for single: Variant in (value if value is Array else [value]):
+					if single is String:
+						found.append(single)
+		for path: Variant in found:
+			var relative := PathRules.relative(str(path), cwd) if str(path).begins_with("res://") or str(path).begins_with("/") or str(path).begins_with("file://") else ""
+			if not relative.is_empty() and not relative in result:
+				result.append(relative)
+	return result
 
 
 ## Para el próximo prompt: el agente se entera de que el usuario volvió archivos atrás.
@@ -1692,6 +1792,7 @@ func _load_session(record: Dictionary, generation: int) -> bool:
 		model.add_notice(I18n.t("Could not resume the session: %s. The history stays read-only.") % result.error_message(), ChatEntry.NoticeLevel.WARNING)
 		return false
 	model.apply_session(session_id, result.result if result.result is Dictionary else {})
+	_reset_path_rules()  # lo mandado antes quedó en el contexto recuperado, pero no sabemos qué: de nuevo
 	var remote_title := str(record.get("title", ""))
 	if not remote_title.is_empty() and model.title.is_empty():
 		model.apply_update({"sessionUpdate": "session_info_update", "title": remote_title})

@@ -6,6 +6,7 @@ extends "entry_view.gd"
 
 const MAX_WIDTH_RATIO := 0.85
 const UntrustedText := preload("../../../mcp/untrusted_text.gd")
+const PathRules := preload("../../../core/path_rules.gd")
 ## Líneas de la etiqueta de un prompt del harness, plegado.
 const CAPTION_LINES := 2
 
@@ -163,6 +164,12 @@ static func _attachment_name(block: Dictionary) -> String:
 			var resource: Variant = block.get("resource")
 			return str(resource.get("uri", I18n.t("resource"))).get_file() if resource is Dictionary else I18n.t("resource")
 		"text":
+			# Las reglas del proyecto que mandó el harness (m11-25): sus archivos.
+			if str(block.get("text", "")).begins_with(PathRules.BLOCK_HEADER):
+				var names: PackedStringArray = []
+				for rule: RegExMatch in RegEx.create_from_string("\\(from ([^)\\n]+)\\)\\n").search_all(str(block.text)):
+					names.append(rule.get_string(1).get_file())
+				return I18n.t("rules: %s") % ", ".join(names)
 			# Una mención especial expandida (@errors, @session:…, m11-08 y m11-29): su nombre.
 			var found := RegEx.create_from_string("^Context the user attached with (@\\S+):").search(str(block.get("text", "")))
 			if found:

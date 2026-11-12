@@ -5956,3 +5956,33 @@ msgstr "Se creó %s a partir de una plantilla. Ajustala y guardala."
 
 msgid "Save a valid recipe first."
 msgstr "Primero guardá una receta válida."
+
+msgid "rules: %s"
+msgstr "reglas: %s"
+
+msgid "Test"
+msgstr "Probar"
+
+msgid "Which rules by file apply to this path, and who applies each one."
+msgstr "Qué reglas por archivo valen para esta ruta, y quién aplica cada una."
+
+msgid "For files matching %s. %s loads it on its own; the harness sends it to other agents when a turn touches one of those files."
+msgstr "Para los archivos que coinciden con %s. %s la carga sola; el harness se la manda a los otros agentes cuando un turno toca uno de esos archivos."
+
+msgid "Enter a path inside the project."
+msgstr "Escribí una ruta del proyecto."
+
+msgid "No rule by file applies to %s."
+msgstr "Ninguna regla por archivo vale para %s."
+
+msgid "Rules for %s: %s"
+msgstr "Reglas para %s: %s"
+
+msgid "A rule for some files: change the patterns, write the rule and save."
+msgstr "Una regla para algunos archivos: cambiá los patrones, escribí la regla y guardá."
+
+msgid "Apply the project's rules by file"
+msgstr "Aplicar las reglas por archivo del proyecto"
+
+msgid "When a turn touches a file that matches a rule in .agents/rules, .claude/rules or .cursor/rules, the next prompt carries that rule, once per session. Rules the active agent already loads on its own aren't sent again."
+msgstr "Cuando un turno toca un archivo que coincide con una regla de .agents/rules, .claude/rules o .cursor/rules, el próximo prompt lleva esa regla, una vez por sesión. Las reglas que el agente activo ya carga solo no se mandan de nuevo."

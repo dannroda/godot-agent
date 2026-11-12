@@ -48,6 +48,10 @@ const ShellRules := preload("../session/shell_rules.gd")
 ## Al terminar un turno de Construir o Auto, validar los scripts que cambiaron y devolverle los
 ## errores al agente (m11-04).
 @export var verify_after_turn: bool = true
+## Reglas por archivo del proyecto (m11-25): cuando el turno toca un archivo que coincide con una regla
+## de .agents/rules, .claude/rules o .cursor/rules, mandarla en el próximo prompt a un agente que no la
+## carga solo. Ver core/path_rules.gd.
+@export var path_rules: bool = true
 ## Checks del proyecto al terminar un turno de Construir o Auto con cambios (m11-31): regresiones o
 ## comandos (ver core/turn_checks.gd). Un comando corre solo si se aprobó en esta máquina.
 @export var turn_checks: Array = []

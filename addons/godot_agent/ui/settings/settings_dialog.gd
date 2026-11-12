@@ -51,7 +51,7 @@ const DECISION_LABELS: Dictionary = {
 ## Celdas de la matriz (m12-22): un ícono y un color por decisión.
 const DECISION_MARKS: Dictionary = {PermissionPolicy.ALLOW: "✓", PermissionPolicy.ASK: "?", PermissionPolicy.DENY: "✕"}
 const MODES: Array[SessionModel.HarnessMode] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO, SessionModel.HarnessMode.ONESHOT]
-const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "turn_checks", "recipes_dir", "hooks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "project_tools_dir", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
+const CONFIG_PROPERTIES: PackedStringArray = ["permissions", "subagent_limits", "permission_timeout_s", "auto_shell_rules", "max_output_chars", "max_image_side", "playtest_on_manual_runs", "compact_tools", "verify_after_turn", "path_rules", "turn_checks", "recipes_dir", "hooks", "turn_snapshots", "github_pull_requests", "extra_fs_roots", "mcp_servers", "project_tools_dir", "budget_minutes", "budget_tokens", "budget_playtests", "checkpoints_enabled", "spec_review", "loop_repeats", "qa_rounds", "criteria", "completion_enabled", "completion_exclude"]
 const DOCK_SLOT_LABELS: PackedStringArray = [
 	"Top right",  # i18n
 	"Bottom right",  # i18n
@@ -110,6 +110,7 @@ var _manual_runs_check: CheckBox
 var _run_error_check: CheckBox
 var _notify_check: CheckBox
 var _verify_check: CheckBox
+var _path_rules_check: CheckBox
 var _turn_checks_editor: TurnChecksEditor
 var _recipes_dir_edit: LineEdit
 var _hooks_editor: HooksEditor
@@ -560,6 +561,11 @@ func _build_mcp(page: VBoxContainer) -> void:
 	_verify_check.text = I18n.t("Check the scripts after each turn")
 	_verify_check.tooltip_text = I18n.t("In Build and Auto, when a turn ends the harness validates the scripts that changed. If one doesn't parse, the agent gets the errors to fix them (up to 2 turns in a row); then they stay as a notice in the chat.")
 	page.add_child(_verify_check)
+	_path_rules_check = CheckBox.new()
+	_path_rules_check.name = "PathRules"
+	_path_rules_check.text = I18n.t("Apply the project's rules by file")
+	_path_rules_check.tooltip_text = I18n.t("When a turn touches a file that matches a rule in .agents/rules, .claude/rules or .cursor/rules, the next prompt carries that rule, once per session. Rules the active agent already loads on its own aren't sent again.")
+	page.add_child(_path_rules_check)
 	_turn_checks_editor = TurnChecksEditor.new()
 	page.add_child(_turn_checks_editor)
 	page.add_child(_title(I18n.t("Recipes")))
@@ -785,6 +791,7 @@ func _load() -> void:
 	_notify_check.button_pressed = _settings.notify_when_unfocused()
 	_compact_tools_check.button_pressed = _config.compact_tools
 	_verify_check.button_pressed = _config.verify_after_turn
+	_path_rules_check.button_pressed = _config.path_rules
 	_recipes_dir_edit.text = _config.recipes_dir
 	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_hooks_editor.load_from(_config.hooks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
@@ -884,6 +891,7 @@ func _on_save() -> void:
 	_config.playtest_on_manual_runs = _manual_runs_check.button_pressed
 	_config.compact_tools = _compact_tools_check.button_pressed
 	_config.verify_after_turn = _verify_check.button_pressed
+	_config.path_rules = _path_rules_check.button_pressed
 	_config.turn_checks = _turn_checks_editor.checks()
 	_config.recipes_dir = Recipes.resolve_dir(_recipes_dir_edit.text)
 	_config.hooks = _hooks_editor.hooks()

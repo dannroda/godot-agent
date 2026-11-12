@@ -60,6 +60,7 @@ ui-harness-prompt:full:120
 ui-handoff:full:120
 ui-memory:full:120
 ui-recipe:full:120
+ui-path-rules:full:120
 crash:full:400
 "
 
