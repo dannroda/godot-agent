@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.531Z",
+  "description": "De dónde: screen_capture del MCP de Roblox Studio con posición de cámara y objetivo opcionales (https://create.roblox.com/docs/studio/mcp.md); CaptureMultiAngleSceneView (4 ángulos) y Capture2DScene (región ortográfica) del Assistant de Unity, según lectura de terceros del código (https://gamedevllm.com/en/unity-mcp-builtin-tools-reference-en/, sin confirmar en la doc oficial). Cómo se adapta: capture_editor_viewport con `look_from`/`look_at`, `angles: 4` o `rect` 2D, renderizando en un SubViewport fuera de pantalla con una cámara temporal (sin mover la del usuario), y lo mismo en el juego con una Camera temporal desde el probe. Por qué: hoy el agente ve la escena 3D solo desde donde quedó la cámara del editor, y para revisar un nivel tiene que pedirle al usuario que la mueva.",
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-52. Solo el lado del juego, como lo pidió agent-harness-81. capture_editor_viewport queda en una tarea aparte.\n- playtest/runtime/camera_views.gd: plan() valida y arma las vistas; render() las dibuja en un SubViewport que comparte world_3d o world_2d con el juego. La cámara temporal copia la lente y el entorno de la de referencia.\n- La probe tiene un op \"views\" y run_tools usa request() directo para traer los PNG.\n- Las vistas no incluyen las capas de UI del juego, porque son otro viewport.",
+  "order": 32,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "tests/unit/test_camera_views.gd: la órbita mira al centro, a la distancia pedida y desde arriba; el plan desde una cámara elegida con su lente, angles alrededor del centro de lo dibujado, los errores (cámara inexistente, angles fuera de rango, angles con look_from, cantidad de números, mismo punto, angles en 2D) y la vista 2D con look_at y zoom. run_check (_check_camera_views), con un juego 3D real: la cámara del juego ve la caja roja, camera «Side» y look_from/look_at ven la verde, angles 4 da 4 vistas de la roja, la cámara del juego no se movió, y los errores llegan por la tool.",
+  "title": "Capturas desde una cámara elegida y desde varios ángulos",
+  "updated_at": "2026-11-12T00:33:07.213Z"
+}

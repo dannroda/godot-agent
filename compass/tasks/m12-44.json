@@ -1,0 +1,39 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.622Z",
+  "decisions": [
+    {
+      "alternatives": "Burbuja del usuario atenuada a la derecha (se partía); aviso tipo NOTICE (se pierde que fue un prompt al agente)",
+      "at": "2026-11-10T19:57:17.128Z",
+      "text": "Prompt del harness: línea atenuada a todo el ancho del chat con «⚙ etiqueta» (cortada con «…», entera en el tooltip) y «Ver prompt»; no la burbuja del usuario a la derecha",
+      "why": "En un dock angosto la etiqueta dentro de la burbuja ocupaba 3 líneas; a todo el ancho queda plegada en una y se distingue de lo que escribió el usuario"
+    },
+    {
+      "alternatives": "Parámetro harness_label en send_prompt/cola/pending (muchos caminos); inferir la etiqueta por el prefijo del texto (frágil); guardar la etiqueta ya traducida",
+      "at": "2026-11-10T19:57:17.188Z",
+      "text": "Criterio único: todo prompt que no es exactamente lo que escribió el usuario lleva etiqueta, vía controller.label_prompt(texto, etiqueta); la entrada y el historial guardan el msgid en inglés y se traduce al mostrar",
+      "why": "Un registro texto→etiqueta en el controller sirve también para lo que pasa por la cola del dock o el prompt pendiente sin pasar un parámetro por cada camino; con el msgid el chat sale en el idioma de quien lo reabre"
+    },
+    {
+      "alternatives": "Mostrar siempre como del usuario lo que tiene texto suyo adentro",
+      "at": "2026-11-10T19:57:17.244Z",
+      "text": "Lo que el usuario escribe tal cual sale como suyo; envuelto por el harness (pedido con el spec sin aprobar, plan editado) sale como del harness con su etiqueta",
+      "why": "Lo que recibe el agente ya no es su texto; «Ver prompt» lo muestra entero"
+    }
+  ],
+  "description": "Tour de UX de v0.1.19, dock en español tras la guía: la burbuja «Keep going with the plan: the next pending task is “Movimiento y disparos de la nave”. Verify with run_scene…» (One-shot) se muestra con el mismo globo azul que un mensaje del usuario, en inglés en una UI en español. Lo mismo pasa con los prompts de reanudación, la verificación automática y los arreglos de Revisar. Propuesta: marcar las entradas de usuario que generó el harness (un rótulo «Harness» o «One-shot» chico, color apagado, texto plegado a una línea con «ver prompt»), sin traducirlas (las lee el agente). Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/es/40_dock_tras_la_guia.png.",
+  "milestone": "m12",
+  "notes": "Commits 4ba0be6 y 7c64641 (ajuste) en sm/m12-44. Ajuste pedido en la revisión: la etiqueta parte en hasta dos líneas (autowrap, max_lines_visible 2; si es más larga, «…» y la entera en el tooltip). «Ver/Ocultar prompt» va al lado si entra en una línea con la etiqueta; si no, baja a la derecha. Etiquetas más cortas en es: «Chequeo automático tras el turno», «Lo que vio el supervisor con el editor cerrado», «Edición en línea del Script Editor». HarnessPrompts (session/harness_prompts.gd) tiene las etiquetas como msgids con «# i18n». SessionController.label_prompt(texto, etiqueta) las registra y send_prompt las consume, así que también funcionan para lo que sale por la cola del dock o por el prompt pendiente. ChatEntry.harness_label queda guardado en el historial como \"harness\". Las etiquetas cubren: One-shot (objetivo, retomar, resumen, siguiente tarea, seguir con el objetivo, spec aprobado, cambio al spec, plan editado, informe final, aviso de bucle, evaluación de QA, correcciones de QA, apagar Remote Control), el chequeo después del turno (m11-04), las preguntas, correcciones y playtest de Revisar, la edición en línea, lo que vio el supervisor y los mensajes de otra sesión. El /usage oculto sigue sin mostrarse. Límites: si la sesión se reabre con session/load del agente, el agente devuelve user_message_chunk sin etiqueta y esos prompts vuelven a verse como del usuario; solo el replay del historial del harness las conserva. Lo que el run tenía en la cola al cerrarse el editor vuelve con la etiqueta genérica «One-shot».",
+  "order": 8,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "Sobre cd5901d, en 4.7.2: run_all 529/0, con el test nuevo test_harness_prompts (plegado, traducido y desplegado; la entrada del usuario sin cambios; todas las etiquetas traducidas; el historial guarda y recupera la etiqueta en disco; registro del controller; la fila de la cola muestra la etiqueta). oneshot_check 190/0: inicio, cierre, cambio al spec, aprobación, QA y correcciones salen con su etiqueta y la guía del usuario sin. acp_session_check 203/0. En Xvfb, el ui-test nuevo ui_harness_prompt (tests/scripts/ui_harness_prompt.json) pasa en es y en con el ancho por defecto del dock: las dos etiquetas (chequeo del turno, supervisor) se ven enteras en hasta 2 líneas sin «…», el botón queda dentro del chat, «Ver prompt» muestra el texto en inglés y el agente recibe el mismo texto. Capturas en <shot>_harness.png y <shot>_harness_open.png. ui_demo y ui_long_permission siguen pasando en es.",
+  "title": "Los prompts que manda el harness parecen escritos por el usuario (y van en inglés)",
+  "updated_at": "2026-11-10T20:01:42.515Z"
+}

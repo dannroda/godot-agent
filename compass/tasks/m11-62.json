@@ -1,0 +1,26 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T22:59:10.817Z",
+  "decisions": [
+    {
+      "alternatives": "Aplicar antes de _ready instanciando un PackedScene modificado en memoria (más fiel para valores que se leen en _ready, pero bastante más complejo); sabotear todos los nodos; desconectar todas las conexiones vivas de un nodo.",
+      "at": "2026-11-12T00:05:56.460Z",
+      "text": "Los sabotajes se aplican sobre la escena ya asentada (después de _ready), se eligen por los nombres de nodo que aparecen en el código de la regresión, y solo cubren lo que está en el .tscn.",
+      "why": "Es el mismo punto que el sabotaje de m16-09, y no exige tocar el .tscn ni cargarlo modificado. Filtrar por los nodos nombrados concentra la cuota en lo que la regresión toca, como pide la tarea. Las conexiones por código o los nodos de runtime no se pueden enumerar sin correr el juego."
+    }
+  ],
+  "description": "Fase 2 de m11-41, aparte por pedido de agent-harness-81. Además de las mutaciones de GDScript en memoria, generar sabotajes de escena sobre los nodos que toca cada regresión: una propiedad exportada a 0/false/null, una señal desconectada, un nodo oculto o deshabilitado. Se corren como el sabotaje de m16-09 (código antes de la regresión, sin tocar archivos) y se suman al mismo puntaje y a la lista de sobrevivientes. Por qué: una regresión puede no mirar el código mutado pero sí el estado de la escena; Beckett v1.16 (op=mutate) muta así.",
+  "milestone": "m11",
+  "notes": "Hecho en 1b23c91 (sm/m11-62).\n- SceneSabotage (playtest/mutation/scene_sabotage.gd) lee el SceneState sin instanciar, incluidas las escenas instanciadas hasta 3 niveles.\n- Sabotajes:\n  - una propiedad exportada a 0, 0.0, el bool contrario, Vector ZERO o null, según el valor efectivo: el override de la escena o el default del script;\n  - una conexión de la escena cortada;\n  - un nodo oculto (CanvasItem o Node3D);\n  - una colisión deshabilitada (CollisionShape y CollisionPolygon, que no se ocultan porque eso no cambia nada).\n- Con el código de las regresiones de esa escena, solo se sabotean los nodos que nombra, la raíz y las señales que llegan a la raíz.\n- Se aplican en memoria en regression_cli.run_one, después del settle. Un sabotaje que no se puede aplicar queda inválido.\n- La guarda de guardado de _run_mutant los cubre.\n- En el plan, cada escena es un «archivo» más de la muestra pareja. where() muestra la ruta de la escena sin línea, y Abrir abre la escena.\n- No cubre: las conexiones hechas por código (connect en _ready) ni los nodos instanciados en runtime.",
+  "order": 42,
+  "refs": [],
+  "status": "review",
+  "tags": [
+    "idea",
+    "playtest"
+  ],
+  "test": "tests/unit/test_scene_sabotage.gd: los sabotajes del fixture leídos del .tscn y serializables a JSON, el filtro por el código de la regresión, apply en memoria (propiedad, ocultar, señal, deshabilitar diferido, inválido si el nodo falta o la señal ya no está conectada, el .tscn intacto), y el plan con los sabotajes, sus regresiones y where() sin «:0». tests/regressions_cli_check.sh: con --mutate sobre la regresión de door.tscn, los 3 sabotajes que mira quedan detectados, «root hidden» sobrevive y el hash de los .gd y .tscn no cambia. Commit 1b23c91.",
+  "title": "Regresiones: sabotajes de escena generados (fase 2 de m11-41)",
+  "updated_at": "2026-11-12T00:16:30.738Z"
+}

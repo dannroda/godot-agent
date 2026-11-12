@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.619Z",
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Amp.\n- Pegar la URL de un hilo o escribir `@T-…` hace que el agente lo lea y saque lo que importa para la tarea actual; `@@` busca hilos. https://ampcode.com/docs/threads\n- Handoff (2025-10) reemplazó la compactación: el usuario dice el objetivo del hilo nuevo y Amp arma un borrador de prompt con el contexto relevante y la lista de archivos, que se revisa antes de mandar. https://ampcode.com/news/handoff\n- Ojo, no está claro el estado actual: una nota en https://ampcode.com/news/stick-a-fork-in-it dice «we removed handoff» y recomienda abrir un hilo nuevo y mencionar el original. La doc de threads todavía nombra «Handoff and …». Lo que sigue vigente seguro es la mención de hilos.\n\nQué existe: un historial local de sesiones por proyecto (session_history, con el menú de historial) y session/list del agente (m11-16). Las menciones especiales (@errors, @game, m11-08) no incluyen otra sesión.\n\nAdaptación a Godot y al harness:\n- `@session:<nombre o fecha>` en el composer (con autocompletado desde el historial): el harness agrega como bloque de contexto lo esencial de esa sesión. No el transcript entero, sino:\n  - pedidos del usuario;\n  - archivos cambiados (de los snapshots de turno);\n  - decisiones y el último plan.\n- Funciona entre agentes distintos.\n- Encima de eso, «Seguir en una sesión nueva» en el medidor de contexto: pide el objetivo, arma el borrador con esa mención y lo deja editable en el composer.\n\nPor qué: con varias pestañas y agentes, retomar o pasar trabajo entre sesiones hoy obliga a copiar y pegar. Que el harness tenga el historial de todos los agentes hace esto agnóstico, algo que ningún agente hace solo.",
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-35 (653f149): session/session_digest.gd, @session:<id> en el composer (menú con las otras sesiones del historial del proyecto), bloque en sobre UntrustedText marcado como contexto, adjunto «@session:… · título» con tooltip. «Seguir en una sesión nueva» con borrador se hizo en m11-35 (0608d63).",
+  "order": 9,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "Headless: test_session_digest y test_mentions (@session:<id>). Editor: ui-handoff (sesión cerrada de otro agente en el menú de @, bloque en sobre al mandar, adjunto con título en el chat). La parte de traspaso, en m11-35.",
+  "title": "Mencionar otra sesión y seguir en una nueva con un traspaso",
+  "updated_at": "2026-11-11T18:52:15.459Z"
+}

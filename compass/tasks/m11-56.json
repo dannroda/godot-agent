@@ -1,0 +1,34 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.779Z",
+  "decisions": [
+    {
+      "alternatives": "Sondear sesiones vivas cada N segundos; un token por cliente externo (cambio mayor fuera de alcance); expirar breakpoints por tiempo.",
+      "at": "2026-11-10T21:06:39.979Z",
+      "text": "Los breakpoints del agente se liberan cuando la sesión se desconecta (señal disconnected del SessionController), no por sondeo; el token principal (\"\") cubre a la sesión del dock y a los clientes externos juntos.",
+      "why": "Los clientes externos comparten el token principal: un sondeo de \"sesión viva\" no los distingue y podría sacar breakpoints que un cliente externo sigue usando, o nunca sacarlos."
+    },
+    {
+      "alternatives": "Ignorar solo los breakpoints del agente y avisar en los del usuario; dejarlo como estaba.",
+      "at": "2026-11-10T21:06:40.068Z",
+      "text": "Una pausa en un breakpoint no dispara el aviso «Arreglar con el agente» de los runs manuales; los errores de ese run se avisan al terminar.",
+      "why": "Con breakpoints del agente en un run manual el aviso aparecía como si fuera un error; un breakpoint es intencional."
+    }
+  ],
+  "description": "De dónde: Godot MCP Toolkit: «Breakpoints, debug state, crash diagnostics, editor console capture» (https://github.com/NPGameDev/godot-mcp-toolkit); Roblox anuncia APIs del debugger para el Assistant, todavía no publicadas (https://devforum.roblox.com/t/new-studio-testing-apis-and-assistant-improvements/4657854). Cómo se adapta: hoy run_scene sabe que el juego paró (BREAKED) pero el agente no ve la pila ni las variables y no puede poner breakpoints. Tools game_breakpoint (set/clear en res://x.gd:línea, por la sesión del debugger: EditorDebuggerSession.set_breakpoint), game_stack (frames con archivo, línea y función, y locales/miembros del frame elegido: mensajes stack_dump y stack_frame_vars del debugger, que ya escucha PlaytestDebugger) y game_continue/step. Respeta m16-05 (los breakpoints del usuario frenan). Por qué: depurar con prints es lo que hace el agente hoy; con la pila y las variables un error raro se entiende en una llamada.",
+  "milestone": "m11",
+  "notes": "Tools: game_breakpoint (run), game_stack (read, ENVELOPE_PARTS), game_debug (run, ENVELOPE_PARTS); extendidas en GAME_TOOLS. La pila la arma el probe (debug_stack.gd) dentro del bucle del debugger: RemoteDebugger::debug atiende las captures, y Engine.capture_script_backtraces(true) ve la función que paró debajo de los frames del addon (se filtran). Los locales solo existen con el debugger activo (siempre en runs desde el editor). Breakpoints del agente: «path:line» → caller (\"\" = token principal, compartido con clientes externos); se mandan a las sesiones activas y se reenvían en session_started. No se sacan los del usuario (ScriptEditor.get_breakpoints); sacar uno del agente en una línea donde el usuario tiene otro no lo apaga en el juego. Liberación por evento: controller.disconnected → plugin._on_agent_disconnected → release_session(caller), que espera hasta 30 frames a que el panel escriba el motivo (llega unos frames tarde) y continúa si el juego paró en un breakpoint de esa sesión o tras un paso suyo. BREAKED → PROBE_READY con session.continued. Extra: run_scene dice «stopped at a breakpoint» (antes «because of an error»); RunErrorWatcher ignora pausas en breakpoints; describe() ya no falla con objetos liberados; bug encontrado en test: clear no verificaba dueño. Check nuevo --godot-agent-debug-test agregado al CI.",
+  "order": 36,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea",
+    "playtest"
+  ],
+  "test": "tests/unit/test_debug_tools.gd (7 tests: breakpoints por sesión y los del usuario, reenvío al arrancar, no parado, release_session, stopped_at_any, snapshot de la pila, describe) + test_run_error_watcher (pausa en breakpoint no avisa). Xvfb: tests/run_in_xvfb.sh <godot> --godot-agent-debug-test PASS en 4.7.2 y 4.8-beta2 (run_scene para en el breakpoint y lo dice; game_stack con 3 frames sin addon, locales a/b/total y miembros; frame 1; next para en la línea 22; continue vuelve a parar; clear + continue → PROBE_READY; cerrar la sesión s1 con el juego parado → sigue y su breakpoint se va). run_all 569/4458 0 fallos; mcp-test PASS. Commit 7db6b59 en sm/m11-56.",
+  "title": "Breakpoints, pila y variables del debugger como tools",
+  "updated_at": "2026-11-10T21:06:40.135Z"
+}

@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T02:39:00.129Z",
+  "description": "Encontrado en m16-12. No es una fuga: el check de ciclos nuevo los espera y el addon queda en 0 objetos por ciclo. Conviene saber qué son.\n- Cada vez que se habilita godot_agent aparecen ráfagas de +13 a +35 objetos hacia los 0,35–0,6 s, que viven menos de 10 frames.\n- Unos 15 objetos viven hasta ~1–1,3 s y después se liberan.\n- No son nodos, ni recursos (Performance OBJECT_NODE_COUNT y OBJECT_RESOURCE_COUNT quietos), ni Tweens (get_processed_tweens vacío). Son RefCounted u Objects de algo asíncrono.\n- Un plugin vacío no lo hace: el conteo queda plano.\n- Descartado: el índice del completado (ProjectContext). Con REFRESH_DELAY_MS en 600000 las ráfagas siguen.\n- Candidatos para bisecar apagándolos uno por uno: el chequeo de versión al arrancar (_check_updates diferido), el servidor MCP (_start_mcp_server), _restore_oneshot y _report_supervisor_events diferidos, y los timers de 1 s del dock (máquinas, cuota).\n- Cómo medir: la instrumentación de m16-12 (muestras cada 10 frames con ms después del enable) está en /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness/6a75c1f6-1e4e-480a-bf5d-1af264408d32/scratchpad/cycle/diag-final.patch (temporal), o con el check de ciclos y --godot-agent-cycle-target.\n- Si es trabajo que corre aunque el plugin ya se deshabilitó (un timer o un pedido que sobrevive a _exit_tree), revisar que no toque objetos liberados.",
+  "milestone": "m16",
+  "notes": "Rama sm/m16-13 (desde origin/sm/next3 e558600), pusheada, sin mergear.\n\nCausa: CompletionService._ready → apply_settings() arrancaba el primer build del índice (ProjectContext.start_build en un worker) apenas se habilitaba el plugin, aunque no hubiera scripts abiertos.\n- El churn eran los objetos temporales del worker.\n- La caída de ~15 objetos era la publicación del índice.\n- Postergar REFRESH_DELAY_MS (lo que se había probado en m16-12) no cambiaba nada, porque el primer build no pasa por ese retardo.\n\nArreglo:\n- needs_index() = completado prendido y al menos un CodeEdit con controller. El primer build arranca en apply_settings cuando se engancha el primer script.\n- _process solo llama a context.poll() si needs_index() o si hay un build en curso. Sin scripts, los cambios de archivos solo marcan el índice como viejo; el próximo build los cubre (start_build limpia _dirty).\n- Si al abrir el editor ya hay un script abierto, el build arranca enseguida, igual que antes.\n- CHANGELOG: entrada en Unreleased › Changed.\n\nNo cambiado: habilitar el addon bloquea ~480 ms en el hilo principal (el probe recién ve el primer frame a esa altura). Es otro tema; si interesa, conviene abrirle una tarea.",
+  "order": 13,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "- Probe temporal (un plugin que deshabilita y habilita godot_agent y muestrea objetos y nodos cada frame durante 2,5 s), en 4.7.2 headless:\n  - Antes: churn de −11 a +42 objetos entre 0,5 y 1,4 s, y ~15 objetos liberados de una vez hacia 1,6–2 s (último cambio a 1,5–2,1 s).\n  - Después: pico +0 y último cambio a ~0,5 s, que es cuando termina el enable.\n- Bisección: apagando la entrada al árbol de CompletionService desaparece todo. El servidor MCP y el chequeo de versión no cambian nada.\n- completion-test: abre el script y el índice está listo en 0,2 s. Comprueba que sin scripts abiertos ni el arranque ni un scan de archivos construyen el índice. Sin el arreglo falla con las dos FALLA.\n- run_all: 637 tests, 0 fallos. plugin_cycle: PASS (0 objetos por ciclo), y el self-test con el plugin con fuga falla como debe.",
+  "title": "Qué crea el addon al habilitarse que vive ~1,3 s (objetos transitorios del check de ciclos)",
+  "updated_at": "2026-11-11T03:44:53.309Z"
+}

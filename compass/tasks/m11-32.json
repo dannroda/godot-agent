@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.803Z",
+  "decisions": [
+    {
+      "alternatives": "Exportar desde el menú del historial (sin capturas). Preguntar sin nada marcado. Sacar también las capturas por defecto.",
+      "at": "2026-11-11T22:52:27.704Z",
+      "text": "«Export session…» va en el menú ⋯ del dock y exporta la pestaña, no una entrada del menú del historial. Por defecto saca las rutas absolutas, los emails y el contenido de los sobres no confiables, y deja las capturas; cada casilla dice cuánto encontró y la vista previa cambia al marcarla.",
+      "why": "El historial no guarda las imágenes, y las capturas son lo que hace útil el export: sale del modelo vivo de la pestaña. Lo más seguro para compartir es sacar por defecto; el usuario ve y puede devolver cada cosa. Las capturas quedan porque son el propósito, y se pueden sacar."
+    }
+  ],
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Amp.\n- Los hilos se comparten con visibilidad Private, Workspace, Group o Unlisted (con el link). https://ampcode.com/docs/threads\n- Los commits del agente llevan un trailer `Amp-Thread-ID` que vincula el cambio con su conversación (misma página).\n\nQué existe: «Guardar reporte» de un turno (m11-06: report.md con lo que dijo el agente, los archivos y las capturas) y el informe del One-shot (RunReport.to_markdown). No hay forma de llevarse una sesión entera.\n\nAdaptación a Godot y al harness:\n- En el menú del historial, «Exportar sesión»: arma `.godot_agent/reports/<fecha>-session/session.md` con los pedidos, las respuestas, las tool calls resumidas (como en el chat, plegadas), los diffs por turno y las capturas del juego como PNG.\n- Los secretos van redactados, como en todo lo que se muestra (PRIVACY.md › Secrets).\n- Opcional: un trailer `Godot-Agent-Session: <id>` en los commits que haga el agente, cuando el usuario lo pida.\n- Sin servidor: compartir es pasar la carpeta o subirla donde quiera el usuario.\n\nPor qué: mostrar cómo se llegó a un cambio (para un PR, un bug report o enseñar) hoy obliga a sacar capturas del dock. Las capturas del juego, que ningún otro harness tiene, son lo que hace útil el export. Y no hace falta el backend de Amp.",
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-32 (72b4ed3).\n- session/session_export.gd: build, find, filter, write.\n- ui/dock/session_export_dialog.gd: casillas, vista previa, Guardar.\n- agent_dock: MORE_EXPORT en ⋯, open_export_dialog y export_context (proyecto, HOME/USERPROFILE, email de model.account, agent_log.redact).\n- Sale del modelo de la pestaña: el historial guarda las capturas como placeholder. Para exportar una sesión vieja hay que abrirla (sin capturas).\n- Fuera de alcance: el trailer Godot-Agent-Session en commits (opcional en la descripción).",
+  "order": 12,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "Headless: tests/run_all.gd -- test_session_export: find cuenta rutas (proyecto, otro usuario, /tmp), emails, sobres y capturas; todo sacado: proyecto relativo, ~, <path>, sin email, sin sobre (con aviso), sin secreto, sin capturas; nada sacado: estructura, sobre sin marcas, secreto igual fuera, captura enlazada, diff, tool calls plegadas; write; el diálogo (por defecto saca rutas/emails/afuera y deja capturas, vista previa filtrada, casillas con cuántos y cuáles, desmarcar cambia la vista, guarda lo que se vio). Editor: ui-handoff exporta la conversación del check desde el dock.",
+  "title": "Exportar una sesión para compartirla (Markdown con capturas)",
+  "updated_at": "2026-11-11T22:52:27.704Z"
+}

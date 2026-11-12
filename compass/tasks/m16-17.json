@@ -1,0 +1,18 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T04:45:10.609Z",
+  "description": "Visto en m16-15: en cada disable sale «A Thread object is being destroyed without its completion having been realized» (también en fc2514f). Probable: el git de TurnSnapshots.setup() corre en un Thread que se suelta con el plugin. _exit_tree tiene que esperarlo (wait_to_finish) o cancelarlo, con test.",
+  "milestone": "m16",
+  "notes": "78da267 en sm/enable-time. Causa: deshabilitar mientras TurnSnapshots.setup() todavía corría un git. Al liberar el objeto, Godot descarta su coroutine con el Thread adentro y nadie llama wait_to_finish. Solo pasa si se deshabilita al poco de habilitar (el probe de m16-15 lo hacía a 1 frame). Fix: la espera es una función estática (GitCheckpoints.execute) que no depende de ninguna instancia; la usan GitCheckpoints.run, TurnSnapshots._run_with_index y GithubReviews._run. Elegí esto en lugar de esperar en _exit_tree, que bloquearía el disable y solo cubría TurnSnapshots. CHANGELOG Unreleased › Fixed.",
+  "order": 17,
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "tests"
+  ],
+  "test": "test_git_checkpoints.test_run_outlives_its_owner: un run cuyo GitCheckpoints se libera termina igual y GitCheckpoints.pending() vuelve a 0. Con la espera de instancia falla y sale el warning. Probe en el editor deshabilitando un frame después de habilitar: antes salía el warning, ahora no.",
+  "title": "Deshabilitar el addon destruye un Thread sin completarse (TurnSnapshots)",
+  "updated_at": "2026-11-11T05:28:04.758Z"
+}

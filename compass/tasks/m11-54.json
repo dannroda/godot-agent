@@ -1,0 +1,34 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.647Z",
+  "decisions": [
+    {
+      "alternatives": "Dos ítems (Preguntar / Arreglar); adjuntar la selección como chip de contexto oculto; archivos como adjunto (add_context_files) en vez de @mención; sumar el viewport 2D y Errores.",
+      "at": "2026-11-11T19:57:04.633Z",
+      "text": "Un solo ítem «Preguntar al agente» (sin «Arreglar con el agente…»), en FileSystem, dock Escena y Script Editor solo con selección; sin el viewport 2D (CONTEXT_SLOT_2D_EDITOR) ni el panel de Errores. Archivos y nodos van como @ruta en el caret; la selección de código como bloque ```lenguaje con «@res://x.gd (lines 3-4):», en inglés y cortada a 4000 caracteres. El dock viene al frente y no se manda nada.",
+      "why": "Es el alcance que pidió agent-harness-81 (FileSystem, árbol de escena y Script Editor con selección). «Arreglar» sería el mismo texto con otro verbo, que el usuario escribe igual. El viewport 2D tiene slot (no hay uno para el 3D) y queda como seguimiento; Errores ya tiene «Arreglar con el agente» para runs manuales (m11-55). La @mención reusa lo que ya resuelven el composer y el arrastre; el bloque con líneas deja ver y editar lo que va antes de mandarlo."
+    }
+  ],
+  "description": "De dónde: en Unreal 5.7, F1 sobre cualquier elemento de la UI abre el asistente sobre eso (https://www.unrealengine.com/news/unreal-engine-5-7-is-now-available); Ludus toma solo los actores, nodos y assets seleccionados como contexto (https://docs.ludusengine.com/agent/chat-context-attachments); el (+) del Assistant de Unity adjunta GameObjects, assets y mensajes de la Console (https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.21/manual/reference/assistant-interface.html). Cómo se adapta: ya existen las menciones @ y arrastrar nodos al composer (m11-08). Falta el camino inverso: EditorContextMenuPlugin en el árbol de escena, el FileSystem y el viewport 2D/3D con «Preguntar al agente…» y «Arreglar con el agente…» que enfoca el dock y deja @ruta en el composer; y en el panel Errores/Debugger, un error seleccionado con su stack. Por qué: es el gesto que piden quienes vienen de esos editores; hoy hay que escribir la ruta o arrastrar.",
+  "links": [
+    {
+      "task": "m11-37",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "sm/m11-54 01db580 (desde origin/sm/next4). editor/ask_agent_menu.gd, una instancia por slot (FILESYSTEM, SCENE_TREE, SCRIPT_EDITOR_CODE; en el código solo aparece con selección). agent_plugin._ask_agent: make_visible(SIDE) + AgentDock.add_to_composer → Composer.insert_at_caret. Seguimiento posible: viewport 2D (CONTEXT_SLOT_2D_EDITOR).",
+  "order": 34,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea",
+    "ui"
+  ],
+  "test": "test_ask_agent_menu (archivos y nodos como @ruta, nodos fuera de la escena no; selección como bloque con líneas, sin contar la línea siguiente si termina en columna 0; corte a 4000; composer inserta en el caret y el bloque en línea nueva). suite.sh ci PASS en 4.7.2 (plugin_cycle registra y saca los menús); CI verde en 4.7.2, 4.8-beta2 y C# (run 43091823746). Sin prueba del clic derecho real en el editor.",
+  "title": "«Preguntar al agente» desde el menú contextual del editor",
+  "updated_at": "2026-11-11T20:06:55.190Z"
+}

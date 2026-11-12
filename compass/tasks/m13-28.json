@@ -4,16 +4,16 @@
   "created_at": "2026-11-10T00:37:47.964Z",
   "description": "No bloqueantes, de la revisión de d5 de m13-25.\n1) SECRET_ENV_NAME (agent_profile.gd) busca «key|auth|…» sin límites de palabra: GIT_AUTHOR_NAME o KEYBOARD_* en el env del perfil registran su valor como secreto, y p. ej. el nombre del usuario se taparía en todo el chat. Usar límites (^|_)(KEY|TOKEN|…)($|_) o una lista.\n2) elicitation/create es un request y no se redacta (bien para lo que se ejecuta), pero su formulario se muestra tal cual. Redactar la copia que se muestra, como en la tarjeta de permiso.\n3) Los session/update entran redactados, pero el MCP del harness recibe los args reales. find_godot_tool_call(tool_name, args) puede no emparejar una tool call cuyos args tengan un secreto. Revisar también que una regla «permitir siempre» no se guarde con «secret» (sale del ToolCall redactado del modelo) y después no coincida con el comando real.\n4) authMethods de la respuesta de initialize (args/env del login por terminal) entra redactado y se usa para ejecutar el login: confirmar que no puede llevar un secreto registrado.",
   "milestone": "m13",
-  "notes": "",
+  "notes": "Rama sm/m13-28, commit 7296af7 (base main 9501d7f). Hecho en el worktree m13-12 con una rama nueva desde main, no en un worktree aparte.\n1) core/secret_names.gd: SecretNames.is_secret(name) compara palabras enteras del nombre, separadas por _ - . y camelCase, contra KEY, APIKEY, TOKEN, SECRET, PASSWORD, PASSWD, AUTH, AUTHORIZATION, CREDENTIAL(S), BEARER y COOKIE. Reemplaza las tres copias del regex suelto: agent_profile (redacción del entorno), external_mcp_servers y settings_dialog (las dos validaciones, que también rechazaban GIT_AUTHOR_NAME como «key escrita a mano»).\n2) Elicitation: se redacta el message, y del schema solo title, description y enumNames (AgentLog.redact_fields). Las claves dentro de properties son nombres de campo, no campos del schema: una propiedad llamada «title» no se redacta entera. Los default, enum y const y el url quedan reales, porque vuelven al agente o se abren.\n3) find_godot_tool_call acepta un redact y plugin._match_pending_undo le pasa _log.redact_data, así el undo de una tool godot.* con un secreto en los args se une a su tool call. En Auto, si la regla de shell sugerida tiene un secreto no se propone ninguna (la tarjeta la mostraría y Ajustes la guardaría en disco). «Siempre en esta sesión» es por grupo, no por comando, así que no lo afecta.\n4) Sí podía pasar: los secretos del entorno se registran antes de initialize y el agente los tiene en su env. AgentLogin.command_for ya no pisa una variable del env del método con «secret»: queda la real del perfil, o la del editor que el login hereda.\nQueda afuera: ExternalMcpServers.secret_values registra cualquier valor que salga de un $VAR del config MCP, sin mirar el nombre (deliberado: un $VAR en ese config es explícito). Y si un permiso llega sin rawInput, los guards usan el raw_input redactado del modelo; eso solo afecta la clasificación.",
   "order": 28,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "security"
   ],
-  "test": "",
+  "test": "4.7.2: run_all 481 tests/3516 checks 0 fallos; acp_session_check 203/0; oneshot_check 186/0; login-test en Xvfb PASS. Tests nuevos: test_secret_names (palabras enteras, GIT_AUTHOR_NAME no es secreto ni en el entorno del agente ni en la validación de MCP), test_secret_redaction.test_elicitation_form_shows_a_redacted_copy, test_godot_tool_call_matches_with_a_secret_in_its_args, test_no_shell_rule_with_a_secret, y test_agent_login.test_redacted_env_does_not_replace_the_real_key.",
   "title": "Redacción de secretos: detalles que quedaron de m13-25",
-  "updated_at": "2026-11-10T00:37:47.964Z"
+  "updated_at": "2026-11-10T03:56:16.298Z"
 }

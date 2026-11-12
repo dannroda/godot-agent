@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.748Z",
+  "decisions": [
+    {
+      "alternatives": "Una página en Ajustes › Servidores MCP (está lleno y no es «qué puede hacer»); una tabla a mano en la wiki (ya existe y nadie la encuentra); exponer también las tools de MCP externos (no hay descripción sin sesión; queda para otra tarea).",
+      "at": "2026-11-10T20:43:57.908Z",
+      "text": "Pestaña «Tools (N)» en Extensiones (última de la navegación), con un Tree: grupos por proveedor (ToolRegistry.category_of, que sale del nombre del script del proveedor: read, scene_edit, file, run, diagnostic, validate, project, resource, tilemap, animation, api, asset, profile, session), y por tool: nombre godot.*, la primera oración de la descripción (tooltip con la entera), el grupo de permisos y una columna por modo (Preguntar, Revisar, Construir, Auto, One-shot) con ✓/?/✗ según la política del proyecto (PermissionPolicy con los overrides de project_config, sin los concedidos en sesión). Filtro por nombre, descripción, categoría y permiso. Las tools que esconde la lista compacta llevan «⋯» y una nota al pie. Accesos: menú «…» del dock («Qué puede hacer el agente (tools)…») y un botón en Ajustes › Herramientas del editor.",
+      "why": "Extensiones ya es el lugar de «qué tiene el agente» (plugins, MCP, skills, instrucciones); un Tree plegable entra en la ventana con 80 filas y en su tamaño mínimo. La categoría sale del proveedor para no mantener una tabla aparte de 80 nombres; los permisos se leen de la misma política que usa el server, así nunca se desfasan."
+    }
+  ],
+  "description": "Tour de UX de v0.1.19: no hay ningún lugar del editor donde el usuario vea qué tools tiene el agente (la tabla está solo en la wiki Editor-tools). Lo único visible es la casilla «Lista de tools compacta» en Ajustes › Servidores MCP › Avanzado, que presupone saber qué hay. Con 80 tools y funciones nuevas (profile_run, write_regressions_workflow, install_extension), descubrirlas depende de leer el changelog. Propuesta: pestaña «Tools» en Extensiones (o un botón en Ajustes › Servidores MCP) con la lista por grupo (leer, escena, archivos, juego, proyecto, GDExtension…), el grupo de permisos de cada una, si entra en la lista compacta, y un filtro; cada fila con la descripción que ve el agente. Captura de referencia: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/12_ajustes_2.png.",
+  "milestone": "m12",
+  "notes": "Rama sm/m12-46 desde sm/next2 (34f7541), commit cf07d6f (integrado). Ajustes en sm/m12-46b desde sm/next2 (e24b94d): mcp/tool_summaries.gd con una línea corta por tool (81, # i18n, es.po) que la pestaña muestra traducida, con «Lo que lee el agente:» y la descripción entera en el tooltip; test_tool_summaries exige una línea por cada McpTool.create de mcp/tools/ y ninguna de más; las columnas Tool y Qué hace se reparten el ancho (mínimos 172/120) y las categorías largas se acortaron («Correr el juego», «Proyecto», «API de Godot», «Sesiones») para que entren enteras en la ventana mínima. ToolRegistry: _categories por proveedor (provider_category: «read_tools.gd» → «read»), category_of(), catalog() {name, category, group, summary, description, extended}. ui/extensions/tools_tab.gd: Tree con Tool · Qué hace · Permiso · Por modo (✓/?/✗ en orden Preguntar, Revisar, Construir, Auto, One-shot; tooltip modo por modo), categorías plegables con cantidad, filtro, contador, ⋯ y nota para las que esconde la lista compacta. ExtensionsWindow: ExtensionsTab.TOOLS (última), providers, título «Tools (N)». plugin: providers (PermissionPolicy con project_config.permissions), _open_extensions(tab), dock.tools_requested, settings_dialog.show_tools. Dock: «Qué puede hacer el agente (tools)…» en el menú …. Ajustes › Herramientas del editor: «Ver la lista de tools…». ux_tour: captura extra con la ventana en min_size. CHANGELOG Added. Fuera de alcance: tools de servidores MCP externos.",
+  "order": 10,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "run_all 566 tests 0 fallos (test_tools_tab, test_tool_summaries, test_tool_registry.test_catalog, test_claude_extensions con 7 pestañas, test_i18n). tests/ux_tour.sh en y es 0 fallas; tras los ajustes, es 0 fallas: capturas /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m12-46/tour4_es/26_extensiones_6.png (normal) y 27_extensiones_tools_angosto.png (min_size), con «Qué hace» en español y las categorías enteras. Antes: no existía la pestaña (ux/en/12_ajustes_2.png); primer intento con cinco columnas (m12-46/tour_es/26_extensiones_6.png) y con resumen en inglés (tour2_es/26_extensiones_6.png).",
+  "title": "Ver qué puede hacer el agente: una lista de las 80 tools godot.* en la UI",
+  "updated_at": "2026-11-10T21:04:47.553Z"
+}

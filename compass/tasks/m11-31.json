@@ -1,0 +1,37 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.742Z",
+  "decisions": [
+    {
+      "alternatives": "- Pasar el comando por ShellRules.classify con las reglas de Auto: las reglas también vienen en el proyecto.\n- Correr por `sh -c` / `cmd /c`: cada plataforma distinta, y otra vez un shell completo.\n- Guardar los checks en los ajustes del usuario: no se comparten con el equipo ni con el CI.\n- Detectar cambios por los snapshots de git: no anda sin git.",
+      "at": "2026-11-11T03:54:29.440Z",
+      "text": "Cómo se configuran los checks del proyecto al terminar el turno.\n\nDónde viven:\n- En project_config.tres (`turn_checks: Array`), versionable con el proyecto. Se editan en Settings → MCP servers, en la sección avanzada donde está «Check the scripts after each turn».\n- Cada check es {name, kind, command, paths, timeout_s, enabled}.\n- kind \"regressions\": las regresiones de playtest guardadas, con el mismo regression_cli.gd que el workflow de CI, en un Godot headless aparte. No toma el Play del editor.\n- kind \"command\": un programa con argumentos. GUT y gdUnit4 son presets que completan el comando.\n- `{godot}` en el comando se reemplaza por el binario del editor.\n- paths: globs res:// (`res://player/**`). Vacío = cualquier cambio.\n- timeout_s: 300 por defecto.\n\nQué comandos se permiten:\n- Un solo programa con sus argumentos, sin shell: OS.create_process con los argumentos ya separados (comillas simples y dobles), sin `|`, `&&`, `;`, redirecciones ni `$()`. Un comando con eso se rechaza al guardarlo.\n- Lo que necesite shell va en un script del proyecto (`sh tests/run.sh`).\n\nCómo pasan por los permisos:\n- Las regresiones no piden nada: son del harness y sus scripts ya pasan por el bloqueo de APIs (PlaytestRegressions.SCRIPT_BLOCKED).\n- Un comando corre solo si quien usa este editor aprobó ese texto exacto en esta máquina. La aprobación queda en los ajustes del usuario (no en el proyecto), con la ruta del proyecto y un hash del comando.\n- Agregarlo o editarlo en Settings ya cuenta como aprobarlo.\n- Un comando que viene en el archivo sin aprobar (un proyecto clonado, otro miembro del equipo, o lo cambió el agente desde la shell) no corre: el aviso del fin de turno lo marca «sin aprobar en esta máquina» con «Aprobar…», que muestra el comando.\n- Las reglas de shell del modo Auto no deciden: también viven en project_config, así que un proyecto podría traer su propio comando y la regla que lo permite.\n\nCuándo corren:\n- Después de un turno de Construir o Auto que terminó con end_turn y cambió archivos. Los cambios salen de los mtime ≥ inicio del turno, sin .godot, .git ni .godot_agent, así que no hace falta git.\n- Corren después de validate_scripts y solo si los scripts parsean.\n- En orden. Uno que falla no frena a los demás.\n- Lo que fallen vuelve al agente como prompt del harness TURN_CHECK, con la salida recortada y sellada como texto no confiable, y comparte el tope de 2 turnos con validate_scripts.\n- El aviso del fin de turno muestra ✓/✗ por check.",
+      "why": "project_config.tres viaja con el proyecto, así que cualquiera que lo clone le puede plantar un comando que correría después de cada turno sin que nadie lo apruebe. Por eso la aprobación es local y por el texto exacto. Las file tools del agente no escriben addons/godot_agent (ProtectedPaths), pero en Auto la shell sí podría. Sin shell, el comando se comporta igual en Linux, macOS y Windows, y no hay que analizar cadenas ni redirecciones. Las regresiones van en otro proceso para no tomar el Play del editor mientras el usuario mira."
+    }
+  ],
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Goose.\n- `retry` de una recipe: max_retries y checks de tipo shell que tienen que salir con 0, con timeout_seconds (300 por defecto) y on_failure. Después de cada corrida se ejecutan en orden y, si alguno falla, goose corre on_failure y reintenta. https://goose-docs.ai/docs/guides/recipes/recipe-reference/\n- En Kiro, el mismo patrón es un hook Agent Stop. https://kiro.dev/docs/hooks/types/\n\nQué existe: la verificación automática (m11-04) solo corre validate_scripts sobre los .gd cambiados y le devuelve los errores al agente, hasta 2 turnos.\n\nAdaptación a Godot y al harness:\n- En Settings, una lista de checks del proyecto (en project_config, versionable) que corren después de cada turno de Construir/Auto con cambios:\n  - las regresiones de playtest guardadas (las mismas del CI workflow);\n  - un runner de tests (gdUnit4 o GUT headless);\n  - un comando, pasando por las reglas de shell.\n- Con filtro por ruta: solo si el turno tocó `res://player/**`.\n- La falla vuelve al agente como hoy, con el mismo tope.\n- El aviso de fin de turno muestra ✓/✗ por check.\n\nPor qué: un juego con regresiones grabadas o tests ya tiene la mejor señal de «esto se rompió». Correrla en cada turno y no solo en el CI agarra el error mientras el agente todavía tiene el contexto. Es una extensión chica de m11-04.",
+  "links": [
+    {
+      "task": "m11-04",
+      "type": "related"
+    },
+    {
+      "task": "m11-24",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "Absorbe la extensión de m11-04 (done: validate_scripts al terminar el turno con hasta 2 reintentos): suma checks del proyecto con el mismo tope. Relacionadas: m11-24 (si se hacen hooks, esto es el disparador «fin de turno»), m11-30 (recetas con retry) y m11-42 (correr las regresiones repetidas para no reintentar por una inestable).\n\nHecho en sm/m11-31 (934da58, desde origin/sm/next3):\n- core/turn_checks.gd: modelo, parse sin shell, {godot}/{project}, globs, mtime, run con AgentProcess y tope.\n- La clave de aprobación usa la carpeta del proyecto del editor (provider \"project\"), no el cwd de la sesión: en una copia aparte (worktree) Settings y la sesión verían claves distintas.\n- ui/settings/turn_checks_editor.gd en Settings → MCP servers → Avanzado; HarnessSettings security/approved_commands {clave: fecha}.\n- El check de editor aprueba en una tienda en memoria: el Xvfb usa los EditorSettings reales del usuario.\n- m13-31 (MCP servers del proyecto) debe reusar HarnessSettings.is_command_approved/approve_command y el «Aprobar…» del dock (_confirm_turn_check).",
+  "order": 11,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "- tests/unit/test_turn_checks.gd (8 tests, 72 checks): parse_command sin shell, normalize, applies/changed_since, tienda de aprobación (clave por proyecto + texto exacto), aviso y prompt (sobre sellado), corridas reales (0, código ≠ 0, tope de tiempo, programa inexistente), flujo del controller (copia aparte, aprobado/sin aprobar, «Aprobar…», tope de arreglos, Preguntar no corre), lista de Settings (qué aprueba guardar).\n- Check de editor `tests/suite.sh run checks` (--godot-agent-checks-test, turn_checks_check.gd + tests/scripts/turn_checks.json): en Auto, Lint falla → TURN_CHECK con la salida en sobre; Script sin aprobar → «Aprobar…» → diálogo con el comando → aprobado; el turno de arreglo pasa los dos. En suite ci y ci.yml.\n- suite.sh ci 15/15 en 4.7.2; i18n en español PASS; captura de Settings con la lista revisada.",
+  "title": "Checks del proyecto al terminar el turno, con reintento",
+  "updated_at": "2026-11-11T04:16:32.435Z"
+}

@@ -1,0 +1,33 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.810Z",
+  "decisions": [
+    {
+      "alternatives": "Texto dentro de la misma Label de estado (un solo color, se corta con ellipsis en angosto); un aviso en el chat cuando el juego queda parado en el debugger (m11-55 ya lo hace para runs manuales; para runs del agente el agente lo resuelve y el chip en ámbar alcanza); refrescar solo con el tick de cuota (no corre sin datos de cuota).",
+      "at": "2026-11-10T20:49:51.603Z",
+      "text": "Un chip por máquina en marcha junto a la línea de estado de arriba del composer (fila HFlowContainer: en un dock angosto bajan de línea): «Game · running · 12 s», «One-shot · fase · etapa · N s». Salen del mismo proveedor machine_states del tooltip (m13-29), que gana dos claves: live (se muestra: juego en LAUNCHING/STARTED/PROBE_READY/BREAKED, One-shot activo) y alert (ámbar: juego parado en el debugger; One-shot en pausa por cuota, limitado o esperando confirmación). Un Timer de 1 s del dock los refresca (la antigüedad corre y el estado del juego cambia sin que la sesión cambie). Tooltip = el del encabezado. Sin máquinas en marcha, sin chips.",
+      "why": "La línea de estado es el lugar que ya se mira; un chip aparte de la Label evita mezclar colores y se pliega en angosto. Reusar el proveedor (sin copias) cumple D61: los estados se leen de las máquinas en el momento. «Ended» no se muestra: un chip que dice «terminó» durante 40 s es ruido; el tooltip lo conserva."
+    },
+    {
+      "alternatives": "Ocultar el chip cuando el run no es del harness (harness_run = false)",
+      "at": "2026-11-11T00:47:35.610Z",
+      "text": "El chip de estado del juego también aparece en los runs manuales (F5/F6), con «corriendo, lanzado a mano sin la sonda de playtest» si no hay probe",
+      "why": "El usuario ve en el chip el mismo estado que el agente lee con describe_run_state; ocultarlo en los runs manuales escondería un juego parado en el debugger. El CHANGELOG y la wiki lo dicen (revisión de sm/next2, #12)"
+    }
+  ],
+  "description": "Tour de UX de v0.1.19: el tooltip del encabezado (m13-29) dice «Game: running · 12 s», pero nada invita a pasar el mouse por el chip del agente, y la línea de estado arriba del composer solo habla de la sesión («Working…»). Propuesta: mientras hay un juego lanzado por run_scene, la línea de estado suma su estado («● Working… · game running 12 s»; «game stopped in the debugger» en ámbar), y un aviso corto cuando el juego queda parado en el depurador más de unos segundos; el tooltip queda para el detalle. Captura de referencia: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m13-29_en_header_tooltip.png.",
+  "milestone": "m12",
+  "notes": "Rama sm/m12-47 desde sm/next2 (a25b11b), commit 89353de. plugin._machine_states suma live (juego en LAUNCHING/STARTED/PROBE_READY/BREAKED; One-shot activo) y alert (BREAKED; One-shot en PAUSED_QUOTA/LIMITED/WAITING_CONFIRM). AgentDock: _state_row (HFlowContainer) con _state_line y _machine_chips; machine_chips(states) estática; _refresh_machine_chips desde _refresh_state_line y un _machines_timer de 1 s; tooltip = header_tooltip(); color WARNING en alerta, MUTED si no; «ended»/«no game launched» no se muestran (quedan en el tooltip). Dev plugin: _check_machine_chips en el ui-test (ui_markdown) con capturas _game_chip y _game_chip_narrow. CHANGELOG Added. No agregué el aviso en el chat cuando el juego queda parado en el debugger: m11-55 ya lo hace para runs manuales y en runs del agente el chip en ámbar alcanza (decisión registrada).",
+  "order": 11,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "run_all 562 tests 0 fallos (test_machine_chips: solo las máquinas live, texto «Game · running · 12 s», alerta del One-shot esperando, sin edad sin segundos, sin máquinas sin chips). acp_session_check 203/0. En Xvfb, --godot-agent-ui-test=ui_markdown en y es PASS con el check nuevo _check_machine_chips: sin juego no hay chip; con un run (manual, el debugger lo ve igual) aparece un chip «Game · … · N s» con el tooltip del encabezado; LayoutCheck.dock_fits pasa con el dock a 480 y a 300 px; al parar el juego el chip se va. Capturas en /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m12-47/: ui_{en,es}_game_chip.png (480 px) y ui_{en,es}_game_chip_narrow.png (300 px); antes: ui_{en,es}_state.png (línea de estado sola) y m13-29_en_header_tooltip.png (solo tooltip).",
+  "title": "El estado del juego y del One-shot solo se ve en el tooltip del chip",
+  "updated_at": "2026-11-11T00:47:35.610Z"
+}

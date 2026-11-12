@@ -1,0 +1,33 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T03:56:33.973Z",
+  "decisions": [
+    {
+      "alternatives": "plugin.gd delgado con extends \"agent_plugin.gd\" (161 ms); consts preload movidas a un script deps con alias (116 ms); set_script en _init (frágil); dejar la recompilación y solo postergar UI (no llega a 150 ms)",
+      "at": "2026-11-11T04:12:57.076Z",
+      "text": "plugin.gd queda como cáscara EditorPlugin sin tipos; el plugin entero pasa a agent_plugin.gd (Node hijo, cargado con load())",
+      "why": "Al habilitar, el editor compila plugin.gd sin caché y cuesta ~1,8 ms por script que nombra (~170 ms de ~430). Heredar de otro script o alias vía un script de dependencias cuesta lo mismo (medido: 116–161 ms); solo un load() en runtime es gratis (0,4 ms). Los checks de dev buscan ahora agent_plugin.gd; scene_saved y PlaytestAutoload van por el EditorPlugin (_plugin)."
+    },
+    {
+      "alternatives": "crearlos con call_deferred después del enable; postergar también el server MCP (~10 ms) o la main screen (~13 ms): no hacía falta para la meta",
+      "at": "2026-11-11T04:12:57.118Z",
+      "text": "Ajustes y Extensiones se arman la primera vez que se abren (no en un frame posterior)",
+      "why": "Costaban ~135 y ~20 ms del enable y no se ven hasta abrirlos; armarlos en idle solo mueve el tirón a otro frame. La primera apertura tarda ~0,15 s más."
+    }
+  ],
+  "description": "Visto en m16-13: set_plugin_enabled(\"godot_agent\", true) tarda ~480 ms en el hilo principal (headless 4.7.2, scripts ya cargados). Eso pasa al abrir el editor y cada vez que se habilita el plugin.\n- Medir qué se lleva el tiempo con Time.get_ticks_usec alrededor de cada pieza de _enter_tree.\n- Postergar lo que no hace falta para que el dock aparezca (diálogos, ventanas, servicios que se usan después), sin cambiar lo que ve el usuario.\n- Meta: menos de 150 ms. Entregar la tabla antes y después.",
+  "milestone": "m16",
+  "notes": "Commit 8e4a18f en sm/enable-time.\nAntes (por enable): recompilar plugin.gd ~176–193 ms (el editor lo carga con CACHE_MODE_IGNORE; ~1,8 ms por script nombrado; heredar de otro script o aliasar consts cuesta lo mismo) + _enter_tree ~229–260 (SettingsDialog ~145–154, dock _ready ~45–54, ExtensionsWindow ~23, main screen ~13–17, server MCP ~10–14, resto <3) + ~2,4 después.\nDespués: recompilar ~1,5 + _enter_tree ~68–74 (dock ~41–44, main screen ~13, MCP ~10) + ~2,4. Primera apertura de Ajustes 134 ms, de Extensiones 20 ms.\nPreexistentes, no de este cambio (iguales en fc2514f): oneshot-check falla «el centro no baja a 340 px: queda en 1471»; al deshabilitar sale «A Thread object is being destroyed without its completion» (probable TurnSnapshots._run_with_index de setup()).",
+  "order": 15,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "performance"
+  ],
+  "test": "tests/unit/test_plugin_entry.gd: plugin.gd no nombra scripts, se recompila sin caché en <25 ms (medido 0,4 ms; antes ~170) y agent_plugin.gd tiene build/make_visible/has_main_screen/plugin_name/plugin_icon y _init(plugin). Medición: probe temporal que deshabilita/habilita 3 veces con set_plugin_enabled (4.7.2 headless): 407–456 ms → 71–77 ms. suite ci verde en 4.7.2; pending, profile, sessions, i18n, auto, remote, ui-basic, cycle y crash verdes; plugin_cycle, edit y run_all verdes en 4.8-beta2.",
+  "title": "Habilitar el addon bloquea el editor ~480 ms: llevarlo a menos de 150 ms",
+  "updated_at": "2026-11-11T04:43:53.185Z"
+}

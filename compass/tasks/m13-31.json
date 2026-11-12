@@ -1,0 +1,26 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T03:55:06.777Z",
+  "decisions": [
+    {
+      "alternatives": "- Aprobar también el nombre: renombrar pediría aprobar de nuevo sin cambiar nada de lo que corre.\n- Importar .mcp.json como aprobado: el usuario aprieta un botón sin ver los comandos.\n- Aviso largo en cada sesión: ruido; o solo la primera vez y después nada: quedaría roto en silencio.\n- Reiniciar la sesión al aprobar: corta el turno; se avisa que entran en la próxima sesión.",
+      "at": "2026-11-11T04:24:24.964Z",
+      "text": "Qué se aprueba de un server del proyecto y cuándo: transport, command, args, env, url y headers (con $VAR sin resolver; sin el nombre ni el interruptor); importar de .mcp.json no aprueba; el aviso largo sale la primera vez por usuario y después una línea, siempre con «Aprobar…» por server y «Aprobar todos (N)…».",
+      "why": "El nombre y el on/off no deciden qué corre. .mcp.json viene del repo igual que project_config.tres, así que importarlo no es haber escrito el comando. El aviso aparece en cada sesión mientras haya servers frenados (nada queda roto en silencio al actualizar), pero la explicación del cambio basta una vez; es la línea de CHANGELOG › Changed."
+    }
+  ],
+  "description": "Encontrado el 2026-11-11 al diseñar m11-31. Los MCP servers con alcance «This project» viven en project_config.tres, que se versiona con el proyecto. Los de tipo stdio se lanzan con su `command` y sus `args` al abrir cada sesión, sin ninguna aprobación local (plugin.gd, ExternalMcpServers.merge con _project_config.mcp_servers). Un proyecto clonado puede traer un server con un comando arbitrario.\n\nMatiz: abrir en Godot un proyecto que no es de confianza ya ejecuta código (scripts @tool, plugins del editor). Esto es defensa en profundidad, no un agujero nuevo. Igual vale: el usuario espera que el harness pregunte antes de lanzar comandos.\n\nQué hacer: el mismo esquema que los checks de m11-31.\n- Un server del proyecto se lanza solo si en esta máquina se aprobó su definición exacta: command, args, env, url y headers. La aprobación se guarda en los ajustes del usuario, con la ruta del proyecto y un hash.\n- Agregarlo o editarlo en Settings cuenta como aprobarlo.\n- Si no está aprobado, no se pasa en mcpServers, y un aviso en el dock lo dice y ofrece «Aprobar…».\n- Que reuse la tienda de aprobaciones y el «Aprobar…» de turn_checks (m11-31): una sola tienda y un solo diálogo.\n- Los servers del usuario («All my projects») no cambian.\n\nVa después de m11-31, en la misma línea de ramas.",
+  "milestone": "m13",
+  "notes": "Hecho en sm/m13-31 (19862b3, sobre sm/m11-31 934da58).\n- core/machine_approval.gd: la clave común (sha256 de carpeta del proyecto + texto) y MachineApproval.request {kind, items}. TurnChecks.approval_key delega ahí.\n- El controller tiene is_command_approved/approve_command (antes venían en turn_checks_provider) y approve_on_machine para checks y servers; el dock tiene un solo _confirm_on_machine.\n- plugin._external_mcp_servers marca los del proyecto con held/approval_key; _mcp_servers los deja afuera y agrega el aviso; _external_mcp_names no los cuenta. Extensions los muestra apagados con «not approved on this machine».\n- HarnessSettings security/mcp_approval_explained: el aviso largo una vez por usuario.\n- Al aprobar, entran en la próxima sesión (mcpServers va en session/new); no se reinicia la sesión.",
+  "order": 31,
+  "priority": "medium",
+  "refs": [],
+  "status": "review",
+  "tags": [
+    "security"
+  ],
+  "test": "- tests/unit/test_mcp_approval.gd (4 tests): qué cuenta en la clave (nombre/interruptor/orden de env no; command, args, env, transport, url, headers y proyecto sí), descripción del diálogo, aviso largo/corto con «Aprobar…» por server y para todos, approve_on_machine, página de Settings (aviso, marca que no se guarda, editado aprueba, importado de .mcp.json no).\n- Check de editor «checks» (suite ci): dos servers del proyecto sin aprobar no entran en external_mcp_names, el aviso largo los nombra con 3 acciones, «Approve all» abre el diálogo con los dos comandos y los aprueba (tienda en memoria; restaura el flag del aviso y los Callables del controller).\n- Settings shots: el server importado pide aprobación y «Allow on this machine» lo aprueba al guardar (se borra después de los EditorSettings reales).\n- suite.sh ci 15/15 en 4.7.2.",
+  "title": "MCP servers del proyecto: aprobación por máquina antes de lanzarlos",
+  "updated_at": "2026-11-11T04:33:30.309Z"
+}

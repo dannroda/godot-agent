@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.935Z",
+  "decisions": [
+    {
+      "alternatives": "Mostrar el progreso de npx línea por línea en el chat (va al Agent Log; la línea de estado «conectando…» alcanza); dejar «Iniciar sesión» como estaba y solo corregir el texto (seguía siendo un clic de más).",
+      "at": "2026-11-10T21:13:37.104Z",
+      "text": "Verificado en el código: «Agregar» guardaba el perfil y lo dejaba activo, pero no arrancaba la sesión (add_suggested_agent sin start_session), así que el camino real era 6 interacciones (activar plugin, Agregar, Iniciar sesión, Sign in, pegar código, escribir) y el paso 1 de la guía prometía un progreso que recién aparecía al iniciar la sesión. Cambio: «Agregar» llama a start_session() (npx descarga y la tarjeta de login llegan solos) y el paso 1 dice que la sesión arranca sola y que la primera vez se descarga. Camino: 5 interacciones (4 en el dock). Verificación en vivo sin tokens con tests/first_run_check.sh: Godot self-contained sin agentes, CLAUDE_CONFIG_DIR vacío y sin API key, el check --godot-agent-first-run-test aprieta Add, exige STARTING enseguida y LOGIN_REQUIRED con la tarjeta y su botón principal, y guarda tres capturas.",
+      "why": "Era la única interacción sin valor propio del primer uso; arrancar la sesión al agregar es lo que el paso 1 ya describía. El login no se puede evitar (es del agente) ni probar más allá de la tarjeta sin una cuenta."
+    }
+  ],
+  "description": "Tour de UX de v0.1.19: la pantalla sin agentes es clara (tres sugeridos, «Agregar», tres pasos). Lo que no se pudo verificar con el agente falso es el camino real después de «Agregar»: ¿arranca la sesión sola o hay que tocar «Iniciar sesión»? ¿la descarga de npx muestra progreso «acá» como promete el paso 1? ¿la tarjeta de login aparece sin otro clic? Contado a mano, el camino mínimo instalar → login → primer mensaje son 6 interacciones (activar plugin, Agregar, Iniciar sesión, Sign in, pegar código, escribir) si «Agregar» no arranca la sesión, y 4 si la arranca. Hacer: probar a mano con Claude Code sin login (cuenta nueva), anotar los pasos reales y, si son más de 4, que «Agregar» arranque la sesión y que el estado «Descargando…» se vea en la lista de pasos. Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/01_dock_sin_agentes.png.",
+  "milestone": "m12",
+  "notes": "Commit e6d6eed en sm/m12-49 (desde sm/next2 08baece). Hallazgo: claude-agent-acp 0.105 abre la sesión sin credenciales y pide login recién en el primer prompt. Por eso ahora el prompt que pidió login se guarda y se reenvía solo al iniciar sesión («Signed in. Sending your message again.»). Camino mínimo: activar el plugin, Add, primer mensaje, «Claude Subscription» (navegador), pegar el código: 5 interacciones (antes 6), 4 en el dock. Con el dock angosto, mientras conecta solo se ve el punto ámbar: la línea de estado con la pista de descarga aparece con el dock ancho.",
+  "order": 13,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "tests/first_run_check.sh godot <prefijo> en|es: Godot self-contained, proyecto limpio sin agentes, HOME y CLAUDE_CONFIG_DIR vacíos, sin variables CLAUDE*/ANTHROPIC*. «Add» arranca la sesión sola (STARTING al toque, READY en ~7 s con npx en caché vacía), el primer mensaje recibe authRequired y aparece la tarjeta de login con «Claude Subscription» a la vista. Pasa en en y es. acp_session_check: escenario login_at_prompt (auth_turn.json) verifica que el prompt se reenvía después del login. run_all 573/0, acp_session_check 212/0, ui-test ui_markdown ok.",
+  "title": "Primer uso: verificar que «Agregar» lleve directo al login y al primer mensaje",
+  "updated_at": "2026-11-10T21:23:02.237Z"
+}

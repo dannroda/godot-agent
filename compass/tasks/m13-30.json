@@ -1,0 +1,26 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T20:41:04.356Z",
+  "description": "El check de run_check.gd que escribe texto con game_input en el LineEdit del juego de playtest falla de forma intermitente: last_text queda vacío. Pasó 4 veces entre m11-42, m11-43 y una base sin cambios en el juego (sm/m12-44), en 4.7.2 y 4.8-beta2, en es y en; en esa base falla 1 de 2 en 4.8-beta2. Probablemente es timing: el foco del LineEdit o el texto llegan antes o después de la lectura. Hace fallar la suite de release sin un bug real. Mirar cuándo toma el foco el LineEdit y si game_input espera el frame en que se procesa el texto.",
+  "done_at": "2026-11-10T20:48:14.536Z",
+  "links": [
+    {
+      "task": "m16-11",
+      "type": "related"
+    }
+  ],
+  "milestone": "m13",
+  "notes": "Duplicada de m16-11, que se queda con el trabajo: el mismo flake más test_composer y game_script/ui_right. Lo que se vio acá está en m16-11.",
+  "order": 30,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "done",
+  "tags": [
+    "tests"
+  ],
+  "test": "",
+  "title": "run-test: «game_input text: escribe en el LineEdit» falla a veces",
+  "updated_at": "2026-11-10T20:48:14.536Z"
+}

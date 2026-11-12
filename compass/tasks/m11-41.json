@@ -1,0 +1,28 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:20.442Z",
+  "decisions": [
+    {
+      "alternatives": "Cortar en la primera regresión (≈2× más rápido); devolver ERR_UNAUTHORIZED; contar los timeouts aparte sin sumar.",
+      "at": "2026-11-11T23:17:33.917Z",
+      "text": "Cada mutante corre todas las regresiones; el guard de guardado devuelve OK sin escribir; un mutante que cuelga el juego cuenta como detectado.",
+      "why": "Cortar en la primera regresión que atrapa es más rápido pero deja el «atrapó N» por regresión mal contado. Si el saver devuelve error, ResourceSaver prueba el siguiente saver y el archivo se escribe igual. Un cuelgue es algo que la regresión nota (timeout)."
+    }
+  ],
+  "description": "De dónde: Beckett v1.16, op=mutate («puts one fault at a time into a restarted scene»: una propiedad a 0, una conexión de señal cortada) y cuenta cuántas fallas atrapa la suite (https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1695575/beckett-v1160-strict-at-the-door-honest-in-the-answer). Cómo se adapta: hoy m16-09 controla con un sabotaje escrito a mano solo en la suite; el agente no escribe sabotajes. Una acción «Medir regresiones» corre cada regresión guardada contra N mutaciones generadas por el harness sobre los nodos que el script toca (game_set a 0/null/false de propiedades exportadas, desconectar señales, ocultar nodos), una por run, y reporta cuáles no detectó ninguna regresión. Por qué: una regresión que pasa siempre da falsa confianza (la nota de m16-06), y esto lo mide sin pedirle nada al agente. Reusar PlaytestRegressions.detects y regression_cli.",
+  "milestone": "m11",
+  "notes": "Hecho en 3353995 (sm/m11-41). Mutación en memoria: source_code + reload(true) en el GDScript cacheado, un Godot headless por mutante; SaveGuard intercepta cualquier guardado, no escribe y sale con 4. Cada mutante corre todas las regresiones (no corta en la primera que lo atrapa) para que «atrapó N» por regresión sea exacto. En el fixture: 20 mutantes ≈ 1 min. UI: «Medir regresiones» en el panel de revisión, aviso de progreso con Cancelar que pasa a ser el resultado (puntaje, no detectados con Abrir path:line, por regresión); res://.godot_agent/playtests/mutation.json. CLI: --mutate[=N] --min-score=P. Fase 2 (sabotajes de escena) en m11-62.",
+  "order": 21,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea",
+    "playtest"
+  ],
+  "test": "tests/unit/test_mutation.gd (operadores, lo que no se muta, apply, muestra pareja y determinista, scripts de una escena, puntaje, el guard no escribe, aviso), test_review_panel.test_measure_button_requests_a_measurement, tests/regressions_cli_check.sh (--mutate=6 con puntaje y sobrevivientes, --min-score=100 sale 1, hash de .gd/.tscn igual antes y después, un mutante que guarda sale 4 sin dejar archivo). Commit 3353995.",
+  "title": "Regresiones: mutaciones automáticas para medir si detectan algo",
+  "updated_at": "2026-11-11T23:21:59.642Z"
+}

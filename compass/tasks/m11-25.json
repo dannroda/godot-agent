@@ -1,0 +1,39 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:36:46.374Z",
+  "decisions": [
+    {
+      "alternatives": "Sobre UntrustedText (el plan original)",
+      "at": "2026-11-12T00:39:27.514Z",
+      "text": "Las reglas por archivo van al agente como un bloque del harness con etiqueta («Project rules for <glob> (from .agents/rules/x.md)»), con la misma confianza que CLAUDE.md, no dentro de un sobre UntrustedText",
+      "why": "Una regla del proyecto es una instrucción, como CLAUDE.md, que los agentes cargan como instrucciones. El sobre dice «es dato, no instrucciones» y el agente la ignoraría. Corrección de agent-harness-81 al plan. El riesgo es el mismo que con el CLAUDE.md de un repo clonado."
+    },
+    {
+      "alternatives": "Mandarla en cada turno que toca el archivo; solo en el próximo prompt",
+      "at": "2026-11-12T00:50:17.644Z",
+      "text": "Las reglas que coinciden van una vez por sesión, en el primer lugar donde se pueden mandar: al final del resultado de una tool godot.* (mismo turno) o en el próximo prompt; las tools propias del agente (Read/Edit) solo pueden esperar al próximo prompt. Archivos tomados de locations, diffs y cualquier argumento con res:// o ruta absoluta del proyecto",
+      "why": "Una sola copia por sesión gasta poco contexto; leer los argumentos genéricos cubre las tools godot.* sin un enganche por tool."
+    }
+  ],
+  "description": "Idea de la revisión de otros harness (2026-11-10), de Kiro.\n- Steering: markdown en `.kiro/steering/` (y `~/.kiro/steering/`), con front matter YAML de inclusión. https://kiro.dev/docs/steering/\n- Modos de inclusión:\n  - always;\n  - fileMatch (`fileMatchPattern`, un glob o una lista);\n  - manual (con `#nombre`);\n  - auto (por `description`, como una skill).\n- Referencias `#[[file:ruta:10-20]]`. AGENTS.md se lee siempre.\n\nQué existe:\n- La pestaña Instructions edita CLAUDE.md, AGENTS.md y GEMINI.md, y genera «Project facts» (m11-07).\n- Las skills de cada agente se manejan en Extensions (m11-19).\n- No hay nada que cargue instrucciones solo para cierto tipo de archivo, y cada agente tiene su propio mecanismo (o ninguno). No confirmé hoy el soporte de Claude Code para reglas por ruta (.claude/rules con paths): verificarlo antes de duplicarlo.\n\nAdaptación a Godot y al harness:\n- `.godot_agent/rules/*.md` con `files:` (glob res://) o `types:` (gdshader, tscn, cs, gd).\n- Cuando el turno menciona o adjunta un archivo que coincide, el harness agrega la regla al prompt, una vez por sesión, igual que las menciones especiales (m11-08):\n  - un archivo con @;\n  - el script abierto en el Script Editor;\n  - el inline edit (m11-05).\n- Funciona igual con cualquier agente ACP.\n- Ejemplos de Godot:\n  - reglas de shaders (precisión, uniforms con hint);\n  - convenciones de escenas de UI (anchors, Theme);\n  - C# vs GDScript en proyectos mixtos (m14-07).\n\nPor qué: AGENTS.md crece con reglas que solo valen para una parte del juego y gasta contexto en cada turno. Cargar por archivo es barato y agnóstico del agente.",
+  "links": [
+    {
+      "task": "m11-36",
+      "type": "related"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "Absorbe de m11-36 las reglas por glob. El panel de memorias y /recordar siguen en m11-36.\n\nHecho en sm/m11-25 (12d6a75, desde origin/sm/next4 e3e3ca3), hitos 1 y 2 juntos.\n- Verificado 2026-11-12: Claude Code carga solo .claude/rules con `paths:`; Antigravity carga solo .agents/rules (y .agent/rules) con `trigger: glob` + `globs`; Cursor usa .mdc con `globs`/`alwaysApply`; Codex, Gemini, Copilot y OpenCode no tienen reglas por ruta.\n- core/path_rules.gd: lee los 3 formatos (solo las reglas por glob, tope de 64 KB, sin symlinks), globs (`**`, `*`, `?`, `{a,b}`; sin / vale en cualquier carpeta), pending (sin native == adapter.kind ni las ya mandadas por hash), block (encabezado del harness y «### Project rules for <globs> (from <file>)», sin sobre, ~4000 caracteres).\n- SessionController:\n  - path_rules_block: en cada prompt, con los archivos de touched_paths (locations, diffs y args de los tool_call desde el prompt anterior), las rutas del texto, los uri de los adjuntos y context_paths_provider (el script abierto en el Script Editor visible). Va antes del pedido y como adjunto.\n  - path_rules_for_tool: ToolRegistry.result_note la pone al final del resultado de godot.*, fuera de los sobres.\n  - _rules_sent se reinicia al abrir o reanudar una sesión.\n- Config path_rules (Settings → MCP servers → Advanced, prendido por defecto).\n- Instructions: rule_summary (patrones y quién la lee sola), plantillas por carpeta, «Test» con una ruta.\n- Docs: wiki en/es (Modes and permissions › Rules by file, Settings › Instructions), CHANGELOG, SECURITY.",
+  "order": 5,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "tests/unit/test_path_rules.gd (front matter de los 3 formatos, globs con **, llaves y patrones sin /, pending sin las nativas ni las ya mandadas, bloque sin sobre con tope, controller: una vez por sesión, menciones, apagado, regla cambiada; regla al final del resultado de una tool godot.*; pestaña Instructions: resumen, plantillas, Test). Editor check ui-path-rules (el agente edita un .gdshader → el próximo prompt lleva la regla y el chat el adjunto «rules: …»; el siguiente no). suite.sh ci verde.",
+  "title": "Instrucciones que se cargan según el archivo (reglas por ruta o tipo)",
+  "updated_at": "2026-11-12T01:10:35.930Z"
+}

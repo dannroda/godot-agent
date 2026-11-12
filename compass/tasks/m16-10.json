@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-a3",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T03:56:08.835Z",
+  "decisions": [
+    {
+      "alternatives": "Un archivo .yml de plantilla en el addon con placeholders (otro archivo que viaja con el addon y que el export plugin tendría que excluir); usar una action de terceros para instalar Godot (dependencia externa, versión a seguir); subir artifacts siempre; Xvfb siempre; un diálogo modal de confirmación en vez del aviso del chat; correr el workflow en un repo de prueba real (8c: no crear repos ni correr workflows reales).",
+      "at": "2026-11-10T04:04:12.413Z",
+      "text": "Generador estático RegressionsWorkflow (yml como texto, sin plantilla externa) con la versión del editor y descarga directa del release de Godot; headless por defecto y `render` opcional bajo Xvfb; artifacts solo al fallar; el botón pide confirmación con un aviso «Overwrite» y la tool exige overwrite: true; validación local solo estructural",
+      "why": "El workflow repite lo que ya hace el CI del propio repo (install-godot.sh: estables de godotengine/godot, betas de godot-builds) pero inline, porque el proyecto del juego no tiene ese script. Headless es lo que corre regression_cli.gd hoy; las regresiones que capturan o dibujan necesitan Xvfb, así que es una opción y no el default (tarda más y pide apt). Subir el informe y las capturas solo al fallar evita artifacts en cada push verde. No pisar un workflow existente: desde el botón, un aviso con la acción Overwrite (el mismo patrón que las demás confirmaciones del dock); desde la tool, un argumento explícito. actionlint no está instalado y bajar js-yaml con npx fue denegado por el clasificador: el test comprueba sangría par, sin tabs y el orden de las claves, y el yml generado se revisó a ojo (un escalar que empezaba con comillas y seguía se pasó a bloque |)."
+    }
+  ],
+  "description": "M14 convierte un playtest que pasó en un test de regresión que corre sin agente («Correr regresiones»). Falta que el usuario lo corra en su CI: una acción (botón en el panel de regresiones y tool MCP para el agente) que genere .github/workflows/godot-agent-regressions.yml en el proyecto del juego, con la versión de Godot del editor, headless (o Xvfb si las regresiones necesitan render), que corra las regresiones grabadas y suba capturas y el informe como artifacts cuando fallen. Nunca pisar un workflow existente sin confirmación. Documentarlo en la wiki. Verificar el yml con actionlint si está y con un run real en un repo de prueba solo si el usuario lo autoriza.",
+  "milestone": "m16",
+  "notes": "Rama sm/m16-10 (base main 9501d7f), commits cac159a + 4da067e (revisión de 8c). regressions_workflow.gd: repo_info(project_root) con git -C (rev-parse --show-toplevel, --show-prefix, check-ignore -q sobre .godot_agent/ y addons/godot_agent/ con barra final para que cuente como carpeta aunque no exista); write() escribe en <raíz del repo>/.github/workflows/godot-agent-regressions.yml (sin git: en el proyecto, con WARN_NO_GIT) y devuelve {ok, path, existed, error, root, project_dir, warnings}; workflow_text(version, render, project_dir) usa --path \"<subcarpeta>\" y capturas relativas a la raíz; target_path()/exists() miran la raíz. Avisos (WARN_NO_GIT, WARN_IGNORED_REGRESSIONS, WARN_IGNORED_ADDON): en inglés en la respuesta de la tool (WARNING_TEXTS) y como avisos WARNING del dock traducidos (plugin.REGRESSIONS_WORKFLOW_WARNINGS). Botón «CI workflow…» del panel de hallazgos → ACTION_REGRESSIONS_WORKFLOW → aviso con la ruta absoluta o «already exists… Overwrite?»; tool godot.write_regressions_workflow (edit_files, overwrite y render) con nombre visible en tool_group_view. Wiki Review.md/Revisar.md (raíz del repo y avisos), CHANGELOG Unreleased › Added, 10 msgids nuevos en es.po. El botón genera headless; render solo por la tool. Pendiente para la prueba a mano: correr el yml en un repo de prueba con regresiones grabadas.",
+  "order": 10,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "tests/unit/test_regressions_workflow.gd (6 tests, 4.7.2): editor_version() y download_url() (estables de godotengine/godot, betas de godot-builds); texto headless y con render (Xvfb, opengl3); write() sin pisar / con overwrite; proyecto en una subcarpeta de un repo git real (git init en una carpeta temporal): repo_info() da la raíz, «game» y la carpeta ignorada; el yml va a <repo>/.github/workflows y no al proyecto, Godot corre con --path \"game\", las capturas van como game/.godot_agent/playtests/**, y avisa que .godot_agent está ignorado; en la raíz, --path . y sin avisos; sin git, repo_info() vacío y los tres avisos tienen texto; la tool está registrada (edit_files, overwrite y render); forma del YAML (sangría par, sin tabs, orden de claves). run_all 479 tests/3682 checks 0 fallos. Sin actionlint local y con la descarga de js-yaml denegada por el clasificador: el yml generado se revisó a ojo (copia en /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/godot-agent-regressions.yml, versión raíz). No se corrió ningún workflow real en GitHub (pedido de 8c).",
+  "title": "Correr las regresiones de playtest en el CI del juego del usuario",
+  "updated_at": "2026-11-10T04:08:36.686Z"
+}

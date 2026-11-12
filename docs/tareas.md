@@ -1,7 +1,7 @@
 # Tareas — agent-harness
 
 > Export de `compass/`, que es la fuente de verdad. No editar: los cambios se hacen en `compass/` o con `scompass`, y este archivo se regenera.
-> Generado: 2026-11-09
+> Generado: 2026-11-11
 
 ## M0 — Esqueleto y decisiones  (6/6)
 
@@ -1446,7 +1446,7 @@ Al reabrir con un One-shot a medias, el aviso contaba como conversación y el do
 
 **Notas:** Commit dc2fc2d. Venía de D37: el aviso del run a medias contaba como conversación y escondía la vista vacía.
 
-## M7 — Pulido  (51/53)
+## M7 — Pulido  (52/53, 1 en revisión)
 
 Settings completos, historial de sesiones, Markdown→BBCode robusto, rendimiento con sesiones largas (>500 entradas) y README de uso.
 
@@ -2405,6 +2405,58 @@ Probar con Claude Code real y el celular:
 
 Anotar lo que salga en D58 y la wiki.
 
+**Notas:** PREPARADA para una sesión con el usuario y el celular, unos 20 minutos. Hay 4 pruebas (A–D), cada una con lo que hay que mirar. Anotar la respuesta a cada pregunta (sí/no y lo que se vio). Después se pasa a D58, a la wiki (Modes-and-permissions → Remote Control) y, si algo falla, a tareas nuevas.
+
+Antes de empezar
+1. Editor con el addon desde main (o la rama que esté por salir). Proyecto de prueba con un .gd cualquiera.
+2. Perfil Claude Code (claude-agent-acp) con sesión iniciada. En el Agent Log, canal proc, anotar la versión del adapter y la de Claude Code (D58 se probó con 0.94).
+3. Celular con la app de Claude, o claude.ai/code, en la misma cuenta.
+4. Modo del harness: Review. Ahí las escrituras piden tarjeta y las lecturas no, así el permiso llega a los dos lados. En Auto el harness contesta solo y el celular nunca pregunta, así que no sirve para esto.
+5. Agent Log abierto, con los canales acp y perm a la vista.
+
+A. Permiso contestado en el celular (lo principal de la tarea)
+1. ⋯ → Remote Control. Tiene que aparecer la franja con el link. Abrirla en el celular, con el QR o el link.
+2. Desde el celular: «Agregá una línea `# remote A` al final de <archivo>.gd».
+3. Mirar: en el dock aparece la tarjeta de permiso, y en el celular también pregunta. Si solo pregunta uno de los dos, anotar cuál.
+4. Contestar Permitir en el celular, sin tocar el dock.
+Qué mirar:
+- La tarjeta del dock se cierra sola con «⇄ Contestado en otro lado» en menos de 1–2 s. Si queda colgada, es el bug que arregló m7-21.
+- En el Agent Log, en acp, aparece `$/cancel_request` con el requestId del `session/request_permission`. En perm aparece «withdrawn by the agent (answered from Remote Control…)».
+- El archivo cambió, y el aviso «Desde Remote Control: modificó <archivo>.gd» aparece unos 2 s después, con Ver diff y Deshacer.
+5. Repetir con Rechazar en el celular. La tarjeta tiene que cerrarse igual y el archivo no tiene que cambiar.
+
+B. Permiso contestado en el dock
+1. Desde el celular, pedir otra escritura (`# remote B`).
+2. Contestar Permitir en la tarjeta del dock.
+Qué mirar:
+- El aviso del celular se cierra solo, o queda contestado. Si sigue preguntando, el problema es del lado de Claude: anotarlo, no es nuestro.
+- En perm aparece la respuesta del usuario y no «withdrawn».
+- No aparece después un `$/cancel_request` para ese request. Si aparece tarde, la tarjeta ya contestada no tiene que cambiar de texto.
+
+C. Recargar la sesión con Remote Control prendido (session/load)
+1. Con la franja visible, anotar el link L1. Clic en Historial y abrir otra sesión, después volver a esta desde Historial. Sin historial local usa session/load; con historial local, session/resume. En acp se ve cuál fue.
+2. Mirar: hoy la franja desaparece, porque reset() limpia remote_control_url.
+3. Preguntas a contestar:
+   a. ¿El celular sigue conectado a L1 y puede mandar mensajes? Mandar «¿seguís ahí?».
+   b. ¿Un permiso pedido desde el celular llega al dock recargado? Pedir una escritura y mirar si sale la tarjeta.
+   c. Desde el dock, ⋯ → Remote Control otra vez. ¿Devuelve el mismo link L1 o uno nuevo? ¿El viejo deja de andar?
+   d. Con «/remote-control off» desde el composer, ¿el celular ve la sesión cerrada?
+4. Con eso se decide:
+   - Si Claude la mantiene prendida, el dock debería volver a mostrar la franja. El link puede guardarse en el historial de la sesión, o pedirse de nuevo con /remote-control.
+   - Si Claude la apaga, que quede escrito en la wiki que una sesión retomada arranca con Remote Control apagado.
+
+D. Reiniciar el editor con Remote Control prendido
+1. Con Remote Control prendido y el celular conectado, cerrar el editor normalmente.
+2. Mirar en el celular: ¿la sesión se ve cerrada u «offline»? ¿Un mensaje nuevo da error?
+3. Abrir el editor. Mirar: el dock arranca sin franja, que es lo esperado. Retomar la sesión desde Historial y repetir C.3a y C.3c.
+4. Opcional: matar el editor con kill -9 en lugar de cerrarlo. ¿Queda algún proceso claude/adapter vivo (`pgrep -fa claude-agent-acp`)? ¿El celular queda colgado?
+
+Al terminar
+- Resultados en D58 (un punto «Probado con Claude real, <fecha>, adapter <versión>»), con lo de C y D.
+- Wiki en/es, Modes-and-permissions → Remote Control: qué pasa al retomar una sesión y al reiniciar.
+- Si C muestra que sigue prendido, crear una tarea para mostrar la franja al retomar.
+- No dejar el proyecto de prueba con las líneas `# remote …`: Deshacer desde el aviso, que de paso prueba Deshacer.
+
 ### Markdown del chat: tablas, listas, bloques de código y más · Hecho
 
 **Terminada:** 2026-10-29 · **Prioridad:** media · **Tamaño:** M · **Responsable:** Claude
@@ -2436,11 +2488,15 @@ El conversor de m7-04 cubre lo mínimo pero se ve pobre: las tablas salen como t
 - [hr], [br], [ul bullet=], padding de celdas y [right] en celdas probados en 4.6.3.
 - Se mantuvo el recuadro de fondo del RichTextLabel del editor (como antes), ahora uno solo por mensaje, con los tramos de texto sin fondo adentro.
 
-### Prueba: hablar con Claude Code en stream-json desde GDScript, sin claude-agent-acp · Pendiente
+### Prueba: hablar con Claude Code en stream-json desde GDScript, sin claude-agent-acp · Revisión
 
 **Prioridad:** baja · **Tamaño:** M
 
 Hoy Claude Code se usa a través de `npx -y @agentclientprotocol/claude-agent-acp`, lo que obliga a tener Node. Claude Code tiene un modo sin interfaz (`claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --mcp-config … --permission-prompt-tool mcp__godot__permission`) y, con el instalador nativo, es un binario autónomo. Prueba corta: lanzarlo desde GDScript, mandar un prompt que use una tool godot.* y una que pida permiso, y registrar qué eventos llegan (texto en streaming, tool calls y resultados, uso, rate limit, resultado) con la versión instalada. Con eso decidir si vale un segundo transporte solo para Claude (ACP queda para Gemini CLI y Codex). Revisar qué se pierde del adapter: cambio de modo y modelo, cancelar, --resume, imágenes, login, /remote-control, _meta de subagentes.
+
+**Prueba:** `godot --headless --path . --script tests/stream_json_probe.gd [-- <modelo>]` (manual, gasta tokens, ~USD 0,17 con haiku): termina con exit 0 y las líneas T1–T7 en success (T4 interrupt da error_during_execution, que es lo esperado). Deja probe.txt con «chau» en el sandbox y el log en tests/tmp/stream_json_probe/events.jsonl. D62 en docs/decisions.md tiene el informe.
+
+**Notas:** Rama sm/m7-31 (worktree .claude/worktrees/m7-31), commit 567b97b desde 9501d7f. Sin cambios en addons/godot_agent. Probado con Claude Code 2.1.321 nativo y Godot 4.7.2. Funciona: initialize (modelos, comandos, cuenta, remote_control_available), tool godot.* por HTTP (diferida: pasa por ToolSearch), can_use_tool por stdio y permiso por una tool MCP, set_model, set_permission_mode, imagen base64, interrupt (8–21 ms, la sesión sigue), /context, subagente (task_* + parent_tool_use_id con --forward-subagent-text), --resume en un proceso nuevo (no repite el historial), rate_limit_event. Sin login: authentication_failed «Not logged in», sin método de login. No probé /remote-control en -p porque abre una sesión real. Recomendación (D62): no hacer el segundo transporte ahora; si se hace, como shim stream-json⇄ACP para no duplicar SessionController. Ojo: D62 puede chocar con otra rama que agregue una D62.
 
 ## M8a — Completado predictivo: núcleo sin IA  (7/7)
 
@@ -2637,7 +2693,7 @@ CompletionProvider (complete/cancel/describe) con LlmProvider sobre HTTPRequest 
 
 **Notas:** LlmProvider: un HTTPRequest por editor SIN hilos (con use_threads, cancel_request() espera al hilo y se traba contra un server en el hilo principal). cancel_request() no emite request_completed: la cancelación se avisa a mano (RESULT_CANCELLED propio) y un contador de generación descarta respuestas tardías. Controller: MODE_LOCAL/HYBRID/LLM; en híbrido _llm_due = max(ahora, última tecla + debounce LLM) solo si no hubo nada local; la respuesta se muestra solo si suggestion vacía y seq/versión/caret iguales. tests/fake_completion_provider.gd ahora tiene `source` configurable. D28.
 
-## M9 — Ideas de otros harness  (21/21)
+## M9 — Ideas de otros harness  (61/67, 40 en revisión)
 
 Lo que vale la pena traer de Claude Code, Codex, Antigravity, Copilot y Cursor, adaptado a Godot: deshacer y revisar por turno, sesiones que avisan, verificación automática, chat en línea en el Script Editor, artefactos del juego, más contexto y trabajo en segundo plano.
 
@@ -2885,6 +2941,8 @@ Idea de la comparación con otros harness (2026-10-27). Como los hooks de Claude
 
 **Notas:** SessionController._verify_turn(): después de un turno con end_turn en Construir o Auto (no en comandos con /), llama a turn_verifier(inicio del turno). El plugin lo conecta a DiagnosticTools.verify_changed_scripts(): recorre res:// en disco (no el EditorFileSystem, que puede no tener todavía lo que el agente creó por shell; saltea carpetas ocultas y con .gdignore), valida con el checker en otro proceso los .gd con mtime >= inicio del turno y devuelve las líneas «✗ ruta» + errores. Si hay errores y la sesión está READY, manda un prompt «[Automatic check after your turn]…» con aviso en el chat, hasta MAX_FIX_TURNS = 2 seguidos (se reinicia con cada prompt del usuario); si no (tope, la cola del dock ya mandó otro prompt), deja los errores como aviso. Ajuste del proyecto verify_after_turn (true), en Settings → Servidores MCP. Solo errores de parseo: get_errors queda afuera para no devolver errores del juego que el agente provocó a propósito.
 
+**Relacionadas:** Checks del proyecto al terminar el turno, con reintento
+
 ### Avisar cuando una sesión en segundo plano necesita al usuario · Hecho
 
 **Terminada:** 2026-10-29 · **Prioridad:** alta · **Tamaño:** S · **Etiquetas:** `idea`
@@ -2894,6 +2952,8 @@ Idea de la comparación con otros harness (2026-10-27). Como el Agent Manager de
 **Prueba:** Editor: --godot-agent-sessions-test con el caso nuevo (permiso en la segunda con la primera al frente → «⚠ », se va al cancelarlo); captura revisada. El toast no se verifica en el check.
 
 **Notas:** SessionTabs: la pestaña muestra «⚠ nombre» mientras SessionModel.pending_permissions no está vacío (pesa más que «●» trabajando); se refresca al pedir y al resolver cada permiso. Si el dock de esa sesión no está a la vista (otra pestaña o el dock tapado), EditorToaster muestra ««nombre» espera tu permiso.». No hice un panel de resumen de sesiones: godot.sessions y las pestañas alcanzan por ahora.
+
+**Relacionadas:** Avisar fuera del editor cuando el agente termina o espera (sonido o notificación), y «Steer» para la cola (como Zed)
 
 ### Revisar los cambios del turno: diff y descartar por archivo · Hecho
 
@@ -2929,7 +2989,1721 @@ Idea de la comparación con otros harness (2026-10-27). Como /rewind de Claude C
 
 **Relacionadas:** Tareas en segundo plano en un worktree con Godot headless
 
-## M10 — Revisión de UX  (40/40)
+### Plan aprobable antes de construir (fuera del One-shot) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Kiro y Junie.
+- Kiro: un spec arma requirements.md (o bugfix.md), design.md y tasks.md en tres fases, con criterios en EARS («WHEN … THE SYSTEM SHALL …»). Las tareas se corren de a una o todas, con estado en vivo. https://kiro.dev/docs/specs/ y https://kiro.dev/docs/specs/feature-specs/
+- Kiro permite comentar pasajes del documento con Markdown Review y mandarle los comentarios juntos al agente. https://kiro.dev/docs/specs/
+- Kiro: que haya aprobación entre fases sale solo de que Quick Spec dice ir «without approval gates». No está confirmado en la doc.
+- Junie: el Plan mode analiza en solo lectura y produce un design document (pestañas Requirements, Technical design, Testing, Delivery steps). Pausa con «Confirm and implement» / «Save the plan and stop»; el plan es «a living design document» que se revisa las veces que haga falta. https://junie.jetbrains.com/docs/junie-cli-plan-mode.html
+- Junie IDE: «Plan: Junie prepares a plan and waits for your approval before implementing it». https://www.jetbrains.com/help/ai-assistant/junie-agent.html
+
+Qué existe: el One-shot ya tiene spec.md con «Revisar el spec antes de construir» (m6-10). Preguntar usa el modo plan del agente, pero no deja un documento ni lo aprueba. En Construir no hay nada parecido.
+
+Adaptación a Godot y al harness:
+- Una acción «Planificar» en el dock (o /plan). La sesión pasa a Preguntar y el agente escribe `.godot_agent/plans/<fecha>-<slug>.md`:
+  - qué tiene que pasar en el juego, con criterios jugables («CUANDO el jugador toca un enemigo, EL JUEGO DEBE restarle una vida»);
+  - diseño en términos de Godot: escenas y nodos nuevos, scripts, señales, autoloads, input map y capas de colisión;
+  - tareas.
+- El dock lo muestra con Editar, comentarios por pasaje (como en el visor de spec del One-shot) y «Aprobar y construir»: pasa a Construir y manda «implementá el plan», con las tareas como plan del agente (plan_view) tildándose.
+- El archivo queda en el proyecto, para retomarlo en otra sesión.
+
+Por qué: es el pedido de diseño-antes-de-código que dos harness distintos convirtieron en modo propio. En un juego, aprobar primero qué escenas y señales se tocan evita cambios grandes que después hay que deshacer con los checkpoints por turno (m11-01).
+
+- [x] Capturar el pedido real de ExitPlanMode (0.105) y guardarlo como fixture
+  Hecho 2026-11-11 con un cliente ACP en Python (scratchpad). Resultados: el plan viene en rawInput.plan (también planFilePath en ~/.claude/plans); toolCall.name "ExitPlanMode", kind switch_mode, title "Approve Plan" (no «Ready to code?»). Opciones reales: exit-plan-default (allow_once), exit-plan-clear-auto, exit-plan-auto, exit-plan-bypass (allow_always), reject (reject_once); no vino acceptEdits. Reject: tool_call_update failed con nonExecutionKind user-rejected y el turno termina con stopReason cancelled. Allow: current_mode_update default, ExitPlanMode completed («User has approved your plan») y el agente sigue en el mismo turno (pidió Write enseguida); no llega plan_update. En modo plan el agente edita su archivo de plan sin pedir permiso.
+- [x] Broker + approve_plan + feedback tras rechazo (unit tests contra el fixture)
+  f2a5940: plan_approval.gd, plan_store.gd, permission_broker _ask_plan/_emit_feedback, session_controller.approve_plan (_skip_mode_sync) y reject_feedback; tests/unit/test_plan_approval.gd (10 tests).
+- [x] PlanApprovalView, «Denegar con motivo», cola después del rechazo, plan-test en/es, wiki y CHANGELOG
+
+**Decisiones:**
+- ✓ ¿Dónde se guardan los planes: en .godot_agent/plans/ del proyecto (versionables), en user:// del editor, o no se guardan?
+  Descartado: user:// del editor; no guardarlos
+  Respuesta: Los planes aprobados se guardan en .godot_agent/plans/ (respuesta del usuario, vía agent-harness-81).
+- ✓ Si el agente presenta un plan (ExitPlanMode) estando en Revisar, ¿aprobar pasa a Construir, o en Revisar se rechaza siempre y se sigue revisando?
+  Descartado: rechazarlo siempre en Revisar
+  Respuesta: En Revisar, aprobar el plan pasa a Construir (respuesta del usuario, vía agent-harness-81).
+- ✓ «Denegar con motivo»: ¿el motivo se ve en el chat como línea plegada del harness (etiqueta DENY_REASON) o como mensaje normal del usuario?
+  Descartado: mensaje normal del usuario
+  Respuesta: El motivo va como línea plegada del harness (etiqueta DENY_REASON) (respuesta del usuario, vía agent-harness-81).
+- ✓ ¿Las tarjetas de plan usan el timeout de permisos, o esperan indefinidamente?
+  Descartado: usar el mismo timeout que los demás permisos
+  Respuesta: Las tarjetas de plan no vencen: esperan indefinidamente (respuesta del usuario, vía agent-harness-81).
+- ! La fuente B (botón «Planificar» y /plan para agentes sin modo plan) va en una tarea aparte; m11-22 hace solo la fuente A (ExitPlanMode) y «Denegar con motivo». · sin revisar
+  Por qué: La fuente A cubre a Claude Code, que es el agente principal, y depende de un payload que se puede capturar y probar. La fuente B depende de que otros agentes respeten el bloque ```plan y no se puede verificar con agentes reales instalados; mezclarlas agranda la tarea y su riesgo.
+  Descartado: hacer las dos fuentes en m11-22
+- ! Aprobar un plan pasa solo a Construir: la tarjeta no ofrece acceptEdits, auto, bypass ni las opciones «clear context» del adapter. · sin revisar
+  Por qué: Las ediciones las sigue rigiendo la matriz de permisos de Construir; ofrecer Auto o bypass desde la tarjeta saltearía esa matriz con un clic, y «clear context» arranca otra query dentro del mismo turno.
+  Descartado: ofrecer también «Aprobar en Auto»
+- ! PlanApprovalView va sola; el componente compartido con el visor de spec del One-shot (DocumentApproval) se hace después, en otra tarea. · sin revisar
+  Por qué: Extraerlo toca agent_main_screen.gd (1449 líneas), la pantalla más probada; el riesgo de romper el One-shot es alto para el beneficio dentro de esta tarea.
+  Descartado: extraer DocumentApproval ahora y usarlo en las dos vistas
+- ! Al aprobar, el harness pasa a Construir sin mandar session/set_mode y recién después contesta allow (exit-plan-default); el modo del agente lo cambia el propio adapter (current_mode_update → default). · sin revisar
+  Por qué: Captura real de claude-agent-acp 0.105 (tests/fixtures/acp/exit_plan_mode_0105.json): con allow el adapter manda current_mode_update default y sigue en el mismo turno pidiendo editar (Write player.gd enseguida), así que la matriz ya tiene que ser la de Construir al contestar. Mandar set_mode mientras ExitPlanMode está pendiente es un caso que no se probó y no hace falta.
+  Descartado: set_harness_mode con sync (set_mode default) y esperar agent_mode_synced antes de contestar, como decía el plan; contestar primero y cambiar el modo después (la primera edición caería en la matriz de Preguntar)
+- ! «Denegar con motivo» (y Editar/Seguir planeando en el plan) corta el turno apenas el agente recibió el rechazo, y el motivo sale cuando el agente confirma el corte (como «Enviar ahora»). Un Detener del usuario antes del corte lo deja en la cola en pausa. · sin revisar
+  Por qué: Corrida real con Claude Code (2026-11-11): después de rechazar una edición, Claude siguió en el mismo turno en lugar de terminarlo, así que el motivo, que esperaba el fin del turno, no llegaba. Con el agente falso el turno siempre terminaba y no se veía. El rechazo del plan ya termina cancelled, así que ahí no cambia nada.
+  Descartado: esperar el fin del turno (el motivo puede no llegar nunca si el agente pide otra tarjeta); mandarlo como mensaje en medio del turno (ACP no lo permite)
+
+**Prueba:** Unit: tests/unit/test_plan_approval.gd (12 tests; fixture real tests/fixtures/acp/exit_plan_mode_0105.json). Xvfb: --godot-agent-plan-test (agente falso, tests/scripts/plan_mode.json), en y es. Real (gasta tokens): --godot-agent-claude-plan-test. Regresiones: review, oneshot, queue, ui_long_permission, ui_harness_prompt, auto, remote, i18n. suite.sh ci: 12/13 (edit falla por scope_compass en project.godot; su arreglo está en sm/suite).
+
+**Notas:** Absorbe m11-48 (1): editar el plan y mandar el diff como feedback antes de «Build» (Roblox Planning Mode, Bezi, Unity Plan). La parte (2) de m11-48, «Denegar con motivo» en cualquier tarjeta de permiso, se hace acá también (pedido de agent-harness-50, 2026-11-10). Relacionada: m11-27/m11-38 (modelo para planear).
+
+PROPUESTA DE DISEÑO (agent-harness-57, 2026-11-10), sin implementar, a aprobar:
+
+Qué hay hoy:
+- Preguntar ya corre al agente en su modo "plan" (AGENT_MODE_FOR, session_controller.gd:119). Revisar también.
+- claude-agent-acp 0.105 manda el plan como request_permission de ExitPlanMode:
+  - Título «Ready to code?», el plan en rawInput.plan (o planFilePath) y en content.
+  - Opciones: default, acceptEdits, auto, «clear context…» (allow_always) y reject, que contesta deny «User chose to keep planning» con interrupt, y el turno termina como cancelled.
+  - Al aprobar manda plan_update {type: markdown, planId: "plan-mode"}.
+- Hoy eso cae en GROUP_OTHER y es una tarjeta genérica: el plan aparece como output colapsado de la tool y no hay nada para editarlo.
+- El One-shot tiene su propio spec.md con aprobación: _spec_view, _spec_bar Editar/Aprobar y _files_dialog, armados inline en agent_main_screen.gd. No hay comentarios por pasaje ni diff de lo editado. plan_view.gd es la lista TodoWrite, de solo lectura.
+
+Diseño, un solo sistema de planes, dos fuentes:
+1. Fuente A, el agente con modo plan (Claude Code): la tarjeta de ExitPlanMode es el plan a aprobar. No se inventa otro paso. PermissionBroker la reconoce por la herramienta ExitPlanMode o por kind switch_mode con plan, y la dibuja una vista nueva, PlanApprovalView, en lugar de la tarjeta genérica:
+   - plan en markdown (MarkdownBBCode);
+   - «Aprobar y construir»: allow con la opción default, y el modo del harness pasa a Construir. Las ediciones las sigue rigiendo la matriz de Construir: no se ofrece acceptEdits, auto ni bypass;
+   - «Editar»: TextEdit con el plan. Al confirmar, reject, y al terminar el turno (cancelled) se manda como prompt del harness (etiqueta PLAN_EDIT, m12-44) «the user edited your plan:» con el diff de líneas (core/line_diff.gd) y el plan completo, para que lo rehaga y vuelva a llamar ExitPlanMode;
+   - «Seguir planeando con motivo…»: el «denegar con motivo» de abajo.
+2. Fuente B, agentes sin ExitPlanMode (Codex, Gemini por ACP) o Construir sin modo plan: la acción «Planificar» del dock (botón junto al selector de modo y /plan en el composer):
+   - pasa a Preguntar y manda un prompt del harness (PLAN_REQUEST) que pide el plan con la estructura de abajo. Si el agente tiene ExitPlanMode, que lo presente con él (fuente A); si no, que termine el turno con el plan en un bloque ```plan;
+   - con el bloque, la misma PlanApprovalView aparece debajo del mensaje. Aprobar manda send_in_mode(BUILD, PLAN_APPROVED) con la ruta del archivo.
+3. Estructura que pide PLAN_REQUEST: criterios jugables («CUANDO el jugador toca un enemigo, EL JUEGO DEBE restarle una vida»); diseño en términos de Godot (escenas y nodos nuevos, scripts, señales, autoloads, input map, capas de colisión); tareas numeradas. Al construir se le pide llevar las tareas como su plan (TodoWrite), así plan_view las tilda como hoy.
+4. Archivo: cada plan presentado se guarda en .godot_agent/plans/<fecha>-<slug>.md (slug del primer título). Lo editado se reescribe ahí y lo aprobado queda con «Approved: <fecha>». Se retoma en otra sesión con @ en el composer (ya completa archivos); no hago lista de planes.
+5. Componente compartido con el One-shot, para no tener un tercer sistema: saco de agent_main_screen.gd un DocumentApproval (ui/document_approval.gd) con la vista markdown, Editar, Aprobar y el diff de lo editado. Lo usan el spec del One-shot (approve_spec y edit_plan siguen igual, solo cambia la UI) y PlanApprovalView. La lógica del One-shot (etapas, spec.md, ONESHOT_SPEC_*) no se toca.
+6. Revisar: no cambia. Sigue siendo hallazgos → «Arreglar» en Construir. No le agrego plan: ahí el «plan» es la lista de hallazgos, que ya se aprueba eligiendo cuáles arreglar. Lo único compartido es que Revisar también corre en modo plan del agente. Si el agente llama ExitPlanMode estando en Revisar (hoy pasa, m16-03), se ve la misma PlanApprovalView y aprobar pasa a Construir.
+7. Sincronización de modo: si el agente sale del modo plan por su cuenta (current_mode_update a default o acceptEdits), hoy el harness no cambia (agent_modes_changed no tiene a nadie conectado). Con un plan aprobado, el harness pasa a Construir. Fuera de eso no lo cambio, para no abrir otro comportamiento.
+
+«Denegar con motivo» (m11-48 (2)), en toda tarjeta de permiso:
+- Botón «Denegar con motivo…» al lado de Denegar: abre un LineEdit en la misma tarjeta; Enter o el botón confirman.
+- Contesta reject_once como hoy, porque ACP no tiene campo de motivo; el adapter manda su mensaje fijo.
+- El motivo va a la cola como prompt del harness (DENY_REASON, «Denied with a reason») «I denied <tool>: <motivo>» y sale al terminar el turno. Cambio necesario en la cola: hoy se pausa con stop reasons distintos de end_turn, y ExitPlanMode con interrupt termina en cancelled. Ese prompt sale igual.
+- En Auto, la tarjeta de shell ya tiene _rule_edit: el motivo va aparte.
+
+Fuera de esta tarea: comentarios por pasaje (Kiro Markdown Review), porque hoy no existe en ningún lado y alcanza con Editar + diff; una lista de planes guardados; el modelo para planear (m11-27/m11-38).
+
+Tests previstos:
+- Unit: detección de la tarjeta ExitPlanMode con el payload de 0.105 como fixture; el diff de la edición; el guardado del archivo; DENY_REASON en la cola con cancelled; el bloque ```plan de la fuente B.
+- UI test con el agente falso: plan → Editar → feedback → plan nuevo → Aprobar → Construir. Captura en dock angosto.
+- Que el spec del One-shot sigue andando con el componente (oneshot_check.gd y la UI del One-shot).
+
+PLAN DE IMPLEMENTACIÓN (agent-harness fix-b, 2026-11-10), revisado contra sm/next2 709be97 y claude-agent-acp 0.105.0 instalado. Solo plan: sin rama hasta después del release.
+
+Verificado del diseño de arriba:
+- 0.105 (permissions/options/tools.js buildExitPlanModePermissionOptions, effects.js, presentation.js):
+  - título «Ready to code?»;
+  - opciones exitPlanDefault (allow_once); acceptEdits, auto y bypass (allow_always); tres «clear context» (allow_always, arrancan otra query); y reject «No, keep planning»;
+  - reject contesta deny «User chose to keep planning» con interrupt:true; exit-plan.js reconoce el ciclo interrumpido.
+- Sin verificar:
+  - el campo exacto del plan (rawInput.plan vs planFilePath: este último solo con la capability AIR planFile, que no anunciamos);
+  - el stopReason real después del reject (el adapter puede seguir el mismo turno en una query nueva en vez de terminarlo cancelled).
+  - Primer paso: capturar un request real con el probe ACP y el proxy que loguea (ver memoria «MCP client testing») y guardarlo como fixture.
+- Hoy en el harness:
+  - kind switch_mode → GROUP_OTHER (permission_policy.gd:143). Sin DEFAULTS cae en ASK en todos los modos: tarjeta genérica.
+  - No hay fixture de ExitPlanMode en tests/.
+  - El fake agent ya manda request_permission (tests/scripts/permissions.json) y termina turnos con cualquier stopReason.
+  - La cola se pausa con todo lo que no sea end_turn (agent_dock.gd:1242 _on_turn_finished).
+  - One-shot ya tiene ONESHOT_PLAN_EDIT y edit_plan (oneshot_run.gd:753) para la lista de tareas, no para un documento.
+  - LineDiff ya existe (core/line_diff.gd; lo usan diff_dialog y permission_broker).
+
+Forma de la UI:
+- PlanApprovalView (entrada del chat, reemplaza la tarjeta de permiso cuando es ExitPlanMode):
+  - encabezado «Plan listo para construir»;
+  - el plan en markdown, con alto acotado y «Mostrar todo» como el permiso largo de m-ui_long_permission;
+  - botones: Aprobar y construir (primario) · Editar · Seguir planeando… ;
+  - Editar cambia la vista por un CodeEdit con el texto, con Mandar cambios / Cancelar. Arriba, contador +N −M en vivo con LineDiff;
+  - Seguir planeando… abre un LineEdit en la tarjeta (el mismo control que «Denegar con motivo»);
+  - una vez contestada queda plegada con el resultado («Aprobado · construyendo», «Editado: +3 −1», «Seguir planeando: <motivo>»), como _result_text hoy.
+- Tarjeta de permiso común: «Denegar con motivo…» como botón secundario después de Denegar. En dock angosto los botones ya bajan de línea (HFlow). Enter confirma y Esc vuelve.
+- Fuente B: botón «Planificar» en la fila del selector de modo (solo con sesión READY y modo ≠ One-shot) y /plan <pedido> en el composer. Sin texto, toma lo que haya en el composer.
+
+Tools: ninguna tool MCP nueva. Todo pasa por ACP (request_permission y prompts del harness). Si el agente no tiene ExitPlanMode, el protocolo es el bloque ```plan. Una tool godot.present_plan sería la alternativa (ver Preguntas).
+
+Archivos:
+- Nuevos:
+  - session/plan_store.gd: guarda y lee .godot_agent/plans/<fecha>-<slug>.md, marca Approved;
+  - ui/dock/entries/plan_approval_view.gd;
+  - (si se hace el punto 5) ui/document_approval.gd.
+- session/permission_broker.gd:
+  - es_plan(params) por toolCall.title/rawInput/kind switch_mode;
+  - filtra las opciones a default + reject (sin acceptEdits/auto/bypass/clear context);
+  - deja el texto del plan en el PermissionRequest.
+- session/permission_request.gd: campos plan_text y deny_reason.
+- ui/dock/conversation (donde se elige la vista por tipo de entrada) y entries/permission_view.gd: «Denegar con motivo».
+- session/session_controller.gd:
+  - approve_plan(): pasa el harness a BUILD con set_harness_mode, espera agent_mode_synced (ya existe el loop _mode_syncs_running) y recién ahí contesta allow default;
+  - feedback de Editar/motivo.
+- session/prompt_queue.gd + ui/dock/agent_dock.gd: un item con after_interrupt:true (los prompts DENY_REASON/PLAN_EDIT) sale aunque el turno haya terminado cancelled, solo si ese cancel lo causó el reject propio.
+- session/harness_prompts.gd: PLAN_REQUEST, PLAN_EDIT, PLAN_APPROVED, DENY_REASON + es.po.
+- Fuente B: ui/dock/agent_dock.gd (botón, /plan), session_controller (parseo del bloque ```plan al terminar el turno).
+- Tests y dev:
+  - tests/fixtures/acp/exit_plan_mode_0105.json (capturado);
+  - tests/scripts/plan_mode.json (fake agent: plan → reject → plan nuevo → allow);
+  - tests/unit/test_plan_approval.gd y test_deny_reason.gd;
+  - addons/godot_agent_dev/plan_check.gd + PLAN_ARG «--godot-agent-plan-test» en plugin.gd.
+- docs/wiki en/es (modos y permisos), CHANGELOG.
+
+Riesgos:
+1. Carrera de modo al aprobar: allow default en ExitPlanMode cambia el modo del agente a default. Si el harness sigue en ASK, _sync_agent_mode lo vuelve a plan y la matriz de ASK deniega las ediciones. Orden obligatorio: harness a BUILD, esperar sync, contestar. Test: aprobar y que la primera edición pida permiso de Construir, no DENY.
+2. Las opciones «clear context» arrancan una query nueva dentro del mismo turno: se esconden. Si una versión futura cambia los optionId, filtrar por kind/nombre y loguear lo que no se reconoce.
+3. El reject puede no terminar el turno. Si el adapter sigue en otra query, el feedback no espera al fin del turno: se manda como mensaje cuando llegue end_turn o cancelled, lo que pase primero (lo decide la captura).
+4. Permiso con timeout (_ask_user timeout_s): editar un plan largo puede vencerlo. Sin timeout para los de plan.
+5. Revisar en modo plan llama ExitPlanMode (m16-03): aprobar pasa de Revisar a Construir. Es un cambio de comportamiento visible; va a Preguntas.
+6. Extraer DocumentApproval del One-shot toca agent_main_screen.gd (1449 líneas) en la pantalla más probada; el riesgo de romper es alto para el beneficio. Recomiendo NO hacerlo en esta tarea (ver Preguntas).
+7. Prompts que salen tras un cancel: no debe salir uno si el cancel fue del usuario (botón Stop). Solo cuando el cancel lo causó el reject propio del harness.
+8. Otros agentes (Codex/Gemini ACP) pueden tener otro mecanismo de plan (modos sin ExitPlanMode). La fuente B depende de que respeten el bloque ```plan; sin verificar con agentes reales (solo están Claude Code y antigravity-acp instalados).
+
+Cómo se prueba:
+- Unit: detección y filtro de opciones con el fixture real; approve_plan con un FakeController que registra el orden (modo BUILD → sync → allow); LineDiff del editado en el prompt PLAN_EDIT; plan_store (slug, Approved, reescritura); cola: after_interrupt sale con cancelled propio y no con cancel del usuario; parseo del bloque ```plan.
+- Xvfb con el agente falso (plan-test, en y es): plan → Editar → feedback con diff → plan nuevo → Aprobar → modo Construir → la primera edición pide permiso. «Denegar con motivo» en una tarjeta de shell → el motivo sale en el turno siguiente con etiqueta. Captura en dock angosto.
+- Regresión: review-test, oneshot-test, queue-test, i18n-test (textos nuevos), ui_long_permission.
+- Manual con Claude Code real (gasta tokens, como claude-*-test): Preguntar → pedir un cambio → ExitPlanMode → Editar → Aprobar. Confirmar que construye en Construir con permisos.
+
+Preguntas para el usuario:
+1. Fuente B («Planificar» y /plan para agentes sin modo plan): ¿entra ahora o queda como tarea aparte después de la fuente A? Recomiendo aparte.
+2. ¿Se guardan los planes en .godot_agent/plans/ (en el proyecto, versionables) o no se guardan? ¿O en user:// del editor?
+3. Al aprobar: ¿solo «Aprobar y construir» (Construir), o también «Aprobar en Auto»? Recomiendo solo Construir.
+4. Revisar + ExitPlanMode: ¿aprobar pasa a Construir, o en Revisar se rechaza siempre y se sigue revisando?
+5. ¿Se extrae el visor de spec del One-shot a un componente común ahora (punto 5), o PlanApprovalView va sola y se unifica después? Recomiendo después.
+6. «Denegar con motivo»: el motivo ¿se ve en el chat como mensaje plegado del harness (etiqueta DENY_REASON) o como mensaje del usuario normal?
+7. ¿Hace falta el timeout de permisos en los planes, o se espera indefinidamente?
+
+**Bloquea a:** Criterios de aceptación del plan verificados jugando; «Planificar» y /plan para agentes sin modo plan
+
+**Relacionadas:** Plan editable antes de construir y «Denegar con motivo»; Modelo por modo: planificar con uno y construir con otro
+
+### Criterios de aceptación del plan verificados jugando · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Kiro.
+- Correctness (solo IDE) convierte los requisitos EARS en propiedades, las vincula a su requisito y su tarea, y genera cientos de entradas al azar para romperlas, con shrinking. Si falla, muestra el escenario y se decide en el chat si se arregla el código, el test o el requisito. https://kiro.dev/docs/specs/correctness/
+- La misma página aclara que es evidencia y no prueba formal, y que lo no determinista necesita otros tests.
+
+Adaptación a Godot y al harness:
+- Sin un framework de property-based testing para GDScript, lo que se traslada es el vínculo requisito → verificación.
+- Cada criterio jugable del plan (ver la idea del plan aprobable) se convierte en un pedido de playtest con veredicto (m14-03 / m15). El resultado vuelve al plan como ✓ / ✗ / blocked con su evidencia (captura, números del juego).
+- Los que pasan se pueden guardar como regresión (el CI workflow de v0.1.19 ya las corre).
+- Las variaciones al azar (posiciones, inputs con semilla) quedan para después, con input por frame (m14-01).
+
+Por qué: hoy los playtests responden a lo que el agente decide probar. Atarlos a criterios aprobados por el usuario cierra el loop pedido → plan → juego verificado, y el One-shot ya tiene un evaluador que lo aprovecharía. Depende del plan aprobable y de los playtests con veredicto.
+
+**Decisiones:**
+- ! Un playtest por criterio (no uno solo con veredictos por criterio); la verificación viene prendida por defecto; tope de 6 por corrida, configurable en el mismo setting; la tarjeta aclara que cada criterio es un playtest · sin revisar
+  Por qué: Uno por criterio deja veredicto, evidencia y regresión atados a cada criterio. Prendido por defecto: según agent-harness-81, lo decidió el usuario (no me lo confirmó a mí directamente). La línea del costo y el tope configurable los pidió 81.
+  Descartado: Un playtest para todos con un veredicto por criterio en el JSON; apagado por defecto; tope fijo
+
+**Prueba:** tests/run_all.gd -- plan_criteria (6 tests: criteria(), casilla/setting, corrida con pass/fail/blocked y re-prueba solo del que falló, tope y «Verificar el resto», reintentos y mensaje del usuario, sección ## Verification, tarjeta). Editor check ui-plan-criteria (suite full) con el agente falso: 2 criterios, el 2 falla, se corrige, se re-juega solo ese y pasa → «2 ✓ · 0 ✗». suite.sh ci en verde (4.7.2).
+
+**Notas:** Hecho en sm/m11-23 (d37eaf4, desde 9a600eb), sin pushear.
+- PlanApproval.criteria/plan_title; la corrida de receta ganó `criteria` (origen "plan" o receta con «Planificar primero»: sus playtests van como criterios primero).
+- Un playtest por criterio en Revisar; fail → un turno de corrección con todos los que fallaron (PLAN_CRITERIA_FIX), después se re-juegan solo esos; blocked → ⊘; tope de reintentos 2.
+- Tarjeta: casilla «Verify the criteria by playing (N)» + línea del costo (cada criterio es un playtest, tope N, se cambia en Settings); estado por criterio con evidencia en el tooltip. PermissionRequest.verify_criteria (-1/0/1), criteria_max, criteria_results, señal changed.
+- Settings → MCP servers → Advanced: verify_plan_criteria (true) y verify_plan_criteria_max (6).
+- «Verificar el resto» juega los que pasaron el tope sin turno de corrección.
+- Fuera: One-shot (tiene su QA), variaciones al azar, ⊘ «no hay escena» (lo decide el playtest con blocked).
+
+**Bloqueada por:** Plan aprobable antes de construir (fuera del One-shot)
+
+### Hooks del proyecto en eventos del editor · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Kiro.
+- Agent hooks: archivos JSON en `.kiro/hooks/<id>.json` con trigger, matcher (regex de la ruta), acción `command` (shell, recibe el contexto por STDIN) o `agent` (inyecta un prompt en la conversación), timeout y enabled. https://kiro.dev/docs/hooks/
+- Triggers: Prompt Submit, Agent Stop, Session Start/End, Pre/Post Compaction, Pre/Post Tool Use, File Create/Save/Delete y Pre/Post Task Execution de un spec. https://kiro.dev/docs/hooks/types/
+- File Save dispara con lo que guarda el agente («when the agent saves or modifies files»), no el usuario.
+
+Qué existe: la verificación al terminar el turno (m11-04) es un hook fijo. Claude Code tiene sus hooks propios, pero no ven eventos del editor de Godot.
+
+Adaptación a Godot y al harness:
+- `.godot_agent/hooks.json` (versionable), con una pestaña en Extensions.
+- Disparadores que solo ve el editor:
+  - el usuario guarda un script o una escena (resource_saved y scene_saved, que el plugin ya escucha);
+  - un run_scene o un juego lanzado a mano termina con errores;
+  - un import falla;
+  - terminó un playtest;
+  - antes de exportar.
+- Acciones:
+  - prompt a una sesión (por ejemplo «revisá este cambio» en Revisar, o «arreglá estos errores» en Construir, con tope de turnos como m11-04);
+  - una tool godot.* (validate_scripts, las regresiones);
+  - un comando, pasando por las reglas de shell y los permisos del modo.
+- Con matcher por ruta (`res://enemies/**/*.gd`).
+
+Por qué: lo que ningún agente externo puede ver son los eventos del editor y del juego. «Al guardar una escena de nivel, correr la regresión de ese nivel» o «si el juego crashea, mandarle el backtrace a la sesión» son flujos de Godot que hoy el usuario hace a mano.
+
+**Decisiones:**
+- ! Hooks en project_config.tres (`hooks`). La acción prompt por defecto es un aviso con «Send to the agent» (como m11-55); `auto_send: true` la manda sola con tope de 2 seguidos, el editor lo explica al prenderlo, y como cambia el JSON pide aprobar de nuevo. saved con by=user por defecto. · sin revisar
+  Por qué: Respuestas de agent-harness-81 al plan: ProtectedPaths no deja al agente escribir project_config; el harness nunca le manda algo al agente por su cuenta, y un guardado no debe gastar tokens sin que el usuario lo pida.
+  Descartado: .godot_agent/hooks.json; prompt que siempre se manda solo; by=any.
+- ! Los hooks se editan en Ajustes › MCP servers › Avanzado, debajo de los checks del turno (HooksEditor), no en una pestaña de Extensions como decía el plan. Las tools de un hook solo pueden ser de los grupos read, diagnostics y run. Sin el último resultado en la lista: está en el Agent Log. · sin revisar
+  Por qué: Los dos son entradas de project_config.tres con aprobación por máquina, y Ajustes ya los guarda y aprueba al guardar (keys_to_approve), así que comparten el flujo y no hace falta otro guardado de la config en Extensions. Una tool de hook corre sin pasar por el modo (run_for_user): nada que edite ni la shell. El último resultado necesitaba cablear el runner a Ajustes y el log ya lo tiene.
+  Descartado: Pestaña Hooks en Extensions con su propio guardado; tools de cualquier grupo; columna con el último resultado.
+
+**Prueba:** Unit: test_project_hooks (7: definición y rechazos, filtros, clave que sigue a la definición menos enabled, placeholders sin shell, runner con aprobación/debounce/env/timeout/falla una vez, procesos parados al salir del árbol, prompt con el evento en sobre), test_hooks_editor (aviso de sin aprobar, keys_to_approve al editar o con Allow, campos por acción, explicación de auto_send, validación), test_run_error_watcher.test_game_ended_for_hooks. Editor (Xvfb, ci grupo editor): hooks_check — guardado sin aprobar avisa y no corre; Aprobar… con el comando en el diálogo; aprobado corre con el próximo guardado; by=agent con lo que escriben las file tools; prompt deja aviso con Send to the agent y no manda; auto_send con tope queda en aviso; tool validate_scripts corre y delete_file (edit_files) no. suite.sh ci 17/17 PASS y i18n PASS en 4.7.2; CI verde en las tres fases (43103212734, 43105120678, 43107251241).
+
+**Notas:** HECHO (sm/m11-24: b534c8d fase 1, 00add70 fases 2-3, bdf4c3c fase 4), según el plan aprobado con estos cambios:
+- Eventos: saved, game_stopped, regressions_finished (el «playtest_finished» del plan: lo que hay son tandas de regresiones; RunTools.regressions_finished) y export_started (AgentExportPlugin.on_export_begin, `path` = salida).
+- by=agent: un guardado del editor mientras corre una tool del agente (ToolRegistry.running_calls) o lo que escriben sus file tools y fs/write (_after_agent_write).
+- Variables: GODOT_AGENT_HOOK, _EVENT, _PATH, _BY, _ERRORS (sin HOOK_JSON).
+- Tool: solo grupos read, diagnostics, run (ProjectHooks.TOOL_GROUPS) vía ToolRegistry.tool_group/run_for_user. Las tools de m11-46 entran solas cuando estén en el registry (mismo nombre godot.<x>), con su propia aprobación.
+- Prompt: aviso con «Send to the agent» (ACTION_SEND_HOOK_PROMPT) salvo auto_send, tope MAX_AUTO_PROMPTS=2 que se reinicia con un mensaje del usuario sin etiqueta o al apretar el botón; etiqueta HarnessPrompts.HOOK. La protección de bucles es el tope (no hay regla aparte para guardados del agente en un turno de hook).
+- Editor en Ajustes (decisión 2), sin columna de último resultado (está en el Agent Log).
+- Robustez: HookRunner para sus procesos en _exit_tree (la red de AgentProcess en PREDELETE falla al cerrar el editor: «stop on null instance», ya conocido).
+- TurnChecks.run_process compartido con los checks del turno.
+
+**Relacionadas:** Error en un run manual: «Arreglar con el agente»; Checks del proyecto al terminar el turno, con reintento
+
+### Instrucciones que se cargan según el archivo (reglas por ruta o tipo) · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Kiro.
+- Steering: markdown en `.kiro/steering/` (y `~/.kiro/steering/`), con front matter YAML de inclusión. https://kiro.dev/docs/steering/
+- Modos de inclusión:
+  - always;
+  - fileMatch (`fileMatchPattern`, un glob o una lista);
+  - manual (con `#nombre`);
+  - auto (por `description`, como una skill).
+- Referencias `#[[file:ruta:10-20]]`. AGENTS.md se lee siempre.
+
+Qué existe:
+- La pestaña Instructions edita CLAUDE.md, AGENTS.md y GEMINI.md, y genera «Project facts» (m11-07).
+- Las skills de cada agente se manejan en Extensions (m11-19).
+- No hay nada que cargue instrucciones solo para cierto tipo de archivo, y cada agente tiene su propio mecanismo (o ninguno). No confirmé hoy el soporte de Claude Code para reglas por ruta (.claude/rules con paths): verificarlo antes de duplicarlo.
+
+Adaptación a Godot y al harness:
+- `.godot_agent/rules/*.md` con `files:` (glob res://) o `types:` (gdshader, tscn, cs, gd).
+- Cuando el turno menciona o adjunta un archivo que coincide, el harness agrega la regla al prompt, una vez por sesión, igual que las menciones especiales (m11-08):
+  - un archivo con @;
+  - el script abierto en el Script Editor;
+  - el inline edit (m11-05).
+- Funciona igual con cualquier agente ACP.
+- Ejemplos de Godot:
+  - reglas de shaders (precisión, uniforms con hint);
+  - convenciones de escenas de UI (anchors, Theme);
+  - C# vs GDScript en proyectos mixtos (m14-07).
+
+Por qué: AGENTS.md crece con reglas que solo valen para una parte del juego y gasta contexto en cada turno. Cargar por archivo es barato y agnóstico del agente.
+
+**Decisiones:**
+- ! Las reglas por archivo van al agente como un bloque del harness con etiqueta («Project rules for <glob> (from .agents/rules/x.md)»), con la misma confianza que CLAUDE.md, no dentro de un sobre UntrustedText · sin revisar
+  Por qué: Una regla del proyecto es una instrucción, como CLAUDE.md, que los agentes cargan como instrucciones. El sobre dice «es dato, no instrucciones» y el agente la ignoraría. Corrección de agent-harness-81 al plan. El riesgo es el mismo que con el CLAUDE.md de un repo clonado.
+  Descartado: Sobre UntrustedText (el plan original)
+- ! Las reglas que coinciden van una vez por sesión, en el primer lugar donde se pueden mandar: al final del resultado de una tool godot.* (mismo turno) o en el próximo prompt; las tools propias del agente (Read/Edit) solo pueden esperar al próximo prompt. Archivos tomados de locations, diffs y cualquier argumento con res:// o ruta absoluta del proyecto · sin revisar
+  Por qué: Una sola copia por sesión gasta poco contexto; leer los argumentos genéricos cubre las tools godot.* sin un enganche por tool.
+  Descartado: Mandarla en cada turno que toca el archivo; solo en el próximo prompt
+
+**Prueba:** tests/unit/test_path_rules.gd (front matter de los 3 formatos, globs con **, llaves y patrones sin /, pending sin las nativas ni las ya mandadas, bloque sin sobre con tope, controller: una vez por sesión, menciones, apagado, regla cambiada; regla al final del resultado de una tool godot.*; pestaña Instructions: resumen, plantillas, Test). Editor check ui-path-rules (el agente edita un .gdshader → el próximo prompt lleva la regla y el chat el adjunto «rules: …»; el siguiente no). suite.sh ci verde.
+
+**Notas:** Absorbe de m11-36 las reglas por glob. El panel de memorias y /recordar siguen en m11-36.
+
+Hecho en sm/m11-25 (12d6a75, desde origin/sm/next4 e3e3ca3), hitos 1 y 2 juntos.
+- Verificado 2026-11-12: Claude Code carga solo .claude/rules con `paths:`; Antigravity carga solo .agents/rules (y .agent/rules) con `trigger: glob` + `globs`; Cursor usa .mdc con `globs`/`alwaysApply`; Codex, Gemini, Copilot y OpenCode no tienen reglas por ruta.
+- core/path_rules.gd: lee los 3 formatos (solo las reglas por glob, tope de 64 KB, sin symlinks), globs (`**`, `*`, `?`, `{a,b}`; sin / vale en cualquier carpeta), pending (sin native == adapter.kind ni las ya mandadas por hash), block (encabezado del harness y «### Project rules for <globs> (from <file>)», sin sobre, ~4000 caracteres).
+- SessionController:
+  - path_rules_block: en cada prompt, con los archivos de touched_paths (locations, diffs y args de los tool_call desde el prompt anterior), las rutas del texto, los uri de los adjuntos y context_paths_provider (el script abierto en el Script Editor visible). Va antes del pedido y como adjunto.
+  - path_rules_for_tool: ToolRegistry.result_note la pone al final del resultado de godot.*, fuera de los sobres.
+  - _rules_sent se reinicia al abrir o reanudar una sesión.
+- Config path_rules (Settings → MCP servers → Advanced, prendido por defecto).
+- Instructions: rule_summary (patrones y quién la lee sola), plantillas por carpeta, «Test» con una ruta.
+- Docs: wiki en/es (Modes and permissions › Rules by file, Settings › Instructions), CHANGELOG, SECURITY.
+
+**Relacionadas:** Memorias visibles y gestionables, y «/recordar» desde el chat (como Windsurf)
+
+### Mapa del proyecto Godot rankeado para el agente (godot.project_map) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Aider.
+- El repo map lista los archivos con sus símbolos clave y las líneas de cada definición. Elige qué entra con un ranking sobre un grafo (archivos = nodos, dependencias = aristas), dentro de un presupuesto de tokens (`--map-tokens`, 1k por defecto) que se ajusta según el chat. https://aider.chat/docs/repomap.html
+- Usa tree-sitter para extraer los símbolos: https://aider.chat/2023/10/22/repomap.html. El post es de 2023 y la doc actual no lo nombra: puede haber cambiado.
+
+Qué existe:
+- ProjectContext / project_index (m8-03) indexa clases, firmas, nodos por escena, autoloads, input map, grupos y señales, pero solo lo usa el completado.
+- El agente explora con grep, scene_tree y class_info, una cosa por vez.
+
+Adaptación a Godot y al harness:
+- Una tool godot.project_map(focus?, max_tokens?) que arma el grafo propio de Godot:
+  - escenas → scripts adjuntos → class_name usados;
+  - ext_resource e instancias de escenas;
+  - preload/load con ruta literal;
+  - señales conectadas en .tscn;
+  - autoloads;
+  - grupos.
+- Rankea (PageRank personalizado hacia los archivos de `focus` o los mencionados en el turno) y devuelve, hasta el presupuesto:
+  - por escena, el árbol resumido;
+  - por script, las firmas públicas.
+- Reusa el índice que ya existe, sin parser nuevo.
+
+Por qué: en Godot las dependencias reales están en los .tscn, no en los imports, y un grep no las ve. Un mapa así le ahorra al agente varias tool calls de exploración por tarea y lo hace con lo que el harness ya calcula en segundo plano.
+
+**Decisiones:**
+- ! El mapa reusa el código de ProjectIndex (parsers de .gd y .tscn) con un modo structure_only y un índice propio cacheado. No usa la instancia del completado. Ranking: PageRank personalizado con damping 0.6 cuando hay foco, aristas de vuelta a la mitad, peso de entrada dividido por √(usuarios) y escena↔script adjunto fuerte en los dos sentidos. Sale entero en sobre no confiable. · sin revisar
+  Por qué: El índice del completado solo existe si el completado está prendido, y no tiene preload/load, .tres, identificadores ni firmas. Agregárselos le sumaría costo a cada rebuild del completado. Con structure_only el completado queda igual (hay un test que lo verifica) y el mapa salta el índice de líneas y el n-gram.
+
+  Probado en project-epiphany (744 scripts, 315 escenas, 356 .tres). Con PageRank estándar (0.85), player.gd y game_state.gd quedaban por encima de push_block.tscn al enfocar PushBlock. Con los ajustes salen primero el foco, su escena y sus vecinos reales (Door, Interactable, FloorSwitch, y el jugador, que llama a block_ahead() -> PushBlock).
+
+  Firmas, nombres de nodos y defaults son texto del proyecto, así que todo el resultado va en sobre (ENVELOPE_ALL).
+  Descartado: Usar el índice del completado (no existe con el completado apagado, y le faltan datos); un parser nuevo o tree-sitter; PageRank sin personalizar ni atenuar hubs; sacar los strings de las firmas y no usar sobre.
+
+**Prueba:** Unit tests:
+- run_all 4.7.2: 555 tests / 4370 checks, 0 fallos.
+- project_map, completion_local y tool_group_view también pasan en 4.8-beta2.
+- test_project_map (nuevo, fixture tests/map_fixture con .gdignore) cubre:
+  - índice structure_only: decls con línea, sin privadas; enum y static; refs; idents; deps de .tres y .tscn;
+  - el índice del completado no cambia;
+  - grafo: escena→script/instancia, conexión receptor→emisor, autoload, class_name, preload relativo, .tres;
+  - resolve_focus por class_name, autoload, archivo, ruta y nombre sin extensión, más lo no encontrado;
+  - ranking: vecino directo antes que el de dos saltos y antes que lo suelto;
+  - render: header, autoloads, foco primero, declaraciones, «on:», árbol con instancia y %único, conexiones, presupuesto que corta y lo dice;
+  - la tool por el registry: en sobre, nota en la descripción, readOnlyHint, focus del editor, «Not found», índice cacheado.
+- tool_group_view: nombre «Project map», traducido.
+
+Xvfb 4.7.2: mcp-test con 0 fallas y una llamada real sin focus. Rankea hacia la escena abierta, 2 s en frío en este repo (377 scripts). completion-test con 0 fallas.
+
+Medición (solo lectura, por la API con raíz absoluta) en project-epiphany: 5667 archivos, 744 scripts, 315 escenas, 356 .tres, 5789 aristas.
+- Índice en frío: 3.4–3.7 s; en caliente: 60–70 ms.
+- Grafo: ~50 ms. Ranking y texto: ~0.4 s.
+- Todo corre en un worker y no traba el editor.
+little-villages tiene solo 25 scripts, así que usé project-epiphany. En Asteroids: 613 scripts, 129 escenas, 3387 aristas.
+
+**Notas:** 3b21dc9 en sm/m11-26, desde sm/next2 cc1f8f4.
+
+Piezas:
+- ProjectIndex.build({structure_only}) saltea el índice de líneas, C# y n-gram. Además:
+  - por script: decls ([línea, texto] de class_name, signal, func pública, @export var, enum), refs (preload/load/change_scene_to_file con ruta literal) e idents (palabras con mayúscula);
+  - por escena: deps (todos los ext_resource);
+  - resource_deps de los .tres.
+- ProjectMap (mcp/project_map.gd): grafo, resolve_focus, rank (PageRank personalizado) y render con presupuesto de chars/4.
+  - Con una raíz que no es res:// arma una vista con las claves en res://, para tests y medición.
+  - Los nodos de escenas heredadas que solo pisan propiedades no se muestran.
+- MapTools (mcp/tools/map_tools.gd): godot.project_map(focus?, max_tokens?), grupo read y core (va en tools/list compacto).
+  - Arma índice, grafo y texto en WorkerThreadPool; las llamadas simultáneas esperan a la anterior.
+  - Guarda el índice y lo reusa por mtime.
+  - Sin focus usa la escena editada y el script actual (plugin._editor_focus).
+- ENVELOPE_ALL (m11-45).
+- Una regla en system_prompt.md para usarla al orientarse.
+- Nombre en la UI: «Project map» / «Mapa del proyecto».
+
+Límites:
+- «on:» lista solo dónde un script está adjunto, o es la raíz de una escena instanciada; no cada instancia de la escena.
+- Los .tres binarios (.res) no se leen.
+- Las referencias por uid:// en preload no se resuelven. ext_resource trae path, así que las escenas sí.
+- Las clases de C# no entran al grafo: el índice no parsea .cs más allá de líneas.
+
+### Modelo por modo: planificar con uno y construir con otro · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Aider.
+- El modo architect usa dos modelos: «An architect model will propose changes and an editor model will translate that proposal into specific file edits» (`--editor-model`). La contra: dos pedidos por cambio, más tiempo y costo. https://aider.chat/docs/usage/modes.html
+- En su benchmark (2024-09-26), varios modelos mejoraron emparejados consigo mismos (Sonnet 3.5 de 77,4 a 80,5 %), y el mejor resultado salió de un razonador con un editor barato. https://aider.chat/2024/09/26/architect.html. Los números son de modelos viejos.
+
+Qué existe: el modo del harness cambia el modo del agente (Preguntar y Revisar → plan; Construir, Auto y One-shot → default), pero el modelo es uno por sesión, salvo que el usuario lo cambie a mano.
+
+Adaptación a Godot y al harness:
+- En Settings → Agentes, un modelo opcional por modo del harness, entre los que anuncia el agente (configOption model).
+- Al cambiar de modo, el harness manda session/set_config_option con ese modelo y lo muestra en el chip.
+- Junto con el plan aprobable: planificar en Preguntar con el modelo fuerte y «Aprobar y construir» en Construir con el rápido.
+- La edición la sigue haciendo el agente: el formato de edits de Aider no aplica.
+
+Por qué: con la cuota del plan (anillos) como límite real, gastar el modelo caro solo en decidir y el barato en escribir es lo que hace el par architect/editor, y acá sale casi gratis porque ACP ya expone el modelo como opción.
+
+**Relacionadas:** Plan aprobable antes de construir (fuera del One-shot); Modelo por modo del harness (sticky), como Plan/Act de Cline y los modos de Roo
+
+### Segunda opinión de otro agente (oráculo de solo lectura) · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Amp.
+- El Oracle (`@amp/oracle`, hoy un plugin opcional) agrega una tool `oracle` que «reviews code and advises on hard decisions, and it never edits files», con modelo y esfuerzo configurables. Delega las búsquedas en Finder y Librarian. https://ampcode.com/docs/models-and-subagents
+- No pude confirmar qué modelo usa por defecto: la página no lo dice.
+
+Qué existe:
+- Varias sesiones en pestañas, con godot.sessions y godot.session_send entre ellas (m7-44).
+- Agentes de cualquier perfil del registro de ACP (m11-12).
+- El modo Revisar.
+- Falta que una sesión le pida a otra, de otro agente y sin editar, una opinión y reciba la respuesta como resultado de tool.
+
+Adaptación a Godot y al harness:
+- Una tool godot.ask_second_opinion(question, files?) que abre (o reusa) una sesión oculta en Preguntar con el perfil elegido en Settings (por ejemplo Codex si construye Claude), le pasa la pregunta, el diff del turno o el plan, y devuelve su respuesta.
+- Con permiso de solo lectura forzado y la cuota de ese agente a la vista.
+- El usuario también puede pedirla desde el aviso de fin de turno: «Pedir segunda opinión».
+
+Por qué: un segundo modelo, de otra familia y sin el contexto del primero, encuentra errores de diseño que el mismo agente no ve, que es la idea del evaluador del One-shot (D55). El harness ya tiene las piezas (sesiones, perfiles, permisos), y Godot no cambia nada: es agnóstico del agente.
+
+**Decisiones:**
+- ! Oráculo sin pestaña, visible con un chip de máquina mientras trabaja; grupo second_opinion Ask en todos los modos y deny en One-shot; su respuesta vuelve en sobre no confiable · sin revisar
+  Por qué: Respuestas del coordinador al plan. El chip (como los de m12-47) muestra «Second opinion · thinking · N s» con el agente y el modelo en el tooltip; la conversación se abre desde el aviso. El oráculo leyó código y textos del proyecto, así que su salida puede traer instrucciones plantadas. Al cerrar el editor entra en AgentProcess.stop_all.
+  Descartado: Una pestaña visible para el oráculo; sin chip (solo historial); Allow en Preguntar/Revisar
+
+**Prueba:** - run_all: 792 tests, 0 fallos. test_second_opinion (7 tests, 68 checks) cubre:
+  - el prompt: la pregunta por defecto, el plan, el diff cortado con la lista de archivos y los @paths;
+  - las restricciones de solo lectura en todos los modos;
+  - el grupo y sus defaults;
+  - la tool: el sobre, el encabezado y los errores;
+  - fill_notice;
+  - el rechazo solo de las tarjetas;
+  - ask sin perfil.
+- tests/suite.sh ci en 4.7.2: 20/20 PASS. El check nuevo second-opinion (Xvfb, dos agentes falsos) cubre:
+  - el botón del aviso del turno;
+  - «Asking…» con Cancel;
+  - el chip con el agente y el modelo en el tooltip;
+  - delete_file del oráculo denegado (el archivo sigue);
+  - session_send del oráculo rechazado;
+  - la respuesta plegada con los tokens;
+  - «Send to the agent» en sobre con la etiqueta del harness;
+  - godot.ask_second_opinion con tarjeta de permiso y el resultado en sobre;
+  - /second-opinion seguido de Cancel.
+- Está en ci.yml (grupo editor).
+
+**Notas:** HECHO (sm/m11-28, 145600d, desde origin/sm/next4 57ab055). El plan de abajo se implementó con los ajustes del coordinador.
+
+- Hallazgo de seguridad: godot.session_send es del grupo read, que el oráculo tiene permitido. Manda un prompt a otra pestaña sin pedir permiso, así que el oráculo podía meterle instrucciones al agente principal sin sobre. _send_to_session ahora lo rechaza cuando quien llama es SecondOpinion.SESSION_ID. Ninguna otra tool de read o diagnostics tiene efectos.
+- /second-opinion sale en el menú de / solo con una sesión abierta, como /handoff.
+- Gancho para checks: second_opinion_profile_override en el plugin, como restart_override. El check usa un oráculo falso sin tocar EditorSettings.
+- Caveat pendiente: «Open the conversation» usa _open_elsewhere → open_history_session. Abre la sesión del oráculo en una pestaña nueva aunque el proceso del oráculo la siga teniendo cargada. Funciona como lectura, pero dos procesos tienen la misma sesión. Si molesta, se puede parar el oráculo antes de abrirla.
+- Archivos principales: session/second_opinion.gd (la clase), mcp/tools/second_opinion_tools.gd (la tool) y addons/godot_agent_dev/second_opinion_check.gd (el check).
+
+--- PLAN original ---
+
+Cómo se lanza
+- Sesión oculta, sin pestaña: un SessionController + SessionModel propios en el plugin («el oráculo»), con su propio proceso y el perfil que el usuario elige en Settings › Agentes › «Second opinion» (ajuste del usuario; por defecto ninguno). Si no hay perfil, la tool y los botones dicen cómo elegirlo.
+- Uno solo en el editor, arrancado a la primera pregunta y reusado después: no paga el arranque ni el prompt de sistema en cada pregunta (con claude-agent-acp son ~40k tokens de cache write la primera vez, lo vi en el probe de m11-38). Las preguntas van de a una (cola); timeout de 5 min, después se cancela. Se cierra con el editor o con «Nueva sesión» del oráculo.
+- Solo lectura forzada, como el evaluador de QA del One-shot: policy.restrictions con read y diagnostics en allow y todo lo demás en deny (editar, project, shell, run, addons, project_tools). mode_rules_override: «You are a second opinion… never edit, answer with findings». Va en Preguntar (agente en plan), con el server MCP del addon para leer escenas y scripts.
+- La conversación queda en el historial (SessionHistory, etiqueta «Second opinion»), así el usuario la abre como cualquier sesión pasada si quiere ver qué leyó.
+
+Quién la pide
+1) El agente: godot.ask_second_opinion(question, include_turn_diff?=true, paths?=[]) devuelve la respuesta como resultado de la tool (sellado en sobre como todo resultado). Grupo de permisos nuevo «second_opinion», porque gasta la cuota de otra cuenta: Ask en todos los modos por defecto, deny en One-shot (el run ya tiene su evaluador). El usuario lo cambia en la matriz.
+2) El usuario:
+- «Second opinion» en el aviso de fin de turno de Construir/Auto con cambios: sobre el diff del turno.
+- «Second opinion…» en la tarjeta del plan, antes de aprobar: sobre el plan.
+- /second-opinion <pregunta> en el composer.
+
+Qué contexto recibe (sin la conversación principal: la independencia es el punto, como D55)
+- La pregunta: la del agente o la del usuario. Si no hay, una por defecto: riesgos, bugs, problemas de diseño y qué haría distinto, con archivo:línea.
+- El diff del turno desde los snapshots (m11-01): unificado, cortado a ~30k caracteres, con la lista de archivos si se corta. Sin snapshots, la lista de archivos que tocó el turno, para que los lea.
+- El plan, si viene de la tarjeta.
+- Los paths que pase el agente: van como @ruta; el oráculo los lee con sus tools.
+- Las instrucciones del proyecto (CLAUDE.md/AGENTS.md) las carga el agente solo, por el cwd.
+
+Cómo vuelve la respuesta
+- A la tool del agente: como resultado de tool, con una línea de encabezado «Second opinion from <perfil> (<modelo>), <N> tokens».
+- Al usuario: un aviso en la pestaña que la pidió, con la respuesta plegada (Markdown), el agente y modelo, los tokens y dos botones:
+  - «Send to the agent»: harness prompt SECOND_OPINION, con la respuesta en sobre no confiable.
+  - «Open the conversation».
+  No se manda sola: el usuario decide si el agente principal la ve. Desde la tarjeta del plan, el aviso queda debajo de la tarjeta, que sigue esperando.
+- Mientras corre, el aviso muestra «Asking <perfil> for a second opinion…» con «Cancel».
+
+Costo en tokens
+- Primera pregunta: el arranque de la sesión del otro agente (prompt de sistema y tools; ~40k de cache write con Claude Code), más el diff y lo que lea. Las siguientes reusan el cache.
+- Se ve en cada respuesta: los tokens del turno del oráculo, de usage/_meta. Además, la cuota de esa cuenta va a la tabla de cuotas existente, porque es otro perfil.
+- Topes: diff cortado, una pregunta a la vez, timeout. El agente no puede pedirla en bucle porque pregunta por el permiso; el detector de loops de m11-49 no aplica fuera del playtest.
+
+Pruebas
+- Unit: el armado del prompt (diff cortado, plan, paths), las restricciones de solo lectura, el grupo nuevo y sus defaults, la tool sin perfil y la cola.
+- Editor (Xvfb): agente principal falso más oráculo falso (fake_agent con su propio escenario).
+  - El botón del fin de turno manda el diff y la respuesta vuelve en el aviso.
+  - «Send to the agent» sale en sobre.
+  - La tool desde el agente devuelve el texto.
+  - Si el oráculo intenta editar, se deniega.
+  - Cancelar corta el turno.
+
+Fuera de esta tarea: la segunda opinión dentro del One-shot, y elegir el modelo del oráculo (usa el que recuerde para Preguntar ese perfil, por m11-38).
+
+### Mencionar otra sesión y seguir en una nueva con un traspaso · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Amp.
+- Pegar la URL de un hilo o escribir `@T-…` hace que el agente lo lea y saque lo que importa para la tarea actual; `@@` busca hilos. https://ampcode.com/docs/threads
+- Handoff (2025-10) reemplazó la compactación: el usuario dice el objetivo del hilo nuevo y Amp arma un borrador de prompt con el contexto relevante y la lista de archivos, que se revisa antes de mandar. https://ampcode.com/news/handoff
+- Ojo, no está claro el estado actual: una nota en https://ampcode.com/news/stick-a-fork-in-it dice «we removed handoff» y recomienda abrir un hilo nuevo y mencionar el original. La doc de threads todavía nombra «Handoff and …». Lo que sigue vigente seguro es la mención de hilos.
+
+Qué existe: un historial local de sesiones por proyecto (session_history, con el menú de historial) y session/list del agente (m11-16). Las menciones especiales (@errors, @game, m11-08) no incluyen otra sesión.
+
+Adaptación a Godot y al harness:
+- `@session:<nombre o fecha>` en el composer (con autocompletado desde el historial): el harness agrega como bloque de contexto lo esencial de esa sesión. No el transcript entero, sino:
+  - pedidos del usuario;
+  - archivos cambiados (de los snapshots de turno);
+  - decisiones y el último plan.
+- Funciona entre agentes distintos.
+- Encima de eso, «Seguir en una sesión nueva» en el medidor de contexto: pide el objetivo, arma el borrador con esa mención y lo deja editable en el composer.
+
+Por qué: con varias pestañas y agentes, retomar o pasar trabajo entre sesiones hoy obliga a copiar y pegar. Que el harness tenga el historial de todos los agentes hace esto agnóstico, algo que ningún agente hace solo.
+
+**Prueba:** Headless: test_session_digest y test_mentions (@session:<id>). Editor: ui-handoff (sesión cerrada de otro agente en el menú de @, bloque en sobre al mandar, adjunto con título en el chat). La parte de traspaso, en m11-35.
+
+**Notas:** Hecho en sm/m11-35 (653f149): session/session_digest.gd, @session:<id> en el composer (menú con las otras sesiones del historial del proyecto), bloque en sobre UntrustedText marcado como contexto, adjunto «@session:… · título» con tooltip. «Seguir en una sesión nueva» con borrador se hizo en m11-35 (0608d63).
+
+**Relacionadas:** Traspaso entre sesiones: «Nueva sesión con resumen» cerca del límite de contexto y un archivo de traspaso (Zed + memory bank de Cline)
+
+### Recetas: pedidos reutilizables con parámetros y checks · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Goose.
+- Una recipe (YAML o JSON) tiene:
+  - title y description;
+  - instructions y/o prompt con plantillas;
+  - parameters (key, input_type, requirement, default, options);
+  - extensions (MCP);
+  - settings (proveedor, modelo, max_turns);
+  - response.json_schema para salida estructurada;
+  - retry con checks de shell que tienen que salir con 0 (si fallan, resetea la historia y reintenta hasta max_retries);
+  - sub_recipes.
+
+  https://goose-docs.ai/docs/guides/recipes/recipe-reference/
+- Se comparten como archivo o deeplink («Each recipient gets their own private session») y se corren con `goose run --recipe` (también por cron). https://goose-docs.ai/docs/guides/recipes/session-recipes/
+
+Qué existe:
+- Las skills y slash commands de cada agente se ven en Extensions, pero son del agente, sin formulario de parámetros ni checks.
+- El One-shot tiene su formulario y sus checks, pero para un juego entero.
+
+Adaptación a Godot y al harness:
+- `.godot_agent/recipes/*.json`, versionables, con una pestaña en Extensions.
+- Cada receta tiene título, modo del harness, prompt con `{{param}}` y parámetros con tipos propios de Godot: escena, nodo, recurso, acción de input, ruta res://.
+- Los checks pueden ser:
+  - validate_scripts;
+  - regresiones de playtest;
+  - un playtest con veredicto;
+  - un comando.
+- Con tope de reintentos.
+- Ejemplos de juego: «Agregar enemigo {escena base} con comportamiento {texto}», «Pantalla de opciones con {ajustes}», «Portar {script} a C#».
+- Se lanzan desde el dock (menú de recetas, formulario generado) y el resultado lo dice el aviso de fin de turno.
+
+Por qué: los pedidos de un juego se repiten (enemigos, niveles, menús), y una receta con checks hace el resultado más predecible, para cualquier agente. El equipo la comparte por git. Ver la idea de checks del proyecto, que es la mitad de esto.
+
+**Decisiones:**
+- ! recipes_dir va después de turn_checks en project_config y el bloque «Recipes» de Settings va después de la lista de checks del proyecto, no pegados a lo de m11-46 · sin revisar
+  Por qué: Así sm/m11-30 y sm/m11-46 no tocan las mismas líneas (project_tools_dir va debajo de mcp_servers y «Project tools» antes de «Folders outside the project»), y el merge sale sin conflictos. Además, recetas y checks quedan juntos.
+  Descartado: Pegados a project_tools_dir / «Project tools», como se había propuesto: daba conflicto textual en el merge.
+- ! Los checks de una receta corren después de cada turno aunque el turno no haya cambiado archivos (salvo que tengan paths); una receta sin checks no arma corrida · sin revisar
+  Por qué: Los checks de la receta dicen si el pedido está hecho, no solo si se rompió algo. Sin checks no hay nada que reintentar ni que avisar.
+  Descartado: Los mismos criterios que los checks del proyecto (solo con cambios).
+- ! Hito 1: los mensajes de validación de una receta (campo desconocido, {{x}} sin parámetro…) quedan en inglés; los checks de tipo playtest se rechazan como «unknown kind» hasta el hito 2 · sin revisar
+  Por qué: Hoy solo aparecen en el tooltip de una receta rota y en el aviso de /recipe. Se traducen en el hito 2 junto con el editor con validación en vivo, que es donde se leen. El check playtest es parte del hito 2 según el plan.
+  Descartado: Traducirlos ya: unas 25 entradas más en es.po que el hito 2 probablemente reescribe.
+- ! Si un check de comando de la receta no está aprobado en esta máquina, no corre y la corrida termina con un aviso («el resultado no se comprobó») en vez de reintentar · sin revisar
+  Por qué: Sin aprobar no se sabe si el pedido pasa, y mandarle reintentos al agente no lo resuelve. El aviso de los checks ya ofrece «Aprobar…». Una receta clonada no corre nada sin preguntar.
+  Descartado: Dejar la corrida abierta hasta que se apruebe.
+- ! Check playtest: corre solo cuando los otros checks de la receta pasan, como un turno en Revisar (prompt del harness «Recipe · playtest»); pass termina, fail vuelve como corrección dentro de max_retries, blocked/sin veredicto termina la corrida con aviso · sin revisar
+  Por qué: Jugar cuesta tokens y tiempo: no tiene sentido si Lint/tests fallan. Un «could not test» no se arregla con otro turno de código.
+  Descartado: Playtest en paralelo con los otros; blocked contado como fail y reintentado
+- ! «Plan first»: casilla en el formulario (default = "plan" de la receta); el composer queda con /plan <pedido> y la corrida arranca en «Aprobar y construir», en Construir (no en el modo de la receta) · sin revisar
+  Por qué: Reusa el flujo /plan de m11-22/m11-58 tal cual; aprobar el plan pasa a Construir por diseño.
+  Descartado: Tras aprobar, pasar al modo de la receta (Auto); un flujo de plan propio de recetas
+- ! Pestaña Recipes sin «Borrar» (se borra desde el FileSystem); guardar con errores se permite, «Use in the dock» exige receta válida y guardada. Validación traducida en la fuente (recipes.gd), así también el dock la muestra en español. La carpeta de recetas se excluye de los exports · sin revisar
+  Por qué: Alcance acotado; guardar a medias es útil al editar; los .json se exportarían como recursos sin servir al juego.
+  Descartado: Botón Borrar con confirmación; bloquear el guardado con errores; traducir solo en la pestaña
+
+**Prueba:** tests/unit/test_recipes.gd (parse/validación con playtest, valores y expand, load_dir/find, formulario, corrida con reintentos, playtest pass/fail/blocked, «Plan first» arranca con Aprobar y construir, plantillas y pestaña Recipes); test_claude_extensions (9 pestañas); editor check ui-recipe (formulario → composer → Lint falla → reintento → pasa; pestaña Recipes lista la receta válida, «Use in the dock» abre el formulario, «Plan first» deja /plan en el composer). suite.sh ci verde.
+
+**Notas:** Hito 1 (f014d21) y hito 2 (10f4806) en sm/m11-30, con origin/sm/next4 mergeado.
+- Recetas en res://agent_recipes/*.json (Settings → MCP servers → Advanced → Recipes); core/recipes.gd (formato, validación traducida, expand, run_spec), core/recipe_templates.gd (3 plantillas), core/project_dirs.gd.
+- Dock: /recipe y + → Receta…, formulario recipe_form.gd, chip con los checks. Controller: corrida con max_retries, check playtest (turno en Revisar después de los otros; pass/fail/blocked), «Plan first» vía /plan y arranque en approve_plan; los prompts con etiqueta del harness no cortan la corrida.
+- Extensiones → Recipes (recipes_tab.gd): lista con estado, editor JSON con validación en vivo, New desde plantilla, Use in the dock.
+- Comandos de checks: misma aprobación por máquina que los checks del proyecto. Carpeta excluida del export.
+- Docs: wiki en/es (Modes and permissions › Recipes, Settings), CHANGELOG, SECURITY.
+
+**Relacionadas:** Checks del proyecto al terminar el turno, con reintento
+
+### Checks del proyecto al terminar el turno, con reintento · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Goose.
+- `retry` de una recipe: max_retries y checks de tipo shell que tienen que salir con 0, con timeout_seconds (300 por defecto) y on_failure. Después de cada corrida se ejecutan en orden y, si alguno falla, goose corre on_failure y reintenta. https://goose-docs.ai/docs/guides/recipes/recipe-reference/
+- En Kiro, el mismo patrón es un hook Agent Stop. https://kiro.dev/docs/hooks/types/
+
+Qué existe: la verificación automática (m11-04) solo corre validate_scripts sobre los .gd cambiados y le devuelve los errores al agente, hasta 2 turnos.
+
+Adaptación a Godot y al harness:
+- En Settings, una lista de checks del proyecto (en project_config, versionable) que corren después de cada turno de Construir/Auto con cambios:
+  - las regresiones de playtest guardadas (las mismas del CI workflow);
+  - un runner de tests (gdUnit4 o GUT headless);
+  - un comando, pasando por las reglas de shell.
+- Con filtro por ruta: solo si el turno tocó `res://player/**`.
+- La falla vuelve al agente como hoy, con el mismo tope.
+- El aviso de fin de turno muestra ✓/✗ por check.
+
+Por qué: un juego con regresiones grabadas o tests ya tiene la mejor señal de «esto se rompió». Correrla en cada turno y no solo en el CI agarra el error mientras el agente todavía tiene el contexto. Es una extensión chica de m11-04.
+
+**Decisiones:**
+- ! Cómo se configuran los checks del proyecto al terminar el turno. Dónde viven: - En project_config.tres (`turn_checks: Array`), versionable con el proyecto. Se editan en Settings → MCP servers, en la sección avanzada donde está «Check the scripts after each turn». - Cada check es {name, kind, command, paths, timeout_s, enabled}. - kind "regressions": las regresiones de playtest guardadas, con el mismo regression_cli.gd que el workflow de CI, en un Godot headless aparte. No toma el Play del editor. - kind "command": un programa con argumentos. GUT y gdUnit4 son presets que completan el comando. - `{godot}` en el comando se reemplaza por el binario del editor. - paths: globs res:// (`res://player/**`). Vacío = cualquier cambio. - timeout_s: 300 por defecto. Qué comandos se permiten: - Un solo programa con sus argumentos, sin shell: OS.create_process con los argumentos ya separados (comillas simples y dobles), sin `|`, `&&`, `;`, redirecciones ni `$()`. Un comando con eso se rechaza al guardarlo. - Lo que necesite shell va en un script del proyecto (`sh tests/run.sh`). Cómo pasan por los permisos: - Las regresiones no piden nada: son del harness y sus scripts ya pasan por el bloqueo de APIs (PlaytestRegressions.SCRIPT_BLOCKED). - Un comando corre solo si quien usa este editor aprobó ese texto exacto en esta máquina. La aprobación queda en los ajustes del usuario (no en el proyecto), con la ruta del proyecto y un hash del comando. - Agregarlo o editarlo en Settings ya cuenta como aprobarlo. - Un comando que viene en el archivo sin aprobar (un proyecto clonado, otro miembro del equipo, o lo cambió el agente desde la shell) no corre: el aviso del fin de turno lo marca «sin aprobar en esta máquina» con «Aprobar…», que muestra el comando. - Las reglas de shell del modo Auto no deciden: también viven en project_config, así que un proyecto podría traer su propio comando y la regla que lo permite. Cuándo corren: - Después de un turno de Construir o Auto que terminó con end_turn y cambió archivos. Los cambios salen de los mtime ≥ inicio del turno, sin .godot, .git ni .godot_agent, así que no hace falta git. - Corren después de validate_scripts y solo si los scripts parsean. - En orden. Uno que falla no frena a los demás. - Lo que fallen vuelve al agente como prompt del harness TURN_CHECK, con la salida recortada y sellada como texto no confiable, y comparte el tope de 2 turnos con validate_scripts. - El aviso del fin de turno muestra ✓/✗ por check. · sin revisar
+  Por qué: project_config.tres viaja con el proyecto, así que cualquiera que lo clone le puede plantar un comando que correría después de cada turno sin que nadie lo apruebe. Por eso la aprobación es local y por el texto exacto. Las file tools del agente no escriben addons/godot_agent (ProtectedPaths), pero en Auto la shell sí podría. Sin shell, el comando se comporta igual en Linux, macOS y Windows, y no hay que analizar cadenas ni redirecciones. Las regresiones van en otro proceso para no tomar el Play del editor mientras el usuario mira.
+  Descartado: - Pasar el comando por ShellRules.classify con las reglas de Auto: las reglas también vienen en el proyecto.
+  - Correr por `sh -c` / `cmd /c`: cada plataforma distinta, y otra vez un shell completo.
+  - Guardar los checks en los ajustes del usuario: no se comparten con el equipo ni con el CI.
+  - Detectar cambios por los snapshots de git: no anda sin git.
+
+**Prueba:** - tests/unit/test_turn_checks.gd (8 tests, 72 checks): parse_command sin shell, normalize, applies/changed_since, tienda de aprobación (clave por proyecto + texto exacto), aviso y prompt (sobre sellado), corridas reales (0, código ≠ 0, tope de tiempo, programa inexistente), flujo del controller (copia aparte, aprobado/sin aprobar, «Aprobar…», tope de arreglos, Preguntar no corre), lista de Settings (qué aprueba guardar).
+- Check de editor `tests/suite.sh run checks` (--godot-agent-checks-test, turn_checks_check.gd + tests/scripts/turn_checks.json): en Auto, Lint falla → TURN_CHECK con la salida en sobre; Script sin aprobar → «Aprobar…» → diálogo con el comando → aprobado; el turno de arreglo pasa los dos. En suite ci y ci.yml.
+- suite.sh ci 15/15 en 4.7.2; i18n en español PASS; captura de Settings con la lista revisada.
+
+**Notas:** Absorbe la extensión de m11-04 (done: validate_scripts al terminar el turno con hasta 2 reintentos): suma checks del proyecto con el mismo tope. Relacionadas: m11-24 (si se hacen hooks, esto es el disparador «fin de turno»), m11-30 (recetas con retry) y m11-42 (correr las regresiones repetidas para no reintentar por una inestable).
+
+Hecho en sm/m11-31 (934da58, desde origin/sm/next3):
+- core/turn_checks.gd: modelo, parse sin shell, {godot}/{project}, globs, mtime, run con AgentProcess y tope.
+- La clave de aprobación usa la carpeta del proyecto del editor (provider "project"), no el cwd de la sesión: en una copia aparte (worktree) Settings y la sesión verían claves distintas.
+- ui/settings/turn_checks_editor.gd en Settings → MCP servers → Avanzado; HarnessSettings security/approved_commands {clave: fecha}.
+- El check de editor aprueba en una tienda en memoria: el Xvfb usa los EditorSettings reales del usuario.
+- m13-31 (MCP servers del proyecto) debe reusar HarnessSettings.is_command_approved/approve_command y el «Aprobar…» del dock (_confirm_turn_check).
+
+**Relacionadas:** Verificación automática al terminar cada turno; Hooks del proyecto en eventos del editor; Recetas: pedidos reutilizables con parámetros y checks
+
+### Exportar una sesión para compartirla (Markdown con capturas) · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la revisión de otros harness (2026-11-10), de Amp.
+- Los hilos se comparten con visibilidad Private, Workspace, Group o Unlisted (con el link). https://ampcode.com/docs/threads
+- Los commits del agente llevan un trailer `Amp-Thread-ID` que vincula el cambio con su conversación (misma página).
+
+Qué existe: «Guardar reporte» de un turno (m11-06: report.md con lo que dijo el agente, los archivos y las capturas) y el informe del One-shot (RunReport.to_markdown). No hay forma de llevarse una sesión entera.
+
+Adaptación a Godot y al harness:
+- En el menú del historial, «Exportar sesión»: arma `.godot_agent/reports/<fecha>-session/session.md` con los pedidos, las respuestas, las tool calls resumidas (como en el chat, plegadas), los diffs por turno y las capturas del juego como PNG.
+- Los secretos van redactados, como en todo lo que se muestra (PRIVACY.md › Secrets).
+- Opcional: un trailer `Godot-Agent-Session: <id>` en los commits que haga el agente, cuando el usuario lo pida.
+- Sin servidor: compartir es pasar la carpeta o subirla donde quiera el usuario.
+
+Por qué: mostrar cómo se llegó a un cambio (para un PR, un bug report o enseñar) hoy obliga a sacar capturas del dock. Las capturas del juego, que ningún otro harness tiene, son lo que hace útil el export. Y no hace falta el backend de Amp.
+
+**Decisiones:**
+- ! «Export session…» va en el menú ⋯ del dock y exporta la pestaña, no una entrada del menú del historial. Por defecto saca las rutas absolutas, los emails y el contenido de los sobres no confiables, y deja las capturas; cada casilla dice cuánto encontró y la vista previa cambia al marcarla. · sin revisar
+  Por qué: El historial no guarda las imágenes, y las capturas son lo que hace útil el export: sale del modelo vivo de la pestaña. Lo más seguro para compartir es sacar por defecto; el usuario ve y puede devolver cada cosa. Las capturas quedan porque son el propósito, y se pueden sacar.
+  Descartado: Exportar desde el menú del historial (sin capturas). Preguntar sin nada marcado. Sacar también las capturas por defecto.
+
+**Prueba:** Headless: tests/run_all.gd -- test_session_export: find cuenta rutas (proyecto, otro usuario, /tmp), emails, sobres y capturas; todo sacado: proyecto relativo, ~, <path>, sin email, sin sobre (con aviso), sin secreto, sin capturas; nada sacado: estructura, sobre sin marcas, secreto igual fuera, captura enlazada, diff, tool calls plegadas; write; el diálogo (por defecto saca rutas/emails/afuera y deja capturas, vista previa filtrada, casillas con cuántos y cuáles, desmarcar cambia la vista, guarda lo que se vio). Editor: ui-handoff exporta la conversación del check desde el dock.
+
+**Notas:** Hecho en sm/m11-32 (72b4ed3).
+- session/session_export.gd: build, find, filter, write.
+- ui/dock/session_export_dialog.gd: casillas, vista previa, Guardar.
+- agent_dock: MORE_EXPORT en ⋯, open_export_dialog y export_context (proyecto, HOME/USERPROFILE, email de model.account, agent_log.redact).
+- Sale del modelo de la pestaña: el historial guarda las capturas como placeholder. Para exportar una sesión vieja hay que abrirla (sin capturas).
+- Fuera de alcance: el trailer Godot-Agent-Session en commits (opcional en la descripción).
+
+### Seguir al agente: el editor salta a cada archivo y nodo que toca (como Zed) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Zed: «Follow the agent as it reads and edits files by clicking the crosshair icon at the bottom left of the panel. Your editor will jump to each file the agent touches», y mantener cmd/ctrl al enviar sigue automáticamente (https://zed.dev/docs/ai/agent-panel). Hoy el harness ofrece «Abrir en Script» por tarjeta y las marcas de Revisar, pero mirar qué hace el agente mientras trabaja es manual. Propuesta: un toggle «Seguir» en el encabezado del dock (y Ctrl+Enter al enviar): con cada tool call de edición el editor abre el script en la línea del diff, selecciona el nodo de set_properties/create_scene en el árbol o enfoca la escena que corre; se apaga solo si el usuario toca otra cosa. Diferencial: en Godot «seguir» incluye el Scene Tree y el viewport, no solo archivos.
+
+**Decisiones:**
+- ! El apagado es por pestaña: un toggle en el header del dock, apagado al abrir cada pestaña, sin persistir y sin opción en Settings · sin revisar
+  Por qué: Seguir tiene sentido para una sesión que estás mirando; con varias pestañas, cada una decide. Apagado por defecto porque mover el editor sin pedirlo sorprende a quien no lo prendió.
+  Descartado: Una opción global en Settings; recordar el estado entre reinicios (por proyecto o por pestaña)
+- ! Con el usuario trabajando en el editor, el salto espera 2,5 s sin input y va al último cambio, en vez de apagar el seguimiento solo · sin revisar
+  Por qué: Lo pidió el coordinador: no robar el foco mientras se escribe o edita una escena. Si se apagara solo con cada clic, habría que volver a prenderlo todo el tiempo. Cuenta como trabajo un clic, una tecla o un arrastre fuera del dock, o el foco en un campo de texto fuera del dock. Si el foco estaba en el composer, vuelve ahí.
+  Descartado: Apagarlo solo cuando el usuario toca otra cosa, como proponía la idea original
+- ! Solo saltan las ediciones terminadas, no las lecturas ni los borrados, y por ahora no hay Ctrl+Enter ni enfoque de la escena que corre · sin revisar
+  Por qué: Saltar por cada lectura mueve el editor sin parar mientras el agente explora. Un archivo borrado no se puede abrir. El atajo y el foco del juego son extras que se pueden sumar después.
+  Descartado: Seguir también las lecturas, como Zed; Ctrl+Enter al enviar; enfocar la vista Game con run_scene
+
+**Prueba:** tests/unit/test_agent_follower.gd covers the targets per tool, that reads and deletes don't jump, waiting with the latest change pending, and cancel. In the editor, --godot-agent-sessions-test checks that the active tab with follow on opens the scene and selects the node, the other tab doesn't move anything, recent input makes it wait before jumping, and nothing happens when follow is off. A mutation run (follow disabled) makes all 4 checks fail. suite.sh ci passes 13/13 on 4.7.2.
+
+**Notas:** Branch sm/m11-33, commit 69a5b7b, from origin/main 46dc03e.
+- New file editor/agent_follower.gd. In plugin.gd, _follow_call is invoked from _on_tool_call_changed, after the replay check, and only acts on the active tab's model when that dock has follow_enabled. Switching tabs or turning follow off cancels the pending jump.
+- The FollowButton (CenterView icon, the crosshair) sits in the header before History.
+- Paths outside the project are not opened, for example from a separate copy.
+- Not done, possible follow-ups: Ctrl+Enter to follow on send, focusing the Game view during run_scene, and following reads.
+
+### Revisar los cambios del turno por trozo (keep/reject) y contador vivo de archivos (como Zed) · Revisión
+
+**Prioridad:** media · **Tamaño:** L · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Zed muestra durante el turno «which files, how many of them, and how many lines have been edited» en un acordeón arriba del composer, y «Review Changes» abre un multibuffer donde «You can accept or reject each individual change hunk, or the whole set of changes»; con agent.single_file_review los diffs aparecen en el propio archivo con los mismos controles (https://zed.dev/docs/ai/agent-panel). El harness tiene el diálogo de cambios del turno (m11-02) con diff y «Volver atrás» por archivo entero. Propuesta: (1) una línea plegable arriba del composer mientras el turno corre: «3 archivos · +42 −7 · Ver cambios»; (2) en el diálogo, keep/reject por trozo usando el snapshot del turno (git apply -R del hunk), y «Rechazar todo»; (3) opcional, las marcas del diff en el Script Editor con el mismo keep/reject, reusando las anotaciones de Revisar.
+
+**Prueba:** - Unitarios:
+  - test_turn_hunks: trozos, stale, deshacer, subcarpeta del repo, peek sin refs, serialización.
+  - test_turn_changes_hunks: conservar, rechazar, deshacer desde el chat, stale, sin guardar, reclamado por otra sesión, turno corriendo, copia aparte y escenas por nodo.
+  - test_scene_revert: ida y vuelta por cambio, todo rechazado da la escena de antes, texto idéntico al deshacer, stale, por unique_id.
+  - test_turn_counter.
+- edit-test:
+  - las guardas con el Script Editor y una escena abiertos de verdad;
+  - escena abierta y guardada, cambiada por las tools del agente: rechazar una propiedad deja el árbol con el valor de antes, sin «cambió en disco» y sin marcarla sin guardar; Deshacer la vuelve. Con la recarga desactivada a propósito, el check falla.
+- Capturas del diálogo de texto y del de escena.
+- suite.sh ci en verde en 4.7.2 en cada hito.
+
+**Notas:** Absorbe m11-57 dentro de la misma vista: para .tscn el diff por nodos (agregados, quitados, movidos, propiedades antes → después) reemplaza al diff de texto, y keep/reject por trozo se vuelve por nodo. La tool scene_diff para el agente sigue en m11-57.
+
+PLAN (2026-11-11, esperando el ok del coordinador; rama sm/m11-34 desde next3 f8b3205)
+
+1. Trozos y rechazo
+- Los trozos salen de git diff -U3 entre turn_start y turn_end. Ese diff es lo que hizo el turno. Ya están en data.start y data.end del aviso.
+- Rechazar un trozo:
+  - Se arma un parche con el encabezado del archivo y ese trozo solo.
+  - Se corre git apply -R --check sobre el archivo actual del worktree y, si pasa, git apply -R. Con -C de la raíz de los snapshots, sin --index: no toca el index del usuario.
+  - git apply busca el contexto con desplazamiento. Si el usuario o el agente editaron otra parte del archivo después, el trozo se revierte igual.
+  - Si cambiaron esas mismas líneas, el --check falla y no se pisa nada: el trozo queda como «cambió después del turno» y su Rechazar se deshabilita. El tooltip ofrece «Volver atrás» del archivo entero, el de hoy, que sí pisa y pide confirmación.
+- Conservar: es una marca, el archivo no cambia. Sirve para ver qué falta revisar.
+- Deshacer un rechazo: git apply hacia adelante del mismo trozo, también con --check. Es simétrico y tampoco pisa ediciones posteriores.
+- Rechazar todo en un archivo: aplica en reversa los trozos que pasan el --check e informa los que no.
+- Rechazar todo el turno: es el «Deshacer el turno» de hoy y no cambia.
+- El estado de cada trozo (keep, rejected o stale) vive en el data del aviso, en memoria. Los ids son ruta más índice del trozo en el diff start→end.
+- El --check se calcula al abrir el archivo en el diálogo.
+
+2. Editor abierto y undo
+- Un script abierto con cambios sin guardar (EditorSync.buffer_text no es null) no se toca. Rechazar queda deshabilitado con «guardá o descartá tus cambios en el editor». Si no, se perderían o habría conflicto.
+- Una escena abierta con cambios sin guardar, igual (get_unsaved_scenes).
+- Sin cambios pendientes, después de escribir se llama al after_restore de hoy (EditorSync.sync_path y recarga de la escena abierta), igual que «Volver atrás».
+- Ctrl+Z del editor: no cubre escrituras a disco, como hoy con «Volver atrás». El deshacer es el botón Deshacer del trozo en el diálogo, más un aviso en el chat que también ofrece Deshacer.
+- Al agente, como en restore(): note_for_agent con «el usuario rechazó N cambios en X: releelos antes de editarlos».
+- Durante un turno de otra sesión que tiene el archivo reclamado (SessionCoordinator.claim_label), Rechazar se bloquea con el nombre de esa sesión.
+
+3. Escenas (.tscn)
+- Por nodo, sobre el parse de m11-57:
+  - Rechazar una propiedad cambiada: vuelve esa línea de la sección del nodo a su valor de antes, o la borra si era el valor por defecto.
+  - Rechazar un nodo agregado: borra su sección, la de sus descendientes y las conexiones que los nombran.
+- Se edita el texto actual de la escena y se verifica antes: la sección del nodo se encuentra por unique_id o ruta, y la propiedad tiene que seguir con el valor de después. Si no, el cambio queda stale, igual que un trozo.
+- Fase 2, si el ok lo incluye: rechazar un nodo borrado o movido, propiedades con SubResource o ExtResource nuevos, y cambios de conexiones. Hasta entonces, para eso queda «Volver atrás» del archivo, con confirmación. Necesitan rearmar ext_resource y sub_resource con ids nuevos.
+
+4. Contador vivo
+- Una línea plegable arriba del composer mientras corre el turno: «3 archivos · +42 −7 · Ver cambios».
+- TurnSnapshots gana peek(session): write-tree con el index propio, sin commit, sin ref y sin prune, y git diff --numstat turn_start árbol. take() no sirve: sus refs y el prune podrían sacar a turn_start.
+- Se recalcula en un thread después de cada tool call de escritura terminada, a lo sumo cada 2 s, y una vez más al terminar el turno. Al terminar queda el resumen de hoy.
+- «Ver cambios» durante el turno abre el diálogo de solo lectura, porque el agente sigue escribiendo. Conservar y Rechazar se habilitan al terminar el turno.
+
+5. Copia aparte (m11-09)
+- Todo pasa por _snapshots_of(session): los snapshots de la copia y git apply -C en la raíz de la copia.
+- En la copia no hay nada abierto en el editor, así que no hay chequeo de buffers ni recarga, igual que restore() hoy.
+
+6. Fuera de esta tarea
+- Las marcas del diff en el Script Editor con keep/reject (punto 3 opcional de la idea): seguimiento aparte, reusando las anotaciones de Revisar.
+
+Tests
+- Unitarios sobre un repo git temporal, como test_turn_snapshots:
+  - un trozo se revierte con una edición posterior en otra parte del archivo;
+  - con una edición posterior en las mismas líneas, el trozo queda stale y el archivo no cambia;
+  - Deshacer re-aplica el trozo;
+  - rechazo por nodo en una .tscn;
+  - peek no crea refs.
+- Check de editor: script abierto sin y con cambios sin guardar, y escena abierta.
+
+**Bloquea a:** Rechazar por nodo en escenas, fase 2: nodos borrados o movidos, recursos nuevos y conexiones
+
+**Relacionadas:** Diff por nodos de las escenas en los cambios del turno
+
+### Traspaso entre sesiones: «Nueva sesión con resumen» cerca del límite de contexto y un archivo de traspaso (Zed + memory bank de Cline) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Zed: «New From Summary» en el menú de nuevo hilo «starts a fresh Zed Agent thread seeded with a summary of the current conversation», y un banner ofrece «Start New Thread» al acercarse al límite (https://zed.dev/docs/ai/agent-panel). Cline: el memory bank son archivos markdown del proyecto (projectbrief, activeContext, progress…) que el agente mantiene; antes de que el contexto se llene se pide «update memory bank», se abre otra conversación y se le dice «follow your custom instructions» (https://docs.cline.bot/best-practices/memory-bank). El harness ya tiene el anillo de contexto y, en One-shot, spec.md/progress.md con el prompt de resumen al reabrir; el chat normal no. Propuesta: cuando el anillo pasa un umbral (85 %), un aviso «El contexto se está llenando · Nueva sesión con resumen»: el harness pide al agente un traspaso corto (qué se hizo, qué falta, archivos tocados) y abre una sesión nueva con ese texto en el primer prompt; el mismo traspaso se guarda en .godot_agent/handoff.md y lo lee la próxima sesión del proyecto. Comando /handoff para hacerlo a mano.
+
+**Decisiones:**
+- ! Los traspasos se guardan en .godot_agent/handoffs/<fecha>-<sesión>.md, uno por traspaso, en lugar de un único handoff.md. La sesión vacía ofrece el más reciente, con «Ver otros» si hay más. El bloque de @session y la parte del traspaso que sale del historial van en un sobre no confiable (UntrustedText), marcados como contexto y no como instrucciones. · sin revisar
+  Por qué: Lo pidió agent-harness-81 al aprobar el plan. Con varias sesiones haciendo traspasos, un solo archivo se pisa. El último mensaje de otra sesión puede traer texto del juego o de una página.
+  Descartado: Un handoff.md único (se pisan); el bloque como texto plano.
+- ! El borrador se divide en dos: en el composer, editable, va el objetivo y el resumen del agente; los hechos del historial (SessionDigest: pedidos, último plan, archivos de las tool calls) van como chip de contexto «Traspaso: título» en un sobre UntrustedText y se ven en el chat como adjunto «@handoff · título». · sin revisar
+  Por qué: El usuario revisa el resumen antes de mandarlo, así que pasa a ser su mensaje. Los hechos salen del historial y tienen que ir marcados como contexto; con los marcadores del sobre metidos en el texto editable, el usuario podría romperlos sin darse cuenta.
+  Descartado: Todo en el composer con el sobre en el texto. El resumen del agente también en sobre.
+- ! Sin campo chico para el objetivo: el aviso, el «+» del dock, el clic en el porcentaje y el aviso de compactación piden el traspaso directamente. El objetivo opcional se escribe con /handoff &lt;objetivo&gt;. Los hechos del harness salen del historial (SessionDigest), no de TurnSnapshots/PlanStore. El porcentaje sigue en amarillo desde el 80 % (METER_SHOW_RATIO, como antes) y el aviso aparece al 85 %. · sin revisar
+  Por qué: Un clic menos en el caso común. El borrador es editable, así que el objetivo se puede agregar ahí. El historial existe para cualquier agente y para sesiones sin git, y reusa lo de @session.
+  Descartado: Un diálogo con el objetivo antes de pedir el resumen. Archivos cambiados según los snapshots de git.
+- ! La pestaña nueva del traspaso arranca la sesión enseguida, con el perfil que corre en la pestaña de origen (cuenta incluida, aunque no esté guardado en Ajustes) y su modo (salvo One-shot). Si el origen es una copia (worktree), la nueva abre en el proyecto del editor. «Nueva sesión con resumen de esta» va en el «+» del encabezado del dock, no en el «+» de la barra de pestañas. · sin revisar
+  Por qué: Queda lista para mandar el borrador. Antes se elegía el perfil por id, y con uno no guardado (el agente falso del check) arrancaba Claude Code de verdad. El «+» del dock ya tiene las opciones de sesión y pestaña.
+  Descartado: Pestaña sin arrancar hasta mandar. Heredar la copia. Agregarlo también al «+» de pestañas.
+
+**Prueba:** Headless: tests/run_all.gd -- handoff (test_handoff: prompt, borrador con y sin agente, sobre, nombres de archivo sin pisarse, guardar/listar el más nuevo primero, ContextWatch 85/60/✕/reset, detección de compactación, /handoff y el adjunto «@handoff · título»). Editor: tests/suite.sh run ui-handoff godot (agente falso: uso al 90 % → franja; tool call «Compact conversation» → aviso con acción; «Nueva sesión con resumen» → prompt etiquetado, pestaña nueva elegida, mismo agente y modo, resumen en el composer sin mandar, chip con los hechos en sobre, archivo en .godot_agent/handoffs; pestaña vacía ofrece el traspaso). Suite ci entera PASS (4.7.2).
+
+**Notas:** Hecho en sm/m11-35 (653f149 @session de m11-29; 0608d63 el traspaso). session/handoff.gd (prompt, build, save/list/parse), session/context_watch.gd, agent_dock (franja, aviso de compactación, oferta en la vista vacía, /handoff, chip CHIP_HANDOFF, request_handoff → handoff_ready), agent_plugin._open_handoff, composer (/handoff en el menú de / con sesión, clic en el porcentaje alto). Ver decisiones de la tarea (borrador partido en composer + chip; sin campo de objetivo; perfil que corre; «+» del dock).
+Arreglos de tests en el camino: handoff_check espera al escritor del historial (el editor abortaba con 134 al salir, ya en el hito 1); sessions_check suelta el foco de un TextEdit antes de probar seguir (si el editor reabre un script, el Script Editor queda con foco y seguir espera 15 s); dev plugin _finish espera GitCheckpoints.pending().
+Queda en m11-60: anunciar session.compaction y manejar compaction_update (is_compaction ya lo reconoce). Agentes sin usage_update (Antigravity) solo tienen la acción manual.
+
+**Relacionadas:** Mencionar otra sesión y seguir en una nueva con un traspaso
+
+### Memorias visibles y gestionables, y «/recordar» desde el chat (como Windsurf) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Windsurf/Devin: dos mecanismos de contexto persistente, «Memories, which can be automatically generated by Cascade, and rules, which are manually defined by the user»; las memorias se pueden pedir («create a memory of …») y se administran en un panel (Settings › Manage Memories), y las reglas tienen modos de activación always_on / glob / model_decision / manual (https://docs.devin.ai/desktop/cascade/memories, antes docs.windsurf.com/windsurf/cascade/memories). El harness ya guarda memoria de los playtests (notas, scripts, «no es un bug») y hechos del proyecto en CLAUDE.md/AGENTS.md, pero nada lo muestra junto ni se puede borrar una memoria suelta. Propuesta: pestaña «Memoria» en Extensiones con lo que el harness recuerda del proyecto (memoria de playtests, marcas «no es un bug», hechos generados), cada entrada con editar/borrar; y el comando /recordar «…» en el composer, que agrega una línea a la sección del harness en el archivo de instrucciones del agente activo. Reglas por glob (p. ej. solo al tocar *.tscn o shaders) como skills con frontmatter glob, a evaluar.
+
+**Decisiones:**
+- ! De las memorias propias de los agentes solo se leen las de Claude Code (solo los .md de projects/<ruta>/memory, al mostrar la pestaña Memoria). El ~/.gemini/GEMINI.md de Antigravity queda afuera, aunque el plan lo mostraba solo para leer: para otros agentes la pestaña dice que no se puede leer. Al mandar una memoria de Claude a la papelera, también se saca su renglón de MEMORY.md (escritura atómica). /remember sale siempre en el menú de /, y su nota para la sesión en curso va en sobre aunque la escribió el usuario. · sin revisar
+  Por qué: Por la condición de privacidad de agent-harness-81: leer lo menos posible de las carpetas de config, y el GEMINI.md global no es del proyecto ni está verificado cómo lo usa Antigravity. Sin sacar el renglón, MEMORY.md queda apuntando a un archivo que ya no está. El sobre lo pidió el coordinador.
+  Descartado: Mostrar GEMINI.md solo para leer. Dejar MEMORY.md como está. Nota sin sobre.
+
+**Prueba:** Headless: tests/run_all.gd -- project_memory (sección marcada: merge sin tocar el resto, quitarla sin renglones de más, remember/forget/replace sin duplicar; ruta de Claude por cuenta y slug; listar solo memory/*.md con el índice primero; papelera solo dentro de la carpeta y sin el índice, y el renglón sale de MEMORY.md; notas/«no es un bug»/scripts sueltos; /remember y /recordar; la nota en sobre; la pestaña: editar, borrar, confirmar antes de la papelera, sin leer la carpeta de Claude con otro agente). Editor: tests/suite.sh run ui-memory godot (agente falso: /recordar → AGENTS.md con aviso, no va al agente, el próximo prompt lleva la nota en sobre, Deshacer, «Ver memoria» abre la pestaña Memoria con el recuerdo y lo borra; deja el archivo como estaba). Suite ci PASS (4.7.2).
+
+**Notas:** Hecho en sm/m11-36 (566af65, desde origin/sm/next4). core/project_memory.gd (sección «Remembered by the harness» entre marcas; memorias de Claude Code: config dir de la cuenta, slug, listar, papelera); ui/extensions/memory_tab.gd (pestaña MEMORY, la 8.ª; se refresca solo a la vista); PlaytestMemory set_notes/unmark_not_a_bug/scripts/remove_script; dock /remember + /recordar (aviso con Deshacer y Ver memoria → plugin abre Extensions en Memory), SessionController.drop_note_for_agent; composer con /remember en el menú de /. PRIVACY.md/.es.md, wiki Settings (en/es) y CHANGELOG.
+Condiciones de agent-harness-81: solo memory/*.md de la carpeta de config y solo al abrir la pestaña; borrar → OS.move_to_trash con confirmación; texto que llega al agente en sobre; /remember es el comando y /recordar el alias. El plan anterior queda abajo como referencia.
+
+PLAN ORIGINAL
+1. Dónde viven: .godot_agent/playtests, handoffs, plans; CLAUDE.md/AGENTS.md/GEMINI.md; memorias de Claude Code en <config>/projects/<ruta>/memory (ACP no las expone; claude-agent-acp 0.106 solo manda tool calls memory_recall).
+2. Qué edita: lo suyo libre; en instrucciones solo la sección marcada; memorias del agente: leer y borrar.
+3. UI: pestaña Memoria y /remember.
+4. Reglas por glob: afuera (ya están en .claude/rules y .cursor/rules desde Instructions).
+
+**Relacionadas:** Instrucciones que se cargan según el archivo (reglas por ruta o tipo)
+
+### Señalar con un clic en la captura del juego: el nodo bajo el cursor como @mención (como Send element de Windsurf) · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Windsurf/Devin Previews: «click on the "Send element" button on the bottom right and then proceed to select the element you want to send. The selected element will be inserted into your current agent prompt as an @ mention», también para errores de consola (https://docs.devin.ai/desktop/previews, antes docs.windsurf.com/windsurf/previews). El harness ya muestra el juego corriendo en el chat (capturas de run_scene y capture_game_frame) y tiene @menciones de nodos; falta unir las dos cosas. Propuesta: un clic sobre una captura del juego (o un botón «Señalar» en la tarjeta) pide al probe de playtest el nodo visible en esa posición (CanvasItem/Control bajo el punto, o el Node3D por raycast) y escribe «@Path/Del/Nodo» en el composer con la captura y las coordenadas; igual en el viewport del editor con el nodo seleccionado (ya existe arrastrar desde el Scene Tree). Diferencial frente a todos los harness: señalar algo en el juego en marcha.
+
+**Decisiones:**
+- ! Alcance mínimo: «Señalar en el juego…» en el menú «+ contexto» del composer (con el juego corriendo con el probe). Abre la captura en vivo en el ImageViewer en modo señalar (clic sin arrastre → punto en [0,1]); el probe contesta con el op nuevo «point» (PointPick: Control visible que contiene el punto salvo que cubra ≥90 % de la pantalla; después mundo 2D por física (intersect_point) y, si no, Sprite2D/AnimatedSprite2D/Polygon2D/TileMapLayer por sus rects; después 3D por raycast de la cámara activa, solo con colisión; al final el Control de fondo). El dock escribe «@ruta » (relativa a la escena en marcha) en el caret y adjunta la captura con un círculo en el punto. Sin clic sobre las capturas viejas del chat ni sobre el viewport del editor (m11-54). · sin revisar
+  Por qué: Lo útil es señalar lo que se ve ahora; una captura vieja del chat puede no coincidir con el juego en marcha, y el viewport del editor ya tiene el arrastre del Scene Tree. La captura marcada le da al agente el contexto visual además de la ruta. MeshInstance3D sin colisión no se resuelve (haría falta un raycast por triángulos): se documenta.
+  Descartado: Clic directo sobre las miniaturas del chat (ambiguo cuando el juego cambió); una tool MCP para el agente (no la necesita: ya tiene game_find y game_ui); picking de MeshInstance3D sin colisión (caro para el mínimo).
+
+**Prueba:** run_all 547 tests 0 fallos (test_point_pick: botón bajo el punto, botón oculto no se señala, el fondo a pantalla completa no tapa un Sprite2D, Polygon2D por su polígono, vacío → fondo, con Camera2D el centro es el sprite). acp_session_check 203/0. En Xvfb, run-test 0 fallas con los checks nuevos sobre playtest_game: point_at en el botón Start del HUD → HUD/Menu/Start (control), en el 92 % de alto del centro → Floor (3d, raycast), en el cielo → «Nothing under that point»; y el camino del dock: _on_game_point_picked deja «@HUD/Menu/Start » en el composer y adjunta la captura marcada (círculo con punto central). Una corrida con acp_session_check en paralelo falló en un check viejo de game_script (soltar ui_right tras un timeout): repetida sola, verde.
+
+**Notas:** Rama sm/m11-37 desde sm/next2 (322ebb2), commit ver git log (m11-37). playtest/runtime/point_pick.gd (lado del juego, sin EditorInterface): Control visible que contiene el punto (último en orden de dibujo, salvo fondos ≥ 90 % del viewport) → 2D por intersect_point y, si no, Sprite2D/AnimatedSprite2D/Polygon2D/TileMapLayer por sus rects con get_global_transform_with_canvas → 3D por intersect_ray desde la cámara activa → el fondo. Probe: op «point» {u, v}. RunTools.point_at(uv). ImageViewer.pick(image, title, near, on_pick): modo señalar (cursor cruz, clic sin arrastre → uv, Cancelar). Composer.insert_mention(path). AgentDock: ADD_CONTEXT_POINT «Señalar en el juego…» (deshabilitado sin juego), _point_in_game/_on_game_point_picked, mark_point (círculo del acento). plugin: dock.game_point = _point_game_for_dock (pide el probe como la captura). es.po y CHANGELOG Added. Fuera de alcance (documentado en la decisión): clic sobre capturas viejas del chat, viewport del editor (m11-54), MeshInstance3D sin colisión.
+
+**Relacionadas:** «Preguntar al agente» desde el menú contextual del editor
+
+### Modelo por modo del harness (sticky), como Plan/Act de Cline y los modos de Roo · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Cline: «Enable "Use different models for Plan and Act"… switching modes automatically switches to that mode's model» y recomienda un modelo de razonamiento para planear y uno rápido para implementar (https://docs.cline.bot/core-workflows/plan-and-act). Roo: cada modo tiene «Sticky Models», recuerda el último modelo usado con ese modo y vuelve a él al cambiar (https://roocodeinc.github.io/Roo-Code/features/custom-modes). El harness tiene Preguntar/Revisar/Construir/One-shot/Auto y un selector de modelo por sesión, pero cambiar de modo no cambia el modelo. Propuesta: recordar el modelo elegido por modo y por agente (ajuste del proyecto): al pasar a Preguntar o Revisar se elige el que se usó la última vez ahí (p. ej. Opus) y al volver a Construir el rápido; un aviso de una línea la primera vez («Construir usa Sonnet · cambiar»).
+
+**Decisiones:**
+- ! El modelo por modo es un ajuste del usuario por perfil de agente (agents/models_by_mode), no del proyecto · sin revisar
+  Por qué: Los modelos dependen de la cuenta y del plan de cada uno: un proyecto compartido no puede imponer modelos que tu cuenta quizás no tiene. Aprobado por el coordinador. One-shot es un modo más de la tabla.
+  Descartado: project_config.tres (lo que decía la tarea); un modelo para el evaluador y otro para el constructor de One-shot (queda para después)
+
+**Prueba:** - Unit: tests/unit/test_mode_models.gd (7 tests). Cubren la tienda (por perfil y por modo, One-shot incluido, olvidar), la opción por category o id, que el modelo sale antes que el modo, que elegir recuerda y el cambio automático no, el aviso una vez, el valor que ya no está, el agente sin la opción y «Aprobar y construir» sin set_mode. test_settings_dialog.test_mode_models cubre las filas, «Olvidar» y el hint.
+- Editor (Xvfb): check plan con la configOption model en plan_mode.json y una tienda en memoria. Al abrir en Construir pide Sonnet, con el aviso y «Change», que abre el selector. Preguntar pide Opus antes del set_mode plan y lo dice el tooltip. «Aprobar y construir» pide Sonnet en medio del turno. Elegir Haiku en el selector queda recordado.
+- Probe ACP contra claude-agent-acp 0.106: el modelo cambia en medio de un turno.
+- Hallazgo en 4.8-beta2: con el selector visible, cambiar de modo dejaba _fit_row del composer alternando entre los niveles 0 y 6 sin fin (el ancho se mide antes de que la fila se reacomode). La cola de mensajes se llenaba y el editor se caía. Arreglado en 046f195: no se deshace el último cambio de compactación dentro de 250 ms. plan, remote y ui-basic pasan en 4.7.2 y 4.8-beta2.
+- tests/suite.sh ci: 19/19 PASS en 4.7.2. CI 43122914975 en verde (4.7.2 y 4.8-beta2).
+
+**Notas:** Absorbe m11-27 (architect/editor de Aider: planear con un modelo y construir con otro; acá sale de recordar el modelo por modo, sin dos pedidos por cambio). Relacionada con m11-39: un modo personalizado lleva su modelo, que usa este mismo mecanismo.
+
+CÓMO QUEDÓ (sm/m11-27: 6f3f82c núcleo, af9dc60 check de editor). Plan aprobado: ajuste del usuario por perfil (decisión registrada) y One-shot es un modo más.
+
+ACP
+- claude-agent-acp 0.106: el modelo es la configOption {id:"model", category:"model"} y se cambia con session/set_config_option. No tiene session/set_model. ModeModels.model_option busca por category "model" y si no hay, por id "model"; SessionModel.model_option() la usa, y también el dock y _current_model_name.
+- Probe ACP contra 0.106 (scratchpad, sin fixture): set_config_option model en medio de un turno → ok, y el prompt siguiente corrió con claude-haiku-5-5. Por eso «Aprobar y construir» pide el modelo de Construir enseguida y no al terminar el turno.
+
+Tienda
+- core/mode_models.gd. HarnessSettings agents/models_by_mode = {perfil: {ask|review|build|oneshot|auto: {value, name}}}. name es el nombre que mostraba el agente, para Settings.
+
+Controller
+- choose_model(value): lo que el dock manda desde el selector; se aplica y se recuerda para el modo actual y el perfil.
+- _sync_mode_model(): pide el recordado si hay uno, el agente lo ofrece y no es el actual. Suma a _mode_syncs_running, así el prompt lo espera igual que a un set_mode.
+  - _on_harness_mode_changed lo llama antes de _sync_agent_mode, y también con _skip_mode_sync («Aprobar y construir»).
+  - _open_session y _load_session lo esperan antes de READY.
+- Un valor que el agente ya no ofrece no se manda: aviso WARNING una vez por pestaña y valor; queda guardado.
+- El cambio automático no se recuerda. El aviso «<Modo> uses <Modelo>.» con «Change» (ACTION_CHOOSE_MODEL abre el selector) sale una vez por pestaña; después solo el log.
+- model_tooltip(): «Remembered for X…» si el actual es el recordado, si no «The one you pick is remembered for X».
+
+UI
+- Composer: set_model_option(option, tooltip) y open_model_selector().
+- Settings › Agentes: en el formulario del perfil, «Model by mode» con una fila por modo recordado y «Forget», que se aplica al guardar (_apply_model_forgets). Sin nada recordado, un hint que explica que se elige en el composer.
+
+Cambio respecto del plan: Settings no dice «este agente no deja elegir el modelo», porque sin sesión no se sabe. El hint dice que los agentes sin selector no lo muestran; en el dock, sin la opción no hay selector ni se manda nada.
+
+No se recuerda un /model escrito como prompt (el adapter lo informa con config_option_update): solo cuenta la elección en el selector.
+
+Queda para después (coordinador): modelos distintos para el evaluador y el constructor de One-shot.
+
+**Relacionadas:** Modelo por modo: planificar con uno y construir con otro; Modos personalizados del proyecto: rol, permisos, archivos permitidos e instrucciones (como Roo Code)
+
+### Modos personalizados del proyecto: rol, permisos, archivos permitidos e instrucciones (como Roo Code) · Pendiente
+
+**Prioridad:** media · **Tamaño:** L · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Roo Code: modos personalizados globales o del proyecto (.roomodes, YAML) con slug, name, roleDefinition («placed at the start of the system prompt»), whenToUse, customInstructions, groups (read/edit/command/mcp) y fileRegex en edit para «restrict which files the mode can edit», reglas por modo en .roo/rules-{slug}/, exportar/importar en un YAML, y el agente puede proponer cambiar de modo con switch_mode guiado por whenToUse (https://roocodeinc.github.io/Roo-Code/features/custom-modes). El harness tiene cinco modos fijos con la matriz de permisos y las reglas de shell. Propuesta: modos del proyecto en project_config.tres: nombre, modo base (de dónde salen los permisos), instrucciones propias (van al system prompt), patrones de archivos que puede editar (p. ej. solo res://levels/**), modelo, y una línea «cuándo usarlo»; aparecen en el selector de modo del composer y en One-shot. Casos: «Diseño de niveles» (solo escenas de niveles), «Shaders», «Solo tests». Segunda parte: tool godot.request_mode para que el agente proponga el cambio con una tarjeta, como «Arreglar en modo Construir».
+
+**Relacionadas:** Modelo por modo del harness (sticky), como Plan/Act de Cline y los modos de Roo
+
+### Avisar fuera del editor cuando el agente termina o espera (sonido o notificación), y «Steer» para la cola (como Zed) · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
+
+Idea de la investigación de UX (2026-11-10). Zed: «If you put Zed in the background after sending a prompt, you can get a desktop notification or a sound when generation finishes» (agent.notify_when_agent_waiting, agent.play_sound_when_agent_done), y los mensajes enviados durante un turno se encolan; «Toggle "Steer" on a queued message to interrupt the Zed Agent at its next step», o «Send Now» para interrumpir ya (https://zed.dev/docs/ai/agent-panel). El harness ya encola con Enter y tiene «Enviar ahora» y toasts dentro del editor (m11-03), pero con el editor en segundo plano un turno largo o una tarjeta de permiso pasan desapercibidos. Propuesta: ajuste «Avisar cuando el editor no tiene el foco»: un sonido corto del editor al terminar el turno o al pedir permiso, y el título de la ventana con «● Agent» mientras espera (Godot no tiene notificaciones nativas del sistema; evaluar notify-send/osascript/PowerShell como opcional). «Steer»: un mensaje en cola marcado para cortar en el próximo tool call (cancel + reenvío con el texto, dejando claro al agente que es una corrección, no un turno nuevo).
+
+**Decisiones:**
+- ! Aviso fuera del editor prendido por defecto (ajuste de usuario ui/notify_when_unfocused). Solo con la ventana del editor sin foco, al terminar un turno (no si se canceló) y al esperar un permiso o una respuesta (una vez por espera): DisplayServer.window_request_attention() siempre, más una notificación del sistema con notify-send en Linux (si está en PATH) y osascript en macOS. En Windows solo la atención de la ventana. Sin sonido propio, sin «● Agent» en el título y sin «Steer» en esta tarea. · sin revisar
+  Por qué: Solo actúa cuando el editor está en segundo plano, que es justamente cuando un turno largo o una tarjeta de permiso pasan desapercibidos; apagado por defecto nadie lo descubriría. Godot no trae sonidos del editor y agregar un .wav sería un asset nuevo; notify-send suele sonar con el tema del escritorio. Un toast de PowerShell en Windows es frágil (AppID, políticas). El título de la ventana lo maneja el editor y lo pisa. Steer no lo pidió el coordinador: queda para otra tarea.
+  Descartado: Apagado por defecto; un sonido propio (.wav en el addon); toast de PowerShell en Windows; marcar el título de la ventana; avisar también con el editor enfocado.
+
+**Prueba:** test_session_tabs::test_notifies_outside_when_unfocused (fin de turno avisa; cancelado no; espera una vez; con foco o ajuste apagado nada; comando de macOS con comillas escapadas, Windows sin comando). suite.sh ci PASS en 4.7.2; CI verde en 4.7.2, 4.8-beta2 y C# (run 43090229553).
+
+**Notas:** sm/m11-40 cc42f95 (desde origin/sm/next4). editor/desktop_notifier.gd (DisplayServer.window_is_focused + window_request_attention; notify-send buscado en PATH una vez; osascript en macOS). Lo llama SessionTabs (turn_finished, permission_requested, elicitation_requested) con notify_outside_enabled = HarnessSettings.notify_when_unfocused. Casilla en Ajustes › avanzado, junto a «Arreglar con el agente»; documentado en Settings en/es y CHANGELOG. Queda afuera: «Steer» de la cola, sonido propio y el título de la ventana (ver decisión 1).
+
+**Relacionadas:** Avisar cuando una sesión en segundo plano necesita al usuario
+
+### Regresiones: mutaciones automáticas para medir si detectan algo · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`, `playtest`
+
+De dónde: Beckett v1.16, op=mutate («puts one fault at a time into a restarted scene»: una propiedad a 0, una conexión de señal cortada) y cuenta cuántas fallas atrapa la suite (https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1695575/beckett-v1160-strict-at-the-door-honest-in-the-answer). Cómo se adapta: hoy m16-09 controla con un sabotaje escrito a mano solo en la suite; el agente no escribe sabotajes. Una acción «Medir regresiones» corre cada regresión guardada contra N mutaciones generadas por el harness sobre los nodos que el script toca (game_set a 0/null/false de propiedades exportadas, desconectar señales, ocultar nodos), una por run, y reporta cuáles no detectó ninguna regresión. Por qué: una regresión que pasa siempre da falsa confianza (la nota de m16-06), y esto lo mide sin pedirle nada al agente. Reusar PlaytestRegressions.detects y regression_cli.
+
+**Decisiones:**
+- ! Cada mutante corre todas las regresiones; el guard de guardado devuelve OK sin escribir; un mutante que cuelga el juego cuenta como detectado. · sin revisar
+  Por qué: Cortar en la primera regresión que atrapa es más rápido pero deja el «atrapó N» por regresión mal contado. Si el saver devuelve error, ResourceSaver prueba el siguiente saver y el archivo se escribe igual. Un cuelgue es algo que la regresión nota (timeout).
+  Descartado: Cortar en la primera regresión (≈2× más rápido); devolver ERR_UNAUTHORIZED; contar los timeouts aparte sin sumar.
+
+**Prueba:** tests/unit/test_mutation.gd (operadores, lo que no se muta, apply, muestra pareja y determinista, scripts de una escena, puntaje, el guard no escribe, aviso), test_review_panel.test_measure_button_requests_a_measurement, tests/regressions_cli_check.sh (--mutate=6 con puntaje y sobrevivientes, --min-score=100 sale 1, hash de .gd/.tscn igual antes y después, un mutante que guarda sale 4 sin dejar archivo). Commit 3353995.
+
+**Notas:** Hecho en 3353995 (sm/m11-41). Mutación en memoria: source_code + reload(true) en el GDScript cacheado, un Godot headless por mutante; SaveGuard intercepta cualquier guardado, no escribe y sale con 4. Cada mutante corre todas las regresiones (no corta en la primera que lo atrapa) para que «atrapó N» por regresión sea exacto. En el fixture: 20 mutantes ≈ 1 min. UI: «Medir regresiones» en el panel de revisión, aviso de progreso con Cancelar que pasa a ser el resultado (puntaje, no detectados con Abrir path:line, por regresión); res://.godot_agent/playtests/mutation.json. CLI: --mutate[=N] --min-score=P. Fase 2 (sabotajes de escena) en m11-62.
+
+### Regresiones: repetir N veces y marcar las inestables · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`, `playtest`
+
+De dónde: Beckett v1.16, op=repeat corre una suite n veces, informa pass^k (true solo si pasaron todas) y ordena los pasos que cambiaron entre corridas (https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1695575/beckett-v1160-strict-at-the-door-honest-in-the-answer). Cómo se adapta: `repeat` en run_regression y en regression_cli (--repeat=N), y al guardar una regresión del agente correrla 3 veces antes de aceptarla; una que alterna pass/fail se marca «inestable» en el panel y no se escribe al workflow de CI sin confirmar. Por qué: una regresión que depende del framerate o del azar rompe el CI del usuario sin bug real; hoy no hay forma de verlo.
+
+**Decisiones:**
+- ! No se corre automáticamente 3 veces cada regresión que guarda un playtest del agente; las inestables se detectan al repetir a mano (×N en el panel, godot.run_regressions con repeat) · sin revisar
+  Por qué: Correr el juego 3 veces en el editor justo después de cada playtest ocupa el editor (y el juego) del usuario sin que lo pida; el agente puede llamar run_regressions con repeat cuando quiera confirmar que una es estable
+  Descartado: Correrla 3 veces antes de aceptarla, como proponía la descripción
+- ! Una inestable no hace fallar la corrida del CLI (ni la del workflow) salvo con --fail-on-flaky; una marcada inestable en el editor que falla la única vez que corre también cuenta como inestable. La que falla todas las corridas sí falla · sin revisar
+  Por qué: Pedido: que una inestable no rompa el CI salvo que se pida. Con la marca guardada, el CI de una sola corrida no se rompe en cada push por una que ya se sabe inestable
+  Descartado: Excluir las inestables del workflow hasta confirmar (como decía la descripción); que fallen siempre
+- ! La cuenta (pasó k de N) se guarda en el JSON de la regresión (campo runs) solo con 2 o más corridas; pasar todas en una repetición posterior la desmarca · sin revisar
+  Por qué: Con una corrida no se sabe si es inestable; el JSON ya es lo que comparten el panel, la tool, el CLI y el CI
+  Descartado: Guardarla en la memoria de playtest o en la config del editor (el CI no la vería)
+- ! «Correr regresiones» tiene al lado una casilla ×N (1 a 20, empieza en 1) en lugar de un botón aparte para repetir · sin revisar
+  Por qué: Un solo botón y un número; el máximo de 20 evita dejar el editor ocupado por accidente
+  Descartado: Botón «Correr ×3»; menú con 3/5/10; un ajuste en Settings
+- ! Reemplaza la segunda decisión (revisión de agent-harness-50): con una sola corrida, una marcada inestable que falla se reintenta hasta 3 veces en total; es inestable si pasa alguna y falla si fallan las 3 · sin revisar
+  Por qué: Contarla como inestable solo por la marca dejaba tapada para siempre, con el CI por defecto (una corrida), una inestable que se rompió de verdad
+  Descartado: Contar la marcada que falla como inestable (la versión de 4c22155); ignorar la marca
+
+**Prueba:** Sobre cd5901d, en 4.7.2: run_all 530/0, con el test nuevo test_regression_repeat: pass^k; inestable con su cuenta; una marcada que falla se reintenta hasta 3 y no queda tapada (retry_marked); resumen con fail_on_flaky y traducido; record_runs marca y desmarca en el JSON; opciones del CLI; workflow con --repeat/--fail-on-flaky; el panel muestra «(2 · 1 flaky)», las nombra en el tooltip y manda el ×N. tests/regressions_cli_check.sh bien: además de los 4 casos de antes, pass con --repeat=3 (passed 3 of 3); flaky (fixture que alterna con Engine meta) da FLAKY 2 de 3 y sale con 0, y con 1 si se agrega --fail-on-flaky; marked (marcada, falla siempre) da FAIL 0 de 3 y sale con 1; recovers (marcada, falla la primera y después pasa) da FLAKY 1 de 2 y sale con 0; --repeat=0 sale con 2. run-test en Xvfb pasa en en y es: desde el panel, ×2 dice «basket is full (pasó 0 de 2)» y guarda en cada JSON 0/2 y 2/2; godot.run_regressions con repeat 2 y goal «START» da «PASS start works (passed 2 of 2)» sin la otra, y el juego queda cerrado. Después de 6d14a4b, una corrida falló una vez en otro check (game_input text en el LineEdit) y pasó en las 2 siguientes: parece inestable y ajeno a esta tarea.
+
+**Notas:** Commits 4c22155 y 6d14a4b en sm/m11-42 (desde cd5901d). PlaytestRegressions: tally (pass^k, inestable, primera salida que falló), is_flaky, retry_marked, record_runs (campo runs {passed, total, at} en el JSON, solo con 2 o más corridas), flaky_count, y summary(results, fail_on_flaky, translate). retry_marked (6d14a4b): con repeat 1, una marcada inestable que falla se reintenta hasta 3 corridas; es inestable si pasa alguna y falla si no. RunTools.run_saved_regressions es el lazo que comparten el panel y la tool nueva godot.run_regressions (repeat de 1 a 20, goal para filtrar). La tool corre de a una: regressions_running reemplaza el flag que tenía el plugin. Con un juego en marcha da error, y entre sesiones pasa por la cola del juego como run_scene. Panel: casilla ×N al lado de «Correr regresiones» y «(N · K inestables)» con las inestables en el tooltip. regression_cli.gd: --repeat=N y --fail-on-flaky; el sabotaje se prueba una vez. RegressionsWorkflow.write/workflow_text aceptan repeat y fail_on_flaky (la tool write_regressions_workflow también). El botón «Workflow de CI…» del panel escribe como antes (sin repetir). Wiki en y es (Review/Revisar, Editor tools/Herramientas del editor) y CHANGELOG › Added. Lo que queda afuera está en las decisiones: no se corre 3 veces al guardar una regresión del agente.
+
+### game_monitors: monitores de Performance y nodos huérfanos del juego · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`, `performance`
+
+De dónde: Roblox Scene Analysis skill (hotspots de render y memoria, instancias sin padre filtradas: https://devforum.roblox.com/t/new-studio-testing-apis-and-assistant-improvements/4657854), performance_audit de flopperam (https://github.com/flopperam/unreal-engine-mcp), toolset Perf del MCP de Unreal 5.8 (https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-mcp-in-unreal-editor), manage_profiler de MCP for Unity con contadores y memoria (https://coplaydev.github.io/unity-mcp/reference/tools). Cómo se adapta: una tool live game_monitors que lee del probe Performance.get_monitor (fps, frame time, process/physics time, draw calls, objetos, nodos, memoria estática y de video) como muestras durante una ventana (min/media/p95/max) y la cantidad y lista de nodos huérfanos (Node.get_orphan_node_ids en 4.x debug, verificar disponibilidad en 4.7/4.8). Por qué: profile_run solo ve GDScript; un juego lento por draw calls, física o fugas de nodos no aparece ahí.
+
+**Decisiones:**
+- ! De TIME_PROCESS y TIME_PHYSICS_PROCESS se informa solo el máximo («el frame más lento de cada segundo»); el tiempo de frame (promedio, p95, máximo) se mide entre frames · sin revisar
+  Por qué: Godot actualiza esos dos monitores una vez por segundo con el máximo de ese segundo: un promedio daba 7 ms con frames de 1,8 ms. Medir entre process_frame da el tiempo real de cada frame
+  Descartado: Promedio y máximo de los monitores tal cual; TIME_FPS (también un promedio por segundo)
+- ! Los huérfanos se listan agrupados por nombre, clase y script (los 20 grupos más grandes, ×N), y el resto de los monitores se muestran como principio → final con la diferencia · sin revisar
+  Por qué: Una fuga típica son cientos del mismo nodo (balas, efectos): agrupados se ven en una línea; la diferencia de principio a fin muestra si la cuenta crece
+  Descartado: Lista plana por id; solo la cuenta
+
+**Prueba:** En 4.7.2: run_all 526/0, con el test nuevo test_game_monitors: stats con p95; informe de 5 frames con tiempos, conteos de principio a fin y huérfanos agrupados («LeakedBullet (Node) ×5»); sin lista con orphans false; clase y script de un huérfano, que desaparece al liberarlo; formato de las diferencias (+N, -N, MB). Pasa también en 4.8-beta2. run-test en Xvfb (4.7.2 en y es, 4.8-beta2): game_monitors en el juego de playtest da tiempos, conteos y lista «ProbeLeak (Node2D)», un nodo que dejó huérfano un game_script; con orphans false no la lista; run_scene con monitors trae «Performance during the run: Sampled …»; con un juego que termina solo dice que no se pudieron leer. Los checks nuevos pasan siempre. Las corridas que fallaron lo hicieron solo en «game_input text», que también falla en una base sin cambios (m13-30); la última de 4.7.2 en en pasó entera.
+
+**Notas:** Commit 7d93675 en sm/m11-43 (desde cd5901d). Runtime nuevo playtest/runtime/monitors.gd (sin código de editor). Toma una muestra por frame: el tiempo de frame se mide entre process_frame (promedio, p95, máximo); de TIME_PROCESS y TIME_PHYSICS_PROCESS solo el máximo (Godot los actualiza una vez por segundo con el más lento); draw calls, objetos y primitivas dibujados, cuerpos de física despiertos y pares de colisión 2D/3D (promedio y máximo; los que dan 0 no aparecen). Nodos, huérfanos, objetos, recursos y memoria estática y de video van de principio a final con la diferencia; la memoria de video se omite si da 0 (headless). Los huérfanos salen de Node.get_orphan_node_ids() (está en 4.7.2 y 4.8-beta2/3; solo en builds de debug), agrupados por nombre, clase y script, los 20 grupos más grandes. La probe tiene tres operaciones nuevas: monitors (una ventana, con steps opcionales), monitors_start y monitors_stop. La tool godot.game_monitors (seconds hasta 30, orphans, steps) está en GAME_TOOLS: extendida, con la guarda del juego entre sesiones, repetible en el detector de loops y con título en el dock (es: «Medir el rendimiento del juego»). run_scene acepta monitors: true: muestrea toda la corrida y agrega «Performance during the run:»; si el juego terminó o se frenó en el debugger, lo dice. Prompt de sistema: se nombra junto a game_watch/game_frames. Wiki en y es (Editor tools/Herramientas del editor) y CHANGELOG › Added. Encontré que el check «game_input text: escribe en el LineEdit» de run-test es inestable también sin estos cambios (m13-30).
+
+**Bloquea a:** Invariantes por frame y presupuestos de rendimiento en las regresiones
+
+### Invariantes por frame y presupuestos de rendimiento en las regresiones · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`, `playtest`, `performance`
+
+De dónde: Beckett v1.9 (perf asserts y baselines, p. ej. frame_ms_p95 max 16.7: https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1585432/godot-mcp-beckett-v19-the-ai-measures-your-game-perf-asserts-baselines-and-a-locked-down-channel) y v1.16 (invariantes «checked on every physics frame»: https://beckettlabs.itch.io/beckett-godot-mcp/devlog/1695575/beckett-v1160-strict-at-the-door-honest-in-the-answer). Cómo se adapta: una regresión guardada suma `invariants` (expresiones que el probe evalúa en cada physics frame, fallan con el frame y el valor) y `budgets` (frame_ms p95, draw calls, nodos huérfanos al final) con una línea base que se guarda en el primer run verde y se compara con tolerancia; usa game_monitors. Por qué: las regresiones de hoy solo miden el final del script; un objeto que atraviesa una pared un frame o un juego que se volvió el doble de lento pasan.
+
+**Decisiones:**
+- ! La base de los presupuestos va por máquina (runner + procesador) dentro del JSON de la regresión, solo para métricas sin límite escrito, y no se pisa una vez guardada. · sin revisar
+  Por qué: Así «2.1× la base de esta máquina» es literal: cada PC o CI compara contra la suya. Con límite escrito no hace falta base y no se ensucia el JSON versionado. No pisarla mantiene la base de cuando andaba bien.
+  Descartado: Una sola base compartida (comparaciones entre máquinas distintas); guardar todas las métricas medidas; actualizar la base en cada run verde (la deriva se volvería invisible).
+- ! Revisión del coordinador: base de conteo única en el JSON de la regresión; base de tiempo por máquina en user://godot_agent/regression_time_baselines.json («regresión|runner»). Reemplaza la base por máquina en el JSON. · sin revisar
+  Por qué: El JSON se versiona: con una base por máquina, cada PC sumaba su entrada (ruido y conflictos en git) y el nombre del procesador quedaba en el repo. Los conteos son deterministas; los tiempos solo avisan, así que perderlos en un CI limpio no importa.
+  Descartado: Base por máquina dentro del JSON (lo que había antes).
+
+**Prueba:** tests/unit/test_regression_checks.gd (invariante roto una vez con frame y valor, null cuenta como roto, finish desconecta; judge: límite, mutante, base de tiempo solo avisa con «2.1× this machine's baseline», conteo sobre base falla, base 0, sin base, headless; declaración y línea de medido; passed() con violaciones; record_baselines por máquina sin pisar; kill_reason y «caught 2 (1 by invariants or budgets)»). tests/regressions_cli_check.sh: la regresión del fixture invariants pasa, el mutante « + »→« - » de mover.gd la hace fallar con killed_how invariant, y la base de nodes_max se guarda en el primer run verde y no con --no-baselines. Commit d62bd54.
+
+**Notas:** Hecho en sm/m11-44 (d62bd54 + 475f15d + ff5376c). Con el plan aprobado: un presupuesto de tiempo sin límite solo avisa. Hacen fallar los invariantes, cualquier presupuesto con límite escrito, y los de conteo (nodes_max, orphans_end, draw_calls_max) por encima de su base ×1.25.
+Bases, según la revisión:
+- Conteo: una sola base compartida, en el campo `baselines` del JSON de la regresión ({métrica: valor}).
+- Tiempo: base de esta máquina en user://godot_agent/regression_time_baselines.json, con clave «<archivo>|<runner>» (headless/window). Queda fuera del repo y sin el nombre del procesador.
+- Ninguna se pisa.
+- A la probe le llegan {counts, times: {runner: {...}}} vía PlaytestRegressions.baselines_for.
+La lógica está en playtest/runtime/regression_checks.gd y ScriptKit delega. Bajo --mutant los presupuestos de tiempo avisan y no matan, y la medición pasa --no-baselines. Mutación: killed_how y by_checks. Docs en la descripción de game_script.
+
+**Bloqueada por:** game_monitors: monitores de Performance y nodos huérfanos del juego
+
+### Texto del juego y de archivos en sobres marcados como no confiables · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`, `security`
+
+De dónde: Godot MCP Toolkit (NPGameDev) envuelve lo que devuelve el editor en «per-call nonce-tagged envelopes, which mitigates prompt injection from file contents» (https://github.com/NPGameDev/godot-mcp-toolkit). Cómo se adapta: hoy m15-01 solo pide en el prompt tratar textos y logs del juego como datos. Envolver en <untrusted nonce="…">…</untrusted nonce="…"> (nonce por llamada, que el texto no puede adivinar para cerrar el sobre) lo que viene de afuera del harness: textos de game_ui, game_get de strings, Output del juego, errores con mensajes del usuario, get_resource/scene_tree con strings, @output; y una línea en el prompt de sistema que lo explique. Por qué: un juego o un asset de la Asset Store puede traer texto que le hable al agente; con permisos en Auto eso es un riesgo real. Medir que no rompa el parseo de los prompts de playtest.
+
+**Decisiones:**
+- ! Sobres con un marcador por proceso que el registry reemplaza por un nonce nuevo por llamada. Las tools del juego, get_errors y run_scene envuelven las partes que vienen de afuera; scene_tree, get_node, get_resource, animation_get, asset_search, asset_details y addons_list van enteras. class_info/search_api, project_info, list_files, sessions, la salida de build/test_extension y las líneas Detector quedan fuera. · sin revisar
+  Por qué: El nonce tiene que ser por llamada, pero las tools arman el texto lejos del registry y pueden correr a la vez: un marcador al azar por proceso, que el texto no puede traer, se resuelve en un solo lugar (call_tool / run_for_user). Además se escapa cualquier «<untrusted» del texto. Envolver resultados enteros en las tools de pura lectura de datos evita tocar cada formateador. En las tools mixtas solo va en sobre lo de afuera, así las indicaciones del harness siguen siendo indicaciones. Las líneas Detector las relee ReviewStore. La documentación de clases es mayormente del motor, y los nombres de archivo o de proyecto tienen poco espacio para inyectar. Los errores del propio script del agente también van en sobre: no se pueden distinguir de los del juego por la fuente, y siguen siendo datos a revisar.
+  Descartado: Envolver cada string dentro del JSON (mucho ruido); un nonce global por sesión (adivinable si se filtra); envolver todos los resultados de todas las tools (las instrucciones del harness pasarían a ser datos); agregar también class_info y la salida del compilador nativo.
+
+**Prueba:** Unit tests:
+- run_all 4.7.2: 550 tests / 4318 checks, 0 fallos. En una primera corrida test_composer falló de forma intermitente; solo pasa, y la corrida siguiente salió entera en 0.
+- untrusted, tool_registry, run_error_watcher y review_store también pasan en 4.8-beta2.
+
+Xvfb 4.7.2: mcp-test, run-test y run-error-test con 0 fallas.
+
+test_untrusted_text (nuevo):
+- wrap/seal, con las etiquetas del texto escapadas en mayúsculas y con espacios, y el marcador inalcanzable;
+- strip;
+- close_cut (sobre cortado, etiqueta a medias);
+- el registry pone un nonce nuevo por llamada:
+  - ENVELOPE_ALL envuelve todo;
+  - PARTS solo lo de afuera;
+  - una tool sin sobres y los errores del harness quedan igual;
+  - la nota va en la descripción;
+  - run_for_user también sella;
+- el tope de caracteres cierra el sobre antes del aviso de truncado;
+- el aviso de errores nuevos lleva el mensaje en un sobre;
+- la auditoría del playtest ignora un «Detector …» y un «Recording:» impresos por el juego.
+
+Tests ajustados:
+- test_tool_registry.test_new_errors_in_each_response;
+- test_run_error_watcher (el prompt de m11-55 con sobres).
+
+**Notas:** a02b834 en sm/m11-45, sobre sm/next2 322ebb2 como pidió agent-harness-50 (incluye m11-47 y m11-55).
+
+untrusted_text.gd:
+- wrap pone un marcador al azar por proceso y desarma «<untrusted»/«</untrusted» del texto (también en mayúsculas o con espacios) y el marcador;
+- seal pone el nonce de la llamada: 12 hex de Crypto;
+- strip saca el contenido de los sobres;
+- close_cut arregla un sobre cortado por max_output_chars.
+
+McpTool.envelope:
+- ENVELOPE_PARTS: la tool envuelve lo de afuera;
+- ENVELOPE_ALL: el registry envuelve el texto de un resultado bueno;
+- las dos suman UntrustedText.NOTE a la descripción.
+ToolRegistry.sealed corre en call_tool y en run_for_user (menciones @errors, @game).
+
+Cubierto:
+- run_scene: errores y Output del juego, errores salteados con continue_on_error;
+- todas las game_* que pasan por _game_request: texto y error del probe, errores del juego;
+- get_errors: las líneas;
+- el aviso de errores nuevos en cualquier tool: el mensaje;
+- enteras: scene_tree, get_node, get_resource, animation_get, asset_search, asset_details, addons_list;
+- @output;
+- el prompt «Arreglar con el agente» de m11-55 (RunErrorWatcher.prompt).
+
+Explicación al agente en tres lugares:
+- la descripción de cada tool con sobres;
+- INSTRUCTIONS del server MCP;
+- una regla en system_prompt.md. Ojo: es USER_EDITABLE, así que un prompt editado por el usuario no la recibe; los otros dos lugares sí llegan.
+
+Parseo del playtest: ReviewStore.playtest_audit lee las líneas Detector, «Recording:», «Filming:» y «The recording was not written» del texto sin sobres. Antes, el Output del juego podía imitarlas. «not by input» de game_ui_act viene del probe (dentro del sobre), así que se sigue leyendo del texto entero.
+
+Fuera (ver decisión):
+- class_info/search_api;
+- project_info, list_files, sessions;
+- la salida de build/test_extension;
+- validate_scripts.
+
+No probé en vivo si Claude Code respeta los sobres (costo de modelo). La defensa es de formato e instrucción y no garantiza nada; la wiki lo dice.
+
+### Tools propias del proyecto en GDScript · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`, `mcp`
+
+De dónde: NPGameDev («register your own tools in GDScript», con hot reload: https://github.com/NPGameDev/godot-mcp-toolkit); Toolset Registry del MCP de Unreal 5.8 con clases Python o C++ (https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-mcp-in-unreal-editor); Custom tools del Assistant de Unity (https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.21/manual/integration/integration-landing.html); execute_custom_tool de MCP for Unity (https://coplaydev.github.io/unity-mcp/reference/tools). Cómo se adapta: scripts @tool en res://.godot_agent/tools/ (o una carpeta configurable) que extienden una clase base con name, description, schema y run(args); el registry los carga como métodos extendidos (godot.methods/godot.run) con su propio grupo de permisos que pregunta siempre, y los recarga al cambiar el archivo. Por qué: cada juego tiene operaciones propias (armar un nivel, poblar una tabla de items) que hoy el agente hace en muchas llamadas o a mano.
+
+**Decisiones:**
+- ! Los hooks de tool (m11-24) pueden correr tools del proyecto: project_tools se suma a ProjectHooks.TOOL_GROUPS · sin revisar
+  Por qué: El coordinador pidió que una tool aprobada se pueda llamar desde un hook. El hook está aprobado por máquina con su definición entera y la tool con su código; un hook de comando ya corre cualquier programa, así que no es una escalada. Sin aprobar el código, la tool no está registrada y el hook falla con «There is no tool». run_for_user ahora valida los args contra el schema y tool_group sincroniza las tools del proyecto.
+  Descartado: Dejar project_tools fuera de los hooks (solo read/diagnostics/run); pedir el permiso Project tools en cada corrida del hook (no hay tarjeta sin turno)
+
+**Prueba:** - Unit: tests/unit/test_agent_tools.gd (8 tests) y test_export_presets_patcher.test_project_tools_filter. Cubren que una tool sin aprobar no se carga (un static que dejaría una marca), que la clave sigue al código y a los helpers, las tools rotas con su error, el registro (godot.methods / godot.run / catálogo / tools/list), la recarga de helpers y el grupo project_tools.
+- Editor (Xvfb): el check «checks», paso 6 de turn_checks_check. El agente falso escribe tests/tmp/agent_tools/echo_probe.gd; la tool sale frenada en el aviso y en el catálogo y godot.run no la conoce. «Aprobar…» muestra el código; aprobada, godot.run la corre con el permiso de project_tools. Editada, vuelve a quedar frenada y avisa de nuevo.
+- Hooks (m11-24): paso 6 de hooks_check. Un hook de tool que nombra una tool del proyecto sin aprobar falla con «There is no tool» y no corre; con el código aprobado, el hook la corre con sus args.
+- Export: export_check pone una tool con un helper en todos los escenarios y suma uno con project_tools_dir="tools/agent".
+- Con next4 mergeado (00e88bc): tests/suite.sh ci 19/19 PASS en 4.7.2 y CI 43116310115 en verde (4.7.2 y 4.8-beta2).
+
+**Notas:** CÓMO QUEDÓ (sm/m11-46: d46fa2d núcleo, bc24dad resto). Plan aprobado por el coordinador, con estas respuestas: carpeta res://agent_tools/ configurable en Settings → MCP → Advanced, grupo propio project_tools que pregunta también en Auto, y el export obligatorio.
+
+Declaración
+- Cada <carpeta>/<nombre>.gd es godot.<nombre>. La carpeta sale de project_tools_dir; ProjectToolLoader.normalize_dir no deja usar la raíz, "..", carpetas con punto ni addons/godot_agent.
+- Los archivos con _ adelante y las subcarpetas son helpers.
+- La base es api/agent_tool.gd: _description(), _parameters() (JSON schema) y _run(args, ctx). ctx es api/agent_tool_context.gd (undo_redo, project_dir, note()); el método se llama note y no log porque log() es una función global.
+- Se rechaza una tool sin @tool, con class_name, que no extiende la base, con la descripción vacía o con un schema mal armado; el error sale en la pestaña Tools.
+
+Aprobación
+- MachineApproval, KIND_TOOL. La clave cubre la ruta, el sha256 del texto y el hash de todos los helpers de la carpeta.
+- Una tool sin aprobar nunca se carga.
+- Las aprobadas se cargan con CACHE_MODE_IGNORE, y los helpers que cambiaron se recargan en la caché con REPLACE. IGNORE_DEEP recompilaba la base del addon en cada carga.
+- El handler es un método de ToolRunner, que guarda la entrada, en vez de un lambda. Con el lambda, una tool recargada dejaba el contexto vivo al salir.
+- El aviso lo da SessionController.held_tools_notice: al empezar la sesión, con filesystem_changed y con la señal changed del loader (cuando una llamada encuentra algo nuevo). Cada tool frenada se avisa una vez por clave.
+- El diálogo muestra el código en un TextEdit "Code".
+
+Registro
+- registry.project_tools: sync_project_tools() corre antes de godot.methods, godot.run, catalog y list.
+- Las tools del proyecto nunca van en tools/list. methods y run van en tools/list también con la lista no compacta si hay tools del proyecto.
+- godot.methods las marca con [project tool].
+- El catálogo trae también las frenadas y las que tienen error. La pestaña Tools muestra «Project tools» y el botón "AllowTool", que abre dock.confirm_on_machine.
+
+Export
+- agent_export_plugin hace skip de la carpeta que dice la config.
+- ExportPresetsPatcher.wanted_filters suma "<carpeta>/*" cuando la carpeta existe; el banner y «Add to the presets» la incluyen.
+
+Prompt
+- system_prompt.md tiene una línea con la variable {project_tools_dir}.
+
+Hallazgos
+- test_project_tools.gd ya existía (tests de project_tools.gd, m4-09): los tests nuevos van en test_agent_tools.gd.
+- Falsa fuga de un contexto en run_all, en más o menos la mitad de las corridas por la suite: el test seguía corriendo dentro de la emisión de process_frame que reanudó la tool. Se arregla con un frame más en el test después de la llamada.
+- El SCRIPT ERROR de agent_process.gd:134 al cerrar el check «checks» ya estaba (stop() en PREDELETE al salir); no es de este cambio.
+
+Pendiente con m11-30 (agent-harness-41): core/project_dirs.gd está en sm/m11-30 con las mismas reglas. Cuando estén mergeados los dos, normalize_dir y resolve_dir de ProjectToolLoader pueden delegar ahí.
+
+### Anotaciones MCP (readOnlyHint, destructiveHint) y heartbeats de progreso · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`, `mcp`
+
+De dónde: MCP de Unreal 5.8: cada tool declara AIAccessMode Read/Write/Execute y lo mapea a readOnlyHint «so clients can decide whether to ask for confirmation»; y aconseja mandar progressToken para recibir notifications/progress porque algunos clientes cortan llamadas largas («Claude Code after about 120 seconds») (https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-mcp-in-unreal-editor). Cómo se adapta: tools/list con annotations (readOnlyHint, destructiveHint, idempotentHint, openWorldHint para asset_*) sacadas de los grupos de permisos que ya existen (no hay ninguna hoy: grep sin resultados); y notifications/progress cada ~10 s si el request trae progressToken en build_extension, test_extension, run_scene largos, profile_run, game_wait y asset_install. Por qué: los clientes que no son el dock (Claude Code por terminal, Cursor) preguntan menos para lecturas y no cortan una compilación larga. Verificar primero si el corte de 120 s aplica al MCP HTTP de Claude Code.
+
+**Decisiones:**
+- ! SSE solo para los tools/call que pasan de 2 s, sin lista de tools largas; anotaciones por grupo con overrides en la propia tool · sin revisar
+  Por qué: El tiempo decide mejor que una lista (cualquier tool puede esperar una tarjeta de permiso), y lo corto sigue siendo JSON con keep-alive. Las anotaciones salen de GROUP_HINTS por el mismo grupo que decide el permiso; un test exige hints para cada grupo de PermissionPolicy.GROUPS. Los pocos casos que el grupo no describe bien (session_send, asset_*, godot.run) se marcan en la definición de la tool, no en una lista aparte.
+  Descartado: SSE en todos los tools/call con progressToken (cierra la conexión en cada llamada); lista fija de tools largas; anotaciones a mano por tool; _meta anthropic/requiresUserInteraction en asset_install (duplicaría la tarjeta del dock).
+
+**Prueba:** run_all 4.7.2: 527 tests / 4161 checks, 0 fallos. mcp_server y tool_registry también en 4.8-beta2. mcp-test en Xvfb 4.7.2: 0 fallas. Tests nuevos: test_mcp_server.test_long_call_streams_progress (SSE con progressToken, progress creciente, respuesta como último evento; sin token comentarios; corta o sin Accept → JSON) y test_progress_event_format; test_tool_registry.test_annotations_from_group (por grupo, overrides de session_send/asset_*/godot.run, todo grupo de PermissionPolicy.GROUPS tiene anotaciones) y test_stdio_shim_prints_sse_events (UTF-8 cortado, CRLF). Real, Claude Code 2.1.321 por HTTP: con un server Python, 75 s en JSON plano → «The operation timed out» y con SSE + progreso → ok; con el McpServer del addon en un Godot headless y una tool de 75 s → «slow ok after 75 s».
+
+**Notas:** 6a877e6 + d56e424 en sm/m11-47 (desde main cd5901d).
+Hallazgo: Claude Code manda _meta.progressToken en cada tools/call. A un server HTTP le aplica un timer hasta el primer byte de max(60 s, timeout del server, MCP_TIMEOUT). Nuestro server no mandaba nada hasta terminar, así que fallaba cualquier llamada de más de ~60 s:
+- run_scene/profile_run con seconds > 60 (el máximo es 120);
+- build/test_extension;
+- un validate_scripts de C# largo;
+- una descarga de la Asset Store;
+- cualquier llamada con la tarjeta de permiso esperando más de un minuto.
+Docs: https://code.claude.com/docs/en/mcp (Time limits on MCP tool calls).
+
+Cambio: un tools/call de un cliente que manda Accept text/event-stream Y progressToken, y que pasa de 2 s, se responde como SSE:
+- headers enseguida;
+- notifications/progress cada 10 s con su token;
+- la respuesta como último evento, con Connection: close.
+Lo corto, o sin token, sigue en JSON. No hay lista de tools «largas»: lo decide el tiempo.
+
+d56e424, pedido de agent-harness-50: SSE solo con progressToken (antes: comentarios SSE sin token). Sin token no hay progreso que mandar, y así un cliente que anuncia SSE pero lo lee mal no se rompe.
+
+Clientes:
+- Antigravity (antigravity-acp 1.4.3, el adapter que instala el harness) verificado en vivo por ACP con mcpServers http y un proxy que registra headers:
+  - manda Accept: application/json, text/event-stream y progressToken (sessionId:n);
+  - recibió 8 progresos y devolvió «slow ok after 75 s»;
+  - usa protocolo 2025-11-25 y antes de initialize manda server/discover (le contestamos -32601 y sigue bien).
+- Sin verificar (no instalados): Codex, Gemini CLI, OpenCode.
+  - Gemini CLI y OpenCode usan el SDK TS (StreamableHTTPClientTransport lee SSE en la respuesta de un POST; solo manda progressToken si el llamador pasó onprogress).
+  - Codex usa rmcp (también lee SSE). Su tool_timeout_sec es de 60 s por defecto, de memoria y sin verificar, y el progreso no lo extiende. Por ACP el harness no puede subirlo, así que un run_scene de más de 60 s en Codex probablemente corte igual.
+  - Sin token, estos clientes quedan como antes de m11-47.
+
+Límites que documenté en la wiki:
+- El progreso reinicia la ventana de inactividad de 5 min de Claude Code.
+- No extiende el límite total (MCP_TOOL_TIMEOUT o el timeout del server; sin configurar es ~28 h), que hay que dejar por encima de 120 s.
+
+Anotaciones:
+- McpTool.GROUP_HINTS por grupo de PermissionPolicy:
+  - read/diagnostics: solo lectura e idempotentes;
+  - escritura: destructiva;
+  - run: no destructiva;
+  - addons: openWorld.
+- `hints` en la propia tool donde el grupo no alcanza:
+  - session_send: es grupo read pero manda un mensaje, así que no es readOnly ni idempotente; si lo fuera, Claude Code lo correría en paralelo y lo repetiría al cortarse la conexión;
+  - asset_search/asset_details/addons_list: openWorld;
+  - godot.run: no es readOnly.
+- Un grupo desconocido (other, mcp:) va sin anotaciones, con los defaults prudentes de la spec.
+- Claude Code usa readOnlyHint para correr en paralelo y para repetir una vez una llamada cortada; idempotentHint, solo para repetir.
+- No usé _meta anthropic/requiresUserInteraction: duplicaría la tarjeta de permiso del dock.
+
+Shim stdio: con SSE escribe cada evento al llegar y renueva su plazo de 600 s con cada chunk.
+
+De paso: el helper _request de test_mcp_server lee código y headers antes del cuerpo (con Connection: close, HTTPClient los pierde).
+
+### Plan editable antes de construir y «Denegar con motivo» · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`, `ui`
+
+De dónde: Roblox Assistant Planning Mode: el plan es un Markdown editable, al guardar le manda al agente el diff de lo que cambió el usuario y nada corre hasta «Build» (https://create.roblox.com/docs/assistant/guide); Plan con botón Build en Bezi (https://discussions.unity.com/t/released-bezi-ai-powered-game-development-assistant-for-unity/1708451) y en Unity AI (https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.11/manual/about/assistant-modes.html); Ludus: una denegación puede llevar un motivo que el agente usa en el siguiente intento (https://docs.ludusengine.com/agent/approvals-safety). Cómo se adapta: (1) la tarjeta de permiso de salir del modo plan (ExitPlanMode de Claude Code; ver qué mandan otros agentes) suma «Editar plan»: el texto queda editable y al confirmar se rechaza el permiso con el diff como feedback para que el agente lo rehaga, o se aprueba tal cual; (2) toda tarjeta de permiso suma «Denegar con motivo…»: rechaza y manda el motivo como mensaje del usuario al terminar el turno. Hoy plan_view.gd es solo lectura y permission_view.gd no tiene motivo. Por qué: corregir un plan hoy es escribir otro prompt describiendo los cambios.
+
+**Notas:** Absorbida por m11-22 (rama sm/m11-22, 2026-11-11): las dos partes están hechas ahí.
+(1) La tarjeta del plan de ExitPlanMode tiene «Editar» con contador +N −M; al mandar los cambios se rechaza y el agente recibe el diff y el plan entero (prompt PLAN_EDIT) para rehacerlo. También tiene «Aprobar y construir» y «Seguir planeando…».
+(2) Toda tarjeta de permiso tiene «Denegar con motivo…». El motivo sale como prompt del harness (DENY_REASON, línea plegada) y corta el turno apenas el agente recibió el rechazo, porque Claude Code seguía el turno y el motivo no llegaba.
+Se cierra con m11-22.
+
+**Relacionadas:** Plan aprobable antes de construir (fuera del One-shot)
+
+### Playtest: cortar al detectar el agente en loop · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `idea`, `playtest`
+
+De dónde: el Playtest Agent de Roblox corta a los 50 turnos y termina antes si ve varias llamadas idénticas seguidas; veredictos Pass/Fail/Inconclusive/Error; y avisa que puede dar falsos pass (https://devforum.roblox.com/t/studio-beta-studio-assistant-mcp-playtest-agent/4566767). Cómo se adapta: ya hay blocked (m15-02) y tope blando de tiempo (m15-19). Falta el detector: K llamadas godot.* iguales (misma tool y argumentos) seguidas en un playtest o en el evaluador del One-shot → aviso al agente en el resultado de la tool («estás repitiendo la misma llamada») y, a la siguiente, cancelar el turno y dejar el veredicto blocked con el motivo. Por qué: un agente trabado en un menú quema el tope de tiempo entero repitiendo el mismo clic.
+
+**Decisiones:**
+- ! «Sin progreso» = el mismo ciclo de 1 a 3 llamadas a tools del juego (misma tool y argumentos) con el mismo resultado: texto del probe sin nonce, reloj ni tiempo restante, más los bytes de la captura. Aviso a la 3.ª vuelta y corte a la 4.ª. El One-shot queda fuera. · sin revisar
+  Por qué: El ciclo cubre el patrón real (tecla → captura igual), no solo llamadas idénticas seguidas. Con el resultado en la huella, repetir algo que hace avanzar el juego no se corta: es mejor no cortar que cortar de más. El evaluador del One-shot no corre como turno de playtest, así que no tiene el handler.
+  Descartado: Solo K llamadas idénticas sin mirar el resultado (cortaría un agente que avanza apretando la misma tecla). Mirar también el estado del probe aparte (ya va en el texto del resultado). Incluir el evaluador del One-shot.
+
+**Prueba:** Headless: tests/run_all.gd -- test_playtest_loop_guard (la misma llamada con el mismo resultado, con nonce, reloj y tiempo restante distintos: aviso a la 3.ª y corte a la 4.ª; un cambio o una llamada distinta lo resetea; ciclo input → captura igual corta y con la captura cambiando no; el mismo error; reset; veredicto y aviso). Editor: tests/suite.sh run playtest-loop (ci, editor): el agente falso llama de verdad por MCP a run_scene y 5 veces game_input; el 3.er resultado avisa, el 4.º es «Stopped», el turno se cancela, no hay 5.º y el veredicto es «could not test · stopped: the agent kept repeating game_input…» con la evidencia; el «pass» del agente no cuenta.
+
+**Notas:** Hecho en sm/m11-49 (f9b914e).
+- mcp/tools/playtest_loop_guard.gd: huella por llamada (tool+args, resultado normalizado + bytes de imagen), ciclos de periodo 1–3, WARN 3 / CUT 4.
+- RunTools envuelve las tools game_* y capture_game_frame (LOOP_GUARDED). Solo vigila con LOOP_HANDLER_META puesto. SessionController lo pone en los turnos de playtest; al cortar cancela, y al volver session/prompt manda ReviewStore.loop_playtest al _report_playtest.
+- Hallazgo del check: cada resultado del juego trae un nonce nuevo en el sobre y el reloj «[game time…, physics frame…]»; sin normalizarlos nunca hay dos resultados iguales.
+- fake_agent: paso «mcp» que llama de verdad al server MCP del harness (HTTP, JSON o SSE).
+- Fuera de alcance: el evaluador del One-shot (no corre como turno de playtest).
+
+### run_scene con varias instancias: multijugador y playtests en paralelo · Revisión
+
+**Prioridad:** baja · **Tamaño:** L · **Etiquetas:** `idea`, `playtest`, `multiplayer`
+
+De dónde: StudioTestService de Roblox: un server con hasta 8 clientes, sumar jugadores durante la sesión y forzar desconexiones (https://devforum.roblox.com/t/new-studio-testing-apis-and-assistant-improvements/4657854); el Verification Agent de Aura corre 3 casos de prueba en paralelo (https://www.tryaura.dev/updates/aura-1-0-launches-today). Cómo se adapta: Godot ya lanza varias instancias (Debug → Customize Run Instances) y cada una es una sesión del debugger. run_scene con `instances` (y argumentos por instancia, p. ej. --server/--client), las tools game_* con `instance` para elegir a cuál, y game_disconnect para cortar una. El probe ya distingue sesiones por id (session_started_id de m13-27). Por qué: hoy un juego multijugador no se puede probar con el agente; godot-multiplayer está entre las skills que el agente usa.
+
+**Prueba:** - run_all: 819 tests, 0 fallos. test_game_instances (7 tests, 46 checks) cubre:
+  - normalize y el tope de 4, contando las que corren;
+  - launch_args: --remote-debug, ventana, headless, los args del juego después de --;
+  - el mosaico sin solapes y con otra columna;
+  - el entorno de cada instancia;
+  - el user:// por instancia;
+  - el mapa sesión → instancia (InstanceSessions);
+  - el autoload primero.
+- Check del editor instances (Xvfb, fixture ENet en tests/fixtures/instances), PASS en 4.7.2 y en 4.8-beta2. Cubre:
+  - run_scene con un cliente;
+  - el error de la 2 sale como game#2;
+  - el server ve al cliente;
+  - user:// distinto en cada una;
+  - la captura de la 2 es de 640x360;
+  - list;
+  - stop 2: el server ve la desconexión;
+  - add vuelve a conectar;
+  - la 3 da error;
+  - ningún PID queda vivo y el autoload no queda en project.godot.
+- suite.sh ci: 21/21 PASS. El check está en ci.yml (grupo editor).
+
+**Notas:** HECHO (sm/m11-50, 0551a10, desde origin/sm/next4 95bdbdf). Plan aprobado con ajustes del coordinador: tope de 4, game_instance como tool nueva, user dir propio desde la 2, y el autoload nunca queda en project.godot.
+
+Spike (4.7.2 y 4.8-beta2):
+- Un proceso con --remote-debug tcp://<remote_host>:<remote_port> entra como sesión nueva del debugger. Su probe dice ready y tiene editor_runtime=true sin args extra.
+- El plugin saca el autoload de playtest en session_started. Para cada instancia extra se vuelve a registrar justo antes de lanzarla y se saca en su session_started (instance_event "started"), o si no llega a arrancar.
+
+Diferencias con el plan:
+- Sin autoload aparte: el mismo de playtest se registra primero (PlaytestAutoload.register(first) → first_order) y su _init llama a InstanceEnv.apply. Probado: el _init de un autoload del juego ya ve <user>/instances/2.
+- Sin stdout por pipe: el Output del editor junta las sesiones. Los errores salen por instancia porque ErrorCollector toma la sesión del orden de las pestañas del debugger, con fuente game#N. run_error_watcher y game_script aceptan "game*".
+- game_debug, game_stack y game_breakpoint no suman `instance`: actúan sobre la instancia parada, y los breakpoints van a todas las sesiones del harness (session_started_id sale también para las extra).
+
+Puntos de diseño:
+- PlaytestDebugger: las señales sin número (session_started/stopped/breaked/continued, probe_ready) quedan para la instancia 1, y las extra salen por instance_event(n, event). Antes el ready de otra sesión pisaba _probe_session, y su fin habría cortado el run.
+- target_instance + _with_instance en run_tools: las llamadas a una instancia van a la vez, y una a otra instancia espera a que terminen las en curso. send(msg, data, instance) explícito para el "paused" de la instancia 1.
+- GameInstances: launch con el entorno solo alrededor del lanzamiento (número, dispositivo, gamepads, shared). Los PIDs van a AgentProcess.track_pid. stop_all cuando termina la instancia 1 o con un run_scene nuevo.
+- Bug encontrado por el check: RunTools._until no devuelve nada, y `not await _until()` mataba la instancia apenas lanzada.
+
+--- PLAN original ---
+(abajo, sin cambios)
+
+Cómo se lanzan N instancias
+- La 1 es la de siempre: EditorInterface.play_custom_scene. Sigue con el Stop del editor, el embebido, record, film y monitors.
+- Las 2..N las lanza el harness como procesos propios con --remote-debug al server del debugger del editor; cada una es una sesión nueva del debugger.
+- Puertos: el debugger no necesita puertos nuevos; los del juego van en los args de cada instancia (OS.get_cmdline_user_args()).
+- Descarté «Customize Run Instances» de Godot (debug_options: multiple_instances_enabled, run_instance_count, run_instances_config): el editor lo lee de su diálogo y todas las instancias comparten el entorno.
+
+User dirs aparte
+- La 1 usa el de siempre; desde la 2, <user dir>/instances/<n>/ (custom_user_dir en caliente, sin guardar). shared_user_dir:true lo apaga.
+
+Cómo se dirige cada tool
+- run_scene suma instances [{args, device?, inputs?, headless?, shared_user_dir?}]. Las game_* y capture_game_frame suman `instance` (por defecto 1); stop_scene corta todas o una; game_instance list|add|stop.
+- record, film_fps y monitors: solo la instancia 1.
+
+Ventana o embebido (4.7 y 4.8)
+- La 1 hace lo de hoy (GameEmbedding de m11-51). Las 2..N van en su propia ventana, en mosaico con --position/--resolution sobre el área útil de la pantalla.
+- Cuando termina la 1 o con Stop, el harness mata las demás; los PIDs entran en AgentProcess.stop_all.
+
+Límite
+- Hasta 4 instancias en total. Todo sigue dentro del run de una pestaña.
+
+Fuera de esta tarea
+- Playtests en paralelo entre pestañas.
+- record/film/monitors por instancia.
+- Simular latencia o pérdida de red.
+
+### run_scene con dispositivo simulado: resolución, aspecto, táctil e idioma · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`, `playtest`
+
+De dónde: StudioDeviceSimulatorService de Roblox (resolución, DPI, orientación y perfiles de dispositivo, para revisar layouts con capturas: https://devforum.roblox.com/t/new-studio-testing-apis-and-assistant-improvements/4657854). Cómo se adapta: run_scene con `device` ({size: [w,h], orientation, scale, touch: true, locale}) o presets (phone-portrait 1080x2400, tablet, 4k, steam deck): se pasa por argumentos de línea de comandos y el probe (DisplayServer.window_set_size, emulate_touch_from_mouse, TranslationServer.set_locale), sin tocar project.godot. Así el agente revisa un HUD en varios aspectos con capture_game_frame y game_ui. Por qué: los bugs de UI anclada y de textos traducidos que no entran aparecen recién en otro dispositivo, y hoy cada prueba corre en la ventana del editor.
+
+**Decisiones:**
+- ! El dispositivo va al juego por la variable de entorno GODOT_AGENT_DEVICE (JSON), puesta solo alrededor de play_custom_scene, en vez de argumentos de línea de comandos · sin revisar
+  Por qué: El juego hereda el entorno del editor (como RealGamepads); los argumentos solo se pueden pasar con editor/run/main_run_args, que es un ajuste del proyecto y se mezcla con los argumentos del usuario. Así no se toca project.godot y el run siguiente no lo hereda
+  Descartado: editor/run/main_run_args con «-- --godot-agent-device=…» (ajuste del proyecto, choca con los del usuario); mandarlo por el debugger después de PROBE_READY (la escena ya hizo su _ready con el tamaño y el idioma de siempre)
+- ! Con un tamaño pedido, run_scene destilda «Embed Game on Next Play» en el menú de la vista Game para ese lanzamiento y lo vuelve a tildar; el ítem se busca por texto (inglés o traducido con el dominio godot.editor) dentro del nodo GameView · sin revisar
+  Por qué: Embebido (lo normal desde 4.4) el tamaño de la ventana lo pone el editor. Leí game_view_plugin.cpp: embed_on_play solo se lee en NOTIFICATION_READY y solo lo cambia ese menú; probé game_embed_mode=-1 (con mark_setting_changed y settings_changed) y el metadato embed_on_play, y ninguno cambia un lanzamiento con el editor abierto. Si el menú no aparece (otra versión), el informe dice que el tamaño no se simuló y cómo apagarlo
+  Descartado: Solo avisar que hay que apagar el embebido (el caso por defecto quedaría sin funcionar); cambiar run/window_placement/game_embed_mode (no tiene efecto hasta reabrir el editor); buscar el ítem por id (implícito en un enum, cambia entre versiones)
+- ! Presets: phone 1080×2400 y tablet 2048×1536 (con táctil), steam-deck 1280×800, 1080p y 4k; `orientation` da vuelta el tamaño. El táctil es emulate_touch_from_mouse: DisplayServer.is_touchscreen_available() sigue en false y el informe lo dice · sin revisar
+  Por qué: Cubren los aspectos de la descripción con pocos nombres; orientación aparte en vez de phone-portrait/phone-landscape. No hay forma de que el juego crea que hay pantalla táctil sin un dispositivo de verdad
+  Descartado: Presets por modelo (iPhone 15, Pixel…); phone-portrait y phone-landscape como presets separados
+
+**Prueba:** Rama sm/m11-51 (0ab8433). test_device_sim (presets, orientación, validación, entorno, informe sin traducción). run-test en Xvfb en 4.7.2 y 4.8-beta2: preset desconocido rechazado; device {size 480×800, touch, locale xx} → ventana 480×800, táctil e idioma sin traducción informados, el entorno del editor queda sin GODOT_AGENT_DEVICE, el run siguiente no lo hereda y «Embed Game on Next Play» queda como estaba. run_all 617/4809/0. suite.sh ci en 4.7.2: 13/13 PASS.
+
+**Notas:** DeviceSim (playtest/runtime/device_sim.gd) valida y pasa el dispositivo por el entorno; el probe lo aplica en _ready y lo repite en los primeros frames (en el _ready de un autoload la ventana vuelve al tamaño del proyecto) y contesta el pedido «device». GameEmbedding (playtest/game_embedding.gd) destilda «Embed Game on Next Play» para ese lanzamiento: la vista Game lee el embebido solo al arrancar el editor (game_view_plugin.cpp), así que ni game_embed_mode ni el metadato embed_on_play sirven en caliente. Busca el ítem por texto dentro de GameView: si una versión de Godot lo cambia, el informe lo dice y el tamaño no se simula. Sin probar: dispositivos más grandes que la pantalla (el informe dice el tamaño real que tomó la ventana) y Wayland.
+
+### Capturas desde una cámara elegida y desde varios ángulos · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `idea`
+
+De dónde: screen_capture del MCP de Roblox Studio con posición de cámara y objetivo opcionales (https://create.roblox.com/docs/studio/mcp.md); CaptureMultiAngleSceneView (4 ángulos) y Capture2DScene (región ortográfica) del Assistant de Unity, según lectura de terceros del código (https://gamedevllm.com/en/unity-mcp-builtin-tools-reference-en/, sin confirmar en la doc oficial). Cómo se adapta: capture_editor_viewport con `look_from`/`look_at`, `angles: 4` o `rect` 2D, renderizando en un SubViewport fuera de pantalla con una cámara temporal (sin mover la del usuario), y lo mismo en el juego con una Camera temporal desde el probe. Por qué: hoy el agente ve la escena 3D solo desde donde quedó la cámara del editor, y para revisar un nivel tiene que pedirle al usuario que la mueva.
+
+**Prueba:** tests/unit/test_camera_views.gd: la órbita mira al centro, a la distancia pedida y desde arriba; el plan desde una cámara elegida con su lente, angles alrededor del centro de lo dibujado, los errores (cámara inexistente, angles fuera de rango, angles con look_from, cantidad de números, mismo punto, angles en 2D) y la vista 2D con look_at y zoom. run_check (_check_camera_views), con un juego 3D real: la cámara del juego ve la caja roja, camera «Side» y look_from/look_at ven la verde, angles 4 da 4 vistas de la roja, la cámara del juego no se movió, y los errores llegan por la tool.
+
+**Notas:** Hecho en sm/m11-52. Solo el lado del juego, como lo pidió agent-harness-81. capture_editor_viewport queda en una tarea aparte.
+- playtest/runtime/camera_views.gd: plan() valida y arma las vistas; render() las dibuja en un SubViewport que comparte world_3d o world_2d con el juego. La cámara temporal copia la lente y el entorno de la de referencia.
+- La probe tiene un op "views" y run_tools usa request() directo para traer los PNG.
+- Las vistas no incluyen las capas de UI del juego, porque son otro viewport.
+
+### Horneado (navmesh, lightmaps, oclusión) y export por preset · Pendiente
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
+
+De dónde: Bezi hornea NavMesh, luces y oclusión y arma builds (https://docs.bezi.com/get-started/changelog); manage_build de MCP for Unity (https://coplaydev.github.io/unity-mcp/reference/tools); export_project y deploy_to_android de Godot MCP Pro (https://godot-mcp.abyo.net/changelog/). Cómo se adapta: tools bake_navigation (NavigationRegion2D/3D.bake_navigation_polygon/mesh), bake_lightmaps (LightmapGI, solo editor), bake_occluders; y export_project que corre en otro proceso `godot --headless --export-debug|--export-release <preset>` con los presets de export_presets.cfg y devuelve errores y tamaño (sin tocar export_presets.cfg; error claro si faltan las plantillas). Hoy no hay nada de esto (grep sin resultados). Por qué: después de editar un nivel con add_nodes la navegación queda vieja y el agente no puede regenerarla; y «¿exporta?» es la última verificación de un One-shot.
+
+### «Preguntar al agente» desde el menú contextual del editor · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `idea`, `ui`
+
+De dónde: en Unreal 5.7, F1 sobre cualquier elemento de la UI abre el asistente sobre eso (https://www.unrealengine.com/news/unreal-engine-5-7-is-now-available); Ludus toma solo los actores, nodos y assets seleccionados como contexto (https://docs.ludusengine.com/agent/chat-context-attachments); el (+) del Assistant de Unity adjunta GameObjects, assets y mensajes de la Console (https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.21/manual/reference/assistant-interface.html). Cómo se adapta: ya existen las menciones @ y arrastrar nodos al composer (m11-08). Falta el camino inverso: EditorContextMenuPlugin en el árbol de escena, el FileSystem y el viewport 2D/3D con «Preguntar al agente…» y «Arreglar con el agente…» que enfoca el dock y deja @ruta en el composer; y en el panel Errores/Debugger, un error seleccionado con su stack. Por qué: es el gesto que piden quienes vienen de esos editores; hoy hay que escribir la ruta o arrastrar.
+
+**Decisiones:**
+- ! Un solo ítem «Preguntar al agente» (sin «Arreglar con el agente…»), en FileSystem, dock Escena y Script Editor solo con selección; sin el viewport 2D (CONTEXT_SLOT_2D_EDITOR) ni el panel de Errores. Archivos y nodos van como @ruta en el caret; la selección de código como bloque ```lenguaje con «@res://x.gd (lines 3-4):», en inglés y cortada a 4000 caracteres. El dock viene al frente y no se manda nada. · sin revisar
+  Por qué: Es el alcance que pidió agent-harness-81 (FileSystem, árbol de escena y Script Editor con selección). «Arreglar» sería el mismo texto con otro verbo, que el usuario escribe igual. El viewport 2D tiene slot (no hay uno para el 3D) y queda como seguimiento; Errores ya tiene «Arreglar con el agente» para runs manuales (m11-55). La @mención reusa lo que ya resuelven el composer y el arrastre; el bloque con líneas deja ver y editar lo que va antes de mandarlo.
+  Descartado: Dos ítems (Preguntar / Arreglar); adjuntar la selección como chip de contexto oculto; archivos como adjunto (add_context_files) en vez de @mención; sumar el viewport 2D y Errores.
+
+**Prueba:** test_ask_agent_menu (archivos y nodos como @ruta, nodos fuera de la escena no; selección como bloque con líneas, sin contar la línea siguiente si termina en columna 0; corte a 4000; composer inserta en el caret y el bloque en línea nueva). suite.sh ci PASS en 4.7.2 (plugin_cycle registra y saca los menús); CI verde en 4.7.2, 4.8-beta2 y C# (run 43091823746). Sin prueba del clic derecho real en el editor.
+
+**Notas:** sm/m11-54 01db580 (desde origin/sm/next4). editor/ask_agent_menu.gd, una instancia por slot (FILESYSTEM, SCENE_TREE, SCRIPT_EDITOR_CODE; en el código solo aparece con selección). agent_plugin._ask_agent: make_visible(SIDE) + AgentDock.add_to_composer → Composer.insert_at_caret. Seguimiento posible: viewport 2D (CONTEXT_SLOT_2D_EDITOR).
+
+**Relacionadas:** Señalar con un clic en la captura del juego: el nodo bajo el cursor como @mención (como Send element de Windsurf)
+
+### Error en un run manual: «Arreglar con el agente» · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `idea`
+
+De dónde: Watch Mode de Gamedev AI: cuando el juego se cae lee los últimos ~50 bloques del log y propone un arreglo como diff (https://fredarts.github.io/gamedev_ai/core-features/watch-mode.html); Bezi cancela llamadas pendientes y sugiere próximos pasos cuando Unity se cae (https://docs.bezi.com/get-started/changelog). Cómo se adapta: cuando el usuario corre el juego a mano (F5/F6) y para en el debugger por un error de script, o el juego termina con errores, un aviso en el dock con «Arreglar con el agente» que manda a la sesión activa el error, el stack y el Output (lo que ya arman @errors y @output), sin mandar nada solo. Prendido por defecto, apagable en Settings. Hoy no hay nada (grep sin resultados). Por qué: es el momento en que más se necesita al agente y hoy hay que copiar el error a mano.
+
+**Decisiones:**
+- ! RunErrorWatcher (editor/run_error_watcher.gd) escucha las señales de la sesión de debug (started/breaked/stopped), cuenta solo errores con source «game» (no warnings ni errores del editor) desde que arrancó el run, avisa una vez por run y nunca para runs lanzados por run_scene (RunTools.harness_run, decidido al arrancar la sesión según venga de LAUNCHING). El aviso es un NOTICE de advertencia en la pestaña activa: título, motivo o primer error en el cuerpo, «Errores y pila» plegado con Copiar, y «Arreglar con el agente» (acción principal) que manda el prompt con dock.send_text y la etiqueta HarnessPrompts.RUN_ERROR. Ajuste por usuario HarnessSettings.KEY_RUN_ERROR_FIX (prendido), casilla en Ajustes › Herramientas del editor. · sin revisar
+  Por qué: Los runs del agente ya reciben sus errores en cada resultado de tool: avisar también sería ruido. Solo errores del juego para no disparar por un warning del editor. Un prompt en inglés con etiqueta, como acordó agent-harness-57 (m12-44): el chat lo muestra como del harness, no como escrito por el usuario. La pila se lee 0,5 s después de la pausa porque el panel del debugger se llena después (igual que run_tools).
+  Descartado: Mandar el prompt solo (el usuario pidió explícitamente que no); @errors/@output como menciones en el composer (dos pasos más y no muestra el error en el dock); un ajuste por proyecto (es una preferencia de la persona, va en EditorSettings como las actualizaciones); avisar también en runs del agente (ruido).
+
+**Prueba:** run_all 534 tests 0 fallos (test_run_error_watcher: avisa una vez por run con motivo y errores del juego, ignora warnings/errores del editor/ruido del motor, nada en runs del agente ni apagado ni sin errores; textos del aviso y prompt en en/es; test_settings_dialog: casilla y ajuste por defecto; test_harness_prompts: etiqueta traducida). acp_session_check 203/0, oneshot_check 190/0. En Xvfb: --godot-agent-run-error-test en y es 0 fallas (run manual de run_broken.tscn → aviso de advertencia con el archivo en los detalles, «Errores y pila», botón principal; una vez por run; el botón manda a la sesión activa un prompt con harness_label RUN_ERROR que empieza «The user ran the game…»; run_scene del agente no avisa; apagado en Ajustes no avisa), y run-test 0 fallas (RunTools tocado). Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m11-55/notice_es.png (y notice_en.png).
+
+**Notas:** Rama sm/m11-55 desde sm/next2 (4895e84), commit 14ed645. Nuevo editor/run_error_watcher.gd (señales de la sesión de debug → error_found una vez por run; summary/notice_title/notice_text/notice_details/prompt estáticos). RunTools.harness_run (STARTED viniendo de LAUNCHING). plugin.gd: _run_errors, _on_game_breaked (lee la pila 0,5 s después), _on_run_error (NOTICE WARNING en la pestaña activa con title, details, details_title y acción fix_run_error), ACTION_FIX_RUN_ERROR → dock.send_text(prompt, HarnessPrompts.RUN_ERROR). ChatEntry.details_title (NoticeView lo usa; por defecto «Last lines of the log»). HarnessSettings.KEY_RUN_ERROR_FIX + offer_fix_on_run_error(); casilla en Ajustes › Herramientas del editor debajo del autoload en runs manuales. Dev: run_error_check.gd y --godot-agent-run-error-test (con --godot-agent-ui-shot), sumado a ci.yml. CHANGELOG Unreleased › Added. No se manda el Output completo: solo los errores del juego (source game) y la pila; el agente puede pedir más con get_errors/@output.
+
+**Relacionadas:** Hooks del proyecto en eventos del editor
+
+### Breakpoints, pila y variables del debugger como tools · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`, `playtest`
+
+De dónde: Godot MCP Toolkit: «Breakpoints, debug state, crash diagnostics, editor console capture» (https://github.com/NPGameDev/godot-mcp-toolkit); Roblox anuncia APIs del debugger para el Assistant, todavía no publicadas (https://devforum.roblox.com/t/new-studio-testing-apis-and-assistant-improvements/4657854). Cómo se adapta: hoy run_scene sabe que el juego paró (BREAKED) pero el agente no ve la pila ni las variables y no puede poner breakpoints. Tools game_breakpoint (set/clear en res://x.gd:línea, por la sesión del debugger: EditorDebuggerSession.set_breakpoint), game_stack (frames con archivo, línea y función, y locales/miembros del frame elegido: mensajes stack_dump y stack_frame_vars del debugger, que ya escucha PlaytestDebugger) y game_continue/step. Respeta m16-05 (los breakpoints del usuario frenan). Por qué: depurar con prints es lo que hace el agente hoy; con la pila y las variables un error raro se entiende en una llamada.
+
+**Decisiones:**
+- ! Los breakpoints del agente se liberan cuando la sesión se desconecta (señal disconnected del SessionController), no por sondeo; el token principal ("") cubre a la sesión del dock y a los clientes externos juntos. · sin revisar
+  Por qué: Los clientes externos comparten el token principal: un sondeo de "sesión viva" no los distingue y podría sacar breakpoints que un cliente externo sigue usando, o nunca sacarlos.
+  Descartado: Sondear sesiones vivas cada N segundos; un token por cliente externo (cambio mayor fuera de alcance); expirar breakpoints por tiempo.
+- ! Una pausa en un breakpoint no dispara el aviso «Arreglar con el agente» de los runs manuales; los errores de ese run se avisan al terminar. · sin revisar
+  Por qué: Con breakpoints del agente en un run manual el aviso aparecía como si fuera un error; un breakpoint es intencional.
+  Descartado: Ignorar solo los breakpoints del agente y avisar en los del usuario; dejarlo como estaba.
+
+**Prueba:** tests/unit/test_debug_tools.gd (7 tests: breakpoints por sesión y los del usuario, reenvío al arrancar, no parado, release_session, stopped_at_any, snapshot de la pila, describe) + test_run_error_watcher (pausa en breakpoint no avisa). Xvfb: tests/run_in_xvfb.sh <godot> --godot-agent-debug-test PASS en 4.7.2 y 4.8-beta2 (run_scene para en el breakpoint y lo dice; game_stack con 3 frames sin addon, locales a/b/total y miembros; frame 1; next para en la línea 22; continue vuelve a parar; clear + continue → PROBE_READY; cerrar la sesión s1 con el juego parado → sigue y su breakpoint se va). run_all 569/4458 0 fallos; mcp-test PASS. Commit 7db6b59 en sm/m11-56.
+
+**Notas:** Tools: game_breakpoint (run), game_stack (read, ENVELOPE_PARTS), game_debug (run, ENVELOPE_PARTS); extendidas en GAME_TOOLS. La pila la arma el probe (debug_stack.gd) dentro del bucle del debugger: RemoteDebugger::debug atiende las captures, y Engine.capture_script_backtraces(true) ve la función que paró debajo de los frames del addon (se filtran). Los locales solo existen con el debugger activo (siempre en runs desde el editor). Breakpoints del agente: «path:line» → caller ("" = token principal, compartido con clientes externos); se mandan a las sesiones activas y se reenvían en session_started. No se sacan los del usuario (ScriptEditor.get_breakpoints); sacar uno del agente en una línea donde el usuario tiene otro no lo apaga en el juego. Liberación por evento: controller.disconnected → plugin._on_agent_disconnected → release_session(caller), que espera hasta 30 frames a que el panel escriba el motivo (llega unos frames tarde) y continúa si el juego paró en un breakpoint de esa sesión o tras un paso suyo. BREAKED → PROBE_READY con session.continued. Extra: run_scene dice «stopped at a breakpoint» (antes «because of an error»); RunErrorWatcher ignora pausas en breakpoints; describe() ya no falla con objetos liberados; bug encontrado en test: clear no verificaba dueño. Check nuevo --godot-agent-debug-test agregado al CI.
+
+### Diff por nodos de las escenas en los cambios del turno · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`, `ui`
+
+De dónde: Godot MCP Toolkit lista «diff scenes» entre sus tools, sin detalle de cómo (https://github.com/NPGameDev/godot-mcp-toolkit); Bezi muestra diffs lado a lado y un cajón de cambios pendientes y aceptados (https://docs.bezi.com/get-started/changelog). Cómo se adapta: en el diálogo de cambios del turno (m11-02) un .tscn hoy se ve como diff de texto (ids de ext_resource, unique_id, orden). Un diff semántico: nodos agregados, quitados, movidos o renombrados y propiedades cambiadas (valor antes → después), armado comparando los dos SceneState (PackedScene del snapshot y el actual); el diff de texto queda como «ver crudo». También como tool scene_diff para el agente y el evaluador. Por qué: el cambio más común del agente es en escenas y es el que menos se puede revisar hoy.
+
+**Decisiones:**
+- ! El diff sale del texto de los dos .tscn, con un parser propio (core/scene_diff.gd), y no de los SceneState de dos PackedScene cargados · sin revisar
+  Por qué: Lo pidió el coordinador: parseado y sin depender de git. Además, cargar la escena de antes implica escribirla a un archivo temporal y que el loader resuelva sus recursos, que pueden ya no existir o estar renombrados; el parser no carga nada y anda headless y con escenas rotas. Los valores se muestran como están en el archivo.
+  Descartado: Comparar los SceneState de los dos PackedScene, como proponía la descripción de la tarea
+- ! Los nodos se emparejan por unique_id (4.6+); sin él, por ruta, y si no, por nombre y tipo cuando es único. Los ExtResource se comparan por su ruta y los SubResource por su contenido, abiertos como prop.sub hasta 2 niveles · sin revisar
+  Por qué: Así un movido o renombrado no aparece como borrado más agregado, y los ids que Godot renumera al guardar no salen como cambios. Se probó con las 41 escenas del repo, cada una contra sí misma y contra una versión con los ids renumerados: 0 cambios en todas.
+  Descartado: Emparejar solo por ruta; comparar los SubResource por id
+- ! La vista por nodos la elige DiffDialog solo, cuando los dos textos son escenas, con «Ver crudo» para el diff de texto; así vale también para el One-shot y los conflictos. Por ahora no hay tool scene_diff para el agente · sin revisar
+  Por qué: Un solo lugar y sin tocar a los que llaman. Para acotar: 200 líneas como máximo, valores cortados a 100 caracteres, un subárbol agregado o borrado en una sola línea con cuántos nodos tiene abajo, y el diff crudo armado recién al pedirlo. Con 5 MB y 5000 nodos, unos 0,3 s. La tool para el agente y el evaluador no la pidió el coordinador: queda como seguimiento.
+  Descartado: Vista por nodos solo en Cambios del turno; agregar la tool godot.scene_diff ahora
+
+**Prueba:** - tests/unit/test_scene_diff.gd (9 tests, 35 checks):
+  - parseo de valores multilínea;
+  - nodos agregados y borrados con su subárbol;
+  - movidos y renombrados;
+  - ids renumerados no cuentan como cambios;
+  - escenas sin unique_id;
+  - escena nueva y escena borrada;
+  - raíz renombrada e instancias;
+  - SubResource anidados;
+  - el texto que se muestra y su cota.
+- edit-test: la escena que guarda el editor después de las tools se ve por nodos, «Ver crudo» va y vuelve, y un script sigue mostrándose como texto.
+- Las 41 escenas del repo, comparadas contra sí mismas y contra una versión con los ids renumerados, dan 0 cambios.
+- Escena sintética de 5 MB y 5000 nodos: unos 0,3 s.
+- suite.sh ci 15/15 en 4.7.2, sobre next3 435856f.
+
+**Notas:** Rama sm/m11-57, commit f8b3205, rebasada sobre origin/sm/next3 435856f.
+- Código nuevo en core/scene_diff.gd. diff_dialog.gd tiene scene_bbcode y el botón «Ver crudo».
+- La vista por nodos se elige sola cuando los dos textos son .tscn, o cuando uno está vacío porque el archivo es nuevo o se borró. Por eso también se aplica a los diffs del One-shot y de los conflictos.
+- Seguimientos posibles:
+  - una tool godot.scene_diff para el agente y el evaluador;
+  - el resumen por nodos en la fila del diálogo de cambios, en lugar de +N −N líneas;
+  - el orden de los hijos (index) no se compara.
+
+**Relacionadas:** Revisar los cambios del turno por trozo (keep/reject) y contador vivo de archivos (como Zed)
+
+### «Planificar» y /plan para agentes sin modo plan · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `idea`, `ui`
+
+Fuente B del diseño de m11-22, separada por decisión (2026-11-10). m11-22 hace la aprobación del plan cuando el agente tiene modo plan (ExitPlanMode de Claude Code); esta tarea cubre los agentes que no lo tienen (Codex, Gemini por ACP) y el pedido explícito de un plan desde Construir.
+- Botón «Planificar» en la fila del selector de modo (solo con sesión READY y modo distinto de One-shot) y /plan <pedido> en el composer; sin texto, toma lo que haya en el composer.
+- Pasa a Preguntar y manda un prompt del harness (PLAN_REQUEST) que pide criterios jugables, diseño en términos de Godot (escenas, nodos, scripts, señales, autoloads, input map, capas de colisión) y tareas numeradas. Si el agente tiene ExitPlanMode, que lo presente con él (m11-22); si no, que termine el turno con el plan en un bloque ```plan.
+- Con el bloque, la misma PlanApprovalView de m11-22 aparece debajo del mensaje; aprobar manda send_in_mode(BUILD, PLAN_APPROVED) con la ruta del plan guardado en .godot_agent/plans/.
+Riesgo: no se puede verificar con agentes reales que respeten el bloque ```plan (solo están instalados Claude Code y antigravity-acp).
+Por qué: sin esto, solo los agentes con modo plan propio tienen el paso de aprobar antes de construir.
+
+**Decisiones:**
+- ! «Planificar» y /plan piden el plan según lo que publique el agente, y la tarjeta reconoce un bloque ```plan. - Si el agente publica un modo "plan" (como Claude Code), PLAN_REQUEST le pide que lo presente con su herramienta de plan (ExitPlanMode) y aparece la tarjeta de m11-22. - Si no, el harness le pide que termine el turno con el plan en markdown dentro de un único bloque con lenguaje exactamente `plan`. - Al terminar un turno que mandó el harness para planear (PLAN_REQUEST, PLAN_EDIT o PLAN_KEEP_PLANNING) sin tarjeta de ExitPlanMode, el harness toma el último bloque ```plan del agente. Lo muestra en la misma PlanApprovalView con un PermissionRequest propio, que no va por ACP. En el mensaje del agente el bloque queda como una línea («Plan presented · in the card below»): el plan aparece una sola vez. - Aprobar guarda el plan en .godot_agent/plans y manda send_in_mode(BUILD, PLAN_APPROVED) con la ruta del archivo y el pedido de llevar las tareas como lista del agente. El modo se sincroniza normal (set_mode), porque ese agente no sale solo de ningún modo plan. - Editar y «Seguir planeando…» mandan los mismos prompts que en m11-22, pero piden de nuevo el bloque ```plan en lugar de ExitPlanMode. - Si el usuario manda otro mensaje con la tarjeta pendiente, la tarjeta queda cancelada. - /plan lo resuelve el harness y nunca va al agente. · sin revisar
+  Por qué: ACP no tiene un mensaje para «plan a aprobar»: solo existe lo que hace Claude Code con request_permission de ExitPlanMode. Un bloque cercado con lenguaje propio es lo mismo que ya funciona con `findings` en Revisar: cualquier agente lo puede escribir y el harness lo parsea sin tools nuevas. Pedir un solo camino por agente, en lugar de «usá ExitPlanMode si la tenés y si no el bloque», le ahorra al agente decidir y evita que presente el plan por los dos lados (no lo vi pasar; es una precaución). Limitar la detección a los turnos de plan evita tomar como plan un ```plan que el agente escriba en otro contexto.
+  Descartado: - Una tool MCP godot.present_plan: hay que llamarla, y los agentes no la usan de manera tan uniforme como una respuesta en texto.
+  - Detectar ```plan en cualquier turno: falsos positivos.
+  - Un único prompt condicional para todos los agentes.
+
+**Prueba:** Unit:
+- tests/unit/test_plan_request.gd: 10 tests (bloque ```plan, prompt según modo plan, tarjeta, aprobar, editar, seguir planeando, cancelación, /plan).
+- test_composer: menú «+» e ícono.
+
+Xvfb: --godot-agent-plan-test, que ahora suma la parte del bloque con tests/scripts/plan_block.json (agente falso sin modos), en en y es. Sin tokens.
+
+Regresiones: queue, review, oneshot, ui_long_permission, ui_harness_prompt, auto, i18n (es). run_all 635 tests sin fallas.
+
+suite.sh ci: 12/13. Falla edit por scope_compass en project.godot; el arreglo está en sm/suite.
+
+**Notas:** Rama sm/m11-58, desde sm/m11-22. Commits: d77512b, c076d46 (título del plan + check con Antigravity) y f57120a. El formato quedó registrado como decisión.
+
+Verificado con Antigravity real, antigravity-acp 1.4.3, el 2026-11-11, con --godot-agent-antigravity-plan-test (gasta tokens):
+- Publica los modos default, auto_edit y yolo; ninguno es plan.
+- Planificar → terminó con un bloque ```plan con la estructura pedida → tarjeta (from_block), con una línea plegada en el mensaje → Aprobar → Construir + PLAN_APPROVED.
+- Su primera edición pidió permiso en edit_files; la denegué y corté.
+- El plan empezaba por «### 1. Playable Criteria» y el archivo se llamó 1-playable-criteria.md. Por eso el pedido ahora pide un título «# Plan: …».
+- No llevó las tareas a su lista (plan_update) antes de la primera edición.
+- antigravity-acp escribe skills/system/run-workflow/SKILL.md en su carpeta de trabajo. Ojo con git add.
+
+Arreglo de paso en SessionModel.apply_session: un session/new sin modes ya no conserva los modos del agente anterior.
+
+/plan solo aparece en el menú de / cuando «Planificar» está disponible.
+
+run_all termina igual que origin/main: 2 RIDs, 46 ObjectDB y 11 resources; son de main, no de la rama.
+
+**Bloqueada por:** Plan aprobable antes de construir (fuera del One-shot)
+
+### Rechazar por nodo en escenas, fase 2: nodos borrados o movidos, recursos nuevos y conexiones · Revisión
+
+**Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `ui`
+
+Sigue a m11-34. En la fase 1, una .tscn deja rechazar solo propiedades cambiadas y nodos agregados. Faltan:
+- devolver un nodo borrado: reinsertar su sección y la de sus descendientes en el lugar que tenían;
+- deshacer un movido o renombrado;
+- propiedades con un ExtResource o SubResource que no está en la escena actual: hay que rearmar las secciones ext_resource y sub_resource con ids nuevos sin chocar con los existentes;
+- conexiones agregadas o quitadas.
+Mientras tanto, para eso queda «Volver atrás» del archivo entero, con confirmación. Lo mismo que en la fase 1: verificar sobre el texto actual y, si cambió después del turno, el cambio queda stale y no se pisa nada.
+
+- [x] Base: importar recursos con ids nuevos, GC de los que quedan huérfanos, validate() cargando la escena antes de escribir; nodos borrados de vuelta entre hermanos
+- [x] Movidos y renombrados; encabezado (nombre de la raíz, type/instance, groups); conexiones agregadas y quitadas
+- [x] Propiedades con recursos y dentro de un sub_resource (solo si no está compartido)
+- [x] UI (validate en reject_hunk, «No se pudo revertir: …», textos del diálogo), prueba con las 41 escenas del repo y editor check
+
+**Decisiones:**
+- ! La validación cargando la escena usa una copia en user:// sin el uid del encabezado, ResourceLoader con CACHE_MODE_IGNORE, instantiate() y free(). Además de que cargue, busca las rutas que la operación espera presentes (el nodo devuelto, movido o con la propiedad) o ausentes (el nodo sacado; no para una sección de override de una escena instanciada). Si falla: «No se pudo revertir: así la escena no cargaría (motivo). No se escribió nada.», con el motivo técnico en inglés. · sin revisar
+  Por qué: Lo pidió agent-harness-81 como red de seguridad obligatoria. Godot instancia aunque un nodo tenga un padre que no existe (lo saltea con un error), así que cargar solo no alcanza: hace falta buscar el nodo.
+  Descartado: Validar con SceneDiff solamente (no ve errores de carga); comparar el árbol entero con el de antes (en producción el resto pudo cambiar a propósito después del turno).
+- ! Deshacer un rechazo no guarda estado: borra los ext_resource/sub_resource que la operación dejó sin referencias y que antes de ella sí se nombraban (en cascada). Se cambió del plan, que decía guardar los ids agregados en el resultado del rechazo. · sin revisar
+  Por qué: Los cambios se recalculan desde los dos textos del turno cada vez que se abre el diálogo y el aviso con «Deshacer» solo guarda {data, path, index}. Esta regla da lo mismo sin estado y nunca borra un recurso que alguien usa.
+  Descartado: Guardar los ids agregados en data.hunk_state (sobrevive en el JSON del aviso, pero se desincroniza si el usuario edita).
+- ! En la prueba con las escenas del repo, las 41 se comparan como texto (SceneDiff: el diff con la original queda vacío y deshacer vuelve a lo borrado). Además, 8 se cargan y su árbol se compara con el de antes: nombres, orden de hijos, propiedades guardadas (recursos locales por contenido) y conexiones. Las otras 33 son de carpetas con .gdignore o su propio project.godot (completion_eval, completion_fixture, map_fixture…): sus scripts no compilan en este proyecto. · sin revisar
+  Por qué: Cargarlas en run_all da errores de parseo de sus scripts, que el runner cuenta como fallas, y no prueban nada del rechazo.
+  Descartado: Cargar sin scripts (no hay forma limpia); abrir cada proyecto aparte (lento).
+- ! Confirmado: el borrado de recursos al deshacer (y al rechazar un nodo agregado) solo saca secciones [ext_resource]/[sub_resource] del texto del propio .tscn (SceneRevert._collect → _drop_spans sobre el texto). Nunca borra ni toca archivos de recursos: el único archivo que se escribe es la escena, y además la copia temporal de validate() en user://, que se borra después. · sin revisar
+  Por qué: Lo pidió agent-harness-81 como condición para aceptar deshacer sin estado.
+
+**Prueba:** - run_all 701/0. Tests nuevos en tests/unit/test_scene_revert_phase2.gd:
+  - ida y vuelta por cada cambio, con la escena validada;
+  - rechazar todo da la escena de antes, con el mismo árbol cargado;
+  - ids que chocan (sub y ext) y reuso de ext por ruta;
+  - orden entre hermanos (primer hijo y después del subárbol, en cualquier orden da el mismo texto);
+  - casos stale: nombre ocupado, ya está, padre que no está, padre renombrado por unique_id;
+  - movido; encabezado y conexiones; type/instance;
+  - sub compartido no se rechaza;
+  - validate();
+  - las 41 escenas del repo con semilla fija.
+- Editor check (edit_check._check_removed_node_back): borrar un Sprite2D con textura+gradiente por MCP, guardar y rechazar. Vuelve entre sus hermanos con sus recursos, sin diálogos y sin quedar sin guardar; deshacer lo saca junto con los recursos. Verificado con mutación: sin la regla del hermano anterior, falla.
+- suite ci pasa.
+
+**Notas:** Hecho en sm/m11-59 (pusheada, ac18fd6). Commits: 9045f02 (core + tests), 975a6d0 (UI), 185a927 (editor check), ac18fd6 (CHANGELOG y wiki).
+
+Implementado según el plan de abajo, con dos cambios:
+- Deshacer no guarda estado. Borra los recursos que la operación dejó sin referencias y que antes sí se nombraban (ver decisión).
+- validate() carga la escena antes de escribir y busca las rutas esperadas. Lo pidió agent-harness-81 como red de seguridad.
+
+Escenas del repo: las 41 se comparan como texto y alcanza (lo confirmó agent-harness-81). Solo 8 se cargan además, porque las otras 33 son de carpetas con .gdignore o project.godot propio, donde los scripts no compilan.
+
+Plan original:
+Todo en core/scene_revert.gd, sobre el texto actual. Si cambió después del turno, queda stale y no se escribe nada. Deshacer es la inversa con la misma verificación.
+
+1. Recursos. Se juntan los ExtResource/SubResource que nombra lo que vuelve (recursivo).
+- ext: se reusa uno con la misma uid o ruta; si no, se copia.
+- sub: se copia, salvo que tenga el mismo id y el mismo contenido.
+- Ids: el viejo si está libre; si no, uno nuevo con formato de Godot y RNG inyectable, sin chocar.
+- Las referencias se reescriben con un mapa, solo dentro de Resource("…").
+- Los ext van después del último ext y los sub después del último sub, en orden de dependencia. load_steps se ajusta.
+
+2. Nodo borrado.
+- Precondiciones: el padre existe (por unique_id o ruta), el unique_id no está y no hay un hermano con el mismo nombre.
+- Va después del subárbol del hermano anterior más cercano que siga ahí; si no hay ninguno, justo después del padre.
+- Las rutas parent= se rebasan.
+- Las conexiones vuelven si el otro extremo existe.
+
+3. Movido o renombrado: name y parent como antes, el subárbol a la posición de antes, y se reescriben las conexiones y los [editable].
+
+4. Encabezado (nombre de la raíz, type/instance, groups) y conexiones (sacar o volver a poner si están los dos extremos). En un sub_resource se edita solo si no está compartido; si lo está, «Solo con Volver atrás».
+
+**Bloqueada por:** Revisar los cambios del turno por trozo (keep/reject) y contador vivo de archivos (como Zed)
+
+### Compactación como estado propio: anunciar session.compaction y mostrar compaction_update · Revisión
+
+Sale de m11-35. claude-agent-acp (0.106) manda la compactación como una tool call sintética «Compact conversation» (name compact, kind think) si el cliente no anuncia clientCapabilities.session.compaction. Si lo anuncia, manda sessionUpdate «compaction_update» con compactionId, status (in_progress/completed/cancelled/failed) y summary (el resumen que quedó, sin las etiquetas). Hay que anunciar la capacidad, mostrar la compactación en el chat como una fila propia con el resumen desplegable, guardarla en el historial y reproducirla, y usar el fin de la compactación para rearmar el aviso de m11-35. Cambia lo que ve el usuario en el chat y en el historial: por eso va aparte.
+
+**Decisiones:**
+- ! El aviso de la tool call «Compact conversation» (adapters sin la capacidad) también espera al fin del turno para ofrecer el traspaso, igual que compaction_update; una compactación fuera de un turno lo ofrece enseguida. · sin revisar
+  Por qué: La regla de agent-harness-81 (no cortar el flujo del turno) vale igual para los dos caminos. claude-agent-acp tiene compactación en reposo (idle-compaction), que llega sin turno en curso.
+  Descartado: Dejar el camino viejo como estaba (acción inmediata). Esperar siempre al próximo fin de turno, aunque la sesión esté quieta.
+
+**Prueba:** Headless: tests/run_all.gd -- test_compaction (capacidad anunciada; los updates vivos del fixture dan una fila con el resumen y el completed repetido no lo borra; failed/cancelled; el historial graba solo el final y lo reproduce con replaying; el replay de session/load deja la fila entre los mensajes). Editor: tests/suite.sh run ui-handoff (compaction_update en medio del turno: fila con el resumen plegado después del mensaje donde llegó, sin acción mientras el turno sigue, con «Nueva sesión con resumen» al terminar; la tool call de un adapter sin la capacidad también la ofrece).
+
+**Notas:** Captura (claude-agent-acp 0.106.0 con haiku, probe ACP en Python): tests/fixtures/acp/compaction_0106.json.
+- Con la capacidad: in_progress → completed con summary → completed sin summary, con el mismo id. La respuesta del /compact es end_turn con usage en 0.
+- session/load: un solo completed con summary y otro id, entre los mensajes.
+
+Hecho en sm/m11-60 (11c21a1):
+- session_controller anuncia session.compaction.
+- SessionModel._apply_compaction arma una fila NOTICE por compactionId, con details y details_title, y emite compaction_changed.
+- SessionHistory graba solo el estado final de cada compactación.
+- agent_dock: _compaction_offers. La acción va al terminar el turno (turn_finished), o enseguida si la sesión está quieta; al reproducir, nunca. El aviso de la tool call vieja también espera al fin del turno.
+- El resumen se muestra en la fuente mono del detalle de los avisos, con Copiar.
+
+### Cerrar el editor no deja procesos del agente · Revisión
+
+Hallazgo de m11-24: el PREDELETE de AgentProcess fallaba en el cierre («stop» en «null instance»). Comprobar si cerrar el editor deja procesos (npx, claude-agent-acp, node) y arreglarlo en AgentProcess para todos los que lo usan, con un check que cierre el editor y verifique que no quedan hijos.
+
+**Decisiones:**
+- ! stop_all() también corre al desactivar el plugin, no solo al cerrar el editor · sin revisar
+  Por qué: Va en _exit_tree del plugin, que es el único punto confiable en los dos casos; con el plugin desactivado no queda nadie que lea esos procesos.
+  Descartado: Escuchar NOTIFICATION_WM_CLOSE_REQUEST solo para el cierre (deja huérfanos al desactivar); mantener solo el PREDELETE (no corre o falla en el cierre).
+
+**Prueba:** tests/suite.sh run quit (ci, grupo editor): agentes falsos con ignore_eof+spawn_child en la sesión principal, una pestaña y un AgentProcess suelto; cierra el editor con WM_CLOSE_REQUEST y mira con kill -0 que no quede ninguno de los 6 pids. test_agent_process.test_stop_all.
+
+**Notas:** Reproducido antes del arreglo: las dos sesiones se limpiaban (el plugin las para en _exit_tree); el AgentProcess suelto, cuyo dueño se libera recién en el cierre, quedaba vivo con su hijo (sleep). Arreglo: lista estática de procesos vivos en AgentProcess (pid → weakref), stop_all() al final de agent_plugin._exit_tree; PREDELETE mata solo con OS, sin llamar a stop(). Rama sm/agent-process-quit, 5f576a7.
+
+### Regresiones: sabotajes de escena generados (fase 2 de m11-41) · Revisión
+
+**Etiquetas:** `idea`, `playtest`
+
+Fase 2 de m11-41, aparte por pedido de agent-harness-81. Además de las mutaciones de GDScript en memoria, generar sabotajes de escena sobre los nodos que toca cada regresión: una propiedad exportada a 0/false/null, una señal desconectada, un nodo oculto o deshabilitado. Se corren como el sabotaje de m16-09 (código antes de la regresión, sin tocar archivos) y se suman al mismo puntaje y a la lista de sobrevivientes. Por qué: una regresión puede no mirar el código mutado pero sí el estado de la escena; Beckett v1.16 (op=mutate) muta así.
+
+**Decisiones:**
+- ! Los sabotajes se aplican sobre la escena ya asentada (después de _ready), se eligen por los nombres de nodo que aparecen en el código de la regresión, y solo cubren lo que está en el .tscn. · sin revisar
+  Por qué: Es el mismo punto que el sabotaje de m16-09, y no exige tocar el .tscn ni cargarlo modificado. Filtrar por los nodos nombrados concentra la cuota en lo que la regresión toca, como pide la tarea. Las conexiones por código o los nodos de runtime no se pueden enumerar sin correr el juego.
+  Descartado: Aplicar antes de _ready instanciando un PackedScene modificado en memoria (más fiel para valores que se leen en _ready, pero bastante más complejo); sabotear todos los nodos; desconectar todas las conexiones vivas de un nodo.
+
+**Prueba:** tests/unit/test_scene_sabotage.gd: los sabotajes del fixture leídos del .tscn y serializables a JSON, el filtro por el código de la regresión, apply en memoria (propiedad, ocultar, señal, deshabilitar diferido, inválido si el nodo falta o la señal ya no está conectada, el .tscn intacto), y el plan con los sabotajes, sus regresiones y where() sin «:0». tests/regressions_cli_check.sh: con --mutate sobre la regresión de door.tscn, los 3 sabotajes que mira quedan detectados, «root hidden» sobrevive y el hash de los .gd y .tscn no cambia. Commit 1b23c91.
+
+**Notas:** Hecho en 1b23c91 (sm/m11-62).
+- SceneSabotage (playtest/mutation/scene_sabotage.gd) lee el SceneState sin instanciar, incluidas las escenas instanciadas hasta 3 niveles.
+- Sabotajes:
+  - una propiedad exportada a 0, 0.0, el bool contrario, Vector ZERO o null, según el valor efectivo: el override de la escena o el default del script;
+  - una conexión de la escena cortada;
+  - un nodo oculto (CanvasItem o Node3D);
+  - una colisión deshabilitada (CollisionShape y CollisionPolygon, que no se ocultan porque eso no cambia nada).
+- Con el código de las regresiones de esa escena, solo se sabotean los nodos que nombra, la raíz y las señales que llegan a la raíz.
+- Se aplican en memoria en regression_cli.run_one, después del settle. Un sabotaje que no se puede aplicar queda inválido.
+- La guarda de guardado de _run_mutant los cubre.
+- En el plan, cada escena es un «archivo» más de la muestra pareja. where() muestra la ruta de la escena sin línea, y Abrir abre la escena.
+- No cubre: las conexiones hechas por código (connect en _ready) ni los nodos instanciados en runtime.
+
+### Regresiones: sabotajes de escena antes de _ready (PackedScene modificado en memoria) · En curso
+
+**Prioridad:** baja · **Etiquetas:** `idea`, `playtest`
+
+Seguimiento de m11-62, pedido por agent-harness-81. Hoy los sabotajes de escena se aplican sobre la escena ya asentada, después de _ready. Por eso un valor que solo se lee en _ready (por ejemplo, la vida inicial) no se ve afectado. Propuesta: en el modo --mutant, cargar el PackedScene, modificar su SceneState en memoria (override de la propiedad o conexión sacada) e instanciar esa versión, sin guardar nunca y con la misma guarda de guardado. Por qué: es más fiel para los valores que se leen al arrancar. Sigue sin cubrir las conexiones hechas por código.
+
+**Decisiones:**
+- ! El sabotaje se pone sobre la instancia recién creada con PackedScene.instantiate(), antes de que entre al árbol (change_scene_to_node), y no se reescribe el SceneState. · sin revisar
+  Por qué: SceneState es de solo lectura. Modificarlo exige reescribir a mano el diccionario _bundled del PackedScene (índices de nombres y variants, contadores de propiedades y conexiones, escenas instanciadas por dentro), que es frágil y depende del formato interno. Al salir de instantiate() la instancia ya tiene los valores del .tscn y las conexiones persistentes, y todavía no corrieron _enter_tree ni _ready. Por eso el resultado es el mismo que con el .tscn cambiado, también para los nodos de escenas instanciadas por dentro, sin tocar el PackedScene del caché.
+  Descartado: Editar _bundled de un duplicado del PackedScene y instanciar ese (lo que proponía la tarea); dejar el sabotaje después del settle (m11-62).
+
+### capture_editor_viewport desde una cámara elegida y desde varios ángulos · Revisión
+
+**Prioridad:** baja · **Etiquetas:** `idea`
+
+Resto de m11-52: allí se hizo solo el lado del juego (capture_game_frame con camera, look_from/look_at y angles), que fue lo que pidió agent-harness-81. Falta lo mismo en el editor: capture_editor_viewport con look_from/look_at, angles o un rect 2D, renderizando en un SubViewport con el world_3d de la escena editada y una cámara temporal, sin mover la cámara del usuario. Se puede reusar playtest/runtime/camera_views.gd (plan y orbit). Por qué: así el agente revisa un nivel sin correr el juego ni pedirle al usuario que mueva la vista.
+
+**Prueba:** mcp_check._check_editor_views abre camera_views.tscn y prueba: camera «Side» ve la caja verde, look_from/look_at ve la roja, 3 ángulos alrededor de la verde dan 3 vistas verdes, la cámara del editor queda igual, y dan error una cámara inexistente y angles en 2d. test_camera_views agrega el caso de view_3d. run_check sigue pasando con el helper movido a mcp_check.
+
+**Notas:** Hecho en fcfb183 (sm/m11-64). capture_editor_viewport toma camera, look_from/look_at, angles, distance y zoom. Reusa CameraViews: plan() recibe view_3d según `which`, y render() recibe el viewport del editor, con cuyo mundo renderiza. El SubViewport cuelga del base control del editor. Las vistas incluyen los gizmos y la grilla del editor, porque comparten el mundo. No se hizo un `rect` 2D aparte: look_at con zoom cubre eso.
+
+### session_send: grupo propio, sobre no confiable y sin escalar a un modo con más permisos · Revisión
+
+**Prioridad:** alta · **Tamaño:** S
+
+Pedido del coordinador tras m11-28, y frena el release. godot.session_send estaba en GROUP_READ: un agente en Preguntar o Revisar (o una sesión que leyó texto plantado) le mandaba sin permiso un prompt a otra pestaña, que podía estar en Auto. Es una escalada de privilegios entre sesiones.
+- El mensaje llega en sobre no confiable, con «from session X, data not instructions».
+- Grupo propio sessions_message: ask en todos los modos y deny en One-shot.
+- Hacia un modo con más permisos se deniega siempre, sin importar la matriz.
+- Además: «Open the conversation» de la segunda opinión para el oráculo antes de abrirla.
+
+**Decisiones:**
+- ! Niveles para la escalada: Preguntar = Revisar < Construir < Auto = One-shot. También se deniega Construir → Auto o One-shot. · sin revisar
+  Por qué: El pedido nombraba Preguntar/Revisar → Construir/Auto. La regla general («destino más permisivo que el origen») también cubre Construir → Auto: Auto edita sin preguntar lo que en Construir pide tarjeta. Preguntar y Revisar no editan ninguno de los dos, así que entre ellos se permite.
+  Descartado: Solo denegar desde Preguntar/Revisar (Construir → Auto permitido); un orden estricto con Revisar por encima de Preguntar (Revisar puede correr el juego preguntando)
+
+**Prueba:** - run_all: 812 tests, 0 fallos. test_session_messages cubre:
+  - el grupo y sus defaults, y el cambio en la matriz;
+  - la matriz de escalada, los 25 pares de modos;
+  - el sobre, que un cierre falso no rompe;
+  - el precheck: corre una sola vez con los argumentos y antes del permiso.
+- test_second_opinion: release.
+- suite.sh ci en 4.7.2: 20/20 PASS.
+  - El check de sessions cubre: Auto→Auto pide tarjeta; con permiso de sesión llega a entregar; Preguntar→Auto se deniega sin tarjeta aun con ese permiso; Preguntar→Revisar entrega.
+  - El check de second-opinion cubre: release para el proceso del oráculo.
+
+**Notas:** Rama sm/session-send (6af22a3) desde origin/sm/next4 e3e3ca3.
+
+- Antes, el mensaje llegaba sin sobre, como prompt con un prefijo entre corchetes. Ahora va con SessionTools.delivery_text.
+- Rangos de modo para la escalada (decisión): Preguntar = Revisar (0) < Construir (1) < Auto = One-shot (2). Se deniega si el rango del destino es mayor que el del origen. Construir→Auto también se deniega (Auto edita sin preguntar).
+- El rechazo está en _message_refusal, que llaman el precheck (antes de la tarjeta, sin tarjeta) y la entrega (el destino pudo cambiar de modo mientras esperaba).
+- ToolRegistry.precheck ahora es (caller, tool_name, args) y se llama una sola vez por tool call.
+- Las sesiones en una copia aparte siguen pudiendo mandar: session_send sale del precheck antes de la regla de copias.
+- SecondOpinion.release(): cancela la pregunta, para el proceso y guarda el historial. La llama «Open the conversation» antes de abrir la pestaña.
+
+### Marcas de keep/reject por trozo en el Script Editor · En curso
+
+**Tamaño:** M
+
+Seguimiento de m11-34 (punto 3 opcional de la idea). Hoy los cambios de un turno se conservan o rechazan por trozo solo en el diálogo «Ver cambios». En el Script Editor, cada trozo cambiado por el último turno debería verse en el gutter con ✓ (conservar) / ✗ (rechazar), reusando las anotaciones de Revisar y la misma lógica de rechazo por trozo (incluido stale y Deshacer). Pedido por agent-harness-81, rama desde origin/sm/next5, con su check de editor.
+
+**Decisiones:**
+- ! Marcas en un gutter propio con ✓ y ✗ clickeables en la primera línea de cada trozo (sin tarjeta) y una banda en la barra de estado; solo el último turno de la pestaña activa y solo scripts del proyecto abierto · sin revisar
+  Por qué: Es lo que pidió 81 (gutter con ✓/✗ por trozo). La banda da el motivo cuando no se puede rechazar. Las escenas no se abren en el Script Editor; las copias aparte no están abiertas en el editor.
+  Descartado: Tarjeta bajo la línea como las de Revisar; marcas de todos los turnos de la sesión
+
+### Ctrl+Enter: mandar y seguir al agente · Pendiente
+
+**Tamaño:** S
+
+Seguimiento de m11-33. Ctrl+Enter en el composer manda el mensaje y prende «Seguir al agente» para ese turno (como Zed), sin tener que tocar el botón de la mira. Pedido por agent-harness-81, rama desde origin/sm/next5, con su check.
+
+**Decisiones:**
+- ! Ctrl+Enter deja de bajar de línea (queda solo Shift+Enter) y prende el seguimiento solo para ese pedido: se apaga al terminar ese turno y la cola, salvo que el usuario toque la mira · sin revisar
+  Por qué: 81 pidió Ctrl+Enter para mandar y seguir; Shift+Enter ya baja de línea. «Para ese pedido» evita que un atajo deje prendido algo que mueve el editor en los turnos siguientes.
+  Descartado: Otro atajo (Ctrl+Shift+Enter) manteniendo Ctrl+Enter como salto de línea; dejar el seguimiento prendido hasta que el usuario lo apague
+
+## M10 — Revisión de UX  (49/49, 9 en revisión)
 
 Arreglar lo que la revisión de UX del 29/10 encontró en el dock, Ajustes, el registro de ACP, Extensiones, One-shot, Alt+I y el Agent Log: primero el diseño roto que esconde controles, después los flujos que más se usan.
 
@@ -3763,7 +5537,157 @@ Lienzo: https://claude.ai/artifact/3WiCtTnZP94EADbreh18ny (pantalla 6)
 
 **Notas:** TabContainer con tabs_visible = false y un ItemList a la izquierda (como Ajustes) que lo maneja; los títulos con contadores se copian a la lista. Ventana de 820 × 760 (mínimo 720 × 600). Los contadores siguen mostrando (0) mientras carga.
 
-## M11 — Revisiones de seguridad, patrones y arquitectura  (26/28, 17 en revisión)
+### One-shot: la pantalla se sigue cortando con el dock ancho (reabre m12-09) · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19 (cd5901d): con el dock del ancho por defecto del tour, la pantalla principal One-shot queda con ~370 px y se corta por los dos lados: «‑shot», «gent makes a plan…», los ejemplos, «Configurar un agen…» y el aviso de agente. m12-09 está en done pero el caso sigue. Propuesta: debajo de un ancho mínimo, la columna del One-shot entra en un ScrollContainer horizontal o colapsa a una sola columna con márgenes chicos; nunca recortar texto. Capturas: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/31_oneshot_angosto.png y es/31_oneshot_angosto.png.
+
+**Decisiones:**
+- ! Los ejemplos de objetivo pasan de tres LinkButton a un RichTextLabel con un [url] por ejemplo: el LinkButton no parte el texto y su ancho (unos 440 px con la escala por defecto) era el mínimo del formulario, que con el centro a ~380 px se centraba desbordando por los dos lados. · sin revisar
+  Por qué: Es la única pieza del formulario sin ajuste de línea; con RichTextLabel el formulario baja de verdad hasta FORM_NARROW_WIDTH (280 px) y nada se recorta. El check del One-shot ahora angosta el centro a 340 px (no fija el ancho del dock: el centro resultante depende del dock izquierdo y de la escala) y mide con LayoutCheck.form_fits.
+  Descartado: Botones planos con autowrap (sin subrayado de enlace); un ScrollContainer horizontal (el usuario pidió nunca recortar y scrollear de lado es peor); bajar FORM_NARROW_WIDTH (no arregla el mínimo real).
+
+**Prueba:** Antes: con --godot-agent-oneshot-test angostando el centro a 340 px el dock no podía ensancharse (el formulario pedía 368 px por los LinkButton). Después: oneshot-test en Xvfb 0 fallas en en y es con el centro a 340 px (LayoutCheck.form_fits: el panel no pide más que el área y ningún control sale de ella); tests/ux_tour.sh en y es 0 fallas; run_all 524 tests 0 fallos; acp_session_check 203/0; oneshot_check 186/0. Capturas: antes /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/es/31_oneshot_angosto.png; después …/scratchpad/m12-41/after/tour_es/31_oneshot_angosto.png y …/m12-41/after/oneshot_form_narrow.png (centro a 340 px).
+
+**Notas:** Rama sm/m12-41, commit b580527. Los ejemplos de objetivo pasan a un RichTextLabel con [url] por ejemplo (meta_clicked pone el objetivo); los LinkButton no parten texto y su ancho era el mínimo real del formulario. LayoutCheck gana form_fits(form) y set_dock_width(dock, px) (antes era privado de ux_tour); oneshot_ui_check mide el formulario con el centro normal y angostado a 340 px (NARROW_CENTER_WIDTH, no un ancho fijo del dock: el centro depende del dock izquierdo y de la escala) y guarda <shot>_form_narrow.png. CHANGELOG Unreleased › Fixed.
+
+### El veredicto de un playtest fallido es un bloque rojo de 15 líneas · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19: el aviso «Playtest: failed — …» muestra evidencia, cambios directos, detectores y pasos para reproducir todo en rojo y con el mismo peso (guia/playtest.png en y es). Es el caso que m12-13 arregló para los errores del agente, sin aplicar a los veredictos. Propuesta: tarjeta con título rojo («Playtest: falló · Los asteroides dejan de acelerar…»), cuerpo en color normal con secciones plegables (Evidencia, Detectores, Para reproducir) y las acciones (Reproducir la grabación, Ver hallazgo) abajo; el mismo molde para «Playtest: pasó» con «Guardada como regresión». Capturas: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/guia/playtest.png y es/guia/playtest.png.
+
+**Decisiones:**
+- ! El veredicto se arma como ChatEntry NOTICE con title (resultado · motivo), text (solo «Antes de confiar en esto» y el video) y sections [{title, text}] nuevas en ChatEntry, que NoticeView dibuja como FoldableContainers plegados con la cantidad en el título («Evidencia · 3»); el mismo molde para pasó/explorado/no se pudo probar. · sin revisar
+  Por qué: Reusa la tarjeta con título de m12-13 y el plegado del panel de Revisar; las secciones plegadas dejan el dock legible (en 320 px la tarjeta entra entera) y lo importante para decidir (resultado, motivo, avisos) queda a la vista. ReviewStore.playtest_notice_plain() conserva el texto plano en orden para el log y las pruebas.
+  Descartado: Evidencia abierta por defecto solo en «falló» (más alto en el dock, se descartó por consistencia); una sola sección «Detalles» (mezcla cosas de distinto peso); mantener todo en texto con colores (Label no mezcla estilos).
+
+**Prueba:** run_all 523 tests 0 fallos (test_review_store: título «Playtest: failed · no salta», texto vacío sin avisos, secciones «Evidence · 1» / «To reproduce · 2», cambios directos y detectores en su sección, avisos del agente y video en el texto). acp_session_check 203/0. tests/docs_shots.sh en y es 0 fallas, con el check nuevo de DocsShots (_check_verdict_card: la tarjeta tiene título «Playtest: failed», las secciones de evidencia y pasos, un FoldableContainer por sección, plegados, y ninguno sale del dock) en ancho (480) y angosto (320). tests/ux_tour.sh es 0 fallas. Capturas: antes …/scratchpad/m12-42/before_es_playtest.png (= docs/images/es/playtest.png en cd5901d); después docs/images/{en,es}/playtest.png (commiteadas), …/scratchpad/m12-42/tour_es/guia/playtest.png (ancho) y …/tour_es/guia/playtest_angosto.png (320 px). Base: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95
+
+**Notas:** Rama sm/m12-42 desde cd5901d, commit 6cdbf8c. ChatEntry.sections [{title, text}]; ReviewStore.playtest_notice devuelve {title, text, sections, level} y playtest_notice_plain(); SessionController._report_playtest pone title/sections y notify_entry_changed; NoticeView dibuja las secciones como FoldableContainers plegados y oculta el Label si el texto está vacío. es.po: los títulos de sección sin los dos puntos. DocsShots: _check_verdict_card y playtest_narrow_path (el tour guarda guia/playtest_angosto.png); _widen_dock(width). CHANGELOG Unreleased › Fixed. Independiente de sm/m12-41.
+
+### Panel de Revisar: «2 bug» sin plural y chips abreviados («rend», «orden») · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19: el título del panel dice «Review of tests/docs_demo/ · 1 file · 2 bug» / «2 bug» en español (review_panel.gd arma el título con la etiqueta de la categoría sin pluralizar), y los chips de categoría dicen «0 orden · 0 rend · 0 estilo»: «rend» no se entiende y «orden» tampoco sin contexto. Propuesta: plural por cantidad («2 bugs», «1 bug») con msgids separados como en «%d file»/«%d files», y nombres completos en los chips («rendimiento», «orden del código») o un tooltip con la definición. Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/es/guia/playtest.png.
+
+**Decisiones:**
+- ! Contadores con el número adentro y dos msgids por categoría (COUNTER_ONE / COUNTER_MANY, como «%d file» / «%d files»): «1 bug» / «2 bugs», «2 order», «2 performance», «2 style»; en español «2 bugs», «2 de orden», «2 de rendimiento», «2 de estilo». Los chips van en un HFlowContainer para que bajen de línea en un dock angosto. · sin revisar
+  Por qué: I18n solo tiene t(); el patrón del proyecto para plurales son msgids separados. Nombres enteros en vez de «rend»/«perf» porque los chips se leen sin pasar el mouse; «de orden» en lugar de «orden de ejecución» para que los cuatro chips entren en una fila en un dock de 480 px.
+  Descartado: Ocultar los chips en cero (se pierde la leyenda); solo tooltip con el nombre entero (ya existía y no alcanzaba); «orden de ejecución» completo (demasiado largo para la fila).
+
+**Prueba:** tests/unit/test_review_panel.gd: counter_label en en («1 bug», «2 bugs», «0 bugs», «3 performance») y es («2 bugs», «0 de rendimiento», «1 de orden», «4 de estilo»); test_i18n sigue verde (es.po sin «order»/«perf» sueltos). review-test en Xvfb en y es 0 fallas (los chips coinciden con counter_label y el título cuenta los que no son cero). Captura después: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m12-41/after/tour_es/guia/playtest.png («2 bugs · 0 de orden · 0 de rendimiento · 0 de estilo»); antes …/scratchpad/ux/es/guia/playtest.png.
+
+**Notas:** Rama sm/m12-41, commit 1162f74. COUNTER_ONE/COUNTER_MANY con «%d …» por categoría y counter_label(severity, count) estática; _counters es HFlowContainer. es.po: «%d bug(s)», «%d de orden/rendimiento/estilo»; borrados «order» y «perf». CHANGELOG Unreleased › Fixed.
+
+### Los prompts que manda el harness parecen escritos por el usuario (y van en inglés) · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19, dock en español tras la guía: la burbuja «Keep going with the plan: the next pending task is “Movimiento y disparos de la nave”. Verify with run_scene…» (One-shot) se muestra con el mismo globo azul que un mensaje del usuario, en inglés en una UI en español. Lo mismo pasa con los prompts de reanudación, la verificación automática y los arreglos de Revisar. Propuesta: marcar las entradas de usuario que generó el harness (un rótulo «Harness» o «One-shot» chico, color apagado, texto plegado a una línea con «ver prompt»), sin traducirlas (las lee el agente). Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/es/40_dock_tras_la_guia.png.
+
+**Decisiones:**
+- ! Prompt del harness: línea atenuada a todo el ancho del chat con «⚙ etiqueta» (cortada con «…», entera en el tooltip) y «Ver prompt»; no la burbuja del usuario a la derecha · sin revisar
+  Por qué: En un dock angosto la etiqueta dentro de la burbuja ocupaba 3 líneas; a todo el ancho queda plegada en una y se distingue de lo que escribió el usuario
+  Descartado: Burbuja del usuario atenuada a la derecha (se partía); aviso tipo NOTICE (se pierde que fue un prompt al agente)
+- ! Criterio único: todo prompt que no es exactamente lo que escribió el usuario lleva etiqueta, vía controller.label_prompt(texto, etiqueta); la entrada y el historial guardan el msgid en inglés y se traduce al mostrar · sin revisar
+  Por qué: Un registro texto→etiqueta en el controller sirve también para lo que pasa por la cola del dock o el prompt pendiente sin pasar un parámetro por cada camino; con el msgid el chat sale en el idioma de quien lo reabre
+  Descartado: Parámetro harness_label en send_prompt/cola/pending (muchos caminos); inferir la etiqueta por el prefijo del texto (frágil); guardar la etiqueta ya traducida
+- ! Lo que el usuario escribe tal cual sale como suyo; envuelto por el harness (pedido con el spec sin aprobar, plan editado) sale como del harness con su etiqueta · sin revisar
+  Por qué: Lo que recibe el agente ya no es su texto; «Ver prompt» lo muestra entero
+  Descartado: Mostrar siempre como del usuario lo que tiene texto suyo adentro
+
+**Prueba:** Sobre cd5901d, en 4.7.2: run_all 529/0, con el test nuevo test_harness_prompts (plegado, traducido y desplegado; la entrada del usuario sin cambios; todas las etiquetas traducidas; el historial guarda y recupera la etiqueta en disco; registro del controller; la fila de la cola muestra la etiqueta). oneshot_check 190/0: inicio, cierre, cambio al spec, aprobación, QA y correcciones salen con su etiqueta y la guía del usuario sin. acp_session_check 203/0. En Xvfb, el ui-test nuevo ui_harness_prompt (tests/scripts/ui_harness_prompt.json) pasa en es y en con el ancho por defecto del dock: las dos etiquetas (chequeo del turno, supervisor) se ven enteras en hasta 2 líneas sin «…», el botón queda dentro del chat, «Ver prompt» muestra el texto en inglés y el agente recibe el mismo texto. Capturas en <shot>_harness.png y <shot>_harness_open.png. ui_demo y ui_long_permission siguen pasando en es.
+
+**Notas:** Commits 4ba0be6 y 7c64641 (ajuste) en sm/m12-44. Ajuste pedido en la revisión: la etiqueta parte en hasta dos líneas (autowrap, max_lines_visible 2; si es más larga, «…» y la entera en el tooltip). «Ver/Ocultar prompt» va al lado si entra en una línea con la etiqueta; si no, baja a la derecha. Etiquetas más cortas en es: «Chequeo automático tras el turno», «Lo que vio el supervisor con el editor cerrado», «Edición en línea del Script Editor». HarnessPrompts (session/harness_prompts.gd) tiene las etiquetas como msgids con «# i18n». SessionController.label_prompt(texto, etiqueta) las registra y send_prompt las consume, así que también funcionan para lo que sale por la cola del dock o por el prompt pendiente. ChatEntry.harness_label queda guardado en el historial como "harness". Las etiquetas cubren: One-shot (objetivo, retomar, resumen, siguiente tarea, seguir con el objetivo, spec aprobado, cambio al spec, plan editado, informe final, aviso de bucle, evaluación de QA, correcciones de QA, apagar Remote Control), el chequeo después del turno (m11-04), las preguntas, correcciones y playtest de Revisar, la edición en línea, lo que vio el supervisor y los mensajes de otra sesión. El /usage oculto sigue sin mostrarse. Límites: si la sesión se reabre con session/load del agente, el agente devuelve user_message_chunk sin etiqueta y esos prompts vuelven a verse como del usuario; solo el replay del historial del harness las conserva. Lo que el run tenía en la cola al cerrarse el editor vuelve con la etiqueta genérica «One-shot».
+
+### Dock angosto con pestañas: la línea de comando en el estado vacío, «(copy)» cortado y el aviso de la copia como párrafo · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`
+
+Capturas del sessions-test con el dock a ~220 px (varias pestañas en un monitor chico): (1) el estado «Sin sesión» muestra «npx -y @agentclientprotocol/claude-agent-acp» partido en tres líneas, un dato técnico que no ayuda a decidir nada; (2) la pestaña de la copia queda «Session 4 (co…» y se pierde justo lo que la distingue; (3) el aviso de la copia aparte es un párrafo centrado de 8 líneas con la ruta absoluta entera. Propuesta: en el estado vacío solo el nombre del agente (la línea de comando al tooltip); las copias con un ícono o badge en la pestaña en vez del sufijo; el aviso como tarjeta corta («Trabaja en una copia aparte · carpeta · rama agent/copy-…») con la ruta en un botón «Copiar ruta» o tooltip. Capturas: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/tabs/s_two_tabs.png y s_copy.png.
+
+**Decisiones:**
+- ! Las copias se llaman «Session N» (sin «(copy)») y se marcan con el ícono Duplicate en la pestaña, la rama en el tooltip y una marca en godot.sessions (SessionCoordinator.mark_copy) que sobrevive al renombrar · sin revisar
+  Por qué: El sufijo era lo primero que se cortaba en un dock angosto y además se perdía al renombrar; los agentes que se mandan mensajes por nombre siguen viendo cuál es una copia en godot.sessions
+  Descartado: Badge de texto en la pestaña (ocupa más que un ícono); dejar el sufijo y solo achicarlo; nombre de las copias «Copy N»
+- ! Aviso de la copia: título «Works in a separate copy», la rama y qué pasa al cerrar en el texto, y la carpeta en el bloque plegado de la tarjeta (details) con su botón «Copiar»; los avisos INFO con título alinean el texto a la izquierda · sin revisar
+  Por qué: Reusa lo que NoticeView ya tiene (título, details plegado con Copiar) sin un botón nuevo; centrado bajo un título alineado a la izquierda parecía un párrafo suelto. Cambia también la alineación del texto de otros avisos INFO con título (veredicto de playtest que pasó)
+  Descartado: Botón «Copiar ruta» como acción del aviso (necesita un id de acción y su manejo en el plugin); la ruta solo en tooltip (no se puede copiar); texto centrado como antes
+- ! Sin sesión, el texto bajo «No session» es el nombre del agente (display_name), con la línea de comando en el tooltip · sin revisar
+  Por qué: Lo pedía la tarea; la línea de comando es un dato técnico que no ayuda a decidir. Repite el nombre del chip del agente que está arriba
+  Descartado: Ocultar la línea del todo (el chip ya dice el agente); «Con Claude Code»
+
+**Prueba:** Rama sm/m12-45 (c9599b1). test_sessions (copia marcada tras renombrar), test_session_tabs (ícono y tooltip), sessions-test en Xvfb (pestaña con ícono y rama en el tooltip, godot.sessions dice la copia, aviso como tarjeta con la carpeta plegada, estado vacío con el nombre del agente y el comando en el tooltip; capturas revisadas). suite.sh ci en 4.7.2: 13/13 PASS.
+
+**Notas:** Las copias se llaman «Session N»: el sufijo «(copy)» se sacó (y su msgid de es.po). SessionCoordinator.mark_copy/is_copy y SessionTabs.set_copy/is_copy. PluginMain.copy_notice arma la tarjeta. NoticeView: los avisos INFO con título alinean el texto a la izquierda (afecta también al veredicto de playtest que pasó). No toca permission_broker, permission_view ni session_controller.
+
+### Ver qué puede hacer el agente: una lista de las 80 tools godot.* en la UI · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19: no hay ningún lugar del editor donde el usuario vea qué tools tiene el agente (la tabla está solo en la wiki Editor-tools). Lo único visible es la casilla «Lista de tools compacta» en Ajustes › Servidores MCP › Avanzado, que presupone saber qué hay. Con 80 tools y funciones nuevas (profile_run, write_regressions_workflow, install_extension), descubrirlas depende de leer el changelog. Propuesta: pestaña «Tools» en Extensiones (o un botón en Ajustes › Servidores MCP) con la lista por grupo (leer, escena, archivos, juego, proyecto, GDExtension…), el grupo de permisos de cada una, si entra en la lista compacta, y un filtro; cada fila con la descripción que ve el agente. Captura de referencia: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/12_ajustes_2.png.
+
+**Decisiones:**
+- ! Pestaña «Tools (N)» en Extensiones (última de la navegación), con un Tree: grupos por proveedor (ToolRegistry.category_of, que sale del nombre del script del proveedor: read, scene_edit, file, run, diagnostic, validate, project, resource, tilemap, animation, api, asset, profile, session), y por tool: nombre godot.*, la primera oración de la descripción (tooltip con la entera), el grupo de permisos y una columna por modo (Preguntar, Revisar, Construir, Auto, One-shot) con ✓/?/✗ según la política del proyecto (PermissionPolicy con los overrides de project_config, sin los concedidos en sesión). Filtro por nombre, descripción, categoría y permiso. Las tools que esconde la lista compacta llevan «⋯» y una nota al pie. Accesos: menú «…» del dock («Qué puede hacer el agente (tools)…») y un botón en Ajustes › Herramientas del editor. · sin revisar
+  Por qué: Extensiones ya es el lugar de «qué tiene el agente» (plugins, MCP, skills, instrucciones); un Tree plegable entra en la ventana con 80 filas y en su tamaño mínimo. La categoría sale del proveedor para no mantener una tabla aparte de 80 nombres; los permisos se leen de la misma política que usa el server, así nunca se desfasan.
+  Descartado: Una página en Ajustes › Servidores MCP (está lleno y no es «qué puede hacer»); una tabla a mano en la wiki (ya existe y nadie la encuentra); exponer también las tools de MCP externos (no hay descripción sin sesión; queda para otra tarea).
+
+**Prueba:** run_all 566 tests 0 fallos (test_tools_tab, test_tool_summaries, test_tool_registry.test_catalog, test_claude_extensions con 7 pestañas, test_i18n). tests/ux_tour.sh en y es 0 fallas; tras los ajustes, es 0 fallas: capturas /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m12-46/tour4_es/26_extensiones_6.png (normal) y 27_extensiones_tools_angosto.png (min_size), con «Qué hace» en español y las categorías enteras. Antes: no existía la pestaña (ux/en/12_ajustes_2.png); primer intento con cinco columnas (m12-46/tour_es/26_extensiones_6.png) y con resumen en inglés (tour2_es/26_extensiones_6.png).
+
+**Notas:** Rama sm/m12-46 desde sm/next2 (34f7541), commit cf07d6f (integrado). Ajustes en sm/m12-46b desde sm/next2 (e24b94d): mcp/tool_summaries.gd con una línea corta por tool (81, # i18n, es.po) que la pestaña muestra traducida, con «Lo que lee el agente:» y la descripción entera en el tooltip; test_tool_summaries exige una línea por cada McpTool.create de mcp/tools/ y ninguna de más; las columnas Tool y Qué hace se reparten el ancho (mínimos 172/120) y las categorías largas se acortaron («Correr el juego», «Proyecto», «API de Godot», «Sesiones») para que entren enteras en la ventana mínima. ToolRegistry: _categories por proveedor (provider_category: «read_tools.gd» → «read»), category_of(), catalog() {name, category, group, summary, description, extended}. ui/extensions/tools_tab.gd: Tree con Tool · Qué hace · Permiso · Por modo (✓/?/✗ en orden Preguntar, Revisar, Construir, Auto, One-shot; tooltip modo por modo), categorías plegables con cantidad, filtro, contador, ⋯ y nota para las que esconde la lista compacta. ExtensionsWindow: ExtensionsTab.TOOLS (última), providers, título «Tools (N)». plugin: providers (PermissionPolicy con project_config.permissions), _open_extensions(tab), dock.tools_requested, settings_dialog.show_tools. Dock: «Qué puede hacer el agente (tools)…» en el menú …. Ajustes › Herramientas del editor: «Ver la lista de tools…». ux_tour: captura extra con la ventana en min_size. CHANGELOG Added. Fuera de alcance: tools de servidores MCP externos.
+
+### El estado del juego y del One-shot solo se ve en el tooltip del chip · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19: el tooltip del encabezado (m13-29) dice «Game: running · 12 s», pero nada invita a pasar el mouse por el chip del agente, y la línea de estado arriba del composer solo habla de la sesión («Working…»). Propuesta: mientras hay un juego lanzado por run_scene, la línea de estado suma su estado («● Working… · game running 12 s»; «game stopped in the debugger» en ámbar), y un aviso corto cuando el juego queda parado en el depurador más de unos segundos; el tooltip queda para el detalle. Captura de referencia: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m13-29_en_header_tooltip.png.
+
+**Decisiones:**
+- ! Un chip por máquina en marcha junto a la línea de estado de arriba del composer (fila HFlowContainer: en un dock angosto bajan de línea): «Game · running · 12 s», «One-shot · fase · etapa · N s». Salen del mismo proveedor machine_states del tooltip (m13-29), que gana dos claves: live (se muestra: juego en LAUNCHING/STARTED/PROBE_READY/BREAKED, One-shot activo) y alert (ámbar: juego parado en el debugger; One-shot en pausa por cuota, limitado o esperando confirmación). Un Timer de 1 s del dock los refresca (la antigüedad corre y el estado del juego cambia sin que la sesión cambie). Tooltip = el del encabezado. Sin máquinas en marcha, sin chips. · sin revisar
+  Por qué: La línea de estado es el lugar que ya se mira; un chip aparte de la Label evita mezclar colores y se pliega en angosto. Reusar el proveedor (sin copias) cumple D61: los estados se leen de las máquinas en el momento. «Ended» no se muestra: un chip que dice «terminó» durante 40 s es ruido; el tooltip lo conserva.
+  Descartado: Texto dentro de la misma Label de estado (un solo color, se corta con ellipsis en angosto); un aviso en el chat cuando el juego queda parado en el debugger (m11-55 ya lo hace para runs manuales; para runs del agente el agente lo resuelve y el chip en ámbar alcanza); refrescar solo con el tick de cuota (no corre sin datos de cuota).
+- ! El chip de estado del juego también aparece en los runs manuales (F5/F6), con «corriendo, lanzado a mano sin la sonda de playtest» si no hay probe · sin revisar
+  Por qué: El usuario ve en el chip el mismo estado que el agente lee con describe_run_state; ocultarlo en los runs manuales escondería un juego parado en el debugger. El CHANGELOG y la wiki lo dicen (revisión de sm/next2, #12)
+  Descartado: Ocultar el chip cuando el run no es del harness (harness_run = false)
+
+**Prueba:** run_all 562 tests 0 fallos (test_machine_chips: solo las máquinas live, texto «Game · running · 12 s», alerta del One-shot esperando, sin edad sin segundos, sin máquinas sin chips). acp_session_check 203/0. En Xvfb, --godot-agent-ui-test=ui_markdown en y es PASS con el check nuevo _check_machine_chips: sin juego no hay chip; con un run (manual, el debugger lo ve igual) aparece un chip «Game · … · N s» con el tooltip del encabezado; LayoutCheck.dock_fits pasa con el dock a 480 y a 300 px; al parar el juego el chip se va. Capturas en /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m12-47/: ui_{en,es}_game_chip.png (480 px) y ui_{en,es}_game_chip_narrow.png (300 px); antes: ui_{en,es}_state.png (línea de estado sola) y m13-29_en_header_tooltip.png (solo tooltip).
+
+**Notas:** Rama sm/m12-47 desde sm/next2 (a25b11b), commit 89353de. plugin._machine_states suma live (juego en LAUNCHING/STARTED/PROBE_READY/BREAKED; One-shot activo) y alert (BREAKED; One-shot en PAUSED_QUOTA/LIMITED/WAITING_CONFIRM). AgentDock: _state_row (HFlowContainer) con _state_line y _machine_chips; machine_chips(states) estática; _refresh_machine_chips desde _refresh_state_line y un _machines_timer de 1 s; tooltip = header_tooltip(); color WARNING en alerta, MUTED si no; «ended»/«no game launched» no se muestran (quedan en el tooltip). Dev plugin: _check_machine_chips en el ui-test (ui_markdown) con capturas _game_chip y _game_chip_narrow. CHANGELOG Added. No agregué el aviso en el chat cuando el juego queda parado en el debugger: m11-55 ya lo hace para runs manuales y en runs del agente el chip en ámbar alcanza (decisión registrada).
+
+### Regresiones y CI workflow: nada los anuncia hasta que aparecen en el panel · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19: «Correr regresiones (N)» y «CI workflow…» solo existen en el panel de hallazgos cuando ya hay regresiones guardadas; el veredicto de un playtest que pasa no dice que dejó una, así que el usuario no sabe que la función existe hasta que la ve. Propuesta: el aviso «Playtest: pasó» termina con «Guardado como regresión · Correr regresiones · CI workflow…» (acciones del aviso), y la primera vez que se guarda una regresión un aviso de una línea explica qué son y dónde quedan. Captura de referencia: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/guia/playtest.png.
+
+**Decisiones:**
+- ! El aviso «Playtest: pasó» suma la línea «Guardado como regresión: el harness puede repetirlo sin el agente» y dos acciones del aviso: «Correr regresiones (N)» (una repetición) y «CI workflow…», con los mismos ids que el panel de hallazgos (SessionController.ACTION_RUN_REGRESSIONS / ACTION_REGRESSIONS_WORKFLOW, que AgentDock ahora alias; el plugin ya los maneja). La primera regresión del proyecto deja además un aviso INFO de una vez que explica qué son, que corren sin tokens, dónde viven (.godot_agent/playtests/regressions) y qué hace el workflow de CI. · sin revisar
+  Por qué: Es el momento en que la función aparece: anunciarla ahí evita que el usuario la descubra solo cuando el panel ya la muestra. Una vez por proyecto (cuando list() queda en 1) y no por sesión, para no repetir.
+  Descartado: Solo el texto sin acciones (hay que ir al panel); un aviso cada vez que se guarda una (ruido); una guía en la wiki (nadie la ve en el momento).
+
+**Prueba:** run_all 567 tests 0 fallos (test_regression_notice: regression_notice_parts con ids, etiqueta «Run regressions (N)», data 1, traducción; y el flujo entero por SessionController._report_playtest con un run_scene en el modelo y una carpeta temporal de regresiones: el veredicto «Playtest: passed · …» dice «Saved as a regression» con las dos acciones, la primera vez deja el aviso «First regression saved…» (INFO), la segunda solo el veredicto con «Run regressions (2)», y un playtest fallido no deja nada). acp_session_check 203/0. Sin captura: ningún guion del agente falso tiene un playtest que pase con script de regresión (docs_playtest falla a propósito).
+
+**Notas:** Rama sm/m12-48 desde sm/next2 (e24b94d), commit 55e6f80. SessionController: ACTION_RUN_REGRESSIONS/ACTION_REGRESSIONS_WORKFLOW (AgentDock los alias), regression_notice_parts(saved) estática, regressions_dir inyectable (PlaytestRegressions.new(regressions_dir)), _report_playtest suma la línea y las acciones al veredicto y el aviso INFO de la primera regresión. es.po: el msgid viejo «Saved: «Run regressions»…» se reemplaza por «Saved as a regression: the harness can replay it without the agent.» más el de la primera regresión. CHANGELOG Added.
+
+### Primer uso: verificar que «Agregar» lleve directo al login y al primer mensaje · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `ux`
+
+Tour de UX de v0.1.19: la pantalla sin agentes es clara (tres sugeridos, «Agregar», tres pasos). Lo que no se pudo verificar con el agente falso es el camino real después de «Agregar»: ¿arranca la sesión sola o hay que tocar «Iniciar sesión»? ¿la descarga de npx muestra progreso «acá» como promete el paso 1? ¿la tarjeta de login aparece sin otro clic? Contado a mano, el camino mínimo instalar → login → primer mensaje son 6 interacciones (activar plugin, Agregar, Iniciar sesión, Sign in, pegar código, escribir) si «Agregar» no arranca la sesión, y 4 si la arranca. Hacer: probar a mano con Claude Code sin login (cuenta nueva), anotar los pasos reales y, si son más de 4, que «Agregar» arranque la sesión y que el estado «Descargando…» se vea en la lista de pasos. Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/01_dock_sin_agentes.png.
+
+**Decisiones:**
+- ! Verificado en el código: «Agregar» guardaba el perfil y lo dejaba activo, pero no arrancaba la sesión (add_suggested_agent sin start_session), así que el camino real era 6 interacciones (activar plugin, Agregar, Iniciar sesión, Sign in, pegar código, escribir) y el paso 1 de la guía prometía un progreso que recién aparecía al iniciar la sesión. Cambio: «Agregar» llama a start_session() (npx descarga y la tarjeta de login llegan solos) y el paso 1 dice que la sesión arranca sola y que la primera vez se descarga. Camino: 5 interacciones (4 en el dock). Verificación en vivo sin tokens con tests/first_run_check.sh: Godot self-contained sin agentes, CLAUDE_CONFIG_DIR vacío y sin API key, el check --godot-agent-first-run-test aprieta Add, exige STARTING enseguida y LOGIN_REQUIRED con la tarjeta y su botón principal, y guarda tres capturas. · sin revisar
+  Por qué: Era la única interacción sin valor propio del primer uso; arrancar la sesión al agregar es lo que el paso 1 ya describía. El login no se puede evitar (es del agente) ni probar más allá de la tarjeta sin una cuenta.
+  Descartado: Mostrar el progreso de npx línea por línea en el chat (va al Agent Log; la línea de estado «conectando…» alcanza); dejar «Iniciar sesión» como estaba y solo corregir el texto (seguía siendo un clic de más).
+
+**Prueba:** tests/first_run_check.sh godot <prefijo> en|es: Godot self-contained, proyecto limpio sin agentes, HOME y CLAUDE_CONFIG_DIR vacíos, sin variables CLAUDE*/ANTHROPIC*. «Add» arranca la sesión sola (STARTING al toque, READY en ~7 s con npx en caché vacía), el primer mensaje recibe authRequired y aparece la tarjeta de login con «Claude Subscription» a la vista. Pasa en en y es. acp_session_check: escenario login_at_prompt (auth_turn.json) verifica que el prompt se reenvía después del login. run_all 573/0, acp_session_check 212/0, ui-test ui_markdown ok.
+
+**Notas:** Commit e6d6eed en sm/m12-49 (desde sm/next2 08baece). Hallazgo: claude-agent-acp 0.105 abre la sesión sin credenciales y pide login recién en el primer prompt. Por eso ahora el prompt que pidió login se guarda y se reenvía solo al iniciar sesión («Signed in. Sending your message again.»). Camino mínimo: activar el plugin, Add, primer mensaje, «Claude Subscription» (navegador), pegar el código: 5 interacciones (antes 6), 4 en el dock. Con el dock angosto, mientras conecta solo se ve el punto ámbar: la línea de estado con la pista de descarga aparece con el dock ancho.
+
+## M11 — Revisiones de seguridad, patrones y arquitectura  (31/31, 21 en revisión)
 
 Después de la revisión de UX: revisar el addon entero en seguridad (lo que el agente puede hacer en la máquina y en el proyecto), patrones de Godot y arquitectura, y dejar cada hallazgo como tarea con su arreglo.
 
@@ -4160,13 +6084,52 @@ Si el proceso del agente termina mientras el harness espera la respuesta de init
 
 **Notas:** Rama sm/m13-26, commit af34a03, encima de sm/m13-24 (76ca585), que a su vez va sobre 64ed939 (m13-22 final). Sin flag: con el orden de m13-24, _fail_agent ya puso FAILED y la tarjeta cuando el request cortado vuelve, así que start(), open_session() y _load_session() preguntan model.has_failed() después del chequeo de generación y devuelven false sin sumar su tarjeta. En _load_session, además, evita el stop() que pasaba la sesión caída a DISCONNECTED y borraba el motivo. fake_agent: clave "exit_on": "<método>" y tres guiones crash_*.json. Amplié la línea de CHANGELOG de m13-24 («during a turn or while the session starts»).
 
-### godot.profile_run: las funciones de GDScript más calientes de un run (bloqueada por el editor) · Pausado
+### godot.profile_run: las funciones de GDScript más calientes de un run (API interna del editor) · Revisión
 
 **Prioridad:** baja · **Tamaño:** M · **Etiquetas:** `idea`
 
 Idea a partir de github.com/DasDarki/grit (AOT de GDScript a C++): darle al agente las funciones más calientes de un run (tiempo propio y total, llamadas, y si están tipadas), para que proponga tipos o mover loops a APIs del motor con medición antes y después. Investigación de 3c en 4.7.2 y 4.8-beta2: hoy no se puede. ScriptEditorDebugger consume servers:profile_frame y no lo pasa a EditorDebuggerPlugin._capture, EditorDebuggerSession no tiene señal con esos datos, y desde el juego GDScript no puede leer los tiempos del ScriptsProfiler. El profiler duplica el costo de cada llamada (~95→190 ns). Caminos: (i) PR a Godot para que EditorDebuggerSession emita los frames del profiler, o que los plugins capturen mensajes ya manejados (primer paso recomendado); (ii) leer el Tree del panel Profiler: frágil, no; (iii) servidor de debug propio con --remote-debug: otra arquitectura de run_scene, no por ahora. Si está tipada se deduce leyendo el script (res://ruta.gd::línea::nombre). Integrar Grit mismo: no por ahora (motor parcheado, muy experimental).
 
-### Redacción de secretos: detalles que quedaron de m13-25 · Pendiente
+**Decisiones:**
+- ! profile_run deja el juego corriendo al terminar (como run_scene), con el profiler apagado · sin revisar
+  Por qué: Coherente con run_scene: el agente puede seguir con capture_game_frame/game_* o stop_scene, y el profiler apagado no le cobra overhead
+  Descartado: Cerrar el juego al final (lo que decía el diseño de las notes)
+- ! Sin parámetro include_native en profile_run por ahora; la tool siempre registrada (error claro sin la API) en vez de no registrarla · sin revisar
+  Por qué: include_native no lo pedía el pedido y suma overhead y ruido; registrarla siempre deja que el agente sepa por qué no puede perfilar en vez de no encontrar la tool
+  Descartado: include_native como arg (internal_time por función); no registrar la tool si falta ScriptEditorDebugger al habilitar
+
+**Prueba:** 4.7.2: run_all (505 tests, 0 fallos, incluye tests/unit/test_script_profile.gd), acp_session_check y oneshot_check en 0 fallos. Xvfb: tests/run_in_xvfb.sh <godot> --godot-agent-profile-test en 4.7.2 y 4.8-beta2 (profile_check.gd: workaround y overhead; profile_tool_check.gd: la tool por HTTP real), más cycle-test, run-test y mcp-test en 4.7.2.
+
+**Notas:** IMPLEMENTADA (d5, rama sm/m13-27-tool desde sm/next 8511d2a, commit ad0241b, sin push).
+
+- addons/godot_agent/playtest/script_profile.gd (parte pura): parsea ServersProfilerFrame. Descarta el primer frame después del toggle y cualquier frame donde una función dure más que frame_time + 10 ms. Agrega solo desde frames (nunca desde profile_total). Arma el top por tiempo propio (llamadas por frame, ms propios y totales, % del script_time) y el tipado leído del .gd: yes/partial/no, o "" si es built-in o el archivo no está. OJO: la línea de la firma del profiler es la primera del cuerpo, no la del func (::28::_hot, cuando el func está en la 27). Se busca la declaración hacia atrás, sin pasar de otra func, y al agente se le da la línea del func.
+- addons/godot_agent/mcp/tools/profile_tools.gd: tool profile_run (grupo run, extendida, así que aparece en godot.methods). Args: scene, seconds, inputs y continue_on_error (los de run_scene), top (20, máx. 100), max_functions (128, 16–512).
+  - Orden de chequeos: otro profile_run en curso; run_tools.is_busy() (el error dice el GameRunState); fuente de datos (EditorDebuggerSession.debug_data si existe, si no ScriptEditorDebugger.debug_data, si no error claro). La detección es por llamada: la tool siempre está registrada y sin la API contesta por qué no puede, sin romper nada.
+  - Prende el profiler solo en el session_started del juego que lanzó run_scene (run_state == STARTED y run_tools busy); un run manual no se toca.
+  - Lo apaga al final pase lo que pase. Hay un timer de seguridad atado a un contador de runs (uno viejo no apaga uno nuevo), y shutdown() se llama en _exit_tree del plugin.
+- RunTools: run_scene() e is_busy() públicos. PlaytestDebugger: active_session_id().
+- El juego sigue corriendo después, como con run_scene (el diseño decía stop; cambié para ser coherente con run_scene). Quedó afuera include_native (no lo pedía el pedido; se puede sumar).
+- Tests: tests/unit/test_script_profile.gd (8 tests: parseo, descartes, top, firmas, tipado con cabeceras multilínea, de una línea y static, informe, rechazo con run_scene en curso). addons/godot_agent_dev/profile_tool_check.gd por HTTP real, verifica:
+  - _step en :32 con 2000.0 calls, typed: yes;
+  - _hot en :27;
+  - la nota del overhead;
+  - 0 frames después de apagar con el juego vivo;
+  - el rechazo con run_scene de fondo;
+  - un juego frenado en el debugger contesta "No usable profiler frames" y no queda perfilando.
+  Pasa en 4.7.2 y 4.8-beta2.
+- Wiki en/es (Herramientas del editor), CHANGELOG Added (aclara la API interna), etiqueta "Profile the game" con su traducción en es.po.
+- Borrador de issue upstream: tests/upstream/issue_profiler_inflight_calls_first_frame.md. Causa: gdscript_vm.cpp mira el flag profiling por separado al entrar y al salir, y line_poll() atiende el toggle cada 2048 líneas. Fix sugerido: flag local profile_this_call. No había issue (búsqueda del 2026-11-10). No publicado.
+
+Sin verificar: que el botón del panel Profiler no refleje que un plugin lo prendió. Si el usuario tenía el Profiler del editor corriendo, profile_run lo apaga al terminar (no se detecta).
+
+---
+INVESTIGACIÓN PREVIA (resumen). El editor no pasa servers:profile_frame a EditorDebuggerPlugin._capture, porque tiene handler propio en ScriptEditorDebugger::_parse_message. Ese nodo interno emite debug_data(msg, data) para todo mensaje antes de manejarlo (4.7.2 y master). El profiler se prende con la API pública session.toggle_profiler("servers", true, [max_funcs, include_native]). Proposal upstream (tests/upstream/proposal_debugger_session_debug_data.md): que EditorDebuggerSession reenvíe debug_data, unas 8 líneas.
+
+Overhead medido con profile_check: 4.7.2 ×1.64–1.74 (78–101 ns por llamada); 4.8-beta2 ×1.82–1.95 (83–98 ns).
+
+Formato de profile_frame: [frame, frame_time, process, physics, physics_frame, script_time, n_servers, (nombre, 2n, (fn, t)…)…, 5n, (sig_id, calls, self, total, internal)…], en segundos. Relacionados: godot#96210, #102972, PR #66938, #86721, proposals #13631 y #8777.
+
+### Redacción de secretos: detalles que quedaron de m13-25 · Revisión
 
 **Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `security`
 
@@ -4175,6 +6138,77 @@ No bloqueantes, de la revisión de d5 de m13-25.
 2) elicitation/create es un request y no se redacta (bien para lo que se ejecuta), pero su formulario se muestra tal cual. Redactar la copia que se muestra, como en la tarjeta de permiso.
 3) Los session/update entran redactados, pero el MCP del harness recibe los args reales. find_godot_tool_call(tool_name, args) puede no emparejar una tool call cuyos args tengan un secreto. Revisar también que una regla «permitir siempre» no se guarde con «secret» (sale del ToolCall redactado del modelo) y después no coincida con el comando real.
 4) authMethods de la respuesta de initialize (args/env del login por terminal) entra redactado y se usa para ejecutar el login: confirmar que no puede llevar un secreto registrado.
+
+**Prueba:** 4.7.2: run_all 481 tests/3516 checks 0 fallos; acp_session_check 203/0; oneshot_check 186/0; login-test en Xvfb PASS. Tests nuevos: test_secret_names (palabras enteras, GIT_AUTHOR_NAME no es secreto ni en el entorno del agente ni en la validación de MCP), test_secret_redaction.test_elicitation_form_shows_a_redacted_copy, test_godot_tool_call_matches_with_a_secret_in_its_args, test_no_shell_rule_with_a_secret, y test_agent_login.test_redacted_env_does_not_replace_the_real_key.
+
+**Notas:** Rama sm/m13-28, commit 7296af7 (base main 9501d7f). Hecho en el worktree m13-12 con una rama nueva desde main, no en un worktree aparte.
+1) core/secret_names.gd: SecretNames.is_secret(name) compara palabras enteras del nombre, separadas por _ - . y camelCase, contra KEY, APIKEY, TOKEN, SECRET, PASSWORD, PASSWD, AUTH, AUTHORIZATION, CREDENTIAL(S), BEARER y COOKIE. Reemplaza las tres copias del regex suelto: agent_profile (redacción del entorno), external_mcp_servers y settings_dialog (las dos validaciones, que también rechazaban GIT_AUTHOR_NAME como «key escrita a mano»).
+2) Elicitation: se redacta el message, y del schema solo title, description y enumNames (AgentLog.redact_fields). Las claves dentro de properties son nombres de campo, no campos del schema: una propiedad llamada «title» no se redacta entera. Los default, enum y const y el url quedan reales, porque vuelven al agente o se abren.
+3) find_godot_tool_call acepta un redact y plugin._match_pending_undo le pasa _log.redact_data, así el undo de una tool godot.* con un secreto en los args se une a su tool call. En Auto, si la regla de shell sugerida tiene un secreto no se propone ninguna (la tarjeta la mostraría y Ajustes la guardaría en disco). «Siempre en esta sesión» es por grupo, no por comando, así que no lo afecta.
+4) Sí podía pasar: los secretos del entorno se registran antes de initialize y el agente los tiene en su env. AgentLogin.command_for ya no pisa una variable del env del método con «secret»: queda la real del perfil, o la del editor que el login hereda.
+Queda afuera: ExternalMcpServers.secret_values registra cualquier valor que salga de un $VAR del config MCP, sin mirar el nombre (deliberado: un $VAR en ese config es explícito). Y si un permiso llega sin rawInput, los guards usan el raw_input redactado del modelo; eso solo afecta la clasificación.
+
+### Tooltip del encabezado con el estado de cada máquina · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Responsable:** agent-harness-a3 · **Etiquetas:** `ux`
+
+Las máquinas de D61 (sesión, game run, fase y etapa del One-shot) ya tienen nombres de estado, pero el usuario y el agente solo ven el canal state cuando algo sale mal. Mostrar en el tooltip del encabezado del dock el estado actual de cada una con su antigüedad (p. ej. «juego: corriendo 12 s · One-shot: evaluando vuelta 1»), leído por providers y sin copias del estado (D61). Igual que describe_run_state() en run_tools.gd. Traducir EN/ES.
+
+**Decisiones:**
+- ! Un provider `machine_states` por pestaña (el plugin devuelve {machine, label, age} del juego y del One-shot) y el dock arma el tooltip con la sesión; etiquetas traducibles en cada máquina (SESSION_STATE_LABELS, GAME_RUN_STATE_NAMES con # i18n, STAGE_LABELS); el tooltip se refresca con el tick de la cuota · sin revisar
+  Por qué: D61: el dock no copia el estado del juego ni del One-shot, que viven en el plugin; un Callable que se lee al armar el tooltip es el mismo patrón que oneshot_active y can_switch_session. Los nombres del juego para el agente (describe_run_state) y para el usuario son los mismos textos, así que se traducen con I18n.t() en vez de duplicar un diccionario; la sesión y la etapa no tenían etiquetas y se agregan. La antigüedad cambia con el tiempo y el tooltip de Godot lee tooltip_text al mostrarse: se recalcula en el tick de un segundo que ya existe para la cuota, sin un timer nuevo. describe_state() y describe_phase() quedan en inglés para el agente, como describe_run_state().
+  Descartado: Que el dock conozca RunTools y OneShotRun y lea sus estados directo (acopla el dock a cosas del plugin); un segundo diccionario de nombres del juego solo para la UI; un timer propio para el tooltip; recalcular el tooltip en _make_custom_tooltip (más código para el mismo resultado).
+
+**Prueba:** Unit (4.7.2): test_session_model.test_state_labels_and_age (etiqueta por estado, describe_state «session: ready (N s)», edad), test_oneshot_dock.test_describe_phase («one-shot: idle, building (0 s)», etiquetas por etapa), test_mentions.test_machine_line («Game: running · 12 s»); test_i18n cubre las etiquetas nuevas (# i18n) con traducción. run_all 476 tests/3481 checks 0 fallos; acp_session_check 203/0; oneshot_check 186/0. Xvfb: tests/run_in_xvfb.sh godot --godot-agent-ui-test=basic PASS en inglés y en español (GODOT_AGENT_LANGUAGE=es); el check nuevo _check_header_tooltip exige que el tooltip del chip empiece con «Session: working», tenga la línea «Game: …» y la antigüedad en segundos, y con --godot-agent-ui-shot abre el tooltip de verdad con el mouse encima. Capturas (scratchpad de a3): /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m13-29_en_header_tooltip.png (muestra «Session: ready · 0 s / Game: no game launched · 6 s / Click to choose the agent») y m13-29_es_header_tooltip.png.
+
+**Notas:** Rama sm/m13-29 (base main 9501d7f), commit a9cadea, en el worktree m13-17. SessionModel: SESSION_STATE_LABELS (# i18n), _state_since_ms en set_state, state_age_seconds(), describe_state() para el agente. RunTools: GAME_RUN_STATE_NAMES con # i18n (el mismo texto para el agente y traducido para el usuario), run_state_age_seconds(). OneShotRun: STAGE_LABELS (# i18n), phase_age_seconds() (0 si el run se cargó de disco y no cambió), describe_phase() para el agente. AgentDock: provider machine_states (() -> Array[Dictionary] {machine, label, age}), header_tooltip() (sesión + máquinas + error o cuenta + ayuda), machine_line() estática, refresco en _on_quota_tick. plugin.gd: _machine_states(id) en _wire_oneshot: el juego (si hay _run_tools) y el One-shot de esa pestaña (si _runs_in(id) y activo), con phase_label() y la etapa. 17 msgids nuevos en es.po. CHANGELOG: Unreleased › Added. Dev plugin: _check_header_tooltip en _run_ui_test (todos los guiones salvo crash) y _tooltip_windows para componer la ventana del tooltip sobre la captura. La ventana del tooltip sale en la captura algo desplazada respecto del chip (coordenadas de ventana nativa bajo Xvfb); el texto se lee entero.
+
+### run-test: «game_input text: escribe en el LineEdit» falla a veces · Hecho
+
+**Terminada:** 2026-11-10 · **Prioridad:** media · **Tamaño:** S · **Etiquetas:** `tests`
+
+El check de run_check.gd que escribe texto con game_input en el LineEdit del juego de playtest falla de forma intermitente: last_text queda vacío. Pasó 4 veces entre m11-42, m11-43 y una base sin cambios en el juego (sm/m12-44), en 4.7.2 y 4.8-beta2, en es y en; en esa base falla 1 de 2 en 4.8-beta2. Probablemente es timing: el foco del LineEdit o el texto llegan antes o después de la lectura. Hace fallar la suite de release sin un bug real. Mirar cuándo toma el foco el LineEdit y si game_input espera el frame en que se procesa el texto.
+
+**Notas:** Duplicada de m16-11, que se queda con el trabajo: el mismo flake más test_composer y game_script/ui_right. Lo que se vio acá está en m16-11.
+
+**Relacionadas:** run-test inestable: «game_input text: escribe en el LineEdit»
+
+### MCP servers del proyecto: aprobación por máquina antes de lanzarlos · Revisión
+
+**Prioridad:** media · **Etiquetas:** `security`
+
+Encontrado el 2026-11-11 al diseñar m11-31. Los MCP servers con alcance «This project» viven en project_config.tres, que se versiona con el proyecto. Los de tipo stdio se lanzan con su `command` y sus `args` al abrir cada sesión, sin ninguna aprobación local (plugin.gd, ExternalMcpServers.merge con _project_config.mcp_servers). Un proyecto clonado puede traer un server con un comando arbitrario.
+
+Matiz: abrir en Godot un proyecto que no es de confianza ya ejecuta código (scripts @tool, plugins del editor). Esto es defensa en profundidad, no un agujero nuevo. Igual vale: el usuario espera que el harness pregunte antes de lanzar comandos.
+
+Qué hacer: el mismo esquema que los checks de m11-31.
+- Un server del proyecto se lanza solo si en esta máquina se aprobó su definición exacta: command, args, env, url y headers. La aprobación se guarda en los ajustes del usuario, con la ruta del proyecto y un hash.
+- Agregarlo o editarlo en Settings cuenta como aprobarlo.
+- Si no está aprobado, no se pasa en mcpServers, y un aviso en el dock lo dice y ofrece «Aprobar…».
+- Que reuse la tienda de aprobaciones y el «Aprobar…» de turn_checks (m11-31): una sola tienda y un solo diálogo.
+- Los servers del usuario («All my projects») no cambian.
+
+Va después de m11-31, en la misma línea de ramas.
+
+**Decisiones:**
+- ! Qué se aprueba de un server del proyecto y cuándo: transport, command, args, env, url y headers (con $VAR sin resolver; sin el nombre ni el interruptor); importar de .mcp.json no aprueba; el aviso largo sale la primera vez por usuario y después una línea, siempre con «Aprobar…» por server y «Aprobar todos (N)…». · sin revisar
+  Por qué: El nombre y el on/off no deciden qué corre. .mcp.json viene del repo igual que project_config.tres, así que importarlo no es haber escrito el comando. El aviso aparece en cada sesión mientras haya servers frenados (nada queda roto en silencio al actualizar), pero la explicación del cambio basta una vez; es la línea de CHANGELOG › Changed.
+  Descartado: - Aprobar también el nombre: renombrar pediría aprobar de nuevo sin cambiar nada de lo que corre.
+  - Importar .mcp.json como aprobado: el usuario aprieta un botón sin ver los comandos.
+  - Aviso largo en cada sesión: ruido; o solo la primera vez y después nada: quedaría roto en silencio.
+  - Reiniciar la sesión al aprobar: corta el turno; se avisa que entran en la próxima sesión.
+
+**Prueba:** - tests/unit/test_mcp_approval.gd (4 tests): qué cuenta en la clave (nombre/interruptor/orden de env no; command, args, env, transport, url, headers y proyecto sí), descripción del diálogo, aviso largo/corto con «Aprobar…» por server y para todos, approve_on_machine, página de Settings (aviso, marca que no se guarda, editado aprueba, importado de .mcp.json no).
+- Check de editor «checks» (suite ci): dos servers del proyecto sin aprobar no entran en external_mcp_names, el aviso largo los nombra con 3 acciones, «Approve all» abre el diálogo con los dos comandos y los aprueba (tienda en memoria; restaura el flag del aviso y los Callables del controller).
+- Settings shots: el server importado pide aprobación y «Allow on this machine» lo aprueba al guardar (se borra después de los EditorSettings reales).
+- suite.sh ci 15/15 en 4.7.2.
+
+**Notas:** Hecho en sm/m13-31 (19862b3, sobre sm/m11-31 934da58).
+- core/machine_approval.gd: la clave común (sha256 de carpeta del proyecto + texto) y MachineApproval.request {kind, items}. TurnChecks.approval_key delega ahí.
+- El controller tiene is_command_approved/approve_command (antes venían en turn_checks_provider) y approve_on_machine para checks y servers; el dock tiene un solo _confirm_on_machine.
+- plugin._external_mcp_servers marca los del proyecto con held/approval_key; _mcp_servers los deja afuera y agrega el aviso; _external_mcp_names no los cuenta. Extensions los muestra apagados con «not approved on this machine».
+- HarnessSettings security/mcp_approval_explained: el aviso largo una vez por usuario.
+- Al aprobar, entran en la próxima sesión (mcpServers va en session/new); no se reinicia la sesión.
 
 ## M12 — Que el agente se verifique solo  (8/8, 8 en revisión)
 
@@ -4265,7 +6299,7 @@ Comprobado en Godot 4.7.2 .NET (29/10, Xvfb, editor externo en «None», el defa
 
 **Notas:** El controller se engancha a .gd y .cs. El índice del proyecto arma un índice de líneas aparte con los .cs (comentarios // fuera); el proveedor local usa el índice del lenguaje del archivo y, en C#, apaga las reglas de contexto y el n-gram (son de GDScript); el historial de lo tecleado sigue. LLM: la instrucción de Gemini y el filename de llama.cpp según el lenguaje, y el contexto del proyecto como comentarios //. No se hizo el resaltado de C# propio (queda texto plano): se puede sumar después.
 
-## M13 — Playtesting: lo que traemos de Autopilot  (23/23, 23 en revisión)
+## M13 — Playtesting: lo que traemos de Autopilot  (24/24, 24 en revisión)
 
 Ideas de ramenvr/autopilot (revisión del 30/10) para que un playtest sea confiable: el veredicto sale de jugar, los detectores ven lo que el agente no mira y el agente puede actuar a nivel de frame sin un segundo modelo. No se trae: el servicio Python con el modelo Jev, el autoload permanente, compartir datos por defecto, el marco de coordenadas de Unreal ni la navegación 3D (walk_to, nav.py, melee).
 
@@ -4525,7 +6559,27 @@ El AVI solo llega como una ruta y obliga a cerrar el juego. Flipbook (ui/widgets
 
 **Bloqueada por:** 13.22 Búfer de frames recientes
 
-## M14 — Playtesting confiable y regresiones  (9/9, 9 en revisión)
+### PlaytestMemory.brief() mete firmas not-a-bug con nombres de nodos en el prompt de playtest sin sobre · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `security`
+
+Quedó afuera de los arreglos de sobres <untrusted> de la revisión de sm/next2 (fix-a, puntos #2/#16–#18).
+- PlaytestMemory.brief() arma la parte del prompt de playtest con las firmas marcadas como not-a-bug. Esas firmas traen nombres de nodos del juego, y van sin sobre.
+- Un nodo con un nombre armado puede meter texto que el agente lee como instrucciones del harness.
+- Arreglo: envolver con UntrustedText (wrap/close_cut) lo que viene del juego en brief(), como run_scene y format_finding.
+- Test: una firma con un nombre de nodo malicioso sale dentro de un sobre en el prompt, y ReviewStore/la memoria la siguen leyendo bien.
+
+**Prueba:** - `godot --headless --script res://tests/run_all.gd -- review_store`: test_playtest_memory_not_a_bug_in_envelope pasa. Sin el arreglo falla («las firmas van en sobre»).
+- run_all completo en 4.7.2 (613 tests): 0 fallos. En un worktree recién creado, test_resource_values falla hasta que el editor importa el proyecto, porque no hay clases globales todavía.
+- review-test: el check «Not a bug: el brief del playtest la lleva en sobre» pasa. El review-test da 4 fallas más, que también salen en sm/next2 sin este cambio (recursión infinita de m12-49 en agent_dock).
+
+**Notas:** Commit en la rama sm/m15-24 (desde sm/next2 1a8be90), sin mergear: entra en el release siguiente.
+- PlaytestMemory.brief() pone cada firma not-a-bug en su línea dentro de un sobre (UntrustedText.wrap) y sella el bloque con un nonce nuevo (seal + new_nonce), como run_error_watcher y el aviso de regresiones. El prompt no es resultado de una tool, así que el registry no lo sella. Las instrucciones del servidor MCP ya explican los sobres.
+- not_a_bug.json guarda las firmas tal cual, y run_scene las silencia por igualdad, igual que antes.
+- Las notas de playtests anteriores quedaron sin sobre: las escribe el agente como hechos verificados, no vienen directo del juego.
+- Al probarlo apareció un bug ajeno en sm/next2 (avisado a agent-harness-81): _refresh_machine_chips ↔ _refresh_state_line se llaman sin fin mientras la sesión está en STARTING (e6d6eed, m12-49). Da stack overflow y 4 fallas en review-test.
+
+## M14 — Playtesting confiable y regresiones  (17/17, 17 en revisión)
 
 Validar M13 con un agente real y en CI, cerrar lo que aún puede engañar (evaluador sin controlar, breakpoints salteados) y convertir un playtest que pasó en un test de regresión que corre sin agente.
 
@@ -4638,6 +6692,236 @@ Lo que dejó abierto m16-06: las regresiones solo corrían desde el editor (el p
 **Prueba:** tests/regressions_cli_check.sh (paso nuevo en CI): pass → 0, fail → 1, vacuous (pasa también con el sabotaje) → 1, en 4.7.2 y 4.8-beta2. run-test: con el sabotaje, la de start detecta y la vacía no. test_review_store: detects.
 
 **Notas:** playtest/regression_cli.gd: SceneTree para `godot --headless --path . --script ...`; abre cada escena, espera lo mismo que el botón y corre el game_script con el probe en modo standalone (sin debugger: los errores del juego no frenan, como continue_on_error). Exit 0/1/2. Formato: `sabotage` opcional, un script que rompe en el juego lo que la regresión prueba; con él tiene que terminar sin devolver true (PlaytestRegressions.detects: un error o un vencimiento no cuentan). Lo usan el CLI, run_regression(entry, setup) en el editor y la suite real (sabotajes para A y E en playtest_suite.json). El agente no escribe sabotajes: el control de sus regresiones es el de la suite. Documentado en wiki Review/Revisar.
+
+### Correr las regresiones de playtest en el CI del juego del usuario · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Responsable:** agent-harness-a3 · **Etiquetas:** `idea`
+
+M14 convierte un playtest que pasó en un test de regresión que corre sin agente («Correr regresiones»). Falta que el usuario lo corra en su CI: una acción (botón en el panel de regresiones y tool MCP para el agente) que genere .github/workflows/godot-agent-regressions.yml en el proyecto del juego, con la versión de Godot del editor, headless (o Xvfb si las regresiones necesitan render), que corra las regresiones grabadas y suba capturas y el informe como artifacts cuando fallen. Nunca pisar un workflow existente sin confirmación. Documentarlo en la wiki. Verificar el yml con actionlint si está y con un run real en un repo de prueba solo si el usuario lo autoriza.
+
+**Decisiones:**
+- ! Generador estático RegressionsWorkflow (yml como texto, sin plantilla externa) con la versión del editor y descarga directa del release de Godot; headless por defecto y `render` opcional bajo Xvfb; artifacts solo al fallar; el botón pide confirmación con un aviso «Overwrite» y la tool exige overwrite: true; validación local solo estructural · sin revisar
+  Por qué: El workflow repite lo que ya hace el CI del propio repo (install-godot.sh: estables de godotengine/godot, betas de godot-builds) pero inline, porque el proyecto del juego no tiene ese script. Headless es lo que corre regression_cli.gd hoy; las regresiones que capturan o dibujan necesitan Xvfb, así que es una opción y no el default (tarda más y pide apt). Subir el informe y las capturas solo al fallar evita artifacts en cada push verde. No pisar un workflow existente: desde el botón, un aviso con la acción Overwrite (el mismo patrón que las demás confirmaciones del dock); desde la tool, un argumento explícito. actionlint no está instalado y bajar js-yaml con npx fue denegado por el clasificador: el test comprueba sangría par, sin tabs y el orden de las claves, y el yml generado se revisó a ojo (un escalar que empezaba con comillas y seguía se pasó a bloque |).
+  Descartado: Un archivo .yml de plantilla en el addon con placeholders (otro archivo que viaja con el addon y que el export plugin tendría que excluir); usar una action de terceros para instalar Godot (dependencia externa, versión a seguir); subir artifacts siempre; Xvfb siempre; un diálogo modal de confirmación en vez del aviso del chat; correr el workflow en un repo de prueba real (8c: no crear repos ni correr workflows reales).
+
+**Prueba:** tests/unit/test_regressions_workflow.gd (6 tests, 4.7.2): editor_version() y download_url() (estables de godotengine/godot, betas de godot-builds); texto headless y con render (Xvfb, opengl3); write() sin pisar / con overwrite; proyecto en una subcarpeta de un repo git real (git init en una carpeta temporal): repo_info() da la raíz, «game» y la carpeta ignorada; el yml va a <repo>/.github/workflows y no al proyecto, Godot corre con --path "game", las capturas van como game/.godot_agent/playtests/**, y avisa que .godot_agent está ignorado; en la raíz, --path . y sin avisos; sin git, repo_info() vacío y los tres avisos tienen texto; la tool está registrada (edit_files, overwrite y render); forma del YAML (sangría par, sin tabs, orden de claves). run_all 479 tests/3682 checks 0 fallos. Sin actionlint local y con la descarga de js-yaml denegada por el clasificador: el yml generado se revisó a ojo (copia en /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/godot-agent-regressions.yml, versión raíz). No se corrió ningún workflow real en GitHub (pedido de 8c).
+
+**Notas:** Rama sm/m16-10 (base main 9501d7f), commits cac159a + 4da067e (revisión de 8c). regressions_workflow.gd: repo_info(project_root) con git -C (rev-parse --show-toplevel, --show-prefix, check-ignore -q sobre .godot_agent/ y addons/godot_agent/ con barra final para que cuente como carpeta aunque no exista); write() escribe en <raíz del repo>/.github/workflows/godot-agent-regressions.yml (sin git: en el proyecto, con WARN_NO_GIT) y devuelve {ok, path, existed, error, root, project_dir, warnings}; workflow_text(version, render, project_dir) usa --path "<subcarpeta>" y capturas relativas a la raíz; target_path()/exists() miran la raíz. Avisos (WARN_NO_GIT, WARN_IGNORED_REGRESSIONS, WARN_IGNORED_ADDON): en inglés en la respuesta de la tool (WARNING_TEXTS) y como avisos WARNING del dock traducidos (plugin.REGRESSIONS_WORKFLOW_WARNINGS). Botón «CI workflow…» del panel de hallazgos → ACTION_REGRESSIONS_WORKFLOW → aviso con la ruta absoluta o «already exists… Overwrite?»; tool godot.write_regressions_workflow (edit_files, overwrite y render) con nombre visible en tool_group_view. Wiki Review.md/Revisar.md (raíz del repo y avisos), CHANGELOG Unreleased › Added, 10 msgids nuevos en es.po. El botón genera headless; render solo por la tool. Pendiente para la prueba a mano: correr el yml en un repo de prueba con regresiones grabadas.
+
+### run-test inestable: «game_input text: escribe en el LineEdit» · Revisión
+
+**Prioridad:** media · **Tamaño:** S · **Etiquetas:** `test`
+
+agent-harness-57 lo vio fallar una vez en Xvfb (2026-11-10, sm/m11-42 sobre 4.7.2) con last_text vacío, y pasar en las dos repeticiones siguientes. No tiene relación con m11-42. Probable carrera: el texto se manda antes de que el LineEdit tenga foco o antes de un frame de proceso. Reproducir corriendo run-test 20 veces, encontrar la espera que falta (en el check o en game_input si es del addon) y arreglarla; si es del addon, un agente real también lo sufriría.
+
+**Decisiones:**
+- ! Los juegos que lanza run_scene (y profile_run y las regresiones, que pasan por él) ignoran los gamepads reales con SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=0x0000/0x0000, que el juego hereda del editor. Hay una opción real_gamepads:true para jugar a la par. run_all y regression_cli se relanzan sin ellos si detectan uno. · sin revisar
+  Por qué: Los tres flakes de m16-11 tenían la misma causa: el Pro Controller conectado del usuario tenía el stick izquierdo en ±1. SDL lo lee en todo proceso de Godot, también headless y sin foco, y deja ui_up/ui_left… apretados. Pasan dos cosas. Un LineEdit que toma el foco con una flecha apretada no entra a editar, y el texto se pierde. El movimiento del joystick mueve el foco de la UI, que es lo que pasaba con el CodeEdit del composer. Un agente real lo sufre: ve que su input falla al azar.
+  Descartado: (a) Solo avisar en las respuestas del probe que hay un gamepad real mandando input: no lo arregla. (b) Un ajuste en Settings: más UI para un caso raro, y el parámetro de la tool alcanza. (c) input_devices/joypads/ignore_joypad_on_unfocused_application: no sirve, porque el juego lanzado sí tiene el foco. (d) Sacar los eventos de joypad del InputMap en el probe: cambia el juego y rompe los eventos de joy que manda el agente.
+
+**Prueba:** Con un gamepad conectado (real o virtual por uinput):
+- `godot --headless --script res://tests/run_all.gd` dice «relaunched without the real gamepads» y test_real_gamepads pasa.
+- run-test (`tests/run_in_xvfb.sh godot --godot-agent-run-test`) da 0 fallas. El check de game_script ve, dentro del juego, la variable puesta y 0 joypads, y el entorno del editor vuelve a como estaba.
+- `tests/regressions_cli_check.sh godot` pasa: el relanzamiento conserva el código de salida y la salida.
+- Sin gamepad, run_all y run-test pasan igual.
+
+**Notas:** Causa: el Pro Controller del usuario estaba conectado con el stick izquierdo en ±1. SDL lee los gamepads de todo el sistema en cada proceso de Godot, también en headless y sin foco, así que ui_up/ui_left… quedaban apretados. Eso explica los tres flakes:
+- game_input: un LineEdit que toma el foco con una flecha apretada no entra a editar, y el texto se pierde.
+- test_composer: el joystick mueve el foco fuera del CodeEdit y lo demás falla en cascada.
+- game_script/ui_right: con el eje X en ±1, la acción sigue apretada después de soltar el hold.
+
+Arreglo (commit 889266d en sm/m16-11, integrado en sm/next2):
+- RealGamepads (playtest/real_gamepads.gd) pone SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=0x0000/0x0000 justo antes de play_custom_scene y restaura el valor anterior. El juego lo hereda; el editor no cambia.
+- Cubre run_scene, profile_run y las regresiones del editor, que pasan por run_scene.
+- `real_gamepads: true` deja pasar los gamepads reales.
+- run_all.gd y regression_cli.gd se relanzan sin ellos si detectan uno.
+
+Prueba (2026-11-10): el Pro Controller ya no estaba, así que creé un gamepad virtual por uinput (045e:028e, stick centrado; programa C en el scratchpad de la sesión).
+- Godot 4.7.2 headless: get_connected_joypads()=[0] sin la variable, [] con ella.
+- Con el gamepad virtual conectado pasaron run_all (relanzado), run-test con 0 fallas y regressions_cli_check.sh.
+- run_all completo: 563 tests, 0 fallos.
+- run-test 10 veces seguidas después del arreglo: 10/10 con 0 fallas.
+
+Lo que no se reprodujo:
+- No hubo corridas de «antes»: sin el stick corrido no hay causa que reproducir.
+- No incliné el stick virtual, porque uinput afecta a todo el sistema y movería el foco del editor abierto del usuario.
+- Que el stick explique los flakes de test_composer y game_script sale del mecanismo, no de verlos fallar con él.
+
+m13-30 es la misma falla, duplicada de esta.
+
+**Relacionadas:** run-test: «game_input text: escribe en el LineEdit» falla a veces
+
+### tests/suite.sh: una sola lista de checks para el CI, para antes de mergear y para un nightly completo · Revisión
+
+**Prioridad:** alta · **Tamaño:** M · **Etiquetas:** `tests`
+
+El review-test se rompió en sm/next2 (recursión de m12-49 y el aviso del veredicto de m12-42) y nadie lo vio hasta m15-24. El CI sí lo corre, pero solo con push a main, con PR o desde el release, y las ramas sm/* son locales. Cada sesión corría los checks que se acordaba. Además, el CI tenía los 5 checks de Xvfb en un solo step, así que el primero que fallaba escondía a los demás.
+Qué se hace:
+- tests/suite.sh con los perfiles ci y full. Corre cada check aunque falle otro e imprime una tabla PASS/FAIL con segundos. `run <check>` corre uno solo, `list` los nombra y `check-ci` comprueba que ci.yml tiene un step por cada check de ci.
+- ci.yml: un step por check, todos con `tests/suite.sh run` y `if: !cancelled()`. Suma export_check, mcp-test y edit-test. Se quita el sed de scope_compass.
+- edit_check deja de fallar cuando falta addons/scope_compass (en CI y en worktrees): compara project.godot sin los plugins de `enabled` que no existen, igual que hace el editor.
+- nightly.yml (schedule y workflow_dispatch, 4.7.2 y 4.8-beta2) corre `tests/suite.sh full` y sube los logs si falla.
+- Regla del tablero: `tests/suite.sh ci` antes de mergear a sm/next2 y `tests/suite.sh full` antes de un release (decisión en esta tarea).
+Fuera a propósito: los checks que gastan tokens, los que usan red o el CLI real, y los que solo sacan capturas.
+Pushear las ramas sm/* o abrir un PR draft para que el CI las vea lo decide el usuario (agent-harness-81 se lo pasa).
+
+**Decisiones:**
+- ! Regla del tablero: antes de mergear una rama a sm/next2 se corre `tests/suite.sh ci` (~9 min en 4.7.2); antes de un release, `tests/suite.sh full` en 4.7.2 y 4.8-beta2. Un FAIL se anota en la tarea con su log antes de mergear. · sin revisar
+  Por qué: El CI no corre sobre las ramas sm/*, que son locales. Cada sesión elegía qué checks correr, y así review-test quedó roto en sm/next2 sin que nadie lo viera. Con una sola lista, que además el CI usa por nombre, lo de antes de mergear coincide con lo que después corre el CI.
+  Descartado: (a) Que cada sesión elija los checks según lo que toca: es lo que falló. (b) Correr full antes de cada merge: ~20 min más por merge, y lo que suma son pantallas que cambian poco. (c) Pushear sm/* para que corra el CI: publica las ramas; lo decide el usuario. (d) Un hook de git pre-merge: las sesiones mergean con git directo, y un hook de 9 min sorprende y se saltea con --no-verify.
+
+**Prueba:** - `tests/suite.sh full godot` en 4.7.2 corre los 35 checks (~19 min, más ~2 min por el check de ciclos nuevo), imprime la tabla y sale con 1 si algo falló.
+- `tests/suite.sh ci godot` corre los 13 de ci (~10 min).
+- `tests/suite.sh check-ci` dice «ci.yml corre los 13 checks de ci»; con un step renombrado en ci.yml, sale con 1 y lo nombra.
+- `tests/suite.sh run edit godot` pasa en un worktree sin addons/scope_compass (antes: «project.godot queda como estaba»).
+- `tests/suite.sh run plugin_cycle`: 10 de 10 en 4.7.2 y 10 de 10 en 4.8-beta2. godot_agent da 0 objetos por ciclo de mediana, igual que el plugin vacío. En las 20, el self-test con tests/fixtures/cycle_plugins/leaky da [1,1,…] y falla por la fuga, como debe. El ciclo dentro del editor con Xvfb (`suite.sh run cycle`) pasa en 68 s.
+- CI de GitHub: verde en 5c04dba, que tiene el disparador sm/**. f6399d1 (el check de ciclos nuevo) en curso.
+
+**Notas:** Rama sm/suite, pusheada. Va 5c04dba → f6399d1 sobre 18a571d, sin mergear; le falta el commit del release v0.1.20 (46dc03e), que solo toca CHANGELOG y plugin.cfg. Una versión rebaseada sobre 46dc03e quedó en la rama local sm/suite-rebased-backup, pero no se subió porque reemplazar el remoto necesitaba un force push y el permiso fue denegado.
+
+Mediciones en 4.7.2 (Arch, Xvfb con llvmpipe), en segundos.
+- ci: run_all 67–75, acp 19–26, oneshot_loop 45–52, regressions 24–32, export 29–36, plugin_cycle ~125 (antes 9–10), run 77–80, review 13, run-error 38–40, debug 22–23, external 27–28, edit 27, mcp 15–16.
+- full suma: sync 20, oneshot 37, long 20, completion 16, login 13, queue 18, auto 14, remote 22, pending 11, profile 23–26, cycle (editor) ~68 (antes 15–17), i18n (es) 15, history 14, sessions 12, ui-basic 14, ui-crash 13, ui-markdown 14–20, ui-long-permission 14–16, ui-quota 19–21, ui-quota-busy 21–22, ui-harness-prompt 15–18, crash 71.
+
+Check de ciclos (antes inestable, 1 de 8: «los objetos crecieron 59»).
+- Causa: medía 5 frames después de cada enable, y cada ciclo duraba ~70 ms.
+  - Al habilitarse, el addon crea objetos que viven hasta ~1,3 s; qué son queda en m16-13.
+  - Además, cada print del check en medio de los ciclos deja una línea en el Output del editor, que es un objeto más.
+  - No es una fuga del addon ni del editor. El «+3 por ciclo del editor» que parecía salió de esos dos efectos: con la medición asentada da 0.
+- Ahora:
+  - Espera 2,5 s y 30 frames sin cambios antes de medir.
+  - Cicla intercalado un plugin vacío de control (tests/fixtures/cycle_plugins/empty).
+  - Compara la mediana del crecimiento por ciclo en 9 rondas, y falla con 1 objeto por ciclo de más que el control.
+  - Imprime las rondas al final.
+  - Sigue mirando los huérfanos, los nodos del addon y el layout.
+  - plugin_cycle_check.gd se prueba con tests/fixtures/cycle_plugins/leaky, que pierde un RefCounted por enable.
+  - Con --godot-agent-cycle-target se cicla otro plugin, por nombre o por la ruta a su plugin.cfg.
+
+Lo que falla hoy (anotado, sin arreglar):
+- oneshot-test es inestable, 2 de 7: «el centro no baja a 340 px: queda en 478 (el formulario pide 454, dock 1213)».
+- edit-test fallaba siempre sin scope_compass. Lo arregla esta rama.
+
+Notas:
+- En ci.yml se sacó el sed de scope_compass del paso del ciclo.
+- El CI corre en push a main y a sm/**. La concurrency va por workflow y ref, y cancela solo fuera de main.
+- El job nightly corre solo sobre main.
+
+### Qué crea el addon al habilitarse que vive ~1,3 s (objetos transitorios del check de ciclos) · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `tests`
+
+Encontrado en m16-12. No es una fuga: el check de ciclos nuevo los espera y el addon queda en 0 objetos por ciclo. Conviene saber qué son.
+- Cada vez que se habilita godot_agent aparecen ráfagas de +13 a +35 objetos hacia los 0,35–0,6 s, que viven menos de 10 frames.
+- Unos 15 objetos viven hasta ~1–1,3 s y después se liberan.
+- No son nodos, ni recursos (Performance OBJECT_NODE_COUNT y OBJECT_RESOURCE_COUNT quietos), ni Tweens (get_processed_tweens vacío). Son RefCounted u Objects de algo asíncrono.
+- Un plugin vacío no lo hace: el conteo queda plano.
+- Descartado: el índice del completado (ProjectContext). Con REFRESH_DELAY_MS en 600000 las ráfagas siguen.
+- Candidatos para bisecar apagándolos uno por uno: el chequeo de versión al arrancar (_check_updates diferido), el servidor MCP (_start_mcp_server), _restore_oneshot y _report_supervisor_events diferidos, y los timers de 1 s del dock (máquinas, cuota).
+- Cómo medir: la instrumentación de m16-12 (muestras cada 10 frames con ms después del enable) está en /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness/6a75c1f6-1e4e-480a-bf5d-1af264408d32/scratchpad/cycle/diag-final.patch (temporal), o con el check de ciclos y --godot-agent-cycle-target.
+- Si es trabajo que corre aunque el plugin ya se deshabilitó (un timer o un pedido que sobrevive a _exit_tree), revisar que no toque objetos liberados.
+
+**Prueba:** - Probe temporal (un plugin que deshabilita y habilita godot_agent y muestrea objetos y nodos cada frame durante 2,5 s), en 4.7.2 headless:
+  - Antes: churn de −11 a +42 objetos entre 0,5 y 1,4 s, y ~15 objetos liberados de una vez hacia 1,6–2 s (último cambio a 1,5–2,1 s).
+  - Después: pico +0 y último cambio a ~0,5 s, que es cuando termina el enable.
+- Bisección: apagando la entrada al árbol de CompletionService desaparece todo. El servidor MCP y el chequeo de versión no cambian nada.
+- completion-test: abre el script y el índice está listo en 0,2 s. Comprueba que sin scripts abiertos ni el arranque ni un scan de archivos construyen el índice. Sin el arreglo falla con las dos FALLA.
+- run_all: 637 tests, 0 fallos. plugin_cycle: PASS (0 objetos por ciclo), y el self-test con el plugin con fuga falla como debe.
+
+**Notas:** Rama sm/m16-13 (desde origin/sm/next3 e558600), pusheada, sin mergear.
+
+Causa: CompletionService._ready → apply_settings() arrancaba el primer build del índice (ProjectContext.start_build en un worker) apenas se habilitaba el plugin, aunque no hubiera scripts abiertos.
+- El churn eran los objetos temporales del worker.
+- La caída de ~15 objetos era la publicación del índice.
+- Postergar REFRESH_DELAY_MS (lo que se había probado en m16-12) no cambiaba nada, porque el primer build no pasa por ese retardo.
+
+Arreglo:
+- needs_index() = completado prendido y al menos un CodeEdit con controller. El primer build arranca en apply_settings cuando se engancha el primer script.
+- _process solo llama a context.poll() si needs_index() o si hay un build en curso. Sin scripts, los cambios de archivos solo marcan el índice como viejo; el próximo build los cubre (start_build limpia _dirty).
+- Si al abrir el editor ya hay un script abierto, el build arranca enseguida, igual que antes.
+- CHANGELOG: entrada en Unreleased › Changed.
+
+No cambiado: habilitar el addon bloquea ~480 ms en el hilo principal (el probe recién ve el primer frame a esa altura). Es otro tema; si interesa, conviene abrirle una tarea.
+
+### run_all sin fugas al salir, y un check que falle si aparecen · Revisión
+
+**Prioridad:** media · **Etiquetas:** `tests`
+
+run_all en main (46dc03e) termina con 2 RIDs de CanvasItem leaked, 46 ObjectDB instances leaked y «11 resources still in use». No hace fallar nada, así que una fuga nueva (por ejemplo, un ciclo de referencias en el controller) pasa desapercibida.
+
+Qué hacer:
+- Encontrar con --verbose, bisecando por archivo de test, qué las deja.
+- Arreglar las del addon en el código y las del test en el test. Anotar las del motor.
+- Que run_all falle si quedan fugas, y sumarlo a suite.sh cuando sm/suite esté en main.
+
+Pedido de agent-harness-81, 2026-11-11.
+
+**Prueba:** - suite.sh ci 14/14, con el gate de fugas en run_all.
+- run_all: 639 tests, sin avisos de fugas al salir.
+- test_model_lifetime.gd: falla con el session_model anterior.
+- El gate se probó con un test que deja un Node (exit 1) y con un archivo que no compila (FAIL «no se pudo cargar»).
+- ui_long_permission, remote y queue: PASS.
+
+**Notas:** Rama sm/run-all-leaks (a40da1a), desde origin/sm/next3.
+
+Bisectado por archivo y por test. En main quedaba esto: 2 RIDs de CanvasItem, 46 ObjectDB y 11 resources still in use.
+
+Del addon:
+- SessionModel.add_permission y add_elicitation: una lambda capturaba el pedido, la entrada y el modelo. Mientras el pedido estaba pendiente era un ciclo, y aparecía en test_elicitation, test_permission_view y test_subagents.
+- En producción, stop() cancela los pendientes, así que el impacto era menor: lo que no pasa por stop() queda.
+
+De los tests:
+- test_acp_client y test_sessions: un handler que capturaba a su dueño.
+- test_resource_values: dos Sprite2D sin liberar; eran los 2 RIDs.
+
+Del motor: ninguna.
+
+De paso:
+- run_all salteaba en silencio un archivo de test que no compila.
+- suite.sh: without_leaks() en el check run_all.
+
+### Habilitar el addon bloquea el editor ~480 ms: llevarlo a menos de 150 ms · Revisión
+
+**Prioridad:** media · **Tamaño:** M · **Etiquetas:** `performance`
+
+Visto en m16-13: set_plugin_enabled("godot_agent", true) tarda ~480 ms en el hilo principal (headless 4.7.2, scripts ya cargados). Eso pasa al abrir el editor y cada vez que se habilita el plugin.
+- Medir qué se lleva el tiempo con Time.get_ticks_usec alrededor de cada pieza de _enter_tree.
+- Postergar lo que no hace falta para que el dock aparezca (diálogos, ventanas, servicios que se usan después), sin cambiar lo que ve el usuario.
+- Meta: menos de 150 ms. Entregar la tabla antes y después.
+
+**Decisiones:**
+- ! plugin.gd queda como cáscara EditorPlugin sin tipos; el plugin entero pasa a agent_plugin.gd (Node hijo, cargado con load()) · sin revisar
+  Por qué: Al habilitar, el editor compila plugin.gd sin caché y cuesta ~1,8 ms por script que nombra (~170 ms de ~430). Heredar de otro script o alias vía un script de dependencias cuesta lo mismo (medido: 116–161 ms); solo un load() en runtime es gratis (0,4 ms). Los checks de dev buscan ahora agent_plugin.gd; scene_saved y PlaytestAutoload van por el EditorPlugin (_plugin).
+  Descartado: plugin.gd delgado con extends "agent_plugin.gd" (161 ms); consts preload movidas a un script deps con alias (116 ms); set_script en _init (frágil); dejar la recompilación y solo postergar UI (no llega a 150 ms)
+- ! Ajustes y Extensiones se arman la primera vez que se abren (no en un frame posterior) · sin revisar
+  Por qué: Costaban ~135 y ~20 ms del enable y no se ven hasta abrirlos; armarlos en idle solo mueve el tirón a otro frame. La primera apertura tarda ~0,15 s más.
+  Descartado: crearlos con call_deferred después del enable; postergar también el server MCP (~10 ms) o la main screen (~13 ms): no hacía falta para la meta
+
+**Prueba:** tests/unit/test_plugin_entry.gd: plugin.gd no nombra scripts, se recompila sin caché en <25 ms (medido 0,4 ms; antes ~170) y agent_plugin.gd tiene build/make_visible/has_main_screen/plugin_name/plugin_icon y _init(plugin). Medición: probe temporal que deshabilita/habilita 3 veces con set_plugin_enabled (4.7.2 headless): 407–456 ms → 71–77 ms. suite ci verde en 4.7.2; pending, profile, sessions, i18n, auto, remote, ui-basic, cycle y crash verdes; plugin_cycle, edit y run_all verdes en 4.8-beta2.
+
+**Notas:** Commit 8e4a18f en sm/enable-time.
+Antes (por enable): recompilar plugin.gd ~176–193 ms (el editor lo carga con CACHE_MODE_IGNORE; ~1,8 ms por script nombrado; heredar de otro script o aliasar consts cuesta lo mismo) + _enter_tree ~229–260 (SettingsDialog ~145–154, dock _ready ~45–54, ExtensionsWindow ~23, main screen ~13–17, server MCP ~10–14, resto <3) + ~2,4 después.
+Después: recompilar ~1,5 + _enter_tree ~68–74 (dock ~41–44, main screen ~13, MCP ~10) + ~2,4. Primera apertura de Ajustes 134 ms, de Extensiones 20 ms.
+Preexistentes, no de este cambio (iguales en fc2514f): oneshot-check falla «el centro no baja a 340 px: queda en 1471»; al deshabilitar sale «A Thread object is being destroyed without its completion» (probable TurnSnapshots._run_with_index de setup()).
+
+### oneshot-check: «el centro no baja a 340 px: queda en 1471 (el formulario pide 912, dock 220)» · Revisión
+
+**Tamaño:** S · **Etiquetas:** `tests`
+
+Visto en m16-15: oneshot-check falla igual en fc2514f (sin el cambio de enable). Es un número distinto del flake que arregló agent-harness-41 en sm/oneshot-flake (c189254: mínimo fijo del área + scroll horizontal AUTO); puede ser una regresión de ese arreglo con el dock angosto. Encontrar la causa, arreglarla con test y avisarle a agent-harness-41.
+
+**Prueba:** oneshot-test pasa 3 de 3 en 4.7.2 y en 4.8-beta2. Forzando la pestaña Animation con un AnimationPlayer editado, sin hide falla («queda en 464… el centro 463») y con hide pasa (mínimo de la columna 234).
+
+**Notas:** 54b7ed4 en sm/enable-time. Causa: EditorBottomPanel comparte la columna del centro. Con Animation abierta y un AnimationPlayer editado pide ~457–472 px (escala 0,75) y frena el centro en ~464–497. No es c189254: el área del One-shot pide 234. Fix: hide_bottom_panel() antes de angostar, y el mensaje de falla dice el mínimo de la columna del centro. La variante «1471, dock 220» no se reprodujo; un layout con dock_hsplit_3=-6328 pasa porque el editor clampa al cargar, así que no agregué clamp_split_offset. Avisado a agent-harness-41.
+
+### Deshabilitar el addon destruye un Thread sin completarse (TurnSnapshots) · Revisión
+
+**Tamaño:** S · **Etiquetas:** `tests`
+
+Visto en m16-15: en cada disable sale «A Thread object is being destroyed without its completion having been realized» (también en fc2514f). Probable: el git de TurnSnapshots.setup() corre en un Thread que se suelta con el plugin. _exit_tree tiene que esperarlo (wait_to_finish) o cancelarlo, con test.
+
+**Prueba:** test_git_checkpoints.test_run_outlives_its_owner: un run cuyo GitCheckpoints se libera termina igual y GitCheckpoints.pending() vuelve a 0. Con la espera de instancia falla y sale el warning. Probe en el editor deshabilitando un frame después de habilitar: antes salía el warning, ahora no.
+
+**Notas:** 78da267 en sm/enable-time. Causa: deshabilitar mientras TurnSnapshots.setup() todavía corría un git. Al liberar el objeto, Godot descarta su coroutine con el Thread adentro y nadie llama wait_to_finish. Solo pasa si se deshabilita al poco de habilitar (el probe de m16-15 lo hacía a 1 frame). Fix: la espera es una función estática (GitCheckpoints.execute) que no depende de ninguna instancia; la usan GitCheckpoints.run, TurnSnapshots._run_with_index y GithubReviews._run. Elegí esto en lugar de esperar en _exit_tree, que bloquearía el disable y solo cubría TurnSnapshots. CHANGELOG Unreleased › Fixed.
 
 ## M15 — Revisión de features: lo que no estaba correcto  (27/27, 27 en revisión)
 
@@ -5107,7 +7391,7 @@ Lo del marketplace (publicar las skills de Godot también como plugin de Antigra
 
 **Notas:** SkillCatalog.share/unshare/is_shared; scan marca "shared". En el proyecto el enlace es relativo (../../.agents/skills/x). No pisa una compartida con el mismo nombre ni una skill propia de Claude. Las de plugins no se comparten. También: manifiesto de plugins de Antigravity en .antigravity-plugin/ y .gemini-plugin/ (docs de Antigravity, aviso de la sesión godot-agent-plugins). En Windows los enlaces de carpeta pueden requerir modo desarrollador: sin probar.
 
-## M16 — Pruebas manuales: Windows y Antigravity  (0/2)
+## M16 — Pruebas manuales: Windows y Antigravity  (1/5, 1 en revisión)
 
 Probar en una máquina real lo que el README promete y solo se comprobó en Linux con Claude Code. Las hace Daniel, que tiene con qué probarlas.
 
@@ -5132,7 +7416,7 @@ CI es solo Linux y una nota del tablero dice «sin probar en Windows». Con Clau
 - [ ] Rutas con espacios y acentos en el proyecto
 - [ ] Actualizar el addon desde el aviso del dock
 
-### 16.2 Recorrido completo con Antigravity · Pendiente
+### 16.2 Recorrido completo con Antigravity · En curso
 
 **Prioridad:** alta · **Tamaño:** M · **Responsable:** Daniel · **Etiquetas:** `manual`, `antigravity`
 
@@ -5150,7 +7434,69 @@ Figura como agente sugerido sin ninguna prueba real registrada. Hacerlo en Linux
 - [ ] Cuota: el anillo y el límite con su /usage
 - [ ] Sin skills ni plugins: que Extensions lo diga bien
 
-## M17 — GDExtension  (4/5, 4 en revisión)
+**Decisiones:**
+- ! Las tools MCP con _meta.mcp.server == "godot" cuentan como propias del harness (permiso lo decide el server MCP) y se muestran como server.tool · sin revisar
+  Por qué: Antigravity titula godot_run_scene y solo _meta.mcp dice el server; por título sin _meta no se asume (un godot_algo cualquiera no se trata como propio)
+  Descartado: Reconocer por prefijo de título godot_ (falsos positivos con tools de otros); dejar la tarjeta extra
+
+**Prueba:** Automated tour against the real agent: `AGY_TOUR_WRAP=<agy_wrap.py> AGY_TOUR_LOG=<log> tests/run_in_xvfb.sh godot --godot-agent-antigravity-tour` (Linux, 4.7.2, antigravity-acp 1.4.3), plus `--godot-agent-antigravity-plan-test` for the ```plan block. Both give 0 failures. Unit tests: run_all 832/0, including test_permission_policy (Antigravity cases).
+
+**Notas:** Run with the probe (dev check agy_tour_check.gd) and a wrapper that logs ACP in both directions and proxies MCP over HTTP (rewrites the url in mcpServers of session/new and session/load). Small requests on tests/docs_demo/player.gd (a copy in tests/tmp).
+
+WORKS
+- Start: 4.9 s. Capabilities: loadSession, sessionCapabilities list+resume, mcp http+sse, image/audio/embeddedContext.
+- Agent modes: default, auto_edit, yolo; the current one is default. There's no plan mode of its own, so the harness uses its ```plan block. Playtest lands in `default` (the id exists, so it doesn't get stuck in plan).
+- Ask: 12.6 s. It reads with client_view_file (ACP fs/read_text_file), doesn't edit, stop end_turn.
+- Build: each edit asks with the card "Run client_edit_file?" (group edit_files, options allow_once/reject_once/allow_always). Allow once applies the edit through fs/write_text_file; deny blocks it. It also used godot.validate_scripts on its own.
+- Plan (m11-58): Plan mode → a ```plan block (15 lines, WHEN/SHALL criteria) → "Plan ready to build" card → saved to .godot_agent/plans → building asks for the first edit_files card.
+- Short playtest (Review, from the panel): 82 s, verdict pass in JSON. It uses godot.run_scene, capture_game_frame, game_input, game_script and stop_scene; each asks for the MCP server's card in group run (Review = ask), as with Claude Code.
+- Cancel mid-turn: free in 72 ms, stop cancelled.
+- History: session/list includes the current session. Resume in a new process with session/load: 6 s, notice "Session resumed… session/load", and the agent remembers what it did (first edit applied, second denied).
+- Quota: usage_update arrives (46k / 1,048,576 at the end).
+
+DIDN'T WORK (fixed in sm/m18-02, 49a9e49)
+- The harness's MCP tools reached Antigravity as `godot_run_scene` with `_meta.mcp.server = "godot"`. PermissionPolicy didn't recognise them as its own, so every godot tool raised an extra card in group "other", and a playtest waited until someone answered it. Now is_godot_mcp_tool and mcp_server_of read _meta.mcp. Tools from other servers fall in their server's group, and the chat shows them as godot.run_scene.
+
+DIFFERENCES FROM CLAUDE CODE
+- Its own titles: "Run client_edit_file?" / "Running client_view_file" instead of Edit/Read, with no diff in the permission card's title.
+- After a deny, Antigravity marks the earlier edit, which was applied, as failed ("denied by pre-tool hook"). The dock shows it as failed → m18 task.
+- When building a plan it doesn't send ACP `plan` updates (0 tasks): the plan card doesn't follow progress the way it does with Claude Code's TodoWrite.
+- The playtest message carries the open scene's path at the start (attached context), same as with other agents.
+
+NOT COVERED (manual, still in the checklist)
+- release zip install, Ctrl+Z, "for the session" permission, Review markers in the Script Editor, recording / Replay / regressions, one-shot, adding it from the registry, Extensions without skills, quota ring + /usage limit (only usage_update was seen).
+- Antigravity leaves skills/system/run-workflow/SKILL.md in the cwd (deleted, not committed).
+
+### Antigravity escribe skills/ en la carpeta del proyecto · Revisión
+
+**Prioridad:** media · **Etiquetas:** `bug`, `antigravity`
+
+Visto el 2026-11-11 con antigravity-acp 1.4.3 (corrida de m11-58). Al abrir una sesión (session/new con cwd = el proyecto), antigravity-acp crea skills/system/run-workflow/SKILL.md dentro de esa carpeta: es una skill genérica suya, de run_workflow. A cualquier usuario le queda una carpeta skills/ suelta en el proyecto, que puede terminar commiteada o exportada. En el repo ya se coló una vez en un commit.
+
+Qué hacer:
+- Ver si se puede evitar: otro cwd (¿respeta las rutas absolutas de fs/* y MCP si el cwd no es el proyecto?), una opción o variable del adapter, o su _meta en session/new.
+- Si no se puede, avisarlo: un aviso la primera vez, o sumar skills/system/ al filtro de export o al .gitignore sugerido.
+- Documentarlo en Troubleshooting (wiki en/es).
+
+Por qué: le pasa a todo el que use Antigravity y no lo pidió.
+
+**Prueba:** test_agent_adapters::test_antigravity_skills_notice_once (aviso solo si existe el archivo, una vez, WARNING; Claude no avisa). suite.sh ci PASS en 4.7.2; CI verde en 4.7.2, 4.8-beta2 y C# (run 43086848249).
+
+**Notas:** sm/m18-03 b98be91 (desde origin/sm/next4). Lo escribe el Materializer de skills de localharness_external (antigravity-acp 1.4.3) en session/new, sin prompt, en <cwd de la sesión>/skills/system/run-workflow/SKILL.md; no depende del cwd del proceso. SkillsConfig.materialized_skills_dir existe en el proto pero el servidor ACP nunca lo setea; no hay opción, variable de entorno ni _meta. No se puede evitar sin romper Antigravity (la sesión tiene que tener el proyecto como cwd). Arreglo: hook AgentAdapter.notice_after_session; el controlador avisa una vez por proyecto (metadato del proyecto godot_agent/notices_seen); Troubleshooting/Problemas-frecuentes con la sección y .gitignore; CHANGELOG Added.
+
+### Antigravity: edición aplicada que queda marcada como fallida tras un deny · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `antigravity`
+
+Visto en m18-02 (antigravity-acp 1.4.3): en un turno con dos ediciones, se permite la primera (aplicada vía fs/write_text_file) y se deniega la segunda; Antigravity manda tool_call_update failed también para la primera («denied by pre-tool hook: Denied by user»). El dock la muestra fallida aunque el archivo cambió. Ver si el harness puede no degradar a failed un tool call cuyo fs/write_text_file ya se aplicó, o al menos avisarlo; si no, reportarlo a Antigravity.
+
+### Antigravity: seguir el avance del plan aprobado sin updates ACP plan · Pendiente
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `antigravity`
+
+Visto en m18-02: al construir un plan aprobado, Antigravity no manda session/update plan (0 tareas), así que la tarjeta del plan no marca el avance como con el TodoWrite de Claude Code. Opciones: pedirle en el mensaje de construir que marque las tareas en texto (- [x]) y leerlas, o dejarlo así.
+
+## M17 — GDExtension  (6/6, 6 en revisión)
 
 Que el agente pueda hacer GDExtensions sin poner en riesgo el editor: build con errores parseados, prueba en un proceso descartable, un supervisor fuera del editor para crashes y reinicios, y una skill de scaffolding. No se trae: hot reload dentro del editor ni builds multiplataforma para export (eso es CI).
 
@@ -5251,10 +7597,69 @@ Una skill en el repo de marketplace dannroda/godot-agent-plugins (no en este rep
 
 **Relacionadas:** Build nativo con errores por archivo
 
-### Llevar la extensión probada al juego · Pendiente
+### Llevar la extensión probada al juego · Revisión
 
 **Prioridad:** media · **Tamaño:** S
 
 m19-02 prueba la build en el proyecto de prueba de la extensión (project/ o demo/), pero el juego que el usuario tiene abierto la usa como addon (addons/<ext>/ con el .gdextension y bin/). Falta una tool, o un paso documentado, que copie el addon probado al juego solo si test_extension pasó, verifique con check_gdextension.py de la skill y le pida al usuario que reinicie el editor. Esto se cruza con el supervisor (m19-03): la build nueva entra al editor recién en ese reinicio.
 
+**Decisiones:**
+- ! install_extension no copia al juego: prepara en .godot/agent_supervisor/pending/ y los archivos entran en el reinicio (el supervisor antes de abrir el editor; sin supervisor, el plugin justo antes de reiniciar) · sin revisar
+  Por qué: El editor abierto registra y carga un .gdextension nuevo al escanear, y recarga uno reloadable cuando cambia su biblioteca: copiar directo cargaba la build en el editor sin pasar por el reinicio ni por el rollback del supervisor. Entrar por rename deja intacta la biblioteca que el editor tiene mapeada.
+  Descartado: Copiar directo con el aviso de reiniciar; dejar los archivos como *.pending dentro de addons/ (el FileSystem los muestra y podrían exportarse).
+- ! install_extension vuelve a correr los tests de test_extension antes de instalar, en vez de recordar el último test que pasó · sin revisar
+  Por qué: Garantiza que lo copiado es exactamente lo probado (una build en el medio cambiaría la biblioteca); cuesta lo que tarda la prueba, que corre en un Godot aparte.
+  Descartado: Guardar el md5 de las bibliotecas cuando test_extension pasa y exigir que coincidan al instalar.
+- ! La revisión del .gdextension es un port a GDScript de check_gdextension.py, y solo frena lo que impide que este editor la cargue; lo demás (falta la release, otras plataformas, debug/release cruzados) son avisos · sin revisar
+  Por qué: El addon no puede depender de que la skill y python3 estén instalados. Con la regla de la skill, el godot-cpp-template real (solo template_debug de linux, lo que compila build_extension por defecto) no se instalaba: el script es para publicar, la instalación es para iterar.
+  Descartado: Correr check_gdextension.py si está; tratar todo lo que marca el script como bloqueante.
+- ! Qué se lleva: el .gdextension con las bibliotecas, íconos y dependencias que nombra (desde bin/), o la carpeta addons/<x>/ entera si el proyecto de prueba ya la tiene así; destino res://addons/<nombre>/ o donde el juego ya tiene ese .gdextension; rutas res:// reescritas · sin revisar
+  Por qué: bin/ del template junta basura de build (.lib, .exp, .crashed); addons/<x>/ puede traer un plugin.cfg y scripts que son parte del addon. Es el paso «Package as an addon» de la skill gdextension-build.
+  Descartado: Copiar siempre la carpeta entera del .gdextension.
+
+**Prueba:** sm/m19-05-fix 2c619cb.
+- run_all 4.7.2: 511 tests, 3936 checks, 0 fallos.
+- 4.8-beta2: native_install (17 tests), editor_supervisor (12) y file_tools (2), 0 fallos.
+- Xvfb 4.7.2: --godot-agent-pending-test (en y es) PASS: el aviso de falla, Reiniciar pasa por restart_editor(true), Descartar. --godot-agent-mcp-test PASS. --godot-agent-i18n-test es PASS (410 textos).
+- Tests nuevos:
+  - test_target_guard_variants: res:///, //, /.godot, \, .., C:, ocultas, raíz, mayúsculas con ignore_case, la misma lista que FileTools.
+  - test_target_guard_symlinks: enlace al harness, afuera, y uno válido.
+  - test_plan_addon_with_gdextension_in_a_subfolder.
+  - test_nested_project_in_the_game_is_skipped.
+  - test_pick_gdextension_by_folder_name.
+  - test_check_uses_the_key_this_editor_loads (más etiquetas, empate, solo release).
+  - test_failed_restage_keeps_the_previous_one.
+  - test_apply_is_all_or_nothing (revierte, falla avisada una vez, project_info).
+  - test_apply_validates_manifest_paths.
+  - test_tool_says_what_a_crash_would_do.
+  - test_editor_supervisor: test_rollback_restores_the_gdextension_text, test_nested_project_is_not_an_extension_of_the_game y test_real_wait_timeout_holds_the_pending_install.
+
+**Notas:** Rama sm/m19-05 (worktree .claude/worktrees/m19-05), commit 26e8a18 desde 9501d7f, integrada en sm/next. Código: core/native_install.gd (plan, check, stage/apply_pending), tool install_extension en diagnostic_tools.gd (GROUP_PROJECT, extendida), supervisor _launch y plugin _restart_now aplican lo preparado, NATIVE_RULES y descripción de restart_editor la nombran.
+Arreglo del hueco «lo preparado queda en pending/ sin que nadie lo sepa»: rama sm/m19-05-pending desde sm/next, commit f24729d. Aviso en el dock con Reiniciar y Descartar; godot.project_info lo nombra.
+Arreglos de la revisión (#1-#7, #9-#14): rama sm/m19-05-fix desde sm/next 7ff2c6b (worktree .claude/worktrees/m19-05-fix), commit 2c619cb.
+- #1: core/protected_paths.gd tiene la lista PROTECTED de file_tools (que ahora la usa), normalize_relative (res:///, //, \, .., unidades), write_error (protegidas, carpetas ocultas, mayúsculas en Windows/macOS, enlaces resueltos con resolve_links). Se valida el target, cada destino y las rutas del manifest (#13).
+- #2/#3/#6/#12: target desde la carpeta del addon (gdext_sub). Si el juego ya la tiene, se reemplaza esa; con un target en otro lado, otra estructura o dos copias, error. _gdextension_files saltea subcarpetas con project.godot (también en el snapshot). pick_gdextension elige por nombre de carpeta y da error si hay ambigüedad. Todos los .gdextension del addon van reescritos (file.text); planned.gdextension es el elegido.
+- #4: check(text, dir, root, has_feature) usa loaded_key (la clave con más etiquetas que son features, la primera en un empate, como find_extension_library).
+- #5: el snapshot guarda el .gdextension; rollback lo restaura primero y relee sus bibliotecas (aunque falten en disco). Snapshot.restorable da full, libraries o none, y _crash_note de la tool no promete volver atrás si no hay a qué.
+- #7: ACTION_PENDING_INSTALL_RESTART llama a restart_editor(true). plugin.restart_override es la costura para pending_check.
+- #9: stage arma en pending.new/ y pending.json.new y cambia con .prev (el manifest sale primero y entra último).
+- #10/#11: apply_pending es todo o nada: copia a .installing, rename con backup .old, deshace si algo falla; limpia .old y .installing viejos; last_install.json. take_install_failure da el aviso del dock una vez; pending_line lo dice en project_info hasta la próxima preparación o el descarte.
+- #14: el supervisor marca _pending_blocked si el wait-pid vence sin CLOSED (log). Lo despeja el reinicio pedido por su editor. --wait-timeout es para los tests.
+Límites: el caso Windows (DLL cargada, .old que no se puede borrar) sigue sin probarse en Windows. Las carpetas vacías que crea una instalación fallida quedan.
+
 **Bloqueada por:** Probar la extensión en un Godot headless descartable
+
+### ProtectedPaths: rutas absolutas y ciclos de enlaces · Revisión
+
+**Prioridad:** baja · **Tamaño:** S · **Etiquetas:** `security`
+
+De la revisión independiente de install_extension (m13-17-ed, 2026-11-10), sin riesgo hoy. (a) normalize_relative quita las barras iniciales: "/tmp/evil" pasa a res://tmp/evil y una ruta absoluta del propio proyecto a res://home/…; aceptar una ruta con "/" inicial solo si está bajo la raíz del proyecto (y convertirla), si no error. Ojo: file_tools comparte la función; revisar si «/x» = «res://x» es convención que algún agente usa. (b) Un ciclo de enlaces se acepta como target tras 16 saltos (después mkdir falla): rechazarlo con un error claro.
+
+**Decisiones:**
+- ! «/x» no es sinónimo de res://x en install_extension: una absoluta vale solo bajo la raíz del juego (se convierte); sin entrada de CHANGELOG · sin revisar
+  Por qué: Ni file_tools (_normalize deja «/x» absoluta y _check_target la rechaza) ni los prompts o skills usan esa convención; solo install_extension la aceptaba vía normalize_relative. install_extension todavía no salió, así que no hay cambio visible para el usuario.
+  Descartado: Mantener «/x» = res://x y rechazar solo absolutas de otro lado (ambiguo: /home/… del propio proyecto pasaba a res://home/…).
+
+**Prueba:** run_all 4.7.2: 523 tests / 4128 checks, 0 fallos; native_install en 4.8-beta2: 17/178, 0 fallos. test_target_guard_variants (absolutas: /, /tmp/evil, /addons/godot_agent, otra carpeta y ../ afuera; la del juego se convierte; la raíz del juego es «root of the game»; mayúsculas Win/mac) y test_target_guard_symlinks (ciclo loop_a↔loop_b rechazado, resolve_links devuelve "").
+
+**Notas:** f0b40f2 en sm/m19-06. normalize_relative(path, root, ignore_case): absoluta (barra o unidad) solo bajo root, convertida; sin root, error. resolve_links devuelve "" pasados MAX_LINK_HOPS (16) y write_error dice «goes through a loop of symbolic links». file_tools no usa normalize_relative y ya rechazaba «/x»: sin cambios. La comparación con root es textual (una absoluta que pase por un enlace a la raíz del juego no se reconoce).

@@ -1,0 +1,18 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T00:28:16.251Z",
+  "description": "Resto de m11-52: allí se hizo solo el lado del juego (capture_game_frame con camera, look_from/look_at y angles), que fue lo que pidió agent-harness-81. Falta lo mismo en el editor: capture_editor_viewport con look_from/look_at, angles o un rect 2D, renderizando en un SubViewport con el world_3d de la escena editada y una cámara temporal, sin mover la cámara del usuario. Se puede reusar playtest/runtime/camera_views.gd (plan y orbit). Por qué: así el agente revisa un nivel sin correr el juego ni pedirle al usuario que mueva la vista.",
+  "milestone": "m11",
+  "notes": "Hecho en fcfb183 (sm/m11-64). capture_editor_viewport toma camera, look_from/look_at, angles, distance y zoom. Reusa CameraViews: plan() recibe view_3d según `which`, y render() recibe el viewport del editor, con cuyo mundo renderiza. El SubViewport cuelga del base control del editor. Las vistas incluyen los gizmos y la grilla del editor, porque comparten el mundo. No se hizo un `rect` 2D aparte: look_at con zoom cubre eso.",
+  "order": 44,
+  "priority": "low",
+  "refs": [],
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "mcp_check._check_editor_views abre camera_views.tscn y prueba: camera «Side» ve la caja verde, look_from/look_at ve la roja, 3 ángulos alrededor de la verde dan 3 vistas verdes, la cámara del editor queda igual, y dan error una cámara inexistente y angles en 2d. test_camera_views agrega el caso de view_3d. run_check sigue pasando con el helper movido a mcp_check.",
+  "title": "capture_editor_viewport desde una cámara elegida y desde varios ángulos",
+  "updated_at": "2026-11-12T00:55:48.241Z"
+}

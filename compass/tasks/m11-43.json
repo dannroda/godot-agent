@@ -1,0 +1,40 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:20.605Z",
+  "decisions": [
+    {
+      "alternatives": "Promedio y máximo de los monitores tal cual; TIME_FPS (también un promedio por segundo)",
+      "at": "2026-11-10T20:41:04.422Z",
+      "text": "De TIME_PROCESS y TIME_PHYSICS_PROCESS se informa solo el máximo («el frame más lento de cada segundo»); el tiempo de frame (promedio, p95, máximo) se mide entre frames",
+      "why": "Godot actualiza esos dos monitores una vez por segundo con el máximo de ese segundo: un promedio daba 7 ms con frames de 1,8 ms. Medir entre process_frame da el tiempo real de cada frame"
+    },
+    {
+      "alternatives": "Lista plana por id; solo la cuenta",
+      "at": "2026-11-10T20:41:04.474Z",
+      "text": "Los huérfanos se listan agrupados por nombre, clase y script (los 20 grupos más grandes, ×N), y el resto de los monitores se muestran como principio → final con la diferencia",
+      "why": "Una fuga típica son cientos del mismo nodo (balas, efectos): agrupados se ven en una línea; la diferencia de principio a fin muestra si la cuenta crece"
+    }
+  ],
+  "description": "De dónde: Roblox Scene Analysis skill (hotspots de render y memoria, instancias sin padre filtradas: https://devforum.roblox.com/t/new-studio-testing-apis-and-assistant-improvements/4657854), performance_audit de flopperam (https://github.com/flopperam/unreal-engine-mcp), toolset Perf del MCP de Unreal 5.8 (https://dev.epicgames.com/documentation/en-us/unreal-engine/unreal-mcp-in-unreal-editor), manage_profiler de MCP for Unity con contadores y memoria (https://coplaydev.github.io/unity-mcp/reference/tools). Cómo se adapta: una tool live game_monitors que lee del probe Performance.get_monitor (fps, frame time, process/physics time, draw calls, objetos, nodos, memoria estática y de video) como muestras durante una ventana (min/media/p95/max) y la cantidad y lista de nodos huérfanos (Node.get_orphan_node_ids en 4.x debug, verificar disponibilidad en 4.7/4.8). Por qué: profile_run solo ve GDScript; un juego lento por draw calls, física o fugas de nodos no aparece ahí.",
+  "links": [
+    {
+      "task": "m11-44",
+      "type": "blocks"
+    }
+  ],
+  "milestone": "m11",
+  "notes": "Commit 7d93675 en sm/m11-43 (desde cd5901d). Runtime nuevo playtest/runtime/monitors.gd (sin código de editor). Toma una muestra por frame: el tiempo de frame se mide entre process_frame (promedio, p95, máximo); de TIME_PROCESS y TIME_PHYSICS_PROCESS solo el máximo (Godot los actualiza una vez por segundo con el más lento); draw calls, objetos y primitivas dibujados, cuerpos de física despiertos y pares de colisión 2D/3D (promedio y máximo; los que dan 0 no aparecen). Nodos, huérfanos, objetos, recursos y memoria estática y de video van de principio a final con la diferencia; la memoria de video se omite si da 0 (headless). Los huérfanos salen de Node.get_orphan_node_ids() (está en 4.7.2 y 4.8-beta2/3; solo en builds de debug), agrupados por nombre, clase y script, los 20 grupos más grandes. La probe tiene tres operaciones nuevas: monitors (una ventana, con steps opcionales), monitors_start y monitors_stop. La tool godot.game_monitors (seconds hasta 30, orphans, steps) está en GAME_TOOLS: extendida, con la guarda del juego entre sesiones, repetible en el detector de loops y con título en el dock (es: «Medir el rendimiento del juego»). run_scene acepta monitors: true: muestrea toda la corrida y agrega «Performance during the run:»; si el juego terminó o se frenó en el debugger, lo dice. Prompt de sistema: se nombra junto a game_watch/game_frames. Wiki en y es (Editor tools/Herramientas del editor) y CHANGELOG › Added. Encontré que el check «game_input text: escribe en el LineEdit» de run-test es inestable también sin estos cambios (m13-30).",
+  "order": 23,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea",
+    "performance"
+  ],
+  "test": "En 4.7.2: run_all 526/0, con el test nuevo test_game_monitors: stats con p95; informe de 5 frames con tiempos, conteos de principio a fin y huérfanos agrupados («LeakedBullet (Node) ×5»); sin lista con orphans false; clase y script de un huérfano, que desaparece al liberarlo; formato de las diferencias (+N, -N, MB). Pasa también en 4.8-beta2. run-test en Xvfb (4.7.2 en y es, 4.8-beta2): game_monitors en el juego de playtest da tiempos, conteos y lista «ProbeLeak (Node2D)», un nodo que dejó huérfano un game_script; con orphans false no la lista; run_scene con monitors trae «Performance during the run: Sampled …»; con un juego que termina solo dice que no se pudieron leer. Los checks nuevos pasan siempre. Las corridas que fallaron lo hicieron solo en «game_input text», que también falla en una base sin cambios (m13-30); la última de 4.7.2 en en pasó entera.",
+  "title": "game_monitors: monitores de Performance y nodos huérfanos del juego",
+  "updated_at": "2026-11-10T20:41:24.551Z"
+}

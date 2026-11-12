@@ -1,0 +1,20 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.283Z",
+  "description": "De dónde: Roblox Assistant Planning Mode: el plan es un Markdown editable, al guardar le manda al agente el diff de lo que cambió el usuario y nada corre hasta «Build» (https://create.roblox.com/docs/assistant/guide); Plan con botón Build en Bezi (https://discussions.unity.com/t/released-bezi-ai-powered-game-development-assistant-for-unity/1708451) y en Unity AI (https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.11/manual/about/assistant-modes.html); Ludus: una denegación puede llevar un motivo que el agente usa en el siguiente intento (https://docs.ludusengine.com/agent/approvals-safety). Cómo se adapta: (1) la tarjeta de permiso de salir del modo plan (ExitPlanMode de Claude Code; ver qué mandan otros agentes) suma «Editar plan»: el texto queda editable y al confirmar se rechaza el permiso con el diff como feedback para que el agente lo rehaga, o se aprueba tal cual; (2) toda tarjeta de permiso suma «Denegar con motivo…»: rechaza y manda el motivo como mensaje del usuario al terminar el turno. Hoy plan_view.gd es solo lectura y permission_view.gd no tiene motivo. Por qué: corregir un plan hoy es escribir otro prompt describiendo los cambios.",
+  "milestone": "m11",
+  "notes": "Absorbida por m11-22 (rama sm/m11-22, 2026-11-11): las dos partes están hechas ahí.\n(1) La tarjeta del plan de ExitPlanMode tiene «Editar» con contador +N −M; al mandar los cambios se rechaza y el agente recibe el diff y el plan entero (prompt PLAN_EDIT) para rehacerlo. También tiene «Aprobar y construir» y «Seguir planeando…».\n(2) Toda tarjeta de permiso tiene «Denegar con motivo…». El motivo sale como prompt del harness (DENY_REASON, línea plegada) y corta el turno apenas el agente recibió el rechazo, porque Claude Code seguía el turno y el motivo no llegaba.\nSe cierra con m11-22.",
+  "order": 28,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea",
+    "ui"
+  ],
+  "test": "",
+  "title": "Plan editable antes de construir y «Denegar con motivo»",
+  "updated_at": "2026-11-11T02:57:38.284Z"
+}

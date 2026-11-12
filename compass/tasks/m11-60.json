@@ -1,0 +1,22 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-11T18:01:47.606Z",
+  "decisions": [
+    {
+      "alternatives": "Dejar el camino viejo como estaba (acción inmediata). Esperar siempre al próximo fin de turno, aunque la sesión esté quieta.",
+      "at": "2026-11-11T22:20:11.245Z",
+      "text": "El aviso de la tool call «Compact conversation» (adapters sin la capacidad) también espera al fin del turno para ofrecer el traspaso, igual que compaction_update; una compactación fuera de un turno lo ofrece enseguida.",
+      "why": "La regla de agent-harness-81 (no cortar el flujo del turno) vale igual para los dos caminos. claude-agent-acp tiene compactación en reposo (idle-compaction), que llega sin turno en curso."
+    }
+  ],
+  "description": "Sale de m11-35. claude-agent-acp (0.106) manda la compactación como una tool call sintética «Compact conversation» (name compact, kind think) si el cliente no anuncia clientCapabilities.session.compaction. Si lo anuncia, manda sessionUpdate «compaction_update» con compactionId, status (in_progress/completed/cancelled/failed) y summary (el resumen que quedó, sin las etiquetas). Hay que anunciar la capacidad, mostrar la compactación en el chat como una fila propia con el resumen desplegable, guardarla en el historial y reproducirla, y usar el fin de la compactación para rearmar el aviso de m11-35. Cambia lo que ve el usuario en el chat y en el historial: por eso va aparte.",
+  "milestone": "m11",
+  "notes": "Captura (claude-agent-acp 0.106.0 con haiku, probe ACP en Python): tests/fixtures/acp/compaction_0106.json.\n- Con la capacidad: in_progress → completed con summary → completed sin summary, con el mismo id. La respuesta del /compact es end_turn con usage en 0.\n- session/load: un solo completed con summary y otro id, entre los mensajes.\n\nHecho en sm/m11-60 (11c21a1):\n- session_controller anuncia session.compaction.\n- SessionModel._apply_compaction arma una fila NOTICE por compactionId, con details y details_title, y emite compaction_changed.\n- SessionHistory graba solo el estado final de cada compactación.\n- agent_dock: _compaction_offers. La acción va al terminar el turno (turn_finished), o enseguida si la sesión está quieta; al reproducir, nunca. El aviso de la tool call vieja también espera al fin del turno.\n- El resumen se muestra en la fuente mono del detalle de los avisos, con Copiar.",
+  "order": 40,
+  "refs": [],
+  "status": "review",
+  "test": "Headless: tests/run_all.gd -- test_compaction (capacidad anunciada; los updates vivos del fixture dan una fila con el resumen y el completed repetido no lo borra; failed/cancelled; el historial graba solo el final y lo reproduce con replaying; el replay de session/load deja la fila entre los mensajes). Editor: tests/suite.sh run ui-handoff (compaction_update en medio del turno: fila con el resumen plegado después del mensaje donde llegó, sin acción mientras el turno sigue, con «Nueva sesión con resumen» al terminar; la tool call de un adapter sin la capacidad también la ofrece).",
+  "title": "Compactación como estado propio: anunciar session.compaction y mostrar compaction_update",
+  "updated_at": "2026-11-11T22:20:11.245Z"
+}

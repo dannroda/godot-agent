@@ -4,13 +4,13 @@
   "created_at": "2026-10-23T20:20:22.666Z",
   "description": "Hoy Claude Code se usa a través de `npx -y @agentclientprotocol/claude-agent-acp`, lo que obliga a tener Node. Claude Code tiene un modo sin interfaz (`claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --mcp-config … --permission-prompt-tool mcp__godot__permission`) y, con el instalador nativo, es un binario autónomo. Prueba corta: lanzarlo desde GDScript, mandar un prompt que use una tool godot.* y una que pida permiso, y registrar qué eventos llegan (texto en streaming, tool calls y resultados, uso, rate limit, resultado) con la versión instalada. Con eso decidir si vale un segundo transporte solo para Claude (ACP queda para Gemini CLI y Codex). Revisar qué se pierde del adapter: cambio de modo y modelo, cancelar, --resume, imágenes, login, /remote-control, _meta de subagentes.",
   "milestone": "m07",
-  "notes": "",
+  "notes": "Rama sm/m7-31 (worktree .claude/worktrees/m7-31), commit 567b97b desde 9501d7f. Sin cambios en addons/godot_agent. Probado con Claude Code 2.1.321 nativo y Godot 4.7.2. Funciona: initialize (modelos, comandos, cuenta, remote_control_available), tool godot.* por HTTP (diferida: pasa por ToolSearch), can_use_tool por stdio y permiso por una tool MCP, set_model, set_permission_mode, imagen base64, interrupt (8–21 ms, la sesión sigue), /context, subagente (task_* + parent_tool_use_id con --forward-subagent-text), --resume en un proceso nuevo (no repite el historial), rate_limit_event. Sin login: authentication_failed «Not logged in», sin método de login. No probé /remote-control en -p porque abre una sesión real. Recomendación (D62): no hacer el segundo transporte ahora; si se hace, como shim stream-json⇄ACP para no duplicar SessionController. Ojo: D62 puede chocar con otra rama que agregue una D62.",
   "order": 31,
   "priority": "low",
   "refs": [],
   "size": "m",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "`godot --headless --path . --script tests/stream_json_probe.gd [-- <modelo>]` (manual, gasta tokens, ~USD 0,17 con haiku): termina con exit 0 y las líneas T1–T7 en success (T4 interrupt da error_during_execution, que es lo esperado). Deja probe.txt con «chau» en el sandbox y el log en tests/tmp/stream_json_probe/events.jsonl. D62 en docs/decisions.md tiene el informe.",
   "title": "Prueba: hablar con Claude Code en stream-json desde GDScript, sin claude-agent-acp",
-  "updated_at": "2026-10-23T20:20:22.666Z"
+  "updated_at": "2026-11-10T03:52:07.447Z"
 }

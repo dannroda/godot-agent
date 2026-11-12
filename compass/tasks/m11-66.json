@@ -1,0 +1,23 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T02:07:21.292Z",
+  "decisions": [
+    {
+      "alternatives": "Tarjeta bajo la línea como las de Revisar; marcas de todos los turnos de la sesión",
+      "at": "2026-11-12T02:21:55.042Z",
+      "text": "Marcas en un gutter propio con ✓ y ✗ clickeables en la primera línea de cada trozo (sin tarjeta) y una banda en la barra de estado; solo el último turno de la pestaña activa y solo scripts del proyecto abierto",
+      "why": "Es lo que pidió 81 (gutter con ✓/✗ por trozo). La banda da el motivo cuando no se puede rechazar. Las escenas no se abren en el Script Editor; las copias aparte no están abiertas en el editor."
+    }
+  ],
+  "description": "Seguimiento de m11-34 (punto 3 opcional de la idea). Hoy los cambios de un turno se conservan o rechazan por trozo solo en el diálogo «Ver cambios». En el Script Editor, cada trozo cambiado por el último turno debería verse en el gutter con ✓ (conservar) / ✗ (rechazar), reusando las anotaciones de Revisar y la misma lógica de rechazo por trozo (incluido stale y Deshacer). Pedido por agent-harness-81, rama desde origin/sm/next5, con su check de editor.",
+  "milestone": "m11",
+  "notes": "",
+  "order": 46,
+  "refs": [],
+  "size": "m",
+  "status": "doing",
+  "test": "",
+  "title": "Marcas de keep/reject por trozo en el Script Editor",
+  "updated_at": "2026-11-12T02:21:55.042Z"
+}

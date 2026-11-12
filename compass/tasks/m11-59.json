@@ -1,0 +1,61 @@
+{
+  "checklist": [
+    {
+      "done": true,
+      "text": "Base: importar recursos con ids nuevos, GC de los que quedan huérfanos, validate() cargando la escena antes de escribir; nodos borrados de vuelta entre hermanos"
+    },
+    {
+      "done": true,
+      "text": "Movidos y renombrados; encabezado (nombre de la raíz, type/instance, groups); conexiones agregadas y quitadas"
+    },
+    {
+      "done": true,
+      "text": "Propiedades con recursos y dentro de un sub_resource (solo si no está compartido)"
+    },
+    {
+      "done": true,
+      "text": "UI (validate en reject_hunk, «No se pudo revertir: …», textos del diálogo), prueba con las 41 escenas del repo y editor check"
+    }
+  ],
+  "code": "",
+  "created_at": "2026-11-11T05:06:04.774Z",
+  "decisions": [
+    {
+      "alternatives": "Validar con SceneDiff solamente (no ve errores de carga); comparar el árbol entero con el de antes (en producción el resto pudo cambiar a propósito después del turno).",
+      "at": "2026-11-11T17:18:49.724Z",
+      "text": "La validación cargando la escena usa una copia en user:// sin el uid del encabezado, ResourceLoader con CACHE_MODE_IGNORE, instantiate() y free(). Además de que cargue, busca las rutas que la operación espera presentes (el nodo devuelto, movido o con la propiedad) o ausentes (el nodo sacado; no para una sección de override de una escena instanciada). Si falla: «No se pudo revertir: así la escena no cargaría (motivo). No se escribió nada.», con el motivo técnico en inglés.",
+      "why": "Lo pidió agent-harness-81 como red de seguridad obligatoria. Godot instancia aunque un nodo tenga un padre que no existe (lo saltea con un error), así que cargar solo no alcanza: hace falta buscar el nodo."
+    },
+    {
+      "alternatives": "Guardar los ids agregados en data.hunk_state (sobrevive en el JSON del aviso, pero se desincroniza si el usuario edita).",
+      "at": "2026-11-11T17:18:49.755Z",
+      "text": "Deshacer un rechazo no guarda estado: borra los ext_resource/sub_resource que la operación dejó sin referencias y que antes de ella sí se nombraban (en cascada). Se cambió del plan, que decía guardar los ids agregados en el resultado del rechazo.",
+      "why": "Los cambios se recalculan desde los dos textos del turno cada vez que se abre el diálogo y el aviso con «Deshacer» solo guarda {data, path, index}. Esta regla da lo mismo sin estado y nunca borra un recurso que alguien usa."
+    },
+    {
+      "alternatives": "Cargar sin scripts (no hay forma limpia); abrir cada proyecto aparte (lento).",
+      "at": "2026-11-11T17:18:49.783Z",
+      "text": "En la prueba con las escenas del repo, las 41 se comparan como texto (SceneDiff: el diff con la original queda vacío y deshacer vuelve a lo borrado). Además, 8 se cargan y su árbol se compara con el de antes: nombres, orden de hijos, propiedades guardadas (recursos locales por contenido) y conexiones. Las otras 33 son de carpetas con .gdignore o su propio project.godot (completion_eval, completion_fixture, map_fixture…): sus scripts no compilan en este proyecto.",
+      "why": "Cargarlas en run_all da errores de parseo de sus scripts, que el runner cuenta como fallas, y no prueban nada del rechazo."
+    },
+    {
+      "at": "2026-11-11T17:59:33.907Z",
+      "text": "Confirmado: el borrado de recursos al deshacer (y al rechazar un nodo agregado) solo saca secciones [ext_resource]/[sub_resource] del texto del propio .tscn (SceneRevert._collect → _drop_spans sobre el texto). Nunca borra ni toca archivos de recursos: el único archivo que se escribe es la escena, y además la copia temporal de validate() en user://, que se borra después.",
+      "why": "Lo pidió agent-harness-81 como condición para aceptar deshacer sin estado."
+    }
+  ],
+  "description": "Sigue a m11-34. En la fase 1, una .tscn deja rechazar solo propiedades cambiadas y nodos agregados. Faltan:\n- devolver un nodo borrado: reinsertar su sección y la de sus descendientes en el lugar que tenían;\n- deshacer un movido o renombrado;\n- propiedades con un ExtResource o SubResource que no está en la escena actual: hay que rearmar las secciones ext_resource y sub_resource con ids nuevos sin chocar con los existentes;\n- conexiones agregadas o quitadas.\nMientras tanto, para eso queda «Volver atrás» del archivo entero, con confirmación. Lo mismo que en la fase 1: verificar sobre el texto actual y, si cambió después del turno, el cambio queda stale y no se pisa nada.",
+  "milestone": "m11",
+  "notes": "Hecho en sm/m11-59 (pusheada, ac18fd6). Commits: 9045f02 (core + tests), 975a6d0 (UI), 185a927 (editor check), ac18fd6 (CHANGELOG y wiki).\n\nImplementado según el plan de abajo, con dos cambios:\n- Deshacer no guarda estado. Borra los recursos que la operación dejó sin referencias y que antes sí se nombraban (ver decisión).\n- validate() carga la escena antes de escribir y busca las rutas esperadas. Lo pidió agent-harness-81 como red de seguridad.\n\nEscenas del repo: las 41 se comparan como texto y alcanza (lo confirmó agent-harness-81). Solo 8 se cargan además, porque las otras 33 son de carpetas con .gdignore o project.godot propio, donde los scripts no compilan.\n\nPlan original:\nTodo en core/scene_revert.gd, sobre el texto actual. Si cambió después del turno, queda stale y no se escribe nada. Deshacer es la inversa con la misma verificación.\n\n1. Recursos. Se juntan los ExtResource/SubResource que nombra lo que vuelve (recursivo).\n- ext: se reusa uno con la misma uid o ruta; si no, se copia.\n- sub: se copia, salvo que tenga el mismo id y el mismo contenido.\n- Ids: el viejo si está libre; si no, uno nuevo con formato de Godot y RNG inyectable, sin chocar.\n- Las referencias se reescriben con un mapa, solo dentro de Resource(\"…\").\n- Los ext van después del último ext y los sub después del último sub, en orden de dependencia. load_steps se ajusta.\n\n2. Nodo borrado.\n- Precondiciones: el padre existe (por unique_id o ruta), el unique_id no está y no hay un hermano con el mismo nombre.\n- Va después del subárbol del hermano anterior más cercano que siga ahí; si no hay ninguno, justo después del padre.\n- Las rutas parent= se rebasan.\n- Las conexiones vuelven si el otro extremo existe.\n\n3. Movido o renombrado: name y parent como antes, el subárbol a la posición de antes, y se reescriben las conexiones y los [editable].\n\n4. Encabezado (nombre de la raíz, type/instance, groups) y conexiones (sacar o volver a poner si están los dos extremos). En un sub_resource se edita solo si no está compartido; si lo está, «Solo con Volver atrás».",
+  "order": 39,
+  "priority": "low",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "ui"
+  ],
+  "test": "- run_all 701/0. Tests nuevos en tests/unit/test_scene_revert_phase2.gd:\n  - ida y vuelta por cada cambio, con la escena validada;\n  - rechazar todo da la escena de antes, con el mismo árbol cargado;\n  - ids que chocan (sub y ext) y reuso de ext por ruta;\n  - orden entre hermanos (primer hijo y después del subárbol, en cualquier orden da el mismo texto);\n  - casos stale: nombre ocupado, ya está, padre que no está, padre renombrado por unique_id;\n  - movido; encabezado y conexiones; type/instance;\n  - sub compartido no se rechaza;\n  - validate();\n  - las 41 escenas del repo con semilla fija.\n- Editor check (edit_check._check_removed_node_back): borrar un Sprite2D con textura+gradiente por MCP, guardar y rechazar. Vuelve entre sus hermanos con sus recursos, sin diálogos y sin quedar sin guardar; deshacer lo saca junto con los recursos. Verificado con mutación: sin la regla del hermano anterior, falla.\n- suite ci pasa.",
+  "title": "Rechazar por nodo en escenas, fase 2: nodos borrados o movidos, recursos nuevos y conexiones",
+  "updated_at": "2026-11-11T17:59:33.907Z"
+}

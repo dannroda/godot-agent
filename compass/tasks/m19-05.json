@@ -2,15 +2,41 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-11-02T23:18:54.081Z",
+  "decisions": [
+    {
+      "alternatives": "Copiar directo con el aviso de reiniciar; dejar los archivos como *.pending dentro de addons/ (el FileSystem los muestra y podrían exportarse).",
+      "at": "2026-11-10T04:09:24.008Z",
+      "text": "install_extension no copia al juego: prepara en .godot/agent_supervisor/pending/ y los archivos entran en el reinicio (el supervisor antes de abrir el editor; sin supervisor, el plugin justo antes de reiniciar)",
+      "why": "El editor abierto registra y carga un .gdextension nuevo al escanear, y recarga uno reloadable cuando cambia su biblioteca: copiar directo cargaba la build en el editor sin pasar por el reinicio ni por el rollback del supervisor. Entrar por rename deja intacta la biblioteca que el editor tiene mapeada."
+    },
+    {
+      "alternatives": "Guardar el md5 de las bibliotecas cuando test_extension pasa y exigir que coincidan al instalar.",
+      "at": "2026-11-10T04:09:24.046Z",
+      "text": "install_extension vuelve a correr los tests de test_extension antes de instalar, en vez de recordar el último test que pasó",
+      "why": "Garantiza que lo copiado es exactamente lo probado (una build en el medio cambiaría la biblioteca); cuesta lo que tarda la prueba, que corre en un Godot aparte."
+    },
+    {
+      "alternatives": "Correr check_gdextension.py si está; tratar todo lo que marca el script como bloqueante.",
+      "at": "2026-11-10T04:09:24.323Z",
+      "text": "La revisión del .gdextension es un port a GDScript de check_gdextension.py, y solo frena lo que impide que este editor la cargue; lo demás (falta la release, otras plataformas, debug/release cruzados) son avisos",
+      "why": "El addon no puede depender de que la skill y python3 estén instalados. Con la regla de la skill, el godot-cpp-template real (solo template_debug de linux, lo que compila build_extension por defecto) no se instalaba: el script es para publicar, la instalación es para iterar."
+    },
+    {
+      "alternatives": "Copiar siempre la carpeta entera del .gdextension.",
+      "at": "2026-11-10T04:09:24.821Z",
+      "text": "Qué se lleva: el .gdextension con las bibliotecas, íconos y dependencias que nombra (desde bin/), o la carpeta addons/<x>/ entera si el proyecto de prueba ya la tiene así; destino res://addons/<nombre>/ o donde el juego ya tiene ese .gdextension; rutas res:// reescritas",
+      "why": "bin/ del template junta basura de build (.lib, .exp, .crashed); addons/<x>/ puede traer un plugin.cfg y scripts que son parte del addon. Es el paso «Package as an addon» de la skill gdextension-build."
+    }
+  ],
   "description": "m19-02 prueba la build en el proyecto de prueba de la extensión (project/ o demo/), pero el juego que el usuario tiene abierto la usa como addon (addons/<ext>/ con el .gdextension y bin/). Falta una tool, o un paso documentado, que copie el addon probado al juego solo si test_extension pasó, verifique con check_gdextension.py de la skill y le pida al usuario que reinicie el editor. Esto se cruza con el supervisor (m19-03): la build nueva entra al editor recién en ese reinicio.",
   "milestone": "m19",
-  "notes": "",
+  "notes": "Rama sm/m19-05 (worktree .claude/worktrees/m19-05), commit 26e8a18 desde 9501d7f, integrada en sm/next. Código: core/native_install.gd (plan, check, stage/apply_pending), tool install_extension en diagnostic_tools.gd (GROUP_PROJECT, extendida), supervisor _launch y plugin _restart_now aplican lo preparado, NATIVE_RULES y descripción de restart_editor la nombran.\nArreglo del hueco «lo preparado queda en pending/ sin que nadie lo sepa»: rama sm/m19-05-pending desde sm/next, commit f24729d. Aviso en el dock con Reiniciar y Descartar; godot.project_info lo nombra.\nArreglos de la revisión (#1-#7, #9-#14): rama sm/m19-05-fix desde sm/next 7ff2c6b (worktree .claude/worktrees/m19-05-fix), commit 2c619cb.\n- #1: core/protected_paths.gd tiene la lista PROTECTED de file_tools (que ahora la usa), normalize_relative (res:///, //, \\, .., unidades), write_error (protegidas, carpetas ocultas, mayúsculas en Windows/macOS, enlaces resueltos con resolve_links). Se valida el target, cada destino y las rutas del manifest (#13).\n- #2/#3/#6/#12: target desde la carpeta del addon (gdext_sub). Si el juego ya la tiene, se reemplaza esa; con un target en otro lado, otra estructura o dos copias, error. _gdextension_files saltea subcarpetas con project.godot (también en el snapshot). pick_gdextension elige por nombre de carpeta y da error si hay ambigüedad. Todos los .gdextension del addon van reescritos (file.text); planned.gdextension es el elegido.\n- #4: check(text, dir, root, has_feature) usa loaded_key (la clave con más etiquetas que son features, la primera en un empate, como find_extension_library).\n- #5: el snapshot guarda el .gdextension; rollback lo restaura primero y relee sus bibliotecas (aunque falten en disco). Snapshot.restorable da full, libraries o none, y _crash_note de la tool no promete volver atrás si no hay a qué.\n- #7: ACTION_PENDING_INSTALL_RESTART llama a restart_editor(true). plugin.restart_override es la costura para pending_check.\n- #9: stage arma en pending.new/ y pending.json.new y cambia con .prev (el manifest sale primero y entra último).\n- #10/#11: apply_pending es todo o nada: copia a .installing, rename con backup .old, deshace si algo falla; limpia .old y .installing viejos; last_install.json. take_install_failure da el aviso del dock una vez; pending_line lo dice en project_info hasta la próxima preparación o el descarte.\n- #14: el supervisor marca _pending_blocked si el wait-pid vence sin CLOSED (log). Lo despeja el reinicio pedido por su editor. --wait-timeout es para los tests.\nLímites: el caso Windows (DLL cargada, .old que no se puede borrar) sigue sin probarse en Windows. Las carpetas vacías que crea una instalación fallida quedan.",
   "order": 5,
   "priority": "medium",
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "sm/m19-05-fix 2c619cb.\n- run_all 4.7.2: 511 tests, 3936 checks, 0 fallos.\n- 4.8-beta2: native_install (17 tests), editor_supervisor (12) y file_tools (2), 0 fallos.\n- Xvfb 4.7.2: --godot-agent-pending-test (en y es) PASS: el aviso de falla, Reiniciar pasa por restart_editor(true), Descartar. --godot-agent-mcp-test PASS. --godot-agent-i18n-test es PASS (410 textos).\n- Tests nuevos:\n  - test_target_guard_variants: res:///, //, /.godot, \\, .., C:, ocultas, raíz, mayúsculas con ignore_case, la misma lista que FileTools.\n  - test_target_guard_symlinks: enlace al harness, afuera, y uno válido.\n  - test_plan_addon_with_gdextension_in_a_subfolder.\n  - test_nested_project_in_the_game_is_skipped.\n  - test_pick_gdextension_by_folder_name.\n  - test_check_uses_the_key_this_editor_loads (más etiquetas, empate, solo release).\n  - test_failed_restage_keeps_the_previous_one.\n  - test_apply_is_all_or_nothing (revierte, falla avisada una vez, project_info).\n  - test_apply_validates_manifest_paths.\n  - test_tool_says_what_a_crash_would_do.\n  - test_editor_supervisor: test_rollback_restores_the_gdextension_text, test_nested_project_is_not_an_extension_of_the_game y test_real_wait_timeout_holds_the_pending_install.",
   "title": "Llevar la extensión probada al juego",
-  "updated_at": "2026-11-02T23:18:54.081Z"
+  "updated_at": "2026-11-10T04:48:11.646Z"
 }

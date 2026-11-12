@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:37:36.867Z",
+  "decisions": [
+    {
+      "alternatives": "Solo el texto sin acciones (hay que ir al panel); un aviso cada vez que se guarda una (ruido); una guía en la wiki (nadie la ve en el momento).",
+      "at": "2026-11-10T21:10:03.620Z",
+      "text": "El aviso «Playtest: pasó» suma la línea «Guardado como regresión: el harness puede repetirlo sin el agente» y dos acciones del aviso: «Correr regresiones (N)» (una repetición) y «CI workflow…», con los mismos ids que el panel de hallazgos (SessionController.ACTION_RUN_REGRESSIONS / ACTION_REGRESSIONS_WORKFLOW, que AgentDock ahora alias; el plugin ya los maneja). La primera regresión del proyecto deja además un aviso INFO de una vez que explica qué son, que corren sin tokens, dónde viven (.godot_agent/playtests/regressions) y qué hace el workflow de CI.",
+      "why": "Es el momento en que la función aparece: anunciarla ahí evita que el usuario la descubra solo cuando el panel ya la muestra. Una vez por proyecto (cuando list() queda en 1) y no por sesión, para no repetir."
+    }
+  ],
+  "description": "Tour de UX de v0.1.19: «Correr regresiones (N)» y «CI workflow…» solo existen en el panel de hallazgos cuando ya hay regresiones guardadas; el veredicto de un playtest que pasa no dice que dejó una, así que el usuario no sabe que la función existe hasta que la ve. Propuesta: el aviso «Playtest: pasó» termina con «Guardado como regresión · Correr regresiones · CI workflow…» (acciones del aviso), y la primera vez que se guarda una regresión un aviso de una línea explica qué son y dónde quedan. Captura de referencia: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/ux/en/guia/playtest.png.",
+  "milestone": "m12",
+  "notes": "Rama sm/m12-48 desde sm/next2 (e24b94d), commit 55e6f80. SessionController: ACTION_RUN_REGRESSIONS/ACTION_REGRESSIONS_WORKFLOW (AgentDock los alias), regression_notice_parts(saved) estática, regressions_dir inyectable (PlaytestRegressions.new(regressions_dir)), _report_playtest suma la línea y las acciones al veredicto y el aviso INFO de la primera regresión. es.po: el msgid viejo «Saved: «Run regressions»…» se reemplaza por «Saved as a regression: the harness can replay it without the agent.» más el de la primera regresión. CHANGELOG Added.",
+  "order": 12,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "run_all 567 tests 0 fallos (test_regression_notice: regression_notice_parts con ids, etiqueta «Run regressions (N)», data 1, traducción; y el flujo entero por SessionController._report_playtest con un run_scene en el modelo y una carpeta temporal de regresiones: el veredicto «Playtest: passed · …» dice «Saved as a regression» con las dos acciones, la primera vez deja el aviso «First regression saved…» (INFO), la segunda solo el veredicto con «Run regressions (2)», y un playtest fallido no deja nada). acp_session_check 203/0. Sin captura: ningún guion del agente falso tiene un playtest que pase con script de regresión (docs_playtest falla a propósito).",
+  "title": "Regresiones y CI workflow: nada los anuncia hasta que aparecen en el panel",
+  "updated_at": "2026-11-10T21:10:18.832Z"
+}

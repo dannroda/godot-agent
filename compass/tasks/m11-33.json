@@ -1,0 +1,39 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:38:40.253Z",
+  "decisions": [
+    {
+      "alternatives": "Una opción global en Settings; recordar el estado entre reinicios (por proyecto o por pestaña)",
+      "at": "2026-11-11T03:31:41.348Z",
+      "text": "El apagado es por pestaña: un toggle en el header del dock, apagado al abrir cada pestaña, sin persistir y sin opción en Settings",
+      "why": "Seguir tiene sentido para una sesión que estás mirando; con varias pestañas, cada una decide. Apagado por defecto porque mover el editor sin pedirlo sorprende a quien no lo prendió."
+    },
+    {
+      "alternatives": "Apagarlo solo cuando el usuario toca otra cosa, como proponía la idea original",
+      "at": "2026-11-11T03:31:41.383Z",
+      "text": "Con el usuario trabajando en el editor, el salto espera 2,5 s sin input y va al último cambio, en vez de apagar el seguimiento solo",
+      "why": "Lo pidió el coordinador: no robar el foco mientras se escribe o edita una escena. Si se apagara solo con cada clic, habría que volver a prenderlo todo el tiempo. Cuenta como trabajo un clic, una tecla o un arrastre fuera del dock, o el foco en un campo de texto fuera del dock. Si el foco estaba en el composer, vuelve ahí."
+    },
+    {
+      "alternatives": "Seguir también las lecturas, como Zed; Ctrl+Enter al enviar; enfocar la vista Game con run_scene",
+      "at": "2026-11-11T03:31:41.413Z",
+      "text": "Solo saltan las ediciones terminadas, no las lecturas ni los borrados, y por ahora no hay Ctrl+Enter ni enfoque de la escena que corre",
+      "why": "Saltar por cada lectura mueve el editor sin parar mientras el agente explora. Un archivo borrado no se puede abrir. El atajo y el foco del juego son extras que se pueden sumar después."
+    }
+  ],
+  "description": "Idea de la investigación de UX (2026-11-10). Zed: «Follow the agent as it reads and edits files by clicking the crosshair icon at the bottom left of the panel. Your editor will jump to each file the agent touches», y mantener cmd/ctrl al enviar sigue automáticamente (https://zed.dev/docs/ai/agent-panel). Hoy el harness ofrece «Abrir en Script» por tarjeta y las marcas de Revisar, pero mirar qué hace el agente mientras trabaja es manual. Propuesta: un toggle «Seguir» en el encabezado del dock (y Ctrl+Enter al enviar): con cada tool call de edición el editor abre el script en la línea del diff, selecciona el nodo de set_properties/create_scene en el árbol o enfoca la escena que corre; se apaga solo si el usuario toca otra cosa. Diferencial: en Godot «seguir» incluye el Scene Tree y el viewport, no solo archivos.",
+  "milestone": "m11",
+  "notes": "Branch sm/m11-33, commit 69a5b7b, from origin/main 46dc03e.\n- New file editor/agent_follower.gd. In plugin.gd, _follow_call is invoked from _on_tool_call_changed, after the replay check, and only acts on the active tab's model when that dock has follow_enabled. Switching tabs or turning follow off cancels the pending jump.\n- The FollowButton (CenterView icon, the crosshair) sits in the header before History.\n- Paths outside the project are not opened, for example from a separate copy.\n- Not done, possible follow-ups: Ctrl+Enter to follow on send, focusing the Game view during run_scene, and following reads.",
+  "order": 13,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "tests/unit/test_agent_follower.gd covers the targets per tool, that reads and deletes don't jump, waiting with the latest change pending, and cancel. In the editor, --godot-agent-sessions-test checks that the active tab with follow on opens the scene and selects the node, the other tab doesn't move anything, recent input makes it wait before jumping, and nothing happens when follow is off. A mutation run (follow disabled) makes all 4 checks fail. suite.sh ci passes 13/13 on 4.7.2.",
+  "title": "Seguir al agente: el editor salta a cada archivo y nodo que toca (como Zed)",
+  "updated_at": "2026-11-11T03:38:19.894Z"
+}

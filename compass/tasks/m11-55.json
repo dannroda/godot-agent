@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T19:40:21.704Z",
+  "decisions": [
+    {
+      "alternatives": "Mandar el prompt solo (el usuario pidió explícitamente que no); @errors/@output como menciones en el composer (dos pasos más y no muestra el error en el dock); un ajuste por proyecto (es una preferencia de la persona, va en EditorSettings como las actualizaciones); avisar también en runs del agente (ruido).",
+      "at": "2026-11-10T20:16:44.052Z",
+      "text": "RunErrorWatcher (editor/run_error_watcher.gd) escucha las señales de la sesión de debug (started/breaked/stopped), cuenta solo errores con source «game» (no warnings ni errores del editor) desde que arrancó el run, avisa una vez por run y nunca para runs lanzados por run_scene (RunTools.harness_run, decidido al arrancar la sesión según venga de LAUNCHING). El aviso es un NOTICE de advertencia en la pestaña activa: título, motivo o primer error en el cuerpo, «Errores y pila» plegado con Copiar, y «Arreglar con el agente» (acción principal) que manda el prompt con dock.send_text y la etiqueta HarnessPrompts.RUN_ERROR. Ajuste por usuario HarnessSettings.KEY_RUN_ERROR_FIX (prendido), casilla en Ajustes › Herramientas del editor.",
+      "why": "Los runs del agente ya reciben sus errores en cada resultado de tool: avisar también sería ruido. Solo errores del juego para no disparar por un warning del editor. Un prompt en inglés con etiqueta, como acordó agent-harness-57 (m12-44): el chat lo muestra como del harness, no como escrito por el usuario. La pila se lee 0,5 s después de la pausa porque el panel del debugger se llena después (igual que run_tools)."
+    }
+  ],
+  "description": "De dónde: Watch Mode de Gamedev AI: cuando el juego se cae lee los últimos ~50 bloques del log y propone un arreglo como diff (https://fredarts.github.io/gamedev_ai/core-features/watch-mode.html); Bezi cancela llamadas pendientes y sugiere próximos pasos cuando Unity se cae (https://docs.bezi.com/get-started/changelog). Cómo se adapta: cuando el usuario corre el juego a mano (F5/F6) y para en el debugger por un error de script, o el juego termina con errores, un aviso en el dock con «Arreglar con el agente» que manda a la sesión activa el error, el stack y el Output (lo que ya arman @errors y @output), sin mandar nada solo. Prendido por defecto, apagable en Settings. Hoy no hay nada (grep sin resultados). Por qué: es el momento en que más se necesita al agente y hoy hay que copiar el error a mano.",
+  "milestone": "m11",
+  "notes": "Rama sm/m11-55 desde sm/next2 (4895e84), commit 14ed645. Nuevo editor/run_error_watcher.gd (señales de la sesión de debug → error_found una vez por run; summary/notice_title/notice_text/notice_details/prompt estáticos). RunTools.harness_run (STARTED viniendo de LAUNCHING). plugin.gd: _run_errors, _on_game_breaked (lee la pila 0,5 s después), _on_run_error (NOTICE WARNING en la pestaña activa con title, details, details_title y acción fix_run_error), ACTION_FIX_RUN_ERROR → dock.send_text(prompt, HarnessPrompts.RUN_ERROR). ChatEntry.details_title (NoticeView lo usa; por defecto «Last lines of the log»). HarnessSettings.KEY_RUN_ERROR_FIX + offer_fix_on_run_error(); casilla en Ajustes › Herramientas del editor debajo del autoload en runs manuales. Dev: run_error_check.gd y --godot-agent-run-error-test (con --godot-agent-ui-shot), sumado a ci.yml. CHANGELOG Unreleased › Added. No se manda el Output completo: solo los errores del juego (source game) y la pila; el agente puede pedir más con get_errors/@output.",
+  "order": 35,
+  "priority": "medium",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "idea"
+  ],
+  "test": "run_all 534 tests 0 fallos (test_run_error_watcher: avisa una vez por run con motivo y errores del juego, ignora warnings/errores del editor/ruido del motor, nada en runs del agente ni apagado ni sin errores; textos del aviso y prompt en en/es; test_settings_dialog: casilla y ajuste por defecto; test_harness_prompts: etiqueta traducida). acp_session_check 203/0, oneshot_check 190/0. En Xvfb: --godot-agent-run-error-test en y es 0 fallas (run manual de run_broken.tscn → aviso de advertencia con el archivo en los detalles, «Errores y pila», botón principal; una vez por run; el botón manda a la sesión activa un prompt con harness_label RUN_ERROR que empieza «The user ran the game…»; run_scene del agente no avisa; apagado en Ajustes no avisa), y run-test 0 fallas (RunTools tocado). Captura: /tmp/claude-1000/-home-dannode-Proyectos-Godot-agent-harness--claude-worktrees-m13-17/3619cf30-0f89-4d71-9f7c-62dac5e13c95/scratchpad/m11-55/notice_es.png (y notice_en.png).",
+  "title": "Error en un run manual: «Arreglar con el agente»",
+  "updated_at": "2026-11-10T20:18:26.009Z"
+}

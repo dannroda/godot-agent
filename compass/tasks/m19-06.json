@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-10T05:03:39.762Z",
+  "decisions": [
+    {
+      "alternatives": "Mantener «/x» = res://x y rechazar solo absolutas de otro lado (ambiguo: /home/… del propio proyecto pasaba a res://home/…).",
+      "at": "2026-11-10T05:08:37.295Z",
+      "text": "«/x» no es sinónimo de res://x en install_extension: una absoluta vale solo bajo la raíz del juego (se convierte); sin entrada de CHANGELOG",
+      "why": "Ni file_tools (_normalize deja «/x» absoluta y _check_target la rechaza) ni los prompts o skills usan esa convención; solo install_extension la aceptaba vía normalize_relative. install_extension todavía no salió, así que no hay cambio visible para el usuario."
+    }
+  ],
+  "description": "De la revisión independiente de install_extension (m13-17-ed, 2026-11-10), sin riesgo hoy. (a) normalize_relative quita las barras iniciales: \"/tmp/evil\" pasa a res://tmp/evil y una ruta absoluta del propio proyecto a res://home/…; aceptar una ruta con \"/\" inicial solo si está bajo la raíz del proyecto (y convertirla), si no error. Ojo: file_tools comparte la función; revisar si «/x» = «res://x» es convención que algún agente usa. (b) Un ciclo de enlaces se acepta como target tras 16 saltos (después mkdir falla): rechazarlo con un error claro.",
+  "milestone": "m19",
+  "notes": "f0b40f2 en sm/m19-06. normalize_relative(path, root, ignore_case): absoluta (barra o unidad) solo bajo root, convertida; sin root, error. resolve_links devuelve \"\" pasados MAX_LINK_HOPS (16) y write_error dice «goes through a loop of symbolic links». file_tools no usa normalize_relative y ya rechazaba «/x»: sin cambios. La comparación con root es textual (una absoluta que pase por un enlace a la raíz del juego no se reconoce).",
+  "order": 6,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "security"
+  ],
+  "test": "run_all 4.7.2: 523 tests / 4128 checks, 0 fallos; native_install en 4.8-beta2: 17/178, 0 fallos. test_target_guard_variants (absolutas: /, /tmp/evil, /addons/godot_agent, otra carpeta y ../ afuera; la del juego se convierte; la raíz del juego es «root of the game»; mayúsculas Win/mac) y test_target_guard_symlinks (ciclo loop_a↔loop_b rechazado, resolve_links devuelve \"\").",
+  "title": "ProtectedPaths: rutas absolutas y ciclos de enlaces",
+  "updated_at": "2026-11-10T05:08:37.295Z"
+}
