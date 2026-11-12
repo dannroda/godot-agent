@@ -58,7 +58,7 @@ Cada sesión se guarda en `user://godot_agent/sessions/` una vez por turno, sin 
 
 - **Archivos**: un archivo que una sesión escribe en su turno (con las herramientas de edición del agente o con las `godot.*`) queda fuera del alcance de las demás hasta que ese turno termina. Otra sesión que lo intente recibe un rechazo, con el nombre de la sesión que lo tiene.
 - **El juego**: la sesión que corrió el juego lo tiene hasta que se detiene. El `run_scene` de otra sesión espera en cola (hasta un minuto y medio), y las herramientas `godot.game_*` no tocan un juego ajeno.
-- **Un canal entre ellas**: `godot.sessions` le muestra a cada agente las otras sesiones, qué hacen, qué archivos tienen y quién tiene el juego. `godot.session_send` le deja un mensaje a otra sesión, que le llega a su agente como prompt cuando termina su turno.
+- **Un canal entre ellas**: `godot.sessions` le muestra a cada agente las otras sesiones, qué hacen, qué archivos tienen y quién tiene el juego. `godot.session_send` le deja un mensaje a otra sesión, que le llega a su agente cuando termina su turno, como datos y no como instrucciones; cada uno lo aprobás vos, y nunca hacia una sesión con más permisos.
 
 La primera pestaña es la que corre el One-shot, las marcas de Revisar y Remote Control; las demás tienen los modos Preguntar, Revisar, Construir y Auto. Cerrar una pestaña termina su sesión.
 

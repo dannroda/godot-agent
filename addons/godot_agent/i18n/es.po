@@ -5986,3 +5986,5 @@ msgstr "Aplicar las reglas por archivo del proyecto"
 
 msgid "When a turn touches a file that matches a rule in .agents/rules, .claude/rules or .cursor/rules, the next prompt carries that rule, once per session. Rules the active agent already loads on its own aren't sent again."
 msgstr "Cuando un turno toca un archivo que coincide con una regla de .agents/rules, .claude/rules o .cursor/rules, el próximo prompt lleva esa regla, una vez por sesión. Las reglas que el agente activo ya carga solo no se mandan de nuevo."
+msgid "Messages to other sessions"
+msgstr "Mensajes a otras sesiones"

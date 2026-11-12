@@ -34,10 +34,11 @@ var session_authorizer: Callable
 ## `(caller, tool_name, args) -> String`: "" deja correr la tool; si no, el motivo por el que otra
 ## sesión la impide (edita ese archivo, tiene el juego). Puede esperar (la cola del juego).
 var guard: Callable
-## `(caller, tool_name) -> String`: un rechazo que no depende del usuario (una sesión en una copia
-## aparte no puede usar las tools que editan el editor, m11-09). Corre antes de pedir permiso, para
-## no mostrar una tarjeta que igual se rechazaría.
+## `(caller, tool_name, args) -> String`: un rechazo que no depende del usuario (una sesión en una copia
+## aparte no puede usar las tools que editan el editor, m11-09; un mensaje a una sesión con más
+## permisos). Corre antes de pedir permiso, para no mostrar una tarjeta que igual se rechazaría.
 var precheck: Callable
+var _last_precheck: String = ""
 ## La sesión que llama a la tool en curso, para los handlers que la necesitan (godot.sessions):
 ## vale al empezar el handler, antes de su primer await.
 var current_caller: String = ""
@@ -232,8 +233,8 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 			result = McpTool.error(invalid)
 		elif not tool.handler.is_valid():
 			result = McpTool.error("The tool godot.%s is not available (the addon was reloaded). Retry in a moment." % tool.name)
-		elif precheck.is_valid() and not str(precheck.call(caller, tool.name)).is_empty():
-			result = McpTool.error(str(precheck.call(caller, tool.name)))
+		elif not _prechecked(caller, tool.name, arguments).is_empty():
+			result = McpTool.error(_last_precheck)
 		elif not await _authorize(tool, arguments, caller):
 			result = McpTool.error(
 				"Permission denied for godot.%s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [tool.name, tool.group_of(arguments)]
@@ -363,6 +364,12 @@ func _methods(args: Dictionary) -> Dictionary:
 static func _first_sentence(text: String) -> String:
 	var end := text.find(". ")
 	return text.left(end + 1) if end >= 0 else text
+
+
+## El rechazo del precheck ("" si deja seguir), una sola llamada por tool call: lo deja en _last_precheck.
+func _prechecked(caller: String, tool_name: String, args: Dictionary) -> String:
+	_last_precheck = str(precheck.call(caller, tool_name, args)) if precheck.is_valid() else ""
+	return _last_precheck
 
 
 func _authorize(tool: McpTool, args: Dictionary, caller: String = "") -> bool:
