@@ -19,6 +19,7 @@ const SaveGuard := preload("res://addons/godot_agent/playtest/mutation/save_guar
 ## mutante no compila o ya no se aplica; 4 si algo intentó guardar un recurso (SaveGuard).
 const MUTANT_INVALID := 3
 const MutationTesting := preload("res://addons/godot_agent/playtest/mutation/mutation_testing.gd")
+const SceneSabotage := preload("res://addons/godot_agent/playtest/mutation/scene_sabotage.gd")
 
 const SETTLE_S := 0.5
 const SCRIPT_TIMEOUT_S := 30.0
@@ -141,7 +142,7 @@ static func parse_args(args: PackedStringArray) -> Dictionary:
 func _measure(entries: Array[Dictionary], count: int, min_score: int) -> int:
 	var testing := MutationTesting.new()
 	testing.on_progress = func(done: int, total: int, mutant: Dictionary) -> void:
-		print("regressions: mutant %d/%d %s:%d %s" % [done, total, mutant.path, int(mutant.line), mutant.status])
+		print("regressions: mutant %d/%d %s %s" % [done, total, MutationTesting.where(mutant), mutant.status])
 	var result := await testing.run(entries, count)
 	if not result.ok:
 		print("regressions: " + str(result.error))
@@ -150,9 +151,9 @@ func _measure(entries: Array[Dictionary], count: int, min_score: int) -> int:
 		" · %d invalid" % result.invalid if int(result.invalid) > 0 else ""])
 	for mutant: Dictionary in result.mutants:
 		if mutant.status == MutationTesting.STATUS_SURVIVED:
-			print("  survived %s:%d %s" % [mutant.path, int(mutant.line), mutant.change])
+			print("  survived %s %s" % [MutationTesting.where(mutant), mutant.change])
 		elif mutant.status == MutationTesting.STATUS_ERROR:
-			print("  error %s:%d %s" % [mutant.path, int(mutant.line), mutant.get("output", "")])
+			print("  error %s %s" % [MutationTesting.where(mutant), mutant.get("output", "")])
 	if min_score >= 0 and int(result.percent) < min_score:
 		print("regressions: the mutation score is under --min-score=%d" % min_score)
 		return 1
@@ -168,9 +169,12 @@ func _run_mutant(mutant: Dictionary, entries: Array[Dictionary], result_path: St
 	ResourceSaver.add_resource_format_saver(guard, true)
 	var report := {"status": "invalid", "killed_by": "", "output": ""}
 	var code := MUTANT_INVALID
-	var script := load(str(mutant.path)) as GDScript
+	var scene_sabotage: bool = mutant.get("kind") == SceneSabotage.KIND
+	var script := load(str(mutant.path)) as GDScript if not scene_sabotage else null
 	var mutated := GDScriptMutator.apply(script.source_code, mutant) if script else ""
-	if mutated.is_empty():
+	if scene_sabotage:
+		code = await _run_scene_sabotage(mutant, entries, report)
+	elif mutated.is_empty():
 		report.output = "The mutant does not apply to %s any more." % mutant.path
 	else:
 		script.source_code = mutated
@@ -197,7 +201,7 @@ func _run_mutant(mutant: Dictionary, entries: Array[Dictionary], result_path: St
 		report.output = "Tried to save: %s" % ", ".join(guard.attempts)
 		code = SaveGuard.EXIT_CODE
 	ResourceSaver.remove_resource_format_saver(guard)
-	print("regressions: mutant %s:%d %s" % [mutant.path, int(mutant.line), report.status])
+	print("regressions: mutant %s %s" % [MutationTesting.where(mutant), report.status])
 	if not result_path.is_empty():
 		var file := FileAccess.open(result_path, FileAccess.WRITE)
 		if file:
@@ -206,8 +210,37 @@ func _run_mutant(mutant: Dictionary, entries: Array[Dictionary], result_path: St
 	return code
 
 
+## Un sabotaje de escena (m11-62) contra las regresiones de esa escena: como un mutante, pero puesto
+## sobre la escena que corre. No vale (inválido) si no se pudo poner en ninguna.
+func _run_scene_sabotage(sabotage: Dictionary, entries: Array[Dictionary], report: Dictionary) -> int:
+	report.status = "survived"
+	report.killed_by = []
+	report.killed_how = {}
+	var applied := 0
+	var code := 0
+	for entry: Dictionary in entries:
+		if str(entry.get("scene", "")) != str(sabotage.path):
+			continue
+		var result := await run_one(entry, "", sabotage)
+		if result.get("invalid", false):
+			report.output = result.output
+			continue
+		applied += 1
+		if not result.passed:
+			report.status = "killed"
+			var file := str(entry.get("file", entry.get("goal", "")))
+			(report.killed_by as Array).append(file)
+			report.killed_how[file] = MutationTesting.kill_reason(str(result.output))
+			report.output = str(result.output).left(500)
+			code = 1
+	if applied == 0:
+		report.status = "invalid"
+		return MUTANT_INVALID
+	return code
+
+
 ## {goal, passed, output}, como RunTools.run_regression. `setup`: código que corre antes, en el mismo juego.
-func run_one(entry: Dictionary, setup: String = "") -> Dictionary:
+func run_one(entry: Dictionary, setup: String = "", sabotage: Dictionary = {}) -> Dictionary:
 	var result := {"goal": str(entry.get("goal", "")), "passed": false, "output": ""}
 	var blocked := PlaytestRegressions.blocked_api(str(entry.get("code", "")) + "\n" + setup)
 	if not blocked.is_empty():
@@ -221,6 +254,15 @@ func run_one(entry: Dictionary, setup: String = "") -> Dictionary:
 	await process_frame
 	await process_frame
 	await create_timer(SETTLE_S).timeout
+	if not sabotage.is_empty():
+		# En memoria, sobre la escena ya asentada (m11-62): el .tscn no se toca.
+		var why := SceneSabotage.apply(current_scene, sabotage)
+		if not why.is_empty():
+			result.output = why
+			result.invalid = true
+			unload_current_scene()
+			await process_frame
+			return result
 	var probe: Node = PlaytestProbe.new()
 	probe.standalone = true
 	root.add_child(probe)
