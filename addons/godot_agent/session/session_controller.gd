@@ -208,6 +208,8 @@ var last_turn_usage: Dictionary = {}
 ## turno con cambios ({session, start, end, files}): de ahí sale el diff de la segunda opinión (m11-28).
 var current_turn_start: String = ""
 var last_turn_changes: Dictionary = {}
+## La tarjeta del plan aprobado cuyo seguimiento se está mirando (m18-05), o null.
+var _plan_progress_card: PermissionRequest
 ## Un turno con cambios dejó su resumen en last_turn_changes (las marcas del Script Editor, m11-66).
 signal turn_changes_reported(data: Dictionary)
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
@@ -1753,6 +1755,7 @@ func set_config_option(id: String, value: String) -> bool:
 func stop() -> void:
 	_connect_generation += 1
 	cancel_login()
+	_unwatch_plan_progress()
 	if terminal:
 		terminal.stop_all()
 	if _process:
@@ -2241,6 +2244,7 @@ func approve_plan(request: PermissionRequest) -> String:
 		return ""
 	_start_planned_recipe_run()
 	_start_criteria_run(request)
+	_watch_plan_progress(request)
 	if request.from_block:
 		var saved := _approve_block_plan(request, allow)
 		if _recipe_run.get("card") == request:
@@ -2263,6 +2267,48 @@ func approve_plan(request: PermissionRequest) -> String:
 	request.plan_approved = true
 	request.select(allow)
 	return path
+
+
+## Seguimiento del plan aprobado (m18-05): si el agente manda su lista de tareas (ACP plan) mientras
+## construye, plan_view la tilda; si el turno de construir termina sin mandarla (Antigravity no la
+## manda), la tarjeta lo dice en vez de inventar avance. Un turno cancelado no cuenta: se mira el
+## siguiente.
+func _watch_plan_progress(request: PermissionRequest) -> void:
+	_unwatch_plan_progress()
+	_plan_progress_card = request
+	request.plan_progress = PermissionRequest.PLAN_PROGRESS_WAITING
+	model.plan_changed.connect(_on_plan_progress_plan)
+	model.turn_finished.connect(_on_plan_progress_turn)
+
+
+func _unwatch_plan_progress() -> void:
+	if model.plan_changed.is_connected(_on_plan_progress_plan):
+		model.plan_changed.disconnect(_on_plan_progress_plan)
+	if model.turn_finished.is_connected(_on_plan_progress_turn):
+		model.turn_finished.disconnect(_on_plan_progress_turn)
+	_plan_progress_card = null
+
+
+func _on_plan_progress_plan(entries: Array) -> void:
+	if entries.is_empty() or _plan_progress_card == null:
+		return
+	_end_plan_progress(PermissionRequest.PLAN_PROGRESS_AGENT)
+
+
+func _on_plan_progress_turn(stop_reason: String) -> void:
+	if stop_reason == "cancelled" or _plan_progress_card == null:
+		return
+	_end_plan_progress(PermissionRequest.PLAN_PROGRESS_NONE)
+
+
+func _end_plan_progress(state: String) -> void:
+	var card := _plan_progress_card
+	_unwatch_plan_progress()
+	if not card.was_allowed():
+		return
+	card.plan_progress = state
+	agent_log.add(AgentLog.CH_PERM, "approved plan: the agent %s" % ("sends its task list" if state == PermissionRequest.PLAN_PROGRESS_AGENT else "didn't send a task list while building; progress not tracked"))
+	card.changed.emit()
 
 
 ## true si el agente tiene un modo plan propio (Claude Code): ahí presenta el plan con ExitPlanMode.

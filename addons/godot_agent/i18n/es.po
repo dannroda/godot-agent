@@ -6228,3 +6228,6 @@ msgstr "Se deniegan los comandos de shell."
 
 msgid "%s (project mode)"
 msgstr "%s (modo del proyecto)"
+
+msgid "Progress not tracked: the agent didn't send its task list while building."
+msgstr "Avance sin seguimiento: el agente no mandó su lista de tareas mientras construía."
