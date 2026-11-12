@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/fixtures/sabotage/door.gd" id="1"]
+
+[node name="Door" type="Node2D"]
+script = ExtResource("1")
+speed = 150.0
+
+[node name="Timer" type="Timer" parent="."]
+wait_time = 0.05
+autostart = true
+
+[node name="Panel" type="Sprite2D" parent="."]
+
+[node name="Zone" type="Area2D" parent="."]
+
+[node name="Shape" type="CollisionShape2D" parent="Zone"]
+
+[connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]

@@ -11,6 +11,7 @@ const GDScriptMutator := preload("gdscript_mutator.gd")
 const CLI := "res://addons/godot_agent/playtest/regression_cli.gd"
 const RESULT_FILE := "res://.godot_agent/playtests/mutation.json"
 const RegressionChecks := preload("../runtime/regression_checks.gd")
+const SceneSabotage := preload("scene_sabotage.gd")
 const KILLED_BY_SCRIPT := "script"
 const KILLED_BY_INVARIANT := "invariant"
 const KILLED_BY_BUDGET := "budget"
@@ -76,11 +77,26 @@ static func scripts_of(scene: String) -> PackedStringArray:
 	return scripts
 
 
-## Los mutantes a correr: hasta `count`, cada uno con las regresiones (archivos) cuya escena usa su script.
+## «res://player.gd:12» para un mutante de código, «res://level.tscn» para un sabotaje de escena.
+static func where(mutant: Dictionary) -> String:
+	return str(mutant.get("path", "")) if int(mutant.get("line", 0)) <= 0 else "%s:%d" % [mutant.get("path", ""), int(mutant.line)]
+
+
+## Los mutantes a correr: hasta `count`, cada uno con las regresiones (archivos) cuya escena usa su
+## script, más los sabotajes de las escenas de las regresiones (m11-62), que se reparten la cuota igual
+## que un script más cada una.
 static func plan(entries: Array[Dictionary], count: int = DEFAULT_COUNT) -> Array[Dictionary]:
 	var regressions_of: Dictionary = {}
+	var code_of_scene: Dictionary = {}
 	for entry: Dictionary in entries:
-		for script: String in scripts_of(str(entry.get("scene", ""))):
+		var scene := str(entry.get("scene", ""))
+		if ResourceLoader.exists(scene):
+			if not regressions_of.has(scene):
+				regressions_of[scene] = []
+				code_of_scene[scene] = ""
+			(regressions_of[scene] as Array).append(str(entry.get("file", "")))
+			code_of_scene[scene] += "\n" + str(entry.get("code", ""))
+		for script: String in scripts_of(scene):
 			if not regressions_of.has(script):
 				regressions_of[script] = []  # Array: un PackedStringArray sacado del diccionario es una copia
 			(regressions_of[script] as Array).append(str(entry.get("file", "")))
@@ -88,11 +104,15 @@ static func plan(entries: Array[Dictionary], count: int = DEFAULT_COUNT) -> Arra
 	var scripts := regressions_of.keys()
 	scripts.sort()
 	for script: String in scripts:
-		all.append_array(GDScriptMutator.mutants(FileAccess.get_file_as_string(script), script))
+		if code_of_scene.has(script):
+			all.append_array(SceneSabotage.sabotages(script, code_of_scene[script]))
+		else:
+			all.append_array(GDScriptMutator.mutants(FileAccess.get_file_as_string(script), script))
 	var chosen := GDScriptMutator.sample(all, count)
 	for mutant: Dictionary in chosen:
 		mutant.regressions = PackedStringArray(regressions_of[mutant.path])
-		mutant.change = GDScriptMutator.describe(FileAccess.get_file_as_string(mutant.path).split("\n")[int(mutant.line) - 1], mutant)
+		if mutant.get("kind") != SceneSabotage.KIND:
+			mutant.change = GDScriptMutator.describe(FileAccess.get_file_as_string(mutant.path).split("\n")[int(mutant.line) - 1], mutant)
 	return chosen
 
 
@@ -177,7 +197,11 @@ func _process(files: PackedStringArray, mutant: Dictionary, timeout_s: float) ->
 	DirAccess.remove_absolute(result_path)
 	var args := PackedStringArray(["--headless", "--quiet", "--path", project, "--script", CLI, "--", "--no-baselines"])
 	if not mutant.is_empty():
-		var sent := {"path": mutant.path, "line": mutant.line, "col": mutant.col, "before": mutant.before, "after": mutant.after, "op": mutant.op}
+		var keys: Array = SceneSabotage.SENT_KEYS if mutant.get("kind") == SceneSabotage.KIND else ["path", "line", "col", "before", "after", "op"]
+		var sent := {}
+		for key: String in keys:
+			if mutant.has(key):
+				sent[key] = mutant[key]
 		args.append("--mutant=" + Marshalls.utf8_to_base64(JSON.stringify(sent)))
 		args.append("--mutant-result=" + result_path)
 	args.append_array(files)
@@ -217,7 +241,7 @@ static func notice(result: Dictionary, goals: Dictionary, t: Callable) -> Dictio
 	var survivors: Array[Dictionary] = []
 	for mutant: Dictionary in result.get("mutants", []):
 		if mutant.get("status") == STATUS_SURVIVED:
-			survived.append("%s:%d · %s" % [str(mutant.path).trim_prefix("res://"), int(mutant.line), mutant.change])
+			survived.append("%s · %s" % [where(mutant).trim_prefix("res://"), mutant.change])
 			survivors.append({"path": mutant.path, "line": int(mutant.line)})
 	if not survived.is_empty():
 		var not_detected: String = t.call("Not detected")  # i18n

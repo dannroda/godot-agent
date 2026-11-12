@@ -1,0 +1,5 @@
+{
+	"goal": "The door ticks",
+	"scene": "res://tests/fixtures/sabotage/door.tscn",
+	"code": "func run(game):\n\tvar door = game.tree().current_scene\n\tvar before: int = door.opened_count\n\tawait game.wait(0.4)\n\treturn door.opened_count > before and door.speed > 0 and door.get_node(\"Panel\").visible"
+}

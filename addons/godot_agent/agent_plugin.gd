@@ -921,7 +921,7 @@ func _measure_regressions() -> void:
 		goals[str(entry.get("file", ""))] = str(entry.get("goal", ""))
 	var notice := MutationTesting.notice(result, goals, Callable(I18n, &"t"))
 	for survivor: Dictionary in notice.survivors:
-		progress.actions.append({"id": ACTION_OPEN_MUTANT, "label": I18n.t("Open %s:%d") % [str(survivor.path).get_file(), int(survivor.line)], "data": "%s#%d" % [survivor.path, int(survivor.line)]})
+		progress.actions.append({"id": ACTION_OPEN_MUTANT, "label": I18n.t("Open %s") % MutationTesting.where(survivor).get_file(), "data": "%s#%d" % [survivor.path, int(survivor.line)]})
 	progress.title = notice.title
 	progress.text = notice.text
 	progress.sections.assign(notice.sections)

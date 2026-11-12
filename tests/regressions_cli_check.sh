@@ -104,5 +104,19 @@ if ! grep -q '"nodes_max"' "$ROOT/tests/tmp/baselines/mover.json" || ! grep -q '
 	FAILED=1
 fi
 rm -rf "$ROOT/tests/tmp/baselines" "$ROOT/tests/tmp/invariant_mutant.json"
+# m11-62: sabotajes de escena. Speed a 0, Panel oculto y la señal del Timer cortada los detecta la
+# regresión; la raíz oculta no. El .tscn no cambia.
+BEFORE="$(project_hash)"
+OUT="$("$G" --headless --path "$ROOT" --script "$CLI" -- --mutate=100 res://tests/fixtures/regressions/sabotage 2>&1)"
+KILLED="$(printf '%s\n' "$OUT" | grep -c 'door.tscn killed$')"
+if [ "$KILLED" != 3 ] || ! printf '%s\n' "$OUT" | grep -q 'survived res://tests/fixtures/sabotage/door.tscn root hidden'; then
+	echo "FALLA: los sabotajes de escena tendrían que dar 3 detectados y «root hidden» sin detectar (detectados: $KILLED)"
+	printf '%s\n' "$OUT" | grep "door.tscn" | head -8
+	FAILED=1
+fi
+if [ "$(project_hash)" != "$BEFORE" ]; then
+	echo "FALLA: los sabotajes de escena cambiaron archivos .gd o .tscn del proyecto"
+	FAILED=1
+fi
 [ "$FAILED" = 0 ] && echo "regressions-cli: bien"
 exit "$FAILED"
