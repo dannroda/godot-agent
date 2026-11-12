@@ -1,5 +1,5 @@
 extends RefCounted
-## capture_game_frame desde otra cámara (m11-52): una cámara del juego elegida, una posición y un punto
+## capture_game_frame y capture_editor_viewport (m11-64) desde otra cámara (m11-52): una cámara del juego elegida, una posición y un punto
 ## (look_from/look_at), o varios ángulos alrededor de un punto. Renderiza en un SubViewport fuera de
 ## pantalla que comparte el mundo del juego, con una cámara temporal: la cámara del jugador no se mueve
 ## y el juego no se ve distinto. Ideas de screen_capture del MCP de Roblox Studio (cámara y objetivo) y
@@ -28,6 +28,9 @@ static func plan(root: Node, viewport: Viewport, params: Dictionary) -> Dictiona
 		if not (source is Camera3D or source is Camera2D):
 			return {"error": "camera «%s» is not a Camera3D or Camera2D in the running scene (a node path from the scene root, or a name)." % path}
 	var three_d: bool = source is Camera3D if source else (viewport.get_camera_3d() != null or not root.find_children("*", "VisualInstance3D", true, false).is_empty())
+	# El editor dice cuál de sus vistas (capture_editor_viewport `which`, m11-64).
+	if source == null and params.get("view_3d") is bool:
+		three_d = params.view_3d
 	var look_from: Variant = _vector(params.get("look_from"), three_d)
 	var look_at: Variant = _vector(params.get("look_at"), three_d)
 	if params.has("look_from") and look_from == null or params.has("look_at") and look_at == null:
@@ -118,9 +121,11 @@ static func _vector(value: Variant, three_d: bool) -> Variant:
 	return Vector3(value[0], value[1], value[2]) if three_d else Vector2(value[0], value[1])
 
 
-## Renderiza las vistas de `plan` del tamaño del viewport del juego. [{label, png}] o {error}.
-static func render(host: Node, planned: Dictionary, max_side: int) -> Variant:
-	var viewport := host.get_viewport()
+## Renderiza las vistas de `plan` del tamaño de `viewport` (por defecto el del juego), con su mundo.
+## [{label, png}] o {error}.
+static func render(host: Node, planned: Dictionary, max_side: int, viewport: Viewport = null) -> Variant:
+	if viewport == null:
+		viewport = host.get_viewport()
 	var size := Vector2i(viewport.get_visible_rect().size)
 	var sub := SubViewport.new()
 	sub.size = size

@@ -8,6 +8,7 @@ const AgentProcess := preload("res://addons/godot_agent/transport/agent_process.
 const StdioShimInstaller := preload("res://addons/godot_agent/mcp/stdio_shim_installer.gd")
 const SERVER_SCRIPT := "res://addons/godot_agent/mcp/mcp_server.gd"
 const FIXTURE_SCENE := "res://tests/fixtures/main_fixture.tscn"
+const VIEWS_SCENE := "res://tests/fixtures/camera_views.tscn"
 const BAD_SCRIPT := "res://tests/tmp/mcp_bad_script.gd"
 const GOOD_SCRIPT := "res://tests/fixtures/fixture_player.gd"
 const TIMEOUT_MS := 90000
@@ -113,6 +114,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	_expect(has_image and not capture.get("isError", true), "capture_editor_viewport 2d")
 	var bad_args: Dictionary = await _call("capture_editor_viewport", {"which": "4d"})
 	_expect(bad_args.get("isError", false), "enum inválido → isError")
+	await _check_editor_views()
 
 	# Validadores (m14-04), por godot.run como los demás métodos extendidos.
 	var physics := await _call_text("run", {"method": "validate_physics", "params": {"scene": FIXTURE_SCENE}})
@@ -225,3 +227,42 @@ func _rpc(method: String, params: Dictionary) -> Dictionary:
 func _expect(condition: bool, label: String) -> void:
 	if not condition:
 		failures.append(label)
+
+
+## capture_editor_viewport desde otra cámara (m11-64), con la escena de m11-52: la caja roja frente a
+## «Main», la verde frente a «Side» a 40 m. La vista del usuario no se mueve. Vuelve a la escena de antes.
+func _check_editor_views() -> void:
+	EditorInterface.open_scene_from_path(VIEWS_SCENE)
+	for _frame in 5:
+		await _tree.process_frame
+	var editor_camera := EditorInterface.get_editor_viewport_3d(0).get_camera_3d()
+	var before := editor_camera.global_transform
+	var side: Dictionary = await _call("capture_editor_viewport", {"which": "3d", "camera": "Side"})
+	_expect(_center_colors(side) == ["green"], "capture_editor_viewport camera: la verde desde «Side» · %s %s" % [_center_colors(side), _text(side)])
+	var looking: Dictionary = await _call("capture_editor_viewport", {"which": "3d", "look_from": [0, 0, 3], "look_at": [0, 0, 0]})
+	_expect(_center_colors(looking) == ["red"], "capture_editor_viewport look_from/look_at: la roja · %s" % [_center_colors(looking)])
+	var around: Dictionary = await _call("capture_editor_viewport", {"which": "3d", "angles": 3, "look_at": [40, 0, 0], "distance": 4})
+	_expect(_center_colors(around) == ["green", "green", "green"] and _text(around).contains("angle 3 of 3"), "capture_editor_viewport angles: 3 vistas de la verde · %s" % [_center_colors(around)])
+	_expect(editor_camera.global_transform.is_equal_approx(before), "la vista del editor no se movió")
+	var wrong: Dictionary = await _call("capture_editor_viewport", {"which": "3d", "camera": "Nope"})
+	_expect(wrong.get("isError", false) and _text(wrong).contains("not a Camera3D"), "capture_editor_viewport camera inexistente → error")
+	var flat: Dictionary = await _call("capture_editor_viewport", {"which": "2d", "angles": 2})
+	_expect(flat.get("isError", false) and _text(flat).contains("3D scenes"), "capture_editor_viewport angles en 2d → error")
+	EditorInterface.open_scene_from_path(FIXTURE_SCENE)
+	for _frame in 3:
+		await _tree.process_frame
+
+
+## El color del centro de cada imagen de un resultado: "red", "green" u "other".
+func _center_colors(result: Dictionary) -> Array:
+	var colors: Array = []
+	for block: Dictionary in result.get("content", []):
+		if block.get("type") != "image":
+			continue
+		var image := Image.new()
+		if image.load_png_from_buffer(Marshalls.base64_to_raw(block.data)) != OK:
+			colors.append("corrupt")
+			continue
+		var pixel := image.get_pixel(image.get_width() / 2, image.get_height() / 2)
+		colors.append("red" if pixel.r > 0.9 and pixel.g < 0.1 and pixel.b < 0.1 else ("green" if pixel.g > 0.9 and pixel.r < 0.1 and pixel.b < 0.1 else "other %s" % pixel))
+	return colors

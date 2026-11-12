@@ -50,4 +50,5 @@ func test_plan() -> void:
 	assert_true(CameraViews.plan(flat, viewport, {"angles": 2}).error.contains("3D scenes"), "angles en 2D")
 	var view_2d := CameraViews.plan(flat, viewport, {"look_at": [10, 20], "zoom": 2})
 	assert_true(not view_2d.three_d and view_2d.views[0].position == Vector2(10, 20) and is_equal_approx(view_2d.views[0].zoom, 2.0), "2D con look_at y zoom")
+	assert_true(CameraViews.plan(flat, viewport, {"angles": 2, "view_3d": true}).has("views"), "el editor dice que es la vista 3D (m11-64)")
 	flat.free()

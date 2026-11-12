@@ -6,6 +6,9 @@ extends RefCounted
 ## se lleva al juego con install_extension (m19-05), que la deja preparada para el próximo reinicio.
 
 const McpTool := preload("../mcp_tool.gd")
+const CameraViews := preload("../../playtest/runtime/camera_views.gd")
+## Lado más largo de cada vista de capture_editor_viewport desde otra cámara.
+const CAPTURE_MAX_SIDE := 1280
 const UntrustedText := preload("../untrusted_text.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
 const AgentProcess := preload("../../transport/agent_process.gd")
@@ -53,8 +56,14 @@ func tools() -> Array:
 			{"paths": {"type": "array", "items": {"type": "string"}, "description": "res://…gd or res://…cs paths"}},
 			[], _validate_scripts),
 		McpTool.create("capture_editor_viewport", diagnostics,
-			"Captures the editor's 2D or 3D viewport as a PNG.",
-			{"which": {"type": "string", "enum": ["2d", "3d"], "description": "Viewport to capture"}},
+			"Captures the editor's 2D or 3D viewport as a PNG. To see the open scene from somewhere else without moving the user's view (it renders off screen, editor gizmos and grid included): `camera` (a Camera3D or Camera2D of the scene, by path from its root or name), `look_from` and/or `look_at` ([x, y, z] in 3D; in 2D `look_at` [x, y] and `zoom`), or `angles` (1-8 views orbiting `look_at` or the center of what is drawn, 30° up, at `distance` or far enough to fit it).",
+			{"which": {"type": "string", "enum": ["2d", "3d"], "description": "Viewport to capture"},
+			"camera": {"type": "string", "description": "A camera of the open scene to render from."},
+			"look_from": {"type": "array", "items": {"type": "number"}, "description": "Where the temporary camera stands (3D)."},
+			"look_at": {"type": "array", "items": {"type": "number"}, "description": "What it looks at; with angles, the point it orbits."},
+			"angles": {"type": "integer", "minimum": 1, "maximum": 8, "description": "How many views around the point (3D)."},
+			"distance": {"type": "number", "description": "Orbit distance for angles."},
+			"zoom": {"type": "number", "description": "2D zoom (1 = the scene's scale)."}},
 			["which"], _capture_editor_viewport),
 		_build_extension_tool(),
 		McpTool.create("test_extension", PermissionPolicy.GROUP_RUN,
@@ -498,7 +507,35 @@ func _collect_scripts(dir: EditorFileSystemDirectory, out: PackedStringArray) ->
 
 func _capture_editor_viewport(args: Dictionary) -> Dictionary:
 	var which := McpTool.str_arg(args, "which", "2d")
+	if CameraViews.wants_view(args):
+		return await _capture_editor_views(args, which == "3d")
 	var image := EditorContext.capture_viewport(which == "3d")
 	if image == null:
 		return McpTool.error("Could not capture the %s viewport (is the editor minimized, or was the tab never opened?)." % which.to_upper())
 	return McpTool.image(image, "Editor %s viewport (%dx%d)" % [which.to_upper(), image.get_width(), image.get_height()])
+
+
+## La escena abierta desde otra cámara (m11-64): la misma CameraViews que capture_game_frame, con el
+## mundo del viewport del editor y una cámara temporal; la vista del usuario no se mueve.
+func _capture_editor_views(args: Dictionary, three_d: bool) -> Dictionary:
+	var root := EditorInterface.get_edited_scene_root()
+	if root == null:
+		return McpTool.error("No scene is open in the editor: open one first.")
+	var viewport: Viewport = EditorInterface.get_editor_viewport_3d(0) if three_d else EditorInterface.get_editor_viewport_2d()
+	var params := {"view_3d": three_d}
+	for key: String in ["camera", "look_from", "look_at", "angles", "distance", "zoom"]:
+		if args.has(key):
+			params[key] = args[key]
+	var planned := CameraViews.plan(root, viewport, params)
+	if planned.has("error"):
+		return McpTool.error(str(planned.error))
+	var shots: Variant = await CameraViews.render(EditorInterface.get_base_control(), planned, CAPTURE_MAX_SIDE, viewport)
+	if shots is Dictionary:
+		return McpTool.error(str(shots.error))
+	var content: Array = []
+	for shot: Dictionary in shots:
+		var image := Image.new()
+		image.load_png_from_buffer(shot.png)
+		content.append({"type": "text", "text": "%s (%dx%d)" % [shot.label, image.get_width(), image.get_height()]})
+		content.append({"type": "image", "mimeType": "image/png", "data": Marshalls.raw_to_base64(shot.png)})
+	return {"content": content, "isError": false}
