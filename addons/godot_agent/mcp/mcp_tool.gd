@@ -38,6 +38,7 @@ const GROUP_HINTS: Dictionary = {
 	PermissionPolicy.GROUP_SHELL: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
 	PermissionPolicy.GROUP_PROJECT_TOOLS: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
 	PermissionPolicy.GROUP_ADDONS: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true},
+	PermissionPolicy.GROUP_SECOND_OPINION: {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": false, "openWorldHint": true},
 }
 
 var name: String = ""

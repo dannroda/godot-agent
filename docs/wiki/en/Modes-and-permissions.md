@@ -98,6 +98,7 @@ Defaults:
 | Project settings, export and addons | Deny | Deny | Ask | Allow | Allow |
 | Install from the Asset Store | Deny | Deny | Ask | Ask | Ask |
 | Project tools | Deny | Deny | Ask | Ask | Ask |
+| Second opinion | Ask | Ask | Ask | Ask | Deny |
 | Subagents | Allow | Allow | Allow | Allow | Allow |
 
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.
@@ -109,6 +110,19 @@ With Claude Code, launching a subagent (its **Agent** tool) goes through the **S
 - **Subagents at once**, in the matrix of **Settings → Permissions**, caps how many run at the same time in each mode (0 = no limit). One more is rejected with a notice in the chat, and the agent is told why.
 - A subagent's card in the chat shows its prompt, the tools it runs and what it writes as it works, and its report at the end. One that runs in the background stays in progress until it ends, even after the tool call that launched it.
 - While the agent works, the agent chip in the header counts the subagents running; its tooltip lists them.
+
+### Second opinion
+
+Another agent can review the work read only, without this conversation: a model of another family often sees what the first one misses. Pick it in **Settings → Agents → Second opinion** (any profile; **None** turns it off). It can be asked for in four places:
+
+- **Second opinion** in the footer of a Build or Auto turn that changed files: it gets that turn's diff (cut at 30,000 characters, with the list of files to read for the rest).
+- **Second opinion…** in the plan card: it gets the plan; the card keeps waiting for you.
+- `/second-opinion [question]` in the composer: your question and the last turn's changes.
+- The agent itself, with `godot.ask_second_opinion` (question, the diff of its turn and files to look at). It goes through the **Second opinion** group: **Ask** in every mode except One-shot, where it's denied.
+
+The other agent runs in its own session, without a tab, started with the first question and reused (one question at a time, up to 5 minutes each). It can read the project and use diagnostics; everything else is denied whatever the mode (edits, the game, commands, project settings, other MCP servers, messages to other sessions), and a card it would raise is denied on its own. While it works, a **Second opinion · thinking · 12 s** chip shows next to the tab's state, with the agent and model in its tooltip.
+
+The answer you asked for shows as a folded notice with its tokens, and nothing reaches this tab's agent until you press **Send to the agent**. **Open the conversation** opens the other agent's session from the history. The answer always reaches the agent as data from another agent inside an untrusted envelope, never as instructions: the other agent read the project's code and texts, and they may carry planted instructions. The same goes for the result of `godot.ask_second_opinion`. Each question spends the other agent's quota.
 
 ### MCP servers of other programs
 

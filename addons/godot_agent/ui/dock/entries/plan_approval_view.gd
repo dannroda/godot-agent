@@ -9,6 +9,8 @@ const PermissionRequest := preload("../../../session/permission_request.gd")
 const PlanApproval := preload("../../../session/plan_approval.gd")
 ## Lo pide el dock: SessionController.approve_plan (pasa a Construir antes de contestar).
 const ACTION_APPROVE_PLAN := "approve_plan"
+## Segunda opinión sobre el plan (m11-28): el dock le suma la pestaña y la pasa al plugin.
+const ACTION_SECOND_OPINION := "second_opinion"
 const PLAN_MAX_HEIGHT_PX := 280
 const EDITOR_HEIGHT_PX := 260
 
@@ -134,6 +136,15 @@ func _build() -> void:
 		_reason_row.visible = true
 		_reason_edit.grab_focus())
 	_buttons.add_child(keep)
+	var second := Button.new()
+	second.name = "SecondOpinion"
+	second.text = I18n.t("Second opinion…")
+	second.tooltip_text = I18n.t("Another agent reviews this plan, read only and without this conversation. The card keeps waiting.")
+	second.flat = true
+	second.pressed.connect(func() -> void:
+		if request().is_pending():
+			action_requested.emit(ACTION_SECOND_OPINION, {"plan": request().plan_text}))
+	_buttons.add_child(second)
 
 	_result = Label.new()
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

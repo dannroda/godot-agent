@@ -129,6 +129,11 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run hooks ~/godot/godot
 
+      # Segunda opinión de otro agente, de solo lectura, con dos agentes falsos (m11-28).
+      - name: Editor check (second-opinion)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run second-opinion ~/godot/godot
+
       # Un playtest con el agente en loop se corta como «could not test» (m11-49).
       - name: Editor check (playtest-loop)
         if: ${{ !cancelled() && matrix.group == 'editor' }}

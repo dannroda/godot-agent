@@ -20,6 +20,8 @@ const KEY_ACCOUNTS := "agents/accounts"
 const KEY_LAST_ACCOUNT := "agents/last_account"
 ## El modelo de cada modo del harness, por perfil (m11-38): ver core/mode_models.gd.
 const KEY_MODE_MODELS := "agents/models_by_mode"
+## El perfil de la segunda opinión (m11-28): "" = ninguno.
+const KEY_SECOND_OPINION := "agents/second_opinion"
 ## Ya se quitaron los presets viejos (m12-37).
 const KEY_PRESETS_RETIRED := "agents/presets_retired"
 ## Perfiles que se preseteaban hasta 0.1.7 y ya no sirven: Gemini CLI se discontinuó (lo reemplaza
@@ -109,6 +111,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_ACCOUNTS, {}, TYPE_DICTIONARY)
 		_declare(KEY_LAST_ACCOUNT, {}, TYPE_DICTIONARY)
 		_declare(KEY_MODE_MODELS, {}, TYPE_DICTIONARY)
+		_declare(KEY_SECOND_OPINION, "", TYPE_STRING)
 		_declare(KEY_PRESETS_RETIRED, false, TYPE_BOOL)
 		_declare(KEY_MCP_PORT, 0, TYPE_INT, PROPERTY_HINT_RANGE, "0,65535,1")
 		_declare(KEY_MCP_SERVERS, [], TYPE_ARRAY, PROPERTY_HINT_TYPE_STRING, DICTIONARY_LIST_HINT)
@@ -241,6 +244,12 @@ func active_profile() -> AgentProfile:
 		if candidate.is_default:
 			return candidate
 	return list[0] if not list.is_empty() else null
+
+
+## El agente de la segunda opinión (m11-28), o null si no hay uno elegido o ya no existe.
+func second_opinion_profile() -> AgentProfile:
+	var id := str(get_value(KEY_SECOND_OPINION, ""))
+	return profile(id) if not id.is_empty() else null
 
 
 func set_active_profile(id: String) -> void:
