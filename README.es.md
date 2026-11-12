@@ -46,8 +46,8 @@ La [wiki](docs/wiki/es/Inicio.md) explica cómo funciona el harness y cómo usar
 
 ## Requisitos
 
-- **Godot 4.7 o más nuevo.** Se prueba en 4.7.2, 4.8-beta2 y Godot .NET 4.7.2.
-  Problema conocido en Godot 4.7.2: el guardado de escenas con vista previa (Ctrl+S) puede hacer que el motor imprima `Condition "p_I->data != this" is true` (`list.h`); en un proyecto sin el addon salió en cada guardado. En sesiones donde un agente estaba cambiando el proyecto, el editor a veces se cerró justo después de uno de esos guardados. Esa caída nunca se vio sin el addon; que venga del mismo error del motor es probable, pero no está confirmado. Los guardados del propio addon no usan la vista previa, pero Ctrl+S es del editor. Godot 4.8-beta2 sigue imprimiendo el error, aunque no se cayó en 12 corridas.
+- **Godot 4.7 o más nuevo.** Se prueba en 4.7.2, 4.8-beta3 y Godot .NET 4.7.2.
+  Problema conocido en Godot 4.7.2: el guardado de escenas con vista previa (Ctrl+S) puede hacer que el motor imprima `Condition "p_I->data != this" is true` (`list.h`); en un proyecto sin el addon salió en cada guardado. En sesiones donde un agente estaba cambiando el proyecto, el editor a veces se cerró justo después de uno de esos guardados. Esa caída nunca se vio sin el addon; que venga del mismo error del motor es probable, pero no está confirmado. Los guardados del propio addon no usan la vista previa, pero Ctrl+S es del editor. Godot 4.8-beta2 y 4.8-beta3 siguen imprimiendo el error; 4.8-beta2 no se cayó en 12 corridas.
 - **Para proyectos en C#**, la versión .NET de Godot y el SDK de .NET (`dotnet`).
 - **Un agente ACP.** Para Claude Code:
   - Node.js con `npx`. El perfil por defecto corre `npx -y @agentclientprotocol/claude-agent-acp`;
@@ -116,7 +116,7 @@ Los textos de la interfaz se escriben en inglés en el código, con `I18n.t("…
 
 ### CI y releases
 
-- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP, el del One-shot, las regresiones de playtest guardadas (por línea de comandos) y el ciclo de habilitar y deshabilitar el plugin, en Godot 4.7.2 y 4.8-beta2. En las mismas versiones, un editor en Xvfb corre los checks del juego (`--godot-agent-run-test`), de Revisar (`--godot-agent-review-test`), del aviso por un error en un juego que corrés a mano (`--godot-agent-run-error-test`), de las tools del debugger de scripts (`--godot-agent-debug-test`) y de la sincronización editor ↔ disco (`--godot-agent-external-test`). Los tests de C# corren en Godot .NET 4.7.2.
+- **CI** (`.github/workflows/ci.yml`): en cada push a `main` y en cada pull request corren, headless, los unitarios, el check de ACP, el del One-shot, las regresiones de playtest guardadas (por línea de comandos) y el ciclo de habilitar y deshabilitar el plugin, en Godot 4.7.2 y 4.8-beta3. En las mismas versiones, un editor en Xvfb corre los checks del juego (`--godot-agent-run-test`), de Revisar (`--godot-agent-review-test`), del aviso por un error en un juego que corrés a mano (`--godot-agent-run-error-test`), de las tools del debugger de scripts (`--godot-agent-debug-test`) y de la sincronización editor ↔ disco (`--godot-agent-external-test`). Los tests de C# corren en Godot .NET 4.7.2.
 - **Release** (`.github/workflows/release.yml`): se corre a mano desde **Actions → Release → Run workflow**, eligiendo `patch`, `minor`, `major` o una versión exacta `X.Y.Z`. Corre el CI, sube `version` en `addons/godot_agent/plugin.cfg`, commitea "Release vX.Y.Z" en `main` con el tag `vX.Y.Z` pasa la sección **Unreleased** de [`CHANGELOG.md`](CHANGELOG.md) a la versión nueva y publica un release de GitHub con el zip del addon y esa sección como notas. El changelog y el release van en inglés: con cada cambio, agregá una entrada en **Unreleased** (el release falla si está vacía).
 - La versión vive solo en `plugin.cfg`: el `clientInfo` de ACP y el `serverInfo` del MCP la leen de ahí.
 

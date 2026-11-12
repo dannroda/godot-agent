@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- Tested on Godot 4.8-beta3 (was 4.8-beta2), besides 4.7.2 and Godot .NET 4.7.2. 4.8-beta3 still prints the `list.h` error when saving with preview.
+
 ## [0.1.24] - 2026-11-12
 
 ### Added

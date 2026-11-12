@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        godot: [4.7.2-stable, 4.8-beta2]
+        godot: [4.7.2-stable, 4.8-beta3]
     steps:
       - uses: actions/checkout@v7
 

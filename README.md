@@ -46,8 +46,8 @@ The [wiki](docs/wiki/en/Home.md) explains how the harness works and how to use e
 
 ## Requirements
 
-- **Godot 4.7 or newer.** Tested on 4.7.2, 4.8-beta2 and Godot .NET 4.7.2.
-  Known issue on Godot 4.7.2: saving a scene with preview (Ctrl+S) can make the engine print `Condition "p_I->data != this" is true` (`list.h`); in a project without the addon it appeared on every save. In sessions where an agent was changing the project, the editor sometimes crashed right after such a save. That crash was never seen without the addon; that it comes from the same engine error is likely but not confirmed. The addon's own saves skip the preview, but Ctrl+S belongs to the editor. Godot 4.8-beta2 still prints the error, though it didn't crash in 12 runs.
+- **Godot 4.7 or newer.** Tested on 4.7.2, 4.8-beta3 and Godot .NET 4.7.2.
+  Known issue on Godot 4.7.2: saving a scene with preview (Ctrl+S) can make the engine print `Condition "p_I->data != this" is true` (`list.h`); in a project without the addon it appeared on every save. In sessions where an agent was changing the project, the editor sometimes crashed right after such a save. That crash was never seen without the addon; that it comes from the same engine error is likely but not confirmed. The addon's own saves skip the preview, but Ctrl+S belongs to the editor. Godot 4.8-beta2 and 4.8-beta3 still print the error; 4.8-beta2 didn't crash in 12 runs.
 - **For C# projects**, the .NET version of Godot and the .NET SDK (`dotnet`).
 - **An ACP agent.** For Claude Code:
   - Node.js with `npx`. The default profile runs `npx -y @agentclientprotocol/claude-agent-acp`;
@@ -116,7 +116,7 @@ The interface text is written in English in the code, wrapped in `I18n.t("…")`
 
 ### CI and releases
 
-- **CI** (`.github/workflows/ci.yml`): on every push to `main` and every pull request, the unit tests, the ACP check, the One-shot check, the saved playtest regressions (from the command line) and the plugin enable/disable cycle run headless on Godot 4.7.2 and 4.8-beta2. On the same versions, an editor under Xvfb runs the game checks (`--godot-agent-run-test`), Review (`--godot-agent-review-test`), the notice for an error in a game you run by hand (`--godot-agent-run-error-test`), the script debugger tools (`--godot-agent-debug-test`) and editor ↔ disk sync (`--godot-agent-external-test`). The C# tests run on Godot .NET 4.7.2.
+- **CI** (`.github/workflows/ci.yml`): on every push to `main` and every pull request, the unit tests, the ACP check, the One-shot check, the saved playtest regressions (from the command line) and the plugin enable/disable cycle run headless on Godot 4.7.2 and 4.8-beta3. On the same versions, an editor under Xvfb runs the game checks (`--godot-agent-run-test`), Review (`--godot-agent-review-test`), the notice for an error in a game you run by hand (`--godot-agent-run-error-test`), the script debugger tools (`--godot-agent-debug-test`) and editor ↔ disk sync (`--godot-agent-external-test`). The C# tests run on Godot .NET 4.7.2.
 - **Release** (`.github/workflows/release.yml`): run it by hand from **Actions → Release → Run workflow**, choosing `patch`, `minor`, `major` or an exact `X.Y.Z`. It runs the CI, bumps `version` in `addons/godot_agent/plugin.cfg`, commits "Release vX.Y.Z" to `main` with the tag `vX.Y.Z`, moves the **Unreleased** section of [`CHANGELOG.md`](CHANGELOG.md) under the new version, and publishes a GitHub release with the zip of the addon and that section as notes. The changelog and the release are in English: add an entry under **Unreleased** with each change (the release fails if it's empty).
 - The version lives only in `plugin.cfg`: the ACP `clientInfo` and the MCP `serverInfo` read it from there.
 
