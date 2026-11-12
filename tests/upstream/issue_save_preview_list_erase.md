@@ -2,6 +2,7 @@
 
 - Reproducible in: v4.7.2.stable.official [ed1daf0bf] (error on every save in the attached project; a SIGSEGV seen only in a session with an addon, see below)
 - Reproducible in: v4.8.beta2.official (same error, as `p_element->data != this`; no crash seen in 12 runs)
+- Reproducible in: v4.8.beta3.official [c51ff06e8] (same error, as `p_element->data != this`)
 
 ### System information
 

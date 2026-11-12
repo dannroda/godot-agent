@@ -72,10 +72,12 @@ func _run() -> void:
 
 	# 3. La ventana de la 2.
 	var frame: Dictionary = await _registry.call(&"call_tool", "capture_game_frame", {"instance": 2}, "")
+	# Todos los bloques de texto: un error del editor entre llamadas (BadWindow de X11 bajo Xvfb) agrega
+	# «New in the editor since your previous godot.* call…» después del de la captura.
 	var caption := ""
 	for block: Variant in frame.get("content", []):
 		if block is Dictionary and block.get("type") == "text":
-			caption = str(block.text)
+			caption += str(block.text) + "\n"
 	_expect(not frame.get("isError", true) and caption.contains("640x360"), "la captura de la 2 · %s" % caption)
 
 	# 4. list, stop y add.

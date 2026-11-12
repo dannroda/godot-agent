@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         # La mínima soportada, la estable actual y la beta en la que se desarrolla.
-        godot: [4.7.2-stable, 4.8-beta2]
+        godot: [4.7.2-stable, 4.8-beta3]
         # Los checks en tres grupos que corren a la vez, de ~3,5 min cada uno en 4.7.2 (corridos uno tras
         # otro en un solo job eran ~10 min). Cada step corre solo en su grupo; los demás lo saltean.
         group: [unit, game, editor]

@@ -8,6 +8,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 - **The agent asks to switch modes**: with the new `godot.request_mode`, the agent proposes moving its session to another mode, fixed or one of the [project modes](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#the-agent-asks-to-switch-modes), with a one-line reason. You decide on a card that shows in every mode, Auto included, with no "always"; it warns when the target can do more without asking (Ask → Build, a mode that limits files → one that doesn't). On **Switch**, the agent gets the new mode's rules in the same turn. Denied in One-shot. The system prompt lists the modes with their "when to use" line.
 
+### Changed
+
+- Tested on Godot 4.8-beta3 (was 4.8-beta2), besides 4.7.2 and Godot .NET 4.7.2. 4.8-beta3 still prints the `list.h` error when saving with preview.
+
 ## [0.1.24] - 2026-11-12
 
 ### Added
