@@ -22,6 +22,9 @@ signal title_changed(title: String)
 signal harness_mode_changed(mode: HarnessMode)
 ## Cambió el modo del proyecto (m11-39): `mode` es el modo leído de su .json, o {} sin modo del proyecto.
 signal project_mode_changed(mode: Dictionary)
+## El modo del proyecto negó o rechazó algo (m11-39): `what` es lo que se pidió; el informe del One-shot
+## lo lista con el motivo.
+signal project_mode_denied(what: String, mode_name: String)
 ## Remote Control de Claude Code (m7-21): link de la sesión en claude.ai, o "" si está apagado.
 signal remote_control_changed(url: String)
 ## La cuenta del agente cambió (ver `account`).
@@ -243,14 +246,20 @@ func set_harness_mode(value: HarnessMode) -> void:
 
 
 ## Elige un modo del proyecto (m11-39): pasa al base y pone la capa. {} la saca (el base queda).
-func set_project_mode(mode: Dictionary) -> void:
+## `keep_base`: solo la capa, sin tocar el modo (el constructor del One-shot sigue en One-shot).
+func set_project_mode(mode: Dictionary, keep_base: bool = false) -> void:
+	if keep_base:
+		if project_mode != mode:
+			project_mode = mode
+			project_mode_changed.emit(mode)
+		return
 	if not mode.is_empty():
 		var base: int = BASE_MODES.get(str(mode.get("base", "")), HarnessMode.ASK)
 		if project_mode == mode and harness_mode == base:
 			return
 		project_mode = mode
+		set_harness_mode(base as HarnessMode)  # quien escuche el base ya ve la capa puesta
 		project_mode_changed.emit(mode)
-		set_harness_mode(base as HarnessMode)
 		return
 	if project_mode.is_empty():
 		return

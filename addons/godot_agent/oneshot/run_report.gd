@@ -26,6 +26,8 @@ var check_failures: Dictionary = {}
 ## evento -> cuenta: turns, turn_errors, permissions_asked, permissions_denied, quota_pauses,
 ## limited, loops, guidance
 var events: Dictionary = {}
+## Lo que negó el modo del proyecto del constructor (m11-39): `[{what, mode}]`.
+var mode_denials: Array[Dictionary] = []
 
 
 func reset() -> void:
@@ -36,6 +38,7 @@ func reset() -> void:
 	waits.clear()
 	check_failures.clear()
 	events.clear()
+	mode_denials.clear()
 
 
 func count(event: String, amount: int = 1) -> void:
@@ -110,7 +113,7 @@ static func tool_label(title: String, godot_tool: String, tool_name: String, kin
 
 
 func to_dict() -> Dictionary:
-	return {"tasks": tasks, "task_order": task_order, "tools": tools, "turns": turns, "waits": waits, "check_failures": check_failures, "events": events}
+	return {"tasks": tasks, "task_order": task_order, "tools": tools, "turns": turns, "waits": waits, "check_failures": check_failures, "events": events, "mode_denials": mode_denials}
 
 
 func apply(data: Dictionary) -> void:
@@ -129,6 +132,15 @@ func apply(data: Dictionary) -> void:
 		check_failures = data.check_failures
 	if data.get("events") is Dictionary:
 		events = data.events
+	if data.get("mode_denials") is Array:
+		mode_denials.assign((data.mode_denials as Array).filter(func(item: Variant) -> bool: return item is Dictionary))
+
+
+## El modo del proyecto negó algo (m11-39). Sin repetir lo mismo.
+func add_mode_denial(what: String, mode_name: String) -> void:
+	var entry := {"what": what, "mode": mode_name}
+	if not entry in mode_denials and mode_denials.size() < MAX_TURNS:
+		mode_denials.append(entry)
 
 
 ## `run`: lo que el run sabe al terminar (id, goal, finish_reason, duration_ms, budgets, used,
@@ -184,6 +196,8 @@ func build(run: Dictionary) -> Dictionary:
 		"changes": run.get("changes", {}),
 		"files_dir": str(run.get("files_dir", "")),
 		"qa": run.get("qa", []),
+		"builder_mode": str(run.get("builder_mode", "")),
+		"mode_denials": mode_denials.duplicate(true),
 	}
 
 
@@ -244,6 +258,12 @@ static func to_markdown(report: Dictionary) -> String:
 		for row: Dictionary in qa:
 			var fails: Array = Array(row.get("failing_checks", [])) + Array(row.get("failing_criteria", []))
 			lines.append("| %d | %s | %s | %s | %d |" % [int(row.get("round", 0)), I18n.t("passes") if row.get("passed", false) else I18n.t("doesn't pass"), str(row.get("weighted", "—")), ", ".join(PackedStringArray(fails)).replace("|", "/") if not fails.is_empty() else "—", int(row.get("findings", 0))])
+	var denials: Array = report.get("mode_denials", [])
+	if not denials.is_empty():
+		lines.append_array(["", "### %s" % I18n.t("Denied by the project mode")])
+		for row: Variant in denials:
+			if row is Dictionary:
+				lines.append(I18n.t("- %s · project mode «%s»") % [str(row.get("what", "")), str(row.get("mode", ""))])
 	lines.append_array(["", "### %s" % I18n.t("Events")])
 	lines.append(I18n.t("- Permissions asked: %d · denied: %d") % [int(events.get("permissions_asked", 0)), int(events.get("permissions_denied", 0))])
 	lines.append(I18n.t("- Turns with errors: %d · quota pauses: %d · plan limits: %d") % [int(events.get("turn_errors", 0)), int(events.get("quota_pauses", 0)), int(events.get("limited", 0))])

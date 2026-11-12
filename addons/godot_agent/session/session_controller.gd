@@ -165,6 +165,8 @@ const AGENT_MODE_FOR: Dictionary = {
 ## Lo que vio el detector de loops cuando cortó el playtest de este turno ({} si no cortó, m11-49).
 var _playtest_loop: Dictionary = {}
 var model: SessionModel
+## El modelo que se está pidiendo por el modo ("" si ninguno), para no pedirlo dos veces seguidas.
+var _model_requested: String = ""
 var client: AcpClient
 ## Los permisos de la sesión (m13-05): política, reglas de shell, tarjetas y autorizadores.
 var permissions := PermissionBroker.new()
@@ -1651,8 +1653,8 @@ func choose_model(value: String) -> bool:
 	if not await set_config_option(str(option.get("id", "model")), value):
 		return false
 	if mode_models and _profile:
-		mode_models.remember(_profile.id, model.harness_mode, value, ModeModels.option_name(option, value))
-		agent_log.add(AgentLog.CH_ACP, "Model %s remembered for %s" % [value, SessionModel.HARNESS_MODE_LABELS[model.harness_mode]])
+		mode_models.remember_for(_profile.id, _model_key(), value, ModeModels.option_name(option, value))
+		agent_log.add(AgentLog.CH_ACP, "Model %s remembered for %s" % [value, _model_key()])
 	return true
 
 
@@ -1662,11 +1664,29 @@ func model_tooltip() -> String:
 	var option := model.model_option()
 	if mode_models == null or _profile == null or option.is_empty():
 		return ""
-	var mode_label := I18n.t(SessionModel.HARNESS_MODE_LABELS[model.harness_mode])
-	var wanted := mode_models.get_model(_profile.id, model.harness_mode)
+	var mode_label := _model_mode_label()
+	var wanted := mode_models.get_model_for(_profile.id, _model_key())
 	if not wanted.is_empty() and str(wanted.value) == str(option.get("currentValue", "")):
 		return I18n.t("Model. Remembered for %s: the one you pick is used every time you switch to %s.") % [mode_label, mode_label]
 	return I18n.t("Model. The one you pick is remembered for %s.") % mode_label
+
+
+## La clave del modelo recordado (m11-39): `custom:<slug>` con un modo del proyecto, si no la del modo.
+func _model_key() -> String:
+	return ModeModels.key_for(model.harness_mode, model.project_mode)
+
+
+## El modo para los textos del modelo: «Levels» con modo del proyecto, si no el modo fijo. Traducido.
+func _model_mode_label() -> String:
+	return str(model.project_mode.name) if not model.project_mode.is_empty() else I18n.t(SessionModel.HARNESS_MODE_LABELS[model.harness_mode])
+
+
+## El modelo a pedir: el del modo del proyecto o, si no tiene uno, el de su base (m11-39).
+func _wanted_model() -> Dictionary:
+	var wanted := mode_models.get_model_for(_profile.id, _model_key())
+	if wanted.is_empty() and not model.project_mode.is_empty():
+		wanted = mode_models.get_model(_profile.id, model.harness_mode)
+	return wanted
 
 
 ## Pide el modelo recordado para el modo actual, si hay uno y no es el que está (m11-38). Cuenta como
@@ -1675,26 +1695,30 @@ func _sync_mode_model() -> void:
 	if mode_models == null or _profile == null or model.session_id.is_empty():
 		return
 	var option := model.model_option()
-	var wanted := mode_models.get_model(_profile.id, model.harness_mode)
+	var wanted := _wanted_model()
 	if option.is_empty() or wanted.is_empty():
 		return
 	var value := str(wanted.value)
 	if value == str(option.get("currentValue", "")):
 		return
-	var mode_label := I18n.t(SessionModel.HARNESS_MODE_LABELS[model.harness_mode])
+	var mode_label := _model_mode_label()
 	if not ModeModels.offers(option, value):
-		agent_log.add(AgentLog.CH_ACP, "The model remembered for %s (%s) is not offered by the agent: left as is" % [SessionModel.HARNESS_MODE_LABELS[model.harness_mode], value])
-		var key := "%s/%s" % [model.harness_mode, value]
+		agent_log.add(AgentLog.CH_ACP, "The model remembered for %s (%s) is not offered by the agent: left as is" % [_model_key(), value])
+		var key := "%s/%s" % [_model_key(), value]
 		if not _missing_models_noticed.has(key):
 			_missing_models_noticed[key] = true
 			model.add_notice(I18n.t("%s remembers the model «%s», but %s doesn't offer it now (another account?). The model wasn't changed.") % [mode_label, str(wanted.get("name", value)), _agent_name()], ChatEntry.NoticeLevel.WARNING)
 		return
+	if _model_requested == value:
+		return  # ya se pidió (elegir un modo del proyecto cambia el base y la capa a la vez)
+	_model_requested = value
 	_mode_syncs_running += 1
 	var ok := await set_config_option(str(option.get("id", "model")), value)
 	_mode_syncs_running -= 1
+	_model_requested = ""
 	if ok:
 		var name := ModeModels.option_name(model.model_option(), value)
-		agent_log.add(AgentLog.CH_ACP, "%s uses %s (remembered for this mode)" % [SessionModel.HARNESS_MODE_LABELS[model.harness_mode], value])
+		agent_log.add(AgentLog.CH_ACP, "%s uses %s (remembered for this mode)" % [_model_key(), value])
 		if not _mode_model_noticed:
 			_mode_model_noticed = true
 			model.add_notice(I18n.t("%s uses %s.") % [mode_label, name], ChatEntry.NoticeLevel.INFO,
@@ -2183,6 +2207,7 @@ func _on_unexpected_transition(from: SessionModel.SessionState, to: SessionModel
 
 func _on_project_mode_changed(_mode: Dictionary) -> void:
 	_system_prompt_sent = false
+	_sync_mode_model()  # con el mismo base, harness_mode_changed no llega
 
 
 func _on_harness_mode_changed(_mode: SessionModel.HarnessMode) -> void:

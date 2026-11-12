@@ -1488,6 +1488,14 @@ func _get_extensions_window() -> ExtensionsWindow:
 		if is_instance_valid(dock):
 			_extensions_window.hide()
 			(dock as AgentDock).open_recipe(slug))
+	_extensions_window.modes_dir_provider = _modes_dir
+	_extensions_window.mode_use_requested.connect(func(slug: String) -> void:
+		var dock := _tabs.dock(_active_session_id()) as AgentDock if _tabs else null
+		if is_instance_valid(dock):
+			_extensions_window.hide()
+			dock.load_project_modes()
+			if not dock.choose_project_mode(slug):
+				push_warning("Godot Agent: the mode «%s» can't be picked (does it have problems?)." % slug))
 	_extensions_window.asset_store = _asset_store()
 	_extensions_window.is_claude_provider = func() -> bool:
 		return _active_adapter().kind == ClaudeExtensions.AGENT_CLAUDE

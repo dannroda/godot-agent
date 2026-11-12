@@ -113,7 +113,8 @@ func decide(group: String) -> String:
 	if group == PermissionPolicy.GROUP_SHELL and ProjectModes.shell_denied(model.project_mode):
 		return PermissionPolicy.DENY
 	if mode_forces_ask(group):
-		return PermissionPolicy.ASK
+		# En One-shot nadie contesta tarjetas: lo que el modo haría preguntar se niega (m11-39).
+		return PermissionPolicy.DENY if model.harness_mode == SessionModel.HarnessMode.ONESHOT else PermissionPolicy.ASK
 	return decision
 
 
@@ -145,6 +146,7 @@ func notify_mode_refusal(title: String, path: String) -> String:
 	_log_perm("rejected by project mode %s, writes %s: %s" % [mode.get("name", ""), shown, title])
 	model.add_notice(I18n.t("Rejected: mode «%s» only edits %s, and «%s» writes %s. Switch to another mode in the composer to edit it.") % [
 		mode.get("name", ""), ", ".join(mode.get("editable", PackedStringArray())), title.left(80), shown], ChatEntry.NoticeLevel.WARNING)
+	model.project_mode_denied.emit("%s → %s" % [title.left(80), shown], str(mode.get("name", "")))
 	return mode_refusal_text(model.project_mode, shown)
 
 
@@ -473,6 +475,8 @@ func _notify_denied(group: String, title: String) -> void:
 	_log_perm("denied in %s mode (%s): %s" % [_mode_label(), group_label, title])
 	var shown_group := I18n.t(group_label) if PermissionPolicy.GROUP_LABELS.has(group) else group
 	model.add_notice(I18n.t("Denied in %s mode (%s): %s") % [model.mode_display(), shown_group, title], ChatEntry.NoticeLevel.WARNING)
+	if not model.project_mode.is_empty() and policy.decide(group, model.harness_mode) != PermissionPolicy.DENY:
+		model.project_mode_denied.emit("%s · %s" % [group_label, title.left(80)], str(model.project_mode.get("name", "")))
 
 
 func _notify_blocked_write(title: String, target: String) -> void:

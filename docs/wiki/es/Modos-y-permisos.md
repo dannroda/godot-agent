@@ -45,7 +45,11 @@ El formato:
 }
 ```
 
-`base` es `ask`, `review`, `build` o `auto`. `editable` usa los mismos patrones que las [reglas por archivo](#reglas-por-archivo): `**` es cualquier cantidad de carpetas, `*` y `?` quedan dentro de un nombre, y un patrón sin `/` (`*.gdshader`) vale en cualquier carpeta; sin `editable`, el modo no limita archivos. `shell` es `ask` (por defecto), `deny` o `base`. `icon` es el nombre de un ícono del editor. Un modo no tiene modelo: el modelo es tuyo, no del proyecto (ver [Un modelo para cada modo](#un-modelo-para-cada-modo)).
+`base` es `ask`, `review`, `build` o `auto`. `editable` usa los mismos patrones que las [reglas por archivo](#reglas-por-archivo): `**` es cualquier cantidad de carpetas, `*` y `?` quedan dentro de un nombre, y un patrón sin `/` (`*.gdshader`) vale en cualquier carpeta; sin `editable`, el modo no limita archivos. `shell` es `ask` (por defecto), `deny` o `base`. `icon` es el nombre de un ícono del editor. El archivo de un modo no tiene modelo: el modelo es tuyo, no del proyecto. Como con los modos fijos, el modelo que elegís con un modo del proyecto puesto queda recordado para ese modo del proyecto en tu perfil (ver [Un modelo para cada modo](#un-modelo-para-cada-modo)); sin nada recordado, usa el modelo de su modo base. **Ajustes → Agentes** los muestra como **Nombre (modo del proyecto)**.
+
+La pestaña **Modos** de [Extensiones](Settings.md#extensiones) lista los modos del proyecto con ✓ o cuántos problemas tiene cada uno, y abre el `.json` en un editor que lo valida mientras escribís. **Nuevo modo** copia una de tres plantillas (diseño de niveles, shaders con la shell negada, solo tests); **Usar en el dock** pone la pestaña activa en ese modo.
+
+En [One-shot](One-shot.md#arrancar-un-run) se puede elegir un modo del proyecto para el constructor. En un run nadie contesta tarjetas, así que lo que el modo haría preguntar (comandos de shell, tools del proyecto, otros servidores MCP) se deniega, y el informe lista cada negación. Las tools `godot.*` que verifican el juego (correr escenas, playtests, capturas) siguen andando.
 
 ### Aprobar el plan del agente
 

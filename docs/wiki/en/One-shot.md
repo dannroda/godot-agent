@@ -20,6 +20,7 @@ One-shot gives the agent a whole goal ("a 2-player Pong with score", "a top-down
 3. Review the budgets (time, tokens, playtests) and the options:
    - **Create a git checkpoint before each One-shot task**: one commit per task on an agent branch;
    - **Review the spec before building**: the agent writes the spec first and waits for you.
+   - **Builder's project mode** (when the project has [project modes](Modes-and-permissions.md#project-modes)): the builder only writes that mode's files and follows its instructions; the evaluator and QA work as always. What the mode would make ask (shell commands, project tools, other MCP servers) is denied, since nobody answers cards in a run, and a line under the selector says so. Verifying the game (running scenes, playtests, captures) keeps working.
 4. Start. If you have uncommitted changes, the harness asks first; they go into a "WIP" commit on the agent's branch, never on yours.
 
 Never run One-shot on a repository where you don't want new branches. To try it, `tests/make_sandbox.sh <folder>` creates a throwaway project.
@@ -148,7 +149,8 @@ When the run ends, **Report** shows what the harness measured, not what the agen
 - tokens and playtests;
 - tools with uses, failures and time;
 - how many times each check failed;
-- permissions, errors, quota pauses, loops, account switches and changed files.
+- permissions, errors, quota pauses, loops, account switches and changed files;
+- with a builder's project mode, what it denied, as **Denied by the project mode**.
 
 It's saved in `user://godot_agent/oneshot/<id>.report.json` to compare runs, and **Copy Markdown** copies it.
 

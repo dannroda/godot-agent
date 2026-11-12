@@ -14,6 +14,11 @@ const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
 const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
 const RunTools := preload("res://addons/godot_agent/mcp/tools/run_tools.gd")
+const RunReport := preload("res://addons/godot_agent/oneshot/run_report.gd")
+const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
+const MainScreen := preload("res://addons/godot_agent/ui/main_screen/agent_main_screen.gd")
+const ModeTemplates := preload("res://addons/godot_agent/core/mode_templates.gd")
+const ModesTab := preload("res://addons/godot_agent/ui/extensions/modes_tab.gd")
 const RegressionsWorkflow := preload("res://addons/godot_agent/review/regressions_workflow.gd")
 
 const M := SessionModel.HarnessMode
@@ -327,3 +332,74 @@ func test_prompt_resent_on_project_mode_change() -> void:
 	controller.set(&"_system_prompt_sent", true)
 	controller.model.set_project_mode(_levels("build"))
 	assert_false(controller.get(&"_system_prompt_sent"), "mismo base: el system prompt vuelve igual")
+
+
+## One-shot con un modo del proyecto para el constructor (m11-39): lo que el modo haría preguntar se
+## niega (nadie contesta tarjetas), lo de verificación sigue, y cada negación llega al informe.
+func test_oneshot_builder_mode() -> void:
+	var controller := _controller({}, M.ONESHOT)
+	var model := controller.model
+	model.set_project_mode(_levels("build"), true)
+	assert_eq(model.harness_mode, M.ONESHOT, "keep_base: sigue en One-shot")
+	assert_eq(model.mode_display(), "Levels (One-shot)", "con la capa")
+	var broker := controller.permissions
+	for group: String in [PermissionPolicy.GROUP_SHELL, PermissionPolicy.GROUP_PROJECT_TOOLS, PermissionPolicy.mcp_group("fs")]:
+		assert_eq(broker.decide(group), PermissionPolicy.DENY, "%s: negado en One-shot, sin tarjeta" % group)
+	for group: String in [PermissionPolicy.GROUP_RUN, PermissionPolicy.GROUP_DIAGNOSTICS, PermissionPolicy.GROUP_READ, PermissionPolicy.GROUP_EDIT_SCENE]:
+		assert_eq(broker.decide(group), broker.policy.decide(group, M.ONESHOT), "%s: sigue al base (verificar y editar dentro)" % group)
+	var denied: Array = []
+	model.project_mode_denied.connect(func(what: String, mode_name: String) -> void: denied.append([what, mode_name]))
+	var result: String = await broker.authorize_terminal_command("ls", PROJECT)
+	assert_true(result.contains("denied"), "la shell, negada · %s" % result)
+	assert_true(model.pending_permissions.is_empty(), "sin tarjeta")
+	assert_false(await broker.authorize_fs_write(PROJECT + "/main.gd", "", "x"), "escribir fuera, rechazado")
+	assert_eq(denied.size(), 2, "las dos negaciones avisan · %s" % [denied])
+	assert_true(str(denied[0][0]).contains("ls") and denied[0][1] == "Levels", "con qué y el modo")
+	model.set_project_mode({}, true)
+	assert_eq(broker.decide(PermissionPolicy.GROUP_SHELL), broker.policy.decide(PermissionPolicy.GROUP_SHELL, M.ONESHOT), "sin la capa, como siempre")
+	# El informe
+	var report := RunReport.new()
+	report.add_mode_denial("Shell · ls", "Levels")
+	report.add_mode_denial("Shell · ls", "Levels")
+	var built := report.build({"id": "x", "builder_mode": "Levels"})
+	assert_eq(built.mode_denials.size(), 1, "sin repetir")
+	assert_eq(built.builder_mode, "Levels", "dice el modo del constructor")
+	var markdown := RunReport.to_markdown(built)
+	assert_true(markdown.contains("Denied by the project mode") and markdown.contains("- Shell · ls · project mode «Levels»"), "el informe lo lista con el motivo")
+	var copy := RunReport.new()
+	copy.apply(report.to_dict())
+	assert_eq(copy.mode_denials.size(), 1, "se guarda y se lee")
+	# La línea de la pantalla
+	assert_true(MainScreen.builder_mode_note(_levels("build")).contains("Shell commands, project tools and other MCP servers are denied"), "avisa qué queda negado")
+	assert_eq(MainScreen.builder_mode_note({}), "", "sin modo, nada")
+	assert_eq(MainScreen.builder_mode_note(ProjectModes.from_data({"name": "S", "base": "build", "shell": "deny"}).mode), "Shell commands are denied.", "solo shell: deny")
+
+
+func test_oneshot_builder_mode_persists() -> void:
+	var saved: Variant = JSON.parse_string(JSON.stringify(_levels("build")))
+	var mode := OneShotRun.saved_builder_mode(saved)
+	assert_eq([mode.get("name"), mode.get("slug"), mode.get("path")], ["Levels", "levels", "res://agent_modes/levels.json"], "vuelve de JSON con nombre, slug y ruta")
+	assert_true(mode.get("editable") is PackedStringArray and ProjectModes.allows_write(mode, "res://levels/a.tscn", PROJECT), "y los globs sirven")
+	assert_false(ProjectModes.allows_write(mode, "res://main.gd", PROJECT), "y limitan")
+	assert_eq(OneShotRun.saved_builder_mode(null), {}, "un run viejo, sin modo")
+	assert_eq(OneShotRun.saved_builder_mode("x"), {}, "basura, sin modo")
+
+
+func test_modes_tab_and_templates() -> void:
+	for template: Dictionary in ModeTemplates.all():
+		var parsed := ProjectModes.parse(ModeTemplates.text(str(template.id)), "res://agent_modes/%s.json" % template.id)
+		assert_eq(parsed.errors, PackedStringArray(), "la plantilla %s es válida" % template.id)
+	var dir := "user://test_modes_tab"
+	DirAccess.make_dir_recursive_absolute(dir)
+	var tab: Control = ModesTab.new()
+	tab.dir_provider = func() -> String: return dir
+	(Engine.get_main_loop() as SceneTree).root.add_child(tab)
+	var path: String = tab.create_from_template("shaders")
+	assert_eq(path, dir.path_join("shaders.json"), "New copia la plantilla")
+	assert_eq(tab.mode_count(), 1, "la lista la muestra")
+	assert_true(tab.problems_text().contains("The mode is valid"), "y valida · %s" % tab.problems_text())
+	tab.editor().text = "{\"name\": \"X\", \"base\": \"oneshot\"}"
+	assert_true("\n".join(tab.validate()).contains("«base»"), "valida mientras se escribe")
+	tab.free()
+	DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(dir)

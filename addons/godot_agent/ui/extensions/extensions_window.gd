@@ -16,6 +16,8 @@ signal mcp_settings_requested
 signal agents_requested
 ## «Use in the dock» en la pestaña Recipes (m11-30): el formulario de esa receta en el dock.
 signal recipe_use_requested(slug: String)
+## «Use in the dock» en Modes (m11-39): elegir el modo del proyecto `slug` en el dock.
+signal mode_use_requested(slug: String)
 
 const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
@@ -27,10 +29,11 @@ const InstructionsTab := preload("instructions_tab.gd")
 const MemoryTab := preload("memory_tab.gd")
 const ToolsTab := preload("tools_tab.gd")
 const RecipesTab := preload("recipes_tab.gd")
+const ModesTab := preload("modes_tab.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 
-enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS, TOOLS, MEMORY, RECIPES }
+enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS, TOOLS, MEMORY, RECIPES, MODES }
 const AVAILABLE_LIMIT := 30
 const MCP_ORIGIN_ORDER: PackedStringArray = ["addon", "user", "project", "local", "claude.ai", "plugin", "other"]
 const MCP_ORIGIN_LABELS: Dictionary = {
@@ -79,6 +82,8 @@ var tools_compact_provider: Callable
 var tools_approve: Callable
 ## () -> String: la carpeta de recetas del proyecto (m11-30).
 var recipes_dir_provider: Callable
+## () -> String: la carpeta de modos del proyecto (m11-39).
+var modes_dir_provider: Callable
 
 var _tabs: TabContainer
 ## Las secciones a la izquierda, como en Ajustes: seis pestañas no entraban en la ventana (m12-04).
@@ -98,6 +103,7 @@ var _instructions_tab: InstructionsTab
 var _memory_tab: MemoryTab
 var _tools_tab: ToolsTab
 var _recipes_tab: RecipesTab
+var _modes_tab: ModesTab
 var _confirm: ConfirmationDialog
 var _confirm_action: Callable
 
@@ -168,6 +174,9 @@ func _build() -> void:
 		if tab == ExtensionsTab.RECIPES and _recipes_tab:
 			_recipes_tab.refresh()
 			_update_tab_titles()
+		if tab == ExtensionsTab.MODES and _modes_tab:
+			_modes_tab.refresh()
+			_update_tab_titles()
 		ExtensionsUi.refit_dialog(self))
 	split.add_child(_tabs)
 	_tabs.add_child(_build_plugins_tab())
@@ -203,6 +212,11 @@ func _build() -> void:
 	_recipes_tab.status_changed.connect(_set_status)
 	_recipes_tab.use_requested.connect(func(slug: String) -> void: recipe_use_requested.emit(slug))
 	_tabs.add_child(_recipes_tab)
+	_modes_tab = ModesTab.new()
+	_modes_tab.dir_provider = func() -> String: return str(modes_dir_provider.call()) if modes_dir_provider.is_valid() else ModesTab.ProjectModes.DEFAULT_DIR
+	_modes_tab.status_changed.connect(_set_status)
+	_modes_tab.use_requested.connect(func(slug: String) -> void: mode_use_requested.emit(slug))
+	_tabs.add_child(_modes_tab)
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -238,6 +252,7 @@ func refresh() -> void:
 	if _tabs.current_tab == ExtensionsTab.MEMORY:
 		_refresh_memory()
 	_recipes_tab.refresh()
+	_modes_tab.refresh()
 	_refresh_skills()
 	if not _is_claude():
 		_mcp_error = ""
@@ -697,6 +712,7 @@ func _update_tab_titles() -> void:
 	_tabs.set_tab_title(ExtensionsTab.TOOLS, I18n.t("Tools (%d)") % _tools_tab.tool_count())
 	_tabs.set_tab_title(ExtensionsTab.MEMORY, I18n.t("Memory"))
 	_tabs.set_tab_title(ExtensionsTab.RECIPES, I18n.t("Recipes (%d)") % (_recipes_tab.recipe_count() if _recipes_tab else 0))
+	_tabs.set_tab_title(ExtensionsTab.MODES, I18n.t("Modes (%d)") % (_modes_tab.mode_count() if _modes_tab else 0))
 	if _nav.item_count != _tabs.get_tab_count():
 		_nav.clear()
 		for i in _tabs.get_tab_count():

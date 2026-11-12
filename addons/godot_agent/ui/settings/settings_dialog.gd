@@ -1195,16 +1195,27 @@ func _fill_mode_models(profile_id: String) -> void:
 		child.queue_free()
 	var store := ModeModels.new(_settings)
 	var remembered := false
+	# Las claves: las de los modos fijos y las de los modos del proyecto (custom:<slug>, m11-39).
+	var keys: Array = []
 	for mode: SessionModel.HarnessMode in MODES:
-		if [profile_id, mode] in _forget_models:
+		keys.append([ModeModels.mode_key(mode), I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])])
+	var project_names := {}
+	for mode: Dictionary in ProjectModes.usable(ProjectModes.load_dir(ProjectModes.resolve_dir(_config.modes_dir if _config else ""))):
+		project_names[ModeModels.CUSTOM_PREFIX + str(mode.slug)] = str(mode.name)
+	for key: String in store.by_mode(profile_id):
+		if key.begins_with(ModeModels.CUSTOM_PREFIX):
+			keys.append([key, I18n.t("%s (project mode)") % project_names.get(key, key.trim_prefix(ModeModels.CUSTOM_PREFIX))])
+	for pair: Array in keys:
+		var key: String = pair[0]
+		if [profile_id, key] in _forget_models:
 			continue
-		var entry := store.get_model(profile_id, mode)
+		var entry := store.get_model_for(profile_id, key)
 		if entry.is_empty():
 			continue
 		remembered = true
 		var row := HBoxContainer.new()
 		var label := Label.new()
-		label.text = "%s: %s" % [I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), str(entry.get("name", entry.value))]
+		label.text = "%s: %s" % [pair[1], str(entry.get("name", entry.value))]
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.tooltip_text = str(entry.value)
 		label.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -1213,7 +1224,7 @@ func _fill_mode_models(profile_id: String) -> void:
 		forget.text = I18n.t("Forget")
 		forget.tooltip_text = I18n.t("Switching to this mode won't change the model any more (applies when you save).")
 		forget.pressed.connect(func() -> void:
-			_forget_models.append([profile_id, mode])
+			_forget_models.append([profile_id, key])
 			_fill_mode_models(profile_id))
 		row.add_child(forget)
 		_mode_models_box.add_child(row)
@@ -1226,7 +1237,7 @@ func _fill_mode_models(profile_id: String) -> void:
 func _apply_model_forgets() -> void:
 	var mode_models := ModeModels.new(_settings)
 	for pair: Array in _forget_models:
-		mode_models.forget(str(pair[0]), int(pair[1]))
+		mode_models.forget_for(str(pair[0]), str(pair[1]))
 	_forget_models = []
 
 

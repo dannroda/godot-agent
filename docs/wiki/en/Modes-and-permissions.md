@@ -45,7 +45,11 @@ The format:
 }
 ```
 
-`base` is `ask`, `review`, `build` or `auto`. `editable` takes the same patterns as [rules by file](#rules-by-file): `**` is any number of folders, `*` and `?` stay inside a name, and a pattern without `/` (`*.gdshader`) works in any folder; leave it out for a mode that doesn't limit files. `shell` is `ask` (the default), `deny` or `base`. `icon` is the name of an editor icon. A mode has no model: the model is yours, not the project's (see [A model for each mode](#a-model-for-each-mode)).
+`base` is `ask`, `review`, `build` or `auto`. `editable` takes the same patterns as [rules by file](#rules-by-file): `**` is any number of folders, `*` and `?` stay inside a name, and a pattern without `/` (`*.gdshader`) works in any folder; leave it out for a mode that doesn't limit files. `shell` is `ask` (the default), `deny` or `base`. `icon` is the name of an editor icon. A mode has no model in its file: the model is yours, not the project's. Like the fixed modes, the model you pick while a project mode is on is remembered for that project mode in your profile (see [A model for each mode](#a-model-for-each-mode)); with nothing remembered, it uses its base mode's model. **Settings → Agents** lists them as **Name (project mode)**.
+
+The **Modes** tab of [Extensions](Settings.md#extensions) lists the project's modes with ✓ or how many problems each one has, and opens the `.json` in an editor that checks it as you type. **New mode** copies one of three templates (level design, shaders with the shell denied, tests only); **Use in the dock** puts the active tab in that mode.
+
+In [One-shot](One-shot.md#starting-a-run), a project mode can be picked for the builder. Nobody answers cards in a run, so what the mode would make ask (shell commands, project tools, other MCP servers) is denied instead, and the report lists each denial. The `godot.*` tools that verify the game (running scenes, playtests, captures) keep working.
 
 ### Approving the agent's plan
 

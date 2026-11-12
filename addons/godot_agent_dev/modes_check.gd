@@ -10,6 +10,9 @@ extends RefCounted
 ##    falla con el motivo; godot.asset_install (no dice qué escribe) se rechaza; `ls` (en la allowlist de
 ##    Auto) pregunta igual, sin «siempre» ni regla.
 ## 3. Elegir Construir en el selector saca la capa.
+## 4. Extensiones › Modes lista los dos (el roto con sus problemas) y «Use» pone el modo en el dock.
+## 5. One-shot: el selector «Builder's project mode» ofrece Levels y, elegido, avisa en una línea qué
+##    queda negado (shell, project tools, MCP de terceros).
 ## No toca los EditorSettings: la carpeta de modos va por dock.modes_dir.
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
@@ -23,7 +26,7 @@ var _tree: SceneTree
 var _model: SessionModel
 
 
-func run(tree: SceneTree, _plugin: Object, dock: Control, shot_path: String) -> Array[String]:
+func run(tree: SceneTree, plugin: Object, dock: Control, shot_path: String) -> Array[String]:
 	_tree = tree
 	_model = dock.get(&"_model")
 	var controller: Object = dock.get(&"_controller")
@@ -41,6 +44,11 @@ func run(tree: SceneTree, _plugin: Object, dock: Control, shot_path: String) -> 
 	dock.set(&"modes_dir", WORK_DIR + "/modes")
 	dock.call(&"load_project_modes")
 	await _check(dock, controller, shot_path)
+	if plugin:
+		_check_extensions(plugin)
+		_check_oneshot(plugin)
+	else:
+		failures.append("no está el plugin principal")
 	_model.set_project_mode({})
 	_model.set_harness_mode(SessionModel.HarnessMode.BUILD)
 	dock.set(&"modes_dir", saved_dir)
@@ -111,6 +119,41 @@ func _check(dock: Control, controller: Object, shot_path: String) -> void:
 	# 3. Un modo fijo saca la capa.
 	composer.call(&"choose_mode", SessionModel.HarnessMode.BUILD)
 	_expect(_model.project_mode.is_empty() and _model.harness_mode == SessionModel.HarnessMode.BUILD, "elegir Construir saca el modo del proyecto")
+
+
+func _check_extensions(plugin: Object) -> void:
+	var window: Object = plugin.call(&"_get_extensions_window")
+	var saved: Callable = window.get(&"modes_dir_provider")
+	window.set(&"modes_dir_provider", func() -> String: return WORK_DIR + "/modes")
+	var tab: Object = window.get(&"_modes_tab")
+	tab.call(&"refresh")
+	_expect(int(tab.call(&"mode_count")) == 2, "Extensiones › Modes lista los dos modos · %d" % int(tab.call(&"mode_count")))
+	_model.set_harness_mode(SessionModel.HarnessMode.ASK)
+	tab.emit_signal(&"use_requested", "levels")
+	_expect(_model.project_mode.get("name") == "Levels" and _model.harness_mode == SessionModel.HarnessMode.AUTO, "«Use» pone el modo en el dock")
+	_model.set_project_mode({})
+	_model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+	window.set(&"modes_dir_provider", saved)
+	tab.call(&"refresh")
+
+
+func _check_oneshot(plugin: Object) -> void:
+	var screen: Object = plugin.get(&"_main_screen")
+	if screen == null:
+		failures.append("no está la pantalla de One-shot")
+		return
+	var saved: String = screen.get(&"modes_dir")
+	screen.set(&"modes_dir", WORK_DIR + "/modes")
+	screen.call(&"refresh_builder_modes")
+	var button: OptionButton = screen.get(&"_builder_mode_button")
+	var note: Label = screen.get(&"_builder_mode_note")
+	_expect(button.get_parent().visible and _items(button) == ["None", "Levels"], "el selector del constructor ofrece Levels (no el roto) · %s" % [_items(button)])
+	_expect(not note.visible, "sin modo, sin aviso")
+	_expect(bool(screen.call(&"choose_builder_mode", "levels")), "se elige Levels")
+	_expect(note.visible and note.text.contains("Shell commands, project tools and other MCP servers are denied"), "el aviso dice qué queda negado · %s" % note.text)
+	_expect(screen.call(&"selected_builder_mode").get("name") == "Levels", "es el que se le pasa al run")
+	screen.set(&"modes_dir", saved)
+	screen.call(&"refresh_builder_modes")
 
 
 func _items(button: OptionButton) -> Array:
