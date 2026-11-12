@@ -71,6 +71,8 @@ const SupervisorClient := preload("supervisor/supervisor_client.gd")
 const NativeBuild := preload("core/native_build.gd")
 const NativeInstall := preload("core/native_install.gd")
 const SceneEditTools := preload("mcp/tools/scene_edit_tools.gd")
+const BakeTools := preload("mcp/tools/bake_tools.gd")
+const ExportTools := preload("mcp/tools/export_tools.gd")
 const RunTools := preload("mcp/tools/run_tools.gd")
 const ProfileTools := preload("mcp/tools/profile_tools.gd")
 const PlaytestRegressions := preload("review/playtest_regressions.gd")
@@ -1110,6 +1112,10 @@ func _start_mcp_server() -> void:
 	var animation_tools := AnimationTools.new()
 	animation_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(animation_tools, true)
+	var bake_tools := BakeTools.new()
+	bake_tools.on_action = _on_mcp_edit_action
+	registry.register_provider(bake_tools, true)
+	registry.register_provider(ExportTools.new(), true)
 	_run_tools = RunTools.new()
 	_run_tools.setup(_errors, _playtest_debugger)
 	_run_tools.max_image_side = _project_config.max_image_side

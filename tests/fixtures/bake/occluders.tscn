@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[sub_resource type="BoxMesh" id="BoxMesh_g30p6"]
+size = Vector3(4, 4, 4)
+
+[node name="Occluded" type="Node3D" unique_id=297215680]
+
+[node name="Occluder" type="OccluderInstance3D" parent="." unique_id=1006097035]
+
+[node name="Block" type="MeshInstance3D" parent="." unique_id=1801643303]
+mesh = SubResource("BoxMesh_g30p6")

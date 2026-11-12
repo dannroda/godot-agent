@@ -448,6 +448,8 @@ const GODOT_TOOL_NAMES := {
 	"sprite_frames_set": "Set sprite frames",  # i18n
 	"stop_scene": "Stop scene",  # i18n
 	"game_instance": "Game instances",  # i18n
+	"bake": "Bake",  # i18n
+	"export_project": "Export the project",  # i18n
 	"run_regressions": "Run the regressions",  # i18n
 	"write_regressions_workflow": "Write the regressions CI workflow",  # i18n
 	"tilemap_clear": "Clear tilemap",  # i18n
