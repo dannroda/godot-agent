@@ -9,7 +9,7 @@ El agente ve estas tools como `godot.<nombre>` (Claude Code las muestra como `mc
 - `godot.methods` lista las demás, una línea cada una (`query` filtra; `method` muestra su descripción y parámetros);
 - `godot.run` llama una: `{"method": "tilemap_set_cells", "params": {…}}`. Valida los parámetros y pide el mismo permiso que la tool.
 
-Las extra son la documentación de la API (`class_info`, `search_api`), los settings del proyecto, el export, el bake, el Asset Store, archivos, recursos, tilemaps, animación, los validadores de física y de tilemaps, el juego en vivo y su debugger, el profiler, GDExtension, las sesiones y la segunda opinión. Son las mismas tools, con el mismo permiso: solo cambia cómo las encuentra el agente. Con la lista compacta, tools/list pasa de unos 30.000 caracteres a unos 11.000. El setting vale desde la próxima sesión.
+Las extra son la documentación de la API (`class_info`, `search_api`), los settings del proyecto, el export, el bake, el Asset Store, archivos, recursos, tilemaps, animación, los validadores de física y de tilemaps, el juego en vivo y su debugger, el profiler, GDExtension, las sesiones y la segunda opinión. Son las mismas tools, con el mismo permiso: solo cambia cómo las encuentra el agente. Con la lista compacta, tools/list pasa de unos 91.000 caracteres a unos 28.000 (medido con las 89 tools de 0.1.25). El setting vale desde la próxima sesión.
 
 La primera columna agrupa las tools por función. El grupo de permisos de cada tool (la fila de la [matriz](Modos-y-permisos.md#permisos) que decide si pregunta) suele ser el que sugiere su nombre; cuando no, va entre paréntesis. **Qué puede hacer el agente (tools)…** lo muestra para cada una.
 

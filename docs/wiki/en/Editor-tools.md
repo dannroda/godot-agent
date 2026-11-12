@@ -9,7 +9,7 @@ The agent sees these tools as `godot.<name>` (Claude Code shows them as `mcp__go
 - `godot.methods` lists the other tools, one line each (`query` filters; `method` shows its description and parameters);
 - `godot.run` calls one: `{"method": "tilemap_set_cells", "params": {…}}`. It validates the parameters and asks the same permission as the tool itself.
 
-The extra ones are API docs (`class_info`, `search_api`), project settings, export, bake, the Asset Store, files, resources, tilemaps, animation, the physics and tilemap validators, the live game and its debugger, the profiler, GDExtension, sessions and the second opinion. They're the same tools, with the same permission: only how the agent finds them changes. With the compact list, tools/list goes from about 30,000 characters to about 11,000. The setting applies from the next session.
+The extra ones are API docs (`class_info`, `search_api`), project settings, export, bake, the Asset Store, files, resources, tilemaps, animation, the physics and tilemap validators, the live game and its debugger, the profiler, GDExtension, sessions and the second opinion. They're the same tools, with the same permission: only how the agent finds them changes. With the compact list, tools/list goes from about 91,000 characters to about 28,000 (measured with the 89 tools of 0.1.25). The setting applies from the next session.
 
 The first column groups the tools by function. Each tool's permission group (the row of the [matrix](Modes-and-permissions.md#permissions) that decides whether it asks) is usually the one its name suggests; where it isn't, it's in parentheses. **What the agent can do (tools)…** shows it for every tool.
 
