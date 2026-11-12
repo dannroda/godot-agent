@@ -522,11 +522,13 @@ func set_usage(used: int, total: int) -> void:
 		return
 	var ratio := float(used) / float(total)
 	# El porcentaje siempre al lado del anillo (m12-18); los tokens, en el tooltip.
-	_meter.text = "%d %%" % int(ratio * 100.0)
 	# Siempre el ancho de «100 %» (m12-51): si no, cada usage_update cambiaba el ancho de la fila; con
 	# el dock justo la compactación iba y venía (el medidor aparecía y desaparecía) y todo se corría
-	# bajo el mouse, que cerraba el tooltip del anillo, el plan, el modo, el modelo y Enviar.
-	_meter.custom_minimum_size.x = ceilf(_meter.get_theme_font(&"font").get_string_size("100 %", HORIZONTAL_ALIGNMENT_LEFT, -1, _meter.get_theme_font_size(&"font_size")).x)
+	# bajo el mouse, que cerraba el tooltip del anillo, el plan, el modo, el modelo y Enviar. Lo mide
+	# el Label mismo (m12-53): con el tema del editor el estilo suma márgenes que la fuente sola no
+	# cuenta, y el medidor crecía igual 7 px.
+	_meter.custom_minimum_size.x = reserved_width(_meter, "100 %")
+	_meter.text = "%d %%" % int(ratio * 100.0)
 	var tooltip := I18n.t("Context used: %d%%") % int(ratio * 100.0) + " · %s / %s" % [_short_number(used), _short_number(total)]
 	var high := ratio >= METER_SHOW_RATIO
 	_meter.add_theme_color_override(&"font_color", AgentTheme.WARNING if high else AgentTheme.MUTED)
@@ -1132,6 +1134,19 @@ func _size_guard() -> Control:
 static func _is_size_guard(node: Node) -> bool:
 	var script := node.get_script() as Script
 	return script != null and script.resource_path.ends_with("/ui/min_size_guard.gd")
+
+
+## Ancho mínimo que pide `label` con `widest` como texto (con su estilo y su fuente), para que un texto
+## que cambia solo no corra la fila (m12-53). Deja el texto como estaba.
+static func reserved_width(label: Label, widest: String) -> float:
+	var text := label.text
+	var reserved := label.custom_minimum_size.x
+	label.custom_minimum_size.x = 0.0
+	label.text = widest
+	var width := ceilf(label.get_minimum_size().x)
+	label.text = text
+	label.custom_minimum_size.x = reserved
+	return width
 
 
 static func _short_number(value: int) -> String:

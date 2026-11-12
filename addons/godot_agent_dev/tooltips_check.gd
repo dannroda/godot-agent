@@ -34,6 +34,15 @@ func run(tree: SceneTree, _plugin: Object, dock: Control, _shot_path: String) ->
 	if int(model.get(&"usage_size")) <= 0:
 		failures.append("no llegó el usage_update del agente falso")
 		return failures
+	# Con el tema del editor, el medidor pide lo mismo con cualquier porcentaje (m12-53: en 4.8-beta3
+	# crecía 7 px y corría la cuota bajo el mouse). El próximo usage_update lo deja como estaba.
+	var meter: Label = composer.get(&"_meter")
+	var meter_widths: Array = []
+	for used: int in [2000, 20000, 200000]:
+		composer.call(&"set_usage", used, 200000)
+		meter_widths.append(meter.get_combined_minimum_size().x)
+	_expect(meter_widths[0] == meter_widths[2] and meter_widths[1] == meter_widths[2], "el medidor cambia de ancho con el porcentaje: %s" % [meter_widths])
+	composer.call(&"set_usage", int(model.get(&"usage_used")), int(model.get(&"usage_size")))
 	composer.call(&"set_plan_available", true)  # la lista de tareas (☰) al lado del modo
 	# Ancho para que la fila entre entera (el dock de Xvfb es angosto y compacta el medidor).
 	var width := dock.size.x
@@ -59,7 +68,6 @@ func run(tree: SceneTree, _plugin: Object, dock: Control, _shot_path: String) ->
 		await _check_hold(str(target[0]) + " (dock angosto)", target[1] as Control)
 	await LayoutCheck.set_dock_width(dock, int(width))
 	# Al salir, el tooltip tiene lo último (lo que llegó con el mouse encima).
-	var meter: Control = composer.get(&"_meter")
 	await _tree.create_timer(0.8).timeout
 	_expect(meter.tooltip_text.contains("%d%%" % int(100.0 * int(model.get(&"usage_used")) / int(model.get(&"usage_size")))), "al salir el mouse, el tooltip del anillo dice lo último · %s" % meter.tooltip_text)
 	# Al final, con el turno terminado: Enviar.

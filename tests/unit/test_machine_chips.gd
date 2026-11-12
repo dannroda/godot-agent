@@ -20,3 +20,8 @@ func test_machine_chips() -> void:
 	assert_eq(AgentDock.machine_chips([{"machine": "Game", "label": "launching", "live": true}]).size(), 1, "sin edad: igual se muestra")
 	assert_eq(AgentDock.machine_chips([{"machine": "Game", "label": "launching", "live": true}])[0].text, "Game · launching", "sin edad no hay segundos")
 	assert_true(AgentDock.machine_chips([]).is_empty(), "sin máquinas, sin chips")
+	# El ancho que reserva no cambia con los segundos (m12-53): el chip no crece y no corre a los demás.
+	var reserves: Array = [3, 12, 999, 2400].map(func(age: int) -> String:
+		return AgentDock.machine_chips([{"machine": "Game", "label": "running", "age": age, "live": true}])[0].reserve)
+	assert_eq(reserves, [reserves[0], reserves[0], reserves[0], reserves[0]], "la misma reserva de 3 s a 40 min · %s" % [reserves])
+	assert_eq(AgentDock.machine_chips([{"machine": "Game", "label": "launching", "live": true}])[0].reserve, "Game · launching", "sin edad, el texto mismo")
