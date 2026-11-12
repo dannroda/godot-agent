@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Project modes**: a mode with its own name ("Level design", "Shaders") on top of Ask, Review, Build or Auto, saved as a `.json` in `res://agent_modes/` and shared through git. It lists the files the agent may write (`"editable": ["res://levels/**"]`): any other write is rejected without a card, from the agent's own tools, `fs/write_text_file` or the `godot.*` tools, and shell commands, project tools and other MCP servers always ask, even with base Auto. Its instructions go to the agent's system prompt. It never allows more than its base mode. The composer's mode selector lists them under **Project modes**, as **Level design (Build)**. The folder is in Settings → MCP servers → Advanced and is left out of exports. The model you pick in a project mode is remembered for it, like the fixed modes. **Extensions → Modes** lists and checks them, with three templates. In One-shot, **Builder's project mode** applies one to the builder: what it would make ask is denied instead (a line under the selector says so) and the report lists each denial; verifying the game keeps working. See [Modes and permissions](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#project-modes).
+
 ## [0.1.23] - 2026-11-12
 
 ### Added

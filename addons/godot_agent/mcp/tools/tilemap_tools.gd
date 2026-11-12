@@ -8,6 +8,7 @@ extends RefCounted
 ## "tile_size": [16, 16]} o una ruta .tres).
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const UntrustedText := preload("../untrusted_text.gd")
 const SceneAccess := preload("scene_access.gd")
 const EditorUndo := preload("../../editor/editor_undo.gd")
@@ -29,7 +30,7 @@ var on_action: Callable
 
 func tools() -> Array:
 	var scene := PermissionPolicy.GROUP_EDIT_SCENE
-	return [
+	return WriteTargets.declare([
 		# Lee la escena y su TileSet: en un sobre como scene_tree (m11-45).
 		McpTool.enveloped(McpTool.create("tilemap_get", PermissionPolicy.GROUP_READ,
 			"Reads a TileMapLayer: its TileSet (sources with their tiles, physics layers, terrain sets) and an ASCII map of the cells with a legend. Use `rect` for big maps.",
@@ -62,7 +63,10 @@ func tools() -> Array:
 			}, ["node_path", "terrain"], _tilemap_paint_terrain),
 		McpTool.create("tilemap_clear", scene, "Empties every cell of a TileMapLayer (with undo).",
 			{"node_path": NODE_ARG, "scene": SCENE_ARG}, ["node_path"], _tilemap_clear),
-	]
+	], {
+		"tilemap_set_cells": _tileset_targets, "tilemap_paint_terrain": _tileset_targets, "tilemap_clear": _tileset_targets,
+		"tileset_add_atlas": _tileset_targets, "tileset_add_scenes": _tileset_targets,
+	})
 
 
 # --- tools ---------------------------------------------------------------------------------------
@@ -424,6 +428,11 @@ static func _tileset_lines(tile_set: TileSet) -> PackedStringArray:
 			terrains.append("%d %s" % [t, tile_set.get_terrain_name(terrain_set, t)])
 		lines.append("Terrain set %d (%s): %s" % [terrain_set, ["match corners and sides", "match corners", "match sides"][tile_set.get_terrain_set_mode(terrain_set)], ", ".join(terrains)])
 	return lines
+
+
+## Lo que escribe una tool de tilemaps (m11-39): la escena y el TileSet si es un .tres propio.
+static func _tileset_targets(args: Dictionary) -> PackedStringArray:
+	return WriteTargets.scene_and_resource(args, func(node: Node, _args: Dictionary) -> Variant: return node.get(&"tile_set"))
 
 
 ## Si el TileSet es un .tres propio, se guarda al hacer y al deshacer.

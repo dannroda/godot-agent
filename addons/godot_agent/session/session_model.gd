@@ -20,6 +20,11 @@ signal config_options_changed(options: Array)
 signal commands_changed(commands: Array)
 signal title_changed(title: String)
 signal harness_mode_changed(mode: HarnessMode)
+## Cambió el modo del proyecto (m11-39): `mode` es el modo leído de su .json, o {} sin modo del proyecto.
+signal project_mode_changed(mode: Dictionary)
+## El modo del proyecto negó o rechazó algo (m11-39): `what` es lo que se pidió; el informe del One-shot
+## lo lista con el motivo.
+signal project_mode_denied(what: String, mode_name: String)
 ## Remote Control de Claude Code (m7-21): link de la sesión en claude.ai, o "" si está apagado.
 signal remote_control_changed(url: String)
 ## La cuenta del agente cambió (ver `account`).
@@ -85,6 +90,9 @@ const SESSION_STATE_TRANSITIONS: Dictionary = {
 ## AUTO va al final para no cambiar los valores de los demás (D57); en la UI se muestra después de BUILD.
 enum HarnessMode { ASK, REVIEW, BUILD, ONESHOT, AUTO }
 
+## El modo base de un modo del proyecto (su campo `base`).
+const BASE_MODES: Dictionary = {"ask": HarnessMode.ASK, "review": HarnessMode.REVIEW, "build": HarnessMode.BUILD, "auto": HarnessMode.AUTO}
+
 const HARNESS_MODE_LABELS: Dictionary = {
 	HarnessMode.ASK: "Ask",  # i18n
 	HarnessMode.REVIEW: "Review",  # i18n
@@ -99,6 +107,11 @@ var _state_since_ms: int = Time.get_ticks_msec()  # desde que existe el modelo, 
 var session_id: String = ""
 var title: String = ""
 var harness_mode: HarnessMode = HarnessMode.BUILD
+## El modo del proyecto elegido (m11-39), como se leyó al elegirlo, o {}. Es una capa sobre
+## `harness_mode` (su base): resta archivos y shell y suma instrucciones. Sigue puesto si el harness
+## cambia el base (aprobar un plan pasa a Construir): sacar la capa daría más permisos. Lo saca el
+## usuario eligiendo un modo fijo.
+var project_mode: Dictionary = {}
 var remote_control_url: String = ""
 var agent_info: Dictionary = {}
 ## Con qué cuenta está logueado el agente (Claude Code): `{email, org, plan, method}`, o {} si no se
@@ -249,6 +262,35 @@ func set_harness_mode(value: HarnessMode) -> void:
 		return
 	harness_mode = value
 	harness_mode_changed.emit(value)
+
+
+## Elige un modo del proyecto (m11-39): pasa al base y pone la capa. {} la saca (el base queda).
+## `keep_base`: solo la capa, sin tocar el modo (el constructor del One-shot sigue en One-shot).
+func set_project_mode(mode: Dictionary, keep_base: bool = false) -> void:
+	if keep_base:
+		if project_mode != mode:
+			project_mode = mode
+			project_mode_changed.emit(mode)
+		return
+	if not mode.is_empty():
+		var base: int = BASE_MODES.get(str(mode.get("base", "")), HarnessMode.ASK)
+		if project_mode == mode and harness_mode == base:
+			return
+		project_mode = mode
+		set_harness_mode(base as HarnessMode)  # quien escuche el base ya ve la capa puesta
+		project_mode_changed.emit(mode)
+		return
+	if project_mode.is_empty():
+		return
+	project_mode = {}
+	project_mode_changed.emit(project_mode)
+
+
+## El nombre del modo para mostrar: «Diseño de niveles (Construir)» con modo del proyecto, si no el del
+## modo fijo. Traducido.
+func mode_display() -> String:
+	var base := I18n.t(HARNESS_MODE_LABELS[harness_mode])
+	return "%s (%s)" % [project_mode.name, base] if not project_mode.is_empty() else base
 
 
 ## Limpia la conversación (nueva sesión). Conserva el modo del harness.

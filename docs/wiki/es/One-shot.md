@@ -20,6 +20,7 @@ El One-shot le da al agente un objetivo entero ("Pong de 2 jugadores con puntaje
 3. Revisá los presupuestos (tiempo, tokens, playtests) y las opciones:
    - **Crear un checkpoint git antes de cada tarea de One-shot**: un commit por tarea en una rama del agente;
    - **Revisar el spec antes de construir**: el agente escribe primero el spec y te espera.
+   - **Modo del proyecto del constructor** (si el proyecto tiene [modos del proyecto](Modos-y-permisos.md#modos-del-proyecto)): el constructor solo escribe los archivos de ese modo y sigue sus instrucciones; el evaluador y QA trabajan como siempre. Lo que el modo haría preguntar (comandos de shell, tools del proyecto, otros servidores MCP) se deniega, porque en un run nadie contesta tarjetas, y una línea bajo el selector lo avisa. Verificar el juego (correr escenas, playtests, capturas) sigue andando.
 4. Arrancá. Si hay cambios sin commitear, el harness pregunta antes; esos cambios quedan en un commit "WIP" en la rama del agente, nunca en la tuya.
 
 Nunca corras un One-shot sobre un repo donde no quieras ramas nuevas. Para probarlo, `tests/make_sandbox.sh <carpeta>` arma un proyecto descartable.
@@ -148,7 +149,8 @@ Cuando el run termina, **Informe** muestra lo que midió el harness, no lo que d
 - tokens y playtests;
 - tools con usos, fallas y tiempo;
 - cuántas veces falló cada verificación;
-- permisos, errores, pausas por cuota, loops, cambios de cuenta y archivos cambiados.
+- permisos, errores, pausas por cuota, loops, cambios de cuenta y archivos cambiados;
+- con un modo del proyecto para el constructor, lo que negó, como **Denegado por el modo del proyecto**.
 
 Se guarda en `user://godot_agent/oneshot/<id>.report.json` para comparar corridas, y **Copiar Markdown** lo copia.
 

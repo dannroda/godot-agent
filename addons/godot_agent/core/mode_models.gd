@@ -21,14 +21,30 @@ func _init(store: Object = null) -> void:
 	settings = store
 
 
+## Prefijo de la clave de un modo del proyecto (m11-39): `custom:<slug>`.
+const CUSTOM_PREFIX := "custom:"
+
+
 static func mode_key(mode: int) -> String:
 	return MODE_KEYS[mode] if mode >= 0 and mode < MODE_KEYS.size() else ""
 
 
+## La clave con que se recuerda el modelo: la del modo del proyecto si hay uno, si no la del modo.
+static func key_for(mode: int, project_mode: Dictionary = {}) -> String:
+	if not project_mode.is_empty() and not str(project_mode.get("slug", "")).is_empty():
+		return CUSTOM_PREFIX + str(project_mode.slug)
+	return mode_key(mode)
+
+
+## El modelo recordado con la clave `key` (ver key_for): `{value, name}` o {}.
+func get_model_for(profile_id: String, key: String) -> Dictionary:
+	var entry: Variant = by_mode(profile_id).get(key) if not key.is_empty() else null
+	return entry if entry is Dictionary and not str(entry.get("value", "")).is_empty() else {}
+
+
 ## El modelo recordado para `mode` con ese perfil: `{value, name}` o {}.
 func get_model(profile_id: String, mode: int) -> Dictionary:
-	var entry: Variant = by_mode(profile_id).get(mode_key(mode))
-	return entry if entry is Dictionary and not str(entry.get("value", "")).is_empty() else {}
+	return get_model_for(profile_id, mode_key(mode))
 
 
 ## `{mode_key: {value, name}}` del perfil.
@@ -39,25 +55,33 @@ func by_mode(profile_id: String) -> Dictionary:
 
 
 func remember(profile_id: String, mode: int, value: String, name: String = "") -> void:
-	if settings == null or profile_id.is_empty() or mode_key(mode).is_empty() or value.is_empty():
+	remember_for(profile_id, mode_key(mode), value, name)
+
+
+func remember_for(profile_id: String, key: String, value: String, name: String = "") -> void:
+	if settings == null or profile_id.is_empty() or key.is_empty() or value.is_empty():
 		return
 	var all := _all()
 	var entry: Dictionary = (all.get(profile_id, {}) as Dictionary).duplicate() if all.get(profile_id) is Dictionary else {}
-	if entry.get(mode_key(mode)) is Dictionary and entry[mode_key(mode)].get("value") == value and entry[mode_key(mode)].get("name") == name:
+	if entry.get(key) is Dictionary and entry[key].get("value") == value and entry[key].get("name") == name:
 		return
-	entry[mode_key(mode)] = {"value": value, "name": name if not name.is_empty() else value}
+	entry[key] = {"value": value, "name": name if not name.is_empty() else value}
 	all[profile_id] = entry
 	settings.call(&"set_value", KEY, all)
 
 
 func forget(profile_id: String, mode: int) -> void:
+	forget_for(profile_id, mode_key(mode))
+
+
+func forget_for(profile_id: String, key: String) -> void:
 	if settings == null:
 		return
 	var all := _all()
-	if not all.get(profile_id) is Dictionary or not (all[profile_id] as Dictionary).has(mode_key(mode)):
+	if not all.get(profile_id) is Dictionary or not (all[profile_id] as Dictionary).has(key):
 		return
 	var entry: Dictionary = (all[profile_id] as Dictionary).duplicate()
-	entry.erase(mode_key(mode))
+	entry.erase(key)
 	if entry.is_empty():
 		all.erase(profile_id)
 	else:

@@ -55,6 +55,10 @@ var group_resolver: Callable
 ## Anotaciones MCP que esta tool cambia respecto de las de su grupo (GROUP_HINTS): una tool del grupo
 ## read que manda un mensaje no es de solo lectura, una que consulta internet es openWorldHint.
 var hints: Dictionary = {}
+## Callable(args) -> PackedStringArray: las rutas res:// que escribe una llamada (m11-39), para los
+## modos del proyecto que limitan archivos. Una lista vacía: no escribe nada del proyecto. Sin él, una
+## tool de un grupo que escribe se rechaza en esos modos (no se puede revisar).
+var write_targets: Callable
 var envelope: int = ENVELOPE_NONE
 
 
@@ -82,6 +86,12 @@ func group_of(args: Dictionary) -> String:
 		if not resolved.is_empty():
 			return resolved
 	return group
+
+
+## `tool` con lo que escribe (ver write_targets); para encadenar.
+static func writing(tool: RefCounted, targets: Callable) -> RefCounted:
+	tool.write_targets = targets
+	return tool
 
 
 ## La tool con sobres para lo que devuelve (ENVELOPE_PARTS o ENVELOPE_ALL); para encadenar.

@@ -7,6 +7,7 @@ extends RefCounted
 ## EditorUndoRedoManager y devuelve el nombre del paso de undo.
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const SceneAccess := preload("scene_access.gd")
 const ValueCoercion := preload("value_coercion.gd")
 const EditorUndo := preload("../../editor/editor_undo.gd")
@@ -24,7 +25,7 @@ var on_action: Callable
 func tools() -> Array:
 	var scene := PermissionPolicy.GROUP_EDIT_SCENE
 	var files := PermissionPolicy.GROUP_EDIT_FILES
-	return [
+	return WriteTargets.declare([
 		McpTool.create("add_node", scene,
 			"Adds a node to the open scene (with undo). `type` is a Godot class or a project class_name. `properties` uses Inspector property names; vectors as [x, y], colors as \"#rrggbb\", resources as res:// paths.",
 			{
@@ -77,7 +78,17 @@ func tools() -> Array:
 			"Attaches a script (.gd, or .cs in the .NET editor) to a node (with undo). If the file does not exist, creates it: `extends <node type>`, or for C# a partial class named like the file that inherits the node type.",
 			{"node_path": {"type": "string"}, "script_path": {"type": "string"}, "scene": SCENE_ARG},
 			["node_path", "script_path"], _attach_script),
-	]
+	], {
+		"add_node": WriteTargets.scene, "add_nodes": WriteTargets.scene, "duplicate_node": WriteTargets.scene,
+		"set_properties": WriteTargets.scene, "remove_node": WriteTargets.scene, "reparent_node": WriteTargets.scene,
+		"rename_node": WriteTargets.scene, "connect_signal": WriteTargets.scene, "instantiate_scene": WriteTargets.scene,
+		"open_scene": WriteTargets.nothing,
+		"save_scene": func(args: Dictionary) -> PackedStringArray:
+			var path := WriteTargets.keys(args, ["path"])
+			return path if not path.is_empty() else WriteTargets.scene({}),
+		"create_scene": func(args: Dictionary) -> PackedStringArray: return WriteTargets.keys(args, ["path", "script_path"]),
+		"attach_script": func(args: Dictionary) -> PackedStringArray: return WriteTargets.scene(args) + WriteTargets.keys(args, ["script_path"]),
+	})
 
 
 # --- tools ---------------------------------------------------------------------------------------

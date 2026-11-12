@@ -6096,3 +6096,135 @@ msgstr "Último turno del agente: %d por revisar · %d conservados · %d rechaza
 
 msgid "The agent then reported this edit as failed, but the file was already written: %s"
 msgstr "Después el agente informó esta edición como fallida, pero el archivo ya se había escrito: %s"
+
+msgid "The mode must be a JSON object."
+msgstr "El modo tiene que ser un objeto JSON."
+
+msgid "«name» is missing."
+msgstr "Falta «name»."
+
+msgid "«name» is too long (at most %d characters)."
+msgstr "«name» es muy largo (como mucho %d caracteres)."
+
+msgid "«base» must be one of: %s."
+msgstr "«base» tiene que ser uno de: %s."
+
+msgid "«instructions» is too long (at most %d characters)."
+msgstr "«instructions» es muy largo (como mucho %d caracteres)."
+
+msgid "«editable» must be a list of res:// patterns."
+msgstr "«editable» tiene que ser una lista de patrones res://."
+
+msgid "must be text"
+msgstr "tiene que ser texto"
+
+msgid "«editable»: «%s» %s."
+msgstr "«editable»: «%s» %s."
+
+msgid "«editable» has too many patterns (at most %d)."
+msgstr "«editable» tiene demasiados patrones (como mucho %d)."
+
+msgid "«shell» must be one of: %s."
+msgstr "«shell» tiene que ser uno de: %s."
+
+msgid "is empty"
+msgstr "está vacío"
+
+msgid "must be a res:// path"
+msgstr "tiene que ser una ruta res://"
+
+msgid "can't use «..»"
+msgstr "no puede usar «..»"
+
+msgid "Another mode («%s») already has this name."
+msgstr "Otro modo («%s») ya tiene este nombre."
+
+msgid "The file is too big for a mode (more than %d KB)."
+msgstr "El archivo es muy grande para un modo (más de %d KB)."
+
+msgid "Based on %s"
+msgstr "Basado en %s"
+
+msgid "edits only %s"
+msgstr "edita solo %s"
+
+msgid "shell always asks"
+msgstr "la shell pregunta siempre"
+
+msgid "no shell"
+msgstr "sin shell"
+
+msgid "a file the harness can't see"
+msgstr "un archivo que el harness no ve"
+
+msgid "Rejected: mode «%s» only edits %s, and «%s» writes %s. Switch to another mode in the composer to edit it."
+msgstr "Rechazado: el modo «%s» solo edita %s, y «%s» escribe %s. Para editarlo, cambiá de modo en el composer."
+
+msgid "Project modes"
+msgstr "Modos del proyecto"
+
+msgid "Modes with their own name, instructions and the files they may edit, on top of Ask, Review, Build or Auto. One .json per mode in this project folder (shared through git); they show up in the composer's mode selector."
+msgstr "Modos con nombre propio, instrucciones y los archivos que pueden editar, sobre Preguntar, Revisar, Construir o Auto. Un .json por modo en esta carpeta del proyecto (se comparte por git); aparecen en el selector de modo del composer."
+
+msgid "The modes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_modes)."
+msgstr "La carpeta de modos tiene que ser una carpeta visible dentro del proyecto, fuera de addons/godot_agent (como res://agent_modes)."
+
+msgid "Level design"
+msgstr "Diseño de niveles"
+
+msgid "Shaders"
+msgstr "Shaders"
+
+msgid "Tests only"
+msgstr "Solo tests"
+
+msgid "Denied by the project mode"
+msgstr "Denegado por el modo del proyecto"
+
+msgid "- %s · project mode «%s»"
+msgstr "- %s · modo del proyecto «%s»"
+
+msgid "Modes (%d)"
+msgstr "Modos (%d)"
+
+msgid "Modes with their own name, instructions and the files they may edit, on top of Ask, Review, Build or Auto. One .json per mode in the project's modes folder, shared through git. Pick them in the composer's mode selector."
+msgstr "Modos con nombre propio, instrucciones y los archivos que pueden editar, sobre Preguntar, Revisar, Construir o Auto. Un .json por modo en la carpeta de modos del proyecto, compartida por git. Se eligen en el selector de modo del composer."
+
+msgid "A new mode from a template, saved in the modes folder."
+msgstr "Un modo nuevo desde una plantilla, guardado en la carpeta de modos."
+
+msgid "Switch the agent dock to this mode."
+msgstr "Pasa el dock del agente a este modo."
+
+msgid "No modes in %s yet. «New mode» copies a template there."
+msgstr "Todavía no hay modos en %s. «Nuevo modo» copia una plantilla ahí."
+
+msgid "New mode"
+msgstr "Nuevo modo"
+
+msgid "Save or revert «%s» before opening another mode."
+msgstr "Guardá o revertí «%s» antes de abrir otro modo."
+
+msgid "✓ The mode is valid."
+msgstr "✓ El modo es válido."
+
+msgid "Save a valid mode first."
+msgstr "Primero guardá un modo válido."
+
+msgid "Builder's project mode"
+msgstr "Modo del proyecto del constructor"
+
+msgid "A project mode for the agent that builds and fixes: its files and instructions apply; the evaluator and QA work as always."
+msgstr "Un modo del proyecto para el agente que construye y arregla: valen sus archivos e instrucciones; el evaluador y QA trabajan como siempre."
+
+msgid "The builder only edits %s. Shell commands, project tools and other MCP servers are denied: nobody answers cards in One-shot."
+msgstr "El constructor solo edita %s. Se deniegan los comandos de shell, las project tools y los otros servidores MCP: en One-shot nadie contesta tarjetas."
+
+msgid "The builder only edits %s."
+msgstr "El constructor solo edita %s."
+
+msgid "Shell commands are denied."
+msgstr "Se deniegan los comandos de shell."
+
+msgid "%s (project mode)"
+msgstr "%s (modo del proyecto)"

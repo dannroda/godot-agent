@@ -34,6 +34,7 @@ checks:ci:150
 ask-menu:ci:120
 hooks:ci:120
 turn-marks:ci:120
+ui-modes:ci:150
 second-opinion:ci:120
 instances:ci:150
 bake:ci:150

@@ -164,6 +164,28 @@ func list() -> Array:
 	return result
 
 
+## Grupos cuyas tools escriben el proyecto: en un modo del proyecto con archivos limitados (m11-39),
+## cada una tiene que declarar write_targets o se rechaza.
+const WRITE_GROUPS: PackedStringArray = [PermissionPolicy.GROUP_EDIT_SCENE, PermissionPolicy.GROUP_EDIT_FILES, PermissionPolicy.GROUP_PROJECT, PermissionPolicy.GROUP_ADDONS]
+
+
+## Las rutas que escribe `tool_name` con `args` (m11-39): `{declared, paths}`. `declared` false si la
+## tool escribe (por su grupo) pero no dice dónde: no se puede revisar. Una tool que no escribe y no
+## declara nada: declared true, sin rutas.
+func write_targets(tool_name: String, args: Dictionary) -> Dictionary:
+	var tool: McpTool = _tools.get(tool_name)
+	if tool == null:
+		return {"declared": false, "paths": PackedStringArray()}
+	if tool.write_targets.is_valid():
+		var paths: Variant = tool.write_targets.call(args)
+		var result: PackedStringArray = []
+		for path: Variant in (paths if paths is PackedStringArray or paths is Array else []):
+			if path is String and not str(path).is_empty() and not str(path) in result:
+				result.append(str(path))
+		return {"declared": true, "paths": result}
+	return {"declared": not tool.group in WRITE_GROUPS, "paths": PackedStringArray()}
+
+
 ## Grupo de permisos de una tool, o "" si no existe.
 func group_of(tool_name: String) -> String:
 	var tool: McpTool = _tools.get(tool_name)

@@ -11,6 +11,7 @@ extends RefCounted
 ##   el historial de deshacer: el informe dice qué archivos escribió.
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SceneAccess := preload("scene_access.gd")
 const EditorUndo := preload("../../editor/editor_undo.gd")
@@ -32,14 +33,14 @@ var on_action: Callable
 
 
 func tools() -> Array:
-	return [
+	return WriteTargets.declare([
 		McpTool.create("bake", PermissionPolicy.GROUP_EDIT_SCENE,
 			"Bake the open scene: `navigation` rebuilds the navigation of NavigationRegion2D/3D nodes from their geometry (do it after adding or moving level geometry; undoable), `lightmaps` bakes LightmapGI nodes (the scene must be saved; needs the Forward+ or Mobile renderer; writes a .lmbake and .exr files next to the scene) and `occluders` bakes OccluderInstance3D nodes (the scene must be saved; writes a .occ file). Lightmaps and occluders use the editor's own Bake button and, as in the editor, are not undoable. Without `path`, every node of that kind in the scene.",
 			{
 				"kind": {"type": "string", "enum": Array(KINDS), "description": "What to bake"},
 				"path": {"type": "string", "description": "Node path of one region, LightmapGI or OccluderInstance3D, relative to the scene root (default: all of them)"},
 			}, ["kind"], _bake),
-	]
+	], {"bake": written_paths})
 
 
 func _bake(args: Dictionary) -> Dictionary:
@@ -222,6 +223,28 @@ func press_bake_button(node: Node, kind: String) -> Dictionary:
 	if not message.is_empty():
 		written.append("(the editor said: %s)" % message)
 	return {"files": written}
+
+
+## Lo que escribe un horneado (m11-39): la escena abierta, el recurso del nodo si es un archivo propio y,
+## para luces y oclusores, el archivo que propone el editor junto a la escena.
+static func written_paths(args: Dictionary) -> PackedStringArray:
+	var result := WriteTargets.scene({})
+	var root: Node = EditorInterface.get_edited_scene_root() if Engine.is_editor_hint() else null
+	var kind := McpTool.str_arg(args, "kind")
+	if root == null or not kind in KINDS:
+		return result
+	for node: Node in targets(root, kind, McpTool.str_arg(args, "path")):
+		var data: Variant
+		match kind:
+			KIND_NAVIGATION: data = node.get(&"navigation_mesh") if node is NavigationRegion3D else node.get(&"navigation_polygon")
+			KIND_LIGHTMAPS: data = node.get(&"light_data")
+			_: data = node.get(&"occluder")
+		var file := WriteTargets.resource_file(data as Resource) if data is Resource else ""
+		if not file.is_empty():
+			result.append(file)
+		if kind != KIND_NAVIGATION and not default_file(node, kind).is_empty():
+			result.append(default_file(node, kind))
+	return result
 
 
 ## Lo que propone el editor al hornear por primera vez: la escena con .lmbake u .occ.

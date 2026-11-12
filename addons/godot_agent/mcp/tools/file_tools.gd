@@ -9,6 +9,7 @@ extends RefCounted
 ## - Borrar: se niega si algo lo referencia o si es una escena abierta; va a la papelera si se puede.
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const FsHandler := preload("../../acp/fs_handler.gd")
 const ProtectedPaths := preload("../../core/protected_paths.gd")
@@ -35,7 +36,7 @@ func tools() -> Array:
 	# shell (en Auto, pregunta), no como editar archivos (revisión de seguridad, M11).
 	copy.group_resolver = func(args: Dictionary) -> String:
 		return files if str(args.get("from", "")).strip_edges().begins_with("res://") else PermissionPolicy.GROUP_SHELL
-	return [
+	return WriteTargets.declare([
 		McpTool.create("move_file", files,
 			"Moves or renames a file or folder inside the project, like the editor's FileSystem dock: keeps the uid, moves the .uid/.import companions and rewrites every res:// reference in scenes, resources, scripts, shaders and project.godot, and the relative paths of scripts (preload, load, extends). If a file cannot be updated, the result says PARTIAL and lists it. Use it instead of mv (the harness rejects mv/cp/rm on project files). Not undoable from the editor.",
 			{"from": {"type": "string"}, "to": {"type": "string", "description": "New res:// path (for a folder, the new folder path)"}},
@@ -45,7 +46,11 @@ func tools() -> Array:
 			"Deletes a file or folder of the project (to the system trash when possible), with its .uid/.import. Refuses if another file still references it (and lists them) or if it is an open scene: fix those references first.",
 			{"path": {"type": "string"}},
 			["path"], _delete_file),
-	]
+	], {
+		"copy_file": func(args: Dictionary) -> PackedStringArray: return WriteTargets.keys(args, ["to"]),
+		"move_file": func(args: Dictionary) -> PackedStringArray: return WriteTargets.keys(args, ["from", "to"]),
+		"delete_file": func(args: Dictionary) -> PackedStringArray: return WriteTargets.keys(args, ["path"]),
+	})
 
 
 # --- tools ---------------------------------------------------------------------------------------

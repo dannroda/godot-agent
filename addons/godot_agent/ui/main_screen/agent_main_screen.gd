@@ -19,6 +19,8 @@ const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
 const ImageViewer := preload("../image_viewer.gd")
 const RunReport := preload("../../oneshot/run_report.gd")
 const I18n := preload("../../core/i18n.gd")
+const ProjectModes := preload("../../core/project_modes.gd")
+const ProjectConfigRes := preload("../../config/project_config.gd")
 
 const BUDGET_KEYS: PackedStringArray = [OneShotRun.BUDGET_TIME, OneShotRun.BUDGET_TOKENS, OneShotRun.BUDGET_PLAYTESTS]
 const ACTIVITY_COLORS: Dictionary = {
@@ -95,6 +97,12 @@ var _references_dialog: EditorFileDialog
 var _budget_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
 var _spec_check: CheckBox
+## El modo del proyecto del constructor (m11-39): «Sin modo del proyecto» y los del proyecto.
+var _builder_mode_button: OptionButton
+var _builder_mode_note: Label
+var _builder_modes: Array[Dictionary] = []
+## La carpeta de modos ("" = la de project_config). Para las pruebas.
+var modes_dir: String = ""
 var _spec_button: Button
 ## Spec, progreso y QA del run (D41): el spec se edita, el resto se lee.
 var _files_dialog: ConfirmationDialog
@@ -369,6 +377,27 @@ func _build_form() -> void:
 	_spec_check.button_pressed = bool(_defaults.get("spec_review", false))
 	_spec_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_side_column.add_child(_spec_check)
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	_side_column.add_child(mode_row)
+	var mode_label := Label.new()
+	mode_label.text = I18n.t("Builder's project mode")
+	mode_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	mode_row.add_child(mode_label)
+	_builder_mode_button = OptionButton.new()
+	_builder_mode_button.name = "BuilderMode"
+	_builder_mode_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_builder_mode_button.fit_to_longest_item = false
+	_builder_mode_button.item_selected.connect(func(_index: int) -> void: _update_builder_mode_note())
+	mode_row.add_child(_builder_mode_button)
+	_builder_mode_note = Label.new()
+	_builder_mode_note.name = "BuilderModeNote"
+	_builder_mode_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_builder_mode_note.add_theme_color_override(&"font_color", AgentTheme.WARNING)
+	_side_column.add_child(_builder_mode_note)
+	refresh_builder_modes()
+	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem() and not EditorInterface.get_resource_filesystem().filesystem_changed.is_connected(refresh_builder_modes):
+		EditorInterface.get_resource_filesystem().filesystem_changed.connect(refresh_builder_modes)
 	_form_rule = Label.new()
 	_form_rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_form_rule.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -1214,7 +1243,63 @@ func _drop_references(position: Vector2, data: Variant) -> void:
 		add_references(data.files)
 
 
+## Vuelve a leer los modos del proyecto para el selector del constructor (m11-39); el elegido sigue si
+## todavía está.
+func refresh_builder_modes() -> void:
+	if _builder_mode_button == null:
+		return
+	var previous := str(selected_builder_mode().get("slug", ""))
+	var dir := modes_dir if not modes_dir.is_empty() else ProjectModes.resolve_dir(str(ProjectConfigRes.load_or_default().get(&"modes_dir")))
+	_builder_modes = ProjectModes.usable(ProjectModes.load_dir(dir))
+	_builder_mode_button.clear()
+	_builder_mode_button.add_item(I18n.t("None"), 0)
+	for index: int in _builder_modes.size():
+		var mode: Dictionary = _builder_modes[index]
+		_builder_mode_button.add_item(str(mode.name), index + 1)
+		_builder_mode_button.set_item_tooltip(index + 1, ProjectModes.summary(mode, I18n.t("One-shot")))
+		if mode.slug == previous:
+			_builder_mode_button.select(index + 1)
+	_builder_mode_button.tooltip_text = I18n.t("A project mode for the agent that builds and fixes: its files and instructions apply; the evaluator and QA work as always.")
+	_builder_mode_button.get_parent().visible = not _builder_modes.is_empty()
+	_update_builder_mode_note()
+
+
+## El modo elegido para el constructor, o {}.
+func selected_builder_mode() -> Dictionary:
+	if _builder_mode_button == null or _builder_mode_button.selected <= 0:
+		return {}
+	var index := _builder_mode_button.get_item_id(_builder_mode_button.selected) - 1
+	return _builder_modes[index] if index >= 0 and index < _builder_modes.size() else {}
+
+
+## Elige el modo del constructor por slug o nombre (para las pruebas); false si no está.
+func choose_builder_mode(name: String) -> bool:
+	var mode := ProjectModes.find(_builder_modes, name)
+	if mode.is_empty():
+		return false
+	_builder_mode_button.select(_builder_modes.find(mode) + 1)
+	_update_builder_mode_note()
+	return true
+
+
+## Una línea con lo que el modo niega en One-shot (m11-39): sin sorpresas a mitad del run.
+func _update_builder_mode_note() -> void:
+	_builder_mode_note.text = builder_mode_note(selected_builder_mode())
+	_builder_mode_note.visible = not _builder_mode_note.text.is_empty()
+
+
+static func builder_mode_note(mode: Dictionary) -> String:
+	if mode.is_empty():
+		return ""
+	if ProjectModes.shell_always_asks(mode):
+		return I18n.t("The builder only edits %s. Shell commands, project tools and other MCP servers are denied: nobody answers cards in One-shot.") % ", ".join(mode.editable)
+	if ProjectModes.limits_files(mode):
+		return I18n.t("The builder only edits %s.") % ", ".join(mode.editable) + (" " + I18n.t("Shell commands are denied.") if ProjectModes.shell_denied(mode) else "")
+	return I18n.t("Shell commands are denied.") if ProjectModes.shell_denied(mode) else ""
+
+
 func _on_start_pressed() -> void:
+	refresh_builder_modes()
 	if not start_blocker(str(agent_name.call()), _goal_edit.text, _run.is_active()).is_empty():
 		return
 	_start_button.disabled = true
@@ -1242,6 +1327,7 @@ func _start_run() -> void:
 	_checks_signature = ""
 	_show_form = false
 	var goal := _goal_edit.text
+	_run.builder_mode = selected_builder_mode()
 	var started: bool = await _run.start(goal, budgets, _checkpoints_check.button_pressed, _spec_check.button_pressed, _references)
 	if started:
 		_goal_edit.text = ""

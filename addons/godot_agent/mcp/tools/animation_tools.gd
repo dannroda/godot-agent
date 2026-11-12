@@ -7,6 +7,7 @@ extends RefCounted
 ## original en su AnimationLibrary (y al revés). SpriteFrames se restaura cuadro por cuadro.
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const UntrustedText := preload("../untrusted_text.gd")
 const SceneAccess := preload("scene_access.gd")
 const ValueCoercion := preload("value_coercion.gd")
@@ -30,7 +31,7 @@ var on_action: Callable
 
 func tools() -> Array:
 	var scene := PermissionPolicy.GROUP_EDIT_SCENE
-	return [
+	return WriteTargets.declare([
 		McpTool.enveloped(McpTool.create("animation_get", PermissionPolicy.GROUP_READ,
 			"Reads an AnimationPlayer (libraries, animations with length, loop and tracks) or an AnimatedSprite2D/3D (SpriteFrames animations). With `animation`, every key of that animation.",
 			{"node_path": {"type": "string"}, "animation": {"type": "string"}, "scene": SCENE_ARG}, ["node_path"], _animation_get), McpTool.ENVELOPE_ALL),
@@ -59,7 +60,11 @@ func tools() -> Array:
 				"sheet": {"type": "object"}, "fps": {"type": "number"}, "loop": {"type": "boolean"},
 				"autoplay": {"type": "boolean"}, "scene": SCENE_ARG,
 			}, ["node_path", "animation"], _sprite_frames_set),
-	]
+	], {
+		"animation_create": _animation_targets, "animation_remove": _animation_targets, "animation_set_track": _animation_targets,
+		"sprite_frames_set": func(args: Dictionary) -> PackedStringArray:
+			return WriteTargets.scene_and_resource(args, func(node: Node, _args: Dictionary) -> Variant: return node.get(&"sprite_frames")),
+	})
 
 
 # --- tools ---------------------------------------------------------------------------------------
@@ -313,6 +318,20 @@ func _node(args: Dictionary, classes: Array) -> Dictionary:
 		if node.is_class(type):
 			return {"node": node, "root": root}
 	return {"error": "%s is %s; expected %s." % [UntrustedText.wrap(node.name), node.get_class(), " or ".join(PackedStringArray(classes))]}
+
+
+## Lo que escribe una tool de animaciones (m11-39): la escena y, si son archivos propios, la biblioteca y
+## la animación (se guardan aparte, ver _commit).
+static func _animation_targets(args: Dictionary) -> PackedStringArray:
+	return WriteTargets.scene_and_resource(args, func(node: Node, call_args: Dictionary) -> Variant:
+		var player := node as AnimationPlayer
+		if player == null:
+			return null
+		var names := _split_name(str(call_args.get("animation", call_args.get("name", ""))))
+		if not player.has_animation_library(names.library):
+			return null
+		var library := player.get_animation_library(names.library)
+		return [library, library.get_animation(names.anim) if library.has_animation(names.anim) else null])
 
 
 static func _split_name(text: String) -> Dictionary:

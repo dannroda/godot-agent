@@ -24,6 +24,7 @@ signal controller_changed
 
 const SessionController := preload("../session/session_controller.gd")
 const SessionModel := preload("../session/session_model.gd")
+const ProjectModes := preload("../core/project_modes.gd")
 const ChatEntry := preload("../session/chat_entry.gd")
 const ToolCall := preload("../session/tool_call.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
@@ -189,6 +190,9 @@ var criteria: Array[Dictionary] = GameCriteria.resolve()
 var files := OneShotFiles.new()
 ## El agente escribe el spec y espera «Aprobar spec» antes de construir.
 var spec_review: bool = false
+## El modo del proyecto del constructor (m11-39), como se leyó al empezar, o {}. Se aplica al build y
+## al arreglo; el evaluador y el QA siguen como siempre. Lo que el modo haría preguntar se niega.
+var builder_mode: Dictionary = {}
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
 ## Vueltas de QA (D55); 0 = sin evaluador: valen los checks que reporta el agente.
@@ -314,7 +318,7 @@ func bind(session_controller: SessionController) -> void:
 
 
 func _connect_model(on: bool) -> void:
-	var pairs := [[model.plan_changed, _on_plan_changed], [model.tool_call_changed, _on_tool_call_changed], [model.permission_requested, _on_permission_requested]]
+	var pairs := [[model.plan_changed, _on_plan_changed], [model.tool_call_changed, _on_tool_call_changed], [model.permission_requested, _on_permission_requested], [model.project_mode_denied, _on_project_mode_denied]]
 	for pair: Array in pairs:
 		var sig: Signal = pair[0]
 		if on and not sig.is_connected(pair[1]):
@@ -461,6 +465,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 		_add_activity("warning", I18n.t("Remote Control turned off: One-shot runs on its own."))
 		await controller.send_prompt(_harness(controller.remote_control_command(false), HarnessPrompts.ONESHOT_REMOTE_OFF))
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+	_apply_builder_mode()
 	_set_phase(RunPhase.RUNNING)
 	_timer.start()
 	_run_turn(_harness(initial_prompt(), HarnessPrompts.ONESHOT_START))
@@ -543,6 +548,7 @@ func resume() -> void:
 			return
 		_recovered_session_id = ""
 		model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+		_apply_builder_mode()
 		var why := _reopen_reason if not _reopen_reason.is_empty() else ("editor" if from_disk else "lost")
 		_reopen_reason = ""
 		if not lost_id.is_empty() and model.session_id == lost_id:
@@ -972,6 +978,7 @@ func _finish(reason: String) -> void:
 	_recovered_session_id = ""
 	_add_activity("status", reason)
 	_set_phase(RunPhase.FINISHED)
+	model.set_project_mode({}, true)  # la pestaña vuelve a ser la de siempre
 	store.prune()
 	_write_report()
 
@@ -982,6 +989,7 @@ func _write_report() -> void:
 		"id": run_id, "goal": goal, "finish_reason": finish_reason, "duration_ms": _elapsed_ms(),
 		"budgets": budgets.duplicate(), "used": used.duplicate(), "checks": checks.duplicate(true),
 		"files_dir": files.relative_dir(), "qa": qa_results.duplicate(true),
+		"builder_mode": str(builder_mode.get("name", "")),
 	}
 	# changes_summary espera la cola de git: después, los checkpoints en curso ya están en la lista.
 	data["changes"] = await changes_summary() if checkpoints_enabled else {}
@@ -1296,6 +1304,7 @@ func _evaluate() -> void:
 		_generator_session_id = model.session_id
 	controller.policy.restrictions = QA_RESTRICTIONS.duplicate()
 	controller.mode_rules_override = QA_MODE_RULES
+	model.set_project_mode({}, true)  # el evaluador, como siempre
 	var opened: bool = await controller.open_session_keeping_previous()
 	if not is_inside_tree() or phase != RunPhase.EVALUATING:
 		_end_qa_role()
@@ -1522,6 +1531,7 @@ func _back_to_generator() -> String:
 		_add_activity("warning", I18n.t("Couldn't go back to the builder's session"))
 		return "failed"
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+	_apply_builder_mode()
 	if model.session_id == session_id:
 		_add_activity("session", I18n.t("Back to the builder's session"))
 		return "loaded"
@@ -1532,6 +1542,16 @@ func _back_to_generator() -> String:
 func _end_qa_role() -> void:
 	controller.policy.restrictions = {}
 	controller.mode_rules_override = ""
+
+
+## Pone la capa del modo del proyecto del constructor (m11-39), sin cambiar el modo One-shot.
+func _apply_builder_mode() -> void:
+	model.set_project_mode(builder_mode, true)
+
+
+func _on_project_mode_denied(what: String, mode_name: String) -> void:
+	if is_active():
+		report.add_mode_denial(what, mode_name)
 
 
 ## La sesión que se guarda para retomar: la del agente que construye, también mientras evalúa.
@@ -1598,6 +1618,7 @@ func to_dict() -> Dictionary:
 		"warned": _warned,
 		"pause_note": pause_note,
 		"spec_review": spec_review,
+		"builder_mode": builder_mode,
 		"stage": RunStage.keys()[_stage],
 		"qa_round": qa_round,
 		"qa_results": qa_results,
@@ -1606,6 +1627,18 @@ func to_dict() -> Dictionary:
 		"elapsed_ms": _elapsed_ms(),
 		"capture_caption": last_capture_caption,
 	}
+
+
+## El modo del constructor guardado: del JSON vuelve con listas comunes, así que se normaliza como un
+## modo leído (m11-39). Uno roto o ausente queda en {} (sin capa).
+static func saved_builder_mode(saved: Variant) -> Dictionary:
+	if not saved is Dictionary or (saved as Dictionary).is_empty():
+		return {}
+	var fields: Dictionary = (saved as Dictionary).duplicate()
+	var path := str(fields.get("path", ""))
+	for key: String in ["path", "slug"]:
+		fields.erase(key)
+	return ProjectModes.from_data(fields, path).mode
 
 
 func _apply(data: Dictionary) -> void:
@@ -1640,6 +1673,7 @@ func _apply(data: Dictionary) -> void:
 	pause_note = str(data.get("pause_note", ""))
 	files.run_id = run_id
 	spec_review = bool(data.get("spec_review", false))
+	builder_mode = saved_builder_mode(data.get("builder_mode", {}))
 	_set_stage(_saved_stage(data), true)
 	qa_round = int(data.get("qa_round", 0))
 	qa_results.assign(data.get("qa_results", []))

@@ -214,7 +214,10 @@ func describe(caller: String, model_of: Callable) -> String:
 			continue
 		var model: SessionModel = model_of.call(id)
 		var state := "working" if model.is_busy() else ("idle" if model.state == SessionModel.SessionState.READY else "not connected")
-		var line := "- «%s» · %s mode · %s" % [label(id), SessionModel.HARNESS_MODE_LABELS[model.harness_mode], state]
+		var mode_name: String = SessionModel.HARNESS_MODE_LABELS[model.harness_mode]
+		if not model.project_mode.is_empty():
+			mode_name = "%s (project mode based on %s)" % [model.project_mode.name, mode_name]
+		var line := "- «%s» · %s mode · %s" % [label(id), mode_name, state]
 		if _copies.has(id):
 			line += " · in a separate copy of the project (branch %s)" % _copies[id]
 		if not model.title.strip_edges().is_empty():

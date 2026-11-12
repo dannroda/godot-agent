@@ -6,6 +6,7 @@ extends RefCounted
 ## plugin_enable (grupo project). addons_list con `check_updates` avisa de versiones nuevas.
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const UntrustedText := preload("../untrusted_text.gd")
 const AssetStore := preload("../../core/asset_store.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -43,7 +44,7 @@ func tools() -> Array:
 		{"plugin": {"type": "string"}, "enabled": {"type": "boolean"}}, ["plugin", "enabled"], _plugin_enable)
 	enable.describer = func(args: Dictionary) -> String:
 		return "%s %s" % ["enable" if args.get("enabled", true) else "disable", McpTool.str_arg(args, "plugin")]
-	return [
+	return WriteTargets.declare([
 		# Leen la Asset Store por internet (m11-47: openWorldHint).
 		McpTool.enveloped(McpTool.with_hints(McpTool.create("asset_search", read,
 			"Searches the Godot Asset Store (store.godotengine.org) for assets compatible with this Godot version: addons, tools, shaders, art packs… Use it to suggest a plugin before writing one from scratch. Returns ids (publisher/slug) for asset_details and asset_install.",
@@ -60,7 +61,7 @@ func tools() -> Array:
 			"Lists the editor plugins in the project's addons/ folder with their version and whether they're enabled. With check_updates, also asks the Asset Store for newer releases (for plugins installed by hand it matches the asset by name, so check it with asset_details before updating).",
 			{"check_updates": {"type": "boolean"}}, [], _addons_list), ONLINE), McpTool.ENVELOPE_ALL),
 		enable,
-	]
+	], {"plugin_enable": WriteTargets.project_settings})
 
 
 func _search(args: Dictionary) -> Dictionary:

@@ -67,6 +67,7 @@ const CHIP_HANDOFF := "handoff"
 const Handoff := preload("../../session/handoff.gd")
 const ContextWatch := preload("../../session/context_watch.gd")
 const Recipes := preload("../../core/recipes.gd")
+const ProjectModes := preload("../../core/project_modes.gd")
 const RecipeForm := preload("recipe_form.gd")
 const ProjectConfig := preload("../../config/project_config.gd")
 ## El chip de la receta lanzada (m11-30): lleva sus checks hasta que sale el mensaje.
@@ -222,6 +223,12 @@ var _recipe_form: RecipeForm
 var _recipe_menu: PopupMenu
 ## La carpeta de recetas; vacía, la de project_config (las pruebas la cambian).
 var recipes_dir: String = ""
+## La carpeta de modos del proyecto ("" = la de project_config). Para las pruebas.
+var modes_dir: String = ""
+## Los modos del proyecto que se pueden elegir (m11-39), en el orden del selector.
+var _project_modes: Array[Dictionary] = []
+## Los ids del selector de modos para los modos del proyecto: PROJECT_MODE_ID + su índice.
+const PROJECT_MODE_ID := 100
 var _context_watch := ContextWatch.new()
 var _handoff_banner: PanelContainer
 var _handoff_banner_label: Label
@@ -340,6 +347,7 @@ func _ready() -> void:
 	load_recipes.call_deferred()
 	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem():
 		EditorInterface.get_resource_filesystem().filesystem_changed.connect(load_recipes)
+		EditorInterface.get_resource_filesystem().filesystem_changed.connect(load_project_modes)
 	_composer.handoff_requested.connect(func() -> void: request_handoff())
 	_composer.remember_available = true
 	_composer.cancel_requested.connect(_on_cancel_requested)
@@ -603,13 +611,67 @@ func _build_header() -> void:
 ## El modo va en un dropdown de la fila del composer, al lado del modelo (m7-32): los cinco botones
 ## ocupaban una o dos filas arriba de la conversación.
 func _build_mode_selector() -> void:
+	_project_modes = ProjectModes.usable(ProjectModes.load_dir(_modes_dir()))
+	_apply_mode_items()
+	_composer.mode_selected.connect(_on_mode_selected)
+	_model.project_mode_changed.connect(func(_mode: Dictionary) -> void: _refresh_modes())
+
+
+## Los modos fijos y, después de un separador, los del proyecto (m11-39) con «Nombre (Base)».
+func _apply_mode_items() -> void:
 	var modes: Array[Dictionary] = []
 	for mode: SessionModel.HarnessMode in SessionModel.HARNESS_MODE_LABELS:
 		if mode == SessionModel.HarnessMode.ONESHOT and not allow_oneshot:
 			continue
 		modes.append({"id": mode, "label": I18n.t(SessionModel.HARNESS_MODE_LABELS[mode]), "tooltip": I18n.t(MODE_TOOLTIPS[mode])})
+	if not _project_modes.is_empty():
+		modes.append({"separator": I18n.t("Project modes")})
+	for index: int in _project_modes.size():
+		var mode: Dictionary = _project_modes[index]
+		var base := _project_base_label(mode)
+		modes.append({"id": PROJECT_MODE_ID + index, "label": ProjectModes.label(mode, base), "tooltip": ProjectModes.summary(mode, base), "icon": str(mode.get("icon", ""))})
 	_composer.set_modes(modes)
-	_composer.mode_selected.connect(func(mode: int) -> void: _model.set_harness_mode(mode as SessionModel.HarnessMode))
+
+
+## El base para mostrar: el del modo activo si el harness lo cambió (aprobar un plan), si no el del .json.
+func _project_base_label(mode: Dictionary) -> String:
+	if not _model.project_mode.is_empty() and _model.project_mode.get("path") == mode.get("path"):
+		return I18n.t(SessionModel.HARNESS_MODE_LABELS[_model.harness_mode])
+	return I18n.t(SessionModel.HARNESS_MODE_LABELS[SessionModel.BASE_MODES.get(str(mode.base), SessionModel.HarnessMode.ASK)])
+
+
+func _on_mode_selected(id: int) -> void:
+	if id >= PROJECT_MODE_ID and id - PROJECT_MODE_ID < _project_modes.size():
+		_model.set_project_mode(_project_modes[id - PROJECT_MODE_ID])
+		return
+	_model.set_project_mode({})
+	_model.set_harness_mode(id as SessionModel.HarnessMode)
+
+
+## Vuelve a leer los modos del proyecto (al cambiar archivos). El modo activo sigue como se eligió:
+## un cambio en su .json vale al volver a elegirlo.
+func load_project_modes() -> Array[Dictionary]:
+	var loaded := ProjectModes.load_dir(_modes_dir())
+	_project_modes = ProjectModes.usable(loaded)
+	if _composer:
+		_apply_mode_items()
+		_refresh_modes()
+	return loaded
+
+
+func _modes_dir() -> String:
+	if not modes_dir.is_empty():
+		return modes_dir
+	return ProjectModes.resolve_dir(str(ProjectConfig.load_or_default().get(&"modes_dir")))
+
+
+## Elige el modo del proyecto `name` (slug o nombre) como si lo hiciera el usuario; false si no está.
+func choose_project_mode(name: String) -> bool:
+	var mode := ProjectModes.find(_project_modes, name)
+	if mode.is_empty():
+		return false
+	_composer.choose_mode(PROJECT_MODE_ID + _project_modes.find(mode))
+	return true
 
 
 ## Remote Control (m7-21): la franja va debajo del header; se prende desde «⋯».
@@ -746,7 +808,12 @@ func _confirm_logout() -> void:
 
 func _refresh_modes() -> void:
 	if _composer:
-		_composer.set_current_mode(_model.harness_mode)
+		var current: int = _model.harness_mode
+		if not _model.project_mode.is_empty():
+			_apply_mode_items()  # el base del activo pudo cambiar
+			var index := _project_modes.find(ProjectModes.find(_project_modes, str(_model.project_mode.slug)))
+			current = PROJECT_MODE_ID + index if index >= 0 else -1
+		_composer.set_current_mode(current)
 		_refresh_plan_button()
 	if _review_panel:
 		_review_panel.visible = _model.harness_mode == SessionModel.HarnessMode.REVIEW
