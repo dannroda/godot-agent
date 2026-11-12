@@ -184,7 +184,20 @@ static func mcp_server_of(tool_call: Dictionary) -> String:
 		var server := ExternalMcpServers.server_of_tool(meta.claudeCode.toolName)
 		if not server.is_empty():
 			return server
-	return ExternalMcpServers.server_of_tool(str(tool_call.get("title", "")))
+	var by_title := ExternalMcpServers.server_of_tool(str(tool_call.get("title", "")))
+	if not by_title.is_empty():
+		return by_title
+	# Antigravity (m18-02) titula `<server>_<tool>` y dice el server en _meta.mcp.
+	var server := _meta_mcp_server(tool_call)
+	return "" if server == ExternalMcpServers.RESERVED_NAME else server
+
+
+## El server de `_meta.mcp.server` (Antigravity), o "".
+static func _meta_mcp_server(tool_call: Dictionary) -> String:
+	var meta: Variant = tool_call.get("_meta")
+	if meta is Dictionary and meta.get("mcp") is Dictionary:
+		return str(meta.mcp.get("server", ""))
+	return ""
 
 
 static func mcp_group(server: String) -> String:
@@ -205,7 +218,7 @@ static func group_label(group: String) -> String:
 ## true si el tool call es una tool del server MCP del addon: el permiso lo decide el server.
 static func is_godot_mcp_tool(tool_call: Dictionary) -> bool:
 	var title := str(tool_call.get("title", ""))
-	return title.begins_with("mcp__godot__") or title.begins_with("godot.")
+	return title.begins_with("mcp__godot__") or title.begins_with("godot.") or _meta_mcp_server(tool_call) == ExternalMcpServers.RESERVED_NAME
 
 
 ## Un mensaje de una sesión en `from_mode` a otra en `to_mode` le daría más permisos de los que tiene

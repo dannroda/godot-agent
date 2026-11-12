@@ -110,6 +110,7 @@ const CLAUDE_MCP_ARG := "--godot-agent-claude-mcp-test"
 const McpCheck := preload("mcp_check.gd")
 const PendingCheck := preload("pending_check.gd")
 const PlanCheck := preload("plan_check.gd")
+const AgyTourCheck := preload("agy_tour_check.gd")
 const HandoffCheck := preload("handoff_check.gd")
 const MemoryCheck := preload("memory_check.gd")
 const RecipeCheck := preload("recipe_check.gd")
@@ -203,6 +204,8 @@ const INSTANCES_ARG := "--godot-agent-instances-test"
 const CLAUDE_PLAN_ARG := "--godot-agent-claude-plan-test"
 ## m11-58 con Antigravity real (sin modo plan; gasta tokens).
 const AGY_PLAN_ARG := "--godot-agent-antigravity-plan-test"
+## m18-02: recorrido de una sesión con Antigravity (gasta tokens). AGY_TOUR_WRAP/AGY_TOUR_LOG para registrar ACP y MCP.
+const AGY_TOUR_ARG := "--godot-agent-antigravity-tour"
 const RemoteCheck := preload("remote_check.gd")
 const PROFILE_ARG := "--godot-agent-profile-test"
 const ProfileCheck := preload("profile_check.gd")
@@ -299,6 +302,8 @@ func _enter_tree() -> void:
 		_run_plan_test.call_deferred(true)
 	if AGY_PLAN_ARG in args:
 		_run_plan_test.call_deferred(true, true)
+	if AGY_TOUR_ARG in args:
+		_run_agy_tour.call_deferred()
 	if CLAUDE_REVIEW_ARG in args:
 		_run_review_test.call_deferred(true)
 	for arg: String in args:
@@ -816,6 +821,19 @@ func _run_plan_test(real_claude: bool = false, antigravity: bool = false) -> voi
 	for failure: String in failures:
 		print("[plan-check] FALLA ", failure)
 	_finish_checking_state(0 if failures.is_empty() else 1, "plan-test: %d fallas" % failures.size(), "plan-test")
+
+
+func _run_agy_tour() -> void:
+	get_tree().create_timer(CLAUDE_TIMEOUT_S * 8).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var dock := _find_dock()
+	if dock == null:
+		_finish(1, "no se encontró el dock")
+		return
+	var failures := _failures(await AgyTourCheck.new().run_tour(get_tree(), dock))
+	for failure: String in failures:
+		print("[agy-tour] FALLA ", failure)
+	_finish_checking_state(0 if failures.is_empty() else 1, "agy-tour: %d fallas" % failures.size(), "agy-tour")
 
 
 func _run_oneshot_test() -> void:

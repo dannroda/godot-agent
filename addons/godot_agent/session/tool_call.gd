@@ -33,6 +33,9 @@ var undo_info: Dictionary = {}
 var undo_done: bool = false
 ## Nombre de la tool del lado del agente (`_meta.claudeCode.toolName`: Agent, Bash…), si lo manda.
 var tool_name: String = ""
+## `server.tool` de una tool MCP que el agente nombra a su manera (Antigravity: `godot_run_scene` con
+## `_meta.mcp`, m18-02). Vacío si no vino.
+var mcp_display: String = ""
 ## El plan de esta tool (ExitPlanMode) se muestra en su tarjeta de aprobación (m11-22): la fila no lo repite.
 var plan_card: bool = false
 ## Tool call del subagente que hizo este (`_meta.claudeCode.parentToolUseId`), o "".
@@ -79,6 +82,8 @@ func apply(data: Dictionary) -> void:
 	var meta: Variant = data.get("_meta")
 	if meta is Dictionary and meta.get("claudeCode") is Dictionary and meta.claudeCode.get("toolName") is String:
 		tool_name = meta.claudeCode.toolName
+	if meta is Dictionary and meta.get("mcp") is Dictionary and not str(meta.mcp.get("server", "")).is_empty() and not str(meta.mcp.get("tool", "")).is_empty():
+		mcp_display = "%s.%s" % [meta.mcp.server, meta.mcp.tool]
 
 
 func is_subagent() -> bool:
@@ -115,6 +120,8 @@ func diffs() -> Array[Dictionary]:
 ## Nombre corto para la UI. Las tools MCP llegan como `mcp__<server>__<tool>`: se muestran como
 ## `godot.add_node` o `blender.get_objects_summary`.
 func display_name() -> String:
+	if not mcp_display.is_empty():
+		return mcp_display
 	if title.is_empty():
 		return kind
 	return ExternalMcpServers.short_tool_name(title)
