@@ -1,8 +1,9 @@
 extends RefCounted
 ## Sabotajes de escena para medir las regresiones (m11-62, fase 2 de m11-41): una propiedad exportada a
 ## 0/false/null, una señal desconectada, un nodo oculto, una colisión deshabilitada. Se leen del
-## SceneState del .tscn (sin instanciar nada en el editor) y se aplican en memoria sobre la escena que
-## corre, después de que se asentó: el archivo no se toca, y la guarda de guardado sigue puesta.
+## SceneState del .tscn (sin instanciar nada en el editor) y se aplican en memoria sobre la escena recién
+## instanciada, antes de que entre al árbol (m11-63): _ready ya ve el valor roto, como si estuviera en el
+## .tscn. El archivo no se toca, y la guarda de guardado sigue puesta.
 ## Una regresión puede no mirar el código que muta GDScriptMutator pero sí el estado de la escena.
 ## Idea de Beckett v1.16 (op=mutate: «puts one fault at a time into a restarted scene»).
 
@@ -116,7 +117,8 @@ static func _label(node: String) -> String:
 	return "root" if node == "." else node
 
 
-## Aplica el sabotaje a la escena que corre. "" si quedó puesto, o por qué no (el nodo ya no está, la
+## Aplica el sabotaje a `root`: la escena instanciada que todavía no entró al árbol (regression_cli) o
+## una que ya corre. "" si quedó puesto, o por qué no (el nodo ya no está, la
 ## señal no está conectada…): entonces el mutante no vale.
 static func apply(root: Node, sabotage: Dictionary) -> String:
 	var path := str(sabotage.get("node", "."))
@@ -136,7 +138,11 @@ static func apply(root: Node, sabotage: Dictionary) -> String:
 		OP_DISABLE:
 			if not "disabled" in node:
 				return "%s can't be disabled" % path
-			node.set_deferred("disabled", true)
+			# Dentro del árbol, diferido: cambiar una colisión durante el paso de física da error.
+			if node.is_inside_tree():
+				node.set_deferred("disabled", true)
+			else:
+				node.set("disabled", true)
 		OP_SIGNAL:
 			var target_path := str(sabotage.get("target", "."))
 			var target := root if target_path == "." else root.get_node_or_null(NodePath(target_path))
