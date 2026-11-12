@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-11-12
+
 ### Added
 
 - `capture_game_frame` can show the running game from somewhere else without moving the player's camera: from one of the game's cameras (`camera`), from a point looking at another (`look_from`, `look_at`), or from up to 8 angles around a point (`angles`). The views are rendered off screen and show the world without the game's UI layers.
