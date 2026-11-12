@@ -33,6 +33,7 @@ plan:ci:150
 checks:ci:150
 ask-menu:ci:120
 hooks:ci:120
+turn-marks:ci:120
 second-opinion:ci:120
 instances:ci:150
 playtest-loop:ci:150

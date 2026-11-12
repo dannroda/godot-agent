@@ -39,6 +39,7 @@ const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
 const TurnChangesDialog := preload("ui/turn_changes_dialog.gd")
 const TurnChanges := preload("ui/turn_changes.gd")
+const TurnChangeMarks := preload("editor/turn_change_marks.gd")
 const TurnCounter := preload("ui/turn_counter.gd")
 const TurnSnapshots := preload("session/turn_snapshots.gd")
 const InlineEdit := preload("editor/inline_edit.gd")
@@ -173,6 +174,7 @@ var _hook_prompts_in_row: int = 0
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
 var _turn_changes: TurnChanges
+var _turn_marks: TurnChangeMarks
 ## El contador vivo de cambios del turno arriba del composer (m11-34).
 var _turn_counter: TurnCounter
 ## Snapshots por turno de todas las sesiones (m11-01); `available` queda en false sin git.
@@ -326,6 +328,13 @@ func _enter_tree() -> void:
 	_review_annotations.setup(_controller.review, _model, _settings.accent_color())
 	_review_annotations.action_requested.connect(_on_review_action)
 	add_child(_review_annotations)
+	# m11-66: los trozos del último turno de la pestaña activa, con ✓ y ✗ en el Script Editor.
+	_turn_marks = TurnChangeMarks.new()
+	_turn_marks.setup(_turn_changes, _active_turn_changes, _settings.accent_color())
+	add_child(_turn_marks)
+	_turn_changes.hunks_changed.connect(func(data: Dictionary, path: String) -> void:
+		if _turn_dialog:
+			_turn_dialog.refresh_file(data, path))
 
 	_oneshot = OneShotRun.new()
 	_oneshot.setup(_controller, EditorContext.project_path())
@@ -369,7 +378,10 @@ func _enter_tree() -> void:
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
 	_tabs.notify_outside_enabled = _settings.notify_when_unfocused
 	_tabs.new_session_requested.connect(_open_session_tab)
-	_tabs.active_changed.connect(func(_id: String) -> void: _follower.cancel())
+	_tabs.active_changed.connect(func(_id: String) -> void:
+		_follower.cancel()
+		if _turn_marks:
+			_turn_marks.refresh())
 	dock.follow_toggled.connect(_on_follow_toggled)
 	dock.turn_changes_requested.connect(func() -> void:
 		if _turn_counter:
@@ -503,6 +515,10 @@ func _exit_tree() -> void:
 	if _turn_counter:
 		_turn_counter.queue_free()
 		_turn_counter = null
+	if _turn_marks:
+		remove_child(_turn_marks)
+		_turn_marks.queue_free()
+		_turn_marks = null
 	if _review_annotations:
 		remove_child(_review_annotations)
 		_review_annotations.queue_free()
@@ -1782,6 +1798,9 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	controller.policy.subagent_limits = _project_config.subagent_limits
 	controller.shell_rules = _project_config.auto_shell_rules
 	controller.shell_rules_changed.connect(_save_project_config)
+	controller.turn_changes_reported.connect(func(_data: Dictionary) -> void:
+		if _turn_marks:
+			_turn_marks.refresh())
 	controller.disconnected.connect(_on_agent_disconnected.bind(id))
 	controller.permissions_changed.connect(func() -> void: _on_permissions_changed(_controller_of(id)))
 	controller.external_mcp_names = _external_mcp_names()
@@ -2244,6 +2263,12 @@ func _second_opinion_for_user(payload: Variant) -> void:
 
 func _session_of(caller: String) -> String:
 	return PRIMARY_SESSION if caller.is_empty() else caller
+
+
+## Lo que cambió el último turno de la pestaña activa ({} si nada): las marcas del Script Editor.
+func _active_turn_changes() -> Dictionary:
+	var controller := _controller_of(_tabs.active_id() if _tabs else PRIMARY_SESSION)
+	return controller.last_turn_changes if controller else {}
 
 
 func _controller_of(id: String) -> SessionController:

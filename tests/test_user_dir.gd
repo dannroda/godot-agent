@@ -33,6 +33,10 @@ static func apply() -> String:
 		# Como valor inicial, ProjectSettings.save() no lo escribe: algunos checks del editor guardan
 		# project.godot (el autoload de playtest, los argumentos del play) y no tiene que quedar ahí.
 		ProjectSettings.set_initial_value(setting, value)
+	# Godot crea user:// al arrancar, antes de la redirección: la carpeta del checkout no existe hasta
+	# que alguien escribe con make_dir. Sin ella, un FileAccess.open directo en user:// falla (la copia
+	# que valida SceneRevert en el editor de un worktree nuevo).
+	DirAccess.make_dir_recursive_absolute(OS.get_user_data_dir())
 	return OS.get_user_data_dir()
 
 

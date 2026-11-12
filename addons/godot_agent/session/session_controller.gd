@@ -205,6 +205,8 @@ var last_turn_usage: Dictionary = {}
 ## turno con cambios ({session, start, end, files}): de ahí sale el diff de la segunda opinión (m11-28).
 var current_turn_start: String = ""
 var last_turn_changes: Dictionary = {}
+## Un turno con cambios dejó su resumen en last_turn_changes (las marcas del Script Editor, m11-66).
+signal turn_changes_reported(data: Dictionary)
 ## Directorio de trabajo para session/new (ruta absoluta del proyecto).
 var cwd: String = ""
 ## Callable() -> Array: entradas `mcpServers` para session/new (el server del addon, M3).
@@ -735,6 +737,7 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 			data.files = changes.files
 			if not changes.files.is_empty():
 				last_turn_changes = data
+				turn_changes_reported.emit(data)
 				var names := PackedStringArray(changes.files.slice(0, 4).map(func(file: Dictionary) -> String: return str(file.path).get_file()))
 				if changes.files.size() > 4:
 					names.append("…")

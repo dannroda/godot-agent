@@ -25,6 +25,9 @@ const SceneRevert := preload("../core/scene_revert.gd")
 ## Acción del aviso de un trozo rechazado: lo vuelve a aplicar.
 const ACTION_HUNK_UNDO := "turn_hunk_undo"
 const KEPT := "kept"
+## Cambió el estado de un trozo (conservado, rechazado o ninguno): el diálogo y las marcas del Script
+## Editor (m11-66) se actualizan.
+signal hunks_changed(data: Dictionary, path: String)
 const REJECTED := "rejected"
 
 ## Los snapshots del proyecto abierto; una sesión en una copia (m11-09) tiene los suyos.
@@ -242,6 +245,7 @@ func _set_state(data: Dictionary, path: String, index: int, state: String) -> vo
 	else:
 		states[str(index)] = state
 	data.hunk_state[path] = states
+	hunks_changed.emit(data, path)
 
 
 func show_diff(data: Dictionary, path: String) -> void:
