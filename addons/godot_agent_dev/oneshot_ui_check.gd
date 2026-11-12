@@ -107,8 +107,15 @@ func run_oneshot(tree: SceneTree, shot_path: String = "") -> PackedStringArray:
 	editor_plugin.hide_bottom_panel()
 	await _frames(2)
 	var dock_width := int(dock_for_width.size.x)
-	await LayoutCheck.set_dock_width(dock_for_width, dock_width + int(form.size.x) - NARROW_CENTER_WIDTH)
-	await _frames(10)
+	# El ancho se pide con lo que mide el centro ahora; si el layout seguía acomodándose (el panel de
+	# abajo recién escondido, el dock recién al frente) el objetivo quedaba corto y el centro en 367
+	# (m16-19, una vez en 4.8-beta3). Se mide con el layout quieto y se reintenta con la medida nueva.
+	for attempt in 3:
+		await _stable_width(form)
+		if form.size.x <= NARROW_CENTER_WIDTH + 8:
+			break
+		await LayoutCheck.set_dock_width(dock_for_width, int(dock_for_width.size.x + form.size.x) - NARROW_CENTER_WIDTH)
+	await _stable_width(form)
 	_check(form.size.x <= NARROW_CENTER_WIDTH + 8, "el centro no baja a %d px: queda en %d (el formulario pide %d, el centro %d, dock %d)" % [NARROW_CENTER_WIDTH, form.size.x, (form.get_child(0) as Control).get_combined_minimum_size().x, _center_min_width(form), dock_for_width.size.x])
 	_shot(shot_path, "_form_narrow")
 	for failure: String in LayoutCheck.form_fits(form):
@@ -498,6 +505,21 @@ static func _visible_within(node: Node, root: Node) -> bool:
 
 
 ## El mínimo de la columna del centro (con el panel de abajo): el hijo del split horizontal de los docks.
+## Espera a que el ancho de `control` no cambie en 5 cuadros seguidos (como mucho 120 cuadros).
+func _stable_width(control: Control) -> void:
+	var last := -1.0
+	var still := 0
+	for i in 120:
+		await _tree.process_frame
+		if is_equal_approx(control.size.x, last):
+			still += 1
+			if still >= 5:
+				return
+		else:
+			still = 0
+			last = control.size.x
+
+
 func _center_min_width(form: Control) -> int:
 	var node: Node = form
 	while node and not (node.get_parent() is SplitContainer and not (node.get_parent() as SplitContainer).vertical):
