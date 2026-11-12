@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.25] - 2026-11-12
+
 ### Added
 
 - **The agent asks to switch modes**: with the new `godot.request_mode`, the agent proposes moving its session to another mode, fixed or one of the [project modes](https://github.com/dannroda/godot-agent/blob/main/docs/wiki/en/Modes-and-permissions.md#the-agent-asks-to-switch-modes), with a one-line reason. You decide on a card that shows in every mode, Auto included, with no "always"; it warns when the target can do more without asking (Ask → Build, a mode that limits files → one that doesn't). On **Switch**, the agent gets the new mode's rules in the same turn. Denied in One-shot. The system prompt lists the modes with their "when to use" line.
