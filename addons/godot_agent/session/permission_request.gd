@@ -60,6 +60,18 @@ var verify_criteria: int = -1
 var criteria_max: int = 6
 ## Lo que salió de verificar cada criterio: [{name, goal, status, summary, evidence}] (la tarjeta lo muestra).
 var criteria_results: Array = []
+## Tarjeta del harness con sus propias opciones (godot.request_mode, m11-68): los botones llevan el
+## nombre de cada opción (no «Permitir una vez» / «Denegar»), la descripción va entera y el resultado
+## dice la opción elegida.
+var own_labels: bool = false
+
+
+## El nombre de la opción elegida ("" sin respuesta).
+func chosen_name() -> String:
+	for option: Variant in options:
+		if option is Dictionary and str(option.get("optionId", "")) == str(outcome.get("optionId", "")):
+			return str(option.get("name", ""))
+	return ""
 
 
 func is_plan() -> bool:

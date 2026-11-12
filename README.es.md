@@ -81,6 +81,16 @@ Abrí el dock **Agent** (la sesión arranca después de **Agregar**, o con **Ini
 
 <img src="docs/images/es/chat.png" alt="Una conversación en Construir: el plan, cinco herramientas, el diff de spawner.gd y la respuesta del agente" width="360">
 
+Después de un turno, un script que cambió el agente muestra cada cambio en el margen del Script Editor: **✓** lo conserva y **✗** deshace solo ese cambio. Ver [Cambios de cada turno](docs/wiki/es/Modos-y-permisos.md#cambios-de-cada-turno).
+
+![spawner.gd en el Script Editor con dos cambios del último turno del agente, cada uno con ✓ y ✗ en el margen, y la barra de estado que dice 2 para revisar](docs/images/es/turn-marks.png)
+
+### Primero el plan
+
+Escribí lo que querés y tocá **Planificar** (o escribí `/plan …`): el agente responde con un plan para aprobar, con criterios de aceptación jugables ("CUANDO un asteroide choca la nave, EL JUEGO DEBE mostrar la pantalla de game over"). Con **Verificar los criterios jugando** marcada, **Aprobar y construir** lo construye y después un agente juega una vez por criterio; lo que falla vuelve al agente para arreglarlo. Ver [Aprobar el plan del agente](docs/wiki/es/Modos-y-permisos.md#aprobar-el-plan-del-agente).
+
+<img src="docs/images/es/plan.png" alt="Una tarjeta de plan lista para construir: el plan de una pantalla de game over con dos criterios de aceptación, Verificar los criterios jugando (2) marcada y los botones Aprobar y construir, Editar, Seguir planeando y Segunda opinión" width="360"> <img src="docs/images/es/plan-verified.png" alt="El mismo plan aprobado: cada criterio con ✓ después de su playtest, y abajo el turno de construir" width="360">
+
 ### Permisos
 
 Cada acción que cambia algo pregunta antes, con una tarjeta en el chat: permitirla una vez, por el resto de la sesión, o denegarla. **Settings → Permisos** define qué permite, pregunta o deniega cada modo, por grupo de herramientas.
@@ -88,6 +98,12 @@ Cada acción que cambia algo pregunta antes, con una tarjeta en el chat: permiti
 <img src="docs/images/es/permission.png" alt="Una tarjeta de permiso para editar player.gd, con su diff y los botones Siempre en esta sesión, Permitir una vez y Denegar" width="360">
 
 ![La matriz de permisos en Settings: una fila por grupo de herramientas, una columna por modo](docs/images/es/settings.png)
+
+### Modos del proyecto
+
+Un modo del proyecto es un `.json` en `res://agent_modes/` que le pone nombre a una forma de trabajar ("Diseño de niveles", "Shaders", "Solo tests") sobre un modo fijo, y solo puede quitar permisos: qué archivos puede escribir el agente, y la shell. Aparece en el selector de modo del composer, bajo **Modos del proyecto**. El agente también puede proponer el cambio con `godot.request_mode`; decidís con una tarjeta que avisa si el destino puede hacer más sin preguntar. Ver [Modos del proyecto](docs/wiki/es/Modos-y-permisos.md#modos-del-proyecto).
+
+<img src="docs/images/es/modes.png" alt="El selector de modo del composer abierto: Preguntar, Revisar, Construir, Auto y One-shot, y bajo Modos del proyecto Diseño de niveles (Construir), Shaders (Construir) y Solo tests (Auto), con Diseño de niveles elegido" width="360"> <img src="docs/images/es/mode-request.png" alt="El agente pide pasar de Preguntar a Diseño de niveles (Construir): la tarjeta dice qué edita el modo, avisa con Más permisos que puede editar archivos, cita el motivo del agente y ofrece Pasar a Diseño de niveles (Construir) y Quedarse en Preguntar" width="360">
 
 ### Revisar
 

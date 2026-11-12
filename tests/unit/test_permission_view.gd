@@ -88,6 +88,43 @@ func test_long_command_is_folded() -> void:
 	view.free()
 
 
+## godot.request_mode (m11-68): la tarjeta del harness usa los nombres de sus opciones, muestra la
+## descripción entera (el aviso de más permisos no queda plegado) y el resultado dice la opción elegida.
+func test_own_labels() -> void:
+	var model := SessionModel.new()
+	var request := PermissionRequest.new()
+	request.title = "Switch to Auto"
+	request.description = "From Build to Auto.\n⚠ More permissions: Auto edits without asking.\nThe agent says: «Many small edits»"
+	request.options = [
+		{"optionId": "switch", "name": "Switch to Auto", "kind": PermissionRequest.KIND_ALLOW_ONCE},
+		{"optionId": "stay", "name": "Stay in Build", "kind": PermissionRequest.KIND_REJECT_ONCE},
+	]
+	request.own_labels = true
+	var entry := model.add_permission(request)
+	var view := PermissionView.new()
+	view.setup(entry, Color.ORANGE, MarkdownBBCode.new())
+	view.call(&"_build")
+	view.refresh()
+	var texts: Array = (view.get(&"_buttons") as Control).get_children().map(func(button: Button) -> String: return button.text)
+	assert_eq(texts.slice(0, 2), ["Switch to Auto", "Stay in Build"], "los botones con el nombre de cada opción")
+	assert_true(str((view.get(&"_description") as Label).text).contains("⚠ More permissions"), "la descripción entera, con el aviso")
+	assert_false((view.get(&"_full_toggle") as Button).visible, "sin «Show all»")
+	request.deny_with_reason("Not now")
+	view.refresh()
+	assert_eq((view.get(&"_result") as Label).text, "✗ Stay in Build · Not now", "el resultado dice qué se eligió")
+	view.free()
+	# Sin own_labels, como siempre.
+	var plain := PermissionRequest.new()
+	plain.title = "Edit player.gd"
+	plain.options = request.options.duplicate(true)
+	view = PermissionView.new()
+	view.setup(model.add_permission(plain), Color.ORANGE, MarkdownBBCode.new())
+	view.call(&"_build")
+	view.refresh()
+	assert_eq(((view.get(&"_buttons") as Control).get_child(0) as Button).text, "Allow once", "una tarjeta de agente lleva los nombres de siempre")
+	view.free()
+
+
 static func _request() -> PermissionRequest:
 	var request := PermissionRequest.new()
 	request.title = "Edit player.gd"

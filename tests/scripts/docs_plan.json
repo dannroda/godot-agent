@@ -1,0 +1,198 @@
+{
+	"_about": "m16-20 docs-shots plan.png: a ```plan block with two playable criteria; the build turn, then one playtest per criterion (both pass).",
+	"session": {
+		"configOptions": [
+			{
+				"id": "model",
+				"name": "Model",
+				"type": "select",
+				"currentValue": "opus",
+				"options": [
+					{
+						"value": "opus",
+						"name": "Opus"
+					},
+					{
+						"value": "sonnet",
+						"name": "Sonnet"
+					}
+				]
+			}
+		]
+	},
+	"turns": [
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "usage_update",
+						"used": 21000,
+						"size": 200000
+					}
+				},
+				{
+					"thought": "Game over needs a signal from the player and a screen that can restart the waves."
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "r1",
+						"title": "Read",
+						"kind": "read",
+						"status": "completed",
+						"rawInput": {
+							"file_path": "tests/docs_demo/player.gd"
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "r2",
+						"title": "Read",
+						"kind": "read",
+						"status": "completed",
+						"rawInput": {
+							"file_path": "tests/docs_demo/spawner.gd"
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "r3",
+						"title": "mcp__godot__scene_tree",
+						"kind": "read",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://tests/docs_demo/main.tscn"
+						}
+					}
+				},
+				{
+					"chunk": "I read `player.gd`, `spawner.gd` and the HUD. Here's the plan:\n\n```plan\n# Plan: Game over screen\n\n## Acceptance criteria\n- WHEN an asteroid hits the ship, THE GAME SHALL show the game over screen with the final score.\n- WHEN the player presses Restart, THE GAME SHALL start again from wave 1 with score 0.\n\n## Design\n- `player.gd` emits `died` when an asteroid touches the ship.\n- `game_over.tscn`: a CanvasLayer with the score and a Restart button.\n\n## Tasks\n1. Add a hit area to the player and emit `died`.\n2. Make `game_over.tscn` and show it on `died`.\n3. Reset the spawner and the score on Restart.\n```\n"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "plan",
+						"entries": [
+							{
+								"content": "Add a hit area to the player and emit died",
+								"priority": "high",
+								"status": "completed"
+							},
+							{
+								"content": "Make game_over.tscn and show it on died",
+								"priority": "high",
+								"status": "completed"
+							},
+							{
+								"content": "Reset the spawner and the score on Restart",
+								"priority": "high",
+								"status": "completed"
+							}
+						]
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "b1",
+						"title": "Edit",
+						"kind": "edit",
+						"status": "completed",
+						"rawInput": {
+							"file_path": "tests/docs_demo/player.gd"
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "b2",
+						"title": "mcp__godot__create_scene",
+						"kind": "edit",
+						"status": "completed",
+						"rawInput": {
+							"path": "res://tests/docs_demo/game_over.tscn",
+							"root_type": "CanvasLayer"
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "b3",
+						"title": "Edit",
+						"kind": "edit",
+						"status": "completed",
+						"rawInput": {
+							"file_path": "tests/docs_demo/spawner.gd"
+						}
+					}
+				},
+				{
+					"chunk": "Done: the ship emits `died`, `game_over.tscn` shows the score and Restart starts over from wave 1."
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "c1",
+						"title": "mcp__godot__run_scene",
+						"kind": "execute",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://tests/docs_demo/main.tscn",
+							"seconds": 6
+						},
+						"rawOutput": "ok"
+					}
+				},
+				{
+					"chunk": "I played the scene.\n```json\n{\"playtest\": {\"verdict\": \"pass\", \"summary\": \"An asteroid hit the ship and the game over screen showed «Score 120»\", \"evidence\": [\"ship hit at 4.2 s\", \"GameOver visible, Score 120\"], \"repro\": [\"start the game\", \"wait for an asteroid to reach the ship\"]}}\n```"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		},
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "c2",
+						"title": "mcp__godot__run_scene",
+						"kind": "execute",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://tests/docs_demo/main.tscn",
+							"seconds": 6
+						},
+						"rawOutput": "ok"
+					}
+				},
+				{
+					"chunk": "I played the scene.\n```json\n{\"playtest\": {\"verdict\": \"pass\", \"summary\": \"Restart went back to wave 1 with score 0\", \"evidence\": [\"wave 1, score 0 after Restart\"], \"repro\": [\"lose once\", \"press Restart\"]}}\n```"
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

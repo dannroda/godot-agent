@@ -96,6 +96,7 @@ func test_card_in_auto_and_switch() -> void:
 	var request: PermissionRequest = model.pending_permissions[0]
 	assert_eq(request.title, "Switch to Levels (Build)", "el título dice adónde")
 	assert_true(request.option_id_for([PermissionRequest.KIND_ALLOW_ALWAYS]).is_empty(), "sin «siempre»")
+	assert_true(request.own_labels, "la tarjeta usa los nombres de sus opciones")
 	assert_eq(request.options.map(func(option: Dictionary) -> String: return str(option.name)), ["Switch to Levels (Build)", "Stay in Auto"], "Cambiar o Quedarse")
 	assert_true(request.description.contains("From Auto to Levels (Build).") and request.description.contains("edits only res://levels/**") and request.description.contains("«The user wants the next room built.»"), "de dónde a dónde, qué edita y el porqué · %s" % request.description)
 	assert_false(request.description.contains("More permissions"), "Auto → Levels limita más: sin aviso")
@@ -125,6 +126,12 @@ func test_card_warns_and_stay() -> void:
 	await _wait()
 	assert_true(str(results[1].text).contains("No answer"), "sin respuesta, sigue igual · %s" % results[1].text)
 	assert_eq(model.harness_mode, M.ASK, "sin cambio")
+	# Quedarse con motivo: el agente lo recibe.
+	ask = func() -> void: results.append(await controller.request_mode("build", "Edit the player.", 0))
+	ask.call()
+	(model.pending_permissions[-1] as PermissionRequest).deny_with_reason("Only explain it")
+	await _wait()
+	assert_true(str(results[2].text).contains("stay in Ask and says: «Only explain it»"), "con el motivo · %s" % results[2].text)
 
 
 func test_project_mode_to_fixed_clears_layer() -> void:

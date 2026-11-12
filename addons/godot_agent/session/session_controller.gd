@@ -1971,10 +1971,13 @@ func request_mode(target: String, why: String, timeout_s: int = 0) -> Dictionary
 	request.title = agent_log.redact(I18n.t("Switch to %s") % ModeRequests.label(mode, layer))
 	request.description = agent_log.redact(ModeRequests.card_description(model, mode, layer, why))
 	request.options = ModeRequests.card_options(model, mode, layer)
+	request.own_labels = true
 	var staying := model.mode_display()
 	await permissions.ask(request, timeout_s)
 	if not request.was_allowed():
 		var answered := not request.chosen_kind.is_empty()
+		if answered and not request.deny_reason.is_empty():
+			return {"ok": false, "text": "The user chose to stay in %s and says: «%s». Keep working within its rules." % [staying, request.deny_reason]}
 		return {"ok": false, "text": ("The user chose to stay in %s. Keep working within its rules, or tell the user what you would need." if answered else "No answer: the session stays in %s. Keep working within its rules.") % staying}
 	# Mientras la tarjeta esperaba pudo empezar un One-shot o cambiar el modo: se aplica igual lo elegido.
 	if model.harness_mode == SessionModel.HarnessMode.ONESHOT:

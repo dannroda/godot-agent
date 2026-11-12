@@ -2,7 +2,8 @@
 # Regenera las capturas de la guía (docs/images/<idioma>/) con el agente falso y tests/docs_demo/.
 # Corre sobre una copia limpia del proyecto (sin .godot: sin scripts abiertos de otras pruebas) y
 # con Godot copiado en modo self-contained (._sc_), con el editor en el idioma pedido y un layout
-# limpio: no toca los EditorSettings del usuario ni el .godot del repo.
+# limpio: no toca los EditorSettings del usuario ni el .godot del repo. El proyecto copiado es un repo
+# de git propio (para los snapshots por turno de turn-marks.png).
 # Uso: tests/docs_shots.sh <binario de godot> [en|es]
 set -e
 G="$1"
@@ -34,6 +35,11 @@ rm -f "$TMP/project/addons/godot_agent/config/project_config.tres"
 cp -R "$ROOT/tests/." "$TMP/project/tests/"
 rm -rf "$TMP/project/tests/upstream" "$TMP/project/tests/tmp"
 "$TMP/godot" --headless --path "$TMP/project" --import >/dev/null 2>&1 || true
+# Un repo propio para las marcas por turno (turn-marks.png): los snapshots de git del harness.
+cp "$ROOT/.gitignore" "$TMP/project/"
+git -c init.defaultBranch=main init -q "$TMP/project"
+git -C "$TMP/project" add -A
+git -C "$TMP/project" -c user.name=docs -c user.email=docs@example.com commit -q -m "docs demo"
 OUT="$ROOT/docs/images/$LANG_CODE"
 mkdir -p "$OUT"
 case "$LANG_CODE" in es) LOCALE=es_AR.UTF-8 ;; *) LOCALE=en_US.UTF-8 ;; esac

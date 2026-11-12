@@ -1,0 +1,78 @@
+{
+	"_about": "m16-20 docs-shots mode-request.png: in Ask, the agent asks to switch to the project mode «Level design» with godot.request_mode.",
+	"session": {
+		"configOptions": [
+			{
+				"id": "model",
+				"name": "Model",
+				"type": "select",
+				"currentValue": "opus",
+				"options": [
+					{
+						"value": "opus",
+						"name": "Opus"
+					},
+					{
+						"value": "sonnet",
+						"name": "Sonnet"
+					}
+				]
+			}
+		]
+	},
+	"turns": [
+		{
+			"steps": [
+				{
+					"update": {
+						"sessionUpdate": "usage_update",
+						"used": 26000,
+						"size": 200000
+					}
+				},
+				{
+					"thought": "The wave layout is in main.tscn; Ask can't edit it."
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "r1",
+						"title": "Read",
+						"kind": "read",
+						"status": "completed",
+						"rawInput": {
+							"file_path": "tests/docs_demo/spawner.gd"
+						}
+					}
+				},
+				{
+					"update": {
+						"sessionUpdate": "tool_call",
+						"toolCallId": "r2",
+						"title": "mcp__godot__scene_tree",
+						"kind": "read",
+						"status": "completed",
+						"rawInput": {
+							"scene": "res://tests/docs_demo/main.tscn"
+						}
+					}
+				},
+				{
+					"chunk": "The asteroids of each wave are placed in `main.tscn`. I'm in Ask, so I can only read it."
+				},
+				{
+					"mcp": {
+						"name": "request_mode",
+						"arguments": {
+							"mode": "Level design",
+							"why": "Adding a third wave means placing asteroids in main.tscn. Level design edits scenes only, never scripts."
+						}
+					}
+				},
+				{
+					"stop": "end_turn"
+				}
+			]
+		}
+	]
+}

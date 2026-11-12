@@ -164,11 +164,11 @@ func refresh() -> void:
 	var group_label := PermissionPolicy.group_label(request.group)
 	_title.text = I18n.t("Permission: %s") % short_text(request.title)
 	_title.tooltip_text = I18n.t("Group: %s") % group_label
-	_description.text = short_text(request.description)
+	_description.text = request.description.strip_edges() if request.own_labels else short_text(request.description)
 	_description.visible = not request.description.is_empty() and request.description != request.title
 	# Lo que no entró en el título o la descripción va entero, plegado.
 	var full := request.title if short_text(request.title) != request.title else ""
-	if short_text(request.description) != request.description and request.description != request.title:
+	if not request.own_labels and short_text(request.description) != request.description and request.description != request.title:
 		full = (full + "\n\n" if not full.is_empty() else "") + request.description
 	_full_text.text = full
 	_full_toggle.visible = not full.is_empty()
@@ -268,7 +268,7 @@ func _on_persist_allow() -> void:
 func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
 	var button := Button.new()
 	var kind := str(option.get("kind", ""))
-	button.text = _option_label(option)
+	button.text = str(option.get("name", "")) if request.own_labels and not str(option.get("name", "")).is_empty() else _option_label(option)
 	match kind:
 		PermissionRequest.KIND_ALLOW_ONCE:
 			AgentTheme.style_accent_button(button, accent)
@@ -306,6 +306,9 @@ static func _result_text(request: PermissionRequest) -> String:
 		return "⇄ " + I18n.t("Answered elsewhere: from Remote Control, or no longer needed")
 	if request.outcome.get("outcome") != "selected":
 		return "⊘ " + I18n.t("Permission cancelled")
+	if request.own_labels and not request.chosen_name().is_empty():
+		var chosen := ("✓ " if request.was_allowed() else "✗ ") + request.chosen_name()
+		return chosen + (" · " + request.deny_reason if not request.deny_reason.is_empty() else "")
 	if request.persist_allow and request.was_allowed():
 		return "✓ " + I18n.t("Allowed · saved in the permissions of this project")
 	if not request.rule_to_add.is_empty() and request.was_allowed():

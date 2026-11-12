@@ -81,6 +81,16 @@ Open the **Agent** dock (the session starts after **Add**, or with **Start sessi
 
 <img src="docs/images/en/chat.png" alt="A Build conversation: the plan, five tool calls, the diff of spawner.gd and the agent's answer" width="360">
 
+After a turn, a script the agent changed shows each change in the Script Editor's gutter: **✓** keeps it and **✗** undoes just that change. See [Changes of each turn](docs/wiki/en/Modes-and-permissions.md#changes-of-each-turn).
+
+![spawner.gd in the Script Editor with two changes from the agent's last turn, each with ✓ and ✗ in the gutter, and the status bar saying 2 to review](docs/images/en/turn-marks.png)
+
+### Plan first
+
+Write what you want and press **Plan** (or type `/plan …`): the agent answers with a plan to approve, with playable acceptance criteria ("WHEN an asteroid hits the ship, THE GAME SHALL show the game over screen"). With **Verify the criteria by playing** checked, **Approve and build** builds it and then an agent plays the game once per criterion; what fails goes back to the agent to fix. See [Approving the agent's plan](docs/wiki/en/Modes-and-permissions.md#approving-the-agents-plan).
+
+<img src="docs/images/en/plan.png" alt="A plan card ready to build: the plan for a game over screen with two acceptance criteria, Verify the criteria by playing (2) checked, and the Approve and build, Edit, Keep planning and Second opinion buttons" width="360"> <img src="docs/images/en/plan-verified.png" alt="The same plan approved: each criterion marked ✓ after its playtest, followed by the build turn" width="360">
+
 ### Permissions
 
 Each action that changes something asks first, in a card in the chat: allow it once, for the rest of the session, or deny it. **Settings → Permissions** sets what each mode allows, asks or denies, per group of tools.
@@ -88,6 +98,12 @@ Each action that changes something asks first, in a card in the chat: allow it o
 <img src="docs/images/en/permission.png" alt="A permission card for editing player.gd, with its diff and the Always allow in this session, Allow once and Deny buttons" width="360">
 
 ![The permission matrix in Settings: one row per group of tools, one column per mode](docs/images/en/settings.png)
+
+### Project modes
+
+A project mode is a `.json` file in `res://agent_modes/` that names a way of working ("Level design", "Shaders", "Tests only") on top of a fixed mode, and can only take permissions away: which files the agent may write, and the shell. It shows in the composer's mode selector under **Project modes**. The agent can also propose a switch with `godot.request_mode`; you decide with a card that warns when the target can do more without asking. See [Project modes](docs/wiki/en/Modes-and-permissions.md#project-modes).
+
+<img src="docs/images/en/modes.png" alt="The composer's mode selector open: Ask, Review, Build, Auto and One-shot, then under Project modes Level design (Build), Shaders (Build) and Tests only (Auto), with Level design picked" width="360"> <img src="docs/images/en/mode-request.png" alt="The agent asks to switch from Ask to Level design (Build): the card says what the mode edits, warns with More permissions that it can edit files, quotes the agent's reason and offers Switch to Level design (Build) and Stay in Ask" width="360">
 
 ### Review
 
