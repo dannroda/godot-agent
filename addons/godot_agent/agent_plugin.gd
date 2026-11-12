@@ -53,6 +53,7 @@ const AskAgentMenu := preload("editor/ask_agent_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const ModeModels := preload("core/mode_models.gd")
+const ProjectModes := preload("core/project_modes.gd")
 const ProjectToolLoader := preload("mcp/project_tool_loader.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
@@ -2329,6 +2330,9 @@ func _models() -> Array[SessionModel]:
 func _precheck_tool(mcp_caller: String, tool_name: String, args: Dictionary = {}) -> String:
 	if tool_name == "session_send":
 		return _message_refusal(_session_of(mcp_caller), str(args.get("to", "")).strip_edges())
+	var refused_by_mode := _project_mode_refusal(_session_of(mcp_caller), tool_name, args)
+	if not refused_by_mode.is_empty():
+		return refused_by_mode
 	var copy: WorktreeSession = _extra_sessions.get(_session_of(mcp_caller), {}).get("copy")
 	if copy and (_registry.group_of(tool_name) != PermissionPolicy.GROUP_READ or tool_name in RunTools.GAME_TOOLS):
 		return "You work in a separate copy at %s: godot.%s acts on the project open in the editor, not on your copy. Edit the files in your copy and check them with Godot headless (\"$GODOT\" --headless --path %s --quit)." % [copy.info.project, tool_name, copy.info.project]
@@ -2356,6 +2360,28 @@ func _wait_import(tool_name: String) -> String:
 	if filesystem.is_scanning():
 		return "EDITOR_IMPORTING: the editor is still importing assets after %d s. Retry godot.%s in a few seconds; editing now could overwrite half-loaded resources." % [IMPORT_WAIT_S, tool_name]
 	return ""
+
+
+## Por qué el modo del proyecto de la sesión `id` no deja correr `tool_name` (m11-39), o "". Antes del
+## permiso: escribir fuera de los archivos del modo se rechaza siempre, sin tarjeta. Una tool que escribe
+## y no dice dónde (install_extension, restart_editor, asset_install) se rechaza: no se puede revisar.
+func _project_mode_refusal(id: String, tool_name: String, args: Dictionary) -> String:
+	var model := _model_of(id)
+	var controller := _controller_of(id)
+	if model == null or controller == null or not ProjectModes.limits_files(model.project_mode) or _registry == null:
+		return ""
+	var targets: Dictionary = _registry.write_targets(tool_name, args)
+	var refused := "?"
+	if targets.declared:
+		var paths: PackedStringArray = targets.paths
+		refused = "" if paths.is_empty() else controller.permissions.mode_refused_write(paths)
+	if refused.is_empty():
+		return ""
+	return controller.permissions.notify_mode_refusal("godot.%s" % tool_name, refused)
+
+
+func _modes_dir() -> String:
+	return ProjectModes.resolve_dir(_project_config.modes_dir if _project_config else "")
 
 
 ## Lo que ve una sesión de las demás (godot.sessions).

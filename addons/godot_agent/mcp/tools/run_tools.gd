@@ -11,6 +11,7 @@ extends RefCounted
 signal regressions_finished(results: Array)
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const CameraViews := preload("../../playtest/runtime/camera_views.gd")
 const UntrustedText := preload("../untrusted_text.gd")
 const ErrorCollector := preload("../../editor/error_collector.gd")
@@ -493,7 +494,7 @@ func tools() -> Array:
 			var tool_name := tool.name
 			var inner := tool.handler
 			tool.handler = func(args: Dictionary) -> Dictionary: return await _loop_guarded(tool_name, args, inner)
-	return list
+	return WriteTargets.declare(list, {"write_regressions_workflow": func(_args: Dictionary) -> PackedStringArray: return PackedStringArray([RegressionsWorkflow.PATH])})
 
 
 ## Pone (o con un Callable vacío, quita) quién recibe el corte de un playtest en loop (m11-49). Cada

@@ -33,6 +33,7 @@ const EditorBinary := preload("../transport/editor_binary.gd")
 const I18n := preload("../core/i18n.gd")
 const PlanApproval := preload("plan_approval.gd")
 const HarnessPrompts := preload("harness_prompts.gd")
+const ProjectModes := preload("../core/project_modes.gd")
 
 var policy: PermissionPolicy = PermissionPolicy.new()
 ## Reglas de shell del modo Auto (D57): el array de project_config, que se modifica en el lugar.
@@ -79,7 +80,7 @@ func withdraw(acp_id: Variant) -> void:
 ## Pide permiso según la política del modo actual. `ask` muestra una tarjeta y espera.
 ## Devuelve true si se permitió. `timeout_s` > 0 deniega si nadie responde a tiempo.
 func authorize(group: String, title: String, description: String, diff: Dictionary = {}, timeout_s: int = 0) -> bool:
-	var decision := policy.decide(group, model.harness_mode)
+	var decision := decide(group)
 	if decision == PermissionPolicy.ALLOW:
 		_log_perm("allowed by %s mode: %s" % [_mode_label(), title])
 		return true
@@ -94,9 +95,63 @@ func authorize(group: String, title: String, description: String, diff: Dictiona
 	request.group = group
 	request.diff = agent_log.redact_data(diff) if agent_log else diff
 	request.options = PermissionRequest.default_options()
+	if mode_forces_ask(group):
+		request.options = without_always(request.options)
 	var outcome := await _ask_user(request, timeout_s)
 	_emit_feedback(request)
 	return outcome.get("outcome") == "selected" and request.was_allowed()
+
+
+## La decisión de la política para `group` en el modo actual, con la capa del modo del proyecto
+## (m11-39) encima: nunca da más permisos que el base. Con archivos limitados, lo que corre código que
+## puede escribir cualquier cosa (la shell, las tools del proyecto, los MCP servers de terceros)
+## pregunta siempre, también con base Auto; `shell: "deny"` niega la shell.
+func decide(group: String) -> String:
+	var decision := policy.decide(group, model.harness_mode)
+	if decision == PermissionPolicy.DENY or model.project_mode.is_empty():
+		return decision
+	if group == PermissionPolicy.GROUP_SHELL and ProjectModes.shell_denied(model.project_mode):
+		return PermissionPolicy.DENY
+	if mode_forces_ask(group):
+		return PermissionPolicy.ASK
+	return decision
+
+
+## true si el modo del proyecto obliga a preguntar en `group` (ver decide): sin «siempre» ni reglas de Auto.
+func mode_forces_ask(group: String) -> bool:
+	return runs_unchecked_code(group) and ProjectModes.shell_always_asks(model.project_mode) \
+		and policy.decide(group, model.harness_mode) != PermissionPolicy.DENY
+
+
+## Grupos que corren código cuyas escrituras el harness no ve.
+static func runs_unchecked_code(group: String) -> bool:
+	return group in [PermissionPolicy.GROUP_SHELL, PermissionPolicy.GROUP_PROJECT_TOOLS] or PermissionPolicy.is_mcp_group(group)
+
+
+## La ruta de `paths` que el modo del proyecto no deja escribir, o "" si pasan todas (o el modo no
+## limita archivos). Sin rutas, con límite, la escritura no se puede revisar: se rechaza (falla cerrada).
+func mode_refused_write(paths: PackedStringArray) -> String:
+	if not ProjectModes.limits_files(model.project_mode):
+		return ""
+	if paths.is_empty():
+		return "?"
+	return ProjectModes.first_refused(model.project_mode, paths, cwd)
+
+
+## Avisa en el chat que el modo del proyecto rechazó una escritura y devuelve el motivo para el agente.
+func notify_mode_refusal(title: String, path: String) -> String:
+	var mode := model.project_mode
+	var shown := ProjectSettings.localize_path(path) if path != "?" else I18n.t("a file the harness can't see")
+	_log_perm("rejected by project mode %s, writes %s: %s" % [mode.get("name", ""), shown, title])
+	model.add_notice(I18n.t("Rejected: mode «%s» only edits %s, and «%s» writes %s. Switch to another mode in the composer to edit it.") % [
+		mode.get("name", ""), ", ".join(mode.get("editable", PackedStringArray())), title.left(80), shown], ChatEntry.NoticeLevel.WARNING)
+	return mode_refusal_text(model.project_mode, shown)
+
+
+## El motivo para el agente, en inglés, como los demás resultados de tools.
+static func mode_refusal_text(mode: Dictionary, shown: String) -> String:
+	return "Rejected by the project mode «%s»: it only lets you write %s, and this writes %s. Do not retry or work around it (no shell, no other tool): work inside those files, or tell the user what you need and ask them to switch mode." % [
+		mode.get("name", ""), ", ".join(mode.get("editable", PackedStringArray())), shown]
 
 
 func on_request_permission(params: Dictionary) -> Variant:
@@ -145,14 +200,22 @@ func on_request_permission(params: Dictionary) -> Variant:
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
 	if request.group == PermissionPolicy.GROUP_EDIT_FILES and _file_taken(Preauthorizations.write_paths(request, call)):
 		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
-	var decision := policy.decide(request.group, model.harness_mode)
+	# Fuera de los archivos del modo del proyecto (m11-39): se rechaza siempre, sin tarjeta. Las godot.*
+	# las revisa el precheck del registro.
+	if request.group == PermissionPolicy.GROUP_EDIT_FILES and not PermissionPolicy.is_godot_mcp_tool(tool_call):
+		var refused := mode_refused_write(Preauthorizations.write_paths(request, call))
+		if not refused.is_empty():
+			notify_mode_refusal(request.title, refused)
+			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+	var forced := mode_forces_ask(request.group) and not PermissionPolicy.is_godot_mcp_tool(tool_call)
+	var decision := decide(request.group)
 	if PermissionPolicy.is_mcp_group(request.group):
 		var server := request.group.trim_prefix(PermissionPolicy.GROUP_MCP_PREFIX)
 		seen_mcp_servers[server] = true
 		request.persist_label = I18n.t("Always allow «%s» in %s mode, in this project") % [server, I18n.t(_mode_label())]
 	if PermissionPolicy.is_godot_mcp_tool(tool_call):
 		decision = PermissionPolicy.ALLOW  # el server MCP aplica la política al ejecutar la tool
-	elif decision == PermissionPolicy.ASK and request.group == PermissionPolicy.GROUP_SHELL and model.harness_mode == SessionModel.HarnessMode.AUTO:
+	elif decision == PermissionPolicy.ASK and request.group == PermissionPolicy.GROUP_SHELL and model.harness_mode == SessionModel.HarnessMode.AUTO and not forced:
 		var command := ShellCommand.of(checked.get("rawInput"))
 		var verdict := ShellRules.classify(command, shell_rules)
 		if verdict.decision == ShellRules.ALLOW:
@@ -179,7 +242,12 @@ func on_request_permission(params: Dictionary) -> Variant:
 		PermissionPolicy.DENY:
 			_notify_denied(request.group, request.title)
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
-	_offer_session_allow(request)
+	if forced:
+		_log_perm("project mode %s asks: %s" % [model.project_mode.get("name", ""), request.title])
+		request.options = without_always(request.options)
+		request.persist_label = ""
+	else:
+		_offer_session_allow(request)
 	var outcome := await _ask_user(request, 0)
 	_emit_feedback(request)
 	if not request.rule_to_add.is_empty():
@@ -302,6 +370,9 @@ func _add_shell_rule(rule: Dictionary) -> void:
 func authorize_fs_write(path: String, old_text: String, new_text: String) -> bool:
 	if _file_taken(PackedStringArray([path])):
 		return false
+	if not mode_refused_write(PackedStringArray([path])).is_empty():
+		notify_mode_refusal(I18n.t("Write %s") % path.get_file(), path)
+		return false
 	if _preauth.consume_write(path):
 		return true
 	var counts := LineDiff.count(LineDiff.diff(old_text, new_text))
@@ -326,7 +397,8 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 		return "Command-line Godot only runs with --headless: %s" % launch
 	if env.is_empty() and _preauth.consume_command(command_line):
 		return ""
-	var decision := policy.decide(PermissionPolicy.GROUP_SHELL, model.harness_mode)
+	var forced := mode_forces_ask(PermissionPolicy.GROUP_SHELL)
+	var decision := decide(PermissionPolicy.GROUP_SHELL)
 	if decision == PermissionPolicy.ALLOW and env.is_empty():
 		_log_perm("allowed by %s mode: %s" % [_mode_label(), command_line])
 		return ""
@@ -335,6 +407,8 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 		return "Permission denied in %s mode: %s" % [_mode_label(), command_line]
 	if not env.is_empty():
 		_log_perm("asks, the agent sets environment variables (%s): %s" % [", ".join(PackedStringArray(env.keys())), command_line])
+	elif forced:
+		_log_perm("project mode %s asks: %s" % [model.project_mode.get("name", ""), command_line])
 	elif model.harness_mode == SessionModel.HarnessMode.AUTO:
 		var verdict := ShellRules.classify(command_line, shell_rules)
 		if verdict.decision == ShellRules.ALLOW:
@@ -354,7 +428,7 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 		request.description += "\n" + I18n.t("in %s") % working_dir
 	# Sin «siempre en esta sesión»: abriría toda la shell (revisión m17).
 	request.options = without_always(PermissionRequest.default_options())
-	if model.harness_mode == SessionModel.HarnessMode.AUTO and env.is_empty():  # una regla no ve las variables
+	if model.harness_mode == SessionModel.HarnessMode.AUTO and env.is_empty() and not forced:  # una regla no ve las variables
 		request.rule_pattern = ShellRules.suggest_pattern(command_line, shell_rules)
 	var outcome := await _ask_user(request, 0)
 	_emit_feedback(request)
@@ -398,7 +472,7 @@ func _notify_denied(group: String, title: String) -> void:
 	var group_label: String = PermissionPolicy.GROUP_LABELS.get(group, group)
 	_log_perm("denied in %s mode (%s): %s" % [_mode_label(), group_label, title])
 	var shown_group := I18n.t(group_label) if PermissionPolicy.GROUP_LABELS.has(group) else group
-	model.add_notice(I18n.t("Denied in %s mode (%s): %s") % [I18n.t(_mode_label()), shown_group, title], ChatEntry.NoticeLevel.WARNING)
+	model.add_notice(I18n.t("Denied in %s mode (%s): %s") % [model.mode_display(), shown_group, title], ChatEntry.NoticeLevel.WARNING)
 
 
 func _notify_blocked_write(title: String, target: String) -> void:

@@ -532,24 +532,40 @@ func set_usage(used: int, total: int) -> void:
 	_meter.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if high else Control.CURSOR_ARROW
 
 
-## Los modos del harness, en orden: `{id, label, tooltip}` (ya traducidos).
+## Los modos del harness, en orden: `{id, label, tooltip, icon?}` (ya traducidos), o `{separator}` con
+## el título de un grupo (los modos del proyecto, m11-39). `icon`: un ícono del editor por nombre.
 func set_modes(modes: Array[Dictionary]) -> void:
 	_modes = modes
 	if _mode_button == null:
 		return  # se aplica al armar el composer
 	_mode_button.clear()
 	for mode: Dictionary in modes:
-		_mode_button.add_item(str(mode.label), int(mode.id))
+		if mode.has("separator"):
+			_mode_button.add_separator(str(mode.separator))
+			continue
+		var icon := _editor_icon(str(mode.get("icon", "")))
+		if icon:
+			_mode_button.add_icon_item(icon, str(mode.label), int(mode.id))
+		else:
+			_mode_button.add_item(str(mode.label), int(mode.id))
 		_mode_button.set_item_tooltip(_mode_button.item_count - 1, str(mode.tooltip))
 	_mode_button.visible = not modes.is_empty()
 	_queue_fit()
+
+
+## El ícono del editor `name` («TileMap»), o null si no hay uno así (o no hay editor).
+func _editor_icon(icon_name: String) -> Texture2D:
+	if icon_name.is_empty() or not Engine.is_editor_hint() or EditorInterface.get_editor_theme() == null:
+		return null
+	var theme := EditorInterface.get_editor_theme()
+	return theme.get_icon(icon_name, &"EditorIcons") if theme.has_icon(icon_name, &"EditorIcons") else null
 
 
 func set_current_mode(mode: int) -> void:
 	_current_mode = mode
 	if _mode_button == null:
 		return
-	var index := _mode_button.get_item_index(mode)
+	var index := _mode_button.get_item_index(mode) if mode >= 0 else -1
 	if index >= 0:
 		_mode_button.select(index)
 		_mode_button.tooltip_text = "%s: %s" % [I18n.t("Mode"), _mode_button.get_item_tooltip(index)]

@@ -119,6 +119,7 @@ const AgyTourCheck := preload("agy_tour_check.gd")
 const HandoffCheck := preload("handoff_check.gd")
 const MemoryCheck := preload("memory_check.gd")
 const RecipeCheck := preload("recipe_check.gd")
+const ModesCheck := preload("modes_check.gd")
 const PathRulesCheck := preload("path_rules_check.gd")
 const PlanCriteriaCheck := preload("plan_criteria_check.gd")
 const GitCheckpoints := preload("res://addons/godot_agent/oneshot/git_checkpoints.gd")
@@ -1122,6 +1123,12 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		for failure: String in recipe_failures:
 			print("[recipe-check] FALLA ", failure)
 		_finish(0 if recipe_failures.is_empty() else 1, "ui-recipe: %d fallas" % recipe_failures.size())
+		return
+	if scenario == "ui_modes":
+		var modes_failures: Array = await ModesCheck.new().run(get_tree(), _find_by_script(ModesCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)
+		for failure: String in modes_failures:
+			print("[modes-check] FALLA ", failure)
+		_finish(0 if modes_failures.is_empty() else 1, "ui-modes: %d fallas" % modes_failures.size())
 		return
 	if scenario == "ui_plan_criteria":
 		var criteria_failures: Array = await PlanCriteriaCheck.new().run(get_tree(), _find_by_script(PlanCriteriaCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)

@@ -20,6 +20,33 @@ The model you pick in the composer's model selector is remembered for the mode t
 
 It's a setting of yours, not of the project, because the models depend on your account. **Settings → Agents** lists what each profile remembers, with **Forget**. If the agent no longer offers a remembered model (another account, for instance), the model isn't changed and the chat says so once. It works with agents that publish the model as a session option (Claude Code does); with others the selector doesn't show. Claude Code's own `opusplan` alias, if your account lists it, does something similar without the harness.
 
+### Project modes
+
+A project mode is a mode with its own name ("Level design", "Shaders", "Tests only") on top of Ask, Review, Build or Auto. Its permissions come from that base mode; the project mode can only take some away: which files the agent may write, and the shell. It also adds instructions to the agent's system prompt. It never allows more than its base.
+
+Each mode is a `.json` file in the project's modes folder, `res://agent_modes/` by default (Settings → MCP servers → Advanced → **Project modes**), shared through git like the rest of the project and left out of exports. The composer's mode selector lists them after the fixed modes, under **Project modes**, as **Name (Base)**; the tooltip says when to use it and what it edits. A file with problems doesn't show. Picking a fixed mode takes the project mode off. If the harness changes the base mode while a project mode is on (**Approve and build** moves to Build), the project mode stays, with its files and instructions.
+
+- **Files**: with `editable`, writing any other file is **rejected, without a card**, whatever the base mode: the agent's own Edit and Write tools, `fs/write_text_file`, and the `godot.*` tools (each one says which files it writes: the scene it edits, a TileSet or SpriteFrames saved in its own `.tres`, `project.godot`, a bake's files…). A tool that doesn't say what it writes (`asset_install`, `install_extension`, `restart_editor`) is rejected. Files outside the project, and the modes folder itself, are never editable. The chat says which file was rejected and why.
+- **Shell**: with `editable`, a shell command, a [project tool](Editor-tools.md) or a tool from another MCP server could write anything, so they **always ask**, even with base Auto (the Auto lists don't apply, and the card offers no "always"). `"shell": "deny"` denies the shell; `"shell": "base"` leaves it to the base mode.
+- **Instructions** go to the agent's system prompt after the base mode's rules, with the list of editable files, marked as the project's instructions (like `CLAUDE.md`). Switching to another project mode sends the system prompt again with the next message.
+
+The format:
+
+```json
+{
+  "version": 1,
+  "name": "Level design",
+  "base": "build",
+  "when_to_use": "Building and tweaking levels",
+  "instructions": "Only touch level scenes. Reuse the props in res://props/.",
+  "editable": ["res://levels/**", "res://levels/*.tres"],
+  "shell": "ask",
+  "icon": "TileMap"
+}
+```
+
+`base` is `ask`, `review`, `build` or `auto`. `editable` takes the same patterns as [rules by file](#rules-by-file): `**` is any number of folders, `*` and `?` stay inside a name, and a pattern without `/` (`*.gdshader`) works in any folder; leave it out for a mode that doesn't limit files. `shell` is `ask` (the default), `deny` or `base`. `icon` is the name of an editor icon. A mode has no model: the model is yours, not the project's (see [A model for each mode](#a-model-for-each-mode)).
+
 ### Approving the agent's plan
 
 In Ask or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:

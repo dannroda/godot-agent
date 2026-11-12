@@ -32,6 +32,7 @@ const RunTools := preload("../mcp/tools/run_tools.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const AgentProfile := preload("../core/agent_profile.gd")
 const ModeModels := preload("../core/mode_models.gd")
+const ProjectModes := preload("../core/project_modes.gd")
 const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
 const CsharpBuild := preload("../core/csharp_build.gd")
@@ -342,6 +343,8 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	client.set_notification_handler("elicitation/complete", _on_complete_elicitation)
 	client.incoming_cancelled.connect(_on_incoming_cancelled)
 	model.harness_mode_changed.connect(_on_harness_mode_changed)
+	# Otro modo del proyecto con el mismo base no cambia harness_mode: el system prompt vuelve igual.
+	model.project_mode_changed.connect(_on_project_mode_changed)
 	model.config_options_changed.connect(_on_config_options_changed)
 
 
@@ -1887,6 +1890,10 @@ func system_prompt() -> String:
 	var variables: Dictionary = prompt_variables_provider.call() if prompt_variables_provider.is_valid() else {}
 	variables["mode"] = SessionModel.HARNESS_MODE_LABELS[model.harness_mode]
 	variables["mode_rules"] = mode_rules_override if not mode_rules_override.is_empty() else MODE_RULES[model.harness_mode]
+	if not model.project_mode.is_empty():
+		# Un modo del proyecto (m11-39): su nombre, y sus archivos e instrucciones después de las reglas del base.
+		variables["mode"] = "%s (a project mode based on %s)" % [model.project_mode.name, variables["mode"]]
+		variables["mode_rules"] = ProjectModes.prompt_rules(model.project_mode, str(variables["mode_rules"]))
 	variables["project_path"] = variables.get("project_path", cwd)
 	variables["project_name"] = variables.get("project_name", cwd.get_file())
 	variables["godot_version"] = variables.get("godot_version", Engine.get_version_info().string)
@@ -2172,6 +2179,10 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 ## queda en el log para revisar la tabla o el camino que lo produjo.
 func _on_unexpected_transition(from: SessionModel.SessionState, to: SessionModel.SessionState) -> void:
 	agent_log.add(AgentLog.CH_STATE, "session: unexpected transition %s -> %s" % [SessionModel.state_name(from), SessionModel.state_name(to)])
+
+
+func _on_project_mode_changed(_mode: Dictionary) -> void:
+	_system_prompt_sent = false
 
 
 func _on_harness_mode_changed(_mode: SessionModel.HarnessMode) -> void:

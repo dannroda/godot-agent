@@ -135,6 +135,12 @@ jobs:
         run: sh tests/suite.sh run turn-marks ~/godot/godot
 
       # Segunda opinión de otro agente, de solo lectura, con dos agentes falsos (m11-28).
+      # Modos del proyecto (m11-39): escrituras fuera de los archivos del modo rechazadas sin tarjeta (Edit,
+      # fs/write, godot.create_scene, una tool que no dice qué escribe) y la shell que pregunta en Auto.
+      - name: Editor check (ui-modes)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run ui-modes ~/godot/godot
+
       - name: Editor check (second-opinion)
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run second-opinion ~/godot/godot

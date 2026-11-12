@@ -13,6 +13,7 @@ extends RefCounted
 ##   lanzar. pack (.pck) no las necesita.
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const AgentProcess := preload("../../transport/agent_process.gd")
 
@@ -40,7 +41,7 @@ var _running := false
 
 
 func tools() -> Array:
-	return [
+	return WriteTargets.declare([
 		McpTool.create("export_project", PermissionPolicy.GROUP_PROJECT,
 			"Export the project with one of its export presets (export_presets.cfg) in a separate headless Godot, the editor's own binary, and report errors, time and the size of what it wrote. `debug` and `release` need this Godot version's export templates (Editor → Manage Export Templates); `pack` writes only the .pck and needs none, a quick \"does it export?\" check. The file goes to the harness's exports folder outside the project (named after the preset's export path), or with output=\"preset\" to the preset's own export path. export_presets.cfg is never changed.",
 			{
@@ -49,7 +50,7 @@ func tools() -> Array:
 				"output": {"type": "string", "description": "File name inside the harness's exports folder (default: the file name of the preset's export path), or \"preset\" to write to the preset's export path"},
 				"timeout_s": {"type": "integer", "description": "Stop the export after this many seconds (default %d, at most %d)" % [TIMEOUT_DEFAULT_S, TIMEOUT_MAX_S]},
 			}, ["preset"], _export_project),
-	]
+	], {"export_project": written_paths})
 
 
 func _export_project(args: Dictionary) -> Dictionary:
@@ -62,6 +63,16 @@ func _export_project(args: Dictionary) -> Dictionary:
 	var ran: Dictionary = await _run(plan)
 	_running = false
 	return McpTool.error(ran.text) if ran.failed else McpTool.text(ran.text)
+
+
+## Lo que escribe del proyecto (m11-39): nada en la carpeta de exports del harness; con output="preset",
+## la ruta del preset (si cae dentro del proyecto, un modo con archivos limitados la revisa; afuera, la
+## rechaza).
+func written_paths(args: Dictionary) -> PackedStringArray:
+	if McpTool.str_arg(args, "output").strip_edges() != OUTPUT_PRESET:
+		return PackedStringArray()
+	var plan := prepare(args)
+	return PackedStringArray([str(plan.output)]) if plan.has("output") else PackedStringArray()
 
 
 ## Lo que se va a correr: `{program, args, output, preset, mode, timeout_s}` o `{error}`.

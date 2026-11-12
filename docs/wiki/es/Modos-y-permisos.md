@@ -20,6 +20,33 @@ El modelo que elegís en el selector de modelo del composer queda recordado para
 
 Es un ajuste tuyo, no del proyecto, porque los modelos dependen de tu cuenta. **Ajustes → Agentes** muestra lo que recuerda cada perfil, con **Olvidar**. Si el agente ya no ofrece un modelo recordado (otra cuenta, por ejemplo), el modelo no se cambia y el chat lo dice una vez. Funciona con los agentes que publican el modelo como opción de la sesión (Claude Code lo hace); con los demás el selector no aparece. El alias `opusplan` de Claude Code, si tu cuenta lo lista, hace algo parecido sin el harness.
 
+### Modos del proyecto
+
+Un modo del proyecto es un modo con nombre propio («Diseño de niveles», «Shaders», «Solo tests») sobre Preguntar, Revisar, Construir o Auto. Los permisos salen de ese modo base; el modo del proyecto solo puede sacar: qué archivos puede escribir el agente, y la shell. También suma instrucciones al system prompt del agente. Nunca permite más que su base.
+
+Cada modo es un `.json` en la carpeta de modos del proyecto, `res://agent_modes/` por defecto (Ajustes → Servidores MCP → Avanzado → **Modos del proyecto**), que se comparte por git como el resto del proyecto y queda fuera de los exports. El selector de modo del composer los lista después de los modos fijos, bajo **Modos del proyecto**, como **Nombre (Base)**; el tooltip dice cuándo usarlo y qué edita. Un archivo con problemas no aparece. Elegir un modo fijo saca el modo del proyecto. Si el harness cambia el modo base con un modo del proyecto puesto (**Aprobar y construir** pasa a Construir), el modo del proyecto sigue, con sus archivos e instrucciones.
+
+- **Archivos**: con `editable`, escribir cualquier otro archivo **se rechaza, sin tarjeta**, sea cual sea el modo base: las tools Edit y Write del propio agente, `fs/write_text_file` y las tools `godot.*` (cada una dice qué archivos escribe: la escena que edita, un TileSet o SpriteFrames guardado en su propio `.tres`, `project.godot`, los archivos de un horneado…). Una tool que no dice qué escribe (`asset_install`, `install_extension`, `restart_editor`) se rechaza. Los archivos fuera del proyecto, y la propia carpeta de modos, nunca se pueden editar. El chat dice qué archivo se rechazó y por qué.
+- **Shell**: con `editable`, un comando de shell, una [tool del proyecto](Herramientas-del-editor.md) o una tool de otro servidor MCP podrían escribir cualquier cosa, así que **preguntan siempre**, también con base Auto (las listas de Auto no valen, y la tarjeta no ofrece «siempre»). `"shell": "deny"` niega la shell; `"shell": "base"` la deja al modo base.
+- **Instrucciones**: van al system prompt del agente después de las reglas del modo base, con la lista de archivos editables, marcadas como instrucciones del proyecto (como `CLAUDE.md`). Pasar a otro modo del proyecto manda el system prompt de nuevo con el mensaje siguiente.
+
+El formato:
+
+```json
+{
+  "version": 1,
+  "name": "Diseño de niveles",
+  "base": "build",
+  "when_to_use": "Armar y ajustar niveles",
+  "instructions": "Solo tocá escenas de niveles. Reusá los props de res://props/.",
+  "editable": ["res://levels/**", "res://levels/*.tres"],
+  "shell": "ask",
+  "icon": "TileMap"
+}
+```
+
+`base` es `ask`, `review`, `build` o `auto`. `editable` usa los mismos patrones que las [reglas por archivo](#reglas-por-archivo): `**` es cualquier cantidad de carpetas, `*` y `?` quedan dentro de un nombre, y un patrón sin `/` (`*.gdshader`) vale en cualquier carpeta; sin `editable`, el modo no limita archivos. `shell` es `ask` (por defecto), `deny` o `base`. `icon` es el nombre de un ícono del editor. Un modo no tiene modelo: el modelo es tuyo, no del proyecto (ver [Un modelo para cada modo](#un-modelo-para-cada-modo)).
+
 ### Aprobar el plan del agente
 
 En Preguntar o Revisar, un agente con modo plan (Claude Code) puede terminar de planear presentando un plan para aprobar. El dock lo muestra en una tarjeta con el plan en Markdown y tres botones:

@@ -6,6 +6,7 @@ extends RefCounted
 ## agente no lo escribe a mano (D48).
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const ValueCoercion := preload("value_coercion.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 
@@ -40,7 +41,7 @@ const EVENT_HELP := "Events: a key (\"Space\", \"W\", \"Ctrl+S\", \"key:Escape\"
 
 func tools() -> Array:
 	var project := PermissionPolicy.GROUP_PROJECT
-	return [
+	return WriteTargets.declare([
 		McpTool.create("project_settings", PermissionPolicy.GROUP_READ,
 			"Reads project settings with their current value and default. With `prefix` (e.g. \"display/window\", \"physics/2d\"), every setting under it; without it, only the ones that differ from the default. Input actions and autoloads are in project_info.",
 			{"prefix": {"type": "string"}}, [], _project_settings),
@@ -67,7 +68,11 @@ func tools() -> Array:
 			}, ["name", "path"], _set_autoload),
 		McpTool.create("remove_autoload", project, "Removes an autoload and saves project.godot (with undo).",
 			{"name": {"type": "string"}}, ["name"], _remove_autoload),
-	]
+	], {
+		"set_project_setting": WriteTargets.project_settings, "set_autoload": WriteTargets.project_settings,
+		"remove_autoload": WriteTargets.project_settings, "set_input_action": WriteTargets.project_settings,
+		"remove_input_action": WriteTargets.project_settings,
+	})
 
 
 # --- tools ---------------------------------------------------------------------------------------

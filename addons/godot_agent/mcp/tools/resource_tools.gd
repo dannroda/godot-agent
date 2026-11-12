@@ -5,6 +5,7 @@ extends RefCounted
 ## ajustables en Resources) sin escribir `.tres` a mano, que el harness rechaza (D48).
 
 const McpTool := preload("../mcp_tool.gd")
+const WriteTargets := preload("../write_targets.gd")
 const SceneAccess := preload("scene_access.gd")
 const ValueCoercion := preload("value_coercion.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -16,7 +17,7 @@ const PROPERTIES_HELP := "`properties` uses the Inspector names; vectors as [x, 
 
 func tools() -> Array:
 	var files := PermissionPolicy.GROUP_EDIT_FILES
-	return [
+	return WriteTargets.declare([
 		McpTool.enveloped(McpTool.create("get_resource", PermissionPolicy.GROUP_READ,
 			"Reads a resource file (.tres/.res): type, script, uid and every saved property that differs from the default, with its sub-resources.",
 			{"path": {"type": "string"}}, ["path"], _get_resource), McpTool.ENVELOPE_ALL),
@@ -28,7 +29,10 @@ func tools() -> Array:
 			"Changes properties of a resource file and saves it (one undo step, Ctrl+Z in the editor). Scenes that use it see the change. " + PROPERTIES_HELP,
 			{"path": {"type": "string"}, "properties": {"type": "object"}},
 			["path", "properties"], _set_resource_properties),
-	]
+	], {
+		"create_resource": func(args: Dictionary) -> PackedStringArray: return WriteTargets.keys(args, ["path"]),
+		"set_resource_properties": func(args: Dictionary) -> PackedStringArray: return WriteTargets.keys(args, ["path"]),
+	})
 
 
 # --- tools ---------------------------------------------------------------------------------------

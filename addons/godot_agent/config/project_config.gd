@@ -62,6 +62,8 @@ const ShellRules := preload("../session/shell_rules.gd")
 @export var turn_checks: Array = []
 ## Carpeta de las recetas del proyecto (m11-30): un .json por receta, versionable. Ver core/recipes.gd.
 @export var recipes_dir: String = "res://agent_recipes"
+## La carpeta de los modos del proyecto (m11-39): un .json por modo. Las mismas reglas que recipes_dir.
+@export var modes_dir: String = "res://agent_modes"
 ## Hooks del proyecto en eventos del editor (m11-24): una escena o un script guardados, un juego que
 ## termina (ver core/project_hooks.gd). Un hook corre solo si se aprobó su definición en esta máquina.
 @export var hooks: Array = []
