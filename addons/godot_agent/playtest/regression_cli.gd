@@ -247,22 +247,34 @@ func run_one(entry: Dictionary, setup: String = "", sabotage: Dictionary = {}) -
 		result.output = "It can't use %s: it may not touch files or start processes." % blocked
 		return result
 	var scene := str(entry.get("scene", ""))
-	if not ResourceLoader.exists(scene) or change_scene_to_file(scene) != OK:
-		result.output = "The scene %s could not be opened." % scene
-		return result
+	if sabotage.is_empty():
+		if not ResourceLoader.exists(scene) or change_scene_to_file(scene) != OK:
+			result.output = "The scene %s could not be opened." % scene
+			return result
+	else:
+		# Antes de _ready (m11-63): la escena se instancia con los valores del .tscn y sus conexiones, el
+		# sabotaje se pone sobre esa instancia y recién ahí entra al árbol. Para el juego es como si el
+		# .tscn tuviera el cambio, también para lo que se lee en _enter_tree o _ready; el .tscn y el
+		# PackedScene del caché no se tocan.
+		var packed := load(scene) as PackedScene if ResourceLoader.exists(scene) else null
+		var instance := packed.instantiate() if packed else null
+		if instance == null:
+			result.output = "The scene %s could not be opened." % scene
+			return result
+		var why := SceneSabotage.apply(instance, sabotage)
+		if not why.is_empty():
+			instance.free()
+			result.output = why
+			result.invalid = true
+			return result
+		if change_scene_to_node(instance) != OK:
+			instance.free()
+			result.output = "The scene %s could not be opened." % scene
+			return result
 	paused = false
 	await process_frame
 	await process_frame
 	await create_timer(SETTLE_S).timeout
-	if not sabotage.is_empty():
-		# En memoria, sobre la escena ya asentada (m11-62): el .tscn no se toca.
-		var why := SceneSabotage.apply(current_scene, sabotage)
-		if not why.is_empty():
-			result.output = why
-			result.invalid = true
-			unload_current_scene()
-			await process_frame
-			return result
 	var probe: Node = PlaytestProbe.new()
 	probe.standalone = true
 	root.add_child(probe)

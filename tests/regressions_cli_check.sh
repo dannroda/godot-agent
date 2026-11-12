@@ -105,12 +105,13 @@ if ! grep -q '"nodes_max"' "$ROOT/tests/tmp/baselines/mover.json" || ! grep -q '
 fi
 rm -rf "$ROOT/tests/tmp/baselines" "$ROOT/tests/tmp/invariant_mutant.json"
 # m11-62: sabotajes de escena. Speed a 0, Panel oculto y la señal del Timer cortada los detecta la
-# regresión; la raíz oculta no. El .tscn no cambia.
+# regresión; la raíz oculta no. max_health a 0 también (m11-63): solo se lee en _ready, así que se ve
+# porque el sabotaje se pone antes de que la escena entre al árbol. El .tscn no cambia.
 BEFORE="$(project_hash)"
 OUT="$("$G" --headless --path "$ROOT" --script "$CLI" -- --mutate=100 res://tests/fixtures/regressions/sabotage 2>&1)"
 KILLED="$(printf '%s\n' "$OUT" | grep -c 'door.tscn killed$')"
-if [ "$KILLED" != 3 ] || ! printf '%s\n' "$OUT" | grep -q 'survived res://tests/fixtures/sabotage/door.tscn root hidden'; then
-	echo "FALLA: los sabotajes de escena tendrían que dar 3 detectados y «root hidden» sin detectar (detectados: $KILLED)"
+if [ "$KILLED" != 4 ] || ! printf '%s\n' "$OUT" | grep -q 'survived res://tests/fixtures/sabotage/door.tscn root hidden'; then
+	echo "FALLA: los sabotajes de escena tendrían que dar 4 detectados y «root hidden» sin detectar (detectados: $KILLED)"
 	printf '%s\n' "$OUT" | grep "door.tscn" | head -8
 	FAILED=1
 fi

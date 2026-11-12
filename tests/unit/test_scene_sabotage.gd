@@ -20,14 +20,14 @@ func test_sabotages_of_a_scene() -> void:
 	var all := SceneSabotage.sabotages(SCENE)
 	assert_eq(_changes(all), PackedStringArray([
 		"Panel hidden", "Timer.timeout → root._on_timer_timeout disconnected", "Zone hidden", "Zone/Shape disabled",
-		"root hidden", "root.speed = 0.0"]), "todas, leídas del .tscn sin instanciar")
+		"root hidden", "root.max_health = 0", "root.speed = 0.0"]), "todas, leídas del .tscn sin instanciar")
 	for sabotage: Dictionary in all:
 		assert_eq(sabotage.kind, SceneSabotage.KIND, "tipo")
 		assert_eq(sabotage.path, SCENE, "la escena es el «archivo» del mutante")
 		assert_true(JSON.parse_string(JSON.stringify(sabotage)) is Dictionary, "se manda como JSON al proceso")
 	var code: String = JSON.parse_string(FileAccess.get_file_as_string(REGRESSION)).code
 	assert_eq(_changes(SceneSabotage.sabotages(SCENE, code)), PackedStringArray([
-		"Panel hidden", "Timer.timeout → root._on_timer_timeout disconnected", "root hidden", "root.speed = 0.0"]),
+		"Panel hidden", "Timer.timeout → root._on_timer_timeout disconnected", "root hidden", "root.max_health = 0", "root.speed = 0.0"]),
 		"con el código de la regresión: los nodos que nombra, la raíz y lo que llega a la raíz")
 
 
@@ -57,13 +57,34 @@ func test_apply_in_memory() -> void:
 	assert_eq(FileAccess.get_file_as_string(SCENE).contains("speed = 150.0"), true, "el .tscn no cambió")
 
 
+## m11-63: puesto sobre la escena recién instanciada, antes de que entre al árbol, _ready ya lo ve.
+func test_apply_before_ready() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var by_change := {}
+	for sabotage: Dictionary in SceneSabotage.sabotages(SCENE):
+		by_change[sabotage.change] = sabotage
+	var door: Node2D = (load(SCENE) as PackedScene).instantiate()
+	assert_eq(SceneSabotage.apply(door, by_change["root.max_health = 0"]), "", "propiedad, fuera del árbol")
+	assert_eq(SceneSabotage.apply(door, by_change["Zone/Shape disabled"]), "", "deshabilitar, fuera del árbol")
+	assert_eq(SceneSabotage.apply(door, by_change["Timer.timeout → root._on_timer_timeout disconnected"]), "", "las conexiones del .tscn ya están al instanciar")
+	tree.root.add_child(door)
+	assert_eq(door.health, 0, "_ready leyó el valor roto")
+	assert_true((door.get_node("Zone/Shape") as CollisionShape2D).disabled, "deshabilitada sin esperar un frame")
+	assert_false((door.get_node("Timer") as Timer).timeout.is_connected(door._on_timer_timeout), "la señal sigue cortada")
+	door.free()
+	var fresh: Node2D = (load(SCENE) as PackedScene).instantiate()
+	tree.root.add_child(fresh)
+	assert_eq([fresh.max_health, fresh.health, fresh.speed], [3, 3, 150.0], "el PackedScene del caché no cambió")
+	fresh.free()
+
+
 func test_plan_includes_scene_sabotages() -> void:
 	var entry: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(REGRESSION))
 	entry.file = REGRESSION
 	var entries: Array[Dictionary] = [entry]
 	var plan := MutationTesting.plan(entries, 100)
 	var scene := plan.filter(func(mutant: Dictionary) -> bool: return mutant.get("kind") == SceneSabotage.KIND)
-	assert_eq(scene.size(), 4, "los sabotajes de la escena entran al plan")
+	assert_eq(scene.size(), 5, "los sabotajes de la escena entran al plan")
 	assert_true(plan.size() > scene.size(), "junto con los mutantes del script")
 	assert_eq(Array(scene[0].regressions), [REGRESSION], "con sus regresiones")
 	assert_eq(MutationTesting.where(scene[0]), SCENE, "sin «:0»")
