@@ -128,6 +128,23 @@ run_check() {
 			scenario="$(echo "${name#ui-}" | tr - _)"
 			case "$scenario" in basic|crash) ;; *) scenario="ui_$scenario" ;; esac
 			xvfb "--godot-agent-ui-test=$scenario" ;;
+		instances)
+			# m11-50: otro editor con el puerto del debugger (6007, el de siempre). Este escucha en el
+			# siguiente, y las instancias extra tienen que ir ahí y no a remote_port. Si ya está tomado
+			# (el editor del usuario, otro check), mejor: es el mismo caso.
+			python3 -c 'import socket, sys, time
+s = socket.socket()
+try:
+    s.bind(("127.0.0.1", 6007)); s.listen(1)
+except OSError:
+    sys.exit(0)
+time.sleep(int(sys.argv[1]))' "$limit" &
+			holder=$!
+			sleep 1
+			xvfb --godot-agent-instances-test
+			code=$?
+			kill "$holder" 2>/dev/null
+			return "$code" ;;
 		crash) timeout "$limit" sh tests/crash_check.sh "$G" ;;
 		quit) XRUN_TIMEOUT="$limit" timeout "$((limit + 30))" sh tests/quit_check.sh "$G" ;;
 		*) xvfb "--godot-agent-$name-test" ;;

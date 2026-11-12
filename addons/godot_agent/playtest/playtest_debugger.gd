@@ -31,6 +31,9 @@ var _probe_session: int = -1
 ## Las instancias extra de run_scene y sus sesiones (m11-50).
 var instances := InstanceSessions.new()
 ## A qué instancia van send(), has_probe(), is_breaked() y resume(): 1 es la del editor.
+## El PID del juego que lanzó el editor (lo dice su probe), o 0. De su línea de comandos sale adónde se
+## conectan las instancias extra (GameInstances.editor_debugger_uri).
+var editor_game_pid := 0
 var target_instance: int = 1
 
 
@@ -46,6 +49,7 @@ func _capture(message: String, data: Array, session_id: int) -> bool:
 				instance_event.emit(number, "ready")
 			else:
 				_probe_session = session_id
+				editor_game_pid = int(data[2]) if data.size() >= 3 else 0
 				probe_ready.emit()
 		"frame":
 			if data.size() >= 3 and data[0] is PackedByteArray:
