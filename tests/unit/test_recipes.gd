@@ -13,6 +13,9 @@ const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const HarnessPrompts := preload("res://addons/godot_agent/session/harness_prompts.gd")
 const RecipeForm := preload("res://addons/godot_agent/ui/dock/recipe_form.gd")
 const AgentDock := preload("res://addons/godot_agent/ui/dock/agent_dock.gd")
+const RecipeTemplates := preload("res://addons/godot_agent/core/recipe_templates.gd")
+const RecipesTab := preload("res://addons/godot_agent/ui/extensions/recipes_tab.gd")
+const PlanApproval := preload("res://addons/godot_agent/session/plan_approval.gd")
 
 const ENEMY := {
 	"version": 1, "title": "Add enemy", "description": "An enemy from a base scene", "mode": "build",
@@ -78,12 +81,12 @@ func test_parse_errors() -> void:
 	var broken := {
 		"version": 1, "title": "", "prompt": "Use {{missing}} and {{a}}", "mode": "fly", "max_retries": 9, "extra": true,
 		"parameters": [{"key": "a", "type": "choice"}, {"key": "a"}, {"key": "bad key"}, {"key": "b", "type": "color"}, {"key": "c", "type": "scene", "default": "res://x.gd"}],
-		"checks": [{"kind": "command", "command": "make && run"}, {"kind": "playtest"}],
+		"checks": [{"kind": "command", "command": "make && run"}, {"kind": "playtest"}, {"kind": "lint"}, {"kind": "playtest", "goal": "win", "minutes": 99}],
 	}
 	var errors := "\n".join(Recipes.from_data(broken).errors)
 	for expected: String in ["Unknown field «extra»", "«title» is missing", "«mode» must be one of", "«max_retries» must be between 0 and 5",
 			"{{missing}}, which isn't a parameter", "a choice needs «options»", "«a» appears twice", "«key» must be a name",
-			"unknown type «color»", "the default must be a tscn, scn file", "runs without a shell", "unknown kind «playtest»"]:
+			"unknown type «color»", "the default must be a tscn, scn file", "runs without a shell", "a playtest needs a «goal»", "unknown kind «lint»", "«minutes» must be between 0 and 30"]:
 		assert_true(errors.contains(expected), "dice «%s»: %s" % [expected, errors])
 	assert_true(Recipes.from_data({"version": 2, "title": "t", "prompt": "p"}).errors[0].contains("newer version"), "una versión más nueva")
 
@@ -235,6 +238,131 @@ func test_controller_run() -> void:
 	assert_true(controller.recipe_run().is_empty(), "otro mensaje del usuario la termina")
 	controller.client.fail_all_pending("end of test")
 	await _frames()
+
+
+func test_controller_playtest() -> void:
+	var dir := _dir("playtest")
+	var settings := HarnessSettings.new()
+	var passing := "{godot} --headless --script \"%s\"" % _exit_script(dir, 0)
+	settings.approve_command(TurnChecks.approval_key(dir, passing))
+	var sent: Array = []
+	var controller := _controller(dir, sent, settings)
+	var recipe: Dictionary = Recipes.from_data({"version": 1, "title": "Options", "prompt": "Add options", "max_retries": 2, "checks": [
+		{"kind": "command", "name": "Lint", "command": passing}, {"kind": "playtest", "goal": "change the volume", "minutes": 3}]}).recipe
+	var spec := Recipes.run_spec(recipe)
+	assert_eq((spec.checks as Array).size(), 1, "el playtest no va con los checks")
+	assert_eq(spec.playtests, [{"name": "Playtest", "goal": "change the volume", "minutes": 3}])
+	controller.arm_recipe_run("Add options", spec)
+	controller.send_prompt("Add options")
+	await _end_turn(controller)
+	var started := int(Time.get_unix_time_from_system()) - 5
+	await controller.call(&"_run_turn_checks", started)
+	await _frames()
+	var prompt := str(_prompts(sent)[-1].params.prompt[-1].text)
+	assert_true(prompt.begins_with("Playtest: change the volume") and prompt.contains("Time limit: 3 minutes"), "con los checks en verde, juega: %s" % prompt.left(80))
+	assert_eq(controller.model.harness_mode, SessionModel.HarnessMode.REVIEW, "en Revisar")
+	assert_true(controller.model.entries().any(func(e: ChatEntry) -> bool: return e.harness_label == HarnessPrompts.RECIPE_PLAYTEST), "como prompt del harness")
+	assert_false(controller.recipe_run().is_empty(), "el prompt del playtest no corta la corrida")
+	# Falla: lo que vio vuelve como corrección, en el modo de la receta.
+	await _end_turn(controller)
+	controller.get(&"_recipe_run").playtest_verdict = {"verdict": "fail", "summary": "The volume slider does nothing", "repro": ["open options", "drag the slider"]}
+	controller.call(&"_after_recipe_playtest")
+	await _frames()
+	assert_eq(controller.model.harness_mode, SessionModel.HarnessMode.BUILD, "vuelve a Construir")
+	prompt = str(_prompts(sent)[-1].params.prompt[-1].text)
+	assert_true(prompt.contains("A playtest of what you built failed") and prompt.contains("The volume slider does nothing") and prompt.contains("- drag the slider"), prompt)
+	assert_true(_notices(controller)[-1].contains("the playtest failed"), _notices(controller)[-1])
+	# El arreglo: los checks pasan, juega de nuevo y pasa.
+	await _end_turn(controller)
+	await controller.call(&"_run_turn_checks", started)
+	await _end_turn(controller)
+	controller.get(&"_recipe_run").playtest_verdict = {"verdict": "pass"}
+	controller.call(&"_after_recipe_playtest")
+	assert_true(_notices(controller)[-1].contains("checks passed (attempt 2)"), _notices(controller)[-1])
+	assert_true(controller.recipe_run().is_empty())
+	assert_eq(controller.model.harness_mode, SessionModel.HarnessMode.BUILD)
+	# Sin poder probar, termina con un aviso.
+	controller.arm_recipe_run("Again", spec)
+	controller.send_prompt("Again")
+	await _end_turn(controller)
+	await controller.call(&"_run_turn_checks", started)
+	await _end_turn(controller)
+	controller.get(&"_recipe_run").playtest_verdict = {"verdict": "blocked"}
+	var before := _prompts(sent).size()
+	controller.call(&"_after_recipe_playtest")
+	assert_true(_notices(controller)[-1].contains("couldn't check the result"), _notices(controller)[-1])
+	assert_eq(_prompts(sent).size(), before, "no manda nada")
+	assert_true(controller.recipe_run().is_empty())
+	controller.client.fail_all_pending("end of test")
+	await _frames()
+
+
+func test_controller_plan_first() -> void:
+	var dir := _dir("plan")
+	var sent: Array = []
+	var controller := _controller(dir, sent, HarnessSettings.new())
+	var spec := {"title": "Options", "slug": "options", "max_retries": 2, "checks": [TurnChecks.make(TurnChecks.KIND_REGRESSIONS, "Regressions", "")], "playtests": [], "plan": true}
+	controller.arm_recipe_after_plan(spec)
+	controller.request_plan("Add options")
+	await _frames()
+	assert_eq(controller.model.harness_mode, SessionModel.HarnessMode.ASK, "planifica en Preguntar")
+	assert_true(controller.recipe_run().is_empty(), "la corrida no arranca con el plan")
+	await _end_turn(controller)
+	var request := PlanApproval.block_request("1. Add the screen")
+	controller.model.add_permission(request)
+	controller.approve_plan(request)
+	await _frames()
+	assert_eq(controller.recipe_run().get("title"), "Options", "arranca con «Aprobar y construir»")
+	assert_eq(controller.model.harness_mode, SessionModel.HarnessMode.BUILD)
+	assert_eq(int(controller.recipe_run().attempts), 0)
+	await _end_turn(controller)
+	# Otro mensaje antes de aprobar el plan la descarta.
+	controller.arm_recipe_after_plan(spec)
+	controller.send_prompt("Never mind")
+	await _frames()
+	assert_true((controller.get(&"_recipe_after_plan") as Dictionary).is_empty(), "otro mensaje del usuario la descarta")
+	controller.client.fail_all_pending("end of test")
+	await _frames()
+	DirAccess.remove_absolute(dir.path_join(".godot_agent"))
+
+
+func test_templates_and_tab() -> void:
+	for template: Dictionary in RecipeTemplates.all():
+		var parsed := Recipes.parse(RecipeTemplates.text(template.id), "x.json")
+		assert_eq(parsed.errors, PackedStringArray(), "la plantilla «%s» sirve" % template.id)
+	assert_true(Recipes.run_spec(Recipes.parse(RecipeTemplates.text("options")).recipe).plan, "la pantalla de opciones planifica primero")
+	var dir := _dir("tab")
+	var tab := RecipesTab.new()
+	tab.dir_provider = func() -> String: return dir.path_join("recipes")
+	var uses: Array = []
+	tab.use_requested.connect(func(slug: String) -> void: uses.append(slug))
+	(Engine.get_main_loop() as SceneTree).root.add_child(tab)
+	tab.refresh()
+	assert_eq(tab.recipe_count(), 0, "carpeta vacía (todavía no existe)")
+	var path := tab.create_from_template("enemy")
+	assert_eq(path.get_file(), "new_enemy.json", "la plantilla se guarda con su título")
+	assert_eq(tab.recipe_count(), 1)
+	assert_eq(tab.create_from_template("enemy").get_file(), "new_enemy_2.json", "sin pisar la otra")
+	assert_true(tab.problems_text().contains("valid"), tab.problems_text())
+	# Valida mientras se escribe; con cambios, «Use» espera.
+	tab.editor().text = tab.editor().text.replace("\"title\": \"New enemy\"", "\"title\": \"\"")
+	assert_true(tab.is_dirty())
+	tab.validate()
+	assert_true(tab.problems_text().contains("«title» is missing"), tab.problems_text())
+	assert_eq(tab.save(), OK)
+	assert_false(tab.is_dirty())
+	assert_true(Recipes.load_file(path.get_base_dir().path_join("new_enemy_2.json")).errors.size() > 0, "se guarda aunque tenga errores")
+	tab.editor().text = RecipeTemplates.text("csharp")
+	tab.save()
+	for button: Button in tab.find_children("*", "Button", true, false):
+		if button.text == "Use in the dock":
+			assert_false(button.disabled, "válida y guardada: «Use» anda")
+			button.pressed.emit()
+	assert_eq(uses, ["new_enemy_2"], "«Use» pide abrirla en el dock")
+	tab.queue_free()
+	for file: String in DirAccess.get_files_at(dir.path_join("recipes")):
+		DirAccess.remove_absolute(dir.path_join("recipes").path_join(file))
+	DirAccess.remove_absolute(dir.path_join("recipes"))
 
 
 func _frames(n: int = 2) -> void:

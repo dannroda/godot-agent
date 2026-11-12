@@ -68,6 +68,42 @@ Hooks are saved in `addons/godot_agent/config/project_config.tres`, which the ag
 
 Hooks are not the place for checks at the end of each turn: those are the [project checks](#project-checks-after-each-turn), whose failures go back to the agent.
 
+### Recipes
+
+A recipe is a request you repeat (a new enemy from a base scene, an options screen, porting a script to C#) saved with typed parameters and checks the result must pass. Each recipe is a `.json` file in the project's recipes folder, `res://agent_recipes/` by default (Settings → MCP servers → Advanced → **Recipes**), so it is shared through git like the rest of the project.
+
+- **Launch** a recipe from the composer's **+** → **Recipe…** or with `/recipe <name>`. A form asks for its parameters, one control per type: text, multiline text, a choice, a number, yes/no, a scene, script, resource or any project file (with a file picker), a node of the open scene and an input action. **Use** writes the expanded request into the composer, in the recipe's mode, without sending it: edit it if you want, then send. A chip above the composer names the recipe's checks; remove the chip to send without them.
+- **Checks**: after each turn of the run, the recipe's checks run even if the turn changed nothing: the saved playtest regressions, a command (like the [project checks](#project-checks-after-each-turn)) or a **playtest** with a goal. A playtest check runs once the others pass: an agent plays the game in Review mode to check the goal, and the check passes when the verdict is **pass**. If a check fails, the agent gets what it reported and tries again, up to the recipe's `max_retries` (2 by default, 5 at most). The run ends with **checks passed (attempt N)** or **still fail after N attempts**. A message of yours ends the run. A playtest that could not test ends it with a notice.
+- **Plan first** (on by default when the recipe says `"plan": true`) sends the request as `/plan`: the agent plans in Ask mode and the run starts with **Approve and build**.
+- **A recipe can't run anything on its own.** A check's command only runs on a machine where that exact command was approved, the same approval as the project checks: a recipe that came from someone else's repository shows **Approve «name»…** and runs nothing until you approve it.
+- The **Recipes** tab of [Extensions](Settings.md#extensions) lists the project's recipes with ✓ or how many problems each one has, and opens the `.json` in an editor that checks it as you type. **New** copies one of three templates (an enemy from a base scene, an options screen, porting a script to C#); **Use in the dock** opens the recipe's form.
+
+The format:
+
+```json
+{
+  "version": 1,
+  "title": "New enemy",
+  "description": "A new enemy that inherits a base scene.",
+  "mode": "build",
+  "plan": false,
+  "prompt": "Create {{name}} as an inherited scene of {{base}}. It should {{behavior}}.",
+  "parameters": [
+    {"key": "name", "type": "text", "label": "Name"},
+    {"key": "base", "type": "scene", "label": "Base scene"},
+    {"key": "behavior", "type": "choice", "options": ["patrol", "chase the player"]}
+  ],
+  "checks": [
+    {"kind": "regressions"},
+    {"kind": "command", "name": "Tests", "command": "{godot} --headless --script res://tests/run.gd"},
+    {"kind": "playtest", "goal": "the new enemy patrols and hurts the player on contact", "minutes": 5}
+  ],
+  "max_retries": 2
+}
+```
+
+`mode` is `build`, `auto` or `ask`. A parameter's `type` is `text`, `multiline`, `choice` (with `options`), `number`, `bool`, `scene`, `script`, `resource`, `path`, `node` or `input_action`; `required` is true by default, `default` fills the form, and `filter` limits a file to some extensions. A file or node goes into the request as a mention (`@res://…`), like the composer does. Recipes aren't available during a One-shot run.
+
 ### Changes of each turn
 
 While the agent works in Build or Auto, a counter above the composer shows what it changed so far in the turn (**3 files · +42 −7**); click it to see those changes (you keep or reject them when the turn ends). In Build and Auto, when the project is in a git repo, a turn that changed files ends with a footer line: how many files, lines added and removed, and two actions. **View changes** lists the files, each with its diff and **Go back** (that file returns to how it was before the turn). Open a script or text file with **▸** to review its changes one by one: **Keep** marks a change as reviewed, and **Reject** undoes just that change in the file, even if you edited other parts of the file after the turn. **Undo**, in the dialog or in the chat notice, puts it back. If those same lines changed after the turn, the change shows **Changed after the turn** and can't be rejected (nothing gets overwritten); use **Go back** for the whole file. Nothing is touched while the file has unsaved changes in the editor, while another session is editing it in its turn, or while the turn is still running. **Reject all in this file** rejects every change that can be rejected and says how many couldn't. A scene opens by node, and each change can be rejected on its own: a changed property gets its value from before the turn back, an added node goes away with the nodes below it and its signal connections, a removed node comes back in the same place among its siblings, a moved or renamed node goes back where it was, and the same for the root's name, a node's type or instanced scene, its groups and each signal connection. What comes back brings the resources it used, without clashing with the scene's current ones. Before writing, the scene is loaded to check it still loads; if it wouldn't, nothing is written. A change inside a resource that other nodes share can only be undone with **Go back**. The agent is told which changes you rejected. A scene's diff is shown by node: nodes added (with how many came below them), removed, moved or renamed, properties changed with their value before → after (a shape's `shape.size`, a script by its path), and signal connections. Resource ids that Godot renumbers when it saves are not changes. **View raw** shows the text diff. A big change shows its first 200 lines and says how many are left out. **Undo turn** goes back to before the turn for every file, including what changed after the turn, and asks first; the chat then offers **Undo**. The agent is told which files were reverted before its next turn.

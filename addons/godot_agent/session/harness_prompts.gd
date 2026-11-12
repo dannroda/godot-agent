@@ -43,3 +43,4 @@ const DENY_REASON := "Denied with a reason"  # i18n
 const HANDOFF := "Handoff · summary for a new session"  # i18n
 ## Un check de una receta falló (m11-30): su salida vuelve al agente, hasta el tope de la receta.
 const RECIPE_CHECK := "Recipe · check failed"  # i18n
+const RECIPE_PLAYTEST := "Recipe · playtest"  # i18n

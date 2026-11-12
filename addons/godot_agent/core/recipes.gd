@@ -8,12 +8,14 @@ extends RefCounted
 ##   {"version": 1, "title", "description", "mode": "build"|"auto"|"ask", "plan": false,
 ##    "prompt": "Add an enemy based on {{base}} that {{behavior}}",
 ##    "parameters": [{"key", "label", "type", "required", "default", "options", "filter"}],
-##    "checks": [{"kind": "regressions"|"command", "name", "command", "paths", "timeout_s"}],
+##    "checks": [{"kind": "regressions"|"command", "name", "command", "paths", "timeout_s"},
+##               {"kind": "playtest", "name", "goal": "reach the exit", "minutes": 5}],
 ##    "max_retries": 2}
 ##
 ## Un comando de un check corre solo si se aprobó en esta máquina (la misma aprobación que los checks
 ## del proyecto): una receta clonada no corre nada sin preguntar.
 
+const I18n := preload("i18n.gd")
 const ProjectDirs := preload("project_dirs.gd")
 const TurnChecks := preload("turn_checks.gd")
 
@@ -27,10 +29,13 @@ const MODES: PackedStringArray = ["build", "auto", "ask"]
 const TYPES: PackedStringArray = ["text", "multiline", "choice", "number", "bool", "scene", "script", "resource", "node", "input_action", "path"]
 ## Los tipos cuyo valor es una ruta res:// (van al prompt como mención @res://…).
 const PATH_TYPES: PackedStringArray = ["scene", "script", "resource", "path"]
-const CHECK_KINDS: PackedStringArray = [TurnChecks.KIND_REGRESSIONS, TurnChecks.KIND_COMMAND]
+## Un playtest (m11-30): un agente juega con `goal` y el check pasa con el veredicto «pass».
+const KIND_PLAYTEST := "playtest"
+const MAX_PLAYTEST_MINUTES := 30
+const CHECK_KINDS: PackedStringArray = [TurnChecks.KIND_REGRESSIONS, TurnChecks.KIND_COMMAND, KIND_PLAYTEST]
 const KEYS: PackedStringArray = ["version", "title", "description", "mode", "plan", "prompt", "parameters", "checks", "max_retries"]
 const PARAMETER_KEYS: PackedStringArray = ["key", "label", "type", "required", "default", "options", "filter"]
-const CHECK_KEYS: PackedStringArray = ["kind", "name", "command", "paths", "timeout_s", "enabled"]
+const CHECK_KEYS: PackedStringArray = ["kind", "name", "command", "paths", "timeout_s", "enabled", "goal", "minutes"]
 ## Extensiones por tipo de archivo (el filtro del selector; `filter` de la receta las reemplaza).
 const TYPE_EXTENSIONS := {
 	"scene": ["tscn", "scn"],
@@ -51,7 +56,7 @@ static func resolve_dir(configured: String) -> String:
 static func parse(text: String, path: String = "") -> Dictionary:
 	var json := JSON.new()
 	if json.parse(text) != OK:
-		return {"recipe": _empty(path), "errors": PackedStringArray(["Not valid JSON (line %d): %s" % [json.get_error_line(), json.get_error_message()]])}
+		return {"recipe": _empty(path), "errors": PackedStringArray([I18n.t("Not valid JSON (line %d): %s") % [json.get_error_line(), json.get_error_message()]])}
 	return from_data(json.data, path)
 
 
@@ -60,54 +65,54 @@ static func from_data(data: Variant, path: String = "") -> Dictionary:
 	var errors: PackedStringArray = []
 	var recipe := _empty(path)
 	if not data is Dictionary:
-		errors.append("The recipe must be a JSON object.")
+		errors.append(I18n.t("The recipe must be a JSON object."))
 		return {"recipe": recipe, "errors": errors}
 	var source: Dictionary = data
 	for key: Variant in source:
 		if not str(key) in KEYS:
-			errors.append("Unknown field «%s»." % key)
+			errors.append(I18n.t("Unknown field «%s».") % key)
 	var version := int(source.get("version", VERSION)) if _is_number(source.get("version", VERSION)) else -1
 	if version < 1:
-		errors.append("«version» must be a number.")
+		errors.append(I18n.t("«version» must be a number."))
 	elif version > VERSION:
-		errors.append("Made for a newer version of the harness (version %d)." % version)
+		errors.append(I18n.t("Made for a newer version of the harness (version %d).") % version)
 	recipe.title = _string(source, "title", errors).strip_edges()
 	if recipe.title.is_empty():
-		errors.append("«title» is missing.")
+		errors.append(I18n.t("«title» is missing."))
 	recipe.description = _string(source, "description", errors).strip_edges()
 	recipe.prompt = _string(source, "prompt", errors)
 	if recipe.prompt.strip_edges().is_empty():
-		errors.append("«prompt» is missing.")
+		errors.append(I18n.t("«prompt» is missing."))
 	recipe.mode = _string(source, "mode", errors, "build").strip_edges().to_lower()
 	if not recipe.mode in MODES:
-		errors.append("«mode» must be one of: %s." % ", ".join(MODES))
+		errors.append(I18n.t("«mode» must be one of: %s.") % ", ".join(MODES))
 		recipe.mode = "build"
 	if source.has("plan") and not source.plan is bool:
-		errors.append("«plan» must be true or false.")
+		errors.append(I18n.t("«plan» must be true or false."))
 	recipe.plan = bool(source.get("plan", false)) if source.get("plan", false) is bool else false
 	if source.has("max_retries") and not _is_number(source.max_retries):
-		errors.append("«max_retries» must be a number.")
+		errors.append(I18n.t("«max_retries» must be a number."))
 	elif source.has("max_retries") and (int(source.max_retries) < 0 or int(source.max_retries) > MAX_RETRIES):
-		errors.append("«max_retries» must be between 0 and %d." % MAX_RETRIES)
+		errors.append(I18n.t("«max_retries» must be between 0 and %d.") % MAX_RETRIES)
 	recipe.max_retries = clampi(int(source.get("max_retries", DEFAULT_RETRIES)) if _is_number(source.get("max_retries", DEFAULT_RETRIES)) else DEFAULT_RETRIES, 0, MAX_RETRIES)
 	var keys := {}
 	if source.has("parameters") and not source.parameters is Array:
-		errors.append("«parameters» must be a list.")
+		errors.append(I18n.t("«parameters» must be a list."))
 	elif source.has("parameters"):
 		for item: Variant in source.parameters:
 			var parameter := _parameter(item, recipe.parameters.size() + 1, errors)
 			if parameter.is_empty():
 				continue
 			if keys.has(parameter.key):
-				errors.append("Parameter «%s» appears twice." % parameter.key)
+				errors.append(I18n.t("Parameter «%s» appears twice.") % parameter.key)
 				continue
 			keys[parameter.key] = true
 			recipe.parameters.append(parameter)
 	for key: String in placeholders(recipe.prompt):
 		if not keys.has(key):
-			errors.append("The prompt uses {{%s}}, which isn't a parameter." % key)
+			errors.append(I18n.t("The prompt uses {{%s}}, which isn't a parameter.") % key)
 	if source.has("checks") and not source.checks is Array:
-		errors.append("«checks» must be a list.")
+		errors.append(I18n.t("«checks» must be a list."))
 	elif source.has("checks"):
 		for item: Variant in source.checks:
 			var check := _check(item, recipe.checks.size() + 1, errors)
@@ -123,19 +128,19 @@ static func _empty(path: String) -> Dictionary:
 
 static func _parameter(item: Variant, number: int, errors: PackedStringArray) -> Dictionary:
 	if not item is Dictionary:
-		errors.append("Parameter %d must be an object." % number)
+		errors.append(I18n.t("Parameter %d must be an object.") % number)
 		return {}
 	var source: Dictionary = item
 	for key: Variant in source:
 		if not str(key) in PARAMETER_KEYS:
-			errors.append("Parameter %d: unknown field «%s»." % [number, key])
+			errors.append(I18n.t("Parameter %d: unknown field «%s».") % [number, key])
 	var key := str(source.get("key", "")).strip_edges()
 	if not RegEx.create_from_string(KEY_PATTERN).search(key):
-		errors.append("Parameter %d: «key» must be a name (letters, digits and _)." % number)
+		errors.append(I18n.t("Parameter %d: «key» must be a name (letters, digits and _).") % number)
 		return {}
 	var type := str(source.get("type", "text")).strip_edges().to_lower()
 	if not type in TYPES:
-		errors.append("Parameter «%s»: unknown type «%s» (one of: %s)." % [key, type, ", ".join(TYPES)])
+		errors.append(I18n.t("Parameter «%s»: unknown type «%s» (one of: %s).") % [key, type, ", ".join(TYPES)])
 		type = "text"
 	var parameter := {"key": key, "label": str(source.get("label", "")).strip_edges(), "type": type,
 		"required": bool(source.get("required", true)) if source.get("required", true) is bool else true,
@@ -144,19 +149,19 @@ static func _parameter(item: Variant, number: int, errors: PackedStringArray) ->
 		parameter.label = key.capitalize()
 	if source.has("options"):
 		if not source.options is Array:
-			errors.append("Parameter «%s»: «options» must be a list." % key)
+			errors.append(I18n.t("Parameter «%s»: «options» must be a list.") % key)
 		else:
 			for option: Variant in source.options:
 				if not str(option).strip_edges().is_empty():
 					parameter.options.append(str(option).strip_edges())
 	if type == "choice" and parameter.options.is_empty():
-		errors.append("Parameter «%s»: a choice needs «options»." % key)
+		errors.append(I18n.t("Parameter «%s»: a choice needs «options».") % key)
 	if source.has("filter"):
 		var filter: Variant = source.filter
 		if filter is String:
 			filter = [filter]
 		if not filter is Array:
-			errors.append("Parameter «%s»: «filter» must be a list of extensions." % key)
+			errors.append(I18n.t("Parameter «%s»: «filter» must be a list of extensions.") % key)
 		else:
 			for extension: Variant in filter:
 				var clean := str(extension).strip_edges().trim_prefix("*").trim_prefix(".")
@@ -165,35 +170,53 @@ static func _parameter(item: Variant, number: int, errors: PackedStringArray) ->
 	if parameter.default != null:
 		var problem := value_error(parameter, parameter.default)
 		if not problem.is_empty():
-			errors.append("Parameter «%s»: the default %s" % [key, problem])
+			errors.append(I18n.t("Parameter «%s»: the default %s") % [key, problem])
 	return parameter
 
 
 static func _check(item: Variant, number: int, errors: PackedStringArray) -> Dictionary:
 	if not item is Dictionary:
-		errors.append("Check %d must be an object." % number)
+		errors.append(I18n.t("Check %d must be an object.") % number)
 		return {}
 	var source: Dictionary = item
 	for key: Variant in source:
 		if not str(key) in CHECK_KEYS:
-			errors.append("Check %d: unknown field «%s»." % [number, key])
+			errors.append(I18n.t("Check %d: unknown field «%s».") % [number, key])
 	var kind := str(source.get("kind", TurnChecks.KIND_COMMAND))
 	if not kind in CHECK_KINDS:
-		errors.append("Check %d: unknown kind «%s» (one of: %s)." % [number, kind, ", ".join(CHECK_KINDS)])
+		errors.append(I18n.t("Check %d: unknown kind «%s» (one of: %s).") % [number, kind, ", ".join(CHECK_KINDS)])
 		return {}
+	if kind == KIND_PLAYTEST:
+		return _playtest_check(source, number, errors)
 	var check := TurnChecks.normalize(source)
 	if kind == TurnChecks.KIND_COMMAND:
 		var parsed := TurnChecks.parse_command(str(check.command))
 		if not str(parsed.error).is_empty():
-			errors.append("Check «%s»: %s" % [check.name if not str(check.name).is_empty() else str(number), parsed.error])
+			errors.append(I18n.t("Check «%s»: %s") % [check.name if not str(check.name).is_empty() else str(number), parsed.error])
 	return check
+
+
+## Un check playtest: `{kind, name, goal, minutes, enabled}`. Corre después de los otros, cuando pasan.
+static func _playtest_check(source: Dictionary, number: int, errors: PackedStringArray) -> Dictionary:
+	var goal := str(source.get("goal", "")).strip_edges() if source.get("goal", "") is String else ""
+	var name := str(source.get("name", "")).strip_edges()
+	if goal.is_empty():
+		errors.append(I18n.t("Check %d: a playtest needs a «goal» (what the agent checks by playing).") % number)
+	var minutes := 0
+	if source.has("minutes"):
+		if not _is_number(source.minutes) or int(source.minutes) < 0 or int(source.minutes) > MAX_PLAYTEST_MINUTES:
+			errors.append(I18n.t("Check %d: «minutes» must be between 0 and %d.") % [number, MAX_PLAYTEST_MINUTES])
+		else:
+			minutes = int(source.minutes)
+	return {"kind": KIND_PLAYTEST, "name": name if not name.is_empty() else "Playtest", "goal": goal, "minutes": minutes,
+		"enabled": bool(source.get("enabled", true)), "paths": PackedStringArray()}
 
 
 static func _string(source: Dictionary, key: String, errors: PackedStringArray, default: String = "") -> String:
 	var value: Variant = source.get(key, default)
 	if value is String:
 		return value
-	errors.append("«%s» must be text." % key)
+	errors.append(I18n.t("«%s» must be text.") % key)
 	return default
 
 
@@ -228,9 +251,9 @@ static func load_dir(dir: String) -> Array[Dictionary]:
 static func load_file(path: String) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return {"recipe": _empty(path), "errors": PackedStringArray(["Can't read the file: %s" % error_string(FileAccess.get_open_error())])}
+		return {"recipe": _empty(path), "errors": PackedStringArray([I18n.t("Can't read the file: %s") % error_string(FileAccess.get_open_error())])}
 	if file.get_length() > MAX_FILE_BYTES:
-		return {"recipe": _empty(path), "errors": PackedStringArray(["The file is too big for a recipe (more than %d KB)." % (MAX_FILE_BYTES / 1024)])}
+		return {"recipe": _empty(path), "errors": PackedStringArray([I18n.t("The file is too big for a recipe (more than %d KB).") % (MAX_FILE_BYTES / 1024)])}
 	return parse(file.get_as_text(), path)
 
 
@@ -252,19 +275,19 @@ static func value_error(parameter: Dictionary, value: Variant) -> String:
 	match str(parameter.type):
 		"choice":
 			if not text in parameter.options:
-				return "must be one of: %s." % ", ".join(parameter.options)
+				return I18n.t("must be one of: %s.") % ", ".join(parameter.options)
 		"number":
 			if not (value is int or value is float or text.is_valid_float()):
-				return "must be a number."
+				return I18n.t("must be a number.")
 		"bool":
 			if not (value is bool or text.to_lower() in ["true", "false"]):
-				return "must be true or false."
+				return I18n.t("must be true or false.")
 		"scene", "script", "resource", "path":
 			if not text.begins_with("res://") or ".." in text.split("/"):
-				return "must be a res:// path in the project."
+				return I18n.t("must be a res:// path in the project.")
 			var extensions := extensions_for(parameter)
 			if not extensions.is_empty() and not text.get_extension().to_lower() in extensions:
-				return "must be a %s file." % ", ".join(extensions)
+				return I18n.t("must be a %s file.") % ", ".join(extensions)
 	return ""
 
 
@@ -282,7 +305,7 @@ static func values_errors(recipe: Dictionary, values: Dictionary) -> PackedStrin
 		var value: Variant = values.get(parameter.key, parameter.default)
 		if _text(value).is_empty():
 			if parameter.required and parameter.type != "bool":
-				errors.append("%s: %s" % [parameter.label, "required"])
+				errors.append("%s: %s" % [parameter.label, I18n.t("required")])
 			continue
 		var problem := value_error(parameter, value)
 		if not problem.is_empty():
@@ -328,6 +351,21 @@ static func _text(value: Variant) -> String:
 	return str(value).strip_edges()
 
 
-## Lo que lleva una corrida de receta al controller: título, checks y tope de reintentos.
+## Lo que lleva una corrida de receta al controller: título, checks (los de TurnChecks), playtests
+## (`[{name, goal, minutes}]`, después de los checks), tope de reintentos y si planifica primero.
 static func run_spec(recipe: Dictionary) -> Dictionary:
-	return {"title": str(recipe.title), "slug": str(recipe.slug), "checks": (recipe.checks as Array).duplicate(true), "max_retries": int(recipe.max_retries)}
+	var checks: Array = []
+	var playtests: Array = []
+	for check: Dictionary in recipe.checks:
+		if check.kind == KIND_PLAYTEST:
+			if check.enabled:
+				playtests.append({"name": check.name, "goal": check.goal, "minutes": check.minutes})
+		else:
+			checks.append(check.duplicate(true))
+	return {"title": str(recipe.title), "slug": str(recipe.slug), "checks": checks, "playtests": playtests,
+		"max_retries": int(recipe.max_retries), "plan": bool(recipe.get("plan", false))}
+
+
+## Los nombres de los checks de una receta, para el chip y el formulario.
+static func check_names(recipe: Dictionary) -> PackedStringArray:
+	return PackedStringArray((recipe.checks as Array).map(func(c: Dictionary) -> String: return str(c.name)))

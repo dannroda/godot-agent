@@ -1562,6 +1562,7 @@ func _on_plan_requested() -> void:
 		_composer.insert_text(PLAN_COMMAND + " ")
 		return
 	_composer.clear()
+	_arm_recipe(PLAN_COMMAND + " " + text)
 	_start_plan(text, _take_context_blocks())
 
 
@@ -2477,19 +2478,22 @@ func _open_recipe_form(recipe: Dictionary) -> void:
 
 ## «Usar» en el formulario: el prompt expandido va al composer (editable, no sale solo) en el modo
 ## de la receta, con un chip que lleva sus checks hasta que el usuario lo mande.
+## Con «Planificar primero», el composer lleva `/plan <prompt>`: el agente planifica en Preguntar y la
+## corrida arranca con «Aprobar y construir» (el turno que construye va en Construir).
 func use_recipe(recipe: Dictionary, values: Dictionary) -> void:
+	var plan := bool(recipe.get("plan", false))
 	var mode: int = RECIPE_MODES.get(str(recipe.mode), SessionModel.HarnessMode.BUILD)
-	if _model.harness_mode != SessionModel.HarnessMode.ONESHOT and _model.harness_mode != mode:
+	if not plan and _model.harness_mode != SessionModel.HarnessMode.ONESHOT and _model.harness_mode != mode:
 		_model.set_harness_mode(mode as SessionModel.HarnessMode)
 	_composer.clear()
-	_composer.insert_text(Recipes.expand(recipe, values))
-	var checks: Array = recipe.checks
-	if checks.is_empty():
+	_composer.insert_text((PLAN_COMMAND + " " if plan else "") + Recipes.expand(recipe, values))
+	var names := ", ".join(Recipes.check_names(recipe))
+	if names.is_empty():
 		_recipe_chip = {}
 	else:
 		_recipe_chip = {
-			"label": I18n.t("Recipe: %s · checks: %s") % [recipe.title, ", ".join(PackedStringArray(checks.map(func(c: Dictionary) -> String: return str(c.name)))).left(40)],
-			"tooltip": I18n.t("After each turn: %s, up to %d retries. Click to send the message without them.") % [", ".join(PackedStringArray(checks.map(func(c: Dictionary) -> String: return str(c.name)))), int(recipe.max_retries)],
+			"label": (I18n.t("Recipe: %s · plan first · checks: %s") if plan else I18n.t("Recipe: %s · checks: %s")) % [recipe.title, names.left(40)],
+			"tooltip": I18n.t("After each turn: %s, up to %d retries. Click to send the message without them.") % [names, int(recipe.max_retries)],
 			"spec": Recipes.run_spec(recipe),
 		}
 	_refresh_chips()
@@ -2498,9 +2502,14 @@ func use_recipe(recipe: Dictionary, values: Dictionary) -> void:
 ## Al mandar con el chip de una receta: la corrida (sus checks y reintentos) arranca cuando sale este
 ## texto, ya o desde la cola. Un comando con / no la lleva.
 func _arm_recipe(text: String) -> void:
-	if _recipe_chip.is_empty() or SessionController.is_slash_command(text) or text.strip_edges().is_empty():
+	if _recipe_chip.is_empty() or text.strip_edges().is_empty():
 		return
-	_controller.arm_recipe_run(text, _recipe_chip.spec)
+	if is_plan_command(text):
+		_controller.arm_recipe_after_plan(_recipe_chip.spec)
+	elif SessionController.is_slash_command(text):
+		return
+	else:
+		_controller.arm_recipe_run(text, _recipe_chip.spec)
 	_recipe_chip = {}
 	_refresh_chips()
 

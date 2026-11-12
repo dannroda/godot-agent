@@ -1023,7 +1023,7 @@ func _run_ui_test(scenario: String, shot_path: String) -> void:
 		_finish(0 if memory_failures.is_empty() else 1, "ui-memory: %d fallas" % memory_failures.size())
 		return
 	if scenario == "ui_recipe":
-		var recipe_failures: Array = await RecipeCheck.new().run(get_tree(), dock, shot_path)
+		var recipe_failures: Array = await RecipeCheck.new().run(get_tree(), _find_by_script(RecipeCheck.MAIN_PLUGIN_SCRIPT), dock, shot_path)
 		for failure: String in recipe_failures:
 			print("[recipe-check] FALLA ", failure)
 		_finish(0 if recipe_failures.is_empty() else 1, "ui-recipe: %d fallas" % recipe_failures.size())

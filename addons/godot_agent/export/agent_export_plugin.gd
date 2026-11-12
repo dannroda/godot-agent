@@ -1,12 +1,13 @@
 @tool
 extends EditorExportPlugin
 ## Garantiza que nada del addon llegue a un juego exportado (spec §2), ni las tools del proyecto que
-## lo usan (m11-46).
+## lo usan (m11-46), ni las recetas (m11-30).
 
 const PlaytestAutoload := preload("../playtest/playtest_autoload.gd")
 const ExportPresetsPatcher := preload("export_presets_patcher.gd")
 const ProjectConfig := preload("../config/project_config.gd")
 const ProjectToolLoader := preload("../mcp/project_tool_loader.gd")
+const Recipes := preload("../core/recipes.gd")
 
 const ADDON_DIR := "res://addons/godot_agent/"
 ## Spec, progreso e informes del One-shot (D41). Su .gdignore ya los deja afuera; esto es por las dudas.
@@ -15,6 +16,8 @@ const ONESHOT_FILES_DIR := "res://.godot_agent/"
 ## Las tools propias del proyecto (m11-46): extienden un script del addon, así que tampoco van. Se lee
 ## de la config al empezar cada export ("res://agent_tools/").
 var _tools_prefix := ProjectToolLoader.DEFAULT_DIR + "/"
+## Las recetas del proyecto (m11-30): pedidos para el agente, no contenido del juego.
+var _recipes_prefix := Recipes.DEFAULT_DIR + "/"
 
 ## Quita el autoload de playtest; lo inyecta el plugin (remove_autoload_singleton es de EditorPlugin).
 var _remove_playtest_autoload: Callable
@@ -36,7 +39,9 @@ var on_export_begin: Callable
 
 
 func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String, _flags: int) -> void:
-	_tools_prefix = ProjectToolLoader.resolve_dir(str(ProjectConfig.load_or_default().get(&"project_tools_dir"))) + "/"
+	var config := ProjectConfig.load_or_default()
+	_tools_prefix = ProjectToolLoader.resolve_dir(str(config.get(&"project_tools_dir"))) + "/"
+	_recipes_prefix = Recipes.resolve_dir(str(config.get(&"recipes_dir"))) + "/"
 	if on_export_begin.is_valid():
 		on_export_begin.call(_path)
 	if PlaytestAutoload.is_registered():
@@ -55,5 +60,5 @@ func _export_begin(_features: PackedStringArray, _is_debug: bool, _path: String,
 
 
 func _export_file(path: String, _type: String, _features: PackedStringArray) -> void:
-	if path.begins_with(ADDON_DIR) or path.begins_with(ONESHOT_FILES_DIR) or path.begins_with(_tools_prefix):
+	if path.begins_with(ADDON_DIR) or path.begins_with(ONESHOT_FILES_DIR) or path.begins_with(_tools_prefix) or path.begins_with(_recipes_prefix):
 		skip()

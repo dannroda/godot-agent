@@ -21,6 +21,7 @@ var _recipe: Dictionary = {}
 var _controls: Dictionary = {}
 var _grid: GridContainer
 var _error_label: Label
+var _plan_check: CheckBox
 var _file_dialog: Node
 
 
@@ -60,10 +61,16 @@ func open_recipe(recipe: Dictionary) -> void:
 		var control := _control_for(parameter)
 		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_grid.add_child(control)
+	_plan_check = CheckBox.new()
+	_plan_check.name = "PlanFirst"
+	_plan_check.text = I18n.t("Plan first")
+	_plan_check.tooltip_text = I18n.t("The agent writes a plan in Ask mode and waits for «Approve and build». The checks start with the turn that builds.")
+	_plan_check.button_pressed = bool(recipe.get("plan", false))
+	body.add_child(_plan_check)
 	var checks: Array = recipe.checks
 	if not checks.is_empty():
 		var info := Label.new()
-		info.text = I18n.t("After each turn: %s (up to %d retries).") % [", ".join(PackedStringArray(checks.map(func(c: Dictionary) -> String: return str(c.name)))), int(recipe.max_retries)]
+		info.text = I18n.t("After each turn: %s (up to %d retries).") % [", ".join(Recipes.check_names(recipe)), int(recipe.max_retries)]
 		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info.custom_minimum_size.x = AgentTheme.px(FORM_WIDTH)  # con autowrap y sin ancho, mide un renglón por letra
 		info.add_theme_color_override(&"font_color", AgentTheme.MUTED)
@@ -192,6 +199,17 @@ func values() -> Dictionary:
 	return result
 
 
+## «Planificar primero» marcado.
+func plan_first() -> bool:
+	return _plan_check != null and _plan_check.button_pressed
+
+
+## Para las pruebas y el editor check: «Planificar primero».
+func set_plan_first(on: bool) -> void:
+	if _plan_check:
+		_plan_check.button_pressed = on
+
+
 ## Para las pruebas y el editor check: pone un valor como si el usuario lo hubiera elegido.
 func set_value(key: String, value: Variant) -> void:
 	var control: Control = _controls.get(key)
@@ -216,4 +234,6 @@ func _on_confirmed() -> void:
 		return
 	_error_label.text = ""
 	hide()
-	used.emit(_recipe, current)
+	var chosen := _recipe.duplicate(true)
+	chosen.plan = plan_first()
+	used.emit(chosen, current)
