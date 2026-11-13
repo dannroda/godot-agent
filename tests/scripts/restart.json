@@ -1,0 +1,13 @@
+{
+ "initialize": {
+  "agentCapabilities": {
+   "loadSession": true,
+   "promptCapabilities": {"image": true, "audio": false, "embeddedContext": true},
+   "mcpCapabilities": {"http": true, "sse": false}
+  }
+ },
+ "turns": [
+  {"steps": [{"chunk": "Listo."}]},
+  {"steps": [{"chunk": "Trabajo un rato largo…"}, {"delay": 60}, {"chunk": "Terminé."}]}
+ ]
+}

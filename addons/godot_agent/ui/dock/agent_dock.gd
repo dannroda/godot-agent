@@ -58,6 +58,8 @@ const REMEMBER_COMMANDS: PackedStringArray = ["/remember", "/recordar"]
 const SECOND_OPINION_COMMAND := "/second-opinion"
 const ACTION_REMEMBER_UNDO := "remember_undo"
 const ACTION_VIEW_MEMORY := "view_memory"
+## «Restart and resume» del menú ⋯ (m12-54): el plugin guarda las pestañas y reinicia el editor.
+const ACTION_RESTART_RESUME := "restart_resume"
 const ProjectMemory := preload("../../core/project_memory.gd")
 const AgentAdapters := preload("../../session/agents/agent_adapters.gd")
 const InstructionsTab := preload("../extensions/instructions_tab.gd")
@@ -80,6 +82,7 @@ const MORE_REMOTE := 2
 const MORE_LOGOUT := 3
 const MORE_TOOLS := 4
 const MORE_EXPORT := 5
+const MORE_RESTART := 6
 ## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
 const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
@@ -729,6 +732,8 @@ func _fill_more_menu() -> void:
 	popup.add_icon_item(AgentTheme.icon(&"Save"), I18n.t("Export session…"), MORE_EXPORT)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Saves this conversation as Markdown with its game captures, to share. You see a preview and choose what to take out first."))
 	popup.set_item_disabled(popup.item_count - 1, _model.entries().is_empty())
+	popup.add_icon_item(AgentTheme.icon(&"Reload"), I18n.t("Restart and resume"), MORE_RESTART)
+	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Saves the scenes, restarts the editor and reopens these tabs with their sessions. For a plugin or a setting that only applies after a restart."))
 	var ready := _model.state == SessionModel.SessionState.READY
 	if _remote_banner.can_turn_on() or _can_logout():
 		popup.add_separator()
@@ -756,6 +761,8 @@ func _on_more_selected(id: int) -> void:
 			_confirm_logout()
 		MORE_EXPORT:
 			open_export_dialog()
+		MORE_RESTART:
+			action_forwarded.emit(ACTION_RESTART_RESUME, null)
 
 
 ## «Export session…» (m11-32): la vista previa con qué sacar; al guardar, avisa y abre la carpeta.

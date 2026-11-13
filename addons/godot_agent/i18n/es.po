@@ -6270,3 +6270,30 @@ msgstr "Quedarse en %s"
 
 msgid "Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session."
 msgstr "Sesión principal: no se puede cerrar. La usan las marcas de Revisar y Remote Control. Para empezar de cero: + → Nueva sesión."
+
+msgid "The agent wants to restart the editor: %s"
+msgstr "El agente quiere reiniciar el editor: %s"
+
+msgid "⚠ Other tabs are in the middle of a turn, and the restart cuts it short: %s."
+msgstr "⚠ Otras pestañas están en pleno turno, y el reinicio lo corta: %s."
+
+msgid "⚠ The One-shot pauses; «Resume One-shot» continues it after the restart."
+msgstr "⚠ El One-shot se pausa; «Retomar One-shot» lo sigue después del reinicio."
+
+msgid "Restart and resume"
+msgstr "Reiniciar y retomar"
+
+msgid "Saves the scenes, restarts the editor and reopens these tabs with their sessions. For a plugin or a setting that only applies after a restart."
+msgstr "Guarda las escenas, reinicia el editor y reabre estas pestañas con sus sesiones. Para un plugin o un ajuste que solo se aplica al reiniciar."
+
+msgid "Save the scenes, restart the editor and reopen the tabs with their sessions?"
+msgstr "¿Guardar las escenas, reiniciar el editor y reabrir las pestañas con sus sesiones?"
+
+msgid "Could not reopen the session of the separate copy on branch %s: its folder is gone (%s)."
+msgstr "No se pudo reabrir la sesión de la copia aparte en la rama %s: su carpeta ya no está (%s)."
+
+msgid "The editor restarted: %s."
+msgstr "El editor se reinició: %s."
+
+msgid "The editor restarted."
+msgstr "El editor se reinició."

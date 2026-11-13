@@ -8,6 +8,7 @@ extends RefCounted
 
 const NativeInstall := preload("res://addons/godot_agent/core/native_install.gd")
 const SupervisorState := preload("res://addons/godot_agent/supervisor/supervisor_state.gd")
+const RestartResume := preload("res://addons/godot_agent/session/restart_resume.gd")
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const TARGET_PLUGIN := "godot_agent"
@@ -27,6 +28,8 @@ func run(tree: SceneTree) -> PackedStringArray:
 	_stage(state)
 	await _run(state)
 	NativeInstall.discard_pending(state)
+	# Reiniciar guarda las pestañas para retomarlas (m12-54): que no las reabra el próximo check.
+	RestartResume.discard(state)
 	return failures
 
 

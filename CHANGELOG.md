@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Restart and resume.** The agent can restart the editor in any project with `godot.restart_editor`, for example after enabling a plugin or changing a setting that only applies after a restart. Before, only projects with a GDExtension had it. The agent has to give a reason, and the permission card shows it. The card also warns when another tab is in the middle of a turn, since the restart cuts that turn short. A running One-shot pauses, and **Resume One-shot** continues it. After the restart, every tab that had a session comes back with its session, mode and name, separate copies included. The tab that asked continues with the reason, and the others come back without a message. You can do the same from **⋯ → Restart and resume**.
+
 ## [0.1.26] - 2026-11-12
 
 ### Changed

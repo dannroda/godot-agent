@@ -184,6 +184,12 @@ func default_label(id: String) -> String:
 	return str(_defaults.get(id, id))
 
 
+## El nombre que le puso el usuario, o "" si tiene el de por defecto (para retomarla, m12-54).
+func custom_label(id: String) -> String:
+	var name := str(_labels.get(id, ""))
+	return "" if name == str(_defaults.get(id, "")) else name
+
+
 ## Pone el nombre de la sesión; "" vuelve al de por defecto.
 func set_label(id: String, name: String) -> void:
 	if not _labels.has(id):
