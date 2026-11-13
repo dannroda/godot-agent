@@ -68,7 +68,7 @@ Double-click a tab to rename it (leave it empty to go back to «Session N»). Th
 
 ## The plan quota
 
-Claude Code reports the usage of your plan's windows (5 hours and weekly). The harness shows it, warns at 75 %, pauses One-shot at 90 % and, when the limit hits, blocks sending with a countdown until the window resets. It doesn't estimate the quota from tokens, doesn't call undocumented endpoints and doesn't read the agent's files. See [One-shot → quota](One-shot.md#plan-quota).
+Claude Code reports the usage of your plan's windows (5 hours, weekly and, if your plan has one, the weekly limit of a single model such as Fable). The harness shows it, warns at 75 %, pauses One-shot at 90 % and, when the limit hits, blocks sending with a countdown until the window resets. It doesn't estimate the quota from tokens, doesn't call undocumented endpoints and doesn't read the agent's files. See [One-shot → quota](One-shot.md#plan-quota).
 
 ## The Agent Log
 

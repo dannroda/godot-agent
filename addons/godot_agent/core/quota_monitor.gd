@@ -46,6 +46,16 @@ const WINDOW_LABELS: Dictionary = {
 	WINDOW_CURRENT: "Window",  # i18n
 	WINDOW_WEEKLY: "Week",  # i18n
 }
+## Ventanas semanales de un solo modelo (m12-55), con el nombre del modelo al que limitan. Solo
+## cuentan mientras ese modelo está en uso. `seven_day_overage_included` es la de Fable: llega en
+## `unifiedWindows` («Fable limit» en el CLI); las de Opus y Sonnet llegan como `rateLimitType`.
+const MODEL_WINDOWS: Dictionary = {
+	"seven_day_overage_included": "Fable",
+	"seven_day_opus": "Opus",
+	"seven_day_sonnet": "Sonnet",
+}
+## Clave de `_meta` con el modelo que contestó, en cada usage_update de claude-agent-acp.
+const CLAUDE_MODEL_KEY := "_claude/model"
 const MONTHS: PackedStringArray = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 const MONTHS_ES: PackedStringArray = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 ## Reintentos sin hora de reinicio (minutos): 5, 10, 20 y después cada 60.
@@ -68,6 +78,8 @@ var windows: Dictionary = {}
 ## `{grupo: {five_hour: {utilization, resets_at}, seven_day: {…}}}`.
 var groups: Dictionary = {}
 var last_usage_update: Dictionary = {}
+## Modelo en uso ("claude-fable-5-1", o el nombre del selector): decide qué ventanas por modelo cuentan.
+var active_model: String = ""
 ## Último SDKRateLimitInfo: {status, resetsAt, rateLimitType, utilization, surpassedThreshold,
 ## unifiedWindows: {five_hour: {utilization 0–1, resetsAt}, seven_day: {…}}, …} (D22).
 var last_rate_limit: Dictionary = {}
@@ -113,9 +125,13 @@ static func load_patterns(path: String) -> Array[RegEx]:
 func observe_update(update: Dictionary) -> void:
 	last_usage_update = update.duplicate(true)
 	var raw := JSON.stringify(update)
+	var meta: Variant = update.get("_meta")
+	var model_changed := meta is Dictionary and meta.get(CLAUDE_MODEL_KEY) is String and _set_model(str(meta[CLAUDE_MODEL_KEY]))
 	var info := rate_limit_info(update)
 	if info.is_empty():
 		_log("usage_update: %s/%s context tokens, no quota data" % [update.get("used", "?"), update.get("size", "?")], raw)
+		if model_changed:
+			_recompute()
 		return
 	last_rate_limit = info
 	groups.clear()
@@ -229,6 +245,20 @@ func select_antigravity_model(model_name: String) -> void:
 		_recompute()
 
 
+## Se eligió otro modelo en el selector ("Fable 5.1"): cambian las ventanas por modelo que cuentan.
+## Los usage_update de cada turno lo confirman con el modelo que contestó.
+func select_model(model_name: String) -> void:
+	if _set_model(model_name):
+		_recompute()
+
+
+func _set_model(model_name: String) -> bool:
+	if model_name.is_empty() or model_name == active_model:
+		return false
+	active_model = model_name
+	return true
+
+
 ## Se cambió de cuenta: lo medido era de la anterior. Queda sin datos hasta que el agente informe.
 func forget_account() -> void:
 	windows.clear()
@@ -254,19 +284,50 @@ func resets_at(window: String) -> int:
 	return int(windows.get(window, {}).get("resets_at", 0))
 
 
-## La mayor utilización informada (cualquiera de las ventanas puede cortar), o -1 sin datos.
-func max_utilization() -> float:
-	var best := -1.0
-	for window: String in windows:
-		best = maxf(best, utilization(window))
+## true si la ventana limita al modelo en uso: todas, menos las de otro modelo (MODEL_WINDOWS).
+func applies(window: String) -> bool:
+	return not MODEL_WINDOWS.has(window) or str(MODEL_WINDOWS[window]).to_lower() in active_model.to_lower()
+
+
+## Las ventanas por modelo informadas, en el orden de MODEL_WINDOWS.
+func model_windows() -> PackedStringArray:
+	var found: PackedStringArray = []
+	for window: String in MODEL_WINDOWS:
+		if windows.has(window):
+			found.append(window)
+	return found
+
+
+## La semanal que va en el anillo de adentro: la más llena entre la general y la del modelo en uso.
+func weekly_window() -> String:
+	var best := WINDOW_WEEKLY
+	for window: String in model_windows():
+		if applies(window) and utilization(window) > utilization(best):
+			best = window
 	return best
 
 
-## Cuándo se libera la cuota que motivó la pausa: el reinicio de la ventana más llena.
+## «Week», «Week · Fable».
+static func window_label(window: String) -> String:
+	if MODEL_WINDOWS.has(window):
+		return I18n.t("Week · %s") % MODEL_WINDOWS[window]
+	return I18n.t(WINDOW_LABELS[window]) if WINDOW_LABELS.has(window) else window
+
+
+## La mayor utilización de las ventanas que limitan al modelo en uso, o -1 sin datos.
+func max_utilization() -> float:
+	var best := -1.0
+	for window: String in windows:
+		if applies(window):
+			best = maxf(best, utilization(window))
+	return best
+
+
+## Cuándo se libera la cuota que motivó la pausa: el reinicio de la ventana más llena que aplica.
 func pause_resets_at() -> int:
 	var best_window := ""
 	for window: String in windows:
-		if best_window.is_empty() or utilization(window) > utilization(best_window):
+		if applies(window) and (best_window.is_empty() or utilization(window) > utilization(best_window)):
 			best_window = window
 	return resets_at(best_window) if not best_window.is_empty() else 0
 
@@ -329,7 +390,7 @@ func reset_in(data: Dictionary) -> String:
 
 
 func _describe_window_data(window: String, data: Dictionary) -> String:
-	var label := I18n.t(WINDOW_LABELS[window]) if WINDOW_LABELS.has(window) else window
+	var label := window_label(window)
 	var percent := roundi(float(data.get("utilization", 0.0)) * 100.0)
 	var reset := int(data.get("resets_at", 0))
 	if reset > 0:
@@ -555,8 +616,11 @@ func _read_windows(info: Dictionary) -> void:
 			var window: Variant = unified[window_name]
 			if window is Dictionary and _number(window.get("utilization"), -1) >= 0:
 				windows[window_name] = {"utilization": _fraction(window.utilization), "resets_at": _number(window.get("resetsAt"))}
-	elif _number(info.get("utilization"), -1) >= 0:
-		windows[str(info.get("rateLimitType", WINDOW_CURRENT))] = {"utilization": _fraction(info.utilization), "resets_at": _number(info.get("resetsAt"))}
+	# Sin unifiedWindows, la ventana que informa; con ellas, solo si es de un modelo (Opus, Sonnet), que
+	# no va en unifiedWindows.
+	var kind := str(info.get("rateLimitType", WINDOW_CURRENT))
+	if _number(info.get("utilization"), -1) >= 0 and (not unified is Dictionary or MODEL_WINDOWS.has(kind)):
+		windows[kind] = {"utilization": _fraction(info.utilization), "resets_at": _number(info.get("resetsAt"))}
 
 
 func _enter_limited(source: String, text: String, reset_at: int) -> void:

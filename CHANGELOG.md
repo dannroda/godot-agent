@@ -4,6 +4,14 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Per-model weekly limits in the quota panel.** If your plan has a weekly limit for a single model (Fable), the panel shows it as **Week · Fable**, next to the 5-hour window and the general week. When you're using that model, the inner ring shows the fuller of the two weeks. With another model it's shown in grey as **(another model)**. Plans without it look the same as before.
+
+### Fixed
+
+- **The plan quota warning and One-shot pause counted Fable's weekly limit even when you used another model.** With Fable's week at 95 % and Opus selected, the run paused. Now the thresholds only count the windows that limit the model in use: Fable's week counts with Fable, and the general week with every model.
+
 ## [0.1.26] - 2026-11-12
 
 ### Changed

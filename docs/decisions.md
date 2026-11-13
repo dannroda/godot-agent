@@ -273,6 +273,19 @@ Verificado con `claude-agent-acp` 0.94.0 (SDK 0.3.303) y Claude Code real (`test
   `QuotaMonitor` mira las tres cosas. Los prefijos están en `config/quota_patterns.txt` (editable), anclados al principio de línea. Un patrón suelto como "rate limit" dispararía con la prosa del agente.
 - **Dónde se ve**: dos anillos en la fila de abajo del composer, al lado del contexto (afuera la ventana actual, adentro la semanal), con el detalle en el tooltip. Siempre visibles: grises y con el motivo en el tooltip mientras no hay datos, porque la cuota llega recién con el primer turno de la sesión y una barra que aparece y desaparece parecía rota. Antes eran dos barras debajo del estado, ocultas sin datos.
 - **Prohibido y respetado**: no se consulta el endpoint de uso del adapter (`/usage`, `usage-markdown.js`) ni se leen credenciales o archivos de `~/.claude`.
+- **Límites semanales por modelo (m12-55).** Verificado con `claude-agent-acp` 0.106.0 (SDK 0.3.322) y una cuenta Team con Fable:
+  - El `usage_update` trae una tercera ventana en `unifiedWindows`: `seven_day_overage_included`. El CLI la llama «Fable limit» y su esquema la describe como «overage-included weekly (per-model bucket; present only for accounts whose responses carry that window)». Coincidió con el `/usage` (33 % y «Weekly · Fable 34 %»). Ejemplo real:
+
+    ```json
+    "unifiedWindows": {"five_hour": {"utilization": 0.25, "resetsAt": 1794543000, "status": "allowed"},
+                       "seven_day": {"utilization": 0.54, "resetsAt": 1794877200, "status": "allowed"},
+                       "seven_day_overage_included": {"utilization": 0.33, "resetsAt": 1794877200, "status": "allowed"}}
+    ```
+
+  - Cada `usage_update` trae también `_meta["_claude/model"]`, el modelo que contestó (`"claude-fable-5-1"`).
+  - `seven_day_opus` y `seven_day_sonnet` no van en `unifiedWindows`. Solo pueden llegar como `rateLimitType` con `utilization`.
+  - `QuotaMonitor.MODEL_WINDOWS` asocia cada una con su modelo. Una ventana de modelo cuenta para el aviso, la pausa y el anillo de adentro solo si el modelo en uso (el del `_meta`, o el del selector hasta el próximo turno) la nombra. Las demás se ven en el panel, en gris. Antes, la de Fable se guardaba y contaba siempre, y con Opus el One-shot pausaba por la semana de Fable.
+  - `/usage` por ACP: claude-agent-acp lo contesta sin llamar al modelo (0 tokens) y trae `model_scoped[]` («Weekly · Fable»). Pero Claude Code deja su propia salida de `/usage` en la conversación, y el modelo la ve en el turno siguiente: dos `/usage` subieron el contexto de 39.696 a 48.698 tokens. Pedirlo después de cada turno, como con Antigravity y Codex, llenaría el contexto. No se usa: lo que hace falta ya viene en el `usage_update`.
 
 ## D23 · Revisión: de dónde salen los hallazgos y cómo se muestran (M5, spec §9.4)
 

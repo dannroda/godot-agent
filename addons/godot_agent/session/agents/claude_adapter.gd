@@ -13,6 +13,12 @@ func _init() -> void:
 	kind = ClaudeExtensions.AGENT_CLAUDE
 
 
+## La semana de Fable (y las de Opus y Sonnet) limita solo a su modelo (m12-55): el selector dice cuál
+## cuenta hasta que el próximo usage_update lo confirme.
+func model_changed(quota: RefCounted, model_name: String) -> void:
+	quota.call(&"select_model", model_name)
+
+
 func reads_account_from_cli() -> bool:
 	return true
 
