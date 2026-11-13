@@ -280,7 +280,7 @@ Whatever the mode, the harness rejects on its own, without a card:
 - writing a `.tscn`, `.uid` or `.import` by hand, with the agent's file tools or through the editor's file access;
 - running Godot from the shell without `--headless`: it would open the game or an editor in a separate window. To see the game, the agent runs it from the editor (`godot.run_scene`) and captures it (`godot.capture_game_frame`).
 
-The chat shows a "Rejected: …" notice. The agent is told to write scripts with its own file tools (the harness passes them through the editor) and scenes with the `godot.*` tools. Commands that write outside the project, such as to `/tmp`, follow the matrix above as usual.
+The chat shows a "Rejected: …" notice, and the agent gets the reason in a message labeled **Rejected by the harness**: what it tried to write and what to use instead (its own file tools for scripts, which the harness passes through the editor, and the `godot.*` tools for scenes, settings and moving files). The same goes for the other rejections without a card: a file another session is editing, a project mode that doesn't allow that file, or a mode that denies the tool. Commands that write outside the project, such as to `/tmp`, follow the matrix above as usual. Relative paths count from the last `cd` or `pushd` in the command: `cd /tmp && echo x > out.txt` writes to `/tmp`, while a `cd` inside `( … )` doesn't count after it.
 
 Change the matrix in **Settings → Permissions**. Only what differs from the defaults is saved, in the project's config (`project_config.tres`), so it can be committed and shared with your team.
 

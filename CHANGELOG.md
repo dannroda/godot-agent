@@ -4,6 +4,11 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- **Shell commands that work in `/tmp` are no longer rejected as writes to the project.** The guard that stops shell writes skipping the editor read every relative path as a project path and ignored `cd`, so `cd /tmp && … > file` was rejected without a card. Relative paths now count from the last `cd` or `pushd` in the command (a `cd` inside `( … )`, `$( … )` or before a `|` doesn't count after it; `cd $DIR`, `cd ~` and `cd -` leave the paths after them unchecked), for redirections, `tee`, `sed -i`, `mv`, `cp` and `rm` alike. Commands the agent runs through the editor's terminal start from their own folder, and Antigravity's commands from the folder it reports.
+- **Rejections without a card now tell the agent why.** The agent only heard that the user refused the tool, so it retried blindly. When the harness rejects a call on its own (a write that skips the editor, Godot without `--headless`, a file another session is editing, the project mode's files, a mode that denies the tool, the subagent limit), the agent gets the reason and what to use instead, like with **Deny with reason…**. In a One-shot run, the reason (and the one from **Deny with reason…**) waits for the turn to end, like your guidance, instead of cutting the turn, which the run reads as a stop.
+
 ## [0.1.26] - 2026-11-12
 
 ### Changed
