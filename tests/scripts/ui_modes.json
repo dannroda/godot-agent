@@ -1,5 +1,5 @@
 {
-	"_about": "m11-39 ui-modes: in the project mode «Levels» (base Auto, edits only tests/tmp/modes/levels/**) writes inside pass, writes outside are rejected without a card (the agent's Edit, fs/write_text_file, godot.create_scene), a tool that doesn't say what it writes is rejected (godot.asset_install), and an allowlisted shell command still asks. Second turn (m11-68): godot.request_mode to Auto (card with the warning, accepted) and to Review (card, the user stays).",
+	"_about": "m11-39 ui-modes: in the project mode «Levels» (base Auto, edits only tests/tmp/modes/levels/**) writes inside pass, writes outside are rejected without a card (the agent's Edit, fs/write_text_file, godot.create_scene), a tool that doesn't say what it writes is rejected (godot.asset_install), and an allowlisted shell command still asks. The Edit outside goes last: its automatic rejection sends the agent the reason (m11-69), answered in the second turn. Third turn (m11-68): godot.request_mode to Auto (card with the warning, accepted) and to Review (card, the user stays).",
 	"turns": [
 		{"steps": [
 			{"chunk": "Working on the level."},
@@ -10,12 +10,6 @@
 					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
 				]}}},
 			{"request": {"method": "fs/write_text_file", "params": {"path": "{project}/tests/tmp/modes/levels/a.gd", "content": "extends Node\n"}}},
-			{"request": {"method": "session/request_permission", "params": {
-				"toolCall": {"toolCallId": "e2", "title": "Edit outside.gd", "kind": "edit", "rawInput": {"file_path": "{project}/tests/tmp/modes/outside.gd"}},
-				"options": [
-					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
-					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
-				]}}},
 			{"request": {"method": "fs/write_text_file", "params": {"path": "{project}/tests/tmp/modes/outside.gd", "content": "extends Node\n"}}},
 			{"mcp": {"name": "create_scene", "arguments": {"path": "res://tests/tmp/modes/levels/room.tscn", "root_type": "Node2D", "root_name": "Room"}}},
 			{"mcp": {"name": "create_scene", "arguments": {"path": "res://tests/tmp/modes/room.tscn", "root_type": "Node2D", "root_name": "Room"}}},
@@ -27,6 +21,16 @@
 					{"optionId": "always", "name": "Always allow", "kind": "allow_always"},
 					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
 				]}}},
+			{"request": {"method": "session/request_permission", "params": {
+				"toolCall": {"toolCallId": "e2", "title": "Edit outside.gd", "kind": "edit", "rawInput": {"file_path": "{project}/tests/tmp/modes/outside.gd"}},
+				"options": [
+					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
+					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
+				]}}},
+			{"stop": "end_turn"}
+		]},
+		{"steps": [
+			{"chunk": "Understood: I'll stay inside levels/."},
 			{"stop": "end_turn"}
 		]},
 		{"steps": [
