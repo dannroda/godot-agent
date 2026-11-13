@@ -89,6 +89,7 @@ func _ready() -> void:
 		_settle_device()
 	_film = Film.new(self)
 	_ui = GameUi.new(self)
+	_detectors.start()
 	_last_frame_ms = Time.get_ticks_msec()
 	EngineDebugger.register_message_capture(PREFIX, _on_message)
 	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL, InstanceEnv.number(), OS.get_process_id()])
@@ -105,6 +106,7 @@ func _settle_device() -> void:
 
 
 func _exit_tree() -> void:
+	_detectors.stop()
 	if EngineDebugger.is_active() and EngineDebugger.has_capture(PREFIX):
 		EngineDebugger.unregister_message_capture(PREFIX)
 

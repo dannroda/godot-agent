@@ -392,6 +392,26 @@ func _check_playtest_game() -> void:
 	var after_breakpoint: Dictionary = await _call("game_get", {"path": ""})
 	_expect(after_breakpoint.get("isError", false) and _text(after_breakpoint).contains("stopped at a breakpoint") and _text(after_breakpoint).contains("game_debug"), "sigue parado en el breakpoint y lo dice como breakpoint (revisión de next2 #21) · " + _text(after_breakpoint))
 	await _call_text("stop_scene", {})
+	await _check_harness_error()
+
+
+## Un error en el código del harness (acá, el detector del HUD con su regex rota) no deja el juego parado
+## en el debugger aunque el run no siga después de los errores: antes capture_game_frame se quedaba sin
+## frames hasta reiniciar (m16-22). El detector se apaga para no frenar en cada frame.
+func _check_harness_error() -> void:
+	await _call_text("run_scene", {"scene": GAME_SCENE, "seconds": 1})
+	var broke := await _call_text("game_script", {"code": "func run(game):\n\tgame._host._detectors._fraction = null\n\tgame._host._detectors._hud_at = Time.get_ticks_msec() / 1000.0 + 0.5\n\treturn 'broken'"})
+	_expect(broke.contains("broken"), "game_script rompe el detector del HUD · " + broke.left(300))
+	await _tree.create_timer(1.5).timeout
+	_expect(_run_tools.get(&"run_state") != RunTools.GameRunState.BREAKED, "el juego no queda parado en el debugger · estado %s" % _run_tools.get(&"run_state"))
+	var frame: Dictionary = await _call("capture_game_frame", {})
+	_expect(not frame.get("isError", false), "capture_game_frame sigue devolviendo frames · " + _text(frame).left(200))
+	var off := await _call_text("game_script", {"code": "func run(game):\n\treturn game._host._detectors.off.keys()"})
+	_expect(off.contains("hud_fraction"), "el detector del HUD se apagó · " + off.left(300))
+	# Los salteados salen en la respuesta siguiente (y ahí se vacían).
+	var told := _text(frame) + "\n" + off
+	_expect(told.contains("harness's playtest code") and told.contains("detectors.gd"), "al agente se le dice que fue un error del harness · " + told.left(600))
+	await _call_text("stop_scene", {})
 
 
 ## Un diálogo exclusivo abierto mientras el editor muestra un progreso se queda con el ProgressDialog;
