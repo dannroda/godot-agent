@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- **A double click from the agent didn't reach the game's UI as one.** `godot.game_input` had no way to send a double click: two click steps arrive as two separate clicks, so a Control that checks `double_click` in `_gui_input` (a list row that opens on double click, say) never reacted. A click step now takes `double: true`, which sends a click and then a second press marked as a double click. The `double_click` action of `godot.game_ui_act` also sends the first click before the marked press, the way the system sends it, instead of a single marked press.
+
 ## [0.1.26] - 2026-11-12
 
 ### Changed
