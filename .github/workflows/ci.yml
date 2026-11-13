@@ -168,6 +168,11 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run playtest-loop ~/godot/godot
 
+      # Reiniciar el editor y retomar las pestañas con el agente falso (m12-54).
+      - name: Editor check (restart)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run restart ~/godot/godot
+
       - name: Closing the editor leaves no agent processes
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run quit ~/godot/godot

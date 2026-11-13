@@ -40,7 +40,8 @@ var guard: Callable
 var precheck: Callable
 var _last_precheck: String = ""
 ## La sesión que llama a la tool en curso, para los handlers que la necesitan (godot.sessions):
-## vale al empezar el handler, antes de su primer await.
+## vale al empezar el handler, antes de su primer await, y mientras se arma la descripción de la
+## tarjeta de permiso (el describer de restart_editor nombra las otras pestañas, m12-54).
 var current_caller: String = ""
 ## (caller, tool_name, args) -> String: texto del harness que va al final del resultado de una tool que
 ## salió bien, fuera de los sobres (m11-25: las reglas del proyecto para los archivos que tocó). "" nada.
@@ -257,7 +258,7 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 			result = McpTool.error("The tool godot.%s is not available (the addon was reloaded). Retry in a moment." % tool.name)
 		elif not _prechecked(caller, tool.name, arguments).is_empty():
 			result = McpTool.error(_last_precheck)
-		elif not await _authorize(tool, arguments, caller):
+		elif _set_caller(caller) and not await _authorize(tool, arguments, caller):
 			result = McpTool.error(
 				"Permission denied for godot.%s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [tool.name, tool.group_of(arguments)]
 			)
@@ -389,6 +390,12 @@ static func _first_sentence(text: String) -> String:
 
 
 ## El rechazo del precheck ("" si deja seguir), una sola llamada por tool call: lo deja en _last_precheck.
+## Siempre true: para fijar current_caller dentro de la cadena de elif, antes de la tarjeta.
+func _set_caller(caller: String) -> bool:
+	current_caller = caller
+	return true
+
+
 func _prechecked(caller: String, tool_name: String, args: Dictionary) -> String:
 	_last_precheck = str(precheck.call(caller, tool_name, args)) if precheck.is_valid() else ""
 	return _last_precheck

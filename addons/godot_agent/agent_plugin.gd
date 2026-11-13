@@ -47,6 +47,7 @@ const InlineEdit := preload("editor/inline_edit.gd")
 const OUTPUT_MENTION_CHARS := 4000
 const TurnReport := preload("session/turn_report.gd")
 const WorktreeSession := preload("session/worktree_session.gd")
+const RestartResume := preload("session/restart_resume.gd")
 const GithubReviews := preload("core/github_reviews.gd")
 const InlineEditMenu := preload("editor/inline_edit_menu.gd")
 const AskAgentMenu := preload("editor/ask_agent_menu.gd")
@@ -115,6 +116,7 @@ const ACTION_SUPERVISE := "supervise"
 const ACTION_COPY_SUPERVISOR_COMMAND := "copy_supervisor_command"
 ## Lo que preparó install_extension y no entró (m19-05): reiniciar para instalarlo o descartarlo.
 const ACTION_PENDING_INSTALL_RESTART := "pending_install_restart"
+const ACTION_RESTART_CONFIRMED := "restart_resume_confirmed"
 const ACTION_PENDING_INSTALL_DISCARD := "pending_install_discard"
 ## «Overwrite» del aviso cuando el workflow de regresiones ya existe (m16-10).
 const ACTION_OVERWRITE_REGRESSIONS_WORKFLOW := "overwrite_regressions_workflow"
@@ -855,6 +857,12 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 		ACTION_ONESHOT_SHOW:
 			if _surfaces:
 				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
+		AgentDock.ACTION_RESTART_RESUME:
+			_restart_for_user()
+		ACTION_RESTART_CONFIRMED:
+			var error := restart_editor(_default_supervise(), "the user restarted the editor")
+			if not error.is_empty():
+				_model_of(_active_session_id()).add_notice(error, ChatEntry.NoticeLevel.WARNING)
 		ACTION_SUPERVISE:
 			var error := restart_editor(true, "the user asked for the supervisor")
 			if not error.is_empty():
@@ -1102,14 +1110,15 @@ func _start_mcp_server() -> void:
 	_diagnostics = DiagnosticTools.new()
 	_diagnostics.setup(_errors, EditorContext.project_path())
 	registry.register_provider(_diagnostics)
-	# Solo la usa un proyecto con GDExtension (m19-01): no gasta contexto en los demás.
-	registry.mark_extended(PackedStringArray(["build_extension", "test_extension", "install_extension", "restart_editor"]))
-	_diagnostics.restarter = func(supervise: bool) -> String:
-		var error := _prepare_restart(supervise)
-		if error.is_empty():
-			# Después de devolver el resultado de la tool: el agente lo recibe antes de que se cierre.
-			get_tree().create_timer(1.0).timeout.connect(_restart_now.bind("restart_editor"))
-		return error
+	# Solo las usa un proyecto con GDExtension (m19-01): no gastan contexto en los demás.
+	# restart_editor sirve en cualquier proyecto (m12-54): plugins, ajustes que piden reinicio.
+	registry.mark_extended(PackedStringArray(["build_extension", "test_extension", "install_extension"]))
+	# Por el campo _registry, no la variable local: capturarla armaría un ciclo registry → tool →
+	# DiagnosticTools → lambda → registry, que no se libera al apagar el plugin (plugin_cycle).
+	_diagnostics.restarter = func(supervise: bool, reason: String) -> String:
+		# Después de devolver el resultado de la tool: el agente lo recibe antes de que se cierre.
+		return _restart_and_resume(supervise, reason, _session_of(_registry.current_caller if _registry else ""), RESTART_DELAY_S)
+	_diagnostics.restart_note = func() -> String: return _restart_warning(_session_of(_registry.current_caller if _registry else ""))
 	var edit_tools := SceneEditTools.new()
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)
@@ -1587,24 +1596,100 @@ func _continue_last_session(dock: Control) -> void:
 ## GDExtension y no corre bajo el supervisor, ofrece abrirlo así.
 func _report_supervisor_events(dock: Control) -> void:
 	var events := SupervisorClient.take_events()
+	var resume := RestartResume.take(SupervisorClient.state_dir())
 	_report_pending_install()
 	if not SupervisorClient.is_supervised() and not NativeBuild.find_project(EditorContext.project_path()).is_empty():
 		_model.add_notice(I18n.t("This project builds a GDExtension. Under the supervisor, a build that crashes the editor while starting is rolled back and the editor reopens, instead of crashing every time you open it."), ChatEntry.NoticeLevel.INFO, [
 			{"id": ACTION_SUPERVISE, "label": I18n.t("Restart under the supervisor")},
 			{"id": ACTION_COPY_SUPERVISOR_COMMAND, "label": I18n.t("Copy the command")},
 		])
-	if events.is_empty():
+	if events.is_empty() and resume.is_empty():
 		_continue_last_session(dock)
 		return
 	var messages: PackedStringArray = []
+	# El motivo va en el aviso cuando lo dio el agente; el usuario ya sabe por qué reinició.
+	var agent_reason := str(resume.get("reason", "")) if (resume.get("tabs", []) as Array).any(func(tab: Dictionary) -> bool: return bool(tab.get("requester", false))) else ""
+	var restart_noticed := false
+	# Después de abrir las sesiones: abrir una vacía la conversación de la pestaña (model.reset).
+	var notices: Array = []  # [texto, nivel]
 	for event: Dictionary in events:
-		messages.append(SupervisorClient.agent_message(event))
-		var level := ChatEntry.NoticeLevel.INFO if event.get("kind") == SupervisorClient.State.EVENT_RESTART else ChatEntry.NoticeLevel.WARNING
-		_model.add_notice(_supervisor_notice(event), level)
-	if not is_instance_valid(dock) or (_oneshot and _oneshot.is_active()):
+		var restart: bool = event.get("kind") == SupervisorClient.State.EVENT_RESTART
+		restart_noticed = restart_noticed or restart
+		# Con las pestañas guardadas, el reinicio lo cuenta RestartResume.agent_message (con el motivo).
+		if not (restart and not resume.is_empty()):
+			messages.append(SupervisorClient.agent_message(event))
+		notices.append([_supervisor_notice(event, agent_reason), ChatEntry.NoticeLevel.INFO if restart else ChatEntry.NoticeLevel.WARNING])
+	if not resume.is_empty() and not restart_noticed:
+		notices.append([_supervisor_notice({"kind": SupervisorClient.State.EVENT_RESTART}, agent_reason), ChatEntry.NoticeLevel.INFO])
+	if is_instance_valid(dock):
+		if not (resume.get("tabs", []) as Array).is_empty():
+			await _reopen_tabs(resume, messages)
+		elif not (_oneshot and _oneshot.is_active()) and await dock.continue_last_session():
+			dock.send_text("\n\n".join(messages), HarnessPrompts.SUPERVISOR)
+	if not is_inside_tree() or _model == null:  # el plugin se apagó mientras abría
 		return
-	if await dock.continue_last_session():
-		dock.send_text("\n\n".join(messages), HarnessPrompts.SUPERVISOR)
+	for notice: Array in notices:
+		_model.add_notice(notice[0], notice[1])
+
+
+## Reabre las pestañas que había antes de reiniciar (m12-54), con su sesión, su modo y su nombre; la
+## que pidió el reinicio sigue con el motivo. Lo que contó el supervisor va a esa, o a la que estaba
+## activa si el reinicio lo pidió el usuario. Las demás vuelven sin mensaje.
+func _reopen_tabs(resume: Dictionary, supervisor_messages: PackedStringArray) -> void:
+	var tabs: Array = resume.tabs
+	var primary := RestartResume.primary_index(tabs)
+	var ids: Array[String] = []
+	for index: int in tabs.size():
+		var entry: Dictionary = tabs[index]
+		var id := ""
+		if index == primary:
+			id = PRIMARY_SESSION
+			if not str(entry.get("label", "")).is_empty():
+				_rename_session(id, str(entry.label))
+		else:
+			var copy: WorktreeSession = null
+			var info: Dictionary = entry.get("copy", {})
+			if not info.is_empty():
+				if not DirAccess.dir_exists_absolute(str(info.get("project", ""))):
+					_model.add_notice(I18n.t("Could not reopen the session of the separate copy on branch %s: its folder is gone (%s).") % [str(info.get("branch", "")), str(info.get("project", ""))], ChatEntry.NoticeLevel.WARNING)
+					ids.append("")
+					continue
+				copy = WorktreeSession.new(EditorContext.project_path())
+				copy.info = info
+			id = _create_session_tab(copy)
+			if not str(entry.get("label", "")).is_empty():
+				_rename_session(id, str(entry.label))  # como nombre propio: el próximo reinicio lo guarda
+		ids.append(id)
+		var dock := _tabs.dock(id) as AgentDock
+		var model := _model_of(id)
+		if model:
+			model.set_harness_mode(int(entry.get("mode", SessionModel.HarnessMode.BUILD)) as SessionModel.HarnessMode)
+		if dock and not str(entry.get("project_mode", "")).is_empty():
+			dock.choose_project_mode(str(entry.project_mode))
+	var requested := tabs.any(func(tab: Dictionary) -> bool: return bool(tab.get("requester", false)))
+	var target := ""  # la que recibe el mensaje: la que pidió el reinicio; si lo pidió el usuario, la activa
+	for index: int in tabs.size():
+		if ids[index].is_empty():
+			continue
+		var active := bool(tabs[index].get("active", false))
+		if active:
+			_tabs.select(ids[index])
+		if bool(tabs[index].get("requester", false)) or (active and not requested):
+			target = ids[index]
+	for index: int in RestartResume.open_order(tabs):
+		if not is_inside_tree() or _tabs == null:  # el plugin se apagó mientras abría
+			return
+		var id := ids[index]
+		var dock := _tabs.dock(id) as AgentDock if not id.is_empty() else null
+		if dock == null:
+			continue
+		var opened: bool = await dock.open_history_session(str(tabs[index].session_id))
+		if not opened or id != target:
+			continue
+		if requested:
+			dock.send_text(RestartResume.agent_message(str(resume.get("reason", "")), supervisor_messages), HarnessPrompts.SUPERVISOR)
+		elif not supervisor_messages.is_empty():
+			dock.send_text("\n\n".join(supervisor_messages), HarnessPrompts.SUPERVISOR)
 
 
 ## Lo que preparó install_extension y todavía no entró (m19-05): el editor se cerró sin pasar por
@@ -1623,12 +1708,17 @@ func _report_pending_install() -> void:
 	])
 
 
-func _supervisor_notice(event: Dictionary) -> String:
+func _supervisor_notice(event: Dictionary, reason: String = "") -> String:
 	var restored := ", ".join(PackedStringArray(event.get("restored", [])))
 	var disabled := ", ".join(PackedStringArray(event.get("disabled", [])))
 	match str(event.get("kind", "")):
 		SupervisorClient.State.EVENT_RESTART:
-			return I18n.t("The editor restarted and loaded the current builds.")
+			# Con el motivo de restart_editor (m12-54); sin él, el de un reinicio por la GDExtension.
+			if not reason.is_empty():
+				return I18n.t("The editor restarted: %s.") % reason.trim_suffix(".")
+			if _default_supervise():
+				return I18n.t("The editor restarted and loaded the current builds.")
+			return I18n.t("The editor restarted.")
 		SupervisorClient.State.EVENT_CRASH:
 			return I18n.t("The editor crashed and the supervisor reopened it.")
 		SupervisorClient.State.EVENT_GAVE_UP:
@@ -1641,21 +1731,105 @@ func _supervisor_notice(event: Dictionary) -> String:
 	return text
 
 
-## Reemplaza restart_editor() en las verificaciones del editor (pending_check): Callable(supervise,
-## reason) -> String. Sin él, reinicia de verdad.
+## Reemplaza el reinicio de verdad en las verificaciones del editor (pending_check, restart_check):
+## Callable(supervise, reason) -> String. Lo de retomar las pestañas ya quedó guardado cuando se llama.
 var restart_override: Callable
+## Lo que espera la tool antes de reiniciar: el agente recibe el resultado antes de que se cierre.
+const RESTART_DELAY_S := 1.0
 
 
-## Reinicia el editor para que cargue las bibliotecas nuevas (m19-03). Con `supervise` y sin
-## supervisor, lanza uno que espera a que este editor se cierre y abre el nuevo bajo su vigilancia.
-## Bajo el supervisor, el reinicio pasa por él (SupervisorClient.mark_closed). Devuelve "" o el error.
+## Reinicia el editor (m19-03) y al volver retoma las pestañas (m12-54), sin mensaje al agente. Con
+## `supervise` y sin supervisor, lanza uno que espera a que este editor se cierre y abre el nuevo bajo
+## su vigilancia. Bajo el supervisor, el reinicio pasa por él (SupervisorClient.mark_closed).
+## Devuelve "" o el error.
 func restart_editor(supervise: bool, reason: String) -> String:
+	return _restart_and_resume(supervise, reason, "", 0.0)
+
+
+## Guarda las pestañas para retomarlas y reinicia, enseguida o a los `delay_s`. `requester`: la
+## pestaña que lo pidió (recibe «The editor restarted (<reason>). Continue.»), "" el usuario.
+func _restart_and_resume(supervise: bool, reason: String, requester: String, delay_s: float) -> String:
+	RestartResume.save(SupervisorClient.state_dir(), reason, restart_tabs(requester))
 	if restart_override.is_valid():
 		return restart_override.call(supervise, reason)
 	var error := _prepare_restart(supervise)
-	if error.is_empty():
+	if not error.is_empty():
+		RestartResume.discard(SupervisorClient.state_dir())
+		return error
+	if delay_s > 0.0:
+		get_tree().create_timer(delay_s).timeout.connect(_restart_now.bind(reason))
+	else:
 		_restart_now(reason)
-	return error
+	return ""
+
+
+## Las pestañas para retomar después de reiniciar (m12-54): las que tienen una sesión, sin la del
+## One-shot en curso (vuelve en pausa con «Resume One-shot»).
+func restart_tabs(requester: String) -> Array:
+	var tabs: Array = []
+	if _tabs == null:
+		return tabs
+	var active := _active_session_id()
+	for id: String in _tabs.ids():
+		var model := _model_of(id)
+		if model == null or (_runs_in(id) and _oneshot.is_active()):
+			continue
+		var copy: WorktreeSession = _extra_sessions.get(id, {}).get("copy")
+		var mode := int(model.harness_mode) if model.harness_mode != SessionModel.HarnessMode.ONESHOT else int(SessionModel.HarnessMode.BUILD)
+		var entry := RestartResume.tab_entry(id, model.session_id, _tabs.custom_label(id), mode, str(model.project_mode.get("slug", "")),
+			copy.info if copy else {}, id == requester, id == active)
+		if not entry.is_empty():
+			tabs.append(entry)
+	return tabs
+
+
+## Lo que la tarjeta de restart_editor agrega al motivo: otras pestañas en pleno turno y un One-shot
+## que se pausa. `requester`: la pestaña que pide (su turno es el que llama a la tool).
+func _restart_warning(requester: String) -> String:
+	var lines: PackedStringArray = []
+	var busy := _busy_tabs(requester)
+	if not busy.is_empty():
+		lines.append(I18n.t("⚠ Other tabs are in the middle of a turn, and the restart cuts it short: %s.") % ", ".join(busy))
+	if _oneshot and _oneshot.is_active() and not _runs_in(requester):
+		lines.append(I18n.t("⚠ The One-shot pauses; «Resume One-shot» continues it after the restart."))
+	return "\n".join(lines)
+
+
+func _busy_tabs(except: String) -> PackedStringArray:
+	var busy: PackedStringArray = []
+	if _tabs == null:
+		return busy
+	for id: String in _tabs.ids():
+		var model := _model_of(id)
+		if id != except and model and model.is_busy():
+			busy.append(_tabs.label(id))
+	return busy
+
+
+## Por defecto, bajo el supervisor solo en un proyecto que compila una GDExtension (como la tool).
+func _default_supervise() -> bool:
+	return not NativeBuild.find_project(EditorContext.project_path()).is_empty()
+
+
+## «Restart and resume» del menú ⋯ (m12-54). Con una pestaña en pleno turno o un One-shot en curso,
+## pregunta antes; si no, reinicia.
+func _restart_for_user() -> void:
+	var warning := _restart_warning("")
+	if warning.is_empty():
+		_on_dock_action(ACTION_RESTART_CONFIRMED, null)
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dialog.title = I18n.t("Restart and resume")
+	dialog.dialog_text = I18n.t("Save the scenes, restart the editor and reopen the tabs with their sessions?") + "\n\n" + warning.replace("⚠ ", "")
+	dialog.ok_button_text = I18n.t("Restart")
+	dialog.cancel_button_text = I18n.t("Cancel")
+	dialog.confirmed.connect(func() -> void: _on_dock_action(ACTION_RESTART_CONFIRMED, null))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free())
+	EditorInterface.get_base_control().add_child(dialog)
+	dialog.popup_centered()
 
 
 func _prepare_restart(supervise: bool) -> String:
@@ -1669,6 +1843,9 @@ func _prepare_restart(supervise: bool) -> String:
 
 
 func _restart_now(reason: String) -> void:
+	if _oneshot and _oneshot.is_active():
+		# Vuelve en pausa (_restore_oneshot) con «Resume One-shot».
+		_oneshot.pause()
 	if not SupervisorClient.is_supervised() or SupervisorClient.handoff:
 		# El supervisor solo deja eventos de los editores que lanzó: este lo deja el plugin.
 		SupervisorClient.add_local_event({"kind": SupervisorClient.State.EVENT_RESTART, "reason": reason})

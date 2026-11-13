@@ -20,6 +20,7 @@ const NativeTest := preload("../../core/native_test.gd")
 const SupervisorClient := preload("../../supervisor/supervisor_client.gd")
 const NativeInstall := preload("../../core/native_install.gd")
 const ExtensionSnapshot := preload("../../supervisor/extension_snapshot.gd")
+const I18n := preload("../../core/i18n.gd")
 
 const CHECKER_SCRIPT := "res://addons/godot_agent/mcp/tools/script_checker.gd"
 const MAX_SCRIPTS := 400
@@ -32,8 +33,12 @@ const HARNESS_ADDON := "res://addons/godot_agent"
 const NOT_BUILT_SHOWN := 6
 
 var errors: ErrorCollector
-## Callable(supervise: bool) -> String: reinicia el editor un momento después (lo pone el plugin).
+## Callable(supervise: bool, reason: String) -> String: reinicia el editor un momento después y al
+## volver retoma las pestañas (lo pone el plugin, m12-54).
 var restarter: Callable
+## Callable() -> String: lo que la tarjeta de restart_editor agrega al motivo (otras pestañas en pleno
+## turno, un One-shot que se pausa). Lo pone el plugin; "" nada.
+var restart_note: Callable
 var project_path: String = ""
 ## `(test_dir, options) -> Dictionary` con el reporte de NativeTest.run (los tests lo reemplazan).
 var extension_tester: Callable = NativeTest.run
@@ -86,11 +91,25 @@ func tools() -> Array:
 				"timeout_s": {"type": "integer", "description": "Default %d, at most %d" % [NativeTest.DEFAULT_TIMEOUT_S, NativeTest.MAX_TIMEOUT_S]},
 			},
 			[], _install_extension),
-		McpTool.create("restart_editor", PermissionPolicy.GROUP_PROJECT,
-			"Saves the scenes and restarts the editor, so it loads the GDExtension libraries that are on disk now and the ones install_extension staged. Run test_extension first: a build that crashes takes the editor down with it. Under the crash supervisor (`supervise`, default true), a build that crashes the editor while starting is rolled back to the last one that started fine (or disabled, when it has none), the editor reopens and this session continues with a message that says what happened, with the backtrace. Without it, a crashing build leaves the editor down until the user fixes it. Your session ends with the restart and comes back by itself.",
-			{"supervise": {"type": "boolean", "description": "Restart under the crash supervisor (default true). Ignored when the editor already runs under it."}},
-			[], _restart_editor),
+		_restart_editor_tool(),
 	]
+
+
+## Para cualquier proyecto (m12-54): antes solo la veía uno con GDExtension. `reason` va en la
+## tarjeta y en el mensaje con el que sigue la sesión.
+func _restart_editor_tool() -> McpTool:
+	var tool := McpTool.create("restart_editor", PermissionPolicy.GROUP_PROJECT,
+		"Saves the scenes and restarts the editor, then reopens the dock's tabs with their sessions: this one continues with a message that gives your `reason`, the others come back without one. Use it when a change only applies after a restart: a plugin enabled or disabled, a project setting that needs it (rendering method, driver), the addon updated, or new GDExtension libraries (it loads the ones on disk now and the ones install_extension staged; run test_extension first, a build that crashes takes the editor down with it). The user sees your reason on the permission card. Under the crash supervisor (`supervise`), a build that crashes the editor while starting is rolled back to the last one that started fine (or disabled, when it has none), the editor reopens and this session continues with the backtrace. Your session ends with the restart and comes back by itself.",
+		{
+			"reason": {"type": "string", "description": "Why the editor has to restart, in one short sentence for the user (for example: the plugin X was enabled and registers its types at startup)"},
+			"supervise": {"type": "boolean", "description": "Restart under the crash supervisor. Default true when the project builds a GDExtension, false otherwise. Ignored when the editor already runs under it."},
+		},
+		["reason"], _restart_editor)
+	tool.describer = func(args: Dictionary) -> String:
+		var text := I18n.t("The agent wants to restart the editor: %s") % McpTool.str_arg(args, "reason").strip_edges()
+		var note := str(restart_note.call()) if restart_note.is_valid() else ""
+		return text + ("\n" + note if not note.is_empty() else "")
+	return tool
 
 
 ## Asks like a shell command: SConstruct is Python and build.rs is Rust, so a build runs code.
@@ -245,11 +264,14 @@ func _crash_note(planned: Dictionary, state_dir: String) -> String:
 func _restart_editor(args: Dictionary) -> Dictionary:
 	if not restarter.is_valid():
 		return McpTool.error("The editor can't be restarted from here.")
-	var supervise: bool = args.get("supervise", true)
+	var reason := McpTool.str_arg(args, "reason").strip_edges()
+	if reason.is_empty():
+		return McpTool.error("Give a `reason`: the user sees it on the permission card.")
+	var supervise: bool = args.get("supervise", not NativeBuild.find_project(project_path).is_empty())
 	var supervised := SupervisorClient.is_supervised()
 	if supervise and not supervised and SupervisorClient.State.supervisor_running(SupervisorClient.state_dir()):
 		return McpTool.error("A supervisor is already running for this project, but this editor isn't its own. Ask the user to close this editor; the supervisor reopens it.")
-	var error := str(restarter.call(supervise))
+	var error := str(restarter.call(supervise, reason))
 	if not error.is_empty():
 		return McpTool.error(error)
 	var staged: Array = NativeInstall.pending(SupervisorClient.State.state_dir(project_path)).get("files", [])
@@ -266,7 +288,9 @@ func _restart_result(supervise: bool, supervised: bool) -> Dictionary:
 		return McpTool.text("Restarting under the crash supervisor in a second. Your session ends now and resumes when the editor is back.")
 	if supervise:
 		return McpTool.text("Restarting under the crash supervisor in a second (from now on it watches this editor). Your session ends now and resumes when the editor is back.")
-	return McpTool.text("Restarting in a second, without the crash supervisor: if the new build crashes the editor while starting, it stays down. Your session ends now and resumes when the editor is back.")
+	if not NativeBuild.find_project(project_path).is_empty():
+		return McpTool.text("Restarting in a second, without the crash supervisor: if the new build crashes the editor while starting, it stays down. Your session ends now and resumes when the editor is back.")
+	return McpTool.text("Restarting in a second. Your session ends now and resumes when the editor is back.")
 
 
 func _native_target(args: Dictionary) -> String:
