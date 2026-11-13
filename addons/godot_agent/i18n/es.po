@@ -6300,3 +6300,9 @@ msgstr "El editor se reinició: %s."
 
 msgid "The editor restarted."
 msgstr "El editor se reinició."
+
+msgid "Week · %s"
+msgstr "Semana · %s"
+
+msgid "%s (another model)"
+msgstr "%s (otro modelo)"

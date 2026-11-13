@@ -184,6 +184,73 @@ func test_antigravity_usage() -> void:
 	assert_true(monitor.has_data(), "una respuesta sin ventanas no borra las anteriores")
 
 
+## usage_update real de claude-agent-acp 0.106 con un perfil que tiene Fable (m12-55): la semana de
+## Fable llega como `seven_day_overage_included` y el modelo que contestó, en `_claude/model`.
+func _fable_update(fable: float, model: String) -> Dictionary:
+	return {"sessionUpdate": "usage_update", "used": 40931, "size": 1000000, "_meta": {
+		"_claude/rateLimit": {"status": "allowed", "resetsAt": float(NOW + 3600), "rateLimitType": "five_hour",
+			"overageStatus": "rejected", "overageDisabledReason": "org_level_disabled", "isUsingOverage": false,
+			"unifiedWindows": {
+				"five_hour": {"utilization": 0.25, "resetsAt": float(NOW + 3600), "status": "allowed"},
+				"seven_day": {"utilization": 0.53, "resetsAt": float(NOW + 4 * 86400), "status": "allowed"},
+				"seven_day_overage_included": {"utilization": fable, "resetsAt": float(NOW + 2 * 86400), "status": "allowed"}}},
+		"_claude/model": model}}
+
+
+func _ring_rows(monitor: QuotaMonitor) -> Array:
+	var ring := QuotaRing.new()
+	ring.setup(monitor, Color.WHITE)
+	var rows := ring.hint_rows().filter(func(row: Dictionary) -> bool: return row.kind == "bar")
+	rows.append({"kind": "text", "label": ring.describe()})
+	ring.free()
+	return rows
+
+
+func test_model_weekly_windows() -> void:
+	var monitor := _monitor()
+	monitor.observe_update(_fable_update(0.95, "claude-fable-5-1"))
+	assert_eq(monitor.active_model, "claude-fable-5-1", "el modelo sale del _meta")
+	assert_eq(monitor.model_windows(), PackedStringArray(["seven_day_overage_included"]), "la semana de Fable")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.PAUSE_SCHEDULED, "con Fable, su semana al 95 % programa la pausa aunque la general esté al 53 %")
+	assert_eq(monitor.weekly_window(), "seven_day_overage_included", "el anillo de adentro muestra la de Fable, la más llena")
+	assert_eq(monitor.pause_resets_at(), NOW + 2 * 86400, "la pausa espera el reinicio de la semana de Fable")
+	assert_eq(monitor.describe_window("seven_day_overage_included"), "Week · Fable 95 % · resets in 2 days", "con su nombre")
+	var labels: Array = _ring_rows(monitor).map(func(row: Dictionary) -> String: return row.label)
+	assert_eq(labels.slice(0, 3), ["Window · outer ring", "Week", "Week · Fable · inner ring"], "panel: la semana de Fable es el anillo de adentro · %s" % [labels])
+	# Con Opus, la semana de Fable no limita: se ve en gris y no cuenta para el aviso ni la pausa.
+	monitor.observe_update(_fable_update(0.95, "claude-opus-5-5"))
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.NORMAL, "con Opus cuenta la semana general (53 %)")
+	assert_eq(monitor.weekly_window(), QuotaMonitor.WINDOW_WEEKLY, "anillo de adentro: la general")
+	assert_true(absf(monitor.max_utilization() - 0.53) < 0.001, "máximo sin la de Fable: %s" % monitor.max_utilization())
+	var rows := _ring_rows(monitor)
+	assert_eq(rows[2].label, "Week · Fable (another model)", "la de Fable sigue en el panel")
+	assert_eq(rows[2].color, preload("res://addons/godot_agent/ui/agent_theme.gd").MUTED, "en gris")
+	assert_eq(rows[1].label, "Week · inner ring", "la general es la de adentro")
+	assert_true(str(rows[-1].label).contains("Week · Fable 95 % · resets in 2 days (another model)"), "y en el texto: " + str(rows[-1].label))
+	# El selector cambia cuál cuenta antes del próximo turno.
+	monitor.select_model("Fable 5.1")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.PAUSE_SCHEDULED, "elegir Fable en el selector")
+	monitor.select_model("Default (recommended)")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.NORMAL, "el default (Opus) no la cuenta")
+	# Sin ventanas por modelo, el panel es el de siempre.
+	var plain := _monitor()
+	plain.observe_update(_update(0.3, 0.4))
+	assert_true(plain.model_windows().is_empty(), "sin semanas por modelo")
+	assert_eq(_ring_rows(plain).size(), 3, "dos barras y el texto, sin lugar extra")
+
+
+func test_opus_window_from_rate_limit_type() -> void:
+	var monitor := _monitor()
+	var update := _update(0.2, 0.3)
+	update._meta["_claude/rateLimit"].merge({"rateLimitType": "seven_day_opus", "utilization": 0.82, "resetsAt": float(NOW + 86400), "status": "allowed_warning"}, true)
+	update._meta["_claude/model"] = "claude-opus-5-5"
+	monitor.observe_update(update)
+	assert_eq(monitor.model_windows(), PackedStringArray(["seven_day_opus"]), "la semana de Opus llega como rateLimitType")
+	assert_eq(monitor.weekly_window(), "seven_day_opus", "y con Opus es la de adentro")
+	assert_eq(monitor.state, QuotaMonitor.QuotaState.WARNING, "82 %: aviso")
+	assert_eq(QuotaMonitor.window_label("seven_day_opus"), "Week · Opus", "nombre")
+
+
 ## `/status` de `codex-acp` (CodexCommands.ts) y errores de Codex, Copilot, Cursor y OpenCode (m11-20).
 const CODEX_STATUS := """**Model:** gpt-5-codex  
 **Directory:** /workspace  

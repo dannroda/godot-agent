@@ -210,7 +210,7 @@ func refresh() -> void:
 ## Lo que define el dibujo: si no cambia, no se redibuja.
 func _draw_state() -> Array:
 	var state: Array = [_quota.is_limited(), _quota.has_data()]
-	for window: String in [QuotaMonitor.WINDOW_CURRENT, QuotaMonitor.WINDOW_WEEKLY]:
+	for window: String in [QuotaMonitor.WINDOW_CURRENT, _quota.weekly_window()]:
 		var used := _quota.utilization(window)
 		state.append_array([snappedf(used, 0.001), color_for(used)])
 	return state
@@ -234,10 +234,23 @@ func hint_rows() -> Array[Dictionary]:
 		if not _quota.is_limited():
 			rows.append({"kind": "text", "text": I18n.t("No data yet: Claude Code reports it with the first message of each session. Other agents may not report it.")})
 		return rows
-	for window: String in [QuotaMonitor.WINDOW_CURRENT, QuotaMonitor.WINDOW_WEEKLY]:
-		if _quota.utilization(window) >= 0.0:
-			var ring := I18n.t("%s · outer ring") if window == QuotaMonitor.WINDOW_CURRENT else I18n.t("%s · inner ring")
-			rows.append(_window_row(ring % I18n.t(QuotaMonitor.WINDOW_LABELS[window]), _quota.windows[window]))
+	# Afuera la actual; adentro la semanal más llena que limita al modelo en uso (m12-55). Las
+	# semanas de otros modelos van en gris: se ven, pero no pausan.
+	var inner := _quota.weekly_window()
+	for window: String in [QuotaMonitor.WINDOW_CURRENT, QuotaMonitor.WINDOW_WEEKLY] + Array(_quota.model_windows()):
+		if _quota.utilization(window) < 0.0:
+			continue
+		var label := QuotaMonitor.window_label(window)
+		if window == QuotaMonitor.WINDOW_CURRENT:
+			label = I18n.t("%s · outer ring") % label
+		elif window == inner:
+			label = I18n.t("%s · inner ring") % label
+		if not _quota.applies(window):
+			label = I18n.t("%s (another model)") % label
+		var row := _window_row(label, _quota.windows[window])
+		if not _quota.applies(window):
+			row.color = AgentTheme.MUTED
+		rows.append(row)
 	for group_name: String in _quota.groups:
 		var group: Dictionary = _quota.groups[group_name]
 		var windows := [QuotaMonitor.WINDOW_CURRENT, QuotaMonitor.WINDOW_WEEKLY].filter(func(window: String) -> bool: return group.get(window) is Dictionary)
@@ -275,8 +288,12 @@ func describe() -> String:
 		return "\n".join(lines)
 	if _quota.utilization(QuotaMonitor.WINDOW_CURRENT) >= 0.0:
 		lines.append(I18n.t("Outer ring: %s") % _quota.describe_window(QuotaMonitor.WINDOW_CURRENT))
-	if _quota.utilization(QuotaMonitor.WINDOW_WEEKLY) >= 0.0:
-		lines.append(I18n.t("Inner ring: %s") % _quota.describe_window(QuotaMonitor.WINDOW_WEEKLY))
+	var inner := _quota.weekly_window()
+	if _quota.utilization(inner) >= 0.0:
+		lines.append(I18n.t("Inner ring: %s") % _quota.describe_window(inner))
+	for window: String in [QuotaMonitor.WINDOW_WEEKLY] + Array(_quota.model_windows()):
+		if window != inner and _quota.utilization(window) >= 0.0:
+			lines.append(_quota.describe_window(window) if _quota.applies(window) else I18n.t("%s (another model)") % _quota.describe_window(window))
 	var group_lines := _quota.describe_groups()
 	if not group_lines.is_empty():
 		lines.append("")
@@ -292,7 +309,7 @@ func _draw() -> void:
 	var outer := minf(size.x, size.y) / 2.0 - width / 2.0
 	var inner := outer - width * 1.6
 	_ring(center, outer, width, QuotaMonitor.WINDOW_CURRENT)
-	_ring(center, inner, width, QuotaMonitor.WINDOW_WEEKLY)
+	_ring(center, inner, width, _quota.weekly_window())
 
 
 func _ring(center: Vector2, radius: float, width: float, window: String) -> void:

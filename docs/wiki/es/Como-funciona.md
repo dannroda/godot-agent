@@ -68,7 +68,7 @@ Doble clic en una pestaña la renombra (vacía, vuelve a «Sesión N»). El nomb
 
 ## La cuota del plan
 
-Claude Code informa el uso de las ventanas de tu plan (5 horas y semanal). El harness lo muestra, avisa al 75 %, pausa el One-shot al 90 % y, al llegar al límite, bloquea el envío con una cuenta regresiva hasta que la ventana se reinicia. No estima la cuota con tokens, no consulta endpoints no documentados y no lee archivos del agente. Ver [One-shot → cuota](One-shot.md#cuota-del-plan).
+Claude Code informa el uso de las ventanas de tu plan (5 horas, semanal y, si tu plan lo tiene, el límite semanal de un solo modelo, como Fable). El harness lo muestra, avisa al 75 %, pausa el One-shot al 90 % y, al llegar al límite, bloquea el envío con una cuenta regresiva hasta que la ventana se reinicia. No estima la cuota con tokens, no consulta endpoints no documentados y no lee archivos del agente. Ver [One-shot → cuota](One-shot.md#cuota-del-plan).
 
 ## El Agent Log
 
