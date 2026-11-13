@@ -171,3 +171,12 @@ func test_late_replies_are_dropped() -> void:
 	tools._waiting[8] = true
 	tools._on_reply_received(8, {"text": "a tiempo"})
 	assert_eq(tools._replies.get(8), {"text": "a tiempo"}, "la que se espera queda")
+
+
+## Qué pausas del debugger son del código del harness y se siguen solas (m16-22).
+func test_is_harness_break() -> void:
+	assert_true(RunTools.is_harness_break("Cannot call method 'get_visible_rect' on a null value. (0 - res://addons/godot_agent/playtest/runtime/game_ui.gd:212 - at function: _on_screen)"), "error en game_ui.gd")
+	assert_false(RunTools.is_harness_break("Cannot call method 'queue_free' on a null value. (0 - res://player.gd:12 - at function: _ready)"), "error del juego")
+	assert_false(RunTools.is_harness_break("Breakpoint (0 - res://addons/godot_agent/playtest/runtime/game_ui.gd:212 - at function: _on_screen)"), "un breakpoint no se sigue")
+	assert_false(RunTools.is_harness_break("Text with res://addons/godot_agent/ inside (0 - res://player.gd:3 - at function: f)"), "solo cuenta el frame de la pila, no el mensaje")
+	assert_false(RunTools.is_harness_break(""), "sin motivo")

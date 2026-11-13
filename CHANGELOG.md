@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- **An error in the harness's own playtest code no longer leaves the game stopped in the debugger.** The playtest detector that reads the HUD could fail on a control without a viewport (`get_visible_rect` on a null value in `game_ui.gd`); with the editor's debugger attached, every such error paused the game, and after a `game_script` the pause stayed: `capture_game_frame` and the `game_*` tools got no frames until the scene was restarted. The UI reading now skips controls without a viewport; a break whose error is in the addon's code is continued on its own and listed among the errors the game went past, marked as the harness's; and a detector that hits an error in the harness's code turns itself off for the rest of the run instead of pausing the game every frame.
+
 ## [0.1.26] - 2026-11-12
 
 ### Changed

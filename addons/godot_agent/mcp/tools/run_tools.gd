@@ -169,6 +169,8 @@ var _next_request: int = 1
 ## Saltear las pausas del debugger por errores (m15-05): solo en el run que lo pidió y en game_script.
 var _continue_errors: bool = false
 var _breaks: int = 0
+## Pausas por errores del código del harness que se siguieron en este run (m16-22).
+var _harness_breaks: int = 0
 var _last_break_ms: int = -HITCH_AFTER_BREAK_MS
 var _continued: PackedStringArray = []
 ## firma → hallazgo de los detectores (m15-07); `_findings_new`: firmas sin reportar todavía.
@@ -290,16 +292,10 @@ func _on_session_breaked() -> void:
 			_continued.append("Stopped skipping errors after %d in this run: the game is stopped in the debugger." % CONTINUE_MAX)
 			_continue_errors = false
 		_set_run_state(GameRunState.BREAKED)
+		_continue_harness_break()
 		return
 	_breaks += 1
-	var tree := Engine.get_main_loop() as SceneTree
-	var reason := ""
-	for frame in 20:
-		await tree.process_frame
-		if frame >= 1:
-			reason = PlaytestDebugger.break_reason()
-			if not reason.is_empty():
-				break
+	var reason := await _break_reason_soon()
 	# Un breakpoint lo puso alguien para frenar acá: no es un error que se saltea (m16-05).
 	if reason.begins_with(BREAKPOINT_REASON):
 		_continue_errors = false
@@ -308,6 +304,41 @@ func _on_session_breaked() -> void:
 	_continued.append(reason if not reason.is_empty() else "(the debugger gave no reason)")
 	_last_break_ms = Time.get_ticks_msec()
 	debugger.resume()
+
+
+## El motivo de la pausa del debugger: el panel se llena unos frames después ("" si no llega).
+func _break_reason_soon() -> String:
+	var tree := Engine.get_main_loop() as SceneTree
+	for frame in 20:
+		await tree.process_frame
+		if frame >= 1:
+			var reason := PlaytestDebugger.break_reason()
+			if not reason.is_empty():
+				return reason
+	return ""
+
+
+## Un error en el código del harness (la probe, los detectores, game_ui), no en el del juego, no deja el
+## juego parado (m16-22): sin frames, capture_game_frame y las game_* no contestan hasta reiniciar. Se
+## sigue y queda entre los errores salteados del run.
+func _continue_harness_break() -> void:
+	if _harness_breaks >= CONTINUE_MAX:
+		return
+	var reason := await _break_reason_soon()
+	if not is_harness_break(reason) or run_state != GameRunState.BREAKED or not debugger.any_breaked():
+		return
+	_harness_breaks += 1
+	_continued.append("In the harness's playtest code, not the game's (the game was continued): %s" % reason)
+	_last_break_ms = Time.get_ticks_msec()
+	debugger.resume()
+
+
+## true si la pausa es por un error cuyo último frame está en el addon (no un breakpoint).
+static func is_harness_break(reason: String) -> bool:
+	if reason.is_empty() or reason.begins_with(BREAKPOINT_REASON):
+		return false
+	var at := reason.rfind(" (")
+	return at >= 0 and reason.substr(at).contains("res://addons/godot_agent/")
 
 
 func _on_finding_received(finding: Dictionary) -> void:
@@ -580,6 +611,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	_set_run_state(GameRunState.LAUNCHING)
 	_continue_errors = args.get("continue_on_error") == true
 	_breaks = 0
+	_harness_breaks = 0
 	_continued = []
 	_findings = {}
 	_findings_new = []

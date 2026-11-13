@@ -81,8 +81,10 @@ func _click(id: String, control: Control, params: Dictionary) -> Dictionary:
 	var button := control as BaseButton
 	button.pressed.connect(mark)
 	button.toggled.connect(mark)
+	var viewport := control.get_viewport()
 	_push_mouse(control, MOUSE_BUTTON_LEFT)
-	var hovered := control.get_viewport().gui_get_hovered_control()
+	# El clic puede sacar el botón del árbol (cambiar de pantalla): el viewport es el de antes.
+	var hovered := viewport.gui_get_hovered_control() if is_instance_valid(viewport) else null
 	if is_instance_valid(button):
 		button.pressed.disconnect(mark)
 		button.toggled.disconnect(mark)
@@ -137,6 +139,8 @@ static func free_point(viewport: Viewport, preferred: Vector2) -> Vector2:
 ## Un clic con movimiento antes, adentro del viewport y en sus coordenadas (vale con stretch).
 func _push_mouse(control: Control, button: MouseButton, double := false) -> void:
 	var viewport := control.get_viewport()
+	if viewport == null:
+		return
 	var at := control.get_global_transform_with_canvas() * (control.size / 2.0)
 	var motion := InputEventMouseMotion.new()
 	motion.position = at
@@ -198,8 +202,12 @@ func _controls() -> Array[Control]:
 	return result
 
 
+## Un control sin viewport (fuera del árbol, o saliendo) no está en pantalla (m16-22).
 static func _on_screen(control: Control) -> bool:
-	if not control.is_visible_in_tree():
+	if not control.is_inside_tree() or not control.is_visible_in_tree():
+		return false
+	var viewport := control.get_viewport()
+	if viewport == null:
 		return false
 	var alpha := control.self_modulate.a
 	var node: Node = control
@@ -210,7 +218,7 @@ static func _on_screen(control: Control) -> bool:
 	if alpha <= 0.01:
 		return false
 	var transform := control.get_global_transform_with_canvas()
-	return control.get_viewport().get_visible_rect().intersects(Rect2(transform.origin, control.size * transform.get_scale()), true)
+	return viewport.get_visible_rect().intersects(Rect2(transform.origin, control.size * transform.get_scale()), true)
 
 
 ## [id, control]: `<UI>.<nombre>`, con #2, #3 en los repetidos.
