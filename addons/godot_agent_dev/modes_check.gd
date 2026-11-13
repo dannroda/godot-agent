@@ -19,6 +19,7 @@ extends RefCounted
 
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const PermissionRequest := preload("res://addons/godot_agent/session/permission_request.gd")
+const LayoutCheck := preload("layout_check.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const WORK_DIR := "res://tests/tmp/modes"
 const WAIT_MS := 30000
@@ -47,6 +48,7 @@ func run(tree: SceneTree, plugin: Object, dock: Control, shot_path: String) -> A
 	dock.call(&"load_project_modes")
 	await _check(dock, controller, shot_path)
 	await _check_request_mode(dock)
+	await _check_long_name(dock)
 	if plugin:
 		_check_extensions(plugin)
 		_check_oneshot(plugin)
@@ -160,6 +162,42 @@ func _check_request_mode(dock: Control) -> void:
 			results.append(raw)
 	_expect(results.size() == 2, "el agente recibe las dos respuestas · %d" % results.size())
 	_model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+
+
+## m12-52: un modo del proyecto de nombre largo («Level design (Build)») compacta la fila del composer
+## en vez de ensanchar el dock, con el dock a 480 y a 320 px y la fila de una sesión activa (medidor,
+## modelo, Enviar).
+func _check_long_name(dock: Control) -> void:
+	var dir := ProjectSettings.globalize_path(WORK_DIR)
+	_write(dir.path_join("modes/level_design.json"), JSON.stringify({
+		"version": 1, "name": "Level design", "base": "build", "when_to_use": "Laying out levels",
+		"editable": [WORK_DIR + "/levels/*.tscn"], "icon": "TileMap",
+	}, "\t"))
+	dock.call(&"load_project_modes")
+	_expect(bool(dock.call(&"choose_project_mode", "Level design")), "se elige «Level design»")
+	var composer: Object = dock.get(&"_composer")
+	composer.call(&"set_usage", 38000, 200000)
+	composer.call(&"set_model_option", {"currentValue": "default", "options": [
+		{"value": "default", "name": "Default (recommended)", "description": "Opus 5.5"},
+		{"value": "opus", "name": "Opus 5.5"}]})
+	# El MinSizeGuard: el ancho que el editor le da al dock. El contenido puede pedir más (se recorta).
+	var guard: Control = dock
+	while guard and not (guard.get_script() and (guard.get_script() as Script).resource_path.ends_with("min_size_guard.gd")):
+		guard = guard.get_parent() as Control
+	var start_width := int(guard.size.x)
+	for width: int in [480, 400, 320]:
+		await LayoutCheck.set_dock_width(guard, width)
+		# Un cambio de compactación que deshace el anterior espera FIT_SETTLE_MS (250 ms) y se vuelve a medir.
+		await _tree.create_timer(0.5).timeout
+		var row: Control = composer.get(&"_row")
+		_expect(absf(guard.size.x - width) < 4.0, "con «Level design (Build)» el dock queda en %d px, no se ensancha (%d)" % [width, guard.size.x])
+		_expect(row.get_combined_minimum_size().x <= guard.size.x + 1.0, "a %d px la fila del composer pide %d: tiene que compactarse" % [width, row.get_combined_minimum_size().x])
+		for failure: String in LayoutCheck.dock_fits(dock):
+			failures.append("a %d px: %s" % [width, failure])
+	await LayoutCheck.set_dock_width(guard, start_width)
+	composer.call(&"set_usage", 0, 0)
+	composer.call(&"set_model_option", {})
+	DirAccess.remove_absolute(dir.path_join("modes/level_design.json"))
 
 
 ## La próxima tarjeta pendiente (o null si el turno termina antes).
