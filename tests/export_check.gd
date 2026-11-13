@@ -32,6 +32,9 @@ const SCENARIOS: Array[Dictionary] = [
 	{ "name": "plugin_on_autoload_huerfano", "plugin": true, "filter": false, "orphan": true, "expect_clean": true },
 	# La carpeta de las tools del proyecto sale de la config (m11-46).
 	{ "name": "plugin_on_tools_en_otra_carpeta", "plugin": true, "filter": false, "orphan": false, "expect_clean": true, "tools_dir": "tools/agent" },
+	# Filtros más amplios que el del addon (m0-07): Godot los evalúa como glob y también lo excluyen.
+	{ "name": "plugin_off_filtro_addons", "plugin": false, "filter": true, "filter_text": "*.psd, addons/*", "orphan": false, "expect_clean": true },
+	{ "name": "plugin_off_filtro_comodin", "plugin": false, "filter": true, "filter_text": "res://*/godot_agent/*", "orphan": false, "expect_clean": true },
 	# Control: sin plugin ni filtro el addon TIENE que aparecer; si no, el detector no sirve.
 	{ "name": "control_plugin_off_sin_filtro", "plugin": false, "filter": false, "orphan": false, "expect_clean": false },
 ]
@@ -150,7 +153,7 @@ func _project_godot(scenario: Dictionary, with_orphan: bool) -> String:
 func _export_presets(scenario: Dictionary) -> String:
 	return (
 		'[preset.0]\n\nname="%s"\nplatform="Linux"\nrunnable=true\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter="%s"\nexport_path=""\n\n[preset.0.options]\n\nbinary_format/embed_pck=false\n'
-		% [PRESET, (FILTER + ", " + str(scenario.get("tools_dir", "agent_tools")) + "/*") if scenario.filter else ""]
+		% [PRESET, (str(scenario.get("filter_text", FILTER)) + ", " + str(scenario.get("tools_dir", "agent_tools")) + "/*") if scenario.filter else ""]
 	)
 
 
