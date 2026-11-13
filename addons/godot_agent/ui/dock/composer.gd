@@ -1000,6 +1000,7 @@ const FIT_SETTLE_MS := 250
 var _last_fit_from: int = -1
 var _last_fit_to: int = -1
 var _last_fit_msec: int = 0
+var _fit_retry_pending: bool = false
 
 
 func _queue_fit() -> void:
@@ -1033,6 +1034,10 @@ func _fit_row() -> void:
 	# un cambio de ancho de verdad (mover el divisor) vuelve a pedir el ajuste después.
 	var now := Time.get_ticks_msec()
 	if level == _last_fit_from and _compact_level == _last_fit_to and now - _last_fit_msec < FIT_SETTLE_MS:
+		# Pero se vuelve a medir pasado el margen (m12-52): si el ancho cambió de verdad (el divisor se
+		# movió rápido, 400 → 320 px) no hay otro resize que lo pida, la fila quedaba ancha y empujaba el
+		# dock. Para entonces la fila ya se reacomodó y la medida es la real: no vuelve el vaivén.
+		_retry_fit_later(FIT_SETTLE_MS - (now - _last_fit_msec))
 		return
 	_last_fit_from = _compact_level
 	_last_fit_to = level
@@ -1047,6 +1052,19 @@ func _fit_row() -> void:
 	_model_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 6 else Control.SIZE_FILL
 	_spacer.visible = level < 6
 	_update_send_button()
+
+
+func _retry_fit_later(msec: int) -> void:
+	if _fit_retry_pending or not is_inside_tree():
+		return
+	_fit_retry_pending = true
+	# Un método y no un lambda: si el composer se libera antes, la conexión se va con él.
+	get_tree().create_timer(maxf(msec, 1) / 1000.0 + 0.02).timeout.connect(_on_fit_retry)
+
+
+func _on_fit_retry() -> void:
+	_fit_retry_pending = false
+	_queue_fit()
 
 
 ## Ancho que tiene la fila de verdad: si el contenido del dock pide más que su MinSizeGuard, el
@@ -1097,7 +1115,10 @@ func _row_width(level: int) -> float:
 	return width + maxf(0, count - 1) * _row.get_theme_constant(&"separation")
 
 
-## Ancho de Enviar/Detener con el texto completo o solo el símbolo (el bloqueo no se acorta).
+## Ancho de Enviar/Detener con el texto completo o solo el símbolo (el bloqueo no se acorta). Parte
+## del mínimo real del botón y cambia el ancho de su texto actual por el de `text`: sumar solo el texto
+## y el stylebox daba 6 px menos que el botón (m12-52), y en ese margen la fila creía que entraba y
+## ensanchaba el dock en vez de compactarse.
 func _send_width(short: bool) -> float:
 	var text := _lock_text
 	if _is_busy():
@@ -1106,8 +1127,8 @@ func _send_width(short: bool) -> float:
 		text = "➤" if short else I18n.t("Send") + " ➤"
 	var font := _send_button.get_theme_font(&"font")
 	var font_size := _send_button.get_theme_font_size(&"font_size")
-	var style := _send_button.get_theme_stylebox(&"normal")
-	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x + style.get_minimum_size().x
+	var current := font.get_string_size(_send_button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	return _send_button.get_minimum_size().x - current + font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 
 
 ## Ancho del selector de modelo con el nombre entero o cortado (sin importar cómo está ahora).

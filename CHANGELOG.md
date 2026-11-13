@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- **The composer row widened the dock** instead of compacting. A project mode with a long name, such as «Level design (Build)», could make the dock a few pixels wider than you left it, with **Send** still spelled out. The row underestimated the width of the **Send** button by 6 px, so in that margin it thought it fit. And when you moved the divider quickly, a needed compaction was skipped and nothing checked again. Both are fixed, at any dock width down to 320 px.
+
 ## [0.1.26] - 2026-11-12
 
 ### Changed
