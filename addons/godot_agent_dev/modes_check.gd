@@ -194,6 +194,11 @@ func _check_long_name(dock: Control) -> void:
 		_expect(row.get_combined_minimum_size().x <= guard.size.x + 1.0, "a %d px la fila del composer pide %d: tiene que compactarse" % [width, row.get_combined_minimum_size().x])
 		for failure: String in LayoutCheck.dock_fits(dock):
 			failures.append("a %d px: %s" % [width, failure])
+		# Con la escala del editor en 1,33 (la de un editor sin ajustes, la del CI) a 320 px ni cortando
+		# el modelo entra: el modo también se corta, y su tooltip dice el nombre entero.
+		var mode_button: OptionButton = composer.get(&"_mode_button")
+		if int(composer.get(&"_compact_level")) >= 7:
+			_expect(mode_button.tooltip_text.begins_with("Level design (Build)"), "cortado, el tooltip del modo empieza con su nombre · %s" % mode_button.tooltip_text.left(80))
 	await LayoutCheck.set_dock_width(guard, start_width)
 	composer.call(&"set_usage", 0, 0)
 	composer.call(&"set_model_option", {})

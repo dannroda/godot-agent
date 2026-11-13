@@ -132,7 +132,8 @@ var _mention_button: Button
 var _commands_button: Button
 var _spacer: Control
 ## Cuánto se compactó la fila: 0 = completa, 1 = enviar sin texto, 2 = sin medidor, 3 = sin `/`,
-## 4 = sin `@`, 5 = sin captura, 6 = el modelo se corta con «…».
+## 4 = sin `@`, 5 = sin captura, 6 = el modelo se corta con «…», 7 = también el modo (m12-52).
+const MAX_COMPACT_LEVEL := 7
 var _compact_level: int = 0
 var _fit_queued: bool = false
 var _grip: Control
@@ -577,7 +578,17 @@ func set_current_mode(mode: int) -> void:
 	var index := _mode_button.get_item_index(mode) if mode >= 0 else -1
 	if index >= 0:
 		_mode_button.select(index)
-		_mode_button.tooltip_text = "%s: %s" % [I18n.t("Mode"), _mode_button.get_item_tooltip(index)]
+		_refresh_mode_tooltip()
+		_queue_fit()  # otro nombre, otro ancho
+
+
+## Cortado con «…» (último nivel de compactación), el tooltip empieza con el nombre entero.
+func _refresh_mode_tooltip() -> void:
+	var index := _mode_button.selected
+	if index < 0:
+		return
+	var tooltip := "%s: %s" % [I18n.t("Mode"), _mode_button.get_item_tooltip(index)]
+	_mode_button.tooltip_text = (_mode_button.get_item_text(index) + "\n" + tooltip) if _compact_level >= 7 else tooltip
 
 
 ## Elige un modo como si lo hiciera el usuario (para las pruebas del dock).
@@ -1003,6 +1014,8 @@ var _last_fit_from: int = -1
 var _last_fit_to: int = -1
 var _last_fit_msec: int = 0
 var _fit_retry_pending: bool = false
+## Ancho mínimo del selector de modo cortado, sin escalar.
+const MODE_CLIPPED_MIN := 70
 
 
 func _queue_fit() -> void:
@@ -1017,7 +1030,9 @@ func _queue_fit() -> void:
 ## modelo y Enviar quedaban cortados. Se compacta de a pasos hasta que entra: Enviar/Detener
 ## solo con el símbolo, sin el medidor (la cuota y el anillo de contexto siguen), sin `/`, sin `@`
 ## sin captura (Ctrl+V sigue pegando imágenes) y, si un nombre de modelo largo sigue sin entrar, el
-## selector de modelo toma el ancho que queda y corta el nombre con «…» (el tooltip lo muestra).
+## selector de modelo toma el ancho que queda y corta el nombre con «…» (el tooltip lo muestra). Si ni
+## así entra (un modo del proyecto de nombre largo con la escala del editor en 1,33), el modo también
+## se corta (m12-52).
 func _fit_row() -> void:
 	_fit_queued = false
 	if _row == null or not is_inside_tree():
@@ -1026,7 +1041,7 @@ func _fit_row() -> void:
 	if available <= 0.0:
 		return
 	var level := 0
-	while level < 6 and _row_width(level) > available:
+	while level < MAX_COMPACT_LEVEL and _row_width(level) > available:
 		level += 1
 	if level == _compact_level:
 		return
@@ -1052,7 +1067,12 @@ func _fit_row() -> void:
 	_model_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 6 else TextServer.OVERRUN_NO_TRIMMING
 	_model_button.custom_minimum_size.x = AgentTheme.px(60) if level >= 6 else 0.0
 	_model_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 6 else Control.SIZE_FILL
+	_mode_button.clip_text = level >= 7
+	_mode_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if level >= 7 else TextServer.OVERRUN_NO_TRIMMING
+	_mode_button.custom_minimum_size.x = AgentTheme.px(MODE_CLIPPED_MIN) if level >= 7 else 0.0
+	_mode_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if level >= 7 else Control.SIZE_FILL
 	_spacer.visible = level < 6
+	_refresh_mode_tooltip()
 	_update_send_button()
 
 
@@ -1111,6 +1131,8 @@ func _row_width(level: int) -> float:
 			width += _send_width(level >= 1)
 		elif control == _model_button:
 			width += _model_width(level >= 6)
+		elif control == _mode_button:
+			width += _option_width(_mode_button, level >= 7, MODE_CLIPPED_MIN)
 		else:
 			width += control.get_combined_minimum_size().x
 		count += 1
@@ -1135,12 +1157,18 @@ func _send_width(short: bool) -> float:
 
 ## Ancho del selector de modelo con el nombre entero o cortado (sin importar cómo está ahora).
 func _model_width(clipped: bool) -> float:
-	var font := _model_button.get_theme_font(&"font")
-	var font_size := _model_button.get_theme_font_size(&"font_size")
-	var text_width := font.get_string_size(_model_button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var current := _model_button.get_minimum_size().x
-	var bare := current if _model_button.clip_text else current - text_width
-	return maxf(bare, AgentTheme.px(60)) if clipped else bare + text_width
+	return _option_width(_model_button, clipped, 60)
+
+
+## Ancho de un selector con el texto entero o cortado con «…» (al menos `clipped_min` px sin escalar),
+## sin importar cómo está ahora: con clip_text el texto no cuenta en su mínimo.
+func _option_width(button: OptionButton, clipped: bool, clipped_min: float) -> float:
+	var font := button.get_theme_font(&"font")
+	var font_size := button.get_theme_font_size(&"font_size")
+	var text_width := font.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var current := button.get_minimum_size().x
+	var bare := current if button.clip_text else current - text_width
+	return maxf(bare, AgentTheme.px(clipped_min)) if clipped else bare + text_width
 
 
 func _size_guard() -> Control:
