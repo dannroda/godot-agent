@@ -289,7 +289,7 @@ En cualquier modo, el harness rechaza solo, sin tarjeta:
 - escribir a mano un `.tscn`, `.uid` o `.import`, con las herramientas de archivos del agente o por el acceso a archivos del editor;
 - correr Godot desde la shell sin `--headless`: abriría el juego o un editor en una ventana aparte. Para ver el juego, el agente lo corre desde el editor (`godot.run_scene`) y lo captura (`godot.capture_game_frame`).
 
-El chat muestra un aviso «Rechazado: …». Al agente se le indica que escriba los scripts con sus propias herramientas de archivos (el harness las pasa por el editor) y las escenas con las tools `godot.*`. Los comandos que escriben fuera del proyecto, por ejemplo en `/tmp`, siguen la matriz de arriba como siempre.
+El chat muestra un aviso «Rechazado: …», y al agente le llega el motivo en un mensaje marcado **Rechazado por el harness**: qué intentó escribir y qué usar en su lugar (sus propias herramientas de archivos para los scripts, que el harness pasa por el editor, y las tools `godot.*` para escenas, ajustes y mover archivos). Lo mismo con los demás rechazos sin tarjeta: un archivo que está editando otra sesión, un modo del proyecto que no deja ese archivo o un modo que niega la tool. Los comandos que escriben fuera del proyecto, por ejemplo en `/tmp`, siguen la matriz de arriba como siempre. Las rutas relativas cuentan desde el último `cd` o `pushd` del comando: `cd /tmp && echo x > out.txt` escribe en `/tmp`, y un `cd` dentro de `( … )` no cuenta después.
 
 La matriz se cambia en **Settings → Permisos**. Se guarda solo lo que difiere de los valores por defecto, en la config del proyecto (`project_config.tres`), así se puede commitear y compartir con el equipo.
 

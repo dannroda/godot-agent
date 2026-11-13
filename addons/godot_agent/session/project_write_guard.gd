@@ -28,14 +28,21 @@ const SAFE_TARGETS: PackedStringArray = ["/dev/null", "/dev/stdout", "/dev/stder
 const FILE_COMMANDS: PackedStringArray = ["mv", "cp", "rm", "rmdir", "unlink"]
 const ShellCommand := preload("shell_command.gd")
 const COMMAND_PREFIXES: PackedStringArray = ["sudo", "command", "builtin", "nice", "time"]
+## Palabras de la shell que pueden ir antes de un `cd` en el mismo comando.
+const SHELL_KEYWORDS: PackedStringArray = ["{", "!", "then", "else", "do"]
 
 
 ## Qué escribiría `tool_call` en el proyecto por fuera del editor: un archivo, un comando
-## recortado, o "" si nada.
-static func blocked_target(tool_call: Dictionary, group: String, project_root: String) -> String:
+## recortado, o "" si nada. `start_dir`: dónde corre el comando de shell (por defecto, el proyecto).
+static func blocked_target(tool_call: Dictionary, group: String, project_root: String, start_dir: String = "") -> String:
 	var raw: Dictionary = tool_call.get("rawInput") if tool_call.get("rawInput") is Dictionary else {}
 	if group == PermissionPolicy.GROUP_SHELL:
-		return shell_write_target(ShellCommand.of(raw), project_root)
+		# Antigravity dice dónde corre el comando (rawInput.Cwd); Claude Code corre en el proyecto.
+		var dir := start_dir
+		for key: String in ["Cwd", "cwd"]:
+			if dir.is_empty() and raw.get(key) is String:
+				dir = raw[key]
+		return shell_write_target(ShellCommand.of(raw), project_root, dir)
 	if group == PermissionPolicy.GROUP_EDIT_FILES:
 		for path: String in _edit_paths(tool_call, raw):
 			if is_editor_managed(path) and is_inside(path, project_root):
@@ -57,31 +64,31 @@ static func alternative_for(path: String) -> String:
 	return "create and edit scenes with the godot.* tools (create_scene, add_nodes, set_properties, save_scene); the editor manages .uid and .import files"
 
 
-## El primer archivo del proyecto que escribe el comando, o "" si no escribe en el proyecto.
-static func shell_write_target(command: String, project_root: String) -> String:
+## Por qué se rechazó un comando que escribe `target` (para el agente, en inglés): qué usar en su lugar.
+static func rejection_reason(target: String) -> String:
+	var alternative := alternative_for(target) if is_editor_managed(target) \
+		else "write scripts and text files with your own file tools (the harness syncs them with the editor), and move, copy or delete project files with godot.move_file, godot.copy_file and godot.delete_file"
+	return "it writes %s in the project without going through the editor, which the harness rejects in every mode. Instead, %s. Writing outside the project (in /tmp, for example) is not affected; a cd earlier in the same command counts." % [target, alternative]
+
+
+## El primer archivo del proyecto que escribe el comando, o "" si no escribe en el proyecto. Las
+## rutas relativas se resuelven contra el último `cd`/`pushd` del comando (m11-69), empezando en
+## `start_dir` (por defecto, el proyecto): `cd /tmp && echo x > f` no escribe el proyecto. Un `cd` que
+## no se puede resolver (`cd $T`, `cd ~`, `cd -`) deja sin bloquear las relativas que siguen, igual
+## que una ruta con `$` o `~`. Un `cd` dentro de `( … )`, `$( … )` o antes de un `|` no vale después.
+## Devuelve la ruta como está en el comando o, después de un `cd`, resuelta.
+static func shell_write_target(command: String, project_root: String, start_dir: String = "") -> String:
 	var split := _split_heredocs(command)
-	var line := _strip_quotes(str(split.command))
-	var targets: PackedStringArray = []
-	var redirect := RegEx.create_from_string("(\\d*|&)>>?\\s*([^\\s;&|()<>]+)")
-	for match: RegExMatch in redirect.search_all(line):
-		if match.get_string(1) == "2" or match.get_string(2).begins_with("&"):
-			continue
-		targets.append(match.get_string(2))
-	var tee := RegEx.create_from_string("\\btee\\s+(?:-\\w+\\s+)*([^\\s;&|()<>]+)")
-	for match: RegExMatch in tee.search_all(line):
-		targets.append(match.get_string(1))
-	var dd := RegEx.create_from_string("\\bof=([^\\s;&|()<>]+)")
-	for match: RegExMatch in dd.search_all(line):
-		targets.append(match.get_string(1))
-	# sed -i / perl -i: los archivos son los argumentos que no son opciones.
-	var in_place := RegEx.create_from_string("\\b(?:sed|perl)\\s+([^;&|]*?)(?:-\\w*i\\b|--in-place)([^;&|]*)")
-	for match: RegExMatch in in_place.search_all(str(split.command)):
-		var files := _path_args(match.get_string(2))
-		targets.append_array(files if not files.is_empty() else PackedStringArray(["."]))
-	targets.append_array(file_command_targets(line))
-	for target: String in targets:
-		if is_inside(target, project_root):
-			return target
+	var root := project_root.simplify_path()
+	var start := resolve(start_dir, root) if not start_dir.is_empty() else root
+	if not start.begins_with("/"):
+		start = ""  # `~`, `$X`: no se sabe dónde corre
+	for segment: Dictionary in shell_segments(_strip_quotes(str(split.command)), start):
+		var dir: String = segment.dir
+		for target: String in segment_targets(str(segment.text)):
+			var resolved := resolve(target, dir)
+			if is_inside(resolved, root):
+				return target if dir == root else resolved
 	# Scripts: en un heredoc pasado a un intérprete o en -c/-e.
 	var scripts: PackedStringArray = []
 	for body: Dictionary in split.bodies:
@@ -95,6 +102,110 @@ static func shell_write_target(command: String, project_root: String) -> String:
 		if not target.is_empty():
 			return target
 	return ""
+
+
+## Los archivos que escribe un comando simple (sin comillas, ver _strip_quotes): redirecciones,
+## `tee`, `dd of=`, `sed -i`/`perl -i` y los mv/cp/rm.
+static func segment_targets(segment: String) -> PackedStringArray:
+	var targets: PackedStringArray = []
+	var redirect := RegEx.create_from_string("(\\d*|&)>[>|]?\\s*([^\\s;&|()<>]+)")
+	for match: RegExMatch in redirect.search_all(segment):
+		if match.get_string(1) == "2" or match.get_string(2).begins_with("&"):
+			continue
+		targets.append(match.get_string(2))
+	var tee := RegEx.create_from_string("\\btee\\s+(?:-\\w+\\s+)*([^\\s;&|()<>]+)")
+	for match: RegExMatch in tee.search_all(segment):
+		targets.append(match.get_string(1))
+	var dd := RegEx.create_from_string("\\bof=([^\\s;&|()<>]+)")
+	for match: RegExMatch in dd.search_all(segment):
+		targets.append(match.get_string(1))
+	# sed -i / perl -i: los archivos son los argumentos que no son opciones.
+	var in_place := RegEx.create_from_string("\\b(?:sed|perl)\\s+([^;&|]*?)(?:-\\w*i\\b|--in-place)([^;&|]*)")
+	for match: RegExMatch in in_place.search_all(segment):
+		var files := _path_args(match.get_string(2))
+		targets.append_array(files if not files.is_empty() else PackedStringArray(["."]))
+	targets.append_array(file_command_targets(segment))
+	return targets
+
+
+## Parte una línea sin comillas en comandos simples: [{text, dir}], con `dir` la carpeta en la que
+## corre cada uno ("" si un `cd` no se pudo resolver). Sigue `cd`, `pushd` y `popd`; cada `( … )` y
+## `$( … )` es una subshell con su propia carpeta, y su texto sale como comandos aparte (en el de
+## afuera queda `$_`). Lo que corre antes de un `|` también es una subshell.
+static func shell_segments(line: String, start_dir: String) -> Array[Dictionary]:
+	var segments: Array[Dictionary] = []
+	# Cada marco: la carpeta, la pila de pushd y el comando que se va armando.
+	var frames: Array[Dictionary] = [{"dir": start_dir, "stack": [], "text": ""}]
+	var i := 0
+	while i < line.length():
+		var c := line[i]
+		var frame: Dictionary = frames.back()
+		var prev := line[i - 1] if i > 0 else ""
+		var next := line[i + 1] if i + 1 < line.length() else ""
+		if c == "(":
+			if prev == "$":
+				frame.text += "_"
+			_flush_segment(frame, segments, false)
+			frames.append({"dir": frame.dir, "stack": frame.stack.duplicate(), "text": ""})
+		elif c == ")" and frames.size() > 1:
+			_flush_segment(frame, segments, false)
+			frames.pop_back()
+		elif c == ")" or c == ";" or c == "\n":
+			_flush_segment(frame, segments, true)
+		elif c == "&" and prev != ">" and next != ">":
+			if next == "&":
+				i += 1
+			_flush_segment(frame, segments, true)
+		elif c == "|" and prev != ">":
+			if next == "|" or next == "&":
+				i += 1
+			# a || b: b corre en la misma shell; a | b: a en una subshell.
+			_flush_segment(frame, segments, next == "|")
+		else:
+			frame.text += c
+		i += 1
+	while not frames.is_empty():
+		_flush_segment(frames.pop_back(), segments, false)
+	return segments
+
+
+## Cierra el comando del marco: lo agrega a `segments` y, si `keeps_dir`, aplica su cd/pushd/popd.
+static func _flush_segment(frame: Dictionary, segments: Array[Dictionary], keeps_dir: bool) -> void:
+	var text: String = str(frame.text).strip_edges()
+	frame.text = ""
+	if text.is_empty():
+		return
+	segments.append({"text": text, "dir": frame.dir})
+	if not keeps_dir:
+		return
+	var words := text.split(" ", false)
+	while not words.is_empty() and (words[0] in COMMAND_PREFIXES or words[0] in SHELL_KEYWORDS):
+		words.remove_at(0)
+	if words.is_empty() or not words[0] in ["cd", "pushd", "popd"]:
+		return
+	var args := Array(words.slice(1)).filter(func(word: String) -> bool: return not word.begins_with("-") or word == "-")
+	if words[0] == "popd":
+		frame.dir = frame.stack.pop_back() if not frame.stack.is_empty() else ""
+		return
+	if words[0] == "pushd":
+		frame.stack.append(frame.dir)
+	var dir := resolve(str(args[0]), str(frame.dir)) if not args.is_empty() else ""
+	frame.dir = dir if dir.begins_with("/") else ""
+
+
+## `path` como ruta absoluta si se puede: relativa contra `dir`; "" si es relativa y `dir` es ""
+## (no se sabe dónde corre). `res://`, `$…` y `~…` quedan como están.
+static func resolve(path: String, dir: String) -> String:
+	var target := path.strip_edges().trim_prefix("file://")
+	if target == "-":
+		return ""
+	if target.is_empty() or target.begins_with("res://") or target.begins_with("$") or target.begins_with("~"):
+		return target
+	if target.begins_with("/"):
+		return target.simplify_path()
+	if dir.is_empty():
+		return ""
+	return dir.path_join(target).simplify_path()
 
 
 ## Rutas que tocan los mv/cp/rm/rmdir/unlink y git mv/git rm de una línea (sin comillas).
@@ -144,7 +255,8 @@ static func is_inside(path: String, project_root: String) -> bool:
 		return true
 	if not target.begins_with("/"):
 		return true
-	var root := project_root.trim_suffix("/")
+	target = target.simplify_path()
+	var root := project_root.simplify_path().trim_suffix("/")
 	return target == root or target.begins_with(root + "/")
 
 

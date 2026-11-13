@@ -4801,6 +4801,9 @@ msgstr "Plan · seguir planeando"
 msgid "Denied with a reason"
 msgstr "Denegado con motivo"
 
+msgid "Rejected by the harness"
+msgstr "Rechazado por el harness"
+
 msgid "Plan presented"
 msgstr "Plan presentado"
 

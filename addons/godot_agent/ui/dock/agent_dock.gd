@@ -1720,8 +1720,11 @@ func _on_cancel_requested() -> void:
 ## Claude Code sigue el turno después de un rechazo común (otro intento, otra tarjeta): el motivo no
 ## llegaría hasta que termine. Por eso, apenas el agente recibió el rechazo, el turno se corta (como
 ## «Enviar ahora») y el motivo sale cuando el agente confirma. El rechazo de un plan ya lo corta.
-## Con el agente libre, sale ya.
+## Con el agente libre, sale ya. En un One-shot va como la guía, al terminar el turno: el run toma un
+## turno cortado como «parar y esperar» (m11-69: los rechazos automáticos también mandan motivo).
 func _on_reject_feedback(text: String) -> void:
+	if submit_interceptor.is_valid() and submit_interceptor.call(text, func() -> Array: return []):
+		return
 	if _model.is_busy():
 		_queue.add(text, [])
 		_queue.move_to_front(_queue.size() - 1)

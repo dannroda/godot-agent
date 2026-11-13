@@ -26,6 +26,7 @@ const ShellCommand := preload("shell_command.gd")
 ## Opción «siempre en esta sesión» que agrega el harness cuando el agente no la ofrece.
 const HARNESS_ALLOW_ALWAYS := "godot_agent_allow_always"
 const ProjectWriteGuard := preload("project_write_guard.gd")
+const GODOT_WINDOW_REASON := "it opens Godot in its own window (%s). Command-line Godot only runs with --headless; to see the game, run it in the editor with godot.run_scene and capture it with godot.capture_game_frame."
 const GodotWindowGuard := preload("godot_window_guard.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
@@ -192,23 +193,24 @@ func on_request_permission(params: Dictionary) -> Variant:
 	var blocked := ProjectWriteGuard.blocked_target(checked, request.group, cwd)
 	if not blocked.is_empty() and not PermissionPolicy.is_godot_mcp_tool(tool_call):
 		_notify_blocked_write(request.title, blocked)
-		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+		return _auto_reject(request, ProjectWriteGuard.rejection_reason(blocked))
 	# Godot con ventana desde la shell: abre el juego aparte en vez de correrlo en el editor (m7-30).
 	if request.group == PermissionPolicy.GROUP_SHELL and checked.get("rawInput") is Dictionary:
 		var launch := GodotWindowGuard.windowed_launch(ShellCommand.of(checked.rawInput), EditorBinary.path())
 		if not launch.is_empty():
 			_log_perm("rejected, opens Godot in its own window: %s" % launch)
 			model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
-			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
-	if request.group == PermissionPolicy.GROUP_EDIT_FILES and _file_taken(Preauthorizations.write_paths(request, call)):
-		return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+			return _auto_reject(request, GODOT_WINDOW_REASON % launch)
+	if request.group == PermissionPolicy.GROUP_EDIT_FILES:
+		var taken := _file_taken_reason(Preauthorizations.write_paths(request, call))
+		if not taken.is_empty():
+			return _auto_reject(request, taken)
 	# Fuera de los archivos del modo del proyecto (m11-39): se rechaza siempre, sin tarjeta. Las godot.*
 	# las revisa el precheck del registro.
 	if request.group == PermissionPolicy.GROUP_EDIT_FILES and not PermissionPolicy.is_godot_mcp_tool(tool_call):
 		var refused := mode_refused_write(Preauthorizations.write_paths(request, call))
 		if not refused.is_empty():
-			notify_mode_refusal(request.title, refused)
-			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+			return _auto_reject(request, notify_mode_refusal(request.title, refused))
 	var forced := mode_forces_ask(request.group) and not PermissionPolicy.is_godot_mcp_tool(tool_call)
 	var decision := decide(request.group)
 	if PermissionPolicy.is_mcp_group(request.group):
@@ -232,8 +234,9 @@ func on_request_permission(params: Dictionary) -> Variant:
 			request.rule_pattern = ""
 		request.options = options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
 	if request.group == PermissionPolicy.GROUP_SUBAGENTS and decision != PermissionPolicy.DENY:
-		if _subagent_limit_reached(request.tool_call_id):
-			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+		var limit := _subagent_limit_reason(request.tool_call_id)
+		if not limit.is_empty():
+			return _auto_reject(request, limit)
 		if decision == PermissionPolicy.ALLOW:
 			_approved_subagents[request.tool_call_id] = true
 	match decision:
@@ -243,7 +246,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_ALLOW_ONCE, PermissionRequest.KIND_ALLOW_ALWAYS]))
 		PermissionPolicy.DENY:
 			_notify_denied(request.group, request.title)
-			return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+			return _auto_reject(request, denied_reason(request.group, _mode_label()))
 	if forced:
 		_log_perm("project mode %s asks: %s" % [model.project_mode.get("name", ""), request.title])
 		request.options = without_always(request.options)
@@ -376,7 +379,7 @@ func _add_shell_rule(rule: Dictionary) -> void:
 
 
 func authorize_fs_write(path: String, old_text: String, new_text: String) -> bool:
-	if _file_taken(PackedStringArray([path])):
+	if not _file_taken_reason(PackedStringArray([path])).is_empty():
 		return false
 	if not mode_refused_write(PackedStringArray([path])).is_empty():
 		notify_mode_refusal(I18n.t("Write %s") % path.get_file(), path)
@@ -394,15 +397,15 @@ func authorize_fs_write(path: String, old_text: String, new_text: String) -> boo
 ## Con variables de entorno del agente siempre se pregunta y la tarjeta las muestra: cambian lo que
 ## hace el comando (LD_PRELOAD, GIT_CONFIG_*, PATH…) sin que se vea en la línea que revisan las reglas.
 func authorize_terminal_command(command_line: String, working_dir: String, env: Dictionary = {}) -> String:
-	var blocked := ProjectWriteGuard.blocked_target({"kind": "execute", "rawInput": {"command": command_line}}, PermissionPolicy.GROUP_SHELL, working_dir if not working_dir.is_empty() else cwd)
+	var blocked := ProjectWriteGuard.blocked_target({"kind": "execute", "rawInput": {"command": command_line}}, PermissionPolicy.GROUP_SHELL, cwd, working_dir)
 	if not blocked.is_empty():
 		_notify_blocked_write(command_line, blocked)
-		return "%s is not written by hand: %s." % [blocked, ProjectWriteGuard.alternative_for(blocked)]
+		return "Rejected by the harness: %s" % ProjectWriteGuard.rejection_reason(blocked)
 	var launch := GodotWindowGuard.windowed_launch(command_line, EditorBinary.path())
 	if not launch.is_empty():
 		_log_perm("rejected, opens Godot in its own window: %s" % launch)
 		model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
-		return "Command-line Godot only runs with --headless: %s" % launch
+		return "Rejected by the harness: " + GODOT_WINDOW_REASON % launch
 	if env.is_empty() and _preauth.consume_command(command_line):
 		return ""
 	var forced := mode_forces_ask(PermissionPolicy.GROUP_SHELL)
@@ -447,33 +450,52 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 	return "Permission denied by the user or the current mode: %s" % command_line
 
 
-## true (y lo avisa) si lanzar otro subagente pasa el límite del modo (m7-43).
-func _subagent_limit_reached(tool_call_id: String) -> bool:
+## Si lanzar otro subagente pasa el límite del modo (m7-43), lo avisa y devuelve el motivo para el agente; si no, "".
+func _subagent_limit_reason(tool_call_id: String) -> String:
 	var limit := policy.subagent_limit(model.harness_mode)
 	if limit <= 0:
-		return false
+		return ""
 	# Cuentan los que el agente informa trabajando y, sin informe, los que corren o ya se permitieron
 	# (un pedido pendiente que se rechaza no arranca).
 	var running := model.running_subagents().filter(func(call: ToolCall) -> bool:
 		return call.id != tool_call_id and (not call.subagent_state.is_empty() or call.status == ToolCall.STATUS_IN_PROGRESS or _approved_subagents.has(call.id)))
 	if running.size() < limit:
-		return false
+		return ""
 	_log_perm("rejected, %d subagents already running (limit %d in %s mode)" % [running.size(), limit, _mode_label()])
 	model.add_notice(I18n.t("A subagent was not started: %d already running, the limit in %s mode (Settings → Permissions).") % [running.size(), I18n.t(_mode_label())], ChatEntry.NoticeLevel.WARNING)
-	return true
+	return "%d subagents are already running, the limit the user set for %s mode. Wait for one to finish, or do this part yourself." % [running.size(), _mode_label()]
 
 
-## true (y lo avisa) si otra sesión abierta está editando alguno de `paths` (m7-44).
-func _file_taken(paths: PackedStringArray) -> bool:
+## Si otra sesión abierta está editando alguno de `paths` (m7-44), lo avisa y devuelve el motivo para
+## el agente; si no, "".
+func _file_taken_reason(paths: PackedStringArray) -> String:
 	if not file_guard.is_valid() or paths.is_empty():
-		return false
+		return ""
 	var owner: String = file_guard.call(paths)
 	if owner.is_empty():
-		return false
+		return ""
 	var names := ", ".join(Array(paths).map(func(path: String) -> String: return path.get_file()))
 	_log_perm("rejected, %s is being edited by %s" % [names, owner])
 	model.add_notice(I18n.t("Rejected: %s is being edited by «%s». It's free again when that session's turn ends.") % [names, owner], ChatEntry.NoticeLevel.WARNING)
-	return true
+	return "%s is being edited by the session «%s» until its turn ends. Work on something else meanwhile and try again later (godot.sessions shows who holds what)." % [names, owner]
+
+
+## Un rechazo automático, sin tarjeta (m11-69): al agente el ACP solo le dice que el usuario rechazó
+## la tool; el motivo le llega aparte, como el de «Denegar con motivo…», para que no reintente a ciegas.
+func _auto_reject(request: PermissionRequest, reason: String) -> Dictionary:
+	reject_feedback.emit(auto_reject_feedback(request.title, reason), HarnessPrompts.AUTO_REJECT)
+	return _selected_or_cancelled(request.option_id_for([PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS]))
+
+
+## El texto para el agente de un rechazo automático, en inglés como los demás resultados de tools.
+static func auto_reject_feedback(title: String, reason: String) -> String:
+	return "The harness rejected «%s» on its own, not the user: %s" % [title.strip_edges(), reason.strip_edges()]
+
+
+## El motivo para el agente cuando el modo del harness no deja `group`.
+static func denied_reason(group: String, mode_label: String) -> String:
+	return "%s mode doesn't allow «%s» (the user's permission settings). Don't retry it with another tool; if you need it, tell the user." % [
+		mode_label, PermissionPolicy.GROUP_LABELS.get(group, group)]
 
 
 func _notify_denied(group: String, title: String) -> void:

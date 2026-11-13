@@ -104,6 +104,13 @@ func _check(dock: Control, controller: Object, shot_path: String) -> void:
 	while _model.is_busy() and Time.get_ticks_msec() < deadline:
 		await _tree.process_frame
 	_expect(not _model.is_busy(), "el turno terminó")
+	# El Edit de afuera, rechazado sin tarjeta, le manda el motivo al agente en otro turno (m11-69).
+	deadline = Time.get_ticks_msec() + WAIT_MS
+	while (_entry_with("on its own, not the user") == null or _model.is_busy()) and Time.get_ticks_msec() < deadline:
+		await _tree.process_frame
+	var feedback: Object = _entry_with("on its own, not the user")
+	_expect(feedback != null and str(feedback.get(&"text")).contains("Edit outside.gd") and str(feedback.get(&"text")).contains("Levels"), "el agente recibe el motivo del rechazo · %s" % (str(feedback.get(&"text")).left(200) if feedback else "sin mensaje"))
+	_expect(_entry_with("Understood: I'll stay inside levels/.") != null and not _model.is_busy(), "y lo contesta en su turno")
 	var dir := ProjectSettings.globalize_path(WORK_DIR)
 	_expect(FileAccess.get_file_as_string(dir.path_join("levels/a.gd")) == "extends Node\n", "fs/write adentro escribió")
 	_expect(not FileAccess.file_exists(dir.path_join("outside.gd")), "fs/write afuera no escribió")
@@ -223,6 +230,15 @@ func _write(path: String, text: String) -> void:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(text)
 	file.close()
+
+
+## La última entrada del chat, de cualquier tipo, que contiene `text`.
+func _entry_with(text: String) -> Object:
+	var found: Object = null
+	for entry: Object in _model.entries():
+		if str(entry.get(&"text")).contains(text):
+			found = entry
+	return found
 
 
 func _notice_with(text: String) -> Object:
