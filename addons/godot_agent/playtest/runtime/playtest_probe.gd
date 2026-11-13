@@ -89,7 +89,6 @@ func _ready() -> void:
 		_settle_device()
 	_film = Film.new(self)
 	_ui = GameUi.new(self)
-	_detectors.start()
 	_last_frame_ms = Time.get_ticks_msec()
 	EngineDebugger.register_message_capture(PREFIX, _on_message)
 	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL, InstanceEnv.number(), OS.get_process_id()])
@@ -106,7 +105,6 @@ func _settle_device() -> void:
 
 
 func _exit_tree() -> void:
-	_detectors.stop()
 	if EngineDebugger.is_active() and EngineDebugger.has_capture(PREFIX):
 		EngineDebugger.unregister_message_capture(PREFIX)
 
@@ -158,6 +156,9 @@ func _on_message(message: String, data: Array) -> bool:
 		"request":
 			if data.size() >= 3:
 				_answer(int(data[0]), str(data[1]), data[2] if data[2] is Dictionary else {})
+		"harness_error":
+			# Con el juego parado en un error del harness: si fue en un detector, se apaga (m16-22).
+			_detectors.harness_error(str(data[0]) if not data.is_empty() else "")
 		"quit":
 			get_tree().quit()
 		_:

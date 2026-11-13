@@ -116,29 +116,25 @@ func test_on_screen_without_viewport() -> void:
 ## error frena el juego, y uno por frame lo dejaba parado.
 func test_detector_turns_off_after_a_harness_error() -> void:
 	var detectors: Object = load("res://addons/godot_agent/playtest/runtime/detectors.gd").new()
-	detectors.call(&"start")
 	var calls := {"n": 0}
 	var fine := func() -> void: calls.n += 1
 	detectors.call(&"_guarded", "fine", fine)
 	detectors.call(&"_guarded", "fine", fine)
 	assert_eq(calls.n, 2, "uno sano corre siempre")
-	# Un error de script en un archivo del harness, como lo ve el Logger (el runner falla el test con
-	# uno de verdad; el camino real lo cubre run_check con el debugger).
-	var errors: Logger = detectors.get(&"_errors")
+	# El aviso del editor llega con el juego parado en el error, o sea adentro del detector (el runner
+	# falla el test con un error de verdad; el camino real lo cubre run_check con el debugger).
+	var reason := "Cannot call method 'get_visible_rect' on a null value. (res://addons/godot_agent/playtest/runtime/game_ui.gd:212)"
 	var broken := func() -> void:
 		calls.n += 1
-		errors._log_error("_on_screen", "res://addons/godot_agent/playtest/runtime/game_ui.gd", 212, "", "Cannot call method 'get_visible_rect' on a null value.", false, Logger.ERROR_TYPE_SCRIPT, [])
+		detectors.call(&"harness_error", reason)
 	detectors.call(&"_guarded", "broken", broken)
 	detectors.call(&"_guarded", "broken", broken)
 	assert_eq(calls.n, 3, "el que falló no corre más")
 	var off: Dictionary = detectors.get(&"off")
-	assert_true(off.has("broken") and str(off.broken).contains("game_ui.gd:212"), "queda apagado con el error · %s" % off)
-	var game_code := func() -> void:
-		errors._log_error("_ready", "res://player.gd", 3, "", "boom", false, Logger.ERROR_TYPE_SCRIPT, [])
-	detectors.call(&"_guarded", "game_code", game_code)
-	assert_false(off.has("game_code"), "un error del juego no lo apaga")
-	var warning := func() -> void:
-		errors._log_error("f", "res://addons/godot_agent/x.gd", 1, "", "w", false, Logger.ERROR_TYPE_WARNING, [])
-	detectors.call(&"_guarded", "warning", warning)
-	assert_false(off.has("warning"), "un warning del harness no lo apaga")
-	detectors.call(&"stop")
+	assert_eq(off.get("broken"), reason, "queda apagado con el error")
+	detectors.call(&"_guarded", "after", fine)
+	assert_false(off.has("after"), "el aviso no queda pegado para el detector siguiente")
+	# Un aviso que llegó fuera de un detector (otro código de la probe) no apaga al que corre después.
+	detectors.call(&"harness_error", reason)
+	detectors.call(&"_guarded", "later", fine)
+	assert_false(off.has("later"), "un aviso viejo no apaga al siguiente")

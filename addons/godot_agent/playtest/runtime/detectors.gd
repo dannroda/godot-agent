@@ -2,8 +2,9 @@ extends RefCounted
 ## Detectores dentro del juego (m15-07): lo que el agente no está mirando cuando pasa. NaN en
 ## transforms, cuerpos fuera del mundo, caídas sin fin, frames largos y un HUD con más que su máximo.
 ## Basado en lib/detectors.gd de Autopilot (ramenvr/autopilot, Apache 2.0). Sin su Logger: los errores
-## los junta el ErrorCollector del editor. Un Logger propio solo cuenta los errores del código del
-## harness: el detector que los tira se apaga (m16-22), para no frenar el juego en cada frame.
+## los junta el ErrorCollector del editor. El detector que tira un error del código del harness se
+## apaga (m16-22), para no frenar el juego en cada frame: se entera por el editor, no por un Logger
+## (m16-24: con un Logger de GDScript registrado, el juego no termina cuando se cae el X).
 
 const GameWorld := preload("game_world.gd")
 const GameUi := preload("game_ui.gd")
@@ -16,32 +17,6 @@ const OUT_OF_WORLD_MARGIN := 50.0
 ## Al cargar una escena hay frames largos que no dicen nada.
 const LOADING_S := 3.0
 const SCAN_MAX_NODES := 5000
-const HARNESS_DIR := "res://addons/godot_agent/"
-
-
-## Cuenta los errores de script en archivos del harness (puede llamarse desde otros hilos).
-class HarnessErrors:
-	extends Logger
-	var lock := Mutex.new()
-	var count := 0
-	var last := ""
-
-	func _log_error(function: String, file: String, line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _script_backtraces: Array) -> void:
-		if error_type != ERROR_TYPE_SCRIPT or not file.begins_with(HARNESS_DIR):
-			return
-		lock.lock()
-		count += 1
-		last = "%s:%d in %s: %s" % [file, line, function, rationale if not rationale.is_empty() else code]
-		lock.unlock()
-
-	func _log_message(_message: String, _error: bool) -> void:
-		pass
-
-	func snapshot() -> int:
-		lock.lock()
-		var value := count
-		lock.unlock()
-		return value
 
 ## firma → veces vista. Se avisa en la 1, 10, 100 y 1000: un bug por frame no tapa todo lo demás.
 var counts: Dictionary = {}
@@ -57,20 +32,14 @@ var _scene_at := 0
 var _flagged: Dictionary = {}
 ## Detectores apagados porque tiraron un error del harness: nombre → el error.
 var off: Dictionary = {}
-var _errors: HarnessErrors
+## El error del harness que avisó el editor durante el detector que está corriendo ("" si ninguno).
+var _failed := ""
 
 
-## Empieza a contar los errores del harness (la probe lo llama en su _ready; stop() en _exit_tree).
-func start() -> void:
-	if _errors == null:
-		_errors = HarnessErrors.new()
-		OS.add_logger(_errors)
-
-
-func stop() -> void:
-	if _errors != null:
-		OS.remove_logger(_errors)
-		_errors = null
+## El editor lo avisa con el juego parado en el debugger por un error del harness, o sea adentro del
+## detector que lo tiró (la probe lo recibe en su bucle de mensajes).
+func harness_error(reason: String) -> void:
+	_failed = reason
 
 
 ## Mira este frame. `emit`: Callable(finding). `real_dt`: lo que tardó el frame en tiempo real.
@@ -98,16 +67,16 @@ func tick(host: Node, emit: Callable, real_dt: float) -> void:
 
 
 ## Corre un detector salvo que esté apagado; si tira un error del harness, se apaga (m16-22): con el
-## debugger, cada error frena el juego, y uno que falla en cada frame lo dejaría parado.
+## debugger, cada error frena el juego, y uno que falla en cada frame lo dejaría parado. El aviso llega
+## mientras el juego está parado en el error, antes de que check.call() vuelva.
 func _guarded(name: String, check: Callable) -> void:
 	if off.has(name):
 		return
-	var before := _errors.snapshot() if _errors else 0
+	_failed = ""
 	check.call()
-	if _errors and _errors.snapshot() > before:
-		_errors.lock.lock()
-		off[name] = _errors.last
-		_errors.lock.unlock()
+	if not _failed.is_empty():
+		off[name] = _failed
+		_failed = ""
 		push_warning("Godot Agent: the %s detector was turned off after an error in the harness's code (%s)." % [name, off[name]])
 
 

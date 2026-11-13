@@ -307,6 +307,8 @@ func _on_session_breaked() -> void:
 		_set_run_state(GameRunState.BREAKED)
 		return
 	_continued.append(reason if not reason.is_empty() else "(the debugger gave no reason)")
+	if is_harness_break(reason):
+		debugger.send("harness_error", [reason], 1)
 	_last_break_ms = Time.get_ticks_msec()
 	debugger.resume()
 
@@ -334,6 +336,8 @@ func _continue_harness_break() -> void:
 		return
 	_harness_breaks += 1
 	_continued.append("In the harness's playtest code, not the game's (the game was continued): %s" % reason)
+	# Lo atiende el bucle del debugger antes de seguir: el detector que tiró el error se apaga.
+	debugger.send("harness_error", [reason], 1)
 	_last_break_ms = Time.get_ticks_msec()
 	debugger.resume()
 
