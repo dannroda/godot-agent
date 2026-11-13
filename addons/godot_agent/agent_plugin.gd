@@ -1113,10 +1113,12 @@ func _start_mcp_server() -> void:
 	# Solo las usa un proyecto con GDExtension (m19-01): no gastan contexto en los demás.
 	# restart_editor sirve en cualquier proyecto (m12-54): plugins, ajustes que piden reinicio.
 	registry.mark_extended(PackedStringArray(["build_extension", "test_extension", "install_extension"]))
+	# Por el campo _registry, no la variable local: capturarla armaría un ciclo registry → tool →
+	# DiagnosticTools → lambda → registry, que no se libera al apagar el plugin (plugin_cycle).
 	_diagnostics.restarter = func(supervise: bool, reason: String) -> String:
 		# Después de devolver el resultado de la tool: el agente lo recibe antes de que se cierre.
-		return _restart_and_resume(supervise, reason, _session_of(registry.current_caller), RESTART_DELAY_S)
-	_diagnostics.restart_note = func() -> String: return _restart_warning(_session_of(registry.current_caller))
+		return _restart_and_resume(supervise, reason, _session_of(_registry.current_caller if _registry else ""), RESTART_DELAY_S)
+	_diagnostics.restart_note = func() -> String: return _restart_warning(_session_of(_registry.current_caller if _registry else ""))
 	var edit_tools := SceneEditTools.new()
 	edit_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(edit_tools)
