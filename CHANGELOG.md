@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- **Export warned that a preset doesn't exclude the addon when its exclude filter already did**, with a broader pattern such as `addons/*`. The check compared the text against `addons/godot_agent/*` instead of evaluating the pattern. It now evaluates each pattern the way Godot does, so `addons/*`, `addons/**`, `res://addons/*` or `*/godot_agent/*` count. **Add to the presets** no longer adds a redundant filter either. The same applies to the project tools folder.
+
 ## [0.1.26] - 2026-11-12
 
 ### Changed

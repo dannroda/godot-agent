@@ -7,12 +7,10 @@ const ProjectToolLoader := preload("../mcp/project_tool_loader.gd")
 
 const PRESETS_PATH := "res://export_presets.cfg"
 const FILTER := "addons/godot_agent/*"
-const _ACCEPTED_FILTERS: PackedStringArray = [
-	"addons/godot_agent/*",
-	"addons/godot_agent/**",
-	"res://addons/godot_agent/*",
-	"res://addons/godot_agent/**",
-]
+const ADDON_DIR := "addons/godot_agent"
+## Archivos de prueba de una carpeta: si el filtro deja afuera todos, deja afuera cualquiera. Uno
+## con un nombre y una extensión que no existen hace que `*.gd, *.cfg` no cuente como excluida.
+const _PROBE_FILES: PackedStringArray = ["plugin.cfg", "core/agent_log.gd", "__probe__/x/y.probe"]
 
 
 ## Lo que cada preset tiene que excluir: el addon y, si existe, la carpeta de las tools del proyecto
@@ -48,10 +46,27 @@ static func presets_missing_filter(path: String = PRESETS_PATH, wanted: PackedSt
 
 
 static func filter_excludes_addon(filter: String) -> bool:
-	for token: String in filter.split(",", false):
-		if token.strip_edges() in _ACCEPTED_FILTERS:
-			return true
-	return false
+	return filter_excludes_dir(filter, ADDON_DIR)
+
+
+## true si el exclude_filter deja afuera todo lo de `dir` ("addons/godot_agent"), evaluado como
+## Godot (EditorExportPlatform::_edit_files_with_filter, m0-07): cada patrón de la lista separada
+## por comas, sin espacios a los costados, contra la ruta con y sin res://, con String.matchn (`*`
+## cruza carpetas y no distingue mayúsculas). Así `addons/*`, `res://*/godot_agent/*` o `addons/**`
+## también excluyen el addon, no solo el texto literal.
+static func filter_excludes_dir(filter: String, dir: String) -> bool:
+	var patterns: Array[String] = []
+	for token: String in filter.split(","):
+		if not token.strip_edges().is_empty():
+			patterns.append(token.strip_edges())
+	if patterns.is_empty():
+		return false
+	dir = dir.trim_prefix("res://").trim_suffix("/")
+	for file: String in _PROBE_FILES:
+		var path := "%s/%s" % [dir, file]
+		if not patterns.any(func(pattern: String) -> bool: return ("res://" + path).matchn(pattern) or path.matchn(pattern)):
+			return false
+	return true
 
 
 static func add_filter(filter: String, wanted: PackedStringArray = [FILTER]) -> String:
@@ -64,14 +79,11 @@ static func add_filter(filter: String, wanted: PackedStringArray = [FILTER]) -> 
 	return ", ".join(tokens)
 
 
-## Los filtros de `wanted` (salvo el del addon) que `filter` no tiene, con o sin res:// y con * o **.
+## Los filtros de `wanted` (salvo el del addon) cuya carpeta `filter` no deja afuera.
 static func _missing_extras(filter: String, wanted: PackedStringArray) -> PackedStringArray:
-	var present: Dictionary = {}
-	for token: String in filter.split(",", false):
-		present[token.strip_edges().trim_prefix("res://").trim_suffix("*").trim_suffix("*")] = true
 	var result: PackedStringArray = []
 	for extra: String in wanted:
-		if extra != FILTER and not present.has(extra.trim_suffix("*")):
+		if extra != FILTER and not filter_excludes_dir(filter, extra.trim_suffix("*").trim_suffix("*")):
 			result.append(extra)
 	return result
 

@@ -51,6 +51,15 @@ func test_filter_detection() -> void:
 	assert_false(Patcher.filter_excludes_addon("addons/godot_agent_dev/*"), "prefijo parecido")
 	assert_true(Patcher.filter_excludes_addon("*.psd,addons/godot_agent/*"), "sin espacio")
 	assert_true(Patcher.filter_excludes_addon("*.psd, res://addons/godot_agent/**"), "con res:// y **")
+	# m0-07: se evalúa como glob, igual que Godot, no por el texto literal.
+	for filter: String in ["addons/*", "addons/**", "res://addons/*", "*/godot_agent/*", "res://*/godot_agent/*",
+			"*.psd , addons/*", "docs/*,  res://addons/**", "ADDONS/*", "addons/godot_agent*", "*"]:
+		assert_true(Patcher.filter_excludes_addon(filter), "«%s» deja afuera el addon" % filter)
+	for filter: String in ["*.gd, *.cfg", "addons/godot_agent/*.gd", "addons/*.cfg", "addons/godot_agent/core/*", "godot_agent/*", ", ,"]:
+		assert_false(Patcher.filter_excludes_addon(filter), "«%s» no deja afuera todo el addon" % filter)
+	assert_eq(Patcher.add_filter("*.psd, addons/*"), "*.psd, addons/*", "con addons/* no agrega nada")
+	assert_true(Patcher.filter_excludes_dir("addons/*, *_tools/*", "agent_tools"), "la carpeta de las tools, también con glob")
+	assert_false(Patcher.filter_excludes_dir("addons/*", "agent_tools"), "addons/* no cubre agent_tools")
 
 
 func test_add_filter() -> void:
