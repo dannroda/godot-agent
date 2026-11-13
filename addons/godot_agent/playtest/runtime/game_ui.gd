@@ -142,16 +142,24 @@ func _push_mouse(control: Control, button: MouseButton, double := false) -> void
 	motion.position = at
 	motion.global_position = at
 	viewport.push_input(motion, true)
-	for pressed: bool in [true, false]:
-		var event := InputEventMouseButton.new()
-		event.button_index = button
-		event.pressed = pressed
-		event.double_click = double and pressed
-		event.position = at
-		event.global_position = at
-		if pressed:
-			event.button_mask = (1 << (button - 1)) as MouseButtonMask
-		viewport.push_input(event, true)
+	# Un doble click como lo manda el sistema: un click entero y después otro con double_click en la
+	# pulsación (m16-23). Antes iba una sola pulsación marcada, sin el primer click.
+	var presses: Array = [false, true] if double else [false]
+	for second: bool in presses:
+		for pressed: bool in [true, false]:
+			_push_button(viewport, button, at, pressed, second and pressed)
+
+
+func _push_button(viewport: Viewport, button: MouseButton, at: Vector2, pressed: bool, double: bool) -> void:
+	var event := InputEventMouseButton.new()
+	event.button_index = button
+	event.pressed = pressed
+	event.double_click = double
+	event.position = at
+	event.global_position = at
+	if pressed:
+		event.button_mask = (1 << (button - 1)) as MouseButtonMask
+	viewport.push_input(event, true)
 
 
 func _describe(id: String, control: Control) -> String:

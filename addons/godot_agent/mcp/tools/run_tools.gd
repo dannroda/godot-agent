@@ -83,6 +83,11 @@ const INPUT_MAX_STEPS := 200
 const TAP_HOLD_S := 0.1
 ## Pausa por defecto entre pasos sin `t`.
 const STEP_GAP_S := 0.05
+## Un doble click (m16-23): lo que separa cada evento de los cuatro (apretar, soltar, apretar con
+## double_click, soltar), en segundos o en frames de física. Godot lo cuenta como doble si los dos
+## clicks caen dentro de 400 ms.
+const DOUBLE_GAP_S := 0.05
+const DOUBLE_GAP_FRAMES := 2
 ## Con `frame` (m14-01): pulsación por defecto en frames de física, y el máximo de frames.
 const TAP_HOLD_FRAMES := 6
 ## Grabación de un run (m14-03): carpeta, fps fijos del Movie Maker y la espera a que el juego cierre.
@@ -127,7 +132,7 @@ const INSTANCE_SCHEMA := {"type": "integer", "description": "Which game instance
 const ENVELOPED: PackedStringArray = ["run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_monitors", "run_regressions"]
 const NO_PROBE := "No game is running with the playtest probe: launch it with run_scene (manual runs have it only with «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced)."
 const REGRESSIONS_BUSY := "The saved regressions are running (from the findings panel or a run_regressions call) and the game is theirs: wait for them to finish."
-const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"}, {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
+const STEPS_HELP := "Each step is one of {action: \"jump\"}, {key: \"Space\" | \"Ctrl+S\"}, {event: \"joy_button:a\" | \"joy_axis:left_x:-\"}, {click: [x, y], button: \"left|right|middle\"} (add double: true for a double click: two quick clicks whose second press has double_click set, what a Control's _gui_input checks; two separate click steps are never a double click), {move: [x, y]} (window pixels), {look: [dx, dy]} (relative mouse motion: first-person aim) or {text: \"abc\"} (types it, into the focused LineEdit), with optional t (seconds from the start; default: right after the previous step), pressed (true: only press, false: only release; default: press and release after `hold` seconds, 0.1) and strength (0–1, actions only). For reproducible input use frame instead of t in every step: physics frames from the start (default: right after the previous step), with hold_frames (default 6) instead of hold; the same sequence then plays the same at any framerate."
 
 ## El detector de loops del playtest en curso (m11-49) y el número del playtest que mira.
 var _loop_guard := PlaytestLoopGuard.new()
@@ -387,7 +392,7 @@ func tools() -> Array:
 	var steps_schema := {"type": "array", "description": STEPS_HELP, "items": {"type": "object", "properties": {
 		"t": {"type": "number"}, "action": {"type": "string"}, "key": {"type": "string"}, "event": {"type": "string"},
 		"click": {"type": "array", "items": {"type": "number"}}, "move": {"type": "array", "items": {"type": "number"}},
-		"button": {"type": "string"}, "pressed": {"type": "boolean"}, "hold": {"type": "number"},
+		"button": {"type": "string"}, "double": {"type": "boolean"}, "pressed": {"type": "boolean"}, "hold": {"type": "number"},
 		"look": {"type": "array", "items": {"type": "number"}}, "text": {"type": "string"},
 		"frame": {"type": "integer"}, "hold_frames": {"type": "integer"}, "strength": {"type": "number"}}}}
 	var path_schema := {"type": "string", "description": "Node path in the running game: relative to the current scene (\"Player\", \"HUD/Score\"), \"\" for the scene itself, or absolute (\"/root/GameState\" for an autoload)"}
@@ -910,6 +915,10 @@ static func normalize_steps(value: Variant, out: Array) -> String:
 			return "Use either `t` or `frame` in one call, not both: %s" % shown
 		if step.has("frame") and not (step.frame is int or (step.frame is float and is_equal_approx(step.frame, roundf(step.frame)))):
 			return "`frame` must be a whole number: %s" % shown
+		if step.has("double") and not step.double is bool:
+			return "`double` must be true or false: %s" % shown
+		if step.get("double", false) and not step.get("click") is Array:
+			return "`double` goes with a click step: %s" % shown
 		if step.has("strength") and not (step.strength is float or step.strength is int):
 			return "`strength` must be a number between 0 and 1: %s" % shown
 		var t := maxf(float(step.get("t", next_t)), 0.0)
@@ -965,7 +974,20 @@ static func normalize_steps(value: Variant, out: Array) -> String:
 				out.append(event)
 			elif step.has("pressed"):
 				event["pressed"] = step.pressed == true
+				if step.get("double", false) and event.pressed:
+					event["double"] = true  # solo esta pulsación, marcada como la segunda de un doble
 				out.append(event)
+			elif step.get("double", false):
+				for index: int in 4:
+					var part := event.duplicate()
+					part["pressed"] = index % 2 == 0
+					if index == 2:
+						part["double"] = true
+					if by_frame:
+						part["frame"] = frame + index * DOUBLE_GAP_FRAMES
+					else:
+						part["t"] = t + index * DOUBLE_GAP_S
+					out.append(part)
 			else:
 				event["pressed"] = true
 				out.append(event)
@@ -977,8 +999,9 @@ static func normalize_steps(value: Variant, out: Array) -> String:
 					release["t"] = t + hold
 				out.append(release)
 		var tap: bool = not step.has("pressed") and not step.has("move") and not step.has("look")
-		next_t = t + (hold if tap else 0.0) + STEP_GAP_S
-		next_frame = frame + (hold_frames if tap else 0) + 1
+		var double: bool = tap and step.get("double", false)
+		next_t = t + (3 * DOUBLE_GAP_S if double else (hold if tap else 0.0)) + STEP_GAP_S
+		next_frame = frame + (3 * DOUBLE_GAP_FRAMES if double else (hold_frames if tap else 0)) + 1
 	return ""
 
 

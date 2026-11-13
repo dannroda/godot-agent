@@ -583,7 +583,7 @@ func _play_and_report(steps: Array) -> void:
 
 ## Pasos `{t: segundos desde ahora, kind, pressed, …}` reproducidos con Input.parse_input_event.
 ## kind: action (action, strength), key (keycode y ctrl/shift/alt/meta), mouse_button (button, x, y),
-## mouse_motion (x, y), joy_button (button), joy_axis (axis, value). Sin kind es una acción.
+## (double: la pulsación es la segunda de un doble click), mouse_motion (x, y), joy_button (button), joy_axis (axis, value). Sin kind es una acción.
 ## Con `frame` en vez de `t` (m14-01) cada paso sale en ese frame de física contado desde ahora: la
 ## misma secuencia da lo mismo a cualquier framerate. `settle_frames`: frames de espera al final.
 func _play_inputs(steps: Array, settle_frames: int = 0) -> int:
@@ -653,6 +653,9 @@ func _event(step: Dictionary) -> Variant:
 			mouse.position = _point(step)
 			mouse.global_position = mouse.position
 			mouse.pressed = pressed
+			# Input.parse_input_event no arma el doble click (lo hace el sistema operativo con los
+			# clicks reales): el paso lo marca en la segunda pulsación (m16-23).
+			mouse.double_click = pressed and bool(step.get("double", false))
 			if pressed and mouse.button_index <= MOUSE_BUTTON_MIDDLE:
 				mouse.button_mask = (1 << (mouse.button_index - 1)) as MouseButtonMask
 			return mouse
