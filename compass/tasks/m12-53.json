@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T23:25:15.893Z",
+  "description": "ui-tooltips falló en el CI de main (4.8-beta3 · editor): «el tooltip de cuota se cerró a los 0.1 s». Con el tema del editor el medidor de contexto creció 7 px (45 → 52) aunque m12-51 le reservaba el ancho de «100 %», y la fila se corrió bajo el mouse. Hacer que ningún texto que cambia solo (el medidor, los chips de máquinas con la antigüedad, las barras del One-shot) mueva la fila: ancho mínimo por el texto más largo posible, medido como lo mide el control. Con test.",
+  "milestone": "m12",
+  "notes": "Causa: m12-51 reservaba el ancho de «100 %» midiendo con la fuente sola (get_string_size), sin el estilo del Label; con el tema del editor de 4.8-beta3 el medidor pedía 32/38/44 px según el porcentaje, la fila se corría y el tooltip de la cuota se cerraba. Arreglo: Composer.reserved_width(label, widest) mide con el Label mismo (texto «100 %», get_minimum_size) y lo deja como custom_minimum_size. Chips de máquinas: machine_chips devuelve \"reserve\" con la antigüedad como «8888 s» (4 cifras, o más si hace falta) y el ancho se mide con eso. Revisado: barras del One-shot (clip_text, EXPAND_FILL: no corren nada), Enviar/modo/modelo (cambian por eventos, no solos).",
+  "order": 17,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "Unit: test_composer con márgenes de 6 px en el estilo del medidor (falla con lo anterior: 2 fallos), test_machine_chips (misma reserva para 3 s, 12 s, 999 s, 40 min). ui-tooltips: el medidor pide lo mismo con 1/10/100 % con el tema del editor; con lo anterior en beta3 falla con [32, 38, 44]. Con el arreglo: PASS en 4.7.2 y 2/2 en 4.8-beta3.",
+  "title": "Ningún texto que cambia solo mueve la fila (tooltips que se cierran en 4.8-beta3)",
+  "updated_at": "2026-11-12T23:39:45.633Z"
+}

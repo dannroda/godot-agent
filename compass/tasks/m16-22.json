@@ -1,0 +1,34 @@
+{
+  "assignee": "agent-harness-34",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-13T04:50:49.573Z",
+  "decisions": [
+    {
+      "alternatives": "Seguir buscando la causa exacta del viewport nulo antes de arreglar",
+      "at": "2026-11-13T05:07:40.757Z",
+      "text": "No pude reproducir el control con get_viewport() nulo en GodotManager/ui (copia, headless, con load_list y todas las ventanas abiertas): se arregló con guardas en game_ui y atacando la causa del cuelgue (la pausa del debugger)",
+      "why": "Un control fuera del árbol ya da is_visible_in_tree() = false; el caso real no salió en ninguna prueba. El cuelgue sí se reproduce: run_check sin el arreglo da exactamente «The game frame did not arrive within 5 s. The game is stopped in the debugger.»"
+    },
+    {
+      "alternatives": "Seguir solo con continue_on_error; apagar todos los detectores ante cualquier error",
+      "at": "2026-11-13T05:07:40.844Z",
+      "text": "Una pausa del debugger cuyo último frame está en res://addons/godot_agent/ se sigue sola en todo run (tope CONTINUE_MAX) y se lista como «In the harness's playtest code»; además el detector que tira un error del harness (contado con un Logger) se apaga hasta el fin del run",
+      "why": "Sin eso, un error del harness fuera de game_script deja el juego parado y sin frames; apagar el detector evita una pausa por frame"
+    }
+  ],
+  "description": "Lo reportó la sesión ui-f8, que trabajó con el harness en GodotManager/ui (un proyecto de UI con Control y PanelContainer).\n- game_script tiró «Cannot call method 'get_visible_rect' on a null value» en addons/godot_agent/playtest/runtime/game_ui.gd:213 (_on_screen).\n- Después de eso, capture_game_frame no devolvió ningún frame (timeout de 5 s) hasta reiniciar la escena.\n\nHay que hacer:\n1. Reproducir el caso. Probablemente sea un nodo sin viewport: fuera del árbol, liberado, o en un SubViewport/Window que todavía no entró.\n2. Que _on_screen y quien lo llame no exploten.\n3. Que un error dentro de game_script no deje trabada la captura ni el canal de playtest.\n4. Test de regresión para los dos.",
+  "milestone": "m16",
+  "notes": "Rama sm/m16-22 desde origin/main (v0.1.26). Causa del cuelgue: con el debugger, cada error de script pausa el juego; game_script saltea esas pausas solo mientras corre, y el detector del HUD (detectors._check_hud → GameUi.texts, cada 0.25 s) volvía a fallar después. El viewport nulo no se reprodujo en una copia de GodotManager/ui (headless, load_list, todas las ventanas abiertas); quedan las guardas. run_tools._continue_harness_break / is_harness_break; detectors.HarnessErrors (Logger), _guarded y off; la probe llama start()/stop().",
+  "order": 22,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "run_check (_check_harness_error): game_script rompe el detector del HUD (regex nula) y el error salta después, fuera de game_script y sin continue_on_error; el juego no queda BREAKED, capture_game_frame devuelve frame, el detector queda en off y la respuesta dice «In the harness's playtest code … detectors.gd». Sin _continue_harness_break el check falla con «The game frame did not arrive within 5 s. The game is stopped in the debugger.» Unit: test_game_ui.test_on_screen_without_viewport, test_detector_turns_off_after_a_harness_error; test_run_tools.test_is_harness_break. run_all 876/0, suite.sh ci PASS.",
+  "title": "game_script: null en game_ui._on_screen (get_visible_rect) y después capture_game_frame no devuelve frames",
+  "updated_at": "2026-11-13T05:39:28.947Z"
+}

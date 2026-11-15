@@ -1,0 +1,40 @@
+{
+  "assignee": "agent-harness-34",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-13T00:56:19.222Z",
+  "decisions": [
+    {
+      "alternatives": "Encolar sin cortar el turno; mandar el motivo solo en la terminal del editor (ya lo hacía)",
+      "at": "2026-11-13T01:02:56.761Z",
+      "text": "El motivo de un rechazo automático va por reject_feedback (mensaje «Rejected by the harness»), que con el agente ocupado corta el turno y lo manda primero, igual que «Denegar con motivo…»",
+      "why": "El ACP no tiene campo de motivo en la respuesta a request_permission; si se encola sin cortar, el agente sigue reintentando a ciegas hasta terminar el turno"
+    },
+    {
+      "alternatives": "Solo los cuatro nombrados en la tarea",
+      "at": "2026-11-13T01:02:56.797Z",
+      "text": "Además de guard, Godot con ventana, archivo tomado y modo del proyecto, también llevan motivo el modo del harness que niega (DENY) y el límite de subagentes",
+      "why": "Son los otros rechazos automáticos del broker y tienen el mismo problema (el agente oye «el usuario rechazó»)"
+    },
+    {
+      "alternatives": "Tratar todo separador igual; ignorar Cwd de Antigravity",
+      "at": "2026-11-13T01:02:56.843Z",
+      "text": "Un cd antes de un | no vale después (subshell de pipeline); cd en { … } sí; $( … ) es subshell y su contenido se revisa aparte; el comando de terminal del editor arranca en su working_dir y el de Antigravity en rawInput.Cwd",
+      "why": "Así se comporta bash; antes authorize_terminal_command pasaba working_dir como raíz del proyecto (con working_dir=/tmp bloqueaba /tmp y dejaba pasar el proyecto)"
+    }
+  ],
+  "description": "ProjectWriteGuard.shell_write_target (D48) toma toda ruta relativa como del proyecto (is_inside: «el agente corre con cwd en el proyecto») y no sigue los `cd` del comando. En la sesión de Godot Manager (b9fb423c, línea 1892) el comando `cd /tmp && … T=$(mktemp -d); cd $T; … echo 9.9-nope > .godot-version` se rechazó solo, sin tarjeta, como si escribiera res://.godot-version. El usuario lo ve como «cada vez que el agente usa /tmp como lo usaría Claude Code, se lo rechaza».\n\nQué hacer:\n1. Resolver las rutas relativas contra el último `cd` del comando (cd /abs → contra esa carpeta; cd $VAR, cd ~, cd - o algo sin resolver → las relativas que siguen no se bloquean, igual que hoy con $ y ~). Respetar subshells: un cd dentro de ( … ) no vale después del paréntesis. Lo mismo para pushd y para mv/cp/rm/sed -i, no solo para las redirecciones.\n2. El agente recibe «User refused permission to run tool» y no se entera del motivo: que el rechazo del guard (y los demás rechazos automáticos del broker: modo del proyecto, Godot con ventana, archivo tomado) le lleguen con el motivo, como reject_feedback, para que no reintente a ciegas.\n3. Agregar tests a test_project_write_guard con estos casos: `cd /tmp && echo x > f` pasa; `cd $T; echo > f` pasa; `(cd /tmp && x); echo > f` se bloquea; `cd sub && echo > f` se bloquea; `cd /proyecto/sub && rm a` se bloquea.",
+  "milestone": "m11",
+  "notes": "Rama sm/m11-69 (cbeadc0) desde origin/main v0.1.26. ProjectWriteGuard.shell_segments parte la línea sin comillas en comandos simples con la carpeta de cada uno (marcos por subshell); segment_targets junta lo que escribe cada uno; resolve los resuelve. authorize_terminal_command pasaba working_dir como raíz del proyecto: ahora es start_dir. Los rechazos automáticos van por PermissionBroker._auto_reject → reject_feedback con HarnessPrompts.AUTO_REJECT; el dock, en un One-shot, los manda por submit_interceptor (guía al terminar el turno) porque el run toma un turno cortado como parar.",
+  "order": 49,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "tests/unit/test_project_write_guard.gd: test_cd_changes_where_relative_paths_go (los 5 casos de la tarea + el comando de Godot Manager, cd ~/-, cd .., |, ||, $( … ), { … }), test_pushd_popd_and_file_commands_after_cd, test_start_dir, test_antigravity_cwd, test_auto_rejection_reaches_the_agent_with_its_reason (broker: guard, cd /tmp pregunta, Godot con ventana, modo Preguntar) y test_reject_feedback_in_oneshot_goes_to_the_run. run_all 879/0 y suite.sh ci PASS.",
+  "title": "El guard de escrituras ignora los cd: rechaza `cd /tmp && echo x > archivo` como escritura al proyecto",
+  "updated_at": "2026-11-13T02:05:30.131Z"
+}

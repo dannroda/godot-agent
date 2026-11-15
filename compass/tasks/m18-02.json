@@ -63,12 +63,12 @@
   "priority": "high",
   "refs": [],
   "size": "m",
-  "status": "doing",
+  "status": "review",
   "tags": [
     "manual",
     "antigravity"
   ],
   "test": "Automated tour against the real agent: `AGY_TOUR_WRAP=<agy_wrap.py> AGY_TOUR_LOG=<log> tests/run_in_xvfb.sh godot --godot-agent-antigravity-tour` (Linux, 4.7.2, antigravity-acp 1.4.3), plus `--godot-agent-antigravity-plan-test` for the ```plan block. Both give 0 failures. Unit tests: run_all 832/0, including test_permission_policy (Antigravity cases).",
   "title": "Recorrido completo con Antigravity",
-  "updated_at": "2026-11-12T02:29:05.944Z"
+  "updated_at": "2026-11-12T02:39:02.199Z"
 }

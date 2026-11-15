@@ -12,16 +12,16 @@
   ],
   "description": "Seguimiento de m11-62, pedido por agent-harness-81. Hoy los sabotajes de escena se aplican sobre la escena ya asentada, después de _ready. Por eso un valor que solo se lee en _ready (por ejemplo, la vida inicial) no se ve afectado. Propuesta: en el modo --mutant, cargar el PackedScene, modificar su SceneState en memoria (override de la propiedad o conexión sacada) e instanciar esa versión, sin guardar nunca y con la misma guarda de guardado. Por qué: es más fiel para los valores que se leen al arrancar. Sigue sin cubrir las conexiones hechas por código.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "Hecho en sm/m11-63 (634ad59), desde origin/sm/next5 (3855d35).\n- Cuando una regresión corre con un sabotaje, regression_cli.run_one carga el PackedScene, lo instancia y pone el sabotaje sobre esa instancia con SceneSabotage.apply. Recién después la pasa con change_scene_to_node. Sin sabotaje sigue usando change_scene_to_file.\n- No se reescribe el SceneState (ver la decisión). Al salir de instantiate() ya están los valores del .tscn (con sus setters) y las conexiones persistentes, y no corrieron _enter_tree ni _ready. Para el juego es como si el .tscn tuviera el cambio, incluso en los nodos de escenas instanciadas por dentro.\n- OP_DISABLE: con el nodo fuera del árbol se aplica directo; con el nodo adentro, set_deferred, como antes.\n- Si el sabotaje no se puede aplicar, la instancia se libera y el mutante queda inválido, como antes.\n- Garantía de no tocar disco:\n  - SaveGuard sigue puesta en _run_mutant.\n  - El PackedScene del caché no se modifica: una instancia nueva sale con los valores originales.\n  - regressions_cli_check compara el hash de .gd y .tscn antes y después.\n- Sigue sin cubrir las conexiones hechas por código (connect en _ready) y los nodos creados en runtime.\n- CHANGELOG: entrada «Changed» en Unreleased.",
   "order": 43,
   "priority": "low",
   "refs": [],
-  "status": "doing",
+  "status": "review",
   "tags": [
     "idea",
     "playtest"
   ],
-  "test": "",
+  "test": "- test_scene_sabotage: test_apply_before_ready nuevo.\n  - max_health, Zone/Shape disabled y la señal se ponen fuera del árbol; al entrar, _ready lee health = 0.\n  - La colisión queda deshabilitada sin esperar un frame y la señal sigue cortada.\n  - Una instancia nueva del caché sale con los valores originales.\n  - Se actualizaron los conteos: 7 sabotajes y 5 en el plan.\n- regressions_cli_check (4.7.2 y 4.8-beta2): con --mutate=100 sobre door, 4 detectados. Uno es root.max_health = 0, que solo se lee en _ready y antes sobrevivía. «root hidden» sigue sobreviviendo y el hash de .gd/.tscn no cambia.\n- run_all: 832 tests, 0 fallos.\n- suite.sh ci: 20/21. El que falló fue instances, por un bug de m11-50 que no tiene que ver con esta tarea y se arregla aparte en sm/m11-50-port.",
   "title": "Regresiones: sabotajes de escena antes de _ready (PackedScene modificado en memoria)",
-  "updated_at": "2026-11-12T02:12:16.706Z"
+  "updated_at": "2026-11-12T02:42:57.412Z"
 }

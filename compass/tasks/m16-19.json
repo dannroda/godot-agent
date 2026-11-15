@@ -1,0 +1,19 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T18:17:18.148Z",
+  "description": "En la suite full de v0.1.25 (sm/next7 e665003, 4.8-beta3 c51ff06e8, import limpio), el check oneshot falló una vez: «[oneshot-check] FALLA el centro no baja a 340 px: queda en 367 (el formulario pide 343, el centro 234, dock 1327)». Repetido 2 veces pasó; 4.7.2 pasó; el CI de GitHub, verde. Ver si es una carrera del layout (medir antes de que termine de acomodarse el formulario, p. ej. después del ancho reservado del medidor de m12-51) o algo de beta3, y hacer que el check espere el layout estable en vez de medir una sola vez.",
+  "milestone": "m16",
+  "notes": "Fallo: «queda en 367 (el formulario pide 343, el centro 234)»: el mínimo dejaba bajar, el divisor se movió de menos. set_dock_width se llamaba una vez con dock_width + form.size.x − 340 medido justo después de esconder el panel de abajo y traer el dock al frente; si el layout seguía acomodándose, el objetivo quedaba corto. Arreglo (solo el check, oneshot_ui_check.gd): _stable_width espera 5 cuadros sin cambio de ancho (tope 120), y hasta 3 intentos recalculando con las medidas actuales. No pude reproducir el flake (raro: 1 de 3 en la full); con el cambio pasa 3/3 en 4.7.2 y 3/3 en 4.8-beta3. No parece relacionado con m12-51 (el medidor está en el dock, no en el centro; el dock mide 1327 y la fila del composer no limita).",
+  "order": 19,
+  "priority": "low",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "tests/suite.sh run oneshot en 4.7.2 y 4.8-beta3, 3 veces cada uno: PASS.",
+  "title": "Check oneshot flaky en 4.8-beta3: el centro no baja a 340 px",
+  "updated_at": "2026-11-12T18:29:05.955Z"
+}

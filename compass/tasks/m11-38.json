@@ -8,14 +8,16 @@
       "at": "2026-11-11T23:09:34.342Z",
       "text": "El modelo por modo es un ajuste del usuario por perfil de agente (agents/models_by_mode), no del proyecto",
       "why": "Los modelos dependen de la cuenta y del plan de cada uno: un proyecto compartido no puede imponer modelos que tu cuenta quizás no tiene. Aprobado por el coordinador. One-shot es un modo más de la tabla."
+    },
+    {
+      "alternatives": "El manual gana solo hasta el próximo cambio de modo y después vuelve el recordado (sin cambiar lo guardado).",
+      "at": "2026-11-12T03:31:58.582Z",
+      "text": "Un modelo elegido a mano en el selector del composer se aplica y queda recordado para el modo actual y el perfil; es el que vuelve cada vez que se entra a ese modo. El cambio automático al cambiar de modo no se recuerda, y un /model escrito como prompt tampoco.",
+      "why": "Es el comportamiento «sticky» de Roo y el de Plan/Act de Cline: el usuario elige una vez por modo y no tiene que repetirlo. El tooltip del selector lo dice («the one you pick is remembered for X») y Settings › Agentes deja olvidarlo. Confirmado por el coordinador al revisar m11-27."
     }
   ],
   "description": "Idea de la investigación de UX (2026-11-10). Cline: «Enable \"Use different models for Plan and Act\"… switching modes automatically switches to that mode's model» y recomienda un modelo de razonamiento para planear y uno rápido para implementar (https://docs.cline.bot/core-workflows/plan-and-act). Roo: cada modo tiene «Sticky Models», recuerda el último modelo usado con ese modo y vuelve a él al cambiar (https://roocodeinc.github.io/Roo-Code/features/custom-modes). El harness tiene Preguntar/Revisar/Construir/One-shot/Auto y un selector de modelo por sesión, pero cambiar de modo no cambia el modelo. Propuesta: recordar el modelo elegido por modo y por agente (ajuste del proyecto): al pasar a Preguntar o Revisar se elige el que se usó la última vez ahí (p. ej. Opus) y al volver a Construir el rápido; un aviso de una línea la primera vez («Construir usa Sonnet · cambiar»).",
   "links": [
-    {
-      "task": "m11-27",
-      "type": "related"
-    },
     {
       "task": "m11-39",
       "type": "related"
@@ -33,5 +35,5 @@
   ],
   "test": "- Unit: tests/unit/test_mode_models.gd (7 tests). Cubren la tienda (por perfil y por modo, One-shot incluido, olvidar), la opción por category o id, que el modelo sale antes que el modo, que elegir recuerda y el cambio automático no, el aviso una vez, el valor que ya no está, el agente sin la opción y «Aprobar y construir» sin set_mode. test_settings_dialog.test_mode_models cubre las filas, «Olvidar» y el hint.\n- Editor (Xvfb): check plan con la configOption model en plan_mode.json y una tienda en memoria. Al abrir en Construir pide Sonnet, con el aviso y «Change», que abre el selector. Preguntar pide Opus antes del set_mode plan y lo dice el tooltip. «Aprobar y construir» pide Sonnet en medio del turno. Elegir Haiku en el selector queda recordado.\n- Probe ACP contra claude-agent-acp 0.106: el modelo cambia en medio de un turno.\n- Hallazgo en 4.8-beta2: con el selector visible, cambiar de modo dejaba _fit_row del composer alternando entre los niveles 0 y 6 sin fin (el ancho se mide antes de que la fila se reacomode). La cola de mensajes se llenaba y el editor se caía. Arreglado en 046f195: no se deshace el último cambio de compactación dentro de 250 ms. plan, remote y ui-basic pasan en 4.7.2 y 4.8-beta2.\n- tests/suite.sh ci: 19/19 PASS en 4.7.2. CI 43122914975 en verde (4.7.2 y 4.8-beta2).",
   "title": "Modelo por modo del harness (sticky), como Plan/Act de Cline y los modos de Roo",
-  "updated_at": "2026-11-11T23:55:51.441Z"
+  "updated_at": "2026-11-12T03:32:12.013Z"
 }

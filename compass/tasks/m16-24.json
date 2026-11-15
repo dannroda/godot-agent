@@ -1,0 +1,28 @@
+{
+  "assignee": "agent-harness-34",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-13T07:44:57.934Z",
+  "decisions": [
+    {
+      "alternatives": "Registrar el Logger solo durante cada detector (sigue colgando si el X cae justo ahí); detectar que la función no terminó por su valor de retorno (no ve errores en llamadas anidadas, como el de game_ui._on_screen del reporte original).",
+      "at": "2026-11-13T08:01:34.679Z",
+      "text": "Los detectores se enteran del error del harness por un mensaje del editor (harness_error durante la pausa), no por un Logger",
+      "why": "Cualquier Logger de GDScript registrado (probado con _log_error vacío) cuelga el exit() de Xlib cuando se cae el X; el Mutex no tenía que ver. Sin debugger no hay pausa, así que no hace falta apagar nada; con debugger, el editor ya ve la pausa y su motivo. El mensaje lo atiende el bucle del debugger con el juego parado adentro del detector, así que cubre también errores en llamadas anidadas (game_ui)."
+    }
+  ],
+  "description": "El release de v0.1.27 está frenado por esto.\n\nQué pasa:\n- `tests/suite.sh full` falla en el check crash, en 4.7.2 y en 4.8-beta3: «FAIL (124) 400s».\n- La fase before pasa. La fase during llega a «[crash-test] during: autoload en project.godot al matar: false», mata el editor y queda colgada.\n- El juego (run_fixture) no muere aunque el X se cierre («X connection to :99 broken»). Queda huérfano en futex_do_wait, con 109 threads, y mantiene abierta la salida que espera el check.\n\nConfirmado con bisect: origin/sm/m16-22 (2e95d63) sola ya lo reproduce. En v0.1.26 el crash check pasaba.\n\nSospecha: el Logger de detectors.gd (OS.add_logger, con un Mutex adentro). Cuando el X o el debugger se caen, el motor escribe errores desde otro thread o mientras se cierra, y _log_error se bloquea. También puede ser el auto-continue de pausas del harness en run_tools.\n\nPara reproducir:\nXRUN_KEEP_PROJECT=1 setsid -w tests/run_in_xvfb.sh <godot> --godot-agent-crash-test=during\nDespués copiá project.godot de vuelta y matá los run_fixture que queden.\n\nQué hacer:\n1. Arreglar la causa.\n2. Verificar con `tests/suite.sh run crash` en 4.7.2 y beta3, y con `run run` / run_check: el escenario de m16-22 tiene que seguir pasando.",
+  "milestone": "m16",
+  "notes": "Causa: con cualquier Logger de GDScript registrado (probé uno con _log_error vacío, 2/2 colgados; sin registrarlo, 2/2 mueren), el exit() que llama Xlib al caerse el X («X connection to :99 broken») se cuelga en un futex. El juego huérfano mantiene abierta la salida que espera crash_check. El Mutex no tenía que ver, ni run_tools ni game_ui (bisect por archivo). No pude sacar un backtrace: ptrace_scope=1.\nArreglo (fc7cf8d, sm/m16-24): detectors.gd sin Logger. run_tools, al seguir una pausa por un error del harness (en _continue_harness_break y en el camino de continue_on_error/game_script), manda harness_error con el motivo antes de debugger.resume(). El bucle del debugger lo atiende con el juego parado adentro del detector, y _guarded lo apaga. Cubre también errores en llamadas anidadas (game_ui). Sin debugger no hay pausa, así que no hace falta apagar nada.\nQueda m16-25 (low): el ScriptErrors de game_script es un Logger registrado mientras corre el script; si el editor muere justo ahí, puede pasar lo mismo.",
+  "order": 24,
+  "priority": "high",
+  "refs": [],
+  "size": "s",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "tests/suite.sh run crash en 4.7.2 y 4.8-beta3 pasa (antes FAIL 124 a los 400 s). Repro XRUN_KEEP_PROJECT=1 setsid -w tests/run_in_xvfb.sh godot --godot-agent-crash-test=during: el run_fixture muere apenas muere el editor. tests/suite.sh run run (run_check con el escenario de m16-22: detector del HUD roto, el juego sigue, off tiene hud_fraction) pasa. test_game_ui.test_detector_turns_off_after_a_harness_error con el aviso harness_error. run_all 893/0, suite.sh ci PASS, CI 43389942435 verde.",
+  "title": "Regresión de m16-22: al matar el editor durante un playtest, el juego queda colgado (crash check)",
+  "updated_at": "2026-11-13T16:37:38.684Z"
+}

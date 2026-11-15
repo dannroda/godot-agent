@@ -1,0 +1,15 @@
+{
+  "assignee": "agent-harness-41",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T18:52:44.610Z",
+  "description": "Visto en las capturas de m16-20: con el dock a 480 px y «Level design (Build)» elegido, la fila del composer pide 485 px y el dock se ensancha 5 px (modes.png en inglés salió de 485×1108). En español, con «Diseño de niveles (Construir)», más largo, la fila sí compacta (Enviar queda solo con el ícono). La compactación no tiene en cuenta algún ancho en el caso intermedio. Debería compactar antes de empujar el ancho mínimo del dock; probar también con el dock angosto (320).",
+  "milestone": "m12",
+  "notes": "Dos causas: _send_width subestimaba Enviar en 6 px (15 vs 21), y el freno contra el vaivén (FIT_SETTLE_MS) bloqueaba una compactación necesaria cuando el divisor se movía rápido, sin volver a medir. Ahora _send_width parte del mínimo real del botón, y el freno vuelve a medir pasado el margen. LayoutCheck.set_dock_width mide el contenido del dock, que no baja de su mínimo hasta compactar; el check le pasa el MinSizeGuard. Rama sm/m12-52 (1ca5641).",
+  "order": 16,
+  "refs": [],
+  "status": "review",
+  "test": "ui-modes (modes_check._check_long_name): modo «Level design» (base Build) con la fila de una sesión activa a 480, 400 y 320 px; el MinSizeGuard queda en el ancho pedido y la fila no pide más que el panel. Falla sin cada uno de los dos arreglos (324 px por el ancho de Enviar; 384 por el freno del vaivén). suite.sh ci 26/26.",
+  "title": "Composer: un modo del proyecto con nombre largo ensancha el dock en vez de compactar la fila",
+  "updated_at": "2026-11-13T05:50:50.710Z"
+}

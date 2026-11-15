@@ -1,0 +1,34 @@
+{
+  "assignee": "agent-harness-67",
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-13T03:36:26.030Z",
+  "decisions": [
+    {
+      "alternatives": "usage_query con /usage tras cada turno, como Antigravity y Codex; una sesión ACP descartable solo para /usage (levanta Claude Code, sus MCP y hooks cada vez)",
+      "at": "2026-11-13T03:43:46.855Z",
+      "text": "No se pide /usage a Claude Code: la semana de Fable sale del usage_update (unifiedWindows.seven_day_overage_included) y el modelo de _meta[\"_claude/model\"]",
+      "why": "Probado con claude-agent-acp 0.106: /usage gasta 0 tokens, pero Claude Code deja su salida en la conversación y el modelo la ve. Dos /usage subieron el contexto de 39.696 a 48.698 tokens, y pedirlo después de cada turno lo llenaría. El CLI llama «Fable limit» a seven_day_overage_included y coincidió con el /usage (33 % y 34 %)."
+    },
+    {
+      "alternatives": "ocultarla con otro modelo; contarla siempre (era lo que pasaba antes, sin querer)",
+      "at": "2026-11-13T03:43:46.918Z",
+      "text": "La semana de un modelo que no está en uso se sigue mostrando en el panel, en gris y con «(another model)», pero no cuenta para aviso, pausa ni anillo",
+      "why": "Así se ve cuánto queda de Fable antes de cambiarte a ese modelo, sin que con Opus te pause una semana que no te limita."
+    }
+  ],
+  "description": "El usuario tiene un perfil con acceso a Fable, que tiene su propio límite semanal. El panel del medidor solo muestra «Window» (five_hour) y «Week» (seven_day), porque quota_monitor.WINDOW_LABELS tiene solo esas dos. _read_windows guarda cualquier ventana de unifiedWindows, pero no se dibuja.\n\nSegún claude-agent-sdk 0.3.322 (sdk.d.ts):\n- SDKRateLimitInfo.rateLimitType puede ser five_hour | seven_day | seven_day_opus | seven_day_sonnet | seven_day_overage_included | overage.\n- El /usage estructurado (SDKControlGetUsageResponse.rate_limits) trae seven_day_opus, seven_day_sonnet, seven_day_oauth_apps y model_scoped[] {display_name (p. ej. 'Fable'), utilization 0–100, resets_at ISO}: «Per-model weekly windows».\n\nQué hacer:\n1. Ver qué llega de verdad por ACP desde claude-agent-acp con un perfil que tiene Fable: el _meta de usage_update (unifiedWindows) y si el `/usage` de Claude Code se puede pedir por ACP sin gastar tokens, como hace usage_query con Antigravity y Codex. Anotarlo en D22.\n2. Mostrar en el panel las ventanas semanales por modelo que existan, con su nombre («Week · Fable»), sin ocupar lugar si no hay.\n3. Para el aviso y la pausa del One-shot, la ventana que cuenta es la del modelo en uso. Si el modelo es Fable y su semana está al 95 %, avisar aunque la semana general esté al 53 %. Lo mismo con el anillo del medidor: que muestre la ventana más llena que aplica al modelo.\n4. Tests en test_quota_monitor con payloads de ejemplo. Agregar el CHANGELOG bajo Unreleased y la wiki si cambia lo que se explica del medidor.",
+  "milestone": "m12",
+  "notes": "Rama sm/m12-55, commit aa0ad8f, desde origin/main 690724b. Probado por ACP con claude-agent-acp 0.106 y el perfil personal (Team con Fable): la semana de Fable llega en el usage_update como unifiedWindows.seven_day_overage_included («Fable limit» en el CLI) y el modelo en _meta[\"_claude/model\"]. /usage no se usa: gasta 0 tokens, pero su salida queda en el contexto del modelo (≈4.500 tokens cada uno). Va todo en D22. Bug que ya estaba y se arregló: la semana de Fable contaba siempre para el aviso y la pausa, aunque el modelo fuera otro.",
+  "order": 19,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "ux"
+  ],
+  "test": "tests/unit/test_quota_monitor.gd: test_model_weekly_windows (payload real de Fable: con Fable al 95 % la pausa queda programada aunque la general esté al 53 %; con Opus no cuenta y en el panel va en gris como «(another model)»; el selector cambia cuál cuenta) y test_opus_window_from_rate_limit_type. suite.sh ci 50/50 en 4.7.2. CI 43362433728 en verde: el primer intento falló en ui-tooltips 4.7.2 por la intermitencia que arregla m12-53 (porcentaje 45→52 px) y pasó al volver a correrlo.",
+  "title": "Cuota: mostrar los límites semanales por modelo (Fable, Opus, Sonnet), no solo 5 h y semana",
+  "updated_at": "2026-11-13T04:13:52.376Z"
+}

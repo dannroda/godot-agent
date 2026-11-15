@@ -2,18 +2,26 @@
   "checklist": [],
   "code": "",
   "created_at": "2026-11-12T02:29:05.866Z",
+  "decisions": [
+    {
+      "alternatives": "Dejarla failed y solo agregar el aviso; detectarlo solo para Antigravity por el texto «denied by pre-tool hook»; reportarlo solo a Antigravity sin cambiar el dock",
+      "at": "2026-11-12T03:26:46.279Z",
+      "text": "Una edición cuyo fs/write_text_file ya aplicó el harness queda completada aunque el agente la marque failed después; la fila muestra un aviso (WARNING) con lo que dijo el agente",
+      "why": "El archivo cambió de verdad: mostrarla fallida engaña. Es agnóstico al agente (se engancha en FsHandler.written → SessionModel.mark_write_applied, emparejando por la ruta del diff o de locations con la edición sin terminar más reciente), y no se pierde la información porque el texto del agente queda en el aviso."
+    }
+  ],
   "description": "Visto en m18-02 (antigravity-acp 1.4.3): en un turno con dos ediciones, se permite la primera (aplicada vía fs/write_text_file) y se deniega la segunda; Antigravity manda tool_call_update failed también para la primera («denied by pre-tool hook: Denied by user»). El dock la muestra fallida aunque el archivo cambió. Ver si el harness puede no degradar a failed un tool call cuyo fs/write_text_file ya se aplicó, o al menos avisarlo; si no, reportarlo a Antigravity.",
   "milestone": "m18",
-  "notes": "",
+  "notes": "sm/m18-04 d2ffbad (pusheada). Agnóstico al agente: FsHandler.written(path) → SessionController._on_fs_written → SessionModel.mark_write_applied (la edición sin terminar más reciente cuyo diff o location coincide con la ruta). ToolCall.apply: si llega failed con write_applied, guarda rawOutput en failure_after_write y queda completed. tool_group_view muestra un aviso WARNING «The agent then reported this edit as failed, but the file was already written: …». No hace falta reportarlo a Antigravity para el dock, aunque sigue siendo un bug de ellos.",
   "order": 4,
   "priority": "low",
   "refs": [],
   "size": "s",
-  "status": "todo",
+  "status": "review",
   "tags": [
     "antigravity"
   ],
-  "test": "",
+  "test": "tests/unit/test_write_applied.gd reproduce la traza de Antigravity con el FsHandler real: edición A in_progress con diff, fs/write_text_file permitido, A failed «denied by pre-tool hook» → A queda completed con failure_after_write. test_session_model: mark_write_applied por ruta, la denegada B sigue failed, sin write sigue failed. test_fs_handler: written se emite solo si se escribió. suite.sh ci verde.",
   "title": "Antigravity: edición aplicada que queda marcada como fallida tras un deny",
-  "updated_at": "2026-11-12T02:29:05.866Z"
+  "updated_at": "2026-11-12T03:55:24.227Z"
 }

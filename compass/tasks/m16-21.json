@@ -1,0 +1,14 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T21:33:19.277Z",
+  "description": "Pedido del usuario (vía 81): cada feature sumó su parte a README/wiki, falta una pasada de conjunto. Alcance en en y es: (1) cada feature del CHANGELOG desde 0.1.18 en su página, sin contradicciones; (2) Editor-tools contra el registry real (nombres, grupos de permiso, extendidas); (3) afirmaciones viejas (beta2, One-shot en la primera pestaña, estado Antigravity/Windows/macOS, versiones mínimas, conteos); (4) Home índice y links, Getting-started con instalación desde zip y primer uso; (5) imágenes referenciadas existen, URLs raw/main correctas; (6) en y es dicen lo mismo. Sin cambios de código. Rama sm/docs-pass desde origin/sm/next8.",
+  "milestone": "m16",
+  "notes": "Commit aa442b4 en sm/docs-pass (desde origin/sm/next8 2081863). Corregido: ask_second_opinion faltaba en Editor-tools; lista compacta incompleta; grupos de permiso distintos de la función sin marcar; capture_* sin vistas de cámara; Review sin Medir regresiones, invariantes/presupuestos ni corte por loop; Export session… sin documentar; Home y Settings decían Antigravity sin verificar; Getting-started instalaba copiando la carpeta; menús + y ⋯ desactualizados; Settings Avanzado sin reglas por archivo/criterios/carpeta de modos/snapshots/push PR; Inline-completion: índice al abrir el primer script. Sin verificar: «unos 30.000 → 11.000 caracteres» de tools/list con la lista compacta (hace falta correr Godot). Las menciones a beta2 que quedan son el dato histórico de 12 runs, a propósito.",
+  "order": 21,
+  "refs": [],
+  "status": "review",
+  "test": "Script de links/anclas/imágenes (todas existen, URLs raw/main bien, cada idioma usa sus capturas); comparación en/es por página (encabezados, viñetas, tablas, tokens de código); 89 tools del registry extraídas de mcp/tools/*_tools.gd contra Editor-tools; tests/suite.sh check-ci verde. Sin cambios de código ni de strings (i18n no aplica).",
+  "title": "Pasada de conjunto de README y wiki (en/es) contra el CHANGELOG 0.1.18→Unreleased y el registry",
+  "updated_at": "2026-11-12T21:41:41.712Z"
+}

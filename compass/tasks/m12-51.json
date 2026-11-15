@@ -1,0 +1,27 @@
+{
+  "checklist": [],
+  "code": "",
+  "created_at": "2026-11-12T14:51:48.673Z",
+  "decisions": [
+    {
+      "alternatives": "Tooltip vivo con _make_custom_tooltip y tooltip_text fijo: necesita subclases de Label, Button y OptionButton para cada control, y el texto fijo rompe a quien lee tooltip_text (tests, accesibilidad).",
+      "at": "2026-11-12T15:10:15.478Z",
+      "text": "Los tooltips que se actualizan solos quedan congelados mientras el mouse está encima y se ponen al día al salir.",
+      "why": "Funciona con Labels/Buttons/OptionButtons comunes sin un script por control; Godot no cierra el tooltip si el texto no cambia. Al volver a pasar el mouse se ve el dato nuevo."
+    }
+  ],
+  "description": "En la barra inferior del composer (anillo de contexto, lista de tareas, botón de modo, modelo, Send) los tooltips aparecen y se esconden enseguida. Sospecha: algo reescribe tooltip_text o reconstruye/reordena los controles periódicamente (tick de máquinas, usage_update → _meter, _refresh del send, modelo, modo) y Godot cierra el tooltip al cambiar el texto o el control bajo el mouse. Reproducir con un test de UI, arreglar sin perder la info (asignar solo si cambió, o tooltip dinámico) y revisar el resto del dock por el mismo patrón (chips del header, pestañas de sesión).",
+  "milestone": "m12",
+  "notes": "Dos causas (leído en viewport.cpp de Godot): 1) con el tooltip abierto, cada mouse motion compara el texto actual con el mostrado y lo cierra si cambió; asignar el mismo texto no hace nada. Cambiaban solos: el anillo (cada usage_update), el chip del agente y los de máquinas (la antigüedad, cada segundo), la línea/etiqueta de estado (subagentes) y la fila de cuota del One-shot («resets in»). Arreglo: ui/hover_tooltip.gd, HoverTooltip.set_text: con el mouse encima (gui_get_hovered_control) guarda el texto y lo pone en mouse_exited; text_of() lee el pendiente (header_tooltip usa el del estado). 2) La causa de modo/modelo/Enviar/plan: el ancho del medidor cambiaba con el porcentaje; con la fila justa _fit_row compactaba y descompactaba (el medidor aparecía/desaparecía, el espaciador cambiaba) y todo se corría bajo el mouse → Godot cierra el tooltip al cambiar el control debajo. Arreglo: el medidor reserva el ancho de «100 %». Revisado y sin el patrón: pestañas de sesión (solo con título/estado), chips de contexto (firma), listas del One-shot (firma), cuota (panel propio, ya actualizaba en vivo). El chip del agente sigue recalculando en mouse_entered.",
+  "order": 15,
+  "priority": "medium",
+  "refs": [],
+  "size": "m",
+  "status": "review",
+  "tags": [
+    "bug"
+  ],
+  "test": "tests/suite.sh run ui-tooltips (nuevo, en ci): con un turno del agente falso que manda usage_update cada 0,3 s y la cuota, el tooltip de anillo de contexto, cuota, plan, modo, modelo, Detener/Enviar y chip del agente sigue abierto 3 s con el mouse temblando 1 px, también con el dock angosto; al salir el anillo tiene el último texto. Unit: test_hover_tooltip y test_composer (el medidor pide el mismo ancho con 1/10/100 %). Sin el arreglo, ui-tooltips falla en el anillo (0,1 s), el chip del agente (0,3 s) y la cuota (la fila se corrió 40 px).",
+  "title": "Tooltips de la barra del composer se cierran enseguida",
+  "updated_at": "2026-11-12T15:41:16.053Z"
+}

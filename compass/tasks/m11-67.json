@@ -12,12 +12,12 @@
   ],
   "description": "Seguimiento de m11-33. Ctrl+Enter en el composer manda el mensaje y prende «Seguir al agente» para ese turno (como Zed), sin tener que tocar el botón de la mira. Pedido por agent-harness-81, rama desde origin/sm/next5, con su check.",
   "milestone": "m11",
-  "notes": "",
+  "notes": "sm/m11-67 (3673ed4, desde origin/sm/next5 3855d35), pusheada con el ok del usuario.\n- composer: Ctrl+Enter → follow_requested + submitted; Shift+Enter baja de línea (Ctrl+Enter ya no).\n- dock: _follow_until_done; se apaga en turn_finished (diferido) si no está ocupado y la cola está vacía o en pausa; tocar la mira lo limpia.\n- Tooltip de Enviar, wiki Getting started en/es, CHANGELOG, es.po.",
   "order": 47,
   "refs": [],
   "size": "s",
-  "status": "todo",
-  "test": "",
+  "status": "review",
+  "test": "tests/unit/test_composer.gd: Ctrl+Enter envía y emite follow_requested antes de submitted; sin texto no hace nada; Enter solo no pide seguir; Shift+Enter baja de línea. sessions-test (_check_follow): la señal de Ctrl+Enter prende el seguimiento y la mira, los saltos funcionan, al terminar el turno se apaga solo; prendido a mano no se apaga. suite.sh ci en verde.",
   "title": "Ctrl+Enter: mandar y seguir al agente",
-  "updated_at": "2026-11-12T02:21:54.988Z"
+  "updated_at": "2026-11-12T02:49:44.881Z"
 }
