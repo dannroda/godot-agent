@@ -6,6 +6,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Fixed
 
+- **Resuming a long session reads only its end.** The dock used to read and rebuild the whole history before you could type, in a single frame of almost a second for a 20,000-event session. Now it reads the last 3,000 events, from a point where no tool call is left half-done, and **Show earlier messages** reads the previous part from the history file when you reach the top. At the end of a turn, the dock lets go of hidden messages beyond a margin, so the editor's memory no longer grows with the length of the session. **Export session…** still writes the whole conversation.
 - **Long sessions take much less memory in the dock.** Every tool call kept its collapsed output already laid out, which cost about 340 KB per output: resuming a session with 8,000 events added about 430 MB to the editor, and one with 20,000 more than 1.3 GB. The output is now laid out when you open it, and a call only builds the subagent rows if it is a subagent. The same sessions now add about 145 MB and 310 MB.
 
 ## [0.1.27] - 2026-11-13

@@ -6,6 +6,8 @@ extends ScrollContainer
 
 ## Acción de una entrada (ver EntryView.action_requested).
 signal action_requested(action: String, payload: Variant)
+## «Mostrar anteriores» sin entradas ocultas en memoria: hay que leerlas del historial (m7-55).
+signal older_requested
 
 const SessionModel := preload("../../session/session_model.gd")
 const ChatEntry := preload("../../session/chat_entry.gd")
@@ -27,6 +29,9 @@ const ElicitationView := preload("entries/elicitation_view.gd")
 const MAX_VIEWS := 250
 ## Entradas que agrega cada "Mostrar anteriores".
 const SHOW_OLDER_STEP := 50
+## Entradas ocultas que quedan en memoria al terminar un turno; las anteriores se sueltan y se vuelven a
+## leer del historial si hacen falta (m7-55).
+const HIDDEN_KEEP := 150
 ## Tiempo de un frame para armar vistas nuevas; el resto queda para el siguiente.
 const BUILD_BUDGET_USEC := 8000
 ## Distancia al fondo (px) dentro de la cual se sigue el streaming automáticamente.
@@ -93,6 +98,9 @@ func _ready() -> void:
 		_model.entry_removed.connect(_remove_view)
 		_model.entries_cleared.connect(_clear)
 		_model.tool_call_changed.connect(_on_tool_call_changed)
+		_model.entries_dropped.connect(_on_entries_dropped)
+		_model.entries_prepended.connect(_on_entries_prepended)
+		_model.turn_finished.connect(_on_turn_finished)
 		for entry: ChatEntry in _model.entries():
 			_add_view(entry)
 
@@ -154,6 +162,9 @@ func _track(entry: ChatEntry, view: EntryView) -> void:
 
 ## "Mostrar anteriores": vuelve a armar las SHOW_OLDER_STEP entradas previas a la primera visible.
 func show_older() -> void:
+	if _hidden_count <= 0 and _model and _model.has_older():
+		older_requested.emit()
+		return
 	if _hidden_count <= 0 or _order.is_empty():
 		return
 	var entries := _model.entries()
@@ -297,8 +308,35 @@ func _drop_oldest() -> void:
 
 
 func _update_show_older() -> void:
-	_show_older.visible = _hidden_count > 0
-	_show_older.text = I18n.t("Show %d earlier (%d hidden)") % [mini(SHOW_OLDER_STEP, _hidden_count), _hidden_count]
+	var older := _model != null and _model.has_older()
+	_show_older.visible = _hidden_count > 0 or older
+	if _hidden_count > 0:
+		_show_older.text = I18n.t("Show %d earlier (%d hidden)") % [mini(SHOW_OLDER_STEP, _hidden_count), _hidden_count]
+	else:
+		_show_older.text = I18n.t("Show earlier messages")
+
+
+## Al terminar un turno, lo oculto que sobra se suelta del modelo (vuelve del historial si se pide).
+func _on_turn_finished(_reason: String) -> void:
+	if _model and not _model.replaying and _hidden_count > HIDDEN_KEEP:
+		_model.drop_front(_hidden_count - HIDDEN_KEEP)
+
+
+## Solo se sueltan entradas ocultas: no tienen vista.
+func _on_entries_dropped(count: int) -> void:
+	_hidden_count = maxi(0, _hidden_count - count)
+	_update_show_older()
+
+
+## Lo que volvió del historial queda oculto encima de lo visible, y se muestra la primera tanda.
+func _on_entries_prepended(entries: Array[ChatEntry]) -> void:
+	_hidden_count += entries.size()
+	if _order.is_empty():
+		for entry: ChatEntry in entries:
+			_add_view(entry)
+		_hidden_count -= entries.size()
+		return
+	show_older()
 
 
 func _on_scrolled(value: float) -> void:

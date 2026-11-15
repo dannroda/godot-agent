@@ -83,10 +83,7 @@ func test_write() -> void:
 	assert_eq(path, root + "/2026-11-11_10-00-00-session/session.md", "la carpeta del export")
 	assert_eq(FileAccess.get_file_as_string(path), built.markdown, "el texto que se vio")
 	assert_true(FileAccess.file_exists(path.get_base_dir().path_join("capture-1.png")), "la captura al lado")
-	for file: String in DirAccess.get_files_at(path.get_base_dir()):
-		DirAccess.remove_absolute(path.get_base_dir().path_join(file))
-	DirAccess.remove_absolute(path.get_base_dir())
-	DirAccess.remove_absolute(root)
+	_remove_export(path, root)
 
 
 func test_dialog_preview_and_save() -> void:
@@ -107,9 +104,17 @@ func test_dialog_preview_and_save() -> void:
 	assert_eq(saved.size(), 1, "guarda")
 	if saved.size() == 1:
 		assert_eq(FileAccess.get_file_as_string(saved[0]), dialog.preview_text(), "lo que se guarda es lo que se vio")
-		var dir := saved[0].get_base_dir()
-		for file: String in DirAccess.get_files_at(dir):
-			DirAccess.remove_absolute(dir.path_join(file))
-		DirAccess.remove_absolute(dir)
-		DirAccess.remove_absolute(dialog.root)
+		_remove_export(saved[0], dialog.root)
 	dialog.free()
+
+
+## Borra la carpeta de un export solo si quedó dentro de `root`: con un export fallido el camino es "" y
+## get_files_at("") lista la carpeta del proyecto (m7-55: así se borraron los archivos de la raíz).
+func _remove_export(path: String, root: String) -> void:
+	var dir := path.get_base_dir()
+	if path.is_empty() or not dir.begins_with(root + "/"):
+		return
+	for file: String in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(file))
+	DirAccess.remove_absolute(dir)
+	DirAccess.remove_absolute(root)

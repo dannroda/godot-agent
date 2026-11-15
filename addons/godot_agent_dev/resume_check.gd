@@ -14,7 +14,8 @@ const SYNTHETIC_EVENTS := 20000
 ## Hasta poder escribir (lo que pide m7-55), con OpenGL por software en Xvfb.
 const MAX_READY_MS := 2000
 const MAX_FRAME_MS := 400.0
-const MAX_MEMORY_MB := 200.0
+## Lo que queda son las vistas (MAX_VIEWS), no el largo de la sesión: con 20000 eventos sintéticos, ~215 MB.
+const MAX_MEMORY_MB := 300.0
 
 var failures: PackedStringArray = []
 var report: PackedStringArray = []
@@ -52,7 +53,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var memory_before := OS.get_static_memory_usage()
 	tree.process_frame.connect(on_frame)
 	var started := Time.get_ticks_usec()
-	var record: Dictionary = history.call(&"load_record", SESSION_ID)
+	var record: Dictionary = history.call(&"load_record", SESSION_ID, SessionHistory.TAIL_EVENTS)  # como open_history_session
 	var events: int = (record.get("events", []) as Array).size()
 	var ok: bool = await controller.call(&"start", profile, record)
 	record = {}

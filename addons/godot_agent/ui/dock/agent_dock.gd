@@ -333,6 +333,7 @@ func _ready() -> void:
 	_conversation = ConversationView.new()
 	_conversation.setup(_model, _accent)
 	_conversation.action_requested.connect(_on_action_requested)
+	_conversation.older_requested.connect(_load_older)
 	_body.add_child(_conversation)
 	_composer = Composer.new()
 	_composer.setup(_accent)
@@ -765,11 +766,24 @@ func _on_more_selected(id: int) -> void:
 			action_forwarded.emit(ACTION_RESTART_RESUME, null)
 
 
+## «Mostrar anteriores» sin más entradas en memoria: las lee del historial (m7-55).
+func _load_older() -> void:
+	if _controller.history:
+		_controller.history.load_older(_model, _redactor())
+
+
+## Saca los secretos del Agent Log de lo que se lee del historial, como al reanudar (m13-25).
+func _redactor() -> Callable:
+	var log := _controller.agent_log if _controller else null
+	return func(data: Dictionary) -> Dictionary: return log.redact_data(data) if log else data
+
+
 ## «Export session…» (m11-32): la vista previa con qué sacar; al guardar, avisa y abre la carpeta.
 func open_export_dialog() -> SessionExportDialog:
 	var dialog := SessionExportDialog.new()
 	add_child(dialog)
-	dialog.setup(_model, export_context())
+	# La sesión entera, aunque el modelo tenga solo la última parte (m7-55).
+	dialog.setup(_controller.history.full_model(_model, _redactor()) if _controller.history else _model, export_context())
 	dialog.saved.connect(func(path: String) -> void:
 		if path.is_empty():
 			_model.add_notice(I18n.t("Could not save the export in %s.") % SessionExportDialog.SessionExport.DIR, ChatEntry.NoticeLevel.ERROR)
@@ -1355,7 +1369,7 @@ func _show_history_menu() -> void:
 
 ## Muestra la sesión y la reanuda con session/load o session/resume si el agente lo soporta.
 func open_history_session(id: String) -> bool:
-	var record: Dictionary = _controller.history.load_record(id) if _controller.history else {}
+	var record: Dictionary = _controller.history.load_record(id, _controller.history.TAIL_EVENTS) if _controller.history else {}
 	if record.is_empty():
 		for item: Dictionary in _controller.agent_sessions:
 			if str(item.get("id", "")) == id:
@@ -2272,7 +2286,7 @@ func request_handoff(goal: String = "") -> void:
 	var session_id := _model.session_id
 	var agent_text := ""
 	if _model.state == SessionModel.SessionState.READY:
-		var first := _model.entries().size()
+		var first := _model.entry_mark()
 		await _controller.send_prompt(_controller.label_prompt(Handoff.prompt(goal), HarnessPrompts.HANDOFF), [], false)
 		if not is_inside_tree():
 			return

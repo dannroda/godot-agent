@@ -1934,7 +1934,7 @@ func _ask_inline(prompt: String) -> Dictionary:
 		return {"text": "", "error": I18n.t("There's no session open in the Agent dock."), "no_session": true}
 	if model.state != SessionModel.SessionState.READY:
 		return {"text": "", "error": I18n.t("The agent is busy: try again when its turn ends.")}
-	var first := model.entries().size()
+	var first := model.entry_mark()
 	var reason: String = await controller.send_prompt(controller.label_prompt(prompt, HarnessPrompts.INLINE_EDIT))
 	return {"text": controller.agent_text_since(first), "error": "" if reason == "end_turn" else I18n.t("The turn ended with «%s».") % reason}
 
