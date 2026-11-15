@@ -8,7 +8,6 @@ const ToolCall := preload("../../../session/tool_call.gd")
 const ShellCommand := preload("../../../session/shell_command.gd")
 const DiffCard := preload("diff_card.gd")
 
-static var _empty_style_box: StyleBoxEmpty
 const ImageViewer := preload("../../image_viewer.gd")
 
 const STATUS_ICONS: Dictionary = {
@@ -31,6 +30,7 @@ const SUBAGENT_INDENT := 14
 const SUBAGENT_NOTE_CHARS := 400
 
 ## Callable(id: String) -> ToolCall, inyectado por la ConversationView.
+var _empty_style_box: StyleBoxEmpty
 var tool_call_lookup: Callable
 
 var _header: Button
@@ -337,8 +337,9 @@ func _output_toggle(text: String, noun: String = "") -> Control:
 	return column
 
 
-## Una sola caja vacía para todos los toggles: eran cinco por salida (m7-55).
-static func _empty_style() -> StyleBoxEmpty:
+## Una sola caja vacía para los toggles del grupo: eran cinco por salida (m7-55). No es static: una
+## estática sobrevive al plugin y queda como fuga al cerrar el editor (plugin_cycle_check).
+func _empty_style() -> StyleBoxEmpty:
 	if _empty_style_box == null:
 		_empty_style_box = StyleBoxEmpty.new()
 	return _empty_style_box
