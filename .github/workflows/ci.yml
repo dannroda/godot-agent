@@ -173,6 +173,12 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run restart ~/godot/godot
 
+      # Reanudar una sesión de 20000 eventos (m7-55): poder escribir en menos de 2 s, sin frames de casi un
+      # segundo, y con la memoria acotada por la ventana, no por el largo de la sesión.
+      - name: Editor check (resume)
+        if: ${{ !cancelled() && matrix.group == 'editor' }}
+        run: sh tests/suite.sh run resume ~/godot/godot
+
       - name: Closing the editor leaves no agent processes
         if: ${{ !cancelled() && matrix.group == 'editor' }}
         run: sh tests/suite.sh run quit ~/godot/godot

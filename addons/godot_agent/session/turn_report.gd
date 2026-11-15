@@ -16,7 +16,7 @@ static func collect(model: SessionModel, first_entry: int) -> Dictionary:
 	var summary: PackedStringArray = []
 	var images: Array[Dictionary] = []
 	var entries := model.entries()
-	for i in range(maxi(first_entry, 0), entries.size()):
+	for i in range(model.entry_index(maxi(first_entry, 0)), entries.size()):
 		var entry := entries[i]
 		if entry.kind == ChatEntry.EntryKind.AGENT:
 			summary.append(entry.text.strip_edges())

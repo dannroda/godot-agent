@@ -451,7 +451,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 ## Reabre una sesión perdida: con session/load si está en el historial y el agente lo soporta;
 ## si no, abre una nueva.
 func reopen(agent_profile: AgentProfile, lost_id: String) -> bool:
-	var record: Dictionary = history.load_record(lost_id) if history and not lost_id.is_empty() else {}
+	var record: Dictionary = history.load_record(lost_id, SessionHistory.TAIL_EVENTS) if history and not lost_id.is_empty() else {}
 	if not record.is_empty():
 		_load_failed = false
 		if await start(agent_profile, record):
@@ -587,12 +587,14 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	# Otro mensaje con la tarjeta de un plan en bloque pendiente: ya no es lo que se aprueba (m11-58).
 	_cancel_block_plan()
 	var plan_turn := harness_label in PLAN_TURN_LABELS
+	model.event_cursor = history.next_event_index() if history and not text.strip_edges().is_empty() else -1
 	model.add_user_message(text, attachments, harness_label)
+	model.event_cursor = -1
 	_outside_turn_noticed = false
 	if history:
 		history.record_prompt(text, harness_label)
 	model.set_state(SessionModel.SessionState.PROMPTING)
-	var first_new_entry := model.entries().size()
+	var first_new_entry := model.entry_mark()
 	var turn_start := ""
 	if not is_command and snapshots and snapshots.available and model.harness_mode in [SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]:
 		turn_start = await snapshots.take(session_key)
@@ -781,7 +783,7 @@ func _report_turn_changes(turn_start: String, first_entry: int = -1) -> void:
 
 func _reset_path_rules() -> void:
 	_rules_sent.clear()
-	_rules_scan_from = model.entries().size()
+	_rules_scan_from = model.entry_mark()
 
 
 ## El bloque de reglas del proyecto para este prompt ({} si no hay): las que coinciden con lo que tocó
@@ -789,7 +791,7 @@ func _reset_path_rules() -> void:
 ## script abierto), sin las que el agente ya carga solo ni las ya mandadas en la sesión.
 func path_rules_block(text: String, extra_blocks: Array = []) -> Dictionary:
 	var from := _rules_scan_from
-	_rules_scan_from = model.entries().size()
+	_rules_scan_from = model.entry_mark()
 	if (path_rules_on.is_valid() and not path_rules_on.call()) or cwd.is_empty():
 		return {}
 	var paths := touched_paths(from)
@@ -1497,7 +1499,7 @@ static func is_slash_command(text: String) -> bool:
 func agent_text_since(first_entry: int) -> String:
 	var parts: PackedStringArray = []
 	var entries := model.entries()
-	for i in range(first_entry, entries.size()):
+	for i in range(model.entry_index(first_entry), entries.size()):
 		if entries[i].kind == ChatEntry.EntryKind.AGENT:
 			parts.append(entries[i].text)
 	return "\n".join(parts)
@@ -1557,7 +1559,7 @@ func tool_calls_since(first_entry: int) -> Array:
 	var calls: Array = []
 	var pending: Array = []
 	var entries := model.entries()
-	for i in range(first_entry, entries.size()):
+	for i in range(model.entry_index(first_entry), entries.size()):
 		if entries[i].kind == ChatEntry.EntryKind.TOOL_GROUP:
 			pending.append_array(entries[i].tool_call_ids)
 	while not pending.is_empty():
@@ -1571,7 +1573,7 @@ func tool_calls_since(first_entry: int) -> Array:
 ## Los mensajes del turno con el bloque `findings` ya leído lo muestran plegado (m12-38).
 func _fold_findings(first_entry: int) -> void:
 	var entries := model.entries()
-	for i in range(first_entry, entries.size()):
+	for i in range(model.entry_index(first_entry), entries.size()):
 		var entry: ChatEntry = entries[i]
 		if entry.kind == ChatEntry.EntryKind.AGENT and entry.text.contains("\"findings\""):
 			entry.findings_count = review.findings.size()
@@ -2113,7 +2115,11 @@ func _on_session_update(params: Dictionary) -> void:
 	elif params.update.get("sessionUpdate") == "session_info_update":
 		quota.observe_session_info(params.update)
 	_notice_outside_turn(params.update)
-	if not model.apply_update(params.update):
+	# La entrada que cree este update guarda el índice que va a tener su evento en el historial (m7-55).
+	model.event_cursor = history.next_event_index() if history else -1
+	var applied := model.apply_update(params.update)
+	model.event_cursor = -1
+	if not applied:
 		agent_log.add(AgentLog.CH_ACP, "Unknown session/update variant, ignored: %s" % str(params.update.get("sessionUpdate", "?")))
 	elif history:
 		history.record_update(params.update)
@@ -2392,7 +2398,7 @@ func _offer_block_plan(first_entry: int) -> void:
 		if call.plan_card:
 			return
 	var entries := model.entries()
-	for i in range(entries.size() - 1, first_entry - 1, -1):
+	for i in range(entries.size() - 1, model.entry_index(first_entry) - 1, -1):
 		var entry: ChatEntry = entries[i]
 		if entry.kind != ChatEntry.EntryKind.AGENT:
 			continue

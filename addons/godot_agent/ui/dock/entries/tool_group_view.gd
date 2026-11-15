@@ -7,6 +7,7 @@ extends "entry_view.gd"
 const ToolCall := preload("../../../session/tool_call.gd")
 const ShellCommand := preload("../../../session/shell_command.gd")
 const DiffCard := preload("diff_card.gd")
+
 const ImageViewer := preload("../../image_viewer.gd")
 
 const STATUS_ICONS: Dictionary = {
@@ -29,6 +30,7 @@ const SUBAGENT_INDENT := 14
 const SUBAGENT_NOTE_CHARS := 400
 
 ## Callable(id: String) -> ToolCall, inyectado por la ConversationView.
+var _empty_style_box: StyleBoxEmpty
 var tool_call_lookup: Callable
 
 var _header: Button
@@ -168,10 +170,14 @@ func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 	block.add_child(extra_margin)
 	var extra := VBoxContainer.new()
 	extra_margin.add_child(extra)
-	# Subagente: "▸ 5 herramientas · Read" y, al abrirlo, sus herramientas y su último texto.
+	# El bloque del subagente se arma recién si la llamada resulta ser uno (m7-55): son seis nodos por fila.
+	return {"block": block, "row": row, "status": status, "name": name_label, "summary": summary, "extra": extra, "extra_margin": extra_margin, "undo": undo}
+
+
+## Subagente: "▸ 5 herramientas · Read" y, al abrirlo, sus herramientas y su último texto.
+func _make_subagent(parts: Dictionary) -> void:
 	var nested := VBoxContainer.new()
-	nested.visible = false
-	block.add_child(nested)
+	(parts.block as Node).add_child(nested)
 	var toggle := Button.new()
 	toggle.flat = true
 	toggle.toggle_mode = true
@@ -195,11 +201,14 @@ func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 		indent.visible = open
 		refresh()
 	)
-	return {"row": row, "status": status, "name": name_label, "summary": summary, "extra": extra, "extra_margin": extra_margin, "undo": undo,
-		"nested": nested, "toggle": toggle, "indent": indent, "children": children, "note": note}
+	parts.merge({"nested": nested, "toggle": toggle, "indent": indent, "children": children, "note": note})
 
 
 func _refresh_subagent(call: ToolCall, parts: Dictionary) -> void:
+	if not parts.has("nested"):
+		if not call.is_subagent():
+			return
+		_make_subagent(parts)
 	var nested: VBoxContainer = parts.nested
 	nested.visible = call.is_subagent()
 	if not nested.visible:
@@ -303,7 +312,7 @@ func _output_toggle(text: String, noun: String = "") -> Control:
 	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	# Sin el relleno del tema: arranca en la misma columna que los enlaces y el nombre de la tool.
 	for state: StringName in [&"normal", &"hover", &"pressed", &"hover_pressed", &"focus"]:
-		toggle.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+		toggle.add_theme_stylebox_override(state, _empty_style())
 	if noun.is_empty():
 		noun = I18n.t("output")
 	toggle.text = "▸ " + (I18n.t("%s · %d line") if lines.size() == 1 else I18n.t("%s · %d lines")) % [noun, lines.size()]
@@ -318,13 +327,22 @@ func _output_toggle(text: String, noun: String = "") -> Control:
 	var shown := "\n".join(lines.slice(0, OUTPUT_PREVIEW_LINES)).left(OUTPUT_PREVIEW_CHARS)
 	if shown.length() < text.length():
 		shown += "\n…"
-	output.text = shown
 	column.add_child(output)
 	toggle.toggled.connect(func(open: bool) -> void:
+		if open and output.text.is_empty():
+			output.text = shown
 		output.visible = open
 		toggle.text = ("▾" if open else "▸") + toggle.text.substr(1)
 	)
 	return column
+
+
+## Una sola caja vacía para los toggles del grupo: eran cinco por salida (m7-55). No es static: una
+## estática sobrevive al plugin y queda como fuga al cerrar el editor (plugin_cycle_check).
+func _empty_style() -> StyleBoxEmpty:
+	if _empty_style_box == null:
+		_empty_style_box = StyleBoxEmpty.new()
+	return _empty_style_box
 
 
 static func _image_preview(block: Dictionary) -> Control:

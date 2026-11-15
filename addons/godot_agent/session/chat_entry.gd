@@ -51,3 +51,6 @@ var attachments: Array[Dictionary] = []
 ## USER que mandó el harness, no el usuario (m12-44): el msgid en inglés de su etiqueta (ver
 ## HarnessPrompts). Vacío = lo escribió el usuario.
 var harness_label: String = ""
+## Índice en el historial (.jsonl) del evento que creó la entrada, -1 si no viene de uno (m7-55): de
+## ahí se vuelve a leer lo anterior a la primera entrada que queda en memoria.
+var event_index: int = -1

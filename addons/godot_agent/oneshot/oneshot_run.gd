@@ -849,7 +849,7 @@ func _run_turn(text: String, blocks: Array = []) -> void:
 	report.count("turns")
 	var turn_started := _elapsed_ms()
 	_turn_tools = 0
-	var first_entry := model.entries().size()
+	var first_entry := model.entry_mark()
 	var progress_before := _progress()
 	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text, blocks)
 	_turn_running = false
@@ -1372,7 +1372,7 @@ func _run_qa_turn(text: String) -> Dictionary:
 	report.count("qa_turns")
 	var turn_started := _elapsed_ms()
 	_turn_tools = 0
-	var first_entry := model.entries().size()
+	var first_entry := model.entry_mark()
 	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text)
 	_turn_running = false
 	if not is_instance_valid(self) or not is_inside_tree():

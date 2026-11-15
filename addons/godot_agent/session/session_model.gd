@@ -35,6 +35,10 @@ signal turn_finished(stop_reason: String)
 signal compaction_changed(entry: ChatEntry, status: String)
 signal permission_requested(request: PermissionRequest)
 signal elicitation_requested(request: ElicitationRequest)
+## Se soltaron las `count` entradas más viejas para no tener la sesión entera en memoria (m7-55).
+signal entries_dropped(count: int)
+## Entradas anteriores leídas del historial («Mostrar anteriores», m7-55): quedaron al principio.
+signal entries_prepended(entries: Array[ChatEntry])
 
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
@@ -151,10 +155,109 @@ var _subagent_sessions: Dictionary = {}
 var _terminal_outputs: Dictionary = {}
 var _plan_entry: ChatEntry
 var _next_entry_id: int = 1
+## Ventana de la conversación (m7-55): el modelo tiene las entradas desde el evento `first_event` del
+## historial; lo anterior se vuelve a leer del archivo (has_older). `event_cursor`: el índice del evento
+## que se está aplicando, para la entrada que cree (-1 si no viene del historial).
+var first_event: int = 0
+var event_cursor: int = -1
+## Entradas soltadas menos las que volvieron (puede ser negativo): entry_mark no cambia al soltar.
+var _dropped: int = 0
 
 
 func entries() -> Array[ChatEntry]:
 	return _entries
+
+
+## Marca de «desde acá» que no se corre cuando se sueltan entradas viejas: guardala en lugar de
+## entries().size() y pasala a entry_index para recorrer las entradas desde ese punto (m7-55).
+func entry_mark() -> int:
+	return _dropped + _entries.size()
+
+
+## Índice en entries() de una marca de entry_mark (0 si esas entradas ya se soltaron).
+func entry_index(mark: int) -> int:
+	return clampi(mark - _dropped, 0, _entries.size())
+
+
+## Hay conversación anterior en el historial que no está en memoria.
+func has_older() -> bool:
+	return first_event > 0
+
+
+## Suelta hasta `count` entradas del principio, cortando al comienzo de un turno (un mensaje del usuario
+## que viene del historial), así lo soltado se puede volver a leer entero. No suelta tarjetas pendientes
+## ni el plan. Devuelve cuántas soltó.
+func drop_front(count: int) -> int:
+	var cut := -1
+	for i in range(1, mini(count, _entries.size() - 1) + 1):
+		var previous := _entries[i - 1]
+		if previous == _plan_entry or (previous.permission and previous.permission.call(&"is_pending")) or (previous.elicitation and previous.elicitation.call(&"is_pending")):
+			break
+		var entry := _entries[i]
+		if entry.kind == ChatEntry.EntryKind.USER and entry.event_index >= 0:
+			cut = i
+	if cut <= 0:
+		return 0
+	for i in cut:
+		_forget(_entries[i])
+	_entries = _entries.slice(cut)
+	_dropped += cut
+	first_event = _entries[0].event_index
+	entries_dropped.emit(cut)
+	return cut
+
+
+func _forget(entry: ChatEntry) -> void:
+	var pending: Array = Array(entry.tool_call_ids)
+	while not pending.is_empty():
+		var id: String = pending.pop_back()
+		var call: ToolCall = _tool_calls.get(id)
+		if call:
+			pending.append_array(call.child_ids)
+		_tool_calls.erase(id)
+		_group_of_call.erase(id)
+		_question_calls.erase(id)
+	for id: Variant in _compactions.keys():
+		if _compactions[id] == entry:
+			_compactions.erase(id)
+
+
+## Pone al principio la conversación de `older` (un modelo armado con SessionHistory.replay de la parte
+## anterior del historial). Sus entradas toman ids nuevos.
+func prepend(older: RefCounted) -> void:
+	var added: Array[ChatEntry] = []
+	var older_entries: Array[ChatEntry] = older.get(&"_entries")
+	var older_calls: Dictionary = older.get(&"_tool_calls")
+	var older_groups: Dictionary = older.get(&"_group_of_call")
+	for entry: ChatEntry in older_entries:
+		entry.id = _next_entry_id
+		_next_entry_id += 1
+		added.append(entry)
+	for id: String in older_calls:
+		if not _tool_calls.has(id):
+			_tool_calls[id] = older_calls[id]
+	for id: String in older_groups:
+		if not _group_of_call.has(id):
+			_group_of_call[id] = older_groups[id]
+	_question_calls.merge(older.get(&"_question_calls"))
+	_entries = added + _entries
+	_dropped -= added.size()
+	first_event = int(older.get(&"first_event"))
+	entries_prepended.emit(added)
+
+
+## Un modelo de solo lectura con la conversación de `older` antes que la de este, para recorrerla entera
+## (el export) sin tocar el de la sesión.
+func joined_after(older: RefCounted) -> RefCounted:
+	var result: RefCounted = get_script().new()
+	var older_entries: Array[ChatEntry] = older.get(&"_entries")
+	var calls: Dictionary = (older.get(&"_tool_calls") as Dictionary).duplicate()
+	calls.merge(_tool_calls, true)
+	result.set(&"title", title)
+	result.set(&"session_id", session_id)
+	result.set(&"_entries", older_entries + _entries)
+	result.set(&"_tool_calls", calls)
+	return result
 
 
 ## El harness escribió `path` por fs/write_text_file (m18-04): la edición sin terminar más reciente que
@@ -310,6 +413,9 @@ func reset() -> void:
 	_terminal_outputs.clear()
 	_plan_entry = null
 	_compactions.clear()
+	first_event = 0
+	event_cursor = -1
+	_dropped = 0
 	cancel_pending_permissions()
 	set_remote_control("")
 	entries_cleared.emit()
@@ -950,6 +1056,7 @@ func _new_entry(kind: ChatEntry.EntryKind) -> ChatEntry:
 	_next_entry_id += 1
 	entry.kind = kind
 	entry.created_unix = Time.get_unix_time_from_system()
+	entry.event_index = event_cursor
 	return entry
 
 

@@ -161,7 +161,7 @@ func _ask(question: String, context: Dictionary, agent_profile: AgentProfile, ge
 	if generation != _generation:
 		return {"ok": false, "error": "Cancelled."}
 	_watch_timeout(generation)
-	var first := model.entries().size()
+	var first := model.entry_mark()
 	var stop_reason: String = await controller.send_prompt(build_prompt(question, context), [], false)
 	if generation != _generation or stop_reason == "cancelled":
 		return {"ok": false, "error": I18n.t("The second opinion was cancelled.")}

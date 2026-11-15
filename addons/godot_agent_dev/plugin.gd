@@ -156,6 +156,9 @@ const CLAUDE_ONESHOT_ARG := "--godot-agent-claude-oneshot-test"
 const CLAUDE_PLAYTEST_ARG := "--godot-agent-claude-playtest-suite"
 const PlaytestSuiteCheck := preload("playtest_suite_check.gd")
 const LONG_ARG := "--godot-agent-long-test"
+## m7-55: reanuda una sesión larga del historial con el agente falso y mide hasta poder escribir.
+const RESUME_ARG := "--godot-agent-resume-test"
+const ResumeCheck := preload("resume_check.gd")
 const SETTINGS_ARG := "--godot-agent-settings-shots="
 ## m7-37: abre Extensions desde el dock con el CLI real (solo lectura) y saca una captura por pestaña.
 const EXTENSIONS_ARG := "--godot-agent-extensions-shots="
@@ -339,6 +342,8 @@ func _enter_tree() -> void:
 		_run_claude_oneshot_test.call_deferred()
 	if LONG_ARG in args:
 		_run_long_test.call_deferred()
+	if RESUME_ARG in args:
+		_run_resume_test.call_deferred()
 	if COMPLETION_ARG in args:
 		_run_completion_test.call_deferred()
 	if LOGIN_ARG in args:
@@ -921,6 +926,18 @@ func _run_long_test() -> void:
 	for failure: String in failures:
 		print("[long-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "long-test: %d fallas" % failures.size())
+
+
+func _run_resume_test() -> void:
+	get_tree().create_timer(SAFETY_TIMEOUT_S).timeout.connect(_on_safety_timeout)
+	await get_tree().create_timer(2.0).timeout
+	var check := ResumeCheck.new()
+	var failures := _failures(await check.run(get_tree()))
+	for line: String in check.report:
+		print("[resume-check] ", line)
+	for failure: String in failures:
+		print("[resume-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "resume-test: %d fallas" % failures.size())
 
 
 func _run_completion_test() -> void:

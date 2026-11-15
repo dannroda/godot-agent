@@ -1382,6 +1382,9 @@ msgstr "Atajos: Tab acepta, Ctrl+→ acepta una palabra, Esc descarta, Alt+\\ pi
 msgid "Show %d earlier (%d hidden)"
 msgstr "Mostrar %d anteriores (%d ocultas)"
 
+msgid "Show earlier messages"
+msgstr "Mostrar mensajes anteriores"
+
 msgid "Show in folder"
 msgstr "Mostrar en carpeta"
 

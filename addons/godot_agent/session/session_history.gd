@@ -23,6 +23,11 @@ const EXTENSION := ".jsonl"
 const FORMAT := 2
 const MAX_SESSIONS := 100
 const MAX_EVENTS := 20000
+## Eventos que se leen al reanudar (m7-55): los últimos, desde un punto donde no queda nada a medias.
+## Lo anterior se lee con «Mostrar anteriores» (load_older), de a OLDER_EVENTS.
+const TAIL_EVENTS := 3000
+const OLDER_EVENTS := 1500
+const READ_BLOCK := 1 << 20
 const MAX_TOOL_TEXT := 4000
 const MAX_DIFF_TEXT := 40000
 const TITLE_CHARS := 70
@@ -57,6 +62,11 @@ func current_id() -> String:
 	return str(_meta.get("id", ""))
 
 
+## Índice que va a tener el próximo evento que se grabe (el de la entrada que se está por crear).
+func next_event_index() -> int:
+	return int(_meta.get("events_count", 0)) if is_recording() else -1
+
+
 ## Empieza a grabar una sesión nueva o, si `previous` viene del historial, sigue en su archivo.
 func begin(session_id: String, profile_id: String, agent_name: String, cwd: String, previous: Dictionary = {}, account: String = "") -> void:
 	end()
@@ -66,7 +76,9 @@ func begin(session_id: String, profile_id: String, agent_name: String, cwd: Stri
 	if previous.get("id") == session_id:
 		_meta = previous.duplicate()
 		_meta.erase("events")
-		_meta.events_count = (previous.get("events", []) as Array).size()
+		_meta.events_count = int(previous.get("events_total", (previous.get("events", []) as Array).size()))
+		_meta.erase("events_total")
+		_meta.erase("events_offset")
 		_meta.updated = now
 		# Sin entrada en el índice (borrado o de otro formato), el registro trae solo la cabecera; una
 		# sesión que solo lista el agente (session/list, m11-16) no trae ni eso.
@@ -185,31 +197,151 @@ func list(cwd: String = "") -> Array[Dictionary]:
 	return result
 
 
-## El registro completo ({metadatos del índice…, events}), o {} si no existe o está roto.
-func load_record(id: String) -> Dictionary:
+## El registro ({metadatos del índice…, events, events_offset, events_total}), o {} si no existe o está
+## roto. Con `tail` > 0 trae solo los últimos `tail` eventos, desde un punto seguro (safe_start), sin
+## leer el resto: `events_offset` es el índice del primero y `events_total` cuántos hay (m7-55).
+func load_record(id: String, tail: int = 0) -> Dictionary:
 	flush()
-	if not _valid_id(id) or not FileAccess.file_exists(_abs_path(id)):
+	var path := _abs_path(id)
+	if not _valid_id(id) or not FileAccess.file_exists(path):
 		return {}
-	var file := FileAccess.open(_abs_path(id), FileAccess.READ)
+	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return {}
 	var header: Variant = JSON.parse_string(file.get_line())
 	if not header is Dictionary or int(header.get("format", 0)) != FORMAT or header.get("id") != id:
 		return {}
-	var events: Array = []
-	while not file.eof_reached():
-		var line := file.get_line()
-		if line.is_empty():
-			continue
-		var event: Variant = JSON.parse_string(line)
-		if event is Dictionary:
-			events.append(event)
+	var offsets := line_offsets(file)
+	var start := maxi(0, offsets.size() - tail) if tail > 0 else 0
+	var events := _read_events(file, offsets, start, offsets.size())
+	if start > 0:
+		var safe := safe_start(events)
+		events = events.slice(safe)
+		start += safe
 	var record: Dictionary = header
 	for item: Dictionary in _read_index(_abs_dir()):
 		if item.id == id:
 			record.merge(item)
 	record.events = events
+	record.events_offset = start
+	record.events_total = offsets.size()
 	return record
+
+
+## Los eventos anteriores a `end` (índice en el archivo), hasta OLDER_EVENTS, desde un punto seguro:
+## {events, events_offset}. {} si no hay nada antes.
+func load_range_before(id: String, end: int, count: int = OLDER_EVENTS) -> Dictionary:
+	flush()
+	var path := _abs_path(id)
+	if end <= 0 or not _valid_id(id) or not FileAccess.file_exists(path):
+		return {}
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {}
+	file.get_line()
+	var offsets := line_offsets(file)
+	end = mini(end, offsets.size())
+	var start := maxi(0, end - count)
+	var events := _read_events(file, offsets, start, end)
+	if start > 0:
+		var safe := safe_start(events)
+		events = events.slice(safe)
+		start += safe
+	return {"events": events, "events_offset": start}
+
+
+## Dónde empieza cada evento (cada línea después de la cabecera) en `file`, que tiene que estar justo
+## después de la cabecera. Busca saltos de línea por bloques, sin parsear JSON.
+static func line_offsets(file: FileAccess) -> PackedInt64Array:
+	var offsets: PackedInt64Array = []
+	var length := file.get_length()
+	var position := file.get_position()
+	var line_start := position
+	while position < length:
+		var block := file.get_buffer(mini(READ_BLOCK, length - position))
+		var from := 0
+		while true:
+			var newline := block.find(10, from)
+			if newline < 0:
+				break
+			if position + newline > line_start:
+				offsets.append(line_start)
+			line_start = position + newline + 1
+			from = newline + 1
+		position += block.size()
+	if line_start < length:
+		offsets.append(line_start)
+	return offsets
+
+
+static func _read_events(file: FileAccess, offsets: PackedInt64Array, start: int, end: int) -> Array:
+	var events: Array = []
+	if start >= end:
+		return events
+	file.seek(offsets[start])
+	for i in range(start, end):
+		var event: Variant = JSON.parse_string(file.get_line())
+		# Una línea cortada o rota cuenta igual: el índice de cada evento es su línea.
+		events.append(event if event is Dictionary else {})
+	return events
+
+
+## El primer índice de `events` desde el que se puede armar la conversación sin lo anterior: ningún
+## evento de ahí en adelante sigue un tool call (o un subagente) que empezó antes, y empieza una entrada
+## (un mensaje del usuario, un tool call o el primer trozo de un mensaje). 0 si no hay ninguno.
+static func safe_start(events: Array) -> int:
+	var opened := {}  # toolCallId -> índice de su tool_call
+	var blocked := PackedInt32Array()
+	blocked.resize(events.size() + 1)
+	for i in events.size():
+		var update: Variant = events[i].get("update") if events[i] is Dictionary else null
+		if not update is Dictionary:
+			continue
+		var ids: PackedStringArray = []
+		var id := str(update.get("toolCallId", ""))
+		if not id.is_empty():
+			if update.get("sessionUpdate") == "tool_call" and not opened.has(id):
+				opened[id] = i
+			ids.append(id)
+		var parent := SessionModel.parent_tool_call_id(update)
+		if not parent.is_empty():
+			ids.append(parent)
+		for referenced: String in ids:
+			# De su tool_call (o del principio, si empezó antes de lo leído) hasta acá no se puede cortar.
+			var from: int = int(opened.get(referenced, -1)) + 1
+			if from <= i:
+				blocked[from] += 1
+				blocked[i + 1] -= 1
+	var depth := 0
+	for i in events.size():
+		depth += blocked[i]
+		if depth == 0 and _starts_entry(events, i):
+			return i
+	return 0
+
+
+static func _starts_entry(events: Array, i: int) -> bool:
+	var event: Variant = events[i]
+	if not event is Dictionary:
+		return false
+	if event.get("type") == "user":
+		return true
+	var update: Variant = event.get("update")
+	if event.get("type") != "update" or not update is Dictionary:
+		return false
+	var kind := str(update.get("sessionUpdate", ""))
+	if kind == "tool_call":
+		return true
+	if not kind in CHUNK_UPDATES:
+		return false
+	# El trozo sigue el mensaje anterior si lo último que armó una entrada fue un trozo del mismo tipo:
+	# los tool_call_update de llamadas que ya existen no arman nada en el medio.
+	for back in range(i - 1, -1, -1):
+		var previous: Variant = events[back].get("update") if events[back] is Dictionary else null
+		if previous is Dictionary and previous.get("sessionUpdate") == "tool_call_update":
+			continue
+		return not (previous is Dictionary and previous.get("sessionUpdate") == kind)
+	return false
 
 
 func remove(id: String) -> void:
@@ -217,10 +349,16 @@ func remove(id: String) -> void:
 		_enqueue({"kind": "remove", "path": _abs_path(id), "id": id})
 
 
-## Vuelve a armar la conversación en `model` (que ya tiene que estar vacío).
+## Vuelve a armar la conversación en `model` (que ya tiene que estar vacío). Cada entrada guarda el
+## índice de su evento en el archivo (events_offset + posición), para leer después lo anterior.
 static func replay(record: Dictionary, model: SessionModel) -> void:
 	model.replaying = true
+	var offset := int(record.get("events_offset", 0))
+	model.first_event = offset
+	var index := offset
 	for event: Variant in record.get("events", []):
+		model.event_cursor = index
+		index += 1
 		if not event is Dictionary:
 			continue
 		match str(event.get("type", "")):
@@ -231,10 +369,45 @@ static func replay(record: Dictionary, model: SessionModel) -> void:
 					model.apply_update(event.update)
 			"turn_end":
 				model.finish_turn(str(event.get("reason", "end_turn")))
+	model.event_cursor = -1
 	var title := str(record.get("title", ""))
 	if not title.is_empty() and model.title.is_empty():
 		model.apply_update({"sessionUpdate": "session_info_update", "title": title})
 	model.replaying = false
+
+
+## Lee del historial la parte anterior a lo que tiene `model` y la pone al principio (m7-55). `redact`:
+## Callable(Dictionary) -> Dictionary que saca los secretos (como al reanudar). Devuelve cuántas
+## entradas agregó.
+func load_older(model: SessionModel, redact: Callable = Callable()) -> int:
+	if not model.has_older() or model.session_id.is_empty():
+		return 0
+	var older := load_range_before(model.session_id, model.first_event)
+	if older.is_empty():
+		model.first_event = 0
+		return 0
+	if redact.is_valid():
+		older = redact.call(older)
+	var part := SessionModel.new()
+	replay(older, part)
+	var added := part.entries().size()
+	model.prepend(part)
+	return added
+
+
+## La conversación entera para recorrerla (el export): `model` mismo si la tiene toda en memoria, o un
+## modelo de solo lectura con lo anterior leído del historial antes de lo que tiene.
+func full_model(model: SessionModel, redact: Callable = Callable()) -> SessionModel:
+	if not model.has_older() or model.session_id.is_empty():
+		return model
+	var older := load_range_before(model.session_id, model.first_event, MAX_EVENTS)
+	if older.is_empty():
+		return model
+	if redact.is_valid():
+		older = redact.call(older)
+	var part := SessionModel.new()
+	replay(older, part)
+	return model.joined_after(part)
 
 
 static func summary_of(meta: Dictionary) -> Dictionary:
