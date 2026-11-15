@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -84,3 +86,14 @@ jobs:
             --title "v${{ steps.version.outputs.version }}" \
             --notes-file notes.md \
             ${{ inputs.prerelease && '--prerelease' || '' }}
+
+  # La wiki de GitHub sale de docs/wiki del tag recién publicado (m7-54). Va en un job aparte para
+  # que, si falla, se pueda reintentar solo ("Re-run failed jobs") sin volver a sacar el release.
+  wiki:
+    needs: release
+    uses: ./.github/workflows/wiki.yml
+    permissions:
+      contents: write
+    secrets: inherit
+    with:
+      ref: v${{ needs.release.outputs.version }}

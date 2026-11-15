@@ -1,0 +1,54 @@
+name: Wiki
+
+# Copia docs/wiki/ a la wiki de GitHub (dannroda/godot-agent.wiki.git, rama master) con
+# .github/scripts/wiki.py (m7-54). La llama el release al final; también se corre a mano desde
+# Actions → Wiki → Run workflow. Si docs/wiki no cambió no commitea nada, pero igual prueba que el
+# token puede pushear (git push --dry-run), así una corrida a mano sirve para verificar el permiso.
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit or tag to publish"
+        type: string
+        required: false
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  wiki:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Check links
+        run: python3 .github/scripts/wiki.py --check
+
+      # El GITHUB_TOKEN con contents: write alcanza para la wiki del mismo repo. Si algún día no
+      # alcanza, un secret WIKI_TOKEN (PAT con Contents: write sobre el repo) lo reemplaza sin tocar
+      # nada más.
+      - name: Publish
+        env:
+          TOKEN: ${{ secrets.WIKI_TOKEN || github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${REPO}.wiki.git" wiki
+          python3 .github/scripts/wiki.py wiki
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki is already up to date"
+            git push --dry-run origin HEAD
+            exit 0
+          fi
+          git status --short
+          git commit -q -m "Wiki from docs/wiki at $(git -C .. describe --tags --always)"
+          git push origin HEAD

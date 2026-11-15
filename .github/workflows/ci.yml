@@ -181,6 +181,17 @@ jobs:
         if: ${{ !cancelled() }}
         run: sh tests/suite.sh check-ci
 
+  # Links de docs/wiki (m7-54): que cada link entre páginas y cada #ancla apunte a algo que existe,
+  # con el mismo script que publica la wiki en el release.
+  wiki-links:
+    name: Wiki links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check docs/wiki links
+        run: python3 .github/scripts/wiki.py --check
+
   # C# (m14-07): validate_scripts compila con dotnet build; el test compila un proyecto de verdad.
   csharp:
     name: C# (Godot .NET 4.7.2)
