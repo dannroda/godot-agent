@@ -9,6 +9,7 @@ const SessionController := preload("res://addons/godot_agent/session/session_con
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
 const BoardTask := preload("res://addons/godot_agent/oneshot/board_task.gd")
 const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
+const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const AgentMainScreen := preload("res://addons/godot_agent/ui/main_screen/agent_main_screen.gd")
 
 const M := SessionModel.HarnessMode
@@ -166,3 +167,33 @@ func test_read_item_and_picker() -> void:
 	assert_eq(ids, ["m1-03", "m1-02", "m01"], "en curso, pendientes, hitos; sin las terminadas")
 	for path: String in files:
 		DirAccess.remove_absolute(board.path_join(path))
+
+
+## m7-57: el assignee o la etiqueta agent:<x> de la tarea elige el agente del run.
+func test_agent_from_task() -> void:
+	assert_eq(BoardTask.agent_hint({"assignee": "Claude"}), "Claude", "el assignee")
+	assert_eq(BoardTask.agent_hint({"assignee": "Claude", "tags": ["ui", "agente:codex trabajo"]}), "codex trabajo", "la etiqueta gana")
+	assert_eq(BoardTask.agent_hint({"tags": ["Agent:Gemini"]}), "Gemini", "agent: sin importar mayúsculas")
+	assert_eq(BoardTask.agent_hint({"tags": ["agent:"]}), "", "vacía no cuenta")
+	var claude := AgentProfile.new()
+	claude.id = "claude"
+	claude.display_name = "Claude Code"
+	claude.command = "claude-agent-acp"
+	var codex := AgentProfile.new()
+	codex.id = "codex-1"
+	codex.display_name = "Codex"
+	codex.command = "codex-acp"
+	var choices: Array[Dictionary] = [
+		{"profile": "claude", "account": "", "label": "Claude Code"},
+		{"profile": "claude", "account": "/home/u/.claude-profiles/trabajo", "label": "Claude Code · trabajo · ana@x.com"},
+		{"profile": "codex-1", "account": "", "label": "Codex"},
+		{"profile": "borrado", "account": "", "label": "Viejo"},
+	]
+	var candidates := AgentMainScreen.board_agent_candidates([claude, codex], choices)
+	assert_eq(candidates.size(), 3, "sin el perfil que ya no está")
+	assert_eq(BoardTask.best_match("Claude", candidates), 0, "por nombre: la primera cuenta")
+	assert_eq(BoardTask.best_match("claude trabajo", candidates), 1, "nombre y cuenta")
+	assert_eq(BoardTask.best_match("ana@x.com", candidates), 1, "por email")
+	assert_eq(BoardTask.best_match("Codex", candidates), 2, "otro agente")
+	assert_eq(BoardTask.best_match("gemini", candidates), -1, "ninguno")
+	assert_eq(BoardTask.best_match("", candidates), -1, "sin hint")

@@ -6390,3 +6390,9 @@ msgstr "Igual que el constructor"
 
 msgid "The builder's model"
 msgstr "El del constructor"
+
+msgid "«%s» doesn't name any of your agents: the run uses the one chosen on the right."
+msgstr "«%s» no nombra a ninguno de tus agentes: el run usa el elegido a la derecha."
+
+msgid "Agent from the task: %s"
+msgstr "Agente de la tarea: %s"

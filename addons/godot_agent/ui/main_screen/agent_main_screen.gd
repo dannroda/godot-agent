@@ -27,6 +27,7 @@ const BoardTask := preload("../../oneshot/board_task.gd")
 const EditorContext := preload("../editor_context.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
 const AgentAccounts := preload("../../session/agents/agent_accounts.gd")
+const AgentAdapters := preload("../../session/agents/agent_adapters.gd")
 const ModeModels := preload("../../core/mode_models.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
 
@@ -105,10 +106,13 @@ var _references_box: HFlowContainer
 var _board_item: Dictionary = {}
 var _board_button: Button
 var _board_chip: Button
+var _board_note: Label
 var _board_dialog: ConfirmationDialog
 var _board_filter: LineEdit
 var _board_list: ItemList
 var _board_options: Array[Dictionary] = []
+## Qué agente eligió la tarea, o por qué no (m7-57): va en el tooltip del chip.
+var _board_agent_note: String = ""
 var _references_dialog: EditorFileDialog
 var _budget_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
@@ -1620,6 +1624,11 @@ func _build_board_row(parent: Control) -> void:
 	_board_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_board_chip.pressed.connect(_set_board_item.bind({}))
 	row.add_child(_board_chip)
+	_board_note = Label.new()
+	_board_note.name = "BoardAgentNote"
+	_board_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_board_note.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	parent.add_child(_board_note)
 	_refresh_board_row()
 
 
@@ -1629,6 +1638,8 @@ func _refresh_board_row() -> void:
 		return
 	_board_button.get_parent().visible = ScopeCompass.detect(EditorContext.project_path()) or not _board_item.is_empty()
 	_board_chip.visible = not _board_item.is_empty()
+	_board_note.text = _board_agent_note
+	_board_note.visible = not _board_agent_note.is_empty() and not _board_item.is_empty()
 	if not _board_item.is_empty():
 		_board_chip.text = "📋 %s · %s  ✕" % [_board_item.id, _board_item.title]
 		_board_chip.tooltip_text = I18n.t("%s (click to remove it)") % _board_item.id
@@ -1711,8 +1722,51 @@ func _set_board_item(item: Dictionary) -> void:
 		_board_item = {"id": str(item.id), "kind": str(item.kind), "title": str(item.get("title", "")), "goal": BoardTask.goal_text(item)}
 	if typed.is_empty() or typed == previous_goal.strip_edges():
 		_goal_edit.text = str(_board_item.get("goal", ""))
+	_board_agent_note = ""
+	if not item.is_empty():
+		_choose_board_agent(BoardTask.agent_hint(item))
 	_refresh_board_row()
 	_refresh_form()
+
+
+## m7-57: el assignee o la etiqueta `agent:<x>` de la tarea elige el agente del run, salvo que el
+## elegido ya le corresponda. Si no nombra a ninguno, el chip lo dice y el agente queda.
+func _choose_board_agent(hint: String) -> void:
+	if hint.is_empty():
+		return
+	var extra := func(variable: String) -> PackedStringArray:
+		return agent_settings.call(&"accounts", variable) if agent_settings else PackedStringArray()
+	var candidates := board_agent_candidates(_agent_profiles, stage_choice_list(_agent_profiles, extra))
+	var current := candidates.filter(func(candidate: Dictionary) -> bool:
+		return candidate.profile == _chosen_profile_id and candidate.account == _chosen_account)
+	if not current.is_empty() and BoardTask.best_match(hint, current) == 0:
+		return
+	var index := BoardTask.best_match(hint, candidates)
+	if index < 0:
+		_board_agent_note = I18n.t("«%s» doesn't name any of your agents: the run uses the one chosen on the right.") % hint
+		return
+	if select_agent(str(candidates[index].profile), str(candidates[index].account)):
+		_board_agent_note = I18n.t("Agent from the task: %s") % candidates[index].label
+
+
+## Las opciones de agente (stage_choice_list) con las palabras que las nombran: perfil, familia del
+## agente (claude, codex…), cuenta y email.
+static func board_agent_candidates(profiles: Array, choices: Array[Dictionary]) -> Array[Dictionary]:
+	var by_id: Dictionary = {}
+	for profile: AgentProfile in profiles:
+		by_id[profile.id] = profile
+	var result: Array[Dictionary] = []
+	for choice: Dictionary in choices:
+		var profile: AgentProfile = by_id.get(choice.profile)
+		if profile == null:
+			continue
+		var keys: PackedStringArray = [profile.id, profile.display_name, str(choice.label), AgentAdapters.for_profile(profile.command, profile.args, profile.id).kind]
+		if not str(choice.account).is_empty():
+			keys.append(AgentAccounts.name_of(str(choice.account)).trim_prefix("~/"))
+		var candidate := choice.duplicate()
+		candidate["keys"] = " ".join(keys)
+		result.append(candidate)
+	return result
 
 
 ## Vuelve a leer los modos del proyecto para el selector del constructor (m11-39); el elegido sigue si

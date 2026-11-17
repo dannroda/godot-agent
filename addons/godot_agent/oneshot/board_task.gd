@@ -22,6 +22,39 @@ static func goal_text(item: Dictionary) -> String:
 	return head if description.is_empty() else "%s\n\n%s" % [head, description]
 
 
+## A qué agente le toca la tarea (m7-57): una etiqueta `agent:<x>` o `agente:<x>`, o si no el assignee.
+## "" si no dice.
+static func agent_hint(item: Dictionary) -> String:
+	var tags: Variant = item.get("tags", [])
+	if tags is Array:
+		for tag: Variant in tags:
+			var text := str(tag).strip_edges()
+			for prefix: String in ["agent:", "agente:"]:
+				if text.to_lower().begins_with(prefix) and text.length() > prefix.length():
+					return text.substr(prefix.length()).strip_edges()
+	return str(item.get("assignee", "")).strip_edges()
+
+
+## La opción de agente que nombra `hint`: la primera cuyas palabras (`keys`: perfil, familia, cuenta,
+## email) incluyen todas las de `hint` («claude», «codex trabajo», «Claude Code»). -1 si ninguna.
+static func best_match(hint: String, candidates: Array) -> int:
+	var words := _words(hint)
+	if words.is_empty():
+		return -1
+	for index: int in candidates.size():
+		var keys := _words(str((candidates[index] as Dictionary).get("keys", "")))
+		if Array(words).all(func(word: String) -> bool: return keys.has(word)):
+			return index
+	return -1
+
+
+static func _words(text: String) -> PackedStringArray:
+	var result: PackedStringArray = []
+	for word: String in text.to_lower().replace("·", " ").replace("/", " ").replace(",", " ").split(" ", false):
+		result.append(word)
+	return result
+
+
 ## Líneas del prompt inicial del run, después del objetivo. `kind`: "task" o "milestone".
 static func prompt_lines(id: String, kind: String, spec_path: String) -> PackedStringArray:
 	if id.is_empty():
