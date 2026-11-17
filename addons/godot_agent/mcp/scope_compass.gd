@@ -114,6 +114,48 @@ static func server_entry(project_dir: String, program: Array) -> Dictionary:
 	}
 
 
+## Opciones de `@` del composer: tareas (las abiertas primero), hitos y documentos del tablero, leídos
+## de compass/ sin el hub. Se insertan como `compass://task/<id>`, la URI de los recursos del MCP.
+static func mention_options(project_dir: String) -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
+	if not detect(project_dir):
+		return options
+	var board := project_dir.path_join(BOARD_DIR)
+	var open: Array[Dictionary] = []
+	var done: Array[Dictionary] = []
+	for task: Dictionary in _read_all(board.path_join("tasks")):
+		var option := {"label": "%s · %s  (%s)" % [task.id, task.get("title", ""), task.get("status", "")], "insert": "compass://task/" + task.id}
+		(done if task.get("status") == "done" else open).append(option)
+	options.append_array(open)
+	for milestone: Dictionary in _read_all(board.path_join("milestones")):
+		options.append({"label": "%s · %s  (milestone)" % [milestone.id, milestone.get("title", "")], "insert": "compass://milestone/" + milestone.id})
+	var config: Variant = JSON.parse_string(FileAccess.get_file_as_string(board.path_join("config.json")))
+	if config is Dictionary and config.get("docs") is Array:
+		for doc: Variant in config.docs:
+			# Un patrón (docs/**/*.md) es una carpeta de documentos: show_doc los lista con su alias.
+			if doc is Dictionary and doc.get("alias") is String and not str(doc.get("path", "")).contains("*"):
+				options.append({"label": "%s · %s  (document)" % [doc.alias, doc.get("path", "")], "insert": "compass://doc/" + doc.alias})
+	options.append_array(done)
+	return options
+
+
+## Los JSON de una carpeta del tablero, cada uno con su `id` (el nombre del archivo), ordenados.
+static func _read_all(dir: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not DirAccess.dir_exists_absolute(dir):
+		return result
+	var files := DirAccess.get_files_at(dir)
+	files.sort()
+	for file: String in files:
+		if not file.ends_with(".json") or file.begins_with("."):
+			continue
+		var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(dir.path_join(file)))
+		if data is Dictionary:
+			data["id"] = file.get_basename()
+			result.append(data)
+	return result
+
+
 ## true si `tool` (`list_tasks`) del server scompass solo lee.
 static func is_read_tool(tool: String) -> bool:
 	return tool in READ_TOOLS

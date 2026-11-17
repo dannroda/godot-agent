@@ -88,6 +88,7 @@ Scope Compass in this project (its board is in compass/):
 - The board is how this project is organized: its milestones, tasks (with steps, decisions and notes) and documents (specs, design) live there. Before using it, read `compass/AGENTS.md`: the rules of the board.
 - Use the tools of the `scompass` MCP server (`show_task`, `list_tasks`, `move_task`, `check_step`, `update_task`, `show_doc`…), not the `scompass` CLI from the shell, and never edit the JSON files in compass/ by hand.
 - When the user names a task or a milestone by its id (`m5-02`, `m05`) or its code, read it first with `show_task` or `show_milestone`: its description, steps, decisions and notes are the brief. When you work on a task, move it to doing, check its steps as you go, and at the end fill in `test` and `notes` and move it to review.
+- `@compass://task/<id>`, `@compass://milestone/<id>` and `@compass://doc/<alias>` in a message point to the board: read them with `show_task`, `show_milestone` or `show_doc`.
 - New work that comes up goes in as a task (`add_task`, with what and why), and a choice between reasonable alternatives as a decision (`add_decision`)."""
 
 const NATIVE_RULES := """

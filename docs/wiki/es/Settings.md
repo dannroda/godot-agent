@@ -68,6 +68,7 @@ Si el proyecto tiene activado el plugin [Scope Compass](https://github.com/dannr
 
 - El agente recibe el servidor MCP `scompass` (tareas, hitos, documentos) al abrir la sesión, sin `scompass mcp install`. No está en la lista de arriba y no pide aprobación: scompass sale de la instalación que anota Scope Compass, de la opción de ruta del plugin o del PATH, nunca de una carpeta del proyecto. Si no se encuentra scompass, la sesión abre sin él. Un servidor tuyo que se llame `scompass` ocupa su lugar.
 - El contexto del agente le dice que el tablero existe y que `compass/AGENTS.md` tiene sus reglas. Arrancar desde una tarea es decir «mirá m5-02»: el agente la lee primero y mantiene al día sus pasos, notas y estado mientras trabaja.
+- `@` en el composer también lista el tablero: tareas abiertas, hitos, documentos y, al final, las tareas terminadas. Escribí el id o palabras del título (`@m5`, `@salto`); inserta `@compass://task/m5-02` y el agente la lee con `show_task`.
 - Leer el tablero nunca pregunta; escribir en él tiene su fila en la matriz de permisos: ver [Servidores MCP de otros programas](Modos-y-permisos.md#servidores-mcp-de-otros-programas).
 
 ## Extensiones

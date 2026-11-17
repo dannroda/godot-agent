@@ -97,3 +97,27 @@ func test_prompt_rules_only_with_board() -> void:
 	assert_true(prompt.contains("Scope Compass in this project") and prompt.contains("compass/AGENTS.md"), "con el tablero, las reglas")
 	assert_false(RegEx.create_from_string("\\{[a-z_]+\\}").search(prompt) != null, "sin variables sin reemplazar")
 	DirAccess.remove_absolute(dir.path_join(ScopeCompass.BOARD_DIR))
+
+
+## `@` del composer: tareas abiertas, hitos, documentos y al final las terminadas.
+func test_mention_options() -> void:
+	var dir := _project("sc_mentions", true, true)
+	var board := dir.path_join(ScopeCompass.BOARD_DIR)
+	for sub: String in ["tasks", "milestones"]:
+		DirAccess.make_dir_recursive_absolute(board.path_join(sub))
+	var files := {
+		"tasks/m1-01.json": {"milestone": "m01", "title": "Hecha", "status": "done"},
+		"tasks/m1-02.json": {"milestone": "m01", "title": "Mover al jugador", "status": "doing"},
+		"milestones/m01.json": {"code": "M1", "title": "Prototipo"},
+		"config.json": {"project": "x", "docs": [{"alias": "spec", "path": "SPEC.md"}, {"alias": "notas", "path": "docs/**/*.md"}]},
+	}
+	for path: String in files:
+		var file := FileAccess.open(board.path_join(path), FileAccess.WRITE)
+		file.store_string(JSON.stringify(files[path]))
+		file.close()
+	var inserts := ScopeCompass.mention_options(dir).map(func(option: Dictionary) -> String: return option.insert)
+	assert_eq(inserts, ["compass://task/m1-02", "compass://milestone/m01", "compass://doc/spec", "compass://task/m1-01"], "abiertas, hitos, documentos (sin patrones) y terminadas")
+	assert_true(str(ScopeCompass.mention_options(dir)[0].label).begins_with("m1-02 · Mover al jugador"), "el id y el título")
+	assert_eq(ScopeCompass.mention_options(_project("sc_mentions_off", false, true)), [] as Array[Dictionary], "sin el plugin, nada")
+	for path: String in files:
+		DirAccess.remove_absolute(board.path_join(path))

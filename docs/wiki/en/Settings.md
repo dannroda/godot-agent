@@ -68,6 +68,7 @@ If the project has the [Scope Compass](https://github.com/dannroda/scope-compass
 
 - The agent gets the `scompass` MCP server (tasks, milestones, documents) when a session opens, without `scompass mcp install`. It isn't on the list above and needs no approval: scompass comes from the install Scope Compass records, the plugin's path setting or the PATH, never from a folder inside the project. If no scompass is found, the session opens without it. A server of your own called `scompass` takes its place.
 - The agent's context says the board is there and that `compass/AGENTS.md` has its rules. Starting from a task is just «look at m5-02»: the agent reads it first and keeps its steps, notes and status up to date as it works.
+- `@` in the composer also lists the board: open tasks, milestones, documents and, last, done tasks. Type the id or words of the title (`@m5`, `@jump`); it inserts `@compass://task/m5-02` and the agent reads it with `show_task`.
 - Reading the board never asks; writing to it is its own row in the permission matrix: see [MCP servers of other programs](Modes-and-permissions.md#mcp-servers-of-other-programs).
 
 ## Extensions
