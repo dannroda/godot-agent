@@ -73,7 +73,7 @@ The agent that builds tends to be lenient with its own work, so the harness does
 
 ## Guiding the agent
 
-Each run opens its own tab in the dock, **One-shot · <goal>**, with the agent and account of the tab you launched it from. Whatever you write in that tab's chat goes to the run's agent, with the images and files you attached; the other tabs stay normal chats. The run's tab can't be closed while the run is going; once it ends, it stays as a regular session you can read or close. If the agent is in the middle of a turn, the message waits:
+Each run opens its own tab in the dock, **One-shot · <goal>**, with the agent, account and model you picked in the form. The form starts with those of the active dock tab. **Model** offers the one remembered for One-shot and the ones you already used with that agent (or the agent's full list, if a tab has a session open with it), and the one you pick is remembered for One-shot. With **Other agents for the spec and QA**, the spec and the QA rounds can use another agent, account or model: another agent for the spec only writes it, and the builder starts a new session from it; another agent or account for QA evaluates in its own process, and the builder's session is resumed afterwards. Whatever you write in that tab's chat goes to the run's agent, with the images and files you attached; the other tabs stay normal chats. The run's tab can't be closed while the run is going; once it ends, it stays as a regular session you can read or close. If the agent is in the middle of a turn, the message waits:
 
 - the activity shows **guide · queued: …** and the chat says so;
 - when the turn ends it's sent, and the activity shows **guide · sent: …**.

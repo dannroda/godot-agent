@@ -76,6 +76,13 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	await _frames(30)
 	_save(_screen(), "31_oneshot_angosto")
 	await LayoutCheck.set_dock_width(dock, 480)
+	# Agentes por etapa (m6-20): la sección opt-in abierta.
+	var stages := EditorInterface.get_editor_main_screen().find_child("StageAgents", true, false) as CheckBox
+	if stages:
+		stages.button_pressed = true
+		await _frames(20)
+		_save(_screen(), "32_oneshot_etapas")
+		stages.button_pressed = false
 	EditorInterface.set_main_screen_editor("2D")
 	var log_panel := _by_script("res://addons/godot_agent/ui/log_panel/agent_log_panel.gd")
 	if log_panel:

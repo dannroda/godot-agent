@@ -3260,8 +3260,26 @@ msgstr "%d hallazgos · en el panel de Revisar y el Script Editor"
 msgid "No agent set up yet: the One-shot needs one."
 msgstr "Todavía no hay un agente configurado: el One-shot necesita uno."
 
-msgid "Runs with %s (the agent selected in the dock)."
-msgstr "Corre con %s (el agente elegido en el dock)."
+msgid "Account"
+msgstr "Cuenta"
+
+msgid "The agent the run's tab opens its session with. By default, the one in the active dock tab."
+msgstr "El agente con que la pestaña del run abre su sesión. Por defecto, el de la pestaña activa del dock."
+
+msgid "Each account is another configuration folder (%s): another login and another quota."
+msgstr "Cada cuenta es otra carpeta de configuración (%s): otro login y otra cuota."
+
+msgid "The model you pick is remembered for One-shot with this agent, like picking it in the composer. The ones offered are those of an open session with this agent or those you already used with it."
+msgstr "El modelo que elijas queda recordado para el One-shot con este agente, como al elegirlo en el composer. Se ofrecen los de una sesión abierta con este agente o los que ya usaste con él."
+
+msgid "Whatever the agent picks"
+msgstr "El que elija el agente"
+
+msgid "Remembered for One-shot"
+msgstr "Recordado para el One-shot"
+
+msgid "The agent picks it (none remembered for One-shot yet)"
+msgstr "Lo elige el agente (todavía no hay uno recordado para el One-shot)"
 
 msgid "A One-shot is already running."
 msgstr "Ya hay un One-shot en curso."
@@ -6327,3 +6345,48 @@ msgstr "Filtrar por id o título"
 
 msgid "milestone"
 msgstr "hito"
+
+msgid "Couldn't open a session with the spec's agent."
+msgstr "No se pudo abrir una sesión con el agente del spec."
+
+msgid "The spec is written by %s"
+msgstr "El spec lo escribe %s"
+
+msgid "Spec written: the builder takes over"
+msgstr "Spec escrito: sigue el constructor"
+
+msgid "%s doesn't offer the model «%s» now: it uses its own"
+msgstr "%s no ofrece ahora el modelo «%s»: usa el suyo"
+
+msgid "Couldn't switch to the model «%s»"
+msgstr "No se pudo cambiar al modelo «%s»"
+
+msgid "Couldn't open a session with the builder's agent."
+msgstr "No se pudo abrir una sesión con el agente del constructor."
+
+msgid "The builder starts a new session from the spec"
+msgstr "El constructor arranca una sesión nueva desde el spec"
+
+msgid "The evaluator is %s"
+msgstr "El evaluador es %s"
+
+msgid "Other agents for the spec and QA"
+msgstr "Otros agentes para el spec y el QA"
+
+msgid "The spec and the QA rounds can run with another agent, account or model: spread the work across subscriptions, and have another model check what the builder did. Off, the whole run uses the agent above."
+msgstr "El spec y las vueltas de QA pueden correr con otro agente, cuenta o modelo: repartí el trabajo entre suscripciones y que otro modelo revise lo que hizo el constructor. Apagado, todo el run usa el agente de arriba."
+
+msgid "Who writes the spec. Another agent only writes it; the builder starts a new session from it."
+msgstr "Quién escribe el spec. Otro agente solo lo escribe; el constructor arranca una sesión nueva desde él."
+
+msgid "Who plays and checks the game in each QA round. With another agent or account the builder's session is resumed afterwards."
+msgstr "Quién juega y revisa el juego en cada vuelta de QA. Con otro agente o cuenta, después se retoma la sesión del constructor."
+
+msgid "Only for this stage: it isn't remembered for One-shot."
+msgstr "Solo para esta etapa: no queda recordado para el One-shot."
+
+msgid "Same as the builder"
+msgstr "Igual que el constructor"
+
+msgid "The builder's model"
+msgstr "El del constructor"

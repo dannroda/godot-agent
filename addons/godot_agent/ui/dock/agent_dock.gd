@@ -927,6 +927,17 @@ func copy_agent_from(other: Control) -> void:
 	_reload_profiles()
 
 
+## Usa el perfil `profile_id` con la cuenta `account_dir` ("" = la del perfil): el elegido en el
+## formulario del One-shot (m6-19). Un perfil que ya no existe deja la pestaña como estaba.
+func use_agent(profile_id: String, account_dir: String) -> bool:
+	if _settings.profile(profile_id) == null:
+		return false
+	_profile_id = profile_id
+	_accounts[profile_id] = account_dir
+	_reload_profiles()
+	return true
+
+
 ## El agente de la pestaña tal como está guardado, sin cuenta elegida.
 func _base_profile() -> AgentProfile:
 	var chosen := _settings.profile(_profile_id) if not _profile_id.is_empty() else null

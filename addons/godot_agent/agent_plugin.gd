@@ -55,6 +55,7 @@ const AskAgentMenu := preload("editor/ask_agent_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const ModeModels := preload("core/mode_models.gd")
+const AgentAccounts := preload("session/agents/agent_accounts.gd")
 const ProjectModes := preload("core/project_modes.gd")
 const ProjectToolLoader := preload("mcp/project_tool_loader.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
@@ -353,6 +354,13 @@ func _enter_tree() -> void:
 		var profile := controller.profile() if controller.profile() else _tab_profile(_session_id_of(controller))
 		return profile != null and await controller.reopen(profile, lost_id)
 	_oneshot.prepare_session = _prepare_oneshot_tab
+	# Agentes por etapa (m6-20): el spec o el QA con otro perfil, cuenta o modelo, y la vuelta al constructor.
+	_oneshot.open_with_agent = func(choice: Dictionary, lost_id: String) -> bool:
+		var controller := _oneshot.controller
+		var profile := _choice_profile(choice)
+		if profile == null:
+			profile = _tab_profile(_session_id_of(controller))
+		return profile != null and await controller.reopen(profile, lost_id)
 	_oneshot.resume_auto = _settings.quota_resume_auto()
 	_oneshot.store.dir = ONESHOT_STORE_DIR
 	_oneshot.loops.repeats = _project_config.loop_repeats
@@ -414,8 +422,12 @@ func _enter_tree() -> void:
 		var controller := _oneshot.controller if _oneshot else null
 		var profile := controller.profile() if controller and _oneshot.is_active() and controller.profile() else _tab_profile()
 		return profile.display_name if profile else ""
+	# El selector de agente, cuenta y modelo del formulario (m6-19): por defecto, el de la pestaña activa.
+	_main_screen.agent_settings = _settings
+	_main_screen.default_profile = func() -> AgentProfile: return _tab_profile()
+	_main_screen.live_model_option = _live_model_option
 	_settings.changed.connect(func(key: String) -> void:
-		if _main_screen and key in [HarnessSettings.KEY_PROFILES, HarnessSettings.KEY_LAST_PROFILE]:
+		if _main_screen and key in [HarnessSettings.KEY_PROFILES, HarnessSettings.KEY_LAST_PROFILE, HarnessSettings.KEY_ACCOUNTS, ModeModels.KEY]:
 			_main_screen.refresh_agent())
 	_surfaces.add(EditorSurfaces.EditorSurface.MAIN_SCREEN, _main_screen, PLUGIN_NAME, "godot_agent_main", plugin_icon())
 	_restore_oneshot.call_deferred()
@@ -1371,6 +1383,26 @@ func _tab_profile(id: String = "") -> AgentProfile:
 	return dock.selected_profile() if dock else _settings.active_profile()
 
 
+## El perfil de una elección {profile, account} con la cuenta aplicada; null si no nombra uno o ya
+## no existe.
+func _choice_profile(choice: Dictionary) -> AgentProfile:
+	var base := _settings.profile(str(choice.get("profile", ""))) if not str(choice.get("profile", "")).is_empty() else null
+	return AgentAccounts.apply(base, str(choice.get("account", ""))) if base else null
+
+
+## La opción de modelo de una sesión abierta con el perfil `profile_id` (la activa primero), o {}: sin
+## sesión no se sabe qué modelos ofrece el agente (m6-19).
+func _live_model_option(profile_id: String) -> Dictionary:
+	var ids: Array = [_active_session_id(), PRIMARY_SESSION] + _extra_sessions.keys()
+	for id: String in ids:
+		var controller := _controller_of(id)
+		if controller and controller.is_connected_to_agent() and controller.profile() and controller.profile().id == profile_id:
+			var option := controller.model.model_option()
+			if not option.is_empty():
+				return option
+	return {}
+
+
 ## El adaptador del agente de la pestaña activa (antes de conectar): qué familia de extensiones mostrar.
 func _active_adapter() -> AgentAdapter:
 	var profile := _tab_profile()
@@ -2266,7 +2298,8 @@ func _session_id_of(controller: SessionController) -> String:
 
 
 ## Antes de empezar un run (o de retomar uno que vino de disco): una pestaña nueva para él, con el
-## agente y la cuenta de la pestaña desde la que se lanzó (m17-19). Las demás siguen como chats.
+## agente y la cuenta elegidos en el formulario (m6-19) o, si no, los de la pestaña desde la que se
+## lanzó (m17-19). Las demás siguen como chats.
 func _prepare_oneshot_tab() -> void:
 	if _oneshot == null or _tabs == null:
 		return
@@ -2275,7 +2308,9 @@ func _prepare_oneshot_tab() -> void:
 	var id := _create_session_tab(null, label, true)
 	var dock := _tabs.dock(id) as AgentDock
 	var source := _tabs.dock(from) as AgentDock
-	if dock and source and from != id:
+	var chosen := _oneshot.agent
+	# El agente del formulario (m6-19); sin uno, o si ya no existe, el de la pestaña que lo lanzó.
+	if dock and (chosen.is_empty() or not dock.use_agent(str(chosen.profile), str(chosen.get("account", "")))) and source and from != id:
 		dock.copy_agent_from(source)
 	_oneshot_tab_id = id
 	_oneshot.bind(_controller_of(id))
