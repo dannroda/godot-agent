@@ -36,6 +36,7 @@ func _initialize() -> void:
 	await _scenario_quota_turn_end()
 	await _scenario_quota_grace()
 	await _scenario_account()
+	await _scenario_account_other_agent()
 	await _scenario_budget()
 	await _scenario_budget_raise()
 	await _scenario_no_plan()
@@ -279,6 +280,35 @@ func _scenario_account() -> void:
 	_check(int(again.last_report.get("timing", {}).get("waiting_quota_s", -1)) >= 1, "tiempos: el informe cuenta la espera por cuota (%s)" % [again.last_report.get("timing", {})])
 	again.controller.stop()
 	again.queue_free()
+
+
+## «Cambiar de cuenta» a otro perfil (m6-22): otro agente no puede cargar la sesión, así que se
+## relanza con ese perfil, sin session/load, y sigue en una sesión nueva con el resumen del plan.
+func _scenario_account_other_agent() -> void:
+	print("— cambio a otro agente")
+	var run := _make("oneshot_account")
+	var lost_ids: Array[String] = []
+	run.restart_session = func(lost_id: String) -> bool:
+		lost_ids.append(lost_id)
+		var target := run.take_switch_profile()
+		return await run.controller.reopen(target if target else _profile("oneshot_account"), lost_id)
+	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.LIMITED and not run.is_git_busy(), 10.0)
+	_check(run.phase == OneShotRun.RunPhase.LIMITED, "otro agente: limitado (%s)" % run.phase_label())
+	var other := _profile("oneshot_account_after")
+	other.id = "fake-otro"
+	other.display_name = "Otro agente"
+	lost_ids.clear()  # el primero fue el arranque del run
+	run.switch_account(other)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy(), 15.0)
+	_check(run.phase == OneShotRun.RunPhase.FINISHED, "otro agente: sigue con el otro perfil y termina (%s · %s)" % [run.phase_label(), run.finish_reason])
+	_check(lost_ids.size() == 1 and lost_ids[0].is_empty(), "otro agente: no intenta cargar la sesión del anterior (%s)" % [lost_ids])
+	_check(run.controller.profile() != null and run.controller.profile().id == "fake-otro", "otro agente: corre con el perfil elegido")
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("Switching to Otro agente")), "otro agente: la actividad avisa que la conversación no pasa")
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("Agent switch: opened a new session")), "otro agente: sesión nueva con el resumen")
+	_check(run.switch_profile == null, "otro agente: el perfil elegido se usa una sola vez")
+	run.controller.stop()
+	run.queue_free()
 
 
 func _scenario_budget() -> void:

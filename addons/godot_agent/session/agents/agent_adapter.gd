@@ -63,3 +63,10 @@ func account_email(_dir: String) -> String:
 ## (m18-03). "" = nada. El controlador lo muestra una sola vez por proyecto.
 func notice_after_session(_cwd: String) -> String:
 	return ""
+
+
+## Copia la sesión `session_id` de una carpeta de cuenta a otra del mismo agente (m6-22), para
+## retomarla con session/load después de cambiar de cuenta. false = el agente no guarda sus sesiones
+## en la carpeta de la cuenta, o no se sabe dónde: se abre una sesión nueva con el resumen.
+func carry_session(_session_id: String, _from_dir: String, _to_dir: String) -> bool:
+	return false

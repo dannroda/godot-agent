@@ -455,9 +455,6 @@ msgstr "Contexto usado"
 msgid "Context used: %d%%"
 msgstr "Contexto usado: %d%%"
 
-msgid "Continue with another agent account without waiting for the quota to reset: the agent restarts and resumes the same session."
-msgstr "Seguir con otra cuenta del agente sin esperar a que se reinicie la cuota: se reinicia el agente y retoma la misma sesión."
-
 msgid "Continue without checkpoints"
 msgstr "Seguir sin checkpoints"
 
@@ -6309,3 +6306,57 @@ msgstr "Semana · %s"
 
 msgid "%s (another model)"
 msgstr "%s (otro modelo)"
+
+msgid "exhausted, resets in %s"
+msgstr "agotada, se libera en %s"
+
+msgid "exhausted"
+msgstr "agotada"
+
+msgid "quota reset"
+msgstr "cuota liberada"
+
+msgid "%d %% used"
+msgstr "%d %% usado"
+
+msgid "Switching to %s: a new session with the plan summary (the conversation is not carried over)"
+msgstr "Paso a %s: una sesión nueva con el resumen del plan (la conversación no pasa)"
+
+msgid "Account switch to %s: restarting the agent and resuming the same session"
+msgstr "Cambio de cuenta a %s: se reinicia el agente y se retoma la misma sesión"
+
+msgid "Agent switch: opened a new session with the plan summary"
+msgstr "Cambio de agente: se abrió una sesión nueva con el resumen del plan"
+
+msgid "Agent switch: reopened the session with session/load"
+msgstr "Cambio de agente: se reabrió la sesión con session/load"
+
+msgid "Continue with"
+msgstr "Seguir con"
+
+msgid "Another agent (new session)"
+msgstr "Otro agente (sesión nueva)"
+
+msgid "%s (in use)"
+msgstr "%s (en uso)"
+
+msgid "Restarts the agent with this account and resumes the same session."
+msgstr "Reinicia el agente con esta cuenta y retoma la misma sesión."
+
+msgid "Another agent: opens a new session with the plan summary. The conversation is not carried over."
+msgstr "Otro agente: abre una sesión nueva con el resumen del plan. La conversación no pasa."
+
+msgid "Switch agent"
+msgstr "Cambiar de agente"
+
+msgid "Switch"
+msgstr "Cambiar"
+
+msgid "Continue the One-shot with %s? It opens a new session with the plan summary: that agent does not get this conversation."
+msgstr "¿Seguir el One-shot con %s? Abre una sesión nueva con el resumen del plan: ese agente no recibe esta conversación."
+
+msgid "Continue with another account or agent without waiting for the quota to reset. Another account of the same agent resumes the same session."
+msgstr "Seguir con otra cuenta u otro agente sin esperar a que se libere la cuota. Otra cuenta del mismo agente retoma la misma sesión."
+
+msgid "Continue with %s? It opens a new session: that agent does not get this conversation."
+msgstr "¿Seguir con %s? Abre una sesión nueva: ese agente no recibe esta conversación."

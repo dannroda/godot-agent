@@ -44,6 +44,7 @@ const ElicitationRequest := preload("elicitation_request.gd")
 const FsHandler := preload("../acp/fs_handler.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
 const QuotaMonitor := preload("../core/quota_monitor.gd")
+const AccountQuotaBook := preload("../core/account_quota_book.gd")
 const ReviewStore := preload("../review/review_store.gd")
 const TurnChecks := preload("../core/turn_checks.gd")
 const MachineApproval := preload("../core/machine_approval.gd")
@@ -194,6 +195,8 @@ var _agent_account_profile: AgentProfile
 var agent_log: AgentLog
 ## Cuota del plan (spec §10.1): estado, ventanas y límite; la UI y el One-shot la leen de acá.
 var quota: QuotaMonitor
+## Dónde se anota la cuota de cada cuenta al cambiar (m6-22). null = no se anota (tests).
+var account_quota: AccountQuotaBook
 ## Hallazgos de la última revisión (modo Revisar, spec §9.4).
 var review: ReviewStore = ReviewStore.new()
 ## Historial en disco (M7). null = no se graba (tests).
@@ -335,6 +338,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	client.setup(_send_line, agent_log)
 	quota = QuotaMonitor.new()
 	quota.setup(agent_log)
+	quota.changed.connect(_record_account_quota)
 	usage_query.setup(client, agent_log)
 	sessions.setup(model, client, agent_log)
 	client.set_notification_handler("session/update", _on_session_update)
@@ -384,6 +388,12 @@ func profile() -> AgentProfile:
 	return _profile
 
 
+## Anota la cuota medida para la cuenta con la que corre el agente (m6-22).
+func _record_account_quota() -> void:
+	if account_quota and _profile:
+		account_quota.record(_profile.id, _profile.account_dir, quota)
+
+
 func is_connected_to_agent() -> bool:
 	return _process != null and _process.is_running() and not model.session_id.is_empty()
 
@@ -394,6 +404,8 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	stop()
 	_connect_generation += 1
 	var generation := _connect_generation
+	if _profile and (_profile.id != agent_profile.id or _profile.account_dir != agent_profile.account_dir):
+		quota.forget_account()  # lo medido era de la otra cuenta (m6-22)
 	_profile = agent_profile
 	adapter = AgentAdapters.for_profile(agent_profile.command, agent_profile.args, agent_profile.id)
 	_agent_account = {}  # el proceso nuevo la vuelve a mandar después de initialize

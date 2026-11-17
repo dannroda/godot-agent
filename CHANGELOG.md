@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Switch to another account or agent when the quota runs out.** **Switch account** in the One-shot screen now lists the accounts and agents you set up, with the one in use marked and the last quota seen for each one (**62 % used**, **exhausted, resets in 2 h**). Another account of the same agent restarts the agent and resumes the same session; for Claude Code, the harness first copies the session to that account's folder, so the agent keeps its context. Another agent asks first and continues the run in a new session with the plan summary, since it can't load the conversation. Outside a One-shot, the dock shows the same button next to the quota ring when you hit the limit.
+
 ### Fixed
 
 - **Resuming a long session reads only its end.** The dock used to read and rebuild the whole history before you could type, in a single frame of almost a second for a 20,000-event session. Now it reads the last 3,000 events, from a point where no tool call is left half-done, and **Show earlier messages** reads the previous part from the history file when you reach the top. At the end of a turn, the dock lets go of hidden messages beyond a margin, so the editor's memory no longer grows with the length of the session. **Export session…** still writes the whole conversation.
