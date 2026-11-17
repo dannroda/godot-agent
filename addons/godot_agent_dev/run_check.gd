@@ -346,10 +346,14 @@ func _check_playtest_game() -> void:
 	_expect(aimed.contains("[true") or aimed.contains("didn't get there"), "game_script: look_at mide y apunta · " + aimed)
 	var syntax: Dictionary = await _call("game_script", {"code": "func run(game):\n\testo no compila"})
 	_expect(syntax.get("isError", false) and _text(syntax).contains("does not compile"), "game_script: no compila → error · " + _text(syntax))
+	# m16-25: sin Logger en el juego, el error de compilación lo avisa el editor, con su línea.
+	_expect(_text(syntax).contains("Script error at line 3: Parser Error:"), "game_script: el error de compilación con su línea · " + _text(syntax))
 	var blocked: Dictionary = await _call("game_script", {"code": "func run(game):\n\tFileAccess.open(\"res://a\", FileAccess.WRITE)"})
 	_expect(blocked.get("isError", false) and _text(blocked).contains("FileAccess"), "game_script: no puede tocar archivos")
 	var crashed := await _call_text("game_script", {"code": "func run(game):\n\tvar nothing = null\n\tnothing.boom()\n\treturn 1"})
 	_expect(crashed.contains("Script error") and (await _call_text("game_get", {"path": "", "properties": ["basket"]})).contains("basket"), "game_script: su error no frena el juego · " + crashed)
+	# m16-25: sin Logger mientras corre, el error lo avisa el editor; con su línea y sin esperar a vencer.
+	_expect(crashed.contains("Script error at line 4: ") and crashed.contains("stopped on an error") and not crashed.contains("timed out"), "game_script: el error con su línea corta la corrida · " + crashed)
 	var timed := await _call_text("game_script", {"code": "func run(game):\n\tgame.hold(\"ui_right\")\n\twhile true:\n\t\tawait game.wait_frames(1)", "timeout": 0.5})
 	_expect(timed.contains("timed out") and timed.contains("paused"), "game_script: vencido suelta y pausa · " + timed)
 	var free := await _call_text("game_script", {"code": "func run(game):\n\treturn Input.is_action_pressed(\"ui_right\")"})

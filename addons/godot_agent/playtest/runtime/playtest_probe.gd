@@ -156,6 +156,10 @@ func _on_message(message: String, data: Array) -> bool:
 		"request":
 			if data.size() >= 3:
 				_answer(int(data[0]), str(data[1]), data[2] if data[2] is Dictionary else {})
+		"script_error":
+			# Con el juego parado en un error mientras corre un game_script (m16-25).
+			if _script_errors and not data.is_empty():
+				_script_errors.add_reported(str(data[0]))
 		"harness_error":
 			# Con el juego parado en un error del harness: si fue en un detector, se apaga (m16-22).
 			_detectors.harness_error(str(data[0]) if not data.is_empty() else "")
@@ -287,22 +291,34 @@ func _opening() -> String:
 	return "Scene: %s\nPlayer: %s\nInput actions: %s\n%s" % [_scene_path(), body.get_path() if body else "(none: a menu?)", ", ".join(actions) if not actions.is_empty() else "(only the built-in ui_*)", _ui_text()]
 
 
+## Los errores del game_script que está corriendo (null si ninguno): el editor los avisa con
+## script_error, con el juego parado en el error.
+var _script_errors: ScriptKit.ScriptErrors
+
+
 ## Corre un script del agente adentro del juego (m15-12). Vencido el tiempo, sus esperas no vuelven.
 func _run_script(params: Dictionary) -> Dictionary:
 	var timeout := clampf(float(params.get("timeout", 10.0)), 0.1, SCRIPT_MAX_S)
 	var errors := ScriptKit.ScriptErrors.new()
-	OS.add_logger(errors)
 	var script := GDScript.new()
 	var code := str(params.get("code", ""))
 	script.source_code = code if code.begins_with("extends ") else "extends RefCounted\n" + code
+	# Sin Logger si hay debugger (m16-25): ver ScriptKit.ScriptErrors. Cada error, también los de
+	# compilación, para el juego en el debugger y el editor lo avisa con script_error antes de seguir.
+	var with_logger := not EngineDebugger.is_active()
+	if with_logger:
+		OS.add_logger(errors)
+	_script_errors = errors
 	var compiled := script.reload()
-	if compiled != OK or not script.can_instantiate():
-		OS.remove_logger(errors)
-		return {"error": "The script does not compile (the first line of your code is line 2 unless it starts with `extends`).\n%s" % "\n".join(errors.lines)}
-	var instance: Variant = script.new()
-	if not (instance as Object).has_method(&"run"):
-		OS.remove_logger(errors)
-		return {"error": "The script needs a `func run(game):`."}
+	var instance: Variant = script.new() if compiled == OK and script.can_instantiate() else null
+	if instance == null or not (instance as Object).has_method(&"run"):
+		_script_errors = null
+		if with_logger:
+			OS.remove_logger(errors)
+		if instance != null:
+			return {"error": "The script needs a `func run(game):`."}
+		var why := "\n".join(errors.lines) if not errors.lines.is_empty() else "The compile errors are with the game errors below."
+		return {"error": "The script does not compile (the first line of your code is line 2 unless it starts with `extends`).\n%s" % why}
 	var kit := ScriptKit.new(self)
 	var baselines: Variant = params.get("baselines")
 	if baselines is Dictionary:
@@ -317,7 +333,9 @@ func _run_script(params: Dictionary) -> Dictionary:
 	kit.aborted = not state.done
 	kit.release_all()
 	var checked := kit.checks.finish()
-	OS.remove_logger(errors)
+	_script_errors = null
+	if with_logger:
+		OS.remove_logger(errors)
 	var lines := kit.lines
 	lines.append_array(errors.lines)
 	lines.append_array(checked.lines)
