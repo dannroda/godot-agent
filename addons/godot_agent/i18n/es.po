@@ -6396,3 +6396,6 @@ msgstr "«%s» no nombra a ninguno de tus agentes: el run usa el elegido a la de
 
 msgid "Agent from the task: %s"
 msgstr "Agente de la tarea: %s"
+
+msgid "The spec's agent didn't write %s/%s: the builder writes it first"
+msgstr "El agente del spec no escribió %s/%s: lo escribe primero el constructor"
