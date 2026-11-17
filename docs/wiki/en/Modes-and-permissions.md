@@ -245,6 +245,8 @@ The tools of an MCP server other than `godot` (a [server from Settings](Settings
 - The card of one of these tools also offers **Always allow «name» in *mode* mode, in this project**, which saves **Allow** in that row. **Always allow in this session** only covers that server.
 - When a One-shot starts, the activity warns about the servers that would ask: the run waits at each of their tools.
 
+The `scompass` server of a project organized with [Scope Compass](Settings.md#scope-compass) is the exception: its tools that read the board (`show_task`, `list_tasks`, `show_doc`…) belong to **Read**, and the ones that write to it (moving a task, checking a step, notes) to **MCP · scompass**, which is **Ask** in Ask and Review and **Allow** from Build on. Its row is always in Settings.
+
 ## Auto mode
 
 Auto is for working in the chat without approving every step. Edits can be undone (the ↶ on each card, the editor's undo), so they go through on their own. The shell is different, so each command is checked against two lists of patterns:

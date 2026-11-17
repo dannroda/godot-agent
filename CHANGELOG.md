@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Scope Compass board built in.** If the project has the Scope Compass plugin enabled and its board (`compass/`), the agent gets the `scompass` MCP server without installing it in Claude Code, and the context tells it the board is how the project is organized: read `compass/AGENTS.md`, and when you name a task or milestone (`m5-02`), read it first and keep its steps, notes and status up to date. Reading the board never asks; writing to it (moving tasks, checking steps, notes) asks in Ask and Review and is allowed from Build on, and the permission matrix has a row for it. scompass is taken from the install Scope Compass records, the plugin's path setting or the PATH, never from a folder inside the project. A server of your own named `scompass` takes its place.
+
 ### Fixed
 
 - **Resuming a long session reads only its end.** The dock used to read and rebuild the whole history before you could type, in a single frame of almost a second for a 20,000-event session. Now it reads the last 3,000 events, from a point where no tool call is left half-done, and **Show earlier messages** reads the previous part from the history file when you reach the top. At the end of a turn, the dock lets go of hidden messages beyond a margin, so the editor's memory no longer grows with the length of the session. **Export session…** still writes the whole conversation.

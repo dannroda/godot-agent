@@ -34,6 +34,7 @@ const PermissionPolicy := preload("session/permission_policy.gd")
 const ProjectConfig := preload("config/project_config.gd")
 const Recipes := preload("core/recipes.gd")
 const ExternalMcpServers := preload("mcp/external_mcp_servers.gd")
+const ScopeCompass := preload("mcp/scope_compass.gd")
 const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
@@ -207,6 +208,8 @@ var _second_opinion: SecondOpinion
 ## Las tools propias del proyecto (m11-46) y las claves de las frenadas que ya se avisaron.
 var _project_tools: ProjectToolLoader
 var _tools_announced: Dictionary = {}
+## scompass de esta máquina para el MCP de Scope Compass (m7-56): null hasta buscarlo.
+var _scompass_program: Variant = null
 var _completion: CompletionService
 ## Chat en línea en el Script Editor (m11-05).
 var _inline_edit: InlineEdit
@@ -1291,7 +1294,22 @@ func _external_mcp_servers() -> Array:
 	for server: Dictionary in project:
 		server["approval_key"] = ExternalMcpServers.approval_key(project_dir, server)
 		server["held"] = not _settings.is_command_approved(server.approval_key)
-	return ExternalMcpServers.merge(_settings.mcp_servers(), project)
+	var servers := ExternalMcpServers.merge(_settings.mcp_servers(), project)
+	# m7-56: el MCP de Scope Compass si el proyecto lo usa, salvo que ya haya uno con ese nombre.
+	if not servers.any(func(server: Dictionary) -> bool: return server.name == ScopeCompass.SERVER_NAME):
+		var scompass := ScopeCompass.server_entry(project_dir.trim_suffix("/"), _scompass_command())
+		if not scompass.is_empty():
+			servers.append(scompass)
+	return servers
+
+
+## scompass de esta máquina (ScopeCompass.command), buscado una vez: [] si no está.
+func _scompass_command() -> Array:
+	if _scompass_program == null:
+		var settings := EditorInterface.get_editor_settings()
+		var configured := str(settings.get_setting(ScopeCompass.PATH_SETTING)) if settings.has_setting(ScopeCompass.PATH_SETTING) else ""
+		_scompass_program = ScopeCompass.command(configured)
+	return _scompass_program
 
 
 func _external_mcp_names() -> PackedStringArray:
@@ -1465,7 +1483,12 @@ func _get_settings_dialog() -> SettingsDialog:
 		return _mcp_server.url() if _mcp_server and _mcp_server.is_listening() else ""
 	_settings_dialog.regenerate_token = _regenerate_mcp_token
 	_settings_dialog.seen_mcp_servers_provider = func() -> PackedStringArray:
-		return PackedStringArray(_controller.seen_mcp_servers.keys())
+		var names := PackedStringArray(_controller.seen_mcp_servers.keys())
+		# El de Scope Compass (m7-56) no está en la lista de Settings: su fila va desde el principio.
+		for server: Dictionary in _external_mcp_servers():
+			if bool(server.get("builtin", false)) and not names.has(server.name):
+				names.append(server.name)
+		return names
 	_settings_dialog.completion_metrics_provider = func() -> Array[Dictionary]:
 		return _completion.metrics.summary() if _completion else ([] as Array[Dictionary])
 	_settings_dialog.completion_metrics_reset = func() -> void:

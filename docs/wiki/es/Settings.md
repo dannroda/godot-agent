@@ -62,6 +62,14 @@ Claude Code además carga los servidores de su propia configuración (`claude mc
 
 Las tools de cada servidor piden permiso hasta que las permitas: ver [Servidores MCP de otros programas](Modos-y-permisos.md#servidores-mcp-de-otros-programas).
 
+### Scope Compass
+
+Si el proyecto tiene activado el plugin [Scope Compass](https://github.com/dannroda/scope-compass) y su tablero (`compass/`), el tablero es la forma de organizar el proyecto, y no hay que configurar nada:
+
+- El agente recibe el servidor MCP `scompass` (tareas, hitos, documentos) al abrir la sesión, sin `scompass mcp install`. No está en la lista de arriba y no pide aprobación: scompass sale de la instalación que anota Scope Compass, de la opción de ruta del plugin o del PATH, nunca de una carpeta del proyecto. Si no se encuentra scompass, la sesión abre sin él. Un servidor tuyo que se llame `scompass` ocupa su lugar.
+- El contexto del agente le dice que el tablero existe y que `compass/AGENTS.md` tiene sus reglas. Arrancar desde una tarea es decir «mirá m5-02»: el agente la lee primero y mantiene al día sus pasos, notas y estado mientras trabaja.
+- Leer el tablero nunca pregunta; escribir en él tiene su fila en la matriz de permisos: ver [Servidores MCP de otros programas](Modos-y-permisos.md#servidores-mcp-de-otros-programas).
+
 ## Extensiones
 
 **Extensiones**, en el menú **⋯** del header del dock, abre una ventana con los plugins y marketplaces de Claude Code, todos los servidores MCP que ve el agente, las skills, los addons de Godot y las instrucciones del proyecto, y la lista de las herramientas del editor que tiene el agente. Los cambios se aplican al toque por el CLI de Claude Code (`claude`), con el entorno del perfil del agente (por ejemplo `CLAUDE_CONFIG_DIR`). Si `claude` no está en el `PATH`, la ventana usa el que baja el adaptador ACP con npx.

@@ -62,6 +62,14 @@ Claude Code also loads the servers of its own configuration (`claude mcp add`, `
 
 The tools of each server ask for permission until you allow them: see [MCP servers of other programs](Modes-and-permissions.md#mcp-servers-of-other-programs).
 
+### Scope Compass
+
+If the project has the [Scope Compass](https://github.com/dannroda/scope-compass) plugin enabled and its board (`compass/`), the board is how the project is organized, and you don't have to set anything up:
+
+- The agent gets the `scompass` MCP server (tasks, milestones, documents) when a session opens, without `scompass mcp install`. It isn't on the list above and needs no approval: scompass comes from the install Scope Compass records, the plugin's path setting or the PATH, never from a folder inside the project. If no scompass is found, the session opens without it. A server of your own called `scompass` takes its place.
+- The agent's context says the board is there and that `compass/AGENTS.md` has its rules. Starting from a task is just «look at m5-02»: the agent reads it first and keeps its steps, notes and status up to date as it works.
+- Reading the board never asks; writing to it is its own row in the permission matrix: see [MCP servers of other programs](Modes-and-permissions.md#mcp-servers-of-other-programs).
+
 ## Extensions
 
 **Extensions** in the dock header's **⋯** menu opens a window with Claude Code's plugins, marketplaces, every MCP server the agent sees, skills, the project's Godot addons and instructions, and the list of the agent's editor tools. Changes apply right away through the Claude Code CLI (`claude`), with the agent profile's environment (for example `CLAUDE_CONFIG_DIR`). If `claude` isn't in the `PATH`, the window uses the one the ACP adapter downloads with npx.

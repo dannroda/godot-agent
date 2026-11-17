@@ -38,6 +38,7 @@ const PermissionPolicy := preload("permission_policy.gd")
 const PermissionBroker := preload("permission_broker.gd")
 const CsharpBuild := preload("../core/csharp_build.gd")
 const NativeBuild := preload("../core/native_build.gd")
+const ScopeCompass := preload("../mcp/scope_compass.gd")
 const UsageQuery := preload("usage_query.gd")
 const SessionCatalog := preload("session_catalog.gd")
 const ElicitationRequest := preload("elicitation_request.gd")
@@ -80,6 +81,14 @@ C# in this project (it has a .csproj):
 - Exported values: `[Export] public float Speed = 300.0f;`. Signals: `[Signal] public delegate void HitEventHandler(int damage);`, emitted with `EmitSignal(SignalName.Hit, 5)`.
 - Godot's API is PascalCase in C#: `MoveAndSlide()`, `GetNode<Label>("HUD/Score")`, `Input.GetVector(…)`, `GD.Print(…)`.
 - After changing C#, run `godot.validate_scripts`: it compiles with dotnet build and returns the errors by file and line. The game runs the new code only after a build."""
+
+## m7-56: el proyecto se organiza con Scope Compass (plugin activado y compass/).
+const SCOPE_COMPASS_RULES := """
+Scope Compass in this project (its board is in compass/):
+- The board is how this project is organized: its milestones, tasks (with steps, decisions and notes) and documents (specs, design) live there. Before using it, read `compass/AGENTS.md`: the rules of the board.
+- Use the tools of the `scompass` MCP server (`show_task`, `list_tasks`, `move_task`, `check_step`, `update_task`, `show_doc`…), not the `scompass` CLI from the shell, and never edit the JSON files in compass/ by hand.
+- When the user names a task or a milestone by its id (`m5-02`, `m05`) or its code, read it first with `show_task` or `show_milestone`: its description, steps, decisions and notes are the brief. When you work on a task, move it to doing, check its steps as you go, and at the end fill in `test` and `notes` and move it to review.
+- New work that comes up goes in as a task (`add_task`, with what and why), and a choice between reasonable alternatives as a decision (`add_decision`)."""
 
 const NATIVE_RULES := """
 GDExtension in this project (it has a SConstruct, CMakeLists.txt or Cargo.toml):
@@ -1945,6 +1954,7 @@ func system_prompt() -> String:
 	variables["headless_guide"] = variables.get("headless_guide", ProjectSettings.globalize_path(HEADLESS_GUIDE_PATH))
 	variables["csharp_rules"] = CSHARP_RULES if not CsharpBuild.find_project(cwd).is_empty() else ""
 	variables["native_rules"] = NATIVE_RULES if not NativeBuild.find_project(cwd).is_empty() else ""
+	variables["scope_compass_rules"] = SCOPE_COMPASS_RULES if ScopeCompass.detect(cwd) else ""
 	return "<harness_context>\n%s\n</harness_context>" % template.format(variables)
 
 

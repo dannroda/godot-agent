@@ -254,6 +254,8 @@ Las tools de un servidor MCP que no es `godot` (un [servidor de Settings](Settin
 - La tarjeta de una de esas tools ofrece además **Permitir siempre «nombre» en modo *modo*, en este proyecto**, que guarda **Permitir** en esa fila. **Siempre en esta sesión** vale solo para ese servidor.
 - Al arrancar un One-shot, la actividad avisa qué servidores preguntarían: el run espera en cada una de sus tools.
 
+El servidor `scompass` de un proyecto organizado con [Scope Compass](Settings.md#scope-compass) es la excepción: sus tools que leen el tablero (`show_task`, `list_tasks`, `show_doc`…) van a **Leer**, y las que escriben en él (mover una tarea, tildar un paso, las notas) a **MCP · scompass**, que es **Preguntar** en Preguntar y Revisar y **Permitir** desde Construir. Su fila está siempre en Settings.
+
 ## Modo Auto
 
 Auto es para trabajar en el chat sin aprobar cada paso. Las ediciones se pueden deshacer (el ↶ de cada tarjeta, el undo del editor), así que pasan solas. La shell es otra cosa, así que cada comando se compara con dos listas de patrones:

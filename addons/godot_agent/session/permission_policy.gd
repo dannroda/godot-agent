@@ -6,6 +6,7 @@ extends RefCounted
 const SessionModel := preload("session_model.gd")
 const I18n := preload("../core/i18n.gd")
 const ExternalMcpServers := preload("../mcp/external_mcp_servers.gd")
+const ScopeCompass := preload("../mcp/scope_compass.gd")
 const ToolCall := preload("tool_call.gd")
 
 const ALLOW := "allow"
@@ -86,6 +87,9 @@ const DEFAULTS: Dictionary = {
 	GROUP_SESSIONS_MESSAGE: [ASK, ASK, ASK, DENY, ASK],
 	# Como antes de m7-43: Claude Code los lanzaba sin preguntar.
 	GROUP_SUBAGENTS: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
+	# El tablero de Scope Compass (m7-56) es la organización del proyecto: sus lecturas van a Read y
+	# escribir tareas (pasos, notas, estado) no pregunta desde Construir. Los otros servers, ask.
+	GROUP_MCP_PREFIX + ScopeCompass.SERVER_NAME: [ASK, ASK, ALLOW, ALLOW, ALLOW],
 }
 ## Reglas `ask` de las settings de la sesión: que Claude Code pida permiso para cada subagente.
 const SUBAGENT_ASK_RULES: PackedStringArray = ["Agent"]
@@ -167,6 +171,8 @@ static func group_for_tool_call(tool_call: Dictionary) -> String:
 		return GROUP_SUBAGENTS
 	var server := mcp_server_of(tool_call)
 	if not server.is_empty():
+		if server == ScopeCompass.SERVER_NAME and ScopeCompass.is_read_tool(mcp_tool_of(tool_call)):
+			return GROUP_READ
 		return mcp_group(server)
 	return KIND_GROUPS.get(str(tool_call.get("kind", "")), GROUP_OTHER)
 
@@ -190,6 +196,22 @@ static func mcp_server_of(tool_call: Dictionary) -> String:
 	# Antigravity (m18-02) titula `<server>_<tool>` y dice el server en _meta.mcp.
 	var server := _meta_mcp_server(tool_call)
 	return "" if server == ExternalMcpServers.RESERVED_NAME else server
+
+
+## La tool de un server de terceros sin el server (`mcp__scompass__show_task` → `show_task`), o "".
+static func mcp_tool_of(tool_call: Dictionary) -> String:
+	var meta: Variant = tool_call.get("_meta")
+	var names: Array = []
+	if meta is Dictionary and meta.get("claudeCode") is Dictionary and meta.claudeCode.get("toolName") is String:
+		names.append(meta.claudeCode.toolName)
+	names.append(str(tool_call.get("title", "")))
+	for name: String in names:
+		if not ExternalMcpServers.server_of_tool(name).is_empty():
+			var short := ExternalMcpServers.short_tool_name(name)
+			return short.substr(short.find(".") + 1)
+	if meta is Dictionary and meta.get("mcp") is Dictionary:
+		return str(meta.mcp.get("tool", ""))
+	return ""
 
 
 ## El server de `_meta.mcp.server` (Antigravity), o "".
