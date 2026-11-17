@@ -15,7 +15,11 @@ const PROBE_COUNTS := 40.0
 const NOT_TURNING := "the mouse doesn't turn the view: a menu or a cutscene holding it, or a game that only turns with the mouse captured (mouse_mode is %s)?"
 
 
-## Se queda con los errores de script mientras corre: los de compilación no llegan de otra forma.
+## Los errores de script de un game_script: los de compilación no llegan de otra forma. Registrado
+## con OS.add_logger solo mientras compila (reload() no deja pasar frames) o, sin debugger (el CLI de
+## regresiones), mientras corre: con un Logger de GDScript registrado, el juego no termina cuando se
+## cae el X y queda colgado en un futex (m16-24, m16-25). Con debugger, los errores al correr los
+## avisa el editor (add_reported) con el juego parado en el error.
 class ScriptErrors:
 	extends Logger
 	var lock := Mutex.new()
@@ -25,11 +29,28 @@ class ScriptErrors:
 	func _log_error(function: String, file: String, line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _script_backtraces: Array) -> void:
 		if error_type != ERROR_TYPE_SCRIPT:
 			return
-		# El game_script no tiene archivo: sus errores cortan la corrida; los del juego solo se cuentan.
-		var own := not file.ends_with(".gd")
+		add(function, file, line, rationale if not rationale.is_empty() else code)
+
+	## El game_script no tiene archivo (el debugger lo llama gdscript://<id>.gd): sus errores cortan
+	## la corrida; los del juego solo se cuentan.
+	func add(function: String, file: String, line: int, message: String) -> void:
+		var own := not file.ends_with(".gd") or file.begins_with("gdscript://")
 		lock.lock()
-		lines.append("Script error%s: %s" % [" at line %d" % line if own else " (%s:%d in %s)" % [file, line, function], rationale if not rationale.is_empty() else code])
+		lines.append("Script error%s: %s" % [" at line %d" % line if own else " (%s:%d in %s)" % [file, line, function], message])
 		fatal = fatal or own
+		lock.unlock()
+
+	## Un error que avisó el editor: el motivo de la pausa del debugger, «mensaje (0 - archivo:línea -
+	## at function: f)», con el primer renglón de la pila. Sin pila que se entienda, cuenta como del
+	## script: si no, la corrida esperaría hasta vencer a un script que ya no sigue.
+	func add_reported(reason: String) -> void:
+		var found := RegEx.create_from_string("^(.*) \\(\\d+ - (.*):(\\d+) - at function:\\s*(.*)\\)$").search(reason.strip_edges())
+		if found:
+			add(found.get_string(4), found.get_string(2), int(found.get_string(3)), found.get_string(1))
+			return
+		lock.lock()
+		lines.append("Script error: %s" % reason)
+		fatal = true
 		lock.unlock()
 
 	func _log_message(_message: String, _error: bool) -> void:

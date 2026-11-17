@@ -19,7 +19,9 @@ restore_project() {
 }
 trap restore_project EXIT
 fail=0
-for when in before during; do
+# during_script (m16-25): con un game_script corriendo. Un juego que no termina al caerse el X deja
+# abierta la salida y el $( ) de abajo no vuelve: la falla es el tope del check.
+for when in before during during_script; do
 	# setsid: la muerte del editor no tiene que arrastrar al grupo de procesos de quien llama.
 	out="$(XRUN_KEEP_PROJECT=1 setsid -w "$ROOT/tests/run_in_xvfb.sh" "$G" "--godot-agent-crash-test=$when" 2>&1)"
 	echo "$out" | grep "\[crash-test\]"

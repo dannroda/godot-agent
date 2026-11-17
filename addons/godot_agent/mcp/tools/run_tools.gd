@@ -285,6 +285,10 @@ func _on_instance_event(instance: int, event: String) -> void:
 		instances.stop(instance)
 
 
+## game_script esperando la respuesta del juego: sus errores se le avisan al seguir (m16-25).
+var _scripts_running := 0
+
+
 ## Un error del juego: se saltea si este run lo pidió, guardando el motivo (el panel se llena un
 ## momento después de la pausa).
 func _on_session_breaked() -> void:
@@ -309,6 +313,10 @@ func _on_session_breaked() -> void:
 	_continued.append(reason if not reason.is_empty() else "(the debugger gave no reason)")
 	if is_harness_break(reason):
 		debugger.send("harness_error", [reason], 1)
+	# El game_script se entera de sus errores por acá y no por un Logger (m16-25): lo atiende el bucle
+	# del debugger, con el juego parado en el error, antes de seguir.
+	if _scripts_running > 0 and not reason.is_empty():
+		debugger.send("script_error", [reason], 1)
 	_last_break_ms = Time.get_ticks_msec()
 	debugger.resume()
 
@@ -1252,7 +1260,9 @@ func _game_script(args: Dictionary) -> Dictionary:
 	# Las bases de los presupuestos de una regresión guardada (m11-44); el agente no las pasa.
 	if args.get("baselines") is Dictionary:
 		params.baselines = args.baselines
+	_scripts_running += 1
 	var result := await _game_request("script", params, timeout)
+	_scripts_running -= 1
 	_continue_errors = before
 	return result
 

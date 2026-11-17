@@ -33,8 +33,9 @@ extends EditorPlugin
 ##   tests/first_run_check.sh): «Add» arranca la sesión sola y, sin credenciales, llega al login.
 ## - `-- --godot-agent-claude-scene-test`: verificación de M4 con Claude Code real (gasta tokens).
 ##   Pide agregar WaveLabel al HUD y conectar WaveTimer.timeout; Ctrl+Z tiene que deshacerlo en pasos.
-## - `-- --godot-agent-crash-test=before|during`: mata el editor con el autoload de playtest recién
-##   registrado (before) o con un run_scene en curso (during). Al reabrir, no tiene que quedar.
+## - `-- --godot-agent-crash-test=before|during|during_script`: mata el editor con el autoload de
+##   playtest recién registrado (before), con un run_scene en curso (during) o con un game_script
+##   corriendo en el juego (during_script, m16-25). Al reabrir, no tiene que quedar.
 ## - `-- --godot-agent-review-test [--godot-agent-ui-shot=<ruta.png>]`: modo Revisar con el agente
 ##   falso sobre tests/fixtures/review/ (ver review_check.gd). Necesita ventana.
 ## - `-- --godot-agent-oneshot-test [--godot-agent-ui-shot=<ruta.png>]`: la pantalla One-shot maneja un
@@ -1016,13 +1017,20 @@ func _run_crash_test(when: String) -> void:
 	if main_plugin == null:
 		_finish(1, "no se encontró el plugin godot_agent")
 		return
-	if when == "during":
+	if when in ["during", "during_script"]:
 		var run_tools: Object = main_plugin.get(&"_run_tools")
 		run_tools.call(&"_run_scene", {"scene": RUN_FIXTURE, "seconds": 60})
 		var deadline := Time.get_ticks_msec() + 20000
 		while Time.get_ticks_msec() < deadline and not (EditorInterface.is_playing_scene() and not PlaytestAutoload.is_registered()):
 			await get_tree().process_frame
 		await get_tree().create_timer(1.0).timeout
+		if when == "during_script":
+			# m16-25: con un game_script corriendo (antes, con el Logger de sus errores registrado).
+			while Time.get_ticks_msec() < deadline and int(run_tools.get(&"run_state")) != 3:  # PROBE_READY
+				await get_tree().process_frame
+			run_tools.call(&"_game_script", {"code": "func run(game):\n\tawait game.tree().create_timer(30.0).timeout\n\treturn 1", "timeout": 30.0})
+			await get_tree().create_timer(1.5).timeout
+			print("[crash-test] during_script: juego en marcha: %s" % EditorInterface.is_playing_scene())
 	else:
 		PlaytestAutoload.register(main_plugin.get(&"_plugin"))
 	var on_disk := FileAccess.get_file_as_string("res://project.godot").contains(PlaytestAutoload.NAME)
