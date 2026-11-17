@@ -47,6 +47,8 @@ func _initialize() -> void:
 	await _scenario_qa_without_playing()
 	await _scenario_qa_restore()
 	await _scenario_qa_pause_after_verdict()
+	await _scenario_qa_other_agent()
+	await _scenario_spec_other_agent()
 	await _scenario_secrets()
 	for item: Dictionary in _logs:
 		_check_transitions(item.log, item.scenario)
@@ -624,6 +626,66 @@ func _scenario_qa_pause_after_verdict() -> void:
 	_check(sent.any(func(text: String) -> bool: return text.contains("QA round 1: an independent evaluator") and text.contains("El puntaje no sube")), "qa pausa: la corrección le llega al que construye")
 	_check(run.finish_reason == "QA round 2: the game passes.", "qa pausa: termina con la vuelta 2 (%s)" % run.finish_reason)
 	_check(run.unexpected_transitions == 0, "qa pausa: sin transiciones inesperadas (%s)" % run.last_unexpected_transition)
+	run.controller.stop()
+	run.queue_free()
+
+
+## m6-20: el QA con otro perfil. Cada vuelta relanza el proceso con el agente del QA (otro guion por
+## vuelta: el falso empieza de cero en cada proceso) y la corrección vuelve con el del constructor.
+func _scenario_qa_other_agent() -> void:
+	print("— QA con otro agente")
+	var run := _make("oneshot_qa")
+	run.qa_max_rounds = 2
+	run.agent = {"profile": "fake", "account": ""}
+	run.stage_agents = {OneShotRun.STAGE_QA: {"profile": "fake_qa", "account": "", "label": "QA falso", "model": {}}}
+	var opened: Array[String] = []
+	var qa_profiles: Array[String] = []
+	run.open_with_agent = func(choice: Dictionary, lost_id: String) -> bool:
+		var qa := str(choice.get("profile", "")) == "fake_qa"
+		var rounds := opened.filter(func(text: String) -> bool: return text.begins_with("fake_qa")).size()
+		opened.append("%s|%s" % [choice.get("profile", ""), "load" if not lost_id.is_empty() else "new"])
+		var profile := _profile("oneshot_qa" if rounds == 0 else "oneshot_qa_fix") if qa else _profile("oneshot_qa_fix")
+		if qa:
+			profile.id = "fake_qa"
+		return await run.controller.start(profile)
+	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER and entry.text.begins_with(OneShotRun.QA_MARKER):
+			qa_profiles.append(run.controller.profile().id))
+	await run.start("Pong con puntaje", {"time": 0, "tokens": 0, "playtests": 0}, false)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.last_report.is_empty(), 25.0)
+	_check(run.finish_reason == "QA round 2: the game passes.", "qa otro agente: termina con la segunda vuelta (%s)" % run.finish_reason)
+	_check(opened == ["fake_qa|new", "fake|load", "fake_qa|new", "fake|load"], "qa otro agente: QA, vuelta al constructor con su sesión, QA y la pestaña termina en el constructor %s" % [opened])
+	_check(qa_profiles == ["fake_qa", "fake_qa"], "qa otro agente: el evaluador corre con su perfil %s" % [qa_profiles])
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text) == "The evaluator is QA falso"), "qa otro agente: la actividad dice quién evalúa")
+	_check(run.controller.policy.restrictions.is_empty(), "qa otro agente: sin las restricciones del evaluador al terminar")
+	run.controller.stop()
+	run.queue_free()
+
+
+## m6-20: el spec con otro perfil y sin revisión: ese agente solo escribe el spec y el constructor
+## arranca una sesión nueva desde él.
+func _scenario_spec_other_agent() -> void:
+	print("— spec con otro agente")
+	var run := _make("oneshot_qa_fix")
+	run.agent = {"profile": "fake", "account": ""}
+	run.stage_agents = {OneShotRun.STAGE_SPEC: {"profile": "fake_spec", "account": "", "label": "Spec falso", "model": {}}}
+	var opened: Array[String] = []
+	var prompts: Array[String] = []
+	run.open_with_agent = func(choice: Dictionary, _lost_id: String) -> bool:
+		opened.append(str(choice.get("profile", "")))
+		var profile := _profile("oneshot_spec" if choice.get("profile") == "fake_spec" else "oneshot_qa_fix")
+		profile.id = str(choice.get("profile", "fake"))
+		return await run.controller.start(profile)
+	run.model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if entry.kind == ChatEntry.EntryKind.USER:
+			prompts.append("%s: %s" % [run.controller.profile().id, entry.text]))
+	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 0}, false)
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.last_report.is_empty(), 20.0)
+	_check(opened == ["fake_spec", "fake"], "spec otro agente: el del spec, después el constructor %s" % [opened])
+	_check(prompts.size() >= 2 and prompts[0].begins_with("fake_spec: ") and prompts[0].contains("Your part is only the spec"), "spec otro agente: el del spec solo escribe el spec")
+	_check(prompts.size() >= 2 and prompts[1].begins_with("fake: ") and prompts[1].contains("Another agent wrote the game spec") and prompts[1].contains("1. Make a plan"), "spec otro agente: el constructor arranca desde el spec %s" % [prompts.slice(1, 2)])
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text) == "Spec written: the builder takes over"), "spec otro agente: actividad del traspaso")
+	_check(run.finish_reason == "The agent finished: all checks pass.", "spec otro agente: terminó (%s)" % run.finish_reason)
 	run.controller.stop()
 	run.queue_free()
 

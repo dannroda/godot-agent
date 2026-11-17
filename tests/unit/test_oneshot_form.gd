@@ -52,6 +52,8 @@ func test_saved_agent() -> void:
 ## del elegido y, al iniciar, pasa la elección al run y recuerda el modelo para el One-shot.
 func test_form_agent_choice() -> void:
 	var home := ProjectSettings.globalize_path("user://test_oneshot_form_%d" % Time.get_ticks_usec())
+	var saved_home := OS.get_environment("HOME")
+	OS.set_environment("HOME", home)  # sin las cuentas reales del usuario
 	for name: String in ["base", "trabajo"]:
 		DirAccess.make_dir_recursive_absolute(home.path_join(name))
 	var settings := HarnessSettings.new()
@@ -77,7 +79,7 @@ func test_form_agent_choice() -> void:
 	var account_button := screen.find_child("AccountButton", true, false) as OptionButton
 	var model_button := screen.find_child("ModelButton", true, false) as OptionButton
 	assert_eq(agent_button.get_item_text(agent_button.selected), "Claude Code", "por defecto, el de la pestaña activa")
-	assert_true(account_button.visible and account_button.get_item_text(account_button.selected) == "trabajo", "con su cuenta · %s" % account_button.get_item_text(account_button.selected))
+	assert_true(account_button.visible and account_button.get_item_text(account_button.selected).ends_with("trabajo"), "con su cuenta · %s" % account_button.get_item_text(account_button.selected))
 	assert_eq(screen.chosen_agent().account, home.path_join("trabajo"), "la cuenta va al run")
 	assert_eq([model_button.item_count, model_button.disabled], [1, true], "sin modelos conocidos: el del agente")
 	tab_profile[0] = other
@@ -92,12 +94,78 @@ func test_form_agent_choice() -> void:
 	screen.refresh_agent()
 	assert_eq(screen.chosen_agent().profile, "claude-code", "elegido a mano, ya no sigue a la pestaña")
 	assert_eq(screen.chosen_agent().account, "", "la cuenta base es la del perfil, sin override")
+	assert_false(screen.select_agent("no-existe"), "select_agent: un perfil que no existe no cambia nada")
+	assert_true(screen.select_agent("claude-code", home.path_join("trabajo")) and screen.chosen_agent().account == home.path_join("trabajo"), "select_agent: perfil y cuenta desde afuera")
 	agent_button.select(1)
 	agent_button.item_selected.emit(1)
 	assert_eq(model_button.item_count, 2, "con Mío, el que ya usó en Construir · %d" % model_button.item_count)
 	model_button.select(1)
+	var stages_check := screen.find_child("StageAgents", true, false) as CheckBox
+	var qa_agent := screen.find_child("QaAgent", true, false) as OptionButton
+	assert_false((screen.find_child("StageAgentsGrid", true, false) as Control).visible, "por etapa: opt-in, apagado")
+	assert_eq(qa_agent.get_item_text(0), "Same as the builder", "el QA arranca igual que el constructor")
+	qa_agent.select(1)  # Claude Code, cuenta base
+	qa_agent.item_selected.emit(1)
+	assert_eq(screen.chosen_stage_agents(), {}, "con la casilla apagada, nada aunque haya elección")
+	stages_check.button_pressed = true
+	assert_eq(screen.chosen_stage_agents().keys(), ["qa"], "prendida, el QA con otro agente")
 	screen.call(&"_apply_agent_choice")
 	assert_eq(run.agent, {"profile": "mio", "account": ""}, "el run se lleva el agente")
+	assert_eq(run.stage_agent(OneShotRun.STAGE_QA).profile, "claude-code", "y el del QA")
+	assert_eq(OneShotRun.saved_stage_agents(settings.get_value(HarnessSettings.KEY_STAGE_AGENTS)).keys(), ["qa"], "queda como defecto del próximo run")
 	assert_eq(ModeModels.new(settings).get_model("mio", SessionModel.HarnessMode.ONESHOT).get("value"), "m-2", "y el modelo queda recordado para el One-shot")
 	screen.free()
 	run.free()
+	OS.set_environment("HOME", saved_home)
+
+
+## m6-20: qué etapa cambia de agente y qué se guarda.
+func test_stage_agents() -> void:
+	var run := OneShotRun.new()
+	run.agent = {"profile": "claude-code", "account": ""}
+	assert_eq(run.stage_agent(OneShotRun.STAGE_QA), {}, "sin asignación, la sesión de siempre")
+	run.stage_agents = {OneShotRun.STAGE_QA: {"profile": "claude-code", "account": "", "model": {}}}
+	assert_eq(run.stage_agent(OneShotRun.STAGE_QA), {}, "igual al constructor y sin modelo: nada")
+	run.stage_agents = {OneShotRun.STAGE_QA: {"profile": "claude-code", "account": "", "model": {"value": "haiku", "name": "Haiku"}}}
+	assert_eq(run.stage_agent(OneShotRun.STAGE_QA).model.value, "haiku", "mismo agente, otro modelo: cuenta")
+	run.stage_agents = {OneShotRun.STAGE_QA: {"profile": "claude-code", "account": "/c/trabajo", "model": {}}, OneShotRun.STAGE_SPEC: {"profile": "codex", "account": "", "model": {}}}
+	assert_eq(run.stage_agent(OneShotRun.STAGE_QA).account, "/c/trabajo", "otra cuenta: cuenta")
+	assert_true(run.separate_spec(), "el spec con otro perfil va aparte")
+	var saved := OneShotRun.saved_stage_agents(JSON.parse_string(JSON.stringify(run.stage_agents)))
+	assert_eq(saved.keys().size(), 2, "vuelve de JSON")
+	assert_eq(saved[OneShotRun.STAGE_SPEC].label, "codex", "sin label, el id")
+	assert_eq(OneShotRun.saved_stage_agents({"qa": {"account": "/x"}, "otra": {"profile": "y"}}), {}, "sin perfil o etapa desconocida, nada")
+	assert_eq(OneShotRun.saved_stage_agents(null), {}, "un run viejo")
+	run.free()
+
+
+func test_stage_prompts() -> void:
+	var run := OneShotRun.new()
+	run.goal = "Pong"
+	run.agent = {"profile": "claude-code", "account": ""}
+	assert_true(run.initial_prompt().contains("1. Make a plan"), "un solo agente: el prompt de siempre")
+	run.stage_agents = {OneShotRun.STAGE_SPEC: {"profile": "codex", "account": "", "model": {}}}
+	var spec := run.initial_prompt()
+	assert_true(spec.contains("Your part is only the spec") and spec.contains("another agent makes the plan"), "el del spec solo escribe el spec")
+	assert_false(spec.contains("1. Make a plan"), "sin los pasos del constructor")
+	var builder := run.builder_prompt(true)
+	assert_true(builder.contains("Another agent wrote the game spec") and builder.contains("with the user's changes") and builder.contains("1. Make a plan"), "el constructor arranca desde el spec")
+	assert_false(builder.contains("0. Before anything else"), "sin escribir otro spec")
+	run.spec_review = true
+	assert_true(run.initial_prompt().contains("the user reviews and approves it"), "con revisión, espera al usuario")
+	run.free()
+
+
+func test_stage_choice_list() -> void:
+	var home := ProjectSettings.globalize_path("user://test_stage_choices_%d" % Time.get_ticks_usec())
+	var saved_home := OS.get_environment("HOME")
+	OS.set_environment("HOME", home)  # sin las cuentas reales del usuario
+	for name: String in ["base", "trabajo"]:
+		DirAccess.make_dir_recursive_absolute(home.path_join(name))
+	var claude: AgentProfile = AgentProfile.from_dict(AgentProfile.CLAUDE_CODE.merged({"env": {"CLAUDE_CONFIG_DIR": home.path_join("base")}}))
+	var other: AgentProfile = AgentProfile.from_dict({"id": "mio", "display_name": "Mío", "command": "mi-agente"})
+	var extra := func(_variable: String) -> PackedStringArray: return PackedStringArray([home.path_join("trabajo")])
+	var choices := AgentMainScreen.stage_choice_list([claude, other], extra)
+	assert_eq(choices.map(func(c: Dictionary) -> String: return "%s|%s" % [c.profile, c.account]), ["claude-code|", "claude-code|" + home.path_join("trabajo"), "mio|"], "cada perfil con cada cuenta; la base sin override")
+	assert_true(str(choices[1].label).begins_with("Claude Code · ") and str(choices[1].label).ends_with("trabajo"), "con el nombre de la cuenta · %s" % choices[1].label)
+	OS.set_environment("HOME", saved_home)

@@ -25,6 +25,7 @@ const ProjectConfigRes := preload("../../config/project_config.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
 const AgentAccounts := preload("../../session/agents/agent_accounts.gd")
 const ModeModels := preload("../../core/mode_models.gd")
+const HarnessSettings := preload("../../core/harness_settings.gd")
 
 const BUDGET_KEYS: PackedStringArray = [OneShotRun.BUDGET_TIME, OneShotRun.BUDGET_TOKENS, OneShotRun.BUDGET_PLAYTESTS]
 const ACTIVITY_COLORS: Dictionary = {
@@ -145,6 +146,11 @@ var _agent_models: Array[Dictionary] = []
 var _chosen_profile_id: String = ""
 var _chosen_account: String = ""
 var _agent_touched: bool = false
+## Agentes por etapa (m6-20): opt-in en cada run; la última asignación queda en Ajustes como defecto.
+var _stages_check: CheckBox
+var _stages_grid: GridContainer
+## etapa -> {agent: OptionButton, model: OptionButton, choices: [{profile, account, label}], models: [...]}
+var _stage_rows: Dictionary = {}
 var _start_hint: Label
 var _start_button: Button
 # Vista del One-shot
@@ -470,6 +476,46 @@ func _build_agent_choice() -> void:
 		_chosen_account = AgentAccounts.choice(base, str(_agent_accounts[index].dir)) if base else ""
 		_refresh_agent_choice())
 	_agent_model_button = _choice_row(I18n.t("Model"), "ModelButton").button
+	_agent_model_button.item_selected.connect(func(_index: int) -> void: _refresh_stage_choices())
+	_stages_check = CheckBox.new()
+	_stages_check.name = "StageAgents"
+	_stages_check.text = I18n.t("Other agents for the spec and QA")
+	_stages_check.tooltip_text = I18n.t("The spec and the QA rounds can run with another agent, account or model: spread the work across subscriptions, and have another model check what the builder did. Off, the whole run uses the agent above.")
+	_stages_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_stages_check.toggled.connect(func(on: bool) -> void: _stages_grid.visible = on)
+	_side_column.add_child(_stages_check)
+	_stages_grid = GridContainer.new()
+	_stages_grid.name = "StageAgentsGrid"
+	_stages_grid.columns = 2
+	_stages_grid.visible = false
+	_stages_grid.add_theme_constant_override(&"h_separation", AgentTheme.px(12))
+	_side_column.add_child(_stages_grid)
+	for stage: String in [OneShotRun.STAGE_SPEC, OneShotRun.STAGE_QA]:
+		var title := Label.new()
+		title.text = I18n.t("Spec") if stage == OneShotRun.STAGE_SPEC else I18n.t("QA")
+		title.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+		_stages_grid.add_child(title)
+		var agent_button := _stage_button("%sAgent" % stage.capitalize())
+		agent_button.tooltip_text = I18n.t("Who writes the spec. Another agent only writes it; the builder starts a new session from it.") if stage == OneShotRun.STAGE_SPEC else I18n.t("Who plays and checks the game in each QA round. With another agent or account the builder's session is resumed afterwards.")
+		_stages_grid.add_child(agent_button)
+		_stages_grid.add_child(Control.new())
+		var model_button := _stage_button("%sModel" % stage.capitalize())
+		model_button.tooltip_text = I18n.t("Only for this stage: it isn't remembered for One-shot.")
+		_stages_grid.add_child(model_button)
+		_stage_rows[stage] = {"agent": agent_button, "model": model_button, "choices": [], "models": [], "touched": false}
+		agent_button.item_selected.connect(func(_index: int) -> void:
+			_stage_rows[stage].touched = true
+			_refresh_stage_model(stage))
+		model_button.item_selected.connect(func(_index: int) -> void: _stage_rows[stage].touched = true)
+
+
+func _stage_button(button_name: String) -> OptionButton:
+	var button := OptionButton.new()
+	button.name = button_name
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.fit_to_longest_item = false
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	return button
 
 
 func _choice_row(text: String, button_name: String) -> Dictionary:
@@ -484,6 +530,20 @@ func _choice_row(text: String, button_name: String) -> Dictionary:
 	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_agent_grid.add_child(button)
 	return {"label": label, "button": button}
+
+
+## Elige el agente del run desde afuera (una tarea del tablero, m7-57): deja de seguir a la pestaña
+## activa. `account` es la carpeta ("" = la del perfil). false si el perfil no existe.
+func select_agent(profile_id: String, account: String = "") -> bool:
+	var base := agent_settings.call(&"profile", profile_id) as AgentProfile if agent_settings else null
+	if base == null:
+		return false
+	_agent_touched = true
+	_chosen_profile_id = profile_id
+	_chosen_account = AgentAccounts.choice(base, account) if not account.is_empty() else ""
+	_refresh_agent_choice()
+	_refresh_form()
+	return true
 
 
 ## El perfil elegido, sin cuenta aplicada (null si ya no existe).
@@ -547,6 +607,102 @@ func _refresh_agent_choice() -> void:
 			_agent_account_button.select(_agent_account_button.item_count - 1)
 	_agent_account_button.tooltip_text = I18n.t("Each account is another configuration folder (%s): another login and another quota.") % variable
 	_refresh_model_choice()
+	_refresh_stage_choices()
+
+
+## Cada perfil con cada una de sus cuentas, para las etapas (m6-20): {profile, account, label}, con
+## account "" para la carpeta que el perfil ya usa. `extra_accounts`: (variable) -> PackedStringArray.
+static func stage_choice_list(profiles: Array, extra_accounts: Callable) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for profile: AgentProfile in profiles:
+		var variable := AgentAccounts.variable_of(profile)
+		var menu := AgentAccounts.menu(profile, extra_accounts.call(variable) if not variable.is_empty() else PackedStringArray())
+		var accounts: Array = menu.get("accounts", [])
+		if accounts.is_empty():
+			result.append({"profile": profile.id, "account": "", "label": profile.display_name})
+			continue
+		for account: Dictionary in accounts:
+			var choice := AgentAccounts.choice(profile, str(account.dir))
+			var name := AgentAccounts.label_of(account) if not str(account.dir).is_empty() else ""
+			result.append({"profile": profile.id, "account": choice, "label": profile.display_name if choice.is_empty() or name.is_empty() else "%s · %s" % [profile.display_name, name]})
+	return result
+
+
+func _refresh_stage_choices() -> void:
+	if _stages_grid == null:
+		return
+	var extra := func(variable: String) -> PackedStringArray:
+		return agent_settings.call(&"accounts", variable) if agent_settings else PackedStringArray()
+	var choices := stage_choice_list(_agent_profiles, extra)
+	var saved: Variant = agent_settings.call(&"get_value", HarnessSettings.KEY_STAGE_AGENTS, {}) if agent_settings else {}
+	var defaults := OneShotRun.saved_stage_agents(saved)
+	for stage: String in _stage_rows:
+		var row: Dictionary = _stage_rows[stage]
+		var button: OptionButton = row.agent
+		var previous: Dictionary = {}
+		if row.touched and button.selected > 0 and button.selected - 1 < row.choices.size():
+			previous = row.choices[button.selected - 1]
+		elif not row.touched:
+			previous = defaults.get(stage, {})
+		row.choices = choices
+		button.clear()
+		button.add_item(I18n.t("Same as the builder"))
+		for choice: Dictionary in choices:
+			button.add_item(str(choice.label))
+			if not previous.is_empty() and OneShotRun.same_agent(choice, previous):
+				button.select(button.item_count - 1)
+		_refresh_stage_model(stage, defaults.get(stage, {}).get("model", {}) if not row.touched else {})
+
+
+## El modelo de la etapa: como el del formulario, pero la primera opción con el mismo agente es
+## «el del constructor».
+func _refresh_stage_model(stage: String, wanted: Dictionary = {}) -> void:
+	var row: Dictionary = _stage_rows[stage]
+	var model_button: OptionButton = row.model
+	var keep := str(wanted.get("value", ""))
+	if keep.is_empty() and model_button.selected > 0 and model_button.selected < row.models.size():
+		keep = str(row.models[model_button.selected].value)
+	var choice := _stage_agent_choice(stage)
+	var store := ModeModels.new(agent_settings)
+	var same := OneShotRun.same_agent(choice, chosen_agent())
+	var remembered := {} if same else store.get_model(str(choice.profile), SessionModel.HarnessMode.ONESHOT)
+	var models := model_choices(remembered, live_model_option.call(str(choice.profile)) as Dictionary, store.by_mode(str(choice.profile)))
+	if same:
+		models[0].label = I18n.t("The builder's model")
+	row.models = models
+	model_button.clear()
+	for item: Dictionary in models:
+		model_button.add_item(str(item.label))
+		if not keep.is_empty() and str(item.value) == keep and model_button.item_count > 1:
+			model_button.select(model_button.item_count - 1)
+	model_button.disabled = models.size() < 2
+
+
+## {profile, account, label} de la etapa: lo elegido o, con «Igual que el constructor», el del formulario.
+func _stage_agent_choice(stage: String) -> Dictionary:
+	var row: Dictionary = _stage_rows[stage]
+	var index: int = (row.agent as OptionButton).selected
+	if index > 0 and index - 1 < row.choices.size():
+		return row.choices[index - 1]
+	var builder := chosen_agent()
+	var base := _base_choice_profile()
+	return {"profile": builder.get("profile", ""), "account": builder.get("account", ""), "label": chosen_profile().label() if base else ""}
+
+
+## Lo que va a run.stage_agents: con la casilla apagada, nada; si no, cada etapa que cambia algo.
+func chosen_stage_agents() -> Dictionary:
+	var result := {}
+	if _stages_check == null or not _stages_check.button_pressed:
+		return result
+	for stage: String in _stage_rows:
+		var row: Dictionary = _stage_rows[stage]
+		var choice := _stage_agent_choice(stage).duplicate()
+		var model_index: int = (row.model as OptionButton).selected
+		var model: Dictionary = row.models[model_index] if model_index > 0 and model_index < row.models.size() else {}
+		choice["model"] = {"value": model.value, "name": model.name} if not model.is_empty() else {}
+		if not OneShotRun.same_agent(choice, chosen_agent()) or not model.is_empty():
+			result[stage] = choice
+	return result
 
 
 ## Sin sesión el agente todavía no dijo qué modelos tiene: se ofrecen el recordado para el One-shot y
@@ -1059,6 +1215,9 @@ func _refresh_form() -> void:
 func _apply_agent_choice() -> void:
 	var choice := chosen_agent()
 	_run.agent = {"profile": choice.profile, "account": choice.account} if not choice.is_empty() else {}
+	_run.stage_agents = chosen_stage_agents()
+	if _stages_check and _stages_check.button_pressed and agent_settings:
+		agent_settings.call(&"set_value", HarnessSettings.KEY_STAGE_AGENTS, _run.stage_agents)  # el defecto del próximo
 	var model: Dictionary = choice.get("model", {})
 	if not model.is_empty() and agent_settings:
 		ModeModels.new(agent_settings).remember_for(str(choice.profile), _model_key(), str(model.value), str(model.name))

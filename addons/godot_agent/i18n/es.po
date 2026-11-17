@@ -6327,3 +6327,48 @@ msgstr "Semana · %s"
 
 msgid "%s (another model)"
 msgstr "%s (otro modelo)"
+
+msgid "Couldn't open a session with the spec's agent."
+msgstr "No se pudo abrir una sesión con el agente del spec."
+
+msgid "The spec is written by %s"
+msgstr "El spec lo escribe %s"
+
+msgid "Spec written: the builder takes over"
+msgstr "Spec escrito: sigue el constructor"
+
+msgid "%s doesn't offer the model «%s» now: it uses its own"
+msgstr "%s no ofrece ahora el modelo «%s»: usa el suyo"
+
+msgid "Couldn't switch to the model «%s»"
+msgstr "No se pudo cambiar al modelo «%s»"
+
+msgid "Couldn't open a session with the builder's agent."
+msgstr "No se pudo abrir una sesión con el agente del constructor."
+
+msgid "The builder starts a new session from the spec"
+msgstr "El constructor arranca una sesión nueva desde el spec"
+
+msgid "The evaluator is %s"
+msgstr "El evaluador es %s"
+
+msgid "Other agents for the spec and QA"
+msgstr "Otros agentes para el spec y el QA"
+
+msgid "The spec and the QA rounds can run with another agent, account or model: spread the work across subscriptions, and have another model check what the builder did. Off, the whole run uses the agent above."
+msgstr "El spec y las vueltas de QA pueden correr con otro agente, cuenta o modelo: repartí el trabajo entre suscripciones y que otro modelo revise lo que hizo el constructor. Apagado, todo el run usa el agente de arriba."
+
+msgid "Who writes the spec. Another agent only writes it; the builder starts a new session from it."
+msgstr "Quién escribe el spec. Otro agente solo lo escribe; el constructor arranca una sesión nueva desde él."
+
+msgid "Who plays and checks the game in each QA round. With another agent or account the builder's session is resumed afterwards."
+msgstr "Quién juega y revisa el juego en cada vuelta de QA. Con otro agente o cuenta, después se retoma la sesión del constructor."
+
+msgid "Only for this stage: it isn't remembered for One-shot."
+msgstr "Solo para esta etapa: no queda recordado para el One-shot."
+
+msgid "Same as the builder"
+msgstr "Igual que el constructor"
+
+msgid "The builder's model"
+msgstr "El del constructor"

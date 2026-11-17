@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Added
 
 - **Choose the One-shot's agent, account and model in its form.** The form used to say only which agent the run would use: the one in the active dock tab. It now has **Agent**, **Account** and **Model** selectors, which start with the active tab's agent and account and follow it until you change one. The run's tab opens its session with what you picked, and a run resumed after restarting the editor comes back with the same agent and account. Before a session is open the agent hasn't listed its models, so **Model** offers the one remembered for One-shot and the ones you already used with that agent, or the agent's full list if a tab has a session open with it. The model you pick is remembered for One-shot, as if you picked it in the composer.
+- **Other agents for the One-shot's spec and QA.** Turn on **Other agents for the spec and QA** in the form to give each of those stages its own agent, account or model, to spread a run across subscriptions or have a different model check the builder's work. Another agent for the spec only writes the spec, and the builder starts a new session from it (after you approve it, if **Review the spec** is on). Another agent or account for QA runs each QA round in its own process, and the builder's session is resumed afterwards. Off, the whole run uses one agent as before. The form remembers the last assignment for the next run.
 
 ### Fixed
 

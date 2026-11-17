@@ -54,6 +54,7 @@ const AskAgentMenu := preload("editor/ask_agent_menu.gd")
 const McpServer := preload("mcp/mcp_server.gd")
 const ToolRegistry := preload("mcp/tool_registry.gd")
 const ModeModels := preload("core/mode_models.gd")
+const AgentAccounts := preload("session/agents/agent_accounts.gd")
 const ProjectModes := preload("core/project_modes.gd")
 const ProjectToolLoader := preload("mcp/project_tool_loader.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
@@ -350,6 +351,13 @@ func _enter_tree() -> void:
 		var profile := controller.profile() if controller.profile() else _tab_profile(_session_id_of(controller))
 		return profile != null and await controller.reopen(profile, lost_id)
 	_oneshot.prepare_session = _prepare_oneshot_tab
+	# Agentes por etapa (m6-20): el spec o el QA con otro perfil, cuenta o modelo, y la vuelta al constructor.
+	_oneshot.open_with_agent = func(choice: Dictionary, lost_id: String) -> bool:
+		var controller := _oneshot.controller
+		var profile := _choice_profile(choice)
+		if profile == null:
+			profile = _tab_profile(_session_id_of(controller))
+		return profile != null and await controller.reopen(profile, lost_id)
 	_oneshot.resume_auto = _settings.quota_resume_auto()
 	_oneshot.store.dir = ONESHOT_STORE_DIR
 	_oneshot.loops.repeats = _project_config.loop_repeats
@@ -1355,6 +1363,13 @@ func _tab_profile(id: String = "") -> AgentProfile:
 		return controller.profile()
 	var dock := _tabs.dock(id) as AgentDock if _tabs else null
 	return dock.selected_profile() if dock else _settings.active_profile()
+
+
+## El perfil de una elección {profile, account} con la cuenta aplicada; null si no nombra uno o ya
+## no existe.
+func _choice_profile(choice: Dictionary) -> AgentProfile:
+	var base := _settings.profile(str(choice.get("profile", ""))) if not str(choice.get("profile", "")).is_empty() else null
+	return AgentAccounts.apply(base, str(choice.get("account", ""))) if base else null
 
 
 ## La opción de modelo de una sesión abierta con el perfil `profile_id` (la activa primero), o {}: sin

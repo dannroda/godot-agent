@@ -41,6 +41,7 @@ const PermissionPolicy := preload("../session/permission_policy.gd")
 const I18n := preload("../core/i18n.gd")
 const HarnessPrompts := preload("../session/harness_prompts.gd")
 const AgentLog := preload("../core/agent_log.gd")
+const ModeModels := preload("../core/mode_models.gd")
 
 enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW, EVALUATING }
 
@@ -144,6 +145,9 @@ const REOPEN_NEW: Dictionary = {
 const TICK_S := 0.5
 ## Vueltas de QA por defecto (D55): evaluaciones como mucho, con una vuelta de corrección entre
 ## una y otra. 0 apaga el evaluador.
+## Las etapas con agente propio (m6-20).
+const STAGE_SPEC := "spec"
+const STAGE_QA := "qa"
 const QA_ROUNDS := 2
 ## Encabezado del prompt del evaluador (el agente falso de los tests lo reconoce por esto).
 const QA_MARKER := "QA evaluation (One-shot)"
@@ -197,6 +201,17 @@ var builder_mode: Dictionary = {}
 ## pestaña del run copia el de la pestaña desde la que se lanzó (m17-19). Se guarda con el run, así
 ## uno retomado de disco vuelve con el mismo agente y la misma cuenta.
 var agent: Dictionary = {}
+## Agentes por etapa (m6-20), opt-in desde el formulario: {"spec": choice, "qa": choice}, cada uno
+## {profile, account, model: {value, name}}. Una etapa sin entrada, o igual al constructor, usa la
+## sesión de siempre. Otro perfil o cuenta relanza el proceso de la pestaña con ese agente: el QA
+## abre una sesión nueva y vuelve al constructor con session/load (la suya, con su perfil); el spec
+## lo escribe el otro agente y el constructor arranca una sesión nueva que lee el spec.
+var stage_agents: Dictionary = {}
+## (choice: Dictionary, lost_id: String) -> bool (await): relanza la sesión del run con el agente de
+## `choice` ({profile, account}; {} = el de la pestaña) y retoma `lost_id` si puede. Lo pone el plugin.
+var open_with_agent: Callable
+## La vuelta de QA en curso corre con otro agente: volver al constructor relanza con el suyo.
+var _qa_other_agent: bool = false
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
 ## Vueltas de QA (D55); 0 = sin evaluador: valen los checks que reporta el agente.
@@ -404,7 +419,8 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	run_id = OneShotStore.new_id()
 	files.run_id = run_id
 	spec_review = review_spec
-	_set_stage(RunStage.SPEC_APPROVAL if review_spec else RunStage.BUILDING, true)
+	_set_stage(RunStage.SPEC_APPROVAL if review_spec or separate_spec() else RunStage.BUILDING, true)
+	_qa_other_agent = false
 	recovered = false
 	_recovered_session_id = ""
 	_suspended = false
@@ -460,7 +476,13 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 		references = added.paths
 		if not (added.skipped as PackedStringArray).is_empty():
 			_add_activity("warning", I18n.t("Couldn't use these reference files: %s") % ", ".join(added.skipped))
-	if not controller.is_connected_to_agent() and not await _restart_session(""):
+	var spec_agent := stage_agent(STAGE_SPEC)
+	if not spec_agent.is_empty():  # el spec lo escribe otro agente (m6-20)
+		if not await _open_with(spec_agent, ""):
+			_finish(I18n.t("Couldn't open a session with the spec's agent."))
+			return false
+		_add_activity("session", I18n.t("The spec is written by %s") % _choice_label(spec_agent))
+	elif not controller.is_connected_to_agent() and not await _restart_session(""):
 		_finish(I18n.t("Couldn't open a session with the agent."))
 		return false
 	# Remote Control (m7-21): los turnos que se mandan desde el celular no pasan por el run y
@@ -470,6 +492,8 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 		await controller.send_prompt(_harness(controller.remote_control_command(false), HarnessPrompts.ONESHOT_REMOTE_OFF))
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
 	_apply_builder_mode()
+	if not spec_agent.is_empty():
+		await _apply_stage_model(spec_agent)
 	_set_phase(RunPhase.RUNNING)
 	_timer.start()
 	_run_turn(_harness(initial_prompt(), HarnessPrompts.ONESHOT_START))
@@ -477,6 +501,37 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 
 
 func initial_prompt() -> String:
+	var spec_step := "0. Before anything else, write the game spec in %s: mechanics, game loop (start → play → win or lose → restart), visual direction and what \"done\" means. Ambitious in scope but high level: no technical detail (no nodes, scripts or APIs)." % files.spec_path()
+	if spec_review:
+		spec_step += " Then end the turn without building anything: the user reviews and approves it."
+	elif separate_spec():
+		spec_step += " Then end the turn without building anything: another agent makes the plan from it and builds the game."
+	var lines: PackedStringArray = ["Goal (One-shot mode): %s" % goal]
+	if not references.is_empty():
+		lines.append_array(["", "Reference material from the user: read all of it before writing the spec. The spec and the game follow it; where it disagrees with the goal above, the goal wins."])
+		lines.append_array(_reference_lines())
+	if separate_spec():  # el agente del spec solo escribe el spec (m6-20)
+		return "\n".join(lines + PackedStringArray(["", "Your part is only the spec:", spec_step]))
+	return "\n".join(lines + PackedStringArray([
+		"",
+		"Work autonomously until the goal is met:",
+		spec_step,
+	]) + _build_steps())
+
+
+## El primer prompt del constructor cuando el spec lo escribió otro agente (m6-20): sesión nueva, sin
+## el contexto del que lo escribió.
+func builder_prompt(edited: bool = false) -> String:
+	var lines: PackedStringArray = ["Goal (One-shot mode): %s" % goal]
+	if not references.is_empty():
+		lines.append_array(["", "Reference material from the user: read it before making the plan; where it disagrees with the goal above, the goal wins."])
+		lines.append_array(_reference_lines())
+	lines.append_array(["", "Another agent wrote the game spec in %s and it is approved%s: read it first, the game follows it." % [files.spec_path(), " with the user's changes" if edited else ""], "", "Work autonomously until the goal is met:"])
+	return "\n".join(lines + _build_steps())
+
+
+## Los pasos del constructor, del plan en adelante.
+func _build_steps() -> PackedStringArray:
 	var limits: PackedStringArray = []
 	if int(budgets[BUDGET_TIME]) > 0:
 		limits.append("%d min" % budgets[BUDGET_TIME])
@@ -484,17 +539,7 @@ func initial_prompt() -> String:
 		limits.append("%d tokens" % budgets[BUDGET_TOKENS])
 	if int(budgets[BUDGET_PLAYTESTS]) > 0:
 		limits.append("%d playtests" % budgets[BUDGET_PLAYTESTS])
-	var spec_step := "0. Before anything else, write the game spec in %s: mechanics, game loop (start → play → win or lose → restart), visual direction and what \"done\" means. Ambitious in scope but high level: no technical detail (no nodes, scripts or APIs)." % files.spec_path()
-	if spec_review:
-		spec_step += " Then end the turn without building anything: the user reviews and approves it."
-	var lines: PackedStringArray = ["Goal (One-shot mode): %s" % goal]
-	if not references.is_empty():
-		lines.append_array(["", "Reference material from the user: read all of it before writing the spec. The spec and the game follow it; where it disagrees with the goal above, the goal wins."])
-		lines.append_array(_reference_lines())
-	return "\n".join(lines + PackedStringArray([
-		"",
-		"Work autonomously until the goal is met:",
-		spec_step,
+	return PackedStringArray([
 		"1. Make a plan from the spec with your plan or task tool (for example TodoWrite or TaskCreate/TaskUpdate), one entry per task. Mark each task in_progress when you start it and completed when you finish it: the harness sees the plan and creates a git checkpoint before each task.",
 		"2. After each task, verify with godot.run_scene (with inputs if needed), godot.capture_game_frame and godot.get_errors.",
 		"3. When you finish each task, update %s (what is done, what is missing, decisions and known problems: it is what whoever resumes will read) and report the current checks in a ```json {\"checks\":[{\"label\":\"…\",\"status\":\"pass|fail|pending\"}]} block." % files.progress_path(),
@@ -502,7 +547,7 @@ func initial_prompt() -> String:
 		"Don't make commits or switch branches: the harness handles the git checkpoints.",
 		"",
 		GameCriteria.generator_text(criteria),
-	]))
+	])
 
 
 func _reference_lines() -> PackedStringArray:
@@ -546,7 +591,13 @@ func resume() -> void:
 		await prepare_session.call()
 	var lost_id := _recovered_session_id if from_disk else model.session_id
 	if not controller.is_connected_to_agent() or (from_disk and model.session_id != lost_id):
-		if not await _restart_session(lost_id):
+		var spec_agent := stage_agent(STAGE_SPEC) if _stage == RunStage.SPEC_APPROVAL else {}
+		var reopened: bool
+		if not spec_agent.is_empty():
+			reopened = await _open_with(spec_agent, lost_id)
+		else:
+			reopened = await _restart_session(lost_id)
+		if not reopened:
 			_recovered_session_id = ""
 			_finish(I18n.t("Couldn't reopen the session with the agent."))
 			return
@@ -753,8 +804,12 @@ func approve_spec(text: String = "") -> void:
 	var edited := not text.strip_edges().is_empty() and text != files.read(files.spec_path())
 	if edited:
 		files.write(files.spec_path(), text)
-	_set_stage(RunStage.BUILDING)
 	_add_activity("spec", I18n.t("Spec approved with the user's changes") if edited else I18n.t("Spec approved"))
+	if separate_spec():
+		_set_phase(RunPhase.RUNNING)
+		_build_from_spec(edited)
+		return
+	_set_stage(RunStage.BUILDING)
 	_set_phase(RunPhase.RUNNING)
 	_run_turn(_harness("The spec is approved%s. Continue with the rest: make the plan from the spec and build." % (" with changes: reread it before making the plan" if edited else ""), HarnessPrompts.ONESHOT_SPEC_APPROVED))
 
@@ -924,7 +979,11 @@ func _after_turn(reason: String) -> void:
 			_run_turn(_harness(_resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
 		return
 	if _stage == RunStage.SPEC_APPROVAL:
-		_enter_spec_review()
+		if spec_review:
+			_enter_spec_review()
+		else:  # el spec de otro agente, sin revisión: pasa solo al constructor (m6-20)
+			_add_activity("spec", I18n.t("Spec written: the builder takes over"))
+			_build_from_spec(false)
 		return
 	if current_plan().is_empty():
 		_after_turn_without_plan()
@@ -1012,6 +1071,88 @@ func _on_permission_requested(request: SessionModel.PermissionRequest) -> void:
 		if not request.was_allowed():
 			report.count("permissions_denied")
 	, CONNECT_ONE_SHOT)
+
+
+## La elección de la etapa (STAGE_SPEC, STAGE_QA) si cambia algo respecto del constructor: otro
+## perfil, otra cuenta u otro modelo. {} = la sesión de siempre.
+func stage_agent(stage: String) -> Dictionary:
+	var choice: Variant = stage_agents.get(stage)
+	if not choice is Dictionary or str((choice as Dictionary).get("profile", "")).is_empty():
+		return {}
+	var model_choice: Variant = choice.get("model", {})
+	var has_model := model_choice is Dictionary and not str((model_choice as Dictionary).get("value", "")).is_empty()
+	return choice if has_model or not same_agent(choice, agent) else {}
+
+
+## El spec lo escribe otro agente (m6-20): el run arranca con él y el constructor abre su sesión.
+func separate_spec() -> bool:
+	var choice := stage_agent(STAGE_SPEC)
+	return not choice.is_empty() and not same_agent(choice, agent)
+
+
+## Mismo perfil y misma cuenta ("" = la del perfil). Sin perfil en `b` ({}: el de la pestaña), solo
+## si `a` tampoco nombra uno.
+static func same_agent(a: Dictionary, b: Dictionary) -> bool:
+	return str(a.get("profile", "")) == str(b.get("profile", "")) and str(a.get("account", "")) == str(b.get("account", ""))
+
+
+## Las elecciones por etapa guardadas: solo las que nombran un perfil, con texto.
+static func saved_stage_agents(saved: Variant) -> Dictionary:
+	var result := {}
+	if not saved is Dictionary:
+		return result
+	for stage: String in [STAGE_SPEC, STAGE_QA]:
+		var choice: Variant = (saved as Dictionary).get(stage)
+		if choice is Dictionary and not str(choice.get("profile", "")).is_empty():
+			var model_choice: Variant = choice.get("model", {})
+			result[stage] = {
+				"profile": str(choice.profile), "account": str(choice.get("account", "")), "label": str(choice.get("label", choice.profile)),
+				"model": {"value": str(model_choice.get("value", "")), "name": str(model_choice.get("name", ""))} if model_choice is Dictionary and not str(model_choice.get("value", "")).is_empty() else {},
+			}
+	return result
+
+
+func _choice_label(choice: Dictionary) -> String:
+	var parts: PackedStringArray = [str(choice.get("label", choice.get("profile", "")))]
+	var model_choice: Variant = choice.get("model", {})
+	if model_choice is Dictionary and not str(model_choice.get("value", "")).is_empty():
+		parts.append(str(model_choice.get("name", model_choice.value)))
+	return " · ".join(parts)
+
+
+func _open_with(choice: Dictionary, lost_id: String) -> bool:
+	if not open_with_agent.is_valid():
+		return await _restart_session(lost_id)
+	return await open_with_agent.call(choice, lost_id)
+
+
+## El modelo de la etapa, si eligió uno y el agente lo ofrece. No se recuerda: es solo de esa etapa.
+func _apply_stage_model(choice: Dictionary) -> void:
+	var wanted: Variant = choice.get("model", {})
+	if not wanted is Dictionary or str((wanted as Dictionary).get("value", "")).is_empty():
+		return
+	var value := str(wanted.value)
+	var option := model.model_option()
+	if option.is_empty() or not ModeModels.offers(option, value):
+		_add_activity("warning", I18n.t("%s doesn't offer the model «%s» now: it uses its own") % [str(choice.get("label", choice.profile)), str(wanted.get("name", value))])
+		return
+	if not await controller.set_config_option(str(option.get("id", "model")), value):
+		_add_activity("warning", I18n.t("Couldn't switch to the model «%s»") % str(wanted.get("name", value)))
+
+
+## El spec de otro agente está listo (aprobado o sin revisión): el constructor abre su sesión, nueva,
+## con su agente, y arranca desde el spec (m6-20).
+func _build_from_spec(edited: bool) -> void:
+	_set_stage(RunStage.BUILDING)
+	if not await _open_with(agent, ""):
+		_finish(I18n.t("Couldn't open a session with the builder's agent."))
+		return
+	if not is_inside_tree() or phase != RunPhase.RUNNING:
+		return
+	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+	_apply_builder_mode()
+	_add_activity("session", I18n.t("The builder starts a new session from the spec"))
+	_run_turn(_harness(builder_prompt(edited), HarnessPrompts.ONESHOT_SPEC_APPROVED))
 
 
 func _restart_session(lost_id: String) -> bool:
@@ -1309,11 +1450,21 @@ func _evaluate() -> void:
 	controller.policy.restrictions = QA_RESTRICTIONS.duplicate()
 	controller.mode_rules_override = QA_MODE_RULES
 	model.set_project_mode({}, true)  # el evaluador, como siempre
-	var opened: bool = await controller.open_session_keeping_previous()
+	var qa_agent := stage_agent(STAGE_QA)
+	var opened: bool
+	if not qa_agent.is_empty() and not same_agent(qa_agent, agent):
+		# Otro agente u otra cuenta (m6-20): otro proceso, y la vuelta relanza el del constructor.
+		_qa_other_agent = true
+		_add_activity("session", I18n.t("The evaluator is %s") % _choice_label(qa_agent))
+		opened = await _open_with(qa_agent, "")
+	else:
+		opened = await controller.open_session_keeping_previous()
 	if not is_inside_tree() or phase != RunPhase.EVALUATING:
 		_end_qa_role()
 		return
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
+	if opened and not qa_agent.is_empty():
+		await _apply_stage_model(qa_agent)
 	if not opened:
 		_end_qa_role()
 		_add_activity("warning", I18n.t("Couldn't open the evaluator's session"))
@@ -1529,9 +1680,16 @@ func _fix_prompt(failing_checks: Array, verdict: Dictionary, parsed: Dictionary)
 func _back_to_generator() -> String:
 	var session_id := _generator_session_id
 	_generator_session_id = ""
+	var other := _qa_other_agent
+	_qa_other_agent = false
 	if session_id.is_empty():
 		return "loaded"
-	if not await _restart_session(session_id):
+	var back: bool
+	if other:
+		back = await _open_with(agent, session_id)
+	else:
+		back = await _restart_session(session_id)
+	if not back:
 		_add_activity("warning", I18n.t("Couldn't go back to the builder's session"))
 		return "failed"
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
@@ -1624,6 +1782,7 @@ func to_dict() -> Dictionary:
 		"spec_review": spec_review,
 		"builder_mode": builder_mode,
 		"agent": agent,
+		"stage_agents": stage_agents,
 		"stage": RunStage.keys()[_stage],
 		"qa_round": qa_round,
 		"qa_results": qa_results,
@@ -1687,6 +1846,8 @@ func _apply(data: Dictionary) -> void:
 	spec_review = bool(data.get("spec_review", false))
 	builder_mode = saved_builder_mode(data.get("builder_mode", {}))
 	agent = saved_agent(data.get("agent", {}))
+	stage_agents = saved_stage_agents(data.get("stage_agents", {}))
+	_qa_other_agent = false
 	_set_stage(_saved_stage(data), true)
 	qa_round = int(data.get("qa_round", 0))
 	qa_results.assign(data.get("qa_results", []))
