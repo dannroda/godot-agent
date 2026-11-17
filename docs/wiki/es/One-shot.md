@@ -125,12 +125,16 @@ Los umbrales se aplican a la ventana más llena que limita al modelo en uso. El 
 
 ### Cambiar de cuenta
 
-Si tenés otra cuenta, no hace falta esperar el reinicio. Abrí **Cambiar de cuenta** en la barra de arriba:
+Si tenés otra cuenta, no hace falta esperar el reinicio. Abrí **Cambiar de cuenta** en la barra de arriba. Lista las cuentas y los agentes que configuraste en **Ajustes** y en el menú del agente del dock, con la que está en uso marcada y la última cuota vista de cada una (**62 % usado**, **agotada, se libera en 2 h**):
 
+- **otra cuenta del mismo agente**: el harness relanza el agente con esa cuenta y retoma **la misma sesión** (`session/load`), así el agente conserva su contexto. Con Claude Code, antes copia la sesión a la carpeta de esa cuenta;
+- **otro agente** (bajo **Otro agente (sesión nueva)**): pregunta antes, porque ese agente no puede cargar esta conversación. El run sigue en una sesión nueva con el resumen del plan;
 - **Iniciar sesión con otra cuenta · <método>** corre el login del agente desde el editor. Al terminar, el run sigue;
 - **Ya inicié sesión con otra cuenta (en una terminal)**: para cuando lo hiciste vos (`claude` y después `/login`).
 
-En los dos casos, el harness relanza el agente para que tome las credenciales nuevas, olvida la cuota de la cuenta anterior y retoma **la misma sesión** (`session/load`): el agente conserva su contexto.
+Cada cambio olvida la cuota de la cuenta anterior. Si el agente no puede cargar la sesión con la cuenta nueva, el run sigue en una sesión nueva con el resumen del plan.
+
+Fuera de un One-shot, el dock muestra el mismo botón **Cambiar de cuenta** al lado del anillo de la cuota cuando llegás al límite.
 
 ## Cerrar el editor con un run en curso
 

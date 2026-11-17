@@ -22,6 +22,8 @@ const AgentAdapters := preload("session/agents/agent_adapters.gd")
 const AgentAdapter := preload("session/agents/agent_adapter.gd")
 const I18n := preload("core/i18n.gd")
 const SessionHistory := preload("session/session_history.gd")
+const AccountQuotaBook := preload("core/account_quota_book.gd")
+const AccountChoices := preload("session/agents/account_choices.gd")
 const SessionModel := preload("session/session_model.gd")
 const SessionController := preload("session/session_controller.gd")
 const EditorContext := preload("ui/editor_context.gd")
@@ -349,9 +351,12 @@ func _enter_tree() -> void:
 	_oneshot.setup(_controller, EditorContext.project_path())
 	_oneshot.after_restore = _after_oneshot_restore
 	_oneshot.restart_session = func(lost_id: String) -> bool:
-		# El agente con el que corría el run, o el elegido en su pestaña.
+		# La cuenta o el perfil elegido en «Cambiar de cuenta» (m6-22); si no, el agente con el que
+		# corría el run, o el elegido en su pestaña.
 		var controller := _oneshot.controller
-		var profile := controller.profile() if controller.profile() else _tab_profile(_session_id_of(controller))
+		var profile := _oneshot.take_switch_profile()
+		if profile == null:
+			profile = controller.profile() if controller.profile() else _tab_profile(_session_id_of(controller))
 		return profile != null and await controller.reopen(profile, lost_id)
 	_oneshot.prepare_session = _prepare_oneshot_tab
 	# Agentes por etapa (m6-20): el spec o el QA con otro perfil, cuenta o modelo, y la vuelta al constructor.
@@ -361,6 +366,10 @@ func _enter_tree() -> void:
 		if profile == null:
 			profile = _tab_profile(_session_id_of(controller))
 		return profile != null and await controller.reopen(profile, lost_id)
+	_oneshot.account_choices = func() -> Array[Dictionary]:
+		var controller := _oneshot.controller
+		var current := controller.profile() if controller.profile() else _tab_profile(_session_id_of(controller))
+		return AccountChoices.list(_settings, current, controller.account_quota)
 	_oneshot.resume_auto = _settings.quota_resume_auto()
 	_oneshot.store.dir = ONESHOT_STORE_DIR
 	_oneshot.loops.repeats = _project_config.loop_repeats
@@ -2043,6 +2052,7 @@ func _make_controller(model: SessionModel, id: String, copy: WorktreeSession = n
 	# capture armaría un ciclo de referencias y no se liberarían al cerrar.
 	controller.session_meta_provider = func() -> Dictionary: return _session_meta(_controller_of(id))
 	controller.history = SessionHistory.new()
+	controller.account_quota = AccountQuotaBook.new()
 	controller.policy = PermissionPolicy.new(_project_config.permissions)
 	controller.policy.subagent_limits = _project_config.subagent_limits
 	controller.shell_rules = _project_config.auto_shell_rules

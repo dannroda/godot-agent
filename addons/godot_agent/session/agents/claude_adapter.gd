@@ -55,3 +55,38 @@ func account_email(dir: String) -> String:
 	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	var account: Variant = (data as Dictionary).get("oauthAccount") if data is Dictionary else null
 	return str((account as Dictionary).get("emailAddress", "")) if account is Dictionary else ""
+
+
+## Claude Code guarda cada sesión en `<carpeta>/projects/<proyecto>/<id>.jsonl` (y lo de sus
+## subagentes en `<id>/`). Se copia a la misma subcarpeta de la otra cuenta, pisando una copia vieja:
+## la de la cuenta con la que corría es la que está al día.
+func carry_session(session_id: String, from_dir: String, to_dir: String) -> bool:
+	if session_id.is_empty() or not session_id.is_valid_filename():
+		return false
+	var projects := from_dir.path_join("projects")
+	var access := DirAccess.open(projects)
+	if access == null:
+		return false
+	for project: String in access.get_directories():
+		var source := projects.path_join(project).path_join(session_id + ".jsonl")
+		if not FileAccess.file_exists(source):
+			continue
+		var target_dir := to_dir.path_join("projects").path_join(project)
+		if DirAccess.make_dir_recursive_absolute(target_dir) != OK:
+			return false
+		if DirAccess.copy_absolute(source, target_dir.path_join(session_id + ".jsonl")) != OK:
+			return false
+		_copy_tree(projects.path_join(project).path_join(session_id), target_dir.path_join(session_id))
+		return true
+	return false
+
+
+static func _copy_tree(from: String, to: String) -> void:
+	var access := DirAccess.open(from)
+	if access == null:
+		return
+	DirAccess.make_dir_recursive_absolute(to)
+	for file: String in access.get_files():
+		DirAccess.copy_absolute(from.path_join(file), to.path_join(file))
+	for dir: String in access.get_directories():
+		_copy_tree(from.path_join(dir), to.path_join(dir))

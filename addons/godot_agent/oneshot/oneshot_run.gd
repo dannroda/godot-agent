@@ -43,6 +43,9 @@ const HarnessPrompts := preload("../session/harness_prompts.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const BoardTask := preload("board_task.gd")
 const ModeModels := preload("../core/mode_models.gd")
+const AgentProfile := preload("../core/agent_profile.gd")
+const AgentAccounts := preload("../session/agents/agent_accounts.gd")
+const AccountChoices := preload("../session/agents/account_choices.gd")
 
 enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW, EVALUATING }
 
@@ -137,11 +140,13 @@ const REOPEN_LOADED: Dictionary = {
 	"editor": "The editor had closed: reopened the session with session/load",  # i18n
 	"lost": "The session was lost: reopened the session with session/load",  # i18n
 	"account": "Account switch: reopened the session with session/load",  # i18n
+	"profile": "Agent switch: reopened the session with session/load",  # i18n
 }
 const REOPEN_NEW: Dictionary = {
 	"editor": "The editor had closed: opened a new session with the plan summary",  # i18n
 	"lost": "The session was lost: opened a new session with the plan summary",  # i18n
 	"account": "Account switch: opened a new session with the plan summary",  # i18n
+	"profile": "Agent switch: opened a new session with the plan summary",  # i18n
 }
 const TICK_S := 0.5
 ## Vueltas de QA por defecto (D55): evaluaciones como mucho, con una vuelta de corrección entre
@@ -181,6 +186,13 @@ var restart_session: Callable
 ## () -> void (await): antes de empezar un run, o de retomar uno que vino de disco, el plugin le da
 ## su propia pestaña de sesión con bind() (m17-19). Sin esto, el run usa el controller de setup().
 var prepare_session: Callable
+## La cuenta o el perfil elegido en «Cambiar de cuenta» (m6-22), para el próximo relanzamiento:
+## el plugin la toma con take_switch_profile(). null = el agente con el que corría.
+var switch_profile: AgentProfile
+## Callable() -> Array[Dictionary]: las cuentas y perfiles a los que pasar (AccountChoices.list),
+## para «Cambiar de cuenta» y la cadena de reserva (m6-21).
+var account_choices: Callable
+var _new_session_on_resume: bool = false
 ## Retomar solo al reiniciarse la cuota (Settings) o esperar confirmación.
 var resume_auto: bool = true
 ## Dónde se guardan los runs (sin carpeta, no se guardan).
@@ -623,6 +635,9 @@ func resume() -> void:
 		return
 	var spec_only := _stage == RunStage.SPEC_APPROVAL and separate_spec()
 	var lost_id := _recovered_session_id if from_disk else model.session_id
+	if _new_session_on_resume:  # otro agente (m6-22): no puede cargar la sesión de este
+		lost_id = ""
+	_new_session_on_resume = false
 	if not controller.is_connected_to_agent() or (from_disk and model.session_id != lost_id):
 		var spec_agent := stage_agent(STAGE_SPEC) if _stage == RunStage.SPEC_APPROVAL else {}
 		var reopened: bool
@@ -658,18 +673,69 @@ func resume() -> void:
 
 ## Cambio de cuenta (m6-15): la cuota medida era de la cuenta anterior. Se relanza el proceso del
 ## agente, que lee las credenciales nuevas, y se retoma la misma sesión con session/load.
-func switch_account() -> void:
+## `target` (m6-22): la cuenta o el perfil elegido en «Cambiar de cuenta». Otra cuenta del mismo
+## agente retoma la misma sesión (copiada a la carpeta de esa cuenta); otro agente abre una sesión
+## nueva con el resumen del plan, sin la conversación.
+func switch_account(target: AgentProfile = null) -> void:
 	if not can_resume():
 		return
 	var session_id := _recovered_session_id if not _recovered_session_id.is_empty() else model.session_id
+	var current := controller.profile()
+	var other_agent := target != null and current != null and target.id != current.id
+	if target and current and not other_agent:
+		AccountChoices.carry_session(current, target, session_id)
 	quota.forget_account()
 	quota_resume_at = 0
 	report.count("account_switches")
-	_add_activity("session", I18n.t("Account switch: restarting the agent and resuming the same session"))
+	if other_agent:
+		_add_activity("session", I18n.t("Switching to %s: a new session with the plan summary (the conversation is not carried over)") % target.display_name)
+	elif target:
+		_add_activity("session", I18n.t("Account switch to %s: restarting the agent and resuming the same session") % _account_name(target))
+	else:
+		_add_activity("session", I18n.t("Account switch: restarting the agent and resuming the same session"))
+	switch_profile = target
+	if target:
+		# Con agentes por etapa (m6-20): cambia quien estaba corriendo. En el QA o el spec de otro
+		# agente es la elección de esa etapa (la vuelta al constructor sigue con el suyo); si no, el
+		# del constructor, que usan las vueltas al constructor y el spec aparte.
+		var picked := {"profile": target.id, "account": target.account_dir}
+		var stage_key := _running_stage_key()
+		if stage_key.is_empty():
+			agent = picked
+		else:
+			var choice: Dictionary = (stage_agents.get(stage_key, {}) as Dictionary).duplicate()
+			choice.merge(picked, true)
+			choice["label"] = target.label()
+			stage_agents[stage_key] = choice
+			switch_profile = null  # la etapa se abre con _open_with, no con el relanzamiento de siempre
+		_open_choice = picked
 	controller.stop()
-	_recovered_session_id = session_id
-	_reopen_reason = "account"
+	_recovered_session_id = "" if other_agent else session_id
+	_new_session_on_resume = other_agent
+	_reopen_reason = "profile" if other_agent else "account"
 	resume()
+
+
+## La etapa con agente propio que corre ahora ("" = el constructor): el QA de otro agente durante
+## una vuelta de QA, o el spec aparte mientras se escribe.
+func _running_stage_key() -> String:
+	if _stage == RunStage.EVALUATION and _qa_other_agent:
+		return STAGE_QA
+	if _stage == RunStage.SPEC_APPROVAL and separate_spec():
+		return STAGE_SPEC
+	return ""
+
+
+## Lo que el plugin usa al relanzar después de «Cambiar de cuenta» (una vez): null = el de siempre.
+func take_switch_profile() -> AgentProfile:
+	var profile := switch_profile
+	switch_profile = null
+	return profile
+
+
+static func _account_name(profile: AgentProfile) -> String:
+	var dir := AccountChoices.effective_dir(profile)
+	return "%s (%s)" % [profile.display_name, AgentAccounts.name_of(dir)] if not dir.is_empty() else profile.display_name
 
 
 func stop() -> void:

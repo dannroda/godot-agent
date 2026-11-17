@@ -92,6 +92,8 @@ const CONNECTING_HINT_AFTER_S := 4
 const RECENT_SESSIONS := 5
 const AgentProfile := preload("../../core/agent_profile.gd")
 const AgentAccounts := preload("../../session/agents/agent_accounts.gd")
+const AccountChoices := preload("../../session/agents/account_choices.gd")
+const AccountSwitchMenu := preload("../account_switch_menu.gd")
 const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const HoverTooltip := preload("../hover_tooltip.gd")
@@ -272,6 +274,9 @@ var _more_button: MenuButton
 var _logout_dialog: ConfirmationDialog
 var _remote_banner: RemoteControlBanner
 var _quota_timer: Timer
+## «Cambiar de cuenta» al llegar al límite del plan (m6-22), al lado del anillo de la cuota.
+var _account_switch: MenuButton
+var _account_switch_choices: Array[Dictionary] = []
 var _quota_state: int = QuotaMonitor.QuotaState.UNKNOWN
 var _delete_session_dialog: ConfirmationDialog
 ## Para pegar el código de la página de login (se arma la primera vez).
@@ -852,6 +857,15 @@ func _build_quota_ring() -> void:
 	_quota_ring = QuotaRing.new()
 	_quota_ring.setup(_controller.quota, _accent)
 	_composer.add_status_control(_quota_ring)
+	_account_switch = MenuButton.new()
+	_account_switch.name = "AccountSwitchButton"
+	_account_switch.text = I18n.t("Switch account")
+	_account_switch.flat = false
+	_account_switch.tooltip_text = I18n.t("Continue with another account or agent without waiting for the quota to reset. Another account of the same agent resumes the same session.")
+	_account_switch.visible = false
+	_account_switch.about_to_popup.connect(_fill_account_switch)
+	_account_switch.get_popup().id_pressed.connect(_on_account_switch)
+	_composer.add_status_control(_account_switch)
 	_quota_timer = Timer.new()
 	_quota_timer.wait_time = 1.0
 	_quota_timer.timeout.connect(_on_quota_tick)
@@ -892,6 +906,45 @@ func _on_quota_tick() -> void:
 		_composer.set_locked("⏳ %s" % QuotaMonitor.format_duration(quota.seconds_until_retry()), I18n.t("Plan limit reached: you can send again when the window resets"))
 	else:
 		_composer.set_locked("")
+	if _account_switch:  # en un One-shot, cambia de cuenta su pantalla
+		_account_switch.visible = quota.is_limited() and not _is_oneshot_active()
+
+
+func _fill_account_switch() -> void:
+	var current := _controller.profile() if _controller.profile() else selected_profile()
+	_account_switch_choices = AccountChoices.list(_settings, current, _controller.account_quota)
+	AccountSwitchMenu.fill(_account_switch.get_popup(), _account_switch_choices, _controller.login_methods())
+
+
+func _on_account_switch(id: int) -> void:
+	if id == AccountSwitchMenu.ALREADY_SWITCHED:
+		var profile := _controller.profile()
+		if profile:
+			_controller.quota.forget_account()
+			_controller.reopen(profile, _model.session_id)
+		return
+	var choice := AccountSwitchMenu.choice_of(id, _account_switch_choices)
+	if not choice.is_empty():
+		AccountSwitchMenu.confirm(self, choice, I18n.t("Continue with %s? It opens a new session: that agent does not get this conversation."), switch_agent)
+		return
+	var methods := _controller.login_methods()
+	if id >= 0 and id < methods.size():
+		_controller.login(str(methods[id].id))
+
+
+## Sigue con `profile` (m6-22) y lo deja elegido en la pestaña. Otra cuenta del mismo agente retoma
+## la misma sesión (copiada a la carpeta de esa cuenta); otro agente abre una sesión nueva.
+func switch_agent(profile: AgentProfile) -> void:
+	var current := _controller.profile()
+	var session_id := _model.session_id
+	_profile_id = profile.id
+	_accounts[profile.id] = profile.account_dir
+	_reload_profiles()
+	if current and current.id == profile.id and not session_id.is_empty():
+		AccountChoices.carry_session(current, profile, session_id)
+		await _controller.reopen(profile, session_id)
+	else:
+		await start_session(profile)
 
 
 # --- revisión ------------------------------------------------------------------------------------

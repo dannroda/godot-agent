@@ -30,6 +30,7 @@ const AgentAccounts := preload("../../session/agents/agent_accounts.gd")
 const AgentAdapters := preload("../../session/agents/agent_adapters.gd")
 const ModeModels := preload("../../core/mode_models.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
+const AccountSwitchMenu := preload("../account_switch_menu.gd")
 
 const BUDGET_KEYS: PackedStringArray = [OneShotRun.BUDGET_TIME, OneShotRun.BUDGET_TOKENS, OneShotRun.BUDGET_PLAYTESTS]
 const ACTIVITY_COLORS: Dictionary = {
@@ -64,7 +65,6 @@ const ACTIVITY_KIND_LABELS: Dictionary = {
 	"plan": "plan",  # i18n
 }
 const SUMMARY_INTERVAL_S := 2.0
-const ACCOUNT_ALREADY_SWITCHED := 1000
 ## El formulario crece con la pantalla (m6-13): ancho y alto del objetivo, en px sin escalar.
 const FORM_MIN_WIDTH := 640
 ## Ancho al que se achica el formulario cuando el centro es angosto.
@@ -134,6 +134,7 @@ var _plan_title: Label
 var _budgets_button: Button
 ## «Cambiar de cuenta» (m6-15): login con otra cuenta o «ya cambié», y retoma la misma sesión.
 var _account_button: MenuButton
+var _account_choices: Array[Dictionary] = []
 var _budgets_dialog: ConfirmationDialog
 ## clave de presupuesto -> SpinBox del diálogo
 var _budgets_edit: Dictionary = {}
@@ -810,7 +811,7 @@ func _build_top_bar() -> Control:
 	_account_button = MenuButton.new()
 	_account_button.text = I18n.t("Switch account")
 	_account_button.flat = false
-	_account_button.tooltip_text = I18n.t("Continue with another agent account without waiting for the quota to reset: the agent restarts and resumes the same session.")
+	_account_button.tooltip_text = I18n.t("Continue with another account or agent without waiting for the quota to reset. Another account of the same agent resumes the same session.")
 	_account_button.about_to_popup.connect(_fill_account_menu)
 	_account_button.get_popup().id_pressed.connect(_on_account_menu)
 	header.add_child(_account_button)
@@ -1868,22 +1869,21 @@ func _start_run() -> void:
 	_refresh()
 
 
-## Un ítem por método de login del agente (corre el login y, al terminar, el run retoma con la
-## cuenta nueva) y «ya cambié» para cuando se hizo en una terminal.
+## Las cuentas y perfiles configurados (m6-22: otra cuenta del mismo agente retoma la misma sesión;
+## otro agente abre una nueva con el resumen), un ítem por método de login del agente (corre el login
+## y, al terminar, el run retoma con la cuenta nueva) y «ya cambié» para cuando se hizo en una terminal.
 func _fill_account_menu() -> void:
-	var popup := _account_button.get_popup()
-	popup.clear()
-	var methods := _run.controller.login_methods()
-	for i in methods.size():
-		popup.add_item(I18n.t("Sign in with another account · %s") % methods[i].label, i)
-	if not methods.is_empty():
-		popup.add_separator()
-	popup.add_item(I18n.t("I already signed in with another account (in a terminal): restart the agent"), ACCOUNT_ALREADY_SWITCHED)
+	_account_choices = _run.account_choices.call() if _run.account_choices.is_valid() else [] as Array[Dictionary]
+	AccountSwitchMenu.fill(_account_button.get_popup(), _account_choices, _run.controller.login_methods())
 
 
 func _on_account_menu(id: int) -> void:
-	if id == ACCOUNT_ALREADY_SWITCHED:
+	if id == AccountSwitchMenu.ALREADY_SWITCHED:
 		_run.switch_account()
+		return
+	var choice := AccountSwitchMenu.choice_of(id, _account_choices)
+	if not choice.is_empty():
+		AccountSwitchMenu.confirm(self, choice, I18n.t("Continue the One-shot with %s? It opens a new session with the plan summary: that agent does not get this conversation."), func(profile: AgentProfile) -> void: _run.switch_account(profile))
 		return
 	var methods := _run.controller.login_methods()
 	if id >= 0 and id < methods.size():

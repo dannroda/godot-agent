@@ -125,12 +125,16 @@ The thresholds apply to the fullest window that limits the model in use. A model
 
 ### Switching accounts
 
-If you have another account, you don't have to wait for the reset. Open **Switch account** in the top bar:
+If you have another account, you don't have to wait for the reset. Open **Switch account** in the top bar. It lists the accounts and agents you set up in **Settings** and in the dock's agent menu, with the one in use marked and the last quota seen for each (**62 % used**, **exhausted, resets in 2 h**):
 
+- **another account of the same agent**: the harness restarts the agent with that account and resumes **the same session** (`session/load`), so the agent keeps its context. For Claude Code it first copies the session to that account's folder;
+- **another agent** (under **Another agent (new session)**): it asks first, because that agent can't load this conversation. The run continues in a new session with the plan summary;
 - **Sign in with another account · <method>** runs the agent's login from the editor. When it finishes, the run continues;
 - **I already signed in with another account (in a terminal)**: for when you did it yourself (`claude`, then `/login`).
 
-Either way the harness restarts the agent so it picks up the new credentials, forgets the old account's quota and resumes **the same session** (`session/load`): the agent keeps its context.
+Every switch forgets the old account's quota. If the agent can't load the session with the new account, the run continues in a new session with the plan summary.
+
+Outside a One-shot, the dock shows the same **Switch account** button next to the quota ring when you hit the limit.
 
 ## Closing the editor mid-run
 

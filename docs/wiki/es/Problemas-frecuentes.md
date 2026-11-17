@@ -16,7 +16,7 @@ El agente recibe la ruta del binario del editor abierto en `$GODOT`, en sus inst
 
 ## "Límite del plan alcanzado"
 
-Llegaste al límite de la ventana de tu plan. Esperá el reinicio (la cuenta regresiva dice cuándo), o usá **Cambiar de cuenta** en la pantalla One-shot durante un One-shot (ver [One-shot → cambiar de cuenta](One-shot.md#cambiar-de-cuenta)). Fuera del One-shot, iniciá sesión con otra cuenta y abrí una sesión nueva o retomala desde **Historial**.
+Llegaste al límite de la ventana de tu plan. Esperá el reinicio (la cuenta regresiva dice cuándo), o usá **Cambiar de cuenta** en la pantalla One-shot durante un One-shot (ver [One-shot → cambiar de cuenta](One-shot.md#cambiar-de-cuenta)). Fuera del One-shot, el dock muestra **Cambiar de cuenta** al lado del anillo de la cuota: otra cuenta del mismo agente retoma la misma sesión; otro agente abre una nueva.
 
 ## Una llamada `godot.*` falla con "The operation timed out"
 

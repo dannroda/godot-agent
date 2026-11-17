@@ -16,7 +16,7 @@ The agent gets the path of the running editor's binary in `$GODOT`, in its instr
 
 ## "Plan limit reached"
 
-You hit your plan's window. Wait for the reset (the countdown shows when), or use **Switch account** in the One-shot screen during a One-shot (see [One-shot → switching accounts](One-shot.md#switching-accounts)). Outside One-shot, sign in with another account and start a new session or resume it from **History**.
+You hit your plan's window. Wait for the reset (the countdown shows when), or use **Switch account** in the One-shot screen during a One-shot (see [One-shot → switching accounts](One-shot.md#switching-accounts)). Outside One-shot, the dock shows **Switch account** next to the quota ring: another account of the same agent resumes the same session, another agent starts a new one.
 
 ## A `godot.*` call fails with "The operation timed out"
 
