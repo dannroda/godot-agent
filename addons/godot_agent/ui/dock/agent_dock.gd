@@ -20,6 +20,9 @@ signal extensions_requested
 signal tools_requested
 ## Clic en el contador de cambios del turno (m11-34): ver lo que cambió hasta ahora.
 signal turn_changes_requested
+## Clic en un chip de máquina que hace algo (m12-56): "oneshot" (abrir la pantalla One-shot) o
+## "debugger" (el juego está parado: abrir el Depurador).
+signal machine_chip_pressed(action: String)
 ## Se prendió o apagó «Seguir al agente» en esta pestaña (m11-33).
 signal follow_toggled(enabled: bool)
 ## Acciones de avisos que resuelve otro módulo (conflictos de sync, recargar escena…).
@@ -1064,13 +1067,16 @@ func _on_machines_tick() -> void:
 		_refresh_machine_chips()
 
 
-## Ancho máximo de un chip de máquina, sin escalar.
-const MAX_CHIP_WIDTH := 170
+## Ancho máximo de un chip de máquina, sin escalar: «⏸ One-shot paused · resumes in 1 h 12 min»
+## entra entero, y en un dock de 300 px el chip baja de línea si no entra junto al estado (m12-56).
+const MAX_CHIP_WIDTH := 260
 
 
-## Un chip por máquina en marcha junto al estado (m12-47): «Game · running · 12 s»; en ámbar
+## Un chip por máquina en marcha junto al estado (m12-47): «▶ Game running · 25 min»; en ámbar
 ## cuando pide atención (el juego parado en el debugger, el One-shot esperando). El tooltip es el
 ## mismo del encabezado. Sin máquinas en marcha no hay chips, y la fila se oculta si tampoco hay estado.
+## Solo los que hacen algo al clic tienen forma de pastilla y la mano del mouse (m12-56); los demás
+## son texto.
 func _refresh_machine_chips() -> void:
 	if _machine_chips == null or not is_inside_tree():
 		return
@@ -1087,15 +1093,22 @@ func _refresh_machine_chips() -> void:
 		chip.clip_text = true
 		chip.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		chip.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+		chip.gui_input.connect(_on_machine_chip_input.bind(chip))
 		_machine_chips.add_child(chip)
 	for i in chips.size():
 		var chip := _machine_chips.get_child(i) as Label
 		var color: Color = AgentTheme.WARNING if chips[i].alert else AgentTheme.MUTED
+		var action := str(chips[i].get("action", ""))
 		chip.text = str(chips[i].text)
+		chip.set_meta(&"action", action)
+		chip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if not action.is_empty() else Control.CURSOR_ARROW
 		# El detalle de la máquina primero (la segunda opinión: el agente y el modelo, m11-28).
-		HoverTooltip.set_text(chip, (str(chips[i].detail) + "\n\n" if not str(chips[i].get("detail", "")).is_empty() else "") + header_tooltip())
+		HoverTooltip.set_text(chip, (str(chips[i].detail) + "\n\n" if not str(chips[i].get("detail", "")).is_empty() else "") + header_tooltip()
+			+ ("\n\n" + I18n.t(MACHINE_CHIP_HINTS[action]) if MACHINE_CHIP_HINTS.has(action) else ""))
 		chip.add_theme_color_override(&"font_color", color)
-		chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(color, 0.12), Color(color, 0.35), 10, 3))
+		# Sin acción, el mismo margen sin fondo ni borde: no parece un botón y no corre a los demás.
+		chip.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color(color, 0.12), Color(color, 0.35), 10, 3) if not action.is_empty()
+			else AgentTheme.panel(Color(color, 0.0), Color(color, 0.0), 10, 3))
 		# Con el ancho de la antigüedad más larga (m12-53): si no, el chip crecía cada segundo y corría
 		# a los de al lado bajo el mouse, que cerraba su tooltip.
 		var full := chip.get_theme_font(&"font").get_string_size(str(chips[i].get("reserve", chip.text)), HORIZONTAL_ALIGNMENT_LEFT, -1, chip.get_theme_font_size(&"font_size")).x
@@ -1104,6 +1117,23 @@ func _refresh_machine_chips() -> void:
 	_machine_chips.visible = not chips.is_empty()
 	if _state_row:
 		_state_row.visible = _state_line.visible or _machine_chips.visible or (_changes_button and _changes_button.visible)
+
+
+## La pista del tooltip de un chip que hace algo al clic (m12-56).
+const MACHINE_CHIP_HINTS: Dictionary = {
+	"oneshot": "Click to open the One-shot screen.",  # i18n
+	"debugger": "Click to open the Debugger.",  # i18n
+}
+
+
+func _on_machine_chip_input(event: InputEvent, chip: Label) -> void:
+	var click := event as InputEventMouseButton
+	if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var action := str(chip.get_meta(&"action", ""))
+	if not action.is_empty():
+		chip.accept_event()
+		machine_chip_pressed.emit(action)
 
 
 ## El contador de cambios del turno: {files, added, removed} de TurnSnapshots.peek(), o {} para
@@ -1120,21 +1150,60 @@ func set_turn_changes(summary: Dictionary) -> void:
 		_state_row.visible = _state_line.visible or _machine_chips.visible or _changes_button.visible
 
 
-## Los chips que salen de `machine_states`: solo las máquinas `live`, como `[{text, alert}]`.
+## Los chips que salen de `machine_states`: solo las máquinas `live`, como
+## `[{text, reserve, alert, detail, action}]` (m12-56). El texto es `chip` si la máquina lo trae
+## («▶ Game running») y si no «máquina · estado»; le sigue la antigüedad legible («25 min»), o la
+## de `chip_age` si está (-1: sin antigüedad). `reserve` es el texto con el ancho más largo que
+## puede tener esa antigüedad hasta cambiar de unidad (m12-53), o el `reserve` de la máquina.
 static func machine_chips(states: Array) -> Array[Dictionary]:
 	var chips: Array[Dictionary] = []
 	for machine: Dictionary in states:
 		if not bool(machine.get("live", false)):
 			continue
-		var age := int(machine.get("age", -1))
-		var text := "%s · %s" % [machine.get("machine", ""), machine.get("label", "")]
+		var age := int(machine.get("chip_age", machine.get("age", -1)))
+		var text := str(machine.get("chip", ""))
+		if text.is_empty():
+			text = "%s · %s" % [machine.get("machine", ""), machine.get("label", "")]
 		var reserve := text
 		if age >= 0:
-			text += " · %d s" % age
-			# «8888 s»: el ancho de la antigüedad no cambia hasta pasadas casi tres horas.
-			reserve += " · %s s" % "8".repeat(maxi(4, str(age).length()))
-		chips.append({"text": text, "reserve": reserve, "alert": bool(machine.get("alert", false)), "detail": str(machine.get("detail", ""))})
+			text += " · " + QuotaMonitor.format_duration(age)
+			reserve += " · " + duration_reserve(age)
+		chips.append({"text": text, "reserve": str(machine.get("reserve", reserve)), "alert": bool(machine.get("alert", false)),
+			"detail": str(machine.get("detail", "")), "action": str(machine.get("action", ""))})
 	return chips
+
+
+## El texto más ancho que da QuotaMonitor.format_duration sin cambiar de unidad: «88 s», «88 min»,
+## «88 h 88 min». Un chip con la antigüedad reserva ese ancho y crece solo al pasar de unidad.
+static func duration_reserve(seconds: int) -> String:
+	var shown := QuotaMonitor.format_duration(seconds)
+	if seconds >= 3600 and seconds < 48 * 3600:
+		return "88 h 88 min"
+	var digits := RegEx.create_from_string("\\d+")
+	var out := shown
+	for found: RegExMatch in digits.search_all(shown):
+		out = out.replace(found.get_string(), "8".repeat(maxi(2, found.get_string().length())))
+	return out
+
+
+## El chip del One-shot (m12-56), con lo que importa primero. `state`: "quota" (esperando cuota:
+## cuándo sigue, sin la etapa, que queda en el tooltip), "running" (la etapa), "waiting" (pausado,
+## esperando al usuario) u "other" (la fase). Sin antigüedad: la de la fase dice poco y queda en el
+## tooltip. El clic abre la pantalla One-shot.
+static func oneshot_chip(state: String, phase_label: String, stage_label: String, resume_at: int, now: int) -> Dictionary:
+	var chip := {"action": "oneshot", "chip_age": -1}
+	match state:
+		"quota":
+			if resume_at > now:
+				chip.chip = I18n.t("⏸ One-shot paused · resumes in %s") % QuotaMonitor.format_duration(resume_at - now)
+				chip.reserve = I18n.t("⏸ One-shot paused · resumes in %s") % duration_reserve(resume_at - now)
+			else:
+				chip.chip = I18n.t("⏸ One-shot · out of quota")
+		"running":
+			chip.chip = "▶ %s · %s" % [I18n.t("One-shot"), stage_label]
+		_:
+			chip.chip = "%s %s · %s" % ["⏸" if state == "waiting" else "▶", I18n.t("One-shot"), phase_label]
+	return chip
 
 
 func _refresh_title() -> void:

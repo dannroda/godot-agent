@@ -2203,6 +2203,7 @@ func _wire_oneshot(dock: AgentDock, id: String) -> void:
 	dock.can_switch_session = func() -> bool: return not (_runs_in(id) and _oneshot.is_active())
 	dock.oneshot_active = func() -> bool: return _runs_in(id) and _oneshot.is_active()
 	dock.machine_states = func() -> Array[Dictionary]: return _machine_states(id)
+	dock.machine_chip_pressed.connect(_on_machine_chip_pressed)
 	_controller_of(id).after_login = func() -> bool: return _runs_in(id) and _oneshot.take_login()
 	var listener := func() -> void:
 		var tab_dock := _tabs.dock(id) as AgentDock if _tabs else dock
@@ -2220,15 +2221,58 @@ func _machine_states(id: String) -> Array[Dictionary]:
 	if _run_tools:
 		var game_state := _run_tools.run_state
 		# `live`: se muestra como chip junto al estado (m12-47); `alert`: en ámbar (parado en el debugger).
+		var breaked := game_state == RunTools.GameRunState.BREAKED
 		states.append({"machine": I18n.t("Game"), "label": I18n.t(_run_tools.run_state_name()), "age": -1 if game_state == RunTools.GameRunState.IDLE else _run_tools.run_state_age_seconds(),
-			"live": game_state in [RunTools.GameRunState.LAUNCHING, RunTools.GameRunState.STARTED, RunTools.GameRunState.PROBE_READY, RunTools.GameRunState.BREAKED], "alert": game_state == RunTools.GameRunState.BREAKED})  # sin juego, la antigüedad no dice nada
+			"live": game_state in [RunTools.GameRunState.LAUNCHING, RunTools.GameRunState.STARTED, RunTools.GameRunState.PROBE_READY, RunTools.GameRunState.BREAKED], "alert": breaked,  # sin juego, la antigüedad no dice nada
+			# El chip (m12-56): qué es y qué hace, en palabras; el estado exacto queda en el tooltip.
+			"chip": I18n.t(GAME_CHIPS[game_state]) if GAME_CHIPS.has(game_state) else "", "action": "debugger" if breaked else ""})
 	if _second_opinion and _second_opinion.is_busy() and _second_opinion.requested_by == id:
 		states.append({"machine": I18n.t("Second opinion"), "label": I18n.t("thinking"), "age": _second_opinion.age_seconds(), "live": true, "alert": false,
 			"detail": _second_opinion.agent_label()})
 	if _oneshot and _runs_in(id) and _oneshot.is_active():
 		var label := "%s · %s" % [_oneshot.phase_label(), I18n.t(OneShotRun.STAGE_LABELS[_oneshot.stage()])]
-		states.append({"machine": I18n.t("One-shot"), "label": label, "age": _oneshot.phase_age_seconds(), "live": true, "alert": _oneshot.phase in [OneShotRun.RunPhase.PAUSED_QUOTA, OneShotRun.RunPhase.LIMITED, OneShotRun.RunPhase.WAITING_CONFIRM]})
+		var oneshot := {"machine": I18n.t("One-shot"), "label": label, "age": _oneshot.phase_age_seconds(), "live": true, "alert": _oneshot.phase in [OneShotRun.RunPhase.PAUSED_QUOTA, OneShotRun.RunPhase.LIMITED, OneShotRun.RunPhase.WAITING_CONFIRM]}
+		oneshot.merge(AgentDock.oneshot_chip(_oneshot_chip_state(), _oneshot.phase_label(), I18n.t(OneShotRun.STAGE_LABELS[_oneshot.stage()]), _oneshot.quota_resume_at, int(Time.get_unix_time_from_system())))
+		states.append(oneshot)
 	return states
+
+
+## Clic en un chip de máquina (m12-56): el One-shot abre su pantalla (o su panel, según dónde lo
+## ubicó el usuario) y el juego parado abre el Depurador del panel inferior.
+func _on_machine_chip_pressed(action: String) -> void:
+	match action:
+		"oneshot":
+			if _surfaces:
+				_surfaces.make_visible(EditorSurfaces.EditorSurface.MAIN_SCREEN)
+		"debugger":
+			# En 4.7 el Depurador es un EditorDock del panel inferior: make_bottom_panel_item_visible()
+			# falla con «dock is null»; se abre como los paneles del addon (EditorSurfaces.make_visible).
+			var debugger := _editor_debugger_node()
+			if debugger and debugger.has_method(&"make_visible"):
+				if debugger.has_method(&"open"):
+					debugger.call(&"open")
+				debugger.call(&"make_visible")
+
+
+## Lo que muestra el chip del juego en cada estado (m12-56); IDLE y STOPPED no tienen chip.
+const GAME_CHIPS: Dictionary = {
+	RunTools.GameRunState.LAUNCHING: "▶ Game launching",  # i18n
+	RunTools.GameRunState.STARTED: "▶ Game running",  # i18n
+	RunTools.GameRunState.PROBE_READY: "▶ Game running",  # i18n
+	RunTools.GameRunState.BREAKED: "⏸ Game stopped in the debugger",  # i18n
+}
+
+
+## La fase del One-shot como la agrupa su chip (AgentDock.oneshot_chip).
+func _oneshot_chip_state() -> String:
+	match _oneshot.phase:
+		OneShotRun.RunPhase.PAUSED_QUOTA, OneShotRun.RunPhase.LIMITED:
+			return "quota"
+		OneShotRun.RunPhase.RUNNING:
+			return "running"
+		OneShotRun.RunPhase.PAUSED, OneShotRun.RunPhase.WAITING_CONFIRM, OneShotRun.RunPhase.SPEC_REVIEW:
+			return "waiting"
+	return "other"
 
 
 ## m17-17: con la pestaña `id` ocupada, «Nueva sesión» y el historial abren en otra; y una sesión que

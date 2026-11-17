@@ -1406,7 +1406,9 @@ func _check_machine_chips(dock: Control, shot_path: String) -> bool:
 		_finish(1, "con el juego corriendo no apareció el chip del juego (%d chips)" % chips.get_child_count())
 		return false
 	var label := chips.get_child(0) as Label
-	if not label.text.begins_with(I18n.t("Game") + " · ") or not label.text.contains(" s") or label.tooltip_text != dock.call(&"header_tooltip"):
+	# m12-56: «▶ Game running · 3 s», sin forma de botón (corriendo, el clic no hace nada).
+	if not label.text.begins_with(I18n.t("▶ Game running") + " · ") or not label.text.contains(" s") or label.tooltip_text != dock.call(&"header_tooltip") \
+			or label.mouse_default_cursor_shape != Control.CURSOR_ARROW or (label.get_theme_stylebox(&"normal") as StyleBoxFlat).bg_color.a > 0.0:
 		EditorInterface.stop_playing_scene()
 		_finish(1, "el chip del juego no dice el estado con su antigüedad o no lleva el tooltip del encabezado: «%s»" % label.text)
 		return false
