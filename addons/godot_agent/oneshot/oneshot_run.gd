@@ -190,6 +190,10 @@ var account_choices: Callable
 var _new_session_on_resume: bool = false
 ## Retomar solo al reiniciarse la cuota (Settings) o esperar confirmación.
 var resume_auto: bool = true
+## Cadena de reserva (m6-21): al agotarse la cuota, sigue con la siguiente cuenta del mismo agente
+## (account_choices) en vez de pausar. Pausa solo cuando no queda ninguna.
+var reserve_accounts: bool = false
+var _reserve_pending: bool = false
 ## Dónde se guardan los runs (sin carpeta, no se guardan).
 var store := OneShotStore.new()
 ## Loops del agente (D38); `repeats` sale de la config del proyecto.
@@ -471,6 +475,8 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	if not controller.is_connected_to_agent() and not await _restart_session(""):
 		_finish(I18n.t("Couldn't open a session with the agent."))
 		return false
+	if reserve_accounts and controller.profile():  # qué cuenta toma cada tramo (m6-21)
+		_add_activity("session", I18n.t("Account: %s") % _account_name(controller.profile()))
 	# Remote Control (m7-21): los turnos que se mandan desde el celular no pasan por el run y
 	# romperían los presupuestos y el conteo de checks. Se apaga antes de empezar.
 	if not model.remote_control_url.is_empty():
@@ -582,7 +588,7 @@ func resume() -> void:
 ## `target` (m6-22): la cuenta o el perfil elegido en «Cambiar de cuenta». Otra cuenta del mismo
 ## agente retoma la misma sesión (copiada a la carpeta de esa cuenta); otro agente abre una sesión
 ## nueva con el resumen del plan, sin la conversación.
-func switch_account(target: AgentProfile = null) -> void:
+func switch_account(target: AgentProfile = null, reason: String = "") -> void:
 	if not can_resume():
 		return
 	var session_id := _recovered_session_id if not _recovered_session_id.is_empty() else model.session_id
@@ -593,7 +599,9 @@ func switch_account(target: AgentProfile = null) -> void:
 	quota.forget_account()
 	quota_resume_at = 0
 	report.count("account_switches")
-	if other_agent:
+	if not reason.is_empty():
+		_add_activity("quota", reason)
+	elif other_agent:
 		_add_activity("session", I18n.t("Switching to %s: a new session with the plan summary (the conversation is not carried over)") % target.display_name)
 	elif target:
 		_add_activity("session", I18n.t("Account switch to %s: restarting the agent and resuming the same session") % _account_name(target))
@@ -1207,6 +1215,9 @@ func _tick() -> void:
 		used[BUDGET_TIME] = float(used[BUDGET_TIME]) + TICK_S
 		_check_budgets()
 	_check_quota_pause()
+	if _reserve_pending and phase in [RunPhase.PAUSED_QUOTA, RunPhase.LIMITED] and not _turn_running and not is_git_busy():
+		_reserve_pending = false
+		_switch_to_reserve()
 	match phase:
 		RunPhase.LIMITED:
 			if quota.retry_due():
@@ -1258,6 +1269,7 @@ func _pause_for_quota(next_task: String, mid_task: bool = false) -> void:
 		_add_activity("quota", I18n.t("Quota at %d %%: pausing before “%s”") % [percent, next_task])
 	if checkpoints_enabled:
 		_checkpoint(next_task if not next_task.is_empty() else "Quota pause", "-quota" if mid_task else "")
+	_reserve_pending = reserve_accounts
 	if _turn_running:
 		controller.cancel()
 
@@ -1294,6 +1306,7 @@ func _enter_limited() -> void:
 	_set_phase(RunPhase.LIMITED)
 	report.count("limited")
 	quota_resume_at = quota.limited_until
+	_reserve_pending = reserve_accounts
 	if quota.limited_until > 0:
 		var until := Time.get_time_string_from_unix_time(quota.limited_until + int(Time.get_time_zone_from_system().get("bias", 0)) * 60).left(5)
 		_add_activity("quota", I18n.t("Plan limit reached until %s") % until)
@@ -1302,6 +1315,21 @@ func _enter_limited() -> void:
 	if checkpoints_enabled and not _quota_checkpoint_done:
 		_quota_checkpoint_done = true
 		await _checkpoint(resume_task, "-quota")
+
+
+## Cadena de reserva (m6-21): con el turno ya cortado, pasa a la primera cuenta del mismo agente que
+## no está agotada ni en el umbral de pausa, y retoma la misma sesión. Si no queda ninguna, el run
+## sigue en pausa esperando la cuota, como sin la cadena.
+func _switch_to_reserve() -> void:
+	var choices: Array[Dictionary] = account_choices.call() if account_choices.is_valid() else [] as Array[Dictionary]
+	var next := AccountChoices.next_available(choices, true)
+	if next.is_empty():
+		if choices.filter(func(choice: Dictionary) -> bool: return bool(choice.same_agent)).size() > 1:
+			_add_activity("quota", I18n.t("No reserve account left with quota: waiting for the reset"))
+		return
+	report.count("reserve_switches")
+	var from := _account_name(controller.profile()) if controller.profile() else ""
+	switch_account(next.profile, I18n.t("Quota: %s ran out, continuing with %s") % [from, _account_name(next.profile)])
 
 
 ## `text`: por qué se retoma, para la actividad.

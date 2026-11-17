@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Added
 
 - **Switch to another account or agent when the quota runs out.** **Switch account** in the One-shot screen now lists the accounts and agents you set up, with the one in use marked and the last quota seen for each one (**62 % used**, **exhausted, resets in 2 h**). Another account of the same agent restarts the agent and resumes the same session; for Claude Code, the harness first copies the session to that account's folder, so the agent keeps its context. Another agent asks first and continues the run in a new session with the plan summary, since it can't load the conversation. Outside a One-shot, the dock shows the same button next to the quota ring when you hit the limit.
+- **Reserve accounts for the One-shot.** With **Settings → Plan quota → When an account runs out, continue the One-shot with the next account of the same agent** on, a run that reaches the pause threshold or the plan limit doesn't pause: it continues with the next account of the same agent and resumes the same session, skipping accounts that are still exhausted. It only pauses when none is left, and the activity says which account took each stretch. Off by default.
 
 ### Fixed
 

@@ -135,6 +135,10 @@ Cada cambio olvida la cuota de la cuenta anterior. Si el agente no puede cargar 
 
 Fuera de un One-shot, el dock muestra el mismo botón **Cambiar de cuenta** al lado del anillo de la cuota cuando llegás al límite.
 
+#### Cuentas de reserva
+
+Para repartir un run largo entre varias suscripciones, activá **Ajustes → Cuota del plan → Cuando se agota una cuenta, seguir el One-shot con la siguiente cuenta del mismo agente**. Cuando el run llega al umbral de pausa o al límite del plan, no se pausa: pasa solo a la siguiente cuenta del mismo agente, en el orden del menú del agente del dock, y retoma la misma sesión. Saltea las cuentas que siguen agotadas o en el umbral. El run solo se pausa cuando no queda ninguna. La actividad dice qué cuenta tomó cada tramo.
+
 ## Cerrar el editor con un run en curso
 
 El run se guarda en `user://` mientras corre. Si el editor se cierra o se cae:

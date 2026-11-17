@@ -16,8 +16,9 @@ const I18n := preload("../../core/i18n.gd")
 
 ## [{profile (listo para lanzar, con la cuenta aplicada), profile_id, account_dir, name, label,
 ## same_agent, current, exhausted, quota}]. `settings` es un HarnessSettings; `current`, el perfil
-## con el que corre el agente (null = ninguno: todas cuentan como de otro agente).
-static func list(settings: RefCounted, current: AgentProfile, book: AccountQuotaBook) -> Array[Dictionary]:
+## con el que corre el agente (null = ninguno: todas cuentan como de otro agente). `pause_at`: el
+## umbral de pausa (0..1); una cuenta que quedó en él también cuenta como agotada.
+static func list(settings: RefCounted, current: AgentProfile, book: AccountQuotaBook, pause_at: float = 2.0) -> Array[Dictionary]:
 	var same: Array[Dictionary] = []
 	var others: Array[Dictionary] = []
 	for base: AgentProfile in settings.call(&"profiles"):
@@ -43,7 +44,7 @@ static func list(settings: RefCounted, current: AgentProfile, book: AccountQuota
 				"account": names[i],
 				"same_agent": is_same,
 				"current": is_same and dir == current.account_dir,
-				"exhausted": book != null and book.is_exhausted(base.id, dir),
+				"exhausted": book != null and book.is_exhausted(base.id, dir, pause_at),
 				"quota": book.describe(base.id, dir) if book else "",
 			}
 			choice["label"] = label_of(choice)

@@ -135,6 +135,7 @@ var _warn_spin: SpinBox
 var _pause_spin: SpinBox
 var _pause_check: CheckBox
 var _resume_option: OptionButton
+var _reserve_check: CheckBox
 # Completado
 var _completion_page: CompletionSettingsPage
 # Interfaz y export
@@ -679,6 +680,10 @@ func _build_quota(page: VBoxContainer) -> void:
 	_resume_option.add_item(I18n.t("Wait for confirmation"), HarnessSettings.RESUME_CONFIRM)
 	row.add_child(_resume_option)
 	page.add_child(row)
+	_reserve_check = CheckBox.new()
+	_reserve_check.text = I18n.t("When an account runs out, continue the One-shot with the next account of the same agent")
+	_reserve_check.tooltip_text = I18n.t("Uses the accounts in the dock's agent menu, in that order, skipping the ones still exhausted. It resumes the same session. The run only pauses when none is left.")
+	page.add_child(_reserve_check)
 
 
 func _build_interface(page: VBoxContainer) -> void:
@@ -835,6 +840,7 @@ func _load() -> void:
 	_pause_check.button_pressed = _settings.quota_pause_enabled()
 	_pause_spin.editable = _pause_check.button_pressed
 	_resume_option.select(_resume_option.get_item_index(HarnessSettings.RESUME_AUTO if _settings.quota_resume_auto() else HarnessSettings.RESUME_CONFIRM))
+	_reserve_check.button_pressed = _settings.quota_reserve_accounts()
 	_accent_picker.color = _settings.accent_color()
 	_dock_option.select(clampi(_settings.dock_slot(), 0, DOCK_SLOT_LABELS.size() - 1))
 	var language_codes: Array = I18n.LANGUAGES.map(func(language: Dictionary) -> String: return language.code)
@@ -894,6 +900,7 @@ func _on_save() -> void:
 	_settings.set_value(HarnessSettings.KEY_QUOTA_PAUSE, int(_pause_spin.value))
 	_settings.set_value(HarnessSettings.KEY_QUOTA_PAUSE_ENABLED, _pause_check.button_pressed)
 	_settings.set_value(HarnessSettings.KEY_QUOTA_RESUME, _resume_option.get_selected_id())
+	_settings.set_value(HarnessSettings.KEY_QUOTA_RESERVE, _reserve_check.button_pressed)
 	_settings.set_value(HarnessSettings.KEY_ACCENT, _accent_picker.color)
 	_settings.set_value(HarnessSettings.KEY_DOCK_SLOT, _dock_option.selected)
 	_settings.set_value(HarnessSettings.KEY_LANGUAGE, I18n.LANGUAGES[_language_option.selected].code)

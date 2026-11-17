@@ -358,8 +358,10 @@ func _enter_tree() -> void:
 	_oneshot.account_choices = func() -> Array[Dictionary]:
 		var controller := _oneshot.controller
 		var current := controller.profile() if controller.profile() else _tab_profile(_session_id_of(controller))
-		return AccountChoices.list(_settings, current, controller.account_quota)
+		var quota := controller.quota
+		return AccountChoices.list(_settings, current, controller.account_quota, quota.pause_threshold if quota.pause_enabled else 2.0)
 	_oneshot.resume_auto = _settings.quota_resume_auto()
+	_oneshot.reserve_accounts = _settings.quota_reserve_accounts()
 	_oneshot.store.dir = ONESHOT_STORE_DIR
 	_oneshot.loops.repeats = _project_config.loop_repeats
 	_oneshot.qa_max_rounds = _project_config.qa_rounds
@@ -1581,6 +1583,7 @@ func _on_editor_settings_changed() -> void:
 		_apply_quota_settings()
 		if _oneshot:
 			_oneshot.resume_auto = _settings.quota_resume_auto()
+			_oneshot.reserve_accounts = _settings.quota_reserve_accounts()
 
 
 # --- One-shot ------------------------------------------------------------------------------------

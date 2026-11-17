@@ -135,6 +135,10 @@ Every switch forgets the old account's quota. If the agent can't load the sessio
 
 Outside a One-shot, the dock shows the same **Switch account** button next to the quota ring when you hit the limit.
 
+#### Reserve accounts
+
+To spread a long run across several subscriptions, turn on **Settings → Plan quota → When an account runs out, continue the One-shot with the next account of the same agent**. When the run reaches the pause threshold or the plan limit, it doesn't pause: it switches by itself to the next account of the same agent, in the order of the dock's agent menu, and resumes the same session. It skips accounts that are still exhausted or at the threshold. The run only pauses when none is left. The activity says which account took each stretch.
+
 ## Closing the editor mid-run
 
 The run is saved in `user://` while it goes. If the editor closes or crashes:
