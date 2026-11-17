@@ -6309,3 +6309,24 @@ msgstr "Semana · %s"
 
 msgid "%s (another model)"
 msgstr "%s (otro modelo)"
+
+msgid "▶ Game launching"
+msgstr "▶ Juego arrancando"
+
+msgid "▶ Game running"
+msgstr "▶ Juego corriendo"
+
+msgid "⏸ Game stopped in the debugger"
+msgstr "⏸ Juego parado en el depurador"
+
+msgid "⏸ One-shot paused · resumes in %s"
+msgstr "⏸ One-shot en pausa · sigue en %s"
+
+msgid "⏸ One-shot · out of quota"
+msgstr "⏸ One-shot · se terminó la cuota"
+
+msgid "Click to open the One-shot screen."
+msgstr "Clic para abrir la pantalla One-shot."
+
+msgid "Click to open the Debugger."
+msgstr "Clic para abrir el Depurador."
