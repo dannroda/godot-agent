@@ -136,6 +136,8 @@ func test_stage_agents() -> void:
 	assert_eq(saved[OneShotRun.STAGE_SPEC].label, "codex", "sin label, el id")
 	assert_eq(OneShotRun.saved_stage_agents({"qa": {"account": "/x"}, "otra": {"profile": "y"}}), {}, "sin perfil o etapa desconocida, nada")
 	assert_eq(OneShotRun.saved_stage_agents(null), {}, "un run viejo")
+	run.stage_agents[OneShotRun.STAGE_SPEC] = {"profile": "claude-code", "account": "", "model": {"value": "opus", "name": "Opus"}}
+	assert_true(run.separate_spec(), "mismo agente con otro modelo también: el modelo del spec no queda para el build")
 	run.free()
 
 
@@ -148,11 +150,19 @@ func test_stage_prompts() -> void:
 	var spec := run.initial_prompt()
 	assert_true(spec.contains("Your part is only the spec") and spec.contains("another agent makes the plan"), "el del spec solo escribe el spec")
 	assert_false(spec.contains("1. Make a plan"), "sin los pasos del constructor")
+	run.files.project_root = ProjectSettings.globalize_path("user://test_stage_prompts_%d" % Time.get_ticks_usec())
+	run.files.run_id = "r1"
+	run.files.prepare()
+	run.files.write(run.files.spec_path(), "# Pong\n")
 	var builder := run.builder_prompt(true)
 	assert_true(builder.contains("Another agent wrote the game spec") and builder.contains("with the user's changes") and builder.contains("1. Make a plan"), "el constructor arranca desde el spec")
 	assert_false(builder.contains("0. Before anything else"), "sin escribir otro spec")
 	run.spec_review = true
 	assert_true(run.initial_prompt().contains("the user reviews and approves it"), "con revisión, espera al usuario")
+	var resume_text: String = run.call(&"_spec_resume_prompt")
+	assert_true(resume_text.contains("Your part is only the spec") and resume_text.contains("without building"), "retomar al del spec no lo pone a construir")
+	run.files.run_id = "sin_spec_%d" % Time.get_ticks_usec()
+	assert_true(run.builder_prompt().contains("0. Before anything else, write the game spec"), "sin spec.md, el constructor lo escribe primero")
 	run.free()
 
 

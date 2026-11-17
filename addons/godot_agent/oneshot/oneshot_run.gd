@@ -212,6 +212,12 @@ var stage_agents: Dictionary = {}
 var open_with_agent: Callable
 ## La vuelta de QA en curso corre con otro agente: volver al constructor relanza con el suyo.
 var _qa_other_agent: bool = false
+## El constructor todavía no recibió su primer prompt después del spec de otro agente (se pausó o se
+## cayó mientras abría su sesión): Reanudar se lo manda. -1 = no; 0/1 = pendiente, sin/con cambios.
+var _builder_pending: int = -1
+## La última elección con que se abrió la sesión (m6-20): si la próxima es otra cuenta, la cuota medida
+## no es la suya.
+var _open_choice: Dictionary = {}
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
 ## Vueltas de QA (D55); 0 = sin evaluador: valen los checks que reporta el agente.
@@ -421,6 +427,8 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 	spec_review = review_spec
 	_set_stage(RunStage.SPEC_APPROVAL if review_spec or separate_spec() else RunStage.BUILDING, true)
 	_qa_other_agent = false
+	_builder_pending = -1
+	_open_choice = agent
 	recovered = false
 	_recovered_session_id = ""
 	_suspended = false
@@ -501,7 +509,7 @@ func start(goal_text: String, budget_values: Dictionary, use_checkpoints: bool, 
 
 
 func initial_prompt() -> String:
-	var spec_step := "0. Before anything else, write the game spec in %s: mechanics, game loop (start → play → win or lose → restart), visual direction and what \"done\" means. Ambitious in scope but high level: no technical detail (no nodes, scripts or APIs)." % files.spec_path()
+	var spec_step := "0. Before anything else, " + _spec_task()
 	if spec_review:
 		spec_step += " Then end the turn without building anything: the user reviews and approves it."
 	elif separate_spec():
@@ -519,6 +527,16 @@ func initial_prompt() -> String:
 	]) + _build_steps())
 
 
+func _spec_task() -> String:
+	return "write the game spec in %s: mechanics, game loop (start → play → win or lose → restart), visual direction and what \"done\" means. Ambitious in scope but high level: no technical detail (no nodes, scripts or APIs)." % files.spec_path()
+
+
+## Retomar al agente del spec (m6-20): sigue con el spec y no construye.
+func _spec_resume_prompt() -> String:
+	var after := "the user reviews and approves it" if spec_review else "another agent makes the plan from it and builds the game"
+	return "Continue with the game spec in %s from where you left off. Your part is only the spec: when it's done, end the turn without building anything: %s." % [files.spec_path(), after]
+
+
 ## El primer prompt del constructor cuando el spec lo escribió otro agente (m6-20): sesión nueva, sin
 ## el contexto del que lo escribió.
 func builder_prompt(edited: bool = false) -> String:
@@ -526,7 +544,10 @@ func builder_prompt(edited: bool = false) -> String:
 	if not references.is_empty():
 		lines.append_array(["", "Reference material from the user: read it before making the plan; where it disagrees with the goal above, the goal wins."])
 		lines.append_array(_reference_lines())
-	lines.append_array(["", "Another agent wrote the game spec in %s and it is approved%s: read it first, the game follows it." % [files.spec_path(), " with the user's changes" if edited else ""], "", "Work autonomously until the goal is met:"])
+	if files.has_spec():
+		lines.append_array(["", "Another agent wrote the game spec in %s and it is approved%s: read it first, the game follows it." % [files.spec_path(), " with the user's changes" if edited else ""], "", "Work autonomously until the goal is met:"])
+	else:  # el del spec no lo escribió: lo escribe el constructor
+		lines.append_array(["", "Work autonomously until the goal is met:", "0. Before anything else, " + _spec_task()])
 	return "\n".join(lines + _build_steps())
 
 
@@ -589,6 +610,11 @@ func resume() -> void:
 	var from_disk := not _recovered_session_id.is_empty()
 	if from_disk and prepare_session.is_valid():
 		await prepare_session.call()
+	if _builder_pending >= 0:  # el constructor no recibió su primer prompt (m6-20)
+		_recovered_session_id = ""
+		_build_from_spec(_builder_pending == 1)
+		return
+	var spec_only := _stage == RunStage.SPEC_APPROVAL and separate_spec()
 	var lost_id := _recovered_session_id if from_disk else model.session_id
 	if not controller.is_connected_to_agent() or (from_disk and model.session_id != lost_id):
 		var spec_agent := stage_agent(STAGE_SPEC) if _stage == RunStage.SPEC_APPROVAL else {}
@@ -604,8 +630,14 @@ func resume() -> void:
 		_recovered_session_id = ""
 		model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
 		_apply_builder_mode()
+		if not spec_agent.is_empty():
+			await _apply_stage_model(spec_agent)
 		var why := _reopen_reason if not _reopen_reason.is_empty() else ("editor" if from_disk else "lost")
 		_reopen_reason = ""
+		if spec_only:  # el agente del spec sigue solo con el spec
+			_add_activity("session", I18n.t(REOPEN_LOADED[why] if not lost_id.is_empty() and model.session_id == lost_id else REOPEN_NEW[why]))
+			_run_turn(_harness(_spec_resume_prompt() if model.session_id == lost_id else initial_prompt(), HarnessPrompts.ONESHOT_RESUME))
+			return
 		if not lost_id.is_empty() and model.session_id == lost_id:
 			_add_activity("session", I18n.t(REOPEN_LOADED[why]))
 			_run_turn(_harness(_resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
@@ -614,7 +646,7 @@ func resume() -> void:
 			_run_turn(_harness(_summary_prompt(), HarnessPrompts.ONESHOT_SUMMARY))
 		return
 	_recovered_session_id = ""
-	_run_turn(_harness(_resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
+	_run_turn(_harness(_spec_resume_prompt() if spec_only else _resume_prompt(), HarnessPrompts.ONESHOT_RESUME))
 
 
 ## Cambio de cuenta (m6-15): la cuota medida era de la cuenta anterior. Se relanza el proceso del
@@ -1085,9 +1117,9 @@ func stage_agent(stage: String) -> Dictionary:
 
 
 ## El spec lo escribe otro agente (m6-20): el run arranca con él y el constructor abre su sesión.
+## También con el mismo agente y otro modelo: así el modelo del spec no queda para el resto del run.
 func separate_spec() -> bool:
-	var choice := stage_agent(STAGE_SPEC)
-	return not choice.is_empty() and not same_agent(choice, agent)
+	return not stage_agent(STAGE_SPEC).is_empty()
 
 
 ## Mismo perfil y misma cuenta ("" = la del perfil). Sin perfil en `b` ({}: el de la pestaña), solo
@@ -1121,6 +1153,9 @@ func _choice_label(choice: Dictionary) -> String:
 
 
 func _open_with(choice: Dictionary, lost_id: String) -> bool:
+	if not same_agent(choice, _open_choice):
+		quota.forget_account()  # las ventanas medidas eran de la otra cuenta
+		_open_choice = choice
 	if not open_with_agent.is_valid():
 		return await _restart_session(lost_id)
 	return await open_with_agent.call(choice, lost_id)
@@ -1144,13 +1179,17 @@ func _apply_stage_model(choice: Dictionary) -> void:
 ## con su agente, y arranca desde el spec (m6-20).
 func _build_from_spec(edited: bool) -> void:
 	_set_stage(RunStage.BUILDING)
+	_builder_pending = 1 if edited else 0
+	if not files.has_spec():
+		_add_activity("warning", I18n.t("The spec's agent didn't write %s/%s: the builder writes it first") % [files.relative_dir(), OneShotFiles.SPEC])
 	if not await _open_with(agent, ""):
 		_finish(I18n.t("Couldn't open a session with the builder's agent."))
 		return
 	if not is_inside_tree() or phase != RunPhase.RUNNING:
-		return
+		return  # Reanudar manda el prompt del constructor (_builder_pending)
 	model.set_harness_mode(SessionModel.HarnessMode.ONESHOT)
 	_apply_builder_mode()
+	_builder_pending = -1
 	_add_activity("session", I18n.t("The builder starts a new session from the spec"))
 	_run_turn(_harness(builder_prompt(edited), HarnessPrompts.ONESHOT_SPEC_APPROVED))
 
@@ -1783,6 +1822,7 @@ func to_dict() -> Dictionary:
 		"builder_mode": builder_mode,
 		"agent": agent,
 		"stage_agents": stage_agents,
+		"builder_pending": _builder_pending,
 		"stage": RunStage.keys()[_stage],
 		"qa_round": qa_round,
 		"qa_results": qa_results,
@@ -1848,6 +1888,8 @@ func _apply(data: Dictionary) -> void:
 	agent = saved_agent(data.get("agent", {}))
 	stage_agents = saved_stage_agents(data.get("stage_agents", {}))
 	_qa_other_agent = false
+	_builder_pending = int(data.get("builder_pending", -1))
+	_open_choice = {}  # no se sabe con cuál quedó: el próximo cambio olvida la cuota
 	_set_stage(_saved_stage(data), true)
 	qa_round = int(data.get("qa_round", 0))
 	qa_results.assign(data.get("qa_results", []))

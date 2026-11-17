@@ -683,7 +683,9 @@ func _scenario_spec_other_agent() -> void:
 	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.last_report.is_empty(), 20.0)
 	_check(opened == ["fake_spec", "fake"], "spec otro agente: el del spec, después el constructor %s" % [opened])
 	_check(prompts.size() >= 2 and prompts[0].begins_with("fake_spec: ") and prompts[0].contains("Your part is only the spec"), "spec otro agente: el del spec solo escribe el spec")
-	_check(prompts.size() >= 2 and prompts[1].begins_with("fake: ") and prompts[1].contains("Another agent wrote the game spec") and prompts[1].contains("1. Make a plan"), "spec otro agente: el constructor arranca desde el spec %s" % [prompts.slice(1, 2)])
+	# El agente falso no escribe spec.md: el constructor lo escribe primero, con aviso (revisión de m6-20).
+	_check(prompts.size() >= 2 and prompts[1].begins_with("fake: ") and prompts[1].contains("0. Before anything else, write the game spec") and prompts[1].contains("1. Make a plan"), "spec otro agente: sin spec.md, el constructor lo escribe y sigue %s" % [prompts.slice(1, 2)])
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).contains("didn't write") and str(entry.kind) == "warning"), "spec otro agente: avisa que falta el spec")
 	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text) == "Spec written: the builder takes over"), "spec otro agente: actividad del traspaso")
 	_check(run.finish_reason == "The agent finished: all checks pass.", "spec otro agente: terminó (%s)" % run.finish_reason)
 	run.controller.stop()

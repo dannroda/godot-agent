@@ -6372,3 +6372,6 @@ msgstr "Igual que el constructor"
 
 msgid "The builder's model"
 msgstr "El del constructor"
+
+msgid "The spec's agent didn't write %s/%s: the builder writes it first"
+msgstr "El agente del spec no escribió %s/%s: lo escribe primero el constructor"
