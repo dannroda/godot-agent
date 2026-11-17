@@ -7,6 +7,9 @@ const ExternalMcpServers := preload("res://addons/godot_agent/mcp/external_mcp_s
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
+const BoardTask := preload("res://addons/godot_agent/oneshot/board_task.gd")
+const OneShotRun := preload("res://addons/godot_agent/oneshot/oneshot_run.gd")
+const AgentMainScreen := preload("res://addons/godot_agent/ui/main_screen/agent_main_screen.gd")
 
 const M := SessionModel.HarnessMode
 const PROGRAM := ["/usr/bin/scompass", []]
@@ -119,5 +122,47 @@ func test_mention_options() -> void:
 	assert_eq(inserts, ["compass://task/m1-02", "compass://milestone/m01", "compass://doc/spec", "compass://task/m1-01"], "abiertas, hitos, documentos (sin patrones) y terminadas")
 	assert_true(str(ScopeCompass.mention_options(dir)[0].label).begins_with("m1-02 · Mover al jugador"), "el id y el título")
 	assert_eq(ScopeCompass.mention_options(_project("sc_mentions_off", false, true)), [] as Array[Dictionary], "sin el plugin, nada")
+	for path: String in files:
+		DirAccess.remove_absolute(board.path_join(path))
+
+
+## One-shot desde el tablero: el objetivo y las líneas del prompt inicial y del traspaso.
+func test_oneshot_from_board() -> void:
+	var task := {"id": "m1-02", "kind": "task", "title": "Mover al jugador", "description": "Con WASD."}
+	assert_eq(BoardTask.goal_text(task), "Task m1-02: Mover al jugador\n\nCon WASD.", "título y descripción")
+	assert_eq(BoardTask.goal_text({"id": "m01", "kind": "milestone", "title": "Prototipo"}), "Milestone m01: Prototipo", "un hito sin descripción")
+	assert_eq(BoardTask.prompt_lines("", "task", "x"), PackedStringArray(), "sin tarea, nada")
+	var lines := "\n".join(BoardTask.prompt_lines("m1-02", "task", ".godot_agent/oneshot/1/spec.md"))
+	for text: String in ["task m1-02", "show_task", "add_step", "check_step", "add_file", ".godot_agent/oneshot/1/spec.md", "move it to review"]:
+		assert_true(lines.contains(text), text)
+	assert_true("\n".join(BoardTask.prompt_lines("m01", "milestone", "s")).contains("show_milestone"), "un hito se lee con show_milestone")
+	var run := OneShotRun.new()
+	run.board_item = "m1-02"
+	run.goal = "x"
+	assert_true(run.initial_prompt().contains("This run works on task m1-02"), "el prompt inicial lleva la tarea")
+	assert_true(BoardTask.handoff_line("m1-02", "task").contains("show_task"), "el traspaso al retomar")
+	run.free()
+
+
+func test_read_item_and_picker() -> void:
+	var dir := _project("sc_picker", true, true)
+	var board := dir.path_join(ScopeCompass.BOARD_DIR)
+	for sub: String in ["tasks", "milestones"]:
+		DirAccess.make_dir_recursive_absolute(board.path_join(sub))
+	var files := {
+		"tasks/m1-01.json": {"milestone": "m01", "title": "Hecha", "status": "done"},
+		"tasks/m1-02.json": {"milestone": "m01", "title": "Pendiente", "status": "todo"},
+		"tasks/m1-03.json": {"milestone": "m01", "title": "En curso", "status": "doing"},
+		"milestones/m01.json": {"code": "M1", "title": "Prototipo"},
+	}
+	for path: String in files:
+		var file := FileAccess.open(board.path_join(path), FileAccess.WRITE)
+		file.store_string(JSON.stringify(files[path]))
+		file.close()
+	assert_eq(ScopeCompass.read_item(dir, "m1-02").get("kind"), "task", "una tarea")
+	assert_eq(ScopeCompass.read_item(dir, "m01").get("kind"), "milestone", "un hito")
+	assert_eq(ScopeCompass.read_item(dir, "../config"), {}, "un id con / no sale del tablero")
+	var ids := AgentMainScreen.board_picker_options(dir).map(func(option: Dictionary) -> String: return option.id)
+	assert_eq(ids, ["m1-03", "m1-02", "m01"], "en curso, pendientes, hitos; sin las terminadas")
 	for path: String in files:
 		DirAccess.remove_absolute(board.path_join(path))

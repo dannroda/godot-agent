@@ -22,6 +22,9 @@ const RunReport := preload("../../oneshot/run_report.gd")
 const I18n := preload("../../core/i18n.gd")
 const ProjectModes := preload("../../core/project_modes.gd")
 const ProjectConfigRes := preload("../../config/project_config.gd")
+const ScopeCompass := preload("../../mcp/scope_compass.gd")
+const BoardTask := preload("../../oneshot/board_task.gd")
+const EditorContext := preload("../editor_context.gd")
 
 const BUDGET_KEYS: PackedStringArray = [OneShotRun.BUDGET_TIME, OneShotRun.BUDGET_TOKENS, OneShotRun.BUDGET_PLAYTESTS]
 const ACTIVITY_COLORS: Dictionary = {
@@ -94,6 +97,14 @@ var _goal_edit: TextEdit
 ## Archivos de referencia para el próximo run (un GDD, arte de referencia…): rutas del sistema o res://.
 var _references: PackedStringArray = []
 var _references_box: HFlowContainer
+## La tarea o el hito del tablero del próximo run (m7-56): {id, kind, title, goal} o {}.
+var _board_item: Dictionary = {}
+var _board_button: Button
+var _board_chip: Button
+var _board_dialog: ConfirmationDialog
+var _board_filter: LineEdit
+var _board_list: ItemList
+var _board_options: Array[Dictionary] = []
 var _references_dialog: EditorFileDialog
 var _budget_spins: Dictionary = {}
 var _checkpoints_check: CheckBox
@@ -311,6 +322,7 @@ func _build_form() -> void:
 	_setup_agent_button.pressed.connect(func() -> void: settings_requested.emit())
 	agent_row.add_child(_setup_agent_button)
 	goal_column.add_child(_heading(I18n.t("Goal")))
+	_build_board_row(goal_column)
 	_goal_edit = TextEdit.new()
 	_goal_edit.placeholder_text = I18n.t("E.g.: 2-player Pong with score, serve and restart. Use the assets in res://assets and follow CLAUDE.md.")
 	_goal_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
@@ -1244,6 +1256,119 @@ func _drop_references(position: Vector2, data: Variant) -> void:
 		add_references(data.files)
 
 
+# --- tarea del tablero (m7-56) -------------------------------------------------------------------
+
+func _build_board_row(parent: Control) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	parent.add_child(row)
+	_board_button = Button.new()
+	_board_button.name = "BoardTaskButton"
+	_board_button.text = I18n.t("From the board…")
+	_board_button.tooltip_text = I18n.t("Start from a task or a milestone of the Scope Compass board: its description becomes the goal, and the agent keeps the task up to date (plan as steps, progress, notes and review at the end).")
+	_board_button.pressed.connect(_open_board_picker)
+	row.add_child(_board_button)
+	_board_chip = Button.new()
+	_board_chip.name = "BoardTaskChip"
+	_board_chip.clip_text = true
+	_board_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_board_chip.pressed.connect(_set_board_item.bind({}))
+	row.add_child(_board_chip)
+	_refresh_board_row()
+
+
+## El botón solo está si el proyecto se organiza con Scope Compass.
+func _refresh_board_row() -> void:
+	if _board_button == null:
+		return
+	_board_button.get_parent().visible = ScopeCompass.detect(EditorContext.project_path()) or not _board_item.is_empty()
+	_board_chip.visible = not _board_item.is_empty()
+	if not _board_item.is_empty():
+		_board_chip.text = "📋 %s · %s  ✕" % [_board_item.id, _board_item.title]
+		_board_chip.tooltip_text = I18n.t("%s (click to remove it)") % _board_item.id
+
+
+func _open_board_picker() -> void:
+	if _board_dialog == null:
+		_board_dialog = ConfirmationDialog.new()
+		_board_dialog.title = I18n.t("Start from the board")
+		_board_dialog.ok_button_text = I18n.t("Use it")
+		_board_dialog.cancel_button_text = I18n.t("Cancel")
+		var box := VBoxContainer.new()
+		_board_dialog.add_child(box)
+		_board_filter = LineEdit.new()
+		_board_filter.placeholder_text = I18n.t("Filter by id or title")
+		_board_filter.clear_button_enabled = true
+		_board_filter.text_changed.connect(func(_text: String) -> void: _fill_board_list())
+		_board_filter.text_submitted.connect(func(_text: String) -> void: _pick_board_item())
+		box.add_child(_board_filter)
+		_board_list = ItemList.new()
+		_board_list.custom_minimum_size = Vector2(AgentTheme.px(520), AgentTheme.px(320))
+		_board_list.item_activated.connect(func(_index: int) -> void: _pick_board_item())
+		box.add_child(_board_list)
+		_board_dialog.confirmed.connect(_pick_board_item)
+		add_child(_board_dialog)
+	_board_options = board_picker_options(EditorContext.project_path())
+	_board_filter.text = ""
+	_fill_board_list()
+	_board_dialog.popup_centered()
+	_board_filter.grab_focus()
+
+
+## Tareas abiertas (las en curso primero) e hitos del tablero, para elegir de dónde sale el run.
+static func board_picker_options(project_dir: String) -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
+	if not ScopeCompass.detect(project_dir):
+		return options
+	var board := project_dir.path_join(ScopeCompass.BOARD_DIR)
+	var order := {"doing": 0, "todo": 1, "paused": 2, "review": 3}
+	var tasks: Array[Dictionary] = ScopeCompass.read_all(board.path_join("tasks")).filter(func(task: Dictionary) -> bool: return order.has(task.get("status")))
+	tasks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return order[a.status] < order[b.status] if a.status != b.status else str(a.id) < str(b.id))
+	for task: Dictionary in tasks:
+		options.append({"id": task.id, "kind": "task", "label": "%s · %s  (%s)" % [task.id, task.get("title", ""), task.status]})
+	for milestone: Dictionary in ScopeCompass.read_all(board.path_join("milestones")):
+		if milestone.get("status") != "done":
+			options.append({"id": milestone.id, "kind": "milestone", "label": "%s · %s  (%s)" % [milestone.id, milestone.get("title", ""), I18n.t("milestone")]})
+	return options
+
+
+func _fill_board_list() -> void:
+	_board_list.clear()
+	var query := _board_filter.text.strip_edges().to_lower()
+	for option: Dictionary in _board_options:
+		if query.is_empty() or str(option.label).to_lower().contains(query):
+			var index := _board_list.add_item(str(option.label))
+			_board_list.set_item_metadata(index, option)
+	if _board_list.item_count > 0:
+		_board_list.select(0)
+
+
+func _pick_board_item() -> void:
+	var selected := _board_list.get_selected_items()
+	if selected.is_empty():
+		return
+	var option: Dictionary = _board_list.get_item_metadata(selected[0])
+	var item := ScopeCompass.read_item(EditorContext.project_path(), str(option.id))
+	_board_dialog.hide()
+	if not item.is_empty():
+		_set_board_item(item)
+
+
+## Elige la tarea o el hito del próximo run ({} lo quita). El objetivo pasa a ser su descripción si
+## estaba vacío o era el de la elegida antes; uno escrito a mano queda.
+func _set_board_item(item: Dictionary) -> void:
+	var previous_goal := str(_board_item.get("goal", ""))
+	var typed := _goal_edit.text.strip_edges()
+	_board_item = {}
+	if not item.is_empty():
+		_board_item = {"id": str(item.id), "kind": str(item.kind), "title": str(item.get("title", "")), "goal": BoardTask.goal_text(item)}
+	if typed.is_empty() or typed == previous_goal.strip_edges():
+		_goal_edit.text = str(_board_item.get("goal", ""))
+	_refresh_board_row()
+	_refresh_form()
+
+
 ## Vuelve a leer los modos del proyecto para el selector del constructor (m11-39); el elegido sigue si
 ## todavía está.
 func refresh_builder_modes() -> void:
@@ -1329,11 +1454,14 @@ func _start_run() -> void:
 	_show_form = false
 	var goal := _goal_edit.text
 	_run.builder_mode = selected_builder_mode()
+	_run.board_item = str(_board_item.get("id", ""))
+	_run.board_kind = str(_board_item.get("kind", "task"))
 	var started: bool = await _run.start(goal, budgets, _checkpoints_check.button_pressed, _spec_check.button_pressed, _references)
 	if started:
 		_goal_edit.text = ""
 		_references = []
 		_refresh_references()
+		_set_board_item({})
 	_summary_dirty = true
 	_refresh()
 

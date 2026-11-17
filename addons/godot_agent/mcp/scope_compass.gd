@@ -18,6 +18,8 @@ const READ_TOOLS: PackedStringArray = [
 	"list_playtests", "show_playtest", "list_decisions", "list_docs", "search_docs", "show_doc", "doc_coverage",
 ]
 
+static var _valid_id := RegEx.create_from_string("^[A-Za-z0-9_-]+$")
+
 
 ## true si el proyecto de `project_dir` tiene Scope Compass activado en project.godot y su tablero.
 static func detect(project_dir: String) -> bool:
@@ -123,11 +125,11 @@ static func mention_options(project_dir: String) -> Array[Dictionary]:
 	var board := project_dir.path_join(BOARD_DIR)
 	var open: Array[Dictionary] = []
 	var done: Array[Dictionary] = []
-	for task: Dictionary in _read_all(board.path_join("tasks")):
+	for task: Dictionary in read_all(board.path_join("tasks")):
 		var option := {"label": "%s · %s  (%s)" % [task.id, task.get("title", ""), task.get("status", "")], "insert": "compass://task/" + task.id}
 		(done if task.get("status") == "done" else open).append(option)
 	options.append_array(open)
-	for milestone: Dictionary in _read_all(board.path_join("milestones")):
+	for milestone: Dictionary in read_all(board.path_join("milestones")):
 		options.append({"label": "%s · %s  (milestone)" % [milestone.id, milestone.get("title", "")], "insert": "compass://milestone/" + milestone.id})
 	var config: Variant = JSON.parse_string(FileAccess.get_file_as_string(board.path_join("config.json")))
 	if config is Dictionary and config.get("docs") is Array:
@@ -140,7 +142,7 @@ static func mention_options(project_dir: String) -> Array[Dictionary]:
 
 
 ## Los JSON de una carpeta del tablero, cada uno con su `id` (el nombre del archivo), ordenados.
-static func _read_all(dir: String) -> Array[Dictionary]:
+static func read_all(dir: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	if not DirAccess.dir_exists_absolute(dir):
 		return result
@@ -154,6 +156,21 @@ static func _read_all(dir: String) -> Array[Dictionary]:
 			data["id"] = file.get_basename()
 			result.append(data)
 	return result
+
+
+## Una tarea (`m5-02`) o un hito (`m05`) del tablero con su `id` y `kind` ("task" o "milestone"), o {}.
+static func read_item(project_dir: String, id: String) -> Dictionary:
+	if not _valid_id.search(id):
+		return {}
+	for kind: String in ["task", "milestone"]:
+		var path := project_dir.path_join(BOARD_DIR).path_join(kind + "s").path_join(id + ".json")
+		if FileAccess.file_exists(path):
+			var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if data is Dictionary:
+				data["id"] = id
+				data["kind"] = kind
+				return data
+	return {}
 
 
 ## true si `tool` (`list_tasks`) del server scompass solo lee.

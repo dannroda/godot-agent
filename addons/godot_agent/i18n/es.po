@@ -6309,3 +6309,21 @@ msgstr "Semana · %s"
 
 msgid "%s (another model)"
 msgstr "%s (otro modelo)"
+
+msgid "From the board…"
+msgstr "Desde el tablero…"
+
+msgid "Start from a task or a milestone of the Scope Compass board: its description becomes the goal, and the agent keeps the task up to date (plan as steps, progress, notes and review at the end)."
+msgstr "Arrancar desde una tarea o un hito del tablero de Scope Compass: su descripción pasa a ser el objetivo, y el agente mantiene la tarea al día (el plan como pasos, el progreso, las notas y a revisión al terminar)."
+
+msgid "Start from the board"
+msgstr "Arrancar desde el tablero"
+
+msgid "Use it"
+msgstr "Usarla"
+
+msgid "Filter by id or title"
+msgstr "Filtrar por id o título"
+
+msgid "milestone"
+msgstr "hito"

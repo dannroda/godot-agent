@@ -41,6 +41,7 @@ const PermissionPolicy := preload("../session/permission_policy.gd")
 const I18n := preload("../core/i18n.gd")
 const HarnessPrompts := preload("../session/harness_prompts.gd")
 const AgentLog := preload("../core/agent_log.gd")
+const BoardTask := preload("board_task.gd")
 
 enum RunPhase { IDLE, PREPARING, RUNNING, PAUSED, PAUSED_QUOTA, LIMITED, WAITING_CONFIRM, CLOSING, FINISHED, SPEC_REVIEW, EVALUATING }
 
@@ -210,6 +211,10 @@ var last_unexpected_transition: String = ""
 var goal: String = ""
 ## Archivos de referencia del usuario (un GDD, arte de referencia…), con la ruta que lee el agente.
 var references: PackedStringArray = []
+## La tarea o el hito del tablero de Scope Compass del run (m7-56), o "": se pone antes de start().
+var board_item: String = ""
+## "task" o "milestone".
+var board_kind: String = "task"
 ## {time: minutos, tokens, playtests}; 0 = sin límite.
 var budgets: Dictionary = {BUDGET_TIME: 45, BUDGET_TOKENS: 1500000, BUDGET_PLAYTESTS: 8}
 var used: Dictionary = {BUDGET_TIME: 0.0, BUDGET_TOKENS: 0, BUDGET_PLAYTESTS: 0}
@@ -484,6 +489,7 @@ func initial_prompt() -> String:
 	if spec_review:
 		spec_step += " Then end the turn without building anything: the user reviews and approves it."
 	var lines: PackedStringArray = ["Goal (One-shot mode): %s" % goal]
+	lines.append_array(BoardTask.prompt_lines(board_item, board_kind, files.spec_path()))
 	if not references.is_empty():
 		lines.append_array(["", "Reference material from the user: read all of it before writing the spec. The spec and the game follow it; where it disagrees with the goal above, the goal wins."])
 		lines.append_array(_reference_lines())
@@ -1023,6 +1029,7 @@ func _resume_prompt() -> String:
 	var handoff := " If you're missing context, reread spec.md and progress.md in %s." % files.dir() if files.has_spec() else ""
 	if not references.is_empty():
 		handoff += " The user's reference material: %s." % ", ".join(references)
+	handoff += BoardTask.handoff_line(board_item, board_kind)
 	if task.is_empty():
 		return "Continue with the goal from where you left off%s.%s" % [where, handoff]
 	return "Continue with the plan from the task “%s”%s.%s" % [task, where, handoff]
@@ -1626,6 +1633,8 @@ func to_dict() -> Dictionary:
 		"session_id": _saved_session_id(),
 		"elapsed_ms": _elapsed_ms(),
 		"capture_caption": last_capture_caption,
+		"board_item": board_item,
+		"board_kind": board_kind,
 	}
 
 
@@ -1674,6 +1683,8 @@ func _apply(data: Dictionary) -> void:
 	files.run_id = run_id
 	spec_review = bool(data.get("spec_review", false))
 	builder_mode = saved_builder_mode(data.get("builder_mode", {}))
+	board_item = str(data.get("board_item", ""))
+	board_kind = "milestone" if data.get("board_kind") == "milestone" else "task"
 	_set_stage(_saved_stage(data), true)
 	qa_round = int(data.get("qa_round", 0))
 	qa_results.assign(data.get("qa_results", []))

@@ -17,6 +17,7 @@ One-shot gives the agent a whole goal ("a 2-player Pong with score", "a top-down
 1. Pick **One-shot** in the dock: the **One-shot** screen opens.
 2. Write the goal. The editor grows with your screen, so long goals fit.
    - **+ Reference files…** adds files for the agent to follow: a design document (GDD), concept art, a level sketch… You can also drop them on the form from the FileSystem dock. The agent reads them before writing the spec, and the QA evaluator checks the game against them; where they disagree with the goal, the goal wins. Files from inside the project are read where they are; the rest are copied into the run's folder (`refs/`, up to 50 MB each).
+   - **From the board…** (in a project organized with [Scope Compass](Settings.md#scope-compass)) starts from a task or a milestone of the board: pick one of the open ones (type to filter) and its title and description become the goal, which you can still edit. The agent reads it with its steps, decisions and referenced documents before writing the spec, moves it to doing, adds its plan as the task's steps and checks them as it goes, links the spec to it, and at the end fills in its test and notes and moves it to review. With a milestone, it does that for each of its open tasks it works on. The ✕ on the chip drops it.
 3. Review the budgets (time, tokens, playtests) and the options:
    - **Create a git checkpoint before each One-shot task**: one commit per task on an agent branch;
    - **Review the spec before building**: the agent writes the spec first and waits for you.
