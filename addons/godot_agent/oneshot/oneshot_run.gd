@@ -193,6 +193,10 @@ var spec_review: bool = false
 ## El modo del proyecto del constructor (m11-39), como se leyó al empezar, o {}. Se aplica al build y
 ## al arreglo; el evaluador y el QA siguen como siempre. Lo que el modo haría preguntar se niega.
 var builder_mode: Dictionary = {}
+## El agente elegido en el formulario (m6-19): {"profile": id, "account": carpeta o ""}. Con {} la
+## pestaña del run copia el de la pestaña desde la que se lanzó (m17-19). Se guarda con el run, así
+## uno retomado de disco vuelve con el mismo agente y la misma cuenta.
+var agent: Dictionary = {}
 ## Informe del último run terminado, o {} mientras corre.
 var last_report: Dictionary = {}
 ## Vueltas de QA (D55); 0 = sin evaluador: valen los checks que reporta el agente.
@@ -1619,6 +1623,7 @@ func to_dict() -> Dictionary:
 		"pause_note": pause_note,
 		"spec_review": spec_review,
 		"builder_mode": builder_mode,
+		"agent": agent,
 		"stage": RunStage.keys()[_stage],
 		"qa_round": qa_round,
 		"qa_results": qa_results,
@@ -1639,6 +1644,13 @@ static func saved_builder_mode(saved: Variant) -> Dictionary:
 	for key: String in ["path", "slug"]:
 		fields.erase(key)
 	return ProjectModes.from_data(fields, path).mode
+
+
+## El agente guardado: {profile, account} con texto, o {} si falta o está roto.
+static func saved_agent(saved: Variant) -> Dictionary:
+	if not saved is Dictionary or str((saved as Dictionary).get("profile", "")).is_empty():
+		return {}
+	return {"profile": str(saved.profile), "account": str(saved.get("account", ""))}
 
 
 func _apply(data: Dictionary) -> void:
@@ -1674,6 +1686,7 @@ func _apply(data: Dictionary) -> void:
 	files.run_id = run_id
 	spec_review = bool(data.get("spec_review", false))
 	builder_mode = saved_builder_mode(data.get("builder_mode", {}))
+	agent = saved_agent(data.get("agent", {}))
 	_set_stage(_saved_stage(data), true)
 	qa_round = int(data.get("qa_round", 0))
 	qa_results.assign(data.get("qa_results", []))

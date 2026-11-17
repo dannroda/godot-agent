@@ -3260,8 +3260,26 @@ msgstr "%d hallazgos · en el panel de Revisar y el Script Editor"
 msgid "No agent set up yet: the One-shot needs one."
 msgstr "Todavía no hay un agente configurado: el One-shot necesita uno."
 
-msgid "Runs with %s (the agent selected in the dock)."
-msgstr "Corre con %s (el agente elegido en el dock)."
+msgid "Account"
+msgstr "Cuenta"
+
+msgid "The agent the run's tab opens its session with. By default, the one in the active dock tab."
+msgstr "El agente con que la pestaña del run abre su sesión. Por defecto, el de la pestaña activa del dock."
+
+msgid "Each account is another configuration folder (%s): another login and another quota."
+msgstr "Cada cuenta es otra carpeta de configuración (%s): otro login y otra cuota."
+
+msgid "The model you pick is remembered for One-shot with this agent, like picking it in the composer. The ones offered are those of an open session with this agent or those you already used with it."
+msgstr "El modelo que elijas queda recordado para el One-shot con este agente, como al elegirlo en el composer. Se ofrecen los de una sesión abierta con este agente o los que ya usaste con él."
+
+msgid "Whatever the agent picks"
+msgstr "El que elija el agente"
+
+msgid "Remembered for One-shot"
+msgstr "Recordado para el One-shot"
+
+msgid "The agent picks it (none remembered for One-shot yet)"
+msgstr "Lo elige el agente (todavía no hay uno recordado para el One-shot)"
 
 msgid "A One-shot is already running."
 msgstr "Ya hay un One-shot en curso."

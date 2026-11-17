@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Choose the One-shot's agent, account and model in its form.** The form used to say only which agent the run would use: the one in the active dock tab. It now has **Agent**, **Account** and **Model** selectors, which start with the active tab's agent and account and follow it until you change one. The run's tab opens its session with what you picked, and a run resumed after restarting the editor comes back with the same agent and account. Before a session is open the agent hasn't listed its models, so **Model** offers the one remembered for One-shot and the ones you already used with that agent, or the agent's full list if a tab has a session open with it. The model you pick is remembered for One-shot, as if you picked it in the composer.
+
 ### Fixed
 
 - **Resuming a long session reads only its end.** The dock used to read and rebuild the whole history before you could type, in a single frame of almost a second for a 20,000-event session. Now it reads the last 3,000 events, from a point where no tool call is left half-done, and **Show earlier messages** reads the previous part from the history file when you reach the top. At the end of a turn, the dock lets go of hidden messages beyond a margin, so the editor's memory no longer grows with the length of the session. **Export session…** still writes the whole conversation.
