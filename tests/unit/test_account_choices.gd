@@ -27,6 +27,8 @@ func test_book_records_and_describes() -> void:
 	book.record("claude-code", "", quota)
 	assert_eq(book.describe("claude-code", ""), "62 % used", "lo usado")
 	assert_false(book.is_exhausted("claude-code", ""), "no agotada")
+	assert_true(book.is_exhausted("claude-code", "", 0.6), "en el umbral de pausa cuenta como agotada (m6-21)")
+	assert_false(book.is_exhausted("claude-code", "", 0.9), "debajo del umbral, no")
 	quota.state = QuotaMonitor.QuotaState.LIMITED
 	quota.limited_until = _now + 7200
 	book.record("claude-code", "/c/trabajo", quota)

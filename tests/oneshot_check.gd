@@ -37,6 +37,7 @@ func _initialize() -> void:
 	await _scenario_quota_grace()
 	await _scenario_account()
 	await _scenario_account_other_agent()
+	await _scenario_reserve_chain()
 	await _scenario_budget()
 	await _scenario_budget_raise()
 	await _scenario_no_plan()
@@ -311,6 +312,56 @@ func _scenario_account_other_agent() -> void:
 	_check(run.switch_profile == null, "otro agente: el perfil elegido se usa una sola vez")
 	run.controller.stop()
 	run.queue_free()
+
+
+## Cadena de reserva (m6-21): al llegar al límite no pausa, sigue con la siguiente cuenta del mismo
+## agente y retoma la misma sesión. Sin ninguna libre, espera la cuota como siempre.
+func _scenario_reserve_chain() -> void:
+	print("— cadena de reserva")
+	var run := _make("oneshot_account")
+	run.reserve_accounts = true
+	var first := _profile("oneshot_account")
+	var reserve := _profile("oneshot_account_after")
+	reserve.display_name = "Reserva"
+	var lost_ids: Array[String] = []
+	run.restart_session = func(lost_id: String) -> bool:
+		lost_ids.append(lost_id)
+		var target := run.take_switch_profile()
+		return await run.controller.reopen(target if target else first, lost_id)
+	run.account_choices = func() -> Array[Dictionary]:
+		var on_first := run.controller.profile() == null or run.controller.profile().display_name != "Reserva"
+		return [
+			{"profile": first, "profile_id": "fake", "account_dir": "", "label": "primera", "same_agent": true, "current": on_first, "exhausted": on_first},
+			{"profile": reserve, "profile_id": "fake", "account_dir": "/r", "label": "reserva", "same_agent": true, "current": not on_first, "exhausted": false},
+			{"profile": first, "profile_id": "otro", "account_dir": "", "label": "otro agente", "same_agent": false, "current": false, "exhausted": false},
+		] as Array[Dictionary]
+	await run.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text) == "Account: Agente falso"), "reserva: la actividad dice con qué cuenta empieza")
+	lost_ids.clear()
+	await _wait(func() -> bool: return run.phase == OneShotRun.RunPhase.FINISHED and not run.is_git_busy(), 20.0)
+	_check(run.phase == OneShotRun.RunPhase.FINISHED, "reserva: sigue sola con la otra cuenta y termina (%s · %s)" % [run.phase_label(), run.finish_reason])
+	_check(run.controller.profile() == reserve, "reserva: corre con la cuenta de reserva")
+	_check(lost_ids.size() == 1 and not lost_ids[0].is_empty(), "reserva: retoma la misma sesión (%s)" % [lost_ids])
+	_check(run.activity.any(func(entry: Dictionary) -> bool: return str(entry.text) == "Quota: Agente falso ran out, continuing with Reserva"), "reserva: la actividad dice qué cuenta toma el tramo")
+	_check(int(run.report.events.get("reserve_switches", 0)) == 1, "reserva: el informe lo cuenta")
+	run.controller.stop()
+	run.queue_free()
+
+	var none := _make("oneshot_account")
+	none.reserve_accounts = true
+	none.account_choices = func() -> Array[Dictionary]:
+		return [
+			{"profile": first, "profile_id": "fake", "account_dir": "", "label": "primera", "same_agent": true, "current": true, "exhausted": true},
+			{"profile": reserve, "profile_id": "fake", "account_dir": "/r", "label": "reserva", "same_agent": true, "current": false, "exhausted": true},
+		] as Array[Dictionary]
+	await none.start("Platformer", {"time": 0, "tokens": 0, "playtests": 0}, true)
+	await _wait(func() -> bool: return none.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("No reserve account left")), 10.0)
+	_check(none.phase == OneShotRun.RunPhase.LIMITED, "reserva agotada: espera la cuota (%s)" % none.phase_label())
+	_check(none.activity.any(func(entry: Dictionary) -> bool: return str(entry.text).begins_with("No reserve account left")), "reserva agotada: lo dice")
+	_check(int(none.report.events.get("account_switches", 0)) == 0, "reserva agotada: no cambia de cuenta")
+	none.stop()
+	none.controller.stop()
+	none.queue_free()
 
 
 func _scenario_budget() -> void:

@@ -47,6 +47,7 @@ const KEY_QUOTA_WARN := "quota/warn_percent"
 const KEY_QUOTA_PAUSE := "quota/pause_percent"
 const KEY_QUOTA_PAUSE_ENABLED := "quota/pause_enabled"
 const KEY_QUOTA_RESUME := "quota/resume_mode"
+const KEY_QUOTA_RESERVE := "quota/reserve_accounts"
 const RESUME_AUTO := 0
 const RESUME_CONFIRM := 1
 const KEY_DOCK_SLOT := "ui/dock_slot"
@@ -125,6 +126,7 @@ func _init(editor_settings: EditorSettings = null) -> void:
 		_declare(KEY_QUOTA_PAUSE, 90, TYPE_INT, PROPERTY_HINT_RANGE, "1,100,1,suffix:%")
 		_declare(KEY_QUOTA_PAUSE_ENABLED, true, TYPE_BOOL)
 		_declare(KEY_QUOTA_RESUME, RESUME_AUTO, TYPE_INT, PROPERTY_HINT_ENUM, "Resume automatically,Wait for confirmation")
+		_declare(KEY_QUOTA_RESERVE, false, TYPE_BOOL)
 		_declare(KEY_LANGUAGE, "auto", TYPE_STRING, PROPERTY_HINT_ENUM, "auto,en,es")
 		_declare(KEY_UPDATE_CHECK, true, TYPE_BOOL)
 		_declare(KEY_RUN_ERROR_FIX, true, TYPE_BOOL)
@@ -331,6 +333,12 @@ func quota_pause_enabled() -> bool:
 
 func quota_resume_auto() -> bool:
 	return int(get_value(KEY_QUOTA_RESUME, RESUME_AUTO)) == RESUME_AUTO
+
+
+## Cadena de reserva (m6-21): al agotarse la cuota, el One-shot sigue con la siguiente cuenta del
+## mismo agente en vez de pausar.
+func quota_reserve_accounts() -> bool:
+	return bool(get_value(KEY_QUOTA_RESERVE, false))
 
 
 ## Índice en DOCK_SLOTS.

@@ -51,9 +51,11 @@ func lookup(profile_id: String, account_dir: String) -> Dictionary:
 	return result
 
 
-## true si la cuenta quedó agotada y su límite todavía no se liberó.
-func is_exhausted(profile_id: String, account_dir: String) -> bool:
-	return bool(lookup(profile_id, account_dir).get("limited", false))
+## true si la cuenta quedó agotada (o en el umbral de pausa `pause_at`, 0..1) y su ventana todavía
+## no se reinició.
+func is_exhausted(profile_id: String, account_dir: String, pause_at: float = 2.0) -> bool:
+	var entry := lookup(profile_id, account_dir)
+	return bool(entry.get("limited", false)) or float(entry.get("used", -1.0)) >= pause_at
 
 
 ## Texto corto para el menú: «agotada, se libera en 2 h», «62 % usado», «» si no se sabe.
