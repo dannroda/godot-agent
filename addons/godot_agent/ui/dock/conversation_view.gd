@@ -361,3 +361,25 @@ func _scroll_to_bottom() -> void:
 	var bar := get_v_scroll_bar()
 	scroll_vertical = int(bar.max_value)
 	_stick_to_bottom = true
+
+
+## Lleva la lista hasta el tool call `id`: abre su grupo y, si es un subagente, sus herramientas.
+## false si su grupo no tiene vista (todavía no se armó o quedó entre las anteriores).
+func reveal_tool_call(id: String) -> bool:
+	var group := _model.group_of_call(id) if _model else null
+	var view: EntryView = _views.get(group.id) if group else null
+	if view == null or not view.has_method(&"reveal"):
+		return false
+	var target: Control = view.reveal(id)
+	_stick_to_bottom = false
+	_scroll_into_view(target if target else view)
+	return true
+
+
+## Los contenedores reacomodan en el frame siguiente: recién ahí la fila tiene su posición.
+func _scroll_into_view(target: Control) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if is_instance_valid(target) and target.is_inside_tree():
+		ensure_control_visible(target)
+		_stick_to_bottom = false

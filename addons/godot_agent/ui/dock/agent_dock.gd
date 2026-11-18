@@ -206,6 +206,11 @@ var _accent: Color = HarnessSettings.DEFAULT_ACCENT
 var _presets_mtime: int = -1
 var _pending_prompt: String = ""
 var _conversation: ConversationView
+## «⧉ 2 subagentes» junto a la línea de estado: se ve mientras alguno trabaja, también después del
+## turno (los de segundo plano), y su menú lleva a cada uno en el chat.
+var _subagents_button: MenuButton
+## Ids de los tool calls del menú de subagentes, en el orden de sus items.
+var _subagent_menu_ids: PackedStringArray = []
 var _composer: Composer
 ## Prompts escritos mientras el agente trabaja: salen de a uno al terminar cada turno.
 var _queue := PromptQueue.new()
@@ -403,6 +408,15 @@ func _ready() -> void:
 	_state_line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_state_line.clip_text = true
 	_state_row.add_child(_state_line)
+	_subagents_button = MenuButton.new()
+	_subagents_button.name = "SubagentsButton"
+	_subagents_button.flat = true
+	_subagents_button.visible = false
+	_subagents_button.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+	_subagents_button.tooltip_text = I18n.t("Subagents still working, also after the turn ends. Click one to see it in the chat.")
+	_subagents_button.about_to_popup.connect(_fill_subagents_menu)
+	_subagents_button.get_popup().id_pressed.connect(_on_subagent_chosen)
+	_state_row.add_child(_subagents_button)
 	_machine_chips = HBoxContainer.new()
 	_machine_chips.name = "MachineChips"
 	_machine_chips.add_theme_constant_override(&"separation", AgentTheme.px(4))
@@ -1078,7 +1092,8 @@ func _waiting_for_user() -> bool:
 	return not _model.pending_permissions.is_empty() or not _model.pending_elicitations.is_empty()
 
 
-## «● Trabajando… · 2 subagentes» arriba del composer, con el color del estado. Sin sesión no se ve.
+## «● Trabajando…» arriba del composer, con el color del estado. Sin sesión no se ve. Los subagentes
+## van aparte, en _subagents_button.
 func _refresh_state_line(color: Color) -> void:
 	if _state_line == null:
 		return
@@ -1092,9 +1107,6 @@ func _refresh_state_line(color: Color) -> void:
 			text = "● " + I18n.t("Ready")
 		SessionModel.SessionState.PROMPTING:
 			text = "● " + I18n.t("Working…")
-			var subagents := _model.running_subagents()
-			if not subagents.is_empty():
-				text += " · " + (I18n.t("%d subagent") if subagents.size() == 1 else I18n.t("%d subagents")) % subagents.size()
 		SessionModel.SessionState.CANCELLING:
 			text = "● " + I18n.t("Cancelling…")
 		SessionModel.SessionState.FAILED:
@@ -1108,7 +1120,40 @@ func _refresh_state_line(color: Color) -> void:
 	_state_line.text = text
 	HoverTooltip.set_text(_state_line, HoverTooltip.text_of(_status_label))
 	_state_line.add_theme_color_override(&"font_color", color)
+	_refresh_subagents_button()
 	_refresh_machine_chips()
+
+
+## El botón de subagentes cuenta los que trabajan en cualquier estado de la sesión: los de segundo
+## plano siguen después de que termina el turno y piden permisos desde ahí.
+func _refresh_subagents_button() -> void:
+	if _subagents_button == null:
+		return
+	var subagents := _model.running_subagents()
+	_subagents_button.visible = not subagents.is_empty()
+	if subagents.is_empty():
+		return
+	var text := "⧉ " + (I18n.t("%d subagent") if subagents.size() == 1 else I18n.t("%d subagents")) % subagents.size()
+	var waiting := subagents.filter(func(call: SessionModel.ToolCall) -> bool: return call.subagent_state == "requires_action").size()
+	if waiting > 0:
+		text += " · " + I18n.t("%d waiting for you") % waiting
+	_subagents_button.text = text
+	_subagents_button.add_theme_color_override(&"font_color", _accent if waiting > 0 else AgentTheme.MUTED)
+
+
+func _fill_subagents_menu() -> void:
+	var popup := _subagents_button.get_popup()
+	popup.clear()
+	_subagent_menu_ids.clear()
+	for call: SessionModel.ToolCall in _model.running_subagents():
+		var label := I18n.t("%s · waiting for your permission") if call.subagent_state == "requires_action" else I18n.t("%s · working")
+		popup.add_item(label % call.display_name(), _subagent_menu_ids.size())
+		_subagent_menu_ids.append(call.id)
+
+
+func _on_subagent_chosen(index: int) -> void:
+	if index >= 0 and index < _subagent_menu_ids.size():
+		_conversation.reveal_tool_call(_subagent_menu_ids[index])
 
 
 ## Cada segundo: los chips, y mientras conecta también la línea de estado, que pasados unos segundos
@@ -1315,9 +1360,6 @@ func _refresh_state() -> void:
 		SessionModel.SessionState.PROMPTING:
 			text = I18n.t("● %s · working…") % name
 			color = _accent
-			var subagents := _model.running_subagents()
-			if not subagents.is_empty():
-				text += " · " + (I18n.t("%d subagent") if subagents.size() == 1 else I18n.t("%d subagents")) % subagents.size()
 		SessionModel.SessionState.CANCELLING:
 			text = I18n.t("● %s · cancelling…") % name
 			color = AgentTheme.WARNING
@@ -1326,15 +1368,18 @@ func _refresh_state() -> void:
 			color = AgentTheme.ERROR
 		SessionModel.SessionState.LOGIN_REQUIRED:
 			text = I18n.t("○ %s · sign-in needed") % name
+	# Los subagentes de segundo plano siguen después del turno: se cuentan en cualquier estado.
+	var subagents := _model.running_subagents()
+	if not subagents.is_empty():
+		text += " · " + (I18n.t("%d subagent") if subagents.size() == 1 else I18n.t("%d subagents")) % subagents.size()
 	var email := str(_model.account.get("email", ""))
 	if not email.is_empty() and _model.state != SessionModel.SessionState.DISCONNECTED:
 		text += " · " + email
 	_status_label.text = text
 	var status_tooltip := _model.failure_message if not _model.failure_message.is_empty() else account_summary(_model.account)
-	if _model.state == SessionModel.SessionState.PROMPTING:
-		var names := _model.running_subagents().map(func(call: SessionModel.ToolCall) -> String: return "• " + call.display_name())
-		if not names.is_empty():
-			status_tooltip = I18n.t("Subagents running:") + "\n" + "\n".join(names)
+	if not subagents.is_empty():
+		var names := subagents.map(func(call: SessionModel.ToolCall) -> String: return "• " + call.display_name())
+		status_tooltip = I18n.t("Subagents running:") + "\n" + "\n".join(names)
 	HoverTooltip.set_text(_status_label, status_tooltip)
 	_status_label.add_theme_color_override(&"font_color", color)
 	_refresh_state_line(color)

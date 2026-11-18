@@ -127,3 +127,16 @@ func test_child_permission_request_goes_to_launch() -> void:
 		"rawInput": {"command": "ls"}}, "options": OPTIONS})
 	assert_eq(controller.model.tool_call("b1").parent_id, "a1", "el pedido del hijo queda en la tarjeta del subagente")
 	assert_true("subagents" in controller.client_capabilities(), "declara subagentes nativos")
+
+
+## La tarjeta del pedido de un subagente empieza con su nombre: el resto es el comando, que se corta.
+func test_child_permission_title_names_subagent_first() -> void:
+	var controller := _controller(M.BUILD)
+	controller.policy.overrides = {"shell": {"build": "ask"}}
+	controller.model.apply_update(_agent_call("a1", "in_progress"))
+	_announce(controller.model, "a1", "c1")
+	controller.permissions.call(&"on_request_permission", {"sessionId": "c1", "toolCall": {"toolCallId": "b1", "title": "npm test", "kind": "execute", "status": "pending",
+		"rawInput": {"command": "npm test -- --watch --reporter=verbose"}}, "options": OPTIONS})
+	assert_eq(controller.model.pending_permissions.size(), 1, "muestra la tarjeta")
+	var title: String = controller.model.pending_permissions.back().title
+	assert_true(title.begins_with("Subagent «%s» · " % controller.model.tool_call("a1").display_name()), "el subagente adelante: " + title)

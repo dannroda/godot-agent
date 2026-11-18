@@ -53,6 +53,34 @@ func test_subagent_rows() -> void:
 	view.queue_free()
 
 
+## El botón de subagentes del dock lleva a uno: se abre su grupo y su lista de herramientas.
+func test_reveal_opens_group_and_subagent() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var model := SessionModel.new()
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "agent", "title": "Buscar usos", "kind": "think", "status": "completed",
+		"rawInput": {"description": "Buscar usos", "subagent_type": "Explore"}, "_meta": {"claudeCode": {"toolName": "Agent"}}})
+	model.apply_update({"sessionUpdate": "tool_call", "toolCallId": "r1", "title": "Read", "status": "completed",
+		"_meta": {"claudeCode": {"parentToolUseId": "agent"}}})
+	var group: SessionModel.ChatEntry = model.entries()[0]
+	assert_true(model.group_of_call("agent") == group and model.group_of_call("r1") == group, "el subagente y sus tools viven en el grupo")
+	assert_true(model.group_of_call("nada") == null, "sin grupo")
+	var view: Control = ToolGroupView.new()
+	view.call(&"setup", group, Color.ORANGE, MarkdownBBCode.new())
+	view.set(&"tool_call_lookup", model.tool_call)
+	tree.root.add_child(view)
+	await tree.process_frame
+	var header: Button = view.get(&"_header")
+	header.button_pressed = false
+	var block: Control = view.call(&"reveal", "agent")
+	var rows: Dictionary = view.get(&"_rows")
+	assert_true(header.button_pressed, "abre el grupo")
+	assert_true((rows.agent.toggle as Button).button_pressed, "y las herramientas del subagente")
+	assert_true(block == rows.agent.block, "devuelve su bloque")
+	assert_true(rows.has("r1"), "con sus filas")
+	assert_true(view.call(&"reveal", "otro") == null, "un id que no está")
+	view.queue_free()
+
+
 func _has_button_text(root: Node, text: String) -> bool:
 	for node: Node in root.find_children("*", "Button", true, false):
 		if (node as Button).text == text:

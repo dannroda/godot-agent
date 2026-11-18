@@ -1077,6 +1077,11 @@ func running_subagents() -> Array[ToolCall]:
 	return running
 
 
+## Grupo (TOOL_GROUP) donde se ve el tool call `id`, o null.
+func group_of_call(id: String) -> ChatEntry:
+	return _group_of_call.get(id)
+
+
 ## Id del tool call de Agent/Task cuyo subagente mandó este update (`_meta.claudeCode.parentToolUseId`
 ## del adaptador de Claude Code), o "".
 static func parent_tool_call_id(update: Dictionary) -> String:
