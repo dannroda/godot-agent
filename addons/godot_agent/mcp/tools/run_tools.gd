@@ -24,6 +24,7 @@ const RealGamepads := preload("../../playtest/real_gamepads.gd")
 const DeviceSim := preload("../../playtest/runtime/device_sim.gd")
 const PlaytestLoopGuard := preload("playtest_loop_guard.gd")
 const GameEmbedding := preload("../../playtest/game_embedding.gd")
+const EditorWatch := preload("../../playtest/editor_watch.gd")
 const GameInstances := preload("../../playtest/game_instances.gd")
 const ProjectTools := preload("project_tools.gd")
 const AgentLog := preload("../../core/agent_log.gd")
@@ -183,6 +184,8 @@ var _findings: Dictionary = {}
 var _findings_new: PackedStringArray = []
 ## Las instancias extra del juego (m11-50) y la escena del run, para game_instance add.
 var instances := GameInstances.new()
+## Los juegos que lanza el harness terminan si muere el editor (m2-07 de pruebas-windows).
+var editor_watch := EditorWatch.new()
 var _run_scene_path: String = ""
 ## Tool calls en curso hacia debugger.target_instance: otra instancia espera a que terminen.
 var _target_calls: int = 0
@@ -643,6 +646,7 @@ func _run_scene(args: Dictionary) -> Dictionary:
 	# el tamaño lo pone el editor. Se apaga solo para este lanzamiento, como el Movie Maker de `record`.
 	var embed: Object = GameEmbedding.disable() if device.has("device") and not (device.device.size as Array).is_empty() else null
 	_run_scene_path = scene
+	editor_watch.start()
 	EditorInterface.play_custom_scene(scene)  # llama a _build() y lanza el proceso en el momento
 	if device.has("device"):
 		DeviceSim.restore_env(device_env)
@@ -756,6 +760,7 @@ func _add_instance(entry: Dictionary, real_gamepads: bool) -> String:
 	if register_autoload.is_valid():
 		register_autoload.call(true)
 	debugger.expect_instance(number)
+	editor_watch.start()
 	var pid := instances.launch(number, args, entry, real_gamepads)
 	if pid <= 0:
 		debugger.expect_instance(0)

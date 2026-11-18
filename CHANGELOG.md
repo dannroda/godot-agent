@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Fixed
+
+- **A playtest game closes when the editor dies.** If the editor crashed or was killed while the agent's game was running, the game kept running on its own: on Windows it stayed open, using CPU and memory, until you closed it by hand. Now the games the agent launches, extra instances included, close within a second or two of the editor going away.
+
 ## [0.1.28] - 2026-11-17
 
 ### Added
