@@ -2161,6 +2161,9 @@ msgstr "Pregunta: escribe su salida en un archivo (%s)."
 msgid "Asks: a quote is not closed."
 msgstr "Pregunta: hay una comilla sin cerrar."
 
+msgid "Asks: it uses case or defines a function, and the lists can't judge what that runs."
+msgstr "Pregunta: usa case o define una función, y las listas no pueden juzgar qué corre eso."
+
 msgid "Asks."
 msgstr "Pregunta."
 

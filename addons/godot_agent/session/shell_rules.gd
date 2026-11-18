@@ -26,6 +26,8 @@ const CODE_SUBSTITUTION := "substitution"
 const CODE_REDIRECT := "redirect"
 const CODE_QUOTE := "quote"
 const CODE_EMPTY := "empty"
+## Un `case` o una definición de función: lo que corre depende de patrones o de cuándo se llama.
+const CODE_COMPOUND := "compound"
 
 const DEFAULT_ALLOW: PackedStringArray = [
 	"ls *", "cat *", "head *", "tail *", "wc *", "grep *", "rg *", "find *", "pwd", "cd *", "echo *",
@@ -47,6 +49,24 @@ const DEFAULT_ASK: PackedStringArray = [
 const SAFE_TARGETS: PackedStringArray = ["/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"]
 ## Comandos cuyo patrón sugerido toma también el subcomando (`git log *` y no `git *`).
 const SUBCOMMAND_TOOLS: PackedStringArray = ["git", "npm", "npx", "pnpm", "yarn", "cargo", "go", "dotnet", "pip", "uv", "docker", "godot", "gh", "make"]
+## Palabras del shell antes del comando de verdad (`do rm x`, `then ls`, `! grep`): se sacan. Sin esto
+## `for f in a; do rm $f; done` quedaba en «for…», «do rm $f» y «done»: la lista ask no veía el rm y
+## «Permitir siempre» sugería «do *», que después dejaba pasar cualquier comando dentro de un loop.
+const LEAD_KEYWORDS: PackedStringArray = ["do", "then", "else", "elif", "if", "while", "until", "!", "{"]
+## Cierran un bloque o lo abren sin correr nada (la lista de un `for` ya pasó por el chequeo de
+## sustituciones): no son un comando.
+const CLOSE_KEYWORDS: PackedStringArray = ["done", "fi", "esac", "}", ")"]
+const HEADER_KEYWORDS: PackedStringArray = ["for", "select"]
+## Corren el comando que les sigue: se juzga ese (`… | xargs rm` es un rm). Valor: las opciones que
+## toman el argumento siguiente. sudo, su y doas no: están en la lista ask.
+const WRAPPERS := {
+	"xargs": ["-I", "-n", "-P", "-d", "-L", "-s", "-E", "-a", "--arg-file", "--delimiter", "--max-args", "--max-procs", "--max-chars", "--max-lines", "--replace", "--eof"],
+	"env": ["-u", "-C", "-S", "--unset", "--chdir", "--split-string"],
+	"timeout": ["-s", "-k", "--signal", "--kill-after"],
+	"nice": ["-n", "--adjustment"],
+	"nohup": [], "time": [], "command": [], "builtin": [], "exec": [],
+	"stdbuf": ["-i", "-o", "-e"],
+}
 
 
 static func default_rules() -> Array:
@@ -162,7 +182,8 @@ static func split(command: String) -> Dictionary:
 			i = j
 			continue
 		if c in [";", "\n", "|", "&"]:
-			_push(segments, current)
+			if not _push(segments, current):
+				return {"segments": segments, "unsafe": "case statement or function definition", "code": CODE_COMPOUND}
 			current = ""
 			i += 2 if (c == "&" and next == "&") or (c == "|" and next in ["|", "&"]) else 1
 			continue
@@ -170,7 +191,8 @@ static func split(command: String) -> Dictionary:
 		i += 1
 	if not quote.is_empty():
 		return {"segments": segments, "unsafe": "unterminated quote", "code": CODE_QUOTE}
-	_push(segments, current)
+	if not _push(segments, current):
+		return {"segments": segments, "unsafe": "case statement or function definition", "code": CODE_COMPOUND}
 	return {"segments": segments, "unsafe": "", "code": ""}
 
 
@@ -220,14 +242,68 @@ static func _candidates(segment: String) -> PackedStringArray:
 	return result
 
 
-## Agrega un comando simple sin las asignaciones de variables del principio (`FOO=1 cmd`).
-static func _push(segments: PackedStringArray, raw: String) -> void:
+## Agrega el comando que corre de verdad: sin las asignaciones de variables del principio
+## (`FOO=1 cmd`), sin las palabras del shell que lo preceden (LEAD_KEYWORDS) y sin los envoltorios
+## (WRAPPERS). Lo que no corre nada (`done`, la cabecera de un `for`) no se agrega. false si es un
+## `case` o una definición de función, que las listas no pueden juzgar.
+static func _push(segments: PackedStringArray, raw: String) -> bool:
 	var words := normalize(raw.replace("\n", " ")).split(" ", false)
 	var assignment := RegEx.create_from_string("^[A-Za-z_][A-Za-z0-9_]*=")
-	while not words.is_empty() and assignment.search(words[0]):
-		words.remove_at(0)
+	var opened := 0  # `(` de subshell sacados del principio
+	while not words.is_empty():
+		var first := words[0]
+		if assignment.search(first) or first in LEAD_KEYWORDS:
+			words.remove_at(0)
+		elif first.begins_with("(") and not first.begins_with("(("):
+			words[0] = first.substr(1)
+			opened += 1
+			if words[0].is_empty():
+				words.remove_at(0)
+		elif WRAPPERS.has(first):
+			var inner := _wrapped_start(words)
+			if inner < 0:
+				break
+			words = words.slice(inner)
+		else:
+			break
+	if words.is_empty() or words[0] in CLOSE_KEYWORDS or words[0] in HEADER_KEYWORDS:
+		return true
+	var head := words[0]
+	if head == "case" or head == "function" or head.begins_with("((") or head.ends_with("()") or (words.size() > 1 and words[1].begins_with("()")):
+		return false
+	# El `)` que cierra un subshell abierto en este u otro comando: `(cd x; ls)` → «cd x», «ls».
+	var joined := " ".join(words)
+	if words[words.size() - 1].ends_with(")") and (opened > 0 or joined.count(")") > joined.count("(")):
+		words[words.size() - 1] = words[words.size() - 1].trim_suffix(")")
+		if words[words.size() - 1].is_empty():
+			words.remove_at(words.size() - 1)
 	if not words.is_empty():
 		segments.append(" ".join(words))
+	return true
+
+
+## Dónde empieza el comando que corre el envoltorio de `words[0]`, o -1 si no tiene (`xargs` solo,
+## `env` solo): ahí queda como está y se juzga el envoltorio.
+static func _wrapped_start(words: PackedStringArray) -> int:
+	var takes_value: Array = WRAPPERS[words[0]]
+	var assignment := RegEx.create_from_string("^[A-Za-z_][A-Za-z0-9_]*=")
+	var positional := 1 if words[0] == "timeout" else 0  # timeout DURACIÓN cmd
+	var i := 1
+	while i < words.size():
+		var word := words[i]
+		if word == "--":
+			i += 1
+			break
+		if word.begins_with("-") and word.length() > 1:
+			i += 2 if word in takes_value else 1
+		elif words[0] == "env" and assignment.search(word):
+			i += 1
+		elif positional > 0:
+			positional -= 1
+			i += 1
+		else:
+			break
+	return i if i < words.size() else -1
 
 
 ## Saca el número de descriptor pegado a una redirección (`ls 2>/dev/null` → `ls`).

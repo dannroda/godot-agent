@@ -193,6 +193,8 @@ static func describe_verdict(verdict: Dictionary) -> String:
 			return I18n.t("Asks: it writes its output to a file (%s).") % (segment if not segment.is_empty() else "…")
 		ShellRules.CODE_QUOTE:
 			return I18n.t("Asks: a quote is not closed.")
+		ShellRules.CODE_COMPOUND:
+			return I18n.t("Asks: it uses case or defines a function, and the lists can't judge what that runs.")
 	return I18n.t("Asks.")
 
 
