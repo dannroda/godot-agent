@@ -658,8 +658,11 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	if is_command and text.strip_edges().begins_with("/remote-control"):
 		_observe_remote_control(turn_text)
 	quota.observe_agent_text(turn_text)
-	if collect_findings and model.harness_mode == SessionModel.HarnessMode.REVIEW:
-		if review.ingest_turn_text(turn_text, cwd):
+	# Fuera de Revisar también: un agente que revisa en Auto o Construir (con subagentes, por ejemplo)
+	# deja el mismo bloque, y sin plegar es un JSON larguísimo en el chat. Ahí uno vacío no borra nada.
+	if collect_findings:
+		var in_review := model.harness_mode == SessionModel.HarnessMode.REVIEW
+		if review.ingest_turn_text(turn_text, cwd, not in_review):
 			_fold_findings(first_new_entry)
 	if not _playtest_loop.is_empty():
 		# El harness cortó el playtest (m11-49): el veredicto es suyo, con lo que repetía el agente.

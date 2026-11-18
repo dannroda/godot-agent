@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Fixed
 
 - **Auto mode judges the commands inside loops, `if` blocks and `xargs`.** A command like `for f in *.gd; do grep foo $f; done` was split into «for…», «do grep…» and «done», so Auto asked once per piece and **Always allow** offered rules like `do *` or `done`. Worse, with `do *` on the allowlist, `do rm …` inside a loop ran without asking, and `xargs *` did the same for `… | xargs rm`. Now Auto looks at the command that actually runs (`grep`, `rm`) inside `for`, `while`, `if`, subshells, `{ }` and wrappers like `xargs`, `env` or `timeout`, never suggests a shell keyword as a rule, and always asks for `case` and function definitions. Rules like `do *` or `xargs *` that are already on your list no longer let anything through; you can remove them in **Settings → Permissions**.
+- **Review findings fold in every mode.** When the agent reviewed code outside **Review** mode, for example in Auto with subagents, it ended its answer with the findings as a long JSON block, and the chat showed all of it. Now any answer with a findings block is handled as in **Review**: the block folds into **▸ N findings**, and the findings go to the Review panel and the Script Editor. Outside **Review**, an empty block doesn't clear the current review.
 
 ## [0.1.29] - 2026-11-18
 
