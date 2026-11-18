@@ -298,7 +298,10 @@ func _check_playtest_game() -> void:
 	var before_look := await _call_text("game_get", {"path": "Player", "properties": ["rotation:y"]})
 	await _call_text("game_input", {"steps": [{"look": [300, 0]}]})
 	var after_look := await _call_text("game_get", {"path": "Player", "properties": ["rotation:y"]})
-	_expect(before_look.contains("rotation:y = 0.0") and not after_look.contains("rotation:y = 0.0"), "game_input look: la mira gira · " + after_look)
+	# Antes y después, no desde 0: en un escritorio real el mouse físico ya giró la mira (m2-04 de
+	# pruebas-windows); en Xvfb no se mueve.
+	var turned := _float_of(after_look, "rotation:y") - _float_of(before_look, "rotation:y")
+	_expect(not is_nan(turned) and absf(turned) > 0.01, "game_input look: la mira gira · %s → %s" % [before_look, after_look])
 
 	# Errores (m15-05): el clic dispara un error y el juego sigue.
 	var mailbox := await _call_text("game_ui_act", {"id": "HUD.Mailbox"})
@@ -511,6 +514,12 @@ static func _script_times(dir: String, into: Dictionary = {}) -> Dictionary:
 static func _number_of(text: String, property: String) -> int:
 	var found := RegEx.create_from_string("%s = (-?\\d+)" % property).search(text)
 	return int(found.get_string(1)) if found else -999
+
+
+## Como `_number_of`, para un float (`rotation:y = -0.52`); NAN si no está.
+static func _float_of(text: String, property: String) -> float:
+	var found := RegEx.create_from_string("%s = (-?[\\d.]+(?:e-?\\d+)?)" % property).search(text)
+	return float(found.get_string(1)) if found else NAN
 
 
 ## Llamada sin esperar: deja el texto en `box.text` cuando termina.
