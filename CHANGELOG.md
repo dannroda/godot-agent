@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Fixed
 
 - **Auto mode judges the commands inside loops, `if` blocks and `xargs`.** A command like `for f in *.gd; do grep foo $f; done` was split into «for…», «do grep…» and «done», so Auto asked once per piece and **Always allow** offered rules like `do *` or `done`. Worse, with `do *` on the allowlist, `do rm …` inside a loop ran without asking, and `xargs *` did the same for `… | xargs rm`. Now Auto looks at the command that actually runs (`grep`, `rm`) inside `for`, `while`, `if`, subshells, `{ }` and wrappers like `xargs`, `env` or `timeout`, never suggests a shell keyword as a rule, and always asks for `case` and function definitions. Rules like `do *` or `xargs *` that are already on your list no longer let anything through; you can remove them in **Settings → Permissions**.
+- **Fewer permission cards for searching the project.** The agent's instructions said to use the shell to read, so the agent often searched with commands like `cd <project> && f=$(grep -rl "class_name Projectile" .); cat $f`, and the `$(…)` made it ask for permission each time. Now the instructions tell it to use its own Read, Grep and Glob tools, which never ask, and `godot.project_map` to find where a `class_name` is defined. They also tell it the shell already starts in the project folder, so it doesn't need to `cd` into it.
 
 ## [0.1.29] - 2026-11-18
 
