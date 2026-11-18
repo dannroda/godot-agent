@@ -71,10 +71,13 @@ func set_findings(list: Array[Dictionary]) -> void:
 
 
 ## Busca un bloque `findings` en el texto de un turno. Devuelve si había uno (aunque esté vacío).
-func ingest_turn_text(text: String, project_root: String = "") -> bool:
+## `require_findings`: un bloque vacío no cuenta (fuera de Revisar no borra la revisión vigente).
+func ingest_turn_text(text: String, project_root: String = "", require_findings: bool = false) -> bool:
 	if not text.contains("\"findings\""):
 		return false
 	var parsed := FindingsParser.parse(text, project_root)
+	if parsed.findings.is_empty() and require_findings:
+		return false
 	if parsed.findings.is_empty() and not RegEx.create_from_string("\"findings\"\\s*:\\s*\\[\\s*\\]").search(text):
 		return false  # mencionó "findings" pero no hubo un bloque legible
 	set_findings(parsed.findings)

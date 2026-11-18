@@ -28,6 +28,10 @@ func test_ingest() -> void:
 	assert_true(store.ingest_turn_text("```json\n{\"findings\": []}\n```"), "revisión limpia")
 	assert_eq(store.findings.size(), 0, "reemplaza la anterior")
 	assert_false(store.ingest_turn_text("El campo \"findings\" va en el bloque."), "mención suelta no borra")
+	# Fuera de Revisar: un bloque con hallazgos entra, uno vacío no borra la revisión vigente.
+	assert_true(store.ingest_turn_text(TURN, "", true), "con hallazgos, fuera de Revisar")
+	assert_false(store.ingest_turn_text("```json\n{\"findings\": []}\n```", "", true), "vacío fuera de Revisar")
+	assert_eq(store.findings.size(), 3, "y deja la anterior")
 
 
 func test_dismiss_and_ids() -> void:
