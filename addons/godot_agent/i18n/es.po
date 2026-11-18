@@ -99,9 +99,6 @@ msgstr "%s · %d líneas"
 msgid "%s · key in $%s"
 msgstr "%s · key en $%s"
 
-msgid "%s · subagent «%s»"
-msgstr "%s · subagente «%s»"
-
 msgid "%s/%s is ready: review and approve it so the agent starts building"
 msgstr "%s/%s listo: revisalo y aprobalo para que empiece a construir"
 
@@ -2824,6 +2821,21 @@ msgstr "%d subagentes"
 
 msgid "Subagents running:"
 msgstr "Subagentes en curso:"
+
+msgid "Subagent «%s» · %s"
+msgstr "Subagente «%s» · %s"
+
+msgid "%d waiting for you"
+msgstr "%d te espera"
+
+msgid "%s · working"
+msgstr "%s · trabajando"
+
+msgid "%s · waiting for your permission"
+msgstr "%s · espera tu permiso"
+
+msgid "Subagents still working, also after the turn ends. Click one to see it in the chat."
+msgstr "Subagentes que siguen trabajando, también después de que termina el turno. Clic en uno para verlo en el chat."
 
 
 msgid "How many subagents Claude Code can run at the same time in each mode; one more is rejected with a notice in the chat. 0 = no limit of the harness."

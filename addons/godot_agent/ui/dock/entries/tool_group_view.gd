@@ -174,6 +174,18 @@ func _make_row(call: ToolCall, container: VBoxContainer) -> Dictionary:
 	return {"block": block, "row": row, "status": status, "name": name_label, "summary": summary, "extra": extra, "extra_margin": extra_margin, "undo": undo}
 
 
+## Abre el grupo y, si `id` es un subagente, sus herramientas. Devuelve el bloque del tool call, o null.
+func reveal(id: String) -> Control:
+	if _header == null:
+		return null
+	_header.button_pressed = true
+	refresh()
+	var parts: Dictionary = _rows.get(id, {})
+	if parts.has("toggle"):
+		(parts.toggle as Button).button_pressed = true
+	return parts.get("block")
+
+
 ## Subagente: "▸ 5 herramientas · Read" y, al abrirlo, sus herramientas y su último texto.
 func _make_subagent(parts: Dictionary) -> void:
 	var nested := VBoxContainer.new()

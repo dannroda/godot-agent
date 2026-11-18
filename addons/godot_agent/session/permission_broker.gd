@@ -180,7 +180,8 @@ func on_request_permission(params: Dictionary) -> Variant:
 	request.title = call.display_name() if call else str(shown.get("title", I18n.t("Agent tool")))
 	var subagent: ToolCall = model.tool_call(call.parent_id) if call and not call.parent_id.is_empty() else null
 	if subagent:
-		request.title = I18n.t("%s · subagent «%s»") % [request.title, subagent.display_name()]
+		# El subagente adelante: el título es el comando entero y la tarjeta corta el final.
+		request.title = I18n.t("Subagent «%s» · %s") % [subagent.display_name(), request.title]
 	request.description = _describe_tool_call(shown, call)
 	request.diff = _first_diff(shown, call)
 	if PlanApproval.is_plan_request(shown, call.tool_name if call else ""):
