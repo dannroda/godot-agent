@@ -259,15 +259,19 @@ const CYCLE_LEAK_PER_CYCLE := 1
 const CYCLE_SAFETY_TIMEOUT_S := 400.0
 const SETTLE_FRAMES := 5
 const SAFETY_TIMEOUT_S := 120.0
+const EXTERNAL_EDITOR_SETTING := "text_editor/external/use_external_editor"
 
 
 func _enter_tree() -> void:
 	var args := OS.get_cmdline_user_args()
+	_restore_external_editor()
 	# Un check en el editor usa el user:// propio del checkout, como los tests headless (m13-17);
 	# el editor abierto a mano no cambia.
 	for arg: String in args:
-		if arg.begins_with("--godot-agent-") and FileAccess.file_exists(TEST_USER_DIR_SCRIPT):
-			load(TEST_USER_DIR_SCRIPT).call(&"apply")
+		if arg.begins_with("--godot-agent-"):
+			if FileAccess.file_exists(TEST_USER_DIR_SCRIPT):
+				load(TEST_USER_DIR_SCRIPT).call(&"apply")
+			_suspend_external_editor()
 			break
 	# tests/tmp no está en git: en un clon o worktree nuevo no existe y los checks no podían escribir.
 	if not args.is_empty():
@@ -2542,7 +2546,43 @@ func _finish(code: int, message: String) -> void:
 	var deadline := Time.get_ticks_msec() + 10000
 	while GitCheckpoints.pending() > 0 and Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
+	_restore_external_editor()
 	get_tree().quit(code)
+
+
+func _exit_tree() -> void:
+	_restore_external_editor()
+
+
+## Un check no abre el editor externo del usuario (Rider, VS Code…). Un error en el juego o un
+## edit_script lo lanzaban: la IDE dejaba un .idea/ en el checkout y, como hereda la consola,
+## Godot_*_console.exe no salía después del PASS hasta que se cerraba la IDE (m2-04 de
+## pruebas-windows). Se apaga solo en memoria mientras corre el check y se restaura al salir. Si el
+## editor muere antes, el ajuste puede quedar guardado apagado: la marca en la carpeta de config de
+## Godot lo restaura en el próximo arranque con este plugin.
+func _suspend_external_editor() -> void:
+	var settings := EditorInterface.get_editor_settings()
+	if not settings.get_setting(EXTERNAL_EDITOR_SETTING):
+		return
+	var mark := FileAccess.open(_external_editor_mark(), FileAccess.WRITE)
+	if mark == null:
+		return  # sin marca no se apaga: mejor que se abra la IDE a perder el ajuste
+	mark.close()
+	settings.set_setting(EXTERNAL_EDITOR_SETTING, false)
+
+
+func _restore_external_editor() -> void:
+	var mark := _external_editor_mark()
+	if not FileAccess.file_exists(mark):
+		return
+	EditorInterface.get_editor_settings().set_setting(EXTERNAL_EDITOR_SETTING, true)
+	DirAccess.remove_absolute(mark)
+
+
+## Por versión, como editor_settings-<major.minor>.tres.
+static func _external_editor_mark() -> String:
+	var version: Dictionary = Engine.get_version_info()
+	return EditorInterface.get_editor_paths().get_config_dir().path_join("godot_agent_dev_external_editor-%d.%d.restore" % [int(version.major), int(version.minor)])
 
 
 ## Los checks que mueven la sesión, el juego o el One-shot terminan por acá (m13-18): si el flujo
