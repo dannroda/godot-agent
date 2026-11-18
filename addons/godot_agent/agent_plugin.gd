@@ -590,6 +590,8 @@ func _exit_tree() -> void:
 	if _playtest_debugger:
 		_plugin.remove_debugger_plugin(_playtest_debugger)
 		_playtest_debugger = null
+	if _run_tools:
+		_run_tools.editor_watch.stop()
 	_run_tools = null
 	_run_errors = null
 	PlaytestAutoload.unregister(_plugin)

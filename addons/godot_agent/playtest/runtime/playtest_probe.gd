@@ -22,6 +22,7 @@ const CameraViews := preload("camera_views.gd")
 const DebugStack := preload("debug_stack.gd")
 const DeviceSim := preload("device_sim.gd")
 const InstanceEnv := preload("instance_env.gd")
+const EditorWatchdog := preload("editor_watchdog.gd")
 
 const PREFIX := "godot_agent"
 const PROTOCOL := 3
@@ -62,6 +63,8 @@ var _device: Dictionary = {}
 ## El tamaño simulado ya quedó (o se dejó de intentar): recién entonces se informa.
 var _device_settled: bool = true
 const DEVICE_SETTLE_FRAMES := 10
+## Termina el juego si muere el editor (m2-07 de pruebas-windows).
+var _watchdog := EditorWatchdog.new()
 
 
 ## Antes que los autoloads del juego (en una corrida con varias instancias este va primero): la
@@ -91,6 +94,7 @@ func _ready() -> void:
 	_ui = GameUi.new(self)
 	_last_frame_ms = Time.get_ticks_msec()
 	EngineDebugger.register_message_capture(PREFIX, _on_message)
+	_watchdog.start(self)
 	EngineDebugger.send_message(PREFIX + ":ready", [PROTOCOL, InstanceEnv.number(), OS.get_process_id()])
 
 
@@ -105,6 +109,7 @@ func _settle_device() -> void:
 
 
 func _exit_tree() -> void:
+	_watchdog.stop()
 	if EngineDebugger.is_active() and EngineDebugger.has_capture(PREFIX):
 		EngineDebugger.unregister_message_capture(PREFIX)
 
