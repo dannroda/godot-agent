@@ -14,8 +14,10 @@ const SYNTHETIC_EVENTS := 20000
 ## Hasta poder escribir (lo que pide m7-55), con OpenGL por software en Xvfb.
 const MAX_READY_MS := 2000
 const MAX_FRAME_MS := 400.0
-## Lo que queda son las vistas (MAX_VIEWS), no el largo de la sesión: con 20000 eventos sintéticos, ~215 MB.
-const MAX_MEMORY_MB := 300.0
+## Lo que queda son las vistas (MAX_VIEWS), no el largo de la sesión: con 20000 eventos sintéticos, ~215 MB
+## en local y 300-317 MB en los runners del CI, que con 300 fallaba una de cada tres veces (el release de
+## v0.1.29). Antes de m7-55 eran ~1356 MB: una regresión de verdad pasa de largo este tope.
+const MAX_MEMORY_MB := 350.0
 
 var failures: PackedStringArray = []
 var report: PackedStringArray = []
