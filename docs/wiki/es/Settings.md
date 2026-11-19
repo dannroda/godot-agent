@@ -101,7 +101,7 @@ Como red de seguridad, por si exportás con el plugin deshabilitado, agregá `ad
 Al abrir el editor (como mucho una vez por día), el addon mira los [releases](https://github.com/dannroda/godot-agent/releases) de GitHub. Si hay una versión más nueva, aparece un aviso arriba del dock:
 
 - **Novedades**: las notas del release.
-- **Actualizar**: después de confirmar, baja el release, comprueba que el zip sea esa versión, guarda las escenas abiertas, cierra la sesión del agente, reemplaza `addons/godot_agent/` y reinicia el editor.
+- **Actualizar**: después de confirmar, baja el release, comprueba que el zip sea esa versión, guarda las escenas abiertas, cierra la sesión del agente, reemplaza `addons/godot_agent/` y reinicia el editor. Cuando vuelve el editor, las pestañas del agente se abren de nuevo con su sesión, como con **Reiniciar y retomar**.
 - **Después**: oculta el aviso de esa versión.
 
 **Settings → Interfaz → Actualizaciones** tiene **Buscar ahora** y apaga la búsqueda al abrir el editor.

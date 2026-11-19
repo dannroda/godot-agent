@@ -100,7 +100,7 @@ As a safety net, in case you export with the plugin disabled, add `addons/godot_
 When the editor opens (at most once a day), the addon checks the [releases](https://github.com/dannroda/godot-agent/releases) on GitHub. If there's a newer version, a notice shows up at the top of the dock:
 
 - **What's new**: the release notes.
-- **Update**: after you confirm, it downloads the release, checks that the zip is that version, saves the open scenes, closes the agent session, replaces `addons/godot_agent/` and restarts the editor.
+- **Update**: after you confirm, it downloads the release, checks that the zip is that version, saves the open scenes, closes the agent session, replaces `addons/godot_agent/` and restarts the editor. When the editor is back, the agent's tabs reopen with their sessions, as with **Restart and resume**.
 - **Later**: hides the notice for that version.
 
 **Settings → Interface → Updates** has **Check now** and turns off the check when the editor opens.
