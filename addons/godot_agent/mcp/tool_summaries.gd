@@ -41,6 +41,7 @@ const SUMMARIES: Dictionary = {
 	"game_instance": "Lists, adds or stops instances of the running game",  # i18n
 	"capture_game_frame": "Captures the current frame of the running game",  # i18n
 	"run_regressions": "Repeats the saved playtest regressions without the agent",  # i18n
+	"run_tests": "Runs the project's tests (GUT, gdUnit4 or its own) and lists the failures",  # i18n
 	"write_regressions_workflow": "Writes a GitHub Actions workflow that runs the regressions on every push",  # i18n
 	"game_tree": "The live node tree of the running game",  # i18n
 	"game_get": "Reads properties of a node in the running game",  # i18n

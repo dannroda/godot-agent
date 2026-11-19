@@ -7,6 +7,7 @@ extends "entry_view.gd"
 const ToolCall := preload("../../../session/tool_call.gd")
 const ShellCommand := preload("../../../session/shell_command.gd")
 const DiffCard := preload("diff_card.gd")
+const TestRunner := preload("../../../core/test_runner.gd")
 
 const ImageViewer := preload("../../image_viewer.gd")
 
@@ -23,6 +24,8 @@ const SPINNER := ["◐", "◓", "◑", "◒"]
 const SUMMARY_MAX := 80
 const OUTPUT_PREVIEW_LINES := 40
 const OUTPUT_PREVIEW_CHARS := 4000
+## Fallas de godot.run_tests que se pueden abrir desde la fila.
+const TEST_LINKS_MAX := 12
 const IMAGE_MAX_HEIGHT := 160
 ## Sangría (sin escalar) de las herramientas de un subagente.
 const SUBAGENT_INDENT := 14
@@ -290,7 +293,10 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 		# El archivo ya se escribió: un «failed» posterior del agente no la deshace (m18-04).
 		extra.add_child(_muted_label(I18n.t("The agent then reported this edit as failed, but the file was already written: %s") % call.failure_after_write.left(300), AgentTheme.WARNING))
 	var links := HFlowContainer.new()
-	for location: Variant in call.locations:
+	var locations: Array = call.locations.duplicate()
+	if call.godot_tool_name() == "run_tests":
+		locations.append_array(_test_failure_locations(call))
+	for location: Variant in locations:
 		if location is Dictionary and location.get("path") is String:
 			var path: String = location.path
 			var line := int(location.get("line", 0)) if location.get("line") != null else 0
@@ -305,6 +311,17 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 		extra.add_child(links)
 	else:
 		links.free()
+
+
+## Las fallas de godot.run_tests (m16-26) con archivo y línea, para abrirlas desde el chat.
+static func _test_failure_locations(call: ToolCall) -> Array[Dictionary]:
+	var lines := PackedStringArray()
+	for block: Variant in call.content:
+		if block is Dictionary and block.get("content") is Dictionary and str(block.content.get("type", "")) == "text":
+			lines.append_array(str(block.content.get("text", "")).split("
+"))
+	var found := TestRunner.output_locations(lines)
+	return found.slice(0, TEST_LINKS_MAX)
 
 
 ## Un subagente muestra su prompt mientras trabaja y su informe al terminar.
@@ -485,6 +502,7 @@ const GODOT_TOOL_NAMES := {
 	"bake": "Bake",  # i18n
 	"export_project": "Export the project",  # i18n
 	"run_regressions": "Run the regressions",  # i18n
+	"run_tests": "Run the tests",  # i18n
 	"write_regressions_workflow": "Write the regressions CI workflow",  # i18n
 	"tilemap_clear": "Clear tilemap",  # i18n
 	"tilemap_get": "Read tilemap",  # i18n

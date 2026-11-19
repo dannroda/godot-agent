@@ -26,6 +26,7 @@ func _init() -> void:
 	title.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
 	add_child(title)
 	add_child(_hint(I18n.t("In Build and Auto, after a turn that changes files the harness runs these checks. If one fails, the agent gets its output to fix it (sharing the 2-turn limit of the script check). They live in the project's settings, so they travel with the project; a command only runs on a machine where it was approved.")))
+	add_child(_hint(I18n.t("Tick «godot.run_tests» on the check that runs the project's tests: the agent runs them with it instead of the shell. Without one, it uses GUT or gdUnit4 if they're installed.")))
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override(&"separation", AgentTheme.px(8))
 	add_child(_list)
@@ -90,7 +91,9 @@ func row_count() -> int:
 
 func _on_preset(index: int) -> void:
 	var preset: Dictionary = TurnChecks.PRESETS[index]
-	_add_row(TurnChecks.make(preset.kind, str(preset.name), str(preset.command)), false)
+	var check := TurnChecks.make(preset.kind, str(preset.name), str(preset.command))
+	check.tests = bool(preset.get("tests", false))
+	_add_row(check, false)
 
 
 func _add_row(check: Dictionary, loaded: bool) -> void:
@@ -101,13 +104,19 @@ func _add_row(check: Dictionary, loaded: bool) -> void:
 	box.add_child(top)
 	row.enabled = CheckBox.new()
 	(row.enabled as CheckBox).button_pressed = bool(check.enabled)
-	(row.enabled as CheckBox).tooltip_text = I18n.t("On")
+	(row.enabled as CheckBox).tooltip_text = I18n.t("Run after each turn")
 	top.add_child(row.enabled)
 	row.name = LineEdit.new()
 	(row.name as LineEdit).text = str(check.name)
 	(row.name as LineEdit).placeholder_text = I18n.t("Name")
 	(row.name as LineEdit).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(row.name)
+	row.tests = CheckBox.new()
+	(row.tests as CheckBox).text = "godot.run_tests"
+	(row.tests as CheckBox).button_pressed = bool(check.get("tests", false))
+	(row.tests as CheckBox).tooltip_text = I18n.t("The agent runs the tests with this command when it calls godot.run_tests, even if it doesn't run after each turn. {paths}, {files} and {test} in the command pick which tests to run.")
+	(row.tests as CheckBox).visible = check.kind == TurnChecks.KIND_COMMAND
+	top.add_child(row.tests)
 	var remove := Button.new()
 	remove.text = I18n.t("Remove")
 	remove.pressed.connect(_remove.bind(box))
@@ -185,6 +194,7 @@ func _read(row: Dictionary) -> Dictionary:
 	check.paths = paths
 	check.timeout_s = int((row.timeout as SpinBox).value)
 	check.enabled = (row.enabled as CheckBox).button_pressed
+	check.tests = (row.tests as CheckBox).button_pressed
 	return TurnChecks.normalize(check)
 
 
