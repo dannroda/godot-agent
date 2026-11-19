@@ -3,7 +3,8 @@ extends RefCounted
 ## Checks del proyecto al terminar un turno de Construir o Auto (m11-31): las regresiones de playtest
 ## guardadas o un comando (GUT, gdUnit4, un script del proyecto). Viven en project_config.tres
 ## (`turn_checks`), versionables. Un check es
-## `{name, kind: "regressions"|"command", command, paths: [globs res://], timeout_s, enabled}`.
+## `{name, kind: "regressions"|"command", command, paths: [globs res://], timeout_s, enabled, tests}`.
+## `tests` (m16-26): es el runner de godot.run_tests, aunque no corra al terminar el turno (`enabled`).
 ## Un comando es un programa con sus argumentos, sin shell, y corre solo si se aprobó ese texto
 ## exacto en esta máquina (HarnessSettings.is_command_approved): el archivo viaja con el proyecto.
 
@@ -40,11 +41,11 @@ const PRESETS: Array[Dictionary] = [
 	},
 	{
 		"label": "GUT tests",  # i18n
-		"name": "GUT", "kind": KIND_COMMAND, "command": "{godot} --headless --path {project} -s res://addons/gut/gut_cmdln.gd -gexit",
+		"name": "GUT", "kind": KIND_COMMAND, "command": "{godot} --headless --path {project} -s res://addons/gut/gut_cmdln.gd -gexit", "tests": true,
 	},
 	{
 		"label": "gdUnit4 tests",  # i18n
-		"name": "gdUnit4", "kind": KIND_COMMAND, "command": "{godot} --headless --path {project} -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd --ignoreHeadlessMode -a res://test",
+		"name": "gdUnit4", "kind": KIND_COMMAND, "command": "{godot} --headless --path {project} -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd --ignoreHeadlessMode -a res://test", "tests": true,
 	},
 	{
 		"label": "Command",  # i18n
@@ -60,7 +61,7 @@ const SKIPPED := "skipped"
 
 
 static func make(kind: String = KIND_COMMAND, name: String = "", command: String = "") -> Dictionary:
-	return {"name": name, "kind": kind if kind in KINDS else KIND_COMMAND, "command": command, "paths": PackedStringArray(), "timeout_s": DEFAULT_TIMEOUT_S, "enabled": true}
+	return {"name": name, "kind": kind if kind in KINDS else KIND_COMMAND, "command": command, "paths": PackedStringArray(), "timeout_s": DEFAULT_TIMEOUT_S, "enabled": true, "tests": false}
 
 
 ## Un check guardado, con todos los campos y del tipo esperado ({} si no es un Dictionary).
@@ -75,6 +76,7 @@ static func normalize(data: Variant) -> Dictionary:
 				check.paths.append(str(path).strip_edges())
 	check.timeout_s = clampi(int(source.get("timeout_s", DEFAULT_TIMEOUT_S)), 1, MAX_TIMEOUT_S)
 	check.enabled = bool(source.get("enabled", true))
+	check.tests = bool(source.get("tests", false)) and check.kind == KIND_COMMAND
 	if check.name.is_empty():
 		check.name = "Playtest regressions" if check.kind == KIND_REGRESSIONS else check.command.get_slice(" ", 0).get_file()
 	return check

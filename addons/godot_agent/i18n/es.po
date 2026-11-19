@@ -6500,3 +6500,18 @@ msgstr "No queda ninguna cuenta de reserva con cuota: se espera el reinicio"
 
 msgid "Quota: %s ran out, continuing with %s"
 msgstr "Cuota: se agotó %s, sigue con %s"
+
+msgid "Run after each turn"
+msgstr "Correr al terminar cada turno"
+
+msgid "The agent runs the tests with this command when it calls godot.run_tests, even if it doesn't run after each turn. {paths}, {files} and {test} in the command pick which tests to run."
+msgstr "El agente corre los tests con este comando cuando llama a godot.run_tests, aunque no corra al terminar cada turno. {paths}, {files} y {test} en el comando eligen qué tests correr."
+
+msgid "Tick «godot.run_tests» on the check that runs the project's tests: the agent runs them with it instead of the shell. Without one, it uses GUT or gdUnit4 if they're installed."
+msgstr "Marcá «godot.run_tests» en el check que corre los tests del proyecto: el agente los corre con él en vez de usar la shell. Si no hay ninguno, usa GUT o gdUnit4 si están instalados."
+
+msgid "Runs the project's tests (GUT, gdUnit4 or its own) and lists the failures"
+msgstr "Corre los tests del proyecto (GUT, gdUnit4 o los propios) y lista las fallas"
+
+msgid "Run the tests"
+msgstr "Correr los tests"

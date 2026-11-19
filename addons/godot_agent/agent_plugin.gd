@@ -108,6 +108,7 @@ const SessionTabs := preload("ui/dock/session_tabs.gd")
 const SessionTools := preload("mcp/tools/session_tools.gd")
 const SecondOpinion := preload("session/second_opinion.gd")
 const SecondOpinionTools := preload("mcp/tools/second_opinion_tools.gd")
+const TestTools := preload("mcp/tools/test_tools.gd")
 
 const ACTION_CONFLICT_DIFF := "conflict_diff"
 const ACTION_CONFLICT_USE_AGENT := "conflict_use_agent"
@@ -212,6 +213,7 @@ var _registry: ToolRegistry
 var _second_opinion: SecondOpinion
 ## Las tools propias del proyecto (m11-46) y las claves de las frenadas que ya se avisaron.
 var _project_tools: ProjectToolLoader
+var _test_tools: TestTools
 var _tools_announced: Dictionary = {}
 ## scompass de esta máquina para el MCP de Scope Compass (m7-56): null hasta buscarlo.
 var _scompass_program: Variant = null
@@ -578,6 +580,9 @@ func _exit_tree() -> void:
 		_map_tools = null
 	_registry = null
 	_project_tools = null
+	if _test_tools:
+		_test_tools.stop()
+		_test_tools = null
 	var filesystem := EditorInterface.get_resource_filesystem()
 	if filesystem and filesystem.filesystem_changed.is_connected(_on_project_tools_changed):
 		filesystem.filesystem_changed.disconnect(_on_project_tools_changed)
@@ -1166,6 +1171,15 @@ func _start_mcp_server() -> void:
 	tilemap_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(tilemap_tools, true)
 	registry.register_provider(ValidateTools.new(), true)
+	_test_tools = TestTools.new()
+	_test_tools.checks = func() -> Array: return _project_config.turn_checks if _project_config else []
+	_test_tools.is_approved = _settings.is_command_approved
+	# La carpeta del proyecto del editor, como los checks: la clave es la misma en una copia aparte.
+	_test_tools.project_dir = ProjectSettings.globalize_path("res://")
+	_test_tools.log_line = func(text: String) -> void:
+		if _log:
+			_log.add(AgentLog.CH_PROC, text)
+	registry.register_provider(_test_tools)
 	var animation_tools := AnimationTools.new()
 	animation_tools.on_action = _on_mcp_edit_action
 	registry.register_provider(animation_tools, true)

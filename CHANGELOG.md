@@ -7,6 +7,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 ### Added
 
 - **A logo.** Godot Agent Harness now has its own icon: a chat bubble with a prompt. It shows on the **Agent** dock tab, the plugin's main screen button and at the top of the wiki, instead of Godot's generic script icon. The README opens with a banner with the logo and the name, in English and Spanish.
+- **The agent runs the project's tests with `godot.run_tests`.** Before, it launched Godot from the shell to run them, so it asked for permission, built the test filter by hand and read the whole output. The new tool runs them in a separate headless process with the editor's own binary, without the shell, and returns how many passed and each failure with its `file:line` and message. Click a failure in the chat to open it in the Script Editor. It works with GUT and gdUnit4 out of the box. For your own test runner, tick **godot.run_tests** on its project check (Settings → MCP servers → Advanced → **Project checks after each turn**). The check doesn't have to run after each turn, and `{paths}`, `{files}` or `{test}` in its command let the agent run only some tests.
 
 ## [0.1.30] - 2026-11-18
 
