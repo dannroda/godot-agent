@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/dannroda/godot-agent/main/docs/images/logo.svg" alt="" width="96">
+
 # Wiki de Godot Agent Harness
 
 [English](../en/Home.md) · **Español**

@@ -1,3 +1,5 @@
+<img src="docs/images/logo.svg" alt="" width="96">
+
 # Godot Agent Harness
 
 **English** · [Español](README.es.md)
