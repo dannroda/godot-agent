@@ -7,6 +7,7 @@ extends Node
 const AgentExportPlugin := preload("export/agent_export_plugin.gd")
 const PlaytestAutoload := preload("playtest/playtest_autoload.gd")
 const EditorSurfaces := preload("ui/editor_surfaces.gd")
+const AgentIcon := preload("ui/agent_icon.gd")
 const AgentProcess := preload("transport/agent_process.gd")
 const EditorWindows := preload("ui/editor_windows.gd")
 const AgentDockScene := preload("ui/dock/agent_dock.tscn")
@@ -152,6 +153,7 @@ const LOG_PANEL_TITLE := "Agent Log"
 const ONESHOT_STORE_DIR := "user://godot_agent/oneshot"
 const UPDATE_BACKUP_DIR := "user://godot_agent/update/backup-%s"
 const UPDATE_CHECK_INTERVAL_S := 86400
+## Ícono del editor si no se pudo rasterizar el del harness (AgentIcon).
 const ICON_NAME := &"Script"
 ## Id de la primera sesión (m7-44); el token principal del server MCP es el suyo.
 const PRIMARY_SESSION := "s1"
@@ -421,7 +423,7 @@ func _enter_tree() -> void:
 
 	_surfaces = EditorSurfaces.new(_plugin)
 	_surfaces.side_slot = HarnessSettings.DOCK_SLOTS[_settings.dock_slot()]
-	_surfaces.add(EditorSurfaces.EditorSurface.SIDE, _tabs, DOCK_TITLE, "godot_agent_dock")
+	_surfaces.add(EditorSurfaces.EditorSurface.SIDE, _tabs, DOCK_TITLE, "godot_agent_dock", plugin_icon())
 	_surfaces.add(EditorSurfaces.EditorSurface.BOTTOM, log_panel, LOG_PANEL_TITLE, "godot_agent_log")
 	_main_screen = AgentMainScreenScene.instantiate()
 	_main_screen.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -767,7 +769,8 @@ static func plugin_name() -> String:
 
 
 static func plugin_icon() -> Texture2D:
-	return EditorInterface.get_editor_theme().get_icon(ICON_NAME, &"EditorIcons")
+	var icon := AgentIcon.texture()
+	return icon if icon else EditorInterface.get_editor_theme().get_icon(ICON_NAME, &"EditorIcons")
 
 
 func _show_log(seq: int = 0) -> void:

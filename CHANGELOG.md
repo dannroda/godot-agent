@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **A logo.** Godot Agent Harness now has its own icon: a chat bubble with a prompt. It shows on the **Agent** dock tab, the plugin's main screen button and at the top of the wiki, instead of Godot's generic script icon. The README opens with a banner with the logo and the name, in English and Spanish.
+
 ## [0.1.30] - 2026-11-18
 
 ### Fixed

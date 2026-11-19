@@ -1,4 +1,4 @@
-# Godot Agent Harness
+<img src="docs/images/banner-en.svg" alt="Godot Agent Harness: a coding agent inside the Godot editor" width="100%">
 
 **English** · [Español](README.es.md)
 
