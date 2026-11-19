@@ -1476,7 +1476,7 @@ func _on_update_requested() -> void:
 	var confirm := ConfirmationDialog.new()
 	confirm.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	confirm.title = I18n.t("Update")
-	confirm.dialog_text = I18n.t("Godot Agent Harness %s will be downloaded and installed over addons/godot_agent, and the editor will restart. Open scenes are saved first and the agent session closes. Your project settings (project_config.tres) are kept.") % release.version
+	confirm.dialog_text = I18n.t("Godot Agent Harness %s will be downloaded and installed over addons/godot_agent, and the editor will restart. Open scenes are saved first, and the agent's tabs reopen with their sessions after the restart. Your project settings (project_config.tres) are kept.") % release.version
 	confirm.ok_button_text = I18n.t("Update and restart")
 	confirm.cancel_button_text = I18n.t("Cancel")
 	confirm.confirmed.connect(_install_update.bind(release))
@@ -1503,11 +1503,16 @@ func _install_update(release: Dictionary) -> void:
 		return
 	_update_banner.set_progress(I18n.t("Installing %s…") % release.version)
 	_save_all_scenes()
+	# Las pestañas se retoman al volver, como en «Restart and resume» (m12-54); el One-shot vuelve en pausa.
+	RestartResume.save(SupervisorClient.state_dir(), "the user updated the addon to %s" % release.version, restart_tabs(""))
+	if _oneshot and _oneshot.is_active():
+		_oneshot.pause()
 	if _controller:
 		_controller.stop()
 	var backup := ProjectSettings.globalize_path(UPDATE_BACKUP_DIR % AddonVersion.version())
 	var installed := AddonUpdater.install(staged.dir, ProjectSettings.globalize_path(AddonUpdater.ADDON_DIR), backup)
 	if not installed.ok:
+		RestartResume.discard(SupervisorClient.state_dir())
 		_log.add(AgentLog.CH_UPDATE, "could not install %s: %s" % [release.version, installed.error])
 		_update_banner.set_error(installed.error)
 		return

@@ -2496,8 +2496,8 @@ msgstr "Tenés la última versión (%s)."
 msgid "Version %s is available: see the notice in the dock."
 msgstr "Está disponible la versión %s: mirá el aviso en el dock."
 
-msgid "Godot Agent Harness %s will be downloaded and installed over addons/godot_agent, and the editor will restart. Open scenes are saved first and the agent session closes. Your project settings (project_config.tres) are kept."
-msgstr "Se va a bajar Godot Agent Harness %s e instalar sobre addons/godot_agent, y el editor se reinicia. Antes se guardan las escenas abiertas y se cierra la sesión del agente. La configuración del proyecto (project_config.tres) queda."
+msgid "Godot Agent Harness %s will be downloaded and installed over addons/godot_agent, and the editor will restart. Open scenes are saved first, and the agent's tabs reopen with their sessions after the restart. Your project settings (project_config.tres) are kept."
+msgstr "Se va a bajar Godot Agent Harness %s e instalar sobre addons/godot_agent, y el editor se reinicia. Antes se guardan las escenas abiertas, y las pestañas del agente vuelven a abrirse con su sesión después del reinicio. La configuración del proyecto (project_config.tres) queda."
 
 msgid "Update and restart"
 msgstr "Actualizar y reiniciar"
