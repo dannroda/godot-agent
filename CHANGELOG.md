@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.1.32] - 2026-11-19
+
 ### Fixed
 
 - **Updating the addon reopens your agent tabs.** After **Update and restart**, the editor came back with an empty dock and you had to reopen each conversation from the history. Now the tabs reopen with their sessions, names and modes, as with **Restart and resume** in the ⋯ menu; a running One-shot comes back paused. This works from the update after this one, since the version you update from is the one that saves the tabs.
