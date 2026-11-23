@@ -18,6 +18,8 @@ signal open_elsewhere_requested(session_id: String)
 signal extensions_requested
 ## Abrir la lista de tools del agente (Extensiones › Tools, m12-46).
 signal tools_requested
+## «Buscar actualizaciones» del menú ⋯ (m12-59): la misma búsqueda que el botón de Ajustes.
+signal updates_requested
 ## Clic en el contador de cambios del turno (m11-34): ver lo que cambió hasta ahora.
 signal turn_changes_requested
 ## Clic en un chip de máquina que hace algo (m12-56): "oneshot" (abrir la pantalla One-shot) o
@@ -88,6 +90,7 @@ const MORE_TOOLS := 4
 const MORE_EXPORT := 5
 const MORE_RESTART := 6
 const MORE_DIAGNOSTIC := 7
+const MORE_UPDATES := 8
 ## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
 const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
@@ -307,6 +310,8 @@ var _history_items: Array[Dictionary] = []
 @onready var _empty_state: VBoxContainer = %EmptyState
 @onready var _empty_command: Label = %EmptyCommand
 @onready var _start_button: Button = %StartButton
+## Sin sesión (m12-59): qué hace el harness, el modo elegido y cómo empezar, entre el agente y el botón.
+var _empty_hint: Label
 ## Debajo de «Nueva sesión»: las últimas sesiones del proyecto con «Continuar» (m12-12).
 var _recent_box: RecentSessions
 ## Sin agentes: los sugeridos con lo que piden y «Agregar» (m12-15).
@@ -342,6 +347,14 @@ func _ready() -> void:
 		if _model.state == SessionModel.SessionState.DISCONNECTED or _model.has_failed():
 			open_history_session(id))
 	_empty_state.add_child(_recent_box)
+	_empty_hint = Label.new()
+	_empty_hint.name = "EmptyHint"
+	_empty_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_empty_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_empty_hint.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_empty_hint.custom_minimum_size.x = AgentTheme.px(120)
+	_empty_state.add_child(_empty_hint)
+	_empty_state.move_child(_empty_hint, _start_button.get_index())
 	_build_handoff_offer()
 	_suggested_box = FirstRunGuide.new()
 	_suggested_box.setup(_accent)
@@ -496,7 +509,8 @@ func _ready() -> void:
 	_model.config_options_changed.connect(func(_options: Array) -> void: _refresh_model_option())
 	_model.harness_mode_changed.connect(func(_mode: SessionModel.HarnessMode) -> void:
 		_refresh_modes()
-		_refresh_model_option())
+		_refresh_model_option()
+		_refresh_empty_state())
 	_model.entries_cleared.connect(_refresh_state)
 	_model.entries_cleared.connect(func() -> void: _queue.pause(I18n.t("another session started")))
 	_model.entry_added.connect(func(_entry: ChatEntry) -> void: _refresh_empty_state())
@@ -637,7 +651,7 @@ func _build_header() -> void:
 	_more_button.name = "MoreButton"
 	_more_button.flat = true
 	_more_button.text = "⋯"
-	_more_button.tooltip_text = I18n.t("More: extensions, settings, Remote Control and the account")
+	_more_button.tooltip_text = I18n.t("More: this session (export, restart, Remote Control, account) and the harness (settings, extensions, tools, updates)")
 	_more_button.about_to_popup.connect(_fill_more_menu)
 	_more_button.get_popup().id_pressed.connect(_on_more_selected)
 	_settings_button.add_sibling(_more_button)
@@ -753,32 +767,37 @@ func _show_agent_menu() -> void:
 	_agent_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO))
 
 
+## El menú ⋯ (m12-59): primero lo de esta sesión, después la configuración del harness, cada parte
+## con su título.
 func _fill_more_menu() -> void:
 	var popup := _more_button.get_popup()
 	popup.clear()
-	popup.add_icon_item(AgentTheme.icon(&"EditorPlugin"), I18n.t("Extensions…"), MORE_EXTENSIONS)
-	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
-	popup.add_icon_item(AgentTheme.icon(&"Help"), I18n.t("What the agent can do (tools)…"), MORE_TOOLS)
-	popup.set_item_tooltip(popup.item_count - 1, I18n.t("The editor tools the agent has, by function, with what each asks for in each mode."))
+	var ready := _model.state == SessionModel.SessionState.READY
+	popup.add_separator(I18n.t("This session"))
 	popup.add_icon_item(AgentTheme.icon(&"Save"), I18n.t("Export session…"), MORE_EXPORT)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Saves this conversation as Markdown with its game captures, to share. You see a preview and choose what to take out first."))
 	popup.set_item_disabled(popup.item_count - 1, _model.entries().is_empty())
 	popup.add_icon_item(AgentTheme.icon(&"Reload"), I18n.t("Restart and resume"), MORE_RESTART)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Saves the scenes, restarts the editor and reopens these tabs with their sessions. For a plugin or a setting that only applies after a restart."))
-	if diagnostic_report.is_valid():
-		popup.add_icon_item(AgentTheme.icon(&"Debug"), I18n.t("Copy diagnostic report…"), MORE_DIAGNOSTIC)
-		popup.set_item_tooltip(popup.item_count - 1, I18n.t("A report to paste in a bug report: versions, system, agent and connection state, with no paths, conversation text or account. You see it before copying."))
-	var ready := _model.state == SessionModel.SessionState.READY
-	if _remote_banner.can_turn_on() or _can_logout():
-		popup.add_separator()
 	if _remote_banner.can_turn_on():
-		popup.add_item(I18n.t("Remote Control"), MORE_REMOTE)
+		popup.add_icon_item(AgentTheme.icon(&"ExternalLink"), I18n.t("Remote Control"), MORE_REMOTE)
 		popup.set_item_tooltip(popup.item_count - 1, I18n.t(RemoteControlBanner.TOOLTIP))
 		popup.set_item_disabled(popup.item_count - 1, not ready)
 	if _can_logout():
-		popup.add_item(I18n.t("Sign out"), MORE_LOGOUT)
+		popup.add_icon_item(AgentTheme.icon(&"Unlinked"), I18n.t("Sign out"), MORE_LOGOUT)
 		popup.set_item_tooltip(popup.item_count - 1, I18n.t("Sign out of this agent's account: the next session asks you to sign in."))
 		popup.set_item_disabled(popup.item_count - 1, not ready)
+	popup.add_separator(I18n.t("Harness"))
+	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
+	popup.add_icon_item(AgentTheme.icon(&"EditorPlugin"), I18n.t("Extensions…"), MORE_EXTENSIONS)
+	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Extensions: plugins, marketplaces and MCP servers"))
+	popup.add_icon_item(AgentTheme.icon(&"Help"), I18n.t("What the agent can do (tools)…"), MORE_TOOLS)
+	popup.set_item_tooltip(popup.item_count - 1, I18n.t("The editor tools the agent has, by function, with what each asks for in each mode."))
+	if diagnostic_report.is_valid():
+		popup.add_icon_item(AgentTheme.icon(&"Debug"), I18n.t("Copy diagnostic report…"), MORE_DIAGNOSTIC)
+		popup.set_item_tooltip(popup.item_count - 1, I18n.t("A report to paste in a bug report: versions, system, agent and connection state, with no paths, conversation text or account. You see it before copying."))
+	popup.add_icon_item(AgentTheme.icon(&"Search"), I18n.t("Check for updates"), MORE_UPDATES)
+	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Looks for a new version of the harness. If there is one, a notice in the dock offers to install it."))
 
 
 func _on_more_selected(id: int) -> void:
@@ -799,6 +818,9 @@ func _on_more_selected(id: int) -> void:
 			action_forwarded.emit(ACTION_RESTART_RESUME, null)
 		MORE_DIAGNOSTIC:
 			open_diagnostic_dialog()
+		MORE_UPDATES:
+			updates_requested.emit()
+
 
 
 ## «Copy diagnostic report…» (m11-80): la vista previa; «Copiar» lo deja en el portapapeles.
@@ -1475,6 +1497,8 @@ func _refresh_empty_state() -> void:
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if first_run else HORIZONTAL_ALIGNMENT_CENTER
 	_empty_state.alignment = BoxContainer.ALIGNMENT_BEGIN if first_run else BoxContainer.ALIGNMENT_CENTER
 	_empty_command.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	_empty_hint.text = empty_hint(_model.mode_display(), I18n.t(MODE_TOOLTIPS.get(_model.harness_mode, ""))) if not first_run and profile and not _is_oneshot_active() else ""
+	_empty_hint.visible = not _empty_hint.text.is_empty()
 	_start_button.disabled = _model.state == SessionModel.SessionState.STARTING
 	var recent: Array[Dictionary] = []
 	if _empty_state.visible and profile != null and not _is_oneshot_active() and _controller.history:
@@ -1483,6 +1507,15 @@ func _refresh_empty_state() -> void:
 		_start_button.text = I18n.t("New session")
 	_recent_box.show_items(recent)
 	_refresh_handoff_offer(_empty_state.visible and profile != null and not first_run and not _is_oneshot_active())
+
+
+## El texto del dock sin sesión (m12-59): qué hace el harness, el modo elegido con lo que permite, y
+## cómo empezar.
+static func empty_hint(mode: String, mode_rules: String) -> String:
+	var lines: PackedStringArray = [I18n.t("The agent works on this project from the editor: it reads and changes scenes, scripts and settings, runs the game and looks at the errors.")]
+	lines.append(I18n.t("Mode %s: %s") % [mode, mode_rules] if not mode_rules.is_empty() else I18n.t("Mode %s.") % mode)
+	lines.append(I18n.t("Write what you want in the box below to start, or press the button."))
+	return "\n\n".join(lines)
 
 
 ## «Agregar» en un sugerido (m12-15): Claude Code se guarda directo; los demás abren el registro de

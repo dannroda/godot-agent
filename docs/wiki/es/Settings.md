@@ -105,7 +105,7 @@ Al abrir el editor (como mucho una vez por día), el addon mira los [releases](h
 - **Actualizar**: después de confirmar, baja el release, comprueba que el zip sea esa versión, guarda las escenas abiertas, cierra la sesión del agente, reemplaza `addons/godot_agent/` y reinicia el editor. Cuando vuelve el editor, las pestañas del agente se abren de nuevo con su sesión, como con **Reiniciar y retomar**.
 - **Después**: oculta el aviso de esa versión.
 
-**Settings → General → Actualizaciones** tiene **Buscar ahora** y apaga la búsqueda al abrir el editor.
+**Settings → General → Actualizaciones** tiene **Buscar ahora** y apaga la búsqueda al abrir el editor. **Buscar actualizaciones**, en el menú **⋯** del dock, hace la misma búsqueda y muestra el resultado en una notificación del editor.
 
 La actualización conserva `config/project_config.tres` (la config del proyecto). Si editaste `config/system_prompt.md` o `config/quota_patterns.txt` y la versión nueva los cambia, tu copia se guarda en `user://godot_agent/update/backup-<versión anterior>/` antes de reemplazarla (el panel Salida dice dónde). Los archivos que agregaste a la carpeta del addon y que no son código quedan. Los settings de usuario (`EditorSettings`) y el historial (`user://`) no se tocan.
 

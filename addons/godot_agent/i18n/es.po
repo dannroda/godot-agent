@@ -3393,9 +3393,6 @@ msgstr "Pestaña nueva"
 msgid "New tab in a separate copy (git worktree)"
 msgstr "Pestaña nueva en una copia aparte (git worktree)"
 
-msgid "More: extensions, settings, Remote Control and the account"
-msgstr "Más: extensiones, ajustes, Remote Control y la cuenta"
-
 msgid "New session or new tab"
 msgstr "Sesión nueva o pestaña nueva"
 
@@ -6641,3 +6638,27 @@ msgstr "Ocultar mensaje"
 
 msgid "What the agent received outside this chat, read from its transcript"
 msgstr "Lo que le llegó al agente por fuera de este chat, leído de su transcript"
+
+msgid "This session"
+msgstr "Esta sesión"
+
+msgid "Harness"
+msgstr "Harness"
+
+msgid "Looks for a new version of the harness. If there is one, a notice in the dock offers to install it."
+msgstr "Busca una versión nueva del harness. Si hay, un aviso en el dock ofrece instalarla."
+
+msgid "More: this session (export, restart, Remote Control, account) and the harness (settings, extensions, tools, updates)"
+msgstr "Más: esta sesión (exportar, reiniciar, Remote Control, cuenta) y el harness (ajustes, extensiones, tools, actualizaciones)"
+
+msgid "The agent works on this project from the editor: it reads and changes scenes, scripts and settings, runs the game and looks at the errors."
+msgstr "El agente trabaja en este proyecto desde el editor: lee y cambia escenas, scripts y ajustes, corre el juego y mira los errores."
+
+msgid "Mode %s: %s"
+msgstr "Modo %s: %s"
+
+msgid "Mode %s."
+msgstr "Modo %s."
+
+msgid "Write what you want in the box below to start, or press the button."
+msgstr "Escribí lo que querés en el cuadro de abajo para empezar, o tocá el botón."

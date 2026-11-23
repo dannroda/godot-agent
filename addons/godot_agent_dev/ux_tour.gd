@@ -9,6 +9,7 @@ const LayoutCheck := preload("layout_check.gd")
 const SettingsDialog := preload("res://addons/godot_agent/ui/settings/settings_dialog.gd")
 const ExtensionsWindow := preload("res://addons/godot_agent/ui/extensions/extensions_window.gd")
 const RegistryDialog := preload("res://addons/godot_agent/ui/settings/acp_registry_dialog.gd")
+const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
@@ -98,7 +99,32 @@ func run(tree: SceneTree, dir: String, hide_bottom_panel: Callable) -> PackedStr
 	_show(dock)
 	await _frames(20)
 	_save_rect(dock, "40_dock_tras_la_guia")
+	await _empty_dock_and_menu(dock)
 	return failures
+
+
+## m12-59: el dock con agente y sin sesión (qué hace el harness, el modo y cómo empezar), en Construir,
+## y el menú ⋯ abierto.
+func _empty_dock_and_menu(dock: Control) -> void:
+	# La guía deja otra pestaña al frente: la que se ve.
+	for node: Node in _tree.root.find_children("*", "", true, false):
+		var script := node.get_script() as Script
+		if script and script.resource_path == DOCK_SCRIPT and (node as Control).is_visible_in_tree():
+			dock = node
+	var model: Object = dock.get(&"_model")
+	dock.get(&"_controller").call(&"stop")
+	await _frames(10)
+	model.call(&"reset")
+	model.call(&"set_harness_mode", SessionModel.HarnessMode.BUILD)
+	dock.call(&"_refresh_empty_state")
+	await _frames(20)
+	_save_rect(dock, "41_dock_sin_sesion")
+	var more := dock.get(&"_more_button") as MenuButton
+	more.show_popup()
+	await _frames(20)
+	var popup := more.get_popup()
+	_save(popup.get_texture().get_image(), "42_menu_mas")
+	popup.hide()
 
 
 func _by_script(path: String) -> Node:
