@@ -29,6 +29,10 @@ const CHECK_TIMEOUT_S := 60.0
 const STDERR_GRACE_S := 0.3
 const ERROR_LIMIT := 200
 const HARNESS_ADDON := "res://addons/godot_agent"
+## editor_wait (m11-84): espera por defecto, tope y cada cuánto mira.
+const WAIT_DEFAULT_S := 60.0
+const WAIT_MAX_S := 300.0
+const WAIT_POLL_S := 0.25
 ## Plataformas sin compilar que nombra install_extension (godot-cpp-template trae 20).
 const NOT_BUILT_SHOWN := 6
 
@@ -62,6 +66,16 @@ func tools() -> Array:
 			"lines": {"type": "integer", "minimum": 1, "maximum": 500, "description": "At most this many lines, the last ones (default 100)"},
 			"contains": {"type": "string", "description": "Only lines that contain this text (case-insensitive)"}},
 			[], _get_output), McpTool.ENVELOPE_PARTS),
+		# m11-84: lo que los agentes hacían en la shell con `until [ "$(stat -c %Y archivo)" -gt "$start" ]; do sleep 5; done`.
+		McpTool.create("editor_wait", diagnostics,
+			"Waits in the editor until something finishes, instead of a sleep or polling loop in the shell: a project `file` is written (a bake, a generate or an export started by press_tool_button), a line containing `output` is printed to the Output panel, or the editor is `idle` (no filesystem scan or import running). Returns as soon as one of the conditions you pass is met, or when `seconds` run out (it says which). Pass `after` (the unix time press_tool_button returns) for work that may have finished before this call.",
+			{"file": {"type": "string", "description": "res:// file, or user:// (a report or save the running game writes), to wait for: it appears, or is written after `after` (default: changes from now)"},
+			"after": {"type": "integer", "description": "Unix time: count `file` as done if written at or after this moment"},
+			"output": {"type": "string", "description": "Text a new Output line contains (case-insensitive)"},
+			"since": {"type": "integer", "description": "Output mark to look from (from get_output; default: now)"},
+			"idle": {"type": "boolean", "description": "Wait until the editor is not scanning or importing files"},
+			"seconds": {"type": "number", "description": "How long to wait at most (default %d, max. %d)" % [WAIT_DEFAULT_S, WAIT_MAX_S]}},
+			[], _editor_wait),
 		McpTool.create("validate_scripts", diagnostics,
 			"Parses GDScript scripts in a separate process and compiles C# with dotnet build, and returns the errors by file and line. Without `paths`, all the project's .gd files (and its C#, if it has a .csproj).",
 			{"paths": {"type": "array", "items": {"type": "string"}, "description": "res://…gd or res://…cs paths"}},
@@ -370,6 +384,65 @@ func _get_output(args: Dictionary) -> String:
 	for entry: Dictionary in shown:
 		lines.append(("[stderr] " if entry.error else "") + str(entry.text))
 	return header + "\n" + UntrustedText.wrap("\n".join(lines))
+
+
+## Espera la primera de las condiciones (m11-84). Sondea cada WAIT_POLL_S: el editor sigue andando (un
+## await, no un bucle que lo traba), y la llamada larga ya pasa a SSE con progreso.
+func _editor_wait(args: Dictionary) -> Dictionary:
+	var file := McpTool.str_arg(args, "file")
+	var needle := McpTool.str_arg(args, "output").to_lower()
+	var idle := bool(args.get("idle", false))
+	if file.is_empty() and needle.is_empty() and not idle:
+		return McpTool.error("Pass at least one of `file`, `output` or `idle`.")
+	if not file.is_empty() and not (file.begins_with("res://") or file.begins_with("user://")):
+		return McpTool.error("`file` must be a res:// or user:// path.")
+	var seconds := clampf(float(args.get("seconds", WAIT_DEFAULT_S)), WAIT_POLL_S, WAIT_MAX_S)
+	var after: int = int(args.get("after", -1)) if args.get("after") is float or args.get("after") is int else -1
+	var since: int = McpTool.int_arg(args, "since", errors.output_mark() if errors else 0)
+	var start_mtime := _mtime(file)
+	var started := Time.get_ticks_msec()
+	var tree := Engine.get_main_loop() as SceneTree
+	while true:
+		var met := _wait_met(file, after, start_mtime, needle, since, idle)
+		var elapsed := (Time.get_ticks_msec() - started) / 1000.0
+		if not met.is_empty():
+			return McpTool.text("%s (after %.1f s)." % [met, elapsed])
+		if elapsed >= seconds:
+			break
+		await tree.create_timer(WAIT_POLL_S).timeout
+	var pending: PackedStringArray = []
+	if not file.is_empty():
+		pending.append("%s %s" % [file, "was not written" if FileAccess.file_exists(file) else "does not exist yet"])
+	if not needle.is_empty():
+		pending.append("no Output line contains \"%s\"" % args.get("output"))
+	if idle:
+		pending.append("the editor is still %s" % ("importing" if EditorInterface.get_resource_filesystem().is_importing() else "scanning"))
+	# Con la hora: dos esperas seguidas no son «el mismo resultado» para el detector de loops (m11-79).
+	return McpTool.text("Still waiting after %d s (unix time %d): %s. Call editor_wait again to keep waiting, or check get_output and get_errors." % [roundi(seconds), int(Time.get_unix_time_from_system()), "; ".join(pending)])
+
+
+## Lo que se cumplió ("" si nada todavía).
+func _wait_met(file: String, after: int, start_mtime: int, needle: String, since: int, idle: bool) -> String:
+	if not file.is_empty():
+		var mtime := _mtime(file)
+		if mtime >= 0 and ((after >= 0 and mtime >= after) or (after < 0 and mtime != start_mtime)):
+			return "%s was written" % file
+	if not needle.is_empty() and errors:
+		for entry: Dictionary in errors.output_since(since):
+			if str(entry.text).to_lower().contains(needle):
+				return "The Output printed: %s" % UntrustedText.wrap(str(entry.text).strip_edges().left(300))
+	if idle:
+		var filesystem := EditorInterface.get_resource_filesystem()
+		if not filesystem.is_scanning() and not filesystem.is_importing():
+			return "The editor is idle: no scan or import running"
+	return ""
+
+
+## Fecha de modificación de un archivo del proyecto (-1 si no existe).
+static func _mtime(path: String) -> int:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return -1
+	return int(FileAccess.get_modified_time(path))
 
 
 func _validate_scripts(args: Dictionary) -> Dictionary:

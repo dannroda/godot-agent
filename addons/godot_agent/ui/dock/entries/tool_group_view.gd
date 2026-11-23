@@ -468,6 +468,7 @@ const GODOT_TOOL_NAMES := {
 	"game_watch": "Watch the game",  # i18n
 	"get_errors": "Read errors",  # i18n
 	"get_output": "Read the Output",  # i18n
+	"editor_wait": "Wait in the editor",  # i18n
 	"find_in_files": "Search in files",  # i18n
 	"dependencies": "Read dependencies",  # i18n
 	"read_function": "Read function",  # i18n

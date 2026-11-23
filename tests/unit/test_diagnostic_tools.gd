@@ -121,6 +121,39 @@ func test_get_output() -> void:
 	assert_eq(collector.output_since(0).size(), ErrorCollector.MAX_OUTPUT_LINES, "tope de líneas")
 
 
+## m11-84: editor_wait en lugar de `until stat …; do sleep 5; done` en la shell.
+func test_editor_wait() -> void:
+	var collector := OfflineCollector.new()
+	var tools := DiagnosticTools.new()
+	tools.setup(collector, "")
+	var tree := Engine.get_main_loop() as SceneTree
+	var path := "res://tests/tmp/editor_wait_probe.txt"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/tmp"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	assert_true((await tools._editor_wait({})).isError, "sin condición, error")
+	assert_true((await tools._editor_wait({"file": "/tmp/x"})).isError, "solo res:// o user://")
+	# El archivo aparece a mitad de la espera.
+	tree.create_timer(0.4).timeout.connect(func() -> void: FileAccess.open(path, FileAccess.WRITE).store_string("baked"))
+	var started := Time.get_ticks_msec()
+	var written: Dictionary = await tools._editor_wait({"file": path, "seconds": 5})
+	assert_true(str(written.content[0].text).begins_with(path + " was written"), str(written.content[0].text))
+	assert_true(Time.get_ticks_msec() - started < 3000, "vuelve apenas se cumple")
+	# Ya escrito antes de la llamada: con `after` cuenta; sin `after`, espera un cambio nuevo.
+	var before := int(FileAccess.get_modified_time(path))
+	var done: Dictionary = await tools._editor_wait({"file": path, "after": before, "seconds": 1})
+	assert_true(str(done.content[0].text).contains("was written"), "con after: ya estaba")
+	var still: Dictionary = await tools._editor_wait({"file": path, "seconds": 0.5})
+	assert_true(str(still.content[0].text).begins_with("Still waiting after") and str(still.content[0].text).contains("was not written"), str(still.content[0].text))
+	# Una línea del Output, desde la marca de ahora (lo impreso antes no cuenta).
+	collector.add_output("Bake PVS: done")
+	tree.create_timer(0.3).timeout.connect(func() -> void: collector.add_output("PVS bake: DONE in 3 s"))
+	var printed: Dictionary = await tools._editor_wait({"output": "done in", "seconds": 5})
+	assert_true(str(printed.content[0].text).contains("PVS bake: DONE in 3 s"), str(printed.content[0].text))
+	var old: Dictionary = await tools._editor_wait({"output": "bake pvs", "since": 0, "seconds": 1})
+	assert_true(str(old.content[0].text).contains("Bake PVS: done"), "con since, lo de antes también")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
 ## El logger guarda lo impreso para el colector (en el hilo que sea).
 func test_logger_keeps_messages() -> void:
 	var logger := EditorLogger.new()

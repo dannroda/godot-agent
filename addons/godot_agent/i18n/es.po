@@ -6472,6 +6472,12 @@ msgstr "El agente recorre el proyecto y presenta un plan antes de editar. Al apr
 msgid "Read the Output"
 msgstr "Leer el Output"
 
+msgid "Wait in the editor"
+msgstr "Esperar en el editor"
+
+msgid "Waits until a file is written, the Output prints a text or the editor is idle"
+msgstr "Espera a que se escriba un archivo, el Output imprima un texto o el editor quede libre"
+
 msgid "What the editor printed to the Output panel since a mark"
 msgstr "Lo que imprimió el editor en el panel Output desde una marca"
 

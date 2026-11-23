@@ -657,7 +657,7 @@ func _check_tool_buttons() -> void:
 	_expect(info.contains("Tool buttons (press_tool_button): bake_button («Bake it»), later_button («Later»)"), "get_node lista los botones · %s" % info)
 	var mark := int(str(await _call_text("get_output", {})).get_slice(" ", 1))
 	var pressed := await _call_text("press_tool_button", {"node_path": "Baker", "button": "bake_button"})
-	_expect(pressed.contains("Pressed «Bake it» on Baker.") and pressed.contains("baked 1") and int(baker.get(&"pressed")) == 1, "press_tool_button por nombre, con lo que devuelve · %s" % pressed)
+	_expect(pressed.contains("Pressed «Bake it» on Baker (unix time ") and pressed.contains("baked 1") and int(baker.get(&"pressed")) == 1, "press_tool_button por nombre, con lo que devuelve · %s" % pressed)
 	var output := await _call_text("get_output", {"since": mark, "contains": "tool-button-check"})
 	_expect(output.contains("tool-button-check: baked"), "lo que imprimió el botón está en get_output · %s" % output)
 	await _call_text("press_tool_button", {"node_path": "Baker", "button": "later"})
