@@ -110,15 +110,25 @@ func test_outline_find_and_function_at() -> void:
 	assert_true(GdscriptOutline.function_at(declarations, 4).is_empty(), "la línea de una señal no es de una función")
 
 
+## CodeTools con `buffers` (ruta res:// → texto) como texto sin guardar y como los archivos del
+## proyecto que ven find_symbols y find_references.
 func _tools(buffers: Dictionary) -> CodeTools:
 	var tools := CodeTools.new()
 	tools.unsaved_buffer = func(abs_path: String) -> Variant: return buffers.get(ProjectSettings.localize_path(abs_path))
+	tools.list_files = func(folder: String, extensions: PackedStringArray) -> PackedStringArray:
+		var out: PackedStringArray = []
+		for path: String in buffers:
+			if path.begins_with(folder) and path.get_extension() in extensions:
+				out.append(path)
+		return out
 	return tools
 
 
-func _call(tools: CodeTools, args: Dictionary) -> Dictionary:
-	var tool: RefCounted = tools.tools()[0]
-	return tool.handler.call(args)
+func _call(tools: CodeTools, args: Dictionary, tool_name: String = "read_function") -> Dictionary:
+	for tool: RefCounted in tools.tools():
+		if tool.name == tool_name:
+			return tool.handler.call(args)
+	return {}
 
 
 func _text(result: Dictionary) -> String:
@@ -198,3 +208,107 @@ func test_read_function_too_long() -> void:
 	var rest := _text(_call(tools, {"script": "res://tests/tmp/long.gd", "name": "long", "from": CodeTools.MAX_LINES + 1}))
 	assert_false(rest.contains("showing"), "el resto entra · %s" % rest.left(200))
 	assert_true(rest.contains("%5d  \tpass" % (CodeTools.MAX_LINES + 51)), "hasta la última línea")
+
+
+# --- find_symbols / find_references (m11-82) ----------------------------------------------------
+
+const PLAYER := """class_name Player
+extends CharacterBody2D
+
+signal hit(amount: int)
+var jump_height := 3.0
+
+
+func _ready() -> void:
+	hit.connect(_on_hit)
+	connect("hit", _on_hit)
+	call_deferred("jump")
+
+
+func jump() -> void:
+	# jump() in a comment does not count
+	velocity.y = -jump_height
+	hit.emit(1)
+	print("jump twice")
+
+
+func _on_hit(amount: int) -> void:
+	pass
+"""
+const ENEMY := """extends Node
+
+func attack(target: Player) -> void:
+	target.jump()
+	target.hit.emit(2)
+"""
+const LEVEL := """[gd_scene format=3]
+
+[node name="Level" type="Node"]
+
+[node name="Anim" type="AnimationPlayer" parent="."]
+
+[sub_resource type="Animation" id="a"]
+tracks/0/keys = {"times": PackedFloat32Array(0), "values": [{"args": [], "method": &"jump"}]}
+
+[connection signal="hit" from="Player" to="." method="_on_hit"]
+"""
+
+
+func _project() -> CodeTools:
+	return _tools({
+		"res://player.gd": PLAYER,
+		"res://enemies/enemy.gd": ENEMY,
+		"res://level.tscn": LEVEL,
+		"res://addons/other/jumper.gd": "func jump():\n\tpass\n",
+	})
+
+
+func test_find_symbols() -> void:
+	var tools := _project()
+	var text := _text(_call(tools, {"query": "jump"}, "find_symbols"))
+	assert_true(text.begins_with("2 declarations match \"jump\""), "jump y jump_height, sin addons · %s" % text.left(160))
+	assert_true(text.find("res://player.gd:14: func jump") < text.find("res://player.gd:5: var jump_height"), "el nombre exacto primero · %s" % text)
+	assert_true(text.contains("(without res://addons/)") and not text.contains("jumper.gd"), "sin res://addons/")
+	var only_funcs := _text(_call(tools, {"query": "jump", "kind": "func"}, "find_symbols"))
+	assert_true(only_funcs.begins_with("1 declarations") and not only_funcs.contains("jump_height"), "kind func · %s" % only_funcs.left(120))
+	var in_addons := _text(_call(tools, {"query": "jump", "path": "res://addons"}, "find_symbols"))
+	assert_true(in_addons.contains("res://addons/other/jumper.gd:1: func jump"), "con path en addons · %s" % in_addons)
+	var class_hit := _text(_call(tools, {"query": "player", "kind": "class_name"}, "find_symbols"))
+	assert_true(class_hit.contains("res://player.gd:1: class_name Player"), "class_name sin distinguir mayúsculas · %s" % class_hit)
+	var part := _text(_call(tools, {"query": "_hit"}, "find_symbols"))
+	assert_true(part.contains("func _on_hit"), "por una parte del nombre · %s" % part)
+	var none := _text(_call(tools, {"query": "nothing_here"}, "find_symbols"))
+	assert_true(none.begins_with("No declarations"), "ninguna")
+	assert_true(_call(tools, {"query": "jump", "kind": "weird"}, "find_symbols").get("isError", false), "kind inválido")
+	assert_true(_call(tools, {"query": "jump", "path": "/etc"}, "find_symbols").get("isError", false), "path fuera del proyecto")
+
+
+func test_find_references_in_code_and_scenes() -> void:
+	var tools := _project()
+	var text := _text(_call(tools, {"name": "jump"}, "find_references"))
+	assert_true(text.contains("res://player.gd:11 [string] \tcall_deferred(\"jump\")") or text.contains("res://player.gd:11 [string] call_deferred(\"jump\")"), "string con el nombre justo · %s" % text)
+	assert_true(text.contains("res://player.gd:14 [declaration]"), "la declaración")
+	assert_true(text.contains("res://enemies/enemy.gd:4 [call]"), "una llamada en otro script")
+	assert_true(text.contains("res://level.tscn:8 [animation method track]"), "un track de método")
+	assert_false(text.contains("player.gd:15"), "un comentario no cuenta")
+	assert_false(text.contains("player.gd:18"), "\"jump twice\" no es el nombre justo")
+	assert_false(text.contains("player.gd:16"), "jump_height es otra palabra")
+	assert_false(text.contains("jumper.gd"), "sin res://addons/")
+	var hit := _text(_call(tools, {"name": "hit"}, "find_references"))
+	assert_true(hit.contains("player.gd:4 [declaration]") and hit.contains("player.gd:9 [connect]") and hit.contains("player.gd:10 [string]") and hit.contains("player.gd:17 [emit]"), "señal: declaración, connect, string y emit · %s" % hit)
+	assert_true(hit.contains("enemy.gd:5 [emit]"), "target.hit.emit: emit, aunque sea de otro objeto · %s" % hit)
+	assert_true(hit.contains("level.tscn:10 [scene connection (signal)]"), "conexión guardada en la escena")
+	var handler := _text(_call(tools, {"name": "Player._on_hit"}, "find_references"))
+	assert_true(handler.contains("level.tscn:10 [scene connection (method)]") and handler.contains("player.gd:9 [use]"), "el método de la conexión, con Clase.nombre · %s" % handler)
+	var no_scenes := _text(_call(tools, {"name": "jump", "scenes": false}, "find_references"))
+	assert_false(no_scenes.contains("level.tscn"), "scenes=false")
+	var member := _text(_call(_tools({"res://b.gd": "func f(p):\n\tprint(p.jump_height)\n"}), {"name": "jump_height"}, "find_references"))
+	assert_true(member.contains("res://b.gd:2 [member]"), "acceso a un miembro · %s" % member)
+	assert_true(_call(tools, {"name": "not valid"}, "find_references").get("isError", false), "name no es un identificador")
+	assert_true(_text(_call(tools, {"name": "nowhere"}, "find_references")).begins_with("No references"), "ninguna")
+
+
+func test_find_references_reads_unsaved_text() -> void:
+	var tools := _tools({"res://a.gd": "func go():\n\tgo_further()\n"})
+	var text := _text(_call(tools, {"name": "go_further"}, "find_references"))
+	assert_true(text.contains("res://a.gd:2 [call]"), "el texto que da unsaved_buffer · %s" % text)

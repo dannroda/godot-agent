@@ -6609,3 +6609,15 @@ msgstr "Un informe para pegar al reportar un bug: versiones, sistema, agente y e
 
 msgid "Paste this in a bug report. It has only versions, the operating system, the agent and how the connection and the last error went, as fixed values: no paths, file names, conversation text, email or account."
 msgstr "Pegalo al reportar un bug. Solo trae versiones, el sistema operativo, el agente y cómo anduvieron la conexión y el último error, como valores fijos: sin rutas, nombres de archivos, texto de la conversación, email ni cuenta."
+
+msgid "Finds where classes, functions, signals and variables are declared"
+msgstr "Busca dónde se declaran clases, funciones, señales y variables"
+
+msgid "Finds where a name is used: code, strings, scenes and animations"
+msgstr "Busca dónde se usa un nombre: código, strings, escenas y animaciones"
+
+msgid "Find declarations"
+msgstr "Buscar declaraciones"
+
+msgid "Find references"
+msgstr "Buscar referencias"

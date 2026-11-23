@@ -1148,7 +1148,8 @@ func _start_mcp_server() -> void:
 	_map_tools = MapTools.new()
 	_map_tools.editor_focus = _editor_focus
 	registry.register_provider(_map_tools)
-	# read_function (m11-83) en la lista corta: leer una función sin la shell ni el archivo entero.
+	# read_function (m11-83), find_symbols y find_references (m11-82) en la lista corta: navegar el
+	# código sin la shell ni leer archivos enteros.
 	var code_tools := CodeTools.new()
 	code_tools.unsaved_buffer = _sync.buffer_text
 	registry.register_provider(code_tools)

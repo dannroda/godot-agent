@@ -70,6 +70,8 @@ const SUMMARIES: Dictionary = {
 	"find_in_files": "Searches the text of the project's files, like Find in Files",  # i18n
 	# Código
 	"read_function": "Reads one GDScript function by name or line, also unsaved",  # i18n
+	"find_symbols": "Finds where classes, functions, signals and variables are declared",  # i18n
+	"find_references": "Finds where a name is used: code, strings, scenes and animations",  # i18n
 	"get_output": "What the editor printed to the Output panel since a mark",  # i18n
 	"validate_scripts": "Parses GDScript and compiles C#, and returns the errors",  # i18n
 	"capture_editor_viewport": "Captures the editor's 2D or 3D viewport",  # i18n

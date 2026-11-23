@@ -470,6 +470,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	await _check_inspector_state()
 	await _check_dependencies()
 	await _check_read_function()
+	await _check_symbols()
 	return failures
 
 
@@ -591,6 +592,45 @@ func _check_read_function() -> void:
 	_expect(missing.get("isError", false) and str(missing).contains("Inner.walk"), "no existe: lista las que hay")
 	# El script queda abierto en el Script Editor: no se borra (un archivo abierto que desaparece
 	# abre un diálogo). tests/tmp está en .gitignore y la próxima corrida lo reescribe.
+
+
+## m11-82: find_symbols y find_references con los archivos del filesystem del editor, el texto sin
+## guardar del Script Editor y una escena con una conexión guardada; y cuánto tardan sobre el addon.
+func _check_symbols() -> void:
+	var dir := "res://tests/tmp/symbols_check"
+	_remove_tree(ProjectSettings.globalize_path(dir))
+	_write(dir + "/hero.gd", "class_name SymbolsCheckHero\nextends Node\n\nsignal symbols_landed\n\nfunc symbols_leap() -> void:\n\tsymbols_landed.emit()\n")
+	_write(dir + "/fan.gd", "extends Node\n\nfunc _on_landed() -> void:\n\tget_parent().symbols_leap()\n")
+	_write(dir + "/stage.tscn", "[gd_scene format=3]\n\n[node name=\"Stage\" type=\"Node\"]\n\n[connection signal=\"symbols_landed\" from=\".\" to=\".\" method=\"_on_landed\"]\n")
+	var fs := EditorInterface.get_resource_filesystem()
+	fs.scan()
+	await _until_scanned(fs)
+	var symbols := await _call_text("find_symbols", {"query": "symbols_", "path": dir})
+	_expect(symbols.contains(dir + "/hero.gd:4: signal symbols_landed") and symbols.contains(dir + "/hero.gd:6: func symbols_leap"), "find_symbols en el filesystem del editor · %s" % symbols)
+	var landed := await _call_text("find_references", {"name": "symbols_landed", "path": dir})
+	_expect(landed.contains("hero.gd:4 [declaration]") and landed.contains("hero.gd:7 [emit]") and landed.contains("stage.tscn:5 [scene connection (signal)]"), "find_references: código y escena · %s" % landed)
+	EditorInterface.edit_script(load(dir + "/fan.gd"))
+	await _tree.process_frame
+	await _tree.process_frame
+	var code := EditorInterface.get_script_editor().get_current_editor().get_base_editor() as CodeEdit
+	code.set_caret_line(code.get_line_count() - 1)
+	code.set_caret_column(0)
+	code.insert_text_at_caret("\tsymbols_leap()\n")
+	var leap := await _call_text("find_references", {"name": "symbols_leap", "path": dir})
+	_expect(leap.contains("fan.gd:4 [call]") and leap.contains("fan.gd:5 [call]"), "find_references ve el texto sin guardar · %s" % leap)
+	code.undo()
+	if code.get_version() != code.get_saved_version():
+		code.tag_saved_version()
+	# Sobre el addon entero (~320 scripts): un nombre que está en todos lados.
+	var started := Time.get_ticks_msec()
+	var everywhere := await _call_text("find_references", {"name": "tools", "path": "res://addons"})
+	var references_ms := Time.get_ticks_msec() - started
+	started = Time.get_ticks_msec()
+	await _call_text("find_symbols", {"query": "_on", "path": "res://addons"})
+	var symbols_ms := Time.get_ticks_msec() - started
+	print("edit-check: find_references en addons %d ms, find_symbols %d ms" % [references_ms, symbols_ms])
+	_expect(everywhere.contains("lines reference tools") and not everywhere.contains("stopped after"), "find_references sobre addons termina a tiempo · %s" % everywhere.left(160))
+	# fan.gd queda abierto: no se borra (ver _check_read_function).
 
 
 func _until_scanned(fs: EditorFileSystem) -> void:

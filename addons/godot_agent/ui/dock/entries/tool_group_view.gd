@@ -471,6 +471,8 @@ const GODOT_TOOL_NAMES := {
 	"find_in_files": "Search in files",  # i18n
 	"dependencies": "Read dependencies",  # i18n
 	"read_function": "Read function",  # i18n
+	"find_symbols": "Find declarations",  # i18n
+	"find_references": "Find references",  # i18n
 	"press_tool_button": "Press a tool button",  # i18n
 	"get_node": "Read node",  # i18n
 	"get_resource": "Read resource",  # i18n
