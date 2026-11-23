@@ -18,6 +18,11 @@ const ACTION_PREFIX := "Agent: "
 const SCENE_ARG := {"type": "string", "description": "res://…tscn scene; opened if it is not the current one (default: the open one)"}
 ## Tope de nodos por add_nodes: un árbol más grande se arma en varias llamadas.
 const BATCH_LIMIT := 200
+## position, rotation_degrees y scale de instantiate_scene (m11-86): un array de números (sin tipos
+## unión en el schema: algunos clientes MCP los rechazan); [n] es un número suelto.
+const TRANSFORM_ARG := {"type": "array", "items": {"type": "number"}}
+## Modelos importados que instantiate_scene acepta además de .tscn/.scn (m11-86).
+const MODEL_EXTENSIONS: PackedStringArray = ["glb", "gltf", "blend", "obj", "fbx"]
 
 ## Callable(tool_name: String, args: Dictionary, undo_info: Dictionary): cada acción commiteada.
 var on_action: Callable
@@ -69,8 +74,8 @@ func tools() -> Array:
 			"Presses a button that a @tool script added to the inspector with @export_tool_button (a bake, a generate, a rebuild), as if the user clicked it. get_node lists a node's buttons. Returns what the button returned; what it printed is in get_output. A button that awaits returns when it finishes.",
 			{"node_path": {"type": "string"}, "button": {"type": "string", "description": "The property name of the @export_tool_button (or its text in the inspector)"}, "scene": SCENE_ARG},
 			["node_path", "button"], _press_tool_button),
-		McpTool.create("instantiate_scene", scene, "Instances a .tscn scene as a child of `parent` (with undo).",
-			{"parent": {"type": "string"}, "scene_path": {"type": "string"}, "name": {"type": "string"}, "scene": SCENE_ARG},
+		McpTool.create("instantiate_scene", scene, "Instances a scene as a child of `parent`, in one undo step: a .tscn or an imported 3D model (.glb, .gltf, .blend, .obj; bring an outside file in with import_model first). `position`, `rotation_degrees` and `scale` place it: [x, y, z] for 3D, [x, y] for 2D (rotation_degrees of a 2D node is [degrees]); scale [n] scales evenly.",
+			{"parent": {"type": "string"}, "scene_path": {"type": "string"}, "name": {"type": "string"}, "position": TRANSFORM_ARG, "rotation_degrees": TRANSFORM_ARG, "scale": TRANSFORM_ARG, "scene": SCENE_ARG},
 			["parent", "scene_path"], _instantiate_scene),
 		# Leer (m11-71): abrir una pestaña del editor no cambia el proyecto.
 		McpTool.create("open_scene", PermissionPolicy.GROUP_READ, "Opens a scene in the editor (or makes it the current one).",
@@ -469,11 +474,19 @@ func _instantiate_scene(args: Dictionary) -> Dictionary:
 	if scene_path == root.scene_file_path:
 		return McpTool.error("Cannot instance a scene inside itself.")
 	if not ResourceLoader.exists(scene_path, "PackedScene"):
+		if scene_path.get_extension().to_lower() in MODEL_EXTENSIONS and FileAccess.file_exists(scene_path):
+			return McpTool.error("%s is not imported as a scene yet: wait for the import (editor_wait with idle) or check get_errors." % scene_path)
+		if scene_path.get_extension().to_lower() in MODEL_EXTENSIONS and not scene_path.begins_with("res://"):
+			return McpTool.error("%s is outside the project: bring it in with import_model first." % scene_path)
 		return McpTool.error("The scene %s does not exist." % scene_path)
 	var packed := load(scene_path) as PackedScene
 	var instance := packed.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) if packed else null
 	if instance == null:
 		return McpTool.error("Could not instantiate %s." % scene_path)
+	var placed := place_instance(instance, args)
+	if not placed.is_empty():
+		instance.free()
+		return McpTool.error(placed)
 	var wanted := str(args.get("name", "")).validate_node_name()
 	if not wanted.is_empty():
 		instance.name = wanted
@@ -493,7 +506,37 @@ func _instantiate_scene(args: Dictionary) -> Dictionary:
 	undo_redo.commit_action()
 	_select(instance)
 	_record("instantiate_scene", args, action, root)
-	return _done("Instanced %s as %s." % [scene_path, SceneAccess.relative_path(root, instance)], action)
+	var where := ""
+	for property: String in ["position", "rotation_degrees", "scale"]:
+		if args.has(property):
+			where += " %s %s" % [property, instance.get(property)]
+	return _done("Instanced %s as %s%s." % [scene_path, SceneAccess.relative_path(root, instance), ("," + where) if not where.is_empty() else ""], action)
+
+
+## Aplica position, rotation_degrees y scale de `args` a una instancia nueva (antes de agregarla, así
+## queda en el mismo paso de undo). "" o el error.
+static func place_instance(instance: Node, args: Dictionary) -> String:
+	for property: String in ["position", "rotation_degrees", "scale"]:
+		if not args.has(property):
+			continue
+		var value: Variant = args[property]
+		if value is Array and (value as Array).size() == 1:
+			value = value[0]
+		var info := ValueCoercion.property_info(instance, property)
+		if info.is_empty():
+			return "%s (%s) has no %s: only a Node3D, Node2D or Control root can be placed." % [instance.name, instance.get_class(), property]
+		# Un número en scale escala parejo; en position o en la rotación de 3D no alcanza.
+		if (value is float or value is int) and property == "scale":
+			value = Vector3.ONE * float(value) if info.type == TYPE_VECTOR3 else Vector2.ONE * float(value)
+		if value is Array and info.type == TYPE_VECTOR3 and (value as Array).size() != 3:
+			return "%s needs [x, y, z] for this 3D node." % property
+		if value is Array and info.type == TYPE_VECTOR2 and (value as Array).size() != 2:
+			return "%s needs [x, y] for this 2D node." % property
+		var result := ValueCoercion.coerce(instance, property, value)
+		if not result.ok:
+			return result.error
+		instance.set(property, result.value)
+	return ""
 
 
 func _open_scene(args: Dictionary) -> Dictionary:

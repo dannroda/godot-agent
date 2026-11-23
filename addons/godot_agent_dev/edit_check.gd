@@ -12,6 +12,8 @@ const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 const DOCK_SCRIPT := "res://addons/godot_agent/ui/dock/agent_dock.gd"
 const EDIT_SCENE := "res://tests/tmp/edit_fixture.tscn"
+## Un triángulo en GLB (m11-86), armado con los helpers de test_model_validator.
+const MODEL_FIXTURE := "res://tests/fixtures/models/triangle.glb"
 const NEW_SCENE := "res://tests/tmp/edit_new_scene.tscn"
 const NEW_SCRIPT := "res://tests/tmp/edit_enemies.gd"
 const BOSS_SCRIPT := "res://tests/tmp/edit_boss.gd"
@@ -152,6 +154,20 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var instanced := await _call_text("instantiate_scene", {"parent": "Enemies", "scene_path": FIXTURE_SCENE, "name": "Copy"})
 	var copy := root.get_node_or_null("Enemies/Copy")
 	_expect(copy != null and copy.scene_file_path == FIXTURE_SCENE and copy.owner == root and instanced.contains("Instanced"), "instantiate_scene")
+	# m11-86: un modelo importado (.glb del fixture) con posición, rotación y escala, en un solo paso de undo.
+	var model := await _call_text("instantiate_scene", {"parent": "Enemies", "scene_path": MODEL_FIXTURE, "name": "Tri", "position": [1, 2, 3], "rotation_degrees": [0, 90, 0], "scale": [2]})
+	var tri := root.get_node_or_null("Enemies/Tri") as Node3D
+	_expect(tri != null and tri.scene_file_path == MODEL_FIXTURE and tri.owner == root and tri.position == Vector3(1, 2, 3) and tri.rotation_degrees.is_equal_approx(Vector3(0, 90, 0)) and tri.scale == Vector3(2, 2, 2), "instantiate_scene de un .glb con transformación (%s)" % model)
+	EditorUndo._trigger_editor_undo()
+	_expect(not root.has_node("Enemies/Tri"), "un Ctrl+Z deshace la instancia con su transformación")
+	var flat: Dictionary = await _call("instantiate_scene", {"parent": "Enemies", "scene_path": MODEL_FIXTURE, "position": [1, 2]})
+	_expect(flat.get("isError", false) and _text(flat).contains("[x, y, z]") and not root.get_node("Enemies").get_children().any(func(n: Node) -> bool: return n.scene_file_path == MODEL_FIXTURE), "position 2D en un modelo 3D → error, sin instancia (%s)" % _text(flat))
+	var outside: Dictionary = await _call("instantiate_scene", {"parent": "Enemies", "scene_path": "/tmp/x.glb"})
+	_expect(outside.get("isError", false) and _text(outside).contains("import_model"), "un .glb de afuera manda a import_model")
+	var placed := await _call_text("instantiate_scene", {"parent": ".", "scene_path": FIXTURE_SCENE, "name": "Placed", "position": [10, 20], "rotation_degrees": [45]})
+	var placed_node := root.get_node_or_null("Placed") as Node2D
+	_expect(placed_node != null and placed_node.position == Vector2(10, 20) and is_equal_approx(placed_node.rotation_degrees, 45.0), "instantiate_scene 2D con posición y rotación (%s)" % placed)
+	EditorUndo._trigger_editor_undo()
 	var attached := await _call_text("attach_script", {"node_path": "Enemies", "script_path": NEW_SCRIPT})
 	_expect(FileAccess.file_exists(NEW_SCRIPT) and root.get_node("Enemies").get_script() != null and attached.contains("(created)"), "attach_script crea y adjunta")
 	var wrong_base: Dictionary = await _call("attach_script", {"node_path": "Timer", "script_path": GOOD_SCRIPT})

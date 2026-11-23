@@ -68,6 +68,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var waited := await _call_text("editor_wait", {"file": probe, "seconds": 10})
 	_expect(waited.begins_with(probe + " was written"), "editor_wait file · " + waited)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(probe))
+	await _check_import_model()
 	# Pide permiso como project (no se llama: nadie contesta la tarjeta acá); el caso sin proyecto de
 	# prueba aparte está en test_native_install.
 	var install := await _call_text("methods", {"method": "install_extension"})
@@ -138,6 +139,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var bad_args: Dictionary = await _call("capture_editor_viewport", {"which": "4d"})
 	_expect(bad_args.get("isError", false), "enum inválido → isError")
 	await _check_editor_views()
+	await _check_model_recipe()
 
 	# Validadores (m14-04), por godot.run como los demás métodos extendidos.
 	var physics := await _call_text("run", {"method": "validate_physics", "params": {"scene": FIXTURE_SCENE}})
@@ -166,6 +168,136 @@ func run(tree: SceneTree) -> PackedStringArray:
 
 ## m11-80: «Copy diagnostic report…» del menú ⋯ del dock y del Agent Log, después de las llamadas de este
 ## check: ve la conexión MCP y las tools, sin la ruta del proyecto ni el nombre del cliente.
+## m11-85: import_model en el editor real con un GLB armado a mano (un triángulo): lo valida, lo copia,
+## espera el import y devuelve el AABB; uno roto no se copia. Desde res:// (una carpeta con
+## .gdignore): desde afuera pide permiso como la shell y acá nadie contesta la tarjeta.
+func _check_import_model() -> void:
+	var Fixtures: Script = load("res://tests/unit/test_model_validator.gd")
+	var source_dir := "res://tests/tmp/import_model_src"
+	var target_dir := "res://tests/tmp/import_model"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(source_dir))
+	FileAccess.open(source_dir.path_join(".gdignore"), FileAccess.WRITE).store_string("")
+	for path: String in [target_dir + "/tri.glb", target_dir + "/tri.glb.import", target_dir + "/broken.glb"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var good := FileAccess.open(source_dir.path_join("tri.glb"), FileAccess.WRITE)
+	good.store_buffer(Fixtures.glb(Fixtures.triangle(), Fixtures.positions()))
+	good.close()
+	var imported := await _call_text("run", {"method": "import_model", "params": {"from": source_dir.path_join("tri.glb"), "to": target_dir}})
+	_expect(imported.begins_with("Imported %s/tri.glb" % target_dir) and imported.contains("1 nodes, 1 meshes"), "import_model importa · " + imported)
+	_expect(imported.contains("AABB: position (0.000, 0.000, 0.000), size (1.000, 1.000, 0.000)"), "import_model: AABB del modelo instanciado · " + imported)
+	_expect(imported.contains("preview_model"), "import_model sugiere preview_model · " + imported)
+	_expect(ResourceLoader.load(target_dir + "/tri.glb") is PackedScene, "import_model: queda importado como escena")
+	var again: Dictionary = await _call("run", {"method": "import_model", "params": {"from": source_dir.path_join("tri.glb"), "to": target_dir}})
+	_expect(again.get("isError", false) and _text(again).contains("replace: true"), "import_model no pisa sin replace · " + _text(again))
+	var doc: Dictionary = Fixtures.triangle()
+	doc.nodes = [{"children": [0]}]
+	var bad := FileAccess.open(source_dir.path_join("broken.glb"), FileAccess.WRITE)
+	bad.store_buffer(Fixtures.glb(doc, Fixtures.positions()))
+	bad.close()
+	var refused: Dictionary = await _call("run", {"method": "import_model", "params": {"from": source_dir.path_join("broken.glb"), "to": target_dir}})
+	_expect(refused.get("isError", false) and _text(refused).contains("node hierarchy has a cycle"), "import_model rechaza un GLB con ciclos · " + _text(refused))
+	_expect(not FileAccess.file_exists(target_dir + "/broken.glb"), "import_model: el rechazado no se copia")
+	await _check_preview_model(target_dir + "/tri.glb")
+
+
+## m11-87: preview_model dibuja el triángulo importado en su mundo propio (de frente se ve: hay
+## píxeles que no son el fondo), y una escena con scripts no se instancia.
+func _check_preview_model(model: String) -> void:
+	var ModelTools: Script = load("res://addons/godot_agent/mcp/tools/model_tools.gd")
+	var result: Dictionary = await _call("run", {"method": "preview_model", "params": {"path": model, "angles": 2}})
+	var images: Array = result.get("content", []).filter(func(block: Dictionary) -> bool: return block.get("type") == "image")
+	_expect(not result.get("isError", false) and images.size() == 2, "preview_model: dos vistas · " + _text(result).left(300))
+	_expect(_text(result).contains("size (1.000, 1.000, 0.000)"), "preview_model: el tamaño del modelo · " + _text(result).left(300))
+	if not images.is_empty():
+		var image := Image.new()
+		image.load_png_from_buffer(Marshalls.base64_to_raw(str(images[0].data)))
+		var background: Color = image.get_pixel(0, 0)
+		var drawn := 0
+		for y in range(0, image.get_height(), 8):
+			for x in range(0, image.get_width(), 8):
+				if not image.get_pixel(x, y).is_equal_approx(background):
+					drawn += 1
+		_expect(image.get_size() == ModelTools.PREVIEW_SIZE, "preview_model: vista de %s · %s" % [ModelTools.PREVIEW_SIZE, image.get_size()])
+		_expect(drawn > 20, "preview_model: el modelo se ve de frente (%d muestras que no son el fondo)" % drawn)
+	var scripted: Dictionary = await _call("run", {"method": "preview_model", "params": {"path": "res://tests/fixtures/debug_fixture.tscn"}})
+	_expect(scripted.get("isError", false) and _text(scripted).contains("has scripts"), "preview_model: una escena con scripts no · " + _text(scripted))
+	var stages := _tree.root.find_children("PreviewModelStage", "SubViewport", true, false)
+	await _tree.process_frame
+	_expect(_tree.root.find_children("PreviewModelStage", "SubViewport", true, false).is_empty(), "preview_model: no deja su mundo en el árbol (%d)" % stages.size())
+	await _check_model_card(model)
+
+
+## Muestras de `image` que no son del color de su esquina (el fondo).
+func _drawn_samples(image: Image) -> int:
+	var background: Color = image.get_pixel(0, 0)
+	var drawn := 0
+	for y in range(0, image.get_height(), 4):
+		for x in range(0, image.get_width(), 4):
+			if not image.get_pixel(x, y).is_equal_approx(background):
+				drawn += 1
+	return drawn
+
+
+## m11-89: la tarjeta 3D del chat dibuja el triángulo importado, orbitar cambia lo que se ve, fuera
+## del área visible no se dibuja, Ampliar la lleva a una ventana y la trae de vuelta, y al liberarse
+## no queda su mundo en el árbol ni en el grupo de las vivas.
+func _check_model_card(model: String) -> void:
+	var ModelCard: Script = load("res://addons/godot_agent/ui/dock/entries/model_card.gd")
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(40, 40)
+	scroll.size = Vector2(420, 300)
+	EditorInterface.get_base_control().add_child(scroll)
+	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(column)
+	var card: Control = ModelCard.new()
+	card.call(&"setup", model, null, true)
+	column.add_child(card)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0, 2000)
+	column.add_child(spacer)
+	for i in 6:
+		await _tree.process_frame
+	_expect(card.call(&"is_live"), "tarjeta 3D: carga el modelo importado · " + (card.get(&"_status") as Label).text)
+	if not card.call(&"is_live"):
+		scroll.queue_free()
+		return
+	var viewport: SubViewport = card.get(&"_viewport")
+	var first := viewport.get_texture().get_image()
+	var drawn := _drawn_samples(first)
+	_expect(drawn > 20, "tarjeta 3D: se ve el modelo (%d muestras que no son el fondo, %s)" % [drawn, first.get_size()])
+	_expect(viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED, "tarjeta 3D: dibujó una vez y quedó quieta (%d)" % viewport.render_target_update_mode)
+	card.call(&"orbit", Vector2(-50, 20))
+	for i in 4:
+		await _tree.process_frame
+	var turned := viewport.get_texture().get_image()
+	_expect(turned.get_data() != first.get_data(), "tarjeta 3D: orbitar cambia lo que se ve")
+	scroll.scroll_vertical = 1500
+	await _tree.process_frame
+	await _tree.process_frame
+	card.call(&"orbit", Vector2(30, 0))
+	for i in 4:
+		await _tree.process_frame
+	_expect(not card.call(&"is_on_screen") and viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED and card.get(&"_dirty"), "tarjeta 3D: fuera del área visible no se dibuja")
+	scroll.scroll_vertical = 0
+	for i in 4:
+		await _tree.process_frame
+	_expect(not card.get(&"_dirty"), "tarjeta 3D: al volver a verse dibuja lo pendiente")
+	card.call(&"enlarge")
+	await _tree.process_frame
+	var dialog: AcceptDialog = card.get(&"_dialog")
+	var container: Control = card.get(&"_container")
+	_expect(dialog != null and dialog.visible and dialog.is_ancestor_of(container), "tarjeta 3D: Ampliar la abre en una ventana")
+	if dialog:
+		dialog.hide()
+		await _tree.process_frame
+		_expect((card.get(&"_screen") as Node).is_ancestor_of(container) and card.get(&"_dialog") == null, "tarjeta 3D: al cerrar la ventana vuelve a la tarjeta")
+	scroll.queue_free()
+	for i in 3:
+		await _tree.process_frame
+	_expect(_tree.root.find_children("ModelCardWorld", "SubViewport", true, false).is_empty() and _tree.get_nodes_in_group(ModelCard.LIVE_GROUP).is_empty(), "tarjeta 3D: liberada, no queda su mundo")
+
+
 func _check_diagnostic_report() -> void:
 	var home := OS.get_environment("HOME") if not OS.get_environment("HOME").is_empty() else OS.get_environment("USERPROFILE")
 	for script_path: String in ["res://addons/godot_agent/ui/dock/agent_dock.gd", "res://addons/godot_agent/ui/log_panel/agent_log_panel.gd"]:
@@ -300,6 +432,58 @@ func _check_editor_views() -> void:
 	_expect(wrong.get("isError", false) and _text(wrong).contains("not a Camera3D"), "capture_editor_viewport camera inexistente → error")
 	var flat: Dictionary = await _call("capture_editor_viewport", {"which": "2d", "angles": 2})
 	_expect(flat.get("isError", false) and _text(flat).contains("3D scenes"), "capture_editor_viewport angles en 2d → error")
+	EditorInterface.open_scene_from_path(FIXTURE_SCENE)
+	for _frame in 3:
+		await _tree.process_frame
+
+
+## La receta Blender → Godot de la wiki (m11-88), de punta a punta y sin Blender: el .glb que
+## exportaría Blender (una caja de 1 m con su material, la base en el piso) entra con import_model, se
+## mira con preview_model y se ubica con instantiate_scene en una escena 3D. Los .glb rotos de
+## tests/fixtures/models/invalid no se copian. Las dos carpetas tienen .gdignore: el editor no las
+## importa, como una carpeta temporal de afuera (desde afuera, import_model pide permiso y acá nadie
+## contesta la tarjeta).
+func _check_model_recipe() -> void:
+	var target_dir := "res://tests/tmp/recipe"
+	var level := target_dir.path_join("level.tscn")
+	for file: String in ["crate.glb", "crate.glb.import", "level.tscn"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(target_dir.path_join(file)))
+	var imported := await _call_text("run", {"method": "import_model", "params": {"from": "res://tests/fixtures/models/blender_export/crate.glb", "to": target_dir}})
+	_expect(imported.begins_with("Imported %s/crate.glb" % target_dir) and imported.contains("1 meshes, 1 materials"), "receta: import_model · " + imported)
+	_expect(imported.contains("size (1.000, 1.000, 1.000)") and imported.contains("preview_model"), "receta: la caja mide 1 m y sugiere preview_model · " + imported)
+	var model := target_dir.path_join("crate.glb")
+	var preview: Dictionary = await _call("run", {"method": "preview_model", "params": {"path": model}})
+	var images: Array = preview.get("content", []).filter(func(block: Dictionary) -> bool: return block.get("type") == "image")
+	_expect(images.size() == 4 and _text(preview).contains("angle 4 of 4"), "receta: preview_model, 4 vistas · " + _text(preview).left(200))
+	if not images.is_empty():
+		# Las caras iluminadas distinto, todas del color de la madera (rojo > verde > azul).
+		var image := Image.new()
+		image.load_png_from_buffer(Marshalls.base64_to_raw(str(images[0].data)))
+		var background: Color = image.get_pixel(0, 0)
+		var shades := {}
+		for y in range(0, image.get_height(), 6):
+			for x in range(0, image.get_width(), 6):
+				var color := image.get_pixel(x, y)
+				if not color.is_equal_approx(background) and color.r > color.g and color.g > color.b:
+					shades[Color(snappedf(color.r, 0.05), snappedf(color.g, 0.05), snappedf(color.b, 0.05))] = true
+		_expect(shades.size() >= 2, "receta: preview_model muestra la caja con su material y caras con distinta luz (%d tonos)" % shades.size())
+	var created := await _call_text("create_scene", {"path": level, "root_type": "Node3D", "root_name": "Level"})
+	_expect(created.contains("Created"), "receta: escena 3D · " + created)
+	EditorInterface.open_scene_from_path(level)
+	for _frame in 3:
+		await _tree.process_frame
+	var placed := await _call_text("instantiate_scene", {"parent": ".", "scene_path": model, "name": "Crate", "position": [2, 0, -3], "rotation_degrees": [0, 45, 0], "scale": [1.5]})
+	var root := EditorInterface.get_edited_scene_root()
+	var crate := root.get_node_or_null("Crate") as Node3D if root else null
+	_expect(crate != null and crate.scene_file_path == model and crate.owner == root and crate.position == Vector3(2, 0, -3)
+		and crate.rotation_degrees.is_equal_approx(Vector3(0, 45, 0)) and crate.scale == Vector3(1.5, 1.5, 1.5), "receta: instantiate_scene la ubica · " + placed)
+	EditorInterface.save_scene()
+	EditorInterface.close_scene()
+	for broken: Array in [["not_a_model.glb", "Not a GLB 2.0 file"], ["truncated.glb", "Not a GLB 2.0 file"], ["cycle.glb", "cycle"],
+			["external_file.glb", "names the file"], ["required_extension.glb", "requires the glTF extensions"]]:
+		var refused: Dictionary = await _call("run", {"method": "import_model", "params": {"from": "res://tests/fixtures/models/invalid/" + broken[0], "to": target_dir}})
+		_expect(refused.get("isError", false) and _text(refused).contains(broken[1]), "receta: import_model rechaza %s · %s" % [broken[0], _text(refused)])
+		_expect(not FileAccess.file_exists(target_dir.path_join(broken[0])), "receta: %s no se copia" % broken[0])
 	EditorInterface.open_scene_from_path(FIXTURE_SCENE)
 	for _frame in 3:
 		await _tree.process_frame

@@ -72,6 +72,7 @@ const ProjectTools := preload("mcp/tools/project_tools.gd")
 const AssetTools := preload("mcp/tools/asset_tools.gd")
 const AssetStore := preload("core/asset_store.gd")
 const FileTools := preload("mcp/tools/file_tools.gd")
+const ModelTools := preload("mcp/tools/model_tools.gd")
 const ResourceTools := preload("mcp/tools/resource_tools.gd")
 const TilemapTools := preload("mcp/tools/tilemap_tools.gd")
 const ValidateTools := preload("mcp/tools/validate_tools.gd")
@@ -1180,6 +1181,9 @@ func _start_mcp_server() -> void:
 	file_tools.on_file_written = _after_agent_write
 	file_tools.unsaved_buffer = _sync.buffer_text
 	registry.register_provider(file_tools, true)
+	var model_tools := ModelTools.new()
+	model_tools.on_file_written = _after_agent_write
+	registry.register_provider(model_tools, true)
 	registry.register_provider(ResourceTools.new(), true)
 	var tilemap_tools := TilemapTools.new()
 	tilemap_tools.on_action = _on_mcp_edit_action

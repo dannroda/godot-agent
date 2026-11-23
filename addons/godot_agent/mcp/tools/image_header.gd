@@ -12,13 +12,20 @@ static func size_of(path: String) -> Vector2i:
 	if file == null:
 		return Vector2i.ZERO
 	var head := file.get_buffer(32)
-	if head.size() >= 24 and head.slice(0, 8) == PackedByteArray([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]):
-		return Vector2i(_be32(head, 16), _be32(head, 20))
-	if head.size() >= 30 and head.slice(0, 4).get_string_from_ascii() == "RIFF" and head.slice(8, 12).get_string_from_ascii() == "WEBP":
-		return _webp(head)
 	if head.size() >= 4 and head[0] == 0xFF and head[1] == 0xD8:
 		file.seek(0)
 		return _jpeg(file.get_buffer(JPEG_SCAN))
+	return size_of_bytes(head)
+
+
+## Lo mismo sobre los bytes de la imagen (m11-85: las imágenes que trae un GLB adentro).
+static func size_of_bytes(data: PackedByteArray) -> Vector2i:
+	if data.size() >= 24 and data.slice(0, 8) == PackedByteArray([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]):
+		return Vector2i(_be32(data, 16), _be32(data, 20))
+	if data.size() >= 30 and data.slice(0, 4).get_string_from_ascii() == "RIFF" and data.slice(8, 12).get_string_from_ascii() == "WEBP":
+		return _webp(data)
+	if data.size() >= 4 and data[0] == 0xFF and data[1] == 0xD8:
+		return _jpeg(data.slice(0, JPEG_SCAN))
 	return Vector2i.ZERO
 
 

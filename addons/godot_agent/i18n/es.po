@@ -3642,6 +3642,9 @@ msgstr "Conectar señal"
 msgid "Copy file"
 msgstr "Copiar archivo"
 
+msgid "Import model"
+msgstr "Importar modelo"
+
 msgid "Create resource"
 msgstr "Crear recurso"
 
@@ -4515,6 +4518,9 @@ msgstr "Adjunta un script a un nodo"
 
 msgid "Copies a file or folder into the project"
 msgstr "Copia un archivo o carpeta dentro del proyecto"
+
+msgid "Imports a 3D model into the project"
+msgstr "Importa un modelo 3D al proyecto"
 
 msgid "Moves or renames a file or folder, keeping references"
 msgstr "Mueve o renombra un archivo o carpeta, conservando las referencias"
@@ -6662,3 +6668,51 @@ msgstr "Modo %s."
 
 msgid "Write what you want in the box below to start, or press the button."
 msgstr "Escribí lo que querés en el cuadro de abajo para empezar, o tocá el botón."
+
+msgid "Preview model"
+msgstr "Ver modelo"
+
+msgid "Renders a 3D model from several angles"
+msgstr "Muestra un modelo 3D desde varios ángulos"
+
+msgid "View in 3D"
+msgstr "Ver en 3D"
+
+msgid "Load the model to turn it around (at most %d at a time)"
+msgstr "Carga el modelo para girarlo (como mucho %d a la vez)"
+
+msgid "Frame"
+msgstr "Encuadrar"
+
+msgid "Center the model again, from the same angle"
+msgstr "Vuelve a centrar el modelo, desde el mismo ángulo"
+
+msgid "Reset"
+msgstr "Restablecer"
+
+msgid "Back to the first angle"
+msgstr "Vuelve al primer ángulo"
+
+msgid "Enlarge"
+msgstr "Ampliar"
+
+msgid "Open it in a large window"
+msgstr "Lo abre en una ventana grande"
+
+msgid "drag: orbit · Shift+drag: pan · wheel: zoom"
+msgstr "arrastrar: orbitar · Shift+arrastrar: mover · rueda: zoom"
+
+msgid "%s is not a 3D scene."
+msgstr "%s no es una escena 3D."
+
+msgid "%s has nothing to draw (no visible meshes)."
+msgstr "%s no tiene nada para dibujar (no hay mallas visibles)."
+
+msgid "Shown in the large window"
+msgstr "Se ve en la ventana grande"
+
+msgid "%d view"
+msgstr "%d vista"
+
+msgid "%d views"
+msgstr "%d vistas"

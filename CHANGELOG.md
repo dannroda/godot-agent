@@ -4,18 +4,30 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
-## [0.2.3] - 2026-11-23
-
 ### Added
 
-- **See what Claude Code got from outside the chat.** When another Claude Code session sends a message, or a background task finishes, Claude Code answers in a turn nobody started from the dock, and the adapter doesn't forward what started it. The dock now reads it from the end of Claude Code's transcript (in the account folder of the tab's profile) and shows it before the answer: "✉ From opus-0" with the message, or "⚑ Background task finished" with its summary, folded when long. It is saved in the session history, so resuming shows it too. Other agents, or a transcript that can't be found, still get the notice.
+- **Import 3D models without the shell.** A new `import_model` tool brings a `.glb`, or a `.gltf` with its `.bin` and textures next to it (a Blender export, for example), into the project. It checks the file before copying anything: glTF 2.0, at most 16 MB, no files outside the model's folder, no `data:` URIs, no required extensions, and a bounded number of nodes, meshes, materials, animations and images. Then it waits for the editor to import the model and tells the agent its meshes, materials, animation names and bounding box, with any import errors. Replacing a model already in the project needs `replace` and asks you first, naming the scenes that use it; it keeps the uid, so those scenes get the new version. `.fbx` is not supported yet.
+- **Place what you instance.** `instantiate_scene` takes `position`, `rotation_degrees` and `scale`, applied in the same undo step, and its description now says it also instances imported 3D models (`.glb`, `.gltf`, `.blend`, `.obj`). A model that is still importing, or a file outside the project, gets an error that says what to do.
+- **See a model before placing it.** A new `preview_model` tool renders a 3D model of the project on its own, off screen with a neutral background and light, from 1 to 8 angles around it, and the views come to the chat as images with the model's size. `import_model` now suggests it after importing. Scenes with scripts are refused, so no tool code runs.
+- **Turn the model around in the chat.** A `preview_model` result is now a 3D card: drag to orbit, Shift+drag to pan, the wheel to zoom, and Frame, Reset and Enlarge buttons. To keep long sessions light, at most three cards hold a loaded model, a card only redraws while it's on screen, and resumed sessions show the first view with a **View in 3D** button.
+- **From Blender to the scene, step by step.** The wiki's Editor tools page has a recipe: export a GLB from Blender (glTF Binary, +Y up, modifiers applied) to a temporary folder, then `import_model`, `preview_model` and `instantiate_scene` with a position. The test suite runs it end to end without Blender, with a small model and five broken ones that must be refused.
 
-## [0.2.2] - 2026-11-23
+## [0.2.3] - 2026-11-23
 
 ### Added
 
 - **The agent waits in the editor, not in the shell.** A new `editor_wait` tool returns as soon as a project file is written (a bake or a generate that a tool button started), the Output panel prints a given text, or the editor finishes scanning and importing, up to 300 seconds. `press_tool_button` now says when it was pressed, to wait for work that finishes in the background. Before, agents polled with `until [ "$(stat …)" -gt … ]; do sleep 5; done`.
 - **The editor first, for any agent.** The editor's MCP server now tells every client (not only the dock's agents) which `godot.*` tool to use instead of each shell habit: `find_in_files` for grep, `find_symbols`/`find_references`/`read_function` for code, `list_files` for ls and find, `scene_tree`/`get_node` for reading `.tscn` text, `get_output` for filtering logs, `run_tests` for headless test runs, `editor_wait` for sleep loops, and the file tools for mv, cp and rm.
+- **See what Claude Code got from outside the chat.** When another Claude Code session sends a message, or a background task finishes, Claude Code answers in a turn nobody started from the dock, and the adapter doesn't forward what started it. The dock now reads it from the end of Claude Code's transcript (in the account folder of the tab's profile) and shows it before the answer: "✉ From opus-0" with the message, or "⚑ Background task finished" with its summary, folded when long. It is saved in the session history, so resuming shows it too. Other agents, or a transcript that can't be found, still get the notice.
+
+### Changed
+
+- **A tidier ⋯ menu.** The dock's **⋯** menu now has two titled parts, **This session** (export, restart and resume, Remote Control, sign out) and **Harness** (Settings, Extensions, the tools list, the diagnostic report), and a new **Check for updates** that runs the same check as Settings.
+- **The empty dock explains what to do.** With an agent and no session, the dock says what the agent does from the editor, which mode is selected and what it allows, and that you start by writing in the composer or with the button.
+
+## [0.2.2] - 2026-11-23
+
+### Added
 
 - **The agent sees what the Inspector shows.** `editor_state` now says what is open in the Inspector: a node of the scene, a resource file, or a sub-resource (a mesh's material, a StyleBox inside a theme) with the node or resource and the property it comes from. "Change this one I'm looking at" now works.
 - **Dependencies of a file.** A new `dependencies` tool lists what a file uses (`forward`) or which files use it (`reverse`), 1 to 3 levels deep: by `res://` path, by uid, and by a script's relative `preload`/`load`/`extends` paths. Agents no longer `grep` the project before changing or deleting a file.
@@ -26,8 +38,6 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
-- **A tidier ⋯ menu.** The dock's **⋯** menu now has two titled parts, **This session** (export, restart and resume, Remote Control, sign out) and **Harness** (Settings, Extensions, the tools list, the diagnostic report), and a new **Check for updates** that runs the same check as Settings.
-- **The empty dock explains what to do.** With an agent and no session, the dock says what the agent does from the editor, which mode is selected and what it allows, and that you start by writing in the composer or with the button.
 - **Shell commands that only read files no longer ask you.** A command like `cd assets && ls -la | head`, `cat`, `grep`, `find` or `sed -n` that would have shown a permission card is rejected on its own: the chat shows "Not asked: … only reads files", and the agent is told to use its own file tools or `godot.list_files` and `godot.find_in_files`, which need no permission. When the shell is allowed, these commands run as before.
 - **`list_files` gives image sizes.** Each PNG, JPEG and WebP file comes with its width and height, read from the file header, so the agent doesn't write Python scripts for that. The system prompt also tells the agent not to inspect files with scripts.
 - **Settings, by topic.** The sections are now General (interface, language, notifications and updates), Agents, Permissions, After each turn, One-shot (with the plan quota), Code completion and Advanced. Checking for updates was under Interface, and most options (the checks after each turn, snapshots, plan criteria, the run-error notice, notifications) were hidden under MCP servers → Advanced. Each block says whether it belongs to **this project** (shared through git) or to **you, in every project**. The folders outside the project moved to Permissions, and the export filter to Advanced.
