@@ -54,6 +54,9 @@ var subagent_session_id: String = ""
 ## Estado de trabajo que el agente informa de ese subagente: running, requires_action, idle o
 ## unknown; "" si no informa.
 var subagent_state: String = ""
+## Llegó al rearmar una conversación del historial (reanudar, «Mostrar anteriores»): la vista no
+## carga nada pesado sola, como la tarjeta 3D de preview_model (m11-89).
+var from_history: bool = false
 
 
 func is_finished() -> bool:

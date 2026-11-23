@@ -956,6 +956,7 @@ func _new_tool_call(id: String, parent: String) -> ToolCall:
 	var call := ToolCall.new()
 	call.id = id
 	call.started_msec = Time.get_ticks_msec()
+	call.from_history = replaying
 	_tool_calls[id] = call
 	_attach(call, parent)
 	return call

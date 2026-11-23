@@ -224,6 +224,78 @@ func _check_preview_model(model: String) -> void:
 	var stages := _tree.root.find_children("PreviewModelStage", "SubViewport", true, false)
 	await _tree.process_frame
 	_expect(_tree.root.find_children("PreviewModelStage", "SubViewport", true, false).is_empty(), "preview_model: no deja su mundo en el árbol (%d)" % stages.size())
+	await _check_model_card(model)
+
+
+## Muestras de `image` que no son del color de su esquina (el fondo).
+func _drawn_samples(image: Image) -> int:
+	var background: Color = image.get_pixel(0, 0)
+	var drawn := 0
+	for y in range(0, image.get_height(), 4):
+		for x in range(0, image.get_width(), 4):
+			if not image.get_pixel(x, y).is_equal_approx(background):
+				drawn += 1
+	return drawn
+
+
+## m11-89: la tarjeta 3D del chat dibuja el triángulo importado, orbitar cambia lo que se ve, fuera
+## del área visible no se dibuja, Ampliar la lleva a una ventana y la trae de vuelta, y al liberarse
+## no queda su mundo en el árbol ni en el grupo de las vivas.
+func _check_model_card(model: String) -> void:
+	var ModelCard: Script = load("res://addons/godot_agent/ui/dock/entries/model_card.gd")
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(40, 40)
+	scroll.size = Vector2(420, 300)
+	EditorInterface.get_base_control().add_child(scroll)
+	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(column)
+	var card: Control = ModelCard.new()
+	card.call(&"setup", model, null, true)
+	column.add_child(card)
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(0, 2000)
+	column.add_child(spacer)
+	for i in 6:
+		await _tree.process_frame
+	_expect(card.call(&"is_live"), "tarjeta 3D: carga el modelo importado · " + (card.get(&"_status") as Label).text)
+	if not card.call(&"is_live"):
+		scroll.queue_free()
+		return
+	var viewport: SubViewport = card.get(&"_viewport")
+	var first := viewport.get_texture().get_image()
+	var drawn := _drawn_samples(first)
+	_expect(drawn > 20, "tarjeta 3D: se ve el modelo (%d muestras que no son el fondo, %s)" % [drawn, first.get_size()])
+	_expect(viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED, "tarjeta 3D: dibujó una vez y quedó quieta (%d)" % viewport.render_target_update_mode)
+	card.call(&"orbit", Vector2(-50, 20))
+	for i in 4:
+		await _tree.process_frame
+	var turned := viewport.get_texture().get_image()
+	_expect(turned.get_data() != first.get_data(), "tarjeta 3D: orbitar cambia lo que se ve")
+	scroll.scroll_vertical = 1500
+	await _tree.process_frame
+	await _tree.process_frame
+	card.call(&"orbit", Vector2(30, 0))
+	for i in 4:
+		await _tree.process_frame
+	_expect(not card.call(&"is_on_screen") and viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED and card.get(&"_dirty"), "tarjeta 3D: fuera del área visible no se dibuja")
+	scroll.scroll_vertical = 0
+	for i in 4:
+		await _tree.process_frame
+	_expect(not card.get(&"_dirty"), "tarjeta 3D: al volver a verse dibuja lo pendiente")
+	card.call(&"enlarge")
+	await _tree.process_frame
+	var dialog: AcceptDialog = card.get(&"_dialog")
+	var container: Control = card.get(&"_container")
+	_expect(dialog != null and dialog.visible and dialog.is_ancestor_of(container), "tarjeta 3D: Ampliar la abre en una ventana")
+	if dialog:
+		dialog.hide()
+		await _tree.process_frame
+		_expect((card.get(&"_screen") as Node).is_ancestor_of(container) and card.get(&"_dialog") == null, "tarjeta 3D: al cerrar la ventana vuelve a la tarjeta")
+	scroll.queue_free()
+	for i in 3:
+		await _tree.process_frame
+	_expect(_tree.root.find_children("ModelCardWorld", "SubViewport", true, false).is_empty() and _tree.get_nodes_in_group(ModelCard.LIVE_GROUP).is_empty(), "tarjeta 3D: liberada, no queda su mundo")
 
 
 func _check_diagnostic_report() -> void:

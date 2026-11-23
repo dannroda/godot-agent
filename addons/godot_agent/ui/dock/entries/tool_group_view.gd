@@ -10,6 +10,7 @@ const DiffCard := preload("diff_card.gd")
 const TestRunner := preload("../../../core/test_runner.gd")
 
 const ImageViewer := preload("../../image_viewer.gd")
+const ModelCard := preload("model_card.gd")
 
 const STATUS_ICONS: Dictionary = {
 	ToolCall.STATUS_PENDING: "○",
@@ -256,6 +257,8 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 		child.queue_free()
 	if call.plan_card:
 		return  # ni el plan ni el «User has approved your plan…»: ya están en la tarjeta
+	if _model_card(call, extra):
+		return
 	for block: Variant in call.content:
 		if not block is Dictionary:
 			continue
@@ -311,6 +314,69 @@ func _refresh_extra(call: ToolCall, extra: VBoxContainer) -> void:
 		extra.add_child(links)
 	else:
 		links.free()
+
+
+## El resultado de preview_model (m11-89): la tarjeta 3D del modelo, con la primera vista de
+## miniatura, la línea del tamaño y las vistas plegadas. false si no es uno (o no salió bien).
+func _model_card(call: ToolCall, extra: VBoxContainer) -> bool:
+	if call.godot_tool_name() != "preview_model" or call.status != ToolCall.STATUS_COMPLETED:
+		return false
+	var args: Variant = call.godot_arguments()
+	var path := str(args.get("path", "")).strip_edges() if args is Dictionary else ""
+	if not path.begins_with("res://"):
+		return false
+	var texts := PackedStringArray()
+	var images: Array[Dictionary] = []
+	for block: Variant in call.content:
+		var inner: Variant = block.get("content") if block is Dictionary else null
+		if not inner is Dictionary:
+			continue
+		match str(inner.get("type", "")):
+			"text":
+				texts.append(str(inner.get("text", "")))
+			"image":
+				images.append(inner)
+	var thumbnail: Texture2D
+	if not images.is_empty():
+		var image := decode_image(str(images[0].get("data", "")), str(images[0].get("mimeType", "")))
+		if image:
+			thumbnail = ImageTexture.create_from_image(image)
+	var card := ModelCard.new()
+	card.setup(path, thumbnail, not call.from_history)
+	extra.add_child(card)
+	if not texts.is_empty():
+		extra.add_child(_muted_label(texts[0].strip_edges()))
+	if not images.is_empty():
+		extra.add_child(_views_toggle(images, texts.slice(1)))
+	return true
+
+
+## Las vistas de preview_model plegadas; se decodifican recién al abrirlas (m7-55).
+func _views_toggle(images: Array[Dictionary], labels: PackedStringArray) -> Control:
+	var column := VBoxContainer.new()
+	var toggle := Button.new()
+	toggle.flat = true
+	toggle.toggle_mode = true
+	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	for state: StringName in [&"normal", &"hover", &"pressed", &"hover_pressed", &"focus"]:
+		toggle.add_theme_stylebox_override(state, _empty_style())
+	var count := (I18n.t("%d view") if images.size() == 1 else I18n.t("%d views")) % images.size()
+	toggle.text = "▸ " + count
+	toggle.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	column.add_child(toggle)
+	var shots := VBoxContainer.new()
+	shots.visible = false
+	column.add_child(shots)
+	toggle.toggled.connect(func(open: bool) -> void:
+		if open and shots.get_child_count() == 0:
+			for i in images.size():
+				if i < labels.size():
+					shots.add_child(_muted_label(labels[i].strip_edges()))
+				shots.add_child(_image_preview(images[i]))
+		shots.visible = open
+		toggle.text = ("▾ " if open else "▸ ") + count
+	)
+	return column
 
 
 ## Las fallas de godot.run_tests (m16-26) con archivo y línea, para abrirlas desde el chat.

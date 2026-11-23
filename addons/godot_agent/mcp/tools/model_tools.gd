@@ -296,25 +296,17 @@ func _preview_model(args: Dictionary) -> Dictionary:
 	var plan := plan_preview(args)
 	if plan.has("error"):
 		return McpTool.error(str(plan.error))
-	var stage := _stage()
-	var model: Node3D
-	if plan.resource is PackedScene:
-		var instance := (plan.resource as PackedScene).instantiate()
-		if not instance is Node3D:
-			instance.free()
-			stage.free()
-			return McpTool.error("%s is not a 3D scene (its root is a %s)." % [plan.path, instance.get_class()])
-		model = instance
-	else:
-		var mesh_instance := MeshInstance3D.new()
-		mesh_instance.mesh = plan.resource
-		model = mesh_instance
-	stage.add_child(model)
+	var world := stage()
+	var model := model_node(plan.resource)
+	if model == null:
+		world.free()
+		return McpTool.error("%s is not a 3D scene (its root is not a Node3D)." % plan.path)
+	world.add_child(model)
 	var host := EditorInterface.get_base_control()
-	host.add_child(stage)
-	var box := _box(model)
+	host.add_child(world)
+	var box := model_box(model)
 	if box.size == Vector3.ZERO:
-		stage.queue_free()
+		world.queue_free()
 		return McpTool.error("%s has nothing to draw (no visible meshes)." % plan.path)
 	var planned := preview_views(box, int(plan.angles), float(plan.distance))
 	# Una cámara de referencia con near y far a la escala del modelo: CameraViews copia su lente.
@@ -324,9 +316,9 @@ func _preview_model(args: Dictionary) -> Dictionary:
 	lens.far = planned.far
 	for view: Dictionary in planned.views:
 		view["source"] = lens
-	var shots: Variant = await CameraViews.render(host, planned, 0, stage)
+	var shots: Variant = await CameraViews.render(host, planned, 0, world)
 	lens.free()
-	stage.queue_free()
+	world.queue_free()
 	if shots is Dictionary:
 		return McpTool.error(str(shots.error))
 	var content: Array = [{"type": "text", "text": "%s: size (%.3f, %.3f, %.3f) m, center (%.3f, %.3f, %.3f)." % [plan.path, box.size.x, box.size.y, box.size.z, box.get_center().x, box.get_center().y, box.get_center().z]}]
@@ -338,8 +330,8 @@ func _preview_model(args: Dictionary) -> Dictionary:
 
 ## El mundo propio de la vista previa: fondo gris, luz ambiente pareja, una luz principal y una de
 ## relleno. No se dibuja por su cuenta: CameraViews renderiza con cámaras en otro SubViewport que
-## comparte este mundo.
-static func _stage() -> SubViewport:
+## comparte este mundo. La tarjeta 3D del chat (m11-89) usa el mismo con su propia cámara.
+static func stage() -> SubViewport:
 	var stage := SubViewport.new()
 	stage.name = "PreviewModelStage"
 	stage.own_world_3d = true
@@ -366,8 +358,25 @@ static func _stage() -> SubViewport:
 	return stage
 
 
+## El nodo que se muestra de un recurso que pasó plan_preview: la escena instanciada o un
+## MeshInstance3D con el Mesh. null si la raíz de la escena no es 3D.
+static func model_node(resource: Resource) -> Node3D:
+	if resource is PackedScene:
+		var instance := (resource as PackedScene).instantiate()
+		if instance is Node3D:
+			return instance
+		if instance:
+			instance.free()
+		return null
+	if resource is Mesh:
+		var mesh_instance := MeshInstance3D.new()
+		mesh_instance.mesh = resource
+		return mesh_instance
+	return null
+
+
 ## La caja de las mallas visibles del modelo, ya en el árbol (en coordenadas del mundo propio).
-static func _box(model: Node3D) -> AABB:
+static func model_box(model: Node3D) -> AABB:
 	var box := AABB()
 	var first := true
 	var visuals: Array = model.find_children("*", "VisualInstance3D", true, false)
