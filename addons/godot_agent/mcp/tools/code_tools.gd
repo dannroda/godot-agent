@@ -15,6 +15,8 @@ const MAX_BYTES := 96 * 1024
 const MAX_CANDIDATES := 20
 ## Nombres de funciones que se listan cuando no se encuentra la pedida.
 const MAX_LISTED := 60
+## .gd que se leen como mucho al buscar un class_name en el disco.
+const MAX_CLASS_SCAN_FILES := 5000
 
 ## `(abs_path: String) -> Variant`: el texto sin guardar del Script Editor, o null. Lo pone el
 ## plugin (EditorSync.buffer_text); sin él se lee el disco.
@@ -148,35 +150,41 @@ static func resolve_script_path(script: String) -> String:
 
 
 ## El script de un class_name: el de la lista global y, si todavía no está (un script recién creado
-## que el editor no terminó de registrar), el que dice el filesystem del editor o, si tampoco, el
-## .gd que lo declara (buscado en el texto).
+## que el editor no terminó de registrar), el que dice el filesystem del editor o, si tampoco (en 4.8
+## el archivo puede no estar todavía ahí), el .gd del disco que lo declara.
 static func class_name_path(wanted: String) -> String:
 	for entry: Dictionary in ProjectSettings.get_global_class_list():
 		if str(entry.get("class", "")) == wanted:
 			return str(entry.get("path", ""))
-	if not Engine.is_editor_hint():
-		return ""
-	var root := EditorInterface.get_resource_filesystem().get_filesystem()
-	var found := _class_in(root, wanted)
-	return found if not found.is_empty() else _class_declared_in(root, wanted)
+	if Engine.is_editor_hint():
+		var found := _class_in(EditorInterface.get_resource_filesystem().get_filesystem(), wanted)
+		if not found.is_empty():
+			return found
+	var budget := [MAX_CLASS_SCAN_FILES]
+	return _class_declared_in("res://", wanted, budget)
 
 
-## El .gd que declara `class_name <wanted>`, leyendo los que lo nombran.
-static func _class_declared_in(dir: EditorFileSystemDirectory, wanted: String) -> String:
-	if dir == null:
-		return ""
-	for i in dir.get_file_count():
-		var path := dir.get_file_path(i)
-		if path.get_extension() != "gd":
+## El .gd de `folder` (y sus subcarpetas, sin .godot ni las que tienen .gdignore) que declara
+## `class_name <wanted>`, leyendo solo los que lo nombran. `budget` ([int]): archivos que quedan.
+static func _class_declared_in(folder: String, wanted: String, budget: Array) -> String:
+	for file: String in DirAccess.get_files_at(folder):
+		if file.get_extension() != "gd":
 			continue
+		budget[0] -= 1
+		if budget[0] < 0:
+			return ""
+		var path := folder.path_join(file)
 		var text := FileAccess.get_file_as_string(path)
 		if not text.contains(wanted):
 			continue
 		for decl: Dictionary in GdscriptOutline.parse(text):
 			if decl.kind == GdscriptOutline.KIND_CLASS_NAME and decl.name == wanted:
 				return path
-	for i in dir.get_subdir_count():
-		var found := _class_declared_in(dir.get_subdir(i), wanted)
+	for sub: String in DirAccess.get_directories_at(folder):
+		var child := folder.path_join(sub)
+		if sub.begins_with(".") or FileAccess.file_exists(child.path_join(".gdignore")):
+			continue
+		var found := _class_declared_in(child, wanted, budget)
 		if not found.is_empty():
 			return found
 	return ""

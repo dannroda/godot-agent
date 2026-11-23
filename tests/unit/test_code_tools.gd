@@ -178,6 +178,18 @@ func test_read_function_from_disk() -> void:
 	assert_true(text.contains("checks += 1"), "con el cuerpo")
 
 
+func test_read_function_by_class_name_on_disk() -> void:
+	# Fuera del editor y sin la lista global: el class_name se busca en el texto de los .gd del disco.
+	var dir := "res://tests/tmp/unit_code_tools"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
+	var file := FileAccess.open(dir + "/fresh.gd", FileAccess.WRITE)
+	file.store_string("extends Node\nclass_name UnitCodeToolsFresh\n\nfunc ping() -> int:\n\treturn 1\n")
+	file.close()
+	var text := _text(_call(_tools({}), {"script": "UnitCodeToolsFresh", "name": "ping"}))
+	assert_true(text.begins_with(dir + "/fresh.gd · func ping"), "class_name recién escrito · %s" % text)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir + "/fresh.gd"))
+
+
 func test_read_function_too_long() -> void:
 	var source := "func long() -> void:\n" + "\tpass\n".repeat(CodeTools.MAX_LINES + 50) + "\nfunc other() -> void:\n\tpass\n"
 	var tools := _tools({"res://tests/tmp/long.gd": source})
