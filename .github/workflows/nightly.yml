@@ -38,10 +38,12 @@ jobs:
           git config --global user.name "CI"
           git config --global user.email "ci@users.noreply.github.com"
 
+      # mesa-vulkan-drivers (lavapipe, Vulkan por software): bake-lightmaps corre con Vulkan, porque
+      # Compatibility no hornea lightmaps. Sin él, Godot no encuentra VK_KHR_surface y cae a OpenGL.
       - name: Install Xvfb
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-vulkan-drivers libvulkan1
 
       # Sigue aunque falle uno y termina con la tabla de PASS/FAIL y los segundos de cada check.
       - name: tests/suite.sh full

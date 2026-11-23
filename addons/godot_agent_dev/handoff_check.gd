@@ -8,6 +8,8 @@ const SessionModel := preload("res://addons/godot_agent/session/session_model.gd
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const UntrustedText := preload("res://addons/godot_agent/mcp/untrusted_text.gd")
 const Handoff := preload("res://addons/godot_agent/session/handoff.gd")
+const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings.gd")
+const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const MAIN_PLUGIN_SCRIPT := "res://addons/godot_agent/agent_plugin.gd"
 
 var failures: Array[String] = []
@@ -179,6 +181,17 @@ func _check_handoff(plugin: Object, dock: Control, shot_path: String) -> void:
 	await _tree.process_frame
 	await _tree.process_frame
 	var empty_dock: Control = tabs.call(&"dock", tabs.call(&"active_id"))
+	# El traspaso se ofrece con un agente elegido. Sin agentes guardados (el CI) la pestaña vacía es el
+	# primer arranque y no lo ofrece: se le da el de la pestaña de origen, en ajustes en memoria (no se
+	# tocan los EditorSettings de quien corre el check).
+	var source_profile: Object = dock.get(&"_controller").call(&"profile")
+	if empty_dock.call(&"selected_profile") == null and source_profile != null:
+		var store := HarnessSettings.new()
+		var saved: Array[AgentProfile] = [source_profile]
+		store.save_profiles(saved)
+		empty_dock.set(&"_settings", store)
+		empty_dock.call(&"use_agent", str(source_profile.get(&"id")), "")
+		empty_dock.call(&"_refresh_empty_state")
 	var offer: Control = empty_dock.find_child("HandoffOffer", true, false)
 	_expect(offer != null and offer.is_visible_in_tree(), "una sesión vacía ofrece el traspaso más reciente")
 	if items.size() > 0:
