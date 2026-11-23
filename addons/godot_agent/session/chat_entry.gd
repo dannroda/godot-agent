@@ -51,6 +51,9 @@ var attachments: Array[Dictionary] = []
 ## USER que mandó el harness, no el usuario (m12-44): el msgid en inglés de su etiqueta (ver
 ## HarnessPrompts). Vacío = lo escribió el usuario.
 var harness_label: String = ""
+## USER que no salió del chat (m12-61): lo que le llegó al agente por fuera, leído de su transcript.
+## `{kind: "peer"|"task", from, status, uuid}` (ver OutsideInput). Vacío = salió del chat.
+var incoming: Dictionary = {}
 ## Índice en el historial (.jsonl) del evento que creó la entrada, -1 si no viene de uno (m7-55): de
 ## ahí se vuelve a leer lo anterior a la primera entrada que queda en memoria.
 var event_index: int = -1

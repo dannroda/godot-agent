@@ -51,7 +51,7 @@ static func facts(record: Dictionary, cwd: String) -> Dictionary:
 		match str(event.get("type", "")):
 			"user":
 				current_agent = ""
-				if str(event.get("harness", "")).is_empty():
+				if str(event.get("harness", "")).is_empty() and not event.has("incoming"):
 					requests.append(_cut(str(event.get("text", "")).strip_edges(), REQUEST_CHARS))
 			"update":
 				var update: Variant = event.get("update")

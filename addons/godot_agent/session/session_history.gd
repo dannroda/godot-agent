@@ -108,6 +108,15 @@ func record_prompt(text: String, harness_label: String = "") -> void:
 	save()
 
 
+## Lo que le llegó al agente por fuera del chat (m12-61): un evento "user" con `incoming` (ver
+## ChatEntry.incoming). No cuenta como turno ni da el título.
+func record_incoming(text: String, incoming: Dictionary) -> void:
+	if not is_recording():
+		return
+	_append({"type": "user", "text": text, "incoming": incoming})
+	save()
+
+
 func record_update(update: Dictionary) -> void:
 	var kind := str(update.get("sessionUpdate", ""))
 	if not is_recording() or kind in SKIPPED_UPDATES:
@@ -371,7 +380,10 @@ static func replay(record: Dictionary, model: SessionModel) -> void:
 			continue
 		match str(event.get("type", "")):
 			"user":
-				model.add_user_message(str(event.get("text", "")), [], str(event.get("harness", "")))
+				if event.get("incoming") is Dictionary:
+					model.add_incoming(str(event.get("text", "")), event.incoming)
+				else:
+					model.add_user_message(str(event.get("text", "")), [], str(event.get("harness", "")))
 			"update":
 				if event.get("update") is Dictionary:
 					model.apply_update(event.update)

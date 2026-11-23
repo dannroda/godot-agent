@@ -16,6 +16,7 @@ const SessionModel := preload("session_model.gd")
 const ChatEntry := preload("chat_entry.gd")
 const ToolCall := preload("tool_call.gd")
 const TurnReport := preload("turn_report.gd")
+const OutsideInput := preload("outside_input.gd")
 
 const DIR := "res://.godot_agent/reports"
 const FILE_NAME := "session.md"
@@ -106,6 +107,11 @@ static func write(root: String, stamp: String, built: Dictionary) -> String:
 
 static func _entry_lines(model: SessionModel, entry: ChatEntry, lines: PackedStringArray, images: Array[Dictionary], skip_images: bool) -> void:
 	match entry.kind:
+		ChatEntry.EntryKind.USER when not entry.incoming.is_empty():
+			# Lo que le llegó al agente por fuera del chat (m12-61).
+			lines.append("## %s" % OutsideInput.caption(entry.incoming, false))
+			lines.append("")
+			lines.append(entry.text.strip_edges())
 		ChatEntry.EntryKind.USER:
 			lines.append("## You")
 			lines.append("")

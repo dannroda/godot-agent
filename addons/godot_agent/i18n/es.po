@@ -6627,3 +6627,21 @@ msgstr "Buscar declaraciones"
 
 msgid "Find references"
 msgstr "Buscar referencias"
+
+msgid "From %s"
+msgstr "De %s"
+
+msgid "From another session"
+msgstr "De otra sesión"
+
+msgid "Background task finished"
+msgstr "Terminó una tarea en segundo plano"
+
+msgid "Show message"
+msgstr "Ver mensaje"
+
+msgid "Hide message"
+msgstr "Ocultar mensaje"
+
+msgid "What the agent received outside this chat, read from its transcript"
+msgstr "Lo que le llegó al agente por fuera de este chat, leído de su transcript"
