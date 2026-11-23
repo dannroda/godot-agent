@@ -469,6 +469,7 @@ const GODOT_TOOL_NAMES := {
 	"get_errors": "Read errors",  # i18n
 	"get_output": "Read the Output",  # i18n
 	"find_in_files": "Search in files",  # i18n
+	"read_function": "Read function",  # i18n
 	"press_tool_button": "Press a tool button",  # i18n
 	"get_node": "Read node",  # i18n
 	"get_resource": "Read resource",  # i18n

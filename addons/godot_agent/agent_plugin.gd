@@ -63,6 +63,7 @@ const ProjectModes := preload("core/project_modes.gd")
 const ProjectToolLoader := preload("mcp/project_tool_loader.gd")
 const UntrustedText := preload("mcp/untrusted_text.gd")
 const ReadTools := preload("mcp/tools/read_tools.gd")
+const CodeTools := preload("mcp/tools/code_tools.gd")
 const MapTools := preload("mcp/tools/map_tools.gd")
 const DebugTools := preload("mcp/tools/debug_tools.gd")
 const ApiTools := preload("mcp/tools/api_tools.gd")
@@ -1140,6 +1141,10 @@ func _start_mcp_server() -> void:
 	_map_tools = MapTools.new()
 	_map_tools.editor_focus = _editor_focus
 	registry.register_provider(_map_tools)
+	# read_function (m11-83) en la lista corta: leer una función sin la shell ni el archivo entero.
+	var code_tools := CodeTools.new()
+	code_tools.unsaved_buffer = _sync.buffer_text
+	registry.register_provider(code_tools)
 	var api_tools := ApiTools.new()
 	api_tools.doc_cache_path = ApiTools.editor_doc_cache_path()
 	registry.register_provider(api_tools, true)

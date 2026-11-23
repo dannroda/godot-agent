@@ -6545,3 +6545,9 @@ msgstr "Lo manda ya: primero corta el turno actual del agente"
 
 msgid "Sends it now, ahead of the others"
 msgstr "Lo manda ya, antes que los demás"
+
+msgid "Reads one GDScript function by name or line, also unsaved"
+msgstr "Lee una función de GDScript por nombre o por línea, también sin guardar"
+
+msgid "Read function"
+msgstr "Leer función"

@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Read one function.** A new `read_function` tool returns one GDScript function with its line numbers, its `##` comments and annotations: by name (`Inner.jump` for an inner class) or by a line inside it, such as a frame of `game_stack`, in a `res://` script or a `class_name`. If the script has unsaved changes in the Script Editor it reads those. The agent no longer needs to read the whole file or use `sed` in the shell to look at one function.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

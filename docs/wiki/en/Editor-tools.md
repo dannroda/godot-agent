@@ -17,6 +17,7 @@ The first column groups the tools by function. Each tool's permission group (the
 |---|---|---|
 | Read | `project_info` | Godot version, editor binary, project name, main scene, autoloads, input actions, plugins, renderer. |
 | | `list_files` | Project files with their resource type; glob filter. |
+| | `read_function` | One GDScript function with its line numbers: signature, the `##` comments and annotations above it and its body. By name (`jump`, or `Inner.jump` in an inner class) or by a line inside it (a frame of `game_stack`, an error), in a `res://` script or a `class_name`. If the script has unsaved changes in the Script Editor it reads that text, and says so. Functions longer than 300 lines come in parts (`from`). GDScript only. |
 | | `find_in_files` | Searches the text of the project's files like the editor's Find in Files (the files the editor knows, with Godot's text extensions, `.tscn` and `.tres` included, plus the ones the project adds), as text or a regular expression, in a folder or only some extensions. Returns path:line: text. |
 | | `scene_tree` | A scene's tree: types, scripts, instanced scenes, groups and non-default properties. Without `scene`, the open scene with its unsaved changes. |
 | | `project_map` | The files most related to `focus` (paths, class_names, autoload or file names; default: the scene and script open in the editor), ranked, with each script's signals, public functions, exports and enums by line, each scene's nodes and saved connections, and where each script is used. Fits in `max_tokens` (2000 by default). |

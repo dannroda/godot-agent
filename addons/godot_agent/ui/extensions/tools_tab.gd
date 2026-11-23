@@ -15,6 +15,7 @@ const MachineApproval := preload("../../core/machine_approval.gd")
 ## Nombre del proveedor (ToolRegistry.category_of) → título del grupo, en el orden en que se muestran.
 const CATEGORY_LABELS: Dictionary = {
 	"read": "Read the project",  # i18n
+	"code": "Code",  # i18n
 	"scene_edit": "Edit scenes",  # i18n
 	"file": "Files",  # i18n
 	"run": "Run the game",  # i18n
