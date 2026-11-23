@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
 ### Added
 
 - **Messages go into the running turn.** With Claude Code, what you send while the agent works goes into the turn it is working on, without stopping it, as in the Claude Code extensions: the agent reads it at its next step, and it shows in the chat right away. Agents without it (and `/` commands and plan requests) still use the queue. A message written just as a turn starts waits until the turn reaches the agent and goes into it.
