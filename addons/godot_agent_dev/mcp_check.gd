@@ -48,11 +48,11 @@ func run(tree: SceneTree) -> PackedStringArray:
 	for expected: String in ["project_info", "list_files", "scene_tree", "get_node", "editor_state", "get_errors", "validate_scripts", "capture_editor_viewport", "add_nodes", "run_scene", "project_map", "methods", "run", "restart_editor"]:
 		_expect(expected in names, "tools/list incluye %s" % expected)
 	# Compacto por defecto (D56): las extendidas se descubren con methods y se llaman con run.
-	for extended: String in ["class_info", "search_api", "tilemap_set_cells", "animation_create", "create_resource", "move_file", "set_input_action", "game_get", "build_extension", "test_extension", "install_extension"]:
+	for extended: String in ["class_info", "search_api", "tilemap_set_cells", "animation_create", "create_resource", "move_file", "dependencies", "set_input_action", "game_get", "build_extension", "test_extension", "install_extension"]:
 		_expect(not extended in names, "tools/list compacto no trae %s" % extended)
 	print("[mcp-check] tools/list: %d tools, %d chars" % [names.size(), JSON.stringify(list.get("result", {}).get("tools", [])).length()])
 	var methods := await _call_text("methods", {})
-	_expect(methods.contains("- class_info(") and methods.contains("- tilemap_set_cells(") and methods.contains("- game_wait(") and methods.contains("- build_extension(") and methods.contains("- test_extension(") and methods.contains("- install_extension("), "methods lista las extendidas")
+	_expect(methods.contains("- class_info(") and methods.contains("- tilemap_set_cells(") and methods.contains("- game_wait(") and methods.contains("- build_extension(") and methods.contains("- test_extension(") and methods.contains("- install_extension(") and methods.contains("- dependencies("), "methods lista las extendidas")
 	# Pide permiso como project (no se llama: nadie contesta la tarjeta acá); el caso sin proyecto de
 	# prueba aparte está en test_native_install.
 	var install := await _call_text("methods", {"method": "install_extension"})
@@ -83,6 +83,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	_expect(_text(missing).contains("children of the root: <untrusted nonce=\""), "get_node inexistente: los nombres en sobre (revisión next2 #18) · " + _text(missing))
 	var state := await _call_text("editor_state", {})
 	_expect(state.contains("main_fixture.tscn") and state.contains("Player (CharacterBody2D)"), "editor_state: escena y selección")
+	_expect(state.contains("\nInspector: "), "editor_state: la línea del Inspector (m11-77) · " + state)
 	_expect(state.begins_with("<untrusted nonce=\""), "editor_state en sobre (revisión next2 #18) · " + state.left(80))
 	# m11-26: sin focus rankea hacia lo abierto en el editor; el índice se arma en un worker.
 	var map_started := Time.get_ticks_msec()

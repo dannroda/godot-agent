@@ -17,11 +17,12 @@ The first column groups the tools by function. Each tool's permission group (the
 |---|---|---|
 | Read | `project_info` | Godot version, editor binary, project name, main scene, autoloads, input actions, plugins, renderer. |
 | | `list_files` | Project files with their resource type; glob filter. |
+| | `dependencies` | What a file uses (`forward`: what its scene or resource loads, and a script's or shader's `res://`, `uid://` and relative `preload`/`load`/`extends` paths) or who uses it (`reverse`: the files that name it by path, uid or relative path, the same scan `delete_file` uses; also for a folder), 1-3 levels deep, as a tree with line numbers. Through `godot.methods` with the compact tool list. |
 | | `find_in_files` | Searches the text of the project's files like the editor's Find in Files (the files the editor knows, with Godot's text extensions, `.tscn` and `.tres` included, plus the ones the project adds), as text or a regular expression, in a folder or only some extensions. Returns path:line: text. |
 | | `scene_tree` | A scene's tree: types, scripts, instanced scenes, groups and non-default properties. Without `scene`, the open scene with its unsaved changes. |
 | | `project_map` | The files most related to `focus` (paths, class_names, autoload or file names; default: the scene and script open in the editor), ranked, with each script's signals, public functions, exports and enums by line, each scene's nodes and saved connections, and where each script is used. Fits in `max_tokens` (2000 by default). |
 | | `get_node` | One node in detail: non-default properties, script, groups, saved signal connections and children. |
-| | `editor_state` | Current and open scenes, selection, open script with the caret line, and whether the game is running. |
+| | `editor_state` | Current and open scenes, selection, what the Inspector shows (a node, a resource file, or a sub-resource with the node or resource and property it comes from, such as a mesh's material or a StyleBox in a theme), open script with the caret line, and whether the game is running. |
 | | `class_info` | The API of a class in the open editor's Godot version: inheritance, method signatures, properties with defaults, signals, constants, with descriptions. Engine classes, built-in types (`Vector2`…), `@GlobalScope` and project `class_name`s. `member` gives one member's full docs. |
 | | `project_settings` | Settings under a prefix with value and default; without a prefix, the ones that differ from the default. |
 | | `search_api` | Finds classes and members by name or capability ("raycast", "move toward"). |

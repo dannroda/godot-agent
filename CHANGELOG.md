@@ -4,6 +4,15 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **The agent sees what the Inspector shows.** `editor_state` now says what is open in the Inspector: a node of the scene, a resource file, or a sub-resource (a mesh's material, a StyleBox inside a theme) with the node or resource and the property it comes from. "Change this one I'm looking at" now works.
+- **Dependencies of a file.** A new `dependencies` tool lists what a file uses (`forward`) or which files use it (`reverse`), 1 to 3 levels deep: by `res://` path, by uid, and by a script's relative `preload`/`load`/`extends` paths. Agents no longer `grep` the project before changing or deleting a file.
+
+### Fixed
+
+- **`delete_file` missed relative paths.** It refused to delete a file named by `res://` path or uid, but deleted one that a script loaded with a relative path (`preload("bullet.tscn")`), breaking that script.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

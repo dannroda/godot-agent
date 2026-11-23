@@ -1,7 +1,7 @@
 @tool
 extends RefCounted
-## Tools de lectura (grupo read, spec §6): project_info, list_files, scene_tree, get_node y
-## editor_state. Devuelven texto compacto pensado para el modelo, no JSON crudo.
+## Tools de lectura (grupo read, spec §6): project_info, list_files, find_in_files, scene_tree,
+## get_node, editor_state y dependencies. Devuelven texto compacto pensado para el modelo, no JSON crudo.
 
 const McpTool := preload("../mcp_tool.gd")
 const UntrustedText := preload("../untrusted_text.gd")
@@ -10,6 +10,7 @@ const SceneEditTools := preload("scene_edit_tools.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const NativeInstall := preload("../../core/native_install.gd")
 const SupervisorState := preload("../../supervisor/supervisor_state.gd")
+const FileTools := preload("file_tools.gd")
 
 const LIST_FILES_LIMIT := 2000
 ## find_in_files (m11-74): como «Buscar en archivos» del editor.
@@ -20,6 +21,17 @@ const FIND_LINE_CHARS := 240
 const FIND_MAX_FILE_BYTES := 4 * 1024 * 1024
 const SCENE_TREE_NODE_LIMIT := 600
 const DEFAULT_DEPTH := 12
+## dependencies (m11-78): hasta 3 niveles, con tope de archivos y de tiempo (el reverso lee el texto de
+## todo el proyecto, una vez).
+const DEPENDENCY_MAX_DEPTH := 3
+const DEPENDENCY_LIMIT := 200
+const DEPENDENCY_TIMEOUT_MS := 5000
+## Extensiones de las que get_dependencies no da nada útil: se leen sus rutas del texto.
+const NAMED_PATH_EXTENSIONS: PackedStringArray = ["gd", "gdshader", "gdshaderinc", "cs"]
+## editor_state (m11-77): de dónde sale un sub-recurso del Inspector, sin recorrer de más.
+const OWNER_SEARCH_DEPTH := 3
+const OWNER_SEARCH_NODES := 2000
+const OWNER_SEARCH_OBJECTS := 5000
 
 ## Carpeta de estado del supervisor (donde install_extension deja lo preparado); "" = la del
 ## proyecto abierto. Los tests la cambian.
@@ -62,8 +74,15 @@ func tools() -> Array:
 			}, ["node_path"], _get_node), McpTool.ENVELOPE_ALL),
 		# Nombres de nodos y rutas del proyecto, como scene_tree: en un sobre (m11-45).
 		McpTool.enveloped(McpTool.create("editor_state", read,
-			"Editor state: current scene, open scenes, selection, open script with the caret line, and whether a game is running.",
+			"Editor state: current scene, open scenes, selection, what the Inspector shows (a node, a resource file, or a sub-resource and the property of the node or resource it comes from), open script with the caret line, and whether a game is running.",
 			{}, [], _editor_state), McpTool.ENVELOPE_ALL),
+		McpTool.create("dependencies", read,
+			"What a project file uses (forward: the scenes, scripts, textures… it loads, including a script's preload/load paths) or who uses it (reverse: the files that name it by res:// path, uid or a relative preload/load/extends, like the check delete_file does), up to `depth` levels. Use it instead of grep before changing or deleting a file.",
+			{
+				"path": {"type": "string", "description": "res:// file (reverse also accepts a folder)"},
+				"direction": {"type": "string", "enum": ["forward", "reverse"], "description": "forward = what it uses (default), reverse = who uses it"},
+				"depth": {"type": "integer", "description": "Levels, 1-%d (default 1)" % DEPENDENCY_MAX_DEPTH},
+			}, ["path"], _dependencies),
 	]
 
 
@@ -302,6 +321,23 @@ func _editor_state(_args: Dictionary) -> String:
 			if node == edited or edited.is_ancestor_of(node):
 				selected.append("%s (%s)" % [SceneAccess.relative_path(edited, node), node.get_class()])
 	lines.append("Selection: %s" % (", ".join(selected) if not selected.is_empty() else "(nothing)"))
+	var inspector := EditorInterface.get_inspector()
+	var inspected := inspector.get_edited_object() if inspector else null
+	var host: Resource = null
+	var nodes: Array[Node] = []
+	# Solo un sub-recurso o un recurso sin archivo busca de dónde sale: la selección primero.
+	if inspected is Resource and ((inspected as Resource).resource_path.is_empty() or (inspected as Resource).resource_path.contains("::")):
+		var host_path := (inspected as Resource).resource_path.get_slice("::", 0)
+		if not host_path.is_empty() and ResourceLoader.has_cached(host_path):
+			host = ResourceLoader.get_cached_ref(host_path)
+		if edited:
+			var listed := {}
+			for node: Node in EditorInterface.get_selection().get_selected_nodes():
+				if node == edited or edited.is_ancestor_of(node):
+					nodes.append(node)
+					listed[node] = true
+			_scene_nodes(edited, edited, nodes, listed)
+	lines.append(inspector_line(inspected, edited, nodes, host))
 	var script_editor := EditorInterface.get_script_editor()
 	var script := script_editor.get_current_script() if script_editor else null
 	if script:
@@ -327,3 +363,216 @@ static func _groups(node: Node) -> PackedStringArray:
 		if not String(group).begins_with("_"):
 			result.append(String(group))
 	return result
+
+
+func _scene_nodes(root: Node, node: Node, out: Array[Node], listed: Dictionary) -> void:
+	if out.size() >= OWNER_SEARCH_NODES:
+		return
+	if not listed.has(node):
+		out.append(node)
+		listed[node] = true
+	for child: Node in SceneAccess.scene_children(root, node):
+		_scene_nodes(root, child, out, listed)
+
+
+## La línea «Inspector:» de editor_state (m11-77): qué objeto muestra el Inspector. Un nodo, por su
+## ruta en la escena; un recurso con archivo, por su ruta; un sub-recurso (un StyleBox de un tema, el
+## material de un mesh) o un recurso sin guardar, con el recurso o nodo y la propiedad de donde sale,
+## buscando en `nodes` (la selección primero) y en `host`, el recurso que lo guarda. Sin valores: para
+## eso están get_node y get_resource. Idea de Orca (editor_context.gd, inspector_target; MIT).
+static func inspector_line(target: Object, scene_root: Node, nodes: Array[Node], host: Resource) -> String:
+	if not is_instance_valid(target):
+		return "Inspector: (nothing)"
+	var type := _type_name(target)
+	if target.get_class() == "MultiNodeEdit":
+		return "Inspector: several nodes at once (the Selection)"
+	if target is Node:
+		var node := target as Node
+		if scene_root and (node == scene_root or scene_root.is_ancestor_of(node)):
+			return "Inspector: node %s (%s)" % [SceneAccess.relative_path(scene_root, node), type]
+		return "Inspector: a %s node outside the current scene" % type
+	if not target is Resource:
+		return "Inspector: %s" % type
+	var resource := target as Resource
+	var path := resource.resource_path
+	if not path.is_empty() and not path.contains("::"):
+		return "Inspector: resource %s (%s)" % [path, type]
+	var line := "Inspector: %s, %s" % [type, "a sub-resource saved inside %s" % path.get_slice("::", 0) if not path.is_empty() else "not saved to its own file"]
+	var owner := resource_owner(resource, scene_root, nodes, host)
+	if not owner.is_empty():
+		line += " · comes from %s" % owner
+	return line
+
+
+## Dónde está `target`: «node Player/Mesh, property mesh → material» o «res://ui/theme.tres, property
+## Button/styles/normal». Busca hasta OWNER_SEARCH_DEPTH recursos de profundidad en las propiedades
+## guardadas o del Inspector; "" si no aparece.
+static func resource_owner(target: Resource, scene_root: Node, nodes: Array[Node], host: Resource) -> String:
+	var visited := {}
+	if host and host != target:
+		var chain := _find_in_properties(host, target, OWNER_SEARCH_DEPTH, visited)
+		if not chain.is_empty():
+			return "%s, property %s" % [host.resource_path, " → ".join(chain)]
+	for node: Node in nodes:
+		if not is_instance_valid(node):
+			continue
+		var chain := _find_in_properties(node, target, OWNER_SEARCH_DEPTH, visited)
+		if not chain.is_empty():
+			var where := SceneAccess.relative_path(scene_root, node) if scene_root and (node == scene_root or scene_root.is_ancestor_of(node)) else String(node.name)
+			return "node %s (%s), property %s" % [where, node.get_class(), " → ".join(chain)]
+	return ""
+
+
+## Las propiedades de `object` (y de sus recursos, hasta `depth`) que llevan a `target`; [] si ninguna.
+static func _find_in_properties(object: Object, target: Resource, depth: int, visited: Dictionary) -> PackedStringArray:
+	if depth <= 0 or visited.size() >= OWNER_SEARCH_OBJECTS or visited.has(object.get_instance_id()):
+		return PackedStringArray()
+	visited[object.get_instance_id()] = true
+	var nested: Array = []
+	for property: Dictionary in object.get_property_list():
+		if property.type != TYPE_OBJECT or not (property.usage & (PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR)):
+			continue
+		var value: Variant = object.get(property.name)
+		if not value is Resource:
+			continue
+		if value == target:
+			return PackedStringArray([property.name])
+		nested.append([property.name, value])
+	for pair: Array in nested:
+		var chain := _find_in_properties(pair[1], target, depth - 1, visited)
+		if not chain.is_empty():
+			chain.insert(0, pair[0])
+			return chain
+	return PackedStringArray()
+
+
+## Tipo para el modelo: el class_name del script si tiene, si no la clase nativa.
+static func _type_name(object: Object) -> String:
+	var script := object.get_script() as Script
+	var global := String(script.get_global_name()) if script else ""
+	return "%s (%s)" % [global, object.get_class()] if not global.is_empty() else object.get_class()
+
+
+func _dependencies(args: Dictionary) -> Dictionary:
+	var path := McpTool.str_arg(args, "path").strip_edges().simplify_path().trim_suffix("/")
+	if not path.begins_with("res://") or path == "res:":
+		return McpTool.error("`path` must be a res:// file of the project (got '%s')." % path)
+	var direction := McpTool.str_arg(args, "direction", "forward")
+	if not direction in ["forward", "reverse"]:
+		return McpTool.error("`direction` is forward (what it uses) or reverse (who uses it), not '%s'." % direction)
+	var is_dir := DirAccess.dir_exists_absolute(path)
+	if not is_dir and not FileAccess.file_exists(path):
+		return McpTool.error("%s does not exist." % path)
+	if is_dir and direction == "forward":
+		return McpTool.error("forward needs a file: %s is a folder (reverse accepts folders)." % path)
+	var depth := clampi(McpTool.int_arg(args, "depth", 1), 1, DEPENDENCY_MAX_DEPTH)
+	return McpTool.text(dependency_report(path, direction == "reverse", depth))
+
+
+## El informe de dependencies: un árbol desde `path`, hasta `depth` niveles, cada archivo una vez (si
+## vuelve a aparecer, «(listed above)» y no se abre de nuevo). Sin el editor: los tests lo llaman.
+static func dependency_report(path: String, reverse: bool, depth: int) -> String:
+	var graph := dependency_graph(path, reverse, depth)
+	var children: Dictionary = graph.children
+	var lines: PackedStringArray = []
+	var shown := {path: true}
+	_dependency_lines(path, children, 0, shown, lines)
+	var count := shown.size() - 1
+	var header := "%s · %s, depth %d: %d file%s" % [path, "who uses it (reverse)" if reverse else "what it uses (forward)", depth, count, "" if count == 1 else "s"]
+	if count == 0:
+		header += ". " + ("Nothing in the project names it." if reverse else "It uses no other file.")
+	if not graph.stopped.is_empty():
+		header += " (stopped early: %s)" % graph.stopped
+	return header + ("\n" + "\n".join(lines) if not lines.is_empty() else "")
+
+
+static func _dependency_lines(path: String, children: Dictionary, level: int, shown: Dictionary, lines: PackedStringArray) -> void:
+	for child: Dictionary in children.get(path, []):
+		var child_path: String = child.path
+		var text := "  ".repeat(level) + "- " + child_path
+		if not child.lines.is_empty():
+			text += " (line %s)" % ", ".join(child.lines)
+		if not child_path.begins_with("res://") or not (FileAccess.file_exists(child_path) or DirAccess.dir_exists_absolute(child_path)):
+			text += " (missing)"
+		elif shown.has(child_path):
+			text += " (listed above)"
+			lines.append(text)
+			continue
+		shown[child_path] = true
+		lines.append(text)
+		_dependency_lines(child_path, children, level + 1, shown, lines)
+
+
+## {children: {path: [{path, lines}]}, stopped: ""}: lo que usa (o quién usa) cada archivo, a lo ancho,
+## hasta `depth` niveles, DEPENDENCY_LIMIT archivos o DEPENDENCY_TIMEOUT_MS.
+static func dependency_graph(path: String, reverse: bool, depth: int) -> Dictionary:
+	var children := {}
+	var seen := {path: true}
+	var frontier: PackedStringArray = [path]
+	var cache := {}
+	var deadline := Time.get_ticks_msec() + DEPENDENCY_TIMEOUT_MS
+	var stopped := ""
+	for level in depth:
+		var next: PackedStringArray = []
+		for current: String in frontier:
+			if seen.size() > DEPENDENCY_LIMIT:
+				stopped = "more than %d files" % DEPENDENCY_LIMIT
+				break
+			if Time.get_ticks_msec() > deadline:
+				stopped = "took more than %d s" % (DEPENDENCY_TIMEOUT_MS / 1000)
+				break
+			var found: Array[Dictionary] = _used_by(current, cache) if reverse else _uses(current, cache)
+			children[current] = found
+			for child: Dictionary in found:
+				if not seen.has(child.path) and FileAccess.file_exists(child.path):
+					seen[child.path] = true
+					next.append(child.path)
+		if not stopped.is_empty():
+			break
+		frontier = next
+	return {"children": children, "stopped": stopped}
+
+
+## Quién nombra `path`: el mismo escaneo con el que delete_file se niega (FileTools.references_to).
+static func _used_by(path: String, cache: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var users := FileTools.references_to(path, cache)
+	var sorted: Array = users.keys()
+	sorted.sort()
+	for user: String in sorted:
+		result.append({"path": user, "lines": users[user]})
+	return result
+
+
+## Lo que usa `path`: ResourceLoader.get_dependencies (escenas, recursos) y, en scripts y shaders,
+## las rutas de su texto (a un .gd get_dependencies le da []).
+static func _uses(path: String, cache: Dictionary) -> Array[Dictionary]:
+	var paths: PackedStringArray = []
+	for descriptor: String in ResourceLoader.get_dependencies(path):
+		var dependency := _dependency_path(descriptor)
+		if not dependency.is_empty() and dependency != path and not dependency in paths:
+			paths.append(dependency)
+	if path.get_extension() in NAMED_PATH_EXTENSIONS:
+		for named: String in FileTools.named_paths(path, FileTools._cached_text(cache, path)):
+			if not named in paths:
+				paths.append(named)
+	paths.sort()
+	var result: Array[Dictionary] = []
+	for dependency: String in paths:
+		result.append({"path": dependency, "lines": PackedStringArray()})
+	return result
+
+
+## «uid://…::Tipo::res://…» de get_dependencies → la ruta: por el uid si se resuelve (la ruta escrita
+## puede ser vieja), si no la res://. Como _normalize_dependency_descriptor de Orca
+## (dependency_inspector.gd, MIT).
+static func _dependency_path(descriptor: String) -> String:
+	var fallback := ""
+	for part: String in descriptor.split("::", false):
+		if part.begins_with("uid://"):
+			var id := ResourceUID.text_to_id(part)
+			if id != ResourceUID.INVALID_ID and ResourceUID.has_id(id):
+				return ResourceUID.get_id_path(id)
+		elif part.begins_with("res://") and fallback.is_empty():
+			fallback = part
+	return fallback

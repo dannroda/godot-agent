@@ -4492,8 +4492,8 @@ msgstr "El árbol de nodos de una escena con tipos, scripts y propiedades cambia
 msgid "Everything about one node: properties, script, groups, connections"
 msgstr "Todo sobre un nodo: propiedades, script, grupos, conexiones"
 
-msgid "What is open in the editor: scene, scripts, selection, running game"
-msgstr "Qué hay abierto en el editor: escena, scripts, selección, juego corriendo"
+msgid "What is open in the editor: scene, scripts, selection, Inspector, running game"
+msgstr "Qué hay abierto en el editor: escena, scripts, selección, Inspector, juego corriendo"
 
 msgid "A ranked map of the project around a topic, to get oriented"
 msgstr "Un mapa del proyecto ordenado alrededor de un tema, para orientarse"
@@ -6545,3 +6545,9 @@ msgstr "Lo manda ya: primero corta el turno actual del agente"
 
 msgid "Sends it now, ahead of the others"
 msgstr "Lo manda ya, antes que los demás"
+
+msgid "What a file uses, or which files use it"
+msgstr "Qué usa un archivo, o qué archivos lo usan"
+
+msgid "Read dependencies"
+msgstr "Leer dependencias"

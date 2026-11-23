@@ -19,6 +19,10 @@ const TEXT_EXTENSIONS: PackedStringArray = ["tscn", "tres", "gd", "gdshader", "g
 const SIDECARS: PackedStringArray = ["uid", "import"]
 const REFERENCE_LIST_LIMIT := 20
 const PROTECTED: PackedStringArray = ProtectedPaths.PROTECTED
+## Ruta relativa de un script: `preload("…")`, `load("…")`, `extends "…"`.
+const RELATIVE_PATTERN := "(?:\\b(?:preload|load|ResourceLoader\\.load|ResourceLoader\\.exists)\\s*\\(\\s*|\\bextends\\s+)[\"']([^\"'\\n]+)[\"']"
+## Ruta de recurso entre comillas: "res://…" o "uid://…".
+const NAMED_PATTERN := "[\"']((?:res|uid)://[^\"'\\n]+)[\"']"
 
 ## Callable(abs_path: String): un archivo del proyecto cambió en disco (para que el editor lo tome).
 var on_file_written: Callable
@@ -77,7 +81,7 @@ func _move_file(args: Dictionary) -> Dictionary:
 			uids[path] = id
 	var replacements := {from + "/": to + "/"} if is_dir else {from: to}
 	# Sin saltear nada: los archivos de una carpeta movida que se nombran entre sí también cambian.
-	var rewrites := _referencing_files(replacements, [], [])
+	var rewrites := referencing_files(replacements, [], [], {})
 	# Rutas relativas de los scripts (preload("enemy.tscn")): se calculan con las carpetas de antes.
 	var relative := relative_rewrites(project_text_files(), from, to, is_dir)
 	var warnings := _unsaved_warnings(rewrites.keys() + relative.keys())
@@ -167,13 +171,7 @@ func _delete_file(args: Dictionary) -> Dictionary:
 	if not open.is_empty():
 		return McpTool.error("%s is open in the editor (%s): close it first." % [path, ", ".join(open)])
 	var deleted := _resource_files(path, is_dir)
-	var uid_texts: PackedStringArray = []
-	for file: String in deleted:
-		var id := ResourceLoader.get_resource_uid(file)
-		if id != ResourceUID.INVALID_ID:
-			uid_texts.append(ResourceUID.id_to_text(id))
-	var replacements := {path + "/": ""} if is_dir else {path: ""}
-	var users := _referencing_files(replacements, uid_texts, [path] if is_dir else PackedStringArray([path]))
+	var users := references_to(path, {})
 	if not users.is_empty():
 		var lines: PackedStringArray = ["Not deleted: %d file(s) still reference %s and would break:" % [users.size(), path]]
 		for user: String in users.keys().slice(0, REFERENCE_LIST_LIMIT):
@@ -199,32 +197,115 @@ func _delete_file(args: Dictionary) -> Dictionary:
 
 # --- referencias ---------------------------------------------------------------------------------
 
+## Quién nombra `path` (un archivo o una carpeta): los archivos de texto del proyecto con su ruta
+## res:// o el uid de alguno de sus archivos, y los scripts con una ruta relativa (preload, load,
+## extends) que apunta ahí. Lo que está adentro de `path` (y sus .uid/.import) no cuenta. delete_file
+## se niega con esto y la tool dependencies (m11-78) lo muestra. path -> [líneas]. `cache`: ver
+## referencing_files.
+static func references_to(path: String, cache: Dictionary) -> Dictionary:
+	var is_dir := DirAccess.dir_exists_absolute(path)
+	var uid_texts: PackedStringArray = []
+	for file: String in _resource_files(path, is_dir):
+		var id := ResourceLoader.get_resource_uid(file)
+		if id != ResourceUID.INVALID_ID:
+			uid_texts.append(ResourceUID.id_to_text(id))
+	var skip := PackedStringArray([path])
+	var result := referencing_files({path + "/": ""} if is_dir else {path: ""}, uid_texts, skip, cache)
+	for script: String in _cached_files(cache):
+		if script.get_extension() != "gd" or _skipped(script, skip):
+			continue
+		for found: Dictionary in relative_references(script, _cached_text(cache, script)):
+			var target: String = found.target
+			if target != path and not (is_dir and target.begins_with(path + "/")):
+				continue
+			var lines: PackedStringArray = result.get(script, PackedStringArray())
+			if not str(found.line) in lines:
+				lines.append(str(found.line))
+			result[script] = lines
+	return result
+
+
 ## Archivos de texto del proyecto que nombran alguna clave de `replacements` (ruta exacta, o prefijo
 ## si termina en "/") o alguno de `uid_texts`. Saltea lo que está bajo `skip`. path -> [líneas].
-func _referencing_files(replacements: Dictionary, uid_texts: PackedStringArray, skip: PackedStringArray) -> Dictionary:
+## `cache` guarda la lista de archivos y sus textos entre llamadas ({} para no guardar nada afuera):
+## dependencies pregunta por varios archivos seguidos.
+static func referencing_files(replacements: Dictionary, uid_texts: PackedStringArray, skip: PackedStringArray, cache: Dictionary) -> Dictionary:
 	var patterns: Array[RegEx] = []
 	for old: String in replacements:
 		patterns.append(_path_regex(old))
 	for uid_text: String in uid_texts:
 		patterns.append(RegEx.create_from_string(_escape(uid_text) + "(?![a-z0-9])"))
 	var result := {}
-	for file: String in project_text_files():
-		var skipped := false
-		for prefix: String in skip:
-			if file == prefix or file.begins_with(prefix + "/") or file.begins_with(prefix + "."):
-				skipped = true
-		if skipped:
+	for file: String in _cached_files(cache):
+		if _skipped(file, skip):
 			continue
-		var text := FileAccess.get_file_as_string(file)
+		var text := _cached_text(cache, file)
 		var lines: PackedStringArray = []
 		for regex: RegEx in patterns:
 			for found: RegExMatch in regex.search_all(text):
-				var line := str(text.count("\n", 0, found.get_start()) + 1)
+				var line := str(line_at(text, found.get_start()))
 				if not line in lines:
 					lines.append(line)
 		if not lines.is_empty():
 			result[file] = lines
 	return result
+
+
+## Lo que nombra un script, un shader o un C#: las rutas res:// y uid:// entre comillas (sin el
+## `::sub-recurso`, los uid ya resueltos) y, en un script, sus rutas relativas. Para lo que
+## ResourceLoader.get_dependencies no ve: a un .gd le da [] aunque tenga preloads.
+static func named_paths(file: String, text: String) -> PackedStringArray:
+	var result: PackedStringArray = []
+	for found: RegExMatch in RegEx.create_from_string(NAMED_PATTERN).search_all(text):
+		var named := found.get_string(1).get_slice("::", 0)
+		if named.begins_with("uid://"):
+			var id := ResourceUID.text_to_id(named)
+			named = ResourceUID.get_id_path(id) if id != ResourceUID.INVALID_ID and ResourceUID.has_id(id) else ""
+		if not named.is_empty() and named != file and not named in result:
+			result.append(named)
+	if file.get_extension() == "gd":
+		for found: Dictionary in relative_references(file, text):
+			if found.target != file and not found.target in result:
+				result.append(found.target)
+	return result
+
+
+## Las rutas relativas de un script (preload, load, ResourceLoader.load/exists, extends "…"): una
+## entrada por aparición, {literal, target (res://), line}.
+static func relative_references(script: String, text: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for found: RegExMatch in RegEx.create_from_string(RELATIVE_PATTERN).search_all(text):
+		var literal := found.get_string(1)
+		if literal.begins_with("res://") or literal.begins_with("uid://") or literal.begins_with("/"):
+			continue
+		result.append({"literal": literal, "target": script.get_base_dir().path_join(literal).simplify_path(), "line": line_at(text, found.get_start(1))})
+	return result
+
+
+## Línea (desde 1) de una posición del texto. String.count con `to` 0 cuenta hasta el final: la
+## posición 0 va aparte.
+static func line_at(text: String, offset: int) -> int:
+	return 1 if offset <= 0 else text.count("\n", 0, offset) + 1
+
+
+static func _skipped(file: String, skip: PackedStringArray) -> bool:
+	for prefix: String in skip:
+		if file == prefix or file.begins_with(prefix + "/") or file.begins_with(prefix + "."):
+			return true
+	return false
+
+
+static func _cached_files(cache: Dictionary) -> PackedStringArray:
+	if not cache.has("files"):
+		cache["files"] = project_text_files()
+	return cache["files"]
+
+
+static func _cached_text(cache: Dictionary, file: String) -> String:
+	var texts: Dictionary = cache.get_or_add("texts", {})
+	if not texts.has(file):
+		texts[file] = FileAccess.get_file_as_string(file)
+	return texts[file]
 
 
 ## Reemplaza en el archivo las rutas viejas por las nuevas: OK si cambió, ERR_ALREADY_EXISTS si no
@@ -262,17 +343,16 @@ static func _store_if_changed(path: String, text: String, updated: String) -> Er
 ## mueve, o lo que nombra con `preload`, `load` o `extends "…"`. `{script (ruta de antes): {literal
 ## viejo: literal nuevo}}`, calculado con las carpetas de antes de mover.
 static func relative_rewrites(files: PackedStringArray, from: String, to: String, is_dir: bool) -> Dictionary:
-	var pattern := RegEx.create_from_string("(?:\\b(?:preload|load|ResourceLoader\\.load|ResourceLoader\\.exists)\\s*\\(\\s*|\\bextends\\s+)[\"']([^\"'\\n]+)[\"']")
 	var result := {}
 	for script: String in files:
 		if script.get_extension() != "gd":
 			continue
 		var literals := {}
-		for found: RegExMatch in pattern.search_all(FileAccess.get_file_as_string(script)):
-			var literal := found.get_string(1)
-			if literal.begins_with("res://") or literal.begins_with("uid://") or literal.begins_with("/") or literals.has(literal):
+		for found: Dictionary in relative_references(script, FileAccess.get_file_as_string(script)):
+			var literal: String = found.literal
+			if literals.has(literal):
 				continue
-			var target := script.get_base_dir().path_join(literal).simplify_path()
+			var target: String = found.target
 			var new_script := _moved_path(script, from, to, is_dir)
 			var new_target := _moved_path(target, from, to, is_dir)
 			if new_script == script and new_target == target:
