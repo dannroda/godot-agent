@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-23
+
 ### Added
 
 - **See what Claude Code got from outside the chat.** When another Claude Code session sends a message, or a background task finishes, Claude Code answers in a turn nobody started from the dock, and the adapter doesn't forward what started it. The dock now reads it from the end of Claude Code's transcript (in the account folder of the tab's profile) and shows it before the answer: "✉ From opus-0" with the message, or "⚑ Background task finished" with its summary, folded when long. It is saved in the session history, so resuming shows it too. Other agents, or a transcript that can't be found, still get the notice.
