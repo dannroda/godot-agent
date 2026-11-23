@@ -6,15 +6,24 @@ extends RefCounted
 ## descubren con `godot.methods` y se llaman con `godot.run(method, params)`, con su validación y
 ## su permiso. Llamarlas por su nombre sigue funcionando.
 
+## El agente repite una llamada (o un ciclo de hasta LOOP_MAX_PERIOD) con el mismo resultado
+## LOOP_WARN_REPEATS veces seguidas en el turno (m11-79): sale una vez por racha, para el One-shot.
+signal tool_loop(caller: String, seen: Dictionary)
+
 const McpTool := preload("mcp_tool.gd")
 const PermissionPolicy := preload("../session/permission_policy.gd")
 const UntrustedText := preload("untrusted_text.gd")
 const AgentLog := preload("../core/agent_log.gd")
 const EditorContext := preload("../ui/editor_context.gd")
+const ToolLoopGuard := preload("tool_loop_guard.gd")
 
 const LOG_SUMMARY_CHARS := 120
 ## Tools que ya traen en su resultado los errores nuevos: solo avanzan la marca (m14-02).
 const REPORTS_ERRORS: PackedStringArray = ["get_errors", "validate_scripts", "run_scene", "game_tree", "game_get", "game_set", "game_call", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch"]
+## Detector de loops de todas las tools (m11-79), por sesión y por turno.
+const LOOP_MAX_PERIOD := 3
+const LOOP_WARN_REPEATS := 3
+const LOOP_WARNING := "Harness: you made the same godot.* call%s (%s) %d times in a row this turn and got the same result every time, so repeating it will not change anything. Stop and try another approach: other arguments, another tool, read the state or the errors first, or tell the user what blocks you."
 ## Errores que se listan en el aviso; los demás se cuentan.
 const NEW_ERRORS_SHOWN := 5
 ## La marca de un bloque de texto que ya trae sus sobres (ver `sealed`); no sale en el resultado.
@@ -57,6 +66,10 @@ var compact: bool = false
 var error_mark: Callable
 var errors_since: Callable
 var _error_marks: Dictionary = {}  # caller -> marca de la última respuesta
+## `(tool_name) -> bool`: tools que ya vigila otro detector ahora (el del playtest, m11-49), para no
+## avisar dos veces. Sin asignar, se miran todas.
+var loop_exempt: Callable
+var _loop_guards: Dictionary = {}  # caller -> ToolLoopGuard del turno en curso
 
 var _tools: Dictionary = {}  # name -> McpTool
 var _order: PackedStringArray = []
@@ -271,6 +284,8 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 				running_calls -= 1
 			else:
 				result = McpTool.error(blocked)
+	# Antes de los avisos de errores y de las reglas: lo que cambia solo no cuenta como progreso.
+	var seen := _observe_loop(caller, tool.name, note_args, result) if tool != null else {}
 	if error_mark.is_valid():
 		if not tool_name in REPORTS_ERRORS:
 			result = _with_new_errors(result, errors_since.call(error_mark_before))
@@ -281,8 +296,31 @@ func call_tool(tool_name: String, args: Variant, caller: String = "") -> Diction
 		if not note.is_empty():
 			result = result.duplicate()
 			result["content"] = (result.get("content", []) as Array) + [{"type": "text", "text": note}]
+	if int(seen.get("repeats", 1)) >= LOOP_WARN_REPEATS:
+		result = result.duplicate()
+		var plural := "s" if int(seen.period) > 1 else ""
+		result["content"] = (result.get("content", []) as Array) + [{"type": "text", "text": LOOP_WARNING % [plural, seen.tools, seen.repeats]}]
+		if int(seen.repeats) == LOOP_WARN_REPEATS:
+			tool_loop.emit(caller, seen)
 	_log_call(tool_name, args, result, Time.get_ticks_msec() - started)
 	return result
+
+
+## Anota la llamada en el detector de la sesión; {} si la tool la vigila otro.
+func _observe_loop(caller: String, name: String, args: Dictionary, result: Dictionary) -> Dictionary:
+	if loop_exempt.is_valid() and bool(loop_exempt.call(name)):
+		return {}
+	if not _loop_guards.has(caller):
+		var guard := ToolLoopGuard.new()
+		guard.max_period = LOOP_MAX_PERIOD
+		_loop_guards[caller] = guard
+	return (_loop_guards[caller] as ToolLoopGuard).observe(name, args, result)
+
+
+## Empieza de cero el detector de loops de una sesión: al terminar cada turno (repetir lo mismo en
+## otro turno, después de que el usuario habló, no es un loop).
+func reset_loops(caller: String) -> void:
+	_loop_guards.erase(caller)
 
 
 ## El aviso de errores y warnings que aparecieron desde la respuesta anterior a esta sesión: así el

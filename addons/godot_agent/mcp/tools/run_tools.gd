@@ -558,6 +558,11 @@ static func set_playtest_loop_handler(handler: Callable) -> void:
 		Engine.remove_meta(LOOP_HANDLER_META)
 
 
+## Si el detector del playtest vigila esta tool ahora (m11-79: el general del registro no avisa dos veces).
+static func playtest_guards(tool_name: String) -> bool:
+	return tool_name in LOOP_GUARDED and Engine.has_meta(LOOP_HANDLER_META)
+
+
 ## Corre la tool y, en un playtest, anota la llamada en el detector de loops: con WARN_REPEATS vueltas
 ## sin progreso el resultado lo avisa; con CUT_REPEATS la llamada no devuelve el juego, el playtest se
 ## corta y la sesión lo cierra como «could not test» con la evidencia.

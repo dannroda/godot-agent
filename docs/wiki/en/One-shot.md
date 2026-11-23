@@ -90,7 +90,8 @@ If the agent repeats itself without progress, the run asks it to try another app
 
 - the same check failing the same way;
 - the same tool call failing with the same arguments;
-- the same edit over and over.
+- the same edit over and over;
+- the same `godot.*` call (or cycle of calls) returning the same result three times in a row in a turn.
 
 If it happens again, the run pauses and waits for you to guide it. The number of repeats is set in **Settings → One-shot**.
 

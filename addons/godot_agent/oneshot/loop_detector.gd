@@ -7,6 +7,8 @@ extends RefCounted
 ##   que falla cuenta de nuevo después de cada cambio: editar y volver a probar no es un loop);
 ## - una tool call que cambia algo (no lectura ni verificación) repetida igual, con los mismos
 ##   argumentos, `repeats + 1` veces entre las últimas WINDOW.
+## - lo que avisa el server MCP (m11-79): la misma llamada godot.* o el mismo ciclo, con el mismo
+##   resultado, varias veces seguidas en el turno (ver observe_guard).
 ## Cada vez que una huella llega al umbral devuelve un hallazgo y su cuenta vuelve a 0: la primera
 ## vez el run le pide otro enfoque al agente; si la misma huella vuelve a llegar, pausa.
 ## El hallazgo trae `text` en inglés (va en el prompt del agente) y `label` traducido (la UI).
@@ -24,6 +26,7 @@ const CHECK_TEXT := "the check “%s” failed %d times in a row"  # i18n
 const CHECK_DETAIL_TEXT := "the check “%s” failed %d times in a row with “%s”"  # i18n
 const FAILED_TEXT := "“%s” failed %d times with the same arguments"  # i18n
 const SAME_TEXT := "“%s” was repeated %d times, unchanged"  # i18n
+const GUARD_TEXT := "“%s” returned the same result %d times in a row"  # i18n
 const REPEATABLE_GODOT_TOOLS: PackedStringArray = ["run_scene", "stop_scene", "capture_game_frame", "game_tree", "game_get", "game_wait", "game_input", "game_find", "game_ui", "game_ui_act", "game_script", "game_pause", "game_step", "game_watch", "game_frames", "game_monitors", "game_stack", "game_debug", "game_breakpoint", "capture_editor_viewport", "get_errors", "get_output", "find_in_files", "dependencies", "validate_scripts", "editor_state", "scene_tree", "get_node", "list_files", "project_info", "open_scene", "save_scene"]
 
 var repeats: int = 3
@@ -97,6 +100,16 @@ func observe_call(title: String, kind: String, godot_tool: String, input: Varian
 				_recent.remove_at(i)
 		return _finding("same:" + key, SAME_TEXT, [title.left(60), repeats + 1])
 	return {}
+
+
+## Lo que devolvió el detector del server MCP (ToolLoopGuard.observe): las tools del ciclo y su evidencia
+## (llamadas y resultados) son la huella.
+func observe_guard(seen: Dictionary) -> Dictionary:
+	var tools := str(seen.get("tools", ""))
+	if tools.is_empty():
+		return {}
+	var evidence := "\n".join(PackedStringArray(seen.get("evidence", PackedStringArray())))
+	return _finding("guard:%s|%s" % [tools, evidence.replace("×%d" % int(seen.get("repeats", 0)), "")], GUARD_TEXT, [tools.left(60), int(seen.get("repeats", 0))])
 
 
 ## Nombre + argumentos con las claves ordenadas: dos llamadas iguales dan la misma huella.

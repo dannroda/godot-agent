@@ -1135,6 +1135,8 @@ func _start_mcp_server() -> void:
 		var controller := _controller_of(_session_of(caller))
 		return controller.path_rules_for_tool(args) if controller else ""
 	registry.error_mark = _errors.mark
+	registry.loop_exempt = RunTools.playtest_guards
+	registry.tool_loop.connect(_on_tool_loop)
 	registry.errors_since = _errors.entries_since
 	registry.register_provider(ReadTools.new())
 	# dependencies (m11-78) va por godot.methods: el núcleo de la lista compacta queda como estaba.
@@ -2151,6 +2153,8 @@ func _finish_controller(controller: SessionController, model: SessionModel, id: 
 			_turn_counter.note_activity(id))
 	model.tool_call_changed.connect(func(call: ToolCall, group: ChatEntry) -> void: _on_tool_call_changed(call, group, _model_of(id)))
 	model.turn_finished.connect(func(_stop_reason: String) -> void:
+		if _registry:
+			_registry.reset_loops("" if id == PRIMARY_SESSION else id)
 		if _coordinator:
 			_coordinator.release_files(id))
 	return controller
@@ -2594,6 +2598,13 @@ func _second_opinion_for_user(payload: Variant) -> void:
 		return
 	SecondOpinion.fill_notice(waiting, result, session)
 	model.notify_entry_changed(waiting)
+
+
+## Una sesión repite la misma llamada godot.* con el mismo resultado (m11-79): el aviso ya va en el
+## resultado; en el One-shot además cuenta como loop (con el segundo, pausa).
+func _on_tool_loop(caller: String, seen: Dictionary) -> void:
+	if _runs_in(_session_of(caller)):
+		_oneshot.on_tool_loop(seen)
 
 
 func _session_of(caller: String) -> String:

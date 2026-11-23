@@ -297,6 +297,9 @@ var _idle_continues: int = 0
 var _counted_playtests: Dictionary = {}
 var _captured_calls: Dictionary = {}
 var _loop_calls: Dictionary = {}
+## Ya se avisó de un loop en este turno: el detector del server MCP (m11-79) y el de las tool calls
+## pueden ver el mismo, y el turno ya se corta con el primero.
+var _loop_flagged_in_turn: bool = false
 var _git_queue: Array[Callable] = []
 var _git_busy: bool = false
 ## Operaciones git en curso o en cola: entre una y la siguiente hay un frame sin _git_busy.
@@ -1021,6 +1024,7 @@ func _run_turn(text: String, blocks: Array = []) -> void:
 	report.count("turns")
 	var turn_started := _elapsed_ms()
 	_turn_tools = 0
+	_loop_flagged_in_turn = false
 	var first_entry := model.entry_mark()
 	var progress_before := _progress()
 	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text, blocks)
@@ -1372,11 +1376,20 @@ func _on_tool_call_changed(call: ToolCall, _group: ChatEntry) -> void:
 					changed.emit()
 
 
+## El server MCP vio la misma llamada godot.* (o el mismo ciclo) con el mismo resultado varias veces
+## en el turno (m11-79): cuenta como un loop más, con su huella.
+func on_tool_loop(seen: Dictionary) -> void:
+	if is_active() and phase == RunPhase.RUNNING and not model.replaying:
+		_on_loop(loops.observe_guard(seen), true)
+
+
 ## Un loop (D38). La primera vez se corta el turno (si viene de tool calls) y se le pide otro
 ## enfoque; si la misma huella vuelve a aparecer, el run se pausa y espera al usuario.
 func _on_loop(finding: Dictionary, mid_turn: bool) -> void:
-	if finding.is_empty():
+	if finding.is_empty() or (mid_turn and _loop_flagged_in_turn):
 		return
+	if mid_turn:
+		_loop_flagged_in_turn = true
 	report.count("loops")
 	if bool(finding.repeated):
 		pause_note = I18n.t("One-shot paused: the agent is still in a loop (%s) even after being asked for another approach. Tell it in the chat how to continue, or resume whenever you want.") % finding.label
@@ -1668,6 +1681,7 @@ func _run_qa_turn(text: String) -> Dictionary:
 	report.count("qa_turns")
 	var turn_started := _elapsed_ms()
 	_turn_tools = 0
+	_loop_flagged_in_turn = false
 	var first_entry := model.entry_mark()
 	var reason: String = await controller.send_in_mode(SessionModel.HarnessMode.ONESHOT, text)
 	_turn_running = false
