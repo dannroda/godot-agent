@@ -49,7 +49,9 @@ var _meta: Dictionary = {}
 var _pending: Array[Dictionary] = []
 var _dirty: bool = false
 var _writer := HistoryWriter.new()
-var _last_save_msec: int = 0
+## Desde que se crea (m16-29): con 0, un historial nuevo en un proceso que lleva más de SAVE_INTERVAL_MSEC
+## guardaba en el primer record_update, antes de lo que tocaba.
+var _last_save_msec: int = Time.get_ticks_msec()
 ## compactionId ya grabados en esta sesión (m11-60): de cada compactación queda solo su estado final.
 var _compactions_recorded: Dictionary = {}
 
@@ -163,6 +165,13 @@ func end() -> void:
 	_dirty = false
 
 
+## La primera línea del .jsonl. Con `get` (m16-29): una sesión a la que le falta un campo (un _meta armado a
+## mano, uno viejo) se guarda igual en vez de cortar save() con un error de script.
+static func header_of(meta: Dictionary) -> Dictionary:
+	return {"format": FORMAT, "id": str(meta.get("id", "")), "profile_id": str(meta.get("profile_id", "")), "account": str(meta.get("account", "")),
+		"agent": str(meta.get("agent", "")), "cwd": str(meta.get("cwd", "")), "created": int(meta.get("created", 0))}
+
+
 ## Pasa los eventos pendientes al escritor (un worker): con el disco ocupado, abrir y escribir el
 ## archivo llegó a tardar 600 ms, y eso no puede pasar en el hilo principal.
 func save() -> void:
@@ -170,8 +179,7 @@ func save() -> void:
 		return
 	_last_save_msec = Time.get_ticks_msec()
 	_meta.updated = now_provider.call()
-	var header := {"format": FORMAT, "id": _meta.id, "profile_id": _meta.profile_id, "account": _meta.get("account", ""), "agent": _meta.agent, "cwd": _meta.cwd, "created": _meta.created}
-	_enqueue({"kind": "append", "path": _abs_path(current_id()), "header": header, "events": _pending, "summary": summary_of(_meta)})
+	_enqueue({"kind": "append", "path": _abs_path(current_id()), "header": header_of(_meta), "events": _pending, "summary": summary_of(_meta)})
 	_pending = []  # el worker se queda con el array anterior
 	_dirty = false
 

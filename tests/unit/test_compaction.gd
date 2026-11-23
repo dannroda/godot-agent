@@ -83,6 +83,18 @@ func test_history_records_final_state_and_replays() -> void:
 	assert_eq(replaying, [true] as Array[bool], "el dock sabe que es una reproducción")
 
 
+## m16-29: run_all a veces fallaba arriba con «profile_id» en save(). El reloj del último guardado empezaba en
+## 0: un historial nuevo, en un proceso que ya llevaba más de SAVE_INTERVAL_MSEC, guardaba en el primer
+## record_update con el _meta armado a mano (sin profile_id) y se llevaba los eventos pendientes.
+func test_new_history_does_not_save_at_once() -> void:
+	var history := SessionHistory.new()
+	assert_true(Time.get_ticks_msec() - int(history.get(&"_last_save_msec")) < SessionHistory.SAVE_INTERVAL_MSEC, "el reloj del guardado empieza al crearlo")
+	var header := SessionHistory.header_of({"id": "session-0001", "events_count": 0})
+	assert_eq(header.id, "session-0001", "el encabezado con lo que hay")
+	assert_eq(header.profile_id, "", "y sin cortar por lo que falta")
+	assert_eq(header.created, 0, "")
+
+
 func test_load_replay_keeps_position() -> void:
 	var model := SessionModel.new()
 	for update: Dictionary in _fixture().load_replay:
