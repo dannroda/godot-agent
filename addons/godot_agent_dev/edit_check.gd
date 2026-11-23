@@ -467,7 +467,64 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	await _check_scene_reject_reload()
 	await _check_tool_buttons()
 	await _check_find_in_files()
+	await _check_inspector_state()
+	await _check_dependencies()
 	return failures
+
+
+## m11-77: editor_state dice qué muestra el Inspector: un nodo, o un sub-recurso y de dónde sale.
+func _check_inspector_state() -> void:
+	await _call_text("open_scene", {"path": EDIT_SCENE})
+	await _call_text("add_node", {"parent": ".", "type": "MeshInstance3D", "name": "InspectedCrate"})
+	var crate := EditorInterface.get_edited_scene_root().get_node_or_null("InspectedCrate") as MeshInstance3D
+	_expect(crate != null, "nodo para el Inspector")
+	if crate == null:
+		return
+	EditorInterface.inspect_object(crate)
+	await _tree.process_frame
+	var state := await _call_text("editor_state", {})
+	_expect(state.contains("Inspector: node InspectedCrate (MeshInstance3D)"), "editor_state: el nodo del Inspector · %s" % state)
+	var box := BoxMesh.new()
+	var material := StandardMaterial3D.new()
+	box.material = material
+	crate.mesh = box
+	EditorInterface.inspect_object(material)
+	await _tree.process_frame
+	state = await _call_text("editor_state", {})
+	_expect(state.contains("Inspector: StandardMaterial3D, not saved to its own file · comes from node InspectedCrate (MeshInstance3D), property mesh → material"), "editor_state: el sub-recurso y de dónde sale · %s" % state)
+	EditorInterface.inspect_object(EditorInterface.get_edited_scene_root())
+	await _call_text("remove_node", {"node_path": "InspectedCrate"})
+	await _call_text("save_scene", {})
+
+
+## m11-78: dependencies, hacia adelante y hacia atrás, con uids de verdad del editor.
+func _check_dependencies() -> void:
+	var dir := "res://tests/tmp/dependencies_check"
+	_remove_tree(ProjectSettings.globalize_path(dir))
+	_write(dir + "/bullet.tscn", "[gd_scene format=3]\n\n[node name=\"Bullet\" type=\"Node2D\"]\n")
+	_write(dir + "/gun.gd", "extends Node2D\n\nconst Bullet := preload(\"bullet.tscn\")\n")
+	var fs := EditorInterface.get_resource_filesystem()
+	fs.scan()
+	await _until_scanned(fs)
+	var gun_uid := ResourceUID.id_to_text(ResourceLoader.get_resource_uid(dir + "/gun.gd"))
+	_expect(gun_uid.begins_with("uid://"), "gun.gd tiene uid")
+	# El nivel nombra el script solo por uid, como lo guarda el editor cuando la ruta cambió.
+	_write(dir + "/level.tscn", "[gd_scene format=3]\n\n[ext_resource type=\"Script\" uid=\"%s\" path=\"res://old/place.gd\" id=\"1\"]\n\n[node name=\"Level\" type=\"Node2D\"]\nscript = ExtResource(\"1\")\n" % gun_uid)
+	fs.scan()
+	await _until_scanned(fs)
+	var forward := await _call_text("dependencies", {"path": dir + "/level.tscn", "depth": 2})
+	_expect(forward.contains("\n- %s/gun.gd" % dir) and forward.contains("\n  - %s/bullet.tscn" % dir) and not forward.contains("old/place.gd"), "forward por uid y el preload del script · %s" % forward)
+	var reverse := await _call_text("dependencies", {"path": dir + "/bullet.tscn", "direction": "reverse", "depth": 3})
+	_expect(reverse.contains("\n- %s/gun.gd (line 3)" % dir) and reverse.contains("\n  - %s/level.tscn" % dir), "reverse: el preload relativo y quién usa el script por uid · %s" % reverse)
+	var bad: Dictionary = await _call("dependencies", {"path": dir, "direction": "forward"})
+	_expect(bad.get("isError", false), "forward de una carpeta → error")
+	var missing: Dictionary = await _call("dependencies", {"path": dir + "/nope.tscn"})
+	_expect(missing.get("isError", false), "archivo que no existe → error")
+	var delete_refused: Dictionary = await _call("delete_file", {"path": dir + "/bullet.tscn"})
+	_expect(delete_refused.get("isError", false) and _text(delete_refused).contains("gun.gd"), "delete_file también se niega por un preload relativo · %s" % _text(delete_refused))
+	_remove_tree(ProjectSettings.globalize_path(dir))
+	fs.scan()
+	await _until_scanned(fs)
 
 
 ## m11-74: find_in_files busca como «Buscar en archivos»: texto, regex, extensiones y carpeta.

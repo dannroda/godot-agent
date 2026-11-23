@@ -1137,6 +1137,8 @@ func _start_mcp_server() -> void:
 	registry.error_mark = _errors.mark
 	registry.errors_since = _errors.entries_since
 	registry.register_provider(ReadTools.new())
+	# dependencies (m11-78) va por godot.methods: el núcleo de la lista compacta queda como estaba.
+	registry.mark_extended(PackedStringArray(["dependencies"]))
 	_map_tools = MapTools.new()
 	_map_tools.editor_focus = _editor_focus
 	registry.register_provider(_map_tools)

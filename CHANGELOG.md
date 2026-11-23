@@ -4,10 +4,19 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **The agent sees what the Inspector shows.** `editor_state` now says what is open in the Inspector: a node of the scene, a resource file, or a sub-resource (a mesh's material, a StyleBox inside a theme) with the node or resource and the property it comes from. "Change this one I'm looking at" now works.
+- **Dependencies of a file.** A new `dependencies` tool lists what a file uses (`forward`) or which files use it (`reverse`), 1 to 3 levels deep: by `res://` path, by uid, and by a script's relative `preload`/`load`/`extends` paths. Agents no longer `grep` the project before changing or deleting a file.
+
 ### Changed
 
 - **Shell commands that only read files no longer ask you.** A command like `cd assets && ls -la | head`, `cat`, `grep`, `find` or `sed -n` that would have shown a permission card is rejected on its own: the chat shows "Not asked: … only reads files", and the agent is told to use its own file tools or `godot.list_files` and `godot.find_in_files`, which need no permission. When the shell is allowed, these commands run as before.
 - **`list_files` gives image sizes.** Each PNG, JPEG and WebP file comes with its width and height, read from the file header, so the agent doesn't write Python scripts for that. The system prompt also tells the agent not to inspect files with scripts.
+
+### Fixed
+
+- **`delete_file` missed relative paths.** It refused to delete a file named by `res://` path or uid, but deleted one that a script loaded with a relative path (`preload("bullet.tscn")`), breaking that script.
 
 ## [0.2.1] - 2026-11-23
 

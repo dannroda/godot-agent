@@ -12,9 +12,10 @@ const SUMMARIES: Dictionary = {
 	"list_files": "Lists the project's files with their resource type",  # i18n
 	"scene_tree": "The node tree of a scene with types, scripts and changed properties",  # i18n
 	"get_node": "Everything about one node: properties, script, groups, connections",  # i18n
-	"editor_state": "What is open in the editor: scene, scripts, selection, running game",  # i18n
+	"editor_state": "What is open in the editor: scene, scripts, selection, Inspector, running game",  # i18n
 	"project_map": "A ranked map of the project around a topic, to get oriented",  # i18n
 	"get_resource": "Reads a .tres/.res resource file",  # i18n
+	"dependencies": "What a file uses, or which files use it",  # i18n
 	"project_settings": "Reads project settings with their value and default",  # i18n
 	# Editar escenas
 	"add_node": "Adds a node to the open scene",  # i18n
