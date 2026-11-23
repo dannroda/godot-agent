@@ -398,6 +398,7 @@ func _enter_tree() -> void:
 		settings.open_registry(query))
 	dock.extensions_requested.connect(func() -> void: _open_extensions())
 	dock.tools_requested.connect(func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS))
+	dock.updates_requested.connect(_check_updates_from_dock)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
 	dock.game_point = _point_game_for_dock
@@ -1518,6 +1519,14 @@ func _check_updates(manual: bool) -> String:
 	return I18n.t("Version %s is available: see the notice in the dock.") % release.version
 
 
+## «Buscar actualizaciones» del menú ⋯ (m12-59): la búsqueda de Ajustes → Buscar ahora; el resultado
+## en un toast del editor (si hay versión nueva, además el aviso del dock).
+func _check_updates_from_dock() -> void:
+	var status: String = await _check_updates(true)
+	if not status.is_empty() and is_instance_valid(self):
+		EditorInterface.get_editor_toaster().push_toast(status, EditorToaster.SEVERITY_INFO)
+
+
 func _on_update_requested() -> void:
 	var release := _update_banner.release()
 	var confirm := ConfirmationDialog.new()
@@ -2263,6 +2272,7 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	dock.new_tab_requested.connect(_open_session_tab)
 	dock.extensions_requested.connect(func() -> void: _open_extensions())
 	dock.tools_requested.connect(func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS))
+	dock.updates_requested.connect(_check_updates_from_dock)
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.game_capture = _capture_game_for_dock
 	dock.game_point = _point_game_for_dock

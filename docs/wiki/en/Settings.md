@@ -104,7 +104,7 @@ When the editor opens (at most once a day), the addon checks the [releases](http
 - **Update**: after you confirm, it downloads the release, checks that the zip is that version, saves the open scenes, closes the agent session, replaces `addons/godot_agent/` and restarts the editor. When the editor is back, the agent's tabs reopen with their sessions, as with **Restart and resume**.
 - **Later**: hides the notice for that version.
 
-**Settings → General → Updates** has **Check now** and turns off the check when the editor opens.
+**Settings → General → Updates** has **Check now** and turns off the check when the editor opens. **Check for updates** in the dock's **⋯** menu does the same check and shows the result in an editor notification.
 
 The update keeps `config/project_config.tres` (the project's config). If you edited `config/system_prompt.md` or `config/quota_patterns.txt` and the new version changes them, your copy is saved in `user://godot_agent/update/backup-<previous version>/` before replacing it (the Output panel says where). Files you added to the addon folder that aren't code stay. User settings (`EditorSettings`) and history (`user://`) aren't touched.
 
