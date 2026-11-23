@@ -148,13 +148,37 @@ static func resolve_script_path(script: String) -> String:
 
 
 ## El script de un class_name: el de la lista global y, si todavía no está (un script recién creado
-## que el editor escaneó pero cuya clase no registró aún), el que dice el filesystem del editor.
+## que el editor no terminó de registrar), el que dice el filesystem del editor o, si tampoco, el
+## .gd que lo declara (buscado en el texto).
 static func class_name_path(wanted: String) -> String:
 	for entry: Dictionary in ProjectSettings.get_global_class_list():
 		if str(entry.get("class", "")) == wanted:
 			return str(entry.get("path", ""))
-	if Engine.is_editor_hint():
-		return _class_in(EditorInterface.get_resource_filesystem().get_filesystem(), wanted)
+	if not Engine.is_editor_hint():
+		return ""
+	var root := EditorInterface.get_resource_filesystem().get_filesystem()
+	var found := _class_in(root, wanted)
+	return found if not found.is_empty() else _class_declared_in(root, wanted)
+
+
+## El .gd que declara `class_name <wanted>`, leyendo los que lo nombran.
+static func _class_declared_in(dir: EditorFileSystemDirectory, wanted: String) -> String:
+	if dir == null:
+		return ""
+	for i in dir.get_file_count():
+		var path := dir.get_file_path(i)
+		if path.get_extension() != "gd":
+			continue
+		var text := FileAccess.get_file_as_string(path)
+		if not text.contains(wanted):
+			continue
+		for decl: Dictionary in GdscriptOutline.parse(text):
+			if decl.kind == GdscriptOutline.KIND_CLASS_NAME and decl.name == wanted:
+				return path
+	for i in dir.get_subdir_count():
+		var found := _class_declared_in(dir.get_subdir(i), wanted)
+		if not found.is_empty():
+			return found
 	return ""
 
 
