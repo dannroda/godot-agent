@@ -59,6 +59,18 @@ func test_dev_plugin_texts_are_in_the_catalog() -> void:
 	assert_eq(missing, PackedStringArray(), "textos del dev plugin que no están en es.po")
 
 
+## Un msgid repetido en es.po rompe `msgfmt -c` y el segundo pisa al primero sin aviso.
+func test_no_duplicate_msgids() -> void:
+	var seen := {}
+	var repeated: PackedStringArray = []
+	for line: String in FileAccess.get_file_as_string("res://addons/godot_agent/i18n/es.po").split("\n"):
+		if line.begins_with("msgid ") and line != "msgid \"\"":
+			if seen.has(line):
+				repeated.append(line)
+			seen[line] = true
+	assert_eq(repeated, PackedStringArray(), "ningún msgid aparece dos veces en es.po")
+
+
 func test_msgids_in() -> void:
 	var source := 'a.text = I18n.t("Pause")\nb = I18n.t("Say \\"hi\\"\\n") % x\nconst L := {"x": "Ask"}  # i18n\n# I18n.t("comentario")\n'
 	assert_eq(msgids_in(source), PackedStringArray(["Pause", "Say \"hi\"\n", "Ask"]), "llamadas y el último literal de las líneas marcadas")

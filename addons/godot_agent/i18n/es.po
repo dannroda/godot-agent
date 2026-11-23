@@ -6441,10 +6441,6 @@ msgstr "Cuando se agota una cuenta, seguir el One-shot con la siguiente cuenta d
 
 msgid "Uses the accounts in the dock's agent menu, in that order, skipping the ones still exhausted. It resumes the same session. The run only pauses when none is left."
 msgstr "Usa las cuentas del menú del agente del dock, en ese orden, salteando las que siguen agotadas. Retoma la misma sesión. El run solo se pausa cuando no queda ninguna."
-
-msgid "Account: %s"
-msgstr "Cuenta: %s"
-
 msgid "No reserve account left with quota: waiting for the reset"
 msgstr "No queda ninguna cuenta de reserva con cuota: se espera el reinicio"
 
