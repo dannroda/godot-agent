@@ -1,7 +1,6 @@
 @tool
 extends RefCounted
-## Navegar el código del proyecto desde el editor, sin la shell (grupo read). Ideas de Orca
-## (read_gdscript_function, find_project_symbols, find_symbol_references):
+## Navegar el código del proyecto desde el editor, sin la shell (grupo read):
 ## - read_function (m11-83): una función de GDScript por nombre o por una línea (la de un frame de
 ##   game_stack);
 ## - find_symbols (m11-82): dónde se declara algo (class_name, clases internas, funciones, señales,

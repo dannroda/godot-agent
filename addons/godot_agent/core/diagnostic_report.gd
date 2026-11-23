@@ -6,8 +6,6 @@ extends RefCounted
 ## lista sale como "unknown" (o "other" para un nombre de agente o de cliente que no conocemos), así
 ## un valor inesperado nunca se cuela en el informe. Sirve para los fallos que no podemos reproducir
 ## (Windows, macOS, Antigravity).
-## La idea y la forma (schema_version, listas cerradas, _bounded_version) son de
-## support_diagnostic_report.gd de Orca (MIT).
 
 const SessionModel := preload("../session/session_model.gd")
 const QuotaMonitor := preload("quota_monitor.gd")

@@ -383,7 +383,7 @@ func _scene_nodes(root: Node, node: Node, out: Array[Node], listed: Dictionary) 
 ## ruta en la escena; un recurso con archivo, por su ruta; un sub-recurso (un StyleBox de un tema, el
 ## material de un mesh) o un recurso sin guardar, con el recurso o nodo y la propiedad de donde sale,
 ## buscando en `nodes` (la selección primero) y en `host`, el recurso que lo guarda. Sin valores: para
-## eso están get_node y get_resource. Idea de Orca (editor_context.gd, inspector_target; MIT).
+## eso están get_node y get_resource.
 static func inspector_line(target: Object, scene_root: Node, nodes: Array[Node], host: Resource) -> String:
 	if not is_instance_valid(target):
 		return "Inspector: (nothing)"
@@ -568,8 +568,7 @@ static func _uses(path: String, cache: Dictionary) -> Array[Dictionary]:
 
 
 ## «uid://…::Tipo::res://…» de get_dependencies → la ruta: por el uid si se resuelve (la ruta escrita
-## puede ser vieja), si no la res://. Como _normalize_dependency_descriptor de Orca
-## (dependency_inspector.gd, MIT).
+## puede ser vieja), si no la res://.
 static func _dependency_path(descriptor: String) -> String:
 	var fallback := ""
 	for part: String in descriptor.split("::", false):

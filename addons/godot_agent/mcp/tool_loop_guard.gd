@@ -6,8 +6,7 @@ extends RefCounted
 ## es que las últimas llamadas son el mismo ciclo de 1 a `max_period` llamadas repetido, con el mismo
 ## resultado cada vez: la misma lectura que da lo mismo, el mismo error, A → B → A → B. Que el
 ## resultado cambie ya cuenta como progreso: prefiere no avisar a avisar de más.
-## Las mismas reglas que tool_loop_guard.gd de Orca (MIT, misma llamada con el mismo resultado 3 veces,
-## ciclos alternados), sin las rondas: del lado del server no se ve dónde empieza cada respuesta del modelo.
+## No cuenta por rondas: del lado del server no se ve dónde empieza cada respuesta del modelo.
 
 ## Lo que cambia solo entre llamadas iguales: los sobres de texto no confiable llevan un nonce nuevo
 ## en cada resultado y el probe pone el reloj del juego (que avance no es progreso).
