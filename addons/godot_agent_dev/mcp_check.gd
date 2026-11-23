@@ -184,6 +184,7 @@ func _check_import_model() -> void:
 	var imported := await _call_text("run", {"method": "import_model", "params": {"from": source_dir.path_join("tri.glb"), "to": target_dir}})
 	_expect(imported.begins_with("Imported %s/tri.glb" % target_dir) and imported.contains("1 nodes, 1 meshes"), "import_model importa · " + imported)
 	_expect(imported.contains("AABB: position (0.000, 0.000, 0.000), size (1.000, 1.000, 0.000)"), "import_model: AABB del modelo instanciado · " + imported)
+	_expect(imported.contains("preview_model"), "import_model sugiere preview_model · " + imported)
 	_expect(ResourceLoader.load(target_dir + "/tri.glb") is PackedScene, "import_model: queda importado como escena")
 	var again: Dictionary = await _call("run", {"method": "import_model", "params": {"from": source_dir.path_join("tri.glb"), "to": target_dir}})
 	_expect(again.get("isError", false) and _text(again).contains("replace: true"), "import_model no pisa sin replace · " + _text(again))
@@ -195,6 +196,33 @@ func _check_import_model() -> void:
 	var refused: Dictionary = await _call("run", {"method": "import_model", "params": {"from": source_dir.path_join("broken.glb"), "to": target_dir}})
 	_expect(refused.get("isError", false) and _text(refused).contains("node hierarchy has a cycle"), "import_model rechaza un GLB con ciclos · " + _text(refused))
 	_expect(not FileAccess.file_exists(target_dir + "/broken.glb"), "import_model: el rechazado no se copia")
+	await _check_preview_model(target_dir + "/tri.glb")
+
+
+## m11-87: preview_model dibuja el triángulo importado en su mundo propio (de frente se ve: hay
+## píxeles que no son el fondo), y una escena con scripts no se instancia.
+func _check_preview_model(model: String) -> void:
+	var ModelTools: Script = load("res://addons/godot_agent/mcp/tools/model_tools.gd")
+	var result: Dictionary = await _call("run", {"method": "preview_model", "params": {"path": model, "angles": 2}})
+	var images: Array = result.get("content", []).filter(func(block: Dictionary) -> bool: return block.get("type") == "image")
+	_expect(not result.get("isError", false) and images.size() == 2, "preview_model: dos vistas · " + _text(result).left(300))
+	_expect(_text(result).contains("size (1.000, 1.000, 0.000)"), "preview_model: el tamaño del modelo · " + _text(result).left(300))
+	if not images.is_empty():
+		var image := Image.new()
+		image.load_png_from_buffer(Marshalls.base64_to_raw(str(images[0].data)))
+		var background: Color = image.get_pixel(0, 0)
+		var drawn := 0
+		for y in range(0, image.get_height(), 8):
+			for x in range(0, image.get_width(), 8):
+				if not image.get_pixel(x, y).is_equal_approx(background):
+					drawn += 1
+		_expect(image.get_size() == ModelTools.PREVIEW_SIZE, "preview_model: vista de %s · %s" % [ModelTools.PREVIEW_SIZE, image.get_size()])
+		_expect(drawn > 20, "preview_model: el modelo se ve de frente (%d muestras que no son el fondo)" % drawn)
+	var scripted: Dictionary = await _call("run", {"method": "preview_model", "params": {"path": "res://tests/fixtures/debug_fixture.tscn"}})
+	_expect(scripted.get("isError", false) and _text(scripted).contains("has scripts"), "preview_model: una escena con scripts no · " + _text(scripted))
+	var stages := _tree.root.find_children("PreviewModelStage", "SubViewport", true, false)
+	await _tree.process_frame
+	_expect(_tree.root.find_children("PreviewModelStage", "SubViewport", true, false).is_empty(), "preview_model: no deja su mundo en el árbol (%d)" % stages.size())
 
 
 func _check_diagnostic_report() -> void:

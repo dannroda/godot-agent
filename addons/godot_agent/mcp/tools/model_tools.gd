@@ -6,12 +6,15 @@ extends RefCounted
 ## nodos, mallas, materiales, animaciones y el AABB del modelo instanciado. Los errores del import
 ## los suma el registro (errores nuevos desde el inicio de la llamada).
 ## .fbx queda afuera por ahora: en 4.7 lo importa ufbx y se puede sumar después.
+## preview_model (m11-87): el modelo en un mundo propio fuera de pantalla, con luz y entorno neutros,
+## visto desde 1 a 8 ángulos alrededor de su caja (las mismas órbitas que capture_editor_viewport).
 
 const McpTool := preload("../mcp_tool.gd")
 const WriteTargets := preload("../write_targets.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const FileTools := preload("file_tools.gd")
 const ModelValidator := preload("../model_validator.gd")
+const CameraViews := preload("../../playtest/runtime/camera_views.gd")
 
 const EXTENSIONS: PackedStringArray = ["glb", "gltf"]
 ## Segundos que se espera el reimport antes de devolver igual (el import sigue en el editor).
@@ -19,6 +22,13 @@ const IMPORT_TIMEOUT_S := 120.0
 ## El import puede no avisar con resources_reimported (archivo nuevo): pasado esto, alcanza con que
 ## el .import esté escrito y el editor no esté escaneando ni importando.
 const SETTLE_S := 0.5
+
+## Tamaño de cada vista de preview_model.
+const PREVIEW_SIZE := Vector2i(640, 480)
+const PREVIEW_DEFAULT_ANGLES := 4
+## Distancia al centro en radios del modelo (con fov 50°, el modelo entero entra con margen).
+const PREVIEW_RADII := 2.6
+const PREVIEW_BACKGROUND := Color(0.32, 0.33, 0.36)
 
 ## Callable(abs_path: String): un archivo del proyecto cambió en disco.
 var on_file_written: Callable
@@ -41,7 +51,15 @@ func tools() -> Array:
 		var from := str(args.get("from", "")).strip_edges()
 		return PermissionPolicy.GROUP_EDIT_FILES if from.begins_with("res://") and not bool(args.get("replace", false)) else PermissionPolicy.GROUP_SHELL
 	tool.describer = _describe
-	return WriteTargets.declare([tool], {
+	var preview := McpTool.create("preview_model", PermissionPolicy.GROUP_READ,
+		"Renders a 3D model of the project (an imported .glb/.gltf/.blend/.obj, a scene without scripts, or a Mesh resource) on its own, off screen, with neutral light and background, from 1-8 angles orbiting its bounding box (30° up), and returns the views as images. Use it after import_model to check the model before placing it. Nothing in the open scene changes.",
+		{
+			"path": {"type": "string", "description": "res:// path of the model"},
+			"angles": {"type": "integer", "minimum": 1, "maximum": CameraViews.MAX_ANGLES, "description": "How many views around it (default %d)" % PREVIEW_DEFAULT_ANGLES},
+			"distance": {"type": "number", "description": "Orbit distance (default: far enough to fit it)"},
+		},
+		["path"], _preview_model)
+	return WriteTargets.declare([tool, preview], {
 		"import_model": func(args: Dictionary) -> PackedStringArray: return WriteTargets.keys(args, ["to"]),
 	})
 
@@ -149,6 +167,8 @@ func _import_model(args: Dictionary) -> Dictionary:
 			lines.append("Scenes and resources that use it (they get the new version): " + ", ".join(users.slice(0, FileTools.REFERENCE_LIST_LIMIT)))
 	for warning: String in extension_warnings():
 		lines.append(warning)
+	if imported:
+		lines.append("Look at it with preview_model (path %s) before placing it in a scene." % plan.target)
 	return McpTool.text("\n".join(lines))
 
 
@@ -231,3 +251,133 @@ func _check(path: String, replace: bool) -> String:
 	if replace and FileAccess.file_exists(path):
 		return _files._check_target(path, true)
 	return _files._check_target(path, false)
+
+
+## Revisa lo pedido a preview_model sin dibujar: {path, resource, angles, distance (-1 = la que
+## entre)} o {error}. Una escena con scripts no: instanciarla en el editor correría sus @tool.
+static func plan_preview(args: Dictionary) -> Dictionary:
+	var path := str(args.get("path", "")).strip_edges()
+	if not path.begins_with("res://"):
+		return {"error": "`path` must be a res:// path of a model in the project."}
+	if not ResourceLoader.exists(path):
+		return {"error": "%s does not exist or has not been imported yet (wait with editor_wait idle: true)." % path}
+	var angles := int(args.get("angles", PREVIEW_DEFAULT_ANGLES))
+	if angles < 1 or angles > CameraViews.MAX_ANGLES:
+		return {"error": "angles goes from 1 to %d." % CameraViews.MAX_ANGLES}
+	var distance := float(args.get("distance", -1.0))
+	if args.has("distance") and not (distance > 0.0 and is_finite(distance)):
+		return {"error": "distance must be a positive number."}
+	var resource := ResourceLoader.load(path)
+	if resource is PackedScene:
+		var state := (resource as PackedScene).get_state()
+		for node in state.get_node_count():
+			for property in state.get_node_property_count(node):
+				if state.get_node_property_name(node, property) == &"script" and state.get_node_property_value(node, property) != null:
+					return {"error": "%s has scripts (node %s): preview_model only shows models. To see a scene, open it and use capture_editor_viewport with angles." % [path, state.get_node_path(node)]}
+	elif not resource is Mesh:
+		return {"error": "%s is a %s, not a 3D model (a scene or a Mesh)." % [path, resource.get_class() if resource else "file Godot can't load"]}
+	return {"path": path, "resource": resource, "angles": angles, "distance": distance}
+
+
+## Las vistas en órbita alrededor de `box`, para CameraViews.render. `distance` < 0: la que entra.
+static func preview_views(box: AABB, angles: int, distance: float) -> Dictionary:
+	var center := box.get_center()
+	var radius := maxf(box.size.length() / 2.0, 0.001)
+	var orbit := distance if distance > 0.0 else radius * PREVIEW_RADII
+	var views: Array[Dictionary] = []
+	for i in angles:
+		var heading := 360.0 * i / angles
+		views.append({"label": "angle %d of %d: heading %d°, %d° up, %.2f m from the center" % [i + 1, angles, roundi(heading), roundi(CameraViews.ELEVATION_DEG), orbit],
+			"transform": CameraViews.orbit(center, heading, CameraViews.ELEVATION_DEG, orbit)})
+	return {"views": views, "three_d": true, "near": maxf(orbit / 1000.0, 0.001), "far": orbit + radius * 4.0}
+
+
+func _preview_model(args: Dictionary) -> Dictionary:
+	var plan := plan_preview(args)
+	if plan.has("error"):
+		return McpTool.error(str(plan.error))
+	var stage := _stage()
+	var model: Node3D
+	if plan.resource is PackedScene:
+		var instance := (plan.resource as PackedScene).instantiate()
+		if not instance is Node3D:
+			instance.free()
+			stage.free()
+			return McpTool.error("%s is not a 3D scene (its root is a %s)." % [plan.path, instance.get_class()])
+		model = instance
+	else:
+		var mesh_instance := MeshInstance3D.new()
+		mesh_instance.mesh = plan.resource
+		model = mesh_instance
+	stage.add_child(model)
+	var host := EditorInterface.get_base_control()
+	host.add_child(stage)
+	var box := _box(model)
+	if box.size == Vector3.ZERO:
+		stage.queue_free()
+		return McpTool.error("%s has nothing to draw (no visible meshes)." % plan.path)
+	var planned := preview_views(box, int(plan.angles), float(plan.distance))
+	# Una cámara de referencia con near y far a la escala del modelo: CameraViews copia su lente.
+	var lens := Camera3D.new()
+	lens.fov = 50.0
+	lens.near = planned.near
+	lens.far = planned.far
+	for view: Dictionary in planned.views:
+		view["source"] = lens
+	var shots: Variant = await CameraViews.render(host, planned, 0, stage)
+	lens.free()
+	stage.queue_free()
+	if shots is Dictionary:
+		return McpTool.error(str(shots.error))
+	var content: Array = [{"type": "text", "text": "%s: size (%.3f, %.3f, %.3f) m, center (%.3f, %.3f, %.3f)." % [plan.path, box.size.x, box.size.y, box.size.z, box.get_center().x, box.get_center().y, box.get_center().z]}]
+	for shot: Dictionary in shots:
+		content.append({"type": "text", "text": "%s (%dx%d)" % [shot.label, PREVIEW_SIZE.x, PREVIEW_SIZE.y]})
+		content.append({"type": "image", "mimeType": "image/png", "data": Marshalls.raw_to_base64(shot.png)})
+	return {"content": content, "isError": false}
+
+
+## El mundo propio de la vista previa: fondo gris, luz ambiente pareja, una luz principal y una de
+## relleno. No se dibuja por su cuenta: CameraViews renderiza con cámaras en otro SubViewport que
+## comparte este mundo.
+static func _stage() -> SubViewport:
+	var stage := SubViewport.new()
+	stage.name = "PreviewModelStage"
+	stage.own_world_3d = true
+	stage.size = PREVIEW_SIZE
+	stage.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = PREVIEW_BACKGROUND
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.75, 0.75, 0.78)
+	environment.ambient_light_energy = 0.6
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	var world := WorldEnvironment.new()
+	world.environment = environment
+	stage.add_child(world)
+	var key := DirectionalLight3D.new()
+	key.rotation_degrees = Vector3(-50.0, -35.0, 0.0)
+	key.light_energy = 1.1
+	stage.add_child(key)
+	var fill := DirectionalLight3D.new()
+	fill.rotation_degrees = Vector3(-20.0, 145.0, 0.0)
+	fill.light_energy = 0.35
+	stage.add_child(fill)
+	return stage
+
+
+## La caja de las mallas visibles del modelo, ya en el árbol (en coordenadas del mundo propio).
+static func _box(model: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	var visuals: Array = model.find_children("*", "VisualInstance3D", true, false)
+	if model is VisualInstance3D:
+		visuals.append(model)
+	for node: Node in visuals:
+		var visual := node as VisualInstance3D
+		if not visual.is_visible_in_tree() or visual is Light3D:
+			continue
+		var global_box := visual.global_transform * visual.get_aabb()
+		box = global_box if first else box.merge(global_box)
+		first = false
+	return box

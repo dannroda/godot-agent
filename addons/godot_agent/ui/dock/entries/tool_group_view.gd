@@ -444,6 +444,7 @@ const GODOT_TOOL_NAMES := {
 	"connect_signal": "Connect signal",  # i18n
 	"copy_file": "Copy file",  # i18n
 	"import_model": "Import model",  # i18n
+	"preview_model": "Preview model",  # i18n
 	"create_resource": "Create resource",  # i18n
 	"create_scene": "Create scene",  # i18n
 	"delete_file": "Delete file",  # i18n

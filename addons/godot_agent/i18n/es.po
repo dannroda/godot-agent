@@ -6651,3 +6651,9 @@ msgstr "Ocultar mensaje"
 
 msgid "What the agent received outside this chat, read from its transcript"
 msgstr "Lo que le llegó al agente por fuera de este chat, leído de su transcript"
+
+msgid "Preview model"
+msgstr "Ver modelo"
+
+msgid "Renders a 3D model from several angles"
+msgstr "Muestra un modelo 3D desde varios ángulos"

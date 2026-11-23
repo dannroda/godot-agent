@@ -35,6 +35,7 @@ const SUMMARIES: Dictionary = {
 	# Archivos
 	"copy_file": "Copies a file or folder into the project",  # i18n
 	"import_model": "Imports a 3D model into the project",  # i18n
+	"preview_model": "Renders a 3D model from several angles",  # i18n
 	"move_file": "Moves or renames a file or folder, keeping references",  # i18n
 	"delete_file": "Deletes a file or folder of the project",  # i18n
 	# Correr y jugar el juego
