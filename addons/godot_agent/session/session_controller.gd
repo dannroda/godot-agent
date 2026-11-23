@@ -2279,7 +2279,9 @@ func _show_outside_input() -> bool:
 		# Ya mostradas (un update suelto después de una pausa del mismo turno): no hace falta avisar.
 		return not OutsideInput.latest(lines).is_empty()
 	for input: Dictionary in inputs:
-		var incoming := {"kind": input.kind, "from": input.from, "status": input.status, "uuid": input.uuid}
+		# Viene del transcript, no por ACP: se le sacan los secretos como a lo demás que muestra el chat.
+		input.text = agent_log.redact(str(input.text))
+		var incoming := {"kind": input.kind, "from": agent_log.redact(str(input.from)), "status": input.status, "uuid": input.uuid}
 		model.event_cursor = history.next_event_index() if history else -1
 		model.add_incoming(str(input.text), incoming)
 		model.event_cursor = -1
