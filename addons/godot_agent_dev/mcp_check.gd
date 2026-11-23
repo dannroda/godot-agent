@@ -139,6 +139,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var bad_args: Dictionary = await _call("capture_editor_viewport", {"which": "4d"})
 	_expect(bad_args.get("isError", false), "enum inválido → isError")
 	await _check_editor_views()
+	await _check_model_recipe()
 
 	# Validadores (m14-04), por godot.run como los demás métodos extendidos.
 	var physics := await _call_text("run", {"method": "validate_physics", "params": {"scene": FIXTURE_SCENE}})
@@ -359,6 +360,58 @@ func _check_editor_views() -> void:
 	_expect(wrong.get("isError", false) and _text(wrong).contains("not a Camera3D"), "capture_editor_viewport camera inexistente → error")
 	var flat: Dictionary = await _call("capture_editor_viewport", {"which": "2d", "angles": 2})
 	_expect(flat.get("isError", false) and _text(flat).contains("3D scenes"), "capture_editor_viewport angles en 2d → error")
+	EditorInterface.open_scene_from_path(FIXTURE_SCENE)
+	for _frame in 3:
+		await _tree.process_frame
+
+
+## La receta Blender → Godot de la wiki (m11-88), de punta a punta y sin Blender: el .glb que
+## exportaría Blender (una caja de 1 m con su material, la base en el piso) entra con import_model, se
+## mira con preview_model y se ubica con instantiate_scene en una escena 3D. Los .glb rotos de
+## tests/fixtures/models/invalid no se copian. Las dos carpetas tienen .gdignore: el editor no las
+## importa, como una carpeta temporal de afuera (desde afuera, import_model pide permiso y acá nadie
+## contesta la tarjeta).
+func _check_model_recipe() -> void:
+	var target_dir := "res://tests/tmp/recipe"
+	var level := target_dir.path_join("level.tscn")
+	for file: String in ["crate.glb", "crate.glb.import", "level.tscn"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(target_dir.path_join(file)))
+	var imported := await _call_text("run", {"method": "import_model", "params": {"from": "res://tests/fixtures/models/blender_export/crate.glb", "to": target_dir}})
+	_expect(imported.begins_with("Imported %s/crate.glb" % target_dir) and imported.contains("1 meshes, 1 materials"), "receta: import_model · " + imported)
+	_expect(imported.contains("size (1.000, 1.000, 1.000)") and imported.contains("preview_model"), "receta: la caja mide 1 m y sugiere preview_model · " + imported)
+	var model := target_dir.path_join("crate.glb")
+	var preview: Dictionary = await _call("run", {"method": "preview_model", "params": {"path": model}})
+	var images: Array = preview.get("content", []).filter(func(block: Dictionary) -> bool: return block.get("type") == "image")
+	_expect(images.size() == 4 and _text(preview).contains("angle 4 of 4"), "receta: preview_model, 4 vistas · " + _text(preview).left(200))
+	if not images.is_empty():
+		# Las caras iluminadas distinto, todas del color de la madera (rojo > verde > azul).
+		var image := Image.new()
+		image.load_png_from_buffer(Marshalls.base64_to_raw(str(images[0].data)))
+		var background: Color = image.get_pixel(0, 0)
+		var shades := {}
+		for y in range(0, image.get_height(), 6):
+			for x in range(0, image.get_width(), 6):
+				var color := image.get_pixel(x, y)
+				if not color.is_equal_approx(background) and color.r > color.g and color.g > color.b:
+					shades[Color(snappedf(color.r, 0.05), snappedf(color.g, 0.05), snappedf(color.b, 0.05))] = true
+		_expect(shades.size() >= 2, "receta: preview_model muestra la caja con su material y caras con distinta luz (%d tonos)" % shades.size())
+	var created := await _call_text("create_scene", {"path": level, "root_type": "Node3D", "root_name": "Level"})
+	_expect(created.contains("Created"), "receta: escena 3D · " + created)
+	EditorInterface.open_scene_from_path(level)
+	for _frame in 3:
+		await _tree.process_frame
+	var placed := await _call_text("instantiate_scene", {"parent": ".", "scene_path": model, "name": "Crate", "position": [2, 0, -3], "rotation_degrees": [0, 45, 0], "scale": [1.5]})
+	var root := EditorInterface.get_edited_scene_root()
+	var crate := root.get_node_or_null("Crate") as Node3D if root else null
+	_expect(crate != null and crate.scene_file_path == model and crate.owner == root and crate.position == Vector3(2, 0, -3)
+		and crate.rotation_degrees.is_equal_approx(Vector3(0, 45, 0)) and crate.scale == Vector3(1.5, 1.5, 1.5), "receta: instantiate_scene la ubica · " + placed)
+	EditorInterface.save_scene()
+	EditorInterface.close_scene()
+	for broken: Array in [["not_a_model.glb", "Not a GLB 2.0 file"], ["truncated.glb", "Not a GLB 2.0 file"], ["cycle.glb", "cycle"],
+			["external_file.glb", "names the file"], ["required_extension.glb", "requires the glTF extensions"]]:
+		var refused: Dictionary = await _call("run", {"method": "import_model", "params": {"from": "res://tests/fixtures/models/invalid/" + broken[0], "to": target_dir}})
+		_expect(refused.get("isError", false) and _text(refused).contains(broken[1]), "receta: import_model rechaza %s · %s" % [broken[0], _text(refused)])
+		_expect(not FileAccess.file_exists(target_dir.path_join(broken[0])), "receta: %s no se copia" % broken[0])
 	EditorInterface.open_scene_from_path(FIXTURE_SCENE)
 	for _frame in 3:
 		await _tree.process_frame

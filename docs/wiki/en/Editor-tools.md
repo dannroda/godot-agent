@@ -70,6 +70,23 @@ The first column groups the tools by function. Each tool's permission group (the
 | Sessions | `sessions` (read), `session_send` (messages to other sessions), `request_mode` | With several agent sessions open in the editor: list the others (name, mode, state, what each is working on, the files it's editing in its current turn, which one has the game running), and send one a short message (up to 4,000 characters). The message reaches that agent when its current turn ends, as data from the sender inside an untrusted envelope, not as instructions. Each message asks for permission (denied in One-shot), and a message to a session in a mode with more permissions than the sender's is always denied: see [Modes and permissions](Modes-and-permissions.md#messages-between-sessions). `request_mode` proposes switching the agent's own session to another mode, fixed or of the project; the user decides with a card, even in Auto (denied in One-shot): see [The agent asks to switch modes](Modes-and-permissions.md#the-agent-asks-to-switch-modes). `request_mode` is in the Read group, but its card shows in every mode: the switch is always yours. |
 | Second opinion | `ask_second_opinion` (second opinion) | Asks another agent, read only and without this conversation, to review the work: a question, the diff of the turn and files to look at. It goes through the **Second opinion** group (Ask in every mode, denied in One-shot) and the answer comes back inside an untrusted envelope. See [Second opinion](Modes-and-permissions.md#second-opinion). |
 
+## From Blender to the scene
+
+With a Blender MCP server connected (**Extensions → MCP servers**), the agent can model in Blender and bring the result into the open scene without the shell:
+
+1. **Export a GLB from Blender** to a temporary folder outside the project, with the Blender MCP's Python:
+
+   ```python
+   import bpy
+   bpy.ops.export_scene.gltf(filepath="/tmp/crate.glb", export_format='GLB', export_yup=True,
+       export_apply=True, use_selection=True, export_cameras=False, export_lights=False)
+   ```
+
+   glTF Binary (`GLB`) embeds the textures in the file. `+Y up` matches Godot's axes. Applying modifiers exports what you see in Blender. Select only what should go in, and leave cameras and lights out unless the scene needs them. Apply the object's scale in Blender first (**Ctrl+A → Scale**): one Blender metre is one Godot metre.
+2. **`import_model`** from `/tmp/crate.glb` to a project folder such as `res://models/`. Because the file is outside the project, it asks you first. It checks the file, waits for the editor to import it and returns its meshes, materials, animations and size.
+3. **`preview_model`** on `res://models/crate.glb`: views from several angles to check the shape, the material and the size before placing it. If something is off, fix it in Blender, export again and import with `replace: true` (it keeps the uid, so scenes that already use the model get the new version).
+4. **`instantiate_scene`** with `scene_path`, `parent` and `position`, `rotation_degrees` and `scale`, in one undo step.
+
 ## Project tools
 
 A project can add its own tools in GDScript, for the operations of that game that would otherwise take the agent many calls (building a level from a table, filling an item database, setting up an enemy). Each `.gd` file in `res://agent_tools/` (**Change folder…** in Extensions → Tools) is a tool named like the file: `build_level.gd` is `godot.build_level`.

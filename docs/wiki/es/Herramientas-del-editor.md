@@ -70,6 +70,23 @@ La primera columna agrupa las tools por función. El grupo de permisos de cada t
 | Sesiones | `sessions` (lectura), `session_send` (mensajes a otras sesiones), `request_mode` | Con varias sesiones del agente abiertas en el editor: listar las otras (nombre, modo, estado, en qué está cada una, los archivos que edita en su turno actual, cuál tiene el juego corriendo) y mandarle a una un mensaje corto (hasta 4.000 caracteres). El mensaje le llega a ese agente cuando termina su turno actual, como datos de quien lo mandó en un sobre no confiable, no como instrucciones. Cada mensaje pide permiso (se deniega en One-shot), y un mensaje a una sesión en un modo con más permisos que el de quien lo manda se deniega siempre: ver [Modos y permisos](Modos-y-permisos.md#mensajes-entre-sesiones). `request_mode` propone pasar la sesión del propio agente a otro modo, fijo o del proyecto; el usuario decide con una tarjeta, también en Auto (se deniega en One-shot): ver [El agente pide cambiar de modo](Modos-y-permisos.md#el-agente-pide-cambiar-de-modo). `request_mode` está en el grupo Lectura, pero su tarjeta aparece en todos los modos: el cambio siempre lo decidís vos. |
 | Segunda opinión | `ask_second_opinion` (segunda opinión) | Le pide a otro agente, de solo lectura y sin esta conversación, que revise el trabajo: una pregunta, el diff del turno y archivos para mirar. Pasa por el grupo **Segunda opinión** (Preguntar en todos los modos, se deniega en One-shot) y la respuesta vuelve dentro de un sobre de texto no confiable. Ver [Segunda opinión](Modos-y-permisos.md#segunda-opinión). |
 
+## De Blender a la escena
+
+Con un servidor MCP de Blender conectado (**Extensiones → Servidores MCP**), el agente puede modelar en Blender y traer el resultado a la escena abierta sin la shell:
+
+1. **Exportar un GLB desde Blender** a una carpeta temporal fuera del proyecto, con el Python del MCP de Blender:
+
+   ```python
+   import bpy
+   bpy.ops.export_scene.gltf(filepath="/tmp/crate.glb", export_format='GLB', export_yup=True,
+       export_apply=True, use_selection=True, export_cameras=False, export_lights=False)
+   ```
+
+   glTF Binary (`GLB`) lleva las texturas adentro del archivo. `+Y arriba` coincide con los ejes de Godot. Aplicar los modificadores exporta lo que se ve en Blender. Seleccioná solo lo que va, y dejá afuera cámaras y luces si la escena no las necesita. Aplicá antes la escala del objeto en Blender (**Ctrl+A → Escala**): un metro de Blender es un metro de Godot.
+2. **`import_model`** desde `/tmp/crate.glb` a una carpeta del proyecto, como `res://models/`. Como el archivo está fuera del proyecto, te pregunta antes. Revisa el archivo, espera a que el editor lo importe y devuelve sus mallas, materiales, animaciones y tamaño.
+3. **`preview_model`** sobre `res://models/crate.glb`: vistas desde varios ángulos para revisar la forma, el material y el tamaño antes de ubicarlo. Si algo no está bien, se arregla en Blender, se exporta de nuevo y se importa con `replace: true` (mantiene el uid, así las escenas que ya usan el modelo reciben la versión nueva).
+4. **`instantiate_scene`** con `scene_path`, `parent` y `position`, `rotation_degrees` y `scale`, en un solo paso de undo.
+
 ## Herramientas del proyecto
 
 Un proyecto puede sumar herramientas propias en GDScript, para las operaciones de ese juego que al agente le llevarían muchas llamadas (armar un nivel desde una tabla, poblar una base de items, preparar un enemigo). Cada archivo `.gd` de `res://agent_tools/` (**Cambiar carpeta…** en Extensiones → Tools) es una herramienta que se llama como el archivo: `build_level.gd` es `godot.build_level`.
