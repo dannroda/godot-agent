@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-23
+
 ### Added
 
 - **The agent sees what the Inspector shows.** `editor_state` now says what is open in the Inspector: a node of the scene, a resource file, or a sub-resource (a mesh's material, a StyleBox inside a theme) with the node or resource and the property it comes from. "Change this one I'm looking at" now works.
