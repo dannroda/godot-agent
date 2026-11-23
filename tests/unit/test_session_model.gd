@@ -317,3 +317,14 @@ func test_failed_without_write_stays_failed() -> void:
 		"content": [{"type": "diff", "path": "/p/x.gd", "oldText": "a", "newText": "b"}]})
 	model.apply_update({"sessionUpdate": "tool_call_update", "toolCallId": "a", "status": "failed"})
 	assert_eq(model.tool_call("a").status, ToolCall.STATUS_FAILED, "sin write aplicado sigue fallida")
+
+
+## m11-75: el agente anuncia `_session/steering` en el `_meta` de initialize.
+func test_steering_from_initialize() -> void:
+	var model := SessionModel.new()
+	model.apply_initialize({"agentCapabilities": {}})
+	assert_false(model.steering_supported, "sin _meta")
+	model.apply_initialize({"_meta": {"steering": {"supported": true}}})
+	assert_true(model.steering_supported, "claude-agent-acp 0.109")
+	model.apply_initialize({"_meta": {"steering": {"supported": "yes"}}})
+	assert_false(model.steering_supported, "solo true")

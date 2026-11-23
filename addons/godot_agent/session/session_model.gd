@@ -125,6 +125,9 @@ var agent_info: Dictionary = {}
 var account: Dictionary = {}
 var agent_capabilities: Dictionary = {}
 var auth_methods: Array = []
+## El agente acepta `_session/steering` (m11-75): un mensaje que entra en el turno que corre, sin
+## cortarlo, como en Claude Code. Lo anuncia en `initialize` (`_meta.steering.supported`).
+var steering_supported: bool = false
 var current_agent_mode: String = ""
 var agent_modes: Array = []
 var config_options: Array = []
@@ -432,6 +435,9 @@ func apply_initialize(result: Dictionary) -> void:
 	agent_info = result.get("agentInfo", {}) if result.get("agentInfo") is Dictionary else {}
 	agent_capabilities = result.get("agentCapabilities", {}) if result.get("agentCapabilities") is Dictionary else {}
 	auth_methods = result.get("authMethods", []) if result.get("authMethods") is Array else []
+	var meta: Variant = result.get("_meta")
+	var steering: Variant = meta.get("steering") if meta is Dictionary else null
+	steering_supported = steering is Dictionary and steering.get("supported") is bool and steering.get("supported")
 
 
 ## Resultado de `session/new` (o `session/load`).

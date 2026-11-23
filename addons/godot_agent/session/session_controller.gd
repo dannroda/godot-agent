@@ -18,6 +18,9 @@ signal permissions_changed
 ## manda al terminar el turno, aunque termine cancelled (el rechazo de ExitPlanMode lo corta).
 signal reject_feedback(text: String)
 
+## Extensión de ACP para meter un mensaje en el turno que corre (m11-75).
+const STEER_METHOD := "_session/steering"
+const STEER_WAIT_MS := 30000
 const AgentProcess := preload("../transport/agent_process.gd")
 const AddonVersion := preload("../core/addon_version.gd")
 const AcpClient := preload("../acp/acp_client.gd")
@@ -567,6 +570,57 @@ func _notice_after_session() -> void:
 	_notices_shown[key] = true
 	if not seen:
 		model.add_notice(text, ChatEntry.NoticeLevel.WARNING)
+
+
+## Si `text` puede entrar en el turno que corre (m11-75): el agente lo soporta, hay un turno de un
+## prompt en curso y no es un comando con / (esos van solos, al principio de un prompt).
+func can_steer(text: String) -> bool:
+	return model.steering_supported and model.state == SessionModel.SessionState.PROMPTING \
+		and not model.session_id.is_empty() and not is_slash_command(text)
+
+
+## Mete `text` en el turno que corre con `_session/steering`, sin cortarlo, como Claude Code con un
+## mensaje escrito mientras trabaja. Devuelve "injected" (el mensaje ya está en el chat),
+## "prompt_required" (el turno terminó en el camino: hay que mandarlo como prompt) o "" (no se pudo:
+## que vaya a la cola).
+func steer(text: String, extra_blocks: Array = []) -> String:
+	if not can_steer(text):
+		return ""
+	# El turno arrancó pero el prompt todavía no salió (el snapshot de Construir, un cambio de modo): se
+	# espera a que esté en el agente, así entra en ese turno y no en el siguiente.
+	var deadline := Time.get_ticks_msec() + STEER_WAIT_MS
+	while _prompt_request_id < 0 and model.state == SessionModel.SessionState.PROMPTING and Time.get_ticks_msec() < deadline:
+		await Engine.get_main_loop().process_frame
+	if _prompt_request_id < 0 or not can_steer(text):
+		return "prompt_required" if model.state == SessionModel.SessionState.READY else ""
+	var blocks: Array = extra_blocks.duplicate()
+	var rules_block := path_rules_block(text, extra_blocks)
+	if not rules_block.is_empty():
+		blocks.append(rules_block)
+	blocks.append({"type": "text", "text": text})
+	var result := await client.request(STEER_METHOD, {"sessionId": model.session_id, "prompt": blocks,
+		"_meta": {"steering": {"idleBehavior": "promptRequired"}}})
+	if not result.ok or not result.result is Dictionary:
+		agent_log.add(AgentLog.CH_ACP, "Steering failed: %s" % (result.error_message() if not result.ok else "no result"))
+		return ""
+	var outcome := str(result.result.get("outcome", ""))
+	if outcome == "promptRequired":
+		return "prompt_required"
+	if outcome != "injected":
+		agent_log.add(AgentLog.CH_ACP, "Steering answered «%s»" % outcome)
+		return ""
+	var attachments: Array[Dictionary] = []
+	for block: Variant in blocks.slice(0, blocks.size() - 1):
+		if block is Dictionary:
+			attachments.append(block)
+	var harness_label := _take_label(text)
+	model.event_cursor = history.next_event_index() if history else -1
+	model.add_user_message(text, attachments, harness_label)
+	model.event_cursor = -1
+	if history:
+		history.record_prompt(text, harness_label)
+	agent_log.add(AgentLog.CH_ACP, "Message sent into the running turn")
+	return "injected"
 
 
 ## Manda un turno. `extra_blocks` son ContentBlocks de contexto (escena, selección, imagen…).

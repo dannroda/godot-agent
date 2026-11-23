@@ -1839,6 +1839,40 @@ func _run_queue_test(shot_path: String) -> void:
 			if user_messages.call() != ["largo", "dos", "uno"]:
 				failures.append("enviar ahora: el resto de la cola no siguió: %s" % [user_messages.call()])
 		controller.call(&"stop")
+	# m11-75: con un agente que acepta `_session/steering`, lo que se escribe mientras trabaja entra en su
+	# turno, sin cola y sin cortarlo; un comando con / sigue esperando en la cola.
+	profile.args[profile.args.size() - 1] = "--scenario=res://tests/scripts/queue_steer.json"
+	if not await controller.call(&"start", profile):
+		failures.append("no arrancó la sesión con steering (%s)" % model.get(&"failure_message"))
+	else:
+		if not bool(model.get(&"steering_supported")):
+			failures.append("steering: no se leyó steering.supported de initialize")
+		# En el mismo frame que «largo», antes de que su prompt salga: el mensaje espera y entra en ese turno.
+		for text: String in ["largo", "y también los autos", "/compact"]:
+			input.text = text
+			composer.call(&"_submit")
+			await get_tree().process_frame
+		deadline = Time.get_ticks_msec() + 5000
+		while user_messages.call().size() < 2 and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		if user_messages.call() != ["largo", "y también los autos"] or not bool(model.call(&"is_busy")):
+			failures.append("steering: el mensaje no entró en el turno que corre: %s, ocupado %s" % [user_messages.call(), model.call(&"is_busy")])
+		if int(queue.call(&"size")) != 1:
+			failures.append("steering: el comando con / no quedó en la cola (%d)" % queue.call(&"size"))
+		var rows: VBoxContainer = queue_view.get(&"_rows")
+		await get_tree().process_frame
+		var send_button: Button = rows.get_child(0).get_child(1) if rows.get_child_count() > 0 else null
+		if send_button == null or send_button.text != I18n.t("Send") or send_button.disabled:
+			failures.append("steering: la fila no ofrece «Enviar» con el agente trabajando")
+		deadline = Time.get_ticks_msec() + 20000
+		while (not bool(queue.call(&"is_empty")) or bool(model.call(&"is_busy"))) and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		var steer_text := " ".join((model.call(&"entries") as Array).filter(func(entry: Object) -> bool: return int(entry.get(&"kind")) == 1).map(func(entry: Object) -> String: return str(entry.get(&"text"))))
+		if not steer_text.contains("(recibí: y también los autos)") or not steer_text.contains("y terminé el turno largo"):
+			failures.append("steering: el agente no lo recibió en el turno, o el turno se cortó: %s" % steer_text.right(200))
+		if user_messages.call() != ["largo", "y también los autos", "/compact"]:
+			failures.append("steering: la cola no siguió después del turno: %s" % [user_messages.call()])
+		controller.call(&"stop")
 	for failure: String in failures:
 		print("[queue-test] FALLA ", failure)
 	_finish_checking_state(0 if failures.is_empty() else 1, "queue-test: %d fallas" % failures.size(), "queue-test")

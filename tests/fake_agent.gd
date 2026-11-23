@@ -45,6 +45,9 @@ extends SceneTree
 ##                                     lo que devolvió; un session/cancel se atiende entre una llamada y otra
 ##   {"hang": true}                    deja el prompt sin responder para siempre, y tampoco contesta
 ##                                     el session/cancel (el turno colgado de m17-16)
+## `_session/steering` (m11-75), como claude-agent-acp 0.109 (anunciarlo con "initialize":
+## {"_meta": {"steering": {"supported": true}}}): con un turno en curso responde "injected" y el agente
+## lo cuenta en el turno («(recibí: …)»); sin turno, con idleBehavior promptRequired, "promptRequired".
 ## Un session/cancel corta el turno en curso y responde stopReason "cancelled".
 ## `/remote-control [nombre]` y `/remote-control off` solos en el prompt se contestan como
 ## claude-agent-acp 0.94; al activarlo corren los pasos de "remote_steps" del guion, fuera de un
@@ -205,6 +208,18 @@ func _handle_line(line: String) -> void:
 				_steps.clear()
 				_waiting_request_id = -1
 				_finish_prompt("cancelled")
+		"_session/steering":
+			var steer_params: Dictionary = message.get("params", {})
+			var steered := ""
+			for block: Variant in steer_params.get("prompt", []):
+				if block is Dictionary and block.get("type") == "text":
+					steered = str(block.get("text", ""))
+			printerr("fake_agent: steering %s" % steered)
+			if _prompt_id == null:
+				_reply(id, {"outcome": "promptRequired", "reason": "noRunningTurn"})
+				return
+			_steps.push_front({"chunk": "(recibí: %s)" % steered})
+			_reply(id, {"outcome": "injected"})
 		"session/set_mode":
 			printerr("fake_agent: set_mode %s" % str(message.get("params", {}).get("modeId", "")))
 			_reply(id, {})

@@ -593,8 +593,6 @@ msgstr "Editar escenas"
 msgid "Edit the plan: the text is sent to the agent when the current turn ends."
 msgstr "Editá el plan: el texto se manda al agente al terminar el turno actual."
 
-msgid "Edit: moves it back to the composer"
-msgstr "Editar: vuelve al composer"
 
 msgid "Editor tools (the addon's MCP server)"
 msgstr "Herramientas del editor (servidor MCP del addon)"
@@ -1232,8 +1230,6 @@ msgstr "Quitar"
 msgid "Remove from the context"
 msgstr "Quitar del contexto"
 
-msgid "Remove from the queue"
-msgstr "Quitar de la cola"
 
 msgid "Report"
 msgstr "Informe"
@@ -2212,8 +2208,6 @@ msgstr "código"
 msgid "Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame)."
 msgstr "Rechazado: «%s» abre Godot en su propia ventana. Por línea de comandos, Godot va solo con --headless; para ver el juego, el agente lo corre desde el editor (godot.run_scene) y lo captura (godot.capture_game_frame)."
 
-msgid "Send now: stops the agent's current turn and sends this message"
-msgstr "Enviar ahora: corta el turno del agente y manda este mensaje"
 
 msgid "The MCP server «%s» was left out: this agent only takes stdio servers."
 msgstr "El servidor MCP «%s» quedó afuera: este agente solo acepta servidores stdio."
@@ -6536,3 +6530,18 @@ msgstr "Busca en el texto de los archivos del proyecto, como Buscar en archivos"
 
 msgid "Search in files"
 msgstr "Buscar en archivos"
+
+msgid "Moves it back to the composer to change it"
+msgstr "Lo devuelve al composer para cambiarlo"
+
+msgid "Removes it from the queue without sending it"
+msgstr "Lo saca de la cola sin mandarlo"
+
+msgid "Sends it now: the agent gets it in the turn it is working on, without stopping"
+msgstr "Lo manda ya: el agente lo recibe en el turno en que está trabajando, sin cortarlo"
+
+msgid "Sends it now: stops the agent's current turn first"
+msgstr "Lo manda ya: primero corta el turno actual del agente"
+
+msgid "Sends it now, ahead of the others"
+msgstr "Lo manda ya, antes que los demás"

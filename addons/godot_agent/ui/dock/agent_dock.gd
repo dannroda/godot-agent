@@ -457,7 +457,7 @@ func _ready() -> void:
 	# Pull del estado actual y después push por señales.
 	_model.state_changed.connect(func(state: SessionModel.SessionState) -> void:
 		_refresh_state()
-		_queue_view.set_send_available(state == SessionModel.SessionState.READY)
+		_queue_view.set_send_available(state == SessionModel.SessionState.READY, state == SessionModel.SessionState.PROMPTING, _model.steering_supported)
 		if state == SessionModel.SessionState.DISCONNECTED or _model.has_failed():
 			_queue.pause(I18n.t("the session closed")))
 	_model.turn_finished.connect(_on_turn_finished)
@@ -498,7 +498,7 @@ func _ready() -> void:
 	_reload_profiles()
 	_refresh_modes()
 	_refresh_state()
-	_queue_view.set_send_available(_model.state == SessionModel.SessionState.READY)
+	_queue_view.set_send_available(_model.state == SessionModel.SessionState.READY, _model.state == SessionModel.SessionState.PROMPTING, _model.steering_supported)
 	_refresh_title()
 	_composer.set_usage(_model.usage_used, _model.usage_size)
 	_quota_ring.set_context(_model.usage_used, _model.usage_size)
@@ -1663,6 +1663,11 @@ func _on_submitted(text: String) -> void:
 		open_recipe(text.strip_edges().trim_prefix(RECIPE_COMMAND).strip_edges())
 		return
 	_arm_recipe(text)
+	# Con el agente trabajando, el mensaje entra en su turno si lo soporta (m11-75), como en Claude Code;
+	# si no, espera en la cola. Un pedido de plan o un comando con / necesitan un turno propio.
+	if _model.is_busy() and _controller.can_steer(text) and not _is_plan_text(text):
+		_steer(text, _take_context_blocks())
+		return
 	if _model.is_busy() or (_model.state == SessionModel.SessionState.STARTING and not _pending_prompt.is_empty()):
 		_queue.add(text, _take_context_blocks())
 		return
@@ -1704,6 +1709,29 @@ func _send(text: String) -> void:
 
 ## Manda el prompt con el contexto de sus menciones especiales (@errors, @game…) agregado.
 func _send_with_mentions(text: String, blocks: Array) -> void:
+	var expanded := await _with_mentions(text, blocks)
+	if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
+		return
+	_controller.send_prompt(text, expanded)
+
+
+## Mete `text` en el turno que corre (m11-75). Si el turno terminó en el camino sale como prompt, y si
+## el agente no lo tomó, a la cola: el mensaje nunca se pierde.
+func _steer(text: String, blocks: Array) -> void:
+	var expanded := await _with_mentions(text, blocks)
+	if not is_inside_tree():
+		return
+	var outcome: String = await _controller.steer(text, expanded)
+	if outcome == "injected":
+		return
+	if outcome == "prompt_required" and _model.state == SessionModel.SessionState.READY and _queue.is_empty():
+		_controller.send_prompt(text, expanded)
+	else:
+		_queue.add(text, blocks)
+
+
+## `blocks` más el contexto de las menciones especiales de `text` (@escena, @juego…).
+func _with_mentions(text: String, blocks: Array) -> Array:
 	var expanded := blocks.duplicate()
 	for mention: Dictionary in mentions_to_expand(text, _controller.prompt_label(text)):
 		var found := ""
@@ -1711,10 +1739,10 @@ func _send_with_mentions(text: String, blocks: Array) -> void:
 			found = _session_context(str(mention.arg))
 		elif context_provider.is_valid():
 			found = await context_provider.call(mention.kind, mention.arg)
-		if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba
-			return
+		if not is_inside_tree():  # se cerró la pestaña o el plugin mientras esperaba: quien llama lo mira
+			return expanded
 		expanded.append({"type": "text", "text": "Context the user attached with @%s:\n%s" % [mention.token, found if not found.strip_edges().is_empty() else "(nothing)"]})
-	_controller.send_prompt(text, expanded)
+	return expanded
 
 
 ## Las menciones especiales que se expanden al mandar `text`. Un prompt del harness (`harness_label` no
@@ -1912,6 +1940,11 @@ func _start_plan(what: String, blocks: Array) -> void:
 ## «Enviar ahora» de un prompt de la cola: pasa al frente y, si el agente está trabajando, se
 ## cancela el turno; sale apenas el agente confirma la cancelación. El resto de la cola sigue después.
 func _send_queued_now(index: int) -> void:
+	# Con steering, entra en el turno que corre sin cortarlo (m11-75).
+	if _model.is_busy() and index < _queue.size() and _controller.can_steer(str(_queue.items[index].text)) and not _is_plan_text(str(_queue.items[index].text)):
+		var item := _queue.discard_at(index)
+		_steer(str(item.text), item.blocks)
+		return
 	_queue.move_to_front(index)
 	_queue.resume()
 	if _model.is_busy():

@@ -25,6 +25,10 @@ var _reason: Label
 var _send_now: Button
 var _rows: VBoxContainer
 var _send_available: bool = true
+## El agente trabaja: «Enviar» de un mensaje lo mete en su turno si lo acepta (`_steerable`, m11-75) y
+## si no corta el turno y lo manda.
+var _working: bool = false
+var _steerable: bool = false
 
 
 func setup(queue: PromptQueue) -> void:
@@ -59,13 +63,18 @@ func _ready() -> void:
 	_refresh()
 
 
-## «Enviar ahora» solo con una sesión lista (si la sesión se cerró, primero hay que abrir otra).
-func set_send_available(available: bool) -> void:
+## «Enviar ahora» solo con una sesión lista (si la sesión se cerró, primero hay que abrir otra). El
+## «Enviar» de cada mensaje también mientras el agente trabaja (`working`).
+func set_send_available(available: bool, working: bool = false, steerable: bool = false) -> void:
 	_send_available = available
+	_working = working
+	_steerable = steerable
 	_send_now.disabled = not available
 	for row: Node in _rows.get_children():
 		if row.has_meta(&"send"):
-			(row.get_meta(&"send") as Button).disabled = not available
+			var send := row.get_meta(&"send") as Button
+			send.disabled = not (available or working)
+			send.tooltip_text = _send_tooltip()
 	_send_now.tooltip_text = I18n.t("Resume the queue: sends the next prompt") if available else I18n.t("A ready session is needed: open a new one or retry")
 
 
@@ -87,17 +96,25 @@ func _refresh() -> void:
 		label.tooltip_text = text
 		label.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(label)
-		var send := _small_button("➤", I18n.t("Send now: stops the agent's current turn and sends this message"))
-		send.disabled = not _send_available
+		var send := _small_button(I18n.t("Send"), _send_tooltip())
+		send.disabled = not (_send_available or _working)
 		send.pressed.connect(func() -> void: send_item_now_requested.emit(i))
 		row.add_child(send)
 		row.set_meta(&"send", send)
-		var edit := _small_button("✎", I18n.t("Edit: moves it back to the composer"))
+		var edit := _small_button(I18n.t("Edit"), I18n.t("Moves it back to the composer to change it"))
 		edit.pressed.connect(_on_edit.bind(i))
 		row.add_child(edit)
-		var remove := _small_button("✕", I18n.t("Remove from the queue"))
+		var remove := _small_button(I18n.t("Remove"), I18n.t("Removes it from the queue without sending it"))
 		remove.pressed.connect(func() -> void: _queue.discard_at(i))
 		row.add_child(remove)
+
+
+func _send_tooltip() -> String:
+	if _working and _steerable:
+		return I18n.t("Sends it now: the agent gets it in the turn it is working on, without stopping")
+	if _working:
+		return I18n.t("Sends it now: stops the agent's current turn first")
+	return I18n.t("Sends it now, ahead of the others")
 
 
 func _on_edit(index: int) -> void:

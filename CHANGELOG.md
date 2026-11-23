@@ -6,6 +6,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Added
 
+- **Messages go into the running turn.** With Claude Code, what you send while the agent works goes into the turn it is working on, without stopping it, as in the Claude Code extensions: the agent reads it at its next step, and it shows in the chat right away. Agents without it (and `/` commands and plan requests) still use the queue. A message written just as a turn starts waits until the turn reaches the agent and goes into it.
 - **Find in Files for the agent.** A new `find_in_files` tool searches the text of the project's files like the editor's Find in Files: the files the editor knows, with Godot's text extensions (`.gd`, `.tscn`, `.tres`, `.gdshader`…; the editor's own search skips scenes by default) plus the ones the project adds, as text or a regular expression, in a folder or only some extensions. Agents without their own search tool no longer need `grep` in the shell.
 
 ### Fixed
@@ -14,6 +15,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Changed
 
+- **Clearer queue buttons.** Each queued message now has **Send**, **Edit** and **Remove** instead of ➤ ✎ ✕, and **Send** also works while the agent is working: it goes into its turn, or stops the turn first with an agent that can't take it. Before, it was disabled until the turn ended.
 - **The agent inspects scenes with the editor tools.** The system prompt now tells the agent to look at a scene with `godot.scene_tree` and `godot.get_node` (or to Read the `.tscn`), and not with `sed`, `grep` or `head` in the shell, which asked for permission in Build.
 
 ## [0.2.0] - 2026-11-23
