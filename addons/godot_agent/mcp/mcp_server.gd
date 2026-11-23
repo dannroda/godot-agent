@@ -60,6 +60,10 @@ var _sessions: Dictionary = {}  # Mcp-Session-Id -> {client, protocolVersion}
 ## Tokens de las otras sesiones del agente abiertas a la vez (m7-44): token -> id de la sesión. El
 ## de `token` es el de la primera (id "").
 var _session_tokens: Dictionary = {}
+## Para el informe de diagnóstico (m11-80), por sesión del agente ("" la primera): el cliente MCP que
+## hizo initialize y cuántas tools llamó / cuántas dieron error.
+var _clients_by_caller: Dictionary = {}  # caller -> clientInfo.name
+var _calls_by_caller: Dictionary = {}  # caller -> {calls, errors}
 
 
 ## En _init y no en _ready: el plugin lo agrega en su _enter_tree y llama a start() antes de que
@@ -135,6 +139,14 @@ func remove_session_token(session: String) -> void:
 	for existing: String in _session_tokens.keys():
 		if _session_tokens[existing] == session:
 			_session_tokens.erase(existing)
+
+
+## Lo que el informe de diagnóstico sabe del MCP de una sesión (m11-80): si su agente se conectó, con
+## qué cliente (el nombre que manda en initialize) y cuántas tools llamó.
+func diagnostics_of(caller: String) -> Dictionary:
+	var counts: Dictionary = _calls_by_caller.get(caller, {"calls": 0, "errors": 0})
+	return {"server_listening": is_listening(), "agent_connected": _clients_by_caller.has(caller),
+		"client": str(_clients_by_caller.get(caller, "")), "tool_calls": int(counts.calls), "tool_errors": int(counts.errors)}
 
 
 func _exit_tree() -> void:
@@ -357,6 +369,7 @@ func _dispatch(message: Variant, headers: Dictionary, session_id: String, caller
 			var new_id := session_id if not session_id.is_empty() else _random_hex(16)
 			var client: Dictionary = params.get("clientInfo", {}) if params.get("clientInfo") is Dictionary else {}
 			_sessions[new_id] = {"client": client, "protocolVersion": version}
+			_clients_by_caller[caller] = str(client.get("name", ""))
 			headers["Mcp-Session-Id"] = new_id
 			_log("initialize from %s %s (MCP %s)" % [client.get("name", "?"), client.get("version", ""), version])
 			return _rpc_result(id, {
@@ -379,6 +392,11 @@ func _dispatch(message: Variant, headers: Dictionary, session_id: String, caller
 			if not result is Dictionary or not result.get("content") is Array:
 				# call_tool se cortó por un error de script: igual se responde.
 				result = {"content": [{"type": "text", "text": "Internal harness error while running %s. Check the editor's Output panel." % tool_name}], "isError": true}
+			var counts: Dictionary = _calls_by_caller.get(caller, {"calls": 0, "errors": 0})
+			counts.calls += 1
+			if result.get("isError", false):
+				counts.errors += 1
+			_calls_by_caller[caller] = counts
 			return _rpc_result(id, result)
 	return _rpc_error(id, -32601, "Unsupported method: %s" % method)
 

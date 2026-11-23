@@ -58,6 +58,7 @@ Two things are not masked, on purpose. What the agent writes or runs carries the
 | Turn reports, playtest videos and frames, what playtests learned about the game (notes, scripts, saved regressions, findings marked not a bug), One-shot spec and progress, installed-asset list | `res://.godot_agent/` | Inside the project. Never exported with the game. |
 | Snapshots of each turn, to show what changed and go back | git refs `refs/godot-agent/turns/*` in the project's repository | Local refs: they are not pushed unless you push them yourself. The last 60 per session. |
 | Agent Log | Memory only | Up to 2000 entries, cleared when the editor closes. It leaves the editor only if you copy it. |
+| Diagnostic report (**Copy diagnostic report…**) | Nowhere: built when you open it | It goes to the clipboard only when you press **Copy**, after you see it. Only values from fixed lists (versions, operating system, agent adapter, connection state, failure category, counts of MCP tool calls): no paths, file names, conversation text, email or account. |
 
 ## What the harness never does
 

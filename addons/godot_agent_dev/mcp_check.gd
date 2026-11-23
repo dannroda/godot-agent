@@ -135,9 +135,38 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var once := await _call_text("editor_state", {})
 	_expect(not once.contains("New in the editor since"), "el aviso sale una sola vez")
 
+	await _check_diagnostic_report()
 	await _check_shim()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(BAD_SCRIPT))
 	return failures
+
+
+## m11-80: «Copy diagnostic report…» del menú ⋯ del dock y del Agent Log, después de las llamadas de este
+## check: ve la conexión MCP y las tools, sin la ruta del proyecto ni el nombre del cliente.
+func _check_diagnostic_report() -> void:
+	var home := OS.get_environment("HOME") if not OS.get_environment("HOME").is_empty() else OS.get_environment("USERPROFILE")
+	for script_path: String in ["res://addons/godot_agent/ui/dock/agent_dock.gd", "res://addons/godot_agent/ui/log_panel/agent_log_panel.gd"]:
+		var owner: Node = null
+		for node: Node in _tree.root.find_children("*", "Control", true, false):
+			if node.get_script() and (node.get_script() as Script).resource_path == script_path:
+				owner = node
+				break
+		if owner == null:
+			failures.append("informe de diagnóstico: no está %s" % script_path.get_file())
+			continue
+		var dialog: Window = owner.call(&"open_diagnostic_dialog")
+		await _tree.process_frame
+		var preview := str(dialog.call(&"preview_text")) if dialog else ""
+		var where := script_path.get_file().get_basename()
+		_expect(dialog != null and dialog.visible, "%s: abre el informe de diagnóstico" % where)
+		_expect(preview.contains("\"agent_connected\": true") and preview.contains("\"schema_version\": 1") and preview.contains("\"server_listening\": true"), "%s: el informe ve el MCP · %s" % [where, preview.left(600)])
+		_expect(not preview.contains(ProjectSettings.globalize_path("res://").trim_suffix("/")) and (home.is_empty() or not preview.contains(home)) and not preview.contains("mcp-check"), "%s: sin rutas ni el nombre del cliente" % where)
+		var copied: Array = []
+		dialog.connect(&"copied", func(text: String) -> void: copied.append(text))
+		dialog.emit_signal(&"confirmed")
+		_expect(copied.size() == 1 and (DisplayServer.get_name() == "headless" or DisplayServer.clipboard_get().contains("\"schema_version\": 1")), "%s: Copiar lo deja en el portapapeles" % where)
+		dialog.hide()
+		await _tree.process_frame
 
 
 ## Shim stdio: initialize + tools/call por stdin, respuestas por stdout.

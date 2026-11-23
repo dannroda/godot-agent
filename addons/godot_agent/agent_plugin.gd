@@ -102,6 +102,7 @@ const GameCriteria := preload("oneshot/game_criteria.gd")
 const CompletionService := preload("completion/completion_service.gd")
 const AddonUpdater := preload("core/addon_updater.gd")
 const AddonVersion := preload("core/addon_version.gd")
+const DiagnosticReport := preload("core/diagnostic_report.gd")
 const UpdateBanner := preload("ui/dock/update_banner.gd")
 const SessionCoordinator := preload("session/session_coordinator.gd")
 const SessionTabs := preload("ui/dock/session_tabs.gd")
@@ -404,6 +405,7 @@ func _enter_tree() -> void:
 	var log_panel := AgentLogPanelScene.instantiate()
 	_log_panel = log_panel
 	log_panel.setup(_log)
+	log_panel.diagnostic_report = func() -> Dictionary: return _diagnostic_report(_tabs.active_id() if _tabs else PRIMARY_SESSION)
 	_tabs = SessionTabs.new()
 	_tabs.name = dock.name  # con la API vieja de docks, el título de la pestaña es el nombre del nodo
 	_tabs.add_session(PRIMARY_SESSION, dock, _model, I18n.t("Session 1"))
@@ -2239,6 +2241,7 @@ func _wire_oneshot(dock: AgentDock, id: String) -> void:
 	dock.retry_interceptor = func() -> bool: return _runs_in(id) and _oneshot.take_dock_retry(_model_of(id))
 	dock.can_switch_session = func() -> bool: return not (_runs_in(id) and _oneshot.is_active())
 	dock.oneshot_active = func() -> bool: return _runs_in(id) and _oneshot.is_active()
+	dock.diagnostic_report = func() -> Dictionary: return _diagnostic_report(id)
 	dock.machine_states = func() -> Array[Dictionary]: return _machine_states(id)
 	dock.machine_chip_pressed.connect(_on_machine_chip_pressed)
 	_controller_of(id).after_login = func() -> bool: return _runs_in(id) and _oneshot.take_login()
@@ -2592,6 +2595,18 @@ func _second_opinion_for_user(payload: Variant) -> void:
 		return
 	SecondOpinion.fill_notice(waiting, result, session)
 	model.notify_entry_changed(waiting)
+
+
+## El informe de diagnóstico de una pestaña (m11-80): solo valores de listas cerradas.
+func _diagnostic_report(id: String) -> Dictionary:
+	var controller := _controller_of(id)
+	var caller := "" if id == PRIMARY_SESSION else id
+	var mcp: Dictionary = _mcp_server.diagnostics_of(caller) if _mcp_server else {}
+	var running := _runs_in(id) and _oneshot.is_active()
+	var oneshot := {"active": running, "phase": str(OneShotRun.RunPhase.find_key(_oneshot.phase)).to_lower() if running else "idle"}
+	return DiagnosticReport.build(DiagnosticReport.collect(AddonVersion.version(), _model_of(id),
+		controller.adapter.kind if controller and controller.adapter else "", controller.quota if controller else null,
+		mcp, oneshot, _tabs.ids().size() if _tabs else 1))
 
 
 func _session_of(caller: String) -> String:

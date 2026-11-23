@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Diagnostic report for bug reports.** **Copy diagnostic report…**, in the dock's ⋯ menu and on the Agent Log's toolbar, shows a short JSON report and copies it to paste in an issue: addon and Godot versions, operating system, the agent adapter and its version, where the connection with the agent was, why the session or the last turn failed (didn't start, no answer to initialize, process exited, plan limit, sign-in…), whether the agent connected to the editor's MCP server and how many of its tool calls failed, and the One-shot phase. Every value comes from a fixed list, so it carries no paths, file names, conversation text, email or account. The bug report template has a field for it.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

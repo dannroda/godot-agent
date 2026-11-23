@@ -138,6 +138,12 @@ var usage_size: int = 0
 var last_stop_reason: String = ""
 ## Mensaje del último error de conexión (estado FAILED).
 var failure_message: String = ""
+## Por qué falló la sesión o el último turno, de una lista cerrada (DiagnosticReport.FAILURE_KINDS, m11-80):
+## "none" mientras nada falló. `failure_code` es el código JSON-RPC de ese error (0 si no hubo).
+var failure_kind: String = "none"
+## La versión del protocolo ACP que respondió el agente en initialize (0 antes).
+var protocol_version: int = 0
+var failure_code: int = 0
 ## true mientras se vuelve a armar una conversación del historial: las señales no son eventos nuevos
 ## (nada de sincronizar archivos, checkpoints ni playtests).
 var replaying: bool = false
@@ -433,6 +439,7 @@ func reset() -> void:
 ## Resultado de `initialize`.
 func apply_initialize(result: Dictionary) -> void:
 	agent_info = result.get("agentInfo", {}) if result.get("agentInfo") is Dictionary else {}
+	protocol_version = int(result.get("protocolVersion", 0)) if result.get("protocolVersion") is float or result.get("protocolVersion") is int else 0
 	agent_capabilities = result.get("agentCapabilities", {}) if result.get("agentCapabilities") is Dictionary else {}
 	auth_methods = result.get("authMethods", []) if result.get("authMethods") is Array else []
 	var meta: Variant = result.get("_meta")
