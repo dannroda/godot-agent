@@ -437,9 +437,6 @@ msgstr "Comandos"
 msgid "Commit as WIP and start"
 msgstr "Commitear como WIP y empezar"
 
-msgid "Completion"
-msgstr "Completado"
-
 msgid "Completion: %s"
 msgstr "Completado: %s"
 
@@ -665,9 +662,6 @@ msgstr "Carpetas fuera del proyecto"
 
 msgid "Functionality"
 msgstr "Funcionalidad"
-
-msgid "Game evaluation criteria (per project)"
-msgstr "Criterios de evaluación del juego (por proyecto)"
 
 msgid "Gemini (remote, experimental)"
 msgstr "Gemini (remoto, experimental)"
@@ -1172,9 +1166,6 @@ msgstr "cuota"
 
 msgid "Quota"
 msgstr "Cuota"
-
-msgid "Quota and limits (per user: the quota belongs to the plan, not the project)"
-msgstr "Cuota y límites (por usuario: la cuota es del plan, no del proyecto)"
 
 msgid "Quota at %d %%: pauses when the current task or turn finishes"
 msgstr "Cuota al %d %%: se pausa al terminar la tarea o el turno en curso"
@@ -1907,8 +1898,8 @@ msgstr "juego"
 msgid "viewport"
 msgstr "viewport"
 
-msgid "This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced."
-msgstr "Este run no tiene el autoload de playtest, así que no se puede capturar. Correlo desde el agente, o activá «Usar el autoload de playtest también al correr el juego a mano» en Settings → Servidores MCP → Avanzado."
+msgid "This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → Advanced."
+msgstr "Este run no tiene el autoload de playtest, así que no se puede capturar. Correlo desde el agente, o activá «Usar el autoload de playtest también al correr el juego a mano» en Settings → Avanzado."
 
 msgid "Could not capture the game frame."
 msgstr "No se pudo capturar el frame del juego."
@@ -2298,14 +2289,8 @@ msgstr "Todavía no hay otros servidores."
 msgid "Off: the server stays on the list but the agent doesn't get it."
 msgstr "Apagado: el servidor queda en la lista pero el agente no lo recibe."
 
-msgid "MCP servers of other programs: their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask."
-msgstr "Servidores MCP de otros programas: sus tools preguntan salvo que las permitas acá. Los que el agente carga de su propia configuración aparecen después de que piden permiso por primera vez."
-
 msgid "Extensions: plugins, marketplaces and MCP servers"
 msgstr "Extensiones: plugins, marketplaces y servidores MCP"
-
-msgid "This addon (Settings → MCP servers)"
-msgstr "Este addon (Settings → Servidores MCP)"
 
 msgid "User"
 msgstr "Usuario"
@@ -2375,12 +2360,6 @@ msgstr "Volver a revisar los servidores"
 
 msgid "In a session, /mcp in the chat reconnects or turns off a server (/mcp reconnect <name>, /mcp disable <name>)."
 msgstr "En una sesión, /mcp en el chat reconecta o apaga un servidor (/mcp reconnect <nombre>, /mcp disable <nombre>)."
-
-msgid "Add server"
-msgstr "Agregar servidor"
-
-msgid "Servers for the agent are added in Settings → MCP servers."
-msgstr "Los servidores para el agente se agregan en Settings → Servidores MCP."
 
 msgid "Plugins and marketplaces belong to Claude Code, and the active agent profile is another agent."
 msgstr "Los plugins y marketplaces son de Claude Code, y el perfil de agente activo es otro agente."
@@ -2508,8 +2487,8 @@ msgstr "Novedades"
 msgid "Later"
 msgstr "Después"
 
-msgid "Don't show this version again. Settings → Interface checks again."
-msgstr "No mostrar más esta versión. Settings → Interfaz vuelve a buscar."
+msgid "Don't show this version again. Settings → General checks again."
+msgstr "No mostrar más esta versión. Settings → General vuelve a buscar."
 
 msgid "Godot Agent Harness %s is available (you have %s)."
 msgstr "Está disponible Godot Agent Harness %s (tenés la %s)."
@@ -3468,14 +3447,8 @@ msgstr "Herramientas de otros programas (Blender, una base de datos…) para el 
 msgid "Guide"
 msgstr "Guía"
 
-msgid "Advanced: the editor's MCP server, checks after each turn and folders"
-msgstr "Avanzado: el servidor MCP del editor, comprobaciones de cada turno y carpetas"
-
 msgid "Advanced: thresholds, timings, corpus and log"
 msgstr "Avanzado: umbrales, tiempos, corpus y log"
-
-msgid "Starting values for each One-shot (per project)"
-msgstr "Valores iniciales de cada One-shot (por proyecto)"
 
 msgid "The One-shot screen starts with these; you can still change them there before starting a run."
 msgstr "La pantalla One-shot arranca con estos; ahí se pueden cambiar antes de empezar una corrida."
@@ -4432,8 +4405,8 @@ msgstr "Con la lista compacta de tools, el agente llega a ella por godot.methods
 msgid "%d of %d tools"
 msgstr "%d de %d tools"
 
-msgid "⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → MCP servers → Advanced)."
-msgstr "⋯ %d tools quedan detrás de godot.methods / godot.run porque la lista compacta está activa (Settings → Servidores MCP → Avanzado)."
+msgid "⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → Advanced)."
+msgstr "⋯ %d tools quedan detrás de godot.methods / godot.run porque la lista compacta está activa (Settings → Avanzado)."
 
 msgid "Runs without asking"
 msgstr "Corre sin preguntar"
@@ -4452,12 +4425,6 @@ msgstr "Qué puede hacer el agente (tools)…"
 
 msgid "The editor tools the agent has, by function, with what each asks for in each mode."
 msgstr "Las herramientas del editor que tiene el agente, por función, con lo que pide cada una en cada modo."
-
-msgid "What the agent can do with these tools, by function and with its permissions:"
-msgstr "Qué puede hacer el agente con estas herramientas, por función y con sus permisos:"
-
-msgid "See the tools list…"
-msgstr "Ver la lista de tools…"
 
 msgid "Files"
 msgstr "Archivos"
@@ -5238,12 +5205,6 @@ msgstr "Sin aprobar en esta máquina"
 msgid "Review and allow «%s» on this machine…"
 msgstr "Revisar y permitir «%s» en esta máquina…"
 
-msgid "Each .gd file in this folder is a tool the agent calls with godot.run (build_level.gd is godot.build_level). They run inside the editor, so each one only loads on a machine where its code was approved, and every call asks the Project tools permission. The folder is left out of exports."
-msgstr "Cada archivo .gd de esta carpeta es una herramienta que el agente llama con godot.run (build_level.gd es godot.build_level). Corren dentro del editor, así que cada una se carga solo en una máquina donde se aprobó su código, y cada llamada pide el permiso Herramientas del proyecto. La carpeta queda fuera de los exports."
-
-msgid "\"%s\" can't hold the project tools: use a folder inside the project, outside addons/godot_agent."
-msgstr "\"%s\" no sirve para las herramientas del proyecto: usá una carpeta dentro del proyecto, fuera de addons/godot_agent."
-
 msgid "Antigravity wrote %s in the project when the session opened: it is its own run_workflow skill, and it writes it again in every session. You can delete it, but it comes back. Add skills/system/ to .gitignore so it is not committed. See Troubleshooting in the wiki."
 msgstr "Antigravity escribió %s en el proyecto al abrir la sesión: es su propia skill de run_workflow, y la vuelve a escribir en cada sesión. Podés borrarla, pero vuelve. Sumá skills/system/ al .gitignore para no commitearla. Ver Problemas frecuentes en la wiki."
 
@@ -5415,8 +5376,8 @@ msgstr "Checks después del turno (receta «%s»):"
 msgid "Recipes aren't available during a One-shot run."
 msgstr "Las recetas no están disponibles durante un One-shot."
 
-msgid "This project has no recipes yet. A recipe is a .json file in %s (the folder can be changed in Settings → MCP servers)."
-msgstr "Este proyecto todavía no tiene recetas. Una receta es un archivo .json en %s (la carpeta se cambia en Settings → MCP servers)."
+msgid "This project has no recipes yet. A recipe is a .json file in %s (the folder can be changed in Settings → Advanced)."
+msgstr "Este proyecto todavía no tiene recetas. Una receta es un archivo .json en %s (la carpeta se cambia en Settings → Avanzado)."
 
 msgid "This recipe has errors: %s"
 msgstr "Esta receta tiene errores: %s"
@@ -5457,11 +5418,6 @@ msgstr "Después de cada turno: %s (hasta %d reintentos)."
 msgid "Pick a file of the project"
 msgstr "Elegir un archivo del proyecto"
 
-msgid "Reusable requests with parameters and checks, one .json per recipe in this project folder (shared through git). Launch them from the composer's + or with /recipe."
-msgstr "Pedidos reutilizables con parámetros y checks, un .json por receta en esta carpeta del proyecto (se comparten por git). Se lanzan desde el + del composer o con /recipe."
-
-msgid "The recipes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_recipes)."
-msgstr "La carpeta de recetas tiene que ser una carpeta visible dentro del proyecto, fuera de addons/godot_agent (como res://agent_recipes)."
 msgid "When the editor is in the background, notify me when the agent finishes or waits for me"
 msgstr "Con el editor en segundo plano, avisarme cuando el agente termina o me espera"
 
@@ -6193,12 +6149,6 @@ msgstr "Rechazado: el modo «%s» solo edita %s, y «%s» escribe %s. Para edita
 msgid "Project modes"
 msgstr "Modos del proyecto"
 
-msgid "Modes with their own name, instructions and the files they may edit, on top of Ask, Review, Build or Auto. One .json per mode in this project folder (shared through git); they show up in the composer's mode selector."
-msgstr "Modos con nombre propio, instrucciones y los archivos que pueden editar, sobre Preguntar, Revisar, Construir o Auto. Un .json por modo en esta carpeta del proyecto (se comparte por git); aparecen en el selector de modo del composer."
-
-msgid "The modes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_modes)."
-msgstr "La carpeta de modos tiene que ser una carpeta visible dentro del proyecto, fuera de addons/godot_agent (como res://agent_modes)."
-
 msgid "Level design"
 msgstr "Diseño de niveles"
 
@@ -6545,3 +6495,84 @@ msgstr "Lo manda ya: primero corta el turno actual del agente"
 
 msgid "Sends it now, ahead of the others"
 msgstr "Lo manda ya, antes que los demás"
+
+msgid "General"
+msgstr "General"
+
+msgid "After each turn"
+msgstr "Después de cada turno"
+
+msgid "Code completion"
+msgstr "Autocompletado"
+
+msgid "Advanced"
+msgstr "Avanzado"
+
+msgid "What the harness does when a turn of the agent ends, in Build and Auto."
+msgstr "Lo que hace el harness cuando termina un turno del agente, en Construir y Auto."
+
+msgid "Plans"
+msgstr "Planes"
+
+msgid "Games you run yourself"
+msgstr "Juegos que corrés vos"
+
+msgid "Separate copies (git worktree)"
+msgstr "Copias aparte (git worktree)"
+
+msgid "Tool results"
+msgstr "Resultados de las tools"
+
+msgid "Starting values for each One-shot"
+msgstr "Valores iniciales de cada One-shot"
+
+msgid "Game evaluation criteria"
+msgstr "Criterios de evaluación del juego"
+
+msgid "You, every project"
+msgstr "Vos, en todos los proyectos"
+
+msgid "Saved in the project's config (project_config.tres): shared with your team through git."
+msgstr "Se guarda en la config del proyecto (project_config.tres): se comparte con tu equipo por git."
+
+msgid "Saved in this machine's editor settings: applies to every project you open."
+msgstr "Se guarda en los ajustes del editor de esta máquina: vale para todos los proyectos que abras."
+
+msgid "«%s» can't be used: pick a visible folder inside the project, outside addons/godot_agent."
+msgstr "«%s» no sirve: elegí una carpeta visible dentro del proyecto, fuera de addons/godot_agent."
+
+msgid "Discard changes"
+msgstr "Descartar cambios"
+
+msgid "Save servers"
+msgstr "Guardar servidores"
+
+msgid "They apply from the next session."
+msgstr "Se aplican desde la próxima sesión."
+
+msgid "Saved. They apply from the next session."
+msgstr "Guardados. Se aplican desde la próxima sesión."
+
+msgid "Change folder…"
+msgstr "Cambiar carpeta…"
+
+msgid "A folder inside the project, outside addons/godot_agent. Saved in the project's config, shared through git."
+msgstr "Una carpeta dentro del proyecto, fuera de addons/godot_agent. Se guarda en la config del proyecto y se comparte por git."
+
+msgid "Modes folder:"
+msgstr "Carpeta de modos:"
+
+msgid "Recipes folder:"
+msgstr "Carpeta de recetas:"
+
+msgid "Project tools folder:"
+msgstr "Carpeta de las tools del proyecto:"
+
+msgid "Each .gd file in this folder is a tool the agent calls with godot.run. It only loads on a machine where its code was approved, and the folder is left out of exports."
+msgstr "Cada .gd de esta carpeta es una tool que el agente llama con godot.run. Solo carga en una máquina donde se aprobó su código, y la carpeta queda fuera de los exports."
+
+msgid "MCP servers of other programs (added in Extensions → MCP servers): their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask."
+msgstr "Servidores MCP de otros programas (se agregan en Extensiones → Servidores MCP): sus tools preguntan salvo que las permitas acá. Los que el agente carga de su propia configuración aparecen después de que preguntan por primera vez."
+
+msgid "This addon"
+msgstr "Este addon"

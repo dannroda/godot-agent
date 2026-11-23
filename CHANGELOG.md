@@ -4,6 +4,15 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings, by topic.** The sections are now General (interface, language, notifications and updates), Agents, Permissions, After each turn, One-shot (with the plan quota), Code completion and Advanced. Checking for updates was under Interface, and most options (the checks after each turn, snapshots, plan criteria, the run-error notice, notifications) were hidden under MCP servers → Advanced. Each block says whether it belongs to **this project** (shared through git) or to **you, in every project**. The folders outside the project moved to Permissions, and the export filter to Advanced.
+- **Extensions is the one place for what you add.** The MCP servers of other programs are edited in Extensions → MCP servers, below the servers the agent has, with **Save servers**; Settings no longer has its own MCP servers section. The folders of recipes, project modes and project tools are changed with **Change folder…** in their Extensions tabs.
+
+### Fixed
+
+- **↑ in a long message moves the cursor.** In the composer, ↑ recalled the previous prompt as soon as the cursor was on the first line, even when that line wrapped into several rows. Now it moves up through the rows first and only recalls the previous prompt from the top row; ↓ works the same way from the bottom row.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

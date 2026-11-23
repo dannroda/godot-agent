@@ -50,7 +50,7 @@ static func detect(checks: Array, exists: Callable) -> Dictionary:
 		return {"framework": GUT, "command": "{godot} --headless --path {project} -s %s -gexit" % GUT_SCRIPT, "check_name": "", "needs_approval": false}
 	if exists.call(GDUNIT_SCRIPT):
 		return {"framework": GDUNIT, "command": "{godot} --headless --path {project} -s %s --ignoreHeadlessMode" % GDUNIT_SCRIPT, "check_name": "", "needs_approval": false}
-	return {"error": "This project has no test runner the harness knows: neither GUT (%s) nor gdUnit4 (%s) is installed, and no project check is marked for godot.run_tests. The user can add one in Settings → MCP servers → Advanced → Project checks after each turn (a command with {godot}, {project} and, to run only some tests, {paths}, {files} or {test}) and tick «godot.run_tests»." % [GUT_SCRIPT.get_base_dir(), GDUNIT_SCRIPT.get_base_dir().get_base_dir()]}
+	return {"error": "This project has no test runner the harness knows: neither GUT (%s) nor gdUnit4 (%s) is installed, and no project check is marked for godot.run_tests. The user can add one in Settings → After each turn → Project checks after each turn (a command with {godot}, {project} and, to run only some tests, {paths}, {files} or {test}) and tick «godot.run_tests»." % [GUT_SCRIPT.get_base_dir(), GDUNIT_SCRIPT.get_base_dir().get_base_dir()]}
 
 
 ## `{program, args, error, notes}` para correr `runner` con `paths` (res://) y `test` (parte del nombre

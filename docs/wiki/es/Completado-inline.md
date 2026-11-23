@@ -33,7 +33,7 @@ El índice del proyecto se arma en segundo plano la primera vez que abrís un sc
 
 ## Settings
 
-**Settings → Completado** edita todo y muestra la latencia (p50/p95) y la tasa de aceptación de cada fuente en la sesión. Los cambios se aplican sin reiniciar.
+**Settings → Autocompletado** edita todo y muestra la latencia (p50/p95) y la tasa de aceptación de cada fuente en la sesión. Los cambios se aplican sin reiniciar.
 
 - encendido o apagado;
 - debounce, umbral y margen;
@@ -45,7 +45,7 @@ El indicador **● Completado** en la barra del Script Editor muestra el estado:
 
 ## Con un LLM (opcional)
 
-Elegí el modo en **Settings → Completado**:
+Elegí el modo en **Settings → Autocompletado**:
 
 - **Solo local** (por defecto): sin red.
 - **Híbrido**: lo local sale como siempre. Si no hay nada local, después de 200 ms sin tipear se le pide al LLM.

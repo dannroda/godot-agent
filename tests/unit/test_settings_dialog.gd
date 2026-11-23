@@ -58,12 +58,12 @@ func test_loads_and_validates() -> void:
 
 	(dialog.get(&"_pause_spin") as SpinBox).value = 50
 	(dialog.get(&"_warn_spin") as SpinBox).value = 80
-	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.QUOTA, "pausa por debajo del aviso")
+	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.ONESHOT, "pausa por debajo del aviso")
 	(dialog.get(&"_pause_check") as CheckBox).button_pressed = false
 	assert_true(dialog.validate().is_empty(), "sin pausa no importa el umbral")
 
 	(dialog.get(&"_roots_edit") as TextEdit).text = "/tmp/assets\nrelativa/no"
-	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.MCP, "carpetas extra: solo rutas absolutas")
+	assert_eq(dialog.validate().get("section"), SettingsDialog.SettingsSection.PERMISSIONS, "carpetas extra: solo rutas absolutas")
 	dialog.free()
 
 
@@ -299,7 +299,7 @@ func test_dirty_sections() -> void:
 	var dialog := _dialog()
 	var nav: ItemList = dialog.get(&"_nav")
 	dialog.call(&"_snapshot_sections")
-	var interface := SettingsDialog.SettingsSection.INTERFACE
+	var interface := SettingsDialog.SettingsSection.GENERAL
 	assert_false(nav.get_item_text(interface).begins_with("•"), "recién abierto, sin marcas")
 	var update_check: CheckBox = dialog.get(&"_update_check")
 	update_check.button_pressed = not update_check.button_pressed

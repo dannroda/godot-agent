@@ -22,7 +22,7 @@ Remote Control (Claude Code) shares the session through claude.ai, with your Cla
 
 | When | Where | What is sent |
 |---|---|---|
-| Editor start, once a day (Settings → Interface → *Check for a new version when the editor opens*) | `api.github.com` (this repository's releases) | A request for the release list. No project data. Updating downloads the zip from GitHub. |
+| Editor start, once a day (Settings → General → *Check for a new version when the editor opens*) | `api.github.com` (this repository's releases) | A request for the release list. No project data. Updating downloads the zip from GitHub. |
 | You open the ACP registry or add an agent from it | `cdn.agentclientprotocol.com` and the agent's download URL | A request for the list and, when you add one, its download (checked against the registry's sha256 when it has one). |
 | You search, look at or install an addon from the Asset Store | `store.godotengine.org` | Your search and your Godot version. |
 | Inline completion with an LLM (optional, off by default) | The endpoint of the LLM profile you configure | The code around the cursor and a summary of the project (node paths, classes, autoloads, input actions). The local presets (Ollama, LM Studio, llama.cpp) use `127.0.0.1`; remote ones (Mistral, Gemini) need a key and send the code to that provider. |

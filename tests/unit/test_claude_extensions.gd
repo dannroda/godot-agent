@@ -157,7 +157,7 @@ func test_window_builds_offline() -> void:
 	assert_eq(tabs.get_tab_title(0), "Plugins (1)", "cuenta en el título")
 	var mcp_box: VBoxContainer = window.get(&"_mcp_box")
 	var sections := mcp_box.get_children().filter(func(child: Node) -> bool: return child is Label).map(func(label: Label) -> String: return label.text)
-	assert_eq(sections, ["THIS ADDON (SETTINGS → MCP SERVERS) (1)", "CLAUDE.AI (1)", "FROM PLUGINS (3)", "OTHER (2)"], "grupos de MCP en orden")
+	assert_eq(sections, ["THIS ADDON (1)", "CLAUDE.AI (1)", "FROM PLUGINS (3)", "OTHER (2)"], "grupos de MCP en orden")
 	assert_eq(window.call(&"_plugin_server_status", "design@dir", "slack"), "needs_auth", "el chip del plugin toma el estado de su server")
 	window.free()
 

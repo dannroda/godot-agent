@@ -8,7 +8,7 @@ extends RefCounted
 ## por acá: van siempre en inglés.
 ##
 ## El idioma sale de, en orden: la variable de entorno GODOT_AGENT_LANGUAGE (pruebas), el setting
-## Settings → Interfaz → Idioma, y el idioma del editor. Se elige al habilitar el plugin: cambiarlo
+## Settings → General → Idioma, y el idioma del editor. Se elige al habilitar el plugin: cambiarlo
 ## se aplica al reabrir el editor, como el resto de la interfaz ya armada.
 
 const DIR := "res://addons/godot_agent/i18n/"

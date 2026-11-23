@@ -25,7 +25,7 @@ It's a setting of yours, not of the project, because the models depend on your a
 
 A project mode is a mode with its own name ("Level design", "Shaders", "Tests only") on top of Ask, Review, Build or Auto. Its permissions come from that base mode; the project mode can only take some away: which files the agent may write, and the shell. It also adds instructions to the agent's system prompt. It never allows more than its base.
 
-Each mode is a `.json` file in the project's modes folder, `res://agent_modes/` by default (Settings → MCP servers → Advanced → **Project modes**), shared through git like the rest of the project and left out of exports. The composer's mode selector lists them after the fixed modes, under **Project modes**, as **Name (Base)**; the tooltip says when to use it and what it edits. A file with problems doesn't show. Picking a fixed mode takes the project mode off. If the harness changes the base mode while a project mode is on (**Approve and build** moves to Build), the project mode stays, with its files and instructions.
+Each mode is a `.json` file in the project's modes folder, `res://agent_modes/` by default (**Change folder…** in Extensions → Modes), shared through git like the rest of the project and left out of exports. The composer's mode selector lists them after the fixed modes, under **Project modes**, as **Name (Base)**; the tooltip says when to use it and what it edits. A file with problems doesn't show. Picking a fixed mode takes the project mode off. If the harness changes the base mode while a project mode is on (**Approve and build** moves to Build), the project mode stays, with its files and instructions.
 
 ![The composer's mode selector open: the fixed modes, then under Project modes Level design (Build), Shaders (Build) and Tests only (Auto), with Level design picked](https://raw.githubusercontent.com/dannroda/godot-agent/main/docs/images/en/modes.png)
 
@@ -91,17 +91,17 @@ When the plan has acceptance criteria written as "WHEN …, THE GAME SHALL …" 
 - A criterion the playtest couldn't check is marked ⊘ and isn't retried.
 - Sending your own message ends the run.
 
-The card shows each criterion's state, with what the playtest saw in its tooltip. A final notice sums it up (for example **4 ✓ · 1 ✗ · 1 ⊘**), and the saved plan gets a `## Verification` section with the result. A run plays up to 6 criteria. Change the number, or turn verification off by default, in Settings → MCP servers → Advanced (**Verify a plan's acceptance criteria by playing**). The criteria past the limit aren't played; the final notice offers **Verify the rest**, which plays them without a fix turn. If a recipe with **Plan first** is waiting for the plan, its playtests and the plan's criteria run in the same verification.
+The card shows each criterion's state, with what the playtest saw in its tooltip. A final notice sums it up (for example **4 ✓ · 1 ✗ · 1 ⊘**), and the saved plan gets a `## Verification` section with the result. A run plays up to 6 criteria. Change the number, or turn verification off by default, in Settings → After each turn (**Verify a plan's acceptance criteria by playing**). The criteria past the limit aren't played; the final notice offers **Verify the rest**, which plays them without a fix turn. If a recipe with **Plan first** is waiting for the plan, its playtests and the plan's criteria run in the same verification.
 
 ![The same plan after the build: each criterion marked ✓ after its playtest](https://raw.githubusercontent.com/dannroda/godot-agent/main/docs/images/en/plan-verified.png)
 
 ### Check after each turn
 
-In Build and Auto, when a turn ends the harness validates the `.gd` scripts that changed during it, whichever way the agent wrote them. If one doesn't parse, the agent gets the errors in a new turn to fix them, up to two turns in a row; after that, or if you already queued a message, they stay as a notice in the chat. Turn it off in Settings → MCP servers (**Check the scripts after each turn**).
+In Build and Auto, when a turn ends the harness validates the `.gd` scripts that changed during it, whichever way the agent wrote them. If one doesn't parse, the agent gets the errors in a new turn to fix them, up to two turns in a row; after that, or if you already queued a message, they stay as a notice in the chat. Turn it off in Settings → After each turn (**Check the scripts after each turn**).
 
 ### Project checks after each turn
 
-The project can add its own checks in Settings → MCP servers → Advanced → **Project checks after each turn**: the saved playtest regressions, GUT or gdUnit4 tests, or any command. In Build and Auto, after a turn that changes files (and once the scripts parse), the harness runs each check whose patterns match a changed file. A check with no patterns runs after any change. The footer notice shows ✓ or ✗ for each one. If a check fails, the agent gets its exit code and the end of its output in a new turn to fix it, inside an untrusted-text envelope. This shares the two-turn limit with the script check.
+The project can add its own checks in Settings → After each turn → **Project checks after each turn**: the saved playtest regressions, GUT or gdUnit4 tests, or any command. In Build and Auto, after a turn that changes files (and once the scripts parse), the harness runs each check whose patterns match a changed file. A check with no patterns runs after any change. The footer notice shows ✓ or ✗ for each one. If a check fails, the agent gets its exit code and the end of its output in a new turn to fix it, inside an untrusted-text envelope. This shares the two-turn limit with the script check.
 
 The checks are saved in `addons/godot_agent/config/project_config.tres`, so they travel with the project. A command runs as a program with its arguments, without a shell (no `|`, `&&`, `;` or redirections; put those in a script and run the script). `{godot}` stands for this editor's binary and `{project}` for the project folder. Because the file can come from someone else's repository, a command only runs on a machine where that exact text was approved. A command you write or change in Settings is approved when you save. One that came with the project shows **Not approved on this machine**; it is skipped, and the notice offers **Approve «name»…**, which shows the exact command before allowing it. If the command changes, it asks again. Approvals are kept per user, in the editor settings, not in the project. The playtest regressions check needs no approval: it runs the addon's own `regression_cli.gd`.
 
@@ -109,7 +109,7 @@ Tick **godot.run_tests** on the check that runs the project's tests, and the age
 
 ### Project hooks
 
-Hooks react to things that happen in the editor and that no agent sees. You set them in Settings → MCP servers → Advanced → **Project hooks**, under the project checks. Each hook has an event:
+Hooks react to things that happen in the editor and that no agent sees. You set them in Settings → After each turn → **Project hooks**, under the project checks. Each hook has an event:
 - **A scene or script is saved**, with optional file patterns (`res://levels/**`) and who saved it: **by you** (the default), **by the agent** (during one of its tools, or written by its file tools) or **by anyone**;
 - **A game ends**, run by you (F5/F6) or by the agent;
 - **Playtest regressions finish**, from the Regressions tab or from `godot.run_regressions`;
@@ -128,7 +128,7 @@ Hooks are not the place for checks at the end of each turn: those are the [proje
 
 ### Recipes
 
-A recipe is a request you repeat (a new enemy from a base scene, an options screen, porting a script to C#) saved with typed parameters and checks the result must pass. Each recipe is a `.json` file in the project's recipes folder, `res://agent_recipes/` by default (Settings → MCP servers → Advanced → **Recipes**), so it is shared through git like the rest of the project.
+A recipe is a request you repeat (a new enemy from a base scene, an options screen, porting a script to C#) saved with typed parameters and checks the result must pass. Each recipe is a `.json` file in the project's recipes folder, `res://agent_recipes/` by default (**Change folder…** in Extensions → Recipes), so it is shared through git like the rest of the project.
 
 - **Launch** a recipe from the composer's **+** → **Recipe…** or with `/recipe <name>`. A form asks for its parameters, one control per type: text, multiline text, a choice, a number, yes/no, a scene, script, resource or any project file (with a file picker), a node of the open scene and an input action. **Use** writes the expanded request into the composer, in the recipe's mode, without sending it: edit it if you want, then send. A chip above the composer names the recipe's checks; remove the chip to send without them.
 - **Checks**: after each turn of the run, the recipe's checks run even if the turn changed nothing: the saved playtest regressions, a command (like the [project checks](#project-checks-after-each-turn)) or a **playtest** with a goal. A playtest check runs once the others pass: an agent plays the game in Review mode to check the goal, and the check passes when the verdict is **pass**. If a check fails, the agent gets what it reported and tries again, up to the recipe's `max_retries` (2 by default, 5 at most). The run ends with **checks passed (attempt N)** or **still fail after N attempts**. A message of yours ends the run. A playtest that could not test ends it with a notice.
@@ -171,7 +171,7 @@ Some instructions only matter for part of the game: how to write shaders, how UI
 
 A pattern without `/` (`*.gdshader`) matches in any folder; `**` matches any number of folders and `{gd,cs}` either. When a turn touches a file that matches (an agent tool reads or edits it, a `godot.*` tool names it, or your message mentions it, attaches it, or the Script Editor shows it), the harness sends the rule to the agent: at the end of that `godot.*` tool's result, in the same turn, or with your next message. Each rule goes once per session, and again if it changes. It goes as an instruction from the project, like `CLAUDE.md`, labeled with its patterns and file; up to about 4000 characters per message, and the rules that don't fit are named. The chat shows **rules: shaders.md** under your message.
 
-Rules the active agent already loads on its own aren't sent again: Claude Code reads `.claude/rules` and Antigravity reads `.agents/rules`. Codex, Copilot, OpenCode and the rest get them all from the harness. Rules that always apply, or that the agent applies when it decides to, stay with each agent. Turn it off in Settings → MCP servers → Advanced (**Apply the project's rules by file**). The **Instructions** tab of [Extensions](Settings.md#extensions) shows each rule's patterns and who applies it, creates a rule in each format, and **Test** says which rules apply to a path.
+Rules the active agent already loads on its own aren't sent again: Claude Code reads `.claude/rules` and Antigravity reads `.agents/rules`. Codex, Copilot, OpenCode and the rest get them all from the harness. Rules that always apply, or that the agent applies when it decides to, stay with each agent. Turn it off in Settings → After each turn (**Apply the project's rules by file**). The **Instructions** tab of [Extensions](Settings.md#extensions) shows each rule's patterns and who applies it, creates a rule in each format, and **Test** says which rules apply to a path.
 
 ### Changes of each turn
 
@@ -181,7 +181,7 @@ While the agent works in Build or Auto, a counter above the composer shows what 
 
 The notice also counts the screenshots the agent took during the turn (of the game or the editor), and **Save report** writes `.godot_agent/reports/<date>/report.md` with what the agent said, the files it changed and those screenshots as PNG files, and opens the folder: something to look at later or to share. Without git, the notice shows only when there are screenshots.
 
-The harness takes a snapshot of the project folder at the start and at the end of each turn, as git commits outside your branches (`refs/godot-agent/turns/…`, the last 60 per session). Your branch, index and stash are not touched, and files `.gitignore` leaves out are not part of it, nor are `.godot/` and `.godot_agent/`. Turn it off in Settings → MCP servers (**Keep a snapshot of the project on each turn**).
+The harness takes a snapshot of the project folder at the start and at the end of each turn, as git commits outside your branches (`refs/godot-agent/turns/…`, the last 60 per session). Your branch, index and stash are not touched, and files `.gitignore` leaves out are not part of it, nor are `.godot/` and `.godot_agent/`. Turn it off in Settings → After each turn (**Keep a snapshot of the project on each turn**).
 
 ## Permissions
 

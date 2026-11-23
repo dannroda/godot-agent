@@ -2001,21 +2001,39 @@ func _run_settings_shots(prefix: String) -> void:
 		dialog.get_texture().get_image().save_png("%s_%d.png" % [prefix, i])
 	# El formulario de un agente abierto, al ancho del diálogo (los campos no se achican).
 	if not (dialog.get(&"_profiles") as Array).is_empty():
-		nav.select(0)
-		nav.item_selected.emit(0)
+		nav.select(1)
+		nav.item_selected.emit(1)
 		dialog.call(&"_edit_profile", 0)
 		await get_tree().create_timer(0.4).timeout
 		dialog.get_texture().get_image().save_png("%s_agent_form.png" % prefix)
 		dialog.call(&"_apply_profile_form")
-	# m7-34/m7-35: un server de terceros en la lista suma su fila a la matriz de permisos.
-	var mcp_page: Object = dialog.get(&"_mcp_servers_page")
-	mcp_page.call(&"import_mcp_json", JSON.stringify({"mcpServers": {"blender": {"command": "uvx", "args": ["blender-mcp"], "env": {"BLENDER_TOKEN": "$BLENDER_TOKEN"}}}}))
-	mcp_page.emit_signal(&"servers_changed")
-	mcp_page.call(&"_edit", 0)
-	nav.select(2)
-	nav.item_selected.emit(2)
+	# m7-34/m7-35 (desde m12-58 en Extensions → Servidores MCP): un server de terceros guardado allá
+	# suma su fila a la matriz de permisos de Ajustes. La config se restaura al final.
+	var config_path := "res://addons/godot_agent/config/project_config.tres"
+	var had_config := FileAccess.file_exists(config_path)
+	var config_before := FileAccess.get_file_as_string(config_path) if had_config else ""
+	var user_settings: Object = dialog.get(&"_settings")
+	var approved_before: Dictionary = (user_settings.call(&"get_value", "security/approved_commands", {}) as Dictionary).duplicate()
+	var main_plugin := _find_by_script(MAIN_PLUGIN_SCRIPT)
+	var window: Window = main_plugin.call(&"_get_extensions_window")
+	window.call(&"open", 2)  # ExtensionsTab.MCP
 	await get_tree().create_timer(0.4).timeout
-	dialog.get_texture().get_image().save_png("%s_mcp_servers.png" % prefix)
+	var mcp_page: Object = window.get(&"_mcp_editor")
+	mcp_page.call(&"import_mcp_json", JSON.stringify({"mcpServers": {"blender": {"command": "uvx", "args": ["blender-mcp"], "env": {"BLENDER_TOKEN": "$BLENDER_TOKEN"}}}}))
+	mcp_page.call(&"_edit", 0)
+	await get_tree().create_timer(0.4).timeout
+	window.get_texture().get_image().save_png("%s_mcp_servers.png" % prefix)
+	# m13-31: importado de .mcp.json no queda aprobado; «Allow on this machine» sí (se borra al final:
+	# estos checks usan los EditorSettings del usuario).
+	var blender: Dictionary = (mcp_page.get(&"_servers") as Array).filter(func(e: Dictionary) -> bool: return e.name == "blender")[0]
+	var held_before_save: bool = mcp_page.call(&"needs_approval", blender)
+	blender["_allow"] = true
+	var blender_key: String = ExternalMcpServers.approval_key(ProjectSettings.globalize_path("res://"), blender)
+	var mcp_save_error: String = window.call(&"save_mcp_servers")
+	var approved_by_save: bool = user_settings.call(&"is_command_approved", blender_key)
+	window.hide()
+	dialog.call(&"open", 2)  # SettingsSection.PERMISSIONS: vuelve a leer la config con el server
+	await get_tree().create_timer(0.4).timeout
 	# m11-31: la lista de checks con uno que vino en el archivo sin aprobar y un preset agregado. Se
 	# vuelve a cargar la del proyecto antes de guardar: no aprueba nada en los EditorSettings.
 	var checks_editor: Control = dialog.get(&"_turn_checks_editor")
@@ -2034,8 +2052,8 @@ func _run_settings_shots(prefix: String) -> void:
 	dialog.get_texture().get_image().save_png("%s_turn_checks.png" % prefix)
 	var project_config: Object = dialog.get(&"_config")
 	checks_editor.call(&"load_from", project_config.get(&"turn_checks"), func(_key: String) -> bool: return false, ProjectSettings.globalize_path("res://"))
-	nav.select(1)
-	nav.item_selected.emit(1)
+	nav.select(2)
+	nav.item_selected.emit(2)
 	await get_tree().create_timer(0.4).timeout
 	dialog.get_texture().get_image().save_png("%s_mcp_permissions.png" % prefix)
 	var matrix: Dictionary = dialog.get(&"_matrix")
@@ -2044,21 +2062,9 @@ func _run_settings_shots(prefix: String) -> void:
 		return
 	(matrix["mcp:blender"][3] as OptionButton).select(0)  # One-shot (HarnessMode 3) · Permitir
 	# Guardar aplica la matriz en caliente y escribe project_config.tres (se restaura al final).
-	var config_path := "res://addons/godot_agent/config/project_config.tres"
-	var had_config := FileAccess.file_exists(config_path)
-	var config_before := FileAccess.get_file_as_string(config_path) if had_config else ""
 	var option: OptionButton = matrix["read"][0]  # Lectura · Preguntar
 	option.select(2)  # no
-	# m13-31: importado de .mcp.json no queda aprobado; «Allow on this machine» sí (se borra al final:
-	# estos checks usan los EditorSettings del usuario).
-	var blender: Dictionary = (mcp_page.get(&"_servers") as Array).filter(func(e: Dictionary) -> bool: return e.name == "blender")[0]
-	var held_before_save: bool = mcp_page.call(&"needs_approval", blender)
-	blender["_allow"] = true
-	var blender_key: String = ExternalMcpServers.approval_key(ProjectSettings.globalize_path("res://"), blender)
-	var user_settings: Object = dialog.get(&"_settings")
-	var approved_before: Dictionary = (user_settings.call(&"get_value", "security/approved_commands", {}) as Dictionary).duplicate()
 	dialog.call(&"_on_save")
-	var approved_by_save: bool = user_settings.call(&"is_command_approved", blender_key)
 	user_settings.call(&"set_value", "security/approved_commands", approved_before)
 	var controller: Object = dock.get(&"_controller")
 	var policy: Object = controller.get(&"policy")
@@ -2076,6 +2082,9 @@ func _run_settings_shots(prefix: String) -> void:
 	controller.set(&"external_mcp_names", PackedStringArray())
 	if not saved_ok:
 		_finish(1, "settings: guardar no aplicó la matriz (visible=%s, read/ask=%s)" % [dialog.visible, policy.call(&"matrix_value", "read", 0)])
+		return
+	if not mcp_save_error.is_empty():
+		_finish(1, "settings: Extensions no guardó los servers MCP: %s" % mcp_save_error)
 		return
 	if not held_before_save or not approved_by_save:
 		_finish(1, "settings: el server importado no pidió aprobación o «Allow on this machine» no lo aprobó (held=%s, approved=%s)" % [held_before_save, approved_by_save])

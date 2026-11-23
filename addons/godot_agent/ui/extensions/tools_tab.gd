@@ -5,6 +5,7 @@ extends VBoxContainer
 ## (✓ sin preguntar, ? pregunta, ✗ no). Las tools que la lista compacta esconde van marcadas: el
 ## agente llega a ellas por godot.methods / godot.run. Un filtro busca por nombre, descripción y grupo.
 
+const FolderRow := preload("folder_row.gd")
 const I18n := preload("../../core/i18n.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -52,6 +53,8 @@ var _count: Label
 var _note: Label
 var _catalog: Array = []
 var _allow: Button
+## La carpeta de las tools del proyecto (m12-58): `folder.current` y `folder.setter` los pone la ventana.
+var folder: FolderRow
 
 
 func _init() -> void:
@@ -112,10 +115,15 @@ func _init() -> void:
 	_note.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 	_note.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
 	add_child(_note)
+	folder = FolderRow.new(I18n.t("Project tools folder:"))
+	folder.tooltip_text = I18n.t("Each .gd file in this folder is a tool the agent calls with godot.run. It only loads on a machine where its code was approved, and the folder is left out of exports.")
+	folder.changed.connect(refresh)
+	add_child(folder)
 
 
 ## Vuelve a leer el catálogo y arma el árbol.
 func refresh() -> void:
+	folder.refresh()
 	_catalog = catalog_provider.call() if catalog_provider.is_valid() else []
 	_rebuild()
 
@@ -166,7 +174,7 @@ func _rebuild() -> void:
 				if tool.has("held"):
 					item.set_metadata(COLUMN_NAME, tool.held)
 	_count.text = I18n.t("%d of %d tools") % [shown, _catalog.size()] if not query.is_empty() else I18n.t("%d tools") % _catalog.size()
-	_note.text = I18n.t("⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → MCP servers → Advanced).") % hidden_by_compact if hidden_by_compact > 0 else ""
+	_note.text = I18n.t("⋯ %d tools are behind godot.methods / godot.run because the compact tool list is on (Settings → Advanced).") % hidden_by_compact if hidden_by_compact > 0 else ""
 	_note.visible = not _note.text.is_empty()
 	_on_selected()
 

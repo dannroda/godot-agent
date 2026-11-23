@@ -2789,7 +2789,7 @@ func open_recipe_picker() -> void:
 		return
 	var loaded := load_recipes()
 	if loaded.is_empty():
-		_model.add_notice(I18n.t("This project has no recipes yet. A recipe is a .json file in %s (the folder can be changed in Settings → MCP servers).") % _recipes_dir(), ChatEntry.NoticeLevel.INFO)
+		_model.add_notice(I18n.t("This project has no recipes yet. A recipe is a .json file in %s (the folder can be changed in Settings → Advanced).") % _recipes_dir(), ChatEntry.NoticeLevel.INFO)
 		return
 	if _recipe_menu == null:
 		_recipe_menu = PopupMenu.new()

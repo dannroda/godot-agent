@@ -21,28 +21,31 @@ const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const CompletionSettingsPage := preload("completion_settings_page.gd")
 const AutoRulesPage := preload("auto_rules_page.gd")
-const McpServersPage := preload("mcp_servers_page.gd")
 const TurnChecksEditor := preload("turn_checks_editor.gd")
-const ProjectDirs := preload("../../core/project_dirs.gd")
-const Recipes := preload("../../core/recipes.gd")
 const ProjectModes := preload("../../core/project_modes.gd")
-const ProjectToolLoader := preload("../../mcp/project_tool_loader.gd")
 const HooksEditor := preload("hooks_editor.gd")
 const GameCriteria := preload("../../oneshot/game_criteria.gd")
 const AddonVersion := preload("../../core/addon_version.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
+const ExternalMcpServers := preload("../../mcp/external_mcp_servers.gd")
 
-enum SettingsSection { AGENTS, PERMISSIONS, MCP, ONESHOT, QUOTA, COMPLETION, INTERFACE, EXPORT }
+## Secciones por tema (m12-57): antes casi todo estaba en el «Avanzado» de los servidores MCP y las
+## actualizaciones en «Interfaz».
+## Los servidores MCP de otros programas y las carpetas de recetas, modos y tools del proyecto se
+## editan en Extensions desde m12-58: Ajustes no repite lo que se agrega.
+enum SettingsSection { GENERAL, AGENTS, PERMISSIONS, AFTER_TURN, ONESHOT, COMPLETION, ADVANCED }
 const SECTION_LABELS: PackedStringArray = [
+	"General",  # i18n
 	"Agents",  # i18n
 	"Permissions",  # i18n
-	"MCP servers",  # i18n
+	"After each turn",  # i18n
 	"One-shot",  # i18n
-	"Plan quota",  # i18n
-	"Completion",  # i18n
-	"Interface",  # i18n
-	"Export",  # i18n
+	"Code completion",  # i18n
+	"Advanced",  # i18n
 ]
+## A quién afecta cada bloque (m12-57): lo del proyecto va en project_config.tres y se comparte por git;
+## lo del usuario, en las EditorSettings de esta máquina.
+enum SettingsScope { PROJECT, USER }
 const DECISIONS: PackedStringArray = [PermissionPolicy.ALLOW, PermissionPolicy.ASK, PermissionPolicy.DENY]
 const DECISION_LABELS: Dictionary = {
 	PermissionPolicy.ALLOW: "Allow",  # i18n
@@ -104,7 +107,6 @@ var _mcp_grid: GridContainer
 var _port_spin: SpinBox
 var _url_label: Label
 var _roots_edit: TextEdit
-var _project_tools_edit: LineEdit
 var _max_output_spin: SpinBox
 var _max_image_spin: SpinBox
 var _manual_runs_check: CheckBox
@@ -115,14 +117,10 @@ var _path_rules_check: CheckBox
 var _criteria_check: CheckBox
 var _criteria_max_spin: SpinBox
 var _turn_checks_editor: TurnChecksEditor
-var _recipes_dir_edit: LineEdit
-var _modes_dir_edit: LineEdit
 var _hooks_editor: HooksEditor
 var _snapshots_check: CheckBox
 var _github_pr_check: CheckBox
 var _compact_tools_check: CheckBox
-var _tools_button: Button
-var _mcp_servers_page: McpServersPage
 # One-shot y cuota
 var _budget_spins: Dictionary = {}
 var _loop_spin: SpinBox
@@ -149,8 +147,6 @@ var _update_button: Button
 ## «Buscar ahora» (m7-38): el plugin busca un release nuevo (y si hay, muestra el aviso en el dock);
 ## devuelve el texto para mostrar acá. Corrutina: `func() -> String`.
 var update_checker: Callable
-## () -> void: abre la lista de tools del agente (Extensiones › Tools, m12-46).
-var show_tools: Callable
 var _export_label: Label
 var _export_button: Button
 var _export_confirm: ConfirmationDialog
@@ -190,7 +186,7 @@ func _build() -> void:
 	var pages := MarginContainer.new()
 	pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.add_child(pages)
-	for builder: Callable in [_build_agents, _build_permissions, _build_mcp, _build_oneshot, _build_quota, _build_completion, _build_interface, _build_export]:
+	for builder: Callable in [_build_general, _build_agents, _build_permissions, _build_after_turn, _build_oneshot, _build_completion, _build_advanced]:
 		var scroll := ScrollContainer.new()
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		var page := VBoxContainer.new()
@@ -214,7 +210,7 @@ func _build() -> void:
 			_dirty_timer.start()
 		else:
 			_dirty_timer.stop())
-	_show_section(SettingsSection.AGENTS)
+	_show_section(SettingsSection.GENERAL)
 
 
 ## Guardar y Cancelar juntos a la derecha (m12-26): el diálogo los separa con espaciadores que se
@@ -239,8 +235,6 @@ func section_state(index: int) -> String:
 	match index:
 		SettingsSection.AGENTS:
 			parts.append(JSON.stringify(_profiles.map(func(profile: AgentProfile) -> Dictionary: return profile.to_dict())))
-		SettingsSection.MCP:
-			parts.append(JSON.stringify(_mcp_servers_page.get(&"_servers")))
 	for node: Node in _pages[index].find_children("*", "Control", true, false):
 		if node is SpinBox:
 			parts.append(str((node as SpinBox).value))
@@ -284,7 +278,7 @@ func open_registry(query: String = "") -> void:
 
 
 ## Carga los valores actuales y abre el diálogo.
-func open(section: SettingsSection = SettingsSection.AGENTS) -> void:
+func open(section: SettingsSection = SettingsSection.GENERAL) -> void:
 	_load()
 	_show_section(section)
 	popup_centered_clamped(Vector2i(AgentTheme.px(880), AgentTheme.px(620)), 0.9)
@@ -294,7 +288,7 @@ func _show_section(index: int) -> void:
 	_nav.select(index)
 	for i in _pages.size():
 		_pages[i].visible = i == index
-	if index == SettingsSection.EXPORT:
+	if index == SettingsSection.ADVANCED:
 		_refresh_export()
 
 
@@ -438,7 +432,7 @@ func _build_completion(page: VBoxContainer) -> void:
 
 
 func _build_permissions(page: VBoxContainer) -> void:
-	page.add_child(_title(I18n.t("Permissions by mode")))
+	page.add_child(_scoped_title(I18n.t("Permissions by mode"), SettingsScope.PROJECT))
 	page.add_child(_hint(I18n.t("godot.* tools are authorized in the MCP server; the agent's own tools (shell, file editing) when the agent asks for permission. \"Ask\" shows a card in the chat.")))
 	var grid := GridContainer.new()
 	grid.columns = MODES.size() + 1
@@ -484,7 +478,7 @@ func _build_permissions(page: VBoxContainer) -> void:
 		grid.add_child(spin)
 		_subagent_spins[mode] = spin
 	page.add_child(_hint(I18n.t("A highlighted cell differs from the defaults.")))
-	page.add_child(_hint(I18n.t("MCP servers of other programs: their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask.")))
+	page.add_child(_hint(I18n.t("MCP servers of other programs (added in Extensions → MCP servers): their tools ask unless you allow them here. Servers the agent loads from its own configuration show up after they first ask.")))
 	_mcp_grid = GridContainer.new()
 	_mcp_grid.columns = MODES.size() + 1
 	_mcp_grid.add_theme_constant_override(&"h_separation", AgentTheme.px(10))
@@ -500,24 +494,59 @@ func _build_permissions(page: VBoxContainer) -> void:
 	page.add_child(HSeparator.new())
 	_auto_rules_page = AutoRulesPage.new()
 	page.add_child(_auto_rules_page)
+	page.add_child(_scoped_title(I18n.t("Folders outside the project"), SettingsScope.PROJECT))
+	page.add_child(_hint(I18n.t("The agent's fs/* can read and write in these folders besides the project (absolute paths, one per line).")))
+	_roots_edit = TextEdit.new()
+	_roots_edit.custom_minimum_size.y = AgentTheme.px(70)
+	page.add_child(_roots_edit)
 
 
-func _build_mcp(page: VBoxContainer) -> void:
-	_mcp_servers_page = McpServersPage.new()
-	_mcp_servers_page.servers_changed.connect(func() -> void: _rebuild_mcp_matrix(matrix_overrides()))
-	page.add_child(_mcp_servers_page)
-	page.add_child(HSeparator.new())
-	# Lo del servidor del editor, las comprobaciones de cada turno y las carpetas: en «Avanzado»,
-	# plegado (m12-23). La página queda para los servidores de otros programas.
-	var advanced := FoldableContainer.new()
-	advanced.name = "AdvancedMcp"
-	advanced.title = I18n.t("Advanced: the editor's MCP server, checks after each turn and folders")
-	advanced.folded = true
-	page.add_child(advanced)
-	page = VBoxContainer.new()
-	page.add_theme_constant_override(&"separation", AgentTheme.px(6))
-	advanced.add_child(page)
-	page.add_child(_title(I18n.t("Editor tools (the addon's MCP server)")))
+## Lo que pasa al terminar cada turno (m12-57): comprobaciones, reglas, snapshots y criterios del plan.
+func _build_after_turn(page: VBoxContainer) -> void:
+	page.add_child(_scoped_title(I18n.t("After each turn"), SettingsScope.PROJECT))
+	page.add_child(_hint(I18n.t("What the harness does when a turn of the agent ends, in Build and Auto.")))
+	_verify_check = CheckBox.new()
+	_verify_check.text = I18n.t("Check the scripts after each turn")
+	_verify_check.tooltip_text = I18n.t("In Build and Auto, when a turn ends the harness validates the scripts that changed. If one doesn't parse, the agent gets the errors to fix them (up to 2 turns in a row); then they stay as a notice in the chat.")
+	page.add_child(_verify_check)
+	_path_rules_check = CheckBox.new()
+	_path_rules_check.name = "PathRules"
+	_path_rules_check.text = I18n.t("Apply the project's rules by file")
+	_path_rules_check.tooltip_text = I18n.t("When a turn touches a file that matches a rule in .agents/rules, .claude/rules or .cursor/rules, the next prompt carries that rule, once per session. Rules the active agent already loads on its own aren't sent again.")
+	page.add_child(_path_rules_check)
+	_snapshots_check = CheckBox.new()
+	_snapshots_check.text = I18n.t("Keep a snapshot of the project on each turn (git)")
+	_snapshots_check.tooltip_text = I18n.t("In Build and Auto, each turn ends with a notice of the files it changed, to see their diff and go back. The snapshots are git commits outside your branches (refs/godot-agent/turns); your branch, index and stash are not touched.")
+	page.add_child(_snapshots_check)
+	_turn_checks_editor = TurnChecksEditor.new()
+	page.add_child(_turn_checks_editor)
+	_hooks_editor = HooksEditor.new()
+	page.add_child(_hooks_editor)
+	page.add_child(_scoped_title(I18n.t("Plans"), SettingsScope.PROJECT))
+	_criteria_check = CheckBox.new()
+	_criteria_check.name = "VerifyPlanCriteria"
+	_criteria_check.text = I18n.t("Verify a plan's acceptance criteria by playing")
+	_criteria_check.tooltip_text = I18n.t("When you approve a plan with criteria like «WHEN …, THE GAME SHALL …», after the build an agent plays the game once per criterion. A criterion that fails goes back to the agent to fix and is played again. Each criterion is one playtest. The plan card can turn it off for that plan.")
+	page.add_child(_criteria_check)
+	_criteria_max_spin = _spin_row(page, I18n.t("Criteria played per plan, at most"), 1, 30, 1, "")
+	_criteria_max_spin.name = "VerifyPlanCriteriaMax"
+	_criteria_max_spin.tooltip_text = I18n.t("The rest stay unplayed; the final notice offers to verify them.")
+	page.add_child(_scoped_title(I18n.t("Games you run yourself"), SettingsScope.USER))
+	_run_error_check = CheckBox.new()
+	_run_error_check.text = I18n.t("When a game you run by hand stops with an error, offer «Fix with the agent» in the dock")
+	_run_error_check.tooltip_text = I18n.t("The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors.")
+	page.add_child(_run_error_check)
+	page.add_child(_scoped_title(I18n.t("Separate copies (git worktree)"), SettingsScope.PROJECT))
+	_github_pr_check = CheckBox.new()
+	_github_pr_check.text = I18n.t("Offer to push and open a GitHub pull request when closing a separate copy")
+	_github_pr_check.tooltip_text = I18n.t("Uses git push and the gh CLI. Off by default: otherwise the harness never pushes.")
+	page.add_child(_github_pr_check)
+
+
+## Lo técnico (m12-57): el servidor MCP del editor, límites de los resultados, carpetas del proyecto
+## y el filtro de export.
+func _build_advanced(page: VBoxContainer) -> void:
+	page.add_child(_scoped_title(I18n.t("Editor tools (the addon's MCP server)"), SettingsScope.USER))
 	_url_label = Label.new()
 	_url_label.add_theme_font_override(&"font", AgentTheme.mono_font())
 	page.add_child(_url_label)
@@ -531,95 +560,23 @@ func _build_mcp(page: VBoxContainer) -> void:
 			regenerate_token.call()
 		_refresh_url())
 	page.add_child(token)
+	page.add_child(_scoped_title(I18n.t("Tool results"), SettingsScope.PROJECT))
 	_max_output_spin = _spin_row(page, I18n.t("Max characters per result"), 1000, 200000, 1000, "")
 	_max_image_spin = _spin_row(page, I18n.t("Max screenshot side"), 256, 4096, 16, "px")
-	_manual_runs_check = CheckBox.new()
-	_manual_runs_check.text = I18n.t("Use the playtest autoload also when running the game manually")
-	page.add_child(_manual_runs_check)
-	_run_error_check = CheckBox.new()
-	_run_error_check.text = I18n.t("When a game you run by hand stops with an error, offer «Fix with the agent» in the dock")
-	_run_error_check.tooltip_text = I18n.t("The notice shows the error and the stack, once per run; nothing goes to the agent until you press the button. Runs started by the agent don't show it: the agent already gets its errors.")
-	page.add_child(_run_error_check)
-	_notify_check = CheckBox.new()
-	_notify_check.text = I18n.t("When the editor is in the background, notify me when the agent finishes or waits for me")
-	_notify_check.tooltip_text = I18n.t("The editor window asks for attention and, where available, a desktop notification appears (notify-send on Linux, the notification center on macOS).")
-	page.add_child(_notify_check)
-	var tools_row := HBoxContainer.new()
-	var tools_label := Label.new()
-	tools_label.text = I18n.t("What the agent can do with these tools, by function and with its permissions:")
-	tools_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tools_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tools_label.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	tools_row.add_child(tools_label)
-	_tools_button = Button.new()
-	_tools_button.text = I18n.t("See the tools list…")
-	_tools_button.pressed.connect(func() -> void:
-		if show_tools.is_valid():
-			show_tools.call())
-	tools_row.add_child(_tools_button)
-	page.add_child(tools_row)
 	_compact_tools_check = CheckBox.new()
 	_compact_tools_check.text = I18n.t("Compact tool list: the agent finds the extra godot tools with godot.methods")
 	_compact_tools_check.tooltip_text = I18n.t("The tool list keeps reading, scene editing and running the game; tilemaps, animation, resources, files, project settings, API docs and the live game go through godot.methods and godot.run. Saves context on every turn. Applies from the next session.")
 	page.add_child(_compact_tools_check)
-	_verify_check = CheckBox.new()
-	_verify_check.text = I18n.t("Check the scripts after each turn")
-	_verify_check.tooltip_text = I18n.t("In Build and Auto, when a turn ends the harness validates the scripts that changed. If one doesn't parse, the agent gets the errors to fix them (up to 2 turns in a row); then they stay as a notice in the chat.")
-	page.add_child(_verify_check)
-	_path_rules_check = CheckBox.new()
-	_path_rules_check.name = "PathRules"
-	_path_rules_check.text = I18n.t("Apply the project's rules by file")
-	_path_rules_check.tooltip_text = I18n.t("When a turn touches a file that matches a rule in .agents/rules, .claude/rules or .cursor/rules, the next prompt carries that rule, once per session. Rules the active agent already loads on its own aren't sent again.")
-	page.add_child(_path_rules_check)
-	_criteria_check = CheckBox.new()
-	_criteria_check.name = "VerifyPlanCriteria"
-	_criteria_check.text = I18n.t("Verify a plan's acceptance criteria by playing")
-	_criteria_check.tooltip_text = I18n.t("When you approve a plan with criteria like «WHEN …, THE GAME SHALL …», after the build an agent plays the game once per criterion. A criterion that fails goes back to the agent to fix and is played again. Each criterion is one playtest. The plan card can turn it off for that plan.")
-	page.add_child(_criteria_check)
-	_criteria_max_spin = _spin_row(page, I18n.t("Criteria played per plan, at most"), 1, 30, 1, "")
-	_criteria_max_spin.name = "VerifyPlanCriteriaMax"
-	_criteria_max_spin.tooltip_text = I18n.t("The rest stay unplayed; the final notice offers to verify them.")
-	_turn_checks_editor = TurnChecksEditor.new()
-	page.add_child(_turn_checks_editor)
-	page.add_child(_title(I18n.t("Recipes")))
-	page.add_child(_hint(I18n.t("Reusable requests with parameters and checks, one .json per recipe in this project folder (shared through git). Launch them from the composer's + or with /recipe.")))
-	_recipes_dir_edit = LineEdit.new()
-	_recipes_dir_edit.name = "RecipesDir"
-	_recipes_dir_edit.placeholder_text = Recipes.DEFAULT_DIR
-	page.add_child(_recipes_dir_edit)
-	page.add_child(_title(I18n.t("Project modes")))
-	page.add_child(_hint(I18n.t("Modes with their own name, instructions and the files they may edit, on top of Ask, Review, Build or Auto. One .json per mode in this project folder (shared through git); they show up in the composer's mode selector.")))
-	_modes_dir_edit = LineEdit.new()
-	_modes_dir_edit.name = "ModesDir"
-	_modes_dir_edit.placeholder_text = ProjectModes.DEFAULT_DIR
-	page.add_child(_modes_dir_edit)
-	_hooks_editor = HooksEditor.new()
-	page.add_child(_hooks_editor)
-	_snapshots_check = CheckBox.new()
-	_snapshots_check.text = I18n.t("Keep a snapshot of the project on each turn (git)")
-	_snapshots_check.tooltip_text = I18n.t("In Build and Auto, each turn ends with a notice of the files it changed, to see their diff and go back. The snapshots are git commits outside your branches (refs/godot-agent/turns); your branch, index and stash are not touched.")
-	page.add_child(_snapshots_check)
-	_github_pr_check = CheckBox.new()
-	_github_pr_check.text = I18n.t("Offer to push and open a GitHub pull request when closing a separate copy")
-	_github_pr_check.tooltip_text = I18n.t("Uses git push and the gh CLI. Off by default: otherwise the harness never pushes.")
-	page.add_child(_github_pr_check)
-	page.add_child(_title(I18n.t("Project tools")))
-	page.add_child(_hint(I18n.t("Each .gd file in this folder is a tool the agent calls with godot.run (build_level.gd is godot.build_level). They run inside the editor, so each one only loads on a machine where its code was approved, and every call asks the Project tools permission. The folder is left out of exports.")))
-	_project_tools_edit = LineEdit.new()
-	_project_tools_edit.name = "ProjectToolsDir"
-	_project_tools_edit.placeholder_text = ProjectToolLoader.DEFAULT_DIR
-	page.add_child(_project_tools_edit)
-	page.add_child(_title(I18n.t("Folders outside the project")))
-	page.add_child(_hint(I18n.t("The agent's fs/* can read and write in these folders besides the project (absolute paths, one per line).")))
-	_roots_edit = TextEdit.new()
-	_roots_edit.custom_minimum_size.y = AgentTheme.px(70)
-	page.add_child(_roots_edit)
+	_manual_runs_check = CheckBox.new()
+	_manual_runs_check.text = I18n.t("Use the playtest autoload also when running the game manually")
+	page.add_child(_manual_runs_check)
+	_build_export(page)
 
 
 ## Los valores con que arranca el formulario de la pantalla One-shot (m12-25): allá se cambian para
 ## una corrida; acá, para todas las del proyecto.
 func _build_oneshot(page: VBoxContainer) -> void:
-	page.add_child(_title(I18n.t("Starting values for each One-shot (per project)")))
+	page.add_child(_scoped_title(I18n.t("Starting values for each One-shot"), SettingsScope.PROJECT))
 	page.add_child(_hint(I18n.t("The One-shot screen starts with these; you can still change them there before starting a run.")))
 	_budget_spins["minutes"] = _spin_row(page, I18n.t("Time"), 1, 600, 1, "min")
 	_budget_spins["tokens"] = _spin_row(page, I18n.t("Tokens"), 10000, 20000000, 10000, "")
@@ -634,7 +591,7 @@ func _build_oneshot(page: VBoxContainer) -> void:
 	_loop_spin.tooltip_text = I18n.t("A check that fails the same way, a tool call that fails with the same arguments, or the same change repeated.\nThe first time, the agent is asked for another approach; if it happens again, the One-shot pauses.")
 	_qa_spin = _spin_row(page, I18n.t("QA rounds"), 0, 5, 1, "")
 	_qa_spin.tooltip_text = I18n.t("When the agent says the game is done, a separate agent evaluates it (without the builder's context and without editing) and decides the checks. If it doesn't pass, its findings go back to the builder for another round.\n0 = no evaluator: the checks the agent reports count.")
-	page.add_child(_title(I18n.t("Game evaluation criteria (per project)")))
+	page.add_child(_scoped_title(I18n.t("Game evaluation criteria"), SettingsScope.PROJECT))
 	page.add_child(_hint(I18n.t("They go into the agent's prompt and the evaluator's rubric. Scores go from 0 to 10: the game passes if every criterion reaches its minimum. Weight 0 = not used.")))
 	var grid := GridContainer.new()
 	grid.columns = 3
@@ -658,11 +615,13 @@ func _build_oneshot(page: VBoxContainer) -> void:
 			grid.add_child(spin)
 			spins[key] = spin
 		_criteria_spins[criterion.id] = spins
+	_build_quota(page)
 
 
-## La cuota del plan, en su propia sección (m12-25): es del usuario y vale fuera del One-shot también.
+## La cuota del plan (m12-25), al final de One-shot desde m12-57: es del usuario y la pausa es del
+## One-shot; los avisos valen para todas las sesiones.
 func _build_quota(page: VBoxContainer) -> void:
-	page.add_child(_title(I18n.t("Quota and limits (per user: the quota belongs to the plan, not the project)")))
+	page.add_child(_scoped_title(I18n.t("Plan quota"), SettingsScope.USER))
 	page.add_child(_hint(I18n.t("The ring next to the composer shows it. Warnings apply to every session; the pause, to the One-shot.")))
 	_warn_spin = _spin_row(page, I18n.t("Warn at"), 1, 100, 1, "%")
 	_pause_check = CheckBox.new()
@@ -686,8 +645,9 @@ func _build_quota(page: VBoxContainer) -> void:
 	page.add_child(_reserve_check)
 
 
-func _build_interface(page: VBoxContainer) -> void:
-	page.add_child(_title(I18n.t("Interface")))
+## Lo del usuario (m12-57): apariencia, idioma, qué hacer al abrir, avisos y actualizaciones.
+func _build_general(page: VBoxContainer) -> void:
+	page.add_child(_scoped_title(I18n.t("Interface"), SettingsScope.USER))
 	var row := HBoxContainer.new()
 	var label := Label.new()
 	label.text = I18n.t("Accent color")
@@ -739,7 +699,11 @@ func _build_interface(page: VBoxContainer) -> void:
 	_on_open_option.add_item(I18n.t("Continue the last session"), HarnessSettings.ON_OPEN_CONTINUE)
 	row.add_child(_on_open_option)
 	page.add_child(row)
-	page.add_child(_title(I18n.t("Updates")))
+	_notify_check = CheckBox.new()
+	_notify_check.text = I18n.t("When the editor is in the background, notify me when the agent finishes or waits for me")
+	_notify_check.tooltip_text = I18n.t("The editor window asks for attention and, where available, a desktop notification appears (notify-send on Linux, the notification center on macOS).")
+	page.add_child(_notify_check)
+	page.add_child(_scoped_title(I18n.t("Updates"), SettingsScope.USER))
 	_update_check = CheckBox.new()
 	_update_check.text = I18n.t("Check for a new version when the editor opens (once a day)")
 	page.add_child(_update_check)
@@ -768,7 +732,7 @@ func _on_check_update() -> void:
 
 
 func _build_export(page: VBoxContainer) -> void:
-	page.add_child(_title(I18n.t("Export")))
+	page.add_child(_scoped_title(I18n.t("Export"), SettingsScope.PROJECT))
 	page.add_child(_hint(I18n.t("The addon never ends up in an exported game: an export plugin skips it. Also, each preset should exclude addons/godot_agent/* in its filter, in case the addon is disabled before exporting.")))
 	_export_label = Label.new()
 	_export_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -799,7 +763,6 @@ func _load() -> void:
 	_editing = -1
 	_profile_form.visible = false
 	_rebuild_profiles()
-	_mcp_servers_page.load_from(_settings.mcp_servers(), _config.mcp_servers, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_rebuild_mcp_matrix(_config.permissions)
 	_load_matrix(_config.permissions)
 	_load_subagent_limits(_config.subagent_limits)
@@ -817,14 +780,11 @@ func _load() -> void:
 	_path_rules_check.button_pressed = _config.path_rules
 	_criteria_check.button_pressed = _config.verify_plan_criteria
 	_criteria_max_spin.value = _config.verify_plan_criteria_max
-	_recipes_dir_edit.text = _config.recipes_dir
-	_modes_dir_edit.text = _config.modes_dir
 	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_hooks_editor.load_from(_config.hooks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
 	_snapshots_check.button_pressed = _config.turn_snapshots
 	_github_pr_check.button_pressed = _config.github_pull_requests
 	_roots_edit.text = "\n".join(_config.extra_fs_roots)
-	_project_tools_edit.text = _config.project_tools_dir
 	_budget_spins.minutes.value = _config.budget_minutes
 	_budget_spins.tokens.value = _config.budget_tokens
 	_budget_spins.playtests.value = _config.budget_playtests
@@ -882,7 +842,6 @@ func subagent_limits() -> Dictionary:
 func _on_save() -> void:
 	if _profile_form.visible:
 		_apply_profile_form()
-	_mcp_servers_page.apply_pending()
 	var error := validate()
 	_error_label.text = error.message if not error.is_empty() else ""
 	if not error.is_empty():
@@ -895,7 +854,6 @@ func _on_save() -> void:
 	_apply_model_forgets()
 	_settings.set_value(HarnessSettings.KEY_SECOND_OPINION, _second_opinion_id)
 	_settings.set_value(HarnessSettings.KEY_MCP_PORT, int(_port_spin.value))
-	_settings.save_mcp_servers(_mcp_servers_page.user_servers())
 	_settings.set_value(HarnessSettings.KEY_QUOTA_WARN, int(_warn_spin.value))
 	_settings.set_value(HarnessSettings.KEY_QUOTA_PAUSE, int(_pause_spin.value))
 	_settings.set_value(HarnessSettings.KEY_QUOTA_PAUSE_ENABLED, _pause_check.button_pressed)
@@ -923,14 +881,10 @@ func _on_save() -> void:
 	_config.verify_plan_criteria = _criteria_check.button_pressed
 	_config.verify_plan_criteria_max = int(_criteria_max_spin.value)
 	_config.turn_checks = _turn_checks_editor.checks()
-	_config.recipes_dir = Recipes.resolve_dir(_recipes_dir_edit.text)
-	_config.modes_dir = ProjectModes.resolve_dir(_modes_dir_edit.text)
 	_config.hooks = _hooks_editor.hooks()
 	_config.turn_snapshots = _snapshots_check.button_pressed
 	_config.github_pull_requests = _github_pr_check.button_pressed
 	_config.extra_fs_roots = _lines(_roots_edit.text)
-	_config.project_tools_dir = ProjectToolLoader.resolve_dir(_project_tools_edit.text)
-	_config.mcp_servers = _mcp_servers_page.project_servers()
 	_config.budget_minutes = int(_budget_spins.minutes.value)
 	_config.budget_tokens = int(_budget_spins.tokens.value)
 	_config.budget_playtests = int(_budget_spins.playtests.value)
@@ -951,7 +905,7 @@ func _on_save() -> void:
 		_error_label.text = I18n.t("Could not save %s: %s") % [ProjectConfig.PATH, error_string(result)]
 		return
 	# Lo que se escribió o se permitió acá queda aprobado en esta máquina (m11-31).
-	for key: String in _turn_checks_editor.keys_to_approve() + _hooks_editor.keys_to_approve() + _mcp_servers_page.keys_to_approve():
+	for key: String in _turn_checks_editor.keys_to_approve() + _hooks_editor.keys_to_approve():
 		_settings.approve_command(key)
 	hide()
 	saved.emit()
@@ -976,26 +930,16 @@ func validate() -> Dictionary:
 	if defaults > 1:
 		return {"section": SettingsSection.AGENTS, "message": I18n.t("Only one agent can be the default.")}
 	if _pause_check.button_pressed and _pause_spin.value <= _warn_spin.value:
-		return {"section": SettingsSection.QUOTA, "message": I18n.t("The pause threshold must be higher than the warning threshold.")}
+		return {"section": SettingsSection.ONESHOT, "message": I18n.t("The pause threshold must be higher than the warning threshold.")}
 	for root: String in _lines(_roots_edit.text):
 		if not root.is_absolute_path():
-			return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" is not an absolute path.") % root}
-	if not _recipes_dir_edit.text.strip_edges().is_empty() and ProjectDirs.normalize(_recipes_dir_edit.text).is_empty():
-		return {"section": SettingsSection.MCP, "message": I18n.t("The recipes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_recipes).")}
-	if not _modes_dir_edit.text.strip_edges().is_empty() and ProjectDirs.normalize(_modes_dir_edit.text).is_empty():
-		return {"section": SettingsSection.MCP, "message": I18n.t("The modes folder must be a visible folder inside the project, outside addons/godot_agent (like res://agent_modes).")}
-	var tools_dir := _project_tools_edit.text.strip_edges()
-	if not tools_dir.is_empty() and ProjectToolLoader.normalize_dir(tools_dir).is_empty():
-		return {"section": SettingsSection.MCP, "message": I18n.t("\"%s\" can't hold the project tools: use a folder inside the project, outside addons/godot_agent.") % tools_dir}
+			return {"section": SettingsSection.PERMISSIONS, "message": I18n.t("\"%s\" is not an absolute path.") % root}
 	var checks_error := _turn_checks_editor.validate()
 	if not checks_error.is_empty():
-		return {"section": SettingsSection.MCP, "message": checks_error}
+		return {"section": SettingsSection.AFTER_TURN, "message": checks_error}
 	var hooks_error := _hooks_editor.validate()
 	if not hooks_error.is_empty():
-		return {"section": SettingsSection.MCP, "message": hooks_error}
-	var mcp_error := _mcp_servers_page.validate()
-	if not mcp_error.is_empty():
-		return {"section": SettingsSection.MCP, "message": mcp_error}
+		return {"section": SettingsSection.AFTER_TURN, "message": hooks_error}
 	var rules_error := _auto_rules_page.validate()
 	if not rules_error.is_empty():
 		return {"section": SettingsSection.PERMISSIONS, "message": rules_error}
@@ -1015,8 +959,9 @@ func _rebuild_mcp_matrix(overrides: Dictionary) -> void:
 		_mcp_grid.remove_child(child)
 		child.queue_free()
 	var names: Dictionary = {}
-	for name: String in _mcp_servers_page.server_names():
-		names[name] = true
+	# Los servidores guardados en Extensions → Servidores MCP (m12-58), del usuario y del proyecto.
+	for entry: Dictionary in ExternalMcpServers.normalize_list(_settings.mcp_servers()) + ExternalMcpServers.normalize_list(_config.mcp_servers):
+		names[entry.name] = true
 	if seen_mcp_servers_provider.is_valid():
 		for name: String in seen_mcp_servers_provider.call():
 			names[name] = true
@@ -1311,6 +1256,25 @@ func _title(text: String) -> Label:
 	label.text = text
 	label.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
 	return label
+
+
+## Título de un bloque con a quién afecta (m12-57): «Este proyecto» (project_config.tres, por git) o
+## «Vos» (esta máquina, todos los proyectos).
+func _scoped_title(text: String, scope: SettingsScope) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var title := _title(text)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(title)
+	var tag := Label.new()
+	tag.name = "Scope"
+	tag.text = I18n.t("This project") if scope == SettingsScope.PROJECT else I18n.t("You, every project")
+	tag.tooltip_text = I18n.t("Saved in the project's config (project_config.tres): shared with your team through git.") if scope == SettingsScope.PROJECT else I18n.t("Saved in this machine's editor settings: applies to every project you open.")
+	tag.mouse_filter = Control.MOUSE_FILTER_PASS
+	tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	tag.add_theme_font_size_override(&"font_size", AgentTheme.px(11))
+	tag.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	row.add_child(tag)
+	return row
 
 
 func _hint(text: String) -> Label:
