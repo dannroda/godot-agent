@@ -29,7 +29,7 @@ const OPTIONS := [
 	{"optionId": "reject", "name": "Reject", "kind": "reject_once"},
 ]
 ## Las tools de grupos que escriben y no dicen dónde: en un modo con archivos limitados se rechazan.
-const UNDECLARED: PackedStringArray = ["asset_install", "install_extension", "restart_editor"]
+const UNDECLARED: PackedStringArray = ["asset_install", "install_extension", "restart_editor", "press_tool_button"]
 const TOOLS_DIR := "res://addons/godot_agent/mcp/tools"
 
 
