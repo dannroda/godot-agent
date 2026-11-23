@@ -61,6 +61,7 @@ const EditorBinary := preload("../transport/editor_binary.gd")
 const CommandResolver := preload("../transport/command_resolver.gd")
 const AgentAdapters := preload("agents/agent_adapters.gd")
 const AgentAdapter := preload("agents/agent_adapter.gd")
+const OutsideInput := preload("outside_input.gd")
 const ClaudeCli := preload("../extensions/claude_cli.gd")
 const TurnSnapshots := preload("turn_snapshots.gd")
 const TurnReport := preload("turn_report.gd")
@@ -69,6 +70,8 @@ const HarnessPrompts := preload("harness_prompts.gd")
 
 ## Turnos seguidos que la verificación al terminar un turno manda para corregir errores (m11-04).
 const MAX_FIX_TURNS := 2
+## Sin updates por este tiempo, un turno que no salió del chat se da por terminado (m12-61).
+const OUTSIDE_TURN_GAP_MSEC := 5000
 ## Lo que se espera a que el agente confirme un session/cancel antes de cerrar el turno acá (m17-16).
 const CANCEL_TIMEOUT_SEC := 8.0
 const PROTOCOL_VERSION := 1
@@ -288,6 +291,14 @@ var _stderr_tail: PackedStringArray = []
 var _system_prompt_sent: bool = false
 ## Ya se avisó que el agente trabaja fuera de un turno pedido desde el chat (se rearma con cada prompt).
 var _outside_turn_noticed: bool = false
+## Hay un turno que no salió del chat en curso (m12-61): ya se buscó qué lo arrancó. Lo cierra el
+## usage_update del final del turno, un rato sin updates (OUTSIDE_TURN_GAP_MSEC) o el próximo prompt.
+var _outside_turn_open: bool = false
+var _outside_turn_msec: int = 0
+## uuids del transcript de las entradas de afuera ya mostradas, para no repetirlas.
+var _incoming_seen: Dictionary = {}
+## El transcript del agente; vacío = el que dice el adapter (los tests ponen uno armado).
+var transcript_path_override: String = ""
 ## Turnos seguidos que mandó la verificación para corregir errores (se reinicia con cada prompt del
 ## usuario); al llegar a MAX_FIX_TURNS solo se avisa.
 var _fix_turns: int = 0
@@ -349,6 +360,11 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	cwd = working_dir
 	model.unexpected_transition.connect(_on_unexpected_transition)
 	model.permission_requested.connect(_on_permission_requested)
+	# Las entradas de afuera que ya están en el chat (también las del historial al reanudar) no se
+	# vuelven a mostrar (m12-61).
+	model.entry_added.connect(func(entry: ChatEntry) -> void:
+		if not entry.incoming.is_empty():
+			_incoming_seen[str(entry.incoming.get("uuid", ""))] = true)
 	client = AcpClient.new()
 	client.setup(_send_line, agent_log)
 	quota = QuotaMonitor.new()
@@ -674,6 +690,7 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 	model.add_user_message(text, attachments, harness_label)
 	model.event_cursor = -1
 	_outside_turn_noticed = false
+	_outside_turn_open = false
 	if history:
 		history.record_prompt(text, harness_label)
 	model.set_state(SessionModel.SessionState.PROMPTING)
@@ -2215,18 +2232,56 @@ func _on_session_update(params: Dictionary) -> void:
 
 
 ## Claude Code arranca un turno solo cuando le llega un mensaje de otra sesión suya (SendMessage) o
-## termina una tarea en segundo plano, y claude-agent-acp (0.98) no reenvía ese mensaje: el chat
-## vería la respuesta sin la pregunta. Se avisa una vez hasta el próximo prompt. Un mensaje de Remote
-## Control sí llega (user_message_chunk) y no lleva aviso.
+## termina una tarea en segundo plano, y claude-agent-acp no reenvía ese mensaje: el chat vería la
+## respuesta sin la pregunta. Al empezar un turno así se lee del transcript lo que lo arrancó y sale
+## en el chat antes de la respuesta (m12-61, ver OutsideInput). Si no se puede (otro agente, no se
+## encuentra el archivo), se avisa una vez hasta el próximo prompt. Un mensaje de Remote Control sí
+## llega (user_message_chunk) y no hace falta nada.
 func _notice_outside_turn(update: Dictionary) -> void:
-	if model.state != SessionModel.SessionState.READY or _outside_turn_noticed or not model.parent_tool_call_id(update).is_empty():
+	if model.state != SessionModel.SessionState.READY or not model.parent_tool_call_id(update).is_empty():
 		return
 	var kind := str(update.get("sessionUpdate", ""))
+	var now := Time.get_ticks_msec()
+	if _outside_turn_open and now - _outside_turn_msec > OUTSIDE_TURN_GAP_MSEC:
+		_outside_turn_open = false
+	_outside_turn_msec = now
+	if kind == "usage_update":
+		_outside_turn_open = false  # claude-agent-acp lo manda con el resultado del turno
+		return
+	if _outside_turn_open:
+		return
 	if kind == "user_message_chunk":
+		_outside_turn_open = true
 		_outside_turn_noticed = true
 	elif kind in ["agent_message_chunk", "agent_thought_chunk", "tool_call"]:
+		_outside_turn_open = true
+		if _show_outside_input() or _outside_turn_noticed:
+			return
 		_outside_turn_noticed = true
 		model.add_notice(I18n.t("The agent is answering something it received outside this chat (a message from another Claude Code session or a background task that finished): the editor only gets its answer. To see the messages between sessions, ask the agents to use godot.session_send."))
+
+
+## Lo que arrancó el turno, leído del final del transcript: cada entrada nueva va al chat y al
+## historial. false = no se supo (sin transcript, o no se encontró): el llamador avisa.
+func _show_outside_input() -> bool:
+	var path := transcript_path_override
+	if path.is_empty() and _profile:
+		path = adapter.transcript_path(model.session_id, cwd, _profile.resolved_env())
+	if path.is_empty():
+		return false
+	var lines := OutsideInput.read_tail(path)
+	var inputs := OutsideInput.latest(lines, _incoming_seen)
+	if inputs.is_empty():
+		# Ya mostradas (un update suelto después de una pausa del mismo turno): no hace falta avisar.
+		return not OutsideInput.latest(lines).is_empty()
+	for input: Dictionary in inputs:
+		var incoming := {"kind": input.kind, "from": input.from, "status": input.status, "uuid": input.uuid}
+		model.event_cursor = history.next_event_index() if history else -1
+		model.add_incoming(str(input.text), incoming)
+		model.event_cursor = -1
+		if history:
+			history.record_incoming(str(input.text), incoming)
+	return true
 
 
 func _record_turn_end(stop_reason: String) -> void:

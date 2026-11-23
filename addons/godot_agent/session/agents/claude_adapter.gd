@@ -7,6 +7,8 @@ extends "agent_adapter.gd"
 const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 const PermissionPolicy := preload("../permission_policy.gd")
 const AgentProfile := preload("../../core/agent_profile.gd")
+const ProjectMemory := preload("../../core/project_memory.gd")
+const OutsideInput := preload("../outside_input.gd")
 
 
 func _init() -> void:
@@ -55,6 +57,11 @@ func account_email(dir: String) -> String:
 	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	var account: Variant = (data as Dictionary).get("oauthAccount") if data is Dictionary else null
 	return str((account as Dictionary).get("emailAddress", "")) if account is Dictionary else ""
+
+
+## La carpeta de la cuenta: la del perfil (CLAUDE_CONFIG_DIR), la del entorno del editor o ~/.claude.
+func transcript_path(session_id: String, cwd: String, env: Dictionary) -> String:
+	return OutsideInput.transcript_path(ProjectMemory.claude_config_dir(env, AgentProfile.home_dir()), cwd, session_id)
 
 
 ## Claude Code guarda cada sesión en `<carpeta>/projects/<proyecto>/<id>.jsonl` (y lo de sus

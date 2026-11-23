@@ -2187,7 +2187,7 @@ func _finish_controller(controller: SessionController, model: SessionModel, id: 
 	controller.mode_models = ModeModels.new(_settings)  # el modelo de cada modo, por perfil (m11-38)
 	# Un mensaje del usuario (sin etiqueta del harness) vuelve a habilitar los prompts de hooks (m11-24).
 	model.entry_added.connect(func(entry: ChatEntry) -> void:
-		if entry.kind == ChatEntry.EntryKind.USER and entry.harness_label.is_empty():
+		if entry.kind == ChatEntry.EntryKind.USER and entry.harness_label.is_empty() and entry.incoming.is_empty():
 			_hook_prompts_in_row = 0)
 	# El contador vivo (m11-34): el turno empieza al pasar a PROMPTING y cada tool call terminada
 	# pide recalcular.

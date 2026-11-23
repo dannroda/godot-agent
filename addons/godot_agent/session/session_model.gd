@@ -541,6 +541,14 @@ func add_user_message(text: String, attachments: Array[Dictionary] = [], harness
 	return _push(entry)
 
 
+## Lo que le llegó al agente por fuera del chat (m12-61, ver ChatEntry.incoming).
+func add_incoming(text: String, incoming: Dictionary) -> ChatEntry:
+	var entry := _new_entry(ChatEntry.EntryKind.USER)
+	entry.text = text
+	entry.incoming = incoming
+	return _push(entry)
+
+
 func add_notice(text: String, level: ChatEntry.NoticeLevel = ChatEntry.NoticeLevel.INFO, actions: Array[Dictionary] = []) -> ChatEntry:
 	var entry := _new_entry(ChatEntry.EntryKind.NOTICE)
 	entry.text = text

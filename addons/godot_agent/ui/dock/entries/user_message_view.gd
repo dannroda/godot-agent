@@ -3,12 +3,18 @@ extends "entry_view.gd"
 ## Burbuja del usuario, a la derecha (mockup: fondo #33405a). Un prompt que armó el harness (One-shot,
 ## el chequeo después del turno, Revisar…, ver HarnessPrompts) sale atenuado y plegado: una línea con
 ## su etiqueta en el idioma de la interfaz y «Ver prompt» para leer lo que recibió el agente (m12-44).
+## Lo que le llegó al agente por fuera del chat (un mensaje de otra sesión, una tarea que terminó,
+## m12-61) sale igual, con quién lo mandó; desplegado si es corto.
 
 const MAX_WIDTH_RATIO := 0.85
 const UntrustedText := preload("../../../mcp/untrusted_text.gd")
 const PathRules := preload("../../../core/path_rules.gd")
+const OutsideInput := preload("../../../session/outside_input.gd")
 ## Líneas de la etiqueta de un prompt del harness, plegado.
 const CAPTION_LINES := 2
+## Una entrada de afuera hasta este largo (caracteres y líneas) sale desplegada.
+const SHORT_INCOMING_CHARS := 400
+const SHORT_INCOMING_LINES := 6
 
 var _row: HBoxContainer
 var _spacer: Control
@@ -23,6 +29,8 @@ var _toggle: Button
 ## Fila de «Ver prompt» cuando no entra al lado de la etiqueta.
 var _toggle_row: HBoxContainer
 var _expanded: bool = false
+## Si ya se decidió si una entrada de afuera arranca desplegada.
+var _expansion_set: bool = false
 
 
 func _build() -> void:
@@ -73,15 +81,34 @@ func is_harness() -> bool:
 	return entry != null and not entry.harness_label.is_empty()
 
 
+func is_incoming() -> bool:
+	return entry != null and not entry.incoming.is_empty()
+
+
+## Atenuada, a todo el ancho y con etiqueta: no la escribió el usuario.
+func is_folded_kind() -> bool:
+	return is_harness() or is_incoming()
+
+
 func is_expanded() -> bool:
 	return _expanded
 
 
 func refresh() -> void:
-	var harness := is_harness()
+	var incoming := is_incoming()
+	var harness := is_folded_kind()
+	if incoming and not _expansion_set:
+		_expansion_set = true
+		_expanded = entry.text.length() <= SHORT_INCOMING_CHARS and entry.text.count("\n") < SHORT_INCOMING_LINES
 	_header.visible = harness
 	_toggle_row.visible = harness and _toggle.get_parent() == _toggle_row
-	if harness:
+	if incoming:
+		var caption := OutsideInput.caption(entry.incoming)
+		_caption.text = ("⚑ " if str(entry.incoming.get("kind")) == OutsideInput.KIND_TASK else "✉ ") + caption
+		_caption.tooltip_text = caption
+		_toggle.text = I18n.t("Hide message") if _expanded else I18n.t("Show message")
+		_toggle.tooltip_text = I18n.t("What the agent received outside this chat, read from its transcript")
+	elif harness:
 		_caption.text = "⚙ " + I18n.t(entry.harness_label)
 		_caption.tooltip_text = I18n.t(entry.harness_label)
 		_toggle.text = I18n.t("Hide prompt") if _expanded else I18n.t("Show prompt")
@@ -139,7 +166,7 @@ func _on_toggle() -> void:
 func _fit_width() -> void:
 	if _label == null or size.x <= 0.0:
 		return
-	if is_harness():  # a todo el ancho: el texto desplegado se parte en el ancho del chat
+	if is_folded_kind():  # a todo el ancho: el texto desplegado se parte en el ancho del chat
 		_label.custom_minimum_size.x = 0.0
 		_place_toggle()
 		return

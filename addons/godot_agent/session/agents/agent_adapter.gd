@@ -65,6 +65,12 @@ func notice_after_session(_cwd: String) -> String:
 	return ""
 
 
+## Dónde escribe el agente la conversación de `session_id` (m12-61), para leer lo que le llegó por
+## fuera del chat (ver OutsideInput). `env`: el del perfil, con su carpeta de cuenta. "" = no se sabe.
+func transcript_path(_session_id: String, _cwd: String, _env: Dictionary) -> String:
+	return ""
+
+
 ## Copia la sesión `session_id` de una carpeta de cuenta a otra del mismo agente (m6-22), para
 ## retomarla con session/load después de cambiar de cuenta. false = el agente no guarda sus sesiones
 ## en la carpeta de la cuenta, o no se sabe dónde: se abre una sesión nueva con el resumen.
