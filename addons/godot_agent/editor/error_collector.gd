@@ -14,6 +14,10 @@ const TIME_PATTERN := "^\\d+:\\d+:\\d+"
 ## `{seq, kind, message, file, line, source}`
 var _entries: Array[Dictionary] = []
 var _next_seq: int = 1
+## Lo que imprime el editor (m11-72): `{seq, text, error}` por línea, con su propia numeración.
+const MAX_OUTPUT_LINES := 2000
+var _output: Array[Dictionary] = []
+var _next_output_seq: int = 1
 var _logger: EditorLogger
 var _debugger_seen: Dictionary = {}
 var _time_regex := RegEx.create_from_string(TIME_PATTERN)
@@ -52,6 +56,8 @@ func entries_since(since: int) -> Array[Dictionary]:
 
 func collect() -> void:
 	if _logger:
+		for item: Array in _logger.drain_messages():
+			add_output(str(item[0]), bool(item[1]))
 		for item: Array in _logger.drain():
 			var message := str(item[4]) if not str(item[4]).is_empty() else str(item[3])
 			add(LOGGER_TYPES.get(int(item[5]), "error"), message, str(item[1]), int(item[2]), "editor")
@@ -81,6 +87,31 @@ static func format_entry(entry: Dictionary) -> String:
 
 
 # --- panel Output -------------------------------------------------------------------------------
+
+## Una impresión del editor, partida en líneas (sin la última vacía del salto final).
+func add_output(text: String, error: bool = false) -> void:
+	var lines := text.trim_suffix("\n").split("\n")
+	for line: String in lines:
+		_output.append({"seq": _next_output_seq, "text": line, "error": error})
+		_next_output_seq += 1
+	if _output.size() > MAX_OUTPUT_LINES:
+		_output = _output.slice(_output.size() - MAX_OUTPUT_LINES)
+
+
+## Última marca de la salida (para `since` de get_output).
+func output_mark() -> int:
+	return _next_output_seq - 1
+
+
+## Líneas impresas con seq > since.
+func output_since(since: int) -> Array[Dictionary]:
+	collect()
+	var result: Array[Dictionary] = []
+	for entry: Dictionary in _output:
+		if int(entry.seq) > since:
+			result.append(entry)
+	return result
+
 
 ## Texto actual del panel Output (incluye lo que imprime el juego corriendo).
 func output_text() -> String:

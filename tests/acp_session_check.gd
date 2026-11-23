@@ -314,7 +314,8 @@ func _scenario_permissions_build() -> void:
 		_check(responses[3].contains("outside the project"), "permisos/build: fs/read fuera del proyecto rechazado (%s)" % responses[3])
 		_check(responses[4].contains("\"optionId\":\"allow\""), "permisos/build: segunda edición permitida por la sesión (%s)" % responses[4])
 		_check(responses[5].contains("\"optionId\":\"reject\""), "permisos/build: comando denegado por el usuario (%s)" % responses[5])
-	_check(cards.size() == 2, "permisos/build: 2 tarjetas (edición y comando): %s" % str(cards))
+	# Construir edita sin preguntar desde m11-71: la única tarjeta es la del comando.
+	_check(cards.size() == 1, "permisos/build: 1 tarjeta (el comando; la edición no pregunta): %s" % str(cards))
 	_check(FileAccess.get_file_as_string(_target_path()) == "extends Node\nvar a := 2\n", "permisos/build: archivo escrito")
 	_check(model.pending_permissions.is_empty(), "permisos/build: sin permisos pendientes")
 	controller.stop()

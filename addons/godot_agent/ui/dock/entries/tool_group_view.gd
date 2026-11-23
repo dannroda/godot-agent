@@ -467,6 +467,7 @@ const GODOT_TOOL_NAMES := {
 	"game_wait": "Wait in the game",  # i18n
 	"game_watch": "Watch the game",  # i18n
 	"get_errors": "Read errors",  # i18n
+	"get_output": "Read the Output",  # i18n
 	"get_node": "Read node",  # i18n
 	"get_resource": "Read resource",  # i18n
 	"instantiate_scene": "Instance scene",  # i18n

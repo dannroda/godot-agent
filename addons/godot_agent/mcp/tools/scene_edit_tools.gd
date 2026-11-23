@@ -65,7 +65,8 @@ func tools() -> Array:
 		McpTool.create("instantiate_scene", scene, "Instances a .tscn scene as a child of `parent` (with undo).",
 			{"parent": {"type": "string"}, "scene_path": {"type": "string"}, "name": {"type": "string"}, "scene": SCENE_ARG},
 			["parent", "scene_path"], _instantiate_scene),
-		McpTool.create("open_scene", scene, "Opens a scene in the editor (or makes it the current one).",
+		# Leer (m11-71): abrir una pestaña del editor no cambia el proyecto.
+		McpTool.create("open_scene", PermissionPolicy.GROUP_READ, "Opens a scene in the editor (or makes it the current one).",
 			{"path": {"type": "string"}}, ["path"], _open_scene),
 		McpTool.create("save_scene", scene, "Saves the current scene (or the given one, which must be open).",
 			{"path": {"type": "string"}}, [], _save_scene),

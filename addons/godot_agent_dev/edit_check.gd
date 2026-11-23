@@ -223,7 +223,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	EditorUndo._trigger_editor_undo()
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)
 	_model.disconnect(&"permission_requested", allow_project)
-	_expect(project_asks == ["godot.set_input_action"], "project: One-shot no pregunta, Construir sí (%s)" % [project_asks])
+	_expect(project_asks.is_empty(), "project: ni One-shot ni Construir preguntan (m11-71) (%s)" % [project_asks])
 	_expect(_without_features(FileAccess.get_file_as_string("res://project.godot")) == project_before, "project.godot queda como estaba")
 
 	# Archivos con referencias (m4-10): mover arregla rutas y mantiene el uid; borrar se niega si algo
@@ -391,7 +391,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	var frames_read := await _call_text("animation_get", {"node_path": "Coin"})
 	_expect(frames_read.contains("spin: 2 frames, 8.0 fps"), "animation_get de un AnimatedSprite2D (%s)" % frames_read)
 
-	# Permisos: Preguntar deniega; Construir pregunta (se acepta solo).
+	# Permisos: Preguntar deniega; Construir edita sin preguntar (m11-71).
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ASK)
 	var denied: Dictionary = await _call("add_node", {"parent": ".", "type": "Node", "name": "Denied"})
 	_expect(denied.get("isError", false) and _text(denied).contains("denied") and not root.has_node("Denied"), "Preguntar deniega edit_scene")
@@ -403,7 +403,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_model.connect(&"permission_requested", on_permission)
 	var allowed := await _call_text("add_node", {"parent": ".", "type": "Node", "name": "Allowed"})
 	_model.disconnect(&"permission_requested", on_permission)
-	_expect(asked == ["godot.add_node"] and root.has_node("Allowed") and allowed.contains("Created"), "Construir pide permiso y ejecuta")
+	_expect(asked.is_empty() and root.has_node("Allowed") and allowed.contains("Created"), "Construir ejecuta sin preguntar (%s)" % [asked])
 
 	# Botón "↶ undo": el tool call ACP se une a la acción por nombre y argumentos.
 	_model.call(&"set_harness_mode", SessionModel.HarnessMode.ONESHOT)

@@ -200,8 +200,10 @@ func test_agent_writes() -> void:
 	assert_eq(str(result.outcome.get("optionId", "")), "reject", "sin ruta no se puede revisar: rechazada")
 	result = await _request(controller, "e5", "edit", {"file_path": PROJECT + "/agent_modes/levels.json"})
 	assert_eq(str(result.outcome.get("optionId", "")), "reject", "su propio .json, nunca")
-	# Construir: dentro pregunta como siempre. (Las .tscn a mano las rechaza el guard de D48 en todo modo.)
+	# Construir con la matriz en «preguntar» (por defecto permite desde m11-71): dentro pregunta. (Las
+	# .tscn a mano las rechaza el guard de D48 en todo modo.)
 	model.set_harness_mode(M.BUILD)
+	controller.policy.set_matrix_value(PermissionPolicy.GROUP_EDIT_FILES, M.BUILD, PermissionPolicy.ASK)
 	var answers: Array = []
 	var ask := func() -> void: answers.append(await _request(controller, "e6", "edit", {"file_path": PROJECT + "/levels/two.gd"}))
 	ask.call()

@@ -3,6 +3,7 @@ extends "test_case.gd"
 
 const DiagnosticTools := preload("res://addons/godot_agent/mcp/tools/diagnostic_tools.gd")
 const ErrorCollector := preload("res://addons/godot_agent/editor/error_collector.gd")
+const EditorLogger := preload("res://addons/godot_agent/core/editor_logger.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const SessionModel := preload("res://addons/godot_agent/session/session_model.gd")
 const AgentLog := preload("res://addons/godot_agent/core/agent_log.gd")
@@ -95,6 +96,38 @@ func test_get_errors_hides_engine_noise() -> void:
 	assert_false(text.contains("@implicit_new"), "sin el ruido del motor")
 	assert_true(text.contains("de verdad"), "el resto sigue")
 	assert_true(text.contains("1 new"), "el conteo no cuenta el ruido")
+
+
+## m11-72: get_output lee lo impreso con marcas, las últimas líneas y un filtro.
+func test_get_output() -> void:
+	var collector := OfflineCollector.new()
+	collector.add_output("Bake PVS: 10%\nBake PVS: 50%\n")
+	collector.add_output("otra cosa")
+	collector.add_output("falló el bake", true)
+	var tools := DiagnosticTools.new()
+	tools.setup(collector, "")
+	var text: String = tools._get_output({})
+	assert_true(text.begins_with("mark: 4 · 4 new lines since 0"), text)
+	assert_true(text.contains("Bake PVS: 50%\notra cosa\n[stderr] falló el bake"), "en orden, una por línea, stderr marcado")
+	text = tools._get_output({"since": 2})
+	assert_false(text.contains("50%"), "desde la marca")
+	assert_true(text.contains("2 new lines since 2"), text)
+	text = tools._get_output({"contains": "bake pvs", "lines": 1})
+	assert_true(text.contains("2 new lines since 0 containing \"bake pvs\" (showing the last 1)"), text)
+	assert_true(text.contains("50%") and not text.contains("10%"), "la última")
+	assert_true(tools._get_output({"since": 4}).ends_with("Nothing printed."), "nada nuevo")
+	for i: int in ErrorCollector.MAX_OUTPUT_LINES + 5:
+		collector.add_output("línea %d" % i)
+	assert_eq(collector.output_since(0).size(), ErrorCollector.MAX_OUTPUT_LINES, "tope de líneas")
+
+
+## El logger guarda lo impreso para el colector (en el hilo que sea).
+func test_logger_keeps_messages() -> void:
+	var logger := EditorLogger.new()
+	logger._log_message("hola\n", false)
+	logger._log_message("error\n", true)
+	assert_eq(logger.drain_messages(), [["hola\n", false], ["error\n", true]], "en orden")
+	assert_eq(logger.drain_messages(), [], "y se vacía")
 
 
 ## Sin editor (tests por --script) no hay debugger que leer.

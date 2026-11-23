@@ -314,6 +314,7 @@ func test_agent_file_write_keeps_the_real_value() -> void:
 	var controller := SessionController.new()
 	var root_dir := ProjectSettings.globalize_path(temp_dir("secret_fs_write"))
 	controller.setup(model, log, root_dir)
+	controller.policy.set_matrix_value("edit_files", SessionModel.HarnessMode.BUILD, "ask")  # que salga la tarjeta (Construir permite desde m11-71)
 	var fs := FsHandler.new()
 	fs.setup(root_dir, log)
 	controller.set_fs_handler(fs)

@@ -9,7 +9,7 @@
 | **Preguntar** | Responde sobre el proyecto. Puede leer; no puede editar ni correr nada. |
 | **Plan** | Cada mensaje es un pedido de plan: el agente recorre el proyecto y presenta un plan para aprobar antes de editar nada. Los mismos permisos que Preguntar; **Aprobar y construir** pasa a Construir. Los comandos que empiezan con `/` siguen saliendo como comandos. |
 | **Revisar** | Revisa escenas y scripts y devuelve hallazgos (bug, estructura, rendimiento, estilo), que aparecen como marcas en el Script Editor. Ver [Revisar](Revisar.md). |
-| **Construir** | Edita escenas y scripts y corre el juego, pidiendo permiso según la matriz de abajo. |
+| **Construir** | Edita escenas, scripts y project settings y corre el juego sin preguntar, como *Edit automatically* en las extensiones de Claude Code. Los comandos de shell, el Asset Store y las herramientas del proyecto preguntan antes (matriz de abajo). |
 | **Auto** | Como Construir, pero sin tarjetas para lo que se puede deshacer: edita escenas, scripts y settings del proyecto y corre el juego solo. Los comandos de shell corren solos solo si están en la allowlist; ver [Modo Auto](#modo-auto). |
 | **One-shot** | Persigue un objetivo entero con presupuestos, checkpoints y playtests, en la pantalla One-shot. Ver [One-shot](One-shot.md). |
 
@@ -64,7 +64,7 @@ Cuando la tarea necesita otro modo (estás en Preguntar y pedís un cambio, o un
 
 En Preguntar, Plan o Revisar, un agente con modo plan (Claude Code) puede terminar de planear presentando un plan para aprobar. El dock lo muestra en una tarjeta con el plan en Markdown y tres botones:
 
-- **Aprobar y construir** pasa la sesión a Construir y deja que el agente empiece. Sus ediciones siguen pidiendo permiso como siempre en Construir. La tarjeta no ofrece las opciones auto, bypass ni *clear context* del agente. El plan aprobado queda en `.godot_agent/plans/<fecha>-<título>.md`, para traerlo en otra sesión con `@`.
+- **Aprobar y construir** pasa la sesión a Construir y deja que el agente empiece. Sus ediciones siguen los permisos de Construir. La tarjeta no ofrece las opciones auto, bypass ni *clear context* del agente. El plan aprobado queda en `.godot_agent/plans/<fecha>-<título>.md`, para traerlo en otra sesión con `@`.
 - **Editar** abre el plan como texto, con un contador en vivo de las líneas que cambiaste. **Enviar cambios** no aprueba el plan, y al terminar el turno el agente recibe las líneas cambiadas y el plan entero, y lo vuelve a presentar.
 - **Seguir planeando…** no aprueba, con un motivo que el agente recibe al terminar el turno.
 
@@ -207,11 +207,11 @@ Valores por defecto:
 |---|---|---|---|---|---|
 | Lectura | Permitir | Permitir | Permitir | Permitir | Permitir |
 | Diagnóstico | Permitir | Permitir | Permitir | Permitir | Permitir |
-| Editar escenas | Denegar | Denegar | Preguntar | Permitir | Permitir |
-| Editar archivos | Denegar | Denegar | Preguntar | Permitir | Permitir |
-| Ejecutar el juego | Denegar | Preguntar | Preguntar | Permitir | Permitir |
+| Editar escenas | Denegar | Denegar | Permitir | Permitir | Permitir |
+| Editar archivos | Denegar | Denegar | Permitir | Permitir | Permitir |
+| Ejecutar el juego | Denegar | Preguntar | Permitir | Permitir | Permitir |
 | Shell / comandos | Denegar | Denegar | Preguntar | Preguntar¹ | Preguntar |
-| Project settings, export y addons | Denegar | Denegar | Preguntar | Permitir | Permitir |
+| Project settings, export y addons | Denegar | Denegar | Permitir | Permitir | Permitir |
 | Instalar desde el Asset Store | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Herramientas del proyecto | Denegar | Denegar | Preguntar | Preguntar | Preguntar |
 | Segunda opinión | Preguntar | Preguntar | Preguntar | Preguntar | Denegar |
@@ -221,6 +221,8 @@ Valores por defecto:
 ¹ En Auto, primero deciden las [listas del modo Auto](#modo-auto); solo lo que no permiten muestra una tarjeta.
 
 ² Diga lo que diga la matriz, un mensaje a una sesión en un modo con más permisos se deniega siempre: ver [Mensajes entre sesiones](#mensajes-entre-sesiones).
+
+Reiniciar el editor (`restart_editor`) queda fuera de la matriz: pregunta siempre en Construir, Auto y One-shot (y se deniega en los modos de solo lectura), sin **Permitir siempre en esta sesión**.
 
 ### Subagentes
 

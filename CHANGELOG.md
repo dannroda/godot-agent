@@ -8,6 +8,12 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 - **Plan mode.** The mode selector has **Plan**, after Ask, like the Plan mode of the Claude Code extensions. In Plan every message is a request for a plan: the agent reads the project and presents a plan card before editing anything, and **Approve and build** switches to Build. It has Ask's permissions (the matrix column is shared) and its own remembered model, so you can plan with one model and build with another. The **Plan** button and `/plan` now switch to Plan instead of Ask. Commands starting with `/` still go as commands.
 
+- **The agent can read the editor's Output.** A new `get_output` tool returns what the editor printed (editor scripts, `@tool` scripts and plugins: the progress of a bake, an import) since a mark, like `get_errors`, with the last `lines` and a `contains` filter. Before, `get_errors` only had errors and warnings, so an agent couldn't follow what a tool of the project printed.
+
+### Changed
+
+- **Build edits without asking.** Build now edits scenes, scripts and project settings and runs the game without a permission card, like *Edit automatically* in the Claude Code extensions; shell commands, Asset Store installs and project tools still ask. Before, every edit asked, and a card nobody answered in time stopped the agent halfway. Restarting the editor (`restart_editor`) always asks, in every mode that can act, Auto included; it isn't in the matrix and **Always allow in this session** isn't offered. Opening a scene (`open_scene`) no longer asks in any mode: it only opens an editor tab. To get the old behavior, set those rows back to **Ask** in Settings → Permissions by mode.
+
 ## [0.1.32] - 2026-11-19
 
 ### Fixed

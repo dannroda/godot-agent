@@ -96,7 +96,7 @@ func authorize(group: String, title: String, description: String, diff: Dictiona
 	request.group = group
 	request.diff = agent_log.redact_data(diff) if agent_log else diff
 	request.options = PermissionRequest.default_options()
-	if mode_forces_ask(group):
+	if mode_forces_ask(group) or group in PermissionPolicy.ALWAYS_ASK_GROUPS:
 		request.options = without_always(request.options)
 	var outcome := await _ask_user(request, timeout_s)
 	_emit_feedback(request)

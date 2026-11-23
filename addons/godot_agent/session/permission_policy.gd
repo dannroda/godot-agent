@@ -32,6 +32,10 @@ const GROUP_PROJECT_TOOLS := "project_tools"
 const GROUP_SECOND_OPINION := "second_opinion"
 ## godot.session_send: un prompt a otra pestaña, que puede estar en un modo con más permisos.
 const GROUP_SESSIONS_MESSAGE := "sessions_message"
+## restart_editor (m11-71): reiniciar el editor pregunta siempre, en todos los modos que pueden actuar.
+## No está en la matriz (no se cambia en Settings) ni se levanta con «siempre en esta sesión».
+const GROUP_RESTART := "restart_editor"
+const ALWAYS_ASK_GROUPS: PackedStringArray = [GROUP_RESTART]
 ## Sin grupo conocido: siempre se pregunta (spec §7, "el resto → ask").
 const GROUP_OTHER := "other"
 ## Un grupo por MCP server de terceros (m7-35): `mcp:blender`. Sin override, ask en todos los modos.
@@ -54,6 +58,7 @@ const GROUP_LABELS: Dictionary = {
 	GROUP_SECOND_OPINION: "Second opinion",  # i18n
 	GROUP_SESSIONS_MESSAGE: "Messages to other sessions",  # i18n
 	GROUP_SUBAGENTS: "Subagents",  # i18n
+	GROUP_RESTART: "Restart the editor",  # i18n
 	GROUP_OTHER: "Other",  # i18n
 }
 const MODE_KEYS: Dictionary = {
@@ -68,17 +73,21 @@ const MODE_KEYS: Dictionary = {
 const DEFAULTS: Dictionary = {
 	GROUP_READ: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
 	GROUP_DIAGNOSTICS: [ALLOW, ALLOW, ALLOW, ALLOW, ALLOW],
-	GROUP_EDIT_SCENE: [DENY, DENY, ASK, ALLOW, ALLOW],
-	GROUP_EDIT_FILES: [DENY, DENY, ASK, ALLOW, ALLOW],
-	GROUP_RUN: [DENY, ASK, ASK, ALLOW, ALLOW],
+	# Construir edita y corre sin preguntar desde m11-71 (como «Edit automatically» de Claude Code): lo
+	# que pregunta es la shell, el Asset Store y las herramientas del proyecto. Auto suma la allowlist de shell.
+	GROUP_EDIT_SCENE: [DENY, DENY, ALLOW, ALLOW, ALLOW],
+	GROUP_EDIT_FILES: [DENY, DENY, ALLOW, ALLOW, ALLOW],
+	GROUP_RUN: [DENY, ASK, ALLOW, ALLOW, ALLOW],
 	GROUP_SHELL: [DENY, DENY, ASK, ASK, ASK],
 	# One-shot: allow desde D49. Input map, autoloads y settings son parte de armar un juego, y antes
 	# el agente los escribía en project.godot con edit_files (allow en One-shot).
-	GROUP_PROJECT: [DENY, DENY, ASK, ALLOW, ALLOW],
+	GROUP_PROJECT: [DENY, DENY, ALLOW, ALLOW, ALLOW],
 	# Ask también en One-shot y Auto: baja código de terceros al proyecto (m7-39).
 	GROUP_ADDONS: [DENY, DENY, ASK, ASK, ASK],
 	# Ask también en One-shot y Auto, como addons: el usuario lo cambia en la matriz (m11-46).
 	GROUP_PROJECT_TOOLS: [DENY, DENY, ASK, ASK, ASK],
+	# Fijo (ALWAYS_ASK_GROUPS): sin overrides ni permiso de sesión.
+	GROUP_RESTART: [DENY, DENY, ASK, ASK, ASK],
 	# Gasta la cuota de otro agente (m11-28): pregunta en todos los modos; el One-shot tiene su evaluador.
 	GROUP_SECOND_OPINION: [ASK, ASK, ASK, DENY, ASK],
 	# Un mensaje le llega como prompt a otra pestaña: sin preguntar, un agente (o un texto plantado que
@@ -136,7 +145,7 @@ static func matrix_mode(mode: int) -> int:
 ## Decisión para un grupo en un modo, sin contar lo concedido en la sesión.
 func matrix_value(group: String, mode: SessionModel.HarnessMode) -> String:
 	var key: String = MODE_KEYS[matrix_mode(mode)]
-	var override: Variant = overrides.get(group)
+	var override: Variant = overrides.get(group) if not group in ALWAYS_ASK_GROUPS else null
 	if (DEFAULTS.has(group) or is_mcp_group(group)) and override is Dictionary and override.get(key) in [ALLOW, ASK, DENY]:
 		return override[key]
 	if not DEFAULTS.has(group):
@@ -150,7 +159,7 @@ func decide(group: String, mode: SessionModel.HarnessMode) -> String:
 	if restrictions.get(group) in [ALLOW, ASK, DENY]:
 		return restrictions[group]
 	var value := matrix_value(group, mode)
-	if value == ASK and _session_grants.has(group):
+	if value == ASK and _session_grants.has(group) and not group in ALWAYS_ASK_GROUPS:
 		return ALLOW
 	return value
 

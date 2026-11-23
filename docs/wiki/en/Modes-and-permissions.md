@@ -9,7 +9,7 @@
 | **Ask** | Answers about the project. It can read, but it can't edit or run anything. |
 | **Plan** | Every message is a request for a plan: the agent reads the project and presents a plan to approve before editing anything. Same permissions as Ask; **Approve and build** switches to Build. Commands starting with `/` still go as commands. |
 | **Review** | Reviews scenes and scripts and returns findings (bug, structure, performance, style), shown as marks in the Script Editor. See [Review](Review.md). |
-| **Build** | Edits scenes and scripts and runs the game, asking for permission according to the matrix below. |
+| **Build** | Edits scenes, scripts and project settings and runs the game without asking, like *Edit automatically* in the Claude Code extensions. Shell commands, the Asset Store and project tools ask first (matrix below). |
 | **Auto** | Like Build, but without cards for what can be undone: it edits scenes, scripts and project settings and runs the game on its own. Shell commands run on their own only if they're on the allowlist; see [Auto mode](#auto-mode). |
 | **One-shot** | Pursues a whole goal with budgets, checkpoints and playtests, in the One-shot screen. See [One-shot](One-shot.md). |
 
@@ -64,7 +64,7 @@ When the task needs another mode (you're in Ask and ask for a change, or a proje
 
 In Ask, Plan or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:
 
-- **Approve and build** switches the session to Build and lets the agent start. Its edits still ask for permission as usual in Build. The card doesn't offer the agent's auto, bypass or *clear context* options. The approved plan is saved in `.godot_agent/plans/<date>-<title>.md`, so you can bring it back in another session with `@`.
+- **Approve and build** switches the session to Build and lets the agent start. Its edits follow Build's permissions. The card doesn't offer the agent's auto, bypass or *clear context* options. The approved plan is saved in `.godot_agent/plans/<date>-<title>.md`, so you can bring it back in another session with `@`.
 - **Edit** opens the plan as text, with a live count of the lines you changed. **Send changes** declines the plan, and when the turn ends the agent gets the changed lines and the whole plan, and presents it again.
 - **Keep planning…** declines with a reason that the agent gets when the turn ends.
 
@@ -198,11 +198,11 @@ Defaults:
 |---|---|---|---|---|---|
 | Read | Allow | Allow | Allow | Allow | Allow |
 | Diagnostics | Allow | Allow | Allow | Allow | Allow |
-| Edit scenes | Deny | Deny | Ask | Allow | Allow |
-| Edit files | Deny | Deny | Ask | Allow | Allow |
-| Run the game | Deny | Ask | Ask | Allow | Allow |
+| Edit scenes | Deny | Deny | Allow | Allow | Allow |
+| Edit files | Deny | Deny | Allow | Allow | Allow |
+| Run the game | Deny | Ask | Allow | Allow | Allow |
 | Shell / commands | Deny | Deny | Ask | Ask¹ | Ask |
-| Project settings, export and addons | Deny | Deny | Ask | Allow | Allow |
+| Project settings, export and addons | Deny | Deny | Allow | Allow | Allow |
 | Install from the Asset Store | Deny | Deny | Ask | Ask | Ask |
 | Project tools | Deny | Deny | Ask | Ask | Ask |
 | Second opinion | Ask | Ask | Ask | Ask | Deny |
@@ -212,6 +212,8 @@ Defaults:
 ¹ In Auto, the [Auto mode lists](#auto-mode) decide first; only what they don't allow shows a card.
 
 ² Whatever the matrix says, a message to a session in a mode with more permissions is always denied: see [Messages between sessions](#messages-between-sessions).
+
+Restarting the editor (`restart_editor`) is outside the matrix: it always asks in Build, Auto and One-shot (and is denied in the read-only modes), without **Always allow in this session**.
 
 ### Subagents
 

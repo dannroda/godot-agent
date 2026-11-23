@@ -114,7 +114,7 @@ func test_plan_card_in_ask_mode_and_approve_builds() -> void:
 
 func assert_ne_policy_deny(controller: SessionController) -> void:
 	var decision := controller.policy.decide(PermissionPolicy.GROUP_EDIT_FILES, controller.model.harness_mode)
-	assert_eq(decision, PermissionPolicy.ASK, "la primera edición pide permiso de Construir, no se deniega")
+	assert_eq(decision, PermissionPolicy.ALLOW, "la primera edición sale con el permiso de Construir (m11-71), no se deniega")
 
 
 func test_agent_that_stays_in_plan_mode_is_synced_after_the_turn() -> void:
@@ -251,6 +251,7 @@ func test_tool_row_does_not_repeat_the_plan() -> void:
 
 func test_deny_with_reason_on_harness_cards() -> void:
 	var controller := _controller(M.BUILD, [])
+	controller.policy.set_matrix_value(PermissionPolicy.GROUP_EDIT_FILES, M.BUILD, PermissionPolicy.ASK)
 	var feedback: Array = []
 	controller.reject_feedback.connect(func(text: String) -> void: feedback.append(text))
 	var results: Array = []

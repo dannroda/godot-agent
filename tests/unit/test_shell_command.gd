@@ -76,6 +76,7 @@ func test_antigravity_shell_permissions() -> void:
 	# Otro grupo (editar archivos) en Build: «siempre en esta sesión» lo suma el harness si el agente
 	# no lo ofrece.
 	controller.model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+	controller.policy.set_matrix_value("edit_files", SessionModel.HarnessMode.BUILD, "ask")  # permite por defecto desde m11-71
 	var ask_edit := func() -> void:
 		answers.append(await controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "x6", "kind": "edit", "title": "Edit", "rawInput": {"file_path": "/tmp/project/a.gd"}}, "options": OPTIONS}))
 	ask_edit.call()

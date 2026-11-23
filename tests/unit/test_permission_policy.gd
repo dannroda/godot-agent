@@ -12,11 +12,11 @@ func test_default_matrix() -> void:
 	var expected := {
 		"read": ["allow", "allow", "allow", "allow", "allow"],
 		"diagnostics": ["allow", "allow", "allow", "allow", "allow"],
-		"edit_scene": ["deny", "deny", "ask", "allow", "allow"],
-		"edit_files": ["deny", "deny", "ask", "allow", "allow"],
-		"run": ["deny", "ask", "ask", "allow", "allow"],
+		"edit_scene": ["deny", "deny", "allow", "allow", "allow"],
+		"edit_files": ["deny", "deny", "allow", "allow", "allow"],
+		"run": ["deny", "ask", "allow", "allow", "allow"],
 		"shell": ["deny", "deny", "ask", "ask", "ask"],
-		"project": ["deny", "deny", "ask", "allow", "allow"],
+		"project": ["deny", "deny", "allow", "allow", "allow"],
 	}
 	for group: String in expected:
 		for mode: int in [M.ASK, M.REVIEW, M.BUILD, M.ONESHOT, M.AUTO]:
@@ -26,11 +26,11 @@ func test_default_matrix() -> void:
 
 func test_session_grant_only_lifts_ask() -> void:
 	var policy := PermissionPolicy.new()
-	policy.grant_for_session("edit_files")
-	assert_eq(policy.decide("edit_files", M.BUILD), "allow", "ask → allow con permiso de sesión")
-	assert_eq(policy.decide("edit_files", M.ASK), "deny", "deny no se levanta")
+	policy.grant_for_session("shell")
+	assert_eq(policy.decide("shell", M.BUILD), "allow", "ask → allow con permiso de sesión")
+	assert_eq(policy.decide("shell", M.ASK), "deny", "deny no se levanta")
 	policy.clear_session()
-	assert_eq(policy.decide("edit_files", M.BUILD), "ask", "se olvida con la sesión")
+	assert_eq(policy.decide("shell", M.BUILD), "ask", "se olvida con la sesión")
 
 
 func test_overrides() -> void:
@@ -39,6 +39,28 @@ func test_overrides() -> void:
 	assert_eq(policy.decide("shell", M.ONESHOT), "ask", "override inválido se ignora")
 	policy.set_matrix_value("read", M.ASK, "deny")
 	assert_eq(policy.decide("read", M.ASK), "deny", "set_matrix_value")
+
+
+## m11-71: Construir edita, corre y toca el proyecto sin preguntar; la shell, el Asset Store y las
+## herramientas del proyecto siguen preguntando.
+func test_build_edits_without_asking() -> void:
+	var policy := PermissionPolicy.new()
+	for group: String in ["edit_scene", "edit_files", "run", "project"]:
+		assert_eq(policy.decide(group, M.BUILD), "allow", group)
+	for group: String in ["shell", "addons", "project_tools"]:
+		assert_eq(policy.decide(group, M.BUILD), "ask", group)
+
+
+## m11-71: reiniciar el editor pregunta siempre: ni la matriz ni «siempre en esta sesión» lo cambian.
+func test_restart_always_asks() -> void:
+	var policy := PermissionPolicy.new({"restart_editor": {"build": "allow", "auto": "allow"}})
+	for mode: int in [M.BUILD, M.AUTO, M.ONESHOT]:
+		assert_eq(policy.decide("restart_editor", mode), "ask", "modo %d" % mode)
+	for mode: int in [M.ASK, M.PLAN, M.REVIEW]:
+		assert_eq(policy.decide("restart_editor", mode), "deny", "solo lectura %d" % mode)
+	policy.grant_for_session("restart_editor")
+	assert_eq(policy.decide("restart_editor", M.BUILD), "ask", "sin permiso de sesión")
+	assert_false("restart_editor" in PermissionPolicy.GROUPS, "no está en la matriz de Settings")
 
 
 ## m11-70: Plan usa la columna de Preguntar (solo lectura); cambiarla en uno cambia el otro.

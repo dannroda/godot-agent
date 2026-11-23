@@ -56,6 +56,12 @@ func tools() -> Array:
 			"Errors and warnings from the editor (scripts, Output) and from the game (Debugger) since a mark. Returns the current mark: pass it as `since` next time to see only what is new.",
 			{"since": {"type": "integer", "description": "Mark returned by a previous call (default 0: everything stored)"}},
 			[], _get_errors), McpTool.ENVELOPE_PARTS),
+		McpTool.enveloped(McpTool.create("get_output", diagnostics,
+			"What the editor printed to its Output panel (print, print_rich and printerr from editor scripts, @tool scripts and plugins: progress of a bake, an import, a tool) since a mark. Returns the current mark: pass it as `since` next time to see only what is new. The running game's prints come back from run_scene/run_project.",
+			{"since": {"type": "integer", "description": "Mark returned by a previous call (default 0: everything stored, up to the last 2000 lines)"},
+			"lines": {"type": "integer", "minimum": 1, "maximum": 500, "description": "At most this many lines, the last ones (default 100)"},
+			"contains": {"type": "string", "description": "Only lines that contain this text (case-insensitive)"}},
+			[], _get_output), McpTool.ENVELOPE_PARTS),
 		McpTool.create("validate_scripts", diagnostics,
 			"Parses GDScript scripts in a separate process and compiles C# with dotnet build, and returns the errors by file and line. Without `paths`, all the project's .gd files (and its C#, if it has a .csproj).",
 			{"paths": {"type": "array", "items": {"type": "string"}, "description": "res://…gd or res://…cs paths"}},
@@ -98,7 +104,7 @@ func tools() -> Array:
 ## Para cualquier proyecto (m12-54): antes solo la veía uno con GDExtension. `reason` va en la
 ## tarjeta y en el mensaje con el que sigue la sesión.
 func _restart_editor_tool() -> McpTool:
-	var tool := McpTool.create("restart_editor", PermissionPolicy.GROUP_PROJECT,
+	var tool := McpTool.create("restart_editor", PermissionPolicy.GROUP_RESTART,
 		"Saves the scenes and restarts the editor, then reopens the dock's tabs with their sessions: this one continues with a message that gives your `reason`, the others come back without one. Use it when a change only applies after a restart: a plugin enabled or disabled, a project setting that needs it (rendering method, driver), the addon updated, or new GDExtension libraries (it loads the ones on disk now and the ones install_extension staged; run test_extension first, a build that crashes takes the editor down with it). The user sees your reason on the permission card. Under the crash supervisor (`supervise`), a build that crashes the editor while starting is rolled back to the last one that started fine (or disabled, when it has none), the editor reopens and this session continues with the backtrace. Your session ends with the restart and comes back by itself.",
 		{
 			"reason": {"type": "string", "description": "Why the editor has to restart, in one short sentence for the user (for example: the plugin X was enabled and registers its types at startup)"},
@@ -342,6 +348,27 @@ func _get_errors(args: Dictionary) -> String:
 		header += " (showing the last %d)" % shown.size()
 	if entries.is_empty():
 		return header + "\nNo new errors or warnings."
+	return header + "\n" + UntrustedText.wrap("\n".join(lines))
+
+
+func _get_output(args: Dictionary) -> String:
+	var since := McpTool.int_arg(args, "since", 0)
+	var limit := clampi(McpTool.int_arg(args, "lines", 100), 1, 500)
+	var needle := str(args.get("contains", "")).to_lower()
+	var entries := errors.output_since(since)
+	if not needle.is_empty():
+		entries = entries.filter(func(entry: Dictionary) -> bool: return str(entry.text).to_lower().contains(needle))
+	var shown := entries.slice(maxi(entries.size() - limit, 0))
+	var header := "mark: %d · %d new lines since %d" % [errors.output_mark(), entries.size(), since]
+	if not needle.is_empty():
+		header += " containing \"%s\"" % str(args.get("contains"))
+	if shown.size() < entries.size():
+		header += " (showing the last %d)" % shown.size()
+	if entries.is_empty():
+		return header + "\nNothing printed."
+	var lines: PackedStringArray = []
+	for entry: Dictionary in shown:
+		lines.append(("[stderr] " if entry.error else "") + str(entry.text))
 	return header + "\n" + UntrustedText.wrap("\n".join(lines))
 
 

@@ -33,6 +33,7 @@ const GROUP_HINTS: Dictionary = {
 	PermissionPolicy.GROUP_EDIT_SCENE: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
 	PermissionPolicy.GROUP_EDIT_FILES: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
 	PermissionPolicy.GROUP_PROJECT: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
+	PermissionPolicy.GROUP_RESTART: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},
 	# Corre el juego y lo cambia en vivo; los archivos del proyecto no.
 	PermissionPolicy.GROUP_RUN: {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false},
 	PermissionPolicy.GROUP_SHELL: {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false},

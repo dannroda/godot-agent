@@ -155,18 +155,15 @@ func _run() -> void:
 	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.BUILD, "aprobar pasa a Construir")
 	await _until(func() -> bool: return _current_model() == "sonnet", "c. «Aprobar y construir» no pidió el modelo de Construir")
 	_expect(_fake_count("sonnet") == sonnet_before + 1, "c. Sonnet en medio del turno")
-	var write_card: Control = await _wait_view(PERMISSION_VIEW_SCRIPT, 1)
-	_expect(write_card != null, "la primera edición pide permiso en Construir (no se deniega)")
-	_expect(str(_model.get(&"current_agent_mode")) == "default", "el agente pasó solo a default")
 	_expect(_log_count("set_mode default") == set_mode_default_before, "sin session/set_mode al aprobar")
 	_expect(_log_count("set_mode plan") > 0, "(el log registra los set_mode del agente falso)")
 	_expect(_plan_files(plans_dir).size() == plans_before + 1, "el plan aprobado quedó en .godot_agent/plans")
 	view = await _wait_view(PLAN_VIEW_SCRIPT, 2)  # contestada vuelve al chat: puede ser otra vista
 	_expect(view != null and str(view.get(&"_result").text).contains("✓"), "la tarjeta queda plegada como aprobada")
 	await _shot("approved")
-	if write_card:
-		_button(write_card, I18n.t("Allow once")).pressed.emit()
 	await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "el turno aprobado no terminó")
+	_expect((_model.get(&"pending_permissions") as Array).is_empty(), "la edición sale sin tarjeta: Construir no pregunta (m11-71)")
+	_expect(str(_model.get(&"current_agent_mode")) == "default", "el agente pasó solo a default")
 
 	# d. Elegir en el selector lo recuerda para el modo actual (Construir).
 	var button: OptionButton = _dock.get(&"_composer").get(&"_model_button")
@@ -183,7 +180,7 @@ func _run() -> void:
 
 	# 4. Denegar con motivo en una tarjeta de shell.
 	_dock.call(&"send_text", "push it")
-	var shell_card: Control = await _wait_view(PERMISSION_VIEW_SCRIPT, 2)
+	var shell_card: Control = await _wait_view(PERMISSION_VIEW_SCRIPT, 1)
 	if shell_card == null:
 		failures.append("no apareció la tarjeta de la shell")
 		return
@@ -197,7 +194,7 @@ func _run() -> void:
 	var reason_entry: Object = await _wait_user_entry(HarnessPrompts.DENY_REASON)
 	_expect(reason_entry != null and str(reason_entry.get(&"text")).contains("I review before pushing"), "el motivo salió con el turno siguiente (DENY_REASON)")
 	_expect(not _agent_texts().any(func(e: Object) -> bool: return str(e.get(&"text")).contains("I won't push")), "el turno del rechazo se cortó: el agente no siguió sin el motivo")
-	shell_card = await _wait_view(PERMISSION_VIEW_SCRIPT, 2)
+	shell_card = await _wait_view(PERMISSION_VIEW_SCRIPT, 1)
 	_expect(shell_card != null and str(shell_card.get(&"_result").text).contains("I review before pushing"), "la tarjeta muestra el motivo")
 	await _until(func() -> bool: return not bool(_model.call(&"is_busy")), "el turno del motivo no terminó")
 

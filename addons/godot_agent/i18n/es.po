@@ -1509,8 +1509,8 @@ msgstr "El perfil %s se usa al tocar \"Nueva sesión\"."
 msgid "The addon never ends up in an exported game: an export plugin skips it. Also, each preset should exclude addons/godot_agent/* in its filter, in case the addon is disabled before exporting."
 msgstr "El addon nunca llega a un juego exportado: un export plugin lo saltea. Además, cada preset debería excluir addons/godot_agent/* en su filtro, por si el addon se deshabilita antes de exportar."
 
-msgid "The agent can edit scenes and scripts; you approve the changes."
-msgstr "El agente puede editar escenas y scripts; vos aprobás los cambios."
+msgid "The agent edits scenes, scripts and settings and runs the game without asking. Shell commands, the Asset Store and project tools ask first."
+msgstr "El agente edita escenas, scripts y settings y corre el juego sin preguntar. Los comandos de shell, el Asset Store y las herramientas del proyecto preguntan antes."
 
 msgid "The agent closed: resume whenever you want (a new session opens with the summary)"
 msgstr "El agente se cerró: retomá cuando quieras (se abre una sesión nueva con el resumen)"
@@ -6518,3 +6518,9 @@ msgstr "Correr los tests"
 
 msgid "The agent explores the project and presents a plan before editing. Approving the plan switches to Build."
 msgstr "El agente recorre el proyecto y presenta un plan antes de editar. Al aprobar el plan pasa a Construir."
+
+msgid "Read the Output"
+msgstr "Leer el Output"
+
+msgid "What the editor printed to the Output panel since a mark"
+msgstr "Lo que imprimió el editor en el panel Output desde una marca"
