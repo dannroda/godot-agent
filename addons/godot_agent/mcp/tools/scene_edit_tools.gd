@@ -679,10 +679,13 @@ func _press_tool_button(args: Dictionary) -> Dictionary:
 		return McpTool.error("The button %s of %s has nothing to call: its script must be @tool, and the editor must have reloaded it (a script with errors isn't)." % [found.name, node.name])
 	# Con await: un botón común devuelve enseguida; uno con await (una corrutina) devuelve al terminar.
 	# Sin await, GDScript no deja llamar una corrutina («async function without await»).
+	var pressed_at := int(Time.get_unix_time_from_system())
 	var result: Variant = await (callable as Callable).call()
-	var text := "Pressed «%s» on %s." % [found.text, node.name]
+	var text := "Pressed «%s» on %s (unix time %d)." % [found.text, node.name, pressed_at]
 	if result != null:
 		text += " It returned: %s" % UntrustedText.wrap(str(result).left(2000))
+	# m11-84: un botón que arranca trabajo en segundo plano (un hilo, un proceso) vuelve enseguida.
+	text += " If the button started work that finishes later, wait for it with editor_wait (`file` it writes with `after`: %d, or `output`), not a loop in the shell." % pressed_at
 	return McpTool.text(text)
 
 

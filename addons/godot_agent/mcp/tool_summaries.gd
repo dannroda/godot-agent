@@ -73,6 +73,7 @@ const SUMMARIES: Dictionary = {
 	"find_symbols": "Finds where classes, functions, signals and variables are declared",  # i18n
 	"find_references": "Finds where a name is used: code, strings, scenes and animations",  # i18n
 	"get_output": "What the editor printed to the Output panel since a mark",  # i18n
+	"editor_wait": "Waits until a file is written, the Output prints a text or the editor is idle",  # i18n
 	"validate_scripts": "Parses GDScript and compiles C#, and returns the errors",  # i18n
 	"capture_editor_viewport": "Captures the editor's 2D or 3D viewport",  # i18n
 	# Validación

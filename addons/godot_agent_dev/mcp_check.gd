@@ -54,6 +54,20 @@ func run(tree: SceneTree) -> PackedStringArray:
 	print("[mcp-check] tools/list: %d tools, %d chars" % [names.size(), JSON.stringify(list.get("result", {}).get("tools", [])).length()])
 	var methods := await _call_text("methods", {})
 	_expect(methods.contains("- class_info(") and methods.contains("- tilemap_set_cells(") and methods.contains("- game_wait(") and methods.contains("- build_extension(") and methods.contains("- test_extension(") and methods.contains("- install_extension(") and methods.contains("- dependencies("), "methods lista las extendidas")
+	# m11-84: las instructions del server mandan a estas tools en lugar de la shell; todas existen.
+	var instructions := str(init.get("result", {}).get("instructions", ""))
+	for alternative: String in ["find_in_files", "find_symbols", "find_references", "read_function", "list_files", "dependencies", "scene_tree", "get_node", "get_output", "get_errors", "run_tests", "editor_wait", "move_file", "copy_file", "delete_file"]:
+		_expect(instructions.contains(alternative), "instructions nombra %s" % alternative)
+		_expect(alternative in names or methods.contains("- %s(" % alternative), "%s, que nombran las instructions, existe" % alternative)
+	# editor_wait en el editor real: el editor queda libre, y un archivo escrito después de empezar.
+	var idle := await _call_text("editor_wait", {"idle": true, "seconds": 30})
+	_expect(idle.begins_with("The editor is idle"), "editor_wait idle · " + idle)
+	var probe := "res://tests/tmp/editor_wait_check.txt"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(probe))
+	_tree.create_timer(0.5).timeout.connect(func() -> void: FileAccess.open(probe, FileAccess.WRITE).store_string("ok"))
+	var waited := await _call_text("editor_wait", {"file": probe, "seconds": 10})
+	_expect(waited.begins_with(probe + " was written"), "editor_wait file · " + waited)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(probe))
 	# Pide permiso como project (no se llama: nadie contesta la tarjeta acá); el caso sin proyecto de
 	# prueba aparte está en test_native_install.
 	var install := await _call_text("methods", {"method": "install_extension"})
