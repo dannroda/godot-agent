@@ -33,19 +33,18 @@
 			{"stop": "end_turn"}
 		]},
 		{"steps": [
-			{"chunk": "Each wave will add 15 % to the asteroid speed. I'll change `player.gd` first so the ship keeps up:"},
-			{"update": {"sessionUpdate": "tool_call", "toolCallId": "p1", "title": "Edit player.gd", "kind": "edit", "status": "pending",
-				"rawInput": {"file_path": "tests/docs_demo/player.gd"},
-				"content": [{"type": "diff", "path": "tests/docs_demo/player.gd", "oldText": "\tposition += velocity\n", "newText": "\tposition += velocity * delta\n"}]}},
+			{"chunk": "Each wave will add 15 % to the asteroid speed. First I'll commit what works now, so this change is easy to undo:"},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "p1", "title": "git commit -am \"Score and waves\"", "kind": "execute", "status": "pending",
+				"rawInput": {"command": "git commit -am \"Score and waves\""}}},
 			{"request": {"method": "session/request_permission", "params": {
-				"toolCall": {"toolCallId": "p1", "title": "Edit player.gd", "kind": "edit", "rawInput": {"file_path": "tests/docs_demo/player.gd"}},
+				"toolCall": {"toolCallId": "p1", "title": "git commit -am \"Score and waves\"", "kind": "execute", "rawInput": {"command": "git commit -am \"Score and waves\""}},
 				"options": [
 					{"optionId": "allow_always", "name": "Always Allow", "kind": "allow_always"},
 					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
 					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
 				]}}},
 			{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "p1", "status": "failed"}},
-			{"chunk": "OK, I won't touch it."},
+			{"chunk": "OK, no commit: I'll leave the history as it is."},
 			{"stop": "end_turn"}
 		]}
 	]

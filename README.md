@@ -97,7 +97,7 @@ Write what you want and press **Plan** (or type `/plan …`): the agent answers 
 
 Each action that changes something asks first, in a card in the chat: allow it once, for the rest of the session, or deny it. **Settings → Permissions** sets what each mode allows, asks or denies, per group of tools.
 
-<img src="docs/images/en/permission.png" alt="A permission card for editing player.gd, with its diff and the Always allow in this session, Allow once and Deny buttons" width="360">
+<img src="docs/images/en/permission.png" alt="A permission card in Build mode for a git commit the agent wants to run, with the Allow once, Deny and Deny with reason buttons" width="360">
 
 ![The permission matrix in Settings: one row per group of tools, one column per mode](docs/images/en/settings.png)
 

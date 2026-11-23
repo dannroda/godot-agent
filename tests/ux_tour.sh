@@ -2,7 +2,8 @@
 # Capturas de toda la UI del addon para revisarla contra lo propuesto: dock, Ajustes, registro de ACP,
 # Extensiones, One-shot (ancho y angosto), Agent Log y las conversaciones de la guía.
 # Corre aislado como tests/docs_shots.sh: copia limpia del proyecto, Godot self-contained y Xvfb
-# (nunca un compositor anidado: escribiría la configuración del escritorio del usuario).
+# (nunca un compositor anidado: escribiría la configuración del escritorio del usuario). El proyecto
+# copiado es un repo de git propio, como en docs_shots.sh.
 # Uso: tests/ux_tour.sh <binario de godot> <carpeta de salida> [en|es]
 set -e
 G="$1"
@@ -37,6 +38,12 @@ sed -i 's|^enabled=PackedStringArray(.*)|enabled=PackedStringArray("res://addons
 cp -R "$ROOT/tests/." "$TMP/project/tests/"
 rm -rf "$TMP/project/tests/upstream" "$TMP/project/tests/tmp"
 "$TMP/godot" --headless --path "$TMP/project" --import >/dev/null 2>&1 || true
+# Un repo propio para las marcas por turno (turn-marks): los snapshots de git del harness, como en
+# tests/docs_shots.sh.
+cp "$ROOT/.gitignore" "$TMP/project/"
+git -c init.defaultBranch=main init -q "$TMP/project"
+git -C "$TMP/project" add -A
+git -C "$TMP/project" -c user.name=docs -c user.email=docs@example.com commit -q -m "ux tour"
 case "$LANG_CODE" in es) LOCALE=es_AR.UTF-8 ;; *) LOCALE=en_US.UTF-8 ;; esac
 LANG="$LOCALE" LC_ALL="$LOCALE" GODOT_AGENT_LANGUAGE="$LANG_CODE" XRUN_PROJECT="$TMP/project" \
 	"$ROOT/tests/run_in_xvfb.sh" "$TMP/godot" "--godot-agent-ux-tour=$OUT"
