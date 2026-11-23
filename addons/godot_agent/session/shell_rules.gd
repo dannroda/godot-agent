@@ -45,6 +45,17 @@ const DEFAULT_ASK: PackedStringArray = [
 	"npm install *", "npm i *", "pip install *", "apt *", "apt-get *", "pacman *", "brew *",
 	"find *-delete*", "find *-exec*", "find *-ok*", "find *-fprint*", "rg *--pre*",
 ]
+## Comandos que solo miran archivos (m11-76): un comando hecho solo de estos, que iba a preguntar, se
+## rechaza sin tarjeta y el agente recibe qué herramienta usar (Read, Glob, Grep, godot.list_files,
+## godot.find_in_files), que no le piden permiso a nadie.
+const READ_ONLY_ALLOW: PackedStringArray = [
+	"ls *", "cat *", "head *", "tail *", "wc *", "file *", "stat *", "find *", "grep *", "egrep *", "fgrep *",
+	"rg *", "tree *", "du *", "pwd", "cd *", "echo *", "sed -n *", "sort *", "uniq *", "cut *", "xxd *",
+	"od *", "hexdump *", "identify *",
+]
+const READ_ONLY_ASK: PackedStringArray = [
+	"find *-delete*", "find *-exec*", "find *-ok*", "find *-fprint*", "rg *--pre*", "sed *-i*", "sort *-o*",
+]
 ## Destinos de redirección que no escriben archivos.
 const SAFE_TARGETS: PackedStringArray = ["/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"]
 ## Comandos cuyo patrón sugerido toma también el subcomando (`git log *` y no `git *`).
@@ -109,6 +120,17 @@ static func classify(command: String, rules: Array) -> Dictionary:
 		if not allow_rule in used:
 			used.append(allow_rule)
 	return {"decision": ALLOW, "rule": ", ".join(used), "reason": "on the allowlist (%s)" % ", ".join(used), "code": CODE_ALLOWED, "segment": ""}
+
+
+## true si `command` solo mira archivos: cada parte es una lectura de READ_ONLY_ALLOW, sin redirecciones
+## a archivos ni sustituciones.
+static func is_read_only(command: String) -> bool:
+	var rules: Array = []
+	for pattern: String in READ_ONLY_ALLOW:
+		rules.append(make_rule(pattern, LIST_ALLOW, ORIGIN_DEFAULT, ""))
+	for pattern: String in READ_ONLY_ASK:
+		rules.append(make_rule(pattern, LIST_ASK, ORIGIN_DEFAULT, ""))
+	return classify(command, rules).decision == ALLOW
 
 
 ## true si `pattern` coincide con el comando simple `segment` (ya normalizado).

@@ -2205,6 +2205,9 @@ msgstr "Copiado"
 msgid "code"
 msgstr "código"
 
+msgid "Not asked: «%s» only reads files. The agent was told to use its file tools, which need no permission."
+msgstr "Sin preguntarte: «%s» solo lee archivos. Al agente se le indicó usar sus herramientas de archivos, que no piden permiso."
+
 msgid "Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame)."
 msgstr "Rechazado: «%s» abre Godot en su propia ventana. Por línea de comandos, Godot va solo con --headless; para ver el juego, el agente lo corre desde el editor (godot.run_scene) y lo captura (godot.capture_game_frame)."
 

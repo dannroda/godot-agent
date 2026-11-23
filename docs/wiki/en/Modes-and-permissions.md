@@ -287,6 +287,10 @@ Whatever the mode, the harness rejects on its own, without a card:
 - writing a `.tscn`, `.uid` or `.import` by hand, with the agent's file tools or through the editor's file access;
 - running Godot from the shell without `--headless`: it would open the game or an editor in a separate window. To see the game, the agent runs it from the editor (`godot.run_scene`) and captures it (`godot.capture_game_frame`).
 
+### Shell commands that only read files
+
+A shell command made only of commands that read files (`ls`, `cat`, `head`, `tail`, `grep`, `rg`, `find` without `-exec` or `-delete`, `sed -n`, `wc`, `file`, `stat`, `tree`, `cd`…), with no redirections or `$(…)`, is not shown to you as a card when the shell would ask: the harness rejects it, the chat shows "Not asked: … only reads files", and the agent is told to use its own file tools (Read, Glob, Grep) or `godot.list_files` and `godot.find_in_files`, which never ask. `godot.list_files` reads the editor's filesystem and gives each file's resource type and the width and height of PNG, JPEG and WebP images, so the agent doesn't need Python for that. When the shell is allowed (a mode or rule that allows it, or Auto mode's allowlist), these commands run as usual.
+
 The chat shows a "Rejected: …" notice, and the agent gets the reason in a message labeled **Rejected by the harness**: what it tried to write and what to use instead (its own file tools for scripts, which the harness passes through the editor, and the `godot.*` tools for scenes, settings and moving files). The same goes for the other rejections without a card: a file another session is editing, a project mode that doesn't allow that file, or a mode that denies the tool. Commands that write outside the project, such as to `/tmp`, follow the matrix above as usual. Relative paths count from the last `cd` or `pushd` in the command: `cd /tmp && echo x > out.txt` writes to `/tmp`, while a `cd` inside `( … )` doesn't count after it.
 
 Change the matrix in **Settings → Permissions**. Only what differs from the defaults is saved, in the project's config (`project_config.tres`), so it can be committed and shared with your team.

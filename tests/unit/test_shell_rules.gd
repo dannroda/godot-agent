@@ -160,3 +160,11 @@ func test_describe_verdict() -> void:
 	assert_eq(page.describe_verdict(ShellRules.classify("ls && git status -s", rules)), "Runs without asking: every part is on the allowlist (ls *, git status *).", "permitido")
 	assert_eq(page.describe_verdict(ShellRules.classify("git push", rules)), "Asks: «git push» is on the «Always ask» list (git push *).", "lista ask")
 	assert_eq(page.describe_verdict(ShellRules.classify("echo a > b.txt", rules)), "Asks: it writes its output to a file (b.txt).", "redirección")
+
+
+## m11-76: los comandos que solo leen archivos.
+func test_read_only() -> void:
+	for command: String in ["ls -la", "cd assets && ls", "cat a.gd | head -5", "find . -name '*.png'", "grep -rn foo .", "sed -n '1,20p' main.tscn", "file icon.png", "wc -l a.gd b.gd", "tree -L 2"]:
+		assert_true(ShellRules.is_read_only(command), command)
+	for command: String in ["sed -i 's/a/b/' x", "find . -delete", "find . -exec rm {} \\;", "ls > out.txt", "cat $(ls)", "python3 -c 'print(1)'", "ls && npm test", "sort -o out a", "git status", ""]:
+		assert_false(ShellRules.is_read_only(command), command)

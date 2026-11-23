@@ -10,6 +10,7 @@ const SERVER_SCRIPT := "res://addons/godot_agent/mcp/mcp_server.gd"
 const FIXTURE_SCENE := "res://tests/fixtures/main_fixture.tscn"
 const VIEWS_SCENE := "res://tests/fixtures/camera_views.tscn"
 const BAD_SCRIPT := "res://tests/tmp/mcp_bad_script.gd"
+const IMAGE_FIXTURE := "res://tests/tmp/mcp_size.png"
 const GOOD_SCRIPT := "res://tests/fixtures/fixture_player.gd"
 const TIMEOUT_MS := 90000
 
@@ -68,6 +69,13 @@ func run(tree: SceneTree) -> PackedStringArray:
 	_expect(info.contains("Godot 4.") and info.contains("Autoloads"), "project_info")
 	var files := await _call_text("list_files", {"path": "res://tests/fixtures", "pattern": "*.tscn"})
 	_expect(files.contains("main_fixture.tscn  (PackedScene)") and not files.contains(".gd"), "list_files con pattern")
+	# Tamaño de imágenes (m11-76): una PNG que el sistema de archivos del editor ya conoce.
+	Image.create(48, 20, false, Image.FORMAT_RGBA8).save_png(IMAGE_FIXTURE)
+	EditorInterface.get_resource_filesystem().update_file(IMAGE_FIXTURE)
+	var images := await _call_text("list_files", {"path": "res://tests/tmp", "pattern": "mcp_size.png"})
+	_expect(images.contains("mcp_size.png  (") and images.contains(", 48x20)"), "list_files con el tamaño de la imagen: %s" % images)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(IMAGE_FIXTURE))
+	EditorInterface.get_resource_filesystem().update_file(IMAGE_FIXTURE)
 	var tree_text := await _call_text("scene_tree", {})
 	print("[mcp-check] scene_tree:\n", tree_text)
 	_expect(tree_text.contains("5 nodes"), "scene_tree cuenta 5 nodos")

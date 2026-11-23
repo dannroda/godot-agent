@@ -10,8 +10,10 @@ const SceneEditTools := preload("scene_edit_tools.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const NativeInstall := preload("../../core/native_install.gd")
 const SupervisorState := preload("../../supervisor/supervisor_state.gd")
+const ImageHeader := preload("image_header.gd")
 
 const LIST_FILES_LIMIT := 2000
+const IMAGE_EXTENSIONS: PackedStringArray = ["png", "jpg", "jpeg", "webp"]
 ## find_in_files (m11-74): como «Buscar en archivos» del editor.
 const FIND_SETTING := "editor/script/search_in_file_extensions"
 const FIND_DEFAULT_EXTENSIONS: PackedStringArray = ["gd", "gdshader", "gdshaderinc", "cs", "tscn", "tres", "cfg", "json", "md", "txt"]
@@ -33,7 +35,7 @@ func tools() -> Array:
 			"Project data: Godot version, name, main scene, autoloads, input map actions, enabled plugins and renderer.",
 			{}, [], _project_info),
 		McpTool.create("list_files", read,
-			"Lists project files with their resource type. `pattern` is a glob on the file name (e.g. \"*.tscn\").",
+			"Lists project files from the editor's filesystem with their resource type, and width x height for PNG, JPEG and WebP images. Use it instead of ls, find or scripts. `pattern` is a glob on the file name (e.g. \"*.tscn\").",
 			{
 				"path": {"type": "string", "description": "res:// folder (default res://)"},
 				"pattern": {"type": "string", "description": "Glob on the file name"},
@@ -132,7 +134,9 @@ func _collect_files(dir: EditorFileSystemDirectory, pattern: String, recursive: 
 			continue
 		total += 1
 		if out.size() < LIST_FILES_LIMIT:
-			out.append("%s  (%s)" % [dir.get_file_path(i), dir.get_file_type(i)])
+			var path := dir.get_file_path(i)
+			var size := ImageHeader.size_of(path) if path.get_extension().to_lower() in IMAGE_EXTENSIONS else Vector2i.ZERO
+			out.append("%s  (%s%s)" % [path, dir.get_file_type(i), ", %dx%d" % [size.x, size.y] if size != Vector2i.ZERO else ""])
 	if recursive:
 		for i in dir.get_subdir_count():
 			total += _collect_files(dir.get_subdir(i), pattern, recursive, out)

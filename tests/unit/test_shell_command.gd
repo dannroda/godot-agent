@@ -90,3 +90,38 @@ func test_antigravity_shell_permissions() -> void:
 	assert_eq(str(answers.back().outcome.get("optionId", "")), "allow", "al agente se le contesta «una vez»")
 	result = await controller.permissions.call(&"on_request_permission", {"sessionId": "s", "toolCall": {"toolCallId": "x7", "kind": "edit", "title": "Edit", "rawInput": {"file_path": "/tmp/project/b.gd"}}, "options": OPTIONS})
 	assert_eq(str(result.outcome.get("optionId", "")), "allow", "el resto de la sesión ya no pregunta")
+
+
+## m11-76: en Build un comando que solo lee archivos se rechaza sin tarjeta y el agente recibe qué
+## herramienta usar; uno que escribe o corre algo sigue preguntando.
+func test_read_only_rejected_without_card() -> void:
+	var controller := SessionController.new()
+	controller.setup(SessionModel.new(), AgentLog.new(), "/tmp/project")
+	controller.model.set_harness_mode(SessionModel.HarnessMode.BUILD)
+	var feedback: Array = []
+	controller.permissions.reject_feedback.connect(func(text: String, _label: String) -> void: feedback.append(text))
+	var result: Variant = await _ask(controller, "r1", {"command": "cd /tmp/project/assets && ls -la sprites | head -20"})
+	assert_eq(str(result.outcome.get("optionId", "")), "reject", "solo lee: rechazado")
+	assert_true(controller.model.pending_permissions.is_empty(), "sin tarjeta")
+	assert_eq(feedback.size(), 1, "el agente recibe el motivo")
+	assert_true(feedback[0].contains("godot.list_files"), "nombra la herramienta: %s" % [feedback])
+	var reply: String = await controller.permissions.authorize_terminal_command("sed -n '1,40p' main.tscn", "/tmp/project")
+	assert_true(reply.contains("godot.find_in_files"), "terminal ACP también: %s" % reply)
+	var answers: Array = []
+	var with_env := func() -> void: answers.append(await controller.permissions.authorize_terminal_command("cat a.gd", "/tmp/project", {"LD_PRELOAD": "x"}))
+	with_env.call()
+	assert_eq(controller.model.pending_permissions.size(), 1, "con variables de entorno pregunta")
+	controller.model.pending_permissions[0].select("reject")
+	for i in 3:
+		await (Engine.get_main_loop() as SceneTree).process_frame
+	answers.clear()
+
+	for command: String in ["npm test", "find /tmp/other -name '*.tmp' -delete", "python3 -c 'print(1)'", "cat $(ls)"]:
+		var ask := func() -> void: answers.append(await _ask(controller, "r2", {"command": command}))
+		ask.call()
+		assert_eq(controller.model.pending_permissions.size(), 1, "%s pregunta" % command)
+		controller.model.pending_permissions[0].select("reject")
+		var tree := Engine.get_main_loop() as SceneTree
+		for i in 3:
+			await tree.process_frame
+	assert_eq(answers.size(), 4, "las cuatro tarjetas respondieron")

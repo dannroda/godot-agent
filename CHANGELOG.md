@@ -4,6 +4,11 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- **Shell commands that only read files no longer ask you.** A command like `cd assets && ls -la | head`, `cat`, `grep`, `find` or `sed -n` that would have shown a permission card is rejected on its own: the chat shows "Not asked: … only reads files", and the agent is told to use its own file tools or `godot.list_files` and `godot.find_in_files`, which need no permission. When the shell is allowed, these commands run as before.
+- **`list_files` gives image sizes.** Each PNG, JPEG and WebP file comes with its width and height, read from the file header, so the agent doesn't write Python scripts for that. The system prompt also tells the agent not to inspect files with scripts.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

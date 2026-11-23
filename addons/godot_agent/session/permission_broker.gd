@@ -26,6 +26,8 @@ const ShellCommand := preload("shell_command.gd")
 ## Opción «siempre en esta sesión» que agrega el harness cuando el agente no la ofrece.
 const HARNESS_ALLOW_ALWAYS := "godot_agent_allow_always"
 const ProjectWriteGuard := preload("project_write_guard.gd")
+## m11-76: un comando de shell que solo mira archivos y que iba a preguntar se rechaza sin tarjeta.
+const READ_ONLY_REASON := "this shell command only reads files, and the shell asks the user for permission. Read files with your own file tools (Read, Glob, Grep) or with godot.list_files (a folder from the editor's filesystem, with resource types and image sizes) and godot.find_in_files (search in the project's text files, .tscn included): they never ask. Don't use Python or other scripts to inspect files either."
 const GODOT_WINDOW_REASON := "it opens Godot in its own window (%s). Command-line Godot only runs with --headless; to see the game, run it in the editor with godot.run_scene and capture it with godot.capture_game_frame."
 const GodotWindowGuard := preload("godot_window_guard.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
@@ -234,6 +236,11 @@ func on_request_permission(params: Dictionary) -> Variant:
 			_log_perm("no rule suggested: the command pattern has a secret")
 			request.rule_pattern = ""
 		request.options = options.filter(func(option: Variant) -> bool: return not (option is Dictionary and option.get("kind") == PermissionRequest.KIND_ALLOW_ALWAYS))
+	if decision == PermissionPolicy.ASK and request.group == PermissionPolicy.GROUP_SHELL and not forced:
+		var read_command := ShellCommand.of(checked.get("rawInput"))
+		if ShellRules.is_read_only(read_command):
+			_notify_read_only(read_command)
+			return _auto_reject(request, READ_ONLY_REASON)
 	if request.group == PermissionPolicy.GROUP_SUBAGENTS and decision != PermissionPolicy.DENY:
 		var limit := _subagent_limit_reason(request.tool_call_id)
 		if not limit.is_empty():
@@ -427,6 +434,9 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 			_log_perm("allowed by Auto mode, %s: %s" % [verdict.reason, command_line])
 			return ""
 		_log_perm("Auto mode asks, %s: %s" % [verdict.reason, command_line])
+	if env.is_empty() and not forced and ShellRules.is_read_only(command_line):
+		_notify_read_only(command_line)
+		return "Rejected by the harness: " + READ_ONLY_REASON
 	var request := PermissionRequest.new()
 	request.group = PermissionPolicy.GROUP_SHELL
 	request.title = I18n.t("Terminal")
@@ -479,6 +489,11 @@ func _file_taken_reason(paths: PackedStringArray) -> String:
 	_log_perm("rejected, %s is being edited by %s" % [names, owner])
 	model.add_notice(I18n.t("Rejected: %s is being edited by «%s». It's free again when that session's turn ends.") % [names, owner], ChatEntry.NoticeLevel.WARNING)
 	return "%s is being edited by the session «%s» until its turn ends. Work on something else meanwhile and try again later (godot.sessions shows who holds what)." % [names, owner]
+
+
+func _notify_read_only(command: String) -> void:
+	_log_perm("rejected without a card, only reads files: %s" % command)
+	model.add_notice(I18n.t("Not asked: «%s» only reads files. The agent was told to use its file tools, which need no permission.") % command.replace("\n", " ").left(80), ChatEntry.NoticeLevel.INFO)
 
 
 ## Un rechazo automático, sin tarjeta (m11-69): al agente el ACP solo le dice que el usuario rechazó
