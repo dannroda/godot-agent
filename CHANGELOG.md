@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Changed
+
+- **The agent inspects scenes with the editor tools.** The system prompt now tells the agent to look at a scene with `godot.scene_tree` and `godot.get_node` (or to Read the `.tscn`), and not with `sed`, `grep` or `head` in the shell, which asked for permission in Build.
+
 ## [0.2.0] - 2026-11-23
 
 ### Added
