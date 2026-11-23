@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Loop warning for every editor tool.** When the agent makes the same `godot.*` call, or the same cycle of up to three calls, three times in a row in one turn and gets the same result every time, the tool result tells it to change approach. Each tab counts on its own and starts over every turn; nonces, the game clock and new-error notes don't count as progress. In One-shot it counts as a loop: the first asks the agent for another approach, the same one again pauses the run. Playtests keep their own check, which now shares the same detector.
+
 ## [0.2.1] - 2026-11-23
 
 ### Added

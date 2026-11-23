@@ -90,7 +90,8 @@ Si el agente se repite sin avanzar, el run le pide otro enfoque. Eso incluye:
 
 - un check que falla igual;
 - una tool call que falla con los mismos argumentos;
-- el mismo cambio una y otra vez.
+- el mismo cambio una y otra vez;
+- la misma llamada `godot.*` (o ciclo de llamadas) que devuelve lo mismo tres veces seguidas en un turno.
 
 Si vuelve a pasar, el run se pausa y espera que lo guíes. Las repeticiones se ajustan en **Settings → One-shot**.
 

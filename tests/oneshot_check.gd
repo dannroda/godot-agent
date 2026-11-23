@@ -44,6 +44,7 @@ func _initialize() -> void:
 	await _scenario_remote_control()
 	await _scenario_recover()
 	await _scenario_loop()
+	await _scenario_tool_loop()
 	await _scenario_spec()
 	await _scenario_qa()
 	await _scenario_qa_without_playing()
@@ -486,6 +487,29 @@ func _scenario_loop() -> void:
 	_check(edit.size() == 1 and int(edit[0].failed) == 2, "loop: informe cuenta los Edit fallidos %s" % [edit])
 	var salto: Array = run.last_report.get("checks", []).filter(func(row: Dictionary) -> bool: return row.label == "Salto")
 	_check(salto.size() == 1 and int(salto[0].failures) >= 4, "loop: informe cuenta las fallas del check %s" % [salto])
+	run.controller.stop()
+	run.queue_free()
+
+
+## m11-79: lo que avisa el detector de loops del server MCP cuenta como un loop del run: la primera
+## vez pide otro enfoque (una vez por turno, aunque el de las tool calls vea lo mismo) y, si la misma
+## huella vuelve en otro turno, pausa.
+func _scenario_tool_loop() -> void:
+	print("— loop de tools godot.*")
+	var run := _make("oneshot_noplan")
+	await run.start("Pong", {"time": 0, "tokens": 0, "playtests": 0}, false)
+	_check(run.phase == OneShotRun.RunPhase.RUNNING, "tool loop: corre (%s)" % run.phase_label())
+	var seen := {"repeats": 3, "period": 1, "tools": "get_node", "evidence": PackedStringArray(["get_node {\"path\":\"Player\"} ×3", "  → Node not found"])}
+	run.on_tool_loop(seen)
+	var loop_entries := run.activity.filter(func(entry: Dictionary) -> bool: return entry.kind == "loop")
+	_check(loop_entries.size() == 1 and str(loop_entries[0].text).contains("get_node"), "tool loop: queda en la actividad %s" % [loop_entries])
+	run.on_tool_loop(seen)
+	_check(run.activity.filter(func(entry: Dictionary) -> bool: return entry.kind == "loop").size() == 1, "tool loop: una vez por turno")
+	run._loop_flagged_in_turn = false  # otro turno
+	run.on_tool_loop(seen)
+	_check(run.phase == OneShotRun.RunPhase.PAUSED and run.pause_note.contains("get_node"), "tool loop: la misma huella otra vez pausa (%s · %s)" % [run.phase_label(), run.pause_note])
+	run.stop()
+	await _wait(func() -> bool: return not run.last_report.is_empty(), 5.0)
 	run.controller.stop()
 	run.queue_free()
 

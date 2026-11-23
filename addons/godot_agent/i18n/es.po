@@ -1850,6 +1850,9 @@ msgstr "«%s» falló %d veces con los mismos argumentos"
 msgid "“%s” was repeated %d times, unchanged"
 msgstr "«%s» se repitió %d veces igual"
 
+msgid "“%s” returned the same result %d times in a row"
+msgstr "«%s» devolvió lo mismo %d veces seguidas"
+
 msgid "○ %s · not started"
 msgstr "○ %s · sin iniciar"
 
