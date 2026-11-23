@@ -350,18 +350,18 @@ static func _stage() -> SubViewport:
 	environment.background_color = PREVIEW_BACKGROUND
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.75, 0.75, 0.78)
-	environment.ambient_light_energy = 0.6
+	environment.ambient_light_energy = 0.3
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	var world := WorldEnvironment.new()
 	world.environment = environment
 	stage.add_child(world)
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-50.0, -35.0, 0.0)
-	key.light_energy = 1.1
+	key.light_energy = 0.8
 	stage.add_child(key)
 	var fill := DirectionalLight3D.new()
 	fill.rotation_degrees = Vector3(-20.0, 145.0, 0.0)
-	fill.light_energy = 0.35
+	fill.light_energy = 0.25
 	stage.add_child(fill)
 	return stage
 
