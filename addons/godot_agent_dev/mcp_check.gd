@@ -68,6 +68,7 @@ func run(tree: SceneTree) -> PackedStringArray:
 	var waited := await _call_text("editor_wait", {"file": probe, "seconds": 10})
 	_expect(waited.begins_with(probe + " was written"), "editor_wait file · " + waited)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(probe))
+	await _check_import_model()
 	# Pide permiso como project (no se llama: nadie contesta la tarjeta acá); el caso sin proyecto de
 	# prueba aparte está en test_native_install.
 	var install := await _call_text("methods", {"method": "install_extension"})
@@ -166,6 +167,36 @@ func run(tree: SceneTree) -> PackedStringArray:
 
 ## m11-80: «Copy diagnostic report…» del menú ⋯ del dock y del Agent Log, después de las llamadas de este
 ## check: ve la conexión MCP y las tools, sin la ruta del proyecto ni el nombre del cliente.
+## m11-85: import_model en el editor real con un GLB armado a mano (un triángulo): lo valida, lo copia,
+## espera el import y devuelve el AABB; uno roto no se copia. Desde res:// (una carpeta con
+## .gdignore): desde afuera pide permiso como la shell y acá nadie contesta la tarjeta.
+func _check_import_model() -> void:
+	var Fixtures: Script = load("res://tests/unit/test_model_validator.gd")
+	var source_dir := "res://tests/tmp/import_model_src"
+	var target_dir := "res://tests/tmp/import_model"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(source_dir))
+	FileAccess.open(source_dir.path_join(".gdignore"), FileAccess.WRITE).store_string("")
+	for path: String in [target_dir + "/tri.glb", target_dir + "/tri.glb.import", target_dir + "/broken.glb"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var good := FileAccess.open(source_dir.path_join("tri.glb"), FileAccess.WRITE)
+	good.store_buffer(Fixtures.glb(Fixtures.triangle(), Fixtures.positions()))
+	good.close()
+	var imported := await _call_text("run", {"method": "import_model", "params": {"from": source_dir.path_join("tri.glb"), "to": target_dir}})
+	_expect(imported.begins_with("Imported %s/tri.glb" % target_dir) and imported.contains("1 nodes, 1 meshes"), "import_model importa · " + imported)
+	_expect(imported.contains("AABB: position (0.000, 0.000, 0.000), size (1.000, 1.000, 0.000)"), "import_model: AABB del modelo instanciado · " + imported)
+	_expect(ResourceLoader.load(target_dir + "/tri.glb") is PackedScene, "import_model: queda importado como escena")
+	var again: Dictionary = await _call("run", {"method": "import_model", "params": {"from": source_dir.path_join("tri.glb"), "to": target_dir}})
+	_expect(again.get("isError", false) and _text(again).contains("replace: true"), "import_model no pisa sin replace · " + _text(again))
+	var doc: Dictionary = Fixtures.triangle()
+	doc.nodes = [{"children": [0]}]
+	var bad := FileAccess.open(source_dir.path_join("broken.glb"), FileAccess.WRITE)
+	bad.store_buffer(Fixtures.glb(doc, Fixtures.positions()))
+	bad.close()
+	var refused: Dictionary = await _call("run", {"method": "import_model", "params": {"from": source_dir.path_join("broken.glb"), "to": target_dir}})
+	_expect(refused.get("isError", false) and _text(refused).contains("node hierarchy has a cycle"), "import_model rechaza un GLB con ciclos · " + _text(refused))
+	_expect(not FileAccess.file_exists(target_dir + "/broken.glb"), "import_model: el rechazado no se copia")
+
+
 func _check_diagnostic_report() -> void:
 	var home := OS.get_environment("HOME") if not OS.get_environment("HOME").is_empty() else OS.get_environment("USERPROFILE")
 	for script_path: String in ["res://addons/godot_agent/ui/dock/agent_dock.gd", "res://addons/godot_agent/ui/log_panel/agent_log_panel.gd"]:

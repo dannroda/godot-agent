@@ -3645,6 +3645,9 @@ msgstr "Conectar señal"
 msgid "Copy file"
 msgstr "Copiar archivo"
 
+msgid "Import model"
+msgstr "Importar modelo"
+
 msgid "Create resource"
 msgstr "Crear recurso"
 
@@ -4518,6 +4521,9 @@ msgstr "Adjunta un script a un nodo"
 
 msgid "Copies a file or folder into the project"
 msgstr "Copia un archivo o carpeta dentro del proyecto"
+
+msgid "Imports a 3D model into the project"
+msgstr "Importa un modelo 3D al proyecto"
 
 msgid "Moves or renames a file or folder, keeping references"
 msgstr "Mueve o renombra un archivo o carpeta, conservando las referencias"
