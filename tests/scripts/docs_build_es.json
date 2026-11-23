@@ -33,19 +33,18 @@
 			{"stop": "end_turn"}
 		]},
 		{"steps": [
-			{"chunk": "Cada oleada va a sumar un 15 % a la velocidad de los asteroides. Primero cambio `player.gd` para que la nave no quede atrás:"},
-			{"update": {"sessionUpdate": "tool_call", "toolCallId": "p1", "title": "Edit player.gd", "kind": "edit", "status": "pending",
-				"rawInput": {"file_path": "tests/docs_demo/player.gd"},
-				"content": [{"type": "diff", "path": "tests/docs_demo/player.gd", "oldText": "\tposition += velocity\n", "newText": "\tposition += velocity * delta\n"}]}},
+			{"chunk": "Cada oleada va a sumar un 15 % a la velocidad de los asteroides. Primero hago un commit de lo que ya anda, así este cambio es fácil de deshacer:"},
+			{"update": {"sessionUpdate": "tool_call", "toolCallId": "p1", "title": "git commit -am \"Puntaje y oleadas\"", "kind": "execute", "status": "pending",
+				"rawInput": {"command": "git commit -am \"Puntaje y oleadas\""}}},
 			{"request": {"method": "session/request_permission", "params": {
-				"toolCall": {"toolCallId": "p1", "title": "Edit player.gd", "kind": "edit", "rawInput": {"file_path": "tests/docs_demo/player.gd"}},
+				"toolCall": {"toolCallId": "p1", "title": "git commit -am \"Puntaje y oleadas\"", "kind": "execute", "rawInput": {"command": "git commit -am \"Puntaje y oleadas\""}},
 				"options": [
 					{"optionId": "allow_always", "name": "Always Allow", "kind": "allow_always"},
 					{"optionId": "allow", "name": "Allow", "kind": "allow_once"},
 					{"optionId": "reject", "name": "Reject", "kind": "reject_once"}
 				]}}},
 			{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "p1", "status": "failed"}},
-			{"chunk": "Listo, no lo toco."},
+			{"chunk": "Listo, sin commit: dejo el historial como está."},
 			{"stop": "end_turn"}
 		]}
 	]

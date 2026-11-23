@@ -97,7 +97,7 @@ Escribí lo que querés y tocá **Planificar** (o escribí `/plan …`): el agen
 
 Cada acción que cambia algo pregunta antes, con una tarjeta en el chat: permitirla una vez, por el resto de la sesión, o denegarla. **Settings → Permisos** define qué permite, pregunta o deniega cada modo, por grupo de herramientas.
 
-<img src="docs/images/es/permission.png" alt="Una tarjeta de permiso para editar player.gd, con su diff y los botones Siempre en esta sesión, Permitir una vez y Denegar" width="360">
+<img src="docs/images/es/permission.png" alt="Una tarjeta de permiso en modo Construir para un git commit que el agente quiere correr, con los botones Permitir una vez, Denegar y Denegar con motivo" width="360">
 
 ![La matriz de permisos en Settings: una fila por grupo de herramientas, una columna por modo](docs/images/es/settings.png)
 
