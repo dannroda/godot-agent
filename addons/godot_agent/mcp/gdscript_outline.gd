@@ -29,15 +29,21 @@ static var _re_annotations := RegEx.create_from_string("^(?:@\\w+(?:\\([^)]*\\))
 static var _re_decl := RegEx.create_from_string("^(static\\s+)?(func|class_name|class|signal|var|const|enum)\\b\\s*(\\w*)")
 
 
-## Estructura línea por línea de `text`: {lines, stmt_of, code} (arrays del largo de las líneas).
-## `stmt_of[i]` es la línea (desde 0) donde empieza la sentencia de la línea i; `code[i]` dice si la
-## línea tiene código (no es vacía, ni solo comentario, ni el medio de un string largo vacío).
+## Estructura línea por línea de `text`: {lines, stmt_of, code, strings, comment} (arrays del largo
+## de las líneas). `stmt_of[i]` es la línea (desde 0) donde empieza la sentencia de la línea i;
+## `code[i]` dice si la línea tiene código (no es vacía, ni solo comentario, ni el medio de un string
+## largo vacío); `strings[i]` son los tramos [desde, hasta) del contenido de los strings de la línea
+## (sin las comillas) como Vector2i, y `comment[i]` dónde empieza su comentario (-1: no tiene).
 static func scan(text: String) -> Dictionary:
 	var lines := text.split("\n")
 	var stmt_of := PackedInt32Array()
 	stmt_of.resize(lines.size())
+	var comment := PackedInt32Array()
+	comment.resize(lines.size())
 	var code := []
 	code.resize(lines.size())
+	var strings := []
+	strings.resize(lines.size())
 	var triple := ""
 	var depth := 0
 	var backslash := false
@@ -48,15 +54,20 @@ static func scan(text: String) -> Dictionary:
 		if not continues:
 			current_stmt = i
 		stmt_of[i] = current_stmt
+		comment[i] = -1
+		var spans: Array[Vector2i] = []
 		var stripped := line.strip_edges()
 		code[i] = not triple.is_empty() or (not stripped.is_empty() and not stripped.begins_with("#"))
 		backslash = false
 		var j := 0
 		var length := line.length()
+		## Dónde empieza el contenido del string abierto en esta línea.
+		var opened := 0
 		while j < length:
 			var c := line[j]
 			if not triple.is_empty():
 				if line.substr(j, triple.length()) == triple:
+					spans.append(Vector2i(opened, j))
 					j += triple.length()
 					triple = ""
 					continue
@@ -66,17 +77,13 @@ static func scan(text: String) -> Dictionary:
 				j += 1
 				continue
 			if c == "#":
+				comment[i] = j
 				break
 			if c == "\"" or c == "'":
-				if line.substr(j, 3) == c.repeat(3):
-					triple = c.repeat(3)
-					j += 3
-					continue
-				j = _skip_string(line, j + 1, c)
-				if j < 0:
-					# GDScript deja un salto de línea dentro de un string común: sigue abierto.
-					triple = c
-					break
+				var quote := c.repeat(3) if line.substr(j, 3) == c.repeat(3) else c
+				triple = quote
+				j += quote.length()
+				opened = j
 				continue
 			if c in "([{":
 				depth += 1
@@ -85,22 +92,27 @@ static func scan(text: String) -> Dictionary:
 			elif c == "\\" and line.substr(j + 1).strip_edges().is_empty():
 				backslash = true
 			j += 1
-	return {"lines": lines, "stmt_of": stmt_of, "code": code}
+		if not triple.is_empty():
+			# Un string sigue abierto en la línea siguiente (de triple comilla, o común con un salto
+			# de línea adentro, que GDScript permite).
+			spans.append(Vector2i(opened, length))
+		strings[i] = spans
+	return {"lines": lines, "stmt_of": stmt_of, "code": code, "strings": strings, "comment": comment}
 
 
-## El índice después de la comilla que cierra el string que empieza en `from`, o -1 si sigue
-## abierto al final de la línea.
-static func _skip_string(line: String, from: int, quote: String) -> int:
-	var j := from
-	while j < line.length():
-		var c := line[j]
-		if c == "\\":
-			j += 2
-			continue
-		if c == quote:
-			return j + 1
-		j += 1
-	return -1
+## La línea `index` de `scanned` con el contenido de los strings y el comentario cambiados por
+## espacios (las comillas quedan): el código solo, con las mismas columnas.
+static func code_only(scanned: Dictionary, index: int) -> String:
+	var line: String = scanned.lines[index].trim_suffix("\r")
+	var cut: int = scanned.comment[index]
+	if cut >= 0:
+		line = line.left(cut)
+	for span: Vector2i in scanned.strings[index]:
+		var from := mini(span.x, line.length())
+		var to := mini(span.y, line.length())
+		if to > from:
+			line = line.left(from) + " ".repeat(to - from) + line.substr(to)
+	return line
 
 
 static func indent_width(line: String) -> int:

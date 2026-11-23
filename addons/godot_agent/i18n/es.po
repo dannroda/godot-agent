@@ -6551,3 +6551,15 @@ msgstr "Lee una función de GDScript por nombre o por línea, también sin guard
 
 msgid "Read function"
 msgstr "Leer función"
+
+msgid "Finds where classes, functions, signals and variables are declared"
+msgstr "Busca dónde se declaran clases, funciones, señales y variables"
+
+msgid "Finds where a name is used: code, strings, scenes and animations"
+msgstr "Busca dónde se usa un nombre: código, strings, escenas y animaciones"
+
+msgid "Find declarations"
+msgstr "Buscar declaraciones"
+
+msgid "Find references"
+msgstr "Buscar referencias"
