@@ -305,7 +305,7 @@ func test_controller_plan_first() -> void:
 	controller.arm_recipe_after_plan(spec)
 	controller.request_plan("Add options")
 	await _frames()
-	assert_eq(controller.model.harness_mode, SessionModel.HarnessMode.ASK, "planifica en Preguntar")
+	assert_eq(controller.model.harness_mode, SessionModel.HarnessMode.PLAN, "planifica en Plan (m11-70)")
 	assert_true(controller.recipe_run().is_empty(), "la corrida no arranca con el plan")
 	await _end_turn(controller)
 	var request := PlanApproval.block_request("1. Add the screen")

@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Plan mode.** The mode selector has **Plan**, after Ask, like the Plan mode of the Claude Code extensions. In Plan every message is a request for a plan: the agent reads the project and presents a plan card before editing anything, and **Approve and build** switches to Build. It has Ask's permissions (the matrix column is shared) and its own remembered model, so you can plan with one model and build with another. The **Plan** button and `/plan` now switch to Plan instead of Ask. Commands starting with `/` still go as commands.
+
 ## [0.1.32] - 2026-11-19
 
 ### Fixed

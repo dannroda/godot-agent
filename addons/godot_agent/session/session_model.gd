@@ -92,13 +92,15 @@ const SESSION_STATE_TRANSITIONS: Dictionary = {
 
 ## Modos del harness (spec §7). Viven del lado del cliente.
 ## AUTO va al final para no cambiar los valores de los demás (D57); en la UI se muestra después de BUILD.
-enum HarnessMode { ASK, REVIEW, BUILD, ONESHOT, AUTO }
+## PLAN va al final (m11-70): los modos se guardan como int, y agregarlo en el medio los correría.
+enum HarnessMode { ASK, REVIEW, BUILD, ONESHOT, AUTO, PLAN }
 
 ## El modo base de un modo del proyecto (su campo `base`).
 const BASE_MODES: Dictionary = {"ask": HarnessMode.ASK, "review": HarnessMode.REVIEW, "build": HarnessMode.BUILD, "auto": HarnessMode.AUTO}
 
 const HARNESS_MODE_LABELS: Dictionary = {
 	HarnessMode.ASK: "Ask",  # i18n
+	HarnessMode.PLAN: "Plan",  # i18n  (el selector sigue este orden: Plan después de Preguntar)
 	HarnessMode.REVIEW: "Review",  # i18n
 	HarnessMode.BUILD: "Build",  # i18n
 	HarnessMode.AUTO: "Auto",  # i18n

@@ -11,7 +11,7 @@ extends RefCounted
 
 const KEY := "agents/models_by_mode"  # HarnessSettings.KEY_MODE_MODELS
 ## Las claves de modo: las de PermissionPolicy.MODE_KEYS, en el orden de SessionModel.HarnessMode.
-const MODE_KEYS: PackedStringArray = ["ask", "review", "build", "oneshot", "auto"]
+const MODE_KEYS: PackedStringArray = ["ask", "review", "build", "oneshot", "auto", "plan"]
 
 ## Un objeto con get_value(key, default) y set_value(key, value): HarnessSettings.
 var settings: Object

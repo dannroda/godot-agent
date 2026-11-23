@@ -7,16 +7,17 @@
 | Mode | What the agent does |
 |---|---|
 | **Ask** | Answers about the project. It can read, but it can't edit or run anything. |
+| **Plan** | Every message is a request for a plan: the agent reads the project and presents a plan to approve before editing anything. Same permissions as Ask; **Approve and build** switches to Build. Commands starting with `/` still go as commands. |
 | **Review** | Reviews scenes and scripts and returns findings (bug, structure, performance, style), shown as marks in the Script Editor. See [Review](Review.md). |
 | **Build** | Edits scenes and scripts and runs the game, asking for permission according to the matrix below. |
 | **Auto** | Like Build, but without cards for what can be undone: it edits scenes, scripts and project settings and runs the game on its own. Shell commands run on their own only if they're on the allowlist; see [Auto mode](#auto-mode). |
 | **One-shot** | Pursues a whole goal with budgets, checkpoints and playtests, in the One-shot screen. See [One-shot](One-shot.md). |
 
-Switching mode also switches the agent's own mode when it publishes one: Ask and Review use `plan`; Build, Auto and One-shot use `default`.
+Switching mode also switches the agent's own mode when it publishes one: Ask, Plan and Review use `plan`; Build, Auto and One-shot use `default`.
 
 ### A model for each mode
 
-The model you pick in the composer's model selector is remembered for the mode the tab is in, for that agent profile. Switching back to that mode picks that model again, so you can plan in Ask with a strong model and build with a fast one, the planner/editor pair of other harnesses but without two requests per change. **Approve and build** also switches to Build's model, and the agent keeps going with it in the same turn. A mode with nothing remembered doesn't change the model, and One-shot is one more mode. The first time a mode switch changes the model, the chat says so in one line (**Build uses Sonnet**, with **Change**); the selector's tooltip says which mode it's remembered for.
+The model you pick in the composer's model selector is remembered for the mode the tab is in, for that agent profile. Switching back to that mode picks that model again, so you can plan in Plan with a strong model and build with a fast one, the planner/editor pair of other harnesses but without two requests per change. **Approve and build** also switches to Build's model, and the agent keeps going with it in the same turn. A mode with nothing remembered doesn't change the model, and One-shot is one more mode. The first time a mode switch changes the model, the chat says so in one line (**Build uses Sonnet**, with **Change**); the selector's tooltip says which mode it's remembered for.
 
 It's a setting of yours, not of the project, because the models depend on your account. **Settings → Agents** lists what each profile remembers, with **Forget**. If the agent no longer offers a remembered model (another account, for instance), the model isn't changed and the chat says so once. It works with agents that publish the model as a session option (Claude Code does); with others the selector doesn't show. Claude Code's own `opusplan` alias, if your account lists it, does something similar without the harness.
 
@@ -61,7 +62,7 @@ When the task needs another mode (you're in Ask and ask for a change, or a proje
 
 ### Approving the agent's plan
 
-In Ask or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:
+In Ask, Plan or Review, an agent with a plan mode (Claude Code) can finish planning by presenting a plan to approve. The dock shows it as a card with the plan in Markdown and three buttons:
 
 - **Approve and build** switches the session to Build and lets the agent start. Its edits still ask for permission as usual in Build. The card doesn't offer the agent's auto, bypass or *clear context* options. The approved plan is saved in `.godot_agent/plans/<date>-<title>.md`, so you can bring it back in another session with `@`.
 - **Edit** opens the plan as text, with a live count of the lines you changed. **Send changes** declines the plan, and when the turn ends the agent gets the changed lines and the whole plan, and presents it again.
@@ -71,7 +72,7 @@ What goes back to the agent shows in the chat as a dimmed harness line (**Plan �
 
 #### Asking for a plan: Plan and /plan
 
-To get a plan before the agent touches anything, from any mode except One-shot, write what you want in the composer and press the **Plan** icon next to the mode selector (it's also in the **+** menu). You can also type `/plan <what you want>`. The session switches to Ask and the agent is asked for a plan with playable criteria ("WHEN the player touches an enemy, THE GAME SHALL take one life away"), the design in Godot terms (scenes and nodes, scripts, signals, autoloads, input map actions, collision layers) and numbered tasks.
+To get a plan before the agent touches anything, from any mode except One-shot, write what you want in the composer and press the **Plan** icon next to the mode selector (it's also in the **+** menu). You can also type `/plan <what you want>`. The session switches to Plan and the agent is asked for a plan with playable criteria ("WHEN the player touches an enemy, THE GAME SHALL take one life away"), the design in Godot terms (scenes and nodes, scripts, signals, autoloads, input map actions, collision layers) and numbered tasks.
 
 - An agent with a plan mode (Claude Code) presents it with the card above.
 - An agent without one (Codex, Gemini and others over ACP) is asked to end its answer with the plan in a ` ```plan ` block. The harness turns that block into the same card, and the message shows a single line, **Plan presented · in the card below**. Edits and reasons go to the agent right away, because its turn has already ended. **Approve and build** saves the plan, switches to Build and asks the agent to implement it, keeping the numbered tasks as its plan so the dock ticks them off. Some agents (Antigravity) don't send that list. When the build turn ends without it, the card says **Progress not tracked** instead of guessing from the files the agent edited. If you send another message while the card is waiting, the card is cancelled.
@@ -131,7 +132,7 @@ A recipe is a request you repeat (a new enemy from a base scene, an options scre
 
 - **Launch** a recipe from the composer's **+** → **Recipe…** or with `/recipe <name>`. A form asks for its parameters, one control per type: text, multiline text, a choice, a number, yes/no, a scene, script, resource or any project file (with a file picker), a node of the open scene and an input action. **Use** writes the expanded request into the composer, in the recipe's mode, without sending it: edit it if you want, then send. A chip above the composer names the recipe's checks; remove the chip to send without them.
 - **Checks**: after each turn of the run, the recipe's checks run even if the turn changed nothing: the saved playtest regressions, a command (like the [project checks](#project-checks-after-each-turn)) or a **playtest** with a goal. A playtest check runs once the others pass: an agent plays the game in Review mode to check the goal, and the check passes when the verdict is **pass**. If a check fails, the agent gets what it reported and tries again, up to the recipe's `max_retries` (2 by default, 5 at most). The run ends with **checks passed (attempt N)** or **still fail after N attempts**. A message of yours ends the run. A playtest that could not test ends it with a notice.
-- **Plan first** (on by default when the recipe says `"plan": true`) sends the request as `/plan`: the agent plans in Ask mode and the run starts with **Approve and build**.
+- **Plan first** (on by default when the recipe says `"plan": true`) sends the request as `/plan`: the agent plans in Plan mode and the run starts with **Approve and build**.
 - **A recipe can't run anything on its own.** A check's command only runs on a machine where that exact command was approved, the same approval as the project checks: a recipe that came from someone else's repository shows **Approve «name»…** and runs nothing until you approve it.
 - The **Recipes** tab of [Extensions](Settings.md#extensions) lists the project's recipes with ✓ or how many problems each one has, and opens the `.json` in an editor that checks it as you type. **New** copies one of three templates (an enemy from a base scene, an options screen, porting a script to C#); **Use in the dock** opens the recipe's form.
 
@@ -193,7 +194,7 @@ Every card also has **Deny with reason…**: it denies, stops the agent's turn a
 
 Defaults:
 
-| Group | Ask | Review | Build | Auto | One-shot |
+| Group | Ask and Plan | Review | Build | Auto | One-shot |
 |---|---|---|---|---|---|
 | Read | Allow | Allow | Allow | Allow | Allow |
 | Diagnostics | Allow | Allow | Allow | Allow | Allow |

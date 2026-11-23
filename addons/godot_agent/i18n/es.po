@@ -6515,3 +6515,6 @@ msgstr "Corre los tests del proyecto (GUT, gdUnit4 o los propios) y lista las fa
 
 msgid "Run the tests"
 msgstr "Correr los tests"
+
+msgid "The agent explores the project and presents a plan before editing. Approving the plan switches to Build."
+msgstr "El agente recorre el proyecto y presenta un plan antes de editar. Al aprobar el plan pasa a Construir."

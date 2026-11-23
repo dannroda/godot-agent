@@ -11,6 +11,7 @@ const PermissionRequest := preload("res://addons/godot_agent/session/permission_
 const PlanApproval := preload("res://addons/godot_agent/session/plan_approval.gd")
 const HarnessPrompts := preload("res://addons/godot_agent/session/harness_prompts.gd")
 const AgentDock := preload("res://addons/godot_agent/ui/dock/agent_dock.gd")
+const ModeModels := preload("res://addons/godot_agent/core/mode_models.gd")
 const PlanApprovalView := preload("res://addons/godot_agent/ui/dock/entries/plan_approval_view.gd")
 
 const M := SessionModel.HarnessMode
@@ -101,6 +102,30 @@ func test_plan_command() -> void:
 	assert_false(AgentDock.is_plan_command("/planner x"), "otro comando")
 	assert_false(AgentDock.is_plan_command("make a /plan"), "no al principio")
 	assert_eq(AgentDock.plan_command_request("/plan  add a coin counter \n"), "add a coin counter", "el pedido")
+
+
+## m11-70: el modo Plan en el selector. Lo que se escribe en Plan es un pedido de plan, salvo los
+## comandos con /; pedir un plan pasa a Plan, con el modo plan del agente y su propio modelo.
+func test_plan_mode() -> void:
+	assert_eq(SessionModel.HARNESS_MODE_LABELS.keys().find(M.PLAN), SessionModel.HARNESS_MODE_LABELS.keys().find(M.ASK) + 1, "después de Preguntar")
+	assert_eq(int(M.PLAN), 5, "al final del enum: los modos guardados no se corren")
+	assert_true("plan" in SessionController.AGENT_MODE_FOR[M.PLAN], "modo plan del agente")
+	assert_eq(ModeModels.mode_key(M.PLAN), "plan", "su propio modelo recordado")
+	assert_true(AgentDock.MODE_TOOLTIPS.has(M.PLAN), "tooltip")
+	var sent: Array = []
+	var controller := _controller(M.BUILD, sent, _project_dir("plan_mode"))
+	controller.request_plan("add a coin counter")
+	assert_eq(controller.model.harness_mode, M.PLAN, "pedir un plan pasa a Plan")
+	await _end_turns(controller)
+	var dock := AgentDock.new()
+	dock._model = SessionModel.new()
+	assert_false(dock._is_plan_text("add a coin counter"), "en Construir, un mensaje común")
+	assert_true(dock._is_plan_text("/plan add a coin counter"), "/plan en cualquier modo")
+	dock._model.set_harness_mode(M.PLAN)
+	assert_true(dock._is_plan_text("add a coin counter"), "en Plan, un pedido de plan")
+	assert_false(dock._is_plan_text("/compact"), "los comandos con / siguen siendo comandos")
+	assert_false(dock._is_plan_text("   "), "vacío")
+	dock.free()
 
 
 func test_block_becomes_the_plan_card() -> void:

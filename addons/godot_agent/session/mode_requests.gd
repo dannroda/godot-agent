@@ -11,7 +11,7 @@ const I18n := preload("../core/i18n.gd")
 
 const WHY_MAX := 600
 ## Los modos fijos a los que se puede pedir pasar. One-shot no: es una pantalla con su run.
-const FIXED: Array[int] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]
+const FIXED: Array[int] = [SessionModel.HarnessMode.ASK, SessionModel.HarnessMode.PLAN, SessionModel.HarnessMode.REVIEW, SessionModel.HarnessMode.BUILD, SessionModel.HarnessMode.AUTO]
 
 
 ## `{mode: int, project_mode: Dictionary, error: String}` para `target` (ask, review, build, auto o el

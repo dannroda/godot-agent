@@ -107,6 +107,7 @@ const KIND_GROUPS: Dictionary = {
 ## editan (0), Construir edita preguntando (1), Auto y One-shot editan solos (2).
 const MODE_RANKS: Dictionary = {
 	SessionModel.HarnessMode.ASK: 0,
+	SessionModel.HarnessMode.PLAN: 0,
 	SessionModel.HarnessMode.REVIEW: 0,
 	SessionModel.HarnessMode.BUILD: 1,
 	SessionModel.HarnessMode.ONESHOT: 2,
@@ -127,15 +128,20 @@ func _init(project_overrides: Dictionary = {}) -> void:
 	overrides = project_overrides
 
 
+## La columna de la matriz de un modo: Plan (m11-70) usa la de Preguntar, también solo lectura.
+static func matrix_mode(mode: int) -> int:
+	return SessionModel.HarnessMode.ASK if mode == SessionModel.HarnessMode.PLAN else mode
+
+
 ## Decisión para un grupo en un modo, sin contar lo concedido en la sesión.
 func matrix_value(group: String, mode: SessionModel.HarnessMode) -> String:
-	var key: String = MODE_KEYS[mode]
+	var key: String = MODE_KEYS[matrix_mode(mode)]
 	var override: Variant = overrides.get(group)
 	if (DEFAULTS.has(group) or is_mcp_group(group)) and override is Dictionary and override.get(key) in [ALLOW, ASK, DENY]:
 		return override[key]
 	if not DEFAULTS.has(group):
 		return ASK
-	return DEFAULTS[group][int(mode)]
+	return DEFAULTS[group][matrix_mode(mode)]
 
 
 ## Decisión efectiva: un "ask" que el usuario concedió para toda la sesión pasa a "allow".
@@ -159,7 +165,7 @@ func clear_session() -> void:
 
 func set_matrix_value(group: String, mode: SessionModel.HarnessMode, value: String) -> void:
 	var entry: Dictionary = overrides.get(group, {})
-	entry[MODE_KEYS[mode]] = value
+	entry[MODE_KEYS[matrix_mode(mode)]] = value
 	overrides[group] = entry
 
 
@@ -179,7 +185,7 @@ static func group_for_tool_call(tool_call: Dictionary) -> String:
 
 ## Subagentes a la vez permitidos en `mode`, o 0 si no hay límite.
 func subagent_limit(mode: SessionModel.HarnessMode) -> int:
-	return maxi(0, int(subagent_limits.get(MODE_KEYS.get(mode, ""), 0)))
+	return maxi(0, int(subagent_limits.get(MODE_KEYS.get(matrix_mode(mode), ""), 0)))
 
 
 ## Server de terceros de un tool call (`mcp__<server>__<tool>` en el título o en

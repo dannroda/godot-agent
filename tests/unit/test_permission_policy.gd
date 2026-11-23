@@ -41,6 +41,16 @@ func test_overrides() -> void:
 	assert_eq(policy.decide("read", M.ASK), "deny", "set_matrix_value")
 
 
+## m11-70: Plan usa la columna de Preguntar (solo lectura); cambiarla en uno cambia el otro.
+func test_plan_shares_ask_column() -> void:
+	var policy := PermissionPolicy.new()
+	for group: String in PermissionPolicy.DEFAULTS:
+		assert_eq(policy.decide(group, M.PLAN), policy.decide(group, M.ASK), group)
+	policy.set_matrix_value("read", M.PLAN, "deny")
+	assert_eq(policy.matrix_value("read", M.ASK), "deny", "la misma columna")
+	assert_eq(policy.subagent_limit(M.PLAN), policy.subagent_limit(M.ASK), "subagentes")
+
+
 func test_kind_mapping() -> void:
 	assert_eq(PermissionPolicy.group_for_tool_call({"kind": "read"}), "read", "read")
 	assert_eq(PermissionPolicy.group_for_tool_call({"kind": "search"}), "read", "search")

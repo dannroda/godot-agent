@@ -145,6 +145,7 @@ const ACTION_OPEN_RUN_FILE := "open_run_file"
 ## Tooltips de los botones de modo (las reglas que lee el agente están en SessionController.MODE_RULES).
 const MODE_TOOLTIPS: Dictionary = {
 	SessionModel.HarnessMode.ASK: "Only answers questions: does not modify files, scenes or settings, and does not run commands.",  # i18n
+	SessionModel.HarnessMode.PLAN: "The agent explores the project and presents a plan before editing. Approving the plan switches to Build.",  # i18n
 	SessionModel.HarnessMode.REVIEW: "Read-only review: the agent reports findings without modifying anything.",  # i18n
 	SessionModel.HarnessMode.BUILD: "The agent can edit scenes and scripts; you approve the changes.",  # i18n
 	SessionModel.HarnessMode.AUTO: "The agent edits scenes, scripts and settings and runs the game without asking. Shell commands on the allowlist run on their own; any other asks (Settings → Permissions).",  # i18n
@@ -1677,7 +1678,7 @@ func send_text(text: String, harness_label: String = "") -> void:
 
 
 func _send(text: String) -> void:
-	if is_plan_command(text):
+	if _is_plan_text(text):
 		_start_plan(plan_command_request(text), _take_context_blocks())
 		return
 	# Un comando con / va solo: los adjuntos quedan para el próximo mensaje (ver send_prompt).
@@ -1839,7 +1840,7 @@ func _send_next_queued(resume: bool = false) -> void:
 	var item := _queue.take_next()
 	if item.is_empty():
 		return
-	if is_plan_command(str(item.text)):
+	if _is_plan_text(str(item.text)):
 		_start_plan(plan_command_request(str(item.text)), item.blocks)
 	else:
 		_send_with_mentions(str(item.text), item.blocks)
@@ -1858,6 +1859,13 @@ static func is_plan_command(text: String) -> bool:
 
 static func plan_command_request(text: String) -> String:
 	return text.strip_edges().trim_prefix(PLAN_COMMAND).strip_edges()
+
+
+## Un pedido de plan: `/plan …` o, en modo Plan (m11-70), cualquier mensaje que no sea un comando con /.
+func _is_plan_text(text: String) -> bool:
+	if is_plan_command(text):
+		return true
+	return _model.harness_mode == SessionModel.HarnessMode.PLAN and _model.project_mode.is_empty() and not text.strip_edges().is_empty() and not SessionController.is_slash_command(text)
 
 
 ## «Planificar» en la fila del composer: lo que haya escrito es el pedido. Vacío, deja «/plan » para
@@ -2825,7 +2833,7 @@ func use_recipe(recipe: Dictionary, values: Dictionary) -> void:
 func _arm_recipe(text: String) -> void:
 	if _recipe_chip.is_empty() or text.strip_edges().is_empty():
 		return
-	if is_plan_command(text):
+	if _is_plan_text(text):
 		_controller.arm_recipe_after_plan(_recipe_chip.spec)
 	elif SessionController.is_slash_command(text):
 		return

@@ -17,7 +17,7 @@ extends RefCounted
 ## c. «Aprobar y construir» pide Sonnet en medio del turno, sin set_mode.
 ## d. Elegir Haiku en el selector del composer lo recuerda para Construir.
 ## Después, m11-58 con un agente sin modo plan (tests/scripts/plan_block.json):
-## 6. «Planificar» con el pedido en el composer: pasa a Preguntar y el pedido sale como PLAN_REQUEST
+## 6. «Planificar» con el pedido en el composer: pasa a Plan (m11-70) y el pedido sale como PLAN_REQUEST
 ##    pidiendo el bloque ```plan (no ExitPlanMode).
 ## 7. El bloque del final del turno se vuelve la tarjeta del plan, y el mensaje lo muestra en una línea.
 ## 8. Editar y «Seguir planeando…» salen enseguida (el turno ya terminó) pidiendo de nuevo el bloque.
@@ -253,7 +253,7 @@ func _run_block() -> void:
 	if request_entry:
 		var text := str(request_entry.get(&"text"))
 		_expect(text.contains("add a coin counter") and text.contains("```plan") and not text.contains("ExitPlanMode"), "bloque: pide el bloque ```plan, no ExitPlanMode")
-	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.ASK, "bloque: «Planificar» pasa a Preguntar")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.PLAN, "bloque: «Planificar» pasa a Plan")
 	_expect(str(composer.call(&"current_text")).is_empty(), "bloque: el composer quedó vacío")
 	_expect(not plan_button.is_visible_in_tree(), "bloque: «Planificar» se oculta con el agente trabajando")
 
@@ -311,7 +311,7 @@ func _run_block() -> void:
 	composer.call(&"insert_text", "/plan add lives")
 	composer.call(&"_submit")
 	await _until(func() -> bool: return (_model.call(&"entries") as Array).filter(func(e: Object) -> bool: return int(e.get(&"kind")) == 0 and str(e.get(&"harness_label")) == HarnessPrompts.PLAN_REQUEST).size() == 2, "bloque: /plan no pidió otro plan")
-	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.ASK, "bloque: /plan pasa a Preguntar")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.PLAN, "bloque: /plan pasa a Plan")
 	view = await _wait_view(PLAN_VIEW_SCRIPT, 4)
 	if view == null:
 		failures.append("bloque: no apareció el plan de /plan")
@@ -496,7 +496,7 @@ func _run_antigravity(command: String, source: String) -> void:
 	print("[agy-plan] tarjeta del plan: bloque %s · %d líneas · línea plegada en el mensaje %d" % [request.get(&"from_block"), str(request.get(&"plan_text")).count("\n") + 1, _plan_lines()])
 	print("[agy-plan] plan:\n" + str(request.get(&"plan_text")))
 	_expect(bool(request.get(&"from_block")), "la tarjeta viene del bloque ```plan")
-	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.ASK, "planeó en Preguntar")
+	_expect(int(_model.get(&"harness_mode")) == SessionModel.HarnessMode.PLAN, "planeó en Plan")
 	_expect(FileAccess.get_file_as_string(CLAUDE_TARGET) == source, "no tocó el archivo mientras planeaba")
 	await _shot("agy_card")
 	_button(view, I18n.t("Approve and build")).pressed.emit()

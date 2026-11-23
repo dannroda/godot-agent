@@ -7,16 +7,17 @@
 | Modo | Qué hace el agente |
 |---|---|
 | **Preguntar** | Responde sobre el proyecto. Puede leer; no puede editar ni correr nada. |
+| **Plan** | Cada mensaje es un pedido de plan: el agente recorre el proyecto y presenta un plan para aprobar antes de editar nada. Los mismos permisos que Preguntar; **Aprobar y construir** pasa a Construir. Los comandos que empiezan con `/` siguen saliendo como comandos. |
 | **Revisar** | Revisa escenas y scripts y devuelve hallazgos (bug, estructura, rendimiento, estilo), que aparecen como marcas en el Script Editor. Ver [Revisar](Revisar.md). |
 | **Construir** | Edita escenas y scripts y corre el juego, pidiendo permiso según la matriz de abajo. |
 | **Auto** | Como Construir, pero sin tarjetas para lo que se puede deshacer: edita escenas, scripts y settings del proyecto y corre el juego solo. Los comandos de shell corren solos solo si están en la allowlist; ver [Modo Auto](#modo-auto). |
 | **One-shot** | Persigue un objetivo entero con presupuestos, checkpoints y playtests, en la pantalla One-shot. Ver [One-shot](One-shot.md). |
 
-Cambiar de modo cambia también el modo del agente, si lo publica: Preguntar y Revisar usan `plan`; Construir, Auto y One-shot usan `default`.
+Cambiar de modo cambia también el modo del agente, si lo publica: Preguntar, Plan y Revisar usan `plan`; Construir, Auto y One-shot usan `default`.
 
 ### Un modelo para cada modo
 
-El modelo que elegís en el selector de modelo del composer queda recordado para el modo en que está la pestaña, con ese perfil de agente. Volver a ese modo vuelve a elegir ese modelo: así podés planificar en Preguntar con un modelo fuerte y construir con uno rápido, el par planificador/editor de otros harness pero sin dos pedidos por cambio. **Aprobar y construir** también pasa al modelo de Construir, y el agente sigue con él en el mismo turno. Un modo sin nada recordado no cambia el modelo, y One-shot es un modo más. La primera vez que un cambio de modo cambia el modelo, el chat lo dice en una línea (**Construir usa Sonnet**, con **Cambiar**); el tooltip del selector dice para qué modo se recuerda.
+El modelo que elegís en el selector de modelo del composer queda recordado para el modo en que está la pestaña, con ese perfil de agente. Volver a ese modo vuelve a elegir ese modelo: así podés planificar en Plan con un modelo fuerte y construir con uno rápido, el par planificador/editor de otros harness pero sin dos pedidos por cambio. **Aprobar y construir** también pasa al modelo de Construir, y el agente sigue con él en el mismo turno. Un modo sin nada recordado no cambia el modelo, y One-shot es un modo más. La primera vez que un cambio de modo cambia el modelo, el chat lo dice en una línea (**Construir usa Sonnet**, con **Cambiar**); el tooltip del selector dice para qué modo se recuerda.
 
 Es un ajuste tuyo, no del proyecto, porque los modelos dependen de tu cuenta. **Ajustes → Agentes** muestra lo que recuerda cada perfil, con **Olvidar**. Si el agente ya no ofrece un modelo recordado (otra cuenta, por ejemplo), el modelo no se cambia y el chat lo dice una vez. Funciona con los agentes que publican el modelo como opción de la sesión (Claude Code lo hace); con los demás el selector no aparece. El alias `opusplan` de Claude Code, si tu cuenta lo lista, hace algo parecido sin el harness.
 
@@ -61,7 +62,7 @@ Cuando la tarea necesita otro modo (estás en Preguntar y pedís un cambio, o un
 
 ### Aprobar el plan del agente
 
-En Preguntar o Revisar, un agente con modo plan (Claude Code) puede terminar de planear presentando un plan para aprobar. El dock lo muestra en una tarjeta con el plan en Markdown y tres botones:
+En Preguntar, Plan o Revisar, un agente con modo plan (Claude Code) puede terminar de planear presentando un plan para aprobar. El dock lo muestra en una tarjeta con el plan en Markdown y tres botones:
 
 - **Aprobar y construir** pasa la sesión a Construir y deja que el agente empiece. Sus ediciones siguen pidiendo permiso como siempre en Construir. La tarjeta no ofrece las opciones auto, bypass ni *clear context* del agente. El plan aprobado queda en `.godot_agent/plans/<fecha>-<título>.md`, para traerlo en otra sesión con `@`.
 - **Editar** abre el plan como texto, con un contador en vivo de las líneas que cambiaste. **Enviar cambios** no aprueba el plan, y al terminar el turno el agente recibe las líneas cambiadas y el plan entero, y lo vuelve a presentar.
@@ -71,7 +72,7 @@ Lo que vuelve al agente se ve en el chat como una línea atenuada del harness (*
 
 #### Pedir un plan: Planificar y /plan
 
-Para tener un plan antes de que el agente toque nada, desde cualquier modo salvo One-shot, escribí lo que querés en el composer y apretá el ícono **Planificar** al lado del selector de modo (también está en el menú **+**). También podés escribir `/plan <lo que querés>`. La sesión pasa a Preguntar y al agente se le pide un plan con:
+Para tener un plan antes de que el agente toque nada, desde cualquier modo salvo One-shot, escribí lo que querés en el composer y apretá el ícono **Planificar** al lado del selector de modo (también está en el menú **+**). También podés escribir `/plan <lo que querés>`. La sesión pasa a Plan y al agente se le pide un plan con:
 
 - criterios jugables («CUANDO el jugador toca un enemigo, EL JUEGO DEBE restarle una vida»);
 - el diseño en términos de Godot: escenas y nodos, scripts, señales, autoloads, acciones del input map y capas de colisión;
@@ -140,7 +141,7 @@ Una receta es un pedido que se repite (un enemigo nuevo a partir de una escena b
 
 - **Lanzarla**: desde el **+** del composer → **Receta…** o con `/recipe <nombre>`. Un formulario pide sus parámetros, con un control por tipo: texto, texto de varias líneas, una elección, un número, sí/no, una escena, un script, un recurso o cualquier archivo del proyecto (con selector), un nodo de la escena abierta y una acción de input. **Usar** escribe el pedido ya armado en el composer, en el modo de la receta, sin mandarlo: editalo si querés y mandalo. Un chip arriba del composer nombra los checks de la receta; sacá el chip para mandarlo sin ellos.
 - **Checks**: después de cada turno de la corrida corren los checks de la receta, aunque el turno no haya cambiado nada: las regresiones de playtest guardadas, un comando (como los [checks del proyecto](#checks-del-proyecto-al-terminar-cada-turno)) o un **playtest** con un objetivo. El check de playtest corre cuando los otros pasan: un agente juega en modo Revisar para comprobar el objetivo, y el check pasa si el veredicto es **pass**. Si un check falla, el agente recibe lo que reportó y lo intenta de nuevo, hasta los `max_retries` de la receta (2 por defecto, 5 como máximo). La corrida termina con **checks passed (attempt N)** o **still fail after N attempts**. Un mensaje tuyo termina la corrida. Un playtest que no pudo probar la termina con un aviso.
-- **Planificar primero** (marcado si la receta dice `"plan": true`) manda el pedido como `/plan`: el agente planifica en Preguntar y la corrida arranca con **Aprobar y construir**.
+- **Planificar primero** (marcado si la receta dice `"plan": true`) manda el pedido como `/plan`: el agente planifica en Plan y la corrida arranca con **Aprobar y construir**.
 - **Una receta no puede correr nada sola.** El comando de un check corre solo en una máquina donde se aprobó ese comando exacto, la misma aprobación que los checks del proyecto: una receta que vino del repositorio de otro muestra **Aprobar «nombre»…** y no corre nada hasta que la apruebes.
 - La pestaña **Recetas** de [Extensiones](Settings.md#extensiones) lista las recetas del proyecto con ✓ o cuántos problemas tiene cada una, y abre el `.json` en un editor que lo valida mientras escribís. **Nueva** copia una de tres plantillas (un enemigo a partir de una escena base, una pantalla de opciones, portar un script a C#); **Usar en el dock** abre el formulario de la receta.
 
@@ -202,7 +203,7 @@ Toda tarjeta tiene también **Denegar con motivo…**: deniega, corta el turno d
 
 Valores por defecto:
 
-| Grupo | Preguntar | Revisar | Construir | Auto | One-shot |
+| Grupo | Preguntar y Plan | Revisar | Construir | Auto | One-shot |
 |---|---|---|---|---|---|
 | Lectura | Permitir | Permitir | Permitir | Permitir | Permitir |
 | Diagnóstico | Permitir | Permitir | Permitir | Permitir | Permitir |

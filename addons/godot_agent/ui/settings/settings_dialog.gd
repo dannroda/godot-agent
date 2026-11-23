@@ -1204,7 +1204,7 @@ func _fill_mode_models(profile_id: String) -> void:
 	var remembered := false
 	# Las claves: las de los modos fijos y las de los modos del proyecto (custom:<slug>, m11-39).
 	var keys: Array = []
-	for mode: SessionModel.HarnessMode in MODES:
+	for mode: SessionModel.HarnessMode in MODES + [SessionModel.HarnessMode.PLAN]:
 		keys.append([ModeModels.mode_key(mode), I18n.t(SessionModel.HARNESS_MODE_LABELS[mode])])
 	var project_names := {}
 	for mode: Dictionary in ProjectModes.usable(ProjectModes.load_dir(ProjectModes.resolve_dir(_config.modes_dir if _config else ""))):

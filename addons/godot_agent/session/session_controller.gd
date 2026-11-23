@@ -157,6 +157,7 @@ const AUTH_REQUIRED_MESSAGE := "authentication required"
 
 const MODE_RULES: Dictionary = {
 	SessionModel.HarnessMode.ASK: "Only answer questions: do not modify files, scenes or settings, and do not run commands.",
+	SessionModel.HarnessMode.PLAN: "Plan mode: explore the project and present a plan before editing anything. Do not modify files, scenes or settings, and do not run commands, until the user approves the plan.",
 	SessionModel.HarnessMode.REVIEW: "Read-only review: do not modify anything. Report the findings in a ```json block with {\"findings\":[{\"path\",\"line\",\"severity\":\"bug|order|perf|style\",\"title\",\"body\",\"suggestion\"}]} (path relative to the project, line starting at 1). Each block replaces the previous review: include every finding that still applies. Departures from the Godot conventions below are findings too (severity order for structure, style for typing).",
 	SessionModel.HarnessMode.BUILD: "You can edit scenes and scripts; the user approves the changes.",
 	SessionModel.HarnessMode.AUTO: "You can edit scenes, scripts and project settings and run the game without asking. Shell commands run without asking only if they are on the user's allowlist (read-only ones like ls, grep, git status); any other command waits for the user's approval, so prefer the godot.* and file tools.",
@@ -168,6 +169,7 @@ const MODE_RULES: Dictionary = {
 const PLAN_TURN_LABELS: Array[String] = [HarnessPrompts.PLAN_REQUEST, HarnessPrompts.PLAN_EDIT, HarnessPrompts.PLAN_KEEP_PLANNING]
 const AGENT_MODE_FOR: Dictionary = {
 	SessionModel.HarnessMode.ASK: ["plan"],
+	SessionModel.HarnessMode.PLAN: ["plan"],
 	SessionModel.HarnessMode.REVIEW: ["plan"],
 	SessionModel.HarnessMode.BUILD: ["default"],
 	SessionModel.HarnessMode.ONESHOT: ["default"],
@@ -2402,19 +2404,19 @@ func _end_plan_progress(state: String) -> void:
 ## true si el agente tiene un modo plan propio (Claude Code): ahí presenta el plan con ExitPlanMode.
 func agent_has_plan_mode() -> bool:
 	for mode: Variant in model.agent_modes:
-		if mode is Dictionary and str(mode.get("id", "")) in AGENT_MODE_FOR[SessionModel.HarnessMode.ASK]:
+		if mode is Dictionary and str(mode.get("id", "")) in AGENT_MODE_FOR[SessionModel.HarnessMode.PLAN]:
 			return true
 	return false
 
 
-## «Planificar» / `/plan` (m11-58): pasa a Preguntar y le pide el plan al agente, marcado como prompt
+## «Planificar» / `/plan` (m11-58), o cualquier mensaje en modo Plan (m11-70): pasa a Plan y le pide el plan al agente, marcado como prompt
 ## del harness. Con modo plan propio, el agente lo presenta con ExitPlanMode (tarjeta de m11-22); sin
 ## él, en un bloque ```plan que se vuelve la misma tarjeta al terminar el turno.
 func request_plan(what: String, extra_blocks: Array = []) -> String:
 	if what.strip_edges().is_empty() or model.state != SessionModel.SessionState.READY:
 		return ""
 	var text := label_prompt(PlanApproval.request_prompt(what, agent_has_plan_mode()), HarnessPrompts.PLAN_REQUEST)
-	return await send_in_mode(SessionModel.HarnessMode.ASK, text, extra_blocks)
+	return await send_in_mode(SessionModel.HarnessMode.PLAN, text, extra_blocks)
 
 
 ## Al terminar un turno de plan sin tarjeta de ExitPlanMode: el último bloque ```plan del agente se
