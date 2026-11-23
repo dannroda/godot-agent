@@ -17,6 +17,7 @@ La primera columna agrupa las tools por función. El grupo de permisos de cada t
 |---|---|---|
 | Lectura | `project_info` | Versión de Godot, binario del editor, nombre del proyecto, escena principal, autoloads, acciones de input, plugins, renderer. |
 | | `list_files` | Archivos del proyecto con su tipo de recurso; filtro glob. |
+| | `find_in_files` | Busca en el texto de los archivos del proyecto como «Buscar en archivos» del editor (los archivos que conoce el editor, con las extensiones de texto de Godot, `.tscn` y `.tres` incluidas, más las que agregue el proyecto), como texto o expresión regular, en una carpeta o solo en algunas extensiones. Devuelve ruta:línea: texto. |
 | | `scene_tree` | El árbol de una escena: tipos, scripts, escenas instanciadas, grupos y propiedades que difieren del default. Sin `scene`, la escena abierta con sus cambios sin guardar. |
 | | `project_map` | Los archivos más relacionados con `focus` (rutas, class_name, autoloads o nombres de archivo; por defecto, la escena y el script abiertos en el editor), rankeados, con las señales, funciones públicas, exports y enums de cada script por línea, los nodos y conexiones guardadas de cada escena, y dónde se usa cada script. Entra en `max_tokens` (2000 por defecto). |
 | | `get_node` | Un nodo en detalle: propiedades que difieren del default, script, grupos, conexiones de señales guardadas e hijos. |

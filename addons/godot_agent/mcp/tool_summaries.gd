@@ -66,6 +66,7 @@ const SUMMARIES: Dictionary = {
 	# Diagnóstico
 	"get_errors": "Errors and warnings from the editor and the game since a mark",  # i18n
 	"press_tool_button": "Presses a button that a @tool script added to the inspector",  # i18n
+	"find_in_files": "Searches the text of the project's files, like Find in Files",  # i18n
 	"get_output": "What the editor printed to the Output panel since a mark",  # i18n
 	"validate_scripts": "Parses GDScript and compiles C#, and returns the errors",  # i18n
 	"capture_editor_viewport": "Captures the editor's 2D or 3D viewport",  # i18n

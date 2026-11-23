@@ -12,6 +12,12 @@ const NativeInstall := preload("../../core/native_install.gd")
 const SupervisorState := preload("../../supervisor/supervisor_state.gd")
 
 const LIST_FILES_LIMIT := 2000
+## find_in_files (m11-74): como «Buscar en archivos» del editor.
+const FIND_SETTING := "editor/script/search_in_file_extensions"
+const FIND_DEFAULT_EXTENSIONS: PackedStringArray = ["gd", "gdshader", "gdshaderinc", "cs", "tscn", "tres", "cfg", "json", "md", "txt"]
+const FIND_MAX_MATCHES := 200
+const FIND_LINE_CHARS := 240
+const FIND_MAX_FILE_BYTES := 4 * 1024 * 1024
 const SCENE_TREE_NODE_LIMIT := 600
 const DEFAULT_DEPTH := 12
 
@@ -33,6 +39,15 @@ func tools() -> Array:
 				"pattern": {"type": "string", "description": "Glob on the file name"},
 				"recursive": {"type": "boolean", "description": "Include subfolders (default true)"},
 			}, [], _list_files),
+		McpTool.enveloped(McpTool.create("find_in_files", read,
+			"Searches the text of the project's files, like the editor's Find in Files: the files the editor knows (no .godot/ nor folders with .gdignore) with the extensions of Godot's text files (.gd, .tscn, .tres, .gdshader, .cs, .cfg, .json, .md…) plus the ones the project adds to Find in Files. Returns path:line: text. Use it instead of grep in the shell.",
+			{
+				"pattern": {"type": "string", "description": "Text to find (or a regular expression with regex=true)"},
+				"regex": {"type": "boolean", "description": "pattern is a regular expression (default false)"},
+				"case_sensitive": {"type": "boolean", "description": "Default false"},
+				"path": {"type": "string", "description": "res:// folder to search in (default res://)"},
+				"extensions": {"type": "array", "items": {"type": "string"}, "description": "Only these extensions, without the dot (e.g. [\"tscn\"])"},
+			}, ["pattern"], _find_in_files), McpTool.ENVELOPE_PARTS),
 		McpTool.enveloped(McpTool.create("scene_tree", read,
 			"Tree of a scene: name, type, script, instanced scene, groups and properties that differ from the default. Without `scene`, the open scene (with its unsaved changes).",
 			{
@@ -122,6 +137,74 @@ func _collect_files(dir: EditorFileSystemDirectory, pattern: String, recursive: 
 		for i in dir.get_subdir_count():
 			total += _collect_files(dir.get_subdir(i), pattern, recursive, out)
 	return total
+
+
+func _find_in_files(args: Dictionary) -> Dictionary:
+	var pattern := McpTool.str_arg(args, "pattern")
+	if pattern.is_empty():
+		return McpTool.error("`pattern` is empty.")
+	var path := McpTool.str_arg(args, "path", "res://")
+	if not path.begins_with("res://"):
+		return McpTool.error("`path` must start with res:// (got '%s')." % path)
+	var dir := EditorInterface.get_resource_filesystem().get_filesystem_path(path.trim_suffix("/") if path != "res://" else path)
+	if dir == null:
+		return McpTool.error("The folder %s does not exist (or the editor has not scanned it yet)." % path)
+	var case_sensitive: bool = args.get("case_sensitive", false) == true
+	var regex: RegEx = null
+	if args.get("regex", false) == true:
+		regex = RegEx.create_from_string(("" if case_sensitive else "(?i)") + pattern)
+		if regex == null or not regex.is_valid():
+			return McpTool.error("`pattern` is not a valid regular expression.")
+	var extensions := find_extensions(args.get("extensions"))
+	var files: PackedStringArray = []
+	_collect_searchable(dir, extensions, files)
+	var matches: PackedStringArray = []
+	var total := 0
+	var needle := pattern if case_sensitive else pattern.to_lower()
+	for file_path: String in files:
+		var file := FileAccess.open(file_path, FileAccess.READ)
+		if file == null or file.get_length() > FIND_MAX_FILE_BYTES:
+			continue
+		var number := 0
+		while not file.eof_reached():
+			var line := file.get_line()
+			number += 1
+			var hit := regex.search(line) != null if regex else (line if case_sensitive else line.to_lower()).contains(needle)
+			if not hit:
+				continue
+			total += 1
+			if matches.size() < FIND_MAX_MATCHES:
+				matches.append("%s:%d: %s" % [file_path, number, line.strip_edges().left(FIND_LINE_CHARS)])
+	if total == 0:
+		return McpTool.text("No matches for \"%s\" in %d files of %s." % [pattern, files.size(), path])
+	var header := "%d matches in %d files searched (%s)" % [total, files.size(), ", ".join(extensions)]
+	if total > matches.size():
+		header += "; showing the first %d: narrow it with path or extensions" % matches.size()
+	return McpTool.text(header + "\n" + UntrustedText.wrap("\n".join(matches)))
+
+
+## Las extensiones a buscar, sin el punto: las pedidas, o las del proyecto (las de Buscar en archivos,
+## que en 4.7 son solo gd y gdshader) más las de texto de Godot: las escenas y recursos importan.
+static func find_extensions(requested: Variant) -> PackedStringArray:
+	var result: PackedStringArray = []
+	var source: Array = []
+	if requested is Array and not requested.is_empty():
+		source = requested
+	else:
+		source = Array(ProjectSettings.get_setting(FIND_SETTING, PackedStringArray())) + Array(FIND_DEFAULT_EXTENSIONS)
+	for item: Variant in source:
+		var extension := str(item).strip_edges().trim_prefix("*").trim_prefix(".").to_lower()
+		if not extension.is_empty() and not extension in result:
+			result.append(extension)
+	return result if not result.is_empty() else FIND_DEFAULT_EXTENSIONS
+
+
+func _collect_searchable(dir: EditorFileSystemDirectory, extensions: PackedStringArray, out: PackedStringArray) -> void:
+	for i in dir.get_file_count():
+		if dir.get_file(i).get_extension().to_lower() in extensions:
+			out.append(dir.get_file_path(i))
+	for i in dir.get_subdir_count():
+		_collect_searchable(dir.get_subdir(i), extensions, out)
 
 
 func _scene_tree(args: Dictionary) -> Dictionary:

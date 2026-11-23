@@ -1118,6 +1118,7 @@ func _refresh_state_line(color: Color) -> void:
 		text = "● " + I18n.t("Waiting for you")
 		color = _accent
 	_state_line.visible = not text.is_empty()
+	_refresh_state_row()
 	_state_line.text = text
 	HoverTooltip.set_text(_state_line, HoverTooltip.text_of(_status_label))
 	_state_line.add_theme_color_override(&"font_color", color)
@@ -1214,8 +1215,22 @@ func _refresh_machine_chips() -> void:
 		full += chip.get_theme_stylebox(&"normal").get_minimum_size().x
 		chip.custom_minimum_size.x = minf(ceilf(full) + 1.0, AgentTheme.px(MAX_CHIP_WIDTH))
 	_machine_chips.visible = not chips.is_empty()
-	if _state_row:
-		_state_row.visible = _state_line.visible or _machine_chips.visible or (_changes_button and _changes_button.visible)
+	_refresh_state_row()
+
+
+## La fila de «● Trabajando…», los chips y el contador de cambios: visible si se ve alguno. Se
+## recalcula con cada uno, también fuera del árbol: antes solo lo hacía _refresh_machine_chips, que sale
+## temprano sin árbol, y un cambio de estado en ese momento dejaba la fila oculta con el texto puesto.
+func _refresh_state_row() -> void:
+	if _state_row == null or _state_line == null:
+		return
+	_state_row.visible = _state_line.visible or (_machine_chips and _machine_chips.visible) or (_changes_button and _changes_button.visible)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_ENTER_TREE and _state_row:
+		_refresh_machine_chips()
+		_refresh_state_row()
 
 
 ## La pista del tooltip de un chip que hace algo al clic (m12-56).
@@ -1245,8 +1260,7 @@ func set_turn_changes(summary: Dictionary) -> void:
 	if not files.is_empty():
 		var count := I18n.t("1 file") if files.size() == 1 else I18n.t("%d files") % files.size()
 		_changes_button.text = "%s · +%d −%d" % [count, int(summary.get("added", 0)), int(summary.get("removed", 0))]
-	if _state_row:
-		_state_row.visible = _state_line.visible or _machine_chips.visible or _changes_button.visible
+	_refresh_state_row()
 
 
 ## Los chips que salen de `machine_states`: solo las máquinas `live`, como

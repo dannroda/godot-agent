@@ -4,6 +4,14 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **Find in Files for the agent.** A new `find_in_files` tool searches the text of the project's files like the editor's Find in Files: the files the editor knows, with Godot's text extensions (`.gd`, `.tscn`, `.tres`, `.gdshader`…; the editor's own search skips scenes by default) plus the ones the project adds, as text or a regular expression, in a folder or only some extensions. Agents without their own search tool no longer need `grep` in the shell.
+
+### Fixed
+
+- **The "Working…" line could stay hidden** above the composer while the agent worked, when the session changed state while the dock was out of the editor's tree (for example, a session resumed as the editor opened).
+
 ### Changed
 
 - **The agent inspects scenes with the editor tools.** The system prompt now tells the agent to look at a scene with `godot.scene_tree` and `godot.get_node` (or to Read the `.tscn`), and not with `sed`, `grep` or `head` in the shell, which asked for permission in Build.

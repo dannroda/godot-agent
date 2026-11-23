@@ -466,7 +466,44 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	await _check_hunk_guards()
 	await _check_scene_reject_reload()
 	await _check_tool_buttons()
+	await _check_find_in_files()
 	return failures
+
+
+## m11-74: find_in_files busca como «Buscar en archivos»: texto, regex, extensiones y carpeta.
+func _check_find_in_files() -> void:
+	var dir := "res://tests/tmp/find_check"
+	_remove_tree(ProjectSettings.globalize_path(dir))
+	_write(dir + "/a.gd", "extends Node\n# find-check-needle uno\nvar FindCheckNeedle := 2\n")
+	_write(dir + "/b.tscn", "[gd_scene format=3]\n\n[node name=\"find-check-needle\" type=\"Node\"]\n")
+	_write(dir + "/ignored/.gdignore", "")
+	_write(dir + "/ignored/c.gd", "# find-check-needle oculto\n")
+	var fs := EditorInterface.get_resource_filesystem()
+	fs.scan()
+	await _until_scanned(fs)
+	var all := await _call_text("find_in_files", {"pattern": "find-check-needle", "path": dir})
+	_expect(all.contains(dir + "/a.gd:2: # find-check-needle uno") and all.contains(dir + "/b.tscn:3:") and not all.contains("oculto"), "busca en .gd y .tscn, sin la carpeta con .gdignore · %s" % all)
+	_expect(all.begins_with("2 matches"), "dos coincidencias · %s" % all.left(80))
+	var only_scenes := await _call_text("find_in_files", {"pattern": "find-check-needle", "path": dir, "extensions": ["tscn"]})
+	_expect(only_scenes.contains("b.tscn") and not only_scenes.contains("a.gd"), "solo .tscn")
+	var case_hit := await _call_text("find_in_files", {"pattern": "findcheckneedle", "path": dir})
+	_expect(case_hit.contains("a.gd:3:"), "sin distinguir mayúsculas por defecto")
+	var case_miss := await _call_text("find_in_files", {"pattern": "findcheckneedle", "path": dir, "case_sensitive": true})
+	_expect(case_miss.begins_with("No matches"), "case_sensitive · %s" % case_miss)
+	var regex := await _call_text("find_in_files", {"pattern": "Needle := \\d", "path": dir, "regex": true})
+	_expect(regex.contains("a.gd:3:"), "regex · %s" % regex)
+	var bad: Dictionary = await _call("find_in_files", {"pattern": "(", "regex": true, "path": dir})
+	_expect(bad.get("isError", false), "regex inválida → error")
+	_remove_tree(ProjectSettings.globalize_path(dir))
+	fs.scan()
+	await _until_scanned(fs)
+
+
+func _until_scanned(fs: EditorFileSystem) -> void:
+	await _tree.process_frame
+	var deadline := Time.get_ticks_msec() + 10000
+	while fs.is_scanning() and Time.get_ticks_msec() < deadline:
+		await _tree.process_frame
 
 
 ## m11-73: los botones de @export_tool_button. get_node los lista y press_tool_button los aprieta,

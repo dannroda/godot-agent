@@ -6530,3 +6530,9 @@ msgstr "Aprieta un botón que un script @tool agregó al inspector"
 
 msgid "Press a tool button"
 msgstr "Apretar un botón de herramienta"
+
+msgid "Searches the text of the project's files, like Find in Files"
+msgstr "Busca en el texto de los archivos del proyecto, como Buscar en archivos"
+
+msgid "Search in files"
+msgstr "Buscar en archivos"
