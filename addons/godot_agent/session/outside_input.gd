@@ -25,13 +25,14 @@ const MAX_INPUTS := 5
 ## La etiqueta de una entrada de afuera en el chat (ChatEntry.incoming): «De opus-0», «Terminó una
 ## tarea en segundo plano». `translate` false = en inglés (el export).
 static func caption(incoming: Dictionary, translate: bool = true) -> String:
-	var t := func(text: String) -> String: return I18n.t(text) if translate else text
 	if str(incoming.get("kind", "")) == KIND_TASK:
 		var status := str(incoming.get("status", ""))
-		var finished: String = t.call("Background task finished")
+		var finished := I18n.t("Background task finished") if translate else "Background task finished"
 		return finished if status.is_empty() or status == "completed" else "%s (%s)" % [finished, status]
 	var from := str(incoming.get("from", ""))
-	return t.call("From another session") if from.is_empty() else t.call("From %s") % from
+	if from.is_empty():
+		return I18n.t("From another session") if translate else "From another session"
+	return (I18n.t("From %s") if translate else "From %s") % from
 
 
 ## El final del archivo en líneas, sin la primera (que puede estar cortada a la mitad si no se leyó

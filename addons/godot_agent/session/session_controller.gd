@@ -360,11 +360,7 @@ func setup(session_model: SessionModel, log_sink: AgentLog, working_dir: String)
 	cwd = working_dir
 	model.unexpected_transition.connect(_on_unexpected_transition)
 	model.permission_requested.connect(_on_permission_requested)
-	# Las entradas de afuera que ya están en el chat (también las del historial al reanudar) no se
-	# vuelven a mostrar (m12-61).
-	model.entry_added.connect(func(entry: ChatEntry) -> void:
-		if not entry.incoming.is_empty():
-			_incoming_seen[str(entry.incoming.get("uuid", ""))] = true)
+	model.entry_added.connect(_on_entry_added)
 	client = AcpClient.new()
 	client.setup(_send_line, agent_log)
 	quota = QuotaMonitor.new()
@@ -2259,6 +2255,14 @@ func _notice_outside_turn(update: Dictionary) -> void:
 			return
 		_outside_turn_noticed = true
 		model.add_notice(I18n.t("The agent is answering something it received outside this chat (a message from another Claude Code session or a background task that finished): the editor only gets its answer. To see the messages between sessions, ask the agents to use godot.session_send."))
+
+
+## Las entradas de afuera que ya están en el chat (también las del historial al reanudar) no se
+## vuelven a mostrar (m12-61). Un método y no una lambda: la lambda guardaría el controller en el
+## modelo y ninguno de los dos se liberaría.
+func _on_entry_added(entry: ChatEntry) -> void:
+	if not entry.incoming.is_empty():
+		_incoming_seen[str(entry.incoming.get("uuid", ""))] = true
 
 
 ## Lo que arrancó el turno, leído del final del transcript: cada entrada nueva va al chat y al
