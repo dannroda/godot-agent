@@ -6,6 +6,7 @@ extends RefCounted
 const McpTool := preload("../mcp_tool.gd")
 const UntrustedText := preload("../untrusted_text.gd")
 const SceneAccess := preload("scene_access.gd")
+const SceneEditTools := preload("scene_edit_tools.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const NativeInstall := preload("../../core/native_install.gd")
 const SupervisorState := preload("../../supervisor/supervisor_state.gd")
@@ -189,6 +190,12 @@ func _get_node(args: Dictionary) -> Dictionary:
 	lines.append("Non-default properties:" + (" (none)" if props.is_empty() else ""))
 	for key: String in props:
 		lines.append("  %s = %s" % [key, props[key]])
+	var buttons := SceneEditTools.tool_buttons(node)
+	if not buttons.is_empty():
+		var names: PackedStringArray = []
+		for button: Dictionary in buttons:
+			names.append("%s («%s»)" % [button.name, button.text])
+		lines.append("Tool buttons (press_tool_button): %s" % ", ".join(names))
 	var connections := SceneAccess.persistent_connections(root, node)
 	lines.append("Connected signals:" + (" (none)" if connections.is_empty() else ""))
 	for connection: String in connections:

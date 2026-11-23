@@ -6524,3 +6524,9 @@ msgstr "Leer el Output"
 
 msgid "What the editor printed to the Output panel since a mark"
 msgstr "Lo que imprimió el editor en el panel Output desde una marca"
+
+msgid "Presses a button that a @tool script added to the inspector"
+msgstr "Aprieta un botón que un script @tool agregó al inspector"
+
+msgid "Press a tool button"
+msgstr "Apretar un botón de herramienta"

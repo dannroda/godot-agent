@@ -7,6 +7,7 @@ extends RefCounted
 ## EditorUndoRedoManager y devuelve el nombre del paso de undo.
 
 const McpTool := preload("../mcp_tool.gd")
+const UntrustedText := preload("../untrusted_text.gd")
 const WriteTargets := preload("../write_targets.gd")
 const SceneAccess := preload("scene_access.gd")
 const ValueCoercion := preload("value_coercion.gd")
@@ -62,6 +63,12 @@ func tools() -> Array:
 			"Connects a signal persistently (saved in the scene, with undo). If the method does not exist in the target's script, it warns you: create it by editing the script.",
 			{"from": {"type": "string"}, "signal": {"type": "string"}, "to": {"type": "string"}, "method": {"type": "string"}, "scene": SCENE_ARG},
 			["from", "signal", "to", "method"], _connect_signal),
+		# Grupo Editar escenas (m11-73): es el botón que el proyecto puso en el inspector para quien edita;
+		# corre su código como si lo apretara el usuario.
+		McpTool.create("press_tool_button", scene,
+			"Presses a button that a @tool script added to the inspector with @export_tool_button (a bake, a generate, a rebuild), as if the user clicked it. get_node lists a node's buttons. Returns what the button returned; what it printed is in get_output. A button that awaits returns when it finishes.",
+			{"node_path": {"type": "string"}, "button": {"type": "string", "description": "The property name of the @export_tool_button (or its text in the inspector)"}, "scene": SCENE_ARG},
+			["node_path", "button"], _press_tool_button),
 		McpTool.create("instantiate_scene", scene, "Instances a .tscn scene as a child of `parent` (with undo).",
 			{"parent": {"type": "string"}, "scene_path": {"type": "string"}, "name": {"type": "string"}, "scene": SCENE_ARG},
 			["parent", "scene_path"], _instantiate_scene),
@@ -635,6 +642,50 @@ static func script_template(extension: String, class_name_of_file: String, base:
 
 
 ## La escena sobre la que se edita: la indicada en `scene` (se abre si hace falta) o la actual.
+## Los botones de @export_tool_button de `object`: `{name, text}` (el texto es el que muestra el
+## inspector: el de la anotación, o el nombre de la propiedad).
+static func tool_buttons(object: Object) -> Array[Dictionary]:
+	var buttons: Array[Dictionary] = []
+	for property: Dictionary in object.get_property_list():
+		if int(property.get("hint", 0)) == PROPERTY_HINT_TOOL_BUTTON:
+			var text := str(property.get("hint_string", "")).get_slice(",", 0)
+			buttons.append({"name": str(property.name), "text": text if not text.is_empty() else str(property.name).capitalize()})
+	return buttons
+
+
+func _press_tool_button(args: Dictionary) -> Dictionary:
+	var root := _scene_root(args)
+	if root == null:
+		return _no_scene(args)
+	var node := SceneAccess.find_node(root, McpTool.str_arg(args, "node_path"))
+	if node == null:
+		return _missing(root, McpTool.str_arg(args, "node_path"))
+	var wanted := McpTool.str_arg(args, "button")
+	var buttons := tool_buttons(node)
+	var found: Dictionary = {}
+	for button: Dictionary in buttons:
+		if button.name == wanted or str(button.text).to_lower() == wanted.to_lower():
+			found = button
+			break
+	if found.is_empty():
+		var names: PackedStringArray = []
+		for button: Dictionary in buttons:
+			names.append("%s («%s»)" % [button.name, button.text])
+		if names.is_empty():
+			return McpTool.error("%s has no @export_tool_button buttons." % node.name)
+		return McpTool.error("%s has no button '%s'. Its buttons: %s" % [node.name, wanted, UntrustedText.wrap(", ".join(names))])
+	var callable: Variant = node.get(found.name)
+	if not callable is Callable or not (callable as Callable).is_valid():
+		return McpTool.error("The button %s of %s has nothing to call: its script must be @tool, and the editor must have reloaded it (a script with errors isn't)." % [found.name, node.name])
+	# Con await: un botón común devuelve enseguida; uno con await (una corrutina) devuelve al terminar.
+	# Sin await, GDScript no deja llamar una corrutina («async function without await»).
+	var result: Variant = await (callable as Callable).call()
+	var text := "Pressed «%s» on %s." % [found.text, node.name]
+	if result != null:
+		text += " It returned: %s" % UntrustedText.wrap(str(result).left(2000))
+	return McpTool.text(text)
+
+
 func _scene_root(args: Dictionary) -> Node:
 	var scene := McpTool.str_arg(args, "scene")
 	var root := EditorInterface.get_edited_scene_root()

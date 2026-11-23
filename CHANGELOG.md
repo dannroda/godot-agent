@@ -8,6 +8,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 - **Plan mode.** The mode selector has **Plan**, after Ask, like the Plan mode of the Claude Code extensions. In Plan every message is a request for a plan: the agent reads the project and presents a plan card before editing anything, and **Approve and build** switches to Build. It has Ask's permissions (the matrix column is shared) and its own remembered model, so you can plan with one model and build with another. The **Plan** button and `/plan` now switch to Plan instead of Ask. Commands starting with `/` still go as commands.
 
+- **The agent can press inspector buttons.** A new `press_tool_button` tool presses a button that a `@tool` script added with `@export_tool_button` (a bake, a generate, a rebuild), by its property name or its text, as if you clicked it; `get_node` lists a node's buttons. A button that awaits returns when it finishes, and what it prints is in `get_output`. It follows the **Edit scenes** permission.
 - **The agent can read the editor's Output.** A new `get_output` tool returns what the editor printed (editor scripts, `@tool` scripts and plugins: the progress of a bake, an import) since a mark, like `get_errors`, with the last `lines` and a `contains` filter. Before, `get_errors` only had errors and warnings, so an agent couldn't follow what a tool of the project printed.
 
 ### Changed

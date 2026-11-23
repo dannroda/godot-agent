@@ -17,6 +17,25 @@ const NEW_SCRIPT := "res://tests/tmp/edit_enemies.gd"
 const BOSS_SCRIPT := "res://tests/tmp/edit_boss.gd"
 const BOSS_SCENE := "res://tests/tmp/edit_boss.tscn"
 const BATCH_SCRIPT := "res://tests/tmp/edit_bar.gd"
+const BUTTON_SCRIPT := "res://tests/tmp/edit_tool_button.gd"
+const BUTTON_SOURCE := """@tool
+extends Node
+
+@export_tool_button("Bake it") var bake_button := bake
+@export_tool_button("Later") var later_button := later
+var pressed := 0
+
+
+func bake() -> String:
+	pressed += 1
+	print("tool-button-check: baked")
+	return "baked %d" % pressed
+
+
+func later() -> void:
+	await get_tree().process_frame
+	pressed += 10
+"""
 
 var _model: Object
 var _plugin: Node
@@ -38,7 +57,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	if _server == null or _plugin == null or _model == null:
 		failures.append("no se encontró el server, el plugin o el modelo")
 		return failures
-	for path: String in [EDIT_SCENE, NEW_SCENE, NEW_SCRIPT, BOSS_SCRIPT, BOSS_SCENE, BATCH_SCRIPT]:
+	for path: String in [EDIT_SCENE, NEW_SCENE, NEW_SCRIPT, BOSS_SCRIPT, BOSS_SCENE, BATCH_SCRIPT, BUTTON_SCRIPT]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	# Copia sin el uid de la cabecera: dos .tscn con el mismo uid confunden al editor.
 	var header_uid := RegEx.create_from_string(" uid=\"uid://[a-z0-9]+\"")
@@ -446,7 +465,39 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	_expect(not FileAccess.file_exists(thumb), "la tool save_scene guarda sin vista previa")
 	await _check_hunk_guards()
 	await _check_scene_reject_reload()
+	await _check_tool_buttons()
 	return failures
+
+
+## m11-73: los botones de @export_tool_button. get_node los lista y press_tool_button los aprieta,
+## por nombre o por texto; lo que imprimen está en get_output.
+func _check_tool_buttons() -> void:
+	_write(BUTTON_SCRIPT, BUTTON_SOURCE)
+	EditorInterface.get_resource_filesystem().update_file(BUTTON_SCRIPT)
+	await _tree.create_timer(0.5).timeout
+	await _call_text("open_scene", {"path": EDIT_SCENE})
+	await _call_text("add_node", {"parent": ".", "type": "Node", "name": "Baker"})
+	await _call_text("attach_script", {"node_path": "Baker", "script_path": BUTTON_SCRIPT})
+	var baker := EditorInterface.get_edited_scene_root().get_node_or_null("Baker")
+	_expect(baker != null and baker.get_script() != null, "Baker con el script @tool")
+	if baker == null:
+		return
+	var info := await _call_text("get_node", {"node_path": "Baker"})
+	_expect(info.contains("Tool buttons (press_tool_button): bake_button («Bake it»), later_button («Later»)"), "get_node lista los botones · %s" % info)
+	var mark := int(str(await _call_text("get_output", {})).get_slice(" ", 1))
+	var pressed := await _call_text("press_tool_button", {"node_path": "Baker", "button": "bake_button"})
+	_expect(pressed.contains("Pressed «Bake it» on Baker.") and pressed.contains("baked 1") and int(baker.get(&"pressed")) == 1, "press_tool_button por nombre, con lo que devuelve · %s" % pressed)
+	var output := await _call_text("get_output", {"since": mark, "contains": "tool-button-check"})
+	_expect(output.contains("tool-button-check: baked"), "lo que imprimió el botón está en get_output · %s" % output)
+	await _call_text("press_tool_button", {"node_path": "Baker", "button": "later"})
+	_expect(int(baker.get(&"pressed")) == 11, "press_tool_button por el texto; con await, devuelve al terminar (%d)" % int(baker.get(&"pressed")))
+	var missing: Dictionary = await _call("press_tool_button", {"node_path": "Baker", "button": "nope"})
+	_expect(missing.get("isError", false) and _text(missing).contains("bake_button («Bake it»)"), "un botón que no existe da error con los que hay")
+	var none: Dictionary = await _call("press_tool_button", {"node_path": ".", "button": "x"})
+	_expect(none.get("isError", false) and _text(none).contains("has no @export_tool_button"), "un nodo sin botones da error")
+	await _call_text("remove_node", {"node_path": "Baker"})
+	await _call_text("save_scene", {})
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(BUTTON_SCRIPT))
 
 
 static func _preview_thumbnail(scene_path: String) -> String:
