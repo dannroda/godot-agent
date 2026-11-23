@@ -36,6 +36,7 @@ const TerminalHandler := preload("acp/terminal_handler.gd")
 const PermissionPolicy := preload("session/permission_policy.gd")
 const ProjectConfig := preload("config/project_config.gd")
 const Recipes := preload("core/recipes.gd")
+const ProjectDirs := preload("core/project_dirs.gd")
 const ExternalMcpServers := preload("mcp/external_mcp_servers.gd")
 const ScopeCompass := preload("mcp/scope_compass.gd")
 const ChatEntry := preload("session/chat_entry.gd")
@@ -726,7 +727,7 @@ func _point_game_for_dock(uv: Vector2) -> Dictionary:
 	if not EditorInterface.is_playing_scene():
 		return {"error": I18n.t("No game is running.")}
 	if _run_tools == null or not _playtest_debugger.has_probe():
-		return {"error": I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced.")}
+		return {"error": I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → Advanced.")}
 	if _playtest_debugger.any_breaked():
 		return {"error": I18n.t("The game is stopped in the debugger: continue it first.")}
 	return await _run_tools.point_at(uv)
@@ -737,7 +738,7 @@ func _capture_game_for_dock() -> Variant:
 	if not EditorInterface.is_playing_scene():
 		return I18n.t("No game is running.")
 	if _run_tools == null or not _playtest_debugger.has_probe():
-		return I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → MCP servers → Advanced.")
+		return I18n.t("This run has no playtest autoload, so it cannot be captured. Run it from the agent, or enable «Use the playtest autoload also when running the game manually» in Settings → Advanced.")
 	var frame: Variant = await _run_tools.capture_frame()
 	return frame if frame is Image else I18n.t("Could not capture the game frame.")
 
@@ -1390,6 +1391,40 @@ func _oneshot_defaults() -> Dictionary:
 	}
 
 
+## «Guardar servidores» de Extensions → Servidores MCP (m12-58): los del usuario en EditorSettings, los
+## del proyecto en su config; los escritos acá quedan aprobados en esta máquina (m11-31).
+func _save_mcp_servers(user: Array, project: Array, approve: PackedStringArray) -> String:
+	var before: Array = _project_config.mcp_servers
+	_project_config.mcp_servers = project
+	var result := _project_config.save_to_project()
+	if result != OK:
+		_project_config.mcp_servers = before
+		return I18n.t("Could not save %s: %s") % [ProjectConfig.PATH, error_string(result)]
+	_settings.save_mcp_servers(user)
+	for key: String in approve:
+		_settings.approve_command(key)
+	_on_settings_saved()
+	return ""
+
+
+## «Cambiar carpeta…» de Extensions (m12-58): recetas, modos o tools del proyecto. Devuelve el error.
+func _set_project_folder(kind: String, path: String) -> String:
+	var property: String = {ExtensionsWindow.FOLDER_RECIPES: "recipes_dir", ExtensionsWindow.FOLDER_MODES: "modes_dir", ExtensionsWindow.FOLDER_PROJECT_TOOLS: "project_tools_dir"}.get(kind, "")
+	if property.is_empty() or _project_config == null:
+		return "Unknown folder: %s" % kind
+	var normalized := ProjectToolLoader.normalize_dir(path) if kind == ExtensionsWindow.FOLDER_PROJECT_TOOLS else ProjectDirs.normalize(path)
+	if normalized.is_empty():
+		return I18n.t("«%s» can't be used: pick a visible folder inside the project, outside addons/godot_agent.") % path
+	var before: Variant = _project_config.get(property)
+	_project_config.set(property, normalized)
+	var result := _project_config.save_to_project()
+	if result != OK:
+		_project_config.set(property, before)
+		return I18n.t("Could not save %s: %s") % [ProjectConfig.PATH, error_string(result)]
+	_on_settings_saved()
+	return ""
+
+
 ## Guarda la config del proyecto («Permitir siempre» del modo Auto, permisos, skills apagadas…).
 func _save_project_config() -> void:
 	var result := _project_config.save_to_project()
@@ -1572,7 +1607,6 @@ func _get_settings_dialog() -> SettingsDialog:
 			_completion.metrics.clear()
 	_settings_dialog.saved.connect(_on_settings_saved)
 	_settings_dialog.update_checker = _check_updates.bind(true)
-	_settings_dialog.show_tools = func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS)
 	EditorInterface.get_base_control().add_child(_settings_dialog)
 	return _settings_dialog
 
@@ -1598,6 +1632,8 @@ func _get_extensions_window() -> ExtensionsWindow:
 			_extensions_window.hide()
 			(dock as AgentDock).open_recipe(slug))
 	_extensions_window.modes_dir_provider = _modes_dir
+	_extensions_window.project_tools_dir_provider = func() -> String: return ProjectToolLoader.resolve_dir(_project_config.project_tools_dir if _project_config else "")
+	_extensions_window.folder_setter = _set_project_folder
 	_extensions_window.mode_use_requested.connect(func(slug: String) -> void:
 		var dock := _tabs.dock(_active_session_id()) as AgentDock if _tabs else null
 		if is_instance_valid(dock):
@@ -1621,7 +1657,9 @@ func _get_extensions_window() -> ExtensionsWindow:
 	_extensions_window.disabled_skills_changed.connect(func(names: PackedStringArray) -> void:
 		_project_config.disabled_skills = names
 		_save_project_config())
-	_extensions_window.mcp_settings_requested.connect(func() -> void: _get_settings_dialog().open(SettingsDialog.SettingsSection.MCP))
+	_extensions_window.mcp_servers_loader = func() -> Dictionary:
+		return {"user": _settings.mcp_servers(), "project": _project_config.mcp_servers, "is_approved": _settings.is_command_approved, "project_dir": ProjectSettings.globalize_path("res://")}
+	_extensions_window.mcp_servers_saver = _save_mcp_servers
 	EditorInterface.get_base_control().add_child(_extensions_window)
 	return _extensions_window
 

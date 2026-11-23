@@ -64,7 +64,7 @@ func _run_tests(args: Dictionary) -> Dictionary:
 	if runner.needs_approval:
 		var key := TurnChecks.approval_key(project_dir, str(runner.command))
 		if not (is_approved.is_valid() and is_approved.call(key)):
-			return McpTool.error("The project's test command («%s», from the check «%s») isn't approved on this machine, so it can't run. Ask the user to allow it in Settings → MCP servers → Advanced → Project checks after each turn (it came with the project; they should check it before allowing it). Don't run it from the shell instead." % [runner.command, runner.check_name])
+			return McpTool.error("The project's test command («%s», from the check «%s») isn't approved on this machine, so it can't run. Ask the user to allow it in Settings → After each turn → Project checks after each turn (it came with the project; they should check it before allowing it). Don't run it from the shell instead." % [runner.command, runner.check_name])
 	var paths := PackedStringArray()
 	var raw: Variant = args.get("paths", [])
 	if raw is String:

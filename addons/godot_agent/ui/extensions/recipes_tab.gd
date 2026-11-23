@@ -14,10 +14,18 @@ const AgentTheme := preload("../agent_theme.gd")
 const ExtensionsUi := preload("extensions_ui.gd")
 const Recipes := preload("../../core/recipes.gd")
 const RecipeTemplates := preload("../../core/recipe_templates.gd")
+const FolderRow := preload("folder_row.gd")
 const VALIDATE_DELAY_S := 0.3
 
 ## () -> String: la carpeta de recetas (res://… o absoluta).
 var dir_provider: Callable
+## (path: String) -> String: cambia la carpeta en la config del proyecto; el error, o "" (m12-58).
+var dir_setter: Callable:
+	set(value):
+		dir_setter = value
+		if _folder:
+			_folder.setter = value
+var _folder: FolderRow
 
 var _list: ItemList
 var _editor: CodeEdit
@@ -46,6 +54,7 @@ func _texts() -> Dictionary:
 		"dirty": I18n.t("Save or revert «%s» before opening another recipe."),
 		"valid": I18n.t("✓ The recipe is valid."),
 		"invalid_use": I18n.t("Save a valid recipe first."),
+		"folder": I18n.t("Recipes folder:"),
 	}
 
 
@@ -82,6 +91,10 @@ func _init() -> void:
 	add_child(page)
 	var texts := _texts()
 	page.add_child(ExtensionsUi.muted(texts.intro))
+	_folder = FolderRow.new(texts.folder)
+	_folder.current = recipes_dir
+	_folder.changed.connect(refresh)
+	page.add_child(_folder)
 	var split := HBoxContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	split.add_theme_constant_override(&"separation", AgentTheme.px(8))
@@ -166,6 +179,7 @@ func recipes_dir() -> String:
 
 ## Vuelve a leer la carpeta. El .json abierto queda abierto (con lo que no se guardó).
 func refresh() -> void:
+	_folder.refresh()
 	_loaded = _load_items()
 	_filling = true
 	_list.clear()

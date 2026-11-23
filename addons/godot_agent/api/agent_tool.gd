@@ -1,7 +1,7 @@
 @tool
 extends RefCounted
 ## Base de una tool propia del proyecto (m11-46): un archivo en res://agent_tools/ (o la carpeta de
-## Settings → MCP servers → Avanzado) que el agente llama con godot.run. El nombre de la tool es el
+## Settings → Avanzado) que el agente llama con godot.run. El nombre de la tool es el
 ## del archivo: res://agent_tools/build_level.gd es godot.build_level.
 ##
 ##     @tool

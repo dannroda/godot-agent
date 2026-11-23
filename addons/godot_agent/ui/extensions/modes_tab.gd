@@ -24,6 +24,7 @@ func _texts() -> Dictionary:
 		"dirty": I18n.t("Save or revert «%s» before opening another mode."),
 		"valid": I18n.t("✓ The mode is valid."),
 		"invalid_use": I18n.t("Save a valid mode first."),
+		"folder": I18n.t("Modes folder:"),
 	}
 
 

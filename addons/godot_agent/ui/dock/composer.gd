@@ -710,10 +710,10 @@ func _on_input_gui_input(event: InputEvent) -> void:
 		_input.accept_event()
 		return
 	var plain := not (key.is_command_or_control_pressed() or key.shift_pressed or key.alt_pressed)
-	if plain and key.keycode == KEY_UP and _input.get_caret_line() == 0 and _recall(-1):
+	if plain and key.keycode == KEY_UP and caret_on_first_row() and _recall(-1):
 		_input.accept_event()
 		return
-	if plain and key.keycode == KEY_DOWN and _input.get_caret_line() == _input.get_line_count() - 1 and _recall(1):
+	if plain and key.keycode == KEY_DOWN and caret_on_last_row() and _recall(1):
 		_input.accept_event()
 		return
 	if key.keycode == KEY_V and key.is_command_or_control_pressed() and not (key.shift_pressed or key.alt_pressed) and _paste_attachment():
@@ -841,6 +841,19 @@ func _insert_node_mentions(nodes: Array) -> void:
 
 
 # --- historial de prompts ------------------------------------------------------------------------
+
+## ↑ trae el prompt anterior solo desde la primera fila que se ve: una línea larga que se parte en
+## varias filas cuenta como una sola línea para get_caret_line, y ↑ tiene que subir el cursor por esas
+## filas antes de ir al historial.
+func caret_on_first_row() -> bool:
+	return _input.get_caret_line() == 0 and _input.get_caret_wrap_index() == 0
+
+
+## ↓ va al prompt siguiente solo desde la última fila que se ve.
+func caret_on_last_row() -> bool:
+	var last := _input.get_line_count() - 1
+	return _input.get_caret_line() == last and _input.get_caret_wrap_index() == _input.get_line_wrap_count(last)
+
 
 ## `direction` -1: uno más viejo; 1: uno más nuevo (después del más nuevo, el borrador). false si no
 ## hay a dónde ir (la flecha mueve el caret como siempre).

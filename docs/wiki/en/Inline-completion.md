@@ -33,7 +33,7 @@ The project index builds in the background the first time you open a script in t
 
 ## Settings
 
-**Settings → Completion** edits everything and shows each source's latency (p50/p95) and acceptance rate for the session. Changes apply without restarting.
+**Settings → Code completion** edits everything and shows each source's latency (p50/p95) and acceptance rate for the session. Changes apply without restarting.
 
 - on/off;
 - debounce, threshold and margin;
@@ -45,7 +45,7 @@ The **● Completion** indicator in the Script Editor bar shows the state: green
 
 ## With an LLM (optional)
 
-Pick the mode in **Settings → Completion**:
+Pick the mode in **Settings → Code completion**:
 
 - **Local only** (default): no network.
 - **Hybrid**: local suggestions as always. If there's nothing local, after 200 ms without typing the LLM is asked.

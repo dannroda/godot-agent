@@ -40,7 +40,7 @@ func _ready() -> void:
 	var later := Button.new()
 	later.text = I18n.t("Later")
 	later.flat = true
-	later.tooltip_text = I18n.t("Don't show this version again. Settings → Interface checks again.")
+	later.tooltip_text = I18n.t("Don't show this version again. Settings → General checks again.")
 	later.pressed.connect(func() -> void:
 		visible = false
 		dismissed.emit())

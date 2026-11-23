@@ -10,8 +10,6 @@ extends AcceptDialog
 signal new_session_requested
 ## Las skills apagadas en el proyecto cambiaron (la pestaña Skills).
 signal disabled_skills_changed(names: PackedStringArray)
-## «Agregar server» de la pestaña MCP: los servers del addon se editan en Settings.
-signal mcp_settings_requested
 ## «Configurar un agente…» cuando no hay ninguno (m12-30): abrir Ajustes › Agentes.
 signal agents_requested
 ## «Use in the dock» en la pestaña Recipes (m11-30): el formulario de esa receta en el dock.
@@ -29,15 +27,19 @@ const InstructionsTab := preload("instructions_tab.gd")
 const MemoryTab := preload("memory_tab.gd")
 const ToolsTab := preload("tools_tab.gd")
 const RecipesTab := preload("recipes_tab.gd")
+const McpServersPage := preload("../settings/mcp_servers_page.gd")
 const ModesTab := preload("modes_tab.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const SkillCatalog := preload("../../extensions/skill_catalog.gd")
 
+const FOLDER_RECIPES := "recipes"
+const FOLDER_MODES := "modes"
+const FOLDER_PROJECT_TOOLS := "project_tools"
 enum ExtensionsTab { PLUGINS, MARKETPLACES, MCP, SKILLS, GODOT_ADDONS, INSTRUCTIONS, TOOLS, MEMORY, RECIPES, MODES }
 const AVAILABLE_LIMIT := 30
 const MCP_ORIGIN_ORDER: PackedStringArray = ["addon", "user", "project", "local", "claude.ai", "plugin", "other"]
 const MCP_ORIGIN_LABELS: Dictionary = {
-	"addon": "This addon (Settings → MCP servers)",  # i18n
+	"addon": "This addon",  # i18n
 	"user": "User",  # i18n
 	"project": "Project (.mcp.json)",  # i18n
 	"local": "Local (this project, only you)",  # i18n
@@ -84,6 +86,18 @@ var tools_approve: Callable
 var recipes_dir_provider: Callable
 ## () -> String: la carpeta de modos del proyecto (m11-39).
 var modes_dir_provider: Callable
+## (kind: String, path: String) -> String: cambia la carpeta `kind` (FOLDER_*) en la config del
+## proyecto; devuelve el error, o "" (m12-58).
+var folder_setter: Callable
+## () -> String: la carpeta de las tools del proyecto (m12-58).
+var project_tools_dir_provider: Callable
+## () -> {user: Array, project: Array, is_approved: Callable, project_dir: String}: los servidores MCP
+## que agrega el addon, para editarlos acá (m12-58; antes había otra sección en Ajustes).
+var mcp_servers_loader: Callable
+## (user: Array, project: Array, approve: PackedStringArray) -> String: los guarda; el error, o "".
+var mcp_servers_saver: Callable
+var _mcp_editor: McpServersPage
+var _mcp_save_status: Label
 
 var _tabs: TabContainer
 ## Las secciones a la izquierda, como en Ajustes: seis pestañas no entraban en la ventana (m12-04).
@@ -203,17 +217,21 @@ func _build() -> void:
 	_tools_tab.approve = func(data: Dictionary) -> void:
 		if tools_approve.is_valid():
 			tools_approve.call(data)
+	_tools_tab.folder.current = func() -> String: return str(project_tools_dir_provider.call()) if project_tools_dir_provider.is_valid() else ""
+	_tools_tab.folder.setter = _set_folder.bind(FOLDER_PROJECT_TOOLS)
 	_tabs.add_child(_tools_tab)
 	_memory_tab = MemoryTab.new()
 	_memory_tab.status_changed.connect(_set_status)
 	_tabs.add_child(_memory_tab)
 	_recipes_tab = RecipesTab.new()
 	_recipes_tab.dir_provider = func() -> String: return str(recipes_dir_provider.call()) if recipes_dir_provider.is_valid() else RecipesTab.Recipes.DEFAULT_DIR
+	_recipes_tab.dir_setter = _set_folder.bind(FOLDER_RECIPES)
 	_recipes_tab.status_changed.connect(_set_status)
 	_recipes_tab.use_requested.connect(func(slug: String) -> void: recipe_use_requested.emit(slug))
 	_tabs.add_child(_recipes_tab)
 	_modes_tab = ModesTab.new()
 	_modes_tab.dir_provider = func() -> String: return str(modes_dir_provider.call()) if modes_dir_provider.is_valid() else ModesTab.ProjectModes.DEFAULT_DIR
+	_modes_tab.dir_setter = _set_folder.bind(FOLDER_MODES)
 	_modes_tab.status_changed.connect(_set_status)
 	_modes_tab.use_requested.connect(func(slug: String) -> void: mode_use_requested.emit(slug))
 	_tabs.add_child(_modes_tab)
@@ -230,9 +248,15 @@ func _build() -> void:
 	_update_tab_titles()
 
 
+## La carpeta de recetas, modos o tools del proyecto (m12-58). Error para mostrar, o "".
+func _set_folder(path: String, kind: String) -> String:
+	return str(folder_setter.call(kind, path)) if folder_setter.is_valid() else ""
+
+
 ## Abre la ventana y vuelve a leer todo (el estado de los MCP tarda unos segundos).
 func open(tab: ExtensionsTab = ExtensionsTab.PLUGINS) -> void:
 	_build()
+	_load_mcp_editor()
 	_tabs.current_tab = tab
 	_nav.select(tab)
 	popup_centered_clamped(Vector2i(AgentTheme.px(820), AgentTheme.px(760)), 0.9)
@@ -326,14 +350,52 @@ func _build_mcp_tab() -> Control:
 	_mcp_box = ExtensionsUi.scroll_list(page)
 	var hint := ExtensionsUi.muted(I18n.t("In a session, /mcp in the chat reconnects or turns off a server (/mcp reconnect <name>, /mcp disable <name>)."))
 	page.add_child(hint)
-	var add := Button.new()
-	add.text = I18n.t("Add server")
-	add.tooltip_text = I18n.t("Servers for the agent are added in Settings → MCP servers.")
-	add.pressed.connect(func() -> void:
-		hide()
-		mcp_settings_requested.emit())
-	page.add_child(add)
+	page.add_child(HSeparator.new())
+	# Los servidores que agrega el addon se editan acá (m12-58): antes había otra sección «Servidores
+	# MCP» en Ajustes y este botón mandaba allá.
+	var editor_box := ExtensionsUi.scroll_list(page)
+	_mcp_editor = McpServersPage.new()
+	_mcp_editor.name = "McpServersEditor"
+	editor_box.add_child(_mcp_editor)
+	var save_bar := HBoxContainer.new()
+	page.add_child(save_bar)
+	_mcp_save_status = ExtensionsUi.muted("")
+	_mcp_save_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	save_bar.add_child(_mcp_save_status)
+	var discard := Button.new()
+	discard.text = I18n.t("Discard changes")
+	discard.pressed.connect(_load_mcp_editor)
+	save_bar.add_child(discard)
+	var save := Button.new()
+	save.name = "SaveMcpServers"
+	save.text = I18n.t("Save servers")
+	save.tooltip_text = I18n.t("They apply from the next session.")
+	save.pressed.connect(save_mcp_servers)
+	save_bar.add_child(save)
 	return page.get_parent()
+
+
+func _load_mcp_editor() -> void:
+	if _mcp_editor == null or not mcp_servers_loader.is_valid():
+		return
+	var data: Dictionary = mcp_servers_loader.call()
+	_mcp_editor.load_from(data.get("user", []), data.get("project", []), data.get("is_approved", Callable()), str(data.get("project_dir", "")))
+	_mcp_save_status.text = ""
+
+
+## «Guardar servidores» (m12-58): valida y guarda; devuelve el error, o "".
+func save_mcp_servers() -> String:
+	_mcp_editor.apply_pending()
+	var error := _mcp_editor.validate()
+	if error.is_empty() and mcp_servers_saver.is_valid():
+		error = str(mcp_servers_saver.call(_mcp_editor.user_servers(), _mcp_editor.project_servers(), _mcp_editor.keys_to_approve()))
+	_mcp_save_status.add_theme_color_override(&"font_color", AgentTheme.ERROR if not error.is_empty() else AgentTheme.MUTED)
+	_mcp_save_status.text = error if not error.is_empty() else I18n.t("Saved. They apply from the next session.")
+	if error.is_empty():
+		_load_mcp_editor()
+		_mcp_save_status.text = I18n.t("Saved. They apply from the next session.")
+		_rebuild_mcp()
+	return error
 
 
 # --- carga ---------------------------------------------------------------------------------------

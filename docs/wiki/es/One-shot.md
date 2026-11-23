@@ -120,7 +120,7 @@ Si el agente informa la cuota de su plan (Claude Code lo hace):
 
 - **Aviso** al 75 %.
 - **Pausa** al 90 %: el run se pausa al terminar la tarea o el turno en curso, para no cortar una tarea a la mitad. Si nada de eso pasa en 10 minutos, o la cuota llega al 98 %, corta el turno igual y se pausa con un checkpoint `-quota`. El banner dice cuándo va a pausar.
-- **Limitado**: al llegar al límite, el envío queda bloqueado con una cuenta regresiva, y un checkpoint `cpN-quota` guarda el estado. Cuando la ventana se reinicia, el run retoma solo o espera tu confirmación (**Settings → Cuota del plan**). **Retomar** prueba enseguida.
+- **Limitado**: al llegar al límite, el envío queda bloqueado con una cuenta regresiva, y un checkpoint `cpN-quota` guarda el estado. Cuando la ventana se reinicia, el run retoma solo o espera tu confirmación (**Settings → One-shot → Cuota del plan**). **Retomar** prueba enseguida.
 
 Los umbrales se aplican a la ventana más llena que limita al modelo en uso. El límite semanal de un modelo (el de Fable, por ejemplo) solo cuenta mientras el run usa ese modelo.
 
@@ -139,7 +139,7 @@ Fuera de un One-shot, el dock muestra el mismo botón **Cambiar de cuenta** al l
 
 #### Cuentas de reserva
 
-Para repartir un run largo entre varias suscripciones, activá **Ajustes → Cuota del plan → Cuando se agota una cuenta, seguir el One-shot con la siguiente cuenta del mismo agente**. Cuando el run llega al umbral de pausa o al límite del plan, no se pausa: pasa solo a la siguiente cuenta del mismo agente, en el orden del menú del agente del dock, y retoma la misma sesión. Saltea las cuentas que siguen agotadas o en el umbral. El run solo se pausa cuando no queda ninguna. La actividad dice qué cuenta tomó cada tramo.
+Para repartir un run largo entre varias suscripciones, activá **Ajustes → One-shot → Cuota del plan → Cuando se agota una cuenta, seguir el One-shot con la siguiente cuenta del mismo agente**. Cuando el run llega al umbral de pausa o al límite del plan, no se pausa: pasa solo a la siguiente cuenta del mismo agente, en el orden del menú del agente del dock, y retoma la misma sesión. Saltea las cuentas que siguen agotadas o en el umbral. El run solo se pausa cuando no queda ninguna. La actividad dice qué cuenta tomó cada tramo.
 
 ## Cerrar el editor con un run en curso
 

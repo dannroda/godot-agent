@@ -161,6 +161,25 @@ func test_prompt_history() -> void:
 	await _press(input, KEY_DOWN, false, false)
 	assert_eq(input.text, "borrador", "abajo sin historial que recorrer no hace nada")
 
+	# Una línea larga que se parte en varias filas (pedido del usuario, 23/11): arriba sube el cursor
+	# por las filas y recién desde la primera trae el anterior; abajo, igual hasta la última.
+	var long_text := "una línea larga que no entra en el ancho del composer y se parte en varias filas visuales al escribir"
+	input.text = long_text
+	await tree.process_frame
+	input.set_caret_column(long_text.length())
+	assert_true(input.get_line_wrap_count(0) > 0, "la línea se parte en filas")
+	await _press(input, KEY_UP, false, false)
+	assert_eq(input.text, long_text, "desde la última fila, arriba no trae el anterior")
+	assert_true(input.get_caret_wrap_index() < input.get_line_wrap_count(0), "sube una fila")
+	input.set_caret_column(0)
+	await _press(input, KEY_DOWN, false, false)
+	assert_eq(input.text, long_text, "desde la primera fila, abajo baja el cursor")
+	input.set_caret_column(0)
+	await _press(input, KEY_UP, false, false)
+	assert_eq(input.text, "tercero", "desde la primera fila, arriba trae el anterior")
+	await _press(input, KEY_DOWN, false, false)
+	assert_eq(input.text, long_text, "y abajo vuelve al borrador")
+
 	# Repetir el último no lo duplica; el historial queda en disco para la próxima vez.
 	input.text = "tercero"
 	await _press(input, KEY_ENTER, false, false)

@@ -120,7 +120,7 @@ If the agent reports its plan quota (Claude Code does):
 
 - **Warning** at 75 %.
 - **Pause** at 90 %: the run pauses when the current task or turn ends, so a task isn't cut in half. If neither happens within 10 minutes, or the quota reaches 98 %, it stops the turn anyway and pauses with a `-quota` checkpoint. The banner says when it will pause.
-- **Limited**: when the limit hits, sending is blocked with a countdown, and a `cpN-quota` checkpoint saves the state. When the window resets, the run resumes on its own or waits for your confirmation (**Settings → Plan quota**). **Resume** tries right away.
+- **Limited**: when the limit hits, sending is blocked with a countdown, and a `cpN-quota` checkpoint saves the state. When the window resets, the run resumes on its own or waits for your confirmation (**Settings → One-shot → Plan quota**). **Resume** tries right away.
 
 The thresholds apply to the fullest window that limits the model in use. A model's own weekly limit (Fable's, for example) only counts while the run uses that model.
 
@@ -139,7 +139,7 @@ Outside a One-shot, the dock shows the same **Switch account** button next to th
 
 #### Reserve accounts
 
-To spread a long run across several subscriptions, turn on **Settings → Plan quota → When an account runs out, continue the One-shot with the next account of the same agent**. When the run reaches the pause threshold or the plan limit, it doesn't pause: it switches by itself to the next account of the same agent, in the order of the dock's agent menu, and resumes the same session. It skips accounts that are still exhausted or at the threshold. The run only pauses when none is left. The activity says which account took each stretch.
+To spread a long run across several subscriptions, turn on **Settings → One-shot → Plan quota → When an account runs out, continue the One-shot with the next account of the same agent**. When the run reaches the pause threshold or the plan limit, it doesn't pause: it switches by itself to the next account of the same agent, in the order of the dock's agent menu, and resumes the same session. It skips accounts that are still exhausted or at the threshold. The run only pauses when none is left. The activity says which account took each stretch.
 
 ## Closing the editor mid-run
 

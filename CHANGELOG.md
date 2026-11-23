@@ -15,10 +15,13 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 - **Shell commands that only read files no longer ask you.** A command like `cd assets && ls -la | head`, `cat`, `grep`, `find` or `sed -n` that would have shown a permission card is rejected on its own: the chat shows "Not asked: … only reads files", and the agent is told to use its own file tools or `godot.list_files` and `godot.find_in_files`, which need no permission. When the shell is allowed, these commands run as before.
 - **`list_files` gives image sizes.** Each PNG, JPEG and WebP file comes with its width and height, read from the file header, so the agent doesn't write Python scripts for that. The system prompt also tells the agent not to inspect files with scripts.
+- **Settings, by topic.** The sections are now General (interface, language, notifications and updates), Agents, Permissions, After each turn, One-shot (with the plan quota), Code completion and Advanced. Checking for updates was under Interface, and most options (the checks after each turn, snapshots, plan criteria, the run-error notice, notifications) were hidden under MCP servers → Advanced. Each block says whether it belongs to **this project** (shared through git) or to **you, in every project**. The folders outside the project moved to Permissions, and the export filter to Advanced.
+- **Extensions is the one place for what you add.** The MCP servers of other programs are edited in Extensions → MCP servers, below the servers the agent has, with **Save servers**; Settings no longer has its own MCP servers section. The folders of recipes, project modes and project tools are changed with **Change folder…** in their Extensions tabs.
 
 ### Fixed
 
 - **`delete_file` missed relative paths.** It refused to delete a file named by `res://` path or uid, but deleted one that a script loaded with a relative path (`preload("bullet.tscn")`), breaking that script.
+- **↑ in a long message moves the cursor.** In the composer, ↑ recalled the previous prompt as soon as the cursor was on the first line, even when that line wrapped into several rows. Now it moves up through the rows first and only recalls the previous prompt from the top row; ↓ works the same way from the bottom row.
 
 ## [0.2.1] - 2026-11-23
 
