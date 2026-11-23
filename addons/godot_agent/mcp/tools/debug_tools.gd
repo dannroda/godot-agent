@@ -82,7 +82,7 @@ func tools() -> Array:
 				"line": {"type": "integer", "description": "Line number, from 1 as in the script editor"},
 			}, ["action"], _breakpoint),
 		McpTool.enveloped(McpTool.create("game_stack", read,
-			"While the running game is stopped in the debugger (a breakpoint or an error): the call stack (file, line, function; #0 is where it stopped) and the local and member variables of one frame. Values are shortened: nodes with their path, collections with their size and first items.",
+			"While the running game is stopped in the debugger (a breakpoint or an error): the call stack (file, line, function; #0 is where it stopped) and the local and member variables of one frame. Values are shortened: nodes with their path, collections with their size and first items. read_function with a frame's file and line shows its whole function.",
 			{
 				"frame": {"type": "integer", "description": "Which frame's variables (default 0)"},
 				"variables": {"type": "boolean", "description": "false: only the stack (default true)"},

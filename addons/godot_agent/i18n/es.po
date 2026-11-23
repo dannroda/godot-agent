@@ -6557,3 +6557,9 @@ msgstr "Qué usa un archivo, o qué archivos lo usan"
 
 msgid "Read dependencies"
 msgstr "Leer dependencias"
+
+msgid "Reads one GDScript function by name or line, also unsaved"
+msgstr "Lee una función de GDScript por nombre o por línea, también sin guardar"
+
+msgid "Read function"
+msgstr "Leer función"

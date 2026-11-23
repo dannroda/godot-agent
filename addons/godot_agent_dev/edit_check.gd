@@ -469,6 +469,7 @@ func run_edit(tree: SceneTree) -> PackedStringArray:
 	await _check_find_in_files()
 	await _check_inspector_state()
 	await _check_dependencies()
+	await _check_read_function()
 	return failures
 
 
@@ -554,6 +555,42 @@ func _check_find_in_files() -> void:
 	_remove_tree(ProjectSettings.globalize_path(dir))
 	fs.scan()
 	await _until_scanned(fs)
+
+
+## m11-83: read_function lee una función por nombre, por class_name y por línea, y del Script
+## Editor el texto sin guardar.
+func _check_read_function() -> void:
+	var dir := "res://tests/tmp/read_function_check"
+	var path := dir + "/walker.gd"
+	_remove_tree(ProjectSettings.globalize_path(dir))
+	_write(path, "class_name ReadFunctionCheck\nextends Node\n\n## Walks.\nfunc walk(speed: float) -> float:\n\tvar doubled := speed * 2\n\treturn doubled\n\n\nclass Inner:\n\tfunc walk() -> void:\n\t\tpass\n")
+	var fs := EditorInterface.get_resource_filesystem()
+	fs.scan()
+	await _until_scanned(fs)
+	var by_path := await _call_text("read_function", {"script": path, "name": "walk"})
+	_expect(by_path.begins_with(path + " · func walk · lines 4-7") and by_path.contains("    6  \tvar doubled") and not by_path.contains("unsaved"), "por ruta y nombre, del disco · %s" % by_path)
+	var by_class := await _call_text("read_function", {"script": "ReadFunctionCheck", "name": "Inner.walk"})
+	_expect(by_class.contains("func Inner.walk") and by_class.contains("pass"), "por class_name y clase interna · %s" % by_class)
+	var by_line := await _call_text("read_function", {"script": path, "line": 7})
+	_expect(by_line.contains("func walk ·"), "por línea · %s" % by_line.left(120))
+	EditorInterface.edit_script(load(path))
+	await _tree.process_frame
+	await _tree.process_frame
+	var code := EditorInterface.get_script_editor().get_current_editor().get_base_editor() as CodeEdit
+	code.set_caret_line(5)
+	code.set_caret_column(0)
+	code.insert_text_at_caret("\tprint(\"sin guardar\")\n")
+	var unsaved := await _call_text("read_function", {"script": path, "name": "walk"})
+	_expect(unsaved.contains("unsaved text") and unsaved.contains("sin guardar") and unsaved.contains("lines 4-8"), "el texto sin guardar del Script Editor · %s" % unsaved)
+	code.undo()
+	if code.get_version() != code.get_saved_version():
+		code.tag_saved_version()
+	var saved := await _call_text("read_function", {"script": path, "name": "walk"})
+	_expect(not saved.contains("unsaved"), "deshecho, vuelve al disco")
+	var missing: Dictionary = await _call("read_function", {"script": path, "name": "run"})
+	_expect(missing.get("isError", false) and str(missing).contains("Inner.walk"), "no existe: lista las que hay")
+	# El script queda abierto en el Script Editor: no se borra (un archivo abierto que desaparece
+	# abre un diálogo). tests/tmp está en .gitignore y la próxima corrida lo reescribe.
 
 
 func _until_scanned(fs: EditorFileSystem) -> void:
