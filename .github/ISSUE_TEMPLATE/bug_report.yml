@@ -49,6 +49,12 @@ body:
         - One-shot
         - Not related to a mode
   - type: textarea
+    id: diagnostic-report
+    attributes:
+      label: Diagnostic report
+      description: In the dock's ⋯ menu (or the Agent Log), Copy diagnostic report…, then paste it here. It has no paths, conversation text or account data.
+      render: json
+  - type: textarea
     id: what-happened
     attributes:
       label: What happened

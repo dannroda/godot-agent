@@ -31,6 +31,7 @@ signal action_forwarded(action: String, payload: Variant)
 ## borrador en su composer. `handoff` como Handoff.build (más `path` si se guardó).
 signal handoff_ready(handoff: Dictionary)
 
+const DiagnosticReportDialog := preload("../diagnostic_report_dialog.gd")
 const SessionExportDialog := preload("session_export_dialog.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const SuggestedAgents := preload("../../core/suggested_agents.gd")
@@ -86,6 +87,7 @@ const MORE_LOGOUT := 3
 const MORE_TOOLS := 4
 const MORE_EXPORT := 5
 const MORE_RESTART := 6
+const MORE_DIAGNOSTIC := 7
 ## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
 const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
@@ -165,6 +167,9 @@ var can_switch_session: Callable
 ## vacía lo retoma y el composer lo guía. Lo pone el plugin (m17-19); se lee al momento, no se copia
 ## (m13-14). Sin asignar: nunca.
 var oneshot_active: Callable
+## `() -> Dictionary`: el informe de diagnóstico de esta pestaña (m11-80, DiagnosticReport.build).
+## Sin asignar, el menú ⋯ no lo ofrece.
+var diagnostic_report: Callable
 ## «Seguir al agente» (m11-33): el editor salta a lo que edita el agente de esta pestaña. Por pestaña,
 ## apagado al abrirla; lo lee el plugin, que solo sigue a la pestaña activa.
 var follow_enabled: bool = false
@@ -760,6 +765,9 @@ func _fill_more_menu() -> void:
 	popup.set_item_disabled(popup.item_count - 1, _model.entries().is_empty())
 	popup.add_icon_item(AgentTheme.icon(&"Reload"), I18n.t("Restart and resume"), MORE_RESTART)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Saves the scenes, restarts the editor and reopens these tabs with their sessions. For a plugin or a setting that only applies after a restart."))
+	if diagnostic_report.is_valid():
+		popup.add_icon_item(AgentTheme.icon(&"Debug"), I18n.t("Copy diagnostic report…"), MORE_DIAGNOSTIC)
+		popup.set_item_tooltip(popup.item_count - 1, I18n.t("A report to paste in a bug report: versions, system, agent and connection state, with no paths, conversation text or account. You see it before copying."))
 	var ready := _model.state == SessionModel.SessionState.READY
 	if _remote_banner.can_turn_on() or _can_logout():
 		popup.add_separator()
@@ -789,6 +797,23 @@ func _on_more_selected(id: int) -> void:
 			open_export_dialog()
 		MORE_RESTART:
 			action_forwarded.emit(ACTION_RESTART_RESUME, null)
+		MORE_DIAGNOSTIC:
+			open_diagnostic_dialog()
+
+
+## «Copy diagnostic report…» (m11-80): la vista previa; «Copiar» lo deja en el portapapeles.
+func open_diagnostic_dialog() -> DiagnosticReportDialog:
+	if not diagnostic_report.is_valid():
+		return null
+	var dialog := DiagnosticReportDialog.new()
+	dialog.setup(diagnostic_report.call())
+	add_child(dialog)
+	dialog.copied.connect(func(_text: String) -> void: _model.add_notice(I18n.t("Diagnostic report copied.")))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free())
+	dialog.popup_centered()
+	return dialog
 
 
 ## «Mostrar anteriores» sin más entradas en memoria: las lee del historial (m7-55).

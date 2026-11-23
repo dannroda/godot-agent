@@ -7,11 +7,15 @@ const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const MarkdownBBCode := preload("../markdown/markdown_bbcode.gd")
 const I18n := preload("../../core/i18n.gd")
+const DiagnosticReportDialog := preload("../diagnostic_report_dialog.gd")
 
 ## Tope de caracteres del raw por línea en pantalla (el log guarda hasta AgentLog.RAW_LIMIT).
 const RAW_DISPLAY_LIMIT := 4000
 
 var _log: AgentLog
+## `() -> Dictionary`: el informe de diagnóstico de la pestaña activa (m11-80). Sin asignar, no hay botón.
+var diagnostic_report: Callable
+var _diagnostic_button: Button
 var _enabled_channels: Dictionary = {}  # StringName -> bool
 ## La línea resaltada (m12-36: «Abrir el log» desde un error) y el párrafo de cada entrada a la vista.
 var _highlight_seq: int = 0
@@ -58,11 +62,35 @@ func _ready() -> void:
 		_clear_button.icon = EditorInterface.get_editor_theme().get_icon(&"Clear", &"EditorIcons")
 	_raw_toggle.toggled.connect(func(_on: bool) -> void: _rebuild())
 	_copy_button.pressed.connect(_on_copy_pressed)
+	# Informe de diagnóstico (m11-80): al lado de Copiar, que copia las líneas (con rutas y texto).
+	_diagnostic_button = Button.new()
+	_diagnostic_button.name = "DiagnosticButton"
+	_diagnostic_button.flat = true
+	_diagnostic_button.tooltip_text = I18n.t("Copy diagnostic report…") + "\n" + I18n.t("A report to paste in a bug report: versions, system, agent and connection state, with no paths, conversation text or account. You see it before copying.")
+	if Engine.is_editor_hint():
+		_diagnostic_button.icon = EditorInterface.get_editor_theme().get_icon(&"Debug", &"EditorIcons")
+	else:
+		_diagnostic_button.text = "Report"
+	_diagnostic_button.pressed.connect(open_diagnostic_dialog)
+	_copy_button.add_sibling(_diagnostic_button)
 	_clear_button.pressed.connect(_on_clear_pressed)
 	if _log:
 		_log.entry_added.connect(_on_entry_added)
 		_log.cleared.connect(_rebuild)
 	_rebuild()
+
+
+func open_diagnostic_dialog() -> DiagnosticReportDialog:
+	if not diagnostic_report.is_valid():
+		return null
+	var dialog := DiagnosticReportDialog.new()
+	dialog.setup(diagnostic_report.call())
+	add_child(dialog)
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			dialog.queue_free())
+	dialog.popup_centered()
+	return dialog
 
 
 func _on_channel_toggled(on: bool, channel: StringName) -> void:

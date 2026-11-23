@@ -57,3 +57,5 @@ Quedan dos rastros conocidos e inofensivos en los exports: rutas del addon en `u
 ## Reportar un problema
 
 Incluí las líneas relevantes del **Agent Log**, tu versión de Godot y el agente (y su versión).
+
+**Copiar informe de diagnóstico…**, en el menú ⋯ del dock o en la barra del Agent Log, junta lo básico: las versiones del addon y de Godot, el sistema operativo, qué adaptador de agente y su versión, en qué estaba la conexión con el agente (conectando, listo, trabajando, falló), por qué falló la sesión o el último turno (el proceso no arrancó, no respondió, se cerró, un límite del plan…), si el agente se conectó al servidor MCP del editor y cuántas llamadas a tools fallaron, y la fase del One-shot. Cada valor sale de una lista fija, así que nunca trae rutas, nombres de archivos, texto de la conversación, tu email ni tu cuenta: un agente o un cliente MCP que el harness no conoce sale como `other`. Ves el informe antes de copiarlo. Pegalo en el campo **Diagnostic report** del issue.

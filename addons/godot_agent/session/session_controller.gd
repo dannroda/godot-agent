@@ -426,6 +426,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	_agent_account = {}  # el proceso nuevo la vuelve a mandar después de initialize
 	model.reset()
 	model.failure_message = ""
+	_note_failure("none")
 	_stderr_tail.clear()
 	for secret: String in AgentProfile.secret_env_values(agent_profile.resolved_env()):
 		agent_log.add_secret(secret)  # el agente puede repetirlos (m13-25)
@@ -445,6 +446,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	if not _process.start(agent_profile.command, agent_profile.args, env):
 		var error := _process.last_error()
 		_process = null
+		_note_failure("launch_failed")
 		_fail_agent(I18n.t("Could not start %s") % _agent_name(),
 			I18n.t("The command «%s» didn't run: %s. Check the agent's command in Settings › Agents.") % [agent_profile.command, error],
 			"Could not start the agent: %s" % error, [{"id": ACTION_EDIT_AGENT, "label": I18n.t("Edit the agent"), "primary": true}, {"id": ACTION_RETRY, "label": I18n.t("Retry")}])
@@ -461,6 +463,7 @@ func start(agent_profile: AgentProfile, resume: Dictionary = {}) -> bool:
 	if model.has_failed():  # el agente se cayó esperando la respuesta: la tarjeta ya la puso _fail_agent (m13-26)
 		return false
 	if not init.ok or not init.result is Dictionary:
+		_note_failure("no_initialize", init.error)
 		_fail_agent(I18n.t("%s didn't start") % _agent_name(),
 			I18n.t("It didn't answer the first message (initialize): %s") % init.error_message(),
 			"The agent did not respond to initialize: %s" % init.error_message(), _crash_actions())
@@ -536,10 +539,12 @@ func _open_session(generation: int, close_previous: bool) -> bool:
 			if not login_actions.is_empty():
 				# Pedir el login no es un error (m12-11): tarjeta neutra, sin código ni «Reintentar».
 				agent_log.add(AgentLog.CH_PROC, message)
+				_note_failure("login_required", result.error)
 				_fail(I18n.t("Sign in to %s to continue.") % _agent_name(), login_actions, ChatEntry.NoticeLevel.INFO, false, SessionModel.SessionState.LOGIN_REQUIRED)
 				return false
 			else:
 				message = I18n.t("Could not open the session: %s. The agent asks for authentication: %s") % [detail, _auth_hint()]
+		_note_failure("session_open_failed", result.error)
 		_fail(message, login_actions)
 		return false
 	model.apply_session(result.result.sessionId, result.result)
@@ -735,7 +740,9 @@ func send_prompt(text: String, extra_blocks: Array = [], collect_findings: bool 
 		_record_turn_end("cancelled")
 		return "cancelled"
 	if not result.ok:
-		quota.observe_prompt_error(result.error)
+		var limit := quota.observe_prompt_error(result.error)
+		if not model.has_failed():
+			_note_failure("turn_limit" if limit else "turn_auth" if is_auth_required(result.error) else "turn_error", result.error)
 		if model.has_failed():
 			# El agente se cayó en el turno (m13-24): la tarjeta ya la puso _fail_agent, con la causa y el
 			# stderr. El turno termina igual (turn_finished) y la sesión queda en FAILED.
@@ -2347,6 +2354,7 @@ func _on_process_exited(code: int, process: AgentProcess) -> void:
 		terminal.stop_all()
 	# Primero la tarjeta y FAILED, después los requests pendientes (m13-24): el turno que la caída corta
 	# ve la sesión caída y no suma su propia tarjeta de error.
+	_note_failure("process_exited")
 	_fail_agent(I18n.t("%s stopped") % _agent_name(),
 		I18n.t("The agent's process ended unexpectedly (code %d).") % code,
 		"The agent exited unexpectedly (code %d)." % code, _crash_actions())
@@ -2560,6 +2568,13 @@ func _sync_agent_mode(candidates: Variant = null) -> void:
 				agent_log.add(AgentLog.CH_ACP, "Could not switch the agent to mode %s: %s" % [candidate, result.error_message()])
 			agent_mode_synced.emit()  # después de anotarlo: quien espera mira el modo actual
 			return
+
+
+## La categoría de la última falla para el informe de diagnóstico (m11-80): de DiagnosticReport.FAILURE_KINDS,
+## con el código JSON-RPC del error si lo hubo. Nunca el mensaje: puede traer rutas o datos de la cuenta.
+func _note_failure(kind: String, error: Dictionary = {}) -> void:
+	model.failure_kind = kind
+	model.failure_code = int(error.get("code", 0)) if error.get("code") is int or error.get("code") is float else 0
 
 
 ## La sesión no quedó abierta: tarjeta con el motivo y `final_state` (FAILED, o LOGIN_REQUIRED cuando

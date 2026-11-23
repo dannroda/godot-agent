@@ -57,3 +57,5 @@ Two known, harmless traces remain in exports: addon paths in `uid_cache.bin`, an
 ## Reporting a problem
 
 Include the relevant lines of the **Agent Log**, your Godot version and the agent (and its version).
+
+**Copy diagnostic report…**, in the dock's ⋯ menu or on the Agent Log's toolbar, gathers the basics for you: the addon and Godot versions, the operating system, which agent adapter and its version, where the connection with the agent was (connecting, ready, working, failed), why the session or the last turn failed (the process didn't start, it didn't answer, it exited, a plan limit…), whether the agent connected to the editor's MCP server and how many tool calls failed, and the One-shot phase. Each value comes from a fixed list, so it never carries paths, file names, conversation text, your email or account: an agent or MCP client the harness doesn't know shows as `other`. You see the report before copying it. Paste it in the issue's **Diagnostic report** field.

@@ -6594,3 +6594,18 @@ msgstr "Servidores MCP de otros programas (se agregan en Extensiones → Servido
 
 msgid "This addon"
 msgstr "Este addon"
+
+msgid "Diagnostic report"
+msgstr "Informe de diagnóstico"
+
+msgid "Copy diagnostic report…"
+msgstr "Copiar informe de diagnóstico…"
+
+msgid "Diagnostic report copied."
+msgstr "Informe de diagnóstico copiado."
+
+msgid "A report to paste in a bug report: versions, system, agent and connection state, with no paths, conversation text or account. You see it before copying."
+msgstr "Un informe para pegar al reportar un bug: versiones, sistema, agente y estado de la conexión, sin rutas, texto de la conversación ni cuenta. Lo ves antes de copiarlo."
+
+msgid "Paste this in a bug report. It has only versions, the operating system, the agent and how the connection and the last error went, as fixed values: no paths, file names, conversation text, email or account."
+msgstr "Pegalo al reportar un bug. Solo trae versiones, el sistema operativo, el agente y cómo anduvieron la conexión y el último error, como valores fijos: sin rutas, nombres de archivos, texto de la conversación, email ni cuenta."

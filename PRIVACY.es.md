@@ -58,6 +58,7 @@ Dos cosas no se enmascaran, a propósito. Lo que el agente escribe o ejecuta lle
 | Reportes de turno, videos y frames de playtest, lo que los playtests aprendieron del juego (notas, scripts, regresiones guardadas, hallazgos marcados como que no son bugs), spec y avance del One-shot, lista de assets instalados | `res://.godot_agent/` | Dentro del proyecto. Nunca se exporta con el juego. |
 | Snapshots de cada turno, para ver qué cambió y volver atrás | refs de git `refs/godot-agent/turns/*` en el repositorio del proyecto | Refs locales: no se suben salvo que las subas vos. Las últimas 60 por sesión. |
 | Agent Log | Solo en memoria | Hasta 2000 entradas, se borra al cerrar el editor. Sale del editor solo si lo copiás. |
+| Informe de diagnóstico (**Copiar informe de diagnóstico…**) | En ningún lado: se arma al abrirlo | Va al portapapeles solo cuando apretás **Copiar**, después de verlo. Solo valores de listas fijas (versiones, sistema operativo, adaptador del agente, estado de la conexión, categoría de la falla, cantidad de llamadas a tools MCP): sin rutas, nombres de archivos, texto de la conversación, email ni cuenta. |
 
 ## Lo que el harness nunca hace
 
