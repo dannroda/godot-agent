@@ -48,7 +48,7 @@ var notify_outside_enabled: Callable
 var _outside_notified: Dictionary = {}  # id -> true
 ## Sesiones que terminaron un turno sin ser la pestaña activa (m11-91): «◆» hasta que las mirás.
 var _unread: Dictionary = {}  # id -> true
-## «⚠ 2» / «◆ 1» en la fila: lleva a la próxima pestaña que te espera (m11-91, idea de Capy).
+## «⚠ 2» / «◆ 1» en la fila: lleva a la próxima pestaña que te espera (m11-91).
 var _attention_button: Button
 var _rename_popup: PopupPanel
 var _rename_edit: LineEdit

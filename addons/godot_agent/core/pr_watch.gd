@@ -1,6 +1,6 @@
 @tool
 extends RefCounted
-## Seguir un PR hasta que se pueda mergear (m11-92, el Autofix de Capy): con `gh`, lo que hay que
+## Seguir un PR hasta que se pueda mergear (m11-92): con `gh`, lo que hay que
 ## arreglar en un PR abierto desde una copia aparte (checks que fallan, un conflicto, comentarios y
 ## revisiones nuevas) y el prompt para el agente de esa copia. El harness pushea lo que el agente deja
 ## en la rama del PR; nunca mergea. Lo de GitHub es texto de afuera: va en sobre no confiable.

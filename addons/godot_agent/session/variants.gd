@@ -1,6 +1,6 @@
 @tool
 extends RefCounted
-## Variantes en paralelo (m11-90, idea de Capy): el agente propone con godot.propose_variants varias
+## Variantes en paralelo (m11-90): el agente propone con godot.propose_variants varias
 ## formas de hacer lo mismo, el usuario elige cuáles van (y edita o agrega), y cada una se implementa
 ## en su propia copia (git worktree) a la vez. Las regresiones guardadas del proyecto las juzgan a
 ## todas igual: el juez corre regression_cli en cada copia con las regresiones del proyecto (rutas
