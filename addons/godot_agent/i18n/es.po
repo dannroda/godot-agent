@@ -6414,3 +6414,21 @@ msgstr "Se pushearon %d commits al pull request."
 
 msgid "Pull request · what to fix"
 msgstr "Pull request · qué arreglar"
+
+msgid "Walk through the changes"
+msgstr "Recorrer los cambios"
+
+msgid "One change at a time, file by file, with the review findings on those lines."
+msgstr "Un cambio por vez, archivo por archivo, con los hallazgos de la revisión en esas líneas."
+
+msgid "File %d of %d · change %d of %d"
+msgstr "Archivo %d de %d · cambio %d de %d"
+
+msgid "Previous"
+msgstr "Anterior"
+
+msgid "Next"
+msgstr "Siguiente"
+
+msgid "Show all files"
+msgstr "Ver todos los archivos"

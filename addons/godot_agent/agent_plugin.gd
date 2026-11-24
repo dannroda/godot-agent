@@ -306,6 +306,7 @@ func _enter_tree() -> void:
 	EditorInterface.get_base_control().add_child(_diff_dialog)
 	_turn_dialog = TurnChangesDialog.new()
 	_turn_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_turn_dialog.findings_for = func(path: String) -> Array: return _controller.review.for_path(path) if _controller else []
 	EditorInterface.get_base_control().add_child(_turn_dialog)
 	_turn_changes = TurnChanges.new()
 	_turn_changes.project_snapshots = _turn_snapshots
