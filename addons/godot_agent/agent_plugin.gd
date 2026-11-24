@@ -10,6 +10,7 @@ const EditorSurfaces := preload("ui/editor_surfaces.gd")
 const AgentIcon := preload("ui/agent_icon.gd")
 const AgentProcess := preload("transport/agent_process.gd")
 const EditorWindows := preload("ui/editor_windows.gd")
+const AgentTheme := preload("ui/agent_theme.gd")
 const AgentDockScene := preload("ui/dock/agent_dock.tscn")
 const AgentMainScreenScene := preload("ui/main_screen/agent_main_screen.tscn")
 const AgentLogPanelScene := preload("ui/log_panel/agent_log_panel.tscn")
@@ -43,6 +44,10 @@ const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
 const TurnChangesDialog := preload("ui/turn_changes_dialog.gd")
+const VariantsDialog := preload("ui/variants_dialog.gd")
+const Variants := preload("session/variants.gd")
+const PrWatch := preload("core/pr_watch.gd")
+const GitCheckpoints := preload("oneshot/git_checkpoints.gd")
 const TurnChanges := preload("ui/turn_changes.gd")
 const TurnChangeMarks := preload("editor/turn_change_marks.gd")
 const TurnCounter := preload("ui/turn_counter.gd")
@@ -137,6 +142,9 @@ const ACTION_OPEN_MUTANT := "open_mutant"
 const MutationTesting := preload("playtest/mutation/mutation_testing.gd")
 ## «Send to the agent» del aviso de un hook de prompt (m11-24); `data` es el prompt.
 const ACTION_SEND_HOOK_PROMPT := "send_hook_prompt"
+## Botones de la comparación de variantes (m11-90); payload {id} de la pestaña de la variante.
+const ACTION_VARIANT_PLAY := "variant_play"
+const ACTION_VARIANT_APPLY := "variant_apply"
 ## El panel Stack Trace del debugger se llena un momento después de la pausa.
 const BREAK_READ_DELAY_S := 0.5
 ## Avisos de RegressionsWorkflow.write() para el usuario.
@@ -189,6 +197,10 @@ var _hooks: HookRunner
 var _hook_prompts_in_row: int = 0
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
+## El de godot.propose_variants (m11-90), creado la primera vez.
+var _variants_dialog: VariantsDialog
+## Cada tanda de variantes: run -> {from (pestaña que propuso), ids, labels, entry (el aviso con la comparación)}.
+var _variant_runs: Dictionary = {}
 var _turn_changes: TurnChanges
 var _turn_marks: TurnChangeMarks
 ## El contador vivo de cambios del turno arriba del composer (m11-34).
@@ -309,6 +321,7 @@ func _enter_tree() -> void:
 	EditorInterface.get_base_control().add_child(_diff_dialog)
 	_turn_dialog = TurnChangesDialog.new()
 	_turn_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_turn_dialog.findings_for = func(path: String) -> Array: return _controller.review.for_path(path) if _controller else []
 	EditorInterface.get_base_control().add_child(_turn_dialog)
 	_turn_changes = TurnChanges.new()
 	_turn_changes.project_snapshots = _turn_snapshots
@@ -393,6 +406,7 @@ func _enter_tree() -> void:
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
 	dock.new_tab_requested.connect(_open_session_tab)
+	dock.issue_tab_requested.connect(_ask_issue.bind(PRIMARY_SESSION))
 	dock.registry_requested.connect(func(query: String) -> void:
 		var settings := _get_settings_dialog()
 		settings.open()
@@ -570,6 +584,9 @@ func _exit_tree() -> void:
 	if _turn_dialog:
 		_turn_dialog.queue_free()
 		_turn_dialog = null
+	if _variants_dialog:
+		_variants_dialog.queue_free()
+		_variants_dialog = null
 	_turn_snapshots = null
 	_turn_changes = null
 	if _settings_dialog:
@@ -946,6 +963,12 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			EditorContext.open_location(where.get_slice("#", 0), where.get_slice("#", 1).to_int())
 		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(true)
+		ACTION_VARIANT_PLAY:
+			var copy: WorktreeSession = _extra_sessions.get(str(payload.get("id", "")), {}).get("copy")
+			if copy:
+				OS.create_process(OS.get_executable_path(), PackedStringArray(["--path", copy.info.project]))
+		ACTION_VARIANT_APPLY:
+			_apply_variant(str(payload.get("id", "")))
 		ACTION_SEND_HOOK_PROMPT:
 			var hook_dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
 			if hook_dock:
@@ -1251,6 +1274,7 @@ func _start_mcp_server() -> void:
 	session_tools.describe = _describe_sessions
 	session_tools.send = _send_to_session
 	session_tools.request_mode = _request_mode
+	session_tools.propose_variants = _propose_variants
 	registry.register_provider(session_tools, true)
 	var second_opinion_tools := SecondOpinionTools.new()
 	second_opinion_tools.caller = func() -> String: return _session_of(_registry.current_caller if _registry else "")
@@ -1820,6 +1844,7 @@ func _reopen_tabs(resume: Dictionary, supervisor_messages: PackedStringArray) ->
 			model.set_harness_mode(int(entry.get("mode", SessionModel.HarnessMode.BUILD)) as SessionModel.HarnessMode)
 		if dock and not str(entry.get("project_mode", "")).is_empty():
 			dock.choose_project_mode(str(entry.project_mode))
+	_reopen_variants(tabs, ids)
 	var requested := tabs.any(func(tab: Dictionary) -> bool: return bool(tab.get("requester", false)))
 	var target := ""  # la que recibe el mensaje: la que pidió el reinicio; si lo pidió el usuario, la activa
 	for index: int in tabs.size():
@@ -1844,6 +1869,34 @@ func _reopen_tabs(resume: Dictionary, supervisor_messages: PackedStringArray) ->
 			dock.send_text(RestartResume.agent_message(str(resume.get("reason", "")), supervisor_messages), HarnessPrompts.SUPERVISOR)
 		elif not supervisor_messages.is_empty():
 			dock.send_text("\n\n".join(supervisor_messages), HarnessPrompts.SUPERVISOR)
+
+
+## Las variantes que vuelven del reinicio (m11-90): su juez al terminar cada turno y la comparación en
+## la pestaña que las propuso (un aviso nuevo: el de antes quedó en la sesión anterior del dock).
+func _reopen_variants(tabs: Array, ids: Array[String]) -> void:
+	var tab_ids := {}
+	for index: int in tabs.size():
+		if not ids[index].is_empty():
+			tab_ids[str(tabs[index].get("tab", ""))] = ids[index]
+	var runs := {}
+	for index: int in tabs.size():
+		var id := ids[index]
+		if id.is_empty() or not tabs[index].get("variant") is Dictionary or not _extra_sessions.has(id):
+			continue
+		var variant := Variants.from_saved(tabs[index].variant, tab_ids)
+		_extra_sessions[id]["variant"] = variant
+		_model_of(id).turn_finished.connect(_judge_variant.bind(id))
+		var run := str(variant.run)
+		if not runs.has(run):
+			runs[run] = {"from": variant.from, "ids": [], "labels": [], "goal": variant.get("goal", ""), "entry": null}
+		(runs[run].ids as Array).append(id)  # Array y no Packed: un Packed dentro del Dictionary se copia
+		(runs[run].labels as Array).append(_coordinator.label(id))
+	for run: String in runs:
+		var info: Dictionary = runs[run]
+		info.ids = PackedStringArray(info.ids)
+		info.labels = PackedStringArray(info.labels)
+		_variant_runs[run] = info
+		_refresh_variants(run)
 
 
 ## Lo que preparó install_extension y todavía no entró (m19-05): el editor se cerró sin pasar por
@@ -1933,6 +1986,8 @@ func restart_tabs(requester: String) -> Array:
 		var entry := RestartResume.tab_entry(id, model.session_id, _tabs.custom_label(id), mode, str(model.project_mode.get("slug", "")),
 			copy.info if copy else {}, id == requester, id == active)
 		if not entry.is_empty():
+			if _extra_sessions.get(id, {}).has("variant"):
+				entry.variant = Variants.to_saved(_extra_sessions[id].variant)
 			tabs.append(entry)
 	return tabs
 
@@ -2232,7 +2287,11 @@ func _open_session_tab(in_copy: bool = false) -> void:
 	var controller := _controller_of(id)
 	if copy:
 		copy_notice(model, copy.info.project, copy.info.branch)
-		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
+		_note_copy(controller, copy)
+
+
+func _note_copy(controller: SessionController, copy: WorktreeSession) -> void:
+	controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
 
 
 ## El aviso de una sesión en una copia aparte (m12-45): una tarjeta corta con título; la carpeta va
@@ -2274,6 +2333,7 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
 	dock.new_tab_requested.connect(_open_session_tab)
+	dock.issue_tab_requested.connect(_ask_issue.bind(id))
 	dock.extensions_requested.connect(func() -> void: _open_extensions())
 	dock.tools_requested.connect(func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS))
 	dock.updates_requested.connect(_check_updates_from_dock)
@@ -2480,6 +2540,12 @@ func _close_session_tab(id: String, ask: bool = true) -> void:
 	if session.has("oneshot_listener") and _oneshot and _oneshot.changed.is_connected(session.oneshot_listener):
 		_oneshot.changed.disconnect(session.oneshot_listener)
 	var copy: WorktreeSession = session.get("copy")
+	if copy and session.has("pr"):
+		# Seguía un PR (m11-92): lo pusheado queda en la rama; el worktree se va.
+		(session.controller as SessionController).stop()
+		session.erase("pr")
+		await copy.remove(false)
+		session.resolved = true
 	if copy and ask and not session.get("resolved", false):
 		(session.controller as SessionController).stop()
 		var changed := await copy.commit_changes()
@@ -2489,6 +2555,8 @@ func _close_session_tab(id: String, ask: bool = true) -> void:
 			_ask_copy_fate(id, copy, changed)
 			return
 	_extra_sessions.erase(id)
+	if session.has("variant"):
+		_refresh_variants(str(session.variant.run))
 	var controller: SessionController = session.controller
 	controller.stop()
 	if controller.history:
@@ -2514,6 +2582,8 @@ func _ask_copy_fate(id: String, copy: WorktreeSession, changed: PackedStringArra
 	dialog.add_button(I18n.t("Keep the branch"), false, "keep")
 	if _project_config.github_pull_requests:
 		dialog.add_button(I18n.t("Push and open a PR"), false, "pr")
+		var watch := dialog.add_button(I18n.t("Push, open a PR and keep fixing it"), false, "pr_watch")
+		watch.tooltip_text = I18n.t("The tab stays open: every %d s it checks the pull request with gh, and when a check fails, there is a conflict or a review or comment arrives, its agent fixes it and the harness pushes the fix. It never merges. It stops when the pull request is merged or closed, or when you close the tab.") % int(PrWatch.POLL_S)
 	dialog.add_button(I18n.t("Discard"), false, "discard")
 	dialog.cancel_button_text = I18n.t("Cancel")
 	dialog.confirmed.connect(func() -> void: _resolve_copy(id, copy, changed, "apply"))
@@ -2543,9 +2613,12 @@ func _resolve_copy(id: String, copy: WorktreeSession, changed: PackedStringArray
 		"keep":
 			await copy.remove(false)
 			_model.add_notice(I18n.t("The changes of «%s» stay in the branch %s.") % [label, copy.info.branch])
-		"pr":
+		"pr", "pr_watch":
 			var body := "Changes made by the agent session \"%s\" of Godot Agent Harness in a separate copy.\n\nFiles:\n%s" % [label, "\n".join(Array(changed).map(func(path: String) -> String: return "- `%s`" % path))]
 			var opened: Dictionary = await GithubReviews.new(EditorContext.project_path()).open_pull_request(str(copy.info.dir), str(copy.info.branch), str(copy.info.base_branch), label, body)
+			if action == "pr_watch" and str(opened.error).is_empty() and _extra_sessions.has(id):
+				_watch_pr(id, str(opened.url))
+				return
 			await copy.remove(false)
 			if str(opened.error).is_empty():
 				_model.add_notice(I18n.t("Pull request opened with the changes of «%s»: %s") % [label, opened.url])
@@ -2801,6 +2874,247 @@ func _usable_project_modes() -> Array[Dictionary]:
 
 
 ## godot.request_mode (m11-68): la tarjeta en la sesión que llama.
+## godot.propose_variants (m11-90): el usuario elige en el diálogo y cada variante abre su copia y su
+## pestaña, con el agente, la cuenta y el modo de la que propuso (al menos Build: tiene que editar).
+## Al terminar cada turno, las regresiones guardadas del proyecto la juzgan (_judge_variant).
+func _propose_variants(caller: String, goal: String, variants: PackedStringArray) -> Dictionary:
+	if caller == SecondOpinion.SESSION_ID:
+		return {"ok": false, "text": "The second opinion is read only: it can't open variants."}
+	if _runs_in(caller) and _oneshot.is_active():
+		return {"ok": false, "text": "Variants are not available in One-shot."}
+	if _extra_sessions.get(caller, {}).get("copy") != null:
+		return {"ok": false, "text": "You work in a separate copy: propose variants from a session on the project itself."}
+	var source := _tabs.dock(caller) as AgentDock if _tabs else null
+	if source == null:
+		return {"ok": false, "text": "There is no tab for this session."}
+	var regressions := PlaytestRegressions.new(PlaytestRegressions.DIR).list()
+	if _variants_dialog == null:
+		_variants_dialog = VariantsDialog.new()
+		_variants_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		EditorInterface.get_base_control().add_child(_variants_dialog)
+	if _variants_dialog.visible:
+		return {"ok": false, "text": "The user is already choosing variants proposed by another session."}
+	var picked := await _variants_dialog.pick(goal, variants, regressions.size())
+	if picked.is_empty():
+		return {"ok": true, "text": "The user closed the variants without opening any. Go on with the task as before."}
+	var chosen: PackedStringArray = picked.variants
+	var source_controller := _controller_of(caller)
+	var running: AgentProfile = source_controller.profile() if source_controller and source_controller.is_connected_to_agent() else null
+	var stamp := Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "-")
+	var opened: PackedStringArray = []
+	var failed: PackedStringArray = []
+	var ids: PackedStringArray = []
+	for i in chosen.size():
+		var copy := WorktreeSession.new(EditorContext.project_path())
+		if not await copy.create("%s-v%d" % [stamp, i + 1]):
+			failed.append("V%d (%s)" % [i + 1, copy.last_error])
+			continue
+		var id := _open_copy_tab(copy, Variants.tab_label(i, chosen[i]), source)
+		_extra_sessions[id]["variant"] = {"run": stamp, "index": i, "text": chosen[i], "goal": picked.goal, "from": caller}
+		var judges_dir := ProjectSettings.globalize_path(PlaytestRegressions.DIR)
+		_model_of(id).turn_finished.connect(_judge_variant.bind(id))
+		(_tabs.dock(id) as AgentDock).start_with_prompt(running, Variants.copy_prompt(picked.goal, chosen, i, regressions.size(), judges_dir, copy.info.project))
+		opened.append(_coordinator.label(id))
+		ids.append(id)
+	_log.add(AgentLog.CH_ACP, "variants %s: %d opened, %d failed" % [stamp, opened.size(), failed.size()])
+	if not ids.is_empty():
+		_variant_runs[stamp] = {"from": caller, "ids": ids, "labels": opened, "goal": picked.goal, "entry": null}
+		_refresh_variants(stamp)
+	return {"ok": not opened.is_empty(), "text": Variants.result_text(opened, failed)}
+
+
+## Una pestaña en la copia `copy` con el agente, la cuenta y el modo de la pestaña `source` (al menos
+## Build: en una copia el agente tiene que editar). La sesión la arranca quien llama.
+func _open_copy_tab(copy: WorktreeSession, label: String, source: AgentDock) -> String:
+	var id := _create_session_tab(copy, label)
+	var dock := _tabs.dock(id) as AgentDock
+	copy_notice(_model_of(id), copy.info.project, copy.info.branch)
+	_note_copy(_controller_of(id), copy)
+	if source:
+		dock.copy_agent_from(source)
+		dock.copy_mode_from(source)
+	if int(PermissionPolicy.MODE_RANKS.get(_model_of(id).harness_mode, 0)) < 1:
+		_model_of(id).set_harness_mode(SessionModel.HarnessMode.BUILD)
+	return id
+
+
+## «Nueva pestaña desde un issue de GitHub…» (m11-94): pide la URL o el número del issue.
+func _ask_issue(from: String) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dialog.title = I18n.t("New tab from a GitHub issue")
+	var edit := LineEdit.new()
+	edit.placeholder_text = I18n.t("Issue URL or number (#12)")
+	edit.custom_minimum_size.x = AgentTheme.px(380)
+	dialog.add_child(edit)
+	dialog.register_text_enter(edit)
+	dialog.ok_button_text = I18n.t("Open")
+	dialog.confirmed.connect(func() -> void: _open_issue(from, edit.text.strip_edges()))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			EditorWindows.free_later.call_deferred(dialog))
+	EditorInterface.get_base_control().add_child(dialog)
+	dialog.popup_centered()
+	edit.grab_focus()
+
+
+## Lee el issue con gh y abre una copia aparte cuyo agente arranca con él como tarea.
+func _open_issue(from: String, target: String) -> void:
+	if target.is_empty():
+		return
+	var issue := await GithubReviews.new(EditorContext.project_path()).fetch_issue(target)
+	if not str(issue.error).is_empty():
+		EditorInterface.get_editor_toaster().push_toast(str(issue.error), EditorToaster.SEVERITY_WARNING)
+		return
+	var copy := WorktreeSession.new(EditorContext.project_path())
+	var stamp := Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "-")
+	if not await copy.create("%s-issue-%d" % [stamp, int(issue.number)]):
+		EditorInterface.get_editor_toaster().push_toast(I18n.t("Could not create the separate copy: %s") % copy.last_error, EditorToaster.SEVERITY_WARNING)
+		return
+	var source := _tabs.dock(from) as AgentDock if _tabs else null
+	var source_controller := _controller_of(from)
+	var running: AgentProfile = source_controller.profile() if source_controller and source_controller.is_connected_to_agent() else null
+	var id := _open_copy_tab(copy, "#%d %s" % [int(issue.number), str(issue.title).left(20)], source)
+	_tabs.select(id)
+	_log.add(AgentLog.CH_ACP, "issue %s opened in a separate copy" % issue.url)
+	(_tabs.dock(id) as AgentDock).start_with_prompt(running, GithubReviews.issue_prompt(issue))
+
+
+## Al terminar un turno de una variante: lo que dejó queda commiteado en su rama y las regresiones del
+## proyecto la juzgan en un Godot headless aparte. Un turno nuevo mientras juzga deja el resultado viejo.
+func _judge_variant(stop_reason: String, id: String) -> void:
+	var session: Dictionary = _extra_sessions.get(id, {})
+	var copy: WorktreeSession = session.get("copy")
+	if copy == null or not session.has("variant") or stop_reason != "end_turn":
+		return
+	var variant: Dictionary = session.variant
+	variant.turns = int(variant.get("turns", 0)) + 1
+	var turn: int = variant.turns
+	variant.changed = await copy.commit_changes()
+	if PlaytestRegressions.new(PlaytestRegressions.DIR).list().is_empty():
+		variant.judged = {"ok": false, "error": I18n.t("the project has no saved regressions")}
+	else:
+		_model_of(id).add_notice(I18n.t("Judging this variant with the project's regressions…"))
+		variant.judging = true
+		_refresh_variants(str(variant.run))
+		var report_path := OS.get_user_data_dir().path_join("godot_agent_variants/%s-v%d.json" % [variant.run, int(variant.index) + 1])
+		var judged := await Variants.judge(copy.info.project, ProjectSettings.globalize_path(PlaytestRegressions.DIR), report_path)
+		if not _extra_sessions.has(id) or int(variant.turns) != turn:
+			return  # se cerró la pestaña o terminó otro turno mientras juzgaba
+		variant.judging = false
+		variant.judged = judged
+	_refresh_variants(str(variant.run))
+	var line := Variants.judge_line(variant.judged, I18n.t)
+	_model_of(id).add_notice(I18n.t("Variant judged: %s · %d files changed") % [line, (variant.changed as PackedStringArray).size()],
+		ChatEntry.NoticeLevel.INFO if variant.judged.get("ok", false) and variant.judged.report.get("ok", false) else ChatEntry.NoticeLevel.WARNING)
+	_log.add(AgentLog.CH_ACP, "variant %s: %s" % [_coordinator.label(id), line])
+
+
+## Sigue el PR de la copia `id` (m11-92): la pestaña queda abierta y, cada POLL_S, lo nuevo para
+## arreglar va a su agente; al terminar su turno, lo que dejó se commitea y se pushea (_pr_turn_done).
+func _watch_pr(id: String, url: String) -> void:
+	var session: Dictionary = _extra_sessions[id]
+	session.pr = {"url": url, "seen": {}}
+	_model.add_notice(I18n.t("Pull request opened with the changes of «%s»: %s") % [_coordinator.label(id), url])
+	_model_of(id).add_notice(I18n.t("Following %s: when a check fails, there is a conflict or a review arrives, this tab fixes it and pushes. Close the tab to stop.") % url)
+	_model_of(id).turn_finished.connect(_pr_turn_done.bind(id))
+	var watcher := PrWatch.new()
+	while true:
+		await get_tree().create_timer(PrWatch.POLL_S).timeout
+		if not is_inside_tree() or not _extra_sessions.has(id) or not _extra_sessions[id].has("pr"):
+			return
+		var model := _model_of(id)
+		if model.is_busy():
+			continue
+		var data := await watcher.status(url)
+		if not _extra_sessions.has(id) or not _extra_sessions[id].has("pr"):
+			return
+		if data.has("error"):
+			_log.add(AgentLog.CH_ACP, "PR %s: gh failed: %s" % [url, data.error])
+			continue
+		if PrWatch.finished(data):
+			session.erase("pr")
+			model.add_notice(I18n.t("%s is %s: no longer following it. Close the tab when you're done.") % [url, str(data.state).to_lower()])
+			return
+		var items := PrWatch.to_fix(data, session.pr.seen)
+		if items.is_empty():
+			continue
+		_log.add(AgentLog.CH_ACP, "PR %s: %d things to fix" % [url, items.size()])
+		if not (session.controller as SessionController).is_connected_to_agent():
+			_note_copy(session.controller, session.copy)  # la pestaña se detuvo al cerrarla: arranca de nuevo
+		(_tabs.dock(id) as AgentDock).send_text(PrWatch.prompt(url, items), HarnessPrompts.PULL_REQUEST)
+
+
+## Fin de un turno de una copia que sigue un PR: lo suyo se commitea y, si hay commits nuevos, se pushea.
+func _pr_turn_done(stop_reason: String, id: String) -> void:
+	var session: Dictionary = _extra_sessions.get(id, {})
+	var copy: WorktreeSession = session.get("copy")
+	if copy == null or not session.has("pr") or stop_reason != "end_turn":
+		return
+	await copy.commit_changes()
+	var git := GitCheckpoints.new(str(copy.info.dir))
+	var ahead := await git.run(PackedStringArray(["rev-list", "--count", "@{u}..HEAD"]))
+	if ahead.code != 0 or int(ahead.output) == 0:
+		return
+	var pushed := await git.run(PackedStringArray(["push"]))
+	if not _extra_sessions.has(id):
+		return
+	if pushed.code == 0:
+		_model_of(id).add_notice(I18n.t("Pushed %d commits to the pull request.") % int(ahead.output))
+	else:
+		_model_of(id).add_notice(I18n.t("git push failed: %s") % str(pushed.output).left(300), ChatEntry.NoticeLevel.WARNING)
+
+
+## La comparación de una tanda en la pestaña que la propuso: un aviso que se actualiza, con «Jugar» y
+## «Aplicar» por cada variante que ya terminó un turno.
+func _refresh_variants(run: String) -> void:
+	var info: Dictionary = _variant_runs.get(run, {})
+	var model := _model_of(str(info.get("from", "")))
+	if info.is_empty() or model == null:
+		return
+	var rows: Array = []
+	var actions: Array[Dictionary] = []
+	for i in (info.ids as PackedStringArray).size():
+		var id: String = info.ids[i]
+		var variant: Dictionary = _extra_sessions.get(id, {}).get("variant", {})
+		var label: String = info.labels[i]
+		if variant.is_empty():
+			rows.append({"label": label, "state": "closed"})
+			continue
+		var state := "judging" if variant.get("judging", false) else ("judged" if variant.has("judged") else "working")
+		rows.append({"label": label, "state": state, "judged": variant.get("judged", {}), "changed": (variant.get("changed", PackedStringArray()) as PackedStringArray).size()})
+		if variant.has("changed"):
+			var short := "V%d" % (int(variant.index) + 1)
+			actions.append({"id": ACTION_VARIANT_PLAY, "label": I18n.t("Play %s") % short, "data": {"id": id}})
+			actions.append({"id": ACTION_VARIANT_APPLY, "label": I18n.t("Apply %s") % short, "data": {"id": id}})
+	var text := Variants.comparison_text(rows, I18n.t)
+	var entry: ChatEntry = info.entry
+	if entry == null:
+		entry = model.add_notice(text, ChatEntry.NoticeLevel.INFO, actions)
+		info.entry = entry
+	else:
+		entry.text = text
+		entry.actions = actions
+	entry.title = I18n.t("Variants: %s") % str(info.goal).left(80)
+	model.notify_entry_changed(entry)
+
+
+## «Aplicar Vn»: lo último de la copia, commiteado, pasa al proyecto sin commitear y la pestaña se cierra.
+func _apply_variant(id: String) -> void:
+	var session: Dictionary = _extra_sessions.get(id, {})
+	var copy: WorktreeSession = session.get("copy")
+	if copy == null or not session.has("variant"):
+		return
+	var run := str(session.variant.run)
+	(session.controller as SessionController).stop()
+	var changed := await copy.commit_changes()
+	if changed.is_empty():
+		_model.add_notice(I18n.t("«%s» didn't change any file: nothing to apply.") % _coordinator.label(id), ChatEntry.NoticeLevel.WARNING)
+		return
+	await _resolve_copy(id, copy, changed, "apply")
+	_refresh_variants(run)
+
+
 func _request_mode(caller: String, mode: String, why: String) -> Dictionary:
 	var controller := _controller_of(caller)
 	if controller == null:

@@ -20,6 +20,8 @@ const AgentTheme := preload("agent_theme.gd")
 const ExtensionsUi := preload("extensions/extensions_ui.gd")
 const MarkdownBBCode := preload("markdown/markdown_bbcode.gd")
 const TurnSnapshots := preload("../session/turn_snapshots.gd")
+## Las etiquetas cortas de cada severidad de Revisar («BUG», «PERF»…).
+const ReviewSeverity: Dictionary = preload("../review/review_store.gd").SEVERITY_SHORT
 
 ## Líneas de un trozo que se muestran; las demás, en el diff completo.
 const HUNK_MAX_LINES := 40
@@ -34,6 +36,12 @@ var _reverted: Dictionary = {}
 var _expanded: Dictionary = {}
 ## ruta -> por qué no se pudo la última acción.
 var _errors: Dictionary = {}
+## Los hallazgos de Revisar de un archivo, `(res://ruta) -> Array[Dictionary]` (m11-93); sin
+## asignar, el recorrido no muestra hallazgos.
+var findings_for: Callable
+## El recorrido guiado (m11-93): {file, hunk} del paso a la vista, o {} con la lista de siempre.
+var _guide: Dictionary = {}
+var _guide_button: Button
 
 
 func _init() -> void:
@@ -43,6 +51,13 @@ func _init() -> void:
 	page.custom_minimum_size = Vector2(AgentTheme.px(560), AgentTheme.px(360))
 	add_child(page)
 	page.add_child(ExtensionsUi.muted(I18n.t("What the agent changed in the project during that turn. Open a file to keep or reject each change; «Go back» leaves the whole file as it was before the turn.")))
+	_guide_button = Button.new()
+	_guide_button.name = "Walkthrough"
+	_guide_button.text = I18n.t("Walk through the changes")
+	_guide_button.tooltip_text = I18n.t("One change at a time, file by file, with the review findings on those lines.")
+	_guide_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_guide_button.pressed.connect(func() -> void: guide_to(0, 0))
+	page.add_child(_guide_button)
 	_box = ExtensionsUi.scroll_list(page)
 
 
@@ -51,8 +66,58 @@ func show_turn(data: Dictionary) -> void:
 	_reverted.clear()
 	_expanded.clear()
 	_errors.clear()
+	_guide = {}
 	_rebuild()
 	popup_centered()
+
+
+## Va al paso `hunk` del archivo `file` del recorrido (pide sus trozos si hace falta). Fuera de
+## rango, vuelve a la lista.
+func guide_to(file: int, hunk: int) -> void:
+	var files: Array = _data.get("files", [])
+	if file < 0 or file >= files.size():
+		_guide = {}
+		_rebuild()
+		return
+	_guide = {"file": file, "hunk": hunk}
+	var path := str(files[file].path)
+	if _walkable(files[file]) and not _expanded.has(path):
+		_expanded[path] = []
+		hunks_requested.emit(_data, path)
+	_rebuild()
+
+
+## El paso siguiente (`step` 1) o el anterior (-1): los trozos del archivo y después el próximo archivo.
+func guide_step(step: int) -> void:
+	var files: Array = _data.get("files", [])
+	var file := int(_guide.get("file", 0))
+	var hunk := int(_guide.get("hunk", 0)) + step
+	var count := _steps_in(files[file]) if file < files.size() else 1
+	if hunk >= count:
+		guide_to(file + 1, 0)
+	elif hunk < 0:
+		if file == 0:
+			return
+		var previous: Dictionary = files[file - 1]
+		guide_to(file - 1, 0)
+		guide_to(file - 1, maxi(_steps_in(previous) - 1, 0))
+	else:
+		guide_to(file, hunk)
+
+
+func _walkable(file: Dictionary) -> bool:
+	return has_hunks(str(file.path)) and file.status != "D" and not _reverted.has(str(file.path))
+
+
+## Cuántos pasos tiene un archivo: sus trozos, o uno si no se abre en trozos (o todavía cargan).
+func _steps_in(file: Dictionary) -> int:
+	var items: Array = _expanded.get(str(file.path), [])
+	return maxi(items.size(), 1) if _walkable(file) else 1
+
+
+## Los hallazgos que caen entre `first` y `last` (líneas del archivo después del turno).
+static func findings_in(findings: Array, first: int, last: int) -> Array:
+	return findings.filter(func(finding: Dictionary) -> bool: return int(finding.get("line", 0)) >= first and int(finding.get("line", 0)) <= maxi(last, first))
 
 
 func mark_reverted(path: String) -> void:
@@ -94,11 +159,70 @@ static func has_hunks(path: String) -> bool:
 
 func _rebuild() -> void:
 	ExtensionsUi.clear(_box)
+	if _guide_button:
+		_guide_button.visible = _guide.is_empty() and not (_data.get("files", []) as Array).is_empty()
+	if not _guide.is_empty():
+		_rebuild_guide()
+		return
 	for file: Dictionary in _data.get("files", []):
 		var path := str(file.path)
 		_box.add_child(_file_row(file))
 		if _expanded.has(path):
 			_box.add_child(_hunks_box(path, _expanded[path]))
+
+
+## Un paso del recorrido: dónde está, el archivo, su trozo con «Conservar» y «Rechazar», los
+## hallazgos de esas líneas y Anterior / Siguiente.
+func _rebuild_guide() -> void:
+	var files: Array = _data.get("files", [])
+	var file: Dictionary = files[int(_guide.file)]
+	var path := str(file.path)
+	var items: Array = _expanded.get(path, [])
+	var hunk := int(_guide.hunk)
+	var where := ExtensionsUi.muted(I18n.t("File %d of %d · change %d of %d") % [int(_guide.file) + 1, files.size(), hunk + 1, _steps_in(file)])
+	where.name = "GuideWhere"
+	_box.add_child(where)
+	_box.add_child(_file_row(file))
+	var findings: Array = []
+	if findings_for.is_valid():
+		findings = findings_for.call(path if path.begins_with("res://") else "res://" + path)
+	if _walkable(file) and items.is_empty():
+		_box.add_child(ExtensionsUi.muted(I18n.t("Loading…")))
+	elif _walkable(file) and hunk < items.size():
+		var item: Dictionary = items[hunk]
+		_box.add_child(_hunk_card(path, item, str(item.get("blocked", "")).is_empty()))
+		if not item.has("scene"):
+			var changed := TurnSnapshots.changed_lines(item.hunk)
+			findings = findings_in(findings, int(changed.new_first), int(changed.new_last))
+	for finding: Dictionary in findings:
+		var line := ExtensionsUi.muted("%s · %s (%s)" % [I18n.t(str(ReviewSeverity.get(str(finding.get("severity", "style")), "STYLE"))), str(finding.get("title", "")), I18n.t("line %d") % int(finding.get("line", 0))])
+		line.name = "Finding"
+		line.add_theme_color_override(&"font_color", AgentTheme.WARNING)
+		line.tooltip_text = str(finding.get("body", ""))
+		_box.add_child(line)
+	var nav := HBoxContainer.new()
+	nav.name = "GuideNav"
+	var back := Button.new()
+	back.name = "Previous"
+	back.text = I18n.t("Previous")
+	back.disabled = int(_guide.file) == 0 and hunk == 0
+	back.pressed.connect(guide_step.bind(-1))
+	nav.add_child(back)
+	var next := Button.new()
+	next.name = "Next"
+	var last := int(_guide.file) == files.size() - 1 and hunk >= _steps_in(file) - 1
+	next.text = I18n.t("Done") if last else I18n.t("Next")
+	next.pressed.connect(guide_step.bind(1))
+	nav.add_child(next)
+	var leave := Button.new()
+	leave.name = "LeaveGuide"
+	leave.flat = true
+	leave.text = I18n.t("Show all files")
+	leave.pressed.connect(func() -> void:
+		_guide = {}
+		_rebuild())
+	nav.add_child(leave)
+	_box.add_child(nav)
 
 
 func _file_row(file: Dictionary) -> HBoxContainer:

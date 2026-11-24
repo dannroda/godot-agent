@@ -87,6 +87,9 @@ extends EditorPlugin
 ## - `-- --godot-agent-restart-test`: m12-54, restart_editor desde una segunda pestaña con el agente
 ##   falso: la tarjeta con el motivo, y al habilitar de nuevo el plugin vuelven las dos pestañas y solo
 ##   la que lo pidió sigue con el motivo; «Restart and resume» del menú ⋯ (restart_check.gd).
+## - `-- --godot-agent-variants-test`: m11-90, godot.propose_variants con el agente falso: el diálogo,
+##   las copias y sus pestañas, el juez con regresiones de prueba, la comparación y el reinicio
+##   (variants_check.gd).
 ## - `-- --godot-agent-i18n-test`: con GODOT_AGENT_LANGUAGE=es, recorre el dock, la pantalla One-shot,
 ##   el Agent Log y cada página de Settings: ningún texto visible que tenga traducción queda en inglés.
 ## - `-- --godot-agent-profile-test`: m13-27, lee el profiler de scripts de un run desde un plugin por
@@ -119,6 +122,7 @@ const CLAUDE_MCP_ARG := "--godot-agent-claude-mcp-test"
 const McpCheck := preload("mcp_check.gd")
 const PendingCheck := preload("pending_check.gd")
 const RestartCheck := preload("restart_check.gd")
+const VariantsCheck := preload("variants_check.gd")
 const PlanCheck := preload("plan_check.gd")
 const AgyTourCheck := preload("agy_tour_check.gd")
 const HandoffCheck := preload("handoff_check.gd")
@@ -208,6 +212,7 @@ const AutoCheck := preload("auto_check.gd")
 const REMOTE_ARG := "--godot-agent-remote-test"
 const PENDING_ARG := "--godot-agent-pending-test"
 const RESTART_ARG := "--godot-agent-restart-test"
+const VARIANTS_ARG := "--godot-agent-variants-test"
 const PLAN_ARG := "--godot-agent-plan-test"
 const CHECKS_ARG := "--godot-agent-checks-test"
 const ASK_MENU_ARG := "--godot-agent-ask-menu-test"
@@ -310,6 +315,8 @@ func _enter_tree() -> void:
 		_run_pending_test.call_deferred()
 	if RESTART_ARG in args:
 		_run_restart_test.call_deferred()
+	if VARIANTS_ARG in args:
+		_run_variants_test.call_deferred()
 	if PLAN_ARG in args:
 		_run_plan_test.call_deferred()
 	if CHECKS_ARG in args:
@@ -748,6 +755,15 @@ func _run_restart_test() -> void:
 	for failure: String in failures:
 		print("[restart-check] FALLA ", failure)
 	_finish(0 if failures.is_empty() else 1, "restart-test: %d fallas" % failures.size())
+
+
+func _run_variants_test() -> void:
+	get_tree().create_timer(VariantsCheck.JUDGE_WAIT_S + 120.0).timeout.connect(_on_safety_timeout)
+	await _settle()
+	var failures := _failures(await VariantsCheck.new().run(get_tree()))
+	for failure: String in failures:
+		print("[variants-check] FALLA ", failure)
+	_finish(0 if failures.is_empty() else 1, "variants-test: %d fallas" % failures.size())
 
 
 func _run_checks_test() -> void:

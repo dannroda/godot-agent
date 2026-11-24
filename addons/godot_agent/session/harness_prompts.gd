@@ -38,6 +38,8 @@ const PLAN_EDIT := "Plan · the changes you made"  # i18n
 const PLAN_KEEP_PLANNING := "Plan · keep planning"  # i18n
 ## «Planificar» / `/plan` (m11-58): el pedido del plan, y la aprobación de un plan presentado en bloque.
 const PLAN_REQUEST := "Plan · what to plan"  # i18n
+## Lo que hay que arreglar en el PR que sigue una copia (m11-92).
+const PULL_REQUEST := "Pull request · what to fix"  # i18n
 const PLAN_APPROVED := "Plan · approved, build it"  # i18n
 ## «Denegar con motivo» en una tarjeta de permiso.
 const DENY_REASON := "Denied with a reason"  # i18n

@@ -58,6 +58,7 @@ i18n:full:120
 history:full:120
 sessions:full:120
 ui-basic:full:120
+variants:full:480
 ui-crash:full:120
 ui-markdown:full:120
 ui-long-permission:full:120

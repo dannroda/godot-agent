@@ -110,7 +110,8 @@ func measure() -> Dictionary:
 	return measured
 
 
-## Deja de evaluar y devuelve {lines, violations: [{kind, name, frame, time, value, limit}]}.
+## Deja de evaluar y devuelve {lines, violations: [{kind, name, frame, time, value, limit}], measured:
+## {métrica: valor} de cada presupuesto declarado (m11-90, con límite o sin él)}.
 func finish() -> Dictionary:
 	if _tree.physics_frame.is_connected(_check_invariants):
 		_tree.physics_frame.disconnect(_check_invariants)
@@ -138,12 +139,15 @@ func finish() -> Dictionary:
 			violations.append({"kind": "budget", "name": declared.metric, "value": measured.get(declared.metric), "limit": verdict.limit})
 	# Solo lo que se compara con la base: un presupuesto con límite escrito no guarda nada en el JSON.
 	var shown := {}
+	var declared_values := {}
 	for declared: Dictionary in _budgets:
+		if measured.get(declared.metric) != null:
+			declared_values[declared.metric] = snappedf(float(measured[declared.metric]), 0.01)
 		if declared.limit == null and measured.get(declared.metric) != null:
 			shown[declared.metric] = snappedf(float(measured[declared.metric]), 0.01)
 	if not shown.is_empty():
 		lines.append("%s (%s): %s" % [MEASURED, runner(), JSON.stringify(shown)])
-	return {"lines": lines, "violations": violations}
+	return {"lines": lines, "violations": violations, "measured": declared_values}
 
 
 ## Un presupuesto: {line, failed, limit}. `base`: la compartida (conteos) o la de esta máquina (tiempos), o null.

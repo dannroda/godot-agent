@@ -100,6 +100,14 @@ func test_cli_options() -> void:
 	assert_true(str(RegressionCli.parse_args(PackedStringArray(["--repeat=0"])).error).contains("1 to 20"), "fuera de rango")
 	assert_true(str(RegressionCli.parse_args(PackedStringArray(["--repeat=x"])).error).contains("«x»"), "no es un número")
 	assert_true(str(RegressionCli.parse_args(PackedStringArray(["--retry"])).error).contains("unknown option --retry"), "opción desconocida")
+	assert_eq(RegressionCli.parse_args(PackedStringArray(["--report=/tmp/r.json"])).report, "/tmp/r.json", "--report con archivo")
+	assert_true(str(RegressionCli.parse_args(PackedStringArray(["--report="])).error).contains("needs a file"), "--report vacío")
+
+
+func test_report_keeps_the_worst_measure() -> void:
+	var worst := RegressionCli.worst_measured([{"measured": {"frame_ms_p95": 4.0, "nodes_max": 30}}, {"measured": {"frame_ms_p95": 9.5, "nodes_max": 12}}, {"output": "sin medir"}])
+	assert_eq(worst, {"frame_ms_p95": 9.5, "nodes_max": 30.0}, "el peor de cada métrica entre las corridas")
+	assert_eq(RegressionCli.worst_measured([{"output": "run() returned: true"}]), {}, "sin presupuestos, vacío")
 
 
 func test_workflow_passes_the_options() -> void:

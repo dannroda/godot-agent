@@ -6716,3 +6716,144 @@ msgstr "%d vista"
 
 msgid "%d views"
 msgstr "%d vistas"
+
+msgid "Try variants in parallel"
+msgstr "Probar variantes en paralelo"
+
+msgid "Each variant you check is built by its own agent, in its own tab and copy of the project (from your last commit), all at the same time. It costs about that many times the usage of one."
+msgstr "Cada variante que tildes la construye su propio agente, en su pestaña y su copia del proyecto (desde tu último commit), todas a la vez. Cuesta más o menos esa cantidad de veces el uso de una."
+
+msgid "What all the variants try to achieve"
+msgstr "Lo que buscan todas las variantes"
+
+msgid "Add variant"
+msgstr "Agregar variante"
+
+msgid "%d saved regressions will judge them the same way."
+msgstr "%d regresiones guardadas las van a juzgar a todas igual."
+
+msgid "⚠ The project has no saved regressions: you will compare the variants by playing them. A playtest that passes saves one."
+msgstr "⚠ El proyecto no tiene regresiones guardadas: vas a comparar las variantes jugándolas. Un playtest que pasa guarda una."
+
+msgid "Another way to do it, in one line"
+msgstr "Otra forma de hacerlo, en una línea"
+
+msgid "Open %d copies"
+msgstr "Abrir %d copias"
+
+msgid "Check 2 to 4 variants"
+msgstr "Tildá de 2 a 4 variantes"
+
+msgid "Proposes variants to build in parallel, each in its own copy"
+msgstr "Propone variantes para construir en paralelo, cada una en su copia"
+
+msgid "Propose variants"
+msgstr "Proponer variantes"
+
+msgid "Could not judge it: %s"
+msgstr "No se pudo juzgar: %s"
+
+msgid "%d of %d regressions pass"
+msgstr "pasan %d de %d regresiones"
+
+msgid "%d flaky"
+msgstr "%d inestables"
+
+msgid "the project has no saved regressions"
+msgstr "el proyecto no tiene regresiones guardadas"
+
+msgid "Judging this variant with the project's regressions…"
+msgstr "Juzgando esta variante con las regresiones del proyecto…"
+
+msgid "Variant judged: %s · %d files changed"
+msgstr "Variante juzgada: %s · %d archivos cambiados"
+
+msgid "working…"
+msgstr "trabajando…"
+
+msgid "judging…"
+msgstr "juzgando…"
+
+msgid "closed"
+msgstr "cerrada"
+
+msgid "«Play» opens the game of that copy; «Apply» puts its changes in the project, uncommitted. Close the other tabs to keep their branch or discard them."
+msgstr "«Jugar» abre el juego de esa copia; «Aplicar» pone sus cambios en el proyecto, sin commitear. Cerrá las otras pestañas para guardar su rama o descartarlas."
+
+msgid "Play %s"
+msgstr "Jugar %s"
+
+msgid "Apply %s"
+msgstr "Aplicar %s"
+
+msgid "Variants: %s"
+msgstr "Variantes: %s"
+
+msgid "«%s» didn't change any file: nothing to apply."
+msgstr "«%s» no cambió ningún archivo: no hay nada para aplicar."
+
+msgid "Waiting for you: %s"
+msgstr "Te esperan: %s"
+
+msgid "Finished a turn you haven't seen: %s"
+msgstr "Terminaron un turno que no viste: %s"
+
+msgid "Click to go to the next one."
+msgstr "Hacé clic para ir a la próxima."
+
+msgid "Push, open a PR and keep fixing it"
+msgstr "Pushear, abrir un PR y seguir arreglándolo"
+
+msgid "The tab stays open: every %d s it checks the pull request with gh, and when a check fails, there is a conflict or a review or comment arrives, its agent fixes it and the harness pushes the fix. It never merges. It stops when the pull request is merged or closed, or when you close the tab."
+msgstr "La pestaña queda abierta: cada %d s mira el pull request con gh y, cuando falla un check, hay un conflicto o llega una revisión o un comentario, su agente lo arregla y el harness pushea el arreglo. Nunca mergea. Para cuando el pull request se mergea o se cierra, o cuando cerrás la pestaña."
+
+msgid "Following %s: when a check fails, there is a conflict or a review arrives, this tab fixes it and pushes. Close the tab to stop."
+msgstr "Siguiendo %s: cuando falle un check, haya un conflicto o llegue una revisión, esta pestaña lo arregla y pushea. Cerrá la pestaña para parar."
+
+msgid "%s is %s: no longer following it. Close the tab when you're done."
+msgstr "%s está %s: ya no se sigue. Cerrá la pestaña cuando termines."
+
+msgid "Pushed %d commits to the pull request."
+msgstr "Se pushearon %d commits al pull request."
+
+msgid "Pull request · what to fix"
+msgstr "Pull request · qué arreglar"
+
+msgid "Walk through the changes"
+msgstr "Recorrer los cambios"
+
+msgid "One change at a time, file by file, with the review findings on those lines."
+msgstr "Un cambio por vez, archivo por archivo, con los hallazgos de la revisión en esas líneas."
+
+msgid "File %d of %d · change %d of %d"
+msgstr "Archivo %d de %d · cambio %d de %d"
+
+msgid "Previous"
+msgstr "Anterior"
+
+msgid "Next"
+msgstr "Siguiente"
+
+msgid "Show all files"
+msgstr "Ver todos los archivos"
+
+msgid "New tab from a GitHub issue"
+msgstr "Nueva pestaña desde un issue de GitHub"
+
+msgid "New tab from a GitHub issue…"
+msgstr "Nueva pestaña desde un issue de GitHub…"
+
+msgid "Issue URL or number (#12)"
+msgstr "URL o número del issue (#12)"
+
+msgid "Reads the issue with gh and opens a separate copy whose agent starts working on it. The issue's text goes to the agent as data, not instructions."
+msgstr "Lee el issue con gh y abre una copia aparte cuyo agente empieza a trabajarlo. El texto del issue le llega al agente como datos, no como instrucciones."
+
+msgid "That is not a GitHub issue URL or number: %s"
+msgstr "Eso no es una URL ni un número de issue de GitHub: %s"
+
+msgid "gh could not read the issue: %s"
+msgstr "gh no pudo leer el issue: %s"
+
+msgid "Open"
+msgstr "Abrir"

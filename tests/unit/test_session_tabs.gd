@@ -109,3 +109,40 @@ func test_notifies_outside_when_unfocused() -> void:
 	DesktopNotifier.focus_override = Callable()
 	DesktopNotifier.launch_override = Callable()
 	tabs.free()
+
+
+## m11-91: «◆» en la que terminó un turno sin ser la activa, hasta que la mirás; el botón de la fila
+## cuenta las que te esperan y lleva a la próxima, primero las que esperan un permiso.
+func test_attention() -> void:
+	var tabs := SessionTabs.new()
+	var models: Array[SessionModel] = [SessionModel.new(), SessionModel.new(), SessionModel.new()]
+	for i in 3:
+		tabs.add_session("s%d" % (i + 1), Control.new(), models[i], "Session %d" % (i + 1))
+	tabs.select("s1")
+	var bar: TabBar = tabs.get(&"_bar")
+	var button: Button = tabs.get(&"_attention_button")
+	assert_false(button.visible, "nada te espera")
+	models[0].turn_finished.emit("end_turn")
+	assert_eq(bar.get_tab_title(0), "Session 1", "la activa no queda sin mirar")
+	models[2].turn_finished.emit("end_turn")
+	assert_true(bar.get_tab_title(2).begins_with("◆ "), "terminó sin mirarla · " + bar.get_tab_title(2))
+	assert_true(button.visible and button.text == "◆ 1" and button.tooltip_text.contains("Session 3"), "el botón la cuenta · %s" % button.text)
+	models[1].add_permission(PermissionRequest.new())
+	assert_true(button.text == "⚠ 1" and button.tooltip_text.contains("Waiting for you: Session 2"), "un permiso pesa más · %s" % button.text)
+	button.pressed.emit()
+	assert_eq(tabs.active_id(), "s2", "va primero a la que espera un permiso")
+	models[1].cancel_pending_permissions()
+	button.pressed.emit()
+	assert_eq(tabs.active_id(), "s3", "después a la del turno sin mirar")
+	assert_eq(bar.get_tab_title(2), "Session 3", "mirarla saca la marca")
+	assert_false(button.visible, "ya no queda nada")
+	models[1].turn_finished.emit("cancelled")
+	assert_false(button.visible, "un turno cancelado no cuenta")
+	tabs.free()
+
+
+func test_next_attention() -> void:
+	var ids := PackedStringArray(["a", "b", "c", "d"])
+	assert_eq(SessionTabs.next_attention(ids, "c", {}, {"b": true, "d": true}), "d", "la siguiente, dando la vuelta")
+	assert_eq(SessionTabs.next_attention(ids, "c", {"a": true}, {"d": true}), "a", "las que esperan primero")
+	assert_eq(SessionTabs.next_attention(ids, "a", {"a": true}, {}), "", "la activa no cuenta")
