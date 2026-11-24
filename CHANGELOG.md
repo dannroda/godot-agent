@@ -4,6 +4,10 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+### Added
+
+- **`--report` for the regressions command line.** `regression_cli.gd -- --report=results.json` writes the run as JSON: each regression's result, how many runs passed, the first failure's output and the worst value of each declared budget across the runs (`frame_ms_p95`, `draw_calls_max`…), so a script or a CI step can read it without parsing the printed lines.
+
 ### Fixed
 
 - **Resuming a long session reads only its end.** The dock used to read and rebuild the whole history before you could type, in a single frame of almost a second for a 20,000-event session. Now it reads the last 3,000 events, from a point where no tool call is left half-done, and **Show earlier messages** reads the previous part from the history file when you reach the top. At the end of a turn, the dock lets go of hidden messages beyond a margin, so the editor's memory no longer grows with the length of the session. **Export session…** still writes the whole conversation.

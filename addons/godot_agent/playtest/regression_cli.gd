@@ -2,13 +2,15 @@ extends SceneTree
 ## Repite las regresiones guardadas sin el editor (m16-09), para CI. Cada una abre su escena, espera
 ## lo mismo que el botón del panel y corre su game_script con el probe en modo standalone. Los errores
 ## del juego no lo frenan (sin debugger no hay pausa), como continue_on_error en el editor.
-## Uso: godot --headless --path <proyecto> --script res://addons/godot_agent/playtest/regression_cli.gd [-- [--repeat=N] [--fail-on-flaky] <archivo.json o carpeta>...]
+## Uso: godot --headless --path <proyecto> --script res://addons/godot_agent/playtest/regression_cli.gd [-- [--repeat=N] [--fail-on-flaky] [--report=<archivo.json>] <archivo.json o carpeta>...]
 ## Sin rutas, las de res://.godot_agent/playtests/regressions. Una regresión con `sabotage` corre otra
 ## vez con el sabotaje puesto y tiene que fallar. `--repeat=N` corre cada una N veces (m11-42): pasa si
 ## pasaron todas; si pasó algunas es inestable (FLAKY, con cuántas de N). Sin --repeat, una que la
 ## última repetición en el editor marcó inestable y falla se reintenta hasta 3 veces: inestable si
 ## pasa alguna, falla si no. Una inestable no hace fallar la corrida salvo con `--fail-on-flaky`. Sale con 0 si pasan todas, 1 si falla alguna y 2 si
-## no hay ninguna (o una opción está mal).
+## no hay ninguna (o una opción está mal). `--report=<archivo>` (m11-90) deja además el resultado en JSON:
+## {ok, failed, flaky, regressions: [{goal, file, passed, flaky, passes, runs, output, measured}]}, con
+## `measured` el peor valor de cada presupuesto entre las corridas (todas las métricas son «más es peor»).
 
 const PlaytestRegressions := preload("res://addons/godot_agent/review/playtest_regressions.gd")
 const PlaytestProbe := preload("res://addons/godot_agent/playtest/runtime/playtest_probe.gd")
@@ -69,6 +71,9 @@ func _run() -> void:
 		while PlaytestRegressions.retry_marked(entry, runs, int(options.repeat)):
 			runs.append(await run_one(entry))
 		var result := PlaytestRegressions.tally(entry, runs)
+		result.measured = worst_measured(runs)
+		for run: Dictionary in runs:
+			run.erase("measured")
 		# El sabotaje se prueba una vez, con una que pasó alguna corrida: si pasa también con él, no detecta nada.
 		if int(result.passes) > 0 and entry.get("sabotage") is String:
 			var sabotaged := await run_one(entry, entry.sabotage)
@@ -89,12 +94,29 @@ func _run() -> void:
 		print("regressions: none of %d fail%s" % [results.size(), flaky])
 	else:
 		print("regressions: all %d pass" % results.size())
+	if not str(options.report).is_empty():
+		var file := FileAccess.open(str(options.report), FileAccess.WRITE)
+		if file:
+			file.store_string(JSON.stringify({"ok": summary.ok, "failed": summary.failed, "flaky": summary.flaky, "regressions": results}, "\t"))
+			file.close()
+		else:
+			print("regressions: could not write the report to %s" % options.report)
 	quit(0 if summary.ok else 1)
+
+
+## El peor valor de cada presupuesto medido entre las corridas de una regresión ({métrica: valor}).
+static func worst_measured(runs: Array) -> Dictionary:
+	var worst := {}
+	for run: Dictionary in runs:
+		var values: Dictionary = run.get("measured", {})
+		for metric: String in values:
+			worst[metric] = maxf(float(worst.get(metric, -INF)), float(values[metric]))
+	return worst
 
 
 ## {paths, repeat, fail_on_flaky, error}: las opciones van antes o entre las rutas.
 static func parse_args(args: PackedStringArray) -> Dictionary:
-	var options := {"paths": PackedStringArray(), "repeat": 1, "fail_on_flaky": false, "error": "", "mutant": {}, "mutant_result": "", "mutate": 0, "min_score": -1, "no_baselines": false}
+	var options := {"paths": PackedStringArray(), "repeat": 1, "fail_on_flaky": false, "error": "", "mutant": {}, "mutant_result": "", "mutate": 0, "min_score": -1, "no_baselines": false, "report": ""}
 	for arg: String in args:
 		if arg.begins_with("--mutant="):
 			var parsed: Variant = JSON.parse_string(Marshalls.base64_to_utf8(arg.trim_prefix("--mutant=")))
@@ -128,8 +150,13 @@ static func parse_args(args: PackedStringArray) -> Dictionary:
 			options.fail_on_flaky = true
 		elif arg == "--no-baselines":
 			options.no_baselines = true
+		elif arg.begins_with("--report="):
+			options.report = arg.trim_prefix("--report=")
+			if str(options.report).is_empty():
+				options.error = "--report needs a file"
+				return options
 		elif arg.begins_with("--"):
-			options.error = "unknown option %s (use --repeat=N, --fail-on-flaky, --no-baselines, --mutate[=N] and --min-score=P)" % arg
+			options.error = "unknown option %s (use --repeat=N, --fail-on-flaky, --no-baselines, --report=FILE, --mutate[=N] and --min-score=P)" % arg
 			return options
 		else:
 			options.paths.append(arg)
@@ -285,6 +312,7 @@ func run_one(entry: Dictionary, setup: String = "", sabotage: Dictionary = {}) -
 	result.output = str(played.get("error", played.get("text", "")))
 	result.passed = not played.has("error") and PlaytestRegressions.passed(result.output)
 	result.violations = played.get("violations", [])
+	result.measured = played.get("measured", {})
 	if result.passed and record_baselines and setup.is_empty():
 		PlaytestRegressions.record_baselines(str(entry.get("file", "")), result.output)
 	probe.queue_free()

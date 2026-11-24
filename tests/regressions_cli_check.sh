@@ -90,6 +90,15 @@ if [ "$GOT" != 1 ] || ! grep -q '"invariant"' "$ROOT/tests/tmp/invariant_mutant.
 	FAILED=1
 fi
 
+# m11-90: --report deja el resultado en JSON, con lo que midieron los presupuestos.
+rm -f "$ROOT/tests/tmp/report.json"
+"$G" --headless --path "$ROOT" --script "$CLI" -- --no-baselines --repeat=2 --report=res://tests/tmp/report.json res://tests/fixtures/regressions/invariants >/dev/null 2>&1
+if ! grep -q '"ok": true' "$ROOT/tests/tmp/report.json" 2>/dev/null || ! grep -q '"nodes_max"' "$ROOT/tests/tmp/report.json" || ! grep -q '"runs": 2' "$ROOT/tests/tmp/report.json"; then
+	echo "FALLA: --report tendría que dejar ok, las 2 corridas y nodes_max medido"
+	cat "$ROOT/tests/tmp/report.json" 2>/dev/null | head -20
+	FAILED=1
+fi
+rm -f "$ROOT/tests/tmp/report.json"
 # La base de un presupuesto sin límite se guarda en el primer run verde, y no con --no-baselines.
 mkdir -p "$ROOT/tests/tmp/baselines"
 sed 's/game.budget(\\"nodes_max\\", 1000)/game.budget(\\"nodes_max\\")/' "$ROOT/tests/fixtures/regressions/invariants/mover.json" > "$ROOT/tests/tmp/baselines/mover.json"

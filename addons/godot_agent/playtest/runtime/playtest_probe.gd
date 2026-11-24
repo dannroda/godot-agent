@@ -331,7 +331,7 @@ func _run_script(params: Dictionary) -> Dictionary:
 		lines.append("run() returned: %s" % _format(state.value))
 		if not (checked.violations as Array).is_empty():
 			lines.append("The regression fails anyway: %d invariant or budget broke (above)." % (checked.violations as Array).size())
-	return {"text": "\n".join(lines), "violations": checked.violations}
+	return {"text": "\n".join(lines), "violations": checked.violations, "measured": checked.measured}
 
 
 func _drive_script(instance: Variant, kit: ScriptKit, state: Dictionary) -> void:
