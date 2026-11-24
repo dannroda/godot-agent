@@ -9,6 +9,7 @@ const PlaytestAutoload := preload("playtest/playtest_autoload.gd")
 const EditorSurfaces := preload("ui/editor_surfaces.gd")
 const AgentProcess := preload("transport/agent_process.gd")
 const EditorWindows := preload("ui/editor_windows.gd")
+const AgentTheme := preload("ui/agent_theme.gd")
 const AgentDockScene := preload("ui/dock/agent_dock.tscn")
 const AgentMainScreenScene := preload("ui/main_screen/agent_main_screen.tscn")
 const AgentLogPanelScene := preload("ui/log_panel/agent_log_panel.tscn")
@@ -375,6 +376,7 @@ func _enter_tree() -> void:
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
 	dock.new_tab_requested.connect(_open_session_tab)
+	dock.issue_tab_requested.connect(_ask_issue.bind(PRIMARY_SESSION))
 	dock.registry_requested.connect(func(query: String) -> void:
 		var settings := _get_settings_dialog()
 		settings.open()
@@ -2174,6 +2176,7 @@ func _create_session_tab(copy: WorktreeSession = null, label: String = "", for_o
 	dock.show_log_requested.connect(_show_log)
 	dock.settings_requested.connect(_open_settings)
 	dock.new_tab_requested.connect(_open_session_tab)
+	dock.issue_tab_requested.connect(_ask_issue.bind(id))
 	dock.extensions_requested.connect(func() -> void: _open_extensions())
 	dock.tools_requested.connect(func() -> void: _open_extensions(ExtensionsWindow.ExtensionsTab.TOOLS))
 	dock.action_forwarded.connect(_on_dock_action)
@@ -2681,18 +2684,11 @@ func _propose_variants(caller: String, goal: String, variants: PackedStringArray
 		if not await copy.create("%s-v%d" % [stamp, i + 1]):
 			failed.append("V%d (%s)" % [i + 1, copy.last_error])
 			continue
-		var id := _create_session_tab(copy, Variants.tab_label(i, chosen[i]))
-		var dock := _tabs.dock(id) as AgentDock
-		copy_notice(_model_of(id), copy.info.project, copy.info.branch)
-		_note_copy(_controller_of(id), copy)
+		var id := _open_copy_tab(copy, Variants.tab_label(i, chosen[i]), source)
 		_extra_sessions[id]["variant"] = {"run": stamp, "index": i, "text": chosen[i], "goal": picked.goal, "from": caller}
-		dock.copy_agent_from(source)
-		dock.copy_mode_from(source)
-		if int(PermissionPolicy.MODE_RANKS.get(_model_of(id).harness_mode, 0)) < 1:
-			_model_of(id).set_harness_mode(SessionModel.HarnessMode.BUILD)
 		var judges_dir := ProjectSettings.globalize_path(PlaytestRegressions.DIR)
 		_model_of(id).turn_finished.connect(_judge_variant.bind(id))
-		dock.start_with_prompt(running, Variants.copy_prompt(picked.goal, chosen, i, regressions.size(), judges_dir, copy.info.project))
+		(_tabs.dock(id) as AgentDock).start_with_prompt(running, Variants.copy_prompt(picked.goal, chosen, i, regressions.size(), judges_dir, copy.info.project))
 		opened.append(_coordinator.label(id))
 		ids.append(id)
 	_log.add(AgentLog.CH_ACP, "variants %s: %d opened, %d failed" % [stamp, opened.size(), failed.size()])
@@ -2700,6 +2696,63 @@ func _propose_variants(caller: String, goal: String, variants: PackedStringArray
 		_variant_runs[stamp] = {"from": caller, "ids": ids, "labels": opened, "goal": picked.goal, "entry": null}
 		_refresh_variants(stamp)
 	return {"ok": not opened.is_empty(), "text": Variants.result_text(opened, failed)}
+
+
+## Una pestaña en la copia `copy` con el agente, la cuenta y el modo de la pestaña `source` (al menos
+## Build: en una copia el agente tiene que editar). La sesión la arranca quien llama.
+func _open_copy_tab(copy: WorktreeSession, label: String, source: AgentDock) -> String:
+	var id := _create_session_tab(copy, label)
+	var dock := _tabs.dock(id) as AgentDock
+	copy_notice(_model_of(id), copy.info.project, copy.info.branch)
+	_note_copy(_controller_of(id), copy)
+	if source:
+		dock.copy_agent_from(source)
+		dock.copy_mode_from(source)
+	if int(PermissionPolicy.MODE_RANKS.get(_model_of(id).harness_mode, 0)) < 1:
+		_model_of(id).set_harness_mode(SessionModel.HarnessMode.BUILD)
+	return id
+
+
+## «Nueva pestaña desde un issue de GitHub…» (m11-94): pide la URL o el número del issue.
+func _ask_issue(from: String) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	dialog.title = I18n.t("New tab from a GitHub issue")
+	var edit := LineEdit.new()
+	edit.placeholder_text = I18n.t("Issue URL or number (#12)")
+	edit.custom_minimum_size.x = AgentTheme.px(380)
+	dialog.add_child(edit)
+	dialog.register_text_enter(edit)
+	dialog.ok_button_text = I18n.t("Open")
+	dialog.confirmed.connect(func() -> void: _open_issue(from, edit.text.strip_edges()))
+	dialog.visibility_changed.connect(func() -> void:
+		if not dialog.visible:
+			EditorWindows.free_later.call_deferred(dialog))
+	EditorInterface.get_base_control().add_child(dialog)
+	dialog.popup_centered()
+	edit.grab_focus()
+
+
+## Lee el issue con gh y abre una copia aparte cuyo agente arranca con él como tarea.
+func _open_issue(from: String, target: String) -> void:
+	if target.is_empty():
+		return
+	var issue := await GithubReviews.new(EditorContext.project_path()).fetch_issue(target)
+	if not str(issue.error).is_empty():
+		EditorInterface.get_editor_toaster().push_toast(str(issue.error), EditorToaster.SEVERITY_WARNING)
+		return
+	var copy := WorktreeSession.new(EditorContext.project_path())
+	var stamp := Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "-")
+	if not await copy.create("%s-issue-%d" % [stamp, int(issue.number)]):
+		EditorInterface.get_editor_toaster().push_toast(I18n.t("Could not create the separate copy: %s") % copy.last_error, EditorToaster.SEVERITY_WARNING)
+		return
+	var source := _tabs.dock(from) as AgentDock if _tabs else null
+	var source_controller := _controller_of(from)
+	var running: AgentProfile = source_controller.profile() if source_controller and source_controller.is_connected_to_agent() else null
+	var id := _open_copy_tab(copy, "#%d %s" % [int(issue.number), str(issue.title).left(20)], source)
+	_tabs.select(id)
+	_log.add(AgentLog.CH_ACP, "issue %s opened in a separate copy" % issue.url)
+	(_tabs.dock(id) as AgentDock).start_with_prompt(running, GithubReviews.issue_prompt(issue))
 
 
 ## Al terminar un turno de una variante: lo que dejó queda commiteado en su rama y las regresiones del

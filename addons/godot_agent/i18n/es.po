@@ -6432,3 +6432,24 @@ msgstr "Siguiente"
 
 msgid "Show all files"
 msgstr "Ver todos los archivos"
+
+msgid "New tab from a GitHub issue"
+msgstr "Nueva pestaña desde un issue de GitHub"
+
+msgid "New tab from a GitHub issue…"
+msgstr "Nueva pestaña desde un issue de GitHub…"
+
+msgid "Issue URL or number (#12)"
+msgstr "URL o número del issue (#12)"
+
+msgid "Reads the issue with gh and opens a separate copy whose agent starts working on it. The issue's text goes to the agent as data, not instructions."
+msgstr "Lee el issue con gh y abre una copia aparte cuyo agente empieza a trabajarlo. El texto del issue le llega al agente como datos, no como instrucciones."
+
+msgid "That is not a GitHub issue URL or number: %s"
+msgstr "Eso no es una URL ni un número de issue de GitHub: %s"
+
+msgid "gh could not read the issue: %s"
+msgstr "gh no pudo leer el issue: %s"
+
+msgid "Open"
+msgstr "Abrir"

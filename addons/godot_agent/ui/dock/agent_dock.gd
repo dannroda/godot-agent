@@ -11,6 +11,8 @@ signal settings_requested
 signal registry_requested(query: String)
 ## «+ › Nueva pestaña» (m12-14): otra sesión al lado; `in_copy`, en una copia aparte del proyecto.
 signal new_tab_requested(in_copy: bool)
+## «Nueva pestaña desde un issue de GitHub…» (m11-94).
+signal issue_tab_requested
 ## Con esta pestaña trabajando (o con el One-shot en ella), «Nueva sesión» y el historial abren la
 ## sesión en otra pestaña con el mismo agente y cuenta (m17-17). `session_id` vacío: una nueva.
 signal open_elsewhere_requested(session_id: String)
@@ -50,6 +52,7 @@ const NEW_MENU_SESSION := 0
 const NEW_MENU_TAB := 1
 const NEW_MENU_TAB_COPY := 2
 const NEW_MENU_HANDOFF := 3
+const NEW_MENU_ISSUE := 4
 const HANDOFF_COMMAND := "/handoff"
 ## m11-36: `/remember <texto>` (alias `/recordar`) guarda una línea en la sección del harness del
 ## archivo de instrucciones del agente activo.
@@ -591,10 +594,14 @@ func _build_header() -> void:
 	_new_menu.add_item(I18n.t("New tab in a separate copy (git worktree)"), NEW_MENU_TAB_COPY)
 	_new_menu.set_item_tooltip(2, I18n.t("The agent works in a copy of the project on a new branch, outside the project folder, without touching the open editor. When you close its tab you choose whether to apply its changes to the project."))
 	_new_menu.add_item(I18n.t("New session with a summary of this one"), NEW_MENU_HANDOFF)
+	_new_menu.add_item(I18n.t("New tab from a GitHub issue…"), NEW_MENU_ISSUE)
+	_new_menu.set_item_tooltip(_new_menu.get_item_index(NEW_MENU_ISSUE), I18n.t("Reads the issue with gh and opens a separate copy whose agent starts working on it. The issue's text goes to the agent as data, not instructions."))
 	_new_menu.set_item_tooltip(3, I18n.t("The agent writes a summary of this session (goal, what's done, what's left, decisions, open questions) and a new tab opens with the same agent, account and mode, with the summary in the composer to review before sending."))
 	_new_menu.id_pressed.connect(func(id: int) -> void:
 		if id == NEW_MENU_HANDOFF:
 			request_handoff()
+		elif id == NEW_MENU_ISSUE:
+			issue_tab_requested.emit()
 		elif id == NEW_MENU_SESSION:
 			if _must_open_elsewhere():
 				open_elsewhere_requested.emit("")
