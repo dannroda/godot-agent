@@ -6387,3 +6387,12 @@ msgstr "Variantes: %s"
 
 msgid "«%s» didn't change any file: nothing to apply."
 msgstr "«%s» no cambió ningún archivo: no hay nada para aplicar."
+
+msgid "Waiting for you: %s"
+msgstr "Te esperan: %s"
+
+msgid "Finished a turn you haven't seen: %s"
+msgstr "Terminaron un turno que no viste: %s"
+
+msgid "Click to go to the next one."
+msgstr "Hacé clic para ir a la próxima."

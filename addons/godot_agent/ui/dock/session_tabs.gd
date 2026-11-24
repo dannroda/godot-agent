@@ -46,6 +46,10 @@ var _toasted: Dictionary = {}  # id -> true
 var notify_outside_enabled: Callable
 ## Sesiones que ya avisaron fuera del editor que esperan: uno por espera.
 var _outside_notified: Dictionary = {}  # id -> true
+## Sesiones que terminaron un turno sin ser la pestaña activa (m11-91): «◆» hasta que las mirás.
+var _unread: Dictionary = {}  # id -> true
+## «⚠ 2» / «◆ 1» en la fila: lleva a la próxima pestaña que te espera (m11-91, idea de Capy).
+var _attention_button: Button
 var _rename_popup: PopupPanel
 var _rename_edit: LineEdit
 var _renaming: String = ""
@@ -70,6 +74,15 @@ func _init() -> void:
 			close_requested.emit(_ids[index]))
 	_bar.gui_input.connect(_on_bar_input)
 	row.add_child(_bar)
+	_attention_button = Button.new()
+	_attention_button.name = "AttentionButton"
+	_attention_button.flat = true
+	_attention_button.visible = false
+	_attention_button.pressed.connect(func() -> void:
+		var next := next_attention(_ids, active_id(), _waiting_ids(), _unread)
+		if not next.is_empty():
+			select(next))
+	row.add_child(_attention_button)
 	_add_button = Button.new()
 	_add_button.name = "NewSessionTabButton"
 	_add_button.flat = true
@@ -131,6 +144,9 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 		_notify_outside(id, I18n.t("«%s» is waiting for your answer."), true))
 	model.turn_finished.connect(func(stop_reason: String) -> void:
 		if stop_reason != "cancelled":
+			if id != active_id():  # la activa ya la ves (o la vas a ver al volver al dock)
+				_unread[id] = true
+			_refresh_tab(id)
 			_notify_outside(id, I18n.t("«%s» finished its turn.")))
 	_refresh_tab(id)
 	select(id)
@@ -149,6 +165,7 @@ func remove_session(id: String) -> void:
 	_defaults.erase(id)
 	_toasted.erase(id)
 	_outside_notified.erase(id)
+	_unread.erase(id)
 	_bar.remove_tab(index)
 	_row.visible = _ids.size() > 1
 	_refresh_tab(_ids[0])
@@ -253,7 +270,7 @@ func _refresh_tab(id: String) -> void:
 	if not waiting:
 		_toasted.erase(id)
 		_outside_notified.erase(id)
-	var mark := "⚠ " if waiting else ("● " if model.is_busy() else "")
+	var mark := "⚠ " if waiting else ("● " if model.is_busy() else ("◆ " if _unread.has(id) else ""))
 	# La principal (sin X, m7-44) lleva un pin con otra pestaña al lado (m12-50); nunca es una copia.
 	var pinned := is_pinned(id)
 	var tab_icon := AgentTheme.icon(PIN_ICON) if pinned else (AgentTheme.icon(COPY_ICON) if _copies.has(id) else null)
@@ -266,6 +283,56 @@ func _refresh_tab(id: String) -> void:
 	if pinned:
 		tooltip += "\n" + I18n.t("Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session.")
 	_bar.set_tab_tooltip(index, tooltip + "\n" + I18n.t("Double-click to rename"))
+	_refresh_attention()
+
+
+## Las que esperan un permiso o una respuesta tuya.
+func _waiting_ids() -> Dictionary:
+	var waiting := {}
+	for id: String in _ids:
+		var model: SessionModel = _models[id]
+		if not model.pending_permissions.is_empty() or not model.pending_elicitations.is_empty():
+			waiting[id] = true
+	return waiting
+
+
+## El botón de la fila: cuántas otras pestañas te esperan («⚠»: un permiso o una respuesta; «◆»: un
+## turno terminado sin mirar) y, en el tooltip, cuáles.
+func _refresh_attention() -> void:
+	if _attention_button == null:
+		return
+	var active := active_id()
+	var waiting := _waiting_ids()
+	var waiting_names: PackedStringArray = []
+	var unread_names: PackedStringArray = []
+	for id: String in _ids:
+		if id == active:
+			continue
+		if waiting.has(id):
+			waiting_names.append(str(_labels[id]))
+		elif _unread.has(id):
+			unread_names.append(str(_labels[id]))
+	_attention_button.visible = not (waiting_names.is_empty() and unread_names.is_empty())
+	_attention_button.text = ("⚠ %d" % waiting_names.size()) if not waiting_names.is_empty() else ("◆ %d" % unread_names.size())
+	var lines: PackedStringArray = []
+	if not waiting_names.is_empty():
+		lines.append(I18n.t("Waiting for you: %s") % ", ".join(waiting_names))
+	if not unread_names.is_empty():
+		lines.append(I18n.t("Finished a turn you haven't seen: %s") % ", ".join(unread_names))
+	lines.append(I18n.t("Click to go to the next one."))
+	_attention_button.tooltip_text = "\n".join(lines)
+
+
+## La próxima pestaña que te espera después de `active`, dando la vuelta: primero las que esperan un
+## permiso o una respuesta, después las de un turno sin mirar. "" si ninguna.
+static func next_attention(ids: PackedStringArray, active: String, waiting: Dictionary, unread: Dictionary) -> String:
+	var start := ids.find(active)
+	for pool: Dictionary in [waiting, unread]:
+		for step in range(1, ids.size() + 1):
+			var id := ids[(start + step) % ids.size()]
+			if id != active and pool.has(id):
+				return id
+	return ""
 
 
 ## Un pedido de permiso (o un formulario del agente) de una sesión que no está a la vista (otra pestaña, o el dock tapado por
@@ -302,4 +369,7 @@ func _on_tab_changed(index: int) -> void:
 	for i in _ids.size():
 		(_docks[_ids[i]] as Control).visible = i == index
 	if index >= 0 and index < _ids.size():
+		if _unread.erase(_ids[index]):
+			_refresh_tab(_ids[index])
+		_refresh_attention()
 		active_changed.emit(_ids[index])
