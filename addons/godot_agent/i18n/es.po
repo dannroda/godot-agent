@@ -6360,3 +6360,30 @@ msgstr "Juzgando esta variante con las regresiones del proyecto…"
 
 msgid "Variant judged: %s · %d files changed"
 msgstr "Variante juzgada: %s · %d archivos cambiados"
+
+msgid "working…"
+msgstr "trabajando…"
+
+msgid "judging…"
+msgstr "juzgando…"
+
+msgid "closed"
+msgstr "cerrada"
+
+msgid "%d files changed"
+msgstr "%d archivos cambiados"
+
+msgid "«Play» opens the game of that copy; «Apply» puts its changes in the project, uncommitted. Close the other tabs to keep their branch or discard them."
+msgstr "«Jugar» abre el juego de esa copia; «Aplicar» pone sus cambios en el proyecto, sin commitear. Cerrá las otras pestañas para guardar su rama o descartarlas."
+
+msgid "Play %s"
+msgstr "Jugar %s"
+
+msgid "Apply %s"
+msgstr "Aplicar %s"
+
+msgid "Variants: %s"
+msgstr "Variantes: %s"
+
+msgid "«%s» didn't change any file: nothing to apply."
+msgstr "«%s» no cambió ningún archivo: no hay nada para aplicar."

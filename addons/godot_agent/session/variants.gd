@@ -121,3 +121,24 @@ static func worst_measured(regressions: Array) -> Dictionary:
 		for metric: String in measured:
 			worst[metric] = maxf(float(worst.get(metric, -INF)), float(measured[metric]))
 	return worst
+
+
+## El texto de la comparación (m11-90), una línea por variante. `rows`: [{label, state, judged?,
+## changed?}], con `state` "working", "judging", "judged" o "closed". `t`: I18n.t.
+static func comparison_text(rows: Array, t: Callable) -> String:
+	var lines: PackedStringArray = []
+	for row: Dictionary in rows:
+		var shown := ""
+		match str(row.get("state", "")):
+			"working":
+				shown = t.call("working…")  # i18n
+			"judging":
+				shown = t.call("judging…")  # i18n
+			"closed":
+				shown = t.call("closed")  # i18n
+			_:
+				var changed := int(row.get("changed", 0))
+				shown = judge_line(row.get("judged", {}), t) + " · " + t.call("%d files changed") % changed  # i18n
+		lines.append("• %s: %s" % [row.get("label", ""), shown])
+	lines.append(t.call("«Play» opens the game of that copy; «Apply» puts its changes in the project, uncommitted. Close the other tabs to keep their branch or discard them."))  # i18n
+	return "\n".join(lines)

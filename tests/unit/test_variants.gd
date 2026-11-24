@@ -89,3 +89,15 @@ func test_judge_runs_the_regressions() -> void:
 	assert_eq(int(judged.report.regressions[0].runs), Variants.REPEAT, "cada una REPEAT veces")
 	var missing: Dictionary = await Variants.judge(ProjectSettings.globalize_path("res://"), "/nowhere/regressions", report)
 	assert_false(missing.ok, "sin regresiones no hay report")
+
+
+func test_comparison_text() -> void:
+	var t := func(text: String) -> String: return text
+	var judged := {"ok": true, "report": {"ok": true, "flaky": 0, "regressions": [{"passed": true, "measured": {"draw_calls_max": 12}}]}}
+	var text := Variants.comparison_text([
+		{"label": "V1 · Coyote", "state": "judged", "judged": judged, "changed": 4},
+		{"label": "V2 · Gravity", "state": "judging"},
+		{"label": "V3 · Height", "state": "working"},
+		{"label": "V4 · Dash", "state": "closed"}], t)
+	assert_true(text.contains("• V1 · Coyote: 1 of 1 regressions pass · draw_calls_max 12 · 4 files changed"), "la juzgada, con métricas y archivos")
+	assert_true(text.contains("• V2 · Gravity: judging…") and text.contains("• V3 · Height: working…") and text.contains("• V4 · Dash: closed"), "los otros estados")

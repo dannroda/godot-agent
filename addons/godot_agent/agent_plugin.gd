@@ -129,6 +129,9 @@ const ACTION_OPEN_MUTANT := "open_mutant"
 const MutationTesting := preload("playtest/mutation/mutation_testing.gd")
 ## «Send to the agent» del aviso de un hook de prompt (m11-24); `data` es el prompt.
 const ACTION_SEND_HOOK_PROMPT := "send_hook_prompt"
+## Botones de la comparación de variantes (m11-90); payload {id} de la pestaña de la variante.
+const ACTION_VARIANT_PLAY := "variant_play"
+const ACTION_VARIANT_APPLY := "variant_apply"
 ## El panel Stack Trace del debugger se llena un momento después de la pausa.
 const BREAK_READ_DELAY_S := 0.5
 ## Avisos de RegressionsWorkflow.write() para el usuario.
@@ -182,6 +185,8 @@ var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
 ## El de godot.propose_variants (m11-90), creado la primera vez.
 var _variants_dialog: VariantsDialog
+## Cada tanda de variantes: run -> {from (pestaña que propuso), ids, labels, entry (el aviso con la comparación)}.
+var _variant_runs: Dictionary = {}
 var _turn_changes: TurnChanges
 var _turn_marks: TurnChangeMarks
 ## El contador vivo de cambios del turno arriba del composer (m11-34).
@@ -911,6 +916,12 @@ func _on_dock_action(action: String, payload: Variant) -> void:
 			EditorContext.open_location(where.get_slice("#", 0), where.get_slice("#", 1).to_int())
 		ACTION_OVERWRITE_REGRESSIONS_WORKFLOW:
 			_write_regressions_workflow(true)
+		ACTION_VARIANT_PLAY:
+			var copy: WorktreeSession = _extra_sessions.get(str(payload.get("id", "")), {}).get("copy")
+			if copy:
+				OS.create_process(OS.get_executable_path(), PackedStringArray(["--path", copy.info.project]))
+		ACTION_VARIANT_APPLY:
+			_apply_variant(str(payload.get("id", "")))
 		ACTION_SEND_HOOK_PROMPT:
 			var hook_dock := _tabs.dock(_tabs.active_id()) as AgentDock if _tabs else null
 			if hook_dock:
@@ -2295,6 +2306,8 @@ func _close_session_tab(id: String, ask: bool = true) -> void:
 			_ask_copy_fate(id, copy, changed)
 			return
 	_extra_sessions.erase(id)
+	if session.has("variant"):
+		_refresh_variants(str(session.variant.run))
 	var controller: SessionController = session.controller
 	controller.stop()
 	if controller.history:
@@ -2617,6 +2630,7 @@ func _propose_variants(caller: String, goal: String, variants: PackedStringArray
 	var stamp := Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "-")
 	var opened: PackedStringArray = []
 	var failed: PackedStringArray = []
+	var ids: PackedStringArray = []
 	for i in chosen.size():
 		var copy := WorktreeSession.new(EditorContext.project_path())
 		if not await copy.create("%s-v%d" % [stamp, i + 1]):
@@ -2635,7 +2649,11 @@ func _propose_variants(caller: String, goal: String, variants: PackedStringArray
 		_model_of(id).turn_finished.connect(_judge_variant.bind(id))
 		dock.start_with_prompt(running, Variants.copy_prompt(picked.goal, chosen, i, regressions.size(), judges_dir, copy.info.project))
 		opened.append(_coordinator.label(id))
+		ids.append(id)
 	_log.add(AgentLog.CH_ACP, "variants %s: %d opened, %d failed" % [stamp, opened.size(), failed.size()])
+	if not ids.is_empty():
+		_variant_runs[stamp] = {"from": caller, "ids": ids, "labels": opened, "goal": picked.goal, "entry": null}
+		_refresh_variants(stamp)
 	return {"ok": not opened.is_empty(), "text": Variants.result_text(opened, failed)}
 
 
@@ -2654,15 +2672,69 @@ func _judge_variant(stop_reason: String, id: String) -> void:
 		variant.judged = {"ok": false, "error": I18n.t("the project has no saved regressions")}
 	else:
 		_model_of(id).add_notice(I18n.t("Judging this variant with the project's regressions…"))
+		variant.judging = true
+		_refresh_variants(str(variant.run))
 		var report_path := OS.get_user_data_dir().path_join("godot_agent_variants/%s-v%d.json" % [variant.run, int(variant.index) + 1])
 		var judged := await Variants.judge(copy.info.project, ProjectSettings.globalize_path(PlaytestRegressions.DIR), report_path)
 		if not _extra_sessions.has(id) or int(variant.turns) != turn:
 			return  # se cerró la pestaña o terminó otro turno mientras juzgaba
+		variant.judging = false
 		variant.judged = judged
+	_refresh_variants(str(variant.run))
 	var line := Variants.judge_line(variant.judged, I18n.t)
 	_model_of(id).add_notice(I18n.t("Variant judged: %s · %d files changed") % [line, (variant.changed as PackedStringArray).size()],
 		ChatEntry.NoticeLevel.INFO if variant.judged.get("ok", false) and variant.judged.report.get("ok", false) else ChatEntry.NoticeLevel.WARNING)
 	_log.add(AgentLog.CH_ACP, "variant %s: %s" % [_coordinator.label(id), line])
+
+
+## La comparación de una tanda en la pestaña que la propuso: un aviso que se actualiza, con «Jugar» y
+## «Aplicar» por cada variante que ya terminó un turno.
+func _refresh_variants(run: String) -> void:
+	var info: Dictionary = _variant_runs.get(run, {})
+	var model := _model_of(str(info.get("from", "")))
+	if info.is_empty() or model == null:
+		return
+	var rows: Array = []
+	var actions: Array[Dictionary] = []
+	for i in (info.ids as PackedStringArray).size():
+		var id: String = info.ids[i]
+		var variant: Dictionary = _extra_sessions.get(id, {}).get("variant", {})
+		var label: String = info.labels[i]
+		if variant.is_empty():
+			rows.append({"label": label, "state": "closed"})
+			continue
+		var state := "judging" if variant.get("judging", false) else ("judged" if variant.has("judged") else "working")
+		rows.append({"label": label, "state": state, "judged": variant.get("judged", {}), "changed": (variant.get("changed", PackedStringArray()) as PackedStringArray).size()})
+		if variant.has("changed"):
+			var short := "V%d" % (int(variant.index) + 1)
+			actions.append({"id": ACTION_VARIANT_PLAY, "label": I18n.t("Play %s") % short, "data": {"id": id}})
+			actions.append({"id": ACTION_VARIANT_APPLY, "label": I18n.t("Apply %s") % short, "data": {"id": id}})
+	var text := Variants.comparison_text(rows, I18n.t)
+	var entry: ChatEntry = info.entry
+	if entry == null:
+		entry = model.add_notice(text, ChatEntry.NoticeLevel.INFO, actions)
+		info.entry = entry
+	else:
+		entry.text = text
+		entry.actions = actions
+	entry.title = I18n.t("Variants: %s") % str(info.goal).left(80)
+	model.notify_entry_changed(entry)
+
+
+## «Aplicar Vn»: lo último de la copia, commiteado, pasa al proyecto sin commitear y la pestaña se cierra.
+func _apply_variant(id: String) -> void:
+	var session: Dictionary = _extra_sessions.get(id, {})
+	var copy: WorktreeSession = session.get("copy")
+	if copy == null or not session.has("variant"):
+		return
+	var run := str(session.variant.run)
+	(session.controller as SessionController).stop()
+	var changed := await copy.commit_changes()
+	if changed.is_empty():
+		_model.add_notice(I18n.t("«%s» didn't change any file: nothing to apply.") % _coordinator.label(id), ChatEntry.NoticeLevel.WARNING)
+		return
+	await _resolve_copy(id, copy, changed, "apply")
+	_refresh_variants(run)
 
 
 func _request_mode(caller: String, mode: String, why: String) -> Dictionary:
