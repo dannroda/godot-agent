@@ -22,7 +22,8 @@ func test_copy_prompt() -> void:
 	var prompt := Variants.copy_prompt("Better jump", variants, 1, 3)
 	assert_true(prompt.contains("variant V2 of 3") and prompt.contains("Your variant: Stronger gravity"), "su variante")
 	assert_true(prompt.contains("- V1: Coyote time") and prompt.contains("- V3: Variable height") and not prompt.contains("- V2"), "las otras, para no hacerlas")
-	assert_true(prompt.contains("3 saved regressions") and prompt.contains("don't edit"), "el juez y no tocarlo")
+	assert_true(Variants.copy_prompt("g", variants, 1, 3, "/p/.godot_agent/playtests/regressions", "/c/p").contains("--path /c/p --script res://addons/godot_agent/playtest/regression_cli.gd -- /p/.godot_agent/playtests/regressions"), "cómo correr el juez, con las del proyecto")
+	assert_true(prompt.contains("3 saved regressions"), "el juez")
 	assert_true(Variants.copy_prompt("g", variants, 0, 0).contains("no saved regressions"), "sin regresiones lo dice")
 
 
@@ -67,3 +68,24 @@ func test_dialog() -> void:
 	goal.text_changed.emit("")
 	assert_true(dialog.get_ok_button().disabled, "sin objetivo no abre")
 	dialog.free()
+
+
+func test_judge_line() -> void:
+	var t := func(text: String) -> String: return text
+	var report := {"ok": false, "flaky": 1, "regressions": [
+		{"passed": true, "measured": {"frame_ms_p95": 4.04, "nodes_max": 30}},
+		{"passed": false, "flaky": true, "measured": {"frame_ms_p95": 8.21}},
+		{"passed": true}]}
+	assert_eq(Variants.judge_line({"ok": true, "report": report}, t), "2 of 3 regressions pass · 1 flaky · frame_ms_p95 8.2 · nodes_max 30", "pasan, inestables y el peor de cada métrica")
+	assert_eq(Variants.judge_line({"ok": false, "error": "boom"}, t), "Could not judge it: boom", "sin juez")
+
+
+## Un Godot headless de verdad sobre este proyecto con las regresiones de prueba que pasan.
+func test_judge_runs_the_regressions() -> void:
+	var report := temp_dir("variants_judge").path_join("report.json")
+	var judged: Dictionary = await Variants.judge(ProjectSettings.globalize_path("res://"), ProjectSettings.globalize_path("res://tests/fixtures/regressions/pass"), report)
+	assert_true(judged.ok, "corrió: %s" % judged.get("error", ""))
+	assert_eq([judged.report.get("ok"), (judged.report.get("regressions", []) as Array).size()], [true, 2], "las 2 pasan")
+	assert_eq(int(judged.report.regressions[0].runs), Variants.REPEAT, "cada una REPEAT veces")
+	var missing: Dictionary = await Variants.judge(ProjectSettings.globalize_path("res://"), "/nowhere/regressions", report)
+	assert_false(missing.ok, "sin regresiones no hay report")

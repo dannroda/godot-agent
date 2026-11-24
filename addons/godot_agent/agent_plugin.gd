@@ -2589,8 +2589,8 @@ func _usable_project_modes() -> Array[Dictionary]:
 
 ## godot.request_mode (m11-68): la tarjeta en la sesión que llama.
 ## godot.propose_variants (m11-90): el usuario elige en el diálogo y cada variante abre su copia y su
-## pestaña, con el agente, la cuenta y el modo de la que propuso (al menos Build: tiene que editar) y
-## las regresiones guardadas del proyecto adentro, aunque no estén commiteadas.
+## pestaña, con el agente, la cuenta y el modo de la que propuso (al menos Build: tiene que editar).
+## Al terminar cada turno, las regresiones guardadas del proyecto la juzgan (_judge_variant).
 func _propose_variants(caller: String, goal: String, variants: PackedStringArray) -> Dictionary:
 	if caller == SecondOpinion.SESSION_ID:
 		return {"ok": false, "text": "The second opinion is read only: it can't open variants."}
@@ -2622,10 +2622,6 @@ func _propose_variants(caller: String, goal: String, variants: PackedStringArray
 		if not await copy.create("%s-v%d" % [stamp, i + 1]):
 			failed.append("V%d (%s)" % [i + 1, copy.last_error])
 			continue
-		var target := str(copy.info.project).path_join(PlaytestRegressions.DIR.trim_prefix("res://"))
-		DirAccess.make_dir_recursive_absolute(target)
-		for entry: Dictionary in regressions:
-			DirAccess.copy_absolute(ProjectSettings.globalize_path(str(entry.file)), target.path_join(str(entry.file).get_file()))
 		var id := _create_session_tab(copy, Variants.tab_label(i, chosen[i]))
 		var dock := _tabs.dock(id) as AgentDock
 		copy_notice(_model_of(id), copy.info.project, copy.info.branch)
@@ -2635,10 +2631,38 @@ func _propose_variants(caller: String, goal: String, variants: PackedStringArray
 		dock.copy_mode_from(source)
 		if int(PermissionPolicy.MODE_RANKS.get(_model_of(id).harness_mode, 0)) < 1:
 			_model_of(id).set_harness_mode(SessionModel.HarnessMode.BUILD)
-		dock.start_with_prompt(running, Variants.copy_prompt(picked.goal, chosen, i, regressions.size()))
+		var judges_dir := ProjectSettings.globalize_path(PlaytestRegressions.DIR)
+		_model_of(id).turn_finished.connect(_judge_variant.bind(id))
+		dock.start_with_prompt(running, Variants.copy_prompt(picked.goal, chosen, i, regressions.size(), judges_dir, copy.info.project))
 		opened.append(_coordinator.label(id))
 	_log.add(AgentLog.CH_ACP, "variants %s: %d opened, %d failed" % [stamp, opened.size(), failed.size()])
 	return {"ok": not opened.is_empty(), "text": Variants.result_text(opened, failed)}
+
+
+## Al terminar un turno de una variante: lo que dejó queda commiteado en su rama y las regresiones del
+## proyecto la juzgan en un Godot headless aparte. Un turno nuevo mientras juzga deja el resultado viejo.
+func _judge_variant(stop_reason: String, id: String) -> void:
+	var session: Dictionary = _extra_sessions.get(id, {})
+	var copy: WorktreeSession = session.get("copy")
+	if copy == null or not session.has("variant") or stop_reason != "end_turn":
+		return
+	var variant: Dictionary = session.variant
+	variant.turns = int(variant.get("turns", 0)) + 1
+	var turn: int = variant.turns
+	variant.changed = await copy.commit_changes()
+	if PlaytestRegressions.new(PlaytestRegressions.DIR).list().is_empty():
+		variant.judged = {"ok": false, "error": I18n.t("the project has no saved regressions")}
+	else:
+		_model_of(id).add_notice(I18n.t("Judging this variant with the project's regressions…"))
+		var report_path := OS.get_user_data_dir().path_join("godot_agent_variants/%s-v%d.json" % [variant.run, int(variant.index) + 1])
+		var judged := await Variants.judge(copy.info.project, ProjectSettings.globalize_path(PlaytestRegressions.DIR), report_path)
+		if not _extra_sessions.has(id) or int(variant.turns) != turn:
+			return  # se cerró la pestaña o terminó otro turno mientras juzgaba
+		variant.judged = judged
+	var line := Variants.judge_line(variant.judged, I18n.t)
+	_model_of(id).add_notice(I18n.t("Variant judged: %s · %d files changed") % [line, (variant.changed as PackedStringArray).size()],
+		ChatEntry.NoticeLevel.INFO if variant.judged.get("ok", false) and variant.judged.report.get("ok", false) else ChatEntry.NoticeLevel.WARNING)
+	_log.add(AgentLog.CH_ACP, "variant %s: %s" % [_coordinator.label(id), line])
 
 
 func _request_mode(caller: String, mode: String, why: String) -> Dictionary:

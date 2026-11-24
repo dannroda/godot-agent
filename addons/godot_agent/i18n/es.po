@@ -6342,3 +6342,21 @@ msgstr "Propone variantes para construir en paralelo, cada una en su copia"
 
 msgid "Propose variants"
 msgstr "Proponer variantes"
+
+msgid "Could not judge it: %s"
+msgstr "No se pudo juzgar: %s"
+
+msgid "%d of %d regressions pass"
+msgstr "pasan %d de %d regresiones"
+
+msgid "%d flaky"
+msgstr "%d inestables"
+
+msgid "the project has no saved regressions"
+msgstr "el proyecto no tiene regresiones guardadas"
+
+msgid "Judging this variant with the project's regressions…"
+msgstr "Juzgando esta variante con las regresiones del proyecto…"
+
+msgid "Variant judged: %s · %d files changed"
+msgstr "Variante juzgada: %s · %d archivos cambiados"
