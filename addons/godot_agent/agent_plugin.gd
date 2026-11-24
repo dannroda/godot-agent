@@ -38,6 +38,8 @@ const ChatEntry := preload("session/chat_entry.gd")
 const ToolCall := preload("session/tool_call.gd")
 const DiffDialog := preload("ui/diff_dialog.gd")
 const TurnChangesDialog := preload("ui/turn_changes_dialog.gd")
+const VariantsDialog := preload("ui/variants_dialog.gd")
+const Variants := preload("session/variants.gd")
 const TurnChanges := preload("ui/turn_changes.gd")
 const TurnChangeMarks := preload("editor/turn_change_marks.gd")
 const TurnCounter := preload("ui/turn_counter.gd")
@@ -178,6 +180,8 @@ var _hooks: HookRunner
 var _hook_prompts_in_row: int = 0
 var _diff_dialog: DiffDialog
 var _turn_dialog: TurnChangesDialog
+## El de godot.propose_variants (m11-90), creado la primera vez.
+var _variants_dialog: VariantsDialog
 var _turn_changes: TurnChanges
 var _turn_marks: TurnChangeMarks
 ## El contador vivo de cambios del turno arriba del composer (m11-34).
@@ -534,6 +538,9 @@ func _exit_tree() -> void:
 	if _turn_dialog:
 		_turn_dialog.queue_free()
 		_turn_dialog = null
+	if _variants_dialog:
+		_variants_dialog.queue_free()
+		_variants_dialog = null
 	_turn_snapshots = null
 	_turn_changes = null
 	if _settings_dialog:
@@ -1188,6 +1195,7 @@ func _start_mcp_server() -> void:
 	session_tools.describe = _describe_sessions
 	session_tools.send = _send_to_session
 	session_tools.request_mode = _request_mode
+	session_tools.propose_variants = _propose_variants
 	registry.register_provider(session_tools, true)
 	var second_opinion_tools := SecondOpinionTools.new()
 	second_opinion_tools.caller = func() -> String: return _session_of(_registry.current_caller if _registry else "")
@@ -2075,7 +2083,11 @@ func _open_session_tab(in_copy: bool = false) -> void:
 	var controller := _controller_of(id)
 	if copy:
 		copy_notice(model, copy.info.project, copy.info.branch)
-		controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
+		_note_copy(controller, copy)
+
+
+func _note_copy(controller: SessionController, copy: WorktreeSession) -> void:
+	controller.note_for_agent("[You work in a separate git worktree of the project at %s (branch %s), not in the project open in the editor. Edit files there with your own tools. The godot.* tools that edit scenes or files, change the project or run the game act on the editor's project, so they are not available to you. To check your work and build scenes, run Godot headless on your folder (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [copy.info.project, copy.info.branch, copy.info.project, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
 
 
 ## El aviso de una sesión en una copia aparte (m12-45): una tarjeta corta con título; la carpeta va
@@ -2576,6 +2588,59 @@ func _usable_project_modes() -> Array[Dictionary]:
 
 
 ## godot.request_mode (m11-68): la tarjeta en la sesión que llama.
+## godot.propose_variants (m11-90): el usuario elige en el diálogo y cada variante abre su copia y su
+## pestaña, con el agente, la cuenta y el modo de la que propuso (al menos Build: tiene que editar) y
+## las regresiones guardadas del proyecto adentro, aunque no estén commiteadas.
+func _propose_variants(caller: String, goal: String, variants: PackedStringArray) -> Dictionary:
+	if caller == SecondOpinion.SESSION_ID:
+		return {"ok": false, "text": "The second opinion is read only: it can't open variants."}
+	if _runs_in(caller) and _oneshot.is_active():
+		return {"ok": false, "text": "Variants are not available in One-shot."}
+	if _extra_sessions.get(caller, {}).get("copy") != null:
+		return {"ok": false, "text": "You work in a separate copy: propose variants from a session on the project itself."}
+	var source := _tabs.dock(caller) as AgentDock if _tabs else null
+	if source == null:
+		return {"ok": false, "text": "There is no tab for this session."}
+	var regressions := PlaytestRegressions.new(PlaytestRegressions.DIR).list()
+	if _variants_dialog == null:
+		_variants_dialog = VariantsDialog.new()
+		_variants_dialog.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		EditorInterface.get_base_control().add_child(_variants_dialog)
+	if _variants_dialog.visible:
+		return {"ok": false, "text": "The user is already choosing variants proposed by another session."}
+	var picked := await _variants_dialog.pick(goal, variants, regressions.size())
+	if picked.is_empty():
+		return {"ok": true, "text": "The user closed the variants without opening any. Go on with the task as before."}
+	var chosen: PackedStringArray = picked.variants
+	var source_controller := _controller_of(caller)
+	var running: AgentProfile = source_controller.profile() if source_controller and source_controller.is_connected_to_agent() else null
+	var stamp := Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "-")
+	var opened: PackedStringArray = []
+	var failed: PackedStringArray = []
+	for i in chosen.size():
+		var copy := WorktreeSession.new(EditorContext.project_path())
+		if not await copy.create("%s-v%d" % [stamp, i + 1]):
+			failed.append("V%d (%s)" % [i + 1, copy.last_error])
+			continue
+		var target := str(copy.info.project).path_join(PlaytestRegressions.DIR.trim_prefix("res://"))
+		DirAccess.make_dir_recursive_absolute(target)
+		for entry: Dictionary in regressions:
+			DirAccess.copy_absolute(ProjectSettings.globalize_path(str(entry.file)), target.path_join(str(entry.file).get_file()))
+		var id := _create_session_tab(copy, Variants.tab_label(i, chosen[i]))
+		var dock := _tabs.dock(id) as AgentDock
+		copy_notice(_model_of(id), copy.info.project, copy.info.branch)
+		_note_copy(_controller_of(id), copy)
+		_extra_sessions[id]["variant"] = {"run": stamp, "index": i, "text": chosen[i], "goal": picked.goal}
+		dock.copy_agent_from(source)
+		dock.copy_mode_from(source)
+		if int(PermissionPolicy.MODE_RANKS.get(_model_of(id).harness_mode, 0)) < 1:
+			_model_of(id).set_harness_mode(SessionModel.HarnessMode.BUILD)
+		dock.start_with_prompt(running, Variants.copy_prompt(picked.goal, chosen, i, regressions.size()))
+		opened.append(_coordinator.label(id))
+	_log.add(AgentLog.CH_ACP, "variants %s: %d opened, %d failed" % [stamp, opened.size(), failed.size()])
+	return {"ok": not opened.is_empty(), "text": Variants.result_text(opened, failed)}
+
+
 func _request_mode(caller: String, mode: String, why: String) -> Dictionary:
 	var controller := _controller_of(caller)
 	if controller == null:

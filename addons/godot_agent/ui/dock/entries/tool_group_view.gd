@@ -460,6 +460,7 @@ const GODOT_TOOL_NAMES := {
 	"search_api": "Search the API",  # i18n
 	"session_send": "Send to a session",  # i18n
 	"request_mode": "Ask to switch modes",  # i18n
+	"propose_variants": "Propose variants",  # i18n
 	"ask_second_opinion": "Second opinion",  # i18n
 	"sessions": "Sessions",  # i18n
 	"set_autoload": "Set autoload",  # i18n

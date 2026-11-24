@@ -108,6 +108,7 @@ const SUMMARIES: Dictionary = {
 	"sessions": "Lists the other agent sessions open in this editor",  # i18n
 	"session_send": "Sends a short message to another agent session",  # i18n
 	"request_mode": "Proposes switching the session to another mode, with a card for the user",  # i18n
+	"propose_variants": "Proposes variants to build in parallel, each in its own copy",  # i18n
 	"ask_second_opinion": "Asks another agent for a read-only second opinion",  # i18n
 }
 

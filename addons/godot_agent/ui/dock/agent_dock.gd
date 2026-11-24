@@ -1324,6 +1324,12 @@ func start_session(profile: AgentProfile = null) -> void:
 			_send(text)
 
 
+## Arranca la sesión y, apenas conecta, manda `text` como prompt (las pestañas de variantes, m11-90).
+func start_with_prompt(profile: AgentProfile, text: String) -> void:
+	_pending_prompt = text
+	start_session(profile)
+
+
 func _warn_api_key(profile: AgentProfile) -> void:
 	var key := _controller.adapter.api_key_variable()
 	if not key.is_empty() and (OS.has_environment(key) or profile.env.has(key)):

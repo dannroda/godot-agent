@@ -7,6 +7,7 @@ extends RefCounted
 const McpTool := preload("../mcp_tool.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
 const UntrustedText := preload("../untrusted_text.gd")
+const Variants := preload("../../session/variants.gd")
 
 const MESSAGE_MAX := 4000
 
@@ -18,6 +19,9 @@ var describe: Callable
 var send: Callable
 ## `(caller, mode, why) -> {ok, text}` (m11-68): la tarjeta para cambiar de modo; se espera con await.
 var request_mode: Callable
+## `(caller, goal, variants: PackedStringArray) -> {ok, text}` (m11-90): el diálogo para elegir
+## variantes y abrir sus copias; se espera con await.
+var propose_variants: Callable
 
 
 func tools() -> Array:
@@ -33,6 +37,10 @@ func tools() -> Array:
 		McpTool.create("request_mode", PermissionPolicy.GROUP_READ,
 			"Proposes switching your session to another mode: a fixed one (`ask`, `review`, `build`, `auto`) or one of the project's modes by name. Use it when the task needs it (the user asks for a change while you're in Ask, or a project mode fits better); `why` is one line for the user. The user always decides with a card, even in Auto; nothing switches by itself. Denied in One-shot. When accepted, the result has the new mode's rules, valid from then on.",
 			{"mode": {"type": "string"}, "why": {"type": "string"}}, ["mode", "why"], _request_mode),
+		# Grupo read como request_mode: las copias se abren solo si el usuario las elige en el diálogo.
+		McpTool.create("propose_variants", PermissionPolicy.GROUP_READ,
+			"Proposes trying several ways of doing the same thing in parallel (e.g. 3 takes on the jump: coyote time + jump buffer, stronger gravity when falling, variable height). Use it when the user wants to compare options or the best approach isn't clear and is cheaper to try than to argue about. `goal`: one line all variants share; `variants`: 2 to 6 one-line, clearly different approaches. The user picks 2 to 4 (and can edit or add), and each one is built by another agent in its own tab and git worktree, judged by the project's saved regressions; you don't build them. Denied in One-shot and from a separate copy.",
+			{"goal": {"type": "string"}, "variants": {"type": "array", "items": {"type": "string"}}}, ["goal", "variants"], _propose_variants),
 	]
 
 
@@ -59,6 +67,20 @@ func _request_mode(args: Dictionary) -> Dictionary:
 		return McpTool.error("Switching modes isn't available here.")
 	var from := str(caller.call()) if caller.is_valid() else ""
 	var result: Dictionary = await request_mode.call(from, McpTool.str_arg(args, "mode"), McpTool.str_arg(args, "why"))
+	return McpTool.text(str(result.text)) if result.get("ok", false) else McpTool.error(str(result.text))
+
+
+func _propose_variants(args: Dictionary) -> Dictionary:
+	if not propose_variants.is_valid():
+		return McpTool.error("Variants aren't available here.")
+	var goal := McpTool.str_arg(args, "goal").strip_edges()
+	var raw: Variant = args.get("variants", [])
+	var variants := Variants.clean(raw if raw is Array else [])
+	var invalid := Variants.check(goal, variants)
+	if not invalid.is_empty():
+		return McpTool.error(invalid)
+	var from := str(caller.call()) if caller.is_valid() else ""
+	var result: Dictionary = await propose_variants.call(from, goal, variants)
 	return McpTool.text(str(result.text)) if result.get("ok", false) else McpTool.error(str(result.text))
 
 

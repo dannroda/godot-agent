@@ -6309,3 +6309,36 @@ msgstr "Semana · %s"
 
 msgid "%s (another model)"
 msgstr "%s (otro modelo)"
+
+msgid "Try variants in parallel"
+msgstr "Probar variantes en paralelo"
+
+msgid "Each variant you check is built by its own agent, in its own tab and copy of the project (from your last commit), all at the same time. It costs about that many times the usage of one."
+msgstr "Cada variante que tildes la construye su propio agente, en su pestaña y su copia del proyecto (desde tu último commit), todas a la vez. Cuesta más o menos esa cantidad de veces el uso de una."
+
+msgid "What all the variants try to achieve"
+msgstr "Lo que buscan todas las variantes"
+
+msgid "Add variant"
+msgstr "Agregar variante"
+
+msgid "%d saved regressions will judge them the same way."
+msgstr "%d regresiones guardadas las van a juzgar a todas igual."
+
+msgid "⚠ The project has no saved regressions: you will compare the variants by playing them. A playtest that passes saves one."
+msgstr "⚠ El proyecto no tiene regresiones guardadas: vas a comparar las variantes jugándolas. Un playtest que pasa guarda una."
+
+msgid "Another way to do it, in one line"
+msgstr "Otra forma de hacerlo, en una línea"
+
+msgid "Open %d copies"
+msgstr "Abrir %d copias"
+
+msgid "Check 2 to 4 variants"
+msgstr "Tildá de 2 a 4 variantes"
+
+msgid "Proposes variants to build in parallel, each in its own copy"
+msgstr "Propone variantes para construir en paralelo, cada una en su copia"
+
+msgid "Propose variants"
+msgstr "Proponer variantes"

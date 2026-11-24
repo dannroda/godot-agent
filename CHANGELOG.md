@@ -6,6 +6,7 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ### Added
 
+- **Try variants in parallel.** Ask the agent to try a few takes on something ("three versions of the jump") and it proposes them with `godot.propose_variants`. A window lists them: check 2 to 4, edit them or add your own, and each one opens in its own tab and separate copy of the project, with the same agent, account and mode (at least Build), and starts working at once. The project's saved regressions are copied into every copy, even if they aren't committed, so they can judge all the variants the same way. Comparing the results is coming next.
 - **`--report` for the regressions command line.** `regression_cli.gd -- --report=results.json` writes the run as JSON: each regression's result, how many runs passed, the first failure's output and the worst value of each declared budget across the runs (`frame_ms_p95`, `draw_calls_max`…), so a script or a CI step can read it without parsing the printed lines.
 
 ### Fixed
