@@ -4,6 +4,8 @@ All notable changes to Godot Agent Harness. The release workflow publishes the *
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-24
+
 ### Added
 
 - **Import 3D models without the shell.** A new `import_model` tool brings a `.glb`, or a `.gltf` with its `.bin` and textures next to it (a Blender export, for example), into the project. It checks the file before copying anything: glTF 2.0, at most 16 MB, no files outside the model's folder, no `data:` URIs, no required extensions, and a bounded number of nodes, meshes, materials, animations and images. Then it waits for the editor to import the model and tells the agent its meshes, materials, animation names and bounding box, with any import errors. Replacing a model already in the project needs `replace` and asks you first, naming the scenes that use it; it keeps the uid, so those scenes get the new version. `.fbx` is not supported yet.
