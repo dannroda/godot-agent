@@ -142,3 +142,25 @@ static func comparison_text(rows: Array, t: Callable) -> String:
 		lines.append("• %s: %s" % [row.get("label", ""), shown])
 	lines.append(t.call("«Play» opens the game of that copy; «Apply» puts its changes in the project, uncommitted. Close the other tabs to keep their branch or discard them."))  # i18n
 	return "\n".join(lines)
+
+
+## Lo que guarda Restart and resume de una variante (m11-90): todo menos «juzgando», que no sigue
+## después del reinicio (el turno que lo pidió ya terminó; el próximo vuelve a juzgar).
+static func to_saved(variant: Dictionary) -> Dictionary:
+	var saved := variant.duplicate(true)
+	saved.erase("judging")
+	if saved.get("changed") is PackedStringArray:
+		saved.changed = Array(saved.changed)
+	return saved
+
+
+## La variante al reabrir: `tab_ids` lleva el id de pestaña de antes del reinicio al de ahora, para la
+## que propuso (`from`). Del JSON los números vuelven como float y la lista de archivos como Array.
+static func from_saved(saved: Dictionary, tab_ids: Dictionary) -> Dictionary:
+	var variant := saved.duplicate(true)
+	variant.index = int(variant.get("index", 0))
+	variant.turns = int(variant.get("turns", 0))
+	variant.from = str(tab_ids.get(str(variant.get("from", "")), ""))
+	if variant.has("changed"):
+		variant.changed = PackedStringArray(variant.changed)
+	return variant

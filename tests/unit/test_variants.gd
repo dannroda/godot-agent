@@ -101,3 +101,15 @@ func test_comparison_text() -> void:
 		{"label": "V4 · Dash", "state": "closed"}], t)
 	assert_true(text.contains("• V1 · Coyote: 1 of 1 regressions pass · draw_calls_max 12 · 4 files changed"), "la juzgada, con métricas y archivos")
 	assert_true(text.contains("• V2 · Gravity: judging…") and text.contains("• V3 · Height: working…") and text.contains("• V4 · Dash: closed"), "los otros estados")
+
+
+## Restart and resume (m11-90): lo guardado pasa por JSON y vuelve con la pestaña nueva de quien propuso.
+func test_saved_across_restart() -> void:
+	var variant := {"run": "20261124-1200", "index": 2, "text": "Dash", "goal": "Move", "from": "s3", "turns": 1,
+		"judging": true, "changed": PackedStringArray(["player.gd"]), "judged": {"ok": true, "report": {"ok": true}}}
+	var saved: Variant = JSON.parse_string(JSON.stringify(Variants.to_saved(variant)))
+	assert_false((saved as Dictionary).has("judging"), "«juzgando» no se guarda")
+	var back := Variants.from_saved(saved, {"s3": "s7"})
+	assert_eq([back.from, back.index, back.turns, back.changed], ["s7", 2, 1, PackedStringArray(["player.gd"])], "con la pestaña nueva, enteros y la lista de archivos")
+	assert_eq(back.judged, {"ok": true, "report": {"ok": true}}, "el último juicio sigue")
+	assert_eq(Variants.from_saved(saved, {}).from, "", "si la que propuso no volvió, sin comparación")

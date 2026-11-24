@@ -1685,6 +1685,7 @@ func _reopen_tabs(resume: Dictionary, supervisor_messages: PackedStringArray) ->
 			model.set_harness_mode(int(entry.get("mode", SessionModel.HarnessMode.BUILD)) as SessionModel.HarnessMode)
 		if dock and not str(entry.get("project_mode", "")).is_empty():
 			dock.choose_project_mode(str(entry.project_mode))
+	_reopen_variants(tabs, ids)
 	var requested := tabs.any(func(tab: Dictionary) -> bool: return bool(tab.get("requester", false)))
 	var target := ""  # la que recibe el mensaje: la que pidió el reinicio; si lo pidió el usuario, la activa
 	for index: int in tabs.size():
@@ -1709,6 +1710,34 @@ func _reopen_tabs(resume: Dictionary, supervisor_messages: PackedStringArray) ->
 			dock.send_text(RestartResume.agent_message(str(resume.get("reason", "")), supervisor_messages), HarnessPrompts.SUPERVISOR)
 		elif not supervisor_messages.is_empty():
 			dock.send_text("\n\n".join(supervisor_messages), HarnessPrompts.SUPERVISOR)
+
+
+## Las variantes que vuelven del reinicio (m11-90): su juez al terminar cada turno y la comparación en
+## la pestaña que las propuso (un aviso nuevo: el de antes quedó en la sesión anterior del dock).
+func _reopen_variants(tabs: Array, ids: Array[String]) -> void:
+	var tab_ids := {}
+	for index: int in tabs.size():
+		if not ids[index].is_empty():
+			tab_ids[str(tabs[index].get("tab", ""))] = ids[index]
+	var runs := {}
+	for index: int in tabs.size():
+		var id := ids[index]
+		if id.is_empty() or not tabs[index].get("variant") is Dictionary or not _extra_sessions.has(id):
+			continue
+		var variant := Variants.from_saved(tabs[index].variant, tab_ids)
+		_extra_sessions[id]["variant"] = variant
+		_model_of(id).turn_finished.connect(_judge_variant.bind(id))
+		var run := str(variant.run)
+		if not runs.has(run):
+			runs[run] = {"from": variant.from, "ids": [], "labels": [], "goal": variant.get("goal", ""), "entry": null}
+		(runs[run].ids as Array).append(id)  # Array y no Packed: un Packed dentro del Dictionary se copia
+		(runs[run].labels as Array).append(_coordinator.label(id))
+	for run: String in runs:
+		var info: Dictionary = runs[run]
+		info.ids = PackedStringArray(info.ids)
+		info.labels = PackedStringArray(info.labels)
+		_variant_runs[run] = info
+		_refresh_variants(run)
 
 
 ## Lo que preparó install_extension y todavía no entró (m19-05): el editor se cerró sin pasar por
@@ -1798,6 +1827,8 @@ func restart_tabs(requester: String) -> Array:
 		var entry := RestartResume.tab_entry(id, model.session_id, _tabs.custom_label(id), mode, str(model.project_mode.get("slug", "")),
 			copy.info if copy else {}, id == requester, id == active)
 		if not entry.is_empty():
+			if _extra_sessions.get(id, {}).has("variant"):
+				entry.variant = Variants.to_saved(_extra_sessions[id].variant)
 			tabs.append(entry)
 	return tabs
 
@@ -2640,7 +2671,7 @@ func _propose_variants(caller: String, goal: String, variants: PackedStringArray
 		var dock := _tabs.dock(id) as AgentDock
 		copy_notice(_model_of(id), copy.info.project, copy.info.branch)
 		_note_copy(_controller_of(id), copy)
-		_extra_sessions[id]["variant"] = {"run": stamp, "index": i, "text": chosen[i], "goal": picked.goal}
+		_extra_sessions[id]["variant"] = {"run": stamp, "index": i, "text": chosen[i], "goal": picked.goal, "from": caller}
 		dock.copy_agent_from(source)
 		dock.copy_mode_from(source)
 		if int(PermissionPolicy.MODE_RANKS.get(_model_of(id).harness_mode, 0)) < 1:
