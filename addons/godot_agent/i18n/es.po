@@ -6396,3 +6396,21 @@ msgstr "Terminaron un turno que no viste: %s"
 
 msgid "Click to go to the next one."
 msgstr "Hacé clic para ir a la próxima."
+
+msgid "Push, open a PR and keep fixing it"
+msgstr "Pushear, abrir un PR y seguir arreglándolo"
+
+msgid "The tab stays open: every %d s it checks the pull request with gh, and when a check fails, there is a conflict or a review or comment arrives, its agent fixes it and the harness pushes the fix. It never merges. It stops when the pull request is merged or closed, or when you close the tab."
+msgstr "La pestaña queda abierta: cada %d s mira el pull request con gh y, cuando falla un check, hay un conflicto o llega una revisión o un comentario, su agente lo arregla y el harness pushea el arreglo. Nunca mergea. Para cuando el pull request se mergea o se cierra, o cuando cerrás la pestaña."
+
+msgid "Following %s: when a check fails, there is a conflict or a review arrives, this tab fixes it and pushes. Close the tab to stop."
+msgstr "Siguiendo %s: cuando falle un check, haya un conflicto o llegue una revisión, esta pestaña lo arregla y pushea. Cerrá la pestaña para parar."
+
+msgid "%s is %s: no longer following it. Close the tab when you're done."
+msgstr "%s está %s: ya no se sigue. Cerrá la pestaña cuando termines."
+
+msgid "Pushed %d commits to the pull request."
+msgstr "Se pushearon %d commits al pull request."
+
+msgid "Pull request · what to fix"
+msgstr "Pull request · qué arreglar"

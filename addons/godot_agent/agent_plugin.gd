@@ -40,6 +40,8 @@ const DiffDialog := preload("ui/diff_dialog.gd")
 const TurnChangesDialog := preload("ui/turn_changes_dialog.gd")
 const VariantsDialog := preload("ui/variants_dialog.gd")
 const Variants := preload("session/variants.gd")
+const PrWatch := preload("core/pr_watch.gd")
+const GitCheckpoints := preload("oneshot/git_checkpoints.gd")
 const TurnChanges := preload("ui/turn_changes.gd")
 const TurnChangeMarks := preload("editor/turn_change_marks.gd")
 const TurnCounter := preload("ui/turn_counter.gd")
@@ -2328,6 +2330,12 @@ func _close_session_tab(id: String, ask: bool = true) -> void:
 	if session.has("oneshot_listener") and _oneshot and _oneshot.changed.is_connected(session.oneshot_listener):
 		_oneshot.changed.disconnect(session.oneshot_listener)
 	var copy: WorktreeSession = session.get("copy")
+	if copy and session.has("pr"):
+		# Seguía un PR (m11-92): lo pusheado queda en la rama; el worktree se va.
+		(session.controller as SessionController).stop()
+		session.erase("pr")
+		await copy.remove(false)
+		session.resolved = true
 	if copy and ask and not session.get("resolved", false):
 		(session.controller as SessionController).stop()
 		var changed := await copy.commit_changes()
@@ -2364,6 +2372,8 @@ func _ask_copy_fate(id: String, copy: WorktreeSession, changed: PackedStringArra
 	dialog.add_button(I18n.t("Keep the branch"), false, "keep")
 	if _project_config.github_pull_requests:
 		dialog.add_button(I18n.t("Push and open a PR"), false, "pr")
+		var watch := dialog.add_button(I18n.t("Push, open a PR and keep fixing it"), false, "pr_watch")
+		watch.tooltip_text = I18n.t("The tab stays open: every %d s it checks the pull request with gh, and when a check fails, there is a conflict or a review or comment arrives, its agent fixes it and the harness pushes the fix. It never merges. It stops when the pull request is merged or closed, or when you close the tab.") % int(PrWatch.POLL_S)
 	dialog.add_button(I18n.t("Discard"), false, "discard")
 	dialog.cancel_button_text = I18n.t("Cancel")
 	dialog.confirmed.connect(func() -> void: _resolve_copy(id, copy, changed, "apply"))
@@ -2393,9 +2403,12 @@ func _resolve_copy(id: String, copy: WorktreeSession, changed: PackedStringArray
 		"keep":
 			await copy.remove(false)
 			_model.add_notice(I18n.t("The changes of «%s» stay in the branch %s.") % [label, copy.info.branch])
-		"pr":
+		"pr", "pr_watch":
 			var body := "Changes made by the agent session \"%s\" of Godot Agent Harness in a separate copy.\n\nFiles:\n%s" % [label, "\n".join(Array(changed).map(func(path: String) -> String: return "- `%s`" % path))]
 			var opened: Dictionary = await GithubReviews.new(EditorContext.project_path()).open_pull_request(str(copy.info.dir), str(copy.info.branch), str(copy.info.base_branch), label, body)
+			if action == "pr_watch" and str(opened.error).is_empty() and _extra_sessions.has(id):
+				_watch_pr(id, str(opened.url))
+				return
 			await copy.remove(false)
 			if str(opened.error).is_empty():
 				_model.add_notice(I18n.t("Pull request opened with the changes of «%s»: %s") % [label, opened.url])
@@ -2716,6 +2729,61 @@ func _judge_variant(stop_reason: String, id: String) -> void:
 	_model_of(id).add_notice(I18n.t("Variant judged: %s · %d files changed") % [line, (variant.changed as PackedStringArray).size()],
 		ChatEntry.NoticeLevel.INFO if variant.judged.get("ok", false) and variant.judged.report.get("ok", false) else ChatEntry.NoticeLevel.WARNING)
 	_log.add(AgentLog.CH_ACP, "variant %s: %s" % [_coordinator.label(id), line])
+
+
+## Sigue el PR de la copia `id` (m11-92): la pestaña queda abierta y, cada POLL_S, lo nuevo para
+## arreglar va a su agente; al terminar su turno, lo que dejó se commitea y se pushea (_pr_turn_done).
+func _watch_pr(id: String, url: String) -> void:
+	var session: Dictionary = _extra_sessions[id]
+	session.pr = {"url": url, "seen": {}}
+	_model.add_notice(I18n.t("Pull request opened with the changes of «%s»: %s") % [_coordinator.label(id), url])
+	_model_of(id).add_notice(I18n.t("Following %s: when a check fails, there is a conflict or a review arrives, this tab fixes it and pushes. Close the tab to stop.") % url)
+	_model_of(id).turn_finished.connect(_pr_turn_done.bind(id))
+	var watcher := PrWatch.new()
+	while true:
+		await get_tree().create_timer(PrWatch.POLL_S).timeout
+		if not is_inside_tree() or not _extra_sessions.has(id) or not _extra_sessions[id].has("pr"):
+			return
+		var model := _model_of(id)
+		if model.is_busy():
+			continue
+		var data := await watcher.status(url)
+		if not _extra_sessions.has(id) or not _extra_sessions[id].has("pr"):
+			return
+		if data.has("error"):
+			_log.add(AgentLog.CH_ACP, "PR %s: gh failed: %s" % [url, data.error])
+			continue
+		if PrWatch.finished(data):
+			session.erase("pr")
+			model.add_notice(I18n.t("%s is %s: no longer following it. Close the tab when you're done.") % [url, str(data.state).to_lower()])
+			return
+		var items := PrWatch.to_fix(data, session.pr.seen)
+		if items.is_empty():
+			continue
+		_log.add(AgentLog.CH_ACP, "PR %s: %d things to fix" % [url, items.size()])
+		if not (session.controller as SessionController).is_connected_to_agent():
+			_note_copy(session.controller, session.copy)  # la pestaña se detuvo al cerrarla: arranca de nuevo
+		(_tabs.dock(id) as AgentDock).send_text(PrWatch.prompt(url, items), HarnessPrompts.PULL_REQUEST)
+
+
+## Fin de un turno de una copia que sigue un PR: lo suyo se commitea y, si hay commits nuevos, se pushea.
+func _pr_turn_done(stop_reason: String, id: String) -> void:
+	var session: Dictionary = _extra_sessions.get(id, {})
+	var copy: WorktreeSession = session.get("copy")
+	if copy == null or not session.has("pr") or stop_reason != "end_turn":
+		return
+	await copy.commit_changes()
+	var git := GitCheckpoints.new(str(copy.info.dir))
+	var ahead := await git.run(PackedStringArray(["rev-list", "--count", "@{u}..HEAD"]))
+	if ahead.code != 0 or int(ahead.output) == 0:
+		return
+	var pushed := await git.run(PackedStringArray(["push"]))
+	if not _extra_sessions.has(id):
+		return
+	if pushed.code == 0:
+		_model_of(id).add_notice(I18n.t("Pushed %d commits to the pull request.") % int(ahead.output))
+	else:
+		_model_of(id).add_notice(I18n.t("git push failed: %s") % str(pushed.output).left(300), ChatEntry.NoticeLevel.WARNING)
 
 
 ## La comparación de una tanda en la pestaña que la propuso: un aviso que se actualiza, con «Jugar» y
