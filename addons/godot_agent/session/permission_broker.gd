@@ -27,8 +27,10 @@ const ShellCommand := preload("shell_command.gd")
 const HARNESS_ALLOW_ALWAYS := "godot_agent_allow_always"
 const ProjectWriteGuard := preload("project_write_guard.gd")
 ## m11-76: un comando de shell que solo mira archivos y que iba a preguntar se rechaza sin tarjeta.
-const READ_ONLY_REASON := "this shell command only reads files, and the shell asks the user for permission. Read files with your own file tools (Read, Glob, Grep) or with godot.list_files (a folder from the editor's filesystem, with resource types and image sizes) and godot.find_in_files (search in the project's text files, .tscn included): they never ask. Don't use Python or other scripts to inspect files either."
-const GODOT_WINDOW_REASON := "it opens Godot in its own window (%s). Command-line Godot only runs with --headless; to see the game, run it in the editor with godot.run_scene and capture it with godot.capture_game_frame."
+const READ_ONLY_REASON := "this shell command only reads files, and the shell asks the user for permission. Read files with your own file tools (Read, Glob, Grep)%s: they never ask. Don't use Python or other scripts to inspect files either."
+const READ_ONLY_EDITOR_TOOLS := " or with godot.list_files (a folder from the editor's filesystem, with resource types and image sizes) and godot.find_in_files (search in the project's text files, .tscn included)"
+const GODOT_WINDOW_REASON := "it opens Godot in its own window (%s). Command-line Godot only runs with --headless%s."
+const GODOT_WINDOW_EDITOR_TOOLS := "; to see the game, run it in the editor with godot.run_scene and capture it with godot.capture_game_frame"
 const GodotWindowGuard := preload("godot_window_guard.gd")
 const TerminalHandler := preload("../acp/terminal_handler.gd")
 const LineDiff := preload("../core/line_diff.gd")
@@ -56,6 +58,18 @@ var _preauth := Preauthorizations.new()
 ## Subagentes que el harness dejó arrancar (toolCallId -> true): cuentan para el límite aunque el
 ## agente todavía no los haya pasado a in_progress.
 var _approved_subagents: Dictionary = {}
+
+
+## false sin el MCP del editor (la app aparte, m20): los rechazos no mandan a tools godot.* que el agente no tiene.
+var editor_tools := true
+
+
+func _read_only_reason() -> String:
+	return READ_ONLY_REASON % (READ_ONLY_EDITOR_TOOLS if editor_tools else "")
+
+
+func _godot_window_reason(launch: String) -> String:
+	return GODOT_WINDOW_REASON % [launch, GODOT_WINDOW_EDITOR_TOOLS if editor_tools else ""]
 
 
 func setup(session_model: SessionModel, acp_client: AcpClient, log_sink: AgentLog, working_dir: String) -> void:
@@ -203,7 +217,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 		if not launch.is_empty():
 			_log_perm("rejected, opens Godot in its own window: %s" % launch)
 			model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
-			return _auto_reject(request, GODOT_WINDOW_REASON % launch)
+			return _auto_reject(request, _godot_window_reason(launch))
 	if request.group == PermissionPolicy.GROUP_EDIT_FILES:
 		var taken := _file_taken_reason(Preauthorizations.write_paths(request, call))
 		if not taken.is_empty():
@@ -240,7 +254,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 		var read_command := ShellCommand.of(checked.get("rawInput"))
 		if ShellRules.is_read_only(read_command):
 			_notify_read_only(read_command)
-			return _auto_reject(request, READ_ONLY_REASON)
+			return _auto_reject(request, _read_only_reason())
 	if request.group == PermissionPolicy.GROUP_SUBAGENTS and decision != PermissionPolicy.DENY:
 		var limit := _subagent_limit_reason(request.tool_call_id)
 		if not limit.is_empty():
@@ -413,7 +427,7 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 	if not launch.is_empty():
 		_log_perm("rejected, opens Godot in its own window: %s" % launch)
 		model.add_notice(I18n.t("Rejected: «%s» opens Godot in its own window. Command-line Godot only runs with --headless; to see the game, the agent runs it from the editor (godot.run_scene) and captures it (godot.capture_game_frame).") % launch.left(80), ChatEntry.NoticeLevel.WARNING)
-		return "Rejected by the harness: " + GODOT_WINDOW_REASON % launch
+		return "Rejected by the harness: " + _godot_window_reason(launch)
 	if env.is_empty() and _preauth.consume_command(command_line):
 		return ""
 	var forced := mode_forces_ask(PermissionPolicy.GROUP_SHELL)
@@ -436,7 +450,7 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 		_log_perm("Auto mode asks, %s: %s" % [verdict.reason, command_line])
 	if env.is_empty() and not forced and ShellRules.is_read_only(command_line):
 		_notify_read_only(command_line)
-		return "Rejected by the harness: " + READ_ONLY_REASON
+		return "Rejected by the harness: " + _read_only_reason()
 	var request := PermissionRequest.new()
 	request.group = PermissionPolicy.GROUP_SHELL
 	request.title = I18n.t("Terminal")

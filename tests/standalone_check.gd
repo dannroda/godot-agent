@@ -36,6 +36,9 @@ func _run() -> void:
 	_check(app._settings_dialog.visible, "los ajustes se abren")
 	_check(not root.gui_embed_subwindows, "diálogos y menús en ventanas del sistema, no embebidos")
 	app._settings_dialog.hide()
+	var broker = app._sessions["s1"].controller.permissions
+	_check(not broker._read_only_reason().contains("godot.") and not broker._godot_window_reason("x").contains("godot."), "sin MCP del editor, los rechazos no nombran tools godot.*")
+	_check(app._sessions["s1"].controller._note_for_agent.contains("godot.* tools are not available"), "el agente sabe que no tiene las tools del editor")
 	var second: String = app.open_tab()
 	_check(app._tabs.ids().size() == 2, "una segunda pestaña")
 	await _turn(app, "s1", "a")

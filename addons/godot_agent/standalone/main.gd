@@ -151,6 +151,9 @@ func _make_controller(model: SessionModel, id: String) -> SessionController:
 	terminal.setup(root, _log)
 	terminal.extra_roots = _config.extra_fs_roots
 	controller.set_terminal_handler(terminal)
+	controller.permissions.editor_tools = false
+	# Como en una copia aparte: el prompt del harness describe las tools godot.*, que acá no están.
+	controller.note_for_agent("[The Godot editor is not open: you work on the project at %s from a separate window of the harness, so the godot.* tools are not available to you. Edit files with your own tools. To check your work and build scenes, run Godot headless on the project (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [root, root, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
 	return controller
 
 
