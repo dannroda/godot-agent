@@ -2,8 +2,8 @@ extends Control
 ## El dock fuera del editor (m20-04): las mismas pestañas de sesión en una ventana propia, cada una con
 ## su agente y su cuenta. Se abre con el binario del editor, sin --editor:
 ##   godot --path <proyecto> res://addons/godot_agent/standalone/main.tscn [-- --project=<carpeta>]
-## Sin el MCP de herramientas de Godot (eso es del editor, m20-05): el agente usa las suyas de archivos
-## y shell sobre la carpeta, con los permisos, las fotos por turno y los cambios del turno del harness.
+## Con el editor abierto en la carpeta, usa su MCP para leer (m20-05); si no, el agente usa sus tools de
+## archivos y shell, con los permisos, las fotos por turno y los cambios del turno del harness.
 
 const AcpRegistry := preload("../core/acp_registry.gd")
 const AgentLog := preload("../core/agent_log.gd")
@@ -29,6 +29,9 @@ const TurnChanges := preload("../ui/turn_changes.gd")
 const TurnCounter := preload("../ui/turn_counter.gd")
 const ToolCall := preload("../session/tool_call.gd")
 const AgentDockScene := preload("../ui/dock/agent_dock.tscn")
+const McpServer := preload("../mcp/mcp_server.gd")
+const McpPublication := preload("../mcp/mcp_publication.gd")
+const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
 
 ## Al lado de los datos del editor, compartido por todos los proyectos que se abran así; los perfiles
 ## del editor viven en EditorSettings y no se comparten.
@@ -166,10 +169,26 @@ func _make_controller(model: SessionModel, id: String) -> SessionController:
 	terminal.setup(root, _log)
 	terminal.extra_roots = _config.extra_fs_roots
 	controller.set_terminal_handler(terminal)
-	controller.permissions.editor_tools = false
-	# Como en una copia aparte: el prompt del harness describe las tools godot.*, que acá no están.
-	controller.note_for_agent("[The Godot editor is not open: you work on the project at %s from a separate window of the harness, so the godot.* tools are not available to you. Edit files with your own tools. To check your work and build scenes, run Godot headless on the project (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [root, root, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
+	# Por id: un lambda que capture el controller que lo guarda es un ciclo y no se libera nunca.
+	controller.mcp_servers_provider = func() -> Array: return _editor_mcp(_sessions[id].controller, _sessions[id].model) if _sessions.has(id) else []
 	return controller
+
+
+## Al abrir cada sesión (m20-05): el MCP del editor abierto en la carpeta, si lo publicó, solo para
+## leer; si no, sin tools godot.* y con la guía de Godot headless, como una copia aparte.
+func _editor_mcp(controller: SessionController, model: SessionModel) -> Array:
+	var root := EditorContext.project_path()
+	var editor := McpPublication.read(root)
+	controller.permissions.editor_tools = not editor.is_empty()
+	if editor.is_empty():
+		controller.note_for_agent("[The Godot editor is not open: you work on the project at %s from a separate window of the harness, so the godot.* tools are not available to you. Edit files with your own tools. To check your work and build scenes, run Godot headless on the project (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [root, root, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
+		return []
+	controller.note_for_agent("[The Godot editor is open on this project, and you work on it from a separate window of the harness: the godot.* tools that read (scenes, find_in_files, get_errors…) work and see the editor's unsaved state, but the ones that change something are refused. Edit files with your own tools.]")
+	_log.add_secret(editor.token)
+	if model.supports_http_mcp():
+		return [{"type": "http", "name": McpServer.SERVER_NAME, "url": editor.url, "headers": [{"name": "Authorization", "value": "Bearer " + editor.token}]}]
+	var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, editor.url, editor.token)
+	return [entry] if not entry.is_empty() else []
 
 
 ## Ver los cambios del turno y volver atrás (m20-09), como en el editor pero sin lo que solo existe

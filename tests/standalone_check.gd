@@ -1,6 +1,7 @@
 extends SceneTree
 ## m20-04: la app aparte (addons/godot_agent/standalone/main.tscn) fuera del editor, con el agente falso,
 ## sobre un proyecto git temporal (la última carpeta abierta). m20-09: ver los cambios del turno y deshacerlo.
+## m20-05: el MCP que publica un editor abierto en la carpeta.
 ## Uso: XDG_DATA_HOME=<carpeta temporal> godot --headless --path . --script tests/standalone_check.gd
 ## (sin XDG_DATA_HOME guarda en los datos del editor del usuario). Sale con 1 si algo falla.
 
@@ -10,6 +11,7 @@ const Main := preload("res://addons/godot_agent/standalone/main.gd")
 const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings.gd")
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
+const McpPublication := preload("res://addons/godot_agent/mcp/mcp_publication.gd")
 const PROJECT := "user://standalone_check_project"
 
 var _project := ""
@@ -42,9 +44,21 @@ func _run() -> void:
 	_check(app._settings_dialog.visible, "los ajustes se abren")
 	_check(not root.gui_embed_subwindows, "diálogos y menús en ventanas del sistema, no embebidos")
 	app._settings_dialog.hide()
-	var broker = app._sessions["s1"].controller.permissions
+	var controller = app._sessions["s1"].controller
+	var broker = controller.permissions
+	_check(app._editor_mcp(controller, app._sessions["s1"].model).is_empty(), "sin editor abierto, la sesión arranca sin su MCP")
 	_check(not broker._read_only_reason().contains("godot.") and not broker._godot_window_reason("x").contains("godot."), "sin MCP del editor, los rechazos no nombran tools godot.*")
-	_check(app._sessions["s1"].controller._note_for_agent.contains("godot.* tools are not available"), "el agente sabe que no tiene las tools del editor")
+	_check(controller._note_for_agent.contains("godot.* tools are not available"), "el agente sabe que no tiene las tools del editor")
+	controller._note_for_agent = ""
+	var editor := TCPServer.new()  # como un editor abierto en la carpeta
+	editor.listen(0, "127.0.0.1")
+	McpPublication.publish(_project, "http://127.0.0.1:%d/mcp" % editor.get_local_port(), "secret")
+	var servers: Array = app._editor_mcp(controller, app._sessions["s1"].model)
+	_check(servers.size() == 1 and str(servers[0]).contains("secret"), "con el editor abierto, la sesión toma su MCP y su token")
+	_check(broker.editor_tools and controller._note_for_agent.contains("editor is open"), "y el agente sabe que las tools godot.* que leen funcionan")
+	McpPublication.remove(_project)
+	editor.stop()
+	controller._note_for_agent = ""
 	var second: String = app.open_tab()
 	_check(app._tabs.ids().size() == 2, "una segunda pestaña")
 	await _turn(app, "s1", "a")
