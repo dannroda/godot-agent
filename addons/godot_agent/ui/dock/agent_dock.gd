@@ -2208,7 +2208,7 @@ func _open_path(path: String, line: int) -> void:
 		return
 	if EditorContext.open_location(absolute, line):
 		return
-	if FileAccess.file_exists(absolute):
+	if FileAccess.file_exists(absolute) or DirAccess.dir_exists_absolute(absolute):  # una carpeta (data/, ui/), en el gestor de archivos
 		OS.shell_open(absolute)
 		return
 	_model.add_notice(I18n.t("Could not open %s.") % path, ChatEntry.NoticeLevel.WARNING)
