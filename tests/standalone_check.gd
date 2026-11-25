@@ -1,7 +1,7 @@
 extends SceneTree
 ## m20-04: la app aparte (addons/godot_agent/standalone/main.tscn) fuera del editor, con el agente falso,
 ## sobre un proyecto git temporal (la última carpeta abierta). m20-09: ver los cambios del turno y deshacerlo.
-## m20-05: el MCP que publica un editor abierto en la carpeta.
+## m20-05, m20-06: las tools godot.* de un editor abierto en la carpeta, por el MCP de la app.
 ## Uso: XDG_DATA_HOME=<carpeta temporal> godot --headless --path . --script tests/standalone_check.gd
 ## (sin XDG_DATA_HOME guarda en los datos del editor del usuario). Sale con 1 si algo falla.
 
@@ -12,9 +12,13 @@ const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings
 const SessionController := preload("res://addons/godot_agent/session/session_controller.gd")
 const ChatEntry := preload("res://addons/godot_agent/session/chat_entry.gd")
 const McpPublication := preload("res://addons/godot_agent/mcp/mcp_publication.gd")
+const McpServer := preload("res://addons/godot_agent/mcp/mcp_server.gd")
+const ToolRegistry := preload("res://addons/godot_agent/mcp/tool_registry.gd")
+const McpTool := preload("res://addons/godot_agent/mcp/mcp_tool.gd")
 const PROJECT := "user://standalone_check_project"
 
 var _project := ""
+var _touched: Array = []
 
 var _checks := 0
 var _failures: PackedStringArray = []
@@ -46,18 +50,33 @@ func _run() -> void:
 	app._settings_dialog.hide()
 	var controller = app._sessions["s1"].controller
 	var broker = controller.permissions
-	_check(app._editor_mcp(controller, app._sessions["s1"].model).is_empty(), "sin editor abierto, la sesión arranca sin su MCP")
+	_check(app._editor_mcp("s1").is_empty(), "sin editor abierto, la sesión arranca sin su MCP")
 	_check(not broker._read_only_reason().contains("godot.") and not broker._godot_window_reason("x").contains("godot."), "sin MCP del editor, los rechazos no nombran tools godot.*")
 	_check(controller._note_for_agent.contains("godot.* tools are not available"), "el agente sabe que no tiene las tools del editor")
+	var scene := _project.path_join("main.tscn")
+	var refused: Variant = await controller.fs.write_text_file({"path": scene, "content": "[gd_scene format=3]"})
+	_check(not FileAccess.file_exists(scene) and not str(refused.error).contains("godot.") and str(refused.error).contains("headless"), "sin editor, una escena a mano se rechaza y el motivo manda a Godot headless")
 	controller._note_for_agent = ""
-	var editor := TCPServer.new()  # como un editor abierto en la carpeta
-	editor.listen(0, "127.0.0.1")
-	McpPublication.publish(_project, "http://127.0.0.1:%d/mcp" % editor.get_local_port(), "secret")
-	var servers: Array = app._editor_mcp(controller, app._sessions["s1"].model)
-	_check(servers.size() == 1 and str(servers[0]).contains("secret"), "con el editor abierto, la sesión toma su MCP y su token")
-	_check(broker.editor_tools and controller._note_for_agent.contains("editor is open"), "y el agente sabe que las tools godot.* que leen funcionan")
-	McpPublication.remove(_project)
+	var editor := _fake_editor()  # como un editor abierto en la carpeta, con su MCP publicado
+	var servers: Array = app._editor_mcp("s1")
+	_check(servers.size() == 1 and str(servers[0]).contains(app._mcp.url()) and not str(servers[0]).contains(editor.token), "con el editor abierto, la sesión usa el MCP de la app, sin ver el token del editor")
+	_check(broker.editor_tools and controller._note_for_agent.contains("editor is open"), "y el agente sabe que tiene las tools godot.* del editor")
+	var asked := []
+	app._bridge.authorize = func(caller: String, group: String, title: String, _description: String) -> bool:
+		asked.append([caller, group, title])
+		return asked.size() == 1  # la primera se aprueba, la segunda no
+	var reply := await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "touch", "arguments": {"name": "x"}}})
+	_check(asked == [["s1", "edit_files", "godot.touch"]], "la app autoriza en la pestaña que llama, con el grupo y el título que dice el editor")
+	_check(_touched == ["x"] and str(reply).contains("touched x"), "aprobada, la tool corre en el editor y el resultado vuelve al agente")
+	reply = await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "touch", "arguments": {"name": "y"}}})
+	_check(_touched == ["x"] and str(reply).contains("Permission denied"), "rechazada, no llega al editor")
+	reply = await _post(editor.url(), "not-the-token", {"jsonrpc": "2.0", "id": 3, "method": "godot_agent/describe", "params": {"name": "touch"}})
+	_check(str(reply).contains("Invalid token"), "el editor no describe ni corre nada sin su token")
 	editor.stop()
+	reply = await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "touch", "arguments": {"name": "z"}}})
+	_check(str(reply).contains("no longer open"), "con el editor cerrado, la tool lo dice")
+	editor.queue_free()
+	McpPublication.remove(_project)
 	controller._note_for_agent = ""
 	var second: String = app.open_tab()
 	_check(app._tabs.ids().size() == 2, "una segunda pestaña")
@@ -98,6 +117,34 @@ func _turn(app: Control, id: String, file: String) -> void:
 		if i > 20 and not model.is_busy():
 			break
 	_check(not model.is_busy(), "%s: el turno termina" % id)
+
+
+## El MCP de un editor, armado como en agent_plugin: confía en el token de la app y le describe las tools.
+func _fake_editor() -> McpServer:
+	var registry := ToolRegistry.new()
+	registry.register(McpTool.create("touch", "edit_files", "Escribe", {"name": {"type": "string"}}, ["name"],
+		func(args: Dictionary) -> String:
+			_touched.append(args.name)
+			return "touched %s" % args.name))
+	registry.session_authorizer = func(caller: String, _group: String, _title: String, _description: String) -> bool: return caller == McpPublication.APP_CALLER
+	var server := McpServer.new()
+	server.registry = registry
+	server.describer = func(caller: String, tool_name: String, args: Dictionary) -> Dictionary:
+		return registry.describe(tool_name, args) if caller == McpPublication.APP_CALLER else {}
+	root.add_child(server)
+	server.start(0)
+	McpPublication.publish(_project, server.url(), server.session_token(McpPublication.APP_CALLER))
+	return server
+
+
+func _post(url: String, token: String, message: Dictionary) -> Dictionary:
+	var request := HTTPRequest.new()
+	root.add_child(request)
+	request.request(url, ["Content-Type: application/json", "Accept: application/json", "Authorization: Bearer " + token], HTTPClient.METHOD_POST, JSON.stringify(message))
+	var response: Array = await request.request_completed
+	request.queue_free()
+	var parsed: Variant = JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
+	return parsed if parsed is Dictionary else {}
 
 
 ## Un proyecto git con un commit, para las fotos por turno.

@@ -210,7 +210,7 @@ func on_request_permission(params: Dictionary) -> Variant:
 	var blocked := ProjectWriteGuard.blocked_target(checked, request.group, cwd)
 	if not blocked.is_empty() and not PermissionPolicy.is_godot_mcp_tool(tool_call):
 		_notify_blocked_write(request.title, blocked)
-		return _auto_reject(request, ProjectWriteGuard.rejection_reason(blocked))
+		return _auto_reject(request, ProjectWriteGuard.rejection_reason(blocked, editor_tools))
 	# Godot con ventana desde la shell: abre el juego aparte en vez de correrlo en el editor (m7-30).
 	if request.group == PermissionPolicy.GROUP_SHELL and checked.get("rawInput") is Dictionary:
 		var launch := GodotWindowGuard.windowed_launch(ShellCommand.of(checked.rawInput), EditorBinary.path())
@@ -422,7 +422,7 @@ func authorize_terminal_command(command_line: String, working_dir: String, env: 
 	var blocked := ProjectWriteGuard.blocked_target({"kind": "execute", "rawInput": {"command": command_line}}, PermissionPolicy.GROUP_SHELL, cwd, working_dir)
 	if not blocked.is_empty():
 		_notify_blocked_write(command_line, blocked)
-		return "Rejected by the harness: %s" % ProjectWriteGuard.rejection_reason(blocked)
+		return "Rejected by the harness: %s" % ProjectWriteGuard.rejection_reason(blocked, editor_tools)
 	var launch := GodotWindowGuard.windowed_launch(command_line, EditorBinary.path())
 	if not launch.is_empty():
 		_log_perm("rejected, opens Godot in its own window: %s" % launch)

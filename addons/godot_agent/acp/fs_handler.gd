@@ -20,6 +20,8 @@ var agent_log: AgentLog
 var buffer_reader: Callable
 ## Callable(abs_path: String, old_text: String, new_text: String) -> bool (puede ser async).
 var write_authorizer: Callable
+## false sin el editor (la app aparte, m20-06): el rechazo de .tscn/.tres a mano no manda a tools godot.*.
+var editor_tools := true
 ## Callable(abs_path: String, old_text: String, new_text: String) -> void, tras escribir a disco.
 var after_write: Callable
 ## Se escribió un archivo del agente (después de after_write): el controller marca su edición (m18-04).
@@ -68,7 +70,7 @@ func write_text_file(params: Dictionary) -> Variant:
 	var old_text := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else ""
 	if ProjectWriteGuard.is_editor_managed(path):
 		_log("write rejected, the editor handles %s" % _short(path))
-		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, "%s is not written by hand: %s." % [_short(path), ProjectWriteGuard.alternative_for(path)])
+		return AcpClient.AcpResponse.failure(AcpClient.ERR_INVALID_PARAMS, "%s is not written by hand: %s." % [_short(path), ProjectWriteGuard.alternative_for(path, editor_tools)])
 	if write_authorizer.is_valid():
 		var allowed: bool = await write_authorizer.call(path, old_text, new_text)
 		if not allowed:

@@ -2,7 +2,7 @@ extends Control
 ## El dock fuera del editor (m20-04): las mismas pestañas de sesión en una ventana propia, cada una con
 ## su agente y su cuenta. Se abre con el binario del editor, sin --editor:
 ##   godot --path <proyecto> res://addons/godot_agent/standalone/main.tscn [-- --project=<carpeta>]
-## Con el editor abierto en la carpeta, usa su MCP para leer (m20-05); si no, el agente usa sus tools de
+## Con el editor abierto en la carpeta, sus tools godot.* por el MCP de la app (m20-05, m20-06); si no, el agente usa sus tools de
 ## archivos y shell, con los permisos, las fotos por turno y los cambios del turno del harness.
 
 const AcpRegistry := preload("../core/acp_registry.gd")
@@ -32,6 +32,7 @@ const AgentDockScene := preload("../ui/dock/agent_dock.tscn")
 const McpServer := preload("../mcp/mcp_server.gd")
 const McpPublication := preload("../mcp/mcp_publication.gd")
 const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
+const EditorBridge := preload("editor_bridge.gd")
 
 ## Al lado de los datos del editor, compartido por todos los proyectos que se abran así; los perfiles
 ## del editor viven en EditorSettings y no se comparten.
@@ -47,6 +48,8 @@ var _tabs: SessionTabs
 var _settings_dialog: SettingsDialog
 var _turn_changes: TurnChanges
 var _turn_counter: TurnCounter
+var _mcp: McpServer
+var _bridge: EditorBridge
 var _sessions: Dictionary = {}  # id → {model, controller}
 var _serial := 0
 
@@ -68,6 +71,7 @@ func _ready() -> void:
 	_snapshots = TurnSnapshots.new(root)
 	_snapshots.setup()
 	_build_turn_changes()
+	_start_mcp(root)
 	_tabs = SessionTabs.new()
 	_tabs.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_tabs.new_session_requested.connect(func(_in_copy: bool) -> void: open_tab())
@@ -137,6 +141,7 @@ func close_tab(id: String) -> void:
 	if controller.history:
 		controller.history.flush()
 	_coordinator.unregister(id)
+	_mcp.remove_session_token(id)
 	_turn_counter.clear(id)
 	_sessions.erase(id)
 	_tabs.remove_session(id)
@@ -170,25 +175,45 @@ func _make_controller(model: SessionModel, id: String) -> SessionController:
 	terminal.extra_roots = _config.extra_fs_roots
 	controller.set_terminal_handler(terminal)
 	# Por id: un lambda que capture el controller que lo guarda es un ciclo y no se libera nunca.
-	controller.mcp_servers_provider = func() -> Array: return _editor_mcp(_sessions[id].controller, _sessions[id].model) if _sessions.has(id) else []
+	controller.mcp_servers_provider = func() -> Array: return _editor_mcp(id) if _sessions.has(id) else []
 	return controller
 
 
-## Al abrir cada sesión (m20-05): el MCP del editor abierto en la carpeta, si lo publicó, solo para
-## leer; si no, sin tools godot.* y con la guía de Godot headless, como una copia aparte.
-func _editor_mcp(controller: SessionController, model: SessionModel) -> Array:
+## Al abrir cada sesión (m20-05, m20-06): con el editor abierto en la carpeta, las godot.* por el MCP de
+## la app, que autoriza cada llamada en la pestaña y la pasa al editor; si no, sin godot.* y con la guía
+## de Godot headless, como una copia aparte.
+func _editor_mcp(id: String) -> Array:
+	var controller: SessionController = _sessions[id].controller
 	var root := EditorContext.project_path()
-	var editor := McpPublication.read(root)
-	controller.permissions.editor_tools = not editor.is_empty()
-	if editor.is_empty():
+	var open := not McpPublication.read(root).is_empty() and _mcp.is_listening()
+	controller.permissions.editor_tools = open
+	controller.fs.editor_tools = open
+	if not open:
 		controller.note_for_agent("[The Godot editor is not open: you work on the project at %s from a separate window of the harness, so the godot.* tools are not available to you. Edit files with your own tools. To check your work and build scenes, run Godot headless on the project (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [root, root, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
 		return []
-	controller.note_for_agent("[The Godot editor is open on this project, and you work on it from a separate window of the harness: the godot.* tools that read (scenes, find_in_files, get_errors…) work and see the editor's unsaved state, but the ones that change something are refused. Edit files with your own tools.]")
-	_log.add_secret(editor.token)
-	if model.supports_http_mcp():
-		return [{"type": "http", "name": McpServer.SERVER_NAME, "url": editor.url, "headers": [{"name": "Authorization", "value": "Bearer " + editor.token}]}]
-	var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, editor.url, editor.token)
+	controller.note_for_agent("[The Godot editor is open on this project and you work on it from a separate window of the harness: the godot.* tools act on that editor, with its unsaved state, as the harness instructions say. If the editor closes, they stop working.]")
+	var token := _mcp.session_token(id)
+	_log.add_secret(token)
+	if _sessions[id].model.supports_http_mcp():
+		return [_mcp.http_server_entry(token)]
+	var entry := StdioShimInstaller.server_entry(McpServer.SERVER_NAME, _mcp.url(), token)
 	return [entry] if not entry.is_empty() else []
+
+
+## El MCP de la app para sus agentes (m20-06): un token por pestaña, y las tools son las del editor.
+func _start_mcp(root: String) -> void:
+	_bridge = EditorBridge.new()
+	_bridge.project = root
+	_bridge.authorize = func(caller: String, group: String, title: String, description: String) -> bool:
+		var controller: SessionController = _sessions[caller].controller if _sessions.has(caller) else null
+		return controller != null and await controller.authorize(group, title, description, {}, _config.permission_timeout_s)
+	add_child(_bridge)
+	_mcp = McpServer.new()
+	_mcp.registry = _bridge
+	_mcp.agent_log = _log
+	add_child(_mcp)
+	if _mcp.start() == OK:
+		_log.add_secret(_mcp.token)
 
 
 ## Ver los cambios del turno y volver atrás (m20-09), como en el editor pero sin lo que solo existe

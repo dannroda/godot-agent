@@ -171,8 +171,6 @@ const UPDATE_CHECK_INTERVAL_S := 86400
 const ICON_NAME := &"Script"
 ## Id de la primera sesión (m7-44); el token principal del server MCP es el suyo.
 const PRIMARY_SESSION := "s1"
-## Lo que la app aparte puede usar del MCP del editor (m20-05); escribir es m20-06.
-const APP_GROUPS: PackedStringArray = [PermissionPolicy.GROUP_READ, PermissionPolicy.GROUP_DIAGNOSTICS]
 ## Cuánto espera una tool que escribe a que el editor termine de importar (m14-02).
 const IMPORT_WAIT_S := 8
 
@@ -1160,8 +1158,10 @@ func _start_mcp_server() -> void:
 	registry.max_image_side = _project_config.max_image_side
 	registry.compact = _project_config.compact_tools
 	registry.session_authorizer = func(caller: String, group: String, title: String, description: String) -> bool:
-		if caller == McpPublication.APP_CALLER:  # la app aparte: sin tarjeta acá que la apruebe, solo lee
-			return group in APP_GROUPS
+		# La app aparte (m20-06) autoriza cada llamada con el modo y la tarjeta de su pestaña antes de
+		# mandarla; su token no lo ve ningún agente.
+		if caller == McpPublication.APP_CALLER:
+			return true
 		var controller := _controller_of(_session_of(caller))
 		return controller != null and await controller.authorize(group, title, description, {}, _project_config.permission_timeout_s)
 	registry.guard = _guard_tool
@@ -1303,6 +1303,8 @@ func _start_mcp_server() -> void:
 	_mcp_server = McpServer.new()
 	_mcp_server.registry = registry
 	_mcp_server.agent_log = _log
+	_mcp_server.describer = func(caller: String, tool_name: String, args: Dictionary) -> Dictionary:
+		return registry.describe(tool_name, args) if caller == McpPublication.APP_CALLER else {}
 	add_child(_mcp_server)
 	if _mcp_server.start(_settings.mcp_port()) == OK:
 		_log.add_secret(_mcp_server.token)
@@ -2823,8 +2825,6 @@ func _models() -> Array[SessionModel]:
 ## Una sesión en una copia aparte (m11-09) no puede usar las tools que editan o corren el proyecto
 ## del editor: se rechazan antes de pedir permiso.
 func _precheck_tool(mcp_caller: String, tool_name: String, args: Dictionary = {}) -> String:
-	if mcp_caller == McpPublication.APP_CALLER and not _registry.group_of(tool_name) in APP_GROUPS:
-		return "From the separate window of the harness the editor's tools only read: godot.%s is not available. Do it with your own tools on the files." % tool_name
 	if tool_name == "session_send":
 		return _message_refusal(_session_of(mcp_caller), str(args.get("to", "")).strip_edges())
 	# El oráculo lee el proyecto con texto que puede traer instrucciones plantadas: no cambia de modo (m11-68).
