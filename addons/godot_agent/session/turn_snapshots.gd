@@ -27,6 +27,9 @@ var _prefix: String = ""
 var _busy: bool = false
 ## sesión -> {sha, msec} del último take() (el contador vivo busca ahí el principio del turno).
 var _latest: Dictionary = {}
+## Antes de la sesión en el index propio y las refs: la app aparte usa "app-" para no chocar con las
+## pestañas del editor (también s1, s2…) abierto en la misma carpeta (m20).
+var key_prefix: String = ""
 
 
 func _init(project_root: String = "") -> void:
@@ -75,7 +78,7 @@ func latest_take(session: String, since_msec: int) -> String:
 
 
 func _take(session: String) -> String:
-	var index := _git_dir.path_join("godot-agent-index-%s" % session.validate_filename())
+	var index := _git_dir.path_join("godot-agent-index-%s" % _key(session))
 	# El index propio se arma una vez desde HEAD y después se reusa: lo escribe siempre git, así su
 	# fecha sirve para detectar archivos cambiados en el mismo segundo («racy git»). Copiar el index
 	# del usuario cada vez le pondría una fecha nueva y git podría no ver un cambio de igual tamaño.
@@ -90,7 +93,7 @@ func _take(session: String) -> String:
 	var commit := await git.run(["commit-tree", tree.output, "-p", "HEAD", "-m", MESSAGE])
 	if commit.code != 0:
 		return ""
-	await git.run(["update-ref", "%s%s/%d" % [REF_PREFIX, session.validate_filename(), int(Time.get_unix_time_from_system() * 1000.0)], commit.output])
+	await git.run(["update-ref", "%s%s/%d" % [REF_PREFIX, _key(session), int(Time.get_unix_time_from_system() * 1000.0)], commit.output])
 	await _prune(session)
 	return commit.output
 
@@ -156,7 +159,7 @@ func peek(session: String, from: String) -> Dictionary:
 	if not available or from.is_empty():
 		return {}
 	await _lock()
-	var index := _git_dir.path_join("godot-agent-peek-%s" % session.validate_filename())
+	var index := _git_dir.path_join("godot-agent-peek-%s" % _key(session))
 	var tree := ""
 	if FileAccess.file_exists(index) or (await _run_with_index(index, PackedStringArray(["read-tree", "HEAD"]))).code == 0:
 		if (await _run_with_index(index, PackedStringArray(["add", "-A"]) + await git.add_pathspec())).code == 0:
@@ -292,8 +295,12 @@ static func parse_diff(numstat: String, statuses: String) -> Dictionary:
 	return {"files": files, "added": added, "removed": removed}
 
 
+func _key(session: String) -> String:
+	return (key_prefix + session).validate_filename()
+
+
 func _prune(session: String) -> void:
-	var refs := await git.run(["for-each-ref", "--format=%(refname)", REF_PREFIX + session.validate_filename() + "/"])
+	var refs := await git.run(["for-each-ref", "--format=%(refname)", REF_PREFIX + _key(session) + "/"])
 	var names := Array(refs.output.split("\n", false))
 	names.sort_custom(func(a: String, b: String) -> bool: return int(a.get_file()) < int(b.get_file()))
 	for i in maxi(names.size() - KEEP_PER_SESSION, 0):

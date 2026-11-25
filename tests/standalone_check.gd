@@ -62,14 +62,27 @@ func _run() -> void:
 	_check(servers.size() == 1 and str(servers[0]).contains(app._mcp.url()) and not str(servers[0]).contains(editor.token), "con el editor abierto, la sesión usa el MCP de la app, sin ver el token del editor")
 	_check(broker.editor_tools and controller._note_for_agent.contains("editor is open"), "y el agente sabe que tiene las tools godot.* del editor")
 	var asked := []
-	app._bridge.authorize = func(caller: String, group: String, title: String, _description: String) -> bool:
-		asked.append([caller, group, title])
-		return asked.size() == 1  # la primera se aprueba, la segunda no
+	var real_authorize: Callable = app._bridge.authorize
+	app._bridge.authorize = func(caller: String, info: Dictionary) -> String:
+		asked.append([caller, info.group, info.title])
+		return "" if asked.size() == 1 else "Permission denied by the user."  # la primera se aprueba, la segunda no
 	var reply := await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "touch", "arguments": {"name": "x"}}})
 	_check(asked == [["s1", "edit_files", "godot.touch"]], "la app autoriza en la pestaña que llama, con el grupo y el título que dice el editor")
 	_check(_touched == ["x"] and str(reply).contains("touched x"), "aprobada, la tool corre en el editor y el resultado vuelve al agente")
 	reply = await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "touch", "arguments": {"name": "y"}}})
 	_check(_touched == ["x"] and str(reply).contains("Permission denied"), "rechazada, no llega al editor")
+	app._bridge.authorize = real_authorize
+	controller.model.project_mode = {"name": "UI", "editable": PackedStringArray(["ui/**"])}
+	reply = await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "save", "arguments": {"path": "res://data/a.tres"}}})
+	_check(_touched == ["x"] and str(reply).contains("UI"), "el modo del proyecto de la pestaña rechaza escribir fuera de sus archivos, sin tarjeta")
+	reply = await _post(app._mcp.url(), app._mcp.session_token("s1"), {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "touch", "arguments": {"name": "w"}}})
+	_check(_touched == ["x"] and str(reply).contains("UI"), "y una tool que escribe sin decir dónde")
+	controller.model.project_mode = {}
+	var other: String = app.open_tab()
+	app._coordinator.claim_label(other, PackedStringArray([_project.path_join("data/a.tres")]))
+	var refused_lock: String = await app._authorize_editor_tool("s1", {"group": "edit_files", "title": "godot.save", "description": "", "targets": {"declared": true, "paths": ["res://data/a.tres"]}})
+	_check(refused_lock.contains("is being edited by"), "un archivo que tiene otra pestaña de la app no se toca por godot.*")
+	app.close_tab(other)
 	reply = await _post(editor.url(), "not-the-token", {"jsonrpc": "2.0", "id": 3, "method": "godot_agent/describe", "params": {"name": "touch"}})
 	_check(str(reply).contains("Invalid token"), "el editor no describe ni corre nada sin su token")
 	editor.stop()
@@ -83,6 +96,9 @@ func _run() -> void:
 	await _turn(app, "s1", "a")
 	await _turn(app, second, "b")
 	_check(FileAccess.file_exists(_project.path_join("a.gd")) and FileAccess.file_exists(_project.path_join("b.gd")), "cada pestaña escribió su archivo por ACP en la carpeta abierta")
+	var refs: Array = []
+	OS.execute("git", ["-C", _project, "for-each-ref", "--format=%(refname)", "refs/godot-agent/turns/"], refs)
+	_check(str(refs).contains("turns/app-s1/") and not str(refs).contains("turns/s1/"), "las fotos de la app no usan las claves de las pestañas del editor (s1, s2…)")
 	var data := _turn_data(app._sessions["s1"].model)
 	_check(not data.is_empty() and data.get("files", []).map(func(file: Dictionary) -> String: return str(file.path)) == ["a.gd"], "el turno de s1 ofrece Ver cambios y Deshacer turno, con a.gd")
 	if not data.is_empty():
@@ -129,6 +145,12 @@ func _fake_editor() -> McpServer:
 		func(args: Dictionary) -> String:
 			_touched.append(args.name)
 			return "touched %s" % args.name))
+	var save := McpTool.create("save", "edit_files", "Guarda", {"path": {"type": "string"}}, ["path"],
+		func(args: Dictionary) -> String:
+			_touched.append(args.path)
+			return "saved")
+	save.write_targets = func(args: Dictionary) -> PackedStringArray: return PackedStringArray([args.path])
+	registry.register(save)
 	registry.session_authorizer = func(caller: String, _group: String, _title: String, _description: String) -> bool: return caller == McpPublication.APP_CALLER
 	var server := McpServer.new()
 	server.registry = registry

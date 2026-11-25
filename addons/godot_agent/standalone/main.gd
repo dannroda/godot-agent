@@ -34,6 +34,7 @@ const McpServer := preload("../mcp/mcp_server.gd")
 const McpPublication := preload("../mcp/mcp_publication.gd")
 const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
 const EditorBridge := preload("editor_bridge.gd")
+const ProjectModes := preload("../core/project_modes.gd")
 
 ## Al lado de los datos del editor, compartido por todos los proyectos que se abran así; los perfiles
 ## del editor viven en EditorSettings y no se comparten.
@@ -70,6 +71,7 @@ func _ready() -> void:
 	_coordinator = SessionCoordinator.new()
 	_coordinator.is_game_running = func() -> bool: return false
 	_snapshots = TurnSnapshots.new(root)
+	_snapshots.key_prefix = "app-"  # las pestañas del editor en la misma carpeta también son s1, s2…
 	_snapshots.setup()
 	_build_turn_changes()
 	_start_mcp(root)
@@ -122,6 +124,7 @@ func open_tab() -> String:
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.turn_changes_requested.connect(func() -> void: _turn_counter.open(id))
 	model.state_changed.connect(func(state: SessionModel.SessionState) -> void: _turn_counter.on_state(id, state))
+	model.turn_finished.connect(func(_stop_reason: String) -> void: _coordinator.release_files(id))
 	model.tool_call_changed.connect(func(call: ToolCall, _group: Variant) -> void:
 		if call.status == ToolCall.STATUS_COMPLETED:
 			_turn_counter.note_activity(id))
@@ -205,9 +208,7 @@ func _editor_mcp(id: String) -> Array:
 func _start_mcp(root: String) -> void:
 	_bridge = EditorBridge.new()
 	_bridge.project = root
-	_bridge.authorize = func(caller: String, group: String, title: String, description: String) -> bool:
-		var controller: SessionController = _sessions[caller].controller if _sessions.has(caller) else null
-		return controller != null and await controller.authorize(group, title, description, {}, _config.permission_timeout_s)
+	_bridge.authorize = _authorize_editor_tool
 	add_child(_bridge)
 	_mcp = McpServer.new()
 	_mcp.registry = _bridge
@@ -215,6 +216,36 @@ func _start_mcp(root: String) -> void:
 	add_child(_mcp)
 	if _mcp.start() == OK:
 		_log.add_secret(_mcp.token)
+
+
+## Una tool godot.* de la pestaña `id` antes de mandarla al editor, que confía en la app: como hace el
+## editor con sus pestañas, el modo del proyecto (escribir fuera de sus archivos, o sin decir dónde, se
+## rechaza sin tarjeta), los archivos que tiene otra pestaña y el permiso. "" si sigue; si no, el motivo.
+func _authorize_editor_tool(id: String, info: Dictionary) -> String:
+	if not _sessions.has(id):
+		return "This tab of the harness is closed."
+	var controller: SessionController = _sessions[id].controller
+	var title := str(info.get("title", ""))
+	var group := str(info.get("group", ""))
+	var targets: Dictionary = info.get("targets") if info.get("targets") is Dictionary else {}
+	var paths := PackedStringArray()
+	for path: Variant in targets.get("paths", []) if targets.get("paths") is Array else []:
+		paths.append(EditorContext.project_path().path_join(str(path).trim_prefix("res://")) if str(path).begins_with("res://") else str(path))
+	if ProjectModes.limits_files(controller.model.project_mode):
+		var refused := controller.permissions.mode_refused_write(paths) if bool(targets.get("declared", false)) else "?"
+		if not refused.is_empty():
+			return controller.permissions.notify_mode_refusal(title, refused)
+	# shortcut: sin rutas, una tool de escena edita la escena abierta en el editor, que la app no ve: esa
+	# queda sin lock entre pestañas; si choca seguido, que describe diga cuál es.
+	if group in [PermissionPolicy.GROUP_EDIT_SCENE, PermissionPolicy.GROUP_EDIT_FILES, PermissionPolicy.GROUP_PROJECT]:
+		if group == PermissionPolicy.GROUP_PROJECT:
+			paths.append(EditorContext.project_path().path_join("project.godot"))
+		var holder := _coordinator.claim_label(id, paths)
+		if not holder.is_empty():
+			return "%s is being edited by «%s» in its current turn. Don't touch it until that turn ends: work on something else meanwhile." % [paths[0], holder]
+	if not await controller.authorize(group, title, str(info.get("description", "")), {}, _config.permission_timeout_s):
+		return "Permission denied for %s (group %s) by the current mode or by the user. Do not retry: explain what you wanted to do and ask the user to change the mode if needed." % [title, group]
+	return ""
 
 
 ## Ver los cambios del turno y volver atrás (m20-09), como en el editor pero sin lo que solo existe
