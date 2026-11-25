@@ -887,7 +887,7 @@ func export_context() -> Dictionary:
 	if not str(_model.account.get("email", "")).is_empty():
 		emails.append(str(_model.account.email))
 	return {"title": "%s · %s · %s" % [title, project if not project.is_empty() else "Godot", Time.get_date_string_from_system()],
-		"project": ProjectSettings.globalize_path("res://"), "home": home, "emails": emails,
+		"project": EditorContext.project_path(), "home": home, "emails": emails,
 		"redact": _controller.agent_log.redact if _controller and _controller.agent_log else Callable()}
 
 
@@ -2220,7 +2220,7 @@ static func _absolute_path(path: String) -> String:
 	if path.begins_with("res://"):
 		absolute = ProjectSettings.globalize_path(path)
 	elif not path.is_absolute_path():
-		absolute = ProjectSettings.globalize_path("res://").path_join(path.trim_prefix("./"))
+		absolute = EditorContext.project_path().path_join(path.trim_prefix("./"))
 	return absolute.simplify_path()
 
 
@@ -2357,7 +2357,7 @@ func _on_add_context_selected(id: int) -> void:
 				_file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILES
 				# Cualquier carpeta (m17-21): arranca en el proyecto y después recuerda la última.
 				_file_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
-				_file_dialog.current_dir = ProjectSettings.globalize_path("res://")
+				_file_dialog.current_dir = EditorContext.project_path()
 				_file_dialog.title = I18n.t("Add to the context")
 				_file_dialog.files_selected.connect(add_context_files)
 				add_child(_file_dialog)
@@ -2603,7 +2603,7 @@ func request_handoff(goal: String = "") -> void:
 		handoff.title = _model.title
 	handoff.session_id = session_id
 	handoff.text = Handoff.composer_text(handoff.title, goal, handoff.summary)
-	handoff["path"] = Handoff.save(ProjectSettings.globalize_path("res://"), handoff)
+	handoff["path"] = Handoff.save(EditorContext.project_path(), handoff)
 	_handoff_running = false
 	_refresh_handoff_banner()
 	if handoff.summary.is_empty():
@@ -2734,7 +2734,7 @@ func _refresh_handoff_offer(available: bool) -> void:
 		return
 	_handoff_items.clear()
 	if available:
-		_handoff_items = Handoff.list(ProjectSettings.globalize_path("res://"))
+		_handoff_items = Handoff.list(EditorContext.project_path())
 	_handoff_offer.visible = not _handoff_items.is_empty()
 	if _handoff_items.is_empty():
 		return
@@ -2785,7 +2785,7 @@ func instructions_file() -> String:
 		kind = _controller.adapter.kind
 	elif selected_profile():
 		kind = AgentAdapters.for_profile(selected_profile().command, selected_profile().args, selected_profile().id).kind
-	return InstructionsTab.default_file_for(kind, ProjectSettings.globalize_path("res://"))
+	return InstructionsTab.default_file_for(kind, EditorContext.project_path())
 
 
 ## La nota que recibe la sesión en curso con su próximo prompt: el archivo no se relee hasta la
@@ -2800,7 +2800,7 @@ func remember(value: String) -> void:
 		_model.add_notice(I18n.t("Write what to remember after the command, e.g. /remember The player scene is res://player/player.tscn"), ChatEntry.NoticeLevel.WARNING)
 		return
 	var file := instructions_file()
-	var error := ProjectMemory.remember(ProjectSettings.globalize_path("res://").path_join(file), line)
+	var error := ProjectMemory.remember(EditorContext.project_path().path_join(file), line)
 	if not error.is_empty():
 		_model.add_notice(I18n.t("Could not save it in %s: %s") % [file, error], ChatEntry.NoticeLevel.ERROR)
 		return
@@ -2820,7 +2820,7 @@ func remember(value: String) -> void:
 func _undo_remember(data: Variant) -> void:
 	if not data is Dictionary:
 		return
-	var error := ProjectMemory.forget(ProjectSettings.globalize_path("res://").path_join(str(data.file)), str(data.line))
+	var error := ProjectMemory.forget(EditorContext.project_path().path_join(str(data.file)), str(data.line))
 	_controller.drop_note_for_agent(str(data.get("note", "")))
 	if error.is_empty():
 		_model.add_notice(I18n.t("Removed from %s: «%s».") % [data.file, data.line])

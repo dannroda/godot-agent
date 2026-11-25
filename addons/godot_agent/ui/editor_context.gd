@@ -10,8 +10,14 @@ const MENTION_FILE_LIMIT := 3000
 const MENTION_EXTENSIONS: PackedStringArray = ["gd", "cs", "tscn", "tres", "gdshader", "cfg", "json", "md", "txt", "csv"]
 
 
+## La carpeta elegida en la app aparte (m20-03); vacía, la del proyecto abierto en el editor.
+## shortcut: una sola carpeta para toda la app; si hace falta una por pestaña, pasarla por el controller.
+static var project_root: String = ""
+
+
 static func project_path() -> String:
-	return ProjectSettings.globalize_path("res://").trim_suffix("/")
+	var root := project_root if not project_root.is_empty() else ProjectSettings.globalize_path("res://")
+	return root.simplify_path().trim_suffix("/")
 
 
 static func file_uri(res_path: String) -> String:
@@ -68,10 +74,11 @@ static func mention_options() -> Array[Dictionary]:
 	var root := scene_root()
 	if root:
 		_collect_nodes(root, root, options)
-	if not AgentTheme.has_editor():
-		return options  # shortcut: sin archivos fuera del editor; m20-03 los lee de la carpeta elegida
 	var files: PackedStringArray = []
-	_collect_files(EditorInterface.get_resource_filesystem().get_filesystem(), files)
+	if AgentTheme.has_editor():
+		_collect_files(EditorInterface.get_resource_filesystem().get_filesystem(), files)
+	else:
+		_collect_dir(project_path(), "", files)
 	for path: String in files:
 		options.append({"label": path, "insert": path})
 	return options
@@ -85,6 +92,20 @@ static func _collect_nodes(root: Node, node: Node, out: Array[Dictionary]) -> vo
 	for child: Node in node.get_children():
 		if child.owner == root:
 			_collect_nodes(root, child, out)
+
+
+## Fuera del editor: los archivos de la carpeta, con la ruta relativa a ella; sin carpetas ocultas
+## (.git, .godot) ni el addon, como el EditorFileSystem.
+static func _collect_dir(root: String, relative: String, out: PackedStringArray) -> void:
+	if out.size() >= MENTION_FILE_LIMIT or relative.begins_with("addons/godot_agent"):
+		return
+	var dir := root.path_join(relative)
+	for file: String in DirAccess.get_files_at(dir):
+		if file.get_extension() in MENTION_EXTENSIONS and out.size() < MENTION_FILE_LIMIT:
+			out.append(relative.path_join(file) if not relative.is_empty() else file)
+	for sub: String in DirAccess.get_directories_at(dir):
+		if not sub.begins_with("."):
+			_collect_dir(root, relative.path_join(sub) if not relative.is_empty() else sub, out)
 
 
 static func _collect_files(dir: EditorFileSystemDirectory, out: PackedStringArray) -> void:
