@@ -34,6 +34,7 @@ func _run() -> void:
 	app._open_settings()
 	await process_frame
 	_check(app._settings_dialog.visible, "los ajustes se abren")
+	_check(not root.gui_embed_subwindows, "diálogos y menús en ventanas del sistema, no embebidos")
 	app._settings_dialog.hide()
 	var second: String = app.open_tab()
 	_check(app._tabs.ids().size() == 2, "una segunda pestaña")
