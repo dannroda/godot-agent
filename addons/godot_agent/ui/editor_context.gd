@@ -3,6 +3,8 @@ extends RefCounted
 ## Lo que la UI necesita leer del editor para armar el contexto de un prompt: escena abierta,
 ## selección, menciones (`@`), captura del viewport y saltar a un archivo/línea.
 
+const AgentTheme := preload("agent_theme.gd")
+
 const MAX_IMAGE_SIDE := 1280
 const MENTION_FILE_LIMIT := 3000
 const MENTION_EXTENSIONS: PackedStringArray = ["gd", "cs", "tscn", "tres", "gdshader", "cfg", "json", "md", "txt", "csv"]
@@ -16,13 +18,14 @@ static func file_uri(res_path: String) -> String:
 	return "file://" + ProjectSettings.globalize_path(res_path)
 
 
+## Fuera del editor (la app aparte, m20) no hay escena abierta ni selección: null y listas vacías.
 static func scene_root() -> Node:
-	return EditorInterface.get_edited_scene_root()
+	return EditorInterface.get_edited_scene_root() if AgentTheme.has_editor() else null
 
 
 ## El script abierto en el Script Editor, si está a la vista (m11-25: sus reglas por archivo).
 static func current_script_paths() -> PackedStringArray:
-	if not Engine.is_editor_hint():
+	if not AgentTheme.has_editor():
 		return PackedStringArray()
 	var editor := EditorInterface.get_script_editor()
 	if editor == null or not editor.is_visible_in_tree():
@@ -51,6 +54,8 @@ static func selected_node_paths() -> PackedStringArray:
 static func selection_description() -> String:
 	var root := scene_root()
 	var parts: PackedStringArray = []
+	if root == null:
+		return ""
 	for node: Node in EditorInterface.get_selection().get_selected_nodes():
 		if root and (node == root or root.is_ancestor_of(node)):
 			parts.append("%s (%s)" % [String(root.get_path_to(node)), node.get_class()])
@@ -63,6 +68,8 @@ static func mention_options() -> Array[Dictionary]:
 	var root := scene_root()
 	if root:
 		_collect_nodes(root, root, options)
+	if not AgentTheme.has_editor():
+		return options  # shortcut: sin archivos fuera del editor; m20-03 los lee de la carpeta elegida
 	var files: PackedStringArray = []
 	_collect_files(EditorInterface.get_resource_filesystem().get_filesystem(), files)
 	for path: String in files:
@@ -99,6 +106,8 @@ static func capture_scene_viewport() -> Image:
 
 
 static func capture_viewport(three_d: bool) -> Image:
+	if not AgentTheme.has_editor():
+		return null
 	var viewport: SubViewport = EditorInterface.get_editor_viewport_3d(0) if three_d else EditorInterface.get_editor_viewport_2d()
 	if viewport == null:
 		return null
@@ -123,7 +132,7 @@ static func _prefers_3d() -> bool:
 ## Abre un archivo del proyecto (ruta absoluta o res://) en el Script Editor o como escena.
 static func open_location(path: String, line: int = 0) -> bool:
 	var res_path := to_res_path(path)
-	if res_path.is_empty() or not FileAccess.file_exists(res_path):
+	if not AgentTheme.has_editor() or res_path.is_empty() or not FileAccess.file_exists(res_path):
 		return false
 	if res_path.get_extension() in ["tscn", "scn"]:
 		EditorInterface.open_scene_from_path(res_path)
@@ -145,6 +154,8 @@ static func open_location(path: String, line: int = 0) -> bool:
 ## Si `edit_script` lo abre en un editor externo (VS Code, Rider…) en lugar del Script Editor: el
 ## externo general, o el de C# (`dotnet/editor/external_editor`, 0 = ninguno) para los .cs (m14-07).
 static func opens_externally(res_path: String) -> bool:
+	if not AgentTheme.has_editor():
+		return false
 	var settings := EditorInterface.get_editor_settings()
 	if settings.get_setting("text_editor/external/use_external_editor"):
 		return true
