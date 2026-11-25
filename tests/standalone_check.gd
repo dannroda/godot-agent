@@ -17,7 +17,12 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_check(Main.project_from_args(PackedStringArray(["--project=/a/b/"]), "/x") == "/a/b", "--project gana y sin barra final")
+	var here := ProjectSettings.globalize_path("res://tests").trim_suffix("/")
+	_check(Main.project_from_args(PackedStringArray(["--project=%s/" % here]), "/x") == here, "--project gana y sin barra final")
+	_check(Main.absolute_path("~/juegos/a", "/home/u", "/w") == "/home/u/juegos/a", "~ se expande (el shell no lo hace después de =)")
+	_check(Main.absolute_path("~", "/home/u", "/w") == "/home/u", "~ solo")
+	_check(Main.absolute_path("juego/../otro", "/home/u", "/w") == "/w/otro", "relativa a la carpeta desde donde se lanzó")
+	_check(Main.project_from_args(PackedStringArray(["--project=/no/existe"]), "") == "", "un --project que no existe no se usa")
 	_check(Main.project_from_args(PackedStringArray(), "/no/existe") == "", "una última carpeta que ya no existe no se usa")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(OUT.path_join("a.gd")))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(OUT.path_join("b.gd")))

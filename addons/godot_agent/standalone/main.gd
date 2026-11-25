@@ -68,8 +68,21 @@ func _ready() -> void:
 static func project_from_args(args: PackedStringArray, last: String) -> String:
 	for arg: String in args:
 		if arg.begins_with("--project="):
-			return arg.trim_prefix("--project=").simplify_path()
+			var path := absolute_path(arg.trim_prefix("--project="), OS.get_environment("HOME"), OS.get_environment("PWD"))
+			if DirAccess.dir_exists_absolute(path):
+				return path
+			push_error("Godot Agent: --project=%s is not a folder; using %s" % [path, last if DirAccess.dir_exists_absolute(last) else "res://"])
 	return last if not last.is_empty() and DirAccess.dir_exists_absolute(last) else ""
+
+
+## `~` y rutas relativas a la carpeta desde donde se lanzó: el shell no expande `~` después de `=`
+## (zsh sin magic_equal_subst), y el agente rechaza un cwd que no sea absoluto.
+static func absolute_path(path: String, home: String, cwd: String) -> String:
+	if path == "~" or path.begins_with("~/"):
+		path = home.path_join(path.trim_prefix("~").trim_prefix("/"))
+	elif not path.is_absolute_path() and not cwd.is_empty():
+		path = cwd.path_join(path)
+	return path.simplify_path().trim_suffix("/")
 
 
 static func settings_path() -> String:
