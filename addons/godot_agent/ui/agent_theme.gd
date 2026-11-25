@@ -34,8 +34,19 @@ static func has_editor() -> bool:
 	return Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface")
 
 
+## El EditorInterface, o null fuera del editor. Por el singleton y no por su nombre (m20-07): en una
+## plantilla de exportación las clases del editor no existen y un script que las nombra no parsea.
+static func editor() -> Object:
+	return Engine.get_singleton(&"EditorInterface") if has_editor() else null
+
+
+## EditorFileDialog en el editor; FileDialog en la app (las dos tienen file_mode, access y current_dir).
+static func file_dialog() -> ConfirmationDialog:
+	return ClassDB.instantiate(&"EditorFileDialog") if has_editor() else FileDialog.new()
+
+
 static func editor_scale() -> float:
-	return EditorInterface.get_editor_scale() if has_editor() else 1.0
+	return editor().get_editor_scale() if has_editor() else 1.0
 
 
 static func px(value: float) -> int:
@@ -43,7 +54,7 @@ static func px(value: float) -> int:
 
 
 static func editor_theme() -> Theme:
-	return EditorInterface.get_editor_theme() if has_editor() else ThemeDB.get_default_theme()
+	return editor().get_editor_theme() if has_editor() else ThemeDB.get_default_theme()
 
 
 static func icon(name: StringName) -> Texture2D:

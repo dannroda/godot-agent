@@ -300,7 +300,7 @@ func confirm_restore(data: Dictionary) -> void:
 		if not confirm.visible:
 			EditorWindows.free_later.call_deferred(confirm))
 	# Fuera del editor (la app aparte, m20-09), al lado del diálogo de cambios.
-	(EditorInterface.get_base_control() if AgentTheme.has_editor() else dialog.get_parent()).add_child(confirm)
+	(AgentTheme.editor().get_base_control() if AgentTheme.has_editor() else dialog.get_parent()).add_child(confirm)
 	confirm.popup_centered()
 
 

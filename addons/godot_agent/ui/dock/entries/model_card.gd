@@ -410,7 +410,7 @@ func enlarge() -> void:
 	_status.visible = true
 	_overlay.visible = true
 	_view_button.visible = false
-	var host: Node = EditorInterface.get_base_control() if AgentTheme.has_editor() else get_tree().root
+	var host: Node = AgentTheme.editor().get_base_control() if AgentTheme.has_editor() else get_tree().root
 	host.add_child(dialog)
 	dialog.popup_centered_ratio(0.75)
 	_dirty = true

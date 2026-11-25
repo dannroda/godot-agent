@@ -317,7 +317,7 @@ func _on_export_confirmed() -> void:
 	if not error.is_empty():
 		notice_requested.emit(I18n.t("Could not write CLAUDE.md: %s") % error, ChatEntry.NoticeLevel.ERROR)
 		return
-	EditorInterface.get_resource_filesystem().update_file(ReviewStore.CLAUDE_MD_PATH)
+	AgentTheme.editor().get_resource_filesystem().update_file(ReviewStore.CLAUDE_MD_PATH)
 	notice_requested.emit(I18n.t("Review conventions added to CLAUDE.md."), ChatEntry.NoticeLevel.INFO)
 
 
@@ -418,9 +418,9 @@ func _start_playtest(goal: String, record: bool, minutes: int) -> void:
 static func _saved_minutes() -> int:
 	if not AgentTheme.has_editor():
 		return PLAYTEST_MINUTES_DEFAULT
-	return int(EditorInterface.get_editor_settings().get_project_metadata("godot_agent", PLAYTEST_MINUTES_KEY, PLAYTEST_MINUTES_DEFAULT))
+	return int(AgentTheme.editor().get_editor_settings().get_project_metadata("godot_agent", PLAYTEST_MINUTES_KEY, PLAYTEST_MINUTES_DEFAULT))
 
 
 static func _save_minutes(minutes: int) -> void:
 	if AgentTheme.has_editor():
-		EditorInterface.get_editor_settings().set_project_metadata("godot_agent", PLAYTEST_MINUTES_KEY, minutes)
+		AgentTheme.editor().get_editor_settings().set_project_metadata("godot_agent", PLAYTEST_MINUTES_KEY, minutes)

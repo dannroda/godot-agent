@@ -77,7 +77,7 @@ func show_image(image: Image, title_text: String, near: Node) -> void:
 	if _on_pick.is_valid():
 		_hint.text = I18n.t("Click on what you want to point at · wheel: zoom · drag: move")
 		_canvas.mouse_default_cursor_shape = Control.CURSOR_CROSS
-	var host: Node = EditorInterface.get_base_control() if AgentTheme.has_editor() else near.get_tree().root
+	var host: Node = AgentTheme.editor().get_base_control() if AgentTheme.has_editor() else near.get_tree().root
 	host.add_child(self)
 	popup_centered_ratio(0.85)
 	_fit_to_view.call_deferred()
@@ -244,7 +244,7 @@ func _ask_save() -> void:
 			if error != OK:
 				push_warning("Godot Agent: could not save %s (%s)" % [path, error_string(error)])
 			elif AgentTheme.has_editor() and path.begins_with(ProjectSettings.globalize_path("res://")):
-				EditorInterface.get_resource_filesystem().scan()
+				AgentTheme.editor().get_resource_filesystem().scan()
 		)
 		add_child(_save_dialog)
 	_save_dialog.popup_centered_ratio(0.6)

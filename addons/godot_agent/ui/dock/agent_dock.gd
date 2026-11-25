@@ -213,7 +213,7 @@ var _profile_id: String = ""
 var _accounts: Dictionary = {}
 ## Las cuentas que muestra el menú del agente abierto: [{dir, name, email}].
 var _menu_accounts: Array[Dictionary] = []
-var _account_dialog: EditorFileDialog
+var _account_dialog: ConfirmationDialog  # EditorFileDialog en el editor; FileDialog en la app (m20-07)
 var _accent: Color = HarnessSettings.DEFAULT_ACCENT
 var _presets_mtime: int = -1
 var _pending_prompt: String = ""
@@ -270,7 +270,7 @@ var _handoff_offer_label: Label
 var _handoff_others: MenuButton
 var _handoff_items: Array[Dictionary] = []
 var _add_context_menu: PopupMenu
-var _file_dialog: EditorFileDialog
+var _file_dialog: ConfirmationDialog  # EditorFileDialog o FileDialog
 var _review_panel: ReviewPanel
 var _quota_ring: QuotaRing
 ## Header de una fila (m12-14): el chip del agente con su estado (elige el perfil), el título, el
@@ -387,9 +387,9 @@ func _ready() -> void:
 	_composer.plan_requested.connect(_on_plan_requested)
 	_composer.recipe_requested.connect(open_recipe_picker)
 	load_recipes.call_deferred()
-	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem():
-		EditorInterface.get_resource_filesystem().filesystem_changed.connect(load_recipes)
-		EditorInterface.get_resource_filesystem().filesystem_changed.connect(load_project_modes)
+	if Engine.is_editor_hint() and AgentTheme.editor().get_resource_filesystem():
+		AgentTheme.editor().get_resource_filesystem().filesystem_changed.connect(load_recipes)
+		AgentTheme.editor().get_resource_filesystem().filesystem_changed.connect(load_project_modes)
 	_composer.handoff_requested.connect(func() -> void: request_handoff())
 	_composer.remember_available = true
 	_composer.cancel_requested.connect(_on_cancel_requested)
@@ -1087,17 +1087,17 @@ func _on_account_selected(dir: String) -> void:
 
 func _pick_account_folder() -> void:
 	if _account_dialog == null:
-		_account_dialog = EditorFileDialog.new()
-		_account_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_DIR
-		_account_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+		_account_dialog = AgentTheme.file_dialog()
+		_account_dialog.set(&"file_mode", FileDialog.FILE_MODE_OPEN_DIR)
+		_account_dialog.set(&"access", FileDialog.ACCESS_FILESYSTEM)
 		_account_dialog.title = I18n.t("Agent configuration folder")
-		_account_dialog.dir_selected.connect(func(dir: String) -> void:
+		_account_dialog.connect(&"dir_selected", func(dir: String) -> void:
 			var base := _base_profile()
 			if base:
 				_settings.add_account(AgentAccounts.variable_of(base), AgentAccounts.normalize(dir))
 			_on_account_selected(dir))
 		add_child(_account_dialog)
-	_account_dialog.current_dir = AgentAccounts.home()
+	_account_dialog.set(&"current_dir", AgentAccounts.home())
 	_account_dialog.popup_file_dialog()
 
 
@@ -2327,18 +2327,18 @@ func _on_add_context_pressed() -> void:
 		_add_context_menu.id_pressed.connect(_on_add_context_selected)
 		add_child(_add_context_menu)
 	_add_context_menu.clear()
-	var script := EditorInterface.get_script_editor().get_current_script()
+	var script: Script = AgentTheme.editor().get_script_editor().get_current_script() if AgentTheme.has_editor() else null
 	if script and not script.resource_path.is_empty():
 		_add_context_menu.add_item(I18n.t("Current script: %s") % script.resource_path.get_file(), ADD_CONTEXT_SCRIPT)
 	_add_context_menu.add_item(I18n.t("File…"), ADD_CONTEXT_FILE)
 	_add_context_menu.add_item(I18n.t("Viewport screenshot"), ADD_CONTEXT_SCREENSHOT)
 	_add_context_menu.add_item(I18n.t("Game screenshot"), ADD_CONTEXT_GAME)
-	if not EditorInterface.is_playing_scene():
+	if not AgentTheme.has_editor() or not AgentTheme.editor().is_playing_scene():
 		_add_context_menu.set_item_disabled(-1, true)
 		_add_context_menu.set_item_tooltip(-1, I18n.t("No game is running."))
 	_add_context_menu.add_item(I18n.t("Point at something in the game…"), ADD_CONTEXT_POINT)
 	_add_context_menu.set_item_tooltip(-1, I18n.t("Opens the game capture: click on a node and it goes to the message as @path, with the capture marked."))
-	if not EditorInterface.is_playing_scene():
+	if not AgentTheme.has_editor() or not AgentTheme.editor().is_playing_scene():
 		_add_context_menu.set_item_disabled(-1, true)
 		_add_context_menu.set_item_tooltip(-1, I18n.t("No game is running."))
 	_add_context_menu.reset_size()
@@ -2348,18 +2348,18 @@ func _on_add_context_pressed() -> void:
 func _on_add_context_selected(id: int) -> void:
 	match id:
 		ADD_CONTEXT_SCRIPT:
-			var script := EditorInterface.get_script_editor().get_current_script()
+			var script: Script = AgentTheme.editor().get_script_editor().get_current_script() if AgentTheme.has_editor() else null
 			if script:
 				add_context_files([script.resource_path])
 		ADD_CONTEXT_FILE:
 			if _file_dialog == null:
-				_file_dialog = EditorFileDialog.new()
-				_file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILES
+				_file_dialog = AgentTheme.file_dialog()
+				_file_dialog.set(&"file_mode", FileDialog.FILE_MODE_OPEN_FILES)
 				# Cualquier carpeta (m17-21): arranca en el proyecto y después recuerda la última.
-				_file_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
-				_file_dialog.current_dir = EditorContext.project_path()
+				_file_dialog.set(&"access", FileDialog.ACCESS_FILESYSTEM)
+				_file_dialog.set(&"current_dir", EditorContext.project_path())
 				_file_dialog.title = I18n.t("Add to the context")
-				_file_dialog.files_selected.connect(add_context_files)
+				_file_dialog.connect(&"files_selected", add_context_files)
 				add_child(_file_dialog)
 			_file_dialog.popup_centered_ratio(0.6)
 		ADD_CONTEXT_SCREENSHOT:
@@ -2804,8 +2804,8 @@ func remember(value: String) -> void:
 	if not error.is_empty():
 		_model.add_notice(I18n.t("Could not save it in %s: %s") % [file, error], ChatEntry.NoticeLevel.ERROR)
 		return
-	if Engine.is_editor_hint() and EditorInterface.get_resource_filesystem():
-		EditorInterface.get_resource_filesystem().update_file("res://" + file)
+	if Engine.is_editor_hint() and AgentTheme.editor().get_resource_filesystem():
+		AgentTheme.editor().get_resource_filesystem().update_file("res://" + file)
 	var note := remember_note(file, line, UntrustedText.new_nonce())
 	_controller.note_for_agent(note)
 	var entry := _model.add_notice(I18n.t("Saved in %s: «%s». Agents read it from their next session; this one gets it with your next message.") % [file, line])

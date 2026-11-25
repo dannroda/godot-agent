@@ -8,11 +8,13 @@ extends RefCounted
 ## - El juego es de la sesión que lo lanzó hasta que se detiene; otra que quiera correrlo espera
 ##   en cola (hasta un tope) y no puede tocar el juego ajeno con las tools game_*.
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 signal changed
 
 const PermissionPolicy := preload("permission_policy.gd")
 const SessionModel := preload("session_model.gd")
-const RunTools := preload("../mcp/tools/run_tools.gd")
+const PlaytestState := preload("playtest_state.gd")
 
 ## Espera máxima en la cola del juego antes de rechazar.
 const GAME_WAIT_S := 90.0
@@ -27,7 +29,7 @@ var _game_owner: String = ""
 ## les cambie el nombre (antes solo lo decía el sufijo «(copy)» del nombre por defecto; m12-45).
 var _copies: Dictionary = {}  # id -> rama
 ## Si el juego sigue corriendo; lo reemplazan las pruebas.
-var is_game_running: Callable = func() -> bool: return EditorInterface.is_playing_scene()
+var is_game_running: Callable = func() -> bool: return AgentTheme.editor().is_playing_scene()
 
 
 func register(session: String, label: String) -> void:
@@ -185,7 +187,7 @@ func guard_tool(caller: String, tool_name: String, group: String, args: Dictiona
 		if not holder.is_empty():
 			return "The game is in use by «%s»: it launched it and it's still running. Try again when it stops (godot.sessions shows it), or work on something else meanwhile." % label(holder)
 		return ""
-	if tool_name == "stop_scene" or tool_name == "capture_game_frame" or tool_name in RunTools.GAME_TOOLS:
+	if tool_name == "stop_scene" or tool_name == "capture_game_frame" or tool_name in PlaytestState.GAME_TOOLS:
 		var owner := game_owner()
 		if not owner.is_empty() and owner != caller:
 			return "The running game belongs to «%s». Run your own with run_scene when it stops (godot.sessions shows it)." % label(owner)

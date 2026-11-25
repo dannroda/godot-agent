@@ -2,6 +2,7 @@ extends Control
 ## El dock fuera del editor (m20-04): las mismas pestañas de sesión en una ventana propia, cada una con
 ## su agente y su cuenta. Se abre con el binario del editor, sin --editor:
 ##   godot --path <proyecto> res://addons/godot_agent/standalone/main.tscn [-- --project=<carpeta>]
+## o exportada con una plantilla, sin las clases del editor (m20-07): tests/standalone_export_check.sh.
 ## Con el editor abierto en la carpeta, sus tools godot.* por el MCP de la app (m20-05, m20-06); si no, el agente usa sus tools de
 ## archivos y shell, con los permisos, las fotos por turno y los cambios del turno del harness.
 

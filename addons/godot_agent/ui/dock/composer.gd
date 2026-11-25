@@ -346,7 +346,7 @@ func _on_grip_input(event: InputEvent) -> void:
 func set_manual_height(height: float) -> void:
 	_manual_height = maxf(height, 0.0)
 	if AgentTheme.has_editor():
-		EditorInterface.get_editor_settings().set_setting(SETTING_HEIGHT, _manual_height)
+		AgentTheme.editor().get_editor_settings().set_setting(SETTING_HEIGHT, _manual_height)
 	if is_inside_tree():
 		get_tree().call_group(GROUP, &"update_height")
 	else:
@@ -356,8 +356,8 @@ func set_manual_height(height: float) -> void:
 func manual_height() -> float:
 	if _manual_height < 0.0:
 		_manual_height = 0.0
-		if AgentTheme.has_editor() and EditorInterface.get_editor_settings().has_setting(SETTING_HEIGHT):
-			_manual_height = maxf(float(EditorInterface.get_editor_settings().get_setting(SETTING_HEIGHT)), 0.0)
+		if AgentTheme.has_editor() and AgentTheme.editor().get_editor_settings().has_setting(SETTING_HEIGHT):
+			_manual_height = maxf(float(AgentTheme.editor().get_editor_settings().get_setting(SETTING_HEIGHT)), 0.0)
 	return _manual_height
 
 
@@ -565,9 +565,9 @@ func set_modes(modes: Array[Dictionary]) -> void:
 
 ## El ícono del editor `name` («TileMap»), o null si no hay uno así (o no hay editor).
 func _editor_icon(icon_name: String) -> Texture2D:
-	if icon_name.is_empty() or not Engine.is_editor_hint() or EditorInterface.get_editor_theme() == null:
+	if icon_name.is_empty() or not AgentTheme.has_editor() or AgentTheme.editor().get_editor_theme() == null:
 		return null
-	var theme := EditorInterface.get_editor_theme()
+	var theme: Theme = AgentTheme.editor().get_editor_theme()
 	return theme.get_icon(icon_name, &"EditorIcons") if theme.has_icon(icon_name, &"EditorIcons") else null
 
 
@@ -829,7 +829,7 @@ func insert_mention(path: String) -> void:
 
 ## Nodos arrastrados desde el Scene Tree (m11-08): se escriben como @ruta relativa a la escena.
 func _insert_node_mentions(nodes: Array) -> void:
-	var root := EditorInterface.get_edited_scene_root() if Engine.is_editor_hint() else null
+	var root: Node = AgentTheme.editor().get_edited_scene_root() if AgentTheme.has_editor() else null
 	var mentions: PackedStringArray = []
 	for path: Variant in nodes:
 		var node := get_tree().root.get_node_or_null(path) if path is NodePath else null

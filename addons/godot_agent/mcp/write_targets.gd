@@ -3,6 +3,8 @@ extends RefCounted
 ## Lo que escribe una tool godot.* (m11-39), para los modos del proyecto que limitan archivos: las
 ## piezas con que cada tool arma su write_targets. Ver McpTool.write_targets.
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 const SceneAccess := preload("tools/scene_access.gd")
 
 
@@ -18,7 +20,7 @@ static func scene(args: Dictionary) -> PackedStringArray:
 static func edited_scene() -> String:
 	if not Engine.is_editor_hint() or not ClassDB.class_exists(&"EditorInterface"):
 		return ""
-	var root := EditorInterface.get_edited_scene_root()
+	var root: Node = AgentTheme.editor().get_edited_scene_root()
 	return root.scene_file_path if root else ""
 
 

@@ -4,6 +4,8 @@ extends RefCounted
 ## .tscn del disco), busca nodos por NodePath relativo a la raíz y describe propiedades de forma
 ## compacta (solo las que difieren del default).
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 const VALUE_MAX_CHARS := 120
 ## Propiedades que no aportan en el árbol (se ven por otros campos).
 const SKIPPED_PROPERTIES: PackedStringArray = ["script", "owner", "scene_file_path", "name"]
@@ -27,7 +29,7 @@ class ResolvedNode:
 ## cambios sin guardar); si no, se instancia del disco.
 static func resolve(scene: String) -> ResolvedNode:
 	var resolved := ResolvedNode.new()
-	var edited := EditorInterface.get_edited_scene_root()
+	var edited: Node = AgentTheme.editor().get_edited_scene_root()
 	if scene.is_empty():
 		if edited == null:
 			resolved.error = "There is no scene open in the editor. Pass `scene` with a res://…tscn path."

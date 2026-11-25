@@ -102,13 +102,13 @@ const LIST_KEYS: PackedStringArray = [KEY_PROFILES, KEY_MCP_SERVERS, KEY_COMPLET
 const FILE_SECTION := "godot_agent"
 const DICTIONARY_LIST_HINT := "27:"  # TYPE_DICTIONARY: cada elemento, un Dictionary
 
-var _editor_settings: EditorSettings
+var _editor_settings: Object  # EditorSettings (m20-07)
 var _memory: Dictionary = {}
 ## Fuera del editor (la app aparte, m20): `_memory` se lee de este ConfigFile y se guarda en cada cambio.
 var _file: String = ""
 
 
-func _init(editor_settings: EditorSettings = null, file_path: String = "") -> void:
+func _init(editor_settings: Object = null, file_path: String = "") -> void:
 	_editor_settings = editor_settings
 	if _editor_settings == null and not file_path.is_empty():
 		_file = file_path

@@ -9,6 +9,8 @@ extends RefCounted
 ## preview_model (m11-87): el modelo en un mundo propio fuera de pantalla, con luz y entorno neutros,
 ## visto desde 1 a 8 ángulos alrededor de su caja (las mismas órbitas que capture_editor_viewport).
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 const McpTool := preload("../mcp_tool.gd")
 const WriteTargets := preload("../write_targets.gd")
 const PermissionPolicy := preload("../../session/permission_policy.gd")
@@ -175,7 +177,7 @@ func _import_model(args: Dictionary) -> Dictionary:
 ## Espera a que el editor importe `target`: el aviso de resources_reimported, o el .import escrito
 ## después de copiar sin escaneo ni import en curso. false si pasa el tiempo límite.
 func _wait_for_import(target: String, started: float) -> bool:
-	var filesystem := EditorInterface.get_resource_filesystem()
+	var filesystem = AgentTheme.editor().get_resource_filesystem()
 	var reimported := [false]
 	var on_reimported := func(paths: PackedStringArray) -> void:
 		if target in paths:
@@ -187,7 +189,7 @@ func _wait_for_import(target: String, started: float) -> bool:
 	var done := false
 	while not done and Time.get_ticks_msec() - begin < IMPORT_TIMEOUT_S * 1000.0:
 		await tree.process_frame
-		var settled := Time.get_ticks_msec() - begin > SETTLE_S * 1000.0 and not filesystem.is_scanning() and not filesystem.is_importing()
+		var settled: bool = Time.get_ticks_msec() - begin > SETTLE_S * 1000.0 and not filesystem.is_scanning() and not filesystem.is_importing()
 		done = reimported[0] or (settled and FileAccess.get_modified_time(target + ".import") >= int(started) and ResourceLoader.exists(target))
 	filesystem.resources_reimported.disconnect(on_reimported)
 	return done
@@ -302,7 +304,7 @@ func _preview_model(args: Dictionary) -> Dictionary:
 		world.free()
 		return McpTool.error("%s is not a 3D scene (its root is not a Node3D)." % plan.path)
 	world.add_child(model)
-	var host := EditorInterface.get_base_control()
+	var host: Control = AgentTheme.editor().get_base_control()
 	host.add_child(world)
 	var box := model_box(model)
 	if box.size == Vector3.ZERO:

@@ -6,6 +6,8 @@ extends RefCounted
 ## del Script Editor (Editor Settings › Text Editor › Theme), con los de Godot por defecto.
 ## Una línea a la vez: un string de triple comilla que sigue en otra línea no se arrastra.
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 ## lenguaje del fence → familia.
 const FAMILIES: Dictionary = {
 	"gdscript": "gdscript", "gd": "gdscript", "godot": "gdscript",
@@ -75,7 +77,7 @@ var _regexes: Dictionary = {}  # familia -> RegEx
 func use_editor_colors() -> void:
 	if not (Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface")):
 		return
-	var settings := EditorInterface.get_editor_settings()
+	var settings = AgentTheme.editor().get_editor_settings()
 	for key: String in SETTINGS:
 		if settings.has_setting(SETTINGS[key]):
 			var value: Variant = settings.get_setting(SETTINGS[key])

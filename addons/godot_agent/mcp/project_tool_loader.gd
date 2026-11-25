@@ -39,7 +39,7 @@ var project_dir: String = ""
 var is_approved: Callable
 ## `(name) -> bool`: los nombres que ya usa el addon.
 var reserved: Callable
-var undo_redo: EditorUndoRedoManager
+var undo_redo: Object  # EditorUndoRedoManager
 ## `(text)`: una línea en el log del harness.
 var log_line: Callable
 
@@ -291,7 +291,7 @@ func _signature() -> String:
 ## Corre una tool cargada: un contexto nuevo por llamada.
 class ToolRunner extends RefCounted:
 	var instance: Object
-	var undo_redo: EditorUndoRedoManager
+	var undo_redo: Object  # EditorUndoRedoManager
 	var project_dir := ""
 	var tool_name := ""
 	var log_line: Callable

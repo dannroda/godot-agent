@@ -343,7 +343,7 @@ func _notify_waiting(id: String, message: String = "") -> void:
 	if dock == null or dock.is_visible_in_tree() or not Engine.is_editor_hint() or not _claim_toast(id):
 		return
 	var text := message if not message.is_empty() else I18n.t("«%s» is waiting for your permission.")
-	EditorInterface.get_editor_toaster().push_toast(text % _labels[id], EditorToaster.SEVERITY_WARNING)
+	AgentTheme.editor().get_editor_toaster().push_toast(text % _labels[id], 1)
 
 
 ## Con la ventana del editor sin foco, avisa fuera del editor (m11-40). `waiting`: una espera, que

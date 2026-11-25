@@ -6,6 +6,8 @@ extends RefCounted
 ## Tolerante: lo que no reconoce queda como texto escapado; nunca deja tags sin cerrar.
 ## `blocks()` separa el texto de los bloques de código, que el chat muestra en su propia caja.
 
+const AgentTheme := preload("res://addons/godot_agent/ui/agent_theme.gd")
+
 const CodeBBCode := preload("code_bbcode.gd")
 
 const FENCES: PackedStringArray = ["```", "~~~"]
@@ -496,14 +498,14 @@ static func _padding(horizontal: int, vertical: int) -> String:
 
 static func _px(value: float) -> int:
 	if Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface"):
-		return int(round(value * EditorInterface.get_editor_scale()))
+		return int(round(value * AgentTheme.editor().get_editor_scale()))
 	return int(value)
 
 
 static func _scaled_size(percent: int) -> int:
 	var base := 14
 	if Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface"):
-		var theme := EditorInterface.get_editor_theme()
+		var theme: Theme = AgentTheme.editor().get_editor_theme()
 		if theme.has_font_size(&"main_size", &"EditorFonts"):
 			base = theme.get_font_size(&"main_size", &"EditorFonts")
 	return int(base * percent / 100.0)

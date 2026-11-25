@@ -78,7 +78,7 @@ func show_film(folder: String, frames: PackedStringArray, near: Node) -> void:
 	exclusive = false
 	confirmed.connect(EditorWindows.free_later.bind(self))
 	canceled.connect(EditorWindows.free_later.bind(self))
-	var host: Node = EditorInterface.get_base_control() if AgentTheme.has_editor() else near.get_tree().root
+	var host: Node = AgentTheme.editor().get_base_control() if AgentTheme.has_editor() else near.get_tree().root
 	host.add_child(self)
 	popup_centered_ratio(0.7)
 	_show(0)
