@@ -19,6 +19,7 @@ const TurnReport := preload("../session/turn_report.gd")
 const DiffDialog := preload("diff_dialog.gd")
 const TurnChangesDialog := preload("turn_changes_dialog.gd")
 const EditorContext := preload("editor_context.gd")
+const AgentTheme := preload("agent_theme.gd")
 const I18n := preload("../core/i18n.gd")
 const SceneRevert := preload("../core/scene_revert.gd")
 
@@ -262,7 +263,7 @@ func _snapshots_of(session: String) -> TurnSnapshots:
 	return controller.snapshots if controller and controller.snapshots else project_snapshots
 
 
-## Reporte del turno (m11-06) en res://.godot_agent/reports/<fecha>/, y se abre su carpeta.
+## Reporte del turno (m11-06) en <proyecto>/.godot_agent/reports/<fecha>/, y se abre su carpeta.
 func save_report(data: Dictionary) -> void:
 	var model: SessionModel = model_of.call(str(data.get("session", primary_session)))
 	if model == null:
@@ -270,9 +271,10 @@ func save_report(data: Dictionary) -> void:
 	var collected := TurnReport.collect(model, int(data.get("first_entry", 0)))
 	var now := Time.get_datetime_string_from_system()
 	var project := str(ProjectSettings.get_setting("application/config/name", EditorContext.project_path().get_file()))
-	var path := TurnReport.write(TurnReport.DIR, now.replace(":", "-").replace("T", "_"), "Turn report · %s · %s" % [project, now.replace("T", " ")], collected, data.get("files", []))
+	var reports := EditorContext.project_path().path_join(TurnReport.DIR.trim_prefix("res://"))  # la carpeta elegida, fuera del editor
+	var path := TurnReport.write(reports, now.replace(":", "-").replace("T", "_"), "Turn report · %s · %s" % [project, now.replace("T", " ")], collected, data.get("files", []))
 	if path.is_empty():
-		model.add_notice(I18n.t("Could not save the report in %s.") % TurnReport.DIR, ChatEntry.NoticeLevel.ERROR)
+		model.add_notice(I18n.t("Could not save the report in %s.") % reports, ChatEntry.NoticeLevel.ERROR)
 		return
 	model.add_notice(I18n.t("Report saved in %s.") % path.get_base_dir())
 	OS.shell_show_in_file_manager(ProjectSettings.globalize_path(path))
@@ -294,7 +296,8 @@ func confirm_restore(data: Dictionary) -> void:
 	confirm.visibility_changed.connect(func() -> void:
 		if not confirm.visible:
 			EditorWindows.free_later.call_deferred(confirm))
-	EditorInterface.get_base_control().add_child(confirm)
+	# Fuera del editor (la app aparte, m20-09), al lado del diálogo de cambios.
+	(EditorInterface.get_base_control() if AgentTheme.has_editor() else dialog.get_parent()).add_child(confirm)
 	confirm.popup_centered()
 
 

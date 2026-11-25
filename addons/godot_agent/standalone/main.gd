@@ -23,6 +23,11 @@ const TerminalHandler := preload("../acp/terminal_handler.gd")
 const EditorContext := preload("../ui/editor_context.gd")
 const SessionTabs := preload("../ui/dock/session_tabs.gd")
 const SettingsDialog := preload("../ui/settings/settings_dialog.gd")
+const DiffDialog := preload("../ui/diff_dialog.gd")
+const TurnChangesDialog := preload("../ui/turn_changes_dialog.gd")
+const TurnChanges := preload("../ui/turn_changes.gd")
+const TurnCounter := preload("../ui/turn_counter.gd")
+const ToolCall := preload("../session/tool_call.gd")
 const AgentDockScene := preload("../ui/dock/agent_dock.tscn")
 
 ## Al lado de los datos del editor, compartido por todos los proyectos que se abran así; los perfiles
@@ -37,6 +42,8 @@ var _coordinator: SessionCoordinator
 var _snapshots: TurnSnapshots
 var _tabs: SessionTabs
 var _settings_dialog: SettingsDialog
+var _turn_changes: TurnChanges
+var _turn_counter: TurnCounter
 var _sessions: Dictionary = {}  # id → {model, controller}
 var _serial := 0
 
@@ -57,6 +64,7 @@ func _ready() -> void:
 	_coordinator.is_game_running = func() -> bool: return false
 	_snapshots = TurnSnapshots.new(root)
 	_snapshots.setup()
+	_build_turn_changes()
 	_tabs = SessionTabs.new()
 	_tabs.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_tabs.new_session_requested.connect(func(_in_copy: bool) -> void: open_tab())
@@ -103,6 +111,12 @@ func open_tab() -> String:
 	dock.setup(model, controller, _settings)
 	dock.settings_requested.connect(_open_settings)
 	dock.new_tab_requested.connect(func(_in_copy: bool = false) -> void: open_tab())
+	dock.action_forwarded.connect(_on_dock_action)
+	dock.turn_changes_requested.connect(func() -> void: _turn_counter.open(id))
+	model.state_changed.connect(func(state: SessionModel.SessionState) -> void: _turn_counter.on_state(id, state))
+	model.tool_call_changed.connect(func(call: ToolCall, _group: Variant) -> void:
+		if call.status == ToolCall.STATUS_COMPLETED:
+			_turn_counter.note_activity(id))
 	dock.registry_requested.connect(func(query: String) -> void:
 		_open_settings()
 		_settings_dialog.open_registry(query))
@@ -120,6 +134,7 @@ func close_tab(id: String) -> void:
 	if controller.history:
 		controller.history.flush()
 	_coordinator.unregister(id)
+	_turn_counter.clear(id)
 	_sessions.erase(id)
 	_tabs.remove_session(id)
 	if _sessions.is_empty():
@@ -155,6 +170,48 @@ func _make_controller(model: SessionModel, id: String) -> SessionController:
 	# Como en una copia aparte: el prompt del harness describe las tools godot.*, que acá no están.
 	controller.note_for_agent("[The Godot editor is not open: you work on the project at %s from a separate window of the harness, so the godot.* tools are not available to you. Edit files with your own tools. To check your work and build scenes, run Godot headless on the project (\"$GODOT\" --headless --path %s …) as this guide says:]\n\n%s" % [root, root, FileAccess.get_file_as_string(SessionController.HEADLESS_GUIDE_PATH)])
 	return controller
+
+
+## Ver los cambios del turno y volver atrás (m20-09), como en el editor pero sin lo que solo existe
+## ahí: escenas abiertas para recargar, buffers sin guardar y marcas en el Script Editor.
+func _build_turn_changes() -> void:
+	var diff_dialog := DiffDialog.new()
+	add_child(diff_dialog)
+	var dialog := TurnChangesDialog.new()
+	add_child(dialog)
+	_turn_changes = TurnChanges.new()
+	_turn_changes.project_snapshots = _snapshots
+	_turn_changes.diff_dialog = diff_dialog
+	_turn_changes.dialog = dialog
+	_turn_changes.controller_of = func(id: String) -> SessionController: return _sessions[id].controller if _sessions.has(id) else null
+	_turn_changes.model_of = func(id: String) -> SessionModel: return _sessions[id].model if _sessions.has(id) else null
+	_turn_changes.after_restore = func(_paths: PackedStringArray) -> void: pass  # nada abierto que recargar
+	_turn_changes.holder_of = func(session: String, res_path: String) -> String:
+		return _coordinator.holder_label(session, EditorContext.project_path().path_join(res_path.trim_prefix("res://")))
+	dialog.diff_requested.connect(_turn_changes.show_diff)
+	dialog.revert_requested.connect(func(data: Dictionary, path: String) -> void: _turn_changes.restore(data, PackedStringArray([path])))
+	dialog.hunks_requested.connect(_turn_changes.show_hunks)
+	dialog.hunk_action.connect(_turn_changes.on_hunk_action)
+	dialog.reject_file_requested.connect(_turn_changes.on_reject_file)
+	_turn_changes.hunks_changed.connect(dialog.refresh_file)
+	_turn_counter = TurnCounter.new()
+	_turn_counter.snapshots_of = _turn_changes._snapshots_of
+	_turn_counter.model_of = _turn_changes.model_of
+	_turn_counter.dock_of = func(id: String) -> Object: return _tabs.dock(id) if _tabs else null
+	_turn_counter.open_dialog = dialog.show_turn
+	add_child(_turn_counter)
+
+
+func _on_dock_action(action: String, payload: Variant) -> void:
+	match action:
+		SessionController.ACTION_TURN_CHANGES:
+			_turn_changes.dialog.show_turn(payload)
+		SessionController.ACTION_TURN_RESTORE:
+			_turn_changes.confirm_restore(payload)
+		TurnChanges.ACTION_HUNK_UNDO:
+			_turn_changes.undo_hunk(payload)
+		SessionController.ACTION_TURN_REPORT:
+			_turn_changes.save_report(payload)
 
 
 func _rename(id: String, name: String) -> void:
