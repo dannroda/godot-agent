@@ -24,6 +24,14 @@ var install_root: String = ""
 var _download: HTTPRequest
 
 
+## La carpeta de datos del editor sin el editor (la app aparte, m20): así comparten los agentes bajados.
+## shortcut: no sigue el modo autocontenido (._sc_) del editor; si hace falta, leerlo del binario.
+static func editor_data_dir() -> String:
+	if Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface"):
+		return EditorInterface.get_editor_paths().get_data_dir()
+	return OS.get_data_dir().path_join("godot" if OS.get_name() in ["Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD"] else "Godot")
+
+
 ## `{agents: [ver parse], error}`.
 func fetch() -> Dictionary:
 	var response := await _fetch(REGISTRY_URL)
