@@ -90,9 +90,12 @@ func _run() -> void:
 		await process_frame
 		_check(app._turn_changes.dialog.visible, "Ver cambios abre el diálogo")
 		app._turn_changes.dialog.hide()
+		_check(await app._turn_changes.changed_after(data) == PackedStringArray(), "nada del turno cambió después")
+		FileAccess.open(_project.path_join("a.gd"), FileAccess.WRITE).store_string("# later\n")
+		_check(await app._turn_changes.changed_after(data) == PackedStringArray(["a.gd"]), "la confirmación nombra a.gd, que cambió después del turno")
 		await app._turn_changes.restore(data)
 		_check(not FileAccess.file_exists(_project.path_join("a.gd")), "Deshacer turno saca a.gd")
-		# Como en el editor: vuelve todo el proyecto a antes del turno, también b.gd, de la otra pestaña y posterior.
+		_check(FileAccess.file_exists(_project.path_join("b.gd")), "y deja b.gd, que escribió la otra pestaña después (m20-10)")
 	app.close_tab(second)
 	await process_frame
 	_check(app._tabs.ids() == PackedStringArray(["s1"]), "cerrar la segunda deja la primera")

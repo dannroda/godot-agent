@@ -2941,8 +2941,11 @@ msgstr "Volver a antes de este turno"
 msgid "before the turn"
 msgstr "antes del turno"
 
-msgid "The project's files go back to how they were before this turn, including what changed after it (by the agent or by you). Files .gitignore leaves out are not touched. You can undo it from the chat."
-msgstr "Los archivos del proyecto vuelven a como estaban antes de este turno, incluido lo que cambió después (por el agente o por vos). Lo que .gitignore deja afuera no se toca. Se puede deshacer desde el chat."
+msgid "This turn's files go back to how they were before it; the rest of the project is not touched. You can undo it from the chat."
+msgstr "Los archivos de este turno vuelven a como estaban antes; el resto del proyecto no se toca. Se puede deshacer desde el chat."
+
+msgid "Changed after this turn (by another tab, the agent or you), those changes are lost too: %s"
+msgstr "Cambiaron después de este turno (otra pestaña, el agente o vos) y eso también se pierde: %s"
 
 msgid "Could not go back: git failed."
 msgstr "No se pudo volver atrás: falló git."

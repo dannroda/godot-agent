@@ -289,7 +289,10 @@ func confirm_restore(data: Dictionary) -> void:
 	var confirm := ConfirmationDialog.new()
 	confirm.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	confirm.title = I18n.t("Go back to before this turn")
-	confirm.dialog_text = I18n.t("The project's files go back to how they were before this turn, including what changed after it (by the agent or by you). Files .gitignore leaves out are not touched. You can undo it from the chat.")
+	confirm.dialog_text = I18n.t("This turn's files go back to how they were before it; the rest of the project is not touched. You can undo it from the chat.")
+	var later := await changed_after(data)
+	if not later.is_empty():
+		confirm.dialog_text += "\n\n" + I18n.t("Changed after this turn (by another tab, the agent or you), those changes are lost too: %s") % ", ".join(later)
 	confirm.ok_button_text = I18n.t("Go back")
 	confirm.cancel_button_text = I18n.t("Cancel")
 	confirm.confirmed.connect(restore.bind(data))
@@ -301,12 +304,40 @@ func confirm_restore(data: Dictionary) -> void:
 	confirm.popup_centered()
 
 
+## Las rutas que cambió el turno (relativas al proyecto); vacío, todo el proyecto (datos viejos sin files).
+static func turn_paths(data: Dictionary) -> PackedStringArray:
+	var paths: PackedStringArray = []
+	for file: Variant in data.get("files", []):
+		if file is Dictionary:
+			paths.append(str(file.path))
+	return paths
+
+
+## Cuáles de los archivos del turno cambiaron después de que terminó: deshacerlo se lleva eso también.
+## shortcut: no ve lo que otra pestaña escribió en el mismo archivo durante el turno (las reservas de
+## archivos lo evitan casi siempre); si pasa, guardar quién escribió qué en el turno.
+func changed_after(data: Dictionary) -> PackedStringArray:
+	var paths := turn_paths(data)
+	var snapshots := _snapshots_of(str(data.get("session", primary_session)))
+	if paths.is_empty() or str(data.get("end", "")).is_empty() or snapshots == null:
+		return PackedStringArray()
+	var now: Dictionary = await snapshots.peek(str(data.get("session", primary_session)), str(data.end))
+	var later: PackedStringArray = []
+	for file: Dictionary in now.get("files", []):
+		if file.path in paths:
+			later.append(str(file.path))
+	return later
+
+
 ## Deja los archivos (todos o `paths`) como en el snapshot `data.start`, recarga lo abierto, avisa en
 ## el chat de esa sesión (con «Deshacer») y le deja una nota al agente para su próximo turno.
 func restore(data: Dictionary, paths: PackedStringArray = []) -> void:
 	var session := str(data.get("session", primary_session))
 	var model: SessionModel = model_of.call(session)
 	var snapshots := _snapshots_of(session)
+	# Solo lo del turno (m20-10): otra pestaña sobre la misma carpeta pudo cambiar otros archivos después.
+	if paths.is_empty():
+		paths = turn_paths(data)
 	var result: Dictionary = await snapshots.restore(session, str(data.start), paths)
 	if result.is_empty():
 		if model:
@@ -320,7 +351,7 @@ func restore(data: Dictionary, paths: PackedStringArray = []) -> void:
 	if changed.is_empty() or model == null:
 		return
 	var names := ", ".join(changed)
-	var undo := {"session": session, "start": result.before, "undo": true}
+	var undo := {"session": session, "start": result.before, "undo": true, "files": Array(changed).map(func(path: String) -> Dictionary: return {"path": path})}
 	model.add_notice(I18n.t("Went back: %s") % names, ChatEntry.NoticeLevel.INFO, [{"id": SessionController.ACTION_TURN_RESTORE, "label": I18n.t("Undo"), "data": undo}])
 	var controller: SessionController = controller_of.call(session)
 	if controller and not data.get("undo", false):
