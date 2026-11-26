@@ -10,6 +10,9 @@ signal close_requested(id: String)
 signal active_changed(id: String)
 ## El usuario escribió un nombre para la sesión ("" = volver al de por defecto). Lo aplica set_label().
 signal rename_requested(id: String, name: String)
+## Cambió algo que muestra una sesión (nombre, estado, cuál está activa, cuáles hay): para otra vista
+## de las mismas sesiones, como la barra lateral de la app aparte (m21-04).
+signal sessions_changed
 
 const NAME_MAX := 40
 ## Ícono del editor de la pestaña de una copia aparte (sin él, «⎘» delante del nombre).
@@ -28,6 +31,11 @@ const DesktopNotifier := preload("../../editor/desktop_notifier.gd")
 
 ## El color de lo que te espera (un permiso o una respuesta), el acento del harness.
 var accent := Color("#f0a85a")
+## Sin la fila de pestañas: otra vista elige la sesión (la barra lateral de la app aparte, m21-04).
+var bar_hidden := false:
+	set(value):
+		bar_hidden = value
+		_row.visible = _ids.size() > 1 and not bar_hidden
 var _bar: TabBar
 ## La fila de pestañas: solo con dos sesiones o más (m12-14); con una, el «+» del dock abre otra.
 var _row: HBoxContainer
@@ -131,7 +139,7 @@ func add_session(id: String, dock: Control, model: SessionModel, label: String) 
 	_defaults[id] = label
 	_stack.add_child(dock)
 	_bar.add_tab(label)
-	_row.visible = _ids.size() > 1
+	_row.visible = _ids.size() > 1 and not bar_hidden
 	if _ids.size() > 1:
 		_bar.set_tab_button_icon(_ids.size() - 1, AgentTheme.icon(&"Close"))
 		_refresh_tab(_ids[0])  # con la segunda pestaña, la principal muestra que es fija
@@ -172,7 +180,7 @@ func remove_session(id: String) -> void:
 	_outside_notified.erase(id)
 	_unread.erase(id)
 	_bar.remove_tab(index)
-	_row.visible = _ids.size() > 1
+	_row.visible = _ids.size() > 1 and not bar_hidden
 	_refresh_tab(_ids[0])
 	EditorWindows.rescue_progress(dock)
 	_stack.remove_child(dock)
@@ -220,8 +228,8 @@ func set_label(id: String, name: String) -> void:
 	_refresh_tab(id)
 
 
-## Abre el campo para renombrar la sesión, debajo de su pestaña.
-func start_rename(id: String) -> void:
+## Abre el campo para renombrar la sesión, debajo de su pestaña (o de `anchor`, si la eligen desde otra vista).
+func start_rename(id: String, anchor: Control = null) -> void:
 	var index := _ids.find(id)
 	if index < 0:
 		return
@@ -229,7 +237,10 @@ func start_rename(id: String) -> void:
 	_rename_edit.text = _labels[id]
 	_rename_edit.placeholder_text = _defaults[id]
 	var rect := _bar.get_tab_rect(index)
-	_rename_popup.popup(Rect2i(Vector2i(_bar.get_screen_position() + rect.position + Vector2(0, rect.size.y)), Vector2i.ZERO))
+	var at := _bar.get_screen_position() + rect.position + Vector2(0, rect.size.y)
+	if anchor:
+		at = anchor.get_screen_position() + Vector2(0, anchor.size.y)
+	_rename_popup.popup(Rect2i(Vector2i(at), Vector2i.ZERO))
 	_rename_edit.grab_focus()
 	_rename_edit.select_all()
 
@@ -294,6 +305,17 @@ func _refresh_tab(id: String) -> void:
 		tooltip += "\n" + I18n.t("Main session: it can't be closed. Review marks and Remote Control use it. To start over: + → New session.")
 	_bar.set_tab_tooltip(index, tooltip + "\n" + I18n.t("Double-click to rename"))
 	_refresh_attention()
+	sessions_changed.emit()
+
+
+## Lo que muestra una sesión, para otra vista: `{label, waiting, busy, unread, closable, model}`.
+func state_of(id: String) -> Dictionary:
+	var model: SessionModel = _models.get(id)
+	if model == null:
+		return {}
+	var waiting := not model.pending_permissions.is_empty() or not model.pending_elicitations.is_empty()
+	return {"label": label(id), "waiting": waiting, "busy": model.is_busy(), "unread": _unread.has(id),
+		"closable": _ids.find(id) > 0, "model": model}
 
 
 ## Las que esperan un permiso o una respuesta tuya.
@@ -384,3 +406,4 @@ func _on_tab_changed(index: int) -> void:
 			_refresh_tab(_ids[index])
 		_refresh_attention()
 		active_changed.emit(_ids[index])
+		sessions_changed.emit()

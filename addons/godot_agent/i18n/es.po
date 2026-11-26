@@ -6875,3 +6875,9 @@ msgstr "No hay un editor de Godot abierto en esta carpeta: los agentes editan lo
 
 msgid "More modes"
 msgstr "Más modos"
+
+msgid "Close session"
+msgstr "Cerrar la sesión"
+
+msgid "Finished a turn"
+msgstr "Terminó un turno"

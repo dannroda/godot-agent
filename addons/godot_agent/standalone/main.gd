@@ -35,6 +35,7 @@ const McpPublication := preload("../mcp/mcp_publication.gd")
 const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
 const EditorBridge := preload("editor_bridge.gd")
 const AgentTheme := preload("../ui/agent_theme.gd")
+const SessionSidebar := preload("session_sidebar.gd")
 const ProjectModes := preload("../core/project_modes.gd")
 
 ## Al lado de los datos del editor, compartido por todos los proyectos que se abran así; los perfiles
@@ -63,6 +64,7 @@ var _editor_pill: PanelContainer
 var _editor_dot: TextureRect
 var _editor_label: Label
 var _editor_open := false
+var _sidebar: SessionSidebar
 var _serial := 0
 
 
@@ -90,13 +92,24 @@ func _ready() -> void:
 	column.add_theme_constant_override(&"separation", 0)
 	add_child(column)
 	column.add_child(_build_header(root))
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override(&"separation", 0)
+	column.add_child(body)
 	_tabs = SessionTabs.new()
 	_tabs.accent = _settings.accent_color()
-	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tabs.bar_hidden = true  # las sesiones van en la barra lateral (m21-04)
+	_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sidebar = SessionSidebar.new()
+	_sidebar.describe = _describe_session
+	_sidebar.setup(_tabs)
+	_sidebar.new_requested.connect(open_tab)
+	_sidebar.close_requested.connect(close_tab)
+	body.add_child(_sidebar)
 	_tabs.new_session_requested.connect(func(_in_copy: bool) -> void: open_tab())
 	_tabs.close_requested.connect(close_tab)
 	_tabs.rename_requested.connect(_rename)
-	column.add_child(_tabs)
+	body.add_child(_tabs)
 	open_tab()
 
 
@@ -195,6 +208,8 @@ func open_tab() -> String:
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.turn_changes_requested.connect(func() -> void: _turn_counter.open(id))
 	model.state_changed.connect(func(state: SessionModel.SessionState) -> void: _turn_counter.on_state(id, state))
+	for changed: Signal in [model.harness_mode_changed, model.project_mode_changed, model.account_changed]:
+		changed.connect(func(_value: Variant = null) -> void: _sidebar.refresh())
 	model.turn_finished.connect(func(_stop_reason: String) -> void: _coordinator.release_files(id))
 	model.tool_call_changed.connect(func(call: ToolCall, _group: Variant) -> void:
 		if call.status == ToolCall.STATUS_COMPLETED:
@@ -205,6 +220,18 @@ func open_tab() -> String:
 	_tabs.add_session(id, dock, model, label)
 	_tabs.select(id)
 	return id
+
+
+## Lo que la barra lateral muestra de la sesión `id` además del estado: el agente (con su cuenta) y el modo.
+func _describe_session(id: String) -> Dictionary:
+	if not _sessions.has(id):
+		return {}
+	var controller: SessionController = _sessions[id].controller
+	var model: SessionModel = _sessions[id].model
+	var dock: Object = _tabs.dock(id)
+	var profile: Object = controller.profile() if controller.profile() else (dock.call(&"selected_profile") if dock else null)
+	var mode := str(model.project_mode.get("name", "")) if not model.project_mode.is_empty() else I18n.t(SessionModel.HARNESS_MODE_LABELS.get(model.harness_mode, ""))
+	return {"agent": profile.call(&"label") if profile else I18n.t("No agent"), "mode": mode}
 
 
 func close_tab(id: String) -> void:

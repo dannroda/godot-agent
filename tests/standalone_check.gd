@@ -98,6 +98,13 @@ func _run() -> void:
 	controller._note_for_agent = ""
 	var second: String = app.open_tab()
 	_check(app._tabs.ids().size() == 2, "una segunda pestaña")
+	await process_frame
+	var rows: Array = app._sidebar._list.get_children()
+	_check(rows.size() == 2 and not (app._tabs.get(&"_row") as Control).visible, "las dos en la barra lateral, sin la fila de pestañas (m21-04)")
+	(rows[0] as Button).pressed.emit()
+	await process_frame
+	_check(app._tabs.active_id() == "s1" and (app._sidebar._list.get_child(0) as Button).button_pressed, "tocar una fila la elige")
+	app._tabs.select(second)
 	await _turn(app, "s1", "a")
 	await _turn(app, second, "b")
 	_check(FileAccess.file_exists(_project.path_join("a.gd")) and FileAccess.file_exists(_project.path_join("b.gd")), "cada pestaña escribió su archivo por ACP en la carpeta abierta")
