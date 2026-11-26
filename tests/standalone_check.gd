@@ -48,9 +48,14 @@ func _run() -> void:
 	var first_run: String = (app._tabs.dock("s1").get(&"_empty_command") as Label).text
 	_check(first_run == I18n.t("The agent works on the project folder with its own tools, and with the Godot editor's tools when the editor is open on it. You can add others later in Settings → Agents."), "la guía de primer uso no promete las tools del editor (m20-11) · " + first_run)
 	_check(not app._editor_open and app._editor_pill.is_inside_tree(), "arriba, la píldora sin editor abierto")
-	app._open_settings()
+	(app.find_child("SettingsButton", true, false) as Button).pressed.emit()
 	await process_frame
-	_check(app._settings_dialog.visible, "los ajustes se abren")
+	_check(app._settings_dialog.visible, "los ajustes se abren desde la cabecera (m21-08)")
+	(app.find_child("HistoryButton", true, false) as Button).pressed.emit()
+	await process_frame
+	var history_menu: PopupMenu = app._tabs.dock("s1").get(&"_history_menu")
+	_check(history_menu.visible, "y el historial de la sesión elegida")
+	history_menu.hide()
 	_check(not root.gui_embed_subwindows, "diálogos y menús en ventanas del sistema, no embebidos")
 	app._settings_dialog.hide()
 	var controller = app._sessions["s1"].controller

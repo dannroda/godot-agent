@@ -6935,3 +6935,6 @@ msgstr "No se pudo abrir la ventana aparte (%s)."
 
 msgid "This window was opened inside the game's project, so its autoloads (%s) run here too. Open it from the editor instead (⋯ → Open in a separate window): it uses a project of its own."
 msgstr "Esta ventana se abrió dentro del proyecto del juego, así que sus autoloads (%s) también corren acá. Mejor abrila desde el editor (⋯ → Abrir en una ventana aparte): usa un proyecto propio."
+
+msgid "Settings"
+msgstr "Ajustes"

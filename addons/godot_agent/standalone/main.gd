@@ -66,6 +66,11 @@ var _mcp: McpServer
 var _bridge: EditorBridge
 var _sessions: Dictionary = {}  # id → {model, controller}
 ## La píldora de arriba (m21-01): si hay un editor abierto en la carpeta, y con él las tools godot.*.
+## Los íconos de la cabecera (m21-08), de trazo, 24×24.
+const LOGO_ICON := '<path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M9 11h.01M15 11h.01M9 15c1.5 1 4.5 1 6 0"/>'
+const FOLDER_ICON := '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
+const HISTORY_ICON := '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'
+const SETTINGS_ICON := '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15.1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
 var _editor_pill: PanelContainer
 var _editor_dot: TextureRect
 var _editor_label: Label
@@ -156,6 +161,18 @@ func _build_header(root: String) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override(&"separation", AgentTheme.px(10))
 	bar.add_child(row)
+	var logo := TextureRect.new()
+	logo.texture = AgentTheme.stroke_icon(LOGO_ICON, _settings.accent_color(), 22.0)
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	row.add_child(logo)
+	var app_name := Label.new()
+	app_name.text = "Godot Agent"
+	row.add_child(app_name)
+	row.add_child(VSeparator.new())
+	var folder := TextureRect.new()
+	folder.texture = AgentTheme.stroke_icon(FOLDER_ICON, AgentTheme.MUTED, 16.0)
+	folder.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	row.add_child(folder)
 	var project := Label.new()
 	project.text = root.get_file()
 	project.add_theme_color_override(&"font_color", AgentTheme.font_color())
@@ -180,6 +197,22 @@ func _build_header(root: String) -> Control:
 	_editor_label = Label.new()
 	pill_row.add_child(_editor_label)
 	row.add_child(_editor_pill)
+	for spec: Array in [["HistoryButton", HISTORY_ICON, I18n.t("Session history")], ["SettingsButton", SETTINGS_ICON, I18n.t("Settings")]]:
+		var button := Button.new()
+		button.name = spec[0]
+		button.flat = true
+		button.icon = AgentTheme.stroke_icon(spec[1], AgentTheme.font_color())
+		button.tooltip_text = spec[2]
+		button.custom_minimum_size = Vector2.ONE * AgentTheme.px(34)
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		row.add_child(button)
+		if spec[0] == "HistoryButton":
+			button.pressed.connect(func() -> void:
+				var dock: Object = _tabs.dock(_tabs.active_id())
+				if dock:
+					dock.call(&"_show_history_menu", button))
+		else:
+			button.pressed.connect(_open_settings)
 	var timer := Timer.new()
 	timer.wait_time = EDITOR_CHECK_S
 	timer.timeout.connect(refresh_editor_status)

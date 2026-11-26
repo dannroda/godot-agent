@@ -173,6 +173,16 @@ static func app_theme() -> Theme:
 	return theme
 
 
+## Un ícono de trazo dibujado de un SVG de 24×24 (`paths`: los `<path>`/`<circle>` de adentro), en
+## `color`, a `side_px`. Fuera del editor no están sus íconos (m21-08).
+static func stroke_icon(paths: String, color: Color, side_px: float = 18.0) -> Texture2D:
+	var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#%s" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [color.to_html(false), paths]
+	var image := Image.new()
+	if image.load_svg_from_string(svg, px(side_px) / 24.0) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
+
+
 static func panel(bg: Color, border: Color = Color.TRANSPARENT, radius: float = 6.0, padding: float = 8.0) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = bg

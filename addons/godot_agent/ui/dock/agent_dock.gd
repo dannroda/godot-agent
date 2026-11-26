@@ -1628,7 +1628,10 @@ func _warn_api_key(profile: AgentProfile) -> void:
 
 
 ## Sesiones de este proyecto, la más reciente primero (spec §11 y session/list de m11-16).
-func _show_history_menu() -> void:
+## El historial de sesiones, abierto debajo de `anchor` (la cabecera de la app, m21-08) o del botón del dock.
+func _show_history_menu(anchor: Control = null) -> void:
+	if anchor == null:
+		anchor = _history_button
 	_history_menu.clear()
 	_history_delete_menu.clear()
 	var local_items: Array[Dictionary] = _controller.history.list(_controller.cwd) if _controller.history else []
@@ -1657,7 +1660,7 @@ func _show_history_menu() -> void:
 	if _history_delete_menu.item_count > 0:
 		_history_menu.add_separator()
 		_history_menu.add_submenu_node_item(I18n.t("Delete session"), _history_delete_menu)
-	var below: Vector2 = _history_button.get_screen_position() + Vector2(0, _history_button.size.y)
+	var below: Vector2 = anchor.get_screen_position() + Vector2(0, anchor.size.y)
 	_history_menu.popup(Rect2i(Vector2i(below), Vector2i.ZERO))
 
 
