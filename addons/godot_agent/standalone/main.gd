@@ -80,6 +80,8 @@ var _serial := 0
 func _ready() -> void:
 	# Diálogos y menús en ventanas del sistema, como en el editor; un juego los embebe por defecto.
 	get_window().gui_embed_subwindows = false
+	theme = AgentTheme.app_theme()  # los colores del diseño (m21-07)
+	RenderingServer.set_default_clear_color(AgentTheme.APP_BASE)
 	_settings =HarnessSettings.new(null, settings_path())
 	I18n.setup(_settings.language(), "")
 	EditorContext.project_root = project_from_args(OS.get_cmdline_user_args(), str(_settings.get_value(KEY_LAST_PROJECT, "")))

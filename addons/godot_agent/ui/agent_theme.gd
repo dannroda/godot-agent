@@ -27,6 +27,14 @@ const SEVERITY_COLORS: Dictionary = {"bug": Color("#f0a640"), "order": Color("#c
 const SEVERITY_BG: Dictionary = {"bug": Color("#3a2e1c"), "order": Color("#2f2438"), "perf": Color("#1d2a36"), "style": Color("#2c2c2e")}
 
 
+## Fuera del editor (la app aparte, m21-07), los colores del diseño: fondo, la barra y paneles, las
+## superficies (campos, botones), los bordes y el texto.
+const APP_BASE := Color("#1d2026")
+const APP_DARK := Color("#181b20")
+const APP_SURFACE := Color("#23272e")
+const APP_BORDER := Color("#363c46")
+const APP_TEXT := Color("#e6e8eb")
+
 ## Texto sobre fondo de acento.
 const ACCENT_TEXT := Color("#1d1d1d")
 
@@ -80,17 +88,17 @@ static func mono_font_size() -> int:
 
 static func base_color() -> Color:
 	var theme := editor_theme()
-	return theme.get_color(&"base_color", &"Editor") if theme.has_color(&"base_color", &"Editor") else Color("#202531")
+	return theme.get_color(&"base_color", &"Editor") if theme.has_color(&"base_color", &"Editor") else APP_BASE
 
 
 static func dark_color() -> Color:
 	var theme := editor_theme()
-	return theme.get_color(&"dark_color_2", &"Editor") if theme.has_color(&"dark_color_2", &"Editor") else Color("#191d26")
+	return theme.get_color(&"dark_color_2", &"Editor") if theme.has_color(&"dark_color_2", &"Editor") else APP_DARK
 
 
 static func font_color() -> Color:
 	var theme := editor_theme()
-	return theme.get_color(&"font_color", &"Editor") if theme.has_color(&"font_color", &"Editor") else Color("#dfe2e7")
+	return theme.get_color(&"font_color", &"Editor") if theme.has_color(&"font_color", &"Editor") else APP_TEXT
 
 
 ## Botón principal con fondo de acento y texto oscuro en todos los estados: el tema del editor
@@ -134,6 +142,35 @@ static func dot_beside(color: Color, icon: Texture2D) -> Texture2D:
 	image.blit_rect(point, Rect2i(Vector2i.ZERO, point.get_size()), Vector2i(0, (height - point.get_height()) / 2))
 	image.blit_rect(picture, Rect2i(Vector2i.ZERO, picture.get_size()), Vector2i(point.get_width() + gap, (height - picture.get_height()) / 2))
 	return ImageTexture.create_from_image(image)
+
+
+## El tema de la app aparte (m21-07): el de Godot con las superficies del diseño en botones, campos,
+## menús y paneles. En el editor no se usa: el dock sigue el tema del editor.
+static func app_theme() -> Theme:
+	var theme := Theme.new()
+	var hover := APP_SURFACE.lightened(0.08)
+	for type: StringName in [&"Button", &"MenuButton", &"OptionButton"]:
+		theme.set_stylebox(&"normal", type, panel(APP_SURFACE, APP_BORDER, 8.0, 6.0))
+		theme.set_stylebox(&"hover", type, panel(hover, APP_BORDER.lightened(0.15), 8.0, 6.0))
+		theme.set_stylebox(&"pressed", type, panel(APP_BORDER, APP_BORDER.lightened(0.15), 8.0, 6.0))
+		theme.set_stylebox(&"hover_pressed", type, panel(APP_BORDER, APP_BORDER.lightened(0.15), 8.0, 6.0))
+		theme.set_stylebox(&"disabled", type, panel(Color(APP_SURFACE, 0.5), Color(APP_BORDER, 0.5), 8.0, 6.0))
+		theme.set_stylebox(&"focus", type, panel(Color.TRANSPARENT, APP_BORDER.lightened(0.3), 8.0, 6.0))
+		theme.set_color(&"font_color", type, APP_TEXT)
+	for type: StringName in [&"LineEdit", &"TextEdit", &"CodeEdit"]:
+		theme.set_stylebox(&"normal", type, panel(APP_SURFACE, APP_BORDER, 8.0, 8.0))
+		theme.set_stylebox(&"focus", type, panel(Color.TRANSPARENT, APP_BORDER.lightened(0.3), 8.0, 8.0))
+		theme.set_stylebox(&"read_only", type, panel(APP_DARK, APP_BORDER, 8.0, 8.0))
+		theme.set_color(&"font_color", type, APP_TEXT)
+	theme.set_stylebox(&"panel", &"PopupMenu", panel(APP_SURFACE, APP_BORDER, 8.0, 6.0))
+	theme.set_stylebox(&"hover", &"PopupMenu", panel(APP_BORDER, Color.TRANSPARENT, 6.0, 4.0))
+	theme.set_stylebox(&"panel", &"PopupPanel", panel(APP_SURFACE, APP_BORDER, 8.0, 8.0))
+	theme.set_stylebox(&"panel", &"PanelContainer", panel(APP_BASE, Color.TRANSPARENT, 0.0, 0.0))
+	theme.set_stylebox(&"panel", &"Panel", panel(APP_BASE, Color.TRANSPARENT, 0.0, 0.0))
+	theme.set_stylebox(&"panel", &"AcceptDialog", panel(APP_BASE, Color.TRANSPARENT, 0.0, 8.0))
+	theme.set_stylebox(&"panel", &"TabContainer", panel(APP_BASE, Color.TRANSPARENT, 0.0, 0.0))
+	theme.set_color(&"font_color", &"Label", APP_TEXT)
+	return theme
 
 
 static func panel(bg: Color, border: Color = Color.TRANSPARENT, radius: float = 6.0, padding: float = 8.0) -> StyleBoxFlat:
