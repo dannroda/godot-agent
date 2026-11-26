@@ -84,11 +84,9 @@ func refresh() -> void:
 	var border := Color(color, 0.5) if entry.level != ChatEntry.NoticeLevel.INFO else (Color(1, 1, 1, 0.12) if asks else Color.TRANSPARENT)
 	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(bg, border, 6, 8 if asks else 6))
 	if entry.footer:
-		# Pie del turno (m12-20): una línea arriba, el texto a la izquierda y las acciones como enlaces.
-		var footer_box := AgentTheme.panel(Color.TRANSPARENT, Color.TRANSPARENT, 0, 4)
-		footer_box.border_width_top = 1
-		footer_box.border_color = Color(1, 1, 1, 0.1)
-		_panel.add_theme_stylebox_override(&"panel", footer_box)
+		# Pie del turno (m12-20; con la forma del diseño, m21-24): una tarjeta con el resumen, las dos
+		# primeras acciones (Ver cambios, Deshacer turno) como botones y las demás como enlaces.
+		_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.035), Color(1, 1, 1, 0.12), 10, 12))
 	_title.text = entry.title
 	_title.visible = not entry.title.is_empty()
 	_title.add_theme_color_override(&"font_color", color)
@@ -112,7 +110,7 @@ func refresh() -> void:
 		fold.add_child(body)
 		_sections.add_child(fold)
 	_sections.visible = not entry.sections.is_empty()
-	if asks or not entry.title.is_empty():
+	if asks or not entry.title.is_empty() or entry.footer:
 		_label.remove_theme_color_override(&"font_color")
 	else:
 		_label.add_theme_color_override(&"font_color", color if entry.level != ChatEntry.NoticeLevel.INFO else AgentTheme.MUTED)
@@ -120,6 +118,7 @@ func refresh() -> void:
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if entry.level == ChatEntry.NoticeLevel.INFO and not asks and not entry.footer and entry.title.is_empty() else HORIZONTAL_ALIGNMENT_LEFT
 	_actions.alignment = FlowContainer.ALIGNMENT_BEGIN if asks or entry.footer else FlowContainer.ALIGNMENT_END
 	for child: Node in _actions.get_children():
+		_actions.remove_child(child)
 		child.queue_free()
 	var menus: Dictionary = {}  # texto del menú -> MenuButton
 	for action: Dictionary in entry.actions:
@@ -143,9 +142,15 @@ func refresh() -> void:
 		button.tooltip_text = str(action.get("tooltip", ""))
 		if bool(action.get("primary", false)):
 			AgentTheme.style_accent_button(button, accent, 4, 6)
+		elif entry.footer and _actions.get_child_count() < 2:
+			var outline := Color(1, 1, 1, 0.22)
+			button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color.TRANSPARENT, outline, 8, 8))
+			button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.06), outline, 8, 8))
+			button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(1, 1, 1, 0.1), outline, 8, 8))
+			button.custom_minimum_size.y = AgentTheme.px(32)
 		elif entry.footer:
 			button.flat = true
-			button.add_theme_color_override(&"font_color", accent)
+			button.add_theme_color_override(&"font_color", AgentTheme.MUTED)
 		button.pressed.connect(emit)
 		_actions.add_child(button)
 	for more: String in menus:

@@ -14,6 +14,9 @@ var tool_call_lookup: Callable
 
 var _panel: PanelContainer
 var _title: Label
+var _group: Label
+var _description_box: PanelContainer
+const SHIELD_ICON := '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M12 9v4M12 16h.01"/>'
 var _description: Label
 var _diff_slot: VBoxContainer
 var _buttons: HFlowContainer
@@ -43,20 +46,28 @@ func _build() -> void:
 	_panel.add_child(column)
 	var header := HBoxContainer.new()
 	column.add_child(header)
+	header.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	column.add_theme_constant_override(&"separation", AgentTheme.px(10))
 	var shield := TextureRect.new()
-	shield.texture = AgentTheme.icon(&"Lock")
+	shield.texture = AgentTheme.icon(&"Lock") if AgentTheme.icon(&"Lock") else AgentTheme.stroke_icon(SHIELD_ICON, accent, 18.0)
 	shield.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
-	shield.modulate = accent
+	shield.modulate = accent if AgentTheme.icon(&"Lock") else Color.WHITE
 	header.add_child(shield)
+	# Qué quiere hacer, como en el diseño (m21-24): el grupo («Editar escenas») y la herramienta al lado.
+	_group = Label.new()
+	_group.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
+	header.add_child(_group)
 	_title = Label.new()
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_title.add_theme_color_override(&"font_color", accent)
 	header.add_child(_title)
+	_description_box = PanelContainer.new()
+	_description_box.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(0, 0, 0, 0.22), Color(accent, 0.25), 7, 10))
+	column.add_child(_description_box)
 	_description = Label.new()
 	_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_description.add_theme_color_override(&"font_color", AgentTheme.MUTED)
-	column.add_child(_description)
+	_description_box.add_child(_description)
 	_full_toggle = Button.new()
 	_full_toggle.flat = true
 	_full_toggle.toggle_mode = true
@@ -149,6 +160,15 @@ static func short_text(text: String) -> String:
 	return first + (" …" if first != clean else "")
 
 
+## Hasta DETAIL_MAX_LINES líneas y TITLE_MAX_CHARS por línea: entra entero en la tarjeta.
+const DETAIL_MAX_LINES := 4
+
+
+static func is_short(text: String) -> bool:
+	var lines := text.strip_edges().split("\n")
+	return lines.size() <= DETAIL_MAX_LINES and Array(lines).all(func(line: String) -> bool: return line.length() <= TITLE_MAX_CHARS)
+
+
 func _refresh_full_toggle() -> void:
 	var lines := _full_text.text.count("\n") + 1
 	var label := I18n.t("Show all (1 line)") if lines == 1 else I18n.t("Show all (%d lines)") % lines
@@ -159,16 +179,31 @@ func refresh() -> void:
 	var request: PermissionRequest = entry.permission
 	var pending := request.is_pending()
 	_panel.add_theme_stylebox_override(&"panel", AgentTheme.panel(
-		Color(accent, 0.10 if pending else 0.03), Color(accent, 0.8 if pending else 0.25), 6, 8
+		Color(accent, 0.10 if pending else 0.03), Color(accent, 0.8 if pending else 0.25), 10, 12
 	))
 	var group_label := PermissionPolicy.group_label(request.group)
-	_title.text = I18n.t("Permission: %s") % short_text(request.title)
+	var named := not request.group.is_empty() and not request.own_labels
+	_group.text = group_label
+	_group.visible = named
+	_title.text = short_text(request.title) if named else I18n.t("Permission: %s") % short_text(request.title)
 	_title.tooltip_text = I18n.t("Group: %s") % group_label
-	_description.text = request.description.strip_edges() if request.own_labels else short_text(request.description)
-	_description.visible = not request.description.is_empty() and request.description != request.title
+	_title.add_theme_color_override(&"font_color", AgentTheme.MUTED if named else accent)
+	if named:
+		_title.add_theme_font_override(&"font", AgentTheme.mono_font())
+	else:
+		_title.remove_theme_font_override(&"font")
+	# Un detalle corto (unas líneas: la escena y el nodo) se ve entero; uno largo, plegado (m17-26).
+	var short_detail := is_short(request.description)
+	_description.text = request.description.strip_edges() if request.own_labels or short_detail else short_text(request.description)
+	# El detalle de una herramienta (rutas, nodos, un comando) en mono; el texto del harness, como texto.
+	if request.own_labels:
+		_description.remove_theme_font_override(&"font")
+	else:
+		_description.add_theme_font_override(&"font", AgentTheme.mono_font())
+	_description_box.visible = not request.description.is_empty() and request.description != request.title
 	# Lo que no entró en el título o la descripción va entero, plegado.
 	var full := request.title if short_text(request.title) != request.title else ""
-	if not request.own_labels and short_text(request.description) != request.description and request.description != request.title:
+	if not request.own_labels and not short_detail and short_text(request.description) != request.description and request.description != request.title:
 		full = (full + "\n\n" if not full.is_empty() else "") + request.description
 	_full_text.text = full
 	_full_toggle.visible = not full.is_empty()
@@ -271,10 +306,11 @@ func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
 	button.text = str(option.get("name", "")) if request.own_labels and not str(option.get("name", "")).is_empty() else _option_label(option)
 	match kind:
 		PermissionRequest.KIND_ALLOW_ONCE:
-			AgentTheme.style_accent_button(button, accent)
+			AgentTheme.style_accent_button(button, accent, 8, 8)
 		PermissionRequest.KIND_REJECT_ONCE, PermissionRequest.KIND_REJECT_ALWAYS:
-			button.flat = true
-			button.add_theme_color_override(&"font_color", AgentTheme.ERROR)
+			_outline(button, Color(AgentTheme.ERROR, 0.45))
+			for state: StringName in [&"font_color", &"font_hover_color", &"font_focus_color", &"font_pressed_color"]:
+				button.add_theme_color_override(state, AgentTheme.ERROR)
 			if kind == PermissionRequest.KIND_REJECT_ONCE:
 				var shortcut := Shortcut.new()
 				var esc := InputEventKey.new()
@@ -284,9 +320,18 @@ func _option_button(request: PermissionRequest, option: Dictionary) -> Button:
 				button.shortcut_context = _panel  # solo con el foco en la tarjeta
 				button.shortcut_in_tooltip = true
 		PermissionRequest.KIND_ALLOW_ALWAYS:
-			button.flat = true
+			_outline(button, Color(1, 1, 1, 0.22))
+	button.custom_minimum_size.y = AgentTheme.px(34)
 	button.pressed.connect(func() -> void: request.select(str(option.get("optionId", ""))))
 	return button
+
+
+## Un botón con borde y sin fondo (las opciones que no son «Permitir», m21-24).
+static func _outline(button: Button, border: Color) -> void:
+	button.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color.TRANSPARENT, border, 8, 8))
+	button.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.06), border, 8, 8))
+	button.add_theme_stylebox_override(&"pressed", AgentTheme.panel(Color(1, 1, 1, 0.1), border, 8, 8))
+	button.add_theme_stylebox_override(&"focus", AgentTheme.panel(Color.TRANSPARENT, border.lightened(0.3), 8, 8))
 
 
 ## Nombres del mockup para las opciones típicas; si no, el nombre que mandó el agente.

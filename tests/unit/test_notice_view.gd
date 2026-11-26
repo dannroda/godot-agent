@@ -74,13 +74,14 @@ func test_turn_footer() -> void:
 	entry.kind = ChatEntry.EntryKind.NOTICE
 	entry.footer = true
 	entry.text = "This turn changed 1 file (+3 −1): player.gd"
-	entry.actions = [{"id": "turn_changes", "label": "View changes"}, {"id": "turn_restore", "label": "Undo turn", "tooltip": "Go back to before this turn"}]
+	entry.actions = [{"id": "turn_changes", "label": "View changes"}, {"id": "turn_restore", "label": "Undo turn", "tooltip": "Go back to before this turn"}, {"id": "turn_report", "label": "Save report"}]
 	var view := NoticeView.new()
 	view.setup(entry, Color.ORANGE, MarkdownBBCode.new())
 	view.call(&"_build")
 	view.refresh()
 	assert_eq((view.get(&"_label") as Label).horizontal_alignment, HORIZONTAL_ALIGNMENT_LEFT, "texto a la izquierda")
 	var buttons := (view.get(&"_actions") as Node).get_children().filter(func(child: Node) -> bool: return not child.is_queued_for_deletion())
-	assert_true(buttons.all(func(button: Button) -> bool: return button.flat), "acciones como enlaces")
+	assert_true(not (buttons[0] as Button).flat and not (buttons[1] as Button).flat, "Ver cambios y Deshacer turno, botones (m21-24)")
+	assert_true((buttons[2] as Button).flat, "las demás, enlaces")
 	assert_eq((buttons[1] as Button).tooltip_text, "Go back to before this turn", "con su tooltip")
 	view.free()
