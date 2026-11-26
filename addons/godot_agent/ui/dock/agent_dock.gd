@@ -1446,6 +1446,21 @@ func use_window_layout() -> void:
 		slot.add_theme_constant_override("margin_" + side, pad)
 	slot.add_theme_constant_override(&"margin_top", AgentTheme.px(Composer.BOX_PAD))
 	_composer.set_boxed(true)
+	# «Contexto 38 % · turno 4» a la derecha del encabezado (m21-22).
+	var context := Label.new()
+	context.name = "ContextLabel"
+	context.add_theme_color_override(&"font_color", AgentTheme.MUTED)
+	$Header.add_child(context)
+	$Header.move_child(context, _title_label.get_index() + 1)
+	_model.usage_changed.connect(func(_used: int, _size: int) -> void: _refresh_context_label())
+	_model.state_changed.connect(func(state: SessionModel.SessionState) -> void:
+		if state == SessionModel.SessionState.PROMPTING:
+			_turns_seen += 1
+		_refresh_context_label())
+	_model.entries_cleared.connect(func() -> void:
+		_turns_seen = 0
+		_refresh_context_label())
+	_refresh_context_label()
 	$Header.add_theme_constant_override(&"separation", AgentTheme.px(10))
 	$Header.alignment = BoxContainer.ALIGNMENT_BEGIN
 	for child: Node in $Header.get_children():
@@ -1458,6 +1473,26 @@ func use_window_layout() -> void:
 		$Header.add_child(gap)
 		if not at_end:
 			$Header.move_child(gap, 0)
+
+
+## Turnos empezados en esta vista de la sesión (m21-22).
+var _turns_seen := 0
+
+
+func _refresh_context_label() -> void:
+	var label := get_node_or_null("Header/ContextLabel") as Label
+	if label:
+		label.text = context_text(_model.usage_used, _model.usage_size, _turns_seen)
+
+
+## «Contexto 38 % · turno 4»; cada parte solo si hay dato.
+static func context_text(used: int, total: int, turns: int) -> String:
+	var parts: PackedStringArray = []
+	if total > 0:
+		parts.append(I18n.t("Context %d %%") % int(float(used) / float(total) * 100.0))
+	if turns > 0:
+		parts.append(I18n.t("turn %d") % turns)
+	return " · ".join(parts)
 
 
 func _refresh_title() -> void:

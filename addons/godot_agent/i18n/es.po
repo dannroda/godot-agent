@@ -6987,3 +6987,9 @@ msgstr "hace %s"
 
 msgid "Open another project in a new window"
 msgstr "Abrir otro proyecto en una ventana nueva"
+
+msgid "Context %d %%"
+msgstr "Contexto %d %%"
+
+msgid "turn %d"
+msgstr "turno %d"

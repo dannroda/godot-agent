@@ -13,3 +13,10 @@ func test_empty_hint() -> void:
 	assert_true(parts[2].contains("box below"), "cómo empezar")
 	assert_eq(AgentDock.empty_hint("Level design (Build)", "").split("\n\n")[1], "Mode Level design (Build).", "modo sin descripción")
 	assert_true(AgentDock.empty_hint("Build", "", false).split("\n\n")[0].contains("while the editor is open"), "fuera del editor no promete sus tools")
+
+
+## m21-22: el contexto y el turno del encabezado de la app, cada uno si hay dato.
+func test_context_text() -> void:
+	assert_eq(AgentDock.context_text(38, 100, 4), "Context 38 % · turn 4", "los dos")
+	assert_eq(AgentDock.context_text(0, 0, 2), "turn 2", "sin dato de contexto")
+	assert_eq(AgentDock.context_text(0, 0, 0), "", "nada")
