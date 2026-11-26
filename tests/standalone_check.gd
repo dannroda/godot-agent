@@ -45,6 +45,8 @@ func _run() -> void:
 	await process_frame
 	_check(EditorContext.project_path() == _project, "sin --project, la última carpeta abierta")
 	_check(app._tabs.ids() == PackedStringArray(["s1"]), "arranca con una pestaña")
+	var first_run: String = (app._tabs.dock("s1").get(&"_empty_command") as Label).text
+	_check(first_run == I18n.t("The agent works on the project folder with its own tools, and with the Godot editor's tools when the editor is open on it. You can add others later in Settings → Agents."), "la guía de primer uso no promete las tools del editor (m20-11) · " + first_run)
 	_check(not app._editor_open and app._editor_pill.is_inside_tree(), "arriba, la píldora sin editor abierto")
 	app._open_settings()
 	await process_frame

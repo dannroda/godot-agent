@@ -6914,3 +6914,6 @@ msgstr "Archivo cambiado"
 
 msgid "Accounts"
 msgstr "Cuentas"
+
+msgid "The agent works on the project folder with its own tools, and with the Godot editor's tools when the editor is open on it. You can add others later in Settings → Agents."
+msgstr "El agente trabaja en la carpeta del proyecto con sus propias herramientas, y con las del editor de Godot cuando está abierto en ella. Podés sumar otros después en Ajustes → Agentes."
