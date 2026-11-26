@@ -6881,3 +6881,33 @@ msgstr "Cerrar la sesión"
 
 msgid "Finished a turn"
 msgstr "Terminó un turno"
+
+msgid "This turn"
+msgstr "Este turno"
+
+msgid "Last turn"
+msgstr "Último turno"
+
+msgid "Nothing changed yet. The files a turn changes show here while the agent writes them."
+msgstr "Todavía no cambió nada. Los archivos que cambia un turno aparecen acá mientras el agente los escribe."
+
+msgid "Live, while the agent works"
+msgstr "En vivo, mientras el agente trabaja"
+
+msgid "The turn is over: undo it from the chat"
+msgstr "El turno terminó: se deshace desde el chat"
+
+msgid "Taken by other sessions"
+msgstr "Tomados por otras sesiones"
+
+msgid "None: a file another session edits in its turn shows here, and is off limits to this one until that turn ends."
+msgstr "Ninguno: un archivo que otra sesión edita en su turno aparece acá, y esta no lo puede tocar hasta que ese turno termine."
+
+msgid "Added file"
+msgstr "Archivo nuevo"
+
+msgid "Deleted file"
+msgstr "Archivo borrado"
+
+msgid "Modified file"
+msgstr "Archivo cambiado"

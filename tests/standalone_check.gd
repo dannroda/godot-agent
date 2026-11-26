@@ -6,6 +6,7 @@ extends SceneTree
 ## (sin XDG_DATA_HOME guarda en los datos del editor del usuario). Sale con 1 si algo falla.
 
 const EditorContext := preload("res://addons/godot_agent/ui/editor_context.gd")
+const I18n := preload("res://addons/godot_agent/core/i18n.gd")
 const AgentProfile := preload("res://addons/godot_agent/core/agent_profile.gd")
 const Main := preload("res://addons/godot_agent/standalone/main.gd")
 const HarnessSettings := preload("res://addons/godot_agent/core/harness_settings.gd")
@@ -114,6 +115,17 @@ func _run() -> void:
 	var data := _turn_data(app._sessions["s1"].model)
 	_check(not data.is_empty() and data.get("files", []).map(func(file: Dictionary) -> String: return str(file.path)) == ["a.gd"], "el turno de s1 ofrece Ver cambios y Deshacer turno, con a.gd")
 	if not data.is_empty():
+		app._tabs.select("s1")
+		await process_frame
+		await process_frame
+		var shown: Array = app._turn_panel._column.get_children().map(func(node: Node) -> String: return str(node.get(&"text")) if node is Label else "")
+		_check(shown.has(I18n.t("Last turn")) and app._turn_panel.find_child("ViewChangesButton", true, false) != null, "el panel de al lado muestra el último turno de s1, con Ver cambios (m21-05)")
+		_check(app._turn_panel._column.find_children("*", "Label", true, false).any(func(label: Label) -> bool: return label.text == "a.gd"), "con a.gd")
+		app._coordinator.claim_label(second, PackedStringArray([_project.path_join("b.gd")]))
+		await process_frame
+		await process_frame
+		_check(app._turn_panel._column.find_children("*", "Label", true, false).any(func(label: Label) -> bool: return label.text == "b.gd"), "y b.gd, tomado por la otra sesión")
+		app._coordinator.release_files(second)
 		app._on_dock_action(SessionController.ACTION_TURN_CHANGES, data)
 		await process_frame
 		_check(app._turn_changes.dialog.visible, "Ver cambios abre el diálogo")

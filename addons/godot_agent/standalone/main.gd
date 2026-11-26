@@ -36,6 +36,7 @@ const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
 const EditorBridge := preload("editor_bridge.gd")
 const AgentTheme := preload("../ui/agent_theme.gd")
 const SessionSidebar := preload("session_sidebar.gd")
+const TurnPanel := preload("turn_panel.gd")
 const ProjectModes := preload("../core/project_modes.gd")
 
 ## Al lado de los datos del editor, compartido por todos los proyectos que se abran así; los perfiles
@@ -65,6 +66,7 @@ var _editor_dot: TextureRect
 var _editor_label: Label
 var _editor_open := false
 var _sidebar: SessionSidebar
+var _turn_panel: TurnPanel
 var _serial := 0
 
 
@@ -110,6 +112,15 @@ func _ready() -> void:
 	_tabs.close_requested.connect(close_tab)
 	_tabs.rename_requested.connect(_rename)
 	body.add_child(_tabs)
+	_turn_panel = TurnPanel.new()
+	_turn_panel.counter = _turn_counter
+	_turn_panel.coordinator = _coordinator
+	_turn_panel.root = root
+	_turn_panel.sessions = _tabs.ids
+	_turn_panel.controller_of = func(id: String) -> SessionController: return _sessions[id].controller if _sessions.has(id) else null
+	_turn_panel.open_turn = _turn_changes.dialog.show_turn
+	_tabs.active_changed.connect(_turn_panel.show_session)
+	body.add_child(_turn_panel)
 	open_tab()
 
 
@@ -208,6 +219,7 @@ func open_tab() -> String:
 	dock.action_forwarded.connect(_on_dock_action)
 	dock.turn_changes_requested.connect(func() -> void: _turn_counter.open(id))
 	model.state_changed.connect(func(state: SessionModel.SessionState) -> void: _turn_counter.on_state(id, state))
+	controller.turn_changes_reported.connect(func(_data: Dictionary) -> void: _turn_panel.refresh())
 	for changed: Signal in [model.harness_mode_changed, model.project_mode_changed, model.account_changed]:
 		changed.connect(func(_value: Variant = null) -> void: _sidebar.refresh())
 	model.turn_finished.connect(func(_stop_reason: String) -> void: _coordinator.release_files(id))
@@ -371,7 +383,8 @@ func _build_turn_changes() -> void:
 	_turn_counter = TurnCounter.new()
 	_turn_counter.snapshots_of = _turn_changes._snapshots_of
 	_turn_counter.model_of = _turn_changes.model_of
-	_turn_counter.dock_of = func(id: String) -> Object: return _tabs.dock(id) if _tabs else null
+	# En la app lo del turno va en el panel de al lado (m21-05), no en el contador sobre el composer.
+	_turn_counter.dock_of = func(_id: String) -> Object: return null
 	_turn_counter.open_dialog = dialog.show_turn
 	add_child(_turn_counter)
 
