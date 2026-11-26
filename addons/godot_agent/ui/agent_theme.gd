@@ -75,7 +75,7 @@ static func mono_font() -> Font:
 	if theme.has_font(&"source", &"EditorFonts"):
 		return theme.get_font(&"source", &"EditorFonts")
 	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["monospace"])
+	font.font_names = PackedStringArray(["JetBrains Mono", "monospace"])  # la del diseño, si está
 	return font
 
 
@@ -170,6 +170,17 @@ static func app_theme() -> Theme:
 	theme.set_stylebox(&"panel", &"AcceptDialog", panel(APP_BASE, Color.TRANSPARENT, 0.0, 8.0))
 	theme.set_stylebox(&"panel", &"TabContainer", panel(APP_BASE, Color.TRANSPARENT, 0.0, 0.0))
 	theme.set_color(&"font_color", &"Label", APP_TEXT)
+	# Las casillas y los interruptores no son botones con caja: heredaban la de Button.
+	for type: StringName in [&"CheckBox", &"CheckButton"]:
+		for state: StringName in [&"normal", &"hover", &"pressed", &"hover_pressed", &"disabled"]:
+			theme.set_stylebox(state, type, panel(Color.TRANSPARENT, Color.TRANSPARENT, 6.0, 4.0))
+		theme.set_stylebox(&"hover", type, panel(Color(1, 1, 1, 0.05), Color.TRANSPARENT, 6.0, 4.0))
+		theme.set_stylebox(&"hover_pressed", type, panel(Color(1, 1, 1, 0.05), Color.TRANSPARENT, 6.0, 4.0))
+	# La fuente del diseño (Inter) si está instalada; si no, la de Godot.
+	if not OS.get_system_font_path("Inter").is_empty():
+		var inter := SystemFont.new()
+		inter.font_names = PackedStringArray(["Inter"])
+		theme.default_font = inter
 	return theme
 
 
@@ -192,6 +203,44 @@ static func stroke_icon(paths: String, color: Color, side_px: float = 18.0) -> T
 	if image.load_svg_from_string(svg, px(side_px) / 24.0) != OK:
 		return null
 	return ImageTexture.create_from_image(image)
+
+
+## Un fondo con borde solo en algunos lados (las líneas entre columnas de la app, m21-16).
+static func edged(bg: Color, border: Color, left := 0, top := 0, right := 0, bottom := 0, padding: float = 8.0) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = bg
+	box.border_color = border
+	box.border_width_left = left
+	box.border_width_top = top
+	box.border_width_right = right
+	box.border_width_bottom = bottom
+	box.set_content_margin_all(px(padding))
+	return box
+
+
+## Un título de sección como los del diseño: en mayúsculas, chico y apagado.
+static func caption(text: String) -> Label:
+	var label := Label.new()
+	label.text = text.to_upper()
+	label.add_theme_font_size_override(&"font_size", px(12))
+	label.add_theme_color_override(&"font_color", Color(APP_TEXT, 0.55))
+	return label
+
+
+## Una insignia redondeada (el modo de una sesión).
+static func badge(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override(&"font_size", px(11))
+	label.add_theme_color_override(&"font_color", Color(APP_TEXT, 0.8))
+	var box := panel(Color(1, 1, 1, 0.08), Color.TRANSPARENT, 9.0, 0.0)
+	box.content_margin_left = px(7)
+	box.content_margin_right = px(7)
+	box.content_margin_top = px(1)
+	box.content_margin_bottom = px(1)
+	label.add_theme_stylebox_override(&"normal", box)
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return label
 
 
 static func panel(bg: Color, border: Color = Color.TRANSPARENT, radius: float = 6.0, padding: float = 8.0) -> StyleBoxFlat:

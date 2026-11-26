@@ -1417,9 +1417,38 @@ func set_heading(text: String) -> void:
 		heading.name = "SessionHeading"
 		heading.add_theme_font_size_override(&"font_size", AgentTheme.px(18))
 		$Header.add_child(heading)
-		$Header.move_child(heading, 0)
+		$Header.move_child(heading, 1 if $Header.has_node("HeaderGapStart") else 0)
 	heading.text = text
 	heading.visible = not text.is_empty()
+
+
+## La forma de la ventana de la app (m21-16): una línea bajo el encabezado y el composer en una caja,
+## con margen para ella.
+func use_window_layout() -> void:
+	if has_node("HeaderLine"):
+		return
+	var line := HSeparator.new()
+	line.name = "HeaderLine"
+	add_child(line)
+	move_child(line, $Header.get_index() + 1)
+	var slot := %ComposerSlot as MarginContainer
+	var pad := AgentTheme.px(Composer.BOX_PAD + 8.0)
+	for side: String in ["left", "right", "bottom"]:
+		slot.add_theme_constant_override("margin_" + side, pad)
+	slot.add_theme_constant_override(&"margin_top", AgentTheme.px(Composer.BOX_PAD))
+	_composer.set_boxed(true)
+	$Header.add_theme_constant_override(&"separation", AgentTheme.px(10))
+	$Header.alignment = BoxContainer.ALIGNMENT_BEGIN
+	for child: Node in $Header.get_children():
+		if child is Control:
+			(child as Control).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for at_end: bool in [false, true]:
+		var gap := Control.new()
+		gap.name = "HeaderGapEnd" if at_end else "HeaderGapStart"
+		gap.custom_minimum_size = Vector2(AgentTheme.px(6), AgentTheme.px(48))
+		$Header.add_child(gap)
+		if not at_end:
+			$Header.move_child(gap, 0)
 
 
 func _refresh_title() -> void:

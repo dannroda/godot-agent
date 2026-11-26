@@ -161,9 +161,12 @@ func _warn_about_autoloads() -> void:
 ## La barra de arriba (m21-01): el proyecto, su carpeta y si hay un editor abierto en ella.
 func _build_header(root: String) -> Control:
 	var bar := PanelContainer.new()
-	bar.add_theme_stylebox_override(&"panel", AgentTheme.panel(AgentTheme.dark_color(), Color.TRANSPARENT, 0.0, 6.0))
+	var bar_box := AgentTheme.edged(AgentTheme.dark_color(), AgentTheme.APP_BORDER, 0, 0, 0, 1, 10.0)
+	bar_box.content_margin_left = AgentTheme.px(18)
+	bar_box.content_margin_right = AgentTheme.px(14)
+	bar.add_theme_stylebox_override(&"panel", bar_box)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override(&"separation", AgentTheme.px(10))
+	row.add_theme_constant_override(&"separation", AgentTheme.px(12))
 	bar.add_child(row)
 	var logo := TextureRect.new()
 	logo.texture = AgentTheme.stroke_icon(LOGO_ICON, _settings.accent_color(), 22.0)
@@ -171,26 +174,38 @@ func _build_header(root: String) -> Control:
 	row.add_child(logo)
 	var app_name := Label.new()
 	app_name.text = "Godot Agent"
+	app_name.add_theme_font_size_override(&"font_size", AgentTheme.px(16))
 	row.add_child(app_name)
-	row.add_child(VSeparator.new())
+	# El proyecto en una caja, con la carpeta en mono (m21-16).
+	var project_box := PanelContainer.new()
+	var project_style := AgentTheme.panel(AgentTheme.APP_SURFACE, AgentTheme.APP_BORDER, 8.0, 6.0)
+	project_style.content_margin_left = AgentTheme.px(10)
+	project_style.content_margin_right = AgentTheme.px(12)
+	project_box.add_theme_stylebox_override(&"panel", project_style)
+	project_box.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	project_box.tooltip_text = root
+	row.add_child(project_box)
+	var project_row := HBoxContainer.new()
+	project_row.add_theme_constant_override(&"separation", AgentTheme.px(8))
+	project_box.add_child(project_row)
 	var folder := TextureRect.new()
 	folder.texture = AgentTheme.stroke_icon(FOLDER_ICON, AgentTheme.MUTED, 16.0)
 	folder.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
-	row.add_child(folder)
+	folder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	project_row.add_child(folder)
 	var project := Label.new()
 	project.text = root.get_file()
 	project.add_theme_color_override(&"font_color", AgentTheme.font_color())
-	row.add_child(project)
+	project.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	project_row.add_child(project)
 	var path := Label.new()
 	var home := OS.get_environment("HOME")
 	path.text = ("~" + root.trim_prefix(home)) if not home.is_empty() and root.begins_with(home) else root
-	path.tooltip_text = root
-	path.mouse_filter = Control.MOUSE_FILTER_PASS
+	path.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	path.modulate = Color(1, 1, 1, 0.6)
-	path.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	path.clip_text = true
-	path.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(path)
+	path.add_theme_font_override(&"font", AgentTheme.mono_font())
+	path.add_theme_font_size_override(&"font_size", AgentTheme.px(13))
+	project_row.add_child(path)
 	_editor_pill = PanelContainer.new()
 	var pill_row := HBoxContainer.new()
 	pill_row.add_theme_constant_override(&"separation", AgentTheme.px(6))
@@ -201,6 +216,9 @@ func _build_header(root: String) -> Control:
 	_editor_label = Label.new()
 	pill_row.add_child(_editor_label)
 	row.add_child(_editor_pill)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(spacer)
 	for spec: Array in [["HistoryButton", HISTORY_ICON, I18n.t("Session history")], ["SettingsButton", SETTINGS_ICON, I18n.t("Settings")]]:
 		var button := Button.new()
 		button.name = spec[0]
@@ -276,6 +294,7 @@ func open_tab() -> String:
 	_coordinator.register(id, label)
 	var dock := AgentDockScene.instantiate()
 	dock.setup(model, controller, _settings)
+	dock.ready.connect(dock.use_window_layout, CONNECT_ONE_SHOT)
 	dock.settings_requested.connect(_open_settings)
 	dock.new_tab_requested.connect(func(_in_copy: bool = false) -> void: open_tab())
 	dock.action_forwarded.connect(_on_dock_action)

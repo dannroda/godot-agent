@@ -28,14 +28,26 @@ var root: String = ""
 var _session := ""
 var _column: VBoxContainer
 var _refresh_queued := false
+var _view: Button
+var _last: Dictionary = {}
 
 
 func _ready() -> void:
 	custom_minimum_size.x = AgentTheme.px(WIDTH)
-	add_theme_stylebox_override(&"panel", AgentTheme.panel(AgentTheme.dark_color(), Color.TRANSPARENT, 0.0, 10.0))
+	add_theme_stylebox_override(&"panel", AgentTheme.edged(AgentTheme.dark_color(), AgentTheme.APP_BORDER, 1, 0, 0, 0, 14.0))
+	var outer := VBoxContainer.new()
+	add_child(outer)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(scroll)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(scroll)
+	# Ver cambios abajo de todo, fuera del scroll, como en el diseño.
+	_view = Button.new()
+	_view.name = "ViewChangesButton"
+	_view.text = I18n.t("View all the changes of the turn")
+	_view.custom_minimum_size.y = AgentTheme.px(38)
+	_view.pressed.connect(_open_changes)
+	outer.add_child(_view)
 	_column = VBoxContainer.new()
 	_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_column.add_theme_constant_override(&"separation", AgentTheme.px(6))
@@ -73,7 +85,7 @@ func _rebuild() -> void:
 	var last: Dictionary = controller.get(&"last_turn_changes") if controller else {}
 	var files: Array = live.get("files", []) if not live.is_empty() else last.get("files", [])
 	var head := HBoxContainer.new()
-	var title := _title(I18n.t("This turn") if not live.is_empty() else (I18n.t("Last turn") if not last.is_empty() else I18n.t("This turn")))
+	var title := AgentTheme.caption(I18n.t("This turn") if not live.is_empty() else (I18n.t("Last turn") if not last.is_empty() else I18n.t("This turn")))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	if not live.is_empty():
@@ -92,32 +104,35 @@ func _rebuild() -> void:
 			_column.add_child(_file_row(file))
 		if files.size() > MAX_FILES:
 			_column.add_child(_note(I18n.t("and %d more") % (files.size() - MAX_FILES)))
-	_column.add_child(HSeparator.new())
-	_column.add_child(_title(I18n.t("Taken by other sessions")))
+	var gap := Control.new()
+	gap.custom_minimum_size.y = AgentTheme.px(10)
+	_column.add_child(gap)
+	_column.add_child(AgentTheme.caption(I18n.t("Taken by other sessions")))
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.03), AgentTheme.APP_BORDER, 10.0, 10.0))
+	var taken_list := VBoxContainer.new()
+	card.add_child(taken_list)
 	var taken := 0
 	for other: String in (sessions.call() if sessions.is_valid() else PackedStringArray()):
 		if other == _session:
 			continue
 		for path: String in coordinator.files_of(other):
-			_column.add_child(_taken_row(path, coordinator.label(other)))
+			taken_list.add_child(_taken_row(path, coordinator.label(other)))
 			taken += 1
-	if taken == 0:
+	if taken > 0:
+		_column.add_child(card)
+	else:
+		card.free()
 		_column.add_child(_note(I18n.t("None: a file another session edits in its turn shows here, and is off limits to this one until that turn ends.")))
-	if not files.is_empty():
-		# Abajo de todo, como en el diseño: lo que se mira al final del turno.
-		var spacer := Control.new()
-		spacer.custom_minimum_size.y = AgentTheme.px(8)
-		_column.add_child(spacer)
-		var view := Button.new()
-		view.name = "ViewChangesButton"
-		view.text = I18n.t("View all the changes of the turn")
-		view.custom_minimum_size.y = AgentTheme.px(34)
-		view.pressed.connect(func() -> void:
-			if not counter.latest(_session).is_empty():
-				counter.open(_session)
-			elif open_turn.is_valid() and not last.is_empty():
-				open_turn.call(last))
-		_column.add_child(view)
+	_last = last
+	_view.visible = not files.is_empty()
+
+
+func _open_changes() -> void:
+	if not counter.latest(_session).is_empty():
+		counter.open(_session)
+	elif open_turn.is_valid() and not _last.is_empty():
+		open_turn.call(_last)
 
 
 func _file_row(file: Dictionary) -> Control:
@@ -165,6 +180,7 @@ func _path_label(path: String) -> Label:
 	var label := Label.new()
 	label.text = path
 	label.tooltip_text = path
+	label.add_theme_font_override(&"font", AgentTheme.mono_font())
 	label.mouse_filter = Control.MOUSE_FILTER_PASS
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -176,13 +192,6 @@ func _count(text: String, color: Color) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_color_override(&"font_color", color)
-	return label
-
-
-func _title(text: String) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.modulate = Color(1, 1, 1, 0.6)
 	return label
 
 

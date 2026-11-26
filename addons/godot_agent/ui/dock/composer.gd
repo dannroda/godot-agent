@@ -188,6 +188,8 @@ func _ready() -> void:
 			_history_index = -1)
 	_input.caret_changed.connect(_refresh_suggestions)
 	_input.focus_exited.connect(func() -> void: _close_suggestions())
+	_input.focus_entered.connect(queue_redraw)
+	_input.focus_exited.connect(queue_redraw)
 	# El TextEdit consulta primero el forwarding: el texto arrastrado lo sigue manejando él.
 	_input.set_drag_forwarding(Callable(), _can_drop_files, _drop_files)
 	add_child(_input)
@@ -370,6 +372,36 @@ func manual_height() -> float:
 		if AgentTheme.has_editor() and AgentTheme.editor().get_editor_settings().has_setting(SETTING_HEIGHT):
 			_manual_height = maxf(float(AgentTheme.editor().get_editor_settings().get_setting(SETTING_HEIGHT)), 0.0)
 	return _manual_height
+
+
+## En la ventana de la app (m21-16): chips, texto y la fila de abajo en una sola caja, como en el
+## diseño. La caja se dibuja `BOX_PAD` px por fuera del composer: el que lo contiene deja ese margen.
+const BOX_PAD := 10.0
+var _boxed := false
+
+
+func set_boxed(on: bool) -> void:
+	_boxed = on
+	if on:
+		var plain := StyleBoxEmpty.new()
+		plain.content_margin_left = AgentTheme.px(2)
+		plain.content_margin_right = AgentTheme.px(2)
+		plain.content_margin_top = AgentTheme.px(4)
+		plain.content_margin_bottom = AgentTheme.px(4)
+		for state: StringName in [&"normal", &"focus", &"read_only"]:
+			_input.add_theme_stylebox_override(state, plain)
+		if not sort_children.is_connected(queue_redraw):
+			sort_children.connect(queue_redraw)
+	queue_redraw()
+
+
+func _draw() -> void:
+	if not _boxed or not is_instance_valid(_input):
+		return
+	var top := (_chips.position.y if _chips.visible else _input.position.y)
+	var pad := AgentTheme.px(BOX_PAD)
+	var border := AgentTheme.APP_BORDER.lightened(0.12) if _input.has_focus() else AgentTheme.APP_BORDER
+	draw_style_box(AgentTheme.panel(AgentTheme.APP_SURFACE, border, 12.0, 0.0), Rect2(-pad, top - pad, size.x + 2 * pad, size.y - top + 2 * pad))
 
 
 func update_height() -> void:

@@ -21,6 +21,7 @@ var accounts: Callable
 var _tabs: SessionTabs
 var _list: VBoxContainer
 var _accounts_box: VBoxContainer
+var _accounts_card: PanelContainer
 var _count: Label
 var _refresh_queued := false
 
@@ -29,19 +30,18 @@ func setup(tabs: SessionTabs) -> void:
 	_tabs = tabs
 	_tabs.sessions_changed.connect(refresh)
 	custom_minimum_size.x = AgentTheme.px(WIDTH)
-	add_theme_stylebox_override(&"panel", AgentTheme.panel(AgentTheme.dark_color(), Color.TRANSPARENT, 0.0, 8.0))
+	add_theme_stylebox_override(&"panel", AgentTheme.edged(AgentTheme.dark_color(), AgentTheme.APP_BORDER, 0, 0, 1, 0, 12.0))
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override(&"separation", AgentTheme.px(6))
 	add_child(column)
 	var title_row := HBoxContainer.new()
-	var title := Label.new()
-	title.text = I18n.t("Sessions")
-	title.modulate = Color(1, 1, 1, 0.6)
+	var title := AgentTheme.caption(I18n.t("Sessions"))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
 	_count = Label.new()
 	_count.name = "OpenCount"
-	_count.modulate = Color(1, 1, 1, 0.45)
+	_count.add_theme_font_size_override(&"font_size", AgentTheme.px(12))
+	_count.modulate = Color(1, 1, 1, 0.55)
 	title_row.add_child(_count)
 	column.add_child(title_row)
 	var scroll := ScrollContainer.new()
@@ -55,13 +55,19 @@ func setup(tabs: SessionTabs) -> void:
 	var add := Button.new()
 	add.name = "NewSessionButton"
 	add.text = "+ " + I18n.t("New session")
-	add.custom_minimum_size.y = AgentTheme.px(36)
+	add.custom_minimum_size.y = AgentTheme.px(40)
+	# Borde y sin fondo, como en el diseño (Godot no dibuja bordes punteados).
+	add.add_theme_stylebox_override(&"normal", AgentTheme.panel(Color.TRANSPARENT, Color(1, 1, 1, 0.22), 10.0, 6.0))
+	add.add_theme_stylebox_override(&"hover", AgentTheme.panel(Color(1, 1, 1, 0.05), Color(1, 1, 1, 0.3), 10.0, 6.0))
 	add.pressed.connect(func() -> void: new_requested.emit())
 	column.add_child(add)
+	_accounts_card = PanelContainer.new()
+	_accounts_card.add_theme_stylebox_override(&"panel", AgentTheme.panel(Color(1, 1, 1, 0.03), AgentTheme.APP_BORDER, 10.0, 12.0))
+	column.add_child(_accounts_card)
 	_accounts_box = VBoxContainer.new()
 	_accounts_box.name = "Accounts"
 	_accounts_box.add_theme_constant_override(&"separation", AgentTheme.px(4))
-	column.add_child(_accounts_box)
+	_accounts_card.add_child(_accounts_box)
 	refresh()
 
 
@@ -90,16 +96,16 @@ func _fill_accounts() -> void:
 		_accounts_box.remove_child(child)
 		child.queue_free()
 	var known: Array = accounts.call() if accounts.is_valid() else []
-	_accounts_box.visible = not known.is_empty()
+	_accounts_card.visible = not known.is_empty()
 	if known.is_empty():
 		return
-	_accounts_box.add_child(HSeparator.new())
-	var title := _label(I18n.t("Accounts"), 0.6)
-	_accounts_box.add_child(title)
+	_accounts_box.add_child(AgentTheme.caption(I18n.t("Accounts")))
 	for account: Dictionary in known:
 		var line := HBoxContainer.new()
 		line.add_child(_label(str(account.label), 1.0, true))
-		var amount := _label(str(account.text), 0.65)
+		# Solo el porcentaje, como en el diseño; el texto entero queda en el tooltip de la barra.
+		var used := float(account.used)
+		var amount := _label(I18n.t("Limited") if account.limited else ("%d %%" % roundi(used * 100.0) if used >= 0.0 else "—"), 0.65)
 		amount.clip_text = false
 		amount.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING  # cortando, no pide ancho y no se ve
 		line.add_child(amount)
@@ -159,11 +165,13 @@ func _row(id: String) -> Control:
 	dot.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(dot)
-	top.add_child(_label(("⚠ " if state.waiting else "") + str(state.label), 1.0, true))
-	var mode := _label(str(info.get("mode", "")), 0.55)
-	mode.clip_text = false
-	mode.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
-	top.add_child(mode)
+	var name_label := _label(("⚠ " if state.waiting else "") + str(state.label), 1.0, true)
+	name_label.add_theme_font_size_override(&"font_size", AgentTheme.px(15))
+	top.add_child(name_label)
+	if not str(info.get("mode", "")).is_empty():
+		var mode := AgentTheme.badge(str(info.mode))
+		mode.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top.add_child(mode)
 	if state.closable:
 		var close := Button.new()
 		close.flat = true
@@ -172,8 +180,11 @@ func _row(id: String) -> Control:
 		close.focus_mode = Control.FOCUS_NONE
 		close.pressed.connect(func() -> void: close_requested.emit(id))
 		top.add_child(close)
-	lines.add_child(_label(str(info.get("agent", "")), 0.65))
+	var agent := _label(str(info.get("agent", "")), 0.65)
+	agent.add_theme_font_size_override(&"font_size", AgentTheme.px(13))
+	lines.add_child(agent)
 	var status_label := _label(status.text, 1.0)
+	status_label.add_theme_font_size_override(&"font_size", AgentTheme.px(13))
 	status_label.add_theme_color_override(&"font_color", status.color if status.color != IDLE_COLOR else Color(AgentTheme.font_color(), 0.65))
 	lines.add_child(status_label)
 	return row

@@ -149,7 +149,7 @@ func _run() -> void:
 		await process_frame
 		await process_frame
 		var shown: Array = app._turn_panel._column.find_children("*", "Label", true, false).map(func(label: Label) -> String: return label.text)
-		_check(shown.has(I18n.t("Last turn")) and app._turn_panel.find_child("ViewChangesButton", true, false) != null, "el panel de al lado muestra el último turno de s1, con Ver cambios (m21-05)")
+		_check(shown.has(I18n.t("Last turn").to_upper()) and app._turn_panel.find_child("ViewChangesButton", true, false) != null, "el panel de al lado muestra el último turno de s1, con Ver cambios (m21-05)")
 		_check(app._turn_panel._column.find_children("*", "Label", true, false).any(func(label: Label) -> bool: return label.text == "a.gd"), "con a.gd")
 		app._coordinator.claim_label(second, PackedStringArray([_project.path_join("b.gd")]))
 		await process_frame
