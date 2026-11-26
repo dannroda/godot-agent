@@ -6917,3 +6917,18 @@ msgstr "Cuentas"
 
 msgid "The agent works on the project folder with its own tools, and with the Godot editor's tools when the editor is open on it. You can add others later in Settings → Agents."
 msgstr "El agente trabaja en la carpeta del proyecto con sus propias herramientas, y con las del editor de Godot cuando está abierto en ella. Podés sumar otros después en Ajustes → Agentes."
+
+msgid "Open in a separate window"
+msgstr "Abrir en una ventana aparte"
+
+msgid "Opens the agent sessions in a window of their own, outside the editor, on this project: several at once, each with its agent and account. While the editor stays open, they use its Godot tools."
+msgstr "Abre las sesiones del agente en una ventana propia, fuera del editor, sobre este proyecto: varias a la vez, cada una con su agente y su cuenta. Mientras el editor siga abierto, usan sus herramientas de Godot."
+
+msgid "Opening the separate window… The first time it copies the harness and imports it, which takes a few seconds."
+msgstr "Abriendo la ventana aparte… La primera vez copia el harness y lo importa, y tarda unos segundos."
+
+msgid "Could not open the separate window (%s)."
+msgstr "No se pudo abrir la ventana aparte (%s)."
+
+msgid "This window was opened inside the game's project, so its autoloads (%s) run here too. Open it from the editor instead (⋯ → Open in a separate window): it uses a project of its own."
+msgstr "Esta ventana se abrió dentro del proyecto del juego, así que sus autoloads (%s) también corren acá. Mejor abrila desde el editor (⋯ → Abrir en una ventana aparte): usa un proyecto propio."

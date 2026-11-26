@@ -1,6 +1,8 @@
 extends Control
 ## El dock fuera del editor (m20-04): las mismas pestañas de sesión en una ventana propia, cada una con
 ## su agente y su cuenta. Se abre con el binario del editor, sin --editor:
+##   desde el editor, ⋯ → Abrir en una ventana aparte (AppLauncher: un proyecto propio, sin los
+##   autoloads del juego, y la carpeta por --project); o a mano,
 ##   godot --path <proyecto> res://addons/godot_agent/standalone/main.tscn [-- --project=<carpeta>]
 ## o exportada con una plantilla, sin las clases del editor (m20-07): tests/standalone_export_check.sh.
 ## Con el editor abierto en la carpeta, sus tools godot.* por el MCP de la app (m20-05, m20-06); si no, el agente usa sus tools de
@@ -35,6 +37,8 @@ const McpPublication := preload("../mcp/mcp_publication.gd")
 const StdioShimInstaller := preload("../mcp/stdio_shim_installer.gd")
 const EditorBridge := preload("editor_bridge.gd")
 const AgentTheme := preload("../ui/agent_theme.gd")
+const ProjectDirs := preload("../core/project_dirs.gd")
+const ChatEntry := preload("../session/chat_entry.gd")
 const SessionSidebar := preload("session_sidebar.gd")
 const AccountChoices := preload("../session/agents/account_choices.gd")
 const TurnPanel := preload("turn_panel.gd")
@@ -67,6 +71,8 @@ var _editor_dot: TextureRect
 var _editor_label: Label
 var _editor_open := false
 var _sidebar: SessionSidebar
+## El user:// del proyecto elegido cuando no es res:// ("" si lo es): historial y cuotas compartidos con su editor.
+var _user_dir := ""
 var _turn_panel: TurnPanel
 var _serial := 0
 
@@ -81,8 +87,11 @@ func _ready() -> void:
 	_settings.set_value(KEY_LAST_PROJECT, root)
 	get_window().title = "Godot Agent · %s" % root.get_file()
 	_log = AgentLog.new()
-	# shortcut: los permisos y reglas del proyecto se leen de res://; con --project a otra carpeta, los de por defecto.
-	_config = ProjectConfig.load_or_default() if root == ProjectSettings.globalize_path("res://").trim_suffix("/") else ProjectConfig.new()
+	# Con --project a otra carpeta (la app con su proyecto propio, m20-13), lo del usuario se lee de esa
+	# carpeta y no de res://: config, modos, recetas; el historial y las cuotas, de su user://.
+	ProjectDirs.root = root if root != ProjectSettings.globalize_path("res://").trim_suffix("/") else ""
+	_user_dir = ProjectDirs.user_dir_of(root) if not ProjectDirs.root.is_empty() else ""
+	_config = ProjectConfig.load_or_default()
 	_coordinator = SessionCoordinator.new()
 	_coordinator.is_game_running = func() -> bool: return false
 	_snapshots = TurnSnapshots.new(root)
@@ -124,6 +133,18 @@ func _ready() -> void:
 	_tabs.active_changed.connect(_turn_panel.show_session)
 	body.add_child(_turn_panel)
 	open_tab()
+	_warn_about_autoloads()
+
+
+## Abierta a mano dentro de un proyecto con autoloads (godot --path <juego> …), su código corre acá
+## (m20-13): se avisa cómo abrirla sin ellos.
+func _warn_about_autoloads() -> void:
+	var autoloads := ProjectSettings.get_property_list().filter(func(property: Dictionary) -> bool: return str(property.name).begins_with("autoload/"))
+	if autoloads.is_empty():
+		return
+	var names := ", ".join(autoloads.map(func(property: Dictionary) -> String: return str(property.name).trim_prefix("autoload/")))
+	push_warning("Godot Agent: this window runs inside a project with autoloads (%s)" % names)
+	_sessions.values()[0].model.add_notice(I18n.t("This window was opened inside the game's project, so its autoloads (%s) run here too. Open it from the editor instead (⋯ → Open in a separate window): it uses a project of its own.") % names, ChatEntry.NoticeLevel.WARNING)
 
 
 ## La barra de arriba (m21-01): el proyecto, su carpeta y si hay un editor abierto en ella.
@@ -249,9 +270,16 @@ func _describe_session(id: String) -> Dictionary:
 	return {"agent": profile.call(&"label") if profile else I18n.t("No agent"), "mode": mode}
 
 
+func _quota_book() -> AccountQuotaBook:
+	var book := AccountQuotaBook.new()
+	if not _user_dir.is_empty():
+		book.path = _user_dir.path_join("godot_agent/account_quota.json")
+	return book
+
+
 ## Las cuentas con cuota anotada (todas las sesiones anotan en el mismo archivo), para la barra lateral.
 func _account_usage() -> Array:
-	var book := AccountQuotaBook.new()
+	var book := _quota_book()
 	var result: Array = []
 	for choice: Dictionary in AccountChoices.list(_settings, null, book):
 		var seen := book.lookup(str(choice.profile_id), str(choice.account_dir))
@@ -286,7 +314,9 @@ func _make_controller(model: SessionModel, id: String) -> SessionController:
 	controller.setup(model, _log, root)
 	controller.session_key = id
 	controller.history = SessionHistory.new()
-	controller.account_quota = AccountQuotaBook.new()
+	if not _user_dir.is_empty():
+		controller.history.dir = _user_dir.path_join("godot_agent/sessions")
+	controller.account_quota = _quota_book()
 	controller.policy = PermissionPolicy.new(_config.permissions)
 	controller.policy.subagent_limits = _config.subagent_limits
 	controller.shell_rules = _config.auto_shell_rules

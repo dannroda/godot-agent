@@ -235,6 +235,7 @@ static func placeholders(text: String) -> PackedStringArray:
 
 ## Las recetas de la carpeta (`res://` o absoluta), ordenadas por título: `[{recipe, errors}]`.
 static func load_dir(dir: String) -> Array[Dictionary]:
+	dir = ProjectDirs.to_fs(dir)  # fuera del editor, de la carpeta del proyecto (m20-13)
 	var result: Array[Dictionary] = []
 	if not DirAccess.dir_exists_absolute(dir):
 		return result

@@ -5,6 +5,7 @@ extends AcceptDialog
 ## Se libera al cerrarse. Uso: `ImageViewer.open(image, "Captura", self)`, o `ImageViewer.attach()`
 ## para que un clic en una miniatura la abra.
 
+const ProjectDirs := preload("../core/project_dirs.gd")
 const AgentTheme := preload("agent_theme.gd")
 const I18n := preload("../core/i18n.gd")
 const EditorWindows := preload("editor_windows.gd")
@@ -237,7 +238,7 @@ func _ask_save() -> void:
 		_save_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 		_save_dialog.access = FileDialog.ACCESS_FILESYSTEM
 		_save_dialog.filters = PackedStringArray(["*.png ; PNG"])
-		_save_dialog.current_dir = ProjectSettings.globalize_path("res://")
+		_save_dialog.current_dir = ProjectDirs.globalize("res://")
 		_save_dialog.current_file = "screenshot.png"
 		_save_dialog.file_selected.connect(func(path: String) -> void:
 			var error := _image.save_png(path)

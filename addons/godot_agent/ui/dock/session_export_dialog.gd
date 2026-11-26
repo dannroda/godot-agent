@@ -4,6 +4,7 @@ extends ConfirmationDialog
 ## dice cuánto encontró (rutas absolutas, emails, contenido de afuera, capturas) y la vista previa
 ## cambia al marcarla. Guardar escribe en .godot_agent/reports/<fecha>-session/.
 
+const ProjectDirs := preload("../../core/project_dirs.gd")
 const SessionExport := preload("../../session/session_export.gd")
 const SessionModel := preload("../../session/session_model.gd")
 const I18n := preload("../../core/i18n.gd")
@@ -13,7 +14,7 @@ signal saved(path: String)
 
 const SHOWN_FOUND := 8
 
-var root: String = SessionExport.DIR
+var root: String = ProjectDirs.to_fs(SessionExport.DIR)  # fuera del editor, en la carpeta del proyecto (m20-13)
 var _model: SessionModel
 var _context: Dictionary = {}
 var _boxes: Dictionary = {}

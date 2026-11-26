@@ -8,6 +8,7 @@ extends ConfirmationDialog
 
 signal saved
 
+const ProjectDirs := preload("../../core/project_dirs.gd")
 const HarnessSettings := preload("../../core/harness_settings.gd")
 const ModeModels := preload("../../core/mode_models.gd")
 const I18n := preload("../../core/i18n.gd")
@@ -780,8 +781,8 @@ func _load() -> void:
 	_path_rules_check.button_pressed = _config.path_rules
 	_criteria_check.button_pressed = _config.verify_plan_criteria
 	_criteria_max_spin.value = _config.verify_plan_criteria_max
-	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
-	_hooks_editor.load_from(_config.hooks, _settings.is_command_approved, ProjectSettings.globalize_path("res://"))
+	_turn_checks_editor.load_from(_config.turn_checks, _settings.is_command_approved, ProjectDirs.globalize("res://"))
+	_hooks_editor.load_from(_config.hooks, _settings.is_command_approved, ProjectDirs.globalize("res://"))
 	_snapshots_check.button_pressed = _config.turn_snapshots
 	_github_pr_check.button_pressed = _config.github_pull_requests
 	_roots_edit.text = "\n".join(_config.extra_fs_roots)

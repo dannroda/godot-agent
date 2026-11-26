@@ -94,6 +94,7 @@ const MORE_EXPORT := 5
 const MORE_RESTART := 6
 const MORE_DIAGNOSTIC := 7
 const MORE_UPDATES := 8
+const MORE_SEPARATE_WINDOW := 9
 ## Conectando más de esto, la línea de estado explica que la primera vez se descarga el agente.
 const CONNECTING_HINT_AFTER_S := 4
 ## Sesiones anteriores en el dock vacío (m12-12).
@@ -106,6 +107,7 @@ const AgentLog := preload("../../core/agent_log.gd")
 const AgentTheme := preload("../agent_theme.gd")
 const HoverTooltip := preload("../hover_tooltip.gd")
 const EditorContext := preload("../editor_context.gd")
+const AppLauncher := preload("../../standalone/app_launcher.gd")
 const ScopeCompass := preload("../../mcp/scope_compass.gd")
 const ExportPresetsPatcher := preload("../../export/export_presets_patcher.gd")
 const ConversationView := preload("conversation_view.gd")
@@ -797,6 +799,9 @@ func _fill_more_menu() -> void:
 		popup.set_item_tooltip(popup.item_count - 1, I18n.t("Sign out of this agent's account: the next session asks you to sign in."))
 		popup.set_item_disabled(popup.item_count - 1, not ready)
 	popup.add_separator(I18n.t("Harness"))
+	if AgentTheme.has_editor():
+		popup.add_icon_item(AgentTheme.icon(&"ExternalLink"), I18n.t("Open in a separate window"), MORE_SEPARATE_WINDOW)
+		popup.set_item_tooltip(popup.item_count - 1, I18n.t("Opens the agent sessions in a window of their own, outside the editor, on this project: several at once, each with its agent and account. While the editor stays open, they use its Godot tools."))
 	popup.add_icon_item(AgentTheme.icon(&"Tools"), I18n.t("Settings…"), MORE_SETTINGS)
 	popup.add_icon_item(AgentTheme.icon(&"EditorPlugin"), I18n.t("Extensions…"), MORE_EXTENSIONS)
 	popup.set_item_tooltip(popup.item_count - 1, I18n.t("Extensions: plugins, marketplaces and MCP servers"))
@@ -829,7 +834,23 @@ func _on_more_selected(id: int) -> void:
 			open_diagnostic_dialog()
 		MORE_UPDATES:
 			updates_requested.emit()
+		MORE_SEPARATE_WINDOW:
+			open_separate_window()
 
+
+
+## La app aparte sobre este proyecto (m20-13), con su propio proyecto para que no corran los autoloads
+## del juego. Copiar el addon e importarlo la primera vez tarda: va en un hilo.
+func open_separate_window() -> void:
+	_model.add_notice(I18n.t("Opening the separate window… The first time it copies the harness and imports it, which takes a few seconds."))
+	var project := EditorContext.project_path()
+	var thread := Thread.new()
+	thread.start(func() -> Error: return AppLauncher.launch(project))
+	while thread.is_alive():
+		await get_tree().process_frame
+	var error: Error = thread.wait_to_finish()
+	if error != OK:
+		_model.add_notice(I18n.t("Could not open the separate window (%s).") % error_string(error), ChatEntry.NoticeLevel.ERROR)
 
 
 ## «Copy diagnostic report…» (m11-80): la vista previa; «Copiar» lo deja en el portapapeles.
